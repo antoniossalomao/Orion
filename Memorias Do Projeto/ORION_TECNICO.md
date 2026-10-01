@@ -116,20 +116,19 @@ Python 3.12 **global** (sem venv; `venv_embed` aposentado em 30/06). torch
 | Módulo | Papel |
 |---|---|
 | `cerebro_maestro.py` | Entrypoint: estado compartilhado, CORS, mount `/imagens` (`/ui` e `/ui-novo` só montam se o build do v2/v3 existir — não existe mais), wiring dos routers, MCP |
-| `config.py` | Portas, URLs, model IDs, `AUTH_*` |
+| `config.py` | Portas, URLs, model IDs, limites |
 | `llm_cascade.py` | `LLMCascade` — streaming (`/chat`) e batch (`run()`, agentes) por provedor |
 | `rag_engine.py` | `RAGEngine` — `search()`, `record_event()`, `search_graph()`, utilitários de texto |
 | `session_manager.py` | `SessionManager` — histórico, sessão ativa, briefing, contador de turnos (com locks) |
 | `proactive_loop.py` | `ProactiveLoop` — lembretes, agendamentos, processos bg, enxames, self-healing, shadow thoughts, reconciliação |
 | `surreal_client.py`, `logger.py` | Cliente SurrealDB único; logger com `atexit` |
-| `routers/` | Montados: `system`, `sessions`, `memory`, `agents` (só `/enxame*`), `misc`, `chat`. `auth`, `gateway`, `tools`, `logs`, `models_hub` e `prompts` foram desmontados em 01/10/2026 (sem cliente) |
+| `routers/` | `system`, `sessions`, `memory`, `agents` (só `/enxame*`), `misc`, `chat`. `auth`, `gateway`, `tools`, `logs`, `models_hub` e `prompts` foram apagados em 01/10/2026 (sem cliente) |
 | `models/` | Schemas Pydantic por domínio |
-| `utils/` | `auth.py` (`PasswordHasher`, `JWTManager`, `UserRepository`), `secrets.py` — sem uso desde 01/10/2026 |
 | `tools/` | 16 módulos por domínio + `_lazy.py`/`_shared.py`; `orion_tools.py` é shim |
 
 Nomes antigos → novos: globals de sessão → `SessionManager`; `buscar_hibrido`/
-`registrar_evento`/`buscar_grafo_surreal` → métodos de `RAGEngine` (wrappers com o
-nome antigo mantidos); `_stream_*` → wrappers sobre `LLMCascade`.
+`registrar_evento`/`buscar_grafo_surreal` → métodos de `RAGEngine` (só o wrapper
+`registrar_evento` continua); `_stream_*` → wrappers sobre `LLMCascade`.
 
 ### 3.2 Cascata e roteamento
 
@@ -186,8 +185,8 @@ Todo dispatch de ferramenta passa por `_executar_tool_segura()`:
 
 1. **Rate limit** (`orion_seguranca.checar_rate_limit`, deque + lock): `executar_comando`
    20/5min · `iniciar_processo_bg` 5/5min · `escrever_arquivo` 30/60s ·
-   `organizar_pasta` 3/5min · `criar_ferramenta` 5/10min ·
-   `consultar_especialista` 3/10min · `navegar_web` 10/5min.
+   `organizar_pasta` 3/5min · `consultar_especialista` 3/10min ·
+   `navegar_web` 10/5min.
 2. **Câmara de Eco Heurística** (`avaliar_risco_acao`, sem LLM): avalia só
    `executar_comando`/`iniciar_processo_bg` (deleção recursiva, `\bformat\s+[a-z]:`,
    `reg delete`, shutdown, `net user /delete`, kill forçado, download+execução,
@@ -200,18 +199,16 @@ Todo dispatch de ferramenta passa por `_executar_tool_segura()`:
    "fantasma" que expira sozinho.
 3. **Audit log** (`audit_log` no SurrealDB, buffer + thread de flush a cada 5s;
    `tool_filtro` validado por regex).
-4. **Keyring** (Windows Credential Manager): migra só `GROQ_API_KEY`,
-   `GEMINI_API_KEY`, `TELEGRAM_BOT_TOKEN`, `ANTHROPIC_API_KEY`; demais chaves ficam
-   no `.env`. `migrar_chaves_para_keyring()` fora do `TOOLS_MAP` (admin).
-5. **Self-healing** no loop proativo a cada ~5min: SurrealDB, Qdrant, embed_service,
+4. **Self-healing** no loop proativo a cada ~5min: SurrealDB, Qdrant, embed_service,
    Ollama (via `asyncio.to_thread`; não checa o próprio FastAPI).
 
 CORS: `allow_origins=["null", "http://127.0.0.1:8000", "http://localhost:8000"]`,
 `allow_credentials=False`. `"null"` é exigido pelo pywebview do v1.
 
-Auth (desmontado em 01/10/2026, sem cliente): PBKDF2-SHA256 (stdlib, 260k
+Auth (apagado em 01/10/2026, sem cliente): era PBKDF2-SHA256 (stdlib, 260k
 iterações), JWT HS256, cookie httpOnly `samesite=lax`, 30 dias, secret em
-`AUTH_JWT_SECRET`. A lógica é portada na fase 5 do NUCLEO.
+`AUTH_JWT_SECRET`. Código em `utils/auth.py` no repositório Lyra, para portar na
+fase 5 do NUCLEO.
 
 ## 4. Memória e RAG
 
@@ -310,13 +307,13 @@ avaliação em pytest sobre a memória pessoal.
 (`asyncio.Semaphore`, `max_paralelo=2` default, nunca >3; timeout 120s por
 subtarefa; recusa com GPU >85% ou VRAM livre <1.5GB). Tabelas `enxame` e
 `subtarefa` (`pendente|rodando|concluida|erro`). Denylist `TOOLS_BLOQUEADAS`:
-execução de comando, escrita, `criar_ferramenta`, processos bg, agendamentos,
+execução de comando, escrita, processos bg, agendamentos,
 `salvar_memoria`, notificações, `consultar_especialista`, `*_enxame`. Loop proativo
 consolida e notifica enxames concluídos.
 
-**ReAct (`orion_agent.py`, sem rota desde 01/10/2026)** — `executar_agente(objetivo, max_iteracoes,
-ferramentas_bloqueadas)` via `LLMCascade.run()`, mesma denylist, persiste em
-`agente_run`. `--self-test` (3 casos) passa nos 3 andares, incluindo o local.
+**ReAct (`orion_agent.py`, apagado em 01/10/2026)** — `executar_agente(objetivo,
+max_iteracoes, ferramentas_bloqueadas)` via `LLMCascade.run()`, mesma denylist,
+persistia em `agente_run`.
 
 ## 6. Voz, visão e integrações
 
@@ -332,7 +329,7 @@ ferramentas_bloqueadas)` via `LLMCascade.run()`, mesma denylist, persiste em
   `moondream` descartado.
 - **`navegar_web`** (`orion_browser.py`): browser-use 0.13.1 com
   `browser_use.llm.google.chat.ChatGoogle` (`gemini-2.5-flash`; o 2.0 tem quota zero).
-- **Telegram** (`orion_telegram.py`): consome `/chat` via SSE; default-deny sem allowlist.
+- **Telegram** (`orion_telegram.py`): só texto, consome `/chat` via SSE; default-deny sem allowlist.
 - **Google Workspace** (`orion_google_workspace.py`): Gmail + Calendar via OAuth2.
 - **`gerar_imagem`**: Pollinations.ai (Flux, sem key).
 - **Clima**: wttr.in (default Marília-SP).

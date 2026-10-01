@@ -11,7 +11,7 @@ Cada sub-tarefa roda com cascata Groq Llama 70B → Gemini 2.5 Flash isolada,
 com acesso a QUASE TODAS as ferramentas do orion_tools — exceto uma denylist de
 operações destrutivas/auto-modificantes/recursivas (TOOLS_BLOQUEADAS), perigosas
 em agentes autônomos rodando em paralelo (PowerShell, escrita de arquivo, spawn
-de processos, criar_ferramenta, criar enxames, etc.).
+de processos, criar enxames, etc.).
 Concorrência limitada por asyncio.Semaphore(max_paralelo).
 """
 
@@ -32,7 +32,7 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 # Critério de bloqueio (perigoso em agente autônomo paralelo):
 #   - execução de código/comando arbitrário e abertura de apps
 #   - mutação do sistema de arquivos (escrita/organização) e do clipboard
-#   - auto-modificação (criar_ferramenta) e jobs pesados (backup)
+#   - jobs pesados (backup)
 #   - spawn de processos/vigilâncias/agendamentos em background
 #   - escrita em stores que poluem (salvar_memoria, registrar_numero)
 #   - notificações (evita spam vindo de N subtarefas)
@@ -41,7 +41,7 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 TOOLS_BLOQUEADAS = {
     "executar_comando", "abrir_app",
     "escrever_arquivo", "organizar_pasta", "escrever_clipboard", "controlar_midia",
-    "criar_ferramenta", "backup_memoria",
+    "backup_memoria",
     "iniciar_vigilancia_pasta", "parar_vigilancia_pasta",
     "iniciar_processo_bg", "gerenciar_agendamentos",
     "salvar_memoria", "registrar_numero",

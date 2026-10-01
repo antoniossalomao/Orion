@@ -2,7 +2,6 @@
 orion_seguranca.py — Módulo central de segurança da Lyra
 - Audit log imutável (append-only no SurrealDB)
 - Rate limiter por ferramenta
-- Gestão de chaves via Windows Credential Manager (keyring)
 """
 
 import json
@@ -25,7 +24,6 @@ _RATE_LIMITS: dict[str, tuple[int, int]] = {
     "iniciar_processo_bg":   (5,  300),   # 5 por 5min
     "escrever_arquivo":      (30, 60),    # 30 por minuto
     "organizar_pasta":       (3,  300),   # 3 por 5min
-    "criar_ferramenta":      (5,  600),   # 5 por 10min
     "consultar_especialista":(3,  600),   # 3 por 10min
     "navegar_web":           (10, 300),   # 10 por 5min
 }
@@ -66,10 +64,9 @@ def checar_rate_limit(nome_tool: str) -> tuple[bool, str]:
 
 # ── Câmara de Eco Heurística (avaliação de risco pré-execução) ──────────────
 # Item do roadmap (ORION_TECNICO.md §3.4), implementado 02/07/2026. V1 é heurística
-# por padrões (regex/substring), sem chamada de LLM — mesmo estilo já usado em
-# criar_ferramenta() (varredura de padrões de risco) e no roteador de intenção
-# (_TOOL_KEYWORDS_RE). NÃO expor essas funções em TOOLS_MAP/TOOLS_SCHEMA — é
-# infraestrutura de segurança transparente, mesmo padrão de aprovar_ferramenta_ext.
+# por padrões (regex/substring), sem chamada de LLM — mesmo estilo do roteador de
+# intenção (_TOOL_KEYWORDS_RE). NÃO expor essas funções em TOOLS_MAP/TOOLS_SCHEMA
+# — é infraestrutura de segurança transparente.
 
 _DIRS_TRABALHO_SEGUROS = [
     r"c:\orion",
@@ -241,128 +238,6 @@ def consultar_audit(limite: int = 50, tool_filtro: str = "", apenas_bloqueados: 
         if not isinstance(registros, list):
             registros = []
         return {"ok": True, "total": len(registros), "registros": registros}
-    except Exception as e:
-        return {"ok": False, "erro": str(e)}
-
-
-# ── Windows Credential Manager (keyring) ─────────────────────────────────────
-
-_KEYRING_SERVICE = "Lyra"
-_CHAVES_CONHECIDAS = ["GROQ_API_KEY", "GEMINI_API_KEY", "TELEGRAM_BOT_TOKEN", "ANTHROPIC_API_KEY"]
-
-
-def migrar_chaves_para_keyring() -> dict:
-    """
-    Lê as API keys do .env atual e as move para o Windows Credential Manager
-    (keyring). Depois sobrescreve o .env deixando só comentários e variáveis
-    vazias — as chaves reais ficam no Credential Manager, protegidas pelo
-    login do Windows.
-
-    Uso único (ou pra re-migrar se adicionar chave nova). Após isso,
-    carregar_chaves_do_keyring() no startup do cerebro_maestro injeta as
-    chaves no os.environ sem precisar do .env.
-    """
-    try:
-        import keyring
-        import pathlib
-
-        env_path = pathlib.Path(__file__).parent / ".env"
-        if not env_path.exists():
-            return {"ok": False, "erro": ".env não encontrado"}
-
-        linhas = env_path.read_text(encoding="utf-8").splitlines()
-        migradas = []
-        nao_migradas = []  # chaves fora de _CHAVES_CONHECIDAS: preservadas em texto no .env, não perdidas
-
-        for linha in linhas:
-            linha_stripped = linha.strip()
-            if not linha_stripped or linha_stripped.startswith("#"):
-                continue
-            if "=" not in linha_stripped:
-                continue
-            chave, _, valor = linha_stripped.partition("=")
-            chave = chave.strip()
-            valor = valor.strip()
-            if not valor:
-                continue
-
-            # Só migra pro keyring o que também é restaurado por
-            # carregar_chaves_do_keyring() (_CHAVES_CONHECIDAS). Bug real
-            # corrigido 02/07/2026: antes migrava QUALQUER chave do .env
-            # (inclusive TELEGRAM_ALLOWED_USERS) mas só restaurava as 4
-            # conhecidas — qualquer chave fora dessa lista era apagada do
-            # .env e nunca mais recuperada (achado: silenciosamente abria o
-            # bot do Telegram pra qualquer usuário, já que ALLOWED_USERS
-            # virava vazio). Agora chaves desconhecidas ficam de fora do
-            # keyring e são preservadas como estavam no .env reescrito.
-            if chave in _CHAVES_CONHECIDAS:
-                keyring.set_password(_KEYRING_SERVICE, chave, valor)
-                migradas.append(chave)
-            else:
-                nao_migradas.append((chave, valor))
-
-        # Sobrescreve .env deixando só comentários (sem valores reais) pras
-        # chaves migradas + as não-migradas preservadas com seus valores originais.
-        novo_env = (
-            "# Chaves conhecidas migradas para o Windows Credential Manager.\n"
-            "# Use orion_seguranca.carregar_chaves_do_keyring() no startup.\n"
-            "# Para rever/editar: Painel de Controle > Gerenciador de Credenciais.\n\n"
-        )
-        for chave in _CHAVES_CONHECIDAS:
-            novo_env += f"{chave}=\n"
-        if nao_migradas:
-            novo_env += "\n# Chaves não migradas (fora de _CHAVES_CONHECIDAS) — preservadas como estavam:\n"
-            for chave, valor in nao_migradas:
-                novo_env += f"{chave}={valor}\n"
-        env_path.write_text(novo_env, encoding="utf-8")
-
-        return {
-            "ok": True,
-            "migradas": migradas,
-            "nao_migradas": [c for c, _ in nao_migradas],
-            "aviso": "Chaves conhecidas removidas do .env e salvas no Credential Manager. "
-                     "Chaves fora de _CHAVES_CONHECIDAS foram preservadas em texto no .env. "
-                     "Reinicie o cerebro_maestro.",
-        }
-    except ImportError:
-        return {"ok": False, "erro": "keyring não instalado. Execute: pip install keyring"}
-    except Exception as e:
-        return {"ok": False, "erro": str(e)}
-
-
-def carregar_chaves_do_keyring() -> dict:
-    """
-    Carrega as API keys do Windows Credential Manager e injeta em os.environ.
-    Chamar no startup do cerebro_maestro ANTES de qualquer import que precise
-    das chaves.
-    """
-    import os
-    try:
-        import keyring
-    except ImportError:
-        return {"ok": False, "erro": "keyring não instalado"}
-
-    carregadas = []
-    for chave in _CHAVES_CONHECIDAS:
-        valor = keyring.get_password(_KEYRING_SERVICE, chave)
-        if valor:
-            os.environ[chave] = valor
-            carregadas.append(chave)
-
-    return {"ok": True, "carregadas": carregadas}
-
-
-def listar_chaves_keyring() -> dict:
-    """Lista quais chaves existem no Credential Manager (sem mostrar os valores)."""
-    try:
-        import keyring
-        existentes = []
-        for chave in _CHAVES_CONHECIDAS:
-            val = keyring.get_password(_KEYRING_SERVICE, chave)
-            existentes.append({"chave": chave, "configurada": bool(val)})
-        return {"ok": True, "chaves": existentes}
-    except ImportError:
-        return {"ok": False, "erro": "keyring não instalado"}
     except Exception as e:
         return {"ok": False, "erro": str(e)}
 

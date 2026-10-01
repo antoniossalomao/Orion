@@ -131,22 +131,20 @@ O que existe hoje e o destino de cada peça. "Fase" = quando é substituído e a
 | Legado | Destino | Fase |
 |---|---|---|
 | `cerebro_maestro.py`, `routers/`, `models/` | Reescrever como app FastAPI com lifespan e injeção de dependências; portar chat, sessões, prompts, logs, sistema | 1–2 |
-| `config.py`, `logger.py`, `utils/secrets.py`, `test_smoke.py`, `requirements.txt` | pydantic-settings + keyring, logging padrão, pytest, `pyproject` | 1 |
-| `routers/gateway.py` (WS de leitura) | Apagar | 1 |
+| `config.py`, `logger.py`, `test_smoke.py`, `requirements.txt` | pydantic-settings + keyring, logging padrão, pytest, `pyproject` | 1 |
 | `llm_cascade.py` (4 formatos de API) | Apagar — OmniRoute | 2 |
 | Andar Claude CLI / `consultar_especialista` | Generalizar para Claude Code, Codex e Gemini CLI | 2 |
 | Draft do spec-decoding, roteamento MoE por regex | Apagar | 2 |
-| `routers/models_hub.py` | Apagar | 2 |
-| `orion_agent.py` (ReAct), `orion_agentes.py` (enxame) | Apagar — o agente vira o núcleo; tarefa grande vai para as CLIs | 2 |
+| `orion_agentes.py` (enxame) | Apagar — o agente vira o núcleo; tarefa grande vai para as CLIs | 2 |
 | `rag_engine.py`, `bm25_index.py`, `surreal_client.py`, `reconciliar_episodios.py`, `embed_service.py`, Qdrant, SurrealDB | Apagar — memória nova em SQLite | 3 |
 | `session_manager.py` | Portar a lógica | 3 |
 | `orion_shadow_thoughts.py` | Reescrever como consolidação da memória (job) | 3 |
 | `proactive_loop.py` | Reescrever como agendador (lembretes, consolidação, backup); self-healing de bancos deixa de existir | 3–4 |
-| `tools/` (58 ferramentas) | Triagem: o que um servidor MCP pronto já faz sai; o resto vai para `orion-desktop` multiplataforma | 4 |
-| `orion_seguranca.py` (rate limit, Câmara de Eco, audit, keyring) | Portar como política de ferramentas | 4 |
+| `tools/` (55 ferramentas) | Triagem: o que um servidor MCP pronto já faz sai; o resto vai para `orion-desktop` multiplataforma | 4 |
+| `orion_seguranca.py` (rate limit, Câmara de Eco, audit) | Portar como política de ferramentas | 4 |
 | `orion_browser.py`, `orion_google_workspace.py` | Servidores MCP (navegador, Google) | 4 |
 | `orion_telegram.py` | Reescrever como canal principal do celular | 5 |
-| `routers/auth.py`, `utils/auth.py` | Portar | 5 |
+| Login (PBKDF2 + JWT, `utils/auth.py` no repositório Lyra) | Portar | 5 |
 | `bin/startup/*.bat`, `orion_boot.vbs` | Apagar — um comando só e autostart por SO | 5 |
 | `orion_voice_live.py`, `audio_manager.py`, `mic_engine.py`, `commands.py` | Voz nova (masculina, palavra de ativação "Orion") | 6 |
 | Frontend v1 (pywebview + Three.js), `dashboard.html` | Decidir na fase de interface | 6 |
@@ -156,7 +154,12 @@ v3 (SvelteKit + Tauri), scripts de ingestão e
 vetorização dos datasets, `ingest_webdocs.py`, `build_bm25_index.py`,
 `validador_cortical.py`, `calibrar_pesos_rag.py`, `Modelfile`, `Modelfile_mini`,
 `webcam.py`, `lyra_launcher.py`, PDF e gerador do Gênesis, screenshots, mockups.
-Tudo continua no repositório Lyra.
+Em 01/10, o que estava sem cliente: rotas e routers `auth`, `gateway`, `tools`,
+`logs`, `models_hub` e `prompts`, `utils/`, `orion_agent.py` (ReAct),
+`tools/_registry.py`, `start_screenpipe.bat`, dependências sem import, e o que
+nunca funcionava: keyring (pacote não instalado), auto-extensão
+(`criar_ferramenta`, cujas ferramentas nunca eram executadas) e foto no Telegram
+(chamava uma rota inexistente). Tudo continua no repositório Lyra.
 
 ## 6. Fases
 
@@ -206,6 +209,7 @@ Tudo continua no repositório Lyra.
 | 01/10/2026 | Assinaturas (Claude, Gemini, Codex) só pelos programas oficiais | Token extraído dá banimento; termos da Anthropic mudaram 3 vezes em 2026 |
 | 01/10/2026 | Modelo local pequeno só como último recurso | Funcionar sem internet/cota |
 | 01/10/2026 | Plano refeito do zero (este documento); nada codado antes da aprovação | Pedido do usuário |
+| 01/10/2026 | Código, rotas e dependências do legado sem uso apagados (sem cliente desde a saída do v2/v3) | Pedido do usuário |
 
 ## 9. Visão de longo prazo (conceitual)
 

@@ -74,7 +74,6 @@ python -m pip install -r requirements.txt   # inclui torch 2.6+cu124 (bge-m3)
 |---|---|
 | `GROQ_API_KEY`, `GEMINI_API_KEY` | Obrigatórias para a cascata de chat |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ALLOWED_USERS` | Opcionais, bot Telegram (sem allowlist o bot recusa iniciar) |
-| `AUTH_JWT_SECRET` | Segredo do JWT de login (Lyra 2.0); default só serve para dev |
 
 ## Como subir
 
@@ -117,12 +116,9 @@ Os front-ends v2 (React) e v3 (SvelteKit + Tauri) foram removidos em 30/09/2026
    API e Calendar API → credencial OAuth "Aplicativo para computador" → salvar
    em `Orion_Core/google_auth/credentials.json` → rodar uma vez
    `python Orion_Ollama/orion_google_workspace.py` (gera `token.json`).
-3. **Screenpipe** (gravação contínua de tela, MCP em `:3030`) —
-   `npm install -g @screenpipe/cli`, subir com `bin\startup\start_screenpipe.bat`,
-   depois adicionar ao `orion_boot.vbs`.
-4. **Atualizar SurrealDB** (Lyra parada, PowerShell admin) —
+3. **Atualizar SurrealDB** (Lyra parada, PowerShell admin) —
    `winget upgrade SurrealDB.SurrealDB --accept-source-agreements --accept-package-agreements`.
-5. **MCP da Lyra no Claude Code** — em `~/.claude/settings.json`:
+4. **MCP da Lyra no Claude Code** — em `~/.claude/settings.json`:
    `{"mcpServers": {"lyra": {"url": "http://127.0.0.1:8000/mcp"}}}`.
 
 `navegar_web` (Playwright Chromium) já está instalado e funcional.
@@ -143,18 +139,18 @@ vetores, telemetria da cascata).
 ```
 Orion_Ollama/                  # backend
   cerebro_maestro.py            # entrypoint FastAPI :8000 — estado compartilhado + wiring dos routers
-  routers/ · models/ · utils/   # endpoints por domínio, schemas Pydantic, auth/segredos
+  routers/ · models/            # endpoints por domínio, schemas Pydantic
   config.py                     # portas, URLs, model IDs
   llm_cascade.py                # cascata Groq → Gemini → Claude(CLI) → Ollama
   rag_engine.py                 # RAG híbrido + grafo + persistência de eventos
   session_manager.py            # histórico, sessões, briefing
   proactive_loop.py             # loop proativo (lembretes, self-healing, shadow thoughts, reconciliação)
   surreal_client.py · logger.py
-  tools/                        # 58 ferramentas por domínio (orion_tools.py = shim)
+  tools/                        # 55 ferramentas por domínio (orion_tools.py = shim)
   embed_service.py              # BGE-M3 + reranker :8001
-  orion_agent.py · orion_agentes.py        # ReAct autônomo · enxame paralelo
+  orion_agentes.py               # enxame paralelo de sub-agentes
   orion_shadow_thoughts.py       # ciclo de sono NREM/REM/DEEP
-  orion_seguranca.py             # rate limit, câmara de eco, audit, keyring, self-healing
+  orion_seguranca.py             # rate limit, câmara de eco, audit, self-healing
   orion_browser.py · orion_google_workspace.py · orion_telegram.py · orion_voice_live.py
   bm25_index.py · reconciliar_episodios.py · test_smoke.py
 Orion_Core/                    # front-end v1, voz, sentidos, memória bruta
@@ -165,7 +161,7 @@ Memorias Do Projeto/          # ORION_NUCLEO.md (plano do Orion), ORION_TECNICO.
 ```
 
 **Fora do git (runtime):** `Orion_Core/Sons/cache/`, `Orion_Ollama/telemetria*`,
-`Orion_Ollama/orion_tools_ext/`, checkpoints de ingestão, `.env`, credenciais OAuth,
+checkpoints de ingestão, `.env`, credenciais OAuth,
 `qdrant_data/`, `db_cortex/`, `bm25s_index*/`, `.claude/settings.local.json`.
 
 ---

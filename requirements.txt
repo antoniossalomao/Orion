@@ -63,7 +63,6 @@ GPUtil==1.4.0                 # telemetria de GPU (fallback quando nvidia-smi n�
 pyperclip==1.11.0             # ler/escrever clipboard
 watchdog==6.0.0               # vigilância de pastas
 winotify==1.1.0               # notificações nativas do Windows
-keyring                        # opcional, NÃO instalado ainda — migração de API keys pro Windows Credential Manager (orion_seguranca.py, feature não ativada)
 
 # ── Desktop ─────────────────────────────────────────────────────────────
 pywebview==6.2.1              # janela frameless (orion_app.py)
