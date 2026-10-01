@@ -1,13 +1,14 @@
 """
 routers/sessions.py — endpoints de histórico e sessões de conversa.
 
-Extraído de cerebro_maestro.py na reorganização OOP (Lyra 2.0). Comportamento
+Extraído de cerebro_maestro.py na reorganização OOP (08/2026). Comportamento
 idêntico ao original — só move código de lugar, não muda lógica.
 """
 import json
 
 from fastapi import APIRouter
 
+from config import ATORES_ASSISTENTE
 from models.sessions import SessaoAtivar
 
 
@@ -49,7 +50,7 @@ class SessionsRouter:
         except Exception as e:
             return {"erro": f"Falha ao ler sessão: {e}", "total": 0, "mensagens": []}
         mensagens = [
-            {"role": "assistant" if ev.get("ator", "").lower() == "lyra" else "user",
+            {"role": "assistant" if ev.get("ator", "").lower() in ATORES_ASSISTENTE else "user",
              "content": ev.get("texto", ""), "timestamp": ev.get("timestamp", "")}
             for ev in eventos
         ]
@@ -92,7 +93,7 @@ class SessionsRouter:
 
     async def sessao_nova(self):
         """Cria uma nova sessão de conversa e a torna ativa. O histórico em
-        memória é zerado — a Lyra começa a conversa limpa (SurrealDB/Qdrant
+        memória é zerado — o Orion começa a conversa limpa (SurrealDB/Qdrant
         seguem intactos, memória de longo prazo continua via RAG)."""
         return await self._session.new_session()
 

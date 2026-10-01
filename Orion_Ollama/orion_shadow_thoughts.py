@@ -1,6 +1,6 @@
 """
 orion_shadow_thoughts.py — Item 5
-Ciclo de sono da Lyra: processamento offline de memórias em background.
+Ciclo de sono do Orion: processamento offline de memórias em background.
 
 Fases:
   NREM — deduplica memórias semanticamente próximas no Qdrant (cosseno > 0.95)
@@ -223,7 +223,7 @@ async def fase_deep():
         create_q = (
             f"CREATE evento SET "
             f"texto = {json.dumps(resumo, ensure_ascii=False)}, "
-            f"ator = 'lyra_deep_sleep', "
+            f"ator = 'orion_deep_sleep', "
             f"timestamp = '{ts_inicio}', "
             f"tipo = 'resumo', "
             f"semana = '{semana}', "

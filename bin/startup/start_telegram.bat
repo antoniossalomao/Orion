@@ -1,9 +1,9 @@
 @echo off
-REM Lyra Telegram Bot — polling bidirecional com o Telegram
+REM Orion Telegram Bot — polling bidirecional com o Telegram
 REM Requer TELEGRAM_BOT_TOKEN no .env (obter com @BotFather)
 
 REM Verifica se já está rodando
-tasklist /FI "IMAGENAME eq python.exe" /FI "WINDOWTITLE eq Lyra_Telegram*" 2>nul | find "python.exe" >nul
+tasklist /FI "IMAGENAME eq python.exe" /FI "WINDOWTITLE eq Orion_Telegram*" 2>nul | find "python.exe" >nul
 if %ERRORLEVEL% EQU 0 (
     echo Bot Telegram ja esta rodando.
     exit /b 0
@@ -17,7 +17,7 @@ if "%TOKEN%"=="" (
     exit /b 1
 )
 
-title Lyra_Telegram
+title Orion_Telegram
 "C:\Users\anton\AppData\Local\Programs\Python\Python312\python.exe" ^
     "C:\Orion\Orion_Ollama\orion_telegram.py" ^
     >> "C:\Orion\bin\startup\telegram_startup.log" 2>&1

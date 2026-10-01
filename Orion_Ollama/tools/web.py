@@ -93,7 +93,7 @@ def buscar_url(url: str, max_chars: int = 6000) -> dict:
     try:
         import requests
         from bs4 import BeautifulSoup
-        r = requests.get(url, timeout=15, headers={"User-Agent": "Mozilla/5.0 (LyraBot)"})
+        r = requests.get(url, timeout=15, headers={"User-Agent": "Mozilla/5.0 (OrionBot)"})
         r.raise_for_status()
         soup = BeautifulSoup(r.content, "html.parser")
         for tag in soup(["script", "style", "noscript"]):
@@ -116,7 +116,7 @@ def consultar_clima(cidade: str = "Marilia") -> dict:
         # wttr.in com ?format=j1 devolve JSON estruturado (atual + 3 dias)
         r = requests.get(
             f"https://wttr.in/{requests.utils.quote(cidade)}?format=j1&lang=pt",
-            timeout=15, headers={"User-Agent": "curl/8.0 (LyraBot)"},
+            timeout=15, headers={"User-Agent": "curl/8.0 (OrionBot)"},
         )
         r.raise_for_status()
         d = r.json()

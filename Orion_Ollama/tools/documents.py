@@ -146,7 +146,7 @@ def gerar_documento(tipo: str, conteudo: str, path: str,
         return {"erro": str(e)}
 
 def ler_documento(path: str) -> dict:
-    """Extrai texto de PDF, DOCX, TXT/MD/CSV pra Lyra conseguir 'ler' documentos
+    """Extrai texto de PDF, DOCX, TXT/MD/CSV pra Orion conseguir 'ler' documentos
     que o usuário apontar (complementa gerar_documento, que só escreve)."""
     try:
         p = pathlib.Path(path)
@@ -267,26 +267,23 @@ def transcrever_audio(path: str) -> dict:
         return {"erro": str(e), "ok": False}
 
 def traduzir_texto(texto: str, idioma_destino: str = "en") -> dict:
-    """Traduz um texto usando o próprio modelo Ollama local 'Lyra' — sem
-    depender de nenhuma API externa de tradução."""
+    """Traduz um texto via Gemini (mesma GEMINI_API_KEY do resto do Orion)."""
+    gemini_key = os.environ.get("GEMINI_API_KEY")
+    if not gemini_key:
+        return {"erro": "GEMINI_API_KEY não configurada.", "ok": False}
     try:
-        from ollama import Client
-        c = Client(host="http://127.0.0.1:11434")
-        res = c.chat(
-            model="Lyra",
-            messages=[
-                {"role": "system", "content": (
-                    f"Você é um tradutor. Traduza o texto do usuário para o idioma "
-                    f"'{idioma_destino}'. Responda APENAS com a tradução, sem comentários, "
-                    f"explicações ou aspas extras.")},
-                {"role": "user", "content": texto},
-            ],
+        from google import genai
+        client = genai.Client(api_key=gemini_key)
+        resp = client.models.generate_content(
+            model="gemini-3.5-flash",
+            contents=(f"Traduza o texto abaixo para o idioma '{idioma_destino}'. "
+                      f"Responda APENAS com a tradução, sem comentários, explicações "
+                      f"ou aspas extras.\n\n---\n{texto}"),
         )
-        traducao = res["message"]["content"].strip()
+        traducao = resp.text.strip()
         return {"ok": True, "original": texto, "idioma_destino": idioma_destino, "traducao": traducao}
     except Exception as e:
         return {"erro": str(e), "ok": False}
-
 
 SCHEMA = [
         {

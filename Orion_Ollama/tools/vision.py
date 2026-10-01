@@ -46,11 +46,9 @@ def capturar_tela(ocr: bool = True, monitor: int = 1) -> dict:
 
 def explicar_tela(pergunta: str = "") -> dict:
     """
-    Tira um print da tela e descreve o conteúdo visual. Tenta Gemini 2.5
-    Flash (visão multimodal, muito mais preciso) primeiro; se a API falhar
-    (sem internet/sem cota), cai pro llava-phi3 local (~2.9GB, sobe na VRAM
-    só pra essa chamada e descarrega na hora — keep_alive=0). Diferente de
-    capturar_tela (que só faz OCR de texto), isso entende imagem/ícone/jogo.
+    Tira um print da tela e descreve o conteúdo visual via Gemini (visão
+    multimodal). Diferente de capturar_tela (que só faz OCR de texto), isso
+    entende imagem/ícone/jogo.
     """
     try:
         captura = capturar_tela(ocr=False)
@@ -60,38 +58,21 @@ def explicar_tela(pergunta: str = "") -> dict:
         texto_pergunta = pergunta.strip() or "Descreva detalhadamente o que aparece nesta tela."
 
         gemini_key = os.environ.get("GEMINI_API_KEY")
-        if gemini_key:
-            try:
-                from google import genai
-                from google.genai import types
-                client = genai.Client(api_key=gemini_key)
-                with open(captura["path"], "rb") as f:
-                    img_bytes = f.read()
-                resp = client.models.generate_content(
-                    model="gemini-3.5-flash",
-                    contents=[
-                        types.Part.from_bytes(data=img_bytes, mime_type="image/png"),
-                        texto_pergunta,
-                    ],
-                )
-                return {"ok": True, "descricao": resp.text, "screenshot": captura["path"], "via": "gemini"}
-            except Exception as e:
-                # Antes: exceção descartada em silêncio — se o Gemini quebrasse
-                # (nome de modelo errado, cota, rede), a degradação pro llava-phi3
-                # nunca aparecia em lugar nenhum. Acabamos de achar exatamente
-                # esse tipo de bug hoje (modelo Gemini errado em outra função).
-                print(f"[explicar_tela] Gemini Vision falhou, caindo para llava-phi3 local: {e}")
-
-        from ollama import Client
-        c = Client(host='http://127.0.0.1:11434')
+        if not gemini_key:
+            return {"erro": "GEMINI_API_KEY não configurada.", "ok": False}
+        from google import genai
+        from google.genai import types
+        client = genai.Client(api_key=gemini_key)
         with open(captura["path"], "rb") as f:
             img_bytes = f.read()
-        res = c.chat(
-            model="llava-phi3",
-            messages=[{"role": "user", "content": texto_pergunta, "images": [img_bytes]}],
-            keep_alive=0,
+        resp = client.models.generate_content(
+            model="gemini-3.5-flash",
+            contents=[
+                types.Part.from_bytes(data=img_bytes, mime_type="image/png"),
+                texto_pergunta,
+            ],
         )
-        return {"ok": True, "descricao": res["message"]["content"], "screenshot": captura["path"], "via": "local"}
+        return {"ok": True, "descricao": resp.text, "screenshot": captura["path"], "via": "gemini"}
     except Exception as e:
         return {"erro": str(e), "ok": False}
 

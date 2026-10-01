@@ -15,7 +15,7 @@ from typing import Callable
 
 import bm25_index
 
-from config import QDRANT_COLLECTION
+from config import QDRANT_COLLECTION, ATORES_ASSISTENTE
 from surreal_client import SurrealClient
 
 # ── Text utilities (shared with cerebro_maestro) ─────────────────────────────
@@ -58,7 +58,7 @@ def extract_keywords(texto: str, n: int = 5) -> list[str]:
 def classify_intent(ator: str, texto: str) -> str:
     """Goal Drift Detector (Innovation 1): classifica a intenção de uma
     mensagem por heurística (zero custo/latência).
-    Retorna: 'objetivo' | 'conclusao' | 'passo' | 'resposta' (para Lyra)."""
+    Retorna: 'objetivo' | 'conclusao' | 'passo' | 'resposta' (para Orion)."""
     if ator != "Antônio":
         return "resposta"
     t = remove_accents(texto.lower())
@@ -304,8 +304,7 @@ class RAGEngine:
     async def record_event(self, fonte: str, ator: str, texto: str,
                            session=None,
                            intencao: str | None = None,
-                           fontes_rag: list | None = None,
-                           divergencia_draft: float | None = None) -> None:
+                           fontes_rag: list | None = None) -> None:
         """Grava o evento no SurrealDB (cronológico + grafo) e Qdrant (vetorial).
 
         Args:
@@ -313,7 +312,6 @@ class RAGEngine:
                 ensure_title() na primeira fala do usuário.
             intencao: classificação do Goal Drift (default: classify_intent).
             fontes_rag: IDs Qdrant que alimentaram esta resposta (Innovation 5).
-            divergencia_draft: distância coseno resposta×draft (spec-decoding).
         """
         if not self.active:
             return
@@ -332,8 +330,6 @@ class RAGEngine:
                 payload["sessao_id"] = session_id
             if fontes_rag:
                 payload["fontes_rag"] = fontes_rag
-            if divergencia_draft is not None:
-                payload["divergencia_draft"] = divergencia_draft
             corpo = await self._surreal.query(
                 f"CREATE evento CONTENT {json.dumps(payload)}")
             if corpo and corpo[0].get("status") != "OK":
@@ -342,7 +338,7 @@ class RAGEngine:
             self._log(f"[FALHA SURREAL] {e}")
 
         # Título automático da sessão: primeira fala do usuário vira o título.
-        if session is not None and ator.lower() != "lyra":
+        if session is not None and ator.lower() not in ATORES_ASSISTENTE:
             await session.ensure_title(texto)
 
         # 2. Qdrant (busca semântica)
@@ -359,8 +355,6 @@ class RAGEngine:
             }
             if fontes_rag:
                 qpayload["fontes_rag"] = fontes_rag
-            if divergencia_draft is not None:
-                qpayload["divergencia_draft"] = divergencia_draft
             self.qdrant_client.upsert(
                 collection_name=QDRANT_COLLECTION,
                 points=[PointStruct(id=evento_id, vector=vetor, payload=qpayload)]

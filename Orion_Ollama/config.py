@@ -15,7 +15,6 @@ CEREBRO_PORT = 8000   # cerebro_maestro FastAPI
 EMBED_PORT   = 8001   # embed_service (BGE-M3)
 SURREAL_PORT = 8090   # SurrealDB HTTP
 QDRANT_PORT  = 6333   # Qdrant HTTP
-OLLAMA_PORT  = 11434  # Ollama local models
 
 # ── Derived URLs (one definition, used everywhere) ───────────────────────────
 SURREAL_URL = f"http://127.0.0.1:{SURREAL_PORT}/sql"
@@ -23,10 +22,9 @@ EMBED_URL   = f"http://127.0.0.1:{EMBED_PORT}/embed"
 RERANK_URL  = f"http://127.0.0.1:{EMBED_PORT}/rerank"
 EMBED_HEALTH_URL = f"http://127.0.0.1:{EMBED_PORT}/health"
 QDRANT_URL  = f"http://127.0.0.1:{QDRANT_PORT}"
-OLLAMA_URL  = f"http://127.0.0.1:{OLLAMA_PORT}"
 
 # ── SurrealDB connection parameters ──────────────────────────────────────────
-SURREAL_NS      = "lyra_core"
+SURREAL_NS      = os.getenv("SURREAL_NS", "orion_core")
 SURREAL_DB      = "Db_CORTEX"
 SURREAL_AUTH    = (os.getenv("SURREAL_USER", "root"), os.getenv("SURREAL_PASS", "root"))
 SURREAL_HEADERS = {
@@ -38,11 +36,17 @@ SURREAL_HEADERS = {
 # ── Model identifiers ────────────────────────────────────────────────────────
 GROQ_MODEL       = "openai/gpt-oss-120b"   # llama-3.3-70b deprecated 17/jun/2026
 GEMINI_MODEL     = "gemini-3.5-flash"
-LOCAL_MODEL      = "Lyra"                  # qwen3:8b local — last cascade tier
-DRAFT_MODEL      = "qwen3:0.6b"            # hallucination-detection sidecar
+
+# ── Identidade ───────────────────────────────────────────────────────────────
+NOME_ASSISTENTE   = "Orion"
+# Nomes de ator gravados por versões anteriores da base (ex.: "Nome1,Nome2")
+# — a leitura trata todos como fala do assistente.
+ATORES_ASSISTENTE_NOMES = [NOME_ASSISTENTE] + [
+    n.strip() for n in os.getenv("ATORES_LEGADOS", "").split(",") if n.strip()]
+ATORES_ASSISTENTE = {n.lower() for n in ATORES_ASSISTENTE_NOMES}
 
 # ── Memory / Qdrant ──────────────────────────────────────────────────────────
-QDRANT_COLLECTION = "lyra_memory_v2"       # BGE-M3 1024d (migration 26/06/2026)
+QDRANT_COLLECTION = os.getenv("QDRANT_COLLECTION", "orion_memory")  # BGE-M3 1024d
 EMBED_DIM         = 1024
 
 # ── Operational limits ───────────────────────────────────────────────────────

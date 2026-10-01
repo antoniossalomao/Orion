@@ -3,7 +3,7 @@
 import pathlib
 import secrets
 
-_NTFY_TOPICO_FILE = pathlib.Path(__file__).parent.parent / "lyra_ntfy_topico.txt"
+_NTFY_TOPICO_FILE = pathlib.Path(__file__).parent.parent / "orion_ntfy_topico.txt"
 
 def notificar_usuario(titulo: str, mensagem: str, urgencia: str = "normal") -> dict:
     """
@@ -15,7 +15,7 @@ def notificar_usuario(titulo: str, mensagem: str, urgencia: str = "normal") -> d
     try:
         from winotify import Notification, audio
         toast = Notification(
-            app_id="Lyra",
+            app_id="Orion",
             title=titulo,
             msg=mensagem,
             duration="long" if urgencia == "alta" else "short",
@@ -32,11 +32,11 @@ def _get_ntfy_topico() -> str:
     conta nem chave de API, só o app instalado + inscrito no mesmo tópico."""
     if _NTFY_TOPICO_FILE.exists():
         return _NTFY_TOPICO_FILE.read_text(encoding="utf-8").strip()
-    topico = "lyra-" + secrets.token_hex(8)
+    topico = "orion-" + secrets.token_hex(8)
     _NTFY_TOPICO_FILE.write_text(topico, encoding="utf-8")
     return topico
 
-def notificar_celular(mensagem: str, titulo: str = "Lyra", urgente: bool = False) -> dict:
+def notificar_celular(mensagem: str, titulo: str = "Orion", urgente: bool = False) -> dict:
     """
     Envia notificação push pro celular via ntfy.sh (https://ntfy.sh) — alcança
     o usuário mesmo longe do PC, diferente de notificar_usuario (toast do
@@ -63,7 +63,7 @@ def notificar_celular(mensagem: str, titulo: str = "Lyra", urgente: bool = False
 
 def obter_topico_celular() -> dict:
     """Retorna o nome do tópico ntfy que o usuário precisa abrir no app pra
-    se inscrever e começar a receber as notificações da Lyra."""
+    se inscrever e começar a receber as notificações do Orion."""
     topico = _get_ntfy_topico()
     return {"ok": True, "topico": topico,
             "instrucao": f"Instale o app ntfy (Android/iOS/web), abra, toque em '+' e "
@@ -107,7 +107,7 @@ SCHEMA = [
             "type": "function",
             "function": {
                 "name": "obter_topico_celular",
-                "description": "Retorna o tópico ntfy que o usuário precisa se inscrever no app pra receber notificações push da Lyra.",
+                "description": "Retorna o tópico ntfy que o usuário precisa se inscrever no app pra receber notificações push do Orion.",
                 "parameters": {"type": "object", "properties": {}},
             },
         },

@@ -1,5 +1,5 @@
 """
-orion_seguranca.py — Módulo central de segurança da Lyra
+orion_seguranca.py — Módulo central de segurança do Orion
 - Audit log imutável (append-only no SurrealDB)
 - Rate limiter por ferramenta
 """
@@ -182,7 +182,7 @@ def _flush_audit_buffer() -> None:
 def _garantir_thread_audit() -> None:
     global _audit_thread_started
     if not _audit_thread_started:
-        t = threading.Thread(target=_flush_audit_buffer, daemon=True, name="lyra-audit-flush")
+        t = threading.Thread(target=_flush_audit_buffer, daemon=True, name="orion-audit-flush")
         t.start()
         _audit_thread_started = True
 
@@ -248,7 +248,6 @@ _SERVICOS = {
     "SurrealDB":     ("http", "127.0.0.1", 8090, "/health"),
     "Qdrant":        ("http", "127.0.0.1", 6333, "/healthz"),
     "embed_service": ("http", "127.0.0.1", 8001, "/health"),
-    "Ollama":        ("http", "127.0.0.1", 11434, "/api/version"),
     "FastAPI":       ("http", "127.0.0.1", 8000, "/health"),
 }
 
@@ -262,7 +261,7 @@ _RESTART_CMDS = {
     # — rodando assim, ele sobe em "C:\Orion\storage" (path default,
     # relativo ao WorkingDirectory), uma coleção NOVA E VAZIA, sem os 3M+
     # vetores reais em qdrant_data/. O self-healing reportaria "reiniciado
-    # com sucesso" enquanto a Lyra ficava efetivamente amnésica — pior que o
+    # com sucesso" enquanto o Orion ficava efetivamente amnésico — pior que o
     # serviço só ter caído. Fix: os três agora chamam os mesmos start_*.bat
     # usados no boot normal — uma fonte de verdade só, sem duplicação que
     # pode divergir de novo no futuro.
@@ -280,12 +279,6 @@ _RESTART_CMDS = {
     ),
     "embed_service": (
         r'Start-Process -WindowStyle Hidden -FilePath "C:\Orion\bin\startup\start_embed.bat"'
-    ),
-    # Ollama entrou em 04/08/2026 (noite): foi achado FORA DO AR em auditoria
-    # (andar local da cascata morto + draft do spec-decoding falhando) e o
-    # self-healing não cobria. Mesmo padrão dos demais: só chama o .bat de boot.
-    "Ollama": (
-        r'Start-Process -WindowStyle Hidden -FilePath "C:\Orion\bin\startup\start_ollama.bat"'
     ),
 }
 

@@ -13,7 +13,7 @@ _GIT_COMANDOS = {
 def consultar_git(repo_path: str, comando: str = "status", limite: int = 10) -> dict:
     """
     Consulta somente-leitura de um repositório Git (status/log/diff/branch) —
-    de propósito SEM commit/push/checkout/reset, pra Lyra conseguir ter noção
+    de propósito SEM commit/push/checkout/reset, pra Orion conseguir ter noção
     do que mudou em algum projeto sem nenhum risco de alterar o repositório.
     """
     try:

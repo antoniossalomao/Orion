@@ -5,7 +5,7 @@ Speculative Decoding, roteador de especialistas) + `/tts/mudo` e
 `/tts/falar` (controle de voz, pequenos e de baixo risco, mantidos junto por
 proximidade lógica).
 
-Extraído de cerebro_maestro.py na reorganização OOP (Lyra 2.0) — última peça
+Extraído de cerebro_maestro.py na reorganização OOP (08/2026) — última peça
 da Fase 1, deixada por último de propósito: é o código com mais estado
 mutável entrelaçado do projeto inteiro (várias das notas abaixo documentam
 bugs de produção já corrigidos aqui — race condition de sessão concorrente,
@@ -36,9 +36,8 @@ from models.chat import MensagemUsuario
 class ChatRouter:
     def __init__(self, *, log, session, rag, get_cerebro_ativo, top_k_ajustado,
                  classificar_intencao, sem_acento, registrar_evento, rotear_especialista,
-                 tool_keywords_re, tools_schema, rodar_draft, mapa_tiers,
-                 primeiro_chunk_ou_falha, registrar_tier, embed, cosine_sim,
-                 limiar_divergencia_alucinacao, get_ultima_acao_bloqueada,
+                 tool_keywords_re, tools_schema, mapa_tiers,
+                 primeiro_chunk_ou_falha, registrar_tier, get_ultima_acao_bloqueada,
                  confirmacoes_risco, lock_risco, get_tts_mudo, set_tts_mudo,
                  set_ultima_latencia_ms, telemetria, audio_manager):
         self._log = log
@@ -52,13 +51,9 @@ class ChatRouter:
         self._rotear_especialista = rotear_especialista
         self._tool_keywords_re = tool_keywords_re
         self._tools_schema = tools_schema
-        self._rodar_draft = rodar_draft
         self._mapa_tiers = mapa_tiers
         self._primeiro_chunk_ou_falha = primeiro_chunk_ou_falha
         self._registrar_tier = registrar_tier
-        self._embed = embed
-        self._cosine_sim = cosine_sim
-        self._limiar_divergencia_alucinacao = limiar_divergencia_alucinacao
         self._get_ultima_acao_bloqueada = get_ultima_acao_bloqueada
         self._confirmacoes_risco = confirmacoes_risco
         self._lock_risco = lock_risco
@@ -92,7 +87,7 @@ class ChatRouter:
 
         contexto_str = ""
         # Sem acento — matching de keyword não pode depender do usuário digitar
-        # certinho ("saude" vs "saúde"), já causou a Lyra inventar CPU/RAM em vez
+        # certinho ("saude" vs "saúde"), já causou o Orion inventar CPU/RAM em vez
         # de chamar a ferramenta porque "saude" sem acento não casava com "saúde".
         msg_lower = self._sem_acento(msg.texto.lower())
 
@@ -103,7 +98,7 @@ class ChatRouter:
         eh_pergunta_memoria = any(kw in msg_lower for kw in keywords_memoria)
 
         # Detecta pergunta factual genérica (não só memória pessoal) — a base wiki_
-        # conhecimento foi ingerida exatamente pra isso: a Lyra deve CONSULTAR a
+        # conhecimento foi ingerida exatamente pra isso: o Orion deve CONSULTAR a
         # memória em vez de confiar só no conhecimento interno do modelo pequeno
         # (que erra/recusa fatos triviais) ou inventar. Só pula RAG em conversa
         # puramente casual (sem "?" nem palavra interrogativa) — mas saudações tipo
@@ -121,7 +116,7 @@ class ChatRouter:
 
         # A busca híbrida (BM25 + vetorial sobre ~2,2M registros) custa 5-10s sozinha
         # — inaceitável rodar em toda mensagem casual ("oi", "tudo bem?"). Mas pular
-        # ela inteira fazia a Lyra recusar/errar fatos triviais que estão na wiki
+        # ela inteira fazia o Orion recusar/errar fatos triviais que estão na wiki
         # ingerida — então só pula mesmo em conversa casual, não em perguntas.
         ids_rag: list[str] = []  # IDs Qdrant usados no RAG desta mensagem (Innovation 5)
         if self._get_cerebro_ativo() and self._rag.active and (eh_pergunta_memoria or eh_pergunta_factual):
@@ -209,7 +204,7 @@ class ChatRouter:
             if contexto_str:
                 # A instrução rígida de "diga que não tem registro" só faz sentido
                 # quando a pergunta É sobre memória — caso contrário, qualquer match
-                # fraco/irrelevante do RAG fazia a Lyra recusar conversa casual
+                # fraco/irrelevante do RAG fazia o Orion recusar conversa casual
                 # ("oi, tudo bem?") tratando-a como pergunta de memória sem resposta.
                 if eh_pergunta_memoria:
                     aviso_bloco = f"\n\n[AVISO CRÍTICO]\n- Use timestamps das memórias acima (NUNCA invente datas)\n- Se não encontrar, diga: 'Não tenho registro disso'{aviso_cloud_str}"
@@ -254,13 +249,6 @@ class ChatRouter:
             resposta_completa = ""
             tier_usado = None
 
-            # Speculative Decoding (Fase 3) — dispara o draft (qwen3:0.6b) já aqui,
-            # em paralelo com a cascata principal, pra não somar latência. Só faz
-            # sentido comparar quando a resposta é texto puro: se ferramentas forem
-            # chamadas, o andar principal vê dados que o draft nunca vê (clima,
-            # hora, resultado de busca) — divergência ali seria falso-positivo.
-            draft_task = asyncio.create_task(self._rodar_draft(list(mensagens))) if not precisa_tools else None
-
             if msg.modelo in self._mapa_tiers:
                 # Seletor manual do painel — só esse andar, sem fallback (o
                 # usuário escolheu de propósito, melhor falhar visivelmente do
@@ -287,8 +275,6 @@ class ChatRouter:
                 # no meio da resposta — o frontend mostra isso discreto no painel
                 # lateral em vez de no balão de chat (pedido do usuário).
                 yield f"data: {json.dumps({'tier': nome_tier})}\n\n"
-                if nome_tier == "Local":
-                    self._log("[CASCATA] Todas as APIs de nuvem falharam — usando qwen3:8b local.")
 
                 try:
                     async for chunk in gerador_pronto:
@@ -300,46 +286,17 @@ class ChatRouter:
                 break  # comprometido com esse andar (sucesso ou falha no meio) -- nao tenta outro
 
             if tier_usado is None:
-                self._log("[CASCATA] Todos os 4 andares falharam.")
-                if draft_task is not None:
-                    draft_task.cancel()
-                yield f"data: {json.dumps({'text': 'Todas as fontes de resposta falharam (Groq, Gemini, Claude e o modelo local). Tente novamente em alguns segundos.'})}\n\n"
+                self._log("[CASCATA] Todos os andares falharam.")
+                yield f"data: {json.dumps({'text': 'Todas as fontes de resposta falharam (Groq, Gemini e Claude). Tente novamente em alguns segundos.'})}\n\n"
                 yield "data: [DONE]\n\n"
                 return
-
-            # Speculative Decoding: compara a resposta final com o draft (se deu
-            # tempo de terminar). Divergência alta = log de alerta, não bloqueia
-            # nem altera a resposta — é só um sinal de possível alucinação.
-            divergencia_draft = None
-            if draft_task is not None and resposta_completa:
-                try:
-                    draft_texto = await asyncio.wait_for(draft_task, timeout=8)
-                except Exception:
-                    draft_texto = None
-                if draft_texto:
-                    try:
-                        vetor_final, vetor_draft = await asyncio.gather(
-                            asyncio.to_thread(self._embed, resposta_completa.strip()),
-                            asyncio.to_thread(self._embed, draft_texto),
-                        )
-                        if vetor_final and vetor_draft:
-                            divergencia_draft = round(1 - self._cosine_sim(vetor_final, vetor_draft), 4)
-                            if divergencia_draft > self._limiar_divergencia_alucinacao:
-                                self._log(f"[SPEC-DECODE] divergência alta ({divergencia_draft}) entre {tier_usado} "
-                                    f"e draft qwen3:0.6b — possível alucinação. Draft: {draft_texto[:150]!r}")
-                    except Exception as e:
-                        self._log(f"[SPEC-DECODE] falha ao comparar draft: {e}")
-            elif draft_task is not None:
-                draft_task.cancel()
 
             if resposta_completa:
                 resposta_limpa = resposta_completa.strip()
                 await self._session.append_assistant(resposta_limpa,
-                                                fontes_rag=ids_rag or None,  # Innovation 5
-                                                divergencia_draft=divergencia_draft)
-                asyncio.create_task(self._registrar_evento(fonte="chat", ator="Lyra", texto=resposta_limpa,
-                                                      fontes_rag=ids_rag or None,
-                                                      divergencia_draft=divergencia_draft))
+                                                fontes_rag=ids_rag or None)  # Innovation 5
+                asyncio.create_task(self._registrar_evento(fonte="chat", ator=cfg.NOME_ASSISTENTE, texto=resposta_limpa,
+                                                      fontes_rag=ids_rag or None))
 
                 # Filtra blocos de codigo e fala em voz alta
                 try:

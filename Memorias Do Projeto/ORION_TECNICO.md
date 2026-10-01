@@ -1,31 +1,29 @@
-# ORION — Referência Técnica do Legado (Lyra)
+# ORION — Referência Técnica do Legado
 
-> Como o código **atual (legado Lyra)** funciona: regras, arquitetura, API, gotchas.
+> Como o código **atual (legado)** funciona: regras, arquitetura, API, gotchas.
 > Serve de base para portar o que vale para o Orion — o plano novo está em
 > [ORION_NUCLEO.md](ORION_NUCLEO.md). Consolidado em 30/09/2026 (último registro de
 > trabalho no legado: 12/08/2026). Operação do legado: [README.md](../README.md) ·
-> Histórico completo: repositório [Lyra](https://github.com/antoniossalomao/Lyra).
+> Histórico completo: histórico do git deste repositório.
 
 ---
 
 ## 1. Stack
 
-> **30/09–01/10/2026:** sem GPU dedicada e com orçamento R$0, o draft, o
-> llava-phi3 e o embedding/reranker na GPU saem na reescrita; o Ollama fica só
-> como último recurso com modelo pequeno no notebook. Esta seção descreve o
-> código atual.
+> **30/09–01/10/2026:** sem GPU dedicada e com orçamento R$0, o embedding/reranker
+> na GPU sai na reescrita. O Ollama (andar local, draft, llava-phi3, especialista
+> local) já saiu do código em 01/10/2026. Esta seção descreve o código atual.
 
 | Camada | Tecnologia | Porta / notas |
 |---|---|---|
 | Orquestrador | `cerebro_maestro.py` (FastAPI, POO) | 8000 |
 | Embedding + rerank | `embed_service.py` — BAAI/bge-m3 1024d + bge-reranker-v2-m3 (GPU) | 8001 |
 | Hub WS (v1) | `Orion_Core/Front_end_Orion/orion_app.py` | 8765 |
-| Vetores | Qdrant standalone **v1.17.1 (fixado)** — `lyra_memory_v2` | 6333 |
-| Grafo + documentos | SurrealDB 3.0.5, engine `surrealkv://`, ns `lyra_core`, db `Db_CORTEX` (case-sensitive) | 8090 |
-| LLM local | Ollama `qwen3:8b` (+ `qwen3:0.6b` draft, `qwen2.5-coder:7b`, `llava-phi3`) | 11434 |
-| LLM cloud | Groq `openai/gpt-oss-120b` → Gemini `gemini-3.5-flash` → Claude (CLI) → local | — |
+| Vetores | Qdrant standalone **v1.17.1 (fixado)** — coleção em `QDRANT_COLLECTION` (`.env`, default `orion_memory`) | 6333 |
+| Grafo + documentos | SurrealDB 3.0.5, engine `surrealkv://`, ns em `SURREAL_NS` (`.env`, default `orion_core`), db `Db_CORTEX` (case-sensitive) | 8090 |
+| LLM cloud | Groq `openai/gpt-oss-120b` → Gemini `gemini-3.5-flash` → Claude (CLI) | — |
 | STT | faster-whisper "small" CPU int8 + Silero VAD | — |
-| TTS | Gemini TTS (voz Leda) → edge-tts Francisca → silêncio | — |
+| TTS | Gemini TTS (voz Charon) → edge-tts AntonioNeural → silêncio | — |
 | Frontend | v1 pywebview + Three.js (v2 React e v3 SvelteKit/Tauri removidos em 30/09 — §7.2) | — |
 
 Python 3.12 **global** (sem venv; `venv_embed` aposentado em 30/06). torch
@@ -87,7 +85,7 @@ Python 3.12 **global** (sem venv; `venv_embed` aposentado em 30/06). torch
 - Chamada síncrona dentro de `async def` (RAG, tools, `httpx.post`) sempre via
   `await asyncio.to_thread(...)` — uvicorn tem um event loop só; bloquear trava tudo.
 - Mensagens enviadas aos provedores: sanitizar para `{role, content}` — o Groq
-  rejeita campos extras (`fontes_rag`, `divergencia_draft`).
+  rejeita campos extras (`fontes_rag`).
 - Usar a variável local da requisição (`msg.texto`), nunca `mensagens[-1]` do
   estado global (race entre `/chat` concorrentes).
 - Clientes HTTP reutilizáveis (keep-alive) para health checks.
@@ -132,11 +130,11 @@ Nomes antigos → novos: globals de sessão → `SessionManager`; `buscar_hibrid
 
 ### 3.2 Cascata e roteamento
 
-- Andares: Groq → Gemini → Claude (CLI, sem tool-calling nativo) → Ollama local.
-  `modelo: auto|groq|gemini|claude|local` no `/chat` força um andar sem fallback.
+- Andares: Groq → Gemini → Claude (CLI, sem tool-calling nativo). Sem modelo local.
+  `modelo: auto|groq|gemini|claude` no `/chat` força um andar sem fallback.
 - **MoE roteado:** lista declarativa `ESPECIALISTAS` — `codigo` (trigger por
-  keywords) → `claude, groq, gemini, local`; `geral` (catch-all, sempre por último)
-  → `groq, gemini, claude, local`. Novo especialista = nova entrada na lista.
+  keywords) → `claude, groq, gemini`; `geral` (catch-all, sempre por último)
+  → `groq, gemini, claude`. Novo especialista = nova entrada na lista.
 - Loop de tool-calling compartilhado, `_MAX_ITERACOES_TOOLS = 25`.
 - Roteador de ferramentas: `_TOOL_KEYWORDS_RE` (regex com `\b`, prefixo de palavra).
 - Compressão de histórico: >14 mensagens → as 8 mais antigas viram sumário (lock).
@@ -151,7 +149,7 @@ Nomes antigos → novos: globals de sessão → `SessionManager`; `buscar_hibrid
 |---|---|---|
 | GET | `/` | Ping `{servico, ativo, versao}` |
 | GET | `/dashboard` | Dashboard HTML de monitoramento |
-| GET | `/health` | Latência de Qdrant/SurrealDB/Ollama/embedder + VRAM + contagem de vetores |
+| GET | `/health` | Latência de Qdrant/SurrealDB/embedder + VRAM + contagem de vetores |
 | GET | `/metrics` | CPU/RAM/GPU/VRAM + latência do último chat |
 | GET | `/stats`, `/stats/historico?limite=` | Telemetria da cascata (acumulada / snapshots) |
 | GET | `/integracoes` | Status de Telegram, Voice Live, mic, TTS, enxame, upload |
@@ -159,7 +157,7 @@ Nomes antigos → novos: globals de sessão → `SessionManager`; `buscar_hibrid
 | POST | `/tts/mudo`, `/tts/falar` | Voz global on/off; falar texto arbitrário |
 | GET | `/grafo/completo?limite=` | Grafo nodes+links (visualização 3D do v1) |
 | GET | `/memoria/categorias` | Composição da base por categoria |
-| GET/DELETE | `/historico[?sessao=]` | Histórico (com `fontes_rag`/`divergencia_draft`); DELETE limpa só a RAM |
+| GET/DELETE | `/historico[?sessao=]` | Histórico (com `fontes_rag`); DELETE limpa só a RAM |
 | GET | `/exportar` | Exporta a sessão em markdown |
 | GET/POST | `/sessoes` | Lista (inclui `legado`) / cria sessão |
 | POST | `/sessoes/ativar` | Troca sessão |
@@ -199,20 +197,20 @@ Todo dispatch de ferramenta passa por `_executar_tool_segura()`:
    "fantasma" que expira sozinho.
 3. **Audit log** (`audit_log` no SurrealDB, buffer + thread de flush a cada 5s;
    `tool_filtro` validado por regex).
-4. **Self-healing** no loop proativo a cada ~5min: SurrealDB, Qdrant, embed_service,
-   Ollama (via `asyncio.to_thread`; não checa o próprio FastAPI).
+4. **Self-healing** no loop proativo a cada ~5min: SurrealDB, Qdrant, embed_service
+   (via `asyncio.to_thread`; não checa o próprio FastAPI).
 
 CORS: `allow_origins=["null", "http://127.0.0.1:8000", "http://localhost:8000"]`,
 `allow_credentials=False`. `"null"` é exigido pelo pywebview do v1.
 
 Auth (apagado em 01/10/2026, sem cliente): era PBKDF2-SHA256 (stdlib, 260k
 iterações), JWT HS256, cookie httpOnly `samesite=lax`, 30 dias, secret em
-`AUTH_JWT_SECRET`. Código em `utils/auth.py` no repositório Lyra, para portar na
+`AUTH_JWT_SECRET`. Código em `utils/auth.py` no histórico do git, para portar na
 fase 5 do NUCLEO.
 
 ## 4. Memória e RAG
 
-### 4.1 Base vetorial (`lyra_memory_v2`, ~3.09M pontos)
+### 4.1 Base vetorial (~3.09M pontos)
 
 > **Decidido em 30/09/2026:** tudo abaixo exceto `episodio` sai da memória
 > (datasets genéricos). Tabelas §4.8 e scripts de ingestão saem junto na reescrita.
@@ -262,16 +260,13 @@ cross-domain via grafo. DEEP: resume eventos com mais de 4 semanas. 1ª execuç�
    gravado no evento; objetivos em aberto entram no briefing.
 2. **Freshness Tags** — §4.2.
 3. **Session Replay** — tópicos dominantes + ferramentas das últimas 24h no briefing.
-4. **Cognitive Load Throttling** — `baixa|media|alta` por latência e % de uso do local.
+4. **Cognitive Load Throttling** — `baixa|media|alta` pela latência do último chat.
 5. **Response Provenance** — IDs Qdrant das fontes em `fontes_rag` (histórico, SurrealDB, payload). Sem UI.
 
-### 4.6 Speculative Decoding (sidecar)
+### 4.6 Speculative Decoding (removido)
 
-Draft `qwen3:0.6b` (`keep_alive=300` — com `0` cada `/chat` pagava ~10s de reload)
-roda em paralelo à cascata, só quando a pergunta não aciona ferramentas, com
-`_SYSTEM_PROMPT_DRAFT` próprio (sempre arrisca palpite). `divergencia_draft = 1 −
-cos(emb_final, emb_draft)`; acima de 0.45 loga alerta. Mede divergência de
-**tópico**, não de fato ("Paris" vs "Lyon" = 0.13).
+Sidecar de detecção de alucinação com um draft local em paralelo à cascata.
+Saiu com o Ollama em 01/10/2026; código no histórico do git.
 
 ### 4.7 Reconciliação SurrealDB ↔ Qdrant
 
@@ -282,7 +277,7 @@ Roda sozinho a cada ~1h no loop proativo; só loga se achar órfãos.
 
 Schema: `{titulo, texto (≤3000), fonte, categoria}`. Os scripts de ingestão e
 vetorização foram apagados em 01/10/2026 (datasets genéricos saem); continuam no
-repositório Lyra.
+histórico do git.
 
 | Tabela | Datasets |
 |---|---|
@@ -317,16 +312,16 @@ persistia em `agente_run`.
 
 ## 6. Voz, visão e integrações
 
-- **Wake-word** (`mic_engine.py`): "lyra" → Silero VAD → faster-whisper → `/chat`.
+- **Wake-word** (`mic_engine.py`): "orion" (e variantes de transcrição) → Silero VAD → faster-whisper → `/chat`.
 - **Voice Live** (`orion_voice_live.py`, `/ws/voice`): modelo
   `gemini-2.5-flash-native-audio-latest`, `response_modalities=["AUDIO"]` (uma
-  modalidade só) + `output_audio_transcription`. Protocolo: PCM16 16kHz mono →
+  modalidade só) + `output_audio_transcription`, voz Charon. Protocolo: PCM16 16kHz mono →
   servidor; PCM16 24kHz mono ← servidor; JSON texto/done/erro.
-- **TTS** (`audio_manager.py`): Gemini `gemini-2.5-flash-preview-tts` voz Leda
-  (free tier 3 req/min, ~4s/frase) → edge-tts Francisca → silêncio. Pipeline
+- **TTS** (`audio_manager.py`): Gemini `gemini-2.5-flash-preview-tts` voz Charon
+  (free tier 3 req/min, ~4s/frase) → edge-tts AntonioNeural → silêncio. Pipeline
   automático pausado.
-- **Visão:** Gemini Vision → fallback `llava-phi3` (falha do Gemini é logada).
-  `moondream` descartado.
+- **Visão:** só Gemini Vision (sem fallback local desde 01/10/2026).
+- **Tradução e clipboard com IA:** só Gemini.
 - **`navegar_web`** (`orion_browser.py`): browser-use 0.13.1 com
   `browser_use.llm.google.chat.ChatGoogle` (`gemini-2.5-flash`; o 2.0 tem quota zero).
 - **Telegram** (`orion_telegram.py`): só texto, consome `/chat` via SSE; default-deny sem allowlist.
@@ -367,8 +362,8 @@ HTTP da §3.3, `/ws/voice`).
 
 ### 7.2 v2 e v3 — removidos em 30/09/2026
 
-Código no repositório Lyra e no histórico deste repo (antes do commit `88f0b1b`,
-em `Lyra_Core/Front_end_Lyra_v2/` e `Lyra_Core/Front_end_Lyra_v3/`). O que vale
+Código no histórico do git (antes do commit `88f0b1b`, nas pastas dos front-ends
+v2 e v3). O que vale
 lembrar para a fase 6:
 
 - **v2** — React + Vite + TS, servido em `/ui`. Chat SSE com stop/retry/copiar,
@@ -380,7 +375,7 @@ lembrar para a fase 6:
   64 pontos Fibonacci e 3 vizinhos ligados. Tokens `--bg #0b0b0d`, `--accent
   #4fc3d9`, `[data-reduce-motion="1"]`. Atalhos `Ctrl+K`, `Ctrl+Shift+O`, `Esc`.
 - **Tauri** — casca com 3 comandos Rust (`get_secret`, `set_setting`,
-  `start_backend`) atrás do contrato `LyraShell` (`BrowserShell`/`TauriShell`), o
+  `start_backend`) atrás de um contrato de casca (`BrowserShell`/`TauriShell`), o
   frontend sem saber onde roda.
 
 ## 8. Avaliações registradas
@@ -388,19 +383,17 @@ lembrar para a fase 6:
 - **SurrealDB 3.0 vetorial (HNSW/DISKANN) vs Qdrant — não migrar:** índice quente em
   RAM estimado em 15-20GB para 3.08M×1024, reescrita do RAG, Qdrant estável. Se
   revisitar, testar numa coleção pequena (`episodio`).
-- **Mem0/Kore — não adotar:** Kore é conceitualmente o que a Lyra já faz; a resolução
+- **Mem0/Kore — não adotar:** Kore é conceitualmente o que a base já faz; a resolução
   de conflitos por LLM do Mem0 é problema do REM do Shadow Thoughts.
 - **A2A — não adotar:** resolve interoperabilidade entre fornecedores; ideias
   reaproveitáveis: estado `input-required` e capacidades declaradas (já refletidas em
   `ESPECIALISTAS`).
-- **C++/Rust no backend — não faz sentido:** partes pesadas já são nativas (Ollama,
-  Qdrant, SurrealDB); gargalo é modelo/VRAM.
-- **Modelos de referência (8GB VRAM):** `qwen3:8b` segue o melhor local da faixa;
-  Qwen3-VL-7B candidato a VLM local; SmolVLM 2B e MiniCPM-V 2.6 como alternativas;
-  vídeo só LTX-2 FP8 (não simultâneo ao LLM); áudio MusicGen Small/AudioLDM2.
+- **C++/Rust no backend — não faz sentido:** partes pesadas já são nativas (Qdrant,
+  SurrealDB); gargalo é modelo/VRAM.
+- **Modelos locais:** fora por enquanto (Ollama removido em 01/10/2026).
   Groq deprecou `llama-3.x` em 17/06/2026 — cascata já usa `gpt-oss-120b`.
 
-## 9. Lyra 2.0 — legado (plano de 11/08/2026 e execução)
+## 9. Versão 2.0 do legado (plano de 11/08/2026 e execução)
 
 > Histórico. Em 30/09/2026 os front-ends v2 e v3 e a casca Tauri foram removidos:
 > o cutover descrito aqui não acontece mais e o gating de auth passa para a
@@ -445,7 +438,7 @@ reescrita. As rotas `/auth/*` foram desmontadas em 01/10/2026.
   Não substitui REST/SSE — trocar `/chat` para WS exigiria reescrever o consumo
   do v2. Fase considerada encerrada nesse ponto. Removido em 01/10/2026 (sem cliente).
 
-### 9.4 Capacidades novas (o que a Lyra não tinha)
+### 9.4 Capacidades novas (o que a v1 não tinha)
 
 | Item | Status |
 |---|---|
@@ -454,7 +447,7 @@ reescrita. As rotas `/auth/*` foram desmontadas em 01/10/2026.
 | Monitor de sistema + viewer de logs (`/health`, `/metrics`, `GET /logs`) | ✅ `SystemPanel` — `/logs` removido em 01/10 |
 | Painel de ferramentas: listar + ligar/desligar (`/tools`, `/tools/{nome}/toggle`, estado em memória) | ✅ — removido em 01/10 |
 | Preview de artifacts (`html`/`svg` em iframe sandboxed, inline por bloco) | ✅ |
-| Hub de modelos Ollama (listar + pull com progresso SSE, confirmação obrigatória) | ⛔ sai com o modelo local |
+| Hub de modelos locais (listar + pull com progresso SSE, confirmação obrigatória) | ⛔ removido junto com o modelo local |
 | Grafo de memória em Canvas 2D (força com decaimento `alpha`) | ✅ `GraphPanel` |
 | Biblioteca de prompts (`/prompts` CRUD, clique insere no composer) | ✅ — removido em 01/10 (dados na tabela `prompt`) |
 | `SecretRef` (`utils/secrets.py`: env/file/exec + máscara) | ✅ criado; nunca usado — removido em 01/10 |
@@ -475,7 +468,7 @@ priorizando minimalismo). Detalhes técnicos: §7.2.
 ### 9.6 Casca desktop — Tauri (removida em 30/09/2026)
 
 Tauri é a casca "só assistente" que carrega o SvelteKit. O frontend nunca sabe onde
-está: interface fina `LyraShell` (`getSecret`, `setSetting`, `startBackend`)
+está: interface fina de casca (`getSecret`, `setSetting`, `startBackend`)
 implementada por `BrowserShell` e `TauriShell` (`window.__TAURI_INTERNALS__` → 3
 comandos Rust). A casca Theia (IDE) foi excluída em 30/09/2026.
 

@@ -1,5 +1,5 @@
 """
-cerebro_maestro.py — FastAPI RAG + Ollama, porta 8000
+cerebro_maestro.py — FastAPI RAG + cascata de LLMs, porta 8000
 """
 
 import sys
@@ -10,7 +10,6 @@ import httpx
 import asyncio
 import re
 import time
-import math
 import threading
 import psutil
 import orion_tools
@@ -39,20 +38,17 @@ def _top_k_ajustado(top_k: int) -> int:
     return top_k
 
 def _atualizar_carga_cognitiva():
-    """Reclassifica _carga_cognitiva baseada na latência recente e mix de modelos."""
+    """Reclassifica _carga_cognitiva baseada na latência recente."""
     global _carga_cognitiva
     lat = _ultima_latencia_ms or 0
-    total = _telemetria.get("total_chats", 0)
-    usos_local = _telemetria["tiers"].get("Local", {}).get("usos", 0)
-    # Alta: latência alta OU modelo local sendo muito usado (APIs todas falhando)
-    if lat > 8000 or (total > 0 and usos_local / max(total, 1) > 0.3):
+    if lat > 8000:
         nova = "alta"
     elif lat < 2000:
         nova = "baixa"
     else:
         nova = "media"
     if nova != _carga_cognitiva:
-        log(f"[FOCO] Carga cognitiva: {_carga_cognitiva} → {nova} (lat={lat}ms, local={usos_local}/{total})")
+        log(f"[FOCO] Carga cognitiva: {_carga_cognitiva} → {nova} (lat={lat}ms)")
     _carga_cognitiva = nova
 
 
@@ -88,12 +84,11 @@ log = Logger(_LOG_PATH)
 # startup do cérebro de ~25s pra ~2-3s e libera o processo principal do torch pesado.
 import bm25_index
 
-log("[3] Importando FastAPI + uvicorn + ollama...")
+log("[3] Importando FastAPI + uvicorn...")
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-import ollama
 import orion_voice_live
 log("[4] Imports OK.")
 
@@ -124,7 +119,6 @@ os.makedirs(_PASTA_UPLOADS, exist_ok=True)
 
 
 cerebro_ativo  = False
-cliente_ollama = ollama.AsyncClient()
 _http_health_client = httpx.AsyncClient()  # reusado com keep-alive só pelo /health — criar um AsyncClient
                                             # novo por ping inflava a latência reportada (overhead de conexão)
 # Estado de conversa (histórico/sessão/briefing/turnos) vive em _session
@@ -222,28 +216,19 @@ def _ler_telemetria_historico(limite: int = 200) -> list:
         log(f"[TELEMETRIA HIST] Falha ao ler histórico: {e}")
         return []
 
-# ── Cascata de modelos (2026-06-25) ──────────────────────────────────────────
-# Decisão consciente do usuário: quebra a Diretiva Nº 2 ("100% offline, zero
-# cloud") pra toda mensagem padrão, não só escalação manual — em troca de
-# respostas muito mais rápidas e inteligentes. Ordem: Groq (Llama 3.3 70B,
-# free tier rápido) -> Gemini 2.5 Flash (free tier) -> Claude via CLI (mesmo
-# mecanismo do consultar_especialista, sem key nova) -> qwen3:8b local (Lyra,
-# único andar 100% offline — rede de segurança final se as 3 APIs falharem).
-# Substitui o roteador antigo (Lyra_mini qwen3:4b residente + Lyra qwen3:8b
-# sob demanda) — Lyra_mini foi removida do Ollama por pedido do usuário.
-MODELO_GRANDE = cfg.LOCAL_MODEL   # qwen3:8b local — último andar da cascata
-MODELO_DRAFT  = cfg.DRAFT_MODEL   # draft do Speculative Decoding — só detecção de alucinação
+# ── Cascata de modelos ───────────────────────────────────────────────────────
+# Groq (Llama 3.3 70B, free tier rápido) -> Gemini 2.5 Flash (free tier) ->
+# Claude via CLI (mesmo mecanismo do consultar_especialista, sem key nova).
 GROQ_MODEL    = cfg.GROQ_MODEL
 GEMINI_MODEL  = cfg.GEMINI_MODEL
-LIMIAR_DIVERGENCIA_ALUCINACAO = 0.45  # distância coseno (1 - similaridade) acima disso = log de alerta
 
-SYSTEM_PROMPT_LYRA = """[Lyra] IA pessoal do Projeto Lyra. Admin: Antônio. Hardware: RTX2060S, Ryzen3700X, 64GB. Personalidade: feminina, clínica, técnica, não-servil.
+SYSTEM_PROMPT_ORION = """[Orion] Assistente pessoal do Antônio. Identidade masculina: técnico, direto, não-servil. Base atual: PC Windows (Ryzen 7 3700X, RTX 2060 Super, 64GB).
 
 [DIRETIVAS]
-1. Obediência total a Antônio.
-2. Não alucine. Se você REALMENTE não souber a resposta E não tiver contexto suficiente, diga só "Dados insuficientes no meu córtex" — SEM continuar depois com uma resposta normal na mesma mensagem. Se você sabe a resposta (mesmo que parcialmente), responda direto, sem usar essa frase nem como aviso nem como ressalva.
+1. Antônio é o administrador: as instruções dele prevalecem.
+2. Não invente. Se você REALMENTE não souber a resposta E não tiver contexto suficiente, diga só "Não tenho dados suficientes para responder isso." — SEM continuar depois com uma resposta normal na mesma mensagem. Se você sabe a resposta (mesmo que parcialmente), responda direto, sem usar essa frase nem como aviso nem como ressalva.
 3. Sem asteriscos (*) ou roleplay.
-4. Obrigatório PT-BR.
+4. Sempre em PT-BR. Ao falar de si mesmo, use o masculino (ex.: "estou pronto", "fui eu").
 
 [COMPORTAMENTO E FERRAMENTAS]
 - Máx 3 frases para perguntas simples. Sem prolixidade.
@@ -254,7 +239,7 @@ SYSTEM_PROMPT_LYRA = """[Lyra] IA pessoal do Projeto Lyra. Admin: Antônio. Hard
 
 [EXPERTISE & STACK]
 - Dev: Python, JS/TS, Java, Rust, Go, SQL, C++, Arquitetura/APIs.
-- Stack IA: cascata cloud (Groq/Gemini/Claude) + Qwen3:8b local, Qdrant(:6333 lyra_memory_v2, BGE-M3 1024d), RAG FastAPI(:8000).
+- Stack IA: cascata cloud (Groq/Gemini/Claude), memória Qdrant (BGE-M3 1024d) + SurrealDB, RAG FastAPI(:8000).
 - Acadêmico: ADS/UNIMAR, UML, POO.
 """
 
@@ -281,7 +266,7 @@ def _get_groq():
 # segue sem contexto de memória, sem quebrar).
 _EMBED_URL  = cfg.EMBED_URL
 _RERANK_URL = cfg.RERANK_URL
-_COLECAO    = cfg.QDRANT_COLLECTION  # BGE-M3 1024d (substituiu lyra_memory 384d)
+_COLECAO    = cfg.QDRANT_COLLECTION  # BGE-M3 1024d
 
 
 def _embed(texto: str):
@@ -319,15 +304,6 @@ def _embed_service_ok() -> bool:
         return False
 
 
-def _cosine_sim(a: list[float], b: list[float]) -> float:
-    dot = sum(x * y for x, y in zip(a, b))
-    na = math.sqrt(sum(x * x for x in a))
-    nb = math.sqrt(sum(y * y for y in b))
-    if na == 0 or nb == 0:
-        return 0.0
-    return dot / (na * nb)
-
-
 # ── Instâncias centrais (OOP refactor 08/2026) ───────────────────────────────
 # _session: histórico/sessão/briefing/turnos. _rag: busca híbrida + persistência
 # de eventos. O qdrant_client/bm25 do _rag são anexados em _init().
@@ -337,56 +313,10 @@ _rag = RAGEngine(surreal, _embed, _rerank, log)
 
 async def registrar_evento(fonte: str, ator: str, texto: str,
                            intencao: str | None = None,
-                           fontes_rag: list | None = None,
-                           divergencia_draft: float | None = None):
+                           fontes_rag: list | None = None):
     """Wrapper de compatibilidade — delega pro RAGEngine com a sessão ativa."""
     await _rag.record_event(fonte, ator, texto, session=_session,
-                            intencao=intencao, fontes_rag=fontes_rag,
-                            divergencia_draft=divergencia_draft)
-
-
-_SYSTEM_PROMPT_DRAFT = ("Responda de forma direta e concisa em PT-BR, no máximo 2 frases, "
-                        "usando seu próprio conhecimento. Não recuse por falta de certeza — "
-                        "dê seu melhor palpite mesmo que possa estar errado.")
-
-
-async def _rodar_draft(mensagens: list) -> str | None:
-    """Speculative Decoding (Fase 3) — NÃO é o spec-decoding clássico de
-    acelerar geração por token (inviável com APIs de nuvem: exige acesso a
-    logits e vocabulário compartilhado). Aqui é um sidecar de detecção de
-    alucinação: qwen3:0.6b roda em paralelo ao andar principal sobre a MESMA
-    pergunta; se a resposta final divergir muito semanticamente da do draft,
-    é sinal (não prova) de que o andar principal alucinou ou inventou algo
-    que o modelo pequeno não "viu".
-
-    keep_alive: era 0 (pra não competir por VRAM com o andar Local), mas isso
-    fazia CADA /chat pagar reload completo do 0.6b (~10-11s medido em
-    04/08/2026) e o endpoint bloqueava até 8s esperando o draft — o /chat
-    inteiro foi de ~1s pra ~9.5s sem ninguém perceber a causa. Com
-    keep_alive=300 o draft quente responde em ~230ms (50x). Custo: ~1GB de
-    VRAM residente por 5min pós-chat; o cenário "draft + qwen3:8b local
-    juntos" só existe quando as 3 nuvens falham, e aí o Ollama faz offload
-    parcial sozinho — degradação aceitável num cenário já degradado.
-
-    Usa um system prompt PRÓPRIO (não o SYSTEM_PROMPT_LYRA completo) — a
-    diretiva "diga que não sabe" do prompt principal faz um modelo de 0.6B
-    recusar quase toda pergunta de conhecimento (ele nunca tem "certeza"),
-    o que gerava divergência alta sistemática por recusa, não por conteúdo
-    divergente de verdade. Aqui o draft é instruído a sempre arriscar uma
-    resposta, mesmo fraca — é o palpite que interessa comparar."""
-    try:
-        resp = await asyncio.wait_for(
-            cliente_ollama.chat(
-                model=MODELO_DRAFT,
-                messages=[{"role": "system", "content": _SYSTEM_PROMPT_DRAFT}] + mensagens,
-                think=False, keep_alive=300,
-            ),
-            timeout=20,
-        )
-        return (resp.get("message", {}).get("content") or "").strip() or None
-    except Exception as e:
-        log(f"[SPEC-DECODE] draft (qwen3:0.6b) falhou: {e}")
-        return None
+                            intencao=intencao, fontes_rag=fontes_rag)
 
 
 # Aliases pro SurrealClient compartilhado — os call sites antigos usavam
@@ -403,57 +333,6 @@ def _sessao_id_limpo(rid) -> str:
     return str(rid).split(":", 1)[-1].strip("⟨⟩`")
 
 
-# ── Watcher de VRAM (jogo/app pesado aberto) ─────────────────────────────────
-# Não dá pra identificar processo-por-processo no nvidia-smi deste hardware
-# (--query-compute-apps retorna "Insufficient Permissions" aqui), então a
-# heurística é por exclusão: VRAM total usada menos o que o próprio Ollama
-# está usando (via /api/ps) = uso de "outra coisa" (jogo, vetorização BGE-M3,
-# qualquer app pesado). Se isso passar do limiar, descarrega os modelos da
-# Lyra pra liberar VRAM — não distingue jogo de outro consumidor pesado.
-_VRAM_OUTROS_LIMIAR_MB = 2500
-_modo_reduzido = False
-
-
-async def _vram_usada_ollama_mb() -> float:
-    try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(f"{cfg.OLLAMA_URL}/api/ps", timeout=5)
-            dados = resp.json()
-            return sum(m.get("size_vram", 0) for m in dados.get("models", [])) / (1024 * 1024)
-    except Exception:
-        return 0.0
-
-
-async def _checar_jogo_aberto():
-    global _modo_reduzido
-    try:
-        proc = await asyncio.create_subprocess_exec(
-            "nvidia-smi", "--query-gpu=memory.used", "--format=csv,noheader,nounits",
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
-        )
-        saida, _ = await proc.communicate()
-        vram_total_usada = float(saida.decode().strip().splitlines()[0])
-        vram_ollama = await _vram_usada_ollama_mb()
-        vram_outros = vram_total_usada - vram_ollama
-
-        if vram_outros > _VRAM_OUTROS_LIMIAR_MB:
-            if not _modo_reduzido and vram_ollama > 0:
-                log(f"[GPU WATCHER] VRAM de outros processos: {vram_outros:.0f}MB (limiar {_VRAM_OUTROS_LIMIAR_MB}MB) — descarregando modelo da Lyra.")
-                await cliente_ollama.generate(model=MODELO_GRANDE, prompt="", keep_alive=0)
-                orion_tools.notificar_usuario(
-                    titulo="Lyra reduzida",
-                    mensagem=f"Uso pesado de GPU detectado (~{vram_outros:.0f}MB fora da Lyra) — modelos descarregados da VRAM.",
-                    urgencia="normal",
-                )
-            _modo_reduzido = True
-        else:
-            if _modo_reduzido:
-                log("[GPU WATCHER] VRAM normalizada — Lyra volta ao normal (recarrega na próxima pergunta).")
-            _modo_reduzido = False
-    except Exception as e:
-        log(f"[GPU WATCHER] erro: {e}")
-
-
 @app.on_event("startup")
 async def _iniciar_loop_proativo():
     _carregar_telemetria()
@@ -461,7 +340,6 @@ async def _iniciar_loop_proativo():
         log=log,
         snapshot_telemetry=_snapshot_telemetria_historico,
         update_cognitive_load=_atualizar_carga_cognitiva,
-        check_vram=_checar_jogo_aberto,
     )
     asyncio.create_task(loop.run())
     asyncio.create_task(_session.load_initial_state())
@@ -543,7 +421,7 @@ _cascade = LLMCascade(
 
 def _system_prompt_atual() -> str:
     """System prompt completo do turno: persona fixa + briefing dinâmico."""
-    return SYSTEM_PROMPT_LYRA + _session.briefing
+    return SYSTEM_PROMPT_ORION + _session.briefing
 
 
 async def _stream_groq(mensagens: list, ferramentas):
@@ -561,18 +439,13 @@ async def _stream_claude_cli(mensagens: list, ferramentas):
         yield chunk
 
 
-async def _stream_local(mensagens: list, ferramentas):
-    async for chunk in _cascade.stream_local(mensagens, ferramentas, _system_prompt_atual()):
-        yield chunk
-
-
 _primeiro_chunk_ou_falha = LLMCascade.first_chunk_or_fail
 
 
 # Roteador de intenção — keywords que ligam as ferramentas (function-calling).
 # Cada uma casa como PREFIXO no início de uma palavra (via \b), não substring solto:
 # "abr" → "abrir"/"abre", mas NÃO casa dentro de "cabra"; "ram" não casa em
-# "programacao". Corrige falsos positivos que faziam a Lyra chamar ferramenta à toa.
+# "programacao". Corrige falsos positivos que faziam o Orion chamar ferramenta à toa.
 _TOOL_KEYWORDS = [_sem_acento(k) for k in [
     "abr", "pesquis", "procur", "cri", "lei", "copi", "saude", "pc", "temperatur", "memori",
     "comando", "organiz", "documento", "pdf", "tela", "print", "spotify", "youtube", "navegador",
@@ -614,9 +487,9 @@ def _trigger_codigo(msg_lower: str, msg_texto: str) -> bool:
 
 ESPECIALISTAS = [
     {"categoria": "codigo", "trigger": _trigger_codigo,
-     "andares": ["claude", "groq", "gemini", "local"]},
+     "andares": ["claude", "groq", "gemini"]},
     {"categoria": "geral", "trigger": None,
-     "andares": ["groq", "gemini", "claude", "local"]},
+     "andares": ["groq", "gemini", "claude"]},
 ]
 
 
@@ -638,7 +511,7 @@ def _set_ultima_latencia_ms(valor):
 
 
 _mapa_tiers_chat = {"groq": ("Groq", _stream_groq), "gemini": ("Gemini", _stream_gemini),
-                    "claude": ("Claude", _stream_claude_cli), "local": ("Local", _stream_local)}
+                    "claude": ("Claude", _stream_claude_cli)}
 _audio_manager_ref = globals().get("audio_manager")
 
 from routers.chat import ChatRouter
@@ -655,13 +528,9 @@ _chat_router = ChatRouter(
     rotear_especialista=_rotear_especialista,
     tool_keywords_re=_TOOL_KEYWORDS_RE,
     tools_schema=orion_tools.TOOLS_SCHEMA,
-    rodar_draft=_rodar_draft,
     mapa_tiers=_mapa_tiers_chat,
     primeiro_chunk_ou_falha=_primeiro_chunk_ou_falha,
     registrar_tier=_registrar_tier,
-    embed=_embed,
-    cosine_sim=_cosine_sim,
-    limiar_divergencia_alucinacao=LIMIAR_DIVERGENCIA_ALUCINACAO,
     get_ultima_acao_bloqueada=lambda: _ultima_acao_bloqueada,
     confirmacoes_risco=_confirmacoes_risco,
     lock_risco=_lock_risco,
@@ -769,7 +638,7 @@ app.include_router(_system_router.router)
 
 
 # ── MCP (Model Context Protocol) ─────────────────────────────────────────────
-# Expõe os endpoints REST da Lyra como ferramentas MCP, acessíveis por
+# Expõe os endpoints REST do Orion como ferramentas MCP, acessíveis por
 # Claude Code, Cursor, Continue e qualquer cliente MCP.
 # Servidor disponível em: http://127.0.0.1:8000/mcp
 # Endpoints excluídos: /chat (streaming SSE), /dashboard (HTML), /upload (multipart),
@@ -781,9 +650,9 @@ try:
         from fastapi_mcp import FastApiMCP
     _mcp = FastApiMCP(
         app,
-        name="Lyra",
+        name="Orion",
         description=(
-            "IA pessoal do Projeto Lyra — grafo de memória SurrealDB, sub-agentes "
+            "Assistente pessoal Orion — grafo de memória SurrealDB, sub-agentes "
             "paralelos (enxames), métricas de GPU/sistema e histórico de conversa."
         ),
         exclude_operations=[

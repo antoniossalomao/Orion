@@ -5,7 +5,7 @@ from datetime import datetime
 
 from ._shared import surreal_query, one
 
-def registrar_numero(alvo: str, score: float, motivo: str, fonte: str = "lyra") -> dict:
+def registrar_numero(alvo: str, score: float, motivo: str, fonte: str = "orion") -> dict:
     """
     Sistema de Números — inspirado na Máquina de Person of Interest: registra
     uma observação com um score de relevância/urgência (0.0 a 1.0) em vez de

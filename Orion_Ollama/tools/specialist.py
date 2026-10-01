@@ -1,73 +1,56 @@
-"""tools/specialist.py — Delegation tools: consult a local/cloud specialist model and drive sub-agent swarms."""
+"""tools/specialist.py — Delegation tools: consult a cloud specialist (Claude Code) and drive sub-agent swarms."""
 
 import json
 
 from .notifications import notificar_usuario
 
 
-def consultar_especialista(problema: str, nivel: str, aprovado: bool = False) -> dict:
-    """Delega uma tarefa complexa para um modelo especialista (Local ou Nuvem)."""
-    if nivel == "cloud" and not aprovado:
+def consultar_especialista(problema: str, nivel: str = "cloud", aprovado: bool = False) -> dict:
+    """Delega uma tarefa complexa para o Claude Code (nuvem). Só existe o nível
+    "cloud" — o especialista local foi removido junto com o Ollama."""
+    if nivel != "cloud":
+        return {"erro": "Só há especialista na nuvem: use nivel='cloud'.", "ok": False}
+    if not aprovado:
         return {
             "status": "BLOQUEADO",
             "mensagem": "AVISO DE SEGURANÇA: O uso de nuvem (Claude/OpenAI) quebra a Diretiva Nº 2 e requer aprovação explícita. Pergunte ao usuário se ele aprova o envio do problema para a nuvem. Se ele disser sim, chame esta ferramenta novamente com aprovado=True."
         }
 
-    if nivel == "cloud":
-        # Exceção consciente à Diretiva Nº 2 (decidida com Antônio em 24/06/2026):
-        # delega pra Claude Code (Sonnet) via CLI headless, com agente completo
-        # (acesso a arquivo/shell no projeto), avisando o usuário antes de chamar.
-        notificar_usuario(
-            titulo="Lyra → Claude Code",
-            mensagem=f"Delegando para o Claude (Sonnet): {problema[:120]}",
-            urgencia="normal",
-        )
-        try:
-            import shutil
-            import subprocess
-            claude_path = shutil.which("claude")
-            if not claude_path:
-                return {"erro": "CLI 'claude' não encontrado no PATH.", "ok": False}
-
-            resultado = subprocess.run(
-                [claude_path, "-p", problema, "--model", "sonnet",
-                 "--allow-dangerously-skip-permissions"],
-                cwd=r"C:\Orion",
-                capture_output=True,
-                text=True,
-                timeout=600,
-            )
-            if resultado.returncode != 0:
-                return {"erro": resultado.stderr.strip() or "Claude Code retornou erro.",
-                        "status": "FALHA"}
-            return {
-                "status": "SUCESSO",
-                "especialista": "Claude (Sonnet, agente completo via Claude Code)",
-                "resposta_do_especialista": resultado.stdout.strip(),
-            }
-        except subprocess.TimeoutExpired:
-            return {"erro": "Claude Code excedeu o tempo limite (10min).", "ok": False}
-        except Exception as e:
-            return {"erro": str(e), "ok": False}
-
-    # Delegar para Especialista Local (Qwen Coder)
+    # Exceção consciente à Diretiva Nº 2 (decidida com Antônio em 24/06/2026):
+    # delega pra Claude Code (Sonnet) via CLI headless, com agente completo
+    # (acesso a arquivo/shell no projeto), avisando o usuário antes de chamar.
+    notificar_usuario(
+        titulo="Orion → Claude Code",
+        mensagem=f"Delegando para o Claude (Sonnet): {problema[:120]}",
+        urgencia="normal",
+    )
     try:
-        from ollama import Client
-        c = Client(host='http://127.0.0.1:11434')
-        res = c.chat(
-            model='qwen2.5-coder:7b',
-            messages=[
-                {"role": "system", "content": "Você é um Especialista Sênior em Engenharia de Software. Resolva o problema a seguir escrevendo o código mais otimizado, seguro e robusto possível."},
-                {"role": "user", "content": problema}
-            ]
+        import shutil
+        import subprocess
+        claude_path = shutil.which("claude")
+        if not claude_path:
+            return {"erro": "CLI 'claude' não encontrado no PATH.", "ok": False}
+
+        resultado = subprocess.run(
+            [claude_path, "-p", problema, "--model", "sonnet",
+             "--allow-dangerously-skip-permissions"],
+            cwd=r"C:\Orion",
+            capture_output=True,
+            text=True,
+            timeout=600,
         )
+        if resultado.returncode != 0:
+            return {"erro": resultado.stderr.strip() or "Claude Code retornou erro.",
+                    "status": "FALHA"}
         return {
             "status": "SUCESSO",
-            "especialista": "qwen2.5-coder:7b (Local)",
-            "resposta_do_especialista": res['message']['content']
+            "especialista": "Claude (Sonnet, agente completo via Claude Code)",
+            "resposta_do_especialista": resultado.stdout.strip(),
         }
+    except subprocess.TimeoutExpired:
+        return {"erro": "Claude Code excedeu o tempo limite (10min).", "ok": False}
     except Exception as e:
-        return {"erro": str(e)}
+        return {"erro": str(e), "ok": False}
 
 def _enxame_req(method: str, path: str, payload: dict | None = None) -> dict:
     """Chama o endpoint de enxame no cerebro_maestro (:8000) de forma síncrona."""
@@ -159,12 +142,12 @@ SCHEMA = [
             "type": "function",
             "function": {
                 "name": "consultar_especialista",
-                "description": "Delega um problema complexo (código, tarefa difícil, pesquisa profunda) para um Agente Especialista local ou na nuvem.",
+                "description": "Delega um problema complexo (código, tarefa difícil, pesquisa profunda) para o Claude Code (agente na nuvem).",
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "problema": {"type": "string", "description": "Descrição detalhada da tarefa/desafio."},
-                        "nivel":    {"type": "string", "enum": ["local", "cloud"], "description": "local = Qwen Coder (sem rede); cloud = Claude (Sonnet) via Claude Code, com agente completo (lê/edita arquivos e roda comandos no projeto) — quebra a Diretiva Nº 2, exige aprovado=True."},
+                        "nivel":    {"type": "string", "enum": ["cloud"], "description": "cloud = Claude (Sonnet) via Claude Code, com agente completo (lê/edita arquivos e roda comandos no projeto) — quebra a Diretiva Nº 2, exige aprovado=True."},
                         "aprovado": {"type": "boolean", "description": "Use True apenas se o usuário tiver explicitamente autorizado o uso da nuvem (ou se o usuário já pediu nessa mesma mensagem para usar o Claude)."}
                     },
                     "required": ["problema", "nivel"]

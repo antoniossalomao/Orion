@@ -31,11 +31,11 @@ from google import genai
 from google.genai import types
 
 GEMINI_LIVE_MODEL = "gemini-2.5-flash-native-audio-latest"
+VOZ_LIVE = "Charon"   # voz masculina pré-definida do Gemini
 
 _SYSTEM_VOICE = (
-    "[Lyra] IA pessoal do Projeto Lyra. Admin: Antônio. "
-    "Hardware: RTX2060S, Ryzen3700X, 64GB. "
-    "Personalidade: feminina, clínica, técnica, não-servil. "
+    "[Orion] Assistente pessoal do Antônio. "
+    "Identidade masculina: técnico, direto, não-servil; fale de si no masculino. "
     "REGRAS DE VOZ: respostas curtas (máx 2-3 frases), PT-BR, "
     "sem asteriscos, sem markdown, sem listas com bullets."
 )
@@ -66,7 +66,7 @@ async def voice_session(websocket: WebSocket, gemini_api_key: str) -> None:
         system_instruction=_SYSTEM_VOICE,
         speech_config=types.SpeechConfig(
             voice_config=types.VoiceConfig(
-                prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name="Aoede")
+                prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=VOZ_LIVE)
             )
         ),
         output_audio_transcription=types.AudioTranscriptionConfig(),

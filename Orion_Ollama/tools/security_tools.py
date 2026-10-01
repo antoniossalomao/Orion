@@ -2,9 +2,9 @@
 
 def consultar_audit_log(limite: int = 50, tool_filtro: str = "", apenas_bloqueados: bool = False) -> dict:
     """
-    Consulta o audit log imutável da Lyra — registro de todas as ferramentas
+    Consulta o audit log imutável do Orion — registro de todas as ferramentas
     chamadas, com timestamp, args, resultado e se foram bloqueadas por rate limit.
-    Útil pra o usuário auditar o que a Lyra fez em segundo plano.
+    Útil pra o usuário auditar o que o Orion fez em segundo plano.
     """
     try:
         import orion_seguranca
@@ -22,7 +22,7 @@ SCHEMA = [
             "type": "function",
             "function": {
                 "name": "consultar_audit_log",
-                "description": "Consulta o registro imutável de todas as ferramentas executadas pela Lyra (audit log). Use para responder 'o que você fez ontem?', 'quais comandos foram executados?', ou para auditar ações suspeitas.",
+                "description": "Consulta o registro imutável de todas as ferramentas executadas pelo Orion (audit log). Use para responder 'o que você fez ontem?', 'quais comandos foram executados?', ou para auditar ações suspeitas.",
                 "parameters": {
                     "type": "object",
                     "properties": {

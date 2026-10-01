@@ -1,7 +1,7 @@
 """
 routers/memory.py — endpoints de memória/grafo.
 
-Extraído de cerebro_maestro.py na reorganização OOP (Lyra 2.0). Comportamento
+Extraído de cerebro_maestro.py na reorganização OOP (08/2026). Comportamento
 idêntico ao original — só move código de lugar, não muda lógica.
 """
 import datetime
@@ -88,7 +88,7 @@ class MemoryRouter:
 
     async def memoria_categorias(self):
         """Composição da base de conhecimento por categoria, via facet do Qdrant
-        (distinct counts exatos e eficientes). Mostra o que a Lyra 'sabe'."""
+        (distinct counts exatos e eficientes). Mostra o que o Orion 'sabe'."""
         if not self._get_cerebro_ativo() or not self._rag.active:
             return {"erro": "Cérebro não inicializado"}
         total_colecao = 0
@@ -115,9 +115,9 @@ class MemoryRouter:
     async def exportar_conversa(self):
         """Exporta o histórico em memória como markdown — pra salvar/compartilhar a sessão."""
         hist = await self._session.snapshot()
-        linhas = [f"# Conversa com a Lyra — {datetime.datetime.now().strftime('%d/%m/%Y %H:%M')}", ""]
+        linhas = [f"# Conversa com o Orion — {datetime.datetime.now().strftime('%d/%m/%Y %H:%M')}", ""]
         for m in hist:
-            autor = "**Antônio**" if m["role"] == "user" else "**Lyra**"
+            autor = "**Antônio**" if m["role"] == "user" else "**Orion**"
             linhas.append(f"{autor}: {m['content']}")
             linhas.append("")
         return {"markdown": "\n".join(linhas), "total_msgs": len(hist)}

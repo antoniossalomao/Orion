@@ -1,12 +1,12 @@
 """
-mic_engine.py — Motor de Microfone da Lyra
+mic_engine.py — Motor de Microfone do Orion
 ==========================================
 Ring 0: 100% offline. Zero cloud. Zero telemetria.
 
 Fluxo:
   1. Captura áudio do microfone via sounddevice
   2. VAD via Silero VAD (modelo) — detecta fala robusto a ruído de fundo
-  3. Wake word "lyra" (match por palavra inteira, com tolerância a erro de transcrição) — ativa o modo escuta estendida
+  3. Wake word "orion" (match por palavra inteira, com tolerância a erro de transcrição) — ativa o modo escuta estendida
   4. Transcrição via faster-whisper (Whisper local na GPU/CPU)
   5. Broadcast do estado para UI via WebSocket ws://localhost:8765
   6. POST da transcrição para o backend em http://localhost:8000/chat
@@ -65,14 +65,14 @@ MAX_RECORD_SEC    = 30             # limite por segurança (não grava para semp
 PRE_BUFFER_SEC    = 0.5            # guarda meio segundo antes do gatilho VAD
 MIN_SPEECH_SEC    = 0.8            # descarta áudio menor que isso (ruído/falso positivo)
 
-# Whisper frequentemente transcreve "Lyra" de formas diferentes
+# Whisper transcreve "Orion" de formas diferentes em PT-BR
 # Todas as variantes abaixo ativam o modo escuta
-WAKE_WORDS        = {"lyra", "lira", "leia", "lê", "lhyra", "lyre", "liara", "lya"}
+WAKE_WORDS        = {"orion", "órion", "oriom", "órium", "orium", "orian", "oriã"}
 WAKE_WORD_TIMEOUT = 15.0           # segundos esperando comando após wake word
 
 WHISPER_MODEL     = "small"        # "tiny" | "base" | "small" | "medium" | "large-v3"
 # Trocado de "base" pra "small" em 24/06/2026 — "base" errava demais em PT-BR
-# (inclusive a própria wake word "lyra"). "small" ainda roda rápido em GPU float16.
+# (inclusive a palavra de ativação). "small" ainda roda rápido em GPU float16.
 WHISPER_DEVICE    = "cuda"
 WHISPER_COMPUTE   = "float16"
 WHISPER_LANG      = "pt"           # força PT-BR, elimina detecção automática
@@ -94,7 +94,7 @@ _loop: Optional[asyncio.AbstractEventLoop] = None
 
 # ── WebSocket: broadcast para a UI ───────────────────────────────────────────
 async def _ws_connect():
-    """Mantém conexão persistente ao servidor WS da Lyra."""
+    """Mantém conexão persistente ao servidor WS do Orion."""
     global _ws_connection
     while True:
         try:
@@ -319,7 +319,7 @@ async def _main_loop():
     modo_ativo = False          # True = aguardando comando após wake word
     deadline_ativo = 0.0
 
-    print(f'[MIC] Escutando... Diga "Lyra" para ativar. Variantes: {WAKE_WORDS}')
+    print(f'[MIC] Escutando... Diga "Orion" para ativar. Variantes: {WAKE_WORDS}')
     broadcast("idle")
 
     with stream:
