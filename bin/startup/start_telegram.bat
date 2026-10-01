@@ -10,7 +10,7 @@ if %ERRORLEVEL% EQU 0 (
 )
 
 REM Checa token configurado
-for /f "tokens=2 delims==" %%a in ('findstr /i "TELEGRAM_BOT_TOKEN" "C:\Lyra_Project\Lyra_Ollama\.env"') do set TOKEN=%%a
+for /f "tokens=2 delims==" %%a in ('findstr /i "TELEGRAM_BOT_TOKEN" "C:\Orion\Orion_Ollama\.env"') do set TOKEN=%%a
 if "%TOKEN%"=="" (
     echo [ERRO] TELEGRAM_BOT_TOKEN nao definido no .env
     echo Fale com @BotFather no Telegram, crie um bot e cole o token em .env
@@ -19,5 +19,5 @@ if "%TOKEN%"=="" (
 
 title Lyra_Telegram
 "C:\Users\anton\AppData\Local\Programs\Python\Python312\python.exe" ^
-    "C:\Lyra_Project\Lyra_Ollama\lyra_telegram.py" ^
-    >> "C:\Lyra_Project\bin\startup\telegram_startup.log" 2>&1
+    "C:\Orion\Orion_Ollama\orion_telegram.py" ^
+    >> "C:\Orion\bin\startup\telegram_startup.log" 2>&1

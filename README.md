@@ -2,7 +2,7 @@
 
 > **Em replanejamento na branch `lyra-v2`** (a `main` está congelada como backup
 > do legado). O projeto passa a se chamar **Orion** — plano completo em
-> [LYRA_NUCLEO.md](Memorias%20Do%20Projeto/LYRA_NUCLEO.md). Este README descreve o
+> [ORION_NUCLEO.md](Memorias%20Do%20Projeto/ORION_NUCLEO.md). Este README descreve o
 > **legado (Lyra)**, que roda no PC atual (Ryzen 7 3700X · RTX 2060 Super 8GB ·
 > 64GB RAM, Windows) até a venda.
 
@@ -14,8 +14,8 @@ Documentação (3 arquivos, nada mais):
 | Arquivo | Conteúdo |
 |---|---|
 | `README.md` (este) | Legado: arquitetura, como subir, configuração, testes, segurança, licença |
-| [LYRA_NUCLEO.md](Memorias%20Do%20Projeto/LYRA_NUCLEO.md) | **Plano do Orion:** princípios, arquitetura-alvo, inventário do legado, fases, decisões |
-| [LYRA_TECNICO.md](Memorias%20Do%20Projeto/LYRA_TECNICO.md) | Referência do código legado (Lyra): regras críticas, API, backend, memória/RAG, frontends, gotchas |
+| [ORION_NUCLEO.md](Memorias%20Do%20Projeto/ORION_NUCLEO.md) | **Plano do Orion:** princípios, arquitetura-alvo, inventário do legado, fases, decisões |
+| [ORION_TECNICO.md](Memorias%20Do%20Projeto/ORION_TECNICO.md) | Referência do código legado (Lyra): regras críticas, API, backend, memória/RAG, frontends, gotchas |
 
 ---
 
@@ -44,7 +44,7 @@ Documentação (3 arquivos, nada mais):
 |---|---|---|
 | `cerebro_maestro.py` (FastAPI) | 8000 | Orquestrador: cascata, RAG, endpoints, MCP (`/mcp`), serve `/ui` e `/ui-novo` |
 | `embed_service.py` (FastAPI) | 8001 | BGE-M3 1024d + reranker bge-reranker-v2-m3 (GPU). O cérebro depende dele |
-| hub WS (`lyra_app.py`) | 8765 | Ponte frontend v1 ↔ cérebro |
+| hub WS (`orion_app.py`) | 8765 | Ponte frontend v1 ↔ cérebro |
 | Qdrant | 6333 | Vetores (`lyra_memory_v2`, ~3.09M, BGE-M3 1024d) |
 | SurrealDB | 8090 | Memória episódica + grafo (ns `lyra_core`, db `Db_CORTEX`) |
 | Ollama | 11434 | `qwen3:8b` local (último andar da cascata) |
@@ -60,7 +60,7 @@ Documentação (3 arquivos, nada mais):
 - GPU NVIDIA com CUDA 12.4 (BGE-M3 + reranker)
 - Ollama com `qwen3:8b` (e `qwen3:0.6b` para o sidecar de spec-decoding)
 - CLI `claude` no PATH (andar Claude da cascata)
-- Qdrant **v1.17.1** (fixado — ver regra em LYRA_TECNICO §2) e SurrealDB 3.0.5
+- Qdrant **v1.17.1** (fixado — ver regra em ORION_TECNICO §2) e SurrealDB 3.0.5
 
 ## Configuração
 
@@ -68,7 +68,7 @@ Documentação (3 arquivos, nada mais):
 python -m pip install -r requirements.txt   # inclui torch 2.6+cu124 (bge-m3)
 ```
 
-`Lyra_Ollama/.env` (copiar de `.env.example`):
+`Orion_Ollama/.env` (copiar de `.env.example`):
 
 | Variável | Uso |
 |---|---|
@@ -87,7 +87,7 @@ bin\startup\start_cerebro.bat   :: espera 6333/8090/11434/8001 e sobe o FastAPI
 ```
 
 Cada `.bat` só sobe se a porta estiver livre e rotaciona o próprio log (>5MB → `.old`).
-No boot do Windows, `bin/startup/lyra_boot.vbs` (atalho em Startup) sobe
+No boot do Windows, `bin/startup/orion_boot.vbs` (atalho em Startup) sobe
 qdrant + surreal + embed + cérebro; o Ollama tem atalho próprio.
 
 **Reiniciar o cérebro:** `lsof`/`kill` do Git Bash não enxergam processos
@@ -102,23 +102,23 @@ Get-CimInstance Win32_Process -Filter "Name = 'python.exe'" |
 
 | Pasta | Stack | Como abre | Estado |
 |---|---|---|---|
-| `Lyra_Core/Front_end_Lyra/` | pywebview + Three.js | `python Lyra_Core/Front_end_Lyra/lyra_app.py` | v1, produção |
-| `Lyra_Core/Front_end_Lyra_v2/` | React + Vite + TS | `npm run build` → `http://127.0.0.1:8000/ui/` | em uso até o cutover |
-| `Lyra_Core/Front_end_Lyra_v3/` | SvelteKit + Tauri 2 | `$env:BASE_PATH="/ui-novo"; npm run build` → `http://127.0.0.1:8000/ui-novo/` | Lyra 2.0 — cutover pendente |
+| `Orion_Core/Front_end_Orion/` | pywebview + Three.js | `python Orion_Core/Front_end_Orion/orion_app.py` | v1, produção |
+| `Orion_Core/Front_end_Orion_v2/` | React + Vite + TS | `npm run build` → `http://127.0.0.1:8000/ui/` | em uso até o cutover |
+| `Orion_Core/Front_end_Orion_v3/` | SvelteKit + Tauri 2 | `$env:BASE_PATH="/ui-novo"; npm run build` → `http://127.0.0.1:8000/ui-novo/` | Lyra 2.0 — cutover pendente |
 
 ## Integrações opcionais (passos manuais)
 
 1. **Telegram** — `@BotFather` → `/newbot` → token em `TELEGRAM_BOT_TOKEN`;
    seu ID numérico (via `@userinfobot`) em `TELEGRAM_ALLOWED_USERS`. Subir:
    `bin\startup\start_telegram.bat`. Depois de validado, adicionar
-   `Shell "...\bin\startup\start_telegram.bat"` ao `lyra_boot.vbs`.
+   `Shell "...\bin\startup\start_telegram.bat"` ao `orion_boot.vbs`.
 2. **Google Workspace (Gmail + Calendar)** — Google Cloud Console → ativar Gmail
    API e Calendar API → credencial OAuth "Aplicativo para computador" → salvar
-   em `Lyra_Core/google_auth/credentials.json` → rodar uma vez
-   `python Lyra_Ollama/lyra_google_workspace.py` (gera `token.json`).
+   em `Orion_Core/google_auth/credentials.json` → rodar uma vez
+   `python Orion_Ollama/orion_google_workspace.py` (gera `token.json`).
 3. **Screenpipe** (gravação contínua de tela, MCP em `:3030`) —
    `npm install -g @screenpipe/cli`, subir com `bin\startup\start_screenpipe.bat`,
-   depois adicionar ao `lyra_boot.vbs`.
+   depois adicionar ao `orion_boot.vbs`.
 4. **Atualizar SurrealDB** (Lyra parada, PowerShell admin) —
    `winget upgrade SurrealDB.SurrealDB --accept-source-agreements --accept-package-agreements`.
 5. **MCP da Lyra no Claude Code** — em `~/.claude/settings.json`:
@@ -129,8 +129,8 @@ Get-CimInstance Win32_Process -Filter "Name = 'python.exe'" |
 ## Testes
 
 ```
-python Lyra_Ollama/test_smoke.py            # todos os endpoints
-python Lyra_Ollama/test_smoke.py --rapido   # sem o teste de chat
+python Orion_Ollama/test_smoke.py            # todos os endpoints
+python Orion_Ollama/test_smoke.py --rapido   # sem o teste de chat
 ```
 
 Exigem os serviços no ar. Não há testes unitários isolados nem CI.
@@ -140,7 +140,7 @@ vetores, telemetria da cascata).
 ## Layout
 
 ```
-Lyra_Ollama/                  # backend
+Orion_Ollama/                  # backend
   cerebro_maestro.py            # entrypoint FastAPI :8000 — estado compartilhado + wiring dos routers
   routers/ · models/ · utils/   # endpoints por domínio, schemas Pydantic, auth/segredos
   config.py                     # portas, URLs, model IDs
@@ -149,22 +149,22 @@ Lyra_Ollama/                  # backend
   session_manager.py            # histórico, sessões, briefing
   proactive_loop.py             # loop proativo (lembretes, self-healing, shadow thoughts, reconciliação)
   surreal_client.py · logger.py
-  tools/                        # 58 ferramentas por domínio (lyra_tools.py = shim)
+  tools/                        # 58 ferramentas por domínio (orion_tools.py = shim)
   embed_service.py              # BGE-M3 + reranker :8001
-  lyra_agent.py · lyra_agentes.py        # ReAct autônomo · enxame paralelo
-  lyra_shadow_thoughts.py       # ciclo de sono NREM/REM/DEEP
-  lyra_seguranca.py             # rate limit, câmara de eco, audit, keyring, self-healing
-  lyra_browser.py · lyra_google_workspace.py · lyra_telegram.py · lyra_voice_live.py
+  orion_agent.py · orion_agentes.py        # ReAct autônomo · enxame paralelo
+  orion_shadow_thoughts.py       # ciclo de sono NREM/REM/DEEP
+  orion_seguranca.py             # rate limit, câmara de eco, audit, keyring, self-healing
+  orion_browser.py · orion_google_workspace.py · orion_telegram.py · orion_voice_live.py
   bm25_index.py · reconciliar_episodios.py · test_smoke.py
-Lyra_Core/                    # frontends, voz, sentidos, memória bruta
-  Front_end_Lyra/ · Front_end_Lyra_v2/ · Front_end_Lyra_v3/ (+ src-tauri/)
+Orion_Core/                    # frontends, voz, sentidos, memória bruta
+  Front_end_Orion/ · Front_end_Orion_v2/ · Front_end_Orion_v3/ (+ src-tauri/)
   audio_manager.py (TTS) · mic_engine.py (STT) · commands.py
-bin/startup/                  # .bat de cada serviço + lyra_boot.vbs
-Memorias Do Projeto/          # LYRA_NUCLEO.md (plano do Orion), LYRA_TECNICO.md (referência do legado)
+bin/startup/                  # .bat de cada serviço + orion_boot.vbs
+Memorias Do Projeto/          # ORION_NUCLEO.md (plano do Orion), ORION_TECNICO.md (referência do legado)
 ```
 
-**Fora do git (runtime):** `Lyra_Core/Sons/cache/`, `Lyra_Ollama/telemetria*`,
-`Lyra_Ollama/lyra_tools_ext/`, checkpoints de ingestão, `.env`, credenciais OAuth,
+**Fora do git (runtime):** `Orion_Core/Sons/cache/`, `Orion_Ollama/telemetria*`,
+`Orion_Ollama/orion_tools_ext/`, checkpoints de ingestão, `.env`, credenciais OAuth,
 `qdrant_data/`, `db_cortex/`, `bm25s_index*/`, `.claude/settings.local.json`.
 
 ---

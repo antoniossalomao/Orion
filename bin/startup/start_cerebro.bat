@@ -19,6 +19,6 @@ timeout /t 2 /nobreak >nul
 goto esperar
 
 :seguir
-cd /d C:\Lyra_Project\Lyra_Ollama
-powershell -NoProfile -Command "if ((Get-Item 'C:\Lyra_Project\bin\startup\cerebro_startup.log' -ErrorAction SilentlyContinue).Length -gt 5MB) { Move-Item 'C:\Lyra_Project\bin\startup\cerebro_startup.log' 'C:\Lyra_Project\bin\startup\cerebro_startup.log.old' -Force }"
-"C:\Users\anton\AppData\Local\Programs\Python\Python312\python.exe" cerebro_maestro.py >> C:\Lyra_Project\bin\startup\cerebro_startup.log 2>&1
+cd /d C:\Orion\Orion_Ollama
+powershell -NoProfile -Command "if ((Get-Item 'C:\Orion\bin\startup\cerebro_startup.log' -ErrorAction SilentlyContinue).Length -gt 5MB) { Move-Item 'C:\Orion\bin\startup\cerebro_startup.log' 'C:\Orion\bin\startup\cerebro_startup.log.old' -Force }"
+"C:\Users\anton\AppData\Local\Programs\Python\Python312\python.exe" cerebro_maestro.py >> C:\Orion\bin\startup\cerebro_startup.log 2>&1

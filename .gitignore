@@ -13,12 +13,12 @@ bm25s_index*/
 *.pkl
 *.bak
 snapshots/
-Lyra_Core/Memoria_Lyra/db_cortex/
-Lyra_Core/Memoria_Lyra/backups/
+Orion_Core/Memoria_Orion/db_cortex/
+Orion_Core/Memoria_Orion/backups/
 
 # IDE Theia abandonada (30/09/2026) — pasta local com .git próprio, se ainda
 # existir, nunca entra no repo
-Lyra_Core/Lyra_IDE/
+Orion_Core/Lyra_IDE/
 
 # logs e segredos
 *.log
@@ -27,8 +27,8 @@ Lyra_Core/Lyra_IDE/
 !.env.example
 
 # credenciais OAuth do Google (geradas em runtime)
-Lyra_Core/google_auth/credentials.json
-Lyra_Core/google_auth/token.json
+Orion_Core/google_auth/credentials.json
+Orion_Core/google_auth/token.json
 
 # ide/build
 dist/
@@ -42,11 +42,11 @@ target/
 bin/qdrant.exe
 
 # estado de runtime (gerado pelos serviços, não é código)
-Lyra_Core/Sons/cache/
-Lyra_Ollama/telemetria.json
-Lyra_Ollama/telemetria_historico.jsonl
-Lyra_Ollama/lyra_tools_ext/
-Lyra_Core/Memoria_Lyra/Scripts_Ingestao/checkpoint_*.json
+Orion_Core/Sons/cache/
+Orion_Ollama/telemetria.json
+Orion_Ollama/telemetria_historico.jsonl
+Orion_Ollama/orion_tools_ext/
+Orion_Core/Memoria_Orion/Scripts_Ingestao/checkpoint_*.json
 .qdrant-initialized
 bin/backup_pip_freeze_*.txt
 
@@ -55,7 +55,7 @@ bin/backup_pip_freeze_*.txt
 .claude/*.lock
 
 # capturas de verificação de UI
-Lyra_Core/Front_end_Lyra_v3/_screenshots/
+Orion_Core/Front_end_Orion_v3/_screenshots/
 
 # schemas gerados pelo build do Tauri
-Lyra_Core/Front_end_Lyra_v3/src-tauri/gen/
+Orion_Core/Front_end_Orion_v3/src-tauri/gen/

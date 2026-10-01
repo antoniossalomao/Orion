@@ -1,5 +1,5 @@
 @echo off
-REM Screenpipe — gravação contínua de tela + áudio, dados em D:\Lyra_Vault\Screenpipe
+REM Screenpipe — gravação contínua de tela + áudio, dados em D:\Orion_Vault\Screenpipe
 REM Instalar: npm install -g @screenpipe/cli
 REM MCP server exposto em http://127.0.0.1:3030 (conectar no Claude settings.json)
 
@@ -16,7 +16,7 @@ if %ERRORLEVEL% NEQ 0 (
 )
 
 screenpipe ^
-  --data-dir "D:\Lyra_Vault\Screenpipe" ^
+  --data-dir "D:\Orion_Vault\Screenpipe" ^
   --fps 0.5 ^
   --port 3030 ^
-  >> "C:\Lyra_Project\bin\startup\screenpipe_startup.log" 2>&1
+  >> "C:\Orion\bin\startup\screenpipe_startup.log" 2>&1
