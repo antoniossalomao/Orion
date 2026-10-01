@@ -1,5 +1,5 @@
 # ════════════════════════════════════════════════════════════════════════
-# Lyra — dependências do Python principal (system Python 3.12)
+# Orion — dependências do Python principal (system Python 3.12)
 # Atualizado 02/07/2026 (conferido via pip freeze real — vários pacotes do
 # arquivo anterior estavam desatualizados/incorretos, ver ORION_TECNICO.md).
 #
@@ -26,7 +26,6 @@ google-auth-httplib2==0.4.0        # transport OAuth2
 google-auth-oauthlib==1.2.4        # fluxo OAuth2 desktop
 
 # ── Cascata de modelos ──────────────────────────────────────────────────
-ollama==0.6.1                 # qwen3:8b local (último andar)
 groq==1.0.0                   # Groq Llama 3.3 70B (1º andar) + enxame
 google-genai==1.65.0          # Gemini 2.5 Flash + Live API (2º andar, voz live)
 # Claude via CLI 'claude' (sem pacote pip — instalado separado)

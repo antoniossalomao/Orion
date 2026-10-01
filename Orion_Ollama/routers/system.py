@@ -115,7 +115,6 @@ class SystemRouter:
 
         qdrant_ok, qdrant_ms   = await _ping(f"{cfg.QDRANT_URL}/healthz")
         surreal_ok, surreal_ms = await _ping_post(cfg.SURREAL_URL, "RETURN 1", cfg.SURREAL_HEADERS, cfg.SURREAL_AUTH)
-        ollama_ok, ollama_ms   = await _ping(f"{cfg.OLLAMA_URL}/api/tags")
 
         vram_info = {}
         try:
@@ -144,7 +143,6 @@ class SystemRouter:
                         "bm25": self._rag.bm25_index is not None},
             "qdrant":   {"ok": qdrant_ok, "latencia_ms": qdrant_ms, "vetores": qdrant_vetores},
             "surreal":  {"ok": surreal_ok, "latencia_ms": surreal_ms},
-            "ollama":   {"ok": ollama_ok, "latencia_ms": ollama_ms},
             "vram":     vram_info,
             "latencia_ultimo_chat_ms": self._get_ultima_latencia_ms(),
         }

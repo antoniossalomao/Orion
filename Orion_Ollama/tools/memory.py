@@ -11,7 +11,7 @@ from ._shared import surreal_query
 
 def buscar_memoria(query: str, top_k: int = 5, categoria: str = "") -> dict:
     """Busca híbrida (BM25 lexical + vetorial denso, combinados via RRF) na
-    memória do Orion (Qdrant lyra_memory) — mesma lógica usada pela busca
+    memória do Orion (coleção Qdrant de config.QDRANT_COLLECTION) — mesma lógica usada pela busca
     automática do chat em cerebro_maestro.py, agora também disponível aqui."""
     try:
         import bm25_index
@@ -90,8 +90,8 @@ def salvar_memoria(titulo: str, texto: str, categoria: str = "geral") -> dict:
 def backup_memoria(destino: str = "") -> dict:
     """
     Backup pontual de segurança: exporta todas as tabelas do SurrealDB
-    (lyra_core/Db_CORTEX) pra JSON com timestamp, e cria snapshot das coleções
-    Qdrant (lyra_memory e lyra_memory_v2, se existirem). Não é incremental —
+    (namespace config.SURREAL_NS) pra JSON com timestamp, e cria snapshot da
+    coleção Qdrant de config.QDRANT_COLLECTION. Não é incremental —
     é pra rodar antes de qualquer operação arriscada na memória.
     """
     try:
@@ -116,7 +116,7 @@ def backup_memoria(destino: str = "") -> dict:
 
         try:
             q = get_qdrant()
-            for colecao in ("lyra_memory", "lyra_memory_v2"):
+            for colecao in (_COLECAO_MEMORIA,):
                 try:
                     snap = q.create_snapshot(collection_name=colecao)
                     resultado["qdrant_snapshots"][colecao] = snap.name

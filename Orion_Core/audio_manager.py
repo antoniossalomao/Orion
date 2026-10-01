@@ -5,8 +5,7 @@ Cadeia (04/08/2026): Gemini TTS nativo (voz neural de verdade, free tier) →
 edge-tts Francisca (fallback) → silêncio.
 
 O Gemini TTS (gemini-2.5-flash-preview-tts) é a primeira opção nova viável
-desde que todas as alternativas locais foram esgotadas e rejeitadas (ver
-memória lyra-voz-tts): é online (permitido — confirmado por Antônio em
+desde que todas as alternativas locais foram esgotadas e rejeitadas: é online (permitido — confirmado por Antônio em
 23/06/2026 que voz pode ser online), usa a GEMINI_API_KEY que o Orion já tem,
 e as vozes femininas (Leda/Aoede/Kore) são qualitativamente outra classe em
 PT-BR comparadas ao edge-tts Francisca ("medíocre, entonação travada").

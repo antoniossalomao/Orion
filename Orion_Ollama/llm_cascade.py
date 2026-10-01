@@ -1,9 +1,9 @@
-"""llm_cascade.py — unified LLM fallback chain: Groq → Gemini → Claude CLI → local Ollama.
+"""llm_cascade.py — unified LLM fallback chain: Groq → Gemini → Claude CLI.
 
 Consolidates near-identical implementations that lived in cerebro_maestro.py
 (streaming SSE) and orion_agentes.py (batch subtasks). One class, two usage modes:
 
-  * Streaming — ``stream_groq/stream_gemini/stream_claude_cli/stream_local``:
+  * Streaming — ``stream_groq/stream_gemini/stream_claude_cli``:
     async generators yielding text chunks, with mid-stream tool execution.
     Used by cerebro_maestro's /chat SSE endpoint.
   * Batch — ``run()``: a non-streaming ReAct loop that tries providers in
@@ -21,10 +21,7 @@ import shutil
 import threading
 from typing import AsyncGenerator, Callable
 
-import ollama
-
-from config import (GROQ_MODEL, GEMINI_MODEL, LOCAL_MODEL, OLLAMA_URL,
-                    LLM_TIMEOUT_S, MAX_TOOL_ITERATIONS)
+from config import GROQ_MODEL, GEMINI_MODEL, LLM_TIMEOUT_S, MAX_TOOL_ITERATIONS
 
 
 class ToolCall:
@@ -50,7 +47,7 @@ class _RoundCtx:
 
 
 class LLMCascade:
-    """Manages the LLM fallback chain: Groq → Gemini → Claude CLI → Local Ollama.
+    """Manages the LLM fallback chain: Groq → Gemini → Claude CLI.
 
     Why one class: the ReAct loop ("call model → collect tool_calls → execute
     → reinject → repeat") was triplicated across the codebase with only the
@@ -78,7 +75,6 @@ class LLMCascade:
         self.notify = notify
         self._groq_client = None
         self._gemini_client = None
-        self._ollama_client = None
         self._gemini_tools_cache: dict[int, list] = {}
         self._lock = threading.Lock()
 
@@ -101,14 +97,6 @@ class LLMCascade:
                     from google import genai
                     self._gemini_client = genai.Client(api_key=self.gemini_key)
         return self._gemini_client
-
-    def _get_ollama(self):
-        """Return the shared AsyncClient for the local Ollama instance."""
-        if self._ollama_client is None:
-            with self._lock:
-                if self._ollama_client is None:
-                    self._ollama_client = ollama.AsyncClient(host=OLLAMA_URL)
-        return self._ollama_client
 
     def gemini_tools(self, tools_schema: list) -> list:
         """Convert OpenAI-format tool schema to Gemini FunctionDeclaration format.
@@ -326,46 +314,6 @@ class LLMCascade:
             raise RuntimeError("Claude CLI retornou vazio.")
         yield texto
 
-    # ── Local Ollama ─────────────────────────────────────────────────────────
-
-    async def _local_transmit(self, msgs, tools, ctx):
-        s = await self._get_ollama().chat(
-            model=LOCAL_MODEL, messages=msgs, stream=True,
-            tools=tools, think=False, keep_alive=0)
-
-        tool_calls_buffer = None
-        async for chunk in s:
-            msg_obj = chunk.get("message", {})
-            if msg_obj.get("tool_calls"):
-                tool_calls_buffer = msg_obj["tool_calls"]
-                continue
-            texto_chunk = msg_obj.get("content", "")
-            if texto_chunk:
-                yield texto_chunk
-
-        if not tool_calls_buffer:
-            return
-        ctx.extra = tool_calls_buffer
-        ctx.tool_calls = [
-            ToolCall(None, tc["function"]["name"], tc["function"].get("arguments") or {})
-            for tc in tool_calls_buffer
-        ]
-
-    @staticmethod
-    def _local_apply(msgs, tool_calls, results, tool_calls_buffer):
-        msgs.append({"role": "assistant", "content": "", "tool_calls": tool_calls_buffer})
-        for tc, res_str in results:
-            msgs.append({"role": "tool", "name": tc.name, "content": res_str})
-        return msgs
-
-    async def stream_local(self, messages: list, tools, system_prompt: str) -> AsyncGenerator:
-        """qwen3:8b local via Ollama — last-resort tier. keep_alive=0 unloads
-        the model from VRAM right after answering (cloud is the main path)."""
-        state = [{"role": "system", "content": system_prompt}] + messages
-        async for chunk in self._run_stream_loop(state, tools, "local",
-                                                 self._local_transmit, self._local_apply):
-            yield chunk
-
     @staticmethod
     async def first_chunk_or_fail(gen):
         """Consume the generator's first chunk — if it fails (exception or
@@ -398,11 +346,11 @@ class LLMCascade:
             tools_schema:   OpenAI-format tool definitions (may be empty).
             tool_executor:  Override for the instance-level executor.
             max_iterations: Maximum tool-call rounds per provider.
-            providers:      Provider order (default ["groq", "gemini", "local"]).
+            providers:      Provider order (default ["groq", "gemini"]).
             system_prompt:  System instruction for the run.
             messages:       Full message list override (role system handled).
             temperature:    Sampling temperature.
-            max_tokens:     Response token cap (Groq only; Gemini/local unbounded).
+            max_tokens:     Response token cap (Groq only; Gemini unbounded).
 
         Returns:
             Dict with keys: resposta_final (str), passos (list), iteracoes_usadas
@@ -413,10 +361,9 @@ class LLMCascade:
         if messages is None:
             messages = [{"role": "system", "content": system_prompt},
                         {"role": "user", "content": goal}]
-        providers = providers or ["groq", "gemini", "local"]
+        providers = providers or ["groq", "gemini"]
 
-        runners = {"groq": self._run_groq, "gemini": self._run_gemini,
-                   "local": self._run_local}
+        runners = {"groq": self._run_groq, "gemini": self._run_gemini}
         erros: list[str] = []
         for name in providers:
             if name == "groq" and not self.groq_key:
@@ -522,36 +469,5 @@ class LLMCascade:
                 resp_parts.append(gtypes.Part(
                     function_response=gtypes.FunctionResponse(name=nome, response=res_obj)))
             contents.append(gtypes.Content(role="user", parts=resp_parts))
-        return {"resposta_final": "", "passos": passos,
-                "iteracoes_usadas": max_iterations, "sucesso": False}
-
-    async def _run_local(self, messages, tools_schema, executor,
-                         max_iterations, temperature, max_tokens) -> dict:
-        """Batch ReAct loop via local Ollama (qwen3:8b) — last cascade tier.
-        keep_alive=0: unload from VRAM right after (cloud is the main path)."""
-        client = self._get_ollama()
-        msgs = list(messages)
-        passos = []
-        for _iter in range(max_iterations):
-            resp = await asyncio.wait_for(
-                client.chat(model=LOCAL_MODEL, messages=msgs, tools=tools_schema,
-                            think=False, keep_alive=0),
-                timeout=LLM_TIMEOUT_S,
-            )
-            msg_obj = resp.get("message", {})
-            tool_calls = msg_obj.get("tool_calls")
-            if not tool_calls:
-                return {"resposta_final": (msg_obj.get("content") or "").strip(),
-                        "passos": passos, "iteracoes_usadas": _iter + 1, "sucesso": True}
-            msgs.append({"role": "assistant", "content": "", "tool_calls": tool_calls})
-            for tc in tool_calls:
-                func = tc["function"]
-                nome = func["name"]
-                args = func.get("arguments", {})
-                if not isinstance(args, dict):
-                    args = {}
-                res_str = await asyncio.to_thread(executor, nome, args)
-                passos.append({"tool": nome, "args": args, "resultado": res_str[:2000]})
-                msgs.append({"role": "tool", "name": nome, "content": res_str})
         return {"resposta_final": "", "passos": passos,
                 "iteracoes_usadas": max_iterations, "sucesso": False}

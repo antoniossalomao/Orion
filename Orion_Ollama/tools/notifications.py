@@ -3,7 +3,7 @@
 import pathlib
 import secrets
 
-_NTFY_TOPICO_FILE = pathlib.Path(__file__).parent.parent / "lyra_ntfy_topico.txt"
+_NTFY_TOPICO_FILE = pathlib.Path(__file__).parent.parent / "orion_ntfy_topico.txt"
 
 def notificar_usuario(titulo: str, mensagem: str, urgencia: str = "normal") -> dict:
     """

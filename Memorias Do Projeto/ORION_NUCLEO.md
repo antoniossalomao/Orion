@@ -1,10 +1,10 @@
 # ORION — Plano do Projeto
 
-> Antiga Lyra. Visão, princípios, arquitetura-alvo, inventário do legado, fases e
+> Visão, princípios, arquitetura-alvo, inventário do legado, fases e
 > decisões. Atualizado em 01/10/2026. Nada da reescrita foi codado ainda: este
 > documento é o planejamento. Como o código **atual** funciona:
 > [ORION_TECNICO.md](ORION_TECNICO.md) · Operação do legado: [README.md](../README.md) ·
-> Histórico completo do legado: repositório [Lyra](https://github.com/antoniossalomao/Lyra).
+> Histórico completo do legado: histórico do git deste repositório.
 
 ---
 
@@ -60,7 +60,6 @@ Notebook ── web / casca desktop ─┤
                      Orion (Python, FastAPI, 1 processo)
                      ├─ Agente: persona fixa + ferramentas + memória
                      ├─ Modelos ──► OmniRoute (local) ──► free tiers por chave de API
-                     │               └─► último recurso: modelo pequeno local (Ollama)
                      ├─ Tarefa pesada ──► CLIs oficiais: claude -p · codex exec · gemini -p
                      ├─ Ferramentas ──► servidores MCP (prontos + orion-desktop próprio)
                      │                   └─ política: leitura livre · escrita com log ·
@@ -79,7 +78,7 @@ Notebook ── web / casca desktop ─┤
 | Configuração/segredos | pydantic-settings + `.env`; chaves no cofre do SO (`keyring`) | Funciona no Credential Manager e no Keychain |
 | Modelos (conversa) | **OmniRoute** rodando local, endpoint compatível com a API da OpenAI | Já rastreia cotas de free tiers e faz fallback; o Orion só fala um formato |
 | Modelos (tarefa pesada) | Claude Code, Codex e Gemini CLI em modo sem interface | Usa as assinaturas pelo caminho oficial, sem token extraído |
-| Último recurso | Ollama com modelo de 1–4B (8GB) / até 8B (M2 16GB), desligado por padrão | Funciona sem internet ou sem cota |
+| Último recurso | Nenhum por enquanto (sem modelo local) | Ollama saiu em 01/10/2026; reavaliar se faltar internet ou cota |
 | Agente | PydanticAI | Ferramentas tipadas, MCP nativo, streaming, testável com modelo falso |
 | Memória | SQLite + FTS5 (palavra-chave) + sqlite-vec (vetor) + fusão RRF | Arquivo único, zero servidor, multiplataforma, backup = copiar o arquivo |
 | Embeddings | API gratuita (Gemini), com fila e retry | Sem GPU; se cair, a busca segue só por palavra-chave |
@@ -132,9 +131,9 @@ O que existe hoje e o destino de cada peça. "Fase" = quando é substituído e a
 |---|---|---|
 | `cerebro_maestro.py`, `routers/`, `models/` | Reescrever como app FastAPI com lifespan e injeção de dependências; portar chat, sessões, prompts, logs, sistema | 1–2 |
 | `config.py`, `logger.py`, `test_smoke.py`, `requirements.txt` | pydantic-settings + keyring, logging padrão, pytest, `pyproject` | 1 |
-| `llm_cascade.py` (4 formatos de API) | Apagar — OmniRoute | 2 |
+| `llm_cascade.py` (3 formatos de API) | Apagar — OmniRoute | 2 |
 | Andar Claude CLI / `consultar_especialista` | Generalizar para Claude Code, Codex e Gemini CLI | 2 |
-| Draft do spec-decoding, roteamento MoE por regex | Apagar | 2 |
+| Roteamento MoE por regex | Apagar | 2 |
 | `orion_agentes.py` (enxame) | Apagar — o agente vira o núcleo; tarefa grande vai para as CLIs | 2 |
 | `rag_engine.py`, `bm25_index.py`, `surreal_client.py`, `reconciliar_episodios.py`, `embed_service.py`, Qdrant, SurrealDB | Apagar — memória nova em SQLite | 3 |
 | `session_manager.py` | Portar a lógica | 3 |
@@ -144,22 +143,25 @@ O que existe hoje e o destino de cada peça. "Fase" = quando é substituído e a
 | `orion_seguranca.py` (rate limit, Câmara de Eco, audit) | Portar como política de ferramentas | 4 |
 | `orion_browser.py`, `orion_google_workspace.py` | Servidores MCP (navegador, Google) | 4 |
 | `orion_telegram.py` | Reescrever como canal principal do celular | 5 |
-| Login (PBKDF2 + JWT, `utils/auth.py` no repositório Lyra) | Portar | 5 |
+| Login (PBKDF2 + JWT, `utils/auth.py` no histórico do git) | Portar | 5 |
 | `bin/startup/*.bat`, `orion_boot.vbs` | Apagar — um comando só e autostart por SO | 5 |
 | `orion_voice_live.py`, `audio_manager.py`, `mic_engine.py`, `commands.py` | Voz nova (masculina, palavra de ativação "Orion") | 6 |
 | Frontend v1 (pywebview + Three.js), `dashboard.html` | Decidir na fase de interface | 6 |
 
-**Já apagado (30/09–01/10):** IDE Theia, Lyra Desktop, front-ends v2 (React) e
+**Já apagado (30/09–01/10):** IDE Theia, app desktop antigo, front-ends v2 (React) e
 v3 (SvelteKit + Tauri), scripts de ingestão e
 vetorização dos datasets, `ingest_webdocs.py`, `build_bm25_index.py`,
 `validador_cortical.py`, `calibrar_pesos_rag.py`, `Modelfile`, `Modelfile_mini`,
-`webcam.py`, `lyra_launcher.py`, PDF e gerador do Gênesis, screenshots, mockups.
+`webcam.py`, launcher antigo, PDF e gerador do Gênesis, screenshots, mockups.
 Em 01/10, o que estava sem cliente: rotas e routers `auth`, `gateway`, `tools`,
 `logs`, `models_hub` e `prompts`, `utils/`, `orion_agent.py` (ReAct),
 `tools/_registry.py`, `start_screenpipe.bat`, dependências sem import, e o que
 nunca funcionava: keyring (pacote não instalado), auto-extensão
 (`criar_ferramenta`, cujas ferramentas nunca eram executadas) e foto no Telegram
-(chamava uma rota inexistente). Tudo continua no repositório Lyra.
+(chamava uma rota inexistente). Também em 01/10, tudo que dependia do Ollama:
+andar local da cascata, draft do spec-decoding, watcher de VRAM, fallbacks
+locais de tradução/visão/clipboard, especialista local e `start_ollama.bat`.
+Tudo continua no histórico do git.
 
 ## 6. Fases
 
@@ -167,7 +169,7 @@ nunca funcionava: keyring (pacote não instalado), auto-extensão
 |---|---|---|
 | **0 — Antes de vender o PC** *(urgente)* | Exportar do SurrealDB as tabelas pessoais (`evento`, `sessao`, `prompt`, `lembrete`, `agendamento`, `tarefa`, `numero`) para JSON; copiar `.env` e `Orion_Core/google_auth/`; conferir o vault do Obsidian no iCloud | Arquivos de export abrem e têm as contagens esperadas |
 | **1 — Fundação** | Pacote `orion/` (uv, ruff, pyright, pytest), configuração, app FastAPI com `/health`, CI em Windows e macOS | CI verde nos dois SOs; `uv run orion` sobe |
-| **2 — Cérebro** | OmniRoute configurado; agente com persona; `/chat` em streaming; `delegar` nas 3 CLIs; modelo local opcional | Conversa segue funcionando com um provedor derrubado de propósito; delegação testada nas 3 CLIs |
+| **2 — Cérebro** | OmniRoute configurado; agente com persona; `/chat` em streaming; `delegar` nas 3 CLIs | Conversa segue funcionando com um provedor derrubado de propósito; delegação testada nas 3 CLIs |
 | **3 — Memória** | SQLite + FTS5 + sqlite-vec; importação do export; indexação do vault; fatos e consolidação; backup | Perguntas reais sobre o Antônio (conjunto fixo, em pytest) recuperam a memória certa |
 | **4 — Ferramentas** | Cliente MCP; servidores prontos + `orion-desktop`; política, confirmação, audit | Teste prova que nenhuma ação destrutiva roda sem confirmação |
 | **5 — Canais** | Telegram (texto, voz, foto, botões), login, Tailscale, autostart | Usar o Orion pelo celular fora de casa |
@@ -181,7 +183,7 @@ nunca funcionava: keyring (pacote não instalado), auto-extensão
 | 1 | Banco da memória | SQLite + FTS5 + sqlite-vec | SurrealDB (servidor ou embutido) |
 | 2 | Gateway de modelos | OmniRoute | LiteLLM (biblioteca, sem processo extra, cotas na mão) |
 | 3 | Framework do agente | PydanticAI | Loop próprio (~200 linhas) |
-| 4 | Ritmo de apagar o legado | Por fase (código antigo à mão para portar) | Tudo agora, consultando o repositório Lyra |
+| 4 | Ritmo de apagar o legado | Por fase (código antigo à mão para portar) | Tudo agora, consultando o histórico do git |
 | 5 | Interface | A discutir (fase 6) | — |
 | 6 | Voz | Transcrição: Whisper no Groq (grátis); fala: edge-tts `pt-BR-AntonioNeural` (grátis); voz ao vivo: Gemini Live com voz masculina; ativação: openWakeWord treinado em "Orion" | A discutir (fase 6) |
 | 7 | Busca web gratuita | Pesquisar na fase 4 (cotas mudam) | — |
@@ -196,12 +198,11 @@ nunca funcionava: keyring (pacote não instalado), auto-extensão
 | 01/07/2026 | Axônios na esfera descartados | Pedido explícito |
 | 01/07/2026 | Backup automático agendado: não implementar ainda | Pedido do usuário (revisto em 01/10: backup entra na fase 3) |
 | 07-08/08/2026 | Nomes das ferramentas em PT | São o contrato de function-calling com o LLM |
-| 11/08/2026 | Lyra 2.0: auth, routers, SvelteKit, Tauri | Histórico em [TECNICO §9](ORION_TECNICO.md#9-lyra-20--legado-plano-de-11082026-e-execução) |
+| 11/08/2026 | Versão 2.0 do legado: auth, routers, SvelteKit, Tauri | Histórico em [TECNICO §9](ORION_TECNICO.md#9-versão-20-do-legado-plano-de-11082026-e-execução) |
 | 30/09/2026 | **Nome: Orion**, identidade masculina; visual novo a definir | Mais vozes masculinas de qualidade |
-| 30/09/2026 | `lyra-v2` é a branch principal; `main` congelada, sem PR | Reescrita livre; `main` é o backup do legado (substituída no mesmo dia pelo repositório próprio) |
-| 30/09/2026 | Reescrita em repositório próprio (`Orion`, branch `main`); repositório `Lyra` fica como backup do legado | Substitui a branch `lyra-v2` |
-| 30/09/2026 | Arquivos e pastas renomeados de Lyra para Orion; textos, persona e identificadores de dados (namespace SurrealDB, coleção Qdrant, cookie, `localStorage`) continuam Lyra no legado | Primeira etapa da troca de nome |
-| 30/09/2026 | IDE Theia e Lyra Desktop excluídos | Custo de manter sozinho |
+| 30/09/2026 | Reescrita em repositório próprio (`Orion`, branch `main`); o repositório antigo fica como backup do legado | Reescrita livre |
+| 30/09/2026 | Arquivos e pastas renomeados para Orion; textos, persona e identificadores de dados ficam para depois | Primeira etapa da troca de nome |
+| 30/09/2026 | IDE Theia e app desktop antigo excluídos | Custo de manter sozinho |
 | 30/09/2026 | Front-ends v2 (React) e v3 (SvelteKit + Tauri) excluídos; fica só o v1 | *(não registrado)* |
 | 30/09/2026 | Datasets genéricos saem da memória | Os LLMs já sabem; diluíam a memória pessoal |
 | 30/09/2026 | Nuvem primeiro; orçamento R$0; memória pessoal pode ir para a nuvem | PC será vendido |
@@ -210,8 +211,10 @@ nunca funcionava: keyring (pacote não instalado), auto-extensão
 | 01/10/2026 | Modelo local pequeno só como último recurso | Funcionar sem internet/cota |
 | 01/10/2026 | Plano refeito do zero (este documento); nada codado antes da aprovação | Pedido do usuário |
 | 01/10/2026 | Código, rotas e dependências do legado sem uso apagados (sem cliente desde a saída do v2/v3) | Pedido do usuário |
-| 01/10/2026 | Front-end v1 refeito com identidade Orion: constelação de Órion no centro, paleta noturna, novo ícone; mesma stack e mesmos contratos | Deixar de ser a Lyra (pedido do usuário); a interface definitiva continua na fase 6 |
-| 01/10/2026 | Persona do backend vira Orion (masculina, direta); palavra de ativação "orion"; voz Charon (Gemini TTS e voz ao vivo) e edge-tts AntonioNeural; novas falas gravadas com ator "Orion" (leitura aceita "Lyra" nos dados antigos) | Deixar de ser a Lyra (pedido do usuário) |
+| 01/10/2026 | Front-end v1 refeito com identidade Orion: constelação de Órion no centro, paleta noturna, novo ícone; mesma stack e mesmos contratos | Identidade própria (pedido do usuário); a interface definitiva continua na fase 6 |
+| 01/10/2026 | Persona do backend vira Orion (masculina, direta); palavra de ativação "orion"; voz Charon (Gemini TTS e voz ao vivo) e edge-tts AntonioNeural; novas falas gravadas com ator "Orion" (nomes antigos configuráveis em `ATORES_LEGADOS`) | Identidade própria (pedido do usuário) |
+| 01/10/2026 | Nome antigo removido do repositório: namespace SurrealDB e coleção Qdrant vêm do `.env` (`SURREAL_NS`, `QDRANT_COLLECTION`; defaults `orion_core`/`orion_memory`), arquivos de runtime renomeados | Identidade só Orion (pedido do usuário); dados existentes seguem acessíveis pelo `.env` |
+| 01/10/2026 | Ollama fora por enquanto: cascata Groq → Gemini → Claude, sem draft nem watcher de VRAM; tradução, visão e clipboard só pelo Gemini; especialista só Claude | Pedido do usuário; substitui "modelo local só como último recurso" |
 
 ## 9. Visão de longo prazo (conceitual)
 

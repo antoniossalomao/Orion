@@ -105,8 +105,6 @@ def _get_cascade():
 
 async def _chamar_llm_subtarefa(msgs: list, tools_schema: list) -> str:
     """Tenta Groq; se falhar (rate-limit, indisponível), cai pro Gemini.
-    Local fica de fora de propósito: N subtarefas paralelas disputando a VRAM
-    do qwen3:8b travariam a máquina.
 
     Raises:
         RuntimeError: quando todos os provedores da subtarefa falham.

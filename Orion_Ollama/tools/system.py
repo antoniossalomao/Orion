@@ -35,7 +35,7 @@ def checar_saude_sistema() -> dict:
 def checar_servicos_orion() -> dict:
     """
     Verifica se todos os serviços críticos do Orion estão online:
-    SurrealDB, Qdrant, embed_service, Ollama e FastAPI.
+    SurrealDB, Qdrant, embed_service e FastAPI.
     Retorna status de cada um.
     """
     try:
@@ -62,7 +62,7 @@ SCHEMA = [
             "type": "function",
             "function": {
                 "name": "checar_servicos_orion",
-                "description": "Verifica se os serviços críticos do Orion estão online (SurrealDB, Qdrant, embed_service, Ollama, FastAPI). Use quando o usuário perguntar sobre o status do sistema ou quando algo não estiver funcionando.",
+                "description": "Verifica se os serviços críticos do Orion estão online (SurrealDB, Qdrant, embed_service, FastAPI). Use quando o usuário perguntar sobre o status do sistema ou quando algo não estiver funcionando.",
                 "parameters": {"type": "object", "properties": {}},
             },
         },

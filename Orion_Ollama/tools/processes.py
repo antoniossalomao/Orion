@@ -12,7 +12,7 @@ from typing import Any
 from ._shared import surreal_query, one
 from .notifications import notificar_usuario
 
-_PROCESSOS_BG_LOG_DIR = pathlib.Path(__file__).parent.parent / "lyra_processos_bg_logs"
+_PROCESSOS_BG_LOG_DIR = pathlib.Path(__file__).parent.parent / "orion_processos_bg_logs"
 _PROCESSOS_BG_LOG_DIR.mkdir(exist_ok=True)
 
 _VIGILANCIAS: dict[str, Any] = {}  # pasta_abs -> watchdog Observer (vive em memória, não sobrevive a restart)

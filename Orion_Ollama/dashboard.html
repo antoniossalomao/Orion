@@ -94,8 +94,7 @@ async function tick() {
     document.getElementById('svc').innerHTML =
       row(`${dot(h.cerebro?.ok)}cerebro`, h.cerebro?.ok ? 'ativo' : 'off') +
       row(`${dot(h.qdrant?.ok)}qdrant`, (h.qdrant?.latencia_ms ?? '—') + ' ms') +
-      row(`${dot(h.surreal?.ok)}surreal`, (h.surreal?.latencia_ms ?? '—') + ' ms') +
-      row(`${dot(h.ollama?.ok)}ollama`, (h.ollama?.latencia_ms ?? '—') + ' ms');
+      row(`${dot(h.surreal?.ok)}surreal`, (h.surreal?.latencia_ms ?? '—') + ' ms');
 
     // Recursos
     const vramPct = m.vram_pct ?? (h.vram?.total_mb ? Math.round(h.vram.usada_mb/h.vram.total_mb*100) : null);
@@ -109,12 +108,11 @@ async function tick() {
     // Vetores
     const v = h.qdrant?.vetores || {};
     document.getElementById('vec').innerHTML =
-      row('lyra_memory (384d)', (v.lyra_memory ?? '—').toLocaleString('pt-BR')) +
-      row('lyra_memory_v2 (1024d)', (v.lyra_memory_v2 ?? '—').toLocaleString('pt-BR'));
+      Object.entries(v).map(([nome, n]) => row(nome + ' (1024d)', (n ?? '—').toLocaleString('pt-BR'))).join('') || row('—', '—');
 
     // Telemetria
     document.getElementById('total-chats').textContent = s.total_chats ?? 0;
-    const ordem = ['Groq','Gemini','Claude','Local'];
+    const ordem = ['Groq','Gemini','Claude'];
     document.getElementById('tiers').innerHTML = ordem
       .filter(n => s.tiers?.[n])
       .map(n => {

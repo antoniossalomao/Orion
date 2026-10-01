@@ -38,7 +38,6 @@ Notebook ── web / casca desktop ─┤
                      Orion (Python, FastAPI, 1 processo)
                      ├─ Agente: persona fixa + ferramentas + memória
                      ├─ Modelos ──► OmniRoute (local) ──► free tiers por chave de API
-                     │               └─► último recurso: modelo pequeno local (Ollama)
                      ├─ Tarefa pesada ──► CLIs oficiais: claude -p · codex exec · gemini -p
                      ├─ Ferramentas ──► servidores MCP (prontos + orion-desktop próprio)
                      │                   └─ política: leitura livre · escrita com log ·
@@ -87,14 +86,14 @@ O que roda hoje no PC Windows. Referência completa em
                                 │ HTTP/SSE/WS :8000 (v1 via hub WS :8765)
  ┌──────────────────────────────▼──────────────────────────────┐
  │  cerebro_maestro.py  (FastAPI :8000)                         │
- │   • Cascata cloud-first: Groq → Gemini → Claude(CLI) → qwen3 │
+ │   • Cascata: Groq → Gemini → Claude(CLI)                     │
  │   • RAG híbrido: BM25 + Qdrant denso + RRF + reranker        │
  │   • Grafo de memória (SurrealDB RELATE), agentes, telemetria │
  └───┬──────────────┬───────────────┬───────────────┬──────────┘
  ┌───▼───┐   ┌──────▼─────┐   ┌─────▼─────┐   ┌─────▼──────┐
- │Qdrant │   │ SurrealDB  │   │  Ollama   │   │ APIs cloud │
- │ :6333 │   │  :8090     │   │  :11434   │   │ Groq/Gemini│
- │vetores│   │ episódico  │   │ qwen3:8b  │   │  /Claude   │
+ │Qdrant │   │ SurrealDB  │   │  embed    │   │ APIs cloud │
+ │ :6333 │   │  :8090     │   │  :8001    │   │ Groq/Gemini│
+ │vetores│   │ episódico  │   │  BGE-M3   │   │  /Claude   │
  └───────┘   └────────────┘   └───────────┘   └────────────┘
 ```
 
@@ -105,10 +104,9 @@ O que roda hoje no PC Windows. Referência completa em
 | hub WS (`orion_app.py`) | 8765 | Ponte entre o frontend v1 e o cérebro |
 | Qdrant | 6333 | Vetores (~3,09M, BGE-M3 1024d) |
 | SurrealDB | 8090 | Memória episódica + grafo |
-| Ollama | 11434 | `qwen3:8b` local (último andar da cascata) |
 
-- **Cascata cloud-first:** o chat tenta Groq, Gemini e Claude antes do
-  `qwen3:8b`. Sem chaves de API, a base funciona offline (só o último andar).
+- **Cascata:** o chat tenta Groq, Gemini e Claude, nessa ordem. Não há modelo
+  local: sem chave de API ou sem internet, o chat não responde.
 - **Windows:** chamadas internas usam sempre `127.0.0.1`, nunca `localhost`
   (o resolver IPv6 adiciona ~2s por chamada).
 
@@ -116,7 +114,6 @@ O que roda hoje no PC Windows. Referência completa em
 
 - Windows 10/11, Python 3.12 (Python global, sem venv)
 - GPU NVIDIA com CUDA 12.4 (BGE-M3 + reranker)
-- Ollama com `qwen3:8b` (e `qwen3:0.6b` para o detector de alucinação)
 - CLI `claude` no PATH (andar Claude da cascata)
 - Qdrant **v1.17.1** (fixado — ver regra em ORION_TECNICO §2) e SurrealDB 3.0.5
 
@@ -133,20 +130,21 @@ python -m pip install -r requirements.txt   # inclui torch 2.6+cu124 (bge-m3)
 | `GROQ_API_KEY`, `GEMINI_API_KEY` | Obrigatórias para a cascata de chat |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ALLOWED_USERS` | Opcionais, bot do Telegram (sem allowlist o bot recusa iniciar) |
 | `SURREAL_USER`, `SURREAL_PASS` | Credencial do SurrealDB (default `root/root`, só para bind local) |
+| `SURREAL_NS`, `QDRANT_COLLECTION` | Namespace e coleção dos dados (default `orion_core` / `orion_memory`) |
+| `ATORES_LEGADOS` | Nomes de ator antigos que a leitura trata como fala do Orion |
 
 ### Como subir
 
 ```bat
 bin\startup\start_qdrant.bat
 bin\startup\start_surreal.bat
-bin\startup\start_ollama.bat
 bin\startup\start_embed.bat     :: embed_service :8001
-bin\startup\start_cerebro.bat   :: espera 6333/8090/11434/8001 e sobe o FastAPI
+bin\startup\start_cerebro.bat   :: espera 6333/8090/8001 e sobe o FastAPI
 ```
 
 Cada `.bat` só sobe se a porta estiver livre e rotaciona o próprio log (>5MB → `.old`).
 No boot do Windows, `bin/startup/orion_boot.vbs` (atalho em Startup) sobe
-qdrant + surreal + embed + cérebro; o Ollama tem atalho próprio.
+qdrant + surreal + embed + cérebro.
 
 **Reiniciar o cérebro:** `lsof`/`kill` do Git Bash não enxergam processos
 Windows. Use PowerShell:
@@ -199,7 +197,7 @@ Orion_Ollama/                  # backend
   cerebro_maestro.py            # entrypoint FastAPI :8000 — estado compartilhado + wiring dos routers
   routers/ · models/            # endpoints por domínio, schemas Pydantic
   config.py                     # portas, URLs, model IDs
-  llm_cascade.py                # cascata Groq → Gemini → Claude(CLI) → Ollama
+  llm_cascade.py                # cascata Groq → Gemini → Claude(CLI)
   rag_engine.py                 # RAG híbrido + grafo + persistência de eventos
   session_manager.py            # histórico, sessões, briefing
   proactive_loop.py             # loop proativo (lembretes, self-healing, shadow thoughts, reconciliação)

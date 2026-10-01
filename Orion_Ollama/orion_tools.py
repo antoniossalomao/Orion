@@ -2,8 +2,7 @@
 
 All tools moved to tools/ (domain submodules) during the OOP refactor of
 08/2026. This file exists only so cerebro_maestro.py, orion_agentes.py and
-proactive_loop.py keep working without edits. Original monolith backed up at
-_lixeira/lyra_tools_ORIGINAL_pre_split.py.
+proactive_loop.py keep working without edits.
 """
 
 from tools import (  # noqa: F401

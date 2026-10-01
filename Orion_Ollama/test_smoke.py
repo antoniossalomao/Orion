@@ -61,11 +61,11 @@ def _c1():
     assert status == 200 and corpo.get("ativo") is True, corpo
 
 
-@checagem("GET /health responde com qdrant/surreal/ollama")
+@checagem("GET /health responde com qdrant/surreal")
 def _c3():
     status, corpo = _get("/health", timeout=15)
     assert status == 200
-    for svc in ("qdrant", "surreal", "ollama"):
+    for svc in ("qdrant", "surreal"):
         assert svc in corpo, f"{svc} ausente em /health"
 
 

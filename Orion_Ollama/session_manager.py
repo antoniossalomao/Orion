@@ -12,7 +12,8 @@ import json
 import uuid
 from typing import Callable
 
-from config import GROQ_MODEL, MAX_HISTORY_MSGS, NOME_ASSISTENTE, ATORES_ASSISTENTE
+from config import (GROQ_MODEL, MAX_HISTORY_MSGS, NOME_ASSISTENTE, ATORES_ASSISTENTE,
+                    ATORES_ASSISTENTE_NOMES)
 from surreal_client import SurrealClient
 
 
@@ -59,8 +60,7 @@ class SessionManager:
             return self._turn_counter, len(self._history)
 
     async def append_assistant(self, text: str, **meta) -> None:
-        """Append an assistant message with optional metadata (fontes_rag,
-        divergencia_draft). Metadata is stripped by sanitized_messages()."""
+        """Append an assistant message with optional metadata (fontes_rag). Metadata is stripped by sanitized_messages()."""
         async with self._lock:
             self._history.append({"role": "assistant", "content": text, **meta})
 
@@ -195,7 +195,7 @@ class SessionManager:
             if nomes:
                 self.briefing += "\n\n[TÓPICOS ATIVOS (24h)]\n" + ", ".join(nomes)
             evs_t = await surreal.query_result(
-                f"SELECT texto FROM evento WHERE ator IN ['Orion', 'Lyra'] "
+                f"SELECT texto FROM evento WHERE ator IN {json.dumps(ATORES_ASSISTENTE_NOMES)} "
                 f"AND texto CONTAINS '_[Executando:' AND timestamp >= '{ontem}' LIMIT 20;",
                 timeout=5)
             tools_usadas: set[str] = set()

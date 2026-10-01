@@ -100,7 +100,7 @@ class OrionApi:
 
     def process_command(self, command: str, modelo: str = "auto") -> bool:
         """Recebe texto do frontend -> streama cerebro :8000 -> envia chunks via WS.
-        modelo: 'auto' (cascata) | 'groq' | 'gemini' | 'claude' | 'local' — seletor manual do painel."""
+        modelo: 'auto' (cascata) | 'groq' | 'gemini' | 'claude' — seletor manual do painel."""
         threading.Thread(target=self._chat_thread, args=(command, modelo), daemon=True).start()
         return True
 

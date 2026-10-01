@@ -1,6 +1,5 @@
 """tools/clipboard.py — Clipboard tools: read/write and AI-assisted clipboard processing."""
 
-from config import LOCAL_MODEL
 import os
 
 def ler_clipboard() -> dict:
@@ -65,21 +64,7 @@ def analisar_clipboard_com_ia(instrucao: str = "") -> dict:
             via = None
 
         if not resultado:
-            from ollama import Client as OllamaClient
-            c = OllamaClient(host="http://127.0.0.1:11434")
-            prompt = instrucao.strip() if instrucao.strip() else (
-                "Analise e melhore o texto abaixo. Se for código, explique. "
-                "Se for longo, resuma. Se tiver erros, corrija. Seja direto."
-            )
-            res = c.chat(
-                model=LOCAL_MODEL,
-                messages=[
-                    {"role": "system", "content": "Você é um assistente preciso. Responda apenas com o resultado, sem comentários extras."},
-                    {"role": "user", "content": f"{prompt}\n\n---\n{texto}"},
-                ],
-            )
-            resultado = res["message"]["content"].strip()
-            via = "local"
+            return {"ok": False, "erro": "Gemini indisponível (sem GEMINI_API_KEY ou falha na API)."}
 
         pyperclip.copy(resultado)
 

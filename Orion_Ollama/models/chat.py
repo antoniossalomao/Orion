@@ -7,4 +7,4 @@ from pydantic import BaseModel
 
 class MensagemUsuario(BaseModel):
     texto: str
-    modelo: str = "auto"  # "auto" (cascata) | "groq" | "gemini" | "claude" | "local" — seletor manual do painel
+    modelo: str = "auto"  # "auto" (cascata) | "groq" | "gemini" | "claude" — seletor manual do painel

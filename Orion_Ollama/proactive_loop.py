@@ -7,7 +7,7 @@ hook, waking every 60 s.
 
 import asyncio
 import json
-from typing import Awaitable, Callable
+from typing import Callable
 
 import orion_tools
 import orion_seguranca
@@ -19,24 +19,20 @@ class ProactiveLoop:
     notices, telemetry snapshots, Shadow Thoughts, DB reconciliation, VRAM
     watching and service self-healing.
 
-    Cerebro-specific side effects (telemetry files, cognitive-load state, GPU
-    watcher) are injected as callables so this class has no reverse import.
+    Cerebro-specific side effects (telemetry files, cognitive-load state) are injected as callables so this class has no reverse import.
 
     Args:
         log: diagnostics callable.
         snapshot_telemetry: sync fn appending a telemetry-history snapshot.
         update_cognitive_load: sync fn reclassifying the cognitive load tier.
-        check_vram: async fn that unloads models when another app hogs VRAM.
     """
 
     def __init__(self, log: Callable,
                  snapshot_telemetry: Callable,
-                 update_cognitive_load: Callable,
-                 check_vram: Callable[[], Awaitable[None]]):
+                 update_cognitive_load: Callable):
         self._log = log
         self._snapshot_telemetry = snapshot_telemetry
         self._update_cognitive_load = update_cognitive_load
-        self._check_vram = check_vram
         self._iterations = 0
 
     async def run(self) -> None:
@@ -54,7 +50,6 @@ class ProactiveLoop:
                 if self._iterations % 60 == 0:    # reconciliação a cada ~1h
                     self._schedule_reconciliation()
 
-                await self._check_vram()
                 self._check_reminders()
                 self._check_numbers()
                 self._check_schedules()

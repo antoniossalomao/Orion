@@ -6,7 +6,7 @@ não-atômicas. Se o processo morreu entre elas (restarts de manutenção), o ev
 fica no SurrealDB mas nunca chega ao Qdrant. Sem erro visível.
 
 Escopo: apenas eventos pós-migração BGE-M3 (>= 2026-06-26), que deveriam estar
-em lyra_memory_v2 (1024d). Eventos anteriores são do v1 (apagado intencionalmente).
+na coleção config.QDRANT_COLLECTION (1024d). Eventos anteriores são do v1 (apagado intencionalmente).
 
 Uso:
   python reconciliar_episodios.py          # mostra gap, pergunta antes de corrigir
@@ -27,12 +27,11 @@ import uuid
 import datetime
 import httpx
 
-SURREAL_URL     = "http://127.0.0.1:8090/sql"
-SURREAL_HEADERS = {"Accept": "application/json", "surreal-ns": "lyra_core", "surreal-db": "Db_CORTEX"}
+from config import SURREAL_URL, SURREAL_HEADERS, QDRANT_COLLECTION
 SURREAL_AUTH    = ("root", "root")
 QDRANT_URL      = "http://127.0.0.1:6333"
 EMBED_URL       = "http://127.0.0.1:8001/embed"
-COLECAO         = "lyra_memory_v2"
+COLECAO         = QDRANT_COLLECTION
 MIGRACAO_DATA   = "2026-06-26"  # data da migração BGE-M3 — só eventos a partir daqui
 
 

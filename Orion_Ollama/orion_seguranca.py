@@ -248,7 +248,6 @@ _SERVICOS = {
     "SurrealDB":     ("http", "127.0.0.1", 8090, "/health"),
     "Qdrant":        ("http", "127.0.0.1", 6333, "/healthz"),
     "embed_service": ("http", "127.0.0.1", 8001, "/health"),
-    "Ollama":        ("http", "127.0.0.1", 11434, "/api/version"),
     "FastAPI":       ("http", "127.0.0.1", 8000, "/health"),
 }
 
@@ -280,12 +279,6 @@ _RESTART_CMDS = {
     ),
     "embed_service": (
         r'Start-Process -WindowStyle Hidden -FilePath "C:\Orion\bin\startup\start_embed.bat"'
-    ),
-    # Ollama entrou em 04/08/2026 (noite): foi achado FORA DO AR em auditoria
-    # (andar local da cascata morto + draft do spec-decoding falhando) e o
-    # self-healing não cobria. Mesmo padrão dos demais: só chama o .bat de boot.
-    "Ollama": (
-        r'Start-Process -WindowStyle Hidden -FilePath "C:\Orion\bin\startup\start_ollama.bat"'
     ),
 }
 

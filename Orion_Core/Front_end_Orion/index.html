@@ -112,11 +112,10 @@
                     </svg>
                 </button>
                 <div class="sb-select-list" id="sb-select-list" role="listbox">
-                    <button type="button" class="sb-select-opt" data-value="auto">Automático<small>cascata Groq → Gemini → Claude → local</small></button>
+                    <button type="button" class="sb-select-opt" data-value="auto">Automático<small>cascata Groq → Gemini → Claude</small></button>
                     <button type="button" class="sb-select-opt" data-value="groq">Groq<small>mais rápido</small></button>
                     <button type="button" class="sb-select-opt" data-value="gemini">Gemini</button>
                     <button type="button" class="sb-select-opt" data-value="claude">Claude<small>código</small></button>
-                    <button type="button" class="sb-select-opt" data-value="local">Local<small>offline, qwen3:8b</small></button>
                 </div>
             </div>
             <select id="sel-modelo" class="sr-only" tabindex="-1" aria-hidden="true">
@@ -124,7 +123,6 @@
                 <option value="groq">Groq</option>
                 <option value="gemini">Gemini</option>
                 <option value="claude">Claude</option>
-                <option value="local">Local</option>
             </select>
         </div>
     </aside>
@@ -248,7 +246,6 @@
                     <div class="card-label">Serviços</div>
                     <div class="metric-row"><span><span class="p-dot" id="dot-qdrant"></span>Qdrant</span><span class="metric" id="svc-qdrant">—</span></div>
                     <div class="metric-row"><span><span class="p-dot" id="dot-surreal"></span>SurrealDB</span><span class="metric" id="svc-surreal">—</span></div>
-                    <div class="metric-row"><span><span class="p-dot" id="dot-ollama"></span>Ollama</span><span class="metric" id="svc-ollama">—</span></div>
                 </div>
                 <div class="cfg-card">
                     <div class="card-label">Atalhos</div>
@@ -260,7 +257,7 @@
                 <div class="cfg-card">
                     <div class="card-label">Sobre</div>
                     <div class="card-value">Orion · base atual</div>
-                    <div class="card-note">Groq · Gemini · Claude · qwen3:8b local</div>
+                    <div class="card-note">Groq · Gemini · Claude</div>
                 </div>
             </div>
         </div>

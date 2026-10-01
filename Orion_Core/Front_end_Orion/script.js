@@ -1046,6 +1046,7 @@ function _configurarStatus() {
     const sel = document.getElementById('sel-modelo');
     if (sel) {
         sel.value = Prefs.get('modelo', 'auto');
+        if (!sel.value) sel.value = 'auto';   // pref antiga apontando p/ andar removido
         sel.addEventListener('change', () => Prefs.set('modelo', sel.value));
     }
 }
@@ -1150,7 +1151,7 @@ function _configurarMetricas() {
             const box = $('t-tiers');
             if (!box || !s.tiers) return;
             box.innerHTML = '';
-            for (const nome of ['Groq', 'Gemini', 'Claude', 'Local']) {
+            for (const nome of ['Groq', 'Gemini', 'Claude']) {
                 const t = s.tiers[nome];
                 if (!t) continue;
                 const p = s.distribuicao_pct?.[nome] ?? 0;
@@ -1181,12 +1182,12 @@ function _configurarMetricas() {
         };
         try {
             const h = await (await _fetchTimeout(CEREBRO + '/health', 3000)).json();
-            for (const svc of ['qdrant', 'surreal', 'ollama']) {
+            for (const svc of ['qdrant', 'surreal']) {
                 const s = h[svc] || {};
                 marcar(svc, s.ok, s.ok ? `${s.latencia_ms ?? '—'} ms` : 'fora do ar');
             }
         } catch (_) {
-            for (const svc of ['qdrant', 'surreal', 'ollama']) marcar(svc, false, 'sem resposta');
+            for (const svc of ['qdrant', 'surreal']) marcar(svc, false, 'sem resposta');
         }
     };
 

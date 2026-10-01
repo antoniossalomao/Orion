@@ -16,10 +16,6 @@ snapshots/
 Orion_Core/Memoria_Orion/db_cortex/
 Orion_Core/Memoria_Orion/backups/
 
-# IDE Theia abandonada (30/09/2026) — pasta local com .git próprio, se ainda
-# existir, nunca entra no repo
-Orion_Core/Lyra_IDE/
-
 # logs e segredos
 *.log
 *.err
