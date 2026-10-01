@@ -1,26 +1,84 @@
-# Orion (antiga Lyra)
+# Orion
 
-> **Em replanejamento.** Desenvolvimento na `main` deste repositório; o histórico
-> completo do legado, inclusive o que já foi apagado daqui, fica no repositório
-> [Lyra](https://github.com/antoniossalomao/Lyra) (backup). Plano completo em
-> [ORION_NUCLEO.md](Memorias%20Do%20Projeto/ORION_NUCLEO.md). Este README descreve o
-> **legado (Lyra)**, que roda no PC atual (Ryzen 7 3700X · RTX 2060 Super 8GB ·
-> 64GB RAM, Windows) até a venda.
+Assistente pessoal com identidade masculina: técnico, direto, não-servil. Não é
+um chatbot. É uma extensão do dia a dia do Antônio: lembra do que importa, age no
+computador dele e responde de qualquer lugar.
+
+*"Não é uma IA. É uma extensão do sistema nervoso."*
 
 > **Licença:** proprietário, todos os direitos reservados — ver [LICENSE](LICENSE).
 > Público como portfólio, não como software livre.
 
-Documentação (3 arquivos, nada mais):
+## Status
 
-| Arquivo | Conteúdo |
+O Orion está sendo construído sobre uma **base que já funciona**: o código deste
+repositório (backend FastAPI, memória híbrida, 55 ferramentas, voz e bot do
+Telegram) roda hoje num PC Windows com GPU dedicada (Ryzen 7 3700X · RTX 2060
+Super 8GB · 64GB RAM). A arquitetura nova é mais leve, multiplataforma e de custo
+zero. Ela entra no lugar da base fase a fase, e cada fase apaga o que substituiu.
+
+**Próximo passo:** fase 0 — exportar os dados pessoais da base antes de o PC ser
+vendido.
+
+| Documento | Conteúdo |
 |---|---|
-| `README.md` (este) | Legado: arquitetura, como subir, configuração, testes, segurança, licença |
-| [ORION_NUCLEO.md](Memorias%20Do%20Projeto/ORION_NUCLEO.md) | **Plano do Orion:** princípios, arquitetura-alvo, inventário do legado, fases, decisões |
-| [ORION_TECNICO.md](Memorias%20Do%20Projeto/ORION_TECNICO.md) | Referência do código legado (Lyra): regras críticas, API, backend, memória/RAG, frontends, gotchas |
+| `README.md` (este) | Visão geral, para onde o projeto vai, como rodar a base, segurança, licença |
+| [ORION_NUCLEO.md](Memorias%20Do%20Projeto/ORION_NUCLEO.md) | Plano: princípios, arquitetura-alvo, inventário da base, fases, decisões |
+| [ORION_TECNICO.md](Memorias%20Do%20Projeto/ORION_TECNICO.md) | Referência técnica da base: regras críticas, API, memória/RAG, gotchas |
 
 ---
 
-## Arquitetura
+## Para onde vai
+
+```
+Celular ── Telegram ─────────────┐
+Celular ── web (Tailscale) ──────┤
+Notebook ── web / casca desktop ─┤
+                                 ▼
+                     Orion (Python, FastAPI, 1 processo)
+                     ├─ Agente: persona fixa + ferramentas + memória
+                     ├─ Modelos ──► OmniRoute (local) ──► free tiers por chave de API
+                     │               └─► último recurso: modelo pequeno local (Ollama)
+                     ├─ Tarefa pesada ──► CLIs oficiais: claude -p · codex exec · gemini -p
+                     ├─ Ferramentas ──► servidores MCP (prontos + orion-desktop próprio)
+                     │                   └─ política: leitura livre · escrita com log ·
+                     │                      destrutiva só com confirmação
+                     ├─ Memória ──► SQLite (FTS5 + sqlite-vec), um arquivo
+                     │               └─ embeddings por API gratuita
+                     └─ Jobs ──► lembretes · consolidação da memória · backup
+```
+
+- **Custo zero:** free tiers com fallback automático por cota. As assinaturas
+  (Claude, Gemini, Codex) entram só para tarefa pesada, pelas CLIs oficiais.
+- **Leve e multiplataforma:** um processo, memória num único arquivo, sem GPU,
+  Docker ou servidores pesados. Roda num notebook Windows de 8GB agora e num
+  MacBook M2 depois.
+- **Celular primeiro:** Telegram e web pela rede privada do Tailscale, sem expor
+  portas.
+- **Ações sob controle:** ação destrutiva só roda com confirmação explícita,
+  inclusive pelo celular.
+
+| Fase | Entrega |
+|---|---|
+| 0 | Exportar os dados pessoais da base |
+| 1 | Fundação: pacote `orion/` (uv, ruff, pyright, pytest), app com `/health`, CI em Windows e macOS |
+| 2 | Cérebro: gateway de modelos, agente com persona, chat em streaming, delegação às CLIs |
+| 3 | Memória: SQLite + busca híbrida, importação dos dados, vault do Obsidian, backup |
+| 4 | Ferramentas: servidores MCP + `orion-desktop`, política de confirmação, audit |
+| 5 | Canais: Telegram, login, Tailscale, autostart |
+| 6 | Interface, voz e identidade visual |
+| 7 | Limpeza: a base sai do repositório |
+
+Critérios de pronto e decisões em aberto: [ORION_NUCLEO.md](Memorias%20Do%20Projeto/ORION_NUCLEO.md) §6–§7.
+
+---
+
+## A base atual
+
+O que roda hoje no PC Windows. Referência completa em
+[ORION_TECNICO.md](Memorias%20Do%20Projeto/ORION_TECNICO.md).
+
+### Arquitetura
 
 ```
  ┌─────────────────────────────────────────────────────────────┐
@@ -44,25 +102,25 @@ Documentação (3 arquivos, nada mais):
 |---|---|---|
 | `cerebro_maestro.py` (FastAPI) | 8000 | Orquestrador: cascata, RAG, endpoints, MCP (`/mcp`), dashboard |
 | `embed_service.py` (FastAPI) | 8001 | BGE-M3 1024d + reranker bge-reranker-v2-m3 (GPU). O cérebro depende dele |
-| hub WS (`orion_app.py`) | 8765 | Ponte frontend v1 ↔ cérebro |
-| Qdrant | 6333 | Vetores (`lyra_memory_v2`, ~3.09M, BGE-M3 1024d) |
-| SurrealDB | 8090 | Memória episódica + grafo (ns `lyra_core`, db `Db_CORTEX`) |
+| hub WS (`orion_app.py`) | 8765 | Ponte entre o frontend v1 e o cérebro |
+| Qdrant | 6333 | Vetores (~3,09M, BGE-M3 1024d) |
+| SurrealDB | 8090 | Memória episódica + grafo |
 | Ollama | 11434 | `qwen3:8b` local (último andar da cascata) |
 
 - **Cascata cloud-first:** o chat tenta Groq, Gemini e Claude antes do
-  `qwen3:8b`. Sem chaves de API, a Lyra funciona 100% offline (só o último andar).
+  `qwen3:8b`. Sem chaves de API, a base funciona offline (só o último andar).
 - **Windows:** chamadas internas usam sempre `127.0.0.1`, nunca `localhost`
-  (resolver IPv6 adiciona ~2s por chamada).
+  (o resolver IPv6 adiciona ~2s por chamada).
 
-## Requisitos (estado atual — muda com a reescrita)
+### Requisitos
 
 - Windows 10/11, Python 3.12 (Python global, sem venv)
 - GPU NVIDIA com CUDA 12.4 (BGE-M3 + reranker)
-- Ollama com `qwen3:8b` (e `qwen3:0.6b` para o sidecar de spec-decoding)
+- Ollama com `qwen3:8b` (e `qwen3:0.6b` para o detector de alucinação)
 - CLI `claude` no PATH (andar Claude da cascata)
 - Qdrant **v1.17.1** (fixado — ver regra em ORION_TECNICO §2) e SurrealDB 3.0.5
 
-## Configuração
+### Configuração
 
 ```
 python -m pip install -r requirements.txt   # inclui torch 2.6+cu124 (bge-m3)
@@ -73,9 +131,10 @@ python -m pip install -r requirements.txt   # inclui torch 2.6+cu124 (bge-m3)
 | Variável | Uso |
 |---|---|
 | `GROQ_API_KEY`, `GEMINI_API_KEY` | Obrigatórias para a cascata de chat |
-| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ALLOWED_USERS` | Opcionais, bot Telegram (sem allowlist o bot recusa iniciar) |
+| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ALLOWED_USERS` | Opcionais, bot do Telegram (sem allowlist o bot recusa iniciar) |
+| `SURREAL_USER`, `SURREAL_PASS` | Credencial do SurrealDB (default `root/root`, só para bind local) |
 
-## Como subir
+### Como subir
 
 ```bat
 bin\startup\start_qdrant.bat
@@ -97,16 +156,13 @@ Get-CimInstance Win32_Process -Filter "Name = 'python.exe'" |
   Where-Object { $_.CommandLine -like '*cerebro_maestro*' } | Stop-Process -Force
 ```
 
-## Frontend
+### Frontend
 
-| Pasta | Stack | Como abre |
-|---|---|---|
-| `Orion_Core/Front_end_Orion/` | pywebview + Three.js (v1) | `python Orion_Core/Front_end_Orion/orion_app.py` |
+`python Orion_Core/Front_end_Orion/orion_app.py` abre o v1 (pywebview + Three.js):
+esfera reativa, chat, sessões, grafo de memória 3D e voz ao vivo. A interface
+definitiva do Orion é decidida na fase 6.
 
-Os front-ends v2 (React) e v3 (SvelteKit + Tauri) foram removidos em 30/09/2026
-(commit `88f0b1b`); a interface do Orion é decidida na fase 6.
-
-## Integrações opcionais (passos manuais)
+### Integrações opcionais (passos manuais)
 
 1. **Telegram** — `@BotFather` → `/newbot` → token em `TELEGRAM_BOT_TOKEN`;
    seu ID numérico (via `@userinfobot`) em `TELEGRAM_ALLOWED_USERS`. Subir:
@@ -116,25 +172,25 @@ Os front-ends v2 (React) e v3 (SvelteKit + Tauri) foram removidos em 30/09/2026
    API e Calendar API → credencial OAuth "Aplicativo para computador" → salvar
    em `Orion_Core/google_auth/credentials.json` → rodar uma vez
    `python Orion_Ollama/orion_google_workspace.py` (gera `token.json`).
-3. **Atualizar SurrealDB** (Lyra parada, PowerShell admin) —
+3. **Atualizar SurrealDB** (base parada, PowerShell admin) —
    `winget upgrade SurrealDB.SurrealDB --accept-source-agreements --accept-package-agreements`.
-4. **MCP da Lyra no Claude Code** — em `~/.claude/settings.json`:
-   `{"mcpServers": {"lyra": {"url": "http://127.0.0.1:8000/mcp"}}}`.
+4. **MCP no Claude Code** — em `~/.claude/settings.json`:
+   `{"mcpServers": {"orion": {"url": "http://127.0.0.1:8000/mcp"}}}`.
 
 `navegar_web` (Playwright Chromium) já está instalado e funcional.
 
-## Testes
+### Testes
 
 ```
 python Orion_Ollama/test_smoke.py            # todos os endpoints
 python Orion_Ollama/test_smoke.py --rapido   # sem o teste de chat
 ```
 
-Exigem os serviços no ar. Não há testes unitários isolados nem CI.
+Exigem os serviços no ar. Não há testes unitários isolados nem CI (chegam na fase 1).
 Dashboard ao vivo: **http://127.0.0.1:8000/dashboard** (serviços, CPU/RAM/GPU/VRAM,
 vetores, telemetria da cascata).
 
-## Layout
+### Layout
 
 ```
 Orion_Ollama/                  # backend
@@ -148,37 +204,40 @@ Orion_Ollama/                  # backend
   surreal_client.py · logger.py
   tools/                        # 55 ferramentas por domínio (orion_tools.py = shim)
   embed_service.py              # BGE-M3 + reranker :8001
-  orion_agentes.py               # enxame paralelo de sub-agentes
-  orion_shadow_thoughts.py       # ciclo de sono NREM/REM/DEEP
-  orion_seguranca.py             # rate limit, câmara de eco, audit, self-healing
+  orion_agentes.py              # enxame paralelo de sub-agentes
+  orion_shadow_thoughts.py      # ciclo de sono NREM/REM/DEEP
+  orion_seguranca.py            # rate limit, câmara de eco, audit, self-healing
   orion_browser.py · orion_google_workspace.py · orion_telegram.py · orion_voice_live.py
   bm25_index.py · reconciliar_episodios.py · test_smoke.py
-Orion_Core/                    # front-end v1, voz, sentidos, memória bruta
+Orion_Core/                    # front-end v1, voz, sentidos
   Front_end_Orion/              # pywebview + Three.js + hub WS :8765
   audio_manager.py (TTS) · mic_engine.py (STT) · commands.py
-bin/startup/                  # .bat de cada serviço + orion_boot.vbs
-Memorias Do Projeto/          # ORION_NUCLEO.md (plano do Orion), ORION_TECNICO.md (referência do legado)
+bin/startup/                   # .bat de cada serviço + orion_boot.vbs
+Memorias Do Projeto/           # ORION_NUCLEO.md (plano), ORION_TECNICO.md (referência da base)
 ```
 
 **Fora do git (runtime):** `Orion_Core/Sons/cache/`, `Orion_Ollama/telemetria*`,
-checkpoints de ingestão, `.env`, credenciais OAuth,
-`qdrant_data/`, `db_cortex/`, `bm25s_index*/`, `.claude/settings.local.json`.
+`.env`, credenciais OAuth, `qdrant_data/`, `db_cortex/`, `bm25s_index*/`,
+`.claude/settings.local.json`.
 
 ---
 
 ## Segurança
 
-- Todos os serviços escutam só em `127.0.0.1`; não foram hardened para exposição em rede.
-- **Sem login:** nenhuma rota exige autenticação. As rotas `/auth/*` (PBKDF2-SHA256 +
-  JWT) foram desmontadas em 01/10/2026 por falta de cliente; o login volta na
-  reescrita (fase 5 do NUCLEO).
+Base atual:
+
+- Todos os serviços escutam só em `127.0.0.1`; não foram preparados para exposição em rede.
+- **Sem login:** nenhuma rota exige autenticação.
 - **CORS** aceita a origem `"null"` (necessária pro pywebview do v1). Página com
   iframe sandboxed também manda `Origin: null`, então um site aberto no navegador
-  consegue falar com `/chat`. Corrigir junto com o gating de auth.
+  consegue falar com `/chat`.
 - **`/mcp`** expõe os endpoints REST como ferramentas MCP, sem autenticação.
 - `executar_comando` roda PowerShell arbitrário; contenção = rate limit +
   Câmara de Eco (confirmação explícita no chat para ações de alto risco).
 - `.env`, chaves de API e credenciais OAuth nunca são versionados.
+
+Na arquitetura nova, login vale para toda rota, o acesso de fora passa só pela
+rede privada do Tailscale e o bot do Telegram responde apenas ao ID do Antônio.
 
 **Reportar vulnerabilidade:** não abra Issue pública — e-mail
 antonio.assuino.salomao@gmail.com com passos para reproduzir, impacto e
