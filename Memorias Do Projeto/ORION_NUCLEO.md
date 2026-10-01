@@ -3,8 +3,8 @@
 > Antiga Lyra. Visão, princípios, arquitetura-alvo, inventário do legado, fases e
 > decisões. Atualizado em 01/10/2026. Nada da reescrita foi codado ainda: este
 > documento é o planejamento. Como o código **atual** funciona:
-> [ORION_TECNICO.md](ORION_TECNICO.md) · Operação do legado: [README.md](../README.md).
-> (O arquivo mantém o nome `ORION_NUCLEO.md` até a fase de rename.)
+> [ORION_TECNICO.md](ORION_TECNICO.md) · Operação do legado: [README.md](../README.md) ·
+> Histórico completo do legado: repositório [Lyra](https://github.com/antoniossalomao/Lyra).
 
 ---
 
@@ -136,7 +136,7 @@ O que existe hoje e o destino de cada peça. "Fase" = quando é substituído e a
 | `llm_cascade.py` (4 formatos de API) | Apagar — OmniRoute | 2 |
 | Andar Claude CLI / `consultar_especialista` | Generalizar para Claude Code, Codex e Gemini CLI | 2 |
 | Draft do spec-decoding, roteamento MoE por regex | Apagar | 2 |
-| `routers/models_hub.py` + `ModelHubPanel.svelte` | Apagar | 2 |
+| `routers/models_hub.py` | Apagar | 2 |
 | `orion_agent.py` (ReAct), `orion_agentes.py` (enxame) | Apagar — o agente vira o núcleo; tarefa grande vai para as CLIs | 2 |
 | `rag_engine.py`, `bm25_index.py`, `surreal_client.py`, `reconciliar_episodios.py`, `embed_service.py`, Qdrant, SurrealDB | Apagar — memória nova em SQLite | 3 |
 | `session_manager.py` | Portar a lógica | 3 |
@@ -149,12 +149,14 @@ O que existe hoje e o destino de cada peça. "Fase" = quando é substituído e a
 | `routers/auth.py`, `utils/auth.py` | Portar | 5 |
 | `bin/startup/*.bat`, `orion_boot.vbs` | Apagar — um comando só e autostart por SO | 5 |
 | `orion_voice_live.py`, `audio_manager.py`, `mic_engine.py`, `commands.py` | Voz nova (masculina, palavra de ativação "Orion") | 6 |
-| Frontends v1 (pywebview), v2 (React), v3 (Svelte) + Tauri, `dashboard.html` | Decidir na fase de interface | 6 |
+| Frontend v1 (pywebview + Three.js), `dashboard.html` | Decidir na fase de interface | 6 |
 
-**Já apagado (30/09–01/10):** IDE Theia, Lyra Desktop, scripts de ingestão e
+**Já apagado (30/09–01/10):** IDE Theia, Lyra Desktop, front-ends v2 (React) e
+v3 (SvelteKit + Tauri), scripts de ingestão e
 vetorização dos datasets, `ingest_webdocs.py`, `build_bm25_index.py`,
 `validador_cortical.py`, `calibrar_pesos_rag.py`, `Modelfile`, `Modelfile_mini`,
 `webcam.py`, `lyra_launcher.py`, PDF e gerador do Gênesis, screenshots, mockups.
+Tudo continua no repositório Lyra.
 
 ## 6. Fases
 
@@ -167,7 +169,7 @@ vetorização dos datasets, `ingest_webdocs.py`, `build_bm25_index.py`,
 | **4 — Ferramentas** | Cliente MCP; servidores prontos + `orion-desktop`; política, confirmação, audit | Teste prova que nenhuma ação destrutiva roda sem confirmação |
 | **5 — Canais** | Telegram (texto, voz, foto, botões), login, Tailscale, autostart | Usar o Orion pelo celular fora de casa |
 | **6 — Interface, voz, identidade** | Frontend escolhido, voz masculina, palavra de ativação, visual do Orion | A definir na própria fase |
-| **7 — Limpeza** | Apagar `Orion_Ollama/`, `Orion_Core/`, `bin/`; renomear docs para `ORION_*` | Nenhum arquivo do legado no repositório |
+| **7 — Limpeza** | Apagar `Orion_Ollama/`, `Orion_Core/`, `bin/` | Nenhum arquivo do legado no repositório |
 
 ## 7. Decisões em aberto
 
@@ -176,7 +178,7 @@ vetorização dos datasets, `ingest_webdocs.py`, `build_bm25_index.py`,
 | 1 | Banco da memória | SQLite + FTS5 + sqlite-vec | SurrealDB (servidor ou embutido) |
 | 2 | Gateway de modelos | OmniRoute | LiteLLM (biblioteca, sem processo extra, cotas na mão) |
 | 3 | Framework do agente | PydanticAI | Loop próprio (~200 linhas) |
-| 4 | Ritmo de apagar o legado | Por fase (código antigo à mão para portar) | Tudo agora, consultando a `main` |
+| 4 | Ritmo de apagar o legado | Por fase (código antigo à mão para portar) | Tudo agora, consultando o repositório Lyra |
 | 5 | Interface | A discutir (fase 6) | — |
 | 6 | Voz | Transcrição: Whisper no Groq (grátis); fala: edge-tts `pt-BR-AntonioNeural` (grátis); voz ao vivo: Gemini Live com voz masculina; ativação: openWakeWord treinado em "Orion" | A discutir (fase 6) |
 | 7 | Busca web gratuita | Pesquisar na fase 4 (cotas mudam) | — |
@@ -193,8 +195,11 @@ vetorização dos datasets, `ingest_webdocs.py`, `build_bm25_index.py`,
 | 07-08/08/2026 | Nomes das ferramentas em PT | São o contrato de function-calling com o LLM |
 | 11/08/2026 | Lyra 2.0: auth, routers, SvelteKit, Tauri | Histórico em [TECNICO §9](ORION_TECNICO.md#9-lyra-20--legado-plano-de-11082026-e-execução) |
 | 30/09/2026 | **Nome: Orion**, identidade masculina; visual novo a definir | Mais vozes masculinas de qualidade |
-| 30/09/2026 | `lyra-v2` é a branch principal; `main` congelada, sem PR | Reescrita livre; `main` é o backup do legado |
+| 30/09/2026 | `lyra-v2` é a branch principal; `main` congelada, sem PR | Reescrita livre; `main` é o backup do legado (substituída no mesmo dia pelo repositório próprio) |
+| 30/09/2026 | Reescrita em repositório próprio (`Orion`, branch `main`); repositório `Lyra` fica como backup do legado | Substitui a branch `lyra-v2` |
+| 30/09/2026 | Arquivos e pastas renomeados de Lyra para Orion; textos, persona e identificadores de dados (namespace SurrealDB, coleção Qdrant, cookie, `localStorage`) continuam Lyra no legado | Primeira etapa da troca de nome |
 | 30/09/2026 | IDE Theia e Lyra Desktop excluídos | Custo de manter sozinho |
+| 30/09/2026 | Front-ends v2 (React) e v3 (SvelteKit + Tauri) excluídos; fica só o v1 | *(não registrado)* |
 | 30/09/2026 | Datasets genéricos saem da memória | Os LLMs já sabem; diluíam a memória pessoal |
 | 30/09/2026 | Nuvem primeiro; orçamento R$0; memória pessoal pode ir para a nuvem | PC será vendido |
 | 01/10/2026 | Roda no notebook (IdeaPad Slim 3, 8GB) e depois MacBook M2 16GB; acesso pelo celular | Hardware disponível |
