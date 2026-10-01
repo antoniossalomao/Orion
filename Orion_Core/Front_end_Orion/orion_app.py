@@ -1,6 +1,6 @@
 """
-orion_app.py — Launcher principal da Lyra
-pywebview (frameless) + WebSocket hub :8765 + ponte para cerebro :8000
+orion_app.py — Launcher do Orion
+pywebview (frameless) + WebSocket hub :8765 + ponte para o cérebro :8000
 """
 
 import asyncio
@@ -22,7 +22,7 @@ try:
     WS_AVAILABLE = True
 except ImportError:
     WS_AVAILABLE = False
-    print("[LYRA] AVISO: websockets não instalado → pip install websockets")
+    print("[ORION] AVISO: websockets não instalado → pip install websockets")
 
 # ── Estado WS ─────────────────────────────────────────────────────────────────
 _ws_clients: set = set()
@@ -31,6 +31,8 @@ _ws_loop: asyncio.AbstractEventLoop | None = None
 _DIR       = os.path.dirname(os.path.abspath(__file__))
 INDEX_HTML = os.path.join(_DIR, "index.html")
 ICON_PATH  = os.path.join(_DIR, "orion.ico")
+WINDOW_TITLE = "Orion"            # FindWindowW depende deste título exato
+APP_ID       = "Orion.Desktop"    # agrupa o botão da barra de tarefas
 
 
 # ── Broadcast genérico (thread-safe) ──────────────────────────────────────────
@@ -83,7 +85,7 @@ async def _ws_serve():
     _ws_loop = asyncio.get_running_loop()
     # 127.0.0.1: regra do projeto — bind explícito IPv4, nunca localhost/0.0.0.0
     async with websockets.serve(_ws_handler, "127.0.0.1", 8765):
-        print("[LYRA_WS] Hub ws://localhost:8765 ativo")
+        print("[ORION] Hub ws://127.0.0.1:8765 ativo")
         await asyncio.Future()
 
 
@@ -94,7 +96,7 @@ def _start_ws():
 
 
 # ── API exposta ao JavaScript via pywebview ────────────────────────────────────
-class LyraApi:
+class OrionApi:
 
     def process_command(self, command: str, modelo: str = "auto") -> bool:
         """Recebe texto do frontend -> streama cerebro :8000 -> envia chunks via WS.
@@ -132,8 +134,8 @@ class LyraApi:
                         except Exception:
                             pass
         except Exception as e:
-            _broadcast({"ai_chunk": "[cerebro offline]"})
-            print(f"[LYRA] process_command erro: {e}")
+            _broadcast({"ai_chunk": "[cérebro offline]"})
+            print(f"[ORION] process_command erro: {e}")
 
         broadcast_state("idle", 0.0)
 
@@ -142,7 +144,7 @@ class LyraApi:
         try:
             webview.windows[0].toggle_fullscreen()
         except Exception as e:
-            print(f"[LYRA] toggle_maximize: {e}")
+            print(f"[ORION] toggle_maximize: {e}")
 
     def minimize_app(self) -> None:
         """Minimiza para a barra de tarefas."""
@@ -151,18 +153,18 @@ class LyraApi:
         except AttributeError:
             # Fallback Win32 para pywebview < 4.4
             try:
-                hwnd = ctypes.windll.user32.FindWindowW("Chrome_WidgetWin_1", "Lyra")
+                hwnd = ctypes.windll.user32.FindWindowW("Chrome_WidgetWin_1", WINDOW_TITLE)
                 if not hwnd:
-                    hwnd = ctypes.windll.user32.FindWindowW(None, "Lyra")
+                    hwnd = ctypes.windll.user32.FindWindowW(None, WINDOW_TITLE)
                 if hwnd:
                     ctypes.windll.user32.ShowWindow(hwnd, 6)  # SW_MINIMIZE = 6
             except Exception as e2:
-                print(f"[LYRA] minimize fallback erro: {e2}")
+                print(f"[ORION] minimize fallback erro: {e2}")
         except Exception as e:
-            print(f"[LYRA] minimize_app: {e}")
+            print(f"[ORION] minimize_app: {e}")
 
     def close_app(self) -> None:
-        print("[LYRA] Encerrando...")
+        print("[ORION] Encerrando...")
         webview.windows[0].destroy()
         sys.exit(0)
 
@@ -177,12 +179,12 @@ def _apply_win32_icon():
     time.sleep(2.0)
     try:
         # Agrupa o botão da taskbar com ID único (impede herdar ícone do Python)
-        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Lyra.AI.Desktop")
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(APP_ID)
 
         user32 = ctypes.windll.user32
-        hwnd   = user32.FindWindowW(None, "Lyra")
+        hwnd   = user32.FindWindowW(None, WINDOW_TITLE)
         if not hwnd:
-            print("[LYRA] Icon: janela não encontrada via FindWindow")
+            print("[ORION] Ícone: janela não encontrada via FindWindow")
             return
 
         LR_LOADFROMFILE = 0x0010
@@ -191,22 +193,22 @@ def _apply_win32_icon():
             None, ICON_PATH, IMAGE_ICON, 0, 0, LR_LOADFROMFILE
         )
         if not hicon:
-            print(f"[LYRA] Icon: LoadImageW falhou ({ICON_PATH})")
+            print(f"[ORION] Ícone: LoadImageW falhou ({ICON_PATH})")
             return
 
         WM_SETICON = 0x0080
         user32.SendMessageW(hwnd, WM_SETICON, 0, hicon)   # ICON_SMALL
         user32.SendMessageW(hwnd, WM_SETICON, 1, hicon)   # ICON_BIG
-        print(f"[LYRA] Ícone aplicado: {ICON_PATH}")
+        print(f"[ORION] Ícone aplicado: {ICON_PATH}")
     except Exception as e:
-        print(f"[LYRA] Icon erro: {e}")
+        print(f"[ORION] Ícone erro: {e}")
 
 
 # ── Launch ─────────────────────────────────────────────────────────────────────
 def launch():
     # AppUserModelID antes de qualquer janela para garantir agrupamento correto
     try:
-        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Lyra.AI.Desktop")
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(APP_ID)
     except Exception:
         pass
 
@@ -227,12 +229,12 @@ def launch():
     # conteúdo espremido — a janela tinha ido pro monitor secundário 1080x1920
     # deslocado). webview.screens[0] é sempre o monitor primário.
     tela_primaria = webview.screens[0] if webview.screens else None
-    print(f"[LYRA] Monitor: {w}x{h} | tela primária: {tela_primaria} | {INDEX_HTML}")
+    print(f"[ORION] Monitor: {w}x{h} | tela primária: {tela_primaria} | {INDEX_HTML}")
 
     webview.create_window(
-        title="Lyra",
+        title=WINDOW_TITLE,
         url=INDEX_HTML,
-        js_api=LyraApi(),
+        js_api=OrionApi(),
         width=w,
         height=h,
         x=0,
@@ -241,7 +243,7 @@ def launch():
         resizable=True,
         frameless=True,
         easy_drag=False,
-        background_color="#000000",
+        background_color="#030409",
         fullscreen=True,
     )
     webview.start(debug=False)

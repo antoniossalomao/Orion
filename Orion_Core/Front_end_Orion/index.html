@@ -3,333 +3,323 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lyra</title>
+    <title>Orion</title>
     <link rel="icon" href="orion.ico">
-    <!-- Tudo self-hosted (04/08/2026): fontes e libs 3D saíram dos CDNs
-         (Google Fonts/cdnjs/unpkg) pra vendor/ — o frontend renderiza
-         idêntico 100% offline, alinhado ao Ring 0 do projeto. -->
+    <!-- Tudo local: fontes e libs 3D em vendor/, a interface funciona offline. -->
     <link rel="stylesheet" href="vendor/fonts/inter.css">
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="ui.css">
 </head>
-<body>
+<body data-view="home">
 
-    <!-- Sequência de boot — cobre a tela até o núcleo acordar -->
+    <!-- Boot: marca + checagem real do cérebro, depois a constelação acende -->
     <div id="boot-overlay">
-        <div id="boot-dot"></div>
+        <div class="belt-mark belt-mark-lg" aria-hidden="true"><i></i><i></i><i></i></div>
+        <div id="boot-brand">Orion</div>
         <div id="boot-lines"></div>
-        <div id="boot-brand">Lyra</div>
     </div>
-
-    <!-- Sequência de saída — espelha o boot ao fechar -->
     <div id="close-overlay"></div>
 
-    <!-- Camadas atmosféricas: glow de fundo, vinheta e grain sutil -->
-    <div id="ambient-glow"></div>
-    <div id="vignette"></div>
-    <div id="grain"></div>
-
-    <!-- Barra de drag invisível (titulo) -->
+    <!-- Faixa de arrastar a janela (frameless) -->
     <div id="drag-region"></div>
 
-    <!-- Sidebar de navegação — absorve o antigo painel lateral.
-         Conexões/estado/modelo viraram rodapé compacto; telemetria e
-         serviços migraram pra view de configurações. -->
+    <!-- ── Sidebar ─────────────────────────────────────────────── -->
     <aside id="sidebar">
         <div id="sb-head">
-            <button id="panel-toggle" onclick="togglePanel()" data-tip="Recolher/expandir sidebar" aria-label="Recolher/expandir sidebar">&#9776;</button>
-            <div id="brand" class="sb-txt">Lyra <span>Ai</span></div>
+            <button id="panel-toggle" class="icon-btn" onclick="togglePanel()" data-tip="Recolher sidebar" aria-label="Recolher ou expandir a sidebar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="4" width="18" height="16" rx="2.5"/><line x1="9" y1="4" x2="9" y2="20"/>
+                </svg>
+            </button>
+            <div id="brand" class="sb-txt">
+                <span class="belt-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+                <span>Orion</span>
+            </div>
         </div>
 
-        <button id="sb-new" onclick="LyraUI.novaConversa()" data-tip="Iniciar nova conversa" aria-label="Nova conversa">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+        <button id="sb-new" onclick="OrionUI.novaConversa()" data-tip="Nova conversa" aria-label="Nova conversa">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
                 <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
             </svg>
-            <span class="sb-txt">nova conversa</span>
+            <span class="sb-txt">Nova conversa</span>
         </button>
 
-        <nav id="sb-nav">
-            <button class="sb-item active" data-view="home" onclick="LyraUI.showView('home')" data-tip="Núcleo">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                    <circle cx="12" cy="12" r="3.2"/><circle cx="12" cy="12" r="8.5" stroke-dasharray="2.5 3.5"/>
+        <nav id="sb-nav" aria-label="Navegação">
+            <button class="sb-item active" data-view="home" onclick="OrionUI.showView('home')" data-tip="Início">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="6" cy="5" r="1.4"/><circle cx="17" cy="4" r="1.4"/><circle cx="9.5" cy="12.5" r="1.1"/>
+                    <circle cx="12" cy="11.5" r="1.1"/><circle cx="14.5" cy="10.5" r="1.1"/><circle cx="7" cy="20" r="1.4"/><circle cx="18" cy="19" r="1.4"/>
+                    <path d="M6 5l3.5 7.5M17 4l-2.5 6.5M9.5 12.5L7 20M14.5 10.5L18 19" stroke-opacity="0.55"/>
                 </svg>
-                <span class="sb-txt">início</span>
+                <span class="sb-txt">Início</span>
             </button>
-            <button class="sb-item" data-view="chat" onclick="LyraUI.showView('chat')" data-tip="Chat">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+            <button class="sb-item" data-view="chat" onclick="OrionUI.showView('chat')" data-tip="Chat">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 5h16v11H9l-5 4z"/>
                 </svg>
-                <span class="sb-txt">chat</span>
-                <span id="chat-toggle-badge"></span>
+                <span class="sb-txt">Chat</span>
+                <span id="chat-badge"></span>
             </button>
-            <button class="sb-item" data-view="memoria" onclick="LyraUI.showView('memoria')" data-tip="Grafo de memória 3D">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="5" cy="5" r="2"/><circle cx="19" cy="5" r="2"/><circle cx="12" cy="19" r="2"/>
-                    <line x1="5" y1="7" x2="12" y2="17"/><line x1="19" y1="7" x2="12" y2="17"/>
-                    <line x1="7" y1="5" x2="17" y2="5"/>
+            <button class="sb-item" data-view="memoria" onclick="OrionUI.showView('memoria')" data-tip="Grafo de memória">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="2.2"/><circle cx="5" cy="6" r="1.6"/><circle cx="19" cy="6" r="1.6"/><circle cx="6" cy="19" r="1.6"/><circle cx="18" cy="18" r="1.6"/>
+                    <path d="M6.3 7.1l4 3.4M17.7 7.1l-4 3.4M7.2 17.8l3.3-4.2M16.8 16.8l-3.2-3.3"/>
                 </svg>
-                <span class="sb-txt">memória</span>
+                <span class="sb-txt">Memória</span>
             </button>
-            <button class="sb-item" data-view="integracoes" onclick="LyraUI.showView('integracoes')" data-tip="Integrações">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M9 3h6v6H9zM3 15h6v6H3zM15 15h6v6h-6z"/>
-                    <path d="M12 9v3M6 15v-3h12v3"/>
+            <button class="sb-item" data-view="integracoes" onclick="OrionUI.showView('integracoes')" data-tip="Integrações">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/>
+                    <rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M17.5 14v7M14 17.5h7"/>
                 </svg>
-                <span class="sb-txt">integrações</span>
+                <span class="sb-txt">Integrações</span>
             </button>
-            <button class="sb-item" data-view="config" onclick="LyraUI.showView('config')" data-tip="Configurações">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="3"/>
-                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            <button class="sb-item" data-view="config" onclick="OrionUI.showView('config')" data-tip="Configurações">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/>
                 </svg>
-                <span class="sb-txt">configurações</span>
+                <span class="sb-txt">Configurações</span>
             </button>
         </nav>
 
         <div id="sb-convs">
-            <div class="sb-label sb-txt">conversas</div>
+            <div class="sb-label sb-txt">Conversas</div>
             <div id="sb-convs-list"></div>
         </div>
 
         <div id="sb-footer">
-            <div class="sb-status-row">
-                <span class="p-dot" id="dot-ws" data-tip="Hub WS :8765"></span>
-                <span class="p-dot" id="dot-cerebro" data-tip="Cérebro :8000"></span>
-                <span class="p-dot" id="dot-state"></span>
-                <span class="sb-txt" id="p-state-label">Em Espera</span>
-            </div>
-            <div class="sb-status-row">
-                <span class="sb-txt">Fonte</span>
-                <span class="panel-metric sb-txt" id="p-fonte-label">—</span>
-            </div>
-            <!-- Dropdown customizado (ui.js) — o <select> real fica oculto,
-                 só guarda o valor/localStorage; a UI visível é toda nossa,
-                 pra não depender do menu nativo do Windows. -->
-            <div class="sb-select" id="sb-select-modelo">
-                <button type="button" class="sb-select-btn" id="sb-select-btn" data-tip="Modelo / cascata" aria-label="Escolher modelo">
-                    <span id="sb-select-label">Automático (cascata)</span>
-                    <svg class="sb-select-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="6 9 12 15 18 9"/>
-                    </svg>
-                </button>
-                <div class="sb-select-list" id="sb-select-list">
-                    <button type="button" class="sb-select-opt" data-value="auto">Automático (cascata)</button>
-                    <button type="button" class="sb-select-opt" data-value="groq">Groq (rápido)</button>
-                    <button type="button" class="sb-select-opt" data-value="gemini">Gemini</button>
-                    <button type="button" class="sb-select-opt" data-value="claude">Claude</button>
-                    <button type="button" class="sb-select-opt" data-value="local">Local (offline)</button>
+            <div class="sb-status">
+                <div class="sb-status-row" data-tip="Hub de eventos :8765">
+                    <span class="p-dot" id="dot-ws"></span><span class="sb-txt">Hub</span>
+                </div>
+                <div class="sb-status-row" data-tip="Cérebro :8000">
+                    <span class="p-dot" id="dot-cerebro"></span><span class="sb-txt">Cérebro</span>
+                </div>
+                <div class="sb-status-row" data-tip="Modelo que respondeu por último">
+                    <span class="p-dot" id="dot-state"></span>
+                    <span class="sb-txt mono" id="p-fonte-label">—</span>
                 </div>
             </div>
-            <select id="sel-modelo" class="sr-only">
-                <option value="auto">Automático (cascata)</option>
-                <option value="groq">Groq (rápido)</option>
+            <!-- Dropdown próprio: o <select> real fica oculto e só guarda o valor -->
+            <div class="sb-select" id="sb-select-modelo">
+                <button type="button" class="sb-select-btn" id="sb-select-btn" data-tip="Modelo" aria-label="Escolher modelo">
+                    <svg class="sb-select-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M4 7h16M4 12h10M4 17h6"/>
+                    </svg>
+                    <span id="sb-select-label" class="sb-txt">Automático</span>
+                    <svg class="sb-select-caret sb-txt" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="6 15 12 9 18 15"/>
+                    </svg>
+                </button>
+                <div class="sb-select-list" id="sb-select-list" role="listbox">
+                    <button type="button" class="sb-select-opt" data-value="auto">Automático<small>cascata Groq → Gemini → Claude → local</small></button>
+                    <button type="button" class="sb-select-opt" data-value="groq">Groq<small>mais rápido</small></button>
+                    <button type="button" class="sb-select-opt" data-value="gemini">Gemini</button>
+                    <button type="button" class="sb-select-opt" data-value="claude">Claude<small>código</small></button>
+                    <button type="button" class="sb-select-opt" data-value="local">Local<small>offline, qwen3:8b</small></button>
+                </div>
+            </div>
+            <select id="sel-modelo" class="sr-only" tabindex="-1" aria-hidden="true">
+                <option value="auto">Automático</option>
+                <option value="groq">Groq</option>
                 <option value="gemini">Gemini</option>
                 <option value="claude">Claude</option>
-                <option value="local">Local (offline)</option>
+                <option value="local">Local</option>
             </select>
         </div>
     </aside>
 
-    <!-- View: configurações -->
-    <section id="view-config" class="view-overlay">
+    <!-- ── Palco: constelação + status + composer da home ────────── -->
+    <div id="canvas-container"></div>
+
+    <div id="status-pill" aria-live="polite">
+        <span id="state-dot"></span>
+        <span id="state-indicator">Em espera</span>
+        <span id="mic-indicator" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>
+            </svg>
+        </span>
+    </div>
+
+    <div id="home-composer" class="composer">
+        <input id="home-input" type="text" autocomplete="off" spellcheck="false"
+               placeholder="Comando ou pergunta" aria-label="Mensagem para o Orion">
+        <kbd class="composer-kbd" aria-hidden="true">/</kbd>
+        <button class="icon-btn voice-live-btn" data-tip="Voz ao vivo" aria-label="Iniciar ou encerrar voz ao vivo">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 12v0M8 8v8M12 5v14M16 8v8M20 12v0"/>
+            </svg>
+        </button>
+    </div>
+
+    <!-- ── Chat ──────────────────────────────────────────────────── -->
+    <section id="chat-view" aria-label="Chat">
+        <header id="chat-header">
+            <span class="belt-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+            <span class="chat-title">Orion</span>
+            <span id="chat-state" class="mono"></span>
+            <div class="chat-actions">
+                <button class="icon-btn" onclick="exportarConversa()" data-tip="Exportar conversa (.md)" aria-label="Exportar conversa">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>
+                    </svg>
+                </button>
+                <button class="icon-btn" onclick="limparHistorico()" data-tip="Limpar histórico em memória" aria-label="Limpar histórico">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M4 7h16M9 7V4h6v3M6.5 7l1 13h9l1-13"/>
+                    </svg>
+                </button>
+                <button class="icon-btn" onclick="OrionUI.showView('home')" data-tip="Fechar (Esc)" aria-label="Fechar chat">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+                        <path d="M6 6l12 12M18 6L6 18"/>
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <div id="chat-messages" role="log" aria-live="polite"></div>
+
+        <button id="chat-scroll-btn" onclick="Chat.rolar(true)" data-tip="Ir para o fim" aria-label="Ir para a última mensagem">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="6 9 12 15 18 9"/>
+            </svg>
+        </button>
+
+        <div id="chat-composer" class="composer">
+            <button id="btn-attach" class="icon-btn" onclick="document.getElementById('file-attach').click()" data-tip="Anexar imagem, áudio ou vídeo" aria-label="Anexar arquivo">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20 11.5l-8.2 8.2a5 5 0 0 1-7.1-7.1l8.5-8.5a3.4 3.4 0 0 1 4.8 4.8l-8.4 8.4a1.8 1.8 0 0 1-2.6-2.6l7.6-7.6"/>
+                </svg>
+            </button>
+            <input id="file-attach" type="file" accept="image/*,audio/*,video/mp4,video/quicktime,video/webm" hidden onchange="handleFileAttach(this.files)">
+            <input id="orion-input" type="text" autocomplete="off" spellcheck="false"
+                   placeholder="Comando ou pergunta" aria-label="Mensagem para o Orion">
+            <button class="icon-btn voice-live-btn" data-tip="Voz ao vivo" aria-label="Iniciar ou encerrar voz ao vivo">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 12v0M8 8v8M12 5v14M16 8v8M20 12v0"/>
+                </svg>
+            </button>
+            <button id="btn-send" class="icon-btn" data-tip="Enviar (Enter)" aria-label="Enviar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 19V5M6 11l6-6 6 6"/>
+                </svg>
+            </button>
+        </div>
+    </section>
+
+    <!-- ── Configurações ─────────────────────────────────────────── -->
+    <section id="view-config" class="view-overlay" aria-label="Configurações">
         <div class="view-inner">
-            <div class="view-title">configurações <span>/</span></div>
+            <h1 class="view-title">Configurações</h1>
             <div class="cfg-grid">
                 <div class="cfg-card">
-                    <div class="panel-label">voz</div>
+                    <div class="card-label">Preferências</div>
                     <label class="cfg-toggle">
-                        <span>Resposta por voz (TTS)</span>
+                        <span>Resposta por voz</span>
                         <input type="checkbox" id="cfg-tts"><span class="cfg-switch"></span>
                     </label>
-                    <div class="panel-value dim">Mic wake-word e voz live ficam em integrações</div>
-                </div>
-                <div class="cfg-card">
-                    <div class="panel-label">aparência</div>
                     <label class="cfg-toggle">
-                        <span>Grain de fundo</span>
-                        <input type="checkbox" id="cfg-grain"><span class="cfg-switch"></span>
+                        <span>Movimento reduzido</span>
+                        <input type="checkbox" id="cfg-motion"><span class="cfg-switch"></span>
                     </label>
-                    <div class="panel-value dim">Animações seguem o "reduzir movimento" do sistema</div>
+                    <div class="card-note">Microfone e voz ao vivo ficam em Integrações.</div>
                 </div>
                 <div class="cfg-card">
-                    <div class="panel-label">atividade</div>
-                    <div class="panel-row metric"><span>Latência</span><span class="panel-metric" id="m-latencia">—</span></div>
-                    <div class="panel-row metric"><span>CPU</span><span class="panel-metric" id="m-cpu">—</span></div>
-                    <div class="panel-row metric"><span>RAM</span><span class="panel-metric" id="m-ram">—</span></div>
-                    <div class="panel-row metric"><span>GPU</span><span class="panel-metric" id="m-gpu">—</span></div>
-                    <div class="panel-row metric"><span>VRAM</span><span class="panel-metric" id="m-vram">—</span></div>
-                    <svg id="m-spark" viewBox="0 0 200 32" preserveAspectRatio="none">
-                        <polyline id="m-spark-line" points="" fill="none" />
+                    <div class="card-label">Atividade</div>
+                    <div class="metric-row"><span>Latência</span><span class="metric" id="m-latencia">—</span></div>
+                    <div class="metric-row"><span>CPU</span><span class="metric" id="m-cpu">—</span></div>
+                    <div class="metric-row"><span>RAM</span><span class="metric" id="m-ram">—</span></div>
+                    <div class="metric-row"><span>GPU</span><span class="metric" id="m-gpu">—</span></div>
+                    <div class="metric-row"><span>VRAM</span><span class="metric" id="m-vram">—</span></div>
+                    <svg class="spark" viewBox="0 0 200 32" preserveAspectRatio="none" aria-hidden="true">
+                        <polyline id="m-spark-line" points="" fill="none"/>
                     </svg>
                 </div>
                 <div class="cfg-card">
-                    <div class="panel-label">telemetria</div>
-                    <div class="panel-row metric"><span>Chats</span><span class="panel-metric" id="t-total">—</span></div>
+                    <div class="card-label">Cascata</div>
+                    <div class="metric-row"><span>Conversas</span><span class="metric" id="t-total">—</span></div>
                     <div id="t-tiers"></div>
-                    <svg id="t-hist-spark" viewBox="0 0 200 32" preserveAspectRatio="none" data-tip="Chats por snapshot (~5min cada)">
-                        <polyline id="t-hist-spark-line" points="" fill="none" />
+                    <svg class="spark spark-signal" viewBox="0 0 200 32" preserveAspectRatio="none" data-tip="Chats por snapshot (~5 min)">
+                        <polyline id="t-hist-spark-line" points="" fill="none"/>
                     </svg>
                 </div>
                 <div class="cfg-card">
-                    <div class="panel-label">serviços</div>
-                    <div class="panel-row"><span class="p-dot" id="dot-qdrant"></span><span id="svc-qdrant">Qdrant —</span></div>
-                    <div class="panel-row"><span class="p-dot" id="dot-surreal"></span><span id="svc-surreal">Surreal —</span></div>
-                    <div class="panel-row"><span class="p-dot" id="dot-ollama"></span><span id="svc-ollama">Ollama —</span></div>
+                    <div class="card-label">Serviços</div>
+                    <div class="metric-row"><span><span class="p-dot" id="dot-qdrant"></span>Qdrant</span><span class="metric" id="svc-qdrant">—</span></div>
+                    <div class="metric-row"><span><span class="p-dot" id="dot-surreal"></span>SurrealDB</span><span class="metric" id="svc-surreal">—</span></div>
+                    <div class="metric-row"><span><span class="p-dot" id="dot-ollama"></span>Ollama</span><span class="metric" id="svc-ollama">—</span></div>
                 </div>
                 <div class="cfg-card">
-                    <div class="panel-label">build</div>
-                    <div class="panel-value">Gênesis V.2</div>
-                    <div class="panel-value dim">Groq · Gemini · Claude · qwen3:8b</div>
+                    <div class="card-label">Atalhos</div>
+                    <div class="metric-row"><span>Abrir o chat</span><kbd>/</kbd></div>
+                    <div class="metric-row"><span>Fechar painel</span><kbd>Esc</kbd></div>
+                    <div class="metric-row"><span>Mensagens anteriores</span><kbd>↑ ↓</kbd></div>
+                    <div class="metric-row"><span>Anexar</span><span class="metric">arrastar ou colar</span></div>
+                </div>
+                <div class="cfg-card">
+                    <div class="card-label">Sobre</div>
+                    <div class="card-value">Orion · base atual</div>
+                    <div class="card-note">Groq · Gemini · Claude · qwen3:8b local</div>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- View: integrações (cards renderizados pelo ui.js) -->
-    <section id="view-integracoes" class="view-overlay">
+    <!-- ── Integrações (cards montados pelo ui.js) ───────────────── -->
+    <section id="view-integracoes" class="view-overlay" aria-label="Integrações">
         <div class="view-inner">
-            <div class="view-title">integrações <span>/</span></div>
+            <h1 class="view-title">Integrações</h1>
             <div class="cfg-grid" id="integr-grid"></div>
         </div>
     </section>
 
-    <!-- Home: convite pra conversar sobre a esfera -->
-    <button id="home-cta" onclick="LyraUI.showView('chat')">conversar com a lyra…</button>
-
-    <!-- Visualizador de grafo de memória — overlay fullscreen -->
+    <!-- ── Grafo de memória ──────────────────────────────────────── -->
     <div id="grafo-overlay" onclick="if(event.target===this)fecharGrafo()">
-        <div id="grafo-modal">
+        <div id="grafo-modal" role="dialog" aria-label="Grafo de memória">
             <div id="grafo-header">
-                <span class="grafo-title">grafo de memória</span>
-                <span id="grafo-stats" class="grafo-stats-txt"></span>
-                <input id="grafo-search" type="text" placeholder="buscar nó..." autocomplete="off" spellcheck="false">
-                <button id="grafo-close" onclick="fecharGrafo()" data-tip="Fechar">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
-                        <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
+                <span class="grafo-title">Grafo de memória</span>
+                <span id="grafo-stats" class="mono"></span>
+                <input id="grafo-search" type="text" placeholder="Buscar nó" autocomplete="off" spellcheck="false">
+                <button class="icon-btn" onclick="fecharGrafo()" data-tip="Fechar (Esc)" aria-label="Fechar grafo">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+                        <path d="M6 6l12 12M18 6L6 18"/>
                     </svg>
                 </button>
             </div>
             <div id="grafo-container"></div>
             <div id="grafo-legend">
-                <span class="leg-item"><span class="leg-dot" style="background:#ffb454"></span>tópico</span>
-                <span class="leg-item"><span class="leg-dot" style="background:#7aa2ff"></span>evento</span>
-                <span class="leg-item"><span class="leg-line" style="background:rgba(0,200,255,0.4)"></span>sobre</span>
-                <span class="leg-item"><span class="leg-line" style="background:rgba(100,160,255,0.5)"></span>precedeu</span>
+                <span class="leg-item"><span class="leg-dot leg-topico"></span>Tópico</span>
+                <span class="leg-item"><span class="leg-dot leg-orion"></span>Fala do Orion</span>
+                <span class="leg-item"><span class="leg-dot leg-user"></span>Fala sua</span>
             </div>
             <div id="grafo-detail"></div>
         </div>
     </div>
 
-    <!-- Estado central -->
-    <div id="state-row">
-        <div id="state-dot"></div>
-        <span id="state-indicator">Em Espera</span>
-    </div>
-
-    <!-- Controles de janela: mudo / minimizar / tela-cheia / fechar -->
+    <!-- ── Controles de janela ───────────────────────────────────── -->
     <div id="window-controls">
-        <button class="ctrl-btn" id="btn-mute" onclick="toggleTtsMute()" data-tip="Desativar resposta por voz" aria-label="Ativar/desativar resposta por voz">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M11 5 6 9H2v6h4l5 4V5Z"/>
-                <path id="mute-slash" d="M23 9 17 15M17 9l6 6"/>
-                <path id="mute-waves" d="M15.5 8.5a5 5 0 0 1 0 7M19 5a9 9 0 0 1 0 14"/>
+        <button class="ctrl-btn" id="btn-mute" onclick="toggleTtsMute()" data-tip="Resposta por voz" aria-label="Ativar ou desativar resposta por voz">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M11 5 6 9H3v6h3l5 4V5Z"/>
+                <path id="mute-slash" d="M22 9l-6 6M16 9l6 6"/>
+                <path id="mute-waves" d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/>
             </svg>
         </button>
-        <button class="ctrl-btn" onclick="minimizeLyra()" data-tip="Minimizar" aria-label="Minimizar janela">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
-                <line x1="5" y1="12" x2="19" y2="12"/>
+        <button class="ctrl-btn" onclick="minimizeOrion()" data-tip="Minimizar" aria-label="Minimizar janela">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M5 12h14"/></svg>
+        </button>
+        <button class="ctrl-btn" onclick="maximizeOrion()" data-tip="Tela cheia" aria-label="Alternar tela cheia">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5"/>
             </svg>
         </button>
-        <button class="ctrl-btn" onclick="maximizeLyra()" data-tip="Alternar tela cheia" aria-label="Alternar tela cheia">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M9 4H5a1 1 0 0 0-1 1v4"/>
-                <path d="M15 4h4a1 1 0 0 1 1 1v4"/>
-                <path d="M9 20H5a1 1 0 0 1-1-1v-4"/>
-                <path d="M15 20h4a1 1 0 0 0 1-1v-4"/>
-            </svg>
-        </button>
-        <button class="ctrl-btn" id="btn-close" onclick="closeLyra()" data-tip="Fechar" aria-label="Fechar Lyra">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
-                <line x1="6" y1="6" x2="18" y2="18"/>
-                <line x1="18" y1="6" x2="6" y2="18"/>
-            </svg>
+        <button class="ctrl-btn" id="btn-close" onclick="closeOrion()" data-tip="Fechar" aria-label="Fechar o Orion">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
         </button>
     </div>
 
-    <!-- Canvas Three.js -->
-    <div id="canvas-container"></div>
-
-    <!-- Fundo escuro atrás do chat quando aberto — clicar fora fecha -->
-    <div id="chat-scrim" onclick="toggleChat(false)"></div>
-
-    <!-- Chat — modal central, some por padrão, abre via ícone -->
-    <div id="chat-terminal">
-        <div id="chat-header">
-            <span class="chat-brand-label">lyra /</span>
-            <div id="chat-header-dot"></div>
-            <button id="chat-export" onclick="exportarConversa()" data-tip="Exportar conversa (.md)" aria-label="Exportar conversa">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-                </svg>
-            </button>
-            <button id="chat-clear" onclick="limparHistorico()" data-tip="Limpar histórico em memória" aria-label="Limpar histórico">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
-                </svg>
-            </button>
-            <button id="chat-close" onclick="toggleChat(false)" data-tip="Fechar chat" aria-label="Fechar chat">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
-                    <line x1="6" y1="6" x2="18" y2="18"/>
-                    <line x1="18" y1="6" x2="6" y2="18"/>
-                </svg>
-            </button>
-        </div>
-        <div id="chat-messages"></div>
-        <button id="chat-scroll-btn" onclick="_scrollChat(true)" data-tip="Ir para o fim" aria-label="Rolar para a última mensagem">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="6 9 12 15 18 9"/>
-            </svg>
-        </button>
-        <div id="input-row">
-            <button id="btn-attach" onclick="document.getElementById('file-attach').click()" data-tip="Anexar imagem/áudio" aria-label="Anexar arquivo">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M21.44 11.05 12.25 20.24a5 5 0 0 1-7.07-7.07l8.49-8.49a3.5 3.5 0 0 1 4.95 4.95L9.88 17.5a2 2 0 0 1-2.83-2.83l7.07-7.07"/>
-                </svg>
-            </button>
-            <input id="file-attach" type="file" accept="image/*,audio/*,video/mp4,video/quicktime,video/webm" style="display:none" onchange="handleFileAttach(this.files)">
-            <input id="lyra-input" type="text"
-                   autocomplete="off" spellcheck="false" placeholder="...">
-        </div>
-    </div>
-
-
-    <!-- Indicador de mic (ativo via mic_engine.py) -->
-    <div id="mic-btn" data-tip="Mic ativo quando mic_engine.py está rodando">
-        <div id="mic-ring"></div>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-             stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
-            <path d="M19 10v1a7 7 0 0 1-14 0v-1"/>
-            <line x1="12" y1="19" x2="12" y2="22"/>
-            <line x1="9"  y1="22" x2="15" y2="22"/>
-        </svg>
-    </div>
-
-    <!-- Voz Live (Gemini Live API via /ws/voice) — separado do mic-btn acima,
-         que pertence ao pipeline mic_engine.py/wake-word. Fluxo independente. -->
-    <button id="voice-live-btn" data-tip="Voz Live (Gemini)" aria-label="Iniciar sessão de voz ao vivo">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-             stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
-            <path d="M19 10v1a7 7 0 0 1-14 0v-1"/>
-            <line x1="12" y1="19" x2="12" y2="22"/>
-            <line x1="9"  y1="22" x2="15" y2="22"/>
-        </svg>
-        <span id="voice-live-dot"></span>
-    </button>
-
-    <!-- Toast de status (perda de conexão etc.) -->
-    <div id="toast"></div>
+    <div id="toast" role="status"></div>
 
     <script src="vendor/three.min.js"></script>
     <script src="vendor/3d-force-graph.min.js"></script>
