@@ -21,7 +21,7 @@ import os
 from datetime import datetime
 
 from surreal_client import surreal
-from config import GROQ_MODEL, GEMINI_MODEL
+from config import GROQ_MODEL
 
 # ── Configuração ──────────────────────────────────────────────────────────────
 
@@ -258,26 +258,6 @@ async def criar_enxame(objetivo: str, subtarefas: list[str],
     asyncio.create_task(_rodar_enxame(enxame_id, sub_pairs, max_paralelo))
 
     return {"enxame_id": enxame_id, "status": "rodando", "total": len(subtarefas)}
-
-
-async def listar_enxames(limite: int = 20) -> dict:
-    """Lista os enxames mais recentes (resumo), pra dashboard/debugging."""
-    rows = await _sq(
-        f"SELECT id, objetivo, status, total_subtarefas, criado, concluido_em "
-        f"FROM enxame ORDER BY criado DESC LIMIT {min(limite, 100)};"
-    )
-    enxames = []
-    for e in rows:
-        eid = str(e.get("id", "")).split(":")[-1].strip("`")
-        enxames.append({
-            "enxame_id":        eid,
-            "objetivo":         e.get("objetivo", "")[:120],
-            "status":           e.get("status", "?"),
-            "total_subtarefas": e.get("total_subtarefas", 0),
-            "criado":           e.get("criado", ""),
-            "concluido_em":     e.get("concluido_em"),
-        })
-    return {"total": len(enxames), "enxames": enxames}
 
 
 async def status_enxame(enxame_id: str) -> dict:

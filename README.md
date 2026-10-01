@@ -173,8 +173,9 @@ Memorias Do Projeto/          # ORION_NUCLEO.md (plano do Orion), ORION_TECNICO.
 ## Segurança
 
 - Todos os serviços escutam só em `127.0.0.1`; não foram hardened para exposição em rede.
-- **Auth** pronto no backend (PBKDF2-SHA256 + JWT em cookie httpOnly), mas as
-  rotas **não exigem login** — o gating fica para a reescrita (fase 5 do NUCLEO).
+- **Sem login:** nenhuma rota exige autenticação. As rotas `/auth/*` (PBKDF2-SHA256 +
+  JWT) foram desmontadas em 01/10/2026 por falta de cliente; o login volta na
+  reescrita (fase 5 do NUCLEO).
 - **CORS** aceita a origem `"null"` (necessária pro pywebview do v1). Página com
   iframe sandboxed também manda `Origin: null`, então um site aberto no navegador
   consegue falar com `/chat`. Corrigir junto com o gating de auth.

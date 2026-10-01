@@ -37,7 +37,6 @@ def gerar_documento(tipo: str, conteudo: str, path: str,
         # ── docx ──
         elif tipo == "docx":
             from docx import Document
-            from docx.shared import Pt
             from docx.enum.text import WD_ALIGN_PARAGRAPH
 
             doc = Document()

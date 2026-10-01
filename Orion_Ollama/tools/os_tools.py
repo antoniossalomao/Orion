@@ -85,8 +85,7 @@ def controlar_janela(app_nome: str, acao: str, elemento: str = "", valor: str = 
     valor: texto a digitar (necessário para 'escrever').
     """
     try:
-        from pywinauto import Application, Desktop
-        from pywinauto.findwindows import ElementNotFoundError
+        from pywinauto import Desktop
 
         # Localiza janela pelo título parcial
         try:

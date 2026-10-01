@@ -64,12 +64,6 @@ def checar_rate_limit(nome_tool: str) -> tuple[bool, str]:
         return True, ""
 
 
-def resetar_rate_limit(nome_tool: str) -> None:
-    """Uso administrativo — limpa a janela de uma tool específica."""
-    with _lock_rate:
-        _janelas.pop(nome_tool, None)
-
-
 # ── Câmara de Eco Heurística (avaliação de risco pré-execução) ──────────────
 # Item do roadmap (ORION_TECNICO.md §3.4), implementado 02/07/2026. V1 é heurística
 # por padrões (regex/substring), sem chamada de LLM — mesmo estilo já usado em
@@ -270,7 +264,6 @@ def migrar_chaves_para_keyring() -> dict:
     """
     try:
         import keyring
-        import os
         import pathlib
 
         env_path = pathlib.Path(__file__).parent / ".env"

@@ -32,7 +32,6 @@ def _get_ntfy_topico() -> str:
     conta nem chave de API, só o app instalado + inscrito no mesmo tópico."""
     if _NTFY_TOPICO_FILE.exists():
         return _NTFY_TOPICO_FILE.read_text(encoding="utf-8").strip()
-    import secrets
     topico = "lyra-" + secrets.token_hex(8)
     _NTFY_TOPICO_FILE.write_text(topico, encoding="utf-8")
     return topico

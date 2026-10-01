@@ -18,7 +18,6 @@ QDRANT_PORT  = 6333   # Qdrant HTTP
 OLLAMA_PORT  = 11434  # Ollama local models
 
 # ── Derived URLs (one definition, used everywhere) ───────────────────────────
-CEREBRO_URL = f"http://127.0.0.1:{CEREBRO_PORT}"
 SURREAL_URL = f"http://127.0.0.1:{SURREAL_PORT}/sql"
 EMBED_URL   = f"http://127.0.0.1:{EMBED_PORT}/embed"
 RERANK_URL  = f"http://127.0.0.1:{EMBED_PORT}/rerank"

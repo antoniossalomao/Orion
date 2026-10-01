@@ -1,13 +1,8 @@
 """tools/specialist.py — Delegation tools: consult a local/cloud specialist model, and safe dynamic tool creation (auto-extension)."""
 
-import ast
 import json
 import pathlib
 import re
-import subprocess
-import shutil
-import urllib.request
-import urllib.error
 from datetime import datetime
 
 from .notifications import notificar_usuario
@@ -194,7 +189,6 @@ def consultar_especialista(problema: str, nivel: str, aprovado: bool = False) ->
 
 def _enxame_req(method: str, path: str, payload: dict | None = None) -> dict:
     """Chama o endpoint de enxame no cerebro_maestro (:8000) de forma síncrona."""
-    import urllib.request
     import urllib.error
     url = f"http://127.0.0.1:8000{path}"
     try:

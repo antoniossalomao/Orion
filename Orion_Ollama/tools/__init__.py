@@ -1,12 +1,11 @@
-"""tools/__init__.py — aggregates every domain submodule into a single
-ToolRegistry and re-exports TOOLS_MAP/TOOLS_SCHEMA/run_tool for backward
-compatibility with the pre-split orion_tools.py API.
+"""tools/__init__.py — aggregates every domain submodule's MAP/SCHEMA into
+TOOLS_MAP/TOOLS_SCHEMA, re-exported for backward compatibility with the
+pre-split orion_tools.py API.
 """
 
 from . import (fs, os_tools, vision, memory, documents, web, system,
               notifications, reminders, processes, numbers, specialist,
               clipboard, git_tools, email_cal, security_tools)
-from ._registry import ToolRegistry
 
 _MODULES = (fs, os_tools, vision, memory, documents, web, system,
            notifications, reminders, processes, numbers, specialist,
@@ -17,15 +16,6 @@ TOOLS_SCHEMA: list = []
 for _mod in _MODULES:
     TOOLS_MAP.update(_mod.MAP)
     TOOLS_SCHEMA.extend(_mod.SCHEMA)
-
-_registry = ToolRegistry(TOOLS_MAP, TOOLS_SCHEMA,
-                         specialist._TOOLS_EXT_DIR, specialist._TOOLS_EXT_INDEX)
-
-
-def run_tool(nome: str, args: dict):
-    """Dispatch a tool call by name — same contract as the old executar_tool()."""
-    return _registry.run(nome, args)
-
 
 # Funções internas usadas pelo proactive_loop.py e orion_seguranca.py — mesmos
 # nomes do orion_tools.py monolítico, agora vivendo nos submódulos de domínio.

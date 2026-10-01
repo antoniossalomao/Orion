@@ -57,12 +57,10 @@ pypdf==6.10.2                 # ler_documento (PDF)
 python-docx==1.2.0            # gerar_documento / ler .docx
 openpyxl==3.1.5               # gerar_documento (xlsx)
 reportlab==4.4.9              # gerar_documento (pdf)
-deep-translator==1.11.4       # traduzir_texto
 mss==10.2.0                   # capturar_tela / explicar_tela
 easyocr==1.7.2                # OCR (leitura de texto em imagem/tela)
 GPUtil==1.4.0                 # telemetria de GPU (fallback quando nvidia-smi não disponível)
 pyperclip==1.11.0             # ler/escrever clipboard
-pillow==12.2.0                # processamento de imagem
 watchdog==6.0.0               # vigilância de pastas
 winotify==1.1.0               # notificações nativas do Windows
 keyring                        # opcional, NÃO instalado ainda — migração de API keys pro Windows Credential Manager (orion_seguranca.py, feature não ativada)
@@ -73,5 +71,4 @@ pywin32==311                  # APIs Win32 (ícone, minimizar, mídia)
 
 # ── Integrações externas ─────────────────────────────────────────────────────
 browser-use>=0.1.0            # browser Playwright controlado por IA (navegar_web) — instalado: 0.13.1
-langchain-google-genai>=2.0   # LLM adapter Gemini para browser-use — instalado: 4.2.6
 python-telegram-bot>=21.0     # bot Telegram bidirecional (orion_telegram.py) — instalado: 22.8

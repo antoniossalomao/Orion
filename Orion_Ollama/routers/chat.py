@@ -36,7 +36,7 @@ from models.chat import MensagemUsuario
 class ChatRouter:
     def __init__(self, *, log, session, rag, get_cerebro_ativo, top_k_ajustado,
                  classificar_intencao, sem_acento, registrar_evento, rotear_especialista,
-                 tool_keywords_re, tools_schema, tools_desabilitadas, rodar_draft, mapa_tiers,
+                 tool_keywords_re, tools_schema, rodar_draft, mapa_tiers,
                  primeiro_chunk_ou_falha, registrar_tier, embed, cosine_sim,
                  limiar_divergencia_alucinacao, get_ultima_acao_bloqueada,
                  confirmacoes_risco, lock_risco, get_tts_mudo, set_tts_mudo,
@@ -52,7 +52,6 @@ class ChatRouter:
         self._rotear_especialista = rotear_especialista
         self._tool_keywords_re = tool_keywords_re
         self._tools_schema = tools_schema
-        self._tools_desabilitadas = tools_desabilitadas
         self._rodar_draft = rodar_draft
         self._mapa_tiers = mapa_tiers
         self._primeiro_chunk_ou_falha = primeiro_chunk_ou_falha
@@ -228,13 +227,7 @@ class ChatRouter:
 
         # Roteador de Intenção — ativa ferramentas só com keyword no início de palavra
         # (regex \b, compilada em tool_keywords_re). Evita falsos positivos.
-        # Filtra por tools_desabilitadas (toggle do painel MCP, seção 9 item 5) —
-        # lido a cada request porque o usuário pode ligar/desligar a qualquer momento.
-        tools_habilitadas = [
-            t for t in self._tools_schema
-            if t.get("type") != "function" or t["function"]["name"] not in self._tools_desabilitadas
-        ] or None  # lista vazia (usuário desligou tudo) equivale a "sem ferramentas", não [] —
-                    # alguns provedores tratam [] como erro de schema, não como "sem tools".
+        tools_habilitadas = self._tools_schema
         precisa_tools = bool(self._tool_keywords_re.search(msg_lower))
         ferramentas = tools_habilitadas if precisa_tools else None
         if eh_aprovacao_cloud_explicita:

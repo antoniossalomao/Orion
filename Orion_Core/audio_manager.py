@@ -20,7 +20,6 @@ import sys
 import asyncio
 import hashlib
 import struct
-import subprocess
 import threading
 
 # GEMINI_API_KEY vive no .env do Orion_Ollama (mesmo usado pelo cerebro)
@@ -46,7 +45,6 @@ except ImportError:
 _DIR       = os.path.dirname(os.path.abspath(__file__))
 CACHE_DIR  = os.path.join(_DIR, "Sons", "cache")
 VOICE      = "pt-BR-FranciscaNeural"   # jovem, suave, neural
-SAPI_VOZ   = "Microsoft Maria Desktop"  # fallback offline PT-BR
 
 os.makedirs(CACHE_DIR, exist_ok=True)
 
@@ -214,33 +212,6 @@ def _run_async(coro):
     t.start()
     t.join(timeout=15)
     return result[0]
-
-# ── Pré-cache de frases fixas ─────────────────────────────────────────────────
-FRASES_FIXAS = [
-    "Olá! Estou aqui.",
-    "Pode falar.",
-    "Entendido.",
-    "Um momento.",
-    "Pronto.",
-    "Não entendi, pode repetir?",
-    "Estou processando sua solicitação.",
-]
-
-async def pre_cachear():
-    """Pré-gera áudio das frases fixas. Chamar na inicialização da Lyra."""
-    print("[TTS] Pré-cacheando frases fixas...")
-    for frase in FRASES_FIXAS:
-        if _cache_hit(frase):
-            print(f"  [cache] {frase[:50]}")
-            continue
-        wav = _cache_path(frase, "wav")
-        if await _gerar_gemini_tts(frase, wav):
-            print(f"  [OK gemini] {frase[:50]}")
-            continue
-        mp3 = _cache_path(frase, "mp3")
-        ok = await _gerar_edge_tts(frase, mp3)
-        print(f"  [{'OK edge' if ok else 'FALHOU'}] {frase[:50]}")
-    print("[TTS] Pré-cache concluído.")
 
 # ── Teste rápido ──────────────────────────────────────────────────────────────
 if __name__ == "__main__":

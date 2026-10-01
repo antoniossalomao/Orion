@@ -6,14 +6,12 @@ import sys
 import os
 import json
 import datetime
-import uuid
 import httpx
 import asyncio
 import re
 import time
 import math
 import threading
-import unicodedata
 import psutil
 import orion_tools
 import orion_seguranca
@@ -25,7 +23,6 @@ from logger import Logger
 # Utilitários de texto, Goal Drift e freshness migraram pro rag_engine.py
 # (OOP refactor 08/2026) — aliases mantêm os nomes usados no resto do arquivo.
 from rag_engine import (RAGEngine, remove_accents as _sem_acento,
-                        extract_keywords as _extrair_keywords,
                         classify_intent as _classificar_intencao)
 from session_manager import SessionManager
 from proactive_loop import ProactiveLoop
@@ -96,7 +93,6 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
 import ollama
 import orion_voice_live
 log("[4] Imports OK.")
@@ -109,8 +105,7 @@ app = FastAPI()
 # e nem precisa de CORS. Nada usa cookie → credentials desligado.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["null", "http://127.0.0.1:8000", "http://localhost:8000",
-                   "http://127.0.0.1:5173"],  # Vite dev server do Front_end_Orion_v2
+    allow_origins=["null", "http://127.0.0.1:8000", "http://localhost:8000"],
     allow_credentials=False,
     allow_methods=["*"], allow_headers=["*"],
 )
@@ -122,30 +117,11 @@ _PASTA_IMAGENS = os.path.join(
 os.makedirs(_PASTA_IMAGENS, exist_ok=True)
 app.mount("/imagens", StaticFiles(directory=_PASTA_IMAGENS), name="imagens")
 
-# Serve o front-end v2 (React) same-origin em http://127.0.0.1:8000/ui/.
-_PASTA_UI = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "..", "Orion_Core", "Front_end_Orion_v2", "dist")
-if os.path.isdir(_PASTA_UI):
-    app.mount("/ui", StaticFiles(directory=_PASTA_UI, html=True), name="ui")
-
-# Frontend novo (SvelteKit, Lyra 2.0) — servido em paralelo ao /ui atual, sem
-# substituir nada. Same-origin (porta 8000) pra cookie de auth funcionar sem
-# mexer no CORS. Cutover pro /ui de verdade é decisão separada, só depois de
-# paridade de feature confirmada em uso real (ver ORION_TECNICO.md §9.7).
-_PASTA_UI_NOVO = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "..", "Orion_Core", "Front_end_Orion_v3", "build")
-if os.path.isdir(_PASTA_UI_NOVO):
-    app.mount("/ui-novo", StaticFiles(directory=_PASTA_UI_NOVO, html=True), name="ui_novo")
-
 # Recebe uploads do frontend (colar/anexar imagem ou áudio direto no chat).
 _PASTA_UPLOADS = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "..", "Orion_Core", "Sons", "cache", "uploads")
 os.makedirs(_PASTA_UPLOADS, exist_ok=True)
 
-
-class MensagemUsuario(BaseModel):
-    texto: str
-    modelo: str = "auto"  # "auto" (cascata) | "groq" | "gemini" | "claude" | "local" — seletor manual do painel
 
 cerebro_ativo  = False
 cliente_ollama = ollama.AsyncClient()
@@ -367,16 +343,6 @@ async def registrar_evento(fonte: str, ator: str, texto: str,
     await _rag.record_event(fonte, ator, texto, session=_session,
                             intencao=intencao, fontes_rag=fontes_rag,
                             divergencia_draft=divergencia_draft)
-
-
-buscar_grafo_surreal = _rag.search_graph  # nome antigo usado pelo endpoint /grafo
-
-
-def buscar_hibrido(query: str, top_k: int = 5, categoria: str = "",
-                   peso_relevancia: float = 1.0, peso_recencia: float = 0.0):
-    """Wrapper de compatibilidade (nome antigo da busca híbrida)."""
-    return _rag.search(query, top_k=top_k, categoria=categoria,
-                       peso_relevancia=peso_relevancia, peso_recencia=peso_recencia)
 
 
 _SYSTEM_PROMPT_DRAFT = ("Responda de forma direta e concisa em PT-BR, no máximo 2 frases, "
@@ -675,12 +641,6 @@ _mapa_tiers_chat = {"groq": ("Groq", _stream_groq), "gemini": ("Gemini", _stream
                     "claude": ("Claude", _stream_claude_cli), "local": ("Local", _stream_local)}
 _audio_manager_ref = globals().get("audio_manager")
 
-# Toggle de ferramentas (painel MCP, seção 9 item 5) — set compartilhado por
-# referência entre ChatRouter (filtra na hora de montar `ferramentas`) e
-# ToolsRouter (liga/desliga via POST /tools/{nome}/toggle). Em memória só —
-# mesmo padrão de não-persistência que _tts_mudo já usa.
-_tools_desabilitadas: set = set()
-
 from routers.chat import ChatRouter
 
 _chat_router = ChatRouter(
@@ -695,7 +655,6 @@ _chat_router = ChatRouter(
     rotear_especialista=_rotear_especialista,
     tool_keywords_re=_TOOL_KEYWORDS_RE,
     tools_schema=orion_tools.TOOLS_SCHEMA,
-    tools_desabilitadas=_tools_desabilitadas,
     rodar_draft=_rodar_draft,
     mapa_tiers=_mapa_tiers_chat,
     primeiro_chunk_ou_falha=_primeiro_chunk_ou_falha,
@@ -718,16 +677,12 @@ app.include_router(_chat_router.router)
 
 
 import orion_agentes as _agentes
-import orion_agent as _agent_module
 
 from routers.agents import AgentsRouter
 
 _agents_router = AgentsRouter(
     agentes_module=_agentes,
-    agent_module=_agent_module,
-    surreal=surreal,
     notificar_usuario=orion_tools.notificar_usuario,
-    log=log,
 )
 app.include_router(_agents_router.router)
 
@@ -750,9 +705,6 @@ _memory_router = MemoryRouter(
     rag=_rag,
     session=_session,
     get_cerebro_ativo=lambda: cerebro_ativo,
-    buscar_grafo=buscar_grafo_surreal,
-    extrair_keywords=_extrair_keywords,
-    buscar_hibrido=buscar_hibrido,
     colecao=_COLECAO,
     log=log,
 )
@@ -771,19 +723,6 @@ def _incrementar_voice_live():
 def _decrementar_voice_live():
     global _voice_live_ativas
     _voice_live_ativas -= 1
-
-
-from routers.auth import AuthRouter
-from utils.auth import UserRepository, JWTManager
-
-_user_repo = UserRepository(surreal)
-_jwt_manager = JWTManager(cfg.AUTH_JWT_SECRET)
-_auth_router = AuthRouter(user_repo=_user_repo, jwt_manager=_jwt_manager)
-app.include_router(_auth_router.router)
-# NOTA: nenhuma rota existente ganhou Depends(get_current_user) ainda —
-# o frontend React atual não tem tela de login, gatear agora trancaria o
-# usuário fora do próprio app. Aplicar isso é trabalho da Fase 4 (frontend
-# SvelteKit com onboarding/login), ver ORION_TECNICO.md §9.2.
 
 
 from routers.misc import MiscRouter
@@ -816,7 +755,6 @@ _system_router = SystemRouter(
     rag=_rag,
     get_cerebro_ativo=lambda: cerebro_ativo,
     get_tts_mudo=lambda: _tts_mudo,
-    get_carga_cognitiva=lambda: _carga_cognitiva,
     telemetria=_telemetria,
     ler_telemetria_historico=_ler_telemetria_historico,
     get_ultima_latencia_ms=lambda: _ultima_latencia_ms,
@@ -828,58 +766,6 @@ _system_router = SystemRouter(
     get_voice_live_ativas=lambda: _voice_live_ativas,
 )
 app.include_router(_system_router.router)
-
-
-from routers.prompts import PromptsRouter
-
-_prompts_router = PromptsRouter(surreal=surreal, sessao_id_limpo=_sessao_id_limpo)
-app.include_router(_prompts_router.router)
-
-
-from routers.models_hub import ModelsHubRouter
-
-_models_hub_router = ModelsHubRouter(ollama_url=cfg.OLLAMA_URL, log=log)
-app.include_router(_models_hub_router.router)
-
-
-from routers.tools import ToolsRouter
-
-_tools_router = ToolsRouter(tools_schema=orion_tools.TOOLS_SCHEMA, tools_desabilitadas=_tools_desabilitadas)
-app.include_router(_tools_router.router)
-
-
-from routers.logs import LogsRouter
-
-_logs_router = LogsRouter(
-    log_path=_LOG_PATH,
-    err_path=os.path.join(os.path.dirname(_LOG_PATH), "maestro.err"),
-)
-app.include_router(_logs_router.router)
-
-
-from routers.gateway import GatewayRouter
-
-# Gateway WS (Fase 3) — montado por último, porque reaproveita os métodos dos
-# routers REST já instanciados acima em vez de duplicar lógica. Só ações de
-# LEITURA por enquanto (ver docstring de routers/gateway.py pro motivo).
-_gateway_router = GatewayRouter(
-    actions={
-        "status":             _system_router.status,
-        "stats":              _system_router.stats,
-        "health":             _system_router.health,
-        "integracoes":        _system_router.integracoes,
-        "sessoes_listar":     _sessions_router.sessoes_listar,
-        "historico_get":      _sessions_router.historico_get,
-        "resumo_sessao":      _memory_router.resumo_sessao,
-        "buscar":             _memory_router.buscar,
-        "memoria_categorias": _memory_router.memoria_categorias,
-        "enxames_listar":     _agents_router.enxames_listar,
-        "enxame_status":      _agents_router.enxame_status,
-        "agente_runs":        _agents_router.agente_runs,
-    },
-    log=log,
-)
-app.include_router(_gateway_router.router)
 
 
 # ── MCP (Model Context Protocol) ─────────────────────────────────────────────
@@ -897,9 +783,8 @@ try:
         app,
         name="Lyra",
         description=(
-            "IA pessoal do Projeto Lyra — acesso à memória híbrida (BM25 + BGE-M3 + reranker), "
-            "grafo de conhecimento SurrealDB, sub-agentes paralelos (enxames), "
-            "métricas de GPU/sistema e histórico de conversa."
+            "IA pessoal do Projeto Lyra — grafo de memória SurrealDB, sub-agentes "
+            "paralelos (enxames), métricas de GPU/sistema e histórico de conversa."
         ),
         exclude_operations=[
             # FastAPI gera operationId como {fn}_{path}_{method}
@@ -909,7 +794,6 @@ try:
             "upload_arquivo_upload_post",    # multipart/form-data
             "definir_tts_mudo_tts_mudo_post", # controle interno
             "historico_limpar_historico_delete", # DELETE destrutivo
-            "sessao_deletar_sessoes__sessao_id__delete", # DELETE destrutivo
             "exportar_conversa_exportar_get",   # markdown raw
         ],
     )

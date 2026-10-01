@@ -20,7 +20,7 @@ import json
 import re
 import shutil
 import threading
-from typing import Any, AsyncGenerator, Callable
+from typing import AsyncGenerator, Callable
 
 import ollama
 

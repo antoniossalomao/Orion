@@ -80,10 +80,6 @@ class SessionManager:
         """Current turn number (plain int read — atomic in CPython)."""
         return self._turn_counter
 
-    @property
-    def history_len(self) -> int:
-        return len(self._history)
-
     # ── Startup ──────────────────────────────────────────────────────────────
 
     async def wait_ready(self) -> None:
@@ -326,46 +322,6 @@ class SessionManager:
         ]
         return {"ok": True, "sessao_id": sessao_id, "total": len(mensagens),
                 "mensagens": mensagens}
-
-    async def rename_session(self, sessao_id: str, titulo: str) -> dict:
-        """Overwrite a session's sidebar title (user-triggered rename, unlike
-        ensure_title() which only fires once automatically)."""
-        try:
-            await self._surreal.query(
-                f'UPDATE type::record("sessao", {json.dumps(sessao_id)}) '
-                f"SET titulo = {json.dumps(titulo[:60])}")
-        except Exception as e:
-            return {"erro": f"Falha ao renomear: {e}"}
-        if sessao_id == self.session_id:
-            self._title_ok = True
-        return {"ok": True}
-
-    async def favorite_session(self, sessao_id: str, favorita: bool) -> dict:
-        """Marca/desmarca uma sessão como favorita (ORION_TECNICO.md
-        §9.4). Campo `favorita` é aditivo — SurrealDB é schemaless,
-        sessões antigas sem o campo simplesmente respondem False quando lidas
-        (ver SessionsRouter.sessoes_listar)."""
-        try:
-            await self._surreal.query(
-                f'UPDATE type::record("sessao", {json.dumps(sessao_id)}) '
-                f"SET favorita = {json.dumps(favorita)}")
-        except Exception as e:
-            return {"erro": f"Falha ao favoritar: {e}"}
-        return {"ok": True, "favorita": favorita}
-
-    async def delete_session(self, sessao_id: str) -> dict:
-        """Delete a session and its events. If it was the active session,
-        switches to a fresh one so the caller always has somewhere to land."""
-        if sessao_id == "legado":
-            return {"erro": "A sessão 'legado' não pode ser deletada."}
-        try:
-            await self._surreal.query(f'DELETE type::record("sessao", {json.dumps(sessao_id)})')
-            await self._surreal.query(f"DELETE evento WHERE sessao_id = {json.dumps(sessao_id)}")
-        except Exception as e:
-            return {"erro": f"Falha ao deletar: {e}"}
-        if sessao_id == self.session_id:
-            return await self.new_session()
-        return {"ok": True}
 
     async def clear_history(self) -> None:
         """Wipe the in-memory history only (does not touch SurrealDB/Qdrant)."""

@@ -122,10 +122,10 @@ Python 3.12 **global** (sem venv; `venv_embed` aposentado em 30/06). torch
 | `session_manager.py` | `SessionManager` — histórico, sessão ativa, briefing, contador de turnos (com locks) |
 | `proactive_loop.py` | `ProactiveLoop` — lembretes, agendamentos, processos bg, enxames, self-healing, shadow thoughts, reconciliação |
 | `surreal_client.py`, `logger.py` | Cliente SurrealDB único; logger com `atexit` |
-| `routers/` | `system`, `sessions`, `memory`, `agents`, `misc`, `chat`, `auth`, `gateway`, `tools`, `logs`, `models_hub`, `prompts` |
+| `routers/` | Montados: `system`, `sessions`, `memory`, `agents` (só `/enxame*`), `misc`, `chat`. `auth`, `gateway`, `tools`, `logs`, `models_hub` e `prompts` foram desmontados em 01/10/2026 (sem cliente) |
 | `models/` | Schemas Pydantic por domínio |
-| `utils/` | `auth.py` (`PasswordHasher`, `JWTManager`, `UserRepository`, `CurrentUserDependency`), `secrets.py` (`resolve_secret`, `mask_secret`) |
-| `tools/` | 16 módulos por domínio + `_registry.py`/`_lazy.py`/`_shared.py`; `orion_tools.py` é shim |
+| `utils/` | `auth.py` (`PasswordHasher`, `JWTManager`, `UserRepository`), `secrets.py` — sem uso desde 01/10/2026 |
+| `tools/` | 16 módulos por domínio + `_lazy.py`/`_shared.py`; `orion_tools.py` é shim |
 
 Nomes antigos → novos: globals de sessão → `SessionManager`; `buscar_hibrido`/
 `registrar_evento`/`buscar_grafo_surreal` → métodos de `RAGEngine` (wrappers com o
@@ -145,8 +145,6 @@ nome antigo mantidos); `_stream_*` → wrappers sobre `LLMCascade`.
   tópicos/ferramentas das últimas 24h (via grafo).
 - Telemetria: `telemetria.json` (acumulado) + `telemetria_historico.jsonl`
   (snapshot a cada ~5min, últimas 2000 linhas).
-- Ferramentas desligadas pelo usuário (`/tools/{nome}/toggle`): `set` em memória
-  compartilhado por referência com o `ChatRouter`; lista vazia vira `None`.
 
 ### 3.3 API HTTP (:8000)
 
@@ -154,34 +152,30 @@ nome antigo mantidos); `_stream_*` → wrappers sobre `LLMCascade`.
 |---|---|---|
 | GET | `/` | Ping `{servico, ativo, versao}` |
 | GET | `/dashboard` | Dashboard HTML de monitoramento |
-| GET | `/status` | Estado do cérebro (inclui `carga_cognitiva`, `tts_mudo`) |
 | GET | `/health` | Latência de Qdrant/SurrealDB/Ollama/embedder + VRAM + contagem de vetores |
 | GET | `/metrics` | CPU/RAM/GPU/VRAM + latência do último chat |
 | GET | `/stats`, `/stats/historico?limite=` | Telemetria da cascata (acumulada / snapshots) |
 | GET | `/integracoes` | Status de Telegram, Voice Live, mic, TTS, enxame, upload |
 | POST | `/chat` | Chat SSE. Body `{texto, modelo}` |
 | POST | `/tts/mudo`, `/tts/falar` | Voz global on/off; falar texto arbitrário |
-| GET | `/buscar?q=&top_k=&categoria=` | Busca híbrida |
-| GET | `/grafo?q=&limite=`, `/grafo/completo?limite=` | Traversal por keywords; grafo nodes+links |
+| GET | `/grafo/completo?limite=` | Grafo nodes+links (visualização 3D do v1) |
 | GET | `/memoria/categorias` | Composição da base por categoria |
 | GET/DELETE | `/historico[?sessao=]` | Histórico (com `fontes_rag`/`divergencia_draft`); DELETE limpa só a RAM |
-| GET | `/resumo_sessao`, `/exportar` | Briefing; exporta sessão em markdown |
+| GET | `/exportar` | Exporta a sessão em markdown |
 | GET/POST | `/sessoes` | Lista (inclui `legado`) / cria sessão |
-| POST | `/sessoes/ativar`, `/sessoes/{id}/favoritar` | Troca sessão; favorita |
-| PATCH/DELETE | `/sessoes/{id}` | Renomeia / exclui |
+| POST | `/sessoes/ativar` | Troca sessão |
 | POST | `/upload` | Upload de imagem/áudio (filename sanitizado) |
-| POST/GET | `/enxame`, `/enxames`, `/enxame/{id}`, `/enxame/{id}/consolidar` | Enxame de sub-agentes |
-| POST/GET | `/agente`, `/agente/runs` | ReAct autônomo; execuções |
-| POST | `/shadow_thoughts` | Dispara o ciclo de sono (background) |
-| GET/POST | `/auth/status`, `/auth/setup`, `/auth/login`, `/auth/logout` | Auth mínimo |
-| GET/POST | `/tools`, `/tools/{nome}/toggle` | Lista (58) / liga-desliga ferramenta |
-| GET | `/logs?fonte=log\|err&linhas=N` | Últimas linhas de `maestro.log`/`.err` |
-| GET/POST | `/ollama/models`, `/ollama/models/pull` | Modelos instalados; pull com progresso SSE |
-| GET/POST/PATCH/DELETE | `/prompts`, `/prompts/{id}` | Biblioteca de prompts |
+| POST/GET | `/enxame`, `/enxame/{id}`, `/enxame/{id}/consolidar` | Enxame de sub-agentes (chamado pelas ferramentas de enxame) |
 | WS | `/ws/voice` | Voice Live (Gemini Live) |
-| WS | `/ws/gateway` | Gateway tipado `{action, payload}` (só leitura) |
 | GET/POST | `/mcp` | Endpoints REST como ferramentas MCP (exclui `/chat`, `/dashboard`, `/upload`, `DELETE /historico`, `/tts/mudo` e destrutivos) |
-| static | `/imagens` | Imagens geradas (`/ui` e `/ui-novo` ficaram sem build com a remoção do v2/v3) |
+| static | `/imagens` | Imagens geradas |
+
+**Removidas em 01/10/2026** (sem cliente depois da saída do v2/v3): `/status`,
+`/buscar`, `/grafo?q=`, `/resumo_sessao`, `PATCH`/`DELETE /sessoes/{id}`,
+`/sessoes/{id}/favoritar`, `/enxames`, `/agente*`, `/shadow_thoughts`, `/auth/*`,
+`/tools*`, `/logs`, `/ollama/models*`, `/prompts*`, `/ws/gateway`, mounts `/ui` e
+`/ui-novo`. Clientes restantes: front v1, `orion_telegram.py`, `mic_engine.py`,
+`dashboard.html` e as ferramentas de enxame.
 
 `embed_service` (:8001): `GET /health` (inclui `estacionado_ram`), `POST /embed`
 (`{texto|textos}`), `POST /rerank`, `POST /unload`.
@@ -212,12 +206,12 @@ Todo dispatch de ferramenta passa por `_executar_tool_segura()`:
 5. **Self-healing** no loop proativo a cada ~5min: SurrealDB, Qdrant, embed_service,
    Ollama (via `asyncio.to_thread`; não checa o próprio FastAPI).
 
-CORS: `allow_origins=["null", "http://127.0.0.1:8000", "http://localhost:8000",
-"http://127.0.0.1:5173"]`, `allow_credentials=False`. `:5173` era o dev server do
-v2/v3 (removidos); `"null"` é exigido pelo pywebview do v1.
+CORS: `allow_origins=["null", "http://127.0.0.1:8000", "http://localhost:8000"]`,
+`allow_credentials=False`. `"null"` é exigido pelo pywebview do v1.
 
-Auth: PBKDF2-SHA256 (stdlib, 260k iterações), JWT HS256, cookie httpOnly
-`samesite=lax`, 30 dias, secret em `AUTH_JWT_SECRET`.
+Auth (desmontado em 01/10/2026, sem cliente): PBKDF2-SHA256 (stdlib, 260k
+iterações), JWT HS256, cookie httpOnly `samesite=lax`, 30 dias, secret em
+`AUTH_JWT_SECRET`. A lógica é portada na fase 5 do NUCLEO.
 
 ## 4. Memória e RAG
 
@@ -239,7 +233,7 @@ Auth: PBKDF2-SHA256 (stdlib, 260k iterações), JWT HS256, cookie httpOnly
 
 Índice de payload `categoria: keyword` criado.
 
-### 4.2 Busca híbrida (`RAGEngine.search`, `GET /buscar`)
+### 4.2 Busca híbrida (`RAGEngine.search`, usada pelo `/chat`)
 
 BM25 (`bm25s`, índice em `bm25s_index/` + `bm25s_meta.pkl`) + denso (Qdrant) →
 RRF → reranker cross-encoder → freshness. `score_final = relevância·0.94 +
@@ -248,7 +242,7 @@ freshness·0.06`, meia-vida por categoria: `programacao`/`documentacao` 180d,
 Sem decaimento temporal genérico (removido — ver NUCLEO §8). `retrieval_count` e
 `last_accessed_at` continuam gravados, fora do ranking. `top_k` ajustado por
 carga cognitiva (alta −2, baixa +2). Se o embed_service cair, só BM25.
-Latência `/buscar` quente ~630-660ms.
+Latência quente ~630-660ms (medida no antigo `/buscar`).
 
 ### 4.3 Grafo (SurrealDB)
 
@@ -260,7 +254,7 @@ Latência `/buscar` quente ~630-660ms.
 
 ### 4.4 Shadow Thoughts (`orion_shadow_thoughts.py`)
 
-A cada ~3h (180 iterações do loop) ou `POST /shadow_thoughts`. NREM: dedup só em
+A cada ~3h (180 iterações do loop). NREM: dedup só em
 `categoria=episodio`, paginado por cursor; marca `duplicado=True`. REM: arestas
 cross-domain via grafo. DEEP: resume eventos com mais de 4 semanas. 1ª execução:
 28 duplicatas, 2.5s.
@@ -320,7 +314,7 @@ execução de comando, escrita, `criar_ferramenta`, processos bg, agendamentos,
 `salvar_memoria`, notificações, `consultar_especialista`, `*_enxame`. Loop proativo
 consolida e notifica enxames concluídos.
 
-**ReAct (`orion_agent.py`)** — `executar_agente(objetivo, max_iteracoes,
+**ReAct (`orion_agent.py`, sem rota desde 01/10/2026)** — `executar_agente(objetivo, max_iteracoes,
 ferramentas_bloqueadas)` via `LLMCascade.run()`, mesma denylist, persiste em
 `agente_run`. `--self-test` (3 casos) passa nos 3 andares, incluindo o local.
 
@@ -424,7 +418,7 @@ mostra "criar conta" ou "entrar" conforme `/auth/status`.
 **Pendente por decisão consciente:** nenhuma rota existente exige login — gatear
 trancaria o usuário fora do v2 (sem tela de login). Era para entrar junto com o
 cutover pro v3 e a correção do CORS `"null"`; com o v2/v3 removidos, vai para a
-reescrita.
+reescrita. As rotas `/auth/*` foram desmontadas em 01/10/2026.
 
 ### 9.3 Backend: `routers/models/utils` + Gateway WS
 
@@ -435,21 +429,21 @@ reescrita.
 - **Gateway WS** (`/ws/gateway`, envelope `{action, payload}`) é camada
   **aditiva**, só ações de leitura, reaproveitando os métodos dos routers REST.
   Não substitui REST/SSE — trocar `/chat` para WS exigiria reescrever o consumo
-  do v2. Fase considerada encerrada nesse ponto.
+  do v2. Fase considerada encerrada nesse ponto. Removido em 01/10/2026 (sem cliente).
 
 ### 9.4 Capacidades novas (o que a Lyra não tinha)
 
 | Item | Status |
 |---|---|
 | Onboarding/login no 1º boot | ✅ v3 |
-| Favoritar sessões (`POST /sessoes/{id}/favoritar`) | ✅ |
-| Monitor de sistema + viewer de logs (`/health`, `/metrics`, `GET /logs`) | ✅ `SystemPanel` |
-| Painel de ferramentas: listar + ligar/desligar (`/tools`, `/tools/{nome}/toggle`, estado em memória) | ✅ |
+| Favoritar sessões (`POST /sessoes/{id}/favoritar`) | ✅ — removido em 01/10 |
+| Monitor de sistema + viewer de logs (`/health`, `/metrics`, `GET /logs`) | ✅ `SystemPanel` — `/logs` removido em 01/10 |
+| Painel de ferramentas: listar + ligar/desligar (`/tools`, `/tools/{nome}/toggle`, estado em memória) | ✅ — removido em 01/10 |
 | Preview de artifacts (`html`/`svg` em iframe sandboxed, inline por bloco) | ✅ |
 | Hub de modelos Ollama (listar + pull com progresso SSE, confirmação obrigatória) | ⛔ sai com o modelo local |
 | Grafo de memória em Canvas 2D (força com decaimento `alpha`) | ✅ `GraphPanel` |
-| Biblioteca de prompts (`/prompts` CRUD, clique insere no composer) | ✅ |
-| `SecretRef` (`utils/secrets.py`: env/file/exec + máscara) | ✅ criado; `config.py` ainda não migrado (exige teste ao vivo) |
+| Biblioteca de prompts (`/prompts` CRUD, clique insere no composer) | ✅ — removido em 01/10 (dados na tabela `prompt`) |
+| `SecretRef` (`utils/secrets.py`: env/file/exec + máscara) | ✅ criado; nunca usado — removido em 01/10 |
 | Upload de documento → base de conhecimento com progresso | ⏳ |
 | Pareamento de dispositivo por QR/token | ⏸ adiado (YAGNI — não há cliente que consuma) |
 | Personas por modelo, notas, calendário, automações, branching de resposta, citações inline, execução de código, tags/pastas, editor de tools in-app | ⏳ aguardando priorização do usuário |
@@ -488,12 +482,12 @@ comandos Rust). A casca Theia (IDE) foi excluída em 30/09/2026.
 | Fase | Status |
 |---|---|
 | 1 — Backend `routers/models/utils` | ✅ 7/7 grupos de endpoint extraídos |
-| 2 — Auth mínimo | ✅ backend; gating pendente (§9.2) |
-| 3 — Gateway WS | ✅ camada aditiva de leitura (encerrada) |
+| 2 — Auth mínimo | ✅ backend; gating pendente (§9.2) — rotas desmontadas em 01/10 |
+| 3 — Gateway WS | ✅ camada aditiva de leitura (encerrada) — removido em 01/10 |
 | 4 — Frontend SvelteKit | ✅ núcleo + paridade com v2 auditada; servido em `/ui-novo` — removido em 30/09 |
 | 5 — Casca desktop | ✅ contrato + `TauriShell`; `cargo check`/`clippy` limpos — removida em 30/09 (a casca Theia também) |
 
 Em 12/08, nada bloqueado; restava sequenciamento de produto (cutover, gating) e
-empacotamento/teste ao vivo — superado pela reescrita. Verificação feita: compile/import + self-checks no
-backend, `svelte-check` + build + Playwright contra backend real no frontend.
+empacotamento/teste ao vivo — superado pela reescrita. Verificação feita:
+compile/import + self-checks no backend, `svelte-check` + build + Playwright contra backend real no frontend.
 **Não verificado:** cascata fim-a-fim com todas as nuvens e áudio real de voz.
