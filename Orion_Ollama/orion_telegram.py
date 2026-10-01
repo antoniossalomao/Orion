@@ -13,7 +13,6 @@ SETUP:
 FUNCIONALIDADES:
   - /start — mensagem de boas-vindas
   - Qualquer texto → resposta da Lyra
-  - Foto/imagem → enviada para analisar_imagem (Gemini Vision)
   - "🎤" indicador de processamento enquanto Lyra pensa
 
 MODOS DE SEGURANÇA:
@@ -28,7 +27,6 @@ except Exception:
 import asyncio
 import json
 import os
-import tempfile
 import urllib.request
 import urllib.error
 
@@ -68,28 +66,12 @@ def _lyra_chat_sync(texto: str, modelo: str = "auto") -> str:
     return "".join(chunks).strip() or "[Lyra não respondeu]"
 
 
-def _lyra_tool_sync(nome: str, args: dict) -> dict:
-    """Chama /tool/<nome> diretamente."""
-    payload = json.dumps(args).encode()
-    req = urllib.request.Request(
-        f"{LYRA_URL}/tool/{nome}",
-        data=payload,
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            return json.loads(resp.read().decode())
-    except Exception as e:
-        return {"erro": str(e)}
-
-
 # ── Handlers ─────────────────────────────────────────────────────────────────
 
 async def cmd_start(update, context):
     await update.message.reply_text(
         "Oi! Sou a Lyra, sua IA pessoal. 🌟\n"
-        "Pode me mandar mensagens de texto ou fotos aqui que respondo normalmente.\n"
+        "Pode me mandar mensagens de texto aqui que respondo normalmente.\n"
         "Dúvidas? É só perguntar."
     )
 
@@ -114,45 +96,6 @@ async def handle_text(update, context):
     # Telegram tem limite de 4096 chars por mensagem
     for i in range(0, len(resposta), 4000):
         await update.message.reply_text(resposta[i:i+4000])
-
-
-async def handle_photo(update, context):
-    user_id = update.effective_user.id
-    if ALLOWED_USERS and user_id not in ALLOWED_USERS:
-        await update.message.reply_text("Acesso não autorizado.")
-        return
-
-    msg_aguarde = await update.message.reply_text("📷 Analisando imagem...")
-
-    # Baixa a maior versão da foto
-    foto = update.message.photo[-1]
-    file = await context.bot.get_file(foto.file_id)
-
-    with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
-        tmp_path = tmp.name
-
-    await file.download_to_drive(tmp_path)
-
-    legenda = update.message.caption or "Descreva detalhadamente o que aparece nesta imagem."
-
-    loop = asyncio.get_event_loop()
-    resultado = await loop.run_in_executor(
-        None, lambda: _lyra_tool_sync("analisar_imagem", {"path": tmp_path, "pergunta": legenda})
-    )
-
-    await msg_aguarde.delete()
-
-    if resultado.get("ok"):
-        resposta = resultado.get("descricao", "[sem descrição]")
-    else:
-        resposta = f"Erro ao analisar imagem: {resultado.get('erro', 'desconhecido')}"
-
-    await update.message.reply_text(resposta[:4000])
-
-    try:
-        os.unlink(tmp_path)
-    except Exception:
-        pass
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
@@ -182,7 +125,6 @@ def main():
 
     app = Application.builder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", cmd_start))
-    app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
     print("[Lyra Telegram] Bot rodando. Ctrl+C para parar.")

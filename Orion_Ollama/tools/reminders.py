@@ -3,7 +3,6 @@
 import json
 import re
 from datetime import datetime, timedelta
-from typing import Any
 
 from ._shared import surreal_query, one
 

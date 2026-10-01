@@ -1,15 +1,14 @@
 """llm_cascade.py — unified LLM fallback chain: Groq → Gemini → Claude CLI → local Ollama.
 
-Consolidates three near-identical implementations that lived in
-cerebro_maestro.py (streaming SSE), orion_agent.py (batch ReAct) and
-orion_agentes.py (batch subtasks). One class, two usage modes:
+Consolidates near-identical implementations that lived in cerebro_maestro.py
+(streaming SSE) and orion_agentes.py (batch subtasks). One class, two usage modes:
 
   * Streaming — ``stream_groq/stream_gemini/stream_claude_cli/stream_local``:
     async generators yielding text chunks, with mid-stream tool execution.
     Used by cerebro_maestro's /chat SSE endpoint.
   * Batch — ``run()``: a non-streaming ReAct loop that tries providers in
     order and returns the final answer plus the tool-call trace. Used by
-    orion_agent (autonomous runs) and orion_agentes (swarm subtasks).
+    orion_agentes (swarm subtasks).
 
 Provider clients are lazy-initialized behind threading.Lock (double-checked)
 so concurrent first calls never build two clients.
@@ -20,7 +19,7 @@ import json
 import re
 import shutil
 import threading
-from typing import Any, AsyncGenerator, Callable
+from typing import AsyncGenerator, Callable
 
 import ollama
 

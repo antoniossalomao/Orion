@@ -20,67 +20,6 @@ _META_PATH  = os.path.join(_DIR, "bm25s_meta.pkl")  # ids do Qdrant + metas (tit
 _TOKENIZE_KW = dict(stopwords=None, stemmer=None, show_progress=False)
 
 
-def construir_indice(qdrant_client, collection: str = "lyra_memory_v2", batch_size: int = 2000, log=print,
-                     out_dir: str | None = None, out_meta: str | None = None):
-    """Varre toda a coleção do Qdrant via scroll e constrói o índice bm25s, salvando em disco.
-
-    out_dir/out_meta: destino alternativo do save. Necessário quando o
-    cerebro_maestro está rodando — ele carrega o índice com mmap=True no
-    STARTUP (não lazy) e o Windows recusa truncar arquivo com seção mapeada
-    (erro 1224 → OSError errno 22). Fluxo: buildar pra pasta nova com o
-    cerebro no ar, parar o cerebro, swap das pastas, subir de novo (~s de
-    downtime em vez de ~25min).
-    """
-    ids, corpus, metas = [], [], []
-    offset = None
-    total = 0
-
-    while True:
-        pontos, offset = qdrant_client.scroll(
-            collection_name=collection,
-            limit=batch_size,
-            offset=offset,
-            with_payload=["titulo", "texto", "categoria", "fonte"],
-            with_vectors=False,
-        )
-        if not pontos:
-            break
-
-        for p in pontos:
-            payload = p.payload or {}
-            titulo = payload.get("titulo", "") or ""
-            texto  = payload.get("texto", "") or ""
-            ids.append(p.id)
-            corpus.append(f"{titulo} {texto}")
-            metas.append({
-                "titulo":    titulo,
-                "categoria": payload.get("categoria", ""),
-                "fonte":     payload.get("fonte", ""),
-                "texto":     texto,
-            })
-
-        total += len(pontos)
-        if total % 50000 == 0:
-            log(f"   [BM25] {total:,} documentos lidos...")
-
-        if offset is None:
-            break
-
-    log(f"   [BM25] Tokenizando e indexando {total:,} documentos (bm25s)...")
-    corpus_tokens = bm25s.tokenize(corpus, **_TOKENIZE_KW)
-    retriever = bm25s.BM25()
-    retriever.index(corpus_tokens, show_progress=False)
-
-    destino_idx  = out_dir or _INDEX_DIR
-    destino_meta = out_meta or _META_PATH
-    retriever.save(destino_idx)
-    with open(destino_meta, "wb") as f:
-        pickle.dump({"ids": ids, "metas": metas}, f, protocol=pickle.HIGHEST_PROTOCOL)
-
-    log(f"   [BM25] Índice salvo em {destino_idx} ({total:,} docs).")
-    return total
-
-
 def carregar_indice(log=print):
     if not (os.path.isdir(_INDEX_DIR) and os.path.exists(_META_PATH)):
         log("   [BM25] Índice bm25s não encontrado em disco — busca híbrida ficará só com o vetorial.")

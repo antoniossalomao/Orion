@@ -8,7 +8,7 @@ import json
 
 from fastapi import APIRouter
 
-from models.sessions import SessaoAtivar, SessaoRenomear, SessaoFavoritar
+from models.sessions import SessaoAtivar
 
 
 class SessionsRouter:
@@ -32,9 +32,6 @@ class SessionsRouter:
         self.router.add_api_route("/sessoes", self.sessoes_listar, methods=["GET"])
         self.router.add_api_route("/sessoes", self.sessao_nova, methods=["POST"])
         self.router.add_api_route("/sessoes/ativar", self.sessao_ativar, methods=["POST"])
-        self.router.add_api_route("/sessoes/{sessao_id}", self.sessao_renomear, methods=["PATCH"])
-        self.router.add_api_route("/sessoes/{sessao_id}", self.sessao_deletar, methods=["DELETE"])
-        self.router.add_api_route("/sessoes/{sessao_id}/favoritar", self.sessao_favoritar, methods=["POST"])
 
     async def historico_get(self, sessao: str | None = None):
         """Sem parâmetro: histórico em memória (comportamento original).
@@ -103,12 +100,3 @@ class SessionsRouter:
         """Torna outra sessão a ativa e recarrega o histórico com as últimas
         mensagens dela ('legado' é somente leitura — use GET /historico)."""
         return await self._session.activate_session(req.sessao_id)
-
-    async def sessao_renomear(self, sessao_id: str, req: SessaoRenomear):
-        return await self._session.rename_session(sessao_id, req.titulo)
-
-    async def sessao_deletar(self, sessao_id: str):
-        return await self._session.delete_session(sessao_id)
-
-    async def sessao_favoritar(self, sessao_id: str, req: SessaoFavoritar):
-        return await self._session.favorite_session(sessao_id, req.favorita)

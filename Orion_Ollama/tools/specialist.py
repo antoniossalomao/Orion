@@ -1,132 +1,9 @@
-"""tools/specialist.py — Delegation tools: consult a local/cloud specialist model, and safe dynamic tool creation (auto-extension)."""
+"""tools/specialist.py — Delegation tools: consult a local/cloud specialist model and drive sub-agent swarms."""
 
-import ast
 import json
-import pathlib
-import re
-import subprocess
-import shutil
-import urllib.request
-import urllib.error
-from datetime import datetime
 
 from .notifications import notificar_usuario
 
-# __file__ está em tools/ — sobe um nível pra manter o mesmo diretório em
-# disco que o orion_tools.py monolítico usava (orion_tools_ext/ já existente).
-_TOOLS_EXT_DIR = pathlib.Path(__file__).parent.parent / "orion_tools_ext"
-_TOOLS_EXT_DIR.mkdir(exist_ok=True)
-
-_TOOLS_EXT_INDEX = _TOOLS_EXT_DIR / "_index.json"
-
-# Padrões heurísticos de risco — varredura estática no código antes de liberar
-# uma ferramenta auto-criada. Não é à prova de bypass (regex não entende
-# semântica), mas pega os casos óbvios de blast-radius alto sem incomodar o
-# usuário pra ferramentas inofensivas (ex: somar dois números).
-_PADROES_RISCO = [
-    (r"shutil\.rmtree|os\.remove\(|os\.unlink\(|send2trash", "exclusão de arquivos/pastas"),
-    (r"subprocess\.|os\.system\(|os\.popen\(", "execução de comandos do sistema"),
-    (r"\beval\(|\bexec\(|compile\(", "execução de código arbitrário"),
-    (r"winreg\.|regedit|reg\.exe", "edição do registro do Windows"),
-    (r"shutdown|taskkill|Stop-Process|Stop-Computer", "controle de processos/encerramento do sistema"),
-    (r"requests\.(post|put|patch)\(|urlopen\(.*http", "envio de dados pela rede"),
-    (r"smtplib|socket\.(socket|connect)", "comunicação de rede de baixo nível"),
-    (r"password|senha|api[_-]?key|secret|credential|token", "possível acesso a credenciais"),
-    (r"ctypes\.|win32api|win32con", "acesso de baixo nível ao sistema operacional"),
-    (r"\.ssh\b|\.aws\b|\.env\b", "acesso a arquivos sensíveis de configuração"),
-]
-
-def _escanear_riscos(codigo: str) -> list[str]:
-    riscos = []
-    for padrao, descricao in _PADROES_RISCO:
-        if re.search(padrao, codigo, re.IGNORECASE):
-            riscos.append(descricao)
-    return riscos
-
-def criar_ferramenta(nome: str, descricao: str, codigo: str) -> dict:
-    """
-    Cria nova ferramenta Python gerada pelo agente (auto-extensão).
-    Valida sintaxe e escaneia por padrões de risco antes de salvar — se achar
-    algo suspeito, a ferramenta fica 'pendente_aprovacao' e não pode ser
-    chamada até o usuário aprovar manualmente (aprovar_ferramenta_ext, fora
-    do schema de function-calling — a própria Lyra não pode se autoaprovar).
-    """
-    try:
-        nome_safe = re.sub(r"[^a-z0-9_]", "_", nome.lower())
-        arquivo   = _TOOLS_EXT_DIR / f"{nome_safe}.py"
-
-        # Valida sintaxe (sem subprocess — evita problemas de escaping e de
-        # depender de "python" estar no PATH)
-        import ast
-        try:
-            ast.parse(codigo)
-        except SyntaxError as e:
-            return {"ok": False, "erro": f"Código inválido: {e}"}
-
-        riscos = _escanear_riscos(codigo)
-
-        header = (
-            f'"""\n{descricao}\n'
-            f'Gerado por orion_agent em {datetime.now().isoformat()}\n"""\n\n'
-        )
-        arquivo.write_text(header + codigo, encoding="utf-8")
-
-        index: dict = {}
-        if _TOOLS_EXT_INDEX.exists():
-            index = json.loads(_TOOLS_EXT_INDEX.read_text(encoding="utf-8"))
-        index[nome_safe] = {
-            "descricao":          descricao,
-            "arquivo":            str(arquivo),
-            "criado":             datetime.now().isoformat(),
-            "riscos_detectados":  riscos,
-            "pendente_aprovacao": bool(riscos),
-        }
-        _TOOLS_EXT_INDEX.write_text(
-            json.dumps(index, ensure_ascii=False, indent=2), encoding="utf-8")
-
-        if riscos:
-            return {
-                "ok": True, "nome": nome_safe, "path": str(arquivo),
-                "status": "PENDENTE_APROVACAO",
-                "aviso": (f"Ferramenta salva mas BLOQUEADA até o usuário aprovar manualmente. "
-                          f"Padrões de risco detectados: {', '.join(riscos)}."),
-            }
-
-        return {"ok": True, "nome": nome_safe, "path": str(arquivo)}
-    except Exception as e:
-        return {"erro": str(e), "ok": False}
-
-def listar_ferramentas_ext() -> dict:
-    """Lista ferramentas criadas dinamicamente pelo agente."""
-    try:
-        if not _TOOLS_EXT_INDEX.exists():
-            return {"ferramentas": [], "total": 0}
-        index = json.loads(_TOOLS_EXT_INDEX.read_text(encoding="utf-8"))
-        return {"ferramentas": list(index.values()), "total": len(index)}
-    except Exception as e:
-        return {"erro": str(e)}
-
-def aprovar_ferramenta_ext(nome: str) -> dict:
-    """
-    Aprova manualmente uma ferramenta auto-criada que ficou pendente por ter
-    disparado algum padrão de risco. DELIBERADAMENTE NÃO está em TOOLS_SCHEMA/
-    TOOLS_MAP — a Lyra não tem acesso a essa função via function-calling, só o
-    usuário (ou alguém chamando este módulo diretamente) pode liberar.
-    """
-    try:
-        if not _TOOLS_EXT_INDEX.exists():
-            return {"ok": False, "erro": "Nenhuma ferramenta extra registrada."}
-        index = json.loads(_TOOLS_EXT_INDEX.read_text(encoding="utf-8"))
-        nome_safe = re.sub(r"[^a-z0-9_]", "_", nome.lower())
-        if nome_safe not in index:
-            return {"ok": False, "erro": f"Ferramenta não encontrada: {nome_safe}"}
-        index[nome_safe]["pendente_aprovacao"] = False
-        index[nome_safe]["aprovado_em"] = datetime.now().isoformat()
-        _TOOLS_EXT_INDEX.write_text(
-            json.dumps(index, ensure_ascii=False, indent=2), encoding="utf-8")
-        return {"ok": True, "nome": nome_safe, "status": "APROVADA"}
-    except Exception as e:
-        return {"ok": False, "erro": str(e)}
 
 def consultar_especialista(problema: str, nivel: str, aprovado: bool = False) -> dict:
     """Delega uma tarefa complexa para um modelo especialista (Local ou Nuvem)."""
@@ -281,30 +158,6 @@ SCHEMA = [
         {
             "type": "function",
             "function": {
-                "name": "criar_ferramenta",
-                "description": "Gera código Python de nova tool.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "nome":      {"type": "string"},
-                        "descricao": {"type": "string"},
-                        "codigo":    {"type": "string"},
-                    },
-                    "required": ["nome", "descricao", "codigo"],
-                },
-            },
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "listar_ferramentas_ext",
-                "description": "Lista todas as ferramentas criadas dinamicamente pelo agente.",
-                "parameters": {"type": "object", "properties": {}},
-            },
-        },
-        {
-            "type": "function",
-            "function": {
                 "name": "consultar_especialista",
                 "description": "Delega um problema complexo (código, tarefa difícil, pesquisa profunda) para um Agente Especialista local ou na nuvem.",
                 "parameters": {
@@ -322,8 +175,6 @@ SCHEMA = [
 
 
 MAP = {
-    "criar_ferramenta": criar_ferramenta,
-    "listar_ferramentas_ext": listar_ferramentas_ext,
     "consultar_especialista": consultar_especialista,
     "criar_enxame": criar_enxame,
     "status_enxame": status_enxame,

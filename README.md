@@ -1,7 +1,8 @@
-# Lyra → Orion
+# Orion (antiga Lyra)
 
-> **Em replanejamento na branch `lyra-v2`** (a `main` está congelada como backup
-> do legado). O projeto passa a se chamar **Orion** — plano completo em
+> **Em replanejamento.** Desenvolvimento na `main` deste repositório; o histórico
+> completo do legado, inclusive o que já foi apagado daqui, fica no repositório
+> [Lyra](https://github.com/antoniossalomao/Lyra) (backup). Plano completo em
 > [ORION_NUCLEO.md](Memorias%20Do%20Projeto/ORION_NUCLEO.md). Este README descreve o
 > **legado (Lyra)**, que roda no PC atual (Ryzen 7 3700X · RTX 2060 Super 8GB ·
 > 64GB RAM, Windows) até a venda.
@@ -23,8 +24,7 @@ Documentação (3 arquivos, nada mais):
 
 ```
  ┌─────────────────────────────────────────────────────────────┐
- │  Frontends: v1 pywebview · v2 React (/ui) · v3 Svelte       │
- │  (/ui-novo) · casca Tauri                                   │
+ │  Frontend: v1 pywebview + Three.js                          │
  └──────────────────────────────┬──────────────────────────────┘
                                 │ HTTP/SSE/WS :8000 (v1 via hub WS :8765)
  ┌──────────────────────────────▼──────────────────────────────┐
@@ -42,7 +42,7 @@ Documentação (3 arquivos, nada mais):
 
 | Serviço | Porta | Papel |
 |---|---|---|
-| `cerebro_maestro.py` (FastAPI) | 8000 | Orquestrador: cascata, RAG, endpoints, MCP (`/mcp`), serve `/ui` e `/ui-novo` |
+| `cerebro_maestro.py` (FastAPI) | 8000 | Orquestrador: cascata, RAG, endpoints, MCP (`/mcp`), dashboard |
 | `embed_service.py` (FastAPI) | 8001 | BGE-M3 1024d + reranker bge-reranker-v2-m3 (GPU). O cérebro depende dele |
 | hub WS (`orion_app.py`) | 8765 | Ponte frontend v1 ↔ cérebro |
 | Qdrant | 6333 | Vetores (`lyra_memory_v2`, ~3.09M, BGE-M3 1024d) |
@@ -74,7 +74,6 @@ python -m pip install -r requirements.txt   # inclui torch 2.6+cu124 (bge-m3)
 |---|---|
 | `GROQ_API_KEY`, `GEMINI_API_KEY` | Obrigatórias para a cascata de chat |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ALLOWED_USERS` | Opcionais, bot Telegram (sem allowlist o bot recusa iniciar) |
-| `AUTH_JWT_SECRET` | Segredo do JWT de login (Lyra 2.0); default só serve para dev |
 
 ## Como subir
 
@@ -98,13 +97,14 @@ Get-CimInstance Win32_Process -Filter "Name = 'python.exe'" |
   Where-Object { $_.CommandLine -like '*cerebro_maestro*' } | Stop-Process -Force
 ```
 
-## Frontends
+## Frontend
 
-| Pasta | Stack | Como abre | Estado |
-|---|---|---|---|
-| `Orion_Core/Front_end_Orion/` | pywebview + Three.js | `python Orion_Core/Front_end_Orion/orion_app.py` | v1, produção |
-| `Orion_Core/Front_end_Orion_v2/` | React + Vite + TS | `npm run build` → `http://127.0.0.1:8000/ui/` | em uso até o cutover |
-| `Orion_Core/Front_end_Orion_v3/` | SvelteKit + Tauri 2 | `$env:BASE_PATH="/ui-novo"; npm run build` → `http://127.0.0.1:8000/ui-novo/` | Lyra 2.0 — cutover pendente |
+| Pasta | Stack | Como abre |
+|---|---|---|
+| `Orion_Core/Front_end_Orion/` | pywebview + Three.js (v1) | `python Orion_Core/Front_end_Orion/orion_app.py` |
+
+Os front-ends v2 (React) e v3 (SvelteKit + Tauri) foram removidos em 30/09/2026
+(commit `88f0b1b`); a interface do Orion é decidida na fase 6.
 
 ## Integrações opcionais (passos manuais)
 
@@ -116,12 +116,9 @@ Get-CimInstance Win32_Process -Filter "Name = 'python.exe'" |
    API e Calendar API → credencial OAuth "Aplicativo para computador" → salvar
    em `Orion_Core/google_auth/credentials.json` → rodar uma vez
    `python Orion_Ollama/orion_google_workspace.py` (gera `token.json`).
-3. **Screenpipe** (gravação contínua de tela, MCP em `:3030`) —
-   `npm install -g @screenpipe/cli`, subir com `bin\startup\start_screenpipe.bat`,
-   depois adicionar ao `orion_boot.vbs`.
-4. **Atualizar SurrealDB** (Lyra parada, PowerShell admin) —
+3. **Atualizar SurrealDB** (Lyra parada, PowerShell admin) —
    `winget upgrade SurrealDB.SurrealDB --accept-source-agreements --accept-package-agreements`.
-5. **MCP da Lyra no Claude Code** — em `~/.claude/settings.json`:
+4. **MCP da Lyra no Claude Code** — em `~/.claude/settings.json`:
    `{"mcpServers": {"lyra": {"url": "http://127.0.0.1:8000/mcp"}}}`.
 
 `navegar_web` (Playwright Chromium) já está instalado e funcional.
@@ -142,29 +139,29 @@ vetores, telemetria da cascata).
 ```
 Orion_Ollama/                  # backend
   cerebro_maestro.py            # entrypoint FastAPI :8000 — estado compartilhado + wiring dos routers
-  routers/ · models/ · utils/   # endpoints por domínio, schemas Pydantic, auth/segredos
+  routers/ · models/            # endpoints por domínio, schemas Pydantic
   config.py                     # portas, URLs, model IDs
   llm_cascade.py                # cascata Groq → Gemini → Claude(CLI) → Ollama
   rag_engine.py                 # RAG híbrido + grafo + persistência de eventos
   session_manager.py            # histórico, sessões, briefing
   proactive_loop.py             # loop proativo (lembretes, self-healing, shadow thoughts, reconciliação)
   surreal_client.py · logger.py
-  tools/                        # 58 ferramentas por domínio (orion_tools.py = shim)
+  tools/                        # 55 ferramentas por domínio (orion_tools.py = shim)
   embed_service.py              # BGE-M3 + reranker :8001
-  orion_agent.py · orion_agentes.py        # ReAct autônomo · enxame paralelo
+  orion_agentes.py               # enxame paralelo de sub-agentes
   orion_shadow_thoughts.py       # ciclo de sono NREM/REM/DEEP
-  orion_seguranca.py             # rate limit, câmara de eco, audit, keyring, self-healing
+  orion_seguranca.py             # rate limit, câmara de eco, audit, self-healing
   orion_browser.py · orion_google_workspace.py · orion_telegram.py · orion_voice_live.py
   bm25_index.py · reconciliar_episodios.py · test_smoke.py
-Orion_Core/                    # frontends, voz, sentidos, memória bruta
-  Front_end_Orion/ · Front_end_Orion_v2/ · Front_end_Orion_v3/ (+ src-tauri/)
+Orion_Core/                    # front-end v1, voz, sentidos, memória bruta
+  Front_end_Orion/              # pywebview + Three.js + hub WS :8765
   audio_manager.py (TTS) · mic_engine.py (STT) · commands.py
 bin/startup/                  # .bat de cada serviço + orion_boot.vbs
 Memorias Do Projeto/          # ORION_NUCLEO.md (plano do Orion), ORION_TECNICO.md (referência do legado)
 ```
 
 **Fora do git (runtime):** `Orion_Core/Sons/cache/`, `Orion_Ollama/telemetria*`,
-`Orion_Ollama/orion_tools_ext/`, checkpoints de ingestão, `.env`, credenciais OAuth,
+checkpoints de ingestão, `.env`, credenciais OAuth,
 `qdrant_data/`, `db_cortex/`, `bm25s_index*/`, `.claude/settings.local.json`.
 
 ---
@@ -172,8 +169,9 @@ Memorias Do Projeto/          # ORION_NUCLEO.md (plano do Orion), ORION_TECNICO.
 ## Segurança
 
 - Todos os serviços escutam só em `127.0.0.1`; não foram hardened para exposição em rede.
-- **Auth** pronto no backend (PBKDF2-SHA256 + JWT em cookie httpOnly), mas as
-  rotas **ainda não exigem login** — gating só depois do cutover pro v3.
+- **Sem login:** nenhuma rota exige autenticação. As rotas `/auth/*` (PBKDF2-SHA256 +
+  JWT) foram desmontadas em 01/10/2026 por falta de cliente; o login volta na
+  reescrita (fase 5 do NUCLEO).
 - **CORS** aceita a origem `"null"` (necessária pro pywebview do v1). Página com
   iframe sandboxed também manda `Origin: null`, então um site aberto no navegador
   consegue falar com `/chat`. Corrigir junto com o gating de auth.

@@ -26,14 +26,13 @@ class SystemRouter:
     passar o valor direto aqui congelaria no valor do momento da instanciação.
     """
 
-    def __init__(self, *, rag, get_cerebro_ativo, get_tts_mudo, get_carga_cognitiva,
+    def __init__(self, *, rag, get_cerebro_ativo, get_tts_mudo,
                  telemetria, ler_telemetria_historico, get_ultima_latencia_ms,
                  embed_service_ok, colecao, http_health_client,
                  dashboard_html_path, processo_rodando, get_voice_live_ativas):
         self._rag = rag
         self._get_cerebro_ativo = get_cerebro_ativo
         self._get_tts_mudo = get_tts_mudo
-        self._get_carga_cognitiva = get_carga_cognitiva
         self._telemetria = telemetria
         self._ler_telemetria_historico = ler_telemetria_historico
         self._get_ultima_latencia_ms = get_ultima_latencia_ms
@@ -50,7 +49,6 @@ class SystemRouter:
         self.router = APIRouter()
         self.router.add_api_route("/", self.raiz, methods=["GET"])
         self.router.add_api_route("/dashboard", self.dashboard, methods=["GET"])
-        self.router.add_api_route("/status", self.status, methods=["GET"])
         self.router.add_api_route("/stats", self.stats, methods=["GET"])
         self.router.add_api_route("/stats/historico", self.stats_historico, methods=["GET"])
         self.router.add_api_route("/health", self.health, methods=["GET"])
@@ -68,13 +66,6 @@ class SystemRouter:
                 return HTMLResponse(f.read())
         except Exception as e:
             return HTMLResponse(f"<h1>Dashboard indisponível</h1><p>{e}</p>", status_code=500)
-
-    def status(self):
-        return {"cerebro_ativo": self._get_cerebro_ativo(),
-                "qdrant": self._rag.active,
-                "embedder": self._embed_service_ok(),
-                "tts_mudo": self._get_tts_mudo(),
-                "carga_cognitiva": self._get_carga_cognitiva()}
 
     def stats(self):
         """Telemetria da cascata: distribuição de uso, latência média e taxa de falha por andar."""

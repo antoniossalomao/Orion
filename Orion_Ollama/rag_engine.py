@@ -137,8 +137,7 @@ class RAGEngine:
 
     # ── Hybrid search ────────────────────────────────────────────────────────
 
-    def search(self, query: str, top_k: int = 5, categoria: str = "",
-               peso_relevancia: float = 1.0, peso_recencia: float = 0.0) -> list[dict]:
+    def search(self, query: str, top_k: int = 5, categoria: str = "") -> list[dict]:
         """Run hybrid BM25 + dense + rerank search (synchronous — call via
         asyncio.to_thread from the event loop; takes 5-10 s on 2M+ vectors).
 
@@ -146,8 +145,6 @@ class RAGEngine:
             query:     Natural-language query string.
             top_k:     Number of results after reranking.
             categoria: Optional payload category filter.
-            peso_relevancia / peso_recencia: legacy, ignored by the ranking
-                grid-search compatibility; defaults are the calibrated weights.
 
         Returns:
             List of candidate dicts with id, payload, rrf/dense/bm25/rerank

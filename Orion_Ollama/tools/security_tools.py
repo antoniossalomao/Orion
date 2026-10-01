@@ -1,4 +1,4 @@
-"""tools/security_tools.py — Security tools: audit-log queries, Lyra service status, and Windows keyring key listing."""
+"""tools/security_tools.py — Security tools: audit-log queries."""
 
 def consultar_audit_log(limite: int = 50, tool_filtro: str = "", apenas_bloqueados: bool = False) -> dict:
     """
@@ -13,27 +13,6 @@ def consultar_audit_log(limite: int = 50, tool_filtro: str = "", apenas_bloquead
             tool_filtro=tool_filtro,
             apenas_bloqueados=apenas_bloqueados,
         )
-    except Exception as e:
-        return {"ok": False, "erro": str(e)}
-
-def migrar_chaves_para_keyring() -> dict:
-    """
-    Move as API keys do arquivo .env para o Windows Credential Manager
-    (keyring). Após isso, as chaves ficam protegidas pelo login do Windows
-    e não ficam mais em texto plano em disco.
-    Operação única — reinicie o cerebro_maestro depois.
-    """
-    try:
-        import orion_seguranca
-        return orion_seguranca.migrar_chaves_para_keyring()
-    except Exception as e:
-        return {"ok": False, "erro": str(e)}
-
-def listar_chaves_keyring() -> dict:
-    """Mostra quais API keys estão configuradas no Credential Manager (sem revelar os valores)."""
-    try:
-        import orion_seguranca
-        return orion_seguranca.listar_chaves_keyring()
     except Exception as e:
         return {"ok": False, "erro": str(e)}
 
@@ -54,18 +33,9 @@ SCHEMA = [
                 },
             },
         },
-        {
-            "type": "function",
-            "function": {
-                "name": "listar_chaves_keyring",
-                "description": "Mostra quais API keys estão configuradas no Windows Credential Manager, sem revelar os valores.",
-                "parameters": {"type": "object", "properties": {}},
-            },
-        },
 ]
 
 
 MAP = {
     "consultar_audit_log": consultar_audit_log,
-    "listar_chaves_keyring": listar_chaves_keyring,
 }

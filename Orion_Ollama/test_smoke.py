@@ -21,7 +21,6 @@ except Exception:
     pass
 import argparse
 import json
-import time
 import urllib.request
 import urllib.error
 
@@ -62,12 +61,6 @@ def _c1():
     assert status == 200 and corpo.get("ativo") is True, corpo
 
 
-@checagem("GET /status reporta cerebro_ativo")
-def _c2():
-    status, corpo = _get("/status")
-    assert status == 200 and corpo.get("cerebro_ativo") is True, corpo
-
-
 @checagem("GET /health responde com qdrant/surreal/ollama")
 def _c3():
     status, corpo = _get("/health", timeout=15)
@@ -94,35 +87,15 @@ def _c6():
     assert status == 200 and isinstance(corpo.get("snapshots"), list), corpo
 
 
-@checagem("GET /buscar retorna resultados estruturados")
-def _c7():
-    # timeout 45s: a 1ª busca pós-idle paga reativação do embedder + lazy-load
-    # do BM25/reranker (~10-15s) — 15s dava falso-negativo em cold start
-    status, corpo = _get("/buscar?q=capital+da+franca&top_k=3", timeout=45)
-    assert status == 200 and "resultados" in corpo, str(corpo)[:200]
-
-
 @checagem("GET /grafo/completo retorna nodes/links")
 def _c8():
     status, corpo = _get("/grafo/completo", timeout=15)
     assert status == 200 and "nodes" in corpo and "links" in corpo, str(corpo)[:200]
 
 
-@checagem("GET /grafo (query) nao quebra")
-def _c9():
-    status, corpo = _get("/grafo?q=teste&limite=5", timeout=15)
-    assert status == 200, str(corpo)[:200]
-
-
 @checagem("GET /historico retorna lista")
 def _c10():
     status, corpo = _get("/historico")
-    assert status == 200, str(corpo)[:200]
-
-
-@checagem("GET /resumo_sessao responde")
-def _c11():
-    status, corpo = _get("/resumo_sessao", timeout=15)
     assert status == 200, str(corpo)[:200]
 
 
@@ -138,12 +111,6 @@ def _c13():
     assert status == 200, str(corpo)[:200]
 
 
-@checagem("GET /enxames responde")
-def _c14():
-    status, corpo = _get("/enxames", timeout=10)
-    assert status == 200, str(corpo)[:200]
-
-
 @checagem("GET /dashboard responde (HTML)")
 def _c15():
     req = urllib.request.Request(BASE + "/dashboard", method="GET")
@@ -153,17 +120,17 @@ def _c15():
 
 @checagem("POST /tts/mudo alterna e restaura estado")
 def _c16():
-    status0, corpo0 = _get("/status")
-    original = corpo0.get("tts_mudo")
+    _, corpo0 = _get("/integracoes")
+    original = not corpo0["tts"]["online"]
     status1, _ = _post("/tts/mudo", {"mudo": not original})
     assert status1 == 200
-    _, corpo2 = _get("/status")
-    assert corpo2.get("tts_mudo") == (not original)
+    _, corpo2 = _get("/integracoes")
+    assert (not corpo2["tts"]["online"]) == (not original)
     # restaura o estado original — não deixar o TTS num estado diferente do
     # que estava antes do smoke test rodar.
     _post("/tts/mudo", {"mudo": original})
-    _, corpo3 = _get("/status")
-    assert corpo3.get("tts_mudo") == original
+    _, corpo3 = _get("/integracoes")
+    assert (not corpo3["tts"]["online"]) == original
 
 
 def _rodar_teste_chat():

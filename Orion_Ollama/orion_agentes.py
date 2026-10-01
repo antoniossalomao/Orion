@@ -11,7 +11,7 @@ Cada sub-tarefa roda com cascata Groq Llama 70B → Gemini 2.5 Flash isolada,
 com acesso a QUASE TODAS as ferramentas do orion_tools — exceto uma denylist de
 operações destrutivas/auto-modificantes/recursivas (TOOLS_BLOQUEADAS), perigosas
 em agentes autônomos rodando em paralelo (PowerShell, escrita de arquivo, spawn
-de processos, criar_ferramenta, criar enxames, etc.).
+de processos, criar enxames, etc.).
 Concorrência limitada por asyncio.Semaphore(max_paralelo).
 """
 
@@ -21,7 +21,7 @@ import os
 from datetime import datetime
 
 from surreal_client import surreal
-from config import GROQ_MODEL, GEMINI_MODEL
+from config import GROQ_MODEL
 
 # ── Configuração ──────────────────────────────────────────────────────────────
 
@@ -32,7 +32,7 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 # Critério de bloqueio (perigoso em agente autônomo paralelo):
 #   - execução de código/comando arbitrário e abertura de apps
 #   - mutação do sistema de arquivos (escrita/organização) e do clipboard
-#   - auto-modificação (criar_ferramenta) e jobs pesados (backup)
+#   - jobs pesados (backup)
 #   - spawn de processos/vigilâncias/agendamentos em background
 #   - escrita em stores que poluem (salvar_memoria, registrar_numero)
 #   - notificações (evita spam vindo de N subtarefas)
@@ -41,7 +41,7 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 TOOLS_BLOQUEADAS = {
     "executar_comando", "abrir_app",
     "escrever_arquivo", "organizar_pasta", "escrever_clipboard", "controlar_midia",
-    "criar_ferramenta", "backup_memoria",
+    "backup_memoria",
     "iniciar_vigilancia_pasta", "parar_vigilancia_pasta",
     "iniciar_processo_bg", "gerenciar_agendamentos",
     "salvar_memoria", "registrar_numero",
@@ -258,26 +258,6 @@ async def criar_enxame(objetivo: str, subtarefas: list[str],
     asyncio.create_task(_rodar_enxame(enxame_id, sub_pairs, max_paralelo))
 
     return {"enxame_id": enxame_id, "status": "rodando", "total": len(subtarefas)}
-
-
-async def listar_enxames(limite: int = 20) -> dict:
-    """Lista os enxames mais recentes (resumo), pra dashboard/debugging."""
-    rows = await _sq(
-        f"SELECT id, objetivo, status, total_subtarefas, criado, concluido_em "
-        f"FROM enxame ORDER BY criado DESC LIMIT {min(limite, 100)};"
-    )
-    enxames = []
-    for e in rows:
-        eid = str(e.get("id", "")).split(":")[-1].strip("`")
-        enxames.append({
-            "enxame_id":        eid,
-            "objetivo":         e.get("objetivo", "")[:120],
-            "status":           e.get("status", "?"),
-            "total_subtarefas": e.get("total_subtarefas", 0),
-            "criado":           e.get("criado", ""),
-            "concluido_em":     e.get("concluido_em"),
-        })
-    return {"total": len(enxames), "enxames": enxames}
 
 
 async def status_enxame(enxame_id: str) -> dict:

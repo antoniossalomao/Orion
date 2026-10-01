@@ -8,7 +8,7 @@ um browser real (Chromium headless) para alcançar um objetivo:
   - Fluxos multi-passo que pesquisar_internet / buscar_url não alcançam
 
 DEPENDÊNCIAS (já instaladas):
-  pip install browser-use langchain-google-genai
+  pip install browser-use
 
 PRIMEIRA VEZ (baixa Playwright Chromium ~150MB):
   python -m playwright install chromium
@@ -22,7 +22,6 @@ except Exception:
 import asyncio
 import os
 import threading
-from typing import Optional
 
 
 async def _run_agent(objetivo: str, url_inicial: str, api_key: str) -> str:

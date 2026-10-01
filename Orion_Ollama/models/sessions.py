@@ -7,11 +7,3 @@ from pydantic import BaseModel
 
 class SessaoAtivar(BaseModel):
     sessao_id: str
-
-
-class SessaoRenomear(BaseModel):
-    titulo: str
-
-
-class SessaoFavoritar(BaseModel):
-    favorita: bool

@@ -1,9 +1,10 @@
-# LYRA — Referência Técnica do Legado
+# ORION — Referência Técnica do Legado (Lyra)
 
-> Como o código **atual (Lyra)** funciona: regras, arquitetura, API, gotchas.
+> Como o código **atual (legado Lyra)** funciona: regras, arquitetura, API, gotchas.
 > Serve de base para portar o que vale para o Orion — o plano novo está em
 > [ORION_NUCLEO.md](ORION_NUCLEO.md). Consolidado em 30/09/2026 (último registro de
-> trabalho no legado: 12/08/2026). Operação do legado: [README.md](../README.md)
+> trabalho no legado: 12/08/2026). Operação do legado: [README.md](../README.md) ·
+> Histórico completo: repositório [Lyra](https://github.com/antoniossalomao/Lyra).
 
 ---
 
@@ -25,7 +26,7 @@
 | LLM cloud | Groq `openai/gpt-oss-120b` → Gemini `gemini-3.5-flash` → Claude (CLI) → local | — |
 | STT | faster-whisper "small" CPU int8 + Silero VAD | — |
 | TTS | Gemini TTS (voz Leda) → edge-tts Francisca → silêncio | — |
-| Frontends | v1 pywebview + Three.js · v2 React/Vite · v3 SvelteKit/Tauri 2 | — |
+| Frontend | v1 pywebview + Three.js (v2 React e v3 SvelteKit/Tauri removidos em 30/09 — §7.2) | — |
 
 Python 3.12 **global** (sem venv; `venv_embed` aposentado em 30/06). torch
 2.6.0+cu124 (bge-m3 exige ≥2.6, pesos só em `.bin`). Rollback do upgrade:
@@ -94,8 +95,8 @@ Python 3.12 **global** (sem venv; `venv_embed` aposentado em 30/06). torch
 **Ambiente de desenvolvimento**
 - Git Bash não enxerga processos Windows nativos — matar via PowerShell
   `Get-CimInstance … | Stop-Process` (ver README).
-- `BASE_PATH=/ui-novo npm run build` no Git Bash quebra (MSYS converte o path) —
-  usar PowerShell `$env:BASE_PATH = "/ui-novo"`.
+- Variável de ambiente com path (`X=/algo cmd`) no Git Bash é convertida pelo MSYS —
+  usar PowerShell `$env:X = "/algo"` (quebrava o build do v3 com `BASE_PATH`).
 - BM25 é carregado com `mmap=True` no startup: o índice não pode ser reescrito com
   o cérebro rodando (o script de rebuild foi apagado em 01/10 junto com os datasets).
 - `cargo` com antivírus: `CARGO_BUILD_JOBS=1` (evita `os error 32`).
@@ -114,21 +115,20 @@ Python 3.12 **global** (sem venv; `venv_embed` aposentado em 30/06). torch
 
 | Módulo | Papel |
 |---|---|
-| `cerebro_maestro.py` | Entrypoint: estado compartilhado, CORS, mounts (`/ui`, `/ui-novo`, `/imagens`), wiring dos routers, MCP |
-| `config.py` | Portas, URLs, model IDs, `AUTH_*` |
+| `cerebro_maestro.py` | Entrypoint: estado compartilhado, CORS, mount `/imagens` (`/ui` e `/ui-novo` só montam se o build do v2/v3 existir — não existe mais), wiring dos routers, MCP |
+| `config.py` | Portas, URLs, model IDs, limites |
 | `llm_cascade.py` | `LLMCascade` — streaming (`/chat`) e batch (`run()`, agentes) por provedor |
 | `rag_engine.py` | `RAGEngine` — `search()`, `record_event()`, `search_graph()`, utilitários de texto |
 | `session_manager.py` | `SessionManager` — histórico, sessão ativa, briefing, contador de turnos (com locks) |
 | `proactive_loop.py` | `ProactiveLoop` — lembretes, agendamentos, processos bg, enxames, self-healing, shadow thoughts, reconciliação |
 | `surreal_client.py`, `logger.py` | Cliente SurrealDB único; logger com `atexit` |
-| `routers/` | `system`, `sessions`, `memory`, `agents`, `misc`, `chat`, `auth`, `gateway`, `tools`, `logs`, `models_hub`, `prompts` |
+| `routers/` | `system`, `sessions`, `memory`, `agents` (só `/enxame*`), `misc`, `chat`. `auth`, `gateway`, `tools`, `logs`, `models_hub` e `prompts` foram apagados em 01/10/2026 (sem cliente) |
 | `models/` | Schemas Pydantic por domínio |
-| `utils/` | `auth.py` (`PasswordHasher`, `JWTManager`, `UserRepository`, `CurrentUserDependency`), `secrets.py` (`resolve_secret`, `mask_secret`) |
-| `tools/` | 16 módulos por domínio + `_registry.py`/`_lazy.py`/`_shared.py`; `orion_tools.py` é shim |
+| `tools/` | 16 módulos por domínio + `_lazy.py`/`_shared.py`; `orion_tools.py` é shim |
 
 Nomes antigos → novos: globals de sessão → `SessionManager`; `buscar_hibrido`/
-`registrar_evento`/`buscar_grafo_surreal` → métodos de `RAGEngine` (wrappers com o
-nome antigo mantidos); `_stream_*` → wrappers sobre `LLMCascade`.
+`registrar_evento`/`buscar_grafo_surreal` → métodos de `RAGEngine` (só o wrapper
+`registrar_evento` continua); `_stream_*` → wrappers sobre `LLMCascade`.
 
 ### 3.2 Cascata e roteamento
 
@@ -144,8 +144,6 @@ nome antigo mantidos); `_stream_*` → wrappers sobre `LLMCascade`.
   tópicos/ferramentas das últimas 24h (via grafo).
 - Telemetria: `telemetria.json` (acumulado) + `telemetria_historico.jsonl`
   (snapshot a cada ~5min, últimas 2000 linhas).
-- Ferramentas desligadas pelo usuário (`/tools/{nome}/toggle`): `set` em memória
-  compartilhado por referência com o `ChatRouter`; lista vazia vira `None`.
 
 ### 3.3 API HTTP (:8000)
 
@@ -153,34 +151,30 @@ nome antigo mantidos); `_stream_*` → wrappers sobre `LLMCascade`.
 |---|---|---|
 | GET | `/` | Ping `{servico, ativo, versao}` |
 | GET | `/dashboard` | Dashboard HTML de monitoramento |
-| GET | `/status` | Estado do cérebro (inclui `carga_cognitiva`, `tts_mudo`) |
 | GET | `/health` | Latência de Qdrant/SurrealDB/Ollama/embedder + VRAM + contagem de vetores |
 | GET | `/metrics` | CPU/RAM/GPU/VRAM + latência do último chat |
 | GET | `/stats`, `/stats/historico?limite=` | Telemetria da cascata (acumulada / snapshots) |
 | GET | `/integracoes` | Status de Telegram, Voice Live, mic, TTS, enxame, upload |
 | POST | `/chat` | Chat SSE. Body `{texto, modelo}` |
 | POST | `/tts/mudo`, `/tts/falar` | Voz global on/off; falar texto arbitrário |
-| GET | `/buscar?q=&top_k=&categoria=` | Busca híbrida |
-| GET | `/grafo?q=&limite=`, `/grafo/completo?limite=` | Traversal por keywords; grafo nodes+links |
+| GET | `/grafo/completo?limite=` | Grafo nodes+links (visualização 3D do v1) |
 | GET | `/memoria/categorias` | Composição da base por categoria |
 | GET/DELETE | `/historico[?sessao=]` | Histórico (com `fontes_rag`/`divergencia_draft`); DELETE limpa só a RAM |
-| GET | `/resumo_sessao`, `/exportar` | Briefing; exporta sessão em markdown |
+| GET | `/exportar` | Exporta a sessão em markdown |
 | GET/POST | `/sessoes` | Lista (inclui `legado`) / cria sessão |
-| POST | `/sessoes/ativar`, `/sessoes/{id}/favoritar` | Troca sessão; favorita |
-| PATCH/DELETE | `/sessoes/{id}` | Renomeia / exclui |
+| POST | `/sessoes/ativar` | Troca sessão |
 | POST | `/upload` | Upload de imagem/áudio (filename sanitizado) |
-| POST/GET | `/enxame`, `/enxames`, `/enxame/{id}`, `/enxame/{id}/consolidar` | Enxame de sub-agentes |
-| POST/GET | `/agente`, `/agente/runs` | ReAct autônomo; execuções |
-| POST | `/shadow_thoughts` | Dispara o ciclo de sono (background) |
-| GET/POST | `/auth/status`, `/auth/setup`, `/auth/login`, `/auth/logout` | Auth mínimo |
-| GET/POST | `/tools`, `/tools/{nome}/toggle` | Lista (58) / liga-desliga ferramenta |
-| GET | `/logs?fonte=log\|err&linhas=N` | Últimas linhas de `maestro.log`/`.err` |
-| GET/POST | `/ollama/models`, `/ollama/models/pull` | Modelos instalados; pull com progresso SSE |
-| GET/POST/PATCH/DELETE | `/prompts`, `/prompts/{id}` | Biblioteca de prompts |
+| POST/GET | `/enxame`, `/enxame/{id}`, `/enxame/{id}/consolidar` | Enxame de sub-agentes (chamado pelas ferramentas de enxame) |
 | WS | `/ws/voice` | Voice Live (Gemini Live) |
-| WS | `/ws/gateway` | Gateway tipado `{action, payload}` (só leitura) |
 | GET/POST | `/mcp` | Endpoints REST como ferramentas MCP (exclui `/chat`, `/dashboard`, `/upload`, `DELETE /historico`, `/tts/mudo` e destrutivos) |
-| static | `/ui`, `/ui-novo`, `/imagens` | Build do v2, build do v3, imagens geradas |
+| static | `/imagens` | Imagens geradas |
+
+**Removidas em 01/10/2026** (sem cliente depois da saída do v2/v3): `/status`,
+`/buscar`, `/grafo?q=`, `/resumo_sessao`, `PATCH`/`DELETE /sessoes/{id}`,
+`/sessoes/{id}/favoritar`, `/enxames`, `/agente*`, `/shadow_thoughts`, `/auth/*`,
+`/tools*`, `/logs`, `/ollama/models*`, `/prompts*`, `/ws/gateway`, mounts `/ui` e
+`/ui-novo`. Clientes restantes: front v1, `orion_telegram.py`, `mic_engine.py`,
+`dashboard.html` e as ferramentas de enxame.
 
 `embed_service` (:8001): `GET /health` (inclui `estacionado_ram`), `POST /embed`
 (`{texto|textos}`), `POST /rerank`, `POST /unload`.
@@ -191,8 +185,8 @@ Todo dispatch de ferramenta passa por `_executar_tool_segura()`:
 
 1. **Rate limit** (`orion_seguranca.checar_rate_limit`, deque + lock): `executar_comando`
    20/5min · `iniciar_processo_bg` 5/5min · `escrever_arquivo` 30/60s ·
-   `organizar_pasta` 3/5min · `criar_ferramenta` 5/10min ·
-   `consultar_especialista` 3/10min · `navegar_web` 10/5min.
+   `organizar_pasta` 3/5min · `consultar_especialista` 3/10min ·
+   `navegar_web` 10/5min.
 2. **Câmara de Eco Heurística** (`avaliar_risco_acao`, sem LLM): avalia só
    `executar_comando`/`iniciar_processo_bg` (deleção recursiva, `\bformat\s+[a-z]:`,
    `reg delete`, shutdown, `net user /delete`, kill forçado, download+execução,
@@ -205,18 +199,16 @@ Todo dispatch de ferramenta passa por `_executar_tool_segura()`:
    "fantasma" que expira sozinho.
 3. **Audit log** (`audit_log` no SurrealDB, buffer + thread de flush a cada 5s;
    `tool_filtro` validado por regex).
-4. **Keyring** (Windows Credential Manager): migra só `GROQ_API_KEY`,
-   `GEMINI_API_KEY`, `TELEGRAM_BOT_TOKEN`, `ANTHROPIC_API_KEY`; demais chaves ficam
-   no `.env`. `migrar_chaves_para_keyring()` fora do `TOOLS_MAP` (admin).
-5. **Self-healing** no loop proativo a cada ~5min: SurrealDB, Qdrant, embed_service,
+4. **Self-healing** no loop proativo a cada ~5min: SurrealDB, Qdrant, embed_service,
    Ollama (via `asyncio.to_thread`; não checa o próprio FastAPI).
 
-CORS: `allow_origins=["null", "http://127.0.0.1:8000", "http://localhost:8000",
-"http://127.0.0.1:5173"]`, `allow_credentials=False`. Consequência: `npm run dev` do
-v3 não consegue logar (cookie) — testar via build servido em `/ui-novo`.
+CORS: `allow_origins=["null", "http://127.0.0.1:8000", "http://localhost:8000"]`,
+`allow_credentials=False`. `"null"` é exigido pelo pywebview do v1.
 
-Auth: PBKDF2-SHA256 (stdlib, 260k iterações), JWT HS256, cookie httpOnly
-`samesite=lax`, 30 dias, secret em `AUTH_JWT_SECRET`.
+Auth (apagado em 01/10/2026, sem cliente): era PBKDF2-SHA256 (stdlib, 260k
+iterações), JWT HS256, cookie httpOnly `samesite=lax`, 30 dias, secret em
+`AUTH_JWT_SECRET`. Código em `utils/auth.py` no repositório Lyra, para portar na
+fase 5 do NUCLEO.
 
 ## 4. Memória e RAG
 
@@ -238,7 +230,7 @@ Auth: PBKDF2-SHA256 (stdlib, 260k iterações), JWT HS256, cookie httpOnly
 
 Índice de payload `categoria: keyword` criado.
 
-### 4.2 Busca híbrida (`RAGEngine.search`, `GET /buscar`)
+### 4.2 Busca híbrida (`RAGEngine.search`, usada pelo `/chat`)
 
 BM25 (`bm25s`, índice em `bm25s_index/` + `bm25s_meta.pkl`) + denso (Qdrant) →
 RRF → reranker cross-encoder → freshness. `score_final = relevância·0.94 +
@@ -247,7 +239,7 @@ freshness·0.06`, meia-vida por categoria: `programacao`/`documentacao` 180d,
 Sem decaimento temporal genérico (removido — ver NUCLEO §8). `retrieval_count` e
 `last_accessed_at` continuam gravados, fora do ranking. `top_k` ajustado por
 carga cognitiva (alta −2, baixa +2). Se o embed_service cair, só BM25.
-Latência `/buscar` quente ~630-660ms.
+Latência quente ~630-660ms (medida no antigo `/buscar`).
 
 ### 4.3 Grafo (SurrealDB)
 
@@ -259,7 +251,7 @@ Latência `/buscar` quente ~630-660ms.
 
 ### 4.4 Shadow Thoughts (`orion_shadow_thoughts.py`)
 
-A cada ~3h (180 iterações do loop) ou `POST /shadow_thoughts`. NREM: dedup só em
+A cada ~3h (180 iterações do loop). NREM: dedup só em
 `categoria=episodio`, paginado por cursor; marca `duplicado=True`. REM: arestas
 cross-domain via grafo. DEEP: resume eventos com mais de 4 semanas. 1ª execução:
 28 duplicatas, 2.5s.
@@ -290,7 +282,7 @@ Roda sozinho a cada ~1h no loop proativo; só loga se achar órfãos.
 
 Schema: `{titulo, texto (≤3000), fonte, categoria}`. Os scripts de ingestão e
 vetorização foram apagados em 01/10/2026 (datasets genéricos saem); continuam no
-histórico do git e na `main`.
+repositório Lyra.
 
 | Tabela | Datasets |
 |---|---|
@@ -315,13 +307,13 @@ avaliação em pytest sobre a memória pessoal.
 (`asyncio.Semaphore`, `max_paralelo=2` default, nunca >3; timeout 120s por
 subtarefa; recusa com GPU >85% ou VRAM livre <1.5GB). Tabelas `enxame` e
 `subtarefa` (`pendente|rodando|concluida|erro`). Denylist `TOOLS_BLOQUEADAS`:
-execução de comando, escrita, `criar_ferramenta`, processos bg, agendamentos,
+execução de comando, escrita, processos bg, agendamentos,
 `salvar_memoria`, notificações, `consultar_especialista`, `*_enxame`. Loop proativo
 consolida e notifica enxames concluídos.
 
-**ReAct (`orion_agent.py`)** — `executar_agente(objetivo, max_iteracoes,
-ferramentas_bloqueadas)` via `LLMCascade.run()`, mesma denylist, persiste em
-`agente_run`. `--self-test` (3 casos) passa nos 3 andares, incluindo o local.
+**ReAct (`orion_agent.py`, apagado em 01/10/2026)** — `executar_agente(objetivo,
+max_iteracoes, ferramentas_bloqueadas)` via `LLMCascade.run()`, mesma denylist,
+persistia em `agente_run`.
 
 ## 6. Voz, visão e integrações
 
@@ -337,7 +329,7 @@ ferramentas_bloqueadas)` via `LLMCascade.run()`, mesma denylist, persiste em
   `moondream` descartado.
 - **`navegar_web`** (`orion_browser.py`): browser-use 0.13.1 com
   `browser_use.llm.google.chat.ChatGoogle` (`gemini-2.5-flash`; o 2.0 tem quota zero).
-- **Telegram** (`orion_telegram.py`): consome `/chat` via SSE; default-deny sem allowlist.
+- **Telegram** (`orion_telegram.py`): só texto, consome `/chat` via SSE; default-deny sem allowlist.
 - **Google Workspace** (`orion_google_workspace.py`): Gmail + Calendar via OAuth2.
 - **`gerar_imagem`**: Pollinations.ai (Flux, sem key).
 - **Clima**: wttr.in (default Marília-SP).
@@ -356,40 +348,23 @@ Three.js r128, links órfãos filtrados), voz live, drag & drop, histórico ↑/
 `prefers-reduced-motion` respeitado. `-webkit-app-region: no-drag` obrigatório abaixo
 da faixa de arraste (52px).
 
-### 7.2 v2 — React + Vite + TS (`/ui`)
+### 7.2 v2 e v3 — removidos em 30/09/2026
 
-`Orion_Core/Front_end_Orion_v2/`, build com `base: '/ui/'`, servido same-origin.
-Chat SSE com stop/retry/copiar, markdown sanitizado (DOMPurify), sessões, busca,
-settings em 7 abas, anexo, atalhos `Ctrl+K`/`Ctrl+Shift+O`. Dark-only, sem CDN.
-Servido em `/ui` até o cutover.
+Código no repositório Lyra e no histórico deste repo (antes do commit `88f0b1b`,
+em `Lyra_Core/Front_end_Lyra_v2/` e `Lyra_Core/Front_end_Lyra_v3/`). O que vale
+lembrar para a fase 6:
 
-### 7.3 v3 — SvelteKit (Lyra 2.0)
-
-`Orion_Core/Front_end_Orion_v3/`, Svelte 5 runes, `adapter-static` (SPA,
-`fallback: 'index.html'`, `ssr = false`). `vite.config.ts`: `paths.base =
-process.env.BASE_PATH ?? ''` — build canônico sem base; preview com
-`BASE_PATH=/ui-novo`.
-
-| Arquivo | Papel |
-|---|---|
-| `lib/api.ts` | fetch com `credentials: 'include'`; `streamChat()` lê o SSE do `POST /chat` na mão |
-| `lib/shell.ts` | Contrato `LyraShell` + `BrowserShell`/`TauriShell` |
-| `lib/settings.svelte.ts` | Preferências em `localStorage` (mesmas chaves do v2). Rune `$state` só funciona em `.svelte`/`.svelte.ts` — `svelte-check` e build não pegam isso |
-| `lib/voiceLive.ts` | `VoiceLiveSession` (getUserMedia + ScriptProcessorNode, resample 16kHz, fila de playback) |
-| `components/Chat.svelte`, `Sidebar.svelte`, `MessageContent.svelte` | Chat, sessões, preview de artifacts |
-| `components/SettingsModal.svelte`, `SearchOverlay.svelte`, `SystemPanel.svelte` | Configurações, busca, monitor/logs/tools |
-| `components/GraphPanel.svelte` | Força em Canvas 2D: `alpha` decai ×0.985 e para <0.01; velocidade limitada a 8px/frame |
-| `components/Orb.svelte` | 64 pontos Fibonacci, 3 vizinhos ligados, cor esmaece com a profundidade; congela com "reduzir movimento" |
-| `components/ModelHubPanel.svelte`, `PromptLibraryPanel.svelte` | Hub Ollama; biblioteca de prompts |
-| `styles/tokens.css` | `--bg #0b0b0d`, `--accent #4fc3d9`; `[data-reduce-motion="1"]` desliga animações |
-
-Atalhos: `Ctrl+K` busca, `Ctrl+Shift+O` nova conversa, `Esc` fecha o painel mais recente.
-
-### 7.4 Tauri (`Front_end_Orion_v3/src-tauri/`)
-
-3 comandos Rust (`get_secret`, `set_setting`, `start_backend`);
-settings/segredos em JSON no diretório de config do app. `cargo check`/`clippy`
-limpos. Ícones placeholder na paleta do v3.
+- **v2** — React + Vite + TS, servido em `/ui`. Chat SSE com stop/retry/copiar,
+  markdown sanitizado (DOMPurify), settings em 7 abas, dark-only, sem CDN.
+- **v3** — SvelteKit (Svelte 5 runes, `adapter-static` SPA), servido em `/ui-novo`.
+  `streamChat()` lia o SSE do `POST /chat` na mão; rune `$state` só funciona em
+  `.svelte`/`.svelte.ts` (`svelte-check` e build não pegam isso). Grafo em Canvas 2D
+  com `alpha` decaindo ×0.985 até <0.01 e velocidade limitada a 8px/frame. Orb com
+  64 pontos Fibonacci e 3 vizinhos ligados. Tokens `--bg #0b0b0d`, `--accent
+  #4fc3d9`, `[data-reduce-motion="1"]`. Atalhos `Ctrl+K`, `Ctrl+Shift+O`, `Esc`.
+- **Tauri** — casca com 3 comandos Rust (`get_secret`, `set_setting`,
+  `start_backend`) atrás do contrato `LyraShell` (`BrowserShell`/`TauriShell`), o
+  frontend sem saber onde roda.
 
 ## 8. Avaliações registradas
 
@@ -409,6 +384,10 @@ limpos. Ícones placeholder na paleta do v3.
   Groq deprecou `llama-3.x` em 17/06/2026 — cascata já usa `gpt-oss-120b`.
 
 ## 9. Lyra 2.0 — legado (plano de 11/08/2026 e execução)
+
+> Histórico. Em 30/09/2026 os front-ends v2 e v3 e a casca Tauri foram removidos:
+> o cutover descrito aqui não acontece mais e o gating de auth passa para a
+> reescrita (NUCLEO, fase 5).
 
 ### 9.1 Referências analisadas
 
@@ -434,8 +413,9 @@ cookie httpOnly (30 dias), `CurrentUserDependency` pronta, rotas `/auth/status`,
 mostra "criar conta" ou "entrar" conforme `/auth/status`.
 
 **Pendente por decisão consciente:** nenhuma rota existente exige login — gatear
-agora trancaria o usuário fora do v2 (sem tela de login). Aplicar junto com o
-cutover pro v3 e com a correção do CORS `"null"`.
+trancaria o usuário fora do v2 (sem tela de login). Era para entrar junto com o
+cutover pro v3 e a correção do CORS `"null"`; com o v2/v3 removidos, vai para a
+reescrita. As rotas `/auth/*` foram desmontadas em 01/10/2026.
 
 ### 9.3 Backend: `routers/models/utils` + Gateway WS
 
@@ -446,26 +426,26 @@ cutover pro v3 e com a correção do CORS `"null"`.
 - **Gateway WS** (`/ws/gateway`, envelope `{action, payload}`) é camada
   **aditiva**, só ações de leitura, reaproveitando os métodos dos routers REST.
   Não substitui REST/SSE — trocar `/chat` para WS exigiria reescrever o consumo
-  do v2. Fase considerada encerrada nesse ponto.
+  do v2. Fase considerada encerrada nesse ponto. Removido em 01/10/2026 (sem cliente).
 
 ### 9.4 Capacidades novas (o que a Lyra não tinha)
 
 | Item | Status |
 |---|---|
 | Onboarding/login no 1º boot | ✅ v3 |
-| Favoritar sessões (`POST /sessoes/{id}/favoritar`) | ✅ |
-| Monitor de sistema + viewer de logs (`/health`, `/metrics`, `GET /logs`) | ✅ `SystemPanel` |
-| Painel de ferramentas: listar + ligar/desligar (`/tools`, `/tools/{nome}/toggle`, estado em memória) | ✅ |
+| Favoritar sessões (`POST /sessoes/{id}/favoritar`) | ✅ — removido em 01/10 |
+| Monitor de sistema + viewer de logs (`/health`, `/metrics`, `GET /logs`) | ✅ `SystemPanel` — `/logs` removido em 01/10 |
+| Painel de ferramentas: listar + ligar/desligar (`/tools`, `/tools/{nome}/toggle`, estado em memória) | ✅ — removido em 01/10 |
 | Preview de artifacts (`html`/`svg` em iframe sandboxed, inline por bloco) | ✅ |
 | Hub de modelos Ollama (listar + pull com progresso SSE, confirmação obrigatória) | ⛔ sai com o modelo local |
 | Grafo de memória em Canvas 2D (força com decaimento `alpha`) | ✅ `GraphPanel` |
-| Biblioteca de prompts (`/prompts` CRUD, clique insere no composer) | ✅ |
-| `SecretRef` (`utils/secrets.py`: env/file/exec + máscara) | ✅ criado; `config.py` ainda não migrado (exige teste ao vivo) |
+| Biblioteca de prompts (`/prompts` CRUD, clique insere no composer) | ✅ — removido em 01/10 (dados na tabela `prompt`) |
+| `SecretRef` (`utils/secrets.py`: env/file/exec + máscara) | ✅ criado; nunca usado — removido em 01/10 |
 | Upload de documento → base de conhecimento com progresso | ⏳ |
 | Pareamento de dispositivo por QR/token | ⏸ adiado (YAGNI — não há cliente que consuma) |
 | Personas por modelo, notas, calendário, automações, branching de resposta, citações inline, execução de código, tags/pastas, editor de tools in-app | ⏳ aguardando priorização do usuário |
 
-### 9.5 Frontend v3 — SvelteKit
+### 9.5 Frontend v3 — SvelteKit (removido em 30/09/2026)
 
 Reescrita completa (não port do React): bundle menor, menos boilerplate. Nasceu com
 login/onboarding, chat streaming, sessões (renomear/excluir/agrupar por data),
@@ -473,9 +453,9 @@ busca de memória (`Ctrl+K`), configurações em 7 abas, composer multi-linha co
 parar/tentar de novo/copiar, seletor de modelo, voz live, esfera (Orb) no estado
 vazio, e todos os itens da §9.4. Paleta mais contida que o v1: `--bg #0b0b0d`,
 `--accent #4fc3d9`, peso 300 (decisão do usuário 11/08: base no visual atual,
-priorizando minimalismo). Detalhes técnicos: §7.3.
+priorizando minimalismo). Detalhes técnicos: §7.2.
 
-### 9.6 Casca desktop — Tauri
+### 9.6 Casca desktop — Tauri (removida em 30/09/2026)
 
 Tauri é a casca "só assistente" que carrega o SvelteKit. O frontend nunca sabe onde
 está: interface fina `LyraShell` (`getSecret`, `setSetting`, `startBackend`)
@@ -486,8 +466,9 @@ comandos Rust). A casca Theia (IDE) foi excluída em 30/09/2026.
 
 - Mudança de schema sempre **aditiva** — nunca remover/renomear campo que código antigo lê.
 - Snapshot SurrealDB + Qdrant antes de qualquer mudança de schema real.
-- **Critério de corte do v2:** o React continua em `/ui` até o v3 ter paridade
-  testada; só sai após alguns dias de uso real sem bug crítico. Nada é apagado antes.
+- ~~**Critério de corte do v2:** o React continua em `/ui` até o v3 ter paridade
+  testada; só sai após alguns dias de uso real sem bug crítico.~~ Obsoleto: v2 e v3
+  removidos juntos em 30/09/2026.
 - Instalador **não** carrega os ~3M vetores: conecta nos bancos existentes; "começar
   vazio" ou "importar snapshot" (~2-3GB) só se pedido.
 - Footprint (backend + bancos + casca) ainda não medido — relevante agora que o
@@ -498,12 +479,12 @@ comandos Rust). A casca Theia (IDE) foi excluída em 30/09/2026.
 | Fase | Status |
 |---|---|
 | 1 — Backend `routers/models/utils` | ✅ 7/7 grupos de endpoint extraídos |
-| 2 — Auth mínimo | ✅ backend; gating pendente (§9.2) |
-| 3 — Gateway WS | ✅ camada aditiva de leitura (encerrada) |
-| 4 — Frontend SvelteKit | ✅ núcleo + paridade com v2 auditada; servido em `/ui-novo` |
-| 5 — Casca desktop | ✅ contrato + `TauriShell`; `cargo check`/`clippy` limpos (a casca Theia foi excluída em 30/09) |
+| 2 — Auth mínimo | ✅ backend; gating pendente (§9.2) — rotas desmontadas em 01/10 |
+| 3 — Gateway WS | ✅ camada aditiva de leitura (encerrada) — removido em 01/10 |
+| 4 — Frontend SvelteKit | ✅ núcleo + paridade com v2 auditada; servido em `/ui-novo` — removido em 30/09 |
+| 5 — Casca desktop | ✅ contrato + `TauriShell`; `cargo check`/`clippy` limpos — removida em 30/09 (a casca Theia também) |
 
-Nada bloqueado. O que resta é sequenciamento de produto (cutover, gating) e
-empacotamento/teste ao vivo. Verificação feita: compile/import + self-checks no
-backend, `svelte-check` + build + Playwright contra backend real no frontend.
+Em 12/08, nada bloqueado; restava sequenciamento de produto (cutover, gating) e
+empacotamento/teste ao vivo — superado pela reescrita. Verificação feita:
+compile/import + self-checks no backend, `svelte-check` + build + Playwright contra backend real no frontend.
 **Não verificado:** cascata fim-a-fim com todas as nuvens e áudio real de voz.

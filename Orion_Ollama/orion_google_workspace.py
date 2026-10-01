@@ -23,9 +23,7 @@ try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 except Exception:
     pass
-import os
 import base64
-import json
 import datetime
 from pathlib import Path
 

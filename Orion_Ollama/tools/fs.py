@@ -1,6 +1,5 @@
 """tools/fs.py — File and filesystem tools: read/write files, list directories, organize folders by type/date/size."""
 
-import os
 import shutil
 import pathlib
 import time
