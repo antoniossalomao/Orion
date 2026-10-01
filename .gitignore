@@ -1,0 +1,61 @@
+# repos de referência, não são código nosso
+TESTE/
+
+# deps
+node_modules/
+venv*/
+__pycache__/
+*.pyc
+
+# dados/binários grandes
+qdrant_data/
+bm25s_index*/
+*.pkl
+*.bak
+snapshots/
+Lyra_Core/Memoria_Lyra/db_cortex/
+Lyra_Core/Memoria_Lyra/backups/
+
+# IDE Theia abandonada (30/09/2026) — pasta local com .git próprio, se ainda
+# existir, nunca entra no repo
+Lyra_Core/Lyra_IDE/
+
+# logs e segredos
+*.log
+*.err
+.env
+!.env.example
+
+# credenciais OAuth do Google (geradas em runtime)
+Lyra_Core/google_auth/credentials.json
+Lyra_Core/google_auth/token.json
+
+# ide/build
+dist/
+build/
+target/
+
+# session logs
+*.out
+
+# binário grande, baixa de novo se precisar (qdrant.exe)
+bin/qdrant.exe
+
+# estado de runtime (gerado pelos serviços, não é código)
+Lyra_Core/Sons/cache/
+Lyra_Ollama/telemetria.json
+Lyra_Ollama/telemetria_historico.jsonl
+Lyra_Ollama/lyra_tools_ext/
+Lyra_Core/Memoria_Lyra/Scripts_Ingestao/checkpoint_*.json
+.qdrant-initialized
+bin/backup_pip_freeze_*.txt
+
+# config local do Claude Code (permissões/PIDs da máquina)
+.claude/settings.local.json
+.claude/*.lock
+
+# capturas de verificação de UI
+Lyra_Core/Front_end_Lyra_v3/_screenshots/
+
+# schemas gerados pelo build do Tauri
+Lyra_Core/Front_end_Lyra_v3/src-tauri/gen/
