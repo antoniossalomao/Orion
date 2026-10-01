@@ -1,7 +1,7 @@
 @echo off
 REM embed_service.py — microservico de embedding BGE-M3 (:8001).
 REM O cerebro_maestro DEPENDE deste servico desde a migracao BGE-M3 (26/06/2026).
-REM idle-unload 600s: libera a VRAM quando a Lyra fica ociosa.
+REM idle-unload 600s: libera a VRAM quando o Orion fica ocioso.
 REM 30/06/2026: venv_embed (5GB) aposentado - o Python global foi atualizado pra
 REM torch 2.6+cu124 (exigido pelo bge-m3, so pesos .bin sem safetensors), entao
 REM roda direto nele agora. Processo continua isolado do cerebro_maestro.py

@@ -12,7 +12,7 @@ import json
 import uuid
 from typing import Callable
 
-from config import GROQ_MODEL, MAX_HISTORY_MSGS
+from config import GROQ_MODEL, MAX_HISTORY_MSGS, NOME_ASSISTENTE, ATORES_ASSISTENTE
 from surreal_client import SurrealClient
 
 
@@ -149,16 +149,16 @@ class SessionManager:
             hist = await self.snapshot()
             if client and hist:
                 resumo_msgs = "\n".join(
-                    f"{'Antônio' if m['role'] == 'user' else 'Lyra'}: {m['content'][:300]}"
+                    f"{'Antônio' if m['role'] == 'user' else NOME_ASSISTENTE}: {m['content'][:300]}"
                     for m in hist[-10:]
                 )
                 resp = await client.chat.completions.create(
                     model=GROQ_MODEL,
                     messages=[
                         {"role": "system", "content":
-                            "Você é a Lyra. Em até 4 linhas, resuma o contexto da última "
+                            "Você é o Orion. Em até 4 linhas, resuma o contexto da última "
                             "conversa abaixo para ser injetado no seu system prompt. Foque "
-                            "no que foi feito/decidido. Seja direta, sem saudações."},
+                            "no que foi feito/decidido. Seja direto, sem saudações."},
                         {"role": "user", "content": resumo_msgs},
                     ],
                     max_tokens=150, temperature=0.2,
@@ -195,7 +195,7 @@ class SessionManager:
             if nomes:
                 self.briefing += "\n\n[TÓPICOS ATIVOS (24h)]\n" + ", ".join(nomes)
             evs_t = await surreal.query_result(
-                f"SELECT texto FROM evento WHERE ator = 'Lyra' "
+                f"SELECT texto FROM evento WHERE ator IN ['Orion', 'Lyra'] "
                 f"AND texto CONTAINS '_[Executando:' AND timestamp >= '{ontem}' LIMIT 20;",
                 timeout=5)
             tools_usadas: set[str] = set()
@@ -242,14 +242,14 @@ class SessionManager:
             if not client:
                 return
             bloco = "\n".join(
-                f"{'Antônio' if m['role'] == 'user' else 'Lyra'}: {m['content'][:400]}"
+                f"{'Antônio' if m['role'] == 'user' else NOME_ASSISTENTE}: {m['content'][:400]}"
                 for m in a_comprimir
             )
             resp = await client.chat.completions.create(
                 model=GROQ_MODEL,
                 messages=[
                     {"role": "system", "content":
-                        "Você é a Lyra. Comprima as mensagens abaixo em até 5 linhas "
+                        "Você é o Orion. Comprima as mensagens abaixo em até 5 linhas "
                         "preservando fatos, decisões e código relevante. Sem saudações."},
                     {"role": "user", "content": bloco},
                 ],
@@ -309,14 +309,14 @@ class SessionManager:
             self.session_id = sessao_id
             self._title_ok = True
             self._history = [
-                {"role": "assistant" if ev.get("ator", "").lower() == "lyra" else "user",
+                {"role": "assistant" if ev.get("ator", "").lower() in ATORES_ASSISTENTE else "user",
                  "content": ev.get("texto", "")}
                 for ev in eventos[-10:]
             ]
         self._compressing = False
         self._log(f"[SESSAO] Sessão ativada: {sessao_id} ({len(eventos)} msgs)")
         mensagens = [
-            {"role": "assistant" if ev.get("ator", "").lower() == "lyra" else "user",
+            {"role": "assistant" if ev.get("ator", "").lower() in ATORES_ASSISTENTE else "user",
              "content": ev.get("texto", ""), "timestamp": ev.get("timestamp", "")}
             for ev in eventos
         ]

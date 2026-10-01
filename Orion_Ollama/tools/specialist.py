@@ -18,7 +18,7 @@ def consultar_especialista(problema: str, nivel: str, aprovado: bool = False) ->
         # delega pra Claude Code (Sonnet) via CLI headless, com agente completo
         # (acesso a arquivo/shell no projeto), avisando o usuário antes de chamar.
         notificar_usuario(
-            titulo="Lyra → Claude Code",
+            titulo="Orion → Claude Code",
             mensagem=f"Delegando para o Claude (Sonnet): {problema[:120]}",
             urgencia="normal",
         )

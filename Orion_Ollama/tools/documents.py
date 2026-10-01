@@ -1,5 +1,6 @@
 """tools/documents.py — Document tools: read/summarize PDFs/DOCX, generate PDF/DOCX/XLSX/HTML/TXT, transcribe audio, translate."""
 
+from config import LOCAL_MODEL
 import json
 import os
 import pathlib
@@ -146,7 +147,7 @@ def gerar_documento(tipo: str, conteudo: str, path: str,
         return {"erro": str(e)}
 
 def ler_documento(path: str) -> dict:
-    """Extrai texto de PDF, DOCX, TXT/MD/CSV pra Lyra conseguir 'ler' documentos
+    """Extrai texto de PDF, DOCX, TXT/MD/CSV pra Orion conseguir 'ler' documentos
     que o usuário apontar (complementa gerar_documento, que só escreve)."""
     try:
         p = pathlib.Path(path)
@@ -267,13 +268,13 @@ def transcrever_audio(path: str) -> dict:
         return {"erro": str(e), "ok": False}
 
 def traduzir_texto(texto: str, idioma_destino: str = "en") -> dict:
-    """Traduz um texto usando o próprio modelo Ollama local 'Lyra' — sem
+    """Traduz um texto usando o próprio modelo Ollama local (config.LOCAL_MODEL) — sem
     depender de nenhuma API externa de tradução."""
     try:
         from ollama import Client
         c = Client(host="http://127.0.0.1:11434")
         res = c.chat(
-            model="Lyra",
+            model=LOCAL_MODEL,
             messages=[
                 {"role": "system", "content": (
                     f"Você é um tradutor. Traduza o texto do usuário para o idioma "

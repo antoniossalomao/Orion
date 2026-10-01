@@ -11,7 +11,7 @@ cerebro_maestro agora, só como processo à parte.
 ECONOMIA DE VRAM (idle-unload): o modelo só ocupa a GPU enquanto há uso. Após
 IDLE_TIMEOUT segundos sem nenhuma chamada /embed, ele é descarregado e a VRAM
 liberada. A próxima chamada recarrega (lazy). Assim a VRAM fica livre quando a
-Lyra está ociosa — só a 1ª query após uma pausa paga o reload.
+Orion está ocioso — só a 1ª query após uma pausa paga o reload.
 
 Uso (Python global do projeto):
     python embed_service.py                 # GPU, idle-unload 300s

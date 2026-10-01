@@ -1,7 +1,7 @@
 """
 routers/system.py — Endpoints de status/telemetria/saúde do sistema.
 
-Extraído de cerebro_maestro.py na reorganização OOP (Lyra 2.0, ver
+Extraído de cerebro_maestro.py na reorganização OOP (08/2026, ver
 ORION_TECNICO.md §9.3). Comportamento idêntico ao original —
 só move código de lugar, não muda lógica nenhuma.
 """
@@ -57,7 +57,7 @@ class SystemRouter:
 
     def raiz(self):
         """Ping simples — usado pelo frontend pra checar se o cérebro responde."""
-        return {"servico": "Lyra cerebro_maestro", "ativo": self._get_cerebro_ativo(), "versao": "2.1"}
+        return {"servico": "Orion cerebro_maestro", "ativo": self._get_cerebro_ativo(), "versao": "2.1"}
 
     def dashboard(self):
         """Dashboard de monitoramento standalone (http://localhost:8000/dashboard)."""

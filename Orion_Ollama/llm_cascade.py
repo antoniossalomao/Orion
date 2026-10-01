@@ -301,13 +301,13 @@ class LLMCascade:
 
         if self.notify:
             self.notify(
-                titulo="Lyra → Claude (fallback)",
+                titulo="Orion → Claude (fallback)",
                 mensagem="Usando Claude Code (prioridade pra código, ou rede de segurança se Groq/Gemini falharem).",
                 urgencia="normal",
             )
         # Prefixo PARENTÉTICO de propósito — uma instrução imperativa faz o
         # Claude tratar como configuração de papel e nunca responder a pergunta.
-        prefixo = "(Responda como a Lyra, em PT-BR, direto e sem rodeios.) "
+        prefixo = "(Responda como o Orion, em PT-BR, direto e sem rodeios.) "
         proc = await asyncio.create_subprocess_exec(
             claude_path, "-p", f"{prefixo}{pergunta_real}",
             "--model", "sonnet", "--allow-dangerously-skip-permissions",

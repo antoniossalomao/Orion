@@ -266,7 +266,7 @@ if __name__ == "__main__":
         print("\nTestando Calendar...")
         r = listar_eventos(dias=3)
         print(f"  → {r.get('total', 0)} eventos nos próximos 3 dias.")
-        print("\n✓ Tudo funcionando. Pode usar as ferramentas na Lyra.")
+        print("\n✓ Tudo funcionando. Pode usar as ferramentas no Orion.")
     except FileNotFoundError as e:
         print(f"\n[ERRO] {e}")
     except Exception as e:

@@ -178,7 +178,7 @@ class ProactiveLoop:
                     if resultado.get("ok"):
                         self._log(f"[SELF-HEALING] {nome_svc} reiniciado com sucesso.")
                         orion_tools.notificar_usuario(
-                            titulo=f"Lyra Self-Healing: {nome_svc}",
+                            titulo=f"Orion Self-Healing: {nome_svc}",
                             mensagem=f"{nome_svc} havia caído e foi reiniciado automaticamente.",
                             urgencia="normal",
                         )

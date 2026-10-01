@@ -5,7 +5,7 @@ Speculative Decoding, roteador de especialistas) + `/tts/mudo` e
 `/tts/falar` (controle de voz, pequenos e de baixo risco, mantidos junto por
 proximidade lógica).
 
-Extraído de cerebro_maestro.py na reorganização OOP (Lyra 2.0) — última peça
+Extraído de cerebro_maestro.py na reorganização OOP (08/2026) — última peça
 da Fase 1, deixada por último de propósito: é o código com mais estado
 mutável entrelaçado do projeto inteiro (várias das notas abaixo documentam
 bugs de produção já corrigidos aqui — race condition de sessão concorrente,
@@ -92,7 +92,7 @@ class ChatRouter:
 
         contexto_str = ""
         # Sem acento — matching de keyword não pode depender do usuário digitar
-        # certinho ("saude" vs "saúde"), já causou a Lyra inventar CPU/RAM em vez
+        # certinho ("saude" vs "saúde"), já causou o Orion inventar CPU/RAM em vez
         # de chamar a ferramenta porque "saude" sem acento não casava com "saúde".
         msg_lower = self._sem_acento(msg.texto.lower())
 
@@ -103,7 +103,7 @@ class ChatRouter:
         eh_pergunta_memoria = any(kw in msg_lower for kw in keywords_memoria)
 
         # Detecta pergunta factual genérica (não só memória pessoal) — a base wiki_
-        # conhecimento foi ingerida exatamente pra isso: a Lyra deve CONSULTAR a
+        # conhecimento foi ingerida exatamente pra isso: o Orion deve CONSULTAR a
         # memória em vez de confiar só no conhecimento interno do modelo pequeno
         # (que erra/recusa fatos triviais) ou inventar. Só pula RAG em conversa
         # puramente casual (sem "?" nem palavra interrogativa) — mas saudações tipo
@@ -121,7 +121,7 @@ class ChatRouter:
 
         # A busca híbrida (BM25 + vetorial sobre ~2,2M registros) custa 5-10s sozinha
         # — inaceitável rodar em toda mensagem casual ("oi", "tudo bem?"). Mas pular
-        # ela inteira fazia a Lyra recusar/errar fatos triviais que estão na wiki
+        # ela inteira fazia o Orion recusar/errar fatos triviais que estão na wiki
         # ingerida — então só pula mesmo em conversa casual, não em perguntas.
         ids_rag: list[str] = []  # IDs Qdrant usados no RAG desta mensagem (Innovation 5)
         if self._get_cerebro_ativo() and self._rag.active and (eh_pergunta_memoria or eh_pergunta_factual):
@@ -209,7 +209,7 @@ class ChatRouter:
             if contexto_str:
                 # A instrução rígida de "diga que não tem registro" só faz sentido
                 # quando a pergunta É sobre memória — caso contrário, qualquer match
-                # fraco/irrelevante do RAG fazia a Lyra recusar conversa casual
+                # fraco/irrelevante do RAG fazia o Orion recusar conversa casual
                 # ("oi, tudo bem?") tratando-a como pergunta de memória sem resposta.
                 if eh_pergunta_memoria:
                     aviso_bloco = f"\n\n[AVISO CRÍTICO]\n- Use timestamps das memórias acima (NUNCA invente datas)\n- Se não encontrar, diga: 'Não tenho registro disso'{aviso_cloud_str}"
@@ -337,7 +337,7 @@ class ChatRouter:
                 await self._session.append_assistant(resposta_limpa,
                                                 fontes_rag=ids_rag or None,  # Innovation 5
                                                 divergencia_draft=divergencia_draft)
-                asyncio.create_task(self._registrar_evento(fonte="chat", ator="Lyra", texto=resposta_limpa,
+                asyncio.create_task(self._registrar_evento(fonte="chat", ator=cfg.NOME_ASSISTENTE, texto=resposta_limpa,
                                                       fontes_rag=ids_rag or None,
                                                       divergencia_draft=divergencia_draft))
 

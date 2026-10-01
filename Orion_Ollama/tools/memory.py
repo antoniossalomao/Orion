@@ -11,7 +11,7 @@ from ._shared import surreal_query
 
 def buscar_memoria(query: str, top_k: int = 5, categoria: str = "") -> dict:
     """Busca híbrida (BM25 lexical + vetorial denso, combinados via RRF) na
-    memória da Lyra (Qdrant lyra_memory) — mesma lógica usada pela busca
+    memória do Orion (Qdrant lyra_memory) — mesma lógica usada pela busca
     automática do chat em cerebro_maestro.py, agora também disponível aqui."""
     try:
         import bm25_index
@@ -59,7 +59,7 @@ def buscar_memoria(query: str, top_k: int = 5, categoria: str = "") -> dict:
         return {"erro": str(e)}
 
 def salvar_memoria(titulo: str, texto: str, categoria: str = "geral") -> dict:
-    """Salva informação na memória vetorial da Lyra."""
+    """Salva informação na memória vetorial do Orion."""
     try:
         conteudo = f"{titulo}\n\n{texto}"
         vetor    = embed_remote(conteudo)  # BGE-M3 1024d via embed_service :8001
@@ -78,7 +78,7 @@ def salvar_memoria(titulo: str, texto: str, categoria: str = "geral") -> dict:
                     "texto":      texto,
                     "categoria":  categoria,
                     "timestamp":  datetime.now().isoformat(),
-                    "fonte":      "lyra_tools",
+                    "fonte":      "orion_tools",
                 },
             )],
         )

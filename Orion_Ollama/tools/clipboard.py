@@ -1,5 +1,6 @@
 """tools/clipboard.py — Clipboard tools: read/write and AI-assisted clipboard processing."""
 
+from config import LOCAL_MODEL
 import os
 
 def ler_clipboard() -> dict:
@@ -71,7 +72,7 @@ def analisar_clipboard_com_ia(instrucao: str = "") -> dict:
                 "Se for longo, resuma. Se tiver erros, corrija. Seja direto."
             )
             res = c.chat(
-                model="Lyra",
+                model=LOCAL_MODEL,
                 messages=[
                     {"role": "system", "content": "Você é um assistente preciso. Responda apenas com o resultado, sem comentários extras."},
                     {"role": "user", "content": f"{prompt}\n\n---\n{texto}"},

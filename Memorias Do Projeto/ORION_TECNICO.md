@@ -25,7 +25,7 @@
 | LLM local | Ollama `qwen3:8b` (+ `qwen3:0.6b` draft, `qwen2.5-coder:7b`, `llava-phi3`) | 11434 |
 | LLM cloud | Groq `openai/gpt-oss-120b` → Gemini `gemini-3.5-flash` → Claude (CLI) → local | — |
 | STT | faster-whisper "small" CPU int8 + Silero VAD | — |
-| TTS | Gemini TTS (voz Leda) → edge-tts Francisca → silêncio | — |
+| TTS | Gemini TTS (voz Charon) → edge-tts AntonioNeural → silêncio | — |
 | Frontend | v1 pywebview + Three.js (v2 React e v3 SvelteKit/Tauri removidos em 30/09 — §7.2) | — |
 
 Python 3.12 **global** (sem venv; `venv_embed` aposentado em 30/06). torch
@@ -317,13 +317,13 @@ persistia em `agente_run`.
 
 ## 6. Voz, visão e integrações
 
-- **Wake-word** (`mic_engine.py`): "lyra" → Silero VAD → faster-whisper → `/chat`.
+- **Wake-word** (`mic_engine.py`): "orion" (e variantes de transcrição) → Silero VAD → faster-whisper → `/chat`.
 - **Voice Live** (`orion_voice_live.py`, `/ws/voice`): modelo
   `gemini-2.5-flash-native-audio-latest`, `response_modalities=["AUDIO"]` (uma
-  modalidade só) + `output_audio_transcription`. Protocolo: PCM16 16kHz mono →
+  modalidade só) + `output_audio_transcription`, voz Charon. Protocolo: PCM16 16kHz mono →
   servidor; PCM16 24kHz mono ← servidor; JSON texto/done/erro.
-- **TTS** (`audio_manager.py`): Gemini `gemini-2.5-flash-preview-tts` voz Leda
-  (free tier 3 req/min, ~4s/frase) → edge-tts Francisca → silêncio. Pipeline
+- **TTS** (`audio_manager.py`): Gemini `gemini-2.5-flash-preview-tts` voz Charon
+  (free tier 3 req/min, ~4s/frase) → edge-tts AntonioNeural → silêncio. Pipeline
   automático pausado.
 - **Visão:** Gemini Vision → fallback `llava-phi3` (falha do Gemini é logada).
   `moondream` descartado.

@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 """
-audio_manager.py — TTS da Lyra
+audio_manager.py — TTS do Orion
 Cadeia (04/08/2026): Gemini TTS nativo (voz neural de verdade, free tier) →
 edge-tts Francisca (fallback) → silêncio.
 
 O Gemini TTS (gemini-2.5-flash-preview-tts) é a primeira opção nova viável
 desde que todas as alternativas locais foram esgotadas e rejeitadas (ver
 memória lyra-voz-tts): é online (permitido — confirmado por Antônio em
-23/06/2026 que voz pode ser online), usa a GEMINI_API_KEY que a Lyra já tem,
+23/06/2026 que voz pode ser online), usa a GEMINI_API_KEY que o Orion já tem,
 e as vozes femininas (Leda/Aoede/Kore) são qualitativamente outra classe em
 PT-BR comparadas ao edge-tts Francisca ("medíocre, entonação travada").
 
@@ -44,7 +44,7 @@ except ImportError:
 # ── Configuração ──────────────────────────────────────────────────────────────
 _DIR       = os.path.dirname(os.path.abspath(__file__))
 CACHE_DIR  = os.path.join(_DIR, "Sons", "cache")
-VOICE      = "pt-BR-FranciscaNeural"   # jovem, suave, neural
+VOICE      = "pt-BR-AntonioNeural"     # masculina, neural (fallback)
 
 os.makedirs(CACHE_DIR, exist_ok=True)
 
@@ -52,7 +52,8 @@ os.makedirs(CACHE_DIR, exist_ok=True)
 # Gemini TTS gera .wav, edge-tts gera .mp3 — o cache guarda os dois; _cache_hit
 # devolve o que existir (preferindo o wav do Gemini, que é a voz melhor).
 def _cache_path(texto: str, ext: str = "mp3") -> str:
-    h = hashlib.md5(texto.strip().lower().encode("utf-8")).hexdigest()
+    # A voz entra na chave: trocar de voz não reaproveita áudio antigo do cache
+    h = hashlib.md5(f"{GEMINI_TTS_VOICE}|{VOICE}|{texto.strip().lower()}".encode("utf-8")).hexdigest()
     return os.path.join(CACHE_DIR, f"{h}.{ext}")
 
 
@@ -66,9 +67,9 @@ def _cache_hit(texto: str) -> str | None:
 
 # ── Geração via Gemini TTS (primário) ────────────────────────────────────────
 GEMINI_TTS_MODEL = "gemini-2.5-flash-preview-tts"
-GEMINI_TTS_VOICE = "Leda"   # feminina, jovem/suave — combina com a identidade
-GEMINI_TTS_STYLE = ("Diga de forma natural e calma, voz feminina suave, "
-                    "tom técnico e sereno: ")
+GEMINI_TTS_VOICE = "Charon"   # masculina, informativa — mesma voz da voz ao vivo
+GEMINI_TTS_STYLE = ("Diga de forma natural e firme, voz masculina, "
+                    "tom técnico e direto: ")
 
 
 def _pcm_para_wav(pcm: bytes, path: str, rate: int = 24000):
@@ -219,7 +220,7 @@ if __name__ == "__main__":
         print(f"Voz: {VOICE}")
         print(f"Cache: {CACHE_DIR}")
         print("Gerando e tocando...")
-        await falar("Olá, eu sou a Lyra. Sua assistente pessoal. Pronta para ajudar.")
+        await falar("Orion online. Pronto.")
         print("Teste concluído.")
 
     asyncio.run(_teste())

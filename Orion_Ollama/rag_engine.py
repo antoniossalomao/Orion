@@ -15,7 +15,7 @@ from typing import Callable
 
 import bm25_index
 
-from config import QDRANT_COLLECTION
+from config import QDRANT_COLLECTION, ATORES_ASSISTENTE
 from surreal_client import SurrealClient
 
 # ── Text utilities (shared with cerebro_maestro) ─────────────────────────────
@@ -58,7 +58,7 @@ def extract_keywords(texto: str, n: int = 5) -> list[str]:
 def classify_intent(ator: str, texto: str) -> str:
     """Goal Drift Detector (Innovation 1): classifica a intenção de uma
     mensagem por heurística (zero custo/latência).
-    Retorna: 'objetivo' | 'conclusao' | 'passo' | 'resposta' (para Lyra)."""
+    Retorna: 'objetivo' | 'conclusao' | 'passo' | 'resposta' (para Orion)."""
     if ator != "Antônio":
         return "resposta"
     t = remove_accents(texto.lower())
@@ -342,7 +342,7 @@ class RAGEngine:
             self._log(f"[FALHA SURREAL] {e}")
 
         # Título automático da sessão: primeira fala do usuário vira o título.
-        if session is not None and ator.lower() != "lyra":
+        if session is not None and ator.lower() not in ATORES_ASSISTENTE:
             await session.ensure_title(texto)
 
         # 2. Qdrant (busca semântica)

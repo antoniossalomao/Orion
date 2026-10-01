@@ -1,4 +1,4 @@
-"""logger.py — file + stdout logger for the Lyra services.
+"""logger.py — file + stdout logger for the Orion services.
 
 Replaces the bare module-level open() in cerebro_maestro.py whose handle was
 never closed (file descriptor leak). close() is registered with atexit so the

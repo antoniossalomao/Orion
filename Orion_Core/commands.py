@@ -1,5 +1,5 @@
 """
-commands.py — Despachante de Comandos Locais da Lyra
+commands.py — Despachante de Comandos Locais do Orion
 """
 
 import ctypes
@@ -18,7 +18,7 @@ try:
 except Exception as e:
     print(f"[CMD][WARN] TTS indisponível: {e}")
     def falar(texto: str):
-        print(f"[LYRA] {texto}")
+        print(f"[ORION] {texto}")
 
 _DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -54,7 +54,7 @@ def _minimizar_janela(titulo_parcial: str, tentativas: int = 4, intervalo: float
 
 # ── Frontend ──────────────────────────────────────────────────────────────────
 def abrir_frontend():
-    """Lança o frontend da Lyra em tela cheia."""
+    """Lança o frontend do Orion em tela cheia."""
     frontend = os.path.join(_DIR, "Front_end_Orion", "orion_app.py")
     if not os.path.exists(frontend):
         print(f"[CMD][WARN] Frontend não encontrado: {frontend}")
@@ -174,5 +174,5 @@ def despachar(texto: str) -> bool:
 
 if __name__ == "__main__":
     print("Testando 'bom dia'...")
-    despachar("bom dia lyra")
+    despachar("bom dia orion")
     time.sleep(8)  # aguarda minimizações

@@ -1,6 +1,6 @@
 """
 models/chat.py — schema Pydantic da mensagem de chat.
-Extraído de cerebro_maestro.py (reorganização OOP, Lyra 2.0).
+Extraído de cerebro_maestro.py (reorganização OOP de 08/2026).
 """
 from pydantic import BaseModel
 

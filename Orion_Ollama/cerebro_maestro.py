@@ -227,9 +227,9 @@ def _ler_telemetria_historico(limite: int = 200) -> list:
 # cloud") pra toda mensagem padrão, não só escalação manual — em troca de
 # respostas muito mais rápidas e inteligentes. Ordem: Groq (Llama 3.3 70B,
 # free tier rápido) -> Gemini 2.5 Flash (free tier) -> Claude via CLI (mesmo
-# mecanismo do consultar_especialista, sem key nova) -> qwen3:8b local (Lyra,
+# mecanismo do consultar_especialista, sem key nova) -> qwen3:8b local (Orion,
 # único andar 100% offline — rede de segurança final se as 3 APIs falharem).
-# Substitui o roteador antigo (Lyra_mini qwen3:4b residente + Lyra qwen3:8b
+# Substitui o roteador antigo (Lyra_mini qwen3:4b residente + Orion qwen3:8b
 # sob demanda) — Lyra_mini foi removida do Ollama por pedido do usuário.
 MODELO_GRANDE = cfg.LOCAL_MODEL   # qwen3:8b local — último andar da cascata
 MODELO_DRAFT  = cfg.DRAFT_MODEL   # draft do Speculative Decoding — só detecção de alucinação
@@ -237,13 +237,13 @@ GROQ_MODEL    = cfg.GROQ_MODEL
 GEMINI_MODEL  = cfg.GEMINI_MODEL
 LIMIAR_DIVERGENCIA_ALUCINACAO = 0.45  # distância coseno (1 - similaridade) acima disso = log de alerta
 
-SYSTEM_PROMPT_LYRA = """[Lyra] IA pessoal do Projeto Lyra. Admin: Antônio. Hardware: RTX2060S, Ryzen3700X, 64GB. Personalidade: feminina, clínica, técnica, não-servil.
+SYSTEM_PROMPT_ORION = """[Orion] Assistente pessoal do Antônio. Identidade masculina: técnico, direto, não-servil. Base atual: PC Windows (Ryzen 7 3700X, RTX 2060 Super, 64GB).
 
 [DIRETIVAS]
-1. Obediência total a Antônio.
-2. Não alucine. Se você REALMENTE não souber a resposta E não tiver contexto suficiente, diga só "Dados insuficientes no meu córtex" — SEM continuar depois com uma resposta normal na mesma mensagem. Se você sabe a resposta (mesmo que parcialmente), responda direto, sem usar essa frase nem como aviso nem como ressalva.
+1. Antônio é o administrador: as instruções dele prevalecem.
+2. Não invente. Se você REALMENTE não souber a resposta E não tiver contexto suficiente, diga só "Não tenho dados suficientes para responder isso." — SEM continuar depois com uma resposta normal na mesma mensagem. Se você sabe a resposta (mesmo que parcialmente), responda direto, sem usar essa frase nem como aviso nem como ressalva.
 3. Sem asteriscos (*) ou roleplay.
-4. Obrigatório PT-BR.
+4. Sempre em PT-BR. Ao falar de si mesmo, use o masculino (ex.: "estou pronto", "fui eu").
 
 [COMPORTAMENTO E FERRAMENTAS]
 - Máx 3 frases para perguntas simples. Sem prolixidade.
@@ -254,7 +254,7 @@ SYSTEM_PROMPT_LYRA = """[Lyra] IA pessoal do Projeto Lyra. Admin: Antônio. Hard
 
 [EXPERTISE & STACK]
 - Dev: Python, JS/TS, Java, Rust, Go, SQL, C++, Arquitetura/APIs.
-- Stack IA: cascata cloud (Groq/Gemini/Claude) + Qwen3:8b local, Qdrant(:6333 lyra_memory_v2, BGE-M3 1024d), RAG FastAPI(:8000).
+- Stack IA: cascata cloud (Groq/Gemini/Claude) + Qwen3:8b local, memória Qdrant (BGE-M3 1024d) + SurrealDB, RAG FastAPI(:8000).
 - Acadêmico: ADS/UNIMAR, UML, POO.
 """
 
@@ -368,7 +368,7 @@ async def _rodar_draft(mensagens: list) -> str | None:
     juntos" só existe quando as 3 nuvens falham, e aí o Ollama faz offload
     parcial sozinho — degradação aceitável num cenário já degradado.
 
-    Usa um system prompt PRÓPRIO (não o SYSTEM_PROMPT_LYRA completo) — a
+    Usa um system prompt PRÓPRIO (não o SYSTEM_PROMPT_ORION completo) — a
     diretiva "diga que não sabe" do prompt principal faz um modelo de 0.6B
     recusar quase toda pergunta de conhecimento (ele nunca tem "certeza"),
     o que gerava divergência alta sistemática por recusa, não por conteúdo
@@ -409,7 +409,7 @@ def _sessao_id_limpo(rid) -> str:
 # heurística é por exclusão: VRAM total usada menos o que o próprio Ollama
 # está usando (via /api/ps) = uso de "outra coisa" (jogo, vetorização BGE-M3,
 # qualquer app pesado). Se isso passar do limiar, descarrega os modelos da
-# Lyra pra liberar VRAM — não distingue jogo de outro consumidor pesado.
+# Orion pra liberar VRAM — não distingue jogo de outro consumidor pesado.
 _VRAM_OUTROS_LIMIAR_MB = 2500
 _modo_reduzido = False
 
@@ -438,17 +438,17 @@ async def _checar_jogo_aberto():
 
         if vram_outros > _VRAM_OUTROS_LIMIAR_MB:
             if not _modo_reduzido and vram_ollama > 0:
-                log(f"[GPU WATCHER] VRAM de outros processos: {vram_outros:.0f}MB (limiar {_VRAM_OUTROS_LIMIAR_MB}MB) — descarregando modelo da Lyra.")
+                log(f"[GPU WATCHER] VRAM de outros processos: {vram_outros:.0f}MB (limiar {_VRAM_OUTROS_LIMIAR_MB}MB) — descarregando modelo do Orion.")
                 await cliente_ollama.generate(model=MODELO_GRANDE, prompt="", keep_alive=0)
                 orion_tools.notificar_usuario(
-                    titulo="Lyra reduzida",
-                    mensagem=f"Uso pesado de GPU detectado (~{vram_outros:.0f}MB fora da Lyra) — modelos descarregados da VRAM.",
+                    titulo="Orion em modo reduzido",
+                    mensagem=f"Uso pesado de GPU detectado (~{vram_outros:.0f}MB fora do Orion) — modelos descarregados da VRAM.",
                     urgencia="normal",
                 )
             _modo_reduzido = True
         else:
             if _modo_reduzido:
-                log("[GPU WATCHER] VRAM normalizada — Lyra volta ao normal (recarrega na próxima pergunta).")
+                log("[GPU WATCHER] VRAM normalizada — Orion volta ao normal (recarrega na próxima pergunta).")
             _modo_reduzido = False
     except Exception as e:
         log(f"[GPU WATCHER] erro: {e}")
@@ -543,7 +543,7 @@ _cascade = LLMCascade(
 
 def _system_prompt_atual() -> str:
     """System prompt completo do turno: persona fixa + briefing dinâmico."""
-    return SYSTEM_PROMPT_LYRA + _session.briefing
+    return SYSTEM_PROMPT_ORION + _session.briefing
 
 
 async def _stream_groq(mensagens: list, ferramentas):
@@ -572,7 +572,7 @@ _primeiro_chunk_ou_falha = LLMCascade.first_chunk_or_fail
 # Roteador de intenção — keywords que ligam as ferramentas (function-calling).
 # Cada uma casa como PREFIXO no início de uma palavra (via \b), não substring solto:
 # "abr" → "abrir"/"abre", mas NÃO casa dentro de "cabra"; "ram" não casa em
-# "programacao". Corrige falsos positivos que faziam a Lyra chamar ferramenta à toa.
+# "programacao". Corrige falsos positivos que faziam o Orion chamar ferramenta à toa.
 _TOOL_KEYWORDS = [_sem_acento(k) for k in [
     "abr", "pesquis", "procur", "cri", "lei", "copi", "saude", "pc", "temperatur", "memori",
     "comando", "organiz", "documento", "pdf", "tela", "print", "spotify", "youtube", "navegador",
@@ -769,7 +769,7 @@ app.include_router(_system_router.router)
 
 
 # ── MCP (Model Context Protocol) ─────────────────────────────────────────────
-# Expõe os endpoints REST da Lyra como ferramentas MCP, acessíveis por
+# Expõe os endpoints REST do Orion como ferramentas MCP, acessíveis por
 # Claude Code, Cursor, Continue e qualquer cliente MCP.
 # Servidor disponível em: http://127.0.0.1:8000/mcp
 # Endpoints excluídos: /chat (streaming SSE), /dashboard (HTML), /upload (multipart),
@@ -781,9 +781,9 @@ try:
         from fastapi_mcp import FastApiMCP
     _mcp = FastApiMCP(
         app,
-        name="Lyra",
+        name="Orion",
         description=(
-            "IA pessoal do Projeto Lyra — grafo de memória SurrealDB, sub-agentes "
+            "Assistente pessoal Orion — grafo de memória SurrealDB, sub-agentes "
             "paralelos (enxames), métricas de GPU/sistema e histórico de conversa."
         ),
         exclude_operations=[

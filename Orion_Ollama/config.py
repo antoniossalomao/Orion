@@ -41,6 +41,12 @@ GEMINI_MODEL     = "gemini-3.5-flash"
 LOCAL_MODEL      = "Lyra"                  # qwen3:8b local — last cascade tier
 DRAFT_MODEL      = "qwen3:0.6b"            # hallucination-detection sidecar
 
+# ── Identidade ───────────────────────────────────────────────────────────────
+NOME_ASSISTENTE   = "Orion"
+# Eventos antigos foram gravados com ator "Lyra" (nome anterior do projeto);
+# a leitura trata os dois como fala do assistente.
+ATORES_ASSISTENTE = {"orion", "lyra"}
+
 # ── Memory / Qdrant ──────────────────────────────────────────────────────────
 QDRANT_COLLECTION = "lyra_memory_v2"       # BGE-M3 1024d (migration 26/06/2026)
 EMBED_DIM         = 1024

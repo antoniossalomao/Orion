@@ -1,7 +1,7 @@
 """
 routers/agents.py — endpoints de enxame de sub-agentes.
 
-Extraído de cerebro_maestro.py na reorganização OOP (Lyra 2.0). Comportamento
+Extraído de cerebro_maestro.py na reorganização OOP (08/2026). Comportamento
 idêntico ao original — só move código de lugar, não muda lógica.
 """
 from fastapi import APIRouter

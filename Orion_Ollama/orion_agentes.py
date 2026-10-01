@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-orion_agentes.py — Sub-agentes paralelos (enxame/swarm) para o Projeto Lyra.
+orion_agentes.py — Sub-agentes paralelos (enxame/swarm) para o Orion.
 
 Importado por cerebro_maestro.py, que expõe os endpoints:
   POST /enxame               — criar
@@ -128,7 +128,7 @@ async def _chamar_llm_subtarefa(msgs: list, tools_schema: list) -> str:
 # ── Execução de subtarefa ─────────────────────────────────────────────────────
 
 _SYSTEM_SUBTAREFA = (
-    "Você é a Lyra, IA pessoal do Projeto Lyra (Admin: Antônio). "
+    "Você é o Orion, assistente pessoal do Antônio. "
     "Está executando uma sub-tarefa isolada de um enxame de agentes paralelos. "
     "Você tem ferramentas (busca na web, leitura de arquivos/URLs, memória, visão, "
     "documentos, etc.) — USE-AS quando a tarefa exigir dados que você não tem. "
@@ -338,7 +338,7 @@ async def consolidar_enxame(enxame_id: str) -> dict:
                 model=GROQ_MODEL,
                 messages=[
                     {"role": "system", "content":
-                        "Você é a Lyra. Consolide os resultados das subtarefas abaixo "
+                        "Você é o Orion. Consolide os resultados das subtarefas abaixo "
                         "num único texto coeso e direto. Sem repetições, sem prefácios. PT-BR."},
                     {"role": "user", "content": bloco},
                 ],
