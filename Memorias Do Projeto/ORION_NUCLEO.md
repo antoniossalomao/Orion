@@ -210,6 +210,7 @@ nunca funcionava: keyring (pacote não instalado), auto-extensão
 | 01/10/2026 | Modelo local pequeno só como último recurso | Funcionar sem internet/cota |
 | 01/10/2026 | Plano refeito do zero (este documento); nada codado antes da aprovação | Pedido do usuário |
 | 01/10/2026 | Código, rotas e dependências do legado sem uso apagados (sem cliente desde a saída do v2/v3) | Pedido do usuário |
+| 01/10/2026 | Front-end v1 refeito com identidade Orion: constelação de Órion no centro, paleta noturna, novo ícone; mesma stack e mesmos contratos | Deixar de ser a Lyra (pedido do usuário); a interface definitiva continua na fase 6 |
 
 ## 9. Visão de longo prazo (conceitual)
 

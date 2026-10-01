@@ -158,9 +158,11 @@ Get-CimInstance Win32_Process -Filter "Name = 'python.exe'" |
 
 ### Frontend
 
-`python Orion_Core/Front_end_Orion/orion_app.py` abre o v1 (pywebview + Three.js):
-esfera reativa, chat, sessões, grafo de memória 3D e voz ao vivo. A interface
-definitiva do Orion é decidida na fase 6.
+`python Orion_Core/Front_end_Orion/orion_app.py` abre a interface desktop
+(pywebview + Three.js, funciona offline): a constelação de Órion em 3D reagindo
+ao estado (em espera, ouvindo, processando, respondendo), chat com sessões,
+grafo de memória 3D, voz ao vivo e anexos. A interface definitiva do Orion é
+decidida na fase 6.
 
 ### Integrações opcionais (passos manuais)
 

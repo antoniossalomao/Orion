@@ -336,17 +336,34 @@ persistia em `agente_run`.
 
 ## 7. Frontends
 
-### 7.1 v1 — pywebview + Three.js (produção)
+### 7.1 v1 — pywebview + Three.js (refeito em 01/10/2026)
 
 `Orion_Core/Front_end_Orion/` (`index.html`, `script.js`, `style.css`, `ui.js`,
-`ui.css`, `vendor/`). Esfera de partículas reativa ao estado
-(idle/ouvindo/processando/falando), sidebar com views (início/chat/memória/
-integrações/configurações), sessões, grafo de memória 3D (`3d-force-graph 1.73.4` +
-Three.js r128, links órfãos filtrados), voz live, drag & drop, histórico ↑/↓.
-**100% offline:** three.js, 3d-force-graph e Inter vendorizados. Tokens: `--neon
-#00DDFF`, `--danger #FF4466`, Inter 200/300/500, sentence case,
-`prefers-reduced-motion` respeitado. `-webkit-app-region: no-drag` obrigatório abaixo
-da faixa de arraste (52px).
+`ui.css`, `vendor/`, `orion.ico`). Mesma stack e mesmos contratos com o backend
+(hub WS `:8765` com `state`/`intensity`/`user_text`/`tier`/`ai_chunk`, API do
+pywebview `process_command`/`toggle_maximize`/`minimize_app`/`close_app`, rotas
+HTTP da §3.3, `/ws/voice`).
+
+- **Centro:** constelação de Órion em Three.js r128 — 22 estrelas com ascensão
+  reta/declinação reais, profundidade (`z`) pelo log da distância real, linhas da
+  figura, nebulosa M42 na espada. Estados: em espera (oscila; a profundidade
+  aparece no movimento), ouvindo (cinturão acende com o áudio), processando (traço
+  âmbar percorre as linhas), respondendo (estrelas pulsam com a voz). O canvas
+  ocupa só a área à direita da sidebar (`ResizeObserver`), então a figura fica
+  centrada na área útil.
+- **Interface:** sidebar (início, chat, memória, integrações, configurações,
+  conversas, status hub/cérebro/fonte, seletor de modelo), composer na home
+  (Enter abre o chat e envia), chat com respostas em bloco e falas do usuário em
+  bolha, notas de sistema separadas das falas, voz ao vivo no composer.
+- **Tokens:** `--bg #05070c`, `--accent #7c9cff` (Rigel), `--signal #f2b45a`
+  (Betelgeuse, só atividade), `--ok #5ee6c3`, `--danger #ff5f6d`; Inter 400/500/600
+  + monoespaçada do sistema para dados técnicos.
+- **Segurança do markdown:** escapa `& < > " '` antes de formatar (aspas no `alt`
+  de imagem viravam atributo); rótulos do grafo entram por `textContent`.
+- Movimento reduzido: segue o SO por padrão; o ajuste em Configurações manda.
+  Preferências em `localStorage` com prefixo `orion_`. Chamadas internas em
+  `127.0.0.1`, nunca `localhost`. `-webkit-app-region: no-drag` em tudo que fica
+  na faixa de arraste (48px).
 
 ### 7.2 v2 e v3 — removidos em 30/09/2026
 
