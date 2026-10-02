@@ -20,10 +20,17 @@ zero. Ela entra no lugar da base fase a fase, e cada fase apaga o que substituiu
 **Próximo passo:** fase 0 — exportar os dados pessoais da base antes de o PC ser
 vendido.
 
+**Reescrita em andamento (`orion/`):** fundação (fase 1), memória em SQLite (fase 3),
+política de ferramentas, gateway, agente e `/chat` (fase 2) já existem e têm testes; falta
+ligar a modelos reais, Telegram, login e as ferramentas (fases 4–6). O que foi feito, o que não
+foi verificado e os próximos passos: [ORION_MELHORIAS.md](Memorias%20Do%20Projeto/ORION_MELHORIAS.md).
+
 | Documento | Conteúdo |
 |---|---|
 | `README.md` (este) | Visão geral, para onde o projeto vai, como rodar a base, segurança, licença |
 | [ORION_NUCLEO.md](Memorias%20Do%20Projeto/ORION_NUCLEO.md) | Plano: princípios, arquitetura-alvo, inventário da base, fases, decisões |
+| [ORION_REGRAS.md](Memorias%20Do%20Projeto/ORION_REGRAS.md) | Regras do Ring 0: onde o código impõe cada uma e o teste que a prova |
+| [ORION_MELHORIAS.md](Memorias%20Do%20Projeto/ORION_MELHORIAS.md) | Auditoria de 02/10/2026: achados, o que foi feito, o que não foi verificado |
 | [ORION_TECNICO.md](Memorias%20Do%20Projeto/ORION_TECNICO.md) | Referência técnica da base: regras críticas, API, memória/RAG, gotchas |
 
 ---
@@ -181,14 +188,45 @@ decidida na fase 6.
 
 ### Testes
 
+Reescrita e legado (lógica pura, sem serviços no ar):
+
+```
+uv sync
+uv run pytest -q                      # política, memória, gateway, agente, app, legado
+uv run ruff check . && uv run pyright
+node --test "tests/front/*.test.js"   # markdown/XSS do front
+```
+
+O CI (`.github/workflows/ci.yml`) roda isso em Linux, Windows e macOS.
+
+Smoke test do legado, com os serviços no ar:
+
 ```
 python Orion_Ollama/test_smoke.py            # todos os endpoints
 python Orion_Ollama/test_smoke.py --rapido   # sem o teste de chat
 ```
 
-Exigem os serviços no ar. Não há testes unitários isolados nem CI (chegam na fase 1).
 Dashboard ao vivo: **http://127.0.0.1:8000/dashboard** (serviços, CPU/RAM/GPU/VRAM,
 vetores, telemetria da cascata).
+
+### A reescrita (`orion/`)
+
+```
+uv sync
+ORION_ADMIN_TOKEN=<16+ caracteres> ORION_GATEWAY_URL=http://127.0.0.1:20128/v1 \
+ORION_GATEWAY_MODEL=<modelo> uv run orion         # sobe em 127.0.0.1:8000
+uv run orion backup                                # backup diário da memória (mantém 7)
+uv run orion import-surreal <pasta-do-backup>      # importa o export do legado
+python -m orion.memory.eval <casos.json> --db <orion.db>   # mede a busca com suas perguntas
+```
+
+| Variável | Uso |
+|---|---|
+| `ORION_ADMIN_TOKEN` | Obrigatória para `/chat` e `/approvals` (16+ caracteres) até o login da fase 5 |
+| `ORION_GATEWAY_URL`, `ORION_GATEWAY_MODEL`, `ORION_GATEWAY_API_KEY` | Gateway de modelos (OmniRoute ou API compatível com a da OpenAI); sem eles `/chat` responde 503 |
+| `ORION_DATA_DIR` | Onde fica o `orion.db` (padrão: pasta de dados do usuário no SO) |
+| `ORION_EXTRA_SAFE_ROOTS` | Lista JSON de pastas extras onde as ferramentas escrevem sem confirmação (ex.: Documents no OneDrive) |
+| `ORION_HOST`, `ORION_PORT`, `ORION_ALLOWED_HOSTS` | Só `127.0.0.1` por padrão; bind público é recusado. A porta padrão (8000) é a do legado: não suba os dois juntos |
 
 ### Layout
 
@@ -209,6 +247,10 @@ Orion_Ollama/                  # backend
   orion_seguranca.py            # rate limit, câmara de eco, audit, self-healing
   orion_browser.py · orion_google_workspace.py · orion_telegram.py · orion_voice_live.py
   bm25_index.py · reconciliar_episodios.py · test_smoke.py
+orion/                         # REESCRITA: policy/ (risco, aprovações), memory/ (SQLite), gateway, agent, delegate, tools/, app
+tests/                         # pytest (orion + legado) e Node (front); ver "Testes"
+.github/workflows/ci.yml       # ruff, pyright, pytest, node em Linux/Windows/macOS
+pyproject.toml · uv.lock       # a reescrita usa uv; requirements.txt é só do legado
 Orion_Core/                    # front-end v1, voz, sentidos
   Front_end_Orion/              # pywebview + Three.js + hub WS :8765
   audio_manager.py (TTS) · mic_engine.py (STT) · commands.py
@@ -227,13 +269,19 @@ Memorias Do Projeto/           # ORION_NUCLEO.md (plano), ORION_TECNICO.md (refe
 Base atual:
 
 - Todos os serviços escutam só em `127.0.0.1`; não foram preparados para exposição em rede.
-- **Sem login:** nenhuma rota exige autenticação.
+- **Sem login:** nenhuma rota do legado exige autenticação (login entra na fase 5).
+- **Câmara de Eco:** `executar_comando` e `iniciar_processo_bg` só rodam sem confirmação se o
+  comando for provadamente leitura (lista positiva); escrever dentro do código do Orion, em
+  diretório de sistema ou arquivo sensível também pede confirmação. Regras em
+  [ORION_REGRAS.md](Memorias%20Do%20Projeto/ORION_REGRAS.md). A confirmação ainda é por frase no chat.
+- `buscar_url` e a URL inicial do `navegar_web` só aceitam host público (bloqueia loopback, LAN e
+  Tailscale). O agente do navegador navega livre depois da primeira página.
+- O hub `:8765` e `/ws/voice` recusam `Origin` de site externo; `/upload` tem limite de 25 MB.
+- O chat só renderiza imagem gerada pelo próprio Orion (exfiltração por prompt injection).
 - **CORS** aceita a origem `"null"` (necessária pro pywebview do v1). Página com
   iframe sandboxed também manda `Origin: null`, então um site aberto no navegador
   consegue falar com `/chat`.
 - **`/mcp`** expõe os endpoints REST como ferramentas MCP, sem autenticação.
-- `executar_comando` roda PowerShell arbitrário; contenção = rate limit +
-  Câmara de Eco (confirmação explícita no chat para ações de alto risco).
 - `.env`, chaves de API e credenciais OAuth nunca são versionados.
 
 Na arquitetura nova, login vale para toda rota, o acesso de fora passa só pela

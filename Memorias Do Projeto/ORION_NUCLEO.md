@@ -1,8 +1,8 @@
 # ORION — Plano do Projeto
 
 > Visão, princípios, arquitetura-alvo, inventário do legado, fases e
-> decisões. Atualizado em 01/10/2026. Nada da reescrita foi codado ainda: este
-> documento é o planejamento. Como o código **atual** funciona:
+> decisões. Atualizado em 02/10/2026. A reescrita começou (`orion/`, ver
+> status na §6); este documento continua sendo o planejamento. Como o código **atual** funciona:
 > [ORION_TECNICO.md](ORION_TECNICO.md) · Operação do legado: [README.md](../README.md) ·
 > Histórico completo do legado: histórico do git deste repositório.
 
@@ -36,6 +36,9 @@ age no computador dele e responde de qualquer lugar.
 **Regras de trabalho:** nada de download grande sem confirmação; código legível
 sem contexto prévio (POO onde fizer sentido); cada fase termina apagando o que
 substituiu.
+
+> **Regras operacionais (02/10/2026):** o que o código impõe de cada princípio — e o teste que o
+> prova — está em [ORION_REGRAS.md](ORION_REGRAS.md). Proposta para o #4 (Hardware-Bound) lá, aguardando seu OK.
 
 ## 3. Restrições
 
@@ -176,13 +179,19 @@ Tudo continua no histórico do git.
 | **6 — Interface, voz, identidade** | Frontend escolhido, voz masculina, palavra de ativação, visual do Orion | A definir na própria fase |
 | **7 — Limpeza** | Apagar `Orion_Ollama/`, `Orion_Core/`, `bin/` | Nenhum arquivo do legado no repositório |
 
+**Status em 02/10/2026** (detalhe e o que não foi verificado: [ORION_MELHORIAS.md](ORION_MELHORIAS.md)):
+a fase 0 continua pendente (é sua); a fase 1 está pronta (CI remoto ainda sem rodar); a fase 3 está pronta,
+inclusive o importador do export e o conjunto de avaliação (falta a API de embeddings e as perguntas reais);
+a fase 2 existe com gateway e CLIs falsos (falta OmniRoute e CLIs reais); a fase 4 tem a política e as
+ferramentas de memória/`delegar` (faltam MCP e `orion-desktop`); as fases 5–7 não começaram.
+
 ## 7. Decisões em aberto
 
 | # | Decisão | Recomendação | Alternativa |
 |---|---|---|---|
 | 1 | Banco da memória | SQLite + FTS5 + sqlite-vec | SurrealDB (servidor ou embutido) |
 | 2 | Gateway de modelos | OmniRoute | LiteLLM (biblioteca, sem processo extra, cotas na mão) |
-| 3 | Framework do agente | PydanticAI | Loop próprio (~200 linhas) |
+| 3 | Framework do agente | PydanticAI | Loop próprio (~200 linhas) — **adotado em 02/10 (alternativa)**, ver registro; reversível |
 | 4 | Ritmo de apagar o legado | Por fase (código antigo à mão para portar) | Tudo agora, consultando o histórico do git |
 | 5 | Interface | A discutir (fase 6) | — |
 | 6 | Voz | Transcrição: Whisper no Groq (grátis); fala: edge-tts `pt-BR-AntonioNeural` (grátis); voz ao vivo: Gemini Live com voz masculina; ativação: openWakeWord treinado em "Orion" | A discutir (fase 6) |
@@ -215,6 +224,10 @@ Tudo continua no histórico do git.
 | 01/10/2026 | Persona do backend vira Orion (masculina, direta); palavra de ativação "orion"; voz Charon (Gemini TTS e voz ao vivo) e edge-tts AntonioNeural; novas falas gravadas com ator "Orion" (nomes antigos configuráveis em `ATORES_LEGADOS`) | Identidade própria (pedido do usuário) |
 | 01/10/2026 | Nome antigo removido do repositório: namespace SurrealDB e coleção Qdrant vêm do `.env` (`SURREAL_NS`, `QDRANT_COLLECTION`; defaults `orion_core`/`orion_memory`), arquivos de runtime renomeados | Identidade só Orion (pedido do usuário); dados existentes seguem acessíveis pelo `.env` |
 | 01/10/2026 | Ollama fora por enquanto: cascata Groq → Gemini → Claude, sem draft nem watcher de VRAM; tradução, visão e clipboard só pelo Gemini; especialista só Claude | Pedido do usuário; substitui "modelo local só como último recurso" |
+
+| 02/10/2026 | Auditoria do projeto e execução do plano: política de ferramentas por allowlist e aprovação fora de banda; pacote `orion/` (fundação, memória SQLite, gateway, agente, `/chat`); correções no legado (Telegram, SSRF, WebSocket/upload, imagem externa no chat) | Pedido do usuário; detalhes em ORION_MELHORIAS.md |
+| 02/10/2026 | Loop de agente próprio em vez de PydanticAI (decisão #3, alternativa) | Fluxo de aprovação precisa controlar quando cada ferramenta roda; testável com gateway falso; reversível |
+| 02/10/2026 | `executar_comando` sempre pede confirmação, salvo leitura provada; o legado importa `orion.policy` (transitório até a fase 7) | Uma política só; fecha o bypass da blocklist da Câmara de Eco |
 
 ## 9. Visão de longo prazo (conceitual)
 

@@ -185,20 +185,25 @@ Todo dispatch de ferramenta passa por `_executar_tool_segura()`:
    20/5min · `iniciar_processo_bg` 5/5min · `escrever_arquivo` 30/60s ·
    `organizar_pasta` 3/5min · `consultar_especialista` 3/10min ·
    `navegar_web` 10/5min.
-2. **Câmara de Eco Heurística** (`avaliar_risco_acao`, sem LLM): avalia só
-   `executar_comando`/`iniciar_processo_bg` (deleção recursiva, `\bformat\s+[a-z]:`,
-   `reg delete`, shutdown, `net user /delete`, kill forçado, download+execução,
-   path de sistema + verbo destrutivo), `escrever_arquivo` (extensão executável ou
-   fora dos diretórios de trabalho) e `organizar_pasta` (raiz de drive/sistema).
-   Risco alto → `BLOQUEADO_RISCO`, grava hash SHA256 da ação exata. Aprovação só com
-   frase de confirmação com verbo ("sim, executa mesmo assim"; nunca "sim" solto),
-   **no turno imediatamente seguinte** (`_contador_turnos`) e dentro de 10min. Uso
-   único. Quirk conhecido: Groq às vezes repete a mesma tool call → bloqueio
-   "fantasma" que expira sozinho.
+2. **Câmara de Eco** (reescrita em 02/10/2026; delega a `orion/policy`): `avaliar_risco_acao`
+   avalia `executar_comando`/`iniciar_processo_bg` (**lista positiva**: só roda sem confirmação o
+   que for provadamente leitura; sem redirecionamento, substituição, bloco de script ou `::`;
+   `.env`/credenciais não contam como leitura), `escrever_arquivo`/`gerar_documento` (a raiz do
+   projeto, diretório de sistema, extensão/arquivo sensível e fora de Documents/Downloads/Desktop
+   pedem confirmação) e `organizar_pasta` (raiz de drive, pasta pessoal, sistema, código do Orion).
+   Risco alto → `BLOQUEADO_RISCO`, grava hash SHA256 da ação exata. Aprovação só com frase de
+   confirmação com verbo ("sim, executa mesmo assim"; nunca "sim" solto), **no turno
+   imediatamente seguinte** (`_contador_turnos`) e dentro de 10min. Uso único. Quirk conhecido:
+   Groq às vezes repete a mesma tool call → bloqueio "fantasma" que expira sozinho. A blocklist
+   antiga (substrings) deixava passar `ri -r -fo`, `rmdir /s /q`, `-enc`, `[IO.Directory]::Delete`
+   e `irm | iex`. Na reescrita a confirmação deixa de ser frase: ver ORION_REGRAS.md (regra 2).
 3. **Audit log** (`audit_log` no SurrealDB, buffer + thread de flush a cada 5s;
    `tool_filtro` validado por regex).
 4. **Self-healing** no loop proativo a cada ~5min: SurrealDB, Qdrant, embed_service
    (via `asyncio.to_thread`; não checa o próprio FastAPI).
+
+Outras barreiras (02/10/2026): `url_guard.py` (SSRF em `buscar_url`/`navegar_web`), `origem.py`
+(`Origin` do hub `:8765` e de `/ws/voice`), limite de 25 MB no `/upload`.
 
 CORS: `allow_origins=["null", "http://127.0.0.1:8000", "http://localhost:8000"]`,
 `allow_credentials=False`. `"null"` é exigido pelo pywebview do v1.
