@@ -26,6 +26,14 @@ END;
 DDL = f"""
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 
+-- Registros já importados de fora (export do SurrealDB): reimportar não duplica.
+CREATE TABLE imported (
+    kind TEXT NOT NULL,
+    external_id TEXT NOT NULL,
+    ref TEXT,                 -- id interno correspondente (ex.: a sessão criada)
+    PRIMARY KEY (kind, external_id)
+);
+
 CREATE TABLE sessions (
     id TEXT PRIMARY KEY,
     channel TEXT NOT NULL,

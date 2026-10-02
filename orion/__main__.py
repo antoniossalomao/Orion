@@ -19,6 +19,16 @@ def main(argv: list[str] | None = None) -> int:
         "--dir", type=Path, default=None, help="pasta de destino (padrão: <dados>/backups)"
     )
     bk.add_argument("--keep", type=int, default=7)
+    im = sub.add_parser("import-surreal", help="importa o export do SurrealDB do legado")
+    im.add_argument(
+        "pasta", type=Path, help="pasta com evento.json, sessao.json... (backup_memoria)"
+    )
+    im.add_argument(
+        "--assistente",
+        action="append",
+        default=["Orion"],
+        help="nome de ator que é fala do Orion (repita p/ nomes antigos)",
+    )
     args = parser.parse_args(argv)
 
     settings = Settings()
@@ -33,6 +43,17 @@ def main(argv: list[str] | None = None) -> int:
         finally:
             store.close()
         print(f"backup: {feito}" if feito else "backup de hoje já existe")
+        return 0
+
+    if args.cmd == "import-surreal":
+        from .memory import MemoryStore
+        from .memory.importer import import_surreal_export
+
+        store = MemoryStore(settings.db_path)
+        try:
+            print(import_surreal_export(store, args.pasta, args.assistente).resumo())
+        finally:
+            store.close()
         return 0
 
     import uvicorn

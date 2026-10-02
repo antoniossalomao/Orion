@@ -212,6 +212,61 @@ class MemoryStore:
             return self.new_session(channel)
         return Session(r["id"], r["channel"], r["title"], r["created_at"], r["last_active_at"])
 
+    # ── importação (export do legado) ─────────────────────────────────────
+    def import_session(
+        self, external_id: str, channel: str, title: str | None, created_at: float
+    ) -> tuple[str, bool]:
+        """Sessão arquivada para um registro externo: (id interno, criada agora?).
+        Reimportar devolve a mesma sessão."""
+        with self._tx() as c:
+            r = c.execute(
+                "SELECT ref FROM imported WHERE kind='sessao' AND external_id=?", (external_id,)
+            ).fetchone()
+            if r:
+                return r[0], False
+            sid = uuid.uuid4().hex
+            c.execute(
+                "INSERT INTO sessions(id, channel, title, created_at, last_active_at, archived)"
+                " VALUES (?,?,?,?,?,1)",
+                (sid, channel, title, created_at, created_at),
+            )
+            c.execute("INSERT INTO imported VALUES ('sessao', ?, ?)", (external_id, sid))
+            return sid, True
+
+    def import_message(
+        self,
+        session_id: str,
+        external_id: str,
+        role: str,
+        text: str,
+        created_at: float,
+        provenance: dict[str, Any] | None = None,
+    ) -> bool:
+        """Insere uma mensagem com a data original. False se já foi importada."""
+        with self._tx() as c:
+            novo = c.execute(
+                "INSERT OR IGNORE INTO imported(kind, external_id) VALUES ('mensagem', ?)",
+                (external_id,),
+            ).rowcount
+            if not novo:
+                return False
+            c.execute(
+                "INSERT INTO messages(session_id, role, text, created_at, provenance)"
+                " VALUES (?,?,?,?,?)",
+                (
+                    session_id,
+                    role,
+                    text,
+                    created_at,
+                    json.dumps(provenance) if provenance else None,
+                ),
+            )
+            c.execute(
+                "UPDATE sessions SET last_active_at = MAX(last_active_at, ?) WHERE id=?",
+                (created_at, session_id),
+            )
+            return True
+
     def get_session(self, session_id: str) -> Session | None:
         with self._lock:
             r = self._conn.execute("SELECT * FROM sessions WHERE id=?", (session_id,)).fetchone()
