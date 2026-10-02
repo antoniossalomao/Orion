@@ -8,7 +8,11 @@ import os
 import re
 import time
 
-from fastapi import APIRouter, UploadFile, File, WebSocket
+from fastapi import APIRouter, HTTPException, UploadFile, File, WebSocket
+
+from origem import origem_permitida
+
+MAX_UPLOAD_BYTES = 25 * 1024 * 1024  # imagem/áudio colado no chat; maior que isso é abuso
 
 
 class MiscRouter:
@@ -41,12 +45,21 @@ class MiscRouter:
         ou transcrever_audio dependendo do tipo de arquivo."""
         nome_seguro = re.sub(r"[^a-zA-Z0-9_.-]", "_", file.filename or "arquivo")
         destino = os.path.join(self._pasta_uploads, f"{int(time.time())}_{nome_seguro}")
-        conteudo = await file.read()
+        pedacos, total = [], 0
+        while pedaco := await file.read(1024 * 1024):
+            total += len(pedaco)
+            if total > MAX_UPLOAD_BYTES:
+                raise HTTPException(status_code=413,
+                                    detail=f"Arquivo maior que {MAX_UPLOAD_BYTES // (1024 * 1024)} MB.")
+            pedacos.append(pedaco)
         with open(destino, "wb") as f:
-            f.write(conteudo)
-        return {"ok": True, "path": destino, "nome": nome_seguro, "bytes": len(conteudo)}
+            f.writelines(pedacos)
+        return {"ok": True, "path": destino, "nome": nome_seguro, "bytes": total}
 
     async def voice_ws(self, websocket: WebSocket):
+        if not origem_permitida(websocket.headers.get("origin")):
+            await websocket.close(code=1008)  # política: página web de fora não usa a voz
+            return
         self._increment_voice_live()
         try:
             await self._voice_session(websocket, self._gemini_api_key)

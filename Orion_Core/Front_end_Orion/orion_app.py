@@ -17,6 +17,10 @@ except Exception:
 
 import webview
 
+# Origens permitidas (módulo do backend, só stdlib): vale o mesmo para o hub e /ws/voice.
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "Orion_Ollama")))
+from origem import ORIGENS_PERMITIDAS  # noqa: E402
+
 try:
     import websockets
     WS_AVAILABLE = True
@@ -84,7 +88,8 @@ async def _ws_serve():
     global _ws_loop
     _ws_loop = asyncio.get_running_loop()
     # 127.0.0.1: regra do projeto — bind explícito IPv4, nunca localhost/0.0.0.0
-    async with websockets.serve(_ws_handler, "127.0.0.1", 8765):
+    # origins: página web de fora não entra no hub (WebSocket não passa por CORS).
+    async with websockets.serve(_ws_handler, "127.0.0.1", 8765, origins=list(ORIGENS_PERMITIDAS)):
         print("[ORION] Hub ws://127.0.0.1:8765 ativo")
         await asyncio.Future()
 

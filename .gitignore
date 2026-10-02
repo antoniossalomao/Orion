@@ -41,8 +41,6 @@ bin/qdrant.exe
 Orion_Core/Sons/cache/
 Orion_Ollama/telemetria.json
 Orion_Ollama/telemetria_historico.jsonl
-Orion_Ollama/orion_tools_ext/
-Orion_Core/Memoria_Orion/Scripts_Ingestao/checkpoint_*.json
 .qdrant-initialized
 bin/backup_pip_freeze_*.txt
 
@@ -50,8 +48,12 @@ bin/backup_pip_freeze_*.txt
 .claude/settings.local.json
 .claude/*.lock
 
-# capturas de verificação de UI
-Orion_Core/Front_end_Orion_v3/_screenshots/
+# ambiente e caches de desenvolvimento (reescrita: uv, ruff, pyright, pytest)
+.venv/
+.pytest_cache/
+.ruff_cache/
+.pyright/
+*.egg-info/
 
-# schemas gerados pelo build do Tauri
-Orion_Core/Front_end_Orion_v3/src-tauri/gen/
+# conjunto de avaliação com perguntas reais sobre o Antônio (dados pessoais)
+tests/eval_pessoal.local.json

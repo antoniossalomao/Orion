@@ -43,8 +43,33 @@ ALLOWED_USERS = set(
 
 # ── Comunicação com o Orion ───────────────────────────────────────────────────
 
+def _extrair_texto(linhas) -> str:
+    """Junta o texto de um stream SSE do /chat.
+
+    Cada evento é `data: {"text": "..."}` (ou `{"tier": "..."}`, ignorado) e o
+    fim é `data: [DONE]`. Versões antigas devolviam o JSON cru ao Telegram.
+    """
+    pedacos = []
+    for bruta in linhas:
+        linha = (bruta.decode("utf-8", errors="replace") if isinstance(bruta, bytes) else bruta)
+        linha = linha.rstrip("\n\r")
+        if not linha.startswith("data: "):
+            continue
+        dado = linha[6:].strip()
+        if dado in ("", "[DONE]"):
+            continue
+        try:
+            evento = json.loads(dado)
+        except json.JSONDecodeError:
+            continue
+        texto = evento.get("text") if isinstance(evento, dict) else None
+        if texto:
+            pedacos.append(texto)
+    return "".join(pedacos).strip()
+
+
 def _chat_sync(texto: str, modelo: str = "auto") -> str:
-    """Chama /chat (SSE streaming) e coleta todos os chunks."""
+    """Chama /chat (SSE streaming) e coleta o texto da resposta."""
     payload = json.dumps({"texto": texto, "modelo": modelo}).encode()
     req = urllib.request.Request(
         f"{CEREBRO_URL}/chat",
@@ -52,23 +77,19 @@ def _chat_sync(texto: str, modelo: str = "auto") -> str:
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-    chunks = []
     try:
-        with urllib.request.urlopen(req, timeout=120) as resp:
-            for raw_line in resp:
-                line = raw_line.decode("utf-8", errors="replace").rstrip("\n\r")
-                if line.startswith("data: "):
-                    chunk = line[6:]
-                    if chunk not in ("[DONE]", ""):
-                        chunks.append(chunk)
+        with urllib.request.urlopen(req, timeout=120) as resp:  # noqa: S310 — URL fixa em 127.0.0.1
+            return _extrair_texto(resp) or "[Orion não respondeu]"
     except Exception as e:
         return f"[Erro ao contactar Orion: {e}]"
-    return "".join(chunks).strip() or "[Orion não respondeu]"
 
 
 # ── Handlers ─────────────────────────────────────────────────────────────────
 
 async def cmd_start(update, context):
+    if update.effective_user.id not in ALLOWED_USERS:
+        await update.message.reply_text("Acesso não autorizado.")
+        return
     await update.message.reply_text(
         "Orion aqui, seu assistente pessoal.\n"
         "Pode me mandar mensagens de texto aqui que respondo normalmente.\n"
@@ -78,7 +99,7 @@ async def cmd_start(update, context):
 
 async def handle_text(update, context):
     user_id = update.effective_user.id
-    if ALLOWED_USERS and user_id not in ALLOWED_USERS:
+    if user_id not in ALLOWED_USERS:
         await update.message.reply_text("Acesso não autorizado.")
         return
 
@@ -88,7 +109,7 @@ async def handle_text(update, context):
 
     msg_aguarde = await update.message.reply_text("⏳ Pensando...")
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     resposta = await loop.run_in_executor(None, _chat_sync, texto)
 
     await msg_aguarde.delete()
@@ -109,7 +130,7 @@ def main():
 
     from telegram.ext import Application, CommandHandler, MessageHandler, filters
 
-    print(f"[Orion Telegram] Iniciando bot (polling)...")
+    print("[Orion Telegram] Iniciando bot (polling)...")
     print(f"[Orion Telegram] Cérebro: {CEREBRO_URL}")
     if ALLOWED_USERS:
         print(f"[Orion Telegram] Usuários permitidos: {ALLOWED_USERS}")

@@ -13,12 +13,12 @@ def consultar_especialista(problema: str, nivel: str = "cloud", aprovado: bool =
     if not aprovado:
         return {
             "status": "BLOQUEADO",
-            "mensagem": "AVISO DE SEGURANÇA: O uso de nuvem (Claude/OpenAI) quebra a Diretiva Nº 2 e requer aprovação explícita. Pergunte ao usuário se ele aprova o envio do problema para a nuvem. Se ele disser sim, chame esta ferramenta novamente com aprovado=True."
+            "mensagem": "AVISO DE SEGURANÇA: o especialista é o Claude Code, um agente na nuvem com acesso a arquivos e shell no projeto, e exige aprovação explícita. Pergunte ao usuário se ele aprova delegar o problema. Se ele disser sim, chame esta ferramenta novamente com aprovado=True."
         }
 
-    # Exceção consciente à Diretiva Nº 2 (decidida com Antônio em 24/06/2026):
-    # delega pra Claude Code (Sonnet) via CLI headless, com agente completo
+    # Delega pra Claude Code (Sonnet) via CLI headless, com agente completo
     # (acesso a arquivo/shell no projeto), avisando o usuário antes de chamar.
+    # Exige aprovação por ser um agente com shell, não por ser nuvem.
     notificar_usuario(
         titulo="Orion → Claude Code",
         mensagem=f"Delegando para o Claude (Sonnet): {problema[:120]}",
@@ -147,7 +147,7 @@ SCHEMA = [
                     "type": "object",
                     "properties": {
                         "problema": {"type": "string", "description": "Descrição detalhada da tarefa/desafio."},
-                        "nivel":    {"type": "string", "enum": ["cloud"], "description": "cloud = Claude (Sonnet) via Claude Code, com agente completo (lê/edita arquivos e roda comandos no projeto) — quebra a Diretiva Nº 2, exige aprovado=True."},
+                        "nivel":    {"type": "string", "enum": ["cloud"], "description": "cloud = Claude (Sonnet) via Claude Code, com agente completo (lê/edita arquivos e roda comandos no projeto) — exige aprovado=True (agente com shell)."},
                         "aprovado": {"type": "boolean", "description": "Use True apenas se o usuário tiver explicitamente autorizado o uso da nuvem (ou se o usuário já pediu nessa mesma mensagem para usar o Claude)."}
                     },
                     "required": ["problema", "nivel"]
