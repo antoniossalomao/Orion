@@ -93,6 +93,10 @@ DEFAULT_TOOLS: dict[str, ToolSpec] = dict(
         _t("controlar_janela", Risk.EXEC),
         _t("navegar_web", Risk.EXEC, external=True),
         _t("consultar_especialista", Risk.EXEC),
+        # reescrita (fase 2)
+        _t("listar_fatos", Risk.READ),
+        _t("esquecer_fato", Risk.DESTRUCTIVE),
+        _t("delegar", Risk.EXEC),
     ]
 )
 

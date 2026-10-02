@@ -190,4 +190,4 @@ def test_registro_cobre_todas_as_ferramentas_do_legado():
     for arq in Path(__file__).parents[2].glob("Orion_Ollama/tools/*.py"):
         nomes |= set(re.findall(r'"name":\s*"([a-z_]+)"', arq.read_text(encoding="utf-8")))
     assert len(nomes) == 55
-    assert nomes == set(DEFAULT_TOOLS)
+    assert nomes <= set(DEFAULT_TOOLS)  # a reescrita pode ter ferramentas a mais

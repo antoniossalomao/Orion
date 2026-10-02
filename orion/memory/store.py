@@ -211,6 +211,13 @@ class MemoryStore:
             return self.new_session(channel)
         return Session(r["id"], r["channel"], r["title"], r["created_at"], r["last_active_at"])
 
+    def get_session(self, session_id: str) -> Session | None:
+        with self._lock:
+            r = self._conn.execute("SELECT * FROM sessions WHERE id=?", (session_id,)).fetchone()
+        if r is None:
+            return None
+        return Session(r["id"], r["channel"], r["title"], r["created_at"], r["last_active_at"])
+
     def archive_session(self, session_id: str) -> None:
         with self._tx() as c:
             c.execute("UPDATE sessions SET archived=1 WHERE id=?", (session_id,))
@@ -521,6 +528,33 @@ class MemoryStore:
                     itens.append((r[0], r[1], r[2]))
             saida.append((kind, "vec", itens))  # type: ignore[arg-type]
         return saida
+
+    # ── contadores (cota diária das CLIs delegadas etc.) ─────────────────
+    def counter_get(self, chave: str) -> int:
+        with self._lock:
+            r = self._conn.execute(
+                "SELECT value FROM meta WHERE key=?", (f"counter:{chave}",)
+            ).fetchone()
+        return int(r[0]) if r else 0
+
+    def counter_incr(self, chave: str, por: int = 1) -> int:
+        with self._tx() as c:
+            c.execute(
+                "INSERT INTO meta(key, value) VALUES (?, ?)"
+                " ON CONFLICT(key) DO UPDATE SET value = CAST(value AS INTEGER) + ?",
+                (f"counter:{chave}", str(por), por),
+            )
+            return int(
+                c.execute("SELECT value FROM meta WHERE key=?", (f"counter:{chave}",)).fetchone()[0]
+            )
+
+    def counter_set(self, chave: str, valor: int) -> None:
+        with self._tx() as c:
+            c.execute(
+                "INSERT INTO meta(key, value) VALUES (?, ?)"
+                " ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                (f"counter:{chave}", str(valor)),
+            )
 
     # ── backup e restauração ──────────────────────────────────────────────
     def backup_to(self, destino: Path | str) -> Path:

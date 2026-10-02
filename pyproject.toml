@@ -48,7 +48,7 @@ select = ["E", "F", "I", "B", "UP", "S", "BLE", "ASYNC", "PERF", "RUF"]
 ignore = ["RUF001", "RUF002", "RUF003", "S101"]  # texto em PT-BR; assert nos testes
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S", "BLE001", "E501"]
+"tests/**" = ["S", "BLE001", "E501", "PERF"]
 # SQL com identificadores internos constantes (nomes de tabela/dimensão); valores sempre por parâmetro.
 "orion/memory/store.py" = ["S608"]
 "orion/memory/schema.py" = ["S608"]

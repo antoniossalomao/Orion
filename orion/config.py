@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     approval_ttl_s: int = Field(default=600, ge=30)
     extra_safe_roots: list[Path] = Field(default_factory=list)  # ex.: Documents no OneDrive
     admin_token: str = ""  # decide aprovações até o login da fase 5; vazio = desligado
+    # Gateway de modelos (OmniRoute local ou qualquer API compatível com a da OpenAI).
+    gateway_url: str = ""  # ex.: http://127.0.0.1:20128/v1 — vazio: /chat desligado
+    gateway_model: str = ""
+    gateway_api_key: str = ""  # ou no cofre do SO (orion.secrets)
     allowed_hosts: list[str] = Field(
         default_factory=lambda: ["127.0.0.1", "localhost"]
     )  # + Tailscale

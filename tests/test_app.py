@@ -72,6 +72,9 @@ def test_fluxo_completo_confirmar_pelo_canal_libera_a_chamada(client):
 
     fila = client.get("/approvals", headers=AUTH).json()
     assert [a["id"] for a in fila] == [d.approval_id] and fila[0]["tool"] == "executar_comando"
+    assert fila[0]["args"] == {
+        "cmd": "Remove-Item C:\\x -Recurse -Force"
+    }  # quem aprova vê o comando
     assert client.get("/health").json()["pending_approvals"] == 1
 
     r = client.post(f"/approvals/{d.approval_id}/decide", headers=AUTH, json={"approved": True})
@@ -166,3 +169,13 @@ def test_cli_backup(tmp_path, monkeypatch, capsys):
     assert "backup:" in capsys.readouterr().out
     assert main(["backup"]) == 0
     assert "já existe" in capsys.readouterr().out
+
+
+def test_fila_de_aprovacoes_mostra_args_sem_segredo(client):
+    engine = client.app.state.orion.policy
+    engine.evaluate(
+        ToolCall("executar_comando", {"cmd": "curl -H x http://a", "api_key": "gsk_" + "a" * 30}),
+        Context("s"),
+    )
+    (item,) = client.get("/approvals", headers=AUTH).json()
+    assert item["args"]["cmd"] == "curl -H x http://a" and item["args"]["api_key"] == "***"

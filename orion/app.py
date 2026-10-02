@@ -1,9 +1,11 @@
-"""App FastAPI do Orion (fase 1): lifespan, estado injetado, /health e aprovações."""
+"""App FastAPI do Orion: lifespan, estado injetado, /health, /chat (SSE) e aprovações."""
 
 from __future__ import annotations
 
 import hmac
+import json
 import logging
+import shutil
 import time
 import uuid
 from collections.abc import AsyncIterator, Callable
@@ -12,17 +14,24 @@ from dataclasses import dataclass
 from typing import Annotated, Any
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
-from pydantic import BaseModel
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from . import __version__
+from .agent import Agent, AgentEvent
 from .config import PROJECT_ROOT, Settings
+from .delegate import Delegator
+from .gateway import ChatGateway, Endpoint
 from .log import request_id
 from .memory import MemoryStore
-from .policy import ApprovalStore, PathGuard, PolicyEngine
+from .policy import ApprovalStore, PathGuard, PolicyEngine, redact
 from .policy.paths import default_safe_roots
+from .secrets import get_secret
+from .tools import default_registry
 
 audit_log = logging.getLogger("orion.audit")
+log = logging.getLogger("orion.app")
 
 
 @dataclass
@@ -33,6 +42,7 @@ class AppState:
     memory: MemoryStore
     policy: PolicyEngine
     started_at: float
+    agent: Agent | None = None  # None enquanto o gateway não está configurado
 
 
 def build_policy(settings: Settings, approvals: ApprovalStore | None = None) -> PolicyEngine:
@@ -68,6 +78,57 @@ def require_admin(state: State, authorization: Annotated[str | None, Header()] =
 Admin = Depends(require_admin)
 
 
+def _alguma_cli() -> bool:
+    return any(shutil.which(c) for c in ("claude", "codex", "gemini"))
+
+
+def gateway_from_settings(settings: Settings) -> ChatGateway | None:
+    if not (settings.gateway_url and settings.gateway_model):
+        return None
+    chave = settings.gateway_api_key or get_secret("ORION_GATEWAY_API_KEY")
+    return ChatGateway([Endpoint("gateway", settings.gateway_url, settings.gateway_model, chave)])
+
+
+_CANAL = r"^[a-z0-9_-]{1,32}$"
+
+
+class Mensagem(BaseModel):
+    texto: str = Field(min_length=1, max_length=8000)
+    canal: str = Field(default="web", pattern=_CANAL)
+
+
+class Retomada(BaseModel):
+    canal: str = Field(default="web", pattern=_CANAL)
+
+
+def sse(ev: AgentEvent) -> str:
+    """Mesmo formato do /chat do legado (`text`, `tier`, `[DONE]`) + `tool`/`approval`/`error`."""
+    d = ev.data
+    if ev.kind == "done":
+        return "data: [DONE]\n\n"
+    corpo = {
+        "text": {"text": d.get("text")},
+        "tier": {"tier": f"{d.get('endpoint')}/{d.get('model')}"},
+        "tool": {"tool": d},
+        "approval": {"approval": d},
+        "error": {"error": d.get("message")},
+    }[ev.kind]
+    return f"data: {json.dumps(corpo, ensure_ascii=False)}\n\n"
+
+
+async def _stream(eventos: AsyncIterator[AgentEvent]) -> AsyncIterator[str]:
+    terminou = False
+    try:
+        async for ev in eventos:
+            terminou = terminou or ev.kind == "done"
+            yield sse(ev)
+    except Exception:
+        log.exception("turno do agente falhou")
+        yield sse(AgentEvent("error", {"message": "falha interna no turno"}))
+    if not terminou:
+        yield "data: [DONE]\n\n"
+
+
 class Decisao(BaseModel):
     approved: bool
     actor: str = "antonio"
@@ -77,6 +138,7 @@ class Decisao(BaseModel):
 def create_app(
     settings: Settings | None = None,
     memory_factory: Callable[[Settings], MemoryStore] | None = None,
+    gateway_factory: Callable[[Settings], ChatGateway | None] | None = None,
 ) -> FastAPI:
     settings = settings or Settings()
 
@@ -84,10 +146,24 @@ def create_app(
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         settings.data_dir.mkdir(parents=True, exist_ok=True)
         memory = (memory_factory or (lambda s: MemoryStore(s.db_path)))(settings)
-        app.state.orion = AppState(settings, memory, build_policy(settings), time.time())
+        policy = build_policy(settings)
+        gateway = (gateway_factory or gateway_from_settings)(settings)
+        agent = None
+        if gateway is not None:
+            # `delegar` só aparece para o modelo se alguma CLI oficial estiver instalada.
+            delegador = Delegator(memory) if _alguma_cli() else None
+            agent = Agent(
+                gateway=gateway,
+                tools=default_registry(memory, delegador),
+                policy=policy,
+                memory=memory,
+            )
+        app.state.orion = AppState(settings, memory, policy, time.time(), agent)
         try:
             yield
         finally:
+            if gateway is not None and hasattr(gateway, "aclose"):
+                await gateway.aclose()
             memory.close()
 
     app = FastAPI(title="Orion", version=__version__, lifespan=lifespan)
@@ -115,9 +191,33 @@ def create_app(
             "status": "ok" if memoria == "ok" else "degradado",
             "version": __version__,
             "uptime_s": round(time.time() - state.started_at, 1),
-            "components": {"memory": memoria, "vectors": state.memory.vectors_available},
+            "components": {
+                "memory": memoria,
+                "vectors": state.memory.vectors_available,
+                "gateway": state.agent is not None,
+            },
             "pending_approvals": len(state.policy.approvals.pending()),
         }
+
+    def _agente(state: AppState) -> Agent:
+        if state.agent is None:
+            raise HTTPException(503, "gateway de modelos não configurado (ORION_GATEWAY_URL/MODEL)")
+        return state.agent
+
+    @app.post("/chat", dependencies=[Admin])
+    async def chat(corpo: Mensagem, state: State) -> StreamingResponse:
+        agente = _agente(state)
+        return StreamingResponse(
+            _stream(agente.run(corpo.canal, corpo.texto)), media_type="text/event-stream"
+        )
+
+    @app.post("/approvals/{approval_id}/resume", dependencies=[Admin])
+    async def retomar(approval_id: str, corpo: Retomada, state: State) -> StreamingResponse:
+        """Depois de aprovada, executa a ação e deixa o modelo relatar o resultado."""
+        agente = _agente(state)
+        return StreamingResponse(
+            _stream(agente.resume(corpo.canal, approval_id)), media_type="text/event-stream"
+        )
 
     @app.get("/approvals", dependencies=[Admin])
     def pendentes(state: State) -> list[dict[str, Any]]:
@@ -127,6 +227,8 @@ def create_app(
                 "session_id": a.session_id,
                 "tool": a.tool,
                 "reason": a.reason,
+                # redigido: quem aprova precisa ver O QUÊ (comando, caminho), sem vazar segredo
+                "args": redact(a.args, limite=2000),
                 "expires_at": a.expires_at,
             }
             for a in state.policy.approvals.pending()

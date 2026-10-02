@@ -18,7 +18,7 @@ import secrets
 import threading
 import time
 from collections.abc import Callable
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from typing import Any
 
@@ -48,6 +48,8 @@ class Approval:
     reason: str
     created_at: float
     expires_at: float
+    args: dict[str, Any] = field(default_factory=dict)  # o que o Antônio está aprovando
+    args: dict[str, Any] = field(default_factory=dict)  # o que o Antônio está aprovando
     status: Status = Status.PENDING
     decided_by: str | None = None
     channel: str | None = None
@@ -83,6 +85,7 @@ class ApprovalStore:
                 reason=reason,
                 created_at=agora,
                 expires_at=agora + self._ttl,
+                args=json.loads(json.dumps(args, default=str)),
             )
             self._items[novo.id] = novo
             return novo
