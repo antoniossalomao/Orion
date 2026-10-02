@@ -11,7 +11,7 @@ from orion.config import Settings
 from orion.log import JsonFormatter, request_id
 from orion.policy import Action, Context, ToolCall
 
-TOKEN = "segredo-de-teste"
+TOKEN = "segredo-de-teste-16chars"
 
 
 @pytest.fixture
@@ -179,3 +179,8 @@ def test_fila_de_aprovacoes_mostra_args_sem_segredo(client):
     )
     (item,) = client.get("/approvals", headers=AUTH).json()
     assert item["args"]["cmd"] == "curl -H x http://a" and item["args"]["api_key"] == "***"
+
+
+def test_token_de_admin_fraco_e_recusado():
+    with pytest.raises(ValidationError, match="16"):
+        Settings(admin_token="curto", _env_file=None)

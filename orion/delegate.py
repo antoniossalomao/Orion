@@ -86,15 +86,23 @@ class Delegator:
         tentativas: list[dict[str, str]] = []
         for nome in ordem:
             ag = self._agents[nome]
-            if self._which(ag.argv[0]) is None:
+            exe = self._which(ag.argv[0])
+            if exe is None:
                 tentativas.append({"agente": nome, "motivo": "CLI não instalada"})
+                continue
+            if exe.lower().endswith((".cmd", ".bat")):
+                # Shims .cmd/.bat passam o argumento pelo cmd.exe do Windows: um prompt com
+                # aspas ou % vira injeção de comando. Só binário de verdade.
+                tentativas.append(
+                    {"agente": nome, "motivo": "shim .cmd/.bat recusado (use o .exe)"}
+                )
                 continue
             if self._store.counter_get(self._chave(nome)) >= ag.daily_limit:
                 tentativas.append({"agente": nome, "motivo": "limite diário atingido"})
                 continue
             self._store.counter_incr(self._chave(nome))
             # "Tarefa:" evita que um prompt iniciado por "-" vire opção da CLI.
-            argv = [a.replace("{prompt}", f"Tarefa: {tarefa}") for a in ag.argv]
+            argv = [exe, *(a.replace("{prompt}", f"Tarefa: {tarefa}") for a in ag.argv[1:])]
             try:
                 r = self._run(
                     argv,

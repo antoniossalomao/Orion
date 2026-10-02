@@ -31,6 +31,7 @@ log = logging.getLogger("orion.memory")
 
 Kind = Literal["fact", "chunk", "message"]
 RRF_K = 60
+MAX_NOTA_BYTES = 5 * 1024 * 1024
 KIND_WEIGHT: dict[str, float] = {"fact": 1.25, "chunk": 1.0, "message": 0.8}
 
 
@@ -400,6 +401,8 @@ class MemoryStore:
         for arq in sorted(raiz.rglob("*.md")):
             rel = arq.relative_to(raiz)
             if any(p.startswith(".") for p in rel.parts):
+                continue
+            if arq.stat().st_size > MAX_NOTA_BYTES:  # anexo/export gigante não é nota
                 continue
             fonte = rel.as_posix()
             vistos.add(fonte)

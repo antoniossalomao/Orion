@@ -264,3 +264,14 @@ def test_proveniencia_e_json_valido(store):
     m = store.add_message(s.id, "assistant", "x", provenance={"modelo": "m", "fontes": ["fato:1"]})
     bruto = store._conn.execute("SELECT provenance FROM messages WHERE id=?", (m.id,)).fetchone()[0]
     assert json.loads(bruto)["fontes"] == ["fato:1"]
+
+
+def test_vault_ignora_arquivo_gigante(store, tmp_path, monkeypatch):
+    from orion.memory import store as modulo
+
+    monkeypatch.setattr(modulo, "MAX_NOTA_BYTES", 100)
+    v = tmp_path / "vault"
+    v.mkdir()
+    (v / "pequena.md").write_text("curta", encoding="utf-8")
+    (v / "grande.md").write_text("x " * 200, encoding="utf-8")
+    assert store.index_vault(v)["new"] == 1

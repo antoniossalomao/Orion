@@ -32,6 +32,16 @@ class Settings(BaseSettings):
         default_factory=lambda: ["127.0.0.1", "localhost"]
     )  # + Tailscale
 
+    @field_validator("admin_token")
+    @classmethod
+    def _token_forte(cls, v: str) -> str:
+        if v and len(v) < 16:
+            raise ValueError(
+                "ORION_ADMIN_TOKEN precisa de 16+ caracteres "
+                '(gere com: python -c "import secrets;print(secrets.token_urlsafe(32))")'
+            )
+        return v
+
     @field_validator("log_level")
     @classmethod
     def _nivel(cls, v: str) -> str:

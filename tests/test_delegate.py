@@ -1,3 +1,4 @@
+import subprocess
 import sys
 
 import pytest
@@ -31,7 +32,7 @@ def pasta(tmp_path):
 
 
 def delegador(store, *agentes, **kw):
-    return Delegator(store, agents=agentes, which=lambda _: "/bin/x", **kw)
+    return Delegator(store, agents=agentes, which=lambda exe: exe, **kw)
 
 
 def test_executa_na_pasta_e_devolve_a_saida(store, pasta):
@@ -135,7 +136,7 @@ def test_erro_do_so_ao_executar(store, pasta):
         raise PermissionError("negado")
 
     d = Delegator(
-        store, agents=(fake("claude", OK), fake("codex", OK)), which=lambda _: "/x", run=run
+        store, agents=(fake("claude", OK), fake("codex", OK)), which=lambda exe: exe, run=run
     )
     r = d.delegate("x", str(pasta))
     assert [t["motivo"].split(":")[0] for t in r["tentativas"]] == ["não executou"] * 2
@@ -146,3 +147,27 @@ def test_contadores_do_store(store):
     assert store.counter_incr("a") == 1 and store.counter_incr("a", 4) == 5
     store.counter_set("a", 2)
     assert store.counter_get("a") == 2 and store.counter_get("b") == 0
+
+
+def test_shim_cmd_do_windows_e_recusado_e_o_caminho_resolvido_e_usado(store, pasta):
+    d = Delegator(
+        store,
+        agents=(fake("claude", OK), fake("codex", OK)),
+        which=lambda exe: "C:\\npm\\codex.cmd" if exe == sys.executable else None,
+    )
+    r = d.delegate("x", str(pasta))
+    assert [t["motivo"] for t in r["tentativas"]] == ["shim .cmd/.bat recusado (use o .exe)"] * 2
+
+    usado = []
+
+    def run(argv, **kw):
+        usado.append(argv[0])
+        return subprocess.CompletedProcess(argv, 0, stdout="ok", stderr="")
+
+    d2 = Delegator(
+        store,
+        agents=(CliAgent("claude", ("claude", "-p", "{prompt}")),),
+        which=lambda exe: f"/usr/local/bin/{exe}",
+        run=run,
+    )
+    assert d2.delegate("x", str(pasta))["ok"] and usado == ["/usr/local/bin/claude"]

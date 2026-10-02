@@ -108,15 +108,15 @@ class Agent:
                 f"({json.dumps(redact(a.args), ensure_ascii=False)}). Resultado: {resultado}"
             )
             self.memory.add_message(sessao.id, "system", nota[: self._max_chars])
-            async for ev in self._turn(sessao, a.tool, extra_tools=[a.tool]):
+            async for ev in self._turn(sessao, None, extra_tools=[a.tool]):
                 yield ev
 
     # ── turno ─────────────────────────────────────────────────────────────
     async def _turn(
-        self, session: Session, consulta: str, extra_tools: list[str] | None = None
+        self, session: Session, consulta: str | None, extra_tools: list[str] | None = None
     ) -> AsyncIterator[AgentEvent]:
         ctx = self._context(session.id)
-        hits = await asyncio.to_thread(self.memory.search, consulta, self._k)
+        hits = await asyncio.to_thread(self.memory.search, consulta, self._k) if consulta else []
         mensagens = self._mensagens(session, hits)
         usadas: list[str] = list(extra_tools or [])
         destino: tuple[str, str] | None = None
@@ -234,6 +234,8 @@ class Agent:
                 {"erro": f"tempo esgotado ({self._tool_timeout:.0f}s)"}, ensure_ascii=False
             )
         self.policy.note_result(chamada, ctx)
+        if ctx.tainted:
+            self.memory.counter_set(f"taint:{ctx.session_id}", 1)
         spec = self.policy.tools.get(chamada.name)
         if len(bruto) > self._max_chars:
             bruto = bruto[: self._max_chars] + "…[truncado]"
@@ -243,7 +245,12 @@ class Agent:
 
     # ── contexto ──────────────────────────────────────────────────────────
     def _context(self, session_id: str) -> Context:
-        return self._ctx.setdefault(session_id, Context(session_id))
+        """Contexto de política da sessão. O taint (leu conteúdo externo) sobrevive a
+        reinício: o conteúdo continua no histórico, então a desconfiança também."""
+        if session_id not in self._ctx:
+            tainted = self.memory.counter_get(f"taint:{session_id}") > 0
+            self._ctx[session_id] = Context(session_id, tainted=tainted)
+        return self._ctx[session_id]
 
     def _lock(self, session_id: str) -> asyncio.Lock:
         return self._locks.setdefault(session_id, asyncio.Lock())

@@ -8,7 +8,7 @@ from orion.app import create_app, gateway_from_settings
 from orion.config import Settings
 from tests.fakes import FakeGateway, chama, fala, pede
 
-TOKEN = "t"
+TOKEN = "token-de-teste-com-16+"
 AUTH = {"Authorization": f"Bearer {TOKEN}"}
 
 

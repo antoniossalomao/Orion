@@ -110,24 +110,36 @@ _GIT_LEITURA = frozenset(
         "branch",
     }
 )
-_GIT_FLAGS_PROIBIDAS = (
-    "--output",
-    "--exec",
-    "--upload-pack",
-    "--receive-pack",
-    "--ext-diff",
-    "--textconv",
-    "-d",
-    "-D",
-    "-m",
-    "-M",
-    "-c",
-    "-C",
-    "--delete",
-    "--move",
-    "--copy",
-    "--set-upstream",
-)
+# git aceita abreviação única de opção longa (`--out=x` vale por `--output=x`), então não
+# dá para listar as proibidas: só passam as opções longas conhecidas e inofensivas.
+_GIT_LONG_OK = frozenset(
+    {
+        "--oneline", "--stat", "--shortstat", "--numstat", "--short", "--branch", "--name-only",
+        "--name-status", "--graph", "--decorate", "--all", "--cached", "--staged", "--porcelain",
+        "--abbrev-commit", "--show-current", "--list", "--verbose", "--merged", "--no-merged",
+        "--summary", "--patch", "--no-color", "--color", "--first-parent", "--reverse",
+        "--follow", "--no-merges", "--merges", "--tags", "--remotes", "--topo-order",
+        "--date-order", "--untracked-files", "--ignored",
+    }
+)  # fmt: skip
+_GIT_LONG_EQ = (
+    "--pretty=", "--format=", "--since=", "--until=", "--after=", "--before=", "--author=",
+    "--grep=", "--max-count=", "--date=", "--abbrev=", "--diff-filter=",
+)  # fmt: skip
+_GIT_CURTA_OK = re.compile(r"-[A-Za-z0-9]+")
+_GIT_CURTA_NEGADA = frozenset("cCdDmMo")  # config/mudança de dir/apagar/renomear/arquivo de saída
+
+
+def _git_flag_ok(a: str) -> bool:
+    if a == "--":
+        return True
+    if a.startswith("--"):
+        return a in _GIT_LONG_OK or a.startswith(_GIT_LONG_EQ)
+    if a.startswith("-"):
+        return bool(_GIT_CURTA_OK.fullmatch(a)) and not (set(a[1:]) & _GIT_CURTA_NEGADA)
+    return True  # revisão ou caminho
+
+
 _VERSAO = frozenset({"--version", "-v", "-version", "-V"})
 _RUNTIMES = frozenset(
     {
@@ -183,8 +195,8 @@ def _segmento_leitura(cmd: str, args: list[str]) -> str | None:
         if sub in ("branch", "tag", "remote") and any(not a.startswith("-") for a in resto):
             return f"git {sub} com argumento pode criar/alterar"
         for a in resto:
-            if a.startswith(_GIT_FLAGS_PROIBIDAS):
-                return f"git {sub} {a} pode escrever/executar"
+            if not _git_flag_ok(a):
+                return f"git {sub} {a}: opção fora da lista de leitura segura"
         return None
     if cmd in _RUNTIMES and len(args) == 1 and args[0] in _VERSAO:
         return None

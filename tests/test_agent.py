@@ -300,3 +300,17 @@ async def test_sem_ferramentas_nao_manda_tools_ao_modelo(store, policy):
     agent = Agent(gateway=gw, tools=ToolRegistry(), policy=policy, memory=store)
     await coletar(agent.run("web", "x"))
     assert gw.ferramentas == [None]
+
+
+async def test_taint_sobrevive_a_reinicio_do_agente(store, policy):
+    web = Tool("buscar_url", "x", {"type": "object", "properties": {}}, lambda: "pagina")
+    agent, _ = montar(store, policy, pede(chama("buscar_url")), fala("li"), extras=[web])
+    await coletar(agent.run("web", "leia"))
+    # processo "reiniciou": agente novo, mesmo banco, nenhum contexto em memória
+    agent2, _ = montar(store, policy, pede(chama("salvar_memoria", texto="x")), fala("ok"))
+    ev = await coletar(agent2.run("web", "salve"))
+    assert [e.data["decision"] for e in ev if e.kind == "tool"] == ["confirm"]
+    # sessão de outro canal não herda a desconfiança
+    agent3, _ = montar(store, policy, pede(chama("salvar_memoria", texto="y")), fala("ok"))
+    ev3 = await coletar(agent3.run("telegram", "salve"))
+    assert [e.data["decision"] for e in ev3 if e.kind == "tool"] == ["allow"]
