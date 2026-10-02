@@ -21,8 +21,15 @@ def test_pasta_de_trabalho_livre(guard, tmp_path):
     assert guard.check_write(str(tmp_path / "Documents" / "sub" / "script.py")) is None
 
 
-@pytest.mark.parametrize("rel", ["Orion/orion/policy/engine.py", "Orion/Orion_Ollama/orion_seguranca.py",
-                                 "Orion/Memorias Do Projeto/ORION_REGRAS.md", "Orion/novo.txt"])
+@pytest.mark.parametrize(
+    "rel",
+    [
+        "Orion/orion/policy/engine.py",
+        "Orion/Orion_Ollama/orion_seguranca.py",
+        "Orion/Memorias Do Projeto/ORION_REGRAS.md",
+        "Orion/novo.txt",
+    ],
+)
 def test_codigo_do_orion_e_imutavel(guard, tmp_path, rel):
     assert "núcleo imutável" in (guard.check_write(str(tmp_path / rel)) or "")
 

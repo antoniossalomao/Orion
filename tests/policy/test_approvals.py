@@ -41,9 +41,11 @@ def test_pedido_idempotente_enquanto_pendente(store):
 def test_aprovacao_e_da_chamada_exata_e_da_sessao(store):
     a = store.request("s1", "executar_comando", ARGS, "x")
     store.decide(a.id, True, channel="web", actor="antonio")
-    assert not store.consume("s2", "executar_comando", ARGS)                     # outra sessão
-    assert not store.consume("s1", "executar_comando", {"cmd": "Remove-Item D:\\"})  # outro argumento
-    assert not store.consume("s1", "escrever_arquivo", ARGS)                     # outra ferramenta
+    assert not store.consume("s2", "executar_comando", ARGS)  # outra sessão
+    assert not store.consume(
+        "s1", "executar_comando", {"cmd": "Remove-Item D:\\"}
+    )  # outro argumento
+    assert not store.consume("s1", "escrever_arquivo", ARGS)  # outra ferramenta
     assert store.consume("s1", "executar_comando", ARGS)
 
 

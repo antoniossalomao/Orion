@@ -11,7 +11,22 @@ from .paths import PathGuard
 from .shell import ShellVerdict, classify_command
 
 __all__ = [
-    "Action", "Approval", "ApprovalStore", "Context", "DEFAULT_RATE_LIMITS", "DEFAULT_TOOLS",
-    "Decision", "PathGuard", "PolicyEngine", "RateLimiter", "Risk", "ShellVerdict", "Status",
-    "ToolCall", "ToolSpec", "classify_command", "hash_call", "redact",
+    "DEFAULT_RATE_LIMITS",
+    "DEFAULT_TOOLS",
+    "Action",
+    "Approval",
+    "ApprovalStore",
+    "Context",
+    "Decision",
+    "PathGuard",
+    "PolicyEngine",
+    "RateLimiter",
+    "Risk",
+    "ShellVerdict",
+    "Status",
+    "ToolCall",
+    "ToolSpec",
+    "classify_command",
+    "hash_call",
+    "redact",
 ]

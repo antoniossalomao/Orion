@@ -6,8 +6,12 @@ from orion_telegram import _extrair_texto
 
 
 def sse(*eventos):
-    return [f"data: {json.dumps(e)}\n\n".encode() if not isinstance(e, str) else f"data: {e}\n\n".encode()
-            for e in eventos]
+    return [
+        f"data: {json.dumps(e)}\n\n".encode()
+        if not isinstance(e, str)
+        else f"data: {e}\n\n".encode()
+        for e in eventos
+    ]
 
 
 def test_junta_so_o_texto_e_ignora_tier_e_done():

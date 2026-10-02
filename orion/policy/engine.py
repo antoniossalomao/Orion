@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from .approvals import ApprovalStore
@@ -22,7 +22,7 @@ from .shell import classify_command
 log = logging.getLogger("orion.policy")
 
 
-class Action(str, Enum):
+class Action(StrEnum):
     ALLOW = "allow"
     CONFIRM = "confirm"
     DENY = "deny"
@@ -56,10 +56,15 @@ AuditSink = Callable[[dict[str, Any]], None]
 
 
 class PolicyEngine:
-    def __init__(self, *, path_guard: PathGuard, approvals: ApprovalStore | None = None,
-                 tools: Mapping[str, ToolSpec] | None = None,
-                 rate_limits: Mapping[str, tuple[int, int]] | None = None,
-                 audit: AuditSink | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        path_guard: PathGuard,
+        approvals: ApprovalStore | None = None,
+        tools: Mapping[str, ToolSpec] | None = None,
+        rate_limits: Mapping[str, tuple[int, int]] | None = None,
+        audit: AuditSink | None = None,
+    ) -> None:
         self.path_guard = path_guard
         self.approvals = approvals or ApprovalStore()
         self.tools = dict(tools if tools is not None else DEFAULT_TOOLS)
@@ -112,21 +117,32 @@ class PolicyEngine:
                 motivo = "execução/automação (agente, navegador ou UI)"
         elif spec.path_arg and spec.risk is Risk.WRITE:
             caminho = str(call.args.get(spec.path_arg, ""))
-            motivo = (self.path_guard.check_organize(caminho) if spec.organize
-                      else self.path_guard.check_write(caminho))
+            motivo = (
+                self.path_guard.check_organize(caminho)
+                if spec.organize
+                else self.path_guard.check_write(caminho)
+            )
         if motivo is None and ctx.tainted and spec.risk in (Risk.WRITE, Risk.EXEC):
-            motivo = "a sessão leu conteúdo externo (web/e-mail/documento): possível prompt injection"
+            motivo = (
+                "a sessão leu conteúdo externo (web/e-mail/documento): possível prompt injection"
+            )
         return motivo
 
     def _record(self, call: ToolCall, ctx: Context, d: Decision) -> bool:
         if self._audit is None:
             return True
         try:
-            self._audit({
-                "session_id": ctx.session_id, "tool": call.name, "args": redact(call.args),
-                "action": d.action.value, "risk": d.risk.value if d.risk else None,
-                "reason": d.reason, "tainted": ctx.tainted,
-            })
+            self._audit(
+                {
+                    "session_id": ctx.session_id,
+                    "tool": call.name,
+                    "args": redact(call.args),
+                    "action": d.action.value,
+                    "risk": d.risk.value if d.risk else None,
+                    "reason": d.reason,
+                    "tainted": ctx.tainted,
+                }
+            )
             return True
         except Exception:
             log.exception("falha ao gravar audit")

@@ -3,10 +3,9 @@
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from starlette.websockets import WebSocketDisconnect
-
 from origem import ORIGENS_PERMITIDAS, origem_permitida
 from routers.misc import MAX_UPLOAD_BYTES, MiscRouter
+from starlette.websockets import WebSocketDisconnect
 
 
 @pytest.fixture
@@ -18,8 +17,13 @@ def cliente(tmp_path):
         chamadas.append("voz")
         await ws.close()
 
-    r = MiscRouter(pasta_uploads=str(tmp_path), voice_session=voz, gemini_api_key="x",
-                   increment_voice_live=lambda: None, decrement_voice_live=lambda: None)
+    r = MiscRouter(
+        pasta_uploads=str(tmp_path),
+        voice_session=voz,
+        gemini_api_key="x",
+        increment_voice_live=lambda: None,
+        decrement_voice_live=lambda: None,
+    )
     app = FastAPI()
     app.include_router(r.router)
     return TestClient(app), tmp_path, chamadas

@@ -13,15 +13,43 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-_EXT_SENSIVEIS = frozenset({
-    ".exe", ".dll", ".ps1", ".psm1", ".bat", ".cmd", ".msi", ".sys", ".reg", ".vbs",
-    ".lnk", ".scr", ".app", ".command", ".plist", ".desktop",
-})
-_NOMES_SENSIVEIS = frozenset({
-    ".env", ".bashrc", ".zshrc", ".profile", ".bash_profile", "profile.ps1",
-    "authorized_keys", "known_hosts", "credentials.json", "token.json",
-})
-_COMPONENTES_SENSIVEIS = frozenset({".ssh", ".aws", ".gnupg", "startup", "launchagents", "launchdaemons"})
+_EXT_SENSIVEIS = frozenset(
+    {
+        ".exe",
+        ".dll",
+        ".ps1",
+        ".psm1",
+        ".bat",
+        ".cmd",
+        ".msi",
+        ".sys",
+        ".reg",
+        ".vbs",
+        ".lnk",
+        ".scr",
+        ".app",
+        ".command",
+        ".plist",
+        ".desktop",
+    }
+)
+_NOMES_SENSIVEIS = frozenset(
+    {
+        ".env",
+        ".bashrc",
+        ".zshrc",
+        ".profile",
+        ".bash_profile",
+        "profile.ps1",
+        "authorized_keys",
+        "known_hosts",
+        "credentials.json",
+        "token.json",
+    }
+)
+_COMPONENTES_SENSIVEIS = frozenset(
+    {".ssh", ".aws", ".gnupg", "startup", "launchagents", "launchdaemons"}
+)
 
 
 def _norm(p: str | os.PathLike[str]) -> str:
@@ -38,12 +66,29 @@ def _dentro(caminho: str, raiz: str) -> bool:
 def _system_roots() -> tuple[str, ...]:
     if sys.platform == "win32":
         win = os.environ.get("SystemRoot", r"C:\Windows")
-        return tuple(_norm(p) for p in (
-            win, os.environ.get("ProgramFiles", r"C:\Program Files"),
-            os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"),
-            os.environ.get("ProgramData", r"C:\ProgramData")))
-    return tuple(_norm(p) for p in (
-        "/bin", "/sbin", "/usr", "/etc", "/System", "/Library", "/private/etc", "/boot", "/lib"))
+        return tuple(
+            _norm(p)
+            for p in (
+                win,
+                os.environ.get("ProgramFiles", r"C:\Program Files"),
+                os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"),
+                os.environ.get("ProgramData", r"C:\ProgramData"),
+            )
+        )
+    return tuple(
+        _norm(p)
+        for p in (
+            "/bin",
+            "/sbin",
+            "/usr",
+            "/etc",
+            "/System",
+            "/Library",
+            "/private/etc",
+            "/boot",
+            "/lib",
+        )
+    )
 
 
 def default_safe_roots() -> tuple[Path, ...]:
@@ -64,8 +109,10 @@ class PathGuard:
         alvo = _norm(path)
         for raiz in self.protected_roots:
             if _dentro(alvo, _norm(raiz)):
-                return ("escrita dentro do código/persona/política do Orion "
-                        "(núcleo imutável; auto-modificação exige aprovação)")
+                return (
+                    "escrita dentro do código/persona/política do Orion "
+                    "(núcleo imutável; auto-modificação exige aprovação)"
+                )
         for raiz in self.system_roots:
             if _dentro(alvo, raiz):
                 return "escrita em diretório de sistema"

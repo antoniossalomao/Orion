@@ -24,29 +24,129 @@ _SEGREDOS = re.compile(
     re.IGNORECASE,
 )
 
-_POSIX_LEITURA = frozenset({
-    "ls", "pwd", "cat", "head", "tail", "wc", "whoami", "hostname", "uname", "uptime",
-    "df", "du", "free", "ps", "which", "echo", "id", "stat", "file", "tree",
-    "grep", "ver", "cal",
-})
-_PS_ALIASES_LEITURA = frozenset({
-    "gci", "gc", "gl", "gps", "gsv", "gm", "gcm", "gi", "gp", "gu", "dir", "type", "ls",
-    "pwd", "cat", "echo", "where", "select", "measure", "ft", "fl", "fw", "write-output",
-    "select-object", "where-object", "sort-object", "measure-object", "format-table",
-    "format-list", "format-wide", "out-string", "convertto-json", "convertto-csv",
-    "select-string", "test-path", "resolve-path", "split-path", "join-path",
-})
+_POSIX_LEITURA = frozenset(
+    {
+        "ls",
+        "pwd",
+        "cat",
+        "head",
+        "tail",
+        "wc",
+        "whoami",
+        "hostname",
+        "uname",
+        "uptime",
+        "df",
+        "du",
+        "free",
+        "ps",
+        "which",
+        "echo",
+        "id",
+        "stat",
+        "file",
+        "tree",
+        "grep",
+        "ver",
+        "cal",
+    }
+)
+_PS_ALIASES_LEITURA = frozenset(
+    {
+        "gci",
+        "gc",
+        "gl",
+        "gps",
+        "gsv",
+        "gm",
+        "gcm",
+        "gi",
+        "gp",
+        "gu",
+        "dir",
+        "type",
+        "ls",
+        "pwd",
+        "cat",
+        "echo",
+        "where",
+        "select",
+        "measure",
+        "ft",
+        "fl",
+        "fw",
+        "write-output",
+        "select-object",
+        "where-object",
+        "sort-object",
+        "measure-object",
+        "format-table",
+        "format-list",
+        "format-wide",
+        "out-string",
+        "convertto-json",
+        "convertto-csv",
+        "select-string",
+        "test-path",
+        "resolve-path",
+        "split-path",
+        "join-path",
+    }
+)
 _GET_NEGADOS = frozenset({"get-credential", "get-secret", "get-secretinfo"})
-_GIT_LEITURA = frozenset({
-    "status", "log", "diff", "show", "rev-parse", "ls-files", "blame", "describe",
-    "shortlog", "remote", "tag", "branch",
-})
-_GIT_FLAGS_PROIBIDAS = ("--output", "--exec", "--upload-pack", "--receive-pack",
-                        "--ext-diff", "--textconv", "-d", "-D", "-m", "-M", "-c", "-C",
-                        "--delete", "--move", "--copy", "--set-upstream")
+_GIT_LEITURA = frozenset(
+    {
+        "status",
+        "log",
+        "diff",
+        "show",
+        "rev-parse",
+        "ls-files",
+        "blame",
+        "describe",
+        "shortlog",
+        "remote",
+        "tag",
+        "branch",
+    }
+)
+_GIT_FLAGS_PROIBIDAS = (
+    "--output",
+    "--exec",
+    "--upload-pack",
+    "--receive-pack",
+    "--ext-diff",
+    "--textconv",
+    "-d",
+    "-D",
+    "-m",
+    "-M",
+    "-c",
+    "-C",
+    "--delete",
+    "--move",
+    "--copy",
+    "--set-upstream",
+)
 _VERSAO = frozenset({"--version", "-v", "-version", "-V"})
-_RUNTIMES = frozenset({"python", "python3", "pip", "pip3", "node", "npm", "uv", "git",
-                       "cargo", "rustc", "java", "javac", "dotnet", "go"})
+_RUNTIMES = frozenset(
+    {
+        "python",
+        "python3",
+        "pip",
+        "pip3",
+        "node",
+        "npm",
+        "uv",
+        "git",
+        "cargo",
+        "rustc",
+        "java",
+        "javac",
+        "dotnet",
+        "go",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -97,7 +197,9 @@ def classify_command(cmd: str) -> ShellVerdict:
     if not texto:
         return ShellVerdict(False, "comando vazio")
     if _SEGREDOS.search(texto):
-        return ShellVerdict(False, "toca em arquivo/variável de segredo (.env, credenciais, chaves)")
+        return ShellVerdict(
+            False, "toca em arquivo/variável de segredo (.env, credenciais, chaves)"
+        )
     if _PROIBIDOS.search(texto):
         return ShellVerdict(
             False,

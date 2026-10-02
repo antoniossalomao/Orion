@@ -19,11 +19,11 @@ import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, replace
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 
-class Status(str, Enum):
+class Status(StrEnum):
     PENDING = "pending"
     APPROVED = "approved"
     DENIED = "denied"
@@ -33,8 +33,9 @@ class Status(str, Enum):
 
 def hash_call(tool: str, args: dict[str, Any]) -> str:
     """Hash canônico (sha256 completo) de (ferramenta, argumentos)."""
-    payload = json.dumps({"tool": tool, "args": args}, sort_keys=True,
-                         ensure_ascii=False, default=str)
+    payload = json.dumps(
+        {"tool": tool, "args": args}, sort_keys=True, ensure_ascii=False, default=str
+    )
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
@@ -74,9 +75,15 @@ class ApprovalStore:
                 if (a.session_id, a.args_hash, a.status) == (session_id, h, Status.PENDING):
                     return a
             agora = self._clock()
-            novo = Approval(id=secrets.token_urlsafe(8), session_id=session_id, tool=tool,
-                            args_hash=h, reason=reason, created_at=agora,
-                            expires_at=agora + self._ttl)
+            novo = Approval(
+                id=secrets.token_urlsafe(8),
+                session_id=session_id,
+                tool=tool,
+                args_hash=h,
+                reason=reason,
+                created_at=agora,
+                expires_at=agora + self._ttl,
+            )
             self._items[novo.id] = novo
             return novo
 
@@ -89,8 +96,12 @@ class ApprovalStore:
             a = self._expire(a)
             if a.status is not Status.PENDING:
                 raise ValueError(f"aprovação {approval_id} não está pendente ({a.status.value})")
-            a = replace(a, status=Status.APPROVED if approved else Status.DENIED,
-                        decided_by=actor, channel=channel)
+            a = replace(
+                a,
+                status=Status.APPROVED if approved else Status.DENIED,
+                decided_by=actor,
+                channel=channel,
+            )
             self._items[a.id] = a
             return a
 
@@ -108,9 +119,14 @@ class ApprovalStore:
     def pending(self, session_id: str | None = None) -> list[Approval]:
         with self._lock:
             vivos = [self._expire(a) for a in list(self._items.values())]
-        return sorted((a for a in vivos if a.status is Status.PENDING
-                       and (session_id is None or a.session_id == session_id)),
-                      key=lambda a: a.created_at)
+        return sorted(
+            (
+                a
+                for a in vivos
+                if a.status is Status.PENDING and (session_id is None or a.session_id == session_id)
+            ),
+            key=lambda a: a.created_at,
+        )
 
     def get(self, approval_id: str) -> Approval | None:
         with self._lock:
