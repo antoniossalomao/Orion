@@ -437,6 +437,15 @@ body:not([data-view="home"]) #home-composer { opacity: 0; pointer-events: none; 
     border-radius: 10px;
     border: 1px solid var(--line-2);
 }
+.msg-img-bloqueada {
+    display: inline-block;
+    margin: 0.3em 0;
+    padding: 2px 8px;
+    border: 1px dashed var(--line-2);
+    border-radius: 8px;
+    color: var(--text-3);
+    font-size: 12px;
+}
 
 .msg-actions {
     display: flex;

@@ -28,6 +28,8 @@ jobs:
       - run: uv run ruff format --check orion tests
       - run: uv run pyright
       - run: uv run pytest -q
+      - name: front (markdown/XSS)
+        run: node --test "tests/front/*.test.js"
 
   # O legado (Orion_Ollama/, Orion_Core/) só ganha o essencial até a fase 7:
   # sintaxe + erros reais do pyflakes. Os testes dele rodam no job acima.

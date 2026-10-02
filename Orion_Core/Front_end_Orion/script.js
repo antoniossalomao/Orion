@@ -54,11 +54,6 @@ async function _fetchTimeout(url, ms, opts = {}) {
     finally { clearTimeout(tid); }
 }
 
-function _escapar(s) {
-    return String(s).replace(/[&<>"']/g, c =>
-        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-}
-
 function _hora(d = new Date()) {
     return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
@@ -495,52 +490,9 @@ const Chat = (() => {
         while (c && c.children.length >= MAX_ITENS) c.removeChild(c.firstChild);
     }
 
-    /* Markdown leve: blocos de código, código inline, negrito, itálico,
-       listas, títulos e imagens. Escapa tudo antes (aspas inclusive). */
-    function markdown(bruto) {
-        const partes = String(bruto).split(/```([\s\S]*?)```/g);
-        let html = '';
-        for (let i = 0; i < partes.length; i++) {
-            if (i % 2 === 1) {
-                const corpo = partes[i].replace(/^[\w+-]*\n/, '');
-                html += `<pre><code>${_escapar(corpo.replace(/\n$/, ''))}</code></pre>`;
-                continue;
-            }
-            let seg = _escapar(partes[i]);
-            seg = seg.replace(/!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g,
-                '<img src="$2" alt="$1" class="msg-img" loading="lazy">');
-            seg = seg.replace(/`([^`\n]+)`/g, '<code>$1</code>');
-            seg = seg.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-            seg = seg.replace(/(?<![\w*])\*([^*\n]+)\*(?![\w*])/g, '<em>$1</em>');
-
-            const linhas = seg.split('\n');
-            let out = '', lista = null, paragrafo = [];
-            const fechaPar = () => { if (paragrafo.length) { out += `<p>${paragrafo.join('<br>')}</p>`; paragrafo = []; } };
-            const fechaLista = () => { if (lista) { out += `</${lista}>`; lista = null; } };
-            for (const linha of linhas) {
-                const ul = linha.match(/^\s*[-*•]\s+(.*)/);
-                const ol = linha.match(/^\s*\d+[.)]\s+(.*)/);
-                const ti = linha.match(/^\s*#{1,6}\s+(.*)/);
-                if (ul || ol) {
-                    fechaPar();
-                    const tipo = ul ? 'ul' : 'ol';
-                    if (lista !== tipo) { fechaLista(); out += `<${tipo}>`; lista = tipo; }
-                    out += `<li>${(ul || ol)[1]}</li>`;
-                } else if (ti) {
-                    fechaPar(); fechaLista();
-                    out += `<p class="md-h">${ti[1]}</p>`;
-                } else if (!linha.trim()) {
-                    fechaPar(); fechaLista();
-                } else {
-                    fechaLista();
-                    paragrafo.push(linha);
-                }
-            }
-            fechaPar(); fechaLista();
-            html += out;
-        }
-        return html;
-    }
+    /* Markdown leve em md.js (testado em tests/front): escapa tudo e só deixa
+       passar imagem gerada pelo próprio Orion (/imagens/). */
+    const markdown = OrionMD.markdown;
 
     function _botao(classe, rotulo, svg, aoClicar) {
         const b = document.createElement('button');
