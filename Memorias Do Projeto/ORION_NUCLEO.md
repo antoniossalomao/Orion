@@ -67,7 +67,7 @@ Notebook ── web / casca desktop ─┤
                      ├─ Ferramentas ──► servidores MCP (prontos + orion-desktop próprio)
                      │                   └─ política: leitura livre · escrita com log ·
                      │                      destrutiva só com confirmação
-                     ├─ Memória ──► SQLite (FTS5 + sqlite-vec), um arquivo
+                     ├─ Memória ──► SQLite (FTS5 + vetores em tabela, numpy), um arquivo
                      │               └─ embeddings por API gratuita
                      └─ Jobs ──► lembretes · consolidação da memória · backup
 ```
@@ -83,7 +83,7 @@ Notebook ── web / casca desktop ─┤
 | Modelos (tarefa pesada) | Claude Code, Codex e Gemini CLI em modo sem interface | Usa as assinaturas pelo caminho oficial, sem token extraído |
 | Último recurso | Nenhum por enquanto (sem modelo local) | Ollama saiu em 01/10/2026; reavaliar se faltar internet ou cota |
 | Agente | PydanticAI | Ferramentas tipadas, MCP nativo, streaming, testável com modelo falso |
-| Memória | SQLite + FTS5 (palavra-chave) + sqlite-vec (vetor) + fusão RRF | Arquivo único, zero servidor, multiplataforma, backup = copiar o arquivo |
+| Memória | SQLite + FTS5 (palavra-chave) + vetores em tabela comum com busca em numpy + fusão RRF | Arquivo único, zero servidor, multiplataforma, backup = copiar o arquivo |
 | Embeddings | API gratuita (Gemini), com fila e retry | Sem GPU; se cair, a busca segue só por palavra-chave |
 | Ferramentas | MCP: servidores prontos + `orion-desktop` próprio | Menos código; o mesmo servidor serve o Orion e o Claude Code |
 | Celular | Bot do Telegram + web via Tailscale | Telegram funciona de qualquer lugar; Tailscale dá acesso à web sem expor portas |
@@ -173,7 +173,7 @@ Tudo continua no histórico do git.
 | **0 — Antes de vender o PC** *(urgente)* | Exportar do SurrealDB as tabelas pessoais (`evento`, `sessao`, `prompt`, `lembrete`, `agendamento`, `tarefa`, `numero`) para JSON; copiar `.env` e `Orion_Core/google_auth/`; conferir o vault do Obsidian no iCloud | Arquivos de export abrem e têm as contagens esperadas |
 | **1 — Fundação** | Pacote `orion/` (uv, ruff, pyright, pytest), configuração, app FastAPI com `/health`, CI em Windows e macOS | CI verde nos dois SOs; `uv run orion` sobe |
 | **2 — Cérebro** | OmniRoute configurado; agente com persona; `/chat` em streaming; `delegar` nas 3 CLIs | Conversa segue funcionando com um provedor derrubado de propósito; delegação testada nas 3 CLIs |
-| **3 — Memória** | SQLite + FTS5 + sqlite-vec; importação do export; indexação do vault; fatos e consolidação; backup | Perguntas reais sobre o Antônio (conjunto fixo, em pytest) recuperam a memória certa |
+| **3 — Memória** | SQLite + FTS5 + vetores (numpy); importação do export; indexação do vault; fatos e consolidação; backup | Perguntas reais sobre o Antônio (conjunto fixo, em pytest) recuperam a memória certa |
 | **4 — Ferramentas** | Cliente MCP; servidores prontos + `orion-desktop`; política, confirmação, audit | Teste prova que nenhuma ação destrutiva roda sem confirmação |
 | **5 — Canais** | Telegram (texto, voz, foto, botões), login, Tailscale, autostart | Usar o Orion pelo celular fora de casa |
 | **6 — Interface, voz, identidade** | Frontend escolhido, voz masculina, palavra de ativação, visual do Orion | A definir na própria fase |
@@ -189,7 +189,7 @@ ferramentas de memória/`delegar` (faltam MCP e `orion-desktop`); as fases 5–7
 
 | # | Decisão | Recomendação | Alternativa |
 |---|---|---|---|
-| 1 | Banco da memória | SQLite + FTS5 + sqlite-vec | SurrealDB (servidor ou embutido) |
+| 1 | Banco da memória | SQLite + FTS5 + vetores em tabela comum (numpy). sqlite-vec foi descartado em 02/10 | SurrealDB (servidor ou embutido) |
 | 2 | Gateway de modelos | OmniRoute | LiteLLM (biblioteca, sem processo extra, cotas na mão) |
 | 3 | Framework do agente | PydanticAI | Loop próprio (~200 linhas) — **adotado em 02/10 (alternativa)**, ver registro; reversível |
 | 4 | Ritmo de apagar o legado | Por fase (código antigo à mão para portar) | Tudo agora, consultando o histórico do git |
@@ -226,6 +226,7 @@ ferramentas de memória/`delegar` (faltam MCP e `orion-desktop`); as fases 5–7
 | 01/10/2026 | Ollama fora por enquanto: cascata Groq → Gemini → Claude, sem draft nem watcher de VRAM; tradução, visão e clipboard só pelo Gemini; especialista só Claude | Pedido do usuário; substitui "modelo local só como último recurso" |
 
 | 02/10/2026 | Auditoria do projeto e execução do plano: política de ferramentas por allowlist e aprovação fora de banda; pacote `orion/` (fundação, memória SQLite, gateway, agente, `/chat`); correções no legado (Telegram, SSRF, WebSocket/upload, imagem externa no chat) | Pedido do usuário; detalhes em ORION_MELHORIAS.md |
+| 02/10/2026 | Vetores em tabela comum + numpy no lugar do sqlite-vec | O CI no macOS mostrou que o Python do `uv` vem sem `enable_load_extension`: a extensão não carregaria no MacBook. Para memória pessoal a força bruta responde em ms (teste com 30 mil trechos) |
 | 02/10/2026 | Loop de agente próprio em vez de PydanticAI (decisão #3, alternativa) | Fluxo de aprovação precisa controlar quando cada ferramenta roda; testável com gateway falso; reversível |
 | 02/10/2026 | `executar_comando` sempre pede confirmação, salvo leitura provada; o legado importa `orion.policy` (transitório até a fase 7) | Uma política só; fecha o bypass da blocklist da Câmara de Eco |
 

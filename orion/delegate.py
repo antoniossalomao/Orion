@@ -66,6 +66,9 @@ class Delegator:
         # O segredo do próprio Orion não vai para o processo filho (regra 5).
         base = os.environ if env is None else env
         self._env = {k: v for k, v in base.items() if not k.upper().startswith("ORION_")}
+        # Windows: CLI em Python escreve no pipe com a codepage local (cp1252) e o texto volta
+        # corrompido para o UTF-8 que lemos aqui (achado do CI no windows-latest).
+        self._env.update({"PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"})
 
     def _chave(self, nome: str) -> str:
         return f"delegar:{nome}:{datetime.fromtimestamp(self._clock()).strftime('%Y%m%d')}"

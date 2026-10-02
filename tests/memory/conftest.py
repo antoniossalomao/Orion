@@ -75,8 +75,5 @@ def store(tmp_path):
 @pytest.fixture
 def store_vec(tmp_path, embedder):
     s = MemoryStore(tmp_path / "orion_vec.db", embedder=embedder)
-    if not s.vectors_available:
-        s.close()
-        pytest.skip("sqlite-vec não carrega neste Python (ORION_REQUIRE_VECTORS=1 torna isso erro)")
     yield s
     s.close()

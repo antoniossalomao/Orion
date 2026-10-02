@@ -34,6 +34,14 @@ CREATE TABLE imported (
     PRIMARY KEY (kind, external_id)
 );
 
+-- Vetores de embedding (float32 normalizado). Busca por força bruta em numpy: ver vectors.py.
+CREATE TABLE vectors (
+    kind TEXT NOT NULL CHECK (kind IN ('fact', 'chunk')),
+    ref_id INTEGER NOT NULL,
+    embedding BLOB NOT NULL,
+    PRIMARY KEY (kind, ref_id)
+);
+
 CREATE TABLE sessions (
     id TEXT PRIMARY KEY,
     channel TEXT NOT NULL,

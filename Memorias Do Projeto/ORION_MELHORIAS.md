@@ -20,7 +20,7 @@ Legenda: ✅ resolvido e testado · 🟡 parcial · ⏳ depende de você ou de f
 | S6 | Baixa | ~45 SQL por f-string, 184 `except Exception`, audit engolia erro | 🟡 | Audit do legado não perde mais registro em silêncio; código novo parametrizado e sem `pass`. SQL do legado fica até a fase 3–4 |
 | B3 | Baixa | "Diretiva Nº 2" citada onde não existe mais; ferramenta bloqueava nuvem | ✅ | Textos corrigidos; a aprovação do especialista é por ser agente com shell, não por ser nuvem |
 | B4 | Baixa | Prompt com hardware/stack datados; persona em arquivo editável | ✅ | Legado limpo; `orion/persona.py` versionado, imutável, com teste contra fato que envelhece |
-| E1 | Média | Sem CI nem testes unitários | ✅ | `.github/workflows/ci.yml` (Linux, Windows, macOS) + 259 testes Python + 18 em Node |
+| E1 | Média | Sem CI nem testes unitários | ✅ | `.github/workflows/ci.yml` (Linux, Windows, macOS) + 270 testes Python + 18 em Node |
 | E2 | Média | Só Windows, caminhos `C:\Orion` fixos, `requirements` com pywin32/torch | 🟡 | Pacote novo é portável (`platformdirs`, caminhos por config). Legado segue Windows por desenho até a fase 7 |
 | E3 | Média | Globals, `ChatRouter` com 22 argumentos, `on_event` deprecado | ✅ (novo) | `create_app` com lifespan e `AppState` injetado |
 | E4 | Baixa | `script.js` monolítico, `innerHTML` sem teste | 🟡 | `md.js` extraído e testado; `script.js` (1,5 mil linhas) fica para a fase 6 |
@@ -35,7 +35,7 @@ Legenda: ✅ resolvido e testado · 🟡 parcial · ⏳ depende de você ou de f
 | 0 — exportar dados | Sem código: a ferramenta `backup_memoria` do legado já grava o formato que o importador lê | ⏳ **sua** (PC, `.env`, `google_auth/`, vault) |
 | 1 — fundação | `pyproject` (uv, ruff, pyright, pytest), `orion.config`, logging JSON, `/health`, CLI, CI Win+macOS | ✅ (CI remoto ainda não rodou) |
 | 2 — cérebro | `orion.gateway` (API OpenAI-compat., streaming, fallback, quarentena em 429), `orion.agent` (persona + memória + ferramentas sob política), `orion.delegate` (claude/codex/gemini), `POST /chat` | ✅ com gateway e CLIs **falsos**; ⏳ OmniRoute e CLIs reais |
-| 3 — memória | SQLite + FTS5 + sqlite-vec com RRF, fatos editáveis, vault, backup/restore, eval, **importador do export** | ✅ |
+| 3 — memória | SQLite + FTS5 + vetores (numpy) com RRF, fatos editáveis, vault, backup/restore, eval, **importador do export** | ✅ |
 | 4 — ferramentas | Política (classes de risco, aprovações, taint, audit) e ferramentas de memória/`delegar` | 🟡 faltam servidores MCP e `orion-desktop` |
 | 5 — canais | `/approvals` com token; Telegram, login e Tailscale **não** | ⏳ |
 | 6 — interface/voz | Só `md.js` + teste | ⏳ |
@@ -54,8 +54,10 @@ Legenda: ✅ resolvido e testado · 🟡 parcial · ⏳ depende de você ou de f
 
 ## O que não foi verificado
 
-- **Windows e macOS:** nada rodou lá. A lógica de caminho foi escrita para os dois e testada no Linux; o CI vai
-  dizer. A carga do `sqlite-vec` no Python do Windows/macOS é a dúvida maior (o teste só exige no Linux).
+- **Windows e macOS:** o primeiro CI remoto rodou e já pagou o investimento: no **macOS** o Python do `uv` vem sem
+  `enable_load_extension`, o que inviabilizaria o `sqlite-vec` no MacBook (troquei por vetores em tabela comum + numpy);
+  no **Windows** a saída de uma CLI em Python voltava com acento corrompido (cp1252 no pipe; o `Delegator` agora força UTF-8
+  no filho). O que ainda não tem prova: o resultado do CI **depois** dessas correções (conferir o PR).
 - **Legado em produção:** o gate novo foi testado com stubs, não com Qdrant/SurrealDB no ar. **Antes de usar no PC,
   suba o cérebro e faça um pedido que rode `executar_comando`** — agora ele vai pedir confirmação em quase tudo
   que não for leitura (esse é o comportamento desejado, mas muda o uso).

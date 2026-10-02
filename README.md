@@ -49,7 +49,7 @@ Notebook ── web / casca desktop ─┤
                      ├─ Ferramentas ──► servidores MCP (prontos + orion-desktop próprio)
                      │                   └─ política: leitura livre · escrita com log ·
                      │                      destrutiva só com confirmação
-                     ├─ Memória ──► SQLite (FTS5 + sqlite-vec), um arquivo
+                     ├─ Memória ──► SQLite (FTS5 + vetores em numpy), um arquivo
                      │               └─ embeddings por API gratuita
                      └─ Jobs ──► lembretes · consolidação da memória · backup
 ```

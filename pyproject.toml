@@ -11,7 +11,7 @@ dependencies = [
     "pydantic>=2.7",
     "pydantic-settings>=2.3",
     "platformdirs>=4.2",
-    "sqlite-vec>=0.1.6",
+    "numpy>=1.26",
     "keyring>=25",
 ]
 

@@ -27,7 +27,7 @@ FATOS = [
     "O backup da memória é diário, copiando o arquivo SQLite para a nuvem",
 ]
 NOTAS = {
-    "Projetos/Orion.md": "# Orion\nA memória usa SQLite com FTS5 e sqlite-vec. A fusão dos resultados é RRF.",
+    "Projetos/Orion.md": "# Orion\nA memória usa SQLite com FTS5 e vetores em numpy. A fusão dos resultados é RRF.",
     "Estudos/UML.md": "# UML\nDiagrama de classes mostra herança e associação. Diagrama de sequência mostra mensagens.",
     "Estudos/POO.md": "# POO\nEncapsulamento, herança e polimorfismo são os pilares da orientação a objetos.",
 }

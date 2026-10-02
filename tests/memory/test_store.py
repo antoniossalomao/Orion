@@ -171,7 +171,7 @@ def test_editar_e_esquecer_atualizam_o_vetor(store_vec):
     assert store_vec.search("universidade", kinds=["fact"])[0].id == f.id
     store_vec.forget_fact(f.id)
     assert store_vec.search("universidade", kinds=["fact"]) == []
-    assert store_vec._conn.execute("SELECT COUNT(*) FROM vec_facts").fetchone()[0] == 0
+    assert store_vec._conn.execute("SELECT COUNT(*) FROM vectors").fetchone()[0] == 0
 
 
 def test_troca_de_dimensao_exige_reset(tmp_path, embedder):
@@ -194,12 +194,38 @@ def test_troca_de_dimensao_exige_reset(tmp_path, embedder):
     s.close()
 
 
-def test_sem_extensao_vetorial_a_busca_funciona_so_por_palavra(tmp_path, embedder, monkeypatch):
-    monkeypatch.setattr(MemoryStore, "_load_vec", staticmethod(lambda conn: False))
-    s = MemoryStore(tmp_path / "n.db", embedder=embedder)
-    s.add_fact("Antônio mora em Marília", "manual")
-    assert not s.vectors_available and s.search("Marília")[0].via == "fts"
+def test_sem_embedder_nao_ha_vetores_e_a_busca_e_so_por_palavra(store):
+    store.add_fact("Antônio mora em Marília", "manual")
+    assert not store.vectors_available and store.embed_pending() == 0
+    assert store.search("Marília")[0].via == "fts"
+    assert store._conn.execute("SELECT COUNT(*) FROM vectors").fetchone()[0] == 0
+
+
+def test_vetores_ficam_no_banco_e_sobrevivem_a_backup_e_reabertura(tmp_path, embedder):
+    s = MemoryStore(tmp_path / "v.db", embedder=embedder)
+    s.add_fact("Antônio estuda ADS na UNIMAR", "manual")
+    bk = s.backup_to(tmp_path / "bk.db")
     s.close()
+    novo = MemoryStore.restore(bk, tmp_path / "novo.db", embedder=embedder)
+    try:
+        assert novo.embed_pending() == 0  # nada a refazer: os vetores vieram no backup
+        assert novo.search("universidade", kinds=["fact"])[0].via == "vec"
+    finally:
+        novo.close()
+
+
+def test_vetor_de_dimensao_errada_na_consulta_nao_quebra(store_vec):
+    store_vec.add_fact("Antônio mora em Marília", "manual")
+
+    # um embedder que mudou de modelo sem reset: consulta com outra dimensão
+    class Curto:
+        dim = 8
+
+        def embed(self, texts):
+            return [[1.0] * 8 for _ in texts]
+
+    store_vec._embedder = Curto()
+    assert store_vec.search("Marília")[0].via == "fts"  # sem vetor compatível: só palavra-chave
 
 
 # ── backup e restauração ────────────────────────────────────────────────────

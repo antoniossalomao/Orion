@@ -171,3 +171,13 @@ def test_shim_cmd_do_windows_e_recusado_e_o_caminho_resolvido_e_usado(store, pas
         run=run,
     )
     assert d2.delegate("x", str(pasta))["ok"] and usado == ["/usr/local/bin/claude"]
+
+
+def test_filho_recebe_utf8_forcado_para_nao_corromper_acento_no_windows(store, pasta):
+    d = delegador(
+        store,
+        fake(
+            "claude", "import os; print(os.environ['PYTHONUTF8'], os.environ['PYTHONIOENCODING'])"
+        ),
+    )
+    assert d.delegate("módulo", str(pasta))["saida"] == "1 utf-8"

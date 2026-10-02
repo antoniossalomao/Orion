@@ -18,8 +18,6 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-    env:
-      ORION_REQUIRE_VECTORS: ${{ matrix.os == 'ubuntu-latest' && '1' || '0' }}
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5

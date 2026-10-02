@@ -1,7 +1,7 @@
 """MemoryStore: sessões, fatos e documentos num único arquivo SQLite.
 
-Busca híbrida = FTS5 (palavra-chave, sempre disponível) + sqlite-vec (vetor,
-quando há embedder e a extensão carrega), fundidas por RRF. Se o embedder cair,
+Busca híbrida = FTS5 (palavra-chave, sempre disponível) + vetores (numpy, quando
+há embedder), fundidos por RRF. Se o embedder cair,
 a busca segue só por palavra-chave e os vetores faltantes entram depois em
 `embed_pending()` (job). Backup = `backup_to()` (cópia consistente do arquivo).
 """
@@ -26,6 +26,7 @@ from typing import Any, ClassVar, Literal, Protocol
 
 from .schema import DDL, SCHEMA_VERSION
 from .text import chunk_text, fts_query, strip_frontmatter
+from .vectors import VectorIndex, para_blob
 
 log = logging.getLogger("orion.memory")
 
@@ -79,17 +80,6 @@ class Hit:
     via: str  # "fts", "vec" ou "fts+vec"
 
 
-def _vec_blob(v: Sequence[float]) -> bytes:
-    """Serializa normalizando para norma 1: a distância L2 do sqlite-vec passa a
-    ordenar como a similaridade de cosseno, qualquer que seja o embedder."""
-    import math
-
-    import sqlite_vec
-
-    norma = math.sqrt(sum(x * x for x in v)) or 1.0
-    return sqlite_vec.serialize_float32([x / norma for x in v])
-
-
 class MemoryStore:
     def __init__(
         self,
@@ -107,25 +97,13 @@ class MemoryStore:
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("PRAGMA foreign_keys=ON")
-        self.vectors_available = self._load_vec(self._conn)
+        self._index = VectorIndex()
+        self.vectors_available = embedder is not None  # há embedder: a busca vetorial está ligada
         self._init_schema()
-        if self._embedder and self.vectors_available:
-            self._ensure_vector_tables(self._embedder.dim)
+        if self._embedder:
+            self._ensure_vector_dim(self._embedder.dim)
 
     # ── infraestrutura ────────────────────────────────────────────────────
-    @staticmethod
-    def _load_vec(conn: sqlite3.Connection) -> bool:
-        try:
-            import sqlite_vec
-
-            conn.enable_load_extension(True)
-            sqlite_vec.load(conn)
-            conn.enable_load_extension(False)
-            return True
-        except (ImportError, AttributeError, sqlite3.Error) as e:
-            log.warning("sqlite-vec indisponível, busca só por palavra-chave: %s", e)
-            return False
-
     def _init_schema(self) -> None:
         with self._tx() as c:
             existe = c.execute(
@@ -155,7 +133,7 @@ class MemoryStore:
         r = c.execute("SELECT value FROM meta WHERE key=?", (chave,)).fetchone()
         return r[0] if r else None
 
-    def _ensure_vector_tables(self, dim: int) -> None:
+    def _ensure_vector_dim(self, dim: int) -> None:
         with self._tx() as c:
             atual = self._meta(c, "embed_dim")
             if atual is not None and int(atual) != dim:
@@ -164,21 +142,17 @@ class MemoryStore:
                 )
             if atual is None:
                 c.execute("INSERT INTO meta VALUES ('embed_dim', ?)", (str(dim),))
-                for tabela in ("vec_facts", "vec_chunks"):
-                    c.execute(
-                        f"CREATE VIRTUAL TABLE {tabela} USING vec0(embedding float[{int(dim)}])"
-                    )
 
     def reset_vectors(self) -> None:
         """Descarta os vetores (troca de modelo de embedding); `embed_pending` refaz."""
         with self._tx() as c:
-            for tabela in ("vec_facts", "vec_chunks"):
-                c.execute(f"DROP TABLE IF EXISTS {tabela}")
+            c.execute("DELETE FROM vectors")
             c.execute("DELETE FROM meta WHERE key='embed_dim'")
             c.execute("UPDATE facts SET embedded=0")
             c.execute("UPDATE chunks SET embedded=0")
-        if self._embedder and self.vectors_available:
-            self._ensure_vector_tables(self._embedder.dim)
+        self._index.invalidar()
+        if self._embedder:
+            self._ensure_vector_dim(self._embedder.dim)
 
     def close(self) -> None:
         with self._lock:
@@ -363,7 +337,7 @@ class MemoryStore:
                 " embedded=0 WHERE id=?",
                 (texto, source, self._clock(), fact_id),
             )
-            self._drop_vec(c, "vec_facts", [fact_id])
+            self._drop_vec(c, "fact", [fact_id])
             fato = self._fact(c, fact_id)
         self._try_embed()
         return fato
@@ -371,7 +345,7 @@ class MemoryStore:
     def forget_fact(self, fact_id: int) -> bool:
         """Esquece de verdade: apaga o texto, o índice FTS e o vetor."""
         with self._tx() as c:
-            self._drop_vec(c, "vec_facts", [fact_id])
+            self._drop_vec(c, "fact", [fact_id])
             return c.execute("DELETE FROM facts WHERE id=?", (fact_id,)).rowcount > 0
 
     def facts(self) -> list[Fact]:
@@ -437,7 +411,7 @@ class MemoryStore:
 
     def _delete_document(self, c: sqlite3.Connection, doc_id: int) -> None:
         ids = [x[0] for x in c.execute("SELECT id FROM chunks WHERE document_id=?", (doc_id,))]
-        self._drop_vec(c, "vec_chunks", ids)
+        self._drop_vec(c, "chunk", ids)
         c.execute("DELETE FROM documents WHERE id=?", (doc_id,))
 
     def remove_document(self, source: str) -> bool:
@@ -470,9 +444,9 @@ class MemoryStore:
         return contagem
 
     # ── vetores ───────────────────────────────────────────────────────────
-    def _drop_vec(self, c: sqlite3.Connection, tabela: str, ids: Sequence[int]) -> None:
-        if self.vectors_available and self._meta(c, "embed_dim") is not None:
-            c.executemany(f"DELETE FROM {tabela} WHERE rowid=?", [(i,) for i in ids])
+    def _drop_vec(self, c: sqlite3.Connection, kind: str, ids: Sequence[int]) -> None:
+        c.executemany("DELETE FROM vectors WHERE kind=? AND ref_id=?", [(kind, i) for i in ids])
+        self._index.invalidar(kind)
 
     def _try_embed(self) -> None:
         try:
@@ -482,10 +456,10 @@ class MemoryStore:
 
     def embed_pending(self, lote: int = 32) -> int:
         """Gera vetores dos itens ainda sem vetor. Devolve quantos foram feitos."""
-        if not (self._embedder and self.vectors_available):
+        if self._embedder is None:
             return 0
         feitos = 0
-        for tabela, vec in (("facts", "vec_facts"), ("chunks", "vec_chunks")):
+        for tabela, kind in (("facts", "fact"), ("chunks", "chunk")):
             while True:
                 with self._lock:
                     rows = self._conn.execute(
@@ -496,12 +470,13 @@ class MemoryStore:
                 vetores = self._embedder.embed([r["text"] for r in rows])
                 with self._tx() as c:
                     for r, v in zip(rows, vetores, strict=True):
-                        c.execute(f"DELETE FROM {vec} WHERE rowid=?", (r["id"],))
                         c.execute(
-                            f"INSERT INTO {vec}(rowid, embedding) VALUES (?,?)",
-                            (r["id"], _vec_blob(v)),
+                            "INSERT OR REPLACE INTO vectors(kind, ref_id, embedding)"
+                            " VALUES (?,?,?)",
+                            (kind, r["id"], para_blob(v)),
                         )
                         c.execute(f"UPDATE {tabela} SET embedded=1 WHERE id=?", (r["id"],))
+                    self._index.invalidar(kind)
                 feitos += len(rows)
         return feitos
 
@@ -542,7 +517,7 @@ class MemoryStore:
                 rows = self._conn.execute(self._SQL_FTS[kind], (fq, amplo)).fetchall() if fq else []
                 listas.append((kind, "fts", [(r[0], r[1], r[2]) for r in rows]))
             vec_kinds = [kd for kd in kinds if kd in ("fact", "chunk")]
-            if self._embedder and self.vectors_available and vec_kinds:
+            if self._embedder and vec_kinds:
                 listas.extend(self._vec_lists(query, vec_kinds, amplo))
 
         placar: dict[tuple[str, int], float] = {}
@@ -565,20 +540,23 @@ class MemoryStore:
     ) -> list[tuple[Kind, str, list[tuple[int, str, str]]]]:
         assert self._embedder is not None
         try:
-            consulta = _vec_blob(self._embedder.embed([query])[0])
+            consulta = self._embedder.embed([query])[0]
         except Exception as e:  # noqa: BLE001 — embedding fora do ar: segue só por palavra-chave
             log.warning("busca vetorial indisponível, usando só palavra-chave: %s", e)
             return []
         saida: list[tuple[Kind, str, list[tuple[int, str, str]]]] = []
         for kind in kinds:
-            tabela = "vec_facts" if kind == "fact" else "vec_chunks"
-            ids = [
-                r[0]
-                for r in self._conn.execute(
-                    f"SELECT rowid FROM {tabela} WHERE embedding MATCH ? AND k=? ORDER BY distance",
-                    (consulta, amplo),
-                )
-            ]
+            ids = self._index.topk(
+                kind,
+                consulta,
+                amplo,
+                lambda kind=kind: [
+                    (r[0], r[1])
+                    for r in self._conn.execute(
+                        "SELECT ref_id, embedding FROM vectors WHERE kind=?", (kind,)
+                    )
+                ],
+            )
             itens = []
             for i in ids:
                 r = self._conn.execute(self._SQL_ROW[kind], (i,)).fetchone()
@@ -647,7 +625,6 @@ class MemoryStore:
         """Abre o backup somente-leitura, confere integridade e devolve as contagens."""
         conn = sqlite3.connect(f"file:{Path(arquivo).as_posix()}?mode=ro", uri=True)
         try:
-            MemoryStore._load_vec(conn)
             if conn.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
                 raise ValueError("backup corrompido (integrity_check)")
             versao = conn.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()
