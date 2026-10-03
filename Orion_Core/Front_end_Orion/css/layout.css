@@ -1,6 +1,6 @@
 /* ==========================================================================
    ORION — layout.css | casca do app: céu, barra lateral, barra superior, telas
-   Desktop: sidebar fixa (recolhível). ≤ 860 px: sidebar vira gaveta.
+   Sidebar fixa, recolhível a só ícones (automático em janela estreita).
    ========================================================================== */
 html { --sb-cur: var(--sb-w); }
 html[data-sb="collapsed"] { --sb-cur: var(--sb-wc); }
@@ -31,7 +31,7 @@ html[data-view="memoria"] #sky-veil     { opacity: 0.55; }
     transition: grid-template-columns var(--dur-3) var(--ease-out);
 }
 #main { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; outline: none; }
-#stage { position: relative; flex: 1; min-height: 0; }
+#stage { position: relative; flex: 1; min-height: 0; overflow: clip; }   /* dicas de ferramenta de telas inativas não geram rolagem */
 
 /* ── Barra lateral ───────────────────────────────────────────────────── */
 #sidebar {
@@ -121,7 +121,6 @@ html[data-sb="collapsed"] .sb-item .dot-badge { position: absolute; top: 0.45rem
 .tb-title { display: flex; align-items: baseline; gap: var(--s-3); min-width: 0; }
 .tb-title h1 { font-size: var(--fs-lg); font-weight: 600; letter-spacing: -0.005em; white-space: nowrap; }
 .tb-title .tb-sub { font-size: var(--fs-xs); color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#menu-btn { display: none; }
 
 .state-pill {
     display: inline-flex; align-items: center; gap: 0.5rem; height: 1.75rem; padding: 0 0.75rem 0 0.6rem;
@@ -155,35 +154,15 @@ html.shell-desktop #window-controls { display: flex; }
 .page-head h2 { font-size: var(--fs-2xl); font-weight: 600; letter-spacing: -0.02em; line-height: var(--lh-tight); }
 .page-head p { margin-top: var(--s-1); color: var(--text-2); font-size: var(--fs-md); max-width: 46rem; }
 
-/* ── Responsivo: gaveta no celular ───────────────────────────────────── */
+/* ── Modo foco (Ctrl+.): só a conversa ───────────────────────────────── */
+html[data-foco="true"] { --sb-cur: 0px; }
+html[data-foco="true"] #sidebar, html[data-foco="true"] #topbar { display: none; }
+html[data-foco="true"] #app { grid-template-columns: minmax(0, 1fr); }
+
+/* ── Janela estreita (≤ 860 px): a barra vira trilho de ícones (o JS força data-sb="collapsed") ── */
 @media (max-width: 860px) {
-    html, html[data-sb="collapsed"] { --sb-cur: 0px; }
-    #app { grid-template-columns: minmax(0, 1fr); }
-    #sidebar {
-        position: fixed; inset: 0 auto 0 0; z-index: calc(var(--z-scrim) + 1); width: min(86vw, 20rem);
-        padding-top: calc(var(--s-3) + env(safe-area-inset-top)); padding-bottom: calc(var(--s-3) + env(safe-area-inset-bottom));
-        transform: translateX(-104%); transition: transform var(--dur-3) var(--ease-out);
-        box-shadow: var(--sh-3); background: var(--bg-2);
-    }
-    html[data-drawer="open"] #sidebar { transform: none; }
-    #drawer-scrim {
-        position: fixed; inset: 0; z-index: var(--z-scrim); background: var(--scrim);
-        opacity: 0; pointer-events: none; transition: opacity var(--dur-2) var(--ease);
-    }
-    html[data-drawer="open"] #drawer-scrim { opacity: 1; pointer-events: auto; }
-    #menu-btn { display: grid; }
-    html[data-sb="collapsed"] .sb-txt, html[data-sb="collapsed"] .sb-convs { display: revert; }
-    html[data-sb="collapsed"] .sb-new, html[data-sb="collapsed"] .sb-item { justify-content: flex-start; padding: 0 0.8rem; gap: 0.8rem; }
-    html[data-sb="collapsed"] .sb-new kbd { display: inline-block; }
-    html[data-sb="collapsed"] .sb-item .dot-badge { position: static; margin-left: auto; }
-    .sb-new kbd, .palette-trigger kbd, .palette-trigger span { display: none; }
     #sb-toggle { display: none; }
-    #topbar { padding: calc(env(safe-area-inset-top)) var(--s-3) 0 var(--s-2); height: calc(var(--topbar-h) + env(safe-area-inset-top)); }
+    .palette-trigger kbd, .palette-trigger span { display: none; }
     .tb-title .tb-sub { display: none; }
-    .page { padding: var(--s-2) var(--s-4) calc(var(--s-12) + env(safe-area-inset-bottom)); }
-    .sb-item, .conv { min-height: var(--touch); }
-    #sky { inset: 0; }
-    #sky-veil { inset: 0; }
+    .page { padding-inline: var(--s-4); }
 }
-@media (min-width: 861px) { #drawer-scrim { display: none; } }
-@media (max-width: 420px) { .state-pill .state-label { display: none; } .state-pill { padding: 0 0.6rem; } }

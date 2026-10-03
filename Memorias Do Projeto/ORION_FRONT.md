@@ -8,7 +8,7 @@
 
 | # | Problema | Evidência |
 |---|---|---|
-| 1 | **Mobile quebrado**: sidebar fixa de 252 px cobre a tela; pílula de status, controles de janela e composer sobrepostos | captura 390×844 |
+| 1 | **Janela estreita quebrada**: sidebar fixa de 252 px cobre a tela; pílula de status, controles de janela e composer sobrepostos (visto a 390 px) | captura 390×844 |
 | 2 | Toast "Hub desconectado — reconectando…" **permanente** fora do pywebview | toda captura em modo web |
 | 3 | Composer é `<input type="text">`: sem múltiplas linhas, sem Shift+Enter | `index.html` |
 | 4 | Markdown sem tabela, link, citação, lista aninhada; código sem rótulo de linguagem, sem copiar, sem realce | `md.js` |
@@ -52,12 +52,12 @@ Scripts simples com namespace `Orion.*` (sem bundler; módulos ES não carregam 
 Cada arquivo tem uma responsabilidade; os puros têm UMD e teste em Node.
 
 ```
-index.html · manifest.webmanifest · orion.svg · orion_app.py (launcher) · ponte.py (regras puras da ponte)
+index.html · orion.svg · orion_app.py (launcher) · ponte.py (regras puras da ponte)
 css/    tokens · base · layout · components · chat · views
-js/     util · md · sse · store · charts · fuzzy             (puros, UMD, testados em Node)
+js/     util · md · sse · store · charts · fuzzy · slash     (puros, UMD, testados em Node)
         core · api · transport · ui                          (infra: DOM, bus, prefs, HTTP, chat SSE/hub, toast/diálogo/menu)
         sky · sound · voice                                  (mídia)
-        chat · composer · sidebar · palette · app            (interface, rotas, atalhos, boot)
+        chat · composer · sidebar · palette · busca · app    (interface, rotas, atalhos, boot)
         views/home · memory · integrations · settings
 vendor/ three r128 · 3d-force-graph (carregado só na 1ª visita à Memória) · Inter
 ```
@@ -74,7 +74,7 @@ quando um endpoint não existe. Transporte do chat: no pywebview, API + hub WS (
 | Contraste de texto | ≥ 4,5:1 (AA) |
 | Console | 0 erros/avisos de página ao navegar por todas as telas |
 | Teclado | toda ação alcançável sem mouse; foco sempre visível; views ocultas `inert` |
-| Mobile | 390 px sem rolagem horizontal; alvos de toque ≥ 44 px |
+| Janela estreita | ≥ 700 px sem rolagem horizontal; a barra lateral vira trilho de ícones (o app é só desktop) |
 | Streaming | 1 render por quadro (rAF), não por pedaço |
 | Céu fora da home | ≤ 20 fps; pausado com a aba oculta |
 
@@ -84,27 +84,29 @@ quando um endpoint não existe. Transporte do chat: no pywebview, API + hub WS (
 
 | Tela | Antes | Agora |
 |---|---|---|
-| **Casca** | Sidebar fixa de 252 px cobrindo o celular; toast de "hub desconectado" permanente na web | Sidebar recolhível (`Ctrl+B`) e, no celular, gaveta com foco preso; rotas por hash (`#/chat`…), botão voltar funciona; conexão em linguagem humana, sem alarme |
+| **Casca** | Sidebar fixa de 252 px; toast de "hub desconectado" permanente na web | Sidebar recolhível (`Ctrl+B`; vira trilho de ícones em janela estreita), rotas por hash (botão voltar funciona), modo foco (`Ctrl+.`), conexão em linguagem humana, sem alarme |
 | **Início** | Campo de texto + constelação | Saudação, chips de estado reais (cérebro, modelo, nº de memórias), sugestões, constelação deslocada para cima, paralaxe e rótulo ao passar o mouse nas estrelas |
 | **Chat** | Reparseia o texto todo a cada pedaço; sem tabela/link/realce | Streaming com ≤ 1 render por quadro; tabelas, listas aninhadas, citação, tarefas, código com linguagem, realce e "Copiar"; ferramentas usadas viram chips; **cartão de aprovação** de ação; erro com "Tentar de novo"; "Mais recentes"; parar com `Esc`; anexos (clipe, colar, arrastar) |
 | **Memória** | Overlay de grafo sem teclado | Grafo pausado fora da tela; busca por trecho + lista de resultados + painel de detalhes com vizinhos (caminho por teclado); filtros por tipo; aviso explícito quando os dados são de demonstração |
 | **Integrações** | Cartões estáticos | Estado real de `/integracoes`, ação por cartão (voz ao vivo, resposta por voz), aviso quando o cérebro não responde |
 | **Configurações** | Cartões de altura igual, gráfico quebrado com 1 ponto | Aparência (3 temas, densidade, escala, movimento), voz e sons, modelo, conexão (endereço, token, testar), atividade (CPU/RAM/GPU, latência, cascata, serviços), atalhos, sobre |
-| **Paleta (`Ctrl+K`)** | Não existia | Ir para, ações, tema/densidade/escala, conversas (por trecho), "Perguntar ao Orion" |
+| **Paleta (`Ctrl+K`)** | Não existia | Ir para, ações, modelo, tema/densidade/escala, conversas (por trecho), "Perguntar ao Orion", "Revisar ação pendente" |
+| **Comandos `/`** | Não existia | `/` no campo abre a lista: `/nova`, `/buscar`, `/copiar`, `/exportar`, `/limpar`, `/modelo`, `/tema`, `/foco`, `/mudo`, `/voz`, `/ajuda` e as telas. Completa com `Tab`/`Enter`; `//` envia uma barra literal; caminho de arquivo e texto de várias linhas não são comando |
+| **Na conversa** | — | `Ctrl+F` busca (sem acento, destaca todas as ocorrências, `Enter` navega); selecionar um trecho oferece **Citar**; tempo de cada resposta; `Ctrl+Shift+C` copia a última resposta; rascunho guardado por conversa; aprovação pendente acende o ponto do Chat e entra na paleta |
 
 ### O que foi verificado
 
 | Orçamento | Resultado | Onde |
 |---|---|---|
-| Axe (serious/critical **e** moderate/best-practice) | 0 violações em 5 telas × 3 temas, no chat com resposta + aprovação + erro, com paleta e menu abertos, e na gaveta mobile | `test_axe_*` |
-| Console | 0 erros/avisos em todos os 60 testes de navegador (a fixture derruba o teste) | `conftest.py` |
-| Teclado | `Ctrl+K`, `Alt+1..5`, `/`, `?`, `Ctrl+B`, `Esc`; telas ocultas `inert`; gaveta com foco preso e foco devolvido | `test_atalhos_*`, `test_paleta_*`, `test_mobile_gaveta_*` |
-| Mobile | Sem rolagem horizontal em 320 e 390 px nas 5 telas; alvos de toque ≥ 44 px (`pointer: coarse`) | `test_mobile_*` |
+| Axe (serious/critical **e** moderate/best-practice) | 0 violações em 5 telas × 3 temas, no chat com resposta + aprovação + erro, e com paleta e menu abertos | `test_axe_*` |
+| Console | 0 erros/avisos em todos os 69 testes de navegador (a fixture derruba o teste) | `conftest.py` |
+| Teclado | `Ctrl+K`, `Alt+1..5`, `/`, `?`, `Ctrl+B`, `Ctrl+.`, `Ctrl+F`, `Esc`; telas ocultas `inert`; menu `/` e paleta no padrão combobox | `test_atalhos_*`, `test_paleta_*`, `test_comandos_*` |
+| Janela estreita | Sem rolagem horizontal a 700 e 860 px nas 5 telas; barra vira trilho e volta ao alargar | `test_janela_*` |
 | Streaming | Renderizações ≤ quadros + 2 (a resposta chega em ~100 pedaços) | `test_streaming_rende_*` |
 | Céu fora da home | ≤ 22 quadros/s | `test_ceu_fora_*` |
 | Segurança | `<script>`, `onerror`, `javascript:` e imagem externa em texto do modelo: nada executa, nada sai do app; CSP com o hash do único script inline (teste falha se o script mudar sem atualizar o hash) | `test_markdown_malicioso_*`, `test_csp_*` |
 | Desktop | Caminho `process_command` + hub com shim (eco sem duplicar, ferramenta, modelo, fala vinda do microfone, link por `open_external`, controles da janela) | `test_desktop_*` |
-| Lógica pura | 79 testes em Node (md, sse, store, util, fuzzy, charts) | `tests/front/` |
+| Lógica pura | 89 testes em Node (md, sse, store, util, fuzzy, charts, slash) | `tests/front/` |
 | Ponte e servidor | `ponte.py` (relay de eventos, URL externa, cabeçalho) e `/ui/` do `orion.app` (sem `.py`, sem `__pycache__`) | `tests/legacy/test_ponte.py`, `tests/test_app_ui.py` |
 
 Peso: ~1,1 MB no primeiro carregamento (three.js 600 KB, Inter 48 KB, CSS 80 KB, JS ~200 KB);
@@ -114,7 +116,7 @@ o 3d-force-graph (700 KB) só baixa na primeira visita à Memória.
 
 - Toda mensagem saía com `\n\n` no fim (montagem do prompt com anexos).
 - `Esc` digitado no mesmo quadro em que a paleta abre não fechava.
-- Alvos de toque de 30–42 px (botões de ícone, enviar, chip de modelo).
+- **A página inteira travava** quando já havia 3 toasts e um deles estava saindo (laço que limita a pilha nunca terminava). Visto só porque o teste do `/` empilhou avisos; agora há teste dedicado.
 - Níveis de título do markdown pulavam de `h1` para `h4` (axe); `<dl>` com título solto.
 - Menu de modelo cobria o clipe e o texto digitado.
 - `Enter` com a resposta em andamento a cancelava; agora só avisa (parar é `Esc` ou o botão).
@@ -135,7 +137,7 @@ o 3d-force-graph (700 KB) só baixa na primeira visita à Memória.
 
 - No caminho do hub (desktop), "parar" só descarta o resto da resposta: `process_command` não
   cancela o stream no cérebro. No caminho SSE o `fetch` é abortado de verdade.
-- O legado (`cerebro_maestro.py`) não serve a interface; o celular usa o `orion.app` em `/ui/`
+- O legado (`cerebro_maestro.py`) não serve a interface; o `orion.app` a serve em `/ui/` (útil para abrir no navegador do PC)
   (e `ORION_ALLOWED_HOSTS` com o nome do Tailscale).
 - A saudação usa o nome fixo "Antônio" (sai quando houver perfil).
 

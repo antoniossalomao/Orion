@@ -20,8 +20,8 @@
 
     let timer = null;
 
-    function chip(texto, estado) {
-        return el('span', { class: 'chip' },
+    function item(texto, estado) {
+        return el('span', { class: 'hs-item' },
             estado ? el('span', { class: 'status-dot', dataset: { state: estado }, 'aria-hidden': 'true' }) : null, texto);
     }
 
@@ -32,11 +32,11 @@
         let h = null;
         try { h = await api.health(); } catch (_) { /* legado sem /health completo */ }
         const r = h ? { ok: true } : await api.ping();
-        chips.push(r.ok ? chip('Cérebro conectado', 'ok') : chip('Cérebro offline', 'danger'));
-        chips.push(chip(`Modelo: ${nomeModelo}`));
+        chips.push(r.ok ? item('Cérebro conectado', 'ok') : item('Cérebro offline', 'danger'));
+        chips.push(item(nomeModelo));
         const vetores = h?.qdrant?.vetores ? Object.values(h.qdrant.vetores).reduce((s, x) => s + (+x || 0), 0) : 0;
-        if (vetores) chips.push(chip(`${U.fmtNum(vetores)} memórias`));
-        if (h?.latencia_ultimo_chat_ms) chips.push(chip(`Último chat: ${U.fmtMs(h.latencia_ultimo_chat_ms)}`));
+        if (vetores) chips.push(item(`${U.fmtNum(vetores)} memórias`));
+        if (h?.latencia_ultimo_chat_ms) chips.push(item(`último chat ${U.fmtMs(h.latencia_ultimo_chat_ms)}`));
         caixa.replaceChildren(...chips);
     }
 

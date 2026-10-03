@@ -96,7 +96,7 @@ def navegador():
 
 @pytest.fixture
 def abrir(navegador, mock_url):
-    """`abrir("#/chat")` → página aberta no front. Opções: viewport, url, reduced, mobile, axe, init."""
+    """`abrir("#/chat")` → página aberta no front. Opções: viewport, url, reduced, axe, init, http_ok, boot."""
     contextos: list = []
     erros: list[str] = []
     permitir_http: list[bool] = [False]
@@ -107,7 +107,6 @@ def abrir(navegador, mock_url):
         viewport=(1440, 900),
         url: str | None = None,
         reduced: bool = False,
-        mobile: bool = False,
         axe: bool = False,
         init: str | None = None,
         http_ok: bool = False,
@@ -118,10 +117,7 @@ def abrir(navegador, mock_url):
             viewport={"width": viewport[0], "height": viewport[1]},
             locale="pt-BR",
             reduced_motion="reduce" if reduced else "no-preference",
-            has_touch=mobile,
-            is_mobile=mobile,
-            device_scale_factor=2 if mobile else 1,
-            permissions=["clipboard-read", "clipboard-write"] if not mobile else [],
+            permissions=["clipboard-read", "clipboard-write"],
         )
         contextos.append(ctx)
         if axe:

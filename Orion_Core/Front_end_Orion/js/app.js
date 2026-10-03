@@ -46,6 +46,7 @@
         if (anterior && anterior !== view) O.views[anterior]?.desativar?.();
         atual = view;
         html.dataset.view = view;
+        if (anterior === 'chat' && view !== 'chat' && O.chat.pendentes().length) $('#badge-chat').classList.add('show');
         for (const v of $$('.view')) {
             const on = v.dataset.view === view;
             v.dataset.active = String(on);
@@ -58,14 +59,13 @@
         document.title = view === 'home' ? 'Orion' : `${VIEWS[view].titulo} · Orion`;
         subtituloDoChat();
         O.sky.setModo(view === 'home' ? 'home' : 'fundo');
-        O.sidebar.fecharGaveta(false);
         if (view === 'chat') { $('#badge-chat').classList.remove('show'); O.chat.irAoFim(); }
         O.views[view]?.ativar?.(opcoes);
-        if (!inicial) {
-            if (O.toqueGrosso()) $('#main').focus({ preventScroll: true });
-            else if (view === 'chat' || view === 'home') O.composer.foco();
+        if (!inicial && opcoes.foco !== false) {
+            if (view === 'chat' || view === 'home') O.composer.foco();
             else $('#main').focus({ preventScroll: true });
         }
+        bus.emit('view', view);
     }
 
     /* ── ações compartilhadas (paleta, atalhos, botões) ────────────────── */
@@ -103,6 +103,45 @@
         },
     };
 
+    Object.assign(O.acoes, {
+        foco() {
+            const ligar = html.dataset.foco !== 'true';
+            if (ligar) html.dataset.foco = 'true'; else delete html.dataset.foco;
+            O.sky.resize();
+            if (ligar) ui.toast('Modo foco. Ctrl+. ou Esc para sair.', { ms: 2600, id: 'foco' });
+        },
+        async copiarUltima() {
+            const t = O.chat.ultimaResposta();
+            if (!t) { ui.toast('Ainda não há resposta para copiar.', { tipo: 'aviso', ms: 2400 }); return; }
+            ui.toast((await ui.copiar(t)) ? 'Resposta copiada.' : 'Não consegui copiar.', { tipo: 'ok', ms: 1800 });
+        },
+        async copiarConversa() {
+            try {
+                const d = await api.exportar();
+                if (!d.markdown || !d.total_msgs) { ui.toast('Nada para copiar ainda.', { tipo: 'aviso', ms: 2400 }); return; }
+                ui.toast((await ui.copiar(d.markdown)) ? `Conversa copiada (${d.total_msgs} mensagens).` : 'Não consegui copiar.', { tipo: 'ok', ms: 2000 });
+            } catch (e) { ui.toast(`Falha ao copiar: ${e.message}`, { tipo: 'erro' }); }
+        },
+        modelo(id) {
+            prefs.set('model', id);
+            const m = O.composer.MODELOS.find(x => x.id === id);
+            ui.toast(`Modelo: ${m ? m.nome : id}.`, { ms: 1800 });
+        },
+        /** executa o que o campo de mensagem interpretou como `/comando` (ver slash.js) */
+        slash(cmd, arg) {
+            const A = O.acoes;
+            const mapa = {
+                nova: () => O.sidebar.nova(), buscar: () => O.busca.abrir(arg),
+                copiar: () => (arg === 'conversa' ? A.copiarConversa() : A.copiarUltima()),
+                exportar: () => A.exportar(), limpar: () => A.limpar(), modelo: () => A.modelo(arg), tema: () => A.tema(arg),
+                foco: () => A.foco(), mudo: () => A.alternarTts(), voz: () => O.voz.alternar(),
+                inicio: () => ir('home'), memoria: () => ir('memoria'), integracoes: () => ir('integracoes'), config: () => ir('config'),
+                ajuda: () => ir('config', { secao: 'cfg-atalhos' }),
+            };
+            mapa[cmd]?.();
+        },
+    });
+
     /* ── atalhos: uma tabela só serve ao teclado, à paleta e às Configurações ── */
     const ctrl = e => e.ctrlKey || e.metaKey;
     const ATALHOS = [
@@ -110,10 +149,15 @@
         { grupo: 'Geral', rotulo: 'Nova conversa', teclas: ['Ctrl', '⇧', 'O'], quando: e => ctrl(e) && e.shiftKey && e.key.toLowerCase() === 'o', fn: () => O.sidebar.nova() },
         { grupo: 'Geral', rotulo: 'Recolher barra lateral', teclas: ['Ctrl', 'B'], quando: e => ctrl(e) && !e.shiftKey && e.key.toLowerCase() === 'b', fn: () => O.sidebar.alternar() },
         { grupo: 'Geral', rotulo: 'Mostrar atalhos', teclas: ['?'], digitando: false, quando: e => e.key === '?' && !ctrl(e), fn: () => ir('config', { secao: 'cfg-atalhos' }) },
+        { grupo: 'Geral', rotulo: 'Modo foco (sem barras)', teclas: ['Ctrl', '.'], quando: e => ctrl(e) && !e.shiftKey && e.key === '.', fn: () => O.acoes.foco() },
         { grupo: 'Geral', rotulo: 'Fechar painel ou voltar ao início', teclas: ['Esc'] },
         ...Object.keys(VIEWS).map((v, i) => ({ grupo: 'Navegação', rotulo: VIEWS[v].titulo, teclas: ['Alt', String(i + 1)],
             quando: e => e.altKey && !ctrl(e) && !e.shiftKey && e.code === `Digit${i + 1}`, fn: () => ir(v) })),
         { grupo: 'Chat', rotulo: 'Focar na caixa de mensagem', teclas: ['/'], digitando: false, quando: e => e.key === '/' && !ctrl(e), fn: () => { if (atual !== 'home') ir('chat'); else O.composer.foco(); } },
+        { grupo: 'Chat', rotulo: 'Comandos (digite / no começo da mensagem)', teclas: ['/'] },
+        { grupo: 'Chat', rotulo: 'Buscar na conversa', teclas: ['Ctrl', 'F'], quando: e => ctrl(e) && !e.shiftKey && e.key.toLowerCase() === 'f' && atual === 'chat', fn: () => O.busca.abrir() },
+        { grupo: 'Chat', rotulo: 'Copiar a última resposta', teclas: ['Ctrl', '⇧', 'C'], quando: e => ctrl(e) && e.shiftKey && e.key.toLowerCase() === 'c', fn: () => O.acoes.copiarUltima() },
+        { grupo: 'Chat', rotulo: 'Citar o trecho selecionado', teclas: ['Ctrl', '⇧', 'Q'], quando: e => ctrl(e) && e.shiftKey && e.key.toLowerCase() === 'q', fn: () => { if (!O.chat.citarSelecao?.()) ui.toast('Selecione um trecho de uma mensagem para citar.', { tipo: 'aviso', ms: 2400 }); } },
         { grupo: 'Chat', rotulo: 'Enviar', teclas: ['Enter'] },
         { grupo: 'Chat', rotulo: 'Quebrar a linha', teclas: ['⇧', 'Enter'] },
         { grupo: 'Chat', rotulo: 'Repetir a mensagem anterior', teclas: ['↑'] },
@@ -137,9 +181,10 @@
         }
         if (e.key !== 'Escape') return;
         if (O.palette.aberta()) { O.palette.fechar(); return; }
-        if (O.sidebar.fecharGaveta()) return;
+        if (O.busca.fechar()) return;
         if (atual === 'chat' && O.chat.ocupado()) { O.chat.parar(); return; }
         if (O.views[atual]?.escape?.()) return;
+        if (html.dataset.foco === 'true') { O.acoes.foco(); return; }
         if (atual !== 'home' && atual !== 'chat' && !digitando) ir('home');
         else if (digitando) alvo.blur();
     }
@@ -233,6 +278,7 @@
         O.composer.init();
         O.sidebar.init();
         O.palette.init();
+        O.busca.init();
         for (const v of Object.values(O.views)) v.init?.();
         O.voz.ligar();
         ligarJanela();

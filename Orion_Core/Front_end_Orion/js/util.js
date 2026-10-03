@@ -103,6 +103,14 @@
         if (v == null || Number.isNaN(+v)) return '—';
         return new Intl.NumberFormat('pt-BR').format(+v);
     }
+    /** duração de uma resposta: "840 ms", "2,1 s", "1 min 12 s" */
+    function fmtDur(ms) {
+        ms = +ms;
+        if (!Number.isFinite(ms) || ms < 0) return '';
+        if (ms < 1000) return `${Math.round(ms)} ms`;
+        if (ms < 60000) return `${(ms / 1000).toFixed(1).replace('.', ',')} s`;
+        return `${Math.floor(ms / 60000)} min ${String(Math.round((ms % 60000) / 1000)).padStart(2, '0')} s`;
+    }
     function fmtBytes(n) {
         n = +n;
         if (!Number.isFinite(n)) return '—';
@@ -137,6 +145,6 @@
     return {
         escapar, desescapar, norm, clamp, hostDe, truncar,
         rotuloDia, agruparPorDia, hora, dataCurta, quando, saudacao, dataValida, diasEntre,
-        fmtMs, fmtPct, fmtNum, fmtBytes, debounce, noProximoQuadro, uid,
+        fmtMs, fmtDur, fmtPct, fmtNum, fmtBytes, debounce, noProximoQuadro, uid,
     };
 });

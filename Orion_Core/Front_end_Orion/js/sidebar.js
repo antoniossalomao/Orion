@@ -1,7 +1,6 @@
 /* ==========================================================================
-   ORION — sidebar.js | conversas, busca, recolher/gaveta, estado da conexão
-   Desktop: barra fixa (recolhível a só ícones). ≤ 860 px: gaveta com foco preso e
-   `inert` quando fechada — nada escondido por transform fica alcançável por Tab.
+   ORION — sidebar.js | conversas, busca, recolher, estado da conexão
+   Barra fixa, recolhível a só ícones (Ctrl+B); em janela estreita (≤ 860 px) fica sempre recolhida.
    ========================================================================== */
 (function () {
     'use strict';
@@ -10,8 +9,7 @@
     const U = O.util;
 
     let sessoes = [], ativa = null, filtro = '', online = null, abrindo = false;
-    let btnMenu, sidebar, lista, busca;
-    const html = document.documentElement;
+    let lista, busca;
 
     /* ── lista de conversas ────────────────────────────────────────────── */
     function titulo(s) { return s.titulo || 'Sem título'; }
@@ -109,7 +107,7 @@
         O.composer.foco();
     }
 
-    /* ── recolher e gaveta ─────────────────────────────────────────────── */
+    /* ── recolher ──────────────────────────────────────────────────────── */
     function atualizarToggle() {
         const rec = prefs.get('sb') === 'collapsed';
         const t = $('#sb-toggle');
@@ -118,30 +116,9 @@
         t.dataset.tip = rec ? 'Expandir (Ctrl+B)' : 'Recolher (Ctrl+B)';
     }
     function alternar() {
-        if (O.celular()) { gavetaAberta() ? fecharGaveta() : abrirGaveta(); return; }
+        if (O.estreita()) return;      // em janela estreita a barra fica sempre recolhida
         prefs.set('sb', prefs.get('sb') === 'collapsed' ? 'expanded' : 'collapsed');
         atualizarToggle();
-    }
-
-    const gavetaAberta = () => html.dataset.drawer === 'open';
-    function ajustarInert() {
-        sidebar.inert = O.celular() && !gavetaAberta();
-        btnMenu.setAttribute('aria-expanded', String(gavetaAberta()));
-    }
-    let soltarFoco = null;
-    function abrirGaveta() {
-        html.dataset.drawer = 'open';
-        ajustarInert();
-        soltarFoco = ui.prenderFoco(sidebar, fecharGaveta);
-        setTimeout(() => $('#sb-new').focus(), 60);
-    }
-    function fecharGaveta(devolverFoco = true) {
-        if (!gavetaAberta()) return false;
-        delete html.dataset.drawer;
-        soltarFoco?.(); soltarFoco = null;
-        ajustarInert();
-        if (devolverFoco) btnMenu.focus();
-        return true;
     }
 
     /* ── conexão ───────────────────────────────────────────────────────── */
@@ -166,10 +143,8 @@
     }
 
     function init() {
-        btnMenu = $('#menu-btn'); sidebar = $('#sidebar'); lista = $('#sb-convs-list'); busca = $('#sb-search');
+        lista = $('#sb-convs-list'); busca = $('#sb-search');
         $('#sb-toggle').addEventListener('click', alternar);
-        btnMenu.addEventListener('click', () => (gavetaAberta() ? fecharGaveta() : abrirGaveta()));
-        $('#drawer-scrim').addEventListener('click', () => fecharGaveta());
         $('#sb-new').addEventListener('click', nova);
         busca.addEventListener('input', () => { filtro = busca.value.trim(); desenhar(); });
         busca.addEventListener('keydown', e => { if (e.key === 'Escape' && busca.value) { e.stopPropagation(); busca.value = ''; filtro = ''; desenhar(); } });
@@ -180,9 +155,7 @@
             e.preventDefault();
             itens[Math.max(0, Math.min(itens.length - 1, i + (e.key === 'ArrowDown' ? 1 : -1)))].focus();
         });
-        window.matchMedia('(max-width: 860px)').addEventListener('change', () => { if (!O.celular()) fecharGaveta(false); ajustarInert(); });
         atualizarToggle();
-        ajustarInert();
         const atualizarLista = U.debounce(carregar, 600);
         bus.on('sessoes:atualizar', atualizarLista);
         carregar();
@@ -193,7 +166,7 @@
     }
 
     O.sidebar = {
-        init, nova, alternar, abrirGaveta, fecharGaveta, gavetaAberta, carregar, abrir,
+        init, nova, alternar, carregar, abrir,
         sessoes: () => sessoes, ativa: () => sessoes.find(s => s.sessao_id === ativa) || null,
         online: () => online,
     };

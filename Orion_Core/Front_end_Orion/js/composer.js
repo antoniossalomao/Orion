@@ -1,7 +1,6 @@
 /* ==========================================================================
    ORION — composer.js | caixa de mensagem (início e chat), anexos, modelo, histórico
    Enter envia · Shift+Enter quebra linha · ↑ repete o anterior · Esc para a resposta.
-   No celular (ponteiro "grosso") Enter quebra a linha e o botão envia.
    ========================================================================== */
 (function () {
     'use strict';
@@ -18,7 +17,7 @@
     const TIPOS_VIDEO = ['video/mp4', 'video/quicktime', 'video/webm'];
     const MAX_ANEXOS = 4;
     const MAX_ALTURA = 192;
-    const CHAVE_RASCUNHO = 'orion_rascunho';
+    const CHAVE_RASCUNHO = 'orion_rascunho';   // + ':' + id da conversa
 
     let chat, inicio;               // instâncias {form, ta, enviar, caixa?}
     let ultimoPedido = null;        // {prompt, exibir, anexos, modelo}
@@ -48,12 +47,27 @@
         ta.style.overflowY = ta.scrollHeight > MAX_ALTURA ? 'auto' : 'hidden';
     }
 
-    /* ── rascunho (conveniência: sobrevive a recarregar a página) ─────── */
-    const salvarRascunho = U.debounce(() => {
-        try { chat.ta.value ? localStorage.setItem(CHAVE_RASCUNHO, chat.ta.value) : localStorage.removeItem(CHAVE_RASCUNHO); } catch (_) { /* storage bloqueado */ }
-    }, 400);
-    function restaurarRascunho() {
-        try { const r = localStorage.getItem(CHAVE_RASCUNHO); if (r) { chat.ta.value = r; autoajustar(chat.ta); } } catch (_) { /* sem rascunho */ }
+    /* ── rascunho por conversa (conveniência: cada conversa guarda o que ficou por escrever) ── */
+    let sidRascunho = null;
+    const chaveRascunho = sid => `${CHAVE_RASCUNHO}:${sid}`;
+    function gravarRascunho(sid, texto) {
+        if (sid == null) return;
+        try { texto ? localStorage.setItem(chaveRascunho(sid), texto) : localStorage.removeItem(chaveRascunho(sid)); } catch (_) { /* storage bloqueado */ }
+    }
+    function lerRascunho(sid) {
+        try { return localStorage.getItem(chaveRascunho(sid)) || ''; } catch (_) { return ''; }
+    }
+    const salvarRascunho = U.debounce(() => gravarRascunho(sidRascunho, chat.ta.value), 400);
+    function trocarRascunho(novo) {
+        if (novo == null || novo === sidRascunho) return;
+        salvarRascunho.cancel();
+        if (sidRascunho === null) {                       // 1ª carga: quem já digitou antes das conversas chegarem não perde o texto
+            sidRascunho = novo;
+            if (chat.ta.value) { gravarRascunho(novo, chat.ta.value); return; }
+        } else { gravarRascunho(sidRascunho, chat.ta.value); sidRascunho = novo; }
+        chat.ta.value = lerRascunho(novo);
+        autoajustar(chat.ta);
+        atualizar();
     }
 
     /* ── envio ─────────────────────────────────────────────────────────── */
@@ -76,13 +90,33 @@
         O.som?.envio?.();
     }
 
+    /** `/comando` não vai ao modelo; `//texto` envia "/texto" literal. @returns {boolean} true se tratou */
+    function tratarComando(inst) {
+        const r = O.slash.interpretar(inst.ta.value);
+        if (!r) return false;
+        if (r.desconhecido || r.invalido) {
+            const dica = r.invalido ? `Argumento inválido${r.opcoes ? `: ${r.opcoes.join(', ')}` : ''}.` : 'Comando desconhecido.';
+            ui.toast(`${dica} Digite / para ver a lista, ou // para enviar uma barra.`, { tipo: 'aviso', ms: 3600, id: 'slash' });
+            return true;
+        }
+        inst.ta.value = '';
+        autoajustar(inst.ta);
+        fecharSlash(inst);
+        atualizar();
+        if (inst === chat) salvarRascunho();
+        O.acoes.slash(r.cmd, r.arg);
+        return true;
+    }
+
     function enviar(inst) {
+        if (tratarComando(inst)) return;
         if (O.chat.ocupado()) {
             // Enter com a resposta em andamento NÃO a cancela (quem digita o próximo pedido não perde a resposta)
             ui.toast('Espere a resposta terminar, ou pare com Esc.', { tipo: 'aviso', ms: 2600, id: 'ocupado' });
             return;
         }
-        const texto = inst.ta.value.trim();
+        let texto = inst.ta.value.trim();
+        if (texto.startsWith('//')) texto = texto.slice(1);
         const prontos = inst === chat ? anexos.filter(a => a.estado === 'ok') : [];
         if (!texto && !prontos.length) return;
         if (anexos.some(a => a.estado === 'enviando')) { ui.toast('Aguarde o envio dos anexos terminar.', { tipo: 'aviso' }); return; }
@@ -150,13 +184,73 @@
         chat.ta.focus();
     }
 
+    /* ── menu de comandos "/" ──────────────────────────────────────────── */
+    function menuSlash(inst) {
+        if (!inst.menu) {
+            inst.menu = el('div', { class: 'menu slash-menu', role: 'listbox', 'aria-label': 'Comandos', dataset: { open: 'false' } });
+            inst.menu.addEventListener('mousedown', e => e.preventDefault());       // não rouba o foco do campo
+            inst.menu.addEventListener('click', e => {
+                const op = e.target.closest('[role="option"]');
+                if (op) escolherSlash(inst, +op.dataset.i);
+            });
+            inst.caixa.append(inst.menu);
+        }
+        return inst.menu;
+    }
+    const slashAberto = inst => !!inst.menu && inst.menu.dataset.open === 'true';
+    function fecharSlash(inst) { if (inst.menu) inst.menu.dataset.open = 'false'; inst.itens = []; }
+
+    function desenharSlash(inst) {
+        const itens = O.slash.sugerir(inst.ta.value);
+        inst.itens = itens;
+        inst.sel = Math.min(inst.sel || 0, Math.max(0, itens.length - 1));
+        const menu = menuSlash(inst);
+        if (!itens.length) { menu.dataset.open = 'false'; return; }
+        menu.replaceChildren(...itens.map((it, i) => el('div', {
+            class: 'menu-item slash-item', role: 'option', id: `slash-${inst === chat ? 'c' : 'h'}-${i}`,
+            'aria-selected': String(i === inst.sel), dataset: { i },
+        }, el('span', { class: 'mono', text: it.rotulo }), el('small', { text: it.desc }))));
+        menu.dataset.open = 'true';
+    }
+    function moverSlash(inst, delta) {
+        inst.sel = (inst.sel + delta + inst.itens.length) % inst.itens.length;
+        inst.menu.querySelectorAll('[role="option"]').forEach((o, i) => o.setAttribute('aria-selected', String(i === inst.sel)));
+        inst.menu.children[inst.sel]?.scrollIntoView({ block: 'nearest' });
+        const it = inst.itens[inst.sel];
+        O.anunciar(`${it.rotulo}: ${it.desc}`);
+    }
+    /** aceita a sugestão: completa o texto, ou executa se já é um comando inteiro */
+    function escolherSlash(inst, i) {
+        const it = inst.itens[i];
+        if (!it) return;
+        inst.ta.value = it.completar;
+        autoajustar(inst.ta);
+        inst.ta.focus();
+        if (it.fecha) { enviar(inst); return; }
+        inst.sel = 0;
+        desenharSlash(inst);
+        atualizar();
+    }
+
     /* ── ligação de uma caixa ──────────────────────────────────────────── */
     function ligar(inst) {
         const { ta, form } = inst;
-        ta.addEventListener('input', () => { autoajustar(ta); atualizar(); if (inst === chat) salvarRascunho(); });
+        ta.addEventListener('input', () => { autoajustar(ta); atualizar(); desenharSlash(inst); if (inst === chat) salvarRascunho(); });
+        ta.addEventListener('blur', () => setTimeout(() => { if (document.activeElement !== ta) fecharSlash(inst); }, 120));
         form.addEventListener('submit', e => { e.preventDefault(); enviar(inst); });
         ta.addEventListener('keydown', e => {
-            if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && !O.toqueGrosso()) { e.preventDefault(); enviar(inst); return; }
+            if (slashAberto(inst) && !e.isComposing) {
+                if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); moverSlash(inst, e.key === 'ArrowDown' ? 1 : -1); return; }
+                if (e.key === 'Tab') { e.preventDefault(); const it = inst.itens[inst.sel]; ta.value = it.completar; autoajustar(ta); inst.sel = 0; desenharSlash(inst); atualizar(); return; }
+                if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); fecharSlash(inst); return; }
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    // "/mo" + Enter completa em vez de enviar; "/tema grafite" + Enter executa
+                    const it = inst.itens[inst.sel], r = O.slash.interpretar(ta.value);
+                    const completo = !!r && !!r.cmd && !r.invalido;
+                    if (it && it.completar !== ta.value && !completo) { e.preventDefault(); escolherSlash(inst, inst.sel); return; }
+                }
+            }
+            if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); enviar(inst); return; }
             if (e.key === 'Escape' && O.chat.ocupado()) { e.preventDefault(); e.stopPropagation(); O.chat.parar(); return; }
             // ↑/↓ percorrem o que já foi enviado (campo vazio ou já navegando)
             if (e.key === 'ArrowUp' && hist.itens.length && (!ta.value || hist.idx < hist.itens.length) && ta.selectionStart === 0) {
@@ -235,18 +329,31 @@
 
     function init() {
         chat = { form: $('#composer'), ta: $('#composer-input'), enviar: $('#btn-send'), caixa: $('#composer-box') };
-        inicio = { form: $('#home-form'), ta: $('#home-input'), enviar: $('#home-form .btn-send') };
+        inicio = { form: $('#home-form'), ta: $('#home-input'), enviar: $('#home-form .btn-send'), caixa: $('#home-form .composer-box') };
         ligar(chat); ligar(inicio);
         $('#btn-attach').addEventListener('click', () => $('#file-input').click());
         $('#file-input').addEventListener('change', e => { adicionar(e.target.files); e.target.value = ''; });
         montarMenuModelo();
         ligarArrastar();
-        restaurarRascunho();
+        bus.on('sessoes', ({ ativa }) => trocarRascunho(ativa));
         bus.on('chat:ocupado', atualizar);
         atualizar();
         // ao trocar o texto por fora (sugestões), reajusta a altura
         [chat, inicio].forEach(i => autoajustar(i.ta));
     }
 
-    O.composer = { init, foco, sugerir, reenviar, adicionar, temPedido: () => !!ultimoPedido, MODELOS };
+    /** coloca o trecho como citação (`> …`) no fim do campo do chat */
+    function citar(texto) {
+        const linhas = String(texto).trim().split(/\n+/).map(l => `> ${l}`).join('\n');
+        if (!linhas.trim()) return;
+        const atual = chat.ta.value.replace(/\s+$/, '');
+        chat.ta.value = `${atual ? `${atual}\n\n` : ''}${linhas}\n\n`;
+        autoajustar(chat.ta);
+        atualizar();
+        salvarRascunho();
+        chat.ta.focus();
+        chat.ta.setSelectionRange(chat.ta.value.length, chat.ta.value.length);
+    }
+
+    O.composer = { init, foco, sugerir, reenviar, adicionar, citar, temPedido: () => !!ultimoPedido, MODELOS };
 })();

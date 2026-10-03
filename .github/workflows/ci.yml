@@ -29,7 +29,7 @@ jobs:
       - name: front (markdown/XSS)
         run: node --test "tests/front/*.test.js"
 
-  # Front no navegador de verdade: fluxos, teclado, segurança do markdown, mobile e axe-core
+  # Front no navegador de verdade: fluxos, teclado, segurança do markdown, janela estreita e axe-core
   # (0 violações em 5 telas × 3 temas). Backend de mentira em tests/front_e2e/mock_backend.py.
   front-e2e:
     name: front (navegador + acessibilidade)

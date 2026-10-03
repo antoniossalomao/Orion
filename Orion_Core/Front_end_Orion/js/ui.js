@@ -19,7 +19,7 @@
         const raiz = $('#toasts');
         if (!raiz) return () => {};
         if (id) raiz.querySelectorAll(`[data-id="${CSS.escape(id)}"]`).forEach(t => fechar(t, true));
-        while (raiz.children.length >= MAX_TOASTS) fechar(raiz.firstElementChild, true);
+        while (raiz.children.length >= MAX_TOASTS) raiz.firstElementChild.remove();   // o mais antigo sai já, mesmo se estiver em animação de saída
         const t = el('div', { class: 'toast', role: tipo === 'erro' ? 'alert' : 'status', dataset: { tipo, ...(id ? { id } : {}) } },
             el('span', { html: icone(ICONE_TOAST[tipo] || 'info', 'toast-icon') }),
             el('span', { class: 'toast-msg', text: msg }));
@@ -44,7 +44,8 @@
         if (!t || t.dataset.saindo) return;
         t.dataset.saindo = '1';
         t.dataset.show = 'false';
-        setTimeout(() => t.remove(), rapido ? 0 : 260);
+        if (rapido) t.remove();      // na hora: o laço que limita a pilha de toasts depende de a contagem cair
+        else setTimeout(() => t.remove(), 260);
     }
 
     /* ── diálogo de confirmação (substitui confirm()) ──────────────────── */

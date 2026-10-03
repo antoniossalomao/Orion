@@ -86,3 +86,14 @@ test('debounce adia e cancela', async () => {
 test('uid é único', () => {
     assert.equal(new Set(Array.from({ length: 500 }, () => U.uid())).size, 500);
 });
+
+test('fmtDur: ms, segundos com vírgula e minutos', () => {
+    assert.equal(U.fmtDur(0), '0 ms');
+    assert.equal(U.fmtDur(840), '840 ms');
+    assert.equal(U.fmtDur(2140), '2,1 s');
+    assert.equal(U.fmtDur(59900), '59,9 s');
+    assert.equal(U.fmtDur(72000), '1 min 12 s');
+    assert.equal(U.fmtDur(125000), '2 min 05 s');
+    assert.equal(U.fmtDur(-1), '');
+    assert.equal(U.fmtDur(NaN), '');
+});

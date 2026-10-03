@@ -1,7 +1,7 @@
 /* ==========================================================================
    ORION — transport.js | como o chat chega ao cérebro e como a resposta volta
    Dois caminhos, MESMOS eventos internos (`chat:evento` no bus):
-     · SSE  — fetch em streaming no /chat (web, celular, ou desktop sem hub);
+     · SSE  — fetch em streaming no /chat (navegador, ou desktop sem o hub);
      · hub  — pywebview.process_command + WebSocket :8765 (desktop; mantém o
               mic_engine e o resto do ecossistema enxergando a conversa).
    Eventos: inicio · modelo · texto · ferramenta · aprovacao · erro · fim

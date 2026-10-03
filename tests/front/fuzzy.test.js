@@ -56,3 +56,12 @@ test('buscar: ordena por trecho no início da palavra e descarta o resto', () =>
     assert.deepEqual(F.buscar(itens, 'backup'), ['Backup diário', 'Resumo do backup']);
     assert.deepEqual(F.buscar(itens, '  '), itens);
 });
+
+test('ocorrencias: todas, sem acento, sem diferenciar maiúsculas, sem sobrepor', () => {
+    assert.deepEqual(F.ocorrencias('Fase 0 e fase 1; FASE', 'fase'), [[0, 4], [9, 13], [17, 21]]);
+    assert.deepEqual(F.ocorrencias('Memória nova', 'memoria'), [[0, 7]]);
+    assert.deepEqual(F.ocorrencias('aaaa', 'aa'), [[0, 2], [2, 4]]);
+    assert.deepEqual(F.ocorrencias('nada aqui', 'xyz'), []);
+    assert.deepEqual(F.ocorrencias('qualquer', '  '), []);
+    assert.deepEqual(F.ocorrencias('qualquer', ''), []);
+});

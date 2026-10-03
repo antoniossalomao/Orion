@@ -344,11 +344,11 @@ foi verificado: [ORION_FRONT.md](ORION_FRONT.md). Aqui, só o que a base precisa
 `Orion_Core/Front_end_Orion/`:
 
 ```
-index.html · manifest.webmanifest · orion.svg/.ico · orion_app.py (launcher) · ponte.py (regras puras da ponte)
+index.html · orion.svg/.ico · orion_app.py (launcher) · ponte.py (regras puras da ponte)
 css/  tokens · base · layout · components · chat · views     (3 temas, densidade, escala em rem)
-js/   util · md · sse · store · charts · fuzzy                 (puros, UMD, testados em Node)
+js/   util · md · sse · store · charts · fuzzy · slash         (puros, UMD, testados em Node)
       core · api · transport · ui · sky · sound · voice        (infra e mídia)
-      chat · composer · sidebar · palette · app · views/*      (interface)
+      chat · composer · sidebar · palette · busca · app · views/* (interface)
 vendor/ three r128, 3d-force-graph (carregado só na 1ª visita à Memória), Inter
 ```
 
@@ -361,10 +361,9 @@ cérebro é o `orion.app`), API do pywebview (`process_command`, `toggle_maximiz
 
 - **Dois caminhos de chat, mesmos eventos internos** (`chat:evento`): no app desktop,
   `process_command` + hub (o `mic_engine` continua enxergando a conversa); em qualquer outro
-  lugar (celular, navegador), `fetch` em streaming no `/chat` (SSE). O front detecta o que
+  lugar (navegador, ou desktop sem o hub), `fetch` em streaming no `/chat` (SSE). O front detecta o que
   existe e degrada sem erro quando um endpoint não existe (legado × `orion.app`).
-- **Celular:** o `orion.app` serve a interface em `/ui/` (`ORION_SERVE_UI`, mesma origem, sem
-  CORS). Fora de `localhost` o navegador só libera microfone com HTTPS.
+- **Só desktop:** o app não roda no celular (o canal de bolso é o Telegram). O `orion.app` ainda serve a interface em `/ui/` (`ORION_SERVE_UI`, mesma origem, sem CORS) para abrir no navegador do PC; janela estreita (≤ 860 px) vira trilho de ícones, sem gaveta.
 - **Aprovações de ação** (`orion.policy`): o `/chat` emite `tool` e `approval`; o front mostra o
   cartão com o comando exato, `Aprovar e executar`/`Negar` (`POST /approvals/{id}/decide`) e
   retoma a resposta (`/approvals/{id}/resume`). Token em Configurações › Conexão (o app desktop
@@ -379,8 +378,8 @@ cérebro é o `orion.app`), API do pywebview (`process_command`, `toggle_maximiz
   `open_external` (só http/https/mailto, validado em `ponte.py`); rótulos do grafo por
   `textContent`/escape.
 - **Acessibilidade:** axe-core sem violação em 5 telas × 3 temas (Noite, Grafite, Alto
-  contraste), teclado completo (paleta `Ctrl+K`, `Alt+1..5`, `?`), foco visível, telas ocultas
-  `inert`, gaveta com foco preso, alvos de toque de 44 px, `aria-live` só na resposta pronta.
+  contraste), teclado completo (paleta `Ctrl+K`, comandos `/`, `Ctrl+F`, `Ctrl+.`, `Alt+1..5`, `?`), foco visível, telas ocultas
+  `inert`, menu `/` e paleta como combobox, `aria-live` só na resposta pronta.
 - Preferências em `localStorage` com prefixo `orion_` (tema, densidade, escala, movimento,
   modelo, sons, endereço, token). Chamadas internas em `127.0.0.1`, nunca `localhost`.
 

@@ -61,7 +61,6 @@
 .msg-actions .icon-btn { width: 1.9rem; height: 1.9rem; }
 .msg-actions .icon-btn svg { width: 0.95rem; height: 0.95rem; }
 .msg[data-streaming="true"] .msg-actions { display: none; }
-@media (hover: none) { .msg-actions { opacity: 1; } }
 
 /* pensando */
 .thinking { display: inline-flex; align-items: center; gap: 0.6rem; padding: 0.35rem 0; color: var(--text-3); font-size: var(--fs-sm); }
@@ -155,7 +154,6 @@ li.md-tarefa { list-style: none; margin-left: -1.4em; }
 .approval-args b { color: var(--text-3); font-weight: 500; }
 .approval-actions { display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap; }
 .approval-state { margin-left: auto; font-size: var(--fs-xs); color: var(--text-2); }
-@media (max-width: 480px) { .approval-actions .btn { flex: 1; } .approval-state { width: 100%; margin: 0; } }
 
 /* ── Rolar até o fim ─────────────────────────────────────────────────── */
 #scroll-down {
@@ -220,17 +218,36 @@ li.md-tarefa { list-style: none; margin-left: -1.4em; }
 .menu-item:hover, .menu-item:focus-visible { background: rgb(255 255 255 / 0.06); color: var(--text-1); }
 .menu-item[aria-checked="true"] { background: var(--accent-soft); color: var(--text-1); }
 
-.show-mobile-only { display: none; }
+/* janela estreita */
 @media (max-width: 860px) {
-    .show-mobile-only { display: block; }
-    .chat-col { padding: var(--s-3) var(--s-4) var(--s-6); }
-    .msg-user { max-width: 92%; }
-    .msg-orion { grid-template-columns: 1.5rem minmax(0, 1fr); column-gap: 0.7rem; }
-    .msg-avatar { width: 1.5rem; height: 1.5rem; }
-    .prose { font-size: var(--fs-md); }
-    .composer-dock { padding: 0 var(--s-3) calc(var(--s-3) + env(safe-area-inset-bottom)); }
-    .composer-hint .hide-mobile { display: none; }
+    .chat-col { padding-inline: var(--s-4); }
+    .composer-dock { padding-inline: var(--s-4); }
+    .composer-hint .hide-narrow { display: none; }
     .suggest-grid { grid-template-columns: 1fr; }
-    #scroll-down { right: var(--s-4); bottom: calc(7.6rem + env(safe-area-inset-bottom)); }
-    .composer-input { font-size: 1rem; }       /* 16px: evita o zoom automático do iOS ao focar */
 }
+
+/* ── Busca na conversa ───────────────────────────────────────────────── */
+.find-bar { position: absolute; z-index: 6; top: var(--s-2); right: var(--s-6); display: flex; align-items: center; gap: 2px; padding: 4px 4px 4px 12px; background: var(--bg-3); border: 1px solid var(--line-2); border-radius: var(--r-pill); box-shadow: var(--sh-2); }
+.find-bar[hidden] { display: none; }
+.find-bar > svg.i { width: 0.95rem; height: 0.95rem; color: var(--text-3); }
+.find-bar input { width: 12rem; height: 1.9rem; padding: 0 0.5rem; background: none; border: 0; outline: 0; color: var(--text-1); font-size: var(--fs-sm); }
+.find-bar input::placeholder { color: var(--text-3); }
+.find-bar input::-webkit-search-cancel-button { display: none; }
+.find-count { min-width: 4.4rem; padding-right: 4px; text-align: right; font-size: var(--fs-xs); color: var(--text-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.find-bar .icon-btn { width: 1.9rem; height: 1.9rem; }
+.flip { transform: rotate(180deg); }
+::highlight(busca) { background-color: rgb(245 185 95 / 0.32); color: inherit; }
+::highlight(busca-atual) { background-color: #f5b95f; color: #1c1203; }
+
+/* ── Citar, duração, comandos "/" ────────────────────────────────────── */
+#citar-btn { position: fixed; z-index: var(--z-overlay); background: var(--bg-3); box-shadow: var(--sh-2); }
+#citar-btn[hidden] { display: none; }
+.msg-dur { font-size: var(--fs-xs); color: var(--text-3); font-variant-numeric: tabular-nums; }
+.msg-dur:empty { display: none; }
+.msg-dur::before { content: '·'; margin-right: var(--s-2); }
+.composer-box { position: relative; }
+.slash-menu { left: 0; right: 0; min-width: 0; max-height: 18rem; overflow-y: auto; }
+.slash-item { flex-direction: row; align-items: baseline; justify-content: space-between; gap: var(--s-4); }
+.slash-item .mono { color: var(--text-1); font-size: var(--fs-sm); }
+.slash-item small { color: var(--text-3); text-align: right; }
+.slash-item[aria-selected="true"] { background: var(--accent-soft); color: var(--text-1); }

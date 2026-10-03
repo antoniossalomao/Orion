@@ -88,5 +88,18 @@
             .map(x => x.it);
     }
 
-    return { nota, marcas, filtrar, contem, buscar };
+    /**
+     * Todas as ocorrências de `consulta` em `texto` (sem acento, sem diferenciar maiúsculas):
+     * `[[inicio, fim), …]` em posições do texto original. Para a busca dentro da conversa.
+     */
+    function ocorrencias(texto, consulta) {
+        const q = U.norm(String(consulta ?? '').trim());
+        if (!q) return [];
+        const t = U.norm(texto);
+        const saida = [];
+        for (let i = t.indexOf(q); i >= 0; i = t.indexOf(q, i + q.length)) saida.push([i, i + q.length]);
+        return saida;
+    }
+
+    return { nota, marcas, filtrar, contem, buscar, ocorrencias };
 });

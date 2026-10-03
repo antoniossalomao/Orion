@@ -1,4 +1,4 @@
-"""Front do Orion no navegador de verdade: fluxos, teclado, segurança, mobile e acessibilidade."""
+"""Front do Orion no navegador de verdade: fluxos, teclado, segurança, janela estreita e acessibilidade."""
 
 from __future__ import annotations
 
@@ -295,6 +295,224 @@ def test_botao_mais_recentes_aparece_ao_subir(abrir):
     expect(page.locator("#scroll-down")).to_have_attribute("data-show", "false", timeout=3000)
 
 
+# ── comandos, busca, foco, citar e afins ────────────────────────────────────────
+def test_comandos_de_barra_completam_executam_e_nao_vao_ao_modelo(abrir):
+    page = abrir("#/chat")
+    caixa = page.locator("#composer-input")
+    menu = page.locator("#composer-box .slash-menu")
+    itens = page.locator("#composer-box .slash-item")
+    caixa.fill("/")
+    expect(menu).to_have_attribute("data-open", "true")
+    expect(itens.first).to_contain_text("/nova")
+    # prefixo + Enter COMPLETA; Tab também; argumento fixo executa
+    caixa.fill("/mo")
+    page.keyboard.press("Enter")
+    assert caixa.input_value() == "/modelo "
+    page.keyboard.type("claude")
+    page.keyboard.press("Enter")
+    expect(page.locator("#model-label")).to_have_text("Claude")
+    assert caixa.input_value() == ""
+    caixa.fill("/tema gra")
+    expect(itens).to_have_count(1)
+    page.keyboard.press("Enter")
+    expect(page.locator("html")).to_have_attribute("data-theme", "grafite")
+    caixa.fill("/tem")
+    page.keyboard.press("Tab")
+    assert caixa.input_value() == "/tema "
+    expect(itens).to_have_count(3)
+    page.keyboard.press("ArrowDown")
+    page.keyboard.press("Enter")  # item destacado: "grafite"
+    expect(page.locator("html")).to_have_attribute("data-theme", "grafite")
+    assert page.locator(".msg-user").count() == 0, "um comando foi parar no chat"
+    # Esc fecha o menu sem apagar o texto e sem sair do campo
+    caixa.fill("/n")
+    page.keyboard.press("Escape")
+    expect(menu).to_have_attribute("data-open", "false")
+    expect(caixa).to_be_focused()
+    # comando desconhecido ou inválido avisa e preserva o texto
+    caixa.fill("/xyz")
+    page.keyboard.press("Enter")
+    expect(page.locator(".toast").last).to_contain_text("Comando desconhecido")
+    assert caixa.input_value() == "/xyz"
+    caixa.fill("/modelo gpt")
+    page.keyboard.press("Enter")
+    expect(page.locator(".toast").last).to_contain_text("Argumento inválido")
+
+
+def test_pilha_de_toasts_tem_limite_e_nao_trava_a_pagina(abrir):
+    page = abrir("#/chat")
+    for i in range(6):
+        page.evaluate(f"Orion.ui.toast('aviso {i}', {{ ms: 0 }})")
+    expect(page.locator(".toast")).to_have_count(3)  # só os 3 mais recentes
+    expect(page.locator(".toast").last).to_contain_text("aviso 5")
+    page.evaluate(
+        "Orion.ui.toast('mesmo id', { id: 'x', ms: 0 }); Orion.ui.toast('mesmo id', { id: 'x', ms: 0 })"
+    )
+    expect(page.locator('.toast[data-id="x"]')).to_have_count(1)
+
+
+def test_barra_dupla_envia_a_barra_literal_e_caminho_nao_e_comando(abrir):
+    page = abrir("#/chat")
+    page.fill("#composer-input", "//nova coisa")
+    page.keyboard.press("Enter")
+    expect(page.locator(".msg-user .bubble").last).to_have_text("/nova coisa")
+    esperar_fim(page)
+    page.fill("#composer-input", "/home/antonio/notas.txt tem o quê?")
+    page.keyboard.press("Enter")
+    expect(page.locator(".msg-user .bubble").last).to_have_text(
+        "/home/antonio/notas.txt tem o quê?"
+    )
+
+
+def test_comando_de_barra_tambem_funciona_no_inicio_e_durante_a_resposta(abrir):
+    page = abrir()
+    page.fill("#home-input", "/tema contraste")
+    page.keyboard.press("Enter")
+    expect(page.locator("html")).to_have_attribute("data-theme", "contraste")
+    expect(page.locator("html")).to_have_attribute("data-view", "home")
+    page.evaluate("Orion.prefs.set('theme', 'noite')")
+    page.click('.sb-item[data-view="chat"]')
+    enviar(page, "responda bem lento por favor")
+    page.fill("#composer-input", "/tema grafite")  # com a resposta em andamento, comando passa
+    page.keyboard.press("Enter")
+    expect(page.locator("html")).to_have_attribute("data-theme", "grafite")
+
+
+def test_busca_na_conversa_marca_conta_e_navega(abrir):
+    page = abrir("#/chat")
+    enviar(page, "Explique a diferença entre diagrama de classes e de sequência, com exemplo")
+    esperar_fim(page)
+    page.keyboard.press("Control+f")
+    expect(page.locator("#find-bar")).to_be_visible()
+    expect(page.locator("#find-input")).to_be_focused()
+    page.keyboard.type("MEMORIA")  # sem acento e sem diferenciar maiúsculas
+    expect(page.locator("#find-count")).to_contain_text("1 de")
+    total = page.evaluate("CSS.highlights.get('busca').size")
+    assert total >= 2
+    page.keyboard.press("Enter")
+    expect(page.locator("#find-count")).to_contain_text(f"2 de {total}")
+    page.keyboard.press("Shift+Enter")
+    page.keyboard.press("Shift+Enter")
+    expect(page.locator("#find-count")).to_contain_text(f"{total} de {total}")  # volta pelo fim
+    page.fill("#find-input", "zzzz")
+    expect(page.locator("#find-count")).to_have_text("Nada encontrado")
+    page.keyboard.press("Escape")
+    expect(page.locator("#find-bar")).to_be_hidden()
+    assert page.evaluate("CSS.highlights.has('busca')") is False
+    expect(page.locator("#composer-input")).to_be_focused()
+
+
+def test_busca_por_comando_de_barra(abrir):
+    page = abrir("#/chat")
+    enviar(page, "Explique a diferença entre diagrama de classes e de sequência, com exemplo")
+    esperar_fim(page)
+    page.fill("#composer-input", "/buscar tabela")
+    page.keyboard.press("Enter")
+    expect(page.locator("#find-input")).to_have_value("tabela")
+    expect(page.locator("#find-count")).to_contain_text(" de ")
+
+
+def test_modo_foco_esconde_as_barras_e_esc_volta(abrir):
+    page = abrir("#/chat")
+    page.keyboard.press("Control+.")
+    expect(page.locator("html")).to_have_attribute("data-foco", "true")
+    expect(page.locator("#sidebar")).to_be_hidden()
+    expect(page.locator("#topbar")).to_be_hidden()
+    expect(page.locator("#composer-input")).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(page.locator("html")).not_to_have_attribute("data-foco", "true")
+    expect(page.locator("#sidebar")).to_be_visible()
+    page.fill("#composer-input", "/foco")
+    page.keyboard.press("Enter")
+    expect(page.locator("html")).to_have_attribute("data-foco", "true")
+
+
+def test_resposta_mostra_o_tempo_que_levou(abrir):
+    page = abrir("#/chat")
+    enviar(page, "oi")
+    esperar_fim(page)
+    expect(ultima_resposta(page).locator(".msg-dur")).to_have_text(
+        re.compile(r"^\d+(,\d)? (ms|s)$")
+    )
+
+
+def test_copiar_a_ultima_resposta_e_a_conversa(abrir):
+    page = abrir("#/chat")
+    enviar(page, "oi")
+    esperar_fim(page)
+    page.keyboard.press("Control+Shift+C")
+    expect(page.locator(".toast").last).to_contain_text("Resposta copiada")
+    assert (
+        page.evaluate("navigator.clipboard.readText()")
+        == "Entendido, Antônio. Estou pronto para o que vier."
+    )
+    page.fill("#composer-input", "/copiar conversa")
+    page.keyboard.press("Enter")
+    expect(page.locator(".toast").last).to_contain_text("Conversa copiada")
+    assert page.evaluate("navigator.clipboard.readText()").startswith("# Conversa com o Orion")
+
+
+def test_citar_trecho_selecionado_leva_ao_campo(abrir):
+    page = abrir("#/chat")
+    enviar(page, "Explique a diferença entre diagrama de classes e de sequência, com exemplo")
+    esperar_fim(page)
+    page.evaluate(
+        """() => { const p = document.querySelector('.msg-orion .prose p'); const r = document.createRange();
+        r.selectNodeContents(p); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }"""
+    )
+    page.dispatch_event(".msg-orion .prose p", "mouseup")
+    expect(page.locator("#citar-btn")).to_be_visible()
+    page.click("#citar-btn")
+    expect(page.locator("#composer-input")).to_be_focused()
+    assert (
+        page.locator("#composer-input")
+        .input_value()
+        .startswith("> Claro. Aqui está o plano da fase 0")
+    )
+    expect(page.locator("#citar-btn")).to_be_hidden()
+    # sem seleção, o atalho avisa em vez de falhar calado
+    page.keyboard.press("Control+Shift+Q")
+    expect(page.locator(".toast").last).to_contain_text("Selecione um trecho")
+
+
+def test_rascunho_e_por_conversa(abrir):
+    page = abrir("#/chat")
+    caixa = page.locator("#composer-input")
+    # o mock é compartilhado entre os testes: parte de uma conversa conhecida
+    page.locator("#sb-convs-list .conv", has_text="Plano da fase 0").click()
+    expect(page.locator('#sb-convs-list .conv[aria-current="true"]')).to_contain_text(
+        "Plano da fase 0"
+    )
+    caixa.fill("rascunho da primeira")
+    page.locator("#sb-convs-list .conv", has_text="Dúvida de UML").click()
+    expect(page.locator('#sb-convs-list .conv[aria-current="true"]')).to_contain_text(
+        "Dúvida de UML"
+    )
+    expect(caixa).to_have_value("")
+    caixa.fill("rascunho da segunda")
+    page.locator("#sb-convs-list .conv", has_text="Plano da fase 0").click()
+    expect(caixa).to_have_value("rascunho da primeira")
+    page.locator("#sb-convs-list .conv", has_text="Dúvida de UML").click()
+    expect(caixa).to_have_value("rascunho da segunda")
+
+
+def test_aprovacao_pendente_avisa_fora_do_chat_e_a_paleta_leva_ate_ela(abrir):
+    page = abrir("#/chat")
+    enviar(page, "apague os arquivos antigos")
+    esperar_fim(page)
+    page.keyboard.press("Alt+3")
+    expect(page.locator("html")).to_have_attribute("data-view", "memoria")
+    expect(page.locator("#badge-chat")).to_have_class(re.compile("show"))
+    page.keyboard.press("Control+k")
+    page.keyboard.type("pendente")
+    expect(page.locator('#palette-list [role="option"]').first).to_contain_text(
+        "Revisar ação pendente"
+    )
+    page.keyboard.press("Enter")
+    expect(page.locator("html")).to_have_attribute("data-view", "chat")
+    expect(page.locator(".approval").first).to_be_focused()
+
+
 # ── segurança no navegador (ORION_REGRAS 10–12) ─────────────────────────────────
 def test_markdown_malicioso_nao_executa_nem_vaza(abrir):
     page = abrir("#/chat")
@@ -468,7 +686,7 @@ def test_cerebro_offline_degrada_sem_quebrar(abrir):
     expect(page.locator("#mem-banner")).to_contain_text("demonstração", timeout=15000)
 
 
-# ── movimento e mobile ──────────────────────────────────────────────────────────
+# ── movimento e janela estreita ─────────────────────────────────────────────────
 def test_movimento_reduzido_pula_o_boot_e_as_transicoes(abrir):
     page = abrir(reduced=True, boot=True)
     assert page.locator("#boot").count() == 0
@@ -484,66 +702,6 @@ def test_boot_aparece_uma_vez_por_sessao(abrir):
     assert page.locator("#boot").count() == 0
 
 
-@pytest.mark.parametrize("largura", [320, 390])
-@pytest.mark.parametrize("rota", ROTAS)
-def test_mobile_sem_rolagem_horizontal(abrir, largura, rota):
-    page = abrir(rota, viewport=(largura, 800), mobile=True)
-    page.wait_for_timeout(700)
-    assert page.evaluate(
-        "document.documentElement.scrollWidth <= document.documentElement.clientWidth"
-    ), f"rolagem horizontal em {rota or 'home'} a {largura}px"
-    assert page.evaluate("document.body.scrollWidth <= document.documentElement.clientWidth")
-
-
-def test_mobile_gaveta_abre_fecha_e_prende_o_foco(abrir):
-    page = abrir(viewport=(390, 800), mobile=True)
-    assert page.evaluate("document.querySelector('#sidebar').inert") is True, (
-        "gaveta fechada tem de ser inert"
-    )
-    page.click("#menu-btn")
-    expect(page.locator("html")).to_have_attribute("data-drawer", "open")
-    assert page.evaluate("document.querySelector('#sidebar').inert") is False
-    expect(page.locator("#sb-new")).to_be_focused()
-    for _ in range(14):
-        page.keyboard.press("Tab")
-    assert page.evaluate("document.querySelector('#sidebar').contains(document.activeElement)"), (
-        "Tab escapou da gaveta"
-    )
-    page.keyboard.press("Escape")
-    expect(page.locator("html")).not_to_have_attribute("data-drawer", "open")
-    expect(page.locator("#menu-btn")).to_be_focused()
-    page.click("#menu-btn")
-    page.click('.sb-item[data-view="config"]')  # navegar fecha a gaveta
-    expect(page.locator("html")).to_have_attribute("data-view", "config")
-    expect(page.locator("html")).not_to_have_attribute("data-drawer", "open")
-
-
-def test_mobile_alvos_de_toque_com_44px(abrir):
-    page = abrir("#/chat", viewport=(390, 800), mobile=True)
-    page.fill("#composer-input", "oi")
-    page.click("#btn-send")  # no celular o Enter quebra a linha
-    esperar_fim(page)
-    pequenos = page.evaluate("""() => {
-        const sels = ['#menu-btn', '#palette-btn', '#btn-send', '#btn-attach', '#model-btn', '.msg-actions .icon-btn', '.voice-live-btn'];
-        const out = [];
-        for (const s of sels) for (const e of document.querySelectorAll(s)) {
-            const r = e.getBoundingClientRect();
-            if (r.width === 0 || r.height === 0) continue;
-            if (Math.min(r.width, r.height) < 43.5) out.push(`${s}: ${Math.round(r.width)}x${Math.round(r.height)}`);
-        }
-        return out; }""")
-    assert not pequenos, f"alvos de toque abaixo de 44px: {pequenos}"
-
-
-def test_mobile_composer_enter_quebra_linha(abrir):
-    page = abrir("#/chat", viewport=(390, 800), mobile=True)
-    page.fill("#composer-input", "primeira")
-    page.keyboard.press("Enter")
-    page.keyboard.type("segunda")
-    assert page.locator("#composer-input").input_value() == "primeira\nsegunda"
-    assert page.locator(".msg-user").count() == 0
-
-
 # ── acessibilidade (axe-core) ───────────────────────────────────────────────────
 pytestmark_axe = pytest.mark.skipif(
     not AXE.exists(), reason="rode `npm ci` em tests/front_e2e para instalar o axe-core"
@@ -551,8 +709,10 @@ pytestmark_axe = pytest.mark.skipif(
 
 
 def _violacoes(page):
-    res = page.evaluate("""() => axe.run(document, { runOnly: { type: 'tag',
-        values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'] } })""")
+    res = page.evaluate(
+        """() => axe.run(document, { runOnly: { type: 'tag',
+        values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'] } })"""
+    )
     return [
         (v["impact"], v["id"], [n["target"] for n in v["nodes"]][:4]) for v in res["violations"]
     ]
@@ -596,13 +756,6 @@ def test_axe_paleta_e_menu_de_modelo_abertos(abrir):
 
 
 @pytestmark_axe
-def test_axe_mobile_gaveta_aberta(abrir):
-    page = abrir(viewport=(390, 800), mobile=True, axe=True)
-    page.click("#menu-btn")
-    page.wait_for_timeout(400)
-    assert _violacoes(page) == []
-
-
 def test_so_um_h1_e_landmarks_unicos(abrir):
     page = abrir()
     info = json.loads(
@@ -616,3 +769,24 @@ def test_so_um_h1_e_landmarks_unicos(abrir):
     assert all(info["nav"]) and len(set(info["nav"])) == len(info["nav"]), (
         "navs precisam de rótulos distintos"
     )
+
+
+@pytest.mark.parametrize("largura", [700, 860])
+@pytest.mark.parametrize("rota", ROTAS)
+def test_janela_estreita_recolhe_a_barra_e_nao_rola_na_horizontal(abrir, largura, rota):
+    page = abrir(rota, viewport=(largura, 800))
+    page.wait_for_timeout(600)
+    expect(page.locator("html")).to_have_attribute("data-sb", "collapsed")
+    expect(page.locator("#sb-toggle")).to_be_hidden()
+    assert page.evaluate(
+        "document.documentElement.scrollWidth <= document.documentElement.clientWidth"
+    ), f"rolagem horizontal em {rota or 'home'} a {largura}px"
+
+
+def test_janela_larga_mantem_a_barra_aberta_e_o_atalho_recolhe(abrir):
+    page = abrir(viewport=(1280, 800))
+    expect(page.locator("html")).to_have_attribute("data-sb", "expanded")
+    page.set_viewport_size({"width": 800, "height": 800})
+    expect(page.locator("html")).to_have_attribute("data-sb", "collapsed")
+    page.set_viewport_size({"width": 1280, "height": 800})
+    expect(page.locator("html")).to_have_attribute("data-sb", "expanded")

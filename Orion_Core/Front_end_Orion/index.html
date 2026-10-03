@@ -2,20 +2,18 @@
 <html lang="pt-BR" data-view="home" data-estado="idle" data-theme="noite">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-fhsYvmTOZAGws4/Os5oIgeipB69SRQ6JoIq0DuFxoj4='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http://127.0.0.1:8000 http://localhost:8000; font-src 'self'; connect-src *; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <meta name="theme-color" content="#04060b">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-kFMOHBRbTGtQcI+9xbdcmv50TEZFQfjBoDqLtVerheM='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http://127.0.0.1:8000 http://localhost:8000; font-src 'self'; connect-src *; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="dark">
     <title>Orion</title>
     <link rel="icon" href="orion.svg" type="image/svg+xml">
-    <link rel="manifest" href="manifest.webmanifest">
     <!-- Preferências aplicadas ANTES da primeira pintura: sem piscar o tema errado ao abrir -->
     <script>
         (function () {
             var d = document.documentElement, ler = function (k) { try { return JSON.parse(localStorage.getItem('orion_' + k)); } catch (e) { return null; } };
             var t = ler('theme'), s = ler('sb'), de = ler('density'), sc = ler('scale'), m = ler('motion');
             if (t) d.dataset.theme = t;
-            if (s === 'collapsed') d.dataset.sb = 'collapsed';
+            if (s === 'collapsed' || innerWidth <= 860) d.dataset.sb = 'collapsed';
             if (de) d.dataset.density = de;
             if (sc) d.style.setProperty('--ui-scale', sc);
             if (m && m !== 'system') d.dataset.motion = m;
@@ -130,12 +128,10 @@
             </div>
         </div>
     </aside>
-    <div id="drawer-scrim" aria-hidden="true"></div>
 
     <!-- ── Principal ──────────────────────────────────────────────── -->
     <main id="main" tabindex="-1">
         <header id="topbar">
-            <button id="menu-btn" class="icon-btn" type="button" aria-label="Abrir menu" aria-expanded="false" aria-controls="sidebar"><svg class="i" aria-hidden="true"><use href="#i-menu"/></svg></button>
             <div class="tb-title"><h1 id="tb-title">Início</h1><span id="tb-sub" class="tb-sub"></span></div>
             <div class="tb-drag" aria-hidden="true"></div>
             <div id="state-pill" class="state-pill" role="status" aria-live="polite"><span class="state-dot" aria-hidden="true"></span><span id="state-label" class="state-label mono">Em espera</span></div>
@@ -175,6 +171,14 @@
             <!-- Chat -->
             <section id="view-chat" class="view" data-view="chat" aria-label="Conversa">
                 <h2 class="sr-only">Conversa</h2>
+                <div id="find-bar" class="find-bar" role="search" aria-label="Buscar na conversa" hidden>
+                    <svg class="i" aria-hidden="true"><use href="#i-search"/></svg>
+                    <input id="find-input" type="search" placeholder="Buscar na conversa" aria-label="Buscar na conversa" autocomplete="off" spellcheck="false">
+                    <span id="find-count" class="find-count" role="status" aria-live="polite"></span>
+                    <button id="find-prev" class="icon-btn" type="button" aria-label="Ocorrência anterior"><svg class="i flip" aria-hidden="true"><use href="#i-chevron-down"/></svg></button>
+                    <button id="find-next" class="icon-btn" type="button" aria-label="Próxima ocorrência"><svg class="i" aria-hidden="true"><use href="#i-chevron-down"/></svg></button>
+                    <button id="find-close" class="icon-btn" type="button" aria-label="Fechar a busca"><svg class="i" aria-hidden="true"><use href="#i-close"/></svg></button>
+                </div>
                 <div id="chat-scroll" class="chat-scroll" tabindex="-1">
                     <div id="chat-col" class="chat-col selectable" role="log" aria-live="off" aria-relevant="additions" aria-label="Mensagens da conversa">
                         <div id="chat-empty" class="chat-empty">
@@ -203,8 +207,7 @@
                                 <button id="model-btn" type="button" class="chip" aria-haspopup="menu" aria-expanded="false" aria-controls="model-menu"><svg class="i" aria-hidden="true"><use href="#i-bolt"/></svg><span id="model-label">Automático</span><svg class="i" aria-hidden="true"><use href="#i-chevron-down"/></svg></button>
                                 <div id="model-menu" class="menu" role="menu" aria-label="Modelo" data-open="false"></div>
                             </div>
-                            <span id="composer-help" class="grow hide-mobile">Enter envia · Shift+Enter quebra a linha · ↑ repete a anterior</span>
-                            <span class="grow show-mobile-only" aria-hidden="true"></span>
+                            <span id="composer-help" class="grow hide-narrow">Enter envia · Shift+Enter quebra a linha · ↑ repete a anterior</span>
                         </div>
                     </div>
                 </form>
@@ -293,7 +296,7 @@
 
                             <section id="cfg-conexao" class="card settings-section" aria-labelledby="h-conexao">
                                 <h3 id="h-conexao">Conexão</h3>
-                                <div class="field"><label for="cfg-url">Endereço do cérebro</label><input id="cfg-url" class="input mono" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="http://127.0.0.1:8000"><span class="field-hint">Vazio usa o endereço desta página (ou 127.0.0.1:8000 no app). Pelo celular, use o endereço do Tailscale.</span></div>
+                                <div class="field"><label for="cfg-url">Endereço do cérebro</label><input id="cfg-url" class="input mono" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="http://127.0.0.1:8000"><span class="field-hint">Vazio usa o endereço desta página (ou 127.0.0.1:8000 no app).</span></div>
                                 <div class="field" style="margin-top:var(--s-4)"><label for="cfg-token">Token de acesso</label><input id="cfg-token" class="input mono" type="password" autocomplete="off" spellcheck="false" placeholder="só para o orion.app (ORION_ADMIN_TOKEN)"><span class="field-hint">Fica só neste dispositivo e é enviado apenas ao endereço acima. O app desktop usa a variável de ambiente.</span></div>
                                 <div class="conn-test"><button id="cfg-test" class="btn btn-outline btn-sm" type="button">Testar conexão</button><span id="cfg-test-out" role="status" aria-live="polite"></span></div>
                             </section>
@@ -341,6 +344,8 @@
 </div>
 <div id="dialog-root"></div>
 
+<button id="citar-btn" class="chip" type="button" hidden aria-label="Citar o trecho selecionado no campo de mensagem">Citar</button>
+
 <div id="toasts" role="region" aria-label="Notificações"></div>
 <div id="sr-live" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
 
@@ -356,6 +361,7 @@
 <script src="js/util.js"></script>
 <script src="js/md.js"></script>
 <script src="js/fuzzy.js"></script>
+<script src="js/slash.js"></script>
 <script src="js/store.js"></script>
 <script src="js/sse.js"></script>
 <script src="js/charts.js"></script>
@@ -370,6 +376,7 @@
 <script src="js/composer.js"></script>
 <script src="js/sidebar.js"></script>
 <script src="js/palette.js"></script>
+<script src="js/busca.js"></script>
 <script src="js/views/home.js"></script>
 <script src="js/views/memory.js"></script>
 <script src="js/views/integrations.js"></script>

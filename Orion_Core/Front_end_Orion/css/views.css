@@ -9,8 +9,9 @@
 .home-greet h2 { font-size: var(--fs-2xl); font-weight: 500; letter-spacing: -0.02em; line-height: var(--lh-tight); }
 .home-greet h2 em { font-style: normal; color: var(--accent); }
 .home-greet p { margin-top: 0.3rem; color: var(--text-2); font-size: var(--fs-md); }
-.home-status { display: flex; flex-wrap: wrap; gap: var(--s-2); }
-.home-status .chip { background: var(--glass); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+.home-status { display: flex; flex-wrap: wrap; align-items: center; row-gap: 0.15rem; font-size: var(--fs-sm); color: var(--text-3); }
+.home-status .hs-item { display: inline-flex; align-items: center; gap: 0.45rem; }
+.home-status .hs-item + .hs-item::before { content: '·'; margin: 0 0.7rem; color: var(--text-4); }
 .suggest-row { display: flex; flex-wrap: wrap; gap: var(--s-2); }
 .suggest-row .chip { height: 2rem; padding: 0 0.9rem; font-size: var(--fs-sm); background: var(--glass); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
 .home-composer .composer-box { box-shadow: var(--sh-3); }
@@ -22,7 +23,7 @@
 .star-label[data-show="true"] { opacity: 1; }
 .star-label strong { display: block; font-size: var(--fs-sm); font-weight: 600; }
 .star-label span { font-size: var(--fs-xs); color: var(--text-2); }
-@media (max-width: 860px) { #view-home { padding: 0 var(--s-3) calc(var(--s-4) + env(safe-area-inset-bottom)); } .home-greet h2 { font-size: var(--fs-xl); } .star-label { display: none; } }
+@media (max-width: 860px) { .home-greet h2 { font-size: var(--fs-xl); } }
 @media (max-height: 640px) { .home-status, .suggest-row { display: none; } }
 
 /* ── Memória (grafo 3D) ──────────────────────────────────────────────── */
@@ -60,10 +61,7 @@
 .mem-links button { display: flex; align-items: center; gap: var(--s-2); width: 100%; padding: 0.45rem 0.6rem; border-radius: var(--r-2); text-align: left; font-size: var(--fs-sm); color: var(--text-2); }
 .mem-links button:hover { background: rgb(255 255 255 / 0.06); color: var(--text-1); }
 .mem-links .conv-title { flex: 1; }
-@media (max-width: 860px) {
-    .mem-toolbar { padding: var(--s-2) var(--s-3); } .mem-body { margin: 0 var(--s-3) var(--s-3); border-radius: var(--r-3); }
-    .mem-stats { display: none; } .mem-search { flex: 1 1 100%; }
-    .mem-detail { top: auto; width: auto; left: var(--s-2); right: var(--s-2); bottom: var(--s-2); max-height: 55%; transform: translateY(calc(100% + 1rem)); }
+@media (max-width: 860px) { .mem-stats { display: none; } .mem-search { flex: 1 1 14rem; } }
 }
 
 /* ── Integrações ─────────────────────────────────────────────────────── */
@@ -107,9 +105,9 @@
 .activity-top { display: grid; grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr)); gap: var(--s-4); margin-bottom: var(--s-5); }
 @media (max-width: 860px) {
     .settings { grid-template-columns: minmax(0, 1fr); gap: var(--s-3); }
-    .settings-nav { position: sticky; z-index: 2; top: 0; flex-direction: row; overflow-x: auto; margin: 0 calc(var(--s-4) * -1); padding: var(--s-2) var(--s-4); background: rgb(7 10 18 / 0.9); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
-    .settings-nav a { white-space: nowrap; min-height: 2.5rem; display: flex; align-items: center; }
-    .theme-picker { grid-template-columns: 1fr; }
+    .settings-nav { position: sticky; z-index: 2; top: 0; flex-direction: row; overflow-x: auto; padding: var(--s-2) 0; background: rgb(7 10 18 / 0.9); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+    .settings-nav a { white-space: nowrap; }
+}
 }
 
 /* ── Boot ────────────────────────────────────────────────────────────── */

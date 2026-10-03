@@ -79,16 +79,17 @@
         const prose = el('div', { class: 'prose selectable', hidden: true });
         const atividade = el('div', { class: 'activity', hidden: true, role: 'group', 'aria-label': 'Ferramentas usadas' });
         const tier = el('span', { class: 'msg-tier' });
+        const dur = el('span', { class: 'msg-dur' });
         const pens = pensando
             ? el('div', { class: 'thinking', role: 'status' }, el('span', { class: 'dots', 'aria-hidden': 'true', html: '<i></i><i></i><i></i>' }), 'Pensando…')
             : null;
         const demora = el('div', { class: 'slow-note', text: 'Ainda processando… alguns modelos levam alguns segundos.' });
         const principal = el('div', { class: 'msg-main' },
-            el('div', { class: 'msg-meta' }, el('span', { class: 'msg-who', text: 'Orion' }), el('time', { class: 'msg-time', text: hora }), tier),
+            el('div', { class: 'msg-meta' }, el('span', { class: 'msg-who', text: 'Orion' }), el('time', { class: 'msg-time', text: hora }), tier, dur),
             atividade, pens, prose, demora);
         const m = el('div', { class: 'msg msg-orion', dataset: { streaming: pensando ? 'true' : 'false' } },
             el('span', { class: 'msg-avatar', 'aria-hidden': 'true', html: '<span class="belt-mark"><i></i><i></i><i></i></span>' }), principal);
-        const a = { el: m, principal, prose, atividade, tier, pens, demora, texto: '', rs: MD.criarRenderStreaming(),
+        const a = { el: m, principal, prose, atividade, tier, dur, t0: performance.now(), pens, demora, texto: '', rs: MD.criarRenderStreaming(),
                     timer: null, cartoes: new Map(), chips: new Map(), erro: false, acoes: false, fim: false };
         a.desenhar = U.noProximoQuadro(() => desenhar(a));
         acrescentar(m);
@@ -257,6 +258,7 @@
     function finalizar(a, { interrompida = false } = {}) {
         a.fim = true;
         tirarPensando(a);
+        if (a.texto) a.dur.textContent = U.fmtDur(performance.now() - a.t0);
         if (a.retoma) {
             const falhou = a.erro || [...a.chips.values()].some(c => c.dataset.estado === 'negado');
             a.retoma.querySelector('.approval-state').textContent = falhou ? 'Aprovada · a execução falhou.' : 'Aprovada · executada.';
@@ -405,11 +407,58 @@
         btnFim.addEventListener('click', () => { seguir = true; naoLidas = 0; irAoFim(true); atualizarBotaoFim(); });
         col.addEventListener('click', clique);
         bus.on('chat:evento', aoEvento);
+        ligarCitar();
         new ResizeObserver(() => { if (seguir) irAoFim(); atualizarBotaoFim(); }).observe(col);
         atualizarVazio();
     }
 
+    /** cartões de aprovação ainda sem decisão (em qualquer ponto da conversa) */
+    const pendentes = () => $$('.approval[data-estado="pendente"]', col);
+    function irParaPendente() {
+        const alvo = pendentes()[0];
+        if (!alvo) return false;
+        const chegar = () => {
+            alvo.setAttribute('tabindex', '-1');
+            alvo.scrollIntoView({ block: 'center', behavior: O.movimentoReduzido() ? 'auto' : 'smooth' });
+            alvo.focus({ preventScroll: true });   // o foco vai ao cartão, não ao botão: aprovar exige uma escolha explícita
+        };
+        if (document.documentElement.dataset.view === 'chat') chegar();
+        else {
+            const solta = bus.on('view', () => { solta(); chegar(); });
+            O.app.ir('chat', { foco: false });
+        }
+        return true;
+    }
+    const ultimaResposta = () => {
+        const msgs = $$('.msg-orion', col).filter(m => (textoDe.get(m) || '').trim());
+        return msgs.length ? textoDe.get(msgs[msgs.length - 1]) : '';
+    };
+
+    /* "Citar": selecionar um trecho de uma mensagem mostra um botão que o leva ao campo, como `> citação` */
+    function ligarCitar() {
+        const btn = $('#citar-btn');
+        const selecao = () => {
+            const s = window.getSelection();
+            if (!s || s.isCollapsed || !s.toString().trim() || !col.contains(s.anchorNode)) return '';
+            return s.anchorNode.parentElement?.closest('.prose, .bubble') ? s.toString() : '';
+        };
+        const esconder = () => { btn.hidden = true; };
+        col.addEventListener('mouseup', () => setTimeout(() => {
+            if (!selecao()) { esconder(); return; }
+            const r = window.getSelection().getRangeAt(0).getBoundingClientRect();
+            btn.style.left = `${Math.max(8, Math.min(window.innerWidth - 90, r.right - 40))}px`;
+            btn.style.top = `${Math.max(8, Math.min(window.innerHeight - 44, r.bottom + 8))}px`;
+            btn.hidden = false;
+        }, 0));
+        document.addEventListener('selectionchange', () => { if (!selecao()) esconder(); });
+        rolagem.addEventListener('scroll', esconder, { passive: true });
+        btn.addEventListener('mousedown', e => e.preventDefault());   // mantém a seleção até o clique
+        btn.addEventListener('click', () => { O.composer.citar(selecao()); esconder(); window.getSelection().removeAllRanges(); });
+        O.chat.citarSelecao = () => { const t = selecao(); if (!t) return false; O.composer.citar(t); esconder(); window.getSelection().removeAllRanges(); return true; };
+    }
+
     O.chat = {
+        pendentes, irParaPendente, ultimaResposta,
         init, usuario, limpar, renderHistorico, nota, carregarPendentes, irAoFim,
         esperarEco(texto) { ecoEsperado = texto; },
         ocupado: () => ocupado,

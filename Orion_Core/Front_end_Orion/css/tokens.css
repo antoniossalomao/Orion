@@ -79,7 +79,6 @@
     --sb-wc: 68px;
     --topbar-h: 56px;
     --content-w: 52rem;
-    --touch: 44px;                         /* alvo mínimo de toque */
 
     /* camadas */
     --z-sky: 0;  --z-app: 10;  --z-topbar: 30;  --z-sidebar: 40;  --z-scrim: 45;

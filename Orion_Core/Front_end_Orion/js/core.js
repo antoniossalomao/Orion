@@ -61,21 +61,23 @@
         return m === 'reduced' || (m !== 'full' && !!mqReduzido?.matches);
     };
 
-    const CORES_TEMA = { noite: '#04060b', grafite: '#070707', contraste: '#000000' };
+    // janela estreita (≤ 860 px): a barra lateral vira trilho de ícones, sem gaveta
+    const mqEstreita = window.matchMedia ? window.matchMedia('(max-width: 860px)') : null;
+    const estreita = () => !!mqEstreita?.matches;
+
     function aplicarPrefs() {
         const d = document.documentElement;
         d.dataset.theme = prefs.get('theme');
         d.dataset.density = prefs.get('density');
-        d.dataset.sb = prefs.get('sb') === 'collapsed' ? 'collapsed' : 'expanded';
+        d.dataset.sb = prefs.get('sb') === 'collapsed' || estreita() ? 'collapsed' : 'expanded';
         d.style.setProperty('--ui-scale', String(prefs.get('scale')));
         const m = prefs.get('motion');
         if (m === 'system') delete d.dataset.motion; else d.dataset.motion = m;
-        const meta = $('meta[name="theme-color"]');
-        if (meta) meta.content = CORES_TEMA[prefs.get('theme')] || '#04060b';
         bus.emit('prefs', prefs.todos());
     }
     prefs.assinar('*', aplicarPrefs);
     mqReduzido?.addEventListener?.('change', () => bus.emit('prefs', prefs.todos()));
+    mqEstreita?.addEventListener?.('change', aplicarPrefs);
 
     /* ── estado do Orion (céu, pílula, aria) ───────────────────────────── */
     const ROTULO = { idle: 'Em espera', listening: 'Ouvindo', processing: 'Processando', speaking: 'Respondendo' };
@@ -105,9 +107,7 @@
 
     const desktop = () => !!window.pywebview?.api;
     const interfaceDesktop = () => document.documentElement.classList.contains('shell-desktop');
-    const toqueGrosso = () => !!window.matchMedia?.('(pointer: coarse)').matches;
-    const celular = () => !!window.matchMedia?.('(max-width: 860px)').matches;
 
     Object.assign(O, { $, $$, el, icone, bus, prefs, estado, anunciar, movimentoReduzido, aplicarPrefs,
-                       desktop, interfaceDesktop, toqueGrosso, celular });
+                       desktop, interfaceDesktop, estreita });
 })();
