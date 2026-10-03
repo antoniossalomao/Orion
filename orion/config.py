@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
+from typing import Annotated
 
 from platformdirs import user_data_dir
 from pydantic import Field, field_validator, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 _PUBLICOS = {"0.0.0.0", "::", ""}  # noqa: S104 — só para recusar
@@ -33,6 +35,12 @@ class Settings(BaseSettings):
     allowed_hosts: list[str] = Field(
         default_factory=lambda: ["127.0.0.1", "localhost"]
     )  # + Tailscale (só com admin_token: ver `_acesso_de_fora_exige_token`)
+    # `orion-desktop` v0 (executar_comando, ler_arquivo, listar_arquivos): desligado por padrão
+    desktop_tools: bool = False
+    # Canal Telegram (fase 5): sobe se houver token; sem lista de usuários não sobe (default-deny).
+    telegram_token: str = ""  # ou no cofre do SO (ORION_TELEGRAM_TOKEN)
+    # IDs numéricos do Telegram, separados por vírgula ("123,456") ou lista JSON ("[123]")
+    telegram_allowed_users: Annotated[list[int], NoDecode] = Field(default_factory=list)
     # Jobs em segundo plano (lembretes, agendamentos, embeddings, vault, backup, consolidação).
     jobs_enabled: bool = True
     jobs_tick_s: float = Field(default=30.0, ge=1.0)
@@ -52,6 +60,18 @@ class Settings(BaseSettings):
             raise ValueError(
                 "ORION_ADMIN_TOKEN precisa de 16+ caracteres "
                 '(gere com: python -c "import secrets;print(secrets.token_urlsafe(32))")'
+            )
+        return v
+
+    @field_validator("telegram_allowed_users", mode="before")
+    @classmethod
+    def _ids_do_telegram(cls, v: object) -> object:
+        if isinstance(v, str):
+            v = v.strip()
+            if not v:
+                return []
+            return (
+                json.loads(v) if v.startswith("[") else [int(x) for x in v.split(",") if x.strip()]
             )
         return v
 
@@ -87,6 +107,15 @@ class Settings(BaseSettings):
             raise ValueError(
                 f"host {', '.join(de_fora)} em ORION_ALLOWED_HOSTS exige ORION_ADMIN_TOKEN "
                 "(regra 17 do ORION_REGRAS.md: acesso de fora só com login)"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _telegram_nao_sobe_aberto(self) -> Settings:
+        if self.telegram_token and not self.telegram_allowed_users:
+            raise ValueError(
+                "ORION_TELEGRAM_TOKEN exige ORION_TELEGRAM_ALLOWED_USERS: "
+                "sem lista de usuários o bot não sobe (default-deny)"
             )
         return self
 

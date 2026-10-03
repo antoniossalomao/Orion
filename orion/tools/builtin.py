@@ -11,6 +11,7 @@ from typing import Any
 from ..delegate import Delegator
 from ..memory import MemoryStore
 from ..memory.ops import Operations
+from .desktop import desktop_tools
 from .ops_tools import ops_tools
 from .registry import Tool, ToolRegistry
 
@@ -94,9 +95,16 @@ def delegate_tool(delegator: Delegator) -> Tool:
 
 
 def default_registry(
-    store: MemoryStore, delegator: Delegator | None = None, ops: Operations | None = None
+    store: MemoryStore,
+    delegator: Delegator | None = None,
+    ops: Operations | None = None,
+    *,
+    desktop: bool = False,
 ) -> ToolRegistry:
     reg = ToolRegistry(memory_tools(store))
+    if desktop:  # opt-in (ORION_DESKTOP_TOOLS): age no computador, sempre sob a política
+        for t in desktop_tools():
+            reg.register(t)
     if ops is not None:
         for t in ops_tools(ops):
             reg.register(t)

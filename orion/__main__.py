@@ -20,6 +20,13 @@ def main(argv: list[str] | None = None) -> int:
         "--dir", type=Path, default=None, help="pasta de destino (padrão: <dados>/backups)"
     )
     bk.add_argument("--keep", type=int, default=7)
+    au = sub.add_parser(
+        "autostart", help="gera o arquivo de início automático do sistema (não ativa sozinho)"
+    )
+    au.add_argument("--plataforma", choices=("windows", "macos", "linux"), default=None)
+    au.add_argument("--install", action="store_true", help="grava o arquivo no lugar do sistema")
+    au.add_argument("--dir", type=Path, default=None, help="grava aqui em vez do lugar do sistema")
+    au.add_argument("--force", action="store_true", help="substitui um arquivo existente")
     rs = sub.add_parser("restore", help="restaura um backup no lugar do banco (confere antes)")
     rs.add_argument("arquivo", type=Path, help="backup .db (veja <dados>/backups)")
     rs.add_argument("--force", action="store_true", help="substitui o banco atual, se existir")
@@ -59,6 +66,27 @@ def main(argv: list[str] | None = None) -> int:
         finally:
             store.close()
         print(f"backup: {feito}" if feito else "backup de hoje já existe")
+        return 0
+
+    if args.cmd == "autostart":
+        from .autostart import detectar, instalar, render
+        from .config import PROJECT_ROOT
+
+        a = render(
+            args.plataforma or detectar(), projeto=PROJECT_ROOT, logs=settings.data_dir / "logs"
+        )
+        if not (args.install or args.dir):
+            print(f"# {a.arquivo}\n{a.conteudo}")
+        else:
+            try:
+                alvo = instalar(a, destino=args.dir, force=args.force)
+            except FileExistsError as e:
+                print(e, file=sys.stderr)
+                return 1
+            if a.plataforma == "macos":
+                (settings.data_dir / "logs").mkdir(parents=True, exist_ok=True)
+            print(f"gravado: {alvo}")
+        print(f"para ligar: {a.ativar}\npara desligar: {a.desativar}")
         return 0
 
     if args.cmd == "restore":

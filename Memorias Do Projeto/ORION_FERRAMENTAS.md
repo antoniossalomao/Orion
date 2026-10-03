@@ -9,10 +9,12 @@
 
 | Situação | Qtd | O que significa |
 |---|---|---|
-| portada | 7 | Já existe em `orion/` com teste (nomes e argumentos do legado; ids agora inteiros) |
+| portada | 10 | Já existe em `orion/` com teste (nomes e argumentos do legado; ids agora inteiros) |
 | substituida | 3 | O objetivo continua, por outro caminho (CLI delegada, canal Telegram, backup diário) |
-| a-portar | 37 | Falta escrever: servidor MCP pronto ou `orion-desktop` próprio (fase 4) |
+| a-portar | 34 | Falta escrever: servidor MCP pronto ou `orion-desktop` próprio (fase 4) |
 | descartar | 8 | Proposta de apagar: o agente ou o modelo já fazem, ou dependia de peça que saiu |
+
+Já existe um `orion-desktop` v0 (`orion/tools/desktop.py`, desligado por padrão) com as 3 ferramentas de maior uso.
 
 Servidores MCP candidatos (a validar na fase 4, cada um com classe de risco antes de ligar): filesystem,
 Google Workspace, busca, fetch, navegador (Playwright), git. O que não tem servidor pronto e não é
@@ -22,10 +24,13 @@ multiplataforma de graça (`controlar_janela`, `organizar_pasta`) vai para `orio
 
 | Ferramenta | Módulo no legado | Risco | Situação | Destino | Fase |
 |---|---|---|---|---|---|
+| `ler_arquivo` | `fs.py` | read | portada | orion.tools.desktop (opt-in `ORION_DESKTOP_TOOLS`); segredo e chave pedem confirmação | 4 |
+| `listar_arquivos` | `fs.py` | read | portada | orion.tools.desktop (opt-in `ORION_DESKTOP_TOOLS`) | 4 |
 | `buscar_memoria` | `memory.py` | read | portada | orion.tools.builtin (SQLite + FTS5 + vetores) | 3 |
 | `salvar_memoria` | `memory.py` | write | portada | orion.tools.builtin (fatos com fonte e data) | 3 |
 | `listar_numeros` | `numbers.py` | read | portada | orion.tools.ops_tools | 3 |
 | `registrar_numero` | `numbers.py` | write | portada | orion.tools.ops_tools | 3 |
+| `executar_comando` | `os_tools.py` | exec | portada | orion.tools.desktop (opt-in); só leitura provada roda direto (`orion.policy.shell`); o caminho do Windows só tem o argv testado | 4 |
 | `gerenciar_agendamentos` | `reminders.py` | write | portada | orion.tools.ops_tools; o disparo avisa, não executa a ferramenta | 3 |
 | `gerenciar_lembretes` | `reminders.py` | write | portada | orion.tools.ops_tools (SQLite); aviso pela fila `/notifications` | 3 |
 | `gerenciar_tarefas` | `reminders.py` | write | portada | orion.tools.ops_tools; entram no contexto como "em aberto" | 3 |
@@ -42,16 +47,13 @@ multiplataforma de graça (`controlar_janela`, `organizar_pasta`) vai para `orio
 | `ler_email` | `email_cal.py` | read (externo) | a-portar | servidor MCP do Google Workspace | 4 |
 | `ler_emails` | `email_cal.py` | read (externo) | a-portar | servidor MCP do Google Workspace; saída é conteúdo externo | 4 |
 | `listar_eventos` | `email_cal.py` | read (externo) | a-portar | servidor MCP do Google Workspace | 4 |
-| `escrever_arquivo` | `fs.py` | write | a-portar | servidor MCP de filesystem; escrita fora das pastas seguras confirma | 4 |
-| `ler_arquivo` | `fs.py` | read | a-portar | servidor MCP de filesystem, sob `PathGuard` | 4 |
-| `listar_arquivos` | `fs.py` | read | a-portar | servidor MCP de filesystem, sob `PathGuard` | 4 |
+| `escrever_arquivo` | `fs.py` | write | a-portar | orion.tools.desktop (escrita fora das pastas seguras confirma); ou servidor MCP de filesystem | 4 |
 | `organizar_pasta` | `fs.py` | write | a-portar | orion-desktop (próprio; sem equivalente pronto) | 4 |
 | `consultar_git` | `git_tools.py` | read | a-portar | orion-desktop (git somente leitura) ou servidor MCP de git | 4 |
 | `notificar_usuario` | `notifications.py` | write | a-portar | orion-desktop (toast no Windows, notificação no macOS) | 4 |
 | `abrir_app` | `os_tools.py` | write | a-portar | orion-desktop (Windows e macOS) | 4 |
 | `controlar_janela` | `os_tools.py` | exec | a-portar | orion-desktop só Windows (UI Automation); sem equivalente no Mac, adiar | 4 |
 | `controlar_midia` | `os_tools.py` | write | a-portar | orion-desktop; baixa prioridade | 4 |
-| `executar_comando` | `os_tools.py` | exec | a-portar | orion-desktop, sempre sob `orion.policy.shell` (PowerShell e POSIX) | 4 |
 | `iniciar_processo_bg` | `processes.py` | exec | a-portar | orion-desktop (processo em segundo plano com log), sob a política | 4 |
 | `iniciar_vigilancia_pasta` | `processes.py` | write | a-portar | job do agendador (watchdog); baixa prioridade | 4 |
 | `listar_processos_bg` | `processes.py` | read | a-portar | orion-desktop | 4 |

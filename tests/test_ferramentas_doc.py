@@ -48,7 +48,9 @@ def test_modulo_citado_existe_no_legado(linhas):
 def test_situacao_portada_so_para_o_que_o_registro_realmente_tem(linhas, tmp_path):
     store = MemoryStore(tmp_path / "t.db")
     try:
-        registradas = set(default_registry(store, Delegator(store), Operations(store)).names())
+        registradas = set(
+            default_registry(store, Delegator(store), Operations(store), desktop=True).names()
+        )
     finally:
         store.close()
     for nome, (_, _, _, _, situacao, *_) in linhas.items():

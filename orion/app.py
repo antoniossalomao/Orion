@@ -24,6 +24,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from . import __version__
 from .agent import Agent, AgentEvent
+from .channels import TelegramChannel
 from .config import PROJECT_ROOT, Settings
 from .delegate import Delegator
 from .gateway import ChatGateway, Endpoint
@@ -64,6 +65,7 @@ class AppState:
     ops: Operations
     agent: Agent | None = None  # None enquanto o gateway não está configurado
     jobs: JobRunner | None = None  # None com ORION_JOBS_ENABLED=false
+    telegram: TelegramChannel | None = None  # None sem token, sem usuários ou sem gateway
 
 
 def build_policy(settings: Settings, approvals: ApprovalStore | None = None) -> PolicyEngine:
@@ -108,6 +110,33 @@ def gateway_from_settings(settings: Settings) -> ChatGateway | None:
         return None
     chave = settings.gateway_api_key or get_secret("ORION_GATEWAY_API_KEY")
     return ChatGateway([Endpoint("gateway", settings.gateway_url, settings.gateway_model, chave)])
+
+
+def telegram_from_settings(
+    settings: Settings,
+    agent: Agent | None,
+    memory: MemoryStore,
+    policy: PolicyEngine,
+    ops: Operations,
+) -> TelegramChannel | None:
+    """O canal só sobe com token, lista de usuários (default-deny) e gateway de modelos."""
+    token = settings.telegram_token or get_secret("ORION_TELEGRAM_TOKEN")
+    if not token:
+        return None
+    if not settings.telegram_allowed_users:
+        log.error("telegram desligado: defina ORION_TELEGRAM_ALLOWED_USERS (default-deny)")
+        return None
+    if agent is None:
+        log.error("telegram desligado: configure o gateway de modelos (ORION_GATEWAY_URL/MODEL)")
+        return None
+    return TelegramChannel(
+        token=token,
+        allowed_users=settings.telegram_allowed_users,
+        agent=agent,
+        memory=memory,
+        approvals=policy.approvals,
+        ops=ops,
+    )
 
 
 def embedder_from_settings(settings: Settings) -> GeminiEmbedder | None:
@@ -180,6 +209,7 @@ def create_app(
     settings: Settings | None = None,
     memory_factory: Callable[[Settings], MemoryStore] | None = None,
     gateway_factory: Callable[[Settings], ChatGateway | None] | None = None,
+    telegram_factory: Callable[..., TelegramChannel | None] | None = None,
 ) -> FastAPI:
     settings = settings or Settings()
 
@@ -196,7 +226,7 @@ def create_app(
             delegador = Delegator(memory) if _alguma_cli() else None
             agent = Agent(
                 gateway=gateway,
-                tools=default_registry(memory, delegador, ops),
+                tools=default_registry(memory, delegador, ops, desktop=settings.desktop_tools),
                 policy=policy,
                 memory=memory,
                 ops=ops,
@@ -217,14 +247,23 @@ def create_app(
                 consolidator=consolidador,
             )
             tarefa_jobs = asyncio.create_task(jobs.run_forever(settings.jobs_tick_s))
-        app.state.orion = AppState(settings, memory, policy, time.time(), ops, agent, jobs)
+        telegram = (telegram_factory or telegram_from_settings)(
+            settings, agent, memory, policy, ops
+        )
+        tarefa_telegram = asyncio.create_task(telegram.run()) if telegram is not None else None
+        app.state.orion = AppState(
+            settings, memory, policy, time.time(), ops, agent, jobs, telegram
+        )
         try:
             yield
         finally:
-            if tarefa_jobs is not None:
-                tarefa_jobs.cancel()
-                with contextlib.suppress(asyncio.CancelledError):
-                    await tarefa_jobs
+            for tarefa in (tarefa_jobs, tarefa_telegram):
+                if tarefa is not None:
+                    tarefa.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await tarefa
+            if telegram is not None:
+                await telegram.aclose()
             if gateway is not None and hasattr(gateway, "aclose"):
                 await gateway.aclose()
             memory.close()
@@ -259,6 +298,7 @@ def create_app(
                 "vectors": state.memory.vectors_available,
                 "gateway": state.agent is not None,
                 "jobs": state.jobs is not None,
+                "telegram": state.telegram is not None,
             },
             "pending_approvals": len(state.policy.approvals.pending()),
             "pending_notifications": len(state.ops.pending_notifications(limit=1000)),

@@ -115,6 +115,8 @@ class PolicyEngine:
                     motivo = f"execução fora da lista de leitura segura: {veredito.reason}"
             else:
                 motivo = "execução/automação (agente, navegador ou UI)"
+        elif spec.read_path_arg and spec.risk is Risk.READ:
+            motivo = self.path_guard.check_read(str(call.args.get(spec.read_path_arg, "")))
         elif spec.path_arg and spec.risk is Risk.WRITE:
             caminho = str(call.args.get(spec.path_arg, ""))
             motivo = (
