@@ -29,6 +29,25 @@ jobs:
       - name: front (markdown/XSS)
         run: node --test "tests/front/*.test.js"
 
+  # Front no navegador de verdade: fluxos, teclado, segurança do markdown, mobile e axe-core
+  # (0 violações em 5 telas × 3 temas). Backend de mentira em tests/front_e2e/mock_backend.py.
+  front-e2e:
+    name: front (navegador + acessibilidade)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: tests/front_e2e/package-lock.json
+      - run: uv sync --python 3.12 --locked --group e2e
+      - run: npm ci
+        working-directory: tests/front_e2e
+      - run: uv run playwright install --with-deps chromium
+      - run: uv run pytest tests/front_e2e -q
+
   # O legado (Orion_Ollama/, Orion_Core/) só ganha o essencial até a fase 7:
   # sintaxe + erros reais do pyflakes. Os testes dele rodam no job acima.
   legado:

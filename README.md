@@ -194,7 +194,15 @@ Reescrita e legado (lógica pura, sem serviços no ar):
 uv sync
 uv run pytest -q                      # política, memória, gateway, agente, app, legado
 uv run ruff check . && uv run pyright
-node --test "tests/front/*.test.js"   # markdown/XSS do front
+node --test "tests/front/*.test.js"   # markdown/XSS e lógica pura do front
+
+# testes de navegador do front (Playwright + axe-core; backend de mentira incluso)
+uv sync --group e2e && (cd tests/front_e2e && npm ci)
+uv run playwright install chromium    # ou ORION_E2E_CHROME=/caminho/do/chrome
+uv run pytest tests/front_e2e -q
+
+# ver o front sem subir o cérebro de verdade:
+uv run python -m tests.front_e2e.mock_backend      # abra http://127.0.0.1:8000/ui/
 ```
 
 O CI (`.github/workflows/ci.yml`) roda isso em Linux, Windows e macOS.
@@ -252,7 +260,7 @@ tests/                         # pytest (orion + legado) e Node (front); ver "Te
 .github/workflows/ci.yml       # ruff, pyright, pytest, node em Linux/Windows/macOS
 pyproject.toml · uv.lock       # a reescrita usa uv; requirements.txt é só do legado
 Orion_Core/                    # front-end v1, voz, sentidos
-  Front_end_Orion/              # pywebview + Three.js + hub WS :8765
+  Front_end_Orion/              # pywebview + Three.js + hub WS :8765 (ver ORION_FRONT.md); também servido em /ui/ pelo orion.app
   audio_manager.py (TTS) · mic_engine.py (STT) · commands.py
 bin/startup/                   # .bat de cada serviço + orion_boot.vbs
 Memorias Do Projeto/           # ORION_NUCLEO.md (plano), ORION_TECNICO.md (referência da base)

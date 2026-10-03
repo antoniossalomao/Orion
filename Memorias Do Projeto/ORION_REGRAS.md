@@ -28,7 +28,7 @@
 | 9 | **Só `127.0.0.1`.** Bind público é recusado, salvo `ORION_ALLOW_PUBLIC_BIND=true`. Acesso de fora só pelo Tailscale. `Host` fora da lista é recusado (DNS rebinding). | `orion/config.py`, `orion/app.py` | `tests/test_app.py` |
 | 10 | **WebSocket não passa por CORS**, então confere `Origin`: só navegador local (pywebview) ou cliente sem `Origin`. | `Orion_Ollama/origem.py`, `routers/misc.py`, hub em `orion_app.py` | `tests/legacy/test_misc_router_legado.py` |
 | 11 | **Upload tem limite de tamanho** (25 MB) e nome sanitizado. | `Orion_Ollama/routers/misc.py` | `tests/legacy/test_misc_router_legado.py` |
-| 12 | **O chat só renderiza imagem gerada pelo próprio Orion** (`/imagens/<arquivo>`). Imagem de outro host é um canal de exfiltração por prompt injection. | `Orion_Core/Front_end_Orion/md.js` | `tests/front/md.test.js` |
+| 12 | **O chat só renderiza imagem gerada pelo próprio Orion** (`/imagens/<arquivo>`). Imagem de outro host é um canal de exfiltração por prompt injection. | `Orion_Core/Front_end_Orion/js/md.js` | `tests/front/md.test.js`, `tests/front_e2e/test_front.py` (no navegador) |
 | 13 | Endpoints que mudam estado exigem `Authorization: Bearer` (token de 16+ caracteres) até o login da fase 5. Sem CORS, o navegador de outra origem não consegue chamá-los. | `orion/app.py` | `tests/test_app.py` |
 
 ## Código

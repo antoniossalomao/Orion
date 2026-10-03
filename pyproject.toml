@@ -27,6 +27,10 @@ dev = [
     "ruff>=0.6",
     "pyright>=1.1.380",
 ]
+# testes de navegador do front (tests/front_e2e): uv sync --group e2e
+e2e = [
+    "playwright>=1.49",
+]
 
 [project.scripts]
 orion = "orion.__main__:main"
