@@ -36,7 +36,8 @@ def test_linux_gera_unit_do_systemd_com_caminho_com_espaco_e_percent_escapado():
         home=Path("/home/ana"),
     )
     assert 'ExecStart="/opt/meu py/python" -m orion serve' in a.conteudo
-    assert "WorkingDirectory=/srv/100%%/Orion" in a.conteudo  # % é especificador no systemd
+    # % é especificador no systemd; o caminho aparece na forma nativa do sistema (\\ no Windows)
+    assert f"WorkingDirectory={str(Path('/srv/100%/Orion')).replace('%', '%%')}" in a.conteudo
     assert "Restart=on-failure" in a.conteudo and "WantedBy=default.target" in a.conteudo
     assert a.arquivo == Path("/home/ana/.config/systemd/user/orion.service")
     assert "enable --now orion.service" in a.ativar
@@ -52,7 +53,8 @@ def test_windows_gera_cmd_na_pasta_inicializar_sem_expandir_variaveis(monkeypatc
         home=Path("C:/Users/ana"),
     )
     assert a.arquivo.name == "orion.cmd" and "Startup" in a.arquivo.parts
-    assert 'cd /d "C:/Orion %%PATH%%"' in a.conteudo  # %PATH% literal, não expandido
+    esperado = str(Path("C:/Orion %PATH%")).replace("%", "%%")  # %PATH% literal, não expandido
+    assert f'cd /d "{esperado}"' in a.conteudo and "%%PATH%%" in a.conteudo
     assert 'start "Orion" /min "C:/py thon/python.exe" -m orion serve' in a.conteudo
     assert a.conteudo.count("\r\n") == a.conteudo.count("\n")  # fim de linha do Windows
 
