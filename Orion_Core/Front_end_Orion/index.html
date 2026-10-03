@@ -1,327 +1,379 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-BR" data-view="home" data-estado="idle" data-theme="noite">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-fhsYvmTOZAGws4/Os5oIgeipB69SRQ6JoIq0DuFxoj4='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http://127.0.0.1:8000 http://localhost:8000; font-src 'self'; connect-src *; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#04060b">
+    <meta name="color-scheme" content="dark">
     <title>Orion</title>
-    <link rel="icon" href="orion.ico">
+    <link rel="icon" href="orion.svg" type="image/svg+xml">
+    <link rel="manifest" href="manifest.webmanifest">
+    <!-- Preferências aplicadas ANTES da primeira pintura: sem piscar o tema errado ao abrir -->
+    <script>
+        (function () {
+            var d = document.documentElement, ler = function (k) { try { return JSON.parse(localStorage.getItem('orion_' + k)); } catch (e) { return null; } };
+            var t = ler('theme'), s = ler('sb'), de = ler('density'), sc = ler('scale'), m = ler('motion');
+            if (t) d.dataset.theme = t;
+            if (s === 'collapsed') d.dataset.sb = 'collapsed';
+            if (de) d.dataset.density = de;
+            if (sc) d.style.setProperty('--ui-scale', sc);
+            if (m && m !== 'system') d.dataset.motion = m;
+            if (window.pywebview || /pywebview/i.test(navigator.userAgent) || location.protocol === 'file:') d.classList.add('shell-desktop');
+        })();
+    </script>
     <!-- Tudo local: fontes e libs 3D em vendor/, a interface funciona offline. -->
     <link rel="stylesheet" href="vendor/fonts/inter.css">
-    <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="ui.css">
+    <link rel="stylesheet" href="css/tokens.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/layout.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/chat.css">
+    <link rel="stylesheet" href="css/views.css">
 </head>
-<body data-view="home">
+<body>
 
-    <!-- Boot: marca + checagem real do cérebro, depois a constelação acende -->
-    <div id="boot-overlay">
-        <div class="belt-mark belt-mark-lg" aria-hidden="true"><i></i><i></i><i></i></div>
-        <div id="boot-brand">Orion</div>
-        <div id="boot-lines"></div>
-    </div>
-    <div id="close-overlay"></div>
+<!-- Ícones (sprite): <svg class="i"><use href="#i-nome"/></svg>. Traço 1.6, grade 24. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <defs>
+        <linearGradient id="spark-grad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="currentColor" stop-opacity="0.28"/><stop offset="1" stop-color="currentColor" stop-opacity="0"/>
+        </linearGradient>
+        <g id="ico-base" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></g>
+    </defs>
+    <symbol id="i-home" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="5" r="1.4"/><circle cx="17" cy="4" r="1.4"/><circle cx="9.5" cy="12.5" r="1.1"/><circle cx="12" cy="11.5" r="1.1"/><circle cx="14.5" cy="10.5" r="1.1"/><circle cx="7" cy="20" r="1.4"/><circle cx="18" cy="19" r="1.4"/><path d="M6 5l3.5 7.5M17 4l-2.5 6.5M9.5 12.5L7 20M14.5 10.5L18 19" stroke-opacity="0.55"/></g></symbol>
+    <symbol id="i-chat" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"/></g></symbol>
+    <symbol id="i-memory" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2.2"/><circle cx="5" cy="6" r="1.6"/><circle cx="19" cy="6" r="1.6"/><circle cx="6" cy="19" r="1.6"/><circle cx="18" cy="18" r="1.6"/><path d="M6.3 7.1l4 3.4M17.7 7.1l-4 3.4M7.2 17.8l3.3-4.2M16.8 16.8l-3.2-3.3"/></g></symbol>
+    <symbol id="i-plug" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M17.5 14v7M14 17.5h7"/></g></symbol>
+    <symbol id="i-sliders" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></g></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></g></symbol>
+    <symbol id="i-send" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></g></symbol>
+    <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6.5" y="6.5" width="11" height="11" rx="2.2" fill="currentColor"/></symbol>
+    <symbol id="i-clip" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11.5l-8.2 8.2a5 5 0 0 1-7.1-7.1l8.5-8.5a3.4 3.4 0 0 1 4.8 4.8l-8.4 8.4a1.8 1.8 0 0 1-2.6-2.6l7.6-7.6"/></g></symbol>
+    <symbol id="i-wave" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 12v0M8 8v8M12 5v14M16 8v8M20 12v0"/></g></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></g></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></g></symbol>
+    <symbol id="i-speaker" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></g></symbol>
+    <symbol id="i-speaker-off" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4V5Z"/><path d="M22 9l-6 6M16 9l6 6"/></g></symbol>
+    <symbol id="i-retry" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.6-5.9M20 4v5h-5"/></g></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6.5 7l1 13h9l1-13"/></g></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></g></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></g></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></g></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></g></symbol>
+    <symbol id="i-chevron-down" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></g></symbol>
+    <symbol id="i-panel" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M9 4v16"/></g></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17v.01"/></g></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8v.01"/></g></symbol>
+    <symbol id="i-tool" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 6.5a4 4 0 0 0-5 5L4 17l3 3 5.5-5.5a4 4 0 0 0 5-5l-2.8 2.8-2.4-.6-.6-2.4z"/></g></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/></g></symbol>
+    <symbol id="i-external" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></g></symbol>
+    <symbol id="i-minimize" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M6 12h12"/></g></symbol>
+    <symbol id="i-maximize" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5"/></g></symbol>
+    <symbol id="i-mic" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></g></symbol>
+    <symbol id="i-send-tg" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 4L3 11l6 2.5L11.5 20l3-5 6.5-11z"/></g></symbol>
+    <symbol id="i-swarm" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="6" r="2"/><circle cx="6" cy="16" r="2"/><circle cx="18" cy="16" r="2"/><path d="M12 8v3M10.5 12.5L7.2 14.4M13.5 12.5l3.3 1.9"/><circle cx="12" cy="12" r="1.2"/></g></symbol>
+    <symbol id="i-image" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="9" cy="10" r="1.6"/><path d="M4 18l5-5 4 4 3-3 4 4"/></g></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></g></symbol>
+    <symbol id="i-keyboard" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="2.5"/><path d="M6.5 10h.01M10 10h.01M13.5 10h.01M17 10h.01M7 14h10"/></g></symbol>
+    <symbol id="i-palette" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 0 18c1.2 0 1.8-.8 1.8-1.7 0-1.4-1.3-1.5-1.3-2.7 0-.9.7-1.6 1.6-1.6H17a4 4 0 0 0 4-4C21 6.7 17 3 12 3z"/><circle cx="7.5" cy="11" r="1"/><circle cx="10" cy="7.5" r="1"/><circle cx="14.5" cy="7.5" r="1"/></g></symbol>
+    <symbol id="i-bolt" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M13 3L5 13.5h6L10 21l8-10.5h-6z"/></g></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 0 1 13.7-5.6L20 8.5M20 4v4.5h-4.5M20 12a8 8 0 0 1-13.7 5.6L4 15.5M4 20v-4.5h4.5"/></g></symbol>
+    <symbol id="i-cursor" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4l14 6.5-5.5 2L11 19z"/></g></symbol>
+</svg>
 
-    <!-- Faixa de arrastar a janela (frameless) -->
-    <div id="drag-region"></div>
+<a class="skip-link" href="#main">Pular para o conteúdo</a>
 
-    <!-- ── Sidebar ─────────────────────────────────────────────── -->
-    <aside id="sidebar">
-        <div id="sb-head">
-            <button id="panel-toggle" class="icon-btn" onclick="togglePanel()" data-tip="Recolher sidebar" aria-label="Recolher ou expandir a sidebar">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="3" y="4" width="18" height="16" rx="2.5"/><line x1="9" y1="4" x2="9" y2="20"/>
-                </svg>
+<!-- Céu: a constelação de Órion (canvas WebGL), com um véu que garante leitura nas outras telas -->
+<div id="sky" aria-hidden="true"></div>
+<div id="sky-veil" aria-hidden="true"></div>
+<div id="star-label" class="star-label" role="presentation" aria-hidden="true"><strong></strong><span></span></div>
+
+<div id="app">
+    <!-- ── Barra lateral ──────────────────────────────────────────── -->
+    <aside id="sidebar" aria-label="Barra lateral">
+        <div class="sb-head">
+            <button id="sb-toggle" class="icon-btn" type="button" aria-label="Recolher barra lateral" aria-expanded="true" aria-controls="sidebar" data-tip="Recolher (Ctrl+B)" data-tip-pos="right">
+                <svg class="i" aria-hidden="true"><use href="#i-panel"/></svg>
             </button>
-            <div id="brand" class="sb-txt">
+            <a class="brand" href="#/" aria-label="Orion, ir para o início">
                 <span class="belt-mark" aria-hidden="true"><i></i><i></i><i></i></span>
-                <span>Orion</span>
-            </div>
+                <span class="sb-txt">Orion</span>
+            </a>
         </div>
 
-        <button id="sb-new" onclick="OrionUI.novaConversa()" data-tip="Nova conversa" aria-label="Nova conversa">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-            </svg>
-            <span class="sb-txt">Nova conversa</span>
+        <button id="sb-new" class="btn btn-tonal sb-new" type="button" aria-label="Nova conversa" data-tip="Nova conversa" data-tip-pos="right">
+            <svg class="i" aria-hidden="true"><use href="#i-plus"/></svg>
+            <span class="sb-txt">Nova conversa</span><kbd class="sb-txt" aria-hidden="true">Ctrl ⇧ O</kbd>
         </button>
 
-        <nav id="sb-nav" aria-label="Navegação">
-            <button class="sb-item active" data-view="home" onclick="OrionUI.showView('home')" data-tip="Início">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="6" cy="5" r="1.4"/><circle cx="17" cy="4" r="1.4"/><circle cx="9.5" cy="12.5" r="1.1"/>
-                    <circle cx="12" cy="11.5" r="1.1"/><circle cx="14.5" cy="10.5" r="1.1"/><circle cx="7" cy="20" r="1.4"/><circle cx="18" cy="19" r="1.4"/>
-                    <path d="M6 5l3.5 7.5M17 4l-2.5 6.5M9.5 12.5L7 20M14.5 10.5L18 19" stroke-opacity="0.55"/>
-                </svg>
-                <span class="sb-txt">Início</span>
-            </button>
-            <button class="sb-item" data-view="chat" onclick="OrionUI.showView('chat')" data-tip="Chat">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M4 5h16v11H9l-5 4z"/>
-                </svg>
-                <span class="sb-txt">Chat</span>
-                <span id="chat-badge"></span>
-            </button>
-            <button class="sb-item" data-view="memoria" onclick="OrionUI.showView('memoria')" data-tip="Grafo de memória">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="2.2"/><circle cx="5" cy="6" r="1.6"/><circle cx="19" cy="6" r="1.6"/><circle cx="6" cy="19" r="1.6"/><circle cx="18" cy="18" r="1.6"/>
-                    <path d="M6.3 7.1l4 3.4M17.7 7.1l-4 3.4M7.2 17.8l3.3-4.2M16.8 16.8l-3.2-3.3"/>
-                </svg>
-                <span class="sb-txt">Memória</span>
-            </button>
-            <button class="sb-item" data-view="integracoes" onclick="OrionUI.showView('integracoes')" data-tip="Integrações">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/>
-                    <rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M17.5 14v7M14 17.5h7"/>
-                </svg>
-                <span class="sb-txt">Integrações</span>
-            </button>
-            <button class="sb-item" data-view="config" onclick="OrionUI.showView('config')" data-tip="Configurações">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/>
-                </svg>
-                <span class="sb-txt">Configurações</span>
-            </button>
+        <nav class="sb-nav" aria-label="Seções">
+            <a class="sb-item" href="#/" data-view="home" data-tip="Início" data-tip-pos="right"><svg class="i" aria-hidden="true"><use href="#i-home"/></svg><span class="sb-txt">Início</span></a>
+            <a class="sb-item" href="#/chat" data-view="chat" data-tip="Chat" data-tip-pos="right"><svg class="i" aria-hidden="true"><use href="#i-chat"/></svg><span class="sb-txt">Chat</span><span id="badge-chat" class="dot-badge" aria-hidden="true"></span></a>
+            <a class="sb-item" href="#/memoria" data-view="memoria" data-tip="Memória" data-tip-pos="right"><svg class="i" aria-hidden="true"><use href="#i-memory"/></svg><span class="sb-txt">Memória</span></a>
+            <a class="sb-item" href="#/integracoes" data-view="integracoes" data-tip="Integrações" data-tip-pos="right"><svg class="i" aria-hidden="true"><use href="#i-plug"/></svg><span class="sb-txt">Integrações</span></a>
+            <a class="sb-item" href="#/config" data-view="config" data-tip="Configurações" data-tip-pos="right"><svg class="i" aria-hidden="true"><use href="#i-sliders"/></svg><span class="sb-txt">Configurações</span></a>
         </nav>
 
-        <div id="sb-convs">
-            <div class="sb-label sb-txt">Conversas</div>
-            <div id="sb-convs-list"></div>
+        <div class="sb-convs">
+            <div class="sb-search">
+                <svg class="i" aria-hidden="true"><use href="#i-search"/></svg>
+                <input id="sb-search" class="input" type="search" placeholder="Buscar conversas" aria-label="Buscar conversas" autocomplete="off" spellcheck="false">
+            </div>
+            <nav id="sb-convs-list" aria-label="Conversas" aria-busy="true"></nav>
         </div>
 
-        <div id="sb-footer">
-            <div class="sb-status">
-                <div class="sb-status-row" data-tip="Hub de eventos :8765">
-                    <span class="p-dot" id="dot-ws"></span><span class="sb-txt">Hub</span>
-                </div>
-                <div class="sb-status-row" data-tip="Cérebro :8000">
-                    <span class="p-dot" id="dot-cerebro"></span><span class="sb-txt">Cérebro</span>
-                </div>
-                <div class="sb-status-row" data-tip="Modelo que respondeu por último">
-                    <span class="p-dot" id="dot-state"></span>
-                    <span class="sb-txt mono" id="p-fonte-label">—</span>
-                </div>
+        <div class="sb-foot">
+            <div id="conn" class="conn" role="status" aria-live="polite">
+                <span id="conn-dot" class="status-dot" data-state="loading" aria-hidden="true"></span>
+                <span class="sb-txt"><span id="conn-text">Conectando…</span> <small id="conn-sub"></small></span>
             </div>
-            <!-- Dropdown próprio: o <select> real fica oculto e só guarda o valor -->
-            <div class="sb-select" id="sb-select-modelo">
-                <button type="button" class="sb-select-btn" id="sb-select-btn" data-tip="Modelo" aria-label="Escolher modelo">
-                    <svg class="sb-select-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M4 7h16M4 12h10M4 17h6"/>
-                    </svg>
-                    <span id="sb-select-label" class="sb-txt">Automático</span>
-                    <svg class="sb-select-caret sb-txt" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="6 15 12 9 18 15"/>
-                    </svg>
-                </button>
-                <div class="sb-select-list" id="sb-select-list" role="listbox">
-                    <button type="button" class="sb-select-opt" data-value="auto">Automático<small>cascata Groq → Gemini → Claude</small></button>
-                    <button type="button" class="sb-select-opt" data-value="groq">Groq<small>mais rápido</small></button>
-                    <button type="button" class="sb-select-opt" data-value="gemini">Gemini</button>
-                    <button type="button" class="sb-select-opt" data-value="claude">Claude<small>código</small></button>
-                </div>
-            </div>
-            <select id="sel-modelo" class="sr-only" tabindex="-1" aria-hidden="true">
-                <option value="auto">Automático</option>
-                <option value="groq">Groq</option>
-                <option value="gemini">Gemini</option>
-                <option value="claude">Claude</option>
-            </select>
         </div>
     </aside>
+    <div id="drawer-scrim" aria-hidden="true"></div>
 
-    <!-- ── Palco: constelação + status + composer da home ────────── -->
-    <div id="canvas-container"></div>
-
-    <div id="status-pill" aria-live="polite">
-        <span id="state-dot"></span>
-        <span id="state-indicator">Em espera</span>
-        <span id="mic-indicator" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>
-            </svg>
-        </span>
-    </div>
-
-    <div id="home-composer" class="composer">
-        <input id="home-input" type="text" autocomplete="off" spellcheck="false"
-               placeholder="Comando ou pergunta" aria-label="Mensagem para o Orion">
-        <kbd class="composer-kbd" aria-hidden="true">/</kbd>
-        <button class="icon-btn voice-live-btn" data-tip="Voz ao vivo" aria-label="Iniciar ou encerrar voz ao vivo">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M4 12v0M8 8v8M12 5v14M16 8v8M20 12v0"/>
-            </svg>
-        </button>
-    </div>
-
-    <!-- ── Chat ──────────────────────────────────────────────────── -->
-    <section id="chat-view" aria-label="Chat">
-        <header id="chat-header">
-            <span class="belt-mark" aria-hidden="true"><i></i><i></i><i></i></span>
-            <span class="chat-title">Orion</span>
-            <span id="chat-state" class="mono"></span>
-            <div class="chat-actions">
-                <button class="icon-btn" onclick="exportarConversa()" data-tip="Exportar conversa (.md)" aria-label="Exportar conversa">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>
-                    </svg>
-                </button>
-                <button class="icon-btn" onclick="limparHistorico()" data-tip="Limpar histórico em memória" aria-label="Limpar histórico">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M4 7h16M9 7V4h6v3M6.5 7l1 13h9l1-13"/>
-                    </svg>
-                </button>
-                <button class="icon-btn" onclick="OrionUI.showView('home')" data-tip="Fechar (Esc)" aria-label="Fechar chat">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
-                        <path d="M6 6l12 12M18 6L6 18"/>
-                    </svg>
-                </button>
+    <!-- ── Principal ──────────────────────────────────────────────── -->
+    <main id="main" tabindex="-1">
+        <header id="topbar">
+            <button id="menu-btn" class="icon-btn" type="button" aria-label="Abrir menu" aria-expanded="false" aria-controls="sidebar"><svg class="i" aria-hidden="true"><use href="#i-menu"/></svg></button>
+            <div class="tb-title"><h1 id="tb-title">Início</h1><span id="tb-sub" class="tb-sub"></span></div>
+            <div class="tb-drag" aria-hidden="true"></div>
+            <div id="state-pill" class="state-pill" role="status" aria-live="polite"><span class="state-dot" aria-hidden="true"></span><span id="state-label" class="state-label mono">Em espera</span></div>
+            <button id="palette-btn" class="btn btn-ghost btn-sm palette-trigger" type="button" aria-label="Abrir paleta de comandos" aria-haspopup="dialog">
+                <svg class="i" aria-hidden="true"><use href="#i-search"/></svg><span>Buscar ou comandar</span><kbd aria-hidden="true">Ctrl K</kbd>
+            </button>
+            <div id="window-controls" role="group" aria-label="Controles da janela">
+                <button id="btn-mute" class="icon-btn" type="button" aria-label="Resposta por voz" aria-pressed="true" data-tip="Resposta por voz" data-tip-pos="bottom"><svg class="i" aria-hidden="true"><use id="mute-use" href="#i-speaker"/></svg></button>
+                <button id="btn-min" class="icon-btn" type="button" aria-label="Minimizar janela" data-tip="Minimizar" data-tip-pos="bottom"><svg class="i" aria-hidden="true"><use href="#i-minimize"/></svg></button>
+                <button id="btn-max" class="icon-btn" type="button" aria-label="Alternar tela cheia" data-tip="Tela cheia" data-tip-pos="bottom"><svg class="i" aria-hidden="true"><use href="#i-maximize"/></svg></button>
+                <button id="btn-close" class="icon-btn" type="button" aria-label="Fechar o Orion" data-tip="Fechar" data-tip-pos="bottom"><svg class="i" aria-hidden="true"><use href="#i-close"/></svg></button>
             </div>
         </header>
 
-        <div id="chat-messages" role="log" aria-live="polite"></div>
+        <div id="stage">
+            <!-- Início -->
+            <section id="view-home" class="view" data-view="home" aria-label="Início">
+                <div class="home-hero">
+                    <div class="home-greet">
+                        <h2><span id="home-saudacao">Olá</span>, <em>Antônio</em>.</h2>
+                        <p>O que vamos resolver agora?</p>
+                    </div>
+                    <div id="home-status" class="home-status" aria-label="Situação"></div>
+                    <form id="home-form" class="home-composer" autocomplete="off">
+                        <div class="composer-box">
+                            <div class="composer-row">
+                                <textarea id="home-input" class="composer-input" rows="1" placeholder="Comando ou pergunta…" aria-label="Mensagem para o Orion" spellcheck="false"></textarea>
+                                <button type="button" class="icon-btn voice-live-btn" aria-label="Voz ao vivo" aria-pressed="false" data-tip="Voz ao vivo"><svg class="i" aria-hidden="true"><use href="#i-wave"/></svg></button>
+                                <button type="submit" class="btn-send" aria-label="Enviar" data-tip="Enviar (Enter)" disabled><svg class="i" aria-hidden="true"><use href="#i-send"/></svg></button>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="home-suggest" class="suggest-row" role="group" aria-label="Sugestões"></div>
+                </div>
+            </section>
 
-        <button id="chat-scroll-btn" onclick="Chat.rolar(true)" data-tip="Ir para o fim" aria-label="Ir para a última mensagem">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="6 9 12 15 18 9"/>
-            </svg>
-        </button>
+            <!-- Chat -->
+            <section id="view-chat" class="view" data-view="chat" aria-label="Conversa">
+                <h2 class="sr-only">Conversa</h2>
+                <div id="chat-scroll" class="chat-scroll" tabindex="-1">
+                    <div id="chat-col" class="chat-col selectable" role="log" aria-live="off" aria-relevant="additions" aria-label="Mensagens da conversa">
+                        <div id="chat-empty" class="chat-empty">
+                            <span class="belt-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+                            <h2>Como posso ajudar?</h2>
+                            <p>Pergunte, peça uma ação no computador ou consulte a sua memória. Ações que mudam algo exigem a sua aprovação.</p>
+                            <div id="suggest-grid" class="suggest-grid"></div>
+                        </div>
+                    </div>
+                </div>
+                <button id="scroll-down" type="button" aria-label="Ir para a última mensagem"><svg class="i" aria-hidden="true"><use href="#i-chevron-down"/></svg><span>Mais recentes</span><span class="count" aria-hidden="true"></span></button>
+                <form id="composer" class="composer-dock" autocomplete="off">
+                    <div class="composer-inner">
+                        <div id="composer-box" class="composer-box">
+                            <div id="attach-row" class="attach-row" hidden></div>
+                            <div class="composer-row">
+                                <button id="btn-attach" type="button" class="icon-btn" aria-label="Anexar imagem, áudio ou vídeo" data-tip="Anexar (ou arraste/cole)"><svg class="i" aria-hidden="true"><use href="#i-clip"/></svg></button>
+                                <input id="file-input" type="file" accept="image/*,audio/*,video/mp4,video/quicktime,video/webm" hidden multiple>
+                                <textarea id="composer-input" class="composer-input" rows="1" placeholder="Comando ou pergunta…" aria-label="Mensagem para o Orion" aria-describedby="composer-help" spellcheck="false"></textarea>
+                                <button type="button" class="icon-btn voice-live-btn" aria-label="Voz ao vivo" aria-pressed="false" data-tip="Voz ao vivo"><svg class="i" aria-hidden="true"><use href="#i-wave"/></svg></button>
+                                <button id="btn-send" type="submit" class="btn-send" aria-label="Enviar" data-mode="send" data-tip="Enviar (Enter)" disabled><svg class="i" aria-hidden="true"><use href="#i-send"/></svg></button>
+                            </div>
+                        </div>
+                        <div class="composer-hint">
+                            <div class="model-menu-wrap">
+                                <button id="model-btn" type="button" class="chip" aria-haspopup="menu" aria-expanded="false" aria-controls="model-menu"><svg class="i" aria-hidden="true"><use href="#i-bolt"/></svg><span id="model-label">Automático</span><svg class="i" aria-hidden="true"><use href="#i-chevron-down"/></svg></button>
+                                <div id="model-menu" class="menu" role="menu" aria-label="Modelo" data-open="false"></div>
+                            </div>
+                            <span id="composer-help" class="grow hide-mobile">Enter envia · Shift+Enter quebra a linha · ↑ repete a anterior</span>
+                            <span class="grow show-mobile-only" aria-hidden="true"></span>
+                        </div>
+                    </div>
+                </form>
+            </section>
 
-        <div id="chat-composer" class="composer">
-            <button id="btn-attach" class="icon-btn" onclick="document.getElementById('file-attach').click()" data-tip="Anexar imagem, áudio ou vídeo" aria-label="Anexar arquivo">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M20 11.5l-8.2 8.2a5 5 0 0 1-7.1-7.1l8.5-8.5a3.4 3.4 0 0 1 4.8 4.8l-8.4 8.4a1.8 1.8 0 0 1-2.6-2.6l7.6-7.6"/>
-                </svg>
-            </button>
-            <input id="file-attach" type="file" accept="image/*,audio/*,video/mp4,video/quicktime,video/webm" hidden onchange="handleFileAttach(this.files)">
-            <input id="orion-input" type="text" autocomplete="off" spellcheck="false"
-                   placeholder="Comando ou pergunta" aria-label="Mensagem para o Orion">
-            <button class="icon-btn voice-live-btn" data-tip="Voz ao vivo" aria-label="Iniciar ou encerrar voz ao vivo">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M4 12v0M8 8v8M12 5v14M16 8v8M20 12v0"/>
-                </svg>
-            </button>
-            <button id="btn-send" class="icon-btn" data-tip="Enviar (Enter)" aria-label="Enviar">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M12 19V5M6 11l6-6 6 6"/>
-                </svg>
-            </button>
+            <!-- Memória -->
+            <section id="view-memoria" class="view" data-view="memoria" aria-label="Memória">
+                <div class="mem-toolbar">
+                    <div class="mem-search"><svg class="i" aria-hidden="true"><use href="#i-search"/></svg><input id="mem-search" class="input" type="search" placeholder="Buscar na memória" aria-label="Buscar na memória" autocomplete="off" spellcheck="false"></div>
+                    <div id="mem-filters" class="mem-filters" role="group" aria-label="Filtrar por tipo">
+                        <button type="button" class="chip" data-filtro="topico" aria-pressed="true"><span class="leg-dot leg-topico"></span>Tópicos</button>
+                        <button type="button" class="chip" data-filtro="orion" aria-pressed="true"><span class="leg-dot leg-orion"></span>Orion</button>
+                        <button type="button" class="chip" data-filtro="user" aria-pressed="true"><span class="leg-dot leg-user"></span>Você</button>
+                    </div>
+                    <div id="mem-stats" class="mem-stats" aria-live="polite"></div>
+                    <button id="mem-reload" class="icon-btn" type="button" aria-label="Recarregar memória" data-tip="Recarregar" data-tip-pos="bottom"><svg class="i" aria-hidden="true"><use href="#i-refresh"/></svg></button>
+                </div>
+                <div class="mem-body">
+                    <div id="grafo-container" role="img" aria-label="Grafo 3D da memória do Orion. Use a busca e a lista de detalhes para navegar pelo teclado."></div>
+                    <div id="mem-banner" class="mem-banner" hidden></div>
+                    <div id="mem-overlay" class="mem-overlay"></div>
+                    <div class="mem-legend" aria-hidden="true"><span class="leg leg-topico"><i></i>Tópico</span><span class="leg leg-orion"><i></i>Fala do Orion</span><span class="leg leg-user"><i></i>Fala sua</span></div>
+                    <aside id="mem-detail" class="mem-detail" aria-label="Detalhes do nó" data-open="false">
+                        <div class="mem-detail-head"><span id="mem-detail-tipo" class="chip"></span><button id="mem-detail-close" class="icon-btn" type="button" aria-label="Fechar detalhes"><svg class="i" aria-hidden="true"><use href="#i-close"/></svg></button></div>
+                        <div id="mem-detail-body" class="mem-detail-body selectable"></div>
+                    </aside>
+                </div>
+            </section>
+
+            <!-- Integrações -->
+            <section id="view-integracoes" class="view page" data-view="integracoes" aria-label="Integrações">
+                <div class="page-inner">
+                    <div class="page-head">
+                        <div><h2>Integrações</h2><p>Canais e serviços ligados ao Orion. O estado vem do cérebro em tempo real.</p></div>
+                        <button id="integ-refresh" class="btn btn-outline btn-sm" type="button"><svg class="i" aria-hidden="true"><use href="#i-refresh"/></svg>Atualizar</button>
+                    </div>
+                    <div id="integ-grid" class="grid" aria-busy="true"></div>
+                </div>
+            </section>
+
+            <!-- Configurações -->
+            <section id="view-config" class="view page" data-view="config" aria-label="Configurações">
+                <div class="page-inner">
+                    <div class="page-head"><div><h2>Configurações</h2><p>Aparência, voz, modelo e conexão. As escolhas ficam neste dispositivo.</p></div></div>
+                    <div class="settings">
+                        <nav class="settings-nav" aria-label="Seções das configurações">
+                            <a href="#/config" data-sec="cfg-aparencia" aria-current="true">Aparência</a>
+                            <a href="#/config" data-sec="cfg-voz">Voz e sons</a>
+                            <a href="#/config" data-sec="cfg-modelo">Modelo</a>
+                            <a href="#/config" data-sec="cfg-conexao">Conexão</a>
+                            <a href="#/config" data-sec="cfg-atividade">Atividade</a>
+                            <a href="#/config" data-sec="cfg-atalhos">Atalhos</a>
+                            <a href="#/config" data-sec="cfg-sobre">Sobre</a>
+                        </nav>
+                        <div class="settings-body">
+                            <section id="cfg-aparencia" class="card settings-section" aria-labelledby="h-aparencia">
+                                <h3 id="h-aparencia">Aparência</h3>
+                                <fieldset class="field" style="border:0">
+                                    <legend class="field-label" style="margin-bottom:.6rem">Tema</legend>
+                                    <div class="theme-picker" role="radiogroup" aria-label="Tema">
+                                        <label class="theme-opt"><input type="radio" name="theme" value="noite"><span class="theme-swatch"><span class="theme-chip theme-noite"><i></i><i></i><i></i></span><span class="theme-name">Noite</span></span></label>
+                                        <label class="theme-opt"><input type="radio" name="theme" value="grafite"><span class="theme-swatch"><span class="theme-chip theme-grafite"><i></i><i></i><i></i></span><span class="theme-name">Grafite</span></span></label>
+                                        <label class="theme-opt"><input type="radio" name="theme" value="contraste"><span class="theme-swatch"><span class="theme-chip theme-contraste"><i></i><i></i><i></i></span><span class="theme-name">Alto contraste</span></span></label>
+                                    </div>
+                                </fieldset>
+                                <div class="row"><div class="row-main"><div class="row-title" id="l-density">Densidade</div><div class="row-desc">Espaço entre mensagens e itens de lista.</div></div>
+                                    <div class="segmented" role="radiogroup" aria-labelledby="l-density"><label><input type="radio" name="density" value="confortavel"><span>Confortável</span></label><label><input type="radio" name="density" value="compacta"><span>Compacta</span></label></div></div>
+                                <div class="row"><div class="row-main"><label class="row-title" for="cfg-scale">Tamanho do texto</label><div class="row-desc">Escala toda a interface.</div></div>
+                                    <div class="range-row" style="width:min(16rem,50%)"><input id="cfg-scale" class="range" type="range" min="0.9" max="1.3" step="0.05"><output id="cfg-scale-out" for="cfg-scale">100%</output></div></div>
+                                <div class="row"><div class="row-main"><label class="row-title" for="cfg-motion">Movimento</label><div class="row-desc">Reduz animações e a rotação da constelação.</div></div>
+                                    <select id="cfg-motion" class="select" style="width:11rem"><option value="system">Seguir o sistema</option><option value="reduced">Reduzido</option><option value="full">Completo</option></select></div>
+                            </section>
+
+                            <section id="cfg-voz" class="card settings-section" aria-labelledby="h-voz">
+                                <h3 id="h-voz">Voz e sons</h3>
+                                <div class="row"><div class="row-main"><label class="row-title" for="cfg-tts">Resposta por voz</label><div class="row-desc">O Orion lê as respostas em voz alta (no computador onde o cérebro roda).</div></div><span class="switch"><input id="cfg-tts" type="checkbox"><span class="switch-track"></span></span></div>
+                                <div class="row"><div class="row-main"><label class="row-title" for="cfg-sounds">Sons da interface</label><div class="row-desc">Tons curtos ao enviar e ao receber.</div></div><span class="switch"><input id="cfg-sounds" type="checkbox"><span class="switch-track"></span></span></div>
+                                <p class="field-hint" style="margin-top:.6rem">Microfone e voz ao vivo ficam em Integrações.</p>
+                            </section>
+
+                            <section id="cfg-modelo" class="card settings-section" aria-labelledby="h-modelo">
+                                <h3 id="h-modelo">Modelo</h3>
+                                <div class="row"><div class="row-main"><label class="row-title" for="cfg-model">Modelo padrão</label><div class="row-desc">Automático usa a cascata e cai para o próximo quando um falha.</div></div>
+                                    <select id="cfg-model" class="select" style="width:13rem"></select></div>
+                            </section>
+
+                            <section id="cfg-conexao" class="card settings-section" aria-labelledby="h-conexao">
+                                <h3 id="h-conexao">Conexão</h3>
+                                <div class="field"><label for="cfg-url">Endereço do cérebro</label><input id="cfg-url" class="input mono" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="http://127.0.0.1:8000"><span class="field-hint">Vazio usa o endereço desta página (ou 127.0.0.1:8000 no app). Pelo celular, use o endereço do Tailscale.</span></div>
+                                <div class="field" style="margin-top:var(--s-4)"><label for="cfg-token">Token de acesso</label><input id="cfg-token" class="input mono" type="password" autocomplete="off" spellcheck="false" placeholder="só para o orion.app (ORION_ADMIN_TOKEN)"><span class="field-hint">Fica só neste dispositivo e é enviado apenas ao endereço acima. O app desktop usa a variável de ambiente.</span></div>
+                                <div class="conn-test"><button id="cfg-test" class="btn btn-outline btn-sm" type="button">Testar conexão</button><span id="cfg-test-out" role="status" aria-live="polite"></span></div>
+                            </section>
+
+                            <section id="cfg-atividade" class="card settings-section" aria-labelledby="h-atividade">
+                                <h3 id="h-atividade">Atividade</h3>
+                                <div class="activity-top">
+                                    <div class="stat"><span class="stat-value" id="a-latencia">—</span><span class="stat-label">Latência do último chat</span></div>
+                                    <div class="stat"><span class="stat-value" id="a-conversas">—</span><span class="stat-label">Conversas na cascata</span></div>
+                                    <div class="stat"><span class="stat-value" id="a-vetores">—</span><span class="stat-label">Vetores na memória</span></div>
+                                </div>
+                                <svg id="a-spark" class="spark" viewBox="0 0 200 48" preserveAspectRatio="none" role="img" aria-label="Latência recente"><path class="area" d=""/><path class="line" d=""/></svg>
+                                <div style="margin-top:var(--s-4)" id="a-meters"></div>
+                                <h3 style="margin:var(--s-6) 0 var(--s-3);font-size:var(--fs-md)">Cascata de modelos</h3>
+                                <div id="a-tiers" class="tier-list"></div>
+                                <h3 style="margin:var(--s-6) 0 var(--s-3);font-size:var(--fs-md)">Serviços</h3>
+                                <div id="a-servicos"></div>
+                            </section>
+
+                            <section id="cfg-atalhos" class="card settings-section" aria-labelledby="h-atalhos"><h3 id="h-atalhos">Atalhos</h3><div id="kbd-list"></div></section>
+
+                            <section id="cfg-sobre" class="card settings-section" aria-labelledby="h-sobre">
+                                <h3 id="h-sobre">Sobre</h3>
+                                <div class="row"><div class="row-main"><div class="row-title">Interface</div></div><span class="mono" id="sobre-front">—</span></div>
+                                <div class="row"><div class="row-main"><div class="row-title">Cérebro</div></div><span class="mono" id="sobre-cerebro">—</span></div>
+                                <div class="row"><div class="row-main"><div class="row-title">Modo</div></div><span class="mono" id="sobre-modo">—</span></div>
+                                <p class="field-hint" style="margin-top:.8rem">Orion — não é uma IA. É uma extensão do sistema nervoso.</p>
+                            </section>
+                        </div>
+                    </div>
+                </div>
+            </section>
         </div>
-    </section>
+    </main>
+</div>
 
-    <!-- ── Configurações ─────────────────────────────────────────── -->
-    <section id="view-config" class="view-overlay" aria-label="Configurações">
-        <div class="view-inner">
-            <h1 class="view-title">Configurações</h1>
-            <div class="cfg-grid">
-                <div class="cfg-card">
-                    <div class="card-label">Preferências</div>
-                    <label class="cfg-toggle">
-                        <span>Resposta por voz</span>
-                        <input type="checkbox" id="cfg-tts"><span class="cfg-switch"></span>
-                    </label>
-                    <label class="cfg-toggle">
-                        <span>Movimento reduzido</span>
-                        <input type="checkbox" id="cfg-motion"><span class="cfg-switch"></span>
-                    </label>
-                    <div class="card-note">Microfone e voz ao vivo ficam em Integrações.</div>
-                </div>
-                <div class="cfg-card">
-                    <div class="card-label">Atividade</div>
-                    <div class="metric-row"><span>Latência</span><span class="metric" id="m-latencia">—</span></div>
-                    <div class="metric-row"><span>CPU</span><span class="metric" id="m-cpu">—</span></div>
-                    <div class="metric-row"><span>RAM</span><span class="metric" id="m-ram">—</span></div>
-                    <div class="metric-row"><span>GPU</span><span class="metric" id="m-gpu">—</span></div>
-                    <div class="metric-row"><span>VRAM</span><span class="metric" id="m-vram">—</span></div>
-                    <svg class="spark" viewBox="0 0 200 32" preserveAspectRatio="none" aria-hidden="true">
-                        <polyline id="m-spark-line" points="" fill="none"/>
-                    </svg>
-                </div>
-                <div class="cfg-card">
-                    <div class="card-label">Cascata</div>
-                    <div class="metric-row"><span>Conversas</span><span class="metric" id="t-total">—</span></div>
-                    <div id="t-tiers"></div>
-                    <svg class="spark spark-signal" viewBox="0 0 200 32" preserveAspectRatio="none" data-tip="Chats por snapshot (~5 min)">
-                        <polyline id="t-hist-spark-line" points="" fill="none"/>
-                    </svg>
-                </div>
-                <div class="cfg-card">
-                    <div class="card-label">Serviços</div>
-                    <div class="metric-row"><span><span class="p-dot" id="dot-qdrant"></span>Qdrant</span><span class="metric" id="svc-qdrant">—</span></div>
-                    <div class="metric-row"><span><span class="p-dot" id="dot-surreal"></span>SurrealDB</span><span class="metric" id="svc-surreal">—</span></div>
-                </div>
-                <div class="cfg-card">
-                    <div class="card-label">Atalhos</div>
-                    <div class="metric-row"><span>Abrir o chat</span><kbd>/</kbd></div>
-                    <div class="metric-row"><span>Fechar painel</span><kbd>Esc</kbd></div>
-                    <div class="metric-row"><span>Mensagens anteriores</span><kbd>↑ ↓</kbd></div>
-                    <div class="metric-row"><span>Anexar</span><span class="metric">arrastar ou colar</span></div>
-                </div>
-                <div class="cfg-card">
-                    <div class="card-label">Sobre</div>
-                    <div class="card-value">Orion · base atual</div>
-                    <div class="card-note">Groq · Gemini · Claude</div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- ── Integrações (cards montados pelo ui.js) ───────────────── -->
-    <section id="view-integracoes" class="view-overlay" aria-label="Integrações">
-        <div class="view-inner">
-            <h1 class="view-title">Integrações</h1>
-            <div class="cfg-grid" id="integr-grid"></div>
-        </div>
-    </section>
-
-    <!-- ── Grafo de memória ──────────────────────────────────────── -->
-    <div id="grafo-overlay" onclick="if(event.target===this)fecharGrafo()">
-        <div id="grafo-modal" role="dialog" aria-label="Grafo de memória">
-            <div id="grafo-header">
-                <span class="grafo-title">Grafo de memória</span>
-                <span id="grafo-stats" class="mono"></span>
-                <input id="grafo-search" type="text" placeholder="Buscar nó" autocomplete="off" spellcheck="false">
-                <button class="icon-btn" onclick="fecharGrafo()" data-tip="Fechar (Esc)" aria-label="Fechar grafo">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
-                        <path d="M6 6l12 12M18 6L6 18"/>
-                    </svg>
-                </button>
-            </div>
-            <div id="grafo-container"></div>
-            <div id="grafo-legend">
-                <span class="leg-item"><span class="leg-dot leg-topico"></span>Tópico</span>
-                <span class="leg-item"><span class="leg-dot leg-orion"></span>Fala do Orion</span>
-                <span class="leg-item"><span class="leg-dot leg-user"></span>Fala sua</span>
-            </div>
-            <div id="grafo-detail"></div>
-        </div>
+<!-- Paleta de comandos -->
+<div id="palette" class="dialog-scrim" data-open="false" hidden>
+    <div class="dialog" role="dialog" aria-modal="true" aria-label="Paleta de comandos">
+        <div class="palette-input"><svg class="i" aria-hidden="true"><use href="#i-search"/></svg>
+            <input id="palette-input" type="text" role="combobox" aria-expanded="true" aria-controls="palette-list" aria-autocomplete="list" aria-activedescendant="" placeholder="Digite um comando ou busque uma conversa…" autocomplete="off" spellcheck="false"></div>
+        <div id="palette-list" class="palette-list" role="listbox" aria-label="Resultados"></div>
+        <div class="palette-foot"><span><kbd>↑</kbd><kbd>↓</kbd> navegar</span><span><kbd>Enter</kbd> executar</span><span><kbd>Esc</kbd> fechar</span></div>
     </div>
+</div>
+<div id="dialog-root"></div>
 
-    <!-- ── Controles de janela ───────────────────────────────────── -->
-    <div id="window-controls">
-        <button class="ctrl-btn" id="btn-mute" onclick="toggleTtsMute()" data-tip="Resposta por voz" aria-label="Ativar ou desativar resposta por voz">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M11 5 6 9H3v6h3l5 4V5Z"/>
-                <path id="mute-slash" d="M22 9l-6 6M16 9l6 6"/>
-                <path id="mute-waves" d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/>
-            </svg>
-        </button>
-        <button class="ctrl-btn" onclick="minimizeOrion()" data-tip="Minimizar" aria-label="Minimizar janela">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M5 12h14"/></svg>
-        </button>
-        <button class="ctrl-btn" onclick="maximizeOrion()" data-tip="Tela cheia" aria-label="Alternar tela cheia">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5"/>
-            </svg>
-        </button>
-        <button class="ctrl-btn" id="btn-close" onclick="closeOrion()" data-tip="Fechar" aria-label="Fechar o Orion">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
-        </button>
-    </div>
+<div id="toasts" role="region" aria-label="Notificações"></div>
+<div id="sr-live" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
 
-    <div id="toast" role="status"></div>
+<!-- Boot: marca + checagem real do cérebro, depois a constelação acende -->
+<div id="boot" aria-hidden="true">
+    <div class="belt-mark belt-mark-lg"><i></i><i></i><i></i></div>
+    <div id="boot-brand">Orion</div>
+    <div id="boot-lines"></div>
+</div>
+<div id="close-overlay"></div>
 
-    <script src="vendor/three.min.js"></script>
-    <script src="vendor/3d-force-graph.min.js"></script>
-    <script src="md.js"></script>
-    <script src="script.js"></script>
-    <script src="ui.js"></script>
+<script src="vendor/three.min.js"></script>
+<script src="js/util.js"></script>
+<script src="js/md.js"></script>
+<script src="js/fuzzy.js"></script>
+<script src="js/store.js"></script>
+<script src="js/sse.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/core.js"></script>
+<script src="js/api.js"></script>
+<script src="js/transport.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/sky.js"></script>
+<script src="js/sound.js"></script>
+<script src="js/voice.js"></script>
+<script src="js/chat.js"></script>
+<script src="js/composer.js"></script>
+<script src="js/sidebar.js"></script>
+<script src="js/palette.js"></script>
+<script src="js/views/home.js"></script>
+<script src="js/views/memory.js"></script>
+<script src="js/views/integrations.js"></script>
+<script src="js/views/settings.js"></script>
+<script src="js/app.js"></script>
 </body>
 </html>
