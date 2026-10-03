@@ -169,7 +169,7 @@
         if (!entradas.length) { frag.append('(sem argumentos)'); return frag; }
         entradas.forEach(([k, v], i) => {
             const val = typeof v === 'string' ? v : JSON.stringify(v);
-            frag.append(el('b', { text: k }), ' ', U.truncar(val, 700), i < entradas.length - 1 ? '\n' : '');
+            frag.append(el('b', { text: k }), ' ', val, i < entradas.length - 1 ? '\n' : '');  // inteiro: o fim de um comando longo não pode ficar escondido
         });
         return frag;
     }
@@ -178,13 +178,16 @@
         tirarPensando(a);
         if (a.cartoes.has(ev.id)) return;
         const estado = el('span', { class: 'approval-state', role: 'status', 'aria-live': 'polite' });
-        const aprovar = el('button', { class: 'btn btn-primary btn-sm', type: 'button', dataset: { decisao: 'aprovar' }, text: 'Aprovar e executar' });
+        // argumento cortado pelo servidor (grande demais): quem decide não vê tudo, então só dá para negar
+        const grande = !!ev.truncado;
+        const aprovar = grande ? null : el('button', { class: 'btn btn-primary btn-sm', type: 'button', dataset: { decisao: 'aprovar' }, text: 'Aprovar e executar' });
         const negar = el('button', { class: 'btn btn-outline btn-sm', type: 'button', dataset: { decisao: 'negar' }, text: 'Negar' });
         const cartao = el('div', { class: 'approval', role: 'group', 'aria-label': `Aprovação necessária: ${ev.ferramenta}`, dataset: { estado: 'pendente', id: ev.id } },
             el('div', { class: 'approval-head' }, el('span', { html: icone('shield') }), 'Aprovação necessária',
                 el('span', { class: 'approval-tool', text: ev.ferramenta })),
             el('p', { class: 'approval-reason', text: ev.motivo || 'Esta ação muda algo no seu computador e precisa do seu aval.' }),
             el('pre', { class: 'approval-args', tabindex: '0', 'aria-label': 'Argumentos da ação' }, textoArgs(ev.args)),
+            grande ? el('p', { class: 'approval-warn', role: 'alert', text: 'Os argumentos são grandes demais para revisar aqui, então só dá para negar. Se for legítimo, peça de novo em partes menores.' }) : null,
             el('div', { class: 'approval-actions' }, aprovar, negar, estado));
         a.cartoes.set(ev.id, cartao);
         if (depoisDoTexto) a.prose.after(cartao); else a.principal.insertBefore(cartao, a.prose);

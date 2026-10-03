@@ -61,7 +61,8 @@
         if (ev.approval && typeof ev.approval === 'object') {
             const a = ev.approval;
             return { tipo: 'aprovacao', id: String(a.id || ''), ferramenta: String(a.tool || ''),
-                     motivo: a.reason || '', args: a.args && typeof a.args === 'object' ? a.args : {} };
+                     motivo: a.reason || '', args: a.args && typeof a.args === 'object' ? a.args : {},
+                     truncado: !!a.args_truncated };
         }
         if (typeof ev.error === 'string') return { tipo: 'erro', mensagem: ev.error };
         return null;

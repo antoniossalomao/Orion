@@ -258,6 +258,12 @@ def test_restore_drill_backup_restaura_e_responde_igual(store, tmp_path):
         "facts": 1,
         "documents": 1,
         "chunks": 1,
+        "reminders": 0,
+        "schedules": 0,
+        "tasks": 0,
+        "numbers": 0,
+        "prompts": 0,
+        "edges": 0,
     }
     novo = MemoryStore.restore(bk, tmp_path / "novo" / "orion.db")
     try:
@@ -301,3 +307,29 @@ def test_vault_ignora_arquivo_gigante(store, tmp_path, monkeypatch):
     (v / "pequena.md").write_text("curta", encoding="utf-8")
     (v / "grande.md").write_text("x " * 200, encoding="utf-8")
     assert store.index_vault(v)["new"] == 1
+
+
+def test_cli_restore_confere_recusa_sobrescrever_e_restaura(store, tmp_path, monkeypatch, capsys):
+    from orion.__main__ import main
+
+    popular(store)
+    bk = store.backup_to(tmp_path / "bk" / "orion.db")
+    dados = tmp_path / "dados"
+    monkeypatch.setenv("ORION_DATA_DIR", str(dados))
+    monkeypatch.setenv("ORION_LOG_JSON", "false")
+    assert main(["restore", str(bk)]) == 0  # banco ainda não existe: restaura
+    assert "messages=1" in capsys.readouterr().out
+    restaurado = MemoryStore(dados / "orion.db")
+    try:
+        assert restaurado.facts()[0].text
+    finally:
+        restaurado.close()
+    assert main(["restore", str(bk)]) == 1  # já existe: não sobrescreve sem --force
+    assert "--force" in capsys.readouterr().err
+    assert main(["restore", str(bk), "--force"]) == 0
+    capsys.readouterr()
+    ruim = tmp_path / "ruim.db"
+    ruim.write_bytes(b"isto nao e sqlite")
+    assert main(["restore", str(ruim), "--force"]) == 1
+    assert "backup recusado" in capsys.readouterr().err
+    assert (dados / "orion.db").exists()  # o banco atual continua intacto depois do pedido ruim

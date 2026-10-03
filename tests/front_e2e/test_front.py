@@ -245,6 +245,25 @@ def test_aprovacao_negar_nao_executa(abrir):
     expect(page.locator(".msg-orion")).to_have_count(1)  # nenhuma retomada
 
 
+def test_aprovacao_mostra_o_comando_inteiro_e_argumento_cortado_so_pode_ser_negado(abrir):
+    page = abrir("#/chat")
+    enviar(page, "apague os arquivos antigos")
+    normal = page.locator(".approval").last
+    esperar_fim(page)
+    expect(normal.get_by_role("button", name="Aprovar e executar")).to_be_visible()
+    expect(normal.locator(".approval-warn")).to_have_count(0)
+
+    enviar(page, "apague tudo, comando enorme")
+    cartao = page.locator(".approval").last
+    esperar_fim(page)
+    expect(cartao.locator(".approval-warn")).to_contain_text("só dá para negar")
+    expect(cartao.get_by_role("button", name="Aprovar e executar")).to_have_count(0)
+    # o texto não é cortado pela interface (o limite é o do servidor, que avisou): 1990 "x" aparecem
+    assert cartao.locator(".approval-args").inner_text().count("x") >= 1990
+    cartao.get_by_role("button", name="Negar").click()
+    expect(cartao).to_have_attribute("data-estado", "negada")
+
+
 def test_historico_de_conversas_abre_e_somente_leitura_avisa(abrir):
     page = abrir()
     page.locator("#sb-convs-list .conv", has_text="Dúvida de UML").click()

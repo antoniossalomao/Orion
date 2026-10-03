@@ -44,6 +44,9 @@ def setup_logging(level: str = "INFO", json_logs: bool = True) -> None:
     raiz = logging.getLogger()
     raiz.handlers[:] = [handler]
     raiz.setLevel(level)
+    # o httpx registra "POST https://api.telegram.org/bot<TOKEN>/..." em INFO: nunca vai ao log
+    for nome in ("httpx", "httpcore"):
+        logging.getLogger(nome).setLevel(max(logging.WARNING, raiz.level))
 
 
 class _InjetaRequestId(logging.Filter):

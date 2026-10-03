@@ -1,104 +1,18 @@
 import json
+from datetime import datetime
 
 import pytest
 
 from orion.__main__ import main
 from orion.memory.importer import import_surreal_export
-
-SESSAO_A = "11111111-aaaa-bbbb-cccc-000000000001"
-SESSAO_B = "22222222-aaaa-bbbb-cccc-000000000002"
-
-
-def evento(i, ator, texto, ts, sessao=None, **extra):
-    e = {
-        "id": f"evento:⟨e{i}⟩",
-        "fonte": "chat",
-        "ator": ator,
-        "texto": texto,
-        "timestamp": ts,
-        **extra,
-    }
-    if sessao:
-        e["sessao_id"] = sessao
-    return e
-
-
-@pytest.fixture
-def export(tmp_path):
-    pasta = tmp_path / "backup"
-    pasta.mkdir()
-    (pasta / "sessao.json").write_text(
-        json.dumps(
-            [
-                {
-                    "id": f"sessao:`{SESSAO_A}`",
-                    "criada": "2026-06-01T10:00:00",
-                    "titulo": "Projeto Orion",
-                },
-                {"id": f"sessao:⟨{SESSAO_B}⟩", "criada": "2026-06-02T09:00:00", "titulo": None},
-                {"titulo": "sem id"},
-            ]
-        ),
-        encoding="utf-8",
-    )
-    (pasta / "evento.json").write_text(
-        json.dumps(
-            [
-                evento(
-                    2,
-                    "Orion",
-                    "Marília-SP, certo.",
-                    "2026-06-01T10:00:05",
-                    SESSAO_A,
-                    intencao="resposta",
-                    fontes_rag=["p1"],
-                ),
-                evento(
-                    1,
-                    "Antônio",
-                    "Em que cidade eu moro?",
-                    "2026-06-01T10:00:00",
-                    SESSAO_A,
-                    intencao="objetivo",
-                ),
-                evento(
-                    3,
-                    "Lyra",
-                    "resposta de quando eu tinha outro nome",
-                    "2026-06-02T09:00:10",
-                    SESSAO_B,
-                ),
-                evento(4, "Antonio", "mensagem antiga sem sessão", "2026-01-01T08:00:00"),
-                evento(5, "sistema", "briefing automático", "2026-06-02T09:00:00", SESSAO_B),
-                evento(6, "Antônio", "   ", "2026-06-02T09:00:20", SESSAO_B),  # vazio
-                {
-                    "fonte": "chat",
-                    "ator": "Antônio",
-                    "texto": "sem id",
-                    "timestamp": "2026-06-02T09:00:30",
-                },  # sem id
-                evento(
-                    7,
-                    "Antônio",
-                    "sessão que não existe no export",
-                    "2026-06-03T09:00:00",
-                    "99999999-aaaa",
-                ),
-            ]
-        ),
-        encoding="utf-8",
-    )
-    (pasta / "lembrete.json").write_text(
-        json.dumps([{"id": "lembrete:a"}, {"id": "lembrete:b"}]), encoding="utf-8"
-    )
-    (pasta / "numero.json").write_text("[]", encoding="utf-8")
-    return pasta
+from orion.memory.ops import Operations
+from tests.memory.conftest import AGORA, SESSAO_A, SESSAO_B, escrever, evento  # noqa: F401
 
 
 def test_importa_conversas_com_datas_papeis_e_sessoes(store, export):
     rel = import_surreal_export(store, export, assistentes=["Orion", "Lyra"])
     assert (rel.sessoes, rel.mensagens, rel.ja_importadas, rel.invalidas) == (4, 6, 0, 3)
-    assert rel.operacionais_ignoradas == {"lembrete": 2}
+    assert rel.operacionais == {"lembrete": 2}
 
     legado = {s.title: s for s in store.list_sessions("legado")}
     assert set(legado) == {
@@ -169,3 +83,87 @@ def test_cli_import_surreal(export, tmp_path, monkeypatch, capsys):
     assert "mensagens novas=6" in capsys.readouterr().out
     assert main(["import-surreal", str(export)]) == 0
     assert "mensagens novas=0" in capsys.readouterr().out
+
+
+def test_importa_operacao_com_regras_de_seguranca_dos_avisos(store, export_completo):
+    store._clock = lambda: AGORA
+    rel = import_surreal_export(store, export_completo, assistentes=["Orion"])
+    assert rel.operacionais == {
+        "lembrete": 2,
+        "agendamento": 3,
+        "tarefa": 2,
+        "numero": 1,
+        "prompt": 1,
+    }
+    # base + agendamento de tipo estranho + tarefa sem título + número com score "alto"
+    assert rel.invalidas == 3 + 1 + 1 + 1
+    ops = Operations(store)
+
+    por_titulo = {r["title"]: r for r in ops.list_reminders()}
+    antigo, futuro = por_titulo["Pagar boleto"], por_titulo["Entregar trabalho"]
+    assert antigo["notified"] == 1 and futuro["notified"] == 0  # sem rajada de aviso velho
+    assert futuro["note"] == "UML" and antigo["due_at"] == datetime(2026, 6, 5, 9).timestamp()
+    assert [r["title"] for r in ops.due_reminders(AGORA)] == []
+
+    ag = {s["title"]: s for s in ops.list_schedules()}
+    assert ag["Checar saúde"]["next_run"] == datetime(2026, 10, 4, 8).timestamp()  # recalculado
+    assert ag["Checar saúde"]["tool"] == "checar_saude_sistema"
+    assert json.loads(ag["Checar saúde"]["params"]) == {"verbose": True}
+    assert ag["Aviso velho"]["active"] == 0 and ag["Aviso velho"]["next_run"] is None
+    assert (
+        ag["Pausado"]["active"] == 0 and ag["Pausado"]["params"] == "{}"
+    )  # JSON quebrado não entra
+    assert ops.due_schedules(AGORA) == []
+
+    tarefas = {t["title"]: t["status"] for t in ops.list_tasks()}
+    assert tarefas == {"Estudar UML": "em_andamento", "Status esquisito": "pendente"}
+    numeros = {n["target"]: n for n in ops.list_numbers(only_pending=False)}
+    assert set(numeros) == {"fatura"}
+    assert (
+        numeros["fatura"]["score"] == 1.0 and numeros["fatura"]["notified"] == 1
+    )  # 7 → limitado a 1
+    assert ops.list_prompts()[0]["content"] == "Resuma em 5 linhas"
+
+
+def test_importa_grafo_resolvendo_eventos_para_mensagens(store, export_completo):
+    rel = import_surreal_export(store, export_completo, assistentes=["Orion"])
+    assert (rel.arestas, rel.arestas_repetidas, rel.arestas_sem_no) == (4, 0, 2)
+    ops = Operations(store)
+    msg = {
+        r["external_id"]: r["ref"]
+        for r in store.query("SELECT external_id, ref FROM imported WHERE kind='mensagem'")
+    }
+    m1, m2 = f"message:{msg['e1']}", f"message:{msg['e2']}"
+    assert {(n["rel"], n["src"], n["dst"]) for n in ops.neighbors(m1)} == {
+        ("precedeu", m1, m2),
+        ("sobre", m1, "topic:marília"),
+    }
+    vizinhos = ops.neighbors("topic:marília")
+    assert {(n["direction"], n["rel"]) for n in vizinhos} >= {("in", "sobre"), ("out", "conecta")}
+    conecta = next(n for n in vizinhos if n["rel"] == "conecta")
+    assert (conecta["dst"], conecta["kind"], conecta["weight"]) == ("topic:unimar", "rem", 2.0)
+    assert [n["src"] for n in ops.neighbors("topic:marília", rel="sobre")] == [m1, m2]
+
+
+def test_reimportar_operacao_e_grafo_nao_duplica(store, export_completo):
+    store._clock = lambda: AGORA
+    import_surreal_export(store, export_completo, assistentes=["Orion"])
+    ops = Operations(store)
+    antes = (len(ops.list_reminders()), len(ops.list_schedules()), ops.edge_count())
+    de_novo = import_surreal_export(store, export_completo, assistentes=["Orion"])
+    assert de_novo.operacionais == {} and de_novo.arestas == 0
+    assert de_novo.operacionais_repetidos == {
+        "lembrete": 2,
+        "agendamento": 3,
+        "tarefa": 2,
+        "numero": 1,
+        "prompt": 1,
+    }
+    assert de_novo.arestas_repetidas == 4
+    assert (len(ops.list_reminders()), len(ops.list_schedules()), ops.edge_count()) == antes
+
+
+def test_importar_so_operacao_sem_grafo_funciona(store, export):
+    # export sem precedeu/sobre/conecta (ex.: base que nunca gerou relações)
+    rel = import_surreal_export(store, export, assistentes=["Orion"])
+    assert (rel.arestas, rel.arestas_repetidas, rel.arestas_sem_no) == (0, 0, 0)

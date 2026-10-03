@@ -18,13 +18,13 @@ import threading
 import time
 import uuid
 from collections.abc import Callable, Iterator, Sequence
-from contextlib import contextmanager
+from contextlib import AbstractContextManager, contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, ClassVar, Literal, Protocol
 
-from .schema import DDL, SCHEMA_VERSION
+from .schema import DDL, MIGRATIONS, SCHEMA_VERSION
 from .text import chunk_text, fts_query, strip_frontmatter
 from .vectors import VectorIndex, para_blob
 
@@ -116,8 +116,20 @@ class MemoryStore:
             versao = int(
                 c.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()[0]
             )
-            if versao != SCHEMA_VERSION:
-                raise RuntimeError(f"esquema v{versao} != v{SCHEMA_VERSION}: falta migração")
+            if versao > SCHEMA_VERSION:
+                raise RuntimeError(
+                    f"banco no esquema v{versao}, este Orion só entende até v{SCHEMA_VERSION}"
+                )
+            while versao < SCHEMA_VERSION:
+                if versao not in MIGRATIONS:
+                    raise RuntimeError(f"esquema v{versao} sem migração para v{versao + 1}")
+                # DDL do SQLite é transacional: falhou no meio, volta tudo (rollback do `_tx`)
+                c.executescript(
+                    f"BEGIN;{MIGRATIONS[versao]}"
+                    f"UPDATE meta SET value='{versao + 1}' WHERE key='schema_version';COMMIT;"
+                )
+                log.info("banco migrado: esquema v%d → v%d", versao, versao + 1)
+                versao += 1
 
     @contextmanager
     def _tx(self) -> Iterator[sqlite3.Connection]:
@@ -128,6 +140,18 @@ class MemoryStore:
             except BaseException:
                 self._conn.rollback()
                 raise
+
+    # Usados por `orion.memory.ops` (lembretes, tarefas, grafo...): mesma conexão, mesmo lock.
+    def transaction(self) -> AbstractContextManager[sqlite3.Connection]:
+        return self._tx()
+
+    def query(self, sql: str, params: Sequence[Any] = ()) -> list[sqlite3.Row]:
+        with self._lock:
+            return self._conn.execute(sql, tuple(params)).fetchall()
+
+    @property
+    def clock(self) -> Callable[[], float]:
+        return self._clock
 
     def _meta(self, c: sqlite3.Connection, chave: str) -> str | None:
         r = c.execute("SELECT value FROM meta WHERE key=?", (chave,)).fetchone()
@@ -224,7 +248,7 @@ class MemoryStore:
             ).rowcount
             if not novo:
                 return False
-            c.execute(
+            mid = c.execute(
                 "INSERT INTO messages(session_id, role, text, created_at, provenance)"
                 " VALUES (?,?,?,?,?)",
                 (
@@ -234,6 +258,10 @@ class MemoryStore:
                     created_at,
                     json.dumps(provenance) if provenance else None,
                 ),
+            ).lastrowid
+            c.execute(
+                "UPDATE imported SET ref=? WHERE kind='mensagem' AND external_id=?",
+                (str(mid), external_id),
             )
             c.execute(
                 "UPDATE sessions SET last_active_at = MAX(last_active_at, ?) WHERE id=?",
@@ -540,7 +568,8 @@ class MemoryStore:
     ) -> list[tuple[Kind, str, list[tuple[int, str, str]]]]:
         assert self._embedder is not None
         try:
-            consulta = self._embedder.embed([query])[0]
+            como_consulta = getattr(self._embedder, "embed_query", None)
+            consulta = como_consulta(query) if como_consulta else self._embedder.embed([query])[0]
         except Exception as e:  # noqa: BLE001 — embedding fora do ar: segue só por palavra-chave
             log.warning("busca vetorial indisponível, usando só palavra-chave: %s", e)
             return []
@@ -627,13 +656,19 @@ class MemoryStore:
         try:
             if conn.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
                 raise ValueError("backup corrompido (integrity_check)")
-            versao = conn.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()
-            if not versao or int(versao[0]) != SCHEMA_VERSION:
+            try:
+                versao = conn.execute(
+                    "SELECT value FROM meta WHERE key='schema_version'"
+                ).fetchone()
+            except sqlite3.DatabaseError:
+                raise ValueError("backup com esquema diferente") from None
+            # backup de esquema mais antigo é aceito: o banco sobe sozinho ao abrir (MIGRATIONS)
+            if not versao or not 1 <= int(versao[0]) <= SCHEMA_VERSION:
                 raise ValueError("backup com esquema diferente")
-            return {
-                t: conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
-                for t in ("sessions", "messages", "facts", "documents", "chunks")
-            }
+            tabelas = ["sessions", "messages", "facts", "documents", "chunks"]
+            if int(versao[0]) >= 2:
+                tabelas += ["reminders", "schedules", "tasks", "numbers", "prompts", "edges"]
+            return {t: conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0] for t in tabelas}
         finally:
             conn.close()
 

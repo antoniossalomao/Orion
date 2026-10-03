@@ -106,6 +106,14 @@ class ChatGateway:
                 log.warning("endpoint %s falhou, tentando o próximo: %s", ep.name, e)
         raise GatewayError("nenhum endpoint respondeu", tentativas)
 
+    async def complete(self, messages: list[dict[str, Any]]) -> str:
+        """Resposta inteira em texto, sem ferramentas (jobs como a consolidação da memória)."""
+        texto = ""
+        async for ev in self.stream(messages):
+            if isinstance(ev, TextDelta):
+                texto += ev.text
+        return texto
+
     async def _run(
         self, ep: Endpoint, messages: list[dict[str, Any]], tools: list[dict[str, Any]] | None
     ) -> AsyncIterator[Event]:

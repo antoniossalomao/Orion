@@ -40,7 +40,9 @@ test('normalizar: eventos do legado e do orion.app', () => {
     assert.deepEqual(normalizar({ tool: { name: 'buscar_memoria', decision: 'allow', reason: '' } }),
         { tipo: 'ferramenta', nome: 'buscar_memoria', decisao: 'allow', motivo: '', aprovada: false, erro: null });
     assert.deepEqual(normalizar({ approval: { id: 'a1', tool: 'executar_comando', reason: 'r', args: { cmd: 'x' } } }),
-        { tipo: 'aprovacao', id: 'a1', ferramenta: 'executar_comando', motivo: 'r', args: { cmd: 'x' } });
+        { tipo: 'aprovacao', id: 'a1', ferramenta: 'executar_comando', motivo: 'r', args: { cmd: 'x' }, truncado: false });
+    // o servidor avisa quando cortou os argumentos: o cartão não pode oferecer "aprovar"
+    assert.equal(normalizar({ approval: { id: 'a2', tool: 'executar_comando', args: { cmd: 'x…' }, args_truncated: true } }).truncado, true);
     assert.deepEqual(normalizar({ error: 'falhou' }), { tipo: 'erro', mensagem: 'falhou' });
     for (const lixo of [null, undefined, 3, {}, { text: '' }, { tier: '' }, { tool: 'x' }, { approval: 3 }]) {
         assert.equal(normalizar(lixo), null);

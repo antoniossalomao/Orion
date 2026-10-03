@@ -112,3 +112,33 @@ def test_cli_e_codigo_de_saida(tmp_path, capsys):
 @pytest.mark.parametrize("k", [1, 3])
 def test_k_menor_nao_quebra(store, tmp_path, k):
     assert run_eval(montar(store, tmp_path), CASOS[:3], k=k).n == 3
+
+
+def test_exemplo_de_casos_tem_o_formato_esperado():
+    from orion.config import PROJECT_ROOT
+
+    casos = load_cases(PROJECT_ROOT / "tests" / "eval_pessoal.example.json")
+    assert len(casos) >= 3 and all(c.question and c.expect for c in casos)
+
+
+def test_cli_com_embeddings_sem_chave_avisa_e_nao_mede(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr("orion.app.get_secret", lambda nome: None)
+    monkeypatch.delenv("ORION_EMBED_API_KEY", raising=False)
+    monkeypatch.setenv("ORION_DATA_DIR", str(tmp_path))
+    caso = tmp_path / "casos.json"
+    caso.write_text('[{"question": "x", "expect": ["y"]}]', encoding="utf-8")
+    assert main([str(caso), "--db", str(tmp_path / "o.db"), "--embeddings"]) == 2
+    assert "ORION_EMBED_API_KEY" in capsys.readouterr().err
+
+
+def test_cli_com_embeddings_mede_a_busca_hibrida(tmp_path, monkeypatch, capsys, embedder):
+    monkeypatch.setattr("orion.app.embedder_from_settings", lambda s: embedder)
+    db = tmp_path / "o.db"
+    s = MemoryStore(db)
+    s.add_fact("Antônio estuda na UNIMAR", "t")  # gravado sem vetor
+    s.close()
+    caso = tmp_path / "casos.json"
+    caso.write_text('[{"question": "onde faz faculdade", "expect": ["UNIMAR"]}]', encoding="utf-8")
+    assert main([str(caso), "--db", str(db), "--embeddings", "--min-hit-rate", "1"]) == 0
+    saida = capsys.readouterr().out
+    assert "vetores gerados agora: 1" in saida and "busca=híbrida" in saida
