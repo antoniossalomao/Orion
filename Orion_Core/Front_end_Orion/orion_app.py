@@ -20,6 +20,12 @@ import webview
 # Origens permitidas (módulo do backend, só stdlib): vale o mesmo para o hub e /ws/voice.
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "Orion_Ollama")))
 from origem import ORIGENS_PERMITIDAS  # noqa: E402
+from ponte import (  # noqa: E402
+    cabecalhos_chat,
+    mensagem_de_falha,
+    mensagens_do_evento,
+    url_externa_permitida,
+)
 
 try:
     import websockets
@@ -114,11 +120,17 @@ class OrionApi:
         broadcast_state("processing", 0.30)
         try:
             import httpx
+        except ImportError:
+            _broadcast({"error": "Falta o pacote httpx (pip install httpx)."})
+            broadcast_state("idle", 0.0)
+            return
+        try:
             with httpx.Client(timeout=60.0) as client:
                 with client.stream(
                     "POST",
                     "http://127.0.0.1:8000/chat",
                     json={"texto": command, "modelo": modelo},
+                    headers=cabecalhos_chat(os.environ.get("ORION_ADMIN_TOKEN", "")),
                 ) as resp:
                     resp.raise_for_status()
                     broadcast_state("speaking", 0.0)
@@ -130,19 +142,32 @@ class OrionApi:
                             break
                         try:
                             d = json.loads(raw)
-                            chunk = d.get("text", "")
-                            if chunk:
-                                _broadcast({"ai_chunk": chunk})
-                            tier = d.get("tier")
-                            if tier:
-                                _broadcast({"tier": tier})
                         except Exception:
-                            pass
+                            continue
+                        # texto, modelo e — no orion.app — ferramentas, aprovações e erros
+                        for msg in mensagens_do_evento(d):
+                            _broadcast(msg)
+        except httpx.HTTPStatusError as e:
+            _broadcast({"error": mensagem_de_falha(e.response.status_code)})
+            print(f"[ORION] process_command erro: {e}")
         except Exception as e:
-            _broadcast({"ai_chunk": "[cérebro offline]"})
+            _broadcast({"error": mensagem_de_falha(None)})
             print(f"[ORION] process_command erro: {e}")
 
         broadcast_state("idle", 0.0)
+
+    def get_config(self) -> dict:
+        """Entrega ao front o que só o app desktop sabe (token do orion.app, vindo do ambiente)."""
+        return {"token": os.environ.get("ORION_ADMIN_TOKEN", "")}
+
+    def open_external(self, url: str) -> bool:
+        """Abre um link do chat no navegador do sistema (só http/https/mailto)."""
+        if not url_externa_permitida(url):
+            print(f"[ORION] open_external recusou: {str(url)[:80]!r}")
+            return False
+        import webbrowser
+
+        return webbrowser.open(url.strip())
 
     def toggle_maximize(self) -> None:
         """Alterna entre fullscreen e janela normal."""

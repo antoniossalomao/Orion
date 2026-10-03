@@ -15,7 +15,9 @@ from typing import Annotated, Any
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from . import __version__
@@ -30,8 +32,19 @@ from .policy.paths import default_safe_roots
 from .secrets import get_secret
 from .tools import default_registry
 
+FRONT_DIR = PROJECT_ROOT / "Orion_Core" / "Front_end_Orion"
+
 audit_log = logging.getLogger("orion.audit")
 log = logging.getLogger("orion.app")
+
+
+class FrontStatic(StaticFiles):
+    """Serve só o que o navegador precisa da pasta do front: nada de código Python."""
+
+    async def get_response(self, path: str, scope):
+        if path.endswith((".py", ".pyc")) or "__pycache__" in path:
+            raise StarletteHTTPException(404)
+        return await super().get_response(path, scope)
 
 
 @dataclass
@@ -245,5 +258,9 @@ def create_app(
         except ValueError as e:
             raise HTTPException(409, str(e)) from None
         return {"id": a.id, "status": a.status.value}
+
+    if settings.serve_ui and FRONT_DIR.is_dir():
+        # por último: as rotas da API têm prioridade sobre o mount
+        app.mount("/ui", FrontStatic(directory=FRONT_DIR, html=True), name="ui")
 
     return app

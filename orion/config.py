@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     log_json: bool = True
     approval_ttl_s: int = Field(default=600, ge=30)
     extra_safe_roots: list[Path] = Field(default_factory=list)  # ex.: Documents no OneDrive
+    serve_ui: bool = (
+        True  # serve a interface em /ui/ (mesma origem: funciona no celular via Tailscale)
+    )
     admin_token: str = ""  # decide aprovações até o login da fase 5; vazio = desligado
     # Gateway de modelos (OmniRoute local ou qualquer API compatível com a da OpenAI).
     gateway_url: str = ""  # ex.: http://127.0.0.1:20128/v1 — vazio: /chat desligado
