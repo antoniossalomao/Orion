@@ -184,3 +184,86 @@ def test_fila_de_aprovacoes_mostra_args_sem_segredo(client):
 def test_token_de_admin_fraco_e_recusado():
     with pytest.raises(ValidationError, match="16"):
         Settings(admin_token="curto", _env_file=None)
+
+
+# ── avisos, jobs, embeddings e acesso de fora ───────────────────────────────
+def test_avisos_exigem_token_listam_e_confirmam_uma_vez(client):
+    ops = client.app.state.orion.ops
+    assert client.get("/notifications").status_code == 401
+    assert client.post("/notifications/1/ack").status_code == 401
+    a = ops.notify("lembrete", "Pagar boleto", ref="reminder:1")
+    assert client.get("/health").json()["pending_notifications"] == 1
+    lista = client.get("/notifications", headers=AUTH).json()
+    assert [(x["id"], x["text"]) for x in lista] == [(a, "Pagar boleto")]
+    assert client.post(f"/notifications/{a}/ack", headers=AUTH).json() == {"ok": True}
+    assert client.post(f"/notifications/{a}/ack", headers=AUTH).status_code == 404
+    assert client.get("/notifications", headers=AUTH).json() == []
+    assert client.get("/health").json()["pending_notifications"] == 0
+
+
+def test_jobs_sobem_com_o_app_e_um_lembrete_vencido_vira_aviso(client):
+    estado = client.app.state.orion
+    assert estado.jobs is not None and client.get("/health").json()["components"]["jobs"] is True
+    estado.ops.add_reminder("Pagar boleto", "2020-01-01T09:00:00")
+    rel = client.portal.call(estado.jobs.tick)
+    assert rel.lembretes == 1 and rel.erros == []
+    assert [x["kind"] for x in client.get("/notifications", headers=AUTH).json()] == ["lembrete"]
+
+
+def test_jobs_desligados_por_configuracao(tmp_path):
+    s = Settings(data_dir=tmp_path, admin_token=TOKEN, jobs_enabled=False, _env_file=None)
+    with TestClient(create_app(s), base_url="http://127.0.0.1") as c:
+        assert c.app.state.orion.jobs is None
+        assert c.get("/health").json()["components"]["jobs"] is False
+
+
+def test_host_de_fora_exige_token_de_admin(tmp_path):
+    tailnet = ["127.0.0.1", "localhost", "orion.tail1234.ts.net"]
+    with pytest.raises(ValidationError, match="ORION_ADMIN_TOKEN"):
+        Settings(allowed_hosts=tailnet, _env_file=None)
+    with pytest.raises(ValidationError, match="ORION_ADMIN_TOKEN"):
+        Settings(allowed_hosts=["*"], _env_file=None)  # curinga desliga a proteção de host
+    assert (
+        Settings(allowed_hosts=tailnet, admin_token=TOKEN, _env_file=None).allowed_hosts == tailnet
+    )
+    assert Settings(_env_file=None).allowed_hosts == ["127.0.0.1", "localhost"]  # padrão: sem token
+
+
+def test_embeddings_so_com_chave_e_o_modelo_vem_da_configuracao(tmp_path, monkeypatch):
+    from orion.app import embedder_from_settings
+
+    monkeypatch.setattr("orion.app.get_secret", lambda nome: None)
+    assert embedder_from_settings(Settings(data_dir=tmp_path, _env_file=None)) is None
+    s = Settings(data_dir=tmp_path, embed_api_key="k" * 20, embed_dim=256, _env_file=None)
+    e = embedder_from_settings(s)
+    assert e is not None and e.dim == 256
+    monkeypatch.setattr("orion.app.get_secret", lambda nome: "do-cofre-" + "x" * 12)
+    assert embedder_from_settings(Settings(data_dir=tmp_path, _env_file=None)) is not None
+
+
+def test_trocar_a_dimensao_do_embedding_sobe_sem_vetores_em_vez_de_nao_subir(tmp_path):
+    from orion.app import memory_from_settings
+    from orion.memory import MemoryStore
+    from tests.memory.conftest import FakeEmbedder
+
+    s = Settings(data_dir=tmp_path / "d", embed_api_key="k" * 20, embed_dim=64, _env_file=None)
+    s.data_dir.mkdir()
+    antigo = MemoryStore(s.db_path, embedder=FakeEmbedder())  # índice de 128 dimensões
+    antigo.close()
+    novo = memory_from_settings(s)  # configuração pede 64: não derruba a subida
+    try:
+        assert novo.vectors_available is False and novo.ping()
+    finally:
+        novo.close()
+
+
+def test_pasta_vazia_na_configuracao_significa_nao_definida_e_nao_a_pasta_atual(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setenv("ORION_VAULT_DIR", "")
+    monkeypatch.setenv("ORION_BACKUP_DIR", "  ")
+    s = Settings(data_dir=tmp_path, _env_file=None)
+    assert s.vault_dir is None and s.backup_dir is None
+    assert s.effective_backup_dir == tmp_path / "backups"
+    monkeypatch.setenv("ORION_BACKUP_DIR", str(tmp_path / "nuvem"))
+    assert Settings(data_dir=tmp_path, _env_file=None).effective_backup_dir == tmp_path / "nuvem"

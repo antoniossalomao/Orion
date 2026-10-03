@@ -10,6 +10,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 _PUBLICOS = {"0.0.0.0", "::", ""}  # noqa: S104 — só para recusar
+_LOCAIS = {"127.0.0.1", "localhost", "::1"}
 
 
 class Settings(BaseSettings):
@@ -31,7 +32,18 @@ class Settings(BaseSettings):
     gateway_api_key: str = ""  # ou no cofre do SO (orion.secrets)
     allowed_hosts: list[str] = Field(
         default_factory=lambda: ["127.0.0.1", "localhost"]
-    )  # + Tailscale
+    )  # + Tailscale (só com admin_token: ver `_acesso_de_fora_exige_token`)
+    # Jobs em segundo plano (lembretes, agendamentos, embeddings, vault, backup, consolidação).
+    jobs_enabled: bool = True
+    jobs_tick_s: float = Field(default=30.0, ge=1.0)
+    backup_dir: Path | None = None  # padrão: <dados>/backups; aponte para o iCloud/OneDrive
+    backup_keep: int = Field(default=7, ge=1)
+    vault_dir: Path | None = None  # vault do Obsidian a indexar na memória (vazio: não indexa)
+    consolidate: bool = True  # fatos a partir das conversas (precisa do gateway)
+    # Embeddings por API gratuita (Gemini). Sem chave, a busca é só por palavra-chave.
+    embed_api_key: str = ""  # ou no cofre do SO (ORION_EMBED_API_KEY)
+    embed_model: str = "gemini-embedding-001"
+    embed_dim: int = Field(default=768, ge=64, le=3072)
 
     @field_validator("admin_token")
     @classmethod
@@ -42,6 +54,12 @@ class Settings(BaseSettings):
                 '(gere com: python -c "import secrets;print(secrets.token_urlsafe(32))")'
             )
         return v
+
+    @field_validator("backup_dir", "vault_dir", mode="before")
+    @classmethod
+    def _vazio_e_nao_definido(cls, v: object) -> object:
+        """`ORION_VAULT_DIR=` (vazio) viraria `Path('.')`: indexaria/gravaria na pasta atual."""
+        return None if isinstance(v, str) and not v.strip() else v
 
     @field_validator("log_level")
     @classmethod
@@ -60,6 +78,22 @@ class Settings(BaseSettings):
             )
         return self
 
+    @model_validator(mode="after")
+    def _acesso_de_fora_exige_token(self) -> Settings:
+        """Tailscale (ou qualquer host que não seja local) só depois de haver login: sem token
+        as rotas que mudam estado ficam trancadas, mas a exposição em si já é recusada."""
+        de_fora = [h for h in self.allowed_hosts if h not in _LOCAIS]
+        if de_fora and not self.admin_token:
+            raise ValueError(
+                f"host {', '.join(de_fora)} em ORION_ALLOWED_HOSTS exige ORION_ADMIN_TOKEN "
+                "(regra 17 do ORION_REGRAS.md: acesso de fora só com login)"
+            )
+        return self
+
     @property
     def db_path(self) -> Path:
         return self.data_dir / "orion.db"
+
+    @property
+    def effective_backup_dir(self) -> Path:
+        return self.backup_dir or self.data_dir / "backups"

@@ -10,6 +10,8 @@ from typing import Any
 
 from ..delegate import Delegator
 from ..memory import MemoryStore
+from ..memory.ops import Operations
+from .ops_tools import ops_tools
 from .registry import Tool, ToolRegistry
 
 
@@ -91,8 +93,13 @@ def delegate_tool(delegator: Delegator) -> Tool:
     )
 
 
-def default_registry(store: MemoryStore, delegator: Delegator | None = None) -> ToolRegistry:
+def default_registry(
+    store: MemoryStore, delegator: Delegator | None = None, ops: Operations | None = None
+) -> ToolRegistry:
     reg = ToolRegistry(memory_tools(store))
+    if ops is not None:
+        for t in ops_tools(ops):
+            reg.register(t)
     if delegator is not None:
         reg.register(delegate_tool(delegator))
     return reg
