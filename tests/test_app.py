@@ -267,3 +267,13 @@ def test_pasta_vazia_na_configuracao_significa_nao_definida_e_nao_a_pasta_atual(
     assert s.effective_backup_dir == tmp_path / "backups"
     monkeypatch.setenv("ORION_BACKUP_DIR", str(tmp_path / "nuvem"))
     assert Settings(data_dir=tmp_path, _env_file=None).effective_backup_dir == tmp_path / "nuvem"
+
+
+def test_fila_de_aprovacoes_diz_quando_o_argumento_foi_cortado(client):
+    engine = client.app.state.orion.policy
+    engine.evaluate(ToolCall("executar_comando", {"cmd": "rm -rf ./build"}), Context("s1"))
+    engine.evaluate(
+        ToolCall("executar_comando", {"cmd": "echo " + "x" * 2500 + "; rm -rf ~"}), Context("s2")
+    )
+    fila = {a["session_id"]: a for a in client.get("/approvals", headers=AUTH).json()}
+    assert fila["s1"]["args_truncated"] is False and fila["s2"]["args_truncated"] is True

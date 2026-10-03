@@ -29,7 +29,7 @@ import httpx
 from ..agent import Agent, AgentEvent
 from ..memory import MemoryStore
 from ..memory.ops import Operations
-from ..policy import ApprovalStore
+from ..policy import ApprovalStore, redact
 
 log = logging.getLogger("orion.telegram")
 
@@ -266,7 +266,8 @@ class TelegramChannel:
         if resposta:
             await self._enviar(chat_id, resposta)
         for c in cartoes:
-            await self._enviar(chat_id, _cartao(c), _teclado(str(c["id"])))
+            texto_cartao, revisavel = _cartao(c)
+            await self._enviar(chat_id, texto_cartao, _teclado(str(c["id"]), aprovar=revisavel))
         for e in erros:
             await self._enviar(chat_id, f"⚠️ {e}")
         if not (resposta or cartoes or erros):
@@ -290,6 +291,13 @@ class TelegramChannel:
         sessao = self.memory.get_session(a.session_id) if a else None
         if a is None or sessao is None or sessao.channel != CANAL:
             await self._fechar_botoes(cb, chat_id, msg, "Aprovação inexistente ou de outro canal.")
+            return
+        if resposta and not _revisavel(
+            a.args
+        ):  # o cartão nem oferece o botão; confere de novo aqui
+            await self._fechar_botoes(
+                cb, chat_id, msg, "Argumentos grandes demais: só dá para negar."
+            )
             return
         try:
             self.approvals.decide(aprovacao_id, resposta, channel=CANAL, actor=f"telegram:{uid}")
@@ -319,22 +327,41 @@ class TelegramChannel:
                 log.info("telegram: botões não removidos: %s", e)
 
 
-def _teclado(aprovacao_id: str) -> list[list[dict[str, str]]]:
-    return [
-        [
-            {"text": "✅ Aprovar", "callback_data": f"ap:{aprovacao_id}:y"},
-            {"text": "❌ Negar", "callback_data": f"ap:{aprovacao_id}:n"},
-        ]
-    ]
+def _teclado(aprovacao_id: str, *, aprovar: bool = True) -> list[list[dict[str, str]]]:
+    negar = {"text": "❌ Negar", "callback_data": f"ap:{aprovacao_id}:n"}
+    if not aprovar:
+        return [[negar]]
+    return [[{"text": "✅ Aprovar", "callback_data": f"ap:{aprovacao_id}:y"}, negar]]
 
 
-def _cartao(c: dict[str, Any]) -> str:
+MAX_ARGS_REVISAVEL = 3000  # cabe numa mensagem do Telegram junto do resto do cartão
+
+
+def _revisavel(args: dict[str, Any]) -> bool:
+    """Dá para mostrar os argumentos inteiros no cartão (sem corte e dentro do limite)?"""
+    mostrados = redact(args, limite=2000)
+    if mostrados != redact(args, limite=10**9):
+        return False
+    return len(json.dumps(mostrados, ensure_ascii=False, indent=1)) <= MAX_ARGS_REVISAVEL
+
+
+def _cartao(c: dict[str, Any]) -> tuple[str, bool]:
+    """Texto do cartão e se dá para aprovar por aqui. Argumento cortado (ou grande demais para
+    caber inteiro) esconderia o fim do comando de quem decide: então só dá para negar."""
     args = json.dumps(c.get("args", {}), ensure_ascii=False, indent=1)
-    if len(args) > 1200:
-        args = args[:1200] + "…"
+    revisavel = not c.get("args_truncated") and len(args) <= MAX_ARGS_REVISAVEL
+    if not revisavel:
+        args = args[:MAX_ARGS_REVISAVEL] + "…"
+    rodape = (
+        "Vale por 10 minutos e uma única execução."
+        if revisavel
+        else "⛔ Os argumentos são grandes demais para revisar aqui, então só dá para negar. "
+        "Se for legítimo, peça de novo em partes menores."
+    )
     return (
         f"⚠️ Aprovar esta ação?\n\nFerramenta: {c.get('tool')}\nMotivo: {c.get('reason')}\n"
-        f"Argumentos (segredos mascarados):\n{args}\n\nVale por 10 minutos e uma única execução."
+        f"Argumentos (segredos mascarados):\n{args}\n\n{rodape}",
+        revisavel,
     )
 
 

@@ -334,6 +334,7 @@ def create_app(
                 "reason": a.reason,
                 # redigido: quem aprova precisa ver O QUÊ (comando, caminho), sem vazar segredo
                 "args": redact(a.args, limite=2000),
+                "args_truncated": redact(a.args, limite=2000) != redact(a.args, limite=10**9),
                 "expires_at": a.expires_at,
             }
             for a in state.policy.approvals.pending()

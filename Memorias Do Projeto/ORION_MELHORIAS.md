@@ -1,7 +1,7 @@
 # ORION — Plano de melhorias e o que foi feito
 
 > Auditoria de 02/10/2026 (backend, front, regras, docs) e a execução dela, mais a segunda
-> rodada de 03/10/2026 (achados R1–R10 abaixo). Cada achado tem ID, evidência e status. O que
+> rodada de 03/10/2026 (achados R1–R11 abaixo). Cada achado tem ID, evidência e status. O que
 > **não** foi verificado está na seção própria.
 > Regras resultantes: [ORION_REGRAS.md](ORION_REGRAS.md). Plano de fases: [ORION_NUCLEO.md](ORION_NUCLEO.md).
 
@@ -45,6 +45,7 @@ Revisão do plano (NUCLEO §6–7) contra o código e o CI. Corte e operação: 
 | R8 | Alta | O plano dizia que o bot do Telegram do legado lia o `/chat` novo "sem mudança": falso. O `/chat` novo exige `Authorization: Bearer` e o bot do legado não envia (401); o teste só provava o formato do SSE | ✅ (API falsa) | Canal novo `orion/channels/telegram.py`: default-deny, aprovação por botão, fila de avisos; regra 21 |
 | R9 | Média | Sem `autostart` e sem ferramentas para agir no computador no núcleo novo | ✅ (Windows só no argv) | `orion autostart` (gera, não ativa) e `orion-desktop` v0 opt-in; ler segredo/chave agora confirma (regra 22) |
 | R10 | Baixa | O `httpx` registra a URL em INFO, e a URL da API do Telegram carrega o token; campo `args` duplicado em `Approval` | ✅ | Logger do `httpx`/`httpcore` em WARNING (com teste); campo duplicado removido |
+| R11 | Alta | O cartão de aprovação escondia o fim de comandos longos: o front cortava cada argumento em 700 caracteres e o servidor em 2000, então um comando com enchimento podia esconder `; rm -rf ~` depois do corte e o Antônio aprovaria sem ver | ✅ | `args_truncated` no evento e em `/approvals`; web e Telegram só deixam **negar** o que não cabe inteiro; a interface mostra o argumento sem cortar; regra 23 |
 
 ## O que foi construído (por fase do NUCLEO)
 

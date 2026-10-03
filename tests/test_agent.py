@@ -340,3 +340,19 @@ async def test_sem_ops_ou_sem_pendencia_nao_ha_bloco_em_aberto(store, policy):
     agent2, gw2 = montar(store, policy, fala("ok"), ops=Operations(store))
     await coletar(agent2.run("telegram", "oi"))
     assert "[EM ABERTO" not in gw2.chamadas[0][0]["content"]
+
+
+async def test_evento_de_aprovacao_avisa_quando_os_argumentos_foram_cortados(store, policy):
+    longo = "echo ok " + "x" * 2500 + " ; rm -rf ~"
+    agent, _ = montar(
+        store,
+        policy,
+        pede(chama("executar_comando", cmd="rm -rf ./build")),
+        fala("a"),
+        pede(chama("executar_comando", cmd=longo)),
+        fala("b"),
+    )
+    curto = next(e for e in await coletar(agent.run("web", "1")) if e.kind == "approval")
+    grande = next(e for e in await coletar(agent.run("web", "2")) if e.kind == "approval")
+    assert curto.data["args_truncated"] is False
+    assert grande.data["args_truncated"] is True and grande.data["args"]["cmd"].endswith("…")

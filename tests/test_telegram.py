@@ -476,3 +476,41 @@ def test_sem_canal_o_health_diz_false(tmp_path):
     settings = Settings(data_dir=tmp_path / "d", _env_file=None)
     with TestClient(create_app(settings), base_url="http://127.0.0.1") as c:
         assert c.get("/health").json()["components"]["telegram"] is False
+
+
+# ── argumentos que o cartão não consegue mostrar inteiros ─────────────────
+CMD_LONGO = "echo ok " + "x" * 2500 + " ; rm -rf ~"  # o perigo está depois do corte de exibição
+
+
+async def test_argumento_cortado_nao_pode_ser_aprovado_so_negado(store, policy, tg):
+    canal, _, _ = montar(
+        store, policy, tg, pede(chama("executar_comando", cmd=CMD_LONGO)), fala("Aguardando.")
+    )
+    await canal.handle_update(msg("rode isto"))
+    cartao = tg.enviadas()[-1]
+    botoes = cartao["reply_markup"]["inline_keyboard"][0]
+    assert [b["text"] for b in botoes] == ["❌ Negar"]  # sem botão de aprovar
+    assert "só dá para negar" in cartao["text"] and "rm -rf" not in cartao["text"]
+    assert len(cartao["text"]) < 4000  # cabe numa mensagem do Telegram
+
+    # clique forjado em "aprovar" (a API aceitaria qualquer callback_data): o canal recusa
+    aprov_id = botoes[0]["callback_data"].split(":")[1]
+    await canal.handle_update(clique(f"ap:{aprov_id}:y"))
+    assert policy.approvals.get(aprov_id).status is Status.PENDING
+    assert tg.chamadas[-2][1]["text"] == "Argumentos grandes demais: só dá para negar."
+
+    await canal.handle_update(clique(botoes[0]["callback_data"], update_id=3))
+    assert policy.approvals.get(aprov_id).status is Status.DENIED
+
+
+async def test_argumento_curto_mantem_os_dois_botoes(store, policy, tg):
+    canal, _, _ = montar(
+        store,
+        policy,
+        tg,
+        pede(chama("executar_comando", cmd="rm -rf ./build")),
+        fala("Aguardando."),
+    )
+    await canal.handle_update(msg("limpe o build"))
+    botoes = tg.enviadas()[-1]["reply_markup"]["inline_keyboard"][0]
+    assert [b["text"] for b in botoes] == ["✅ Aprovar", "❌ Negar"]

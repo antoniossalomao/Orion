@@ -247,6 +247,7 @@ desktop); a fase 7 não começou.
 | 03/10/2026 | Canal Telegram novo (`orion/channels/telegram.py`): long polling, default-deny por ID e conversa privada, aprovação só por botão, avisos da fila; sobe só com `ORION_TELEGRAM_TOKEN` + `ORION_TELEGRAM_ALLOWED_USERS` + gateway | Fase 5. O bot do legado não envia o token do `/chat` novo (401) e foi feito para o legado; regra 21. **Não validado contra o Telegram real** |
 | 03/10/2026 | `orion-desktop` v0 (`executar_comando`, `ler_arquivo`, `listar_arquivos`), **desligado por padrão** (`ORION_DESKTOP_TOOLS=true`); ler segredo ou chave (`.env`, `.ssh`, `*.pem`...) passa a pedir aprovação | O Orion novo não tinha como agir no computador; tudo atrás da política; regras 6 e 22 |
 | 03/10/2026 | `orion autostart` gera o arquivo de início automático (Startup no Windows, LaunchAgent no macOS, unit de usuário no Linux) e imprime o comando de ativação, sem executá-lo | Fase 5 "autostart por SO"; não mexer no sistema sem o Antônio |
+| 03/10/2026 | Aprovação só do que se vê inteiro: argumento cortado ou grande demais só pode ser negado (web e Telegram) | O cartão cortava o argumento (700 caracteres na web, 2000 no servidor) e escondia o fim do comando; regra 23 |
 | 03/10/2026 | Logger do `httpx` fixado em WARNING | A URL da API do Telegram carrega o token do bot; o `httpx` a registra em INFO |
 
 ## 9. Visão de longo prazo (conceitual)

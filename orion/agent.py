@@ -42,6 +42,11 @@ _DIAS = [
 ]
 
 
+def _truncado(args: dict[str, Any]) -> bool:
+    """True se `redact(args, limite=2000)` cortou algum texto: quem aprova não vê tudo."""
+    return redact(args, limite=2000) != redact(args, limite=10**9)
+
+
 @dataclass(frozen=True)
 class AgentEvent:
     kind: str  # tier | text | tool | approval | error | done
@@ -204,6 +209,7 @@ class Agent:
                         "tool": c.name,
                         "reason": d.reason,
                         "args": redact(c.arguments, limite=2000),
+                        "args_truncated": _truncado(c.arguments),
                     },
                 )
             )

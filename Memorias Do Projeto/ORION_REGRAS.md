@@ -43,6 +43,8 @@
 | 21 | **Telegram: default-deny e aprovação só por botão.** Só responde a ID da lista, em conversa privada; o resto é ignorado em silêncio. Só o clique de usuário permitido num cartão de aprovação do próprio canal decide (frase nunca). O token vai na URL da API: nenhum erro ou log leva a URL, e o logger do `httpx` fica em WARNING. Sem token + lista + gateway, o canal não sobe. | `orion/channels/telegram.py`, `orion/config.py`, `orion/log.py` | `tests/test_telegram.py` |
 | 22 | **Ler segredo ou chave pede confirmação.** `.env`, `.ssh`, `.aws`, `*.pem`, `google_auth/`, `id_rsa`... em `ler_arquivo`/`listar_arquivos` viram pedido de aprovação (o caminho é resolvido antes: symlink para `.env` continua `.env`). O shell só roda direto o que for leitura provada (regra 6) e o filho não herda `ORION_*` nem variável com nome de segredo. | `orion/policy/paths.py` (`check_read`), `engine.py`, `orion/tools/desktop.py` | `tests/policy/test_paths.py`, `tests/policy/test_engine.py`, `tests/test_desktop.py` |
 
+| 23 | **Só se aprova o que se vê inteiro.** Argumento cortado para exibição (texto com mais de 2000 caracteres) ou grande demais para o cartão do Telegram (mais de 3000) só pode ser **negado**: o evento de aprovação e `/approvals` trazem `args_truncated`; a interface web não oferece "aprovar" e o Telegram mostra só o botão de negar e recusa um "aprovar" forjado. A interface também não corta mais cada argumento em 700 caracteres. | `orion/agent.py`, `orion/app.py`, `orion/channels/telegram.py`, `Orion_Core/Front_end_Orion/js/chat.js` | `tests/test_agent.py`, `tests/test_app.py`, `tests/test_telegram.py`, `tests/front_e2e/test_front.py`, `tests/front/sse.test.js` |
+
 ## Código
 
 | # | Regra | Onde é imposta |
