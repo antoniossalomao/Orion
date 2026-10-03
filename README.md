@@ -18,12 +18,14 @@ Super 8GB · 64GB RAM). A arquitetura nova é mais leve, multiplataforma e de cu
 zero. Ela entra no lugar da base fase a fase, e cada fase apaga o que substituiu.
 
 **Próximo passo:** fase 0 — exportar os dados pessoais da base antes de o PC ser
-vendido.
+vendido e provar o export com `uv run orion verify-export` (plano completo, com os critérios para a
+venda: [ORION_CORTE.md](Memorias%20Do%20Projeto/ORION_CORTE.md)).
 
-**Reescrita em andamento (`orion/`):** fundação (fase 1), memória em SQLite (fase 3),
-política de ferramentas, gateway, agente e `/chat` (fase 2) já existem e têm testes; falta
-ligar a modelos reais, Telegram, login e as ferramentas (fases 4–6). O que foi feito, o que não
-foi verificado e os próximos passos: [ORION_MELHORIAS.md](Memorias%20Do%20Projeto/ORION_MELHORIAS.md).
+**Reescrita em andamento (`orion/`):** fundação (fase 1), memória em SQLite com importador completo,
+agendador, backup e consolidação (fase 3), política de ferramentas, gateway, agente e `/chat`
+(fase 2) já existem e têm testes; falta ligar a modelos reais, Telegram, login e as ferramentas
+(fases 4–5). O que foi feito, o que não foi verificado e os próximos passos:
+[ORION_MELHORIAS.md](Memorias%20Do%20Projeto/ORION_MELHORIAS.md).
 
 | Documento | Conteúdo |
 |---|---|
@@ -32,6 +34,9 @@ foi verificado e os próximos passos: [ORION_MELHORIAS.md](Memorias%20Do%20Proje
 | [ORION_REGRAS.md](Memorias%20Do%20Projeto/ORION_REGRAS.md) | Regras do Ring 0: onde o código impõe cada uma e o teste que a prova |
 | [ORION_MELHORIAS.md](Memorias%20Do%20Projeto/ORION_MELHORIAS.md) | Auditoria de 02/10/2026: achados, o que foi feito, o que não foi verificado |
 | [ORION_TECNICO.md](Memorias%20Do%20Projeto/ORION_TECNICO.md) | Referência técnica da base: regras críticas, API, memória/RAG, gotchas |
+| [ORION_CORTE.md](Memorias%20Do%20Projeto/ORION_CORTE.md) | Plano de corte: o que provar antes de vender o PC, orion mínimo, rollback, decisões suas |
+| [ORION_FERRAMENTAS.md](Memorias%20Do%20Projeto/ORION_FERRAMENTAS.md) | Triagem das 55 ferramentas do legado: portada, substituída, a portar ou descartar |
+| [ORION_FRONT.md](Memorias%20Do%20Projeto/ORION_FRONT.md) | Front-end: brief de design e engenharia, orçamentos, o que foi verificado |
 
 ---
 
@@ -224,8 +229,11 @@ uv sync
 ORION_ADMIN_TOKEN=<16+ caracteres> ORION_GATEWAY_URL=http://127.0.0.1:20128/v1 \
 ORION_GATEWAY_MODEL=<modelo> uv run orion         # sobe em 127.0.0.1:8000
 uv run orion backup                                # backup diário da memória (mantém 7)
-uv run orion import-surreal <pasta-do-backup>      # importa o export do legado
-python -m orion.memory.eval <casos.json> --db <orion.db>   # mede a busca com suas perguntas
+uv run orion restore <backup.db> [--force]         # restaura um backup (confere antes; --force substitui)
+uv run orion verify-export <pasta-do-backup> --assistente <nome-antigo> \
+    [--env .env --google-auth <pasta> --vault <pasta>]   # fase 0: prova o export (não toca no banco real)
+uv run orion import-surreal <pasta-do-backup> --assistente <nome-antigo>   # importa o export do legado
+python -m orion.memory.eval <casos.json> --db <orion.db> [--embeddings]    # mede a busca com suas perguntas
 ```
 
 | Variável | Uso |
@@ -234,7 +242,11 @@ python -m orion.memory.eval <casos.json> --db <orion.db>   # mede a busca com su
 | `ORION_GATEWAY_URL`, `ORION_GATEWAY_MODEL`, `ORION_GATEWAY_API_KEY` | Gateway de modelos (OmniRoute ou API compatível com a da OpenAI); sem eles `/chat` responde 503 |
 | `ORION_DATA_DIR` | Onde fica o `orion.db` (padrão: pasta de dados do usuário no SO) |
 | `ORION_EXTRA_SAFE_ROOTS` | Lista JSON de pastas extras onde as ferramentas escrevem sem confirmação (ex.: Documents no OneDrive) |
-| `ORION_HOST`, `ORION_PORT`, `ORION_ALLOWED_HOSTS` | Só `127.0.0.1` por padrão; bind público é recusado. A porta padrão (8000) é a do legado: não suba os dois juntos |
+| `ORION_HOST`, `ORION_PORT`, `ORION_ALLOWED_HOSTS` | Só `127.0.0.1` por padrão; bind público é recusado. Host de fora (ex.: nome do Tailscale, lista JSON) **exige** `ORION_ADMIN_TOKEN`. A porta padrão (8000) é a do legado: não suba os dois juntos |
+| `ORION_EMBED_API_KEY` (ou no cofre do SO), `ORION_EMBED_MODEL`, `ORION_EMBED_DIM` | Embeddings pela API gratuita do Gemini (padrão `gemini-embedding-001`, 768). Sem chave a busca é só por palavra-chave. Trocar modelo ou dimensão: o banco sobe sem vetores (veja o log) até `reset_vectors()` |
+| `ORION_BACKUP_DIR`, `ORION_BACKUP_KEEP` | Backup diário da memória (padrão `<dados>/backups`, mantém 7); aponte para o iCloud/OneDrive |
+| `ORION_VAULT_DIR` | Vault do Obsidian reindexado de hora em hora na memória (vazio: não indexa) |
+| `ORION_JOBS_ENABLED`, `ORION_JOBS_TICK_S`, `ORION_CONSOLIDATE` | Jobs em segundo plano (lembretes, agendamentos, embeddings, vault, backup, consolidação em fatos; padrão ligados, rodada a cada 30 s). Os avisos saem em `GET /notifications` (confirmar em `POST /notifications/{id}/ack`) |
 
 ### Layout
 
@@ -255,7 +267,7 @@ Orion_Ollama/                  # backend
   orion_seguranca.py            # rate limit, câmara de eco, audit, self-healing
   orion_browser.py · orion_google_workspace.py · orion_telegram.py · orion_voice_live.py
   bm25_index.py · reconciliar_episodios.py · test_smoke.py
-orion/                         # REESCRITA: policy/ (risco, aprovações), memory/ (SQLite), gateway, agent, delegate, tools/, app
+orion/                         # REESCRITA: policy/ (risco, aprovações), memory/ (SQLite, importador, ops, embeddings, consolidação), gateway, agent, delegate, jobs, migration, tools/, app
 tests/                         # pytest (orion + legado) e Node (front); ver "Testes"
 .github/workflows/ci.yml       # ruff, pyright, pytest, node em Linux/Windows/macOS
 pyproject.toml · uv.lock       # a reescrita usa uv; requirements.txt é só do legado
@@ -263,7 +275,7 @@ Orion_Core/                    # front-end v1, voz, sentidos
   Front_end_Orion/              # pywebview + Three.js + hub WS :8765 (ver ORION_FRONT.md); também servido em /ui/ pelo orion.app
   audio_manager.py (TTS) · mic_engine.py (STT) · commands.py
 bin/startup/                   # .bat de cada serviço + orion_boot.vbs
-Memorias Do Projeto/           # ORION_NUCLEO.md (plano), ORION_TECNICO.md (referência da base)
+Memorias Do Projeto/           # ORION_NUCLEO (plano), _CORTE, _FERRAMENTAS, _REGRAS, _MELHORIAS, _FRONT, _TECNICO (base)
 ```
 
 **Fora do git (runtime):** `Orion_Core/Sons/cache/`, `Orion_Ollama/telemetria*`,

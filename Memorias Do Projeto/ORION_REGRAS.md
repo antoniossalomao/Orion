@@ -16,7 +16,7 @@
 | 2 | **Confirmação fora de banda.** O pedido de aprovação sai por um canal autenticado (botão do Telegram, tela web com login); nunca por uma frase na conversa. Vale para (sessão, ferramenta, argumentos exatos), por 10 min, uso único. O modelo não tem como se auto-aprovar. | `orion/policy/approvals.py`, `orion/app.py` (`/approvals`) | `tests/policy/test_approvals.py`, `tests/test_app_chat.py` (fluxo ponta a ponta) |
 | 3 | **Código, persona e política são imutáveis para as ferramentas.** Escrever na raiz do projeto, em diretório de sistema, em extensão/arquivo sensível (`.ps1`, `.env`, `.ssh`, autostart) ou fora de Documents/Downloads/Desktop pede confirmação. Auto-modificação só por diff aprovado. | `orion/policy/paths.py` | `tests/policy/test_paths.py` |
 | 4 | **Conteúdo externo é dado, não instrução** (web, e-mail, documento, clipboard). Chega marcado; depois de lido, escrita e execução da sessão passam a pedir confirmação (vale também depois de reiniciar). | `orion/agent.py`, `engine.py` (`note_result`) | `tests/test_agent.py` (taint) |
-| 5 | **Segredos nunca em log/audit/processo filho.** Chaves ficam no cofre do SO ou no `.env`; o audit e o log mascaram chaves e tokens; a CLI delegada não herda `ORION_*`; ler `.env`/credenciais por shell não é "leitura segura". | `orion/policy/audit.py` (`redact`), `orion/log.py`, `orion/delegate.py`, `orion/secrets.py` | `tests/policy/test_engine.py`, `tests/test_app.py`, `tests/test_delegate.py` |
+| 5 | **Segredos nunca em log/audit/processo filho.** Chaves ficam no cofre do SO ou no `.env`; o audit e o log mascaram chaves e tokens; a CLI delegada não herda `ORION_*`; ler `.env`/credenciais por shell não é "leitura segura". | `orion/policy/audit.py` (`redact`), `orion/log.py`, `orion/delegate.py`, `orion/secrets.py`, `orion/memory/embedders.py` (chave da API em cabeçalho, nunca na URL) | `tests/policy/test_engine.py`, `tests/test_app.py`, `tests/test_delegate.py`, `tests/memory/test_embedders.py` |
 | 6 | **Shell só roda sem confirmação o que for provadamente leitura.** Lista positiva de comandos (PowerShell e POSIX), sem redirecionamento, substituição, bloco de script, método ou `::`. O resto confirma. | `orion/policy/shell.py` | `tests/policy/test_shell.py` (inclui os bypasses da Câmara de Eco antiga) |
 | 7 | **URL vinda do modelo só vai a host público** (http/https), com cada redirecionamento revalidado. Bloqueia loopback, LAN, Tailscale e metadados de nuvem. | `Orion_Ollama/url_guard.py` (legado) | `tests/legacy/test_url_guard.py` |
 | 8 | **Falha de auditoria nega a ação** que não é leitura (fail-closed); erro de gravação nunca some em silêncio. | `orion/policy/engine.py` | `tests/policy/test_engine.py` |
@@ -30,6 +30,15 @@
 | 11 | **Upload tem limite de tamanho** (25 MB) e nome sanitizado. | `Orion_Ollama/routers/misc.py` | `tests/legacy/test_misc_router_legado.py` |
 | 12 | **O chat só renderiza imagem gerada pelo próprio Orion** (`/imagens/<arquivo>`). Imagem de outro host é um canal de exfiltração por prompt injection. | `Orion_Core/Front_end_Orion/js/md.js` | `tests/front/md.test.js`, `tests/front_e2e/test_front.py` (no navegador) |
 | 13 | Endpoints que mudam estado exigem `Authorization: Bearer` (token de 16+ caracteres) até o login da fase 5. Sem CORS, o navegador de outra origem não consegue chamá-los. | `orion/app.py` | `tests/test_app.py` |
+
+## Operação (jobs, memória)
+
+| # | Regra | Onde é imposta | Prova |
+|---|---|---|---|
+| 17 | **Acesso de fora só com login.** Host que não seja local em `ORION_ALLOWED_HOSTS` (Tailscale, curinga `*`) exige `ORION_ADMIN_TOKEN`; sem o token a configuração se recusa a subir. | `orion/config.py` | `tests/test_app.py::test_host_de_fora_exige_token_de_admin` |
+| 18 | **Agendamento avisa; não executa ferramenta sozinho.** A ferramenta informada fica registrada, e o disparo vira um aviso na fila. Rodar ação sem ninguém olhando exige política e aprovação (fase 4). | `orion/jobs.py` | `tests/test_jobs.py::test_agendamento_avisa_recalcula_e_nao_executa_a_ferramenta` |
+| 19 | **Fato consolidado só vem de fala do Antônio**, nunca de resposta do modelo nem de resultado de ferramenta; tem fonte e data, é editável, segredo é descartado, e o histórico importado (canal `legado`) fica de fora. A marca de progresso só avança se o modelo respondeu e a resposta foi lida. | `orion/memory/consolidate.py` | `tests/memory/test_consolidate.py` |
+| 20 | **Pendência velha não vira rajada de aviso.** Na importação, lembrete vencido há mais de 24 h entra já avisado e agendamento único atrasado entra desativado; recorrente atrasado recalcula o próximo horário. | `orion/memory/importer.py` | `tests/memory/test_importer.py::test_importa_operacao_com_regras_de_seguranca_dos_avisos` |
 
 ## Código
 
