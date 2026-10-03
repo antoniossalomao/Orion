@@ -90,7 +90,7 @@
         const m = el('div', { class: 'msg msg-orion', dataset: { streaming: pensando ? 'true' : 'false' } },
             el('span', { class: 'msg-avatar', 'aria-hidden': 'true', html: '<span class="belt-mark"><i></i><i></i><i></i></span>' }), principal);
         const a = { el: m, principal, prose, atividade, tier, dur, t0: performance.now(), pens, demora, texto: '', rs: MD.criarRenderStreaming(),
-                    timer: null, cartoes: new Map(), chips: new Map(), erro: false, acoes: false, fim: false };
+                    timer: null, cartoes: new Map(), chips: [], erro: false, acoes: false, fim: false };
         a.desenhar = U.noProximoQuadro(() => desenhar(a));
         acrescentar(m);
         mostrar(m, animar);
@@ -145,10 +145,12 @@
         tirarPensando(a);
         const est = estadoFerramenta(ev);
         const icon = est === 'ok' ? 'check' : est === 'negado' ? 'close' : 'tool';
-        let chip = a.chips.get(ev.nome);
+        // o evento não traz id da chamada: uma chamada que esperava aprovação é "retomada" no mesmo chip;
+        // qualquer outra vira chip novo (duas chamadas da mesma ferramenta não se sobrescrevem)
+        let chip = [...a.chips].reverse().find(c => c.dataset.nome === ev.nome && c.dataset.estado === 'espera');
         if (!chip) {
-            chip = el('span', { class: 'tool-chip', role: 'img' });
-            a.chips.set(ev.nome, chip);
+            chip = el('span', { class: 'tool-chip', role: 'img', dataset: { nome: ev.nome } });
+            a.chips.push(chip);
             a.atividade.append(chip);
             a.atividade.hidden = false;
         }
@@ -260,13 +262,13 @@
         tirarPensando(a);
         if (a.texto) a.dur.textContent = U.fmtDur(performance.now() - a.t0);
         if (a.retoma) {
-            const falhou = a.erro || [...a.chips.values()].some(c => c.dataset.estado === 'negado');
+            const falhou = a.erro || a.chips.some(c => c.dataset.estado === 'negado');
             a.retoma.querySelector('.approval-state').textContent = falhou ? 'Aprovada · a execução falhou.' : 'Aprovada · executada.';
         }
         if (a.texto) a.prose.innerHTML = a.rs.renderizar(a.texto);
         a.el.dataset.streaming = 'false';
         textoDe.set(a.el, a.texto);
-        const util = a.texto || a.erro || a.cartoes.size || a.chips.size;
+        const util = a.texto || a.erro || a.cartoes.size || a.chips.length;
         if (!util) a.el.remove();
         else {
             if (interrompida) a.principal.insertBefore(el('div', { class: 'slow-note', dataset: { show: 'true' }, text: 'Resposta interrompida.' }), a.demora);
@@ -318,12 +320,14 @@
     }
 
     function limpar() {
+        if (ocupado) O.transport.cancelar();      // não deixa um stream órfão escrever numa conversa vazia
         $$('.msg, .day-sep, .msg-system', col).forEach(n => n.remove());
         if (atual) { clearTimeout(atual.timer); atual = null; }
         naoLidas = 0;
         setOcupado(false);
         atualizarVazio();
         atualizarBotaoFim();
+        bus.emit('chat:limpo');
     }
 
     function nota(texto, tipo = '') {

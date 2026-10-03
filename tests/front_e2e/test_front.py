@@ -417,7 +417,10 @@ def test_modo_foco_esconde_as_barras_e_esc_volta(abrir):
     page.keyboard.press("Control+.")
     expect(page.locator("html")).to_have_attribute("data-foco", "true")
     expect(page.locator("#sidebar")).to_be_hidden()
-    expect(page.locator("#topbar")).to_be_hidden()
+    expect(page.locator("#tb-title")).to_be_hidden()
+    assert (
+        page.locator("#topbar").evaluate("e => e.getBoundingClientRect().height") < 44
+    )  # só a faixa de arrastar
     expect(page.locator("#composer-input")).to_be_visible()
     page.keyboard.press("Escape")
     expect(page.locator("html")).not_to_have_attribute("data-foco", "true")
@@ -513,6 +516,133 @@ def test_aprovacao_pendente_avisa_fora_do_chat_e_a_paleta_leva_ate_ela(abrir):
     expect(page.locator(".approval").first).to_be_focused()
 
 
+# ── robustez (achados da revisão de código) ─────────────────────────────────────
+def test_duas_chamadas_da_mesma_ferramenta_viram_dois_chips(abrir):
+    page = abrir("#/chat")
+    enviar(page, "chame a ferramenta duas vezes")
+    esperar_fim(page)
+    chips = page.locator(".tool-chip")
+    expect(chips).to_have_count(2)
+    expect(chips.nth(0)).to_have_attribute("data-estado", "negado")
+    expect(chips.nth(1)).to_have_attribute("data-estado", "ok")
+
+
+def test_limpar_durante_a_resposta_pede_para_esperar_e_o_stream_orfao_nao_escreve(abrir):
+    page = abrir("#/chat")
+    enviar(page, "responda bem lento por favor")
+    page.fill("#composer-input", "/limpar")
+    page.keyboard.press("Enter")
+    expect(page.locator(".toast").last).to_contain_text("Espere a resposta terminar")
+    expect(page.locator("#chat-col .msg-user")).to_have_count(1)  # a conversa ficou intacta
+    # limpar por código no meio do stream: cancela de verdade, nada reaparece depois
+    page.evaluate("Orion.chat.limpar()")
+    page.wait_for_timeout(3800)  # o mock só começa a falar após 2,5 s
+    expect(page.locator(".msg-orion")).to_have_count(0)
+    expect(page.locator("#btn-send")).to_have_attribute("data-mode", "send")
+
+
+def test_busca_ignora_texto_oculto_e_acompanha_a_conversa(abrir):
+    page = abrir("#/chat")
+    enviar(page, "oi")
+    esperar_fim(page)
+    page.keyboard.press("Control+f")
+    page.keyboard.type("ajudar")  # só existe no estado vazio, escondido
+    expect(page.locator("#find-count")).to_have_text("Nada encontrado")
+    page.fill("#find-input", "pronto")
+    expect(page.locator("#find-count")).to_have_text("1 de 1")
+    page.evaluate("Orion.chat.limpar()")  # a busca aberta refaz sozinha
+    expect(page.locator("#find-count")).to_have_text("Nada encontrado")
+
+
+def test_buscar_a_partir_do_inicio_foca_a_busca_e_nao_o_campo(abrir):
+    page = abrir()
+    page.fill("#home-input", "/buscar qualquer")
+    page.keyboard.press("Enter")
+    expect(page.locator("html")).to_have_attribute("data-view", "chat")
+    expect(page.locator("#find-input")).to_be_focused()
+    page.wait_for_timeout(300)
+    expect(page.locator("#find-input")).to_be_focused()
+
+
+def test_arrastar_texto_nao_e_bloqueado_mas_arquivo_sim(abrir):
+    page = abrir("#/chat")
+    resultado = page.evaluate(
+        """() => {
+        const disparar = dt => { const e = new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt });
+            document.body.dispatchEvent(e); return e.defaultPrevented; };
+        const texto = new DataTransfer(); texto.setData('text/plain', 'um trecho');
+        const arquivo = new DataTransfer(); arquivo.items.add(new File(['x'], 'a.png', { type: 'image/png' }));
+        return [disparar(texto), disparar(arquivo)];
+    }"""
+    )
+    assert resultado == [False, True]
+
+
+def test_anexo_enviado_libera_a_miniatura_e_trocar_de_conversa_zera_o_tentar_de_novo(
+    abrir, tmp_path
+):
+    page = abrir(
+        "#/chat",
+        init="window.__revogadas = 0; const r = URL.revokeObjectURL; URL.revokeObjectURL = u => { window.__revogadas++; return r(u); };",
+    )
+    # o mock é compartilhado entre testes: começa de uma conversa que não é a de destino
+    page.locator("#sb-convs-list .conv", has_text="Plano da fase 0").click()
+    expect(page.locator('#sb-convs-list .conv[aria-current="true"]')).to_contain_text(
+        "Plano da fase 0"
+    )
+    img = tmp_path / "foto.png"
+    img.write_bytes(
+        bytes.fromhex(
+            "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d49444154789c6360000002000001e221bc330000000049454e44ae426082"
+        )
+    )
+    page.set_input_files("#file-input", str(img))
+    expect(page.locator(".attach-chip")).to_have_attribute("data-estado", "ok")
+    page.fill("#composer-input", "o que é isso?")
+    page.keyboard.press("Enter")
+    esperar_fim(page)
+    assert page.evaluate("window.__revogadas") >= 1, "a miniatura ficou na memória depois do envio"
+    assert page.evaluate("Orion.composer.temPedido()") is True
+    page.locator("#sb-convs-list .conv", has_text="Dúvida de UML").click()
+    expect(page.locator('#sb-convs-list .conv[aria-current="true"]')).to_contain_text(
+        "Dúvida de UML"
+    )
+    assert page.evaluate("Orion.composer.temPedido()") is False
+
+
+def test_desktop_parar_cancela_no_launcher_e_o_proximo_envio_espera_o_idle(abrir):
+    page = abrir(init=SHIM_DESKTOP)
+    page.wait_for_function("window.__hub && window.__hub.readyState === 1")
+    enviar(page, "primeira pergunta")
+    page.evaluate(
+        "window.__hub.emit({state: 'processing'}); window.__hub.emit({ai_chunk: 'Começo da resposta '})"
+    )
+    expect(page.locator("#btn-send")).to_have_attribute("data-mode", "stop")
+    page.keyboard.press("Escape")
+    assert ["cancel_command"] in page.evaluate("window.__chamadas")
+    expect(page.locator("#btn-send")).to_have_attribute("data-mode", "send")
+    # sobra do pedido cancelado não entra em lugar nenhum
+    page.evaluate("window.__hub.emit({ai_chunk: 'sobra que não deve aparecer'})")
+    expect(page.locator("#chat-col")).not_to_contain_text("sobra que não deve aparecer")
+    # enquanto o launcher não confirma o idle, um novo envio espera
+    page.fill("#composer-input", "segunda pergunta")
+    page.keyboard.press("Enter")
+    expect(page.locator(".toast").last).to_contain_text("Espere a resposta terminar")
+    assert len([c for c in page.evaluate("window.__chamadas") if c[0] == "process_command"]) == 1
+    page.evaluate("window.__hub.emit({state: 'idle'})")
+    page.keyboard.press("Enter")
+    page.wait_for_function("window.__chamadas.filter(c => c[0] === 'process_command').length === 2")
+
+
+def test_modo_foco_no_desktop_mantem_os_botoes_da_janela(abrir):
+    page = abrir("#/chat", init=SHIM_DESKTOP)
+    page.keyboard.press("Control+.")
+    expect(page.locator("html")).to_have_attribute("data-foco", "true")
+    expect(page.locator("#window-controls")).to_be_visible()
+    page.click("#btn-min")
+    assert ["minimize"] in page.evaluate("window.__chamadas")
+
+
 # ── segurança no navegador (ORION_REGRAS 10–12) ─────────────────────────────────
 def test_markdown_malicioso_nao_executa_nem_vaza(abrir):
     page = abrir("#/chat")
@@ -542,6 +672,7 @@ window.pywebview = { api: {
   process_command: (t, m) => { window.__chamadas.push(['process_command', t, m]); return true; },
   get_config: async () => ({ token: '' }),
   open_external: u => { window.__chamadas.push(['open_external', u]); return true; },
+  cancel_command: () => window.__chamadas.push(['cancel_command']),
   minimize_app: () => window.__chamadas.push(['minimize']),
   toggle_maximize: () => window.__chamadas.push(['maximize']),
   close_app: () => window.__chamadas.push(['close']),

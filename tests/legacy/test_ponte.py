@@ -73,3 +73,44 @@ def test_mensagens_de_falha_orientam_o_usuario():
     assert "ORION_ADMIN_TOKEN" in mensagem_de_falha(401)
     assert "500" in mensagem_de_falha(500)
     assert "offline" in mensagem_de_falha(None)
+
+
+def test_geracao_cancelar_invalida_o_pedido_em_curso_e_so_ele():
+    from ponte import Geracao
+
+    g = Geracao()
+    primeiro = g.nova()
+    assert g.vigente(primeiro)
+    g.cancelar()
+    assert not g.vigente(primeiro), "o pedido cancelado precisa parar de falar com o hub"
+    segundo = g.nova()
+    assert g.vigente(segundo) and not g.vigente(primeiro)
+
+
+def test_geracao_pedido_novo_tambem_invalida_o_anterior():
+    from ponte import Geracao
+
+    g = Geracao()
+    a = g.nova()
+    b = g.nova()
+    assert not g.vigente(a) and g.vigente(b)
+
+
+def test_geracao_aguenta_threads_concorrentes():
+    import threading
+
+    from ponte import Geracao
+
+    g = Geracao()
+    numeros: list[int] = []
+
+    def pedir():
+        for _ in range(200):
+            numeros.append(g.nova())
+
+    ts = [threading.Thread(target=pedir) for _ in range(8)]
+    [t.start() for t in ts]
+    [t.join() for t in ts]
+    assert len(set(numeros)) == len(numeros) == 1600, (
+        "números repetidos: cancelar poderia atingir o pedido errado"
+    )

@@ -110,7 +110,7 @@
 
     function enviar(inst) {
         if (tratarComando(inst)) return;
-        if (O.chat.ocupado()) {
+        if (O.chat.ocupado() || O.transport.cancelando()) {
             // Enter com a resposta em andamento NÃO a cancela (quem digita o próximo pedido não perde a resposta)
             ui.toast('Espere a resposta terminar, ou pare com Esc.', { tipo: 'aviso', ms: 2600, id: 'ocupado' });
             return;
@@ -124,7 +124,7 @@
         const prompt = montarPrompt(texto, prontos);
         inst.ta.value = '';
         autoajustar(inst.ta);
-        if (inst === chat) { limparAnexos(false); salvarRascunho(); }
+        if (inst === chat) { limparAnexos(true); salvarRascunho(); }   // a bolha mostra só os nomes: libera as miniaturas
         if (document.documentElement.dataset.view !== 'chat') O.app.ir('chat');
         disparar({ prompt, exibir: texto || nomes.join(', '), nomes });
         atualizar();
@@ -303,10 +303,11 @@
         const temArquivos = e => Array.from(e.dataTransfer?.types || []).includes('Files');
         const marcar = on => { chat.caixa.dataset.drag = String(on); };
         // sem isto o webview ABRE o arquivo solto e a interface some
-        document.addEventListener('dragover', e => { e.preventDefault(); });
-        document.addEventListener('dragenter', e => { e.preventDefault(); if (temArquivos(e)) { nivel++; marcar(true); } });
-        document.addEventListener('dragleave', e => { e.preventDefault(); if (temArquivos(e) && --nivel <= 0) { nivel = 0; marcar(false); } });
-        document.addEventListener('drop', e => { e.preventDefault(); nivel = 0; marcar(false); adicionar(e.dataTransfer?.files); });
+        // só arquivos: arrastar texto dentro do campo (mover/copiar trecho) segue o comportamento normal
+        document.addEventListener('dragover', e => { if (temArquivos(e)) e.preventDefault(); });
+        document.addEventListener('dragenter', e => { if (temArquivos(e)) { e.preventDefault(); nivel++; marcar(true); } });
+        document.addEventListener('dragleave', e => { if (temArquivos(e) && --nivel <= 0) { nivel = 0; marcar(false); } });
+        document.addEventListener('drop', e => { if (!temArquivos(e)) return; e.preventDefault(); nivel = 0; marcar(false); adicionar(e.dataTransfer?.files); });
     }
 
     /* ── API ───────────────────────────────────────────────────────────── */
@@ -336,6 +337,7 @@
         montarMenuModelo();
         ligarArrastar();
         bus.on('sessoes', ({ ativa }) => trocarRascunho(ativa));
+        bus.on('chat:limpo', () => { ultimoPedido = null; });     // "tentar de novo" nunca reenvia o pedido de outra conversa
         bus.on('chat:ocupado', atualizar);
         atualizar();
         // ao trocar o texto por fora (sugestões), reajusta a altura

@@ -95,9 +95,10 @@
             } catch (e) { ui.toast(`Falha ao exportar: ${e.message}`, { tipo: 'erro' }); }
         },
         async limpar() {
+            if (O.chat.ocupado()) { ui.toast('Espere a resposta terminar, ou pare com Esc, para limpar.', { tipo: 'aviso', ms: 2800, id: 'ocupado' }); return; }
             const sim = await ui.confirmar({ titulo: 'Limpar o histórico desta sessão?', ok: 'Limpar', perigo: true,
                 texto: 'Apaga a conversa em memória nesta sessão. A memória de longo prazo não é afetada.' });
-            if (!sim) return;
+            if (!sim || O.chat.ocupado()) return;
             try { await api.limparHistorico(); O.chat.limpar(); ui.toast('Histórico em memória limpo.', { tipo: 'ok' }); }
             catch (e) { ui.toast(`Falha ao limpar: ${e.message}`, { tipo: 'erro' }); }
         },

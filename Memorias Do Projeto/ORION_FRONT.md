@@ -99,7 +99,7 @@ quando um endpoint não existe. Transporte do chat: no pywebview, API + hub WS (
 | Orçamento | Resultado | Onde |
 |---|---|---|
 | Axe (serious/critical **e** moderate/best-practice) | 0 violações em 5 telas × 3 temas, no chat com resposta + aprovação + erro, e com paleta e menu abertos | `test_axe_*` |
-| Console | 0 erros/avisos em todos os 69 testes de navegador (a fixture derruba o teste) | `conftest.py` |
+| Console | 0 erros/avisos em todos os 77 testes de navegador (a fixture derruba o teste) | `conftest.py` |
 | Teclado | `Ctrl+K`, `Alt+1..5`, `/`, `?`, `Ctrl+B`, `Ctrl+.`, `Ctrl+F`, `Esc`; telas ocultas `inert`; menu `/` e paleta no padrão combobox | `test_atalhos_*`, `test_paleta_*`, `test_comandos_*` |
 | Janela estreita | Sem rolagem horizontal a 700 e 860 px nas 5 telas; barra vira trilho e volta ao alargar | `test_janela_*` |
 | Streaming | Renderizações ≤ quadros + 2 (a resposta chega em ~100 pedaços) | `test_streaming_rende_*` |
@@ -107,7 +107,7 @@ quando um endpoint não existe. Transporte do chat: no pywebview, API + hub WS (
 | Segurança | `<script>`, `onerror`, `javascript:` e imagem externa em texto do modelo: nada executa, nada sai do app; CSP com o hash do único script inline (teste falha se o script mudar sem atualizar o hash) | `test_markdown_malicioso_*`, `test_csp_*` |
 | Desktop | Caminho `process_command` + hub com shim (eco sem duplicar, ferramenta, modelo, fala vinda do microfone, link por `open_external`, controles da janela) | `test_desktop_*` |
 | Lógica pura | 89 testes em Node (md, sse, store, util, fuzzy, charts, slash) | `tests/front/` |
-| Ponte e servidor | `ponte.py` (relay de eventos, URL externa, cabeçalho) e `/ui/` do `orion.app` (sem `.py`, sem `__pycache__`) | `tests/legacy/test_ponte.py`, `tests/test_app_ui.py` |
+| Ponte e servidor | `ponte.py` (relay de eventos, URL externa, cabeçalho, geração de comandos) e `/ui/` do `orion.app` (sem `.py`, sem `__pycache__`) | `tests/legacy/test_ponte.py`, `tests/test_app_ui.py` |
 
 Peso: ~1,1 MB no primeiro carregamento (three.js 600 KB, Inter 48 KB, CSS 80 KB, JS ~200 KB);
 o 3d-force-graph (700 KB) só baixa na primeira visita à Memória.
@@ -123,6 +123,13 @@ o 3d-force-graph (700 KB) só baixa na primeira visita à Memória.
 - Aprovar o cartão enquanto o texto final ainda chegava misturava a retomada na mensagem anterior (a
   resposta "Feito. Removi…" ficava partida em duas); agora a retomada espera a resposta acabar e abre
   mensagem nova. Teste vermelho sem a correção, verde com ela.
+- Revisão de código (10 achados, todos com teste vermelho sem a correção e verde com ela):
+  duas chamadas da mesma ferramenta sobrescreviam o chip; `/limpar` e trocar de conversa com resposta em
+  andamento deixavam um stream órfão escrevendo na conversa vazia; "Tentar de novo" reenviava o pedido de
+  outra conversa; arrastar texto sobre a janela abria o seletor de anexos; a miniatura do anexo ficava na
+  memória depois do envio; o modo foco escondia os controles da janela; a busca (`Ctrl+F`) marcava texto
+  oculto e perdia o foco; no desktop, parar uma resposta não interrompia o launcher (agora há
+  `cancel_command` e geração: um comando velho não escreve no hub do novo).
 
 ### O que **não** foi verificado
 

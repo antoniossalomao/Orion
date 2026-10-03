@@ -156,8 +156,11 @@ html.shell-desktop #window-controls { display: flex; }
 
 /* ── Modo foco (Ctrl+.): só a conversa ───────────────────────────────── */
 html[data-foco="true"] { --sb-cur: 0px; }
-html[data-foco="true"] #sidebar, html[data-foco="true"] #topbar { display: none; }
+html[data-foco="true"] #sidebar { display: none; }
 html[data-foco="true"] #app { grid-template-columns: minmax(0, 1fr); }
+/* a barra superior encolhe para a faixa de arrastar + botões da janela (sem moldura não há outro jeito de mover ou fechar) */
+html[data-foco="true"] #topbar { height: 2.25rem; padding-top: 0; }
+html[data-foco="true"] #topbar > :not(.tb-drag):not(#window-controls) { display: none; }
 
 /* ── Janela estreita (≤ 860 px): a barra vira trilho de ícones (o JS força data-sb="collapsed") ── */
 @media (max-width: 860px) {

@@ -109,7 +109,7 @@
         enviar({ texto, modelo = 'auto' }) {
             const ponte = window.pywebview?.api;
             if (ponte?.process_command && hubAberto) {
-                ignorarHub = false;
+                // `ignorarHub` NÃO é limpo aqui: sobra de um pedido cancelado não entra na resposta nova
                 ponte.process_command(texto, modelo);
                 return 'hub';
             }
@@ -125,8 +125,14 @@
 
         cancelar() {
             if (abortar) { abortar(); return; }
-            if (hubAberto) { ignorarHub = true; emitir({ tipo: 'fim', interrompida: true }); }
+            if (hubAberto) {
+                ignorarHub = true;                              // descarta o que ainda chegar, até o idle
+                window.pywebview?.api?.cancel_command?.();      // app novo: o launcher para o stream e manda o idle na hora
+                emitir({ tipo: 'fim', interrompida: true });
+            }
         },
+        /** parou pelo hub e o launcher ainda não confirmou (idle): novo envio espera */
+        cancelando: () => ignorarHub,
     };
     O.transport = transport;
 })();

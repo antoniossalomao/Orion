@@ -6,6 +6,7 @@ importa `webview`, que só existe no PC do usuário.
 
 from __future__ import annotations
 
+import threading
 from typing import Any
 from urllib.parse import urlparse
 
@@ -57,3 +58,27 @@ def mensagem_de_falha(status: int | None, detalhe: str = "") -> str:
     if status:
         return f"O cérebro respondeu com erro {status}."
     return "O cérebro está offline." if not detalhe else f"Falha ao falar com o cérebro: {detalhe}"
+
+
+class Geracao:
+    """Número do pedido em curso, para o launcher poder cancelar o stream de um `process_command`.
+
+    Cada pedido pega um número (`nova`). `cancelar` invalida o em curso: a thread do pedido confere
+    `vigente(n)` a cada linha e para; nada que ela ainda tivesse a dizer chega ao hub.
+    """
+
+    def __init__(self) -> None:
+        self._n = 0
+        self._trava = threading.Lock()
+
+    def nova(self) -> int:
+        with self._trava:
+            self._n += 1
+            return self._n
+
+    def cancelar(self) -> None:
+        with self._trava:
+            self._n += 1
+
+    def vigente(self, n: int) -> bool:
+        return n == self._n

@@ -406,6 +406,26 @@ def create_app() -> FastAPI:
                     else str(corpo["modelo"]).title()
                 }
             )
+            if (
+                "duas vezes" in baixo
+            ):  # a mesma ferramenta chamada duas vezes: uma negada, uma permitida
+                yield _sse(
+                    {
+                        "tool": {
+                            "name": "ler_arquivo",
+                            "decision": "deny",
+                            "reason": "fora da pasta segura",
+                        }
+                    }
+                )
+                yield _sse({"tool": {"name": "ler_arquivo", "decision": "allow", "reason": ""}})
+                async for p in _pedacos(
+                    "Tentei duas vezes: a primeira foi negada, a segunda deu certo.",
+                    ESTADO["delay"],
+                ):
+                    yield _sse({"text": p})
+                yield _sse("[DONE]")
+                return
             if "apag" in baixo or "aprov" in baixo or "comando" in baixo:
                 aid = secrets.token_urlsafe(6)
                 args = {"cmd": "Remove-Item C:\\Users\\anton\\Downloads\\antigos -Recurse -Force"}

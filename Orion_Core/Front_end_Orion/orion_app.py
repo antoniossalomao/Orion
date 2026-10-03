@@ -23,6 +23,7 @@ from origem import ORIGENS_PERMITIDAS  # noqa: E402
 from ponte import (  # noqa: E402
     cabecalhos_chat,
     mensagem_de_falha,
+    Geracao,
     mensagens_do_evento,
     url_externa_permitida,
 )
@@ -109,13 +110,22 @@ def _start_ws():
 # ── API exposta ao JavaScript via pywebview ────────────────────────────────────
 class OrionApi:
 
+    def __init__(self) -> None:
+        self._gen = Geracao()  # privado (_): o pywebview só expõe ao JS o que não começa com "_"
+
     def process_command(self, command: str, modelo: str = "auto") -> bool:
         """Recebe texto do frontend -> streama cerebro :8000 -> envia chunks via WS.
         modelo: 'auto' (cascata) | 'groq' | 'gemini' | 'claude' — seletor manual do painel."""
-        threading.Thread(target=self._chat_thread, args=(command, modelo), daemon=True).start()
+        n = self._gen.nova()
+        threading.Thread(target=self._chat_thread, args=(command, modelo, n), daemon=True).start()
         return True
 
-    def _chat_thread(self, command: str, modelo: str = "auto") -> None:
+    def cancel_command(self) -> None:
+        """"Parar" do front: a thread do pedido em curso fecha o stream e o hub volta a idle na hora."""
+        self._gen.cancelar()
+        broadcast_state("idle", 0.0)
+
+    def _chat_thread(self, command: str, modelo: str = "auto", n: int = 0) -> None:
         _broadcast({"user_text": command})
         broadcast_state("processing", 0.30)
         try:
@@ -135,6 +145,8 @@ class OrionApi:
                     resp.raise_for_status()
                     broadcast_state("speaking", 0.0)
                     for line in resp.iter_lines():
+                        if not self._gen.vigente(n):
+                            break  # cancelado: sair do `with` fecha a conexão e o cérebro para de gerar
                         if not line.startswith("data: "):
                             continue
                         raw = line[6:].strip()
@@ -148,13 +160,16 @@ class OrionApi:
                         for msg in mensagens_do_evento(d):
                             _broadcast(msg)
         except httpx.HTTPStatusError as e:
-            _broadcast({"error": mensagem_de_falha(e.response.status_code)})
+            if self._gen.vigente(n):
+                _broadcast({"error": mensagem_de_falha(e.response.status_code)})
             print(f"[ORION] process_command erro: {e}")
         except Exception as e:
-            _broadcast({"error": mensagem_de_falha(None)})
+            if self._gen.vigente(n):
+                _broadcast({"error": mensagem_de_falha(None)})
             print(f"[ORION] process_command erro: {e}")
 
-        broadcast_state("idle", 0.0)
+        if self._gen.vigente(n):  # cancelado: o `cancel_command` já mandou o idle
+            broadcast_state("idle", 0.0)
 
     def get_config(self) -> dict:
         """Entrega ao front o que só o app desktop sabe (token do orion.app, vindo do ambiente)."""
