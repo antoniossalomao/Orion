@@ -143,12 +143,12 @@ O que existe hoje e o destino de cada peça. "Fase" = quando é substituído e a
 | `session_manager.py` | Portar a lógica | 3 |
 | `orion_shadow_thoughts.py` | Reescrever como consolidação da memória (job) | 3 — feito em `orion/memory/consolidate.py` (fatos a partir das falas do Antônio) |
 | `proactive_loop.py` | Reescrever como agendador (lembretes, consolidação, backup); self-healing de bancos deixa de existir | 3–4 — feito em `orion/jobs.py` (lembretes, agendamentos, embeddings, vault, backup, consolidação); falta a vigilância de pastas |
-| `tools/` (55 ferramentas) | Triagem: o que um servidor MCP pronto já faz sai; o resto vai para `orion-desktop` multiplataforma | 4 — triagem proposta em [ORION_FERRAMENTAS.md](ORION_FERRAMENTAS.md): 7 portadas, 3 substituídas, 37 a portar, 8 a descartar |
+| `tools/` (55 ferramentas) | Triagem: o que um servidor MCP pronto já faz sai; o resto vai para `orion-desktop` multiplataforma | 4 — triagem proposta em [ORION_FERRAMENTAS.md](ORION_FERRAMENTAS.md): 10 portadas, 3 substituídas, 34 a portar, 8 a descartar |
 | `orion_seguranca.py` (rate limit, Câmara de Eco, audit) | Portar como política de ferramentas | 4 |
 | `orion_browser.py`, `orion_google_workspace.py` | Servidores MCP (navegador, Google) | 4 |
-| `orion_telegram.py` | Reescrever como canal principal do celular | 5 |
+| `orion_telegram.py` | Reescrever como canal principal do celular | 5 — feito em `orion/channels/telegram.py` (texto, botões de aprovar, avisos; falta voz e foto). O bot do legado **não** fala com o `/chat` novo (não envia o token) |
 | Login (PBKDF2 + JWT, `utils/auth.py` no histórico do git) | Portar | 5 |
-| `bin/startup/*.bat`, `orion_boot.vbs` | Apagar — um comando só e autostart por SO | 5 |
+| `bin/startup/*.bat`, `orion_boot.vbs` | Apagar — um comando só e autostart por SO | 5 — `orion autostart` gera o arquivo de cada SO (falta ligar no notebook); apagar na fase 7 |
 | `orion_voice_live.py`, `audio_manager.py`, `mic_engine.py`, `commands.py` | Voz nova (masculina, palavra de ativação "Orion") | 6 |
 | Frontend v1 (pywebview + Three.js), `dashboard.html` | Decidir na fase de interface | 6 |
 
@@ -187,8 +187,11 @@ pronta no código: memória SQLite com esquema v2 (operação, grafo, fila de av
 (conversas, lembretes, agendamentos, tarefas, números, prompts, arestas), embeddings pela API gratuita,
 consolidação em fatos, agendador e backup diário (falta a chave de embeddings e as suas perguntas reais);
 a fase 2 existe com gateway e CLIs falsos (falta OmniRoute e CLIs reais); a fase 4 tem a política, as
-ferramentas de memória, operação e `delegar` e a triagem das 55 do legado (faltam MCP e `orion-desktop`);
-a fase 6 tem o front redesenhado (só desktop); as fases 5 e 7 não começaram.
+ferramentas de memória, operação e `delegar`, o `orion-desktop` v0 (executar comando, ler e listar
+arquivos; desligado por padrão) e a triagem das 55 do legado (faltam MCP e o resto do `orion-desktop`);
+a fase 5 começou: canal Telegram novo (texto, aprovação por botão, avisos) e `orion autostart`, ambos
+testados só com API e sistema falsos (faltam login e Tailscale); a fase 6 tem o front redesenhado (só
+desktop); a fase 7 não começou.
 
 ## 7. Decisões em aberto
 
@@ -241,6 +244,10 @@ a fase 6 tem o front redesenhado (só desktop); as fases 5 e 7 não começaram.
 | 03/10/2026 | Consolidação da memória em fatos a partir das falas do Antônio, a cada 6 h, ignorando o canal `legado` | Substitui o ciclo de sono; só fala do usuário para não virar canal de injeção; regra 19 |
 | 03/10/2026 | Host fora de `127.0.0.1` em `ORION_ALLOWED_HOSTS` exige `ORION_ADMIN_TOKEN` | "Tailscale só depois do login": a configuração recusa subir sem token; regra 17 |
 | 03/10/2026 | `httpx` passa a dependência de execução (estava só no grupo `dev`) | O gateway e os embeddings o importam em tempo de execução |
+| 03/10/2026 | Canal Telegram novo (`orion/channels/telegram.py`): long polling, default-deny por ID e conversa privada, aprovação só por botão, avisos da fila; sobe só com `ORION_TELEGRAM_TOKEN` + `ORION_TELEGRAM_ALLOWED_USERS` + gateway | Fase 5. O bot do legado não envia o token do `/chat` novo (401) e foi feito para o legado; regra 21. **Não validado contra o Telegram real** |
+| 03/10/2026 | `orion-desktop` v0 (`executar_comando`, `ler_arquivo`, `listar_arquivos`), **desligado por padrão** (`ORION_DESKTOP_TOOLS=true`); ler segredo ou chave (`.env`, `.ssh`, `*.pem`...) passa a pedir aprovação | O Orion novo não tinha como agir no computador; tudo atrás da política; regras 6 e 22 |
+| 03/10/2026 | `orion autostart` gera o arquivo de início automático (Startup no Windows, LaunchAgent no macOS, unit de usuário no Linux) e imprime o comando de ativação, sem executá-lo | Fase 5 "autostart por SO"; não mexer no sistema sem o Antônio |
+| 03/10/2026 | Logger do `httpx` fixado em WARNING | A URL da API do Telegram carrega o token do bot; o `httpx` a registra em INFO |
 
 ## 9. Visão de longo prazo (conceitual)
 

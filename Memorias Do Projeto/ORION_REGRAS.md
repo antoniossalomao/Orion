@@ -40,6 +40,9 @@
 | 19 | **Fato consolidado só vem de fala do Antônio**, nunca de resposta do modelo nem de resultado de ferramenta; tem fonte e data, é editável, segredo é descartado, e o histórico importado (canal `legado`) fica de fora. A marca de progresso só avança se o modelo respondeu e a resposta foi lida. | `orion/memory/consolidate.py` | `tests/memory/test_consolidate.py` |
 | 20 | **Pendência velha não vira rajada de aviso.** Na importação, lembrete vencido há mais de 24 h entra já avisado e agendamento único atrasado entra desativado; recorrente atrasado recalcula o próximo horário. | `orion/memory/importer.py` | `tests/memory/test_importer.py::test_importa_operacao_com_regras_de_seguranca_dos_avisos` |
 
+| 21 | **Telegram: default-deny e aprovação só por botão.** Só responde a ID da lista, em conversa privada; o resto é ignorado em silêncio. Só o clique de usuário permitido num cartão de aprovação do próprio canal decide (frase nunca). O token vai na URL da API: nenhum erro ou log leva a URL, e o logger do `httpx` fica em WARNING. Sem token + lista + gateway, o canal não sobe. | `orion/channels/telegram.py`, `orion/config.py`, `orion/log.py` | `tests/test_telegram.py` |
+| 22 | **Ler segredo ou chave pede confirmação.** `.env`, `.ssh`, `.aws`, `*.pem`, `google_auth/`, `id_rsa`... em `ler_arquivo`/`listar_arquivos` viram pedido de aprovação (o caminho é resolvido antes: symlink para `.env` continua `.env`). O shell só roda direto o que for leitura provada (regra 6) e o filho não herda `ORION_*` nem variável com nome de segredo. | `orion/policy/paths.py` (`check_read`), `engine.py`, `orion/tools/desktop.py` | `tests/policy/test_paths.py`, `tests/policy/test_engine.py`, `tests/test_desktop.py` |
+
 ## Código
 
 | # | Regra | Onde é imposta |

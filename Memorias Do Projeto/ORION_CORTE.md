@@ -7,7 +7,7 @@
 ## 1. Por que existe
 
 O legado só roda no PC atual (GPU, Qdrant, SurrealDB). O notebook de 8 GB não roda nada disso, e a
-reescrita (`orion/`) ainda não tem Telegram novo, login, ferramentas MCP nem modelos reais ligados.
+reescrita (`orion/`) já tem o canal Telegram novo, mas ainda não tem login, ferramentas MCP nem modelos reais ligados.
 Vender o PC é o **ponto sem volta**: depois dele, voltar ao legado é reconstruir, não religar. Por isso
 a venda só acontece com os dois blocos abaixo cumpridos.
 
@@ -49,10 +49,11 @@ Critérios para considerar que o legado pode sair:
 | 1 | Memória importada e pesquisável | `orion import-surreal <pasta> --assistente <nome>`; contagens iguais às do `verify-export` | código pronto |
 | 2 | Busca acerta as suas perguntas | 15–30 perguntas em `tests/eval_pessoal.local.json` (modelo: `tests/eval_pessoal.example.json`); `python -m orion.memory.eval <casos> --db <orion.db> --embeddings --min-hit-rate 0.8` | **(você)** escrever as perguntas; chave de embeddings |
 | 3 | Modelos reais respondem | OmniRoute no ar; `POST /chat` segue respondendo com um provedor derrubado de propósito | **(você)** subir o OmniRoute |
-| 4 | Canal no celular | Telegram lendo o `/chat` novo e entregando `/notifications`. Caminho mais curto: o bot do legado (`orion_telegram.py`) já lê o `/chat` novo sem mudança (ORION_MELHORIAS B1); a verificar no notebook. O bot novo com botões de aprovar é a fase 5 | a verificar / fase 5 |
-| 5 | Acesso de fora sem expor porta | Tailscale; `ORION_ALLOWED_HOSTS` com o nome do notebook **exige** `ORION_ADMIN_TOKEN` (a configuração recusa subir sem) | código pronto; **(você)** instalar Tailscale |
-| 6 | Backup restaurável | `ORION_BACKUP_DIR` apontando para o iCloud/OneDrive; um backup restaurado com `orion restore` num banco limpo | código pronto |
-| 7 | Ferramentas essenciais | Lembretes, tarefas e memória já existem; `delegar` com as CLIs reais; o resto da [triagem](ORION_FERRAMENTAS.md) que você exigir antes da venda: ______ **(você)** | parcial |
+| 4 | Canal no celular | Canal Telegram novo (`orion/channels/telegram.py`): `ORION_TELEGRAM_TOKEN` + `ORION_TELEGRAM_ALLOWED_USERS` + gateway; mande uma mensagem, aprove uma ação pelo botão e receba um lembrete. **O bot do legado não serve:** ele não envia o token do `/chat` novo (recebe 401). Pare o legado antes (o Telegram recusa dois clientes no mesmo token: erro 409) | código pronto, testado só com API falsa; **(você)** criar/usar o bot e rodar no notebook |
+| 5 | Início automático | `uv run orion autostart` mostra o arquivo do seu sistema; `--install` grava (não ativa sozinho) e imprime o comando de ligar | código pronto; **(você)** ativar no notebook |
+| 6 | Acesso de fora sem expor porta | Tailscale; `ORION_ALLOWED_HOSTS` com o nome do notebook **exige** `ORION_ADMIN_TOKEN` (a configuração recusa subir sem) | código pronto; **(você)** instalar Tailscale |
+| 7 | Backup restaurável | `ORION_BACKUP_DIR` apontando para o iCloud/OneDrive; um backup restaurado com `orion restore` num banco limpo | código pronto |
+| 8 | Ferramentas essenciais | Lembretes, tarefas e memória já existem; `ORION_DESKTOP_TOOLS=true` liga executar comando, ler e listar arquivos (ação fora da leitura provada pede aprovação; no Windows só o argv foi testado); `delegar` com as CLIs reais; o resto da [triagem](ORION_FERRAMENTAS.md) que você exigir antes da venda: ______ **(você)** | parcial |
 
 Período em paralelo antes de vender: proposta de **7 dias** usando só o Orion novo no dia a dia, com o
 legado desligado mas intacto. Os dois não sobem juntos (a porta 8000 é a mesma; use `ORION_PORT`).
@@ -60,7 +61,7 @@ legado desligado mas intacto. Os dois não sobem juntos (a porta 8000 é a mesma
 ## 4. Corte
 
 1. Um segundo export final (a importação é idempotente: repetir não duplica) e `verify-export` de novo.
-2. Checklist: bloco A verde, critérios 1–7 verdes, 7 dias de uso sem perda.
+2. Checklist: bloco A verde, critérios 1–8 verdes, 7 dias de uso sem perda.
 3. Só então vender. Fase 7 (apagar `Orion_Ollama/`, `Orion_Core/`, `bin/`) vem **depois**, não antes.
 
 ## 5. Rollback

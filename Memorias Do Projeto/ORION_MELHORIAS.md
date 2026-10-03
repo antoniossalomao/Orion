@@ -1,7 +1,7 @@
 # ORION — Plano de melhorias e o que foi feito
 
 > Auditoria de 02/10/2026 (backend, front, regras, docs) e a execução dela, mais a segunda
-> rodada de 03/10/2026 (achados R1–R7 abaixo). Cada achado tem ID, evidência e status. O que
+> rodada de 03/10/2026 (achados R1–R10 abaixo). Cada achado tem ID, evidência e status. O que
 > **não** foi verificado está na seção própria.
 > Regras resultantes: [ORION_REGRAS.md](ORION_REGRAS.md). Plano de fases: [ORION_NUCLEO.md](ORION_NUCLEO.md).
 
@@ -13,7 +13,7 @@ Legenda: ✅ resolvido e testado · 🟡 parcial · ⏳ depende de você ou de f
 |---|---|---|---|---|
 | S1 | Alta | Câmara de Eco era blocklist de substring: `ri … -Recurse -Force`, `-r -fo`, `rmdir /s /q`, `-enc`, `[IO.Directory]::Delete`, `irm \| iex` saíam "baixo" | ✅ | Allowlist de leitura (`orion/policy/shell.py`); o legado delega a ela. `tests/policy/test_shell.py` tem os bypasses |
 | S2 | Alta | Escrever no próprio código (`.py`, `.env` em `C:\Orion`) era "baixo risco" (lido do código) | ✅ | `PathGuard` protege a raiz do projeto; vale também para `gerar_documento` |
-| B1 | Alta | Telegram devolvia o JSON cru do SSE (`{"tier":…}{"text":…}`) | ✅ | Parse correto + teste; o `/chat` novo é lido pelo mesmo bot sem mudança |
+| B1 | Alta | Telegram devolvia o JSON cru do SSE (`{"tier":…}{"text":…}`) | ✅ | Parse correto + teste. (Correção de 03/10: só o *formato* do SSE é o mesmo; o bot do legado não envia o token que o `/chat` novo exige, então o canal novo `orion/channels/telegram.py` o substitui) |
 | S3 | Média | Hub `:8765` e `/ws/voice` aceitavam qualquer `Origin`; `/upload` sem limite | 🟡 | Origin conferido (testado com `websockets` real) e 25 MB. **Falta:** `/mcp` e o REST do legado seguem sem login até a fase 5 |
 | S4 | Média | `buscar_url` sem bloqueio de IP local (SSRF para o REST do próprio Orion) | ✅ | `url_guard` (loopback, LAN, Tailscale, metadados, redirects). Limite: janela de DNS rebinding; o agente do `navegar_web` navega livre depois da 1ª página |
 | S5 | Média | Confirmação por frase no chat, estado global, "turno seguinte" | ✅ (novo) | Aprovação fora de banda por (sessão, ferramenta, hash), 10 min, uso único. No legado a frase continua, mas o gate ficou mais forte |
@@ -42,6 +42,9 @@ Revisão do plano (NUCLEO §6–7) contra o código e o CI. Corte e operação: 
 | R5 | Média | Sem agendador: lembretes e agendamentos migrados não teriam quem os disparasse; embeddings sem cliente; backup sem agendamento; sem consolidação | ✅ (embeddings e consolidação só com falsos) | `orion/jobs.py`, `GeminiEmbedder`, `Consolidator`, fila `/notifications`, backup diário em `ORION_BACKUP_DIR`, `ORION_VAULT_DIR` |
 | R6 | Média | Host fora de `127.0.0.1` (Tailscale) podia ser liberado sem login | ✅ | Regra 17: a configuração recusa subir sem `ORION_ADMIN_TOKEN` |
 | R7 | Baixa | `httpx` era importado em tempo de execução mas só declarado no grupo `dev`; docs defasadas ("CI remoto não rodou", fase 6 "só md.js") | ✅ | Dependência movida; docs sincronizadas; triagem das 55 ferramentas em [ORION_FERRAMENTAS.md](ORION_FERRAMENTAS.md) |
+| R8 | Alta | O plano dizia que o bot do Telegram do legado lia o `/chat` novo "sem mudança": falso. O `/chat` novo exige `Authorization: Bearer` e o bot do legado não envia (401); o teste só provava o formato do SSE | ✅ (API falsa) | Canal novo `orion/channels/telegram.py`: default-deny, aprovação por botão, fila de avisos; regra 21 |
+| R9 | Média | Sem `autostart` e sem ferramentas para agir no computador no núcleo novo | ✅ (Windows só no argv) | `orion autostart` (gera, não ativa) e `orion-desktop` v0 opt-in; ler segredo/chave agora confirma (regra 22) |
+| R10 | Baixa | O `httpx` registra a URL em INFO, e a URL da API do Telegram carrega o token; campo `args` duplicado em `Approval` | ✅ | Logger do `httpx`/`httpcore` em WARNING (com teste); campo duplicado removido |
 
 ## O que foi construído (por fase do NUCLEO)
 
@@ -52,7 +55,7 @@ Revisão do plano (NUCLEO §6–7) contra o código e o CI. Corte e operação: 
 | 2 — cérebro | `orion.gateway` (API OpenAI-compat., streaming, fallback, quarentena em 429), `orion.agent` (persona + memória + ferramentas sob política), `orion.delegate` (claude/codex/gemini), `POST /chat` | ✅ com gateway e CLIs **falsos**; ⏳ OmniRoute e CLIs reais |
 | 3 — memória | SQLite + FTS5 + vetores (numpy) com RRF, fatos editáveis, vault, backup/restore (`orion backup`, `orion restore`), eval, **importador completo do export** (esquema v2), lembretes/agendamentos/tarefas/números/prompts/grafo, fila de avisos, jobs, `GeminiEmbedder`, consolidação | ✅ no código; ⏳ chave de embeddings e suas perguntas reais |
 | 4 — ferramentas | Política (classes de risco, aprovações, taint, audit); ferramentas de memória, operação e `delegar`; triagem das 55 do legado | 🟡 faltam servidores MCP e `orion-desktop` |
-| 5 — canais | `/approvals` com token; Telegram, login e Tailscale **não** | ⏳ |
+| 5 — canais | `/approvals` com token; canal Telegram novo e `orion autostart` (só API/sistema falsos); login e Tailscale **não** | 🟡 |
 | 6 — interface/voz | Front redesenhado em 03/10 (só desktop, [ORION_FRONT.md](ORION_FRONT.md)); voz não começou | 🟡 |
 | 7 — limpeza | Nada apagado: o legado ainda é a única coisa rodando com seus dados | ⏳ |
 
@@ -84,7 +87,12 @@ Revisão do plano (NUCLEO §6–7) contra o código e o CI. Corte e operação: 
 - **Consolidação:** testada com um modelo falso. Com um modelo real o formato JSON pode vir fora do esperado (a rodada
   falha sem avançar a marca e tenta de novo) e a qualidade dos fatos precisa de olho humano (`MemoryStore.facts_markdown()` gera a nota para conferir e corrigir).
 - **Jobs em tempo real:** testados com relógio falso e com o laço cancelado/retomado; não há teste de dias de uptime.
-  O disparo de agendamento **só avisa** (regra 18); não há entrega ao celular até o Telegram da fase 5 ler `/notifications`.
+  O disparo de agendamento **só avisa** (regra 18); a entrega ao celular é o canal Telegram novo lendo a fila.
+- **Telegram real:** o canal foi testado só contra uma API falsa (formato de `getUpdates`, `sendMessage`, `answerCallbackQuery`,
+  `editMessageReplyMarkup` e `callback_data` por memória da documentação). Primeira mensagem real é sua.
+- **Autostart:** os arquivos do Windows (`.cmd` em Startup), macOS (LaunchAgent) e Linux (unit de usuário) são gerados e
+  validados como texto (o plist é lido por `plistlib`); nenhum foi ativado no sistema de verdade.
+- **`orion-desktop` v0:** o shell real só foi executado no Linux; no Windows (PowerShell) só o argv é testado. Desligado por padrão.
 - **Legado em produção:** o gate novo foi testado com stubs, não com Qdrant/SurrealDB no ar. **Antes de usar no PC,
   suba o cérebro e faça um pedido que rode `executar_comando`** — agora ele vai pedir confirmação em quase tudo
   que não for leitura (esse é o comportamento desejado, mas muda o uso).
@@ -104,7 +112,7 @@ Revisão do plano (NUCLEO §6–7) contra o código e o CI. Corte e operação: 
    `tests/eval_pessoal.local.json` (modelo em `tests/eval_pessoal.example.json`); medir com
    `python -m orion.memory.eval <casos> --db <orion.db> --embeddings --min-hit-rate 0.8`.
 4. Subir o OmniRoute e testar `ORION_GATEWAY_URL`/`ORION_GATEWAY_MODEL` com `POST /chat`.
-5. Fase 5: bot do Telegram novo (botões de aprovar/negar chamando `/approvals`), login, Tailscale.
+5. Fase 5: criar o bot (@BotFather), preencher `ORION_TELEGRAM_TOKEN`/`ORION_TELEGRAM_ALLOWED_USERS` e testar no notebook (pare o bot do legado antes); depois login e Tailscale; `uv run orion autostart`.
 6. Fase 4: servidores MCP (navegador, Google) e `orion-desktop`, cada ferramenta com classe em `orion/policy/classes.py`;
    a ordem e o destino de cada uma estão em [ORION_FERRAMENTAS.md](ORION_FERRAMENTAS.md).
 7. Decidir o que o [plano de corte](ORION_CORTE.md) deixa em aberto (data da venda, ferramentas mínimas, dias em paralelo).

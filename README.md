@@ -23,8 +23,8 @@ venda: [ORION_CORTE.md](Memorias%20Do%20Projeto/ORION_CORTE.md)).
 
 **Reescrita em andamento (`orion/`):** fundação (fase 1), memória em SQLite com importador completo,
 agendador, backup e consolidação (fase 3), política de ferramentas, gateway, agente e `/chat`
-(fase 2) já existem e têm testes; falta ligar a modelos reais, Telegram, login e as ferramentas
-(fases 4–5). O que foi feito, o que não foi verificado e os próximos passos:
+(fase 2), o canal Telegram novo e o `orion autostart` (fase 5) já existem e têm testes; falta ligar a
+modelos reais, o login e o resto das ferramentas (fase 4). O que foi feito, o que não foi verificado e os próximos passos:
 [ORION_MELHORIAS.md](Memorias%20Do%20Projeto/ORION_MELHORIAS.md).
 
 | Documento | Conteúdo |
@@ -229,6 +229,7 @@ uv sync
 ORION_ADMIN_TOKEN=<16+ caracteres> ORION_GATEWAY_URL=http://127.0.0.1:20128/v1 \
 ORION_GATEWAY_MODEL=<modelo> uv run orion         # sobe em 127.0.0.1:8000
 uv run orion backup                                # backup diário da memória (mantém 7)
+uv run orion autostart [--install]                 # arquivo de início automático do seu SO (mostra; --install grava)
 uv run orion restore <backup.db> [--force]         # restaura um backup (confere antes; --force substitui)
 uv run orion verify-export <pasta-do-backup> --assistente <nome-antigo> \
     [--env .env --google-auth <pasta> --vault <pasta>]   # fase 0: prova o export (não toca no banco real)
@@ -244,6 +245,8 @@ python -m orion.memory.eval <casos.json> --db <orion.db> [--embeddings]    # med
 | `ORION_EXTRA_SAFE_ROOTS` | Lista JSON de pastas extras onde as ferramentas escrevem sem confirmação (ex.: Documents no OneDrive) |
 | `ORION_HOST`, `ORION_PORT`, `ORION_ALLOWED_HOSTS` | Só `127.0.0.1` por padrão; bind público é recusado. Host de fora (ex.: nome do Tailscale, lista JSON) **exige** `ORION_ADMIN_TOKEN`. A porta padrão (8000) é a do legado: não suba os dois juntos |
 | `ORION_EMBED_API_KEY` (ou no cofre do SO), `ORION_EMBED_MODEL`, `ORION_EMBED_DIM` | Embeddings pela API gratuita do Gemini (padrão `gemini-embedding-001`, 768). Sem chave a busca é só por palavra-chave. Trocar modelo ou dimensão: o banco sobe sem vetores (veja o log) até `reset_vectors()` |
+| `ORION_TELEGRAM_TOKEN` (ou no cofre do SO), `ORION_TELEGRAM_ALLOWED_USERS` | Canal Telegram novo: sobe com token + IDs permitidos (`123,456` ou `[123]`) + gateway; sem lista não sobe (default-deny). **Pare o bot do legado antes** (dois clientes no mesmo token dão erro 409; o do legado também não fala com o `/chat` novo). Aprovações chegam com botões ✅/❌ |
+| `ORION_DESKTOP_TOOLS` | `true` liga `executar_comando`, `ler_arquivo` e `listar_arquivos` (padrão desligado). Só leitura provada roda direto; o resto e a leitura de segredos pedem aprovação |
 | `ORION_BACKUP_DIR`, `ORION_BACKUP_KEEP` | Backup diário da memória (padrão `<dados>/backups`, mantém 7); aponte para o iCloud/OneDrive |
 | `ORION_VAULT_DIR` | Vault do Obsidian reindexado de hora em hora na memória (vazio: não indexa) |
 | `ORION_JOBS_ENABLED`, `ORION_JOBS_TICK_S`, `ORION_CONSOLIDATE` | Jobs em segundo plano (lembretes, agendamentos, embeddings, vault, backup, consolidação em fatos; padrão ligados, rodada a cada 30 s). Os avisos saem em `GET /notifications` (confirmar em `POST /notifications/{id}/ack`) |
@@ -267,7 +270,7 @@ Orion_Ollama/                  # backend
   orion_seguranca.py            # rate limit, câmara de eco, audit, self-healing
   orion_browser.py · orion_google_workspace.py · orion_telegram.py · orion_voice_live.py
   bm25_index.py · reconciliar_episodios.py · test_smoke.py
-orion/                         # REESCRITA: policy/ (risco, aprovações), memory/ (SQLite, importador, ops, embeddings, consolidação), gateway, agent, delegate, jobs, migration, tools/, app
+orion/                         # REESCRITA: policy/ (risco, aprovações), memory/ (SQLite, importador, ops, embeddings, consolidação), channels/ (Telegram), gateway, agent, delegate, jobs, migration, autostart, tools/, app
 tests/                         # pytest (orion + legado) e Node (front); ver "Testes"
 .github/workflows/ci.yml       # ruff, pyright, pytest, node em Linux/Windows/macOS
 pyproject.toml · uv.lock       # a reescrita usa uv; requirements.txt é só do legado
