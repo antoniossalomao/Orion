@@ -197,9 +197,16 @@
         if (travar) cartao.querySelectorAll('button').forEach(b => { b.disabled = true; });
     }
 
+    /** espera a resposta em andamento acabar: a retomada precisa abrir uma mensagem nova, não misturar texto */
+    const esperarOcioso = () => (!ocupado ? Promise.resolve() : new Promise(resolver => {
+        const solta = bus.on('chat:ocupado', v => { if (!v) { solta(); resolver(); } });
+    }));
+
     async function decidir(cartao, aprovada) {
         const id = cartao.dataset.id;
         cartao.querySelectorAll('button').forEach(b => { b.disabled = true; });
+        cartao.querySelector('.approval-state').textContent = ocupado ? 'Aguardando a resposta terminar…' : 'Enviando…';
+        await esperarOcioso();
         cartao.querySelector('.approval-state').textContent = 'Enviando…';
         try {
             await api.decidir(id, aprovada);

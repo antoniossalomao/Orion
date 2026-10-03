@@ -97,7 +97,7 @@ quando um endpoint não existe. Transporte do chat: no pywebview, API + hub WS (
 | Orçamento | Resultado | Onde |
 |---|---|---|
 | Axe (serious/critical **e** moderate/best-practice) | 0 violações em 5 telas × 3 temas, no chat com resposta + aprovação + erro, com paleta e menu abertos, e na gaveta mobile | `test_axe_*` |
-| Console | 0 erros/avisos em todos os 59 testes de navegador (a fixture derruba o teste) | `conftest.py` |
+| Console | 0 erros/avisos em todos os 60 testes de navegador (a fixture derruba o teste) | `conftest.py` |
 | Teclado | `Ctrl+K`, `Alt+1..5`, `/`, `?`, `Ctrl+B`, `Esc`; telas ocultas `inert`; gaveta com foco preso e foco devolvido | `test_atalhos_*`, `test_paleta_*`, `test_mobile_gaveta_*` |
 | Mobile | Sem rolagem horizontal em 320 e 390 px nas 5 telas; alvos de toque ≥ 44 px (`pointer: coarse`) | `test_mobile_*` |
 | Streaming | Renderizações ≤ quadros + 2 (a resposta chega em ~100 pedaços) | `test_streaming_rende_*` |
@@ -118,6 +118,9 @@ o 3d-force-graph (700 KB) só baixa na primeira visita à Memória.
 - Níveis de título do markdown pulavam de `h1` para `h4` (axe); `<dl>` com título solto.
 - Menu de modelo cobria o clipe e o texto digitado.
 - `Enter` com a resposta em andamento a cancelava; agora só avisa (parar é `Esc` ou o botão).
+- Aprovar o cartão enquanto o texto final ainda chegava misturava a retomada na mensagem anterior (a
+  resposta "Feito. Removi…" ficava partida em duas); agora a retomada espera a resposta acabar e abre
+  mensagem nova. Teste vermelho sem a correção, verde com ela.
 
 ### O que **não** foi verificado
 

@@ -429,6 +429,10 @@ def create_app() -> FastAPI:
                         }
                     }
                 )
+                if (
+                    "devagar" in baixo
+                ):  # a aprovação chega e o texto final demora: simula o clique cedo
+                    await asyncio.sleep(1.5)
                 async for p in _pedacos(
                     "Preciso da sua **aprovação** para rodar esse comando. Aprove ou negue pelo cartão acima.",
                     ESTADO["delay"],

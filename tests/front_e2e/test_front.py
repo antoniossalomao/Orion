@@ -222,6 +222,18 @@ def test_aprovacao_aprovar_executa_e_marca_o_cartao(abrir):
     expect(cartao.get_by_role("button", name="Aprovar e executar")).to_be_disabled()
 
 
+def test_aprovar_antes_da_resposta_terminar_nao_mistura_as_mensagens(abrir):
+    page = abrir("#/chat")
+    enviar(page, "apague os arquivos antigos, devagar")
+    # o cartão chega e o texto final ainda demora 1,5 s: clica sem esperar o fim da resposta
+    page.locator(".approval").get_by_role("button", name="Aprovar e executar").click()
+    expect(page.locator(".msg-orion")).to_have_count(2, timeout=15000)
+    esperar_fim(page)
+    primeira, segunda = page.locator(".msg-orion .prose").all_inner_texts()
+    assert "Feito" not in primeira and "Feito. Removi a pasta" in segunda
+    assert primeira.startswith("Preciso da sua aprovação") and primeira.endswith("cartão acima.")
+
+
 def test_aprovacao_negar_nao_executa(abrir):
     page = abrir("#/chat")
     enviar(page, "apague os arquivos antigos")
