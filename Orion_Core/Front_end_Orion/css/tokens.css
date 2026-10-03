@@ -1,0 +1,111 @@
+/* ==========================================================================
+   ORION — tokens.css | cores, tipografia, espaço, raios, sombras, movimento
+   Tudo que é decisão de design mora aqui; o resto do CSS só consome `var(--…)`.
+   Contraste (WCAG) calculado: --text-1 ≥ 14:1, --text-2 ≥ 8,8:1, --text-3 ≥ 5,2:1
+   sobre qualquer superfície --bg-*. --text-4 é só decoração (nunca texto).
+   ========================================================================== */
+:root {
+    color-scheme: dark;
+
+    /* superfícies, da mais funda à mais alta */
+    --bg-0: #04060b;
+    --bg-1: #070a12;
+    --bg-2: #0b101b;
+    --bg-3: #101726;
+    --bg-4: #161f33;
+    --glass:   rgb(8 12 20 / 0.72);
+    --glass-2: rgb(12 18 30 / 0.88);
+    --scrim:   rgb(2 4 9 / 0.62);
+
+    /* linhas */
+    --line-1: rgb(160 180 225 / 0.09);
+    --line-2: rgb(160 180 225 / 0.16);
+    --line-3: rgb(160 180 225 / 0.28);
+
+    /* texto */
+    --text-1: #eaeffa;
+    --text-2: #b4bed3;
+    --text-3: #8591a9;
+    --text-4: #5e6a82;
+
+    /* acento (Rigel) e sinais */
+    --accent:        #8fabff;
+    --accent-strong: #a9bfff;
+    --accent-ink:    #07101f;
+    --accent-soft:   rgb(143 171 255 / 0.12);
+    --accent-line:   rgb(143 171 255 / 0.38);
+    --signal:        #f5b95f;       /* Betelgeuse: atividade e atenção */
+    --signal-soft:   rgb(245 185 95 / 0.12);
+    --ok:            #62e8c8;
+    --ok-soft:       rgb(98 232 200 / 0.12);
+    --danger:        #ff6b7a;
+    --danger-soft:   rgb(255 107 122 / 0.12);
+    --danger-solid:  #c93a4a;
+    --star:          #eef2ff;
+
+    /* tipografia (rem: a escala do usuário vale para tudo) */
+    --font-sans: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    --font-mono: 'Cascadia Code', 'JetBrains Mono', 'SF Mono', 'Menlo', 'Consolas', ui-monospace, monospace;
+    --fs-2xs: 0.6875rem;   /* 11 */
+    --fs-xs:  0.75rem;     /* 12 */
+    --fs-sm:  0.8125rem;   /* 13 */
+    --fs-md:  0.875rem;    /* 14 */
+    --fs-lg:  0.96875rem;  /* 15.5 */
+    --fs-xl:  1.125rem;    /* 18 */
+    --fs-2xl: 1.5rem;      /* 24 */
+    --fs-3xl: 2.125rem;    /* 34 */
+    --lh-tight: 1.25;
+    --lh-body:  1.7;
+
+    /* espaço (base 4 px) */
+    --s-1: 0.25rem;  --s-2: 0.5rem;   --s-3: 0.75rem;  --s-4: 1rem;
+    --s-5: 1.25rem;  --s-6: 1.5rem;   --s-8: 2rem;     --s-10: 2.5rem;  --s-12: 3rem;
+
+    /* raios */
+    --r-1: 6px;  --r-2: 8px;  --r-3: 12px;  --r-4: 16px;  --r-5: 22px;  --r-pill: 999px;
+
+    /* sombras */
+    --sh-1: 0 1px 2px rgb(0 0 0 / 0.4);
+    --sh-2: 0 10px 30px rgb(0 0 0 / 0.45), 0 2px 6px rgb(0 0 0 / 0.3);
+    --sh-3: 0 30px 80px rgb(0 0 0 / 0.6), 0 6px 18px rgb(0 0 0 / 0.4);
+
+    /* movimento */
+    --dur-1: 120ms;  --dur-2: 200ms;  --dur-3: 320ms;
+    --ease:     cubic-bezier(0.4, 0, 0.2, 1);
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+    /* layout */
+    --sb-w: 272px;
+    --sb-wc: 68px;
+    --topbar-h: 56px;
+    --content-w: 52rem;
+
+    /* camadas */
+    --z-sky: 0;  --z-app: 10;  --z-topbar: 30;  --z-sidebar: 40;  --z-scrim: 45;
+    --z-overlay: 60;  --z-palette: 80;  --z-toast: 90;  --z-boot: 100;
+
+    /* densidade (sobrescrita em [data-density]) */
+    --row-h: 2.25rem;
+    --msg-gap: 1.5rem;
+}
+
+/* ── Temas ────────────────────────────────────────────────────────────── */
+/* Grafite: neutro, sem tinta azul; o acento esfria menos */
+[data-theme="grafite"] {
+    --bg-0: #070707;  --bg-1: #0d0d0e;  --bg-2: #141415;  --bg-3: #1c1c1e;  --bg-4: #262628;
+    --glass: rgb(14 14 15 / 0.76);  --glass-2: rgb(20 20 22 / 0.9);
+    --line-1: rgb(255 255 255 / 0.08);  --line-2: rgb(255 255 255 / 0.15);  --line-3: rgb(255 255 255 / 0.26);
+    --text-1: #f1f1f2;  --text-2: #bdbdc2;  --text-3: #8f8f96;  --text-4: #62626a;
+    --accent: #9db4ff;  --accent-strong: #b4c5ff;  --accent-soft: rgb(157 180 255 / 0.12);  --accent-line: rgb(157 180 255 / 0.38);
+}
+/* Alto contraste: bordas fortes, texto máximo, sem transparência que reduza leitura */
+[data-theme="contraste"] {
+    --bg-0: #000;  --bg-1: #000;  --bg-2: #07090d;  --bg-3: #0e1118;  --bg-4: #171b25;
+    --glass: rgb(0 0 0 / 0.9);  --glass-2: rgb(0 0 0 / 0.96);
+    --line-1: rgb(255 255 255 / 0.28);  --line-2: rgb(255 255 255 / 0.5);  --line-3: rgb(255 255 255 / 0.8);
+    --text-1: #fff;  --text-2: #e3e8f5;  --text-3: #c3cadd;  --text-4: #8d96ad;
+    --accent: #b9ccff;  --accent-strong: #d6e1ff;  --accent-soft: rgb(185 204 255 / 0.2);  --accent-line: #b9ccff;
+    --signal: #ffd27d;  --ok: #7cf5d8;  --danger: #ff8d99;
+}
+
+[data-density="compacta"] { --row-h: 1.875rem; --msg-gap: 1rem; --fs-lg: 0.90625rem; --lh-body: 1.6; }

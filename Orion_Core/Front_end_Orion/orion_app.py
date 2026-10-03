@@ -17,6 +17,17 @@ except Exception:
 
 import webview
 
+# Origens permitidas (módulo do backend, só stdlib): vale o mesmo para o hub e /ws/voice.
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "Orion_Ollama")))
+from origem import ORIGENS_PERMITIDAS  # noqa: E402
+from ponte import (  # noqa: E402
+    cabecalhos_chat,
+    mensagem_de_falha,
+    Geracao,
+    mensagens_do_evento,
+    url_externa_permitida,
+)
+
 try:
     import websockets
     WS_AVAILABLE = True
@@ -84,7 +95,8 @@ async def _ws_serve():
     global _ws_loop
     _ws_loop = asyncio.get_running_loop()
     # 127.0.0.1: regra do projeto — bind explícito IPv4, nunca localhost/0.0.0.0
-    async with websockets.serve(_ws_handler, "127.0.0.1", 8765):
+    # origins: página web de fora não entra no hub (WebSocket não passa por CORS).
+    async with websockets.serve(_ws_handler, "127.0.0.1", 8765, origins=list(ORIGENS_PERMITIDAS)):
         print("[ORION] Hub ws://127.0.0.1:8765 ativo")
         await asyncio.Future()
 
@@ -98,26 +110,43 @@ def _start_ws():
 # ── API exposta ao JavaScript via pywebview ────────────────────────────────────
 class OrionApi:
 
+    def __init__(self) -> None:
+        self._gen = Geracao()  # privado (_): o pywebview só expõe ao JS o que não começa com "_"
+
     def process_command(self, command: str, modelo: str = "auto") -> bool:
         """Recebe texto do frontend -> streama cerebro :8000 -> envia chunks via WS.
         modelo: 'auto' (cascata) | 'groq' | 'gemini' | 'claude' — seletor manual do painel."""
-        threading.Thread(target=self._chat_thread, args=(command, modelo), daemon=True).start()
+        n = self._gen.nova()
+        threading.Thread(target=self._chat_thread, args=(command, modelo, n), daemon=True).start()
         return True
 
-    def _chat_thread(self, command: str, modelo: str = "auto") -> None:
+    def cancel_command(self) -> None:
+        """"Parar" do front: a thread do pedido em curso fecha o stream e o hub volta a idle na hora."""
+        self._gen.cancelar()
+        broadcast_state("idle", 0.0)
+
+    def _chat_thread(self, command: str, modelo: str = "auto", n: int = 0) -> None:
         _broadcast({"user_text": command})
         broadcast_state("processing", 0.30)
         try:
             import httpx
+        except ImportError:
+            _broadcast({"error": "Falta o pacote httpx (pip install httpx)."})
+            broadcast_state("idle", 0.0)
+            return
+        try:
             with httpx.Client(timeout=60.0) as client:
                 with client.stream(
                     "POST",
                     "http://127.0.0.1:8000/chat",
                     json={"texto": command, "modelo": modelo},
+                    headers=cabecalhos_chat(os.environ.get("ORION_ADMIN_TOKEN", "")),
                 ) as resp:
                     resp.raise_for_status()
                     broadcast_state("speaking", 0.0)
                     for line in resp.iter_lines():
+                        if not self._gen.vigente(n):
+                            break  # cancelado: sair do `with` fecha a conexão e o cérebro para de gerar
                         if not line.startswith("data: "):
                             continue
                         raw = line[6:].strip()
@@ -125,19 +154,35 @@ class OrionApi:
                             break
                         try:
                             d = json.loads(raw)
-                            chunk = d.get("text", "")
-                            if chunk:
-                                _broadcast({"ai_chunk": chunk})
-                            tier = d.get("tier")
-                            if tier:
-                                _broadcast({"tier": tier})
                         except Exception:
-                            pass
+                            continue
+                        # texto, modelo e — no orion.app — ferramentas, aprovações e erros
+                        for msg in mensagens_do_evento(d):
+                            _broadcast(msg)
+        except httpx.HTTPStatusError as e:
+            if self._gen.vigente(n):
+                _broadcast({"error": mensagem_de_falha(e.response.status_code)})
+            print(f"[ORION] process_command erro: {e}")
         except Exception as e:
-            _broadcast({"ai_chunk": "[cérebro offline]"})
+            if self._gen.vigente(n):
+                _broadcast({"error": mensagem_de_falha(None)})
             print(f"[ORION] process_command erro: {e}")
 
-        broadcast_state("idle", 0.0)
+        if self._gen.vigente(n):  # cancelado: o `cancel_command` já mandou o idle
+            broadcast_state("idle", 0.0)
+
+    def get_config(self) -> dict:
+        """Entrega ao front o que só o app desktop sabe (token do orion.app, vindo do ambiente)."""
+        return {"token": os.environ.get("ORION_ADMIN_TOKEN", "")}
+
+    def open_external(self, url: str) -> bool:
+        """Abre um link do chat no navegador do sistema (só http/https/mailto)."""
+        if not url_externa_permitida(url):
+            print(f"[ORION] open_external recusou: {str(url)[:80]!r}")
+            return False
+        import webbrowser
+
+        return webbrowser.open(url.strip())
 
     def toggle_maximize(self) -> None:
         """Alterna entre fullscreen e janela normal."""

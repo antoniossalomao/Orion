@@ -62,6 +62,15 @@ def navegar_web(objetivo: str, url_inicial: str = "") -> dict:
     if not api_key:
         return {"erro": "GEMINI_API_KEY não configurada.", "ok": False}
 
+    if url_inicial:
+        # O agente navega livremente depois da 1ª página (limite conhecido);
+        # ao menos o ponto de partida vindo do LLM precisa ser público.
+        from url_guard import URLBloqueada, validar_url_publica
+        try:
+            validar_url_publica(url_inicial)
+        except URLBloqueada as e:
+            return {"erro": f"URL bloqueada: {e}", "ok": False}
+
     resultado = {}
     erro = {}
 

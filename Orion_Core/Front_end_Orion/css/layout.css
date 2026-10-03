@@ -1,0 +1,171 @@
+/* ==========================================================================
+   ORION — layout.css | casca do app: céu, barra lateral, barra superior, telas
+   Sidebar fixa, recolhível a só ícones (automático em janela estreita).
+   ========================================================================== */
+html { --sb-cur: var(--sb-w); }
+html[data-sb="collapsed"] { --sb-cur: var(--sb-wc); }
+
+/* ── Céu (constelação) e véu de leitura ─────────────────────────────── */
+#sky {
+    position: fixed; inset: 0 0 0 var(--sb-cur); z-index: var(--z-sky);
+    transition: left var(--dur-3) var(--ease-out);
+}
+#sky canvas { display: block; width: 100%; height: 100%; }
+#sky-veil {
+    position: fixed; inset: 0 0 0 var(--sb-cur); z-index: calc(var(--z-sky) + 1);
+    background: radial-gradient(ellipse 90% 80% at 50% 30%, rgb(7 10 18 / 0.78), var(--bg-1) 100%);
+    opacity: 0; pointer-events: none;
+    transition: opacity var(--dur-3) var(--ease), left var(--dur-3) var(--ease-out);
+}
+html[data-view="chat"] #sky-veil        { opacity: 0.93; }
+html[data-view="integracoes"] #sky-veil,
+html[data-view="config"] #sky-veil      { opacity: 0.92; }
+html[data-view="memoria"] #sky-veil     { opacity: 0.55; }
+[data-theme="contraste"] #sky-veil      { opacity: 1 !important; }
+
+/* ── Casca ───────────────────────────────────────────────────────────── */
+#app {
+    position: relative; z-index: var(--z-app);
+    display: grid; grid-template-columns: var(--sb-cur) minmax(0, 1fr);
+    height: 100%; height: 100dvh;
+    transition: grid-template-columns var(--dur-3) var(--ease-out);
+}
+#main { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; outline: none; }
+#stage { position: relative; flex: 1; min-height: 0; overflow: clip; }   /* dicas de ferramenta de telas inativas não geram rolagem */
+
+/* ── Barra lateral ───────────────────────────────────────────────────── */
+#sidebar {
+    position: relative; z-index: var(--z-sidebar);
+    display: flex; flex-direction: column; gap: var(--s-1);
+    min-height: 0; padding: var(--s-3) var(--s-3) var(--s-3);
+    background: var(--glass-2);
+    border-right: 1px solid var(--line-1);
+    backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+    overflow: hidden;
+}
+.sb-head { display: flex; align-items: center; gap: var(--s-2); height: var(--topbar-h); margin: calc(var(--s-3) * -1) 0 var(--s-1); flex-shrink: 0; }
+.brand { display: flex; align-items: center; gap: 0.6rem; color: var(--text-1); font-weight: 600; font-size: var(--fs-lg); letter-spacing: 0.02em; }
+.brand:hover { text-decoration: none; }
+.sb-txt { white-space: nowrap; transition: opacity var(--dur-1) var(--ease); }
+
+.sb-new { width: 100%; justify-content: flex-start; height: 2.5rem; margin-bottom: var(--s-2); gap: 0.7rem; padding: 0 0.8rem; }
+.sb-new kbd { margin-left: auto; }
+
+.sb-nav { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; }
+.sb-item {
+    position: relative; display: flex; align-items: center; gap: 0.8rem;
+    height: var(--row-h); min-height: 2.25rem; padding: 0 0.8rem;
+    border-radius: var(--r-3); color: var(--text-2); font-size: var(--fs-md);
+    transition: background var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
+}
+.sb-item svg { width: 1.1rem; height: 1.1rem; }
+.sb-item:hover { background: rgb(255 255 255 / 0.04); color: var(--text-1); text-decoration: none; }
+.sb-item[aria-current="page"] { background: var(--accent-soft); color: var(--text-1); }
+.sb-item[aria-current="page"]::before {
+    content: ''; position: absolute; left: calc(var(--s-3) * -1); top: 22%; bottom: 22%;
+    width: 3px; border-radius: 0 3px 3px 0; background: var(--accent);
+}
+.sb-item .dot-badge {
+    margin-left: auto; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--signal); box-shadow: 0 0 8px var(--signal);
+    opacity: 0; transform: scale(0.4); transition: opacity var(--dur-2), transform var(--dur-2);
+}
+.sb-item .dot-badge.show { opacity: 1; transform: none; }
+
+.sb-convs { flex: 1; min-height: 0; display: flex; flex-direction: column; margin-top: var(--s-3); padding-top: var(--s-3); border-top: 1px solid var(--line-1); }
+.sb-search { position: relative; margin-bottom: var(--s-2); }
+.sb-search svg { position: absolute; left: 0.7rem; top: 50%; width: 0.95rem; height: 0.95rem; transform: translateY(-50%); color: var(--text-3); pointer-events: none; }
+.sb-search input { width: 100%; height: 2.1rem; padding: 0 0.7rem 0 2.1rem; }
+#sb-convs-list { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 1px; margin: 0 calc(var(--s-1) * -1); padding: 0 var(--s-1); }
+.conv-group { padding: var(--s-3) 0.8rem 0.3rem; font-size: var(--fs-2xs); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3); }
+.conv-group:first-child { padding-top: var(--s-1); }
+.conv {
+    display: flex; align-items: center; gap: var(--s-2); min-height: 2.1rem; padding: 0.3rem 0.8rem;
+    border-radius: var(--r-2); color: var(--text-2); font-size: var(--fs-sm); text-align: left; width: 100%;
+    transition: background var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
+}
+.conv:hover { background: rgb(255 255 255 / 0.04); color: var(--text-1); }
+.conv[aria-current="true"] { background: rgb(255 255 255 / 0.06); color: var(--text-1); }
+.conv-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.conv-title mark { background: var(--accent-soft); color: var(--text-1); border-radius: 3px; padding: 0 1px; }
+.conv-ro { font-size: var(--fs-2xs); color: var(--text-3); }
+.sb-empty { padding: var(--s-3) 0.8rem; font-size: var(--fs-sm); color: var(--text-3); line-height: 1.5; }
+
+.sb-foot { flex-shrink: 0; display: flex; flex-direction: column; gap: var(--s-2); padding-top: var(--s-3); margin-top: var(--s-2); border-top: 1px solid var(--line-1); }
+.conn { display: flex; align-items: center; gap: 0.6rem; min-height: 2rem; padding: 0 0.8rem; font-size: var(--fs-xs); color: var(--text-2); }
+.conn small { color: var(--text-3); }
+
+/* recolhida: só ícones */
+html[data-sb="collapsed"] .sb-txt,
+html[data-sb="collapsed"] .sb-new kbd,
+html[data-sb="collapsed"] .sb-convs,
+html[data-sb="collapsed"] .conn small { display: none; }
+html[data-sb="collapsed"] .sb-head { justify-content: center; }
+html[data-sb="collapsed"] .sb-new,
+html[data-sb="collapsed"] .sb-item,
+html[data-sb="collapsed"] .conn { justify-content: center; padding: 0; gap: 0; }
+html[data-sb="collapsed"] .sb-item[aria-current="page"]::before { left: calc(var(--s-3) * -1); }
+html[data-sb="collapsed"] .sb-foot { border-top: none; }
+html[data-sb="collapsed"] #sidebar { overflow: visible; }
+html[data-sb="collapsed"] .sb-item .dot-badge { position: absolute; top: 0.45rem; right: 0.55rem; margin: 0; }
+
+/* ── Barra superior ──────────────────────────────────────────────────── */
+#topbar {
+    position: relative; z-index: var(--z-topbar);
+    display: flex; align-items: center; gap: var(--s-3);
+    height: var(--topbar-h); padding: 0 var(--s-4) 0 var(--s-5); flex-shrink: 0;
+    -webkit-app-region: drag;
+}
+#topbar > * { -webkit-app-region: no-drag; }
+#topbar .tb-drag { flex: 1; align-self: stretch; -webkit-app-region: drag; min-width: 1rem; }
+.tb-title { display: flex; align-items: baseline; gap: var(--s-3); min-width: 0; }
+.tb-title h1 { font-size: var(--fs-lg); font-weight: 600; letter-spacing: -0.005em; white-space: nowrap; }
+.tb-title .tb-sub { font-size: var(--fs-xs); color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.state-pill {
+    display: inline-flex; align-items: center; gap: 0.5rem; height: 1.75rem; padding: 0 0.75rem 0 0.6rem;
+    border: 1px solid var(--line-1); border-radius: var(--r-pill); background: var(--glass);
+    font-size: var(--fs-xs); color: var(--text-2); white-space: nowrap;
+}
+.state-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px var(--accent); transition: background var(--dur-3), box-shadow var(--dur-3); }
+html[data-estado="processing"] .state-dot { background: var(--signal); box-shadow: 0 0 8px var(--signal); animation: pulsar 1.2s var(--ease) infinite; }
+html[data-estado="listening"]  .state-dot { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+html[data-estado="speaking"]   .state-dot { background: var(--star); box-shadow: 0 0 8px var(--star); }
+@keyframes pulsar { 50% { transform: scale(1.6); opacity: 0.5; } }
+
+.palette-trigger { gap: 0.6rem; color: var(--text-3); padding: 0 0.5rem 0 0.8rem; height: 2rem; }
+.palette-trigger:hover { color: var(--text-1); }
+
+#window-controls { display: none; align-items: center; gap: 2px; margin-left: var(--s-2); }
+html.shell-desktop #window-controls { display: flex; }
+#window-controls .icon-btn { width: 2rem; height: 2rem; }
+#btn-close:hover { background: var(--danger-soft); color: var(--danger); }
+
+/* ── Telas ───────────────────────────────────────────────────────────── */
+.view {
+    position: absolute; inset: 0; display: flex; flex-direction: column; min-height: 0;
+    opacity: 0; visibility: hidden; transform: translateY(8px);
+    transition: opacity var(--dur-2) var(--ease), transform var(--dur-3) var(--ease-out), visibility 0s linear var(--dur-3);
+}
+.view[data-active="true"] { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
+.page { overflow-y: auto; padding: var(--s-2) var(--s-6) var(--s-12); }
+.page-inner { max-width: 64rem; margin: 0 auto; }
+.page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--s-4); margin: var(--s-4) 0 var(--s-6); flex-wrap: wrap; }
+.page-head h2 { font-size: var(--fs-2xl); font-weight: 600; letter-spacing: -0.02em; line-height: var(--lh-tight); }
+.page-head p { margin-top: var(--s-1); color: var(--text-2); font-size: var(--fs-md); max-width: 46rem; }
+
+/* ── Modo foco (Ctrl+.): só a conversa ───────────────────────────────── */
+html[data-foco="true"] { --sb-cur: 0px; }
+html[data-foco="true"] #sidebar { display: none; }
+html[data-foco="true"] #app { grid-template-columns: minmax(0, 1fr); }
+/* a barra superior encolhe para a faixa de arrastar + botões da janela (sem moldura não há outro jeito de mover ou fechar) */
+html[data-foco="true"] #topbar { height: 2.25rem; padding-top: 0; }
+html[data-foco="true"] #topbar > :not(.tb-drag):not(#window-controls) { display: none; }
+
+/* ── Janela estreita (≤ 860 px): a barra vira trilho de ícones (o JS força data-sb="collapsed") ── */
+@media (max-width: 860px) {
+    #sb-toggle { display: none; }
+    .palette-trigger kbd, .palette-trigger span { display: none; }
+    .tb-title .tb-sub { display: none; }
+    .page { padding-inline: var(--s-4); }
+}

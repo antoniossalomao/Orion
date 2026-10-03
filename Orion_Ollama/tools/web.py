@@ -51,7 +51,15 @@ def pesquisar_com_ia(query: str) -> dict:
 
 def buscar_url(url: str, max_chars: int = 6000) -> dict:
     """Busca e extrai o texto principal de uma URL. Usa Crawl4AI (Markdown limpo,
-    suporta páginas JS/SPA) com fallback para requests+BeautifulSoup."""
+    suporta páginas JS/SPA) com fallback para requests+BeautifulSoup.
+    Só aceita http(s) para hosts públicos (url_guard): bloqueia loopback, LAN e
+    Tailscale, para um prompt injection não alcançar o REST do próprio Orion."""
+    from url_guard import URLBloqueada, validar_url_publica, get_seguro
+    try:
+        validar_url_publica(url)
+    except URLBloqueada as e:
+        return {"erro": f"URL bloqueada: {e}", "ok": False}
+
     # Tenta Crawl4AI em thread separada para não conflitar com o event loop do FastAPI
     try:
         import asyncio, threading
@@ -78,6 +86,13 @@ def buscar_url(url: str, max_chars: int = 6000) -> dict:
         t.start()
         t.join(timeout=25)
 
+        final = getattr(resultado[0], "redirected_url", None) if resultado[0] else None
+        if final and final != url:
+            try:
+                validar_url_publica(final)
+            except URLBloqueada as e:
+                return {"erro": f"Redirecionamento bloqueado: {e}", "ok": False}
+
         if resultado[0] and resultado[0].success and resultado[0].markdown:
             md = resultado[0].markdown.strip()
             titulo = resultado[0].metadata.get("title", "") if resultado[0].metadata else ""
@@ -91,9 +106,8 @@ def buscar_url(url: str, max_chars: int = 6000) -> dict:
 
     # Fallback: requests + BeautifulSoup (sem JS, mas funciona em qualquer ambiente)
     try:
-        import requests
         from bs4 import BeautifulSoup
-        r = requests.get(url, timeout=15, headers={"User-Agent": "Mozilla/5.0 (OrionBot)"})
+        r = get_seguro(url, timeout=15, headers={"User-Agent": "Mozilla/5.0 (OrionBot)"})
         r.raise_for_status()
         soup = BeautifulSoup(r.content, "html.parser")
         for tag in soup(["script", "style", "noscript"]):

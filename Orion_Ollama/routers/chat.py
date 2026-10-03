@@ -1,21 +1,20 @@
 """
 routers/chat.py — o endpoint mais crítico do sistema: `/chat` (cascata de
 modelos com streaming SSE, RAG híbrido, Câmara de Eco Heurística,
-Speculative Decoding, roteador de especialistas) + `/tts/mudo` e
+roteador de especialistas) + `/tts/mudo` e
 `/tts/falar` (controle de voz, pequenos e de baixo risco, mantidos junto por
 proximidade lógica).
 
 Extraído de cerebro_maestro.py na reorganização OOP (08/2026) — última peça
 da Fase 1, deixada por último de propósito: é o código com mais estado
 mutável entrelaçado do projeto inteiro (várias das notas abaixo documentam
-bugs de produção já corrigidos aqui — race condition de sessão concorrente,
-vazamento de latência por keep_alive errado, etc). A extração é MECÂNICA —
+bugs de produção já corrigidos aqui — race condition de sessão concorrente, etc). A extração é MECÂNICA —
 toda linha de lógica é idêntica ao original, só move de função solta pra
 método de classe, trocando `global X` por `self._get_x()`/`self._set_x()`
 (estado que cerebro_maestro.py continua dono, porque outros routers também
 leem, ex: `_tts_mudo` e `_ultima_latencia_ms` são lidos por SystemRouter) ou
 por atributo direto (estado só usado aqui). Verificado por compile+import,
-igual todo outro router — a correção do FLUXO (Groq/Gemini/Claude/local
+igual todo outro router — a correção do FLUXO (Groq/Gemini/Claude
 respondendo de verdade) só se prova rodando o processo de verdade, o que já
 era true pra `MemoryRouter.grafo_completo` e outros que também dependem de
 serviço externo no ar.
@@ -146,8 +145,7 @@ class ChatRouter:
         dia_semana = ["Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado", "Domingo"][agora.weekday()]
         data_hora_str = f"[SISTEMA] Hoje é {dia_semana}, {agora.strftime('%d/%m/%Y as %H:%M')}."
 
-        # Exceção consciente à Diretiva Nº 2 (decidida com Antônio em 24/06/2026):
-        # se o usuário pedir explicitamente pra usar o Claude, a aprovação já está
+        # Se o usuário pedir explicitamente pra usar o Claude, a aprovação já está
         # dada nessa mesma mensagem — não precisa o modelo perguntar de novo.
         _KEYWORDS_CLOUD_APROVADO = ["faça isso com o claude", "faz isso com o claude",
                                     "usa o claude", "use o claude", "chama o claude",

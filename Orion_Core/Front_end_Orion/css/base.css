@@ -1,0 +1,97 @@
+/* ==========================================================================
+   ORION — base.css | reset, tipografia base, foco, utilitários
+   ========================================================================== */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+html {
+    height: 100%;
+    font-size: calc(16px * var(--ui-scale, 1));
+    -webkit-text-size-adjust: 100%;
+    background: var(--bg-0);
+}
+body {
+    height: 100%;
+    min-height: 100dvh;
+    overflow: hidden;
+    background: radial-gradient(ellipse 80% 70% at 62% 38%, #0b1122 0%, var(--bg-1) 58%, var(--bg-0) 100%);
+    color: var(--text-1);
+    font-family: var(--font-sans);
+    font-size: var(--fs-md);
+    line-height: 1.5;
+    font-weight: 400;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    overscroll-behavior: none;
+}
+[data-theme="grafite"] body   { background: radial-gradient(ellipse 80% 70% at 62% 38%, #151517 0%, var(--bg-1) 58%, var(--bg-0) 100%); }
+[data-theme="contraste"] body { background: #000; }
+
+/* seleção de texto só onde faz sentido (conteúdo), não na interface */
+body { user-select: none; -webkit-user-select: none; }
+.selectable, .selectable * , input, textarea { user-select: text; -webkit-user-select: text; }
+
+button, input, textarea, select { font: inherit; color: inherit; }
+button { background: none; border: none; cursor: pointer; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 3px; }
+img, svg { display: block; max-width: 100%; }
+svg { flex-shrink: 0; }
+::selection { background: rgb(143 171 255 / 0.32); color: #fff; }
+[hidden] { display: none !important; }
+:target { scroll-margin-top: 4rem; }
+
+/* foco sempre visível (teclado), discreto no mouse */
+:focus { outline: none; }
+:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: var(--r-2);
+}
+[data-theme="contraste"] :focus-visible { outline-width: 3px; outline-color: #fff; }
+
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.sr-only {
+    position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+}
+.skip-link {
+    position: fixed; top: 8px; left: 8px; z-index: calc(var(--z-boot) + 1);
+    padding: 8px 14px; border-radius: var(--r-2);
+    background: var(--accent); color: var(--accent-ink); font-weight: 600;
+    transform: translateY(-200%);
+}
+.skip-link:focus { transform: none; }
+
+kbd {
+    display: inline-block;
+    min-width: 1.5em;
+    padding: 1px 6px;
+    font-family: var(--font-mono);
+    font-size: var(--fs-2xs);
+    line-height: 1.5;
+    text-align: center;
+    color: var(--text-2);
+    border: 1px solid var(--line-2);
+    border-bottom-width: 2px;
+    border-radius: 5px;
+    background: rgb(255 255 255 / 0.03);
+}
+
+/* barras de rolagem finas e discretas */
+* { scrollbar-width: thin; scrollbar-color: rgb(160 180 225 / 0.2) transparent; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: rgb(160 180 225 / 0.16); border-radius: 4px; border: 2px solid transparent; background-clip: content-box; }
+::-webkit-scrollbar-thumb:hover { background: rgb(160 180 225 / 0.3); background-clip: content-box; border: 2px solid transparent; }
+
+/* movimento reduzido: o SO decide por padrão, o ajuste do app manda */
+@media (prefers-reduced-motion: reduce) {
+    html:not([data-motion="full"]) *, html:not([data-motion="full"]) *::before, html:not([data-motion="full"]) *::after {
+        animation-duration: 0.01ms !important; animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important; scroll-behavior: auto !important;
+    }
+}
+html[data-motion="reduced"] *, html[data-motion="reduced"] *::before, html[data-motion="reduced"] *::after {
+    animation-duration: 0.01ms !important; animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important; scroll-behavior: auto !important;
+}

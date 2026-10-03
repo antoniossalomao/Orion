@@ -5,6 +5,7 @@ orion_seguranca.py — Módulo central de segurança do Orion
 """
 
 import json
+import sys
 import time
 import threading
 import hashlib
@@ -16,6 +17,13 @@ from datetime import datetime
 import requests
 
 from surreal_client import surreal
+
+# Política de risco compartilhada com a reescrita (orion/policy, só stdlib).
+# O legado roda com o Python global, sem instalar o pacote: entra pelo path.
+_RAIZ_PROJETO = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if _RAIZ_PROJETO not in sys.path:
+    sys.path.insert(0, _RAIZ_PROJETO)
+from orion.policy import PathGuard, classify_command  # noqa: E402
 
 # Ferramentas perigosas e seus limites (chamadas por janela de tempo)
 _RATE_LIMITS: dict[str, tuple[int, int]] = {
@@ -68,63 +76,26 @@ def checar_rate_limit(nome_tool: str) -> tuple[bool, str]:
 # intenção (_TOOL_KEYWORDS_RE). NÃO expor essas funções em TOOLS_MAP/TOOLS_SCHEMA
 # — é infraestrutura de segurança transparente.
 
-_DIRS_TRABALHO_SEGUROS = [
-    r"c:\orion",
-    os.path.expanduser("~\\documents").lower(),
-    os.path.expanduser("~\\downloads").lower(),
-    os.path.expanduser("~\\desktop").lower(),
-]
-_DIRS_SISTEMA = [r"c:\windows", r"c:\program files"]
-_EXTENSOES_SENSIVEIS = {".exe", ".dll", ".ps1", ".bat", ".cmd", ".msi", ".sys", ".reg", ".vbs"}
+_GUARD = PathGuard(protected_roots=(_RAIZ_PROJETO,))
 
 
 def _risco_comando(cmd: str) -> str | None:
-    """Padrões de comando perigoso (PowerShell). Retorna motivo ou None (baixo risco)."""
-    c = cmd.lower()
-
-    if "rm -rf" in c or ("remove-item" in c and "-recurse" in c and "-force" in c) \
-            or "del /s /q" in c or "rd /s /q" in c:
-        return "Deleção em massa/recursiva detectada."
-    if re.search(r"\bformat\s+[a-z]:", c) or "diskpart" in c:
-        return "Formatação/particionamento de disco detectado."
-    if "reg delete" in c or ("remove-item" in c and ("hklm:" in c or "hkcu:" in c)):
-        return "Remoção de chave de registro do Windows detectada."
-    if re.search(r"\bshutdown\b", c) or "stop-computer" in c or "restart-computer" in c \
-            or ("net user" in c and "/delete" in c):
-        return "Desligamento/reinício do sistema ou remoção de usuário detectado."
-    if ("stop-process" in c and "-force" in c) or ("taskkill" in c and "/f" in c):
-        return "Encerramento forçado de processo detectado."
-    if ("iex" in c or "invoke-expression" in c) and \
-            ("invoke-webrequest" in c or "iwr" in c or "curl" in c or "wget" in c):
-        return "Padrão de download+execução de código detectado (iex/Invoke-Expression + download)."
-    if any(d in c for d in _DIRS_SISTEMA) and \
-            any(v in c for v in ["remove-item", " del ", " rd ", "format"]):
-        return "Comando destrutivo mirando diretório de sistema (Windows/Program Files)."
-    return None
+    """Só roda sem confirmação o que é provadamente leitura (orion.policy.shell).
+    Retorna o motivo da confirmação, ou None (leitura segura)."""
+    veredito = classify_command(cmd)
+    return None if veredito.read_only else f"Comando fora da lista de leitura segura: {veredito.reason}."
 
 
 def _risco_escrever_arquivo(path: str, modo: str) -> str | None:
-    """Sobrescrita comum de arquivo de trabalho (.py/.md/.json/.txt) NÃO é risco —
-    só extensão sensível ou fora dos diretórios de trabalho conhecidos."""
-    caminho_abs = os.path.abspath(path).lower()
-    _, ext = os.path.splitext(caminho_abs)
-
-    if any(caminho_abs.startswith(d) for d in _DIRS_SISTEMA):
-        return "Escrita em diretório de sistema (Windows/Program Files)."
-    if ext in _EXTENSOES_SENSIVEIS:
-        return f"Escrita de arquivo com extensão sensível ({ext})."
-    if not any(caminho_abs.startswith(d) for d in _DIRS_TRABALHO_SEGUROS):
-        return "Escrita fora dos diretórios de trabalho conhecidos (Orion/Documents/Downloads/Desktop)."
-    return None
+    """Escrever dentro do código do Orion, em diretório de sistema, em extensão/
+    arquivo sensível ou fora de Documents/Downloads/Desktop pede confirmação."""
+    motivo = _GUARD.check_write(path)
+    return f"Escrita de alto risco: {motivo}." if motivo else None
 
 
 def _risco_organizar_pasta(path: str) -> str | None:
-    caminho_abs = os.path.abspath(path).lower()
-    if re.match(r"^[a-z]:\\?$", caminho_abs):
-        return "Alvo é a raiz de um drive inteiro."
-    if any(d in caminho_abs for d in _DIRS_SISTEMA) or caminho_abs.rstrip("\\") == r"c:\users":
-        return "Alvo é um diretório crítico do sistema."
-    return None
+    motivo = _GUARD.check_organize(path)
+    return f"Reorganização de alto risco: {motivo}." if motivo else None
 
 
 def avaliar_risco_acao(nome_tool: str, args: dict) -> dict:
@@ -135,7 +106,7 @@ def avaliar_risco_acao(nome_tool: str, args: dict) -> dict:
         if nome_tool in ("executar_comando", "iniciar_processo_bg"):
             cmd = args.get("cmd") or args.get("comando") or ""
             motivo = _risco_comando(cmd)
-        elif nome_tool == "escrever_arquivo":
+        elif nome_tool in ("escrever_arquivo", "gerar_documento"):
             motivo = _risco_escrever_arquivo(args.get("path", ""), args.get("modo", "w"))
         elif nome_tool == "organizar_pasta":
             motivo = _risco_organizar_pasta(args.get("path", ""))
@@ -157,6 +128,7 @@ def hash_acao(nome_tool: str, args: dict) -> str:
 _audit_lock = threading.Lock()
 _audit_buffer: list[dict] = []
 _AUDIT_FLUSH_INTERVAL_S = 5
+_AUDIT_BUFFER_MAX = 1000
 _audit_thread_started = False
 
 
@@ -171,12 +143,22 @@ def _flush_audit_buffer() -> None:
             batch = _audit_buffer[:]
             _audit_buffer = []
 
+        falhas = []
         for entrada in batch:
             try:
                 query = f"CREATE audit_log CONTENT {json.dumps(entrada, ensure_ascii=False)}"
                 surreal.query_sync(query, timeout=5)
-            except Exception:
-                pass  # nunca deixar o audit travar a aplicação
+            except Exception as e:
+                falhas.append(entrada)
+                erro = e
+        if falhas:
+            # Não trava a aplicação, mas também não perde registro em silêncio:
+            # avisa e reenfileira (buffer limitado).
+            print(f"[AUDIT] {len(falhas)} registro(s) não gravados, vão tentar de novo: {erro}",
+                  file=sys.stderr)
+            with _audit_lock:
+                _audit_buffer[:0] = falhas
+                del _audit_buffer[_AUDIT_BUFFER_MAX:]
 
 
 def _garantir_thread_audit() -> None:

@@ -60,7 +60,7 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 # Garante que o diretório raiz está no path para importar o áudio
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 try:
-    from Orion_Core import audio_manager
+    from Orion_Core import audio_manager  # noqa: F401 — lido via globals() mais abaixo
 except ImportError:
     pass
 
@@ -222,7 +222,9 @@ def _ler_telemetria_historico(limite: int = 200) -> list:
 GROQ_MODEL    = cfg.GROQ_MODEL
 GEMINI_MODEL  = cfg.GEMINI_MODEL
 
-SYSTEM_PROMPT_ORION = """[Orion] Assistente pessoal do Antônio. Identidade masculina: técnico, direto, não-servil. Base atual: PC Windows (Ryzen 7 3700X, RTX 2060 Super, 64GB).
+# Persona v2026-10-02. Não coloque hardware, versão de banco ou porta aqui: isso
+# muda (o PC será trocado) e o modelo passa a afirmar fato velho como verdade.
+SYSTEM_PROMPT_ORION = """[Orion] Assistente pessoal do Antônio. Identidade masculina: técnico, direto, não-servil.
 
 [DIRETIVAS]
 1. Antônio é o administrador: as instruções dele prevalecem.
@@ -239,7 +241,7 @@ SYSTEM_PROMPT_ORION = """[Orion] Assistente pessoal do Antônio. Identidade masc
 
 [EXPERTISE & STACK]
 - Dev: Python, JS/TS, Java, Rust, Go, SQL, C++, Arquitetura/APIs.
-- Stack IA: cascata cloud (Groq/Gemini/Claude), memória Qdrant (BGE-M3 1024d) + SurrealDB, RAG FastAPI(:8000).
+- Stack IA: cascata de modelos em nuvem (Groq/Gemini/Claude), memória pessoal com busca híbrida.
 - Acadêmico: ADS/UNIMAR, UML, POO.
 """
 
@@ -699,7 +701,7 @@ def _init():
     # Embedding agora é externo (embed_service :8001, BGE-M3). Não carrega MiniLM.
     vetor_teste = _embed("teste de inicialização")
     if vetor_teste and len(vetor_teste) == 1024:
-        log(f"[OK] embed_service :8001 respondendo (BGE-M3 1024d).")
+        log("[OK] embed_service :8001 respondendo (BGE-M3 1024d).")
     else:
         log("[ALERTA] embed_service :8001 não respondeu — RAG denso ficará indisponível "
             "até o serviço subir (chat segue funcionando, sem contexto de memória).")

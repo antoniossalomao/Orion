@@ -213,7 +213,7 @@ def resumir_documento(path: str, foco: str = "") -> dict:
 
         from google import genai
         client = genai.Client(api_key=gemini_key)
-        instrucao = f"Resuma o documento abaixo em PT-BR, de forma clara e organizada."
+        instrucao = "Resuma o documento abaixo em PT-BR, de forma clara e organizada."
         if foco:
             instrucao += f" Foque especificamente em: {foco}."
         resp = client.models.generate_content(

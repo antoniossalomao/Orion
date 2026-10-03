@@ -1,5 +1,6 @@
 # ════════════════════════════════════════════════════════════════════════
-# Orion — dependências do Python principal (system Python 3.12)
+# Orion — dependências do LEGADO (Python 3.12 global, só Windows + GPU NVIDIA).
+# A reescrita usa o pyproject.toml na raiz (uv); este arquivo sai na fase 7.
 # Atualizado 02/07/2026 (conferido via pip freeze real — vários pacotes do
 # arquivo anterior estavam desatualizados/incorretos, ver ORION_TECNICO.md).
 #
@@ -26,8 +27,8 @@ google-auth-httplib2==0.4.0        # transport OAuth2
 google-auth-oauthlib==1.2.4        # fluxo OAuth2 desktop
 
 # ── Cascata de modelos ──────────────────────────────────────────────────
-groq==1.0.0                   # Groq Llama 3.3 70B (1º andar) + enxame
-google-genai==1.65.0          # Gemini 2.5 Flash + Live API (2º andar, voz live)
+groq==1.0.0                   # Groq gpt-oss-120b (1º andar) + enxame
+google-genai==1.65.0          # Gemini (2º andar) + Live API (voz ao vivo)
 # Claude via CLI 'claude' (sem pacote pip — instalado separado)
 
 # ── RAG / memória ───────────────────────────────────────────────────────
@@ -41,7 +42,7 @@ torchvision==0.21.0+cu124
 torchaudio==2.6.0+cu124
 
 # ── Voz / áudio (audio_manager.py, mic_engine.py, orion_voice_live.py) ───
-edge-tts==7.2.8               # TTS Francisca PT-BR neural (pipeline TTS pausado por decisão do usuário)
+edge-tts==7.2.8               # TTS pt-BR-AntonioNeural (pipeline TTS pausado por decisão do usuário)
 playsound==1.2.2              # reprodução de mp3
 faster-whisper==1.2.1         # STT na GPU
 sounddevice==0.5.5            # captura de microfone

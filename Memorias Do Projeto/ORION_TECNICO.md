@@ -185,20 +185,25 @@ Todo dispatch de ferramenta passa por `_executar_tool_segura()`:
    20/5min · `iniciar_processo_bg` 5/5min · `escrever_arquivo` 30/60s ·
    `organizar_pasta` 3/5min · `consultar_especialista` 3/10min ·
    `navegar_web` 10/5min.
-2. **Câmara de Eco Heurística** (`avaliar_risco_acao`, sem LLM): avalia só
-   `executar_comando`/`iniciar_processo_bg` (deleção recursiva, `\bformat\s+[a-z]:`,
-   `reg delete`, shutdown, `net user /delete`, kill forçado, download+execução,
-   path de sistema + verbo destrutivo), `escrever_arquivo` (extensão executável ou
-   fora dos diretórios de trabalho) e `organizar_pasta` (raiz de drive/sistema).
-   Risco alto → `BLOQUEADO_RISCO`, grava hash SHA256 da ação exata. Aprovação só com
-   frase de confirmação com verbo ("sim, executa mesmo assim"; nunca "sim" solto),
-   **no turno imediatamente seguinte** (`_contador_turnos`) e dentro de 10min. Uso
-   único. Quirk conhecido: Groq às vezes repete a mesma tool call → bloqueio
-   "fantasma" que expira sozinho.
+2. **Câmara de Eco** (reescrita em 02/10/2026; delega a `orion/policy`): `avaliar_risco_acao`
+   avalia `executar_comando`/`iniciar_processo_bg` (**lista positiva**: só roda sem confirmação o
+   que for provadamente leitura; sem redirecionamento, substituição, bloco de script ou `::`;
+   `.env`/credenciais não contam como leitura), `escrever_arquivo`/`gerar_documento` (a raiz do
+   projeto, diretório de sistema, extensão/arquivo sensível e fora de Documents/Downloads/Desktop
+   pedem confirmação) e `organizar_pasta` (raiz de drive, pasta pessoal, sistema, código do Orion).
+   Risco alto → `BLOQUEADO_RISCO`, grava hash SHA256 da ação exata. Aprovação só com frase de
+   confirmação com verbo ("sim, executa mesmo assim"; nunca "sim" solto), **no turno
+   imediatamente seguinte** (`_contador_turnos`) e dentro de 10min. Uso único. Quirk conhecido:
+   Groq às vezes repete a mesma tool call → bloqueio "fantasma" que expira sozinho. A blocklist
+   antiga (substrings) deixava passar `ri -r -fo`, `rmdir /s /q`, `-enc`, `[IO.Directory]::Delete`
+   e `irm | iex`. Na reescrita a confirmação deixa de ser frase: ver ORION_REGRAS.md (regra 2).
 3. **Audit log** (`audit_log` no SurrealDB, buffer + thread de flush a cada 5s;
    `tool_filtro` validado por regex).
 4. **Self-healing** no loop proativo a cada ~5min: SurrealDB, Qdrant, embed_service
    (via `asyncio.to_thread`; não checa o próprio FastAPI).
+
+Outras barreiras (02/10/2026): `url_guard.py` (SSRF em `buscar_url`/`navegar_web`), `origem.py`
+(`Origin` do hub `:8765` e de `/ws/voice`), limite de 25 MB no `/upload`.
 
 CORS: `allow_origins=["null", "http://127.0.0.1:8000", "http://localhost:8000"]`,
 `allow_credentials=False`. `"null"` é exigido pelo pywebview do v1.
@@ -331,34 +336,52 @@ persistia em `agente_run`.
 
 ## 7. Frontends
 
-### 7.1 v1 — pywebview + Three.js (refeito em 01/10/2026)
+### 7.1 v1 — pywebview + Three.js (redesenhado em 03/10/2026)
 
-`Orion_Core/Front_end_Orion/` (`index.html`, `script.js`, `style.css`, `ui.js`,
-`ui.css`, `vendor/`, `orion.ico`). Mesma stack e mesmos contratos com o backend
-(hub WS `:8765` com `state`/`intensity`/`user_text`/`tier`/`ai_chunk`, API do
-pywebview `process_command`/`toggle_maximize`/`minimize_app`/`close_app`, rotas
-HTTP da §3.3, `/ws/voice`).
+Brief de design, diagnóstico do front anterior, sistema de design, orçamentos e o que
+foi verificado: [ORION_FRONT.md](ORION_FRONT.md). Aqui, só o que a base precisa saber.
 
-- **Centro:** constelação de Órion em Three.js r128 — 22 estrelas com ascensão
-  reta/declinação reais, profundidade (`z`) pelo log da distância real, linhas da
-  figura, nebulosa M42 na espada. Estados: em espera (oscila; a profundidade
-  aparece no movimento), ouvindo (cinturão acende com o áudio), processando (traço
-  âmbar percorre as linhas), respondendo (estrelas pulsam com a voz). O canvas
-  ocupa só a área à direita da sidebar (`ResizeObserver`), então a figura fica
-  centrada na área útil.
-- **Interface:** sidebar (início, chat, memória, integrações, configurações,
-  conversas, status hub/cérebro/fonte, seletor de modelo), composer na home
-  (Enter abre o chat e envia), chat com respostas em bloco e falas do usuário em
-  bolha, notas de sistema separadas das falas, voz ao vivo no composer.
-- **Tokens:** `--bg #05070c`, `--accent #7c9cff` (Rigel), `--signal #f2b45a`
-  (Betelgeuse, só atividade), `--ok #5ee6c3`, `--danger #ff5f6d`; Inter 400/500/600
-  + monoespaçada do sistema para dados técnicos.
-- **Segurança do markdown:** escapa `& < > " '` antes de formatar (aspas no `alt`
-  de imagem viravam atributo); rótulos do grafo entram por `textContent`.
-- Movimento reduzido: segue o SO por padrão; o ajuste em Configurações manda.
-  Preferências em `localStorage` com prefixo `orion_`. Chamadas internas em
-  `127.0.0.1`, nunca `localhost`. `-webkit-app-region: no-drag` em tudo que fica
-  na faixa de arraste (48px).
+`Orion_Core/Front_end_Orion/`:
+
+```
+index.html · orion.svg/.ico · orion_app.py (launcher) · ponte.py (regras puras da ponte)
+css/  tokens · base · layout · components · chat · views     (3 temas, densidade, escala em rem)
+js/   util · md · sse · store · charts · fuzzy · slash         (puros, UMD, testados em Node)
+      core · api · transport · ui · sky · sound · voice        (infra e mídia)
+      chat · composer · sidebar · palette · busca · app · views/* (interface)
+vendor/ three r128, 3d-force-graph (carregado só na 1ª visita à Memória), Inter
+```
+
+Scripts simples com namespace `Orion.*`, sem bundler (módulo ES não carrega em `file://`
+no pywebview). Contratos com o backend inalterados: hub WS `:8765`
+(`state`/`intensity`/`user_text`/`tier`/`ai_chunk`, mais `tool`/`approval`/`error` quando o
+cérebro é o `orion.app`), API do pywebview (`process_command`, `toggle_maximize`,
+`minimize_app`, `close_app`, e agora `get_config`/`open_external`), rotas HTTP da §3.3,
+`/ws/voice`.
+
+- **Dois caminhos de chat, mesmos eventos internos** (`chat:evento`): no app desktop,
+  `process_command` + hub (o `mic_engine` continua enxergando a conversa); em qualquer outro
+  lugar (navegador, ou desktop sem o hub), `fetch` em streaming no `/chat` (SSE). O front detecta o que
+  existe e degrada sem erro quando um endpoint não existe (legado × `orion.app`).
+- **Só desktop:** o app não roda no celular (o canal de bolso é o Telegram). O `orion.app` ainda serve a interface em `/ui/` (`ORION_SERVE_UI`, mesma origem, sem CORS) para abrir no navegador do PC; janela estreita (≤ 860 px) vira trilho de ícones, sem gaveta.
+- **Aprovações de ação** (`orion.policy`): o `/chat` emite `tool` e `approval`; o front mostra o
+  cartão com o comando exato, `Aprovar e executar`/`Negar` (`POST /approvals/{id}/decide`) e
+  retoma a resposta (`/approvals/{id}/resume`). Token em Configurações › Conexão (o app desktop
+  usa `ORION_ADMIN_TOKEN` do ambiente, via `get_config`).
+- **Constelação:** 22 estrelas com ascensão reta/declinação reais, profundidade pelo log da
+  distância, nebulosa M42. Estados: em espera, ouvindo, processando (traço âmbar), respondendo.
+  Na home 60 fps, paralaxe e rótulo ao passar o mouse; atrás das outras telas ≤ 20 fps, pixel
+  ratio 1, pausa com a aba oculta. Sem WebGL: céu estático em CSS.
+- **Segurança do front:** markdown escapa antes de formatar; link só http(s)/mailto com
+  `rel="noopener noreferrer nofollow"` e host visível; imagem só de `/imagens/<arquivo>`; CSP no
+  `index.html` (`script-src 'self'` + hash do único script inline); links abrem fora do app por
+  `open_external` (só http/https/mailto, validado em `ponte.py`); rótulos do grafo por
+  `textContent`/escape.
+- **Acessibilidade:** axe-core sem violação em 5 telas × 3 temas (Noite, Grafite, Alto
+  contraste), teclado completo (paleta `Ctrl+K`, comandos `/`, `Ctrl+F`, `Ctrl+.`, `Alt+1..5`, `?`), foco visível, telas ocultas
+  `inert`, menu `/` e paleta como combobox, `aria-live` só na resposta pronta.
+- Preferências em `localStorage` com prefixo `orion_` (tema, densidade, escala, movimento,
+  modelo, sons, endereço, token). Chamadas internas em `127.0.0.1`, nunca `localhost`.
 
 ### 7.2 v2 e v3 — removidos em 30/09/2026
 

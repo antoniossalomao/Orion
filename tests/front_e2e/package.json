@@ -1,0 +1,6 @@
+{
+  "name": "orion-front-e2e",
+  "private": true,
+  "description": "Só traz o axe-core (acessibilidade) para os testes de navegador do front.",
+  "devDependencies": { "axe-core": "4.10.2" }
+}

@@ -1,0 +1,68 @@
+[project]
+name = "orion"
+version = "0.1.0"
+description = "Orion — assistente pessoal (reescrita; o legado está em Orion_Ollama/ e Orion_Core/)"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Proprietary" }
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+    "platformdirs>=4.2",
+    "numpy>=1.26",
+    "keyring>=25",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=0.24",
+    "httpx>=0.27",
+    "python-multipart>=0.0.9",
+    "python-dotenv>=1.0",
+    "websockets>=13",
+    "requests>=2.31",
+    "ruff>=0.6",
+    "pyright>=1.1.380",
+]
+# testes de navegador do front (tests/front_e2e): uv sync --group e2e
+e2e = [
+    "playwright>=1.49",
+]
+
+[project.scripts]
+orion = "orion.__main__:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["orion"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["Orion_Ollama", "Orion_Core", "bin"]  # legado: só o check F (ver CI)
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S", "BLE", "ASYNC", "PERF", "RUF"]
+ignore = ["RUF001", "RUF002", "RUF003", "S101"]  # texto em PT-BR; assert nos testes
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S", "BLE001", "E501", "PERF"]
+# SQL com identificadores internos constantes (nomes de tabela/dimensão); valores sempre por parâmetro.
+"orion/memory/store.py" = ["S608"]
+"orion/memory/schema.py" = ["S608"]
+
+[tool.pyright]
+include = ["orion", "tests/policy", "tests/memory"]
+pythonVersion = "3.11"
+typeCheckingMode = "standard"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+filterwarnings = ["ignore::DeprecationWarning:starlette.*"]
