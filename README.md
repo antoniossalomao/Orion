@@ -37,6 +37,8 @@ modelos reais, o login e o resto das ferramentas (fase 4). O que foi feito, o qu
 | [ORION_CORTE.md](Memorias%20Do%20Projeto/ORION_CORTE.md) | Plano de corte: o que provar antes de vender o PC, orion mínimo, rollback, decisões suas |
 | [ORION_FERRAMENTAS.md](Memorias%20Do%20Projeto/ORION_FERRAMENTAS.md) | Triagem das 55 ferramentas do legado: portada, substituída, a portar ou descartar |
 | [ORION_FRONT.md](Memorias%20Do%20Projeto/ORION_FRONT.md) | Front-end: brief de design e engenharia, orçamentos, o que foi verificado |
+| [ORION_EXTENSOES.md](Memorias%20Do%20Projeto/ORION_EXTENSOES.md) | Referências de produto, lacunas e plano para plugins, skills e MCP |
+| [ORION_CAPACIDADES.md](Memorias%20Do%20Projeto/ORION_CAPACIDADES.md) | Contrato de recursos e adaptação do front para os backends novo e legado |
 
 ---
 
