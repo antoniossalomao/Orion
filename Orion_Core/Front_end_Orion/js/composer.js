@@ -36,8 +36,8 @@
         chat.enviar.setAttribute('aria-label', parar ? 'Parar resposta' : 'Enviar');
         chat.enviar.dataset.tip = parar ? 'Parar (Esc)' : 'Enviar (Enter)';
         chat.enviar.querySelector('use').setAttribute('href', parar ? '#i-stop' : '#i-send');
-        chat.enviar.disabled = parar ? false : !(temTexto(chat) || prontos) || enviando;
-        inicio.enviar.disabled = ocupado || !temTexto(inicio);
+        chat.enviar.disabled = parar ? false : !api.suporta('chat') || !(temTexto(chat) || prontos) || enviando;
+        inicio.enviar.disabled = !api.suporta('chat') || ocupado || !temTexto(inicio);
         chat.ta.setAttribute('aria-busy', String(ocupado));
     }
 
@@ -109,6 +109,7 @@
     }
 
     function enviar(inst) {
+        if (!api.suporta('chat')) { ui.toast('O modelo está indisponível. Confira a conexão em Configurações.', { tipo: 'aviso' }); return; }
         if (tratarComando(inst)) return;
         if (O.chat.ocupado() || O.transport.cancelando()) {
             // Enter com a resposta em andamento NÃO a cancela (quem digita o próximo pedido não perde a resposta)
@@ -163,6 +164,7 @@
     }
 
     async function adicionar(arquivos) {
+        if (!api.suporta('upload')) { ui.toast('Anexos ainda indisponíveis neste backend.', { tipo: 'aviso' }); return; }
         const lista = Array.from(arquivos || []);
         if (!lista.length) return;
         if (document.documentElement.dataset.view !== 'chat') O.app.ir('chat');
@@ -282,13 +284,14 @@
         const desenhar = () => {
             const atual = prefs.get('model');
             const valido = MODELOS.some(m => m.id === atual) ? atual : 'auto';
-            $('#model-label').textContent = MODELOS.find(m => m.id === valido).nome;
+            $('#model-label').textContent = api.estado().backend === 'orion' ? 'Modelo do servidor' : MODELOS.find(m => m.id === valido).nome;
             menu.replaceChildren(...MODELOS.map(m => el('button', {
                 class: 'menu-item', type: 'button', role: 'menuitemradio', 'aria-checked': String(m.id === valido), dataset: { valor: m.id },
             }, m.nome, m.desc ? el('small', { text: m.desc }) : null)));
         };
         desenhar();
         prefs.assinar('model', desenhar);
+        bus.on('capabilities', desenhar);
         // abre ACIMA da caixa de mensagem inteira: não cobre o clipe nem o texto que a pessoa digita
         const acima = () => {
             const dica = menu.parentElement.getBoundingClientRect(), caixa = $('#composer-box').getBoundingClientRect();
@@ -316,12 +319,14 @@
         alvo.focus({ preventScroll: true });
     }
     function sugerir(texto) {
+        if (!api.suporta('chat')) { O.app.ir('chat'); chat.ta.value = texto; autoajustar(chat.ta); atualizar(); foco(); return; }
         if (O.chat.ocupado()) return;
         if (document.documentElement.dataset.view !== 'chat') O.app.ir('chat');
         disparar({ prompt: texto, exibir: texto });
         atualizar();
     }
     function reenviar() {
+        if (!api.suporta('chat')) { ui.toast('O modelo ainda está indisponível.', { tipo: 'aviso' }); return; }
         if (!ultimoPedido || O.chat.ocupado()) return;
         const p = ultimoPedido;
         disparar({ prompt: p.prompt, exibir: p.exibir, nomes: p.nomes, semBolha: true });
@@ -332,6 +337,7 @@
         chat = { form: $('#composer'), ta: $('#composer-input'), enviar: $('#btn-send'), caixa: $('#composer-box') };
         inicio = { form: $('#home-form'), ta: $('#home-input'), enviar: $('#home-form .btn-send'), caixa: $('#home-form .composer-box') };
         ligar(chat); ligar(inicio);
+        window.addEventListener('resize', U.noProximoQuadro(() => { autoajustar(chat.ta); autoajustar(inicio.ta); }));
         $('#btn-attach').addEventListener('click', () => $('#file-input').click());
         $('#file-input').addEventListener('change', e => { adicionar(e.target.files); e.target.value = ''; });
         montarMenuModelo();
@@ -357,5 +363,5 @@
         chat.ta.setSelectionRange(chat.ta.value.length, chat.ta.value.length);
     }
 
-    O.composer = { init, foco, sugerir, reenviar, adicionar, citar, temPedido: () => !!ultimoPedido, MODELOS };
+    O.composer = { init, atualizar, foco, sugerir, reenviar, adicionar, citar, temPedido: () => !!ultimoPedido, MODELOS };
 })();

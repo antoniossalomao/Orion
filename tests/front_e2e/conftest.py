@@ -149,3 +149,68 @@ def abrir(navegador, mock_url):
         and not (permitir_http[0] and "Failed to load resource" in e)
     ]
     assert not relevantes, "console da página não está limpo:\n" + "\n".join(relevantes)
+
+
+@pytest.fixture
+def novo_backend(tmp_path):
+    """API real, gateway simulado e dados temporários; nunca chama um provedor."""
+    import threading
+
+    import uvicorn
+
+    from orion.app import create_app
+    from orion.config import Settings
+    from tests.fakes import FakeGateway, chama, fala, pede
+
+    servidores = []
+
+    def criar(*, gateway=True, auth=True, approval=False):
+        porta = _porta_livre()
+        roteiros = (
+            [pede(chama("esquecer_fato", id=1)), fala("Aguardando você."), fala("Esqueci.")]
+            if approval
+            else [fala("Resposta do backend novo.")]
+        )
+        gw = FakeGateway(*roteiros)
+        app = create_app(
+            Settings(
+                data_dir=tmp_path / str(porta),
+                admin_token=TOKEN if auth else "",
+                jobs_enabled=False,
+                embed_api_key="",
+                telegram_token="",
+                _env_file=None,
+            ),
+            gateway_factory=(lambda _: gw) if gateway else (lambda _: None),
+        )
+        caminhos = []
+
+        @app.middleware("http")
+        async def registrar(request, call_next):
+            caminhos.append(request.url.path)
+            return await call_next(request)
+
+        server = uvicorn.Server(
+            uvicorn.Config(app, host="127.0.0.1", port=porta, log_level="error")
+        )
+        thread = threading.Thread(target=server.run, daemon=True)
+        thread.start()
+        servidores.append((server, thread))
+        url = f"http://127.0.0.1:{porta}"
+        for _ in range(100):
+            try:
+                if httpx.get(f"{url}/health", timeout=0.5).status_code == 200:
+                    break
+            except httpx.HTTPError:
+                time.sleep(0.05)
+        else:
+            raise RuntimeError("API real não subiu")
+        if approval:
+            app.state.orion.memory.add_fact("Fato temporário do teste", "manual")
+        return url, app, gw, caminhos
+
+    yield criar
+    for server, thread in servidores:
+        server.should_exit = True
+        thread.join(timeout=10)
+        assert not thread.is_alive(), "API de teste não encerrou"

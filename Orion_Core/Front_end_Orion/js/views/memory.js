@@ -315,6 +315,17 @@
         },
         async ativar() {
             ativo = true;
+            const indisponivel = !api.suporta('memory_graph') && api.estado().api === 'online';
+            $('#grafo-container').hidden = indisponivel;
+            $('#mem-search').disabled = indisponivel;
+            $('#mem-reload').disabled = indisponivel;
+            let aviso = $('#mem-capabilities');
+            if (indisponivel) {
+                if (!aviso) { aviso = el('p', { id: 'mem-capabilities', class: 'banner banner-warn', role: 'status', text: 'O grafo de memória ainda está indisponível neste backend.' }); caixa.append(aviso); }
+                grafo?.pauseAnimation?.();
+                return;
+            }
+            aviso?.remove();
             if (!grafo && !dados) {
                 if (iniciando) return;
                 iniciando = true;

@@ -41,7 +41,7 @@
     function desenhar() {
         lista.setAttribute('aria-busy', 'false');
         if (!sessoes.length) {
-            lista.replaceChildren(el('div', { class: 'sb-empty', text: listaOnline === false
+            lista.replaceChildren(el('div', { class: 'sb-empty', text: !api.suporta('sessions') && api.estado().api === 'online' ? 'Conversas salvas ainda indisponíveis neste backend.' : listaOnline === false
                 ? 'Não foi possível carregar as conversas. Tentando novamente…' : 'Nenhuma conversa ainda. Comece uma nova.' }));
             return;
         }
@@ -64,7 +64,7 @@
             sessoes = d.sessoes || [];
             ativa = d.ativa || sessoes.find(s => s.ativa)?.sessao_id || null;
             listaOnline = true;
-        } catch (_) { listaOnline = false; }
+        } catch (e) { listaOnline = false; if (e.indisponivel) { sessoes = []; ativa = null; } }
         desenhar();
         bus.emit('sessoes', { lista: sessoes, ativa });
     }
@@ -93,6 +93,7 @@
     }
 
     async function nova() {
+        if (!api.suporta('sessions')) { ui.toast('Conversas salvas ainda indisponíveis neste backend.', { tipo: 'aviso' }); return; }
         if (O.chat.ocupado()) { ui.toast('Espere a resposta terminar para começar outra conversa.', { tipo: 'aviso' }); return; }
         try {
             const d = await api.novaSessao();
@@ -130,8 +131,8 @@
             const r = await api.ping();
             const antes = online;
             online = r.ok;
-            $('#conn-dot').dataset.state = r.ok ? 'ok' : 'danger';
-            const texto = r.ok ? 'Conectado' : 'Sem conexão';
+            $('#conn-dot').dataset.state = r.ok ? (r.model === 'ready' ? 'ok' : 'warn') : 'danger';
+            const texto = r.ok ? (r.incompatible ? 'Versão incompatível' : r.model === 'unavailable' ? 'Modelo indisponível' : r.model === 'unknown' ? 'API disponível' : 'Conectado') : 'Sem conexão';
             // O status só é anunciado quando muda, nunca a cada polling.
             if ($('#conn-text').textContent !== texto) {
                 $('#conn-text').textContent = texto;
@@ -139,7 +140,7 @@
                 $('#conn').setAttribute('aria-label', texto);
                 $('#conn').title = texto;
             }
-            const sub = r.ok ? '' : 'tentando de novo…';
+            const sub = r.ok ? (r.model === 'unavailable' ? 'API disponível' : '') : 'tentando de novo…';
             if ($('#conn-sub').textContent !== sub) $('#conn-sub').textContent = sub;
             if (antes !== online) {
                 bus.emit('conn', { ok: r.ok, ms: r.ms });

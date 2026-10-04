@@ -897,8 +897,11 @@ def test_cerebro_offline_degrada_sem_quebrar(abrir):
     )
     expect(page.locator("#conn-text")).to_have_text("Sem conexão", timeout=8000)
     expect(page.locator("#sb-convs-list")).to_contain_text("Não foi possível carregar as conversas")
-    enviar(page, "alguém aí?")
-    expect(page.locator(".msg-error")).to_contain_text("A conexão com o cérebro caiu")
+    page.click('.sb-item[data-view="chat"]')
+    page.fill("#composer-input", "alguém aí?")
+    page.keyboard.press("Enter")
+    expect(page.locator("#composer-input")).to_have_value("alguém aí?")
+    expect(page.locator("#btn-send")).to_be_disabled()
     page.click('.sb-item[data-view="memoria"]')
     expect(page.locator("#mem-banner")).to_contain_text("demonstração", timeout=15000)
 
@@ -954,6 +957,7 @@ def test_axe_chat_com_resposta_aprovacao_e_erro(abrir):
     esperar_fim(page)
     enviar(page, "isso vai dar falha")
     expect(page.locator(".msg-error")).to_have_count(1)
+    page.wait_for_timeout(500)  # mede contraste depois da animação de entrada
     assert _violacoes(page) == []
 
 

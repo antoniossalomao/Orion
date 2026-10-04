@@ -174,6 +174,7 @@ li.md-tarefa { list-style: none; margin-left: -1.4em; }
 .composer-dock { position: relative; flex-shrink: 0; padding: var(--s-2) var(--s-5) var(--s-4); }
 .composer-dock::before { content: ''; position: absolute; left: 0; right: 0; bottom: 100%; height: 2.5rem; pointer-events: none; background: linear-gradient(to top, rgb(7 10 18 / 0.7), transparent); }
 .composer-inner { width: 100%; max-width: var(--content-w); margin: 0 auto; }
+#chat-capabilities { margin-bottom: var(--s-3); }
 .composer-box {
     display: flex; flex-direction: column; background: var(--bg-3); border: 1px solid var(--line-3); border-radius: var(--r-4);
     box-shadow: var(--sh-1);

@@ -55,7 +55,7 @@
     }
 
     const botaoAcao = (acao, rotulo, icon) =>
-        el('button', { class: 'icon-btn', type: 'button', 'aria-label': rotulo, dataset: { acao, tip: rotulo, tipPos: 'bottom' }, html: icone(icon) });
+        el('button', { class: 'icon-btn', type: 'button', 'aria-label': rotulo, dataset: { acao, tip: rotulo, tipPos: 'bottom' }, disabled: acao === 'ouvir' && !api.suporta('tts'), title: acao === 'ouvir' && !api.suporta('tts') ? 'Resposta por voz indisponível neste backend' : null, html: icone(icon) });
 
     /* ── usuário ───────────────────────────────────────────────────────── */
     function usuario(texto, { anexos = [], animar = true } = {}) {

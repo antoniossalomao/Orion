@@ -29,7 +29,7 @@
             let h = null;
             try { h = await api.health(); } catch (_) { /* detalhes indisponíveis: conexão fica na sidebar */ }
             const nomeModelo = (O.composer.MODELOS.find(m => m.id === prefs.get('model')) || O.composer.MODELOS[0]).nome;
-            const textos = [nomeModelo];
+            const textos = [api.estado().backend === 'orion' ? (api.estado().model === 'ready' ? 'Modelo do servidor' : 'Modelo indisponível') : nomeModelo];
             const vetores = h?.qdrant?.vetores ? Object.values(h.qdrant.vetores).reduce((s, x) => s + (+x || 0), 0) : 0;
             if (vetores) textos.push(`${U.fmtNum(vetores)} memórias`);
             const assinatura = JSON.stringify(textos);

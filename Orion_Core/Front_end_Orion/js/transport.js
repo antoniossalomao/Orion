@@ -108,18 +108,18 @@
         /** @returns {'hub'|'sse'} por onde a mensagem foi — o chat usa para não duplicar o eco do hub */
         enviar({ texto, modelo = 'auto' }) {
             const ponte = window.pywebview?.api;
-            if (ponte?.process_command && hubAberto) {
+            if (api.usarHub() && ponte?.process_command && hubAberto) {
                 // `ignorarHub` NÃO é limpo aqui: sobra de um pedido cancelado não entra na resposta nova
                 ponte.process_command(texto, modelo);
                 return 'hub';
             }
-            lerStream('/chat', { json: { texto, modelo } }, 'O cérebro recusou o pedido');
+            lerStream('/chat', { json: api.pedidoChat({ texto, modelo }) }, 'O cérebro recusou o pedido');
             return 'sse';
         },
 
         /** continua a resposta depois que o usuário aprovou a ação */
         retomar(id) {
-            lerStream(`/approvals/${encodeURIComponent(id)}/resume`, {}, 'Não consegui retomar a ação');
+            lerStream(`/approvals/${encodeURIComponent(id)}/resume`, api.pedidoRetomada(), 'Não consegui retomar a ação');
             return 'sse';
         },
 
