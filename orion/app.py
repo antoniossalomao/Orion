@@ -24,6 +24,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from . import __version__
 from .agent import Agent, AgentEvent
+from .capabilities import Capabilities, describe
 from .channels import TelegramChannel
 from .config import PROJECT_ROOT, Settings
 from .delegate import Delegator
@@ -282,6 +283,28 @@ def create_app(
             request_id.reset(token)
         resposta.headers["x-request-id"] = rid
         return resposta
+
+    @app.get("/capabilities", response_model=Capabilities)
+    def capabilities(state: State) -> Capabilities:
+        return describe(
+            agent_ready=state.agent is not None,
+            admin_configured=bool(state.settings.admin_token),
+        )
+
+    @app.get("/capabilities/details", dependencies=[Admin])
+    def capability_details(state: State) -> dict[str, Any]:
+        """Informações da instalação nunca entram na descoberta anônima."""
+        return {
+            "gateway_model": state.settings.gateway_model if state.agent is not None else None,
+            "components": {
+                "memory": state.memory.ping(),
+                "vectors": state.memory.vectors_available,
+                "jobs": state.jobs is not None,
+                "telegram": state.telegram is not None,
+                "desktop_tools": state.agent is not None and state.settings.desktop_tools,
+            },
+            "tools": state.agent.tools.names() if state.agent is not None else [],
+        }
 
     @app.get("/health")
     def health(state: State) -> dict[str, Any]:
