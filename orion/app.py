@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import hmac
 import json
 import logging
@@ -22,11 +24,16 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from . import __version__
 from .agent import Agent, AgentEvent
+from .channels import TelegramChannel
 from .config import PROJECT_ROOT, Settings
 from .delegate import Delegator
 from .gateway import ChatGateway, Endpoint
+from .jobs import JobRunner
 from .log import request_id
 from .memory import MemoryStore
+from .memory.consolidate import Consolidator
+from .memory.embedders import GeminiEmbedder
+from .memory.ops import Operations
 from .policy import ApprovalStore, PathGuard, PolicyEngine, redact
 from .policy.paths import default_safe_roots
 from .secrets import get_secret
@@ -55,7 +62,10 @@ class AppState:
     memory: MemoryStore
     policy: PolicyEngine
     started_at: float
+    ops: Operations
     agent: Agent | None = None  # None enquanto o gateway não está configurado
+    jobs: JobRunner | None = None  # None com ORION_JOBS_ENABLED=false
+    telegram: TelegramChannel | None = None  # None sem token, sem usuários ou sem gateway
 
 
 def build_policy(settings: Settings, approvals: ApprovalStore | None = None) -> PolicyEngine:
@@ -100,6 +110,53 @@ def gateway_from_settings(settings: Settings) -> ChatGateway | None:
         return None
     chave = settings.gateway_api_key or get_secret("ORION_GATEWAY_API_KEY")
     return ChatGateway([Endpoint("gateway", settings.gateway_url, settings.gateway_model, chave)])
+
+
+def telegram_from_settings(
+    settings: Settings,
+    agent: Agent | None,
+    memory: MemoryStore,
+    policy: PolicyEngine,
+    ops: Operations,
+) -> TelegramChannel | None:
+    """O canal só sobe com token, lista de usuários (default-deny) e gateway de modelos."""
+    token = settings.telegram_token or get_secret("ORION_TELEGRAM_TOKEN")
+    if not token:
+        return None
+    if not settings.telegram_allowed_users:
+        log.error("telegram desligado: defina ORION_TELEGRAM_ALLOWED_USERS (default-deny)")
+        return None
+    if agent is None:
+        log.error("telegram desligado: configure o gateway de modelos (ORION_GATEWAY_URL/MODEL)")
+        return None
+    return TelegramChannel(
+        token=token,
+        allowed_users=settings.telegram_allowed_users,
+        agent=agent,
+        memory=memory,
+        approvals=policy.approvals,
+        ops=ops,
+    )
+
+
+def embedder_from_settings(settings: Settings) -> GeminiEmbedder | None:
+    """Sem chave de API, sem embeddings: a busca segue só por palavra-chave."""
+    chave = settings.embed_api_key or get_secret("ORION_EMBED_API_KEY")
+    if not chave:
+        return None
+    return GeminiEmbedder(chave, model=settings.embed_model, dim=settings.embed_dim)
+
+
+def memory_from_settings(settings: Settings) -> MemoryStore:
+    embedder = embedder_from_settings(settings)
+    try:
+        return MemoryStore(settings.db_path, embedder=embedder)
+    except RuntimeError as e:
+        if embedder is None:
+            raise
+        # trocou o modelo/dimensão sem `reset_vectors()`: sobe sem vetores em vez de não subir
+        log.error("embeddings desligados: %s", e)
+        return MemoryStore(settings.db_path)
 
 
 _CANAL = r"^[a-z0-9_-]{1,32}$"
@@ -152,13 +209,15 @@ def create_app(
     settings: Settings | None = None,
     memory_factory: Callable[[Settings], MemoryStore] | None = None,
     gateway_factory: Callable[[Settings], ChatGateway | None] | None = None,
+    telegram_factory: Callable[..., TelegramChannel | None] | None = None,
 ) -> FastAPI:
     settings = settings or Settings()
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         settings.data_dir.mkdir(parents=True, exist_ok=True)
-        memory = (memory_factory or (lambda s: MemoryStore(s.db_path)))(settings)
+        memory = (memory_factory or memory_from_settings)(settings)
+        ops = Operations(memory)
         policy = build_policy(settings)
         gateway = (gateway_factory or gateway_from_settings)(settings)
         agent = None
@@ -167,14 +226,44 @@ def create_app(
             delegador = Delegator(memory) if _alguma_cli() else None
             agent = Agent(
                 gateway=gateway,
-                tools=default_registry(memory, delegador),
+                tools=default_registry(memory, delegador, ops, desktop=settings.desktop_tools),
                 policy=policy,
                 memory=memory,
+                ops=ops,
             )
-        app.state.orion = AppState(settings, memory, policy, time.time(), agent)
+        jobs, tarefa_jobs = None, None
+        if settings.jobs_enabled:
+            consolidador = (
+                Consolidator(memory, gateway)
+                if gateway is not None and settings.consolidate and hasattr(gateway, "complete")
+                else None
+            )
+            jobs = JobRunner(
+                memory,
+                ops,
+                backup_dir=settings.effective_backup_dir,
+                backup_keep=settings.backup_keep,
+                vault_dir=settings.vault_dir,
+                consolidator=consolidador,
+            )
+            tarefa_jobs = asyncio.create_task(jobs.run_forever(settings.jobs_tick_s))
+        telegram = (telegram_factory or telegram_from_settings)(
+            settings, agent, memory, policy, ops
+        )
+        tarefa_telegram = asyncio.create_task(telegram.run()) if telegram is not None else None
+        app.state.orion = AppState(
+            settings, memory, policy, time.time(), ops, agent, jobs, telegram
+        )
         try:
             yield
         finally:
+            for tarefa in (tarefa_jobs, tarefa_telegram):
+                if tarefa is not None:
+                    tarefa.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await tarefa
+            if telegram is not None:
+                await telegram.aclose()
             if gateway is not None and hasattr(gateway, "aclose"):
                 await gateway.aclose()
             memory.close()
@@ -208,8 +297,11 @@ def create_app(
                 "memory": memoria,
                 "vectors": state.memory.vectors_available,
                 "gateway": state.agent is not None,
+                "jobs": state.jobs is not None,
+                "telegram": state.telegram is not None,
             },
             "pending_approvals": len(state.policy.approvals.pending()),
+            "pending_notifications": len(state.ops.pending_notifications(limit=1000)),
         }
 
     def _agente(state: AppState) -> Agent:
@@ -242,6 +334,7 @@ def create_app(
                 "reason": a.reason,
                 # redigido: quem aprova precisa ver O QUÊ (comando, caminho), sem vazar segredo
                 "args": redact(a.args, limite=2000),
+                "args_truncated": redact(a.args, limite=2000) != redact(a.args, limite=10**9),
                 "expires_at": a.expires_at,
             }
             for a in state.policy.approvals.pending()
@@ -258,6 +351,18 @@ def create_app(
         except ValueError as e:
             raise HTTPException(409, str(e)) from None
         return {"id": a.id, "status": a.status.value}
+
+    @app.get("/notifications", dependencies=[Admin])
+    def avisos(state: State) -> list[dict[str, Any]]:
+        """Avisos ainda não entregues (lembrete vencido, agendamento disparado). O canal
+        entrega e confirma em `/notifications/{id}/ack`."""
+        return state.ops.pending_notifications()
+
+    @app.post("/notifications/{notification_id}/ack", dependencies=[Admin])
+    def confirmar_aviso(notification_id: int, state: State) -> dict[str, bool]:
+        if not state.ops.ack_notification(notification_id):
+            raise HTTPException(404, "aviso inexistente ou já confirmado")
+        return {"ok": True}
 
     if settings.serve_ui and FRONT_DIR.is_dir():
         # por último: as rotas da API têm prioridade sobre o mount

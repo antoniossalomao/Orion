@@ -5,6 +5,10 @@ memória pessoal. Aqui cada caso diz quais textos DEVEM aparecer nos k primeiros
 resultados. Os casos reais ficam fora do git (`tests/eval_pessoal.local.json`):
 
     python -m orion.memory.eval tests/eval_pessoal.local.json --db <orion.db> --min-hit-rate 0.8
+
+Formato: lista de {"question": "...", "expect": ["trecho que deve aparecer", ...]}; há um exemplo
+em `tests/eval_pessoal.example.json`. Por padrão mede só a palavra-chave; com `--embeddings` usa a
+API configurada (ORION_EMBED_API_KEY) e mede a busca híbrida — gasta cota do plano gratuito.
 """
 
 from __future__ import annotations
@@ -70,10 +74,25 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--db", required=True)
     p.add_argument("--k", type=int, default=5)
     p.add_argument("--min-hit-rate", type=float, default=0.0)
+    p.add_argument(
+        "--embeddings", action="store_true", help="mede a busca híbrida (gasta cota da API)"
+    )
     a = p.parse_args(argv)
-    store = MemoryStore(a.db)  # sem embedder: mede a busca por palavra-chave
+    embedder = None
+    if a.embeddings:
+        from ..app import embedder_from_settings
+        from ..config import Settings
+
+        embedder = embedder_from_settings(Settings())
+        if embedder is None:
+            print("sem chave de embeddings (ORION_EMBED_API_KEY): nada a medir", file=sys.stderr)
+            return 2
+    store = MemoryStore(a.db, embedder=embedder)
+    if embedder is not None:
+        print(f"vetores gerados agora: {store.embed_pending()}")
     rel = run_eval(store, load_cases(a.casos), k=a.k)
-    print(f"casos={rel.n} hit@{a.k}={rel.hit_rate:.1%} mrr={rel.mrr:.3f}")
+    modo = "híbrida" if embedder else "palavra-chave"
+    print(f"casos={rel.n} busca={modo} hit@{a.k}={rel.hit_rate:.1%} mrr={rel.mrr:.3f}")
     for c in rel.misses:
         print(f"  ERROU: {c.question}")
     return 0 if rel.hit_rate >= a.min_hit_rate else 1

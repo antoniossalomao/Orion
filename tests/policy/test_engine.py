@@ -191,3 +191,25 @@ def test_registro_cobre_todas_as_ferramentas_do_legado():
         nomes |= set(re.findall(r'"name":\s*"([a-z_]+)"', arq.read_text(encoding="utf-8")))
     assert len(nomes) == 55
     assert nomes <= set(DEFAULT_TOOLS)  # a reescrita pode ter ferramentas a mais
+
+
+# ── leitura de caminho sensível ───────────────────────────────────────────
+def test_ler_arquivo_comum_roda_direto_e_segredo_pede_aprovacao(engine, ctx, raiz):
+    comum = engine.evaluate(
+        ToolCall("ler_arquivo", {"path": str(raiz / "Documents" / "a.txt")}), ctx
+    )
+    assert comum.action is Action.ALLOW
+    segredo = engine.evaluate(ToolCall("ler_arquivo", {"path": str(raiz / "Orion" / ".env")}), ctx)
+    assert segredo.action is Action.CONFIRM and "segredo" in segredo.reason
+    pasta = engine.evaluate(ToolCall("listar_arquivos", {"path": str(raiz / ".ssh")}), ctx)
+    assert pasta.action is Action.CONFIRM
+    sem_caminho = engine.evaluate(ToolCall("ler_arquivo", {}), ctx)
+    assert sem_caminho.action is Action.CONFIRM  # sem caminho não dá para provar nada: confirma
+
+
+def test_aprovacao_libera_a_leitura_do_segredo_uma_vez(engine, ctx, raiz):
+    chamada = ToolCall("ler_arquivo", {"path": str(raiz / "Orion" / ".env")})
+    d = engine.evaluate(chamada, ctx)
+    engine.approvals.decide(d.approval_id, True, channel="telegram", actor="antonio")
+    assert engine.evaluate(chamada, ctx).action is Action.ALLOW
+    assert engine.evaluate(chamada, ctx).action is Action.CONFIRM  # uso único

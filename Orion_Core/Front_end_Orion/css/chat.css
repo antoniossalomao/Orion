@@ -152,6 +152,7 @@ li.md-tarefa { list-style: none; margin-left: -1.4em; }
 .approval-reason { margin: 0.35rem 0 0.6rem; font-size: var(--fs-sm); color: var(--text-2); line-height: 1.5; }
 .approval-args { margin: 0 0 0.8rem; padding: 0.6rem 0.8rem; max-height: 9rem; overflow: auto; background: var(--code-bg); border: 1px solid var(--line-1); border-radius: var(--r-2); font-family: var(--font-mono); font-size: var(--fs-xs); line-height: 1.6; color: var(--text-1); white-space: pre-wrap; word-break: break-all; }
 .approval-args b { color: var(--text-3); font-weight: 500; }
+.approval-warn { margin: 0 0 0.8rem; font-size: var(--fs-sm); line-height: 1.5; color: var(--danger); }
 .approval-actions { display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap; }
 .approval-state { margin-left: auto; font-size: var(--fs-xs); color: var(--text-2); }
 

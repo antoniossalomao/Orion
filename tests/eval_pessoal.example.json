@@ -1,0 +1,28 @@
+[
+  {
+    "question": "Em que cidade eu moro?",
+    "expect": [
+      "Marília"
+    ]
+  },
+  {
+    "question": "Qual é o meu curso?",
+    "expect": [
+      "Análise e Desenvolvimento de Sistemas",
+      "ADS"
+    ]
+  },
+  {
+    "question": "Como eu gosto que me expliquem as coisas?",
+    "expect": [
+      "explicações diretas",
+      "sem enrolação"
+    ]
+  },
+  {
+    "question": "Qual é a palavra de ativação da voz?",
+    "expect": [
+      "palavra de ativação"
+    ]
+  }
+]

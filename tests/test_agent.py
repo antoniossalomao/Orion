@@ -6,6 +6,7 @@ import pytest
 from orion.agent import Agent
 from orion.gateway import GatewayError, ToolCallRequest
 from orion.memory import MemoryStore
+from orion.memory.ops import Operations
 from orion.persona import PERSONA_VERSION
 from orion.policy import ApprovalStore, PathGuard, PolicyEngine
 from orion.tools import Tool, ToolRegistry, memory_tools
@@ -314,3 +315,44 @@ async def test_taint_sobrevive_a_reinicio_do_agente(store, policy):
     agent3, _ = montar(store, policy, pede(chama("salvar_memoria", texto="y")), fala("ok"))
     ev3 = await coletar(agent3.run("telegram", "salve"))
     assert [e.data["decision"] for e in ev3 if e.kind == "tool"] == ["allow"]
+
+
+async def test_objetivos_em_aberto_entram_no_contexto_de_todo_turno(store, policy):
+    ops = Operations(store)
+    ops.add_task("Entregar trabalho de UML")
+    feita = ops.add_task("Tarefa já feita")
+    ops.set_task_status(feita["id"], "concluida")
+    ops.add_reminder("Pagar boleto", "2026-10-04T09:00:00")
+    agent, gw = montar(store, policy, fala("ok"), fala("ok"), ops=ops)
+    await coletar(agent.run("web", "oi"))
+    await coletar(agent.run("web", "e agora?"))
+    for chamada in gw.chamadas:
+        sistema = chamada[0]["content"]
+        assert "[EM ABERTO" in sistema
+        assert "Entregar trabalho de UML" in sistema and "Pagar boleto" in sistema
+        assert "Tarefa já feita" not in sistema
+
+
+async def test_sem_ops_ou_sem_pendencia_nao_ha_bloco_em_aberto(store, policy):
+    agent, gw = montar(store, policy, fala("ok"))
+    await coletar(agent.run("web", "oi"))
+    assert "[EM ABERTO" not in gw.chamadas[0][0]["content"]
+    agent2, gw2 = montar(store, policy, fala("ok"), ops=Operations(store))
+    await coletar(agent2.run("telegram", "oi"))
+    assert "[EM ABERTO" not in gw2.chamadas[0][0]["content"]
+
+
+async def test_evento_de_aprovacao_avisa_quando_os_argumentos_foram_cortados(store, policy):
+    longo = "echo ok " + "x" * 2500 + " ; rm -rf ~"
+    agent, _ = montar(
+        store,
+        policy,
+        pede(chama("executar_comando", cmd="rm -rf ./build")),
+        fala("a"),
+        pede(chama("executar_comando", cmd=longo)),
+        fala("b"),
+    )
+    curto = next(e for e in await coletar(agent.run("web", "1")) if e.kind == "approval")
+    grande = next(e for e in await coletar(agent.run("web", "2")) if e.kind == "approval")
+    assert curto.data["args_truncated"] is False
+    assert grande.data["args_truncated"] is True and grande.data["args"]["cmd"].endswith("…")

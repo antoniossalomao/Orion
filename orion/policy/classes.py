@@ -25,6 +25,7 @@ class ToolSpec:
     path_arg: str | None = None  # argumento com caminho que a ferramenta escreve
     organize: bool = False  # path_arg é uma pasta que será reorganizada
     external: bool = False  # devolve conteúdo não confiável (web, e-mail, arquivos)
+    read_path_arg: str | None = None  # argumento com caminho que a ferramenta LÊ (segredo confirma)
 
 
 def _t(name: str, risk: Risk, **kw) -> tuple[str, ToolSpec]:
@@ -35,8 +36,8 @@ def _t(name: str, risk: Risk, **kw) -> tuple[str, ToolSpec]:
 DEFAULT_TOOLS: dict[str, ToolSpec] = dict(
     [
         # leitura
-        _t("ler_arquivo", Risk.READ),
-        _t("listar_arquivos", Risk.READ),
+        _t("ler_arquivo", Risk.READ, read_path_arg="path"),
+        _t("listar_arquivos", Risk.READ, read_path_arg="path"),
         _t("ler_clipboard", Risk.READ, external=True),
         _t("analisar_clipboard_com_ia", Risk.READ, external=True),
         _t("ler_documento", Risk.READ, external=True),

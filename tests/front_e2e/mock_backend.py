@@ -429,6 +429,9 @@ def create_app() -> FastAPI:
             if "apag" in baixo or "aprov" in baixo or "comando" in baixo:
                 aid = secrets.token_urlsafe(6)
                 args = {"cmd": "Remove-Item C:\\Users\\anton\\Downloads\\antigos -Recurse -Force"}
+                grande = "enorme" in baixo  # o servidor corta a exibição e avisa (args_truncated)
+                if grande:
+                    args = {"cmd": "echo ok " + "x" * 1990 + "…"}
                 ESTADO["aprovacoes"][aid] = {"status": "pending", "args": args}
                 yield _sse(
                     {
@@ -446,6 +449,7 @@ def create_app() -> FastAPI:
                             "tool": "executar_comando",
                             "reason": "execução fora da lista de leitura segura: 'remove-item' fora da lista de leitura segura",
                             "args": args,
+                            "args_truncated": grande,
                         }
                     }
                 )

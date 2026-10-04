@@ -49,7 +49,6 @@ class Approval:
     created_at: float
     expires_at: float
     args: dict[str, Any] = field(default_factory=dict)  # o que o Antônio está aprovando
-    args: dict[str, Any] = field(default_factory=dict)  # o que o Antônio está aprovando
     status: Status = Status.PENDING
     decided_by: str | None = None
     channel: str | None = None

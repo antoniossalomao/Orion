@@ -50,6 +50,29 @@ _NOMES_SENSIVEIS = frozenset(
 _COMPONENTES_SENSIVEIS = frozenset(
     {".ssh", ".aws", ".gnupg", "startup", "launchagents", "launchdaemons"}
 )
+# Leitura que vaza segredo para o LLM (regra 5): ler isto pede confirmação do Antônio.
+_NOMES_LEITURA_SENSIVEL = _NOMES_SENSIVEIS | frozenset(
+    {
+        "id_rsa",
+        "id_ed25519",
+        "id_ecdsa",
+        "id_dsa",
+        ".netrc",
+        ".npmrc",
+        ".pgpass",
+        ".git-credentials",
+        ".pypirc",
+        "secrets.json",
+        "secret.json",
+    }
+)
+_EXT_LEITURA_SENSIVEL = frozenset(
+    {".pem", ".key", ".pfx", ".p12", ".kdbx", ".keystore", ".jks", ".ppk"}
+)
+_COMPONENTES_LEITURA_SENSIVEL = frozenset(
+    {".ssh", ".aws", ".gnupg", ".kube", ".docker", "google_auth"}
+)
+_MODELOS_DE_ENV = (".example", ".sample", ".template")
 
 
 def _norm(p: str | os.PathLike[str]) -> str:
@@ -124,6 +147,25 @@ class PathGuard:
             return "arquivo/pasta de segredo, configuração de shell ou autostart"
         if not any(_dentro(alvo, _norm(r)) for r in self.safe_roots):
             return "fora das pastas de trabalho (Documents/Downloads/Desktop)"
+        return None
+
+    def check_read(self, path: str) -> str | None:
+        """None se pode ler sem confirmação; senão o motivo (arquivo/pasta de segredo ou chave).
+
+        O caminho é resolvido antes (symlink para `.env` continua sendo `.env`)."""
+        if not path or not str(path).strip():
+            return "caminho vazio"
+        alvo = _norm(path)
+        nome = os.path.basename(alvo).lower()
+        partes = {p.lower() for p in alvo.replace("\\", "/").split("/") if p}
+        env = nome == ".env" or (nome.startswith(".env.") and not nome.endswith(_MODELOS_DE_ENV))
+        if (
+            env
+            or nome in _NOMES_LEITURA_SENSIVEL
+            or os.path.splitext(nome)[1] in _EXT_LEITURA_SENSIVEL
+            or partes & _COMPONENTES_LEITURA_SENSIVEL
+        ):
+            return "arquivo/pasta de segredo ou chave: ler expõe o conteúdo ao modelo"
         return None
 
     def check_organize(self, path: str) -> str | None:
