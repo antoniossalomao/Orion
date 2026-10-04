@@ -41,8 +41,75 @@ def test_home_carrega_com_saudacao_status_e_ceu(abrir):
         re.compile(r"^(Bom dia|Boa tarde|Boa noite|Boa madrugada)$")
     )
     expect(page.locator("#conn-text")).to_have_text("Conectado")
-    expect(page.locator("#home-status")).to_contain_text("Cérebro conectado")
+    expect(page.locator("#home-status")).to_contain_text("Automático")
+    expect(page.locator("#home-status")).not_to_contain_text("Cérebro conectado")
     assert page.locator("#sky canvas").count() == 1, "a constelação (WebGL) não subiu"
+
+
+def test_falha_de_sessoes_nao_altera_conexao_nem_dispara_notificacao(abrir):
+    page = abrir()
+    expect(page.locator("#conn-text")).to_have_text("Conectado")
+    resultado = page.evaluate("""async () => {
+        const O = Orion;
+        const sessoes = O.api.sessoes;
+        O.api.sessoes = async () => { throw new Error('sessões indisponíveis'); };
+        await O.sidebar.carregar();
+        const online = O.sidebar.online();
+        await O.sidebar.verificar();
+        O.api.sessoes = sessoes;
+        return online;
+    }""")
+    assert resultado is True, "falha ao listar sessões não significa perder conexão"
+    expect(page.locator("#conn-text")).to_have_text("Conectado")
+    expect(page.locator('#toasts [data-id="conn"]')).to_have_count(0)
+
+
+def test_reconexao_silenciosa_e_ping_sem_sobreposicao(abrir):
+    page = abrir()
+    expect(page.locator("#conn-text")).to_have_text("Conectado")
+    page.evaluate("""async () => {
+        const O = Orion;
+        const ping = O.api.ping;
+        O.api.ping = async () => ({ ok: false, ms: null });
+        await O.sidebar.verificar();
+        O.api.ping = ping;
+    }""")
+    expect(page.locator("#conn-text")).to_have_text("Sem conexão")
+    resultado = page.evaluate("""async () => {
+        const O = Orion;
+        const ping = O.api.ping;
+        let chamadas = 0;
+        let resolver;
+        O.api.ping = () => { chamadas++; return new Promise(r => { resolver = r; }); };
+        const primeira = O.sidebar.verificar();
+        const segunda = O.sidebar.verificar();
+        resolver({ ok: true, ms: 5 });
+        await Promise.all([primeira, segunda]);
+        O.api.ping = ping;
+        return chamadas;
+    }""")
+    assert resultado == 1, "polling concorrente pode aplicar resultados fora de ordem"
+    expect(page.locator("#conn-text")).to_have_text("Conectado")
+    expect(page.locator('#toasts [data-id="conn"]')).to_have_count(0)
+
+
+def test_status_home_preserva_dom_quando_dados_nao_mudam(abrir):
+    page = abrir()
+    expect(page.locator("#home-status")).to_contain_text("memórias")
+    resultado = page.evaluate("""async () => {
+        const caixa = document.querySelector('#home-status');
+        const original = caixa.firstElementChild;
+        const health = Orion.api.health;
+        let terminou;
+        const pronto = new Promise(r => { terminou = r; });
+        Orion.api.health = async () => { const r = await health(); terminou(); return r; };
+        Orion.bus.emit('conn', { ok: true, ms: 5 });
+        await pronto;
+        await new Promise(r => requestAnimationFrame(r));
+        Orion.api.health = health;
+        return caixa.firstElementChild === original;
+    }""")
+    assert resultado, "polling não deve recriar os indicadores estáveis da home"
 
 
 def test_navegacao_por_hash_botao_voltar_e_views_ocultas_inertes(abrir):
@@ -829,7 +896,7 @@ def test_cerebro_offline_degrada_sem_quebrar(abrir):
         http_ok=True,
     )
     expect(page.locator("#conn-text")).to_have_text("Sem conexão", timeout=8000)
-    expect(page.locator("#sb-convs-list")).to_contain_text("offline")
+    expect(page.locator("#sb-convs-list")).to_contain_text("Não foi possível carregar as conversas")
     enviar(page, "alguém aí?")
     expect(page.locator(".msg-error")).to_contain_text("A conexão com o cérebro caiu")
     page.click('.sb-item[data-view="memoria"]')

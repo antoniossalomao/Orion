@@ -8,7 +8,7 @@
     const { $, $$, el, bus, ui, api, prefs } = O;
     const U = O.util;
 
-    let sessoes = [], ativa = null, filtro = '', online = null, abrindo = false;
+    let sessoes = [], ativa = null, filtro = '', online = null, listaOnline = null, abrindo = false;
     let lista, busca;
 
     /* ── lista de conversas ────────────────────────────────────────────── */
@@ -41,8 +41,8 @@
     function desenhar() {
         lista.setAttribute('aria-busy', 'false');
         if (!sessoes.length) {
-            lista.replaceChildren(el('div', { class: 'sb-empty', text: online === false
-                ? 'Cérebro offline. As conversas aparecem quando ele voltar.' : 'Nenhuma conversa ainda. Comece uma nova.' }));
+            lista.replaceChildren(el('div', { class: 'sb-empty', text: listaOnline === false
+                ? 'Não foi possível carregar as conversas. Tentando novamente…' : 'Nenhuma conversa ainda. Comece uma nova.' }));
             return;
         }
         if (filtro) {
@@ -63,8 +63,8 @@
             const d = await api.sessoes();
             sessoes = d.sessoes || [];
             ativa = d.ativa || sessoes.find(s => s.ativa)?.sessao_id || null;
-            online = true;
-        } catch (_) { online = false; }
+            listaOnline = true;
+        } catch (_) { listaOnline = false; }
         desenhar();
         bus.emit('sessoes', { lista: sessoes, ativa });
     }
@@ -122,24 +122,30 @@
     }
 
     /* ── conexão ───────────────────────────────────────────────────────── */
-    let primeiraVez = true;
+    let verificando = false;
     async function verificar() {
-        if (document.hidden) return;
-        const r = await api.ping();
-        const antes = online;
-        online = r.ok;
-        const dot = $('#conn-dot');
-        dot.dataset.state = r.ok ? 'ok' : 'danger';
-        $('#conn-text').textContent = r.ok ? 'Conectado' : 'Sem conexão';
-        $('#conn-sub').textContent = r.ok ? `${r.ms} ms` : 'tentando de novo…';
-        if (antes !== online) {
-            bus.emit('conn', { ok: r.ok, ms: r.ms });
-            if (!primeiraVez) {
-                if (!r.ok) ui.toast('O cérebro parou de responder. Vou continuar tentando.', { tipo: 'aviso', ms: 0, id: 'conn' });
-                else { ui.toast('Cérebro de volta.', { tipo: 'ok', id: 'conn' }); carregar(); }
+        if (document.hidden || verificando) return;
+        verificando = true;
+        try {
+            const r = await api.ping();
+            const antes = online;
+            online = r.ok;
+            $('#conn-dot').dataset.state = r.ok ? 'ok' : 'danger';
+            const texto = r.ok ? 'Conectado' : 'Sem conexão';
+            // O status só é anunciado quando muda, nunca a cada polling.
+            if ($('#conn-text').textContent !== texto) {
+                $('#conn-text').textContent = texto;
+                // A conexão continua identificável quando só o trilho de ícones está visível.
+                $('#conn').setAttribute('aria-label', texto);
+                $('#conn').title = texto;
             }
-        }
-        primeiraVez = false;
+            const sub = r.ok ? '' : 'tentando de novo…';
+            if ($('#conn-sub').textContent !== sub) $('#conn-sub').textContent = sub;
+            if (antes !== online) {
+                bus.emit('conn', { ok: r.ok, ms: r.ms });
+                if (r.ok && antes === false) carregar();
+            }
+        } finally { verificando = false; }
     }
 
     function init() {
@@ -166,7 +172,7 @@
     }
 
     O.sidebar = {
-        init, nova, alternar, carregar, abrir,
+        init, nova, alternar, carregar, abrir, verificar,
         sessoes: () => sessoes, ativa: () => sessoes.find(s => s.sessao_id === ativa) || null,
         online: () => online,
     };

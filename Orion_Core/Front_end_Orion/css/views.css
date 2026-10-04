@@ -3,18 +3,20 @@
    ========================================================================== */
 
 /* ── Início: o céu é o palco; o conteúdo fica embaixo ───────────────── */
-#view-home { justify-content: flex-end; align-items: center; pointer-events: none; padding: 0 var(--s-5) var(--s-8); }
-#view-home > * { pointer-events: auto; }
-.home-hero { width: min(100%, 40rem); display: flex; flex-direction: column; gap: var(--s-4); }
-.home-greet h2 { font-size: var(--fs-2xl); font-weight: 500; letter-spacing: -0.02em; line-height: var(--lh-tight); }
-.home-greet h2 em { font-style: normal; color: var(--accent); }
-.home-greet p { margin-top: 0.3rem; color: var(--text-2); font-size: var(--fs-md); }
-.home-status { display: flex; flex-wrap: wrap; align-items: center; row-gap: 0.15rem; font-size: var(--fs-sm); color: var(--text-3); }
-.home-status .hs-item { display: inline-flex; align-items: center; gap: 0.45rem; }
-.home-status .hs-item + .hs-item::before { content: '·'; margin: 0 0.7rem; color: var(--text-4); }
-.suggest-row { display: flex; flex-wrap: wrap; gap: var(--s-2); }
-.suggest-row .chip { height: 2rem; padding: 0 0.9rem; font-size: var(--fs-sm); background: var(--glass); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
-.home-composer .composer-box { box-shadow: var(--sh-3); }
+#view-home { justify-content: center; align-items: center; overflow-y: auto; padding: var(--s-8) var(--s-6); }
+.home-hero { width: min(100%, 46rem); display: flex; flex-direction: column; gap: var(--s-5); margin-block: auto; }
+.home-eyebrow { display: inline-flex; align-items: center; gap: var(--s-3); margin-bottom: var(--s-5); font-size: var(--fs-2xs); font-weight: 600; letter-spacing: 0.12em; color: var(--text-3); }
+.home-greet h2 { font-size: clamp(1.7rem, 3vw, 2.375rem); font-weight: 500; letter-spacing: -0.045em; line-height: var(--lh-tight); }
+.home-greet h2 em { font-style: normal; color: var(--text-1); }
+.home-greet p { margin-top: var(--s-3); color: var(--text-2); font-size: var(--fs-lg); }
+.home-status { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; row-gap: var(--s-1); font-size: var(--fs-xs); color: var(--text-3); }
+.home-status .hs-item { display: inline-flex; align-items: center; }
+.home-status .hs-item + .hs-item::before { content: '·'; margin: 0 var(--s-3); }
+.suggest-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s-3); }
+.home-composer .composer-input { min-height: 5rem; padding: var(--s-3); }
+.home-composer .composer-row { padding: var(--s-2); }
+.home-composer-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); padding: var(--s-3) var(--s-4); color: var(--text-3); font-size: var(--fs-xs); }
+.home-composer-foot kbd { font-size: var(--fs-2xs); }
 .star-label {
     position: fixed; z-index: var(--z-overlay); pointer-events: none; max-width: 16rem; padding: 0.45rem 0.7rem;
     background: var(--bg-3); border: 1px solid var(--line-2); border-radius: var(--r-3); box-shadow: var(--sh-2);
@@ -23,8 +25,9 @@
 .star-label[data-show="true"] { opacity: 1; }
 .star-label strong { display: block; font-size: var(--fs-sm); font-weight: 600; }
 .star-label span { font-size: var(--fs-xs); color: var(--text-2); }
-@media (max-width: 860px) { .home-greet h2 { font-size: var(--fs-xl); } }
-@media (max-height: 640px) { .home-status, .suggest-row { display: none; } }
+@media (max-width: 860px) { .home-greet h2 { font-size: 1.5rem; } }
+@media (max-width: 1100px) { .suggest-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-height: 640px) { #view-home { padding-block: var(--s-5); } .home-hero { gap: var(--s-3); } .home-eyebrow { margin-bottom: var(--s-3); } }
 
 /* ── Memória (grafo 3D) ──────────────────────────────────────────────── */
 #view-memoria { padding: 0; }
@@ -62,7 +65,6 @@
 .mem-links button:hover { background: rgb(255 255 255 / 0.06); color: var(--text-1); }
 .mem-links .conv-title { flex: 1; }
 @media (max-width: 860px) { .mem-stats { display: none; } .mem-search { flex: 1 1 14rem; } }
-}
 
 /* ── Integrações ─────────────────────────────────────────────────────── */
 .integ-card { display: flex; flex-direction: column; gap: var(--s-3); }

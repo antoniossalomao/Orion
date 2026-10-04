@@ -155,3 +155,34 @@ uv run python -m tests.front_e2e.mock_backend      # http://127.0.0.1:8000/ui/
 ```
 Mensagens que acionam fluxos: "apague…" (cartão de aprovação), "me lembra…" (ferramenta),
 "falha" (erro), "lento" (demora), "xss" (markdown malicioso), qualquer pergunta longa (tabela + código).
+
+
+## 7. Refinamento visual e conexão (04/10/2026)
+
+A interface passa a priorizar o conteúdo e a conversa, com referência à organização dos apps
+Codex e Claude. A identidade continua sendo o observatório noturno: Rigel como acento, o
+cinturão de Órion como marca e a constelação discreta no início. Chat, configurações e
+integrações têm fundo sólido para facilitar a leitura.
+
+- Início centralizado, saudação com maior hierarquia, campo de mensagem amplo e quatro cartões
+  de sugestões com ícones. A sugestão de organizar arquivos começa por um plano.
+- Sidebar de 256 px, seção “Suas conversas”, seleção consistente e conexão no rodapé,
+  inclusive no trilho recolhido. A conexão tem nome acessível e tooltip quando recolhida.
+- Mensagens do usuário, composer e cartões usam superfícies sólidas e sombras leves. O
+  indicador “Em espera” fica oculto; o estado volta a aparecer quando há atividade.
+- O início mostra apenas modelo e memória. O estado “Cérebro conectado” duplicado saiu;
+  o estado da conexão fica na sidebar, sem toast de queda/retorno.
+- `carregar()` não altera mais `online`: falha em `/sessoes` não é falha de conexão. O ping
+  impede chamadas concorrentes, e seus rótulos só mudam quando o estado muda. A home preserva
+  os nós dos indicadores quando os dados não mudam e consulta detalhes apenas enquanto ativa.
+- A mensagem de erro na lista de conversas descreve a falha de carregamento, evitando chamar
+  o cérebro de offline quando apenas `/sessoes` falhou.
+
+Validação: os 81 cenários da suíte completa de navegador passaram, incluindo as
+regressões de reconexão silenciosa, falha isolada da lista e estabilidade da home.
+As sete suítes de lógica do front em Node, Ruff e verificação de whitespace também passaram.
+A suíte de navegador inclui axe nas cinco telas e três temas, streaming, anexos, segurança,
+aprovações e o shim do desktop. Capturas visuais conferidas a 1440×900 e 700×650.
+
+O pywebview real no Windows continua sem validação neste ambiente; o backend utilizado
+nas capturas e nos testes é o mock, sem conectar aos dados pessoais do usuário.
