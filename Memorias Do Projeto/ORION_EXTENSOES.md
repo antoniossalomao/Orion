@@ -1,7 +1,8 @@
 # Orion — referências de produto e plano de extensões
 
-Pesquisa em 04/10/2026. **Plano de implementação com C00–C07 concluídos** (registro na seção 9).
-Plugins, skills e MCP continuam propostos; nenhuma conta ou servidor MCP foi conectado.
+Pesquisa em 04/10/2026. **Plano de implementação com C00–C08 concluídos** (registro na seção 9).
+Plugins e skills seguem em implementação. MCP já tem prova com servidores controlados;
+nenhuma conta pessoal ou servidor externo do usuário foi conectado.
 Complementa [ORION_FRONT.md](ORION_FRONT.md), as fases 4 e 6 do
 [ORION_NUCLEO.md](ORION_NUCLEO.md) e a triagem de [ORION_FERRAMENTAS.md](ORION_FERRAMENTAS.md).
 As regras de [ORION_REGRAS.md](ORION_REGRAS.md) continuam valendo.
@@ -338,7 +339,7 @@ como fundação do recurso novo. Exportar leitura primeiro, com identidade e esc
 
 ## 8. Próximo trabalho concreto
 
-C00–C07 foram concluídos e validados. Continuar pelo **C08: ferramentas assíncronas e validação de schemas**.
+C00–C08 foram concluídos e validados. Continuar pelo **C09: conexões locais MCP por stdio**.
 O usuário autorizou a execução dos checklists restantes, com commits separados, validação,
 registro no vault e push. Integrações pessoais e Windows serão registrados conforme
 as evidências disponíveis, sem transformar fixtures em prova de conta ou desktop reais.
@@ -350,8 +351,8 @@ quando houver integração concreta para revisar. Este documento não muda as de
 
 ## 9. Checklists por commit e sequência de dias
 
-Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C07 têm commits reais
-registrados; C08–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
+Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C08 têm commits reais
+registrados; C09–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
 precisa estar pronto. Não é necessário concluir o plano inteiro para usar o primeiro MVP.
 
 ### Ritmo de trabalho
@@ -364,7 +365,7 @@ precisa estar pronto. Não é necessário concluir o plano inteiro para usar o p
   manter os dependentes esperando a entrega completa.
 - Ao pedir continuação, usar o ID: **“Faça o próximo commit pendente”** ou **“Faça o C09”**.
   O executor confere o checklist e as dependências antes de iniciar.
-- C00–C07 estão implementados, validados e registrados abaixo; C08–C50 permanecem
+- C00–C08 estão implementados, validados e registrados abaixo; C09–C50 permanecem
   planejados. Cada continuação deve conferir as dependências e os limites da entrega anterior.
 
 ### Como concluir e pausar cada commit
@@ -417,10 +418,10 @@ a integração real de Pesquisa fica registrada separadamente se ainda não tive
 
 ### Registro para retomar no próximo dia
 
-- Último checklist concluído: **C07**, commit `c678a4be`; entregas anteriores registradas abaixo.
-- Próximo commit sugerido: **C08 — ferramentas assíncronas e validação de schemas**.
-- Dependências/impedimentos: conferir as dependências do C08 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
-- Evidências: ver os registros C00–C07 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
+- Último checklist concluído: **C08**, commit `11f2bbb`; entregas anteriores registradas abaixo.
+- Próximo commit sugerido: **C09 — conexões locais MCP por stdio**.
+- Dependências/impedimentos: conferir as dependências do C09 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
+- Evidências: ver os registros C00–C08 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
 - Atualizações: registrar aqui o ID concluído, hash/link e o próximo ID; não preencher com
   hash fictício nem tratar evidência de mock como teste contra conta real.
 
@@ -590,6 +591,21 @@ novas; Ruff, formatação e Pyright passaram. Logs em `/workspace/artifacts/orio
 MCP do produto. Windows/pywebview real e integrações externas continuam sem validação.
 
 
+### Execução C08 — ferramentas assíncronas e schemas (05/10/2026)
+
+**Commit de implementação:** `11f2bbb`.
+ToolRegistry valida JSON Schema completo com formatos e referências locais; referências
+remotas não abrem rede implicitamente. Schemas inválidos são recusados ao registrar.
+O agente aguarda funções async no loop existente e desloca ferramentas síncronas para
+uma thread. Cancelamento async propaga; cancelar a espera de uma ferramenta síncrona
+não garante interromper a thread já iniciada. A política continua antes da execução.
+
+**Evidências:** 529 testes backend, 8 testes de integração da interface, Ruff e Pyright
+sem erros. Casos novos comprovam argumentos inválidos sem execução, formatos, `$ref`,
+loop preservado, cancelamento e ação async sem execução antes da aprovação.
+Logs em `/workspace/artifacts/orion-c08/`. Nenhum servidor pessoal foi conectado.
+
+
 ### C00 — fix(ui): estabilizar conexão e consolidar o refinamento visual
 
 Etapa: **A** · Depende de: **base atual do repositório** · Estado: **concluído**.
@@ -672,13 +688,13 @@ Etapa: **B** · Depende de: **C01** · Estado: **concluído**.
 
 ### C08 — refactor(tools): executar ferramentas assíncronas e validar schemas
 
-Etapa: **B** · Depende de: **C07** · Estado: **planejado**.
+Etapa: **B** · Depende de: **C07** · Estado: **concluído**.
 
-- [ ] Estender ToolRegistry para execução async preservando as ferramentas nativas síncronas.
-- [ ] Validar argumentos pelo JSON Schema completo e padronizar resultados estruturados e erros.
-- [ ] Manter a política antes da execução e evitar criar um event loop por chamada.
-- [ ] **Validar:** Testar ferramenta sync e async, schema inválido e erro de execução; rerodar os testes de ferramentas nativas e do agente.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Estender ToolRegistry para execução async preservando as ferramentas nativas síncronas.
+- [x] Validar argumentos pelo JSON Schema completo e padronizar resultados estruturados e erros.
+- [x] Manter a política antes da execução e evitar criar um event loop por chamada.
+- [x] **Validar:** Testar ferramenta sync e async, schema inválido e erro de execução; rerodar os testes de ferramentas nativas e do agente.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C09 — feat(mcp): conectar servidores locais por stdio
 
