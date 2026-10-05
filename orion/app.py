@@ -29,6 +29,7 @@ from .capabilities import Capabilities, describe
 from .channels import TelegramChannel
 from .config import PROJECT_ROOT, Settings
 from .delegate import Delegator
+from .extensions.host import MCPHost
 from .gateway import ChatGateway, Endpoint
 from .jobs import JobRunner
 from .log import request_id
@@ -68,6 +69,7 @@ class AppState:
     ops: Operations
     agent: Agent | None = None  # None enquanto o gateway não está configurado
     jobs: JobRunner | None = None  # None com ORION_JOBS_ENABLED=false
+    mcp: MCPHost | None = None
     telegram: TelegramChannel | None = None  # None sem token, sem usuários ou sem gateway
 
 
@@ -271,8 +273,10 @@ def create_app(
             settings, agent, memory, policy, ops
         )
         tarefa_telegram = asyncio.create_task(telegram.run()) if telegram is not None else None
+        mcp = MCPHost(settings.mcp_connections)
+        await mcp.start()
         app.state.orion = AppState(
-            settings, memory, policy, time.time(), ops, agent, jobs, telegram
+            settings, memory, policy, time.time(), ops, agent, jobs, telegram=telegram, mcp=mcp
         )
         try:
             yield
@@ -284,6 +288,7 @@ def create_app(
                         await tarefa
             if telegram is not None:
                 await telegram.aclose()
+            await mcp.close()
             if gateway is not None and hasattr(gateway, "aclose"):
                 await gateway.aclose()
             memory.close()

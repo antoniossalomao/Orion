@@ -41,3 +41,21 @@ ambiente limpo, com subprocessos e protocolo reais. A suíte completa do backend
 com 517 testes após instalar as dependências novas. Ruff, formatação e Pyright passaram.
 Evidências locais em `/workspace/artifacts/orion-c07/`. Windows/pywebview real ainda não
 foi validado; nenhuma compatibilidade extra é inferida do catálogo do SDK.
+
+## Lifecycle local — C09
+
+`ORION_MCP_CONNECTIONS` aceita uma lista JSON de conexões `stdio`, com `id`, `command`
+absoluto e `args` separados (sem shell). Opcional: `cwd` absoluto. O padrão é
+`enabled: false`; habilitar requer `trusted: true`, após revisar o código local.
+Orion ainda não oferece sandbox de sistema operacional para servidores locais.
+
+O lifespan conecta configurações habilitadas e encerra cada subprocesso pelo SDK.
+Cada conexão tem tarefa proprietária de seus contextos AnyIO. Falha de inicialização
+mantém o chat nativo funcionando. Ambiente herda somente as variáveis operacionais
+permitidas pelo SDK; variáveis ORION e chaves arbitrárias não são copiadas. Stderr do
+servidor é descartado, stdout permanece reservado ao protocolo; diagnóstico próprio
+contém apenas ID, estado e código. Ler uma configuração não inicia o processo.
+
+O host não registra ferramentas descobertas no agente automaticamente. Esse registro
+aguarda classificação local e concessões. Os testes verificam subprocessos reais,
+ambiente sem segredo de ensaio e shutdown pelo lifespan. Não foi testado em Windows.
