@@ -86,3 +86,15 @@ Registro emparelha Tool e ToolSpec, com nome curto derivado de identidade canôn
 hash de configuração/schema/metadados. Origem e revisão aparecem no audit; limite de
 20 chamadas por minuto por identidade. Troca de revisão revoga aprovações e referências
 antigas. Nomes iguais em conexões distintas não colidem com ferramentas nativas.
+
+## Falhas e cancelamento — C12
+
+Cada chamada tem prazo e no máximo quatro chamadas concorrentes por conexão. O SDK
+recebe cancelamento da espera. Sem confirmação remota, `possibly_active: true` sinaliza
+que o efeito pode continuar; isso também vale para queda após envio. Nunca repetir
+automaticamente uma ação. Erros remotos viram códigos estáveis, sem payload bruto.
+
+Parar a conexão cancela esperas ativas e fecha o SDK; reconnect explícito descarta o
+client e cria nova geração de identidade, revogando aprovações anteriores. Os testes
+verificam chamada lenta, cancelamento, queda durante execução, ausência de replay e
+encerramento de PID em POSIX. Não atestam interrupção universal de ações externas.

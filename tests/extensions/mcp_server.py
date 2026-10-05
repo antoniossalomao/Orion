@@ -1,5 +1,6 @@
 """Servidor controlado de ensaio: sem rede, arquivos pessoais ou credenciais."""
 
+import asyncio
 import os
 
 from mcp.server.mcpserver import MCPServer
@@ -31,6 +32,27 @@ def alterar_fixture() -> dict[str, int]:
 @server.tool()
 def estado_fixture() -> dict[str, int]:
     return {"changes": changes}
+
+
+slow_calls = 0
+
+
+@server.tool()
+async def lento(seconds: float) -> dict[str, int]:
+    global slow_calls
+    slow_calls += 1
+    await asyncio.sleep(seconds)
+    return {"calls": slow_calls}
+
+
+@server.tool()
+def chamadas_lentas() -> dict[str, int]:
+    return {"calls": slow_calls}
+
+
+@server.tool()
+def queda() -> dict[str, str]:
+    os._exit(0)
 
 
 if __name__ == "__main__":

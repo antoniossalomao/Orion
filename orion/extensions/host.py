@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Literal
@@ -122,8 +123,9 @@ def error_code(error: BaseException) -> str:
 
 
 class MCPError(RuntimeError):
-    def __init__(self, code: str):
+    def __init__(self, code: str, *, possibly_active: bool = False):
         self.code = code
+        self.possibly_active = possibly_active
         super().__init__(code)
 
 
@@ -136,6 +138,10 @@ class Connection:
         self.error: str | None = None
         self.protocol: str | None = None
         self.client: Client | None = None
+        self.generation = ""
+        self.last_call: dict | None = None
+        self._calls: set[asyncio.Task] = set()
+        self._slots = asyncio.Semaphore(4)
         self._http_error: str | None = None
         self._task: asyncio.Task | None = None
         self._stop = asyncio.Event()
@@ -149,6 +155,7 @@ class Connection:
             "state": self.state,
             "protocol": self.protocol,
             "error": self.error,
+            "last_call": self.last_call,
         }
 
     @asynccontextmanager
@@ -226,12 +233,18 @@ class Connection:
         self._ready.clear()
         self.error = None
         self._http_error = None
+        self.generation = uuid.uuid4().hex
         self.state = "connecting"
         self._task = asyncio.create_task(self._worker(), name=f"mcp:{self.config.id}")
         await self._ready.wait()
 
     async def close(self) -> None:
         self._stop.set()
+        active = [task for task in self._calls if task is not asyncio.current_task()]
+        for task in active:
+            task.cancel()
+        if active:
+            await asyncio.gather(*active, return_exceptions=True)
         if self._task is not None:
             await self._task
             self._task = None
@@ -245,8 +258,30 @@ class Connection:
         return (await self.connected().list_tools()).tools
 
     async def call(self, name: str, arguments: dict):
-        # API interna; registro no agente depende de classificação local (C11).
-        return await self.connected().call_tool(name, arguments)
+        # Nunca repetir um POST/tool após timeout: o efeito pode já ter ocorrido.
+        client = self.connected()
+        task = asyncio.current_task()
+        if task is not None:
+            self._calls.add(task)
+        try:
+            async with asyncio.timeout(self.timeout), self._slots:
+                result = await client.call_tool(name, arguments)
+            self.last_call = {"state": "completed", "possibly_active": False}
+            return result
+        except asyncio.CancelledError:
+            self.last_call = {"state": "cancelled", "possibly_active": True}
+            raise
+        except TimeoutError as error:
+            self.last_call = {"state": "timeout", "possibly_active": True}
+            raise MCPError("call_timeout", possibly_active=True) from error
+        except Exception as error:
+            self.last_call = {"state": "failed", "possibly_active": True}
+            self.error = self._http_error or "call_failed"
+            self._stop.set()
+            raise MCPError(self.error, possibly_active=True) from error
+        finally:
+            if task is not None:
+                self._calls.discard(task)
 
 
 class MCPHost:

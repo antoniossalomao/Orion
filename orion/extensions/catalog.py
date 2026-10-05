@@ -22,7 +22,11 @@ class Entry:
 
 def identity(connection: Connection, remote) -> Entry:
     config = connection.config.model_dump(mode="json", exclude={"enabled", "trusted", "authorized"})
-    payload = {"config": config, "tool": remote.model_dump(mode="json")}
+    payload = {
+        "config": config,
+        "tool": remote.model_dump(mode="json"),
+        "generation": connection.generation,
+    }
     revision = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
     canonical = f"mcp:{connection.config.id}:{remote.name}:{revision}"
     # Nome ASCII estável, <=64; não depende de nome remoto bem-formado/sem colisão.
@@ -34,6 +38,13 @@ class Catalog:
     def __init__(self, host: MCPHost, registry: ToolRegistry, policy: PolicyEngine):
         self.host, self.registry, self.policy = host, registry, policy
         self.entries: dict[str, Entry] = {}
+
+    async def reconnect(self, connection_id: str) -> None:
+        connection = self.host.connections[connection_id]
+        # Revogar antes do reconnect; nunca retomar chamadas pendentes de execução.
+        await connection.close()
+        await connection.start()
+        await self.refresh()
 
     async def refresh(self) -> None:
         # Validar um catálogo inteiro antes de trocar o mapa efetivo.
@@ -51,7 +62,15 @@ class Catalog:
                     async def execute(**arguments):
                         if self.entries.get(current.name) != current:
                             raise MCPError("origin_revoked")
-                        result = await conn.call(name, arguments)
+                        try:
+                            result = await conn.call(name, arguments)
+                        except MCPError as error:
+                            return {
+                                "ok": False,
+                                "codigo": error.code,
+                                "possibly_active": error.possibly_active,
+                                "origin": conn.config.id,
+                            }
                         return {
                             "ok": not result.is_error,
                             "origin": conn.config.id,

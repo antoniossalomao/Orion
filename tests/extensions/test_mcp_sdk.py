@@ -23,6 +23,9 @@ async def test_stdio_descoberta_chamada_e_encerramento(mode, protocol):
             "ambiente",
             "alterar_fixture",
             "estado_fixture",
+            "lento",
+            "chamadas_lentas",
+            "queda",
         ]
         result = await client.call_tool("eco", {"texto": "prova de leitura"})
         assert not result.is_error and result.structured_content is not None
