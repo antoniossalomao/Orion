@@ -18,7 +18,12 @@ async def test_stdio_descoberta_chamada_e_encerramento(mode, protocol):
         assert negotiated == protocol
         ensure_compatible(negotiated)
         tools = await client.list_tools()
-        assert [tool.name for tool in tools.tools] == ["eco", "ambiente"]
+        assert [tool.name for tool in tools.tools] == [
+            "eco",
+            "ambiente",
+            "alterar_fixture",
+            "estado_fixture",
+        ]
         result = await client.call_tool("eco", {"texto": "prova de leitura"})
         assert not result.is_error and result.structured_content is not None
         assert result.structured_content["texto"] == "prova de leitura"

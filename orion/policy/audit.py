@@ -49,6 +49,10 @@ class RateLimiter:
         self._janelas: dict[str, deque[float]] = defaultdict(deque)
         self._lock = threading.Lock()
 
+    def set_limit(self, ferramenta: str, limit: tuple[int, int]) -> None:
+        with self._lock:
+            self._limites[ferramenta] = limit
+
     def check(self, ferramenta: str) -> str | None:
         """Registra a chamada e devolve None, ou o motivo se estourou o limite."""
         if ferramenta not in self._limites:

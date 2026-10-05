@@ -107,6 +107,8 @@ class PolicyEngine:
     def _motivo_confirmacao(self, spec: ToolSpec, call: ToolCall, ctx: Context) -> str | None:
         if spec.risk is Risk.DESTRUCTIVE:
             return "ação destrutiva"
+        if spec.require_confirmation:
+            return "ação externa exige confirmação para esta revisão"
         motivo: str | None = None
         if spec.risk is Risk.EXEC:
             if spec.cmd_arg:
@@ -138,6 +140,8 @@ class PolicyEngine:
                 {
                     "session_id": ctx.session_id,
                     "tool": call.name,
+                    "origin": self.tools[call.name].origin if call.name in self.tools else None,
+                    "revision": self.tools[call.name].revision if call.name in self.tools else None,
                     "args": redact(call.args),
                     "action": d.action.value,
                     "risk": d.risk.value if d.risk else None,

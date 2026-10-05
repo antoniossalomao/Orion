@@ -22,6 +22,7 @@ class Tool:
     description: str
     parameters: dict[str, Any]  # JSON Schema
     fn: Callable[..., Any]
+    origin: str | None = None
 
     def schema(self) -> dict[str, Any]:
         return {
@@ -123,6 +124,9 @@ class ToolRegistry:
             raise ValueError(f"ferramenta duplicada: {tool.name}")
         _ = tool.validator
         self._tools[tool.name] = tool
+
+    def unregister(self, name: str) -> None:
+        self._tools.pop(name, None)
 
     def get(self, name: str) -> Tool | None:
         return self._tools.get(name)

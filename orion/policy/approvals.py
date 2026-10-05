@@ -139,6 +139,14 @@ class ApprovalStore:
                 if a.session_id == session_id
             )
 
+    def invalidate_tools(self, names: set[str]) -> None:
+        with self._lock:
+            for a in list(self._items.values()):
+                if a.tool in names and a.status in (Status.PENDING, Status.APPROVED):
+                    self._items[a.id] = replace(
+                        a, status=Status.DENIED, reason="origem ou revisão revogada"
+                    )
+
     def get(self, approval_id: str) -> Approval | None:
         with self._lock:
             a = self._items.get(approval_id)

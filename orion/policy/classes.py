@@ -27,6 +27,10 @@ class ToolSpec:
     external: bool = False  # devolve conteúdo não confiável (web, e-mail, arquivos)
     read_path_arg: str | None = None  # argumento com caminho que a ferramenta LÊ (segredo confirma)
 
+    origin: str | None = None
+    revision: str | None = None
+    require_confirmation: bool = False
+
 
 def _t(name: str, risk: Risk, **kw) -> tuple[str, ToolSpec]:
     return name, ToolSpec(name, risk, **kw)
