@@ -1,6 +1,6 @@
 # Orion — referências de produto e plano de extensões
 
-Pesquisa em 04/10/2026. **Plano de implementação com C00–C10 concluídos** (registro na seção 9).
+Pesquisa em 04/10/2026. **Plano de implementação com C00–C11 concluídos** (registro na seção 9).
 Plugins e skills seguem em implementação. MCP já tem prova com servidores controlados;
 nenhuma conta pessoal ou servidor externo do usuário foi conectado.
 Complementa [ORION_FRONT.md](ORION_FRONT.md), as fases 4 e 6 do
@@ -339,7 +339,7 @@ como fundação do recurso novo. Exportar leitura primeiro, com identidade e esc
 
 ## 8. Próximo trabalho concreto
 
-C00–C10 foram concluídos e validados. Continuar pelo **C11: classificação local das ferramentas MCP**.
+C00–C11 foram concluídos e validados. Continuar pelo **C12: timeouts cancelamento e reconexão MCP**.
 O usuário autorizou a execução dos checklists restantes, com commits separados, validação,
 registro no vault e push. Integrações pessoais e Windows serão registrados conforme
 as evidências disponíveis, sem transformar fixtures em prova de conta ou desktop reais.
@@ -351,8 +351,8 @@ quando houver integração concreta para revisar. Este documento não muda as de
 
 ## 9. Checklists por commit e sequência de dias
 
-Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C10 têm commits reais
-registrados; C11–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
+Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C11 têm commits reais
+registrados; C12–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
 precisa estar pronto. Não é necessário concluir o plano inteiro para usar o primeiro MVP.
 
 ### Ritmo de trabalho
@@ -365,7 +365,7 @@ precisa estar pronto. Não é necessário concluir o plano inteiro para usar o p
   manter os dependentes esperando a entrega completa.
 - Ao pedir continuação, usar o ID: **“Faça o próximo commit pendente”** ou **“Faça o C09”**.
   O executor confere o checklist e as dependências antes de iniciar.
-- C00–C10 estão implementados, validados e registrados abaixo; C11–C50 permanecem
+- C00–C11 estão implementados, validados e registrados abaixo; C12–C50 permanecem
   planejados. Cada continuação deve conferir as dependências e os limites da entrega anterior.
 
 ### Como concluir e pausar cada commit
@@ -418,10 +418,10 @@ a integração real de Pesquisa fica registrada separadamente se ainda não tive
 
 ### Registro para retomar no próximo dia
 
-- Último checklist concluído: **C10**, commit `0cec198`; entregas anteriores registradas abaixo.
-- Próximo commit sugerido: **C11 — classificação local das ferramentas MCP**.
-- Dependências/impedimentos: conferir as dependências do C11 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
-- Evidências: ver os registros C00–C10 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
+- Último checklist concluído: **C11**, commit `a5e796f`; entregas anteriores registradas abaixo.
+- Próximo commit sugerido: **C12 — timeouts cancelamento e reconexão MCP**.
+- Dependências/impedimentos: conferir as dependências do C12 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
+- Evidências: ver os registros C00–C11 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
 - Atualizações: registrar aqui o ID concluído, hash/link e o próximo ID; não preencher com
   hash fictício nem tratar evidência de mock como teste contra conta real.
 
@@ -634,6 +634,20 @@ real, leitura autenticada, recusa sem token, segredo ausente, endpoint indispon�
 URLs inválidas. Ruff/Pyright passaram. OAuth/contas externas ainda não validados.
 
 
+### Execução C11 — classificação e revisão MCP (05/10/2026)
+
+**Commit de implementação:** `a5e796f`.
+Registro local de Tool/ToolSpec com nome derivado da origem/revisão, classificação fixa
+e limite por identidade. Annotations externas não concedem autorização. Resultados MCP
+marcam taint; escrita/execução externa e destrutivos exigem aprovação. Audit contém
+origem/revisão. Remoção/troca de identidade revoga aprovações e referências antigas.
+
+**Evidências:** 540 testes backend passaram, incluindo dois subprocessos MCP e agente
+com gateway controlado. Leitura executa; ferramenta desconhecida marcada readOnlyHint
+fica indisponível; destrutivo não altera nem fixture antes da aprovação; alteração de
+catálogo invalida aprovação antiga. Ruff/Pyright passaram; nenhum dado real foi alterado.
+
+
 ### C00 — fix(ui): estabilizar conexão e consolidar o refinamento visual
 
 Etapa: **A** · Depende de: **base atual do repositório** · Estado: **concluído**.
@@ -746,13 +760,13 @@ Etapa: **B** · Depende de: **C09** · Estado: **concluído**.
 
 ### C11 — feat(policy): classificar e limitar ferramentas MCP
 
-Etapa: **B** · Depende de: **C10** · Estado: **planejado**.
+Etapa: **B** · Depende de: **C10** · Estado: **concluído**.
 
-- [ ] Registrar ToolSpec e ferramenta juntos com identidade canônica, nome curto estável e revisão de origem.
-- [ ] Manter ferramenta desconhecida indisponível; annotations do servidor não concedem autorização.
-- [ ] Aplicar audit, taint, limites e aprovações a MCP, preservando o comportamento de destrutivos.
-- [ ] **Validar:** Provar que leitura classificada funciona e desconhecido/destrutivo não executa indevidamente; testar nomes em colisão.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Registrar ToolSpec e ferramenta juntos com identidade canônica, nome curto estável e revisão de origem.
+- [x] Manter ferramenta desconhecida indisponível; annotations do servidor não concedem autorização.
+- [x] Aplicar audit, taint, limites e aprovações a MCP, preservando o comportamento de destrutivos.
+- [x] **Validar:** Provar que leitura classificada funciona e desconhecido/destrutivo não executa indevidamente; testar nomes em colisão.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C12 — feat(mcp): tratar timeout cancelamento e reconexão
 

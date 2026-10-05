@@ -74,3 +74,15 @@ Erros estáveis: `auth_missing`, `auth_failed`, `transport_error`, `start_timeou
 Logs de protocolo de dependências são reduzidos a categoria/nível, sem payload,
 argumentos ou traceback. Isso evita exposição em DEBUG; os diagnósticos de conexão
 usam códigos próprios. Servidor HTTP de ensaio autenticado rodou com Uvicorn real.
+
+## Classificação e identidade — C11
+
+Somente nomes presentes em `classifications` da configuração revisada são registrados
+para o agente, com risco fixo `read`, `write`, `exec` ou `destructive`. Annotations do
+servidor não concedem acesso. Toda ação externa além de leitura exige confirmação;
+resultados externos contaminam o contexto para a política de prompt injection.
+
+Registro emparelha Tool e ToolSpec, com nome curto derivado de identidade canônica e
+hash de configuração/schema/metadados. Origem e revisão aparecem no audit; limite de
+20 chamadas por minuto por identidade. Troca de revisão revoga aprovações e referências
+antigas. Nomes iguais em conexões distintas não colidem com ferramentas nativas.
