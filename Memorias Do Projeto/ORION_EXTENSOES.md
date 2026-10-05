@@ -1,6 +1,6 @@
 # Orion — referências de produto e plano de extensões
 
-Pesquisa em 04/10/2026. **Plano de implementação com C00–C09 concluídos** (registro na seção 9).
+Pesquisa em 04/10/2026. **Plano de implementação com C00–C10 concluídos** (registro na seção 9).
 Plugins e skills seguem em implementação. MCP já tem prova com servidores controlados;
 nenhuma conta pessoal ou servidor externo do usuário foi conectado.
 Complementa [ORION_FRONT.md](ORION_FRONT.md), as fases 4 e 6 do
@@ -339,7 +339,7 @@ como fundação do recurso novo. Exportar leitura primeiro, com identidade e esc
 
 ## 8. Próximo trabalho concreto
 
-C00–C09 foram concluídos e validados. Continuar pelo **C10: MCP Streamable HTTP e referências a segredos**.
+C00–C10 foram concluídos e validados. Continuar pelo **C11: classificação local das ferramentas MCP**.
 O usuário autorizou a execução dos checklists restantes, com commits separados, validação,
 registro no vault e push. Integrações pessoais e Windows serão registrados conforme
 as evidências disponíveis, sem transformar fixtures em prova de conta ou desktop reais.
@@ -351,8 +351,8 @@ quando houver integração concreta para revisar. Este documento não muda as de
 
 ## 9. Checklists por commit e sequência de dias
 
-Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C09 têm commits reais
-registrados; C10–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
+Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C10 têm commits reais
+registrados; C11–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
 precisa estar pronto. Não é necessário concluir o plano inteiro para usar o primeiro MVP.
 
 ### Ritmo de trabalho
@@ -365,7 +365,7 @@ precisa estar pronto. Não é necessário concluir o plano inteiro para usar o p
   manter os dependentes esperando a entrega completa.
 - Ao pedir continuação, usar o ID: **“Faça o próximo commit pendente”** ou **“Faça o C09”**.
   O executor confere o checklist e as dependências antes de iniciar.
-- C00–C09 estão implementados, validados e registrados abaixo; C10–C50 permanecem
+- C00–C10 estão implementados, validados e registrados abaixo; C11–C50 permanecem
   planejados. Cada continuação deve conferir as dependências e os limites da entrega anterior.
 
 ### Como concluir e pausar cada commit
@@ -418,10 +418,10 @@ a integração real de Pesquisa fica registrada separadamente se ainda não tive
 
 ### Registro para retomar no próximo dia
 
-- Último checklist concluído: **C09**, commit `60f44fc`; entregas anteriores registradas abaixo.
-- Próximo commit sugerido: **C10 — MCP Streamable HTTP e referências a segredos**.
-- Dependências/impedimentos: conferir as dependências do C10 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
-- Evidências: ver os registros C00–C09 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
+- Último checklist concluído: **C10**, commit `0cec198`; entregas anteriores registradas abaixo.
+- Próximo commit sugerido: **C11 — classificação local das ferramentas MCP**.
+- Dependências/impedimentos: conferir as dependências do C11 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
+- Evidências: ver os registros C00–C10 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
 - Atualizações: registrar aqui o ID concluído, hash/link e o próximo ID; não preencher com
   hash fictício nem tratar evidência de mock como teste contra conta real.
 
@@ -621,6 +621,19 @@ Ruff, formatação e Pyright passaram. Host ainda não entrega tools não classi
 modelo. Windows e servidores pessoais não foram validados.
 
 
+### Execução C10 — Streamable HTTP e credenciais (05/10/2026)
+
+**Commit de implementação:** `0cec198`.
+HTTP pelo SDK oficial, endereços explicitamente autorizados e TLS fora de loopback.
+Secret refs usam namespace próprio, sem persistência de valores nem uso do token admin.
+Diagnóstico distingue falta/recusa de credencial, transporte, timeout e protocolo.
+Logs de dependências não expõem payloads ou erros remotos; proxy ambiente não herdado.
+
+**Evidências:** 539 testes backend passaram; seis casos HTTP incluem servidor Uvicorn
+real, leitura autenticada, recusa sem token, segredo ausente, endpoint indisponível e
+URLs inválidas. Ruff/Pyright passaram. OAuth/contas externas ainda não validados.
+
+
 ### C00 — fix(ui): estabilizar conexão e consolidar o refinamento visual
 
 Etapa: **A** · Depende de: **base atual do repositório** · Estado: **concluído**.
@@ -723,13 +736,13 @@ Etapa: **B** · Depende de: **C08** · Estado: **concluído**.
 
 ### C10 — feat(mcp): conectar servidores Streamable HTTP
 
-Etapa: **B** · Depende de: **C09** · Estado: **planejado**.
+Etapa: **B** · Depende de: **C09** · Estado: **concluído**.
 
-- [ ] Adicionar transporte HTTP pelo SDK e configuração explícita de endereço autorizado.
-- [ ] Separar credenciais MCP do token admin Orion; suportar referências a segredos sem persistir valores.
-- [ ] Retornar erros de transporte, autenticação e protocolo com códigos estáveis.
-- [ ] **Validar:** Usar servidor HTTP de teste com e sem autorização; testar indisponibilidade e ausência de vazamento de tokens.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Adicionar transporte HTTP pelo SDK e configuração explícita de endereço autorizado.
+- [x] Separar credenciais MCP do token admin Orion; suportar referências a segredos sem persistir valores.
+- [x] Retornar erros de transporte, autenticação e protocolo com códigos estáveis.
+- [x] **Validar:** Usar servidor HTTP de teste com e sem autorização; testar indisponibilidade e ausência de vazamento de tokens.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C11 — feat(policy): classificar e limitar ferramentas MCP
 
