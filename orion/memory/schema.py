@@ -2,10 +2,10 @@
 
 v1: conversas, fatos, documentos e vetores. v2: operação (lembretes, agendamentos,
 tarefas, números, prompts), arestas do grafo e fila de notificações. Banco v1 sobe
-para v2 sozinho (`MIGRATIONS`).
+para a versão atual sozinho (`MIGRATIONS`). v3: seleção persistente de sessão por canal.
 """
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 TOKENIZER = "unicode61 remove_diacritics 2"  # "açúcar" casa com "acucar"
 
@@ -175,7 +175,22 @@ CREATE TABLE notifications (
 CREATE INDEX idx_notifications_pending ON notifications(delivered_at, id);
 """
 
-DDL = DDL_V1 + DDL_V2
+# A seleção não depende da última mensagem: uma resposta atrasada não troca a conversa.
+DDL_V3 = """
+CREATE TABLE active_sessions (
+    channel TEXT PRIMARY KEY,
+    session_id TEXT UNIQUE REFERENCES sessions(id) ON DELETE SET NULL
+);
+INSERT INTO active_sessions(channel, session_id)
+SELECT s.channel, s.id FROM sessions s
+WHERE s.archived=0 AND s.id=(
+    SELECT candidate.id FROM sessions candidate
+    WHERE candidate.channel=s.channel AND candidate.archived=0
+    ORDER BY candidate.last_active_at DESC, candidate.created_at DESC, candidate.id DESC LIMIT 1
+);
+"""
+
+DDL = DDL_V1 + DDL_V2 + DDL_V3
 
 # versão de origem -> script que leva à seguinte
-MIGRATIONS: dict[int, str] = {1: DDL_V2}
+MIGRATIONS: dict[int, str] = {1: DDL_V2, 2: DDL_V3}

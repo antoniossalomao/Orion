@@ -5,7 +5,7 @@ import pytest
 
 from orion.memory import MemoryStore
 from orion.memory.ops import Operations, next_run, parse_when
-from orion.memory.schema import DDL_V1
+from orion.memory.schema import DDL_V1, SCHEMA_VERSION
 
 AGORA = datetime(2026, 10, 3, 12, 0).timestamp()
 
@@ -184,12 +184,14 @@ def _banco_v1(caminho):
     c.close()
 
 
-def test_banco_v1_sobe_para_v2_sem_perder_dados(tmp_path):
+def test_banco_v1_sobe_para_versao_atual_sem_perder_dados(tmp_path):
     caminho = tmp_path / "v1.db"
     _banco_v1(caminho)
     store = MemoryStore(caminho)
     try:
-        assert store.query("SELECT value FROM meta WHERE key='schema_version'")[0][0] == "2"
+        assert store.query("SELECT value FROM meta WHERE key='schema_version'")[0][0] == str(
+            SCHEMA_VERSION
+        )
         assert [m.text for m in store.history("s1")] == ["oi"]
         ops = Operations(store)
         ops.add_task("funciona depois da migração")
@@ -207,7 +209,9 @@ def test_backup_v1_e_aceito_e_banco_de_versao_futura_e_recusado(tmp_path):
     assert contagens["messages"] == 1 and "reminders" not in contagens  # v1: sem tabelas novas
     restaurado = MemoryStore.restore(antigo, tmp_path / "novo" / "orion.db")
     try:
-        assert restaurado.query("SELECT value FROM meta WHERE key='schema_version'")[0][0] == "2"
+        assert restaurado.query("SELECT value FROM meta WHERE key='schema_version'")[0][0] == str(
+            SCHEMA_VERSION
+        )
     finally:
         restaurado.close()
 

@@ -6,10 +6,10 @@ O contrato público `GET /capabilities` tem `contract_version: 1`, `backend: ori
 `model: ready` indica agente configurado, sem consultar o provedor nem consumir tokens.
 Não garante que uma chamada futura terá sucesso. API disponível e modelo disponível
 são estados separados. `chat` exige agente e token administrativo configurados;
-`approvals` e `notifications` exigem token configurado. O cliente ainda precisa enviar
+`sessions`, `approvals` e `notifications` exigem token configurado. O cliente ainda precisa enviar
 seu token para usar essas rotas.
 
-Sessões, histórico, exportação, grafo, métricas, integrações, upload, voz, seleção de
+Histórico, exportação, grafo, métricas, integrações, upload, voz, seleção de
 modelo, plugins, skills e MCP ficam com flag `false` enquanto não implementados.
 O cliente deve tratar flags ausentes como `false`. Os motivos são `not_implemented`,
 `gateway_not_configured` e `auth_not_configured`.
@@ -46,6 +46,7 @@ nem alteram o estado de conexão. 404 de aprovação individual não desabilita 
 sistema de aprovações.
 
 Os controles de sessões, modelo, anexos e voz ficam desabilitados quando ausentes.
+Desde C03, sessões estão disponíveis quando o token administrativo está configurado.
 Integrações, grafo e atividade explicam a indisponibilidade. Sem modelo, Enter não
 apaga o rascunho; sugestões preenchem o campo para continuar depois. O painel de
 serviços mostra os componentes reais do backend novo, sem atribuir a ele os bancos
@@ -66,3 +67,35 @@ aprovar → retomar → executar. Nenhum provedor ou conta externa foi acessado.
 
 Capturas locais: `/workspace/artifacts/orion-front/c02-sem-modelo.png` (1440×900) e
 `/workspace/artifacts/orion-front/c02-janela-estreita.png` (700×650).
+
+## Sessões persistentes (C03 — 04/10/2026)
+
+| Operação | Contrato |
+|---|---|
+| `GET /sessoes?canal=web&limite=50` | Lista somente o canal escolhido; retorna `sessoes`, `total` da página e `ativa` (ou `null`). Não cria conversas ao consultar. Limite entre 1 e 100. |
+| `POST /sessoes` | Corpo opcional `{ "canal": "web", "titulo": "Minha conversa" }`. Cria e seleciona atomicamente. Sem corpo, usa web. Título opcional de até 120 caracteres. |
+| `POST /sessoes/ativar` | `{ "sessao_id": "<id>", "canal": "web" }`. Canal omitido usa web. Seleciona e retorna snapshot das últimas 50 mensagens para o adaptador existente. |
+
+Todas exigem Bearer token administrativo, inclusive a listagem. Os IDs novos são UUIDs
+hexadecimais de 32 caracteres; o cliente os trata como identificadores opacos. Os itens
+mantêm `sessao_id`, `titulo`, `criada` ISO UTC, `ativa`, `favorita: false` e
+`somente_leitura`; acrescentam `canal` e `ultima_atividade`. Favoritos não foram implementados.
+
+O token atual é de administrador pessoal: o portador pode escolher explicitamente um
+canal. A separação impede listar/ativar uma sessão usando outro canal; não substitui
+identidades e permissões por usuário. ID inexistente e ID de outro canal retornam o mesmo
+404. Sessão importada ou arquivada retorna 409 ao tentar ativar, sem mudar a seleção.
+Nenhum ID sintético `legado` nem conexão ao SurrealDB é criado; registros importados usam
+IDs internos, preservam seu canal e aparecem como somente leitura. Ler essas conversas
+pela interface depende do histórico do C04, cuja flag continua desabilitada.
+
+SQLite migra automaticamente de v1/v2 para v3, preservando mensagens e escolhendo a sessão
+aberta mais recente de cada canal na primeira migração. `active_sessions` passa a guardar
+uma seleção explícita. Novas mensagens e respostas tardias não mudam esse ponteiro, mesmo
+com timestamps iguais ou relógio recuando. Seleção e criação sobrevivem ao reinício.
+Arquivar a conversa ativa limpa a seleção; o próximo pedido começa uma conversa vazia,
+sem reabrir uma anterior por acidente. A migração não reabre conversas importadas.
+
+Ativar entrega um snapshot limitado com `role`, `content`, timestamp e proveniência das
+mensagens user/assistant. Não implementa `/historico`, paginação de mensagens, exportação,
+limpeza, renomear ou arquivar pela API: esses checklists continuam pendentes.

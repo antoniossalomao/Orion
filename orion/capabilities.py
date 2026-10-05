@@ -8,7 +8,6 @@ from . import __version__
 
 # Recursos de interface que ainda não têm endpoint no backend novo.
 PENDING_FEATURES = (
-    "sessions",
     "history",
     "history_clear",
     "export",
@@ -50,6 +49,7 @@ def describe(*, agent_ready: bool, admin_configured: bool) -> Capabilities:
     features: dict[str, bool] = dict.fromkeys(PENDING_FEATURES, False)
     features.update(
         chat=agent_ready and admin_configured,
+        sessions=admin_configured,
         approvals=admin_configured,
         notifications=admin_configured,
     )
@@ -59,7 +59,11 @@ def describe(*, agent_ready: bool, admin_configured: bool) -> Capabilities:
             "auth_not_configured" if not admin_configured else "gateway_not_configured"
         )
     if not admin_configured:
-        unavailable.update(approvals="auth_not_configured", notifications="auth_not_configured")
+        unavailable.update(
+            sessions="auth_not_configured",
+            approvals="auth_not_configured",
+            notifications="auth_not_configured",
+        )
     return Capabilities(
         model="ready" if agent_ready else "unavailable",
         features=features,

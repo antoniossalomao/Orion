@@ -49,6 +49,8 @@ class Session:
     title: str | None
     created_at: float
     last_active_at: float
+    archived: bool = False
+    read_only: bool = False
 
 
 @dataclass(frozen=True)
@@ -187,28 +189,70 @@ class MemoryStore:
             return self._conn.execute("SELECT 1").fetchone()[0] == 1
 
     # ── sessões e mensagens (episódico), uma sessão ativa por canal ───────
-    def new_session(self, channel: str, title: str | None = None) -> Session:
-        agora = self._clock()
-        sid = uuid.uuid4().hex
-        with self._tx() as c:
-            c.execute(
-                "INSERT INTO sessions(id, channel, title, created_at, last_active_at)"
-                " VALUES (?,?,?,?,?)",
-                (sid, channel, title, agora, agora),
-            )
+    @staticmethod
+    def _session(row: sqlite3.Row) -> Session:
+        return Session(
+            row["id"],
+            row["channel"],
+            row["title"],
+            row["created_at"],
+            row["last_active_at"],
+            bool(row["archived"]),
+            bool(row["read_only"]),
+        )
+
+    def _new_session(self, c: sqlite3.Connection, channel: str, title: str | None) -> Session:
+        agora, sid = self._clock(), uuid.uuid4().hex
+        c.execute(
+            "INSERT INTO sessions(id, channel, title, created_at, last_active_at)"
+            " VALUES (?,?,?,?,?)",
+            (sid, channel, title, agora, agora),
+        )
+        c.execute(
+            "INSERT INTO active_sessions(channel, session_id) VALUES (?,?)"
+            " ON CONFLICT(channel) DO UPDATE SET session_id=excluded.session_id",
+            (channel, sid),
+        )
         return Session(sid, channel, title, agora, agora)
 
-    def active_session(self, channel: str) -> Session:
-        """Sessão aberta mais recente DO CANAL (Telegram, web e voz não se misturam)."""
+    def new_session(self, channel: str, title: str | None = None) -> Session:
+        """Cria e seleciona no mesmo commit SQLite, preservando as outras conversas."""
+        with self._tx() as c:
+            return self._new_session(c, channel, title)
+
+    def selected_session(self, channel: str) -> Session | None:
+        """Consulta sem criar sessão; só o ponteiro persistido determina a ativa."""
         with self._lock:
-            r = self._conn.execute(
-                "SELECT * FROM sessions WHERE channel=? AND archived=0"
-                " ORDER BY last_active_at DESC LIMIT 1",
-                (channel,),
+            row = self._conn.execute(
+                "SELECT s.*, 0 AS read_only FROM active_sessions a"
+                " JOIN sessions s ON s.id=a.session_id"
+                " WHERE a.channel=? AND s.channel=? AND s.archived=0"
+                " AND NOT EXISTS(SELECT 1 FROM imported WHERE kind='sessao' AND ref=s.id)",
+                (channel, channel),
             ).fetchone()
-        if r is None:
-            return self.new_session(channel)
-        return Session(r["id"], r["channel"], r["title"], r["created_at"], r["last_active_at"])
+            return self._session(row) if row else None
+
+    def active_session(self, channel: str) -> Session:
+        """Sessão selecionada DO CANAL; cria uma vazia quando ainda não há seleção."""
+        with self._tx() as c:
+            return self.selected_session(channel) or self._new_session(c, channel, None)
+
+    def activate_session(self, channel: str, session_id: str) -> Session:
+        """Nunca muda canal nem reabre importada/arquivada; escolha é persistente."""
+        with self._tx() as c:
+            session = self.get_session(session_id)
+            if session is None or session.channel != channel:
+                raise KeyError(session_id)
+            if session.archived or session.read_only:
+                raise ValueError("sessão arquivada ou importada é somente leitura")
+            agora = self._clock()
+            c.execute("UPDATE sessions SET last_active_at=? WHERE id=?", (agora, session.id))
+            c.execute(
+                "INSERT INTO active_sessions(channel, session_id) VALUES (?,?)"
+                " ON CONFLICT(channel) DO UPDATE SET session_id=excluded.session_id",
+                (channel, session.id),
+            )
+            return Session(session.id, session.channel, session.title, session.created_at, agora)
 
     # ── importação (export do legado) ─────────────────────────────────────
     def import_session(
@@ -271,26 +315,33 @@ class MemoryStore:
 
     def get_session(self, session_id: str) -> Session | None:
         with self._lock:
-            r = self._conn.execute("SELECT * FROM sessions WHERE id=?", (session_id,)).fetchone()
+            r = self._conn.execute(
+                "SELECT s.*, EXISTS(SELECT 1 FROM imported"
+                " WHERE kind='sessao' AND ref=s.id) AS read_only"
+                " FROM sessions s WHERE s.id=?",
+                (session_id,),
+            ).fetchone()
         if r is None:
             return None
-        return Session(r["id"], r["channel"], r["title"], r["created_at"], r["last_active_at"])
+        return self._session(r)
 
     def archive_session(self, session_id: str) -> None:
         with self._tx() as c:
             c.execute("UPDATE sessions SET archived=1 WHERE id=?", (session_id,))
+            c.execute(
+                "UPDATE active_sessions SET session_id=NULL WHERE session_id=?", (session_id,)
+            )
 
     def list_sessions(self, channel: str | None = None, limit: int = 50) -> list[Session]:
         with self._lock:
             rows = self._conn.execute(
-                "SELECT * FROM sessions WHERE (? IS NULL OR channel=?)"
-                " ORDER BY last_active_at DESC LIMIT ?",
+                "SELECT s.*, EXISTS(SELECT 1 FROM imported"
+                " WHERE kind='sessao' AND ref=s.id) AS read_only"
+                " FROM sessions s WHERE (? IS NULL OR channel=?)"
+                " ORDER BY last_active_at DESC, created_at DESC, id DESC LIMIT ?",
                 (channel, channel, limit),
             ).fetchall()
-        return [
-            Session(r["id"], r["channel"], r["title"], r["created_at"], r["last_active_at"])
-            for r in rows
-        ]
+        return [self._session(r) for r in rows]
 
     def add_message(
         self, session_id: str, role: str, text: str, provenance: dict[str, Any] | None = None

@@ -13,9 +13,10 @@ import uuid
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Annotated, Any
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -35,6 +36,7 @@ from .memory import MemoryStore
 from .memory.consolidate import Consolidator
 from .memory.embedders import GeminiEmbedder
 from .memory.ops import Operations
+from .memory.store import Session
 from .policy import ApprovalStore, PathGuard, PolicyEngine, redact
 from .policy.paths import default_safe_roots
 from .secrets import get_secret
@@ -165,6 +167,16 @@ _CANAL = r"^[a-z0-9_-]{1,32}$"
 
 class Mensagem(BaseModel):
     texto: str = Field(min_length=1, max_length=8000)
+    canal: str = Field(default="web", pattern=_CANAL)
+
+
+class SessaoNova(BaseModel):
+    canal: str = Field(default="web", pattern=_CANAL)
+    titulo: str | None = Field(default=None, max_length=120)
+
+
+class SessaoAtivar(BaseModel):
+    sessao_id: str = Field(pattern=r"^[a-f0-9]{32}$")
     canal: str = Field(default="web", pattern=_CANAL)
 
 
@@ -326,6 +338,57 @@ def create_app(
             "pending_approvals": len(state.policy.approvals.pending()),
             "pending_notifications": len(state.ops.pending_notifications(limit=1000)),
         }
+
+    def sessao_json(session: Session, ativa: str | None) -> dict[str, Any]:
+        return {
+            "sessao_id": session.id,
+            "titulo": session.title or "Conversa sem título",
+            "canal": session.channel,
+            "criada": datetime.fromtimestamp(session.created_at, UTC).isoformat(),
+            "ultima_atividade": datetime.fromtimestamp(session.last_active_at, UTC).isoformat(),
+            "ativa": session.id == ativa,
+            "favorita": False,
+            "somente_leitura": session.archived or session.read_only,
+        }
+
+    @app.get("/sessoes", dependencies=[Admin])
+    def sessoes_listar(
+        state: State,
+        canal: Annotated[str, Query(pattern=_CANAL)] = "web",
+        limite: Annotated[int, Query(ge=1, le=100)] = 50,
+    ) -> dict[str, Any]:
+        selected = state.memory.selected_session(canal)
+        ativa = selected.id if selected else None
+        sessoes = [sessao_json(s, ativa) for s in state.memory.list_sessions(canal, limite)]
+        return {"sessoes": sessoes, "total": len(sessoes), "ativa": ativa}
+
+    @app.post("/sessoes", dependencies=[Admin])
+    def sessao_nova(state: State, corpo: SessaoNova | None = None) -> dict[str, Any]:
+        corpo = corpo or SessaoNova()
+        session = state.memory.new_session(corpo.canal, (corpo.titulo or "").strip() or None)
+        return {"ok": True, **sessao_json(session, session.id), "mensagens": []}
+
+    @app.post("/sessoes/ativar", dependencies=[Admin])
+    def sessao_ativar(corpo: SessaoAtivar, state: State) -> dict[str, Any]:
+        try:
+            session = state.memory.activate_session(corpo.canal, corpo.sessao_id)
+        except KeyError:
+            # Mesmo resultado para inexistente e sessão de outro canal: não revela existência.
+            raise HTTPException(404, "sessão inexistente neste canal") from None
+        except ValueError as e:
+            raise HTTPException(409, str(e)) from None
+        # Snapshot compatível com o adaptador; paginação/exportação ficam para C04.
+        mensagens = [
+            {
+                "role": m.role,
+                "content": m.text,
+                "timestamp": datetime.fromtimestamp(m.created_at, UTC).isoformat(),
+                "provenance": m.provenance,
+            }
+            for m in state.memory.history(session.id, limit=50)
+            if m.role in {"user", "assistant"}
+        ]
+        return {"ok": True, **sessao_json(session, session.id), "mensagens": mensagens}
 
     def _agente(state: AppState) -> Agent:
         if state.agent is None:

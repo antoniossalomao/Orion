@@ -33,6 +33,7 @@ def test_capacidades_refletem_agente_e_autenticacao(tmp_path, gateway, admin):
         assert data["api"] == "online"
         assert data["model"] == ("ready" if gateway else "unavailable")
         assert data["features"]["chat"] is (gateway and admin)
+        assert data["features"]["sessions"] is admin
         assert data["features"]["approvals"] is admin
         assert data["features"]["notifications"] is admin
         for name in PENDING_FEATURES:

@@ -22,7 +22,7 @@ def test_backend_novo_chat_sse_com_token_e_canal_web(abrir, novo_backend):
     assert pedido.value.headers["authorization"] == f"Bearer {TOKEN}"
     expect(page.locator(".msg-orion")).to_contain_text("Resposta do backend novo.")
     assert len(gw.chamadas) == 1
-    assert "/sessoes" not in caminhos and "/tts/mudo" not in caminhos
+    assert "/sessoes" in caminhos and "/tts/mudo" not in caminhos
 
 
 def test_backend_novo_aprovar_e_retomar_pelo_front(abrir, novo_backend):
@@ -86,7 +86,6 @@ def test_backend_novo_telas_sem_recursos_nao_sondam_endpoints(abrir, novo_backen
         }
     }""")
     opcionais = {
-        "/sessoes",
         "/integracoes",
         "/metrics",
         "/stats",
@@ -96,6 +95,9 @@ def test_backend_novo_telas_sem_recursos_nao_sondam_endpoints(abrir, novo_backen
         "/tts/mudo",
     }
     assert not opcionais.intersection(caminhos)
+    page.wait_for_function(
+        "() => getComputedStyle(document.querySelector('#view-config')).opacity === '1'"
+    )
     violacoes = page.evaluate("async () => (await axe.run(document)).violations.map(v => v.id)")
     assert violacoes == []
 
@@ -125,7 +127,7 @@ def test_404_opcional_legado_nao_repete_nem_muda_conexao(abrir):
 
 def test_trocar_backend_recalcula_capacidades(abrir, novo_backend):
     url, _, _, caminhos = novo_backend(gateway=False)
-    page = abrir("#/chat")
+    page = abrir("#/chat", init=TOKEN_INIT)
     expect(page.locator("#model-btn")).to_be_enabled()
     # Proxy de mesma origem: o servidor real preserva sua política sem CORS aberto.
     base = page.url.split("/ui/")[0]
@@ -137,5 +139,30 @@ def test_trocar_backend_recalcula_capacidades(abrir, novo_backend):
     page.wait_for_function("() => Orion.api.estado().backend === 'orion'")
     expect(page.locator("#model-btn")).to_be_disabled()
     page.evaluate("Orion.sidebar.carregar()")
-    expect(page.locator("#sb-convs-list")).to_contain_text("indisponíveis")
-    assert "/sessoes" not in caminhos
+    expect(page.locator("#sb-convs-list")).to_contain_text("Nenhuma conversa")
+    assert "/sessoes" in caminhos
+
+
+def test_backend_novo_criar_e_trocar_sessoes_pelo_front(abrir, novo_backend):
+    url, app, _, _ = novo_backend()
+    page = abrir("#/chat", url=url, init=TOKEN_INIT)
+    expect(page.locator("#sb-new")).to_be_enabled()
+    with page.expect_request(lambda r: r.method == "POST" and r.url.endswith("/sessoes")) as pedido:
+        page.click("#sb-new")
+    assert pedido.value.headers["authorization"] == f"Bearer {TOKEN}"
+    expect(page.locator(".conv")).to_have_count(1)
+    primeira = app.state.orion.memory.selected_session("web").id
+    page.fill("#composer-input", "Mensagem da primeira conversa")
+    page.click("#btn-send")
+    expect(page.locator(".msg-orion")).to_contain_text("Resposta do backend novo.")
+    page.wait_for_function("() => !Orion.chat.ocupado()")
+    page.click("#sb-new")
+    expect(page.locator(".conv")).to_have_count(2)
+    segunda = app.state.orion.memory.selected_session("web").id
+    assert primeira != segunda
+    expect(page.locator(".msg-user")).to_have_count(0)
+    page.click(f'.conv[data-id="{primeira}"]')
+    expect(page.locator(".msg-user")).to_contain_text("Mensagem da primeira conversa")
+    expect(page.locator(".msg-orion")).to_contain_text("Resposta do backend novo.")
+    assert app.state.orion.memory.selected_session("web").id == primeira
+    assert app.state.orion.memory.history(segunda) == []

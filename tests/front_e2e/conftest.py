@@ -95,8 +95,9 @@ def navegador():
 
 
 @pytest.fixture
-def abrir(navegador, mock_url):
+def abrir(navegador, mock_url, novo_backend):
     """`abrir("#/chat")` → página aberta no front. Opções: viewport, url, reduced, axe, init, http_ok, boot."""
+    # A dependência mantém a API real viva até todos os contextos fecharem.
     contextos: list = []
     erros: list[str] = []
     permitir_http: list[bool] = [False]
