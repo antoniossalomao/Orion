@@ -381,6 +381,42 @@ class MemoryStore:
             ).fetchall()
         return [self._session(r) for r in rows]
 
+    def search_sessions(
+        self,
+        channel: str,
+        text: str,
+        *,
+        limit: int = 25,
+        offset: int = 0,
+    ) -> tuple[list[tuple[Session, str]], int]:
+        query = fts_query(text)
+        if not query:
+            return [], 0
+        hits = (
+            "WITH hits AS (SELECT s.id FROM sessions_fts "
+            "JOIN sessions s ON s.rowid=sessions_fts.rowid WHERE sessions_fts MATCH ? "
+            "UNION SELECT m.session_id FROM messages_fts "
+            "JOIN messages m ON m.id=messages_fts.rowid WHERE messages_fts MATCH ? "
+            "AND m.role IN ('user','assistant')) "
+        )
+        with self._lock:
+            total = self._conn.execute(
+                hits + "SELECT count(*) FROM sessions s WHERE channel=? AND id IN hits",
+                (query, query, channel),
+            ).fetchone()[0]
+            rows = self._conn.execute(
+                hits + "SELECT s.*, EXISTS(SELECT 1 FROM imported "
+                "WHERE kind='sessao' AND ref=s.id) AS read_only, "
+                "(SELECT snippet(messages_fts,0,'','','…',8) FROM messages_fts "
+                "JOIN messages m ON m.id=messages_fts.rowid WHERE m.session_id=s.id "
+                "AND m.role IN ('user','assistant') AND messages_fts MATCH ? LIMIT 1) AS trecho "
+                "FROM sessions s WHERE channel=? AND id IN hits "
+                "ORDER BY favorite DESC, last_active_at DESC, created_at DESC, id DESC "
+                "LIMIT ? OFFSET ?",
+                (query, query, query, channel, limit, offset),
+            ).fetchall()
+        return [(self._session(row), row["trecho"] or "") for row in rows], total
+
     def add_message(
         self, session_id: str, role: str, text: str, provenance: dict[str, Any] | None = None
     ) -> Message:

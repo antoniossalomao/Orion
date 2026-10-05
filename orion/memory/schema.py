@@ -3,28 +3,30 @@
 v1: conversas, fatos, documentos e vetores. v2: operação (lembretes, agendamentos,
 tarefas, números, prompts), arestas do grafo e fila de notificações. Banco v1 sobe
 para a versão atual sozinho (`MIGRATIONS`). v3: seleção persistente de sessão por canal.
-v4: conversas fixadas.
+v4: conversas fixadas. v5: índice de títulos para busca de conversas.
 """
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 TOKENIZER = "unicode61 remove_diacritics 2"  # "açúcar" casa com "acucar"
 
 
-def _fts(tabela: str, coluna: str = "text") -> str:
+def _fts(tabela: str, coluna: str = "text", pk: str = "id") -> str:
     """Índice FTS5 de conteúdo externo + triggers que o mantêm em dia."""
     return f"""
 CREATE VIRTUAL TABLE {tabela}_fts USING fts5(
-    {coluna}, content='{tabela}', content_rowid='id', tokenize='{TOKENIZER}');
+    {coluna}, content='{tabela}', content_rowid='{pk}', tokenize='{TOKENIZER}');
 CREATE TRIGGER {tabela}_ai AFTER INSERT ON {tabela} BEGIN
-    INSERT INTO {tabela}_fts(rowid, {coluna}) VALUES (new.id, new.{coluna});
+    INSERT INTO {tabela}_fts(rowid, {coluna}) VALUES (new.{pk}, new.{coluna});
 END;
 CREATE TRIGGER {tabela}_ad AFTER DELETE ON {tabela} BEGIN
-    INSERT INTO {tabela}_fts({tabela}_fts, rowid, {coluna}) VALUES ('delete', old.id, old.{coluna});
+    INSERT INTO {tabela}_fts({tabela}_fts, rowid, {coluna})
+        VALUES ('delete', old.{pk}, old.{coluna});
 END;
 CREATE TRIGGER {tabela}_au AFTER UPDATE OF {coluna} ON {tabela} BEGIN
-    INSERT INTO {tabela}_fts({tabela}_fts, rowid, {coluna}) VALUES ('delete', old.id, old.{coluna});
-    INSERT INTO {tabela}_fts(rowid, {coluna}) VALUES (new.id, new.{coluna});
+    INSERT INTO {tabela}_fts({tabela}_fts, rowid, {coluna})
+        VALUES ('delete', old.{pk}, old.{coluna});
+    INSERT INTO {tabela}_fts(rowid, {coluna}) VALUES (new.{pk}, new.{coluna});
 END;
 """
 
@@ -193,7 +195,14 @@ WHERE s.archived=0 AND s.id=(
 
 DDL_V4 = "ALTER TABLE sessions ADD COLUMN favorite INTEGER NOT NULL DEFAULT 0;"
 
-DDL = DDL_V1 + DDL_V2 + DDL_V3 + DDL_V4
+DDL_V5 = (
+    _fts("sessions", "title", "rowid")
+    + """
+INSERT INTO sessions_fts(sessions_fts) VALUES ('rebuild');
+"""
+)
+
+DDL = DDL_V1 + DDL_V2 + DDL_V3 + DDL_V4 + DDL_V5
 
 # versão de origem -> script que leva à seguinte
-MIGRATIONS: dict[int, str] = {1: DDL_V2, 2: DDL_V3, 3: DDL_V4}
+MIGRATIONS: dict[int, str] = {1: DDL_V2, 2: DDL_V3, 3: DDL_V4, 4: DDL_V5}

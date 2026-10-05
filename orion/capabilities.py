@@ -48,6 +48,7 @@ def describe(*, agent_ready: bool, admin_configured: bool) -> Capabilities:
         chat=agent_ready and admin_configured,
         sessions=admin_configured,
         session_management=admin_configured,
+        session_search=admin_configured,
         history=admin_configured,
         history_clear=admin_configured,
         export=admin_configured,
@@ -63,6 +64,7 @@ def describe(*, agent_ready: bool, admin_configured: bool) -> Capabilities:
         unavailable.update(
             sessions="auth_not_configured",
             session_management="auth_not_configured",
+            session_search="auth_not_configured",
             history="auth_not_configured",
             history_clear="auth_not_configured",
             export="auth_not_configured",

@@ -10,7 +10,7 @@
 
     let sessoes = [], ativa = null, filtro = '', online = null, listaOnline = null, abrindo = false;
     let lista, busca, restaurado = false, origem = null;
-    bus.on('capabilities', () => { const novaOrigem = `${api.base()}:${api.estado().backend}`; if (origem !== novaOrigem) { origem = novaOrigem; restaurado = false; } });
+    bus.on('capabilities', () => { const novaOrigem = `${api.base()}:${api.estado().backend}`; if (origem !== novaOrigem) { origem = novaOrigem; restaurado = false; if (busca) filtrar(); } });
 
     /* ── lista de conversas ────────────────────────────────────────────── */
     function titulo(s) { return s.titulo || 'Sem título'; }
@@ -31,7 +31,27 @@
     }
 
     const linhas = new Map(), grupos = new Map();
-    let menu, alvoMenu = null;
+    let menu, alvoMenu = null, resultadosBusca = null, proximoBusca = null, buscando = false, geracaoBusca = 0, erroBusca = null, maisBusca;
+    async function buscarConteudo(g, mais = false) {
+        if (!filtro || g !== geracaoBusca) return;
+        buscando = true; erroBusca = null; desenhar();
+        try {
+            const d = await api.buscarSessoes(filtro, mais ? proximoBusca : 0);
+            if (g !== geracaoBusca) return;
+            resultadosBusca = mais ? [...resultadosBusca, ...d.sessoes] : d.sessoes;
+            resultadosBusca = [...new Map(resultadosBusca.map(x => [x.sessao_id, x])).values()];
+            proximoBusca = d.proximo_offset;
+        } catch (e) { if (g === geracaoBusca) erroBusca = `Não consegui buscar conversas: ${e.message}`; }
+        finally { if (g === geracaoBusca) { buscando = false; desenhar(); } }
+    }
+    const agendarBusca = U.debounce(buscarConteudo, 350);
+    function filtrar() {
+        filtro = busca.value.trim(); const g = ++geracaoBusca;
+        agendarBusca.cancel(); erroBusca = null; proximoBusca = null; buscando = false;
+        if (filtro && api.suporta('session_search')) { resultadosBusca = []; buscando = true; agendarBusca(g); }
+        else resultadosBusca = null;
+        desenhar();
+    }
     function fecharMenu(devolver = true) {
         if (!menu || menu.hidden) return;
         menu.hidden = true;
@@ -65,6 +85,7 @@
             const d = await api.editarSessao(s.sessao_id, dados);
             if (dados.arquivada && O.historico?.sessao() === s.sessao_id) await O.historico.abrir(s.sessao_id);
             await carregar();
+            if (filtro && api.suporta('session_search')) await buscarConteudo(geracaoBusca);
             ui.toast(dados.titulo ? 'Conversa renomeada.' : dados.favorita != null ? (dados.favorita ? 'Conversa fixada.' : 'Conversa desafixada.') : d.arquivada ? 'Conversa arquivada; mensagens preservadas.' : 'Conversa restaurada.', { tipo: 'ok' });
         } catch (e) { ui.toast(`Não consegui atualizar a conversa: ${e.message}`, { tipo: 'erro' }); }
     }
@@ -73,15 +94,17 @@
         if (!linha) {
             const nome = el('span', { class: 'conv-title' });
             const marca = el('span', { class: 'conv-ro' });
-            const b = el('button', { class: 'conv', type: 'button', dataset: { id: s.sessao_id } }, nome, marca);
+            const trecho = el('span', { class: 'conv-snippet', hidden: true });
+            const b = el('button', { class: 'conv', type: 'button', dataset: { id: s.sessao_id } }, el('span', { class: 'conv-text' }, nome, trecho), marca);
             const mais = el('button', { class: 'icon-btn conv-more', type: 'button', 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'aria-controls': 'conv-menu', text: '⋯' });
-            linha = { el: el('div', { class: 'conv-row' }, b, mais), botao: b, nome, marca, mais, dados: s, desenho: '' };
+            linha = { el: el('div', { class: 'conv-row' }, b, mais), botao: b, nome, trecho, marca, mais, dados: s, desenho: '' };
             b.addEventListener('click', () => abrir(linha.dados));
             mais.addEventListener('click', () => abrirMenu(linha));
             mais.addEventListener('keydown', e => { if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); e.stopPropagation(); abrirMenu(linha); } });
             linhas.set(s.sessao_id, linha);
         }
         linha.dados = s;
+        linha.trecho.textContent = s.trecho || ''; linha.trecho.hidden = !s.trecho;
         const chave = `${titulo(s)}:${filtro}`;
         if (chave !== linha.desenho) { linha.nome.replaceChildren(...comMarcas(titulo(s), filtro)); linha.desenho = chave; }
         const atual = s.sessao_id === (O.historico?.sessao() || ativa);
@@ -101,10 +124,17 @@
         [...lista.children].filter(n => !manter.has(n)).forEach(n => n.remove());
         nos.forEach((n, i) => { if (lista.children[i] !== n) lista.insertBefore(n, lista.children[i] || null); });
         if (foco?.isConnected && document.activeElement !== foco) foco.focus({ preventScroll: true });
+        if (foco && !foco.isConnected) busca.focus({ preventScroll: true });
         lista.scrollTop = top;
     }
     function desenhar() {
-        lista.setAttribute('aria-busy', 'false');
+        lista.setAttribute('aria-busy', String(buscando));
+        if (resultadosBusca !== null) {
+            const nos = resultadosBusca.map(botaoConversa);
+            if (!nos.length) nos.push(grupo(erroBusca || (buscando ? 'Buscando conversas…' : `Nada encontrado para “${filtro}”.`)));
+            if (proximoBusca != null) { maisBusca.disabled = buscando; nos.push(maisBusca); }
+            reconciliar(nos); return;
+        }
         if (!sessoes.length) {
             reconciliar([grupo(!api.suporta('sessions') && api.estado().api === 'online' ? 'Conversas salvas ainda indisponíveis neste backend.' : listaOnline === false ? 'Não foi possível carregar as conversas. Tentando novamente…' : 'Nenhuma conversa ainda. Comece uma nova.')]);
             lista.firstElementChild.className = 'sb-empty'; return;
@@ -235,8 +265,10 @@
         document.addEventListener('pointerdown', e => { if (!menu.hidden && !menu.contains(e.target) && !alvoMenu.mais.contains(e.target)) fecharMenu(false); });
         $('#sb-toggle').addEventListener('click', alternar);
         $('#sb-new').addEventListener('click', nova);
-        busca.addEventListener('input', () => { filtro = busca.value.trim(); desenhar(); });
-        busca.addEventListener('keydown', e => { if (e.key === 'Escape' && busca.value) { e.stopPropagation(); busca.value = ''; filtro = ''; desenhar(); } });
+        maisBusca = el('button', { class: 'btn btn-ghost btn-sm', type: 'button', text: 'Mais conversas', on: { click: () => buscarConteudo(geracaoBusca, true) } });
+        busca.addEventListener('input', filtrar);
+        busca.addEventListener('keydown', e => { if (e.key === 'Enter') { lista.querySelector('.conv')?.focus(); e.preventDefault(); } });
+        busca.addEventListener('keydown', e => { if (e.key === 'Escape' && busca.value) { e.stopPropagation(); busca.value = ''; filtrar(); } });
         lista.addEventListener('keydown', e => {
             if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
             const itens = $$('.conv', lista), i = itens.indexOf(document.activeElement);
@@ -256,7 +288,7 @@
 
     O.sidebar = {
         init, nova, alternar, carregar, abrir, verificar,
-        sessoes: () => sessoes, ativa: () => sessoes.find(s => s.sessao_id === (O.historico?.sessao() || ativa)) || null,
+        sessoes: () => sessoes, ativa: () => [...(resultadosBusca || []), ...sessoes].find(s => s.sessao_id === (O.historico?.sessao() || ativa)) || null,
         online: () => online, abrindo: () => abrindo,
     };
 })();

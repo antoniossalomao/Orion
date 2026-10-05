@@ -183,3 +183,6 @@ html[data-foco="true"] #topbar > :not(.tb-drag):not(#window-controls) { display:
 .conv-menu button { display: block; width: 100%; padding: 8px 12px; text-align: left; border-radius: var(--r-1); font-size: var(--fs-sm); }
 .conv-menu button:hover, .conv-menu button:focus-visible { background: var(--accent-soft); color: var(--text-1); }
 .dialog-body input { width: 100%; margin-top: 8px; }
+
+.conv-text { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 3px; }
+.conv-snippet { font-size: var(--fs-xs); color: var(--text-3); overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow-wrap: anywhere; }

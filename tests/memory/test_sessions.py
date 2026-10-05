@@ -66,3 +66,25 @@ def test_banco_v2_migra_selecao_sem_perder_mensagens(tmp_path):
     with closing(MemoryStore(path)) as store:
         assert store.active_session("web").id == "old"
         assert store.history("new")[0].text == "Mensagem v2"
+
+
+def test_v4_migra_indice_de_titulos_preservando_fixacao_e_contexto(tmp_path):
+    from orion.memory.schema import DDL_V3, DDL_V4
+
+    path = tmp_path / "v4.db"
+    with sqlite3.connect(path) as c:
+        c.executescript(DDL_V1 + DDL_V2 + DDL_V3 + DDL_V4)
+        c.execute("INSERT INTO meta VALUES ('schema_version','4')")
+        c.execute("INSERT INTO sessions VALUES ('abc','web','Cérebro antigo',1,1,0,1)")
+        c.execute("INSERT INTO active_sessions VALUES ('web','abc')")
+        c.execute(
+            "INSERT INTO messages(id,session_id,role,text,created_at) VALUES (1,'abc','user','antiga',1)"
+        )
+        c.execute("INSERT INTO meta VALUES ('counter:history_after:abc','1')")
+    with closing(MemoryStore(path)) as store:
+        resultado, total = store.search_sessions("web", "cerebro")
+        assert total == 1 and resultado[0][0].favorite
+        selected = store.selected_session("web")
+        assert selected is not None and selected.id == "abc"
+        assert store.context_history("abc") == []
+        assert store.history("abc")[0].text == "antiga"

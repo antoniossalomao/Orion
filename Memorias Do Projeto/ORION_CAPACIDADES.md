@@ -6,7 +6,7 @@ O contrato público `GET /capabilities` tem `contract_version: 1`, `backend: ori
 `model: ready` indica agente configurado, sem consultar o provedor nem consumir tokens.
 Não garante que uma chamada futura terá sucesso. API disponível e modelo disponível
 são estados separados. `chat` exige agente e token administrativo configurados;
-`sessions`, `session_management`, `history`, `history_clear`, `export`, `approvals` e `notifications`
+`sessions`, `session_management`, `session_search`, `history`, `history_clear`, `export`, `approvals` e `notifications`
 exigem token configurado. O cliente ainda precisa enviar
 seu token para usar essas rotas.
 
@@ -168,3 +168,27 @@ Ruff, formatação, Pyright e sintaxe JavaScript passaram. O fluxo de menu pelo 
 foco durante polling, renomear/fixar/recarregar/arquivar/restaurar e axe foi validado
 contra a API nova real com SQLite temporário e gateway simulado. Captura do menu e logs
 em `/workspace/artifacts/orion-c05/`. Nenhuma conta ou provedor externo foi usado.
+
+
+## Busca de conversas (C06 — 05/10/2026)
+
+`GET /sessoes/busca?texto=termo&canal=web&limite=25&offset=0` exige Bearer, busca títulos e
+mensagens user/assistant e retorna `sessoes` com `trecho`, `total`, `mais` e `proximo_offset`.
+Limite entre 1 e 100, texto entre 1 e 200 caracteres e offset até 1.000.000. Canal é aplicado
+antes de devolver resultados. Importadas/arquivadas podem ser encontradas em leitura.
+O índice de títulos é criado/reconstruído na migração aditiva SQLite v4→v5; mensagens usam
+seu índice existente. Busca ignora acentos, usa prefixos e mantém os índices após renomear.
+
+A sidebar consulta o backend com debounce, ignora respostas atrasadas de consultas anteriores,
+mostra trechos como texto seguro e oferece mais resultados. Enter leva à primeira conversa;
+Escape limpa o filtro. A busca local dentro da conversa e seus atalhos permanecem intactos;
+no legado, a busca de títulos conserva o comportamento anterior. Trocar de backend invalida
+resultados da busca. Paginação usa offset; alterações simultâneas na ordem podem mudar a
+composição entre páginas, e a interface elimina IDs repetidos sem duplicar conversas.
+
+Validação C06: 511 testes completos de backend, 96 de navegador e 89 Node passaram.
+Após ajustar a apresentação dos trechos e a atualização ao renomear na busca, os três
+cenários de busca/gestão passaram novamente. Migração v4, canais, acentos, conteúdo,
+paginação e persistência foram verificados. Ruff, formatação, Pyright, sintaxe JavaScript
+e checks do legado passaram. Captura da busca foi inspecionada; logs e imagem estão em
+`/workspace/artifacts/orion-c06/`.

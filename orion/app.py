@@ -371,6 +371,28 @@ def create_app(
         sessoes = [sessao_json(s, ativa) for s in state.memory.list_sessions(canal, limite)]
         return {"sessoes": sessoes, "total": len(sessoes), "ativa": ativa}
 
+    @app.get("/sessoes/busca", dependencies=[Admin])
+    def buscar_sessoes(
+        state: State,
+        texto: Annotated[str, Query(min_length=1, max_length=200)],
+        canal: Annotated[str, Query(pattern=_CANAL)] = "web",
+        limite: Annotated[int, Query(ge=1, le=100)] = 25,
+        offset: Annotated[int, Query(ge=0, le=1_000_000)] = 0,
+    ) -> dict[str, Any]:
+        sessions, total = state.memory.search_sessions(canal, texto, limit=limite, offset=offset)
+        selected = state.memory.selected_session(canal)
+        items = [
+            {**sessao_json(s, selected.id if selected else None), "trecho": snippet}
+            for s, snippet in sessions
+        ]
+        next_offset = offset + len(items)
+        return {
+            "sessoes": items,
+            "total": total,
+            "mais": next_offset < total,
+            "proximo_offset": next_offset if next_offset < total else None,
+        }
+
     @app.post("/sessoes", dependencies=[Admin])
     def sessao_nova(state: State, corpo: SessaoNova | None = None) -> dict[str, Any]:
         corpo = corpo or SessaoNova()
