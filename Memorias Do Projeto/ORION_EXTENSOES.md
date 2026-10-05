@@ -1,6 +1,6 @@
 # Orion — referências de produto e plano de extensões
 
-Pesquisa em 04/10/2026. **Plano de implementação com C00–C08 concluídos** (registro na seção 9).
+Pesquisa em 04/10/2026. **Plano de implementação com C00–C09 concluídos** (registro na seção 9).
 Plugins e skills seguem em implementação. MCP já tem prova com servidores controlados;
 nenhuma conta pessoal ou servidor externo do usuário foi conectado.
 Complementa [ORION_FRONT.md](ORION_FRONT.md), as fases 4 e 6 do
@@ -339,7 +339,7 @@ como fundação do recurso novo. Exportar leitura primeiro, com identidade e esc
 
 ## 8. Próximo trabalho concreto
 
-C00–C08 foram concluídos e validados. Continuar pelo **C09: conexões locais MCP por stdio**.
+C00–C09 foram concluídos e validados. Continuar pelo **C10: MCP Streamable HTTP e referências a segredos**.
 O usuário autorizou a execução dos checklists restantes, com commits separados, validação,
 registro no vault e push. Integrações pessoais e Windows serão registrados conforme
 as evidências disponíveis, sem transformar fixtures em prova de conta ou desktop reais.
@@ -351,8 +351,8 @@ quando houver integração concreta para revisar. Este documento não muda as de
 
 ## 9. Checklists por commit e sequência de dias
 
-Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C08 têm commits reais
-registrados; C09–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
+Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C09 têm commits reais
+registrados; C10–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
 precisa estar pronto. Não é necessário concluir o plano inteiro para usar o primeiro MVP.
 
 ### Ritmo de trabalho
@@ -365,7 +365,7 @@ precisa estar pronto. Não é necessário concluir o plano inteiro para usar o p
   manter os dependentes esperando a entrega completa.
 - Ao pedir continuação, usar o ID: **“Faça o próximo commit pendente”** ou **“Faça o C09”**.
   O executor confere o checklist e as dependências antes de iniciar.
-- C00–C08 estão implementados, validados e registrados abaixo; C09–C50 permanecem
+- C00–C09 estão implementados, validados e registrados abaixo; C10–C50 permanecem
   planejados. Cada continuação deve conferir as dependências e os limites da entrega anterior.
 
 ### Como concluir e pausar cada commit
@@ -418,10 +418,10 @@ a integração real de Pesquisa fica registrada separadamente se ainda não tive
 
 ### Registro para retomar no próximo dia
 
-- Último checklist concluído: **C08**, commit `11f2bbb`; entregas anteriores registradas abaixo.
-- Próximo commit sugerido: **C09 — conexões locais MCP por stdio**.
-- Dependências/impedimentos: conferir as dependências do C09 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
-- Evidências: ver os registros C00–C08 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
+- Último checklist concluído: **C09**, commit `60f44fc`; entregas anteriores registradas abaixo.
+- Próximo commit sugerido: **C10 — MCP Streamable HTTP e referências a segredos**.
+- Dependências/impedimentos: conferir as dependências do C10 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
+- Evidências: ver os registros C00–C09 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
 - Atualizações: registrar aqui o ID concluído, hash/link e o próximo ID; não preencher com
   hash fictício nem tratar evidência de mock como teste contra conta real.
 
@@ -606,6 +606,21 @@ loop preservado, cancelamento e ação async sem execução antes da aprovação
 Logs em `/workspace/artifacts/orion-c08/`. Nenhum servidor pessoal foi conectado.
 
 
+### Execução C09 — MCP local com lifecycle (05/10/2026)
+
+**Commit de implementação:** `60f44fc`.
+Configuração stdio validada com executável absoluto, argv sem shell e confiança local
+explícita. Leitura da configuração não inicia código. Tarefa proprietária abre e fecha
+SDK/transporte; lifespan fecha o host, falhas não derrubam o backend. Diagnóstico registra
+ID/estado/código; stderr externo descartado, stdout reservado ao protocolo. Ambiente
+herda apenas variáveis operacionais do SDK, não credenciais ORION arbitrárias.
+
+**Evidências:** suíte backend com 532 testes passou; teste adicional do lifespan passou
+com os demais quatro casos do host, comprovando encerramento real do PID em Linux.
+Ruff, formatação e Pyright passaram. Host ainda não entrega tools não classificadas ao
+modelo. Windows e servidores pessoais não foram validados.
+
+
 ### C00 — fix(ui): estabilizar conexão e consolidar o refinamento visual
 
 Etapa: **A** · Depende de: **base atual do repositório** · Estado: **concluído**.
@@ -698,13 +713,13 @@ Etapa: **B** · Depende de: **C07** · Estado: **concluído**.
 
 ### C09 — feat(mcp): conectar servidores locais por stdio
 
-Etapa: **B** · Depende de: **C08** · Estado: **planejado**.
+Etapa: **B** · Depende de: **C08** · Estado: **concluído**.
 
-- [ ] Implementar configuração executável + argv e lifecycle no lifespan de orion.app.
-- [ ] Usar ambiente mínimo por conexão; leitura do manifesto não inicia subprocessos.
-- [ ] Registrar origem, estado e logs sanitizados, preservando stdout para o protocolo.
-- [ ] **Validar:** Conectar ao servidor local de teste, executar leitura e encerrar o app sem processo órfão; testar falha ao iniciar.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Implementar configuração executável + argv e lifecycle no lifespan de orion.app.
+- [x] Usar ambiente mínimo por conexão; leitura do manifesto não inicia subprocessos.
+- [x] Registrar origem, estado e logs sanitizados, preservando stdout para o protocolo.
+- [x] **Validar:** Conectar ao servidor local de teste, executar leitura e encerrar o app sem processo órfão; testar falha ao iniciar.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C10 — feat(mcp): conectar servidores Streamable HTTP
 
