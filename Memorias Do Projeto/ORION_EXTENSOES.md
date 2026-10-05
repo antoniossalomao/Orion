@@ -1,6 +1,6 @@
 # Orion — referências de produto e plano de extensões
 
-Pesquisa em 04/10/2026. **Plano de implementação com C00–C06 concluídos** (registro na seção 9).
+Pesquisa em 04/10/2026. **Plano de implementação com C00–C07 concluídos** (registro na seção 9).
 Plugins, skills e MCP continuam propostos; nenhuma conta ou servidor MCP foi conectado.
 Complementa [ORION_FRONT.md](ORION_FRONT.md), as fases 4 e 6 do
 [ORION_NUCLEO.md](ORION_NUCLEO.md) e a triagem de [ORION_FERRAMENTAS.md](ORION_FERRAMENTAS.md).
@@ -338,7 +338,7 @@ como fundação do recurso novo. Exportar leitura primeiro, com identidade e esc
 
 ## 8. Próximo trabalho concreto
 
-C00–C06 foram concluídos e validados. Continuar pelo **C07: SDK MCP e compatibilidade de protocolo**.
+C00–C07 foram concluídos e validados. Continuar pelo **C08: ferramentas assíncronas e validação de schemas**.
 O usuário autorizou a execução dos checklists restantes, com commits separados, validação,
 registro no vault e push. Integrações pessoais e Windows serão registrados conforme
 as evidências disponíveis, sem transformar fixtures em prova de conta ou desktop reais.
@@ -350,8 +350,8 @@ quando houver integração concreta para revisar. Este documento não muda as de
 
 ## 9. Checklists por commit e sequência de dias
 
-Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C06 têm commits reais
-registrados; C07–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
+Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C07 têm commits reais
+registrados; C08–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
 precisa estar pronto. Não é necessário concluir o plano inteiro para usar o primeiro MVP.
 
 ### Ritmo de trabalho
@@ -364,7 +364,7 @@ precisa estar pronto. Não é necessário concluir o plano inteiro para usar o p
   manter os dependentes esperando a entrega completa.
 - Ao pedir continuação, usar o ID: **“Faça o próximo commit pendente”** ou **“Faça o C09”**.
   O executor confere o checklist e as dependências antes de iniciar.
-- C00–C06 estão implementados, validados e registrados abaixo; C07–C50 permanecem
+- C00–C07 estão implementados, validados e registrados abaixo; C08–C50 permanecem
   planejados. Cada continuação deve conferir as dependências e os limites da entrega anterior.
 
 ### Como concluir e pausar cada commit
@@ -417,10 +417,10 @@ a integração real de Pesquisa fica registrada separadamente se ainda não tive
 
 ### Registro para retomar no próximo dia
 
-- Último checklist concluído: **C06**, commit `b440a3d0`; entregas anteriores registradas abaixo.
-- Próximo commit sugerido: **C07 — SDK MCP e compatibilidade de protocolo**.
-- Dependências/impedimentos: conferir as dependências do C07 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
-- Evidências: ver os registros C00–C06 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
+- Último checklist concluído: **C07**, commit `c678a4be`; entregas anteriores registradas abaixo.
+- Próximo commit sugerido: **C08 — ferramentas assíncronas e validação de schemas**.
+- Dependências/impedimentos: conferir as dependências do C08 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
+- Evidências: ver os registros C00–C07 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
 - Atualizações: registrar aqui o ID concluído, hash/link e o próximo ID; não preencher com
   hash fictício nem tratar evidência de mock como teste contra conta real.
 
@@ -568,6 +568,28 @@ inspecionada; evidências em `/workspace/artifacts/orion-c06/`.
 Windows/pywebview real, contas externas e integração em `main` permanecem pendentes.
 
 
+### Execução C07 — 05/10/2026
+
+Entrega: [`c678a4be`](https://github.com/antoniossalomao/Orion/commit/c678a4be), branch
+`codex/orion-evolucao`. Detalhes de reprodução em `Memorias Do Projeto/ORION_MCP.md`.
+
+- SDK oficial `mcp==2.3.0` e dependências fixadas no lockfile; licença MIT e origem
+  verificadas no PyPI e repositório oficial. APIs v2 `Client`/`MCPServer` usadas.
+- Servidor controlado stdio: descoberta, chamada de leitura, resultado estruturado e
+  encerramento real do filho. Sem conta, chave pessoal ou servidor externo.
+- Protocolos comprovados: `2026-07-28` (auto) e `2025-11-25` (legacy). Versões antigas
+  declaradas pelo SDK mas não comprovadas no Orion são recusadas pelo guard.
+- Erros legíveis para SDK/protocolo incompatíveis; não declara sampling/elicitation/Tasks,
+  HTTP, cliente de produto ou servidor de exportação prontos. Flag MCP permanece falsa.
+
+**Validação:** seis testes específicos passaram no ambiente do projeto e novamente em
+ambiente limpo. 517 testes completos de backend passaram após instalar as dependências
+novas; Ruff, formatação e Pyright passaram. Logs em `/workspace/artifacts/orion-c07/`.
+
+**Próximo:** C08 — execução assíncrona e validação completa de schemas, antes dos transports
+MCP do produto. Windows/pywebview real e integrações externas continuam sem validação.
+
+
 ### C00 — fix(ui): estabilizar conexão e consolidar o refinamento visual
 
 Etapa: **A** · Depende de: **base atual do repositório** · Estado: **concluído**.
@@ -640,13 +662,13 @@ Etapa: **A** · Depende de: **C05** · Estado: **concluído**.
 
 ### C07 — chore(mcp): fixar SDK e provar compatibilidade de protocolo
 
-Etapa: **B** · Depende de: **C01** · Estado: **planejado**.
+Etapa: **B** · Depende de: **C01** · Estado: **concluído**.
 
-- [ ] Verificar o pacote MCP publicado, fixar versão no lockfile e registrar licença e protocolos suportados.
-- [ ] Criar servidor de teste controlado e prova mínima de descoberta/chamada, sem credenciais pessoais.
-- [ ] Registrar quais APIs da versão atual e quais versões antigas são suportadas; não presumir compatibilidade universal.
-- [ ] **Validar:** Reproduzir a prova do SDK no ambiente limpo e testar versão incompatível com erro legível.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Verificar o pacote MCP publicado, fixar versão no lockfile e registrar licença e protocolos suportados.
+- [x] Criar servidor de teste controlado e prova mínima de descoberta/chamada, sem credenciais pessoais.
+- [x] Registrar quais APIs da versão atual e quais versões antigas são suportadas; não presumir compatibilidade universal.
+- [x] **Validar:** Reproduzir a prova do SDK no ambiente limpo e testar versão incompatível com erro legível.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C08 — refactor(tools): executar ferramentas assíncronas e validar schemas
 
