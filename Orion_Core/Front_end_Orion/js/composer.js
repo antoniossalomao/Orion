@@ -36,8 +36,8 @@
         chat.enviar.setAttribute('aria-label', parar ? 'Parar resposta' : 'Enviar');
         chat.enviar.dataset.tip = parar ? 'Parar (Esc)' : 'Enviar (Enter)';
         chat.enviar.querySelector('use').setAttribute('href', parar ? '#i-stop' : '#i-send');
-        chat.enviar.disabled = parar ? false : !api.suporta('chat') || !(temTexto(chat) || prontos) || enviando;
-        inicio.enviar.disabled = !api.suporta('chat') || ocupado || !temTexto(inicio);
+        chat.enviar.disabled = parar ? false : (!api.suporta('chat') || O.historico?.leitura()) || !(temTexto(chat) || prontos) || enviando;
+        inicio.enviar.disabled = (!api.suporta('chat') || O.historico?.leitura()) || ocupado || !temTexto(inicio);
         chat.ta.setAttribute('aria-busy', String(ocupado));
     }
 
@@ -79,6 +79,7 @@
     }
 
     function disparar({ prompt, exibir, nomes = [], semBolha = false }) {
+        if (O.historico?.leitura()) return;
         const modelo = prefs.get('model') || 'auto';
         ultimoPedido = { prompt, exibir, nomes, modelo };
         if (hist.itens[hist.itens.length - 1] !== exibir) { hist.itens.push(exibir); if (hist.itens.length > hist.MAX) hist.itens.shift(); }
@@ -109,6 +110,7 @@
     }
 
     function enviar(inst) {
+        if (O.historico?.leitura()) { ui.toast('A conversa está em modo de leitura ou carregando. Abra a conversa atual para enviar.', { tipo: 'aviso' }); return; }
         if (!api.suporta('chat')) { ui.toast('O modelo está indisponível. Confira a conexão em Configurações.', { tipo: 'aviso' }); return; }
         if (tratarComando(inst)) return;
         if (O.chat.ocupado() || O.transport.cancelando()) {
@@ -319,14 +321,14 @@
         alvo.focus({ preventScroll: true });
     }
     function sugerir(texto) {
-        if (!api.suporta('chat')) { O.app.ir('chat'); chat.ta.value = texto; autoajustar(chat.ta); atualizar(); foco(); return; }
+        if ((!api.suporta('chat') || O.historico?.leitura())) { O.app.ir('chat'); chat.ta.value = texto; autoajustar(chat.ta); atualizar(); foco(); return; }
         if (O.chat.ocupado()) return;
         if (document.documentElement.dataset.view !== 'chat') O.app.ir('chat');
         disparar({ prompt: texto, exibir: texto });
         atualizar();
     }
     function reenviar() {
-        if (!api.suporta('chat')) { ui.toast('O modelo ainda está indisponível.', { tipo: 'aviso' }); return; }
+        if ((!api.suporta('chat') || O.historico?.leitura())) { ui.toast('O modelo ainda está indisponível.', { tipo: 'aviso' }); return; }
         if (!ultimoPedido || O.chat.ocupado()) return;
         const p = ultimoPedido;
         disparar({ prompt: p.prompt, exibir: p.exibir, nomes: p.nomes, semBolha: true });
@@ -345,6 +347,7 @@
         bus.on('sessoes', ({ ativa }) => trocarRascunho(ativa));
         bus.on('chat:limpo', () => { ultimoPedido = null; });     // "tentar de novo" nunca reenvia o pedido de outra conversa
         bus.on('chat:ocupado', atualizar);
+        bus.on('historico', () => { trocarRascunho(O.historico?.sessao()); atualizar(); });
         atualizar();
         // ao trocar o texto por fora (sugestões), reajusta a altura
         [chat, inicio].forEach(i => autoajustar(i.ta));

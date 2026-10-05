@@ -30,7 +30,7 @@
     const configurarToken = t => { tokenDesktop = String(t || ''); };
 
     /** rotas que exigem o token do orion.app; o legado não conhece cabeçalho Authorization */
-    const comAuth = caminho => /^\/(approvals|chat|notifications|sessoes|capabilities\/details)(\/|$|\?)/.test(caminho);
+    const comAuth = caminho => /^\/(approvals|chat|notifications|sessoes|historico|exportar|capabilities\/details)(\/|$|\?)/.test(caminho);
 
     function cabecalhos(caminho, extra = {}) {
         const h = { ...extra };
@@ -133,7 +133,7 @@
         if (!suporta(nome)) throw new UnsupportedError(nome);
         try { return await req(caminho, opcoes); }
         catch (e) {
-            if (e.status === 404 && (rotas[nome] || []).includes(caminho.split('?')[0])) {
+            if (e.status === 404 && !/[?&]sessao=/.test(caminho) && (rotas[nome] || []).includes(caminho.split('?')[0])) {
                 publicar({ ...estado, features: { ...estado.features, [nome]: false }, unavailable: { ...estado.unavailable, [nome]: 'not_implemented' } });
                 throw new UnsupportedError(nome);
             }
@@ -162,9 +162,9 @@
         sessoes: () => recurso('sessions', '/sessoes', { timeout: 4000 }),
         novaSessao: () => recurso('sessions', '/sessoes', { metodo: 'POST', timeout: 5000 }),
         ativarSessao: id => recurso('sessions', '/sessoes/ativar', { metodo: 'POST', json: { sessao_id: id }, timeout: 6000 }),
-        historico: sessao => recurso('history', `/historico?${q({ sessao })}`, { timeout: 6000 }),
-        limparHistorico: () => recurso('history_clear', '/historico', { metodo: 'DELETE', timeout: 5000 }),
-        exportar: () => recurso('export', '/exportar', { timeout: 8000 }),
+        historico: (sessao, opcoes = {}) => recurso('history', `/historico?${q({ sessao, ...opcoes })}`, { timeout: 6000 }),
+        limparHistorico: sessao => recurso('history_clear', `/historico?${q({ sessao })}`, { metodo: 'DELETE', timeout: 5000 }),
+        exportar: (sessao, completo) => recurso('export', `/exportar?${q({ sessao, completo })}`, { timeout: 8000 }),
         ttsMudo: mudo => recurso('tts', '/tts/mudo', { metodo: 'POST', json: { mudo }, timeout: 3000 }),
         ttsFalar: texto => recurso('tts', '/tts/falar', { metodo: 'POST', json: { texto }, timeout: 4000 }),
         upload(arquivo) {

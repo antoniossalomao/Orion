@@ -333,3 +333,20 @@ def test_cli_restore_confere_recusa_sobrescrever_e_restaura(store, tmp_path, mon
     assert main(["restore", str(ruim), "--force"]) == 1
     assert "backup recusado" in capsys.readouterr().err
     assert (dados / "orion.db").exists()  # o banco atual continua intacto depois do pedido ruim
+
+
+def test_limpeza_preserva_documentos_busca_e_vetores(store_vec):
+    s = store_vec.new_session("web")
+    store_vec.add_message(s.id, "user", "Antônio estuda na UNIMAR")
+    store_vec.add_fact("Antônio estuda na UNIMAR", "manual")
+    store_vec.index_document("nota.md", "Estudos", "Antônio estuda na UNIMAR")
+    store_vec.embed_pending()
+    antes = [(h.kind, h.id, h.text) for h in store_vec.search("universidade")]
+    vetores = [tuple(r) for r in store_vec.query("SELECT * FROM vectors ORDER BY kind, ref_id")]
+    assert antes and vetores
+    store_vec.clear_context(s.id)
+    assert store_vec.context_history(s.id) == []
+    assert [(h.kind, h.id, h.text) for h in store_vec.search("universidade")] == antes
+    assert [
+        tuple(r) for r in store_vec.query("SELECT * FROM vectors ORDER BY kind, ref_id")
+    ] == vetores

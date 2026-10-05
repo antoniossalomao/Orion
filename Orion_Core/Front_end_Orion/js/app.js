@@ -84,7 +84,7 @@
         escala(delta) { prefs.set('scale', U.clamp(Math.round((prefs.get('scale') + delta) * 100) / 100, 0.9, 1.3)); },
         async exportar() {
             try {
-                const d = await api.exportar();
+                const d = await api.exportar(O.historico?.sessao(), O.historico?.completo());
                 if (!d.markdown || d.total_msgs === 0) { ui.toast('Nada para exportar ainda.', { tipo: 'aviso' }); return; }
                 const url = URL.createObjectURL(new Blob([d.markdown], { type: 'text/markdown;charset=utf-8' }));
                 const a = document.createElement('a');
@@ -96,11 +96,14 @@
             } catch (e) { ui.toast(`Falha ao exportar: ${e.message}`, { tipo: 'erro' }); }
         },
         async limpar() {
+            const sid = O.historico?.sessao();
+            if (O.historico?.leitura()) { ui.toast('Esta conversa está em modo de leitura.', { tipo: 'aviso' }); return; }
             if (O.chat.ocupado()) { ui.toast('Espere a resposta terminar, ou pare com Esc, para limpar.', { tipo: 'aviso', ms: 2800, id: 'ocupado' }); return; }
             const sim = await ui.confirmar({ titulo: 'Limpar o histórico desta sessão?', ok: 'Limpar', perigo: true,
-                texto: 'Apaga a conversa em memória nesta sessão. A memória de longo prazo não é afetada.' });
-            if (!sim || O.chat.ocupado()) return;
-            try { await api.limparHistorico(); O.chat.limpar(); ui.toast('Histórico em memória limpo.', { tipo: 'ok' }); }
+                texto: 'Limpa o contexto desta conversa. O registro permanente e a memória de longo prazo são preservados.' });
+            if (!sim || O.chat.ocupado() || sid !== O.historico?.sessao()) return;
+            try { await api.limparHistorico(sid);
+                if (sid === O.historico?.sessao()) { O.chat.limpar(); if (sid) await O.historico.abrir(sid); } ui.toast('Histórico em memória limpo.', { tipo: 'ok' }); }
             catch (e) { ui.toast(`Falha ao limpar: ${e.message}`, { tipo: 'erro' }); }
         },
     };
@@ -119,7 +122,7 @@
         },
         async copiarConversa() {
             try {
-                const d = await api.exportar();
+                const d = await api.exportar(O.historico?.sessao(), O.historico?.completo());
                 if (!d.markdown || !d.total_msgs) { ui.toast('Nada para copiar ainda.', { tipo: 'aviso', ms: 2400 }); return; }
                 ui.toast((await ui.copiar(d.markdown)) ? `Conversa copiada (${d.total_msgs} mensagens).` : 'Não consegui copiar.', { tipo: 'ok', ms: 2000 });
             } catch (e) { ui.toast(`Falha ao copiar: ${e.message}`, { tipo: 'erro' }); }

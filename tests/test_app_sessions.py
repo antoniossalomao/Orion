@@ -51,7 +51,7 @@ def test_duas_sessoes_troca_chat_e_reinicio(tmp_path):
         assert sum(s["ativa"] for s in data["sessoes"]) == 1
         assert c.app.state.orion.memory.history(a["sessao_id"])[-1].text == "Retomei A"
         assert c.get("/capabilities").json()["features"]["sessions"] is True
-        assert c.get("/capabilities").json()["features"]["history"] is False
+        assert c.get("/capabilities").json()["features"]["history"] is True
 
 
 @pytest.mark.parametrize("canal", ["telegram", "voz"])
