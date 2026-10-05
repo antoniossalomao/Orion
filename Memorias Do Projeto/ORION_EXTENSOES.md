@@ -1,6 +1,6 @@
 # Orion — referências de produto e plano de extensões
 
-Pesquisa em 04/10/2026. **Plano de implementação com C00–C02 concluídos** (registro na seção 9).
+Pesquisa em 04/10/2026. **Plano de implementação com C00–C03 concluídos** (registro na seção 9).
 Plugins, skills e MCP continuam propostos; nenhuma conta ou servidor MCP foi conectado.
 Complementa [ORION_FRONT.md](ORION_FRONT.md), as fases 4 e 6 do
 [ORION_NUCLEO.md](ORION_NUCLEO.md) e a triagem de [ORION_FERRAMENTAS.md](ORION_FERRAMENTAS.md).
@@ -58,7 +58,7 @@ substitui a verificação do pacote publicado. SSE legado só entra se houver ne
 
 | Área | Evidência no Orion | Próxima melhoria | Prioridade |
 |---|---|---|---|
-| Integração front/backend | C01–C02 entregam contrato de capacidades e adaptadores. O backend novo ainda não oferece sessões, histórico, métricas, exportação, uploads ou voz; o front explica a indisponibilidade | Implementar sessões/histórico (C03–C04), sem habilitar flags antes das rotas reais | P0 |
+| Integração front/backend | C01–C03 entregam capacidades, adaptadores e sessões persistentes por canal. Histórico paginado, métricas, exportação, uploads e voz continuam ausentes | Implementar histórico e exportação (C04), mantendo flags coerentes com rotas reais | P0 |
 | Conexão e avisos | C00–C02 corrigem o toast e separam API acessível, modelo configurado e recursos disponíveis | Manter reconexão silenciosa e ampliar o painel de atividade nos checklists seguintes | P1 |
 | Conversas | Criar, listar, buscar e trocar existem; busca atual depende da lista de títulos | Menu renomear/fixar/arquivar, busca por conteúdo no backend e preservação de foco durante polling | P1 |
 | Edição e versões | Copiar, ouvir e gerar novamente a última resposta já existem | Editar pedido com nova versão; escolher versões sem apagar o caminho anterior | P2 |
@@ -338,9 +338,10 @@ como fundação do recurso novo. Exportar leitura primeiro, com identidade e esc
 
 ## 8. Próximo trabalho concreto
 
-C00–C02 foram concluídos e validados. Continuar pelo **C03: sessões no backend novo**,
-seguido de C04 para integrar histórico e navegação. O spike MCP começa em C07, conforme
-a sequência de dependências; a autorização atual cobre somente C00–C02.
+C00–C03 foram concluídos e validados. Continuar pelo **C04: histórico e exportação**,
+integrando paginação, limpeza e leitura das conversas importadas sem apagar memória de longo
+prazo. O spike MCP começa em C07, conforme as dependências. A autorização de implementação
+desta sessão cobre C03; commit e push das entregas foram autorizados.
 
 Decisões recomendadas para o MVP: manter Python/FastAPI e o front atual; padrão Agent Skills;
 manifesto Orion declarativo; MCP via SDK oficial; instalação local; escopos simples; um usuário;
@@ -363,7 +364,7 @@ precisa estar pronto. Não é necessário concluir o plano inteiro para usar o p
   manter os dependentes esperando a entrega completa.
 - Ao pedir continuação, usar o ID: **“Faça o próximo commit pendente”** ou **“Faça o C09”**.
   O executor confere o checklist e as dependências antes de iniciar.
-- C00–C02 estão implementados, validados e registrados abaixo; C03–C50 permanecem
+- C00–C03 estão implementados, validados e registrados abaixo; C04–C50 permanecem
   planejados. Cada continuação deve conferir as dependências e os limites da entrega anterior.
 
 ### Como concluir e pausar cada commit
@@ -416,16 +417,16 @@ a integração real de Pesquisa fica registrada separadamente se ainda não tive
 
 ### Registro para retomar no próximo dia
 
-- Último checklist concluído: **C02**, commit `81d5a99` (C00: `188ad9f`; C01: `856ce62`).
-- Próximo commit sugerido: **C03 — implementar sessões no backend novo**.
-- Dependências/impedimentos: C01 está pronto para C03. Windows/pywebview real e provedor externo seguem sem validação; não bloqueiam os testes locais de sessões.
-- Evidências: ver o registro C00–C02 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
+- Último checklist concluído: **C03**, commit `c3c4b1e` (C00: `188ad9f`; C01: `856ce62`; C02: `81d5a99`).
+- Próximo commit sugerido: **C04 — histórico e exportação de conversas**.
+- Dependências/impedimentos: C03 e C02 estão prontos para C04. Windows/pywebview real e provedor externo seguem sem validação; não bloqueiam os testes locais de histórico.
+- Evidências: ver os registros C00–C03 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
 - Atualizações: registrar aqui o ID concluído, hash/link e o próximo ID; não preencher com
   hash fictício nem tratar evidência de mock como teste contra conta real.
 
 ### Execução C00–C02 — 04/10/2026
 
-Os commits abaixo existem localmente no repositório Orion. Não foram enviados ao remoto.
+Os commits abaixo identificam as entregas C00–C02 e integram o histórico da branch do C03.
 
 | Checklist | Commit real | Entrega e evidência |
 |---|---|---|
@@ -447,8 +448,45 @@ O contrato e os limites estão documentados em `Memorias Do Projeto/ORION_CAPACI
 **Limites restantes:** Windows/pywebview real não foi conferido; a ponte desktop foi
 validada pelo shim. O front novo usa `/ui/` na mesma origem (ou proxy autorizado), sem
 abrir CORS. `model: ready` significa agente configurado, não saúde comprovada do provedor.
-Sessões/histórico no backend novo, plugins, skills e MCP continuam pendentes; nenhuma
-conta foi conectada. Próxima entrega: **C03**, mantendo C04 dependente de C03 e C02.
+Limites registrados na conclusão de C02: sessões/histórico, plugins, skills e MCP ainda
+estavam pendentes. C03, abaixo, entrega sessões; C04 continua dependente de C03 e C02.
+Nenhuma conta foi conectada.
+
+### Execução C03 — 04/10/2026
+
+**Commit:** `c3c4b1e` — `feat(api): implementar sessões persistentes isoladas por canal`.
+Branches desta entrega: `codex/c03-sessoes` (Orion) e `codex/orion-c03` (vault).
+O histórico da branch Orion inclui as entregas C00–C02, das quais C03 depende.
+
+- `GET /sessoes`, `POST /sessoes` e `POST /sessoes/ativar` exigem Bearer token e usam
+  contratos compatíveis com o cliente. O front agora envia autenticação nessas rotas.
+- Canal padrão `web`; listar filtra o canal, e ativar recusa IDs pertencentes a outro
+  canal com o mesmo 404 de uma sessão inexistente. O token continua sendo administrativo
+  pessoal: seu portador pode escolher explicitamente um canal; login multiusuário não foi criado.
+- SQLite v3 guarda a seleção ativa por canal. Migração de v1/v2 conserva sessões e mensagens;
+  criação/seleção são persistentes e não dependem da data da última resposta.
+- Sessões importadas ou arquivadas são somente leitura; ativar retorna 409 sem modificar
+  seleção ou dados. Leitura de importadas na interface permanece dependente do C04.
+- Ativar retorna um snapshot limitado das últimas 50 mensagens. Histórico paginado,
+  exportação, limpeza e gestão de títulos/favoritos continuam em seus checklists próprios.
+- A flag `sessions` fica disponível com token administrativo configurado, inclusive sem
+  gateway. `history`, `history_clear` e `export` continuam falsas.
+
+**Validação:** 488 testes do backend passaram, incluindo 15 cenários específicos novos de
+API/armazenamento: duas conversas, retomada isolada, reinício, autenticação, canais web/
+Telegram/voz, importadas, limites, concorrência e resposta tardia com relógio igual/recuado.
+89 testes completos de navegador passaram, incluindo criar e trocar sessões pela interface
+real contra FastAPI/SQLite temporários; gateway simulado, sem conta ou provedor externo.
+Pyright, Ruff, formatação, whitespace e os 89 testes Node passaram. Sintaxe e checks E9/F
+do legado também passaram.
+
+A revisão da suíte corrigiu duas condições de teste: axe agora mede após a transição da
+tela, e as páginas fecham antes de encerrar o backend real. A checagem de console permanece
+ativa. Uma reinicialização do ambiente interrompeu uma execução; a validação final foi
+reexecutada e gravada em `/workspace/artifacts/orion-c03/e2e.log`.
+
+**Próximo:** C04 — histórico e exportação de conversas. Windows/pywebview real continua
+sem validação neste ambiente. O plano permanece gradual; C04 não foi implementado nesta entrega.
 
 ### C00 — fix(ui): estabilizar conexão e consolidar o refinamento visual
 
@@ -482,13 +520,13 @@ Etapa: **A** · Depende de: **C01** · Estado: **concluído**.
 
 ### C03 — feat(api): implementar sessões no backend novo
 
-Etapa: **A** · Depende de: **C01** · Estado: **planejado**.
+Etapa: **A** · Depende de: **C01** · Estado: **concluído**.
 
-- [ ] Implementar listar, criar e ativar sessões com IDs e contrato compatíveis com o adaptador.
-- [ ] Preservar o canal da sessão e definir o comportamento para sessões legadas de leitura.
-- [ ] Autenticar operações e impedir que um canal acesse a sessão de outro.
-- [ ] **Validar:** Criar duas sessões, trocar entre elas e reiniciar o backend; testar isolamento entre canais e persistência.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Implementar listar, criar e ativar sessões com IDs e contrato compatíveis com o adaptador.
+- [x] Preservar o canal da sessão e definir o comportamento para sessões legadas de leitura.
+- [x] Autenticar operações e impedir que um canal acesse a sessão de outro.
+- [x] **Validar:** Criar duas sessões, trocar entre elas e reiniciar o backend; testar isolamento entre canais e persistência.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C04 — feat(api): entregar histórico e exportação de conversas
 

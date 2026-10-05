@@ -99,3 +99,8 @@ sem reabrir uma anterior por acidente. A migração não reabre conversas import
 Ativar entrega um snapshot limitado com `role`, `content`, timestamp e proveniência das
 mensagens user/assistant. Não implementa `/historico`, paginação de mensagens, exportação,
 limpeza, renomear ou arquivar pela API: esses checklists continuam pendentes.
+
+Validação final C03: 488 testes do backend (15 específicos de sessões), 89 testes
+completos de navegador e 89 testes Node passaram. Pyright, Ruff, formatação e checks
+do legado passaram. O navegador testou o front contra a API nova real, com SQLite e
+gateway temporários/simulados. Log final: `/workspace/artifacts/orion-c03/e2e.log`.
