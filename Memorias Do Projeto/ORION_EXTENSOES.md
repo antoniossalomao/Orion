@@ -1,6 +1,6 @@
 # Orion — referências de produto e plano de extensões
 
-Pesquisa em 04/10/2026. **Plano de implementação com C00–C04 concluídos** (registro na seção 9).
+Pesquisa em 04/10/2026. **Plano de implementação com C00–C05 concluídos** (registro na seção 9).
 Plugins, skills e MCP continuam propostos; nenhuma conta ou servidor MCP foi conectado.
 Complementa [ORION_FRONT.md](ORION_FRONT.md), as fases 4 e 6 do
 [ORION_NUCLEO.md](ORION_NUCLEO.md) e a triagem de [ORION_FERRAMENTAS.md](ORION_FERRAMENTAS.md).
@@ -58,7 +58,7 @@ substitui a verificação do pacote publicado. SSE legado só entra se houver ne
 
 | Área | Evidência no Orion | Próxima melhoria | Prioridade |
 |---|---|---|---|
-| Integração front/backend | C01–C04 entregam capacidades, adaptadores, sessões, histórico paginado, exportação e limpeza por canal. Métricas, uploads e voz continuam ausentes | Gerenciar conversas (C05), mantendo flags coerentes com rotas reais | P0 |
+| Integração front/backend | C01–C05 entregam capacidades, adaptadores, sessões, histórico, exportação, limpeza e gestão de conversas por canal. Métricas, uploads e voz continuam ausentes | Buscar conversas por conteúdo (C06), mantendo flags coerentes com rotas reais | P0 |
 | Conexão e avisos | C00–C02 corrigem o toast e separam API acessível, modelo configurado e recursos disponíveis | Manter reconexão silenciosa e ampliar o painel de atividade nos checklists seguintes | P1 |
 | Conversas | Criar, listar, buscar e trocar existem; busca atual depende da lista de títulos | Menu renomear/fixar/arquivar, busca por conteúdo no backend e preservação de foco durante polling | P1 |
 | Edição e versões | Copiar, ouvir e gerar novamente a última resposta já existem | Editar pedido com nova versão; escolher versões sem apagar o caminho anterior | P2 |
@@ -338,8 +338,8 @@ como fundação do recurso novo. Exportar leitura primeiro, com identidade e esc
 
 ## 8. Próximo trabalho concreto
 
-C00–C04 foram concluídos e validados. Continuar pelo **C05: gestão de conversas**,
-com renomear, fixar e arquivar; preservar foco e rolagem durante polling. O spike MCP começa
+C00–C05 foram concluídos e validados. Continuar pelo **C06: busca de conversas por conteúdo**,
+com trechos e paginação, mantendo a busca local na conversa. O spike MCP começa
 em C07, conforme as dependências. O usuário autorizou a execução dos checklists restantes;
 commit e push das entregas foram autorizados.
 
@@ -350,8 +350,8 @@ quando houver integração concreta para revisar. Este documento não muda as de
 
 ## 9. Checklists por commit e sequência de dias
 
-Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C04 têm commits reais
-registrados; C05–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
+Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C05 têm commits reais
+registrados; C06–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
 precisa estar pronto. Não é necessário concluir o plano inteiro para usar o primeiro MVP.
 
 ### Ritmo de trabalho
@@ -364,7 +364,7 @@ precisa estar pronto. Não é necessário concluir o plano inteiro para usar o p
   manter os dependentes esperando a entrega completa.
 - Ao pedir continuação, usar o ID: **“Faça o próximo commit pendente”** ou **“Faça o C09”**.
   O executor confere o checklist e as dependências antes de iniciar.
-- C00–C04 estão implementados, validados e registrados abaixo; C05–C50 permanecem
+- C00–C05 estão implementados, validados e registrados abaixo; C06–C50 permanecem
   planejados. Cada continuação deve conferir as dependências e os limites da entrega anterior.
 
 ### Como concluir e pausar cada commit
@@ -417,10 +417,10 @@ a integração real de Pesquisa fica registrada separadamente se ainda não tive
 
 ### Registro para retomar no próximo dia
 
-- Último checklist concluído: **C04**, commit `53074d2c` (C03: `c3c4b1e`; C00: `188ad9f`; C01: `856ce62`; C02: `81d5a99`).
-- Próximo commit sugerido: **C05 — gestão de conversas sem perder foco**.
-- Dependências/impedimentos: C04 está pronto para C05. Windows/pywebview real e provedor externo seguem sem validação; não bloqueiam os testes locais de gestão de conversas.
-- Evidências: ver os registros C00–C04 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
+- Último checklist concluído: **C05**, commit `f0bc68b2` (C04: `53074d2c`; C03: `c3c4b1e`; C00: `188ad9f`; C01: `856ce62`; C02: `81d5a99`).
+- Próximo commit sugerido: **C06 — busca de conversas por conteúdo**.
+- Dependências/impedimentos: C05 está pronto para C06. Windows/pywebview real e provedor externo seguem sem validação; não bloqueiam os testes locais de gestão de conversas.
+- Evidências: ver os registros C00–C05 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
 - Atualizações: registrar aqui o ID concluído, hash/link e o próximo ID; não preencher com
   hash fictício nem tratar evidência de mock como teste contra conta real.
 
@@ -520,6 +520,29 @@ e `/workspace/artifacts/orion-c04/node.log`.
 no polling. Windows/pywebview real e provedor externo seguem sem validação neste ambiente.
 Plugins, skills e MCP continuam nos checklists seguintes, a partir do C07.
 
+### Execução C05 — 05/10/2026
+
+Entrega: [`f0bc68b2`](https://github.com/antoniossalomao/Orion/commit/f0bc68b2), branch
+`codex/orion-evolucao`, incluindo C00–C04. A mesma branch no vault mantém a continuidade.
+
+- Migração aditiva SQLite v4 para fixação; título, fixação e arquivo persistem após reinício.
+- `PATCH /sessoes/{id}` autenticado, isolado por canal, com validação de título e proteção
+  de sessões importadas. Arquivar preserva mensagens, limpa a seleção e não esconde aprovações.
+- Menu acessível oferece renomear, fixar/desafixar e arquivar/restaurar; grupos Fixadas e
+  Arquivadas. Restaurar não seleciona automaticamente uma conversa.
+- Lista reconciliada por ID: polling preserva foco, rolagem e menu aberto. Título e rascunhos
+  seguem a conversa visualizada, mesmo quando o registro está em modo de leitura.
+
+**Validação:** 507 testes completos de backend, 94 de navegador e 89 Node passaram.
+Ruff, formatação, Pyright, sintaxe JavaScript, whitespace e checks do legado passaram.
+O navegador usou API nova real/SQLite temporário e gateway simulado; menu foi operado com
+teclado, polling e recarga, com axe sem violações. Captura do menu foi inspecionada em
+`/workspace/artifacts/orion-c05/menu-conversa.png`; logs no mesmo diretório.
+
+**Próximo:** C06 — buscar conversas por título/conteúdo e mostrar trechos, com paginação.
+A execução dos checklists seguintes e commit/push continuam autorizados pelo usuário.
+Integração em `main`, Windows/pywebview real e contas externas permanecem pendentes.
+
 ### C00 — fix(ui): estabilizar conexão e consolidar o refinamento visual
 
 Etapa: **A** · Depende de: **base atual do repositório** · Estado: **concluído**.
@@ -572,13 +595,13 @@ Etapa: **A** · Depende de: **C03, C02** · Estado: **concluído**.
 
 ### C05 — feat(chat): gerenciar conversas sem perder foco
 
-Etapa: **A** · Depende de: **C04** · Estado: **planejado**.
+Etapa: **A** · Depende de: **C04** · Estado: **concluído**.
 
-- [ ] Adicionar persistência e ações de renomear, fixar e arquivar sessões.
-- [ ] Implementar menu acessível na sidebar e evitar reconstruir itens estáveis durante polling.
-- [ ] Preservar foco, seleção e rolagem; arquivar não deve apagar mensagens.
-- [ ] **Validar:** Usar menu pelo teclado, aguardar polling e reiniciar; confirmar título, fixação e arquivo persistentes.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Adicionar persistência e ações de renomear, fixar e arquivar sessões.
+- [x] Implementar menu acessível na sidebar e evitar reconstruir itens estáveis durante polling.
+- [x] Preservar foco, seleção e rolagem; arquivar não deve apagar mensagens.
+- [x] **Validar:** Usar menu pelo teclado, aguardar polling e reiniciar; confirmar título, fixação e arquivo persistentes.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C06 — feat(chat): buscar conversas por conteúdo
 
