@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Annotated, Any
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Path, Query, Request
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -173,6 +173,13 @@ class Mensagem(BaseModel):
 class SessaoNova(BaseModel):
     canal: str = Field(default="web", pattern=_CANAL)
     titulo: str | None = Field(default=None, max_length=120)
+
+
+class SessaoEditar(BaseModel):
+    canal: str = Field(default="web", pattern=_CANAL)
+    titulo: str | None = Field(default=None, min_length=1, max_length=120)
+    favorita: bool | None = None
+    arquivada: bool | None = None
 
 
 class SessaoAtivar(BaseModel):
@@ -347,7 +354,9 @@ def create_app(
             "criada": datetime.fromtimestamp(session.created_at, UTC).isoformat(),
             "ultima_atividade": datetime.fromtimestamp(session.last_active_at, UTC).isoformat(),
             "ativa": session.id == ativa,
-            "favorita": False,
+            "favorita": session.favorite,
+            "arquivada": session.archived,
+            "importada": session.read_only,
             "somente_leitura": session.archived or session.read_only,
         }
 
@@ -389,6 +398,34 @@ def create_app(
             if m.role in {"user", "assistant"}
         ]
         return {"ok": True, **sessao_json(session, session.id), "mensagens": mensagens}
+
+    @app.patch("/sessoes/{session_id}", dependencies=[Admin])
+    async def sessao_editar(
+        session_id: Annotated[str, Path(pattern=r"^[a-f0-9]{32}$")],
+        corpo: SessaoEditar,
+        state: State,
+    ) -> dict[str, Any]:
+        session = conversation(state, corpo.canal, session_id)
+        assert session is not None
+        if corpo.arquivada and (
+            state.policy.approvals.unresolved(session_id)
+            or (state.agent and state.agent.busy(session_id))
+        ):
+            raise HTTPException(409, "termine a resposta e resolva as aprovações antes de arquivar")
+        try:
+            updated = state.memory.edit_session(
+                corpo.canal,
+                session_id,
+                title=corpo.titulo,
+                favorite=corpo.favorita,
+                archived=corpo.arquivada,
+            )
+        except KeyError:
+            raise HTTPException(404, "sessão inexistente neste canal") from None
+        except ValueError as e:
+            raise HTTPException(409, str(e)) from None
+        selected = state.memory.selected_session(corpo.canal)
+        return {"ok": True, **sessao_json(updated, selected.id if selected else None)}
 
     def conversation(state: AppState, canal: str, sessao: str | None) -> Session | None:
         session = (

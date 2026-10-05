@@ -90,6 +90,10 @@ class Agent:
             async for ev in self._turn(session, text):
                 yield ev
 
+    def busy(self, session_id: str) -> bool:
+        lock = self._locks.get(session_id)
+        return bool(lock and lock.locked())
+
     async def clear_history(self, session_id: str) -> None:
         lock = self._lock(session_id)
         if lock.locked():

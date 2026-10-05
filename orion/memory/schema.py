@@ -3,9 +3,10 @@
 v1: conversas, fatos, documentos e vetores. v2: operação (lembretes, agendamentos,
 tarefas, números, prompts), arestas do grafo e fila de notificações. Banco v1 sobe
 para a versão atual sozinho (`MIGRATIONS`). v3: seleção persistente de sessão por canal.
+v4: conversas fixadas.
 """
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 TOKENIZER = "unicode61 remove_diacritics 2"  # "açúcar" casa com "acucar"
 
@@ -190,7 +191,9 @@ WHERE s.archived=0 AND s.id=(
 );
 """
 
-DDL = DDL_V1 + DDL_V2 + DDL_V3
+DDL_V4 = "ALTER TABLE sessions ADD COLUMN favorite INTEGER NOT NULL DEFAULT 0;"
+
+DDL = DDL_V1 + DDL_V2 + DDL_V3 + DDL_V4
 
 # versão de origem -> script que leva à seguinte
-MIGRATIONS: dict[int, str] = {1: DDL_V2, 2: DDL_V3}
+MIGRATIONS: dict[int, str] = {1: DDL_V2, 2: DDL_V3, 3: DDL_V4}

@@ -30,33 +30,95 @@
         return saida;
     }
 
-    function botaoConversa(s) {
-        const atual = s.sessao_id === (O.historico?.sessao() || ativa);
-        const b = el('button', { class: 'conv', type: 'button', 'aria-current': atual ? 'true' : null, title: titulo(s), dataset: { id: s.sessao_id } },
-            el('span', { class: 'conv-title' }, ...comMarcas(titulo(s), filtro)),
-            s.somente_leitura ? el('span', { class: 'conv-ro', text: 'leitura' }) : null);
-        b.addEventListener('click', () => abrir(s));
-        return b;
+    const linhas = new Map(), grupos = new Map();
+    let menu, alvoMenu = null;
+    function fecharMenu(devolver = true) {
+        if (!menu || menu.hidden) return;
+        menu.hidden = true;
+        if (alvoMenu) { alvoMenu.mais.setAttribute('aria-expanded', 'false'); if (devolver) alvoMenu.mais.focus({ preventScroll: true }); }
     }
-
+    function abrirMenu(linha) {
+        fecharMenu(false); alvoMenu = linha;
+        const s = linha.dados;
+        menu.replaceChildren(...[
+            ['renomear', 'Renomear'], ['fixar', s.favorita ? 'Desafixar' : 'Fixar'],
+            ['arquivar', s.arquivada ? 'Restaurar' : 'Arquivar'],
+        ].map(([valor, text]) => el('button', { type: 'button', role: 'menuitem', text, dataset: { valor } })));
+        const r = linha.mais.getBoundingClientRect();
+        menu.style.left = `${Math.max(8, Math.min(innerWidth - 180, r.right - 168))}px`;
+        menu.style.top = `${Math.min(r.bottom + 4, innerHeight - 130)}px`;
+        menu.hidden = false; linha.mais.setAttribute('aria-expanded', 'true'); menu.firstElementChild.focus();
+    }
+    async function gerenciar(linha, acao) {
+        const s = linha.dados;
+        try {
+            let dados;
+            if (acao === 'renomear') {
+                const texto = await ui.confirmar({ titulo: 'Renomear conversa', ok: 'Salvar', campo: { valor: titulo(s), rotulo: 'Título da conversa' } });
+                if (texto === false) return;
+                dados = { titulo: texto };
+            } else if (acao === 'fixar') dados = { favorita: !s.favorita };
+            else {
+                if (O.chat.ocupado()) { ui.toast('Espere a resposta terminar para arquivar.', { tipo: 'aviso' }); return; }
+                dados = { arquivada: !s.arquivada };
+            }
+            const d = await api.editarSessao(s.sessao_id, dados);
+            if (dados.arquivada && O.historico?.sessao() === s.sessao_id) await O.historico.abrir(s.sessao_id);
+            await carregar();
+            ui.toast(dados.titulo ? 'Conversa renomeada.' : dados.favorita != null ? (dados.favorita ? 'Conversa fixada.' : 'Conversa desafixada.') : d.arquivada ? 'Conversa arquivada; mensagens preservadas.' : 'Conversa restaurada.', { tipo: 'ok' });
+        } catch (e) { ui.toast(`Não consegui atualizar a conversa: ${e.message}`, { tipo: 'erro' }); }
+    }
+    function botaoConversa(s) {
+        let linha = linhas.get(s.sessao_id);
+        if (!linha) {
+            const nome = el('span', { class: 'conv-title' });
+            const marca = el('span', { class: 'conv-ro' });
+            const b = el('button', { class: 'conv', type: 'button', dataset: { id: s.sessao_id } }, nome, marca);
+            const mais = el('button', { class: 'icon-btn conv-more', type: 'button', 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'aria-controls': 'conv-menu', text: '⋯' });
+            linha = { el: el('div', { class: 'conv-row' }, b, mais), botao: b, nome, marca, mais, dados: s, desenho: '' };
+            b.addEventListener('click', () => abrir(linha.dados));
+            mais.addEventListener('click', () => abrirMenu(linha));
+            mais.addEventListener('keydown', e => { if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); e.stopPropagation(); abrirMenu(linha); } });
+            linhas.set(s.sessao_id, linha);
+        }
+        linha.dados = s;
+        const chave = `${titulo(s)}:${filtro}`;
+        if (chave !== linha.desenho) { linha.nome.replaceChildren(...comMarcas(titulo(s), filtro)); linha.desenho = chave; }
+        const atual = s.sessao_id === (O.historico?.sessao() || ativa);
+        linha.botao.setAttribute('aria-current', String(atual)); linha.botao.title = titulo(s);
+        linha.marca.textContent = s.favorita ? 'fixada' : s.somente_leitura ? 'leitura' : '';
+        linha.mais.hidden = !api.suporta('session_management') || s.importada;
+        linha.mais.setAttribute('aria-label', `Opções de ${titulo(s)}`);
+        return linha.el;
+    }
+    function grupo(nome) {
+        if (!grupos.has(nome)) grupos.set(nome, el('div', { class: 'conv-group', text: nome }));
+        return grupos.get(nome);
+    }
+    function reconciliar(nos) {
+        const foco = lista.contains(document.activeElement) ? document.activeElement : null;
+        const top = lista.scrollTop, manter = new Set(nos);
+        [...lista.children].filter(n => !manter.has(n)).forEach(n => n.remove());
+        nos.forEach((n, i) => { if (lista.children[i] !== n) lista.insertBefore(n, lista.children[i] || null); });
+        if (foco?.isConnected && document.activeElement !== foco) foco.focus({ preventScroll: true });
+        lista.scrollTop = top;
+    }
     function desenhar() {
         lista.setAttribute('aria-busy', 'false');
         if (!sessoes.length) {
-            lista.replaceChildren(el('div', { class: 'sb-empty', text: !api.suporta('sessions') && api.estado().api === 'online' ? 'Conversas salvas ainda indisponíveis neste backend.' : listaOnline === false
-                ? 'Não foi possível carregar as conversas. Tentando novamente…' : 'Nenhuma conversa ainda. Comece uma nova.' }));
-            return;
+            reconciliar([grupo(!api.suporta('sessions') && api.estado().api === 'online' ? 'Conversas salvas ainda indisponíveis neste backend.' : listaOnline === false ? 'Não foi possível carregar as conversas. Tentando novamente…' : 'Nenhuma conversa ainda. Comece uma nova.')]);
+            lista.firstElementChild.className = 'sb-empty'; return;
         }
         if (filtro) {
             const achadas = O.fuzzy.buscar(sessoes, filtro, titulo);
-            lista.replaceChildren(...(achadas.length ? achadas.map(botaoConversa)
-                : [el('div', { class: 'sb-empty', text: `Nada encontrado para “${filtro}”.` })]));
-            return;
+            reconciliar(achadas.length ? achadas.map(botaoConversa) : [grupo(`Nada encontrado para “${filtro}”.`)]); return;
         }
-        const nos = [];
-        for (const g of U.agruparPorDia(sessoes, s => s.criada)) {
-            nos.push(el('div', { class: 'conv-group', text: g.rotulo }), ...g.itens.map(botaoConversa));
-        }
-        lista.replaceChildren(...nos);
+        const nos = [], fixadas = sessoes.filter(x => x.favorita && !x.arquivada);
+        if (fixadas.length) nos.push(grupo('Fixadas'), ...fixadas.map(botaoConversa));
+        for (const g of U.agruparPorDia(sessoes.filter(x => !x.arquivada && !x.favorita), s => s.criada)) nos.push(grupo(g.rotulo), ...g.itens.map(botaoConversa));
+        const antigas = sessoes.filter(x => x.arquivada);
+        if (antigas.length) nos.push(grupo('Arquivadas'), ...antigas.map(botaoConversa));
+        reconciliar(nos);
     }
 
     async function carregar() {
@@ -67,7 +129,7 @@
             listaOnline = true;
         } catch (e) { listaOnline = false; if (e.indisponivel) { sessoes = []; ativa = null; } }
         desenhar();
-        bus.emit('sessoes', { lista: sessoes, ativa });
+        bus.emit('sessoes', { lista: sessoes, ativa: O.historico?.sessao() || ativa, ativaServidor: ativa });
         if (!restaurado && ativa && api.estado().backend === 'orion' && api.suporta('history') && !O.chat.ocupado()) {
             restaurado = true;
             try { await O.historico.abrir(ativa); } catch (e) { restaurado = false; }
@@ -161,6 +223,16 @@
 
     function init() {
         lista = $('#sb-convs-list'); busca = $('#sb-search');
+        menu = el('div', { id: 'conv-menu', class: 'conv-menu', role: 'menu', 'aria-label': 'Ações da conversa', hidden: true });
+        document.body.append(menu);
+        menu.addEventListener('click', e => { const it = e.target.closest('[role="menuitem"]'); if (!it) return; const linha = alvoMenu; fecharMenu(); gerenciar(linha, it.dataset.valor); });
+        menu.addEventListener('keydown', e => {
+            const itens = [...menu.children], i = itens.indexOf(document.activeElement);
+            if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) { e.preventDefault(); const j = e.key === 'Home' ? 0 : e.key === 'End' ? itens.length - 1 : (i + (e.key === 'ArrowDown' ? 1 : -1) + itens.length) % itens.length; itens[j].focus(); }
+            else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); fecharMenu(); }
+            else if (e.key === 'Tab') fecharMenu(false);
+        });
+        document.addEventListener('pointerdown', e => { if (!menu.hidden && !menu.contains(e.target) && !alvoMenu.mais.contains(e.target)) fecharMenu(false); });
         $('#sb-toggle').addEventListener('click', alternar);
         $('#sb-new').addEventListener('click', nova);
         busca.addEventListener('input', () => { filtro = busca.value.trim(); desenhar(); });
@@ -184,7 +256,7 @@
 
     O.sidebar = {
         init, nova, alternar, carregar, abrir, verificar,
-        sessoes: () => sessoes, ativa: () => sessoes.find(s => s.sessao_id === ativa) || null,
+        sessoes: () => sessoes, ativa: () => sessoes.find(s => s.sessao_id === (O.historico?.sessao() || ativa)) || null,
         online: () => online, abrindo: () => abrindo,
     };
 })();

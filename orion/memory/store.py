@@ -51,6 +51,7 @@ class Session:
     last_active_at: float
     archived: bool = False
     read_only: bool = False
+    favorite: bool = False
 
 
 @dataclass(frozen=True)
@@ -199,6 +200,7 @@ class MemoryStore:
             row["last_active_at"],
             bool(row["archived"]),
             bool(row["read_only"]),
+            bool(row["favorite"]),
         )
 
     def _new_session(self, c: sqlite3.Connection, channel: str, title: str | None) -> Session:
@@ -252,7 +254,9 @@ class MemoryStore:
                 " ON CONFLICT(channel) DO UPDATE SET session_id=excluded.session_id",
                 (channel, session.id),
             )
-            return Session(session.id, session.channel, session.title, session.created_at, agora)
+            updated = self.get_session(session.id)
+            assert updated is not None
+            return updated
 
     # ── importação (export do legado) ─────────────────────────────────────
     def import_session(
@@ -332,13 +336,47 @@ class MemoryStore:
                 "UPDATE active_sessions SET session_id=NULL WHERE session_id=?", (session_id,)
             )
 
+    def edit_session(
+        self,
+        channel: str,
+        session_id: str,
+        *,
+        title: str | None = None,
+        favorite: bool | None = None,
+        archived: bool | None = None,
+    ) -> Session:
+        """Metadados persistentes; arquivar preserva mensagens e libera a seleção."""
+        with self._tx() as c:
+            session = self.get_session(session_id)
+            if session is None or session.channel != channel:
+                raise KeyError(session_id)
+            if session.read_only:
+                raise ValueError("sessão importada é somente leitura")
+            if title is not None:
+                title = title.strip()
+                if not title or len(title) > 120:
+                    raise ValueError("título deve ter entre 1 e 120 caracteres")
+                c.execute("UPDATE sessions SET title=? WHERE id=?", (title, session_id))
+            if favorite is not None:
+                c.execute("UPDATE sessions SET favorite=? WHERE id=?", (int(favorite), session_id))
+            if archived is not None:
+                c.execute("UPDATE sessions SET archived=? WHERE id=?", (int(archived), session_id))
+                if archived:
+                    c.execute(
+                        "UPDATE active_sessions SET session_id=NULL WHERE session_id=?",
+                        (session_id,),
+                    )
+            updated = self.get_session(session_id)
+            assert updated is not None
+            return updated
+
     def list_sessions(self, channel: str | None = None, limit: int = 50) -> list[Session]:
         with self._lock:
             rows = self._conn.execute(
                 "SELECT s.*, EXISTS(SELECT 1 FROM imported"
                 " WHERE kind='sessao' AND ref=s.id) AS read_only"
                 " FROM sessions s WHERE (? IS NULL OR channel=?)"
-                " ORDER BY last_active_at DESC, created_at DESC, id DESC LIMIT ?",
+                " ORDER BY favorite DESC, last_active_at DESC, created_at DESC, id DESC LIMIT ?",
                 (channel, channel, limit),
             ).fetchall()
         return [self._session(r) for r in rows]

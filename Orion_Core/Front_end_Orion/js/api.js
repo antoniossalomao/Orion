@@ -160,6 +160,7 @@
         categorias: () => recurso('memory_categories', '/memoria/categorias', { timeout: 4000 }),
         grafo: (limite = 500) => recurso('memory_graph', `/grafo/completo?${q({ limite })}`, { timeout: 7000 }),
         sessoes: () => recurso('sessions', '/sessoes', { timeout: 4000 }),
+        editarSessao: (id, json) => recurso('session_management', `/sessoes/${encodeURIComponent(id)}`, { metodo: 'PATCH', json, timeout: 5000 }),
         novaSessao: () => recurso('sessions', '/sessoes', { metodo: 'POST', timeout: 5000 }),
         ativarSessao: id => recurso('sessions', '/sessoes/ativar', { metodo: 'POST', json: { sessao_id: id }, timeout: 6000 }),
         historico: (sessao, opcoes = {}) => recurso('history', `/historico?${q({ sessao, ...opcoes })}`, { timeout: 6000 }),
