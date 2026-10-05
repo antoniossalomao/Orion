@@ -248,9 +248,7 @@ class Agent:
                 {"erro": f"ferramenta '{chamada.name}' não implementada"}, ensure_ascii=False
             )
         try:
-            bruto = await asyncio.wait_for(
-                asyncio.to_thread(tool.run, chamada.args), timeout=self._tool_timeout
-            )
+            bruto = await asyncio.wait_for(tool.run_async(chamada.args), timeout=self._tool_timeout)
         except TimeoutError:
             return json.dumps(
                 {"erro": f"tempo esgotado ({self._tool_timeout:.0f}s)"}, ensure_ascii=False

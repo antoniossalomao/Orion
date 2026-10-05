@@ -383,3 +383,27 @@ async def test_limpeza_durante_turno_e_preserva_memoria(store, policy):
     assert store.context_history(sessao.id) == []
     assert len(store.history(sessao.id)) == 1
     assert store.facts() == [fato]
+
+
+async def test_ferramenta_async_respeita_aprovacao_antes_de_executar(store, policy):
+    calls = []
+
+    async def execute():
+        calls.append("executou")
+        return {"ok": True}
+
+    tool = Tool("controlar_janela", "ação de ensaio", {"type": "object"}, execute)
+    agent, _ = montar(
+        store,
+        policy,
+        pede(chama("controlar_janela")),
+        fala("Aguardando"),
+        fala("Feito"),
+        extras=[tool],
+    )
+    events = await coletar(agent.run("web", "execute"))
+    approval = next(e for e in events if e.kind == "approval")
+    assert calls == []
+    policy.approvals.decide(approval.data["id"], True, channel="web", actor="teste")
+    await coletar(agent.resume("web", approval.data["id"]))
+    assert calls == ["executou"]

@@ -111,7 +111,7 @@ def test_lembretes_pela_ferramenta(reg_ops):
     assert ruim["ok"] is False and "ISO" in ruim["erro"]
     sumiu = _chamar(reg_ops, "gerenciar_lembretes", acao="concluir", lembrete_id=99)
     assert sumiu["ok"] is False and sumiu["erro"] == "lembrete 99 não existe"
-    assert "Ação inválida" in _chamar(reg_ops, "gerenciar_lembretes", acao="voar")["erro"]
+    assert _chamar(reg_ops, "gerenciar_lembretes", acao="voar")["codigo"] == "arguments_invalid"
 
 
 def test_agendamentos_pela_ferramenta_guardam_a_ferramenta_sem_executar(reg_ops):
