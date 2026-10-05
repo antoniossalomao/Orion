@@ -10,7 +10,7 @@ from platformdirs import user_data_dir
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
-from .extensions.host import StdioConfig
+from .extensions.host import ConnectionConfig
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 _PUBLICOS = {"0.0.0.0", "::", ""}  # noqa: S104 — só para recusar
@@ -38,7 +38,7 @@ class Settings(BaseSettings):
         default_factory=lambda: ["127.0.0.1", "localhost"]
     )  # + Tailscale (só com admin_token: ver `_acesso_de_fora_exige_token`)
     # `orion-desktop` v0 (executar_comando, ler_arquivo, listar_arquivos): desligado por padrão
-    mcp_connections: list[StdioConfig] = Field(default_factory=list, max_length=32)
+    mcp_connections: list[ConnectionConfig] = Field(default_factory=list, max_length=32)
     desktop_tools: bool = False
     # Canal Telegram (fase 5): sobe se houver token; sem lista de usuários não sobe (default-deny).
     telegram_token: str = ""  # ou no cofre do SO (ORION_TELEGRAM_TOKEN)

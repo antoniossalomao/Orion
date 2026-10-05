@@ -7,15 +7,42 @@ import logging
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
+from urllib.parse import urlsplit
 
+import httpx2
 from mcp import Client, StdioServerParameters
 from mcp.client.stdio import stdio_client
+from mcp.client.streamable_http import streamable_http_client
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from ..policy.classes import Risk
+from ..secrets import get_secret
 from .protocol import MCPCompatibilityError, ensure_compatible
 
 log = logging.getLogger("orion.mcp")
+
+
+class ProtocolLogFilter(logging.Filter):
+    """SDK pode logar payloads e exceções com conteúdo remoto; só conservar categoria."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        record.msg = "mcp_sdk_event"
+        record.args = ()
+        record.exc_info = None
+        record.exc_text = None
+        record.stack_info = None
+        return True
+
+
+def sanitize_protocol_logs() -> None:
+    for name, logger in list(logging.Logger.manager.loggerDict.items()):
+        if (
+            isinstance(logger, logging.Logger)
+            and name.startswith(("mcp.client", "mcp.shared", "httpx2", "httpcore2"))
+            and not any(isinstance(f, ProtocolLogFilter) for f in logger.filters)
+        ):
+            logger.addFilter(ProtocolLogFilter())
 
 
 class StdioConfig(BaseModel):
@@ -26,6 +53,7 @@ class StdioConfig(BaseModel):
     command: str = Field(min_length=1, max_length=4096)
     args: list[str] = Field(default_factory=list, max_length=128)
     cwd: Path | None = None
+    classifications: dict[str, Risk] = Field(default_factory=dict, max_length=256)
     enabled: bool = False
     trusted: bool = False
 
@@ -47,6 +75,52 @@ class StdioConfig(BaseModel):
         return self
 
 
+class HTTPConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    id: str = Field(pattern=r"^[a-z0-9][a-z0-9_-]{0,47}$")
+    transport: Literal["http"] = "http"
+    url: str = Field(max_length=4096)
+    classifications: dict[str, Risk] = Field(default_factory=dict, max_length=256)
+    enabled: bool = False
+    authorized: bool = False
+    secret_ref: str | None = Field(default=None, pattern=r"^ORION_MCP_[A-Z0-9_]{1,80}$")
+
+    @model_validator(mode="after")
+    def valid_endpoint(self) -> HTTPConfig:
+        url = urlsplit(self.url)
+        if (
+            url.scheme not in {"https", "http"}
+            or not url.hostname
+            or url.username
+            or url.password
+            or url.query
+            or url.fragment
+        ):
+            raise ValueError("endpoint precisa ser URL HTTP sem credenciais, query ou fragmento")
+        if url.scheme == "http" and url.hostname not in {"localhost", "127.0.0.1", "::1"}:
+            raise ValueError("HTTP sem TLS permitido apenas no loopback")
+        if self.enabled and not self.authorized:
+            raise ValueError("conexão exige endereço explicitamente autorizado")
+        return self
+
+
+ConnectionConfig = Annotated[StdioConfig | HTTPConfig, Field(discriminator="transport")]
+
+
+def error_code(error: BaseException) -> str:
+    if isinstance(error, MCPError):
+        return error.code
+    if isinstance(error, httpx2.HTTPStatusError) and error.response.status_code in {401, 403}:
+        return "auth_failed"
+    children = getattr(error, "exceptions", ())
+    for child in children:
+        code = error_code(child)
+        if code != "transport_error":
+            return code
+    return "transport_error"
+
+
 class MCPError(RuntimeError):
     def __init__(self, code: str):
         self.code = code
@@ -54,13 +128,15 @@ class MCPError(RuntimeError):
 
 
 class Connection:
-    def __init__(self, config: StdioConfig, *, timeout: float = 5):
+    def __init__(self, config: StdioConfig | HTTPConfig, *, timeout: float = 5):
+        sanitize_protocol_logs()
         self.config = config
         self.timeout = timeout
         self.state = "disabled"
         self.error: str | None = None
         self.protocol: str | None = None
         self.client: Client | None = None
+        self._http_error: str | None = None
         self._task: asyncio.Task | None = None
         self._stop = asyncio.Event()
         self._ready = asyncio.Event()
@@ -77,6 +153,27 @@ class Connection:
 
     @asynccontextmanager
     async def _transport(self):
+        if isinstance(self.config, HTTPConfig):
+            headers = {}
+            if self.config.secret_ref:
+                secret = get_secret(self.config.secret_ref)
+                if not secret:
+                    raise MCPError("auth_missing")
+                headers["Authorization"] = "Bearer " + secret
+
+            async def observe(response: httpx2.Response) -> None:
+                if response.status_code in {401, 403}:
+                    self._http_error = "auth_failed"
+
+            async with httpx2.AsyncClient(
+                headers=headers,
+                trust_env=False,
+                timeout=httpx2.Timeout(self.timeout),
+                event_hooks={"response": [observe]},
+            ) as http:
+                async with streamable_http_client(self.config.url, http_client=http) as streams:
+                    yield streams
+            return
         # O SDK só herda variáveis operacionais; nenhuma variável ORION/chave é copiada.
         params = StdioServerParameters(
             command=self.config.command,
@@ -107,8 +204,12 @@ class Connection:
             self.error = "protocol_incompatible"
         except TimeoutError:
             self.error = "start_timeout"
-        except Exception:  # noqa: BLE001 — servidor não derruba o app nem vaza sua resposta
-            self.error = "start_failed"
+        except Exception as error:  # noqa: BLE001 — sem erro bruto nem credenciais
+            self.error = (
+                (self._http_error or error_code(error))
+                if isinstance(self.config, HTTPConfig)
+                else "start_failed"
+            )
         finally:
             self.client = None
             self.state = "failed" if self.error else "disconnected"
@@ -124,6 +225,7 @@ class Connection:
         self._stop.clear()
         self._ready.clear()
         self.error = None
+        self._http_error = None
         self.state = "connecting"
         self._task = asyncio.create_task(self._worker(), name=f"mcp:{self.config.id}")
         await self._ready.wait()
@@ -148,7 +250,7 @@ class Connection:
 
 
 class MCPHost:
-    def __init__(self, configs: list[StdioConfig], *, timeout: float = 5):
+    def __init__(self, configs: list[ConnectionConfig], *, timeout: float = 5):
         if len(configs) > 32 or len({c.id for c in configs}) != len(configs):
             raise ValueError("conexões duplicadas ou acima do limite")
         self.connections = {c.id: Connection(c, timeout=timeout) for c in configs}

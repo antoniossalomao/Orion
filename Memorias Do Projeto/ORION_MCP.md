@@ -59,3 +59,18 @@ contém apenas ID, estado e código. Ler uma configuração não inicia o proces
 O host não registra ferramentas descobertas no agente automaticamente. Esse registro
 aguarda classificação local e concessões. Os testes verificam subprocessos reais,
 ambiente sem segredo de ensaio e shutdown pelo lifespan. Não foi testado em Windows.
+
+## HTTP — C10
+
+Transport `http` usa o Streamable HTTP do SDK com TLS para destinos externos; HTTP
+simples somente no loopback. Configuração requer `authorized: true` para habilitar,
+URL sem credenciais/query/fragmento e opcional `secret_ref: ORION_MCP_NOME`.
+Referências são resolvidas no ambiente/cofre apenas ao conectar, nunca gravadas no
+bundle; o namespace exclui `ORION_ADMIN_TOKEN`. Nenhuma conta pessoal foi conectada.
+
+Erros estáveis: `auth_missing`, `auth_failed`, `transport_error`, `start_timeout` e
+`protocol_incompatible`. O SDK permite redirects somente dentro da mesma origem
+(com regras próprias), e o client não herda proxies/credenciais do ambiente.
+Logs de protocolo de dependências são reduzidos a categoria/nível, sem payload,
+argumentos ou traceback. Isso evita exposição em DEBUG; os diagnósticos de conexão
+usam códigos próprios. Servidor HTTP de ensaio autenticado rodou com Uvicorn real.
