@@ -1,6 +1,6 @@
 # Orion — referências de produto e plano de extensões
 
-Pesquisa em 04/10/2026. **Plano de implementação com C00–C05 concluídos** (registro na seção 9).
+Pesquisa em 04/10/2026. **Plano de implementação com C00–C06 concluídos** (registro na seção 9).
 Plugins, skills e MCP continuam propostos; nenhuma conta ou servidor MCP foi conectado.
 Complementa [ORION_FRONT.md](ORION_FRONT.md), as fases 4 e 6 do
 [ORION_NUCLEO.md](ORION_NUCLEO.md) e a triagem de [ORION_FERRAMENTAS.md](ORION_FERRAMENTAS.md).
@@ -58,7 +58,7 @@ substitui a verificação do pacote publicado. SSE legado só entra se houver ne
 
 | Área | Evidência no Orion | Próxima melhoria | Prioridade |
 |---|---|---|---|
-| Integração front/backend | C01–C05 entregam capacidades, adaptadores, sessões, histórico, exportação, limpeza e gestão de conversas por canal. Métricas, uploads e voz continuam ausentes | Buscar conversas por conteúdo (C06), mantendo flags coerentes com rotas reais | P0 |
+| Integração front/backend | C01–C06 entregam capacidades, sessões, histórico, exportação, limpeza, gestão e busca de conversas por canal. Métricas, uploads e voz continuam ausentes | Preparar MCP a partir de C07, mantendo flags coerentes com rotas reais | P0 |
 | Conexão e avisos | C00–C02 corrigem o toast e separam API acessível, modelo configurado e recursos disponíveis | Manter reconexão silenciosa e ampliar o painel de atividade nos checklists seguintes | P1 |
 | Conversas | Criar, listar, buscar e trocar existem; busca atual depende da lista de títulos | Menu renomear/fixar/arquivar, busca por conteúdo no backend e preservação de foco durante polling | P1 |
 | Edição e versões | Copiar, ouvir e gerar novamente a última resposta já existem | Editar pedido com nova versão; escolher versões sem apagar o caminho anterior | P2 |
@@ -338,10 +338,10 @@ como fundação do recurso novo. Exportar leitura primeiro, com identidade e esc
 
 ## 8. Próximo trabalho concreto
 
-C00–C05 foram concluídos e validados. Continuar pelo **C06: busca de conversas por conteúdo**,
-com trechos e paginação, mantendo a busca local na conversa. O spike MCP começa
-em C07, conforme as dependências. O usuário autorizou a execução dos checklists restantes;
-commit e push das entregas foram autorizados.
+C00–C06 foram concluídos e validados. Continuar pelo **C07: SDK MCP e compatibilidade de protocolo**.
+O usuário autorizou a execução dos checklists restantes, com commits separados, validação,
+registro no vault e push. Integrações pessoais e Windows serão registrados conforme
+as evidências disponíveis, sem transformar fixtures em prova de conta ou desktop reais.
 
 Decisões recomendadas para o MVP: manter Python/FastAPI e o front atual; padrão Agent Skills;
 manifesto Orion declarativo; MCP via SDK oficial; instalação local; escopos simples; um usuário;
@@ -350,8 +350,8 @@ quando houver integração concreta para revisar. Este documento não muda as de
 
 ## 9. Checklists por commit e sequência de dias
 
-Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C05 têm commits reais
-registrados; C06–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
+Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C06 têm commits reais
+registrados; C07–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
 precisa estar pronto. Não é necessário concluir o plano inteiro para usar o primeiro MVP.
 
 ### Ritmo de trabalho
@@ -364,7 +364,7 @@ precisa estar pronto. Não é necessário concluir o plano inteiro para usar o p
   manter os dependentes esperando a entrega completa.
 - Ao pedir continuação, usar o ID: **“Faça o próximo commit pendente”** ou **“Faça o C09”**.
   O executor confere o checklist e as dependências antes de iniciar.
-- C00–C05 estão implementados, validados e registrados abaixo; C06–C50 permanecem
+- C00–C06 estão implementados, validados e registrados abaixo; C07–C50 permanecem
   planejados. Cada continuação deve conferir as dependências e os limites da entrega anterior.
 
 ### Como concluir e pausar cada commit
@@ -417,10 +417,10 @@ a integração real de Pesquisa fica registrada separadamente se ainda não tive
 
 ### Registro para retomar no próximo dia
 
-- Último checklist concluído: **C05**, commit `f0bc68b2` (C04: `53074d2c`; C03: `c3c4b1e`; C00: `188ad9f`; C01: `856ce62`; C02: `81d5a99`).
-- Próximo commit sugerido: **C06 — busca de conversas por conteúdo**.
-- Dependências/impedimentos: C05 está pronto para C06. Windows/pywebview real e provedor externo seguem sem validação; não bloqueiam os testes locais de gestão de conversas.
-- Evidências: ver os registros C00–C05 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
+- Último checklist concluído: **C06**, commit `b440a3d0`; entregas anteriores registradas abaixo.
+- Próximo commit sugerido: **C07 — SDK MCP e compatibilidade de protocolo**.
+- Dependências/impedimentos: conferir as dependências do C07 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
+- Evidências: ver os registros C00–C06 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
 - Atualizações: registrar aqui o ID concluído, hash/link e o próximo ID; não preencher com
   hash fictício nem tratar evidência de mock como teste contra conta real.
 
@@ -543,6 +543,31 @@ teclado, polling e recarga, com axe sem violações. Captura do menu foi inspeci
 A execução dos checklists seguintes e commit/push continuam autorizados pelo usuário.
 Integração em `main`, Windows/pywebview real e contas externas permanecem pendentes.
 
+### Execução C06 — 05/10/2026
+
+Entrega: [`b440a3d0`](https://github.com/antoniossalomao/Orion/commit/b440a3d0), branch
+`codex/orion-evolucao`, incluindo C00–C05. Plano do vault na branch de mesmo nome.
+
+- Busca autenticada `/sessoes/busca` por títulos e mensagens, com total, trechos e paginação;
+  canal filtrado antes de retornar. Importadas/arquivadas continuam em modo de leitura.
+- Migração SQLite v5 cria/reconstrói o índice de títulos, preservando fixação, mensagens,
+  seleção e contexto limpo. Busca usa índices FTS com acentos normalizados e prefixos.
+- Sidebar mostra trechos seguros e mais resultados; Enter navega e Escape limpa. Respostas
+  atrasadas e de backend anterior são ignoradas. Renomear atualiza a consulta corrente.
+- Busca local na conversa e o comportamento de títulos do legado continuam disponíveis.
+  Offset pode mudar de composição após alterações concorrentes; a UI deduplica os IDs.
+
+**Validação:** 511 testes completos de backend, 96 de navegador e 89 Node passaram.
+Após ajustes finais de trechos e rename durante busca, três cenários de busca/gestão passaram
+novamente. Migração v4 foi comprovada com dados existentes; corpo, acentos, zero resultados,
+paginação, teclado, persistência e isolamento de canal foram testados. Ruff, formatação,
+Pyright, sintaxe JavaScript, whitespace e checks do legado passaram. Captura da busca foi
+inspecionada; evidências em `/workspace/artifacts/orion-c06/`.
+
+**Próximo:** C07 — fixar o SDK MCP e provar as versões de protocolo com servidor controlado.
+Windows/pywebview real, contas externas e integração em `main` permanecem pendentes.
+
+
 ### C00 — fix(ui): estabilizar conexão e consolidar o refinamento visual
 
 Etapa: **A** · Depende de: **base atual do repositório** · Estado: **concluído**.
@@ -605,13 +630,13 @@ Etapa: **A** · Depende de: **C04** · Estado: **concluído**.
 
 ### C06 — feat(chat): buscar conversas por conteúdo
 
-Etapa: **A** · Depende de: **C05** · Estado: **planejado**.
+Etapa: **A** · Depende de: **C05** · Estado: **concluído**.
 
-- [ ] Adicionar busca no backend por título e conteúdo, com limite e paginação.
-- [ ] Mostrar trechos e abrir a sessão correta; respeitar canal e futuros escopos de projeto.
-- [ ] Preservar a busca local na conversa e os atalhos já existentes.
-- [ ] **Validar:** Encontrar um termo presente apenas no corpo de uma mensagem; testar zero resultados, teclado e isolamento de canal.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Adicionar busca no backend por título e conteúdo, com limite e paginação.
+- [x] Mostrar trechos e abrir a sessão correta; respeitar canal e futuros escopos de projeto.
+- [x] Preservar a busca local na conversa e os atalhos já existentes.
+- [x] **Validar:** Encontrar um termo presente apenas no corpo de uma mensagem; testar zero resultados, teclado e isolamento de canal.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C07 — chore(mcp): fixar SDK e provar compatibilidade de protocolo
 
