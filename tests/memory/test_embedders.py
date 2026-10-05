@@ -6,7 +6,8 @@ import pytest
 from orion.memory import MemoryStore
 from orion.memory.embedders import MAX_LOTE, EmbeddingError, GeminiEmbedder
 
-CHAVE = "AIzaSyFAKEFAKEFAKEFAKEFAKEFAKEFAKE12345"
+# Identificador fictício: não usa o formato de uma chave de provedor.
+CHAVE_TESTE = "chave-ficticia-apenas-para-testes"
 DIM = 4
 
 
@@ -38,7 +39,7 @@ class Servidor:
 def embedder(servidor, **kw):
     pausas: list[float] = []
     e = GeminiEmbedder(
-        CHAVE,
+        CHAVE_TESTE,
         dim=DIM,
         client=httpx.Client(transport=httpx.MockTransport(servidor)),
         sleep=pausas.append,
@@ -54,7 +55,7 @@ def test_formato_do_pedido_chave_em_cabecalho_e_nunca_na_url():
     assert e.embed(["a", "b"]) == [[0.0, 1.0, 0.0, 0.5], [1.0, 1.0, 0.0, 0.5]]
     req = srv.pedidos[0]
     assert req.url.path.endswith("/models/gemini-embedding-001:batchEmbedContents")
-    assert req.headers["x-goog-api-key"] == CHAVE and CHAVE not in str(req.url)
+    assert req.headers["x-goog-api-key"] == CHAVE_TESTE and CHAVE_TESTE not in str(req.url)
     reqs = srv.corpo()["requests"]
     assert [r["content"]["parts"][0]["text"] for r in reqs] == ["a", "b"]
     assert {r["taskType"] for r in reqs} == {"RETRIEVAL_DOCUMENT"}
