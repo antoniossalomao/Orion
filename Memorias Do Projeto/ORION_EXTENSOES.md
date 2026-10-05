@@ -1,6 +1,6 @@
 # Orion — referências de produto e plano de extensões
 
-Pesquisa em 04/10/2026. **Plano de implementação com C00–C11 concluídos** (registro na seção 9).
+Pesquisa em 04/10/2026. **Plano de implementação com C00–C12 concluídos** (registro na seção 9).
 Plugins e skills seguem em implementação. MCP já tem prova com servidores controlados;
 nenhuma conta pessoal ou servidor externo do usuário foi conectado.
 Complementa [ORION_FRONT.md](ORION_FRONT.md), as fases 4 e 6 do
@@ -339,7 +339,7 @@ como fundação do recurso novo. Exportar leitura primeiro, com identidade e esc
 
 ## 8. Próximo trabalho concreto
 
-C00–C11 foram concluídos e validados. Continuar pelo **C12: timeouts cancelamento e reconexão MCP**.
+C00–C12 foram concluídos e validados. Continuar pelo **C13: catálogo e schemas MCP sob demanda**.
 O usuário autorizou a execução dos checklists restantes, com commits separados, validação,
 registro no vault e push. Integrações pessoais e Windows serão registrados conforme
 as evidências disponíveis, sem transformar fixtures em prova de conta ou desktop reais.
@@ -351,8 +351,8 @@ quando houver integração concreta para revisar. Este documento não muda as de
 
 ## 9. Checklists por commit e sequência de dias
 
-Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C11 têm commits reais
-registrados; C12–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
+Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C12 têm commits reais
+registrados; C13–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
 precisa estar pronto. Não é necessário concluir o plano inteiro para usar o primeiro MVP.
 
 ### Ritmo de trabalho
@@ -365,7 +365,7 @@ precisa estar pronto. Não é necessário concluir o plano inteiro para usar o p
   manter os dependentes esperando a entrega completa.
 - Ao pedir continuação, usar o ID: **“Faça o próximo commit pendente”** ou **“Faça o C09”**.
   O executor confere o checklist e as dependências antes de iniciar.
-- C00–C11 estão implementados, validados e registrados abaixo; C12–C50 permanecem
+- C00–C12 estão implementados, validados e registrados abaixo; C13–C50 permanecem
   planejados. Cada continuação deve conferir as dependências e os limites da entrega anterior.
 
 ### Como concluir e pausar cada commit
@@ -418,10 +418,10 @@ a integração real de Pesquisa fica registrada separadamente se ainda não tive
 
 ### Registro para retomar no próximo dia
 
-- Último checklist concluído: **C11**, commit `a5e796f`; entregas anteriores registradas abaixo.
-- Próximo commit sugerido: **C12 — timeouts cancelamento e reconexão MCP**.
-- Dependências/impedimentos: conferir as dependências do C12 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
-- Evidências: ver os registros C00–C11 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
+- Último checklist concluído: **C12**, commit `e190992`; entregas anteriores registradas abaixo.
+- Próximo commit sugerido: **C13 — catálogo e schemas MCP sob demanda**.
+- Dependências/impedimentos: conferir as dependências do C13 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
+- Evidências: ver os registros C00–C12 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
 - Atualizações: registrar aqui o ID concluído, hash/link e o próximo ID; não preencher com
   hash fictício nem tratar evidência de mock como teste contra conta real.
 
@@ -648,6 +648,20 @@ fica indisponível; destrutivo não altera nem fixture antes da aprovação; alt
 catálogo invalida aprovação antiga. Ruff/Pyright passaram; nenhum dado real foi alterado.
 
 
+### Execução C12 — resiliência MCP (05/10/2026)
+
+**Commit de implementação:** `e190992`.
+Prazo por chamada, cancelamento propagado ao SDK, quatro slots por conexão e códigos
+sanitizados. Timeout/queda sem confirmação indicam execução possivelmente ativa. Não há
+replay de tools; reconnect explícito descarta client e invalida identidades/aprovações.
+Parada cancela esperas e encerra o subprocesso pelo SDK na tarefa proprietária.
+
+**Evidências:** 542 testes backend passaram; 30 casos de extensões incluem chamada lenta,
+queda abrupta, cancelamento, reconnect, contadores que provam ausência de repetição e
+shutdown sem PID órfão em POSIX. Ruff/Pyright passaram. Não se presume cancelamento de
+efeitos externos sem confirmação; Windows permanece sem teste real.
+
+
 ### C00 — fix(ui): estabilizar conexão e consolidar o refinamento visual
 
 Etapa: **A** · Depende de: **base atual do repositório** · Estado: **concluído**.
@@ -770,13 +784,13 @@ Etapa: **B** · Depende de: **C10** · Estado: **concluído**.
 
 ### C12 — feat(mcp): tratar timeout cancelamento e reconexão
 
-Etapa: **B** · Depende de: **C11** · Estado: **planejado**.
+Etapa: **B** · Depende de: **C11** · Estado: **concluído**.
 
-- [ ] Propagar cancelamento e timeout até o client/transporte quando suportado.
-- [ ] Indicar execução possivelmente ainda ativa quando o servidor não confirma cancelamento.
-- [ ] Controlar reconexão, descarte de clients e atualização do catálogo sem repetir ações com efeitos colaterais.
-- [ ] **Validar:** Testar chamada lenta, queda durante execução, parada e encerramento; verificar ausência de repetição e processos órfãos.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Propagar cancelamento e timeout até o client/transporte quando suportado.
+- [x] Indicar execução possivelmente ainda ativa quando o servidor não confirma cancelamento.
+- [x] Controlar reconexão, descarte de clients e atualização do catálogo sem repetir ações com efeitos colaterais.
+- [x] **Validar:** Testar chamada lenta, queda durante execução, parada e encerramento; verificar ausência de repetição e processos órfãos.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C13 — feat(mcp): descobrir ferramentas sob demanda
 
