@@ -357,5 +357,24 @@
         chat.ta.setSelectionRange(chat.ta.value.length, chat.ta.value.length);
     }
 
-    O.composer = { init, foco, sugerir, reenviar, adicionar, citar, temPedido: () => !!ultimoPedido, MODELOS };
+    /** põe o texto de uma mensagem enviada no campo para ajustar e reenviar. Não reescreve a conversa: o cérebro não tem
+     *  "editar mensagem", então o envio cria uma mensagem nova (o aviso diz isso). Não apaga um rascunho que já existe. */
+    function editar(texto) {
+        const t = String(texto || '');
+        if (!t.trim()) return;
+        if (chat.ta.value.trim() && chat.ta.value.trim() !== t.trim()) {
+            ui.toast('O campo já tem um rascunho. Envie ou limpe antes de editar outra mensagem.', { tipo: 'aviso' });
+            chat.ta.focus();
+            return;
+        }
+        chat.ta.value = t;
+        autoajustar(chat.ta);
+        atualizar();
+        salvarRascunho();
+        chat.ta.focus();
+        chat.ta.setSelectionRange(t.length, t.length);
+        O.anunciar('Mensagem no campo. Ao enviar, vira uma mensagem nova na conversa.');
+    }
+
+    O.composer = { init, foco, sugerir, reenviar, adicionar, citar, editar, temPedido: () => !!ultimoPedido, MODELOS };
 })();

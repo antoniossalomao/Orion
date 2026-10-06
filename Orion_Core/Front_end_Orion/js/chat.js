@@ -63,7 +63,7 @@
         if (anexos.length) {
             m.append(el('div', { class: 'attach-note' }, el('span', { html: icone('clip') }), `${anexos.map(a => a).join(', ')}`));
         }
-        m.append(el('div', { class: 'msg-actions' }, botaoAcao('copiar', 'Copiar mensagem', 'copy')));
+        m.append(el('div', { class: 'msg-actions' }, botaoAcao('copiar', 'Copiar mensagem', 'copy'), botaoAcao('editar', 'Editar e reenviar', 'edit')));
         textoDe.set(m, texto);
         acrescentar(m);
         mostrar(m, animar);
@@ -391,6 +391,7 @@
                 if (t) api.ttsFalar(t).then(() => ui.piscarOk(acao)).catch(err => ui.toast(`Não consegui falar: ${err.message}`, { tipo: 'aviso' }));
                 break;
             }
+            case 'editar': O.composer.editar(textoDe.get(msg) || ''); break;
             case 'repetir': O.composer.reenviar(); break;
             case 'config': O.app.ir('config'); break;
             default: break;
@@ -414,6 +415,9 @@
         btnFim.addEventListener('click', () => { seguir = true; naoLidas = 0; irAoFim(true); atualizarBotaoFim(); });
         col.addEventListener('click', clique);
         bus.on('chat:evento', aoEvento);
+        // a pílula do topo acompanha os cartões de aprovação pendentes (criar, aprovar, negar, limpar a conversa)
+        new MutationObserver(() => O.estado.aprovacao(pendentes().length > 0))
+            .observe(col, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-estado'] });
         ligarCitar();
         new ResizeObserver(() => { if (seguir) irAoFim(); atualizarBotaoFim(); }).observe(col);
         atualizarVazio();

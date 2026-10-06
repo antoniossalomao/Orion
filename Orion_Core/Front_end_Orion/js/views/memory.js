@@ -16,6 +16,9 @@
     const COR = { topico: 0xf5b95f, orion: 0x8fabff, user: 0x9aa6bd };
     const ROTULO_TIPO = { topico: 'Tópico', orion: 'Fala do Orion', user: 'Fala sua', nucleo: 'Núcleo' };
     const ehUsuario = ator => /^ant[oô]nio$/i.test(String(ator || '').trim());
+    const dataCurta = ts => { const d = ts ? new Date(ts) : null; return d && !Number.isNaN(+d) ? d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''; };
+    /** "Fala sua · 12/10/26 14:30 · 3 ligações": o que distingue nós de títulos parecidos */
+    const metaDe = n => [ROTULO_TIPO[tipoDe(n)], dataCurta(n.ts), n._grau ? `${n._grau} ${n._grau === 1 ? 'ligação' : 'ligações'}` : ''].filter(Boolean).join(' · ');
     const tipoDe = n => (n.id === NUCLEO ? 'nucleo' : n.tipo === 'topico' ? 'topico' : ehUsuario(n.ator) ? 'user' : 'orion');
 
     let grafo = null, dados = null, demo = false, ativo = false, carregando = false, iniciando = false;
@@ -73,6 +76,30 @@
         texNo = new THREE.CanvasTexture(cv);
         return texNo;
     }
+    /* rótulo fixo dos tópicos (poucos, e dizem do que o grafo trata); falas ficam sem texto: o tooltip e a busca cobrem */
+    const texRotulos = new Map();
+    function rotulo(texto) {
+        let tex = texRotulos.get(texto);
+        if (!tex) {
+            const cv = document.createElement('canvas'), ctx = cv.getContext('2d');
+            const fonte = '600 28px Inter, system-ui, sans-serif';
+            ctx.font = fonte;
+            const w = Math.min(520, Math.ceil(ctx.measureText(texto).width) + 24);
+            cv.width = w; cv.height = 44;
+            ctx.font = fonte; ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
+            ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 6;
+            ctx.fillStyle = '#e8eefc';
+            ctx.fillText(U.truncar(texto, 28), w / 2, 24, w - 8);
+            tex = { t: new THREE.CanvasTexture(cv), w, h: 44 };
+            texRotulos.set(texto, tex);
+        }
+        const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex.t, transparent: true, opacity: 0.85, depthWrite: false, depthTest: false }));
+        const alt = 5.2;
+        spr.scale.set(alt * tex.w / tex.h, alt, 1);
+        spr.position.set(0, -6.5, 0);
+        spr.renderOrder = 10;
+        return spr;
+    }
     function objetoNo(n) {
         const g = new THREE.Group();
         const spr = (tam, cor, op) => {
@@ -86,6 +113,7 @@
             return g;
         }
         const tipo = tipoDe(n), topico = tipo === 'topico', cor = new THREE.Color(COR[tipo]);
+        if (topico) g.add(rotulo(n.label || n.id));
         const base = (topico ? 2.4 : 1.4) * (1 + Math.log2(Math.max(n._grau, 1)) * (topico ? 0.45 : 0.2));
         spr(base * 3, cor, topico ? 0.05 : 0.03); spr(base * 1.7, cor, topico ? 0.16 : 0.1); spr(base, cor, topico ? 0.92 : 0.8);
         if (selecionado && selecionado.id === n.id) { spr(base * 3.2, new THREE.Color(0xffffff), 0.14); spr(base * 1.05, new THREE.Color(0xffffff), 1); }
@@ -191,7 +219,7 @@
         grafo.d3Force('radial-esfera', forcaEsfera);
         grafo.d3Force('charge').strength(-10);
         grafo.d3Force('link')?.distance(RAIO * 0.8).strength(0.03);
-        grafo.cameraPosition({ x: 0, y: 0, z: RAIO * 3.6 });
+        grafo.cameraPosition({ x: 0, y: 0, z: RAIO * 2.7 });
         const c = grafo.controls();
         if (c) { c.enableDamping = true; c.dampingFactor = 0.07; c.addEventListener?.('start', () => { c.autoRotate = false; }); }
         new ResizeObserver(() => { if (grafo && box.clientWidth) grafo.width(box.clientWidth).height(box.clientHeight); }).observe(box);
@@ -251,14 +279,15 @@
         else {
             filhos.push(el('h3', { tabindex: '-1', text: n.label || n.id }));
             const meta = el('div', { class: 'meta' });
-            if (n.ts) meta.append(el('span', { text: new Date(n.ts).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) }));
+            if (n.ts) meta.append(el('span', { text: dataCurta(n.ts) }));
             meta.append(el('span', { text: `${n._grau} ${n._grau === 1 ? 'ligação' : 'ligações'}` }));
             filhos.push(meta);
             const viz = vizinhos(n).slice(0, 14);
             if (viz.length) {
                 filhos.push(el('div', { class: 'card-sub', text: 'Conectado a', style: 'margin-bottom:.3rem' }),
                     el('div', { class: 'mem-links' }, ...viz.map(v => el('button', { type: 'button', on: { click: () => selecionar(v, { foco: true }) } },
-                        el('span', { class: `leg-dot leg-${tipoDe(v)}`, 'aria-hidden': 'true' }), el('span', { class: 'conv-title', text: v.label || v.id })))));
+                        el('span', { class: `leg-dot leg-${tipoDe(v)}`, 'aria-hidden': 'true' }),
+                        el('span', { class: 'mem-item-txt' }, el('span', { class: 'conv-title', text: v.label || v.id }), el('small', { text: metaDe(v) }))))));
             }
         }
         corpo.replaceChildren(...filhos);
@@ -285,7 +314,8 @@
         const lista = achados();
         resultados.hidden = !lista.length;
         resultados.replaceChildren(...lista.map(n => el('button', { type: 'button', class: 'mem-result', on: { click: () => selecionar(n) } },
-            el('span', { class: `leg-dot leg-${tipoDe(n)}`, 'aria-hidden': 'true' }), el('span', { class: 'conv-title', text: n.label || n.id }))));
+            el('span', { class: `leg-dot leg-${tipoDe(n)}`, 'aria-hidden': 'true' }),
+            el('span', { class: 'mem-item-txt' }, el('span', { class: 'conv-title', text: n.label || n.id }), el('small', { text: metaDe(n) })))));
         resultados.setAttribute('aria-label', `${lista.length} resultados`);
     }
 

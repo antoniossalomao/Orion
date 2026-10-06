@@ -21,7 +21,7 @@ html[data-view="chat"] #sky-veil        { opacity: 0.93; }
 html[data-view="integracoes"] #sky-veil,
 html[data-view="config"] #sky-veil      { opacity: 0.92; }
 html[data-view="memoria"] #sky-veil     { opacity: 0.55; }
-[data-theme="contraste"] #sky-veil      { opacity: 1 !important; }
+html[data-theme="contraste"]:not([data-view="home"]) #sky-veil { opacity: 1 !important; }   /* fora da home o céu some (leitura); na home ele continua visível */
 
 /* ── Casca ───────────────────────────────────────────────────────────── */
 #app {
@@ -131,6 +131,10 @@ html[data-sb="collapsed"] .sb-item .dot-badge { position: absolute; top: 0.45rem
 html[data-estado="processing"] .state-dot { background: var(--signal); box-shadow: 0 0 8px var(--signal); animation: pulsar 1.2s var(--ease) infinite; }
 html[data-estado="listening"]  .state-dot { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
 html[data-estado="speaking"]   .state-dot { background: var(--star); box-shadow: 0 0 8px var(--star); }
+/* parada e sem nada pendente, a pílula some (ela é jargão permanente); aprovação pendente usa o âmbar de "atenção" */
+html[data-estado="idle"]:not([data-aprovacao="true"]) .state-pill { display: none; }
+html[data-aprovacao="true"][data-estado="idle"] .state-dot { background: var(--signal); box-shadow: 0 0 8px var(--signal); }
+html[data-aprovacao="true"][data-estado="idle"] .state-pill { border-color: rgb(245 185 95 / 0.45); color: var(--text-1); }
 @keyframes pulsar { 50% { transform: scale(1.6); opacity: 0.5; } }
 
 .palette-trigger { gap: 0.6rem; color: var(--text-3); padding: 0 0.5rem 0 0.8rem; height: 2rem; }
@@ -152,7 +156,7 @@ html.shell-desktop #window-controls { display: flex; }
 .page-inner { max-width: 64rem; margin: 0 auto; }
 .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--s-4); margin: var(--s-4) 0 var(--s-6); flex-wrap: wrap; }
 .page-head h2 { font-size: var(--fs-2xl); font-weight: 600; letter-spacing: -0.02em; line-height: var(--lh-tight); }
-.page-head p { margin-top: var(--s-1); color: var(--text-2); font-size: var(--fs-md); max-width: 46rem; }
+.page-head p { margin-top: var(--s-1); color: var(--text-2); font-size: var(--fs-md); max-width: 40rem; }
 
 /* ── Modo foco (Ctrl+.): só a conversa ───────────────────────────────── */
 html[data-foco="true"] { --sb-cur: 0px; }

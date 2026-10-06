@@ -70,7 +70,7 @@ Limites que valem saber:
 - Atrás do `tailscale serve` o servidor enxerga todo cliente como `127.0.0.1`: o bloqueio por cliente do login
   vira um bloqueio global. É mais restritivo, não menos seguro.
 - A interface web foi desenhada **só para desktop** (decisão #5 do NUCLEO). No celular o caminho é o Telegram;
-  abrir `/ui/` no celular funciona mal. Se quiser o front no celular, é trabalho de layout (gaveta e toque).
+  abrir `/ui/` no celular não é suportado (decisão fechada em 06/10/2026).
 - Nunca use `ORION_ALLOWED_HOSTS=["*"]` nem `ORION_ALLOW_PUBLIC_BIND=true` fora de teste.
 
 ## 4. Ferramentas

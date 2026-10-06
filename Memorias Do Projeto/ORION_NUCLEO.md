@@ -58,10 +58,9 @@ substituiu.
 ### 4.1 Visão geral
 
 ```
-Celular ── Telegram ─────────────┐
-Celular ── web (Tailscale) ──────┤
-Notebook ── web / casca desktop ─┤
-                                 ▼
+Celular ── Telegram ─────────────────────────┐
+Notebook ── web (Tailscale) / casca desktop ─┤
+                                             ▼
                      Orion (Python, FastAPI, 1 processo)
                      ├─ Agente: persona fixa + ferramentas + memória
                      ├─ Modelos ──► OmniRoute (local) ──► free tiers por chave de API
@@ -203,7 +202,7 @@ a fase 7 não começou.
 | 2 | Gateway de modelos | OmniRoute | LiteLLM (biblioteca, sem processo extra, cotas na mão) |
 | 3 | Framework do agente | PydanticAI | Loop próprio (~200 linhas) — **adotado em 02/10 (alternativa)**, ver registro; reversível |
 | 4 | Ritmo de apagar o legado | Por fase (código antigo à mão para portar) | Tudo agora, consultando o histórico do git |
-| 5 | Interface | Front "Observatório noturno" feito em 03/10, **só desktop** ([ORION_FRONT.md](ORION_FRONT.md)); celular = Telegram | Web no celular via Tailscale exigiria voltar a ter layout móvel (a gaveta e o toque foram removidos): decidir na fase 5 |
+| 5 | Interface | Front "Observatório noturno" feito em 03/10, **só desktop** ([ORION_FRONT.md](ORION_FRONT.md)); celular = Telegram | **Decidido em 06/10/2026: desktop only.** Web no celular exigiria layout móvel (gaveta e toque); o celular fica com o Telegram |
 | 6 | Voz | Transcrição: Whisper no Groq (grátis); fala: edge-tts `pt-BR-AntonioNeural` (grátis); voz ao vivo: Gemini Live com voz masculina; ativação: openWakeWord treinado em "Orion" | A discutir (fase 6) |
 | 7 | Busca web gratuita | `pesquisar_com_ia` (Gemini com Google Search, mesma chave do Google AI Studio) e, se quiser mais, um servidor MCP de busca em `mcp.json`; **não validado contra a API real** (cotas mudam) | — |
 | 8 | Ring 0 §4 (Hardware-Bound) | Rever — conflita com trocar de máquina | — |
@@ -238,7 +237,7 @@ a fase 7 não começou.
 | 02/10/2026 | Vetores em tabela comum + numpy no lugar do sqlite-vec | O CI no macOS mostrou que o Python do `uv` vem sem `enable_load_extension`: a extensão não carregaria no MacBook. Para memória pessoal a força bruta responde em ms (teste com 30 mil trechos) |
 | 02/10/2026 | Loop de agente próprio em vez de PydanticAI (decisão #3, alternativa) | Fluxo de aprovação precisa controlar quando cada ferramenta roda; testável com gateway falso; reversível |
 | 02/10/2026 | `executar_comando` sempre pede confirmação, salvo leitura provada; o legado importa `orion.policy` (transitório até a fase 7) | Uma política só; fecha o bypass da blocklist da Câmara de Eco |
-| 03/10/2026 | Front redesenhado ("Observatório noturno"), só desktop: sem gaveta, sem toque, sem manifest; celular = Telegram | Janela estreita quebrada, acessibilidade e zero teste no front antigo (ORION_FRONT.md). **Conflita com o diagrama §4.1 ("Celular ── web")**: ver decisão #5 |
+| 03/10/2026 | Front redesenhado ("Observatório noturno"), só desktop: sem gaveta, sem toque, sem manifest; celular = Telegram | Janela estreita quebrada, acessibilidade e zero teste no front antigo (ORION_FRONT.md). Diagrama §4.1 ajustado em 06/10 (sem "Celular ── web"): ver decisão #5 |
 | 03/10/2026 | Esquema da memória v2 (lembretes, agendamentos, tarefas, números, prompts, arestas, fila de avisos) com migração automática; importador traz todas as tabelas do `backup_memoria` | A fase 0 deixava 5 tabelas e o grafo sem destino; o `backup_memoria` já exporta tudo |
 | 03/10/2026 | Agendador dentro do processo (`orion/jobs.py`); **agendamento só avisa, não executa a ferramenta** | Executar ação sem ninguém olhando exige política e aprovação (fase 4); regra 18 |
 | 03/10/2026 | Embeddings pela API do Gemini (`gemini-embedding-001`, 768 dimensões, tarefa de documento × consulta); sem chave a busca é só por palavra-chave | Decisão #1 do plano; custo zero. **Não validado contra a API real** |

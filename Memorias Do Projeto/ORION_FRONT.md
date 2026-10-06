@@ -74,7 +74,7 @@ quando um endpoint não existe. Transporte do chat: no pywebview, API + hub WS (
 | Contraste de texto | ≥ 4,5:1 (AA) |
 | Console | 0 erros/avisos de página ao navegar por todas as telas |
 | Teclado | toda ação alcançável sem mouse; foco sempre visível; views ocultas `inert` |
-| Janela estreita | ≥ 700 px sem rolagem horizontal; a barra lateral vira trilho de ícones (o app é só desktop) |
+| Janela estreita | ≥ 700 px sem rolagem horizontal; a barra lateral vira trilho de ícones. **Só desktop (decidido em 06/10/2026):** abaixo de 700 px não é suportado, celular = Telegram |
 | Streaming | 1 render por quadro (rAF), não por pedaço |
 | Céu fora da home | ≤ 20 fps; pausado com a aba oculta |
 
@@ -158,3 +158,25 @@ uv run python -m tests.front_e2e.mock_backend      # http://127.0.0.1:8000/ui/
 ```
 Mensagens que acionam fluxos: "apague…" (cartão de aprovação), "me lembra…" (ferramenta),
 "falha" (erro), "lento" (demora), "xss" (markdown malicioso), qualquer pergunta longa (tabela + código).
+
+## 7. Acabamento (06/10/2026, depois da análise visual com capturas)
+
+Decisão: **só desktop** (fecha a decisão #5 do NUCLEO). Corrigido, cada item com teste em `test_front.py`:
+
+| Achado | Correção |
+|---|---|
+| Composer mais largo que a coluna de mensagens (832 × 750 px) | `.composer-inner` com a mesma largura útil da coluna: borda esquerda no avatar, direita na bolha do usuário |
+| Parágrafo depois de tabela/código/citação colado no bloco | `.prose p { margin: 0 }` (0,1,1) vencia `.prose > * + *` (0,1,0); agora `:where(p)` |
+| Pílula "Em espera" permanente, em mono | Some quando o Orion está parado; aparece em `Processando`/`Ouvindo`/`Respondendo` e **"Aguardando aprovação"** (âmbar) enquanto houver cartão pendente |
+| Memória: resultados e vizinhos só com título truncado; grafo pequeno e sem texto | Linha extra com tipo · data · nº de ligações; tópicos com rótulo no 3D; câmera mais perto |
+| Integrações: nome de arquivo (`mic_engine.py`), status em mono, faixa de altura irregular, Microfone sem explicação | Texto humanizado, faixa com altura mínima igual, dica "Ligar é feito no computador onde o cérebro roda" (não há endpoint para ligar o microfone daqui) |
+| Atividade: gráfico esticado com 1–2 pontos | Só desenha a partir de 3 medições; legenda com nº de medições, mín e máx |
+| Alto contraste: constelação sumia também na home | Véu total só fora da home |
+| `style=""` no `index.html` | Classes utilitárias em `components.css`; teste impede a volta |
+
+**CSP não foi apertada (verificado):** `style-src 'unsafe-inline'` continua porque o `3d-force-graph` injeta um `<style>` em
+tempo de execução e o `md.js` emite `style="text-align:…"` nas células de tabela; `connect-src *` e `img-src` seguem porque o
+endereço do cérebro é configurável (Tailscale). Tirar isso exige trocar a lib do grafo ou usar hash/nonce por estilo.
+
+**Capturas:** `uv run python -m tests.front_e2e.capturas capturas/` gera 5 telas × 3 temas × 2 tamanhos para revisão visual.
+Não há teste de pixel (céu em WebGL e fonte mudam por plataforma); o que é medível está nos testes.

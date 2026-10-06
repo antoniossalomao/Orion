@@ -919,7 +919,7 @@ def test_integracoes_listam_estado_real_e_acao_de_tts(abrir):
     card.get_by_role("button", name="Desligar").click()
     expect(card.get_by_role("button", name="Ligar")).to_be_visible()
     expect(page.locator('.integ-card[data-id="telegram"] .integ-status')).to_contain_text(
-        "bot rodando"
+        "Bot rodando"
     )
 
 
@@ -1084,3 +1084,123 @@ def test_senha_de_fabrica_avisa_so_depois_do_login_e_a_troca_some_com_o_aviso(
     expect(page.locator("#cfg-senha-aviso")).not_to_contain_text("senha de fábrica")
     page.wait_for_timeout(500)
     assert _violacoes(page) == []  # a tela de Configurações com o formulário de trocar senha
+
+
+# ── acabamento (análise visual de 06/10/2026) ───────────────────────────────────
+def test_integracoes_sem_nome_de_arquivo_e_com_dica_no_microfone_parado(abrir):
+    page = abrir("#/integracoes")
+    mic = page.locator('.integ-card[data-id="mic"] .integ-status')
+    expect(mic).to_contain_text("Microfone parado", timeout=5000)
+    expect(mic).to_contain_text("computador onde o cérebro roda")
+    assert ".py" not in page.locator("#integ-grid").inner_text()
+    # a faixa de estado tem a mesma altura em todos os cartões (botão ou não)
+    alturas = page.evaluate(
+        "[...document.querySelectorAll('.integ-status')].map(e => Math.round(e.getBoundingClientRect().height))"
+    )
+    assert len(set(alturas)) <= 2 and min(alturas) >= 50, alturas
+
+
+def test_pilula_de_estado_so_aparece_com_atividade_ou_aprovacao_pendente(abrir):
+    page = abrir("#/chat")
+    pilula = page.locator("#state-pill")
+    expect(pilula).to_be_hidden()
+    enviar(page, "apague os arquivos antigos")
+    expect(page.locator(".approval").first).to_have_attribute("data-estado", "pendente")
+    esperar_fim(page)
+    expect(pilula).to_be_visible()
+    expect(page.locator("#state-label")).to_have_text("Aguardando aprovação")
+    page.locator(".approval").first.get_by_role("button", name="Negar").click()
+    expect(pilula).to_be_hidden()
+
+
+def test_composer_alinha_com_a_coluna_de_mensagens(abrir):
+    page = abrir("#/chat", viewport=(1440, 900))
+    enviar(page, "me explique algo longo com tabela e código")
+    esperar_fim(page)
+    caixa = page.evaluate(
+        """() => {
+            const c = document.querySelector('#composer-box').getBoundingClientRect();
+            const m = document.querySelector('.msg-orion').getBoundingClientRect();
+            const u = document.querySelector('.msg-user').getBoundingClientRect();
+            return { cL: c.left, cR: c.right, mL: m.left, uR: u.right };
+        }"""
+    )
+    assert abs(caixa["cL"] - caixa["mL"]) <= 1.5, caixa
+    assert abs(caixa["cR"] - caixa["uR"]) <= 1.5, caixa
+
+
+def test_paragrafo_depois_de_tabela_codigo_e_citacao_tem_espaco(abrir):
+    page = abrir("#/chat")
+    enviar(page, "me explique algo longo com tabela e código")
+    esperar_fim(page)
+    folgas = page.evaluate(
+        """() => {
+            const pr = [...document.querySelectorAll('.msg-orion .prose')].pop();
+            const out = [];
+            for (const f of pr.children) {
+                const ant = f.previousElementSibling;
+                if (ant && f.tagName === 'P') out.push([ant.className || ant.tagName, f.getBoundingClientRect().top - ant.getBoundingClientRect().bottom]);
+            }
+            return out;
+        }"""
+    )
+    assert folgas, "a resposta de teste não tem parágrafo depois de outro bloco"
+    assert all(g >= 6 for _, g in folgas), folgas
+
+
+def test_grafico_de_latencia_so_aparece_com_medicoes_suficientes(abrir):
+    page = abrir("#/config")
+    legenda = page.locator("#a-spark-legenda")
+    expect(legenda).to_contain_text("medições", timeout=8000)
+    texto = legenda.inner_text()
+    if "Coletando" in texto:
+        expect(page.locator("#a-spark")).to_be_hidden()
+    else:
+        assert "mín" in texto and "máx" in texto
+        expect(page.locator("#a-spark")).to_be_visible()
+
+
+def test_memoria_resultados_trazem_tipo_e_ligacoes_para_distinguir_nos(abrir):
+    page = abrir("#/memoria")
+    page.fill("#mem-search", "memória")
+    primeiro = page.locator(".mem-result").first
+    expect(primeiro).to_be_visible(timeout=8000)
+    meta = primeiro.locator("small")
+    expect(meta).to_have_text(re.compile(r"(Tópico|Fala do Orion|Fala sua) · "))
+    assert "ligaç" in meta.inner_text()
+
+
+def test_alto_contraste_na_home_mantem_a_constelacao_visivel(abrir):
+    page = abrir(init="localStorage.setItem('orion_theme', JSON.stringify('contraste'))")
+    assert page.evaluate("document.documentElement.dataset.theme") == "contraste"
+    assert float(page.evaluate("getComputedStyle(document.querySelector('#sky-veil')).opacity")) < 0.5
+    page.click('.sb-item[data-view="chat"]')
+    expect(page.locator("html")).to_have_attribute("data-view", "chat")
+    page.wait_for_timeout(600)
+    assert float(page.evaluate("getComputedStyle(document.querySelector('#sky-veil')).opacity")) > 0.9
+
+
+def test_html_nao_usa_estilo_inline_estatico():
+    from pathlib import Path
+
+    html = (Path(__file__).resolve().parents[2] / "Orion_Core" / "Front_end_Orion" / "index.html").read_text(
+        encoding="utf-8"
+    )
+    assert 'style="' not in html, "use classes (components.css), não style=\"\" no index.html"
+
+
+def test_editar_mensagem_enviada_poe_o_texto_no_campo_sem_apagar_rascunho(abrir):
+    page = abrir("#/chat")
+    enviar(page, "me lembra de ligar para o Pedro")
+    esperar_fim(page)
+    usuario = page.locator(".msg-user").first
+    usuario.hover()
+    usuario.get_by_role("button", name="Editar e reenviar").click()
+    expect(page.locator("#composer-input")).to_have_value("me lembra de ligar para o Pedro")
+    expect(page.locator("#composer-input")).to_be_focused()
+    # com rascunho diferente no campo, não sobrescreve
+    page.fill("#composer-input", "outra coisa")
+    usuario.hover()
+    usuario.get_by_role("button", name="Editar e reenviar").click()
+    expect(page.locator("#composer-input")).to_have_value("outra coisa")
+    expect(page.locator(".toast").last).to_contain_text("já tem um rascunho")

@@ -87,8 +87,8 @@
 
 /* ── Prosa (markdown renderizado) ────────────────────────────────────── */
 .prose { font-size: var(--fs-lg); line-height: var(--lh-body); color: var(--text-1); overflow-wrap: anywhere; }
+.prose :where(p) { margin: 0; }   /* :where() não pesa: o espaço entre blocos (abaixo) tem de valer também para <p> depois de tabela/código/citação */
 .prose > * + * { margin-top: 0.75em; }
-.prose p { margin: 0; }
 .prose .md-h { font-weight: 600; letter-spacing: -0.01em; line-height: var(--lh-tight); margin-top: 1.3em; }
 .prose .md-h:first-child { margin-top: 0; }
 .prose .md-h1 { font-size: 1.35em; } .prose .md-h2 { font-size: 1.18em; } .prose .md-h3 { font-size: 1.05em; } .prose .md-h4, .prose .md-h5, .prose .md-h6 { font-size: 1em; color: var(--text-2); }
@@ -171,7 +171,7 @@ li.md-tarefa { list-style: none; margin-left: -1.4em; }
 /* ── Composer ────────────────────────────────────────────────────────── */
 .composer-dock { position: relative; flex-shrink: 0; padding: 0 var(--s-5) var(--s-4); }
 .composer-dock::before { content: ''; position: absolute; left: 0; right: 0; bottom: 100%; height: 2.5rem; pointer-events: none; background: linear-gradient(to top, rgb(7 10 18 / 0.7), transparent); }
-.composer-inner { width: 100%; max-width: var(--content-w); margin: 0 auto; }
+.composer-inner { width: 100%; max-width: calc(var(--content-w) - var(--s-5) * 2); margin: 0 auto; }   /* mesma largura útil da coluna de mensagens (que tem o mesmo recuo por dentro do max-width) */
 .composer-box {
     display: flex; flex-direction: column; background: var(--glass-2); border: 1px solid var(--line-2); border-radius: 1.25rem;
     box-shadow: var(--sh-2); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
