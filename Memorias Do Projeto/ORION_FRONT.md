@@ -90,6 +90,7 @@ quando um endpoint não existe. Transporte do chat: no pywebview, API + hub WS (
 | **Memória** | Overlay de grafo sem teclado | Grafo pausado fora da tela; busca por trecho + lista de resultados + painel de detalhes com vizinhos (caminho por teclado); filtros por tipo; aviso explícito quando os dados são de demonstração |
 | **Integrações** | Cartões estáticos | Estado real de `/integracoes`, ação por cartão (voz ao vivo, resposta por voz), aviso quando o cérebro não responde |
 | **Configurações** | Cartões de altura igual, gráfico quebrado com 1 ponto | Aparência (3 temas, densidade, escala, movimento), voz e sons, modelo, conexão (endereço, token, testar), atividade (CPU/RAM/GPU, latência, cascata, serviços), atalhos, sobre |
+| **Entrada (login)** | Só o token colado em Configurações | Diálogo "Entrar no Orion" (senha, `autocomplete=current-password`, foco preso, `Esc`/"Agora não" fecha): abre sozinho no boot e quando um 401 chega do `/chat`; erro de senha e de bloqueio (429) no próprio diálogo; consulta de fundo (aprovações pendentes) **não** reabre o diálogo. Configurações › Conexão ganha a linha **Sessão** (Entrar/Sair). Sem `/auth/status` (legado) ou com token configurado, nada disso aparece |
 | **Paleta (`Ctrl+K`)** | Não existia | Ir para, ações, modelo, tema/densidade/escala, conversas (por trecho), "Perguntar ao Orion", "Revisar ação pendente" |
 | **Comandos `/`** | Não existia | `/` no campo abre a lista: `/nova`, `/buscar`, `/copiar`, `/exportar`, `/limpar`, `/modelo`, `/tema`, `/foco`, `/mudo`, `/voz`, `/ajuda` e as telas. Completa com `Tab`/`Enter`; `//` envia uma barra literal; caminho de arquivo e texto de várias linhas não são comando |
 | **Na conversa** | — | `Ctrl+F` busca (sem acento, destaca todas as ocorrências, `Enter` navega); selecionar um trecho oferece **Citar**; tempo de cada resposta; `Ctrl+Shift+C` copia a última resposta; rascunho guardado por conversa; aprovação pendente acende o ponto do Chat e entra na paleta |
@@ -99,7 +100,8 @@ quando um endpoint não existe. Transporte do chat: no pywebview, API + hub WS (
 | Orçamento | Resultado | Onde |
 |---|---|---|
 | Axe (serious/critical **e** moderate/best-practice) | 0 violações em 5 telas × 3 temas, no chat com resposta + aprovação + erro, e com paleta e menu abertos | `test_axe_*` |
-| Console | 0 erros/avisos em todos os 77 testes de navegador (a fixture derruba o teste) | `conftest.py` |
+| Entrada | Pede a senha, recusa a errada sem deixá-la no campo, mostra o aviso de espera, não reabre depois de "Agora não" por consulta de fundo, reabre ao enviar mensagem, sair/entrar pelas Configurações, axe sem violações nos 3 temas (tela aberta e com erro) | `test_login_*`, `test_sair_e_entrar_*`, `test_axe_tela_de_entrada_aberta` |
+| Console | 0 erros/avisos em todos os 86 testes de navegador (a fixture derruba o teste) | `conftest.py` |
 | Teclado | `Ctrl+K`, `Alt+1..5`, `/`, `?`, `Ctrl+B`, `Ctrl+.`, `Ctrl+F`, `Esc`; telas ocultas `inert`; menu `/` e paleta no padrão combobox | `test_atalhos_*`, `test_paleta_*`, `test_comandos_*` |
 | Janela estreita | Sem rolagem horizontal a 700 e 860 px nas 5 telas; barra vira trilho e volta ao alargar | `test_janela_*` |
 | Streaming | Renderizações ≤ quadros + 2 (a resposta chega em ~100 pedaços) | `test_streaming_rende_*` |
@@ -133,7 +135,7 @@ o 3d-force-graph (700 KB) só baixa na primeira visita à Memória.
 
 ### O que **não** foi verificado
 
-- O app desktop real (pywebview no Windows): só o shim dos testes. `get_config`/`open_external`
+- O app desktop real (pywebview no Windows): só o shim dos testes; ele continua entrando por token (`get_config`), não pela tela de senha. `get_config`/`open_external`
   e o relay de `tool`/`approval`/`error` em `orion_app.py` têm teste da lógica pura, não do launcher.
 - Safari e Firefox; leitor de tela de verdade (NVDA/VoiceOver) — só axe e a árvore de acessibilidade.
 - Desempenho da constelação em GPU real: o CI usa WebGL por software; o orçamento medido é de

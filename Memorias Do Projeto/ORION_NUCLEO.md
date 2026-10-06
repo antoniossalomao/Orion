@@ -1,11 +1,12 @@
 # ORION — Plano do Projeto
 
 > Visão, princípios, arquitetura-alvo, inventário do legado, fases e
-> decisões. Atualizado em 03/10/2026. A reescrita começou (`orion/`, ver
+> decisões. Atualizado em 06/10/2026. A reescrita começou (`orion/`, ver
 > status na §6); este documento continua sendo o planejamento. Como o código **atual** funciona:
 > [ORION_TECNICO.md](ORION_TECNICO.md) · Operação do legado: [README.md](../README.md) ·
 > Histórico completo do legado: histórico do git deste repositório. Plano de corte (venda do PC):
-> [ORION_CORTE.md](ORION_CORTE.md) · Triagem das ferramentas: [ORION_FERRAMENTAS.md](ORION_FERRAMENTAS.md).
+> [ORION_CORTE.md](ORION_CORTE.md) · Triagem das ferramentas: [ORION_FERRAMENTAS.md](ORION_FERRAMENTAS.md) ·
+> Como ligar login, Tailscale, MCP e ferramentas: [ORION_OPERACAO.md](ORION_OPERACAO.md).
 
 ---
 
@@ -121,8 +122,9 @@ Response Provenance (de onde veio cada resposta).
 ### 4.5 Segurança
 
 - Nada escuta fora de `127.0.0.1`; acesso de fora só pela rede privada do Tailscale.
-- Login obrigatório em toda rota (herdado do legado: PBKDF2 + JWT em cookie
-  httpOnly); bot do Telegram só responde ao ID do Antônio.
+- Login obrigatório em toda rota: senha em PBKDF2 e **sessão opaca** em cookie httpOnly
+  (revogável; não é JWT, que não se revoga) — `orion/auth.py`; token de admin só para
+  máquinas; bot do Telegram só responde ao ID do Antônio.
 - OmniRoute com a senha padrão trocada e só provedores por chave de API (os
   marcados como risco ficam desligados).
 - Política de ferramentas com rate limit, Câmara de Eco e audit log (portados do legado).
@@ -143,11 +145,11 @@ O que existe hoje e o destino de cada peça. "Fase" = quando é substituído e a
 | `session_manager.py` | Portar a lógica | 3 |
 | `orion_shadow_thoughts.py` | Reescrever como consolidação da memória (job) | 3 — feito em `orion/memory/consolidate.py` (fatos a partir das falas do Antônio) |
 | `proactive_loop.py` | Reescrever como agendador (lembretes, consolidação, backup); self-healing de bancos deixa de existir | 3–4 — feito em `orion/jobs.py` (lembretes, agendamentos, embeddings, vault, backup, consolidação); falta a vigilância de pastas |
-| `tools/` (55 ferramentas) | Triagem: o que um servidor MCP pronto já faz sai; o resto vai para `orion-desktop` multiplataforma | 4 — triagem proposta em [ORION_FERRAMENTAS.md](ORION_FERRAMENTAS.md): 10 portadas, 3 substituídas, 34 a portar, 8 a descartar |
-| `orion_seguranca.py` (rate limit, Câmara de Eco, audit) | Portar como política de ferramentas | 4 |
-| `orion_browser.py`, `orion_google_workspace.py` | Servidores MCP (navegador, Google) | 4 |
-| `orion_telegram.py` | Reescrever como canal principal do celular | 5 — feito em `orion/channels/telegram.py` (texto, botões de aprovar, avisos; falta voz e foto). O bot do legado **não** fala com o `/chat` novo (não envia o token) |
-| Login (PBKDF2 + JWT, `utils/auth.py` no histórico do git) | Portar | 5 |
+| `tools/` (55 ferramentas) | Triagem: o que um servidor MCP pronto já faz sai; o resto vai para `orion-desktop` multiplataforma | 4 — feito: 31 portadas, 2 substituídas, 8 a descartar, 14 a portar (dependem de servidor MCP seu, modelo multimodal, voz ou Windows). Ver [ORION_FERRAMENTAS.md](ORION_FERRAMENTAS.md) |
+| `orion_seguranca.py` (rate limit, Câmara de Eco, audit) | Portar como política de ferramentas | 4 — feito em `orion/policy/` (audit também em banco, tabela `audit`) |
+| `orion_browser.py`, `orion_google_workspace.py` | Servidores MCP (navegador, Google) | 4 — o cliente MCP existe (`orion/mcp_client.py`, `mcp.example.json`); falta **você** escolher e configurar os servidores |
+| `orion_telegram.py` | Reescrever como canal principal do celular | 5 — feito em `orion/channels/telegram.py` (texto, **voz**, **foto**, botões de aprovar, avisos). O bot do legado **não** fala com o `/chat` novo (não envia o token) |
+| Login (PBKDF2 + JWT, `utils/auth.py` no histórico do git) | Portar | 5 — feito em `orion/auth.py`: PBKDF2 + sessão opaca revogável (não JWT), tela de entrada no front |
 | `bin/startup/*.bat`, `orion_boot.vbs` | Apagar — um comando só e autostart por SO | 5 — `orion autostart` gera o arquivo de cada SO (falta ligar no notebook); apagar na fase 7 |
 | `orion_voice_live.py`, `audio_manager.py`, `mic_engine.py`, `commands.py` | Voz nova (masculina, palavra de ativação "Orion") | 6 |
 | Frontend v1 (pywebview + Three.js), `dashboard.html` | Decidir na fase de interface | 6 |
@@ -180,18 +182,18 @@ Tudo continua no histórico do git.
 | **6 — Interface, voz, identidade** | Frontend escolhido, voz masculina, palavra de ativação, visual do Orion | A definir na própria fase |
 | **7 — Limpeza** | Apagar `Orion_Ollama/`, `Orion_Core/`, `bin/` | Nenhum arquivo do legado no repositório |
 
-**Status em 03/10/2026** (detalhe e o que não foi verificado: [ORION_MELHORIAS.md](ORION_MELHORIAS.md)):
-a fase 0 continua pendente (é sua), mas agora há `orion verify-export` para provar o export e o
-[plano de corte](ORION_CORTE.md); a fase 1 está pronta (CI verde em Linux, Windows e macOS); a fase 3 está
-pronta no código: memória SQLite com esquema v2 (operação, grafo, fila de avisos), importador completo
-(conversas, lembretes, agendamentos, tarefas, números, prompts, arestas), embeddings pela API gratuita,
-consolidação em fatos, agendador e backup diário (falta a chave de embeddings e as suas perguntas reais);
-a fase 2 existe com gateway e CLIs falsos (falta OmniRoute e CLIs reais); a fase 4 tem a política, as
-ferramentas de memória, operação e `delegar`, o `orion-desktop` v0 (executar comando, ler e listar
-arquivos; desligado por padrão) e a triagem das 55 do legado (faltam MCP e o resto do `orion-desktop`);
-a fase 5 começou: canal Telegram novo (texto, aprovação por botão, avisos) e `orion autostart`, ambos
-testados só com API e sistema falsos (faltam login e Tailscale); a fase 6 tem o front redesenhado (só
-desktop); a fase 7 não começou.
+**Status em 06/10/2026** (detalhe e o que não foi verificado: [ORION_MELHORIAS.md](ORION_MELHORIAS.md)):
+a fase 0 continua pendente (é sua), mas há `orion verify-export` e o [plano de corte](ORION_CORTE.md); a fase 1 está
+pronta (CI verde em Linux, Windows e macOS); a fase 3 está pronta no código (memória SQLite com esquema v3, importador
+completo, embeddings pela API gratuita, consolidação, agendador, backup diário; falta a chave de embeddings e as suas
+perguntas reais); a fase 2 existe com gateway e CLIs falsos (falta OmniRoute e CLIs reais); a fase 4 está pronta no
+código: política com audit em banco, ferramentas de memória, operação, `delegar`, `orion-desktop` completo (comando,
+arquivos, documentos, área de transferência, notificação, abrir app, Git somente-leitura, saúde, processos em segundo
+plano, vigilância de pastas), web (opt-in) e cliente MCP; faltam os servidores MCP que **você** escolher (e-mail, agenda,
+navegador) e o que depende de modelo multimodal (tela, imagem); a fase 5 está pronta no código: login com senha e
+tela de entrada, Telegram com texto, voz e foto, `orion autostart`, guia do Tailscale ([ORION_OPERACAO.md](ORION_OPERACAO.md));
+falta instalar o Tailscale, ligar o bot e ativar o autostart no notebook; a fase 6 tem o front redesenhado (só desktop);
+a fase 7 não começou.
 
 ## 7. Decisões em aberto
 
@@ -203,7 +205,7 @@ desktop); a fase 7 não começou.
 | 4 | Ritmo de apagar o legado | Por fase (código antigo à mão para portar) | Tudo agora, consultando o histórico do git |
 | 5 | Interface | Front "Observatório noturno" feito em 03/10, **só desktop** ([ORION_FRONT.md](ORION_FRONT.md)); celular = Telegram | Web no celular via Tailscale exigiria voltar a ter layout móvel (a gaveta e o toque foram removidos): decidir na fase 5 |
 | 6 | Voz | Transcrição: Whisper no Groq (grátis); fala: edge-tts `pt-BR-AntonioNeural` (grátis); voz ao vivo: Gemini Live com voz masculina; ativação: openWakeWord treinado em "Orion" | A discutir (fase 6) |
-| 7 | Busca web gratuita | Pesquisar na fase 4 (cotas mudam) | — |
+| 7 | Busca web gratuita | `pesquisar_com_ia` (Gemini com Google Search, mesma chave do Google AI Studio) e, se quiser mais, um servidor MCP de busca em `mcp.json`; **não validado contra a API real** (cotas mudam) | — |
 | 8 | Ring 0 §4 (Hardware-Bound) | Rever — conflita com trocar de máquina | — |
 
 ## 8. Registro de decisões
@@ -232,7 +234,6 @@ desktop); a fase 7 não começou.
 | 01/10/2026 | Persona do backend vira Orion (masculina, direta); palavra de ativação "orion"; voz Charon (Gemini TTS e voz ao vivo) e edge-tts AntonioNeural; novas falas gravadas com ator "Orion" (nomes antigos configuráveis em `ATORES_LEGADOS`) | Identidade própria (pedido do usuário) |
 | 01/10/2026 | Nome antigo removido do repositório: namespace SurrealDB e coleção Qdrant vêm do `.env` (`SURREAL_NS`, `QDRANT_COLLECTION`; defaults `orion_core`/`orion_memory`), arquivos de runtime renomeados | Identidade só Orion (pedido do usuário); dados existentes seguem acessíveis pelo `.env` |
 | 01/10/2026 | Ollama fora por enquanto: cascata Groq → Gemini → Claude, sem draft nem watcher de VRAM; tradução, visão e clipboard só pelo Gemini; especialista só Claude | Pedido do usuário; substitui "modelo local só como último recurso" |
-
 | 02/10/2026 | Auditoria do projeto e execução do plano: política de ferramentas por allowlist e aprovação fora de banda; pacote `orion/` (fundação, memória SQLite, gateway, agente, `/chat`); correções no legado (Telegram, SSRF, WebSocket/upload, imagem externa no chat) | Pedido do usuário; detalhes em ORION_MELHORIAS.md |
 | 02/10/2026 | Vetores em tabela comum + numpy no lugar do sqlite-vec | O CI no macOS mostrou que o Python do `uv` vem sem `enable_load_extension`: a extensão não carregaria no MacBook. Para memória pessoal a força bruta responde em ms (teste com 30 mil trechos) |
 | 02/10/2026 | Loop de agente próprio em vez de PydanticAI (decisão #3, alternativa) | Fluxo de aprovação precisa controlar quando cada ferramenta roda; testável com gateway falso; reversível |
@@ -249,6 +250,14 @@ desktop); a fase 7 não começou.
 | 03/10/2026 | `orion autostart` gera o arquivo de início automático (Startup no Windows, LaunchAgent no macOS, unit de usuário no Linux) e imprime o comando de ativação, sem executá-lo | Fase 5 "autostart por SO"; não mexer no sistema sem o Antônio |
 | 03/10/2026 | Aprovação só do que se vê inteiro: argumento cortado ou grande demais só pode ser negado (web e Telegram) | O cartão cortava o argumento (700 caracteres na web, 2000 no servidor) e escondia o fim do comando; regra 23 |
 | 03/10/2026 | Logger do `httpx` fixado em WARNING | A URL da API do Telegram carrega o token do bot; o `httpx` a registra em INFO |
+| 06/10/2026 | Login com senha (PBKDF2-SHA256, 600 mil iterações) e sessão **opaca** em cookie `httpOnly`/`SameSite=Strict`, em `auth.db` fora do banco da memória; token de admin vira credencial de máquina; `/health` sem login só `status`+`version`; `/docs` e `/openapi.json` desligados | O token único no `localStorage` não tinha sessão nem saída; JWT sem estado não se revoga; o backup vai para a nuvem e não deve levar o hash. Regras 13, 17 e 25 |
+| 06/10/2026 | Host de fora no `ORION_ALLOWED_HOSTS` sobe com senha **ou** token (antes: só token), checado na subida do app | A regra 17 é "só com login", e agora há login de verdade |
+| 06/10/2026 | Trilha de auditoria na tabela `audit` (esquema v3, poda de 90 dias); falha de gravação nega o que não é leitura | Audit só em log não dava para consultar nem sobrevivia; regra 8 |
+| 06/10/2026 | Cliente MCP com o SDK oficial; classe de risco vem do `mcp.json`, nunca do servidor; padrão `exec`; `default_risk: read` recusado; servidor sem `ORION_*` no ambiente | Decisão de 01/10 ("servidores MCP prontos + orion-desktop próprio") com a política mandando; regra 24 |
+| 06/10/2026 | `orion-desktop` completo e ferramentas de web como opt-ins separados (`ORION_DESKTOP_TOOLS`, `ORION_WEB_TOOLS`); `abrir_app` passa a execução | A web tem canal de exfiltração por GET que o taint não cobre; abrir app abre qualquer programa; regra 26 |
+| 06/10/2026 | `orion/netguard.py`: IP conferido = IP usado, no lugar do `url_guard` do legado | Fecha a janela de DNS rebinding que o legado documentava; regra 7 |
+| 06/10/2026 | Voz no Telegram por Whisper no Groq (`ORION_TRANSCRIBE_API_KEY`), texto entendido mostrado antes da resposta; foto como imagem só no turno | Fase 5 "Telegram (texto, voz, foto, botões)"; aprovação continua só por botão; regra 27. **Não validado contra as APIs reais** |
+| 06/10/2026 | `pesquisar_com_ia` (Gemini com Google Search) resolve a decisão #7 por ora; `pesquisar_internet` não foi portada | Não há API de busca gratuita estável; MCP de busca fica por sua escolha |
 
 ## 9. Visão de longo prazo (conceitual)
 
