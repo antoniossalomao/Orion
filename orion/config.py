@@ -46,6 +46,9 @@ class Settings(BaseSettings):
     telegram_token: str = ""  # ou no cofre do SO (ORION_TELEGRAM_TOKEN)
     # IDs numéricos do Telegram, separados por vírgula ("123,456") ou lista JSON ("[123]")
     telegram_allowed_users: Annotated[list[int], NoDecode] = Field(default_factory=list)
+    # Servidores MCP (fase 4): sobem do mcp.json (padrão: <dados>/mcp.json), só com gateway.
+    mcp_enabled: bool = True
+    mcp_config: Path | None = None
     # Jobs em segundo plano (lembretes, agendamentos, embeddings, vault, backup, consolidação).
     jobs_enabled: bool = True
     jobs_tick_s: float = Field(default=30.0, ge=1.0)
@@ -80,7 +83,7 @@ class Settings(BaseSettings):
             )
         return v
 
-    @field_validator("backup_dir", "vault_dir", mode="before")
+    @field_validator("backup_dir", "vault_dir", "mcp_config", mode="before")
     @classmethod
     def _vazio_e_nao_definido(cls, v: object) -> object:
         """`ORION_VAULT_DIR=` (vazio) viraria `Path('.')`: indexaria/gravaria na pasta atual."""
@@ -132,6 +135,10 @@ class Settings(BaseSettings):
     def auth_db_path(self) -> Path:
         """Fora do banco da memória: o backup vai para a nuvem e não leva o hash da senha."""
         return self.data_dir / "auth.db"
+
+    @property
+    def effective_mcp_config(self) -> Path:
+        return self.mcp_config or self.data_dir / "mcp.json"
 
     @property
     def effective_backup_dir(self) -> Path:

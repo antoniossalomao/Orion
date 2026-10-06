@@ -79,6 +79,15 @@ class PolicyEngine:
                 return Decision(Action.DENY, decision.risk, "audit indisponível (fail-closed)")
         return decision
 
+    def register_tool(self, spec: ToolSpec, rate: tuple[int, int] | None = None) -> None:
+        """Registra uma ferramenta que só existe em tempo de execução (as de servidores MCP).
+        Não sobrescreve uma já registrada: um servidor não troca a classe de risco de ninguém."""
+        if spec.name in self.tools:
+            raise ValueError(f"ferramenta já registrada: {spec.name}")
+        self.tools[spec.name] = spec
+        if rate is not None:
+            self.rate.set_limit(spec.name, *rate)
+
     def note_result(self, call: ToolCall, ctx: Context) -> None:
         """O orquestrador chama depois de executar: ferramenta que devolve conteúdo
         externo contamina a sessão."""

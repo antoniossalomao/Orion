@@ -32,6 +32,7 @@ from .delegate import Delegator
 from .gateway import ChatGateway, Endpoint
 from .jobs import JobRunner
 from .log import request_id
+from .mcp_client import McpConfigError, McpManager, manager_from_file
 from .memory import MemoryStore
 from .memory.consolidate import Consolidator
 from .memory.embedders import GeminiEmbedder
@@ -69,6 +70,7 @@ class AppState:
     agent: Agent | None = None  # None enquanto o gateway não está configurado
     jobs: JobRunner | None = None  # None com ORION_JOBS_ENABLED=false
     telegram: TelegramChannel | None = None  # None sem token, sem usuários ou sem gateway
+    mcp: McpManager | None = None  # None sem mcp.json, sem servidor habilitado ou sem gateway
 
 
 def build_policy(
@@ -185,6 +187,17 @@ def telegram_from_settings(
     )
 
 
+def mcp_from_settings(settings: Settings) -> McpManager | None:
+    """Servidores MCP do `mcp.json`; configuração inválida desliga o MCP, não o Orion."""
+    if not settings.mcp_enabled:
+        return None
+    try:
+        return manager_from_file(settings.effective_mcp_config)
+    except McpConfigError as e:
+        log.error("MCP desligado: %s", e)
+        return None
+
+
 def embedder_from_settings(settings: Settings) -> GeminiEmbedder | None:
     """Sem chave de API, sem embeddings: a busca segue só por palavra-chave."""
     chave = settings.embed_api_key or get_secret("ORION_EMBED_API_KEY")
@@ -265,6 +278,7 @@ def create_app(
     memory_factory: Callable[[Settings], MemoryStore] | None = None,
     gateway_factory: Callable[[Settings], ChatGateway | None] | None = None,
     telegram_factory: Callable[..., TelegramChannel | None] | None = None,
+    mcp_factory: Callable[[Settings], McpManager | None] | None = None,
 ) -> FastAPI:
     settings = settings or Settings()
 
@@ -279,12 +293,20 @@ def create_app(
         )
         gateway = (gateway_factory or gateway_from_settings)(settings)
         agent = None
+        mcp = None
         if gateway is not None:
             # `delegar` só aparece para o modelo se alguma CLI oficial estiver instalada.
             delegador = Delegator(memory) if _alguma_cli() else None
+            mcp = (mcp_factory or mcp_from_settings)(settings)
+            mcp_tools = await asyncio.to_thread(mcp.start) if mcp is not None else []
+            if mcp is not None:
+                for spec in mcp.specs.values():
+                    policy.register_tool(spec)
             agent = Agent(
                 gateway=gateway,
-                tools=default_registry(memory, delegador, ops, desktop=settings.desktop_tools),
+                tools=default_registry(
+                    memory, delegador, ops, desktop=settings.desktop_tools, extra=mcp_tools
+                ),
                 policy=policy,
                 memory=memory,
                 ops=ops,
@@ -311,7 +333,7 @@ def create_app(
         )
         tarefa_telegram = asyncio.create_task(telegram.run()) if telegram is not None else None
         app.state.orion = AppState(
-            settings, memory, policy, time.time(), ops, auth, agent, jobs, telegram
+            settings, memory, policy, time.time(), ops, auth, agent, jobs, telegram, mcp
         )
         try:
             yield
@@ -323,6 +345,8 @@ def create_app(
                         await tarefa
             if telegram is not None:
                 await telegram.aclose()
+            if mcp is not None:
+                await asyncio.to_thread(mcp.stop)
             if gateway is not None and hasattr(gateway, "aclose"):
                 await gateway.aclose()
             auth.close()
@@ -372,6 +396,7 @@ def create_app(
                 "gateway": state.agent is not None,
                 "jobs": state.jobs is not None,
                 "telegram": state.telegram is not None,
+                "mcp": state.mcp.status if state.mcp is not None else {},
             },
             "pending_approvals": len(state.policy.approvals.pending()),
             "pending_notifications": len(state.ops.pending_notifications(limit=1000)),

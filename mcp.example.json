@@ -1,0 +1,51 @@
+{
+  "_leia": "Copie para <pasta de dados>/mcp.json (ou aponte ORION_MCP_CONFIG). Confira com: uv run orion mcp-check. A classe de risco de cada ferramenta vem DAQUI, nunca do servidor; o que não estiver em 'tools' usa default_risk (exec = pede confirmação sempre). Pacotes e nomes de ferramentas abaixo são exemplos a validar na sua máquina.",
+  "servers": {
+    "arquivos": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "~/Documents"],
+      "default_risk": "exec",
+      "allow": ["read_text_file", "list_directory", "write_file", "search_files"],
+      "tools": {
+        "read_text_file": { "risk": "read", "read_path_arg": "path" },
+        "list_directory": { "risk": "read", "read_path_arg": "path" },
+        "search_files": { "risk": "read", "read_path_arg": "path" },
+        "write_file": { "risk": "write", "path_arg": "path" }
+      }
+    },
+    "web": {
+      "command": "uvx",
+      "args": ["mcp-server-fetch"],
+      "external": true,
+      "default_risk": "exec",
+      "tools": { "fetch": { "risk": "read" } }
+    },
+    "git": {
+      "command": "uvx",
+      "args": ["mcp-server-git"],
+      "default_risk": "exec",
+      "allow": ["git_status", "git_log", "git_diff_unstaged", "git_diff_staged"],
+      "tools": {
+        "git_status": { "risk": "read" },
+        "git_log": { "risk": "read" },
+        "git_diff_unstaged": { "risk": "read" },
+        "git_diff_staged": { "risk": "read" }
+      }
+    },
+    "navegador": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@latest", "--headless"],
+      "external": true,
+      "default_risk": "exec",
+      "enabled": false
+    },
+    "google": {
+      "_nota": "E-mail e agenda: escolha um servidor MCP do Google Workspace que você confie, guarde o segredo no cofre (ORION_GOOGLE_TOKEN) e classifique só rascunho e leitura. Nunca classifique envio como read ou write.",
+      "command": "COMANDO-DO-SERVIDOR",
+      "env": { "GOOGLE_TOKEN": "${ORION_GOOGLE_TOKEN}" },
+      "external": true,
+      "default_risk": "exec",
+      "enabled": false
+    }
+  }
+}

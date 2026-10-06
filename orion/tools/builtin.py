@@ -100,6 +100,7 @@ def default_registry(
     ops: Operations | None = None,
     *,
     desktop: bool = False,
+    extra: list[Tool] | None = None,
 ) -> ToolRegistry:
     reg = ToolRegistry(memory_tools(store))
     if desktop:  # opt-in (ORION_DESKTOP_TOOLS): age no computador, sempre sob a política
@@ -110,4 +111,6 @@ def default_registry(
             reg.register(t)
     if delegator is not None:
         reg.register(delegate_tool(delegator))
+    for t in extra or []:  # servidores MCP: já classificados na política
+        reg.register(t)
     return reg
