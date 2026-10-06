@@ -9,7 +9,8 @@ Um laço assíncrono chama `tick()` a cada poucos segundos. Cada passo falha soz
 - embeddings pendentes (a API gratuita pode ter caído);
 - vault do Obsidian reindexado;
 - backup diário da memória, mantendo os últimos N;
-- consolidação das conversas em fatos (se houver gateway).
+- consolidação das conversas em fatos (se houver gateway);
+- poda da trilha de auditoria (decisões da política mais velhas que N dias).
 
 Quem entrega os avisos é o canal (Telegram, web) lendo `GET /notifications`.
 """
@@ -39,6 +40,7 @@ class TickReport:
     embeddings: int = 0
     vault: dict[str, int] | None = None
     backup: str | None = None
+    auditoria: int | None = None
     consolidacao: dict[str, Any] | None = None
     erros: list[str] = field(default_factory=list)
 
@@ -53,22 +55,26 @@ class JobRunner:
         backup_keep: int = 7,
         vault_dir: Path | None = None,
         consolidator: Consolidator | None = None,
+        audit_days: int = 90,
         embed_every_s: float = 300.0,
         vault_every_s: float = 3600.0,
         backup_every_s: float = 3600.0,
         consolidate_every_s: float = 6 * 3600.0,
+        audit_every_s: float = 86400.0,
         clock: Callable[[], float] = time.time,
     ) -> None:
         self.memory, self.ops = memory, ops
         self._backup_dir, self._backup_keep = backup_dir, backup_keep
         self._vault_dir = vault_dir
         self._consolidator = consolidator
+        self._audit_days = audit_days
         self._clock = clock
         self._every = {
             "embed": embed_every_s,
             "vault": vault_every_s,
             "backup": backup_every_s,
             "consolidar": consolidate_every_s,
+            "auditoria": audit_every_s,
         }
         self._last: dict[str, float] = {}
 
@@ -102,6 +108,8 @@ class JobRunner:
             self._passo(rel, "vault", lambda: self.memory.index_vault(self._vault_dir or "."))
         if self._backup_dir is not None and self._devido("backup"):
             self._passo(rel, "backup", self._backup)
+        if self._devido("auditoria"):
+            self._passo(rel, "auditoria", lambda: self.ops.audit_prune(self._audit_days))
 
     @staticmethod
     def _passo(rel: TickReport, nome: str, fn: Callable[[], Any]) -> None:

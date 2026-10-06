@@ -463,7 +463,8 @@ def test_app_sobe_o_canal_no_lifespan_e_derruba_no_fim(tmp_path, tg):
         settings, gateway_factory=lambda _: FakeGateway(fala("x")), telegram_factory=fabrica
     )
     with TestClient(app, base_url="http://127.0.0.1") as c:
-        assert c.get("/health").json()["components"]["telegram"] is True
+        saude = c.get("/health", headers={"Authorization": "Bearer token-de-teste-com-16+"})
+        assert saude.json()["components"]["telegram"] is True
         for _ in range(100):  # o getMe roda na tarefa de fundo
             if "getMe" in tg.metodos():
                 break
@@ -473,9 +474,12 @@ def test_app_sobe_o_canal_no_lifespan_e_derruba_no_fim(tmp_path, tg):
 
 
 def test_sem_canal_o_health_diz_false(tmp_path):
-    settings = Settings(data_dir=tmp_path / "d", _env_file=None)
+    settings = Settings(
+        data_dir=tmp_path / "d", admin_token="token-de-teste-com-16+", _env_file=None
+    )
     with TestClient(create_app(settings), base_url="http://127.0.0.1") as c:
-        assert c.get("/health").json()["components"]["telegram"] is False
+        saude = c.get("/health", headers={"Authorization": "Bearer token-de-teste-com-16+"})
+        assert saude.json()["components"]["telegram"] is False
 
 
 # ── argumentos que o cartão não consegue mostrar inteiros ─────────────────

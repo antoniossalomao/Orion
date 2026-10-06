@@ -27,7 +27,12 @@ class Settings(BaseSettings):
     approval_ttl_s: int = Field(default=600, ge=30)
     extra_safe_roots: list[Path] = Field(default_factory=list)  # ex.: Documents no OneDrive
     serve_ui: bool = True  # serve a interface em /ui/ (mesma origem, sem CORS)
-    admin_token: str = ""  # decide aprovações até o login da fase 5; vazio = desligado
+    admin_token: str = ""  # credencial de máquina (curl, scripts); vazio = só o login com senha
+    # Login com senha (`orion set-password`) e sessão por cookie httpOnly.
+    auth_user: str = "antonio"
+    session_ttl_h: int = Field(default=168, ge=1, le=24 * 90)  # validade da sessão: 7 dias
+    cookie_secure: bool = False  # true atrás de HTTPS (`tailscale serve`); em https é automático
+    audit_retention_days: int = Field(default=90, ge=1)  # trilha de decisões da política
     # Gateway de modelos (OmniRoute local ou qualquer API compatível com a da OpenAI).
     gateway_url: str = ""  # ex.: http://127.0.0.1:20128/v1 — vazio: /chat desligado
     gateway_model: str = ""
@@ -122,6 +127,11 @@ class Settings(BaseSettings):
     @property
     def db_path(self) -> Path:
         return self.data_dir / "orion.db"
+
+    @property
+    def auth_db_path(self) -> Path:
+        """Fora do banco da memória: o backup vai para a nuvem e não leva o hash da senha."""
+        return self.data_dir / "auth.db"
 
     @property
     def effective_backup_dir(self) -> Path:

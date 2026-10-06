@@ -5,7 +5,7 @@ import pytest
 
 from orion.memory import MemoryStore
 from orion.memory.ops import Operations, next_run, parse_when
-from orion.memory.schema import DDL_V1
+from orion.memory.schema import DDL_V1, DDL_V2, SCHEMA_VERSION
 
 AGORA = datetime(2026, 10, 3, 12, 0).timestamp()
 
@@ -184,12 +184,14 @@ def _banco_v1(caminho):
     c.close()
 
 
-def test_banco_v1_sobe_para_v2_sem_perder_dados(tmp_path):
+def test_banco_v1_sobe_para_a_versao_atual_sem_perder_dados(tmp_path):
     caminho = tmp_path / "v1.db"
     _banco_v1(caminho)
     store = MemoryStore(caminho)
     try:
-        assert store.query("SELECT value FROM meta WHERE key='schema_version'")[0][0] == "2"
+        assert store.query("SELECT value FROM meta WHERE key='schema_version'")[0][0] == str(
+            SCHEMA_VERSION
+        )
         assert [m.text for m in store.history("s1")] == ["oi"]
         ops = Operations(store)
         ops.add_task("funciona depois da migração")
@@ -207,7 +209,9 @@ def test_backup_v1_e_aceito_e_banco_de_versao_futura_e_recusado(tmp_path):
     assert contagens["messages"] == 1 and "reminders" not in contagens  # v1: sem tabelas novas
     restaurado = MemoryStore.restore(antigo, tmp_path / "novo" / "orion.db")
     try:
-        assert restaurado.query("SELECT value FROM meta WHERE key='schema_version'")[0][0] == "2"
+        assert restaurado.query("SELECT value FROM meta WHERE key='schema_version'")[0][0] == str(
+            SCHEMA_VERSION
+        )
     finally:
         restaurado.close()
 
@@ -219,3 +223,37 @@ def test_backup_v1_e_aceito_e_banco_de_versao_futura_e_recusado(tmp_path):
     c.close()
     with pytest.raises(RuntimeError, match="só entende até"):
         MemoryStore(futuro)
+
+
+# ── trilha de auditoria (esquema v3) ──────────────────────────────────────────
+def test_banco_v2_sobe_para_v3_e_ganha_a_tabela_audit(tmp_path):
+    caminho = tmp_path / "v2.db"
+    c = sqlite3.connect(caminho)
+    c.executescript(DDL_V1 + DDL_V2)
+    c.execute("INSERT INTO meta VALUES ('schema_version', '2')")
+    c.commit()
+    c.close()
+    store = MemoryStore(caminho)
+    try:
+        assert store.query("SELECT value FROM meta WHERE key='schema_version'")[0][0] == "3"
+        assert Operations(store).audit_recent() == []
+    finally:
+        store.close()
+
+
+def test_audit_grava_filtra_e_poda(ops):
+    ops.audit_add({"session_id": "s1", "tool": "executar_comando", "action": "confirm",
+                   "risk": "exec", "reason": "fora da lista", "tainted": True,
+                   "args": {"cmd": "rm -rf x"}})  # fmt: skip
+    ops.audit_add({"session_id": "s1", "tool": "ler_arquivo", "action": "allow", "risk": "read"})
+    todos = ops.audit_recent()
+    assert [a["tool"] for a in todos] == ["ler_arquivo", "executar_comando"]  # mais novo primeiro
+    assert todos[1]["args"] == {"cmd": "rm -rf x"} and todos[1]["tainted"] == 1
+    assert [a["tool"] for a in ops.audit_recent(ferramenta="executar_comando")] == [
+        "executar_comando"
+    ]
+    assert len(ops.audit_recent(acao="allow")) == 1
+    assert ops.audit_recent(desde=AGORA + 1) == []
+    assert ops.audit_prune(dias=1) == 0
+    ops._s._clock = lambda: AGORA + 91 * 86400
+    assert ops.audit_prune(dias=90) == 2 and ops.audit_recent() == []

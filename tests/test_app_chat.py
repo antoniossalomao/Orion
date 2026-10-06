@@ -37,13 +37,13 @@ def test_chat_exige_token_e_valida_o_corpo(tmp_path):
 def test_chat_503_sem_gateway_e_health_informa(tmp_path):
     with cliente(tmp_path, gateway=False)[0] as c:
         assert c.post("/chat", json={"texto": "oi"}, headers=AUTH).status_code == 503
-        assert c.get("/health").json()["components"]["gateway"] is False
+        assert c.get("/health", headers=AUTH).json()["components"]["gateway"] is False
 
 
 def test_chat_em_streaming_no_formato_do_legado(tmp_path):
     c, gw = cliente(tmp_path, fala("Olá, Antônio."))
     with c:
-        assert c.get("/health").json()["components"]["gateway"] is True
+        assert c.get("/health", headers=AUTH).json()["components"]["gateway"] is True
         with c.stream(
             "POST", "/chat", json={"texto": "oi", "canal": "telegram"}, headers=AUTH
         ) as r:

@@ -29,7 +29,7 @@ AUTH = {"Authorization": f"Bearer {TOKEN}"}
 
 
 def test_health_sobe_e_reporta_componentes(client, settings):
-    r = client.get("/health")
+    r = client.get("/health", headers=AUTH)
     assert r.status_code == 200
     corpo = r.json()
     assert corpo["status"] == "ok" and corpo["version"] == __version__
@@ -75,7 +75,7 @@ def test_fluxo_completo_confirmar_pelo_canal_libera_a_chamada(client):
     assert fila[0]["args"] == {
         "cmd": "Remove-Item C:\\x -Recurse -Force"
     }  # quem aprova vê o comando
-    assert client.get("/health").json()["pending_approvals"] == 1
+    assert client.get("/health", headers=AUTH).json()["pending_approvals"] == 1
 
     r = client.post(f"/approvals/{d.approval_id}/decide", headers=AUTH, json={"approved": True})
     assert r.json() == {"id": d.approval_id, "status": "approved"}
@@ -192,18 +192,21 @@ def test_avisos_exigem_token_listam_e_confirmam_uma_vez(client):
     assert client.get("/notifications").status_code == 401
     assert client.post("/notifications/1/ack").status_code == 401
     a = ops.notify("lembrete", "Pagar boleto", ref="reminder:1")
-    assert client.get("/health").json()["pending_notifications"] == 1
+    assert client.get("/health", headers=AUTH).json()["pending_notifications"] == 1
     lista = client.get("/notifications", headers=AUTH).json()
     assert [(x["id"], x["text"]) for x in lista] == [(a, "Pagar boleto")]
     assert client.post(f"/notifications/{a}/ack", headers=AUTH).json() == {"ok": True}
     assert client.post(f"/notifications/{a}/ack", headers=AUTH).status_code == 404
     assert client.get("/notifications", headers=AUTH).json() == []
-    assert client.get("/health").json()["pending_notifications"] == 0
+    assert client.get("/health", headers=AUTH).json()["pending_notifications"] == 0
 
 
 def test_jobs_sobem_com_o_app_e_um_lembrete_vencido_vira_aviso(client):
     estado = client.app.state.orion
-    assert estado.jobs is not None and client.get("/health").json()["components"]["jobs"] is True
+    assert (
+        estado.jobs is not None
+        and client.get("/health", headers=AUTH).json()["components"]["jobs"] is True
+    )
     estado.ops.add_reminder("Pagar boleto", "2020-01-01T09:00:00")
     rel = client.portal.call(estado.jobs.tick)
     assert rel.lembretes == 1 and rel.erros == []
@@ -214,7 +217,7 @@ def test_jobs_desligados_por_configuracao(tmp_path):
     s = Settings(data_dir=tmp_path, admin_token=TOKEN, jobs_enabled=False, _env_file=None)
     with TestClient(create_app(s), base_url="http://127.0.0.1") as c:
         assert c.app.state.orion.jobs is None
-        assert c.get("/health").json()["components"]["jobs"] is False
+        assert c.get("/health", headers=AUTH).json()["components"]["jobs"] is False
 
 
 def test_host_de_fora_exige_token_de_admin(tmp_path):
@@ -277,3 +280,22 @@ def test_fila_de_aprovacoes_diz_quando_o_argumento_foi_cortado(client):
     )
     fila = {a["session_id"]: a for a in client.get("/approvals", headers=AUTH).json()}
     assert fila["s1"]["args_truncated"] is False and fila["s2"]["args_truncated"] is True
+
+
+def test_decisoes_da_politica_vao_para_a_tabela_audit_e_falha_de_gravacao_nega(client):
+    estado = client.app.state.orion
+    ctx = Context("sessao-audit")
+    estado.policy.evaluate(ToolCall("executar_comando", {"cmd": "Remove-Item x -Recurse"}), ctx)
+    estado.policy.evaluate(ToolCall("buscar_memoria", {"consulta": "oi"}), ctx)
+    registro = estado.ops.audit_recent(ferramenta="executar_comando")[0]
+    assert registro["action"] == "confirm" and registro["risk"] == "exec"
+    assert registro["session_id"] == "sessao-audit"
+
+    def quebrado(_):
+        raise OSError("disco cheio")
+
+    estado.ops.audit_add = quebrado  # type: ignore[method-assign]
+    leitura = estado.policy.evaluate(ToolCall("buscar_memoria", {"consulta": "oi"}), ctx)
+    escrita = estado.policy.evaluate(ToolCall("salvar_memoria", {"texto": "x"}), ctx)
+    assert leitura.action is Action.ALLOW  # leitura segue (regra 8)
+    assert escrita.action is Action.DENY and "audit" in escrita.reason  # o resto é fail-closed

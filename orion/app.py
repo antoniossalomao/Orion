@@ -14,8 +14,9 @@ from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Annotated, Any
+from urllib.parse import urlparse
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -24,6 +25,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from . import __version__
 from .agent import Agent, AgentEvent
+from .auth import AuthError, AuthService, LockedOut, NotConfigured, WeakPassword
 from .channels import TelegramChannel
 from .config import PROJECT_ROOT, Settings
 from .delegate import Delegator
@@ -63,20 +65,31 @@ class AppState:
     policy: PolicyEngine
     started_at: float
     ops: Operations
+    auth: AuthService
     agent: Agent | None = None  # None enquanto o gateway não está configurado
     jobs: JobRunner | None = None  # None com ORION_JOBS_ENABLED=false
     telegram: TelegramChannel | None = None  # None sem token, sem usuários ou sem gateway
 
 
-def build_policy(settings: Settings, approvals: ApprovalStore | None = None) -> PolicyEngine:
+def build_policy(
+    settings: Settings, approvals: ApprovalStore | None = None, ops: Operations | None = None
+) -> PolicyEngine:
+    """Com `ops`, cada decisão também vai para a tabela `audit` (`consultar_audit_log`); se a
+    gravação falhar, a política nega o que não for leitura (fail-closed, regra 8)."""
     guard = PathGuard(
         protected_roots=(PROJECT_ROOT,),
         safe_roots=(*default_safe_roots(), *settings.extra_safe_roots),
     )
+
+    def registrar(evento: dict[str, Any]) -> None:
+        audit_log.info("tool_decision", extra={"audit": evento})
+        if ops is not None:
+            ops.audit_add(evento)
+
     return PolicyEngine(
         path_guard=guard,
         approvals=approvals or ApprovalStore(ttl_s=settings.approval_ttl_s),
-        audit=lambda evento: audit_log.info("tool_decision", extra={"audit": evento}),
+        audit=registrar,
     )
 
 
@@ -87,18 +100,51 @@ def get_state(request: Request) -> AppState:
 State = Annotated[AppState, Depends(get_state)]
 
 
-def require_admin(state: State, authorization: Annotated[str | None, Header()] = None) -> None:
-    """Token de admin até o login da fase 5. Não é enviado por navegador de
-    outra origem sem preflight (CORS está desligado), então também barra CSRF."""
-    esperado = state.settings.admin_token
-    if not esperado:
-        raise HTTPException(503, "admin_token não configurado (ORION_ADMIN_TOKEN)")
-    enviado = (authorization or "").removeprefix("Bearer ").strip()
-    if not hmac.compare_digest(enviado.encode(), esperado.encode()):
-        raise HTTPException(401, "token inválido")
+COOKIE_SESSAO = "orion_session"
+_METODOS_SEGUROS = {"GET", "HEAD", "OPTIONS"}
 
 
-Admin = Depends(require_admin)
+def _mesma_origem(request: Request) -> bool:
+    """Defesa extra contra CSRF para quem entra por cookie (o principal é SameSite=Strict):
+    um POST vindo de outro site traz `Origin` diferente do `Host` e é recusado."""
+    origem = request.headers.get("origin")
+    if origem:
+        return urlparse(origem).netloc == request.headers.get("host", "")
+    return request.headers.get("sec-fetch-site") in (None, "same-origin", "none")
+
+
+def quem_e(request: Request, state: AppState, authorization: str | None) -> str | None:
+    """ "token" (credencial de máquina), "sessao" (login com senha) ou None. Cabeçalho
+    `Authorization` presente e errado **não** cai para o cookie: é erro, não alternativa."""
+    if authorization is not None:
+        esperado = state.settings.admin_token
+        enviado = authorization.removeprefix("Bearer ").strip()
+        if esperado and hmac.compare_digest(enviado.encode(), esperado.encode()):
+            return "token"
+        return None
+    if state.auth.validate(request.cookies.get(COOKIE_SESSAO)):
+        return "sessao"
+    return None
+
+
+def require_auth(
+    request: Request, state: State, authorization: Annotated[str | None, Header()] = None
+) -> str:
+    """Toda rota da API passa por aqui: token de admin (`Authorization: Bearer`) ou sessão do
+    login (cookie httpOnly, SameSite=Strict). Sem nenhum dos dois, a API fica desligada."""
+    if not state.settings.admin_token and not state.auth.has_password():
+        raise HTTPException(
+            503, "autenticação não configurada (ORION_ADMIN_TOKEN ou `orion set-password`)"
+        )
+    quem = quem_e(request, state, authorization)
+    if quem is None:
+        raise HTTPException(401, "login necessário")
+    if quem == "sessao" and request.method not in _METODOS_SEGUROS and not _mesma_origem(request):
+        raise HTTPException(403, "origem não permitida")
+    return quem
+
+
+Admin = Depends(require_auth)
 
 
 def _alguma_cli() -> bool:
@@ -199,6 +245,15 @@ async def _stream(eventos: AsyncIterator[AgentEvent]) -> AsyncIterator[str]:
         yield "data: [DONE]\n\n"
 
 
+class Login(BaseModel):
+    senha: str = Field(min_length=1, max_length=256)
+
+
+class TrocaDeSenha(BaseModel):
+    senha_atual: str = Field(default="", max_length=256)
+    nova: str = Field(min_length=1, max_length=256)
+
+
 class Decisao(BaseModel):
     approved: bool
     actor: str = "antonio"
@@ -218,7 +273,10 @@ def create_app(
         settings.data_dir.mkdir(parents=True, exist_ok=True)
         memory = (memory_factory or memory_from_settings)(settings)
         ops = Operations(memory)
-        policy = build_policy(settings)
+        policy = build_policy(settings, ops=ops)
+        auth = AuthService(
+            settings.auth_db_path, user=settings.auth_user, ttl_s=settings.session_ttl_h * 3600
+        )
         gateway = (gateway_factory or gateway_from_settings)(settings)
         agent = None
         if gateway is not None:
@@ -245,6 +303,7 @@ def create_app(
                 backup_keep=settings.backup_keep,
                 vault_dir=settings.vault_dir,
                 consolidator=consolidador,
+                audit_days=settings.audit_retention_days,
             )
             tarefa_jobs = asyncio.create_task(jobs.run_forever(settings.jobs_tick_s))
         telegram = (telegram_factory or telegram_from_settings)(
@@ -252,7 +311,7 @@ def create_app(
         )
         tarefa_telegram = asyncio.create_task(telegram.run()) if telegram is not None else None
         app.state.orion = AppState(
-            settings, memory, policy, time.time(), ops, agent, jobs, telegram
+            settings, memory, policy, time.time(), ops, auth, agent, jobs, telegram
         )
         try:
             yield
@@ -266,9 +325,18 @@ def create_app(
                 await telegram.aclose()
             if gateway is not None and hasattr(gateway, "aclose"):
                 await gateway.aclose()
+            auth.close()
             memory.close()
 
-    app = FastAPI(title="Orion", version=__version__, lifespan=lifespan)
+    # sem /docs, /redoc nem /openapi.json: o mapa da API não é público (regra 17)
+    app = FastAPI(
+        title="Orion",
+        version=__version__,
+        lifespan=lifespan,
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
+    )
     # Host fora da lista (DNS rebinding a partir de uma página web) é recusado.
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts)
 
@@ -284,14 +352,19 @@ def create_app(
         return resposta
 
     @app.get("/health")
-    def health(state: State) -> dict[str, Any]:
+    def health(
+        request: Request, state: State, authorization: Annotated[str | None, Header()] = None
+    ) -> dict[str, Any]:
+        """Sem login só o mínimo (serve de sonda); os detalhes pedem sessão ou token."""
         try:
             memoria = "ok" if state.memory.ping() else "erro"
         except Exception:  # noqa: BLE001 — /health nunca pode levantar
             memoria = "erro"
+        basico = {"status": "ok" if memoria == "ok" else "degradado", "version": __version__}
+        if quem_e(request, state, authorization) is None:
+            return basico
         return {
-            "status": "ok" if memoria == "ok" else "degradado",
-            "version": __version__,
+            **basico,
             "uptime_s": round(time.time() - state.started_at, 1),
             "components": {
                 "memory": memoria,
@@ -303,6 +376,75 @@ def create_app(
             "pending_approvals": len(state.policy.approvals.pending()),
             "pending_notifications": len(state.ops.pending_notifications(limit=1000)),
         }
+
+    # ── login ─────────────────────────────────────────────────────────────
+    def _cookie_seguro(request: Request, state: AppState) -> bool:
+        return state.settings.cookie_secure or request.url.scheme == "https"
+
+    def _abrir_sessao(response: Response, request: Request, state: AppState, token: str) -> None:
+        response.set_cookie(
+            COOKIE_SESSAO,
+            token,
+            max_age=state.settings.session_ttl_h * 3600,
+            httponly=True,
+            samesite="strict",
+            secure=_cookie_seguro(request, state),
+            path="/",
+        )
+
+    @app.get("/auth/status")
+    def auth_status(
+        request: Request, state: State, authorization: Annotated[str | None, Header()] = None
+    ) -> dict[str, bool]:
+        """Público: o front decide entre mostrar o login ou o app."""
+        return {
+            "configured": state.auth.has_password(),
+            "authenticated": quem_e(request, state, authorization) is not None,
+            "token_auth": bool(state.settings.admin_token),
+        }
+
+    @app.post("/auth/login")
+    def login(corpo: Login, request: Request, response: Response, state: State) -> dict[str, bool]:
+        if not _mesma_origem(request):
+            raise HTTPException(403, "origem não permitida")
+        cliente = request.client.host if request.client else "?"
+        try:
+            token = state.auth.login(corpo.senha, cliente)
+        except LockedOut as e:
+            raise HTTPException(429, str(e), headers={"Retry-After": str(e.retry_after)}) from None
+        except NotConfigured as e:
+            raise HTTPException(503, str(e)) from None
+        except AuthError:
+            audit_log.warning("login_falhou", extra={"audit": {"cliente": cliente}})
+            raise HTTPException(401, "senha incorreta") from None
+        _abrir_sessao(response, request, state, token)
+        return {"ok": True}
+
+    @app.post("/auth/logout")
+    def logout(request: Request, response: Response, state: State) -> dict[str, bool]:
+        state.auth.logout(request.cookies.get(COOKIE_SESSAO))
+        response.delete_cookie(COOKIE_SESSAO, path="/")
+        return {"ok": True}
+
+    @app.post("/auth/password")
+    def trocar_senha(
+        corpo: TrocaDeSenha,
+        request: Request,
+        response: Response,
+        state: State,
+        quem: Annotated[str, Depends(require_auth)],
+    ) -> dict[str, bool]:
+        """Troca (ou define a primeira) senha. Revoga todas as sessões e abre uma nova para
+        quem trocou. Com senha já existente, pede a atual mesmo com o token de admin."""
+        if state.auth.has_password() and not state.auth.check_password(corpo.senha_atual):
+            raise HTTPException(401, "senha atual incorreta")
+        try:
+            state.auth.set_password(corpo.nova)
+        except WeakPassword as e:
+            raise HTTPException(422, str(e)) from None
+        if quem == "sessao":
+            _abrir_sessao(response, request, state, state.auth.login(corpo.nova, "troca-de-senha"))
+        return {"ok": True}
 
     def _agente(state: AppState) -> Agent:
         if state.agent is None:

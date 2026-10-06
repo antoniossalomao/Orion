@@ -346,6 +346,67 @@ class Operations:
                 > 0
             )
 
+    # ── trilha de auditoria (decisões da política; args já redigidos) ──────
+    def audit_add(self, evento: dict[str, Any]) -> int:
+        """Grava uma decisão da política. Erro propaga: a política nega o que não for leitura."""
+        with self._s.transaction() as c:
+            return int(
+                c.execute(
+                    "INSERT INTO audit(ts, session_id, tool, action, risk, reason, tainted, args)"
+                    " VALUES (?,?,?,?,?,?,?,?)",
+                    (
+                        self._now(),
+                        evento.get("session_id"),
+                        str(evento.get("tool", "")),
+                        str(evento.get("action", "")),
+                        evento.get("risk"),
+                        str(evento.get("reason") or ""),
+                        1 if evento.get("tainted") else 0,
+                        json.dumps(evento.get("args", {}), ensure_ascii=False, default=str),
+                    ),
+                ).lastrowid
+                or 0
+            )
+
+    def audit_recent(
+        self,
+        limite: int = 50,
+        *,
+        ferramenta: str | None = None,
+        acao: str | None = None,
+        desde: float | None = None,
+    ) -> list[dict[str, Any]]:
+        """Decisões mais recentes primeiro; `args` volta como objeto."""
+        filtros, params = [], []
+        for coluna, valor in (("tool", ferramenta), ("action", acao)):
+            if valor:
+                filtros.append(f"{coluna}=?")
+                params.append(valor)
+        if desde is not None:
+            filtros.append("ts>=?")
+            params.append(desde)
+        onde = f" WHERE {' AND '.join(filtros)}" if filtros else ""
+        rows = self._s.query(
+            f"SELECT * FROM audit{onde} ORDER BY id DESC LIMIT ?",
+            (*params, max(1, min(int(limite), 500))),
+        )
+        saida = []
+        for r in rows:
+            d = dict(r)
+            try:
+                d["args"] = json.loads(d["args"])
+            except ValueError:
+                d["args"] = {}
+            saida.append(d)
+        return saida
+
+    def audit_prune(self, dias: int = 90) -> int:
+        """Apaga decisões mais velhas que `dias`; devolve quantas."""
+        with self._s.transaction() as c:
+            return c.execute(
+                "DELETE FROM audit WHERE ts < ?", (self._now() - dias * 86400,)
+            ).rowcount
+
     # ── internos (tabela e colunas são constantes deste módulo, nunca entrada) ──
     def _one(self, tabela: str, rid: int) -> dict[str, Any]:
         rows = self._s.query(f"SELECT * FROM {tabela} WHERE id=?", (rid,))
