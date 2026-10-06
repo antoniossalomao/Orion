@@ -1,8 +1,9 @@
 """Gera o ícone do Orion (assets/orion.ico e assets/orion.png) com Pillow.
 
 Minimalista: a constelação de Órion (ombros, Cinturão e pés, ligados por fios finíssimos) num
-quadrado arredondado quase preto; Betelgeuse é o único toque de cor. Sem brilho nem raios. Cada tamanho é desenhado do zero (não
-reduzido do maior): nos pequenos os pontos ficam proporcionalmente maiores para não sumirem.
+quadrado arredondado quase preto; Betelgeuse é o único toque de cor. Sem brilho nem raios.
+Cada tamanho é desenhado do zero (não reduzido do maior): nos pequenos os pontos ficam
+proporcionalmente maiores para não sumirem.
 
     uv run python scripts/gerar_icone.py
 """

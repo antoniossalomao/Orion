@@ -305,7 +305,7 @@ def create_app(
         )
         if settings.seed_default_password and auth.seed_default():
             log.warning(
-                "SENHA DE FÁBRICA ativa (usuário '%s'): troque em Configurações antes de usar para valer",
+                "SENHA DE FÁBRICA ativa (usuário '%s'): troque em Configurações",
                 settings.auth_user,
             )
         if settings.hosts_de_fora and auth.uses_default_password():
