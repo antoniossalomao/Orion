@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     gateway_api_key: str = ""  # ou no cofre do SO (orion.secrets)
     allowed_hosts: list[str] = Field(
         default_factory=lambda: ["127.0.0.1", "localhost"]
-    )  # + Tailscale (só com admin_token: ver `_acesso_de_fora_exige_token`)
+    )  # + Tailscale: só sobe com senha (`orion set-password`) ou token de admin (regra 17)
     # `orion-desktop` v0 (executar_comando, ler_arquivo, listar_arquivos): desligado por padrão
     desktop_tools: bool = False
     # Ferramentas de web (buscar_url, consultar_clima, pesquisar_com_ia): desligadas por padrão,
@@ -55,6 +55,10 @@ class Settings(BaseSettings):
     # Servidores MCP (fase 4): sobem do mcp.json (padrão: <dados>/mcp.json), só com gateway.
     mcp_enabled: bool = True
     mcp_config: Path | None = None
+    # Voz no Telegram: transcrição por API compatível com a da OpenAI (Whisper no Groq, grátis).
+    transcribe_api_key: str = ""  # ou no cofre do SO (ORION_TRANSCRIBE_API_KEY); vazio: sem voz
+    transcribe_url: str = "https://api.groq.com/openai/v1"
+    transcribe_model: str = "whisper-large-v3-turbo"
     # Jobs em segundo plano (lembretes, agendamentos, embeddings, vault, backup, consolidação).
     jobs_enabled: bool = True
     jobs_tick_s: float = Field(default=30.0, ge=1.0)
@@ -113,18 +117,6 @@ class Settings(BaseSettings):
         return self
 
     @model_validator(mode="after")
-    def _acesso_de_fora_exige_token(self) -> Settings:
-        """Tailscale (ou qualquer host que não seja local) só depois de haver login: sem token
-        as rotas que mudam estado ficam trancadas, mas a exposição em si já é recusada."""
-        de_fora = [h for h in self.allowed_hosts if h not in _LOCAIS]
-        if de_fora and not self.admin_token:
-            raise ValueError(
-                f"host {', '.join(de_fora)} em ORION_ALLOWED_HOSTS exige ORION_ADMIN_TOKEN "
-                "(regra 17 do ORION_REGRAS.md: acesso de fora só com login)"
-            )
-        return self
-
-    @model_validator(mode="after")
     def _telegram_nao_sobe_aberto(self) -> Settings:
         if self.telegram_token and not self.telegram_allowed_users:
             raise ValueError(
@@ -132,6 +124,11 @@ class Settings(BaseSettings):
                 "sem lista de usuários o bot não sobe (default-deny)"
             )
         return self
+
+    @property
+    def hosts_de_fora(self) -> list[str]:
+        """Hosts permitidos que não são locais (Tailscale, curinga): só com login (regra 17)."""
+        return [h for h in self.allowed_hosts if h not in _LOCAIS]
 
     @property
     def db_path(self) -> Path:

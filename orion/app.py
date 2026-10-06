@@ -42,6 +42,7 @@ from .policy.paths import default_safe_roots
 from .secrets import get_secret
 from .tools import default_registry
 from .tools.processes import ProcessManager
+from .transcribe import Transcriber
 
 FRONT_DIR = PROJECT_ROOT / "Orion_Core" / "Front_end_Orion"
 
@@ -178,7 +179,13 @@ def telegram_from_settings(
     if agent is None:
         log.error("telegram desligado: configure o gateway de modelos (ORION_GATEWAY_URL/MODEL)")
         return None
+    chave_voz = settings.transcribe_api_key or get_secret("ORION_TRANSCRIBE_API_KEY")
     return TelegramChannel(
+        transcriber=Transcriber(
+            chave_voz, base_url=settings.transcribe_url, model=settings.transcribe_model
+        )
+        if chave_voz
+        else None,
         token=token,
         allowed_users=settings.telegram_allowed_users,
         agent=agent,
@@ -292,6 +299,14 @@ def create_app(
         auth = AuthService(
             settings.auth_db_path, user=settings.auth_user, ttl_s=settings.session_ttl_h * 3600
         )
+        if settings.hosts_de_fora and not (settings.admin_token or auth.has_password()):
+            auth.close()
+            memory.close()
+            raise RuntimeError(
+                f"host {', '.join(settings.hosts_de_fora)} em ORION_ALLOWED_HOSTS exige login: "
+                "defina a senha (`orion set-password`) ou ORION_ADMIN_TOKEN "
+                "(regra 17 do ORION_REGRAS.md: acesso de fora só com login)"
+            )
         gateway = (gateway_factory or gateway_from_settings)(settings)
         agent = None
         mcp = None

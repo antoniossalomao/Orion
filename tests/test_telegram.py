@@ -31,9 +31,17 @@ class FakeTelegram:
         self.lotes: list[list[dict]] = []
         self.falhas: dict[str, list] = {}  # método -> fila de (status, descrição) ou "rede"
         self._id = 100
+        self.arquivos: dict[str, bytes] = {}  # file_id -> conteúdo (getFile + download)
 
     async def __call__(self, req: httpx.Request) -> httpx.Response:
         assert f"/bot{TOKEN}/" in req.url.path
+        if req.url.path.startswith("/file/"):  # download: /file/bot<TOKEN>/<file_path>
+            caminho = req.url.path.split(f"/bot{TOKEN}/", 1)[1]
+            self.chamadas.append(("download", {"file_path": caminho}))
+            for fid, conteudo in self.arquivos.items():
+                if caminho == f"arquivos/{fid}":
+                    return httpx.Response(200, content=conteudo)
+            return httpx.Response(404)
         metodo = req.url.path.rsplit("/", 1)[-1]
         corpo = json.loads(req.content) if req.content else {}
         self.chamadas.append((metodo, corpo))
@@ -43,6 +51,20 @@ class FakeTelegram:
                 raise httpx.ConnectError(f"falhou em {req.url}")
             status, descricao = falha
             return httpx.Response(status, json={"ok": False, "description": descricao})
+        if metodo == "getFile":
+            fid = corpo["file_id"]
+            if fid not in self.arquivos:
+                return httpx.Response(400, json={"ok": False, "description": "file not found"})
+            return httpx.Response(
+                200,
+                json={
+                    "ok": True,
+                    "result": {
+                        "file_path": f"arquivos/{fid}",
+                        "file_size": len(self.arquivos[fid]),
+                    },
+                },
+            )
         if metodo == "getMe":
             return httpx.Response(200, json={"ok": True, "result": {"username": "orion_bot"}})
         if metodo == "getUpdates":
@@ -189,13 +211,147 @@ async def test_comandos_start_ajuda_e_nova(store, policy, tg):
     assert store.get_session(antes.id) is not None and "arquivada" in tg.textos()[-1]
 
 
-async def test_mensagem_sem_texto_recebe_aviso_e_nao_chama_o_agente(store, policy, tg):
+async def test_mensagem_de_tipo_desconhecido_recebe_aviso_e_nao_chama_o_agente(store, policy, tg):
     canal, gw, _ = montar(store, policy, tg)
-    foto = msg("x")
-    del foto["message"]["text"]
-    foto["message"]["photo"] = [{"file_id": "f"}]
-    await canal.handle_update(foto)
-    assert tg.textos() == ["Por enquanto só entendo texto."] and gw.chamadas == []
+    figurinha = msg("x")
+    del figurinha["message"]["text"]
+    figurinha["message"]["sticker"] = {"file_id": "s"}
+    await canal.handle_update(figurinha)
+    assert tg.textos() == ["Entendo texto, voz e foto por aqui."] and gw.chamadas == []
+
+
+# ── voz ───────────────────────────────────────────────────────────────────
+def msg_voz(file_id="voz1.ogg", duracao=5, uid=USER):
+    m = msg("x", uid=uid)
+    del m["message"]["text"]
+    m["message"]["voice"] = {"file_id": file_id, "duration": duracao, "mime_type": "audio/ogg"}
+    return m
+
+
+def transcritor(tg_voz, texto="marque reunião amanhã às 9", status=200):
+    """Transcritor real (`orion.transcribe`) falando com uma API de mentira."""
+    from orion.transcribe import Transcriber
+
+    vistos = []
+
+    def api(req: httpx.Request):
+        vistos.append(req)
+        if status != 200:
+            return httpx.Response(status, text="chave KEY-SECRETA recusada")
+        return httpx.Response(200, json={"text": texto})
+
+    t = Transcriber("KEY-SECRETA", client=httpx.AsyncClient(transport=httpx.MockTransport(api)))
+    return t, vistos
+
+
+async def test_voz_e_transcrita_mostrada_e_so_entao_vai_ao_agente(store, policy, tg):
+    t, vistos = transcritor(tg)
+    tg.arquivos["voz1.ogg"] = b"OggS-audio"
+    canal, gw, _ = montar(store, policy, tg, fala("Anotado."), transcriber=t)
+    await canal.handle_update(msg_voz())
+    assert tg.textos() == ["🎙️ Entendi: marque reunião amanhã às 9", "Anotado."]
+    assert gw.chamadas[0][-1] == {"role": "user", "content": "marque reunião amanhã às 9"}
+    (req,) = vistos
+    assert req.headers["authorization"] == "Bearer KEY-SECRETA" and "KEY-SECRETA" not in str(
+        req.url
+    )
+    assert b"OggS-audio" in req.content and b"whisper-large-v3-turbo" in req.content
+    assert b'name="language"' in req.content and b"pt" in req.content
+
+
+async def test_voz_sem_transcritor_longa_demais_ou_com_falha_avisa_sem_chamar_o_agente(
+    store, policy, tg
+):
+    canal, gw, _ = montar(store, policy, tg)
+    await canal.handle_update(msg_voz())
+    assert "ORION_TRANSCRIBE_API_KEY" in tg.textos()[0]
+
+    t, _ = transcritor(tg)
+    tg.arquivos["voz1.ogg"] = b"x"
+    canal, gw, _ = montar(store, policy, tg, transcriber=t)
+    await canal.handle_update(msg_voz(duracao=301))
+    assert "longo demais" in tg.textos()[-1]
+
+    ruim, _ = transcritor(tg, status=429)
+    canal, gw, _ = montar(store, policy, tg, transcriber=ruim)
+    await canal.handle_update(msg_voz())
+    assert "Não consegui entender o áudio" in tg.textos()[-1] and "HTTP 429" in tg.textos()[-1]
+    assert "KEY-SECRETA" not in " ".join(tg.textos())  # nem a chave nem a URL vazam
+    assert gw.chamadas == []
+
+
+async def test_voz_de_usuario_estranho_nem_baixa_o_arquivo(store, policy, tg):
+    t, vistos = transcritor(tg)
+    canal, _, _ = montar(store, policy, tg, transcriber=t)
+    await canal.handle_update(msg_voz(uid=OUTRO))
+    assert tg.chamadas == [] and vistos == []
+
+
+async def test_voz_que_o_telegram_nao_acha_vira_aviso(store, policy, tg):
+    t, _ = transcritor(tg)
+    canal, gw, _ = montar(store, policy, tg, transcriber=t)
+    await canal.handle_update(msg_voz("voz-inexistente.ogg"))
+    assert "Não consegui entender o áudio" in tg.textos()[-1] and gw.chamadas == []
+
+
+# ── foto ──────────────────────────────────────────────────────────────────
+def msg_foto(tamanhos, legenda=None):
+    m = msg("x")
+    del m["message"]["text"]
+    m["message"]["photo"] = tamanhos
+    if legenda:
+        m["message"]["caption"] = legenda
+    return m
+
+
+async def test_foto_vai_ao_modelo_como_imagem_so_naquele_turno(store, policy, tg):
+    tg.arquivos["pequena.jpg"], tg.arquivos["grande.png"] = b"JPEGPEQ", b"PNGGRANDE"
+    canal, gw, _ = montar(store, policy, tg, fala("É um gato."), fala("Segue o papo."))
+    await canal.handle_update(
+        msg_foto(
+            [{"file_id": "pequena.jpg", "file_size": 7}, {"file_id": "grande.png", "file_size": 9}],
+            legenda="o que é isso?",
+        )
+    )
+    assert tg.textos() == ["É um gato."]
+    ultima = gw.chamadas[0][-1]
+    assert ultima["role"] == "user" and ultima["content"][0] == {
+        "type": "text",
+        "text": ultima["content"][0]["text"],
+    }
+    assert ultima["content"][0]["text"].startswith("o que é isso?")
+    import base64
+
+    assert (
+        ultima["content"][1]["image_url"]["url"]
+        == "data:image/png;base64," + base64.b64encode(b"PNGGRANDE").decode()
+    )
+    # o histórico guarda o aviso, nunca a imagem
+    guardado = store.history(store.active_session("telegram").id)[0].text
+    assert "imagem" in guardado and "PNG" not in guardado
+    await canal.handle_update(msg("e agora?"))
+    assert gw.chamadas[1][-1] == {"role": "user", "content": "e agora?"}  # a imagem não volta
+    assert all(isinstance(m["content"], str) for m in gw.chamadas[1])
+
+
+async def test_foto_sem_legenda_pergunta_o_que_ve_e_foto_grande_escolhe_o_menor(store, policy, tg):
+    tg.arquivos["a.jpg"], tg.arquivos["b.jpg"] = b"A", b"B" * 10
+    canal, gw, _ = montar(store, policy, tg, fala("ok"))
+    await canal.handle_update(
+        msg_foto(
+            [{"file_id": "a.jpg", "file_size": 1}, {"file_id": "b.jpg", "file_size": 50_000_000}]
+        )
+    )
+    assert gw.chamadas[0][-1]["content"][0]["text"].startswith("O que você vê nesta imagem?")
+    assert ("download", {"file_path": "arquivos/a.jpg"}) in tg.chamadas  # a de 50 MB nem é baixada
+
+
+async def test_foto_que_nao_baixa_avisa_sem_chamar_o_agente(store, policy, tg):
+    canal, gw, _ = montar(store, policy, tg)
+    await canal.handle_update(msg_foto([{"file_id": "some.jpg", "file_size": 1}]))
+    assert "Não consegui baixar a foto" in tg.textos()[-1] and gw.chamadas == []
+    await canal.handle_update(msg_foto([{"width": 1}]))
+    assert tg.textos()[-1] == "Não consegui ler essa foto."
 
 
 async def test_resposta_longa_e_dividida_sem_passar_do_limite(store, policy, tg):

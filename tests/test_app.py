@@ -220,16 +220,32 @@ def test_jobs_desligados_por_configuracao(tmp_path):
         assert c.get("/health", headers=AUTH).json()["components"]["jobs"] is False
 
 
-def test_host_de_fora_exige_token_de_admin(tmp_path):
+def test_host_de_fora_so_sobe_com_login_senha_ou_token(tmp_path):
     tailnet = ["127.0.0.1", "localhost", "orion.tail1234.ts.net"]
-    with pytest.raises(ValidationError, match="ORION_ADMIN_TOKEN"):
-        Settings(allowed_hosts=tailnet, _env_file=None)
-    with pytest.raises(ValidationError, match="ORION_ADMIN_TOKEN"):
-        Settings(allowed_hosts=["*"], _env_file=None)  # curinga desliga a proteção de host
-    assert (
-        Settings(allowed_hosts=tailnet, admin_token=TOKEN, _env_file=None).allowed_hosts == tailnet
-    )
-    assert Settings(_env_file=None).allowed_hosts == ["127.0.0.1", "localhost"]  # padrão: sem token
+    assert Settings(_env_file=None).hosts_de_fora == []
+    assert Settings(allowed_hosts=["*"], _env_file=None).hosts_de_fora == ["*"]
+
+    def sobe(nome, **kw):
+        s = Settings(
+            data_dir=tmp_path / nome,
+            allowed_hosts=tailnet,
+            jobs_enabled=False,
+            _env_file=None,
+            **kw,
+        )
+        return TestClient(create_app(s), base_url="http://orion.tail1234.ts.net")
+
+    with pytest.raises(RuntimeError, match="exige login"):  # nem senha nem token: recusa subir
+        with sobe("a"):
+            pass
+    with sobe("b", admin_token=TOKEN) as c:  # token de máquina basta
+        assert c.get("/health").status_code == 200
+    from orion.auth import AuthService
+
+    (tmp_path / "c").mkdir()
+    AuthService(tmp_path / "c" / "auth.db").set_password("uma-senha-bem-longa-123")  # ou a senha
+    with sobe("c") as c:
+        assert c.get("/auth/status").json()["configured"] is True
 
 
 def test_embeddings_so_com_chave_e_o_modelo_vem_da_configuracao(tmp_path, monkeypatch):
