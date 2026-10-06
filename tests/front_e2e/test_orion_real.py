@@ -164,6 +164,19 @@ def test_login_conversa_e_aprovacao_ponta_a_ponta(navegador, orion_real, tmp_pat
         ]
         bd.close()
         assert decisoes == ["confirm", "allow"]
+
+        # o painel único mostra o que aconteceu de verdade: o gateway usado, a política e as CLIs
+        page.keyboard.press("Alt+6")
+        expect(page.locator("html")).to_have_attribute("data-view", "painel")
+        modelos = page.locator('#painel-corpo [data-endpoint="gateway"]')
+        expect(modelos).to_contain_text("modelo-falso", timeout=15000)
+        expect(modelos).to_contain_text("Funcionando")
+        politica = page.locator('#painel-corpo [data-id="decisoes"]')
+        expect(politica).to_contain_text("1 pediu aval")
+        expect(politica.locator(".painel-recentes")).to_contain_text("executar_comando")
+        expect(page.locator('#painel-corpo [data-id="aprovacoes"]')).to_contain_text(
+            "Nenhuma ação esperando aval."
+        )
         assert erros == []
     finally:
         ctx.close()

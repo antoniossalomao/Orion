@@ -526,6 +526,125 @@ def create_app() -> FastAPI:
 
         return StreamingResponse(gerar(), media_type="text/event-stream")
 
+    @app.get("/painel")
+    def painel(
+        authorization: str | None = Header(default=None),
+        orion_session: str | None = Cookie(default=None),
+    ) -> dict[str, Any]:
+        """Painel único (orion.painel) com um cenário que mostra quase tudo: um endpoint em
+        quarentena por cota, uma CLI esgotada, uma não instalada, uma aprovação, decisões."""
+        _auth(authorization, orion_session)
+        agora = time.time()
+        pendentes = [k for k, v in ESTADO["aprovacoes"].items() if v["status"] == "pending"]
+        return {
+            "gerado_em": agora,
+            "uptime_s": 7260,
+            "modelos": {
+                "configurado": True,
+                "endpoints": [
+                    {
+                        "nome": "omniroute",
+                        "modelo": "gemini-2.5-flash",
+                        "chamadas": 40,
+                        "ok": 38,
+                        "falhas": 2,
+                        "limitada": 0,
+                        "pulos": 0,
+                        "quarentena_s": 0,
+                        "ultimo_ok": agora - 90,
+                        "ultimo_erro": "HTTP 502",
+                    },
+                    {
+                        "nome": "reserva",
+                        "modelo": "llama-3.3-70b",
+                        "chamadas": 6,
+                        "ok": 3,
+                        "falhas": 3,
+                        "limitada": 3,
+                        "pulos": 4,
+                        "quarentena_s": 140,
+                        "ultimo_ok": agora - 900,
+                        "ultimo_erro": "HTTP 429",
+                    },
+                ],
+            },
+            "clis": [
+                {
+                    "nome": "claude",
+                    "instalada": True,
+                    "usadas_hoje": 4,
+                    "limite_diario": 20,
+                    "restante": 16,
+                },
+                {
+                    "nome": "gemini",
+                    "instalada": True,
+                    "usadas_hoje": 20,
+                    "limite_diario": 20,
+                    "restante": 0,
+                },
+                {
+                    "nome": "codex",
+                    "instalada": False,
+                    "usadas_hoje": 0,
+                    "limite_diario": 20,
+                    "restante": 20,
+                },
+            ],
+            "aprovacoes": {
+                "pendentes": len(pendentes),
+                "itens": [
+                    {
+                        "id": k,
+                        "ferramenta": "executar_comando",
+                        "motivo": "execução fora da lista de leitura segura",
+                        "idade_s": 30,
+                        "expira_em_s": 570,
+                    }
+                    for k in pendentes
+                ],
+            },
+            "decisoes": {
+                "janela_h": 24,
+                "total": 12,
+                "truncado": False,
+                "por_acao": {"allow": 9, "confirm": 2, "deny": 1},
+                "mais_usadas": [
+                    {"ferramenta": "buscar_memoria", "n": 6},
+                    {"ferramenta": "ler_arquivo", "n": 3},
+                ],
+                "recentes": [
+                    {
+                        "ts": agora - 60,
+                        "ferramenta": "executar_comando",
+                        "acao": "confirm",
+                        "risco": "exec",
+                        "motivo": "execução: pede confirmação",
+                    },
+                    {
+                        "ts": agora - 600,
+                        "ferramenta": "ferramenta_x",
+                        "acao": "deny",
+                        "risco": None,
+                        "motivo": "ferramenta sem classe de risco",
+                    },
+                    {
+                        "ts": agora - 900,
+                        "ferramenta": "buscar_memoria",
+                        "acao": "allow",
+                        "risco": "read",
+                        "motivo": "",
+                    },
+                ],
+            },
+            "avisos": {"pendentes": 2},
+            "jobs": {"ativo": True, "ultima_rodada": agora - 20, "erros": []},
+            "memoria": {"ok": True, "vetores": True},
+            "canais": {"telegram": True},
+            "ferramentas": 41,
+            "mcp": {"google": "ok (12 ferramentas)", "web": "falhou: TimeoutError"},
+        }
+
     @app.get("/approvals")
     def aprovacoes(
         authorization: str | None = Header(default=None),

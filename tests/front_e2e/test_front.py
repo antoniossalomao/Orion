@@ -10,8 +10,8 @@ from playwright.sync_api import expect
 
 from .conftest import AXE, SENHA, TOKEN
 
-ROTAS = ["", "#/chat", "#/memoria", "#/integracoes", "#/config"]
-VIEWS = ["home", "chat", "memoria", "integracoes", "config"]
+ROTAS = ["", "#/chat", "#/memoria", "#/integracoes", "#/config", "#/painel"]
+VIEWS = ["home", "chat", "memoria", "integracoes", "config", "painel"]
 TEMAS = ["noite", "grafite", "contraste"]
 
 
@@ -61,7 +61,7 @@ def test_navegacao_por_hash_botao_voltar_e_views_ocultas_inertes(abrir):
             "aria-current", "page"
         )
     page.go_back()
-    expect(page.locator("html")).to_have_attribute("data-view", "integracoes")
+    expect(page.locator("html")).to_have_attribute("data-view", VIEWS[-2])
 
 
 def test_deep_link_abre_direto_na_tela(abrir):
@@ -921,6 +921,105 @@ def test_integracoes_listam_estado_real_e_acao_de_tts(abrir):
     expect(page.locator('.integ-card[data-id="telegram"] .integ-status')).to_contain_text(
         "bot rodando"
     )
+
+
+def test_painel_mostra_alertas_modelos_clis_aprovacoes_e_politica(abrir):
+    page = abrir("#/painel")
+    corpo = page.locator("#painel-corpo")
+    expect(page.locator("#painel-corpo .banner").first).to_be_visible(timeout=8000)
+    # alertas: quarentena (grave) vem antes dos avisos; texto, não só cor
+    expect(corpo.locator(".painel-alertas")).to_contain_text("Modelo “reserva”: em quarentena")
+    expect(corpo.locator(".painel-alertas")).to_contain_text(
+        "A CLI “gemini” esgotou o limite de hoje."
+    )
+    expect(corpo.locator(".painel-alertas")).to_contain_text("Servidor MCP “web”: falhou")
+    primeiro = corpo.locator(".painel-alertas .banner").first
+    assert "banner-danger" in (primeiro.get_attribute("class") or "")
+    # modelos
+    ok = corpo.locator('[data-endpoint="omniroute"]')
+    expect(ok).to_contain_text("Funcionando")
+    expect(ok).to_contain_text("último erro: HTTP 502")
+    reserva = corpo.locator('[data-endpoint="reserva"]')
+    expect(reserva).to_contain_text("Em quarentena · volta em 2 min")
+    expect(reserva).to_contain_text("3× cota")
+    # CLIs: uso, esgotada e não instalada
+    expect(corpo.locator('[data-cli="claude"] .meter-val')).to_have_text("4/20")
+    expect(corpo.locator('[data-cli="claude"]')).to_have_attribute("data-sev", "normal")
+    expect(corpo.locator('[data-cli="gemini"]')).to_have_attribute("data-sev", "critico")
+    expect(corpo.locator('[data-cli="gemini"] .painel-meter-nota')).to_have_text("esgotada hoje")
+    expect(corpo.locator('[data-cli="codex"]')).to_have_attribute("data-sev", "nd")
+    # política
+    expect(corpo.locator('[data-id="decisoes"]')).to_contain_text(
+        "12 decisões: 9 liberadas, 2 pediram aval, 1 negada."
+    )
+    expect(corpo.locator('[data-id="decisoes"] .painel-recentes li')).to_have_count(3)
+    expect(corpo.locator('[data-id="sistema"]')).to_contain_text("MCP · google")
+    expect(corpo.locator('[data-id="aprovacoes"] h3')).to_have_text("Aprovações")
+
+
+def test_painel_aprovacao_pendente_aparece_e_leva_ao_chat(abrir):
+    page = abrir("#/chat")
+    enviar(page, "apague os arquivos antigos")  # o mock responde com um pedido de aval
+    expect(page.locator(".approval").first).to_be_visible(timeout=15000)
+    page.keyboard.press("Alt+6")
+    expect(page.locator("html")).to_have_attribute("data-view", "painel")
+    cartao = page.locator('#painel-corpo [data-id="aprovacoes"]')
+    expect(cartao).to_contain_text("executar_comando", timeout=8000)
+    expect(page.locator("#painel-corpo .painel-alertas")).to_contain_text(
+        re.compile(r"esperam? o seu aval")
+    )  # o mock é da sessão inteira: pode haver mais de uma pendente
+    cartao.get_by_role("button", name="Abrir o chat para decidir").click()
+    expect(page.locator("html")).to_have_attribute("data-view", "chat")
+
+
+def test_painel_tudo_em_ordem_e_falha_do_cerebro(abrir):
+    import json as _json
+
+    calmo = {
+        "uptime_s": 30, "modelos": {"configurado": True, "endpoints": []}, "clis": [],
+        "aprovacoes": {"pendentes": 0, "itens": []},
+        "decisoes": {"janela_h": 24, "total": 0, "por_acao": {"allow": 0, "confirm": 0, "deny": 0},
+                     "mais_usadas": [], "recentes": []},
+        "avisos": {"pendentes": 0}, "jobs": {"ativo": False, "ultima_rodada": None, "erros": []},
+        "memoria": {"ok": True, "vetores": False}, "canais": {"telegram": False},
+        "ferramentas": 0, "mcp": {},
+    }  # fmt: skip
+    page = abrir(http_ok=True)  # o 500 de propósito aparece no console do navegador
+    estado = {"falha": False}
+
+    def rota(route):
+        if estado["falha"]:
+            route.fulfill(status=500, body="erro interno")
+        else:
+            route.fulfill(content_type="application/json", body=_json.dumps(calmo))
+
+    page.route("**/painel", rota)
+    page.keyboard.press("Alt+6")
+    expect(page.locator("#painel-corpo .banner-info")).to_contain_text(
+        "Tudo em ordem", timeout=8000
+    )
+    expect(page.locator('[data-id="decisoes"]')).to_contain_text(
+        "Nenhuma decisão nas últimas 24 h."
+    )
+    expect(page.locator('[data-id="sistema"]')).to_contain_text("nenhum servidor")
+    # o cérebro falha na atualização: avisa que os números podem estar velhos, sem apagar a tela
+    estado["falha"] = True
+    page.click("#painel-refresh")
+    expect(page.locator("#painel-corpo .painel-alertas")).to_contain_text(
+        "A última atualização falhou", timeout=8000
+    )
+    expect(page.locator('[data-id="sistema"]')).to_be_visible()
+
+
+def test_painel_pela_paleta_e_por_comando_de_barra(abrir):
+    page = abrir("#/chat")
+    page.keyboard.press("Control+k")
+    page.fill("#palette-input", "painel")
+    page.keyboard.press("Enter")
+    expect(page.locator("html")).to_have_attribute("data-view", "painel")
+    page.keyboard.press("Alt+2")
+    enviar(page, "/painel")
+    expect(page.locator("html")).to_have_attribute("data-view", "painel")
 
 
 def test_cerebro_offline_degrada_sem_quebrar(abrir):

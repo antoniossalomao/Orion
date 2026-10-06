@@ -140,6 +140,16 @@ O briefing matinal ainda **não** lê a agenda: ele monta o texto só com lembre
 Orion (sem modelo, sem conteúdo de terceiros). Ligar a agenda ao briefing exige rodar o agente sem ninguém olhando
 (regra 18), então é uma decisão sua, depois que o servidor estiver funcionando.
 
+### 4.1 Painel
+
+A tela **Painel** (`#/painel`, `Alt+6`, comando `/painel` no campo de mensagem) e o `GET /painel` mostram num lugar só: cada
+endpoint de modelo (funcionando, instável, **em quarentena por cota** e quando volta, último erro), o uso do dia das CLIs
+(`claude`, `codex`, `gemini`), as aprovações esperando você, o que a política decidiu nas últimas 24 h, jobs, memória, Telegram e
+servidores MCP. Atualiza sozinha a cada 10 s e destaca em texto o que pede atenção.
+
+**Limite:** os números dos modelos são o que o Orion viu **desde que subiu** (reiniciar zera); não são a cota do provedor,
+que só o OmniRoute conhece. O painel não mostra os argumentos das ações nem nenhum segredo.
+
 ## 6. Celular (Telegram)
 
 | Variável | Para quê |
@@ -153,6 +163,7 @@ Orion (sem modelo, sem conteúdo de terceiros). Ligar a agenda ao briefing exige
 | `/capturar <texto ou link>` | Guarda na hora como nota no vault, sem passar pelo modelo |
 | `/capturar` e depois **texto, link, foto ou voz** | A próxima mensagem (até 5 minutos; qualquer outro comando cancela) vira nota. A voz é transcrita (precisa de `ORION_TRANSCRIBE_API_KEY`) e o texto entendido aparece antes de guardar |
 | `/briefing` | O resumo do dia, na hora |
+| `/painel` | Modelos (e quarentena por cota), CLIs, aprovações, política das últimas 24 h, jobs e MCP |
 
 Captura: precisa de `ORION_VAULT_DIR`. A nota vai para `<vault>/<ORION_CAPTURE_FOLDER>` (padrão `00 Inbox`), com o
 frontmatter mínimo (`date`, `hora`, `fonte: telegram`, `tags: [captura, ...]`) e **sem `type`**: o que é captura ainda

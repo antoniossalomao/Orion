@@ -17,7 +17,8 @@ mostrado antes da resposta, para quem falou conferir; a foto vai ao modelo como 
 naquele turno** (o histórico guarda um aviso, não a imagem). Aprovação continua só por botão.
 
 `/capturar` guarda a próxima mensagem (texto, link, foto ou voz) como nota no vault, sem passar
-pelo modelo (`orion.capture`, regra 30); `/briefing` manda o resumo do dia (`orion.briefing`).
+pelo modelo (`orion.capture`, regra 30); `/briefing` manda o resumo do dia (`orion.briefing`);
+`/painel` manda o painel único (`orion.painel`).
 
 Texto puro (sem `parse_mode`): resposta de modelo com `*` ou `_` não quebra a mensagem.
 """
@@ -67,6 +68,7 @@ BOAS_VINDAS = (
     "/nova — começa uma conversa nova (a atual fica arquivada)\n"
     "/capturar — guarda no vault o próximo texto, link, foto ou voz (ou /capturar <texto>)\n"
     "/briefing — o que há para hoje\n"
+    "/painel — modelos, CLIs, aprovações e política num só lugar\n"
     "/ajuda — mostra isto de novo\n\n"
     "Ações que mexem no computador chegam aqui com botões para aprovar ou negar."
 )
@@ -115,6 +117,7 @@ class TelegramChannel:
         self._sleep = sleep
         self._transcriber = transcriber
         self._capture = capture
+        self.painel: Callable[[], str] | None = None  # texto do /painel (o app liga depois)
         self._clock = clock
         self._armados: dict[int, float] = {}  # chat -> até quando o próximo envio vira nota
         self._offset = 0
@@ -307,6 +310,12 @@ class TelegramChannel:
             return
         if comando in ("/start", "/ajuda"):
             await self._enviar(chat_id, BOAS_VINDAS)
+        elif comando == "/painel":
+            ver = self.painel
+            await self._enviar(
+                chat_id,
+                await asyncio.to_thread(ver) if ver else "Painel indisponível neste canal.",
+            )
         elif comando == "/briefing":
             await self._enviar(chat_id, await asyncio.to_thread(self._briefing))
         elif comando == "/nova":

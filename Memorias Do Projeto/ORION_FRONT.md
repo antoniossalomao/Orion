@@ -89,6 +89,7 @@ quando um endpoint não existe. Transporte do chat: no pywebview, API + hub WS (
 | **Chat** | Reparseia o texto todo a cada pedaço; sem tabela/link/realce | Streaming com ≤ 1 render por quadro; tabelas, listas aninhadas, citação, tarefas, código com linguagem, realce e "Copiar"; ferramentas usadas viram chips; **cartão de aprovação** de ação; erro com "Tentar de novo"; "Mais recentes"; parar com `Esc`; anexos (clipe, colar, arrastar) |
 | **Memória** | Overlay de grafo sem teclado | Grafo pausado fora da tela; busca por trecho + lista de resultados + painel de detalhes com vizinhos (caminho por teclado); filtros por tipo; aviso explícito quando os dados são de demonstração |
 | **Integrações** | Cartões estáticos | Estado real de `/integracoes`, ação por cartão (voz ao vivo, resposta por voz), aviso quando o cérebro não responde |
+| **Painel** (06/10) | Não existia | Modelos (estado por endpoint, quarentena por cota, último erro), CLIs oficiais (uso do dia), aprovações pendentes, política das últimas 24 h e sistema (jobs, memória, Telegram, MCP), com alertas em texto (`GET /painel`; atualiza a cada 10 s). Só `textContent`; lógica pura em `js/painel.js` |
 | **Configurações** | Cartões de altura igual, gráfico quebrado com 1 ponto | Aparência (3 temas, densidade, escala, movimento), voz e sons, modelo, conexão (endereço, token, testar), atividade (CPU/RAM/GPU, latência, cascata, serviços), atalhos, sobre |
 | **Entrada (login)** | Só o token colado em Configurações | Tela cheia e **opaca** "Entrar no Orion" (usuário e senha, `autocomplete` certo, foco preso; o app fica `inert` por trás e nada dele aparece; não há "agora não" e `Esc` não fecha): abre sozinha no boot, quando um 401 chega do `/chat` e depois de sair; erro de usuário/senha e bloqueio (429) na própria tela; consulta de fundo (aprovações pendentes) **não** a reabre. Configurações › Conexão ganha a linha **Sessão** (Entrar/Sair). Sem `/auth/status` (legado) ou com token configurado, nada disso aparece |
 | **Paleta (`Ctrl+K`)** | Não existia | Ir para, ações, modelo, tema/densidade/escala, conversas (por trecho), "Perguntar ao Orion", "Revisar ação pendente" |
@@ -99,17 +100,17 @@ quando um endpoint não existe. Transporte do chat: no pywebview, API + hub WS (
 
 | Orçamento | Resultado | Onde |
 |---|---|---|
-| Axe (serious/critical **e** moderate/best-practice) | 0 violações em 5 telas × 3 temas, no chat com resposta + aprovação + erro, e com paleta e menu abertos | `test_axe_*` |
+| Axe (serious/critical **e** moderate/best-practice) | 0 violações em 6 telas × 3 temas, no chat com resposta + aprovação + erro, e com paleta e menu abertos | `test_axe_*` |
 | Entrada | Cobre a janela inteira com cor sólida (pontos dos cantos e do centro caem na tela, app inerte, só 3 controles focáveis), pede usuário e senha, recusa usuário ou senha errados sem deixá-los no campo, mostra o aviso de espera, volta quando a sessão some, sair leva de volta a ela, axe sem violações nos 3 temas (tela aberta e com erro) | `test_tela_de_entrada_*`, `test_login_*`, `test_sessao_vencida_*`, `test_sair_*`, `test_axe_tela_de_entrada_aberta` |
 | Orion de verdade | App, política e SQLite reais com o front real (só o modelo é de mentira): login por cookie `httpOnly`/`Strict`, conversa em streaming, aprovação que executa o comando depois do clique, audit no banco, servidor MCP real. Achou o 422 do `resume` | `tests/front_e2e/test_orion_real.py` |
-| Console | 0 erros/avisos em todos os 86 testes de navegador com backend de mentira (a fixture derruba o teste) | `conftest.py` |
-| Teclado | `Ctrl+K`, `Alt+1..5`, `/`, `?`, `Ctrl+B`, `Ctrl+.`, `Ctrl+F`, `Esc`; telas ocultas `inert`; menu `/` e paleta no padrão combobox | `test_atalhos_*`, `test_paleta_*`, `test_comandos_*` |
-| Janela estreita | Sem rolagem horizontal a 700 e 860 px nas 5 telas; barra vira trilho e volta ao alargar | `test_janela_*` |
+| Console | 0 erros/avisos em todos os 97 testes de navegador com backend de mentira (a fixture derruba o teste) | `conftest.py` |
+| Teclado | `Ctrl+K`, `Alt+1..6`, `/`, `?`, `Ctrl+B`, `Ctrl+.`, `Ctrl+F`, `Esc`; telas ocultas `inert`; menu `/` e paleta no padrão combobox | `test_atalhos_*`, `test_paleta_*`, `test_comandos_*` |
+| Janela estreita | Sem rolagem horizontal a 700 e 860 px nas 6 telas; barra vira trilho e volta ao alargar | `test_janela_*` |
 | Streaming | Renderizações ≤ quadros + 2 (a resposta chega em ~100 pedaços) | `test_streaming_rende_*` |
 | Céu fora da home | ≤ 22 quadros/s | `test_ceu_fora_*` |
 | Segurança | `<script>`, `onerror`, `javascript:` e imagem externa em texto do modelo: nada executa, nada sai do app; CSP com o hash do único script inline (teste falha se o script mudar sem atualizar o hash) | `test_markdown_malicioso_*`, `test_csp_*` |
 | Desktop | Caminho `process_command` + hub com shim (eco sem duplicar, ferramenta, modelo, fala vinda do microfone, link por `open_external`, controles da janela) | `test_desktop_*` |
-| Lógica pura | 89 testes em Node (md, sse, store, util, fuzzy, charts, slash) | `tests/front/` |
+| Lógica pura | 95 testes em Node (md, sse, store, util, fuzzy, charts, slash, painel) | `tests/front/` |
 | Ponte e servidor | `ponte.py` (relay de eventos, URL externa, cabeçalho, geração de comandos) e `/ui/` do `orion.app` (sem `.py`, sem `__pycache__`) | `tests/legacy/test_ponte.py`, `tests/test_app_ui.py` |
 
 Peso: ~1,1 MB no primeiro carregamento (three.js 600 KB, Inter 48 KB, CSS 80 KB, JS ~200 KB);

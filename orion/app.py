@@ -38,6 +38,7 @@ from .memory import MemoryStore
 from .memory.consolidate import Consolidator
 from .memory.embedders import GeminiEmbedder
 from .memory.ops import Operations
+from .painel import Painel, texto_do_painel
 from .policy import ApprovalStore, PathGuard, PolicyEngine, redact
 from .policy.paths import default_safe_roots
 from .secrets import get_secret
@@ -75,6 +76,7 @@ class AppState:
     jobs: JobRunner | None = None  # None com ORION_JOBS_ENABLED=false
     telegram: TelegramChannel | None = None  # None sem token, sem usuários ou sem gateway
     mcp: McpManager | None = None  # None sem mcp.json, sem servidor habilitado ou sem gateway
+    painel: Painel | None = None
 
 
 def build_policy(
@@ -341,6 +343,7 @@ def create_app(
         gateway = (gateway_factory or gateway_from_settings)(settings)
         agent = None
         mcp = None
+        delegador: Delegator | None = None
         processos: ProcessManager | None = None
         if gateway is not None:
             # `delegar` só aparece para o modelo se alguma CLI oficial estiver instalada.
@@ -403,9 +406,23 @@ def create_app(
             settings, agent, memory, policy, ops
         )
         tarefa_telegram = asyncio.create_task(telegram.run()) if telegram is not None else None
-        app.state.orion = AppState(
-            settings, memory, policy, time.time(), ops, auth, agent, jobs, telegram, mcp
+        painel = Painel(
+            started_at=time.time(),
+            memory=memory,
+            ops=ops,
+            policy=policy,
+            agent=agent,
+            jobs=jobs,
+            mcp=mcp,
+            delegator=delegador,
+            telegram_ativo=lambda: telegram is not None,
         )
+        if telegram is not None:
+            telegram.painel = lambda: texto_do_painel(painel.montar())
+        app.state.orion = AppState(
+            settings, memory, policy, painel.started_at, ops, auth, agent, jobs, telegram, mcp,
+            painel,
+        )  # fmt: skip
         try:
             yield
         finally:
@@ -598,6 +615,12 @@ def create_app(
         except ValueError as e:
             raise HTTPException(409, str(e)) from None
         return {"id": a.id, "status": a.status.value}
+
+    @app.get("/painel", dependencies=[Admin])
+    def painel_unico(state: State) -> dict[str, Any]:
+        """O estado do Orion numa resposta só (modelos, CLIs, aprovações, política, jobs...)."""
+        assert state.painel is not None
+        return state.painel.montar()
 
     @app.get("/notifications", dependencies=[Admin])
     def avisos(state: State) -> list[dict[str, Any]]:

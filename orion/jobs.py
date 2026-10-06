@@ -103,6 +103,8 @@ class JobRunner:
             "auditoria": audit_every_s,
         }
         self._last: dict[str, float] = {}
+        self.ultima_rodada: float | None = None  # epoch do último `tick` (para o painel)
+        self.ultimos_erros: list[str] = []
 
     def _devido(self, passo: str) -> bool:
         agora = self._clock()
@@ -123,6 +125,8 @@ class JobRunner:
             except Exception as e:
                 log.exception("job consolidação falhou")
                 rel.erros.append(f"consolidação: {e}")
+        self.ultima_rodada = self._clock()
+        self.ultimos_erros = list(rel.erros)
         return rel
 
     def _passos_sincronos(self, rel: TickReport) -> None:

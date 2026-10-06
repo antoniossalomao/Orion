@@ -793,3 +793,49 @@ async def test_briefing_responde_na_hora_sem_chamar_o_modelo(store, policy, tg):
 
 async def test_ajuda_lista_os_comandos_novos(store, policy, tg):
     assert "/capturar" in BOAS_VINDAS and "/briefing" in BOAS_VINDAS
+
+
+async def test_painel_manda_o_texto_do_app_e_sem_ele_avisa(store, policy, tg):
+    canal, gw, _ = montar(store, policy, tg)
+    await canal.handle_update(msg("/painel"))
+    assert "indisponível" in tg.textos()[0]
+    canal.painel = lambda: "📊 Painel do Orion · teste"
+    await canal.handle_update(msg("/painel"))
+    assert tg.textos()[1] == "📊 Painel do Orion · teste" and gw.chamadas == []
+    await canal.handle_update(msg("/painel", uid=OUTRO))  # estranho: nada
+    assert len(tg.textos()) == 2
+
+
+async def test_ajuda_lista_o_painel(store, policy, tg):
+    assert "/painel" in BOAS_VINDAS
+
+
+def test_app_liga_o_painel_ao_canal_telegram(tmp_path, tg):
+    from fastapi.testclient import TestClient
+
+    from orion.app import create_app
+
+    settings = Settings(
+        data_dir=tmp_path / "d", admin_token="token-de-teste-com-16+", _env_file=None
+    )
+    canais = []
+
+    def fabrica(_s, agent, memory, policy, ops):
+        c = TelegramChannel(
+            token=TOKEN,
+            allowed_users=[USER],
+            agent=agent,  # type: ignore[arg-type]
+            memory=memory,
+            approvals=policy.approvals,
+            ops=ops,
+            client=httpx.AsyncClient(transport=httpx.MockTransport(tg)),
+        )
+        canais.append(c)
+        return c
+
+    with TestClient(
+        create_app(settings, telegram_factory=fabrica, gateway_factory=lambda _: None),
+        base_url="http://127.0.0.1",
+    ):
+        assert canais[0].painel is not None
+        assert "Painel do Orion" in canais[0].painel()

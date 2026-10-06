@@ -30,6 +30,20 @@ class Endpoint:
     timeout_s: float = 60.0
 
 
+@dataclass
+class EndpointStats:
+    """Contadores de um endpoint desde que o Orion subiu (o painel mostra; reiniciar zera).
+    Não é a cota do provedor: quem a conhece é o OmniRoute. Mostra o que o Orion viu."""
+
+    chamadas: int = 0  # tentativas de resposta (cada uma conta, com ou sem sucesso)
+    ok: int = 0
+    falhas: int = 0
+    limitada: int = 0  # respostas 429 (cota ou limite de taxa)
+    pulos: int = 0  # vezes que ficou de fora por estar em quarentena
+    ultimo_ok: float | None = None  # epoch
+    ultimo_erro: str | None = None  # só o tipo ("HTTP 502", "ConnectError"), nunca corpo nem URL
+
+
 @dataclass(frozen=True)
 class TextDelta:
     text: str
@@ -70,6 +84,7 @@ class ChatGateway:
         client: httpx.AsyncClient | None = None,
         clock: Callable[[], float] = time.monotonic,
         cooldown_s: float = 60.0,
+        wall: Callable[[], float] = time.time,
     ) -> None:
         if not endpoints:
             raise ValueError("ao menos um endpoint")
@@ -78,6 +93,31 @@ class ChatGateway:
         self._clock = clock
         self._cooldown_s = cooldown_s
         self._quarentena: dict[str, float] = {}
+        self._wall = wall
+        self._stats = {ep.name: EndpointStats() for ep in endpoints}
+
+    def stats(self) -> list[dict[str, Any]]:
+        """Um dicionário por endpoint, na ordem de tentativa (para o painel)."""
+        agora = self._clock()
+        saida = []
+        for ep in self.endpoints:
+            st = self._stats[ep.name]
+            restante = max(0.0, self._quarentena.get(ep.name, 0.0) - agora)
+            saida.append(
+                {
+                    "nome": ep.name,
+                    "modelo": ep.model,
+                    "chamadas": st.chamadas,
+                    "ok": st.ok,
+                    "falhas": st.falhas,
+                    "limitada": st.limitada,
+                    "pulos": st.pulos,
+                    "quarentena_s": round(restante),
+                    "ultimo_ok": st.ultimo_ok,
+                    "ultimo_erro": st.ultimo_erro,
+                }
+            )
+        return saida
 
     async def aclose(self) -> None:
         await self._client.aclose()
@@ -87,24 +127,36 @@ class ChatGateway:
     ) -> AsyncIterator[Event]:
         tentativas: list[tuple[str, str]] = []
         for ep in self.endpoints:
+            st = self._stats[ep.name]
             if self._quarentena.get(ep.name, 0.0) > self._clock():
                 tentativas.append((ep.name, "em quarentena (cota)"))
+                st.pulos += 1
                 continue
+            st.chamadas += 1
             comecou = False
             try:
                 async for evento in self._run(ep, messages, tools):
                     comecou = True
                     yield evento
+                st.ok += 1
+                st.ultimo_ok = self._wall()
                 return
             except _FalhaAntesDoTexto as e:
+                self._falhou(st, str(e).split(":", 1)[0])
                 tentativas.append((ep.name, str(e)))
                 log.warning("endpoint %s falhou, tentando o próximo: %s", ep.name, e)
             except (httpx.HTTPError, ValueError) as e:
+                self._falhou(st, type(e).__name__)
                 if comecou:
                     raise GatewayError(f"{ep.name} interrompeu no meio da resposta: {e}") from e
                 tentativas.append((ep.name, f"{type(e).__name__}: {e}"))
                 log.warning("endpoint %s falhou, tentando o próximo: %s", ep.name, e)
         raise GatewayError("nenhum endpoint respondeu", tentativas)
+
+    @staticmethod
+    def _falhou(st: EndpointStats, tipo: str) -> None:
+        st.falhas += 1
+        st.ultimo_erro = tipo[:40]
 
     async def complete(self, messages: list[dict[str, Any]]) -> str:
         """Resposta inteira em texto, sem ferramentas (jobs como a consolidação da memória)."""
@@ -134,6 +186,7 @@ class ChatGateway:
                 if resp.status_code == 429:
                     espera = _retry_after(resp.headers.get("retry-after"), self._cooldown_s)
                     self._quarentena[ep.name] = self._clock() + espera
+                    self._stats[ep.name].limitada += 1
                 raise _FalhaAntesDoTexto(f"HTTP {resp.status_code}: {resp.text[:200]}")
             async for linha in resp.aiter_lines():
                 if not linha.startswith("data:"):

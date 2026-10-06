@@ -23,6 +23,7 @@
             { g: 'ir', rotulo: 'Memória', icone: 'memory', atalho: ['Alt', '3'], exec: ir('memoria'), chaves: 'grafo' },
             { g: 'ir', rotulo: 'Integrações', icone: 'plug', atalho: ['Alt', '4'], exec: ir('integracoes') },
             { g: 'ir', rotulo: 'Configurações', icone: 'sliders', atalho: ['Alt', '5'], exec: ir('config'), chaves: 'preferências ajustes' },
+            { g: 'ir', rotulo: 'Painel', icone: 'gauge', atalho: ['Alt', '6'], exec: ir('painel'), chaves: 'status cota modelos aprovações política auditoria' },
             { g: 'acao', rotulo: 'Nova conversa', icone: 'plus', atalho: ['Ctrl', '⇧', 'O'], exec: () => O.sidebar.nova() },
             { g: 'acao', rotulo: 'Alternar barra lateral', icone: 'panel', atalho: ['Ctrl', 'B'], exec: () => O.sidebar.alternar(), chaves: 'recolher menu' },
             { g: 'acao', rotulo: O.voz?.ativa() ? 'Desligar voz ao vivo' : 'Ligar voz ao vivo', icone: 'wave', exec: () => O.voz.alternar(), chaves: 'microfone falar' },
