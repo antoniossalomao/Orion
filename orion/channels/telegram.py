@@ -16,6 +16,9 @@ Voz e foto: a mensagem de voz é transcrita (Whisper, `orion.transcribe`) e o te
 mostrado antes da resposta, para quem falou conferir; a foto vai ao modelo como imagem **só
 naquele turno** (o histórico guarda um aviso, não a imagem). Aprovação continua só por botão.
 
+`/capturar` guarda a próxima mensagem (texto, link, foto ou voz) como nota no vault, sem passar
+pelo modelo (`orion.capture`, regra 30); `/briefing` manda o resumo do dia (`orion.briefing`).
+
 Texto puro (sem `parse_mode`): resposta de modelo com `*` ou `_` não quebra a mensagem.
 """
 
@@ -26,12 +29,15 @@ import base64
 import json
 import logging
 import re
+import time
 from collections.abc import AsyncIterator, Callable, Coroutine, Sequence
 from typing import Any
 
 import httpx
 
 from ..agent import Agent, AgentEvent
+from ..briefing import build_briefing
+from ..capture import EXTENSOES_FOTO, CaptureError, Capturer
 from ..memory import MemoryStore
 from ..memory.ops import Operations
 from ..policy import ApprovalStore, redact
@@ -53,10 +59,14 @@ _MIME_FOTO = {
 }
 _CAMINHO_ARQUIVO = re.compile(r"^[A-Za-z0-9_./-]{1,200}$")
 _CALLBACK = re.compile(r"^ap:([A-Za-z0-9_-]{6,32}):([yn])$")  # cabe nos 64 bytes do Telegram
+_LINK = re.compile(r"^https?://\S+$")
+CAPTURA_ESPERA_S = 300  # depois do `/capturar` sozinho, o próximo envio vale por 5 minutos
 
 BOAS_VINDAS = (
     "Orion aqui. Escreva o que precisa e eu respondo.\n\n"
     "/nova — começa uma conversa nova (a atual fica arquivada)\n"
+    "/capturar — guarda no vault o próximo texto, link, foto ou voz (ou /capturar <texto>)\n"
+    "/briefing — o que há para hoje\n"
     "/ajuda — mostra isto de novo\n\n"
     "Ações que mexem no computador chegam aqui com botões para aprovar ou negar."
 )
@@ -82,6 +92,8 @@ class TelegramChannel:
         ops: Operations,
         client: httpx.AsyncClient | None = None,
         transcriber: Transcriber | None = None,
+        capture: Capturer | None = None,
+        clock: Callable[[], float] = time.monotonic,
         base_url: str = API,
         poll_timeout_s: int = 25,
         notify_every_s: float = 15.0,
@@ -102,6 +114,9 @@ class TelegramChannel:
         self._notify_every = notify_every_s
         self._sleep = sleep
         self._transcriber = transcriber
+        self._capture = capture
+        self._clock = clock
+        self._armados: dict[int, float] = {}  # chat -> até quando o próximo envio vira nota
         self._offset = 0
         self._tarefas: set[asyncio.Task[None]] = set()
         self._recusados: set[int] = set()
@@ -272,6 +287,15 @@ class TelegramChannel:
             return
         chat_id = int(chat["id"])
         texto = (m.get("text") or "").strip()
+        comando = texto.split()[0].split("@")[0].lower() if texto else ""
+        if comando == "/capturar":
+            await self._on_capturar(chat_id, texto)
+            return
+        if texto.startswith("/"):
+            self._armados.pop(chat_id, None)  # outro comando cancela a captura que esperava
+        elif self._armados.pop(chat_id, 0.0) > self._clock():
+            await self._capturar_mensagem(chat_id, m, texto)
+            return
         if not texto and (m.get("voice") or m.get("audio")):
             await self._on_voz(chat_id, m)
             return
@@ -281,9 +305,10 @@ class TelegramChannel:
         if not texto:
             await self._enviar(chat_id, "Entendo texto, voz e foto por aqui.")
             return
-        comando = texto.split()[0].split("@")[0].lower()
         if comando in ("/start", "/ajuda"):
             await self._enviar(chat_id, BOAS_VINDAS)
+        elif comando == "/briefing":
+            await self._enviar(chat_id, await asyncio.to_thread(self._briefing))
         elif comando == "/nova":
             atual = await asyncio.to_thread(self.memory.active_session, CANAL)
             await asyncio.to_thread(self.memory.archive_session, atual.id)
@@ -292,17 +317,82 @@ class TelegramChannel:
             await self._api("sendChatAction", chat_id=chat_id, action="typing")
             await self._consumir(chat_id, self.agent.run(CANAL, texto[:LIMITE_ENTRADA]))
 
-    async def _on_voz(self, chat_id: int, m: dict[str, Any]) -> None:
+    def _briefing(self) -> str:
+        return build_briefing(self.ops, self.memory.clock())
+
+    # ── captura rápida (regra 30): comando do Antônio, não ferramenta do modelo ──
+    async def _on_capturar(self, chat_id: int, texto: str) -> None:
+        if self._capture is None:
+            await self._enviar(
+                chat_id, "Captura desligada: defina ORION_VAULT_DIR (a pasta do seu vault)."
+            )
+            return
+        partes = texto.split(None, 1)
+        if len(partes) > 1 and partes[1].strip():
+            self._armados.pop(chat_id, None)
+            await self._guardar_texto(chat_id, partes[1].strip())
+            return
+        self._armados[chat_id] = self._clock() + CAPTURA_ESPERA_S
+        await self._enviar(
+            chat_id,
+            "Pode mandar: texto, link, foto ou voz. A próxima mensagem vira nota no vault "
+            f"(vale por {CAPTURA_ESPERA_S // 60} minutos; qualquer comando cancela).",
+        )
+
+    async def _capturar_mensagem(self, chat_id: int, m: dict[str, Any], texto: str) -> None:
+        if texto:
+            await self._guardar_texto(chat_id, texto)
+        elif m.get("voice") or m.get("audio"):
+            entendido = await self._transcrever_voz(chat_id, m)
+            if entendido is not None:
+                await self._enviar(chat_id, f"🎙️ Entendi: {entendido}")
+                await self._guardar_texto(chat_id, entendido, origem="voz")
+        elif m.get("photo"):
+            baixada = await self._baixar_foto(chat_id, m)
+            if baixada is not None:
+                imagem, caminho = baixada
+                ext = "." + caminho.rsplit(".", 1)[-1].lower() if "." in caminho else ".jpg"
+                legenda = (m.get("caption") or "").strip()
+                await self._guardar(
+                    chat_id, self._capture_foto, imagem, ext if ext in EXTENSOES_FOTO else ".jpg",
+                    legenda,
+                )  # fmt: skip
+        else:
+            await self._enviar(chat_id, "Só guardo texto, link, foto ou voz.")
+
+    def _capture_foto(self, imagem: bytes, ext: str, legenda: str) -> str:
+        assert self._capture is not None
+        return self._capture.relativo(self._capture.save_photo(imagem, ext, legenda))
+
+    def _capture_texto(self, texto: str, origem: str) -> str:
+        assert self._capture is not None
+        return self._capture.relativo(self._capture.save_text(texto, origem))
+
+    async def _guardar_texto(self, chat_id: int, texto: str, origem: str = "") -> None:
+        origem = origem or ("link" if _LINK.match(texto) else "texto")
+        await self._guardar(chat_id, self._capture_texto, texto[: LIMITE_ENTRADA * 2], origem)
+
+    async def _guardar(self, chat_id: int, gravar: Callable[..., str], *args: Any) -> None:
+        try:
+            relativo = await asyncio.to_thread(gravar, *args)
+        except (CaptureError, OSError) as e:
+            log.warning("telegram: captura não gravada: %s", type(e).__name__)
+            await self._enviar(chat_id, f"⚠️ Não guardei: {e}")
+            return
+        await self._enviar(chat_id, f"📝 Guardado no vault: {relativo}")
+
+    async def _transcrever_voz(self, chat_id: int, m: dict[str, Any]) -> str | None:
+        """Baixa e transcreve a voz; em qualquer falha avisa o Antônio e devolve None."""
         if self._transcriber is None:
             await self._enviar(
                 chat_id,
                 "Ainda não transcrevo áudio (falta ORION_TRANSCRIBE_API_KEY). Escreva, por favor.",
             )
-            return
+            return None
         voz = m.get("voice") or m.get("audio") or {}
         if int(voz.get("duration") or 0) > MAX_VOZ_S:
             await self._enviar(chat_id, f"Áudio longo demais (máximo {MAX_VOZ_S // 60} minutos).")
-            return
+            return None
         await self._api("sendChatAction", chat_id=chat_id, action="typing")
         try:
             audio, caminho = await self._baixar(str(voz.get("file_id", "")), MAX_AUDIO)
@@ -313,25 +403,37 @@ class TelegramChannel:
         except (TelegramError, TranscribeError) as e:
             log.warning("telegram: voz não transcrita: %s", e)
             await self._enviar(chat_id, f"⚠️ Não consegui entender o áudio: {e}")
+            return None
+        return texto[:LIMITE_ENTRADA]
+
+    async def _on_voz(self, chat_id: int, m: dict[str, Any]) -> None:
+        texto = await self._transcrever_voz(chat_id, m)
+        if texto is None:
             return
-        texto = texto[:LIMITE_ENTRADA]
         # mostra o que foi entendido: quem falou confere (e aprovação continua só por botão)
         await self._enviar(chat_id, f"🎙️ Entendi: {texto}")
         await self._consumir(chat_id, self.agent.run(CANAL, texto))
 
-    async def _on_foto(self, chat_id: int, m: dict[str, Any]) -> None:
+    async def _baixar_foto(self, chat_id: int, m: dict[str, Any]) -> tuple[bytes, str] | None:
+        """O maior tamanho da foto que couber no limite; falha avisa e devolve None."""
         tamanhos = [p for p in m.get("photo") or [] if isinstance(p, dict) and p.get("file_id")]
         cabem = [p for p in tamanhos if int(p.get("file_size") or 0) <= MAX_FOTO] or tamanhos[:1]
         if not cabem:
             await self._enviar(chat_id, "Não consegui ler essa foto.")
-            return
+            return None
         await self._api("sendChatAction", chat_id=chat_id, action="typing")
         try:
-            imagem, caminho = await self._baixar(str(cabem[-1]["file_id"]), MAX_FOTO)
+            return await self._baixar(str(cabem[-1]["file_id"]), MAX_FOTO)
         except TelegramError as e:
             log.warning("telegram: foto não baixada: %s", e)
             await self._enviar(chat_id, f"⚠️ Não consegui baixar a foto: {e}")
+            return None
+
+    async def _on_foto(self, chat_id: int, m: dict[str, Any]) -> None:
+        baixada = await self._baixar_foto(chat_id, m)
+        if baixada is None:
             return
+        imagem, caminho = baixada
         ext = "." + caminho.rsplit(".", 1)[-1].lower() if "." in caminho else ".jpg"
         mime = _MIME_FOTO.get(ext, "image/jpeg")
         url = f"data:{mime};base64,{base64.b64encode(imagem).decode('ascii')}"

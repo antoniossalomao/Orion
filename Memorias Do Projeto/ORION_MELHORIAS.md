@@ -1,7 +1,7 @@
 # ORION — Plano de melhorias e o que foi feito
 
 > Auditoria de 02/10/2026 (backend, front, regras, docs) e a execução dela, mais a segunda
-> rodada de 03/10/2026 (achados R1–R11) e a terceira de 06/10/2026 (L1–L12: login, MCP, ferramentas). Cada achado tem ID, evidência e status. O que
+> rodada de 03/10/2026 (achados R1–R11) a terceira de 06/10/2026 (L1–L12: login, MCP, ferramentas) e a quarta de 06/10/2026 (V1–V7: visão, mídia, janela, briefing, captura, MCP). Cada achado tem ID, evidência e status. O que
 > **não** foi verificado está na seção própria.
 > Regras resultantes: [ORION_REGRAS.md](ORION_REGRAS.md). Plano de fases: [ORION_NUCLEO.md](ORION_NUCLEO.md).
 
@@ -66,6 +66,22 @@ Tudo testado no Linux (CI nos três sistemas no PR). Cada item novo abaixo tem r
 | L11 | Alta | *(achado rodando o Orion de verdade com o front real)* aprovar uma ação no navegador falhava com HTTP 422: o front retoma sem corpo e `POST /approvals/{id}/resume` exigia um | ✅ | Corpo opcional (canal `web` por padrão) + teste. Os testes com backend de mentira não pegavam; agora há 3 testes contra o app, a política e o SQLite reais (`tests/front_e2e/test_orion_real.py`): login por cookie, conversa, aprovação que **executa de verdade** depois do clique, audit no banco, servidor MCP real e desligamento limpo. `mcp.json` e `auth.db` viraram arquivos sensíveis (ler e escrever confirmam) |
 | L12 | Média | O Orion só rodava com Python e `uv`; faltava um executável; e o usuário padrão era `antonio` | ✅ no Linux; ⏳ Windows só no CI | Workflow `build-exe.yml`: compila (PyInstaller), **sobe o `.exe` e roda o teste de fumaça**, publica zip/release. Usuário padrão `admin`; senha de fábrica `261210@` **só no `.exe`**: não é anunciada antes do login, o app avisa depois, tem tela para trocar, e recusa subir exposto na rede enquanto ela valer. Ícone minimalista gerado por script |
 
+## Quarta rodada (06/10/2026): visão, mídia, janela, briefing, captura e MCP
+
+Tudo testado no Linux com serviços de mentira (a suíte nova: visão, mídia/janela, briefing, captura, config e Telegram). Regras 28–30 em [ORION_REGRAS.md](ORION_REGRAS.md).
+
+| ID | Sev. | Achado (evidência) | Status | Como |
+|---|---|---|---|---|
+| V1 | Alta | `capturar_tela`/`explicar_tela` eram "leitura" no legado, mas `explicar_tela` manda a tela inteira (e-mail, senha digitada, conversa) ao provedor do modelo | ✅ | `explicar_tela` virou **execução** (confirma sempre) e apaga a captura; `capturar_tela` virou escrita com log; destino da captura gerado pelo código; sem captura contínua; opt-in próprio `ORION_VISION_TOOLS` (regra 28) |
+| V2 | Média | O resultado de um modelo de visão pode carregar instrução escrita na imagem (prompt injection visual) | ✅ | `explicar_tela`/`analisar_imagem` são conteúdo externo e contaminam a sessão; `analisar_imagem` passa pela política de leitura (segredo confirma) |
+| V3 | Média | `controlar_janela` no legado não tinha tratamento de título ambíguo: "fechar firefox" fecharia a primeira janela que combinasse; e título de aba é texto de terceiros | ✅ | Busca ambígua **não age** (devolve a lista); título por variável de ambiente (Windows) ou só o id ao `wmctrl` (Linux); saída externa; confirma sempre (regra 29) |
+| V4 | Baixa | Sem briefing: lembretes, agendamentos e tarefas só apareciam se o Antônio perguntasse | ✅ | `ORION_BRIEFING_AT` + `/briefing`: texto determinístico, um por dia, dentro de uma janela de 6 h para não mandar "bom dia" à noite |
+| V5 | Média | Sem captura: uma ideia no celular não chegava ao vault | ✅ (Telegram só API falsa) | `/capturar` (texto, link, foto, voz) grava na caixa de entrada do vault, fora do modelo, com destino confinado ao vault (regra 30) |
+| V6 | Média | O `mcp.example.json` tinha pacotes e nomes "de memória" e `@latest` no navegador | ✅ | Subi cada servidor (filesystem, fetch, git, Playwright, workspace-mcp) pelo `mcp-check`: nomes conferidos, versões fixadas. Achado: o cliente MCP só repassa o ambiente mínimo ao servidor, então atrás de proxy/CA corporativa o `uvx`/`npx` precisa do `env` declarado no servidor |
+| V7 | Média | Ninguém decidira qual servidor de e-mail/agenda usar; muitos expõem `send_email` | ✅ (fluxo de login não testado) | `workspace-mcp` com `--permissions gmail:drafts calendar:full` **não registra envio**; classes e `allow` no exemplo; guia em [ORION_OPERACAO.md](ORION_OPERACAO.md) §5.1 |
+
+**Não verificado nesta rodada:** (a) `capturar_tela`, mídia e janela **nunca rodaram** fora do Linux e, no Linux deste ambiente, sem tela, `playerctl` nem `wmctrl`: só o argv e o parsing estão testados; os scripts de PowerShell (captura, teclas de mídia, janela) não foram executados em um Windows; (b) a visão não foi chamada contra um modelo real (o formato é o `chat/completions` com `image_url`); (c) o `/capturar` e o `/briefing` só contra a API falsa do Telegram; (d) o fluxo de login Google do `workspace-mcp` (precisa da sua conta); (e) o briefing **não** lê a agenda (decisão sua: exige rodar o agente sem ninguém olhando, regra 18).
+
 ## O que foi construído (por fase do NUCLEO)
 
 | Fase | Entrega | Status |
@@ -74,7 +90,7 @@ Tudo testado no Linux (CI nos três sistemas no PR). Cada item novo abaixo tem r
 | 1 — fundação | `pyproject` (uv, ruff, pyright, pytest), `orion.config`, logging JSON, `/health`, CLI, CI Win+macOS | ✅ (CI verde em Linux, Windows e macOS na `main`) |
 | 2 — cérebro | `orion.gateway` (API OpenAI-compat., streaming, fallback, quarentena em 429), `orion.agent` (persona + memória + ferramentas sob política), `orion.delegate` (claude/codex/gemini), `POST /chat` | ✅ com gateway e CLIs **falsos**; ⏳ OmniRoute e CLIs reais |
 | 3 — memória | SQLite + FTS5 + vetores (numpy) com RRF, fatos editáveis, vault, backup/restore (`orion backup`, `orion restore`), eval, **importador completo do export** (esquema v2), lembretes/agendamentos/tarefas/números/prompts/grafo, fila de avisos, jobs, `GeminiEmbedder`, consolidação | ✅ no código; ⏳ chave de embeddings e suas perguntas reais |
-| 4 — ferramentas | Política (classes de risco, aprovações, taint, audit em banco); memória, operação e `delegar`; `orion-desktop` completo (arquivos, documentos, sistema, processos, vigilância) e web (opt-ins); cliente MCP; 32 das 55 portadas | ✅ no código; ⏳ servidores MCP reais (e-mail, agenda, navegador) e o que depende de modelo multimodal |
+| 4 — ferramentas | Política (classes de risco, aprovações, taint, audit em banco); memória, operação e `delegar`; `orion-desktop` completo (arquivos, documentos, sistema, processos, vigilância, mídia, janela, visão) e web (opt-ins); cliente MCP; 37 das 55 portadas | ✅ no código; ⏳ servidores MCP reais (e-mail, agenda, navegador) e o que depende de modelo multimodal |
 | 5 — canais | Login com senha e tela de entrada; canal Telegram com voz e foto; `orion autostart`; guia do Tailscale em [ORION_OPERACAO.md](ORION_OPERACAO.md) | ✅ no código (Telegram só API falsa); ⏳ instalar o Tailscale e ativar no notebook |
 | 6 — interface/voz | Front redesenhado em 03/10 (só desktop, [ORION_FRONT.md](ORION_FRONT.md)) com tela de entrada desde 06/10; voz no Telegram sim, voz ao vivo e palavra de ativação não | 🟡 |
 | 7 — limpeza | Nada apagado: o legado ainda é a única coisa rodando com seus dados | ⏳ |
@@ -154,8 +170,8 @@ Tudo testado no Linux (CI nos três sistemas no PR). Cada item novo abaixo tem r
 
 ## Ideias que sobraram (valor/custo)
 
-- Briefing matinal no Telegram (agenda + lembretes + tarefas abertas).
-- Captura rápida: link, foto ou voz no Telegram vira nota no vault (o `index_vault` já indexa).
+- ~~Briefing matinal no Telegram~~ (feito em 06/10: lembretes, agendamentos e tarefas; **a agenda do Google ainda não entra**).
+- ~~Captura rápida~~ (feito em 06/10: `/capturar`; o link é guardado como veio, sem buscar o título da página).
 - Painel único: cota por provedor, aprovações pendentes, audit, uso das CLIs (os contadores já existem).
 - Modo estudo UNIMAR: resumo de PDF de aula e exercícios de UML/Java, com perfil de contexto próprio.
 - Roteamento por tipo de tarefa (barato/rápido vs. pesado) no lugar do regex de palavras-chave.

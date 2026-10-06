@@ -53,9 +53,7 @@ DEFAULT_TOOLS: dict[str, ToolSpec] = dict(
         _t("consultar_audit_log", Risk.READ),
         _t("checar_saude_sistema", Risk.READ),
         _t("checar_servicos_orion", Risk.READ),
-        _t("capturar_tela", Risk.READ),
-        _t("explicar_tela", Risk.READ),
-        _t("analisar_imagem", Risk.READ),
+        _t("analisar_imagem", Risk.READ, external=True, read_path_arg="path"),
         _t("consultar_clima", Risk.READ),
         _t("obter_topico_celular", Risk.READ),
         _t("status_enxame", Risk.READ),
@@ -81,6 +79,7 @@ DEFAULT_TOOLS: dict[str, ToolSpec] = dict(
         _t("criar_rascunho_email", Risk.WRITE),
         _t("criar_evento", Risk.WRITE),
         _t("gerar_imagem", Risk.WRITE),
+        _t("capturar_tela", Risk.WRITE),  # deixa um arquivo no computador; não sai dele
         _t("abrir_app", Risk.EXEC),  # abre programa ou arquivo qualquer: confirma
         _t("controlar_midia", Risk.WRITE),
         _t("backup_memoria", Risk.WRITE),
@@ -91,7 +90,8 @@ DEFAULT_TOOLS: dict[str, ToolSpec] = dict(
         # execução
         _t("executar_comando", Risk.EXEC, cmd_arg="cmd"),
         _t("iniciar_processo_bg", Risk.EXEC, cmd_arg="comando"),
-        _t("controlar_janela", Risk.EXEC),
+        _t("controlar_janela", Risk.EXEC, external=True),  # título de aba é texto de terceiros
+        _t("explicar_tela", Risk.EXEC, external=True),  # envia a tela inteira ao modelo: confirma
         _t("navegar_web", Risk.EXEC, external=True),
         _t("consultar_especialista", Risk.EXEC),
         # reescrita (fase 2)

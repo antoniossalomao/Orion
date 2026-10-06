@@ -26,6 +26,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from . import __version__
 from .agent import Agent, AgentEvent
 from .auth import AuthError, AuthService, LockedOut, NotConfigured, WeakPassword
+from .capture import Capturer
 from .channels import TelegramChannel
 from .config import PROJECT_ROOT, Settings
 from .delegate import Delegator
@@ -43,6 +44,7 @@ from .secrets import get_secret
 from .tools import default_registry
 from .tools.processes import ProcessManager
 from .transcribe import Transcriber
+from .vision import Vision
 
 FRONT_DIR = PROJECT_ROOT / "Orion_Core" / "Front_end_Orion"
 
@@ -181,6 +183,9 @@ def telegram_from_settings(
         return None
     return TelegramChannel(
         transcriber=transcriber_from_settings(settings),
+        capture=(
+            Capturer(settings.vault_dir, settings.capture_folder) if settings.vault_dir else None
+        ),
         token=token,
         allowed_users=settings.telegram_allowed_users,
         agent=agent,
@@ -188,6 +193,15 @@ def telegram_from_settings(
         approvals=policy.approvals,
         ops=ops,
     )
+
+
+def vision_from_settings(settings: Settings) -> Vision | None:
+    """Visão só com `ORION_VISION_TOOLS=true` e gateway configurado (o mesmo endpoint e chave)."""
+    if not (settings.vision_tools and settings.gateway_url and settings.gateway_model):
+        return None
+    chave = settings.gateway_api_key or get_secret("ORION_GATEWAY_API_KEY")
+    modelo = settings.vision_model or settings.gateway_model
+    return Vision([Endpoint("gateway", settings.gateway_url, modelo, chave, timeout_s=90.0)])
 
 
 def mcp_from_settings(settings: Settings) -> McpManager | None:
@@ -347,6 +361,8 @@ def create_app(
                     desktop=settings.desktop_tools,
                     web=settings.web_tools,
                     transcriber=transcriber_from_settings(settings),
+                    vision=vision_from_settings(settings),
+                    captures_dir=settings.data_dir / "capturas",
                     processes=processos,
                     web_options={
                         "search_key": lambda: (
@@ -380,6 +396,7 @@ def create_app(
                 consolidator=consolidador,
                 audit_days=settings.audit_retention_days,
                 processes=processos,
+                briefing_at=settings.briefing_at,
             )
             tarefa_jobs = asyncio.create_task(jobs.run_forever(settings.jobs_tick_s))
         telegram = (telegram_factory or telegram_from_settings)(

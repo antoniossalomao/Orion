@@ -1,9 +1,9 @@
 {
-  "_leia": "Copie para <pasta de dados>/mcp.json (ou aponte ORION_MCP_CONFIG). Confira com: uv run orion mcp-check. A classe de risco de cada ferramenta vem DAQUI, nunca do servidor; o que não estiver em 'tools' usa default_risk (exec = pede confirmação sempre). Pacotes e nomes de ferramentas abaixo são exemplos a validar na sua máquina. FIXE A VERSÃO do pacote antes de usar (ex.: @modelcontextprotocol/server-filesystem@1.2.3): `npx -y` sem versão baixa o que estiver mais novo, e pacote npm/PyPI comprometido é risco real de cadeia de suprimentos.",
+  "_leia": "Copie para <pasta de dados>/mcp.json (ou aponte ORION_MCP_CONFIG) e confira com: uv run orion mcp-check. A classe de risco de cada ferramenta vem DAQUI, nunca do servidor; o que não estiver em 'tools' usa default_risk (exec = pede confirmação sempre). Pacotes e nomes de ferramentas foram conferidos em 06/10/2026 subindo cada servidor de verdade (versões abaixo). Antes de atualizar uma versão, rode o mcp-check de novo: um servidor novo pode trazer ferramentas que aqui caem em exec. Os servidores em Python avisam 'Failed to validate request ... server/discover' no log: é só o cliente novo tentando o protocolo mais recente antes de cair no antigo, e não impede nada.",
   "servers": {
     "arquivos": {
       "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-filesystem", "~/Documents"],
+      "args": ["-y", "@modelcontextprotocol/server-filesystem@2026.8.31", "~/Documents"],
       "default_risk": "exec",
       "allow": ["read_text_file", "list_directory", "write_file", "search_files"],
       "tools": {
@@ -15,14 +15,14 @@
     },
     "web": {
       "command": "uvx",
-      "args": ["mcp-server-fetch"],
+      "args": ["mcp-server-fetch==2026.8.18"],
       "external": true,
       "default_risk": "exec",
       "tools": { "fetch": { "risk": "read" } }
     },
     "git": {
       "command": "uvx",
-      "args": ["mcp-server-git"],
+      "args": ["mcp-server-git==2026.8.18"],
       "default_risk": "exec",
       "allow": ["git_status", "git_log", "git_diff_unstaged", "git_diff_staged"],
       "tools": {
@@ -33,18 +33,49 @@
       }
     },
     "navegador": {
+      "_nota": "25 ferramentas, todas exec (confirma sempre): é o que se quer de um navegador que lê páginas da rua. Para um fluxo curto, deixe só as que precisa em 'allow' (ex.: browser_navigate, browser_snapshot, browser_click, browser_type). Evite browser_evaluate e browser_run_code_unsafe.",
       "command": "npx",
-      "args": ["-y", "@playwright/mcp@latest", "--headless"],
+      "args": ["-y", "@playwright/mcp@0.0.83", "--headless"],
       "external": true,
       "default_risk": "exec",
       "enabled": false
     },
     "google": {
-      "_nota": "E-mail e agenda: escolha um servidor MCP do Google Workspace que você confie, guarde o segredo no cofre (ORION_GOOGLE_TOKEN) e classifique só rascunho e leitura. Nunca classifique envio como read ou write.",
-      "command": "COMANDO-DO-SERVIDOR",
-      "env": { "GOOGLE_TOKEN": "${ORION_GOOGLE_TOKEN}" },
+      "_nota": "E-mail e agenda pelo workspace-mcp (PyPI), com permissão 'gmail:drafts': lê e cria RASCUNHO, e o servidor nem registra a ferramenta de envio. Passo a passo em ORION_OPERACAO.md §5.1 (cliente OAuth no Google Cloud, ORION_GOOGLE_CLIENT_ID e ORION_GOOGLE_CLIENT_SECRET no cofre). Só leitura vira read; manage_event (cria, altera e apaga evento) e start_google_auth ficam em exec e pedem confirmação. Nunca classifique envio de e-mail como read nem write.",
+      "command": "uvx",
+      "args": ["workspace-mcp==2.0.1", "--permissions", "gmail:drafts", "calendar:full"],
+      "env": {
+        "GOOGLE_OAUTH_CLIENT_ID": "${ORION_GOOGLE_CLIENT_ID}",
+        "GOOGLE_OAUTH_CLIENT_SECRET": "${ORION_GOOGLE_CLIENT_SECRET}"
+      },
       "external": true,
       "default_risk": "exec",
+      "allow": [
+        "start_google_auth",
+        "search_gmail_messages",
+        "get_gmail_message_content",
+        "get_gmail_messages_content_batch",
+        "get_gmail_thread_content",
+        "get_gmail_threads_content_batch",
+        "list_gmail_labels",
+        "draft_gmail_message",
+        "list_calendars",
+        "get_events",
+        "query_freebusy",
+        "manage_event"
+      ],
+      "tools": {
+        "search_gmail_messages": { "risk": "read" },
+        "get_gmail_message_content": { "risk": "read" },
+        "get_gmail_messages_content_batch": { "risk": "read" },
+        "get_gmail_thread_content": { "risk": "read" },
+        "get_gmail_threads_content_batch": { "risk": "read" },
+        "list_gmail_labels": { "risk": "read" },
+        "draft_gmail_message": { "risk": "write" },
+        "list_calendars": { "risk": "read" },
+        "get_events": { "risk": "read" },
+        "query_freebusy": { "risk": "read" }
+      },
       "enabled": false
     }
   }

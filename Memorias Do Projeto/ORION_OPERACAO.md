@@ -78,6 +78,8 @@ Limites que valem saber:
 | Variável | Liga | Cuidado |
 |---|---|---|
 | `ORION_DESKTOP_TOOLS=true` | Agir no computador: comando, arquivos, documentos, área de transferência, notificação, abrir app, Git somente-leitura, saúde, processos em segundo plano, vigilância de pastas | Tudo passa pela política: leitura roda, escrita nas pastas seguras roda com log, o resto pede o seu aval no canal |
+| `ORION_VISION_TOOLS=true` (além do desktop) | `capturar_tela`, `explicar_tela`, `analisar_imagem` (`ORION_VISION_MODEL` troca o modelo só para visão) | A tela mostra o que você faz: `explicar_tela` **sempre pede aprovação** (a imagem inteira vai ao provedor do modelo) e apaga a captura depois; `capturar_tela` só grava em `<dados>/capturas` (guarda as últimas 20). Precisa de um modelo que aceite imagem; no Linux, de `grim`, `scrot` ou `imagemagick` |
+| (já vêm com o desktop) | `controlar_midia` (tocar/pausar, próxima, anterior, volume, mudo) e `controlar_janela` (listar, focar, minimizar, maximizar, restaurar, fechar) | Janela **sempre pede aprovação** (fechar pode perder trabalho não salvo) e busca ambígua não age. Mídia: Windows, macOS (Spotify ou Music) e Linux (`playerctl` + `wpctl`/`pactl`/`amixer`). Janela: Windows e Linux X11 (`wmctrl`); **não existe no macOS** |
 | `ORION_WEB_TOOLS=true` | `buscar_url`, `consultar_clima`, `pesquisar_com_ia` | Página lida pode mandar o modelo buscar outra URL com dados na query (exfiltração por GET). Ligue sabendo disso |
 | `ORION_SEARCH_API_KEY` | Chave do Gemini para `pesquisar_com_ia` (sem ela vale `ORION_EMBED_API_KEY`) | **(você)** conta no Google AI Studio |
 | `ORION_WEATHER_CITY` | Cidade padrão do clima (padrão: Marília) | |
@@ -102,6 +104,42 @@ E-mail, agenda, navegador e busca não são escritos aqui: entram por servidores
 **(você)** Os pacotes do exemplo precisam de `npx` (Node) ou `uvx`. **Fixe a versão** de cada pacote (`pacote@1.2.3`): `npx -y` sem versão baixa o que for mais novo, e pacote npm/PyPI comprometido é risco de cadeia de suprimentos. Dê a cada servidor só a pasta de que precisa (nada de `C:\` nem o perfil inteiro). Para e-mail e agenda do Google, escolha um servidor
 MCP em que você confie e nunca classifique envio de e-mail como `read` nem `write`.
 
+### 5.1 E-mail e agenda do Google (servidor `google` do `mcp.example.json`)
+
+O exemplo usa o **`workspace-mcp`** (PyPI, versão fixada). É o único que foi **conferido de verdade** (subi o
+servidor e listei as ferramentas): com `--permissions gmail:drafts calendar:full` ele **não registra ferramenta
+de envio de e-mail**, só leitura, rascunho e agenda. As ferramentas que o exemplo libera:
+
+| Ferramenta | Classe no exemplo | Observação |
+|---|---|---|
+| `search_gmail_messages`, `get_gmail_message_content`, `get_gmail_messages_content_batch`, `get_gmail_thread_content`, `get_gmail_threads_content_batch`, `list_gmail_labels` | read (externo) | O texto do e-mail é de terceiros: depois de ler, a sessão passa a pedir aprovação para escrever e executar |
+| `draft_gmail_message` | write | Só cria rascunho; quem envia é você, no Gmail |
+| `list_calendars`, `get_events`, `query_freebusy` | read (externo) | Título e descrição de evento também são de terceiros |
+| `manage_event` | exec (confirma sempre) | Cria, altera **e apaga** evento |
+| `start_google_auth` | exec | Só na primeira vez |
+
+Ficam de fora (por `allow`): anexos, rótulos que alteram mensagens, ausência, foco, criar agenda.
+
+**(você)** Passo a passo:
+
+1. No Google Cloud Console, crie um projeto, ative as APIs Gmail e Calendar e crie um **cliente OAuth** do tipo
+   "Aplicativo para computador". Anote o ID e o segredo.
+2. Guarde no ambiente ou no cofre: `ORION_GOOGLE_CLIENT_ID` e `ORION_GOOGLE_CLIENT_SECRET`.
+3. Copie o bloco `google` para o seu `mcp.json`, tire o `"enabled": false` e rode `uv run orion mcp-check`.
+4. Na primeira conversa, peça "olha minha agenda de hoje": o servidor conduz a autorização (`start_google_auth`, que
+   pede o seu aval). **Não testei esse fluxo** (exige a sua conta e o seu cliente OAuth): confira onde ele guarda o
+   token (veja a documentação do `workspace-mcp`), trate essa pasta como segredo e deixe-a fora de qualquer backup
+   que vá para a nuvem.
+
+**Outro servidor?** Vale se cumprir: (a) versão **fixada**; (b) dá para **esconder** o envio, seja por opção do
+servidor, seja por `allow` (o Orion só mostra ao modelo o que está em `allow`); (c) a lista que o `mcp-check` mostra
+não tem nada de envio, exclusão em massa ou "executar script" classificado como `read`/`write`. Servidores
+populares expõem `send_email`: com `allow` ele some do modelo, mas prefira os que nem o registram. Os outros eu **não** testei.
+
+O briefing matinal ainda **não** lê a agenda: ele monta o texto só com lembretes, agendamentos e tarefas do
+Orion (sem modelo, sem conteúdo de terceiros). Ligar a agenda ao briefing exige rodar o agente sem ninguém olhando
+(regra 18), então é uma decisão sua, depois que o servidor estiver funcionando.
+
 ## 6. Celular (Telegram)
 
 | Variável | Para quê |
@@ -109,6 +147,18 @@ MCP em que você confie e nunca classifique envio de e-mail como `read` nem `wri
 | `ORION_TELEGRAM_TOKEN`, `ORION_TELEGRAM_ALLOWED_USERS` | O bot e quem pode falar com ele (**(você)** criar no @BotFather; o seu ID numérico vem do @userinfobot). Sem a lista o bot não sobe |
 | `ORION_TRANSCRIBE_API_KEY` | Voz: mensagem de voz vira texto (Whisper no Groq, grátis). O texto entendido aparece antes da resposta. Sem a chave o bot pede para escrever. Com a chave (e `ORION_DESKTOP_TOOLS`) também existe a ferramenta `transcrever_audio` para arquivos de áudio |
 | `ORION_TRANSCRIBE_URL`, `ORION_TRANSCRIBE_MODEL` | Outro provedor compatível com a API de transcrição da OpenAI |
+
+| Comando | O que faz |
+|---|---|
+| `/capturar <texto ou link>` | Guarda na hora como nota no vault, sem passar pelo modelo |
+| `/capturar` e depois **texto, link, foto ou voz** | A próxima mensagem (até 5 minutos; qualquer outro comando cancela) vira nota. A voz é transcrita (precisa de `ORION_TRANSCRIBE_API_KEY`) e o texto entendido aparece antes de guardar |
+| `/briefing` | O resumo do dia, na hora |
+
+Captura: precisa de `ORION_VAULT_DIR`. A nota vai para `<vault>/<ORION_CAPTURE_FOLDER>` (padrão `00 Inbox`), com o
+frontmatter mínimo (`date`, `hora`, `fonte: telegram`, `tags: [captura, ...]`) e **sem `type`**: o que é captura ainda
+não foi triado. Foto vai para `anexos/` ao lado, e a nota a incorpora. O link é guardado como veio (não busco a página).
+Briefing: `ORION_BRIEFING_AT=07:30` envia um aviso por dia com lembretes atrasados e de hoje, agendamentos de hoje e
+tarefas em aberto (se o Orion só subir depois da hora, ainda sai em até 6 h).
 
 Foto: vai ao modelo como imagem só naquele turno (o histórico guarda um aviso). Só funciona se o modelo do gateway
 aceitar imagem. Aprovar ação continua **só por botão**, nunca por frase ou por voz.

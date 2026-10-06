@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Annotated
 
@@ -47,6 +48,11 @@ class Settings(BaseSettings):
     # Ferramentas de web (buscar_url, consultar_clima, pesquisar_com_ia): desligadas por padrão,
     # porque página lida pode mandar o modelo buscar outra URL com dados na query (tools/web.py).
     web_tools: bool = False
+    # Visão (capturar_tela, explicar_tela, analisar_imagem): precisa do desktop e de um modelo que
+    # aceite imagem. Desligada por padrão: a tela mostra o que você está fazendo e `explicar_tela`
+    # manda a imagem para o provedor do modelo.
+    vision_tools: bool = False
+    vision_model: str = ""  # vazio: o mesmo modelo do gateway
     weather_city: str = "Marília"  # cidade quando o pedido não diz qual
     search_api_key: str = ""  # Gemini com Google Search; sem ela vale a chave de embeddings
     search_model: str = "gemini-2.5-flash"
@@ -67,6 +73,8 @@ class Settings(BaseSettings):
     backup_dir: Path | None = None  # padrão: <dados>/backups; aponte para o iCloud/OneDrive
     backup_keep: int = Field(default=7, ge=1)
     vault_dir: Path | None = None  # vault do Obsidian a indexar na memória (vazio: não indexa)
+    capture_folder: str = "00 Inbox"  # /capturar (Telegram) grava aqui, dentro do vault
+    briefing_at: str = ""  # HH:MM: aviso diário com lembretes, agendamentos e tarefas (vazio: não)
     consolidate: bool = True  # fatos a partir das conversas (precisa do gateway)
     # Embeddings por API gratuita (Gemini). Sem chave, a busca é só por palavra-chave.
     embed_api_key: str = ""  # ou no cofre do SO (ORION_EMBED_API_KEY)
@@ -100,6 +108,27 @@ class Settings(BaseSettings):
     def _vazio_e_nao_definido(cls, v: object) -> object:
         """`ORION_VAULT_DIR=` (vazio) viraria `Path('.')`: indexaria/gravaria na pasta atual."""
         return None if isinstance(v, str) and not v.strip() else v
+
+    @field_validator("capture_folder")
+    @classmethod
+    def _pasta_de_captura(cls, v: str) -> str:
+        v = v.strip()
+        partes = Path(v.replace("\\", "/")).parts
+        if not v or v[0] in "/\\~" or Path(v).is_absolute() or ".." in partes or ":" in v:
+            raise ValueError(
+                "ORION_CAPTURE_FOLDER precisa ser uma pasta relativa do vault (ex.: 00 Inbox)"
+            )
+        return v.rstrip("/\\")
+
+    @field_validator("briefing_at")
+    @classmethod
+    def _hora_do_briefing(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            return ""
+        if not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", v):
+            raise ValueError("ORION_BRIEFING_AT precisa estar no formato HH:MM (ex.: 07:30)")
+        return v
 
     @field_validator("log_level")
     @classmethod

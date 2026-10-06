@@ -11,7 +11,8 @@ Um laço assíncrono chama `tick()` a cada poucos segundos. Cada passo falha soz
 - backup diário da memória, mantendo os últimos N;
 - consolidação das conversas em fatos (se houver gateway);
 - pastas vigiadas (arquivo novo vira aviso) e processos em segundo plano que terminaram;
-- poda da trilha de auditoria (decisões da política mais velhas que N dias).
+- poda da trilha de auditoria (decisões da política mais velhas que N dias);
+- briefing matinal (`ORION_BRIEFING_AT`): um aviso por dia com lembretes, agendamentos e tarefas.
 
 Quem entrega os avisos é o canal (Telegram, web) lendo `GET /notifications`.
 """
@@ -23,10 +24,11 @@ import logging
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from .briefing import build_briefing
 from .memory import MemoryStore
 from .memory.consolidate import Consolidator
 from .memory.ops import Operations
@@ -45,8 +47,22 @@ class TickReport:
     auditoria: int | None = None
     vigilancias: int = 0
     processos: int = 0
+    briefing: bool = False
     consolidacao: dict[str, Any] | None = None
     erros: list[str] = field(default_factory=list)
+
+
+def _hora(valor: str) -> tuple[int, int] | None:
+    """`HH:MM` → (hora, minuto); vazio → None (briefing desligado)."""
+    if not valor.strip():
+        return None
+    try:
+        h, m = (int(x) for x in valor.strip().split(":"))
+    except ValueError:
+        raise ValueError(f"hora do briefing inválida: {valor!r} (use HH:MM)") from None
+    if not (0 <= h < 24 and 0 <= m < 60):
+        raise ValueError(f"hora do briefing inválida: {valor!r} (use HH:MM)")
+    return h, m
 
 
 class JobRunner:
@@ -61,6 +77,8 @@ class JobRunner:
         consolidator: Consolidator | None = None,
         audit_days: int = 90,
         processes: ProcessManager | None = None,
+        briefing_at: str = "",
+        briefing_window_h: float = 6.0,
         embed_every_s: float = 300.0,
         vault_every_s: float = 3600.0,
         backup_every_s: float = 3600.0,
@@ -74,6 +92,8 @@ class JobRunner:
         self._consolidator = consolidator
         self._audit_days = audit_days
         self._processes = processes
+        self._briefing_at = _hora(briefing_at)
+        self._briefing_window = timedelta(hours=briefing_window_h)
         self._clock = clock
         self._every = {
             "embed": embed_every_s,
@@ -109,6 +129,8 @@ class JobRunner:
         self._passo(rel, "lembretes", self._lembretes)
         self._passo(rel, "agendamentos", self._agendamentos)
         self._passo(rel, "vigilancias", self.ops.watch_poll)
+        if self._briefing_at is not None:
+            self._passo(rel, "briefing", self._briefing)
         if self._processes is not None:
             self._passo(rel, "processos", self._processos_terminados)
         if self._devido("embed"):
@@ -149,6 +171,23 @@ class JobRunner:
             self.ops.mark_schedule_fired(s["id"], agora)
             n += 1
         return n
+
+    def _briefing(self) -> bool:
+        """Um briefing por dia, a partir da hora marcada. Se o Orion só subiu depois, ainda sai
+        dentro da janela (`briefing_window_h`); passada ela, o dia fica sem (não é "bom dia" às
+        23h)."""
+        assert self._briefing_at is not None
+        agora = self._clock()
+        dt = datetime.fromtimestamp(agora)
+        alvo = dt.replace(hour=self._briefing_at[0], minute=self._briefing_at[1], second=0)
+        if dt < alvo or dt - alvo > self._briefing_window:
+            return False
+        hoje = int(dt.strftime("%Y%m%d"))
+        if self.memory.counter_get("briefing:ultimo") >= hoje:
+            return False
+        self.ops.notify("briefing", build_briefing(self.ops, agora), ref=f"briefing:{hoje}")
+        self.memory.counter_set("briefing:ultimo", hoje)  # depois do aviso: falhar não o perde
+        return True
 
     def _processos_terminados(self) -> int:
         assert self._processes is not None

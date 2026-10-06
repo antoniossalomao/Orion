@@ -9,9 +9,9 @@
 
 | Situação | Qtd | O que significa |
 |---|---|---|
-| portada | 32 | Já existe em `orion/` com teste (nomes e argumentos do legado; ids agora inteiros) |
+| portada | 37 | Já existe em `orion/` com teste (nomes e argumentos do legado; ids agora inteiros) |
 | substituida | 2 | O objetivo continua, por outro caminho (CLI delegada, backup diário) |
-| a-portar | 13 | Falta: depende de **você** configurar um servidor MCP (e-mail, agenda, navegador, busca), de modelo multimodal (tela, imagem) ou de API de imagem; ou é só Windows (janela, mídia) |
+| a-portar | 8 | Falta: depende de **você** configurar um servidor MCP (e-mail, agenda, navegador, busca) ou de uma API gratuita de imagem (`gerar_imagem`) |
 | descartar | 8 | Proposta de apagar: o agente ou o modelo já fazem, ou dependia de peça que saiu |
 
 O `orion-desktop` (opt-in `ORION_DESKTOP_TOOLS=true`) tem hoje: `executar_comando`, `ler_arquivo`,
@@ -23,8 +23,9 @@ opt-in (`ORION_WEB_TOOLS=true`) por causa do canal de exfiltração por URL (ver
 **Servidores MCP** (`orion/mcp_client.py`, exemplo em `mcp.example.json`, conferir com
 `uv run orion mcp-check`): é por onde entram e-mail, agenda, navegador e busca. A classe de risco de
 cada ferramenta vem do seu `mcp.json`, nunca do servidor; o que não for classificado pede confirmação.
-O que não tem servidor pronto nem equivalente multiplataforma (`controlar_janela`, `controlar_midia`)
-fica adiado: só Windows, baixa prioridade.
+Mídia e janelas (`controlar_midia`, `controlar_janela`) e visão (`capturar_tela`, `explicar_tela`,
+`analisar_imagem`) entraram em 06/10/2026: nenhuma delas foi executada fora do Linux (só o argv), e
+`controlar_janela` não existe no macOS. A visão tem opt-in próprio (`ORION_VISION_TOOLS`).
 
 ## Tabela
 
@@ -58,8 +59,8 @@ fica adiado: só Windows, baixa prioridade.
 | `consultar_git` | `git_tools.py` | read | portada | orion.tools.system_tools (opt-in); git sem hooks, fsmonitor nem diff externo do repositório | 4 |
 | `notificar_usuario` | `notifications.py` | write | portada | orion.tools.system_tools (opt-in): balão no Windows, `osascript` no macOS, `notify-send` no Linux | 4 |
 | `abrir_app` | `os_tools.py` | exec | portada | orion.tools.system_tools (opt-in); **virou execução** (abre qualquer programa ou arquivo): sempre confirma | 4 |
-| `controlar_janela` | `os_tools.py` | exec | a-portar | orion-desktop só Windows (UI Automation); sem equivalente no Mac, adiar | 4 |
-| `controlar_midia` | `os_tools.py` | write | a-portar | orion-desktop; baixa prioridade | 4 |
+| `controlar_janela` | `os_tools.py` | exec (externo) | portada | orion.tools.media (opt-in): Windows (PowerShell) e Linux X11 (`wmctrl`); **não existe no macOS**; confirma sempre; busca ambígua não age; o título é externo; só o argv foi testado | 4 |
+| `controlar_midia` | `os_tools.py` | write | portada | orion.tools.media (opt-in): teclas de mídia no Windows, `osascript` (Spotify/Music) no macOS, `playerctl` + `wpctl`/`pactl`/`amixer` no Linux; só o argv foi testado | 4 |
 | `iniciar_processo_bg` | `processes.py` | exec | portada | orion.tools.processes (opt-in); comando classificado como `executar_comando`; log só do dono; avisa ao terminar | 4 |
 | `iniciar_vigilancia_pasta` | `processes.py` | write | portada | `Operations.watch_*` + job do agendador (sem watchdog: compara nomes a cada tick); a lista vive no banco | 4 |
 | `listar_processos_bg` | `processes.py` | read | portada | orion.tools.processes (opt-in); a lista zera quando o Orion reinicia | 4 |
@@ -68,9 +69,9 @@ fica adiado: só Windows, baixa prioridade.
 | `status_processo_bg` | `processes.py` | read | portada | orion.tools.processes (opt-in) | 4 |
 | `consultar_audit_log` | `security_tools.py` | read | portada | orion.tools.ops_tools lendo a tabela `audit` (toda decisão da política é gravada; poda de 90 dias) | 4 |
 | `checar_saude_sistema` | `system.py` | read | portada | orion.tools.system_tools (opt-in; psutil, sem GPU; inclui disco e bateria) | 4 |
-| `analisar_imagem` | `vision.py` | read | a-portar | gateway multimodal (sem ferramenta própria se o modelo aceitar imagem) | 4 |
-| `capturar_tela` | `vision.py` | read | a-portar | orion-desktop (mss); captura contínua exige aprovação (Ring 0 #3) | 4 |
-| `explicar_tela` | `vision.py` | read | a-portar | orion-desktop + modelo de visão do gateway | 4 |
+| `analisar_imagem` | `vision.py` | read (externo) | portada | orion.tools.vision (opt-in `ORION_VISION_TOOLS`): manda o arquivo ao modelo do gateway (`orion.vision`); segredo confirma; a descrição é externa. **Só funciona se o modelo aceitar imagem; não validado contra um modelo real** | 4 |
+| `capturar_tela` | `vision.py` | write | portada | orion.tools.vision (opt-in): comando nativo (`screencapture`, PowerShell, `grim`/`scrot`/`import`), grava em `<dados>/capturas` (guarda as últimas 20); **virou escrita com log**; não há captura contínua | 4 |
+| `explicar_tela` | `vision.py` | exec (externo) | portada | orion.tools.vision (opt-in): captura e envia a tela inteira ao modelo; **virou execução: confirma sempre**; a captura é apagada depois | 4 |
 | `gerar_imagem` | `vision.py` | write | a-portar | API gratuita de imagem; depende de cota (decisão #7) | 6 |
 | `buscar_url` | `web.py` | read (externo) | portada | orion.tools.web (opt-in `ORION_WEB_TOOLS`) + `orion.netguard` (regra 7: IP conferido é o IP usado) | 4 |
 | `consultar_clima` | `web.py` | read | portada | orion.tools.web (opt-in); Open-Meteo, sem chave (o wttr.in do legado saiu) | 4 |
