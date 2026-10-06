@@ -179,13 +179,8 @@ def telegram_from_settings(
     if agent is None:
         log.error("telegram desligado: configure o gateway de modelos (ORION_GATEWAY_URL/MODEL)")
         return None
-    chave_voz = settings.transcribe_api_key or get_secret("ORION_TRANSCRIBE_API_KEY")
     return TelegramChannel(
-        transcriber=Transcriber(
-            chave_voz, base_url=settings.transcribe_url, model=settings.transcribe_model
-        )
-        if chave_voz
-        else None,
+        transcriber=transcriber_from_settings(settings),
         token=token,
         allowed_users=settings.telegram_allowed_users,
         agent=agent,
@@ -204,6 +199,14 @@ def mcp_from_settings(settings: Settings) -> McpManager | None:
     except McpConfigError as e:
         log.error("MCP desligado: %s", e)
         return None
+
+
+def transcriber_from_settings(settings: Settings) -> Transcriber | None:
+    """Sem chave de transcrição não há voz no Telegram nem `transcrever_audio`."""
+    chave = settings.transcribe_api_key or get_secret("ORION_TRANSCRIBE_API_KEY")
+    if not chave:
+        return None
+    return Transcriber(chave, base_url=settings.transcribe_url, model=settings.transcribe_model)
 
 
 def embedder_from_settings(settings: Settings) -> GeminiEmbedder | None:
@@ -329,6 +332,7 @@ def create_app(
                     ops,
                     desktop=settings.desktop_tools,
                     web=settings.web_tools,
+                    transcriber=transcriber_from_settings(settings),
                     processes=processos,
                     web_options={
                         "search_key": lambda: (

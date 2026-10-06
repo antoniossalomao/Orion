@@ -42,7 +42,7 @@ DEFAULT_TOOLS: dict[str, ToolSpec] = dict(
         _t("analisar_clipboard_com_ia", Risk.READ, external=True),
         _t("ler_documento", Risk.READ, external=True, read_path_arg="path"),
         _t("resumir_documento", Risk.READ, external=True),
-        _t("transcrever_audio", Risk.READ),
+        _t("transcrever_audio", Risk.READ, external=True, read_path_arg="path"),
         _t("traduzir_texto", Risk.READ),
         _t("consultar_git", Risk.READ, read_path_arg="repo_path"),
         _t("buscar_memoria", Risk.READ),

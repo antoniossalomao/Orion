@@ -12,6 +12,7 @@ from orion.memory.ops import Operations
 from orion.policy import DEFAULT_TOOLS
 from orion.tools import default_registry
 from orion.tools.processes import ProcessManager
+from orion.transcribe import Transcriber
 
 DOC = PROJECT_ROOT / "Memorias Do Projeto" / "ORION_FERRAMENTAS.md"
 NOVAS = {"listar_fatos", "esquecer_fato", "delegar"}  # nasceram na reescrita, não vieram do legado
@@ -57,6 +58,7 @@ def test_situacao_portada_so_para_o_que_o_registro_realmente_tem(linhas, tmp_pat
                 desktop=True,
                 web=True,
                 processes=ProcessManager(tmp_path / "procs"),
+                transcriber=Transcriber("chave-de-teste"),
             ).names()
         )
     finally:

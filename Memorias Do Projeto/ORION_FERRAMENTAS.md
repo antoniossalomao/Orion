@@ -9,15 +9,15 @@
 
 | Situação | Qtd | O que significa |
 |---|---|---|
-| portada | 31 | Já existe em `orion/` com teste (nomes e argumentos do legado; ids agora inteiros) |
+| portada | 32 | Já existe em `orion/` com teste (nomes e argumentos do legado; ids agora inteiros) |
 | substituida | 2 | O objetivo continua, por outro caminho (CLI delegada, backup diário) |
-| a-portar | 14 | Falta: depende de **você** configurar um servidor MCP (e-mail, agenda, navegador, busca), de modelo multimodal (tela, imagem), de voz ou de API de imagem; ou é só Windows (janela, mídia) |
+| a-portar | 13 | Falta: depende de **você** configurar um servidor MCP (e-mail, agenda, navegador, busca), de modelo multimodal (tela, imagem) ou de API de imagem; ou é só Windows (janela, mídia) |
 | descartar | 8 | Proposta de apagar: o agente ou o modelo já fazem, ou dependia de peça que saiu |
 
 O `orion-desktop` (opt-in `ORION_DESKTOP_TOOLS=true`) tem hoje: `executar_comando`, `ler_arquivo`,
 `listar_arquivos`, `escrever_arquivo`, `organizar_pasta`, documentos, área de transferência,
 notificação local, abrir app, Git somente-leitura, saúde do sistema, processos em segundo plano e
-vigilância de pastas. As de web (`buscar_url`, `consultar_clima`, `pesquisar_com_ia`) são outro
+vigilância de pastas (e, com a chave de transcrição, `transcrever_audio`). As de web (`buscar_url`, `consultar_clima`, `pesquisar_com_ia`) são outro
 opt-in (`ORION_WEB_TOOLS=true`) por causa do canal de exfiltração por URL (ver `orion/tools/web.py`).
 
 **Servidores MCP** (`orion/mcp_client.py`, exemplo em `mcp.example.json`, conferir com
@@ -47,7 +47,7 @@ fica adiado: só Windows, baixa prioridade.
 | `ler_clipboard` | `clipboard.py` | read (externo) | portada | orion.tools.system_tools (opt-in; PowerShell, `pbpaste`, `wl-paste`/`xclip`); saída é conteúdo externo | 4 |
 | `gerar_documento` | `documents.py` | write | portada | orion.tools.documents (opt-in): txt, md, html, csv, docx, xlsx e pdf (`uv sync --extra pdf`); planilha nunca grava fórmula | 4 |
 | `ler_documento` | `documents.py` | read (externo) | portada | orion.tools.documents (opt-in): pdf, docx, xlsx, html, txt, md, csv, json; saída é conteúdo externo; segredo confirma | 4 |
-| `transcrever_audio` | `documents.py` | read | a-portar | API de transcrição gratuita (Whisper no Groq) pelo gateway | 6 |
+| `transcrever_audio` | `documents.py` | read (externo) | portada | orion.tools.audio (opt-in; só com `ORION_TRANSCRIBE_API_KEY`): Whisper no Groq; a transcrição é conteúdo externo; segredo confirma. **Não validado contra a API real** | 6 |
 | `criar_evento` | `email_cal.py` | write | a-portar | servidor MCP do Google Workspace em `mcp.json`; cliente pronto, falta você escolher e configurar o servidor | 4 |
 | `criar_rascunho_email` | `email_cal.py` | write | a-portar | idem (só rascunho, nunca envia) | 4 |
 | `ler_email` | `email_cal.py` | read (externo) | a-portar | idem | 4 |

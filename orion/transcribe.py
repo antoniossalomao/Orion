@@ -8,6 +8,8 @@ ORION_MELHORIAS): o formato segue a documentação do provedor.
 
 from __future__ import annotations
 
+from typing import Any
+
 import httpx
 
 GROQ = "https://api.groq.com/openai/v1"
@@ -36,34 +38,32 @@ class Transcriber:
         self._model, self._language = model, language
         self._timeout = timeout_s
         self._dono_do_cliente = client is None
-        self._client = client or httpx.AsyncClient()
+        self._client = client  # criado só quando a versão async for usada (a síncrona não precisa)
 
     async def aclose(self) -> None:
-        if self._dono_do_cliente:
+        if self._dono_do_cliente and self._client is not None:
             await self._client.aclose()
 
-    async def transcribe(
-        self, audio: bytes, filename: str = "audio.ogg", mime: str = "audio/ogg"
-    ) -> str:
+    def _pedido(self, audio: bytes, filename: str, mime: str) -> dict[str, Any]:
         if not audio:
             raise TranscribeError("áudio vazio")
         if len(audio) > MAX_AUDIO:
             raise TranscribeError("áudio grande demais")
-        try:
-            r = await self._client.post(
-                self._url,
-                headers={"Authorization": f"Bearer {self._key}"},
-                data={
-                    "model": self._model,
-                    "language": self._language,
-                    "response_format": "json",
-                    "temperature": "0",
-                },
-                files={"file": (filename, audio, mime)},
-                timeout=self._timeout,
-            )
-        except httpx.HTTPError as e:
-            raise TranscribeError(f"a transcrição falhou: {type(e).__name__}") from None
+        return {
+            "url": self._url,
+            "headers": {"Authorization": f"Bearer {self._key}"},
+            "data": {
+                "model": self._model,
+                "language": self._language,
+                "response_format": "json",
+                "temperature": "0",
+            },
+            "files": {"file": (filename, audio, mime)},
+            "timeout": self._timeout,
+        }
+
+    @staticmethod
+    def _texto(r: httpx.Response) -> str:
         if r.status_code >= 400:
             raise TranscribeError(f"a transcrição falhou (HTTP {r.status_code})")
         try:
@@ -73,3 +73,32 @@ class Transcriber:
         if not texto:
             raise TranscribeError("não entendi nada neste áudio")
         return texto
+
+    async def transcribe(
+        self, audio: bytes, filename: str = "audio.ogg", mime: str = "audio/ogg"
+    ) -> str:
+        pedido = self._pedido(audio, filename, mime)
+        if self._client is None:
+            self._client = httpx.AsyncClient()
+        try:
+            r = await self._client.post(**pedido)
+        except httpx.HTTPError as e:
+            raise TranscribeError(f"a transcrição falhou: {type(e).__name__}") from None
+        return self._texto(r)
+
+    def transcribe_sync(
+        self,
+        audio: bytes,
+        filename: str = "audio.ogg",
+        mime: str = "audio/ogg",
+        transport: httpx.BaseTransport | None = None,
+    ) -> str:
+        """Mesma coisa para ferramentas síncronas (rodam em thread): um cliente por chamada, para
+        não usar o cliente async do laço principal de outra thread."""
+        pedido = self._pedido(audio, filename, mime)
+        try:
+            with httpx.Client(transport=transport) as c:
+                r = c.post(**pedido)
+        except httpx.HTTPError as e:
+            raise TranscribeError(f"a transcrição falhou: {type(e).__name__}") from None
+        return self._texto(r)

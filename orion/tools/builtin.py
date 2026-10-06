@@ -11,6 +11,8 @@ from typing import Any
 from ..delegate import Delegator
 from ..memory import MemoryStore
 from ..memory.ops import Operations
+from ..transcribe import Transcriber
+from .audio import audio_tools
 from .desktop import desktop_tools
 from .documents import document_tools
 from .fs_tools import fs_tools
@@ -108,12 +110,16 @@ def default_registry(
     web: bool = False,
     processes: ProcessManager | None = None,
     web_options: dict[str, Any] | None = None,
+    transcriber: Transcriber | None = None,
     extra: list[Tool] | None = None,
 ) -> ToolRegistry:
     reg = ToolRegistry(memory_tools(store))
     if desktop:  # opt-in (ORION_DESKTOP_TOOLS): age no computador, sempre sob a política
         for t in (*desktop_tools(), *fs_tools(), *system_tools(), *document_tools()):
             reg.register(t)
+        if transcriber is not None:  # só com a chave de transcrição configurada
+            for t in audio_tools(transcriber):
+                reg.register(t)
         if processes is not None and ops is not None:
             for t in process_tools(processes, ops):
                 reg.register(t)
