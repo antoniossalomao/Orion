@@ -7,6 +7,8 @@ aprovação executando a ação de verdade depois do clique.
 
 from __future__ import annotations
 
+import contextlib
+import json
 import os
 import sqlite3
 import subprocess
@@ -32,8 +34,9 @@ def _esperar(url: str, caminho: str = "/health", tentativas: int = 150) -> None:
     raise RuntimeError(f"{url} não subiu")
 
 
-@pytest.fixture
-def orion_real(tmp_path):
+@contextlib.contextmanager
+def _subir(tmp_path, extra_env=None):
+    """Sobe o gateway de mentira e o Orion de verdade; devolve (url, arquivo-marca)."""
     p_gw, p_app = _porta_livre(), _porta_livre()
     alvo = tmp_path / "marca.txt"
     base = {**os.environ, "PYTHONPATH": str(RAIZ)}
@@ -53,6 +56,7 @@ def orion_real(tmp_path):
         "ORION_MCP_ENABLED": "false",
         "ORION_LOG_JSON": "false",
         "ORION_ADMIN_TOKEN": "",
+        **(extra_env or {}),
     }
     subprocess.run(
         [sys.executable, "-m", "orion", "set-password", "--stdin"],
@@ -70,7 +74,13 @@ def orion_real(tmp_path):
     finally:
         for proc in (app, gw):
             proc.terminate()
-            proc.wait(timeout=15)
+            proc.wait(timeout=20)  # se o desligamento do MCP travar, aqui estoura
+
+
+@pytest.fixture
+def orion_real(tmp_path):
+    with _subir(tmp_path) as r:
+        yield r
 
 
 def _pagina(navegador, url):
@@ -153,3 +163,49 @@ def test_login_conversa_e_aprovacao_ponta_a_ponta(navegador, orion_real, tmp_pat
         assert erros == []
     finally:
         ctx.close()
+
+
+def _eventos(resp: httpx.Response) -> list:
+    return [
+        json.loads(ln[6:]) if ln[6:] != "[DONE]" else "[DONE]"
+        for ln in resp.text.splitlines()
+        if ln.startswith("data: ")
+    ]
+
+
+def test_servidor_mcp_de_verdade_entra_no_app_sob_a_politica(tmp_path):
+    """mcp.json -> servidor MCP real (SDK) -> ferramenta no agente -> política -> resultado, pelo
+    HTTP do Orion de verdade; e o desligamento encerra o servidor sem travar."""
+    fake = RAIZ / "tests" / "mcp_cliente" / "fake_server.py"
+    cfg = tmp_path / "mcp.json"
+    cfg.write_text(
+        json.dumps(
+            {
+                "servers": {
+                    "fake": {
+                        "command": sys.executable,
+                        "args": [str(fake)],
+                        "allow": ["somar", "apagar"],
+                        "tools": {"somar": {"risk": "read"}},
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    extra = {"ORION_MCP_ENABLED": "true", "ORION_MCP_CONFIG": str(cfg)}
+    with _subir(tmp_path, extra) as (url, _):
+        with httpx.Client(base_url=url) as c:
+            assert c.post("/auth/login", json={"senha": SENHA}).status_code == 200
+            saude = c.get("/health").json()
+            assert saude["components"]["mcp"]["fake"].startswith("ok (2")
+            ev = _eventos(c.post("/chat", json={"texto": "mcp some 2 e 3"}))
+        ferramentas = [e["tool"] for e in ev if isinstance(e, dict) and "tool" in e]
+        assert ferramentas == [{"name": "fake__somar", "decision": "allow", "reason": ""}]
+        assert {"text": 'Feito. Resultado: {"texto": "5"}'} in ev
+        # `apagar` não tem classe no mcp.json: confirma sempre (exec), nunca roda direto
+        with httpx.Client(base_url=url) as c:
+            c.post("/auth/login", json={"senha": SENHA})
+            ev = _eventos(c.post("/chat", json={"texto": "mcp apagar"}))
+            aprov = [e["approval"] for e in ev if isinstance(e, dict) and "approval" in e]
+            assert aprov and aprov[0]["tool"] == "fake__apagar" and aprov[0]["reason"]

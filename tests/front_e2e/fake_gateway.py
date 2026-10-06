@@ -66,6 +66,34 @@ def create_app() -> FastAPI:
                         }
                     )
                     yield _sse({}, "tool_calls")
+                elif "mcp some" in texto:
+                    args = json.dumps({"a": 2, "b": 3})
+                    yield _sse(
+                        {
+                            "tool_calls": [
+                                {
+                                    "index": 0,
+                                    "id": "call_3",
+                                    "function": {"name": "fake__somar", "arguments": args},
+                                }
+                            ]
+                        }
+                    )
+                    yield _sse({}, "tool_calls")
+                elif "mcp apagar" in texto:
+                    args = json.dumps({"path": "/tmp/nada"})
+                    yield _sse(
+                        {
+                            "tool_calls": [
+                                {
+                                    "index": 0,
+                                    "id": "call_4",
+                                    "function": {"name": "fake__apagar", "arguments": args},
+                                }
+                            ]
+                        }
+                    )
+                    yield _sse({}, "tool_calls")
                 elif "memoria" in texto:
                     args = json.dumps({"consulta": "orion"})
                     yield _sse(
