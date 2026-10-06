@@ -232,6 +232,7 @@ uv sync
 ORION_ADMIN_TOKEN=<16+ caracteres> ORION_GATEWAY_URL=http://127.0.0.1:20128/v1 \
 ORION_GATEWAY_MODEL=<modelo> uv run orion         # sobe em 127.0.0.1:8000
 uv run orion set-password                          # define/troca a senha do login (encerra as sessões abertas)
+# Windows sem instalar nada: Actions > "Orion.exe (Windows)" gera o orion.exe (usuário admin; ver ORION_OPERACAO.md §1.1)
 uv run orion mcp-check                             # sobe os servidores do mcp.json e lista as ferramentas e suas classes
 uv run orion backup                                # backup diário da memória (mantém 7)
 uv run orion autostart [--install]                 # arquivo de início automático do seu SO (mostra; --install grava)
@@ -246,7 +247,7 @@ python -m orion.memory.eval <casos.json> --db <orion.db> [--embeddings]    # med
 |---|---|
 | `uv run orion set-password` | Login: toda rota da API exige sessão (cookie) ou o token abaixo. Sem senha e sem token a API fica desligada (503) |
 | `ORION_ADMIN_TOKEN` | Credencial de **máquina** (16+ caracteres): `Authorization: Bearer` para scripts e o app desktop. O navegador usa a senha |
-| `ORION_SESSION_TTL_H`, `ORION_COOKIE_SECURE`, `ORION_AUTH_USER` | Validade da sessão (padrão 168 h), cookie `Secure` (automático em HTTPS) e o nome do usuário (padrão `antonio`) |
+| `ORION_SESSION_TTL_H`, `ORION_COOKIE_SECURE`, `ORION_AUTH_USER` | Validade da sessão (padrão 168 h), cookie `Secure` (automático em HTTPS) e o nome do usuário (padrão `admin`) |
 | `ORION_GATEWAY_URL`, `ORION_GATEWAY_MODEL`, `ORION_GATEWAY_API_KEY` | Gateway de modelos (OmniRoute ou API compatível com a da OpenAI); sem eles `/chat` responde 503 |
 | `ORION_DATA_DIR` | Onde fica o `orion.db` (padrão: pasta de dados do usuário no SO) |
 | `ORION_EXTRA_SAFE_ROOTS` | Lista JSON de pastas extras onde as ferramentas escrevem sem confirmação (ex.: Documents no OneDrive) |

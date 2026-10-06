@@ -15,6 +15,23 @@ uv run orion            # http://127.0.0.1:8000 (interface em /ui/)
 Configuração por variáveis `ORION_*` ou por um `.env` na pasta onde o comando roda. Segredos
 (chaves de API) podem ficar no cofre do sistema em vez do `.env` (`orion.secrets`: ambiente primeiro, cofre depois).
 
+## 1.1 Executável do Windows (`orion.exe`)
+
+O workflow **Orion.exe (Windows)** (`.github/workflows/build-exe.yml`) compila o Orion com PyInstaller,
+**sobe o executável de verdade** e roda o teste de fumaça (`scripts/smoke_exe.py`: `/health`, interface
+empacotada, login, troca de senha) antes de entregar o `Orion-windows-x64.zip`.
+
+- Rodar: Actions › *Orion.exe (Windows)* › *Run workflow*, e baixar o artefato; ou criar uma tag `v*`
+  (`git tag v0.1.0 && git push --tags`), que publica um *release* com o zip.
+- Usar: descompactar, dar dois cliques em `orion.exe` (abre o navegador em `/ui/`), entrar com
+  **`admin` / `261210@`** e **trocar a senha** em Configurações › Conexão. O `LEIA-ME.txt` do zip explica o resto.
+- A senha de fábrica só existe no `.exe` (`ORION_SEED_DEFAULT_PASSWORD`, ligado pelo `orion_exe.py`). Ela está
+  num repositório público: o app avisa depois do login e **recusa subir exposto na rede** (Tailscale) enquanto
+  não for trocada. `orion.exe set-password` também troca.
+- O executável não é assinado: o Windows mostra o aviso do SmartScreen. Os dados ficam em `%LOCALAPPDATA%\orion`.
+- O ícone (`assets/orion.ico`) sai de `scripts/gerar_icone.py` (a constelação, minimalista).
+- Verificado no Linux (PyInstaller + teste de fumaça); o Windows só roda no CI.
+
 ## 2. Login
 
 ```
@@ -23,7 +40,7 @@ uv run orion set-password        # pede a senha duas vezes (mínimo 12 caractere
 
 - A senha vira um hash PBKDF2 em `<pasta de dados>/auth.db`. Esse arquivo **não** entra no backup que vai para
   a nuvem; restaurar o backup num computador novo exige rodar `set-password` de novo (de propósito).
-- A tela de entrada pede **usuário** (`ORION_AUTH_USER`, padrão `antonio`) e senha; errar um dos dois dá a mesma resposta. Quem entra ganha uma sessão (cookie `httpOnly`, `SameSite=Strict`) que vale 7 dias
+- A tela de entrada pede **usuário** (`ORION_AUTH_USER`, padrão `admin`) e senha; errar um dos dois dá a mesma resposta. Quem entra ganha uma sessão (cookie `httpOnly`, `SameSite=Strict`) que vale 7 dias
   (`ORION_SESSION_TTL_H`). Trocar a senha encerra todas as sessões abertas.
 - 5 senhas erradas travam o cliente por 1 minuto, e a trava dobra a cada rodada (até 1 h). Há também um teto
   global de 30 erros em 15 minutos.

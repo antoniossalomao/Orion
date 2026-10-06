@@ -1,7 +1,7 @@
 # ORION — Plano de melhorias e o que foi feito
 
 > Auditoria de 02/10/2026 (backend, front, regras, docs) e a execução dela, mais a segunda
-> rodada de 03/10/2026 (achados R1–R11) e a terceira de 06/10/2026 (L1–L11: login, MCP, ferramentas). Cada achado tem ID, evidência e status. O que
+> rodada de 03/10/2026 (achados R1–R11) e a terceira de 06/10/2026 (L1–L12: login, MCP, ferramentas). Cada achado tem ID, evidência e status. O que
 > **não** foi verificado está na seção própria.
 > Regras resultantes: [ORION_REGRAS.md](ORION_REGRAS.md). Plano de fases: [ORION_NUCLEO.md](ORION_NUCLEO.md).
 
@@ -64,6 +64,7 @@ Tudo testado no Linux (CI nos três sistemas no PR). Cada item novo abaixo tem r
 | L9 | Média | Um `buscar_url` depois de ler uma página injetada pode exfiltrar dados na própria URL (GET), e o taint só cobre escrita e execução | 🟡 | As ferramentas de web ficam **desligadas por padrão** (`ORION_WEB_TOOLS`); o endereço passa pelo `netguard` e fica no audit. O canal continua existindo: está documentado em `orion/tools/web.py` |
 | L10 | Baixa | Telegram só entendia texto | ✅ (API falsa) | Voz (Whisper no Groq, o texto entendido aparece antes da resposta) e foto (imagem só naquele turno) |
 | L11 | Alta | *(achado rodando o Orion de verdade com o front real)* aprovar uma ação no navegador falhava com HTTP 422: o front retoma sem corpo e `POST /approvals/{id}/resume` exigia um | ✅ | Corpo opcional (canal `web` por padrão) + teste. Os testes com backend de mentira não pegavam; agora há 3 testes contra o app, a política e o SQLite reais (`tests/front_e2e/test_orion_real.py`): login por cookie, conversa, aprovação que **executa de verdade** depois do clique, audit no banco, servidor MCP real e desligamento limpo. `mcp.json` e `auth.db` viraram arquivos sensíveis (ler e escrever confirmam) |
+| L12 | Média | O Orion só rodava com Python e `uv`; faltava um executável; e o usuário padrão era `antonio` | ✅ no Linux; ⏳ Windows só no CI | Workflow `build-exe.yml`: compila (PyInstaller), **sobe o `.exe` e roda o teste de fumaça**, publica zip/release. Usuário padrão `admin`; senha de fábrica `261210@` **só no `.exe`**: não é anunciada antes do login, o app avisa depois, tem tela para trocar, e recusa subir exposto na rede enquanto ela valer. Ícone minimalista gerado por script |
 
 ## O que foi construído (por fase do NUCLEO)
 
