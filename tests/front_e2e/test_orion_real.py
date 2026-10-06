@@ -148,6 +148,8 @@ def test_login_conversa_e_aprovacao_ponta_a_ponta(navegador, orion_real, tmp_pat
         assert not alvo.exists()
         page.get_by_role("button", name="Aprovar").last.click()
         expect(page.locator(".msg-orion").last).to_contain_text("Feito.", timeout=20000)
+        relato = page.locator(".msg-orion").last.inner_text()
+        assert alvo.exists(), f"a ação aprovada não rodou; o modelo recebeu: {relato}"
         assert alvo.read_text().strip() == "aprovado"  # rodou de verdade, depois do aval
 
         # a trilha de auditoria registrou o pedido de aprovação e depois a execução, no banco
