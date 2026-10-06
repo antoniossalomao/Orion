@@ -112,6 +112,15 @@ def test_resume_exige_token_e_aprovacao_existente(tmp_path):
         assert "error" in ev[0] and ev[-1] == "[DONE]"
 
 
+def test_resume_sem_corpo_vale_para_o_canal_web_como_o_front_manda(tmp_path):
+    """Regressão achada rodando o Orion de verdade: o front retoma sem corpo e dava HTTP 422."""
+    c, _ = cliente(tmp_path)
+    with c:
+        resp = c.post("/approvals/inexistente/resume", headers=AUTH)  # nenhum corpo
+        assert resp.status_code == 200
+        assert "aprovação inexistente" in resp.text
+
+
 def test_erro_interno_do_turno_vira_evento_e_nao_derruba_o_stream(tmp_path):
     c, _ = cliente(tmp_path, RuntimeError("bug"))
     with c, c.stream("POST", "/chat", json={"texto": "oi"}, headers=AUTH) as r:

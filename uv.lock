@@ -1095,6 +1095,7 @@ pdf = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "cryptography" },
     { name = "pyright" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
@@ -1130,6 +1131,7 @@ provides-extras = ["pdf"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "cryptography", specifier = ">=50.0.2" },
     { name = "pyright", specifier = ">=1.1.380" },
     { name = "pytest", specifier = ">=8" },
     { name = "pytest-asyncio", specifier = ">=0.24" },

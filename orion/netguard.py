@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import ipaddress
 import socket
+import ssl
 from collections.abc import Callable
 from dataclasses import dataclass
 from html.parser import HTMLParser
@@ -121,11 +122,14 @@ def buscar(
     transport: httpx.BaseTransport | None = None,
     timeout_s: float = 15.0,
     max_bytes: int = MAX_BYTES,
+    verify: ssl.SSLContext | bool = True,
 ) -> Resposta:
     """GET seguro: valida a URL e cada redirecionamento, conecta no IP conferido, limita o
-    tamanho. `transport` existe para os testes."""
+    tamanho. `transport` e `verify` (CA própria) existem para os testes."""
     atual = url
-    with httpx.Client(transport=transport, timeout=timeout_s, follow_redirects=False) as cliente:
+    with httpx.Client(
+        transport=transport, timeout=timeout_s, follow_redirects=False, verify=verify
+    ) as cliente:
         for _ in range(MAX_REDIRECTS + 1):
             d = validar(atual, resolver)
             req = cliente.build_request(

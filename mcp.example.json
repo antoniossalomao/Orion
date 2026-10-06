@@ -1,5 +1,5 @@
 {
-  "_leia": "Copie para <pasta de dados>/mcp.json (ou aponte ORION_MCP_CONFIG). Confira com: uv run orion mcp-check. A classe de risco de cada ferramenta vem DAQUI, nunca do servidor; o que não estiver em 'tools' usa default_risk (exec = pede confirmação sempre). Pacotes e nomes de ferramentas abaixo são exemplos a validar na sua máquina.",
+  "_leia": "Copie para <pasta de dados>/mcp.json (ou aponte ORION_MCP_CONFIG). Confira com: uv run orion mcp-check. A classe de risco de cada ferramenta vem DAQUI, nunca do servidor; o que não estiver em 'tools' usa default_risk (exec = pede confirmação sempre). Pacotes e nomes de ferramentas abaixo são exemplos a validar na sua máquina. FIXE A VERSÃO do pacote antes de usar (ex.: @modelcontextprotocol/server-filesystem@1.2.3): `npx -y` sem versão baixa o que estiver mais novo, e pacote npm/PyPI comprometido é risco real de cadeia de suprimentos.",
   "servers": {
     "arquivos": {
       "command": "npx",

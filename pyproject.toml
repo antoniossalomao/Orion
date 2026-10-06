@@ -32,6 +32,7 @@ dev = [
     "ruff>=0.6",
     "pyright>=1.1.380",
     "reportlab>=5.0.1",
+    "cryptography>=50.0.2",
 ]
 # testes de navegador do front (tests/front_e2e): uv sync --group e2e
 e2e = [

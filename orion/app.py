@@ -520,11 +520,15 @@ def create_app(
         )
 
     @app.post("/approvals/{approval_id}/resume", dependencies=[Admin])
-    async def retomar(approval_id: str, corpo: Retomada, state: State) -> StreamingResponse:
-        """Depois de aprovada, executa a ação e deixa o modelo relatar o resultado."""
+    async def retomar(
+        approval_id: str, state: State, corpo: Retomada | None = None
+    ) -> StreamingResponse:
+        """Depois de aprovada, executa a ação e deixa o modelo relatar o resultado. O corpo é
+        opcional (o front não manda nenhum): sem ele vale o canal `web`."""
         agente = _agente(state)
+        canal = corpo.canal if corpo else "web"
         return StreamingResponse(
-            _stream(agente.resume(corpo.canal, approval_id)), media_type="text/event-stream"
+            _stream(agente.resume(canal, approval_id)), media_type="text/event-stream"
         )
 
     @app.get("/approvals", dependencies=[Admin])

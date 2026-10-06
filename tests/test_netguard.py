@@ -154,3 +154,76 @@ def test_e_texto():
     assert netguard.e_texto("text/html") and netguard.e_texto("application/json")
     assert netguard.e_texto("application/ld+json") and netguard.e_texto("")
     assert not netguard.e_texto("image/png") and not netguard.e_texto("application/pdf")
+
+
+# ── TLS de verdade: o IP é fixado, o certificado continua sendo conferido contra o NOME ──
+def _servidor_tls(tmp_path, nome):
+    import datetime
+    import http.server
+    import ssl
+    import threading
+
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from cryptography.x509.oid import NameOID
+
+    chave = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    sujeito = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, nome)])
+    agora = datetime.datetime.now(datetime.UTC)
+    cert = (
+        x509.CertificateBuilder()
+        .subject_name(sujeito)
+        .issuer_name(sujeito)
+        .public_key(chave.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(agora - datetime.timedelta(minutes=5))
+        .not_valid_after(agora + datetime.timedelta(days=1))
+        .add_extension(x509.SubjectAlternativeName([x509.DNSName(nome)]), critical=False)
+        .sign(chave, hashes.SHA256())
+    )
+    pem, key = tmp_path / "c.pem", tmp_path / "k.pem"
+    pem.write_bytes(cert.public_bytes(serialization.Encoding.PEM))
+    key.write_bytes(
+        chave.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.TraditionalOpenSSL,
+            serialization.NoEncryption(),
+        )
+    )
+
+    class H(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.send_header("content-type", "text/plain")
+            self.end_headers()
+            self.wfile.write(f"host={self.headers['Host']}".encode())
+
+        def log_message(self, *a):
+            pass
+
+    srv = http.server.HTTPServer(("127.0.0.1", 0), H)
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    ctx.load_cert_chain(str(pem), str(key))
+    srv.socket = ctx.wrap_socket(srv.socket, server_side=True)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv, ssl.create_default_context(cafile=str(pem))
+
+
+def test_https_de_verdade_fixa_o_ip_e_confere_o_certificado_contra_o_nome(tmp_path, monkeypatch):
+    srv, confia = _servidor_tls(tmp_path, "exemplo.test")
+    try:
+        monkeypatch.setattr(netguard, "ip_publico", lambda ip: True)  # o servidor é local
+        porta = srv.server_address[1]
+        resolve = dns({"exemplo.test": ["127.0.0.1"]})
+        r = buscar(f"https://exemplo.test:{porta}/x", resolver=resolve, verify=confia)
+        assert r.status == 200 and r.corpo == f"host=exemplo.test:{porta}".encode()
+        # certificado de OUTRO nome: a conexão por IP não pode "passar" só porque o IP bateu
+        with pytest.raises(httpx.ConnectError):
+            buscar(
+                f"https://outro.test:{porta}/x",
+                resolver=dns({"outro.test": ["127.0.0.1"]}),
+                verify=confia,
+            )
+    finally:
+        srv.shutdown()

@@ -82,7 +82,7 @@ E-mail, agenda, navegador e busca não são escritos aqui: entram por servidores
 4. Segredos do servidor: `"env": {"CHAVE": "${NOME_NO_COFRE}"}` e guarde o valor no ambiente ou no cofre do sistema.
 5. Conferir: `uv run orion mcp-check` sobe os servidores e lista cada ferramenta com a classe que a política usará.
 
-**(você)** Os pacotes do exemplo precisam de `npx` (Node) ou `uvx`. Para e-mail e agenda do Google, escolha um servidor
+**(você)** Os pacotes do exemplo precisam de `npx` (Node) ou `uvx`. **Fixe a versão** de cada pacote (`pacote@1.2.3`): `npx -y` sem versão baixa o que for mais novo, e pacote npm/PyPI comprometido é risco de cadeia de suprimentos. Dê a cada servidor só a pasta de que precisa (nada de `C:\` nem o perfil inteiro). Para e-mail e agenda do Google, escolha um servidor
 MCP em que você confie e nunca classifique envio de e-mail como `read` nem `write`.
 
 ## 6. Celular (Telegram)
