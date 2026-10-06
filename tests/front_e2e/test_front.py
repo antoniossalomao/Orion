@@ -777,7 +777,7 @@ def _tela(page):
     return page.get_by_role("dialog", name="Entrar no Orion")
 
 
-def _entrar(page, senha=SENHA, usuario="antonio"):
+def _entrar(page, senha=SENHA, usuario="admin"):
     tela = _tela(page)
     tela.get_by_label("Usuário").fill(usuario)
     tela.get_by_label("Senha").fill(senha)
@@ -1054,3 +1054,33 @@ def test_janela_larga_mantem_a_barra_aberta_e_o_atalho_recolhe(abrir):
     expect(page.locator("html")).to_have_attribute("data-sb", "collapsed")
     page.set_viewport_size({"width": 1280, "height": 800})
     expect(page.locator("html")).to_have_attribute("data-sb", "expanded")
+
+
+@pytestmark_axe
+def test_senha_de_fabrica_avisa_so_depois_do_login_e_a_troca_some_com_o_aviso(
+    abrir, mock_fabrica_url
+):
+    page = abrir("#/chat", url=mock_fabrica_url, http_ok=True, axe=True)
+    expect(_tela(page)).to_be_visible()
+    expect(page.locator(".toast")).to_have_count(
+        0
+    )  # antes do login nada anuncia a senha de fábrica
+    _entrar(page)
+    aviso = page.locator(".toast", has_text="senha de fábrica")
+    expect(aviso).to_be_visible()
+    aviso.get_by_role("button", name="Trocar").click()
+    expect(page.locator("html")).to_have_attribute("data-view", "config")
+    expect(page.locator("#cfg-senha-aviso")).to_contain_text("senha de fábrica")
+    page.fill("#cfg-senha-atual", "errada-errada")
+    page.fill("#cfg-senha-nova", "curta")
+    page.click("#cfg-senha-btn")
+    expect(page.locator("#cfg-senha-out")).to_contain_text("senha atual incorreta")
+    page.fill("#cfg-senha-atual", SENHA)
+    page.click("#cfg-senha-btn")
+    expect(page.locator("#cfg-senha-out")).to_contain_text("pelo menos 12 caracteres")
+    page.fill("#cfg-senha-nova", "uma-senha-nova-bem-longa-9")
+    page.click("#cfg-senha-btn")
+    expect(page.locator("#cfg-senha-out")).to_contain_text("Senha trocada.")
+    expect(page.locator("#cfg-senha-aviso")).not_to_contain_text("senha de fábrica")
+    page.wait_for_timeout(500)
+    assert _violacoes(page) == []  # a tela de Configurações com o formulário de trocar senha

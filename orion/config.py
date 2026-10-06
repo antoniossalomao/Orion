@@ -29,7 +29,9 @@ class Settings(BaseSettings):
     serve_ui: bool = True  # serve a interface em /ui/ (mesma origem, sem CORS)
     admin_token: str = ""  # credencial de máquina (curl, scripts); vazio = só o login com senha
     # Login com senha (`orion set-password`) e sessão por cookie httpOnly.
-    auth_user: str = "antonio"
+    auth_user: str = "admin"
+    # Cria admin / senha de fábrica se ainda não há senha (o .exe liga isto). Ver orion/auth.py.
+    seed_default_password: bool = False
     session_ttl_h: int = Field(default=168, ge=1, le=24 * 90)  # validade da sessão: 7 dias
     cookie_secure: bool = False  # true atrás de HTTPS (`tailscale serve`); em https é automático
     audit_retention_days: int = Field(default=90, ge=1)  # trilha de decisões da política

@@ -86,7 +86,7 @@ def test_senha_igual_ao_usuario_e_recusada(tmp_path):
 def test_login_valida_logout_revoga(auth):
     auth.set_password(SENHA)
     token = auth.login(SENHA, "1.2.3.4")
-    assert auth.validate(token) == "antonio"
+    assert auth.validate(token) == "admin"
     assert auth.validate(token + "x") is None and auth.validate(None) is None
     auth.logout(token)
     assert auth.validate(token) is None
@@ -109,7 +109,7 @@ def test_sessao_expira(auth, relogio):
     auth.set_password(SENHA)
     token = auth.login(SENHA)
     relogio.t += 7 * 86400 - 1
-    assert auth.validate(token) == "antonio"
+    assert auth.validate(token) == "admin"
     relogio.t += 2
     assert auth.validate(token) is None
 
@@ -122,7 +122,7 @@ def test_trocar_a_senha_derruba_todas_as_sessoes(auth):
     assert auth.validate(t1) is None and auth.validate(t2) is None
     with pytest.raises(BadCredentials):
         auth.login(SENHA)
-    assert auth.validate(auth.login("outra-senha-ainda-maior")) == "antonio"
+    assert auth.validate(auth.login("outra-senha-ainda-maior")) == "admin"
 
 
 def test_senha_errada_trava_o_cliente_com_tempo_crescente(auth, relogio):
@@ -133,7 +133,7 @@ def test_senha_errada_trava_o_cliente_com_tempo_crescente(auth, relogio):
     with pytest.raises(LockedOut) as e:  # a senha CERTA também fica travada durante a espera
         auth.login(SENHA, "9.9.9.9")
     assert 1 <= e.value.retry_after <= 60
-    assert auth.validate(auth.login(SENHA, "outro-cliente")) == "antonio"  # outro cliente segue
+    assert auth.validate(auth.login(SENHA, "outro-cliente")) == "admin"  # outro cliente segue
 
     relogio.t += 61
     for _ in range(5):  # segunda rodada de erros: a trava dobra
@@ -144,7 +144,7 @@ def test_senha_errada_trava_o_cliente_com_tempo_crescente(auth, relogio):
     assert 60 < e.value.retry_after <= 120
 
     relogio.t += 121
-    assert auth.validate(auth.login(SENHA, "9.9.9.9")) == "antonio"  # destravou e zerou
+    assert auth.validate(auth.login(SENHA, "9.9.9.9")) == "admin"  # destravou e zerou
 
 
 def test_teto_global_barra_quem_troca_de_ip(auth):
@@ -214,7 +214,7 @@ def test_usuario_errado_falha_igual_a_senha_errada_e_conta_para_o_bloqueio(clien
     assert r.status_code == 401 and r.json()["detail"] == "usuário ou senha incorretos"
     assert COOKIE_SESSAO not in r.headers.get("set-cookie", "")
     # o usuário certo (sem diferenciar maiúsculas) entra; sem usuário vale o único
-    ok = client.post("/auth/login", json={"usuario": " Antonio ", "senha": SENHA})
+    ok = client.post("/auth/login", json={"usuario": " Admin ", "senha": SENHA})
     assert ok.status_code == 200
     assert client.post("/auth/login", json={"senha": SENHA}).status_code == 200
     for _ in range(5):  # chutar usuário também esgota as tentativas
@@ -347,3 +347,82 @@ def test_cli_set_password_grava_e_recusa_senha_fraca(tmp_path, monkeypatch, caps
     a = AuthService(tmp_path / "dados" / "auth.db")
     assert a.check_password(SENHA) and not a.check_password("outra-senha-qualquer")
     a.close()
+
+
+# ── senha de fábrica (só o .exe liga; ver orion/auth.py) ──────────────────────
+def test_seed_cria_admin_com_senha_de_fabrica_uma_vez_e_nunca_sobrescreve(auth):
+    from orion.auth import SENHA_PADRAO, USUARIO_PADRAO
+
+    assert (auth.user, SENHA_PADRAO, USUARIO_PADRAO) == ("admin", "261210@", "admin")
+    assert auth.has_password() is False and auth.uses_default_password() is False
+    assert auth.seed_default() is True
+    assert auth.has_password() and auth.uses_default_password()
+    assert auth.validate(auth.login(SENHA_PADRAO, usuario="admin")) == "admin"
+    assert auth.seed_default() is False  # já há senha
+    auth.set_password(SENHA)  # trocar tira a marca de fábrica e vale a nova
+    assert auth.uses_default_password() is False
+    assert auth.seed_default() is False
+    with pytest.raises(BadCredentials):
+        auth.login(SENHA_PADRAO)
+
+
+def test_auth_db_antigo_sem_a_coluna_sobe_sozinho(tmp_path):
+    import sqlite3
+
+    caminho = tmp_path / "velho.db"
+    c = sqlite3.connect(caminho)
+    c.executescript(
+        "CREATE TABLE credential (user TEXT PRIMARY KEY, pw_hash TEXT NOT NULL, updated_at REAL NOT NULL);"
+        "CREATE TABLE sessions (token_hash TEXT PRIMARY KEY, user TEXT NOT NULL, created_at REAL NOT NULL, expires_at REAL NOT NULL);"
+    )
+    c.commit()
+    c.close()
+    a = AuthService(caminho, iteracoes=IT)
+    a.set_password(SENHA)
+    assert a.has_password() and not a.uses_default_password()
+    a.close()
+
+
+def test_app_com_seed_deixa_entrar_com_admin_e_so_diz_que_e_de_fabrica_depois_do_login(tmp_path):
+    s = Settings(
+        data_dir=tmp_path / "f", seed_default_password=True, jobs_enabled=False, _env_file=None
+    )
+    with TestClient(create_app(s), base_url="http://127.0.0.1") as c:
+        antes = c.get("/auth/status").json()
+        assert antes == {
+            "configured": True,
+            "authenticated": False,
+            "token_auth": False,
+        }  # não anuncia
+        assert (
+            c.post("/auth/login", json={"usuario": "admin", "senha": "261210@"}).status_code == 200
+        )
+        assert c.get("/auth/status").json()["default_password"] is True
+        r = c.post("/auth/password", json={"senha_atual": "261210@", "nova": SENHA})
+        assert r.status_code == 200
+        assert c.get("/auth/status").json()["default_password"] is False
+
+
+def test_sem_o_seed_nao_ha_senha_de_fabrica(tmp_path):
+    s = Settings(data_dir=tmp_path / "g", jobs_enabled=False, _env_file=None)
+    assert s.seed_default_password is False and s.auth_user == "admin"
+    with TestClient(create_app(s), base_url="http://127.0.0.1") as c:
+        assert c.get("/auth/status").json()["configured"] is False
+        assert (
+            c.post("/auth/login", json={"usuario": "admin", "senha": "261210@"}).status_code == 503
+        )
+
+
+def test_host_de_fora_com_senha_de_fabrica_ainda_ativa_recusa_subir(tmp_path):
+    tailnet = ["127.0.0.1", "localhost", "orion.tail1234.ts.net"]
+    s = Settings(
+        data_dir=tmp_path / "h", seed_default_password=True, allowed_hosts=tailnet,
+        admin_token=TOKEN, jobs_enabled=False, _env_file=None,
+    )  # fmt: skip
+    with pytest.raises(RuntimeError, match="senha de fábrica"):
+        with TestClient(create_app(s), base_url="http://orion.tail1234.ts.net"):
+            pass
+    # trocando a senha antes, sobe
+    AuthService(tmp_path / "h" / "auth.db").set_password(SENHA)
+    with TestClient(create_app(s), base_url="http://orion.tail1234.ts.net") as c:
+        assert c.get("/health").status_code == 200

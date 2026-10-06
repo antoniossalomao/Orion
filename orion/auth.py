@@ -30,12 +30,18 @@ ALGORITMO = "pbkdf2_sha256"
 ITERACOES = 600_000  # OWASP 2023 para PBKDF2-HMAC-SHA256
 SENHA_MIN = 12
 SENHA_MAX = 256
+USUARIO_PADRAO = "admin"
+# Senha de fábrica do .exe (pedido do Antônio). Está num repositório público: por isso só existe
+# com `ORION_SEED_DEFAULT_PASSWORD`, o app grita no log, mostra o aviso depois do login e
+# **recusa subir exposto na rede** (Tailscale) enquanto ela não for trocada.
+SENHA_PADRAO = "261210@"
 
 _DDL = """
 CREATE TABLE IF NOT EXISTS credential (
     user TEXT PRIMARY KEY,
     pw_hash TEXT NOT NULL,
-    updated_at REAL NOT NULL
+    updated_at REAL NOT NULL,
+    is_default INTEGER NOT NULL DEFAULT 0   -- 1: ainda é a senha de fábrica
 );
 CREATE TABLE IF NOT EXISTS sessions (
     token_hash TEXT PRIMARY KEY,
@@ -162,7 +168,7 @@ class AuthService:
         self,
         path: Path | str,
         *,
-        user: str = "antonio",
+        user: str = USUARIO_PADRAO,
         ttl_s: float = 7 * 86400,
         iteracoes: int | None = None,
         throttle: LoginThrottle | None = None,
@@ -179,6 +185,12 @@ class AuthService:
         self._conn = sqlite3.connect(str(caminho), check_same_thread=False)
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.executescript(_DDL)
+        colunas = {r[1] for r in self._conn.execute("PRAGMA table_info(credential)")}
+        if "is_default" not in colunas:  # auth.db criado antes da senha de fábrica
+            with self._conn:
+                self._conn.execute(
+                    "ALTER TABLE credential ADD COLUMN is_default INTEGER NOT NULL DEFAULT 0"
+                )
         with contextlib.suppress(OSError):  # só o dono lê (no Windows o chmod quase não faz nada)
             caminho.chmod(0o600)
         # hash falso para igualar o tempo de "usuário sem senha" ao de "senha errada"
@@ -191,7 +203,29 @@ class AuthService:
     # ── credencial ────────────────────────────────────────────────────────
     def has_password(self) -> bool:
         with self._lock:
-            return self._conn.execute("SELECT 1 FROM credential").fetchone() is not None
+            return (
+                self._conn.execute("SELECT 1 FROM credential WHERE user=?", (self.user,)).fetchone()
+                is not None
+            )
+
+    def uses_default_password(self) -> bool:
+        """A senha ainda é a de fábrica? (só quem já entrou pode saber disso: ver `/auth/status`)"""
+        with self._lock:
+            r = self._conn.execute(
+                "SELECT is_default FROM credential WHERE user=?", (self.user,)
+            ).fetchone()
+        return bool(r and r[0])
+
+    def seed_default(self) -> bool:
+        """Cria o usuário com a senha de fábrica **se ainda não há senha**. Nunca sobrescreve."""
+        if self.has_password():
+            return False
+        with self._lock, self._conn:
+            self._conn.execute(
+                "INSERT INTO credential(user, pw_hash, updated_at, is_default) VALUES (?,?,?,1)",
+                (self.user, hash_password(SENHA_PADRAO, self._it), self._clock()),
+            )
+        return True
 
     def set_password(self, senha: str) -> None:
         """Define ou troca a senha e **revoga todas as sessões** (quem estava dentro sai)."""
@@ -204,9 +238,9 @@ class AuthService:
         novo = hash_password(senha, self._it)
         with self._lock, self._conn:
             self._conn.execute(
-                "INSERT INTO credential(user, pw_hash, updated_at) VALUES (?,?,?)"
+                "INSERT INTO credential(user, pw_hash, updated_at, is_default) VALUES (?,?,?,0)"
                 " ON CONFLICT(user) DO UPDATE SET pw_hash=excluded.pw_hash,"
-                " updated_at=excluded.updated_at",
+                " updated_at=excluded.updated_at, is_default=0",
                 (self.user, novo, self._clock()),
             )
             self._conn.execute("DELETE FROM sessions")

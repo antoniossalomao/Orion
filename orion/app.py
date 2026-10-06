@@ -303,6 +303,19 @@ def create_app(
         auth = AuthService(
             settings.auth_db_path, user=settings.auth_user, ttl_s=settings.session_ttl_h * 3600
         )
+        if settings.seed_default_password and auth.seed_default():
+            log.warning(
+                "SENHA DE FÁBRICA ativa (usuário '%s'): troque em Configurações antes de usar para valer",
+                settings.auth_user,
+            )
+        if settings.hosts_de_fora and auth.uses_default_password():
+            auth.close()
+            memory.close()
+            raise RuntimeError(
+                f"host {', '.join(settings.hosts_de_fora)} em ORION_ALLOWED_HOSTS com a senha de "
+                "fábrica ainda ativa: troque a senha antes de expor o Orion na rede "
+                "(`orion set-password` ou Configurações › Conexão)"
+            )
         if settings.hosts_de_fora and not (settings.admin_token or auth.has_password()):
             auth.close()
             memory.close()
@@ -462,12 +475,17 @@ def create_app(
     def auth_status(
         request: Request, state: State, authorization: Annotated[str | None, Header()] = None
     ) -> dict[str, bool]:
-        """Público: o front decide entre mostrar o login ou o app."""
-        return {
+        """Público: o front decide entre mostrar o login ou o app. Se a senha ainda é a de fábrica,
+        isso só aparece **depois** do login (senão a rota anunciaria o alvo a quem passa)."""
+        autenticado = quem_e(request, state, authorization) is not None
+        saida = {
             "configured": state.auth.has_password(),
-            "authenticated": quem_e(request, state, authorization) is not None,
+            "authenticated": autenticado,
             "token_auth": bool(state.settings.admin_token),
         }
+        if autenticado:
+            saida["default_password"] = state.auth.uses_default_password()
+        return saida
 
     @app.post("/auth/login")
     def login(corpo: Login, request: Request, response: Response, state: State) -> dict[str, bool]:

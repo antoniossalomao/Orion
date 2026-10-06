@@ -44,6 +44,7 @@
         let detalhe = '';
         try { const j = JSON.parse(corpo); detalhe = j.detail || j.erro || j.error || ''; } catch (_) { detalhe = corpo.slice(0, 160); }
         if (typeof detalhe !== 'string') detalhe = JSON.stringify(detalhe);
+        if (caminho === '/auth/password' && detalhe) return detalhe;   // o servidor já explica (senha atual errada, senha fraca)
         if (caminho === '/auth/login') {
             if (status === 401) return 'Usuário ou senha incorretos.';
             if (status === 429) return 'Muitas tentativas erradas. Espere um pouco para tentar de novo.';
@@ -120,6 +121,7 @@
         },
         login: (usuario, senha) => req('/auth/login', { metodo: 'POST', json: { usuario, senha }, timeout: 20000 }),
         logout: () => req('/auth/logout', { metodo: 'POST', timeout: 5000 }),
+        trocarSenha: (atual, nova) => req('/auth/password', { metodo: 'POST', json: { senha_atual: atual, nova }, timeout: 20000 }),
         /** `semAviso`: consulta de fundo; um 401 não reabre a tela de entrada */
         aprovacoes: ({ semAviso = false } = {}) => req('/approvals', { timeout: 4000, semAviso }),
         decidir: (id, aprovada) => req(`/approvals/${encodeURIComponent(id)}/decide`,

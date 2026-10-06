@@ -120,11 +120,11 @@ def test_login_conversa_e_aprovacao_ponta_a_ponta(navegador, orion_real, tmp_pat
     try:
         tela = page.get_by_role("dialog", name="Entrar no Orion")
         expect(tela).to_be_visible()
-        tela.get_by_label("Usuário").fill("antonio")
+        tela.get_by_label("Usuário").fill("admin")
         tela.get_by_label("Senha").fill("senha-errada")
         page.keyboard.press("Enter")
         expect(tela).to_contain_text("Usuário ou senha incorretos.")
-        tela.get_by_label("Usuário").fill("antonio")
+        tela.get_by_label("Usuário").fill("admin")
         tela.get_by_label("Senha").fill(SENHA)
         page.keyboard.press("Enter")
         expect(tela).to_have_count(0)

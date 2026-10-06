@@ -41,9 +41,11 @@ def _porta_livre() -> int:
         return s.getsockname()[1]
 
 
-def _subir(token: str, login: str = ""):
+def _subir(token: str, login: str = "", senha_de_fabrica: bool = False):
     porta = _porta_livre()
     env = {**os.environ, "MOCK_PORT": str(porta), "MOCK_TOKEN": token, "MOCK_LOGIN": login}
+    if senha_de_fabrica:
+        env["MOCK_DEFAULT_PW"] = "1"
     proc = subprocess.Popen(
         [sys.executable, "-m", "tests.front_e2e.mock_backend"],
         cwd=RAIZ,
@@ -85,6 +87,12 @@ SENHA = "senha-do-e2e-123"
 def mock_login_url():
     """Um cérebro com login por senha (como o orion.app): cada teste sobe o seu, sem sessão."""
     yield from _subir("", SENHA)
+
+
+@pytest.fixture
+def mock_fabrica_url():
+    """Cérebro com login cuja senha ainda é a de fábrica (aviso depois de entrar, troca em Configurações)."""
+    yield from _subir("", SENHA, senha_de_fabrica=True)
 
 
 @pytest.fixture(scope="session")

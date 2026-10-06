@@ -30,6 +30,7 @@ FRONT = Path(__file__).resolve().parents[2] / "Orion_Core" / "Front_end_Orion"
 TOKEN = os.environ.get("MOCK_TOKEN", "")  # vazio = sem auth (como o legado)
 LOGIN = os.environ.get("MOCK_LOGIN", "")  # senha do login por cookie (orion.app); vazio = sem login
 SESSAO = "sessao-do-mock"
+DEFAULT_PW = bool(os.environ.get("MOCK_DEFAULT_PW"))  # a senha do mock é a "de fábrica"
 
 ESTADO: dict[str, Any] = {
     "mudo": False,
@@ -256,11 +257,11 @@ def create_app() -> FastAPI:
     def auth_status(orion_session: str | None = Cookie(default=None)) -> dict[str, bool]:
         # o legado real responde 404 aqui (ruído só no console do navegador); o mock responde
         # "sem senha" para os testes seguirem sem erro de console
-        return {
-            "configured": bool(LOGIN),
-            "authenticated": bool(LOGIN) and orion_session == SESSAO,
-            "token_auth": bool(TOKEN),
-        }
+        autenticado = bool(LOGIN) and orion_session == SESSAO
+        saida = {"configured": bool(LOGIN), "authenticated": autenticado, "token_auth": bool(TOKEN)}
+        if autenticado:  # como o orion.app: só depois do login diz que a senha é a de fábrica
+            saida["default_password"] = bool(ESTADO.get("senha_de_fabrica", DEFAULT_PW))
+        return saida
 
     if LOGIN:
 
@@ -268,9 +269,20 @@ def create_app() -> FastAPI:
         def auth_login(corpo: dict[str, Any], response: Response) -> dict[str, bool]:
             if corpo.get("senha") == "bloqueada":
                 raise HTTPException(429, "muitas tentativas", headers={"Retry-After": "30"})
-            if corpo.get("senha") != LOGIN or corpo.get("usuario") != "antonio":
+            if corpo.get("senha") != ESTADO.get("senha", LOGIN) or corpo.get("usuario") != "admin":
                 raise HTTPException(401, "usuário ou senha incorretos")
             response.set_cookie("orion_session", SESSAO, httponly=True, samesite="strict")
+            return {"ok": True}
+
+        @app.post("/auth/password")
+        def auth_password(corpo: dict[str, Any], orion_session: str | None = Cookie(default=None)):
+            if orion_session != SESSAO:
+                raise HTTPException(401, "login necessário")
+            if corpo.get("senha_atual") != ESTADO.get("senha", LOGIN):
+                raise HTTPException(401, "senha atual incorreta")
+            if len(str(corpo.get("nova", ""))) < 12:
+                raise HTTPException(422, "a senha precisa de pelo menos 12 caracteres")
+            ESTADO["senha"], ESTADO["senha_de_fabrica"] = corpo["nova"], False
             return {"ok": True}
 
         @app.post("/auth/logout")
