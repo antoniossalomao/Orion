@@ -45,6 +45,12 @@ _NOMES_SENSIVEIS = frozenset(
         "known_hosts",
         "credentials.json",
         "token.json",
+        # do próprio Orion: o hash da senha e a lista de programas que o Orion sobe sozinho
+        "auth.db",
+        "auth.db-wal",
+        "auth.db-shm",
+        "mcp.json",
+        ".mcp.json",
     }
 )
 _COMPONENTES_SENSIVEIS = frozenset(

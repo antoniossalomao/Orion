@@ -14,9 +14,17 @@ dependencies = [
     "numpy>=1.26",
     "keyring>=25",
     "httpx>=0.27",  # gateway de modelos e embeddings (import em tempo de execução)
+    "mcp>=2.3.0",
+    "psutil>=7.2.2",
+    "python-docx>=1.2.0",
+    "openpyxl>=3.1.5",
+    "pypdf>=6.19.0",
 ]
 
 [dependency-groups]
+build = [
+    "pyinstaller>=6.22.3",
+]
 dev = [
     "pytest>=8",
     "pytest-asyncio>=0.24",
@@ -26,6 +34,8 @@ dev = [
     "requests>=2.31",
     "ruff>=0.6",
     "pyright>=1.1.380",
+    "reportlab>=5.0.1",
+    "cryptography>=50.0.2",
 ]
 # testes de navegador do front (tests/front_e2e): uv sync --group e2e
 e2e = [
@@ -34,6 +44,11 @@ e2e = [
 
 [project.scripts]
 orion = "orion.__main__:main"
+
+[project.optional-dependencies]
+pdf = [
+    "reportlab>=5.0.1",
+]
 
 [build-system]
 requires = ["hatchling"]

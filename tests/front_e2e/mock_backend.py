@@ -22,12 +22,15 @@ from pathlib import Path
 from typing import Any
 
 import uvicorn
-from fastapi import FastAPI, File, Header, HTTPException, UploadFile
+from fastapi import Cookie, FastAPI, File, Header, HTTPException, Response, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 FRONT = Path(__file__).resolve().parents[2] / "Orion_Core" / "Front_end_Orion"
 TOKEN = os.environ.get("MOCK_TOKEN", "")  # vazio = sem auth (como o legado)
+LOGIN = os.environ.get("MOCK_LOGIN", "")  # senha do login por cookie (orion.app); vazio = sem login
+SESSAO = "sessao-do-mock"
+DEFAULT_PW = bool(os.environ.get("MOCK_DEFAULT_PW"))  # a senha do mock é a "de fábrica"
 
 ESTADO: dict[str, Any] = {
     "mudo": False,
@@ -234,7 +237,11 @@ async def _pedacos(texto: str, delay: float):
         await asyncio.sleep(delay)
 
 
-def _auth(authorization: str | None) -> None:
+def _auth(authorization: str | None, orion_session: str | None = None) -> None:
+    if LOGIN:
+        if orion_session != SESSAO:
+            raise HTTPException(401, "login necessário")
+        return
     if TOKEN and (authorization or "").removeprefix("Bearer ").strip() != TOKEN:
         raise HTTPException(401, "token inválido")
 
@@ -244,7 +251,44 @@ def create_app() -> FastAPI:
 
     @app.get("/api-info")
     def info() -> dict[str, Any]:
-        return {"mock": True, "token": bool(TOKEN)}
+        return {"mock": True, "token": bool(TOKEN), "login": bool(LOGIN)}
+
+    @app.get("/auth/status")
+    def auth_status(orion_session: str | None = Cookie(default=None)) -> dict[str, bool]:
+        # o legado real responde 404 aqui (ruído só no console do navegador); o mock responde
+        # "sem senha" para os testes seguirem sem erro de console
+        autenticado = bool(LOGIN) and orion_session == SESSAO
+        saida = {"configured": bool(LOGIN), "authenticated": autenticado, "token_auth": bool(TOKEN)}
+        if autenticado:  # como o orion.app: só depois do login diz que a senha é a de fábrica
+            saida["default_password"] = bool(ESTADO.get("senha_de_fabrica", DEFAULT_PW))
+        return saida
+
+    if LOGIN:
+
+        @app.post("/auth/login")
+        def auth_login(corpo: dict[str, Any], response: Response) -> dict[str, bool]:
+            if corpo.get("senha") == "bloqueada":
+                raise HTTPException(429, "muitas tentativas", headers={"Retry-After": "30"})
+            if corpo.get("senha") != ESTADO.get("senha", LOGIN) or corpo.get("usuario") != "admin":
+                raise HTTPException(401, "usuário ou senha incorretos")
+            response.set_cookie("orion_session", SESSAO, httponly=True, samesite="strict")
+            return {"ok": True}
+
+        @app.post("/auth/password")
+        def auth_password(corpo: dict[str, Any], orion_session: str | None = Cookie(default=None)):
+            if orion_session != SESSAO:
+                raise HTTPException(401, "login necessário")
+            if corpo.get("senha_atual") != ESTADO.get("senha", LOGIN):
+                raise HTTPException(401, "senha atual incorreta")
+            if len(str(corpo.get("nova", ""))) < 12:
+                raise HTTPException(422, "a senha precisa de pelo menos 12 caracteres")
+            ESTADO["senha"], ESTADO["senha_de_fabrica"] = corpo["nova"], False
+            return {"ok": True}
+
+        @app.post("/auth/logout")
+        def auth_logout(response: Response) -> dict[str, bool]:
+            response.delete_cookie("orion_session")
+            return {"ok": True}
 
     @app.get("/health")
     def health() -> dict[str, Any]:
@@ -387,9 +431,11 @@ def create_app() -> FastAPI:
     # ── chat ───────────────────────────────────────────────────────────────
     @app.post("/chat")
     async def chat(
-        corpo: dict[str, Any], authorization: str | None = Header(default=None)
+        corpo: dict[str, Any],
+        authorization: str | None = Header(default=None),
+        orion_session: str | None = Cookie(default=None),
     ) -> StreamingResponse:
-        _auth(authorization)
+        _auth(authorization, orion_session)
         texto = str(corpo.get("texto", ""))
         baixo = texto.lower()
 
@@ -481,8 +527,11 @@ def create_app() -> FastAPI:
         return StreamingResponse(gerar(), media_type="text/event-stream")
 
     @app.get("/approvals")
-    def aprovacoes(authorization: str | None = Header(default=None)) -> list[dict[str, Any]]:
-        _auth(authorization)
+    def aprovacoes(
+        authorization: str | None = Header(default=None),
+        orion_session: str | None = Cookie(default=None),
+    ) -> list[dict[str, Any]]:
+        _auth(authorization, orion_session)
         return [
             {
                 "id": k,
@@ -496,9 +545,12 @@ def create_app() -> FastAPI:
 
     @app.post("/approvals/{aid}/decide")
     def decidir(
-        aid: str, corpo: dict[str, Any], authorization: str | None = Header(default=None)
+        aid: str,
+        corpo: dict[str, Any],
+        authorization: str | None = Header(default=None),
+        orion_session: str | None = Cookie(default=None),
     ) -> dict[str, Any]:
-        _auth(authorization)
+        _auth(authorization, orion_session)
         a = ESTADO["aprovacoes"].get(aid)
         if not a:
             raise HTTPException(404, "aprovação inexistente")
@@ -509,9 +561,11 @@ def create_app() -> FastAPI:
 
     @app.post("/approvals/{aid}/resume")
     async def retomar(
-        aid: str, authorization: str | None = Header(default=None)
+        aid: str,
+        authorization: str | None = Header(default=None),
+        orion_session: str | None = Cookie(default=None),
     ) -> StreamingResponse:
-        _auth(authorization)
+        _auth(authorization, orion_session)
         a = ESTADO["aprovacoes"].get(aid)
 
         async def gerar():

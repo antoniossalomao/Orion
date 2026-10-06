@@ -340,7 +340,7 @@
 
     async function carregarPendentes() {
         try {
-            const lista = await api.aprovacoes();
+            const lista = await api.aprovacoes({ semAviso: true });
             if (!Array.isArray(lista) || !lista.length) return;
             const a = criarOrion({ pensando: false, animar: false });
             a.el.dataset.streaming = 'false';

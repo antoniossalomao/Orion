@@ -8,6 +8,7 @@ de risco em `orion.policy.classes` (escrita com log; listagens, leitura).
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from typing import Any
 
 from ..memory.ops import Operations
@@ -109,6 +110,40 @@ def ops_tools(ops: Operations) -> list[Tool]:
         lista = ops.list_numbers(bool(somente_pendentes), float(limite_score))
         return {"ok": True, "total": len(lista), "numeros": lista}
 
+    def consultar_audit_log(
+        limite: int = 50, tool_filtro: str = "", apenas_bloqueados: bool = False
+    ) -> dict[str, Any]:
+        """Decisões recentes da política (o que rodou, o que pediu aprovação, o que foi negado)."""
+        regs = ops.audit_recent(
+            limite,
+            ferramenta=tool_filtro.strip() or None,
+            acao="deny" if apenas_bloqueados else None,
+        )
+        return {
+            "ok": True,
+            "total": len(regs),
+            "decisoes": [
+                {
+                    "quando": datetime.fromtimestamp(r["ts"]).strftime("%d/%m %H:%M:%S"),
+                    "ferramenta": r["tool"],
+                    "decisao": r["action"],
+                    "risco": r["risk"],
+                    "motivo": r["reason"],
+                    "contaminada": bool(r["tainted"]),
+                    "args": r["args"],
+                }
+                for r in regs
+            ],
+        }
+
+    def notificar_celular(
+        mensagem: str, titulo: str = "Orion", urgente: bool = False
+    ) -> dict[str, Any]:
+        """Põe um aviso na fila; o canal do Telegram entrega no celular (sem ntfy.sh)."""
+        cabeca = titulo.strip()[:80] or "Orion"
+        texto = f"{'❗ ' if urgente else ''}{cabeca}: {mensagem.strip()[:1000]}"
+        return {"ok": True, "aviso_id": ops.notify("agente", texto)}
+
     obj, texto, inteiro = "object", {"type": "string"}, {"type": "integer"}
     return [
         Tool(
@@ -195,5 +230,29 @@ def ops_tools(ops: Operations) -> list[Tool]:
                 },
             },
             listar_numeros,
+        ),
+        Tool(
+            "consultar_audit_log",
+            "Mostra as decisões recentes da política de ferramentas (rodou, pediu aprovação, "
+            "negou).",
+            {
+                "type": obj,
+                "properties": {
+                    "limite": inteiro,
+                    "tool_filtro": texto,
+                    "apenas_bloqueados": {"type": "boolean"},
+                },
+            },
+            consultar_audit_log,
+        ),
+        Tool(
+            "notificar_celular",
+            "Manda um aviso para o celular do Antônio (entregue pelo Telegram).",
+            {
+                "type": obj,
+                "properties": {"mensagem": texto, "titulo": texto, "urgente": {"type": "boolean"}},
+                "required": ["mensagem"],
+            },
+            notificar_celular,
         ),
     ]

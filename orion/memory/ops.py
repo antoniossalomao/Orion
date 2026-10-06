@@ -9,7 +9,9 @@ desde a época (o texto ISO, quando vem de fora, é lido como hora local).
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 from .store import MemoryStore
@@ -66,6 +68,23 @@ _NOME = {
     "numbers": "número",
     "prompts": "prompt",
 }
+
+
+MAX_VIGILANCIAS = 20
+MAX_NOMES_VIGIADOS = 5000
+_PARCIAL = (".crdownload", ".part", ".tmp", ".download", ".partial")  # download ainda em curso
+
+
+def _nomes_da_pasta(pasta: Path) -> list[str]:
+    """Nomes dos arquivos da pasta (sem os parciais de download), até um teto."""
+    nomes: list[str] = []
+    with os.scandir(pasta) as it:
+        for e in it:
+            if not e.name.lower().endswith(_PARCIAL):
+                nomes.append(e.name)
+                if len(nomes) >= MAX_NOMES_VIGIADOS:
+                    break
+    return sorted(nomes)
 
 
 def _dicts(rows: list[Any]) -> list[dict[str, Any]]:
@@ -345,6 +364,131 @@ class Operations:
                 ).rowcount
                 > 0
             )
+
+    # ── vigilância de pastas (lista no `meta`, sem tabela nova) ────────────
+    def watch_add(self, pasta: str) -> dict[str, Any]:
+        """Avisa de arquivos novos em `pasta` (a foto de agora é o ponto de partida)."""
+        alvo = Path(pasta).expanduser().resolve()
+        if not alvo.is_dir():
+            raise ValueError(f"não é uma pasta: {alvo}")
+        if len(self.watch_list()) >= MAX_VIGILANCIAS and not self._watch_existe(alvo):
+            raise ValueError(f"limite de {MAX_VIGILANCIAS} pastas vigiadas")
+        corpo = json.dumps({"nomes": _nomes_da_pasta(alvo), "desde": self._now()})
+        with self._s.transaction() as c:
+            c.execute(
+                "INSERT INTO meta(key, value) VALUES (?, ?)"
+                " ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                (f"watch:{alvo}", corpo),
+            )
+        return {"pasta": str(alvo), "arquivos_agora": len(json.loads(corpo)["nomes"])}
+
+    def _watch_existe(self, alvo: Path) -> bool:
+        return bool(self._s.query("SELECT 1 FROM meta WHERE key=?", (f"watch:{alvo}",)))
+
+    def watch_list(self) -> list[dict[str, Any]]:
+        saida = []
+        for r in self._s.query("SELECT key, value FROM meta WHERE key LIKE 'watch:%' ORDER BY key"):
+            estado = json.loads(r["value"])
+            saida.append({"pasta": r["key"][len("watch:") :], "desde": estado.get("desde")})
+        return saida
+
+    def watch_remove(self, pasta: str) -> bool:
+        alvo = Path(pasta).expanduser().resolve()
+        with self._s.transaction() as c:
+            return c.execute("DELETE FROM meta WHERE key=?", (f"watch:{alvo}",)).rowcount > 0
+
+    def watch_poll(self) -> int:
+        """Compara cada pasta vigiada com a última foto e avisa dos nomes novos."""
+        avisos = 0
+        for r in self._s.query("SELECT key, value FROM meta WHERE key LIKE 'watch:%'"):
+            pasta = Path(r["key"][len("watch:") :])
+            if not pasta.is_dir():
+                self.notify("vigilancia", f"A pasta vigiada {pasta} sumiu; parei de vigiar.")
+                with self._s.transaction() as c:
+                    c.execute("DELETE FROM meta WHERE key=?", (r["key"],))
+                avisos += 1
+                continue
+            estado = json.loads(r["value"])
+            antes = set(estado.get("nomes", []))
+            agora = _nomes_da_pasta(pasta)
+            novos = [n for n in agora if n not in antes]
+            if not novos:
+                if set(agora) != antes:  # só saíram arquivos: atualiza a foto sem avisar
+                    self._watch_salvar(r["key"], agora, estado)
+                continue
+            lista = ", ".join(novos[:5]) + (f" (+{len(novos) - 5})" if len(novos) > 5 else "")
+            self.notify("vigilancia", f"Novos arquivos em {pasta}: {lista}", ref=r["key"])
+            self._watch_salvar(r["key"], agora, estado)
+            avisos += 1
+        return avisos
+
+    def _watch_salvar(self, chave: str, nomes: list[str], estado: dict[str, Any]) -> None:
+        with self._s.transaction() as c:
+            c.execute(
+                "UPDATE meta SET value=? WHERE key=?",
+                (json.dumps({"nomes": nomes, "desde": estado.get("desde")}), chave),
+            )
+
+    # ── trilha de auditoria (decisões da política; args já redigidos) ──────
+    def audit_add(self, evento: dict[str, Any]) -> int:
+        """Grava uma decisão da política. Erro propaga: a política nega o que não for leitura."""
+        with self._s.transaction() as c:
+            return int(
+                c.execute(
+                    "INSERT INTO audit(ts, session_id, tool, action, risk, reason, tainted, args)"
+                    " VALUES (?,?,?,?,?,?,?,?)",
+                    (
+                        self._now(),
+                        evento.get("session_id"),
+                        str(evento.get("tool", "")),
+                        str(evento.get("action", "")),
+                        evento.get("risk"),
+                        str(evento.get("reason") or ""),
+                        1 if evento.get("tainted") else 0,
+                        json.dumps(evento.get("args", {}), ensure_ascii=False, default=str),
+                    ),
+                ).lastrowid
+                or 0
+            )
+
+    def audit_recent(
+        self,
+        limite: int = 50,
+        *,
+        ferramenta: str | None = None,
+        acao: str | None = None,
+        desde: float | None = None,
+    ) -> list[dict[str, Any]]:
+        """Decisões mais recentes primeiro; `args` volta como objeto."""
+        filtros, params = [], []
+        for coluna, valor in (("tool", ferramenta), ("action", acao)):
+            if valor:
+                filtros.append(f"{coluna}=?")
+                params.append(valor)
+        if desde is not None:
+            filtros.append("ts>=?")
+            params.append(desde)
+        onde = f" WHERE {' AND '.join(filtros)}" if filtros else ""
+        rows = self._s.query(
+            f"SELECT * FROM audit{onde} ORDER BY id DESC LIMIT ?",
+            (*params, max(1, min(int(limite), 500))),
+        )
+        saida = []
+        for r in rows:
+            d = dict(r)
+            try:
+                d["args"] = json.loads(d["args"])
+            except ValueError:
+                d["args"] = {}
+            saida.append(d)
+        return saida
+
+    def audit_prune(self, dias: int = 90) -> int:
+        """Apaga decisões mais velhas que `dias`; devolve quantas."""
+        with self._s.transaction() as c:
+            return c.execute(
+                "DELETE FROM audit WHERE ts < ?", (self._now() - dias * 86400,)
+            ).rowcount
 
     # ── internos (tabela e colunas são constantes deste módulo, nunca entrada) ──
     def _one(self, tabela: str, rid: int) -> dict[str, Any]:

@@ -298,6 +298,14 @@
                                 <h3 id="h-conexao">Conexão</h3>
                                 <div class="field"><label for="cfg-url">Endereço do cérebro</label><input id="cfg-url" class="input mono" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="http://127.0.0.1:8000"><span class="field-hint">Vazio usa o endereço desta página (ou 127.0.0.1:8000 no app).</span></div>
                                 <div class="field" style="margin-top:var(--s-4)"><label for="cfg-token">Token de acesso</label><input id="cfg-token" class="input mono" type="password" autocomplete="off" spellcheck="false" placeholder="só para o orion.app (ORION_ADMIN_TOKEN)"><span class="field-hint">Fica só neste dispositivo e é enviado apenas ao endereço acima. O app desktop usa a variável de ambiente.</span></div>
+                                <div id="cfg-sessao" class="row" hidden style="margin-top:var(--s-4)"><div class="row-main"><div class="row-title">Sessão</div><div class="row-desc" id="cfg-sessao-desc" role="status" aria-live="polite"></div></div><button id="cfg-sessao-btn" class="btn btn-outline btn-sm" type="button">Sair</button></div>
+                                <form id="cfg-senha" hidden novalidate style="margin-top:var(--s-4)">
+                                    <div class="row-title">Trocar a senha</div>
+                                    <p id="cfg-senha-aviso" class="field-hint" role="status"></p>
+                                    <div class="field" style="margin-top:var(--s-3)"><label for="cfg-senha-atual">Senha atual</label><input id="cfg-senha-atual" class="input" type="password" autocomplete="current-password" spellcheck="false"></div>
+                                    <div class="field" style="margin-top:var(--s-3)"><label for="cfg-senha-nova">Nova senha</label><input id="cfg-senha-nova" class="input" type="password" autocomplete="new-password" spellcheck="false"><span class="field-hint">Pelo menos 12 caracteres. Trocar encerra as outras sessões.</span></div>
+                                    <div class="conn-test"><button id="cfg-senha-btn" class="btn btn-outline btn-sm" type="submit">Trocar senha</button><span id="cfg-senha-out" role="status" aria-live="polite"></span></div>
+                                </form>
                                 <div class="conn-test"><button id="cfg-test" class="btn btn-outline btn-sm" type="button">Testar conexão</button><span id="cfg-test-out" role="status" aria-live="polite"></span></div>
                             </section>
 
@@ -348,6 +356,28 @@
 
 <div id="toasts" role="region" aria-label="Notificações"></div>
 <div id="sr-live" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
+
+<!-- Entrada: tela cheia e opaca (nada do app aparece atrás); só some depois do login -->
+<div id="login" hidden>
+    <div class="login-card" role="dialog" aria-modal="true" aria-labelledby="login-titulo">
+        <div class="belt-mark belt-mark-lg" aria-hidden="true"><i></i><i></i><i></i></div>
+        <div class="login-marca" aria-hidden="true">Orion</div>
+        <h2 id="login-titulo">Entrar no Orion</h2>
+        <form id="login-form" novalidate>
+            <div class="field">
+                <label for="login-usuario">Usuário</label>
+                <input id="login-usuario" class="input" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+            </div>
+            <div class="field">
+                <label for="login-senha">Senha</label>
+                <input id="login-senha" class="input" type="password" autocomplete="current-password" spellcheck="false" required aria-describedby="login-erro">
+            </div>
+            <p id="login-erro" class="login-erro" role="alert"></p>
+            <button id="login-entrar" class="btn btn-primary" type="submit">Entrar</button>
+        </form>
+        <p class="login-rodape">Não é uma IA. É uma extensão do sistema nervoso.</p>
+    </div>
+</div>
 
 <!-- Boot: marca + checagem real do cérebro, depois a constelação acende -->
 <div id="boot" aria-hidden="true">

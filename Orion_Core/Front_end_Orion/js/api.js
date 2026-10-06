@@ -8,11 +8,12 @@
     const { prefs } = O;
 
     class ApiError extends Error {
-        constructor(mensagem, { status = 0, rede = false } = {}) {
+        constructor(mensagem, { status = 0, rede = false, esperar = 0 } = {}) {
             super(mensagem);
             this.name = 'ApiError';
             this.status = status;
             this.rede = rede;
+            this.esperar = esperar;   // segundos até poder tentar de novo (429 do login)
         }
     }
 
@@ -39,18 +40,24 @@
         return h;
     }
 
-    function mensagemHttp(status, corpo) {
+    function mensagemHttp(status, corpo, caminho = '') {
         let detalhe = '';
         try { const j = JSON.parse(corpo); detalhe = j.detail || j.erro || j.error || ''; } catch (_) { detalhe = corpo.slice(0, 160); }
         if (typeof detalhe !== 'string') detalhe = JSON.stringify(detalhe);
-        if (status === 401 || status === 403) return 'Acesso negado: confira o token em Configurações › Conexão.';
+        if (caminho === '/auth/password' && detalhe) return detalhe;   // o servidor já explica (senha atual errada, senha fraca)
+        if (caminho === '/auth/login') {
+            if (status === 401) return 'Usuário ou senha incorretos.';
+            if (status === 429) return 'Muitas tentativas erradas. Espere um pouco para tentar de novo.';
+            if (status === 503) return 'Ainda não há senha definida: rode "orion set-password" no computador do Orion.';
+        }
+        if (status === 401 || status === 403) return 'Acesso negado: entre com a senha ou confira o token em Configurações › Conexão.';
         if (status === 404) return detalhe || 'Recurso não encontrado neste cérebro.';
         if (status === 409) return detalhe || 'Essa ação já foi tratada.';
         if (status >= 500) return `O cérebro falhou (${status})${detalhe ? ': ' + detalhe : ''}.`;
         return detalhe || `Erro ${status}.`;
     }
 
-    async function req(caminho, { metodo = 'GET', json, form, timeout = 8000, sinal, bruto = false } = {}) {
+    async function req(caminho, { metodo = 'GET', json, form, timeout = 8000, sinal, bruto = false, semAviso = false } = {}) {
         const ctrl = new AbortController();
         const tid = setTimeout(() => ctrl.abort(), timeout);
         if (sinal) sinal.addEventListener('abort', () => ctrl.abort(), { once: true });
@@ -63,7 +70,12 @@
             throw new ApiError(ctrl.signal.aborted && !sinal?.aborted ? 'O cérebro demorou demais para responder.'
                 : 'Sem conexão com o cérebro.', { rede: true });
         } finally { clearTimeout(tid); }
-        if (!r.ok) throw new ApiError(mensagemHttp(r.status, await r.text().catch(() => '')), { status: r.status });
+        if (!r.ok) {
+            // sessão vencida ou ainda sem login: o app abre a tela de entrada (ver app.js)
+            if (r.status === 401 && comAuth(caminho) && !token() && !semAviso) O.bus.emit('auth:necessario');
+            throw new ApiError(mensagemHttp(r.status, await r.text().catch(() => ''), caminho),
+                { status: r.status, esperar: Number(r.headers.get('retry-after')) || 0 });
+        }
         if (bruto) return r;
         const tipo = r.headers.get('content-type') || '';
         return tipo.includes('json') ? r.json() : r.text();
@@ -103,7 +115,15 @@
             f.append('file', arquivo);
             return req('/upload', { metodo: 'POST', form: f, timeout: 120000 });
         },
-        aprovacoes: () => req('/approvals', { timeout: 4000 }),
+        /** {configured, authenticated, token_auth}; null no legado (sem login) ou sem conexão */
+        async authStatus() {
+            try { return await req('/auth/status', { timeout: 3000 }); } catch (_) { return null; }
+        },
+        login: (usuario, senha) => req('/auth/login', { metodo: 'POST', json: { usuario, senha }, timeout: 20000 }),
+        logout: () => req('/auth/logout', { metodo: 'POST', timeout: 5000 }),
+        trocarSenha: (atual, nova) => req('/auth/password', { metodo: 'POST', json: { senha_atual: atual, nova }, timeout: 20000 }),
+        /** `semAviso`: consulta de fundo; um 401 não reabre a tela de entrada */
+        aprovacoes: ({ semAviso = false } = {}) => req('/approvals', { timeout: 4000, semAviso }),
         decidir: (id, aprovada) => req(`/approvals/${encodeURIComponent(id)}/decide`,
                                        { metodo: 'POST', json: { approved: !!aprovada }, timeout: 6000 }),
         /** abre o link fora do app: no desktop pela ponte do pywebview, na web numa aba nova */

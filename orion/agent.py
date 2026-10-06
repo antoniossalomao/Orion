@@ -17,7 +17,7 @@ import asyncio
 import json
 import logging
 import time
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
@@ -83,11 +83,16 @@ class Agent:
         self._locks: dict[str, asyncio.Lock] = {}
 
     # ── entradas ──────────────────────────────────────────────────────────
-    async def run(self, channel: str, text: str) -> AsyncIterator[AgentEvent]:
+    async def run(
+        self, channel: str, text: str, images: Sequence[str] = ()
+    ) -> AsyncIterator[AgentEvent]:
+        """`images`: data URLs (`data:image/jpeg;base64,...`) que valem só para este turno; o
+        histórico guarda o texto e um aviso de que houve imagem, nunca a imagem."""
         session = self.memory.active_session(channel)
         async with self._lock(session.id):
-            self.memory.add_message(session.id, "user", text)
-            async for ev in self._turn(session, text):
+            nota = f"\n[{len(images)} imagem(ns) enviada(s) neste turno; não guardada(s)]"
+            self.memory.add_message(session.id, "user", text + (nota if images else ""))
+            async for ev in self._turn(session, text, images=images):
                 yield ev
 
     async def resume(self, channel: str, approval_id: str) -> AsyncIterator[AgentEvent]:
@@ -121,11 +126,20 @@ class Agent:
 
     # ── turno ─────────────────────────────────────────────────────────────
     async def _turn(
-        self, session: Session, consulta: str | None, extra_tools: list[str] | None = None
+        self,
+        session: Session,
+        consulta: str | None,
+        extra_tools: list[str] | None = None,
+        images: Sequence[str] = (),
     ) -> AsyncIterator[AgentEvent]:
         ctx = self._context(session.id)
         hits = await asyncio.to_thread(self.memory.search, consulta, self._k) if consulta else []
         mensagens = self._mensagens(session, hits)
+        if images and mensagens[-1]["role"] == "user":
+            mensagens[-1]["content"] = [
+                {"type": "text", "text": mensagens[-1]["content"]},
+                *({"type": "image_url", "image_url": {"url": u}} for u in images),
+            ]
         usadas: list[str] = list(extra_tools or [])
         destino: tuple[str, str] | None = None
         esquemas = self.tools.schemas() or None

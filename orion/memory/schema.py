@@ -1,11 +1,11 @@
 """Esquema SQLite da memória (fase 3 do NUCLEO): um arquivo, sem servidor.
 
 v1: conversas, fatos, documentos e vetores. v2: operação (lembretes, agendamentos,
-tarefas, números, prompts), arestas do grafo e fila de notificações. Banco v1 sobe
-para v2 sozinho (`MIGRATIONS`).
+tarefas, números, prompts), arestas do grafo e fila de notificações. v3: trilha de
+auditoria das decisões da política. Banco antigo sobe sozinho (`MIGRATIONS`).
 """
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 TOKENIZER = "unicode61 remove_diacritics 2"  # "açúcar" casa com "acucar"
 
@@ -175,7 +175,24 @@ CREATE TABLE notifications (
 CREATE INDEX idx_notifications_pending ON notifications(delivered_at, id);
 """
 
-DDL = DDL_V1 + DDL_V2
+# v3: uma linha por decisão da política (já redigida: ver `orion.policy.audit.redact`).
+DDL_V3 = """
+CREATE TABLE audit (
+    id INTEGER PRIMARY KEY,
+    ts REAL NOT NULL,
+    session_id TEXT,
+    tool TEXT NOT NULL,
+    action TEXT NOT NULL,
+    risk TEXT,
+    reason TEXT NOT NULL DEFAULT '',
+    tainted INTEGER NOT NULL DEFAULT 0,
+    args TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX idx_audit_ts ON audit(ts);
+CREATE INDEX idx_audit_tool ON audit(tool, ts);
+"""
+
+DDL = DDL_V1 + DDL_V2 + DDL_V3
 
 # versão de origem -> script que leva à seguinte
-MIGRATIONS: dict[int, str] = {1: DDL_V2}
+MIGRATIONS: dict[int, str] = {1: DDL_V2, 2: DDL_V3}

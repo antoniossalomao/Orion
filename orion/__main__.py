@@ -11,6 +11,49 @@ from .config import Settings
 from .log import setup_logging
 
 
+def _set_password(settings: Settings, *, from_stdin: bool) -> int:
+    import getpass
+
+    from .auth import AuthService, WeakPassword
+
+    if from_stdin:
+        senha = sys.stdin.readline().rstrip("\r\n")
+    else:
+        senha = getpass.getpass("Nova senha do Orion: ")
+        if senha != getpass.getpass("Repita a senha: "):
+            print("as senhas não conferem", file=sys.stderr)
+            return 1
+    auth = AuthService(settings.auth_db_path, user=settings.auth_user)
+    try:
+        auth.set_password(senha)
+    except WeakPassword as e:
+        print(e, file=sys.stderr)
+        return 1
+    finally:
+        auth.close()
+    print(f"senha de '{settings.auth_user}' definida; as sessões abertas foram encerradas")
+    return 0
+
+
+def _mcp_check(config: Path) -> int:
+    from .mcp_client import McpConfigError, describe, manager_from_file
+
+    try:
+        gerente = manager_from_file(config)
+    except McpConfigError as e:
+        print(e, file=sys.stderr)
+        return 1
+    if gerente is None:
+        print(f"nenhum servidor habilitado em {config}")
+        return 0
+    try:
+        gerente.start()
+        print("\n".join(describe(gerente)))
+        return 0 if all(s.startswith("ok") for s in gerente.status.values()) else 1
+    finally:
+        gerente.stop()
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="orion")
     sub = parser.add_subparsers(dest="cmd")
@@ -27,6 +70,16 @@ def main(argv: list[str] | None = None) -> int:
     au.add_argument("--install", action="store_true", help="grava o arquivo no lugar do sistema")
     au.add_argument("--dir", type=Path, default=None, help="grava aqui em vez do lugar do sistema")
     au.add_argument("--force", action="store_true", help="substitui um arquivo existente")
+    pw = sub.add_parser(
+        "set-password", help="define ou troca a senha do login (revoga as sessões abertas)"
+    )
+    pw.add_argument(
+        "--stdin", action="store_true", help="lê a senha da entrada padrão (sem confirmação)"
+    )
+    mc = sub.add_parser(
+        "mcp-check", help="sobe os servidores do mcp.json e mostra as ferramentas e suas classes"
+    )
+    mc.add_argument("--config", type=Path, default=None, help="padrão: <dados>/mcp.json")
     rs = sub.add_parser("restore", help="restaura um backup no lugar do banco (confere antes)")
     rs.add_argument("arquivo", type=Path, help="backup .db (veja <dados>/backups)")
     rs.add_argument("--force", action="store_true", help="substitui o banco atual, se existir")
@@ -88,6 +141,12 @@ def main(argv: list[str] | None = None) -> int:
             print(f"gravado: {alvo}")
         print(f"para ligar: {a.ativar}\npara desligar: {a.desativar}")
         return 0
+
+    if args.cmd == "mcp-check":
+        return _mcp_check(args.config or settings.effective_mcp_config)
+
+    if args.cmd == "set-password":
+        return _set_password(settings, from_stdin=args.stdin)
 
     if args.cmd == "restore":
         from .memory import MemoryStore

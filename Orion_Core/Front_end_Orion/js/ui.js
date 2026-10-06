@@ -94,6 +94,54 @@
         });
     }
 
+    /** Tela de entrada (usuário e senha), cheia e opaca: o app fica inerte por trás e só volta depois do
+     *  login. Não há "agora não": sem entrar não há o que mostrar. `entrar(usuario, senha)` levanta o erro a exibir.
+     *  @returns {Promise<true>} */
+    function telaDeEntrada({ entrar }) {
+        return new Promise(resolver => {
+            const tela = $('#login'), form = $('#login-form'), usuario = $('#login-usuario'), senha = $('#login-senha');
+            const erro = $('#login-erro'), botao = $('#login-entrar'), app = $('#app');
+            const anterior = document.activeElement;
+            app.inert = true;
+            app.setAttribute('aria-hidden', 'true');
+            tela.hidden = false;
+            erro.textContent = '';
+            const soltar = prenderFoco($('.login-card'), () => { /* Esc não fecha: não há como seguir sem entrar */ });
+            const fim = () => {
+                soltar();
+                form.removeEventListener('submit', enviar);
+                tela.hidden = true;
+                app.inert = false;
+                app.removeAttribute('aria-hidden');
+                senha.value = '';
+                anterior?.focus?.();
+                resolver(true);
+            };
+            const enviar = async e => {
+                e.preventDefault();
+                if (!usuario.value.trim() || !senha.value) {
+                    erro.textContent = !usuario.value.trim() ? 'Digite o usuário.' : 'Digite a senha.';
+                    (!usuario.value.trim() ? usuario : senha).focus();
+                    return;
+                }
+                botao.disabled = true;
+                erro.textContent = 'Entrando…';
+                try { await entrar(usuario.value.trim(), senha.value); }
+                catch (err) {
+                    erro.textContent = err.message || 'Não consegui entrar.';
+                    senha.value = '';
+                    senha.focus();
+                    botao.disabled = false;
+                    return;
+                }
+                botao.disabled = false;
+                fim();
+            };
+            form.addEventListener('submit', enviar);
+            requestAnimationFrame(() => (usuario.value ? senha : usuario).focus());
+        });
+    }
+
     /* ── menu de botão (ex.: modelo) ───────────────────────────────────── */
     function ligarMenu(botao, menu, { aoEscolher, aoAbrir } = {}) {
         const itens = () => Array.from(menu.querySelectorAll('[role^="menuitem"]'));
@@ -155,5 +203,5 @@
         setTimeout(() => { botao.classList.remove('ok'); if (textoOk) botao.textContent = antes; }, ms);
     }
 
-    O.ui = { toast, confirmar, ligarMenu, copiar, piscarOk, prenderFoco, anunciar };
+    O.ui = { toast, confirmar, telaDeEntrada, ligarMenu, copiar, piscarOk, prenderFoco, anunciar };
 })();

@@ -12,12 +12,17 @@ público nem de Tailscale para este canal. O que o canal garante:
 - **segredo**: o token vai na URL da API do Telegram, então nenhuma mensagem de erro ou
   log leva a URL (só o tipo do erro) e o logger do `httpx` fica em WARNING.
 
+Voz e foto: a mensagem de voz é transcrita (Whisper, `orion.transcribe`) e o texto entendido é
+mostrado antes da resposta, para quem falou conferir; a foto vai ao modelo como imagem **só
+naquele turno** (o histórico guarda um aviso, não a imagem). Aprovação continua só por botão.
+
 Texto puro (sem `parse_mode`): resposta de modelo com `*` ou `_` não quebra a mensagem.
 """
 
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import logging
 import re
@@ -30,6 +35,7 @@ from ..agent import Agent, AgentEvent
 from ..memory import MemoryStore
 from ..memory.ops import Operations
 from ..policy import ApprovalStore, redact
+from ..transcribe import MAX_AUDIO, TranscribeError, Transcriber
 
 log = logging.getLogger("orion.telegram")
 
@@ -37,6 +43,15 @@ CANAL = "telegram"
 API = "https://api.telegram.org"
 LIMITE_MENSAGEM = 4000  # o Telegram aceita 4096; folga para o que o cliente conta diferente
 LIMITE_ENTRADA = 8000  # o mesmo teto do POST /chat
+MAX_VOZ_S = 300  # áudio mais longo que 5 min não é transcrito
+MAX_FOTO = 4 * 1024 * 1024  # bytes; escolhe o maior tamanho que couber
+_MIME_FOTO = {
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".webp": "image/webp",
+}
+_CAMINHO_ARQUIVO = re.compile(r"^[A-Za-z0-9_./-]{1,200}$")
 _CALLBACK = re.compile(r"^ap:([A-Za-z0-9_-]{6,32}):([yn])$")  # cabe nos 64 bytes do Telegram
 
 BOAS_VINDAS = (
@@ -66,6 +81,7 @@ class TelegramChannel:
         approvals: ApprovalStore,
         ops: Operations,
         client: httpx.AsyncClient | None = None,
+        transcriber: Transcriber | None = None,
         base_url: str = API,
         poll_timeout_s: int = 25,
         notify_every_s: float = 15.0,
@@ -85,6 +101,7 @@ class TelegramChannel:
         self._poll_timeout = poll_timeout_s
         self._notify_every = notify_every_s
         self._sleep = sleep
+        self._transcriber = transcriber
         self._offset = 0
         self._tarefas: set[asyncio.Task[None]] = set()
         self._recusados: set[int] = set()
@@ -92,6 +109,8 @@ class TelegramChannel:
     async def aclose(self) -> None:
         if self._dono_do_cliente:
             await self._client.aclose()
+        if self._transcriber is not None:
+            await self._transcriber.aclose()
 
     # ── API do Telegram ───────────────────────────────────────────────────
     async def _api(self, metodo: str, **payload: Any) -> Any:
@@ -112,6 +131,27 @@ class TelegramChannel:
                 resp.status_code,
             )
         return corpo.get("result")
+
+    async def _baixar(self, file_id: str, limite: int) -> tuple[bytes, str]:
+        """Baixa um arquivo do Telegram (até `limite` bytes). Devolve (conteúdo, caminho remoto).
+        O token vai na URL de download: nenhum erro carrega a URL."""
+        info = await self._api("getFile", file_id=file_id)
+        caminho = str((info or {}).get("file_path", ""))
+        if not _CAMINHO_ARQUIVO.match(caminho) or ".." in caminho:
+            raise TelegramError("getFile: caminho de arquivo inesperado")
+        if int((info or {}).get("file_size") or 0) > limite:
+            raise TelegramError("arquivo grande demais")
+        try:
+            resp = await self._client.get(
+                f"{self._base}/file/bot{self._token}/{caminho}", timeout=self._poll_timeout + 15
+            )
+        except httpx.HTTPError as e:
+            raise TelegramError(f"download: {type(e).__name__}") from None
+        if resp.status_code >= 400:
+            raise TelegramError(f"download: HTTP {resp.status_code}", resp.status_code)
+        if len(resp.content) > limite:
+            raise TelegramError("arquivo grande demais")
+        return resp.content, caminho
 
     async def _enviar(
         self, chat_id: int, texto: str, teclado: list[list[dict]] | None = None
@@ -232,8 +272,14 @@ class TelegramChannel:
             return
         chat_id = int(chat["id"])
         texto = (m.get("text") or "").strip()
+        if not texto and (m.get("voice") or m.get("audio")):
+            await self._on_voz(chat_id, m)
+            return
+        if not texto and m.get("photo"):
+            await self._on_foto(chat_id, m)
+            return
         if not texto:
-            await self._enviar(chat_id, "Por enquanto só entendo texto.")
+            await self._enviar(chat_id, "Entendo texto, voz e foto por aqui.")
             return
         comando = texto.split()[0].split("@")[0].lower()
         if comando in ("/start", "/ajuda"):
@@ -245,6 +291,52 @@ class TelegramChannel:
         else:
             await self._api("sendChatAction", chat_id=chat_id, action="typing")
             await self._consumir(chat_id, self.agent.run(CANAL, texto[:LIMITE_ENTRADA]))
+
+    async def _on_voz(self, chat_id: int, m: dict[str, Any]) -> None:
+        if self._transcriber is None:
+            await self._enviar(
+                chat_id,
+                "Ainda não transcrevo áudio (falta ORION_TRANSCRIBE_API_KEY). Escreva, por favor.",
+            )
+            return
+        voz = m.get("voice") or m.get("audio") or {}
+        if int(voz.get("duration") or 0) > MAX_VOZ_S:
+            await self._enviar(chat_id, f"Áudio longo demais (máximo {MAX_VOZ_S // 60} minutos).")
+            return
+        await self._api("sendChatAction", chat_id=chat_id, action="typing")
+        try:
+            audio, caminho = await self._baixar(str(voz.get("file_id", "")), MAX_AUDIO)
+            nome = caminho.rsplit("/", 1)[-1] or "voz.ogg"
+            texto = await self._transcriber.transcribe(
+                audio, nome, str(voz.get("mime_type") or "audio/ogg")
+            )
+        except (TelegramError, TranscribeError) as e:
+            log.warning("telegram: voz não transcrita: %s", e)
+            await self._enviar(chat_id, f"⚠️ Não consegui entender o áudio: {e}")
+            return
+        texto = texto[:LIMITE_ENTRADA]
+        # mostra o que foi entendido: quem falou confere (e aprovação continua só por botão)
+        await self._enviar(chat_id, f"🎙️ Entendi: {texto}")
+        await self._consumir(chat_id, self.agent.run(CANAL, texto))
+
+    async def _on_foto(self, chat_id: int, m: dict[str, Any]) -> None:
+        tamanhos = [p for p in m.get("photo") or [] if isinstance(p, dict) and p.get("file_id")]
+        cabem = [p for p in tamanhos if int(p.get("file_size") or 0) <= MAX_FOTO] or tamanhos[:1]
+        if not cabem:
+            await self._enviar(chat_id, "Não consegui ler essa foto.")
+            return
+        await self._api("sendChatAction", chat_id=chat_id, action="typing")
+        try:
+            imagem, caminho = await self._baixar(str(cabem[-1]["file_id"]), MAX_FOTO)
+        except TelegramError as e:
+            log.warning("telegram: foto não baixada: %s", e)
+            await self._enviar(chat_id, f"⚠️ Não consegui baixar a foto: {e}")
+            return
+        ext = "." + caminho.rsplit(".", 1)[-1].lower() if "." in caminho else ".jpg"
+        mime = _MIME_FOTO.get(ext, "image/jpeg")
+        url = f"data:{mime};base64,{base64.b64encode(imagem).decode('ascii')}"
+        legenda = (m.get("caption") or "").strip() or "O que você vê nesta imagem?"
+        await self._consumir(chat_id, self.agent.run(CANAL, legenda[:LIMITE_ENTRADA], [url]))
 
     async def _consumir(self, chat_id: int, eventos: AsyncIterator[AgentEvent]) -> None:
         """Junta o turno do agente e responde: texto, depois um cartão por aprovação pedida."""

@@ -113,6 +113,19 @@
 /* ── Boot ────────────────────────────────────────────────────────────── */
 #boot { position: fixed; inset: 0; z-index: var(--z-boot); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--s-5); background: var(--bg-0); transition: opacity 0.6s var(--ease); }
 #boot[data-hide="true"] { opacity: 0; pointer-events: none; }
+
+/* entrada: tela cheia e OPACA (cor sólida; o gradiente só enfeita por cima), acima de tudo menos o boot */
+#login { position: fixed; inset: 0; z-index: calc(var(--z-boot) - 1); display: grid; place-items: center; padding: var(--s-5);
+         background-color: var(--bg-0); background-image: radial-gradient(60rem 40rem at 50% 30%, rgb(143 171 255 / 0.10), transparent 70%); overflow-y: auto; }
+#login[hidden] { display: none; }
+.login-card { width: min(100%, 22rem); display: flex; flex-direction: column; align-items: center; gap: var(--s-4); }
+.login-card .belt-mark { transform: scale(1.7); margin-bottom: var(--s-2); }
+.login-marca { font-size: var(--fs-md); font-weight: 500; letter-spacing: 0.42em; text-transform: uppercase; padding-left: 0.42em; color: var(--text-2); }
+.login-card h2 { font-size: var(--fs-lg); font-weight: 600; margin-top: var(--s-2); }
+#login-form { width: 100%; display: flex; flex-direction: column; gap: var(--s-4); }
+.login-erro { min-height: 1.3em; font-size: var(--fs-sm); color: var(--danger); line-height: 1.4; }
+#login-entrar { width: 100%; justify-content: center; }
+.login-rodape { font-size: var(--fs-xs); color: var(--text-3); text-align: center; margin-top: var(--s-2); }
 #boot .belt-mark i { opacity: 0; transform: scale(0.4); transition: opacity 0.5s var(--ease-out), transform 0.5s var(--ease-out); }
 #boot[data-in="true"] .belt-mark i { opacity: 1; transform: none; }
 #boot[data-in="true"] .belt-mark i:nth-child(2) { transition-delay: 0.12s; } #boot[data-in="true"] .belt-mark i:nth-child(3) { transition-delay: 0.24s; }
