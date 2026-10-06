@@ -8,7 +8,7 @@ import re
 import pytest
 from playwright.sync_api import expect
 
-from .conftest import AXE, TOKEN
+from .conftest import AXE, SENHA, TOKEN
 
 ROTAS = ["", "#/chat", "#/memoria", "#/integracoes", "#/config"]
 VIEWS = ["home", "chat", "memoria", "integracoes", "config"]
@@ -773,6 +773,73 @@ def test_conexao_testar_e_token_do_orion_app(abrir, mock_token_url):
     expect(ultima_resposta(page).locator(".prose")).to_contain_text("Entendido")
 
 
+def _dialogo_de_entrada(page):
+    return page.get_by_role("dialog", name="Entrar no Orion")
+
+
+def test_login_pede_a_senha_recusa_a_errada_e_libera_o_chat(abrir, mock_login_url):
+    page = abrir("#/chat", url=mock_login_url, http_ok=True)
+    dialogo = _dialogo_de_entrada(page)
+    expect(dialogo).to_be_visible()
+    expect(dialogo.get_by_label("Senha")).to_be_focused()
+    expect(page.locator(".msg-error")).to_have_count(0)
+
+    dialogo.get_by_label("Senha").fill("senha-errada")
+    page.keyboard.press("Enter")
+    expect(dialogo).to_contain_text("Senha incorreta.")
+    expect(dialogo.get_by_label("Senha")).to_have_attribute("aria-invalid", "true")
+    expect(dialogo.get_by_label("Senha")).to_have_value("")  # a errada não fica no campo
+
+    dialogo.get_by_label("Senha").fill(SENHA)
+    page.keyboard.press("Enter")
+    expect(dialogo).to_have_count(0)
+    enviar(page, "oi")
+    esperar_fim(page)
+    expect(ultima_resposta(page).locator(".prose")).to_contain_text("Entendido")
+
+
+def test_login_bloqueado_mostra_o_aviso_de_espera(abrir, mock_login_url):
+    page = abrir("#/chat", url=mock_login_url, http_ok=True)
+    dialogo = _dialogo_de_entrada(page)
+    dialogo.get_by_label("Senha").fill("bloqueada")
+    page.keyboard.press("Enter")
+    expect(dialogo).to_contain_text("Muitas tentativas")
+
+
+def test_login_agora_nao_fecha_e_o_chat_explica_o_acesso_negado(abrir, mock_login_url):
+    page = abrir("#/chat", url=mock_login_url, http_ok=True)
+    dialogo = _dialogo_de_entrada(page)
+    page.keyboard.press("Escape")
+    expect(dialogo).to_have_count(0)
+    enviar(page, "oi")
+    expect(dialogo).to_be_visible()  # o erro 401 do chat reabre a tela de entrada
+    expect(page.locator(".msg-error")).to_contain_text("Acesso negado")
+    dialogo.get_by_role("button", name="Agora não").click()
+    expect(dialogo).to_have_count(0)
+
+
+def test_sair_e_entrar_pelas_configuracoes(abrir, mock_login_url):
+    page = abrir("#/config", url=mock_login_url, http_ok=True)
+    _dialogo_de_entrada(page).get_by_label("Senha").fill(SENHA)
+    page.keyboard.press("Enter")
+    botao = page.locator("#cfg-sessao-btn")
+    expect(botao).to_have_text("Sair")
+    expect(page.locator("#cfg-sessao-desc")).to_contain_text("logado")
+    botao.click()
+    expect(botao).to_have_text("Entrar")
+    botao.click()
+    _dialogo_de_entrada(page).get_by_label("Senha").fill(SENHA)
+    page.keyboard.press("Enter")
+    expect(botao).to_have_text("Sair")
+
+
+def test_sem_login_no_cerebro_nao_aparece_tela_de_entrada_nem_a_linha_de_sessao(abrir):
+    page = abrir("#/config")  # mock sem login: o legado nem tem /auth/status
+    page.wait_for_timeout(300)
+    expect(_dialogo_de_entrada(page)).to_have_count(0)
+    expect(page.locator("#cfg-sessao")).to_be_hidden()
+
+
 def test_endereco_invalido_do_cerebro_e_recusado(abrir):
     page = abrir("#/config")
     page.fill("#cfg-url", "isso não é url")
@@ -902,6 +969,20 @@ def test_axe_paleta_e_menu_de_modelo_abertos(abrir):
     page.keyboard.type("t")
     expect(page.locator("#palette")).to_have_attribute("data-open", "true")
     page.wait_for_timeout(400)
+    assert _violacoes(page) == []
+
+
+@pytestmark_axe
+@pytest.mark.parametrize("tema", TEMAS)
+def test_axe_tela_de_entrada_aberta(abrir, mock_login_url, tema):
+    page = abrir("#/chat", url=mock_login_url, http_ok=True, axe=True)
+    page.evaluate(f"Orion.prefs.set('theme', '{tema}')")
+    expect(_dialogo_de_entrada(page)).to_be_visible()
+    page.wait_for_timeout(500)
+    assert _violacoes(page) == []
+    _dialogo_de_entrada(page).get_by_label("Senha").fill("senha-errada")
+    page.keyboard.press("Enter")
+    expect(_dialogo_de_entrada(page)).to_contain_text("Senha incorreta.")
     assert _violacoes(page) == []
 
 

@@ -271,6 +271,35 @@
         try { sessionStorage.setItem('orion_boot', '1'); } catch (_) { /* tudo bem repetir o boot */ }
     }
 
+    /* ── login (orion.app) ────────────────────────────────────────────── */
+    let loginEmCurso = null;
+    /** Abre a tela de entrada se este cérebro tem senha e ainda não há sessão; devolve se entrou.
+     *  Chamadas simultâneas (boot + um 401 do chat) dividem a mesma tela. */
+    function entrar({ forcar = false } = {}) {
+        if (loginEmCurso) return loginEmCurso;
+        if (api.token() && !forcar) return Promise.resolve(false);
+        loginEmCurso = (async () => {
+            const st = await api.authStatus();
+            if (!st?.configured || st.authenticated) return false;
+            const entrou = await ui.pedirSenha({ entrar: senha => api.login(senha) });
+            if (entrou) {
+                ui.toast('Você entrou.', { tipo: 'ok', ms: 1800 });
+                bus.emit('auth:ok');
+                bus.emit('conn:recarregar');
+                O.sidebar.carregar();
+                O.chat.carregarPendentes();
+            }
+            return entrou;
+        })().finally(() => { loginEmCurso = null; });
+        return loginEmCurso;
+    }
+    async function sair() {
+        try { await api.logout(); } catch (e) { ui.toast(`Não consegui sair: ${e.message}`, { tipo: 'erro' }); return; }
+        ui.toast('Sessão encerrada.', { ms: 1800 });
+        bus.emit('auth:fim');
+    }
+    O.login = { entrar, sair };
+
     /* ── início ────────────────────────────────────────────────────────── */
     function init() {
         O.aplicarPrefs();
@@ -290,7 +319,8 @@
         mostrar(viewDaUrl(), {}, true);
         ligarPonteDesktop();
         api.ttsMudo(!!prefs.get('tts_mudo')).catch(() => { /* cérebro fora: sincroniza na próxima */ });
-        boot().then(() => O.chat.carregarPendentes());
+        bus.on('auth:necessario', () => entrar());
+        boot().then(async () => { if (!(await entrar())) O.chat.carregarPendentes(); });
         // compatibilidade: o app desktop chama estas funções por evaluate_js
         window.setOrionState = s => O.estado.definir(s);
         window.setAudioIntensity = v => bus.emit('audio', v);

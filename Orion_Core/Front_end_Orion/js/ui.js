@@ -94,6 +94,56 @@
         });
     }
 
+    /** Tela de entrada: pede a senha e chama `entrar(senha)` (que levanta o erro a mostrar).
+     *  @returns {Promise<boolean>} true se entrou; false se a pessoa desistiu */
+    function pedirSenha({ entrar, titulo = 'Entrar no Orion', texto = 'Digite a senha para continuar.' }) {
+        return new Promise(resolver => {
+            const raiz = $('#dialog-root');
+            const anterior = document.activeElement;
+            const idT = O.util.uid('dlg-t'), idI = O.util.uid('dlg-i'), idE = O.util.uid('dlg-e');
+            const campo = el('input', { id: idI, class: 'input', type: 'password', autocomplete: 'current-password',
+                spellcheck: 'false', required: 'true', 'aria-describedby': idE });
+            const erro = el('p', { id: idE, class: 'field-hint login-erro', role: 'alert' });
+            const btnOk = el('button', { class: 'btn btn-primary', type: 'submit', text: 'Entrar' });
+            const btnNo = el('button', { class: 'btn btn-ghost', type: 'button', text: 'Agora não' });
+            const form = el('form', { class: 'dialog-body login-form', novalidate: 'true' },
+                el('p', { text: texto }),
+                el('div', { class: 'field', style: 'margin-top:var(--s-3)' }, el('label', { for: idI, text: 'Senha' }), campo, erro),
+                el('div', { class: 'dialog-foot', style: 'padding:var(--s-4) 0 0' }, btnNo, btnOk));
+            const dialogo = el('div', { class: 'dialog', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': idT, style: 'max-width:24rem' },
+                el('div', { class: 'dialog-head' }, el('h2', { id: idT, text: titulo })), form);
+            const scrim = el('div', { class: 'dialog-scrim center', dataset: { open: 'false' } }, dialogo);
+            raiz.append(scrim);
+            const soltar = prenderFoco(dialogo, () => fim(false));
+            const fim = valor => {
+                soltar();
+                scrim.dataset.open = 'false';
+                setTimeout(() => scrim.remove(), 200);
+                anterior?.focus?.();
+                resolver(valor);
+            };
+            form.addEventListener('submit', async e => {
+                e.preventDefault();
+                if (!campo.value) { erro.textContent = 'Digite a senha.'; campo.setAttribute('aria-invalid', 'true'); campo.focus(); return; }
+                btnOk.disabled = true;
+                erro.textContent = 'Entrando…';
+                try { await entrar(campo.value); }
+                catch (err) {
+                    erro.textContent = err.message || 'Não consegui entrar.';
+                    campo.setAttribute('aria-invalid', 'true');
+                    campo.value = '';
+                    campo.focus();
+                    btnOk.disabled = false;
+                    return;
+                }
+                campo.value = '';
+                fim(true);
+            });
+            btnNo.addEventListener('click', () => fim(false));
+            requestAnimationFrame(() => { scrim.dataset.open = 'true'; campo.focus(); });
+        });
+    }
+
     /* ── menu de botão (ex.: modelo) ───────────────────────────────────── */
     function ligarMenu(botao, menu, { aoEscolher, aoAbrir } = {}) {
         const itens = () => Array.from(menu.querySelectorAll('[role^="menuitem"]'));
@@ -155,5 +205,5 @@
         setTimeout(() => { botao.classList.remove('ok'); if (textoOk) botao.textContent = antes; }, ms);
     }
 
-    O.ui = { toast, confirmar, ligarMenu, copiar, piscarOk, prenderFoco, anunciar };
+    O.ui = { toast, confirmar, pedirSenha, ligarMenu, copiar, piscarOk, prenderFoco, anunciar };
 })();

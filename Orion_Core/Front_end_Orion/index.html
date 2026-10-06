@@ -298,6 +298,7 @@
                                 <h3 id="h-conexao">Conexão</h3>
                                 <div class="field"><label for="cfg-url">Endereço do cérebro</label><input id="cfg-url" class="input mono" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="http://127.0.0.1:8000"><span class="field-hint">Vazio usa o endereço desta página (ou 127.0.0.1:8000 no app).</span></div>
                                 <div class="field" style="margin-top:var(--s-4)"><label for="cfg-token">Token de acesso</label><input id="cfg-token" class="input mono" type="password" autocomplete="off" spellcheck="false" placeholder="só para o orion.app (ORION_ADMIN_TOKEN)"><span class="field-hint">Fica só neste dispositivo e é enviado apenas ao endereço acima. O app desktop usa a variável de ambiente.</span></div>
+                                <div id="cfg-sessao" class="row" hidden style="margin-top:var(--s-4)"><div class="row-main"><div class="row-title">Sessão</div><div class="row-desc" id="cfg-sessao-desc" role="status" aria-live="polite"></div></div><button id="cfg-sessao-btn" class="btn btn-outline btn-sm" type="button">Sair</button></div>
                                 <div class="conn-test"><button id="cfg-test" class="btn btn-outline btn-sm" type="button">Testar conexão</button><span id="cfg-test-out" role="status" aria-live="polite"></span></div>
                             </section>
 

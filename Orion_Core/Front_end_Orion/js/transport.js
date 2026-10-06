@@ -33,7 +33,8 @@
             if (!resp.ok) {
                 const corpo = await resp.text().catch(() => '');
                 let msg = `${rotuloFalha} (HTTP ${resp.status}).`;
-                if (resp.status === 401 || resp.status === 403) msg = 'Acesso negado: confira o token em Configurações › Conexão.';
+                if (resp.status === 401 || resp.status === 403) msg = 'Acesso negado: entre com a senha ou confira o token em Configurações › Conexão.';
+                if (resp.status === 401 && !token) bus.emit('auth:necessario');
                 else { try { const d = JSON.parse(corpo).detail; if (typeof d === 'string') msg = d; } catch (_) { /* corpo não-JSON */ } }
                 emitir({ tipo: 'erro', mensagem: msg, status: resp.status });
                 return;
