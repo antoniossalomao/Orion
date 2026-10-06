@@ -101,7 +101,8 @@ quando um endpoint não existe. Transporte do chat: no pywebview, API + hub WS (
 |---|---|---|
 | Axe (serious/critical **e** moderate/best-practice) | 0 violações em 5 telas × 3 temas, no chat com resposta + aprovação + erro, e com paleta e menu abertos | `test_axe_*` |
 | Entrada | Pede a senha, recusa a errada sem deixá-la no campo, mostra o aviso de espera, não reabre depois de "Agora não" por consulta de fundo, reabre ao enviar mensagem, sair/entrar pelas Configurações, axe sem violações nos 3 temas (tela aberta e com erro) | `test_login_*`, `test_sair_e_entrar_*`, `test_axe_tela_de_entrada_aberta` |
-| Console | 0 erros/avisos em todos os 86 testes de navegador (a fixture derruba o teste) | `conftest.py` |
+| Orion de verdade | App, política e SQLite reais com o front real (só o modelo é de mentira): login por cookie `httpOnly`/`Strict`, conversa em streaming, aprovação que executa o comando depois do clique, audit no banco, servidor MCP real. Achou o 422 do `resume` | `tests/front_e2e/test_orion_real.py` |
+| Console | 0 erros/avisos em todos os 86 testes de navegador com backend de mentira (a fixture derruba o teste) | `conftest.py` |
 | Teclado | `Ctrl+K`, `Alt+1..5`, `/`, `?`, `Ctrl+B`, `Ctrl+.`, `Ctrl+F`, `Esc`; telas ocultas `inert`; menu `/` e paleta no padrão combobox | `test_atalhos_*`, `test_paleta_*`, `test_comandos_*` |
 | Janela estreita | Sem rolagem horizontal a 700 e 860 px nas 5 telas; barra vira trilho e volta ao alargar | `test_janela_*` |
 | Streaming | Renderizações ≤ quadros + 2 (a resposta chega em ~100 pedaços) | `test_streaming_rende_*` |
