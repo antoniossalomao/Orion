@@ -45,7 +45,10 @@ def create_app() -> FastAPI:
         async def gerar():
             # depois de uma ferramenta: no fluxo normal chega a mensagem `tool`; na retomada de
             # uma aprovação o Orion injeta uma nota "[SISTEMA]" como fala do usuário
-            if ultima["role"] == "tool" or "[SISTEMA]" in _texto(ultima):
+            if ultima["role"] == "tool" and "aguardando_aprovacao" in _texto(ultima):
+                yield _sse({"content": "Aguardando o seu aval."})  # ainda NÃO rodou
+                yield _sse({}, "stop")
+            elif ultima["role"] == "tool" or "[SISTEMA]" in _texto(ultima):
                 resumo = _texto(ultima)[-300:].replace("\n", " ")
                 yield _sse({"content": f"Feito. Resultado: {resumo}"})
                 yield _sse({}, "stop")
