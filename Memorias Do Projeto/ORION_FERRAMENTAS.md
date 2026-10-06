@@ -9,16 +9,22 @@
 
 | Situação | Qtd | O que significa |
 |---|---|---|
-| portada | 10 | Já existe em `orion/` com teste (nomes e argumentos do legado; ids agora inteiros) |
-| substituida | 3 | O objetivo continua, por outro caminho (CLI delegada, canal Telegram, backup diário) |
-| a-portar | 34 | Falta escrever: servidor MCP pronto ou `orion-desktop` próprio (fase 4) |
+| portada | 31 | Já existe em `orion/` com teste (nomes e argumentos do legado; ids agora inteiros) |
+| substituida | 2 | O objetivo continua, por outro caminho (CLI delegada, backup diário) |
+| a-portar | 14 | Falta: depende de **você** configurar um servidor MCP (e-mail, agenda, navegador, busca), de modelo multimodal (tela, imagem), de voz ou de API de imagem; ou é só Windows (janela, mídia) |
 | descartar | 8 | Proposta de apagar: o agente ou o modelo já fazem, ou dependia de peça que saiu |
 
-Já existe um `orion-desktop` v0 (`orion/tools/desktop.py`, desligado por padrão) com as 3 ferramentas de maior uso.
+O `orion-desktop` (opt-in `ORION_DESKTOP_TOOLS=true`) tem hoje: `executar_comando`, `ler_arquivo`,
+`listar_arquivos`, `escrever_arquivo`, `organizar_pasta`, documentos, área de transferência,
+notificação local, abrir app, Git somente-leitura, saúde do sistema, processos em segundo plano e
+vigilância de pastas. As de web (`buscar_url`, `consultar_clima`, `pesquisar_com_ia`) são outro
+opt-in (`ORION_WEB_TOOLS=true`) por causa do canal de exfiltração por URL (ver `orion/tools/web.py`).
 
-Servidores MCP candidatos (a validar na fase 4, cada um com classe de risco antes de ligar): filesystem,
-Google Workspace, busca, fetch, navegador (Playwright), git. O que não tem servidor pronto e não é
-multiplataforma de graça (`controlar_janela`, `organizar_pasta`) vai para `orion-desktop` ou é adiado.
+**Servidores MCP** (`orion/mcp_client.py`, exemplo em `mcp.example.json`, conferir com
+`uv run orion mcp-check`): é por onde entram e-mail, agenda, navegador e busca. A classe de risco de
+cada ferramenta vem do seu `mcp.json`, nunca do servidor; o que não for classificado pede confirmação.
+O que não tem servidor pronto nem equivalente multiplataforma (`controlar_janela`, `controlar_midia`)
+fica adiado: só Windows, baixa prioridade.
 
 ## Tabela
 
@@ -35,42 +41,42 @@ multiplataforma de graça (`controlar_janela`, `organizar_pasta`) vai para `orio
 | `gerenciar_lembretes` | `reminders.py` | write | portada | orion.tools.ops_tools (SQLite); aviso pela fila `/notifications` | 3 |
 | `gerenciar_tarefas` | `reminders.py` | write | portada | orion.tools.ops_tools; entram no contexto como "em aberto" | 3 |
 | `backup_memoria` | `memory.py` | write | substituida | `orion backup` + job de backup diário + `orion verify-export` | 3 |
-| `notificar_celular` | `notifications.py` | write | substituida | canal do Telegram lendo a fila `/notifications` (sem ntfy.sh) | 5 |
+| `notificar_celular` | `notifications.py` | write | portada | orion.tools.ops_tools: põe o aviso na fila e o canal do Telegram entrega (sem ntfy.sh) | 5 |
 | `consultar_especialista` | `specialist.py` | exec | substituida | `delegar` (claude, codex, gemini CLI) | 2 |
-| `escrever_clipboard` | `clipboard.py` | write | a-portar | orion-desktop | 4 |
-| `ler_clipboard` | `clipboard.py` | read (externo) | a-portar | orion-desktop (multiplataforma); saída é conteúdo externo | 4 |
-| `gerar_documento` | `documents.py` | write | a-portar | orion-desktop (python-docx, openpyxl, reportlab) | 4 |
-| `ler_documento` | `documents.py` | read (externo) | a-portar | orion-desktop (pypdf, python-docx); saída é conteúdo externo | 4 |
+| `escrever_clipboard` | `clipboard.py` | write | portada | orion.tools.system_tools (opt-in; texto vai por variável de ambiente, nunca na linha de comando) | 4 |
+| `ler_clipboard` | `clipboard.py` | read (externo) | portada | orion.tools.system_tools (opt-in; PowerShell, `pbpaste`, `wl-paste`/`xclip`); saída é conteúdo externo | 4 |
+| `gerar_documento` | `documents.py` | write | portada | orion.tools.documents (opt-in): txt, md, html, csv, docx, xlsx e pdf (`uv sync --extra pdf`); planilha nunca grava fórmula | 4 |
+| `ler_documento` | `documents.py` | read (externo) | portada | orion.tools.documents (opt-in): pdf, docx, xlsx, html, txt, md, csv, json; saída é conteúdo externo; segredo confirma | 4 |
 | `transcrever_audio` | `documents.py` | read | a-portar | API de transcrição gratuita (Whisper no Groq) pelo gateway | 6 |
-| `criar_evento` | `email_cal.py` | write | a-portar | servidor MCP do Google Workspace | 4 |
-| `criar_rascunho_email` | `email_cal.py` | write | a-portar | servidor MCP do Google Workspace (só rascunho, nunca envia) | 4 |
-| `ler_email` | `email_cal.py` | read (externo) | a-portar | servidor MCP do Google Workspace | 4 |
-| `ler_emails` | `email_cal.py` | read (externo) | a-portar | servidor MCP do Google Workspace; saída é conteúdo externo | 4 |
-| `listar_eventos` | `email_cal.py` | read (externo) | a-portar | servidor MCP do Google Workspace | 4 |
-| `escrever_arquivo` | `fs.py` | write | a-portar | orion.tools.desktop (escrita fora das pastas seguras confirma); ou servidor MCP de filesystem | 4 |
-| `organizar_pasta` | `fs.py` | write | a-portar | orion-desktop (próprio; sem equivalente pronto) | 4 |
-| `consultar_git` | `git_tools.py` | read | a-portar | orion-desktop (git somente leitura) ou servidor MCP de git | 4 |
-| `notificar_usuario` | `notifications.py` | write | a-portar | orion-desktop (toast no Windows, notificação no macOS) | 4 |
-| `abrir_app` | `os_tools.py` | write | a-portar | orion-desktop (Windows e macOS) | 4 |
+| `criar_evento` | `email_cal.py` | write | a-portar | servidor MCP do Google Workspace em `mcp.json`; cliente pronto, falta você escolher e configurar o servidor | 4 |
+| `criar_rascunho_email` | `email_cal.py` | write | a-portar | idem (só rascunho, nunca envia) | 4 |
+| `ler_email` | `email_cal.py` | read (externo) | a-portar | idem | 4 |
+| `ler_emails` | `email_cal.py` | read (externo) | a-portar | idem; saída é conteúdo externo | 4 |
+| `listar_eventos` | `email_cal.py` | read (externo) | a-portar | idem | 4 |
+| `escrever_arquivo` | `fs.py` | write | portada | orion.tools.fs_tools (opt-in `ORION_DESKTOP_TOOLS`); escrever fora das pastas seguras ou em arquivo sensível confirma | 4 |
+| `organizar_pasta` | `fs.py` | write | portada | orion.tools.fs_tools (opt-in); ganhou `simular`; raiz de drive, pasta pessoal e código do Orion confirmam | 4 |
+| `consultar_git` | `git_tools.py` | read | portada | orion.tools.system_tools (opt-in); git sem hooks, fsmonitor nem diff externo do repositório | 4 |
+| `notificar_usuario` | `notifications.py` | write | portada | orion.tools.system_tools (opt-in): balão no Windows, `osascript` no macOS, `notify-send` no Linux | 4 |
+| `abrir_app` | `os_tools.py` | exec | portada | orion.tools.system_tools (opt-in); **virou execução** (abre qualquer programa ou arquivo): sempre confirma | 4 |
 | `controlar_janela` | `os_tools.py` | exec | a-portar | orion-desktop só Windows (UI Automation); sem equivalente no Mac, adiar | 4 |
 | `controlar_midia` | `os_tools.py` | write | a-portar | orion-desktop; baixa prioridade | 4 |
-| `iniciar_processo_bg` | `processes.py` | exec | a-portar | orion-desktop (processo em segundo plano com log), sob a política | 4 |
-| `iniciar_vigilancia_pasta` | `processes.py` | write | a-portar | job do agendador (watchdog); baixa prioridade | 4 |
-| `listar_processos_bg` | `processes.py` | read | a-portar | orion-desktop | 4 |
-| `listar_vigilancias` | `processes.py` | read | a-portar | idem | 4 |
-| `parar_vigilancia_pasta` | `processes.py` | write | a-portar | idem | 4 |
-| `status_processo_bg` | `processes.py` | read | a-portar | orion-desktop | 4 |
-| `consultar_audit_log` | `security_tools.py` | read | a-portar | orion-desktop: ler o audit do `orion.policy` (hoje vai para o log `orion.audit`) | 4 |
-| `checar_saude_sistema` | `system.py` | read | a-portar | orion-desktop (psutil; sem GPU) | 4 |
+| `iniciar_processo_bg` | `processes.py` | exec | portada | orion.tools.processes (opt-in); comando classificado como `executar_comando`; log só do dono; avisa ao terminar | 4 |
+| `iniciar_vigilancia_pasta` | `processes.py` | write | portada | `Operations.watch_*` + job do agendador (sem watchdog: compara nomes a cada tick); a lista vive no banco | 4 |
+| `listar_processos_bg` | `processes.py` | read | portada | orion.tools.processes (opt-in); a lista zera quando o Orion reinicia | 4 |
+| `listar_vigilancias` | `processes.py` | read | portada | idem | 4 |
+| `parar_vigilancia_pasta` | `processes.py` | write | portada | idem | 4 |
+| `status_processo_bg` | `processes.py` | read | portada | orion.tools.processes (opt-in) | 4 |
+| `consultar_audit_log` | `security_tools.py` | read | portada | orion.tools.ops_tools lendo a tabela `audit` (toda decisão da política é gravada; poda de 90 dias) | 4 |
+| `checar_saude_sistema` | `system.py` | read | portada | orion.tools.system_tools (opt-in; psutil, sem GPU; inclui disco e bateria) | 4 |
 | `analisar_imagem` | `vision.py` | read | a-portar | gateway multimodal (sem ferramenta própria se o modelo aceitar imagem) | 4 |
 | `capturar_tela` | `vision.py` | read | a-portar | orion-desktop (mss); captura contínua exige aprovação (Ring 0 #3) | 4 |
 | `explicar_tela` | `vision.py` | read | a-portar | orion-desktop + modelo de visão do gateway | 4 |
 | `gerar_imagem` | `vision.py` | write | a-portar | API gratuita de imagem; depende de cota (decisão #7) | 6 |
-| `buscar_url` | `web.py` | read (externo) | a-portar | servidor MCP de fetch + `url_guard` (regra 7) portado para `orion/` | 4 |
-| `consultar_clima` | `web.py` | read | a-portar | API pública sem chave (Open-Meteo) | 4 |
-| `navegar_web` | `web.py` | exec (externo) | a-portar | servidor MCP de navegador (Playwright); sempre confirma | 4 |
-| `pesquisar_com_ia` | `web.py` | read (externo) | a-portar | Gemini com Google Search pelo gateway (decisão #7) | 4 |
-| `pesquisar_internet` | `web.py` | read (externo) | a-portar | servidor MCP de busca (decisão #7, a pesquisar na fase 4) | 4 |
+| `buscar_url` | `web.py` | read (externo) | portada | orion.tools.web (opt-in `ORION_WEB_TOOLS`) + `orion.netguard` (regra 7: IP conferido é o IP usado) | 4 |
+| `consultar_clima` | `web.py` | read | portada | orion.tools.web (opt-in); Open-Meteo, sem chave (o wttr.in do legado saiu) | 4 |
+| `navegar_web` | `web.py` | exec (externo) | a-portar | servidor MCP de navegador (Playwright) em `mcp.json`, `external: true`; o cliente MCP já existe (`orion mcp-check`) | 4 |
+| `pesquisar_com_ia` | `web.py` | read (externo) | portada | orion.tools.web (opt-in); Gemini com Google Search; **não validado contra a API real** (decisão #7) | 4 |
+| `pesquisar_internet` | `web.py` | read (externo) | a-portar | sem API de busca gratuita estável: `pesquisar_com_ia` cobre; ou um servidor MCP de busca em `mcp.json` (decisão #7) | 4 |
 | `analisar_clipboard_com_ia` | `clipboard.py` | read (externo) | descartar | `ler_clipboard` + o modelo | — |
 | `resumir_documento` | `documents.py` | read (externo) | descartar | `ler_documento` + o modelo; sem ferramenta própria | — |
 | `traduzir_texto` | `documents.py` | read | descartar | o modelo traduz direto (era o modelo local) | — |

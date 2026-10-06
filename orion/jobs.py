@@ -10,6 +10,7 @@ Um laço assíncrono chama `tick()` a cada poucos segundos. Cada passo falha soz
 - vault do Obsidian reindexado;
 - backup diário da memória, mantendo os últimos N;
 - consolidação das conversas em fatos (se houver gateway);
+- pastas vigiadas (arquivo novo vira aviso) e processos em segundo plano que terminaram;
 - poda da trilha de auditoria (decisões da política mais velhas que N dias).
 
 Quem entrega os avisos é o canal (Telegram, web) lendo `GET /notifications`.
@@ -29,6 +30,7 @@ from typing import Any
 from .memory import MemoryStore
 from .memory.consolidate import Consolidator
 from .memory.ops import Operations
+from .tools.processes import ProcessManager
 
 log = logging.getLogger("orion.jobs")
 
@@ -41,6 +43,8 @@ class TickReport:
     vault: dict[str, int] | None = None
     backup: str | None = None
     auditoria: int | None = None
+    vigilancias: int = 0
+    processos: int = 0
     consolidacao: dict[str, Any] | None = None
     erros: list[str] = field(default_factory=list)
 
@@ -56,6 +60,7 @@ class JobRunner:
         vault_dir: Path | None = None,
         consolidator: Consolidator | None = None,
         audit_days: int = 90,
+        processes: ProcessManager | None = None,
         embed_every_s: float = 300.0,
         vault_every_s: float = 3600.0,
         backup_every_s: float = 3600.0,
@@ -68,6 +73,7 @@ class JobRunner:
         self._vault_dir = vault_dir
         self._consolidator = consolidator
         self._audit_days = audit_days
+        self._processes = processes
         self._clock = clock
         self._every = {
             "embed": embed_every_s,
@@ -102,6 +108,9 @@ class JobRunner:
     def _passos_sincronos(self, rel: TickReport) -> None:
         self._passo(rel, "lembretes", self._lembretes)
         self._passo(rel, "agendamentos", self._agendamentos)
+        self._passo(rel, "vigilancias", self.ops.watch_poll)
+        if self._processes is not None:
+            self._passo(rel, "processos", self._processos_terminados)
         if self._devido("embed"):
             self._passo(rel, "embeddings", self.memory.embed_pending)
         if self._vault_dir is not None and self._devido("vault"):
@@ -138,6 +147,15 @@ class JobRunner:
                 texto += f" (ferramenta '{s['tool']}' registrada; não é executada sozinha)"
             self.ops.notify("agendamento", texto, ref=f"schedule:{s['id']}")
             self.ops.mark_schedule_fired(s["id"], agora)
+            n += 1
+        return n
+
+    def _processos_terminados(self) -> int:
+        assert self._processes is not None
+        n = 0
+        for p in self._processes.finished():
+            situacao = "terminou" if p.codigo == 0 else f"terminou com erro (código {p.codigo})"
+            self.ops.notify("processo", f"Processo '{p.nome}' {situacao}.", ref=f"proc:{p.id}")
             n += 1
         return n
 

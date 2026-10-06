@@ -42,6 +42,12 @@ class Settings(BaseSettings):
     )  # + Tailscale (só com admin_token: ver `_acesso_de_fora_exige_token`)
     # `orion-desktop` v0 (executar_comando, ler_arquivo, listar_arquivos): desligado por padrão
     desktop_tools: bool = False
+    # Ferramentas de web (buscar_url, consultar_clima, pesquisar_com_ia): desligadas por padrão,
+    # porque página lida pode mandar o modelo buscar outra URL com dados na query (tools/web.py).
+    web_tools: bool = False
+    weather_city: str = "Marília"  # cidade quando o pedido não diz qual
+    search_api_key: str = ""  # Gemini com Google Search; sem ela vale a chave de embeddings
+    search_model: str = "gemini-2.5-flash"
     # Canal Telegram (fase 5): sobe se houver token; sem lista de usuários não sobe (default-deny).
     telegram_token: str = ""  # ou no cofre do SO (ORION_TELEGRAM_TOKEN)
     # IDs numéricos do Telegram, separados por vírgula ("123,456") ou lista JSON ("[123]")

@@ -41,6 +41,7 @@ from .policy import ApprovalStore, PathGuard, PolicyEngine, redact
 from .policy.paths import default_safe_roots
 from .secrets import get_secret
 from .tools import default_registry
+from .tools.processes import ProcessManager
 
 FRONT_DIR = PROJECT_ROOT / "Orion_Core" / "Front_end_Orion"
 
@@ -294,6 +295,7 @@ def create_app(
         gateway = (gateway_factory or gateway_from_settings)(settings)
         agent = None
         mcp = None
+        processos: ProcessManager | None = None
         if gateway is not None:
             # `delegar` só aparece para o modelo se alguma CLI oficial estiver instalada.
             delegador = Delegator(memory) if _alguma_cli() else None
@@ -302,10 +304,28 @@ def create_app(
             if mcp is not None:
                 for spec in mcp.specs.values():
                     policy.register_tool(spec)
+            if settings.desktop_tools:
+                processos = ProcessManager(settings.data_dir / "processos")
             agent = Agent(
                 gateway=gateway,
                 tools=default_registry(
-                    memory, delegador, ops, desktop=settings.desktop_tools, extra=mcp_tools
+                    memory,
+                    delegador,
+                    ops,
+                    desktop=settings.desktop_tools,
+                    web=settings.web_tools,
+                    processes=processos,
+                    web_options={
+                        "search_key": lambda: (
+                            settings.search_api_key
+                            or settings.embed_api_key
+                            or get_secret("ORION_SEARCH_API_KEY")
+                            or get_secret("ORION_EMBED_API_KEY")
+                        ),
+                        "search_model": settings.search_model,
+                        "cidade_padrao": settings.weather_city,
+                    },
+                    extra=mcp_tools,
                 ),
                 policy=policy,
                 memory=memory,
@@ -326,6 +346,7 @@ def create_app(
                 vault_dir=settings.vault_dir,
                 consolidator=consolidador,
                 audit_days=settings.audit_retention_days,
+                processes=processos,
             )
             tarefa_jobs = asyncio.create_task(jobs.run_forever(settings.jobs_tick_s))
         telegram = (telegram_factory or telegram_from_settings)(

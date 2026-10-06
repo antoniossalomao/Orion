@@ -12,8 +12,13 @@ from ..delegate import Delegator
 from ..memory import MemoryStore
 from ..memory.ops import Operations
 from .desktop import desktop_tools
+from .documents import document_tools
+from .fs_tools import fs_tools
 from .ops_tools import ops_tools
+from .processes import ProcessManager, process_tools
 from .registry import Tool, ToolRegistry
+from .system_tools import system_tools
+from .web import web_tools
 
 
 def memory_tools(store: MemoryStore) -> list[Tool]:
@@ -100,11 +105,20 @@ def default_registry(
     ops: Operations | None = None,
     *,
     desktop: bool = False,
+    web: bool = False,
+    processes: ProcessManager | None = None,
+    web_options: dict[str, Any] | None = None,
     extra: list[Tool] | None = None,
 ) -> ToolRegistry:
     reg = ToolRegistry(memory_tools(store))
     if desktop:  # opt-in (ORION_DESKTOP_TOOLS): age no computador, sempre sob a política
-        for t in desktop_tools():
+        for t in (*desktop_tools(), *fs_tools(), *system_tools(), *document_tools()):
+            reg.register(t)
+        if processes is not None and ops is not None:
+            for t in process_tools(processes, ops):
+                reg.register(t)
+    if web:  # opt-in (ORION_WEB_TOOLS): rede, conteúdo externo
+        for t in web_tools(**(web_options or {})):
             reg.register(t)
     if ops is not None:
         for t in ops_tools(ops):
