@@ -268,8 +268,8 @@ def create_app() -> FastAPI:
         def auth_login(corpo: dict[str, Any], response: Response) -> dict[str, bool]:
             if corpo.get("senha") == "bloqueada":
                 raise HTTPException(429, "muitas tentativas", headers={"Retry-After": "30"})
-            if corpo.get("senha") != LOGIN:
-                raise HTTPException(401, "senha incorreta")
+            if corpo.get("senha") != LOGIN or corpo.get("usuario") != "antonio":
+                raise HTTPException(401, "usuário ou senha incorretos")
             response.set_cookie("orion_session", SESSAO, httponly=True, samesite="strict")
             return {"ok": True}
 

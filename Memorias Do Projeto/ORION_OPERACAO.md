@@ -23,7 +23,7 @@ uv run orion set-password        # pede a senha duas vezes (mínimo 12 caractere
 
 - A senha vira um hash PBKDF2 em `<pasta de dados>/auth.db`. Esse arquivo **não** entra no backup que vai para
   a nuvem; restaurar o backup num computador novo exige rodar `set-password` de novo (de propósito).
-- Quem entra pela tela de senha ganha uma sessão (cookie `httpOnly`, `SameSite=Strict`) que vale 7 dias
+- A tela de entrada pede **usuário** (`ORION_AUTH_USER`, padrão `antonio`) e senha; errar um dos dois dá a mesma resposta. Quem entra ganha uma sessão (cookie `httpOnly`, `SameSite=Strict`) que vale 7 dias
   (`ORION_SESSION_TTL_H`). Trocar a senha encerra todas as sessões abertas.
 - 5 senhas erradas travam o cliente por 1 minuto, e a trava dobra a cada rodada (até 1 h). Há também um teto
   global de 30 erros em 15 minutos.

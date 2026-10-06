@@ -270,6 +270,7 @@ async def _stream(eventos: AsyncIterator[AgentEvent]) -> AsyncIterator[str]:
 
 
 class Login(BaseModel):
+    usuario: str | None = Field(default=None, max_length=64)  # ausente: o usuário único
     senha: str = Field(min_length=1, max_length=256)
 
 
@@ -474,14 +475,14 @@ def create_app(
             raise HTTPException(403, "origem não permitida")
         cliente = request.client.host if request.client else "?"
         try:
-            token = state.auth.login(corpo.senha, cliente)
+            token = state.auth.login(corpo.senha, cliente, corpo.usuario)
         except LockedOut as e:
             raise HTTPException(429, str(e), headers={"Retry-After": str(e.retry_after)}) from None
         except NotConfigured as e:
             raise HTTPException(503, str(e)) from None
         except AuthError:
             audit_log.warning("login_falhou", extra={"audit": {"cliente": cliente}})
-            raise HTTPException(401, "senha incorreta") from None
+            raise HTTPException(401, "usuário ou senha incorretos") from None
         _abrir_sessao(response, request, state, token)
         return {"ok": True}
 

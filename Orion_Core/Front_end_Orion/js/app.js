@@ -281,7 +281,7 @@
         loginEmCurso = (async () => {
             const st = await api.authStatus();
             if (!st?.configured || st.authenticated) return false;
-            const entrou = await ui.pedirSenha({ entrar: senha => api.login(senha) });
+            const entrou = await ui.telaDeEntrada({ entrar: (usuario, senha) => api.login(usuario, senha) });
             if (entrou) {
                 ui.toast('Você entrou.', { tipo: 'ok', ms: 1800 });
                 bus.emit('auth:ok');
@@ -297,6 +297,7 @@
         try { await api.logout(); } catch (e) { ui.toast(`Não consegui sair: ${e.message}`, { tipo: 'erro' }); return; }
         ui.toast('Sessão encerrada.', { ms: 1800 });
         bus.emit('auth:fim');
+        entrar();   // sem sessão não há o que mostrar: volta para a tela de entrada
     }
     O.login = { entrar, sair };
 

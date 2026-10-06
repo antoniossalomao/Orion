@@ -773,26 +773,64 @@ def test_conexao_testar_e_token_do_orion_app(abrir, mock_token_url):
     expect(ultima_resposta(page).locator(".prose")).to_contain_text("Entendido")
 
 
-def _dialogo_de_entrada(page):
+def _tela(page):
     return page.get_by_role("dialog", name="Entrar no Orion")
 
 
-def test_login_pede_a_senha_recusa_a_errada_e_libera_o_chat(abrir, mock_login_url):
+def _entrar(page, senha=SENHA, usuario="antonio"):
+    tela = _tela(page)
+    tela.get_by_label("Usuário").fill(usuario)
+    tela.get_by_label("Senha").fill(senha)
+    page.keyboard.press("Enter")
+
+
+def test_tela_de_entrada_cobre_o_app_inteiro_e_nada_dele_aparece_atras(abrir, mock_login_url):
     page = abrir("#/chat", url=mock_login_url, http_ok=True)
-    dialogo = _dialogo_de_entrada(page)
-    expect(dialogo).to_be_visible()
-    expect(dialogo.get_by_label("Senha")).to_be_focused()
+    expect(_tela(page)).to_be_visible()
+    info = page.evaluate(
+        """() => {
+        const t = document.querySelector('#login');
+        const cor = getComputedStyle(t).backgroundColor;
+        const pontos = [[2, 2], [innerWidth - 3, 2], [2, innerHeight - 3], [innerWidth - 3, innerHeight - 3],
+                        [innerWidth / 2, 20], [innerWidth / 2, innerHeight / 2], [60, innerHeight / 2]];
+        return { cor, cobre: pontos.map(([x, y]) => !!document.elementFromPoint(x, y)?.closest('#login')),
+                 appInerte: document.querySelector('#app').inert,
+                 caixa: t.getBoundingClientRect().toJSON() };
+    }"""
+    )
+    assert re.fullmatch(r"rgb\(\d+, \d+, \d+\)", info["cor"]), info[
+        "cor"
+    ]  # sólida: sem transparência
+    assert all(info["cobre"]) and info["appInerte"] is True
+    assert info["caixa"]["width"] >= 1440 and info["caixa"]["height"] >= 900
+    # só entrada: usuário, senha e o botão; sem nenhum controle do app focável por Tab
+    page.keyboard.press("Escape")
+    expect(_tela(page)).to_be_visible()  # Esc não fecha
+    focaveis = page.evaluate(
+        "() => [...document.querySelectorAll('#login input, #login button')].map(e => e.id)"
+    )
+    assert focaveis == ["login-usuario", "login-senha", "login-entrar"]
+
+
+def test_login_pede_usuario_e_senha_recusa_errados_e_libera_o_chat(abrir, mock_login_url):
+    page = abrir("#/chat", url=mock_login_url, http_ok=True)
+    tela = _tela(page)
+    expect(tela).to_be_visible()
+    expect(tela.get_by_label("Usuário")).to_be_focused()
     expect(page.locator(".msg-error")).to_have_count(0)
 
-    dialogo.get_by_label("Senha").fill("senha-errada")
-    page.keyboard.press("Enter")
-    expect(dialogo).to_contain_text("Senha incorreta.")
-    expect(dialogo.get_by_label("Senha")).to_have_attribute("aria-invalid", "true")
-    expect(dialogo.get_by_label("Senha")).to_have_value("")  # a errada não fica no campo
+    page.keyboard.press("Enter")  # vazio: pede o usuário antes de qualquer chamada
+    expect(tela).to_contain_text("Digite o usuário.")
+    _entrar(page, "senha-errada")
+    expect(tela).to_contain_text("Usuário ou senha incorretos.")
+    expect(tela.get_by_label("Senha")).to_have_value("")  # a errada não fica no campo
+    expect(tela.get_by_label("Senha")).to_be_focused()
+    _entrar(page, SENHA, usuario="intruso")  # usuário errado falha igual
+    expect(tela).to_contain_text("Usuário ou senha incorretos.")
 
-    dialogo.get_by_label("Senha").fill(SENHA)
-    page.keyboard.press("Enter")
-    expect(dialogo).to_have_count(0)
+    _entrar(page)
+    expect(tela).to_have_count(0)
+    expect(page.locator("#login")).to_be_hidden()
     enviar(page, "oi")
     esperar_fim(page)
     expect(ultima_resposta(page).locator(".prose")).to_contain_text("Entendido")
@@ -800,43 +838,39 @@ def test_login_pede_a_senha_recusa_a_errada_e_libera_o_chat(abrir, mock_login_ur
 
 def test_login_bloqueado_mostra_o_aviso_de_espera(abrir, mock_login_url):
     page = abrir("#/chat", url=mock_login_url, http_ok=True)
-    dialogo = _dialogo_de_entrada(page)
-    dialogo.get_by_label("Senha").fill("bloqueada")
-    page.keyboard.press("Enter")
-    expect(dialogo).to_contain_text("Muitas tentativas")
+    _entrar(page, "bloqueada")
+    expect(_tela(page)).to_contain_text("Muitas tentativas")
 
 
-def test_login_agora_nao_fecha_e_o_chat_explica_o_acesso_negado(abrir, mock_login_url):
+def test_sessao_vencida_volta_a_tela_de_entrada_ao_enviar_mensagem(abrir, mock_login_url):
     page = abrir("#/chat", url=mock_login_url, http_ok=True)
-    dialogo = _dialogo_de_entrada(page)
-    page.keyboard.press("Escape")
-    expect(dialogo).to_have_count(0)
+    _entrar(page)
+    expect(page.locator("#login")).to_be_hidden()
+    page.context.clear_cookies()  # a sessão some (venceu, ou foi revogada)
     enviar(page, "oi")
-    expect(dialogo).to_be_visible()  # o erro 401 do chat reabre a tela de entrada
+    expect(_tela(page)).to_be_visible()
     expect(page.locator(".msg-error")).to_contain_text("Acesso negado")
-    dialogo.get_by_role("button", name="Agora não").click()
-    expect(dialogo).to_have_count(0)
+    _entrar(page)
+    expect(page.locator("#login")).to_be_hidden()
 
 
-def test_sair_e_entrar_pelas_configuracoes(abrir, mock_login_url):
+def test_sair_pelas_configuracoes_leva_a_tela_de_entrada(abrir, mock_login_url):
     page = abrir("#/config", url=mock_login_url, http_ok=True)
-    _dialogo_de_entrada(page).get_by_label("Senha").fill(SENHA)
-    page.keyboard.press("Enter")
+    _entrar(page)
     botao = page.locator("#cfg-sessao-btn")
     expect(botao).to_have_text("Sair")
     expect(page.locator("#cfg-sessao-desc")).to_contain_text("logado")
     botao.click()
-    expect(botao).to_have_text("Entrar")
-    botao.click()
-    _dialogo_de_entrada(page).get_by_label("Senha").fill(SENHA)
-    page.keyboard.press("Enter")
+    expect(_tela(page)).to_be_visible()  # sem sessão não há o que mostrar
+    _entrar(page)
+    expect(page.locator("#login")).to_be_hidden()
     expect(botao).to_have_text("Sair")
 
 
 def test_sem_login_no_cerebro_nao_aparece_tela_de_entrada_nem_a_linha_de_sessao(abrir):
     page = abrir("#/config")  # mock sem login: o legado nem tem /auth/status
     page.wait_for_timeout(300)
-    expect(_dialogo_de_entrada(page)).to_have_count(0)
+    expect(_tela(page)).to_have_count(0)
     expect(page.locator("#cfg-sessao")).to_be_hidden()
 
 
@@ -977,12 +1011,11 @@ def test_axe_paleta_e_menu_de_modelo_abertos(abrir):
 def test_axe_tela_de_entrada_aberta(abrir, mock_login_url, tema):
     page = abrir("#/chat", url=mock_login_url, http_ok=True, axe=True)
     page.evaluate(f"Orion.prefs.set('theme', '{tema}')")
-    expect(_dialogo_de_entrada(page)).to_be_visible()
+    expect(_tela(page)).to_be_visible()
     page.wait_for_timeout(500)
     assert _violacoes(page) == []
-    _dialogo_de_entrada(page).get_by_label("Senha").fill("senha-errada")
-    page.keyboard.press("Enter")
-    expect(_dialogo_de_entrada(page)).to_contain_text("Senha incorreta.")
+    _entrar(page, "senha-errada")
+    expect(_tela(page)).to_contain_text("Usuário ou senha incorretos.")
     assert _violacoes(page) == []
 
 

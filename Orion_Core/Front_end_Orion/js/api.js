@@ -45,7 +45,7 @@
         try { const j = JSON.parse(corpo); detalhe = j.detail || j.erro || j.error || ''; } catch (_) { detalhe = corpo.slice(0, 160); }
         if (typeof detalhe !== 'string') detalhe = JSON.stringify(detalhe);
         if (caminho === '/auth/login') {
-            if (status === 401) return 'Senha incorreta.';
+            if (status === 401) return 'Usuário ou senha incorretos.';
             if (status === 429) return 'Muitas tentativas erradas. Espere um pouco para tentar de novo.';
             if (status === 503) return 'Ainda não há senha definida: rode "orion set-password" no computador do Orion.';
         }
@@ -118,7 +118,7 @@
         async authStatus() {
             try { return await req('/auth/status', { timeout: 3000 }); } catch (_) { return null; }
         },
-        login: senha => req('/auth/login', { metodo: 'POST', json: { senha }, timeout: 20000 }),
+        login: (usuario, senha) => req('/auth/login', { metodo: 'POST', json: { usuario, senha }, timeout: 20000 }),
         logout: () => req('/auth/logout', { metodo: 'POST', timeout: 5000 }),
         /** `semAviso`: consulta de fundo; um 401 não reabre a tela de entrada */
         aprovacoes: ({ semAviso = false } = {}) => req('/approvals', { timeout: 4000, semAviso }),

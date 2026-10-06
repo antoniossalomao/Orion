@@ -205,8 +205,21 @@ def test_cookie_ganha_secure_em_https_ou_por_configuracao(settings):
 
 def test_senha_errada_da_401_sem_dizer_o_que_faltou(client):
     r = entrar(client, "senha-errada-qualquer")
-    assert r.status_code == 401 and r.json()["detail"] == "senha incorreta"
+    assert r.status_code == 401 and r.json()["detail"] == "usuário ou senha incorretos"
     assert COOKIE_SESSAO not in r.headers.get("set-cookie", "")
+
+
+def test_usuario_errado_falha_igual_a_senha_errada_e_conta_para_o_bloqueio(client):
+    r = client.post("/auth/login", json={"usuario": "intruso", "senha": SENHA})
+    assert r.status_code == 401 and r.json()["detail"] == "usuário ou senha incorretos"
+    assert COOKIE_SESSAO not in r.headers.get("set-cookie", "")
+    # o usuário certo (sem diferenciar maiúsculas) entra; sem usuário vale o único
+    ok = client.post("/auth/login", json={"usuario": " Antonio ", "senha": SENHA})
+    assert ok.status_code == 200
+    assert client.post("/auth/login", json={"senha": SENHA}).status_code == 200
+    for _ in range(5):  # chutar usuário também esgota as tentativas
+        client.post("/auth/login", json={"usuario": "x", "senha": SENHA})
+    assert client.post("/auth/login", json={"senha": SENHA}).status_code == 429
 
 
 def test_bloqueio_vira_429_com_retry_after(client):

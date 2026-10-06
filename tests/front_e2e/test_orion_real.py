@@ -118,14 +118,16 @@ def test_login_conversa_e_aprovacao_ponta_a_ponta(navegador, orion_real, tmp_pat
     url, alvo = orion_real
     ctx, page, erros = _pagina(navegador, url)
     try:
-        dialogo = page.get_by_role("dialog", name="Entrar no Orion")
-        expect(dialogo).to_be_visible()
-        dialogo.get_by_label("Senha").fill("senha-errada")
+        tela = page.get_by_role("dialog", name="Entrar no Orion")
+        expect(tela).to_be_visible()
+        tela.get_by_label("Usuário").fill("antonio")
+        tela.get_by_label("Senha").fill("senha-errada")
         page.keyboard.press("Enter")
-        expect(dialogo).to_contain_text("Senha incorreta.")
-        dialogo.get_by_label("Senha").fill(SENHA)
+        expect(tela).to_contain_text("Usuário ou senha incorretos.")
+        tela.get_by_label("Usuário").fill("antonio")
+        tela.get_by_label("Senha").fill(SENHA)
         page.keyboard.press("Enter")
-        expect(dialogo).to_have_count(0)
+        expect(tela).to_have_count(0)
 
         cookies = {c["name"]: c for c in ctx.cookies()}
         assert (

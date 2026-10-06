@@ -350,6 +350,28 @@
 <div id="toasts" role="region" aria-label="Notificações"></div>
 <div id="sr-live" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
 
+<!-- Entrada: tela cheia e opaca (nada do app aparece atrás); só some depois do login -->
+<div id="login" hidden>
+    <div class="login-card" role="dialog" aria-modal="true" aria-labelledby="login-titulo">
+        <div class="belt-mark belt-mark-lg" aria-hidden="true"><i></i><i></i><i></i></div>
+        <div class="login-marca" aria-hidden="true">Orion</div>
+        <h2 id="login-titulo">Entrar no Orion</h2>
+        <form id="login-form" novalidate>
+            <div class="field">
+                <label for="login-usuario">Usuário</label>
+                <input id="login-usuario" class="input" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+            </div>
+            <div class="field">
+                <label for="login-senha">Senha</label>
+                <input id="login-senha" class="input" type="password" autocomplete="current-password" spellcheck="false" required aria-describedby="login-erro">
+            </div>
+            <p id="login-erro" class="login-erro" role="alert"></p>
+            <button id="login-entrar" class="btn btn-primary" type="submit">Entrar</button>
+        </form>
+        <p class="login-rodape">Não é uma IA. É uma extensão do sistema nervoso.</p>
+    </div>
+</div>
+
 <!-- Boot: marca + checagem real do cérebro, depois a constelação acende -->
 <div id="boot" aria-hidden="true">
     <div class="belt-mark belt-mark-lg"><i></i><i></i><i></i></div>

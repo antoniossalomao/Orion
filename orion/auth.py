@@ -221,16 +221,22 @@ class AuthService:
         return ok and r is not None
 
     # ── sessões ───────────────────────────────────────────────────────────
-    def login(self, senha: str, cliente: str = "?") -> str:
-        """Devolve o token da sessão (vai no cookie) ou levanta `AuthError`."""
+    def login(self, senha: str, cliente: str = "?", usuario: str | None = None) -> str:
+        """Devolve o token da sessão (vai no cookie) ou levanta `AuthError`. `usuario` ausente
+        vale para o usuário único; presente e errado falha **igual** a senha errada (e a senha é
+        conferida mesmo assim, para não revelar por tempo qual dos dois errou)."""
         if not self.has_password():
             raise NotConfigured("defina a senha com: orion set-password")
         espera = self.throttle.espera(cliente)
         if espera:
             raise LockedOut(espera)
-        if len(senha) > SENHA_MAX or not self.check_password(senha):
+        usuario_ok = usuario is None or hmac.compare_digest(
+            usuario.strip().casefold().encode(), self.user.casefold().encode()
+        )
+        senha_ok = len(senha) <= SENHA_MAX and self.check_password(senha)
+        if not (usuario_ok and senha_ok):
             self.throttle.falhou(cliente)
-            raise BadCredentials("senha incorreta")
+            raise BadCredentials("usuário ou senha incorretos")
         self.throttle.acertou(cliente)
         token = secrets.token_urlsafe(32)
         agora = self._clock()
