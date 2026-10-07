@@ -1,7 +1,7 @@
 # ORION — Plano de melhorias e o que foi feito
 
 > Auditoria de 02/10/2026 (backend, front, regras, docs) e a execução dela, mais a segunda
-> rodada de 03/10/2026 (achados R1–R11) a terceira de 06/10/2026 (L1–L12: login, MCP, ferramentas) a quarta de 06/10/2026 (V1–V8: visão, mídia, janela, briefing, captura, MCP, painel) e a quinta de 07/10/2026 (V9–V13: segurança, roteamento, ferramentas que sobraram, quem serviu). Cada achado tem ID, evidência e status. O que
+> rodada de 03/10/2026 (achados R1–R11) a terceira de 06/10/2026 (L1–L12: login, MCP, ferramentas) a quarta de 06/10/2026 (V1–V8: visão, mídia, janela, briefing, captura, MCP, painel) a quinta de 07/10/2026 (V9–V13: segurança, roteamento, ferramentas que sobraram, quem serviu) e a sexta de 07/10/2026 (V14–V16: voz por clique e voz ao vivo). Cada achado tem ID, evidência e status. O que
 > **não** foi verificado está na seção própria.
 > Regras resultantes: [ORION_REGRAS.md](ORION_REGRAS.md). Plano de fases: [ORION_NUCLEO.md](ORION_NUCLEO.md).
 
@@ -97,6 +97,18 @@ Decisão #5 fechada: **front só desktop** (sem PWA nem layout para celular; o c
 
 **Não verificado nesta rodada:** (a) `gerar_imagem` (corpo `generateContent` com `responseModalities` e leitura de `inlineData`) e `pesquisar_internet` (`X-Subscription-Token`, `web.results[]`) foram escritos pela documentação, de memória, e testados só contra API falsa; o nome do modelo de imagem e se o plano gratuito cobre imagem mudam com o tempo; (b) os cabeçalhos `X-OmniRoute-*` seguem a documentação da versão v3.8.52, não um OmniRoute real; (c) a pontuação do roteamento é uma heurística: ela vai errar alguns casos (por isso o `#pesado`/`#rapido`) e só ficará boa com o seu uso; (d) a trava do `/mcp` e o `TrustedHost` do legado compilam e a lógica tem teste, mas o legado inteiro não subiu aqui; (e) o `orion_app.py` (pywebview) é o casco do legado e entra por `ORION_ADMIN_TOKEN`: o caminho desktop do Orion novo é o navegador (`orion.exe` abre `/ui/` com a senha), então não mexi nele e ele sai na fase 7.
 
+## Sexta rodada (07/10/2026): voz (fase 6)
+
+Pedido: "opção A, mas gostei da voz ao vivo também, nesse PR mesmo". Regras 35 e 36 em [ORION_REGRAS.md](ORION_REGRAS.md); como ligar em [ORION_OPERACAO.md](ORION_OPERACAO.md) §4.3.
+
+| ID | Sev. | Achado (evidência) | Status | Como |
+|---|---|---|---|---|
+| V14 | Média | Só o Telegram tinha voz; o front tinha um botão de voz ao vivo ligado a um `/ws/voice` que o `orion.app` não implementava | ✅ no código; ⏳ APIs reais | **A — voz como canal do agente:** `/ws/voz` (`orion/voice.py`). Clique no microfone grava (MediaRecorder), outro clique envia; o servidor reconhece o formato pelo cabeçalho (webm, ogg, mp4, wav, mp3, flac), transcreve (Whisper no Groq, o mesmo `Transcriber` do Telegram), roda `Agent.run("web", texto)` e fala a resposta (edge-tts `pt-BR-AntonioNeural`, sem markdown, código nem endereço: `falavel`). O que foi entendido aparece como balão seu; a fala entra na mesma conversa do chat. **Aprovação continua só por botão**: se o turno pede uma, a voz diz "Preciso da sua aprovação" e o cartão aparece. Esc descarta a gravação; `{"cmd":"cancel"}` interrompe o turno |
+| V15 | Média | A voz ao vivo do legado conversava direto com o Gemini, fora de tudo (sem política, sem audit, sem teto, sem checar `Origin`), e o laço de `receive()` parava no **primeiro** fim de turno (o SDK encerra o iterador a cada `turn_complete`) | ✅ no código; ⏳ API real | **B — voz ao vivo** reescrita em `/ws/voice`: **sem `tools`, sem memória, sem acesso ao computador** (o prompt diz isso e o modelo manda pedir ação pelo texto); opt-in (`ORION_VOICE_LIVE_ENABLED` + chave); login, `Origin` conferido, duração máxima, quadro de áudio limitado, início e fim no audit (`voz_ao_vivo`); laço de recepção que sobrevive a vários turnos; erro do provedor vira o tipo da exceção, sem mensagem; transcrição do que você disse (`heard`) e do que o Orion falou (`text`) |
+| V16 | Média | WebSocket não tem CORS: qualquer página aberta no navegador poderia conectar em `ws://127.0.0.1:8000` com o cookie da sessão e abrir o microfone | ✅ | `_ws_abrir`: `Origin` precisa ser igual ao `Host` (`null` e outro site: fechado com 1008), cookie `SameSite=Strict`, e o token de máquina vai na **primeira mensagem** (nunca na URL, que vai para log). A CSP do front ganhou `media-src 'self' blob:` (o teste de navegador pegou: a fala não tocava) |
+
+**Não verificado nesta rodada:** (a) Groq, edge-tts e Gemini Live **nunca foram chamados**: os testes usam transcritor, locutor e sessão falsos, e o formato do `LiveConnectConfig`/`send_realtime_input` segue o SDK `google-genai` instalado (2.28), não uma sessão real; o nome do modelo (`gemini-2.5-flash-native-audio-latest`) muda com o tempo; (b) o microfone real: os testes de navegador trocam `getUserMedia` e `MediaRecorder` por falsos, então **codec, permissão e latência reais não foram vistos**; (c) a voz ao vivo no navegador (`voice.js`, PCM por `ScriptProcessor`, que está obsoleto mas funciona) só foi lida, não rodou contra o servidor novo; (d) o `.exe` ganhou `edge-tts` e `google-genai` no `orion.spec` sem eu poder compilar no Windows: o teste de fumaça do workflow `build-exe.yml` é quem confirma; (e) **palavra de ativação não foi feita**: precisa de um modelo "Orion" treinado (openWakeWord) e de captura de áudio no `orion-desktop`, e nenhum dos dois eu consigo validar daqui. Fica para quando você quiser gravar as amostras.
+
 ## O que foi construído (por fase do NUCLEO)
 
 | Fase | Entrega | Status |
@@ -107,7 +119,7 @@ Decisão #5 fechada: **front só desktop** (sem PWA nem layout para celular; o c
 | 3 — memória | SQLite + FTS5 + vetores (numpy) com RRF, fatos editáveis, vault, backup/restore (`orion backup`, `orion restore`), eval, **importador completo do export** (esquema v2), lembretes/agendamentos/tarefas/números/prompts/grafo, fila de avisos, jobs, `GeminiEmbedder`, consolidação | ✅ no código; ⏳ chave de embeddings e suas perguntas reais |
 | 4 — ferramentas | Política (classes de risco, aprovações, taint, audit em banco); memória, operação e `delegar`; `orion-desktop` completo (arquivos, documentos, sistema, processos, vigilância, mídia, janela, visão) e web (opt-ins); cliente MCP; 37 das 55 portadas | ✅ no código; ⏳ servidores MCP reais (e-mail, agenda, navegador) e o que depende de modelo multimodal |
 | 5 — canais | Login com senha e tela de entrada; canal Telegram com voz e foto; `orion autostart`; guia do Tailscale em [ORION_OPERACAO.md](ORION_OPERACAO.md) | ✅ no código (Telegram só API falsa); ⏳ instalar o Tailscale e ativar no notebook |
-| 6 — interface/voz | Front redesenhado em 03/10 (só desktop, [ORION_FRONT.md](ORION_FRONT.md)) com tela de entrada desde 06/10; voz no Telegram sim, voz ao vivo e palavra de ativação não | 🟡 |
+| 6 — interface/voz | Front redesenhado em 03/10 (só desktop, [ORION_FRONT.md](ORION_FRONT.md)) com tela de entrada desde 06/10; voz no Telegram, **voz por clique** (`/ws/voz`) e **voz ao vivo** (`/ws/voice`, só conversa) no código desde 07/10; palavra de ativação não | 🟡 |
 | 7 — limpeza | Nada apagado: o legado ainda é a única coisa rodando com seus dados | ⏳ |
 
 ## Decisões que tomei por você (reverta se discordar)
@@ -184,6 +196,8 @@ Decisão #5 fechada: **front só desktop** (sem PWA nem layout para celular; o c
 7. Decidir o que o [plano de corte](ORION_CORTE.md) deixa em aberto (data da venda, ferramentas mínimas, dias em paralelo).
 
 ## Ideias que sobraram (valor/custo)
+
+- Palavra de ativação "Orion" (openWakeWord): precisa de modelo treinado e captura de áudio no desktop; só abriria o microfone, nunca aprovaria nada (regra 2).
 
 - ~~Briefing matinal no Telegram~~ (feito em 06/10: lembretes, agendamentos e tarefas; **a agenda do Google ainda não entra**).
 - ~~Captura rápida~~ (feito em 06/10: `/capturar`; o link é guardado como veio, sem buscar o título da página).

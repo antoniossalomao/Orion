@@ -115,6 +115,41 @@ de várias etapas vão ao pesado; mensagem com foto vai ao de visão. Sem nenhum
 - No OmniRoute o "modelo" pode ser um combo seu (ex.: um combo `rapido` só com free tiers rápidos).
 - É uma heurística: vai errar alguns casos. Ajustar os pesos é editar `orion/router.py`.
 
+### 4.3 Voz (fase 6)
+
+Duas coisas diferentes, cada uma com a sua chave e o seu risco. As duas nascem **desligadas**.
+
+**A — falar com o Orion (microfone do front).** Clique no microfone do campo de mensagem (ou `Ctrl+K › Falar com o Orion`),
+fale e clique de novo para enviar; `Esc` descarta. O que ele entendeu aparece como balão seu, a resposta vem em texto e
+falada. É um turno comum do agente: memória, ferramentas e política valem como se você tivesse digitado. **Aprovar uma
+ação não se faz por voz**: a resposta avisa e o cartão aparece no chat.
+
+```
+ORION_VOICE_ENABLED=true
+ORION_TRANSCRIBE_API_KEY=...        # Whisper no Groq (a mesma do Telegram)
+# ORION_VOICE_SPEAK=false           # só texto: nada da resposta vai para a Microsoft
+```
+
+Para onde vai o quê: a sua **fala gravada** vai ao Groq; o **texto da resposta** (já sem markdown, código e endereços,
+até ~700 caracteres) vai ao serviço de voz da Microsoft (edge-tts, voz `pt-BR-AntonioNeural`). Sem `ORION_VOICE_SPEAK`
+o segundo passo some.
+
+**B — voz ao vivo (botão de ondas).** Conversa em tempo real com o Gemini Live, voz Charon. O **áudio do microfone vai ao
+Google** e o modelo **só conversa**: sem ferramentas, sem memória, sem acesso ao computador (se você pedir uma ação, ele
+manda usar o chat). A conversa não entra na memória; início e fim de cada sessão ficam no audit (`voz_ao_vivo`).
+
+```
+ORION_VOICE_LIVE_ENABLED=true
+ORION_VOICE_LIVE_API_KEY=...        # vazio: usa a de busca/embeddings (mesmo Google AI Studio)
+# ORION_VOICE_LIVE_MAX_MIN=20       # teto de uma sessão
+```
+
+- O navegador só libera o microfone em `https://` ou `localhost`: pelo Tailscale, use `tailscale serve` (HTTPS) e não o IP.
+- Sem login, sem `Origin` igual ao `Host` ou com a voz desligada, o WebSocket responde com o motivo e fecha.
+- **Palavra de ativação ("Orion") não existe ainda:** precisa de um modelo treinado (openWakeWord) e de captura de áudio no
+  `orion-desktop`. Quando existir, só abre o microfone; confirmar ação continua sendo o botão (regra 2).
+- Nada disto foi chamado contra Groq, edge-tts ou Gemini Live de verdade ([ORION_MELHORIAS.md](ORION_MELHORIAS.md), sexta rodada).
+
 ## 5. Servidores MCP
 
 E-mail, agenda, navegador e busca não são escritos aqui: entram por servidores MCP prontos.

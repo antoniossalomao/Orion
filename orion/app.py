@@ -12,13 +12,22 @@ import shutil
 import time
 import uuid
 from collections.abc import AsyncIterator, Callable
-from contextlib import asynccontextmanager
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Annotated, Any
 from urllib.parse import urlparse
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
+from fastapi import (
+    Depends,
+    FastAPI,
+    Header,
+    HTTPException,
+    Request,
+    Response,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -48,6 +57,14 @@ from .tools import default_registry
 from .tools.processes import ProcessManager
 from .transcribe import Transcriber
 from .vision import Vision
+from .voice import (
+    MAX_AUDIO,
+    EdgeSpeaker,
+    Speaker,
+    conexao_gemini,
+    ponte_ao_vivo,
+    turno_de_voz,
+)
 
 FRONT_DIR = PROJECT_ROOT / "Orion_Core" / "Front_end_Orion"
 
@@ -79,6 +96,9 @@ class AppState:
     telegram: TelegramChannel | None = None  # None sem token, sem usuários ou sem gateway
     mcp: McpManager | None = None  # None sem mcp.json, sem servidor habilitado ou sem gateway
     painel: Painel | None = None
+    transcriber: Transcriber | None = None  # voz (A) e `transcrever_audio`
+    speaker: Speaker | None = None  # voz (A): fala da resposta; None sem voz ou sem fala
+    live: Callable[[], AbstractAsyncContextManager[Any]] | None = None  # voz ao vivo (B)
 
 
 def build_policy(
@@ -246,6 +266,27 @@ def transcriber_from_settings(settings: Settings) -> Transcriber | None:
     return Transcriber(chave, base_url=settings.transcribe_url, model=settings.transcribe_model)
 
 
+def speaker_from_settings(settings: Settings) -> Speaker | None:
+    if not (settings.voice_enabled and settings.voice_speak):
+        return None
+    return EdgeSpeaker(settings.voice_tts_voice)
+
+
+def live_from_settings(settings: Settings) -> Callable[[], AbstractAsyncContextManager[Any]] | None:
+    """Sem opt-in ou sem chave não há voz ao vivo (o áudio do microfone vai para o Google)."""
+    chave = (
+        settings.voice_live_api_key
+        or settings.search_api_key
+        or settings.embed_api_key
+        or get_secret("ORION_VOICE_LIVE_API_KEY")
+        or get_secret("ORION_SEARCH_API_KEY")
+        or get_secret("ORION_EMBED_API_KEY")
+    )
+    if not (settings.voice_live_enabled and chave):
+        return None
+    return lambda: conexao_gemini(chave, settings.voice_live_model, settings.voice_live_voice)
+
+
 def embedder_from_settings(settings: Settings) -> GeminiEmbedder | None:
     """Sem chave de API, sem embeddings: a busca segue só por palavra-chave."""
     chave = settings.embed_api_key or get_secret("ORION_EMBED_API_KEY")
@@ -321,16 +362,9 @@ def _mensagens(memory: MemoryStore, sid: str, limite: int = 80) -> list[dict[str
 
 def sse(ev: AgentEvent) -> str:
     """Mesmo formato do /chat do legado (`text`, `tier`, `[DONE]`) + `tool`/`approval`/`error`."""
-    d = ev.data
-    if ev.kind == "done":
+    corpo = ev.corpo()
+    if corpo is None:  # "done"
         return "data: [DONE]\n\n"
-    corpo = {
-        "text": {"text": d.get("text")},
-        "tier": {"tier": f"{d.get('endpoint')}/{d.get('model')}"},
-        "tool": {"tool": d},
-        "approval": {"approval": d},
-        "error": {"error": d.get("message")},
-    }[ev.kind]
     return f"data: {json.dumps(corpo, ensure_ascii=False)}\n\n"
 
 
@@ -345,6 +379,49 @@ async def _stream(eventos: AsyncIterator[AgentEvent]) -> AsyncIterator[str]:
         yield sse(AgentEvent("error", {"message": "falha interna no turno"}))
     if not terminou:
         yield "data: [DONE]\n\n"
+
+
+AUTH_WS_S = 5.0  # quem não traz cookie nem cabeçalho tem este tempo para mandar o token
+
+
+async def _ws_abrir(ws: WebSocket, state: AppState) -> bool:
+    """Aceita e autentica um WebSocket de voz. Navegador: cookie da sessão (SameSite=Strict) e
+    `Origin` igual ao `Host` (o WebSocket não tem CORS: sem isso, outra página abriria o
+    microfone do Orion). Cliente de máquina: `Authorization` ou a primeira mensagem
+    `{"cmd": "auth", "token": ...}` (o token nunca vai na URL). Fecha e devolve False se negar."""
+    origem = ws.headers.get("origin")
+    if origem and urlparse(origem).netloc != ws.headers.get("host", ""):
+        await ws.close(code=1008)
+        return False
+    await ws.accept()
+
+    async def negar(msg: str, codigo: int = 4401) -> bool:
+        await ws.send_text(json.dumps({"type": "error", "msg": msg}))
+        await ws.close(code=codigo)
+        return False
+
+    if not state.settings.admin_token and not state.auth.has_password():
+        return await negar("autenticação não configurada", 4503)
+    esperado = state.settings.admin_token
+
+    def token_vale(enviado: str) -> bool:
+        return bool(esperado) and hmac.compare_digest(enviado.encode(), esperado.encode())
+
+    cabecalho = ws.headers.get("authorization")
+    if cabecalho is not None:
+        if token_vale(cabecalho.removeprefix("Bearer ").strip()):
+            return True
+        return await negar("login necessário")
+    if state.auth.validate(ws.cookies.get(COOKIE_SESSAO)):
+        return True
+    try:
+        async with asyncio.timeout(AUTH_WS_S):
+            msg = json.loads(await ws.receive_text())
+    except (TimeoutError, ValueError, WebSocketDisconnect, RuntimeError):
+        return await negar("login necessário")
+    if isinstance(msg, dict) and msg.get("cmd") == "auth" and token_vale(str(msg.get("token", ""))):
+        return True
+    return await negar("login necessário")
 
 
 class Login(BaseModel):
@@ -369,6 +446,11 @@ def create_app(
     gateway_factory: Callable[[Settings], ChatGateway | None] | None = None,
     telegram_factory: Callable[..., TelegramChannel | None] | None = None,
     mcp_factory: Callable[[Settings], McpManager | None] | None = None,
+    transcriber_factory: Callable[[Settings], Transcriber | None] | None = None,
+    speaker_factory: Callable[[Settings], Speaker | None] | None = None,
+    live_factory: (
+        Callable[[Settings], Callable[[], AbstractAsyncContextManager[Any]] | None] | None
+    ) = None,
 ) -> FastAPI:
     settings = settings or Settings()
 
@@ -403,6 +485,7 @@ def create_app(
                 "(regra 17 do ORION_REGRAS.md: acesso de fora só com login)"
             )
         gateway = (gateway_factory or gateway_from_settings)(settings)
+        transcriber = (transcriber_factory or transcriber_from_settings)(settings)
         agent = None
         mcp = None
         delegador: Delegator | None = None
@@ -425,7 +508,7 @@ def create_app(
                     ops,
                     desktop=settings.desktop_tools,
                     web=settings.web_tools,
-                    transcriber=transcriber_from_settings(settings),
+                    transcriber=transcriber,
                     vision=vision_from_settings(settings),
                     captures_dir=settings.data_dir / "capturas",
                     processes=processos,
@@ -498,6 +581,9 @@ def create_app(
         app.state.orion = AppState(
             settings, memory, policy, painel.started_at, ops, auth, agent, jobs, telegram, mcp,
             painel,
+            transcriber=transcriber,
+            speaker=(speaker_factory or speaker_from_settings)(settings),
+            live=(live_factory or live_from_settings)(settings),
         )  # fmt: skip
         try:
             yield
@@ -513,6 +599,8 @@ def create_app(
                 await asyncio.to_thread(mcp.stop)
             if gateway is not None and hasattr(gateway, "aclose"):
                 await gateway.aclose()
+            if transcriber is not None:
+                await transcriber.aclose()
             auth.close()
             memory.close()
 
@@ -800,6 +888,106 @@ def create_app(
         if not state.ops.ack_notification(notification_id):
             raise HTTPException(404, "aviso inexistente ou já confirmado")
         return {"ok": True}
+
+    # ── voz (fase 6) ──────────────────────────────────────────────────────
+    async def _erro_e_fecha(ws: WebSocket, msg: str) -> None:
+        await ws.send_text(json.dumps({"type": "error", "msg": msg}))
+        await ws.close(code=1000)
+
+    async def _um_turno_de_voz(ws: WebSocket, state: AppState, audio: bytes) -> None:
+        assert state.agent is not None and state.transcriber is not None
+        try:
+            async for m in turno_de_voz(
+                agent=state.agent,
+                transcriber=state.transcriber,
+                speaker=state.speaker,
+                audio=audio,
+            ):
+                if isinstance(m, bytes):
+                    await ws.send_bytes(m)
+                else:
+                    await ws.send_text(json.dumps(m, ensure_ascii=False))
+        except WebSocketDisconnect:
+            raise  # o navegador saiu: quem chamou encerra
+        except Exception:
+            log.exception("turno de voz falhou")
+            with contextlib.suppress(RuntimeError, WebSocketDisconnect):  # navegador já saiu
+                await ws.send_text(json.dumps({"type": "error", "msg": "falha interna no turno"}))
+                await ws.send_text(json.dumps({"type": "done"}))
+
+    @app.websocket("/ws/voz")
+    async def ws_voz(ws: WebSocket) -> None:
+        """A: uma fala por mensagem binária (webm/ogg/mp4/wav); a resposta volta como eventos
+        JSON do chat e, no fim, o áudio da fala. `{"cmd": "cancel"}` interrompe o turno."""
+        state: AppState = ws.app.state.orion
+        if not await _ws_abrir(ws, state):
+            return
+        if not state.settings.voice_enabled:
+            return await _erro_e_fecha(ws, "voz desligada (ORION_VOICE_ENABLED)")
+        if state.agent is None:
+            return await _erro_e_fecha(ws, "gateway de modelos não configurado")
+        if state.transcriber is None:
+            return await _erro_e_fecha(ws, "sem chave de transcrição (ORION_TRANSCRIBE_API_KEY)")
+        turno: asyncio.Task[None] | None = None
+        try:
+            while True:
+                msg = await ws.receive()
+                if msg["type"] == "websocket.disconnect":
+                    break
+                dados = msg.get("bytes")
+                if dados:
+                    if turno is not None and not turno.done():
+                        await ws.send_text(
+                            json.dumps({"type": "error", "msg": "ainda estou no turno anterior"})
+                        )
+                    elif len(dados) > MAX_AUDIO:
+                        await ws.send_text(
+                            json.dumps({"type": "error", "msg": "fala longa demais"})
+                        )
+                    else:
+                        turno = asyncio.create_task(_um_turno_de_voz(ws, state, dados))
+                elif msg.get("text") and turno is not None and not turno.done():
+                    try:
+                        cmd = json.loads(msg["text"]).get("cmd")
+                    except (ValueError, AttributeError):
+                        continue
+                    if cmd == "cancel":
+                        turno.cancel()
+                        await ws.send_text(json.dumps({"type": "done"}))
+        except (WebSocketDisconnect, RuntimeError):
+            pass
+        finally:
+            if turno is not None and not turno.done():
+                turno.cancel()
+            if turno is not None:
+                await asyncio.gather(turno, return_exceptions=True)
+
+    @app.websocket("/ws/voice")
+    async def ws_voice(ws: WebSocket) -> None:
+        """B: voz ao vivo (Gemini Live). PCM 16 kHz do microfone → PCM 24 kHz e transcrição.
+        Só conversa: o modelo não tem ferramenta nem memória. A sessão vai para o audit."""
+        state: AppState = ws.app.state.orion
+        if not await _ws_abrir(ws, state):
+            return
+        if not state.settings.voice_live_enabled:
+            return await _erro_e_fecha(ws, "voz ao vivo desligada (ORION_VOICE_LIVE_ENABLED)")
+        if state.live is None:
+            return await _erro_e_fecha(ws, "sem chave do Gemini (ORION_VOICE_LIVE_API_KEY)")
+        _audit_voz(state, "início: o áudio do microfone vai para o Gemini; sem ferramentas")
+        motivo = await ponte_ao_vivo(
+            ws, state.live(), max_s=state.settings.voice_live_max_min * 60.0
+        )
+        _audit_voz(state, f"fim ({motivo})")
+        with contextlib.suppress(RuntimeError, WebSocketDisconnect):
+            await ws.close()
+
+    def _audit_voz(state: AppState, motivo: str) -> None:
+        try:
+            state.ops.audit_add(
+                {"tool": "voz_ao_vivo", "action": "allow", "risk": "read", "reason": motivo}
+            )
+        except Exception:
+            log.exception("audit da voz ao vivo falhou")
 
     if settings.serve_ui and FRONT_DIR.is_dir():
         # por último: as rotas da API têm prioridade sobre o mount

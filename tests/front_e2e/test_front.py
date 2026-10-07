@@ -1487,3 +1487,70 @@ def test_axe_menu_da_conversa_e_dialogos_abertos(abrir, mock_isolado_url):
     _abrir_menu(page, "Dúvida de UML")
     page.get_by_role("menuitem", name="Apagar").click()
     assert _violacoes(page) == []
+
+
+# ── voz por clique (fase 6) ──────────────────────────────────────────────────────
+GRAVADOR_FALSO = """
+(() => {
+  class FakeRecorder {
+    static isTypeSupported() { return true; }
+    constructor(stream, opcoes) { this.mimeType = opcoes.mimeType; this.state = 'inactive'; }
+    start() { this.state = 'recording'; }
+    stop() {
+      this.state = 'inactive';
+      this.ondataavailable?.({ data: new Blob([new Uint8Array(4000)], { type: this.mimeType }) });
+      setTimeout(() => this.onstop?.(), 0);
+    }
+  }
+  window.MediaRecorder = FakeRecorder;
+  window.__trilhas_paradas = 0;
+  const trilha = { stop() { window.__trilhas_paradas++; } };
+  navigator.mediaDevices.getUserMedia = async () => ({ getTracks: () => [trilha] });
+})();
+"""
+
+
+def test_falar_por_clique_vira_turno_e_mostra_o_que_foi_entendido(abrir):
+    page = abrir("#/chat", init=GRAVADOR_FALSO)
+    botao = page.locator("#composer-box .voice-ptt-btn")
+    expect(botao).to_have_attribute("aria-pressed", "false")
+    botao.click()
+    expect(botao).to_have_attribute("aria-pressed", "true")
+    expect(botao).to_have_attribute("aria-label", "Parar e enviar a fala")
+    botao.click()  # segundo clique envia
+    expect(page.locator(".msg-user").last).to_contain_text("que horas são")
+    expect(ultima_resposta(page)).to_contain_text("São três e meia (4000 bytes).")
+    esperar_fim(page)
+    expect(botao).to_have_attribute("aria-pressed", "false")
+    expect(botao).to_be_enabled()
+    assert page.evaluate("window.__trilhas_paradas") == 1, "o microfone ficou aberto"
+
+
+def test_esc_descarta_a_gravacao_sem_enviar(abrir):
+    page = abrir("#/chat", init=GRAVADOR_FALSO)
+    botao = page.locator("#composer-box .voice-ptt-btn")
+    botao.click()
+    expect(botao).to_have_attribute("aria-pressed", "true")
+    page.keyboard.press("Escape")
+    expect(botao).to_have_attribute("aria-pressed", "false")
+    assert page.locator(".msg-user").count() == 0
+    assert page.evaluate("window.__trilhas_paradas") == 1
+
+
+def test_falar_a_partir_da_home_abre_o_chat_e_a_paleta_tem_o_comando(abrir):
+    page = abrir("", init=GRAVADOR_FALSO)
+    page.locator("#home-form .voice-ptt-btn").click()
+    page.locator("#home-form .voice-ptt-btn").click()
+    expect(page).to_have_url(re.compile(r"#/chat$"))
+    expect(page.locator(".msg-user").last).to_contain_text("que horas são")
+    page.keyboard.press("Control+k")
+    page.fill("#palette-input", "falar com")
+    expect(page.locator("#palette-list")).to_contain_text("Falar com o Orion")
+
+
+def test_sem_microfone_o_botao_explica_em_vez_de_quebrar(abrir):
+    page = abrir(
+        "#/chat", init="Object.defineProperty(navigator, 'mediaDevices', { value: undefined });"
+    )
+    page.locator("#composer-box .voice-ptt-btn").click()
+    expect(page.locator(".toast").last).to_contain_text("Microfone indisponível")

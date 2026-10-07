@@ -323,6 +323,7 @@
         O.busca.init();
         for (const v of Object.values(O.views)) v.init?.();
         O.voz.ligar();
+        O.fala.ligar();
         ligarJanela();
         ligarAtencao();
         document.addEventListener('keydown', aoTecla);

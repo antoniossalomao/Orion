@@ -76,7 +76,7 @@
 
         ws = new WebSocket(`${O.api.wsBase()}/ws/voice`);
         ws.binaryType = 'arraybuffer';
-        ws.onopen = () => { cmd('start'); O.estado.definir('listening'); O.anunciar('Voz ao vivo ligada. Pode falar.'); };
+        ws.onopen = () => { const t = O.api.token(); if (t) ws.send(JSON.stringify({ cmd: 'auth', token: t })); cmd('start'); O.estado.definir('listening'); O.anunciar('Voz ao vivo ligada. Pode falar.'); };
         ws.onmessage = ({ data }) => {
             if (data instanceof ArrayBuffer) { tocar(data); return; }
             let m;

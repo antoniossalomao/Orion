@@ -22,7 +22,16 @@ from pathlib import Path
 from typing import Any
 
 import uvicorn
-from fastapi import Cookie, FastAPI, File, Header, HTTPException, Response, UploadFile
+from fastapi import (
+    Cookie,
+    FastAPI,
+    File,
+    Header,
+    HTTPException,
+    Response,
+    UploadFile,
+    WebSocket,
+)
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -453,6 +462,25 @@ def create_app() -> FastAPI:
             "nome": file.filename,
             "bytes": len(dados),
         }
+
+    # ── voz por clique (fase 6): cada fala gravada recebe um turno roteirizado ─────
+    @app.websocket("/ws/voz")
+    async def ws_voz(ws: WebSocket) -> None:
+        await ws.accept()
+        while True:
+            msg = await ws.receive()
+            if msg["type"] == "websocket.disconnect":
+                return
+            if msg.get("bytes"):
+                ESTADO["falas"] = ESTADO.get("falas", 0) + 1
+                tamanho = len(msg["bytes"])
+                await ws.send_json({"type": "heard", "text": "que horas são"})
+                await ws.send_json(
+                    {"type": "ev", "ev": {"text": f"São três e meia ({tamanho} bytes)."}}
+                )
+                await ws.send_json({"type": "audio", "mime": "audio/mpeg"})
+                await ws.send_bytes(b"ID3\x04\x00\x00\x00\x00\x00\x00")
+                await ws.send_json({"type": "done"})
 
     # ── chat ───────────────────────────────────────────────────────────────
     @app.post("/chat")

@@ -79,6 +79,18 @@ class Settings(BaseSettings):
     transcribe_api_key: str = ""  # ou no cofre do SO (ORION_TRANSCRIBE_API_KEY); vazio: sem voz
     transcribe_url: str = "https://api.groq.com/openai/v1"
     transcribe_model: str = "whisper-large-v3-turbo"
+    # Voz (fase 6). A: fala no navegador vira um turno do agente (precisa da chave de transcrição)
+    # e a resposta é falada por edge-tts — o TEXTO da resposta vai para a Microsoft. Desligada.
+    voice_enabled: bool = False
+    voice_speak: bool = True  # false: só transcreve e responde em texto, sem sintetizar a fala
+    voice_tts_voice: str = "pt-BR-AntonioNeural"
+    # B: voz ao vivo (Gemini Live). O áudio do microfone vai para o Google; o modelo só conversa
+    # (sem ferramentas nem memória). Desligada. Chave: a daqui ou a de busca/embeddings.
+    voice_live_enabled: bool = False
+    voice_live_model: str = "gemini-2.5-flash-native-audio-latest"
+    voice_live_voice: str = "Charon"
+    voice_live_api_key: str = ""
+    voice_live_max_min: int = Field(default=20, ge=1, le=60)  # teto de uma sessão, em minutos
     # Jobs em segundo plano (lembretes, agendamentos, embeddings, vault, backup, consolidação).
     jobs_enabled: bool = True
     jobs_tick_s: float = Field(default=30.0, ge=1.0)
