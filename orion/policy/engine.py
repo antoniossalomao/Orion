@@ -42,6 +42,7 @@ class Context:
 
     session_id: str
     tainted: bool = False
+    allowed_tools: frozenset[str] | None = None
 
 
 @dataclass(frozen=True)
@@ -91,6 +92,8 @@ class PolicyEngine:
         spec = self.tools.get(call.name)
         if spec is None:
             return Decision(Action.DENY, None, f"ferramenta '{call.name}' não registrada")
+        if ctx.allowed_tools is not None and call.name not in ctx.allowed_tools:
+            return Decision(Action.DENY, spec.risk, "ferramenta fora do escopo da skill")
         limite = self.rate.check(call.name)
         if limite:
             return Decision(Action.DENY, spec.risk, limite)

@@ -32,6 +32,8 @@ from .delegate import Delegator
 from .extensions.catalog import Catalog
 from .extensions.context import ContextReader, ContextRequest
 from .extensions.host import MCPError, MCPHost
+from .extensions.skill_runtime import SkillReference, SkillRuntime
+from .extensions.skills import SkillError
 from .gateway import ChatGateway, Endpoint
 from .jobs import JobRunner
 from .log import request_id
@@ -71,6 +73,7 @@ class AppState:
     ops: Operations
     agent: Agent | None = None  # None enquanto o gateway não está configurado
     jobs: JobRunner | None = None  # None com ORION_JOBS_ENABLED=false
+    skills: SkillRuntime | None = None
     catalog: Catalog | None = None
     mcp: MCPHost | None = None
     telegram: TelegramChannel | None = None  # None sem token, sem usuários ou sem gateway
@@ -174,6 +177,8 @@ class Mensagem(BaseModel):
     texto: str = Field(min_length=1, max_length=8000)
     canal: str = Field(default="web", pattern=_CANAL)
     contexto: list[ContextRequest] = Field(default_factory=list, max_length=8)
+    skills: list[str] = Field(default_factory=list, max_length=3)
+    referencias: list[SkillReference] = Field(default_factory=list, max_length=8)
 
 
 class SessaoNova(BaseModel):
@@ -286,6 +291,7 @@ def create_app(
                 await catalog.refresh()
             except Exception:  # noqa: BLE001 — catálogo externo não derruba chat nativo
                 log.warning("mcp_catalog_unavailable")
+        skills = SkillRuntime(settings.skill_sources)
         app.state.orion = AppState(
             settings,
             memory,
@@ -297,6 +303,7 @@ def create_app(
             telegram=telegram,
             mcp=mcp,
             catalog=catalog,
+            skills=skills,
         )
         try:
             yield
@@ -605,6 +612,14 @@ def create_app(
     @app.post("/chat", dependencies=[Admin])
     async def chat(corpo: Mensagem, state: State) -> StreamingResponse:
         agente = _agente(state)
+        selection = None
+        if state.skills is not None:
+            try:
+                selection = await asyncio.to_thread(
+                    state.skills.select, corpo.texto, corpo.skills, corpo.referencias
+                )
+            except SkillError as error:
+                raise HTTPException(422, str(error)) from error
         external = []
         if corpo.contexto:
             if state.mcp is None:
@@ -614,7 +629,7 @@ def create_app(
             except MCPError as error:
                 raise HTTPException(422, error.code) from error
         return StreamingResponse(
-            _stream(agente.run(corpo.canal, corpo.texto, external=external)),
+            _stream(agente.run(corpo.canal, corpo.texto, external=external, selection=selection)),
             media_type="text/event-stream",
         )
 

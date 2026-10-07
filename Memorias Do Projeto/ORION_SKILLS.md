@@ -21,3 +21,20 @@ quando pedidas. Colisões no namespace são recusadas; scripts permanecem arquiv
 
 Validação inclui frontmatter malicioso, referência externa/percent-encoded/symlink,
 colisão, carregamento progressivo e script com marcador que permanece sem executar.
+
+## Contexto progressivo — C16
+
+`ORION_SKILL_SOURCES` lista raízes absolutas com namespace/origem e `enabled: false`
+por padrão. Falha em uma fonte produz diagnóstico estável; não instala nem executa código.
+`/chat` aceita `skills` (até três IDs `plugin:skill`) e `referencias` explícitas (`skill`,
+`path`). Sem escolha explícita, relevância lexical exige pelo menos duas palavras de
+metadados. Somente fontes ativadas participam; descrição basta para decidir relevância.
+
+Corpos e referências escolhidos têm orçamento conjunto de 12 KB, fonte, versão, digest
+e truncamento. Referências precisam estar declaradas no corpo e dentro da raiz. Corpo
+não concede privilégios: `allowed-tools` intersecta scopes das skills e filtra schemas;
+PolicyEngine recusa chamadas fora dessa interseção. Uma ferramenta listada mas sem
+ToolSpec continua negada; execução listada mantém aprovação. Seleção marca taint.
+
+Procedência registra skill/versão/origem no turno. A estratégia lexical inicial pode
+exigir escolha explícita para consultas curtas; não há classificação paga/remota.

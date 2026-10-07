@@ -23,6 +23,7 @@ from datetime import datetime
 from typing import Any
 
 from .extensions.context import ExternalData
+from .extensions.skill_runtime import Selection
 from .gateway import ChatGateway, Finish, GatewayError, TextDelta, ToolCallRequest
 from .memory import MemoryStore, Session
 from .memory.ops import Operations
@@ -86,10 +87,17 @@ class Agent:
 
     # ── entradas ──────────────────────────────────────────────────────────
     async def run(
-        self, channel: str, text: str, *, external: list[ExternalData] | None = None
+        self,
+        channel: str,
+        text: str,
+        *,
+        external: list[ExternalData] | None = None,
+        selection: Selection | None = None,
     ) -> AsyncIterator[AgentEvent]:
         session = self.memory.active_session(channel)
         async with self._lock(session.id):
+            self._context(session.id).allowed_tools = selection.allowed_tools if selection else None
+            external = [*(external or []), *(selection.data if selection else [])]
             if external:
                 self._context(session.id).tainted = True
                 self.memory.counter_set(f"taint:{session.id}", 1)
@@ -102,7 +110,7 @@ class Agent:
                         provenance={"external": item.provenance()},
                     )
             self.memory.add_message(session.id, "user", text)
-            async for ev in self._turn(session, text, external=external):
+            async for ev in self._turn(session, text, external=external, selection=selection):
                 yield ev
 
     def busy(self, session_id: str) -> bool:
@@ -156,6 +164,7 @@ class Agent:
         consulta: str | None,
         extra_tools: list[str] | None = None,
         external: list[ExternalData] | None = None,
+        selection: Selection | None = None,
     ) -> AsyncIterator[AgentEvent]:
         if self.refresh_tools is not None:
             await self.refresh_tools()
@@ -166,6 +175,10 @@ class Agent:
         usadas: list[str] = list(extra_tools or [])
         destino: tuple[str, str] | None = None
         esquemas = self.tools.schemas(query=consulta, selected=extra_tools) or None
+        if ctx.allowed_tools is not None:
+            esquemas = [
+                s for s in esquemas or [] if s["function"]["name"] in ctx.allowed_tools
+            ] or None
         selected = {s["function"]["name"] for s in esquemas or []}
 
         for _ in range(self._max_iter):
@@ -193,6 +206,7 @@ class Agent:
                     "memoria": [{"tipo": h.kind, "id": h.id, "fonte": h.source} for h in hits],
                     "ferramentas": usadas,
                     "contexto_externo": [item.provenance() for item in external or []],
+                    "skills": list(selection.skills) if selection else [],
                 }
                 self.memory.add_message(session.id, "assistant", texto.strip(), provenance=prov)
                 yield AgentEvent("done", {"provenance": prov})
