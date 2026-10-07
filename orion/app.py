@@ -88,6 +88,7 @@ class AppState:
     mcp: MCPHost | None = None
     extensions: PluginManager | None = None
     accounts: Any = None
+    calendar: Any = None
     telegram: TelegramChannel | None = None  # None sem token, sem usuários ou sem gateway
 
 
@@ -319,6 +320,9 @@ def create_app(
                 await catalog.refresh()
             except Exception:  # noqa: BLE001 — catálogo externo não derruba chat nativo
                 log.warning("mcp_catalog_unavailable")
+        from .calendar import Calendar
+
+        calendar = Calendar(memory, mcp, catalog.registry, policy)
         skills = await asyncio.to_thread(SkillRuntime, settings.skill_sources)
         if agent is not None:
             skills.attach_tools(agent.tools, policy)
@@ -337,6 +341,7 @@ def create_app(
             skills=skills,
             extensions=extensions,
             accounts=accounts,
+            calendar=calendar,
         )
         try:
             yield
@@ -789,8 +794,10 @@ def create_app(
 
     from .accounts import router as account_router
     from .branches import router as branch_router
+    from .calendar import router as calendar_router
     from .documents import router as document_router
 
+    app.include_router(calendar_router(require_admin))
     app.include_router(account_router(require_admin))
     app.include_router(branch_router(require_admin))
     app.include_router(document_router(require_admin))

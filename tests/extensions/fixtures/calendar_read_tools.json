@@ -1,0 +1,223 @@
+[
+  {
+    "name": "list-events",
+    "title": "List Calendar Events",
+    "description": "List events from one or more calendars. Supports both calendar IDs and calendar names.",
+    "input_schema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {
+        "account": {
+          "description": "Account nickname(s) to query (e.g., 'work' or ['work', 'personal']). Omit to query all accounts.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z0-9_-]{1,64}$"
+            },
+            {
+              "minItems": 1,
+              "maxItems": 10,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z0-9_-]{1,64}$"
+              }
+            }
+          ]
+        },
+        "calendarId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "Calendar identifier(s) to query. Accepts calendar IDs (e.g., 'primary', 'user@gmail.com') OR calendar names (e.g., 'Work', 'Personal'). Single calendar: 'primary'. Multiple calendars: array ['Work', 'Personal'] or JSON string '[\"Work\", \"Personal\"]'"
+            },
+            {
+              "minItems": 1,
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "description": "Array of calendar IDs to query events from (max 50, no duplicates)"
+            }
+          ]
+        },
+        "timeMin": {
+          "type": "string",
+          "description": "Start of time range (ISO 8601, e.g., '2024-01-01T00:00:00')."
+        },
+        "timeMax": {
+          "type": "string",
+          "description": "End of time range (ISO 8601, e.g., '2024-01-31T23:59:59')."
+        },
+        "timeZone": {
+          "description": "IANA timezone (e.g., 'America/Los_Angeles'). Defaults to calendar's timezone.",
+          "type": "string"
+        },
+        "fields": {
+          "description": "Additional fields to include beyond defaults (id, summary, start, end, status, htmlLink, location, attendees).",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "id",
+              "summary",
+              "description",
+              "start",
+              "end",
+              "location",
+              "attendees",
+              "colorId",
+              "transparency",
+              "extendedProperties",
+              "reminders",
+              "conferenceData",
+              "attachments",
+              "status",
+              "htmlLink",
+              "created",
+              "updated",
+              "creator",
+              "organizer",
+              "recurrence",
+              "recurringEventId",
+              "originalStartTime",
+              "visibility",
+              "iCalUID",
+              "sequence",
+              "hangoutLink",
+              "anyoneCanAddSelf",
+              "guestsCanInviteOthers",
+              "guestsCanModify",
+              "guestsCanSeeOtherGuests",
+              "privateCopy",
+              "locked",
+              "source",
+              "eventType"
+            ]
+          }
+        },
+        "privateExtendedProperty": {
+          "description": "Filter by private extended properties (key=value). Matches events that have all specified properties.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[^=]+=[^=]+$"
+          }
+        },
+        "sharedExtendedProperty": {
+          "description": "Filter by shared extended properties (key=value). Matches events that have all specified properties.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[^=]+=[^=]+$"
+          }
+        }
+      },
+      "required": [
+        "calendarId"
+      ]
+    },
+    "execution": {
+      "task_support": "forbidden"
+    },
+    "output_schema": null,
+    "icons": null,
+    "annotations": {
+      "title": null,
+      "read_only_hint": true,
+      "destructive_hint": null,
+      "idempotent_hint": null,
+      "open_world_hint": false
+    },
+    "meta": null
+  },
+  {
+    "name": "get-freebusy",
+    "title": "Get Free/Busy",
+    "description": "Query free/busy information for calendars. Note: Time range is limited to a maximum of 3 months between timeMin and timeMax.",
+    "input_schema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {
+        "account": {
+          "description": "Account nickname(s) to query (e.g., 'work' or ['work', 'personal']). Omit to query all accounts.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z0-9_-]{1,64}$"
+            },
+            {
+              "minItems": 1,
+              "maxItems": 10,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z0-9_-]{1,64}$"
+              }
+            }
+          ]
+        },
+        "calendars": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "ID of the calendar (use 'primary' for the main calendar)"
+              }
+            },
+            "required": [
+              "id"
+            ]
+          },
+          "description": "List of calendars and/or groups to query for free/busy information"
+        },
+        "timeMin": {
+          "type": "string",
+          "description": "Start of time range (ISO 8601, e.g., '2024-01-01T00:00:00')."
+        },
+        "timeMax": {
+          "type": "string",
+          "description": "End of time range (ISO 8601, e.g., '2024-01-31T23:59:59')."
+        },
+        "timeZone": {
+          "description": "IANA timezone for the query.",
+          "type": "string"
+        },
+        "groupExpansionMax": {
+          "description": "Maximum number of calendars to expand per group (max 100)",
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 100
+        },
+        "calendarExpansionMax": {
+          "description": "Maximum number of calendars to expand (max 50)",
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 50
+        }
+      },
+      "required": [
+        "calendars",
+        "timeMin",
+        "timeMax"
+      ]
+    },
+    "execution": {
+      "task_support": "forbidden"
+    },
+    "output_schema": null,
+    "icons": null,
+    "annotations": {
+      "title": null,
+      "read_only_hint": true,
+      "destructive_hint": null,
+      "idempotent_hint": null,
+      "open_world_hint": false
+    },
+    "meta": null
+  }
+]

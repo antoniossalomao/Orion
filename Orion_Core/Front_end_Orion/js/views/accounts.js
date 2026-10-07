@@ -22,7 +22,8 @@
                 row.authorization_url ? X.button('Abrir autorização', () => api.abrirExterno(row.authorization_url), 'btn btn-primary btn-sm') : X.button('Autorizar conta', () => X.mutate(() => api.autorizarConta(row.id))),
                 row.state !== 'revoked' ? X.button('Revogar conta', async () => { if (await X.dialog('Revogar conta', 'O acesso e as decisões vinculadas à conexão serão encerrados. Conversas e resultados continuam salvos.', [], 'Revogar')) await X.mutate(() => api.revogarConta(row.id)); }) : null)));
         if (rows.some(r => r.state === 'authorizing')) timer = setTimeout(() => { if (source === api.base() && document.documentElement.dataset.view === 'integracoes') X.refresh(); }, 2000);
-        return el('section', { 'aria-label': 'Contas MCP' }, el('h3', { text: 'Suas contas' }), X.hint('Autorize uma conta e selecione-a ao configurar uma conexão no mesmo contexto.'), X.button('Adicionar conta MCP', create), el('div', { class: 'extension-grid' }, ...cards));
+        const calendar = O.calendar && api.suporta('calendar') ? await O.calendar.panel() : null;
+        return el('section', { 'aria-label': 'Contas MCP' }, el('h3', { text: 'Suas contas' }), X.hint('Autorize uma conta e selecione-a ao configurar uma conexão no mesmo contexto.'), X.button('Adicionar conta MCP', create), el('div', { class: 'extension-grid' }, ...cards), calendar);
     }
     O.accounts = { panel };
 })();

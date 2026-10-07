@@ -6,7 +6,7 @@ para a versão atual sozinho (`MIGRATIONS`). v3: seleção persistente de sessã
 v4: conversas fixadas. v5: índice de títulos para busca de conversas.
 """
 
-SCHEMA_VERSION = 12
+SCHEMA_VERSION = 13
 
 TOKENIZER = "unicode61 remove_diacritics 2"  # "açúcar" casa com "acucar"
 
@@ -268,6 +268,12 @@ CREATE TABLE oauth_accounts(id TEXT PRIMARY KEY,name TEXT NOT NULL,url TEXT NOT 
  state TEXT NOT NULL,expires_at REAL,error TEXT);
 """
 
+DDL_V13 = """
+CREATE TABLE calendar_bindings(scope TEXT PRIMARY KEY,connection_id TEXT NOT NULL,
+ account TEXT NOT NULL,calendar_id TEXT NOT NULL,timezone TEXT NOT NULL,revision TEXT NOT NULL,
+ connection_revision TEXT NOT NULL);
+"""
+
 DDL = (
     DDL_V1
     + DDL_V2
@@ -281,6 +287,7 @@ DDL = (
     + DDL_V10
     + DDL_V11
     + DDL_V12
+    + DDL_V13
 )
 MIGRATIONS: dict[int, str] = {
     1: DDL_V2,
@@ -294,4 +301,5 @@ MIGRATIONS: dict[int, str] = {
     9: DDL_V10,
     10: DDL_V11,
     11: DDL_V12,
+    12: DDL_V13,
 }
