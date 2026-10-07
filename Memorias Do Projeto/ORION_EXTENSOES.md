@@ -1,6 +1,6 @@
 # Orion — referências de produto e plano de extensões
 
-Pesquisa em 04/10/2026. **Plano de implementação com C00–C23 concluídos** (registro na seção 9).
+Pesquisa em 04/10/2026. **Plano de implementação com C00–C24 concluídos** (registro na seção 9).
 Plugins e skills seguem em implementação. MCP já tem prova com servidores controlados;
 nenhuma conta pessoal ou servidor externo do usuário foi conectado.
 Complementa [ORION_FRONT.md](ORION_FRONT.md), as fases 4 e 6 do
@@ -339,7 +339,7 @@ como fundação do recurso novo. Exportar leitura primeiro, com identidade e esc
 
 ## 8. Próximo trabalho concreto
 
-C00–C23 foram concluídos e validados. Continuar pelo **C24: API administrativa e lifecycle de extensões**.
+C00–C24 foram concluídos e validados. Continuar pelo **C25: catálogo visual de plugins skills e conexões**.
 O usuário autorizou a execução dos checklists restantes, com commits separados, validação,
 registro no vault e push. Integrações pessoais e Windows serão registrados conforme
 as evidências disponíveis, sem transformar fixtures em prova de conta ou desktop reais.
@@ -351,8 +351,8 @@ quando houver integração concreta para revisar. Este documento não muda as de
 
 ## 9. Checklists por commit e sequência de dias
 
-Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C23 têm commits reais
-registrados; C24–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
+Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C24 têm commits reais
+registrados; C25–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
 precisa estar pronto. Não é necessário concluir o plano inteiro para usar o primeiro MVP.
 
 ### Ritmo de trabalho
@@ -365,7 +365,7 @@ precisa estar pronto. Não é necessário concluir o plano inteiro para usar o p
   manter os dependentes esperando a entrega completa.
 - Ao pedir continuação, usar o ID: **“Faça o próximo commit pendente”** ou **“Faça o C09”**.
   O executor confere o checklist e as dependências antes de iniciar.
-- C00–C23 estão implementados, validados e registrados abaixo; C24–C50 permanecem
+- C00–C24 estão implementados, validados e registrados abaixo; C25–C50 permanecem
   planejados. Cada continuação deve conferir as dependências e os limites da entrega anterior.
 
 ### Como concluir e pausar cada commit
@@ -418,10 +418,10 @@ a integração real de Pesquisa fica registrada separadamente se ainda não tive
 
 ### Registro para retomar no próximo dia
 
-- Último checklist concluído: **C23**, commit `87e4314`; entregas anteriores registradas abaixo.
-- Próximo commit sugerido: **C24 — API administrativa e lifecycle de extensões**.
-- Dependências/impedimentos: conferir as dependências do C24 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
-- Evidências: ver os registros C00–C23 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
+- Último checklist concluído: **C24**, commit `72d40ff`; entregas anteriores registradas abaixo.
+- Próximo commit sugerido: **C25 — catálogo visual de plugins skills e conexões**.
+- Dependências/impedimentos: conferir as dependências do C25 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
+- Evidências: ver os registros C00–C24 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
 - Atualizações: registrar aqui o ID concluído, hash/link e o próximo ID; não preencher com
   hash fictício nem tratar evidência de mock como teste contra conta real.
 
@@ -816,6 +816,22 @@ escopo. Testes C12/C18 continuam cobrindo cancelamento de chamadas/processos. O 
 administrativo que aciona essas garantias é integrado em C24; não há ativação automática.
 
 
+### Execução C24 — 06/10/2026
+
+Commit `72d40ff`: API autenticada para instalar/importar ZIP, revisar e ativar,
+desativar, remover, consultar versões/diagnósticos e configurar/testar MCP. Catálogo
+sanitizado sem caminhos internos ou credenciais; ZIP recebido em stream limitado.
+Instalação, confiança em código, autorização do endereço e concessão são decisões
+separadas. Restart deixa pacotes desativados. O modelo não recebe tools administrativas.
+
+**Evidências:** 604 testes backend, Ruff/Pyright. TestClient prova tokens ausentes/
+inválidos, importação inválida, capabilities incompletas, update/rollback/restart.
+Pacote com servidor SDK real só conecta após confiança/classificação local; discovery
+mantém contador de escritas em zero; desativar fecha e remove a conexão/catálogo.
+Scripts de plugins não são concedidos por instalação: runner de fontes locais revisadas
+(C18) continua separado. Nenhuma conta externa foi conectada.
+
+
 ### C00 — fix(ui): estabilizar conexão e consolidar o refinamento visual
 
 Etapa: **A** · Depende de: **base atual do repositório** · Estado: **concluído**.
@@ -1058,13 +1074,13 @@ Etapa: **D** · Depende de: **C22, C11** · Estado: **concluído**.
 
 ### C24 — feat(api): gerenciar plugins skills e conexões autenticadas
 
-Etapa: **D** · Depende de: **C23** · Estado: **planejado**.
+Etapa: **D** · Depende de: **C23** · Estado: **concluído**.
 
-- [ ] Adicionar rotas de catálogo, instalação, ativação, desativação, teste e diagnóstico.
-- [ ] Autenticar operações administrativas e sanitizar dados retornados à interface.
-- [ ] Separar instalação, autorização da conta e concessão de capacidades nos contratos.
-- [ ] **Validar:** Testar operações com token ausente/inválido, permissões incompletas e logs sem segredo; o modelo não administra conexões sozinho.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Adicionar rotas de catálogo, instalação, ativação, desativação, teste e diagnóstico.
+- [x] Autenticar operações administrativas e sanitizar dados retornados à interface.
+- [x] Separar instalação, autorização da conta e concessão de capacidades nos contratos.
+- [x] **Validar:** Testar operações com token ausente/inválido, permissões incompletas e logs sem segredo; o modelo não administra conexões sozinho.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C25 — feat(ui): criar catálogo de plugins e skills
 
