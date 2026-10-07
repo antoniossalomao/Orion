@@ -181,3 +181,25 @@ endereço do cérebro é configurável (Tailscale). Tirar isso exige trocar a li
 
 **Capturas:** `uv run python -m tests.front_e2e.capturas capturas/` gera 5 telas × 3 temas × 2 tamanhos para revisão visual.
 Não há teste de pixel (céu em WebGL e fonte mudam por plataforma); o que é medível está nos testes.
+
+## 8. Conversas: renomear, fixar e apagar (07/10/2026)
+
+A barra lateral do `orion.app` ficava vazia: o front chamava `/sessoes` e `/historico` (contrato do legado) e o app novo não os tinha.
+Agora tem, com a mesma forma do legado + os campos novos, todas atrás do login/token (e do bloqueio de outra origem para cookie):
+
+| Rota | O que faz |
+|---|---|
+| `GET /sessoes?canal=web` | Conversas do canal + as importadas do legado (somente leitura), sem as apagadas; título = o dado, ou a 1ª fala, ou "Nova conversa"; `favorita`, `ultima_atividade`, `ativa` |
+| `POST /sessoes` | Nova conversa (se a ativa ainda está vazia, reaproveita: não empilha conversas em branco) |
+| `POST /sessoes/ativar` | Torna a conversa a ativa do canal e devolve as mensagens (`user`/`assistant`); importada → 409 |
+| `GET /historico?sessao=` | Mensagens de uma conversa (a importada abre só por aqui) |
+| `PATCH /sessoes/{id}` | `titulo` e/ou `favorita` |
+| `DELETE /sessoes/{id}` | Apaga = **esconde** (`deleted=1`): as mensagens ficam no banco e o que o Orion já consolidou delas continua na memória; vai para o log de auditoria |
+
+- **Esquema v4** (migração automática de banco v3): `sessions.pinned` e `sessions.deleted`.
+- **Escopo:** só conversas do canal `web` e importadas. Telegram e outros canais não são alcançáveis por essas rotas (404).
+- **Front:** menu ⋯ em cada conversa (aparece com mouse, foco ou menu aberto; teclado completo), grupo "Fixadas", confirmação para apagar
+  (foco em "Cancelar"), e na paleta `Ctrl+K`: renomear, fixar e apagar a conversa atual. Conversa importada não tem menu.
+- **Legado:** se o cérebro não aceitar `PATCH`/`DELETE`, o erro aparece num aviso legível e a lista não muda.
+- **Provado:** `tests/test_app_sessoes.py`, `tests/memory/test_conversas.py`, 10 testes de navegador em `test_front.py` (inclui axe com menu e
+  diálogos abertos) e um em `test_orion_real.py` (login real, SQLite real, recarregar a página, mensagens ainda no banco após apagar).

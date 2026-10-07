@@ -236,3 +236,5 @@ input[type="search"]::-webkit-search-cancel-button { appearance: none; }
 .spark-legenda { margin-top: var(--s-1); font-size: var(--fs-xs); color: var(--text-3); font-variant-numeric: tabular-nums; }
 .spark-legenda:empty { display: none; }
 .spark[hidden] { display: none; }
+
+.dialog-form { display: contents; }   /* o <form> do diálogo com campo não muda o layout do .dialog */

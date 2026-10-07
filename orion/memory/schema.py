@@ -2,10 +2,11 @@
 
 v1: conversas, fatos, documentos e vetores. v2: operação (lembretes, agendamentos,
 tarefas, números, prompts), arestas do grafo e fila de notificações. v3: trilha de
-auditoria das decisões da política. Banco antigo sobe sozinho (`MIGRATIONS`).
+auditoria das decisões da política. v4: conversa fixada e apagada (apagar = esconder: as
+mensagens ficam). Banco antigo sobe sozinho (`MIGRATIONS`).
 """
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 TOKENIZER = "unicode61 remove_diacritics 2"  # "açúcar" casa com "acucar"
 
@@ -192,7 +193,12 @@ CREATE INDEX idx_audit_ts ON audit(ts);
 CREATE INDEX idx_audit_tool ON audit(tool, ts);
 """
 
-DDL = DDL_V1 + DDL_V2 + DDL_V3
+DDL_V4 = """
+ALTER TABLE sessions ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE sessions ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0;
+"""
+
+DDL = DDL_V1 + DDL_V2 + DDL_V3 + DDL_V4
 
 # versão de origem -> script que leva à seguinte
-MIGRATIONS: dict[int, str] = {1: DDL_V2, 2: DDL_V3}
+MIGRATIONS: dict[int, str] = {1: DDL_V2, 2: DDL_V3, 3: DDL_V4}

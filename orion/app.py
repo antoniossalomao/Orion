@@ -14,6 +14,7 @@ import uuid
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Annotated, Any
 from urllib.parse import urlparse
 
@@ -275,6 +276,47 @@ class Mensagem(BaseModel):
 
 class Retomada(BaseModel):
     canal: str = Field(default="web", pattern=_CANAL)
+
+
+class Ativacao(BaseModel):
+    sessao_id: str = Field(min_length=1, max_length=64)
+    canal: str = Field(default="web", pattern=_CANAL)
+
+
+class AjusteDeConversa(BaseModel):
+    titulo: str | None = Field(default=None, min_length=1, max_length=120)
+    favorita: bool | None = None
+
+
+def _canal_valido(canal: str) -> None:
+    if not re.fullmatch(_CANAL, canal):
+        raise HTTPException(422, "canal inválido")
+
+
+def _iso(ts: float) -> str:
+    return datetime.fromtimestamp(ts, UTC).isoformat()
+
+
+def _item_da_conversa(memory: MemoryStore, s: Any, ativa_id: str | None) -> dict[str, Any]:
+    """Mesma forma que o legado usa (`sessao_id`, `titulo`, `criada`, `ativa`, `favorita`)."""
+    titulo = s.title or (memory.first_user_text(s.id) or "").strip()
+    return {
+        "sessao_id": s.id,
+        "titulo": " ".join(titulo.split())[:80] or "Nova conversa",
+        "criada": _iso(s.created_at),
+        "ultima_atividade": _iso(s.last_active_at),
+        "ativa": s.id == ativa_id,
+        "favorita": s.pinned,
+        "somente_leitura": s.archived,
+    }
+
+
+def _mensagens(memory: MemoryStore, sid: str, limite: int = 80) -> list[dict[str, Any]]:
+    return [
+        {"role": m.role, "content": m.text, "timestamp": _iso(m.created_at)}
+        for m in memory.history(sid, limite)
+        if m.role in ("user", "assistant")
+    ]
 
 
 def sse(ev: AgentEvent) -> str:
@@ -609,6 +651,79 @@ def create_app(
         return StreamingResponse(
             _stream(agente.run(corpo.canal, corpo.texto)), media_type="text/event-stream"
         )
+
+    # ── conversas (barra lateral do front) ────────────────────────────────
+    # "Apagar" esconde a conversa (as mensagens ficam no banco e o que o Orion já consolidou
+    # delas continua na memória). Só mexe nas conversas que a barra do canal mostra: as do
+    # Telegram e de outros canais não passam por aqui.
+    @app.get("/sessoes", dependencies=[Admin])
+    def listar_conversas(state: State, canal: str = "web") -> dict[str, Any]:
+        _canal_valido(canal)
+        ativa = state.memory.active_session(canal)
+        itens = [
+            _item_da_conversa(state.memory, s, ativa.id)
+            for s in state.memory.list_sessions_ui(canal)
+        ]
+        return {"total": len(itens), "sessoes": itens, "ativa": ativa.id}
+
+    @app.post("/sessoes", dependencies=[Admin])
+    def nova_conversa(state: State, canal: str = "web") -> dict[str, Any]:
+        _canal_valido(canal)
+        atual = state.memory.active_session(canal)
+        # já está numa conversa vazia: reaproveita em vez de empilhar conversas em branco
+        if state.memory.history(atual.id, 1):
+            atual = state.memory.new_session(canal)
+        return {"ok": True, "sessao_id": atual.id}
+
+    @app.post("/sessoes/ativar", dependencies=[Admin])
+    def ativar_conversa(corpo: Ativacao, state: State) -> dict[str, Any]:
+        s = state.memory.session_visible(corpo.sessao_id, corpo.canal)
+        if s is None:
+            raise HTTPException(404, "conversa não encontrada")
+        if s.archived:
+            raise HTTPException(409, "conversa arquivada: só leitura (use o histórico)")
+        state.memory.activate_session(s.id)
+        return {"ok": True, "sessao_id": s.id, "mensagens": _mensagens(state.memory, s.id)}
+
+    @app.get("/historico", dependencies=[Admin])
+    def historico(state: State, sessao: str, canal: str = "web") -> dict[str, Any]:
+        _canal_valido(canal)
+        s = state.memory.session_visible(sessao, canal)
+        if s is None:
+            raise HTTPException(404, "conversa não encontrada")
+        msgs = _mensagens(state.memory, s.id)
+        return {"total": len(msgs), "mensagens": msgs}
+
+    @app.patch("/sessoes/{sessao_id}", dependencies=[Admin])
+    def ajustar_conversa(
+        sessao_id: str, corpo: AjusteDeConversa, state: State, canal: str = "web"
+    ) -> dict[str, Any]:
+        _canal_valido(canal)
+        if corpo.titulo is None and corpo.favorita is None:
+            raise HTTPException(422, "nada para mudar: mande `titulo` e/ou `favorita`")
+        s = state.memory.session_visible(sessao_id, canal)
+        if s is None:
+            raise HTTPException(404, "conversa não encontrada")
+        if corpo.titulo is not None and not state.memory.rename_session(s.id, corpo.titulo):
+            raise HTTPException(422, "título vazio")
+        if corpo.favorita is not None:
+            state.memory.pin_session(s.id, corpo.favorita)
+        novo = state.memory.get_session(s.id)
+        assert novo is not None
+        return {"ok": True, "sessao": _item_da_conversa(state.memory, novo, None)}
+
+    @app.delete("/sessoes/{sessao_id}", dependencies=[Admin])
+    def apagar_conversa(sessao_id: str, state: State, canal: str = "web") -> dict[str, bool]:
+        _canal_valido(canal)
+        s = state.memory.session_visible(sessao_id, canal)
+        if s is None:
+            raise HTTPException(404, "conversa não encontrada")
+        state.memory.delete_session(s.id)
+        audit_log.info(
+            "conversa_apagada",
+            extra={"audit": {"sessao": s.id, "canal": canal, "titulo": (s.title or "")[:60]}},
+        )
+        return {"ok": True}
 
     @app.post("/approvals/{approval_id}/resume", dependencies=[Admin])
     async def retomar(

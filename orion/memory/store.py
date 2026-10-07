@@ -36,6 +36,18 @@ MAX_NOTA_BYTES = 5 * 1024 * 1024
 KIND_WEIGHT: dict[str, float] = {"fact": 1.25, "chunk": 1.0, "message": 0.8}
 
 
+def _sessao(r: sqlite3.Row) -> Session:
+    return Session(
+        r["id"],
+        r["channel"],
+        r["title"],
+        r["created_at"],
+        r["last_active_at"],
+        bool(r["pinned"]),
+        bool(r["archived"]),
+    )
+
+
 class Embedder(Protocol):
     dim: int
 
@@ -49,6 +61,8 @@ class Session:
     title: str | None
     created_at: float
     last_active_at: float
+    pinned: bool = False
+    archived: bool = False  # arquivada: conversa importada do legado (só leitura)
 
 
 @dataclass(frozen=True)
@@ -208,7 +222,7 @@ class MemoryStore:
             ).fetchone()
         if r is None:
             return self.new_session(channel)
-        return Session(r["id"], r["channel"], r["title"], r["created_at"], r["last_active_at"])
+        return _sessao(r)
 
     # ── importação (export do legado) ─────────────────────────────────────
     def import_session(
@@ -274,23 +288,94 @@ class MemoryStore:
             r = self._conn.execute("SELECT * FROM sessions WHERE id=?", (session_id,)).fetchone()
         if r is None:
             return None
-        return Session(r["id"], r["channel"], r["title"], r["created_at"], r["last_active_at"])
+        return _sessao(r)
 
     def archive_session(self, session_id: str) -> None:
         with self._tx() as c:
             c.execute("UPDATE sessions SET archived=1 WHERE id=?", (session_id,))
 
+    def activate_session(self, session_id: str) -> Session | None:
+        """Torna a conversa a ativa do canal dela (a "ativa" é a de atividade mais recente).
+        Só conversa aberta e não apagada: arquivada (importada) é só leitura. None se não dá."""
+        agora = self._clock()
+        with self._tx() as c:
+            n = c.execute(
+                "UPDATE sessions SET last_active_at=? WHERE id=? AND archived=0 AND deleted=0",
+                (agora, session_id),
+            ).rowcount
+        return self.get_session(session_id) if n else None
+
+    def rename_session(self, session_id: str, title: str) -> bool:
+        titulo = " ".join(title.split())[:120]
+        if not titulo:
+            return False
+        with self._tx() as c:
+            return bool(
+                c.execute(
+                    "UPDATE sessions SET title=? WHERE id=? AND deleted=0", (titulo, session_id)
+                ).rowcount
+            )
+
+    def pin_session(self, session_id: str, pinned: bool) -> bool:
+        with self._tx() as c:
+            return bool(
+                c.execute(
+                    "UPDATE sessions SET pinned=? WHERE id=? AND deleted=0",
+                    (int(pinned), session_id),
+                ).rowcount
+            )
+
+    def delete_session(self, session_id: str) -> bool:
+        """Apagar = esconder da lista (e deixar de ser a ativa). As mensagens FICAM: o que o Orion
+        já consolidou delas continua na memória, e dá para desfazer pelo banco."""
+        with self._tx() as c:
+            return bool(
+                c.execute(
+                    "UPDATE sessions SET deleted=1, archived=1, pinned=0 WHERE id=? AND deleted=0",
+                    (session_id,),
+                ).rowcount
+            )
+
+    def first_user_text(self, session_id: str) -> str | None:
+        """Primeira fala do usuário: serve de título quando a conversa não foi renomeada."""
+        with self._lock:
+            r = self._conn.execute(
+                "SELECT text FROM messages WHERE session_id=? AND role='user' ORDER BY id LIMIT 1",
+                (session_id,),
+            ).fetchone()
+        return r[0] if r else None
+
     def list_sessions(self, channel: str | None = None, limit: int = 50) -> list[Session]:
+        """Conversas não apagadas, da mais recente para a mais antiga."""
         with self._lock:
             rows = self._conn.execute(
-                "SELECT * FROM sessions WHERE (? IS NULL OR channel=?)"
+                "SELECT * FROM sessions WHERE deleted=0 AND (? IS NULL OR channel=?)"
                 " ORDER BY last_active_at DESC LIMIT ?",
                 (channel, channel, limit),
             ).fetchall()
-        return [
-            Session(r["id"], r["channel"], r["title"], r["created_at"], r["last_active_at"])
-            for r in rows
-        ]
+        return [_sessao(r) for r in rows]
+
+    def session_visible(self, session_id: str, channel: str) -> Session | None:
+        """A conversa, se a barra do canal a mostra (do canal ou importada, e não apagada)."""
+        with self._lock:
+            r = self._conn.execute(
+                "SELECT * FROM sessions WHERE id=? AND deleted=0 AND (channel=? OR id IN"
+                " (SELECT ref FROM imported WHERE kind='sessao'))",
+                (session_id, channel),
+            ).fetchone()
+        return _sessao(r) if r else None
+
+    def list_sessions_ui(self, channel: str, limit: int = 100) -> list[Session]:
+        """O que a barra lateral mostra: as conversas do canal + as importadas do legado (somente
+        leitura), sem as apagadas; fixadas primeiro, depois a atividade mais recente."""
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT * FROM sessions WHERE deleted=0 AND (channel=? OR id IN"
+                " (SELECT ref FROM imported WHERE kind='sessao'))"
+                " ORDER BY pinned DESC, last_active_at DESC LIMIT ?",
+                (channel, limit),
+            ).fetchall()
+        return [_sessao(r) for r in rows]
 
     def add_message(
         self, session_id: str, role: str, text: str, provenance: dict[str, Any] | None = None
