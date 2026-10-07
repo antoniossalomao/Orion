@@ -1503,7 +1503,8 @@ GRAVADOR_FALSO = """
     start() { this.state = 'recording'; }
     stop() {
       this.state = 'inactive';
-      this.ondataavailable?.({ data: new Blob([new Uint8Array(4000)], { type: this.mimeType }) });
+      const n = window.__tamanho_da_fala || 4000;
+      this.ondataavailable?.({ data: new Blob([new Uint8Array(n)], { type: this.mimeType }) });
       setTimeout(() => this.onstop?.(), 0);
     }
   }
@@ -1559,3 +1560,111 @@ def test_sem_microfone_o_botao_explica_em_vez_de_quebrar(abrir):
     )
     page.locator("#composer-box .voice-ptt-btn").click()
     expect(page.locator(".toast").last).to_contain_text("Microfone indisponível")
+
+
+def _stats(url: str) -> dict:
+    import httpx
+
+    return httpx.get(f"{url}/voz-stats", timeout=3).json()
+
+
+def test_parar_a_fala_enquanto_a_resposta_toca(mock_isolado_url, abrir):
+    page = abrir("#/chat", init=GRAVADOR_FALSO, url=mock_isolado_url)
+    botao = page.locator("#composer-box .voice-ptt-btn")
+    botao.click()
+    botao.click()
+    expect(ultima_resposta(page)).to_contain_text("São três e meia")
+    # a fala de 3 s está tocando: o mesmo botão agora para a resposta
+    expect(botao).to_have_attribute("aria-label", "Parar a resposta")
+    botao.click()
+    expect(botao).to_have_attribute("aria-label", "Falar com o Orion")
+    expect(page.locator("html")).to_have_attribute("data-estado", "idle")
+
+
+def test_esc_para_a_fala_que_toca(mock_isolado_url, abrir):
+    page = abrir("#/chat", init=GRAVADOR_FALSO, url=mock_isolado_url)
+    botao = page.locator("#composer-box .voice-ptt-btn")
+    botao.click()
+    botao.click()
+    expect(botao).to_have_attribute("aria-label", "Parar a resposta")
+    page.keyboard.press("Escape")
+    expect(botao).to_have_attribute("aria-label", "Falar com o Orion")
+
+
+def test_parar_um_turno_de_voz_que_ainda_nao_respondeu_cancela_no_servidor(mock_isolado_url, abrir):
+    page = abrir(
+        "#/chat", init=GRAVADOR_FALSO + "window.__tamanho_da_fala = 4001;", url=mock_isolado_url
+    )
+    botao = page.locator("#composer-box .voice-ptt-btn")
+    botao.click()
+    botao.click()
+    expect(page.locator(".msg-user").last).to_contain_text("que horas são")
+    expect(botao).to_have_attribute("aria-label", "Parar a resposta")
+    botao.click()  # o servidor está "pensando" há segundos: cancela
+    expect(botao).to_have_attribute("aria-label", "Falar com o Orion")
+    page.wait_for_function("() => !document.querySelector('#btn-send[data-mode=\"stop\"]')")
+    for _ in range(40):
+        if _stats(mock_isolado_url).get("falas_canceladas") == 1:
+            break
+        page.wait_for_timeout(100)
+    assert _stats(mock_isolado_url).get("falas_canceladas") == 1
+    assert page.locator(".msg-orion .msg-error").count() == 0
+
+
+def test_botao_de_parar_do_chat_tambem_cancela_a_voz(mock_isolado_url, abrir):
+    page = abrir(
+        "#/chat", init=GRAVADOR_FALSO + "window.__tamanho_da_fala = 4001;", url=mock_isolado_url
+    )
+    botao = page.locator("#composer-box .voice-ptt-btn")
+    botao.click()
+    botao.click()
+    expect(page.locator("#btn-send")).to_have_attribute("data-mode", "stop")
+    page.locator("#btn-send").click()
+    expect(page.locator("#btn-send")).to_have_attribute("data-mode", "send")
+    expect(botao).to_have_attribute("aria-label", "Falar com o Orion")
+
+
+# ── voz ao vivo (B): AudioWorklet de verdade, microfone de mentira do Chromium ──────
+def test_voz_ao_vivo_captura_pelo_worklet_e_mostra_a_resposta(mock_isolado_url, abrir):
+    page = abrir("#/chat", url=mock_isolado_url)
+    botao = page.locator("#composer-box .voice-live-btn")
+    botao.click()
+    expect(botao).to_have_attribute("aria-pressed", "true")
+    expect(ultima_resposta(page)).to_contain_text("Olá da voz ao vivo.", timeout=10000)
+    for _ in range(50):  # quadros de 2048 amostras de 16 bits = 4096 bytes cada
+        st = _stats(mock_isolado_url)
+        if st.get("live_quadros", 0) >= 3:
+            break
+        page.wait_for_timeout(100)
+    st = _stats(mock_isolado_url)
+    assert st["live_quadros"] >= 3, "o worklet não mandou áudio"
+    assert st["live_bytes"] == st["live_quadros"] * 4096
+    botao.click()
+    expect(botao).to_have_attribute("aria-pressed", "false")
+    for _ in range(30):
+        if _stats(mock_isolado_url).get("live_stop") == 1:
+            break
+        page.wait_for_timeout(100)
+    assert _stats(mock_isolado_url).get("live_stop") == 1
+
+
+def test_voz_ao_vivo_erro_do_servidor_desliga_e_avisa(mock_isolado_url, abrir):
+    # o mock responde com erro quando a URL leva ?falha=1; o init script acrescenta isso
+    init = """
+    const Orig = window.WebSocket;
+    window.WebSocket = class extends Orig {
+      constructor(u, p) { super(String(u).endsWith('/ws/voice') ? u + '?falha=1' : u, p); }
+    };
+    """
+    page = abrir("#/chat", url=mock_isolado_url, init=init)
+    botao = page.locator("#composer-box .voice-live-btn")
+    botao.click()
+    expect(page.locator(".toast", has_text="ORION_VOICE_LIVE_ENABLED")).to_be_visible()
+    expect(botao).to_have_attribute("aria-pressed", "false")
+
+
+def test_painel_mostra_a_voz(abrir):
+    page = abrir("#/painel")
+    expect(page.locator("#painel-corpo")).to_contain_text("Voz por clique")
+    expect(page.locator("#painel-corpo")).to_contain_text("7 fala(s), com resposta falada")
+    expect(page.locator("#painel-corpo")).to_contain_text("2 sessão(ões), 12.5 min")

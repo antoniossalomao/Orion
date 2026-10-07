@@ -125,6 +125,7 @@
         },
 
         cancelar() {
+            if (O.fala?.ocupada()) { O.fala.cancelar(); return; }   // turno de voz: não usa o fetch abortável
             if (abortar) { abortar(); return; }
             if (hubAberto) {
                 ignorarHub = true;                              // descarta o que ainda chegar, até o idle

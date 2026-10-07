@@ -111,6 +111,9 @@ def navegador():
                 "--use-gl=swiftshader",
                 "--enable-unsafe-swiftshader",
                 "--ignore-gpu-blocklist",
+                # microfone de mentira (um bipe): a voz ao vivo roda o AudioWorklet de verdade
+                "--use-fake-device-for-media-stream",
+                "--use-fake-ui-for-media-stream",
             ],
         )
         yield b

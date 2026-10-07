@@ -144,6 +144,8 @@ ORION_VOICE_LIVE_API_KEY=...        # vazio: usa a de busca/embeddings (mesmo Go
 # ORION_VOICE_LIVE_MAX_MIN=20       # teto de uma sessão
 ```
 
+- **Parar a resposta:** o mesmo botão do microfone vira "Parar a resposta" enquanto o Orion pensa ou fala (`Esc` e o botão de parar do chat também).
+- **Ver se está pronta:** o Painel (`#/painel`) mostra a voz por clique e a ao vivo (turnos, sessões, minutos, falhas) e o `/health` traz `components.voice`.
 - O navegador só libera o microfone em `https://` ou `localhost`: pelo Tailscale, use `tailscale serve` (HTTPS) e não o IP.
 - Sem login, sem `Origin` igual ao `Host` ou com a voz desligada, o WebSocket responde com o motivo e fecha.
 - **Palavra de ativação ("Orion") não existe ainda:** precisa de um modelo treinado (openWakeWord) e de captura de áudio no

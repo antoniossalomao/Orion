@@ -12,16 +12,18 @@
     const Core = O.falaCore;
 
     let ws = null, rec = null, stream = null, pedacos = [], gravando = false, esperando = false;
-    let proximoEhAudio = false, tocando = null;
+    let proximoEhAudio = false, tocando = null, ignorando = false;
 
     const botoes = () => $$('.voice-ptt-btn');
+    const ocupada = () => gravando || esperando || !!tocando;
     function marcar() {
+        const parar = !gravando && (esperando || !!tocando);   // clicar agora para a resposta, não grava
         botoes().forEach(b => {
             b.classList.toggle('active', gravando);
             b.setAttribute('aria-pressed', String(gravando));
-            b.dataset.tip = gravando ? 'Parar e enviar (Esc descarta)' : 'Falar (clique para gravar)';
-            b.setAttribute('aria-label', gravando ? 'Parar e enviar a fala' : 'Falar com o Orion');
-            b.disabled = esperando;
+            b.dataset.tip = gravando ? 'Parar e enviar (Esc descarta)' : parar ? 'Parar a resposta (Esc)' : 'Falar (clique para gravar)';
+            b.setAttribute('aria-label', gravando ? 'Parar e enviar a fala' : parar ? 'Parar a resposta' : 'Falar com o Orion');
+            b.dataset.parar = String(parar);
         });
     }
     const nota = (msg, tipo = 'aviso') => ui.toast(msg, { tipo, ms: 5200 });
@@ -32,15 +34,16 @@
     }
 
     function pararAudio() {
-        if (tocando) { try { tocando.pause(); URL.revokeObjectURL(tocando.src); } catch (_) { /* já solto */ } tocando = null; }
+        if (tocando) { try { tocando.pause(); URL.revokeObjectURL(tocando.src); } catch (_) { /* já solto */ } tocando = null; marcar(); }
     }
     function tocar(bytes, mime) {
         pararAudio();
         const url = URL.createObjectURL(new Blob([bytes], { type: mime || 'audio/mpeg' }));
         const a = new Audio(url);
         tocando = a;
-        a.onended = a.onerror = () => { URL.revokeObjectURL(url); if (tocando === a) tocando = null; O.estado.definir('idle'); };
+        a.onended = a.onerror = () => { URL.revokeObjectURL(url); if (tocando === a) { tocando = null; marcar(); } O.estado.definir('idle'); };
         O.estado.definir('speaking');
+        marcar();
         a.play().catch(() => { /* o navegador pode barrar áudio sem gesto: o texto já está na tela */ });
     }
 
@@ -60,9 +63,10 @@
             s.onerror = () => reject(new Error('sem conexão com o Orion'));
             s.onclose = () => { if (ws === s) ws = null; if (esperando) { esperando = false; marcar(); bus.emit('chat:evento', { tipo: 'fim' }); } };
             s.onmessage = ({ data }) => {
-                if (data instanceof ArrayBuffer) { if (proximoEhAudio) { proximoEhAudio = false; tocar(data, 'audio/mpeg'); } return; }
+                if (data instanceof ArrayBuffer) { if (proximoEhAudio && !ignorando) { proximoEhAudio = false; tocar(data, 'audio/mpeg'); } return; }
                 let m;
                 try { m = JSON.parse(data); } catch (_) { return; }
+                if (ignorando) { if (m.type === 'done') ignorando = false; return; }   // resto de um turno cancelado
                 if (m.type === 'audio') { proximoEhAudio = true; return; }
                 if (m.type === 'heard' && O.app?.ir) O.app.ir('chat', { foco: false });
                 Core.eventosDaMensagem(m, O.sse.normalizar).forEach(ev => bus.emit('chat:evento', ev));
@@ -119,18 +123,31 @@
         return true;
     }
 
+    /** para a fala e, se o turno ainda roda, cancela no servidor (o resto que chegar é descartado até o `done`) */
     function cancelar() {
         pararAudio();
-        if (esperando && ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ cmd: 'cancel' }));
+        if (esperando) {
+            ignorando = true;
+            if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ cmd: 'cancel' }));
+            else ignorando = false;
+            esperando = false;
+            bus.emit('chat:evento', { tipo: 'fim', interrompida: true });
+        }
+        if (!gravando) O.estado.definir('idle');
+        marcar();
+        O.anunciar('Resposta interrompida.');
     }
 
-    const alternar = () => (gravando ? enviar() : iniciar());
+    const alternar = () => (gravando ? enviar() : ocupada() ? cancelar() : iniciar());
     function ligar() {
         document.addEventListener('click', e => { if (e.target.closest('.voice-ptt-btn')) alternar(); });
         // captura para ganhar do Esc do chat (parar resposta) só quando há gravação em curso
-        document.addEventListener('keydown', e => { if (e.key === 'Escape' && descartar()) { e.preventDefault(); e.stopPropagation(); } }, true);
+        document.addEventListener('keydown', e => {
+            if (e.key !== 'Escape') return;
+            if (descartar() || (tocando && (cancelar(), true))) { e.preventDefault(); e.stopPropagation(); }
+        }, true);
         marcar();
     }
 
-    O.fala = { ligar, alternar, descartar, cancelar, gravando: () => gravando };
+    O.fala = { ligar, alternar, descartar, cancelar, gravando: () => gravando, ocupada: () => esperando || !!tocando };
 })();

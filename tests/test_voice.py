@@ -453,3 +453,63 @@ def test_a_sessao_ao_vivo_nao_tem_ferramentas_nem_memoria():
     assert cfg.response_modalities == ["AUDIO"]
     assert cfg.speech_config.voice_config.prebuilt_voice_config.voice_name == "Charon"
     assert "não tem acesso ao computador" in cfg.system_instruction
+
+
+# ── painel e /health ──────────────────────────────────────────────────────
+
+
+def test_health_e_painel_mostram_se_a_voz_esta_pronta(tmp_path):
+    c, _ = cliente(tmp_path, voz=True, ao_vivo=True, transcriber=FakeTranscriber(), live=None)
+    with c:
+        h = c.get("/health", headers=AUTH).json()["components"]["voice"]
+        assert h == {"click": True, "live": False}  # opt-in feito, mas sem chave: não está pronta
+        p = c.get("/painel", headers=AUTH).json()["voz"]
+    assert p["clique"] == {"ligada": True, "fala": True, "turnos": 0}
+    assert p["ao_vivo"]["ligada"] is False and p["falhas"] == 0 and p["ultimo_erro"] is None
+    c2, _ = cliente(tmp_path / "2", voz=False)
+    with c2:
+        assert c2.get("/health", headers=AUTH).json()["components"]["voice"] == {
+            "click": False,
+            "live": False,
+        }
+
+
+def test_painel_conta_turnos_falhas_e_sessoes_ao_vivo_sem_vazar_conteudo(tmp_path):
+    conexao = FakeConexao(FakeSessao())
+    c, _ = cliente(
+        tmp_path,
+        fala("Segredo da resposta."),
+        voz=True,
+        ao_vivo=True,
+        transcriber=FakeTranscriber("texto falado secreto"),
+        speaker=FakeSpeaker(erro=True),
+        live=lambda: conexao,
+    )
+    with c:
+        with c.websocket_connect(WS + "/ws/voz", headers=AUTH) as ws:
+            ws.send_bytes(WEBM)
+            ler_ate_done(ws)
+        with c.websocket_connect(WS + "/ws/voice", headers=AUTH) as ws:
+            ws.send_text(json.dumps({"cmd": "stop"}))
+            with pytest.raises(WebSocketDisconnect):
+                ws.receive_text()
+        r = c.get("/painel", headers=AUTH)
+    v = r.json()["voz"]
+    assert v["clique"]["turnos"] == 1 and v["falhas"] == 1  # a fala falhou, o texto não
+    assert v["ultimo_erro"] == "a fala falhou: Timeout"
+    assert v["ao_vivo"]["sessoes"] == 1 and v["ao_vivo"]["ativas"] == 0
+    assert "secreto" not in r.text and "Segredo" not in r.text
+
+
+def test_texto_do_painel_resume_a_voz_so_quando_ligada(tmp_path):
+    from orion.painel import texto_do_painel
+
+    c, _ = cliente(tmp_path, voz=True, transcriber=FakeTranscriber(), speaker=FakeSpeaker())
+    with c:
+        with c.websocket_connect(WS + "/ws/voz", headers=AUTH):
+            pass
+        texto = texto_do_painel(c.get("/painel", headers=AUTH).json())
+    assert "🎙️ Voz: clique 0 turno(s), com fala" in texto
+    c2, _ = cliente(tmp_path / "2", voz=False)
+    with c2:
+        assert "🎙️" not in texto_do_painel(c2.get("/painel", headers=AUTH).json())

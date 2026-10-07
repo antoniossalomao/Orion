@@ -13,7 +13,7 @@ import time
 import uuid
 from collections.abc import AsyncIterator, Callable
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Annotated, Any
 from urllib.parse import urlparse
@@ -61,6 +61,7 @@ from .voice import (
     MAX_AUDIO,
     EdgeSpeaker,
     Speaker,
+    VozStats,
     conexao_gemini,
     ponte_ao_vivo,
     turno_de_voz,
@@ -99,6 +100,7 @@ class AppState:
     transcriber: Transcriber | None = None  # voz (A) e `transcrever_audio`
     speaker: Speaker | None = None  # voz (A): fala da resposta; None sem voz ou sem fala
     live: Callable[[], AbstractAsyncContextManager[Any]] | None = None  # voz ao vivo (B)
+    voz: VozStats = field(default_factory=VozStats)
 
 
 def build_policy(
@@ -440,6 +442,26 @@ class Decisao(BaseModel):
     channel: str = "web"
 
 
+def _painel_da_voz(
+    settings: Settings, stats: VozStats, clique_pronto: bool, ao_vivo_pronto: bool
+) -> dict[str, Any]:
+    return {
+        "clique": {
+            "ligada": settings.voice_enabled and clique_pronto,
+            "fala": settings.voice_enabled and settings.voice_speak,
+            "turnos": stats.turnos,
+        },
+        "ao_vivo": {
+            "ligada": settings.voice_live_enabled and ao_vivo_pronto,
+            "sessoes": stats.sessoes_ao_vivo,
+            "ativas": stats.ao_vivo_ativas,
+            "minutos": round(stats.segundos_ao_vivo / 60, 1),
+        },
+        "falhas": stats.falhas,
+        "ultimo_erro": stats.ultimo_erro,
+    }
+
+
 def create_app(
     settings: Settings | None = None,
     memory_factory: Callable[[Settings], MemoryStore] | None = None,
@@ -565,6 +587,9 @@ def create_app(
             settings, agent, memory, policy, ops
         )
         tarefa_telegram = asyncio.create_task(telegram.run()) if telegram is not None else None
+        voz_stats = VozStats()
+        speaker = (speaker_factory or speaker_from_settings)(settings)
+        live = (live_factory or live_from_settings)(settings)
         painel = Painel(
             started_at=time.time(),
             memory=memory,
@@ -575,6 +600,9 @@ def create_app(
             mcp=mcp,
             delegator=delegador,
             telegram_ativo=lambda: telegram is not None,
+            voz=lambda: _painel_da_voz(
+                settings, voz_stats, agent is not None and transcriber is not None, live is not None
+            ),
         )
         if telegram is not None:
             telegram.painel = lambda: texto_do_painel(painel.montar())
@@ -582,8 +610,9 @@ def create_app(
             settings, memory, policy, painel.started_at, ops, auth, agent, jobs, telegram, mcp,
             painel,
             transcriber=transcriber,
-            speaker=(speaker_factory or speaker_from_settings)(settings),
-            live=(live_factory or live_from_settings)(settings),
+            speaker=speaker,
+            live=live,
+            voz=voz_stats,
         )  # fmt: skip
         try:
             yield
@@ -649,6 +678,12 @@ def create_app(
                 "jobs": state.jobs is not None,
                 "telegram": state.telegram is not None,
                 "mcp": state.mcp.status if state.mcp is not None else {},
+                "voice": {
+                    "click": state.settings.voice_enabled
+                    and state.agent is not None
+                    and state.transcriber is not None,
+                    "live": state.settings.voice_live_enabled and state.live is not None,
+                },
             },
             "pending_approvals": len(state.policy.approvals.pending()),
             "pending_notifications": len(state.ops.pending_notifications(limit=1000)),
@@ -905,12 +940,17 @@ def create_app(
             ):
                 if isinstance(m, bytes):
                     await ws.send_bytes(m)
-                else:
-                    await ws.send_text(json.dumps(m, ensure_ascii=False))
+                    continue
+                if m["type"] == "heard":
+                    state.voz.turnos += 1
+                elif m["type"] == "error":
+                    state.voz.erro(str(m.get("msg", "")))
+                await ws.send_text(json.dumps(m, ensure_ascii=False))
         except WebSocketDisconnect:
             raise  # o navegador saiu: quem chamou encerra
         except Exception:
             log.exception("turno de voz falhou")
+            state.voz.erro("falha interna no turno")
             with contextlib.suppress(RuntimeError, WebSocketDisconnect):  # navegador já saiu
                 await ws.send_text(json.dumps({"type": "error", "msg": "falha interna no turno"}))
                 await ws.send_text(json.dumps({"type": "done"}))
@@ -974,9 +1014,19 @@ def create_app(
         if state.live is None:
             return await _erro_e_fecha(ws, "sem chave do Gemini (ORION_VOICE_LIVE_API_KEY)")
         _audit_voz(state, "início: o áudio do microfone vai para o Gemini; sem ferramentas")
-        motivo = await ponte_ao_vivo(
-            ws, state.live(), max_s=state.settings.voice_live_max_min * 60.0
-        )
+        inicio = time.monotonic()
+        state.voz.sessoes_ao_vivo += 1
+        state.voz.ao_vivo_ativas += 1
+        motivo = "erro"
+        try:
+            motivo = await ponte_ao_vivo(
+                ws, state.live(), max_s=state.settings.voice_live_max_min * 60.0
+            )
+        finally:
+            state.voz.ao_vivo_ativas -= 1
+            state.voz.segundos_ao_vivo += time.monotonic() - inicio
+            if motivo != "navegador":
+                state.voz.erro(f"voz ao vivo encerrada ({motivo})")
         _audit_voz(state, f"fim ({motivo})")
         with contextlib.suppress(RuntimeError, WebSocketDisconnect):
             await ws.close()

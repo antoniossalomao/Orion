@@ -39,5 +39,17 @@
     /** o token (modo máquina) vai na primeira mensagem, nunca na URL; com cookie não precisa */
     const mensagemDeAuth = token => (token ? JSON.stringify({ cmd: 'auth', token }) : null);
 
-    return { MIMES, escolherMime, eventosDaMensagem, mensagemDeAuth };
+    /** Float32 [-1, 1] do microfone → PCM 16 bits little-endian (o que o /ws/voice espera) e o pico */
+    function floatParaPcm16(f32) {
+        const pcm = new Int16Array(f32.length);
+        let pico = 0;
+        for (let i = 0; i < f32.length; i++) {
+            const s = Math.max(-1, Math.min(1, f32[i]));
+            pcm[i] = s < 0 ? s * 32768 : s * 32767;
+            pico = Math.max(pico, Math.abs(s));
+        }
+        return { pcm, pico };
+    }
+
+    return { MIMES, escolherMime, eventosDaMensagem, mensagemDeAuth, floatParaPcm16 };
 });

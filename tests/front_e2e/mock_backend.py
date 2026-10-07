@@ -242,6 +242,18 @@ def _sse(obj: dict[str, Any] | str) -> str:
     return f"data: {corpo}\n\n"
 
 
+def _wav_mudo(segundos: float) -> bytes:
+    """WAV de silêncio (8 kHz, 8 bits, mono): um áudio que o navegador toca de verdade."""
+    n = int(8000 * segundos)
+    cab = (
+        b"RIFF" + (36 + n).to_bytes(4, "little") + b"WAVEfmt " + (16).to_bytes(4, "little")
+        + (1).to_bytes(2, "little") + (1).to_bytes(2, "little") + (8000).to_bytes(4, "little")
+        + (8000).to_bytes(4, "little") + (1).to_bytes(2, "little") + (8).to_bytes(2, "little")
+        + b"data" + n.to_bytes(4, "little")
+    )  # fmt: skip
+    return cab + b"\x80" * n
+
+
 async def _pedacos(texto: str, delay: float):
     i = 0
     while i < len(texto):
@@ -464,23 +476,74 @@ def create_app() -> FastAPI:
         }
 
     # ── voz por clique (fase 6): cada fala gravada recebe um turno roteirizado ─────
+    # Fala de 4001 bytes = turno lento (para testar "parar a resposta"); `cancel` o interrompe.
     @app.websocket("/ws/voz")
     async def ws_voz(ws: WebSocket) -> None:
         await ws.accept()
+
+        async def turno(tamanho: int) -> None:
+            await ws.send_json({"type": "heard", "text": "que horas são"})
+            if tamanho == 4001:
+                await asyncio.sleep(30)
+            await ws.send_json(
+                {"type": "ev", "ev": {"text": f"São três e meia ({tamanho} bytes)."}}
+            )
+            await ws.send_json({"type": "audio", "mime": "audio/mpeg"})
+            await ws.send_bytes(_wav_mudo(3.0))  # 3 s de silêncio: dá tempo de apertar "parar"
+            await ws.send_json({"type": "done"})
+
+        tarefa: asyncio.Task[None] | None = None
+        while True:
+            msg = await ws.receive()
+            if msg["type"] == "websocket.disconnect":
+                if tarefa is not None:
+                    tarefa.cancel()
+                return
+            if msg.get("bytes"):
+                ESTADO["falas"] = ESTADO.get("falas", 0) + 1
+                tarefa = asyncio.create_task(turno(len(msg["bytes"])))
+            elif msg.get("text") and tarefa is not None:
+                if json.loads(msg["text"]).get("cmd") == "cancel":
+                    tarefa.cancel()
+                    ESTADO["falas_canceladas"] = ESTADO.get("falas_canceladas", 0) + 1
+                    await ws.send_json({"type": "done"})
+
+    # ── voz ao vivo (B): ecoa um turno quando chega áudio; conta o que recebeu ─────
+    @app.websocket("/ws/voice")
+    async def ws_voice(ws: WebSocket) -> None:
+        await ws.accept()
+        if ws.query_params.get("falha"):  # voz ao vivo desligada no servidor
+            await ws.send_json(
+                {"type": "error", "msg": "voz ao vivo desligada (ORION_VOICE_LIVE_ENABLED)"}
+            )
+            await ws.close()
+            return
+        ESTADO["live_sessoes"] = ESTADO.get("live_sessoes", 0) + 1
+        respondeu = False
         while True:
             msg = await ws.receive()
             if msg["type"] == "websocket.disconnect":
                 return
-            if msg.get("bytes"):
-                ESTADO["falas"] = ESTADO.get("falas", 0) + 1
-                tamanho = len(msg["bytes"])
-                await ws.send_json({"type": "heard", "text": "que horas são"})
-                await ws.send_json(
-                    {"type": "ev", "ev": {"text": f"São três e meia ({tamanho} bytes)."}}
-                )
-                await ws.send_json({"type": "audio", "mime": "audio/mpeg"})
-                await ws.send_bytes(b"ID3\x04\x00\x00\x00\x00\x00\x00")
-                await ws.send_json({"type": "done"})
+            dados = msg.get("bytes")
+            if dados:
+                ESTADO["live_bytes"] = ESTADO.get("live_bytes", 0) + len(dados)
+                ESTADO["live_quadros"] = ESTADO.get("live_quadros", 0) + 1
+                if not respondeu:  # um turno só: responde ao primeiro áudio
+                    respondeu = True
+                    await ws.send_bytes(b"\x00\x01" * 480)
+                    await ws.send_json({"type": "heard", "text": "oi orion"})
+                    await ws.send_json({"type": "text", "text": "Olá da voz ao vivo."})
+                    await ws.send_json({"type": "done"})
+            elif msg.get("text"):
+                cmd = json.loads(msg["text"]).get("cmd")
+                if cmd == "stop":
+                    ESTADO["live_stop"] = ESTADO.get("live_stop", 0) + 1
+                    await ws.close()
+                    return
+
+    @app.get("/voz-stats")
+    def voz_stats() -> dict[str, Any]:
+        return {k: v for k, v in ESTADO.items() if k.startswith(("live_", "falas"))}
 
     # ── chat ───────────────────────────────────────────────────────────────
     @app.post("/chat")
@@ -700,6 +763,12 @@ def create_app() -> FastAPI:
             "jobs": {"ativo": True, "ultima_rodada": agora - 20, "erros": []},
             "memoria": {"ok": True, "vetores": True},
             "canais": {"telegram": True},
+            "voz": {
+                "clique": {"ligada": True, "fala": True, "turnos": 7},
+                "ao_vivo": {"ligada": True, "sessoes": 2, "ativas": 0, "minutos": 12.5},
+                "falhas": 0,
+                "ultimo_erro": None,
+            },
             "ferramentas": 41,
             "mcp": {"google": "ok (12 ferramentas)", "web": "falhou: TimeoutError"},
         }

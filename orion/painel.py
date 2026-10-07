@@ -45,12 +45,14 @@ class Painel:
         mcp: McpManager | None = None,
         delegator: Delegator | None = None,
         telegram_ativo: Callable[[], bool] = lambda: False,
+        voz: Callable[[], dict[str, Any]] | None = None,
         clock: Callable[[], float] = time.time,
     ) -> None:
         self.started_at = started_at
         self.memory, self.ops, self.policy = memory, ops, policy
         self.agent, self.jobs, self.mcp, self.delegator = agent, jobs, mcp, delegator
         self.telegram_ativo = telegram_ativo
+        self._voz = voz
         self._clock = clock
 
     def montar(self) -> dict[str, Any]:
@@ -93,6 +95,7 @@ class Painel:
             },
             "memoria": {"ok": memoria_ok, "vetores": self.memory.vectors_available},
             "canais": {"telegram": bool(self.telegram_ativo())},
+            "voz": self._voz() if self._voz is not None else None,
             "ferramentas": len(self.agent.tools.names()) if self.agent is not None else 0,
             "mcp": dict(self.mcp.status) if self.mcp is not None else {},
         }
@@ -195,6 +198,18 @@ def texto_do_painel(p: dict[str, Any]) -> str:
         f"🔔 Avisos na fila: {p['avisos']['pendentes']} · 🧰 Ferramentas: {p['ferramentas']} · "
         f"💾 Memória: {'ok' if p['memoria']['ok'] else 'ERRO'}"
     )
+    v = p.get("voz")
+    if v and (v["clique"]["ligada"] or v["ao_vivo"]["ligada"]):
+        partes = []
+        if v["clique"]["ligada"]:
+            fala = "com fala" if v["clique"]["fala"] else "só texto"
+            partes.append(f"clique {v['clique']['turnos']} turno(s), {fala}")
+        if v["ao_vivo"]["ligada"]:
+            partes.append(
+                f"ao vivo {v['ao_vivo']['sessoes']} sessão(ões), {v['ao_vivo']['minutos']} min"
+            )
+        erro = f" · falhas: {v['falhas']} (última: {v['ultimo_erro']})" if v["falhas"] else ""
+        linhas.append("🎙️ Voz: " + "; ".join(partes) + erro)
     if p["mcp"]:
         linhas.append("🔌 MCP: " + ", ".join(f"{k} {v}" for k, v in p["mcp"].items()))
     return "\n".join(linhas)

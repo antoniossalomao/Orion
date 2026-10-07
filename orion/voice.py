@@ -22,6 +22,7 @@ import logging
 import re
 from collections.abc import AsyncIterator
 from contextlib import AbstractAsyncContextManager
+from dataclasses import dataclass
 from typing import Any, Protocol
 
 from fastapi import WebSocket, WebSocketDisconnect
@@ -45,6 +46,23 @@ PERSONA_AO_VIVO = (
     "chat de texto. REGRAS DE VOZ: respostas curtas (no máximo 2 ou 3 frases), em português do "
     "Brasil, sem markdown, sem asteriscos, sem listas."
 )
+
+
+@dataclass
+class VozStats:
+    """O que o painel mostra da voz, desde que o Orion subiu. Sem áudio, sem texto falado e sem
+    segredo: só contagens e a última mensagem de erro (que já é curta e segura por construção)."""
+
+    turnos: int = 0  # falas que viraram turno do agente (A)
+    falhas: int = 0
+    sessoes_ao_vivo: int = 0  # sessões abertas (B)
+    ao_vivo_ativas: int = 0
+    segundos_ao_vivo: float = 0.0
+    ultimo_erro: str | None = None
+
+    def erro(self, msg: str) -> None:
+        self.falhas += 1
+        self.ultimo_erro = msg[:80]
 
 
 class SpeakError(RuntimeError):

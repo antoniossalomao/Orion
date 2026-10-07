@@ -41,3 +41,11 @@ test('o token vai na primeira mensagem, nunca na URL; sem token não manda nada'
     assert.equal(mensagemDeAuth(''), null);
     assert.equal(mensagemDeAuth(undefined), null);
 });
+
+test('floatParaPcm16: escala, satura e acha o pico', () => {
+    const { floatParaPcm16 } = require('../../Orion_Core/Front_end_Orion/js/fala_core.js');
+    const { pcm, pico } = floatParaPcm16(new Float32Array([0, 0.5, -0.5, 1, -1, 2, -3]));
+    assert.deepEqual(Array.from(pcm), [0, 16383, -16384, 32767, -32768, 32767, -32768]);
+    assert.equal(pico, 1);
+    assert.equal(floatParaPcm16(new Float32Array(0)).pico, 0);
+});

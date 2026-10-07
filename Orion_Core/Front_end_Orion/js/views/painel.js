@@ -97,6 +97,7 @@
             linha('Memória', p.memoria?.ok ? (p.memoria.vetores ? 'ok · busca por significado ligada' : 'ok · só palavra-chave') : 'sem resposta'),
             linha('Jobs', !p.jobs?.ativo ? 'desligados' : p.jobs.ultima_rodada ? `última rodada às ${tempo(p.jobs.ultima_rodada)}` : 'ainda sem rodada'),
             linha('Telegram', p.canais?.telegram ? 'conectado' : 'desligado'),
+            ...(p.voz ? [linha('Voz por clique', L.resumoVoz(p.voz).clique), linha('Voz ao vivo', L.resumoVoz(p.voz).aoVivo)] : []),
             linha('Ferramentas', String(p.ferramentas ?? 0)),
             linha('Avisos na fila', String(p.avisos?.pendentes ?? 0)),
             ...(mcp.length ? mcp.map(([n, s]) => linha(`MCP · ${n}`, s)) : [linha('MCP', 'nenhum servidor')]));
