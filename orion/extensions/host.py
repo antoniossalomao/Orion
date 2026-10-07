@@ -58,6 +58,7 @@ class StdioConfig(BaseModel):
     resources: list[str] = Field(default_factory=list, max_length=128)
     prompts: list[str] = Field(default_factory=list, max_length=128)
     classifications: dict[str, Risk] = Field(default_factory=dict, max_length=256)
+    scope: str = Field(default="personal", pattern=r"^(personal|project:[a-f0-9]{32})$")
     enabled: bool = False
     trusted: bool = False
 
@@ -88,6 +89,7 @@ class HTTPConfig(BaseModel):
     resources: list[str] = Field(default_factory=list, max_length=128)
     prompts: list[str] = Field(default_factory=list, max_length=128)
     classifications: dict[str, Risk] = Field(default_factory=dict, max_length=256)
+    scope: str = Field(default="personal", pattern=r"^(personal|project:[a-f0-9]{32})$")
     enabled: bool = False
     authorized: bool = False
     secret_ref: str | None = Field(default=None, pattern=r"^ORION_MCP_[A-Z0-9_]{1,80}$")
@@ -159,6 +161,7 @@ class Connection:
         return {
             "id": self.config.id,
             "transport": self.config.transport,
+            "scope": self.config.scope,
             "state": self.state,
             "protocol": self.protocol,
             "error": self.error,

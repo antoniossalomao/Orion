@@ -12,6 +12,7 @@ import logging
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
+from pathlib import Path
 from typing import Any
 
 from .approvals import ApprovalStore
@@ -47,6 +48,9 @@ class Context:
     authorities: tuple[str, ...] = ()
     authorized: Callable[[], bool] | None = None
     project_id: str | None = None
+    share_personal: bool = False
+    root: str | None = None
+    project_revision: float | None = None
 
 
 @dataclass(frozen=True)
@@ -100,6 +104,34 @@ class PolicyEngine:
             return Decision(Action.DENY, spec.risk, "concessão ou revisão revogada")
         if ctx.allowed_tools is not None and call.name not in ctx.allowed_tools:
             return Decision(Action.DENY, spec.risk, "ferramenta fora do escopo da skill")
+        scope = f"project:{ctx.project_id}" if ctx.project_id else "personal"
+        if spec.scope is not None and spec.scope != scope:
+            return Decision(Action.DENY, spec.risk, "ferramenta de outro escopo")
+        if ctx.project_id and spec.scope is None:
+            paths = {
+                "ler_arquivo": "path",
+                "listar_arquivos": "path",
+                "escrever_arquivo": "path",
+                "delegar": "pasta",
+            }
+            scoped = {
+                "buscar_memoria",
+                "salvar_memoria",
+                "listar_fatos",
+                "esquecer_fato",
+                "pesquisar_internet",
+                "buscar_url",
+            }
+            if call.name in paths:
+                path = Path(str(call.args.get(paths[call.name], "")))
+                if (
+                    not ctx.root
+                    or not path.is_absolute()
+                    or not path.resolve().is_relative_to(Path(ctx.root).resolve())
+                ):
+                    return Decision(Action.DENY, spec.risk, "caminho fora da raiz do projeto")
+            elif call.name not in scoped:
+                return Decision(Action.DENY, spec.risk, "ferramenta sem isolamento de projeto")
         limite = self.rate.check(call.name)
         if limite:
             return Decision(Action.DENY, spec.risk, limite)
@@ -123,6 +155,7 @@ class PolicyEngine:
         return json.dumps(
             [
                 ctx.project_id,
+                ctx.project_revision,
                 ctx.authorities,
                 spec.origin if spec else None,
                 spec.revision if spec else None,

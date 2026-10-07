@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from pathlib import Path
 
 from .memory import MemoryStore
 from .memory.store import Session
@@ -35,12 +36,38 @@ class Projects:
             )
         ]
 
-    def create(self, name: str, instructions: str = "", *, share_personal: bool = False) -> dict:
+    @staticmethod
+    def validate_root(root: str | None) -> str | None:
+        if root is None:
+            return None
+        path = Path(root)
+        if not path.is_absolute() or not path.is_dir():
+            raise ProjectError("project_root_invalid")
+        return str(path.resolve())
+
+    def create(
+        self,
+        name: str,
+        instructions: str = "",
+        *,
+        share_personal: bool = False,
+        root: str | None = None,
+    ) -> dict:
         id_, now = uuid.uuid4().hex, self.memory.clock()
         with self.memory.transaction() as db:
             db.execute(
-                "INSERT INTO projects VALUES(?,?,?,?,?,?,?)",
-                (id_, name.strip(), instructions, int(share_personal), 0, now, now),
+                "INSERT INTO projects(id,name,instructions,share_personal,archived,created_at,"
+                "updated_at,root) VALUES(?,?,?,?,?,?,?,?)",
+                (
+                    id_,
+                    name.strip(),
+                    instructions,
+                    int(share_personal),
+                    0,
+                    now,
+                    now,
+                    self.validate_root(root),
+                ),
             )
         return self.get(id_)
 
@@ -52,12 +79,14 @@ class Projects:
         instructions: str | None = None,
         share_personal: bool | None = None,
         archived: bool | None = None,
+        root: str | None = None,
+        root_set: bool = False,
     ) -> dict:
         with self.memory.transaction() as db:
             old = self.get(id_)
             db.execute(
                 "UPDATE projects SET name=?,instructions=?,share_personal=?,archived=?,"
-                "updated_at=? WHERE id=?",
+                "updated_at=?,root=? WHERE id=?",
                 (
                     name.strip() if name is not None else old["name"],
                     instructions if instructions is not None else old["instructions"],
@@ -66,6 +95,7 @@ class Projects:
                     else int(old["share_personal"]),
                     int(archived) if archived is not None else int(old["archived"]),
                     self.memory.clock(),
+                    self.validate_root(root) if root_set else old["root"],
                     id_,
                 ),
             )

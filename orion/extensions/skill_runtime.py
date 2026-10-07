@@ -22,6 +22,7 @@ class SkillSource(BaseModel):
     root: Path
     namespace: str = Field(pattern=r"^[a-z0-9][a-z0-9_-]{0,47}$")
     origin: str = Field(default="local", max_length=128)
+    scope: str = Field(default="personal", pattern=r"^(personal|project:[a-f0-9]{32})$")
     enabled: bool = False
     trusted_scripts: bool = False
     script_timeout_s: float = Field(default=5, ge=0.1, le=30)
@@ -57,6 +58,7 @@ class SkillRuntime:
         self.enabled: set[str] = set()
         self.scopes: dict[str, frozenset[str]] = {}
         self.authorities: dict[str, str] = {}
+        self.contexts: dict[str, str] = {}
         self.diagnostics: list[dict] = []
         for source in sources:
             before = set(self.index.skills)
@@ -65,6 +67,7 @@ class SkillRuntime:
                 if source.enabled:
                     added = set(self.index.skills) - before
                     self.enabled.update(added)
+                    self.contexts.update({id_: source.scope for id_ in added})
                     if source.trusted_scripts and os.name == "posix":
                         reviews = {}
                         for id_ in added:
@@ -128,7 +131,14 @@ class SkillRuntime:
         policy.rate.set_limit(name, (5, 60))
 
     def summaries(self) -> list[dict]:
-        return [{**s, "enabled": s["id"] in self.enabled} for s in self.index.summaries()]
+        return [
+            {
+                **s,
+                "enabled": s["id"] in self.enabled,
+                "scope": self.contexts.get(s["id"], "personal"),
+            }
+            for s in self.index.summaries()
+        ]
 
     def select(
         self,
@@ -137,6 +147,7 @@ class SkillRuntime:
         references: list[SkillReference] | None = None,
         *,
         budget: int = 12000,
+        context: str = "personal",
     ) -> Selection:
         ids = list(dict.fromkeys(explicit or []))
         if len(ids) > 3 or len(references or []) > 8:
@@ -145,6 +156,8 @@ class SkillRuntime:
             words = ToolRegistry._words(query)
             ranked = []
             for id_ in self.enabled:
+                if self.contexts.get(id_, "personal") != context:
+                    continue
                 skill = self.index.skills[id_]
                 score = len(words & ToolRegistry._words(skill.header.description))
                 if score >= 2:
@@ -161,6 +174,8 @@ class SkillRuntime:
                 raise SkillError("skill_not_found")
             if id_ not in self.enabled:
                 raise SkillError("skill_disabled")
+            if self.contexts.get(id_, "personal") != context:
+                raise SkillError("skill_out_of_scope")
             body = skill.load()
             loaded[id_] = body
             raw = body.text.encode()

@@ -33,6 +33,7 @@ class ToolSpec:
     masked_args: tuple[str, ...] = ()
     display_name: str | None = None
     origin_label: str | None = None
+    scope: str | None = None
 
 
 def _t(name: str, risk: Risk, **kw) -> tuple[str, ToolSpec]:

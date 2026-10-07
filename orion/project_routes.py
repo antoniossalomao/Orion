@@ -13,6 +13,7 @@ class Create(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     instructions: str = Field(default="", max_length=16000)
     share_personal: bool = False
+    root: str | None = Field(default=None, max_length=4096)
 
     @field_validator("name")
     @classmethod
@@ -78,7 +79,13 @@ def router(require_admin) -> APIRouter:
         if body.archived:
             for session in state.memory.query("SELECT id FROM sessions WHERE project_id=?", (id_,)):
                 guard(state, session["id"])
-        return Projects(state.memory).update(id_, **body.model_dump(exclude_unset=True))
+        for session in state.memory.query("SELECT id FROM sessions WHERE project_id=?", (id_,)):
+            if state.agent and state.agent.busy(session["id"]):
+                raise HTTPException(409, "session_busy")
+        state.policy.approvals.invalidate_binding(id_)
+        return Projects(state.memory).update(
+            id_, **body.model_dump(exclude_unset=True), root_set="root" in body.model_fields_set
+        )
 
     @api.put("/sessions/{session_id}")
     def associate(session_id: str, body: Select, request: Request):

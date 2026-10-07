@@ -641,11 +641,13 @@ def create_app(
     @app.post("/chat", dependencies=[Admin])
     async def chat(corpo: Mensagem, state: State) -> StreamingResponse:
         agente = _agente(state)
+        session = state.memory.active_session(corpo.canal)
+        scope = f"project:{session.project_id}" if session.project_id else "personal"
         selection = None
         if state.skills is not None:
             try:
                 selection = await asyncio.to_thread(
-                    state.skills.select, corpo.texto, corpo.skills, corpo.referencias
+                    state.skills.select, corpo.texto, corpo.skills, corpo.referencias, context=scope
                 )
             except SkillError as error:
                 raise HTTPException(422, str(error)) from error
@@ -654,11 +656,19 @@ def create_app(
             if state.mcp is None:
                 raise HTTPException(503, "mcp_unavailable")
             try:
-                external = await ContextReader(state.mcp).selected(corpo.contexto)
+                external = await ContextReader(state.mcp).selected(corpo.contexto, scope)
             except MCPError as error:
                 raise HTTPException(422, error.code) from error
         return StreamingResponse(
-            _stream(agente.run(corpo.canal, corpo.texto, external=external, selection=selection)),
+            _stream(
+                agente.run(
+                    corpo.canal,
+                    corpo.texto,
+                    external=external,
+                    selection=selection,
+                    expected_session=session.id,
+                )
+            ),
             media_type="text/event-stream",
         )
 

@@ -143,11 +143,13 @@ class ToolRegistry:
         stop = {"para", "como", "quero", "fazer", "uma", "que", "com", "por", "dos", "das"}
         return {w for w in re.findall(r"[a-z0-9]{3,}", plain) if w not in stop}
 
-    def catalog(self, query: str = "", *, limit: int = 50) -> list[dict[str, Any]]:
+    def catalog(
+        self, query: str = "", *, limit: int = 50, allowed: set[str] | None = None
+    ) -> list[dict[str, Any]]:
         words = self._words(query)
         ranked = []
         for tool in self._tools.values():
-            if tool.origin is None:
+            if tool.origin is None or (allowed is not None and tool.name not in allowed):
                 continue
             score = len(words & self._words(tool.description))
             if words and not score:
@@ -166,14 +168,21 @@ class ToolRegistry:
         selected: list[str] | None = None,
         limit: int = 8,
         budget: int = 24000,
+        allowed: set[str] | None = None,
     ) -> list[dict[str, Any]]:
         # Nativas continuam disponíveis; schemas externos entram só por escolha/relevância.
-        result = [t.schema() for t in self._tools.values() if t.origin is None]
+        result = [
+            t.schema()
+            for t in self._tools.values()
+            if t.origin is None and (allowed is None or t.name in allowed)
+        ]
         candidates: list[str] = list(selected or [])
         if query:
-            candidates.extend(str(row["name"]) for row in self.catalog(query))
+            candidates.extend(str(row["name"]) for row in self.catalog(query, allowed=allowed))
         used, count = 0, 0
         for name in dict.fromkeys(candidates):
+            if allowed is not None and name not in allowed:
+                continue
             tool = self.get(name)
             if tool is None or tool.origin is None or count >= max(0, min(limit, 32)):
                 continue

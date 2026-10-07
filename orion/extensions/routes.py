@@ -29,7 +29,7 @@ class Review(BaseModel):
     trusted_local: bool = False
     authorized_remote: bool = False
     classifications: dict[str, dict[str, Risk]] = Field(default_factory=dict, max_length=32)
-    scope: str = Field(default="personal", min_length=1, max_length=128)
+    scope: str = Field(default="personal", pattern=r"^(personal|project:[a-f0-9]{32})$")
 
 
 def manager(request: Request) -> PluginManager:
@@ -106,6 +106,11 @@ def router(require_admin) -> APIRouter:
     @api.post("/plugins/{id_}/activate")
     async def activate(id_: str, body: Review, request: Request):
         m = manager(request)
+        if body.scope.startswith("project:"):
+            from ..projects import Projects
+
+            if Projects(request.app.state.orion.memory).get(body.scope[8:])["archived"]:
+                raise HTTPException(409, "project_archived")
         async with m.lock:
             return await m.activate(
                 id_,

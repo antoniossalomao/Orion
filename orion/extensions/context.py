@@ -46,14 +46,16 @@ class ContextReader:
     def __init__(self, host: MCPHost, *, max_bytes: int = 32000):
         self.host, self.max_bytes = host, max_bytes
 
-    def _connection(self, request: ContextRequest):
+    def _connection(self, request: ContextRequest, scope: str = "personal"):
         connection = self.host.connections.get(request.connection)
         if connection is None:
             raise MCPError("context_not_found")
-        scope = (
+        if connection.config.scope != scope:
+            raise MCPError("context_out_of_scope")
+        choices = (
             connection.config.resources if request.kind == "resource" else connection.config.prompts
         )
-        if request.key not in scope:
+        if request.key not in choices:
             raise MCPError("context_out_of_scope")
         if request.kind == "resource" and request.arguments:
             raise MCPError("context_arguments_invalid")
@@ -61,8 +63,8 @@ class ContextReader:
             raise MCPError("context_arguments_invalid")
         return connection
 
-    async def read(self, request: ContextRequest) -> ExternalData:
-        connection = self._connection(request)
+    async def read(self, request: ContextRequest, scope: str = "personal") -> ExternalData:
+        connection = self._connection(request, scope)
         try:
             async with asyncio.timeout(connection.timeout):
                 client = connection.connected()
@@ -97,14 +99,16 @@ class ContextReader:
             truncated,
         )
 
-    async def selected(self, requests: list[ContextRequest]) -> list[ExternalData]:
+    async def selected(
+        self, requests: list[ContextRequest], scope: str = "personal"
+    ) -> list[ExternalData]:
         if len(requests) > 8:
             raise MCPError("context_too_many")
         # Cada escolha exige escopo local; ler um resource não chama tools implícitas.
         data = []
         remaining = self.max_bytes
         for request in requests:
-            item = await self.read(request)
+            item = await self.read(request, scope)
             raw = item.text.encode()
             text = raw[:remaining].decode(errors="ignore")
             data.append(

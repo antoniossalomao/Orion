@@ -105,6 +105,7 @@ class Catalog:
                 require_confirmation=risk is not Risk.READ,
                 display_name=remote.name,
                 origin_label=connection.label,
+                scope=connection.config.scope,
             )
             pending.append((entry, tool, spec))
         return pending

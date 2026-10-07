@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Any, ClassVar, Literal, Protocol
 
 from .schema import DDL, MIGRATIONS, SCHEMA_VERSION
+from .scope import clause, current
 from .text import chunk_text, fts_query, strip_frontmatter
 from .vectors import VectorIndex, para_blob
 
@@ -72,6 +73,7 @@ class Fact:
     source: str
     created_at: float
     updated_at: float
+    project_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -535,13 +537,16 @@ class MemoryStore:
             raise ValueError("fato vazio")
         agora = self._clock()
         with self._tx() as c:
-            for r in c.execute("SELECT id, text FROM facts"):
+            for r in c.execute(
+                "SELECT id,text FROM facts WHERE project_id IS ?", (current.get().project_id,)
+            ):
                 if self._norm(r["text"]) == self._norm(texto):
                     c.execute("UPDATE facts SET updated_at=? WHERE id=?", (agora, r["id"]))
                     return self._fact(c, r["id"])
             fid = c.execute(
-                "INSERT INTO facts(text, source, created_at, updated_at) VALUES (?,?,?,?)",
-                (texto, source, agora, agora),
+                "INSERT INTO facts(text, source, created_at, updated_at, project_id) "
+                "VALUES (?,?,?,?,?)",
+                (texto, source, agora, agora, current.get().project_id),
             ).lastrowid
             fato = self._fact(c, int(fid or 0))
         self._try_embed()
@@ -549,14 +554,19 @@ class MemoryStore:
 
     def _fact(self, c: sqlite3.Connection, fid: int) -> Fact:
         r = c.execute("SELECT * FROM facts WHERE id=?", (fid,)).fetchone()
-        return Fact(r["id"], r["text"], r["source"], r["created_at"], r["updated_at"])
+        return Fact(
+            r["id"], r["text"], r["source"], r["created_at"], r["updated_at"], r["project_id"]
+        )
 
     def update_fact(self, fact_id: int, text: str, source: str | None = None) -> Fact:
         texto = re.sub(r"\s+", " ", text).strip()
         if not texto:
             raise ValueError("fato vazio")
         with self._tx() as c:
-            if not c.execute("SELECT 1 FROM facts WHERE id=?", (fact_id,)).fetchone():
+            if not c.execute(
+                "SELECT 1 FROM facts WHERE id=? AND project_id IS ?",
+                (fact_id, current.get().project_id),
+            ).fetchone():
                 raise KeyError(fact_id)
             c.execute(
                 "UPDATE facts SET text=?, source=COALESCE(?, source), updated_at=?,"
@@ -571,6 +581,11 @@ class MemoryStore:
     def forget_fact(self, fact_id: int) -> bool:
         """Esquece de verdade: apaga o texto, o índice FTS e o vetor."""
         with self._tx() as c:
+            if not c.execute(
+                "SELECT 1 FROM facts WHERE id=? AND project_id IS ?",
+                (fact_id, current.get().project_id),
+            ).fetchone():
+                return False
             self._drop_vec(c, "fact", [fact_id])
             return c.execute("DELETE FROM facts WHERE id=?", (fact_id,)).rowcount > 0
 
@@ -578,10 +593,14 @@ class MemoryStore:
         """Tudo o que o Orion sabe sobre o Antônio, do mais recente ao mais antigo."""
         with self._lock:
             rows = self._conn.execute(
-                "SELECT * FROM facts ORDER BY updated_at DESC, id DESC"
+                "SELECT * FROM facts WHERE "
+                + clause("project_id")[0]
+                + " ORDER BY updated_at DESC,id DESC",
+                clause("project_id")[1],
             ).fetchall()
         return [
-            Fact(r["id"], r["text"], r["source"], r["created_at"], r["updated_at"]) for r in rows
+            Fact(r["id"], r["text"], r["source"], r["created_at"], r["updated_at"], r["project_id"])
+            for r in rows
         ]
 
     def facts_markdown(self) -> str:
@@ -613,19 +632,24 @@ class MemoryStore:
         self, source: str, title: str, text: str
     ) -> Literal["new", "updated", "same"]:
         """Indexa (ou reindexa) um documento. Idempotente por hash de conteúdo."""
+        project_id = current.get().project_id
+        if project_id is not None:
+            source = f"project:{project_id}/{source}"
         h = hashlib.sha256(text.encode()).hexdigest()
         corpo = strip_frontmatter(text)
         with self._tx() as c:
             r = c.execute(
-                "SELECT id, content_hash FROM documents WHERE source=?", (source,)
+                "SELECT id, content_hash FROM documents WHERE source=? AND project_id IS ?",
+                (source, project_id),
             ).fetchone()
             if r and r["content_hash"] == h:
                 return "same"
             if r:
                 self._delete_document(c, r["id"])
             did = c.execute(
-                "INSERT INTO documents(source, title, content_hash, indexed_at) VALUES (?,?,?,?)",
-                (source, title, h, self._clock()),
+                "INSERT INTO documents(source, title, content_hash, indexed_at, project_id) "
+                "VALUES (?,?,?,?,?)",
+                (source, title, h, self._clock(), project_id),
             ).lastrowid
             for i, trecho in enumerate(chunk_text(corpo)):
                 c.execute(
@@ -641,8 +665,13 @@ class MemoryStore:
         c.execute("DELETE FROM documents WHERE id=?", (doc_id,))
 
     def remove_document(self, source: str) -> bool:
+        project_id = current.get().project_id
+        if project_id is not None:
+            source = f"project:{project_id}/{source}"
         with self._tx() as c:
-            r = c.execute("SELECT id FROM documents WHERE source=?", (source,)).fetchone()
+            r = c.execute(
+                "SELECT id FROM documents WHERE source=? AND project_id IS ?", (source, project_id)
+            ).fetchone()
             if not r:
                 return False
             self._delete_document(c, r["id"])
@@ -663,7 +692,14 @@ class MemoryStore:
             vistos.add(fonte)
             contagem[self.index_document(fonte, arq.stem, arq.read_text(encoding="utf-8"))] += 1
         with self._lock:
-            antigos = [r[0] for r in self._conn.execute("SELECT source FROM documents")]
+            prefix = f"project:{current.get().project_id}/" if current.get().project_id else ""
+            antigos = [
+                r[0][len(prefix) :]
+                for r in self._conn.execute(
+                    "SELECT source FROM documents WHERE project_id IS ?",
+                    (current.get().project_id,),
+                )
+            ]
         for fonte in antigos:
             if fonte not in vistos and self.remove_document(fonte):
                 contagem["removed"] += 1
@@ -740,7 +776,14 @@ class MemoryStore:
         listas: list[tuple[Kind, str, list[tuple[int, str, str]]]] = []
         with self._lock:
             for kind in kinds:
-                rows = self._conn.execute(self._SQL_FTS[kind], (fq, amplo)).fetchall() if fq else []
+                column = {
+                    "fact": "t.project_id",
+                    "chunk": "d.project_id",
+                    "message": "s.project_id",
+                }[kind]
+                predicate, params = clause(column)
+                sql = self._SQL_FTS[kind].replace(" ORDER BY", f" AND {predicate} ORDER BY")
+                rows = self._conn.execute(sql, (fq, *params, amplo)).fetchall() if fq else []
                 listas.append((kind, "fts", [(r[0], r[1], r[2]) for r in rows]))
             vec_kinds = [kd for kd in kinds if kd in ("fact", "chunk")]
             if self._embedder and vec_kinds:
@@ -773,20 +816,34 @@ class MemoryStore:
             return []
         saida: list[tuple[Kind, str, list[tuple[int, str, str]]]] = []
         for kind in kinds:
+            scope = current.get()
+            cache_key = f"{kind}@{scope.project_id}:{int(scope.include_personal)}"
+            column = "t.project_id" if kind == "fact" else "d.project_id"
+            predicate, params = clause(column)
+            join = (
+                " JOIN facts t ON t.id=v.ref_id"
+                if kind == "fact"
+                else " JOIN chunks t ON t.id=v.ref_id JOIN documents d ON d.id=t.document_id"
+            )
             ids = self._index.topk(
-                kind,
+                cache_key,
                 consulta,
                 amplo,
-                lambda kind=kind: [
+                lambda kind=kind, join=join, predicate=predicate, params=params: [
                     (r[0], r[1])
                     for r in self._conn.execute(
-                        "SELECT ref_id, embedding FROM vectors WHERE kind=?", (kind,)
+                        f"SELECT v.ref_id,v.embedding FROM vectors v{join} "
+                        f"WHERE v.kind=? AND {predicate}",
+                        (kind, *params),
                     )
                 ],
             )
             itens = []
             for i in ids:
-                r = self._conn.execute(self._SQL_ROW[kind], (i,)).fetchone()
+                predicate, params = clause("facts.project_id" if kind == "fact" else "d.project_id")
+                r = self._conn.execute(
+                    self._SQL_ROW[kind] + " AND " + predicate, (i, *params)
+                ).fetchone()
                 if r:
                     itens.append((r[0], r[1], r[2]))
             saida.append((kind, "vec", itens))  # type: ignore[arg-type]

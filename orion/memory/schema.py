@@ -6,7 +6,7 @@ para a versão atual sozinho (`MIGRATIONS`). v3: seleção persistente de sessã
 v4: conversas fixadas. v5: índice de títulos para busca de conversas.
 """
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 TOKENIZER = "unicode61 remove_diacritics 2"  # "açúcar" casa com "acucar"
 
@@ -211,7 +211,15 @@ ALTER TABLE sessions ADD COLUMN project_id TEXT REFERENCES projects(id);
 CREATE INDEX idx_sessions_project ON sessions(project_id, channel, last_active_at);
 """
 
-DDL = DDL_V1 + DDL_V2 + DDL_V3 + DDL_V4 + DDL_V5 + DDL_V6
+DDL_V7 = """
+ALTER TABLE projects ADD COLUMN root TEXT;
+ALTER TABLE facts ADD COLUMN project_id TEXT REFERENCES projects(id);
+ALTER TABLE documents ADD COLUMN project_id TEXT REFERENCES projects(id);
+CREATE INDEX idx_facts_project ON facts(project_id);
+CREATE INDEX idx_documents_project ON documents(project_id);
+"""
+
+DDL = DDL_V1 + DDL_V2 + DDL_V3 + DDL_V4 + DDL_V5 + DDL_V6 + DDL_V7
 
 # versão de origem -> script que leva à seguinte
-MIGRATIONS: dict[int, str] = {1: DDL_V2, 2: DDL_V3, 3: DDL_V4, 4: DDL_V5, 5: DDL_V6}
+MIGRATIONS: dict[int, str] = {1: DDL_V2, 2: DDL_V3, 3: DDL_V4, 4: DDL_V5, 5: DDL_V6, 6: DDL_V7}

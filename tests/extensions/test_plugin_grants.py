@@ -39,7 +39,10 @@ def test_revision_scope_and_approved_native_call_are_revoked(bundle, tmp_path):
     chosen = runtime.select("revisar", ["pesquisa:revisar"])
     policy = PolicyEngine(
         path_guard=PathGuard(),
-        tools={"write": ToolSpec("write", Risk.EXEC), "read": ToolSpec("read", Risk.READ)},
+        tools={
+            "write": ToolSpec("write", Risk.EXEC, scope="project:a"),
+            "read": ToolSpec("read", Risk.READ),
+        },
     )
     ctx = Context(
         "sessao",
@@ -57,7 +60,7 @@ def test_revision_scope_and_approved_native_call_are_revoked(bundle, tmp_path):
     other = Context(
         "sessao", allowed_tools=chosen.allowed_tools, authorities=chosen.authorities, project_id="b"
     )
-    assert policy.evaluate(call, other).action == Action.CONFIRM
+    assert policy.evaluate(call, other).action == Action.DENY
     runtime.enabled.clear()
     policy.approvals.invalidate_binding(chosen.authorities[0])
     assert policy.evaluate(call, ctx).action == Action.DENY

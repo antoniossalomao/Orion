@@ -54,6 +54,7 @@ class PluginManager:
         self.skills, self.host, self.catalog, self.policy = skills, host, catalog, policy
         self.connections: dict[str, set[str]] = {}
         self.owned_skills: dict[str, set[str]] = {}
+        self.active_scopes: dict[str, str] = {}
         self.lock = asyncio.Lock()
         with self.store._lock, self.store._db:
             self.store._db.execute(
@@ -87,17 +88,22 @@ class PluginManager:
             self.store._db.execute("DELETE FROM extension_connections WHERE id=?", (id_,))
 
     def list(self) -> list[dict]:
-        return [public_plugin(row) for row in self.store.list()]
+        return [
+            {**public_plugin(row), "scope": self.active_scopes.get(row["id"])}
+            for row in self.store.list()
+        ]
 
     async def deactivate(self, id_: str, *, revoke: bool = True) -> dict:
         self.store.get(id_)
         self.store.transition(id_, PluginState.DISABLED)
+        self.active_scopes.pop(id_, None)
         for skill_id in self.owned_skills.pop(id_, set()):
             authority = self.skills.authorities.pop(skill_id, None)
             if authority:
                 self.policy.approvals.invalidate_binding(authority)
             self.skills.enabled.discard(skill_id)
             self.skills.scopes.pop(skill_id, None)
+            self.skills.contexts.pop(skill_id, None)
             self.skills.script_reviews.pop(skill_id, None)
             self.skills.index.skills.pop(skill_id, None)
         # Scripts compartilham runner; cancelamento conservador não deixa execução órfã.
@@ -170,6 +176,7 @@ class PluginManager:
                     raise PluginError("plugin_connection_collision")
                 common = dict(
                     id=cid,
+                    scope=scope,
                     enabled=True,
                     classifications={name: reviews[name] for name in chosen},
                     resources=remote.resources if f"resource:{remote.id}" in effective else [],
@@ -235,8 +242,10 @@ class PluginManager:
                 owned.add(skill.id)
                 self.skills.enabled.add(skill.id)
                 self.skills.scopes[skill.id] = frozenset(allowed)
+                self.skills.contexts[skill.id] = scope
                 self.skills.authorities[skill.id] = f"{id_}:{digest}:{generation}:{scope}"
             self.store.transition(id_, PluginState.ACTIVE)
+            self.active_scopes[id_] = scope
             return public_plugin(self.store.get(id_))
         except BaseException:
             await self.deactivate(id_)
