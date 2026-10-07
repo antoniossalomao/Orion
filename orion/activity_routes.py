@@ -48,6 +48,8 @@ def router(require_admin):
                         "status": a.status.value,
                         "target": "memoria"
                         if a.tool in {"editar_fato", "esquecer_fato"}
+                        else "fontes"
+                        if a.tool == "aplicar_organizacao"
                         else "integracoes"
                         if a.tool == "criar_evento_agenda"
                         else "chat",

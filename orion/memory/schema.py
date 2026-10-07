@@ -6,7 +6,7 @@ para a versão atual sozinho (`MIGRATIONS`). v3: seleção persistente de sessã
 v4: conversas fixadas. v5: índice de títulos para busca de conversas.
 """
 
-SCHEMA_VERSION = 14
+SCHEMA_VERSION = 15
 
 TOKENIZER = "unicode61 remove_diacritics 2"  # "açúcar" casa com "acucar"
 
@@ -282,6 +282,14 @@ CREATE TABLE event_proposals(id TEXT PRIMARY KEY,project_id TEXT REFERENCES proj
  created_at REAL NOT NULL);
 """
 
+DDL_V15 = """
+CREATE TABLE file_plans(id TEXT PRIMARY KEY,project_id TEXT REFERENCES projects(id),
+ session_id TEXT NOT NULL REFERENCES sessions(id),payload TEXT NOT NULL,digest TEXT NOT NULL,
+ skipped TEXT NOT NULL,status TEXT NOT NULL,created_at REAL NOT NULL,
+ completed INTEGER NOT NULL DEFAULT 0);
+CREATE INDEX idx_file_plans_scope ON file_plans(project_id,created_at);
+"""
+
 DDL = (
     DDL_V1
     + DDL_V2
@@ -297,6 +305,7 @@ DDL = (
     + DDL_V12
     + DDL_V13
     + DDL_V14
+    + DDL_V15
 )
 MIGRATIONS: dict[int, str] = {
     1: DDL_V2,
@@ -312,4 +321,5 @@ MIGRATIONS: dict[int, str] = {
     11: DDL_V12,
     12: DDL_V13,
     13: DDL_V14,
+    14: DDL_V15,
 }

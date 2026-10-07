@@ -116,6 +116,8 @@ class PolicyEngine:
             }
             scoped = {
                 "criar_evento_agenda",
+                "propor_organizacao",
+                "aplicar_organizacao",
                 "propor_evento_agenda",
                 "consultar_agenda",
                 "consultar_disponibilidade",

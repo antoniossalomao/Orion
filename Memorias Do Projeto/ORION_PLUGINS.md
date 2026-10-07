@@ -84,3 +84,12 @@ legível da nota, sem prefixos internos de projeto/upload. Verificado com canár
 projetos/memória pessoal, raízes de ensaio, fontes reais e bytes do arquivo intactos. Um pedido
 de salvar fato fora das tools da skill é recusado pela política. O gateway é controlado:
 essa evidência não declara qualidade editorial de um modelo real.
+
+## Orion Arquivos
+
+O pacote 1.0.0 oferece planejar-organizacao e revisar-documento. A primeira prepara
+cópias de textos, PDFs e imagens em Organizados; a segunda usa documentos indexados.
+Em Fontes, revise todos os caminhos e confirme as cópias. A origem é preservada,
+destinos existentes não são substituídos e planos parciais não são repetidos.
+A pasta precisa estar autorizada no PathGuard e dentro da raiz do projeto selecionado.
+Não há shell ou scripts; use pastas locais confiáveis. Windows ainda exige ensaio real.

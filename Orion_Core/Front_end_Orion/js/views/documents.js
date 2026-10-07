@@ -33,7 +33,8 @@
             status = el('p', { id: 'document-status', role: 'status' }); list = el('div'); progress = el('progress', { 'aria-label': 'Processando documento', max: '100' }); progress.hidden = true;
             $('#documents-root').append(el('div', { class: 'page-head' }, el('div', {}, el('h2', { text: 'Suas fontes' }), el('p', { text: 'PDF com texto, Markdown e TXT · até 6 MB e 200 páginas. Conteúdo tratado como fonte externa.' }))),
                 el('label', { class: 'extension-field' }, el('span', { text: 'Adicionar documento' }), input), button('Enviar e indexar', () => { const file = input.files[0]; if (file) operation(project => api.ingerirDocumento(file, project)); }), progress, status, list);
+            O.filePlans.init($('#documents-root'));
             for (const event of ['sessoes', 'capabilities']) bus.on(event, () => { generation++; list.replaceChildren(); if (active && !busy) load(); });
-        }, ativar() { active = true; load(); }, desativar() { active = false; generation++; }
+        }, ativar() { active = true; load(); O.filePlans.activate(); }, desativar() { active = false; generation++; O.filePlans.deactivate(); }
     };
 })();

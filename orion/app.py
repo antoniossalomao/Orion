@@ -90,6 +90,7 @@ class AppState:
     accounts: Any = None
     calendar: Any = None
     events: Any = None
+    file_plans: Any = None
     telegram: TelegramChannel | None = None  # None sem token, sem usuários ou sem gateway
 
 
@@ -327,6 +328,9 @@ def create_app(
         from .calendar_events import Events
 
         events = Events(calendar)
+        from .file_plans import FilePlans
+
+        file_plans = FilePlans(events)
         skills = await asyncio.to_thread(SkillRuntime, settings.skill_sources)
         if agent is not None:
             skills.attach_tools(agent.tools, policy)
@@ -347,6 +351,7 @@ def create_app(
             accounts=accounts,
             calendar=calendar,
             events=events,
+            file_plans=file_plans,
         )
         try:
             yield
@@ -802,6 +807,9 @@ def create_app(
     from .calendar import router as calendar_router
     from .calendar_events import router as event_router
     from .documents import router as document_router
+    from .file_plans import router as file_plan_router
+
+    app.include_router(file_plan_router(require_admin))
 
     app.include_router(event_router(require_admin))
     app.include_router(calendar_router(require_admin))

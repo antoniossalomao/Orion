@@ -30,7 +30,7 @@
     const configurarToken = t => { tokenDesktop = String(t || ''); };
 
     /** rotas que exigem o token do orion.app; o legado não conhece cabeçalho Authorization */
-    const comAuth = caminho => /^\/(approvals|chat|calendar|accounts|branches|documents|activity|notifications|facts|artifacts|projects|skills|plugins|mcp|sessoes|historico|exportar|capabilities\/details)(\/|$|\?)/.test(caminho);
+    const comAuth = caminho => /^\/(files|approvals|chat|calendar|accounts|branches|documents|activity|notifications|facts|artifacts|projects|skills|plugins|mcp|sessoes|historico|exportar|capabilities\/details)(\/|$|\?)/.test(caminho);
 
     function cabecalhos(caminho, extra = {}) {
         const h = { ...extra };
@@ -77,7 +77,7 @@
         memory_graph: ['/grafo/completo'], memory_categories: ['/memoria/categorias'],
         metrics: ['/metrics'], stats: ['/stats'], stats_history: ['/stats/historico'],
         integrations: ['/integracoes'], upload: ['/upload'], tts: ['/tts/mudo', '/tts/falar'],
-        calendar: ['/calendar'], accounts: ['/accounts'], branches: ['/branches'], documents: ['/documents'], activity: ['/activity'], approvals: ['/approvals'], notifications: ['/notifications'], chat: ['/chat'],
+        file_plans: ['/files/plans'], calendar: ['/calendar'], accounts: ['/accounts'], branches: ['/branches'], documents: ['/documents'], activity: ['/activity'], approvals: ['/approvals'], notifications: ['/notifications'], chat: ['/chat'],
         skills: ['/skills'], plugins: ['/plugins'], mcp: ['/mcp/connections'],
     };
     let estado = { backend: 'unknown', api: 'offline', model: 'unknown', features: {}, unavailable: {} };
@@ -207,6 +207,10 @@
             f.append('file', arquivo);
             return recurso('upload', '/upload', { metodo: 'POST', form: f, timeout: 120000 });
         },
+        planosArquivos: project_id => recurso('file_plans', `/files/plans?${q({ project_id })}`),
+        proporArquivos: (project_id, json) => recurso('file_plans', `/files/plans?${q({ project_id })}`, { metodo: 'POST', json }),
+        revisarArquivos: (id, project_id, reviewed_digest) => recurso('file_plans', `/files/plans/${id}/review?${q({ project_id })}`, { metodo: 'POST', json: { reviewed_digest } }),
+        aplicarArquivos: (id, project_id, approval_id) => recurso('file_plans', `/files/plans/${id}/apply?${q({ project_id })}`, { metodo: 'POST', json: { approval_id }, timeout: 60000 }),
         propostasEventos: project_id => recurso('calendar', `/calendar/proposals?${q({ project_id })}`),
         proporEvento: (project_id, json) => recurso('calendar', `/calendar/proposals?${q({ project_id })}`, { metodo: 'POST', json }),
         revisarEvento: (id, project_id, reviewed_digest) => recurso('calendar', `/calendar/proposals/${id}/review?${q({ project_id })}`, { metodo: 'POST', json: { reviewed_digest } }),

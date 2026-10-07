@@ -161,9 +161,14 @@ class Agent:
         if a is None or sessao is None or sessao.channel != channel:
             yield AgentEvent("error", {"message": "aprovação inexistente para este canal"})
             return
-        if a.tool == "criar_evento_agenda":
+        if a.tool in {"criar_evento_agenda", "aplicar_organizacao"}:
             yield AgentEvent(
-                "error", {"message": "Revise e confirme o evento em Integrações > Agenda."}
+                "error",
+                {
+                    "message": "Revise em Fontes."
+                    if a.tool == "aplicar_organizacao"
+                    else "Revise e confirme o evento em Integrações > Agenda."
+                },
             )
             return
         if a.status is not Status.APPROVED:

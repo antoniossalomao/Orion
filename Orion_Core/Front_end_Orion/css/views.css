@@ -210,3 +210,5 @@
 .calendar-section { margin-block: var(--s-6); }
 .calendar-actions { margin-block: var(--s-3); }
 .calendar-section .fact-item { margin-block: var(--s-3); }
+
+.file-plan-path { overflow-wrap: anywhere; font-family: var(--font-mono); font-size: .85rem; }

@@ -7,7 +7,7 @@ from .plugins import PluginError
 
 BUNDLED = {
     "orion-" + name: Path(__file__).with_name("bundled") / name
-    for name in ("pesquisa", "agenda", "memoria-vault")
+    for name in ("pesquisa", "agenda", "memoria-vault", "arquivos")
 }
 
 
