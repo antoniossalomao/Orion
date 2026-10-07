@@ -1067,6 +1067,11 @@ pytestmark_axe = pytest.mark.skipif(
 
 
 def _violacoes(page):
+    # o diálogo aparece com um fade (opacity do scrim): medido no meio dele, o contraste dá falso positivo
+    page.wait_for_function(
+        """() => [...document.querySelectorAll('.dialog-scrim[data-open="true"]')]
+            .every(s => getComputedStyle(s).opacity === '1')"""
+    )
     res = page.evaluate(
         """() => axe.run(document, { runOnly: { type: 'tag',
         values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'] } })"""
