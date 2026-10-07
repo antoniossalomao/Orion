@@ -1,6 +1,6 @@
 # Orion — referências de produto e plano de extensões
 
-Pesquisa em 04/10/2026. **Plano de implementação com C00–C34 concluídos** (registro na seção 9).
+Pesquisa em 04/10/2026. **Plano de implementação com C00–C35 concluídos** (registro na seção 9).
 Plugins e skills seguem em implementação. MCP já tem prova com servidores controlados;
 nenhuma conta pessoal ou servidor externo do usuário foi conectado.
 Complementa [ORION_FRONT.md](ORION_FRONT.md), as fases 4 e 6 do
@@ -339,7 +339,7 @@ como fundação do recurso novo. Exportar leitura primeiro, com identidade e esc
 
 ## 8. Próximo trabalho concreto
 
-C00–C34 foram concluídos e validados. Continuar pelo **C35: biblioteca e prévia lateral de resultados**.
+C00–C35 foram concluídos e validados. Continuar pelo **C36: consulta edição e esquecimento de fatos com fonte e aprovação**.
 O usuário autorizou a execução dos checklists restantes, com commits separados, validação,
 registro no vault e push. Integrações pessoais e Windows serão registrados conforme
 as evidências disponíveis, sem transformar fixtures em prova de conta ou desktop reais.
@@ -351,8 +351,8 @@ quando houver integração concreta para revisar. Este documento não muda as de
 
 ## 9. Checklists por commit e sequência de dias
 
-Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C34 têm commits reais
-registrados; C35–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
+Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C35 têm commits reais
+registrados; C36–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
 precisa estar pronto. Não é necessário concluir o plano inteiro para usar o primeiro MVP.
 
 ### Ritmo de trabalho
@@ -365,7 +365,7 @@ precisa estar pronto. Não é necessário concluir o plano inteiro para usar o p
   manter os dependentes esperando a entrega completa.
 - Ao pedir continuação, usar o ID: **“Faça o próximo commit pendente”** ou **“Faça o C09”**.
   O executor confere o checklist e as dependências antes de iniciar.
-- C00–C34 estão implementados, validados e registrados abaixo; C35–C50 permanecem
+- C00–C35 estão implementados, validados e registrados abaixo; C36–C50 permanecem
   planejados. Cada continuação deve conferir as dependências e os limites da entrega anterior.
 
 ### Como concluir e pausar cada commit
@@ -418,10 +418,10 @@ a integração real de Pesquisa fica registrada separadamente se ainda não tive
 
 ### Registro para retomar no próximo dia
 
-- Último checklist concluído: **C34**, commit `483edb5`; entregas anteriores registradas abaixo.
-- Próximo commit sugerido: **C35 — biblioteca e prévia lateral de resultados**.
-- Dependências/impedimentos: conferir as dependências do C35 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
-- Evidências: ver os registros C00–C34 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
+- Último checklist concluído: **C35**, commit `26555eb`; entregas anteriores registradas abaixo.
+- Próximo commit sugerido: **C36 — consulta edição e esquecimento de fatos com fonte e aprovação**.
+- Dependências/impedimentos: conferir as dependências do C36 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
+- Evidências: ver os registros C00–C35 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
 - Atualizações: registrar aqui o ID concluído, hash/link e o próximo ID; não preencher com
   hash fictício nem tratar evidência de mock como teste contra conta real.
 
@@ -997,6 +997,27 @@ inválida e tamanho excessivo, normalização e falha de integridade. A bibliote
 no C35. Configuração e limites registrados em `ORION_RESULTADOS.md`.
 
 
+### Execução C35 — biblioteca e prévia de resultados (07/10/2026)
+
+Commit real `26555eb`. Biblioteca pesquisável respeita o projeto atual; prévia mostra
+conversa, fontes, tipo, versões e download autenticado. Chat salva a resposta com IDs da
+mensagem/sessão recebidos no SSE, inclusive antes da atualização da sidebar. Revisar cria
+nova versão; voltar ao painel preserva a versão escolhida, e fechar devolve o foco à lista.
+Texto/código usam texto; Markdown bloqueia imagens incorporadas e HTML; imagem usa blob
+local autorizado e revogado ao fechar/sair. Prévia abreviada não reduz o download.
+
+Validação: **51 testes backend de agente/API/artifacts**, **91 testes Node**, Ruff/format e
+Pyright passaram. A regressão Chromium inicial executou **108 cenários: 105 passaram e 3
+falharam** por atalhos reordenados e expectativa antiga de cinco views. Preservados Alt+1…5,
+adicionados Alt+6 Projetos/Alt+7 Resultados e atualizado teste de views ocultas. Todos esses
+cenários passaram após correção. Acrescentados **10 cenários** para novas telas em três temas
++ 700/860 px; corrigida semântica da região de resultados. **3 fluxos** de projetos/biblioteca
+passaram; os **2 fluxos de artifacts** passaram novamente com axe completo, versões,
+retorno ao painel, persistência, imagem local e bloqueio de imagem externa/script. Captura
+`orion-c35-library-700.png` inspecionada. Evidências mantêm os logs iniciais de falha.
+Guia de results e contrato operacional dos plugins atualizados. Próxima etapa: C36.
+
+
 ### C00 — fix(ui): estabilizar conexão e consolidar o refinamento visual
 
 Etapa: **A** · Depende de: **base atual do repositório** · Estado: **concluído**.
@@ -1349,13 +1370,13 @@ Etapa: **F** · Depende de: **C33** · Estado: **concluído**.
 
 ### C35 — feat(ui): adicionar biblioteca e prévia lateral de resultados
 
-Etapa: **F** · Depende de: **C34** · Estado: **planejado**.
+Etapa: **F** · Depende de: **C34** · Estado: **concluído**.
 
-- [ ] Criar biblioteca pesquisável e painel lateral com título, tipo, versão, origem e download.
-- [ ] Adicionar prévia segura de texto/Markdown/código/imagem e ligação ao ponto da conversa.
-- [ ] Preservar estado ao fechar painel, trocar conversa ou usar janela estreita.
-- [ ] **Validar:** Encontrar e abrir resultado persistido, escolher versão e baixar; validar foco, acessibilidade e imagem externa bloqueada.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Criar biblioteca pesquisável e painel lateral com título, tipo, versão, origem e download.
+- [x] Adicionar prévia segura de texto/Markdown/código/imagem e ligação ao ponto da conversa.
+- [x] Preservar estado ao fechar painel, trocar conversa ou usar janela estreita.
+- [x] **Validar:** Encontrar e abrir resultado persistido, escolher versão e baixar; validar foco, acessibilidade e imagem externa bloqueada.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C36 — feat(memory): consultar editar e esquecer fatos com fonte
 
