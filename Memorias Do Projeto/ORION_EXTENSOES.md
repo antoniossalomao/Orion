@@ -1,6 +1,6 @@
 # Orion — referências de produto e plano de extensões
 
-Pesquisa em 04/10/2026. **Plano de implementação com C00–C29 concluídos** (registro na seção 9).
+Pesquisa em 04/10/2026. **Plano de implementação com C00–C30 concluídos** (registro na seção 9).
 Plugins e skills seguem em implementação. MCP já tem prova com servidores controlados;
 nenhuma conta pessoal ou servidor externo do usuário foi conectado.
 Complementa [ORION_FRONT.md](ORION_FRONT.md), as fases 4 e 6 do
@@ -339,7 +339,7 @@ como fundação do recurso novo. Exportar leitura primeiro, com identidade e esc
 
 ## 8. Próximo trabalho concreto
 
-C00–C29 foram concluídos e validados. Continuar pelo **C30: validação do MVP de extensões com backend e MCP reais de ensaio**.
+C00–C30 foram concluídos e validados. Continuar pelo **C31: projetos persistentes e associação de conversas**.
 O usuário autorizou a execução dos checklists restantes, com commits separados, validação,
 registro no vault e push. Integrações pessoais e Windows serão registrados conforme
 as evidências disponíveis, sem transformar fixtures em prova de conta ou desktop reais.
@@ -351,8 +351,8 @@ quando houver integração concreta para revisar. Este documento não muda as de
 
 ## 9. Checklists por commit e sequência de dias
 
-Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C29 têm commits reais
-registrados; C30–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
+Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C30 têm commits reais
+registrados; C31–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
 precisa estar pronto. Não é necessário concluir o plano inteiro para usar o primeiro MVP.
 
 ### Ritmo de trabalho
@@ -365,7 +365,7 @@ precisa estar pronto. Não é necessário concluir o plano inteiro para usar o p
   manter os dependentes esperando a entrega completa.
 - Ao pedir continuação, usar o ID: **“Faça o próximo commit pendente”** ou **“Faça o C09”**.
   O executor confere o checklist e as dependências antes de iniciar.
-- C00–C29 estão implementados, validados e registrados abaixo; C30–C50 permanecem
+- C00–C30 estão implementados, validados e registrados abaixo; C31–C50 permanecem
   planejados. Cada continuação deve conferir as dependências e os limites da entrega anterior.
 
 ### Como concluir e pausar cada commit
@@ -418,10 +418,10 @@ a integração real de Pesquisa fica registrada separadamente se ainda não tive
 
 ### Registro para retomar no próximo dia
 
-- Último checklist concluído: **C29**, commit `810f93f`; entregas anteriores registradas abaixo.
-- Próximo commit sugerido: **C30 — validação do MVP de extensões com backend e MCP reais de ensaio**.
-- Dependências/impedimentos: conferir as dependências do C30 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
-- Evidências: ver os registros C00–C29 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
+- Último checklist concluído: **C30**, commit `1d64ac8`; entregas anteriores registradas abaixo.
+- Próximo commit sugerido: **C31 — projetos persistentes e associação de conversas**.
+- Dependências/impedimentos: conferir as dependências do C31 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
+- Evidências: ver os registros C00–C30 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
 - Atualizações: registrar aqui o ID concluído, hash/link e o próximo ID; não preencher com
   hash fictício nem tratar evidência de mock como teste contra conta real.
 
@@ -916,6 +916,22 @@ construído e inspecionado: manifesto e as duas SKILL.md estão incluídos. Lice
 Nenhuma conta/chave real foi conectada; C30 valida o fluxo completo com MCP real de ensaio.
 
 
+### Execução C30 — 06/10/2026
+
+Commit `1d64ac8`: ensaio completo pela interface com API nova real e processo MCP do
+SDK oficial. Instala ZIP, revisa capacidades/classificação/confiança, realiza duas RPCs
+(busca/leitura), confere fonte/revisão, desativa, prepara update, troca e volta à versão
+anterior. Encerra servidor e recria com o mesmo banco: conversa/provenance são recuperadas.
+Guia local e limites adicionados a ORION_PESQUISA.md.
+
+**Evidências:** fluxo novo passou; suíte Chromium completa **105 passou, zero falhas**
+(347,8 s), incluindo chat, aprovações, offline, temas, teclado e regressão de draft C27.
+Log em `/workspace/artifacts/orion-c30/browser.log`. Backend mantinha 622 testes e
+Ruff/Pyright passaram. Gateway e conteúdo da pesquisa são fixtures; processo MCP,
+interface, API, banco, staging/lifecycle e restart são reais no Linux. **Conta Brave,
+integrações pessoais e Windows/pywebview seguem sem prova real.** Não houve merge em main.
+
+
 ### C00 — fix(ui): estabilizar conexão e consolidar o refinamento visual
 
 Etapa: **A** · Depende de: **base atual do repositório** · Estado: **concluído**.
@@ -1218,13 +1234,13 @@ Etapa: **E** · Depende de: **C28, C16** · Estado: **concluído**.
 
 ### C30 — test(extensions): validar o MVP completo no backend novo
 
-Etapa: **E** · Depende de: **C29, C06** · Estado: **planejado**.
+Etapa: **E** · Depende de: **C29, C06** · Estado: **concluído**.
 
-- [ ] Cobrir instalar, ativar, pesquisar, revisar fontes, desativar e voltar à versão anterior pela interface.
-- [ ] Usar backend novo real com fixture MCP, não somente o mock de contratos do front.
-- [ ] Publicar instruções locais e evidências; registrar pendências de integração externa e Windows.
-- [ ] **Validar:** Concluir um pedido de pesquisa e reabrir o resultado após reiniciar; fluxos de chat, aprovação e offline continuam funcionando.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Cobrir instalar, ativar, pesquisar, revisar fontes, desativar e voltar à versão anterior pela interface.
+- [x] Usar backend novo real com fixture MCP, não somente o mock de contratos do front.
+- [x] Publicar instruções locais e evidências; registrar pendências de integração externa e Windows.
+- [x] **Validar:** Concluir um pedido de pesquisa e reabrir o resultado após reiniciar; fluxos de chat, aprovação e offline continuam funcionando.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C31 — feat(projects): persistir projetos e associar conversas
 
