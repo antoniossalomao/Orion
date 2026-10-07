@@ -1103,6 +1103,10 @@ def test_integracoes_sem_nome_de_arquivo_e_com_dica_no_microfone_parado(abrir):
 def test_pilula_de_estado_so_aparece_com_atividade_ou_aprovacao_pendente(abrir):
     page = abrir("#/chat")
     pilula = page.locator("#state-pill")
+    # o backend de mentira é compartilhado: aprovação deixada por outro teste também acende a pílula (é o comportamento certo)
+    page.wait_for_timeout(1200)
+    for negar in page.get_by_role("button", name="Negar").all():
+        negar.click()
     expect(pilula).to_be_hidden()
     enviar(page, "apague os arquivos antigos")
     expect(page.locator(".approval").first).to_have_attribute("data-estado", "pendente")
