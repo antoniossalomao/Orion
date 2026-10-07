@@ -1,6 +1,6 @@
 # Orion — referências de produto e plano de extensões
 
-Pesquisa em 04/10/2026. **Plano de implementação com C00–C19 concluídos** (registro na seção 9).
+Pesquisa em 04/10/2026. **Plano de implementação com C00–C20 concluídos** (registro na seção 9).
 Plugins e skills seguem em implementação. MCP já tem prova com servidores controlados;
 nenhuma conta pessoal ou servidor externo do usuário foi conectado.
 Complementa [ORION_FRONT.md](ORION_FRONT.md), as fases 4 e 6 do
@@ -339,7 +339,7 @@ como fundação do recurso novo. Exportar leitura primeiro, com identidade e esc
 
 ## 8. Próximo trabalho concreto
 
-C00–C19 foram concluídos e validados. Continuar pelo **C20: instalação local de plugins sem executar código**.
+C00–C20 foram concluídos e validados. Continuar pelo **C21: importação segura de arquivos de distribuição de plugins**.
 O usuário autorizou a execução dos checklists restantes, com commits separados, validação,
 registro no vault e push. Integrações pessoais e Windows serão registrados conforme
 as evidências disponíveis, sem transformar fixtures em prova de conta ou desktop reais.
@@ -351,8 +351,8 @@ quando houver integração concreta para revisar. Este documento não muda as de
 
 ## 9. Checklists por commit e sequência de dias
 
-Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C19 têm commits reais
-registrados; C20–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
+Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C20 têm commits reais
+registrados; C21–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
 precisa estar pronto. Não é necessário concluir o plano inteiro para usar o primeiro MVP.
 
 ### Ritmo de trabalho
@@ -365,7 +365,7 @@ precisa estar pronto. Não é necessário concluir o plano inteiro para usar o p
   manter os dependentes esperando a entrega completa.
 - Ao pedir continuação, usar o ID: **“Faça o próximo commit pendente”** ou **“Faça o C09”**.
   O executor confere o checklist e as dependências antes de iniciar.
-- C00–C19 estão implementados, validados e registrados abaixo; C20–C50 permanecem
+- C00–C20 estão implementados, validados e registrados abaixo; C21–C50 permanecem
   planejados. Cada continuação deve conferir as dependências e os limites da entrega anterior.
 
 ### Como concluir e pausar cada commit
@@ -418,10 +418,10 @@ a integração real de Pesquisa fica registrada separadamente se ainda não tive
 
 ### Registro para retomar no próximo dia
 
-- Último checklist concluído: **C19**, commit `fa9c3cc`; entregas anteriores registradas abaixo.
-- Próximo commit sugerido: **C20 — instalação local de plugins sem executar código**.
-- Dependências/impedimentos: conferir as dependências do C20 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
-- Evidências: ver os registros C00–C19 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
+- Último checklist concluído: **C20**, commit `1f2de45`; entregas anteriores registradas abaixo.
+- Próximo commit sugerido: **C21 — importação segura de arquivos de distribuição de plugins**.
+- Dependências/impedimentos: conferir as dependências do C21 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
+- Evidências: ver os registros C00–C20 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
 - Atualizações: registrar aqui o ID concluído, hash/link e o próximo ID; não preencher com
   hash fictício nem tratar evidência de mock como teste contra conta real.
 
@@ -763,6 +763,20 @@ de incompatibilidade, traversal, credenciais literais e hook. Ruff/formatação/
 Instalação e lifecycle de plugins seguem para C20–C24; nenhuma conta foi conectada.
 
 
+### Execução C20 — instalação local de plugins (06/10/2026)
+
+**Commit de implementação:** `1f2de45`.
+Snapshot/staging em data_dir, validação completa e objeto por hash, independente da origem
+e somente leitura. Até 512 arquivos/16 MB, 2 MB por arquivo. Symlinks/hardlinks/segredos/
+traversal/colisões/arquivos especiais recusados; nenhum código, hook ou instalação de
+pacotes executado. Publicação só aponta objeto completo e deixa plugin desativado.
+
+**Evidências:** 588 testes backend passaram; sete casos de instalação cobrem cópia imutável,
+origem alterada depois, script com marcador não executado, caminhos externos/segredos e
+interrupção simulada após publicação do objeto (rollback de objeto/staging/registro).
+Ruff/formatação/Pyright passaram. Permissões não representam sandbox contra o dono do SO.
+
+
 ### C00 — fix(ui): estabilizar conexão e consolidar o refinamento visual
 
 Etapa: **A** · Depende de: **base atual do repositório** · Estado: **concluído**.
@@ -965,13 +979,13 @@ Etapa: **D** · Depende de: **C18, C14** · Estado: **concluído**.
 
 ### C20 — feat(plugins): instalar pacotes locais sem executar código
 
-Etapa: **D** · Depende de: **C19** · Estado: **planejado**.
+Etapa: **D** · Depende de: **C19** · Estado: **concluído**.
 
-- [ ] Importar pasta para staging e armazenamento imutável em Settings.data_dir.
-- [ ] Validar symlinks, referências, tamanho e travessia de caminho.
-- [ ] Instalar desativado; não importar Python dinamicamente nem executar pip/npm/hooks.
-- [ ] **Validar:** Instalar pacote válido e rejeitar caminhos externos; uma instalação interrompida não deixa pacote parcialmente ativo.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Importar pasta para staging e armazenamento imutável em Settings.data_dir.
+- [x] Validar symlinks, referências, tamanho e travessia de caminho.
+- [x] Instalar desativado; não importar Python dinamicamente nem executar pip/npm/hooks.
+- [x] **Validar:** Instalar pacote válido e rejeitar caminhos externos; uma instalação interrompida não deixa pacote parcialmente ativo.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C21 — feat(plugins): importar arquivos de distribuição com validação
 
