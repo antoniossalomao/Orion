@@ -188,7 +188,6 @@ Decisão #5 fechada: **front só desktop** (sem PWA nem layout para celular; o c
 - ~~Briefing matinal no Telegram~~ (feito em 06/10: lembretes, agendamentos e tarefas; **a agenda do Google ainda não entra**).
 - ~~Captura rápida~~ (feito em 06/10: `/capturar`; o link é guardado como veio, sem buscar o título da página).
 - ~~Painel único~~ (feito em 06/10: `GET /painel`, tela Painel, `/painel` no Telegram; a cota **real** por provedor ainda exige consultar o OmniRoute).
-- Modo estudo UNIMAR: resumo de PDF de aula e exercícios de UML/Java, com perfil de contexto próprio.
 - ~~Roteamento por tipo de tarefa~~ (feito em 07/10: `orion/router.py`, V11).
 - ~~Front no celular / PWA~~ (descartado em 07/10: front só desktop, decisão #5).
 - ~~Consolidação noturna da memória~~ (feito em 03/10: `orion/memory/consolidate.py`).
