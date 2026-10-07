@@ -6,7 +6,7 @@ para a versão atual sozinho (`MIGRATIONS`). v3: seleção persistente de sessã
 v4: conversas fixadas. v5: índice de títulos para busca de conversas.
 """
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 TOKENIZER = "unicode61 remove_diacritics 2"  # "açúcar" casa com "acucar"
 
@@ -202,7 +202,16 @@ INSERT INTO sessions_fts(sessions_fts) VALUES ('rebuild');
 """
 )
 
-DDL = DDL_V1 + DDL_V2 + DDL_V3 + DDL_V4 + DDL_V5
+DDL_V6 = """
+CREATE TABLE projects (
+    id TEXT PRIMARY KEY, name TEXT NOT NULL, instructions TEXT NOT NULL DEFAULT '',
+    share_personal INTEGER NOT NULL DEFAULT 0, archived INTEGER NOT NULL DEFAULT 0,
+    created_at REAL NOT NULL, updated_at REAL NOT NULL);
+ALTER TABLE sessions ADD COLUMN project_id TEXT REFERENCES projects(id);
+CREATE INDEX idx_sessions_project ON sessions(project_id, channel, last_active_at);
+"""
+
+DDL = DDL_V1 + DDL_V2 + DDL_V3 + DDL_V4 + DDL_V5 + DDL_V6
 
 # versão de origem -> script que leva à seguinte
-MIGRATIONS: dict[int, str] = {1: DDL_V2, 2: DDL_V3, 3: DDL_V4, 4: DDL_V5}
+MIGRATIONS: dict[int, str] = {1: DDL_V2, 2: DDL_V3, 3: DDL_V4, 4: DDL_V5, 5: DDL_V6}

@@ -47,6 +47,8 @@ from .memory.ops import Operations
 from .memory.store import Message, Session
 from .policy import ApprovalStore, PathGuard, PolicyEngine, redact
 from .policy.paths import default_safe_roots
+from .project_routes import router as project_router
+from .projects import ProjectError
 from .research import Research
 from .secrets import get_secret
 from .tools import default_registry
@@ -188,6 +190,7 @@ class Mensagem(BaseModel):
 
 
 class SessaoNova(BaseModel):
+    project_id: str | None = Field(default=None, pattern=r"^[a-f0-9]{32}$")
     canal: str = Field(default="web", pattern=_CANAL)
     titulo: str | None = Field(default=None, max_length=120)
 
@@ -399,6 +402,7 @@ def create_app(
             "sessao_id": session.id,
             "titulo": session.title or "Conversa sem título",
             "canal": session.channel,
+            "project_id": session.project_id,
             "criada": datetime.fromtimestamp(session.created_at, UTC).isoformat(),
             "ultima_atividade": datetime.fromtimestamp(session.last_active_at, UTC).isoformat(),
             "ativa": session.id == ativa,
@@ -444,7 +448,12 @@ def create_app(
     @app.post("/sessoes", dependencies=[Admin])
     def sessao_nova(state: State, corpo: SessaoNova | None = None) -> dict[str, Any]:
         corpo = corpo or SessaoNova()
-        session = state.memory.new_session(corpo.canal, (corpo.titulo or "").strip() or None)
+        try:
+            session = state.memory.new_session(
+                corpo.canal, (corpo.titulo or "").strip() or None, project_id=corpo.project_id
+            )
+        except ValueError:
+            raise HTTPException(422, "project_unavailable") from None
         return {"ok": True, **sessao_json(session, session.id), "mensagens": []}
 
     @app.post("/sessoes/ativar", dependencies=[Admin])
@@ -705,6 +714,14 @@ def create_app(
     async def plugin_error(request: Request, error: PluginError):
         return JSONResponse(status_code=422, content={"detail": str(error)})
 
+    @app.exception_handler(ProjectError)
+    async def project_error(request: Request, error: ProjectError):
+        return JSONResponse(
+            status_code=404 if str(error).endswith("not_found") else 409,
+            content={"detail": str(error)},
+        )
+
+    app.include_router(project_router(require_admin))
     app.include_router(extension_router(require_admin))
 
     if settings.serve_ui and FRONT_DIR.is_dir():

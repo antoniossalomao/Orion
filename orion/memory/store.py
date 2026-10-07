@@ -52,6 +52,7 @@ class Session:
     archived: bool = False
     read_only: bool = False
     favorite: bool = False
+    project_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -201,26 +202,37 @@ class MemoryStore:
             bool(row["archived"]),
             bool(row["read_only"]),
             bool(row["favorite"]),
+            row["project_id"],
         )
 
-    def _new_session(self, c: sqlite3.Connection, channel: str, title: str | None) -> Session:
+    def _new_session(
+        self, c: sqlite3.Connection, channel: str, title: str | None, project_id: str | None = None
+    ) -> Session:
+        if project_id is not None:
+            project = c.execute(
+                "SELECT archived FROM projects WHERE id=?", (project_id,)
+            ).fetchone()
+            if project is None or project[0]:
+                raise ValueError("project_unavailable")
         agora, sid = self._clock(), uuid.uuid4().hex
         c.execute(
-            "INSERT INTO sessions(id, channel, title, created_at, last_active_at)"
-            " VALUES (?,?,?,?,?)",
-            (sid, channel, title, agora, agora),
+            "INSERT INTO sessions(id, channel, title, created_at, last_active_at, project_id)"
+            " VALUES (?,?,?,?,?,?)",
+            (sid, channel, title, agora, agora, project_id),
         )
         c.execute(
             "INSERT INTO active_sessions(channel, session_id) VALUES (?,?)"
             " ON CONFLICT(channel) DO UPDATE SET session_id=excluded.session_id",
             (channel, sid),
         )
-        return Session(sid, channel, title, agora, agora)
+        return Session(sid, channel, title, agora, agora, project_id=project_id)
 
-    def new_session(self, channel: str, title: str | None = None) -> Session:
+    def new_session(
+        self, channel: str, title: str | None = None, *, project_id: str | None = None
+    ) -> Session:
         """Cria e seleciona no mesmo commit SQLite, preservando as outras conversas."""
         with self._tx() as c:
-            return self._new_session(c, channel, title)
+            return self._new_session(c, channel, title, project_id)
 
     def selected_session(self, channel: str) -> Session | None:
         """Consulta sem criar sessão; só o ponteiro persistido determina a ativa."""
