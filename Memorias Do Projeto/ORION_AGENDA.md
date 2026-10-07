@@ -39,3 +39,24 @@ MCP 2025-11-25. Descoberta: list-events, get-freebusy, get-current-time e manage
 Google real. Fixtures de consulta cobrem fuso -03:00, conta, dois projetos, cota, timeout,
 conexão indisponível e ausência de chamadas de escrita. Isso prova protocolo e contratos,
 sem declarar consulta real autorizada ou compatibilidade com desktops não executados.
+
+## Orion Agenda — propostas e criação revisada (C42)
+
+Pacote com planejar-dia e preparar-reuniao, acesso a consultar_agenda,
+consultar_disponibilidade e propor_evento_agenda. O modelo só prepara uma proposta
+persistida e imutável; salvar essa proposta também respeita a política da conversa.
+A criação real não aparece no catálogo do modelo. Em Agenda, o usuário confere título,
+conta, calendário, início/fim, fuso, descrição e local antes de pedir aprovação e confirmar.
+Participantes/convites não são aceitos; sendUpdates=none e eventId estável por proposta.
+
+A decisão se vincula a sessão/projeto/revisão, digest do conteúdo, configuração do conector,
+geração da conexão e revisão da ferramenta create-event descoberta. Alterar qualquer um
+revoga a validade do envio. A rejeição não chama o conector. O canal de chat direciona a
+revisão para Agenda; não consome essa decisão em /chat/resume.
+
+Para criar, o operador precisa disponibilizar create-event no servidor revisado, mantendo
+essa ferramenta fora da classificação/catálogo LLM do Orion. O consentimento Google amplo
+continua uma limitação do upstream, pendente no C41; o pacote não declara autorização real.
+Timeout/cancelamento grava resultado unknown e impede replay. O usuário deve conferir a
+agenda antes de propor outra criação; não há retry silencioso. Reinício preserva propostas
+mas não retoma envios. Versões/remoção de plugin e revogação não apagam a conversa.

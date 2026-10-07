@@ -115,6 +115,8 @@ class PolicyEngine:
                 "delegar": "pasta",
             }
             scoped = {
+                "criar_evento_agenda",
+                "propor_evento_agenda",
                 "consultar_agenda",
                 "consultar_disponibilidade",
                 "buscar_memoria",

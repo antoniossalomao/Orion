@@ -10,6 +10,7 @@ from dataclasses import dataclass
 class DataScope:
     project_id: str | None = None
     include_personal: bool = True
+    session_id: str | None = None
 
 
 _PERSONAL = DataScope()
@@ -17,8 +18,10 @@ current: ContextVar[DataScope] = ContextVar("orion_data_scope", default=_PERSONA
 
 
 @contextmanager
-def data_scope(project_id: str | None = None, *, include_personal: bool = True) -> Iterator[None]:
-    token = current.set(DataScope(project_id, include_personal))
+def data_scope(
+    project_id: str | None = None, *, include_personal: bool = True, session_id: str | None = None
+) -> Iterator[None]:
+    token = current.set(DataScope(project_id, include_personal, session_id))
     try:
         yield
     finally:

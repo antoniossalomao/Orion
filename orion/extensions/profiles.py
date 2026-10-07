@@ -5,7 +5,9 @@ from pathlib import Path
 from .installer import folder_snapshot
 from .plugins import PluginError
 
-BUNDLED = {"orion-pesquisa": Path(__file__).with_name("bundled") / "pesquisa"}
+BUNDLED = {
+    "orion-" + name: Path(__file__).with_name("bundled") / name for name in ("pesquisa", "agenda")
+}
 
 
 def profile(id_: str):

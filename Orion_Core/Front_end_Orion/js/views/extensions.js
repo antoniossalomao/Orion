@@ -166,7 +166,7 @@
         if (tab === 'channels') legacy.ativar(); else { legacy.desativar(); refresh(); }
     }
     function enabled() { return api.suporta('plugins') || api.suporta('mcp'); }
-    O.extensions = { dialog, check, button, hint, badge, mutate, refresh };
+    O.extensions = { dialog, check, button, hint, badge, mutate, refresh, abrirMcp: () => select('mcp') };
     O.views.integracoes = {
         init() {
             legacy.init();

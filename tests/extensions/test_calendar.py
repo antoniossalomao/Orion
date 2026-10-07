@@ -27,6 +27,18 @@ class Connector:
         self.calls = []
         self.mode = "ok"
 
+    def status(self):
+        return {
+            "id": self.config.id,
+            "scope": self.config.scope,
+            "transport": "stdio",
+            "state": self.state,
+            "error": None,
+        }
+
+    async def close(self):
+        self.state = "disabled"
+
     async def list_tools(self):
         return [
             RemoteTool.model_validate(t)

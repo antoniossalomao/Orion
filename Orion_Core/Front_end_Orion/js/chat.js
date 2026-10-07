@@ -182,6 +182,10 @@
     function cartaoAprovacao(ev, a = atual || iniciar({ pensando: false }), { depoisDoTexto = false } = {}) {
         tirarPensando(a);
         if (a.cartoes.has(ev.id)) return;
+        if (ev.ferramenta === 'criar_evento_agenda') {
+            const card = el('div', { class: 'approval', dataset: { id: ev.id } }, el('h4', { text: 'Evento aguardando revisão' }), el('p', { text: 'Confira conta, horários e conteúdo na Agenda antes de confirmar a criação.' }), el('button', { class: 'btn btn-primary btn-sm', type: 'button', text: 'Revisar evento', on: { click: () => { O.app.ir('integracoes'); O.extensions.abrirMcp(); } } }));
+            a.cartoes.set(ev.id, card); a.principal.insertBefore(card, a.prose); return;
+        }
         const estado = el('span', { class: 'approval-state', role: 'status', 'aria-live': 'polite' });
         // argumento cortado pelo servidor (grande demais): quem decide não vê tudo, então só dá para negar
         const grande = !!ev.truncado;

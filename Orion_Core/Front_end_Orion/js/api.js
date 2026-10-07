@@ -207,6 +207,10 @@
             f.append('file', arquivo);
             return recurso('upload', '/upload', { metodo: 'POST', form: f, timeout: 120000 });
         },
+        propostasEventos: project_id => recurso('calendar', `/calendar/proposals?${q({ project_id })}`),
+        proporEvento: (project_id, json) => recurso('calendar', `/calendar/proposals?${q({ project_id })}`, { metodo: 'POST', json }),
+        revisarEvento: (id, project_id, reviewed_digest) => recurso('calendar', `/calendar/proposals/${id}/review?${q({ project_id })}`, { metodo: 'POST', json: { reviewed_digest } }),
+        criarEvento: (id, project_id, approval_id) => recurso('calendar', `/calendar/proposals/${id}/resume?${q({ project_id })}`, { metodo: 'POST', json: { approval_id }, timeout: 30000 }),
         agendas: () => recurso('calendar', '/calendar'),
         vincularAgenda: json => recurso('calendar', '/calendar/bind', { metodo: 'POST', json }),
         contas: () => recurso('accounts', '/accounts'),

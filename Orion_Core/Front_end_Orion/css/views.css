@@ -205,3 +205,8 @@
 .fact-approval { margin-bottom:18px; border-color:var(--accent-line); }
 #facts-status { margin:18px 0; color:var(--text-2); }
 @media(max-width:760px) { .facts-root { padding:24px 18px; } .fact-item, .fact-approval { padding:16px; } }
+
+/* Agenda em Extensões: ações e blocos com espaço para revisão. */
+.calendar-section { margin-block: var(--s-6); }
+.calendar-actions { margin-block: var(--s-3); }
+.calendar-section .fact-item { margin-block: var(--s-3); }

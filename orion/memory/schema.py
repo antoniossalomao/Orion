@@ -6,7 +6,7 @@ para a versão atual sozinho (`MIGRATIONS`). v3: seleção persistente de sessã
 v4: conversas fixadas. v5: índice de títulos para busca de conversas.
 """
 
-SCHEMA_VERSION = 13
+SCHEMA_VERSION = 14
 
 TOKENIZER = "unicode61 remove_diacritics 2"  # "açúcar" casa com "acucar"
 
@@ -274,6 +274,14 @@ CREATE TABLE calendar_bindings(scope TEXT PRIMARY KEY,connection_id TEXT NOT NUL
  connection_revision TEXT NOT NULL);
 """
 
+DDL_V14 = """
+CREATE TABLE event_proposals(id TEXT PRIMARY KEY,project_id TEXT REFERENCES projects(id),
+ session_id TEXT NOT NULL REFERENCES sessions(id),payload TEXT NOT NULL,digest TEXT NOT NULL,
+ binding_revision TEXT NOT NULL,generation TEXT NOT NULL,creation_revision TEXT,
+ status TEXT NOT NULL,
+ created_at REAL NOT NULL);
+"""
+
 DDL = (
     DDL_V1
     + DDL_V2
@@ -288,6 +296,7 @@ DDL = (
     + DDL_V11
     + DDL_V12
     + DDL_V13
+    + DDL_V14
 )
 MIGRATIONS: dict[int, str] = {
     1: DDL_V2,
@@ -302,4 +311,5 @@ MIGRATIONS: dict[int, str] = {
     10: DDL_V11,
     11: DDL_V12,
     12: DDL_V13,
+    13: DDL_V14,
 }

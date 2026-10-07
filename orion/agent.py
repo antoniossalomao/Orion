@@ -161,6 +161,11 @@ class Agent:
         if a is None or sessao is None or sessao.channel != channel:
             yield AgentEvent("error", {"message": "aprovação inexistente para este canal"})
             return
+        if a.tool == "criar_evento_agenda":
+            yield AgentEvent(
+                "error", {"message": "Revise e confirme o evento em Integrações > Agenda."}
+            )
+            return
         if a.status is not Status.APPROVED:
             yield AgentEvent(
                 "error", {"message": f"aprovação não está aprovada ({a.status.value})"}
@@ -206,7 +211,9 @@ class Agent:
         if self.refresh_tools is not None:
             await self.refresh_tools()
         ctx = self._context(session.id)
-        with data_scope(ctx.project_id, include_personal=ctx.share_personal):
+        with data_scope(
+            ctx.project_id, include_personal=ctx.share_personal, session_id=ctx.session_id
+        ):
             hits = (
                 await asyncio.to_thread(self.memory.search, consulta, self._k) if consulta else []
             )
@@ -430,7 +437,9 @@ class Agent:
                 {"erro": f"ferramenta '{chamada.name}' não implementada"}, ensure_ascii=False
             )
         try:
-            with data_scope(ctx.project_id, include_personal=ctx.share_personal):
+            with data_scope(
+                ctx.project_id, include_personal=ctx.share_personal, session_id=ctx.session_id
+            ):
                 bruto = await asyncio.wait_for(
                     tool.run_async(chamada.args), timeout=self._tool_timeout
                 )

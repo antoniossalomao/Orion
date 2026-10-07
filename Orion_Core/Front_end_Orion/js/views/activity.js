@@ -19,7 +19,7 @@
                 n.delivered_at ? null : button('Marcar como lido', async () => { try { await api.lerAviso(n.id, project); await load(); } catch (error) { status.textContent = error.message; } }))));
             decisions.replaceChildren(el('h3', { text: 'Aprovações pendentes' }), ...data.approvals.map(a => el('article', { class: 'card fact-item' },
                 el('p', { text: `${a.title} · ${a.tool}` }), el('p', { class: 'extension-hint', text: a.reason }),
-                button('Revisar decisão', async () => { const session = O.sidebar.sessoes().find(s => s.sessao_id === a.session_id); if (session) await O.sidebar.abrir(session); else await O.historico.abrir(a.session_id); O.app.ir(a.target); }))),
+                button('Revisar decisão', async () => { const session = O.sidebar.sessoes().find(s => s.sessao_id === a.session_id); if (session) await O.sidebar.abrir(session); else await O.historico.abrir(a.session_id); O.app.ir(a.target); if (a.tool === 'criar_evento_agenda') O.extensions.abrirMcp(); }))),
                 data.approvals.length ? null : el('p', { class: 'extension-hint', text: 'Nenhuma decisão pendente neste contexto.' }));
             preferences.replaceChildren(...[['completion', 'Conclusões'], ['question', 'Perguntas'], ['approval', 'Destaque de aprovações']].map(([key, label]) => {
                 const input = el('input', { type: 'checkbox' }); input.checked = data.preferences[key];
