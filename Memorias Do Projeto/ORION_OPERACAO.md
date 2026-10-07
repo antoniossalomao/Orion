@@ -165,11 +165,11 @@ aparece na tela. Regra 38 em [ORION_REGRAS.md](ORION_REGRAS.md).
 |---|---|---|
 | O que é | reconhecimento offline restrito a um vocabulário pequeno | modelo `.onnx` treinado só em "orion" |
 | Para ligar | baixar `vosk-model-small-pt-0.3` (31 MB, [alphacephei.com/vosk/models](https://alphacephei.com/vosk/models)) e descompactar | gerar o modelo no Colab oficial ("automatic_model_training", voz sintética) e salvar o `.onnx` |
-| Medido (voz sintética) | 18/20 acertos, 0/60 falsos alarmes; 11/12 e 1/30 num lote feito para confundir; ~7% de um núcleo | **não medido**: a biblioteca não roda onde eu testei |
-| Instalar | `uv sync --extra wake-vosk` | `uv sync --extra wake` (Windows e macOS; no Linux exige Python 3.11) |
+| Medido (voz sintética) | 18/20 acertos, 0/60 falsos alarmes; 11/12 e 1/30 num lote feito para confundir; ~7% de um núcleo | **não medido**: não consegui rodá-lo (meu ambiente de teste é Linux, onde a dependência `tflite-runtime` não instala); no Windows e no macOS deve instalar, mas ninguém testou |
+| Instalar | `uv sync --extra wake-vosk` | `uv sync --extra wake` |
 
 **Passo a passo (Vosk):**
-1. `uv sync --extra wake-vosk` (no Linux, `sudo apt install libportaudio2`; no Windows e no macOS o PortAudio já vem no pacote).
+1. `uv sync --extra wake-vosk` (o PortAudio já vem no pacote do `sounddevice` no Windows e no macOS).
 2. Baixe e descompacte o modelo; anote a pasta.
 3. `uv run orion wake-test --listar` mostra os microfones; no `.env`, `ORION_WAKE_DEVICE=<número ou parte do nome>` se não for o padrão.
 4. Teste sem ligar nada do Orion:
@@ -192,7 +192,7 @@ aparece na tela. Regra 38 em [ORION_REGRAS.md](ORION_REGRAS.md).
 (e registra "recusada" no audit). **Se não ativar:** confira o microfone com `wake-test`, aproxime-se, e tente o limiar menor.
 
 **O que sai do computador:** só **depois** da palavra, a fala seguinte (Groq) e o texto da resposta (Microsoft, `ORION_VOICE_SPEAK=false`
-corta). Tocar a resposta usa `ffplay`/`mpg123`/`mpv` no Linux, `afplay` no macOS e o PowerShell no Windows. Para o notebook ficar
+corta). Tocar a resposta usa o PowerShell no Windows e `afplay` no macOS. Para o notebook ficar
 sempre escutando, junte com `orion autostart`. **Não validado com microfone, sala e voz reais** ([ORION_MELHORIAS.md](ORION_MELHORIAS.md), sétima rodada).
 
 ## 5. Servidores MCP
