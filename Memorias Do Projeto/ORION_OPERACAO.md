@@ -148,9 +148,52 @@ ORION_VOICE_LIVE_API_KEY=...        # vazio: usa a de busca/embeddings (mesmo Go
 - **Ver se está pronta:** o Painel (`#/painel`) mostra a voz por clique e a ao vivo (turnos, sessões, minutos, falhas) e o `/health` traz `components.voice`.
 - O navegador só libera o microfone em `https://` ou `localhost`: pelo Tailscale, use `tailscale serve` (HTTPS) e não o IP.
 - Sem login, sem `Origin` igual ao `Host` ou com a voz desligada, o WebSocket responde com o motivo e fecha.
-- **Palavra de ativação ("Orion") não existe ainda:** precisa de um modelo treinado (openWakeWord) e de captura de áudio no
-  `orion-desktop`. Quando existir, só abre o microfone; confirmar ação continua sendo o botão (regra 2).
+- **Palavra de ativação ("Orion"):** existe desde 07/10, em §4.4. Só abre o microfone; confirmar ação continua sendo o botão (regra 2).
 - Nada disto foi chamado contra Groq, edge-tts ou Gemini Live de verdade ([ORION_MELHORIAS.md](ORION_MELHORIAS.md), sexta rodada).
+
+### 4.4 Palavra de ativação ("Orion", escuta contínua)
+
+Um agente fica **ouvindo o microfone o tempo todo** neste computador. Ele só **detecta** a palavra: enquanto você não diz
+"Orion", o áudio existe apenas no quadro de 80 ms que está sendo analisado (nada vai para o disco, para a rede nem para a
+memória). Quando ouve: bipe, grava o que você diz até o silêncio e manda pela mesma via do botão de microfone (Groq →
+agente → edge-tts), tocando a resposta no alto-falante. **Aprovar nunca é por voz** (regra 2): o Orion avisa e o cartão
+aparece na tela. Regra 38 em [ORION_REGRAS.md](ORION_REGRAS.md).
+
+**Escolha o detector** (nenhum precisa gravar amostras suas):
+
+| | Vosk (começa por aqui) | openWakeWord |
+|---|---|---|
+| O que é | reconhecimento offline restrito a um vocabulário pequeno | modelo `.onnx` treinado só em "orion" |
+| Para ligar | baixar `vosk-model-small-pt-0.3` (31 MB, [alphacephei.com/vosk/models](https://alphacephei.com/vosk/models)) e descompactar | gerar o modelo no Colab oficial ("automatic_model_training", voz sintética) e salvar o `.onnx` |
+| Medido (voz sintética) | 18/20 acertos, 0/60 falsos alarmes; 11/12 e 1/30 num lote feito para confundir; ~7% de um núcleo | **não medido**: a biblioteca não roda onde eu testei |
+| Instalar | `uv sync --extra wake-vosk` | `uv sync --extra wake` (Windows e macOS; no Linux exige Python 3.11) |
+
+**Passo a passo (Vosk):**
+1. `uv sync --extra wake-vosk` (no Linux, `sudo apt install libportaudio2`; no Windows e no macOS o PortAudio já vem no pacote).
+2. Baixe e descompacte o modelo; anote a pasta.
+3. `uv run orion wake-test --listar` mostra os microfones; no `.env`, `ORION_WAKE_DEVICE=<número ou parte do nome>` se não for o padrão.
+4. Teste sem ligar nada do Orion:
+   `ORION_WAKE_ENGINE=vosk ORION_WAKE_MODEL=<pasta> uv run orion wake-test` (mostra o nível do microfone e diz "✔ palavra ouvida").
+5. **Meça com a sua voz:** grave 20 frases com "Orion" e 20 sem (TV, música, conversa), salve como `pos_01.wav`, `neg_01.wav`... (WAV 16 kHz mono) e rode
+   `uv run python scripts/wake_eval.py vosk <pasta-do-modelo> <pasta-dos-wavs>`. Falso alarme custa mais que ativação perdida.
+6. Ligue de verdade no `.env`:
+   ```
+   ORION_VOICE_ENABLED=true            # a escuta usa a via da voz (Groq + edge-tts)
+   ORION_TRANSCRIBE_API_KEY=...        # a chave do Groq
+   ORION_WAKE_ENABLED=true
+   ORION_WAKE_ENGINE=vosk
+   ORION_WAKE_MODEL=C:\caminho\vosk-model-small-pt-0.3
+   ```
+   Com openWakeWord: `ORION_WAKE_ENGINE=openwakeword`, `ORION_WAKE_MODEL=<arquivo>.onnx` e `ORION_WAKE_THRESHOLD` (sobe se ativar sem você falar).
+7. No Painel (`#/painel`) a linha **Palavra de ativação** mostra "ouvindo", quantas ativações houve e, se não subiu, o motivo.
+   O botão **Pausar escuta** (ou `POST /voz/escuta {"ativa": false}`) para o detector sem fechar o Orion.
+
+**Se ativar demais:** suba `ORION_WAKE_THRESHOLD` (openWakeWord) ou diminua `ORION_WAKE_MAX_PER_HOUR`; o teto por hora ignora o excesso
+(e registra "recusada" no audit). **Se não ativar:** confira o microfone com `wake-test`, aproxime-se, e tente o limiar menor.
+
+**O que sai do computador:** só **depois** da palavra, a fala seguinte (Groq) e o texto da resposta (Microsoft, `ORION_VOICE_SPEAK=false`
+corta). Tocar a resposta usa `ffplay`/`mpg123`/`mpv` no Linux, `afplay` no macOS e o PowerShell no Windows. Para o notebook ficar
+sempre escutando, junte com `orion autostart`. **Não validado com microfone, sala e voz reais** ([ORION_MELHORIAS.md](ORION_MELHORIAS.md), sétima rodada).
 
 ## 5. Servidores MCP
 
@@ -199,9 +242,17 @@ servidor, seja por `allow` (o Orion só mostra ao modelo o que está em `allow`)
 não tem nada de envio, exclusão em massa ou "executar script" classificado como `read`/`write`. Servidores
 populares expõem `send_email`: com `allow` ele some do modelo, mas prefira os que nem o registram. Os outros eu **não** testei.
 
-O briefing matinal ainda **não** lê a agenda: ele monta o texto só com lembretes, agendamentos e tarefas do
-Orion (sem modelo, sem conteúdo de terceiros). Ligar a agenda ao briefing exige rodar o agente sem ninguém olhando
-(regra 18), então é uma decisão sua, depois que o servidor estiver funcionando.
+**Agenda no briefing matinal (regra 37).** Com o servidor `google` funcionando e o login feito (passo 4), o briefing pode
+trazer a agenda do dia. Não passa pelo modelo: o job chama a ferramenta `get_events` direto, com o seu e-mail e o dia de hoje.
+```
+ORION_BRIEFING_AT=07:30
+ORION_BRIEFING_CALENDAR_EMAIL=voce@gmail.com
+# ORION_BRIEFING_CALENDAR_TOOL=google__get_events   # padrão; precisa ser "read" no mcp.json
+```
+Só liga se o `mcp.json` classifica a ferramenta como `read` (no exemplo, `get_events` já é). A resposta é limpa (sem links nem IDs),
+limitada a 10 linhas e vai para o aviso diário e para o `/briefing` do Telegram; cada consulta fica no audit como `briefing_agenda`.
+Se o servidor cair ou o login expirar, o briefing sai com "agenda indisponível (motivo)". **Ainda não vi o texto que o `get_events` devolve
+com uma conta real**: se as linhas vierem estranhas na primeira vez, me mande um exemplo que eu ajusto a limpeza.
 
 ## 6. Celular (Telegram)
 

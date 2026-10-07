@@ -24,7 +24,7 @@ venda: [ORION_CORTE.md](Memorias%20Do%20Projeto/ORION_CORTE.md)).
 **Reescrita em andamento (`orion/`):** fundação (fase 1), memória em SQLite com importador completo,
 agendador, backup e consolidação (fase 3), política de ferramentas com audit em banco, gateway, agente e `/chat`
 (fase 2), `orion-desktop` (com visão, mídia e janelas), cliente MCP e painel único (fase 4), login com senha, canal Telegram com voz, foto, `/capturar` (nota no vault), briefing matinal e `/painel` e
-`orion autostart` (fase 5), voz por clique e voz ao vivo no front (fase 6) já existem e têm testes; falta ligar o que só você pode: modelos reais (OmniRoute),
+`orion autostart` (fase 5), voz por clique, voz ao vivo e palavra de ativação "Orion" (escuta local, `orion wake-test`) no front (fase 6) e a agenda do Google no briefing já existem e têm testes; falta ligar o que só você pode: modelos reais (OmniRoute),
 chave de embeddings, servidores MCP de e-mail/agenda/navegador, Tailscale e o bot. O que foi feito, o que não
 foi verificado e os próximos passos: [ORION_MELHORIAS.md](Memorias%20Do%20Projeto/ORION_MELHORIAS.md); como ligar:
 [ORION_OPERACAO.md](Memorias%20Do%20Projeto/ORION_OPERACAO.md).
@@ -279,7 +279,7 @@ Orion_Ollama/                  # backend
   orion_seguranca.py            # rate limit, câmara de eco, audit, self-healing
   orion_browser.py · orion_google_workspace.py · orion_telegram.py · orion_voice_live.py
   bm25_index.py · reconciliar_episodios.py · test_smoke.py
-orion/                         # REESCRITA: policy/ (risco, aprovações, audit), memory/ (SQLite, importador, ops, embeddings, consolidação), channels/ (Telegram: texto, voz, foto), tools/ (memória, operação, orion-desktop, web), auth, mcp_client, netguard, transcribe, gateway, agent, delegate, jobs, migration, autostart, app
+orion/                         # REESCRITA: policy/ (risco, aprovações, audit), memory/ (SQLite, importador, ops, embeddings, consolidação), channels/ (Telegram: texto, voz, foto), tools/ (memória, operação, orion-desktop, web), auth, mcp_client, netguard, transcribe, gateway, agent, delegate, jobs, agenda (briefing), wake (palavra de ativação), voice, migration, autostart, app
 tests/                         # pytest (orion + legado) e Node (front); ver "Testes"
 .github/workflows/ci.yml       # ruff, pyright, pytest, node em Linux/Windows/macOS
 pyproject.toml · uv.lock       # a reescrita usa uv; requirements.txt é só do legado

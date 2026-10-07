@@ -118,6 +118,7 @@ class TelegramChannel:
         self._transcriber = transcriber
         self._capture = capture
         self.painel: Callable[[], str] | None = None  # texto do /painel (o app liga depois)
+        self.agenda: Callable[[float], str | None] | None = None  # agenda do briefing (regra 37)
         self._clock = clock
         self._armados: dict[int, float] = {}  # chat -> até quando o próximo envio vira nota
         self._offset = 0
@@ -327,7 +328,7 @@ class TelegramChannel:
             await self._consumir(chat_id, self.agent.run(CANAL, texto[:LIMITE_ENTRADA]))
 
     def _briefing(self) -> str:
-        return build_briefing(self.ops, self.memory.clock())
+        return build_briefing(self.ops, self.memory.clock(), agenda=self.agenda)
 
     # ── captura rápida (regra 30): comando do Antônio, não ferramenta do modelo ──
     async def _on_capturar(self, chat_id: int, texto: str) -> None:

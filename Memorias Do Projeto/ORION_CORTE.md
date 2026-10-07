@@ -81,4 +81,4 @@ legado desligado mas intacto. Os dois não sobem juntos (a porta 8000 é a mesma
 | Nome(s) antigo(s) do assistente | Os que o `verify-export` listar em "atores que viram system" |
 | Consolidar o histórico importado em fatos | Depois da venda, em lotes (consome a cota gratuita do modelo); por padrão a consolidação ignora o canal `legado` |
 | Onde guardar os backups | Pasta sincronizada do iCloud/OneDrive (`ORION_BACKUP_DIR`) |
-| Agendamento que executa ferramenta sozinho | Não por enquanto: o disparo só avisa (regra 18 do [ORION_REGRAS.md](ORION_REGRAS.md)) |
+| Agendamento que executa ferramenta sozinho | Não por enquanto: o disparo só avisa (regra 18 do [ORION_REGRAS.md](ORION_REGRAS.md)). Única exceção: a leitura da agenda no briefing (regra 37) |

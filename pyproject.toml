@@ -51,6 +51,16 @@ orion = "orion.__main__:main"
 pdf = [
     "reportlab>=5.0.1",
 ]
+# Palavra de ativação "Orion" (ORION_OPERACAO §4.4): microfone + um detector à escolha.
+# Fora do .exe de propósito: é opt-in e o microfone depende do sistema.
+wake = [
+    "sounddevice>=0.5",
+    "openwakeword>=0.6",
+]
+wake-vosk = [
+    "sounddevice>=0.5",
+    "vosk>=0.3.45",
+]
 
 [build-system]
 requires = ["hatchling"]

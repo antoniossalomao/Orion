@@ -103,12 +103,21 @@ test('resumoProvedores: do que mais serviu para o que menos serviu', () => {
 });
 
 test('resumoVoz: desligada sem opt-in ou chave; ligada mostra o uso', () => {
-    assert.deepEqual(P.resumoVoz(null), { clique: 'desligada', aoVivo: 'desligada' });
+    assert.deepEqual(P.resumoVoz(null), { clique: 'desligada', aoVivo: 'desligada', escuta: 'desligada' });
     assert.deepEqual(P.resumoVoz({ clique: { ligada: false }, ao_vivo: { ligada: false } }),
-        { clique: 'desligada', aoVivo: 'desligada' });
+        { clique: 'desligada', aoVivo: 'desligada', escuta: 'desligada' });
     assert.deepEqual(P.resumoVoz({ clique: { ligada: true, fala: true, turnos: 7 }, ao_vivo: { ligada: true, sessoes: 2, ativas: 1, minutos: 12.5 } }),
-        { clique: '7 fala(s), com resposta falada', aoVivo: '2 sessão(ões), 12.5 min · uma aberta agora' });
+        { clique: '7 fala(s), com resposta falada', aoVivo: '2 sessão(ões), 12.5 min · uma aberta agora', escuta: 'desligada' });
+    assert.equal(P.resumoVoz({ escuta: { pedida: true, ouvindo: true, pausada: false, ativacoes: 3 } }).escuta, 'ouvindo · 3 ativação(ões)');
+    assert.equal(P.resumoVoz({ escuta: { pedida: true, ouvindo: true, pausada: true, ativacoes: 0 } }).escuta, 'pausada · 0 ativação(ões)');
+    assert.equal(P.resumoVoz({ escuta: { pedida: true, ouvindo: false, ultimo_erro: 'falta instalar vosk' } }).escuta, 'não subiu: falta instalar vosk');
     assert.equal(P.resumoVoz({ clique: { ligada: true, fala: false, turnos: 0 } }).clique, '0 fala(s), só texto');
+});
+
+test('alertas: escuta pedida que não subiu avisa; pausada de propósito não', () => {
+    assert.ok(P.alertas({ voz: { escuta: { pedida: true, ouvindo: false, ultimo_erro: 'sem modelo' } } }).some(a => a.texto.includes('Palavra de ativação') && a.texto.includes('sem modelo')));
+    assert.ok(!P.alertas({ voz: { escuta: { pedida: true, ouvindo: true, pausada: true } } }).some(a => a.texto.includes('Palavra')));
+    assert.ok(!P.alertas({ voz: { escuta: { pedida: false, ouvindo: false } } }).some(a => a.texto.includes('Palavra')));
 });
 
 test('alertas: falha de voz só avisa se a voz está ligada', () => {

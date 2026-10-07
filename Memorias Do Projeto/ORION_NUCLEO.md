@@ -31,7 +31,10 @@ age no computador dele e responde de qualquer lugar.
    paga (Claude, Gemini, ChatGPT/Codex), estas só pelos programas oficiais. Modelo
    local pequeno só como último recurso. Memória pessoal pode ir para a nuvem como
    contexto. Captura contínua (tela, áudio ambiente, biometria) exige aprovação.
-4. **Hardware-Bound Logic Gates** *(rever — o Orion vai trocar de máquina)*.
+4. **Portabilidade.** Nada no Orion depende de um hardware específico: máquina, sistema, modelos e
+   provedores vêm de configuração, e o Orion roda igual no notebook, no MacBook e no PC. *(Substitui o
+   "Hardware-Bound Logic Gates" da Lyra, que amarrava a lógica à máquina; aprovado pelo Antônio em
+   07/10/2026.)*
 5. **Auto-modificação de código exige aprovação explícita.**
 6. **Ação de alto risco exige confirmação explícita**, inclusive pelo celular.
 
@@ -40,7 +43,7 @@ sem contexto prévio (POO onde fizer sentido); cada fase termina apagando o que
 substituiu.
 
 > **Regras operacionais (02/10/2026):** o que o código impõe de cada princípio — e o teste que o
-> prova — está em [ORION_REGRAS.md](ORION_REGRAS.md). Proposta para o #4 (Hardware-Bound) lá, aguardando seu OK.
+> prova — está em [ORION_REGRAS.md](ORION_REGRAS.md). O #4 virou "Portabilidade" em 07/10/2026.
 
 ## 3. Restrições
 
@@ -203,9 +206,9 @@ a fase 7 não começou.
 | 3 | Framework do agente | PydanticAI | Loop próprio (~200 linhas) — **adotado em 02/10 (alternativa)**, ver registro; reversível |
 | 4 | Ritmo de apagar o legado | Por fase (código antigo à mão para portar) | Tudo agora, consultando o histórico do git |
 | 5 | Interface | **Decidido em 07/10/2026: front só desktop**, sem versão para celular (sem PWA, gaveta, toque nem manifest). Ver [ORION_FRONT.md](ORION_FRONT.md). O celular continua só pelo Telegram, que já existia | ~~Web no celular via Tailscale~~ — descartada |
-| 6 | Voz | Transcrição: Whisper no Groq (grátis); fala: edge-tts `pt-BR-AntonioNeural` (grátis); voz ao vivo: Gemini Live com voz masculina; ativação: openWakeWord treinado em "Orion" | A discutir (fase 6) |
+| 6 | Voz | Transcrição: Whisper no Groq (grátis); fala: edge-tts `pt-BR-AntonioNeural` (grátis); voz ao vivo: Gemini Live com voz masculina; ativação: detector local da palavra "Orion" (openWakeWord com modelo treinado, ou Vosk sem treino; regra 38) | Decidido em 07/10/2026: palavra "Orion", escuta contínua local |
 | 7 | Busca web gratuita | `pesquisar_com_ia` (Gemini com Google Search, mesma chave do Google AI Studio) e `pesquisar_internet` (Brave Search, chave do plano gratuito), mais um servidor MCP de busca em `mcp.json` se quiser; **nenhuma validada contra a API real** (cotas mudam) | — |
-| 8 | Ring 0 §4 (Hardware-Bound) | Rever — conflita com trocar de máquina | — |
+| 8 | Ring 0 §4 (Hardware-Bound) | **Decidido em 07/10/2026: "Portabilidade"** (nada depende de hardware específico) | ~~Manter Hardware-Bound~~ — conflitava com trocar de máquina |
 
 ## 8. Registro de decisões
 

@@ -199,6 +199,11 @@ def texto_do_painel(p: dict[str, Any]) -> str:
         f"💾 Memória: {'ok' if p['memoria']['ok'] else 'ERRO'}"
     )
     v = p.get("voz")
+    if v and v.get("escuta", {}).get("pedida"):
+        e = v["escuta"]
+        estado = "não subiu" if not e["ouvindo"] else ("pausada" if e["pausada"] else "ouvindo")
+        motivo = f" ({e['ultimo_erro']})" if e["ultimo_erro"] else ""
+        linhas.append(f"🎧 Palavra de ativação: {estado}, {e['ativacoes']} ativação(ões){motivo}")
     if v and (v["clique"]["ligada"] or v["ao_vivo"]["ligada"]):
         partes = []
         if v["clique"]["ligada"]:

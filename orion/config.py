@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
 from platformdirs import user_data_dir
 from pydantic import Field, field_validator, model_validator
@@ -84,6 +84,22 @@ class Settings(BaseSettings):
     voice_enabled: bool = False
     voice_speak: bool = True  # false: só transcreve e responde em texto, sem sintetizar a fala
     voice_tts_voice: str = "pt-BR-AntonioNeural"
+    # Palavra de ativação "Orion" (regra 38): escuta o microfone o tempo todo, com a detecção SÓ
+    # neste computador. Depois da palavra, a fala vai pela via do botão de microfone (Groq,
+    # edge-tts), por isso exige `voice_enabled`. Desligada: é captura contínua de áudio.
+    wake_enabled: bool = False
+    wake_engine: Literal["openwakeword", "vosk"] = "openwakeword"
+    # openwakeword: arquivo .onnx do modelo "orion"; vosk: pasta do modelo baixado por você
+    wake_model: Path | None = None
+    wake_words: Annotated[list[str], NoDecode] = Field(  # vosk: o modelo escreve "órion" e "orion"
+        default_factory=lambda: ["orion", "órion"]
+    )
+    wake_threshold: float = Field(default=0.5, gt=0.0, lt=1.0)  # openwakeword
+    wake_device: str = ""  # microfone: número ou parte do nome (vazio: o padrão do sistema)
+    wake_beep: bool = True  # tom curto quando a palavra é ouvida
+    wake_silence_s: float = Field(default=1.0, ge=0.3, le=5.0)  # silêncio que encerra a fala
+    wake_max_s: float = Field(default=15.0, ge=3.0, le=60.0)  # teto de uma fala
+    wake_max_per_hour: int = Field(default=30, ge=1, le=600)  # acima disso a palavra é ignorada
     # B: voz ao vivo (Gemini Live). O áudio do microfone vai para o Google; o modelo só conversa
     # (sem ferramentas nem memória). Desligada. Chave: a daqui ou a de busca/embeddings.
     voice_live_enabled: bool = False
@@ -99,6 +115,10 @@ class Settings(BaseSettings):
     vault_dir: Path | None = None  # vault do Obsidian a indexar na memória (vazio: não indexa)
     capture_folder: str = "00 Inbox"  # /capturar (Telegram) grava aqui, dentro do vault
     briefing_at: str = ""  # HH:MM: aviso diário com lembretes, agendamentos e tarefas (vazio: não)
+    # Agenda no briefing (regra 37): consulta de LEITURA direta ao servidor MCP, sem modelo e sem
+    # ninguém olhando. Liga com o e-mail da conta; a ferramenta precisa ser `read` no mcp.json.
+    briefing_calendar_email: str = ""
+    briefing_calendar_tool: str = "google__get_events"
     consolidate: bool = True  # fatos a partir das conversas (precisa do gateway)
     # Embeddings por API gratuita (Gemini). Sem chave, a busca é só por palavra-chave.
     embed_api_key: str = ""  # ou no cofre do SO (ORION_EMBED_API_KEY)
@@ -127,7 +147,19 @@ class Settings(BaseSettings):
             )
         return v
 
-    @field_validator("backup_dir", "vault_dir", "mcp_config", mode="before")
+    @field_validator("wake_words", mode="before")
+    @classmethod
+    def _palavras_de_ativacao(cls, v: object) -> object:
+        if isinstance(v, str):
+            v = v.strip()
+            return (
+                json.loads(v)
+                if v.startswith("[")
+                else [x.strip() for x in v.split(",") if x.strip()]
+            )
+        return v
+
+    @field_validator("backup_dir", "vault_dir", "mcp_config", "wake_model", mode="before")
     @classmethod
     def _vazio_e_nao_definido(cls, v: object) -> object:
         """`ORION_VAULT_DIR=` (vazio) viraria `Path('.')`: indexaria/gravaria na pasta atual."""
