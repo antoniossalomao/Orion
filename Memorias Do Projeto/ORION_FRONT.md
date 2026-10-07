@@ -110,7 +110,7 @@ quando um endpoint não existe. Transporte do chat: no pywebview, API + hub WS (
 | Céu fora da home | ≤ 22 quadros/s | `test_ceu_fora_*` |
 | Segurança | `<script>`, `onerror`, `javascript:` e imagem externa em texto do modelo: nada executa, nada sai do app; CSP com o hash do único script inline (teste falha se o script mudar sem atualizar o hash) | `test_markdown_malicioso_*`, `test_csp_*` |
 | Desktop | Caminho `process_command` + hub com shim (eco sem duplicar, ferramenta, modelo, fala vinda do microfone, link por `open_external`, controles da janela) | `test_desktop_*` |
-| Lógica pura | 95 testes em Node (md, sse, store, util, fuzzy, charts, slash, painel) | `tests/front/` |
+| Lógica pura | 99 testes em Node (md, sse, store, util, fuzzy, charts, slash, painel) | `tests/front/` |
 | Ponte e servidor | `ponte.py` (relay de eventos, URL externa, cabeçalho, geração de comandos) e `/ui/` do `orion.app` (sem `.py`, sem `__pycache__`) | `tests/legacy/test_ponte.py`, `tests/test_app_ui.py` |
 
 Peso: ~1,1 MB no primeiro carregamento (three.js 600 KB, Inter 48 KB, CSS 80 KB, JS ~200 KB);

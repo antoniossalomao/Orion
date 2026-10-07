@@ -46,8 +46,7 @@ foi verificado e os próximos passos: [ORION_MELHORIAS.md](Memorias%20Do%20Proje
 ## Para onde vai
 
 ```
-Celular ── Telegram ─────────────┐
-Celular ── web (Tailscale) ──────┤
+Celular ── Telegram ─────────────┤
 Notebook ── web / casca desktop ─┤
                                  ▼
                      Orion (Python, FastAPI, 1 processo)
@@ -67,8 +66,8 @@ Notebook ── web / casca desktop ─┤
 - **Leve e multiplataforma:** um processo, memória num único arquivo, sem GPU,
   Docker ou servidores pesados. Roda num notebook Windows de 8GB agora e num
   MacBook M2 depois.
-- **Celular primeiro:** Telegram e web pela rede privada do Tailscale, sem expor
-  portas.
+- **Desktop primeiro:** a interface é só para desktop (decisão de 07/10/2026: sem
+  versão para celular). No celular o canal é o Telegram, sem expor portas.
 - **Ações sob controle:** ação destrutiva só roda com confirmação explícita,
   inclusive pelo celular.
 

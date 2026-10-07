@@ -67,6 +67,9 @@ class ToolRule(BaseModel):
     read_path_arg: str | None = None  # argumento com caminho que a ferramenta LÊ
     cmd_arg: str | None = None  # argumento com comando de shell
     external: bool | None = None  # ausente: herda `external` do servidor
+    # o modelo escolhe o destino na rede (buscar uma URL, navegar): depois de ler conteúdo externo,
+    # a sessão confirma antes de cada uso (canal de exfiltração por GET)
+    egress: bool = False
 
 
 class ServerConfig(BaseModel):
@@ -164,6 +167,7 @@ def spec_for(servidor: str, cfg: ServerConfig, ferramenta: str) -> ToolSpec:
         path_arg=regra.path_arg,
         read_path_arg=regra.read_path_arg,
         external=cfg.external if regra.external is None else regra.external,
+        egress=regra.egress,
     )
 
 

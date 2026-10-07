@@ -9,16 +9,17 @@
 
 | Situação | Qtd | O que significa |
 |---|---|---|
-| portada | 37 | Já existe em `orion/` com teste (nomes e argumentos do legado; ids agora inteiros) |
+| portada | 39 | Já existe em `orion/` com teste (nomes e argumentos do legado; ids agora inteiros) |
 | substituida | 2 | O objetivo continua, por outro caminho (CLI delegada, backup diário) |
-| a-portar | 8 | Falta: depende de **você** configurar um servidor MCP (e-mail, agenda, navegador, busca) ou de uma API gratuita de imagem (`gerar_imagem`) |
+| a-portar | 6 | Falta: depende de **você** configurar um servidor MCP (e-mail, agenda, navegador) |
 | descartar | 8 | Proposta de apagar: o agente ou o modelo já fazem, ou dependia de peça que saiu |
 
 O `orion-desktop` (opt-in `ORION_DESKTOP_TOOLS=true`) tem hoje: `executar_comando`, `ler_arquivo`,
 `listar_arquivos`, `escrever_arquivo`, `organizar_pasta`, documentos, área de transferência,
 notificação local, abrir app, Git somente-leitura, saúde do sistema, processos em segundo plano e
-vigilância de pastas (e, com a chave de transcrição, `transcrever_audio`). As de web (`buscar_url`, `consultar_clima`, `pesquisar_com_ia`) são outro
-opt-in (`ORION_WEB_TOOLS=true`) por causa do canal de exfiltração por URL (ver `orion/tools/web.py`).
+vigilância de pastas (e, com a chave de transcrição, `transcrever_audio`). As de web (`buscar_url`, `consultar_clima`, `pesquisar_com_ia`, `pesquisar_internet`, `gerar_imagem`)
+são outro opt-in (`ORION_WEB_TOOLS=true`) por causa do canal de exfiltração por URL (ver `orion/tools/web.py`):
+numa sessão que já leu conteúdo externo, `buscar_url` e `navegar_web` (ferramentas de *egress*) pedem o seu aval a cada uso.
 
 **Servidores MCP** (`orion/mcp_client.py`, exemplo em `mcp.example.json`, conferir com
 `uv run orion mcp-check`): é por onde entram e-mail, agenda, navegador e busca. A classe de risco de
@@ -72,12 +73,12 @@ Mídia e janelas (`controlar_midia`, `controlar_janela`) e visão (`capturar_tel
 | `analisar_imagem` | `vision.py` | read (externo) | portada | orion.tools.vision (opt-in `ORION_VISION_TOOLS`): manda o arquivo ao modelo do gateway (`orion.vision`); segredo confirma; a descrição é externa. **Só funciona se o modelo aceitar imagem; não validado contra um modelo real** | 4 |
 | `capturar_tela` | `vision.py` | write | portada | orion.tools.vision (opt-in): comando nativo (`screencapture`, PowerShell, `grim`/`scrot`/`import`), grava em `<dados>/capturas` (guarda as últimas 20); **virou escrita com log**; não há captura contínua | 4 |
 | `explicar_tela` | `vision.py` | exec (externo) | portada | orion.tools.vision (opt-in): captura e envia a tela inteira ao modelo; **virou execução: confirma sempre**; a captura é apagada depois | 4 |
-| `gerar_imagem` | `vision.py` | write | a-portar | API gratuita de imagem; depende de cota (decisão #7) | 6 |
+| `gerar_imagem` | `vision.py` | write | portada | orion.tools.web (opt-in `ORION_WEB_TOOLS`): Gemini (`ORION_IMAGE_MODEL`), grava em `<dados>/imagens` com nome gerado, servida em `/imagens/<arquivo>` só com login; limite de 5 por 10 min para proteger a cota. **Não validado contra a API real** (decisão #7) | 6 |
 | `buscar_url` | `web.py` | read (externo) | portada | orion.tools.web (opt-in `ORION_WEB_TOOLS`) + `orion.netguard` (regra 7: IP conferido é o IP usado) | 4 |
 | `consultar_clima` | `web.py` | read | portada | orion.tools.web (opt-in); Open-Meteo, sem chave (o wttr.in do legado saiu) | 4 |
 | `navegar_web` | `web.py` | exec (externo) | a-portar | servidor MCP de navegador (Playwright) em `mcp.json`, `external: true`; o cliente MCP já existe (`orion mcp-check`) | 4 |
 | `pesquisar_com_ia` | `web.py` | read (externo) | portada | orion.tools.web (opt-in); Gemini com Google Search; **não validado contra a API real** (decisão #7) | 4 |
-| `pesquisar_internet` | `web.py` | read (externo) | a-portar | sem API de busca gratuita estável: `pesquisar_com_ia` cobre; ou um servidor MCP de busca em `mcp.json` (decisão #7) | 4 |
+| `pesquisar_internet` | `web.py` | read (externo) | portada | orion.tools.web (opt-in): Brave Search (`ORION_BRAVE_API_KEY`); título, endereço e resumo, com HTML removido. **Não validado contra a API real**; `pesquisar_com_ia` continua sem essa chave (decisão #7) | 4 |
 | `analisar_clipboard_com_ia` | `clipboard.py` | read (externo) | descartar | `ler_clipboard` + o modelo | — |
 | `resumir_documento` | `documents.py` | read (externo) | descartar | `ler_documento` + o modelo; sem ferramenta própria | — |
 | `traduzir_texto` | `documents.py` | read | descartar | o modelo traduz direto (era o modelo local) | — |

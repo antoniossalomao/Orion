@@ -63,6 +63,7 @@ def test_situacao_portada_so_para_o_que_o_registro_realmente_tem(linhas, tmp_pat
                 transcriber=Transcriber("chave-de-teste"),
                 vision=Vision([Endpoint("gw", "http://127.0.0.1:1/v1", "m")]),
                 captures_dir=tmp_path / "capturas",
+                web_options={"image_dir": tmp_path / "imagens"},
             ).names()
         )
     finally:

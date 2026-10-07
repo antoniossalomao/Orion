@@ -132,6 +132,7 @@ def painel(m, **kw):
 def test_painel_vazio_tem_todas_as_secoes_e_nenhum_dado_inventado(mundo):
     p = painel(mundo).montar()
     assert p["uptime_s"] == 7200 and p["modelos"] == {"configurado": False, "endpoints": []}
+    assert p["roteamento"] == {"ativo": False, "contagem": {}}
     assert p["clis"] == [] and p["aprovacoes"] == {"pendentes": 0, "itens": []}
     assert p["decisoes"]["total"] == 0 and p["decisoes"]["por_acao"] == {
         "allow": 0,
@@ -190,7 +191,12 @@ async def test_painel_junta_gateway_clis_jobs_e_mcp(mundo, tmp_path):
 
     gw = gateway(handler, "a", "b")
     await coletar(gw)
-    agente = SimpleNamespace(gateway=gw, tools=SimpleNamespace(names=lambda: ["x", "y", "z"]))
+    agente = SimpleNamespace(
+        gateway=gw,
+        tools=SimpleNamespace(names=lambda: ["x", "y", "z"]),
+        routing=True,
+        rotas={"rapido": 5, "pesado": 2},
+    )
     jobs = JobRunner(mundo.store, mundo.ops, clock=lambda: mundo.agora)
     await jobs.tick()
     mcp = SimpleNamespace(status={"google": "ok (6 ferramentas)", "web": "falhou: x"})
@@ -220,6 +226,7 @@ async def test_painel_junta_gateway_clis_jobs_e_mcp(mundo, tmp_path):
         and p["jobs"]["erros"] == []
     )
     assert p["canais"] == {"telegram": True} and p["mcp"]["google"].startswith("ok")
+    assert p["roteamento"] == {"ativo": True, "contagem": {"rapido": 5, "pesado": 2}}
 
 
 def test_gateway_falso_sem_stats_nao_derruba_o_painel(mundo):
@@ -236,6 +243,12 @@ def test_texto_do_painel_mostra_quarentena_cota_aprovacao_e_erro_de_job(mundo):
              "pulos": 1, "quarentena_s": 120, "ultimo_ok": 1.0, "ultimo_erro": "HTTP 429"},
         ],
     }  # fmt: skip
+    p["modelos"]["endpoints"].append(
+        {"nome": "pesado", "modelo": "forte", "camada": "pesado", "chamadas": 1, "ok": 1,
+         "falhas": 0, "limitada": 0, "pulos": 0, "quarentena_s": 0, "ultimo_ok": 2.0,
+         "ultimo_erro": None},
+    )  # fmt: skip
+    p["roteamento"] = {"ativo": True, "contagem": {"rapido": 7, "pesado": 2}}
     p["clis"] = [
         {
             "nome": "claude",
@@ -263,6 +276,8 @@ def test_texto_do_painel_mostra_quarentena_cota_aprovacao_e_erro_de_job(mundo):
     t = texto_do_painel(p)
     assert "no ar há 2 h" in t
     assert "omni (m1): 3 ok, 2 falha(s), 2× cota · ⛔ quarentena 2 min · último erro: HTTP 429" in t
+    assert "pesado (forte, camada pesado): 1 ok, 0 falha(s) · ok" in t
+    assert "roteamento: 7 rápidas, 2 pesadas, 0 com imagem" in t
     assert "claude: 4/20 usadas" in t and "gemini: não instalada" in t
     assert "Aprovações pendentes: 1" in t and "abrir_app (expira em 9 min)" in t
     assert "Jobs: com erro — backup: disco cheio" in t and "google ok (6 ferramentas)" in t
@@ -300,3 +315,67 @@ def test_painel_http_com_gateway_mostra_os_endpoints(tmp_path):
         p = c.get("/painel", headers=AUTH).json()
     assert p["modelos"]["configurado"] and p["modelos"]["endpoints"][0]["nome"] == "omni"
     assert "chave" not in json.dumps(p)
+
+
+# ── provedores que o OmniRoute diz ter servido ────────────────────────────────
+async def test_gateway_anota_o_provedor_dos_cabecalhos_do_omniroute():
+    def h(req):
+        modelo = json.loads(req.content)["model"]
+        cab = {
+            "modelo-a": {"x-omniroute-provider": "gemini", "x-omniroute-fallback-attempts": "1"},
+            "modelo-b": {"x-omniroute-decision": "strategy=auto; provider=groq; latency_ms=420"},
+        }.get(modelo, {})
+        r = resposta(sse(texto("ok", "stop"), "[DONE]"))
+        r.headers.update(cab)
+        return r
+
+    gw = gateway(h, "a")
+    await coletar(gw)
+    await coletar(gw)
+    st = gw.stats()[0]
+    assert st["provedores"] == {"gemini": 2} and st["trocas_do_gateway"] == 2
+    gw2 = gateway(h, "b")  # só o cabeçalho de decisão (e sem tentativas de fallback)
+    await coletar(gw2)
+    assert gw2.stats()[0]["provedores"] == {"groq": 1} and gw2.stats()[0]["trocas_do_gateway"] == 0
+
+
+async def test_cabecalho_estranho_ou_ausente_nao_quebra_nem_enche_a_memoria():
+    n = {"i": 0}
+
+    def h(req):
+        n["i"] += 1
+        r = resposta(sse(texto("ok", "stop"), "[DONE]"))
+        r.headers["x-omniroute-provider"] = (
+            f"p{n['i']}" if n["i"] <= 30 else "<script>alert(1)</script>"
+        )
+        r.headers["x-omniroute-fallback-attempts"] = "abc"
+        return r
+
+    gw = gateway(h, "a")
+    for _ in range(35):
+        await coletar(gw)
+    st = gw.stats()[0]
+    assert st["trocas_do_gateway"] == 0 and len(gw._stats["a"].provedores) == 20  # teto de chaves
+    assert len(st["provedores"]) == 6 and "<" not in json.dumps(st)  # o painel mostra o topo
+
+    def sem(req):
+        return resposta(sse(texto("ok", "stop"), "[DONE]"))
+
+    gw3 = gateway(sem, "a")
+    await coletar(gw3)
+    assert gw3.stats()[0]["provedores"] == {}  # outro gateway: sem cabeçalho, sem nada
+
+
+def test_texto_do_painel_diz_quem_serviu():
+    p = Painel(started_at=0, memory=None, ops=None, policy=None)  # type: ignore[arg-type]
+    base = {
+        "uptime_s": 5, "clis": [], "aprovacoes": {"pendentes": 0, "itens": []},
+        "decisoes": {"janela_h": 24, "total": 0, "por_acao": {"allow": 0, "confirm": 0, "deny": 0}, "mais_usadas": []},
+        "jobs": {"ativo": False, "erros": []}, "avisos": {"pendentes": 0}, "ferramentas": 0,
+        "memoria": {"ok": True}, "mcp": {},
+        "modelos": {"configurado": True, "endpoints": [{
+            "nome": "omni", "modelo": "m", "chamadas": 9, "ok": 9, "falhas": 0, "limitada": 0,
+            "pulos": 0, "quarentena_s": 0, "ultimo_ok": 1.0, "ultimo_erro": None,
+            "provedores": {"gemini": 7, "groq": 2}}]},
+    }  # fmt: skip
+    assert p is not None and "serviu: gemini ×7, groq ×2" in texto_do_painel(base)

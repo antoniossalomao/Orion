@@ -86,3 +86,18 @@ test('resumoDecisoes e rótulos de ação', () => {
     assert.deepEqual(['allow', 'confirm', 'deny', 'x', null].map(P.rotuloAcao), ['Liberada', 'Pediu aval', 'Negada', 'x', '—']);
     assert.deepEqual(['allow', 'confirm', 'deny', 'x'].map(P.tomAcao), ['ok', 'warn', 'danger', 'muted']);
 });
+
+test('resumoRoteamento: só aparece com o roteamento ligado', () => {
+    assert.equal(P.resumoRoteamento({ ativo: true, contagem: { rapido: 12, pesado: 3, visao: 1 } }),
+        '12 rápidas · 3 pesadas · 1 com imagem');
+    assert.equal(P.resumoRoteamento({ ativo: true }), '0 rápidas · 0 pesadas · 0 com imagem');
+    assert.equal(P.resumoRoteamento({ ativo: false, contagem: { rapido: 9 } }), null);
+    assert.equal(P.resumoRoteamento(undefined), null);
+});
+
+test('resumoProvedores: do que mais serviu para o que menos serviu', () => {
+    assert.equal(P.resumoProvedores({ groq: 8, gemini: 30, vazio: 0 }), 'gemini ×30 · groq ×8');
+    assert.equal(P.resumoProvedores({}), '');
+    assert.equal(P.resumoProvedores(null), '');
+    assert.equal(P.resumoProvedores({ x: 'lixo' }), '');
+});

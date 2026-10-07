@@ -281,3 +281,12 @@ def test_app_com_mcp_json_invalido_sobe_sem_mcp(tmp_path, caplog):
     ) as c:
         assert c.app.state.orion.mcp is None
     assert "MCP desligado" in caplog.text
+
+
+def test_egress_vem_do_mcp_json_e_o_exemplo_marca_o_fetch():
+    exemplo = Path(__file__).resolve().parents[2] / "mcp.example.json"
+    c = load_config(exemplo)
+    assert c.servers["web"].tools["fetch"].egress is True
+    assert spec_for("web", c.servers["web"], "fetch").egress is True
+    assert spec_for("web", c.servers["web"], "outra").egress is False
+    assert cfg(tools={"x": ToolRule(egress=True)}).tools["x"].egress is True

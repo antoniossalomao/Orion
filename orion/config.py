@@ -39,6 +39,11 @@ class Settings(BaseSettings):
     # Gateway de modelos (OmniRoute local ou qualquer API compatível com a da OpenAI).
     gateway_url: str = ""  # ex.: http://127.0.0.1:20128/v1 — vazio: /chat desligado
     gateway_model: str = ""
+    # Roteamento por tipo de tarefa (orion/router.py): modelo para conversa curta e para trabalho
+    # pesado, no mesmo gateway. Vazios: tudo vai no `gateway_model`. A camada de imagem usa
+    # `vision_model`. No OmniRoute, o "modelo" pode ser um combo seu (ex.: "rapido", "forte").
+    gateway_model_fast: str = ""
+    gateway_model_heavy: str = ""
     gateway_api_key: str = ""  # ou no cofre do SO (orion.secrets)
     allowed_hosts: list[str] = Field(
         default_factory=lambda: ["127.0.0.1", "localhost"]
@@ -56,6 +61,13 @@ class Settings(BaseSettings):
     weather_city: str = "Marília"  # cidade quando o pedido não diz qual
     search_api_key: str = ""  # Gemini com Google Search; sem ela vale a chave de embeddings
     search_model: str = "gemini-2.5-flash"
+    brave_api_key: str = (
+        ""  # `pesquisar_internet` (Brave Search); ou no cofre (ORION_BRAVE_API_KEY)
+    )
+    # `gerar_imagem`: modelo de imagem do Gemini. Chave: a daqui, ou a de busca/embeddings (mesmo
+    # Google AI Studio). A imagem fica em <dados>/imagens e só é servida com login.
+    image_model: str = "gemini-2.5-flash-image"
+    image_api_key: str = ""
     # Canal Telegram (fase 5): sobe se houver token; sem lista de usuários não sobe (default-deny).
     telegram_token: str = ""  # ou no cofre do SO (ORION_TELEGRAM_TOKEN)
     # IDs numéricos do Telegram, separados por vírgula ("123,456") ou lista JSON ("[123]")

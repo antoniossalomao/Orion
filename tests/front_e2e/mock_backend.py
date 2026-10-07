@@ -545,6 +545,7 @@ def create_app() -> FastAPI:
                     {
                         "nome": "omniroute",
                         "modelo": "gemini-2.5-flash",
+                        "camada": "padrão",
                         "chamadas": 40,
                         "ok": 38,
                         "falhas": 2,
@@ -553,10 +554,13 @@ def create_app() -> FastAPI:
                         "quarentena_s": 0,
                         "ultimo_ok": agora - 90,
                         "ultimo_erro": "HTTP 502",
+                        "provedores": {"gemini": 30, "groq": 8},
+                        "trocas_do_gateway": 1,
                     },
                     {
                         "nome": "reserva",
                         "modelo": "llama-3.3-70b",
+                        "camada": "pesado",
                         "chamadas": 6,
                         "ok": 3,
                         "falhas": 3,
@@ -568,6 +572,7 @@ def create_app() -> FastAPI:
                     },
                 ],
             },
+            "roteamento": {"ativo": True, "contagem": {"rapido": 12, "pesado": 3, "visao": 1}},
             "clis": [
                 {
                     "nome": "claude",

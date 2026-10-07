@@ -939,9 +939,15 @@ def test_painel_mostra_alertas_modelos_clis_aprovacoes_e_politica(abrir):
     ok = corpo.locator('[data-endpoint="omniroute"]')
     expect(ok).to_contain_text("Funcionando")
     expect(ok).to_contain_text("último erro: HTTP 502")
+    expect(ok.locator(".painel-provedores")).to_have_text("Serviu: gemini ×30 · groq ×8")
     reserva = corpo.locator('[data-endpoint="reserva"]')
     expect(reserva).to_contain_text("Em quarentena · volta em 2 min")
     expect(reserva).to_contain_text("3× cota")
+    expect(reserva).to_contain_text("llama-3.3-70b · pesado")
+    expect(ok).not_to_contain_text("padrão")  # a camada padrão não aparece
+    expect(corpo.locator("[data-roteamento]")).to_have_text(
+        "Roteamento por tipo de tarefa: 12 rápidas · 3 pesadas · 1 com imagem"
+    )
     # CLIs: uso, esgotada e não instalada
     expect(corpo.locator('[data-cli="claude"] .meter-val')).to_have_text("4/20")
     expect(corpo.locator('[data-cli="claude"]')).to_have_attribute("data-sev", "normal")

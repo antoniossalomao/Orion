@@ -86,10 +86,23 @@
             + `${plural(num(ac.confirm), 'pediu aval', 'pediram aval')}, ${plural(num(ac.deny), 'negada', 'negadas')}.`;
     }
 
+    /** {gemini: 30, groq: 8} → "gemini ×30 · groq ×8" (quem o OmniRoute diz que serviu); '' se vazio */
+    function resumoProvedores(p) {
+        return Object.entries(p || {}).filter(([, n]) => num(n) > 0).sort((a, b) => num(b[1]) - num(a[1]))
+            .map(([nome, n]) => `${nome} ×${num(n)}`).join(' · ');
+    }
+
+    /** "12 rápidas · 3 pesadas · 1 com imagem" (ou null se o roteamento está desligado) */
+    function resumoRoteamento(r) {
+        if (!r?.ativo) return null;
+        const c = r.contagem || {};
+        return `${num(c.rapido)} rápidas · ${num(c.pesado)} pesadas · ${num(c.visao)} com imagem`;
+    }
+
     const ROTULO_ACAO = { allow: 'Liberada', confirm: 'Pediu aval', deny: 'Negada' };
     const TOM_ACAO = { allow: 'ok', confirm: 'warn', deny: 'danger' };
     const rotuloAcao = a => ROTULO_ACAO[a] || String(a || '—');
     const tomAcao = a => TOM_ACAO[a] || 'muted';
 
-    return { duracao, estadoModelo, usoCli, alertas, resumoDecisoes, rotuloAcao, tomAcao };
+    return { duracao, estadoModelo, usoCli, alertas, resumoDecisoes, resumoRoteamento, resumoProvedores, rotuloAcao, tomAcao };
 });

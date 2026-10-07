@@ -33,20 +33,24 @@
             el('span', { html: icone('alert') }), el('div', {}, el('strong', { text: x.nivel === 'danger' ? 'Atenção: ' : 'Aviso: ' }), x.texto))));
     }
 
-    function modelosEl(m) {
+    function modelosEl(m, roteamento) {
         if (!m?.configurado) return vazio('O gateway de modelos não está configurado: o chat fica desligado.');
         if (!m.endpoints?.length) return vazio('Sem números de uso neste gateway.');
-        return el('ul', { class: 'painel-lista' }, ...m.endpoints.map(e => {
+        const rot = L.resumoRoteamento(roteamento);
+        return el('div', {}, el('ul', { class: 'painel-lista' }, ...m.endpoints.map(e => {
             const s = L.estadoModelo(e);
             const detalhe = `${e.ok} ok · ${e.falhas} falha(s)${e.limitada ? ` · ${e.limitada}× cota` : ''}`
                 + (e.ultimo_erro ? ` · último erro: ${e.ultimo_erro}` : '') + (e.ultimo_ok ? ` · última resposta ${tempo(e.ultimo_ok)}` : '');
+            const servidos = L.resumoProvedores(e.provedores);
             return el('li', { class: 'painel-item', dataset: { endpoint: e.nome, estado: s.estado } },
                 el('div', { class: 'painel-item-top' },
                     el('span', { class: 'status-dot', dataset: { state: s.estado === 'idle' ? '' : s.estado }, 'aria-hidden': 'true' }),
-                    el('strong', { text: e.nome }), el('span', { class: 'mono painel-modelo', text: e.modelo }),
+                    el('strong', { text: e.nome }),
+                    el('span', { class: 'mono painel-modelo', text: e.camada && e.camada !== 'padrão' ? `${e.modelo} · ${e.camada}` : e.modelo }),
                     el('span', { class: `badge badge-${s.estado === 'idle' ? 'muted' : s.estado}`, text: s.rotulo })),
-                el('small', { text: detalhe }));
-        }));
+                el('small', { text: detalhe }),
+                servidos ? el('small', { class: 'painel-provedores', text: `Serviu: ${servidos}` }) : null);
+        })), rot ? el('p', { class: 'painel-top', 'data-roteamento': '' }, `Roteamento por tipo de tarefa: ${rot}`) : null);
     }
 
     function clisEl(clis) {
@@ -112,7 +116,7 @@
         raiz.replaceChildren(
             alertasEl(a),
             el('div', { class: 'grid grid-2 painel-grade' },
-                cartao('modelos', 'Modelos', 'desde que o Orion subiu; não é a cota do provedor', modelosEl(dados.modelos)),
+                cartao('modelos', 'Modelos', 'desde que o Orion subiu; não é a cota do provedor', modelosEl(dados.modelos, dados.roteamento)),
                 cartao('clis', 'CLIs oficiais', 'uso de hoje', clisEl(dados.clis)),
                 cartao('aprovacoes', 'Aprovações', `${dados.aprovacoes?.pendentes ?? 0} pendente(s)`, aprovacoesEl(dados.aprovacoes)),
                 cartao('decisoes', 'Política', `últimas ${dados.decisoes?.janela_h ?? 24} h`, decisoesEl(dados.decisoes)),

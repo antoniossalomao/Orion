@@ -7,6 +7,7 @@ import contextlib
 import hmac
 import json
 import logging
+import re
 import shutil
 import time
 import uuid
@@ -17,7 +18,7 @@ from typing import Annotated, Any
 from urllib.parse import urlparse
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -108,6 +109,8 @@ def get_state(request: Request) -> AppState:
 State = Annotated[AppState, Depends(get_state)]
 
 
+_NOME_IMAGEM = re.compile(r"^img-\d{9,12}-[0-9a-f]{8}\.(png|jpg|webp)$")
+_TIPO_IMAGEM = {"png": "image/png", "jpg": "image/jpeg", "webp": "image/webp"}
 COOKIE_SESSAO = "orion_session"
 _METODOS_SEGUROS = {"GET", "HEAD", "OPTIONS"}
 
@@ -163,7 +166,24 @@ def gateway_from_settings(settings: Settings) -> ChatGateway | None:
     if not (settings.gateway_url and settings.gateway_model):
         return None
     chave = settings.gateway_api_key or get_secret("ORION_GATEWAY_API_KEY")
-    return ChatGateway([Endpoint("gateway", settings.gateway_url, settings.gateway_model, chave)])
+    url = settings.gateway_url
+    endpoints = [Endpoint("gateway", url, settings.gateway_model, chave)]
+    # camadas do roteamento: só entram as que têm modelo próprio; o "gateway" fica de reserva
+    for camada, modelo, espera in (
+        ("rapido", settings.gateway_model_fast, 60.0),
+        ("pesado", settings.gateway_model_heavy, 120.0),
+        ("visao", settings.vision_model, 90.0),
+    ):
+        if modelo and modelo != settings.gateway_model:
+            endpoints.append(Endpoint(camada, url, modelo, chave, timeout_s=espera, tier=camada))
+    return ChatGateway(endpoints)
+
+
+def roteamento_ligado(settings: Settings) -> bool:
+    """O roteamento só liga se alguma camada tem modelo próprio (senão não há o que escolher)."""
+    return bool(
+        settings.gateway_model_fast or settings.gateway_model_heavy or settings.vision_model
+    )
 
 
 def telegram_from_settings(
@@ -376,12 +396,26 @@ def create_app(
                         ),
                         "search_model": settings.search_model,
                         "cidade_padrao": settings.weather_city,
+                        "brave_key": lambda: (
+                            settings.brave_api_key or get_secret("ORION_BRAVE_API_KEY")
+                        ),
+                        "image_key": lambda: (
+                            settings.image_api_key
+                            or settings.search_api_key
+                            or settings.embed_api_key
+                            or get_secret("ORION_IMAGE_API_KEY")
+                            or get_secret("ORION_SEARCH_API_KEY")
+                            or get_secret("ORION_EMBED_API_KEY")
+                        ),
+                        "image_model": settings.image_model,
+                        "image_dir": settings.data_dir / "imagens",
                     },
                     extra=mcp_tools,
                 ),
                 policy=policy,
                 memory=memory,
                 ops=ops,
+                routing=roteamento_ligado(settings),
             )
         jobs, tarefa_jobs = None, None
         if settings.jobs_enabled:
@@ -615,6 +649,24 @@ def create_app(
         except ValueError as e:
             raise HTTPException(409, str(e)) from None
         return {"id": a.id, "status": a.status.value}
+
+    @app.get("/imagens/{nome}", dependencies=[Admin])
+    def imagem(nome: str, state: State) -> FileResponse:
+        """Imagem gerada por `gerar_imagem`. Só com login; o nome é conferido (nada de `..`,
+        subpasta nem extensão estranha) e o tipo vem da extensão, nunca do conteúdo."""
+        casou = _NOME_IMAGEM.match(nome)
+        arquivo = state.settings.data_dir / "imagens" / nome
+        if not casou or not arquivo.is_file():
+            raise HTTPException(404, "imagem inexistente")
+        return FileResponse(
+            arquivo,
+            media_type=_TIPO_IMAGEM[casou.group(1)],
+            headers={
+                "Cache-Control": "private, max-age=3600",
+                "X-Content-Type-Options": "nosniff",
+                "Content-Security-Policy": "default-src 'none'; sandbox",
+            },
+        )
 
     @app.get("/painel", dependencies=[Admin])
     def painel_unico(state: State) -> dict[str, Any]:

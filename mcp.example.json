@@ -1,5 +1,5 @@
 {
-  "_leia": "Copie para <pasta de dados>/mcp.json (ou aponte ORION_MCP_CONFIG) e confira com: uv run orion mcp-check. A classe de risco de cada ferramenta vem DAQUI, nunca do servidor; o que não estiver em 'tools' usa default_risk (exec = pede confirmação sempre). Pacotes e nomes de ferramentas foram conferidos em 06/10/2026 subindo cada servidor de verdade (versões abaixo). Antes de atualizar uma versão, rode o mcp-check de novo: um servidor novo pode trazer ferramentas que aqui caem em exec. Os servidores em Python avisam 'Failed to validate request ... server/discover' no log: é só o cliente novo tentando o protocolo mais recente antes de cair no antigo, e não impede nada.",
+  "_leia": "Copie para <pasta de dados>/mcp.json (ou aponte ORION_MCP_CONFIG) e confira com: uv run orion mcp-check. A classe de risco de cada ferramenta vem DAQUI, nunca do servidor; o que não estiver em 'tools' usa default_risk (exec = pede confirmação sempre). Pacotes e nomes de ferramentas foram conferidos em 06/10/2026 subindo cada servidor de verdade (versões abaixo). Antes de atualizar uma versão, rode o mcp-check de novo: um servidor novo pode trazer ferramentas que aqui caem em exec. Marque com \"egress\": true a ferramenta em que o modelo escolhe o destino na rede (buscar URL, navegar): depois de ler conteúdo externo, ela passa a pedir confirmação a cada uso (canal de exfiltração por GET). Os servidores em Python avisam 'Failed to validate request ... server/discover' no log: é só o cliente novo tentando o protocolo mais recente antes de cair no antigo, e não impede nada.",
   "servers": {
     "arquivos": {
       "command": "npx",
@@ -18,7 +18,7 @@
       "args": ["mcp-server-fetch==2026.8.18"],
       "external": true,
       "default_risk": "exec",
-      "tools": { "fetch": { "risk": "read" } }
+      "tools": { "fetch": { "risk": "read", "egress": true } }
     },
     "git": {
       "command": "uvx",

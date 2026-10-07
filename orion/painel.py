@@ -66,6 +66,10 @@ class Painel:
             "gerado_em": agora,
             "uptime_s": round(agora - self.started_at),
             "modelos": {"configurado": self.agent is not None, "endpoints": endpoints},
+            "roteamento": {
+                "ativo": bool(getattr(self.agent, "routing", False)),
+                "contagem": dict(getattr(self.agent, "rotas", {})),
+            },
             "clis": self.delegator.status() if self.delegator is not None else [],
             "aprovacoes": {
                 "pendentes": len(pendentes),
@@ -137,13 +141,15 @@ def texto_do_painel(p: dict[str, Any]) -> str:
     else:
         linhas.append("\n🧠 Modelos (desde que o Orion subiu)")
         for e in m["endpoints"]:
+            camada = f", camada {e['camada']}" if e.get("camada", "padrão") != "padrão" else ""
             estado = f"⛔ quarentena {_dur(e['quarentena_s'])}" if e["quarentena_s"] else "ok"
             extra = f", {e['limitada']}× cota" if e["limitada"] else ""
             erro = f" · último erro: {e['ultimo_erro']}" if e["ultimo_erro"] else ""
-            linhas.append(
-                f"• {e['nome']} ({e['modelo']}): {e['ok']} ok, {e['falhas']} falha(s){extra} · "
-                f"{estado}{erro}"
-            )
+            quem = f"{e['nome']} ({e['modelo']}{camada})"
+            linhas.append(f"• {quem}: {e['ok']} ok, {e['falhas']} falha(s){extra} · {estado}{erro}")
+            if e.get("provedores"):
+                servidos = ", ".join(f"{k} ×{v}" for k, v in e["provedores"].items())
+                linhas.append(f"   serviu: {servidos}")
 
     if p["clis"]:
         linhas.append("\n💻 CLIs oficiais (hoje)")
@@ -152,6 +158,14 @@ def texto_do_painel(p: dict[str, Any]) -> str:
                 linhas.append(f"• {c['nome']}: não instalada")
             else:
                 linhas.append(f"• {c['nome']}: {c['usadas_hoje']}/{c['limite_diario']} usadas")
+
+    r = p.get("roteamento") or {}
+    if r.get("ativo"):
+        c = r.get("contagem", {})
+        linhas.append(
+            f"• roteamento: {c.get('rapido', 0)} rápidas, {c.get('pesado', 0)} pesadas, "
+            f"{c.get('visao', 0)} com imagem"
+        )
 
     a = p["aprovacoes"]
     linhas.append(f"\n✋ Aprovações pendentes: {a['pendentes']}")
