@@ -66,7 +66,9 @@ class Catalog:
 
             def bind(conn: Connection, name: str, current: Entry):
                 async def execute(**arguments):
-                    if self.entries.get(current.name) != current:
+                    if (conn.authorized is not None and not conn.authorized()) or self.entries.get(
+                        current.name
+                    ) != current:
                         raise MCPError("origin_revoked")
                     try:
                         result = await conn.call(name, arguments)

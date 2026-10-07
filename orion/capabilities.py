@@ -18,8 +18,6 @@ PENDING_FEATURES = (
     "tts",
     "voice",
     "model_selection",
-    "plugins",
-    "mcp",
 )
 
 
@@ -54,6 +52,8 @@ def describe(*, agent_ready: bool, admin_configured: bool) -> Capabilities:
         approvals=admin_configured,
         notifications=admin_configured,
         skills=admin_configured,
+        plugins=admin_configured,
+        mcp=admin_configured,
     )
     unavailable: dict[str, str] = dict.fromkeys(PENDING_FEATURES, "not_implemented")
     if not features["chat"]:
@@ -71,6 +71,8 @@ def describe(*, agent_ready: bool, admin_configured: bool) -> Capabilities:
             approvals="auth_not_configured",
             notifications="auth_not_configured",
             skills="auth_not_configured",
+            plugins="auth_not_configured",
+            mcp="auth_not_configured",
         )
     return Capabilities(
         model="ready" if agent_ready else "unavailable",

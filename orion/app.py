@@ -17,7 +17,7 @@ from datetime import UTC, datetime
 from typing import Annotated, Any
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Path, Query, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -32,6 +32,9 @@ from .delegate import Delegator
 from .extensions.catalog import Catalog
 from .extensions.context import ContextReader, ContextRequest
 from .extensions.host import MCPError, MCPHost
+from .extensions.manager import PluginManager
+from .extensions.plugins import PluginError
+from .extensions.routes import router as extension_router
 from .extensions.skill_runtime import SkillReference, SkillRuntime
 from .extensions.skills import SkillError
 from .gateway import ChatGateway, Endpoint
@@ -46,6 +49,7 @@ from .policy import ApprovalStore, PathGuard, PolicyEngine, redact
 from .policy.paths import default_safe_roots
 from .secrets import get_secret
 from .tools import default_registry
+from .tools.registry import ToolRegistry
 
 FRONT_DIR = PROJECT_ROOT / "Orion_Core" / "Front_end_Orion"
 
@@ -76,6 +80,7 @@ class AppState:
     skills: SkillRuntime | None = None
     catalog: Catalog | None = None
     mcp: MCPHost | None = None
+    extensions: PluginManager | None = None
     telegram: TelegramChannel | None = None  # None sem token, sem usuários ou sem gateway
 
 
@@ -284,7 +289,7 @@ def create_app(
         tarefa_telegram = asyncio.create_task(telegram.run()) if telegram is not None else None
         mcp = MCPHost(settings.mcp_connections)
         await mcp.start()
-        catalog = Catalog(mcp, agent.tools, policy) if agent is not None else None
+        catalog = Catalog(mcp, agent.tools if agent else ToolRegistry(), policy)
         if catalog is not None and agent is not None:
             agent.refresh_tools = catalog.refresh
             try:
@@ -294,6 +299,7 @@ def create_app(
         skills = await asyncio.to_thread(SkillRuntime, settings.skill_sources)
         if agent is not None:
             skills.attach_tools(agent.tools, policy)
+        extensions = PluginManager(settings.data_dir / "extensions", skills, mcp, catalog, policy)
         app.state.orion = AppState(
             settings,
             memory,
@@ -306,6 +312,7 @@ def create_app(
             mcp=mcp,
             catalog=catalog,
             skills=skills,
+            extensions=extensions,
         )
         try:
             yield
@@ -317,6 +324,7 @@ def create_app(
                         await tarefa
             if telegram is not None:
                 await telegram.aclose()
+            await extensions.close()
             await skills.close()
             await mcp.close()
             if gateway is not None and hasattr(gateway, "aclose"):
@@ -687,6 +695,12 @@ def create_app(
         if not state.ops.ack_notification(notification_id):
             raise HTTPException(404, "aviso inexistente ou já confirmado")
         return {"ok": True}
+
+    @app.exception_handler(PluginError)
+    async def plugin_error(request: Request, error: PluginError):
+        return JSONResponse(status_code=422, content={"detail": str(error)})
+
+    app.include_router(extension_router(require_admin))
 
     if settings.serve_ui and FRONT_DIR.is_dir():
         # por último: as rotas da API têm prioridade sobre o mount

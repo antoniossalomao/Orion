@@ -6,6 +6,7 @@ import asyncio
 import logging
 import os
 import uuid
+from collections.abc import Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Literal
@@ -136,6 +137,7 @@ class MCPError(RuntimeError):
 class Connection:
     def __init__(self, config: StdioConfig | HTTPConfig, *, timeout: float = 5):
         sanitize_protocol_logs()
+        self.authorized: Callable[[], bool] | None = None
         self.config = config
         self.timeout = timeout
         self.state = "disabled"
