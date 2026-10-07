@@ -191,7 +191,7 @@ arquivos, documentos, área de transferência, notificação, abrir app, Git som
 plano, vigilância de pastas), web (opt-in) e cliente MCP; faltam os servidores MCP que **você** escolher (e-mail, agenda,
 navegador) e o que depende de modelo multimodal (tela, imagem); a fase 5 está pronta no código: login com senha e
 tela de entrada, Telegram com texto, voz e foto, `orion autostart`, guia do Tailscale ([ORION_OPERACAO.md](ORION_OPERACAO.md));
-falta instalar o Tailscale, ligar o bot e ativar o autostart no notebook; a fase 6 tem o front redesenhado (só desktop);
+falta instalar o Tailscale, ligar o bot e ativar o autostart no notebook; a fase 6 tem o front redesenhado (só desktop), voz por clique e voz ao vivo no código (falta a palavra de ativação);
 a fase 7 não começou.
 
 ## 7. Decisões em aberto

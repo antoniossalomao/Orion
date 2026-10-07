@@ -1,7 +1,7 @@
 /* ==========================================================================
    ORION — voice.js | voz ao vivo (Gemini Live) via /ws/voice
-   Independe do hub e do mic_engine. Microfone exige contexto seguro (HTTPS ou
-   localhost): em http://IP-do-tailscale o navegador nem expõe `mediaDevices`.
+   Captura por AudioWorklet (js/voice-worklet.js). Independe do hub e do mic_engine.
+   Microfone exige contexto seguro (HTTPS ou localhost): em http://IP-do-tailscale o navegador nem expõe `mediaDevices`.
    ========================================================================== */
 (function () {
     'use strict';
@@ -57,26 +57,29 @@
         }
         ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
         fonte = ctx.createMediaStreamSource(stream);
-        proc = ctx.createScriptProcessor(4096, 1, 1);
         const mudo = ctx.createGain();
         mudo.gain.value = 0;
-        fonte.connect(proc); proc.connect(mudo); mudo.connect(ctx.destination);
-        proc.onaudioprocess = e => {
+        const enviarPcm = f32 => {
             if (ws?.readyState !== WebSocket.OPEN) return;
-            const f32 = e.inputBuffer.getChannelData(0), i16 = new Int16Array(f32.length);
-            let pico = 0;
-            for (let i = 0; i < f32.length; i++) {
-                const s = Math.max(-1, Math.min(1, f32[i]));
-                i16[i] = s < 0 ? s * 32768 : s * 32767;
-                pico = Math.max(pico, Math.abs(s));
-            }
+            const { pcm, pico } = O.falaCore.floatParaPcm16(f32);
             if (O.estado.atual === 'listening') bus.emit('audio', Math.min(1, pico * 2));
-            ws.send(i16.buffer);
+            ws.send(pcm.buffer);
         };
+        try {
+            await ctx.audioWorklet.addModule('js/voice-worklet.js');
+            proc = new AudioWorkletNode(ctx, 'captura-orion');
+            proc.port.onmessage = e => enviarPcm(e.data);
+            fonte.connect(proc); proc.connect(mudo); mudo.connect(ctx.destination);
+        } catch (_) {
+            // navegador sem AudioWorklet (ou módulo bloqueado): o ScriptProcessor, obsoleto, ainda serve
+            proc = ctx.createScriptProcessor(4096, 1, 1);
+            fonte.connect(proc); proc.connect(mudo); mudo.connect(ctx.destination);
+            proc.onaudioprocess = e => enviarPcm(e.inputBuffer.getChannelData(0));
+        }
 
         ws = new WebSocket(`${O.api.wsBase()}/ws/voice`);
         ws.binaryType = 'arraybuffer';
-        ws.onopen = () => { cmd('start'); O.estado.definir('listening'); O.anunciar('Voz ao vivo ligada. Pode falar.'); };
+        ws.onopen = () => { const t = O.api.token(); if (t) ws.send(JSON.stringify({ cmd: 'auth', token: t })); cmd('start'); O.estado.definir('listening'); O.anunciar('Voz ao vivo ligada. Pode falar.'); };
         ws.onmessage = ({ data }) => {
             if (data instanceof ArrayBuffer) { tocar(data); return; }
             let m;

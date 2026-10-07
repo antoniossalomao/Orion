@@ -26,6 +26,7 @@
             { g: 'ir', rotulo: 'Painel', icone: 'gauge', atalho: ['Alt', '6'], exec: ir('painel'), chaves: 'status cota modelos aprovações política auditoria' },
             { g: 'acao', rotulo: 'Nova conversa', icone: 'plus', atalho: ['Ctrl', '⇧', 'O'], exec: () => O.sidebar.nova() },
             { g: 'acao', rotulo: 'Alternar barra lateral', icone: 'panel', atalho: ['Ctrl', 'B'], exec: () => O.sidebar.alternar(), chaves: 'recolher menu' },
+            { g: 'acao', rotulo: O.fala?.gravando() ? 'Enviar a fala' : 'Falar com o Orion', icone: 'mic', exec: () => O.fala.alternar(), chaves: 'microfone falar gravar voz ditar' },
             { g: 'acao', rotulo: O.voz?.ativa() ? 'Desligar voz ao vivo' : 'Ligar voz ao vivo', icone: 'wave', exec: () => O.voz.alternar(), chaves: 'microfone falar' },
             { g: 'acao', rotulo: prefs.get('tts_mudo') ? 'Ligar resposta por voz' : 'Desligar resposta por voz', icone: 'speaker', exec: () => A.alternarTts(), chaves: 'mudo tts som' },
             { g: 'acao', rotulo: 'Buscar na conversa', icone: 'search', atalho: ['Ctrl', 'F'], exec: () => O.busca.abrir() },

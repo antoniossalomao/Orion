@@ -2,7 +2,7 @@
 <html lang="pt-BR" data-view="home" data-estado="idle" data-theme="noite">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-kFMOHBRbTGtQcI+9xbdcmv50TEZFQfjBoDqLtVerheM='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http://127.0.0.1:8000 http://localhost:8000; font-src 'self'; connect-src *; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-kFMOHBRbTGtQcI+9xbdcmv50TEZFQfjBoDqLtVerheM='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http://127.0.0.1:8000 http://localhost:8000; font-src 'self'; media-src 'self' blob:; connect-src *; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="dark">
     <title>Orion</title>
@@ -164,6 +164,7 @@
                         <div class="composer-box">
                             <div class="composer-row">
                                 <textarea id="home-input" class="composer-input" rows="1" placeholder="Comando ou pergunta…" aria-label="Mensagem para o Orion" spellcheck="false"></textarea>
+                                <button type="button" class="icon-btn voice-ptt-btn" aria-label="Falar com o Orion" aria-pressed="false" data-tip="Falar (clique para gravar)"><svg class="i" aria-hidden="true"><use href="#i-mic"/></svg></button>
                                 <button type="button" class="icon-btn voice-live-btn" aria-label="Voz ao vivo" aria-pressed="false" data-tip="Voz ao vivo"><svg class="i" aria-hidden="true"><use href="#i-wave"/></svg></button>
                                 <button type="submit" class="btn-send" aria-label="Enviar" data-tip="Enviar (Enter)" disabled><svg class="i" aria-hidden="true"><use href="#i-send"/></svg></button>
                             </div>
@@ -203,6 +204,7 @@
                                 <button id="btn-attach" type="button" class="icon-btn" aria-label="Anexar imagem, áudio ou vídeo" data-tip="Anexar (ou arraste/cole)"><svg class="i" aria-hidden="true"><use href="#i-clip"/></svg></button>
                                 <input id="file-input" type="file" accept="image/*,audio/*,video/mp4,video/quicktime,video/webm" hidden multiple>
                                 <textarea id="composer-input" class="composer-input" rows="1" placeholder="Comando ou pergunta…" aria-label="Mensagem para o Orion" aria-describedby="composer-help" spellcheck="false"></textarea>
+                                <button type="button" class="icon-btn voice-ptt-btn" aria-label="Falar com o Orion" aria-pressed="false" data-tip="Falar (clique para gravar)"><svg class="i" aria-hidden="true"><use href="#i-mic"/></svg></button>
                                 <button type="button" class="icon-btn voice-live-btn" aria-label="Voz ao vivo" aria-pressed="false" data-tip="Voz ao vivo"><svg class="i" aria-hidden="true"><use href="#i-wave"/></svg></button>
                                 <button id="btn-send" type="submit" class="btn-send" aria-label="Enviar" data-mode="send" data-tip="Enviar (Enter)" disabled><svg class="i" aria-hidden="true"><use href="#i-send"/></svg></button>
                             </div>
@@ -420,6 +422,8 @@
 <script src="js/sky.js"></script>
 <script src="js/sound.js"></script>
 <script src="js/voice.js"></script>
+<script src="js/fala_core.js"></script>
+<script src="js/fala.js"></script>
 <script src="js/chat.js"></script>
 <script src="js/composer.js"></script>
 <script src="js/sidebar.js"></script>

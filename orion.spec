@@ -9,7 +9,7 @@ raiz = Path(SPECPATH)
 datas, binarios, ocultos = [], [], []
 
 # pacotes que carregam módulos/dados por nome em tempo de execução
-for pacote in ("mcp_types", "pydantic_settings", "keyring"):
+for pacote in ("mcp_types", "pydantic_settings", "keyring", "edge_tts", "google.genai"):
     d, b, h = collect_all(pacote)
     datas += d
     binarios += b

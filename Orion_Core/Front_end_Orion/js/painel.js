@@ -74,6 +74,9 @@
         for (const [nome, st] of Object.entries(p.mcp || {})) {
             if (!String(st).startsWith('ok')) add('warn', `Servidor MCP “${nome}”: ${st}`);
         }
+        if (p.voz && num(p.voz.falhas) > 0 && (p.voz.clique?.ligada || p.voz.ao_vivo?.ligada)) {
+            add('warn', `Voz: ${num(p.voz.falhas)} falha(s)${p.voz.ultimo_erro ? ` (última: ${p.voz.ultimo_erro})` : ''}.`);
+        }
         return a.sort((x, y) => (x.nivel === y.nivel ? 0 : x.nivel === 'danger' ? -1 : 1));
     }
 
@@ -99,10 +102,20 @@
         return `${num(c.rapido)} rápidas · ${num(c.pesado)} pesadas · ${num(c.visao)} com imagem`;
     }
 
+    /** Voz no painel: {clique, ao_vivo} em texto; "desligada" quando falta opt-in, chave ou gateway. */
+    function resumoVoz(v) {
+        const c = v?.clique, l = v?.ao_vivo;
+        const clique = !c?.ligada ? 'desligada'
+            : `${num(c.turnos)} fala(s)${c.fala ? ', com resposta falada' : ', só texto'}`;
+        const aoVivo = !l?.ligada ? 'desligada'
+            : `${num(l.sessoes)} sessão(ões), ${num(l.minutos)} min${num(l.ativas) ? ' · uma aberta agora' : ''}`;
+        return { clique, aoVivo };
+    }
+
     const ROTULO_ACAO = { allow: 'Liberada', confirm: 'Pediu aval', deny: 'Negada' };
     const TOM_ACAO = { allow: 'ok', confirm: 'warn', deny: 'danger' };
     const rotuloAcao = a => ROTULO_ACAO[a] || String(a || '—');
     const tomAcao = a => TOM_ACAO[a] || 'muted';
 
-    return { duracao, estadoModelo, usoCli, alertas, resumoDecisoes, resumoRoteamento, resumoProvedores, rotuloAcao, tomAcao };
+    return { duracao, estadoModelo, usoCli, alertas, resumoVoz, resumoDecisoes, resumoRoteamento, resumoProvedores, rotuloAcao, tomAcao };
 });

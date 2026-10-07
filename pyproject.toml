@@ -19,6 +19,8 @@ dependencies = [
     "python-docx>=1.2.0",
     "openpyxl>=3.1.5",
     "pypdf>=6.19.0",
+    "edge-tts>=7.2.8",
+    "google-genai>=2.28.0",
 ]
 
 [dependency-groups]

@@ -101,3 +101,18 @@ test('resumoProvedores: do que mais serviu para o que menos serviu', () => {
     assert.equal(P.resumoProvedores(null), '');
     assert.equal(P.resumoProvedores({ x: 'lixo' }), '');
 });
+
+test('resumoVoz: desligada sem opt-in ou chave; ligada mostra o uso', () => {
+    assert.deepEqual(P.resumoVoz(null), { clique: 'desligada', aoVivo: 'desligada' });
+    assert.deepEqual(P.resumoVoz({ clique: { ligada: false }, ao_vivo: { ligada: false } }),
+        { clique: 'desligada', aoVivo: 'desligada' });
+    assert.deepEqual(P.resumoVoz({ clique: { ligada: true, fala: true, turnos: 7 }, ao_vivo: { ligada: true, sessoes: 2, ativas: 1, minutos: 12.5 } }),
+        { clique: '7 fala(s), com resposta falada', aoVivo: '2 sessão(ões), 12.5 min · uma aberta agora' });
+    assert.equal(P.resumoVoz({ clique: { ligada: true, fala: false, turnos: 0 } }).clique, '0 fala(s), só texto');
+});
+
+test('alertas: falha de voz só avisa se a voz está ligada', () => {
+    const base = { voz: { falhas: 2, ultimo_erro: 'a fala falhou: Timeout', clique: { ligada: true }, ao_vivo: { ligada: false } } };
+    assert.ok(P.alertas(base).some(a => a.texto.includes('Voz: 2 falha(s) (última: a fala falhou: Timeout)')));
+    assert.ok(!P.alertas({ voz: { ...base.voz, clique: { ligada: false } } }).some(a => a.texto.startsWith('Voz')));
+});

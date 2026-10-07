@@ -54,6 +54,17 @@ class AgentEvent:
     kind: str  # tier | text | tool | approval | error | done
     data: dict[str, Any] = field(default_factory=dict)
 
+    def corpo(self) -> dict[str, Any] | None:
+        """O evento no formato do /chat do legado (`text`, `tier`, `tool`...); `None` no fim."""
+        d = self.data
+        return {
+            "text": {"text": d.get("text")},
+            "tier": {"tier": f"{d.get('endpoint')}/{d.get('model')}"},
+            "tool": {"tool": d},
+            "approval": {"approval": d},
+            "error": {"error": d.get("message")},
+        }.get(self.kind)
+
 
 class Agent:
     def __init__(
