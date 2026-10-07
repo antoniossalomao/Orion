@@ -1,6 +1,6 @@
 /* ==========================================================================
    ORION — app.js | rotas por hash, atalhos, janela, boot e ligação dos módulos
-   Rotas: #/ · #/chat · #/memoria · #/integracoes · #/config (botão voltar funciona,
+   Rotas: #/ · #/chat · #/memoria · #/integracoes · #/config · #/painel (botão voltar funciona,
    dá para abrir direto numa tela). Telas ocultas ficam `inert`: nada de Tab invisível.
    ========================================================================== */
 (function () {
@@ -18,6 +18,7 @@
         memoria: { titulo: 'Memória', rota: '/memoria' },
         integracoes: { titulo: 'Integrações', rota: '/integracoes' },
         config: { titulo: 'Configurações', rota: '/config' },
+        painel: { titulo: 'Painel', rota: '/painel' },   // por último: não muda os atalhos Alt+1…5
     };
     const VIEW_DA_ROTA = Object.fromEntries(Object.entries(VIEWS).map(([v, d]) => [d.rota, v]));
     let atual = null, opcoesPendentes = {};
@@ -136,7 +137,7 @@
                 copiar: () => (arg === 'conversa' ? A.copiarConversa() : A.copiarUltima()),
                 exportar: () => A.exportar(), limpar: () => A.limpar(), modelo: () => A.modelo(arg), tema: () => A.tema(arg),
                 foco: () => A.foco(), mudo: () => A.alternarTts(), voz: () => O.voz.alternar(),
-                inicio: () => ir('home'), memoria: () => ir('memoria'), integracoes: () => ir('integracoes'), config: () => ir('config'),
+                inicio: () => ir('home'), memoria: () => ir('memoria'), integracoes: () => ir('integracoes'), config: () => ir('config'), painel: () => ir('painel'),
                 ajuda: () => ir('config', { secao: 'cfg-atalhos' }),
             };
             mapa[cmd]?.();

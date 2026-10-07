@@ -226,3 +226,21 @@ test('desempenho: 200 KB de markdown renderiza em tempo razoável', () => {
     renderizar(texto);
     assert.ok(Date.now() - t0 < 2500, `demorou ${Date.now() - t0} ms`);
 });
+
+test('/imagens/<arquivo> sem host vira o endereço do cérebro configurado', () => {
+    MD.configurar({ basesImagens: ['https://orion.tailnet.ts.net/imagens/'] });
+    try {
+        assert.match(renderizar('![gato](/imagens/img-1700000000-ab12cd34.png)'),
+            /<img src="https:\/\/orion\.tailnet\.ts\.net\/imagens\/img-1700000000-ab12cd34\.png" alt="gato" class="msg-img"/);
+    } finally {
+        MD.configurar({ basesImagens: ['http://127.0.0.1:8000/imagens/', 'http://localhost:8000/imagens/'] });
+    }
+    assert.match(renderizar('![x](/imagens/a.png)'), /<img src="http:\/\/127\.0\.0\.1:8000\/imagens\/a\.png"/);
+});
+
+test('/imagens/ relativo só vale para nome de arquivo (sem subpasta, .., consulta ou fragmento)', () => {
+    const ruins = ['/imagens/../historico', '/imagens/a/b.png', '/imagens/%2e%2e/x', '/imagens/a.png?x=1',
+        '/imagens/', '/imagens//evil.example/a.png', '/imagens/.', '//evil.example/imagens/a.png', '/exportar',
+        '/imagens/..%2fhistorico'];
+    for (const url of ruins) assert.doesNotMatch(renderizar(`![x](${url})`), /<img/, url);
+});

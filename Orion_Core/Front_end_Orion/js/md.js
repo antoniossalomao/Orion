@@ -180,10 +180,14 @@
         // 2) escapes de markdown: \* → entidade numérica (literal, segura)
         s = s.replace(/\\([\\`*_{}[\]()#+\-.!~|>])/g, (_, c) => `&#${c.charCodeAt(0)};`);
         // 3) imagem: só a do Orion; o resto vira aviso em texto
-        s = s.replace(/!\[([^\]\n]*)\]\(\s*(https?:\/\/[^\s)]+)(?:\s+&quot;[^\n]*?&quot;)?\s*\)/g, (_, alt, url) =>
-            guardar(imagemPermitida(url)
+        //    `/imagens/<arquivo>` (sem host) é a forma que as ferramentas do Orion devolvem: vira o
+        //    endereço do cérebro configurado, seja qual for o host pelo qual você abriu o app
+        s = s.replace(/!\[([^\]\n]*)\]\(\s*(https?:\/\/[^\s)]+|\/imagens\/[^\s)]+)(?:\s+&quot;[^\n]*?&quot;)?\s*\)/g, (_, alt, bruto) => {
+            const url = bruto.startsWith('/imagens/') ? basesImagem[0] + bruto.slice('/imagens/'.length) : bruto;
+            return guardar(imagemPermitida(url)
                 ? `<img src="${url}" alt="${alt}" class="msg-img" loading="lazy" decoding="async">`
-                : `<span class="msg-img-bloqueada">[imagem externa bloqueada${alt ? ': ' + alt : ''}]</span>`));
+                : `<span class="msg-img-bloqueada">[imagem externa bloqueada${alt ? ': ' + alt : ''}]</span>`);
+        });
         // 4) link [texto](url)
         s = s.replace(/\[([^\]\n]+)\]\(\s*([^\s)]+)(?:\s+&quot;[^\n]*?&quot;)?\s*\)/g, (todo, texto, url) => {
             const a = _link(texto, url);

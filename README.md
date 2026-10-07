@@ -23,7 +23,7 @@ venda: [ORION_CORTE.md](Memorias%20Do%20Projeto/ORION_CORTE.md)).
 
 **Reescrita em andamento (`orion/`):** fundação (fase 1), memória em SQLite com importador completo,
 agendador, backup e consolidação (fase 3), política de ferramentas com audit em banco, gateway, agente e `/chat`
-(fase 2), `orion-desktop` e cliente MCP (fase 4), login com senha, canal Telegram com voz e foto e
+(fase 2), `orion-desktop` (com visão, mídia e janelas), cliente MCP e painel único (fase 4), login com senha, canal Telegram com voz, foto, `/capturar` (nota no vault), briefing matinal e `/painel` e
 `orion autostart` (fase 5) já existem e têm testes; falta ligar o que só você pode: modelos reais (OmniRoute),
 chave de embeddings, servidores MCP de e-mail/agenda/navegador, Tailscale e o bot. O que foi feito, o que não
 foi verificado e os próximos passos: [ORION_MELHORIAS.md](Memorias%20Do%20Projeto/ORION_MELHORIAS.md); como ligar:
@@ -46,9 +46,9 @@ foi verificado e os próximos passos: [ORION_MELHORIAS.md](Memorias%20Do%20Proje
 ## Para onde vai
 
 ```
-Celular ── Telegram ─────────────────────────┐
-Notebook ── web (Tailscale) / casca desktop ─┤
-                                             ▼
+Celular ── Telegram ─────────────┤
+Notebook ── web / casca desktop ─┤
+                                 ▼
                      Orion (Python, FastAPI, 1 processo)
                      ├─ Agente: persona fixa + ferramentas + memória
                      ├─ Modelos ──► OmniRoute (local) ──► free tiers por chave de API
@@ -66,8 +66,8 @@ Notebook ── web (Tailscale) / casca desktop ─┤
 - **Leve e multiplataforma:** um processo, memória num único arquivo, sem GPU,
   Docker ou servidores pesados. Roda num notebook Windows de 8GB agora e num
   MacBook M2 depois.
-- **Celular = Telegram; a interface web é só para desktop:** o Telegram funciona de qualquer
-  lugar; a web (notebook/PC) é acessada pela rede privada do Tailscale, sem expor portas.
+- **Desktop primeiro:** a interface é só para desktop (decisão de 07/10/2026: sem
+  versão para celular). No celular o canal é o Telegram, sem expor portas.
 - **Ações sob controle:** ação destrutiva só roda com confirmação explícita,
   inclusive pelo celular.
 

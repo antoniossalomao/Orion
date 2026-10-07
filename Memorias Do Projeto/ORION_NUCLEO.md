@@ -202,15 +202,16 @@ a fase 7 não começou.
 | 2 | Gateway de modelos | OmniRoute | LiteLLM (biblioteca, sem processo extra, cotas na mão) |
 | 3 | Framework do agente | PydanticAI | Loop próprio (~200 linhas) — **adotado em 02/10 (alternativa)**, ver registro; reversível |
 | 4 | Ritmo de apagar o legado | Por fase (código antigo à mão para portar) | Tudo agora, consultando o histórico do git |
-| 5 | Interface | Front "Observatório noturno" feito em 03/10, **só desktop** ([ORION_FRONT.md](ORION_FRONT.md)); celular = Telegram | **Decidido em 06/10/2026: desktop only.** Web no celular exigiria layout móvel (gaveta e toque); o celular fica com o Telegram |
+| 5 | Interface | **Decidido em 07/10/2026: front só desktop**, sem versão para celular (sem PWA, gaveta, toque nem manifest). Ver [ORION_FRONT.md](ORION_FRONT.md). O celular continua só pelo Telegram, que já existia | ~~Web no celular via Tailscale~~ — descartada |
 | 6 | Voz | Transcrição: Whisper no Groq (grátis); fala: edge-tts `pt-BR-AntonioNeural` (grátis); voz ao vivo: Gemini Live com voz masculina; ativação: openWakeWord treinado em "Orion" | A discutir (fase 6) |
-| 7 | Busca web gratuita | `pesquisar_com_ia` (Gemini com Google Search, mesma chave do Google AI Studio) e, se quiser mais, um servidor MCP de busca em `mcp.json`; **não validado contra a API real** (cotas mudam) | — |
+| 7 | Busca web gratuita | `pesquisar_com_ia` (Gemini com Google Search, mesma chave do Google AI Studio) e `pesquisar_internet` (Brave Search, chave do plano gratuito), mais um servidor MCP de busca em `mcp.json` se quiser; **nenhuma validada contra a API real** (cotas mudam) | — |
 | 8 | Ring 0 §4 (Hardware-Bound) | Rever — conflita com trocar de máquina | — |
 
 ## 8. Registro de decisões
 
 | Data | Decisão | Motivo |
 |---|---|---|
+| 07/10/2026 | Front **só desktop**: nada de PWA nem layout para celular (decisão #5). O celular segue pelo Telegram | Pedido do usuário: "sem celular, desktop only" |
 | 25/06/2026 | Cascata cloud-first (Groq → Gemini → Claude → local) | Qualidade/latência (substituída em 01/10 pelo gateway) |
 | 01/07/2026 | Decay Ebbinghaus removido do ranking | Esquecia memória antiga relevante. Não reimplementar sem discussão |
 | 01/07/2026 | Axônios na esfera descartados | Pedido explícito |
