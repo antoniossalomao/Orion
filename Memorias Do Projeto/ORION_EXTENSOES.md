@@ -1,6 +1,6 @@
 # Orion — referências de produto e plano de extensões
 
-Pesquisa em 04/10/2026. **Plano de implementação com C00–C12 concluídos** (registro na seção 9).
+Pesquisa em 04/10/2026. **Plano de implementação com C00–C13 concluídos** (registro na seção 9).
 Plugins e skills seguem em implementação. MCP já tem prova com servidores controlados;
 nenhuma conta pessoal ou servidor externo do usuário foi conectado.
 Complementa [ORION_FRONT.md](ORION_FRONT.md), as fases 4 e 6 do
@@ -339,7 +339,7 @@ como fundação do recurso novo. Exportar leitura primeiro, com identidade e esc
 
 ## 8. Próximo trabalho concreto
 
-C00–C12 foram concluídos e validados. Continuar pelo **C13: catálogo e schemas MCP sob demanda**.
+C00–C13 foram concluídos e validados. Continuar pelo **C14: resources e prompts MCP com procedência**.
 O usuário autorizou a execução dos checklists restantes, com commits separados, validação,
 registro no vault e push. Integrações pessoais e Windows serão registrados conforme
 as evidências disponíveis, sem transformar fixtures em prova de conta ou desktop reais.
@@ -351,8 +351,8 @@ quando houver integração concreta para revisar. Este documento não muda as de
 
 ## 9. Checklists por commit e sequência de dias
 
-Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C12 têm commits reais
-registrados; C13–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
+Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C13 têm commits reais
+registrados; C14–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
 precisa estar pronto. Não é necessário concluir o plano inteiro para usar o primeiro MVP.
 
 ### Ritmo de trabalho
@@ -365,7 +365,7 @@ precisa estar pronto. Não é necessário concluir o plano inteiro para usar o p
   manter os dependentes esperando a entrega completa.
 - Ao pedir continuação, usar o ID: **“Faça o próximo commit pendente”** ou **“Faça o C09”**.
   O executor confere o checklist e as dependências antes de iniciar.
-- C00–C12 estão implementados, validados e registrados abaixo; C13–C50 permanecem
+- C00–C13 estão implementados, validados e registrados abaixo; C14–C50 permanecem
   planejados. Cada continuação deve conferir as dependências e os limites da entrega anterior.
 
 ### Como concluir e pausar cada commit
@@ -418,10 +418,10 @@ a integração real de Pesquisa fica registrada separadamente se ainda não tive
 
 ### Registro para retomar no próximo dia
 
-- Último checklist concluído: **C12**, commit `e190992`; entregas anteriores registradas abaixo.
-- Próximo commit sugerido: **C13 — catálogo e schemas MCP sob demanda**.
-- Dependências/impedimentos: conferir as dependências do C13 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
-- Evidências: ver os registros C00–C12 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
+- Último checklist concluído: **C13**, commit `25d295b`; entregas anteriores registradas abaixo.
+- Próximo commit sugerido: **C14 — resources e prompts MCP com procedência**.
+- Dependências/impedimentos: conferir as dependências do C14 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
+- Evidências: ver os registros C00–C13 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
 - Atualizações: registrar aqui o ID concluído, hash/link e o próximo ID; não preencher com
   hash fictício nem tratar evidência de mock como teste contra conta real.
 
@@ -662,6 +662,20 @@ shutdown sem PID órfão em POSIX. Ruff/Pyright passaram. Não se presume cancel
 efeitos externos sem confirmação; Windows permanece sem teste real.
 
 
+### Execução C13 — catálogo sob demanda (06/10/2026)
+
+**Commit de implementação:** `25d295b`.
+Catálogo resumido com busca lexical e seleção explícita. Ferramentas nativas preservadas;
+schemas externos limitados a oito/24 KB por turno. Métrica de bytes e estimativa de tokens.
+Chamada externa fora do conjunto é recusada. Descoberta antes do turno/retomada revoga
+identidades/aprovações removidas ou indisponíveis; refresh é serializado.
+
+**Evidências:** 543 testes backend passaram. Servidor MCP real com 121 ferramentas envia
+apenas uma externa para astronomia, respeita o teto na busca ampla e invalida aprovação
+após remoção no servidor. Falha de descoberta revoga o catálogo anterior. Ruff, formatação
+e Pyright passaram. Busca lexical é a estratégia inicial, sem embeddings remotos.
+
+
 ### C00 — fix(ui): estabilizar conexão e consolidar o refinamento visual
 
 Etapa: **A** · Depende de: **base atual do repositório** · Estado: **concluído**.
@@ -794,13 +808,13 @@ Etapa: **B** · Depende de: **C11** · Estado: **concluído**.
 
 ### C13 — feat(mcp): descobrir ferramentas sob demanda
 
-Etapa: **B** · Depende de: **C12** · Estado: **planejado**.
+Etapa: **B** · Depende de: **C12** · Estado: **concluído**.
 
-- [ ] Adicionar catálogo resumido e busca de ferramentas relevantes por turno.
-- [ ] Carregar schemas somente do conjunto escolhido; medir o uso de contexto.
-- [ ] Tratar alteração de catálogo e invalidar mapeamentos/aprovações quando a identidade mudar.
-- [ ] **Validar:** Usar catálogo grande e confirmar que o turno não envia todos os schemas; testar remoção de ferramenta durante sessão.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Adicionar catálogo resumido e busca de ferramentas relevantes por turno.
+- [x] Carregar schemas somente do conjunto escolhido; medir o uso de contexto.
+- [x] Tratar alteração de catálogo e invalidar mapeamentos/aprovações quando a identidade mudar.
+- [x] **Validar:** Usar catálogo grande e confirmar que o turno não envia todos os schemas; testar remoção de ferramenta durante sessão.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C14 — feat(mcp): ler resources e oferecer prompts com procedência
 
