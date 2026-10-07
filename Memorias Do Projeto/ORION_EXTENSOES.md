@@ -1,6 +1,6 @@
 # Orion — referências de produto e plano de extensões
 
-Pesquisa em 04/10/2026. **Plano de implementação com C00–C28 concluídos** (registro na seção 9).
+Pesquisa em 04/10/2026. **Plano de implementação com C00–C29 concluídos** (registro na seção 9).
 Plugins e skills seguem em implementação. MCP já tem prova com servidores controlados;
 nenhuma conta pessoal ou servidor externo do usuário foi conectado.
 Complementa [ORION_FRONT.md](ORION_FRONT.md), as fases 4 e 6 do
@@ -339,7 +339,7 @@ como fundação do recurso novo. Exportar leitura primeiro, com identidade e esc
 
 ## 8. Próximo trabalho concreto
 
-C00–C28 foram concluídos e validados. Continuar pelo **C29: pacote Orion Pesquisa com duas skills**.
+C00–C29 foram concluídos e validados. Continuar pelo **C30: validação do MVP de extensões com backend e MCP reais de ensaio**.
 O usuário autorizou a execução dos checklists restantes, com commits separados, validação,
 registro no vault e push. Integrações pessoais e Windows serão registrados conforme
 as evidências disponíveis, sem transformar fixtures em prova de conta ou desktop reais.
@@ -351,8 +351,8 @@ quando houver integração concreta para revisar. Este documento não muda as de
 
 ## 9. Checklists por commit e sequência de dias
 
-Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C28 têm commits reais
-registrados; C29–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
+Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C29 têm commits reais
+registrados; C30–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
 precisa estar pronto. Não é necessário concluir o plano inteiro para usar o primeiro MVP.
 
 ### Ritmo de trabalho
@@ -365,7 +365,7 @@ precisa estar pronto. Não é necessário concluir o plano inteiro para usar o p
   manter os dependentes esperando a entrega completa.
 - Ao pedir continuação, usar o ID: **“Faça o próximo commit pendente”** ou **“Faça o C09”**.
   O executor confere o checklist e as dependências antes de iniciar.
-- C00–C28 estão implementados, validados e registrados abaixo; C29–C50 permanecem
+- C00–C29 estão implementados, validados e registrados abaixo; C30–C50 permanecem
   planejados. Cada continuação deve conferir as dependências e os limites da entrega anterior.
 
 ### Como concluir e pausar cada commit
@@ -418,10 +418,10 @@ a integração real de Pesquisa fica registrada separadamente se ainda não tive
 
 ### Registro para retomar no próximo dia
 
-- Último checklist concluído: **C28**, commit `7eb1823`; entregas anteriores registradas abaixo.
-- Próximo commit sugerido: **C29 — pacote Orion Pesquisa com duas skills**.
-- Dependências/impedimentos: conferir as dependências do C29 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
-- Evidências: ver os registros C00–C28 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
+- Último checklist concluído: **C29**, commit `810f93f`; entregas anteriores registradas abaixo.
+- Próximo commit sugerido: **C30 — validação do MVP de extensões com backend e MCP reais de ensaio**.
+- Dependências/impedimentos: conferir as dependências do C30 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
+- Evidências: ver os registros C00–C29 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
 - Atualizações: registrar aqui o ID concluído, hash/link e o próximo ID; não preencher com
   hash fictício nem tratar evidência de mock como teste contra conta real.
 
@@ -899,6 +899,23 @@ Cotas/preços dependem da assinatura; não há promessa de plano gratuito. Proxy
 não é usado pelo fetch; ambientes que o exigem podem retornar indisponibilidade.
 
 
+### Execução C29 — 06/10/2026
+
+Commit `810f93f`: pacote Orion Pesquisa mantido no repositório com pesquisar-assunto
+/comparar-fontes e somente busca/fetch. Catálogo oferece Adicionar; instala desativado
+pelo mesmo validador. Skills restringem o turno ao concedido e exigem evidência, confronto
+de fontes e abstenção. Provedor não registrado mantém waiting_connection. Revisão ativa
+é publicada no SQLite; schemas de tools concedidas entram no orçamento do turno.
+
+**Evidências:** 622 testes backend; seis cenários de interface de extensões com API real
+passaram; 91 testes Node, Ruff/Pyright. Fixtures passam fontes divergentes/resultado vazio
+pelo provedor e gateway simulado, invocam ambas as skills e verificam gatilho negativo/
+escopo de schemas. Isso não prova qualidade de raciocínio de um modelo real. Wheel foi
+construído e inspecionado: manifesto e as duas SKILL.md estão incluídos. Licença do pacote
+é a do Orion; MIT do servidor Brave não foi atribuída ao conteúdo proprietário.
+Nenhuma conta/chave real foi conectada; C30 valida o fluxo completo com MCP real de ensaio.
+
+
 ### C00 — fix(ui): estabilizar conexão e consolidar o refinamento visual
 
 Etapa: **A** · Depende de: **base atual do repositório** · Estado: **concluído**.
@@ -1191,13 +1208,13 @@ Etapa: **E** · Depende de: **C27** · Estado: **concluído**.
 
 ### C29 — feat(plugins): distribuir Orion Pesquisa
 
-Etapa: **E** · Depende de: **C28, C16** · Estado: **planejado**.
+Etapa: **E** · Depende de: **C28, C16** · Estado: **concluído**.
 
-- [ ] Criar pacote com pesquisar-assunto e comparar-fontes, usando o formato já validado.
-- [ ] Definir evidência, critérios de comparação e abstenção quando fonte não sustenta a afirmação.
-- [ ] Adicionar exemplos e concessões mínimas para busca/fetch, sem capacidades de escrita.
-- [ ] **Validar:** Instalar e invocar as duas skills; testar fontes contraditórias, ausência de resultado e gatilho que não deveria ativar.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Criar pacote com pesquisar-assunto e comparar-fontes, usando o formato já validado.
+- [x] Definir evidência, critérios de comparação e abstenção quando fonte não sustenta a afirmação.
+- [x] Adicionar exemplos e concessões mínimas para busca/fetch, sem capacidades de escrita.
+- [x] **Validar:** Instalar e invocar as duas skills; testar fontes contraditórias, ausência de resultado e gatilho que não deveria ativar.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C30 — test(extensions): validar o MVP completo no backend novo
 
