@@ -1,6 +1,6 @@
 # Orion — referências de produto e plano de extensões
 
-Pesquisa em 04/10/2026. **Plano de implementação com execuções registradas até C43** (registro na seção 9).
+Pesquisa em 04/10/2026. **Plano de implementação com execuções registradas até C44** (registro na seção 9).
 Plugins e skills seguem em implementação. MCP já tem prova com servidores controlados;
 nenhuma conta pessoal ou servidor externo do usuário foi conectado.
 Complementa [ORION_FRONT.md](ORION_FRONT.md), as fases 4 e 6 do
@@ -339,8 +339,8 @@ como fundação do recurso novo. Exportar leitura primeiro, com identidade e esc
 
 ## 8. Próximo trabalho concreto
 
-As execuções até C43 estão registradas. Estados e evidências por checklist; C41 com validação real pendente.
-Continuar pelo **C44: Orion Arquivos com plano de organização revisável**. O usuário autorizou os checklists restantes,
+As execuções até C44 estão registradas. Estados e evidências por checklist; C41 com validação real pendente.
+Continuar pelo **C45: Orion Desenvolvimento com Git em leitura**. O usuário autorizou os checklists restantes,
 com commits, validação, vault e push. Fixtures não substituem prova de conta ou desktop reais.
 
 Decisões recomendadas para o MVP: manter Python/FastAPI e o front atual; padrão Agent Skills;
@@ -416,10 +416,10 @@ a integração real de Pesquisa fica registrada separadamente se ainda não tive
 
 ### Registro para retomar no próximo dia
 
-- Último checklist concluído: **C43**, commit `03c1f21`; conferir as etapas parciais explicitadas abaixo.
-- Próximo commit sugerido: **C44 — Orion Arquivos com plano de organização revisável**.
+- Último checklist concluído: **C44**, commit `6a2d80f`; conferir as etapas parciais explicitadas abaixo.
+- Próximo commit sugerido: **C45 — Orion Desenvolvimento com Git em leitura**.
 - Dependências/impedimentos: Estados e evidências por checklist; C41 com validação real pendente. Windows/pywebview real e contas externas ainda precisam de evidência específica.
-- Evidências: ver os registros C00–C43 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
+- Evidências: ver os registros C00–C44 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
 - Atualizações: registrar aqui o ID concluído, hash/link e o próximo ID; não preencher com
   hash fictício nem tratar evidência de mock como teste contra conta real.
 
@@ -1155,6 +1155,24 @@ Chromium confirmou adicionar/ativar pacote nativo, escolher skill, draft no chat
 não se declara qualidade de síntese de um modelo pessoal ou escrita automática no vault.
 
 
+### Execução C44 — Orion Arquivos
+
+Commit de implementação: `6a2d80f`. Pacote 1.0.0 com planejar-organizacao e
+revisar-documento. Plano imutável de cópias por tipo para Organizados, apresentado em
+Fontes com origem/destino, quantidade e arquivos ignorados; originais preservados.
+Aplicação só pelo produto após digest, sessão, projeto, revisão e aprovação exatos.
+Sem shell, scripts, exclusão, movimento ou substituição de destinos existentes.
+PathGuard restringe raízes e segredos; symlinks/hardlinks recusados, 100 cópias/32 MB,
+8 MB por arquivo. Bytes aprovados validados e congelados antes do primeiro efeito.
+Falha parcial fica persistida e não admite replay; ambiente exige pasta local confiável,
+não há promessa de sandbox do SO nem prova de concorrência hostil/Windows.
+
+Evidências: 5 testes de organização/perfis/agenda passaram; Chromium 2 fluxos em
+11,30 s com rejeição, cópias, originais, reload e axe a 700 px. Um erro de ordem de
+scripts foi encontrado no primeiro ensaio e corrigido antes desta validação. Ruff e
+Pyright passaram. Suite backend e testes Node registrados no log desta execução.
+
+
 ### C00 — fix(ui): estabilizar conexão e consolidar o refinamento visual
 
 Etapa: **A** · Depende de: **base atual do repositório** · Estado: **concluído**.
@@ -1597,13 +1615,13 @@ Etapa: **G** · Depende de: **C36, C16** · Estado: **concluído**.
 
 ### C44 — feat(plugins): adicionar Orion Arquivos com plano revisável
 
-Etapa: **G** · Depende de: **C38, C18** · Estado: **planejado**.
+Etapa: **G** · Depende de: **C38, C18** · Estado: **concluído**.
 
-- [ ] Empacotar planejar-organizacao e revisar-documento com ferramentas existentes.
-- [ ] Apresentar plano de organização com caminhos e mudanças antes da execução.
-- [ ] Respeitar PathGuard e segredos; restringir execução local a componentes confiáveis.
-- [ ] **Validar:** Testar uma pasta de ensaio: plano não altera arquivos, rejeição não altera nada e aprovação executa apenas o plano revisado.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Empacotar planejar-organizacao e revisar-documento com ferramentas existentes.
+- [x] Apresentar plano de organização com caminhos e mudanças antes da execução.
+- [x] Respeitar PathGuard e segredos; restringir execução local a componentes confiáveis.
+- [x] **Validar:** Testar uma pasta de ensaio: plano não altera arquivos, rejeição não altera nada e aprovação executa apenas o plano revisado.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C45 — feat(plugins): adicionar Orion Desenvolvimento
 
