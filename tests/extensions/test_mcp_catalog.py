@@ -54,10 +54,10 @@ async def test_classification_approval_taint_revision_and_collision(tmp_path):
             fala("feito"),
         )
         agent = Agent(gateway=gw, tools=registry, policy=policy, memory=store)
-        events = [e async for e in agent.run("web", "leitura")]
+        events = [e async for e in agent.run("web", "eco")]
         assert any(e.kind == "tool" and e.data["decision"] == "allow" for e in events)
         assert agent._context(store.active_session("web").id).tainted
-        events = [e async for e in agent.run("web", "alterar")]
+        events = [e async for e in agent.run("web", "alterar fixture")]
         approval = next(e for e in events if e.kind == "approval")
         connection = host.connections["um"]
         assert (await connection.call("estado_fixture", {})).structured_content["changes"] == 0

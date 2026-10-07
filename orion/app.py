@@ -278,7 +278,8 @@ def create_app(
         mcp = MCPHost(settings.mcp_connections)
         await mcp.start()
         catalog = Catalog(mcp, agent.tools, policy) if agent is not None else None
-        if catalog is not None:
+        if catalog is not None and agent is not None:
+            agent.refresh_tools = catalog.refresh
             try:
                 await catalog.refresh()
             except Exception:  # noqa: BLE001 — catálogo externo não derruba chat nativo

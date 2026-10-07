@@ -17,7 +17,7 @@ import asyncio
 import json
 import logging
 import time
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
@@ -71,6 +71,7 @@ class Agent:
         max_tool_chars: int = 8000,
     ) -> None:
         self.gateway, self.tools, self.policy, self.memory = gateway, tools, policy, memory
+        self.refresh_tools: Callable[[], Awaitable[None]] | None = None
         self._ops = ops
         self._persona = persona
         self._clock = clock
@@ -116,6 +117,8 @@ class Agent:
             )
             return
         async with self._lock(sessao.id):
+            if self.refresh_tools is not None:
+                await self.refresh_tools()
             ctx = self._context(sessao.id)
             chamada = ToolCall(a.tool, a.args)
             decisao = self.policy.evaluate(chamada, ctx)  # consome a aprovação (uso único)
@@ -136,12 +139,15 @@ class Agent:
     async def _turn(
         self, session: Session, consulta: str | None, extra_tools: list[str] | None = None
     ) -> AsyncIterator[AgentEvent]:
+        if self.refresh_tools is not None:
+            await self.refresh_tools()
         ctx = self._context(session.id)
         hits = await asyncio.to_thread(self.memory.search, consulta, self._k) if consulta else []
         mensagens = self._mensagens(session, hits)
         usadas: list[str] = list(extra_tools or [])
         destino: tuple[str, str] | None = None
-        esquemas = self.tools.schemas() or None
+        esquemas = self.tools.schemas(query=consulta, selected=extra_tools) or None
+        selected = {s["function"]["name"] for s in esquemas or []}
 
         for _ in range(self._max_iter):
             texto, chamadas = "", []
@@ -188,7 +194,7 @@ class Agent:
             )
             for c in chamadas:
                 usadas.append(c.name)
-                conteudo, eventos = await self._processar_chamada(c, ctx)
+                conteudo, eventos = await self._processar_chamada(c, ctx, selected)
                 for e in eventos:
                     yield e
                 mensagens.append({"role": "tool", "tool_call_id": c.id, "content": conteudo})
@@ -198,11 +204,21 @@ class Agent:
         )
 
     async def _processar_chamada(
-        self, c: ToolCallRequest, ctx: Context
+        self, c: ToolCallRequest, ctx: Context, selected: set[str] | None = None
     ) -> tuple[str, list[AgentEvent]]:
         if c.error:
             return json.dumps({"erro": c.error}, ensure_ascii=False), [
                 AgentEvent("tool", {"name": c.name, "error": c.error})
+            ]
+        tool = self.tools.get(c.name)
+        if (
+            tool is not None
+            and tool.origin is not None
+            and selected is not None
+            and c.name not in selected
+        ):
+            return json.dumps({"erro": "ferramenta externa fora do conjunto deste turno"}), [
+                AgentEvent("tool", {"name": c.name, "decision": "deny", "reason": "not_selected"})
             ]
         chamada = ToolCall(c.name, c.arguments)
         d = self.policy.evaluate(chamada, ctx)

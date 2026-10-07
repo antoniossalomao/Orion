@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import inspect
 import json
+import re
+import unicodedata
 from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import dataclass
@@ -134,5 +136,57 @@ class ToolRegistry:
     def names(self) -> list[str]:
         return list(self._tools)
 
-    def schemas(self) -> list[dict[str, Any]]:
-        return [t.schema() for t in self._tools.values()]
+    @staticmethod
+    def _words(text: str) -> set[str]:
+        plain = unicodedata.normalize("NFKD", text.casefold())
+        plain = "".join(c for c in plain if not unicodedata.combining(c))
+        stop = {"para", "como", "quero", "fazer", "uma", "que", "com", "por", "dos", "das"}
+        return {w for w in re.findall(r"[a-z0-9]{3,}", plain) if w not in stop}
+
+    def catalog(self, query: str = "", *, limit: int = 50) -> list[dict[str, Any]]:
+        words = self._words(query)
+        ranked = []
+        for tool in self._tools.values():
+            if tool.origin is None:
+                continue
+            score = len(words & self._words(tool.description))
+            if words and not score:
+                continue
+            ranked.append((score, tool.name, tool))
+        ranked.sort(key=lambda row: (-row[0], row[1]))
+        return [
+            {"name": t.name, "description": t.description[:240], "origin": t.origin}
+            for _, _, t in ranked[: max(0, min(limit, 100))]
+        ]
+
+    def schemas(
+        self,
+        *,
+        query: str | None = None,
+        selected: list[str] | None = None,
+        limit: int = 8,
+        budget: int = 24000,
+    ) -> list[dict[str, Any]]:
+        # Nativas continuam disponíveis; schemas externos entram só por escolha/relevância.
+        result = [t.schema() for t in self._tools.values() if t.origin is None]
+        candidates: list[str] = list(selected or [])
+        if query:
+            candidates.extend(str(row["name"]) for row in self.catalog(query))
+        used, count = 0, 0
+        for name in dict.fromkeys(candidates):
+            tool = self.get(name)
+            if tool is None or tool.origin is None or count >= max(0, min(limit, 32)):
+                continue
+            schema = tool.schema()
+            size = len(json.dumps(schema, ensure_ascii=False).encode())
+            if used + size > budget:
+                continue
+            result.append(schema)
+            used += size
+            count += 1
+        return result
+
+    @staticmethod
+    def context_usage(schemas: list[dict]) -> dict[str, int]:
+        size = len(json.dumps(schemas, ensure_ascii=False).encode())
+        return {"schemas": len(schemas), "bytes": size, "estimated_tokens": (size + 3) // 4}

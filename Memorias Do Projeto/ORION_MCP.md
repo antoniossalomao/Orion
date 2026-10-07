@@ -98,3 +98,17 @@ Parar a conexão cancela esperas ativas e fecha o SDK; reconnect explícito desc
 client e cria nova geração de identidade, revogando aprovações anteriores. Os testes
 verificam chamada lenta, cancelamento, queda durante execução, ausência de replay e
 encerramento de PID em POSIX. Não atestam interrupção universal de ações externas.
+
+## Descoberta por turno — C13
+
+O agente preserva ferramentas nativas e escolhe até oito externas por seleção explícita
+ou palavras relevantes no catálogo resumido, sem enviar todos os schemas. Orçamento
+externo: 24 KB por turno. Medição registra bytes/quantidade; tokens são estimativa
+(bytes/4), não medição de tokenizer. Sem relevância ou seleção, nenhuma externa entra.
+O agente recusa chamada externa fora do conjunto deste turno.
+
+Descoberta é atualizada antes do turno e antes de retomar aprovação. Remoção, erro de
+catálogo, schema inválido ou troca de identidade revogam mappings/aprovações da conexão.
+Refresh concorrente é serializado. O teste usa servidor real com 121 ferramentas:
+consulta astronomia envia duas schemas (uma nativa e uma MCP); consulta de inventário
+respeita o teto de oito externas. Remoção no servidor invalida a aprovação antiga.
