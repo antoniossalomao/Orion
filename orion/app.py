@@ -30,7 +30,8 @@ from .channels import TelegramChannel
 from .config import PROJECT_ROOT, Settings
 from .delegate import Delegator
 from .extensions.catalog import Catalog
-from .extensions.host import MCPHost
+from .extensions.context import ContextReader, ContextRequest
+from .extensions.host import MCPError, MCPHost
 from .gateway import ChatGateway, Endpoint
 from .jobs import JobRunner
 from .log import request_id
@@ -172,6 +173,7 @@ _CANAL = r"^[a-z0-9_-]{1,32}$"
 class Mensagem(BaseModel):
     texto: str = Field(min_length=1, max_length=8000)
     canal: str = Field(default="web", pattern=_CANAL)
+    contexto: list[ContextRequest] = Field(default_factory=list, max_length=8)
 
 
 class SessaoNova(BaseModel):
@@ -603,8 +605,17 @@ def create_app(
     @app.post("/chat", dependencies=[Admin])
     async def chat(corpo: Mensagem, state: State) -> StreamingResponse:
         agente = _agente(state)
+        external = []
+        if corpo.contexto:
+            if state.mcp is None:
+                raise HTTPException(503, "mcp_unavailable")
+            try:
+                external = await ContextReader(state.mcp).selected(corpo.contexto)
+            except MCPError as error:
+                raise HTTPException(422, error.code) from error
         return StreamingResponse(
-            _stream(agente.run(corpo.canal, corpo.texto)), media_type="text/event-stream"
+            _stream(agente.run(corpo.canal, corpo.texto, external=external)),
+            media_type="text/event-stream",
         )
 
     @app.post("/approvals/{approval_id}/resume", dependencies=[Admin])

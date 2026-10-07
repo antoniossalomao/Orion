@@ -54,6 +54,8 @@ class StdioConfig(BaseModel):
     command: str = Field(min_length=1, max_length=4096)
     args: list[str] = Field(default_factory=list, max_length=128)
     cwd: Path | None = None
+    resources: list[str] = Field(default_factory=list, max_length=128)
+    prompts: list[str] = Field(default_factory=list, max_length=128)
     classifications: dict[str, Risk] = Field(default_factory=dict, max_length=256)
     enabled: bool = False
     trusted: bool = False
@@ -82,6 +84,8 @@ class HTTPConfig(BaseModel):
     id: str = Field(pattern=r"^[a-z0-9][a-z0-9_-]{0,47}$")
     transport: Literal["http"] = "http"
     url: str = Field(max_length=4096)
+    resources: list[str] = Field(default_factory=list, max_length=128)
+    prompts: list[str] = Field(default_factory=list, max_length=128)
     classifications: dict[str, Risk] = Field(default_factory=dict, max_length=256)
     enabled: bool = False
     authorized: bool = False

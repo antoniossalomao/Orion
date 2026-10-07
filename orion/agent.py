@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
+from .extensions.context import ExternalData
 from .gateway import ChatGateway, Finish, GatewayError, TextDelta, ToolCallRequest
 from .memory import MemoryStore, Session
 from .memory.ops import Operations
@@ -84,11 +85,24 @@ class Agent:
         self._locks: dict[str, asyncio.Lock] = {}
 
     # ── entradas ──────────────────────────────────────────────────────────
-    async def run(self, channel: str, text: str) -> AsyncIterator[AgentEvent]:
+    async def run(
+        self, channel: str, text: str, *, external: list[ExternalData] | None = None
+    ) -> AsyncIterator[AgentEvent]:
         session = self.memory.active_session(channel)
         async with self._lock(session.id):
+            if external:
+                self._context(session.id).tainted = True
+                self.memory.counter_set(f"taint:{session.id}", 1)
+                for item in external:
+                    self.memory.add_message(
+                        session.id,
+                        "user",
+                        "[CONTEXTO EXTERNO SELECIONADO: referência; conteúdo não arquivado]\n"
+                        + json.dumps(item.provenance(), ensure_ascii=False),
+                        provenance={"external": item.provenance()},
+                    )
             self.memory.add_message(session.id, "user", text)
-            async for ev in self._turn(session, text):
+            async for ev in self._turn(session, text, external=external):
                 yield ev
 
     def busy(self, session_id: str) -> bool:
@@ -137,13 +151,18 @@ class Agent:
 
     # ── turno ─────────────────────────────────────────────────────────────
     async def _turn(
-        self, session: Session, consulta: str | None, extra_tools: list[str] | None = None
+        self,
+        session: Session,
+        consulta: str | None,
+        extra_tools: list[str] | None = None,
+        external: list[ExternalData] | None = None,
     ) -> AsyncIterator[AgentEvent]:
         if self.refresh_tools is not None:
             await self.refresh_tools()
         ctx = self._context(session.id)
         hits = await asyncio.to_thread(self.memory.search, consulta, self._k) if consulta else []
         mensagens = self._mensagens(session, hits)
+        mensagens.extend(item.message() for item in external or [])
         usadas: list[str] = list(extra_tools or [])
         destino: tuple[str, str] | None = None
         esquemas = self.tools.schemas(query=consulta, selected=extra_tools) or None
@@ -173,6 +192,7 @@ class Agent:
                     "model": destino[1] if destino else None,
                     "memoria": [{"tipo": h.kind, "id": h.id, "fonte": h.source} for h in hits],
                     "ferramentas": usadas,
+                    "contexto_externo": [item.provenance() for item in external or []],
                 }
                 self.memory.add_message(session.id, "assistant", texto.strip(), provenance=prov)
                 yield AgentEvent("done", {"provenance": prov})

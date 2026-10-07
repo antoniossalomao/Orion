@@ -112,3 +112,20 @@ catálogo, schema inválido ou troca de identidade revogam mappings/aprovações
 Refresh concorrente é serializado. O teste usa servidor real com 121 ferramentas:
 consulta astronomia envia duas schemas (uma nativa e uma MCP); consulta de inventário
 respeita o teto de oito externas. Remoção no servidor invalida a aprovação antiga.
+
+## Resources e prompts — C14
+
+`/chat` autenticado aceita `contexto` com até oito escolhas explícitas (`connection`,
+`kind: resource|prompt`, `key`, argumentos opcionais de prompt). Allowlist local por
+conexão: `resources` e `prompts`; referências fora dela são recusadas antes de chamar
+servidor. Templates não executam tools implicitamente nem concedem privilégios.
+
+Contexto textual selecionado é limitado a 32 KB totais, com fonte, digest e sinal de
+truncamento. Conteúdo chega ao modelo como dado em mensagem de usuário; persistem
+referências/procedência, sem indexar o texto bruto do template na memória. Seleção
+marca taint durável. Limite é de contexto após recepção, não sandbox/memória do servidor.
+Conteúdo binário não é aceito neste fluxo. Erros públicos são códigos sanitizados.
+
+Prova real do handshake confirma que Orion não anuncia sampling, elicitation,
+extensões ou capacidades experimentais sem implementação. Testes incluem resource
+80 KB, scope negado, template que tenta dispensar aprovação e `/chat` autenticado.
