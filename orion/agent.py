@@ -438,6 +438,12 @@ class Agent:
             return json.dumps(
                 {"erro": f"tempo esgotado ({self._tool_timeout:.0f}s)"}, ensure_ascii=False
             )
+        if chamada.name in {"editar_fato", "esquecer_fato"}:
+            try:
+                if json.loads(bruto).get("ok") is True:
+                    self.policy.approvals.invalidate_fact(chamada.args["id"])
+            except (ValueError, AttributeError, KeyError):
+                pass
         self.policy.note_result(chamada, ctx)
         if chamada.name == "buscar_memoria":
             try:

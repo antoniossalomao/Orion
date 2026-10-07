@@ -134,14 +134,19 @@ class ApprovalStore:
                     return True
         return False
 
-    def pending(self, session_id: str | None = None) -> list[Approval]:
+    def pending(
+        self, session_id: str | None = None, *, include_approved: bool = False
+    ) -> list[Approval]:
         with self._lock:
             vivos = [self._expire(a) for a in list(self._items.values())]
         return sorted(
             (
                 a
                 for a in vivos
-                if a.status is Status.PENDING and (session_id is None or a.session_id == session_id)
+                if (
+                    a.status is Status.PENDING or (include_approved and a.status is Status.APPROVED)
+                )
+                and (session_id is None or a.session_id == session_id)
             ),
             key=lambda a: a.created_at,
         )
@@ -154,6 +159,17 @@ class ApprovalStore:
                 for a in list(self._items.values())
                 if a.session_id == session_id
             )
+
+    def invalidate_fact(self, fact_id: int) -> None:
+        """Editar/esquecer invalida decisões pendentes sobre o conteúdo anterior."""
+        with self._lock:
+            for approval in list(self._items.values()):
+                if (
+                    approval.tool in {"editar_fato", "esquecer_fato"}
+                    and approval.args.get("id") == fact_id
+                    and approval.status in (Status.PENDING, Status.APPROVED)
+                ):
+                    self._items[approval.id] = replace(approval, status=Status.DENIED)
 
     def invalidate_tools(self, names: set[str]) -> None:
         with self._lock:

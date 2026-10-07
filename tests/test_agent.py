@@ -62,6 +62,7 @@ async def test_resposta_simples_persiste_e_registra_proveniencia(store, policy):
         "buscar_memoria",
         "salvar_memoria",
         "listar_fatos",
+        "editar_fato",
         "esquecer_fato",
     ]
 

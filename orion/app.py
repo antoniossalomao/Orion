@@ -39,6 +39,7 @@ from .extensions.plugins import PluginError
 from .extensions.routes import router as extension_router
 from .extensions.skill_runtime import SkillReference, SkillRuntime
 from .extensions.skills import SkillError
+from .fact_routes import router as fact_router
 from .gateway import ChatGateway, Endpoint
 from .jobs import JobRunner
 from .log import request_id
@@ -762,6 +763,7 @@ def create_app(
             content={"detail": str(error)},
         )
 
+    app.include_router(fact_router(require_admin))
     app.include_router(artifact_router(require_admin))
     app.include_router(project_router(require_admin))
     app.include_router(extension_router(require_admin))

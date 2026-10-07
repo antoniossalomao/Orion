@@ -81,8 +81,8 @@ class PolicyEngine:
         self._audit = audit
 
     # ── API ────────────────────────────────────────────────────────────────
-    def evaluate(self, call: ToolCall, ctx: Context) -> Decision:
-        decision = self._decide(call, ctx)
+    def evaluate(self, call: ToolCall, ctx: Context, *, consume_approval: bool = True) -> Decision:
+        decision = self._decide(call, ctx, consume_approval=consume_approval)
         if not self._record(call, ctx, decision):
             if decision.action is Action.ALLOW and decision.risk is not Risk.READ:
                 return Decision(Action.DENY, decision.risk, "audit indisponível (fail-closed)")
@@ -96,7 +96,7 @@ class PolicyEngine:
             ctx.tainted = True
 
     # ── interno ────────────────────────────────────────────────────────────
-    def _decide(self, call: ToolCall, ctx: Context) -> Decision:
+    def _decide(self, call: ToolCall, ctx: Context, *, consume_approval: bool = True) -> Decision:
         spec = self.tools.get(call.name)
         if spec is None:
             return Decision(Action.DENY, None, f"ferramenta '{call.name}' não registrada")
@@ -119,6 +119,7 @@ class PolicyEngine:
                 "salvar_memoria",
                 "listar_fatos",
                 "esquecer_fato",
+                "editar_fato",
                 "pesquisar_internet",
                 "buscar_url",
             }
@@ -141,7 +142,9 @@ class PolicyEngine:
             return Decision(Action.ALLOW, spec.risk)
 
         binding = self.binding(call.name, ctx)
-        if self.approvals.consume(ctx.session_id, call.name, call.args, binding=binding):
+        if consume_approval and self.approvals.consume(
+            ctx.session_id, call.name, call.args, binding=binding
+        ):
             return Decision(Action.ALLOW, spec.risk, f"aprovado fora de banda ({motivo})")
         pedido = self.approvals.request(
             ctx.session_id, call.name, call.args, motivo, binding=binding

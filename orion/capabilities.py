@@ -56,6 +56,7 @@ def describe(*, agent_ready: bool, admin_configured: bool) -> Capabilities:
         plugin_profiles=admin_configured,
         projects=admin_configured,
         artifacts=admin_configured,
+        memory_facts=admin_configured,
         mcp=admin_configured,
     )
     unavailable: dict[str, str] = dict.fromkeys(PENDING_FEATURES, "not_implemented")
@@ -78,6 +79,7 @@ def describe(*, agent_ready: bool, admin_configured: bool) -> Capabilities:
             plugin_profiles="auth_not_configured",
             projects="auth_not_configured",
             artifacts="auth_not_configured",
+            memory_facts="auth_not_configured",
             mcp="auth_not_configured",
         )
     return Capabilities(

@@ -33,6 +33,10 @@ def memory_tools(store: MemoryStore) -> list[Tool]:
     def listar_fatos() -> dict[str, Any]:
         return {"fatos": [{"id": f.id, "texto": f.text, "fonte": f.source} for f in store.facts()]}
 
+    def editar_fato(id: int, texto: str, fonte: str | None = None) -> dict[str, Any]:
+        fact = store.update_fact(id, texto, fonte)
+        return {"ok": True, "id": fact.id, "texto": fact.text, "fonte": fact.source}
+
     def esquecer_fato(id: int) -> dict[str, Any]:
         return {"ok": store.forget_fact(int(id))}
 
@@ -63,6 +67,21 @@ def memory_tools(store: MemoryStore) -> list[Tool]:
             "Lista tudo o que o Orion sabe sobre o Antônio.",
             {"type": obj, "properties": {}},
             listar_fatos,
+        ),
+        Tool(
+            "editar_fato",
+            "Corrige um fato com revisão e aprovação explícitas.",
+            {
+                "type": obj,
+                "additionalProperties": False,
+                "properties": {
+                    "id": {"type": "integer"},
+                    "texto": {"type": "string", "minLength": 1, "maxLength": 16000},
+                    "fonte": {"type": ["string", "null"], "maxLength": 1000},
+                },
+                "required": ["id", "texto"],
+            },
+            editar_fato,
         ),
         Tool(
             "esquecer_fato",

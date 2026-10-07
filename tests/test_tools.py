@@ -21,7 +21,7 @@ def test_toda_ferramenta_registrada_tem_classe_de_risco(store):
     reg = default_registry(store, Delegator(store))
     assert set(reg.names()) <= set(DEFAULT_TOOLS)
     assert reg.names() == [
-        "buscar_memoria", "salvar_memoria", "listar_fatos", "esquecer_fato", "delegar",
+        "buscar_memoria", "salvar_memoria", "listar_fatos", "editar_fato", "esquecer_fato", "delegar",
     ]  # fmt: skip
     assert DEFAULT_TOOLS["esquecer_fato"].risk is Risk.DESTRUCTIVE
     assert DEFAULT_TOOLS["delegar"].risk is Risk.EXEC

@@ -105,6 +105,7 @@ DEFAULT_TOOLS: dict[str, ToolSpec] = dict(
         # reescrita (fase 2)
         _t("listar_fatos", Risk.READ),
         _t("esquecer_fato", Risk.DESTRUCTIVE),
+        _t("editar_fato", Risk.WRITE, require_confirmation=True),
         _t("delegar", Risk.EXEC),
     ]
 )

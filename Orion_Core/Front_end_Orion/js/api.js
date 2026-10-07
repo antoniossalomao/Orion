@@ -30,7 +30,7 @@
     const configurarToken = t => { tokenDesktop = String(t || ''); };
 
     /** rotas que exigem o token do orion.app; o legado não conhece cabeçalho Authorization */
-    const comAuth = caminho => /^\/(approvals|chat|notifications|artifacts|projects|skills|plugins|mcp|sessoes|historico|exportar|capabilities\/details)(\/|$|\?)/.test(caminho);
+    const comAuth = caminho => /^\/(approvals|chat|notifications|facts|artifacts|projects|skills|plugins|mcp|sessoes|historico|exportar|capabilities\/details)(\/|$|\?)/.test(caminho);
 
     function cabecalhos(caminho, extra = {}) {
         const h = { ...extra };
@@ -73,7 +73,7 @@
     const q = o => Object.entries(o).filter(([, v]) => v != null).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
 
     const rotas = {
-        artifacts: ['/artifacts'], projects: ['/projects'], sessions: ['/sessoes'], history: ['/historico'], history_clear: [], export: ['/exportar'],
+        memory_facts: ['/facts'], artifacts: ['/artifacts'], projects: ['/projects'], sessions: ['/sessoes'], history: ['/historico'], history_clear: [], export: ['/exportar'],
         memory_graph: ['/grafo/completo'], memory_categories: ['/memoria/categorias'],
         metrics: ['/metrics'], stats: ['/stats'], stats_history: ['/stats/historico'],
         integrations: ['/integracoes'], upload: ['/upload'], tts: ['/tts/mudo', '/tts/falar'],
@@ -117,7 +117,7 @@
                     if (estado.backend === 'legacy') Object.assign(features, estado.features);
                     features.chat = h.cerebro.ok;
                     features.skills = false;
-                    features.plugins = false; features.mcp = false; features.projects = false; features.artifacts = false;
+                    features.plugins = false; features.mcp = false; features.projects = false; features.artifacts = false; features.memory_facts = false;
                     features.notifications = false; // pertence ao backend novo
                     novo = { backend: 'legacy', api: 'online', model: h.cerebro.ok ? 'ready' : 'unavailable', features, unavailable: estado.backend === 'legacy' ? estado.unavailable : {} };
                 } else novo = { backend: 'unknown', api: 'online', model: 'unknown', features: {}, unavailable: {}, incompatible: true };
@@ -176,6 +176,10 @@
         integracoes: () => recurso('integrations', '/integracoes', { timeout: 3500 }),
         categorias: () => recurso('memory_categories', '/memoria/categorias', { timeout: 4000 }),
         grafo: (limite = 500) => recurso('memory_graph', `/grafo/completo?${q({ limite })}`, { timeout: 7000 }),
+        fatos: (project_id, query = '') => recurso('memory_facts', `/facts?${q({ project_id, query })}`),
+        aprovacoesFatos: project_id => recurso('memory_facts', `/facts/pending?${q({ project_id })}`),
+        revisarFato: (id, project_id, json) => recurso('memory_facts', `/facts/${encodeURIComponent(id)}/review?${q({ project_id })}`, { metodo: 'POST', json }),
+        executarFato: (id, project_id, approval_id) => recurso('memory_facts', `/facts/${encodeURIComponent(id)}/resume?${q({ project_id })}`, { metodo: 'POST', json: { approval_id } }),
         resultados: (project_id, query = '') => recurso('artifacts', `/artifacts?${q({ project_id, query })}`),
         resultado: (id, project_id, version) => recurso('artifacts', `/artifacts/${encodeURIComponent(id)}?${q({ project_id, version })}`),
         versoesResultado: (id, project_id) => recurso('artifacts', `/artifacts/${encodeURIComponent(id)}/versions?${q({ project_id })}`),

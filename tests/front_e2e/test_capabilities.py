@@ -73,13 +73,15 @@ def test_backend_novo_telas_sem_recursos_nao_sondam_endpoints(abrir, novo_backen
     page = abrir(url=url, init=TOKEN_INIT, axe=True)
     for rota, seletor in [
         ("integracoes", "#integ-grid"),
-        ("memoria", "#mem-capabilities"),
+        ("memoria", "#facts-status"),
         ("config", "#activity-capabilities"),
     ]:
         page.click(f'.sb-item[data-view="{rota}"]')
         if rota == "integracoes":
             page.get_by_role("tab", name="Voz e canais").click()
-        expect(page.locator(seletor)).to_contain_text("indisponív")
+        expect(page.locator(seletor)).to_contain_text(
+            "Nenhum fato" if rota == "memoria" else "indisponív"
+        )
     page.evaluate("""async () => {
         for (let i=0; i<3; i++) {
             await Orion.sidebar.carregar();

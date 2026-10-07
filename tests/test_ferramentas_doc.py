@@ -13,7 +13,12 @@ from orion.policy import DEFAULT_TOOLS
 from orion.tools import default_registry
 
 DOC = PROJECT_ROOT / "Memorias Do Projeto" / "ORION_FERRAMENTAS.md"
-NOVAS = {"listar_fatos", "esquecer_fato", "delegar"}  # nasceram na reescrita, não vieram do legado
+NOVAS = {
+    "listar_fatos",
+    "esquecer_fato",
+    "editar_fato",
+    "delegar",
+}  # nasceram na reescrita, não vieram do legado
 SITUACOES = {"portada", "substituida", "a-portar", "descartar"}
 LINHA = re.compile(
     r"^\| `(\w+)` \| `(\w+)\.py` \| (\w+)( \(externo\))? \| ([\w-]+) \| (.+) \| (\d|—) \|$"
