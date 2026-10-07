@@ -1,6 +1,6 @@
 # Orion — referências de produto e plano de extensões
 
-Pesquisa em 04/10/2026. **Plano de implementação com C00–C32 concluídos** (registro na seção 9).
+Pesquisa em 04/10/2026. **Plano de implementação com C00–C33 concluídos** (registro na seção 9).
 Plugins e skills seguem em implementação. MCP já tem prova com servidores controlados;
 nenhuma conta pessoal ou servidor externo do usuário foi conectado.
 Complementa [ORION_FRONT.md](ORION_FRONT.md), as fases 4 e 6 do
@@ -339,7 +339,7 @@ como fundação do recurso novo. Exportar leitura primeiro, com identidade e esc
 
 ## 8. Próximo trabalho concreto
 
-C00–C32 foram concluídos e validados. Continuar pelo **C33: interface de projetos com conversas instruções fontes e extensões**.
+C00–C33 foram concluídos e validados. Continuar pelo **C34: armazenamento versionado de resultados com origem e escopo**.
 O usuário autorizou a execução dos checklists restantes, com commits separados, validação,
 registro no vault e push. Integrações pessoais e Windows serão registrados conforme
 as evidências disponíveis, sem transformar fixtures em prova de conta ou desktop reais.
@@ -351,8 +351,8 @@ quando houver integração concreta para revisar. Este documento não muda as de
 
 ## 9. Checklists por commit e sequência de dias
 
-Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C32 têm commits reais
-registrados; C33–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
+Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C33 têm commits reais
+registrados; C34–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
 precisa estar pronto. Não é necessário concluir o plano inteiro para usar o primeiro MVP.
 
 ### Ritmo de trabalho
@@ -365,7 +365,7 @@ precisa estar pronto. Não é necessário concluir o plano inteiro para usar o p
   manter os dependentes esperando a entrega completa.
 - Ao pedir continuação, usar o ID: **“Faça o próximo commit pendente”** ou **“Faça o C09”**.
   O executor confere o checklist e as dependências antes de iniciar.
-- C00–C32 estão implementados, validados e registrados abaixo; C33–C50 permanecem
+- C00–C33 estão implementados, validados e registrados abaixo; C34–C50 permanecem
   planejados. Cada continuação deve conferir as dependências e os limites da entrega anterior.
 
 ### Como concluir e pausar cada commit
@@ -418,10 +418,10 @@ a integração real de Pesquisa fica registrada separadamente se ainda não tive
 
 ### Registro para retomar no próximo dia
 
-- Último checklist concluído: **C32**, commit `51acf58`; entregas anteriores registradas abaixo.
-- Próximo commit sugerido: **C33 — interface de projetos com conversas instruções fontes e extensões**.
-- Dependências/impedimentos: conferir as dependências do C33 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
-- Evidências: ver os registros C00–C32 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
+- Último checklist concluído: **C33**, commit `0d755cf`; entregas anteriores registradas abaixo.
+- Próximo commit sugerido: **C34 — armazenamento versionado de resultados com origem e escopo**.
+- Dependências/impedimentos: conferir as dependências do C34 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
+- Evidências: ver os registros C00–C33 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
 - Atualizações: registrar aqui o ID concluído, hash/link e o próximo ID; não preencher com
   hash fictício nem tratar evidência de mock como teste contra conta real.
 
@@ -965,6 +965,22 @@ Detalhes em `ORION_PROJETOS.md`. Código MCP confiável não é sandbox; a valid
 e contas pessoais continua pendente. Próxima etapa: C33.
 
 
+### Execução C33 — interface de projetos (07/10/2026)
+
+Commit real `0d755cf`. Seção Projetos reúne conversas, instruções, fontes e extensões;
+contexto pessoal/projeto aparece no composer. Edição inclui raiz e compartilhamento pessoal
+explícito. Conversas podem ser movidas pelo menu, mantendo IDs e rascunhos, e novas conversas
+herdam o contexto. Arquivar preserva histórico e impede novos turnos/ativação para escrita.
+A revisão de plugins e MCP permite escolher escopo, e skills acompanham a conversa atual.
+
+Validação: **628 testes backend**, Ruff/format/Pyright e **7 arquivos Node** passaram.
+Chromium: **7 testes existentes de extensões e fluxo MCP**, mais **1 novo fluxo de projetos**
+passaram. O ensaio cobre teclado, dois rascunhos, alternância, conversa nova no projeto,
+movimentação, contexto pessoal, arquivar/restaurar, 700 px e axe sem violações WCAG A/AA.
+Imagem `orion-c33-projects-700.png` foi inspecionada. Corrigida navegação tardia ao criar
+conversa; uma espera de teste que incluía a paleta oculta foi corrigida. Próxima etapa: C34.
+
+
 ### C00 — fix(ui): estabilizar conexão e consolidar o refinamento visual
 
 Etapa: **A** · Depende de: **base atual do repositório** · Estado: **concluído**.
@@ -1297,13 +1313,13 @@ Etapa: **F** · Depende de: **C31, C23** · Estado: **concluído**.
 
 ### C33 — feat(ui): organizar conversas arquivos e instruções por projeto
 
-Etapa: **F** · Depende de: **C32, C05** · Estado: **planejado**.
+Etapa: **F** · Depende de: **C32, C05** · Estado: **concluído**.
 
-- [ ] Adicionar seleção e detalhe de projeto com chats, instruções, fontes e extensões.
-- [ ] Oferecer contexto claramente visível no composer e acesso a conversa sem projeto.
-- [ ] Implementar associação/movimentação de conversa com preservação do histórico.
-- [ ] **Validar:** Criar e alternar projetos pelo teclado, conferir contexto e reabrir chats; testar layout estreito e estados vazios.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Adicionar seleção e detalhe de projeto com chats, instruções, fontes e extensões.
+- [x] Oferecer contexto claramente visível no composer e acesso a conversa sem projeto.
+- [x] Implementar associação/movimentação de conversa com preservação do histórico.
+- [x] **Validar:** Criar e alternar projetos pelo teclado, conferir contexto e reabrir chats; testar layout estreito e estados vazios.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C34 — feat(artifacts): persistir resultados com origem e versões
 
