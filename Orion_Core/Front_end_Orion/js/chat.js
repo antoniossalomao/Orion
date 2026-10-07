@@ -257,6 +257,7 @@
 
     function barraAcoes(a, ultima) {
         const barra = el('div', { class: 'msg-actions' }, botaoAcao('copiar', 'Copiar resposta', 'copy'), botaoAcao('ouvir', 'Ouvir resposta', 'speaker'));
+        if (api.suporta('artifacts')) barra.append(botaoAcao('salvar-resultado', 'Salvar resultado', 'copy'));
         if (ultima) barra.append(botaoAcao('repetir', 'Gerar de novo', 'retry'));
         a.principal.append(barra);
         a.acoes = true;
@@ -343,6 +344,8 @@
             }
             const a = criarOrion({ quando: m.timestamp ? U.hora(m.timestamp) || '' : '', pensando: false, animar: false });
             a.el.dataset.streaming = 'false';
+            if (m.id) a.el.dataset.messageId = String(m.id);
+            if (O.historico.sessao()) a.el.dataset.sessionId = O.historico.sessao();
             a.texto = String(m.content ?? '');
             a.prose.hidden = false;
             a.prose.innerHTML = a.rs.renderizar(a.texto);
@@ -407,7 +410,7 @@
             case 'texto': receberTexto(ev.texto); break;
             case 'ferramenta': chipFerramenta(ev); break;
             case 'aprovacao': cartaoAprovacao(ev); break;
-            case 'fontes': mostrarFontes(atual || iniciar({ pensando:false }), ev.provenance); break;
+            case 'fontes': { const a = atual || iniciar({ pensando:false }); mostrarFontes(a, ev.provenance); if (ev.message_id) a.el.dataset.messageId = String(ev.message_id); if (ev.session_id) a.el.dataset.sessionId = ev.session_id; break; }
             case 'erro': mostrarErro(ev); break;
             case 'fim': if (atual) finalizar(atual, ev); else setOcupado(false); break;
             default: break;
@@ -429,6 +432,7 @@
         if (!acao) return;
         const msg = acao.closest('.msg');
         switch (acao.dataset.acao) {
+            case 'salvar-resultado': O.artifacts.salvarResposta(textoDe.get(msg) || '', Number(msg.dataset.messageId) || null, msg.dataset.sessionId || null); break;
             case 'copiar': ui.copiar(textoDe.get(msg) || '').then(ok => ok ? ui.piscarOk(acao) : ui.toast('Não consegui copiar.', { tipo: 'erro' })); break;
             case 'ouvir': {
                 const t = MD.paraFala(textoDe.get(msg) || '');

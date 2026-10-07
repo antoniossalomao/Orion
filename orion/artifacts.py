@@ -86,7 +86,9 @@ class Artifacts:
         )
         if not rows:
             raise ArtifactError("artifact_not_found")
-        return dict(rows[0])
+        row = dict(rows[0])
+        session = self.memory.get_session(row["session_id"])
+        return {**row, "session_title": session.title if session else None}
 
     def list(self, project_id: str | None = None, query: str = "") -> list[dict]:
         return [

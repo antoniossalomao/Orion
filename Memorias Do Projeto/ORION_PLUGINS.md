@@ -43,3 +43,30 @@ Não usa extractall: todos os nomes/tipos/tamanhos/CRC são verificados, com blo
 zip-slip, symlink/arquivo especial, drive Windows/ADS/nomes reservados, Unicode/case
 collisions e conflito arquivo/diretório. Snapshot resultante passa pelo mesmo validador,
 staging e publicação da pasta. Hash da mesma coleção de arquivos é igual nos dois formatos.
+
+## Estado operacional atual — C22 a C35
+
+Versões podem ser preparadas, revisadas, selecionadas e revertidas enquanto desativadas;
+o registro troca ponteiros atomicamente. Desinstalar remove somente bundles próprios,
+preservando conversas e resultados. Instalação não concede execução: ativação administrativa
+requer digest, capacidades e classificações revisadas, confiança explícita no código local
+ou autorização do servidor remoto. Dependências precisam estar instaladas e ativas na versão
+exata. Concessões incluem o contexto pessoal/projeto e podem ser revogadas.
+
+O manager publica skills/MCP somente após validação e retira tools/autoridades ao desativar.
+Schemas externos têm seleção progressiva, limite de oito tools e orçamento de 24 KB. Skills
+carregam corpo/referências sob orçamento e restrições de ferramentas. Escrita/execução externas
+requerem aprovação por origem/revisão; reconectar muda identidade e invalida decisões antigas.
+Resources/prompts são escolhas explícitas, dados de usuário, sem sampling/elicitation automático.
+
+Interface Extensões oferece importação ZIP/pasta, revisão de capacidades/escopo, versões,
+rollback, desativação, diagnóstico e configuração/teste de conexões. Testar faz handshake e
+discovery: iniciar um servidor local confiável executa seu código, ainda que não chame tools.
+Startup conserva configurações e pacotes desativados. Código local não é sandbox de SO;
+scripts de pacotes ainda não são ativados pelo manager (runner local revisado é separado).
+
+Perfil incluído: Orion Pesquisa 1.0.0, com duas skills sobre as ferramentas de pesquisa
+explicitamente configuradas. Provedor Brave exige referência de credencial; ausência de conta
+não é simulada como disponibilidade. Fontes e atividade permanecem no histórico. Projetos
+isolam recuperação/skills/MCP e results usam armazenamento independente dos bundles.
+Contas reais e Windows/pywebview permanecem sem prova neste ambiente Linux.

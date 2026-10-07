@@ -184,3 +184,16 @@
 .project-conversation { display:flex; width:100%; text-align:left; white-space:normal; justify-content:flex-start; }
 .project-context { margin-bottom:8px; max-width:100%; text-overflow:ellipsis; overflow:hidden; }
 @media(max-width:760px) { .project-layout { grid-template-columns:1fr; gap:16px; } #project-list { flex-direction:row; flex-wrap:wrap; } .project-detail { padding:18px; } }
+
+.artifact-layout { display:grid; grid-template-columns:minmax(180px,1fr) minmax(0,1.6fr); gap:20px; align-items:start; }
+.artifact-list { display:grid; gap:12px; min-width:0; }
+.artifact-item { padding:14px; min-width:0; }
+.artifact-title { font-size:16px; text-align:left; justify-content:flex-start; width:100%; white-space:normal; overflow-wrap:anywhere; }
+.artifact-preview { min-width:0; padding:22px; }
+.artifact-preview-head { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
+.artifact-preview h3 { overflow-wrap:anywhere; }
+.artifact-content { margin-top:22px; overflow-wrap:anywhere; }
+.artifact-code { white-space:pre-wrap; overflow-wrap:anywhere; font-family:var(--font-mono); }
+.artifact-image { max-width:100%; height:auto; border-radius:var(--r-3); }
+.artifact-editor { font-family:var(--font-mono); min-height:180px; }
+@media(max-width:900px) { .artifact-layout { grid-template-columns:1fr; } .artifact-preview { padding:18px; } }

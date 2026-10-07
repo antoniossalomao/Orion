@@ -30,7 +30,7 @@
     const configurarToken = t => { tokenDesktop = String(t || ''); };
 
     /** rotas que exigem o token do orion.app; o legado não conhece cabeçalho Authorization */
-    const comAuth = caminho => /^\/(approvals|chat|notifications|projects|skills|plugins|mcp|sessoes|historico|exportar|capabilities\/details)(\/|$|\?)/.test(caminho);
+    const comAuth = caminho => /^\/(approvals|chat|notifications|artifacts|projects|skills|plugins|mcp|sessoes|historico|exportar|capabilities\/details)(\/|$|\?)/.test(caminho);
 
     function cabecalhos(caminho, extra = {}) {
         const h = { ...extra };
@@ -73,7 +73,7 @@
     const q = o => Object.entries(o).filter(([, v]) => v != null).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
 
     const rotas = {
-        projects: ['/projects'], sessions: ['/sessoes'], history: ['/historico'], history_clear: [], export: ['/exportar'],
+        artifacts: ['/artifacts'], projects: ['/projects'], sessions: ['/sessoes'], history: ['/historico'], history_clear: [], export: ['/exportar'],
         memory_graph: ['/grafo/completo'], memory_categories: ['/memoria/categorias'],
         metrics: ['/metrics'], stats: ['/stats'], stats_history: ['/stats/historico'],
         integrations: ['/integracoes'], upload: ['/upload'], tts: ['/tts/mudo', '/tts/falar'],
@@ -117,7 +117,7 @@
                     if (estado.backend === 'legacy') Object.assign(features, estado.features);
                     features.chat = h.cerebro.ok;
                     features.skills = false;
-                    features.plugins = false; features.mcp = false; features.projects = false;
+                    features.plugins = false; features.mcp = false; features.projects = false; features.artifacts = false;
                     features.notifications = false; // pertence ao backend novo
                     novo = { backend: 'legacy', api: 'online', model: h.cerebro.ok ? 'ready' : 'unavailable', features, unavailable: estado.backend === 'legacy' ? estado.unavailable : {} };
                 } else novo = { backend: 'unknown', api: 'online', model: 'unknown', features: {}, unavailable: {}, incompatible: true };
@@ -176,6 +176,11 @@
         integracoes: () => recurso('integrations', '/integracoes', { timeout: 3500 }),
         categorias: () => recurso('memory_categories', '/memoria/categorias', { timeout: 4000 }),
         grafo: (limite = 500) => recurso('memory_graph', `/grafo/completo?${q({ limite })}`, { timeout: 7000 }),
+        resultados: (project_id, query = '') => recurso('artifacts', `/artifacts?${q({ project_id, query })}`),
+        resultado: (id, project_id, version) => recurso('artifacts', `/artifacts/${encodeURIComponent(id)}?${q({ project_id, version })}`),
+        versoesResultado: (id, project_id) => recurso('artifacts', `/artifacts/${encodeURIComponent(id)}/versions?${q({ project_id })}`),
+        salvarResultado: (json, project_id, id = null) => recurso('artifacts', `/artifacts${id ? '/' + encodeURIComponent(id) + '/versions' : ''}?${q({ project_id })}`, { metodo: 'POST', json, timeout: 20000 }),
+        baixarResultado: (id, project_id, version) => recurso('artifacts', `/artifacts/${encodeURIComponent(id)}/download?${q({ project_id, version })}`, { bruto: true, timeout: 20000 }),
         projetos: (archived = false) => recurso('projects', `/projects?${q({ archived })}`),
         projeto: id => recurso('projects', `/projects/${encodeURIComponent(id)}`),
         criarProjeto: json => recurso('projects', '/projects', { metodo: 'POST', json }),

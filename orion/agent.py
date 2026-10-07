@@ -274,8 +274,12 @@ class Agent:
                     "contexto_externo": [item.provenance() for item in external or []],
                     "skills": list(selection.skills) if selection else [],
                 }
-                self.memory.add_message(session.id, "assistant", texto.strip(), provenance=prov)
-                yield AgentEvent("done", {"provenance": prov})
+                message = self.memory.add_message(
+                    session.id, "assistant", texto.strip(), provenance=prov
+                )
+                yield AgentEvent(
+                    "done", {"provenance": prov, "message_id": message.id, "session_id": session.id}
+                )
                 return
 
             mensagens.append(

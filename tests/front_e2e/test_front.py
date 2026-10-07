@@ -10,8 +10,8 @@ from playwright.sync_api import expect
 
 from .conftest import AXE, TOKEN
 
-ROTAS = ["", "#/chat", "#/memoria", "#/integracoes", "#/config"]
-VIEWS = ["home", "chat", "memoria", "integracoes", "config"]
+ROTAS = ["", "#/chat", "#/memoria", "#/integracoes", "#/config", "#/projetos", "#/resultados"]
+VIEWS = ["home", "chat", "memoria", "integracoes", "config", "projetos", "resultados"]
 TEMAS = ["noite", "grafite", "contraste"]
 
 
@@ -128,7 +128,7 @@ def test_navegacao_por_hash_botao_voltar_e_views_ocultas_inertes(abrir):
             "aria-current", "page"
         )
     page.go_back()
-    expect(page.locator("html")).to_have_attribute("data-view", "integracoes")
+    expect(page.locator("html")).to_have_attribute("data-view", VIEWS[-2])
 
 
 def test_deep_link_abre_direto_na_tela(abrir):
@@ -141,6 +141,10 @@ def test_atalhos_de_teclado(abrir):
     page = abrir()
     page.keyboard.press("Alt+3")
     expect(page.locator("html")).to_have_attribute("data-view", "memoria")
+    page.keyboard.press("Alt+6")
+    expect(page.locator("html")).to_have_attribute("data-view", "projetos")
+    page.keyboard.press("Alt+7")
+    expect(page.locator("html")).to_have_attribute("data-view", "resultados")
     page.keyboard.press("Alt+2")
     expect(page.locator("html")).to_have_attribute("data-view", "chat")
     page.keyboard.press("Control+b")

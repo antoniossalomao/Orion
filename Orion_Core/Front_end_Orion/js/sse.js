@@ -53,7 +53,7 @@
         if (!ev || typeof ev !== 'object') return null;
         if (typeof ev.text === 'string' && ev.text) return { tipo: 'texto', texto: ev.text };
         if (typeof ev.tier === 'string' && ev.tier) return { tipo: 'modelo', nome: ev.tier };
-        if (ev.provenance && typeof ev.provenance === 'object' && !Array.isArray(ev.provenance)) return { tipo: 'fontes', provenance: ev.provenance };
+        if (ev.provenance && typeof ev.provenance === 'object' && !Array.isArray(ev.provenance)) return { tipo: 'fontes', provenance: ev.provenance, ...(Number.isSafeInteger(ev.message_id) ? { message_id: ev.message_id } : {}), ...(typeof ev.session_id === 'string' ? { session_id: ev.session_id } : {}) };
         if (ev.tool && typeof ev.tool === 'object') {
             const t = ev.tool;
             return { tipo: 'ferramenta', nome: String(t.name || ''), decisao: t.decision || null,
