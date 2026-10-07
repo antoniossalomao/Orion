@@ -1109,11 +1109,11 @@ def test_pilula_de_estado_so_aparece_com_atividade_ou_aprovacao_pendente(abrir):
         negar.click()
     expect(pilula).to_be_hidden()
     enviar(page, "apague os arquivos antigos")
-    expect(page.locator(".approval").first).to_have_attribute("data-estado", "pendente")
+    expect(page.locator(".approval").last).to_have_attribute("data-estado", "pendente")
     esperar_fim(page)
     expect(pilula).to_be_visible()
     expect(page.locator("#state-label")).to_have_text("Aguardando aprovação")
-    page.locator(".approval").first.get_by_role("button", name="Negar").click()
+    page.locator(".approval").last.get_by_role("button", name="Negar").click()
     expect(pilula).to_be_hidden()
 
 

@@ -150,7 +150,7 @@
         // com 1–2 pontos a linha é uma rampa/traço que não diz nada: só desenha a partir de 3 medições
         const legenda = $('#a-spark-legenda');
         const pronto = s.n >= MIN_PONTOS;
-        svg.hidden = !pronto;
+        svg.toggleAttribute('hidden', !pronto);   // SVGElement não tem a propriedade .hidden
         legenda.textContent = pronto
             ? `Últimas ${s.n} medições · mín ${U.fmtMs(s.min)} · máx ${U.fmtMs(s.max)}`
             : `Coletando medições (${s.n} de ${MIN_PONTOS}) para o gráfico.`;
