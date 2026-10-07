@@ -12,6 +12,7 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 from .extensions.host import ConnectionConfig
 from .extensions.skill_runtime import SkillSource
+from .research import ResearchConfig
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 _PUBLICOS = {"0.0.0.0", "::", ""}  # noqa: S104 — só para recusar
@@ -41,6 +42,7 @@ class Settings(BaseSettings):
     # `orion-desktop` v0 (executar_comando, ler_arquivo, listar_arquivos): desligado por padrão
     skill_sources: list[SkillSource] = Field(default_factory=list, max_length=32)
     mcp_connections: list[ConnectionConfig] = Field(default_factory=list, max_length=32)
+    research: ResearchConfig = Field(default_factory=ResearchConfig)
     desktop_tools: bool = False
     # Canal Telegram (fase 5): sobe se houver token; sem lista de usuários não sobe (default-deny).
     telegram_token: str = ""  # ou no cofre do SO (ORION_TELEGRAM_TOKEN)

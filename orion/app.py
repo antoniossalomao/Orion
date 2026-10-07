@@ -47,6 +47,7 @@ from .memory.ops import Operations
 from .memory.store import Message, Session
 from .policy import ApprovalStore, PathGuard, PolicyEngine, redact
 from .policy.paths import default_safe_roots
+from .research import Research
 from .secrets import get_secret
 from .tools import default_registry
 from .tools.registry import ToolRegistry
@@ -289,6 +290,8 @@ def create_app(
             settings, agent, memory, policy, ops
         )
         tarefa_telegram = asyncio.create_task(telegram.run()) if telegram is not None else None
+        if agent is not None:
+            Research(settings.research).attach(agent.tools, policy)
         mcp = MCPHost(settings.mcp_connections)
         await mcp.start()
         catalog = Catalog(mcp, agent.tools if agent else ToolRegistry(), policy)
