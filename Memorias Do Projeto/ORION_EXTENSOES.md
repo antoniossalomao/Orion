@@ -1,6 +1,6 @@
 # Orion — referências de produto e plano de extensões
 
-Pesquisa em 04/10/2026. **Plano de implementação com execuções registradas até C42** (registro na seção 9).
+Pesquisa em 04/10/2026. **Plano de implementação com execuções registradas até C43** (registro na seção 9).
 Plugins e skills seguem em implementação. MCP já tem prova com servidores controlados;
 nenhuma conta pessoal ou servidor externo do usuário foi conectado.
 Complementa [ORION_FRONT.md](ORION_FRONT.md), as fases 4 e 6 do
@@ -339,8 +339,8 @@ como fundação do recurso novo. Exportar leitura primeiro, com identidade e esc
 
 ## 8. Próximo trabalho concreto
 
-As execuções até C42 estão registradas. Estados e evidências por checklist; C41 com validação real pendente.
-Continuar pelo **C43: Orion Memória e Vault**. O usuário autorizou os checklists restantes,
+As execuções até C43 estão registradas. Estados e evidências por checklist; C41 com validação real pendente.
+Continuar pelo **C44: Orion Arquivos com plano de organização revisável**. O usuário autorizou os checklists restantes,
 com commits, validação, vault e push. Fixtures não substituem prova de conta ou desktop reais.
 
 Decisões recomendadas para o MVP: manter Python/FastAPI e o front atual; padrão Agent Skills;
@@ -416,10 +416,10 @@ a integração real de Pesquisa fica registrada separadamente se ainda não tive
 
 ### Registro para retomar no próximo dia
 
-- Último checklist concluído: **C42**, commit `6f7473b`; conferir as etapas parciais explicitadas abaixo.
-- Próximo commit sugerido: **C43 — Orion Memória e Vault**.
+- Último checklist concluído: **C43**, commit `03c1f21`; conferir as etapas parciais explicitadas abaixo.
+- Próximo commit sugerido: **C44 — Orion Arquivos com plano de organização revisável**.
 - Dependências/impedimentos: Estados e evidências por checklist; C41 com validação real pendente. Windows/pywebview real e contas externas ainda precisam de evidência específica.
-- Evidências: ver os registros C00–C42 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
+- Evidências: ver os registros C00–C43 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
 - Atualizações: registrar aqui o ID concluído, hash/link e o próximo ID; não preencher com
   hash fictício nem tratar evidência de mock como teste contra conta real.
 
@@ -1139,6 +1139,22 @@ A prova com Google pessoal/escopos reais permanece pendente no C41/C46; não hou
 login ou criação de evento real pelo assistente nesta execução.
 
 
+### Execução C43 — Orion Memória e Vault
+
+Commit de implementação: `03c1f21`. Pacote 1.0.0 com retomar-contexto e sintetizar-notas,
+capabilities nativas buscar_memoria/listar_fatos. Usa índice existente, sem MCP adicional,
+sem escrita no vault e sem acesso inferido a outra raiz. Instruções distinguem fontes,
+memória compartilhada, hipótese e lacunas. Fontes no chat removem prefixos internos de
+projeto/upload para apresentar o nome legível da nota.
+
+Evidências: 15 testes pacotes/pesquisa/projetos passaram (3,53 s); 91 Node e Ruff/format/Pyright
+verdes. Fixture retomou/sintetizou notas com origem, canários de dois projetos e memória pessoal
+separados, arquivo intacto e nenhum MCP novo; pedido de salvar fato fora da skill foi recusado.
+Chromium confirmou adicionar/ativar pacote nativo, escolher skill, draft no chat, fonte legível,
+700 px e axe completo (7,28 s). Desativar conserva notas e índice. Gateway controlado:
+não se declara qualidade de síntese de um modelo pessoal ou escrita automática no vault.
+
+
 ### C00 — fix(ui): estabilizar conexão e consolidar o refinamento visual
 
 Etapa: **A** · Depende de: **base atual do repositório** · Estado: **concluído**.
@@ -1571,13 +1587,13 @@ Etapa: **G** · Depende de: **C41, C29** · Estado: **concluído**.
 
 ### C43 — feat(plugins): adicionar Orion Memória e Vault
 
-Etapa: **G** · Depende de: **C36, C16** · Estado: **planejado**.
+Etapa: **G** · Depende de: **C36, C16** · Estado: **concluído**.
 
-- [ ] Empacotar retomar-contexto e sintetizar-notas sobre o índice e ferramentas já existentes.
-- [ ] Mostrar notas usadas como fonte e respeitar projeto, raiz autorizada e contexto pessoal compartilhado.
-- [ ] Não adicionar MCP novo onde ferramentas nativas já resolvem o fluxo.
-- [ ] **Validar:** Retomar projeto com canários de escopo e sintetizar notas com fonte; nenhuma escrita no vault ocorre por inferência.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Empacotar retomar-contexto e sintetizar-notas sobre o índice e ferramentas já existentes.
+- [x] Mostrar notas usadas como fonte e respeitar projeto, raiz autorizada e contexto pessoal compartilhado.
+- [x] Não adicionar MCP novo onde ferramentas nativas já resolvem o fluxo.
+- [x] **Validar:** Retomar projeto com canários de escopo e sintetizar notas com fonte; nenhuma escrita no vault ocorre por inferência.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C44 — feat(plugins): adicionar Orion Arquivos com plano revisável
 
