@@ -7,6 +7,7 @@ import contextlib
 import hmac
 import json
 import logging
+import re
 import shutil
 import time
 import uuid
@@ -17,7 +18,7 @@ from typing import Annotated, Any
 from urllib.parse import urlparse
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -26,6 +27,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from . import __version__
 from .agent import Agent, AgentEvent
 from .auth import AuthError, AuthService, LockedOut, NotConfigured, WeakPassword
+from .capture import Capturer
 from .channels import TelegramChannel
 from .config import PROJECT_ROOT, Settings
 from .delegate import Delegator
@@ -37,12 +39,14 @@ from .memory import MemoryStore
 from .memory.consolidate import Consolidator
 from .memory.embedders import GeminiEmbedder
 from .memory.ops import Operations
+from .painel import Painel, texto_do_painel
 from .policy import ApprovalStore, PathGuard, PolicyEngine, redact
 from .policy.paths import default_safe_roots
 from .secrets import get_secret
 from .tools import default_registry
 from .tools.processes import ProcessManager
 from .transcribe import Transcriber
+from .vision import Vision
 
 FRONT_DIR = PROJECT_ROOT / "Orion_Core" / "Front_end_Orion"
 
@@ -73,6 +77,7 @@ class AppState:
     jobs: JobRunner | None = None  # None com ORION_JOBS_ENABLED=false
     telegram: TelegramChannel | None = None  # None sem token, sem usuários ou sem gateway
     mcp: McpManager | None = None  # None sem mcp.json, sem servidor habilitado ou sem gateway
+    painel: Painel | None = None
 
 
 def build_policy(
@@ -104,6 +109,8 @@ def get_state(request: Request) -> AppState:
 State = Annotated[AppState, Depends(get_state)]
 
 
+_NOME_IMAGEM = re.compile(r"^img-\d{9,12}-[0-9a-f]{8}\.(png|jpg|webp)$")
+_TIPO_IMAGEM = {"png": "image/png", "jpg": "image/jpeg", "webp": "image/webp"}
 COOKIE_SESSAO = "orion_session"
 _METODOS_SEGUROS = {"GET", "HEAD", "OPTIONS"}
 
@@ -159,7 +166,24 @@ def gateway_from_settings(settings: Settings) -> ChatGateway | None:
     if not (settings.gateway_url and settings.gateway_model):
         return None
     chave = settings.gateway_api_key or get_secret("ORION_GATEWAY_API_KEY")
-    return ChatGateway([Endpoint("gateway", settings.gateway_url, settings.gateway_model, chave)])
+    url = settings.gateway_url
+    endpoints = [Endpoint("gateway", url, settings.gateway_model, chave)]
+    # camadas do roteamento: só entram as que têm modelo próprio; o "gateway" fica de reserva
+    for camada, modelo, espera in (
+        ("rapido", settings.gateway_model_fast, 60.0),
+        ("pesado", settings.gateway_model_heavy, 120.0),
+        ("visao", settings.vision_model, 90.0),
+    ):
+        if modelo and modelo != settings.gateway_model:
+            endpoints.append(Endpoint(camada, url, modelo, chave, timeout_s=espera, tier=camada))
+    return ChatGateway(endpoints)
+
+
+def roteamento_ligado(settings: Settings) -> bool:
+    """O roteamento só liga se alguma camada tem modelo próprio (senão não há o que escolher)."""
+    return bool(
+        settings.gateway_model_fast or settings.gateway_model_heavy or settings.vision_model
+    )
 
 
 def telegram_from_settings(
@@ -181,6 +205,9 @@ def telegram_from_settings(
         return None
     return TelegramChannel(
         transcriber=transcriber_from_settings(settings),
+        capture=(
+            Capturer(settings.vault_dir, settings.capture_folder) if settings.vault_dir else None
+        ),
         token=token,
         allowed_users=settings.telegram_allowed_users,
         agent=agent,
@@ -188,6 +215,15 @@ def telegram_from_settings(
         approvals=policy.approvals,
         ops=ops,
     )
+
+
+def vision_from_settings(settings: Settings) -> Vision | None:
+    """Visão só com `ORION_VISION_TOOLS=true` e gateway configurado (o mesmo endpoint e chave)."""
+    if not (settings.vision_tools and settings.gateway_url and settings.gateway_model):
+        return None
+    chave = settings.gateway_api_key or get_secret("ORION_GATEWAY_API_KEY")
+    modelo = settings.vision_model or settings.gateway_model
+    return Vision([Endpoint("gateway", settings.gateway_url, modelo, chave, timeout_s=90.0)])
 
 
 def mcp_from_settings(settings: Settings) -> McpManager | None:
@@ -327,6 +363,7 @@ def create_app(
         gateway = (gateway_factory or gateway_from_settings)(settings)
         agent = None
         mcp = None
+        delegador: Delegator | None = None
         processos: ProcessManager | None = None
         if gateway is not None:
             # `delegar` só aparece para o modelo se alguma CLI oficial estiver instalada.
@@ -347,6 +384,8 @@ def create_app(
                     desktop=settings.desktop_tools,
                     web=settings.web_tools,
                     transcriber=transcriber_from_settings(settings),
+                    vision=vision_from_settings(settings),
+                    captures_dir=settings.data_dir / "capturas",
                     processes=processos,
                     web_options={
                         "search_key": lambda: (
@@ -357,12 +396,26 @@ def create_app(
                         ),
                         "search_model": settings.search_model,
                         "cidade_padrao": settings.weather_city,
+                        "brave_key": lambda: (
+                            settings.brave_api_key or get_secret("ORION_BRAVE_API_KEY")
+                        ),
+                        "image_key": lambda: (
+                            settings.image_api_key
+                            or settings.search_api_key
+                            or settings.embed_api_key
+                            or get_secret("ORION_IMAGE_API_KEY")
+                            or get_secret("ORION_SEARCH_API_KEY")
+                            or get_secret("ORION_EMBED_API_KEY")
+                        ),
+                        "image_model": settings.image_model,
+                        "image_dir": settings.data_dir / "imagens",
                     },
                     extra=mcp_tools,
                 ),
                 policy=policy,
                 memory=memory,
                 ops=ops,
+                routing=roteamento_ligado(settings),
             )
         jobs, tarefa_jobs = None, None
         if settings.jobs_enabled:
@@ -380,15 +433,30 @@ def create_app(
                 consolidator=consolidador,
                 audit_days=settings.audit_retention_days,
                 processes=processos,
+                briefing_at=settings.briefing_at,
             )
             tarefa_jobs = asyncio.create_task(jobs.run_forever(settings.jobs_tick_s))
         telegram = (telegram_factory or telegram_from_settings)(
             settings, agent, memory, policy, ops
         )
         tarefa_telegram = asyncio.create_task(telegram.run()) if telegram is not None else None
-        app.state.orion = AppState(
-            settings, memory, policy, time.time(), ops, auth, agent, jobs, telegram, mcp
+        painel = Painel(
+            started_at=time.time(),
+            memory=memory,
+            ops=ops,
+            policy=policy,
+            agent=agent,
+            jobs=jobs,
+            mcp=mcp,
+            delegator=delegador,
+            telegram_ativo=lambda: telegram is not None,
         )
+        if telegram is not None:
+            telegram.painel = lambda: texto_do_painel(painel.montar())
+        app.state.orion = AppState(
+            settings, memory, policy, painel.started_at, ops, auth, agent, jobs, telegram, mcp,
+            painel,
+        )  # fmt: skip
         try:
             yield
         finally:
@@ -581,6 +649,30 @@ def create_app(
         except ValueError as e:
             raise HTTPException(409, str(e)) from None
         return {"id": a.id, "status": a.status.value}
+
+    @app.get("/imagens/{nome}", dependencies=[Admin])
+    def imagem(nome: str, state: State) -> FileResponse:
+        """Imagem gerada por `gerar_imagem`. Só com login; o nome é conferido (nada de `..`,
+        subpasta nem extensão estranha) e o tipo vem da extensão, nunca do conteúdo."""
+        casou = _NOME_IMAGEM.match(nome)
+        arquivo = state.settings.data_dir / "imagens" / nome
+        if not casou or not arquivo.is_file():
+            raise HTTPException(404, "imagem inexistente")
+        return FileResponse(
+            arquivo,
+            media_type=_TIPO_IMAGEM[casou.group(1)],
+            headers={
+                "Cache-Control": "private, max-age=3600",
+                "X-Content-Type-Options": "nosniff",
+                "Content-Security-Policy": "default-src 'none'; sandbox",
+            },
+        )
+
+    @app.get("/painel", dependencies=[Admin])
+    def painel_unico(state: State) -> dict[str, Any]:
+        """O estado do Orion numa resposta só (modelos, CLIs, aprovações, política, jobs...)."""
+        assert state.painel is not None
+        return state.painel.montar()
 
     @app.get("/notifications", dependencies=[Admin])
     def avisos(state: State) -> list[dict[str, Any]]:

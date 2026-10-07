@@ -25,6 +25,7 @@
         { nome: 'memoria', desc: 'Ir para a memória' },
         { nome: 'integracoes', desc: 'Ir para as integrações' },
         { nome: 'config', desc: 'Ir para as configurações' },
+        { nome: 'painel', desc: 'Ir para o painel (modelos, CLIs, aprovações, política)' },
         { nome: 'ajuda', desc: 'Ver os atalhos' },
     ];
     const POR_NOME = new Map(COMANDOS.map(c => [c.nome, c]));

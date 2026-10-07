@@ -11,9 +11,10 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 from collections.abc import AsyncIterator, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import httpx
@@ -28,6 +29,27 @@ class Endpoint:
     model: str
     api_key: str | None = None
     timeout_s: float = 60.0
+    # camada de roteamento (`orion.router`): "rapido", "pesado", "visao" ou vazio (modelo padrão).
+    # Endpoint de camada só é tentado quando a mensagem é daquela camada; o padrão é o reserva.
+    tier: str = ""
+
+
+@dataclass
+class EndpointStats:
+    """Contadores de um endpoint desde que o Orion subiu (o painel mostra; reiniciar zera).
+    Não é a cota do provedor: quem a conhece é o OmniRoute. Mostra o que o Orion viu."""
+
+    chamadas: int = 0  # tentativas de resposta (cada uma conta, com ou sem sucesso)
+    ok: int = 0
+    falhas: int = 0
+    limitada: int = 0  # respostas 429 (cota ou limite de taxa)
+    pulos: int = 0  # vezes que ficou de fora por estar em quarentena
+    ultimo_ok: float | None = None  # epoch
+    ultimo_erro: str | None = None  # só o tipo ("HTTP 502", "ConnectError"), nunca corpo nem URL
+    # Quem o OmniRoute diz que serviu cada resposta (cabeçalhos `X-OmniRoute-Provider` e
+    # `X-OmniRoute-Decision`) e quantas vezes ele mesmo trocou de provedor no meio do caminho.
+    provedores: dict[str, int] = field(default_factory=dict)
+    trocas_do_gateway: int = 0
 
 
 @dataclass(frozen=True)
@@ -59,6 +81,11 @@ class GatewayError(RuntimeError):
         self.tentativas = tentativas or []
 
 
+_ALIAS = re.compile(r"^[A-Za-z0-9_.:-]{1,40}$")
+_DECISAO_PROVEDOR = re.compile(r"provider=([^;\s]+)")
+MAX_PROVEDORES = 20  # chaves distintas por endpoint (o cabeçalho vem de fora: tem teto)
+
+
 class _FalhaAntesDoTexto(Exception):
     pass
 
@@ -70,6 +97,7 @@ class ChatGateway:
         client: httpx.AsyncClient | None = None,
         clock: Callable[[], float] = time.monotonic,
         cooldown_s: float = 60.0,
+        wall: Callable[[], float] = time.time,
     ) -> None:
         if not endpoints:
             raise ValueError("ao menos um endpoint")
@@ -78,33 +106,99 @@ class ChatGateway:
         self._clock = clock
         self._cooldown_s = cooldown_s
         self._quarentena: dict[str, float] = {}
+        self._wall = wall
+        self._stats = {ep.name: EndpointStats() for ep in endpoints}
+
+    def stats(self) -> list[dict[str, Any]]:
+        """Um dicionário por endpoint, na ordem de tentativa (para o painel)."""
+        agora = self._clock()
+        saida = []
+        for ep in self.endpoints:
+            st = self._stats[ep.name]
+            restante = max(0.0, self._quarentena.get(ep.name, 0.0) - agora)
+            saida.append(
+                {
+                    "nome": ep.name,
+                    "modelo": ep.model,
+                    "camada": ep.tier or "padrão",
+                    "chamadas": st.chamadas,
+                    "ok": st.ok,
+                    "falhas": st.falhas,
+                    "limitada": st.limitada,
+                    "pulos": st.pulos,
+                    "quarentena_s": round(restante),
+                    "ultimo_ok": st.ultimo_ok,
+                    "ultimo_erro": st.ultimo_erro,
+                    "provedores": dict(sorted(st.provedores.items(), key=lambda kv: -kv[1])[:6]),
+                    "trocas_do_gateway": st.trocas_do_gateway,
+                }
+            )
+        return saida
 
     async def aclose(self) -> None:
         await self._client.aclose()
 
+    def _ordem(self, tier: str | None) -> list[Endpoint]:
+        """Quem tentar, em ordem: os da camada pedida, depois os padrão (reserva). Sem camada, só
+        os padrão; se não houver nenhum padrão, todos (config só com camadas ainda roda)."""
+        padrao = [e for e in self.endpoints if not e.tier]
+        proprios = [e for e in self.endpoints if tier and e.tier == tier]
+        return [*proprios, *padrao] or list(self.endpoints)
+
     async def stream(
-        self, messages: list[dict[str, Any]], tools: list[dict[str, Any]] | None = None
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+        tier: str | None = None,
     ) -> AsyncIterator[Event]:
         tentativas: list[tuple[str, str]] = []
-        for ep in self.endpoints:
+        for ep in self._ordem(tier):
+            st = self._stats[ep.name]
             if self._quarentena.get(ep.name, 0.0) > self._clock():
                 tentativas.append((ep.name, "em quarentena (cota)"))
+                st.pulos += 1
                 continue
+            st.chamadas += 1
             comecou = False
             try:
                 async for evento in self._run(ep, messages, tools):
                     comecou = True
                     yield evento
+                st.ok += 1
+                st.ultimo_ok = self._wall()
                 return
             except _FalhaAntesDoTexto as e:
+                self._falhou(st, str(e).split(":", 1)[0])
                 tentativas.append((ep.name, str(e)))
                 log.warning("endpoint %s falhou, tentando o próximo: %s", ep.name, e)
             except (httpx.HTTPError, ValueError) as e:
+                self._falhou(st, type(e).__name__)
                 if comecou:
                     raise GatewayError(f"{ep.name} interrompeu no meio da resposta: {e}") from e
                 tentativas.append((ep.name, f"{type(e).__name__}: {e}"))
                 log.warning("endpoint %s falhou, tentando o próximo: %s", ep.name, e)
         raise GatewayError("nenhum endpoint respondeu", tentativas)
+
+    @staticmethod
+    def _anotar_provedor(st: EndpointStats, headers: httpx.Headers) -> None:
+        """Lê quem serviu a resposta nos cabeçalhos do OmniRoute (ausentes em outro gateway)."""
+        alias = headers.get("x-omniroute-provider") or ""
+        if not alias:
+            achou = _DECISAO_PROVEDOR.search(headers.get("x-omniroute-decision") or "")
+            alias = achou.group(1) if achou else ""
+        if _ALIAS.match(alias) and (alias in st.provedores or len(st.provedores) < MAX_PROVEDORES):
+            st.provedores[alias] = st.provedores.get(alias, 0) + 1
+        try:
+            st.trocas_do_gateway += max(
+                0, min(int(headers.get("x-omniroute-fallback-attempts", 0)), 50)
+            )
+        except ValueError:
+            pass  # cabeçalho fora do formato: ignora, é só telemetria
+
+    @staticmethod
+    def _falhou(st: EndpointStats, tipo: str) -> None:
+        st.falhas += 1
+        st.ultimo_erro = tipo[:40]
 
     async def complete(self, messages: list[dict[str, Any]]) -> str:
         """Resposta inteira em texto, sem ferramentas (jobs como a consolidação da memória)."""
@@ -134,7 +228,9 @@ class ChatGateway:
                 if resp.status_code == 429:
                     espera = _retry_after(resp.headers.get("retry-after"), self._cooldown_s)
                     self._quarentena[ep.name] = self._clock() + espera
+                    self._stats[ep.name].limitada += 1
                 raise _FalhaAntesDoTexto(f"HTTP {resp.status_code}: {resp.text[:200]}")
+            self._anotar_provedor(self._stats[ep.name], resp.headers)
             async for linha in resp.aiter_lines():
                 if not linha.startswith("data:"):
                     continue

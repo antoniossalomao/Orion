@@ -13,10 +13,12 @@ class FakeGateway:
         self.roteiros = list(roteiros)
         self.chamadas: list[list[dict]] = []
         self.ferramentas: list = []
+        self.camadas: list = []  # a camada de roteamento de cada chamada (None: sem roteamento)
 
-    async def stream(self, messages, tools=None):
+    async def stream(self, messages, tools=None, tier=None):
         self.chamadas.append(copy.deepcopy(messages))
         self.ferramentas.append(tools)
+        self.camadas.append(tier)
         roteiro = self.roteiros.pop(0)
         if isinstance(roteiro, Exception):
             raise roteiro

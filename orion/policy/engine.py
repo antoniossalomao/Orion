@@ -1,7 +1,8 @@
 """Motor de política: decide allow / confirm / deny para cada chamada de ferramenta.
 
 Ordem: ferramenta registrada → limite de uso → risco efetivo (classe + shell/
-caminho) → escalada por conteúdo externo lido (taint) → aprovação fora de banda
+caminho) → escalada por conteúdo externo lido (taint: escrita, execução e rede com destino
+escolhido pelo modelo) → aprovação fora de banda
 → audit. Falha de audit em ação que não é leitura nega a ação (fail-closed).
 """
 
@@ -136,6 +137,13 @@ class PolicyEngine:
         if motivo is None and ctx.tainted and spec.risk in (Risk.WRITE, Risk.EXEC):
             motivo = (
                 "a sessão leu conteúdo externo (web/e-mail/documento): possível prompt injection"
+            )
+        if motivo is None and ctx.tainted and spec.egress:
+            # leitura que escolhe o destino na rede: uma página injetada pode pedir
+            # `https://dono-da-pagina/?d=<dados>`. O cartão mostra a URL inteira (regra 23).
+            motivo = (
+                "a sessão leu conteúdo externo e esta ferramenta fala com um endereço escolhido "
+                "pelo modelo: possível exfiltração de dados pela URL"
             )
         return motivo
 

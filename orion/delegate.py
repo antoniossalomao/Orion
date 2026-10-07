@@ -73,6 +73,23 @@ class Delegator:
     def _chave(self, nome: str) -> str:
         return f"delegar:{nome}:{datetime.fromtimestamp(self._clock()).strftime('%Y%m%d')}"
 
+    def status(self) -> list[dict[str, Any]]:
+        """Uso de hoje por CLI (para o painel): instalada, usadas, limite e o que resta."""
+        saida = []
+        for nome in self._order:
+            ag = self._agents[nome]
+            usadas = self._store.counter_get(self._chave(nome))
+            saida.append(
+                {
+                    "nome": nome,
+                    "instalada": self._which(ag.argv[0]) is not None,
+                    "usadas_hoje": usadas,
+                    "limite_diario": ag.daily_limit,
+                    "restante": max(0, ag.daily_limit - usadas),
+                }
+            )
+        return saida
+
     def delegate(self, tarefa: str, pasta: str, agente: str | None = None) -> dict[str, Any]:
         if not tarefa.strip():
             return {"ok": False, "erro": "tarefa vazia"}

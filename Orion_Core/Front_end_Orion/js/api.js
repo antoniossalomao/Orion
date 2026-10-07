@@ -31,7 +31,7 @@
     const configurarToken = t => { tokenDesktop = String(t || ''); };
 
     /** rotas que exigem o token do orion.app; o legado não conhece cabeçalho Authorization */
-    const comAuth = caminho => /^\/(approvals|chat)(\/|$|\?)/.test(caminho);
+    const comAuth = caminho => /^\/(approvals|chat|painel)(\/|$|\?)/.test(caminho);
 
     function cabecalhos(caminho, extra = {}) {
         const h = { ...extra };
@@ -100,6 +100,8 @@
         stats: () => req('/stats', { timeout: 3000 }),
         statsHistorico: (limite = 48) => req(`/stats/historico?${q({ limite })}`, { timeout: 3000 }),
         integracoes: () => req('/integracoes', { timeout: 3500 }),
+        /** estado do Orion numa resposta só (orion.app: modelos, CLIs, aprovações, política, jobs) */
+        painel: () => req('/painel', { timeout: 5000 }),
         categorias: () => req('/memoria/categorias', { timeout: 4000 }),
         grafo: (limite = 500) => req(`/grafo/completo?${q({ limite })}`, { timeout: 7000 }),
         sessoes: () => req('/sessoes', { timeout: 4000 }),
