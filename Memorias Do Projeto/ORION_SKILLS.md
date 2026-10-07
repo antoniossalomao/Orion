@@ -54,3 +54,23 @@ HTTP após mudança no servidor recupera o rascunho sem reenvio automático.
 Validação C17: backend 563, Node 90, navegador completo 98; Ruff/Pyright, sintaxe JS e
 legado passaram. Capturas do composer e paleta em `/workspace/artifacts/orion-c17/`
 foram inspecionadas visualmente. O histórico guarda a procedência da skill escolhida.
+
+## Confiança e scripts — C18
+
+Fontes de projeto/terceiros são desativadas por padrão; `enabled` é escolha explícita.
+Execução de scripts exige também `trusted_scripts: true`, revisão do pacote local e
+aprovação fora de banda para cada chamada de `executar_skill_script`. Listar a ferramenta
+em `allowed-tools` continua sem conceder privilégio. Sem confiança não se registra runner.
+Não há sandbox de SO para código não confiável: esse caminho continua desativado.
+
+Runner POSIX usa snapshot dos bytes revisados, script Python declarado dentro de
+`scripts/`, argv separado sem shell, Python isolado e ambiente mínimo sem ORION/chaves.
+Hash verifica mudanças desde a revisão; pacote/arquivo externo, symlink e referências de
+segredo são recusados. Até 256 arquivos/4 MB, 32 KB de saída e prazo de 0,1–30 s; argv é
+mascarado no audit. Parada encerra o grupo e limpa staging. Isso não isola acesso ao SO de
+código confiável aprovado; não se presume controle de um filho que se desprenda do grupo.
+
+Windows aguarda validação real do runner e não recebe a ferramenta de scripts nesta
+versão. Skills textuais continuam disponíveis. C18 comprovou execução aprovada real em
+Linux, ambiente sem segredo de ensaio, argv literal, mudança de revisão, desativação,
+timeout/saída excessiva/cancelamento e bloqueio de referência .env; backend 567 passou.

@@ -12,6 +12,10 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 from yaml.tokens import AliasToken, AnchorToken, TagToken
 
+from ..policy.paths import PathGuard
+
+_READ_GUARD = PathGuard(protected_roots=(), safe_roots=(), system_roots=())
+
 
 class SkillError(ValueError):
     pass
@@ -59,6 +63,8 @@ def safe_file(root: Path, relative: str, *, limit: int = 256000) -> Path:
             raise SkillError("symlink_forbidden")
     try:
         current.resolve().relative_to(root.resolve())
+        if _READ_GUARD.check_read(str(current)):
+            raise SkillError("secret_reference_forbidden")
         if not current.is_file() or current.stat().st_size > limit:
             raise SkillError("file_missing_or_too_large")
     except (OSError, ValueError) as error:

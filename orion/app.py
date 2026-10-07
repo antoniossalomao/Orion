@@ -291,7 +291,9 @@ def create_app(
                 await catalog.refresh()
             except Exception:  # noqa: BLE001 — catálogo externo não derruba chat nativo
                 log.warning("mcp_catalog_unavailable")
-        skills = SkillRuntime(settings.skill_sources)
+        skills = await asyncio.to_thread(SkillRuntime, settings.skill_sources)
+        if agent is not None:
+            skills.attach_tools(agent.tools, policy)
         app.state.orion = AppState(
             settings,
             memory,
@@ -315,6 +317,7 @@ def create_app(
                         await tarefa
             if telegram is not None:
                 await telegram.aclose()
+            await skills.close()
             await mcp.close()
             if gateway is not None and hasattr(gateway, "aclose"):
                 await gateway.aclose()

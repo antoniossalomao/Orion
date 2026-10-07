@@ -30,6 +30,7 @@ class ToolSpec:
     origin: str | None = None
     revision: str | None = None
     require_confirmation: bool = False
+    masked_args: tuple[str, ...] = ()
 
 
 def _t(name: str, risk: Risk, **kw) -> tuple[str, ToolSpec]:

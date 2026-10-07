@@ -138,6 +138,7 @@ class PolicyEngine:
     def _record(self, call: ToolCall, ctx: Context, d: Decision) -> bool:
         if self._audit is None:
             return True
+        spec = self.tools.get(call.name)
         try:
             self._audit(
                 {
@@ -145,7 +146,12 @@ class PolicyEngine:
                     "tool": call.name,
                     "origin": self.tools[call.name].origin if call.name in self.tools else None,
                     "revision": self.tools[call.name].revision if call.name in self.tools else None,
-                    "args": redact(call.args),
+                    "args": redact(
+                        {
+                            k: "***" if spec and k in spec.masked_args else v
+                            for k, v in call.args.items()
+                        }
+                    ),
                     "action": d.action.value,
                     "risk": d.risk.value if d.risk else None,
                     "reason": d.reason,

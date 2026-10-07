@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 import hashlib
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from ..tools.registry import ToolRegistry
+from ..policy import PolicyEngine, Risk, ToolSpec
+from ..tools.registry import Tool, ToolRegistry
 from .context import ExternalData
+from .scripts import ScriptRunner, snapshot
 from .skills import SkillError, SkillIndex
 
 
@@ -19,6 +22,8 @@ class SkillSource(BaseModel):
     namespace: str = Field(pattern=r"^[a-z0-9][a-z0-9_-]{0,47}$")
     origin: str = Field(default="local", max_length=128)
     enabled: bool = False
+    trusted_scripts: bool = False
+    script_timeout_s: float = Field(default=5, ge=0.1, le=30)
 
     @field_validator("root")
     @classmethod
@@ -43,6 +48,8 @@ class Selection:
 
 class SkillRuntime:
     def __init__(self, sources: list[SkillSource]):
+        self.runner = ScriptRunner()
+        self.script_reviews: dict[str, tuple[str, float]] = {}
         self.index = SkillIndex()
         self.enabled: set[str] = set()
         self.diagnostics: list[dict] = []
@@ -51,9 +58,69 @@ class SkillRuntime:
             try:
                 self.index.discover(source.root, namespace=source.namespace, origin=source.origin)
                 if source.enabled:
-                    self.enabled.update(set(self.index.skills) - before)
+                    added = set(self.index.skills) - before
+                    self.enabled.update(added)
+                    if source.trusted_scripts and os.name == "posix":
+                        reviews = {}
+                        for id_ in added:
+                            skill = self.index.skills[id_]
+                            skill.load()
+                            digest, _ = snapshot(skill)
+                            reviews[id_] = (digest, source.script_timeout_s)
+                        self.script_reviews.update(reviews)
             except (SkillError, OSError):
                 self.diagnostics.append({"namespace": source.namespace, "code": "source_invalid"})
+
+    async def close(self) -> None:
+        self.script_reviews.clear()
+        await self.runner.close()
+
+    def attach_tools(self, registry: ToolRegistry, policy: PolicyEngine) -> None:
+        if not self.script_reviews:
+            return
+
+        async def execute(skill: str, script: str, argv: list[str] | None = None) -> dict:
+            if skill not in self.enabled or skill not in self.script_reviews:
+                return {"ok": False, "codigo": "scripts_untrusted_or_disabled"}
+            digest, timeout = self.script_reviews[skill]
+            try:
+                return await self.runner.run(
+                    self.index.skills[skill],
+                    script,
+                    argv or [],
+                    reviewed_digest=digest,
+                    timeout_s=timeout,
+                )
+            except SkillError as error:
+                return {"ok": False, "codigo": str(error)}
+
+        name = "executar_skill_script"
+        registry.register(
+            Tool(
+                name,
+                "Executa script Python declarado de skill local revisada. "
+                "Sempre exige aprovação, sem shell e sem herdar credenciais.",
+                {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "skill": {"type": "string", "enum": sorted(self.script_reviews)},
+                        "script": {"type": "string", "maxLength": 1024},
+                        "argv": {
+                            "type": "array",
+                            "maxItems": 32,
+                            "items": {"type": "string", "maxLength": 4096},
+                        },
+                    },
+                    "required": ["skill", "script"],
+                },
+                execute,
+            )
+        )
+        policy.tools[name] = ToolSpec(
+            name, Risk.EXEC, external=True, origin="orion:skill-script", masked_args=("argv",)
+        )
+        policy.rate.set_limit(name, (5, 60))
 
     def summaries(self) -> list[dict]:
         return [{**s, "enabled": s["id"] in self.enabled} for s in self.index.summaries()]
