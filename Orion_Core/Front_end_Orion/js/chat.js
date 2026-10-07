@@ -45,10 +45,13 @@
         vazio.hidden = !!col.querySelector('.msg, .day-sep, .msg-system');
     }
     function podar() {
+        if (O.historico?.sessao()) return;
         const nos = col.querySelectorAll('.msg, .day-sep, .msg-system');
         for (let i = 0; i < nos.length - MAX_NOS; i++) nos[i].remove();
     }
+    let destinoHistorico = null;
     function acrescentar(no) {
+        if (destinoHistorico) { destinoHistorico.append(no); return; }
         podar();
         col.append(no);
         atualizarVazio();
@@ -67,9 +70,7 @@
         textoDe.set(m, texto);
         acrescentar(m);
         mostrar(m, animar);
-        seguir = true;
-        irAoFim();
-        atualizarBotaoFim();
+        if (!destinoHistorico) { seguir = true; irAoFim(); atualizarBotaoFim(); }
         return m;
     }
 
@@ -302,12 +303,18 @@
     }
 
     /* ── histórico ─────────────────────────────────────────────────────── */
-    function renderHistorico(msgs) {
+    function renderHistorico(msgs, { antes = false } = {}) {
+        const altura = rolagem.scrollHeight, top = rolagem.scrollTop;
+        destinoHistorico = document.createDocumentFragment();
         let dia = '';
-        for (const m of (msgs || []).slice(-80)) {
+        for (const m of (msgs || [])) {
             const rotulo = m.timestamp ? U.rotuloDia(m.timestamp) : '';
             if (rotulo && rotulo !== dia) { dia = rotulo; acrescentar(el('div', { class: 'day-sep', text: rotulo })); }
-            if (m.role === 'user') { usuario(String(m.content ?? ''), { animar: false }); continue; }
+            if (m.role === 'user') {
+                const n = usuario(String(m.content ?? ''), { animar: false });
+                if (m.timestamp) n.insertBefore(el('time', { class: 'msg-time', datetime: m.timestamp, text: U.hora(m.timestamp) || '' }), n.querySelector('.msg-actions'));
+                continue;
+            }
             const a = criarOrion({ quando: m.timestamp ? U.hora(m.timestamp) || '' : '', pensando: false, animar: false });
             a.el.dataset.streaming = 'false';
             a.texto = String(m.content ?? '');
@@ -315,7 +322,17 @@
             a.prose.innerHTML = a.rs.renderizar(a.texto);
             textoDe.set(a.el, a.texto);
             barraAcoes(a, false);
+            if (m.timestamp) a.el.querySelector('time').setAttribute('datetime', m.timestamp);
+            const fontes = (m.provenance?.memoria || []).map(x => x.fonte).filter(Boolean);
+            const ferramentas = (m.provenance?.ferramentas || []).map(x => typeof x === 'string' ? x : x.nome || x.name).filter(Boolean);
+            if (fontes.length || ferramentas.length) a.principal.append(el('details', { class: 'history-sources' },
+                el('summary', { text: 'Fontes e ferramentas' }),
+                ...[...new Set([...fontes, ...ferramentas.map(x => x.replace(/_/g, ' '))])].map(text => el('p', { text }))));
         }
+        if (antes) col.prepend(destinoHistorico); else col.append(destinoHistorico);
+        destinoHistorico = null;
+        atualizarVazio();
+        if (antes) { rolagem.scrollTop = top + rolagem.scrollHeight - altura; atualizarBotaoFim(); return; }
         $('#badge-chat')?.classList.remove('show');
         seguir = true;
         irAoFim();

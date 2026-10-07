@@ -356,3 +356,30 @@ async def test_evento_de_aprovacao_avisa_quando_os_argumentos_foram_cortados(sto
     grande = next(e for e in await coletar(agent.run("web", "2")) if e.kind == "approval")
     assert curto.data["args_truncated"] is False
     assert grande.data["args_truncated"] is True and grande.data["args"]["cmd"].endswith("…")
+
+
+@pytest.mark.parametrize("approved", [False, True])
+async def test_limpeza_nao_esconde_aprovacao_nao_consumida(store, policy, approved):
+    agent, _ = montar(store, policy, fala("ok"))
+    sessao = store.new_session("web")
+    store.add_message(sessao.id, "user", "pedido")
+    a = policy.approvals.request(sessao.id, "esquecer_fato", {"id": 1}, "destrutivo")
+    if approved:
+        policy.approvals.decide(a.id, True, channel="web", actor="teste")
+    with pytest.raises(ValueError, match="aprovações"):
+        await agent.clear_history(sessao.id)
+    assert len(store.context_history(sessao.id)) == 1
+
+
+async def test_limpeza_durante_turno_e_preserva_memoria(store, policy):
+    agent, _ = montar(store, policy, fala("ok"))
+    sessao = store.new_session("web")
+    store.add_message(sessao.id, "user", "antiga")
+    fato = store.add_fact("memória importante", "manual")
+    async with agent._lock(sessao.id):
+        with pytest.raises(ValueError, match="resposta terminar"):
+            await agent.clear_history(sessao.id)
+    await agent.clear_history(sessao.id)
+    assert store.context_history(sessao.id) == []
+    assert len(store.history(sessao.id)) == 1
+    assert store.facts() == [fato]

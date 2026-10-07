@@ -36,7 +36,7 @@ from .memory import MemoryStore
 from .memory.consolidate import Consolidator
 from .memory.embedders import GeminiEmbedder
 from .memory.ops import Operations
-from .memory.store import Session
+from .memory.store import Message, Session
 from .policy import ApprovalStore, PathGuard, PolicyEngine, redact
 from .policy.paths import default_safe_roots
 from .secrets import get_secret
@@ -377,7 +377,7 @@ def create_app(
             raise HTTPException(404, "sessão inexistente neste canal") from None
         except ValueError as e:
             raise HTTPException(409, str(e)) from None
-        # Snapshot compatível com o adaptador; paginação/exportação ficam para C04.
+        # Snapshot compatível com o adaptador e com o limite de contexto após limpeza.
         mensagens = [
             {
                 "role": m.role,
@@ -385,10 +385,133 @@ def create_app(
                 "timestamp": datetime.fromtimestamp(m.created_at, UTC).isoformat(),
                 "provenance": m.provenance,
             }
-            for m in state.memory.history(session.id, limit=50)
+            for m in state.memory.context_history(session.id, limit=50)
             if m.role in {"user", "assistant"}
         ]
         return {"ok": True, **sessao_json(session, session.id), "mensagens": mensagens}
+
+    def conversation(state: AppState, canal: str, sessao: str | None) -> Session | None:
+        session = (
+            state.memory.get_session(sessao) if sessao else state.memory.selected_session(canal)
+        )
+        if sessao and (session is None or session.channel != canal):
+            raise HTTPException(404, "sessão inexistente neste canal")
+        return session
+
+    def message_json(m: Message) -> dict[str, Any]:
+        return {
+            "id": m.id,
+            "role": m.role,
+            "content": m.text,
+            "timestamp": datetime.fromtimestamp(m.created_at, UTC).isoformat(),
+            "provenance": m.provenance,
+        }
+
+    @app.get("/historico", dependencies=[Admin])
+    def historico(
+        state: State,
+        canal: Annotated[str, Query(pattern=_CANAL)] = "web",
+        sessao: Annotated[str | None, Query(pattern=r"^[a-f0-9]{32}$")] = None,
+        limite: Annotated[int, Query(ge=1, le=100)] = 50,
+        antes: Annotated[int | None, Query(ge=1)] = None,
+        completo: bool = False,
+    ) -> dict[str, Any]:
+        session = conversation(state, canal, sessao)
+        messages, total, cursor = (
+            state.memory.history_page(
+                session.id,
+                limit=limite,
+                before=antes,
+                complete=completo,
+            )
+            if session
+            else ([], 0, None)
+        )
+        return {
+            "sessao": session.id if session else None,
+            "total": total,
+            "mensagens": [message_json(m) for m in messages],
+            "mais": cursor is not None,
+            "proximo_antes": cursor,
+            "somente_leitura": bool(session and (session.archived or session.read_only)),
+        }
+
+    @app.delete("/historico", dependencies=[Admin])
+    async def limpar_historico(
+        state: State,
+        canal: Annotated[str, Query(pattern=_CANAL)] = "web",
+        sessao: Annotated[str | None, Query(pattern=r"^[a-f0-9]{32}$")] = None,
+    ) -> dict[str, Any]:
+        session = conversation(state, canal, sessao)
+        if session:
+            if session.archived or session.read_only:
+                raise HTTPException(409, "sessão somente leitura")
+            try:
+                if state.agent:
+                    await state.agent.clear_history(session.id)
+                else:
+                    if state.policy.approvals.unresolved(session.id):
+                        raise ValueError("resolva as aprovações desta conversa antes de limpar")
+                    state.memory.clear_context(session.id)
+            except ValueError as e:
+                raise HTTPException(409, str(e)) from None
+        return {
+            "ok": True,
+            "sessao": session.id if session else None,
+            "mensagem": "Contexto limpo; registro de mensagens e memória preservados.",
+        }
+
+    @app.get("/exportar", dependencies=[Admin])
+    def exportar(
+        state: State,
+        canal: Annotated[str, Query(pattern=_CANAL)] = "web",
+        sessao: Annotated[str | None, Query(pattern=r"^[a-f0-9]{32}$")] = None,
+        completo: bool = False,
+    ) -> dict[str, Any]:
+        session = conversation(state, canal, sessao)
+        lines = ["# Conversa com o Orion", ""]
+        total = 0
+        if session:
+            # Lock compartilhado do store: exportação tem um snapshot consistente.
+            with state.memory.transaction():
+                before = None
+                pages = []
+                while True:
+                    messages, total, before = state.memory.history_page(
+                        session.id, limit=100, before=before, complete=completo
+                    )
+                    pages.append(messages)
+                    if before is None:
+                        break
+                for page in reversed(pages):
+                    for m in page:
+                        author = "Antônio" if m.role == "user" else "Orion"
+                        lines.extend(
+                            [
+                                f"## {author} — "
+                                f"{datetime.fromtimestamp(m.created_at, UTC).isoformat()}",
+                                "",
+                                m.text,
+                                "",
+                            ]
+                        )
+                        if m.provenance:
+                            # JSON em bloco indentado: até texto com crases mantém o bloco literal.
+                            lines.extend(
+                                ["Proveniência:", ""]
+                                + [
+                                    "    " + line
+                                    for line in json.dumps(
+                                        m.provenance, ensure_ascii=False, indent=2
+                                    ).splitlines()
+                                ]
+                                + [""]
+                            )
+        return {
+            "markdown": "\n".join(lines),
+            "total_msgs": total,
+            "sessao": session.id if session else None,
+        }
 
     def _agente(state: AppState) -> Agent:
         if state.agent is None:

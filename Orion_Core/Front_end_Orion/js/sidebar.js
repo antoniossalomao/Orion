@@ -9,7 +9,8 @@
     const U = O.util;
 
     let sessoes = [], ativa = null, filtro = '', online = null, listaOnline = null, abrindo = false;
-    let lista, busca;
+    let lista, busca, restaurado = false, origem = null;
+    bus.on('capabilities', () => { const novaOrigem = `${api.base()}:${api.estado().backend}`; if (origem !== novaOrigem) { origem = novaOrigem; restaurado = false; } });
 
     /* ── lista de conversas ────────────────────────────────────────────── */
     function titulo(s) { return s.titulo || 'Sem título'; }
@@ -30,7 +31,7 @@
     }
 
     function botaoConversa(s) {
-        const atual = s.sessao_id === ativa;
+        const atual = s.sessao_id === (O.historico?.sessao() || ativa);
         const b = el('button', { class: 'conv', type: 'button', 'aria-current': atual ? 'true' : null, title: titulo(s), dataset: { id: s.sessao_id } },
             el('span', { class: 'conv-title' }, ...comMarcas(titulo(s), filtro)),
             s.somente_leitura ? el('span', { class: 'conv-ro', text: 'leitura' }) : null);
@@ -67,43 +68,52 @@
         } catch (e) { listaOnline = false; if (e.indisponivel) { sessoes = []; ativa = null; } }
         desenhar();
         bus.emit('sessoes', { lista: sessoes, ativa });
+        if (!restaurado && ativa && api.estado().backend === 'orion' && api.suporta('history') && !O.chat.ocupado()) {
+            restaurado = true;
+            try { await O.historico.abrir(ativa); } catch (e) { restaurado = false; }
+        }
     }
 
     async function abrir(s) {
         if (abrindo) return;
-        if (s.sessao_id === ativa && !s.somente_leitura) { O.app.ir('chat'); return; }
+        if (s.sessao_id === ativa && !s.somente_leitura && (!O.historico?.sessao() || (O.historico.sessao() === ativa && !O.historico.leitura()))) { O.app.ir('chat'); return; }
         if (O.chat.ocupado()) { ui.toast('Espere a resposta terminar para trocar de conversa.', { tipo: 'aviso' }); return; }
-        abrindo = true;
+        abrindo = true; bus.emit('historico');
         try {
             let msgs;
-            if (s.somente_leitura) msgs = (await api.historico(s.sessao_id)).mensagens || [];
+            if (s.somente_leitura) {
+                if (api.estado().backend !== 'orion') msgs = (await api.historico(s.sessao_id)).mensagens || [];
+            }
             else {
                 const d = await api.ativarSessao(s.sessao_id);
                 if (d.erro) throw new Error(d.erro);
                 msgs = d.mensagens || [];
             }
-            O.chat.limpar();
-            O.chat.renderHistorico(msgs);
+            if (api.estado().backend === 'orion') { await O.historico.abrir(s.sessao_id); restaurado = true; }
+            else { O.chat.limpar(); O.chat.renderHistorico(msgs); }
             if (s.somente_leitura) O.chat.nota('Sessão antiga, somente leitura.');
             O.app.ir('chat');
             await carregar();
         } catch (e) {
             ui.toast(`Não consegui abrir a conversa: ${e.message}`, { tipo: 'erro' });
-        } finally { abrindo = false; }
+        } finally { abrindo = false; bus.emit('historico'); }
     }
 
     async function nova() {
+        if (abrindo) return;
         if (!api.suporta('sessions')) { ui.toast('Conversas salvas ainda indisponíveis neste backend.', { tipo: 'aviso' }); return; }
         if (O.chat.ocupado()) { ui.toast('Espere a resposta terminar para começar outra conversa.', { tipo: 'aviso' }); return; }
+        abrindo = true; bus.emit('historico');
         try {
             const d = await api.novaSessao();
             if (d && d.erro) throw new Error(d.erro);
             O.chat.limpar();
+            if (api.estado().backend === 'orion') { restaurado = true; await O.historico.abrir(d.sessao_id); }
             await carregar();
         } catch (e) {
             ui.toast(`Cérebro fora do ar: não deu para criar a conversa. ${e.rede ? '' : e.message}`.trim(), { tipo: 'erro' });
-            O.chat.limpar();
-        }
+            }
+        finally { abrindo = false; bus.emit('historico'); }
         O.app.ir('chat');
         O.composer.foco();
     }
@@ -175,6 +185,6 @@
     O.sidebar = {
         init, nova, alternar, carregar, abrir, verificar,
         sessoes: () => sessoes, ativa: () => sessoes.find(s => s.sessao_id === ativa) || null,
-        online: () => online,
+        online: () => online, abrindo: () => abrindo,
     };
 })();

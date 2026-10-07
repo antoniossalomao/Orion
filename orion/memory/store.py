@@ -357,12 +357,13 @@ class MemoryStore:
             mid = cur.lastrowid
         return Message(int(mid or 0), session_id, role, text, agora, provenance)
 
-    def history(self, session_id: str, limit: int = 50) -> list[Message]:
+    def history(self, session_id: str, limit: int = 50, *, after: int = 0) -> list[Message]:
         with self._lock:
             rows = self._conn.execute(
-                "SELECT * FROM (SELECT * FROM messages WHERE session_id=? ORDER BY id DESC LIMIT ?)"
+                "SELECT * FROM (SELECT * FROM messages WHERE session_id=? AND id>?"
+                " ORDER BY id DESC LIMIT ?)"
                 " ORDER BY id",
-                (session_id, limit),
+                (session_id, after, limit),
             ).fetchall()
         return [
             Message(
@@ -375,6 +376,66 @@ class MemoryStore:
             )
             for r in rows
         ]
+
+    def context_history(self, session_id: str, limit: int = 50) -> list[Message]:
+        return self.history(
+            session_id, limit, after=self.counter_get(f"history_after:{session_id}")
+        )
+
+    def history_page(
+        self,
+        session_id: str,
+        *,
+        limit: int = 50,
+        before: int | None = None,
+        complete: bool = False,
+    ) -> tuple[list[Message], int, int | None]:
+        """Página por ID: timestamps repetidos/importados não duplicam nem pulam mensagens."""
+        with self._lock:
+            after = 0 if complete else self.counter_get(f"history_after:{session_id}")
+            total = self._conn.execute(
+                "SELECT count(*) FROM messages WHERE session_id=? AND id>?"
+                " AND role IN ('user','assistant')",
+                (session_id, after),
+            ).fetchone()[0]
+            rows = self._conn.execute(
+                "SELECT * FROM messages WHERE session_id=? AND id>? AND (? IS NULL OR id<?)"
+                " AND role IN ('user','assistant') ORDER BY id DESC LIMIT ?",
+                (session_id, after, before, before, limit + 1),
+            ).fetchall()
+            more = len(rows) > limit
+            rows = rows[:limit]
+            next_before = rows[-1]["id"] if more else None
+            messages = [
+                Message(
+                    row["id"],
+                    row["session_id"],
+                    row["role"],
+                    row["text"],
+                    row["created_at"],
+                    json.loads(row["provenance"]) if row["provenance"] else None,
+                )
+                for row in reversed(rows)
+            ]
+            return messages, total, next_before
+
+    def clear_context(self, session_id: str) -> int:
+        """Avança o limite de contexto; não apaga mensagens, fatos, documentos ou vetores."""
+        with self._tx() as c:
+            session = self.get_session(session_id)
+            if session is None:
+                raise KeyError(session_id)
+            if session.archived or session.read_only:
+                raise ValueError("sessão somente leitura")
+            last = c.execute(
+                "SELECT coalesce(max(id),0) FROM messages WHERE session_id=?", (session_id,)
+            ).fetchone()[0]
+            c.execute(
+                "INSERT INTO meta(key,value) VALUES (?,?) "
+                "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                (f"counter:history_after:{session_id}", str(last)),
+            )
+            return last
 
     # ── fatos sobre o Antônio: com fonte e data, auditáveis, editáveis ────
     @staticmethod
