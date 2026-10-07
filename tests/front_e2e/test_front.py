@@ -20,7 +20,17 @@ ROTAS = [
     "#/resultados",
     "#/atividade",
 ]
-VIEWS = ["home", "chat", "memoria", "integracoes", "config", "projetos", "resultados", "atividade"]
+VIEWS = [
+    "home",
+    "chat",
+    "memoria",
+    "integracoes",
+    "config",
+    "projetos",
+    "resultados",
+    "atividade",
+    "fontes",
+]
 TEMAS = ["noite", "grafite", "contraste"]
 
 

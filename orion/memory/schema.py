@@ -6,7 +6,7 @@ para a versão atual sozinho (`MIGRATIONS`). v3: seleção persistente de sessã
 v4: conversas fixadas. v5: índice de títulos para busca de conversas.
 """
 
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 10
 
 TOKENIZER = "unicode61 remove_diacritics 2"  # "açúcar" casa com "acucar"
 
@@ -245,7 +245,14 @@ CREATE TABLE activity_preferences (
 """
 )
 
-DDL = DDL_V1 + DDL_V2 + DDL_V3 + DDL_V4 + DDL_V5 + DDL_V6 + DDL_V7 + DDL_V8 + DDL_V9
+DDL_V10 = """
+CREATE TABLE uploads(id TEXT PRIMARY KEY, project_id TEXT REFERENCES projects(id),
+ name TEXT NOT NULL,kind TEXT NOT NULL,raw BLOB NOT NULL,status TEXT NOT NULL,
+ error TEXT,created_at REAL NOT NULL);
+CREATE INDEX idx_uploads_project ON uploads(project_id,created_at);
+"""
+
+DDL = DDL_V1 + DDL_V2 + DDL_V3 + DDL_V4 + DDL_V5 + DDL_V6 + DDL_V7 + DDL_V8 + DDL_V9 + DDL_V10
 MIGRATIONS: dict[int, str] = {
     1: DDL_V2,
     2: DDL_V3,
@@ -255,4 +262,5 @@ MIGRATIONS: dict[int, str] = {
     6: DDL_V7,
     7: DDL_V8,
     8: DDL_V9,
+    9: DDL_V10,
 }

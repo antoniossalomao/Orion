@@ -776,6 +776,9 @@ def create_app(
             content={"detail": str(error)},
         )
 
+    from .documents import router as document_router
+
+    app.include_router(document_router(require_admin))
     app.include_router(fact_router(require_admin))
     app.include_router(artifact_router(require_admin))
     app.include_router(project_router(require_admin))

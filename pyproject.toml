@@ -18,6 +18,7 @@ dependencies = [
     "jsonschema[format]==4.26.0",
     "pyyaml==6.0.3",
     "pillow==12.3.0",
+    "pypdf==6.19.0",
 ]
 
 [dependency-groups]
