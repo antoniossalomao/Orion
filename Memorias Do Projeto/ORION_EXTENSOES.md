@@ -1,6 +1,6 @@
 # Orion — referências de produto e plano de extensões
 
-Pesquisa em 04/10/2026. **Plano de implementação com C00–C27 concluídos** (registro na seção 9).
+Pesquisa em 04/10/2026. **Plano de implementação com C00–C28 concluídos** (registro na seção 9).
 Plugins e skills seguem em implementação. MCP já tem prova com servidores controlados;
 nenhuma conta pessoal ou servidor externo do usuário foi conectado.
 Complementa [ORION_FRONT.md](ORION_FRONT.md), as fases 4 e 6 do
@@ -339,7 +339,7 @@ como fundação do recurso novo. Exportar leitura primeiro, com identidade e esc
 
 ## 8. Próximo trabalho concreto
 
-C00–C27 foram concluídos e validados. Continuar pelo **C28: busca e fetch públicos com provedor validado**.
+C00–C28 foram concluídos e validados. Continuar pelo **C29: pacote Orion Pesquisa com duas skills**.
 O usuário autorizou a execução dos checklists restantes, com commits separados, validação,
 registro no vault e push. Integrações pessoais e Windows serão registrados conforme
 as evidências disponíveis, sem transformar fixtures em prova de conta ou desktop reais.
@@ -351,8 +351,8 @@ quando houver integração concreta para revisar. Este documento não muda as de
 
 ## 9. Checklists por commit e sequência de dias
 
-Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C27 têm commits reais
-registrados; C28–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
+Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C28 têm commits reais
+registrados; C29–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
 precisa estar pronto. Não é necessário concluir o plano inteiro para usar o primeiro MVP.
 
 ### Ritmo de trabalho
@@ -365,7 +365,7 @@ precisa estar pronto. Não é necessário concluir o plano inteiro para usar o p
   manter os dependentes esperando a entrega completa.
 - Ao pedir continuação, usar o ID: **“Faça o próximo commit pendente”** ou **“Faça o C09”**.
   O executor confere o checklist e as dependências antes de iniciar.
-- C00–C27 estão implementados, validados e registrados abaixo; C28–C50 permanecem
+- C00–C28 estão implementados, validados e registrados abaixo; C29–C50 permanecem
   planejados. Cada continuação deve conferir as dependências e os limites da entrega anterior.
 
 ### Como concluir e pausar cada commit
@@ -418,10 +418,10 @@ a integração real de Pesquisa fica registrada separadamente se ainda não tive
 
 ### Registro para retomar no próximo dia
 
-- Último checklist concluído: **C27**, commit `098e2ad`; entregas anteriores registradas abaixo.
-- Próximo commit sugerido: **C28 — busca e fetch públicos com provedor validado**.
-- Dependências/impedimentos: conferir as dependências do C28 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
-- Evidências: ver os registros C00–C27 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
+- Último checklist concluído: **C28**, commit `7eb1823`; entregas anteriores registradas abaixo.
+- Próximo commit sugerido: **C29 — pacote Orion Pesquisa com duas skills**.
+- Dependências/impedimentos: conferir as dependências do C29 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
+- Evidências: ver os registros C00–C28 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
 - Atualizações: registrar aqui o ID concluído, hash/link e o próximo ID; não preencher com
   hash fictício nem tratar evidência de mock como teste contra conta real.
 
@@ -882,6 +882,23 @@ e passou, preservando fonte/draft após recarga imediata. Log integral em
 A etapa seguinte permanece sem conta Brave real ou validação Windows.
 
 
+### Execução C28 — 06/10/2026
+
+Commit `7eb1823`: provedor Brave Search API, referência oficial MCP com manutenção e
+licença MIT verificadas. Adaptador próprio em leitura; desligado por padrão, chave por
+referência no cofre, 10 chamadas/minuto. Fetch HTTPS público fixa DNS, valida TLS/SNI,
+barra rede privada/metadata IPv4/IPv6, credenciais na URL, redirects autenticados,
+compressão e corpos acima de 1 MB; texto 16 KB, timeout/deadline, nenhum retry de cota.
+
+**Evidências:** 620 testes backend; 14 cenários de pesquisa repetidos após ajustes;
+Ruff/Pyright. Fixtures provam ausência de chave sem chamada, cota, URL privada/redirect,
+endereço fixado antes de socket, parsing/limites e fetch sem credencial Brave. Registro
+público GitHub/licença/README em `/workspace/artifacts/orion-c28/`; documentação de
+configuração/limites em ORION_PESQUISA.md. **Não foi usada conta ou chave Brave real.**
+Cotas/preços dependem da assinatura; não há promessa de plano gratuito. Proxy herdado
+não é usado pelo fetch; ambientes que o exigem podem retornar indisponibilidade.
+
+
 ### C00 — fix(ui): estabilizar conexão e consolidar o refinamento visual
 
 Etapa: **A** · Depende de: **base atual do repositório** · Estado: **concluído**.
@@ -1164,13 +1181,13 @@ Etapa: **E** · Depende de: **C26, C04** · Estado: **concluído**.
 
 ### C28 — feat(research): integrar busca e fetch de um provedor validado
 
-Etapa: **E** · Depende de: **C27** · Estado: **planejado**.
+Etapa: **E** · Depende de: **C27** · Estado: **concluído**.
 
-- [ ] Escolher servidor/provedor após conferir manutenção, licença, autenticação e cotas; registrar a escolha.
-- [ ] Implementar busca/fetch com fonte, limites e proteção de URLs/SSRF.
-- [ ] Criar fixtures reproduzíveis e configuração por referência a segredo quando necessária.
-- [ ] **Validar:** Testar busca, redirecionamento inválido, cota/erro e ausência de chave. A prova real depende de serviço/conta autorizados.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Escolher servidor/provedor após conferir manutenção, licença, autenticação e cotas; registrar a escolha.
+- [x] Implementar busca/fetch com fonte, limites e proteção de URLs/SSRF.
+- [x] Criar fixtures reproduzíveis e configuração por referência a segredo quando necessária.
+- [x] **Validar:** Testar busca, redirecionamento inválido, cota/erro e ausência de chave. A prova real depende de serviço/conta autorizados.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C29 — feat(plugins): distribuir Orion Pesquisa
 
