@@ -6,7 +6,8 @@ from .installer import folder_snapshot
 from .plugins import PluginError
 
 BUNDLED = {
-    "orion-" + name: Path(__file__).with_name("bundled") / name for name in ("pesquisa", "agenda")
+    "orion-" + name: Path(__file__).with_name("bundled") / name
+    for name in ("pesquisa", "agenda", "memoria-vault")
 }
 
 

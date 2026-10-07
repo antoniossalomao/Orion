@@ -44,7 +44,7 @@ def memory_tools(store: MemoryStore) -> list[Tool]:
     return [
         Tool(
             "buscar_memoria",
-            "Busca na memória pessoal do Antônio (fatos, notas do vault, conversas).",
+            "Busca no contexto atual (fatos, notas indexadas do vault, documentos e conversas).",
             {
                 "type": obj,
                 "properties": {"consulta": {"type": "string"}, "limite": {"type": "integer"}},
@@ -64,7 +64,7 @@ def memory_tools(store: MemoryStore) -> list[Tool]:
         ),
         Tool(
             "listar_fatos",
-            "Lista tudo o que o Orion sabe sobre o Antônio.",
+            "Lista fatos e fontes acessíveis no contexto atual.",
             {"type": obj, "properties": {}},
             listar_fatos,
         ),

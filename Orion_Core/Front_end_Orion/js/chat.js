@@ -319,8 +319,9 @@
     function mostrarFontes(a, provenance) {
         if (!provenance || typeof provenance !== 'object') return;
         const rows = value => Array.isArray(value) ? value.slice(0, 128) : [];
+        const sourceName = value => String(value).replace(/^project:[a-f0-9]{32}\//, '').replace(/^upload:[a-f0-9]{32}\//, '');
         const labels = [
-            ...rows(provenance.memoria).map(x => x.fonte ? `Memória: ${x.fonte}` : `Memória: ${x.tipo || 'fonte'} ${x.id || ''}`),
+            ...rows(provenance.memoria).map(x => x.fonte ? `Memória: ${sourceName(x.fonte)}` : `Memória: ${x.tipo || 'fonte'} ${x.id || ''}`),
             ...rows(provenance.skills).map(x => `Skill: ${x.id} · ${x.origin} · ${x.version}`),
             ...rows(provenance.contexto_externo).map(x => `Fonte externa: ${x.origin || x.connection || ''} · ${x.kind || ''} · ${x.key || x.uri || x.name || x.reference || ''}`),
         ];

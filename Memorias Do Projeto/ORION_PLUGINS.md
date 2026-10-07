@@ -70,3 +70,17 @@ explicitamente configuradas. Provedor Brave exige referência de credencial; aus
 não é simulada como disponibilidade. Fontes e atividade permanecem no histórico. Projetos
 isolam recuperação/skills/MCP e results usam armazenamento independente dos bundles.
 Contas reais e Windows/pywebview permanecem sem prova neste ambiente Linux.
+
+## Orion Memória e Vault (C43)
+
+Pacote 1.0.0 com retomar-contexto e sintetizar-notas, capabilities nativas buscar_memoria
+/listar_fatos. Usa fatos, notas e documentos já indexados; não instala MCP nem lê outra pasta
+por inferência. A busca respeita o projeto e compartilhamento pessoal explícito. As skills
+citam fontes, distinguem decisão/hipótese/lacuna e não autorizam escrita no vault. Para ler
+mais notas, o operador precisa indexar a fonte autorizada no contexto correto.
+
+Desativar/remover o pacote conserva índice, fatos e arquivos. Fontes no chat mostram o nome
+legível da nota, sem prefixos internos de projeto/upload. Verificado com canários de dois
+projetos/memória pessoal, raízes de ensaio, fontes reais e bytes do arquivo intactos. Um pedido
+de salvar fato fora das tools da skill é recusado pela política. O gateway é controlado:
+essa evidência não declara qualidade editorial de um modelo real.
