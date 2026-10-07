@@ -339,6 +339,7 @@
             if (rotulo && rotulo !== dia) { dia = rotulo; acrescentar(el('div', { class: 'day-sep', text: rotulo })); }
             if (m.role === 'user') {
                 const n = usuario(String(m.content ?? ''), { animar: false, skills: m.provenance?.skills || [] });
+                if (m.id) { n.dataset.messageId = String(m.id); n.dataset.sessionId = O.historico.sessao(); if (api.suporta('branches')) n.querySelector('.msg-actions').append(botaoAcao('editar-pedido', 'Editar em novo caminho', 'copy')); }
                 if (m.timestamp) n.insertBefore(el('time', { class: 'msg-time', datetime: m.timestamp, text: U.hora(m.timestamp) || '' }), n.querySelector('.msg-actions'));
                 continue;
             }
@@ -433,6 +434,7 @@
         const msg = acao.closest('.msg');
         switch (acao.dataset.acao) {
             case 'salvar-resultado': O.artifacts.salvarResposta(textoDe.get(msg) || '', Number(msg.dataset.messageId) || null, msg.dataset.sessionId || null); break;
+            case 'editar-pedido': O.caminhos.editar(msg.dataset.messageId, msg.dataset.sessionId, textoDe.get(msg) || ''); break;
             case 'copiar': ui.copiar(textoDe.get(msg) || '').then(ok => ok ? ui.piscarOk(acao) : ui.toast('Não consegui copiar.', { tipo: 'erro' })); break;
             case 'ouvir': {
                 const t = MD.paraFala(textoDe.get(msg) || '');

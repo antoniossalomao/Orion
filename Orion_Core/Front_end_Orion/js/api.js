@@ -30,7 +30,7 @@
     const configurarToken = t => { tokenDesktop = String(t || ''); };
 
     /** rotas que exigem o token do orion.app; o legado não conhece cabeçalho Authorization */
-    const comAuth = caminho => /^\/(approvals|chat|documents|activity|notifications|facts|artifacts|projects|skills|plugins|mcp|sessoes|historico|exportar|capabilities\/details)(\/|$|\?)/.test(caminho);
+    const comAuth = caminho => /^\/(approvals|chat|branches|documents|activity|notifications|facts|artifacts|projects|skills|plugins|mcp|sessoes|historico|exportar|capabilities\/details)(\/|$|\?)/.test(caminho);
 
     function cabecalhos(caminho, extra = {}) {
         const h = { ...extra };
@@ -77,7 +77,7 @@
         memory_graph: ['/grafo/completo'], memory_categories: ['/memoria/categorias'],
         metrics: ['/metrics'], stats: ['/stats'], stats_history: ['/stats/historico'],
         integrations: ['/integracoes'], upload: ['/upload'], tts: ['/tts/mudo', '/tts/falar'],
-        documents: ['/documents'], activity: ['/activity'], approvals: ['/approvals'], notifications: ['/notifications'], chat: ['/chat'],
+        branches: ['/branches'], documents: ['/documents'], activity: ['/activity'], approvals: ['/approvals'], notifications: ['/notifications'], chat: ['/chat'],
         skills: ['/skills'], plugins: ['/plugins'], mcp: ['/mcp/connections'],
     };
     let estado = { backend: 'unknown', api: 'offline', model: 'unknown', features: {}, unavailable: {} };
@@ -207,6 +207,8 @@
             f.append('file', arquivo);
             return recurso('upload', '/upload', { metodo: 'POST', form: f, timeout: 120000 });
         },
+        caminhos: id => recurso('branches', `/branches/${encodeURIComponent(id)}`),
+        ramificarPedido: (id, session_id, text) => recurso('branches', `/branches/messages/${id}`, { metodo: 'POST', json: { session_id, text } }),
         documentos: project_id => recurso('documents', `/documents?${q({ project_id })}`),
         ingerirDocumento: (file, project_id) => recurso('documents', `/documents?${q({ name: file.name, project_id })}`, { metodo: 'POST', body: file, contentType: 'application/octet-stream', timeout: 60000 }),
         repetirDocumento: (id, project_id) => recurso('documents', `/documents/${id}/retry?${q({ project_id })}`, { metodo: 'POST', timeout: 60000 }),

@@ -6,7 +6,7 @@ para a versão atual sozinho (`MIGRATIONS`). v3: seleção persistente de sessã
 v4: conversas fixadas. v5: índice de títulos para busca de conversas.
 """
 
-SCHEMA_VERSION = 10
+SCHEMA_VERSION = 11
 
 TOKENIZER = "unicode61 remove_diacritics 2"  # "açúcar" casa com "acucar"
 
@@ -252,7 +252,29 @@ CREATE TABLE uploads(id TEXT PRIMARY KEY, project_id TEXT REFERENCES projects(id
 CREATE INDEX idx_uploads_project ON uploads(project_id,created_at);
 """
 
-DDL = DDL_V1 + DDL_V2 + DDL_V3 + DDL_V4 + DDL_V5 + DDL_V6 + DDL_V7 + DDL_V8 + DDL_V9 + DDL_V10
+DDL_V11 = """
+CREATE TABLE message_branches(session_id TEXT PRIMARY KEY REFERENCES sessions(id),
+ root_session TEXT NOT NULL REFERENCES sessions(id),
+ parent_session TEXT NOT NULL REFERENCES sessions(id),
+ source_message INTEGER NOT NULL REFERENCES messages(id),edited_text TEXT NOT NULL,
+ prefix_count INTEGER NOT NULL,
+ created_at REAL NOT NULL);
+CREATE INDEX idx_branches_root ON message_branches(root_session);
+"""
+
+DDL = (
+    DDL_V1
+    + DDL_V2
+    + DDL_V3
+    + DDL_V4
+    + DDL_V5
+    + DDL_V6
+    + DDL_V7
+    + DDL_V8
+    + DDL_V9
+    + DDL_V10
+    + DDL_V11
+)
 MIGRATIONS: dict[int, str] = {
     1: DDL_V2,
     2: DDL_V3,
@@ -263,4 +285,5 @@ MIGRATIONS: dict[int, str] = {
     7: DDL_V8,
     8: DDL_V9,
     9: DDL_V10,
+    10: DDL_V11,
 }

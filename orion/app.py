@@ -776,8 +776,10 @@ def create_app(
             content={"detail": str(error)},
         )
 
+    from .branches import router as branch_router
     from .documents import router as document_router
 
+    app.include_router(branch_router(require_admin))
     app.include_router(document_router(require_admin))
     app.include_router(fact_router(require_admin))
     app.include_router(artifact_router(require_admin))

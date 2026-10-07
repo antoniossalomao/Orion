@@ -29,3 +29,13 @@ permitindo salvar inclusive a primeira resposta antes da atualização da sideba
 pode ser revisado antes de salvar; versões anteriores permanecem. Fechar devolve foco à lista,
 sair e voltar preserva a versão escolhida e janelas estreitas empilham lista e painel.
 Atalhos anteriores Alt+1…5 são mantidos; Alt+6 abre Projetos e Alt+7 abre Resultados.
+
+## Pedidos editados e caminhos — C39
+
+Editar uma mensagem de usuário cria outra sessão no mesmo projeto, com cópia limitada das
+falas anteriores à mensagem. O pedido revisado fica registrado como versão e preenche o
+rascunho do novo caminho; somente Enviar inicia uma resposta. O caminho original, aprovações
+e artifacts continuam associados aos IDs originais. Trocar Caminhos não chama o agente.
+Tools e mensagens de sistema não são copiadas; decisões não são transferidas. O estado de
+conteúdo externo é conservado. Máximo 100 caminhos/grupo, 200 falas e 128 mil caracteres de
+prefixo; mensagens anteriores a uma limpeza do contexto não podem ser ramificadas.
