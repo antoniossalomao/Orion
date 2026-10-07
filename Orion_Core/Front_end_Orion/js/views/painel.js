@@ -97,7 +97,12 @@
             linha('Memória', p.memoria?.ok ? (p.memoria.vetores ? 'ok · busca por significado ligada' : 'ok · só palavra-chave') : 'sem resposta'),
             linha('Jobs', !p.jobs?.ativo ? 'desligados' : p.jobs.ultima_rodada ? `última rodada às ${tempo(p.jobs.ultima_rodada)}` : 'ainda sem rodada'),
             linha('Telegram', p.canais?.telegram ? 'conectado' : 'desligado'),
-            ...(p.voz ? [linha('Voz por clique', L.resumoVoz(p.voz).clique), linha('Voz ao vivo', L.resumoVoz(p.voz).aoVivo)] : []),
+            ...(p.voz ? [linha('Voz por clique', L.resumoVoz(p.voz).clique), linha('Voz ao vivo', L.resumoVoz(p.voz).aoVivo),
+                linha('Palavra de ativação', L.resumoVoz(p.voz).escuta)] : []),
+            ...(p.voz?.escuta?.ouvindo ? [el('div', { class: 'painel-kv' }, el('dt', { text: 'Escuta do microfone' }),
+                el('dd', {}, el('button', { class: 'btn btn-outline btn-sm', type: 'button', 'data-escuta': '',
+                    text: p.voz.escuta.pausada ? 'Retomar escuta' : 'Pausar escuta',
+                    on: { click: async e => { e.currentTarget.disabled = true; try { await api.escutaAtivar(!!p.voz.escuta.pausada); } catch (_) { /* o painel mostra o estado real */ } atualizar(); } } })))] : []),
             linha('Ferramentas', String(p.ferramentas ?? 0)),
             linha('Avisos na fila', String(p.avisos?.pendentes ?? 0)),
             ...(mcp.length ? mcp.map(([n, s]) => linha(`MCP · ${n}`, s)) : [linha('MCP', 'nenhum servidor')]));

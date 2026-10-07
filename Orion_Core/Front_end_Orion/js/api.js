@@ -102,6 +102,8 @@
         integracoes: () => req('/integracoes', { timeout: 3500 }),
         /** estado do Orion numa resposta só (orion.app: modelos, CLIs, aprovações, política, jobs) */
         painel: () => req('/painel', { timeout: 5000 }),
+        /** pausa (ativa=false) ou retoma a escuta da palavra de ativação; 409 se ela está desligada */
+        escutaAtivar: ativa => req('/voz/escuta', { metodo: 'POST', json: { ativa: !!ativa }, timeout: 4000 }),
         categorias: () => req('/memoria/categorias', { timeout: 4000 }),
         grafo: (limite = 500) => req(`/grafo/completo?${q({ limite })}`, { timeout: 7000 }),
         sessoes: () => req('/sessoes', { timeout: 4000 }),

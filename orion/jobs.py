@@ -78,6 +78,7 @@ class JobRunner:
         audit_days: int = 90,
         processes: ProcessManager | None = None,
         briefing_at: str = "",
+        agenda: Callable[[float], str | None] | None = None,
         briefing_window_h: float = 6.0,
         embed_every_s: float = 300.0,
         vault_every_s: float = 3600.0,
@@ -93,6 +94,7 @@ class JobRunner:
         self._audit_days = audit_days
         self._processes = processes
         self._briefing_at = _hora(briefing_at)
+        self._agenda = agenda  # consulta direta de leitura, sem modelo (orion/agenda.py, regra 37)
         self._briefing_window = timedelta(hours=briefing_window_h)
         self._clock = clock
         self._every = {
@@ -189,7 +191,9 @@ class JobRunner:
         hoje = int(dt.strftime("%Y%m%d"))
         if self.memory.counter_get("briefing:ultimo") >= hoje:
             return False
-        self.ops.notify("briefing", build_briefing(self.ops, agora), ref=f"briefing:{hoje}")
+        self.ops.notify(
+            "briefing", build_briefing(self.ops, agora, agenda=self._agenda), ref=f"briefing:{hoje}"
+        )
         self.memory.counter_set("briefing:ultimo", hoje)  # depois do aviso: falhar não o perde
         return True
 

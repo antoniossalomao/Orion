@@ -9,6 +9,7 @@ import json
 import logging
 import re
 import shutil
+import threading
 import time
 import uuid
 from collections.abc import AsyncIterator, Callable
@@ -35,6 +36,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from . import __version__
+from .agenda import agenda_do_briefing
 from .agent import Agent, AgentEvent
 from .auth import AuthError, AuthService, LockedOut, NotConfigured, WeakPassword
 from .capture import Capturer
@@ -65,6 +67,14 @@ from .voice import (
     conexao_gemini,
     ponte_ao_vivo,
     turno_de_voz,
+)
+from .wake import (
+    SoundDeviceSource,
+    WakeConfig,
+    WakeListener,
+    bipe_com_sounddevice,
+    criar_detector,
+    tocar_mp3,
 )
 
 FRONT_DIR = PROJECT_ROOT / "Orion_Core" / "Front_end_Orion"
@@ -101,6 +111,7 @@ class AppState:
     speaker: Speaker | None = None  # voz (A): fala da resposta; None sem voz ou sem fala
     live: Callable[[], AbstractAsyncContextManager[Any]] | None = None  # voz ao vivo (B)
     voz: VozStats = field(default_factory=VozStats)
+    escuta: WakeListener | None = None  # palavra de ativação (regra 38)
 
 
 def build_policy(
@@ -289,6 +300,35 @@ def live_from_settings(settings: Settings) -> Callable[[], AbstractAsyncContextM
     return lambda: conexao_gemini(chave, settings.voice_live_model, settings.voice_live_voice)
 
 
+def wake_from_settings(
+    settings: Settings,
+    on_fala: Callable[[bytes], None],
+    evento: Callable[[str, str], None],
+) -> tuple[WakeListener | None, str]:
+    """A escuta da palavra de ativação, ou (None, motivo) se não pode subir. O motivo vai ao
+    painel: a escuta nunca deixa de subir em silêncio."""
+    if not settings.wake_enabled:
+        return None, ""
+    try:
+        detector = criar_detector(
+            settings.wake_engine, settings.wake_model, settings.wake_words, settings.wake_threshold
+        )
+        source = SoundDeviceSource(settings.wake_device)
+    except ValueError as e:
+        return None, str(e)
+    except ImportError as e:
+        return None, f"falta instalar {e.name or 'uma dependência'} (ver ORION_OPERACAO §4.4)"
+    except Exception as e:  # noqa: BLE001 — modelo corrompido, PortAudio ausente: motivo curto
+        return None, f"não consegui preparar a escuta ({type(e).__name__})"
+    cfg = WakeConfig(
+        silencio_s=settings.wake_silence_s,
+        max_s=settings.wake_max_s,
+        max_por_hora=settings.wake_max_per_hour,
+    )
+    bipe = bipe_com_sounddevice() if settings.wake_beep else None
+    return WakeListener(source, detector, on_fala, config=cfg, bipe=bipe, evento=evento), ""
+
+
 def embedder_from_settings(settings: Settings) -> GeminiEmbedder | None:
     """Sem chave de API, sem embeddings: a busca segue só por palavra-chave."""
     chave = settings.embed_api_key or get_secret("ORION_EMBED_API_KEY")
@@ -310,6 +350,67 @@ def memory_from_settings(settings: Settings) -> MemoryStore:
 
 
 _CANAL = r"^[a-z0-9_-]{1,32}$"
+
+
+def _iniciar_escuta(
+    settings: Settings,
+    ops: Operations,
+    agent: Agent | None,
+    transcriber: Transcriber | None,
+    speaker: Speaker | None,
+    stats: VozStats,
+    fabrica: Callable[..., tuple[WakeListener | None, str]],
+) -> tuple[tuple[WakeListener | None], str]:
+    """Sobe a escuta da palavra de ativação numa thread. Devolve `((escuta,), motivo)`: o motivo
+    explica por que não subiu (aparece no painel). A fala gravada segue o mesmo caminho do botão
+    de microfone (`turno_de_voz`), com o canal "web": memória, política e audit valem igual."""
+    if not settings.wake_enabled:
+        return (None,), ""
+    if not settings.voice_enabled:
+        return (None,), "a palavra de ativação usa a voz: ligue ORION_VOICE_ENABLED"
+    if agent is None or transcriber is None:
+        return (None,), "precisa do gateway e da chave de transcrição (ORION_TRANSCRIBE_API_KEY)"
+    loop = asyncio.get_running_loop()
+
+    async def turno(wav: bytes) -> None:
+        async for m in turno_de_voz(
+            agent=agent, transcriber=transcriber, speaker=speaker, audio=wav
+        ):
+            if isinstance(m, bytes):
+                await asyncio.to_thread(tocar_mp3, m)
+            elif m["type"] == "heard":
+                stats.turnos += 1
+            elif m["type"] == "error":
+                stats.erro(str(m.get("msg", "")))
+
+    def on_fala(wav: bytes) -> None:
+        asyncio.run_coroutine_threadsafe(turno(wav), loop).result(timeout=300)
+
+    def evento(tipo: str, motivo: str) -> None:
+        ops.audit_add(
+            {
+                "tool": f"voz_{tipo}",
+                "action": "deny" if tipo == "recusada" else "allow",
+                "risk": "read",
+                "reason": motivo,
+            }
+        )
+
+    escuta, motivo = fabrica(settings, on_fala, evento)
+    if escuta is None:
+        if motivo:
+            log.warning("palavra de ativação não subiu: %s", motivo)
+        return (None,), motivo
+    threading.Thread(target=escuta.run, name="orion-wake", daemon=True).start()
+    return (escuta,), ""
+
+
+def _sem_mcp(nome: str, args: dict[str, Any]) -> dict[str, Any]:
+    return {"erro": "sem servidor MCP"}
+
+
+class EscutaControle(BaseModel):
+    ativa: bool
 
 
 class Mensagem(BaseModel):
@@ -443,9 +544,22 @@ class Decisao(BaseModel):
 
 
 def _painel_da_voz(
-    settings: Settings, stats: VozStats, clique_pronto: bool, ao_vivo_pronto: bool
+    settings: Settings,
+    stats: VozStats,
+    clique_pronto: bool,
+    ao_vivo_pronto: bool,
+    escuta: WakeListener | None = None,
+    escuta_motivo: str = "",
 ) -> dict[str, Any]:
     return {
+        "escuta": {
+            "pedida": settings.wake_enabled,
+            "ouvindo": escuta.stats.ouvindo if escuta else False,
+            "pausada": escuta.stats.pausada if escuta else False,
+            "ativacoes": escuta.stats.ativacoes if escuta else 0,
+            "ultima": escuta.stats.ultima if escuta else None,
+            "ultimo_erro": (escuta.stats.ultimo_erro if escuta else None) or escuta_motivo or None,
+        },
         "clique": {
             "ligada": settings.voice_enabled and clique_pronto,
             "fala": settings.voice_enabled and settings.voice_speak,
@@ -472,6 +586,13 @@ def create_app(
     speaker_factory: Callable[[Settings], Speaker | None] | None = None,
     live_factory: (
         Callable[[Settings], Callable[[], AbstractAsyncContextManager[Any]] | None] | None
+    ) = None,
+    wake_factory: (
+        Callable[
+            [Settings, Callable[[bytes], None], Callable[[str, str], None]],
+            tuple[WakeListener | None, str],
+        ]
+        | None
     ) = None,
 ) -> FastAPI:
     settings = settings or Settings()
@@ -564,12 +685,19 @@ def create_app(
                 ops=ops,
                 routing=roteamento_ligado(settings),
             )
-        jobs, tarefa_jobs = None, None
+        jobs, tarefa_jobs, agenda = None, None, None
         if settings.jobs_enabled:
             consolidador = (
                 Consolidator(memory, gateway)
                 if gateway is not None and settings.consolidate and hasattr(gateway, "complete")
                 else None
+            )
+            agenda = agenda_do_briefing(
+                tool=settings.briefing_calendar_tool,
+                email=settings.briefing_calendar_email,
+                specs=mcp.specs if mcp is not None else {},
+                call=mcp.call if mcp is not None else _sem_mcp,
+                audit=ops.audit_add,
             )
             jobs = JobRunner(
                 memory,
@@ -581,6 +709,7 @@ def create_app(
                 audit_days=settings.audit_retention_days,
                 processes=processos,
                 briefing_at=settings.briefing_at,
+                agenda=agenda,
             )
             tarefa_jobs = asyncio.create_task(jobs.run_forever(settings.jobs_tick_s))
         telegram = (telegram_factory or telegram_from_settings)(
@@ -590,6 +719,15 @@ def create_app(
         voz_stats = VozStats()
         speaker = (speaker_factory or speaker_from_settings)(settings)
         live = (live_factory or live_from_settings)(settings)
+        escuta, escuta_motivo = _iniciar_escuta(
+            settings,
+            ops,
+            agent,
+            transcriber,
+            speaker,
+            voz_stats,
+            wake_factory or wake_from_settings,
+        )
         painel = Painel(
             started_at=time.time(),
             memory=memory,
@@ -601,11 +739,17 @@ def create_app(
             delegator=delegador,
             telegram_ativo=lambda: telegram is not None,
             voz=lambda: _painel_da_voz(
-                settings, voz_stats, agent is not None and transcriber is not None, live is not None
+                settings,
+                voz_stats,
+                agent is not None and transcriber is not None,
+                live is not None,
+                escuta[0],
+                escuta_motivo,
             ),
         )
         if telegram is not None:
             telegram.painel = lambda: texto_do_painel(painel.montar())
+            telegram.agenda = agenda
         app.state.orion = AppState(
             settings, memory, policy, painel.started_at, ops, auth, agent, jobs, telegram, mcp,
             painel,
@@ -613,10 +757,13 @@ def create_app(
             speaker=speaker,
             live=live,
             voz=voz_stats,
+            escuta=escuta[0],
         )  # fmt: skip
         try:
             yield
         finally:
+            if escuta[0] is not None:
+                escuta[0].parar()  # a thread é daemon; o microfone fecha no `finally` do laço
             for tarefa in (tarefa_jobs, tarefa_telegram):
                 if tarefa is not None:
                     tarefa.cancel()
@@ -911,6 +1058,20 @@ def create_app(
         """O estado do Orion numa resposta só (modelos, CLIs, aprovações, política, jobs...)."""
         assert state.painel is not None
         return state.painel.montar()
+
+    @app.post("/voz/escuta", dependencies=[Admin])
+    def escuta_pausar_ou_retomar(corpo: EscutaControle, state: State) -> dict[str, Any]:
+        """Pausa ou retoma a escuta da palavra de ativação (o microfone segue aberto, mas nenhum
+        quadro chega ao detector). Só há o que controlar se ela subiu."""
+        if state.escuta is None:
+            raise HTTPException(
+                status_code=409, detail="a escuta da palavra de ativação está desligada"
+            )
+        if corpo.ativa:
+            state.escuta.retomar()
+        else:
+            state.escuta.pausar()
+        return {"pausada": state.escuta.stats.pausada}
 
     @app.get("/notifications", dependencies=[Admin])
     def avisos(state: State) -> list[dict[str, Any]]:

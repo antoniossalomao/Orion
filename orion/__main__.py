@@ -54,6 +54,49 @@ def _mcp_check(config: Path) -> int:
         gerente.stop()
 
 
+def _wake_test(settings: Settings, *, listar: bool, segundos: int) -> int:
+    """Diagnóstico da escuta: mostra o nível do microfone e avisa quando a palavra é ouvida.
+    Não usa agente, não fala com a rede e não grava nada."""
+    import time
+
+    from .wake import FRAME_S, SoundDeviceSource, criar_detector, rms
+
+    try:
+        if listar:
+            import sounddevice as sd  # type: ignore[import-not-found]
+
+            print(sd.query_devices())
+            return 0
+        detector = criar_detector(
+            settings.wake_engine, settings.wake_model, settings.wake_words, settings.wake_threshold
+        )
+        fonte = SoundDeviceSource(settings.wake_device)
+    except (ValueError, ImportError, OSError) as e:
+        print(f"não consegui preparar o teste: {e}", file=sys.stderr)
+        return 1
+    print(f'escutando {segundos} s com {settings.wake_engine}; diga "Orion" (Ctrl+C sai)')
+    inicio, ouvidas, proximo = time.monotonic(), 0, 0.0
+    try:
+        for quadro in fonte.frames():
+            agora = time.monotonic() - inicio
+            if agora >= segundos:
+                break
+            if agora >= proximo:
+                proximo = agora + 0.5
+                nivel = min(40, int(rms(quadro) / 100))
+                print(f"\r  nível {'#' * nivel:<40}", end="", flush=True)
+            if detector.feed(quadro):
+                ouvidas += 1
+                print(f"\r✔ palavra ouvida ({ouvidas}) aos {agora:.1f} s{' ' * 30}")
+                detector.reset()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        fonte.close()
+    print(f"\nfim: {ouvidas} vez(es). Quadro de {FRAME_S * 1000:.0f} ms, nada foi gravado.")
+    return 0 if ouvidas else 2
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="orion")
     sub = parser.add_subparsers(dest="cmd")
@@ -80,6 +123,12 @@ def main(argv: list[str] | None = None) -> int:
         "mcp-check", help="sobe os servidores do mcp.json e mostra as ferramentas e suas classes"
     )
     mc.add_argument("--config", type=Path, default=None, help="padrão: <dados>/mcp.json")
+    wt = sub.add_parser(
+        "wake-test",
+        help="testa o microfone e a palavra de ativação (sem agente, sem rede, sem gravar nada)",
+    )
+    wt.add_argument("--listar", action="store_true", help="lista os microfones e sai")
+    wt.add_argument("--segundos", type=int, default=30, help="quanto tempo escutar")
     rs = sub.add_parser("restore", help="restaura um backup no lugar do banco (confere antes)")
     rs.add_argument("arquivo", type=Path, help="backup .db (veja <dados>/backups)")
     rs.add_argument("--force", action="store_true", help="substitui o banco atual, se existir")
@@ -141,6 +190,9 @@ def main(argv: list[str] | None = None) -> int:
             print(f"gravado: {alvo}")
         print(f"para ligar: {a.ativar}\npara desligar: {a.desativar}")
         return 0
+
+    if args.cmd == "wake-test":
+        return _wake_test(settings, listar=args.listar, segundos=args.segundos)
 
     if args.cmd == "mcp-check":
         return _mcp_check(args.config or settings.effective_mcp_config)
