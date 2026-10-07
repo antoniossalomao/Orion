@@ -1,6 +1,6 @@
 # Orion — referências de produto e plano de extensões
 
-Pesquisa em 04/10/2026. **Plano de implementação com C00–C40 concluídos** (registro na seção 9).
+Pesquisa em 04/10/2026. **Plano de implementação com execuções registradas até C41** (registro na seção 9).
 Plugins e skills seguem em implementação. MCP já tem prova com servidores controlados;
 nenhuma conta pessoal ou servidor externo do usuário foi conectado.
 Complementa [ORION_FRONT.md](ORION_FRONT.md), as fases 4 e 6 do
@@ -339,10 +339,9 @@ como fundação do recurso novo. Exportar leitura primeiro, com identidade e esc
 
 ## 8. Próximo trabalho concreto
 
-C00–C40 foram concluídos e validados. Continuar pelo **C41: conector Agenda de leitura**.
-O usuário autorizou a execução dos checklists restantes, com commits separados, validação,
-registro no vault e push. Integrações pessoais e Windows serão registrados conforme
-as evidências disponíveis, sem transformar fixtures em prova de conta ou desktop reais.
+As execuções até C41 estão registradas. Estados e evidências por checklist; C41 com validação real pendente.
+Continuar pelo **C42: Orion Agenda e revisão de propostas de evento**. O usuário autorizou os checklists restantes,
+com commits, validação, vault e push. Fixtures não substituem prova de conta ou desktop reais.
 
 Decisões recomendadas para o MVP: manter Python/FastAPI e o front atual; padrão Agent Skills;
 manifesto Orion declarativo; MCP via SDK oficial; instalação local; escopos simples; um usuário;
@@ -365,8 +364,7 @@ precisa estar pronto. Não é necessário concluir o plano inteiro para usar o p
   manter os dependentes esperando a entrega completa.
 - Ao pedir continuação, usar o ID: **“Faça o próximo commit pendente”** ou **“Faça o C09”**.
   O executor confere o checklist e as dependências antes de iniciar.
-- C00–C40 estão implementados, validados e registrados abaixo; C41–C50 permanecem
-  planejados. Cada continuação deve conferir as dependências e os limites da entrega anterior.
+- Estados e evidências por checklist; C41 com validação real pendente.
 
 ### Como concluir e pausar cada commit
 
@@ -419,9 +417,9 @@ a integração real de Pesquisa fica registrada separadamente se ainda não tive
 ### Registro para retomar no próximo dia
 
 - Último checklist concluído: **C40**, commit `ab406ec`; entregas anteriores registradas abaixo.
-- Próximo commit sugerido: **C41 — conector Agenda de leitura**.
-- Dependências/impedimentos: conferir as dependências do C41 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
-- Evidências: ver os registros C00–C40 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
+- Próximo commit sugerido: **C42 — Orion Agenda e revisão de propostas de evento**.
+- Dependências/impedimentos: Estados e evidências por checklist; C41 com validação real pendente. Windows/pywebview real e contas externas ainda precisam de evidência específica.
+- Evidências: ver os registros C00–C41 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
 - Atualizações: registrar aqui o ID concluído, hash/link e o próximo ID; não preencher com
   hash fictício nem tratar evidência de mock como teste contra conta real.
 
@@ -1096,6 +1094,30 @@ contas/extensões/MCP passaram (32,81 s), incluindo axe/700 px e conversa preser
 Conta pessoal, cofre real Windows e callback de deployment não foram validados.
 
 
+### Execução C41 — ponte Agenda em leitura, prova real pendente
+
+Commit de implementação: `cb6ea2f`. Conector selecionado @cocal/google-calendar-mcp 2.7.0,
+MIT, Node >=20, mantido em 01/10/2026. Pacote público instalado para ensaio sem hooks npm;
+inicialização/discovery reais pelo SDK Python 2.3.0 negociaram MCP 2025-11-25. Filtros upstream
+continuam anunciando manage-accounts: Orion exclui essa operação. Esquemas reais de leitura
+estão em fixture, com conta explícita para evitar mesclagem automática.
+
+Ponte consultar_agenda/consultar_disponibilidade, vínculo administrativo com projeto, conta,
+calendário e IANA timezone; período com offsets, limite de 31 dias/32 KB. Reconfigurar conexão
+invalida vínculo. Cota/timeout/revogação/indisponibilidade são acionáveis, sem replay de chamadas.
+UI em Conexões MCP mostra Agenda e permite revisar a configuração.
+
+Evidências: 637 backend passaram (33,36 s), fixture dedicada passou (0,77 s), 91 Node,
+Ruff/format/Pyright verdes; dois fluxos Chromium contas/configuração passaram (18,16 s).
+Consulta controlada validou fuso -03:00, conta, dois projetos, get-freebusy, cota, timeout e
+conexão encerrada; nenhuma operação de escrita foi chamada.
+
+**C41 permanece parcial:** falta consulta com conta real autorizada e adequação dos escopos
+Google. O upstream usa consentimento calendar amplo e arquivos próprios; reduzir tools não
+reduz essa concessão nem transfere seus tokens ao cofre do Orion. Nenhuma agenda pessoal foi
+acessada. Esses limites estão em ORION_AGENDA.md e não impedem preparar pacotes/fixtures locais.
+
+
 ### C00 — fix(ui): estabilizar conexão e consolidar o refinamento visual
 
 Etapa: **A** · Depende de: **base atual do repositório** · Estado: **concluído**.
@@ -1508,13 +1530,13 @@ Etapa: **G** · Depende de: **C24, C10** · Estado: **concluído**.
 
 ### C41 — feat(calendar): consultar agenda por conector validado
 
-Etapa: **G** · Depende de: **C40, C32** · Estado: **planejado**.
+Etapa: **G** · Depende de: **C40, C32** · Estado: **parcial — validação real pendente**.
 
-- [ ] Selecionar conector mantido, registrar licença/compatibilidade e mapear tools em leitura.
-- [ ] Consultar eventos e horários respeitando timezone e escopo da conta.
-- [ ] Tratar cota, indisponibilidade e conta revogada com resposta acionável.
+- [x] Selecionar conector mantido, registrar licença/compatibilidade e mapear tools em leitura.
+- [x] Consultar eventos e horários respeitando timezone e escopo da conta.
+- [x] Tratar cota, indisponibilidade e conta revogada com resposta acionável.
 - [ ] **Validar:** Provar leitura com fixtures e conta autorizada; conferir horário local e que nenhuma operação de escrita foi chamada.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C42 — feat(plugins): adicionar Orion Agenda com revisão de eventos
 
