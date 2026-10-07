@@ -109,7 +109,14 @@ class Agent:
                         + json.dumps(item.provenance(), ensure_ascii=False),
                         provenance={"external": item.provenance()},
                     )
-            self.memory.add_message(session.id, "user", text)
+            self.memory.add_message(
+                session.id,
+                "user",
+                text,
+                provenance={"skills": list(selection.skills)}
+                if selection and selection.skills
+                else None,
+            )
             async for ev in self._turn(session, text, external=external, selection=selection):
                 yield ev
 

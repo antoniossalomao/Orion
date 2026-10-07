@@ -61,11 +61,12 @@
         el('button', { class: 'icon-btn', type: 'button', 'aria-label': rotulo, dataset: { acao, tip: rotulo, tipPos: 'bottom' }, disabled: acao === 'ouvir' && !api.suporta('tts'), title: acao === 'ouvir' && !api.suporta('tts') ? 'Resposta por voz indisponível neste backend' : null, html: icone(icon) });
 
     /* ── usuário ───────────────────────────────────────────────────────── */
-    function usuario(texto, { anexos = [], animar = true } = {}) {
+    function usuario(texto, { anexos = [], skills = [], animar = true } = {}) {
         const m = el('div', { class: 'msg msg-user' }, el('div', { class: 'bubble', text: texto }));
         if (anexos.length) {
             m.append(el('div', { class: 'attach-note' }, el('span', { html: icone('clip') }), `${anexos.map(a => a).join(', ')}`));
         }
+        for (const skill of skills) m.append(el('div', { class: 'attach-note', text: `Skill: ${skill.id} · ${skill.origin} · ${skill.version}` }));
         m.append(el('div', { class: 'msg-actions' }, botaoAcao('copiar', 'Copiar mensagem', 'copy')));
         textoDe.set(m, texto);
         acrescentar(m);
@@ -311,7 +312,7 @@
             const rotulo = m.timestamp ? U.rotuloDia(m.timestamp) : '';
             if (rotulo && rotulo !== dia) { dia = rotulo; acrescentar(el('div', { class: 'day-sep', text: rotulo })); }
             if (m.role === 'user') {
-                const n = usuario(String(m.content ?? ''), { animar: false });
+                const n = usuario(String(m.content ?? ''), { animar: false, skills: m.provenance?.skills || [] });
                 if (m.timestamp) n.insertBefore(el('time', { class: 'msg-time', datetime: m.timestamp, text: U.hora(m.timestamp) || '' }), n.querySelector('.msg-actions'));
                 continue;
             }

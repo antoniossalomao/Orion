@@ -38,3 +38,19 @@ ToolSpec continua negada; execução listada mantém aprovação. Seleção marc
 
 Procedência registra skill/versão/origem no turno. A estratégia lexical inicial pode
 exigir escolha explícita para consultas curtas; não há classificação paga/remota.
+
+## Chat e paleta — C17
+
+`/plugin:skill pedido` resolve o namespace sem alterar `/nova`, `/modelo` ou caminhos
+de arquivo. `//` continua sendo barra literal. Sugestões e paleta listam skills ativadas;
+escolher na paleta acrescenta o prefixo sem apagar o rascunho. Origem/versão aparecem
+no composer e no turno, inclusive depois de recarregar o histórico.
+
+`GET /skills` exige admin e devolve só metadados, sem carregar corpo. Capability `skills`
+representa catálogo/invocação disponíveis quando admin está configurado, mesmo vazio.
+Legado não é sondado para essa rota. Skill inválida/desativada preserva o texto; recusa
+HTTP após mudança no servidor recupera o rascunho sem reenvio automático.
+
+Validação C17: backend 563, Node 90, navegador completo 98; Ruff/Pyright, sintaxe JS e
+legado passaram. Capturas do composer e paleta em `/workspace/artifacts/orion-c17/`
+foram inspecionadas visualmente. O histórico guarda a procedência da skill escolhida.

@@ -35,6 +35,7 @@
                 let msg = `${rotuloFalha} (HTTP ${resp.status}).`;
                 if (resp.status === 401 || resp.status === 403) msg = 'Acesso negado: confira o token em Configurações › Conexão.';
                 else { try { const d = JSON.parse(corpo).detail; if (typeof d === 'string') msg = d; } catch (_) { /* corpo não-JSON */ } }
+                bus.emit('chat:recusado', { caminho, pedido: init.json, status: resp.status, mensagem: msg });
                 emitir({ tipo: 'erro', mensagem: msg, status: resp.status });
                 return;
             }
@@ -106,14 +107,14 @@
         hubAberto: () => hubAberto,
 
         /** @returns {'hub'|'sse'} por onde a mensagem foi — o chat usa para não duplicar o eco do hub */
-        enviar({ texto, modelo = 'auto' }) {
+        enviar({ texto, modelo = 'auto', skills = [] }) {
             const ponte = window.pywebview?.api;
             if (api.usarHub() && ponte?.process_command && hubAberto) {
                 // `ignorarHub` NÃO é limpo aqui: sobra de um pedido cancelado não entra na resposta nova
                 ponte.process_command(texto, modelo);
                 return 'hub';
             }
-            lerStream('/chat', { json: api.pedidoChat({ texto, modelo }) }, 'O cérebro recusou o pedido');
+            lerStream('/chat', { json: api.pedidoChat({ texto, modelo, skills }) }, 'O cérebro recusou o pedido');
             return 'sse';
         },
 

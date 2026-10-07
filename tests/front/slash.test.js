@@ -63,3 +63,17 @@ test('todo comando tem nome único em minúsculas e descrição', () => {
     assert.equal(new Set(nomes).size, nomes.length);
     for (const c of S.COMANDOS) { assert.match(c.nome, /^[a-z]+$/); assert.ok(c.desc.length > 3); }
 });
+
+test('skills usam namespace sem colidir com comandos, caminhos ou barra literal', () => {
+    assert.deepEqual(S.interpretar('/pesquisa:revisar orçamento'), { skill: 'pesquisa:revisar', arg: 'orçamento' });
+    assert.deepEqual(S.interpretar('/modelo:revisar x\ny'), { skill: 'modelo:revisar', arg: 'x\ny' });
+    assert.deepEqual(S.interpretar('/nova'), { cmd: 'nova' });
+    assert.deepEqual(S.interpretar('/modelo groq'), { cmd: 'modelo', arg: 'groq' });
+    assert.equal(S.interpretar('//pesquisa:revisar x'), null);
+    assert.equal(S.interpretar('/home/usuario/arquivo.md'), null);
+    const skills = [{ id: 'pesquisa:revisar', description: 'Revisar', enabled: true },
+        { id: 'pesquisa:oculta', description: 'Desativada', enabled: false }];
+    assert.equal(S.sugerir('/pes', skills).length, 1);
+    assert.equal(S.sugerir('/pes', skills)[0].completar, '/pesquisa:revisar ');
+    assert.equal(S.sugerir('/pesquisa:revisar pedido', skills).length, 0);
+});

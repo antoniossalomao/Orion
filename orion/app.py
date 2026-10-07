@@ -609,6 +609,10 @@ def create_app(
             raise HTTPException(503, "gateway de modelos não configurado (ORION_GATEWAY_URL/MODEL)")
         return state.agent
 
+    @app.get("/skills", dependencies=[Admin])
+    def listar_skills(state: State) -> list[dict]:
+        return state.skills.summaries() if state.skills is not None else []
+
     @app.post("/chat", dependencies=[Admin])
     async def chat(corpo: Mensagem, state: State) -> StreamingResponse:
         agente = _agente(state)

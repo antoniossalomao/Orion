@@ -30,7 +30,7 @@
     const configurarToken = t => { tokenDesktop = String(t || ''); };
 
     /** rotas que exigem o token do orion.app; o legado não conhece cabeçalho Authorization */
-    const comAuth = caminho => /^\/(approvals|chat|notifications|sessoes|historico|exportar|capabilities\/details)(\/|$|\?)/.test(caminho);
+    const comAuth = caminho => /^\/(approvals|chat|notifications|skills|sessoes|historico|exportar|capabilities\/details)(\/|$|\?)/.test(caminho);
 
     function cabecalhos(caminho, extra = {}) {
         const h = { ...extra };
@@ -77,6 +77,7 @@
         metrics: ['/metrics'], stats: ['/stats'], stats_history: ['/stats/historico'],
         integrations: ['/integracoes'], upload: ['/upload'], tts: ['/tts/mudo', '/tts/falar'],
         approvals: ['/approvals'], notifications: ['/notifications'], chat: ['/chat'],
+        skills: ['/skills'],
     };
     let estado = { backend: 'unknown', api: 'offline', model: 'unknown', features: {}, unavailable: {} };
     let origem = '', emDeteccao = null, geracao = 0;
@@ -114,6 +115,7 @@
                     // Rotas opcionais ausentes são lembradas até trocar de backend.
                     if (estado.backend === 'legacy') Object.assign(features, estado.features);
                     features.chat = h.cerebro.ok;
+                    features.skills = false;
                     features.notifications = false; // pertence ao backend novo
                     novo = { backend: 'legacy', api: 'online', model: h.cerebro.ok ? 'ready' : 'unavailable', features, unavailable: estado.backend === 'legacy' ? estado.unavailable : {} };
                 } else novo = { backend: 'unknown', api: 'online', model: 'unknown', features: {}, unavailable: {}, incompatible: true };
@@ -143,7 +145,8 @@
     const api = {
         ApiError, UnsupportedError, base, wsBase, token, configurarToken, req,
         detectar, suporta, estado: () => estado,
-        pedidoChat: ({ texto, modelo }) => estado.backend === 'orion' ? { texto, canal: 'web' } : { texto, modelo },
+        pedidoChat: ({ texto, modelo, skills = [] }) => estado.backend === 'orion'
+            ? { texto, canal: 'web', ...(skills.length ? { skills } : {}) } : { texto, modelo },
         pedidoRetomada: () => estado.backend === 'orion' ? { json: { canal: 'web' } } : {},
         usarHub: () => estado.backend === 'legacy',
         async ping(timeout = 2000) {
@@ -159,6 +162,7 @@
         integracoes: () => recurso('integrations', '/integracoes', { timeout: 3500 }),
         categorias: () => recurso('memory_categories', '/memoria/categorias', { timeout: 4000 }),
         grafo: (limite = 500) => recurso('memory_graph', `/grafo/completo?${q({ limite })}`, { timeout: 7000 }),
+        skills: () => recurso('skills', '/skills', { timeout: 5000 }),
         sessoes: () => recurso('sessions', '/sessoes', { timeout: 4000 }),
         buscarSessoes: (texto, offset = 0) => recurso('session_search', `/sessoes/busca?${q({ texto, offset })}`, { timeout: 6000 }),
         editarSessao: (id, json) => recurso('session_management', `/sessoes/${encodeURIComponent(id)}`, { metodo: 'PATCH', json, timeout: 5000 }),

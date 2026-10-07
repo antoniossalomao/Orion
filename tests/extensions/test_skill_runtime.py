@@ -92,3 +92,30 @@ async def test_allowed_tools_only_restrict_and_cannot_grant_policy_permission(tm
         assert store.history(session.id)[-1].provenance["skills"][0]["version"] == "1.0"
     finally:
         store.close()
+
+
+def test_skill_catalog_authenticated_and_does_not_load_body(tmp_path):
+    from fastapi.testclient import TestClient
+
+    from orion.app import create_app
+    from orion.config import Settings
+
+    runtime(tmp_path)
+    root = tmp_path / "skills"
+    # Catálogo continua sendo só metadados: corpo inválido ainda não é carregado.
+    path = root / "financas/SKILL.md"
+    path.write_bytes(path.read_bytes() + b"\xff")
+    settings = Settings(
+        data_dir=tmp_path / "dados",
+        jobs_enabled=False,
+        _env_file=None,
+        admin_token="catalogo-skill-fixture16",
+        skill_sources=[SkillSource(root=root, namespace="pesquisa", enabled=True)],
+    )
+    with TestClient(create_app(settings), base_url="http://127.0.0.1") as client:
+        assert client.get("/skills").status_code == 401
+        data = client.get(
+            "/skills", headers={"Authorization": "Bearer catalogo-skill-fixture16"}
+        ).json()
+        assert data[0]["id"] == "pesquisa:financas" and "text" not in data[0]
+        assert str(root) not in client.get("/capabilities").text

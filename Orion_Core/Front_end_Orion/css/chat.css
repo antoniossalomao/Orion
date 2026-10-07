@@ -259,3 +259,5 @@ li.md-tarefa { list-style: none; margin-left: -1.4em; }
 .history-controls { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; padding: 16px; }
 .history-sources { margin-top: 12px; font-size: .85em; color: var(--text-3); overflow-wrap: anywhere; }
 .history-sources summary { cursor: pointer; }
+
+.composer-skill { padding: var(--s-2) var(--s-4) 0; color: var(--text-2); font-size: var(--fs-xs); overflow-wrap: anywhere; }

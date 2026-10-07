@@ -165,7 +165,7 @@ def novo_backend(tmp_path):
 
     servidores = []
 
-    def criar(*, gateway=True, auth=True, approval=False):
+    def criar(*, gateway=True, auth=True, approval=False, skills=None):
         porta = _porta_livre()
         roteiros = (
             [pede(chama("esquecer_fato", id=1)), fala("Aguardando você."), fala("Esqueci.")]
@@ -178,6 +178,7 @@ def novo_backend(tmp_path):
                 data_dir=tmp_path / str(porta),
                 admin_token=TOKEN if auth else "",
                 jobs_enabled=False,
+                skill_sources=skills or [],
                 embed_api_key="",
                 telegram_token="",
                 _env_file=None,

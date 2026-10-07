@@ -12,8 +12,8 @@
     let raiz, campo, lista, anterior = null, aberta = false;
     let visiveis = [], sel = 0;
 
-    const G = { ir: 'Ir para', acao: 'Ações', aparencia: 'Aparência', conversa: 'Conversas', perguntar: 'Perguntar' };
-    const ORDEM_PADRAO = ['ir', 'acao', 'aparencia', 'conversa'];
+    const G = { ir: 'Ir para', acao: 'Ações', aparencia: 'Aparência', conversa: 'Conversas', perguntar: 'Perguntar', skill: 'Skills' };
+    const ORDEM_PADRAO = ['ir', 'acao', 'skill', 'aparencia', 'conversa'];
 
     function comandos() {
         const A = O.acoes, ir = v => () => O.app.ir(v);
@@ -46,6 +46,9 @@
         if (O.chat.pendentes().length) {
             c.unshift({ g: 'acao', rotulo: `Revisar ação pendente (${O.chat.pendentes().length})`, icone: 'shield', exec: () => O.chat.irParaPendente(), chaves: 'aprovar aprovação' });
         }
+        c.push(...O.composer.skills().map(s => ({ g: 'skill', rotulo: `Skill: ${s.id}`,
+            icone: 'bolt', dica: s.enabled ? `${s.origin} · ${s.version}` : 'Desativada',
+            chaves: s.description, exec: () => O.composer.selecionarSkill(s.id) })));
         return c;
     }
 
@@ -139,6 +142,7 @@
 
     function abrir() {
         if (aberta) return;
+        O.composer.carregarSkills().then(() => { if (aberta) desenhar(); });
         aberta = true;
         anterior = document.activeElement;
         raiz.hidden = false;
