@@ -1,6 +1,6 @@
 # Orion — referências de produto e plano de extensões
 
-Pesquisa em 04/10/2026. **Plano de implementação com C00–C30 concluídos** (registro na seção 9).
+Pesquisa em 04/10/2026. **Plano de implementação com C00–C31 concluídos** (registro na seção 9).
 Plugins e skills seguem em implementação. MCP já tem prova com servidores controlados;
 nenhuma conta pessoal ou servidor externo do usuário foi conectado.
 Complementa [ORION_FRONT.md](ORION_FRONT.md), as fases 4 e 6 do
@@ -339,7 +339,7 @@ como fundação do recurso novo. Exportar leitura primeiro, com identidade e esc
 
 ## 8. Próximo trabalho concreto
 
-C00–C30 foram concluídos e validados. Continuar pelo **C31: projetos persistentes e associação de conversas**.
+C00–C31 foram concluídos e validados. Continuar pelo **C32: isolamento de fontes memória e extensões por projeto**.
 O usuário autorizou a execução dos checklists restantes, com commits separados, validação,
 registro no vault e push. Integrações pessoais e Windows serão registrados conforme
 as evidências disponíveis, sem transformar fixtures em prova de conta ou desktop reais.
@@ -351,8 +351,8 @@ quando houver integração concreta para revisar. Este documento não muda as de
 
 ## 9. Checklists por commit e sequência de dias
 
-Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C30 têm commits reais
-registrados; C31–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
+Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C31 têm commits reais
+registrados; C32–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
 precisa estar pronto. Não é necessário concluir o plano inteiro para usar o primeiro MVP.
 
 ### Ritmo de trabalho
@@ -365,7 +365,7 @@ precisa estar pronto. Não é necessário concluir o plano inteiro para usar o p
   manter os dependentes esperando a entrega completa.
 - Ao pedir continuação, usar o ID: **“Faça o próximo commit pendente”** ou **“Faça o C09”**.
   O executor confere o checklist e as dependências antes de iniciar.
-- C00–C30 estão implementados, validados e registrados abaixo; C31–C50 permanecem
+- C00–C31 estão implementados, validados e registrados abaixo; C32–C50 permanecem
   planejados. Cada continuação deve conferir as dependências e os limites da entrega anterior.
 
 ### Como concluir e pausar cada commit
@@ -418,10 +418,10 @@ a integração real de Pesquisa fica registrada separadamente se ainda não tive
 
 ### Registro para retomar no próximo dia
 
-- Último checklist concluído: **C30**, commit `1d64ac8`; entregas anteriores registradas abaixo.
-- Próximo commit sugerido: **C31 — projetos persistentes e associação de conversas**.
-- Dependências/impedimentos: conferir as dependências do C31 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
-- Evidências: ver os registros C00–C30 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
+- Último checklist concluído: **C31**, commit `c5430cf`; entregas anteriores registradas abaixo.
+- Próximo commit sugerido: **C32 — isolamento de fontes memória e extensões por projeto**.
+- Dependências/impedimentos: conferir as dependências do C32 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
+- Evidências: ver os registros C00–C31 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
 - Atualizações: registrar aqui o ID concluído, hash/link e o próximo ID; não preencher com
   hash fictício nem tratar evidência de mock como teste contra conta real.
 
@@ -932,6 +932,20 @@ interface, API, banco, staging/lifecycle e restart são reais no Linux. **Conta 
 integrações pessoais e Windows/pywebview seguem sem prova real.** Não houve merge em main.
 
 
+### Execução C31 — 06/10/2026
+
+Commit `c5430cf`: migração aditiva SQLite v6 para projetos/instruções e project_id
+opcional em sessões. CRUD autenticado, arquivar/restaurar, seleção pessoal/projeto e
+associação de conversa com histórico/IDs preservados. Arquivar não apaga chats; troca
+/associação são recusadas enquanto houver execução/aprovação pendente. Conversas antigas
+continuam sem projeto. Compartilhar memória pessoal é escolha explícita, default falso.
+
+**Evidências:** 624 testes backend, Ruff/Pyright. Migração de banco v5 com mensagem real,
+associação/arquivo/restart preserva ID e texto; API prova auth, validação, seleção e
+guarda de aprovação. C31 ainda não afirma isolamento da recuperação nem oferece tela de
+projetos: esses contratos passam a operar em C32 e C33 respectivamente.
+
+
 ### C00 — fix(ui): estabilizar conexão e consolidar o refinamento visual
 
 Etapa: **A** · Depende de: **base atual do repositório** · Estado: **concluído**.
@@ -1244,13 +1258,13 @@ Etapa: **E** · Depende de: **C29, C06** · Estado: **concluído**.
 
 ### C31 — feat(projects): persistir projetos e associar conversas
 
-Etapa: **F** · Depende de: **C30** · Estado: **planejado**.
+Etapa: **F** · Depende de: **C30** · Estado: **concluído**.
 
-- [ ] Adicionar migração aditiva para projetos, associação de sessões e instruções.
-- [ ] Criar endpoints autenticados de criar, editar, listar e arquivar projetos.
-- [ ] Manter conversas anteriores funcionando sem projeto e preservar IDs.
-- [ ] **Validar:** Migrar banco com dados antigos, criar projetos e reiniciar; arquivar projeto não apaga conversas.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Adicionar migração aditiva para projetos, associação de sessões e instruções.
+- [x] Criar endpoints autenticados de criar, editar, listar e arquivar projetos.
+- [x] Manter conversas anteriores funcionando sem projeto e preservar IDs.
+- [x] **Validar:** Migrar banco com dados antigos, criar projetos e reiniciar; arquivar projeto não apaga conversas.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C32 — feat(context): isolar fontes memória e extensões por projeto
 
