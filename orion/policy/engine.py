@@ -7,6 +7,7 @@ caminho) → escalada por conteúdo externo lido (taint) → aprovação fora de
 
 from __future__ import annotations
 
+import json
 import logging
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
@@ -43,6 +44,9 @@ class Context:
     session_id: str
     tainted: bool = False
     allowed_tools: frozenset[str] | None = None
+    authorities: tuple[str, ...] = ()
+    authorized: Callable[[], bool] | None = None
+    project_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -92,6 +96,8 @@ class PolicyEngine:
         spec = self.tools.get(call.name)
         if spec is None:
             return Decision(Action.DENY, None, f"ferramenta '{call.name}' não registrada")
+        if ctx.authorized is not None and not ctx.authorized():
+            return Decision(Action.DENY, spec.risk, "concessão ou revisão revogada")
         if ctx.allowed_tools is not None and call.name not in ctx.allowed_tools:
             return Decision(Action.DENY, spec.risk, "ferramenta fora do escopo da skill")
         limite = self.rate.check(call.name)
@@ -102,10 +108,27 @@ class PolicyEngine:
         if motivo is None:
             return Decision(Action.ALLOW, spec.risk)
 
-        if self.approvals.consume(ctx.session_id, call.name, call.args):
+        binding = self.binding(call.name, ctx)
+        if self.approvals.consume(ctx.session_id, call.name, call.args, binding=binding):
             return Decision(Action.ALLOW, spec.risk, f"aprovado fora de banda ({motivo})")
-        pedido = self.approvals.request(ctx.session_id, call.name, call.args, motivo)
+        pedido = self.approvals.request(
+            ctx.session_id, call.name, call.args, motivo, binding=binding
+        )
         return Decision(Action.CONFIRM, spec.risk, motivo, pedido.id)
+
+    def binding(self, name: str, ctx: Context) -> str:
+        spec = self.tools.get(name)
+        if not ctx.authorities and not ctx.project_id and not (spec and spec.revision):
+            return ""
+        return json.dumps(
+            [
+                ctx.project_id,
+                ctx.authorities,
+                spec.origin if spec else None,
+                spec.revision if spec else None,
+            ],
+            sort_keys=True,
+        )
 
     def _motivo_confirmacao(self, spec: ToolSpec, call: ToolCall, ctx: Context) -> str | None:
         if spec.risk is Risk.DESTRUCTIVE:

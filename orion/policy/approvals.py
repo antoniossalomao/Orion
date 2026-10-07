@@ -52,6 +52,7 @@ class Approval:
     status: Status = Status.PENDING
     decided_by: str | None = None
     channel: str | None = None
+    binding: str = ""
 
 
 class ApprovalStore:
@@ -67,13 +68,20 @@ class ApprovalStore:
             self._items[a.id] = a
         return a
 
-    def request(self, session_id: str, tool: str, args: dict[str, Any], reason: str) -> Approval:
+    def request(
+        self, session_id: str, tool: str, args: dict[str, Any], reason: str, *, binding: str = ""
+    ) -> Approval:
         """Cria (ou devolve a pendente idêntica) uma solicitação de aprovação."""
         h = hash_call(tool, args)
         with self._lock:
             for a in list(self._items.values()):
                 a = self._expire(a)
-                if (a.session_id, a.args_hash, a.status) == (session_id, h, Status.PENDING):
+                if (a.session_id, a.args_hash, a.binding, a.status) == (
+                    session_id,
+                    h,
+                    binding,
+                    Status.PENDING,
+                ):
                     return a
             agora = self._clock()
             novo = Approval(
@@ -85,6 +93,7 @@ class ApprovalStore:
                 created_at=agora,
                 expires_at=agora + self._ttl,
                 args=json.loads(json.dumps(args, default=str)),
+                binding=binding,
             )
             self._items[novo.id] = novo
             return novo
@@ -107,13 +116,20 @@ class ApprovalStore:
             self._items[a.id] = a
             return a
 
-    def consume(self, session_id: str, tool: str, args: dict[str, Any]) -> bool:
+    def consume(
+        self, session_id: str, tool: str, args: dict[str, Any], *, binding: str = ""
+    ) -> bool:
         """True uma única vez se há aprovação válida para exatamente esta chamada."""
         h = hash_call(tool, args)
         with self._lock:
             for a in list(self._items.values()):
                 a = self._expire(a)
-                if (a.session_id, a.args_hash, a.status) == (session_id, h, Status.APPROVED):
+                if (a.session_id, a.args_hash, a.binding, a.status) == (
+                    session_id,
+                    h,
+                    binding,
+                    Status.APPROVED,
+                ):
                     self._items[a.id] = replace(a, status=Status.CONSUMED)
                     return True
         return False
@@ -146,6 +162,12 @@ class ApprovalStore:
                     self._items[a.id] = replace(
                         a, status=Status.DENIED, reason="origem ou revisão revogada"
                     )
+
+    def invalidate_binding(self, binding: str) -> None:
+        with self._lock:
+            for a in list(self._items.values()):
+                if binding in a.binding and a.status in (Status.PENDING, Status.APPROVED):
+                    self._items[a.id] = replace(a, status=Status.DENIED, reason="escopo revogado")
 
     def get(self, approval_id: str) -> Approval | None:
         with self._lock:

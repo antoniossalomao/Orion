@@ -96,7 +96,13 @@ class Agent:
     ) -> AsyncIterator[AgentEvent]:
         session = self.memory.active_session(channel)
         async with self._lock(session.id):
-            self._context(session.id).allowed_tools = selection.allowed_tools if selection else None
+            ctx = self._context(session.id)
+            ctx.allowed_tools = selection.allowed_tools if selection else None
+            ctx.authorities = selection.authorities if selection else ()
+            ctx.authorized = selection.authorized if selection else None
+            if ctx.authorized and not ctx.authorized():
+                yield AgentEvent("error", {"message": "skill_revision_revoked"})
+                return
             external = [*(external or []), *(selection.data if selection else [])]
             if external:
                 self._context(session.id).tainted = True

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -44,6 +45,8 @@ class Selection:
     data: tuple[ExternalData, ...] = ()
     allowed_tools: frozenset[str] | None = None
     skills: tuple[dict, ...] = ()
+    authorities: tuple[str, ...] = ()
+    authorized: Callable[[], bool] | None = None
 
 
 class SkillRuntime:
@@ -52,6 +55,8 @@ class SkillRuntime:
         self.script_reviews: dict[str, tuple[str, float]] = {}
         self.index = SkillIndex()
         self.enabled: set[str] = set()
+        self.scopes: dict[str, frozenset[str]] = {}
+        self.authorities: dict[str, str] = {}
         self.diagnostics: list[dict] = []
         for source in sources:
             before = set(self.index.skills)
@@ -167,6 +172,9 @@ class SkillRuntime:
                 )
             )
             provenance.append({**skill.summary(), "digest": body.digest})
+            if id_ in self.scopes:
+                restriction = self.scopes[id_]
+                scope = restriction if scope is None else scope & restriction
             if skill.header.allowed_tools is not None:
                 restriction = frozenset(skill.header.allowed_tools.split())
                 scope = restriction if scope is None else scope & restriction
@@ -190,4 +198,17 @@ class SkillRuntime:
                     len(raw) > len(text.encode()),
                 )
             )
-        return Selection(tuple(data), scope, tuple(provenance))
+        authorities = tuple(
+            sorted({self.authorities[id_] for id_ in ids if id_ in self.authorities})
+        )
+        expected = {id_: self.authorities[id_] for id_ in ids if id_ in self.authorities}
+
+        def authorized() -> bool:
+            return all(
+                id_ in self.enabled and self.authorities.get(id_) == revision
+                for id_, revision in expected.items()
+            )
+
+        return Selection(
+            tuple(data), scope, tuple(provenance), authorities, authorized if expected else None
+        )
