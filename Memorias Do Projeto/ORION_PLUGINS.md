@@ -31,3 +31,15 @@ SQLite aponta apenas para objeto completo. Nova instalação fica `disabled`, se
 Falha entre publicar objeto e gravar metadados remove objeto e staging sem ativação
 parcial. Hash novamente validado ao reutilizar objeto. Imutabilidade é de conteúdo e
 permissões locais, não proteção contra o próprio dono do SO alterando armazenamento.
+
+## Distribuição ZIP — C21
+
+Formato v1: `.zip` (inclusive `.orion-plugin.zip`), manifest.json na raiz, ZIP padrão
+stored/deflate. Arquivo até 16 MB, expansão 16 MB, 512 arquivos, 2 MB por arquivo e
+razão máxima 200. ZIP64, multipart, criptografia, compressão alternativa e self-extracting
+não são suportados. Central directory é limitada antes da criação dos objetos ZipInfo.
+
+Não usa extractall: todos os nomes/tipos/tamanhos/CRC são verificados, com bloqueio de
+zip-slip, symlink/arquivo especial, drive Windows/ADS/nomes reservados, Unicode/case
+collisions e conflito arquivo/diretório. Snapshot resultante passa pelo mesmo validador,
+staging e publicação da pasta. Hash da mesma coleção de arquivos é igual nos dois formatos.
