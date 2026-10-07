@@ -1,6 +1,6 @@
 # Orion — referências de produto e plano de extensões
 
-Pesquisa em 04/10/2026. **Plano de implementação com C00–C13 concluídos** (registro na seção 9).
+Pesquisa em 04/10/2026. **Plano de implementação com C00–C14 concluídos** (registro na seção 9).
 Plugins e skills seguem em implementação. MCP já tem prova com servidores controlados;
 nenhuma conta pessoal ou servidor externo do usuário foi conectado.
 Complementa [ORION_FRONT.md](ORION_FRONT.md), as fases 4 e 6 do
@@ -339,7 +339,7 @@ como fundação do recurso novo. Exportar leitura primeiro, com identidade e esc
 
 ## 8. Próximo trabalho concreto
 
-C00–C13 foram concluídos e validados. Continuar pelo **C14: resources e prompts MCP com procedência**.
+C00–C14 foram concluídos e validados. Continuar pelo **C15: parser e metadados de pacotes Agent Skills**.
 O usuário autorizou a execução dos checklists restantes, com commits separados, validação,
 registro no vault e push. Integrações pessoais e Windows serão registrados conforme
 as evidências disponíveis, sem transformar fixtures em prova de conta ou desktop reais.
@@ -351,8 +351,8 @@ quando houver integração concreta para revisar. Este documento não muda as de
 
 ## 9. Checklists por commit e sequência de dias
 
-Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C13 têm commits reais
-registrados; C14–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
+Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C14 têm commits reais
+registrados; C15–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
 precisa estar pronto. Não é necessário concluir o plano inteiro para usar o primeiro MVP.
 
 ### Ritmo de trabalho
@@ -365,7 +365,7 @@ precisa estar pronto. Não é necessário concluir o plano inteiro para usar o p
   manter os dependentes esperando a entrega completa.
 - Ao pedir continuação, usar o ID: **“Faça o próximo commit pendente”** ou **“Faça o C09”**.
   O executor confere o checklist e as dependências antes de iniciar.
-- C00–C13 estão implementados, validados e registrados abaixo; C14–C50 permanecem
+- C00–C14 estão implementados, validados e registrados abaixo; C15–C50 permanecem
   planejados. Cada continuação deve conferir as dependências e os limites da entrega anterior.
 
 ### Como concluir e pausar cada commit
@@ -418,10 +418,10 @@ a integração real de Pesquisa fica registrada separadamente se ainda não tive
 
 ### Registro para retomar no próximo dia
 
-- Último checklist concluído: **C13**, commit `25d295b`; entregas anteriores registradas abaixo.
-- Próximo commit sugerido: **C14 — resources e prompts MCP com procedência**.
-- Dependências/impedimentos: conferir as dependências do C14 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
-- Evidências: ver os registros C00–C13 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
+- Último checklist concluído: **C14**, commit `89bc6a9`; entregas anteriores registradas abaixo.
+- Próximo commit sugerido: **C15 — parser e metadados de pacotes Agent Skills**.
+- Dependências/impedimentos: conferir as dependências do C15 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
+- Evidências: ver os registros C00–C14 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
 - Atualizações: registrar aqui o ID concluído, hash/link e o próximo ID; não preencher com
   hash fictício nem tratar evidência de mock como teste contra conta real.
 
@@ -676,6 +676,21 @@ após remoção no servidor. Falha de descoberta revoga o catálogo anterior. Ru
 e Pyright passaram. Busca lexical é a estratégia inicial, sem embeddings remotos.
 
 
+### Execução C14 — contexto externo MCP (06/10/2026)
+
+**Commit de implementação:** `89bc6a9`.
+Resources/prompts por escolha explícita no chat autenticado e allowlist da conexão.
+Até oito escolhas e 32 KB textuais totais, com fonte/digest/truncamento; template chega
+como dado em role user e não altera política. Referência/procedência persiste, conteúdo
+bruto não é indexado na memória; taint da sessão é durável. Erros sanitizados.
+
+**Evidências:** 545 testes backend passaram. Servidor real fornece resource grande,
+resource fora de escopo e template tentando dispensar aprovação: execução segue
+bloqueada antes da aprovação. API exige admin e escopo. Handshake real confirma ausência
+de sampling, elicitation, extensions e experimental. Ruff/formatação/Pyright passaram.
+Limite é de contexto após receber texto, não isolamento de memória do processo remoto.
+
+
 ### C00 — fix(ui): estabilizar conexão e consolidar o refinamento visual
 
 Etapa: **A** · Depende de: **base atual do repositório** · Estado: **concluído**.
@@ -818,13 +833,13 @@ Etapa: **B** · Depende de: **C12** · Estado: **concluído**.
 
 ### C14 — feat(mcp): ler resources e oferecer prompts com procedência
 
-Etapa: **B** · Depende de: **C13** · Estado: **planejado**.
+Etapa: **B** · Depende de: **C13** · Estado: **concluído**.
 
-- [ ] Adicionar leitura explícita de resources com limite, fonte e escopo.
-- [ ] Oferecer prompts como templates opcionais escolhidos pelo usuário.
-- [ ] Tratar conteúdo externo como dado; não anunciar sampling, elicitation ou Tasks sem implementação.
-- [ ] **Validar:** Testar resource grande, acesso sem escopo e prompt malicioso; confirmar que política e instruções do núcleo permanecem válidas.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Adicionar leitura explícita de resources com limite, fonte e escopo.
+- [x] Oferecer prompts como templates opcionais escolhidos pelo usuário.
+- [x] Tratar conteúdo externo como dado; não anunciar sampling, elicitation ou Tasks sem implementação.
+- [x] **Validar:** Testar resource grande, acesso sem escopo e prompt malicioso; confirmar que política e instruções do núcleo permanecem válidas.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C15 — feat(skills): validar e listar pacotes Agent Skills
 
