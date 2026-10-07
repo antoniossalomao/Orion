@@ -220,6 +220,61 @@ class PluginStore:
                 return row
         raise PluginError("plugin_not_found")
 
+    def versions(self, id_: str) -> list[dict]:
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT * FROM plugin_versions WHERE plugin_id=? ORDER BY rowid DESC", (id_,)
+            ).fetchall()
+            return [{**dict(row), "manifest": json.loads(row["manifest"])} for row in rows]
+
+    def version(self, id_: str, digest: str) -> dict:
+        for row in self.versions(id_):
+            if row["digest"] == digest:
+                return row
+        raise PluginError("plugin_version_not_found")
+
+    def change_version(
+        self, id_: str, digest: str, *, reviewed_digest: str, reviewed_capabilities: set[str]
+    ) -> dict:
+        with self._lock, self._db:
+            current = self.get(id_)
+            target = self.version(id_, digest)
+            if current["state"] == PluginState.ACTIVE or current["active_digest"] is not None:
+                raise PluginError("plugin_disable_first")
+            if reviewed_digest != digest or reviewed_capabilities != set(
+                target["manifest"]["capabilities"]
+            ):
+                raise PluginError("plugin_review_required")
+            if current["selected_digest"] == digest:
+                return current
+            # Um único UPDATE/commit publica a revisão inteira; grants não atravessam update.
+            self._db.execute(
+                """UPDATE plugins SET previous_digest=selected_digest,
+                selected_digest=?,active_digest=NULL,state=?,error=NULL WHERE id=?""",
+                (digest, PluginState.DISABLED, id_),
+            )
+        return self.get(id_)
+
+    def rollback(self, id_: str, *, reviewed_digest: str, reviewed_capabilities: set[str]) -> dict:
+        previous = self.get(id_)["previous_digest"]
+        if not previous:
+            raise PluginError("plugin_rollback_unavailable")
+        return self.change_version(
+            id_,
+            previous,
+            reviewed_digest=reviewed_digest,
+            reviewed_capabilities=reviewed_capabilities,
+        )
+
+    def remove(self, id_: str) -> list[dict]:
+        with self._lock, self._db:
+            row = self.get(id_)
+            if row["state"] == PluginState.ACTIVE or row["active_digest"] is not None:
+                raise PluginError("plugin_disable_first")
+            versions = self.versions(id_)
+            self._db.execute("DELETE FROM plugins WHERE id=?", (id_,))
+            return versions
+
     def transition(self, id_: str, state: PluginState, *, error: str | None = None) -> None:
         if error and not re.fullmatch(r"[a-z0-9_]{1,80}", error):
             raise PluginError("plugin_error_code_invalid")

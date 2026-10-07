@@ -192,3 +192,82 @@ class Installer:
                     remove_tree(staged)
                 temporary.cleanup()
             return self.store.get(package.manifest.id)
+
+    def bundle(self, id_: str, digest: str) -> Path:
+        version = self.store.version(id_, digest)
+        expected = f"bundles/{id_}/{digest}"
+        if version["bundle"] != expected:
+            raise PluginError("bundle_path_invalid")
+        path = self.root / expected
+        try:
+            path.resolve().relative_to(self.root.resolve())
+        except ValueError as error:
+            raise PluginError("bundle_path_invalid") from error
+        package = folder_snapshot(path)
+        if package.digest != digest:
+            raise PluginError("bundle_tampered")
+        return path
+
+    def plan_update(self, id_: str, digest: str) -> dict:
+        current = self.store.get(id_)
+        target = self.store.version(id_, digest)
+        old = set(current["manifest"]["capabilities"])
+        new = set(target["manifest"]["capabilities"])
+        self.bundle(id_, digest)
+        return {
+            "id": id_,
+            "current_digest": current["selected_digest"],
+            "target_digest": digest,
+            "version": target["version"],
+            "added": sorted(new - old),
+            "removed": sorted(old - new),
+            "review_required": digest != current["selected_digest"],
+        }
+
+    def change_version(
+        self, id_: str, digest: str, *, reviewed_digest: str, reviewed_capabilities: set[str]
+    ) -> dict:
+        with self._lock:
+            self.bundle(id_, digest)
+            return self.store.change_version(
+                id_,
+                digest,
+                reviewed_digest=reviewed_digest,
+                reviewed_capabilities=reviewed_capabilities,
+            )
+
+    def rollback(self, id_: str, *, reviewed_digest: str, reviewed_capabilities: set[str]) -> dict:
+        previous = self.store.get(id_)["previous_digest"]
+        if not previous:
+            raise PluginError("plugin_rollback_unavailable")
+        return self.change_version(
+            id_,
+            previous,
+            reviewed_digest=reviewed_digest,
+            reviewed_capabilities=reviewed_capabilities,
+        )
+
+    def uninstall(self, id_: str) -> None:
+        with self._lock:
+            versions = self.store.versions(id_)
+            # Validar também ancestrais antes da operação destrutiva.
+            for version in versions:
+                expected = f"bundles/{id_}/{version['digest']}"
+                path = self.root / expected
+                if version["bundle"] != expected:
+                    raise PluginError("bundle_path_invalid")
+                if any(
+                    parent.is_symlink()
+                    for parent in [path, *path.parents]
+                    if parent != self.root.parent
+                ):
+                    raise PluginError("bundle_path_invalid")
+                try:
+                    path.resolve().relative_to(self.root.resolve())
+                except ValueError as error:
+                    raise PluginError("bundle_path_invalid") from error
+            self.store.remove(id_)
+            for version in versions:
+                expected = f"bundles/{id_}/{version['digest']}"
+                if version["bundle"] == expected:
+                    remove_tree(self.root / expected)
