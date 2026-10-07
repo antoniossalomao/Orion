@@ -84,9 +84,8 @@
 
     /* ── rascunho por conversa (conveniência: cada conversa guarda o que ficou por escrever) ── */
     let sidRascunho = null;
-    const chaveRascunho = sid => `${CHAVE_RASCUNHO}:${sid}`;
+    const chaveRascunho = sid => `${CHAVE_RASCUNHO}:${sid == null ? 'pendente:' + api.base() : sid}`;
     function gravarRascunho(sid, texto) {
-        if (sid == null) return;
         try { texto ? localStorage.setItem(chaveRascunho(sid), texto) : localStorage.removeItem(chaveRascunho(sid)); } catch (_) { /* storage bloqueado */ }
     }
     function lerRascunho(sid) {
@@ -98,7 +97,12 @@
         salvarRascunho.cancel();
         if (sidRascunho === null) {                       // 1ª carga: quem já digitou antes das conversas chegarem não perde o texto
             sidRascunho = novo;
-            if (chat.ta.value) { gravarRascunho(novo, chat.ta.value); return; }
+            const pending = lerRascunho(null);
+            if (chat.ta.value || pending) {
+                if (!chat.ta.value) chat.ta.value = pending;
+                gravarRascunho(novo, chat.ta.value); gravarRascunho(null, '');
+                autoajustar(chat.ta); atualizar(); return;
+            }
         } else { gravarRascunho(sidRascunho, chat.ta.value); sidRascunho = novo; }
         chat.ta.value = lerRascunho(novo);
         autoajustar(chat.ta);
@@ -404,6 +408,7 @@
             gravarRascunho(sid, recuperar);
             if (sid === sidRascunho) { chat.ta.value = recuperar; autoajustar(chat.ta); atualizar(); }
         });
+        window.addEventListener('pagehide', () => { salvarRascunho.cancel(); gravarRascunho(sidRascunho, chat.ta.value); });
         window.addEventListener('resize', U.noProximoQuadro(() => { autoajustar(chat.ta); autoajustar(inicio.ta); }));
         $('#btn-attach').addEventListener('click', () => $('#file-input').click());
         $('#file-input').addEventListener('change', e => { adicionar(e.target.files); e.target.value = ''; });

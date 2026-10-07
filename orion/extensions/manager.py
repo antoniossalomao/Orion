@@ -185,6 +185,7 @@ class PluginManager:
                         )
                     )
                 connection = Connection(config)
+                connection.label = f"{manifest.name}/{remote.id}"
                 connection.authorized = lambda: (
                     self.store.get(id_)["state"] == PluginState.ACTIVE
                     and self.store.get(id_)["selected_digest"] == digest

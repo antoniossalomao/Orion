@@ -120,3 +120,24 @@ def test_configure_recover_test_and_disable_mcp_by_ui(abrir, novo_backend):
     assert not page.evaluate(
         "async () => (await axe.run(document, {runOnly: {type:'tag', values:['wcag2a','wcag2aa']}})).violations"
     )
+
+
+def test_live_sources_persist_after_reopen_without_changing_focus(abrir, novo_backend, tmp_path):
+    from orion.extensions.skill_runtime import SkillSource
+
+    root = package(tmp_path)
+    url, _, _, _ = novo_backend(
+        skills=[SkillSource(root=root / "skills", namespace="pesquisa", enabled=True)]
+    )
+    page = abrir("#/chat", url=url, init=TOKEN_INIT)
+    page.wait_for_function("() => Orion.composer.skills().length === 1")
+    page.locator("#composer-input").fill("/pesquisa:revisar Revise as fontes")
+    page.locator("#btn-send").click()
+    details = page.locator(".msg-orion .history-sources").last
+    expect(details).to_contain_text("Fontes e atividade")
+    details.locator("summary").click()
+    expect(details).to_contain_text("pesquisa:revisar")
+    page.locator("#composer-input").fill("rascunho preservado")
+    page.reload()
+    expect(page.locator(".msg-orion .history-sources").last).to_contain_text("pesquisa:revisar")
+    expect(page.locator("#composer-input")).to_have_value("rascunho preservado")

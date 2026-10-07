@@ -137,6 +137,7 @@ class MCPError(RuntimeError):
 class Connection:
     def __init__(self, config: StdioConfig | HTTPConfig, *, timeout: float = 5):
         sanitize_protocol_logs()
+        self.label: str = config.id
         self.authorized: Callable[[], bool] | None = None
         self.config = config
         self.timeout = timeout

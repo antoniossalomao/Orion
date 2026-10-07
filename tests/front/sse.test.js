@@ -48,3 +48,10 @@ test('normalizar: eventos do legado e do orion.app', () => {
         assert.equal(normalizar(lixo), null);
     }
 });
+
+test('proveniência e atividade conservam identidade e estado sem payload privado', () => {
+    const provenance = { skills: [{ id: 'pesquisa:revisar', version: '1.0' }], atividades: [{ state: 'completed' }] };
+    assert.deepEqual(normalizar({ provenance }), { tipo: 'fontes', provenance });
+    const event = normalizar({ tool: { name: 'mcp_id', call_id: 'call1', state: 'completed', label: 'buscar', origin: 'Orion Pesquisa', revision: 'abc' } });
+    assert.equal(event.chamada, 'call1'); assert.equal(event.origem, 'Orion Pesquisa'); assert.equal(event.estado, 'completed');
+});

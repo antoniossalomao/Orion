@@ -53,10 +53,14 @@
         if (!ev || typeof ev !== 'object') return null;
         if (typeof ev.text === 'string' && ev.text) return { tipo: 'texto', texto: ev.text };
         if (typeof ev.tier === 'string' && ev.tier) return { tipo: 'modelo', nome: ev.tier };
+        if (ev.provenance && typeof ev.provenance === 'object' && !Array.isArray(ev.provenance)) return { tipo: 'fontes', provenance: ev.provenance };
         if (ev.tool && typeof ev.tool === 'object') {
             const t = ev.tool;
             return { tipo: 'ferramenta', nome: String(t.name || ''), decisao: t.decision || null,
-                     motivo: t.reason || '', aprovada: !!t.approved, erro: t.error || null };
+                     motivo: t.reason || '', aprovada: !!t.approved, erro: t.error || null,
+                     ...(t.call_id ? { chamada: String(t.call_id) } : {}), ...(t.state ? { estado: String(t.state) } : {}),
+                     ...(t.label ? { rotulo: String(t.label) } : {}), ...(t.origin ? { origem: String(t.origin) } : {}),
+                     ...(t.revision ? { revisao: String(t.revision) } : {}), ...(t.summary ? { resumo: String(t.summary) } : {}) };
         }
         if (ev.approval && typeof ev.approval === 'object') {
             const a = ev.approval;

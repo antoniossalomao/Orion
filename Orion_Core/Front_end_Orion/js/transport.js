@@ -95,6 +95,7 @@
         if (m.user_text) emitir({ tipo: 'usuario', texto: String(m.user_text) });
         if (m.tier) emitir({ tipo: 'modelo', nome: String(m.tier) });
         if (m.ai_chunk) emitir({ tipo: 'texto', texto: String(m.ai_chunk) });
+        if (m.provenance) emitir(O.sse.normalizar({ provenance: m.provenance }));
         if (m.tool) emitir(O.sse.normalizar({ tool: m.tool }));
         if (m.approval) emitir(O.sse.normalizar({ approval: m.approval }));
         if (typeof m.error === 'string') emitir({ tipo: 'erro', mensagem: m.error });

@@ -51,7 +51,7 @@ def _truncado(args: dict[str, Any]) -> bool:
 
 @dataclass(frozen=True)
 class AgentEvent:
-    kind: str  # tier | text | tool | approval | error | done
+    kind: str  # tier | text | tool | activity | approval | error | done
     data: dict[str, Any] = field(default_factory=dict)
 
 
@@ -161,13 +161,21 @@ class Agent:
                 yield AgentEvent("error", {"message": f"não executou: {decisao.reason}"})
                 return
             resultado = await self._executar(chamada, ctx)
-            yield AgentEvent("tool", {"name": a.tool, "decision": "allow", "approved": True})
+            resumed_activity = {
+                **self._tool_identity(a.tool, a.id),
+                "decision": "allow",
+                "approved": True,
+                "state": self._result_state(resultado),
+            }
+            yield AgentEvent("tool", resumed_activity)
             nota = (
                 f"[SISTEMA] O Antônio aprovou e a ação foi executada: {a.tool}"
                 f"({json.dumps(redact(a.args), ensure_ascii=False)}). Resultado: {resultado}"
             )
             self.memory.add_message(sessao.id, "system", nota[: self._max_chars])
-            async for ev in self._turn(sessao, None, extra_tools=[a.tool]):
+            async for ev in self._turn(
+                sessao, None, extra_tools=[a.tool], prior_activity=[resumed_activity]
+            ):
                 yield ev
 
     # ── turno ─────────────────────────────────────────────────────────────
@@ -178,6 +186,7 @@ class Agent:
         extra_tools: list[str] | None = None,
         external: list[ExternalData] | None = None,
         selection: Selection | None = None,
+        prior_activity: list[dict] | None = None,
     ) -> AsyncIterator[AgentEvent]:
         if self.refresh_tools is not None:
             await self.refresh_tools()
@@ -186,6 +195,7 @@ class Agent:
         mensagens = self._mensagens(session, hits)
         mensagens.extend(item.message() for item in external or [])
         usadas: list[str] = list(extra_tools or [])
+        activity: list[dict] = list(prior_activity or [])
         destino: tuple[str, str] | None = None
         esquemas = self.tools.schemas(query=consulta, selected=extra_tools) or None
         if ctx.allowed_tools is not None:
@@ -218,6 +228,7 @@ class Agent:
                     "model": destino[1] if destino else None,
                     "memoria": [{"tipo": h.kind, "id": h.id, "fonte": h.source} for h in hits],
                     "ferramentas": usadas,
+                    "atividades": activity,
                     "contexto_externo": [item.provenance() for item in external or []],
                     "skills": list(selection.skills) if selection else [],
                 }
@@ -241,7 +252,25 @@ class Agent:
             )
             for c in chamadas:
                 usadas.append(c.name)
-                conteudo, eventos = await self._processar_chamada(c, ctx, selected)
+                identity = self._tool_identity(c.name, c.id)
+                if identity["origin"]:
+                    yield AgentEvent("activity", {**identity, "state": "processing"})
+                try:
+                    conteudo, eventos = await self._processar_chamada(c, ctx, selected)
+                except asyncio.CancelledError:
+                    cancelled = {
+                        **identity,
+                        "state": "cancelled",
+                        "summary": "Chamada interrompida; confira o destino antes de repetir.",
+                    }
+                    self.memory.add_message(
+                        session.id,
+                        "assistant",
+                        "A execução foi interrompida.",
+                        provenance={"atividades": [*activity, cancelled]},
+                    )
+                    raise
+                activity.extend(event.data for event in eventos if event.kind == "tool")
                 for e in eventos:
                     yield e
                 mensagens.append({"role": "tool", "tool_call_id": c.id, "content": conteudo})
@@ -270,7 +299,15 @@ class Agent:
         chamada = ToolCall(c.name, c.arguments)
         d = self.policy.evaluate(chamada, ctx)
         eventos = [
-            AgentEvent("tool", {"name": c.name, "decision": d.action.value, "reason": d.reason})
+            AgentEvent(
+                "tool",
+                {
+                    **self._tool_identity(c.name, c.id),
+                    "decision": d.action.value,
+                    "reason": d.reason,
+                    "state": "waiting_approval" if d.action is Action.CONFIRM else "denied",
+                },
+            )
         ]
         if d.action is Action.DENY:
             return json.dumps(
@@ -302,7 +339,43 @@ class Agent:
                 ),
                 eventos,
             )
-        return await self._executar(chamada, ctx), eventos
+        result = await self._executar(chamada, ctx)
+        state = self._result_state(result)
+        eventos[0] = AgentEvent(
+            "tool",
+            {
+                **eventos[0].data,
+                "state": state,
+                "summary": "Concluída"
+                if state == "completed"
+                else "A ferramenta retornou falha; confira o resultado antes de repetir.",
+            },
+        )
+        return result, eventos
+
+    def _tool_identity(self, name: str, call_id: str = "") -> dict:
+        spec = self.policy.tools.get(name)
+        return {
+            "name": name,
+            "call_id": call_id,
+            "label": spec.display_name if spec and spec.display_name else name,
+            "origin": (spec.origin_label or spec.origin) if spec else None,
+            "revision": spec.revision if spec else None,
+        }
+
+    @staticmethod
+    def _result_state(result: str) -> str:
+        if result.startswith("[CONTEÚDO EXTERNO:"):
+            result = result.split("\n", 1)[1].rsplit("\n", 1)[0]
+        try:
+            parsed = json.loads(result)
+            if isinstance(parsed, dict) and (
+                parsed.get("ok") is False or parsed.get("erro") or parsed.get("error")
+            ):
+                return "failed"
+        except (ValueError, TypeError):
+            pass
+        return "completed"
 
     async def _executar(self, chamada: ToolCall, ctx: Context) -> str:
         tool = self.tools.get(chamada.name)

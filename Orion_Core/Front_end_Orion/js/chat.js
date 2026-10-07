@@ -136,8 +136,10 @@
     }
 
     /* ── ferramentas ───────────────────────────────────────────────────── */
-    const ROTULO_ESTADO = { ok: 'permitida', espera: 'aguardando aprovação', negado: 'negada' };
+    const ROTULO_ESTADO = { ok: 'permitida', concluida: 'concluída', processando: 'processando', espera: 'aguardando aprovação', negado: 'negada', falha: 'falhou', cancelada: 'interrompida' };
     function estadoFerramenta(ev) {
+        const states = { processing: 'processando', waiting_approval: 'espera', completed: 'concluida', failed: 'falha', cancelled: 'cancelada', denied: 'negado' };
+        if (states[ev.estado]) return states[ev.estado];
         if (ev.erro || ev.decisao === 'deny') return 'negado';
         if (ev.decisao === 'confirm' && !ev.aprovada) return 'espera';
         return 'ok';
@@ -146,10 +148,10 @@
         const a = atual || iniciar({ pensando: false });
         tirarPensando(a);
         const est = estadoFerramenta(ev);
-        const icon = est === 'ok' ? 'check' : est === 'negado' ? 'close' : 'tool';
+        const icon = ['ok','concluida'].includes(est) ? 'check' : ['negado','falha','cancelada'].includes(est) ? 'close' : 'tool';
         // o evento não traz id da chamada: uma chamada que esperava aprovação é "retomada" no mesmo chip;
         // qualquer outra vira chip novo (duas chamadas da mesma ferramenta não se sobrescrevem)
-        let chip = [...a.chips].reverse().find(c => c.dataset.nome === ev.nome && c.dataset.estado === 'espera');
+        let chip = [...a.chips].reverse().find(c => ev.chamada ? c.dataset.chamada === ev.chamada : c.dataset.nome === ev.nome && c.dataset.estado === 'espera');
         if (!chip) {
             chip = el('span', { class: 'tool-chip', role: 'img', dataset: { nome: ev.nome } });
             a.chips.push(chip);
@@ -157,10 +159,11 @@
             a.atividade.hidden = false;
         }
         chip.dataset.estado = est;
-        chip.title = ev.motivo || ev.erro || '';
-        chip.setAttribute('aria-label', `Ferramenta ${ev.nome}: ${ROTULO_ESTADO[est]}${ev.motivo ? '. ' + ev.motivo : ''}`);
+        if (ev.chamada) chip.dataset.chamada = ev.chamada;
+        chip.title = [ev.origem, ev.revisao ? `revisão ${ev.revisao.slice(0,12)}` : '', ev.resumo || ev.motivo || ev.erro].filter(Boolean).join(' · ');
+        chip.setAttribute('aria-label', `Ferramenta ${ev.rotulo || ev.nome}: ${ROTULO_ESTADO[est]}${ev.motivo ? '. ' + ev.motivo : ''}`);
         chip.innerHTML = icone(icon);
-        chip.append(ev.nome.replace(/_/g, ' '));
+        chip.append((ev.rotulo || ev.nome).replace(/_/g, ' '));
         acompanhar();
     }
 
@@ -264,10 +267,14 @@
 
     function finalizar(a, { interrompida = false } = {}) {
         a.fim = true;
+        for (const chip of a.chips) if (chip.dataset.estado === 'processando') {
+            chip.dataset.estado = interrompida ? 'cancelada' : 'falha';
+            chip.setAttribute('aria-label', `Ferramenta ${chip.dataset.nome}: ${interrompida ? 'interrompida' : 'resultado não confirmado'}`);
+        }
         tirarPensando(a);
         if (a.texto) a.dur.textContent = U.fmtDur(performance.now() - a.t0);
         if (a.retoma) {
-            const falhou = a.erro || a.chips.some(c => c.dataset.estado === 'negado');
+            const falhou = a.erro || a.chips.some(c => ['negado','falha','cancelada'].includes(c.dataset.estado));
             a.retoma.querySelector('.approval-state').textContent = falhou ? 'Aprovada · a execução falhou.' : 'Aprovada · executada.';
         }
         if (a.texto) a.prose.innerHTML = a.rs.renderizar(a.texto);
@@ -304,6 +311,24 @@
     }
 
     /* ── histórico ─────────────────────────────────────────────────────── */
+    function mostrarFontes(a, provenance) {
+        if (!provenance || typeof provenance !== 'object') return;
+        const rows = value => Array.isArray(value) ? value.slice(0, 128) : [];
+        const labels = [
+            ...rows(provenance.memoria).map(x => x.fonte ? `Memória: ${x.fonte}` : `Memória: ${x.tipo || 'fonte'} ${x.id || ''}`),
+            ...rows(provenance.skills).map(x => `Skill: ${x.id} · ${x.origin} · ${x.version}`),
+            ...rows(provenance.contexto_externo).map(x => `Fonte externa: ${x.origin || x.connection || ''} · ${x.kind || ''} · ${x.key || x.uri || x.name || x.reference || ''}`),
+        ];
+        const activity = rows(provenance.atividades);
+        if (!activity.length) labels.push(...rows(provenance.ferramentas).map(x => typeof x === 'string' ? x.replace(/_/g, ' ') : x.nome || x.name));
+        const states = { completed:'Concluída', failed:'Falhou', denied:'Negada', waiting_approval:'Aguardando aprovação', cancelled:'Interrompida', processing:'Processando' };
+        const details = el('details', { class: 'history-sources' }, el('summary', { text: 'Fontes e atividade' }),
+            ...[...new Set(labels)].filter(Boolean).map(text => el('p', { text })),
+            ...activity.map(item => el('p', { text: `${item.label || item.name} · ${states[item.state] || item.decision || 'Registrada'}${item.origin ? ' · ' + item.origin : ''}${item.revision ? ' · revisão ' + item.revision.slice(0, 12) : ''}${item.summary ? ' · ' + item.summary : ''}` })));
+        a.fontes?.remove(); a.fontes = null;
+        if (labels.length || activity.length) { a.principal.append(details); a.fontes = details; }
+    }
+
     function renderHistorico(msgs, { antes = false } = {}) {
         const altura = rolagem.scrollHeight, top = rolagem.scrollTop;
         destinoHistorico = document.createDocumentFragment();
@@ -324,11 +349,7 @@
             textoDe.set(a.el, a.texto);
             barraAcoes(a, false);
             if (m.timestamp) a.el.querySelector('time').setAttribute('datetime', m.timestamp);
-            const fontes = (m.provenance?.memoria || []).map(x => x.fonte).filter(Boolean);
-            const ferramentas = (m.provenance?.ferramentas || []).map(x => typeof x === 'string' ? x : x.nome || x.name).filter(Boolean);
-            if (fontes.length || ferramentas.length) a.principal.append(el('details', { class: 'history-sources' },
-                el('summary', { text: 'Fontes e ferramentas' }),
-                ...[...new Set([...fontes, ...ferramentas.map(x => x.replace(/_/g, ' '))])].map(text => el('p', { text }))));
+            mostrarFontes(a, m.provenance);
         }
         if (antes) col.prepend(destinoHistorico); else col.append(destinoHistorico);
         destinoHistorico = null;
@@ -367,6 +388,10 @@
             lista.forEach(p => cartaoAprovacao({ id: String(p.id), ferramenta: String(p.tool || p.tool_name || p.ferramenta || 'ação'),
                 motivo: p.reason || p.motivo || '', args: p.args && typeof p.args === 'object' ? p.args : {} }, a, { depoisDoTexto: true }));
             a.fim = true;
+        for (const chip of a.chips) if (chip.dataset.estado === 'processando') {
+            chip.dataset.estado = interrompida ? 'cancelada' : 'falha';
+            chip.setAttribute('aria-label', `Ferramenta ${chip.dataset.nome}: ${interrompida ? 'interrompida' : 'resultado não confirmado'}`);
+        }
         } catch (_) { /* sem token ou sem orion.app: não há o que mostrar */ }
     }
 
@@ -382,6 +407,7 @@
             case 'texto': receberTexto(ev.texto); break;
             case 'ferramenta': chipFerramenta(ev); break;
             case 'aprovacao': cartaoAprovacao(ev); break;
+            case 'fontes': mostrarFontes(atual || iniciar({ pensando:false }), ev.provenance); break;
             case 'erro': mostrarErro(ev); break;
             case 'fim': if (atual) finalizar(atual, ev); else setOcupado(false); break;
             default: break;

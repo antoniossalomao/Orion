@@ -211,11 +211,13 @@ def sse(ev: AgentEvent) -> str:
     """Mesmo formato do /chat do legado (`text`, `tier`, `[DONE]`) + `tool`/`approval`/`error`."""
     d = ev.data
     if ev.kind == "done":
-        return "data: [DONE]\n\n"
+        payload = json.dumps({"provenance": d.get("provenance", {})}, ensure_ascii=False)
+        return f"data: {payload}\n\ndata: [DONE]\n\n"
     corpo = {
         "text": {"text": d.get("text")},
         "tier": {"tier": f"{d.get('endpoint')}/{d.get('model')}"},
         "tool": {"tool": d},
+        "activity": {"tool": d},
         "approval": {"approval": d},
         "error": {"error": d.get("message")},
     }[ev.kind]

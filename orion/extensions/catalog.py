@@ -103,6 +103,8 @@ class Catalog:
                 origin=entry.canonical_id,
                 revision=entry.revision,
                 require_confirmation=risk is not Risk.READ,
+                display_name=remote.name,
+                origin_label=connection.label,
             )
             pending.append((entry, tool, spec))
         return pending
