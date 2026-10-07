@@ -1,6 +1,6 @@
 # Orion — referências de produto e plano de extensões
 
-Pesquisa em 04/10/2026. **Plano de implementação com C00–C16 concluídos** (registro na seção 9).
+Pesquisa em 04/10/2026. **Plano de implementação com C00–C17 concluídos** (registro na seção 9).
 Plugins e skills seguem em implementação. MCP já tem prova com servidores controlados;
 nenhuma conta pessoal ou servidor externo do usuário foi conectado.
 Complementa [ORION_FRONT.md](ORION_FRONT.md), as fases 4 e 6 do
@@ -339,7 +339,7 @@ como fundação do recurso novo. Exportar leitura primeiro, com identidade e esc
 
 ## 8. Próximo trabalho concreto
 
-C00–C16 foram concluídos e validados. Continuar pelo **C17: invocação de skills no chat e na paleta**.
+C00–C17 foram concluídos e validados. Continuar pelo **C18: confiança e execução controlada de scripts de skills**.
 O usuário autorizou a execução dos checklists restantes, com commits separados, validação,
 registro no vault e push. Integrações pessoais e Windows serão registrados conforme
 as evidências disponíveis, sem transformar fixtures em prova de conta ou desktop reais.
@@ -351,8 +351,8 @@ quando houver integração concreta para revisar. Este documento não muda as de
 
 ## 9. Checklists por commit e sequência de dias
 
-Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C16 têm commits reais
-registrados; C17–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
+Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C17 têm commits reais
+registrados; C18–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
 precisa estar pronto. Não é necessário concluir o plano inteiro para usar o primeiro MVP.
 
 ### Ritmo de trabalho
@@ -365,7 +365,7 @@ precisa estar pronto. Não é necessário concluir o plano inteiro para usar o p
   manter os dependentes esperando a entrega completa.
 - Ao pedir continuação, usar o ID: **“Faça o próximo commit pendente”** ou **“Faça o C09”**.
   O executor confere o checklist e as dependências antes de iniciar.
-- C00–C16 estão implementados, validados e registrados abaixo; C17–C50 permanecem
+- C00–C17 estão implementados, validados e registrados abaixo; C18–C50 permanecem
   planejados. Cada continuação deve conferir as dependências e os limites da entrega anterior.
 
 ### Como concluir e pausar cada commit
@@ -418,10 +418,10 @@ a integração real de Pesquisa fica registrada separadamente se ainda não tive
 
 ### Registro para retomar no próximo dia
 
-- Último checklist concluído: **C16**, commit `fd51452`; entregas anteriores registradas abaixo.
-- Próximo commit sugerido: **C17 — invocação de skills no chat e na paleta**.
-- Dependências/impedimentos: conferir as dependências do C17 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
-- Evidências: ver os registros C00–C16 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
+- Último checklist concluído: **C17**, commit `59a9972`; entregas anteriores registradas abaixo.
+- Próximo commit sugerido: **C18 — confiança e execução controlada de scripts de skills**.
+- Dependências/impedimentos: conferir as dependências do C18 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
+- Evidências: ver os registros C00–C17 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
 - Atualizações: registrar aqui o ID concluído, hash/link e o próximo ID; não preencher com
   hash fictício nem tratar evidência de mock como teste contra conta real.
 
@@ -720,6 +720,20 @@ execução listada ainda confirmada e chamada fora do escopo negada. Ruff, forma
 Pyright passaram. Scripts não são executados nesta entrega.
 
 
+### Execução C17 — skills no chat e paleta (06/10/2026)
+
+**Commit de implementação:** `59a9972`.
+Namespace /plugin:skill, sugestões por teclado e grupo na paleta, com origem/versão no
+composer e turno. Comandos existentes, barras literais e caminhos preservados. Escolha
+na paleta mantém texto; skill inválida/desativada e recusa HTTP recuperam rascunho sem
+reenvio automático. Catálogo autenticado somente de metadados; legado não é sondado.
+
+**Evidências:** 563 testes backend, 90 Node e 98 navegador completo passaram. Casos reais
+de teclado, paleta, skill escolhida no gateway controlado e revogação pelo servidor.
+Ruff/formatação/Pyright, sintaxe JS e checks do legado passaram. Capturas desktop do
+composer/paleta em `/workspace/artifacts/orion-c17/` inspecionadas visualmente.
+
+
 ### C00 — fix(ui): estabilizar conexão e consolidar o refinamento visual
 
 Etapa: **A** · Depende de: **base atual do repositório** · Estado: **concluído**.
@@ -892,13 +906,13 @@ Etapa: **C** · Depende de: **C15, C13** · Estado: **concluído**.
 
 ### C17 — feat(ui): invocar skills pelo chat e pela paleta
 
-Etapa: **C** · Depende de: **C16, C02** · Estado: **planejado**.
+Etapa: **C** · Depende de: **C16, C02** · Estado: **concluído**.
 
-- [ ] Adicionar resolução de /plugin:skill e escolha de skill na paleta.
-- [ ] Preservar comandos existentes, texto literal com barra e caminhos de arquivo.
-- [ ] Mostrar skill ativa, origem e versão no turno, incluindo skill não disponível.
-- [ ] **Validar:** Invocar skill pelo teclado e testar colisão com /nova, /modelo e comandos inválidos; o draft deve ser preservado.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Adicionar resolução de /plugin:skill e escolha de skill na paleta.
+- [x] Preservar comandos existentes, texto literal com barra e caminhos de arquivo.
+- [x] Mostrar skill ativa, origem e versão no turno, incluindo skill não disponível.
+- [x] **Validar:** Invocar skill pelo teclado e testar colisão com /nova, /modelo e comandos inválidos; o draft deve ser preservado.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C18 — feat(skills): controlar confiança e execução de scripts
 
