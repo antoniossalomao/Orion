@@ -1,6 +1,6 @@
 # Orion — referências de produto e plano de extensões
 
-Pesquisa em 04/10/2026. **Plano de implementação com C00–C24 concluídos** (registro na seção 9).
+Pesquisa em 04/10/2026. **Plano de implementação com C00–C25 concluídos** (registro na seção 9).
 Plugins e skills seguem em implementação. MCP já tem prova com servidores controlados;
 nenhuma conta pessoal ou servidor externo do usuário foi conectado.
 Complementa [ORION_FRONT.md](ORION_FRONT.md), as fases 4 e 6 do
@@ -339,7 +339,7 @@ como fundação do recurso novo. Exportar leitura primeiro, com identidade e esc
 
 ## 8. Próximo trabalho concreto
 
-C00–C24 foram concluídos e validados. Continuar pelo **C25: catálogo visual de plugins skills e conexões**.
+C00–C25 foram concluídos e validados. Continuar pelo **C26: configuração e diagnóstico de conexões MCP pela interface**.
 O usuário autorizou a execução dos checklists restantes, com commits separados, validação,
 registro no vault e push. Integrações pessoais e Windows serão registrados conforme
 as evidências disponíveis, sem transformar fixtures em prova de conta ou desktop reais.
@@ -351,8 +351,8 @@ quando houver integração concreta para revisar. Este documento não muda as de
 
 ## 9. Checklists por commit e sequência de dias
 
-Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C24 têm commits reais
-registrados; C25–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
+Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C25 têm commits reais
+registrados; C26–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
 precisa estar pronto. Não é necessário concluir o plano inteiro para usar o primeiro MVP.
 
 ### Ritmo de trabalho
@@ -365,7 +365,7 @@ precisa estar pronto. Não é necessário concluir o plano inteiro para usar o p
   manter os dependentes esperando a entrega completa.
 - Ao pedir continuação, usar o ID: **“Faça o próximo commit pendente”** ou **“Faça o C09”**.
   O executor confere o checklist e as dependências antes de iniciar.
-- C00–C24 estão implementados, validados e registrados abaixo; C25–C50 permanecem
+- C00–C25 estão implementados, validados e registrados abaixo; C26–C50 permanecem
   planejados. Cada continuação deve conferir as dependências e os limites da entrega anterior.
 
 ### Como concluir e pausar cada commit
@@ -418,10 +418,10 @@ a integração real de Pesquisa fica registrada separadamente se ainda não tive
 
 ### Registro para retomar no próximo dia
 
-- Último checklist concluído: **C24**, commit `72d40ff`; entregas anteriores registradas abaixo.
-- Próximo commit sugerido: **C25 — catálogo visual de plugins skills e conexões**.
-- Dependências/impedimentos: conferir as dependências do C25 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
-- Evidências: ver os registros C00–C24 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
+- Último checklist concluído: **C25**, commit `7050d69`; entregas anteriores registradas abaixo.
+- Próximo commit sugerido: **C26 — configuração e diagnóstico de conexões MCP pela interface**.
+- Dependências/impedimentos: conferir as dependências do C26 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
+- Evidências: ver os registros C00–C25 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
 - Atualizações: registrar aqui o ID concluído, hash/link e o próximo ID; não preencher com
   hash fictício nem tratar evidência de mock como teste contra conta real.
 
@@ -832,6 +832,22 @@ Scripts de plugins não são concedidos por instalação: runner de fontes locai
 (C18) continua separado. Nenhuma conta externa foi conectada.
 
 
+### Execução C25 — 06/10/2026
+
+Commit `7050d69`: Extensões tem abas Plugins, Skills, Conexões MCP e Voz/canais,
+importação ZIP/pasta, revisão de capacidades/servidores, ativação, desativação,
+versões/rollback e remoção. Dados externos entram por textContent; trocar origem invalida
+respostas antigas. Composer atualiza catálogo sem perder draft. Barra recolhida mantém
+nomes acessíveis dos links.
+
+**Evidências:** quatro cenários novos de navegador passaram com API real, teclado,
+axe WCAG A/AA, layout 700 px, Noite/Grafite/Alto contraste, instalação/ativação/skill/
+desativação e erro recuperável. O conjunto anterior com capabilities (11 cenários antes
+de ampliar os temas) também passou. Sete arquivos de testes Node passaram. Screenshots
+1440/700 px em `/workspace/artifacts/orion-c25/` inspecionados visualmente. Não há prova
+Windows/pywebview neste ambiente; configurar conexão pelo formulário segue em C26.
+
+
 ### C00 — fix(ui): estabilizar conexão e consolidar o refinamento visual
 
 Etapa: **A** · Depende de: **base atual do repositório** · Estado: **concluído**.
@@ -1084,13 +1100,13 @@ Etapa: **D** · Depende de: **C23** · Estado: **concluído**.
 
 ### C25 — feat(ui): criar catálogo de plugins e skills
 
-Etapa: **E** · Depende de: **C24, C17** · Estado: **planejado**.
+Etapa: **E** · Depende de: **C24, C17** · Estado: **concluído**.
 
-- [ ] Evoluir Integrações para Extensões com abas Plugins, Skills e Conexões MCP.
-- [ ] Adicionar detalhes, origem, versão, capacidades e controles de instalação/ativação.
-- [ ] Preservar voz e canais em seção própria; apresentar benefícios em linguagem de produto.
-- [ ] **Validar:** Navegar pelas abas com teclado, axe e temas; testar a 700 px com catálogo vazio, instalado e erro.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Evoluir Integrações para Extensões com abas Plugins, Skills e Conexões MCP.
+- [x] Adicionar detalhes, origem, versão, capacidades e controles de instalação/ativação.
+- [x] Preservar voz e canais em seção própria; apresentar benefícios em linguagem de produto.
+- [x] **Validar:** Navegar pelas abas com teclado, axe e temas; testar a 700 px com catálogo vazio, instalado e erro.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C26 — feat(ui): configurar e diagnosticar conexões MCP
 
