@@ -38,6 +38,9 @@ ESTADO: dict[str, Any] = {
     "chats": 128,
     "aprovacoes": {},
     "sessao_ativa": "s1",
+    "titulos": {},  # renomeadas (PATCH /sessoes/{id})
+    "fixadas": set(),
+    "apagadas": set(),  # DELETE /sessoes/{id}: some da lista
     "rng": random.Random(7),
     "delay": 0.018,
 }
@@ -61,12 +64,14 @@ def _sessoes() -> list[dict[str, Any]]:
     itens = [
         {
             "sessao_id": sid,
-            "titulo": titulo,
+            "titulo": ESTADO["titulos"].get(sid, titulo),
             "criada": criada.isoformat(),
+            "ultima_atividade": criada.isoformat(),
             "ativa": sid == ESTADO["sessao_ativa"],
-            "favorita": False,
+            "favorita": sid in ESTADO["fixadas"],
         }
         for sid, titulo, criada in base
+        if sid not in ESTADO["apagadas"]
     ]
     itens.append(
         {
@@ -391,6 +396,27 @@ def create_app() -> FastAPI:
         sid = corpo.get("sessao_id", "s1")
         ESTADO["sessao_ativa"] = sid
         return {"ok": True, "sessao_id": sid, "mensagens": _historico(sid)}
+
+    @app.patch("/sessoes/{sid}")
+    def sessao_ajustar(sid: str, corpo: dict[str, Any]) -> dict[str, Any]:
+        if sid not in {i["sessao_id"] for i in _sessoes()} or sid == "legado":
+            raise HTTPException(404, "conversa não encontrada")
+        if "titulo" in corpo:
+            ESTADO["titulos"][sid] = str(corpo["titulo"])
+        if "favorita" in corpo:
+            (ESTADO["fixadas"].add if corpo["favorita"] else ESTADO["fixadas"].discard)(sid)
+        return {"ok": True}
+
+    @app.delete("/sessoes/{sid}")
+    def sessao_apagar(sid: str) -> dict[str, Any]:
+        if sid not in {i["sessao_id"] for i in _sessoes()} or sid == "legado":
+            raise HTTPException(404, "conversa não encontrada")
+        ESTADO["apagadas"].add(sid)
+        ESTADO["fixadas"].discard(sid)
+        if ESTADO["sessao_ativa"] == sid:  # como o cérebro de verdade: a mais recente que sobrou
+            restantes = [i["sessao_id"] for i in _sessoes() if i["sessao_id"] != "legado"]
+            ESTADO["sessao_ativa"] = restantes[0] if restantes else "s1"
+        return {"ok": True}
 
     @app.get("/historico")
     def historico(sessao: str | None = None) -> dict[str, Any]:

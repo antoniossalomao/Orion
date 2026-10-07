@@ -235,7 +235,9 @@ def test_banco_v2_sobe_para_v3_e_ganha_a_tabela_audit(tmp_path):
     c.close()
     store = MemoryStore(caminho)
     try:
-        assert store.query("SELECT value FROM meta WHERE key='schema_version'")[0][0] == "3"
+        assert store.query("SELECT value FROM meta WHERE key='schema_version'")[0][0] == str(
+            SCHEMA_VERSION
+        )
         assert Operations(store).audit_recent() == []
     finally:
         store.close()

@@ -32,7 +32,7 @@
 <body>
 
 <!-- Ícones (sprite): <svg class="i"><use href="#i-nome"/></svg>. Traço 1.6, grade 24. -->
-<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+<svg class="sprite" width="0" height="0" aria-hidden="true" focusable="false">
     <defs>
         <linearGradient id="spark-grad" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0" stop-color="currentColor" stop-opacity="0.28"/><stop offset="1" stop-color="currentColor" stop-opacity="0"/>
@@ -53,6 +53,9 @@
     <symbol id="i-check" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></g></symbol>
     <symbol id="i-speaker" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></g></symbol>
     <symbol id="i-speaker-off" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4V5Z"/><path d="M22 9l-6 6M16 9l6 6"/></g></symbol>
+    <symbol id="i-edit" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></g></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><g fill="currentColor"><circle cx="5.5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="18.5" cy="12" r="1.7"/></g></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4h6l-1 6 3 3v1.5H7V13l3-3z"/><path d="M12 14.5V21"/></g></symbol>
     <symbol id="i-retry" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.6-5.9M20 4v5h-5"/></g></symbol>
     <symbol id="i-trash" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6.5 7l1 13h9l1-13"/></g></symbol>
     <symbol id="i-download" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></g></symbol>
@@ -136,7 +139,7 @@
         <header id="topbar">
             <div class="tb-title"><h1 id="tb-title">Início</h1><span id="tb-sub" class="tb-sub"></span></div>
             <div class="tb-drag" aria-hidden="true"></div>
-            <div id="state-pill" class="state-pill" role="status" aria-live="polite"><span class="state-dot" aria-hidden="true"></span><span id="state-label" class="state-label mono">Em espera</span></div>
+            <div id="state-pill" class="state-pill" role="status" aria-live="polite"><span class="state-dot" aria-hidden="true"></span><span id="state-label" class="state-label">Em espera</span></div>
             <button id="palette-btn" class="btn btn-ghost btn-sm palette-trigger" type="button" aria-label="Abrir paleta de comandos" aria-haspopup="dialog">
                 <svg class="i" aria-hidden="true"><use href="#i-search"/></svg><span>Buscar ou comandar</span><kbd aria-hidden="true">Ctrl K</kbd>
             </button>
@@ -278,8 +281,8 @@
                         <div class="settings-body">
                             <section id="cfg-aparencia" class="card settings-section" aria-labelledby="h-aparencia">
                                 <h3 id="h-aparencia">Aparência</h3>
-                                <fieldset class="field" style="border:0">
-                                    <legend class="field-label" style="margin-bottom:.6rem">Tema</legend>
+                                <fieldset class="field field-bare">
+                                    <legend class="field-label field-legend">Tema</legend>
                                     <div class="theme-picker" role="radiogroup" aria-label="Tema">
                                         <label class="theme-opt"><input type="radio" name="theme" value="noite"><span class="theme-swatch"><span class="theme-chip theme-noite"><i></i><i></i><i></i></span><span class="theme-name">Noite</span></span></label>
                                         <label class="theme-opt"><input type="radio" name="theme" value="grafite"><span class="theme-swatch"><span class="theme-chip theme-grafite"><i></i><i></i><i></i></span><span class="theme-name">Grafite</span></span></label>
@@ -289,34 +292,34 @@
                                 <div class="row"><div class="row-main"><div class="row-title" id="l-density">Densidade</div><div class="row-desc">Espaço entre mensagens e itens de lista.</div></div>
                                     <div class="segmented" role="radiogroup" aria-labelledby="l-density"><label><input type="radio" name="density" value="confortavel"><span>Confortável</span></label><label><input type="radio" name="density" value="compacta"><span>Compacta</span></label></div></div>
                                 <div class="row"><div class="row-main"><label class="row-title" for="cfg-scale">Tamanho do texto</label><div class="row-desc">Escala toda a interface.</div></div>
-                                    <div class="range-row" style="width:min(16rem,50%)"><input id="cfg-scale" class="range" type="range" min="0.9" max="1.3" step="0.05"><output id="cfg-scale-out" for="cfg-scale">100%</output></div></div>
+                                    <div class="range-row range-row-scale"><input id="cfg-scale" class="range" type="range" min="0.9" max="1.3" step="0.05"><output id="cfg-scale-out" for="cfg-scale">100%</output></div></div>
                                 <div class="row"><div class="row-main"><label class="row-title" for="cfg-motion">Movimento</label><div class="row-desc">Reduz animações e a rotação da constelação.</div></div>
-                                    <select id="cfg-motion" class="select" style="width:11rem"><option value="system">Seguir o sistema</option><option value="reduced">Reduzido</option><option value="full">Completo</option></select></div>
+                                    <select id="cfg-motion" class="select w-11"><option value="system">Seguir o sistema</option><option value="reduced">Reduzido</option><option value="full">Completo</option></select></div>
                             </section>
 
                             <section id="cfg-voz" class="card settings-section" aria-labelledby="h-voz">
                                 <h3 id="h-voz">Voz e sons</h3>
                                 <div class="row"><div class="row-main"><label class="row-title" for="cfg-tts">Resposta por voz</label><div class="row-desc">O Orion lê as respostas em voz alta (no computador onde o cérebro roda).</div></div><span class="switch"><input id="cfg-tts" type="checkbox"><span class="switch-track"></span></span></div>
                                 <div class="row"><div class="row-main"><label class="row-title" for="cfg-sounds">Sons da interface</label><div class="row-desc">Tons curtos ao enviar e ao receber.</div></div><span class="switch"><input id="cfg-sounds" type="checkbox"><span class="switch-track"></span></span></div>
-                                <p class="field-hint" style="margin-top:.6rem">Microfone e voz ao vivo ficam em Integrações.</p>
+                                <p class="field-hint mt-hint">Microfone e voz ao vivo ficam em Integrações.</p>
                             </section>
 
                             <section id="cfg-modelo" class="card settings-section" aria-labelledby="h-modelo">
                                 <h3 id="h-modelo">Modelo</h3>
                                 <div class="row"><div class="row-main"><label class="row-title" for="cfg-model">Modelo padrão</label><div class="row-desc">Automático usa a cascata e cai para o próximo quando um falha.</div></div>
-                                    <select id="cfg-model" class="select" style="width:13rem"></select></div>
+                                    <select id="cfg-model" class="select w-13"></select></div>
                             </section>
 
                             <section id="cfg-conexao" class="card settings-section" aria-labelledby="h-conexao">
                                 <h3 id="h-conexao">Conexão</h3>
                                 <div class="field"><label for="cfg-url">Endereço do cérebro</label><input id="cfg-url" class="input mono" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="http://127.0.0.1:8000"><span class="field-hint">Vazio usa o endereço desta página (ou 127.0.0.1:8000 no app).</span></div>
-                                <div class="field" style="margin-top:var(--s-4)"><label for="cfg-token">Token de acesso</label><input id="cfg-token" class="input mono" type="password" autocomplete="off" spellcheck="false" placeholder="só para o orion.app (ORION_ADMIN_TOKEN)"><span class="field-hint">Fica só neste dispositivo e é enviado apenas ao endereço acima. O app desktop usa a variável de ambiente.</span></div>
-                                <div id="cfg-sessao" class="row" hidden style="margin-top:var(--s-4)"><div class="row-main"><div class="row-title">Sessão</div><div class="row-desc" id="cfg-sessao-desc" role="status" aria-live="polite"></div></div><button id="cfg-sessao-btn" class="btn btn-outline btn-sm" type="button">Sair</button></div>
-                                <form id="cfg-senha" hidden novalidate style="margin-top:var(--s-4)">
+                                <div class="field mt-4"><label for="cfg-token">Token de acesso</label><input id="cfg-token" class="input mono" type="password" autocomplete="off" spellcheck="false" placeholder="só para o orion.app (ORION_ADMIN_TOKEN)"><span class="field-hint">Fica só neste dispositivo e é enviado apenas ao endereço acima. O app desktop usa a variável de ambiente.</span></div>
+                                <div id="cfg-sessao" class="row mt-4" hidden><div class="row-main"><div class="row-title">Sessão</div><div class="row-desc" id="cfg-sessao-desc" role="status" aria-live="polite"></div></div><button id="cfg-sessao-btn" class="btn btn-outline btn-sm" type="button">Sair</button></div>
+                                <form id="cfg-senha" class="mt-4" hidden novalidate>
                                     <div class="row-title">Trocar a senha</div>
                                     <p id="cfg-senha-aviso" class="field-hint" role="status"></p>
-                                    <div class="field" style="margin-top:var(--s-3)"><label for="cfg-senha-atual">Senha atual</label><input id="cfg-senha-atual" class="input" type="password" autocomplete="current-password" spellcheck="false"></div>
-                                    <div class="field" style="margin-top:var(--s-3)"><label for="cfg-senha-nova">Nova senha</label><input id="cfg-senha-nova" class="input" type="password" autocomplete="new-password" spellcheck="false"><span class="field-hint">Pelo menos 12 caracteres. Trocar encerra as outras sessões.</span></div>
+                                    <div class="field mt-3"><label for="cfg-senha-atual">Senha atual</label><input id="cfg-senha-atual" class="input" type="password" autocomplete="current-password" spellcheck="false"></div>
+                                    <div class="field mt-3"><label for="cfg-senha-nova">Nova senha</label><input id="cfg-senha-nova" class="input" type="password" autocomplete="new-password" spellcheck="false"><span class="field-hint">Pelo menos 12 caracteres. Trocar encerra as outras sessões.</span></div>
                                     <div class="conn-test"><button id="cfg-senha-btn" class="btn btn-outline btn-sm" type="submit">Trocar senha</button><span id="cfg-senha-out" role="status" aria-live="polite"></span></div>
                                 </form>
                                 <div class="conn-test"><button id="cfg-test" class="btn btn-outline btn-sm" type="button">Testar conexão</button><span id="cfg-test-out" role="status" aria-live="polite"></span></div>
@@ -330,10 +333,11 @@
                                     <div class="stat"><span class="stat-value" id="a-vetores">—</span><span class="stat-label">Vetores na memória</span></div>
                                 </div>
                                 <svg id="a-spark" class="spark" viewBox="0 0 200 48" preserveAspectRatio="none" role="img" aria-label="Latência recente"><path class="area" d=""/><path class="line" d=""/></svg>
-                                <div style="margin-top:var(--s-4)" id="a-meters"></div>
-                                <h3 style="margin:var(--s-6) 0 var(--s-3);font-size:var(--fs-md)">Cascata de modelos</h3>
+                                <p id="a-spark-legenda" class="spark-legenda" role="status"></p>
+                                <div class="mt-4" id="a-meters"></div>
+                                <h3 class="settings-sub">Cascata de modelos</h3>
                                 <div id="a-tiers" class="tier-list"></div>
-                                <h3 style="margin:var(--s-6) 0 var(--s-3);font-size:var(--fs-md)">Serviços</h3>
+                                <h3 class="settings-sub">Serviços</h3>
                                 <div id="a-servicos"></div>
                             </section>
 
@@ -344,7 +348,7 @@
                                 <div class="row"><div class="row-main"><div class="row-title">Interface</div></div><span class="mono" id="sobre-front">—</span></div>
                                 <div class="row"><div class="row-main"><div class="row-title">Cérebro</div></div><span class="mono" id="sobre-cerebro">—</span></div>
                                 <div class="row"><div class="row-main"><div class="row-title">Modo</div></div><span class="mono" id="sobre-modo">—</span></div>
-                                <p class="field-hint" style="margin-top:.8rem">Orion — não é uma IA. É uma extensão do sistema nervoso.</p>
+                                <p class="field-hint mt-hint-lg">Orion — não é uma IA. É uma extensão do sistema nervoso.</p>
                             </section>
                         </div>
                     </div>

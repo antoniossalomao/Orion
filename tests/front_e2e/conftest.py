@@ -75,6 +75,12 @@ def mock_url():
     yield from _subir("")
 
 
+@pytest.fixture
+def mock_isolado_url():
+    """Um mock só deste teste: para quem renomeia, fixa ou apaga conversas sem sujar os outros testes."""
+    yield from _subir("")
+
+
 @pytest.fixture(scope="session")
 def mock_token_url():
     yield from _subir(TOKEN)

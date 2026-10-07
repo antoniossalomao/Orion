@@ -31,7 +31,7 @@
     const configurarToken = t => { tokenDesktop = String(t || ''); };
 
     /** rotas que exigem o token do orion.app; o legado não conhece cabeçalho Authorization */
-    const comAuth = caminho => /^\/(approvals|chat|painel)(\/|$|\?)/.test(caminho);
+    const comAuth = caminho => /^\/(approvals|chat|painel|sessoes|historico)(\/|$|\?)/.test(caminho);
 
     function cabecalhos(caminho, extra = {}) {
         const h = { ...extra };
@@ -107,6 +107,9 @@
         sessoes: () => req('/sessoes', { timeout: 4000 }),
         novaSessao: () => req('/sessoes', { metodo: 'POST', timeout: 5000 }),
         ativarSessao: id => req('/sessoes/ativar', { metodo: 'POST', json: { sessao_id: id }, timeout: 6000 }),
+        renomearSessao: (id, titulo) => req(`/sessoes/${encodeURIComponent(id)}`, { metodo: 'PATCH', json: { titulo }, timeout: 5000 }),
+        fixarSessao: (id, favorita) => req(`/sessoes/${encodeURIComponent(id)}`, { metodo: 'PATCH', json: { favorita }, timeout: 5000 }),
+        apagarSessao: id => req(`/sessoes/${encodeURIComponent(id)}`, { metodo: 'DELETE', timeout: 5000 }),
         historico: sessao => req(`/historico?${q({ sessao })}`, { timeout: 6000 }),
         limparHistorico: () => req('/historico', { metodo: 'DELETE', timeout: 5000 }),
         exportar: () => req('/exportar', { timeout: 8000 }),

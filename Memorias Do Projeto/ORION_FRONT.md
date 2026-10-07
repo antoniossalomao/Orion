@@ -74,7 +74,7 @@ quando um endpoint não existe. Transporte do chat: no pywebview, API + hub WS (
 | Contraste de texto | ≥ 4,5:1 (AA) |
 | Console | 0 erros/avisos de página ao navegar por todas as telas |
 | Teclado | toda ação alcançável sem mouse; foco sempre visível; views ocultas `inert` |
-| Janela estreita | ≥ 700 px sem rolagem horizontal; a barra lateral vira trilho de ícones (o app é só desktop) |
+| Janela estreita | ≥ 700 px sem rolagem horizontal; a barra lateral vira trilho de ícones. **Só desktop (decidido em 06/10/2026):** abaixo de 700 px não é suportado, celular = Telegram |
 | Streaming | 1 render por quadro (rAF), não por pedaço |
 | Céu fora da home | ≤ 20 fps; pausado com a aba oculta |
 
@@ -159,3 +159,47 @@ uv run python -m tests.front_e2e.mock_backend      # http://127.0.0.1:8000/ui/
 ```
 Mensagens que acionam fluxos: "apague…" (cartão de aprovação), "me lembra…" (ferramenta),
 "falha" (erro), "lento" (demora), "xss" (markdown malicioso), qualquer pergunta longa (tabela + código).
+
+## 7. Acabamento (06/10/2026, depois da análise visual com capturas)
+
+Decisão: **só desktop** (fecha a decisão #5 do NUCLEO). Corrigido, cada item com teste em `test_front.py`:
+
+| Achado | Correção |
+|---|---|
+| Composer mais largo que a coluna de mensagens (832 × 750 px) | `.composer-inner` com a mesma largura útil da coluna: borda esquerda no avatar, direita na bolha do usuário |
+| Parágrafo depois de tabela/código/citação colado no bloco | `.prose p { margin: 0 }` (0,1,1) vencia `.prose > * + *` (0,1,0); agora `:where(p)` |
+| Pílula "Em espera" permanente, em mono | Some quando o Orion está parado; aparece em `Processando`/`Ouvindo`/`Respondendo` e **"Aguardando aprovação"** (âmbar) enquanto houver cartão pendente |
+| Memória: resultados e vizinhos só com título truncado; grafo pequeno e sem texto | Linha extra com tipo · data · nº de ligações; tópicos com rótulo no 3D; câmera mais perto |
+| Integrações: nome de arquivo (`mic_engine.py`), status em mono, faixa de altura irregular, Microfone sem explicação | Texto humanizado, faixa com altura mínima igual, dica "Ligar é feito no computador onde o cérebro roda" (não há endpoint para ligar o microfone daqui) |
+| Atividade: gráfico esticado com 1–2 pontos | Só desenha a partir de 3 medições; legenda com nº de medições, mín e máx |
+| Alto contraste: constelação sumia também na home | Véu total só fora da home |
+| `style=""` no `index.html` | Classes utilitárias em `components.css`; teste impede a volta |
+
+**CSP não foi apertada (verificado):** `style-src 'unsafe-inline'` continua porque o `3d-force-graph` injeta um `<style>` em
+tempo de execução e o `md.js` emite `style="text-align:…"` nas células de tabela; `connect-src *` e `img-src` seguem porque o
+endereço do cérebro é configurável (Tailscale). Tirar isso exige trocar a lib do grafo ou usar hash/nonce por estilo.
+
+**Capturas:** `uv run python -m tests.front_e2e.capturas capturas/` gera 5 telas × 3 temas × 2 tamanhos para revisão visual.
+Não há teste de pixel (céu em WebGL e fonte mudam por plataforma); o que é medível está nos testes.
+
+## 8. Conversas: renomear, fixar e apagar (07/10/2026)
+
+A barra lateral do `orion.app` ficava vazia: o front chamava `/sessoes` e `/historico` (contrato do legado) e o app novo não os tinha.
+Agora tem, com a mesma forma do legado + os campos novos, todas atrás do login/token (e do bloqueio de outra origem para cookie):
+
+| Rota | O que faz |
+|---|---|
+| `GET /sessoes?canal=web` | Conversas do canal + as importadas do legado (somente leitura), sem as apagadas; título = o dado, ou a 1ª fala, ou "Nova conversa"; `favorita`, `ultima_atividade`, `ativa` |
+| `POST /sessoes` | Nova conversa (se a ativa ainda está vazia, reaproveita: não empilha conversas em branco) |
+| `POST /sessoes/ativar` | Torna a conversa a ativa do canal e devolve as mensagens (`user`/`assistant`); importada → 409 |
+| `GET /historico?sessao=` | Mensagens de uma conversa (a importada abre só por aqui) |
+| `PATCH /sessoes/{id}` | `titulo` e/ou `favorita` |
+| `DELETE /sessoes/{id}` | Apaga = **esconde** (`deleted=1`): as mensagens ficam no banco e o que o Orion já consolidou delas continua na memória; vai para o log de auditoria |
+
+- **Esquema v4** (migração automática de banco v3): `sessions.pinned` e `sessions.deleted`.
+- **Escopo:** só conversas do canal `web` e importadas. Telegram e outros canais não são alcançáveis por essas rotas (404).
+- **Front:** menu ⋯ em cada conversa (aparece com mouse, foco ou menu aberto; teclado completo), grupo "Fixadas", confirmação para apagar
+  (foco em "Cancelar"), e na paleta `Ctrl+K`: renomear, fixar e apagar a conversa atual. Conversa importada não tem menu.
+- **Legado:** se o cérebro não aceitar `PATCH`/`DELETE`, o erro aparece num aviso legível e a lista não muda.
+- **Provado:** `tests/test_app_sessoes.py`, `tests/memory/test_conversas.py`, 10 testes de navegador em `test_front.py` (inclui axe com menu e
+  diálogos abertos) e um em `test_orion_real.py` (login real, SQLite real, recarregar a página, mensagens ainda no banco após apagar).

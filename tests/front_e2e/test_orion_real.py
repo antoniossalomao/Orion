@@ -226,3 +226,71 @@ def test_servidor_mcp_de_verdade_entra_no_app_sob_a_politica(tmp_path):
             ev = _eventos(c.post("/chat", json={"texto": "mcp apagar"}))
             aprov = [e["approval"] for e in ev if isinstance(e, dict) and "approval" in e]
             assert aprov and aprov[0]["tool"] == "fake__apagar" and aprov[0]["reason"]
+
+
+def _entrar(page):
+    tela = page.get_by_role("dialog", name="Entrar no Orion")
+    expect(tela).to_be_visible()
+    tela.get_by_label("Usuário").fill("admin")
+    tela.get_by_label("Senha").fill(SENHA)
+    page.keyboard.press("Enter")
+    expect(tela).to_have_count(0)
+
+
+def test_conversas_listar_renomear_fixar_e_apagar_no_orion_real(navegador, orion_real, tmp_path):
+    url, _ = orion_real
+    ctx, page, erros = _pagina(navegador, url)
+    try:
+        _entrar(page)
+        page.fill("#composer-input", "oi")
+        page.keyboard.press("Enter")
+        expect(page.locator(".msg-orion").last).to_have_attribute(
+            "data-streaming", "false", timeout=20000
+        )
+        # a barra lista a conversa do banco real, com a 1ª fala como título
+        page.reload()
+        page.wait_for_selector("html[data-pronto='true']")
+        linha = page.locator("#sb-convs-list .conv-row", has_text="oi")
+        expect(linha).to_have_count(1, timeout=8000)
+        expect(page.locator('#sb-convs-list .conv[aria-current="true"]')).to_contain_text("oi")
+
+        def menu(item: str) -> None:
+            linha.hover()
+            linha.locator(".conv-more").click()
+            page.get_by_role("menuitem", name=item).click()
+
+        menu("Renomear")
+        page.get_by_label("Título").fill("Conversa de teste")
+        page.keyboard.press("Enter")
+        linha = page.locator("#sb-convs-list .conv-row", has_text="Conversa de teste")
+        expect(linha).to_have_count(1, timeout=5000)
+        menu("Fixar no topo")
+        expect(page.locator("#sb-convs-list .conv-group").first).to_have_text("Fixadas")
+
+        # sobrevive a recarregar: está no SQLite, não na tela
+        page.reload()
+        page.wait_for_selector("html[data-pronto='true']")
+        expect(
+            page.locator("#sb-convs-list .conv-row", has_text="Conversa de teste")
+        ).to_have_count(1, timeout=8000)
+        linha = page.locator("#sb-convs-list .conv-row", has_text="Conversa de teste")
+        menu("Apagar")
+        page.get_by_role("alertdialog").get_by_role("button", name="Apagar").click()
+        expect(
+            page.locator("#sb-convs-list .conv-row", has_text="Conversa de teste")
+        ).to_have_count(0)
+
+        # apagar esconde: as mensagens continuam no banco
+        banco = tmp_path / "dados" / "orion.db"  # (auth.db fica ao lado: não é o da memória)
+        c = sqlite3.connect(banco)
+        try:
+            deleted, n = c.execute(
+                "SELECT s.deleted, (SELECT COUNT(*) FROM messages m WHERE m.session_id = s.id)"
+                " FROM sessions s WHERE s.title = 'Conversa de teste'"
+            ).fetchone()
+        finally:
+            c.close()
+        assert deleted == 1 and n >= 2
+    finally:
+        ctx.close()
+    assert not erros, erros

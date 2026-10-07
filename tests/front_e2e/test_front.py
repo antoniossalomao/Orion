@@ -919,7 +919,7 @@ def test_integracoes_listam_estado_real_e_acao_de_tts(abrir):
     card.get_by_role("button", name="Desligar").click()
     expect(card.get_by_role("button", name="Ligar")).to_be_visible()
     expect(page.locator('.integ-card[data-id="telegram"] .integ-status')).to_contain_text(
-        "bot rodando"
+        "Bot rodando"
     )
 
 
@@ -1024,6 +1024,8 @@ def test_painel_pela_paleta_e_por_comando_de_barra(abrir):
     page.keyboard.press("Enter")
     expect(page.locator("html")).to_have_attribute("data-view", "painel")
     page.keyboard.press("Alt+2")
+    # `enviar` escolhe o campo pela tela atual: sem esperar a troca de tela, ele escreve no campo da home
+    expect(page.locator("html")).to_have_attribute("data-view", "chat")
     enviar(page, "/painel")
     expect(page.locator("html")).to_have_attribute("data-view", "painel")
 
@@ -1189,3 +1191,299 @@ def test_senha_de_fabrica_avisa_so_depois_do_login_e_a_troca_some_com_o_aviso(
     expect(page.locator("#cfg-senha-aviso")).not_to_contain_text("senha de fábrica")
     page.wait_for_timeout(500)
     assert _violacoes(page) == []  # a tela de Configurações com o formulário de trocar senha
+
+
+# ── acabamento (análise visual de 06/10/2026) ───────────────────────────────────
+def test_integracoes_sem_nome_de_arquivo_e_com_dica_no_microfone_parado(abrir):
+    page = abrir("#/integracoes")
+    mic = page.locator('.integ-card[data-id="mic"] .integ-status')
+    expect(mic).to_contain_text("Microfone parado", timeout=5000)
+    expect(mic).to_contain_text("computador onde o cérebro roda")
+    assert ".py" not in page.locator("#integ-grid").inner_text()
+    # a faixa de estado tem a mesma altura em todos os cartões (botão ou não)
+    alturas = page.evaluate(
+        "[...document.querySelectorAll('.integ-status')].map(e => Math.round(e.getBoundingClientRect().height))"
+    )
+    assert len(set(alturas)) <= 2 and min(alturas) >= 50, alturas
+
+
+def test_pilula_de_estado_so_aparece_com_atividade_ou_aprovacao_pendente(abrir):
+    page = abrir("#/chat")
+    pilula = page.locator("#state-pill")
+    # o backend de mentira é compartilhado: aprovação deixada por outro teste também acende a pílula (é o comportamento certo)
+    page.wait_for_timeout(1200)
+    for negar in page.get_by_role("button", name="Negar").all():
+        negar.click()
+    expect(pilula).to_be_hidden()
+    enviar(page, "apague os arquivos antigos")
+    expect(page.locator(".approval").last).to_have_attribute("data-estado", "pendente")
+    esperar_fim(page)
+    expect(pilula).to_be_visible()
+    expect(page.locator("#state-label")).to_have_text("Aguardando aprovação")
+    page.locator(".approval").last.get_by_role("button", name="Negar").click()
+    expect(pilula).to_be_hidden()
+
+
+def test_composer_alinha_com_a_coluna_de_mensagens(abrir):
+    page = abrir("#/chat", viewport=(1440, 900))
+    enviar(page, "me explique algo longo com tabela e código")
+    esperar_fim(page)
+    caixa = page.evaluate(
+        """() => {
+            const c = document.querySelector('#composer-box').getBoundingClientRect();
+            const m = document.querySelector('.msg-orion').getBoundingClientRect();
+            const u = document.querySelector('.msg-user').getBoundingClientRect();
+            return { cL: c.left, cR: c.right, mL: m.left, uR: u.right };
+        }"""
+    )
+    assert abs(caixa["cL"] - caixa["mL"]) <= 1.5, caixa
+    assert abs(caixa["cR"] - caixa["uR"]) <= 1.5, caixa
+
+
+def test_paragrafo_depois_de_tabela_codigo_e_citacao_tem_espaco(abrir):
+    page = abrir("#/chat")
+    enviar(page, "me explique algo longo com tabela e código")
+    esperar_fim(page)
+    folgas = page.evaluate(
+        """() => {
+            const pr = [...document.querySelectorAll('.msg-orion .prose')].pop();
+            const out = [];
+            for (const f of pr.children) {
+                const ant = f.previousElementSibling;
+                if (ant && f.tagName === 'P') out.push([ant.className || ant.tagName, f.getBoundingClientRect().top - ant.getBoundingClientRect().bottom]);
+            }
+            return out;
+        }"""
+    )
+    assert folgas, "a resposta de teste não tem parágrafo depois de outro bloco"
+    assert all(g >= 6 for _, g in folgas), folgas
+
+
+def test_grafico_de_latencia_so_aparece_com_medicoes_suficientes(abrir):
+    page = abrir("#/config")
+    legenda = page.locator("#a-spark-legenda")
+    expect(legenda).to_contain_text("medições", timeout=8000)
+    texto = legenda.inner_text()
+    if "Coletando" in texto:
+        expect(page.locator("#a-spark")).to_be_hidden()
+    else:
+        assert "mín" in texto and "máx" in texto
+        expect(page.locator("#a-spark")).to_be_visible()
+
+
+def test_memoria_resultados_trazem_tipo_e_ligacoes_para_distinguir_nos(abrir):
+    page = abrir("#/memoria")
+    page.fill("#mem-search", "memória")
+    primeiro = page.locator(".mem-result").first
+    expect(primeiro).to_be_visible(timeout=8000)
+    meta = primeiro.locator("small")
+    expect(meta).to_have_text(re.compile(r"(Tópico|Fala do Orion|Fala sua) · "))
+    assert "ligaç" in meta.inner_text()
+
+
+def test_alto_contraste_na_home_mantem_a_constelacao_visivel(abrir):
+    page = abrir(init="localStorage.setItem('orion_theme', JSON.stringify('contraste'))")
+    assert page.evaluate("document.documentElement.dataset.theme") == "contraste"
+    assert (
+        float(page.evaluate("getComputedStyle(document.querySelector('#sky-veil')).opacity")) < 0.5
+    )
+    page.click('.sb-item[data-view="chat"]')
+    expect(page.locator("html")).to_have_attribute("data-view", "chat")
+    page.wait_for_timeout(600)
+    assert (
+        float(page.evaluate("getComputedStyle(document.querySelector('#sky-veil')).opacity")) > 0.9
+    )
+
+
+def test_html_nao_usa_estilo_inline_estatico():
+    from pathlib import Path
+
+    html = (
+        Path(__file__).resolve().parents[2] / "Orion_Core" / "Front_end_Orion" / "index.html"
+    ).read_text(encoding="utf-8")
+    assert 'style="' not in html, 'use classes (components.css), não style="" no index.html'
+
+
+def test_editar_mensagem_enviada_poe_o_texto_no_campo_sem_apagar_rascunho(abrir):
+    page = abrir("#/chat")
+    enviar(page, "me lembra de ligar para o Pedro")
+    esperar_fim(page)
+    usuario = page.locator(".msg-user").first
+    usuario.hover()
+    usuario.get_by_role("button", name="Editar e reenviar").click()
+    expect(page.locator("#composer-input")).to_have_value("me lembra de ligar para o Pedro")
+    expect(page.locator("#composer-input")).to_be_focused()
+    # com rascunho diferente no campo, não sobrescreve
+    page.fill("#composer-input", "outra coisa")
+    usuario.hover()
+    usuario.get_by_role("button", name="Editar e reenviar").click()
+    expect(page.locator("#composer-input")).to_have_value("outra coisa")
+    expect(page.locator(".toast").last).to_contain_text("já tem um rascunho")
+
+
+# ── conversas: renomear, fixar, apagar (barra lateral, menu ⋯ e paleta) ─────────
+def _linha(page, titulo: str):
+    return page.locator("#sb-convs-list .conv-row", has_text=titulo)
+
+
+def _abrir_menu(page, titulo: str):
+    linha = _linha(page, titulo)
+    linha.hover()
+    linha.locator(".conv-more").click()
+    expect(page.locator("#conv-menu")).to_have_attribute("data-open", "true")
+
+
+def test_renomear_pelo_menu_persiste_e_cancelar_nao_muda(abrir, mock_isolado_url):
+    page = abrir("#/chat", url=mock_isolado_url)
+    _abrir_menu(page, "Backup diário")
+    page.get_by_role("menuitem", name="Renomear").click()
+    dialogo = page.get_by_role("dialog", name="Renomear conversa")
+    expect(page.get_by_label("Título")).to_have_value("Backup diário do vault no iCloud")
+    page.keyboard.press("Escape")  # cancelar
+    expect(dialogo).to_have_count(0)
+    expect(_linha(page, "Backup diário")).to_have_count(1)
+
+    _abrir_menu(page, "Backup diário")
+    page.get_by_role("menuitem", name="Renomear").click()
+    page.get_by_label("Título").fill("  Backup   do   cofre ")
+    page.keyboard.press("Enter")
+    expect(_linha(page, "Backup do cofre")).to_have_count(1)
+    expect(_linha(page, "Backup diário")).to_have_count(0)
+    page.reload()
+    page.wait_for_selector("html[data-pronto='true']")
+    expect(_linha(page, "Backup do cofre")).to_have_count(1, timeout=5000)
+
+
+def test_renomear_com_titulo_vazio_nao_confirma(abrir, mock_isolado_url):
+    page = abrir("#/chat", url=mock_isolado_url)
+    _abrir_menu(page, "Ideias para a voz")
+    page.get_by_role("menuitem", name="Renomear").click()
+    page.get_by_label("Título").fill("   ")
+    page.keyboard.press("Enter")
+    expect(page.get_by_role("dialog", name="Renomear conversa")).to_be_visible()
+    expect(_linha(page, "Ideias para a voz")).to_have_count(1)
+
+
+def test_fixar_sobe_para_o_grupo_fixadas_e_desafixar_volta(abrir, mock_isolado_url):
+    page = abrir("#/chat", url=mock_isolado_url)
+    _abrir_menu(page, "Resumo do PDF")
+    page.get_by_role("menuitem", name="Fixar no topo").click()
+    expect(page.locator("#sb-convs-list .conv-group").first).to_have_text("Fixadas")
+    primeira = page.locator("#sb-convs-list .conv-row").first
+    expect(primeira).to_contain_text("Resumo do PDF")
+    expect(primeira.get_by_role("img", name="Fixada")).to_be_visible()
+    _abrir_menu(page, "Resumo do PDF")
+    page.get_by_role("menuitem", name="Desafixar").click()
+    expect(page.locator("#sb-convs-list .conv-group", has_text="Fixadas")).to_have_count(0)
+
+
+def test_apagar_pede_confirmacao_e_so_apaga_ao_confirmar(abrir, mock_isolado_url):
+    page = abrir("#/chat", url=mock_isolado_url)
+    _abrir_menu(page, "Bot do Telegram")
+    page.get_by_role("menuitem", name="Apagar").click()
+    alerta = page.get_by_role("alertdialog", name="Apagar esta conversa?")
+    expect(alerta).to_contain_text("As mensagens ficam guardadas")
+    expect(alerta.get_by_role("button", name="Cancelar")).to_be_focused()  # perigo: foco no seguro
+    alerta.get_by_role("button", name="Cancelar").click()
+    expect(_linha(page, "Bot do Telegram")).to_have_count(1)
+
+    _abrir_menu(page, "Bot do Telegram")
+    page.get_by_role("menuitem", name="Apagar").click()
+    page.get_by_role("alertdialog").get_by_role("button", name="Apagar").click()
+    expect(_linha(page, "Bot do Telegram")).to_have_count(0)
+    page.reload()
+    page.wait_for_selector("html[data-pronto='true']")
+    expect(_linha(page, "Dúvida de UML")).to_have_count(1, timeout=5000)
+    expect(_linha(page, "Bot do Telegram")).to_have_count(0)
+
+
+def test_apagar_a_conversa_ativa_troca_para_a_proxima(abrir, mock_isolado_url):
+    page = abrir("#/chat", url=mock_isolado_url)
+    atual = page.locator('#sb-convs-list .conv[aria-current="true"]')
+    expect(atual).to_contain_text("Plano da fase 0", timeout=5000)
+    _abrir_menu(page, "Plano da fase 0")
+    page.get_by_role("menuitem", name="Apagar").click()
+    page.get_by_role("alertdialog").get_by_role("button", name="Apagar").click()
+    expect(_linha(page, "Plano da fase 0")).to_have_count(0)
+    expect(atual).to_contain_text("Memória nova em SQLite", timeout=5000)
+
+
+def test_conversa_importada_somente_leitura_nao_tem_menu(abrir, mock_isolado_url):
+    page = abrir("#/chat", url=mock_isolado_url)
+    expect(_linha(page, "conversas antigas")).to_have_count(1)
+    expect(_linha(page, "conversas antigas").locator(".conv-more")).to_have_count(0)
+    expect(_linha(page, "Plano da fase 0").locator(".conv-more")).to_have_count(1)
+
+
+def test_menu_da_conversa_funciona_so_com_teclado(abrir, mock_isolado_url):
+    page = abrir("#/chat", url=mock_isolado_url)
+    mais = _linha(page, "Dúvida de UML").locator(".conv-more")
+    mais.focus()
+    expect(mais).to_have_css("opacity", "1")  # foco dentro da linha mostra o botão
+    page.keyboard.press("Enter")
+    itens = page.get_by_role("menuitem")
+    expect(itens.first).to_be_focused()
+    # o menu abre colado no botão ⋯ (e dentro da janela), não solto em outro canto da tela
+    pos = page.evaluate(
+        """() => {
+            const b = document.querySelector('.conv-more[aria-expanded="true"]').getBoundingClientRect();
+            const m = document.querySelector('#conv-menu').getBoundingClientRect();
+            return { dx: Math.abs(m.left - b.left), dy: m.top - b.bottom, dentro: m.right <= innerWidth && m.bottom <= innerHeight };
+        }"""
+    )
+    assert pos["dx"] <= 190 and 0 <= pos["dy"] <= 12 and pos["dentro"], pos
+    page.keyboard.press("ArrowDown")
+    expect(itens.nth(1)).to_be_focused()
+    page.keyboard.press("ArrowUp")
+    page.keyboard.press("ArrowUp")
+    expect(itens.last).to_be_focused()  # dá a volta
+    page.keyboard.press("Escape")
+    expect(page.locator("#conv-menu")).to_have_attribute("data-open", "false")
+    expect(mais).to_be_focused()
+    expect(mais).to_have_attribute("aria-expanded", "false")
+
+
+def test_paleta_renomeia_fixa_e_apaga_a_conversa_atual(abrir, mock_isolado_url):
+    page = abrir("#/chat", url=mock_isolado_url)
+    expect(page.locator('#sb-convs-list .conv[aria-current="true"]')).to_be_visible(timeout=5000)
+    page.keyboard.press("Control+k")
+    page.fill("#palette-input", "fixar conversa atual")
+    page.keyboard.press("Enter")
+    expect(page.locator("#sb-convs-list .conv-group").first).to_have_text("Fixadas")
+    page.keyboard.press("Control+k")
+    page.fill("#palette-input", "renomear conversa atual")
+    page.keyboard.press("Enter")
+    page.get_by_label("Título").fill("Fase zero revisada")
+    page.keyboard.press("Enter")
+    expect(_linha(page, "Fase zero revisada")).to_have_count(1)
+    page.keyboard.press("Control+k")
+    page.fill("#palette-input", "apagar conversa atual")
+    page.keyboard.press("Enter")
+    page.get_by_role("alertdialog").get_by_role("button", name="Apagar").click()
+    expect(_linha(page, "Fase zero revisada")).to_have_count(0)
+
+
+def test_conversa_apagada_sem_cerebro_que_aceite_mostra_erro_legivel(abrir, mock_isolado_url):
+    page = abrir("#/chat", url=mock_isolado_url, http_ok=True)  # o 404 é de propósito
+    page.route(
+        "**/sessoes/s5",
+        lambda r: r.fulfill(status=404, body='{"detail":"conversa não encontrada"}'),
+    )
+    _abrir_menu(page, "Bot do Telegram")
+    page.get_by_role("menuitem", name="Apagar").click()
+    page.get_by_role("alertdialog").get_by_role("button", name="Apagar").click()
+    expect(page.locator(".toast", has_text="Não consegui apagar")).to_be_visible()
+    expect(_linha(page, "Bot do Telegram")).to_have_count(1)
+
+
+@pytestmark_axe
+def test_axe_menu_da_conversa_e_dialogos_abertos(abrir, mock_isolado_url):
+    page = abrir("#/chat", axe=True, url=mock_isolado_url)
+    _abrir_menu(page, "Dúvida de UML")
+    assert _violacoes(page) == []
+    page.get_by_role("menuitem", name="Renomear").click()
+    assert _violacoes(page) == []
+    page.keyboard.press("Escape")
+    _abrir_menu(page, "Dúvida de UML")
+    page.get_by_role("menuitem", name="Apagar").click()
+    assert _violacoes(page) == []

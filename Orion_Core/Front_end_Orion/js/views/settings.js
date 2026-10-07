@@ -7,7 +7,7 @@
     const { $, $$, el, bus, ui, api, prefs } = O;
     const U = O.util, CH = O.charts;
 
-    const MAX_LAT = 24;
+    const MAX_LAT = 24, MIN_PONTOS = 3;
     let latencias = [], timers = [], ativo = false;
 
     /* ── aparência, voz, modelo ────────────────────────────────────────── */
@@ -147,7 +147,14 @@
         const svg = $('#a-spark');
         svg.querySelector('.line').setAttribute('d', s.linha);
         svg.querySelector('.area').setAttribute('d', s.area);
-        svg.setAttribute('aria-label', latencias.length > 1 ? `Latência recente: de ${U.fmtMs(s.min)} a ${U.fmtMs(s.max)}` : 'Latência recente: ainda sem pontos suficientes');
+        // com 1–2 pontos a linha é uma rampa/traço que não diz nada: só desenha a partir de 3 medições
+        const legenda = $('#a-spark-legenda');
+        const pronto = s.n >= MIN_PONTOS;
+        svg.toggleAttribute('hidden', !pronto);   // SVGElement não tem a propriedade .hidden
+        legenda.textContent = pronto
+            ? `Últimas ${s.n} medições · mín ${U.fmtMs(s.min)} · máx ${U.fmtMs(s.max)}`
+            : `Coletando medições (${s.n} de ${MIN_PONTOS}) para o gráfico.`;
+        svg.setAttribute('aria-label', pronto ? `Latência recente: de ${U.fmtMs(s.min)} a ${U.fmtMs(s.max)}` : 'Latência recente: ainda sem pontos suficientes');
     }
 
     async function cascata() {

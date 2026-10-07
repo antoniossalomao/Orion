@@ -47,6 +47,14 @@
         if (O.chat.pendentes().length) {
             c.unshift({ g: 'acao', rotulo: `Revisar ação pendente (${O.chat.pendentes().length})`, icone: 'shield', exec: () => O.chat.irParaPendente(), chaves: 'aprovar aprovação' });
         }
+        const atual = O.sidebar.ativa();
+        if (atual && !atual.somente_leitura) {
+            c.push(
+                { g: 'acao', rotulo: 'Renomear conversa atual', icone: 'edit', exec: () => O.sidebar.renomear(atual), chaves: 'título nome' },
+                { g: 'acao', rotulo: atual.favorita ? 'Desafixar conversa atual' : 'Fixar conversa atual', icone: 'pin', exec: () => O.sidebar.alternarFixa(atual), chaves: 'favoritar topo' },
+                { g: 'acao', rotulo: 'Apagar conversa atual', icone: 'trash', exec: () => O.sidebar.apagar(atual), chaves: 'excluir remover' },
+            );
+        }
         return c;
     }
 
