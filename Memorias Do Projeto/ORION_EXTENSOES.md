@@ -1,6 +1,6 @@
 # Orion — referências de produto e plano de extensões
 
-Pesquisa em 04/10/2026. **Plano de implementação com C00–C35 concluídos** (registro na seção 9).
+Pesquisa em 04/10/2026. **Plano de implementação com C00–C36 concluídos** (registro na seção 9).
 Plugins e skills seguem em implementação. MCP já tem prova com servidores controlados;
 nenhuma conta pessoal ou servidor externo do usuário foi conectado.
 Complementa [ORION_FRONT.md](ORION_FRONT.md), as fases 4 e 6 do
@@ -339,7 +339,7 @@ como fundação do recurso novo. Exportar leitura primeiro, com identidade e esc
 
 ## 8. Próximo trabalho concreto
 
-C00–C35 foram concluídos e validados. Continuar pelo **C36: consulta edição e esquecimento de fatos com fonte e aprovação**.
+C00–C36 foram concluídos e validados. Continuar pelo **C37: caixa de atividade e avisos persistentes**.
 O usuário autorizou a execução dos checklists restantes, com commits separados, validação,
 registro no vault e push. Integrações pessoais e Windows serão registrados conforme
 as evidências disponíveis, sem transformar fixtures em prova de conta ou desktop reais.
@@ -351,8 +351,8 @@ quando houver integração concreta para revisar. Este documento não muda as de
 
 ## 9. Checklists por commit e sequência de dias
 
-Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C35 têm commits reais
-registrados; C36–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
+Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C36 têm commits reais
+registrados; C37–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
 precisa estar pronto. Não é necessário concluir o plano inteiro para usar o primeiro MVP.
 
 ### Ritmo de trabalho
@@ -365,7 +365,7 @@ precisa estar pronto. Não é necessário concluir o plano inteiro para usar o p
   manter os dependentes esperando a entrega completa.
 - Ao pedir continuação, usar o ID: **“Faça o próximo commit pendente”** ou **“Faça o C09”**.
   O executor confere o checklist e as dependências antes de iniciar.
-- C00–C35 estão implementados, validados e registrados abaixo; C36–C50 permanecem
+- C00–C36 estão implementados, validados e registrados abaixo; C37–C50 permanecem
   planejados. Cada continuação deve conferir as dependências e os limites da entrega anterior.
 
 ### Como concluir e pausar cada commit
@@ -418,10 +418,10 @@ a integração real de Pesquisa fica registrada separadamente se ainda não tive
 
 ### Registro para retomar no próximo dia
 
-- Último checklist concluído: **C35**, commit `26555eb`; entregas anteriores registradas abaixo.
-- Próximo commit sugerido: **C36 — consulta edição e esquecimento de fatos com fonte e aprovação**.
-- Dependências/impedimentos: conferir as dependências do C36 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
-- Evidências: ver os registros C00–C35 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
+- Último checklist concluído: **C36**, commit `87f43a7`; entregas anteriores registradas abaixo.
+- Próximo commit sugerido: **C37 — caixa de atividade e avisos persistentes**.
+- Dependências/impedimentos: conferir as dependências do C37 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
+- Evidências: ver os registros C00–C36 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
 - Atualizações: registrar aqui o ID concluído, hash/link e o próximo ID; não preencher com
   hash fictício nem tratar evidência de mock como teste contra conta real.
 
@@ -1018,6 +1018,21 @@ retorno ao painel, persistência, imagem local e bloqueio de imagem externa/scri
 Guia de results e contrato operacional dos plugins atualizados. Próxima etapa: C36.
 
 
+### Execução C36 — fatos com fonte e revisão
+
+Commit de implementação: `87f43a7`. Lista e busca de fatos pessoais/do projeto, origem e data,
+correção e esquecimento com revisão e aprovação explícitas. O grafo permanece alternativo.
+A API valida sessão, projeto, revisão, estado da conversa e uso único da decisão; mudar um fato
+revoga propostas antigas sobre ele. Esquecimento remove texto, FTS e vetor; nenhuma edição
+acontece ao pedir aprovação. Fonte preservada e pendências recuperadas após reabrir.
+
+Evidências: 631 testes backend passaram (24,84 s); Pyright sem erros, Ruff e formatação verdes;
+91 testes Node; navegador validou corrigir, reabrir, rejeitar e aprovar esquecimento, fonte,
+700 px e axe completo (8,88 s). Testes também cobrem dois projetos, sessão estrangeira,
+revogação por mudança no projeto, duplicação de revisão sem consumir aprovação e reinício.
+Não houve chamadas a contas externas.
+
+
 ### C00 — fix(ui): estabilizar conexão e consolidar o refinamento visual
 
 Etapa: **A** · Depende de: **base atual do repositório** · Estado: **concluído**.
@@ -1380,13 +1395,13 @@ Etapa: **F** · Depende de: **C34** · Estado: **concluído**.
 
 ### C36 — feat(memory): consultar editar e esquecer fatos com fonte
 
-Etapa: **F** · Depende de: **C33, C27** · Estado: **planejado**.
+Etapa: **F** · Depende de: **C33, C27** · Estado: **concluído**.
 
-- [ ] Criar/ajustar API autenticada para fatos e seus escopos usando a memória existente.
-- [ ] Adicionar lista, busca e detalhe com origem/data, edição e ação de esquecer sob política.
-- [ ] Manter o grafo como alternativa, sem depender dele para usar memória.
-- [ ] **Validar:** Buscar e corrigir fato, reabrir a nota e testar esquecimento com aprovação; fonte e escopo devem continuar claros.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Criar/ajustar API autenticada para fatos e seus escopos usando a memória existente.
+- [x] Adicionar lista, busca e detalhe com origem/data, edição e ação de esquecer sob política.
+- [x] Manter o grafo como alternativa, sem depender dele para usar memória.
+- [x] **Validar:** Buscar e corrigir fato, reabrir a nota e testar esquecimento com aprovação; fonte e escopo devem continuar claros.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C37 — feat(ui): reunir avisos e pendências em atividade
 
