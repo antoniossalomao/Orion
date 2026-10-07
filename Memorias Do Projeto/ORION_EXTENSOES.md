@@ -1,6 +1,6 @@
 # Orion — referências de produto e plano de extensões
 
-Pesquisa em 04/10/2026. **Plano de implementação com C00–C18 concluídos** (registro na seção 9).
+Pesquisa em 04/10/2026. **Plano de implementação com C00–C19 concluídos** (registro na seção 9).
 Plugins e skills seguem em implementação. MCP já tem prova com servidores controlados;
 nenhuma conta pessoal ou servidor externo do usuário foi conectado.
 Complementa [ORION_FRONT.md](ORION_FRONT.md), as fases 4 e 6 do
@@ -339,7 +339,7 @@ como fundação do recurso novo. Exportar leitura primeiro, com identidade e esc
 
 ## 8. Próximo trabalho concreto
 
-C00–C18 foram concluídos e validados. Continuar pelo **C19: manifesto e registro persistente de plugins**.
+C00–C19 foram concluídos e validados. Continuar pelo **C20: instalação local de plugins sem executar código**.
 O usuário autorizou a execução dos checklists restantes, com commits separados, validação,
 registro no vault e push. Integrações pessoais e Windows serão registrados conforme
 as evidências disponíveis, sem transformar fixtures em prova de conta ou desktop reais.
@@ -351,8 +351,8 @@ quando houver integração concreta para revisar. Este documento não muda as de
 
 ## 9. Checklists por commit e sequência de dias
 
-Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C18 têm commits reais
-registrados; C19–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
+Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C19 têm commits reais
+registrados; C20–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
 precisa estar pronto. Não é necessário concluir o plano inteiro para usar o primeiro MVP.
 
 ### Ritmo de trabalho
@@ -365,7 +365,7 @@ precisa estar pronto. Não é necessário concluir o plano inteiro para usar o p
   manter os dependentes esperando a entrega completa.
 - Ao pedir continuação, usar o ID: **“Faça o próximo commit pendente”** ou **“Faça o C09”**.
   O executor confere o checklist e as dependências antes de iniciar.
-- C00–C18 estão implementados, validados e registrados abaixo; C19–C50 permanecem
+- C00–C19 estão implementados, validados e registrados abaixo; C20–C50 permanecem
   planejados. Cada continuação deve conferir as dependências e os limites da entrega anterior.
 
 ### Como concluir e pausar cada commit
@@ -418,10 +418,10 @@ a integração real de Pesquisa fica registrada separadamente se ainda não tive
 
 ### Registro para retomar no próximo dia
 
-- Último checklist concluído: **C18**, commit `553f644`; entregas anteriores registradas abaixo.
-- Próximo commit sugerido: **C19 — manifesto e registro persistente de plugins**.
-- Dependências/impedimentos: conferir as dependências do C19 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
-- Evidências: ver os registros C00–C18 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
+- Último checklist concluído: **C19**, commit `fa9c3cc`; entregas anteriores registradas abaixo.
+- Próximo commit sugerido: **C20 — instalação local de plugins sem executar código**.
+- Dependências/impedimentos: conferir as dependências do C20 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
+- Evidências: ver os registros C00–C19 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
 - Atualizações: registrar aqui o ID concluído, hash/link e o próximo ID; não preencher com
   hash fictício nem tratar evidência de mock como teste contra conta real.
 
@@ -749,6 +749,20 @@ Ruff/formatação/Pyright passaram. Sem sandbox, código local não confiável c
 Windows não recebe runner até validação real. Não se promete isolamento de código confiável.
 
 
+### Execução C19 — manifesto e versões de plugins (06/10/2026)
+
+**Commit de implementação:** `fa9c3cc`.
+Manifesto Orion v1 com compatibilidade da API, IDs/semver, licença, namespaces, skills,
+MCP, capabilities e dependências exatas. Paths/colisões/JSON duplicado recusados; campos
+para tokens literais/hooks ausentes e secret refs têm namespace próprio. Declaração não
+concede acesso. SQLite separado de chats registra versão/origem/hash/estado, sem ativar.
+
+**Evidências:** 581 testes backend passaram; 14 casos de manifesto/registro comprovam
+pacote skill-only e MCP, persistência após reabrir SQLite, conflito de ID/versão e rejeição
+de incompatibilidade, traversal, credenciais literais e hook. Ruff/formatação/Pyright passaram.
+Instalação e lifecycle de plugins seguem para C20–C24; nenhuma conta foi conectada.
+
+
 ### C00 — fix(ui): estabilizar conexão e consolidar o refinamento visual
 
 Etapa: **A** · Depende de: **base atual do repositório** · Estado: **concluído**.
@@ -941,13 +955,13 @@ Etapa: **C** · Depende de: **C17, C11** · Estado: **concluído**.
 
 ### C19 — feat(plugins): validar manifesto e registrar versões
 
-Etapa: **D** · Depende de: **C18, C14** · Estado: **planejado**.
+Etapa: **D** · Depende de: **C18, C14** · Estado: **concluído**.
 
-- [ ] Definir schema do manifesto Orion, compatibilidade, dependências e namespaces.
-- [ ] Persistir origem, versão, hash e permissões por referências, sem segredos no bundle.
-- [ ] Distinguir instalado, desativado, aguardando conexão, ativo e erro.
-- [ ] **Validar:** Validar pacote apenas de skill e pacote com MCP; rejeitar manifesto incompatível e IDs conflitantes.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Definir schema do manifesto Orion, compatibilidade, dependências e namespaces.
+- [x] Persistir origem, versão, hash e permissões por referências, sem segredos no bundle.
+- [x] Distinguir instalado, desativado, aguardando conexão, ativo e erro.
+- [x] **Validar:** Validar pacote apenas de skill e pacote com MCP; rejeitar manifesto incompatível e IDs conflitantes.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C20 — feat(plugins): instalar pacotes locais sem executar código
 
