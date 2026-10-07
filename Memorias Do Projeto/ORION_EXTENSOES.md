@@ -1,6 +1,6 @@
 # Orion — referências de produto e plano de extensões
 
-Pesquisa em 04/10/2026. **Plano de implementação com C00–C36 concluídos** (registro na seção 9).
+Pesquisa em 04/10/2026. **Plano de implementação com C00–C37 concluídos** (registro na seção 9).
 Plugins e skills seguem em implementação. MCP já tem prova com servidores controlados;
 nenhuma conta pessoal ou servidor externo do usuário foi conectado.
 Complementa [ORION_FRONT.md](ORION_FRONT.md), as fases 4 e 6 do
@@ -339,7 +339,7 @@ como fundação do recurso novo. Exportar leitura primeiro, com identidade e esc
 
 ## 8. Próximo trabalho concreto
 
-C00–C36 foram concluídos e validados. Continuar pelo **C37: caixa de atividade e avisos persistentes**.
+C00–C37 foram concluídos e validados. Continuar pelo **C38: ingestão de PDF texto e Markdown**.
 O usuário autorizou a execução dos checklists restantes, com commits separados, validação,
 registro no vault e push. Integrações pessoais e Windows serão registrados conforme
 as evidências disponíveis, sem transformar fixtures em prova de conta ou desktop reais.
@@ -351,8 +351,8 @@ quando houver integração concreta para revisar. Este documento não muda as de
 
 ## 9. Checklists por commit e sequência de dias
 
-Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C36 têm commits reais
-registrados; C37–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
+Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C37 têm commits reais
+registrados; C38–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
 precisa estar pronto. Não é necessário concluir o plano inteiro para usar o primeiro MVP.
 
 ### Ritmo de trabalho
@@ -365,7 +365,7 @@ precisa estar pronto. Não é necessário concluir o plano inteiro para usar o p
   manter os dependentes esperando a entrega completa.
 - Ao pedir continuação, usar o ID: **“Faça o próximo commit pendente”** ou **“Faça o C09”**.
   O executor confere o checklist e as dependências antes de iniciar.
-- C00–C36 estão implementados, validados e registrados abaixo; C37–C50 permanecem
+- C00–C37 estão implementados, validados e registrados abaixo; C38–C50 permanecem
   planejados. Cada continuação deve conferir as dependências e os limites da entrega anterior.
 
 ### Como concluir e pausar cada commit
@@ -418,10 +418,10 @@ a integração real de Pesquisa fica registrada separadamente se ainda não tive
 
 ### Registro para retomar no próximo dia
 
-- Último checklist concluído: **C36**, commit `87f43a7`; entregas anteriores registradas abaixo.
-- Próximo commit sugerido: **C37 — caixa de atividade e avisos persistentes**.
-- Dependências/impedimentos: conferir as dependências do C37 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
-- Evidências: ver os registros C00–C36 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
+- Último checklist concluído: **C37**, commit `7c78d8a`; entregas anteriores registradas abaixo.
+- Próximo commit sugerido: **C38 — ingestão de PDF texto e Markdown**.
+- Dependências/impedimentos: conferir as dependências do C38 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
+- Evidências: ver os registros C00–C37 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
 - Atualizações: registrar aqui o ID concluído, hash/link e o próximo ID; não preencher com
   hash fictício nem tratar evidência de mock como teste contra conta real.
 
@@ -1033,6 +1033,21 @@ revogação por mudança no projeto, duplicação de revisão sem consumir aprov
 Não houve chamadas a contas externas.
 
 
+### Execução C37 — caixa de atividade persistente
+
+Commit de implementação: `7c78d8a`. Rota Atividade com filtros de todos/não lidos/aprovações,
+confirmação de leitura e preferências persistidas para conclusões, perguntas e destaque de decisões.
+Aprovações continuam acessíveis independentemente das preferências. Avisos não geram popup
+na reconexão. Migração v9 isola lembretes, agendamentos, tarefas, números, prompts e notificações
+por projeto; jobs percorrem contextos ativos e apenas avisam, sem executar tools.
+Referência do disparo deduplica avisos mesmo se ocorrer interrupção antes de marcar o lembrete.
+
+Evidências: 632 testes backend (27,51 s), 91 Node, Ruff/format/Pyright verdes; Chromium confirmou
+leitura após reload, decisão acessível com filtro, 700 px e axe completo (7,08 s). Fixtures provam
+lembrete uma vez, reinício, ack estrangeiro negado, operação de outro projeto negada,
+agendamento sem escrita e preferências separadas por contexto.
+
+
 ### C00 — fix(ui): estabilizar conexão e consolidar o refinamento visual
 
 Etapa: **A** · Depende de: **base atual do repositório** · Estado: **concluído**.
@@ -1405,13 +1420,13 @@ Etapa: **F** · Depende de: **C33, C27** · Estado: **concluído**.
 
 ### C37 — feat(ui): reunir avisos e pendências em atividade
 
-Etapa: **F** · Depende de: **C33, C27** · Estado: **planejado**.
+Etapa: **F** · Depende de: **C33, C27** · Estado: **concluído**.
 
-- [ ] Conectar /notifications e ack autenticado a uma caixa de atividade.
-- [ ] Oferecer filtros de pendência, estado de leitura e preferências para conclusão/pergunta/aprovação.
-- [ ] Evitar repetição de avisos e manter jobs como avisadores, sem execução automática de tools.
-- [ ] **Validar:** Receber lembrete uma vez, confirmar leitura e reiniciar; reconexão não gera popup e uma aprovação segue acessível.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Conectar /notifications e ack autenticado a uma caixa de atividade.
+- [x] Oferecer filtros de pendência, estado de leitura e preferências para conclusão/pergunta/aprovação.
+- [x] Evitar repetição de avisos e manter jobs como avisadores, sem execução automática de tools.
+- [x] **Validar:** Receber lembrete uma vez, confirmar leitura e reiniciar; reconexão não gera popup e uma aprovação segue acessível.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C38 — feat(files): ingerir PDF texto e Markdown com progresso
 
