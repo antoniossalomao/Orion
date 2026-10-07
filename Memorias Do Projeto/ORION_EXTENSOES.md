@@ -1,6 +1,6 @@
 # Orion — referências de produto e plano de extensões
 
-Pesquisa em 04/10/2026. **Plano de implementação com C00–C38 concluídos** (registro na seção 9).
+Pesquisa em 04/10/2026. **Plano de implementação com C00–C39 concluídos** (registro na seção 9).
 Plugins e skills seguem em implementação. MCP já tem prova com servidores controlados;
 nenhuma conta pessoal ou servidor externo do usuário foi conectado.
 Complementa [ORION_FRONT.md](ORION_FRONT.md), as fases 4 e 6 do
@@ -339,7 +339,7 @@ como fundação do recurso novo. Exportar leitura primeiro, com identidade e esc
 
 ## 8. Próximo trabalho concreto
 
-C00–C38 foram concluídos e validados. Continuar pelo **C39: ramificações e versões de pedidos**.
+C00–C39 foram concluídos e validados. Continuar pelo **C40: contas MCP com OAuth e revogação**.
 O usuário autorizou a execução dos checklists restantes, com commits separados, validação,
 registro no vault e push. Integrações pessoais e Windows serão registrados conforme
 as evidências disponíveis, sem transformar fixtures em prova de conta ou desktop reais.
@@ -351,8 +351,8 @@ quando houver integração concreta para revisar. Este documento não muda as de
 
 ## 9. Checklists por commit e sequência de dias
 
-Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C38 têm commits reais
-registrados; C39–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
+Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C39 têm commits reais
+registrados; C40–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
 precisa estar pronto. Não é necessário concluir o plano inteiro para usar o primeiro MVP.
 
 ### Ritmo de trabalho
@@ -365,7 +365,7 @@ precisa estar pronto. Não é necessário concluir o plano inteiro para usar o p
   manter os dependentes esperando a entrega completa.
 - Ao pedir continuação, usar o ID: **“Faça o próximo commit pendente”** ou **“Faça o C09”**.
   O executor confere o checklist e as dependências antes de iniciar.
-- C00–C38 estão implementados, validados e registrados abaixo; C39–C50 permanecem
+- C00–C39 estão implementados, validados e registrados abaixo; C40–C50 permanecem
   planejados. Cada continuação deve conferir as dependências e os limites da entrega anterior.
 
 ### Como concluir e pausar cada commit
@@ -418,10 +418,10 @@ a integração real de Pesquisa fica registrada separadamente se ainda não tive
 
 ### Registro para retomar no próximo dia
 
-- Último checklist concluído: **C38**, commit `59cb225`; entregas anteriores registradas abaixo.
-- Próximo commit sugerido: **C39 — ramificações e versões de pedidos**.
-- Dependências/impedimentos: conferir as dependências do C39 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
-- Evidências: ver os registros C00–C38 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
+- Último checklist concluído: **C39**, commit `3bbfdf5`; entregas anteriores registradas abaixo.
+- Próximo commit sugerido: **C40 — contas MCP com OAuth e revogação**.
+- Dependências/impedimentos: conferir as dependências do C40 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
+- Evidências: ver os registros C00–C39 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
 - Atualizações: registrar aqui o ID concluído, hash/link e o próximo ID; não preencher com
   hash fictício nem tratar evidência de mock como teste contra conta real.
 
@@ -1063,6 +1063,21 @@ falha/retry/reinício e canários de projeto. Chromium validou envio, retry, dra
 (7,62 s). Limites e restrições documentados em ORION_DOCUMENTOS.md; Windows ainda pendente.
 
 
+### Execução C39 — versões explícitas de pedidos
+
+Commit de implementação: `3bbfdf5`. Migração v11 cria versões com sessão original, pai,
+mensagem fonte e pedido revisado. UI permite editar e escolher Caminhos; mantém histórico
+original e resultados associados aos IDs efetivos. A revisão vira rascunho e exige Enviar:
+nenhum agente/action é chamado ao criar ou alternar caminho. Prefixo só copia user/assistant,
+sem tools, instruções de sistema ou decisões; taint conservado, projeto e limites validados.
+
+Evidências: rodada backend 633 passaram e um teste novo falhou por consultar versions na
+rota errada; corrigido, os três testes de branches/documentos/fatos passaram (1,88 s).
+Chromium confirmou editar, rascunho, voltar ao caminho original e ausência de geração (10,12 s).
+91 Node, Ruff/format/Pyright verdes. Fixture preserva artifact na mensagem da resposta original,
+aprovação não copiada e fato intacto; versão persiste no reinício. Não se declara replay de tools.
+
+
 ### C00 — fix(ui): estabilizar conexão e consolidar o refinamento visual
 
 Etapa: **A** · Depende de: **base atual do repositório** · Estado: **concluído**.
@@ -1455,13 +1470,13 @@ Etapa: **G** · Depende de: **C35, C32** · Estado: **concluído**.
 
 ### C39 — feat(chat): versionar pedidos editados e resultados associados
 
-Etapa: **G** · Depende de: **C38, C34** · Estado: **planejado**.
+Etapa: **G** · Depende de: **C38, C34** · Estado: **concluído**.
 
-- [ ] Adicionar migração para versões/ramificações de mensagens sem sobrescrever histórico anterior.
-- [ ] Editar pedido, escolher caminho e ligar artifacts à versão correta.
-- [ ] Não reexecutar automaticamente ações aprovadas do caminho anterior.
-- [ ] **Validar:** Editar pedido após uma resposta com artifact e aprovação; alternar versões sem duplicar efeitos colaterais.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Adicionar migração para versões/ramificações de mensagens sem sobrescrever histórico anterior.
+- [x] Editar pedido, escolher caminho e ligar artifacts à versão correta.
+- [x] Não reexecutar automaticamente ações aprovadas do caminho anterior.
+- [x] **Validar:** Editar pedido após uma resposta com artifact e aprovação; alternar versões sem duplicar efeitos colaterais.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C40 — feat(auth): autorizar e revogar contas MCP com escopos mínimos
 
