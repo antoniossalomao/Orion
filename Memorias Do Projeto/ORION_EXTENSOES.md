@@ -1,6 +1,6 @@
 # Orion — referências de produto e plano de extensões
 
-Pesquisa em 04/10/2026. **Plano de implementação com C00–C26 concluídos** (registro na seção 9).
+Pesquisa em 04/10/2026. **Plano de implementação com C00–C27 concluídos** (registro na seção 9).
 Plugins e skills seguem em implementação. MCP já tem prova com servidores controlados;
 nenhuma conta pessoal ou servidor externo do usuário foi conectado.
 Complementa [ORION_FRONT.md](ORION_FRONT.md), as fases 4 e 6 do
@@ -339,7 +339,7 @@ como fundação do recurso novo. Exportar leitura primeiro, com identidade e esc
 
 ## 8. Próximo trabalho concreto
 
-C00–C26 foram concluídos e validados. Continuar pelo **C27: fontes e atividade das extensões no chat**.
+C00–C27 foram concluídos e validados. Continuar pelo **C28: busca e fetch públicos com provedor validado**.
 O usuário autorizou a execução dos checklists restantes, com commits separados, validação,
 registro no vault e push. Integrações pessoais e Windows serão registrados conforme
 as evidências disponíveis, sem transformar fixtures em prova de conta ou desktop reais.
@@ -351,8 +351,8 @@ quando houver integração concreta para revisar. Este documento não muda as de
 
 ## 9. Checklists por commit e sequência de dias
 
-Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C26 têm commits reais
-registrados; C27–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
+Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C27 têm commits reais
+registrados; C28–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
 precisa estar pronto. Não é necessário concluir o plano inteiro para usar o primeiro MVP.
 
 ### Ritmo de trabalho
@@ -365,7 +365,7 @@ precisa estar pronto. Não é necessário concluir o plano inteiro para usar o p
   manter os dependentes esperando a entrega completa.
 - Ao pedir continuação, usar o ID: **“Faça o próximo commit pendente”** ou **“Faça o C09”**.
   O executor confere o checklist e as dependências antes de iniciar.
-- C00–C26 estão implementados, validados e registrados abaixo; C27–C50 permanecem
+- C00–C27 estão implementados, validados e registrados abaixo; C28–C50 permanecem
   planejados. Cada continuação deve conferir as dependências e os limites da entrega anterior.
 
 ### Como concluir e pausar cada commit
@@ -418,10 +418,10 @@ a integração real de Pesquisa fica registrada separadamente se ainda não tive
 
 ### Registro para retomar no próximo dia
 
-- Último checklist concluído: **C26**, commit `b94f1d5`; entregas anteriores registradas abaixo.
-- Próximo commit sugerido: **C27 — fontes e atividade das extensões no chat**.
-- Dependências/impedimentos: conferir as dependências do C27 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
-- Evidências: ver os registros C00–C26 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
+- Último checklist concluído: **C27**, commit `098e2ad`; entregas anteriores registradas abaixo.
+- Próximo commit sugerido: **C28 — busca e fetch públicos com provedor validado**.
+- Dependências/impedimentos: conferir as dependências do C28 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
+- Evidências: ver os registros C00–C27 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
 - Atualizações: registrar aqui o ID concluído, hash/link e o próximo ID; não preencher com
   hash fictício nem tratar evidência de mock como teste contra conta real.
 
@@ -864,6 +864,24 @@ conjunto. Executar servidor local confiável possui privilégios do usuário; te
 conexão não é sandbox e não prova ausência de efeitos de inicialização do servidor.
 
 
+### Execução C27 — 06/10/2026
+
+Commit `098e2ad`: SSE preserva provenance antes de [DONE], sem quebrar leitor legado.
+Eventos internos e hub aceitam fontes; histórico exibe memória/skill/contexto externo,
+origem/revisão e atividade com conclusão, aprovação, falha ou cancelamento. Não mostra
+raciocínio interno nem argumentos/resultados privados em resumos de atividade. MCP
+mantém nome legível independente do identificador técnico. Aprovações retomadas deixam
+atividade com revisão; cancelamento preserva um registro sem replay.
+
+**Evidências:** 606 testes backend na etapa; 12 testes direcionados SDK/agente/SSE após
+ajustes; 91 testes Node; Ruff/Pyright. A suíte Chromium executou 104 cenários: 103 passaram
+e um revelou perda de draft antes do ID/salvamento automático. Correção incluída no
+commit usa draft pendente por origem e flush em pagehide; o cenário falho foi repetido
+e passou, preservando fonte/draft após recarga imediata. Log integral em
+`/workspace/artifacts/orion-c27/browser.log` conserva a falha original, sem ocultá-la.
+A etapa seguinte permanece sem conta Brave real ou validação Windows.
+
+
 ### C00 — fix(ui): estabilizar conexão e consolidar o refinamento visual
 
 Etapa: **A** · Depende de: **base atual do repositório** · Estado: **concluído**.
@@ -1136,13 +1154,13 @@ Etapa: **E** · Depende de: **C25** · Estado: **concluído**.
 
 ### C27 — feat(chat): mostrar fontes e atividade das extensões
 
-Etapa: **E** · Depende de: **C26, C04** · Estado: **planejado**.
+Etapa: **E** · Depende de: **C26, C04** · Estado: **concluído**.
 
-- [ ] Preservar proveniência no SSE/WS, nos eventos internos e no histórico.
-- [ ] Mostrar fonte de memória/documento, skill/plugin e atividade expansível com resultado resumido.
-- [ ] Diferenciar processando, esperando aprovação, falha, cancelamento e conclusão sem exibir raciocínio interno.
-- [ ] **Validar:** Reabrir conversa e manter fontes; testar streaming, erro e aprovação sem regressão de foco ou anúncios de acessibilidade.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Preservar proveniência no SSE/WS, nos eventos internos e no histórico.
+- [x] Mostrar fonte de memória/documento, skill/plugin e atividade expansível com resultado resumido.
+- [x] Diferenciar processando, esperando aprovação, falha, cancelamento e conclusão sem exibir raciocínio interno.
+- [x] **Validar:** Reabrir conversa e manter fontes; testar streaming, erro e aprovação sem regressão de foco ou anúncios de acessibilidade.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C28 — feat(research): integrar busca e fetch de um provedor validado
 
