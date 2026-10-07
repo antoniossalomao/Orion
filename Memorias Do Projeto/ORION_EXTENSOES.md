@@ -1,6 +1,6 @@
 # Orion — referências de produto e plano de extensões
 
-Pesquisa em 04/10/2026. **Plano de implementação com C00–C31 concluídos** (registro na seção 9).
+Pesquisa em 04/10/2026. **Plano de implementação com C00–C32 concluídos** (registro na seção 9).
 Plugins e skills seguem em implementação. MCP já tem prova com servidores controlados;
 nenhuma conta pessoal ou servidor externo do usuário foi conectado.
 Complementa [ORION_FRONT.md](ORION_FRONT.md), as fases 4 e 6 do
@@ -339,7 +339,7 @@ como fundação do recurso novo. Exportar leitura primeiro, com identidade e esc
 
 ## 8. Próximo trabalho concreto
 
-C00–C31 foram concluídos e validados. Continuar pelo **C32: isolamento de fontes memória e extensões por projeto**.
+C00–C32 foram concluídos e validados. Continuar pelo **C33: interface de projetos com conversas instruções fontes e extensões**.
 O usuário autorizou a execução dos checklists restantes, com commits separados, validação,
 registro no vault e push. Integrações pessoais e Windows serão registrados conforme
 as evidências disponíveis, sem transformar fixtures em prova de conta ou desktop reais.
@@ -351,8 +351,8 @@ quando houver integração concreta para revisar. Este documento não muda as de
 
 ## 9. Checklists por commit e sequência de dias
 
-Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C31 têm commits reais
-registrados; C32–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
+Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C32 têm commits reais
+registrados; C33–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
 precisa estar pronto. Não é necessário concluir o plano inteiro para usar o primeiro MVP.
 
 ### Ritmo de trabalho
@@ -365,7 +365,7 @@ precisa estar pronto. Não é necessário concluir o plano inteiro para usar o p
   manter os dependentes esperando a entrega completa.
 - Ao pedir continuação, usar o ID: **“Faça o próximo commit pendente”** ou **“Faça o C09”**.
   O executor confere o checklist e as dependências antes de iniciar.
-- C00–C31 estão implementados, validados e registrados abaixo; C32–C50 permanecem
+- C00–C32 estão implementados, validados e registrados abaixo; C33–C50 permanecem
   planejados. Cada continuação deve conferir as dependências e os limites da entrega anterior.
 
 ### Como concluir e pausar cada commit
@@ -418,10 +418,10 @@ a integração real de Pesquisa fica registrada separadamente se ainda não tive
 
 ### Registro para retomar no próximo dia
 
-- Último checklist concluído: **C31**, commit `c5430cf`; entregas anteriores registradas abaixo.
-- Próximo commit sugerido: **C32 — isolamento de fontes memória e extensões por projeto**.
-- Dependências/impedimentos: conferir as dependências do C32 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
-- Evidências: ver os registros C00–C31 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
+- Último checklist concluído: **C32**, commit `51acf58`; entregas anteriores registradas abaixo.
+- Próximo commit sugerido: **C33 — interface de projetos com conversas instruções fontes e extensões**.
+- Dependências/impedimentos: conferir as dependências do C33 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
+- Evidências: ver os registros C00–C32 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
 - Atualizações: registrar aqui o ID concluído, hash/link e o próximo ID; não preencher com
   hash fictício nem tratar evidência de mock como teste contra conta real.
 
@@ -946,6 +946,25 @@ guarda de aprovação. C31 ainda não afirma isolamento da recuperação nem ofe
 projetos: esses contratos passam a operar em C32 e C33 respectivamente.
 
 
+### Execução C32 — escopo operacional de projetos (07/10/2026)
+
+Commit real `51acf58`. Migração SQLite v7 adiciona raiz autorizada e escopo de fatos/documentos.
+O turno usa o projeto persistido da sessão; FTS, vetores e ferramentas nativas de memória
+filtram antes de recuperar dados. Compartilhar memória pessoal é explícito, não compartilha
+concessões de extensões e não permite modificar fatos pessoais pelo contexto de projeto.
+Skills, ferramentas MCP e resources/prompts rejeitam outro escopo; aprovações incluem
+projeto/revisão e são invalidadas ao editar configurações. Caminhos locais passam por raiz
+resolvida e PathGuard; operações globais sem isolamento são recusadas. Contexto recuperado
+entra como dados de usuário e documentos aplicam taint. Consolidação pessoal ignora projetos.
+
+Validação: **628 testes backend**, Ruff/format/Pyright, **7 arquivos de testes Node** e
+**1 ensaio Chromium completo de pesquisa/plugin/MCP/versionamento/reinício** passaram.
+Os novos testes usam canários em dois projetos, busca lexical e vetorial, deduplicação,
+compartilhamento pessoal, reinício, symlink, ferramentas, skills/resources e aprovação antiga.
+Detalhes em `ORION_PROJETOS.md`. Código MCP confiável não é sandbox; a validação de Windows
+e contas pessoais continua pendente. Próxima etapa: C33.
+
+
 ### C00 — fix(ui): estabilizar conexão e consolidar o refinamento visual
 
 Etapa: **A** · Depende de: **base atual do repositório** · Estado: **concluído**.
@@ -1268,13 +1287,13 @@ Etapa: **F** · Depende de: **C30** · Estado: **concluído**.
 
 ### C32 — feat(context): isolar fontes memória e extensões por projeto
 
-Etapa: **F** · Depende de: **C31, C23** · Estado: **planejado**.
+Etapa: **F** · Depende de: **C31, C23** · Estado: **concluído**.
 
-- [ ] Aplicar project_id no contexto do turno, recuperação de fontes e concessões de extensões.
-- [ ] Separar memória pessoal compartilhada de documentos de projeto e tornar essa escolha explícita.
-- [ ] Vincular aprovações ao escopo e impedir que uma decisão de projeto autorize outro.
-- [ ] **Validar:** Criar dois projetos com canários distintos; busca, fontes, tools e aprovações não podem cruzar escopos indevidamente.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Aplicar project_id no contexto do turno, recuperação de fontes e concessões de extensões.
+- [x] Separar memória pessoal compartilhada de documentos de projeto e tornar essa escolha explícita.
+- [x] Vincular aprovações ao escopo e impedir que uma decisão de projeto autorize outro.
+- [x] **Validar:** Criar dois projetos com canários distintos; busca, fontes, tools e aprovações não podem cruzar escopos indevidamente.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C33 — feat(ui): organizar conversas arquivos e instruções por projeto
 
