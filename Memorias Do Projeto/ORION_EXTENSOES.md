@@ -1,6 +1,6 @@
 # Orion — referências de produto e plano de extensões
 
-Pesquisa em 04/10/2026. **Plano de implementação com C00–C17 concluídos** (registro na seção 9).
+Pesquisa em 04/10/2026. **Plano de implementação com C00–C18 concluídos** (registro na seção 9).
 Plugins e skills seguem em implementação. MCP já tem prova com servidores controlados;
 nenhuma conta pessoal ou servidor externo do usuário foi conectado.
 Complementa [ORION_FRONT.md](ORION_FRONT.md), as fases 4 e 6 do
@@ -339,7 +339,7 @@ como fundação do recurso novo. Exportar leitura primeiro, com identidade e esc
 
 ## 8. Próximo trabalho concreto
 
-C00–C17 foram concluídos e validados. Continuar pelo **C18: confiança e execução controlada de scripts de skills**.
+C00–C18 foram concluídos e validados. Continuar pelo **C19: manifesto e registro persistente de plugins**.
 O usuário autorizou a execução dos checklists restantes, com commits separados, validação,
 registro no vault e push. Integrações pessoais e Windows serão registrados conforme
 as evidências disponíveis, sem transformar fixtures em prova de conta ou desktop reais.
@@ -351,8 +351,8 @@ quando houver integração concreta para revisar. Este documento não muda as de
 
 ## 9. Checklists por commit e sequência de dias
 
-Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C17 têm commits reais
-registrados; C18–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
+Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C18 têm commits reais
+registrados; C19–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
 precisa estar pronto. Não é necessário concluir o plano inteiro para usar o primeiro MVP.
 
 ### Ritmo de trabalho
@@ -365,7 +365,7 @@ precisa estar pronto. Não é necessário concluir o plano inteiro para usar o p
   manter os dependentes esperando a entrega completa.
 - Ao pedir continuação, usar o ID: **“Faça o próximo commit pendente”** ou **“Faça o C09”**.
   O executor confere o checklist e as dependências antes de iniciar.
-- C00–C17 estão implementados, validados e registrados abaixo; C18–C50 permanecem
+- C00–C18 estão implementados, validados e registrados abaixo; C19–C50 permanecem
   planejados. Cada continuação deve conferir as dependências e os limites da entrega anterior.
 
 ### Como concluir e pausar cada commit
@@ -418,10 +418,10 @@ a integração real de Pesquisa fica registrada separadamente se ainda não tive
 
 ### Registro para retomar no próximo dia
 
-- Último checklist concluído: **C17**, commit `59a9972`; entregas anteriores registradas abaixo.
-- Próximo commit sugerido: **C18 — confiança e execução controlada de scripts de skills**.
-- Dependências/impedimentos: conferir as dependências do C18 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
-- Evidências: ver os registros C00–C17 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
+- Último checklist concluído: **C18**, commit `553f644`; entregas anteriores registradas abaixo.
+- Próximo commit sugerido: **C19 — manifesto e registro persistente de plugins**.
+- Dependências/impedimentos: conferir as dependências do C19 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
+- Evidências: ver os registros C00–C18 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
 - Atualizações: registrar aqui o ID concluído, hash/link e o próximo ID; não preencher com
   hash fictício nem tratar evidência de mock como teste contra conta real.
 
@@ -734,6 +734,21 @@ Ruff/formatação/Pyright, sintaxe JS e checks do legado passaram. Capturas desk
 composer/paleta em `/workspace/artifacts/orion-c17/` inspecionadas visualmente.
 
 
+### Execução C18 — confiança e scripts de skills (06/10/2026)
+
+**Commit de implementação:** `553f644`.
+Ativação explícita de fonte e confiança separada para scripts. Runner só registra código
+revisado POSIX e sempre passa pela aprovação da política. Script declarado/confino à raiz,
+snapshot/hash de bytes, argv sem shell, ambiente mínimo, limite de pacote/saída/prazo e
+cleanup do grupo. Audit mascara argv. Segredos .env/referências sensíveis bloqueados.
+
+**Evidências:** 567 testes backend passaram. Script real somente após aprovação, argumento
+literal sem shell, segredo de ensaio ausente no filho e PID encerrado; atualização/desativação
+bloqueiam nova execução. Testes de timeout, saída excessiva, cancelamento e paths.
+Ruff/formatação/Pyright passaram. Sem sandbox, código local não confiável continua desativado;
+Windows não recebe runner até validação real. Não se promete isolamento de código confiável.
+
+
 ### C00 — fix(ui): estabilizar conexão e consolidar o refinamento visual
 
 Etapa: **A** · Depende de: **base atual do repositório** · Estado: **concluído**.
@@ -916,13 +931,13 @@ Etapa: **C** · Depende de: **C16, C02** · Estado: **concluído**.
 
 ### C18 — feat(skills): controlar confiança e execução de scripts
 
-Etapa: **C** · Depende de: **C17, C11** · Estado: **planejado**.
+Etapa: **C** · Depende de: **C17, C11** · Estado: **concluído**.
 
-- [ ] Exigir ativação explícita para skill importada de projeto ou pacote de terceiro.
-- [ ] Encaminhar scripts ao caminho de execução sob política, com argv, ambiente e limites.
-- [ ] Manter execução de código local não confiável desabilitada enquanto não houver isolamento adequado ao SO.
-- [ ] **Validar:** Provar que importação não executa nada e skill não contorna aprovação; testar segredo, timeout e escopo de caminhos.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Exigir ativação explícita para skill importada de projeto ou pacote de terceiro.
+- [x] Encaminhar scripts ao caminho de execução sob política, com argv, ambiente e limites.
+- [x] Manter execução de código local não confiável desabilitada enquanto não houver isolamento adequado ao SO.
+- [x] **Validar:** Provar que importação não executa nada e skill não contorna aprovação; testar segredo, timeout e escopo de caminhos.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C19 — feat(plugins): validar manifesto e registrar versões
 
