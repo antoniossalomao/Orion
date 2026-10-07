@@ -1,6 +1,6 @@
 # Orion — referências de produto e plano de extensões
 
-Pesquisa em 04/10/2026. **Plano de implementação com C00–C21 concluídos** (registro na seção 9).
+Pesquisa em 04/10/2026. **Plano de implementação com C00–C22 concluídos** (registro na seção 9).
 Plugins e skills seguem em implementação. MCP já tem prova com servidores controlados;
 nenhuma conta pessoal ou servidor externo do usuário foi conectado.
 Complementa [ORION_FRONT.md](ORION_FRONT.md), as fases 4 e 6 do
@@ -339,7 +339,7 @@ como fundação do recurso novo. Exportar leitura primeiro, com identidade e esc
 
 ## 8. Próximo trabalho concreto
 
-C00–C21 foram concluídos e validados. Continuar pelo **C22: update rollback e remoção de versões de plugins**.
+C00–C22 foram concluídos e validados. Continuar pelo **C23: concessões e revogação por revisão**.
 O usuário autorizou a execução dos checklists restantes, com commits separados, validação,
 registro no vault e push. Integrações pessoais e Windows serão registrados conforme
 as evidências disponíveis, sem transformar fixtures em prova de conta ou desktop reais.
@@ -351,8 +351,8 @@ quando houver integração concreta para revisar. Este documento não muda as de
 
 ## 9. Checklists por commit e sequência de dias
 
-Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C21 têm commits reais
-registrados; C22–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
+Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C22 têm commits reais
+registrados; C23–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
 precisa estar pronto. Não é necessário concluir o plano inteiro para usar o primeiro MVP.
 
 ### Ritmo de trabalho
@@ -365,7 +365,7 @@ precisa estar pronto. Não é necessário concluir o plano inteiro para usar o p
   manter os dependentes esperando a entrega completa.
 - Ao pedir continuação, usar o ID: **“Faça o próximo commit pendente”** ou **“Faça o C09”**.
   O executor confere o checklist e as dependências antes de iniciar.
-- C00–C21 estão implementados, validados e registrados abaixo; C22–C50 permanecem
+- C00–C22 estão implementados, validados e registrados abaixo; C23–C50 permanecem
   planejados. Cada continuação deve conferir as dependências e os limites da entrega anterior.
 
 ### Como concluir e pausar cada commit
@@ -418,10 +418,10 @@ a integração real de Pesquisa fica registrada separadamente se ainda não tive
 
 ### Registro para retomar no próximo dia
 
-- Último checklist concluído: **C21**, commit `57a3e66`; entregas anteriores registradas abaixo.
-- Próximo commit sugerido: **C22 — update rollback e remoção de versões de plugins**.
-- Dependências/impedimentos: conferir as dependências do C22 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
-- Evidências: ver os registros C00–C21 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
+- Último checklist concluído: **C22**, commit `597b8b5`; entregas anteriores registradas abaixo.
+- Próximo commit sugerido: **C23 — concessões e revogação por revisão**.
+- Dependências/impedimentos: conferir as dependências do C23 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
+- Evidências: ver os registros C00–C22 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
 - Atualizações: registrar aqui o ID concluído, hash/link e o próximo ID; não preencher com
   hash fictício nem tratar evidência de mock como teste contra conta real.
 
@@ -791,6 +791,18 @@ bomba de expansão, quantidade excessiva, corrupção/CRC e tamanho de entrada. 
 formatação e Pyright passaram. Nenhum arquivo sai da raiz controlada de staging.
 
 
+### Execução C22 — 06/10/2026
+
+Commit `597b8b5`: seleção transacional de revisão, revisão integral de capacidades,
+conservação das versões e rollback. A seleção publica o bundle revisado atomicamente;
+a execução continua desativada até as concessões/lifecycle de C23–C24. Update de
+plugin ativo é recusado. Remoção elimina somente bundles, preservando dados produzidos.
+
+**Evidências:** 600 testes backend; Ruff e Pyright sem erros. Trigger SQLite que
+interrompe update não altera a revisão anterior; rollback conserva ambos os bundles;
+remoção preserva arquivo produzido fora do pacote. Bundle adulterado é recusado.
+
+
 ### C00 — fix(ui): estabilizar conexão e consolidar o refinamento visual
 
 Etapa: **A** · Depende de: **base atual do repositório** · Estado: **concluído**.
@@ -1013,13 +1025,13 @@ Etapa: **D** · Depende de: **C20** · Estado: **concluído**.
 
 ### C22 — feat(plugins): atualizar reverter e remover versões
 
-Etapa: **D** · Depende de: **C21** · Estado: **planejado**.
+Etapa: **D** · Depende de: **C21** · Estado: **concluído**.
 
-- [ ] Implementar ativação atômica de versão e conservar versão anterior para rollback.
-- [ ] Pedir revisão de novas capacidades antes de ativar update.
-- [ ] Remover bundle sem apagar chats/arquivos; revogar conta permanece ação separada.
-- [ ] **Validar:** Simular falha no update e rollback; confirmar que o pacote anterior e os resultados produzidos continuam disponíveis.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Implementar ativação atômica de versão e conservar versão anterior para rollback.
+- [x] Pedir revisão de novas capacidades antes de ativar update.
+- [x] Remover bundle sem apagar chats/arquivos; revogar conta permanece ação separada.
+- [x] **Validar:** Simular falha no update e rollback; confirmar que o pacote anterior e os resultados produzidos continuam disponíveis.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C23 — feat(plugins): aplicar concessões e revogar aprovações obsoletas
 
