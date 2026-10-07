@@ -1177,20 +1177,24 @@ def test_memoria_resultados_trazem_tipo_e_ligacoes_para_distinguir_nos(abrir):
 def test_alto_contraste_na_home_mantem_a_constelacao_visivel(abrir):
     page = abrir(init="localStorage.setItem('orion_theme', JSON.stringify('contraste'))")
     assert page.evaluate("document.documentElement.dataset.theme") == "contraste"
-    assert float(page.evaluate("getComputedStyle(document.querySelector('#sky-veil')).opacity")) < 0.5
+    assert (
+        float(page.evaluate("getComputedStyle(document.querySelector('#sky-veil')).opacity")) < 0.5
+    )
     page.click('.sb-item[data-view="chat"]')
     expect(page.locator("html")).to_have_attribute("data-view", "chat")
     page.wait_for_timeout(600)
-    assert float(page.evaluate("getComputedStyle(document.querySelector('#sky-veil')).opacity")) > 0.9
+    assert (
+        float(page.evaluate("getComputedStyle(document.querySelector('#sky-veil')).opacity")) > 0.9
+    )
 
 
 def test_html_nao_usa_estilo_inline_estatico():
     from pathlib import Path
 
-    html = (Path(__file__).resolve().parents[2] / "Orion_Core" / "Front_end_Orion" / "index.html").read_text(
-        encoding="utf-8"
-    )
-    assert 'style="' not in html, "use classes (components.css), não style=\"\" no index.html"
+    html = (
+        Path(__file__).resolve().parents[2] / "Orion_Core" / "Front_end_Orion" / "index.html"
+    ).read_text(encoding="utf-8")
+    assert 'style="' not in html, 'use classes (components.css), não style="" no index.html'
 
 
 def test_editar_mensagem_enviada_poe_o_texto_no_campo_sem_apagar_rascunho(abrir):

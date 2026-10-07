@@ -20,7 +20,13 @@ from .conftest import _subir
 
 TAMANHOS = [(1440, 900), (700, 800)]
 TEMAS = ["noite", "grafite", "contraste"]
-TELAS = [("inicio", ""), ("chat", "#/chat"), ("memoria", "#/memoria"), ("integracoes", "#/integracoes"), ("config", "#/config")]
+TELAS = [
+    ("inicio", ""),
+    ("chat", "#/chat"),
+    ("memoria", "#/memoria"),
+    ("integracoes", "#/integracoes"),
+    ("config", "#/config"),
+]
 
 
 def main(saida: Path) -> int:
@@ -31,12 +37,19 @@ def main(saida: Path) -> int:
         with sync_playwright() as p:
             b = p.chromium.launch(
                 executable_path=os.environ.get("ORION_E2E_CHROME") or None,
-                args=["--no-sandbox", "--use-gl=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"],
+                args=[
+                    "--no-sandbox",
+                    "--use-gl=swiftshader",
+                    "--enable-unsafe-swiftshader",
+                    "--ignore-gpu-blocklist",
+                ],
             )
             for tema in TEMAS:
                 for w, h in TAMANHOS:
                     ctx = b.new_context(viewport={"width": w, "height": h}, locale="pt-BR")
-                    ctx.add_init_script(f"localStorage.setItem('orion_theme', JSON.stringify('{tema}'))")
+                    ctx.add_init_script(
+                        f"localStorage.setItem('orion_theme', JSON.stringify('{tema}'))"
+                    )
                     pg = ctx.new_page()
                     pg.goto(f"{url}/ui/?semboot")
                     pg.wait_for_selector("html[data-pronto='true']")
@@ -45,7 +58,9 @@ def main(saida: Path) -> int:
                         if nome == "chat" and not pg.locator(".msg-orion").count():
                             pg.fill("#composer-input", "explique algo longo")
                             pg.keyboard.press("Enter")
-                            pg.wait_for_selector(".msg-orion[data-streaming='false']", timeout=20000)
+                            pg.wait_for_selector(
+                                ".msg-orion[data-streaming='false']", timeout=20000
+                            )
                         pg.wait_for_timeout(2200 if nome == "memoria" else 900)
                         pg.screenshot(path=str(saida / f"{nome}_{tema}_{w}.png"))
                     ctx.close()
