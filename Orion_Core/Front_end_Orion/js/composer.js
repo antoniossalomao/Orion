@@ -409,6 +409,7 @@
         $('#file-input').addEventListener('change', e => { adicionar(e.target.files); e.target.value = ''; });
         montarMenuModelo();
         ligarArrastar();
+        bus.on('skills:changed', () => { limparSkills(); carregarSkills(); });
         bus.on('sessoes', ({ ativa }) => trocarRascunho(ativa));
         bus.on('chat:limpo', () => { ultimoPedido = null; });     // "tentar de novo" nunca reenvia o pedido de outra conversa
         bus.on('chat:ocupado', atualizar);

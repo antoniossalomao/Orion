@@ -30,7 +30,7 @@
     const configurarToken = t => { tokenDesktop = String(t || ''); };
 
     /** rotas que exigem o token do orion.app; o legado não conhece cabeçalho Authorization */
-    const comAuth = caminho => /^\/(approvals|chat|notifications|skills|sessoes|historico|exportar|capabilities\/details)(\/|$|\?)/.test(caminho);
+    const comAuth = caminho => /^\/(approvals|chat|notifications|skills|plugins|mcp|sessoes|historico|exportar|capabilities\/details)(\/|$|\?)/.test(caminho);
 
     function cabecalhos(caminho, extra = {}) {
         const h = { ...extra };
@@ -50,13 +50,14 @@
         return detalhe || `Erro ${status}.`;
     }
 
-    async function req(caminho, { metodo = 'GET', json, form, timeout = 8000, sinal, bruto = false } = {}) {
+    async function req(caminho, { metodo = 'GET', json, form, timeout = 8000, sinal, bruto = false, body, contentType } = {}) {
         const ctrl = new AbortController();
         const tid = setTimeout(() => ctrl.abort(), timeout);
         if (sinal) sinal.addEventListener('abort', () => ctrl.abort(), { once: true });
         const init = { method: metodo, signal: ctrl.signal, headers: cabecalhos(caminho) };
         if (json !== undefined) { init.body = JSON.stringify(json); init.headers['Content-Type'] = 'application/json'; }
         if (form) init.body = form;
+        if (body !== undefined) { init.body = body; if (contentType) init.headers['Content-Type'] = contentType; }
         let r;
         try { r = await fetch(base() + caminho, init); }
         catch (e) {
@@ -77,7 +78,7 @@
         metrics: ['/metrics'], stats: ['/stats'], stats_history: ['/stats/historico'],
         integrations: ['/integracoes'], upload: ['/upload'], tts: ['/tts/mudo', '/tts/falar'],
         approvals: ['/approvals'], notifications: ['/notifications'], chat: ['/chat'],
-        skills: ['/skills'],
+        skills: ['/skills'], plugins: ['/plugins'], mcp: ['/mcp/connections'],
     };
     let estado = { backend: 'unknown', api: 'offline', model: 'unknown', features: {}, unavailable: {} };
     let origem = '', emDeteccao = null, geracao = 0;
@@ -116,6 +117,7 @@
                     if (estado.backend === 'legacy') Object.assign(features, estado.features);
                     features.chat = h.cerebro.ok;
                     features.skills = false;
+                    features.plugins = false; features.mcp = false;
                     features.notifications = false; // pertence ao backend novo
                     novo = { backend: 'legacy', api: 'online', model: h.cerebro.ok ? 'ready' : 'unavailable', features, unavailable: estado.backend === 'legacy' ? estado.unavailable : {} };
                 } else novo = { backend: 'unknown', api: 'online', model: 'unknown', features: {}, unavailable: {}, incompatible: true };
@@ -145,6 +147,12 @@
     const api = {
         ApiError, UnsupportedError, base, wsBase, token, configurarToken, req,
         detectar, suporta, estado: () => estado,
+        plugins: () => recurso('plugins', '/plugins'),
+        importarPlugin: arquivo => recurso('plugins', '/plugins/import?update=true', { metodo: 'POST', body: arquivo, contentType: 'application/zip', timeout: 30000 }),
+        instalarPlugin: folder => recurso('plugins', '/plugins/install', { metodo: 'POST', json: { folder, update: true }, timeout: 30000 }),
+        plugin: (id, action, json) => recurso('plugins', `/plugins/${encodeURIComponent(id)}${action ? '/' + action : ''}`, { metodo: action === '' ? 'DELETE' : 'POST', json, timeout: 30000 }),
+        versoesPlugin: id => recurso('plugins', `/plugins/${encodeURIComponent(id)}/versions`),
+        conexoesMcp: () => recurso('mcp', '/mcp/connections'),
         pedidoChat: ({ texto, modelo, skills = [] }) => estado.backend === 'orion'
             ? { texto, canal: 'web', ...(skills.length ? { skills } : {}) } : { texto, modelo },
         pedidoRetomada: () => estado.backend === 'orion' ? { json: { canal: 'web' } } : {},

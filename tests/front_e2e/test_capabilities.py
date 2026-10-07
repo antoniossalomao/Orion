@@ -77,6 +77,8 @@ def test_backend_novo_telas_sem_recursos_nao_sondam_endpoints(abrir, novo_backen
         ("config", "#activity-capabilities"),
     ]:
         page.click(f'.sb-item[data-view="{rota}"]')
+        if rota == "integracoes":
+            page.get_by_role("tab", name="Voz e canais").click()
         expect(page.locator(seletor)).to_contain_text("indisponív")
     page.evaluate("""async () => {
         for (let i=0; i<3; i++) {
