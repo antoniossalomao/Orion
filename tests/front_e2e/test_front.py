@@ -10,8 +10,17 @@ from playwright.sync_api import expect
 
 from .conftest import AXE, TOKEN
 
-ROTAS = ["", "#/chat", "#/memoria", "#/integracoes", "#/config", "#/projetos", "#/resultados"]
-VIEWS = ["home", "chat", "memoria", "integracoes", "config", "projetos", "resultados"]
+ROTAS = [
+    "",
+    "#/chat",
+    "#/memoria",
+    "#/integracoes",
+    "#/config",
+    "#/projetos",
+    "#/resultados",
+    "#/atividade",
+]
+VIEWS = ["home", "chat", "memoria", "integracoes", "config", "projetos", "resultados", "atividade"]
 TEMAS = ["noite", "grafite", "contraste"]
 
 

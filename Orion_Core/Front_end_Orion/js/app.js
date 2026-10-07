@@ -19,6 +19,7 @@
         projetos: { titulo: 'Projetos', rota: '/projetos' },
         memoria: { titulo: 'Memória', rota: '/memoria' },
         integracoes: { titulo: 'Integrações', rota: '/integracoes' },
+        atividade: { titulo: 'Atividade', rota: '/atividade' },
         config: { titulo: 'Configurações', rota: '/config' },
     };
     const VIEW_DA_ROTA = Object.fromEntries(Object.entries(VIEWS).map(([v, d]) => [d.rota, v]));
@@ -159,7 +160,7 @@
         { grupo: 'Geral', rotulo: 'Mostrar atalhos', teclas: ['?'], digitando: false, quando: e => e.key === '?' && !ctrl(e), fn: () => ir('config', { secao: 'cfg-atalhos' }) },
         { grupo: 'Geral', rotulo: 'Modo foco (sem barras)', teclas: ['Ctrl', '.'], quando: e => ctrl(e) && !e.shiftKey && e.key === '.', fn: () => O.acoes.foco() },
         { grupo: 'Geral', rotulo: 'Fechar painel ou voltar ao início', teclas: ['Esc'] },
-        ...['home', 'chat', 'memoria', 'integracoes', 'config', 'projetos', 'resultados'].map((v, i) => ({ grupo: 'Navegação', rotulo: VIEWS[v].titulo, teclas: ['Alt', String(i + 1)],
+        ...['home', 'chat', 'memoria', 'integracoes', 'config', 'projetos', 'resultados', 'atividade'].map((v, i) => ({ grupo: 'Navegação', rotulo: VIEWS[v].titulo, teclas: ['Alt', String(i + 1)],
             quando: e => e.altKey && !ctrl(e) && !e.shiftKey && e.code === `Digit${i + 1}`, fn: () => ir(v) })),
         { grupo: 'Chat', rotulo: 'Focar na caixa de mensagem', teclas: ['/'], digitando: false, quando: e => e.key === '/' && !ctrl(e), fn: () => { if (atual !== 'home') ir('chat'); else O.composer.foco(); } },
         { grupo: 'Chat', rotulo: 'Comandos (digite / no começo da mensagem)', teclas: ['/'] },

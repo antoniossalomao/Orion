@@ -6,7 +6,7 @@ para a versão atual sozinho (`MIGRATIONS`). v3: seleção persistente de sessã
 v4: conversas fixadas. v5: índice de títulos para busca de conversas.
 """
 
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 
 TOKENIZER = "unicode61 remove_diacritics 2"  # "açúcar" casa com "acucar"
 
@@ -232,7 +232,20 @@ CREATE TABLE artifact_versions (
     provenance TEXT, created_at REAL NOT NULL, PRIMARY KEY(artifact_id,version));
 """
 
-DDL = DDL_V1 + DDL_V2 + DDL_V3 + DDL_V4 + DDL_V5 + DDL_V6 + DDL_V7 + DDL_V8
+DDL_V9 = (
+    "".join(
+        f"ALTER TABLE {table} ADD COLUMN project_id TEXT REFERENCES projects(id);"
+        f"CREATE INDEX idx_{table}_project ON {table}(project_id);"
+        for table in ("reminders", "schedules", "tasks", "numbers", "prompts", "notifications")
+    )
+    + """
+CREATE TABLE activity_preferences (
+    scope TEXT PRIMARY KEY, completion INTEGER NOT NULL DEFAULT 1,
+    question INTEGER NOT NULL DEFAULT 1, approval INTEGER NOT NULL DEFAULT 1);
+"""
+)
+
+DDL = DDL_V1 + DDL_V2 + DDL_V3 + DDL_V4 + DDL_V5 + DDL_V6 + DDL_V7 + DDL_V8 + DDL_V9
 MIGRATIONS: dict[int, str] = {
     1: DDL_V2,
     2: DDL_V3,
@@ -241,4 +254,5 @@ MIGRATIONS: dict[int, str] = {
     5: DDL_V6,
     6: DDL_V7,
     7: DDL_V8,
+    8: DDL_V9,
 }

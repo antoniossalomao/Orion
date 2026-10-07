@@ -110,6 +110,7 @@
             <a class="sb-item" href="#/" data-view="home" data-tip="Início" aria-label="Início" data-tip-pos="right"><svg class="i" aria-hidden="true"><use href="#i-home"/></svg><span class="sb-txt">Início</span></a>
             <a class="sb-item" href="#/chat" data-view="chat" data-tip="Chat" aria-label="Chat" data-tip-pos="right"><svg class="i" aria-hidden="true"><use href="#i-chat"/></svg><span class="sb-txt">Chat</span><span id="badge-chat" class="dot-badge" aria-hidden="true"></span></a>
             <a class="sb-item" href="#/projetos" data-view="projetos" data-tip="Projetos" aria-label="Projetos" data-tip-pos="right"><svg class="i" aria-hidden="true"><use href="#i-folder"/></svg><span class="sb-txt">Projetos</span></a>
+            <a class="sb-item" href="#/atividade" data-view="atividade" aria-label="Atividade" data-tip="Atividade" data-tip-pos="right"><svg class="i" aria-hidden="true"><use href="#i-info"/></svg><span class="sb-txt">Atividade</span></a>
             <a class="sb-item" href="#/resultados" data-view="resultados" data-tip="Resultados" aria-label="Resultados" data-tip-pos="right"><svg class="i" aria-hidden="true"><use href="#i-copy"/></svg><span class="sb-txt">Resultados</span></a>
             <a class="sb-item" href="#/memoria" data-view="memoria" data-tip="Memória" aria-label="Memória" data-tip-pos="right"><svg class="i" aria-hidden="true"><use href="#i-memory"/></svg><span class="sb-txt">Memória</span></a>
             <a class="sb-item" href="#/integracoes" data-view="integracoes" data-tip="Integrações" aria-label="Integrações" data-tip-pos="right"><svg class="i" aria-hidden="true"><use href="#i-plug"/></svg><span class="sb-txt">Integrações</span></a>
@@ -254,6 +255,7 @@
                         <article id="project-detail" class="card project-detail" aria-label="Detalhes do projeto"></article></div>
                 </div>
             </section>
+            <section id="view-atividade" class="view page" data-view="atividade" aria-label="Atividade"><div class="page-inner" id="activity-root"></div></section>
             <section id="view-resultados" class="view page" data-view="resultados" aria-label="Resultados">
                 <div class="page-inner"><div class="page-head"><div><h2>Seus resultados</h2><p id="artifact-context">Conteúdo que vale guardar, com versões e fontes.</p></div>
                     <button id="artifact-new" class="btn btn-primary" type="button">Novo resultado</button></div>
@@ -408,6 +410,7 @@
 <script src="js/views/home.js"></script>
 <script src="js/views/memory.js"></script>
 <script src="js/views/facts.js"></script>
+<script src="js/views/activity.js"></script>
 <script src="js/views/integrations.js"></script>
 <script src="js/views/extensions.js"></script>
 <script src="js/views/mcp.js"></script>

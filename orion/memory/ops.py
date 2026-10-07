@@ -9,9 +9,11 @@ desde a época (o texto ISO, quando vem de fora, é lido como hora local).
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime, timedelta
 from typing import Any
 
+from .scope import current
 from .store import MemoryStore
 
 TIPOS_AGENDAMENTO = ("unico", "diario", "intervalo_min")
@@ -76,6 +78,20 @@ class Operations:
     def __init__(self, store: MemoryStore) -> None:
         self._s = store
 
+    def _query(self, sql: str, params: tuple[Any, ...] = ()):
+        if " FROM edges" in sql:
+            return self._s.query(sql, params)
+        match = re.search(r"\b(ORDER BY|LIMIT)\b", sql)
+        cut = match.start() if match else len(sql)
+        prefix, suffix = sql[:cut], sql[cut:]
+        prefix += " AND " if " WHERE " in prefix else " WHERE "
+        # The new placeholder precedes a possible LIMIT parameter.
+        before = sql[:cut].count("?")
+        return self._s.query(
+            prefix + "project_id IS ? " + suffix,
+            (*params[:before], current.get().project_id, *params[before:]),
+        )
+
     def _now(self) -> float:
         return self._s.clock()
 
@@ -86,14 +102,15 @@ class Operations:
             raise ValueError("informe o título do lembrete")
         with self._s.transaction() as c:
             rid = c.execute(
-                "INSERT INTO reminders(title, due_at, note, created_at) VALUES (?,?,?,?)",
-                (titulo, parse_when(due_at), note, self._now()),
+                "INSERT INTO reminders(title, due_at, note, created_at, project_id) "
+                "VALUES (?,?,?,?,?)",
+                (titulo, parse_when(due_at), note, self._now(), current.get().project_id),
             ).lastrowid
         return self._one("reminders", int(rid or 0))
 
     def list_reminders(self, include_done: bool = False) -> list[dict[str, Any]]:
         return _dicts(
-            self._s.query(
+            self._query(
                 "SELECT * FROM reminders WHERE (? OR done=0) ORDER BY due_at, id",
                 (1 if include_done else 0,),
             )
@@ -102,7 +119,7 @@ class Operations:
     def due_reminders(self, now: float | None = None) -> list[dict[str, Any]]:
         """Vencidos, não concluídos e ainda não avisados."""
         return _dicts(
-            self._s.query(
+            self._query(
                 "SELECT * FROM reminders WHERE done=0 AND notified=0 AND due_at<=? ORDER BY due_at",
                 (self._now() if now is None else now,),
             )
@@ -141,7 +158,7 @@ class Operations:
         with self._s.transaction() as c:
             sid = c.execute(
                 "INSERT INTO schedules(title, kind, time_of_day, interval_min, tool, params,"
-                " next_run, created_at) VALUES (?,?,?,?,?,?,?,?)",
+                " next_run, created_at, project_id) VALUES (?,?,?,?,?,?,?,?,?)",
                 (
                     titulo,
                     kind,
@@ -151,16 +168,17 @@ class Operations:
                     json.dumps(params or {}, ensure_ascii=False),
                     prox,
                     agora,
+                    current.get().project_id,
                 ),
             ).lastrowid
         return self._one("schedules", int(sid or 0))
 
     def list_schedules(self) -> list[dict[str, Any]]:
-        return _dicts(self._s.query("SELECT * FROM schedules ORDER BY next_run IS NULL, next_run"))
+        return _dicts(self._query("SELECT * FROM schedules ORDER BY next_run IS NULL, next_run"))
 
     def due_schedules(self, now: float | None = None) -> list[dict[str, Any]]:
         return _dicts(
-            self._s.query(
+            self._query(
                 "SELECT * FROM schedules WHERE active=1 AND next_run IS NOT NULL AND next_run<=?"
                 " ORDER BY next_run",
                 (self._now() if now is None else now,),
@@ -204,14 +222,14 @@ class Operations:
         agora = self._now()
         with self._s.transaction() as c:
             tid = c.execute(
-                "INSERT INTO tasks(title, created_at, updated_at) VALUES (?,?,?)",
-                (titulo, agora, agora),
+                "INSERT INTO tasks(title, created_at, updated_at, project_id) VALUES (?,?,?,?)",
+                (titulo, agora, agora, current.get().project_id),
             ).lastrowid
         return self._one("tasks", int(tid or 0))
 
     def list_tasks(self, status: str | None = None) -> list[dict[str, Any]]:
         return _dicts(
-            self._s.query(
+            self._query(
                 "SELECT * FROM tasks WHERE (? IS NULL OR status=?) ORDER BY created_at, id",
                 (status, status),
             )
@@ -229,10 +247,10 @@ class Operations:
     def open_goals(self, limit: int = 8) -> list[str]:
         """Objetivos em aberto para o briefing (Goal Drift): tarefas não concluídas e
         lembretes pendentes, os mais antigos primeiro."""
-        tarefas = self._s.query(
+        tarefas = self._query(
             "SELECT title, status FROM tasks WHERE status<>'concluida' ORDER BY created_at, id"
         )
-        lembretes = self._s.query(
+        lembretes = self._query(
             "SELECT title, due_at FROM reminders WHERE done=0 ORDER BY due_at, id"
         )
         linhas = [f"tarefa ({t['status']}): {t['title']}" for t in tarefas]
@@ -250,8 +268,16 @@ class Operations:
             raise ValueError("informe o alvo da observação")
         with self._s.transaction() as c:
             nid = c.execute(
-                "INSERT INTO numbers(target, score, reason, source, created_at) VALUES (?,?,?,?,?)",
-                (alvo, max(0.0, min(1.0, float(score))), reason, source, self._now()),
+                "INSERT INTO numbers(target, score, reason, source, created_at, "
+                "project_id) VALUES (?,?,?,?,?,?)",
+                (
+                    alvo,
+                    max(0.0, min(1.0, float(score))),
+                    reason,
+                    source,
+                    self._now(),
+                    current.get().project_id,
+                ),
             ).lastrowid
         return self._one("numbers", int(nid or 0))
 
@@ -260,13 +286,13 @@ class Operations:
     ) -> list[dict[str, Any]]:
         if only_pending:
             return _dicts(
-                self._s.query(
+                self._query(
                     "SELECT * FROM numbers WHERE notified=0 AND score>=? ORDER BY score DESC, id",
                     (float(min_score),),
                 )
             )
         return _dicts(
-            self._s.query("SELECT * FROM numbers ORDER BY created_at DESC, id DESC LIMIT 50")
+            self._query("SELECT * FROM numbers ORDER BY created_at DESC, id DESC LIMIT 50")
         )
 
     def mark_number_notified(self, number_id: int) -> None:
@@ -278,13 +304,14 @@ class Operations:
             raise ValueError("informe título e conteúdo do prompt")
         with self._s.transaction() as c:
             pid = c.execute(
-                "INSERT INTO prompts(title, command, content, created_at) VALUES (?,?,?,?)",
-                (title.strip(), command.strip(), content, self._now()),
+                "INSERT INTO prompts(title, command, content, created_at, project_id) "
+                "VALUES (?,?,?,?,?)",
+                (title.strip(), command.strip(), content, self._now(), current.get().project_id),
             ).lastrowid
         return self._one("prompts", int(pid or 0))
 
     def list_prompts(self) -> list[dict[str, Any]]:
-        return _dicts(self._s.query("SELECT * FROM prompts ORDER BY created_at DESC, id DESC"))
+        return _dicts(self._query("SELECT * FROM prompts ORDER BY created_at DESC, id DESC"))
 
     def remove_prompt(self, prompt_id: int) -> bool:
         return self._delete("prompts", prompt_id)
@@ -304,7 +331,7 @@ class Operations:
 
     def neighbors(self, node: str, rel: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
         """Arestas que saem ou chegam em `node` (direção em `direction`)."""
-        rows = self._s.query(
+        rows = self._query(
             "SELECT src, rel, dst, weight, kind, 'out' AS direction FROM edges"
             " WHERE src=? AND (? IS NULL OR rel=?)"
             " UNION ALL "
@@ -315,22 +342,30 @@ class Operations:
         return _dicts(rows)
 
     def edge_count(self) -> int:
-        return int(self._s.query("SELECT COUNT(*) FROM edges")[0][0])
+        return int(self._query("SELECT COUNT(*) FROM edges")[0][0])
 
     # ── fila de avisos ────────────────────────────────────────────────────
     def notify(self, kind: str, text: str, ref: str | None = None) -> int:
         with self._s.transaction() as c:
+            if ref is not None:
+                old = c.execute(
+                    "SELECT id FROM notifications WHERE project_id IS ? AND kind=? AND ref=?",
+                    (current.get().project_id, kind, ref),
+                ).fetchone()
+                if old:
+                    return int(old[0])
             return int(
                 c.execute(
-                    "INSERT INTO notifications(kind, ref, text, created_at) VALUES (?,?,?,?)",
-                    (kind, ref, text, self._now()),
+                    "INSERT INTO notifications(kind, ref, text, created_at, project_id) "
+                    "VALUES (?,?,?,?,?)",
+                    (kind, ref, text, self._now(), current.get().project_id),
                 ).lastrowid
                 or 0
             )
 
     def pending_notifications(self, limit: int = 50) -> list[dict[str, Any]]:
         return _dicts(
-            self._s.query(
+            self._query(
                 "SELECT * FROM notifications WHERE delivered_at IS NULL ORDER BY id LIMIT ?",
                 (limit,),
             )
@@ -340,24 +375,37 @@ class Operations:
         with self._s.transaction() as c:
             return (
                 c.execute(
-                    "UPDATE notifications SET delivered_at=? WHERE id=? AND delivered_at IS NULL",
-                    (self._now(), notification_id),
+                    "UPDATE notifications SET delivered_at=? WHERE id=? AND delivered_at "
+                    "IS NULL AND project_id IS ?",
+                    (self._now(), notification_id, current.get().project_id),
                 ).rowcount
                 > 0
             )
 
     # ── internos (tabela e colunas são constantes deste módulo, nunca entrada) ──
     def _one(self, tabela: str, rid: int) -> dict[str, Any]:
-        rows = self._s.query(f"SELECT * FROM {tabela} WHERE id=?", (rid,))
+        rows = self._query(f"SELECT * FROM {tabela} WHERE id=?", (rid,))
         if not rows:
             raise KeyError(f"{_NOME.get(tabela, tabela)} {rid} não existe")
         return dict(rows[0])
 
     def _update(self, tabela: str, rid: int, sets: str, params: tuple[Any, ...] = ()) -> None:
         with self._s.transaction() as c:
-            if c.execute(f"UPDATE {tabela} SET {sets} WHERE id=?", (*params, rid)).rowcount == 0:
+            if (
+                c.execute(
+                    f"UPDATE {tabela} SET {sets} WHERE id=? AND project_id IS ?",
+                    (*params, rid, current.get().project_id),
+                ).rowcount
+                == 0
+            ):
                 raise KeyError(f"{_NOME.get(tabela, tabela)} {rid} não existe")
 
     def _delete(self, tabela: str, rid: int) -> bool:
         with self._s.transaction() as c:
-            return c.execute(f"DELETE FROM {tabela} WHERE id=?", (rid,)).rowcount > 0
+            return (
+                c.execute(
+                    f"DELETE FROM {tabela} WHERE id=? AND project_id IS ?",
+                    (rid, current.get().project_id),
+                ).rowcount
+                > 0
+            )

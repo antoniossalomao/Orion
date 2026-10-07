@@ -733,15 +733,28 @@ def create_app(
             raise HTTPException(409, str(e)) from None
         return {"id": a.id, "status": a.status.value}
 
+    from .activity_routes import router as activity_router
+
+    app.include_router(activity_router(require_admin))
+
     @app.get("/notifications", dependencies=[Admin])
-    def avisos(state: State) -> list[dict[str, Any]]:
+    def avisos(state: State, project_id: str | None = None) -> list[dict[str, Any]]:
         """Avisos ainda não entregues (lembrete vencido, agendamento disparado). O canal
         entrega e confirma em `/notifications/{id}/ack`."""
-        return state.ops.pending_notifications()
+        from .memory.scope import data_scope
+
+        with data_scope(project_id, include_personal=False):
+            return state.ops.pending_notifications()
 
     @app.post("/notifications/{notification_id}/ack", dependencies=[Admin])
-    def confirmar_aviso(notification_id: int, state: State) -> dict[str, bool]:
-        if not state.ops.ack_notification(notification_id):
+    def confirmar_aviso(
+        notification_id: int, state: State, project_id: str | None = None
+    ) -> dict[str, bool]:
+        from .memory.scope import data_scope
+
+        with data_scope(project_id, include_personal=False):
+            acknowledged = state.ops.ack_notification(notification_id)
+        if not acknowledged:
             raise HTTPException(404, "aviso inexistente ou já confirmado")
         return {"ok": True}
 

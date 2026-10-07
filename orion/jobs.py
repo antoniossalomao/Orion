@@ -28,6 +28,7 @@ from typing import Any
 from .memory import MemoryStore
 from .memory.consolidate import Consolidator
 from .memory.ops import Operations
+from .memory.scope import data_scope
 
 log = logging.getLogger("orion.jobs")
 
@@ -94,8 +95,20 @@ class JobRunner:
         return rel
 
     def _passos_sincronos(self, rel: TickReport) -> None:
-        self._passo(rel, "lembretes", self._lembretes)
-        self._passo(rel, "agendamentos", self._agendamentos)
+        scopes = [None] + [
+            r[0] for r in self.memory.query("SELECT id FROM projects WHERE archived=0")
+        ]
+        for project_id in scopes:
+            with data_scope(project_id, include_personal=False):
+                for name, fn in (
+                    ("lembretes", self._lembretes),
+                    ("agendamentos", self._agendamentos),
+                ):
+                    try:
+                        setattr(rel, name, getattr(rel, name) + fn())
+                    except Exception:
+                        log.exception("job %s falhou", name)
+                        rel.erros.append(f"{name}: falha no processamento")
         if self._devido("embed"):
             self._passo(rel, "embeddings", self.memory.embed_pending)
         if self._vault_dir is not None and self._devido("vault"):
@@ -128,7 +141,7 @@ class JobRunner:
             texto = f"Agendamento: {s['title']}"
             if s["tool"]:
                 texto += f" (ferramenta '{s['tool']}' registrada; não é executada sozinha)"
-            self.ops.notify("agendamento", texto, ref=f"schedule:{s['id']}")
+            self.ops.notify("agendamento", texto, ref=f"schedule:{s['id']}:{s['next_run']}")
             self.ops.mark_schedule_fired(s["id"], agora)
             n += 1
         return n
