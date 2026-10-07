@@ -10,9 +10,9 @@ TOKEN = "sessions-test-token-16chars"
 AUTH = {"Authorization": f"Bearer {TOKEN}"}
 
 
-def app_at(tmp_path, *, gateway=None):
+def app_at(tmp_path, *, token=TOKEN, gateway=None):
     return create_app(
-        Settings(data_dir=tmp_path, admin_token=TOKEN, jobs_enabled=False, _env_file=None),
+        Settings(data_dir=tmp_path, admin_token=token, jobs_enabled=False, _env_file=None),
         gateway_factory=lambda _: gateway,
     )
 

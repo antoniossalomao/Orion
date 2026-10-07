@@ -6,10 +6,11 @@ O contrato público `GET /capabilities` tem `contract_version: 1`, `backend: ori
 `model: ready` indica agente configurado, sem consultar o provedor nem consumir tokens.
 Não garante que uma chamada futura terá sucesso. API disponível e modelo disponível
 são estados separados. `chat` exige agente e token administrativo configurados;
-`sessions`, `approvals` e `notifications` exigem token configurado. O cliente ainda precisa enviar
+`sessions`, `history`, `history_clear`, `export`, `approvals` e `notifications`
+exigem token configurado. O cliente ainda precisa enviar
 seu token para usar essas rotas.
 
-Histórico, exportação, grafo, métricas, integrações, upload, voz, seleção de
+Grafo, métricas, integrações, upload, voz, seleção de
 modelo, plugins, skills e MCP ficam com flag `false` enquanto não implementados.
 O cliente deve tratar flags ausentes como `false`. Os motivos são `not_implemented`,
 `gateway_not_configured` e `auth_not_configured`.
@@ -87,7 +88,7 @@ identidades e permissões por usuário. ID inexistente e ID de outro canal retor
 404. Sessão importada ou arquivada retorna 409 ao tentar ativar, sem mudar a seleção.
 Nenhum ID sintético `legado` nem conexão ao SurrealDB é criado; registros importados usam
 IDs internos, preservam seu canal e aparecem como somente leitura. Ler essas conversas
-pela interface depende do histórico do C04, cuja flag continua desabilitada.
+pela interface está disponível desde C04; a flag exige token administrativo.
 
 SQLite migra automaticamente de v1/v2 para v3, preservando mensagens e escolhendo a sessão
 aberta mais recente de cada canal na primeira migração. `active_sessions` passa a guardar
@@ -97,10 +98,47 @@ Arquivar a conversa ativa limpa a seleção; o próximo pedido começa uma conve
 sem reabrir uma anterior por acidente. A migração não reabre conversas importadas.
 
 Ativar entrega um snapshot limitado com `role`, `content`, timestamp e proveniência das
-mensagens user/assistant. Não implementa `/historico`, paginação de mensagens, exportação,
-limpeza, renomear ou arquivar pela API: esses checklists continuam pendentes.
+mensagens user/assistant. C04 acrescenta histórico, paginação, exportação e limpeza abaixo.
+Renomear e arquivar pela API permanecem no C05.
 
 Validação final C03: 488 testes do backend (15 específicos de sessões), 89 testes
 completos de navegador e 89 testes Node passaram. Pyright, Ruff, formatação e checks
 do legado passaram. O navegador testou o front contra a API nova real, com SQLite e
 gateway temporários/simulados. Log final: `/workspace/artifacts/orion-c03/e2e.log`.
+
+
+## Histórico, exportação e limpeza (C04 — 05/10/2026)
+
+| Operação | Contrato |
+|---|---|
+| `GET /historico` | Parâmetros `canal=web`, `sessao` opcional, `limite=50` (1–100), `antes` (ID exclusivo) e `completo=false`. Retorna `sessao`, `total`, `mensagens`, `mais`, `proximo_antes` e `somente_leitura`. Sem ID, consulta a seleção atual sem criar conversa. |
+| `GET /exportar` | Mesmos `canal`, `sessao` e `completo`; retorna `markdown`, `total_msgs` e `sessao`. Exporta todas as páginas em ordem, com timestamps UTC e proveniência, mesmo quando a interface só carregou a página recente. |
+| `DELETE /historico` | `canal` e `sessao` opcionais. Avança o limite de contexto da sessão; preserva mensagens, fatos, documentos, índices e vetores. Retorna `ok`, `sessao` e `mensagem`. |
+
+As três rotas exigem Bearer administrativo e respeitam o canal. Importadas e arquivadas
+podem ser consultadas/exportadas; limpar devolve 409. ID de outro canal e inexistente
+continuam indistinguíveis (404). Recursos funcionam sem gateway, quando há token.
+Cada mensagem contém `id`, `role`, `content`, `timestamp` ISO UTC e `provenance` nullable.
+O cursor usa ID em vez de timestamp: importações e datas iguais não pulam mensagens.
+Mensagens internas de ferramentas não entram na conversa exportada/renderizada.
+
+A política mantém o registro permanente, como o legado. O limite é persistido em `meta`
+por sessão, sem migração destrutiva, e vale para o próximo contexto do agente e para o
+snapshot de ativação. `completo=true` consulta/exporta também as mensagens anteriores à
+limpeza. Busca de memória e consolidação continuam usando o registro durável; limpar uma
+conversa não equivale a esquecer um fato. Aprovação pendente ou aprovada ainda não consumida
+e resposta em andamento bloqueiam a limpeza com 409, sem esconder ações aguardando decisão.
+
+O front restaura a conversa selecionada ao recarregar, oferece “Carregar mensagens
+anteriores” com preservação da posição e “Ver registro completo” em modo de leitura.
+Timestamps e detalhes de fontes/ferramentas ficam disponíveis no histórico. Exportar e copiar
+usam a conversa visualizada, incluindo importadas, mesmo que outra permaneça ativa no backend.
+O envio fica bloqueado durante carga/troca e em registros de leitura. A confirmação de
+limpeza é vinculada à conversa exibida e não limpa outra se houver troca antes de confirmar.
+404 de uma sessão individual não desabilita o histórico ou a exportação do backend.
+
+Validação C04: 503 testes do backend e 89 testes Node passaram. A suíte completa de
+navegador passou com 92 cenários; após os ajustes finais de apresentação e proteção de
+falta de histórico, os quatro cenários do C04 passaram novamente. Ruff, formatação,
+Pyright, sintaxe JavaScript e checks do legado passaram. Capturas desktop/700 px foram
+inspecionadas. Evidências locais em `/workspace/artifacts/orion-c04/`.

@@ -24,6 +24,7 @@ from fastapi import (
     FastAPI,
     Header,
     HTTPException,
+    Query,
     Request,
     Response,
     WebSocket,
@@ -52,6 +53,7 @@ from .memory import MemoryStore
 from .memory.consolidate import Consolidator
 from .memory.embedders import GeminiEmbedder
 from .memory.ops import Operations
+from .memory.store import Message, Session
 from .painel import Painel, texto_do_painel
 from .policy import ApprovalStore, PathGuard, PolicyEngine, redact
 from .policy.paths import default_safe_roots
@@ -459,7 +461,7 @@ def _item_da_conversa(memory: MemoryStore, s: Any, ativa_id: str | None) -> dict
 def _mensagens(memory: MemoryStore, sid: str, limite: int = 80) -> list[dict[str, Any]]:
     return [
         {"role": m.role, "content": m.text, "timestamp": _iso(m.created_at)}
-        for m in memory.history(sid, limite)
+        for m in memory.context_history(sid, limite)
         if m.role in ("user", "assistant")
     ]
 
@@ -978,14 +980,119 @@ def create_app(
         state.memory.activate_session(s.id)
         return {"ok": True, "sessao_id": s.id, "mensagens": _mensagens(state.memory, s.id)}
 
-    @app.get("/historico", dependencies=[Admin])
-    def historico(state: State, sessao: str, canal: str = "web") -> dict[str, Any]:
+    def conversa(state: AppState, canal: str, sessao: str | None) -> Session | None:
+        """A conversa pedida (visível neste canal) ou, sem `sessao`, a selecionada do canal."""
         _canal_valido(canal)
-        s = state.memory.session_visible(sessao, canal)
-        if s is None:
+        if not sessao:
+            return state.memory.selected_session(canal)
+        session = state.memory.session_visible(sessao, canal)
+        if session is None:
             raise HTTPException(404, "conversa não encontrada")
-        msgs = _mensagens(state.memory, s.id)
-        return {"total": len(msgs), "mensagens": msgs}
+        return session
+
+    def mensagem_json(m: Message) -> dict[str, Any]:
+        return {
+            "id": m.id,
+            "role": m.role,
+            "content": m.text,
+            "timestamp": _iso(m.created_at),
+            "provenance": m.provenance,
+        }
+
+    @app.get("/historico", dependencies=[Admin])
+    def historico(
+        state: State,
+        canal: str = "web",
+        sessao: Annotated[str | None, Query(max_length=64)] = None,
+        limite: Annotated[int, Query(ge=1, le=100)] = 50,
+        antes: Annotated[int | None, Query(ge=1)] = None,
+        completo: bool = False,
+    ) -> dict[str, Any]:
+        """Página por ID (do fim para o começo). Por padrão respeita o limite de contexto de
+        "limpar"; `completo=true` mostra tudo (a limpeza nunca apaga mensagens)."""
+        session = conversa(state, canal, sessao)
+        messages, total, cursor = (
+            state.memory.history_page(session.id, limit=limite, before=antes, complete=completo)
+            if session
+            else ([], 0, None)
+        )
+        return {
+            "sessao": session.id if session else None,
+            "total": total,
+            "mensagens": [mensagem_json(m) for m in messages],
+            "mais": cursor is not None,
+            "proximo_antes": cursor,
+            "somente_leitura": bool(session and session.archived),
+        }
+
+    @app.delete("/historico", dependencies=[Admin])
+    async def limpar_historico(
+        state: State,
+        canal: str = "web",
+        sessao: Annotated[str | None, Query(max_length=64)] = None,
+    ) -> dict[str, Any]:
+        session = conversa(state, canal, sessao)
+        if session:
+            if session.archived:
+                raise HTTPException(409, "conversa arquivada: só leitura")
+            try:
+                if state.agent:
+                    await state.agent.clear_history(session.id)
+                else:
+                    if state.policy.approvals.unresolved(session.id):
+                        raise ValueError("resolva as aprovações desta conversa antes de limpar")
+                    state.memory.clear_context(session.id)
+            except ValueError as e:
+                raise HTTPException(409, str(e)) from None
+        return {
+            "ok": True,
+            "sessao": session.id if session else None,
+            "mensagem": "Contexto limpo; registro de mensagens e memória preservados.",
+        }
+
+    @app.get("/exportar", dependencies=[Admin])
+    def exportar(
+        state: State,
+        canal: str = "web",
+        sessao: Annotated[str | None, Query(max_length=64)] = None,
+        completo: bool = False,
+    ) -> dict[str, Any]:
+        session = conversa(state, canal, sessao)
+        lines = ["# Conversa com o Orion", ""]
+        total = 0
+        if session:
+            # Lock compartilhado do store: a exportação lê um snapshot consistente.
+            with state.memory.transaction():
+                before = None
+                pages = []
+                while True:
+                    messages, total, before = state.memory.history_page(
+                        session.id, limit=100, before=before, complete=completo
+                    )
+                    pages.append(messages)
+                    if before is None:
+                        break
+                for page in reversed(pages):
+                    for m in page:
+                        autor = "Antônio" if m.role == "user" else "Orion"
+                        lines.extend([f"## {autor} — {_iso(m.created_at)}", "", m.text, ""])
+                        if m.provenance:
+                            # JSON em bloco indentado: até texto com crases mantém o bloco literal.
+                            lines.extend(
+                                ["Proveniência:", ""]
+                                + [
+                                    "    " + linha
+                                    for linha in json.dumps(
+                                        m.provenance, ensure_ascii=False, indent=2
+                                    ).splitlines()
+                                ]
+                                + [""]
+                            )
+        return {
+            "markdown": "\n".join(lines),
+            "total_msgs": total,
+            "sessao": session.id if session else None,
+        }
 
     @app.patch("/sessoes/{sessao_id}", dependencies=[Admin])
     def ajustar_conversa(

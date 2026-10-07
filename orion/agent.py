@@ -118,6 +118,15 @@ class Agent:
             async for ev in self._turn(session, text, images=images):
                 yield ev
 
+    async def clear_history(self, session_id: str) -> None:
+        lock = self._lock(session_id)
+        if lock.locked():
+            raise ValueError("espere a resposta terminar antes de limpar")
+        async with lock:
+            if self.policy.approvals.unresolved(session_id):
+                raise ValueError("resolva as aprovações desta conversa antes de limpar")
+            self.memory.clear_context(session_id)
+
     async def resume(self, channel: str, approval_id: str) -> AsyncIterator[AgentEvent]:
         """Depois que um canal autenticado aprovou: executa a ação e relata."""
         a = self.policy.approvals.get(approval_id)
@@ -333,6 +342,6 @@ class Agent:
         # nota do sistema vira fala de "user": nem todo provedor aceita system no meio
         msgs.extend(
             {"role": "assistant" if m.role == "assistant" else "user", "content": m.text}
-            for m in self.memory.history(session.id, self._history)
+            for m in self.memory.context_history(session.id, self._history)
         )
         return msgs

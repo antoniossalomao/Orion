@@ -8,9 +8,6 @@ from . import __version__
 
 # Recursos de interface que ainda não têm endpoint no backend novo.
 PENDING_FEATURES = (
-    "history",
-    "history_clear",
-    "export",
     "memory_graph",
     "memory_categories",
     "metrics",
@@ -50,6 +47,9 @@ def describe(*, agent_ready: bool, admin_configured: bool) -> Capabilities:
     features.update(
         chat=agent_ready and admin_configured,
         sessions=admin_configured,
+        history=admin_configured,
+        history_clear=admin_configured,
+        export=admin_configured,
         approvals=admin_configured,
         notifications=admin_configured,
     )
@@ -61,6 +61,9 @@ def describe(*, agent_ready: bool, admin_configured: bool) -> Capabilities:
     if not admin_configured:
         unavailable.update(
             sessions="auth_not_configured",
+            history="auth_not_configured",
+            history_clear="auth_not_configured",
+            export="auth_not_configured",
             approvals="auth_not_configured",
             notifications="auth_not_configured",
         )
