@@ -1,6 +1,6 @@
 # Orion — referências de produto e plano de extensões
 
-Pesquisa em 04/10/2026. **Plano de implementação com execuções registradas até C41** (registro na seção 9).
+Pesquisa em 04/10/2026. **Plano de implementação com execuções registradas até C42** (registro na seção 9).
 Plugins e skills seguem em implementação. MCP já tem prova com servidores controlados;
 nenhuma conta pessoal ou servidor externo do usuário foi conectado.
 Complementa [ORION_FRONT.md](ORION_FRONT.md), as fases 4 e 6 do
@@ -339,8 +339,8 @@ como fundação do recurso novo. Exportar leitura primeiro, com identidade e esc
 
 ## 8. Próximo trabalho concreto
 
-As execuções até C41 estão registradas. Estados e evidências por checklist; C41 com validação real pendente.
-Continuar pelo **C42: Orion Agenda e revisão de propostas de evento**. O usuário autorizou os checklists restantes,
+As execuções até C42 estão registradas. Estados e evidências por checklist; C41 com validação real pendente.
+Continuar pelo **C43: Orion Memória e Vault**. O usuário autorizou os checklists restantes,
 com commits, validação, vault e push. Fixtures não substituem prova de conta ou desktop reais.
 
 Decisões recomendadas para o MVP: manter Python/FastAPI e o front atual; padrão Agent Skills;
@@ -416,10 +416,10 @@ a integração real de Pesquisa fica registrada separadamente se ainda não tive
 
 ### Registro para retomar no próximo dia
 
-- Último checklist concluído: **C40**, commit `ab406ec`; entregas anteriores registradas abaixo.
-- Próximo commit sugerido: **C42 — Orion Agenda e revisão de propostas de evento**.
+- Último checklist concluído: **C42**, commit `6f7473b`; conferir as etapas parciais explicitadas abaixo.
+- Próximo commit sugerido: **C43 — Orion Memória e Vault**.
 - Dependências/impedimentos: Estados e evidências por checklist; C41 com validação real pendente. Windows/pywebview real e contas externas ainda precisam de evidência específica.
-- Evidências: ver os registros C00–C41 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
+- Evidências: ver os registros C00–C42 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
 - Atualizações: registrar aqui o ID concluído, hash/link e o próximo ID; não preencher com
   hash fictício nem tratar evidência de mock como teste contra conta real.
 
@@ -1118,6 +1118,27 @@ reduz essa concessão nem transfere seus tokens ao cofre do Orion. Nenhuma agend
 acessada. Esses limites estão em ORION_AGENDA.md e não impedem preparar pacotes/fixtures locais.
 
 
+### Execução C42 — Orion Agenda e confirmação de evento
+
+Commit de implementação: `6f7473b`. Pacote Orion Agenda 1.0.0 com planejar-dia e
+preparar-reuniao. O modelo consulta e prepara propostas, sem ferramenta de criação em seu
+catálogo. A confirmação acontece na Agenda, após revisão de conta/calendário/horários/fuso,
+título, descrição e local. Proposta imutável; sem participantes, sendUpdates=none e eventId
+estável. Decisão vinculada a conteúdo, sessão/projeto/revisão, configuração, geração da conexão
+e revisão da ferramenta create-event; origem/escopo/revisão alterados impedem envio.
+Rejeição não chama o conector. Timeout/cancelamento grava unknown e impede replay.
+
+Evidências: rodada ampla 638 backend passaram (29,01 s); após reforço de snapshot, 39 testes
+de agente/projetos/pacotes passaram (4,47 s) e 25 finais de agente/eventos passaram (2,18 s).
+91 Node, Ruff/format/Pyright verdes. Dois fluxos Chromium evento/MVP passaram (20,99 s);
+a conferência visual final da Agenda a 700 px e axe completo passou (10,52 s), screenshot
+inspecionado em artifacts/orion-c42-agenda-700.png. Fixture prova proposta/rejeição sem efeitos,
+criação uma vez, revisão exata, conversa/reload preservados, timeout sem retry, geração
+revogada e schema alterado recusados. Somente conector controlado recebeu create-event.
+A prova com Google pessoal/escopos reais permanece pendente no C41/C46; não houve convites,
+login ou criação de evento real pelo assistente nesta execução.
+
+
 ### C00 — fix(ui): estabilizar conexão e consolidar o refinamento visual
 
 Etapa: **A** · Depende de: **base atual do repositório** · Estado: **concluído**.
@@ -1540,13 +1561,13 @@ Etapa: **G** · Depende de: **C40, C32** · Estado: **parcial — validação re
 
 ### C42 — feat(plugins): adicionar Orion Agenda com revisão de eventos
 
-Etapa: **G** · Depende de: **C41, C29** · Estado: **planejado**.
+Etapa: **G** · Depende de: **C41, C29** · Estado: **concluído**.
 
-- [ ] Empacotar planejar-dia e preparar-reuniao com instruções e capabilities mínimas.
-- [ ] Separar consulta de proposta/criação de evento e mostrar o que será enviado.
-- [ ] Implementar criação apenas por operação explicitamente revisada sob política e aprovação de produto.
-- [ ] **Validar:** Planejar dia e propor evento; rejeitar aprovação não deve criar nada, e revogar conta não pode perder a conversa.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Empacotar planejar-dia e preparar-reuniao com instruções e capabilities mínimas.
+- [x] Separar consulta de proposta/criação de evento e mostrar o que será enviado.
+- [x] Implementar criação apenas por operação explicitamente revisada sob política e aprovação de produto.
+- [x] **Validar:** Planejar dia e propor evento; rejeitar aprovação não deve criar nada, e revogar conta não pode perder a conversa.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C43 — feat(plugins): adicionar Orion Memória e Vault
 
