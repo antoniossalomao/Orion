@@ -165,17 +165,25 @@ def novo_backend(tmp_path):
 
     servidores = []
 
-    def criar(*, gateway=True, auth=True, approval=False, skills=None):
+    def criar(
+        *,
+        gateway=True,
+        auth=True,
+        approval=False,
+        skills=None,
+        gateway_override=None,
+        data_dir=None,
+    ):
         porta = _porta_livre()
         roteiros = (
             [pede(chama("esquecer_fato", id=1)), fala("Aguardando você."), fala("Esqueci.")]
             if approval
             else [fala("Resposta do backend novo.")]
         )
-        gw = FakeGateway(*roteiros)
+        gw = gateway_override if gateway_override is not None else FakeGateway(*roteiros)
         app = create_app(
             Settings(
-                data_dir=tmp_path / str(porta),
+                data_dir=data_dir if data_dir is not None else tmp_path / str(porta),
                 admin_token=TOKEN if auth else "",
                 jobs_enabled=False,
                 skill_sources=skills or [],
@@ -197,6 +205,8 @@ def novo_backend(tmp_path):
         )
         thread = threading.Thread(target=server.run, daemon=True)
         thread.start()
+        app.state.e2e_server = server
+        app.state.e2e_thread = thread
         servidores.append((server, thread))
         url = f"http://127.0.0.1:{porta}"
         for _ in range(100):

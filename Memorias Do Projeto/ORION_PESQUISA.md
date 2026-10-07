@@ -67,3 +67,22 @@ confronto de evidências e abstenção sem suporte. Trecho de busca não prova u
 Fixtures passam fontes divergentes e resultado vazio ao gateway simulado; isso prova
 transporte/escopo e limites do fluxo, **não qualidade factual de um modelo real**.
 Pedido sem intenção de pesquisa não seleciona as skills na fixture de gatilho negativo.
+
+## Validação local completa — C30
+
+Prepare as dependências com `uv sync --group dev --group e2e` e, para axe, `npm ci`
+em `tests/front_e2e`. Execute:
+
+```sh
+ORION_E2E_CHROME=/caminho/do/chromium uv run pytest tests/front_e2e/test_extensions_mvp.py -q
+```
+
+O ensaio sobe a API FastAPI verdadeira, instala um ZIP pela UI, revisa confiança/
+capacidades, inicia um processo MCP pelo SDK oficial e faz busca/leitura de fonte na
+fixture. Usa gateway simulado, sem chamada paga de modelo ou conta externa. Fonte e
+revisão aparecem no chat; desativar encerra a conexão; update/rollback são revisados pela
+UI; parar/recriar o servidor com o mesmo banco recupera conversa e proveniência.
+
+A fixture não é um serviço público Brave nem uma conta pessoal. Instalação Windows/
+pywebview e credenciais externas continuam pendentes de ambiente/autorização específicos.
+O primeiro MVP está em branch para revisão; não há merge automático em main.
