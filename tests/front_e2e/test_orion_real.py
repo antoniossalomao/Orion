@@ -281,7 +281,7 @@ def test_conversas_listar_renomear_fixar_e_apagar_no_orion_real(navegador, orion
         ).to_have_count(0)
 
         # apagar esconde: as mensagens continuam no banco
-        banco = next((tmp_path / "dados").glob("*.db"))
+        banco = tmp_path / "dados" / "orion.db"  # (auth.db fica ao lado: não é o da memória)
         c = sqlite3.connect(banco)
         try:
             deleted, n = c.execute(

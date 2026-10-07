@@ -1024,6 +1024,8 @@ def test_painel_pela_paleta_e_por_comando_de_barra(abrir):
     page.keyboard.press("Enter")
     expect(page.locator("html")).to_have_attribute("data-view", "painel")
     page.keyboard.press("Alt+2")
+    # `enviar` escolhe o campo pela tela atual: sem esperar a troca de tela, ele escreve no campo da home
+    expect(page.locator("html")).to_have_attribute("data-view", "chat")
     enviar(page, "/painel")
     expect(page.locator("html")).to_have_attribute("data-view", "painel")
 
