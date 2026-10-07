@@ -91,6 +91,9 @@ def test_organizar_raizes_e_projeto(guard, tmp_path):
         ".netrc",
         ".git-credentials",
         "secrets.json",
+        "dados/auth.db",  # hash da senha do login
+        "dados/auth.db-wal",
+        "dados/mcp.json",  # programas que o Orion sobe sozinho
     ],
 )
 def test_ler_segredo_ou_chave_pede_confirmacao(guard, tmp_path, rel):
@@ -100,7 +103,8 @@ def test_ler_segredo_ou_chave_pede_confirmacao(guard, tmp_path, rel):
 @pytest.mark.parametrize(
     "rel",
     ["Documents/nota.md", "Orion/README.md", "Orion/orion/policy/engine.py", ".env.example",
-     "Orion/.env.sample", "Orion/.env.template", "pasta/environment.md", "projeto/chave-de-acesso.txt"],
+     "Orion/.env.sample", "Orion/.env.template", "pasta/environment.md", "projeto/chave-de-acesso.txt",
+     "Orion/mcp.example.json"],
 )  # fmt: skip
 def test_ler_arquivo_comum_nao_pede_confirmacao(guard, tmp_path, rel):
     assert guard.check_read(str(tmp_path / rel)) is None, rel
@@ -113,3 +117,14 @@ def test_leitura_vazia_pede_confirmacao_e_symlink_para_segredo_nao_escapa(guard,
         link = tmp_path / "Documents" / "inocente.txt"
         os.symlink(tmp_path / "Documents" / ".env", link)
         assert guard.check_read(str(link))  # o destino é .env: resolve antes de comparar
+
+
+def test_escrever_mcp_json_ou_auth_db_fora_das_pastas_ate_nas_seguras_pede_confirmacao(
+    guard, tmp_path
+):
+    seguro = tmp_path / "Documents"
+    assert guard.check_write(str(seguro / "nota.txt")) is None
+    for nome in ("mcp.json", "auth.db", ".mcp.json"):
+        assert guard.check_write(str(seguro / nome)), (
+            nome
+        )  # nem na pasta segura: muda o que o Orion executa

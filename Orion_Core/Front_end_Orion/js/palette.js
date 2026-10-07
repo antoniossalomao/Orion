@@ -23,8 +23,10 @@
             { g: 'ir', rotulo: 'Memória', icone: 'memory', atalho: ['Alt', '3'], exec: ir('memoria'), chaves: 'grafo' },
             { g: 'ir', rotulo: 'Integrações', icone: 'plug', atalho: ['Alt', '4'], exec: ir('integracoes') },
             { g: 'ir', rotulo: 'Configurações', icone: 'sliders', atalho: ['Alt', '5'], exec: ir('config'), chaves: 'preferências ajustes' },
+            { g: 'ir', rotulo: 'Painel', icone: 'gauge', atalho: ['Alt', '6'], exec: ir('painel'), chaves: 'status cota modelos aprovações política auditoria' },
             { g: 'acao', rotulo: 'Nova conversa', icone: 'plus', atalho: ['Ctrl', '⇧', 'O'], exec: () => O.sidebar.nova() },
             { g: 'acao', rotulo: 'Alternar barra lateral', icone: 'panel', atalho: ['Ctrl', 'B'], exec: () => O.sidebar.alternar(), chaves: 'recolher menu' },
+            { g: 'acao', rotulo: O.fala?.gravando() ? 'Enviar a fala' : 'Falar com o Orion', icone: 'mic', exec: () => O.fala.alternar(), chaves: 'microfone falar gravar voz ditar' },
             { g: 'acao', rotulo: O.voz?.ativa() ? 'Desligar voz ao vivo' : 'Ligar voz ao vivo', icone: 'wave', exec: () => O.voz.alternar(), chaves: 'microfone falar' },
             { g: 'acao', rotulo: prefs.get('tts_mudo') ? 'Ligar resposta por voz' : 'Desligar resposta por voz', icone: 'speaker', exec: () => A.alternarTts(), chaves: 'mudo tts som' },
             { g: 'acao', rotulo: 'Buscar na conversa', icone: 'search', atalho: ['Ctrl', 'F'], exec: () => O.busca.abrir() },
@@ -45,6 +47,14 @@
         // ação esperando o seu aval: sobe para o topo da lista
         if (O.chat.pendentes().length) {
             c.unshift({ g: 'acao', rotulo: `Revisar ação pendente (${O.chat.pendentes().length})`, icone: 'shield', exec: () => O.chat.irParaPendente(), chaves: 'aprovar aprovação' });
+        }
+        const atual = O.sidebar.ativa();
+        if (atual && !atual.somente_leitura) {
+            c.push(
+                { g: 'acao', rotulo: 'Renomear conversa atual', icone: 'edit', exec: () => O.sidebar.renomear(atual), chaves: 'título nome' },
+                { g: 'acao', rotulo: atual.favorita ? 'Desafixar conversa atual' : 'Fixar conversa atual', icone: 'pin', exec: () => O.sidebar.alternarFixa(atual), chaves: 'favoritar topo' },
+                { g: 'acao', rotulo: 'Apagar conversa atual', icone: 'trash', exec: () => O.sidebar.apagar(atual), chaves: 'excluir remover' },
+            );
         }
         return c;
     }

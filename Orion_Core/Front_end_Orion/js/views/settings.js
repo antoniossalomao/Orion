@@ -7,7 +7,7 @@
     const { $, $$, el, bus, ui, api, prefs } = O;
     const U = O.util, CH = O.charts;
 
-    const MAX_LAT = 24;
+    const MAX_LAT = 24, MIN_PONTOS = 3;
     let latencias = [], timers = [], ativo = false;
 
     /* ── aparência, voz, modelo ────────────────────────────────────────── */
@@ -69,6 +69,29 @@
         });
         token.addEventListener('change', () => prefs.set('token', token.value.trim()));
 
+        $('#cfg-sessao-btn').addEventListener('click', async e => {
+            const b = e.currentTarget;
+            b.disabled = true;
+            try { if (b.dataset.acao === 'entrar') await O.login.entrar({ forcar: true }); else await O.login.sair(); }
+            finally { b.disabled = false; sessao(); }
+        });
+        $('#cfg-senha').addEventListener('submit', async e => {
+            e.preventDefault();
+            const atual = $('#cfg-senha-atual'), nova = $('#cfg-senha-nova'), out = $('#cfg-senha-out'), b = $('#cfg-senha-btn');
+            if (!atual.value || !nova.value) { out.textContent = 'Preencha a senha atual e a nova.'; return; }
+            b.disabled = true;
+            out.textContent = 'Trocando…';
+            try {
+                await api.trocarSenha(atual.value, nova.value);
+                atual.value = nova.value = '';
+                out.textContent = 'Senha trocada.';
+                ui.toast('Senha trocada.', { tipo: 'ok', ms: 2400 });
+            } catch (err) { out.textContent = err.message; }
+            finally { b.disabled = false; sessao(); }
+        });
+        bus.on('auth:ok', sessao);
+        bus.on('auth:fim', sessao);
+
         $('#cfg-test').addEventListener('click', async e => {
             const b = e.currentTarget;
             b.disabled = true;
@@ -85,11 +108,28 @@
         });
     }
 
+    /** linha "Sessão" (só quando este cérebro tem login com senha e não se usa token) */
+    async function sessao() {
+        const linha = $('#cfg-sessao');
+        const st = await api.authStatus();
+        if (!st?.configured || api.token()) { linha.hidden = true; return; }
+        const dentro = !!st.authenticated;
+        linha.hidden = false;
+        $('#cfg-senha').hidden = !dentro;
+        $('#cfg-senha-aviso').textContent = st.default_password
+            ? 'Esta ainda é a senha de fábrica: troque agora, ela está num repositório público.'
+            : 'Digite a senha atual e a nova.';
+        $('#cfg-sessao-desc').textContent = dentro ? 'Você está logado neste navegador.' : 'Você ainda não entrou.';
+        const b = $('#cfg-sessao-btn');
+        b.textContent = dentro ? 'Sair' : 'Entrar';
+        b.dataset.acao = dentro ? 'sair' : 'entrar';
+    }
+
     /* ── atividade ─────────────────────────────────────────────────────── */
     const medidor = (nome, pct) => {
         const sev = CH.severidade(pct);
         const v = pct == null ? null : Math.max(0, Math.min(100, +pct));
-        return el('div', { class: 'meter', dataset: { sev }, role: v == null ? 'group' : 'meter', 'aria-label': nome, 'aria-valuemin': v == null ? null : '0', 'aria-valuemax': v == null ? null : '100', 'aria-valuenow': v == null ? null : String(Math.round(v)) },
+        return el('div', { class: 'meter', dataset: { sev }, role: 'meter', 'aria-label': nome, 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': v == null ? null : String(Math.round(v)) },
             el('span', { text: nome }), el('span', { class: 'meter-track' }, el('span', { class: 'meter-fill', style: `width:${v ?? 0}%` })),
             el('span', { class: 'meter-val', text: U.fmtPct(pct) }));
     };
@@ -107,7 +147,14 @@
         const svg = $('#a-spark');
         svg.querySelector('.line').setAttribute('d', s.linha);
         svg.querySelector('.area').setAttribute('d', s.area);
-        svg.setAttribute('aria-label', latencias.length > 1 ? `Latência recente: de ${U.fmtMs(s.min)} a ${U.fmtMs(s.max)}` : 'Latência recente: ainda sem pontos suficientes');
+        // com 1–2 pontos a linha é uma rampa/traço que não diz nada: só desenha a partir de 3 medições
+        const legenda = $('#a-spark-legenda');
+        const pronto = s.n >= MIN_PONTOS;
+        svg.toggleAttribute('hidden', !pronto);   // SVGElement não tem a propriedade .hidden
+        legenda.textContent = pronto
+            ? `Últimas ${s.n} medições · mín ${U.fmtMs(s.min)} · máx ${U.fmtMs(s.max)}`
+            : `Coletando medições (${s.n} de ${MIN_PONTOS}) para o gráfico.`;
+        svg.setAttribute('aria-label', pronto ? `Latência recente: de ${U.fmtMs(s.min)} a ${U.fmtMs(s.max)}` : 'Latência recente: ainda sem pontos suficientes');
     }
 
     async function cascata() {
@@ -115,7 +162,7 @@
         try { s = await api.stats(); } catch (_) { /* sem estatísticas */ }
         $('#a-conversas').textContent = s ? U.fmtNum(s.total_chats) : '—';
         const lista = $('#a-tiers');
-        if (!s?.tiers) { lista.replaceChildren(el('p', { class: 'row-desc', text: api.suporta('stats') ? 'Sem estatísticas do cérebro agora.' : 'Estatísticas ainda indisponíveis neste backend.' })); return; }
+        if (!s?.tiers) { lista.replaceChildren(el('p', { class: 'row-desc', text: 'Sem estatísticas do cérebro agora.' })); return; }
         const dist = CH.barras(s.distribuicao_pct || {});
         lista.replaceChildren(...dist.map(d => {
             const t = s.tiers[d.nome] || {};
@@ -133,11 +180,6 @@
             el('div', { class: 'row-main', style: 'display:flex;align-items:center;gap:.7rem' }, el('span', { class: 'status-dot', dataset: { state: ok ? 'ok' : 'danger' }, 'aria-hidden': 'true' }), el('span', { class: 'row-title', text: nome })),
             el('span', { class: 'mono', text: texto }));
         const caixa = $('#a-servicos');
-        if (h?.components) {
-            caixa.replaceChildren(linha('Memória', h.components.memory === 'ok', h.components.memory), linha('Modelo', !!h.components.gateway, h.components.gateway ? 'configurado' : 'indisponível'));
-            $('#a-vetores').textContent = '—';
-            return;
-        }
         if (!h) { caixa.replaceChildren(linha('Qdrant', false, 'sem resposta'), linha('SurrealDB', false, 'sem resposta')); $('#a-vetores').textContent = '—'; return; }
         caixa.replaceChildren(
             linha('Qdrant', !!h.qdrant?.ok, h.qdrant?.ok ? U.fmtMs(h.qdrant.latencia_ms) : 'fora do ar'),
@@ -167,7 +209,7 @@
     async function sobre() {
         $('#sobre-front').textContent = `v${O.versao}`;
         $('#sobre-modo').textContent = `${O.desktop() ? 'App desktop (pywebview)' : 'Navegador'} · ${api.base()}`;
-        try { const r = api.estado().backend === 'orion' ? { servico: 'Orion', versao: api.estado().app_version } : api.estado().backend === 'legacy' ? await api.req('/', { timeout: 2500 }) : null; $('#sobre-cerebro').textContent = r?.versao ? `${r.servico || 'cérebro'} ${r.versao}` : (r?.servico || 'conectado'); }
+        try { const r = await api.req('/', { timeout: 2500 }); $('#sobre-cerebro').textContent = r?.versao ? `${r.servico || 'cérebro'} ${r.versao}` : (r?.servico || 'conectado'); }
         catch (_) { $('#sobre-cerebro').textContent = 'sem resposta'; }
     }
 
@@ -204,12 +246,9 @@
         },
         ativar(opcoes = {}) {
             ativo = true;
-            let aviso = $('#activity-capabilities');
-            if (!api.suporta('metrics') && api.estado().api === 'online') {
-                if (!aviso) { aviso = el('p', { id: 'activity-capabilities', class: 'banner banner-warn', role: 'status', text: 'Métricas de atividade ainda indisponíveis neste backend.' }); $('#cfg-atividade').append(aviso); }
-            } else aviso?.remove();
             iniciarAtividade();
             sobre();
+            sessao();
             montarAtalhos();
             if (opcoes.secao) requestAnimationFrame(() => irPara(opcoes.secao));
         },

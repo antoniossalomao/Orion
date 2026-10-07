@@ -7,14 +7,14 @@
 ## 1. Por que existe
 
 O legado só roda no PC atual (GPU, Qdrant, SurrealDB). O notebook de 8 GB não roda nada disso, e a
-reescrita (`orion/`) já tem o canal Telegram novo, mas ainda não tem login, ferramentas MCP nem modelos reais ligados.
+reescrita (`orion/`) já tem login, o canal Telegram novo (texto, voz e foto), o cliente MCP e as ferramentas do computador, mas ainda não tem modelos reais, servidores MCP nem o Tailscale ligados.
 Vender o PC é o **ponto sem volta**: depois dele, voltar ao legado é reconstruir, não religar. Por isso
 a venda só acontece com os dois blocos abaixo cumpridos.
 
 | Bloco | O que garante | Situação em 03/10/2026 |
 |---|---|---|
 | **A. Dados salvos e provados** | Nada do que importa fica só no PC | Falta executar (é no PC); a verificação existe: `orion verify-export` |
-| **B. Orion mínimo no notebook** | Há assistente depois da venda | Falta ligar: modelos reais, canal móvel, ferramentas mínimas |
+| **B. Orion mínimo no notebook** | Há assistente depois da venda | Código pronto; falta ligar (é seu): modelos reais, bot, Tailscale, servidores MCP |
 
 Data da venda: ______ **(você)**. Se o bloco B não ficar pronto antes dela, as saídas são adiar a venda
 ou passar um período só com o export guardado e sem assistente; a segunda não é recomendada.
@@ -51,9 +51,9 @@ Critérios para considerar que o legado pode sair:
 | 3 | Modelos reais respondem | OmniRoute no ar; `POST /chat` segue respondendo com um provedor derrubado de propósito | **(você)** subir o OmniRoute |
 | 4 | Canal no celular | Canal Telegram novo (`orion/channels/telegram.py`): `ORION_TELEGRAM_TOKEN` + `ORION_TELEGRAM_ALLOWED_USERS` + gateway; mande uma mensagem, aprove uma ação pelo botão e receba um lembrete. **O bot do legado não serve:** ele não envia o token do `/chat` novo (recebe 401). Pare o legado antes (o Telegram recusa dois clientes no mesmo token: erro 409) | código pronto, testado só com API falsa; **(você)** criar/usar o bot e rodar no notebook |
 | 5 | Início automático | `uv run orion autostart` mostra o arquivo do seu sistema; `--install` grava (não ativa sozinho) e imprime o comando de ligar | código pronto; **(você)** ativar no notebook |
-| 6 | Acesso de fora sem expor porta | Tailscale; `ORION_ALLOWED_HOSTS` com o nome do notebook **exige** `ORION_ADMIN_TOKEN` (a configuração recusa subir sem) | código pronto; **(você)** instalar Tailscale |
+| 6 | Login e acesso de fora sem expor porta | `uv run orion set-password`; Tailscale com `ORION_ALLOWED_HOSTS` do notebook (o app **só sobe com login**: senha ou token); passo a passo em [ORION_OPERACAO.md](ORION_OPERACAO.md) | código pronto; **(você)** definir a senha e instalar o Tailscale |
 | 7 | Backup restaurável | `ORION_BACKUP_DIR` apontando para o iCloud/OneDrive; um backup restaurado com `orion restore` num banco limpo | código pronto |
-| 8 | Ferramentas essenciais | Lembretes, tarefas e memória já existem; `ORION_DESKTOP_TOOLS=true` liga executar comando, ler e listar arquivos (ação fora da leitura provada pede aprovação; no Windows só o argv foi testado); `delegar` com as CLIs reais; o resto da [triagem](ORION_FERRAMENTAS.md) que você exigir antes da venda: ______ **(você)** | parcial |
+| 8 | Ferramentas essenciais | Lembretes, tarefas e memória já existem; `ORION_DESKTOP_TOOLS=true` liga comando, arquivos, documentos, área de transferência, notificação, abrir app, Git, saúde, processos e vigilância (ação fora da leitura provada pede aprovação; no Windows e no macOS só o argv foi testado); `ORION_WEB_TOOLS=true` liga web; `delegar` com as CLIs reais; **e-mail, agenda e navegador dependem de você configurar servidores MCP** (`mcp.json`, `orion mcp-check`); o resto da [triagem](ORION_FERRAMENTAS.md) que você exigir antes da venda: ______ **(você)** | código pronto; falta ligar |
 
 Período em paralelo antes de vender: proposta de **7 dias** usando só o Orion novo no dia a dia, com o
 legado desligado mas intacto. Os dois não sobem juntos (a porta 8000 é a mesma; use `ORION_PORT`).
@@ -81,4 +81,4 @@ legado desligado mas intacto. Os dois não sobem juntos (a porta 8000 é a mesma
 | Nome(s) antigo(s) do assistente | Os que o `verify-export` listar em "atores que viram system" |
 | Consolidar o histórico importado em fatos | Depois da venda, em lotes (consome a cota gratuita do modelo); por padrão a consolidação ignora o canal `legado` |
 | Onde guardar os backups | Pasta sincronizada do iCloud/OneDrive (`ORION_BACKUP_DIR`) |
-| Agendamento que executa ferramenta sozinho | Não por enquanto: o disparo só avisa (regra 18 do [ORION_REGRAS.md](ORION_REGRAS.md)) |
+| Agendamento que executa ferramenta sozinho | Não por enquanto: o disparo só avisa (regra 18 do [ORION_REGRAS.md](ORION_REGRAS.md)). Única exceção: a leitura da agenda no briefing (regra 37) |

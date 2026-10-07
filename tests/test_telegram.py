@@ -31,9 +31,17 @@ class FakeTelegram:
         self.lotes: list[list[dict]] = []
         self.falhas: dict[str, list] = {}  # método -> fila de (status, descrição) ou "rede"
         self._id = 100
+        self.arquivos: dict[str, bytes] = {}  # file_id -> conteúdo (getFile + download)
 
     async def __call__(self, req: httpx.Request) -> httpx.Response:
         assert f"/bot{TOKEN}/" in req.url.path
+        if req.url.path.startswith("/file/"):  # download: /file/bot<TOKEN>/<file_path>
+            caminho = req.url.path.split(f"/bot{TOKEN}/", 1)[1]
+            self.chamadas.append(("download", {"file_path": caminho}))
+            for fid, conteudo in self.arquivos.items():
+                if caminho == f"arquivos/{fid}":
+                    return httpx.Response(200, content=conteudo)
+            return httpx.Response(404)
         metodo = req.url.path.rsplit("/", 1)[-1]
         corpo = json.loads(req.content) if req.content else {}
         self.chamadas.append((metodo, corpo))
@@ -43,6 +51,20 @@ class FakeTelegram:
                 raise httpx.ConnectError(f"falhou em {req.url}")
             status, descricao = falha
             return httpx.Response(status, json={"ok": False, "description": descricao})
+        if metodo == "getFile":
+            fid = corpo["file_id"]
+            if fid not in self.arquivos:
+                return httpx.Response(400, json={"ok": False, "description": "file not found"})
+            return httpx.Response(
+                200,
+                json={
+                    "ok": True,
+                    "result": {
+                        "file_path": f"arquivos/{fid}",
+                        "file_size": len(self.arquivos[fid]),
+                    },
+                },
+            )
         if metodo == "getMe":
             return httpx.Response(200, json={"ok": True, "result": {"username": "orion_bot"}})
         if metodo == "getUpdates":
@@ -189,13 +211,147 @@ async def test_comandos_start_ajuda_e_nova(store, policy, tg):
     assert store.get_session(antes.id) is not None and "arquivada" in tg.textos()[-1]
 
 
-async def test_mensagem_sem_texto_recebe_aviso_e_nao_chama_o_agente(store, policy, tg):
+async def test_mensagem_de_tipo_desconhecido_recebe_aviso_e_nao_chama_o_agente(store, policy, tg):
     canal, gw, _ = montar(store, policy, tg)
-    foto = msg("x")
-    del foto["message"]["text"]
-    foto["message"]["photo"] = [{"file_id": "f"}]
-    await canal.handle_update(foto)
-    assert tg.textos() == ["Por enquanto só entendo texto."] and gw.chamadas == []
+    figurinha = msg("x")
+    del figurinha["message"]["text"]
+    figurinha["message"]["sticker"] = {"file_id": "s"}
+    await canal.handle_update(figurinha)
+    assert tg.textos() == ["Entendo texto, voz e foto por aqui."] and gw.chamadas == []
+
+
+# ── voz ───────────────────────────────────────────────────────────────────
+def msg_voz(file_id="voz1.ogg", duracao=5, uid=USER):
+    m = msg("x", uid=uid)
+    del m["message"]["text"]
+    m["message"]["voice"] = {"file_id": file_id, "duration": duracao, "mime_type": "audio/ogg"}
+    return m
+
+
+def transcritor(tg_voz, texto="marque reunião amanhã às 9", status=200):
+    """Transcritor real (`orion.transcribe`) falando com uma API de mentira."""
+    from orion.transcribe import Transcriber
+
+    vistos = []
+
+    def api(req: httpx.Request):
+        vistos.append(req)
+        if status != 200:
+            return httpx.Response(status, text="chave KEY-SECRETA recusada")
+        return httpx.Response(200, json={"text": texto})
+
+    t = Transcriber("KEY-SECRETA", client=httpx.AsyncClient(transport=httpx.MockTransport(api)))
+    return t, vistos
+
+
+async def test_voz_e_transcrita_mostrada_e_so_entao_vai_ao_agente(store, policy, tg):
+    t, vistos = transcritor(tg)
+    tg.arquivos["voz1.ogg"] = b"OggS-audio"
+    canal, gw, _ = montar(store, policy, tg, fala("Anotado."), transcriber=t)
+    await canal.handle_update(msg_voz())
+    assert tg.textos() == ["🎙️ Entendi: marque reunião amanhã às 9", "Anotado."]
+    assert gw.chamadas[0][-1] == {"role": "user", "content": "marque reunião amanhã às 9"}
+    (req,) = vistos
+    assert req.headers["authorization"] == "Bearer KEY-SECRETA" and "KEY-SECRETA" not in str(
+        req.url
+    )
+    assert b"OggS-audio" in req.content and b"whisper-large-v3-turbo" in req.content
+    assert b'name="language"' in req.content and b"pt" in req.content
+
+
+async def test_voz_sem_transcritor_longa_demais_ou_com_falha_avisa_sem_chamar_o_agente(
+    store, policy, tg
+):
+    canal, gw, _ = montar(store, policy, tg)
+    await canal.handle_update(msg_voz())
+    assert "ORION_TRANSCRIBE_API_KEY" in tg.textos()[0]
+
+    t, _ = transcritor(tg)
+    tg.arquivos["voz1.ogg"] = b"x"
+    canal, gw, _ = montar(store, policy, tg, transcriber=t)
+    await canal.handle_update(msg_voz(duracao=301))
+    assert "longo demais" in tg.textos()[-1]
+
+    ruim, _ = transcritor(tg, status=429)
+    canal, gw, _ = montar(store, policy, tg, transcriber=ruim)
+    await canal.handle_update(msg_voz())
+    assert "Não consegui entender o áudio" in tg.textos()[-1] and "HTTP 429" in tg.textos()[-1]
+    assert "KEY-SECRETA" not in " ".join(tg.textos())  # nem a chave nem a URL vazam
+    assert gw.chamadas == []
+
+
+async def test_voz_de_usuario_estranho_nem_baixa_o_arquivo(store, policy, tg):
+    t, vistos = transcritor(tg)
+    canal, _, _ = montar(store, policy, tg, transcriber=t)
+    await canal.handle_update(msg_voz(uid=OUTRO))
+    assert tg.chamadas == [] and vistos == []
+
+
+async def test_voz_que_o_telegram_nao_acha_vira_aviso(store, policy, tg):
+    t, _ = transcritor(tg)
+    canal, gw, _ = montar(store, policy, tg, transcriber=t)
+    await canal.handle_update(msg_voz("voz-inexistente.ogg"))
+    assert "Não consegui entender o áudio" in tg.textos()[-1] and gw.chamadas == []
+
+
+# ── foto ──────────────────────────────────────────────────────────────────
+def msg_foto(tamanhos, legenda=None):
+    m = msg("x")
+    del m["message"]["text"]
+    m["message"]["photo"] = tamanhos
+    if legenda:
+        m["message"]["caption"] = legenda
+    return m
+
+
+async def test_foto_vai_ao_modelo_como_imagem_so_naquele_turno(store, policy, tg):
+    tg.arquivos["pequena.jpg"], tg.arquivos["grande.png"] = b"JPEGPEQ", b"PNGGRANDE"
+    canal, gw, _ = montar(store, policy, tg, fala("É um gato."), fala("Segue o papo."))
+    await canal.handle_update(
+        msg_foto(
+            [{"file_id": "pequena.jpg", "file_size": 7}, {"file_id": "grande.png", "file_size": 9}],
+            legenda="o que é isso?",
+        )
+    )
+    assert tg.textos() == ["É um gato."]
+    ultima = gw.chamadas[0][-1]
+    assert ultima["role"] == "user" and ultima["content"][0] == {
+        "type": "text",
+        "text": ultima["content"][0]["text"],
+    }
+    assert ultima["content"][0]["text"].startswith("o que é isso?")
+    import base64
+
+    assert (
+        ultima["content"][1]["image_url"]["url"]
+        == "data:image/png;base64," + base64.b64encode(b"PNGGRANDE").decode()
+    )
+    # o histórico guarda o aviso, nunca a imagem
+    guardado = store.history(store.active_session("telegram").id)[0].text
+    assert "imagem" in guardado and "PNG" not in guardado
+    await canal.handle_update(msg("e agora?"))
+    assert gw.chamadas[1][-1] == {"role": "user", "content": "e agora?"}  # a imagem não volta
+    assert all(isinstance(m["content"], str) for m in gw.chamadas[1])
+
+
+async def test_foto_sem_legenda_pergunta_o_que_ve_e_foto_grande_escolhe_o_menor(store, policy, tg):
+    tg.arquivos["a.jpg"], tg.arquivos["b.jpg"] = b"A", b"B" * 10
+    canal, gw, _ = montar(store, policy, tg, fala("ok"))
+    await canal.handle_update(
+        msg_foto(
+            [{"file_id": "a.jpg", "file_size": 1}, {"file_id": "b.jpg", "file_size": 50_000_000}]
+        )
+    )
+    assert gw.chamadas[0][-1]["content"][0]["text"].startswith("O que você vê nesta imagem?")
+    assert ("download", {"file_path": "arquivos/a.jpg"}) in tg.chamadas  # a de 50 MB nem é baixada
+
+
+async def test_foto_que_nao_baixa_avisa_sem_chamar_o_agente(store, policy, tg):
+    canal, gw, _ = montar(store, policy, tg)
+    await canal.handle_update(msg_foto([{"file_id": "some.jpg", "file_size": 1}]))
+    assert "Não consegui baixar a foto" in tg.textos()[-1] and gw.chamadas == []
+    await canal.handle_update(msg_foto([{"width": 1}]))
+    assert tg.textos()[-1] == "Não consegui ler essa foto."
 
 
 async def test_resposta_longa_e_dividida_sem_passar_do_limite(store, policy, tg):
@@ -463,7 +619,8 @@ def test_app_sobe_o_canal_no_lifespan_e_derruba_no_fim(tmp_path, tg):
         settings, gateway_factory=lambda _: FakeGateway(fala("x")), telegram_factory=fabrica
     )
     with TestClient(app, base_url="http://127.0.0.1") as c:
-        assert c.get("/health").json()["components"]["telegram"] is True
+        saude = c.get("/health", headers={"Authorization": "Bearer token-de-teste-com-16+"})
+        assert saude.json()["components"]["telegram"] is True
         for _ in range(100):  # o getMe roda na tarefa de fundo
             if "getMe" in tg.metodos():
                 break
@@ -473,9 +630,12 @@ def test_app_sobe_o_canal_no_lifespan_e_derruba_no_fim(tmp_path, tg):
 
 
 def test_sem_canal_o_health_diz_false(tmp_path):
-    settings = Settings(data_dir=tmp_path / "d", _env_file=None)
+    settings = Settings(
+        data_dir=tmp_path / "d", admin_token="token-de-teste-com-16+", _env_file=None
+    )
     with TestClient(create_app(settings), base_url="http://127.0.0.1") as c:
-        assert c.get("/health").json()["components"]["telegram"] is False
+        saude = c.get("/health", headers={"Authorization": "Bearer token-de-teste-com-16+"})
+        assert saude.json()["components"]["telegram"] is False
 
 
 # ── argumentos que o cartão não consegue mostrar inteiros ─────────────────
@@ -514,3 +674,168 @@ async def test_argumento_curto_mantem_os_dois_botoes(store, policy, tg):
     await canal.handle_update(msg("limpe o build"))
     botoes = tg.enviadas()[-1]["reply_markup"]["inline_keyboard"][0]
     assert [b["text"] for b in botoes] == ["✅ Aprovar", "❌ Negar"]
+
+
+# ── captura rápida e briefing ─────────────────────────────────────────────
+@pytest.fixture
+def vault(tmp_path):
+    v = tmp_path / "vault"
+    v.mkdir()
+    return v
+
+
+def com_captura(store, policy, tg, vault, *roteiros, **kw):
+    from orion.capture import Capturer
+
+    return montar(store, policy, tg, *roteiros, capture=Capturer(vault, "00 Inbox"), **kw)
+
+
+def notas(vault):
+    return sorted((vault / "00 Inbox").glob("*.md")) if (vault / "00 Inbox").exists() else []
+
+
+async def test_capturar_com_texto_grava_a_nota_sem_chamar_o_modelo(store, policy, tg, vault):
+    canal, gw, _ = com_captura(store, policy, tg, vault)
+    await canal.handle_update(msg("/capturar Comprar cabo HDMI para o notebook"))
+    (nota,) = notas(vault)
+    assert "Comprar cabo HDMI para o notebook" in nota.read_text(encoding="utf-8")
+    assert tg.textos() == [f"📝 Guardado no vault: 00 Inbox/{nota.name}"]
+    assert gw.chamadas == [] and store.list_sessions("telegram") == []  # nada foi ao modelo
+    assert str(vault) not in tg.textos()[0]  # nunca o caminho absoluto
+
+
+async def test_capturar_sozinho_guarda_so_a_proxima_mensagem(store, policy, tg, vault):
+    canal, gw, _ = com_captura(store, policy, tg, vault, fala("Oi!"))
+    await canal.handle_update(msg("/capturar"))
+    assert "próxima mensagem vira nota" in tg.textos()[0]
+    await canal.handle_update(msg("https://exemplo.com/artigo"))
+    (nota,) = notas(vault)
+    assert "tags: [captura, link]" in nota.read_text() and gw.chamadas == []
+    await canal.handle_update(msg("oi"))  # a captura foi de uso único: volta a conversar
+    assert tg.textos()[-1] == "Oi!" and len(notas(vault)) == 1
+
+
+async def test_captura_expira_e_qualquer_comando_cancela(store, policy, tg, vault):
+    relogio = [1000.0]
+    canal, _, _ = com_captura(
+        store, policy, tg, vault, fala("respondi 1"), fala("respondi 2"), clock=lambda: relogio[0]
+    )
+    await canal.handle_update(msg("/capturar"))
+    relogio[0] += 301  # passou dos 5 minutos
+    await canal.handle_update(msg("isto é conversa"))
+    assert notas(vault) == [] and tg.textos()[-1] == "respondi 1"
+    await canal.handle_update(msg("/capturar"))
+    await canal.handle_update(msg("/nova"))  # outro comando cancela
+    await canal.handle_update(msg("isto também é conversa"))
+    assert notas(vault) == [] and tg.textos()[-1] == "respondi 2"
+
+
+async def test_capturar_sem_vault_configurado_avisa(store, policy, tg):
+    canal, gw, _ = montar(store, policy, tg)
+    await canal.handle_update(msg("/capturar algo"))
+    assert "ORION_VAULT_DIR" in tg.textos()[0] and gw.chamadas == []
+
+
+async def test_captura_de_estranho_nao_grava_nada(store, policy, tg, vault):
+    canal, _, _ = com_captura(store, policy, tg, vault)
+    await canal.handle_update(msg("/capturar plantar uma nota", uid=OUTRO))
+    assert tg.chamadas == [] and notas(vault) == []
+
+
+async def test_captura_por_voz_mostra_o_que_entendeu_e_guarda_o_texto(store, policy, tg, vault):
+    t, _ = transcritor(tg, texto="ideia: automatizar o relatório semanal")
+    tg.arquivos["voz1.ogg"] = b"OggS"
+    canal, gw, _ = com_captura(store, policy, tg, vault, transcriber=t)
+    await canal.handle_update(msg("/capturar"))
+    await canal.handle_update(msg_voz())
+    assert tg.textos()[1] == "🎙️ Entendi: ideia: automatizar o relatório semanal"
+    assert tg.textos()[2].startswith("📝 Guardado no vault: 00 Inbox/")
+    (nota,) = notas(vault)
+    assert "tags: [captura, voz]" in nota.read_text() and gw.chamadas == []
+
+
+async def test_captura_de_foto_guarda_em_anexos_com_a_legenda(store, policy, tg, vault):
+    tg.arquivos["f1.jpg"] = b"\xff\xd8JPEGDATA"
+    canal, gw, _ = com_captura(store, policy, tg, vault)
+    await canal.handle_update(msg("/capturar"))
+    await canal.handle_update(msg_foto([{"file_id": "f1.jpg", "file_size": 11}], legenda="quadro"))
+    (nota,) = notas(vault)
+    (foto,) = list((vault / "00 Inbox" / "anexos").glob("*.jpg"))
+    assert foto.read_bytes() == b"\xff\xd8JPEGDATA" and f"![[{foto.name}]]" in nota.read_text()
+    assert "quadro" in nota.read_text() and gw.chamadas == []
+
+
+async def test_captura_que_falha_avisa_sem_derrubar_o_canal(store, policy, tg, tmp_path):
+    from orion.capture import Capturer
+
+    canal, _, _ = montar(store, policy, tg, capture=Capturer(tmp_path / "nao-existe"))
+    await canal.handle_update(msg("/capturar algo"))
+    assert "Não guardei" in tg.textos()[0] and TOKEN not in tg.textos()[0]
+
+
+async def test_captura_de_tipo_nao_suportado_nao_grava(store, policy, tg, vault):
+    canal, *_ = com_captura(store, policy, tg, vault)
+    figurinha = msg("x")
+    del figurinha["message"]["text"]
+    figurinha["message"]["sticker"] = {"file_id": "s"}
+    await canal.handle_update(msg("/capturar"))
+    await canal.handle_update(figurinha)
+    assert "Só guardo texto" in tg.textos()[-1] and notas(vault) == []
+
+
+async def test_briefing_responde_na_hora_sem_chamar_o_modelo(store, policy, tg):
+    canal, gw, ops = montar(store, policy, tg)
+    ops.add_task("Estudar UML")
+    await canal.handle_update(msg("/briefing"))
+    assert "Bom dia, Antônio" in tg.textos()[0] and "Estudar UML" in tg.textos()[0]
+    assert gw.chamadas == []
+
+
+async def test_ajuda_lista_os_comandos_novos(store, policy, tg):
+    assert "/capturar" in BOAS_VINDAS and "/briefing" in BOAS_VINDAS
+
+
+async def test_painel_manda_o_texto_do_app_e_sem_ele_avisa(store, policy, tg):
+    canal, gw, _ = montar(store, policy, tg)
+    await canal.handle_update(msg("/painel"))
+    assert "indisponível" in tg.textos()[0]
+    canal.painel = lambda: "📊 Painel do Orion · teste"
+    await canal.handle_update(msg("/painel"))
+    assert tg.textos()[1] == "📊 Painel do Orion · teste" and gw.chamadas == []
+    await canal.handle_update(msg("/painel", uid=OUTRO))  # estranho: nada
+    assert len(tg.textos()) == 2
+
+
+async def test_ajuda_lista_o_painel(store, policy, tg):
+    assert "/painel" in BOAS_VINDAS
+
+
+def test_app_liga_o_painel_ao_canal_telegram(tmp_path, tg):
+    from fastapi.testclient import TestClient
+
+    from orion.app import create_app
+
+    settings = Settings(
+        data_dir=tmp_path / "d", admin_token="token-de-teste-com-16+", _env_file=None
+    )
+    canais = []
+
+    def fabrica(_s, agent, memory, policy, ops):
+        c = TelegramChannel(
+            token=TOKEN,
+            allowed_users=[USER],
+            agent=agent,  # type: ignore[arg-type]
+            memory=memory,
+            approvals=policy.approvals,
+            ops=ops,
+            client=httpx.AsyncClient(transport=httpx.MockTransport(tg)),
+        )
+        canais.append(c)
+        return c
+
+    with TestClient(
+        create_app(settings, telegram_factory=fabrica, gateway_factory=lambda _: None),
+        base_url="http://127.0.0.1",
+    ):
+        assert canais[0].painel is not None
+        assert "Painel do Orion" in canais[0].painel()

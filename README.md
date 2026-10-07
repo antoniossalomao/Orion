@@ -22,10 +22,12 @@ vendido e provar o export com `uv run orion verify-export` (plano completo, com 
 venda: [ORION_CORTE.md](Memorias%20Do%20Projeto/ORION_CORTE.md)).
 
 **Reescrita em andamento (`orion/`):** fundação (fase 1), memória em SQLite com importador completo,
-agendador, backup e consolidação (fase 3), política de ferramentas, gateway, agente e `/chat`
-(fase 2), o canal Telegram novo e o `orion autostart` (fase 5) já existem e têm testes; falta ligar a
-modelos reais, o login e o resto das ferramentas (fase 4). O que foi feito, o que não foi verificado e os próximos passos:
-[ORION_MELHORIAS.md](Memorias%20Do%20Projeto/ORION_MELHORIAS.md).
+agendador, backup e consolidação (fase 3), política de ferramentas com audit em banco, gateway, agente e `/chat`
+(fase 2), `orion-desktop` (com visão, mídia e janelas), cliente MCP e painel único (fase 4), login com senha, canal Telegram com voz, foto, `/capturar` (nota no vault), briefing matinal e `/painel` e
+`orion autostart` (fase 5), voz por clique, voz ao vivo e palavra de ativação "Orion" (escuta local, `orion wake-test`) no front (fase 6) e a agenda do Google no briefing já existem e têm testes; falta ligar o que só você pode: modelos reais (OmniRoute),
+chave de embeddings, servidores MCP de e-mail/agenda/navegador, Tailscale e o bot. O que foi feito, o que não
+foi verificado e os próximos passos: [ORION_MELHORIAS.md](Memorias%20Do%20Projeto/ORION_MELHORIAS.md); como ligar:
+[ORION_OPERACAO.md](Memorias%20Do%20Projeto/ORION_OPERACAO.md).
 
 | Documento | Conteúdo |
 |---|---|
@@ -36,6 +38,7 @@ modelos reais, o login e o resto das ferramentas (fase 4). O que foi feito, o qu
 | [ORION_TECNICO.md](Memorias%20Do%20Projeto/ORION_TECNICO.md) | Referência técnica da base: regras críticas, API, memória/RAG, gotchas |
 | [ORION_CORTE.md](Memorias%20Do%20Projeto/ORION_CORTE.md) | Plano de corte: o que provar antes de vender o PC, orion mínimo, rollback, decisões suas |
 | [ORION_FERRAMENTAS.md](Memorias%20Do%20Projeto/ORION_FERRAMENTAS.md) | Triagem das 55 ferramentas do legado: portada, substituída, a portar ou descartar |
+| [ORION_OPERACAO.md](Memorias%20Do%20Projeto/ORION_OPERACAO.md) | Como ligar o Orion novo: login, Tailscale, servidores MCP, ferramentas, Telegram com voz |
 | [ORION_FRONT.md](Memorias%20Do%20Projeto/ORION_FRONT.md) | Front-end: brief de design e engenharia, orçamentos, o que foi verificado |
 | [ORION_EXTENSOES.md](Memorias%20Do%20Projeto/ORION_EXTENSOES.md) | Referências de produto, lacunas e plano para plugins, skills e MCP |
 | [ORION_CAPACIDADES.md](Memorias%20Do%20Projeto/ORION_CAPACIDADES.md) | Contrato de recursos e adaptação do front para os backends novo e legado |
@@ -45,8 +48,7 @@ modelos reais, o login e o resto das ferramentas (fase 4). O que foi feito, o qu
 ## Para onde vai
 
 ```
-Celular ── Telegram ─────────────┐
-Celular ── web (Tailscale) ──────┤
+Celular ── Telegram ─────────────┤
 Notebook ── web / casca desktop ─┤
                                  ▼
                      Orion (Python, FastAPI, 1 processo)
@@ -66,8 +68,8 @@ Notebook ── web / casca desktop ─┤
 - **Leve e multiplataforma:** um processo, memória num único arquivo, sem GPU,
   Docker ou servidores pesados. Roda num notebook Windows de 8GB agora e num
   MacBook M2 depois.
-- **Celular primeiro:** Telegram e web pela rede privada do Tailscale, sem expor
-  portas.
+- **Desktop primeiro:** a interface é só para desktop (decisão de 07/10/2026: sem
+  versão para celular). No celular o canal é o Telegram, sem expor portas.
 - **Ações sob controle:** ação destrutiva só roda com confirmação explícita,
   inclusive pelo celular.
 
@@ -230,6 +232,9 @@ vetores, telemetria da cascata).
 uv sync
 ORION_ADMIN_TOKEN=<16+ caracteres> ORION_GATEWAY_URL=http://127.0.0.1:20128/v1 \
 ORION_GATEWAY_MODEL=<modelo> uv run orion         # sobe em 127.0.0.1:8000
+uv run orion set-password                          # define/troca a senha do login (encerra as sessões abertas)
+# Windows sem instalar nada: Actions > "Orion.exe (Windows)" gera o orion.exe (usuário admin; ver ORION_OPERACAO.md §1.1)
+uv run orion mcp-check                             # sobe os servidores do mcp.json e lista as ferramentas e suas classes
 uv run orion backup                                # backup diário da memória (mantém 7)
 uv run orion autostart [--install]                 # arquivo de início automático do seu SO (mostra; --install grava)
 uv run orion restore <backup.db> [--force]         # restaura um backup (confere antes; --force substitui)
@@ -241,14 +246,18 @@ python -m orion.memory.eval <casos.json> --db <orion.db> [--embeddings]    # med
 
 | Variável | Uso |
 |---|---|
-| `ORION_ADMIN_TOKEN` | Obrigatória para `/chat` e `/approvals` (16+ caracteres) até o login da fase 5 |
+| `uv run orion set-password` | Login: toda rota da API exige sessão (cookie) ou o token abaixo. Sem senha e sem token a API fica desligada (503) |
+| `ORION_ADMIN_TOKEN` | Credencial de **máquina** (16+ caracteres): `Authorization: Bearer` para scripts e o app desktop. O navegador usa a senha |
+| `ORION_SESSION_TTL_H`, `ORION_COOKIE_SECURE`, `ORION_AUTH_USER` | Validade da sessão (padrão 168 h), cookie `Secure` (automático em HTTPS) e o nome do usuário (padrão `admin`) |
 | `ORION_GATEWAY_URL`, `ORION_GATEWAY_MODEL`, `ORION_GATEWAY_API_KEY` | Gateway de modelos (OmniRoute ou API compatível com a da OpenAI); sem eles `/chat` responde 503 |
 | `ORION_DATA_DIR` | Onde fica o `orion.db` (padrão: pasta de dados do usuário no SO) |
 | `ORION_EXTRA_SAFE_ROOTS` | Lista JSON de pastas extras onde as ferramentas escrevem sem confirmação (ex.: Documents no OneDrive) |
-| `ORION_HOST`, `ORION_PORT`, `ORION_ALLOWED_HOSTS` | Só `127.0.0.1` por padrão; bind público é recusado. Host de fora (ex.: nome do Tailscale, lista JSON) **exige** `ORION_ADMIN_TOKEN`. A porta padrão (8000) é a do legado: não suba os dois juntos |
+| `ORION_HOST`, `ORION_PORT`, `ORION_ALLOWED_HOSTS` | Só `127.0.0.1` por padrão; bind público é recusado. Host de fora (ex.: nome do Tailscale, lista JSON) só sobe **com login** (senha ou token); guia em [ORION_OPERACAO.md](Memorias%20Do%20Projeto/ORION_OPERACAO.md). A porta padrão (8000) é a do legado: não suba os dois juntos |
 | `ORION_EMBED_API_KEY` (ou no cofre do SO), `ORION_EMBED_MODEL`, `ORION_EMBED_DIM` | Embeddings pela API gratuita do Gemini (padrão `gemini-embedding-001`, 768). Sem chave a busca é só por palavra-chave. Trocar modelo ou dimensão: o banco sobe sem vetores (veja o log) até `reset_vectors()` |
-| `ORION_TELEGRAM_TOKEN` (ou no cofre do SO), `ORION_TELEGRAM_ALLOWED_USERS` | Canal Telegram novo: sobe com token + IDs permitidos (`123,456` ou `[123]`) + gateway; sem lista não sobe (default-deny). **Pare o bot do legado antes** (dois clientes no mesmo token dão erro 409; o do legado também não fala com o `/chat` novo). Aprovações chegam com botões ✅/❌ |
-| `ORION_DESKTOP_TOOLS` | `true` liga `executar_comando`, `ler_arquivo` e `listar_arquivos` (padrão desligado). Só leitura provada roda direto; o resto e a leitura de segredos pedem aprovação |
+| `ORION_TELEGRAM_TOKEN` (ou no cofre do SO), `ORION_TELEGRAM_ALLOWED_USERS` | Canal Telegram novo: sobe com token + IDs permitidos (`123,456` ou `[123]`) + gateway; sem lista não sobe (default-deny). **Pare o bot do legado antes** (dois clientes no mesmo token dão erro 409; o do legado também não fala com o `/chat` novo). Aprovações chegam com botões ✅/❌. Voz: `ORION_TRANSCRIBE_API_KEY` (Whisper no Groq; também liga `transcrever_audio`); foto vai ao modelo como imagem só no turno |
+| `ORION_DESKTOP_TOOLS` | `true` liga o `orion-desktop`: comando, arquivos, documentos, área de transferência, notificação, abrir app, Git somente-leitura, saúde, processos em segundo plano e vigilância de pastas (padrão desligado). Só leitura provada roda direto; o resto e a leitura de segredos pedem aprovação |
+| `ORION_WEB_TOOLS`, `ORION_SEARCH_API_KEY`, `ORION_WEATHER_CITY` | `true` liga `buscar_url`, `consultar_clima` e `pesquisar_com_ia` (padrão desligado: página lida pode mandar o modelo buscar outra URL com dados na query) |
+| `ORION_MCP_CONFIG`, `ORION_MCP_ENABLED` | `mcp.json` com os servidores MCP (padrão `<dados>/mcp.json`; exemplo em `mcp.example.json`). A classe de risco de cada ferramenta vem do arquivo, nunca do servidor |
 | `ORION_BACKUP_DIR`, `ORION_BACKUP_KEEP` | Backup diário da memória (padrão `<dados>/backups`, mantém 7); aponte para o iCloud/OneDrive |
 | `ORION_VAULT_DIR` | Vault do Obsidian reindexado de hora em hora na memória (vazio: não indexa) |
 | `ORION_JOBS_ENABLED`, `ORION_JOBS_TICK_S`, `ORION_CONSOLIDATE` | Jobs em segundo plano (lembretes, agendamentos, embeddings, vault, backup, consolidação em fatos; padrão ligados, rodada a cada 30 s). Os avisos saem em `GET /notifications` (confirmar em `POST /notifications/{id}/ack`) |
@@ -272,7 +281,7 @@ Orion_Ollama/                  # backend
   orion_seguranca.py            # rate limit, câmara de eco, audit, self-healing
   orion_browser.py · orion_google_workspace.py · orion_telegram.py · orion_voice_live.py
   bm25_index.py · reconciliar_episodios.py · test_smoke.py
-orion/                         # REESCRITA: policy/ (risco, aprovações), memory/ (SQLite, importador, ops, embeddings, consolidação), channels/ (Telegram), gateway, agent, delegate, jobs, migration, autostart, tools/, app
+orion/                         # REESCRITA: policy/ (risco, aprovações, audit), memory/ (SQLite, importador, ops, embeddings, consolidação), channels/ (Telegram: texto, voz, foto), tools/ (memória, operação, orion-desktop, web), auth, mcp_client, netguard, transcribe, gateway, agent, delegate, jobs, agenda (briefing), wake (palavra de ativação), voice, migration, autostart, app
 tests/                         # pytest (orion + legado) e Node (front); ver "Testes"
 .github/workflows/ci.yml       # ruff, pyright, pytest, node em Linux/Windows/macOS
 pyproject.toml · uv.lock       # a reescrita usa uv; requirements.txt é só do legado
@@ -280,7 +289,7 @@ Orion_Core/                    # front-end v1, voz, sentidos
   Front_end_Orion/              # pywebview + Three.js + hub WS :8765 (ver ORION_FRONT.md); também servido em /ui/ pelo orion.app
   audio_manager.py (TTS) · mic_engine.py (STT) · commands.py
 bin/startup/                   # .bat de cada serviço + orion_boot.vbs
-Memorias Do Projeto/           # ORION_NUCLEO (plano), _CORTE, _FERRAMENTAS, _REGRAS, _MELHORIAS, _FRONT, _TECNICO (base)
+Memorias Do Projeto/           # ORION_NUCLEO (plano), _CORTE, _FERRAMENTAS, _REGRAS, _MELHORIAS, _OPERACAO, _FRONT, _TECNICO (base)
 ```
 
 **Fora do git (runtime):** `Orion_Core/Sons/cache/`, `Orion_Ollama/telemetria*`,
@@ -294,7 +303,8 @@ Memorias Do Projeto/           # ORION_NUCLEO (plano), _CORTE, _FERRAMENTAS, _RE
 Base atual:
 
 - Todos os serviços escutam só em `127.0.0.1`; não foram preparados para exposição em rede.
-- **Sem login:** nenhuma rota do legado exige autenticação (login entra na fase 5).
+- **Sem login (só o legado):** nenhuma rota do legado exige autenticação; a reescrita (`orion/`) exige
+  login em toda rota (regras 13, 17 e 25).
 - **Câmara de Eco:** `executar_comando` e `iniciar_processo_bg` só rodam sem confirmação se o
   comando for provadamente leitura (lista positiva); escrever dentro do código do Orion, em
   diretório de sistema ou arquivo sensível também pede confirmação. Regras em
@@ -309,8 +319,9 @@ Base atual:
 - **`/mcp`** expõe os endpoints REST como ferramentas MCP, sem autenticação.
 - `.env`, chaves de API e credenciais OAuth nunca são versionados.
 
-Na arquitetura nova, login vale para toda rota, o acesso de fora passa só pela
-rede privada do Tailscale e o bot do Telegram responde apenas ao ID do Antônio.
+Na arquitetura nova (já em `orion/`): login com senha em toda rota (sessão por cookie, bloqueio por
+tentativas erradas), o acesso de fora passa só pela rede privada do Tailscale, o bot do Telegram responde
+apenas ao ID do Antônio e aprovação de ação é só por botão.
 
 **Reportar vulnerabilidade:** não abra Issue pública — e-mail
 antonio.assuino.salomao@gmail.com com passos para reproduzir, impacto e

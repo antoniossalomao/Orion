@@ -1,12 +1,12 @@
 /* ==========================================================================
    ORION — app.js | rotas por hash, atalhos, janela, boot e ligação dos módulos
-   Rotas: #/ · #/chat · #/memoria · #/integracoes · #/config (botão voltar funciona,
+   Rotas: #/ · #/chat · #/memoria · #/integracoes · #/config · #/painel (botão voltar funciona,
    dá para abrir direto numa tela). Telas ocultas ficam `inert`: nada de Tab invisível.
    ========================================================================== */
 (function () {
     'use strict';
     const O = window.Orion;
-    const { $, $$, el, bus, prefs, ui, api } = O;
+    const { $, $$, bus, prefs, ui, api } = O;
     const U = O.util;
     const html = document.documentElement;
     O.versao = '2.0.0';
@@ -18,6 +18,7 @@
         memoria: { titulo: 'Memória', rota: '/memoria' },
         integracoes: { titulo: 'Integrações', rota: '/integracoes' },
         config: { titulo: 'Configurações', rota: '/config' },
+        painel: { titulo: 'Painel', rota: '/painel' },   // por último: não muda os atalhos Alt+1…5
     };
     const VIEW_DA_ROTA = Object.fromEntries(Object.entries(VIEWS).map(([v, d]) => [d.rota, v]));
     let atual = null, opcoesPendentes = {};
@@ -72,10 +73,9 @@
     const NOMES_TEMA = { noite: 'Noite', grafite: 'Grafite', contraste: 'Alto contraste' };
     O.acoes = {
         alternarTts() {
-            if (!api.suporta('tts')) return ui.toast('Resposta por voz ainda indisponível neste backend.', { tipo: 'aviso' });
             const mudo = !prefs.get('tts_mudo');
             prefs.set('tts_mudo', mudo);
-            api.ttsMudo(mudo).catch(() => ui.toast('Resposta por voz indisponível neste backend.', { tipo: 'aviso' }));
+            api.ttsMudo(mudo).catch(() => ui.toast('Não consegui avisar o cérebro agora; a escolha vale quando ele voltar.', { tipo: 'aviso' }));
             O.som.envio();
             O.anunciar(mudo ? 'Resposta por voz desligada.' : 'Resposta por voz ligada.');
         },
@@ -125,7 +125,6 @@
             } catch (e) { ui.toast(`Falha ao copiar: ${e.message}`, { tipo: 'erro' }); }
         },
         modelo(id) {
-            if (!api.suporta('model_selection')) return ui.toast('A seleção de modelo ainda está indisponível neste backend.', { tipo: 'aviso' });
             prefs.set('model', id);
             const m = O.composer.MODELOS.find(x => x.id === id);
             ui.toast(`Modelo: ${m ? m.nome : id}.`, { ms: 1800 });
@@ -138,7 +137,7 @@
                 copiar: () => (arg === 'conversa' ? A.copiarConversa() : A.copiarUltima()),
                 exportar: () => A.exportar(), limpar: () => A.limpar(), modelo: () => A.modelo(arg), tema: () => A.tema(arg),
                 foco: () => A.foco(), mudo: () => A.alternarTts(), voz: () => O.voz.alternar(),
-                inicio: () => ir('home'), memoria: () => ir('memoria'), integracoes: () => ir('integracoes'), config: () => ir('config'),
+                inicio: () => ir('home'), memoria: () => ir('memoria'), integracoes: () => ir('integracoes'), config: () => ir('config'), painel: () => ir('painel'),
                 ajuda: () => ir('config', { secao: 'cfg-atalhos' }),
             };
             mapa[cmd]?.();
@@ -273,10 +272,49 @@
         try { sessionStorage.setItem('orion_boot', '1'); } catch (_) { /* tudo bem repetir o boot */ }
     }
 
+    /* ── login (orion.app) ────────────────────────────────────────────── */
+    let avisouFabrica = false;
+    /** Depois do login (nunca antes): se a senha ainda é a de fábrica, avisa e leva para trocar. */
+    function avisarSenhaDeFabrica(st) {
+        if (!st?.default_password || avisouFabrica) return;
+        avisouFabrica = true;
+        ui.toast('Você está usando a senha de fábrica. Troque agora.', { tipo: 'aviso', ms: 0, id: 'senha-fabrica',
+            acao: { rotulo: 'Trocar', fn: () => ir('config', { secao: 'cfg-conexao' }) } });
+    }
+    let loginEmCurso = null;
+    /** Abre a tela de entrada se este cérebro tem senha e ainda não há sessão; devolve se entrou.
+     *  Chamadas simultâneas (boot + um 401 do chat) dividem a mesma tela. */
+    function entrar({ forcar = false } = {}) {
+        if (loginEmCurso) return loginEmCurso;
+        if (api.token() && !forcar) return Promise.resolve(false);
+        loginEmCurso = (async () => {
+            const st = await api.authStatus();
+            if (st?.authenticated) avisarSenhaDeFabrica(st);
+            if (!st?.configured || st.authenticated) return false;
+            const entrou = await ui.telaDeEntrada({ entrar: (usuario, senha) => api.login(usuario, senha) });
+            if (entrou) {
+                ui.toast('Você entrou.', { tipo: 'ok', ms: 1800 });
+                avisarSenhaDeFabrica(await api.authStatus());
+                bus.emit('auth:ok');
+                bus.emit('conn:recarregar');
+                O.sidebar.carregar();
+                O.chat.carregarPendentes();
+            }
+            return entrou;
+        })().finally(() => { loginEmCurso = null; });
+        return loginEmCurso;
+    }
+    async function sair() {
+        try { await api.logout(); } catch (e) { ui.toast(`Não consegui sair: ${e.message}`, { tipo: 'erro' }); return; }
+        ui.toast('Sessão encerrada.', { ms: 1800 });
+        bus.emit('auth:fim');
+        entrar();   // sem sessão não há o que mostrar: volta para a tela de entrada
+    }
+    O.login = { entrar, sair };
+
     /* ── início ────────────────────────────────────────────────────────── */
-    async function init() {
+    function init() {
         O.aplicarPrefs();
-        await api.detectar();
         O.sky.init($('#sky'));
         O.chat.init();
         O.composer.init();
@@ -285,26 +323,7 @@
         O.busca.init();
         for (const v of Object.values(O.views)) v.init?.();
         O.voz.ligar();
-        const capacidades = () => {
-            const controles = { model_selection: '#model-btn, #cfg-model', upload: '#btn-attach',
-                voice: '.voice-live-btn', tts: '#cfg-tts, #btn-mute, [data-acao=ouvir]', sessions: '#sb-new' };
-            for (const [recurso, seletor] of Object.entries(controles)) {
-                document.querySelectorAll(seletor).forEach(b => {
-                    b.disabled = !api.suporta(recurso);
-                    b.title = b.disabled ? 'Ainda indisponível neste backend' : '';
-                });
-            }
-            let aviso = $('#chat-capabilities');
-            const c = api.estado();
-            if (c.backend === 'orion' && !api.suporta('chat')) {
-                const texto = c.unavailable?.chat === 'auth_not_configured' ? 'O acesso ao chat ainda não foi configurado no servidor.' : 'O modelo ainda está indisponível. Você pode continuar escrevendo seu rascunho.';
-                if (!aviso) { aviso = el('p', { id: 'chat-capabilities', class: 'banner banner-warn', role: 'status' }); $('#composer .composer-inner').prepend(aviso); }
-                aviso.textContent = texto;
-            } else aviso?.remove();
-            O.composer.atualizar();
-        };
-        bus.on('capabilities', capacidades);
-        capacidades();
+        O.fala.ligar();
         ligarJanela();
         ligarAtencao();
         document.addEventListener('keydown', aoTecla);
@@ -313,7 +332,8 @@
         mostrar(viewDaUrl(), {}, true);
         ligarPonteDesktop();
         api.ttsMudo(!!prefs.get('tts_mudo')).catch(() => { /* cérebro fora: sincroniza na próxima */ });
-        boot().then(() => O.chat.carregarPendentes());
+        bus.on('auth:necessario', () => entrar());
+        boot().then(async () => { if (!(await entrar())) O.chat.carregarPendentes(); });
         // compatibilidade: o app desktop chama estas funções por evaluate_js
         window.setOrionState = s => O.estado.definir(s);
         window.setAudioIntensity = v => bus.emit('audio', v);

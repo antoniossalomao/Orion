@@ -1011,3 +1011,14 @@ Não eram requisitos fechados do MVP; só abrir novo checklist/commit quando hou
 - [ ] Se marketplace público for solicitado depois, criar plano próprio de distribuição,
   assinatura/proveniência, atualização e manutenção. Não é dependência dos pacotes locais.
 
+
+## Integração do C03 com a `main` (2026-10-07)
+
+A `main` ganhou, em paralelo, o próprio sistema de conversas (`/sessoes`, `/historico`,
+renomear/fixar/apagar, esquema v3 = audit, v4 = pinned/deleted). A `main` ficou como base:
+
+- API, store e front da `main` prevalecem; o adaptador legado/novo por capacidades do front
+  deixou de existir (o front da `main` já fala só com o `orion.app`).
+- Do C03 ficam: `/capabilities` e `/capabilities/details`, o ponteiro persistente de sessão
+  ativa por canal (**esquema v5**, `active_sessions`) e os testes de seleção estável.
+- `activate_session(session_id)` mantém a assinatura da `main`, mas agora grava o ponteiro.

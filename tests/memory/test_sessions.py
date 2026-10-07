@@ -10,12 +10,12 @@ def test_resposta_atrasada_e_relogio_igual_nao_trocam_selecao(tmp_path):
     path = tmp_path / "sessions.db"
     with closing(MemoryStore(path, clock=lambda: 100)) as store:
         a, b = store.new_session("web"), store.new_session("web")
-        store.activate_session("web", a.id)
+        store.activate_session(a.id)
         store.add_message(b.id, "assistant", "Resposta atrasada de B")
         assert store.active_session("web").id == a.id
     with closing(MemoryStore(path, clock=lambda: 1)) as store:
         assert store.active_session("web").id == a.id
-        store.activate_session("web", b.id)
+        store.activate_session(b.id)
         store.add_message(a.id, "assistant", "Resposta atrasada de A")
         assert store.active_session("web").id == b.id
 
@@ -62,7 +62,7 @@ def test_banco_v2_migra_selecao_sem_perder_mensagens(tmp_path):
         assert web is not None and web.id == "new"
         assert telegram is not None and telegram.id == "tg"
         assert store.history("new")[0].text == "Mensagem v2"
-        store.activate_session("web", "old")
+        store.activate_session("old")
     with closing(MemoryStore(path)) as store:
         assert store.active_session("web").id == "old"
         assert store.history("new")[0].text == "Mensagem v2"

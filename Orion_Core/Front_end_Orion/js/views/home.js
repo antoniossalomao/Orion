@@ -8,47 +8,45 @@
     const U = O.util;
 
     const SUGESTOES = [
-        { icone: 'chat', titulo: 'Retomar uma ideia', desc: 'Continue de onde você parou.',
+        { rotulo: 'Retomar de onde parei', titulo: 'O que eu estava fazendo?', desc: 'Retoma o contexto das últimas conversas.',
           texto: 'Me lembra o que eu estava fazendo nas últimas conversas?' },
-        { icone: 'file', titulo: 'Organizar arquivos', desc: 'Planeje a organização de uma pasta.',
-          texto: 'Me ajude a organizar minha pasta Downloads. Primeiro proponha um plano.' },
-        { icone: 'bolt', titulo: 'Explorar um conceito', desc: 'Transforme uma dúvida em clareza.',
+        { rotulo: 'Limpar Downloads antigos', titulo: 'Organizar uma pasta', desc: 'Peça uma ação no computador: você aprova antes de rodar.',
+          texto: 'Apague os arquivos antigos da minha pasta Downloads' },
+        { rotulo: 'Explicar um conceito', titulo: 'Explicar um conceito', desc: 'Com exemplo, tabela e código quando ajudar.',
           texto: 'Explique a diferença entre diagrama de classes e de sequência, com um exemplo' },
-        { icone: 'check', titulo: 'Planejar meu dia', desc: 'Veja sua agenda e defina prioridades.',
+        { rotulo: 'Resumir meu dia', titulo: 'Resumo do dia', desc: 'Agenda e pendências em poucas linhas.',
           texto: 'Resuma o que está na minha agenda hoje' },
     ];
 
-    let timer = null, atualizando = false, ultimaAssinatura = '';
+    let timer = null;
 
-    function item(texto) { return el('span', { class: 'hs-item', text: texto }); }
-
-    async function atualizarStatus() {
-        if (O.app?.view() !== 'home' || atualizando) return;
-        atualizando = true;
-        try {
-            let h = null;
-            try { h = await api.health(); } catch (_) { /* detalhes indisponíveis: conexão fica na sidebar */ }
-            const nomeModelo = (O.composer.MODELOS.find(m => m.id === prefs.get('model')) || O.composer.MODELOS[0]).nome;
-            const textos = [api.estado().backend === 'orion' ? (api.estado().model === 'ready' ? 'Modelo do servidor' : 'Modelo indisponível') : nomeModelo];
-            const vetores = h?.qdrant?.vetores ? Object.values(h.qdrant.vetores).reduce((s, x) => s + (+x || 0), 0) : 0;
-            if (vetores) textos.push(`${U.fmtNum(vetores)} memórias`);
-            const assinatura = JSON.stringify(textos);
-            if (assinatura !== ultimaAssinatura) {
-                $('#home-status').replaceChildren(...textos.map(item));
-                ultimaAssinatura = assinatura;
-            }
-        } finally { atualizando = false; }
+    function item(texto, estado) {
+        return el('span', { class: 'hs-item' },
+            estado ? el('span', { class: 'status-dot', dataset: { state: estado }, 'aria-hidden': 'true' }) : null, texto);
     }
 
-    function cartao(s) {
-        return el('button', { class: 'suggest', type: 'button', on: { click: () => O.composer.sugerir(s.texto) } },
-            el('span', { class: 'suggest-icon', html: O.icone(s.icone), 'aria-hidden': 'true' }),
-            el('strong', { text: s.titulo }), el('span', { class: 'suggest-desc', text: s.desc }));
+    async function atualizarStatus() {
+        const caixa = $('#home-status');
+        const nomeModelo = (O.composer.MODELOS.find(m => m.id === prefs.get('model')) || O.composer.MODELOS[0]).nome;
+        const chips = [];
+        let h = null;
+        try { h = await api.health(); } catch (_) { /* legado sem /health completo */ }
+        const r = h ? { ok: true } : await api.ping();
+        chips.push(r.ok ? item('Cérebro conectado', 'ok') : item('Cérebro offline', 'danger'));
+        chips.push(item(nomeModelo));
+        const vetores = h?.qdrant?.vetores ? Object.values(h.qdrant.vetores).reduce((s, x) => s + (+x || 0), 0) : 0;
+        if (vetores) chips.push(item(`${U.fmtNum(vetores)} memórias`));
+        if (h?.latencia_ultimo_chat_ms) chips.push(item(`último chat ${U.fmtMs(h.latencia_ultimo_chat_ms)}`));
+        caixa.replaceChildren(...chips);
     }
 
     function montarSugestoes() {
-        $('#home-suggest').replaceChildren(...SUGESTOES.map(cartao));
-        $('#suggest-grid').replaceChildren(...SUGESTOES.map(cartao));
+        const caixa = $('#home-suggest');
+        caixa.replaceChildren(...SUGESTOES.map(s => el('button', { class: 'chip', type: 'button', text: s.rotulo,
+            on: { click: () => O.composer.sugerir(s.texto) } })));
+        const grade = $('#suggest-grid');
+        grade.replaceChildren(...SUGESTOES.map(s => el('button', { class: 'suggest', type: 'button', on: { click: () => O.composer.sugerir(s.texto) } },
+            el('strong', { text: s.titulo }), el('span', { text: s.desc }))));
     }
 
     function rotuloEstrela() {

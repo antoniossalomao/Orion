@@ -33,7 +33,8 @@
             if (!resp.ok) {
                 const corpo = await resp.text().catch(() => '');
                 let msg = `${rotuloFalha} (HTTP ${resp.status}).`;
-                if (resp.status === 401 || resp.status === 403) msg = 'Acesso negado: confira o token em Configurações › Conexão.';
+                if (resp.status === 401 || resp.status === 403) msg = 'Acesso negado: entre com a senha ou confira o token em Configurações › Conexão.';
+                if (resp.status === 401 && !token) bus.emit('auth:necessario');
                 else { try { const d = JSON.parse(corpo).detail; if (typeof d === 'string') msg = d; } catch (_) { /* corpo não-JSON */ } }
                 emitir({ tipo: 'erro', mensagem: msg, status: resp.status });
                 return;
@@ -108,22 +109,23 @@
         /** @returns {'hub'|'sse'} por onde a mensagem foi — o chat usa para não duplicar o eco do hub */
         enviar({ texto, modelo = 'auto' }) {
             const ponte = window.pywebview?.api;
-            if (api.usarHub() && ponte?.process_command && hubAberto) {
+            if (ponte?.process_command && hubAberto) {
                 // `ignorarHub` NÃO é limpo aqui: sobra de um pedido cancelado não entra na resposta nova
                 ponte.process_command(texto, modelo);
                 return 'hub';
             }
-            lerStream('/chat', { json: api.pedidoChat({ texto, modelo }) }, 'O cérebro recusou o pedido');
+            lerStream('/chat', { json: { texto, modelo } }, 'O cérebro recusou o pedido');
             return 'sse';
         },
 
         /** continua a resposta depois que o usuário aprovou a ação */
         retomar(id) {
-            lerStream(`/approvals/${encodeURIComponent(id)}/resume`, api.pedidoRetomada(), 'Não consegui retomar a ação');
+            lerStream(`/approvals/${encodeURIComponent(id)}/resume`, {}, 'Não consegui retomar a ação');
             return 'sse';
         },
 
         cancelar() {
+            if (O.fala?.ocupada()) { O.fala.cancelar(); return; }   // turno de voz: não usa o fetch abortável
             if (abortar) { abortar(); return; }
             if (hubAberto) {
                 ignorarHub = true;                              // descarta o que ainda chegar, até o idle

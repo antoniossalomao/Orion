@@ -41,9 +41,11 @@ def _porta_livre() -> int:
         return s.getsockname()[1]
 
 
-def _subir(token: str):
+def _subir(token: str, login: str = "", senha_de_fabrica: bool = False):
     porta = _porta_livre()
-    env = {**os.environ, "MOCK_PORT": str(porta), "MOCK_TOKEN": token}
+    env = {**os.environ, "MOCK_PORT": str(porta), "MOCK_TOKEN": token, "MOCK_LOGIN": login}
+    if senha_de_fabrica:
+        env["MOCK_DEFAULT_PW"] = "1"
     proc = subprocess.Popen(
         [sys.executable, "-m", "tests.front_e2e.mock_backend"],
         cwd=RAIZ,
@@ -73,9 +75,30 @@ def mock_url():
     yield from _subir("")
 
 
+@pytest.fixture
+def mock_isolado_url():
+    """Um mock só deste teste: para quem renomeia, fixa ou apaga conversas sem sujar os outros testes."""
+    yield from _subir("")
+
+
 @pytest.fixture(scope="session")
 def mock_token_url():
     yield from _subir(TOKEN)
+
+
+SENHA = "senha-do-e2e-123"
+
+
+@pytest.fixture
+def mock_login_url():
+    """Um cérebro com login por senha (como o orion.app): cada teste sobe o seu, sem sessão."""
+    yield from _subir("", SENHA)
+
+
+@pytest.fixture
+def mock_fabrica_url():
+    """Cérebro com login cuja senha ainda é a de fábrica (aviso depois de entrar, troca em Configurações)."""
+    yield from _subir("", SENHA, senha_de_fabrica=True)
 
 
 @pytest.fixture(scope="session")
@@ -88,6 +111,9 @@ def navegador():
                 "--use-gl=swiftshader",
                 "--enable-unsafe-swiftshader",
                 "--ignore-gpu-blocklist",
+                # microfone de mentira (um bipe): a voz ao vivo roda o AudioWorklet de verdade
+                "--use-fake-device-for-media-stream",
+                "--use-fake-ui-for-media-stream",
             ],
         )
         yield b
@@ -95,9 +121,8 @@ def navegador():
 
 
 @pytest.fixture
-def abrir(navegador, mock_url, novo_backend):
+def abrir(navegador, mock_url):
     """`abrir("#/chat")` → página aberta no front. Opções: viewport, url, reduced, axe, init, http_ok, boot."""
-    # A dependência mantém a API real viva até todos os contextos fecharem.
     contextos: list = []
     erros: list[str] = []
     permitir_http: list[bool] = [False]
@@ -150,68 +175,3 @@ def abrir(navegador, mock_url, novo_backend):
         and not (permitir_http[0] and "Failed to load resource" in e)
     ]
     assert not relevantes, "console da página não está limpo:\n" + "\n".join(relevantes)
-
-
-@pytest.fixture
-def novo_backend(tmp_path):
-    """API real, gateway simulado e dados temporários; nunca chama um provedor."""
-    import threading
-
-    import uvicorn
-
-    from orion.app import create_app
-    from orion.config import Settings
-    from tests.fakes import FakeGateway, chama, fala, pede
-
-    servidores = []
-
-    def criar(*, gateway=True, auth=True, approval=False):
-        porta = _porta_livre()
-        roteiros = (
-            [pede(chama("esquecer_fato", id=1)), fala("Aguardando você."), fala("Esqueci.")]
-            if approval
-            else [fala("Resposta do backend novo.")]
-        )
-        gw = FakeGateway(*roteiros)
-        app = create_app(
-            Settings(
-                data_dir=tmp_path / str(porta),
-                admin_token=TOKEN if auth else "",
-                jobs_enabled=False,
-                embed_api_key="",
-                telegram_token="",
-                _env_file=None,
-            ),
-            gateway_factory=(lambda _: gw) if gateway else (lambda _: None),
-        )
-        caminhos = []
-
-        @app.middleware("http")
-        async def registrar(request, call_next):
-            caminhos.append(request.url.path)
-            return await call_next(request)
-
-        server = uvicorn.Server(
-            uvicorn.Config(app, host="127.0.0.1", port=porta, log_level="error")
-        )
-        thread = threading.Thread(target=server.run, daemon=True)
-        thread.start()
-        servidores.append((server, thread))
-        url = f"http://127.0.0.1:{porta}"
-        for _ in range(100):
-            try:
-                if httpx.get(f"{url}/health", timeout=0.5).status_code == 200:
-                    break
-            except httpx.HTTPError:
-                time.sleep(0.05)
-        else:
-            raise RuntimeError("API real não subiu")
-        if approval:
-            app.state.orion.memory.add_fact("Fato temporário do teste", "manual")
-        return url, app, gw, caminhos
-
-    yield criar
-    for server, thread in servidores:
-        server.should_exit = True
-        thread.join(timeout=10)
-        assert not thread.is_alive(), "API de teste não encerrou"

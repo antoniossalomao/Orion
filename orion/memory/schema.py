@@ -1,11 +1,13 @@
 """Esquema SQLite da memória (fase 3 do NUCLEO): um arquivo, sem servidor.
 
 v1: conversas, fatos, documentos e vetores. v2: operação (lembretes, agendamentos,
-tarefas, números, prompts), arestas do grafo e fila de notificações. Banco v1 sobe
-para a versão atual sozinho (`MIGRATIONS`). v3: seleção persistente de sessão por canal.
+tarefas, números, prompts), arestas do grafo e fila de notificações. v3: trilha de
+auditoria das decisões da política. v4: conversa fixada e apagada (apagar = esconder: as
+mensagens ficam). v5: seleção persistente de sessão por canal. Banco antigo sobe sozinho
+(`MIGRATIONS`).
 """
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 5
 
 TOKENIZER = "unicode61 remove_diacritics 2"  # "açúcar" casa com "acucar"
 
@@ -175,22 +177,44 @@ CREATE TABLE notifications (
 CREATE INDEX idx_notifications_pending ON notifications(delivered_at, id);
 """
 
-# A seleção não depende da última mensagem: uma resposta atrasada não troca a conversa.
+# v3: uma linha por decisão da política (já redigida: ver `orion.policy.audit.redact`).
 DDL_V3 = """
+CREATE TABLE audit (
+    id INTEGER PRIMARY KEY,
+    ts REAL NOT NULL,
+    session_id TEXT,
+    tool TEXT NOT NULL,
+    action TEXT NOT NULL,
+    risk TEXT,
+    reason TEXT NOT NULL DEFAULT '',
+    tainted INTEGER NOT NULL DEFAULT 0,
+    args TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX idx_audit_ts ON audit(ts);
+CREATE INDEX idx_audit_tool ON audit(tool, ts);
+"""
+
+DDL_V4 = """
+ALTER TABLE sessions ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE sessions ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0;
+"""
+
+# A seleção não depende da última mensagem: uma resposta atrasada não troca a conversa.
+DDL_V5 = """
 CREATE TABLE active_sessions (
     channel TEXT PRIMARY KEY,
     session_id TEXT UNIQUE REFERENCES sessions(id) ON DELETE SET NULL
 );
 INSERT INTO active_sessions(channel, session_id)
 SELECT s.channel, s.id FROM sessions s
-WHERE s.archived=0 AND s.id=(
+WHERE s.archived=0 AND s.deleted=0 AND s.id=(
     SELECT candidate.id FROM sessions candidate
-    WHERE candidate.channel=s.channel AND candidate.archived=0
+    WHERE candidate.channel=s.channel AND candidate.archived=0 AND candidate.deleted=0
     ORDER BY candidate.last_active_at DESC, candidate.created_at DESC, candidate.id DESC LIMIT 1
 );
 """
 
-DDL = DDL_V1 + DDL_V2 + DDL_V3
+DDL = DDL_V1 + DDL_V2 + DDL_V3 + DDL_V4 + DDL_V5
 
 # versão de origem -> script que leva à seguinte
-MIGRATIONS: dict[int, str] = {1: DDL_V2, 2: DDL_V3}
+MIGRATIONS: dict[int, str] = {1: DDL_V2, 2: DDL_V3, 3: DDL_V4, 4: DDL_V5}

@@ -1,18 +1,18 @@
 /* ==========================================================================
    ORION — tokens.css | cores, tipografia, espaço, raios, sombras, movimento
    Tudo que é decisão de design mora aqui; o resto do CSS só consome `var(--…)`.
-   Contraste (WCAG) calculado: --text-1 ≥ 13:1, --text-2 ≥ 8:1, --text-3 ≥ 5,2:1
+   Contraste (WCAG) calculado: --text-1 ≥ 14:1, --text-2 ≥ 8,8:1, --text-3 ≥ 5,2:1
    sobre qualquer superfície --bg-*. --text-4 é só decoração (nunca texto).
    ========================================================================== */
 :root {
     color-scheme: dark;
 
     /* superfícies, da mais funda à mais alta */
-    --bg-0: #080b11;
-    --bg-1: #0c1018;
-    --bg-2: #101620;
-    --bg-3: #161d29;
-    --bg-4: #1b2534;
+    --bg-0: #04060b;
+    --bg-1: #070a12;
+    --bg-2: #0b101b;
+    --bg-3: #101726;
+    --bg-4: #161f33;
     --glass:   rgb(8 12 20 / 0.72);
     --glass-2: rgb(12 18 30 / 0.88);
     --scrim:   rgb(2 4 9 / 0.62);
@@ -25,7 +25,7 @@
     /* texto */
     --text-1: #eaeffa;
     --text-2: #b4bed3;
-    --text-3: #929eb5;
+    --text-3: #8591a9;
     --text-4: #5e6a82;
 
     /* acento (Rigel) e sinais */
@@ -66,7 +66,7 @@
 
     /* sombras */
     --sh-1: 0 1px 2px rgb(0 0 0 / 0.4);
-    --sh-2: 0 4px 18px rgb(0 0 0 / 0.2);
+    --sh-2: 0 10px 30px rgb(0 0 0 / 0.45), 0 2px 6px rgb(0 0 0 / 0.3);
     --sh-3: 0 30px 80px rgb(0 0 0 / 0.6), 0 6px 18px rgb(0 0 0 / 0.4);
 
     /* movimento */
@@ -75,10 +75,10 @@
     --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 
     /* layout */
-    --sb-w: 256px;
+    --sb-w: 272px;
     --sb-wc: 68px;
     --topbar-h: 56px;
-    --content-w: 50rem;
+    --content-w: 52rem;
 
     /* camadas */
     --z-sky: 0;  --z-app: 10;  --z-topbar: 30;  --z-sidebar: 40;  --z-scrim: 45;

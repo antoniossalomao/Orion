@@ -1,7 +1,8 @@
 """Motor de política: decide allow / confirm / deny para cada chamada de ferramenta.
 
 Ordem: ferramenta registrada → limite de uso → risco efetivo (classe + shell/
-caminho) → escalada por conteúdo externo lido (taint) → aprovação fora de banda
+caminho) → escalada por conteúdo externo lido (taint: escrita, execução e rede com destino
+escolhido pelo modelo) → aprovação fora de banda
 → audit. Falha de audit em ação que não é leitura nega a ação (fail-closed).
 """
 
@@ -79,6 +80,15 @@ class PolicyEngine:
                 return Decision(Action.DENY, decision.risk, "audit indisponível (fail-closed)")
         return decision
 
+    def register_tool(self, spec: ToolSpec, rate: tuple[int, int] | None = None) -> None:
+        """Registra uma ferramenta que só existe em tempo de execução (as de servidores MCP).
+        Não sobrescreve uma já registrada: um servidor não troca a classe de risco de ninguém."""
+        if spec.name in self.tools:
+            raise ValueError(f"ferramenta já registrada: {spec.name}")
+        self.tools[spec.name] = spec
+        if rate is not None:
+            self.rate.set_limit(spec.name, *rate)
+
     def note_result(self, call: ToolCall, ctx: Context) -> None:
         """O orquestrador chama depois de executar: ferramenta que devolve conteúdo
         externo contamina a sessão."""
@@ -127,6 +137,13 @@ class PolicyEngine:
         if motivo is None and ctx.tainted and spec.risk in (Risk.WRITE, Risk.EXEC):
             motivo = (
                 "a sessão leu conteúdo externo (web/e-mail/documento): possível prompt injection"
+            )
+        if motivo is None and ctx.tainted and spec.egress:
+            # leitura que escolhe o destino na rede: uma página injetada pode pedir
+            # `https://dono-da-pagina/?d=<dados>`. O cartão mostra a URL inteira (regra 23).
+            motivo = (
+                "a sessão leu conteúdo externo e esta ferramenta fala com um endereço escolhido "
+                "pelo modelo: possível exfiltração de dados pela URL"
             )
         return motivo
 
