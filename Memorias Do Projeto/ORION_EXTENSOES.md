@@ -1,6 +1,6 @@
 # Orion — referências de produto e plano de extensões
 
-Pesquisa em 04/10/2026. **Plano de implementação com C00–C14 concluídos** (registro na seção 9).
+Pesquisa em 04/10/2026. **Plano de implementação com C00–C15 concluídos** (registro na seção 9).
 Plugins e skills seguem em implementação. MCP já tem prova com servidores controlados;
 nenhuma conta pessoal ou servidor externo do usuário foi conectado.
 Complementa [ORION_FRONT.md](ORION_FRONT.md), as fases 4 e 6 do
@@ -339,7 +339,7 @@ como fundação do recurso novo. Exportar leitura primeiro, com identidade e esc
 
 ## 8. Próximo trabalho concreto
 
-C00–C14 foram concluídos e validados. Continuar pelo **C15: parser e metadados de pacotes Agent Skills**.
+C00–C15 foram concluídos e validados. Continuar pelo **C16: contexto progressivo e escopo das skills**.
 O usuário autorizou a execução dos checklists restantes, com commits separados, validação,
 registro no vault e push. Integrações pessoais e Windows serão registrados conforme
 as evidências disponíveis, sem transformar fixtures em prova de conta ou desktop reais.
@@ -351,8 +351,8 @@ quando houver integração concreta para revisar. Este documento não muda as de
 
 ## 9. Checklists por commit e sequência de dias
 
-Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C14 têm commits reais
-registrados; C15–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
+Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C15 têm commits reais
+registrados; C16–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
 precisa estar pronto. Não é necessário concluir o plano inteiro para usar o primeiro MVP.
 
 ### Ritmo de trabalho
@@ -365,7 +365,7 @@ precisa estar pronto. Não é necessário concluir o plano inteiro para usar o p
   manter os dependentes esperando a entrega completa.
 - Ao pedir continuação, usar o ID: **“Faça o próximo commit pendente”** ou **“Faça o C09”**.
   O executor confere o checklist e as dependências antes de iniciar.
-- C00–C14 estão implementados, validados e registrados abaixo; C15–C50 permanecem
+- C00–C15 estão implementados, validados e registrados abaixo; C16–C50 permanecem
   planejados. Cada continuação deve conferir as dependências e os limites da entrega anterior.
 
 ### Como concluir e pausar cada commit
@@ -418,10 +418,10 @@ a integração real de Pesquisa fica registrada separadamente se ainda não tive
 
 ### Registro para retomar no próximo dia
 
-- Último checklist concluído: **C14**, commit `89bc6a9`; entregas anteriores registradas abaixo.
-- Próximo commit sugerido: **C15 — parser e metadados de pacotes Agent Skills**.
-- Dependências/impedimentos: conferir as dependências do C15 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
-- Evidências: ver os registros C00–C14 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
+- Último checklist concluído: **C15**, commit `a212d5a`; entregas anteriores registradas abaixo.
+- Próximo commit sugerido: **C16 — contexto progressivo e escopo das skills**.
+- Dependências/impedimentos: conferir as dependências do C16 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
+- Evidências: ver os registros C00–C15 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
 - Atualizações: registrar aqui o ID concluído, hash/link e o próximo ID; não preencher com
   hash fictício nem tratar evidência de mock como teste contra conta real.
 
@@ -691,6 +691,21 @@ de sampling, elicitation, extensions e experimental. Ruff/formatação/Pyright p
 Limite é de contexto após receber texto, não isolamento de memória do processo remoto.
 
 
+### Execução C15 — pacotes Agent Skills (06/10/2026)
+
+**Commit de implementação:** `a212d5a`.
+Parser conforme subconjunto documentado da especificação oficial consultada: campos,
+nomes, descrição/compatibilidade, metadados, limites, YAML sem tags/aliases/duplicatas.
+Descoberta lê frontmatter sem corpo; carregamento valida referências confinadas à raiz,
+symlinks/drive/file URLs/travessia. Namespace, origem e versão sem colisão; nenhum script
+é importado/executado. PyYAML 6.0.3 MIT fixado no lockfile.
+
+**Evidências:** 560 testes backend passaram; 15 casos de skills cobrem frontmatter inválido,
+referências externas/codificadas, symlink, metadados sem corpo, mudança de cabeçalho e
+script com marcador não executado. Ruff/formatação/Pyright passaram. Body e referências
+continuam sob demanda; não se instala dependência declarada por compatibilidade.
+
+
 ### C00 — fix(ui): estabilizar conexão e consolidar o refinamento visual
 
 Etapa: **A** · Depende de: **base atual do repositório** · Estado: **concluído**.
@@ -843,13 +858,13 @@ Etapa: **B** · Depende de: **C13** · Estado: **concluído**.
 
 ### C15 — feat(skills): validar e listar pacotes Agent Skills
 
-Etapa: **C** · Depende de: **C01** · Estado: **planejado**.
+Etapa: **C** · Depende de: **C01** · Estado: **concluído**.
 
-- [ ] Implementar parser de SKILL.md e validação de name, description, limites e estrutura.
-- [ ] Descobrir metadados sem carregar o corpo e validar referências dentro da raiz.
-- [ ] Registrar origem, versão e colisões de nomes; nenhum script deve rodar ao carregar.
-- [ ] **Validar:** Testar frontmatter inválido, referência externa, nomes duplicados e pacote válido; conferir que scripts não foram executados.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Implementar parser de SKILL.md e validação de name, description, limites e estrutura.
+- [x] Descobrir metadados sem carregar o corpo e validar referências dentro da raiz.
+- [x] Registrar origem, versão e colisões de nomes; nenhum script deve rodar ao carregar.
+- [x] **Validar:** Testar frontmatter inválido, referência externa, nomes duplicados e pacote válido; conferir que scripts não foram executados.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C16 — feat(skills): carregar contexto gradualmente por relevância
 
