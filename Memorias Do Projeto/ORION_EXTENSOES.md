@@ -1,6 +1,6 @@
 # Orion — referências de produto e plano de extensões
 
-Pesquisa em 04/10/2026. **Plano de implementação com C00–C15 concluídos** (registro na seção 9).
+Pesquisa em 04/10/2026. **Plano de implementação com C00–C16 concluídos** (registro na seção 9).
 Plugins e skills seguem em implementação. MCP já tem prova com servidores controlados;
 nenhuma conta pessoal ou servidor externo do usuário foi conectado.
 Complementa [ORION_FRONT.md](ORION_FRONT.md), as fases 4 e 6 do
@@ -339,7 +339,7 @@ como fundação do recurso novo. Exportar leitura primeiro, com identidade e esc
 
 ## 8. Próximo trabalho concreto
 
-C00–C15 foram concluídos e validados. Continuar pelo **C16: contexto progressivo e escopo das skills**.
+C00–C16 foram concluídos e validados. Continuar pelo **C17: invocação de skills no chat e na paleta**.
 O usuário autorizou a execução dos checklists restantes, com commits separados, validação,
 registro no vault e push. Integrações pessoais e Windows serão registrados conforme
 as evidências disponíveis, sem transformar fixtures em prova de conta ou desktop reais.
@@ -351,8 +351,8 @@ quando houver integração concreta para revisar. Este documento não muda as de
 
 ## 9. Checklists por commit e sequência de dias
 
-Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C15 têm commits reais
-registrados; C16–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
+Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C16 têm commits reais
+registrados; C17–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
 precisa estar pronto. Não é necessário concluir o plano inteiro para usar o primeiro MVP.
 
 ### Ritmo de trabalho
@@ -365,7 +365,7 @@ precisa estar pronto. Não é necessário concluir o plano inteiro para usar o p
   manter os dependentes esperando a entrega completa.
 - Ao pedir continuação, usar o ID: **“Faça o próximo commit pendente”** ou **“Faça o C09”**.
   O executor confere o checklist e as dependências antes de iniciar.
-- C00–C15 estão implementados, validados e registrados abaixo; C16–C50 permanecem
+- C00–C16 estão implementados, validados e registrados abaixo; C17–C50 permanecem
   planejados. Cada continuação deve conferir as dependências e os limites da entrega anterior.
 
 ### Como concluir e pausar cada commit
@@ -418,10 +418,10 @@ a integração real de Pesquisa fica registrada separadamente se ainda não tive
 
 ### Registro para retomar no próximo dia
 
-- Último checklist concluído: **C15**, commit `a212d5a`; entregas anteriores registradas abaixo.
-- Próximo commit sugerido: **C16 — contexto progressivo e escopo das skills**.
-- Dependências/impedimentos: conferir as dependências do C16 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
-- Evidências: ver os registros C00–C15 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
+- Último checklist concluído: **C16**, commit `fd51452`; entregas anteriores registradas abaixo.
+- Próximo commit sugerido: **C17 — invocação de skills no chat e na paleta**.
+- Dependências/impedimentos: conferir as dependências do C17 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
+- Evidências: ver os registros C00–C16 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
 - Atualizações: registrar aqui o ID concluído, hash/link e o próximo ID; não preencher com
   hash fictício nem tratar evidência de mock como teste contra conta real.
 
@@ -706,6 +706,20 @@ script com marcador não executado. Ruff/formatação/Pyright passaram. Body e r
 continuam sob demanda; não se instala dependência declarada por compatibilidade.
 
 
+### Execução C16 — seleção progressiva de skills (06/10/2026)
+
+**Commit de implementação:** `fd51452`.
+Fontes configuradas, descoberta só de metadados e seleção explícita ou lexical com dois
+termos relevantes. Corpos/referências somente escolhidos, até três skills e 12 KB de
+contexto, com origem/versão/digest. Referência exige skill selecionada e caminho declarado.
+`allowed-tools` intersecta restrições, filtra schemas e não concede privilégios na política.
+
+**Evidências:** 562 testes backend passaram. Casos positivos/negativos de relevância,
+referência sob demanda, orçamento e fonte desativada; agente comprova desconhecido negado,
+execução listada ainda confirmada e chamada fora do escopo negada. Ruff, formatação e
+Pyright passaram. Scripts não são executados nesta entrega.
+
+
 ### C00 — fix(ui): estabilizar conexão e consolidar o refinamento visual
 
 Etapa: **A** · Depende de: **base atual do repositório** · Estado: **concluído**.
@@ -868,13 +882,13 @@ Etapa: **C** · Depende de: **C01** · Estado: **concluído**.
 
 ### C16 — feat(skills): carregar contexto gradualmente por relevância
 
-Etapa: **C** · Depende de: **C15, C13** · Estado: **planejado**.
+Etapa: **C** · Depende de: **C15, C13** · Estado: **concluído**.
 
-- [ ] Adicionar seleção explícita e por relevância com limites de contexto.
-- [ ] Carregar corpo e referências apenas quando necessários, guardando a origem no turno.
-- [ ] Tratar allowed-tools como restrição de escopo, nunca como concessão de privilégio.
-- [ ] **Validar:** Testar gatilhos positivos e negativos, referência carregada sob demanda e skill que tenta ampliar privilégios.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Adicionar seleção explícita e por relevância com limites de contexto.
+- [x] Carregar corpo e referências apenas quando necessários, guardando a origem no turno.
+- [x] Tratar allowed-tools como restrição de escopo, nunca como concessão de privilégio.
+- [x] **Validar:** Testar gatilhos positivos e negativos, referência carregada sob demanda e skill que tenta ampliar privilégios.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C17 — feat(ui): invocar skills pelo chat e pela paleta
 
