@@ -1,6 +1,6 @@
 # Orion — referências de produto e plano de extensões
 
-Pesquisa em 04/10/2026. **Plano de implementação com C00–C39 concluídos** (registro na seção 9).
+Pesquisa em 04/10/2026. **Plano de implementação com C00–C40 concluídos** (registro na seção 9).
 Plugins e skills seguem em implementação. MCP já tem prova com servidores controlados;
 nenhuma conta pessoal ou servidor externo do usuário foi conectado.
 Complementa [ORION_FRONT.md](ORION_FRONT.md), as fases 4 e 6 do
@@ -339,7 +339,7 @@ como fundação do recurso novo. Exportar leitura primeiro, com identidade e esc
 
 ## 8. Próximo trabalho concreto
 
-C00–C39 foram concluídos e validados. Continuar pelo **C40: contas MCP com OAuth e revogação**.
+C00–C40 foram concluídos e validados. Continuar pelo **C41: conector Agenda de leitura**.
 O usuário autorizou a execução dos checklists restantes, com commits separados, validação,
 registro no vault e push. Integrações pessoais e Windows serão registrados conforme
 as evidências disponíveis, sem transformar fixtures em prova de conta ou desktop reais.
@@ -351,8 +351,8 @@ quando houver integração concreta para revisar. Este documento não muda as de
 
 ## 9. Checklists por commit e sequência de dias
 
-Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C39 têm commits reais
-registrados; C40–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
+Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C40 têm commits reais
+registrados; C41–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
 precisa estar pronto. Não é necessário concluir o plano inteiro para usar o primeiro MVP.
 
 ### Ritmo de trabalho
@@ -365,7 +365,7 @@ precisa estar pronto. Não é necessário concluir o plano inteiro para usar o p
   manter os dependentes esperando a entrega completa.
 - Ao pedir continuação, usar o ID: **“Faça o próximo commit pendente”** ou **“Faça o C09”**.
   O executor confere o checklist e as dependências antes de iniciar.
-- C00–C39 estão implementados, validados e registrados abaixo; C40–C50 permanecem
+- C00–C40 estão implementados, validados e registrados abaixo; C41–C50 permanecem
   planejados. Cada continuação deve conferir as dependências e os limites da entrega anterior.
 
 ### Como concluir e pausar cada commit
@@ -418,10 +418,10 @@ a integração real de Pesquisa fica registrada separadamente se ainda não tive
 
 ### Registro para retomar no próximo dia
 
-- Último checklist concluído: **C39**, commit `3bbfdf5`; entregas anteriores registradas abaixo.
-- Próximo commit sugerido: **C40 — contas MCP com OAuth e revogação**.
-- Dependências/impedimentos: conferir as dependências do C40 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
-- Evidências: ver os registros C00–C39 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
+- Último checklist concluído: **C40**, commit `ab406ec`; entregas anteriores registradas abaixo.
+- Próximo commit sugerido: **C41 — conector Agenda de leitura**.
+- Dependências/impedimentos: conferir as dependências do C41 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
+- Evidências: ver os registros C00–C40 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
 - Atualizações: registrar aqui o ID concluído, hash/link e o próximo ID; não preencher com
   hash fictício nem tratar evidência de mock como teste contra conta real.
 
@@ -1078,6 +1078,24 @@ Chromium confirmou editar, rascunho, voltar ao caminho original e ausência de g
 aprovação não copiada e fato intacto; versão persiste no reinício. Não se declara replay de tools.
 
 
+### Execução C40 — contas OAuth MCP
+
+Commit de implementação: `ab406ec`. Contas separadas de conexões, contextos e escopos
+explícitos, UI para adicionar/autorizar/revogar e escolher conta na conexão. SDK 2.3.0 faz
+PKCE e protocolo OAuth; callback local exato, state/issuer, TTL e uso único. Credenciais
+ficam no cofre por conta/revisão; ausência de cofre falha sem arquivo plaintext. Prazo e
+issuer são recompostos ao carregar storage para refresh correto após reabrir o provider.
+Revogação encerra acesso/catálogo/decisões sem apagar dados. Não promete revogar consentimento
+no provedor: isso continua disponível no painel da conta externa.
+
+Evidências: 635 backend passaram (26,60 s); dois testes OAuth/API adicionais passaram (1,08 s)
+após corrigir erro de endpoint para resposta 422; 91 Node, Ruff/format/Pyright verdes.
+SDK autenticou contra fixture controlada, conferiu PKCE, callback inválido/repetido,
+expiração/refresh, escopo excessivo e revogação sem tokens no banco. Chromium: sete casos
+contas/extensões/MCP passaram (32,81 s), incluindo axe/700 px e conversa preservada.
+Conta pessoal, cofre real Windows e callback de deployment não foram validados.
+
+
 ### C00 — fix(ui): estabilizar conexão e consolidar o refinamento visual
 
 Etapa: **A** · Depende de: **base atual do repositório** · Estado: **concluído**.
@@ -1480,13 +1498,13 @@ Etapa: **G** · Depende de: **C38, C34** · Estado: **concluído**.
 
 ### C40 — feat(auth): autorizar e revogar contas MCP com escopos mínimos
 
-Etapa: **G** · Depende de: **C24, C10** · Estado: **planejado**.
+Etapa: **G** · Depende de: **C24, C10** · Estado: **concluído**.
 
-- [ ] Implementar OAuth compatível com o SDK/servidor escolhido, callback validado e armazenamento no cofre.
-- [ ] Separar conexões e contas; mostrar escopos e permitir revogação sem apagar dados produzidos.
-- [ ] Integrar expiração, refresh e reconexão à interface sem registrar tokens.
-- [ ] **Validar:** Testar autorização falsa controlada, callback inválido, expiração e revogação; conta real exige autorização específica.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Implementar OAuth compatível com o SDK/servidor escolhido, callback validado e armazenamento no cofre.
+- [x] Separar conexões e contas; mostrar escopos e permitir revogação sem apagar dados produzidos.
+- [x] Integrar expiração, refresh e reconexão à interface sem registrar tokens.
+- [x] **Validar:** Testar autorização falsa controlada, callback inválido, expiração e revogação; conta real exige autorização específica.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C41 — feat(calendar): consultar agenda por conector validado
 
