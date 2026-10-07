@@ -25,6 +25,8 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from . import __version__
 from .agent import Agent, AgentEvent
+from .artifacts import ArtifactError
+from .artifacts import router as artifact_router
 from .capabilities import Capabilities, describe
 from .channels import TelegramChannel
 from .config import PROJECT_ROOT, Settings
@@ -746,6 +748,14 @@ def create_app(
             content={"detail": str(error)},
         )
 
+    @app.exception_handler(ArtifactError)
+    async def artifact_error(request: Request, error: ArtifactError):
+        return JSONResponse(
+            status_code=404 if str(error).endswith("not_found") else 409,
+            content={"detail": str(error)},
+        )
+
+    app.include_router(artifact_router(require_admin))
     app.include_router(project_router(require_admin))
     app.include_router(extension_router(require_admin))
 

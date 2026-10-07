@@ -6,7 +6,7 @@ para a versão atual sozinho (`MIGRATIONS`). v3: seleção persistente de sessã
 v4: conversas fixadas. v5: índice de títulos para busca de conversas.
 """
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 
 TOKENIZER = "unicode61 remove_diacritics 2"  # "açúcar" casa com "acucar"
 
@@ -219,7 +219,26 @@ CREATE INDEX idx_facts_project ON facts(project_id);
 CREATE INDEX idx_documents_project ON documents(project_id);
 """
 
-DDL = DDL_V1 + DDL_V2 + DDL_V3 + DDL_V4 + DDL_V5 + DDL_V6 + DDL_V7
+DDL_V8 = """
+CREATE TABLE artifacts (
+    id TEXT PRIMARY KEY, project_id TEXT REFERENCES projects(id),
+    session_id TEXT NOT NULL REFERENCES sessions(id), title TEXT NOT NULL,
+    kind TEXT NOT NULL, language TEXT NOT NULL DEFAULT '', created_at REAL NOT NULL,
+    updated_at REAL NOT NULL);
+CREATE INDEX idx_artifacts_project ON artifacts(project_id,updated_at);
+CREATE TABLE artifact_versions (
+    artifact_id TEXT NOT NULL REFERENCES artifacts(id), version INTEGER NOT NULL,
+    content BLOB NOT NULL, digest TEXT NOT NULL, message_id INTEGER REFERENCES messages(id),
+    provenance TEXT, created_at REAL NOT NULL, PRIMARY KEY(artifact_id,version));
+"""
 
-# versão de origem -> script que leva à seguinte
-MIGRATIONS: dict[int, str] = {1: DDL_V2, 2: DDL_V3, 3: DDL_V4, 4: DDL_V5, 5: DDL_V6, 6: DDL_V7}
+DDL = DDL_V1 + DDL_V2 + DDL_V3 + DDL_V4 + DDL_V5 + DDL_V6 + DDL_V7 + DDL_V8
+MIGRATIONS: dict[int, str] = {
+    1: DDL_V2,
+    2: DDL_V3,
+    3: DDL_V4,
+    4: DDL_V5,
+    5: DDL_V6,
+    6: DDL_V7,
+    7: DDL_V8,
+}
