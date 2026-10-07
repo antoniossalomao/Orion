@@ -1,6 +1,6 @@
 # Orion — referências de produto e plano de extensões
 
-Pesquisa em 04/10/2026. **Plano de implementação com C00–C20 concluídos** (registro na seção 9).
+Pesquisa em 04/10/2026. **Plano de implementação com C00–C21 concluídos** (registro na seção 9).
 Plugins e skills seguem em implementação. MCP já tem prova com servidores controlados;
 nenhuma conta pessoal ou servidor externo do usuário foi conectado.
 Complementa [ORION_FRONT.md](ORION_FRONT.md), as fases 4 e 6 do
@@ -339,7 +339,7 @@ como fundação do recurso novo. Exportar leitura primeiro, com identidade e esc
 
 ## 8. Próximo trabalho concreto
 
-C00–C20 foram concluídos e validados. Continuar pelo **C21: importação segura de arquivos de distribuição de plugins**.
+C00–C21 foram concluídos e validados. Continuar pelo **C22: update rollback e remoção de versões de plugins**.
 O usuário autorizou a execução dos checklists restantes, com commits separados, validação,
 registro no vault e push. Integrações pessoais e Windows serão registrados conforme
 as evidências disponíveis, sem transformar fixtures em prova de conta ou desktop reais.
@@ -351,8 +351,8 @@ quando houver integração concreta para revisar. Este documento não muda as de
 
 ## 9. Checklists por commit e sequência de dias
 
-Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C20 têm commits reais
-registrados; C21–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
+Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C21 têm commits reais
+registrados; C22–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
 precisa estar pronto. Não é necessário concluir o plano inteiro para usar o primeiro MVP.
 
 ### Ritmo de trabalho
@@ -365,7 +365,7 @@ precisa estar pronto. Não é necessário concluir o plano inteiro para usar o p
   manter os dependentes esperando a entrega completa.
 - Ao pedir continuação, usar o ID: **“Faça o próximo commit pendente”** ou **“Faça o C09”**.
   O executor confere o checklist e as dependências antes de iniciar.
-- C00–C20 estão implementados, validados e registrados abaixo; C21–C50 permanecem
+- C00–C21 estão implementados, validados e registrados abaixo; C22–C50 permanecem
   planejados. Cada continuação deve conferir as dependências e os limites da entrega anterior.
 
 ### Como concluir e pausar cada commit
@@ -418,10 +418,10 @@ a integração real de Pesquisa fica registrada separadamente se ainda não tive
 
 ### Registro para retomar no próximo dia
 
-- Último checklist concluído: **C20**, commit `1f2de45`; entregas anteriores registradas abaixo.
-- Próximo commit sugerido: **C21 — importação segura de arquivos de distribuição de plugins**.
-- Dependências/impedimentos: conferir as dependências do C21 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
-- Evidências: ver os registros C00–C20 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
+- Último checklist concluído: **C21**, commit `57a3e66`; entregas anteriores registradas abaixo.
+- Próximo commit sugerido: **C22 — update rollback e remoção de versões de plugins**.
+- Dependências/impedimentos: conferir as dependências do C22 antes de iniciar. Windows/pywebview real e contas externas seguem sem validação neste ambiente.
+- Evidências: ver os registros C00–C21 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
 - Atualizações: registrar aqui o ID concluído, hash/link e o próximo ID; não preencher com
   hash fictício nem tratar evidência de mock como teste contra conta real.
 
@@ -777,6 +777,20 @@ interrupção simulada após publicação do objeto (rollback de objeto/staging/
 Ruff/formatação/Pyright passaram. Permissões não representam sandbox contra o dono do SO.
 
 
+### Execução C21 — distribuição ZIP de plugins (06/10/2026)
+
+**Commit de implementação:** `57a3e66`.
+ZIP padrão armazenado/deflate, até 16 MB/512 arquivos/2 MB por arquivo e razão 200.
+Central directory limitada antes do parser; criptografia/ZIP64/multipart não suportados.
+Sem extractall: nomes, symlinks/tipos, expansão, CRC, ADS/Windows/Unicode/case e colisões
+arquivo/diretório validados. Mesmo snapshot/validador/staging da pasta; sem execução.
+
+**Evidências:** 598 testes backend passaram; dez casos de ZIP verificam igualdade de hash
+com pasta, importação desativada sem script, sete paths de escape, symlink, colisões,
+bomba de expansão, quantidade excessiva, corrupção/CRC e tamanho de entrada. Ruff,
+formatação e Pyright passaram. Nenhum arquivo sai da raiz controlada de staging.
+
+
 ### C00 — fix(ui): estabilizar conexão e consolidar o refinamento visual
 
 Etapa: **A** · Depende de: **base atual do repositório** · Estado: **concluído**.
@@ -989,13 +1003,13 @@ Etapa: **D** · Depende de: **C19** · Estado: **concluído**.
 
 ### C21 — feat(plugins): importar arquivos de distribuição com validação
 
-Etapa: **D** · Depende de: **C20** · Estado: **planejado**.
+Etapa: **D** · Depende de: **C20** · Estado: **concluído**.
 
-- [ ] Adicionar importação de arquivo de pacote e regras de extensão/formato.
-- [ ] Limitar tamanho expandido e quantidade de arquivos; bloquear zip-slip, symlinks e entradas em colisão.
-- [ ] Usar o mesmo validador e staging da importação de pasta.
-- [ ] **Validar:** Testar pacote válido, arquivo corrompido, expansão excessiva e travessia; nenhum arquivo pode sair da raiz de staging.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Adicionar importação de arquivo de pacote e regras de extensão/formato.
+- [x] Limitar tamanho expandido e quantidade de arquivos; bloquear zip-slip, symlinks e entradas em colisão.
+- [x] Usar o mesmo validador e staging da importação de pasta.
+- [x] **Validar:** Testar pacote válido, arquivo corrompido, expansão excessiva e travessia; nenhum arquivo pode sair da raiz de staging.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C22 — feat(plugins): atualizar reverter e remover versões
 
