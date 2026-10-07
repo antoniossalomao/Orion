@@ -261,6 +261,13 @@ class MemoryStore:
                 raise KeyError(session_id)
             if session.archived or session.read_only:
                 raise ValueError("sessão arquivada ou importada é somente leitura")
+            if (
+                session.project_id
+                and c.execute(
+                    "SELECT archived FROM projects WHERE id=?", (session.project_id,)
+                ).fetchone()[0]
+            ):
+                raise ValueError("project_archived")
             agora = self._clock()
             c.execute("UPDATE sessions SET last_active_at=? WHERE id=?", (agora, session.id))
             c.execute(

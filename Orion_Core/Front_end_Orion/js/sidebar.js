@@ -63,6 +63,7 @@
         menu.replaceChildren(...[
             ['renomear', 'Renomear'], ['fixar', s.favorita ? 'Desafixar' : 'Fixar'],
             ['arquivar', s.arquivada ? 'Restaurar' : 'Arquivar'],
+            ...(api.suporta('projects') ? [['projeto', 'Mover para projeto']] : []),
         ].map(([valor, text]) => el('button', { type: 'button', role: 'menuitem', text, dataset: { valor } })));
         const r = linha.mais.getBoundingClientRect();
         menu.style.left = `${Math.max(8, Math.min(innerWidth - 180, r.right - 168))}px`;
@@ -71,6 +72,7 @@
     }
     async function gerenciar(linha, acao) {
         const s = linha.dados;
+        if (acao === 'projeto') return O.projects.mover(s.sessao_id);
         try {
             let dados;
             if (acao === 'renomear') {
@@ -195,9 +197,9 @@
         if (abrindo) return;
         if (!api.suporta('sessions')) { ui.toast('Conversas salvas ainda indisponíveis neste backend.', { tipo: 'aviso' }); return; }
         if (O.chat.ocupado()) { ui.toast('Espere a resposta terminar para começar outra conversa.', { tipo: 'aviso' }); return; }
-        abrindo = true; bus.emit('historico');
+        abrindo = true; bus.emit('historico'); O.app.ir('chat');
         try {
-            const d = await api.novaSessao();
+            const d = await api.novaSessao(O.projects?.current()?.id || null);
             if (d && d.erro) throw new Error(d.erro);
             O.chat.limpar();
             if (api.estado().backend === 'orion') { restaurado = true; await O.historico.abrir(d.sessao_id); }
@@ -206,8 +208,7 @@
             ui.toast(`Cérebro fora do ar: não deu para criar a conversa. ${e.rede ? '' : e.message}`.trim(), { tipo: 'erro' });
             }
         finally { abrindo = false; bus.emit('historico'); }
-        O.app.ir('chat');
-        O.composer.foco();
+        if (O.app.view() === 'chat') O.composer.foco();
     }
 
     /* ── recolher ──────────────────────────────────────────────────────── */

@@ -44,6 +44,7 @@
     }
     async function review(row, version = null) {
         const source = origin(), target = version || { digest: row.selected_digest, capabilities: row.capabilities, version: row.version };
+        const scope = O.projects?.options();
         const capabilities = target.capabilities.map(name => ({ name, ...check(name, !!version) }));
         const local = check('Confio no código local deste pacote e autorizo sua execução no computador.');
         const remote = check('Autorizo a conexão aos servidores remotos deste pacote.');
@@ -62,7 +63,7 @@
         }
         const accepted = await dialog(version ? 'Revisar troca de versão' : `Ativar ${row.name}`,
             `Versão ${target.version} · revisão ${target.digest.slice(0, 12)}. Conceda apenas o que deseja usar. Cada ação de escrita ou execução ainda passa pela política do Orion.`,
-            [hint('Capacidades solicitadas'), ...capabilities.map(c => c.row), ...details,
+            [...(scope && api.suporta('projects') ? [el('label', { class: 'extension-field' }, el('span', { text: 'Escopo da extensão' }), scope)] : []), hint('Capacidades solicitadas'), ...capabilities.map(c => c.row), ...details,
                 ...(!version && row.connections?.some(c => c.transport === 'stdio') ? [local.row] : []),
                 ...(!version && row.connections?.some(c => c.transport === 'http') ? [remote.row] : [])], version ? 'Usar esta versão' : 'Ativar');
         if (!accepted || source !== origin()) return;
@@ -72,7 +73,7 @@
         }
         await mutate(() => api.plugin(row.id, version ? 'version' : 'activate', {
             digest: target.digest, capabilities: capabilities.filter(c => c.input.checked).map(c => c.name),
-            trusted_local: local.input.checked, authorized_remote: remote.input.checked, classifications: reviewed,
+            scope: scope?.value || 'personal', trusted_local: local.input.checked, authorized_remote: remote.input.checked, classifications: reviewed,
         }), row.id);
     }
 

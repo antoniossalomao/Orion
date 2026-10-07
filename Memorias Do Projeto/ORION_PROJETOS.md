@@ -28,3 +28,10 @@ registrados pelas ferramentas já escopadas, sem consolidação pessoal silencio
 Validação C32: canários distintos em dois projetos, FTS e vetores, compartilhamento pessoal,
 deduplicação, reinício, proteção contra symlink, escrita nativa, concessões de skills,
 resources MCP e revisão de aprovação. Fixtures não demonstram isolamento do processo MCP.
+
+A interface C33 oferece a seção Projetos, indicação do contexto no composer,
+conversas/fontes/extensões por projeto, edição de instruções e raiz, compartilhamento
+pessoal explícito e arquivamento/restauração. Mover conversa preserva IDs e rascunhos;
+novas conversas herdam o projeto visualizado. Projetos arquivados mantêm consulta de
+histórico, mas recusam novos turnos e ativação para escrita. A revisão de plugins e
+conexões MCP inclui o escopo escolhido; o catálogo de skills acompanha a conversa.

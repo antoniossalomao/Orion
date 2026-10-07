@@ -170,3 +170,17 @@
 /* ── Configurações: respiro entre o seletor de tema e as linhas ─────── */
 .settings-section fieldset { margin: 0 0 var(--s-4); padding: 0; min-width: 0; border: 0; }
 .settings-section fieldset + .row { padding-top: 0.7rem; border-top: 1px solid var(--line-1); }
+
+/* Projetos: lista compacta e contexto legível também em janelas estreitas. */
+.project-toolbar { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:20px; }
+.project-layout { display:grid; grid-template-columns:minmax(140px,220px) minmax(0,1fr); gap:24px; }
+#project-list { display:flex; flex-direction:column; gap:6px; }
+.project-list-item { justify-content:flex-start; white-space:normal; overflow-wrap:anywhere; text-align:left; }
+.project-list-item[aria-current="true"] { background:var(--accent-soft); color:var(--accent); }
+.project-detail { padding:24px; min-width:0; }
+.project-detail h3 { font-size:22px; margin-bottom:8px; }
+.project-detail h4 { margin:24px 0 10px; color:var(--text-2); }
+.project-instructions { white-space:pre-wrap; overflow-wrap:anywhere; }
+.project-conversation { display:flex; width:100%; text-align:left; white-space:normal; justify-content:flex-start; }
+.project-context { margin-bottom:8px; max-width:100%; text-overflow:ellipsis; overflow:hidden; }
+@media(max-width:760px) { .project-layout { grid-template-columns:1fr; gap:16px; } #project-list { flex-direction:row; flex-wrap:wrap; } .project-detail { padding:18px; } }

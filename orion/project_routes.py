@@ -71,7 +71,22 @@ def router(require_admin) -> APIRouter:
             "ORDER BY last_active_at DESC",
             (id_,),
         )
-        return {**row, "sessions": [dict(s) for s in sessions]}
+        documents = state.memory.query(
+            "SELECT id,title,indexed_at FROM documents WHERE project_id=? ORDER BY indexed_at DESC",
+            (id_,),
+        )
+        scope = "project:" + id_
+        extensions = (
+            [r for r in state.extensions.list() if r.get("scope") == scope]
+            if state.extensions
+            else []
+        )
+        return {
+            **row,
+            "sessions": [dict(s) for s in sessions],
+            "documents": [dict(d) for d in documents],
+            "extensions": extensions,
+        }
 
     @api.patch("/{id_}")
     def update(id_: str, body: Update, request: Request):

@@ -98,6 +98,9 @@ class Agent:
         expected_session: str | None = None,
     ) -> AsyncIterator[AgentEvent]:
         session = self.memory.active_session(channel)
+        if session.project_id and Projects(self.memory).get(session.project_id)["archived"]:
+            yield AgentEvent("error", {"message": "project_archived"})
+            return
         if expected_session is not None and session.id != expected_session:
             yield AgentEvent("error", {"message": "session_scope_changed"})
             return

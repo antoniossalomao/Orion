@@ -397,6 +397,15 @@ def create_app(
             "pending_notifications": len(state.ops.pending_notifications(limit=1000)),
         }
 
+    def project_archived(session: Session | None) -> bool:
+        return bool(
+            session
+            and session.project_id
+            and app.state.orion.memory.query(
+                "SELECT archived FROM projects WHERE id=?", (session.project_id,)
+            )[0][0]
+        )
+
     def sessao_json(session: Session, ativa: str | None) -> dict[str, Any]:
         return {
             "sessao_id": session.id,
@@ -409,7 +418,7 @@ def create_app(
             "favorita": session.favorite,
             "arquivada": session.archived,
             "importada": session.read_only,
-            "somente_leitura": session.archived or session.read_only,
+            "somente_leitura": session.archived or session.read_only or project_archived(session),
         }
 
     @app.get("/sessoes", dependencies=[Admin])
@@ -549,7 +558,9 @@ def create_app(
             "mensagens": [message_json(m) for m in messages],
             "mais": cursor is not None,
             "proximo_antes": cursor,
-            "somente_leitura": bool(session and (session.archived or session.read_only)),
+            "somente_leitura": bool(
+                session and (session.archived or session.read_only or project_archived(session))
+            ),
         }
 
     @app.delete("/historico", dependencies=[Admin])
@@ -635,8 +646,12 @@ def create_app(
         return state.agent
 
     @app.get("/skills", dependencies=[Admin])
-    def listar_skills(state: State) -> list[dict]:
-        return state.skills.summaries() if state.skills is not None else []
+    def listar_skills(
+        state: State, canal: Annotated[str, Query(pattern=_CANAL)] = "web"
+    ) -> list[dict]:
+        session = state.memory.selected_session(canal)
+        scope = f"project:{session.project_id}" if session and session.project_id else "personal"
+        return [s for s in state.skills.summaries() if s["scope"] == scope] if state.skills else []
 
     @app.post("/chat", dependencies=[Admin])
     async def chat(corpo: Mensagem, state: State) -> StreamingResponse:

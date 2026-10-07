@@ -10,6 +10,7 @@
 
     async function form(edit = null) {
         const source = origin(), key = `${source}:${edit || 'new'}`, draft = drafts.get(key) || {};
+        const scope = O.projects?.options('Escopo da conexão', draft.scope);
         const id = input('Identificador da conexão', edit || draft.id, 'pesquisa-local'); if (edit) id.readOnly = true;
         const transport = el('select', { class: 'input', 'aria-label': 'Tipo de conexão' }, el('option', { value: 'stdio', text: 'Servidor local' }), el('option', { value: 'http', text: 'Servidor remoto' }));
         transport.value = draft.transport || 'stdio';
@@ -26,14 +27,14 @@
         transport.addEventListener('change', change); change();
         const accepted = await X.dialog(edit ? 'Reconfigurar conexão' : 'Adicionar conexão',
             'Salvar não inicia o servidor. O teste verifica a conexão e descobre ferramentas, sem executar ações.',
-            [field('Identificador da conexão', id), field('Tipo de conexão', transport), local, remote,
+            [...(scope && api.suporta('projects') ? [field('Escopo da conexão', scope)] : []), field('Identificador da conexão', id), field('Tipo de conexão', transport), local, remote,
                 el('details', {}, el('summary', { text: 'Permissões de ferramentas' }), X.hint('Classifique cada ferramenta revisada: read, write, exec ou destructive. Ferramentas omitidas não ficam disponíveis ao modelo.'), field('Classificação das ferramentas em JSON', permissions))], 'Salvar configuração');
-        const data = { id: id.value.trim(), transport: transport.value, command: command.value.trim(), argv: argv.value, url: url.value.trim(), secret_ref: secret.value.trim(), permissions: permissions.value };
+        const data = { scope: scope?.value || 'personal', id: id.value.trim(), transport: transport.value, command: command.value.trim(), argv: argv.value, url: url.value.trim(), secret_ref: secret.value.trim(), permissions: permissions.value };
         drafts.set(key, data);
         if (!accepted || source !== origin()) return;
         try {
             const args = JSON.parse(data.argv), classifications = JSON.parse(data.permissions);
-            const config = { id: data.id, transport: data.transport, classifications, enabled: true };
+            const config = { scope: data.scope, id: data.id, transport: data.transport, classifications, enabled: true };
             if (transport.value === 'stdio') Object.assign(config, { command: data.command, args, trusted: trust.input.checked });
             else Object.assign(config, { url: data.url, secret_ref: data.secret_ref || null, authorized: authorize.input.checked });
             await api.configurarMcp(config, !!edit);

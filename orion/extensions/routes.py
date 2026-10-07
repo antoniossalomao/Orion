@@ -39,6 +39,14 @@ def manager(request: Request) -> PluginManager:
     return value
 
 
+def validate_scope(request: Request, scope: str) -> None:
+    if scope.startswith("project:"):
+        from ..projects import Projects
+
+        if Projects(request.app.state.orion.memory).get(scope[8:])["archived"]:
+            raise HTTPException(409, "project_archived")
+
+
 def router(require_admin) -> APIRouter:
     api = APIRouter(dependencies=[Depends(require_admin)])
 
@@ -106,11 +114,7 @@ def router(require_admin) -> APIRouter:
     @api.post("/plugins/{id_}/activate")
     async def activate(id_: str, body: Review, request: Request):
         m = manager(request)
-        if body.scope.startswith("project:"):
-            from ..projects import Projects
-
-            if Projects(request.app.state.orion.memory).get(body.scope[8:])["archived"]:
-                raise HTTPException(409, "project_archived")
+        validate_scope(request, body.scope)
         async with m.lock:
             return await m.activate(
                 id_,
@@ -178,6 +182,7 @@ def router(require_admin) -> APIRouter:
             config = TypeAdapter(ConnectionConfig).validate_python(body)
         except ValueError:
             raise HTTPException(422, "connection_config_invalid") from None
+        validate_scope(request, config.scope)
         m = manager(request)
         async with m.lock:
             if config.id in m.host.connections or len(m.host.connections) >= 32:
@@ -192,6 +197,7 @@ def router(require_admin) -> APIRouter:
             config = TypeAdapter(ConnectionConfig).validate_python(body)
         except ValueError:
             raise HTTPException(422, "connection_config_invalid") from None
+        validate_scope(request, config.scope)
         if config.id != id_:
             raise PluginError("connection_id_conflict")
         m = manager(request)

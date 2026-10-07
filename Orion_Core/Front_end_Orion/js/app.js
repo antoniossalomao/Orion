@@ -15,6 +15,7 @@
     const VIEWS = {
         home: { titulo: 'Início', rota: '/' },
         chat: { titulo: 'Chat', rota: '/chat' },
+        projetos: { titulo: 'Projetos', rota: '/projetos' },
         memoria: { titulo: 'Memória', rota: '/memoria' },
         integracoes: { titulo: 'Integrações', rota: '/integracoes' },
         config: { titulo: 'Configurações', rota: '/config' },
