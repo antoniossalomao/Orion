@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "orion_api": 1,
+  "id": "orion-pesquisa",
+  "version": "1.0.0",
+  "name": "Orion Pesquisa",
+  "description": "Pesquise assuntos, confira evidências e compare fontes com clareza.",
+  "license": "LicenseRef-Orion-Proprietary",
+  "skills": ["skills/pesquisar-assunto", "skills/comparar-fontes"],
+  "capabilities": ["native:pesquisar_internet", "native:buscar_url"]
+}

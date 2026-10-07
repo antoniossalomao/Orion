@@ -282,5 +282,7 @@ class PluginStore:
             if not self._db.execute("SELECT 1 FROM plugins WHERE id=?", (id_,)).fetchone():
                 raise PluginError("plugin_not_found")
             self._db.execute(
-                "UPDATE plugins SET state=?,error=? WHERE id=?", (state.value, error, id_)
+                "UPDATE plugins SET state=?,error=?,active_digest=CASE WHEN ?='active' "
+                "THEN selected_digest ELSE NULL END WHERE id=?",
+                (state.value, error, state.value, id_),
             )

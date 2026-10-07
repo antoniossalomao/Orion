@@ -35,7 +35,7 @@ def public_plugin(row: dict) -> dict:
             {"id": c["id"], "transport": c["transport"], "tools": c["tools"]}
             for c in manifest["mcp"]
         ],
-        "origin": "local" if row["origin"] == "local" else "imported",
+        "origin": row["origin"] if row["origin"] in {"local", "orion"} else "imported",
     }
 
 
@@ -138,6 +138,16 @@ class PluginManager:
         await self.deactivate(id_)
         generation = self.grants.review(id_, digest, capabilities, scope=scope)
         effective = self.grants.effective(id_, digest, scope=scope)
+        if any(
+            cap.startswith("native:")
+            and (
+                cap.removeprefix("native:") not in self.policy.tools
+                or self.catalog.registry.get(cap.removeprefix("native:")) is None
+            )
+            for cap in effective
+        ):
+            self.store.transition(id_, PluginState.WAITING, error="capability_unavailable")
+            return public_plugin(self.store.get(id_))
         self.connections[id_] = set()
         try:
             for remote in manifest.mcp:

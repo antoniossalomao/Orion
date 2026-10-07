@@ -98,8 +98,8 @@
         }, 'btn btn-ghost btn-sm'));
         return el('article', { class: 'card extension-card', dataset: { plugin: row.id } },
             el('div', { class: 'extension-card-head' }, el('h3', { text: row.name }), badge(row.state)),
-            hint(row.description), el('div', { class: 'extension-meta', text: `v${row.version} · ${row.license} · ${row.origin === 'local' ? 'Pasta local' : 'Pacote importado'}` }),
-            row.error ? el('p', { class: 'banner banner-warn', text: 'A ativação falhou. Confira a conexão e revise as permissões antes de tentar novamente.' }) : null,
+            hint(row.description), el('div', { class: 'extension-meta', text: `v${row.version} · ${row.license} · ${row.origin === 'local' ? 'Pasta local' : row.origin === 'orion' ? 'Orion' : 'Pacote importado'}` }),
+            row.error ? el('p', { class: 'banner banner-warn', text: row.error === 'capability_unavailable' ? 'Uma ferramenta necessária não está disponível. Confira a configuração do provedor antes de ativar.' : 'A ativação falhou. Confira a conexão e revise as permissões antes de tentar novamente.' }) : null,
             el('details', {}, el('summary', { text: 'Detalhes e capacidades' }),
                 hint(`Identidade: ${row.id} · Revisão: ${row.selected_digest.slice(0, 16)}`),
                 ...row.capabilities.map(text => el('p', { class: 'mono extension-capability', text }))), actions);
@@ -127,6 +127,17 @@
                 const folder = button('Instalar por pasta', async () => { const source = origin(); const path = await O.ui.confirmar({ titulo: 'Instalar pacote local', texto: 'Informe a pasta que contém manifest.json. O código não será executado durante a instalação.', campo: { rotulo: 'Caminho absoluto da pasta', limite: 4096 }, ok: 'Instalar' }); if (path && source === origin()) await mutate(() => api.instalarPlugin(path)); });
                 nodes.push(el('details', { class: 'extension-local' }, el('summary', { text: 'Pacote de desenvolvimento' }), folder));
                 nodes.push(el('div', { class: 'extension-grid' }, ...rows.map(pluginCard)));
+                if (api.suporta('plugin_profiles')) {
+                    const available = await api.perfisPlugins();
+                    if (current !== generation || source !== origin() || selected !== tab) return;
+                    const added = new Set(rows.map(row => row.id));
+                    const suggested = available.filter(row => !added.has(row.id));
+                    if (suggested.length) nodes.push(el('h3', { text: 'Pacotes do Orion' }), el('div', { class: 'extension-grid' },
+                        ...suggested.map(row => el('article', { class: 'card extension-card' }, el('h3', { text: row.name }), hint(row.description),
+                            el('p', { class:'extension-meta', text: `v${row.version} · Orion` }),
+                            hint(row.id === 'orion-pesquisa' ? 'Busca web usa sua conta Brave Search. Fontes fornecidas podem ser comparadas em leitura.' : ''),
+                            button('Adicionar', () => mutate(() => api.instalarPerfil(row.id)), 'btn btn-primary btn-sm')))));
+                }
             } else if (selected === 'skills') {
                 nodes.push(hint('Instruções que ajudam o Orion a realizar tarefas. Ative o plugin de origem para usar uma skill.'));
                 nodes.push(el('div', { class: 'extension-grid' }, ...rows.map(row => el('article', { class: 'card extension-card' },

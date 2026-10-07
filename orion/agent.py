@@ -197,7 +197,10 @@ class Agent:
         usadas: list[str] = list(extra_tools or [])
         activity: list[dict] = list(prior_activity or [])
         destino: tuple[str, str] | None = None
-        esquemas = self.tools.schemas(query=consulta, selected=extra_tools) or None
+        selected_names: list[str] = list(extra_tools or [])
+        if ctx.allowed_tools is not None:
+            selected_names.extend(sorted(ctx.allowed_tools))
+        esquemas = self.tools.schemas(query=consulta, selected=selected_names) or None
         if ctx.allowed_tools is not None:
             esquemas = [
                 s for s in esquemas or [] if s["function"]["name"] in ctx.allowed_tools

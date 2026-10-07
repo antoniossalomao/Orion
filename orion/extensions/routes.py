@@ -13,6 +13,7 @@ from .archives import MAX_ARCHIVE, archive_snapshot
 from .host import Connection, ConnectionConfig
 from .manager import PluginManager, public_plugin
 from .plugins import PluginError
+from .profiles import profile, profiles
 
 
 class Install(BaseModel):
@@ -44,6 +45,20 @@ def router(require_admin) -> APIRouter:
     @api.get("/plugins")
     def catalog(request: Request):
         return manager(request).list()
+
+    @api.get("/plugins/available")
+    async def available():
+        return await asyncio.to_thread(profiles)
+
+    @api.post("/plugins/builtin/{id_}")
+    async def install_profile(id_: str, request: Request):
+        package = await asyncio.to_thread(profile, id_)
+        m = manager(request)
+        async with m.lock:
+            row = await asyncio.to_thread(
+                m.installer.install_snapshot, package, origin="orion", update=True
+            )
+        return public_plugin(row)
 
     @api.post("/plugins/install")
     async def install(body: Install, request: Request):

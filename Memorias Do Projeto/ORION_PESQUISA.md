@@ -45,3 +45,25 @@ IPv4/IPv6, DNS fixado e redirect privado bloqueado antes de conectar. **Conta Br
 real e chamadas de pesquisa pagas não foram usadas/autorizadas nesta entrega.**
 A rede de alguns ambientes exige proxy; esse fetch não herda proxy porque precisa
 controlar o destino. Uma falha de rede retorna código e não tenta contornar o bloqueio.
+
+## Pacote Orion Pesquisa — C29
+
+O catálogo autenticado oferece o pacote mantido no próprio Orion, com
+`pesquisar-assunto` e `comparar-fontes`. Instalar pelo botão **Adicionar** é o mesmo
+pipeline de snapshot/staging/hash utilizado para ZIP/pasta. O pacote solicita somente
+`pesquisar_internet` e `buscar_url`, sem escrita, scripts ou MCP redundante. A licença
+do conteúdo é a do projeto Orion; a licença MIT do servidor oficial Brave não é
+atribuída ao pacote proprietário do Orion.
+
+Ativação pede revisão do hash e concessões. Provedor desligado mantém o pacote
+aguardando configuração; a interface não declara pesquisa operacional. Sem conceder
+busca/fetch, as instruções podem ajudar na comparação de fontes que a pessoa fornece,
+mas não recebem ferramentas de navegação. As duas skills restringem o turno às
+capacidades concedidas. Selecionar uma skill inclui suas ferramentas no orçamento de
+schemas, mesmo quando a consulta não tem o mesmo vocabulário da descrição da tool.
+
+Instruções exigem fonte real, contexto/data, distinção entre fato/interpretação/hipótese,
+confronto de evidências e abstenção sem suporte. Trecho de busca não prova uma afirmação.
+Fixtures passam fontes divergentes e resultado vazio ao gateway simulado; isso prova
+transporte/escopo e limites do fluxo, **não qualidade factual de um modelo real**.
+Pedido sem intenção de pesquisa não seleciona as skills na fixture de gatilho negativo.

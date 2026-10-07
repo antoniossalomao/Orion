@@ -147,6 +147,8 @@
     const api = {
         ApiError, UnsupportedError, base, wsBase, token, configurarToken, req,
         detectar, suporta, estado: () => estado,
+        perfisPlugins: () => recurso('plugin_profiles', '/plugins/available'),
+        instalarPerfil: id => recurso('plugin_profiles', `/plugins/builtin/${encodeURIComponent(id)}`, { metodo: 'POST', timeout: 30000 }),
         plugins: () => recurso('plugins', '/plugins'),
         importarPlugin: arquivo => recurso('plugins', '/plugins/import?update=true', { metodo: 'POST', body: arquivo, contentType: 'application/zip', timeout: 30000 }),
         instalarPlugin: folder => recurso('plugins', '/plugins/install', { metodo: 'POST', json: { folder, update: true }, timeout: 30000 }),
