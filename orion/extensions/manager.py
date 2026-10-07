@@ -4,13 +4,16 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 import sys
 from pathlib import Path
+
+from pydantic import TypeAdapter
 
 from ..policy import PolicyEngine, Risk
 from .catalog import Catalog
 from .grants import Grants
-from .host import Connection, HTTPConfig, MCPHost, StdioConfig
+from .host import Connection, ConnectionConfig, HTTPConfig, MCPHost, StdioConfig
 from .installer import Installer
 from .plugins import PluginError, PluginManifest, PluginState, PluginStore
 from .skill_runtime import SkillRuntime
@@ -52,9 +55,36 @@ class PluginManager:
         self.connections: dict[str, set[str]] = {}
         self.owned_skills: dict[str, set[str]] = {}
         self.lock = asyncio.Lock()
+        with self.store._lock, self.store._db:
+            self.store._db.execute(
+                "CREATE TABLE IF NOT EXISTS extension_connections "
+                "(id TEXT PRIMARY KEY, config TEXT NOT NULL)"
+            )
+
+            rows = self.store._db.execute("SELECT config FROM extension_connections").fetchall()
+            for record in rows:
+                try:
+                    value = json.loads(record[0])
+                    value["enabled"] = False
+                    config = TypeAdapter(ConnectionConfig).validate_python(value)
+                    if config.id not in host.connections and len(host.connections) < 32:
+                        host.connections[config.id] = Connection(config)
+                except ValueError:
+                    pass  # Configuração inválida não executa código no startup.
         # Reinício não autoriza executar código/conectar conta silenciosamente.
         for row in self.store.list():
             self.store.transition(row["id"], PluginState.DISABLED)
+
+    def save_connection(self, config: StdioConfig | HTTPConfig) -> None:
+        with self.store._lock, self.store._db:
+            self.store._db.execute(
+                "INSERT OR REPLACE INTO extension_connections VALUES(?,?)",
+                (config.id, config.model_dump_json()),
+            )
+
+    def forget_connection(self, id_: str) -> None:
+        with self.store._lock, self.store._db:
+            self.store._db.execute("DELETE FROM extension_connections WHERE id=?", (id_,))
 
     def list(self) -> list[dict]:
         return [public_plugin(row) for row in self.store.list()]

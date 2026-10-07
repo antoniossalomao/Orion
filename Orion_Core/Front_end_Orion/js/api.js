@@ -152,6 +152,10 @@
         instalarPlugin: folder => recurso('plugins', '/plugins/install', { metodo: 'POST', json: { folder, update: true }, timeout: 30000 }),
         plugin: (id, action, json) => recurso('plugins', `/plugins/${encodeURIComponent(id)}${action ? '/' + action : ''}`, { metodo: action === '' ? 'DELETE' : 'POST', json, timeout: 30000 }),
         versoesPlugin: id => recurso('plugins', `/plugins/${encodeURIComponent(id)}/versions`),
+        configurarMcp: (config, edit = false) => recurso('mcp', `/mcp/connections${edit ? '/' + encodeURIComponent(config.id) : ''}`, { metodo: edit ? 'PUT' : 'POST', json: config }),
+        testarMcp: id => recurso('mcp', `/mcp/connections/${encodeURIComponent(id)}/test`, { metodo: 'POST', timeout: 30000 }),
+        desativarMcp: id => recurso('mcp', `/mcp/connections/${encodeURIComponent(id)}/disable`, { metodo: 'POST', timeout: 30000 }),
+        removerMcp: id => recurso('mcp', `/mcp/connections/${encodeURIComponent(id)}`, { metodo: 'DELETE', timeout: 30000 }),
         conexoesMcp: () => recurso('mcp', '/mcp/connections'),
         pedidoChat: ({ texto, modelo, skills = [] }) => estado.backend === 'orion'
             ? { texto, canal: 'web', ...(skills.length ? { skills } : {}) } : { texto, modelo },

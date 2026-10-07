@@ -84,3 +84,39 @@ def test_plugin_api_error_can_retry_without_repeated_popup(abrir, novo_backend):
     page.unroute("**/plugins")
     page.get_by_role("button", name="Tentar novamente").click()
     expect(page.get_by_role("heading", name="Seu Orion pode ir além")).to_be_visible()
+
+
+def test_configure_recover_test_and_disable_mcp_by_ui(abrir, novo_backend):
+    import sys
+    from pathlib import Path
+
+    url, _, _, _ = novo_backend()
+    page = abrir("#/integracoes", url=url, init=TOKEN_INIT, axe=True)
+    page.get_by_role("tab", name="Conexões MCP").click()
+    page.get_by_role("button", name="Adicionar conexão").click()
+    modal = page.get_by_role("dialog")
+    modal.get_by_role("textbox", name="Identificador da conexão").fill("fixture")
+    modal.get_by_role("textbox", name="Executável do servidor").fill(
+        "/tmp/orion-fixture-missing-command"
+    )
+    modal.get_by_role("checkbox").check()
+    modal.get_by_role("button", name="Salvar configuração").click()
+    card = page.locator('[data-connection="fixture"]')
+    expect(card).to_be_visible()
+    card.get_by_role("button", name="Testar conexão").click()
+    expect(card).to_contain_text("Confira o endereço ou o comando")
+    card.get_by_role("button", name="Reconfigurar").click()
+    modal = page.get_by_role("dialog")
+    modal.get_by_role("textbox", name="Executável do servidor").fill(sys.executable)
+    modal.get_by_role("textbox", name="Argumentos em JSON").fill(
+        json.dumps([str(Path("tests/extensions/mcp_server.py").resolve())])
+    )
+    modal.get_by_role("checkbox").check()
+    modal.get_by_role("button", name="Salvar configuração").click()
+    card.get_by_role("button", name="Testar conexão").click()
+    expect(card).to_contain_text("nenhuma ação executada")
+    card.get_by_role("button", name="Desativar").click()
+    expect(card).to_contain_text("Desativado")
+    assert not page.evaluate(
+        "async () => (await axe.run(document, {runOnly: {type:'tag', values:['wcag2a','wcag2aa']}})).violations"
+    )

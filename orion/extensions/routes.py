@@ -162,8 +162,46 @@ def router(require_admin) -> APIRouter:
         async with m.lock:
             if config.id in m.host.connections or len(m.host.connections) >= 32:
                 raise PluginError("connection_id_conflict")
+            m.save_connection(config)
             m.host.connections[config.id] = Connection(config)
         return {"id": config.id, "state": "configured"}
+
+    @api.put("/mcp/connections/{id_}")
+    async def reconfigure(id_: str, body: dict, request: Request):
+        try:
+            config = TypeAdapter(ConnectionConfig).validate_python(body)
+        except ValueError:
+            raise HTTPException(422, "connection_config_invalid") from None
+        if config.id != id_:
+            raise PluginError("connection_id_conflict")
+        m = manager(request)
+        async with m.lock:
+            if any(id_ in owned for owned in m.connections.values()):
+                raise PluginError("plugin_disable_first")
+            old = m.host.connections.pop(id_, None)
+            if old is None:
+                raise PluginError("connection_not_found")
+            await old.close()
+            await m.catalog.refresh()
+            m.save_connection(config)
+            m.host.connections[id_] = Connection(config)
+        return {"id": id_, "state": "configured"}
+
+    @api.post("/mcp/connections/{id_}/disable")
+    async def disable_connection(id_: str, request: Request):
+        m = manager(request)
+        async with m.lock:
+            if any(id_ in owned for owned in m.connections.values()):
+                raise PluginError("plugin_disable_first")
+            old = m.host.connections.get(id_)
+            if old is None:
+                raise PluginError("connection_not_found")
+            await old.close()
+            await m.catalog.refresh()
+            config = old.config.model_copy(update={"enabled": False})
+            m.save_connection(config)
+            m.host.connections[id_] = Connection(config)
+        return {"id": id_, "state": "disabled"}
 
     @api.post("/mcp/connections/{id_}/test")
     async def test(id_: str, request: Request):
@@ -172,6 +210,8 @@ def router(require_admin) -> APIRouter:
             connection = m.host.connections.get(id_)
             if connection is None:
                 raise PluginError("connection_not_found")
+            if connection.state == "failed":
+                await connection.close()
             await connection.start()
             # Só handshake/discovery. Nunca call_tool nem read_resource/prompt.
             tools = await connection.list_tools() if connection.state == "connected" else []
@@ -189,6 +229,7 @@ def router(require_admin) -> APIRouter:
                 raise PluginError("connection_not_found")
             await connection.close()
             await m.catalog.refresh()
+            m.forget_connection(id_)
         return {"ok": True}
 
     return api

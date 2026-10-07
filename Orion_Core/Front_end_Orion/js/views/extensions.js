@@ -3,7 +3,7 @@
     'use strict';
     const O = window.Orion, { $, el, api } = O;
     const legacy = O.views.integracoes;
-    const LABELS = { disabled: 'Desativado', active: 'Ativo', waiting_connection: 'Precisa de conexão', error: 'Revisar falha', installed: 'Instalado', connected: 'Conectada', configured: 'Configurada', disconnected: 'Desconectada' };
+    const LABELS = { disabled: 'Desativado', active: 'Ativo', waiting_connection: 'Precisa de conexão', error: 'Revisar falha', installed: 'Instalado', connected: 'Conectada', configured: 'Configurada', failed: 'Falha na conexão', disconnected: 'Desconectada' };
     let tab = 'plugins', active = false, busy = false, generation = 0, tabs, panel;
     const origin = () => `${api.base()}:${api.estado().backend}`;
     const button = (text, fn, cls = 'btn btn-outline btn-sm') => el('button', { type: 'button', class: cls, text, on: { click: fn } });
