@@ -87,6 +87,7 @@ class AppState:
     catalog: Catalog | None = None
     mcp: MCPHost | None = None
     extensions: PluginManager | None = None
+    accounts: Any = None
     telegram: TelegramChannel | None = None  # None sem token, sem usuários ou sem gateway
 
 
@@ -305,7 +306,11 @@ def create_app(
         tarefa_telegram = asyncio.create_task(telegram.run()) if telegram is not None else None
         if agent is not None:
             Research(settings.research).attach(agent.tools, policy)
-        mcp = MCPHost(settings.mcp_connections)
+        from .accounts import Accounts
+
+        accounts = Accounts(memory)
+        mcp = MCPHost(settings.mcp_connections, oauth_factory=accounts.provider)
+        accounts.host = mcp
         await mcp.start()
         catalog = Catalog(mcp, agent.tools if agent else ToolRegistry(), policy)
         if catalog is not None and agent is not None:
@@ -331,6 +336,7 @@ def create_app(
             catalog=catalog,
             skills=skills,
             extensions=extensions,
+            accounts=accounts,
         )
         try:
             yield
@@ -342,6 +348,7 @@ def create_app(
                         await tarefa
             if telegram is not None:
                 await telegram.aclose()
+            await accounts.close()
             await extensions.close()
             await skills.close()
             await mcp.close()
@@ -758,6 +765,10 @@ def create_app(
             raise HTTPException(404, "aviso inexistente ou já confirmado")
         return {"ok": True}
 
+    @app.exception_handler(MCPError)
+    async def mcp_error(request: Request, error: MCPError):
+        return JSONResponse(status_code=422, content={"detail": error.code})
+
     @app.exception_handler(PluginError)
     async def plugin_error(request: Request, error: PluginError):
         return JSONResponse(status_code=422, content={"detail": str(error)})
@@ -776,9 +787,11 @@ def create_app(
             content={"detail": str(error)},
         )
 
+    from .accounts import router as account_router
     from .branches import router as branch_router
     from .documents import router as document_router
 
+    app.include_router(account_router(require_admin))
     app.include_router(branch_router(require_admin))
     app.include_router(document_router(require_admin))
     app.include_router(fact_router(require_admin))

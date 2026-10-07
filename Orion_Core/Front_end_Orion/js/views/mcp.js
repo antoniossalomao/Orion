@@ -18,25 +18,27 @@
         const argv = el('textarea', { class: 'input', rows: '3', 'aria-label': 'Argumentos em JSON', text: draft.argv || '[]' });
         const url = input('Endereço do servidor', draft.url, 'https://servidor.example/mcp');
         const secret = input('Referência da credencial no cofre', draft.secret_ref, 'ORION_MCP_PESQUISA_TOKEN');
+        const accounts = api.suporta('accounts') ? await api.contas() : [];
+        const account = el('select', { class: 'input', 'aria-label': 'Conta OAuth' }, el('option', { value: '', text: 'Sem conta OAuth' }), ...accounts.filter(a => a.state !== 'revoked').map(a => el('option', { value: a.id, text: `${a.name} · ${a.scope}` }))); account.value = draft.account_id || '';
         const permissions = el('textarea', { class: 'input mono', rows: '3', 'aria-label': 'Classificação das ferramentas em JSON', text: draft.permissions || '{}' });
         const trust = X.check('Revisei este comando e confio no código que será executado no computador.');
         const authorize = X.check('Autorizo o Orion a acessar este endereço remoto.');
         const local = el('div', {}, field('Executável do servidor', command), field('Argumentos em JSON', argv), trust.row);
-        const remote = el('div', {}, field('Endereço do servidor', url), field('Referência da credencial no cofre', secret), X.hint('A credencial fica no cofre do Orion. Informe aqui somente o nome da referência.'), authorize.row);
+        const remote = el('div', {}, field('Endereço do servidor', url), field('Referência da credencial no cofre', secret), field('Conta OAuth', account), X.hint('A credencial fica no cofre do Orion. Informe aqui somente o nome da referência.'), authorize.row);
         function change() { local.hidden = transport.value !== 'stdio'; remote.hidden = transport.value !== 'http'; }
         transport.addEventListener('change', change); change();
         const accepted = await X.dialog(edit ? 'Reconfigurar conexão' : 'Adicionar conexão',
             'Salvar não inicia o servidor. O teste verifica a conexão e descobre ferramentas, sem executar ações.',
             [...(scope && api.suporta('projects') ? [field('Escopo da conexão', scope)] : []), field('Identificador da conexão', id), field('Tipo de conexão', transport), local, remote,
                 el('details', {}, el('summary', { text: 'Permissões de ferramentas' }), X.hint('Classifique cada ferramenta revisada: read, write, exec ou destructive. Ferramentas omitidas não ficam disponíveis ao modelo.'), field('Classificação das ferramentas em JSON', permissions))], 'Salvar configuração');
-        const data = { scope: scope?.value || 'personal', id: id.value.trim(), transport: transport.value, command: command.value.trim(), argv: argv.value, url: url.value.trim(), secret_ref: secret.value.trim(), permissions: permissions.value };
+        const data = { scope: scope?.value || 'personal', id: id.value.trim(), transport: transport.value, command: command.value.trim(), argv: argv.value, url: url.value.trim(), secret_ref: secret.value.trim(), account_id: account.value || null, permissions: permissions.value };
         drafts.set(key, data);
         if (!accepted || source !== origin()) return;
         try {
             const args = JSON.parse(data.argv), classifications = JSON.parse(data.permissions);
             const config = { scope: data.scope, id: data.id, transport: data.transport, classifications, enabled: true };
             if (transport.value === 'stdio') Object.assign(config, { command: data.command, args, trusted: trust.input.checked });
-            else Object.assign(config, { url: data.url, secret_ref: data.secret_ref || null, authorized: authorize.input.checked });
+            else Object.assign(config, { url: data.url, secret_ref: data.secret_ref || null, account_id: data.account_id, authorized: authorize.input.checked });
             await api.configurarMcp(config, !!edit);
             drafts.delete(key); drafts.set(`${source}:${data.id}`, data); results.delete(`${source}:${data.id}`);
             if (source === origin()) await X.refresh();

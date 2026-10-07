@@ -92,10 +92,13 @@ class HTTPConfig(BaseModel):
     scope: str = Field(default="personal", pattern=r"^(personal|project:[a-f0-9]{32})$")
     enabled: bool = False
     authorized: bool = False
+    account_id: str | None = Field(default=None, pattern=r"^[a-f0-9]{32}$")
     secret_ref: str | None = Field(default=None, pattern=r"^ORION_MCP_[A-Z0-9_]{1,80}$")
 
     @model_validator(mode="after")
     def valid_endpoint(self) -> HTTPConfig:
+        if self.secret_ref and self.account_id:
+            raise ValueError("escolha conta OAuth ou referência Bearer")
         url = urlsplit(self.url)
         if (
             url.scheme not in {"https", "http"}
@@ -137,8 +140,10 @@ class MCPError(RuntimeError):
 
 
 class Connection:
-    def __init__(self, config: StdioConfig | HTTPConfig, *, timeout: float = 5):
+    def __init__(self, config: StdioConfig | HTTPConfig, *, timeout: float = 5, oauth_factory=None):
         sanitize_protocol_logs()
+        self.oauth_factory = oauth_factory
+        self._account_check = None
         self.label: str = config.id
         self.authorized: Callable[[], bool] | None = None
         self.config = config
@@ -182,7 +187,14 @@ class Connection:
                 if response.status_code in {401, 403}:
                     self._http_error = "auth_failed"
 
+            auth = None
+            if self.config.account_id:
+                if not self.oauth_factory:
+                    raise MCPError("account_authorization_required")
+                auth = self.oauth_factory(self.config)
+                self._account_check = auth.context.storage.valid
             async with httpx2.AsyncClient(
+                auth=auth,
                 headers=headers,
                 trust_env=False,
                 timeout=httpx2.Timeout(self.timeout),
@@ -260,6 +272,8 @@ class Connection:
             self._task = None
 
     def connected(self) -> Client:
+        if self._account_check:
+            self._account_check()
         if self.client is None or self.state != "connected":
             raise MCPError("not_connected")
         return self.client
@@ -295,10 +309,15 @@ class Connection:
 
 
 class MCPHost:
-    def __init__(self, configs: list[ConnectionConfig], *, timeout: float = 5):
+    def __init__(self, configs: list[ConnectionConfig], *, timeout: float = 5, oauth_factory=None):
         if len(configs) > 32 or len({c.id for c in configs}) != len(configs):
             raise ValueError("conexões duplicadas ou acima do limite")
-        self.connections = {c.id: Connection(c, timeout=timeout) for c in configs}
+        self.oauth_factory = oauth_factory
+        self.timeout = timeout
+        self.connections = {c.id: self.connection(c) for c in configs}
+
+    def connection(self, config):
+        return Connection(config, timeout=self.timeout, oauth_factory=self.oauth_factory)
 
     async def start(self) -> None:
         await asyncio.gather(*(c.start() for c in self.connections.values()))

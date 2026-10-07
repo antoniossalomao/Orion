@@ -146,6 +146,7 @@
                     hint(row.description), el('p', { class: 'extension-meta', text: `${row.id} · ${row.origin} · ${row.version}` }),
                     row.enabled ? button('Usar no chat', async () => { O.app.ir('chat'); await O.composer.carregarSkills(); O.composer.selecionarSkill(row.id); }) : null))));
             } else {
+                if (O.accounts && api.suporta('accounts')) nodes.push(await O.accounts.panel());
                 nodes.push(hint('Conecte ferramentas e fontes de dados. Uma conexão não autoriza ações por conta própria.'));
                 if (O.extensions?.connectionForm) nodes.push(button('Adicionar conexão', O.extensions.connectionForm, 'btn btn-primary btn-sm'));
                 nodes.push(el('div', { class: 'extension-grid' }, ...rows.map(row => O.extensions?.connectionCard ? O.extensions.connectionCard(row) : el('article', { class: 'card extension-card' }, el('h3', { text: row.id }), badge(row.state), hint(row.code || row.error || '')))));

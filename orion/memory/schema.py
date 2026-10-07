@@ -6,7 +6,7 @@ para a versão atual sozinho (`MIGRATIONS`). v3: seleção persistente de sessã
 v4: conversas fixadas. v5: índice de títulos para busca de conversas.
 """
 
-SCHEMA_VERSION = 11
+SCHEMA_VERSION = 12
 
 TOKENIZER = "unicode61 remove_diacritics 2"  # "açúcar" casa com "acucar"
 
@@ -262,6 +262,12 @@ CREATE TABLE message_branches(session_id TEXT PRIMARY KEY REFERENCES sessions(id
 CREATE INDEX idx_branches_root ON message_branches(root_session);
 """
 
+DDL_V12 = """
+CREATE TABLE oauth_accounts(id TEXT PRIMARY KEY,name TEXT NOT NULL,url TEXT NOT NULL,
+ scope TEXT NOT NULL,scopes TEXT NOT NULL,granted TEXT NOT NULL,revision TEXT NOT NULL,
+ state TEXT NOT NULL,expires_at REAL,error TEXT);
+"""
+
 DDL = (
     DDL_V1
     + DDL_V2
@@ -274,6 +280,7 @@ DDL = (
     + DDL_V9
     + DDL_V10
     + DDL_V11
+    + DDL_V12
 )
 MIGRATIONS: dict[int, str] = {
     1: DDL_V2,
@@ -286,4 +293,5 @@ MIGRATIONS: dict[int, str] = {
     8: DDL_V9,
     9: DDL_V10,
     10: DDL_V11,
+    11: DDL_V12,
 }

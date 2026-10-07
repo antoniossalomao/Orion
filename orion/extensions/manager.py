@@ -13,7 +13,7 @@ from pydantic import TypeAdapter
 from ..policy import PolicyEngine, Risk
 from .catalog import Catalog
 from .grants import Grants
-from .host import Connection, ConnectionConfig, HTTPConfig, MCPHost, StdioConfig
+from .host import ConnectionConfig, HTTPConfig, MCPHost, StdioConfig
 from .installer import Installer
 from .plugins import PluginError, PluginManifest, PluginState, PluginStore
 from .skill_runtime import SkillRuntime
@@ -69,7 +69,7 @@ class PluginManager:
                     value["enabled"] = False
                     config = TypeAdapter(ConnectionConfig).validate_python(value)
                     if config.id not in host.connections and len(host.connections) < 32:
-                        host.connections[config.id] = Connection(config)
+                        host.connections[config.id] = host.connection(config)
                 except ValueError:
                     pass  # Configuração inválida não executa código no startup.
         # Reinício não autoriza executar código/conectar conta silenciosamente.
@@ -201,7 +201,7 @@ class PluginManager:
                             authorized=True,
                         )
                     )
-                connection = Connection(config)
+                connection = self.host.connection(config)
                 connection.label = f"{manifest.name}/{remote.id}"
                 connection.authorized = lambda: (
                     self.store.get(id_)["state"] == PluginState.ACTIVE

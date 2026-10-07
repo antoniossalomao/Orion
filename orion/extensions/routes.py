@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
 from ..policy import Risk
 from .archives import MAX_ARCHIVE, archive_snapshot
-from .host import Connection, ConnectionConfig
+from .host import ConnectionConfig
 from .manager import PluginManager, public_plugin
 from .plugins import PluginError
 from .profiles import profile, profiles
@@ -188,7 +188,7 @@ def router(require_admin) -> APIRouter:
             if config.id in m.host.connections or len(m.host.connections) >= 32:
                 raise PluginError("connection_id_conflict")
             m.save_connection(config)
-            m.host.connections[config.id] = Connection(config)
+            m.host.connections[config.id] = m.host.connection(config)
         return {"id": config.id, "state": "configured"}
 
     @api.put("/mcp/connections/{id_}")
@@ -210,7 +210,7 @@ def router(require_admin) -> APIRouter:
             await old.close()
             await m.catalog.refresh()
             m.save_connection(config)
-            m.host.connections[id_] = Connection(config)
+            m.host.connections[id_] = m.host.connection(config)
         return {"id": id_, "state": "configured"}
 
     @api.post("/mcp/connections/{id_}/disable")
@@ -226,7 +226,7 @@ def router(require_admin) -> APIRouter:
             await m.catalog.refresh()
             config = old.config.model_copy(update={"enabled": False})
             m.save_connection(config)
-            m.host.connections[id_] = Connection(config)
+            m.host.connections[id_] = m.host.connection(config)
         return {"id": id_, "state": "disabled"}
 
     @api.post("/mcp/connections/{id_}/test")
