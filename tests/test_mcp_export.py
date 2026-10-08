@@ -2,6 +2,7 @@ import json
 import socket
 import threading
 import time
+from contextlib import contextmanager
 
 import httpx2
 import pytest
@@ -18,8 +19,8 @@ from orion.projects import Projects
 from tests.projects.test_projects import TOKEN
 
 
-@pytest.fixture
-def export_backend(tmp_path):
+@contextmanager
+def running_backend(tmp_path):
     app = create_app(
         Settings(data_dir=tmp_path, admin_token=TOKEN, jobs_enabled=False, _env_file=None),
         gateway_factory=lambda _: None,
@@ -42,6 +43,12 @@ def export_backend(tmp_path):
         server.should_exit = True
         thread.join(timeout=10)
         assert not thread.is_alive()
+
+
+@pytest.fixture
+def export_backend(tmp_path):
+    with running_backend(tmp_path) as backend:
+        yield backend
 
 
 @pytest.mark.parametrize("mode,version", [("auto", "2026-07-28"), ("legacy", "2025-11-25")])

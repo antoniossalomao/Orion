@@ -35,3 +35,16 @@ SDK oficial Python MCP 2.3.0. Protocolos comprovados: 2026-07-28 e 2025-11-25.
 Clientes desktop Claude/Codex ainda exigem ensaio específico; não presumir OAuth
 automático em um cliente que suporta somente esse modo. Esta versão usa bearer
 manual. O endpoint legado /mcp não é montado pelo backend novo.
+
+## Compatibilidade C49
+
+Comprovados em serviço HTTP real local: SDK Python 2.3.0 (2026-07-28 e 2025-11-25)
+e SDK Node @modelcontextprotocol/sdk 1.32.1 (2025-11-25). Dois clientes simultâneos
+com escopos A/B, chamadas diretas fora da allowlist, revogação sem derrubar B e
+reinício do servidor com concessões/revogações persistidas.
+
+O ensaio Node roda com ORION_TEST_NODE_SDK apontando para o pacote instalado;
+sem a dependência, esse teste fica explicitamente skipped. O SDK Node foi instalado
+sem scripts de instalação em pasta de ensaio, não como dependência de produção.
+Claude Desktop e Codex desktop não estão disponíveis neste ambiente: compatibilidade
+com esses apps permanece pendente. Sem prova específica, C49 é parcial.
