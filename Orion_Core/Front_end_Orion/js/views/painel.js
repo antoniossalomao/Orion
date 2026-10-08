@@ -53,6 +53,21 @@
         })), rot ? el('p', { class: 'painel-top', 'data-roteamento': '' }, `Roteamento por tipo de tarefa: ${rot}`) : null);
     }
 
+    /** barras simples (uma por dia) das respostas dos últimos 7 dias; só textContent e CSS */
+    function semanaEl(semana) {
+        if (!semana?.some(d => d.total || d.erros)) return vazio('Ainda sem respostas contadas nesta semana.');
+        const maior = Math.max(1, ...semana.map(d => d.total));
+        const total = semana.reduce((a, d) => a + d.total, 0), erros = semana.reduce((a, d) => a + d.erros, 0);
+        return el('div', {}, el('ul', { class: 'painel-semana', 'aria-label': 'Respostas por dia' }, ...semana.map(d => {
+            const rotulo = `${d.dia.slice(6)}/${d.dia.slice(4, 6)}`;
+            return el('li', { class: 'painel-dia', dataset: { dia: d.dia, total: String(d.total) } },
+                el('span', { class: 'painel-barra', style: `height:${Math.round((d.total / maior) * 100)}%`, 'aria-hidden': 'true' }),
+                el('span', { class: 'painel-dia-n mono', text: String(d.total) }),
+                el('span', { class: 'painel-dia-r', text: rotulo }),
+                el('span', { class: 'sr-only', text: `${rotulo}: ${d.total} resposta(s)${d.erros ? `, ${d.erros} falha(s)` : ''}` }));
+        })), el('p', { class: 'painel-top', 'data-semana': '' }, `${total} resposta(s) em 7 dias · ${erros} falha(s) sem resposta · não é a cota do provedor`));
+    }
+
     function clisEl(clis) {
         if (!clis?.length) return vazio('Nenhuma CLI oficial configurada para delegar tarefas.');
         return el('div', { class: 'painel-meters' }, ...clis.map(c => {
@@ -123,6 +138,7 @@
             alertasEl(a),
             el('div', { class: 'grid grid-2 painel-grade' },
                 cartao('modelos', 'Modelos', 'desde que o Orion subiu; não é a cota do provedor', modelosEl(dados.modelos, dados.roteamento)),
+                cartao('semana', 'Uso da semana', 'respostas por dia', semanaEl(dados.semana)),
                 cartao('clis', 'CLIs oficiais', 'uso de hoje', clisEl(dados.clis)),
                 cartao('aprovacoes', 'Aprovações', `${dados.aprovacoes?.pendentes ?? 0} pendente(s)`, aprovacoesEl(dados.aprovacoes)),
                 cartao('decisoes', 'Política', `últimas ${dados.decisoes?.janela_h ?? 24} h`, decisoesEl(dados.decisoes)),

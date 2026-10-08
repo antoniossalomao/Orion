@@ -124,7 +124,13 @@ class Settings(BaseSettings):
     briefing_calendar_email: str = ""
     briefing_calendar_tool: str = "google__get_events"
     research_at: str = ""  # HH:MM: pesquisa noturna só leitura (regra 39); vazio: desligada
-    research_topics: str = ""  # assuntos separados por ";" (até 5); só o Antônio escolhe
+    # assuntos separados por ";" (até 5); só o Antônio escolhe. Os padrões vêm das notas recentes do
+    # vault; sem ORION_RESEARCH_AT a pesquisa continua desligada.
+    research_topics: str = (
+        "MCP (Model Context Protocol) segurança e novidades;"
+        " Pix e Open Finance (regras do Banco Central);"
+        " LLMs locais e on-device"
+    )
     consolidate: bool = True  # fatos a partir das conversas (precisa do gateway)
     # Embeddings por API gratuita (Gemini). Sem chave, a busca é só por palavra-chave.
     embed_api_key: str = ""  # ou no cofre do SO (ORION_EMBED_API_KEY)

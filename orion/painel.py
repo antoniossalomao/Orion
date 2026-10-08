@@ -17,6 +17,7 @@ from __future__ import annotations
 import time
 from collections import Counter
 from collections.abc import Callable
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -68,6 +69,7 @@ class Painel:
             "gerado_em": agora,
             "uptime_s": round(agora - self.started_at),
             "modelos": {"configurado": self.agent is not None, "endpoints": endpoints},
+            "semana": self._semana(agora),
             "roteamento": {
                 "ativo": bool(getattr(self.agent, "routing", False)),
                 "contagem": dict(getattr(self.agent, "rotas", {})),
@@ -99,6 +101,27 @@ class Painel:
             "ferramentas": len(self.agent.tools.names()) if self.agent is not None else 0,
             "mcp": dict(self.mcp.status) if self.mcp is not None else {},
         }
+
+    def _semana(self, agora: float) -> list[dict[str, Any]]:
+        """Respostas dos últimos 7 dias por endpoint (contadas pelo agente, persistem no banco).
+        Não é a cota do provedor; é quanto o Orion usou."""
+        usos = self.memory.counters_with_prefix("uso:")
+        hoje = datetime.fromtimestamp(agora)
+        dias: list[dict[str, Any]] = []
+        for i in range(6, -1, -1):
+            d = (hoje - timedelta(days=i)).strftime("%Y%m%d")
+            por: dict[str, int] = {}
+            erros = 0
+            for chave, n in usos.items():
+                _, dia, endpoint = chave.split(":", 2)
+                if dia != d:
+                    continue
+                if endpoint == "__erro":
+                    erros += n
+                else:
+                    por[endpoint] = n
+            dias.append({"dia": d, "total": sum(por.values()), "erros": erros, "por_endpoint": por})
+        return dias
 
     def _decisoes(self, agora: float) -> dict[str, Any]:
         linhas = self.ops.audit_recent(500, desde=agora - JANELA_H * 3600)
@@ -153,6 +176,16 @@ def texto_do_painel(p: dict[str, Any]) -> str:
             if e.get("provedores"):
                 servidos = ", ".join(f"{k} ×{v}" for k, v in e["provedores"].items())
                 linhas.append(f"   serviu: {servidos}")
+
+    semana = p.get("semana") or []
+    if any(d["total"] or d["erros"] for d in semana):
+        total = sum(d["total"] for d in semana)
+        erros = sum(d["erros"] for d in semana)
+        linhas.append(f"\n📈 Últimos 7 dias: {total} resposta(s), {erros} falha(s) sem resposta")
+        linhas.append(
+            "• por dia: "
+            + " · ".join(f"{d['dia'][6:]}/{d['dia'][4:6]} {d['total']}" for d in semana)
+        )
 
     if p["clis"]:
         linhas.append("\n💻 CLIs oficiais (hoje)")

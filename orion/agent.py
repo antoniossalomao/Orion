@@ -200,6 +200,7 @@ class Agent:
                         yield AgentEvent("tier", {"endpoint": ev.endpoint, "model": ev.model})
             except GatewayError as e:
                 log.error("gateway falhou: %s", e)
+                self._contar_uso("__erro")
                 yield AgentEvent("error", {"message": f"nenhum modelo respondeu: {e}"})
                 return
 
@@ -214,6 +215,7 @@ class Agent:
                 if rota:
                     prov["roteamento"] = {"camada": rota.camada, "motivo": rota.motivo}
                 self.memory.add_message(session.id, "assistant", texto.strip(), provenance=prov)
+                self._contar_uso(destino[0] if destino else "?")
                 yield AgentEvent("done", {"provenance": prov})
                 return
 
@@ -241,6 +243,14 @@ class Agent:
         yield AgentEvent(
             "error", {"message": f"limite de {self._max_iter} iterações de ferramenta"}
         )
+
+    def _contar_uso(self, endpoint: str) -> None:
+        """Respostas por dia e endpoint, no banco: sobrevive a reinício e alimenta o painel."""
+        try:
+            dia = datetime.fromtimestamp(self._clock()).strftime("%Y%m%d")
+            self.memory.counter_incr(f"uso:{dia}:{endpoint}")
+        except Exception:
+            log.debug("não consegui contar o uso", exc_info=True)
 
     def _so_leitura(self, nome: str) -> bool:
         spec = self.policy.tools.get(nome)

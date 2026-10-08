@@ -1014,6 +1014,16 @@ class MemoryStore:
                 c.execute("SELECT value FROM meta WHERE key=?", (f"counter:{chave}",)).fetchone()[0]
             )
 
+    def counters_with_prefix(self, prefixo: str) -> dict[str, int]:
+        """Contadores cujo nome começa com `prefixo` (nome sem o prefixo interno)."""
+        base = "counter:"
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT key, value FROM meta WHERE key LIKE ? ESCAPE '\\'",
+                (base + _like(prefixo) + "%",),
+            ).fetchall()
+        return {r[0][len(base) :]: int(r[1]) for r in rows}
+
     def counter_set(self, chave: str, valor: int) -> None:
         with self._tx() as c:
             c.execute(

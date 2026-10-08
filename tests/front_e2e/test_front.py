@@ -1702,3 +1702,13 @@ def test_painel_mostra_a_voz(abrir):
     expect(page.locator("#painel-corpo")).to_contain_text("Voz por clique")
     expect(page.locator("#painel-corpo")).to_contain_text("7 fala(s), com resposta falada")
     expect(page.locator("#painel-corpo")).to_contain_text("2 sessão(ões), 12.5 min")
+
+
+def test_painel_mostra_o_uso_da_semana_com_barras_e_total(abrir):
+    page = abrir("#/painel")
+    cartao = page.locator('[data-id="semana"]')
+    expect(cartao).to_be_visible(timeout=5000)
+    expect(cartao.locator(".painel-dia")).to_have_count(7)
+    expect(cartao.locator("[data-semana]")).to_contain_text("56 resposta(s) em 7 dias")
+    expect(cartao.locator("[data-semana]")).to_contain_text("1 falha(s)")
+    expect(cartao.locator('.painel-dia[data-total="20"]')).to_have_count(1)

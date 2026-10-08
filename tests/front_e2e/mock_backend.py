@@ -716,6 +716,15 @@ def create_app() -> FastAPI:
                 ],
             },
             "roteamento": {"ativo": True, "contagem": {"rapido": 12, "pesado": 3, "visao": 1}},
+            "semana": [
+                {
+                    "dia": (datetime.now() - timedelta(days=6 - i)).strftime("%Y%m%d"),
+                    "total": n,
+                    "erros": 1 if i == 4 else 0,
+                    "por_endpoint": {"omniroute": n} if n else {},
+                }
+                for i, n in enumerate([0, 3, 12, 7, 20, 5, 9])
+            ],
             "clis": [
                 {
                     "nome": "claude",

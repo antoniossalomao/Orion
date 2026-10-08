@@ -238,3 +238,10 @@ input[type="search"]::-webkit-search-cancel-button { appearance: none; }
 .spark[hidden] { display: none; }
 
 .dialog-form { display: contents; }   /* o <form> do diálogo com campo não muda o layout do .dialog */
+
+/* painel: uso da semana (E3) */
+.painel-semana { display: flex; align-items: flex-end; gap: var(--s-2); height: 7rem; margin: 0; padding: 0; list-style: none; }
+.painel-dia { position: relative; flex: 1; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 0.15rem; }
+.painel-barra { width: 70%; min-height: 2px; border-radius: 3px 3px 0 0; background: var(--accent, #4f8cff); }
+.painel-dia-n { font-size: var(--fs-2xs); color: var(--text-2); }
+.painel-dia-r { font-size: var(--fs-2xs); color: var(--text-3); }
