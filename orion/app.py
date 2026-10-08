@@ -1603,6 +1603,28 @@ def create_app(
         state.tela.pausar(not corpo.ativa)
         return {"pausada": state.tela.pausada}
 
+    @app.get("/atividade", dependencies=[Admin])
+    def atividade(state: State, limite: Annotated[int, Query(ge=1, le=100)] = 30) -> dict[str, Any]:
+        """A caixa de atividade: avisos (lembretes, briefing, relatórios, ciclo de sono...),
+        aprovações esperando e erros dos jobs, num lugar só. Só leitura."""
+        avisos = [
+            {
+                "id": n["id"],
+                "tipo": n["kind"],
+                "texto": str(n["text"])[:1500],
+                "criado": _iso(n["created_at"]),
+                "entregue": n["delivered_at"] is not None,
+            }
+            for n in state.ops.recent_notifications(limite)
+        ]
+        pendentes = state.policy.approvals.pending()
+        return {
+            "avisos": avisos,
+            "nao_lidos": sum(not a["entregue"] for a in avisos),
+            "aprovacoes": len(pendentes),
+            "erros_dos_jobs": list(getattr(state.jobs, "ultimos_erros", []))[:5],
+        }
+
     @app.get("/notifications", dependencies=[Admin])
     def avisos(state: State) -> list[dict[str, Any]]:
         """Avisos ainda não entregues (lembrete vencido, agendamento disparado). O canal

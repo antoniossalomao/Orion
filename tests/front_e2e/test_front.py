@@ -1857,3 +1857,17 @@ def test_conhecimento_resultados_com_versao_previa_download_e_apagar(abrir, mock
     page.get_by_role("button", name="Apagar diagrama.pdf versão 1").click()
     page.get_by_role("alertdialog").get_by_role("button", name="Apagar").click()
     expect(itens).to_have_count(2)
+
+
+def test_painel_caixa_de_atividade_mostra_avisos_e_marca_como_lido(abrir, mock_isolado_url):
+    page = abrir("#/painel", url=mock_isolado_url)
+    cartao = page.locator('[data-id="atividade"]')
+    expect(cartao).to_be_visible(timeout=8000)
+    expect(cartao).to_contain_text("1 não lido(s)")
+    novo = cartao.locator('[data-aviso="1"]')
+    expect(novo).to_contain_text("Bom dia, Antônio")
+    expect(novo).to_have_attribute("data-lido", "false")
+    expect(cartao.locator('[data-aviso="2"]')).to_have_attribute("data-lido", "true")
+    page.get_by_role("button", name="Marcar aviso briefing como lido").click()
+    expect(cartao).to_contain_text("0 não lido(s)", timeout=8000)
+    expect(cartao.locator('[data-aviso="1"]')).to_have_attribute("data-lido", "true")

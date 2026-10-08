@@ -72,6 +72,10 @@ ESTADO: dict[str, Any] = {
             "texto": "# Ata v2\nDecisões revisadas.",
         },
     },
+    "avisos": {
+        1: {"tipo": "briefing", "texto": "☀️ Bom dia, Antônio. Hoje é quinta-feira.", "lido": False},
+        2: {"tipo": "semanal", "texto": "🗓️ Semana de 01/10 a 08/10.", "lido": True},
+    },
     "documentos": {},  # id -> {nome, trechos, projeto_id}
     "tela": {"ligada": True, "pausada": False, "registros": 42},
     "projeto_de": {},  # sessao -> id do projeto
@@ -511,6 +515,23 @@ def create_app() -> FastAPI:
     def fatos_esquecer(fid: int) -> dict[str, Any]:
         if ESTADO["fatos"].pop(fid, None) is None:
             raise HTTPException(404, "fato não encontrado")
+        return {"ok": True}
+
+    @app.get("/atividade")
+    def atividade() -> dict[str, Any]:
+        avisos = [
+            {"id": i, "tipo": a["tipo"], "texto": a["texto"], "criado": _agora().isoformat(),
+             "entregue": a["lido"]}
+            for i, a in sorted(ESTADO["avisos"].items(), reverse=True)
+        ]  # fmt: skip
+        return {"avisos": avisos, "nao_lidos": sum(not a["entregue"] for a in avisos),
+                "aprovacoes": 0, "erros_dos_jobs": []}  # fmt: skip
+
+    @app.post("/notifications/{nid}/ack")
+    def aviso_ack(nid: int) -> dict[str, Any]:
+        if nid not in ESTADO["avisos"]:
+            raise HTTPException(404, "aviso não encontrado")
+        ESTADO["avisos"][nid]["lido"] = True
         return {"ok": True}
 
     @app.get("/resultados")
