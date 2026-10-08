@@ -35,6 +35,45 @@ def _set_password(settings: Settings, *, from_stdin: bool) -> int:
     return 0
 
 
+def _transcrever(settings: Settings, arquivo: Path, titulo: str, sim: bool) -> int:
+    from .app import transcriber_from_settings
+    from .capture import Capturer
+    from .media_transcribe import MediaError, transcrever_arquivo
+
+    tr = transcriber_from_settings(settings)
+    if tr is None:
+        print("sem ORION_TRANSCRIBE_API_KEY: não há provedor de transcrição", file=sys.stderr)
+        return 1
+    if settings.vault_dir is None:
+        print("defina ORION_VAULT_DIR: a nota vai para o 00 Inbox do vault", file=sys.stderr)
+        return 1
+    if (
+        not sim
+        and input(
+            f"O áudio de '{arquivo.name}' será ENVIADO ao provedor de transcrição "
+            f"({settings.transcribe_url}). Continuar? [s/N] "
+        )
+        .strip()
+        .lower()
+        != "s"
+    ):
+        print("nada foi enviado")
+        return 1
+    try:
+        nota = transcrever_arquivo(
+            arquivo,
+            tr,
+            Capturer(settings.vault_dir, settings.capture_folder),
+            titulo=titulo,
+            progresso=lambda i, n: print(f"transcrevendo parte {i}/{n}…"),
+        )
+    except MediaError as e:
+        print(e, file=sys.stderr)
+        return 1
+    print(f"nota criada: {nota.name}")
+    return 0
+
+
 def _esquecer(settings: Settings, consulta: str, sim: bool) -> int:
     from .memory import MemoryStore
 
@@ -164,6 +203,13 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("skills", help="lista as skills válidas e as rejeitadas, com o motivo")
     ft = sub.add_parser("fatos", help="lista os fatos da memória (com id, fonte e data)")
     ft.add_argument("--duplicados", action="store_true", help="mostra pares quase iguais")
+    tr = sub.add_parser(
+        "transcrever",
+        help="transcreve áudio ou vídeo para uma nota no 00 Inbox (o áudio vai ao provedor)",
+    )
+    tr.add_argument("arquivo", type=Path)
+    tr.add_argument("--titulo", default="", help="título da nota (padrão: nome do arquivo)")
+    tr.add_argument("--sim", action="store_true", help="não pergunta antes de enviar o áudio")
     es = sub.add_parser(
         "esquecer", help="apaga fatos da memória (texto, índice de busca e vetor); pede confirmação"
     )
@@ -209,6 +255,9 @@ def main(argv: list[str] | None = None) -> int:
             store.close()
         print(f"backup: {feito}" if feito else "backup de hoje já existe")
         return 0
+
+    if args.cmd == "transcrever":
+        return _transcrever(settings, args.arquivo, args.titulo, args.sim)
 
     if args.cmd == "fatos":
         from .memory import MemoryStore
