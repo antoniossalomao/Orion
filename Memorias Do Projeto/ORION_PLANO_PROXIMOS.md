@@ -29,7 +29,7 @@
 ## Bloco C — Projetos e resultados (C31–C35, C38)
 | ID | Entrega | Origem | Depende de |
 |---|---|---|---|
-| C1 | Projetos com conversas associadas (C31) | EXTENSOES | A1 |
+| C1 | Projetos com conversas associadas (C31) | EXTENSOES | A1 | **backend feito (08/10)**: esquema v7, `/projetos`, `projeto_id` na conversa, instruções entram no prompt; falta a tela |
 | C2 | Memória, fontes e extensões isoladas por projeto (C32) | EXTENSOES | C1 |
 | C3 | Biblioteca de resultados com origem, versões e prévia lateral (C34–C35) | EXTENSOES | C1 |
 | C4 | Ingerir PDF, texto e Markdown com progresso (C38) | EXTENSOES | C2 |

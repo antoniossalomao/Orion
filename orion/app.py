@@ -432,6 +432,17 @@ class Ativacao(BaseModel):
     canal: str = Field(default="web", pattern=_CANAL)
 
 
+class NovoProjeto(BaseModel):
+    nome: str = Field(min_length=1, max_length=80)
+    instrucoes: str = Field(default="", max_length=4000)
+
+
+class AjusteDeProjeto(BaseModel):
+    nome: str | None = Field(default=None, min_length=1, max_length=80)
+    instrucoes: str | None = Field(default=None, max_length=4000)
+    arquivado: bool | None = None
+
+
 class AjusteDeFato(BaseModel):
     texto: str = Field(min_length=1, max_length=2000)
 
@@ -440,6 +451,7 @@ class AjusteDeConversa(BaseModel):
     titulo: str | None = Field(default=None, min_length=1, max_length=120)
     favorita: bool | None = None
     arquivada: bool | None = None
+    projeto_id: int | None = None  # presente e nulo: tira do projeto
 
 
 def _canal_valido(canal: str) -> None:
@@ -463,6 +475,7 @@ def _item_da_conversa(memory: MemoryStore, s: Any, ativa_id: str | None) -> dict
         "favorita": s.pinned,
         "somente_leitura": s.archived,
         "arquivada": s.shelved,
+        "projeto_id": s.project_id,
     }
 
 
@@ -484,6 +497,16 @@ def _pesquisa_noturna(settings: Settings, agent: Any, memory: MemoryStore) -> An
         at=settings.research_at,
         clock=time.time,
     )
+
+
+def _item_do_projeto(p: Any) -> dict[str, Any]:
+    return {
+        "id": p.id,
+        "nome": p.name,
+        "instrucoes": p.instructions,
+        "arquivado": p.archived,
+        "atualizado": _iso(p.updated_at),
+    }
 
 
 def _item_do_fato(f: Any) -> dict[str, Any]:
@@ -1000,13 +1023,13 @@ def create_app(
     # Telegram e de outros canais não passam por aqui.
     @app.get("/sessoes", dependencies=[Admin])
     def listar_conversas(
-        state: State, canal: str = "web", arquivadas: bool = False
+        state: State, canal: str = "web", arquivadas: bool = False, projeto: int | None = None
     ) -> dict[str, Any]:
         _canal_valido(canal)
         ativa = state.memory.active_session(canal)
         itens = [
             _item_da_conversa(state.memory, s, ativa.id)
-            for s in state.memory.list_sessions_ui(canal, shelved=arquivadas)
+            for s in state.memory.list_sessions_ui(canal, shelved=arquivadas, project_id=projeto)
         ]
         return {"total": len(itens), "sessoes": itens, "ativa": ativa.id}
 
@@ -1167,17 +1190,27 @@ def create_app(
         sessao_id: str, corpo: AjusteDeConversa, state: State, canal: str = "web"
     ) -> dict[str, Any]:
         _canal_valido(canal)
-        if corpo.titulo is None and corpo.favorita is None and corpo.arquivada is None:
-            raise HTTPException(422, "nada para mudar: mande `titulo`, `favorita` e/ou `arquivada`")
+        muda_projeto = "projeto_id" in corpo.model_fields_set
         if (
-            corpo.arquivada is not None
-            and state.memory.session_visible(sessao_id, canal) is not None
+            corpo.titulo is None
+            and corpo.favorita is None
+            and corpo.arquivada is None
+            and not muda_projeto
         ):
-            if not state.memory.shelve_session(sessao_id, corpo.arquivada):
-                raise HTTPException(409, "conversa importada é só leitura: não dá para arquivar")
+            raise HTTPException(
+                422, "nada para mudar: mande `titulo`, `favorita`, `arquivada` e/ou `projeto_id`"
+            )
         s = state.memory.session_visible(sessao_id, canal)
         if s is None:
             raise HTTPException(404, "conversa não encontrada")
+        if muda_projeto:
+            try:
+                if not state.memory.assign_session(s.id, corpo.projeto_id):
+                    raise HTTPException(409, "conversa importada é só leitura")
+            except KeyError:
+                raise HTTPException(404, "projeto não encontrado") from None
+        if corpo.arquivada is not None and not state.memory.shelve_session(s.id, corpo.arquivada):
+            raise HTTPException(409, "conversa importada é só leitura: não dá para arquivar")
         if corpo.titulo is not None and not state.memory.rename_session(s.id, corpo.titulo):
             raise HTTPException(422, "título vazio")
         if corpo.favorita is not None:
@@ -1197,6 +1230,41 @@ def create_app(
             "conversa_apagada",
             extra={"audit": {"sessao": s.id, "canal": canal, "titulo": (s.title or "")[:60]}},
         )
+        return {"ok": True}
+
+    # ── projetos (C31): instruções próprias para um grupo de conversas ─────
+    @app.get("/projetos", dependencies=[Admin])
+    def listar_projetos(state: State, arquivados: bool = False) -> dict[str, Any]:
+        itens = [_item_do_projeto(p) for p in state.memory.list_projects(arquivados)]
+        return {"total": len(itens), "projetos": itens}
+
+    @app.post("/projetos", dependencies=[Admin], status_code=201)
+    def criar_projeto(corpo: NovoProjeto, state: State) -> dict[str, Any]:
+        try:
+            p = state.memory.create_project(corpo.nome, corpo.instrucoes)
+        except ValueError as e:
+            raise HTTPException(409, str(e)) from None
+        return {"ok": True, "projeto": _item_do_projeto(p)}
+
+    @app.patch("/projetos/{projeto_id}", dependencies=[Admin])
+    def ajustar_projeto(projeto_id: int, corpo: AjusteDeProjeto, state: State) -> dict[str, Any]:
+        try:
+            p = state.memory.update_project(
+                projeto_id,
+                name=corpo.nome,
+                instructions=corpo.instrucoes,
+                archived=corpo.arquivado,
+            )
+        except KeyError:
+            raise HTTPException(404, "projeto não encontrado") from None
+        except ValueError as e:
+            raise HTTPException(409, str(e)) from None
+        return {"ok": True, "projeto": _item_do_projeto(p)}
+
+    @app.delete("/projetos/{projeto_id}", dependencies=[Admin])
+    def apagar_projeto(projeto_id: int, state: State) -> dict[str, bool]:
+        if not state.memory.delete_project(projeto_id):
+            raise HTTPException(404, "projeto não encontrado")
         return {"ok": True}
 
     # ── memória: o que o Orion sabe sobre o Antônio (C36) ─────────────────

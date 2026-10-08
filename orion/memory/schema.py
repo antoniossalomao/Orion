@@ -7,7 +7,7 @@ mensagens ficam). v5: seleção persistente de sessão por canal. Banco antigo s
 (`MIGRATIONS`).
 """
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 TOKENIZER = "unicode61 remove_diacritics 2"  # "açúcar" casa com "acucar"
 
@@ -219,7 +219,21 @@ DDL_V6 = """
 ALTER TABLE sessions ADD COLUMN shelved INTEGER NOT NULL DEFAULT 0;
 """
 
-DDL = DDL_V1 + DDL_V2 + DDL_V3 + DDL_V4 + DDL_V5 + DDL_V6
+# Projetos: contexto explícito (instruções próprias) para um grupo de conversas.
+DDL_V7 = """
+CREATE TABLE projects (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    instructions TEXT NOT NULL DEFAULT '',
+    archived INTEGER NOT NULL DEFAULT 0,
+    created_at REAL NOT NULL,
+    updated_at REAL NOT NULL
+);
+ALTER TABLE sessions ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL;
+CREATE INDEX idx_sessions_project ON sessions(project_id);
+"""
+
+DDL = DDL_V1 + DDL_V2 + DDL_V3 + DDL_V4 + DDL_V5 + DDL_V6 + DDL_V7
 
 # versão de origem -> script que leva à seguinte
-MIGRATIONS: dict[int, str] = {1: DDL_V2, 2: DDL_V3, 3: DDL_V4, 4: DDL_V5, 5: DDL_V6}
+MIGRATIONS: dict[int, str] = {1: DDL_V2, 2: DDL_V3, 3: DDL_V4, 4: DDL_V5, 5: DDL_V6, 6: DDL_V7}

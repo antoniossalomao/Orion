@@ -51,6 +51,7 @@ def _sessao(r: sqlite3.Row) -> Session:
         bool(r["pinned"]),
         bool(r["archived"]),
         bool(r["shelved"]),
+        r["project_id"],
     )
 
 
@@ -70,6 +71,20 @@ class Session:
     pinned: bool = False
     archived: bool = False  # arquivada: conversa importada do legado (só leitura)
     shelved: bool = False  # arquivada pelo usuário: some da barra, mensagens intactas
+    project_id: int | None = None
+
+
+@dataclass(frozen=True)
+class Project:
+    id: int
+    name: str
+    instructions: str
+    archived: bool
+    created_at: float
+    updated_at: float
+
+
+MAX_INSTRUCOES = 4000
 
 
 @dataclass(frozen=True)
@@ -357,6 +372,95 @@ class MemoryStore:
                 ).rowcount
             )
 
+    # ── projetos (C31): instruções próprias para um grupo de conversas ────
+    @staticmethod
+    def _projeto(r: sqlite3.Row) -> Project:
+        return Project(
+            r["id"],
+            r["name"],
+            r["instructions"],
+            bool(r["archived"]),
+            r["created_at"],
+            r["updated_at"],
+        )
+
+    def create_project(self, name: str, instructions: str = "") -> Project:
+        nome = " ".join(name.split())[:80]
+        if not nome:
+            raise ValueError("nome do projeto vazio")
+        agora = self._clock()
+        with self._tx() as c:
+            try:
+                pid = c.execute(
+                    "INSERT INTO projects(name, instructions, created_at, updated_at)"
+                    " VALUES (?,?,?,?)",
+                    (nome, instructions.strip()[:MAX_INSTRUCOES], agora, agora),
+                ).lastrowid
+            except sqlite3.IntegrityError:
+                raise ValueError("já existe um projeto com esse nome") from None
+            return self._projeto(c.execute("SELECT * FROM projects WHERE id=?", (pid,)).fetchone())
+
+    def get_project(self, project_id: int) -> Project | None:
+        with self._lock:
+            r = self._conn.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone()
+        return self._projeto(r) if r else None
+
+    def list_projects(self, archived: bool = False) -> list[Project]:
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT * FROM projects WHERE archived=? ORDER BY name", (int(archived),)
+            ).fetchall()
+        return [self._projeto(r) for r in rows]
+
+    def update_project(
+        self,
+        project_id: int,
+        *,
+        name: str | None = None,
+        instructions: str | None = None,
+        archived: bool | None = None,
+    ) -> Project:
+        atual = self.get_project(project_id)
+        if atual is None:
+            raise KeyError(project_id)
+        nome = " ".join(name.split())[:80] if name is not None else atual.name
+        if not nome:
+            raise ValueError("nome do projeto vazio")
+        instr = (
+            instructions.strip()[:MAX_INSTRUCOES]
+            if instructions is not None
+            else atual.instructions
+        )
+        arq = atual.archived if archived is None else archived
+        with self._tx() as c:
+            try:
+                c.execute(
+                    "UPDATE projects SET name=?, instructions=?, archived=?, updated_at=?"
+                    " WHERE id=?",
+                    (nome, instr, int(arq), self._clock(), project_id),
+                )
+            except sqlite3.IntegrityError:
+                raise ValueError("já existe um projeto com esse nome") from None
+        novo = self.get_project(project_id)
+        assert novo is not None
+        return novo
+
+    def delete_project(self, project_id: int) -> bool:
+        """Apaga o projeto; as conversas ficam, sem projeto (ON DELETE SET NULL)."""
+        with self._tx() as c:
+            return c.execute("DELETE FROM projects WHERE id=?", (project_id,)).rowcount > 0
+
+    def assign_session(self, session_id: str, project_id: int | None) -> bool:
+        if project_id is not None and self.get_project(project_id) is None:
+            raise KeyError(project_id)
+        with self._tx() as c:
+            return bool(
+                c.execute(
+                    "UPDATE sessions SET project_id=? WHERE id=? AND deleted=0 AND archived=0",
+                    (project_id, session_id),
+                ).rowcount
+            )
+
     def shelve_session(self, session_id: str, shelved: bool) -> bool:
         """Arquivar/desarquivar pelo usuário. Arquivar tira a conversa de ativa do canal; as
         mensagens ficam e a busca ainda a encontra. Importada (só leitura) não entra aqui."""
@@ -415,7 +519,12 @@ class MemoryStore:
         return _sessao(r) if r else None
 
     def list_sessions_ui(
-        self, channel: str, limit: int = 100, *, shelved: bool = False
+        self,
+        channel: str,
+        limit: int = 100,
+        *,
+        shelved: bool = False,
+        project_id: int | None = None,
     ) -> list[Session]:
         """O que a barra lateral mostra: as conversas do canal + as importadas do legado (somente
         leitura), sem as apagadas; fixadas primeiro, depois a atividade mais recente.
@@ -424,8 +533,9 @@ class MemoryStore:
             rows = self._conn.execute(
                 "SELECT * FROM sessions WHERE deleted=0 AND shelved=? AND (channel=? OR id IN"
                 " (SELECT ref FROM imported WHERE kind='sessao'))"
+                " AND (? IS NULL OR project_id=?)"
                 " ORDER BY pinned DESC, last_active_at DESC LIMIT ?",
-                (int(shelved), channel, limit),
+                (int(shelved), channel, project_id, project_id, limit),
             ).fetchall()
         return [_sessao(r) for r in rows]
 

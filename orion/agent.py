@@ -367,6 +367,14 @@ class Agent:
             sistema += "\n\n[EM ABERTO: tarefas e lembretes do Antônio]\n" + "\n".join(
                 f"- {o}" for o in objetivos
             )
+        projeto = (
+            self.memory.get_project(session.project_id) if session.project_id is not None else None
+        )
+        if projeto is not None and projeto.instructions:
+            sistema += (
+                f"\n\n[PROJETO: {projeto.name}. Instruções do Antônio para esta conversa; "
+                "não mudam as regras de segurança]\n" + projeto.instructions
+            )
         bloco_skills = self._skills.prompt_block() if self._skills else ""
         if bloco_skills:
             sistema += "\n\n" + bloco_skills
