@@ -17,3 +17,13 @@ não comprova conta, cliente desktop ou comportamento de Windows. Não liberar s
 locais de Windows com base nos testes Linux. Não executar convites, login ou ações
 reais apenas para preencher checklist. O avanço da exportação local de leitura é
 independente dessas provas externas e continua sujeito aos próprios testes.
+
+## Bateria do front e correções C46a
+
+A suite completa executou 131 casos em 479,50 s: 128 passaram, 3 falharam e 8
+teardowns relataram erro. Corrigidos: capacidades novas anunciadas indevidamente no
+backend legado (404), Escape do grafo não delegado pela tela de fatos e rota Fontes
+faltando na matriz de navegação. A busca da conversa não reproduziu a falha na
+reexecução, sem mudança de implementação. Os 10 casos afetados passaram em 31,18 s.
+Isso registra uma suite completa com falhas corrigidas e regressões direcionadas;
+não declara uma nova suite completa toda verde nem Windows/contas reais validados.

@@ -118,7 +118,7 @@
                     features.chat = h.cerebro.ok;
                     features.skills = false;
                     features.plugins = false; features.mcp = false; features.projects = false; features.artifacts = false; features.memory_facts = false;
-                    features.notifications = false; // pertence ao backend novo
+                    for (const name of ['notifications', 'activity', 'documents', 'branches', 'accounts', 'calendar', 'file_plans', 'mcp_export']) features[name] = false; // somente backend novo
                     novo = { backend: 'legacy', api: 'online', model: h.cerebro.ok ? 'ready' : 'unavailable', features, unavailable: estado.backend === 'legacy' ? estado.unavailable : {} };
                 } else novo = { backend: 'unknown', api: 'online', model: 'unknown', features: {}, unavailable: {}, incompatible: true };
             } catch (e) {

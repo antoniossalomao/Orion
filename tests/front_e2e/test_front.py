@@ -19,6 +19,7 @@ ROTAS = [
     "#/projetos",
     "#/resultados",
     "#/atividade",
+    "#/fontes",
 ]
 VIEWS = [
     "home",

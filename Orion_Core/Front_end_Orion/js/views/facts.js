@@ -72,6 +72,6 @@
             bus.on('capabilities', () => { ++generation; list.replaceChildren(); pending.replaceChildren(); showingGraph = false; controls(); if (active) display(); });
         },
         ativar() { active = true; display(); }, desativar() { active = false; ++generation; graph.desativar(); },
-        escape() { return showingGraph ? graph.escape() : false; }, ativoAgora: () => active
+        escape() { return showingGraph || !api.suporta('memory_facts') ? graph.escape() : false; }, ativoAgora: () => active
     };
 })();
