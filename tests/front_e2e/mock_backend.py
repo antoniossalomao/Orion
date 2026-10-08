@@ -50,6 +50,7 @@ ESTADO: dict[str, Any] = {
     "titulos": {},  # renomeadas (PATCH /sessoes/{id})
     "fixadas": set(),
     "apagadas": set(),  # DELETE /sessoes/{id}: some da lista
+    "arquivadas": set(),  # PATCH {"arquivada": true}: sai da barra, a busca ainda acha
     "rng": random.Random(7),
     "delay": 0.018,
 }
@@ -59,7 +60,7 @@ def _agora() -> datetime:
     return datetime.now().replace(microsecond=0)
 
 
-def _sessoes() -> list[dict[str, Any]]:
+def _sessoes(arquivadas: bool = False) -> list[dict[str, Any]]:
     a = _agora()
     base = [
         ("s1", "Plano da fase 0: exportar os dados", a - timedelta(minutes=18)),
@@ -78,10 +79,13 @@ def _sessoes() -> list[dict[str, Any]]:
             "ultima_atividade": criada.isoformat(),
             "ativa": sid == ESTADO["sessao_ativa"],
             "favorita": sid in ESTADO["fixadas"],
+            "arquivada": sid in ESTADO["arquivadas"],
         }
         for sid, titulo, criada in base
-        if sid not in ESTADO["apagadas"]
+        if sid not in ESTADO["apagadas"] and (sid in ESTADO["arquivadas"]) == arquivadas
     ]
+    if arquivadas:
+        return itens
     itens.append(
         {
             "sessao_id": "legado",
@@ -416,12 +420,34 @@ def create_app() -> FastAPI:
     def sessao_ativar(corpo: dict[str, Any]) -> dict[str, Any]:
         sid = corpo.get("sessao_id", "s1")
         ESTADO["sessao_ativa"] = sid
+        ESTADO["arquivadas"].discard(sid)  # como o cérebro: abrir uma arquivada a desarquiva
         return {"ok": True, "sessao_id": sid, "mensagens": _historico(sid)}
+
+    @app.get("/sessoes/busca")
+    def sessao_busca(q: str, limite: int = 10) -> dict[str, Any]:
+        termo = q.casefold()
+        achados = []
+        for item in _sessoes() + _sessoes(arquivadas=True):
+            sid = item["sessao_id"]
+            for m in _historico(sid) if sid != "legado" else []:
+                pos = m["content"].casefold().find(termo)
+                if pos >= 0:
+                    trecho = m["content"][max(0, pos - 20) : pos + len(termo) + 20]
+                    achados.append({**item, "trecho": trecho})
+                    break
+        return {"total": len(achados[:limite]), "resultados": achados[:limite]}
 
     @app.patch("/sessoes/{sid}")
     def sessao_ajustar(sid: str, corpo: dict[str, Any]) -> dict[str, Any]:
-        if sid not in {i["sessao_id"] for i in _sessoes()} or sid == "legado":
+        todas = _sessoes() + _sessoes(arquivadas=True)
+        if sid not in {i["sessao_id"] for i in todas} or sid == "legado":
             raise HTTPException(404, "conversa não encontrada")
+        if "arquivada" in corpo:
+            (ESTADO["arquivadas"].add if corpo["arquivada"] else ESTADO["arquivadas"].discard)(sid)
+            ESTADO["fixadas"].discard(sid)
+            if corpo["arquivada"] and ESTADO["sessao_ativa"] == sid:
+                restantes = [i["sessao_id"] for i in _sessoes() if i["sessao_id"] != "legado"]
+                ESTADO["sessao_ativa"] = restantes[0] if restantes else "s1"
         if "titulo" in corpo:
             ESTADO["titulos"][sid] = str(corpo["titulo"])
         if "favorita" in corpo:
