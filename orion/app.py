@@ -9,6 +9,7 @@ import json
 import logging
 import re
 import shutil
+import tempfile
 import threading
 import time
 import uuid
@@ -16,17 +17,20 @@ from collections.abc import AsyncIterator, Callable
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Annotated, Any
 from urllib.parse import urlparse
 
 from fastapi import (
     Depends,
     FastAPI,
+    Form,
     Header,
     HTTPException,
     Query,
     Request,
     Response,
+    UploadFile,
     WebSocket,
     WebSocketDisconnect,
 )
@@ -70,6 +74,7 @@ from .secrets import get_secret
 from .skills import TOOL_SPEC as SKILL_SPEC
 from .skills import SkillCatalog, skill_tool
 from .tools import default_registry
+from .tools.documents import MAX_ARQUIVO, TIPOS_LEITURA, extrair_texto
 from .tools.processes import ProcessManager
 from .transcribe import Transcriber
 from .vision import Vision
@@ -95,6 +100,7 @@ FRONT_DIR = PROJECT_ROOT / "Orion_Core" / "Front_end_Orion"
 
 audit_log = logging.getLogger("orion.audit")
 log = logging.getLogger("orion.app")
+MAX_TEXTO_DOCUMENTO = 2_000_000  # caracteres indexados por documento enviado
 
 
 class FrontStatic(StaticFiles):
@@ -1287,6 +1293,78 @@ def create_app(
             "conversa_apagada",
             extra={"audit": {"sessao": s.id, "canal": canal, "titulo": (s.title or "")[:60]}},
         )
+        return {"ok": True}
+
+    # ── documentos enviados pela interface (C38): PDF, Word, Excel, HTML, texto ──
+    @app.get("/memoria/documentos", dependencies=[Admin])
+    def listar_documentos(state: State) -> dict[str, Any]:
+        itens = [
+            {
+                "id": d["id"],
+                "nome": str(d["source"]).removeprefix("upload:"),
+                "titulo": d["title"],
+                "trechos": d["trechos"],
+                "projeto_id": d["project_id"],
+                "indexado": _iso(d["indexed_at"]),
+            }
+            for d in state.memory.list_documents()
+        ]
+        return {"total": len(itens), "documentos": itens}
+
+    @app.post("/memoria/documentos", dependencies=[Admin], status_code=201)
+    async def enviar_documento(
+        state: State, arquivo: UploadFile, projeto_id: Annotated[int | None, Form()] = None
+    ) -> dict[str, Any]:
+        """Lê o arquivo, tira o texto e indexa na memória (busca por palavra e por sentido). Com
+        `projeto_id`, só entra no contexto automático das conversas do projeto. O arquivo em si
+        não fica guardado: só o texto, em trechos."""
+        nome = Path(arquivo.filename or "").name
+        ext = Path(nome).suffix.lower()
+        if not nome or ext not in TIPOS_LEITURA:
+            raise HTTPException(415, f"tipo não suportado. Use: {', '.join(TIPOS_LEITURA)}")
+        if projeto_id is not None and state.memory.get_project(projeto_id) is None:
+            raise HTTPException(404, "projeto não encontrado")
+        dados = await arquivo.read(MAX_ARQUIVO + 1)
+        if len(dados) > MAX_ARQUIVO:
+            raise HTTPException(413, f"arquivo passa de {MAX_ARQUIVO // 1024 // 1024} MB")
+        if not dados:
+            raise HTTPException(422, "arquivo vazio")
+
+        def processar() -> tuple[str, int]:
+            with tempfile.TemporaryDirectory(prefix="orion-doc-") as tmp:
+                caminho = Path(tmp) / f"doc{ext}"
+                caminho.write_bytes(dados)
+                texto = extrair_texto(caminho).strip()
+            if len(texto) < 20:
+                raise ValueError("não achei texto nesse arquivo (escaneado? use OCR antes)")
+            resultado = state.memory.index_document(
+                f"upload:{nome}", Path(nome).stem, texto[:MAX_TEXTO_DOCUMENTO], projeto_id
+            )
+            return resultado, len(texto)
+
+        try:
+            resultado, tamanho = await asyncio.to_thread(processar)
+        except ValueError as e:
+            raise HTTPException(422, str(e)) from None
+        except Exception as e:  # noqa: BLE001 — arquivo corrompido/protegido
+            raise HTTPException(422, f"não consegui ler o documento ({type(e).__name__})") from None
+        doc = next(
+            (d for d in state.memory.list_documents() if d["source"] == f"upload:{nome}"), None
+        )
+        audit_log.info("documento_indexado", extra={"audit": {"tipo": ext, "caracteres": tamanho}})
+        return {
+            "ok": True,
+            "resultado": resultado,  # new, updated ou same (mesmo conteúdo, nada refeito)
+            "caracteres": tamanho,
+            "trechos": doc["trechos"] if doc else 0,
+            "id": doc["id"] if doc else None,
+        }
+
+    @app.delete("/memoria/documentos/{doc_id}", dependencies=[Admin])
+    def apagar_documento(doc_id: int, state: State) -> dict[str, bool]:
+        if not state.memory.remove_document_id(doc_id):
+            raise HTTPException(404, "documento não encontrado")
+        audit_log.info("documento_apagado", extra={"audit": {"documento": doc_id}})
         return {"ok": True}
 
     # ── projetos (C31): instruções próprias para um grupo de conversas ─────

@@ -7,7 +7,7 @@ mensagens ficam). v5: seleção persistente de sessão por canal. Banco antigo s
 (`MIGRATIONS`).
 """
 
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 
 TOKENIZER = "unicode61 remove_diacritics 2"  # "açúcar" casa com "acucar"
 
@@ -245,7 +245,12 @@ CREATE INDEX idx_screen_ts ON screen_log(ts);
 {_fts("screen_log")}
 """
 
-DDL = DDL_V1 + DDL_V2 + DDL_V3 + DDL_V4 + DDL_V5 + DDL_V6 + DDL_V7 + DDL_V8
+# Documento de projeto (C32/C38): só aparece no contexto automático das conversas do projeto.
+DDL_V9 = """
+ALTER TABLE documents ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL;
+"""
+
+DDL = DDL_V1 + DDL_V2 + DDL_V3 + DDL_V4 + DDL_V5 + DDL_V6 + DDL_V7 + DDL_V8 + DDL_V9
 
 # versão de origem -> script que leva à seguinte
 MIGRATIONS: dict[int, str] = {
@@ -256,4 +261,5 @@ MIGRATIONS: dict[int, str] = {
     5: DDL_V6,
     6: DDL_V7,
     7: DDL_V8,
+    8: DDL_V9,
 }

@@ -26,6 +26,7 @@ from fastapi import (
     Cookie,
     FastAPI,
     File,
+    Form,
     Header,
     HTTPException,
     Response,
@@ -56,6 +57,7 @@ ESTADO: dict[str, Any] = {
         2: {"texto": "Prefere respostas curtas e diretas", "fonte": "manual"},
         3: {"texto": "Usa o Obsidian como segundo cérebro", "fonte": "vault"},
     },
+    "documentos": {},  # id -> {nome, trechos, projeto_id}
     "tela": {"ligada": True, "pausada": False, "registros": 42},
     "projeto_de": {},  # sessao -> id do projeto
     "arquivadas": set(),  # PATCH {"arquivada": true}: sai da barra, a busca ainda acha
@@ -494,6 +496,44 @@ def create_app() -> FastAPI:
     def fatos_esquecer(fid: int) -> dict[str, Any]:
         if ESTADO["fatos"].pop(fid, None) is None:
             raise HTTPException(404, "fato não encontrado")
+        return {"ok": True}
+
+    @app.get("/memoria/documentos")
+    def documentos_listar() -> dict[str, Any]:
+        itens = [{"id": i, "nome": d["nome"], "titulo": d["nome"], "trechos": d["trechos"],
+                  "projeto_id": d["projeto_id"], "indexado": _agora().isoformat()}
+                 for i, d in ESTADO["documentos"].items()]  # fmt: skip
+        return {"total": len(itens), "documentos": itens}
+
+    @app.post("/memoria/documentos", status_code=201)
+    async def documentos_enviar(
+        arquivo: UploadFile, projeto_id: int | None = Form(default=None)
+    ) -> dict[str, Any]:
+        if not arquivo.filename or not arquivo.filename.lower().endswith(
+            (".txt", ".md", ".pdf", ".docx")
+        ):
+            raise HTTPException(415, "tipo não suportado")
+        corpo = await arquivo.read()
+        if any(d["nome"] == arquivo.filename for d in ESTADO["documentos"].values()):
+            return {
+                "ok": True,
+                "resultado": "same",
+                "caracteres": len(corpo),
+                "trechos": 2,
+                "id": 0,
+            }
+        did = max(ESTADO["documentos"], default=0) + 1
+        ESTADO["documentos"][did] = {
+            "nome": arquivo.filename,
+            "trechos": 3,
+            "projeto_id": projeto_id,
+        }
+        return {"ok": True, "resultado": "new", "caracteres": len(corpo), "trechos": 3, "id": did}
+
+    @app.delete("/memoria/documentos/{did}")
+    def documentos_apagar(did: int) -> dict[str, Any]:
+        if ESTADO["documentos"].pop(did, None) is None:
+            raise HTTPException(404, "documento não encontrado")
         return {"ok": True}
 
     @app.get("/tela")

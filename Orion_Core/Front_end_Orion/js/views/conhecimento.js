@@ -9,7 +9,7 @@
     const { $, el, icone, api, ui } = O;
     const U = O.util;
 
-    let projetos = [], fatos = [], tela = { ligada: false }, filtro = '', erro = null, tokenBusca = 0;
+    let projetos = [], fatos = [], documentos = [], enviando = false, tela = { ligada: false }, filtro = '', erro = null, tokenBusca = 0;
 
     const vazio = t => el('p', { class: 'painel-vazio', text: t });
     const data = iso => (iso ? new Date(iso).toLocaleDateString('pt-BR') : '');
@@ -63,6 +63,54 @@
                 el('button', { class: 'btn btn-outline btn-sm', type: 'button', text: p.arquivado ? 'Desarquivar' : 'Arquivar', 'aria-label': `${p.arquivado ? 'Desarquivar' : 'Arquivar'} ${p.nome}`,
                     on: { click: () => agir(() => api.ajustarProjeto(p.id, { arquivado: !p.arquivado }), 'Não consegui mudar.') } }),
                 el('button', { class: 'btn btn-ghost btn-sm', type: 'button', text: 'Apagar', 'aria-label': `Apagar projeto ${p.nome}`, on: { click: () => apagarProjeto(p) } })));
+    }
+
+    /* ── documentos (PDF, Word, Excel, HTML, texto) ─────────────────────── */
+    async function enviarDoc(arquivo, projetoId) {
+        enviando = true; desenhar();
+        try {
+            const r = await api.enviarDocumento(arquivo, projetoId);
+            O.anunciar(r.resultado === 'same' ? 'Esse documento já estava na memória.' : `Documento indexado em ${r.trechos} trecho(s).`);
+            ui.toast(r.resultado === 'same' ? 'Esse documento já estava na memória.' : `“${arquivo.name}” entrou na memória (${r.trechos} trecho(s)).`, { tipo: 'ok' });
+        } catch (e) { ui.toast(`Não consegui indexar. ${e.message || ''}`.trim(), { tipo: 'erro' }); }
+        enviando = false;
+        await carregar();
+    }
+
+    function formDocumento() {
+        const arq = el('input', { id: 'doc-arquivo', class: 'input', type: 'file', accept: '.pdf,.docx,.xlsx,.txt,.md,.csv,.json,.html,.htm' });
+        const proj = el('select', { id: 'doc-projeto', class: 'input' },
+            el('option', { value: '', text: '(vale para todas as conversas)' }),
+            ...projetos.filter(p => !p.arquivado).map(p => el('option', { value: String(p.id), text: p.nome })));
+        const botao = el('button', { class: 'btn btn-primary btn-sm', type: 'submit', text: enviando ? 'Indexando…' : 'Enviar para a memória' });
+        botao.disabled = enviando;
+        const form = el('form', { class: 'conh-form', novalidate: true },
+            el('div', { class: 'field' }, el('label', { for: 'doc-arquivo', text: 'Documento' }), arq),
+            el('div', { class: 'field' }, el('label', { for: 'doc-projeto', text: 'Disponível em' }), proj), botao);
+        form.addEventListener('submit', e => {
+            e.preventDefault();
+            if (!arq.files?.length) { arq.focus(); return; }
+            enviarDoc(arq.files[0], proj.value);
+        });
+        return form;
+    }
+
+    async function apagarDoc(d) {
+        const ok = await ui.confirmar({
+            titulo: 'Remover este documento?', ok: 'Remover', perigo: true,
+            texto: `“${d.nome}” sai da busca da memória. O arquivo original, no seu computador, não é tocado.`,
+        });
+        if (ok && await agir(() => api.apagarDocumento(d.id), 'Não consegui remover.')) O.anunciar('Documento removido.');
+    }
+
+    function itemDocumento(d) {
+        const proj = projetos.find(p => p.id === d.projeto_id);
+        return el('li', { class: 'painel-item conh-item', dataset: { documento: String(d.id) } },
+            el('div', { class: 'painel-item-top' }, el('strong', { text: d.nome }),
+                el('span', { class: 'badge badge-muted', text: proj ? `Projeto: ${proj.nome}` : 'Todas as conversas' })),
+            el('small', { text: `${d.trechos} trecho(s) · indexado em ${data(d.indexado)}` }),
+            el('div', { class: 'conh-acoes' },
+                el('button', { class: 'btn btn-ghost btn-sm', type: 'button', text: 'Remover', 'aria-label': `Remover documento ${d.nome}`, on: { click: () => apagarDoc(d) } })));
     }
 
     /* ── fatos ─────────────────────────────────────────────────────────── */
@@ -130,6 +178,9 @@
             cartao('projetos', 'Projetos', `${projetos.length} ativo(s)`, formProjeto(),
                 projetos.length ? el('ul', { class: 'painel-lista', 'aria-label': 'Projetos' }, ...projetos.map(itemProjeto))
                     : vazio('Nenhum projeto ainda. Crie um para dar instruções próprias a um grupo de conversas.')),
+            cartao('documentos', 'Documentos', `${documentos.length} na memória`, formDocumento(),
+                documentos.length ? el('ul', { class: 'painel-lista', 'aria-label': 'Documentos' }, ...documentos.map(itemDocumento))
+                    : vazio('Nenhum documento enviado. PDF, Word, Excel, HTML e texto viram trechos pesquisáveis.')),
             cartao('fatos', 'O que o Orion sabe sobre você', `${fatos.length} fato(s)`,
                 el('div', { class: 'field' }, el('label', { for: 'fatos-busca', text: 'Buscar nos fatos' }), busca),
                 fatos.length ? el('ul', { class: 'painel-lista', 'aria-label': 'Fatos' }, ...fatos.map(itemFato))
@@ -149,8 +200,9 @@
 
     async function carregar() {
         try {
-            const [p, f, t] = await Promise.all([api.projetos(), api.fatos(filtro), api.tela().catch(() => ({ ligada: false }))]);
-            projetos = p.projetos || []; fatos = f.fatos || []; tela = t || { ligada: false }; erro = null;
+            const [p, f, t, dc] = await Promise.all([api.projetos(), api.fatos(filtro), api.tela().catch(() => ({ ligada: false })),
+                api.documentos().catch(() => ({ documentos: [] }))]);
+            projetos = p.projetos || []; fatos = f.fatos || []; documentos = dc.documentos || []; tela = t || { ligada: false }; erro = null;
         } catch (e) { erro = e; }
         desenhar();
     }

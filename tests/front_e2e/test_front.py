@@ -1807,3 +1807,27 @@ def test_conhecimento_pausa_retoma_e_apaga_a_memoria_da_tela(abrir, mock_isolado
     page.locator("#conhecimento-corpo").get_by_role("button", name="Apagar tudo").click()
     page.get_by_role("alertdialog").get_by_role("button", name="Apagar tudo").click()
     expect(estado).to_contain_text("0 registro(s)")
+
+
+def test_conhecimento_envia_lista_e_remove_documento(abrir, mock_isolado_url, tmp_path):
+    page = abrir("#/conhecimento", url=mock_isolado_url)
+    corpo = page.locator("#conhecimento-corpo")
+    expect(corpo).to_contain_text("Nenhum documento enviado", timeout=5000)
+    page.get_by_label("Nome do projeto").fill("TCC")
+    page.get_by_role("button", name="Criar projeto").click()
+    expect(page.locator("[data-projeto]")).to_have_count(1)
+    nota = tmp_path / "norma.md"
+    nota.write_text("A norma ABNT NBR 6023 define como citar referências.", encoding="utf-8")
+    page.locator("#doc-arquivo").set_input_files(str(nota))
+    page.get_by_label("Disponível em").select_option(label="TCC")
+    page.get_by_role("button", name="Enviar para a memória").click()
+    item = corpo.locator("[data-documento]")
+    expect(item).to_have_count(1, timeout=5000)
+    expect(item).to_contain_text("norma.md")
+    expect(item).to_contain_text("Projeto: TCC")
+    expect(item).to_contain_text("3 trecho(s)")
+    page.get_by_role("button", name="Remover documento norma.md").click()
+    alerta = page.get_by_role("alertdialog", name="Remover este documento?")
+    expect(alerta).to_contain_text("não é tocado")
+    alerta.get_by_role("button", name="Remover").click()
+    expect(corpo.locator("[data-documento]")).to_have_count(0)

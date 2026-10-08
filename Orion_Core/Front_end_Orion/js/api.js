@@ -31,7 +31,7 @@
     const configurarToken = t => { tokenDesktop = String(t || ''); };
 
     /** rotas que exigem o token do orion.app; o legado não conhece cabeçalho Authorization */
-    const comAuth = caminho => /^\/(approvals|chat|painel|sessoes|historico)(\/|$|\?)/.test(caminho);
+    const comAuth = caminho => /^\/(approvals|chat|painel|sessoes|historico|projetos|memoria|tela)(\/|$|\?)/.test(caminho);
 
     function cabecalhos(caminho, extra = {}) {
         const h = { ...extra };
@@ -125,6 +125,14 @@
         tela: () => req('/tela', { timeout: 4000 }),
         telaPausa: ativa => req('/tela/pausa', { metodo: 'POST', json: { ativa: !!ativa }, timeout: 4000 }),
         telaLimpar: () => req('/tela', { metodo: 'DELETE', timeout: 5000 }),
+        documentos: () => req('/memoria/documentos', { timeout: 5000 }),
+        enviarDocumento(arquivo, projetoId) {
+            const f = new FormData();
+            f.append('arquivo', arquivo);
+            if (projetoId != null && projetoId !== '') f.append('projeto_id', String(projetoId));
+            return req('/memoria/documentos', { metodo: 'POST', form: f, timeout: 180000 });
+        },
+        apagarDocumento: id => req(`/memoria/documentos/${encodeURIComponent(id)}`, { metodo: 'DELETE', timeout: 5000 }),
         apagarSessao: id => req(`/sessoes/${encodeURIComponent(id)}`, { metodo: 'DELETE', timeout: 5000 }),
         historico: sessao => req(`/historico?${q({ sessao })}`, { timeout: 6000 }),
         limparHistorico: () => req('/historico', { metodo: 'DELETE', timeout: 5000 }),

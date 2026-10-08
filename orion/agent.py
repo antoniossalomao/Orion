@@ -173,7 +173,16 @@ class Agent:
         read_only: bool = False,
     ) -> AsyncIterator[AgentEvent]:
         ctx = self._context(session.id)
-        hits = await asyncio.to_thread(self.memory.search, consulta, self._k) if consulta else []
+        hits = (
+            await asyncio.to_thread(
+                self.memory.search,
+                consulta,
+                self._k,
+                project_id=session.project_id,  # documentos de projeto só no contexto dele
+            )
+            if consulta
+            else []
+        )
         mensagens = self._mensagens(session, hits)
         if images and mensagens[-1]["role"] == "user":
             mensagens[-1]["content"] = [

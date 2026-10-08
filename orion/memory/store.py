@@ -813,10 +813,11 @@ class MemoryStore:
 
     # ── documentos (vault do Obsidian, uploads) ───────────────────────────
     def index_document(
-        self, source: str, title: str, text: str
+        self, source: str, title: str, text: str, project_id: int | None = None
     ) -> Literal["new", "updated", "same"]:
-        """Indexa (ou reindexa) um documento. Idempotente por hash de conteúdo."""
-        h = hashlib.sha256(text.encode()).hexdigest()
+        """Indexa (ou reindexa) um documento. Idempotente por hash de conteúdo.
+        Com `project_id`, o documento só entra no contexto automático das conversas do projeto."""
+        h = hashlib.sha256((text + f"|{project_id}").encode()).hexdigest()
         corpo = strip_frontmatter(text)
         with self._tx() as c:
             r = c.execute(
@@ -827,8 +828,9 @@ class MemoryStore:
             if r:
                 self._delete_document(c, r["id"])
             did = c.execute(
-                "INSERT INTO documents(source, title, content_hash, indexed_at) VALUES (?,?,?,?)",
-                (source, title, h, self._clock()),
+                "INSERT INTO documents(source, title, content_hash, indexed_at, project_id)"
+                " VALUES (?,?,?,?,?)",
+                (source, title, h, self._clock(), project_id),
             ).lastrowid
             for i, trecho in enumerate(chunk_text(corpo)):
                 c.execute(
@@ -842,6 +844,26 @@ class MemoryStore:
         ids = [x[0] for x in c.execute("SELECT id FROM chunks WHERE document_id=?", (doc_id,))]
         self._drop_vec(c, "chunk", ids)
         c.execute("DELETE FROM documents WHERE id=?", (doc_id,))
+
+    def list_documents(self, prefix: str = "upload:") -> list[dict[str, Any]]:
+        """Documentos cuja origem começa com `prefix` (os enviados pela interface), com o
+        número de trechos. O texto em si não vai na lista."""
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT d.id, d.source, d.title, d.indexed_at, d.project_id,"
+                " (SELECT COUNT(*) FROM chunks c WHERE c.document_id=d.id) AS trechos"
+                " FROM documents d WHERE d.source LIKE ? ESCAPE '\\' ORDER BY d.indexed_at DESC",
+                (_like(prefix) + "%",),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def remove_document_id(self, doc_id: int, prefix: str = "upload:") -> bool:
+        with self._tx() as c:
+            r = c.execute("SELECT id, source FROM documents WHERE id=?", (doc_id,)).fetchone()
+            if not r or not str(r["source"]).startswith(prefix):
+                return False  # só apaga o que veio de upload; nota do vault não é daqui
+            self._delete_document(c, r["id"])
+            return True
 
     def remove_document(self, source: str) -> bool:
         with self._tx() as c:
@@ -936,8 +958,14 @@ class MemoryStore:
     }
 
     def search(
-        self, query: str, k: int = 8, kinds: Sequence[Kind] = ("fact", "chunk", "message")
+        self,
+        query: str,
+        k: int = 8,
+        kinds: Sequence[Kind] = ("fact", "chunk", "message"),
+        project_id: int | Literal["todos"] | None = "todos",
     ) -> list[Hit]:
+        """`project_id="todos"` (padrão, usado pelas ferramentas) não filtra nada. Um número ou
+        None isola o contexto automático: documentos de projeto só aparecem nas conversas dele."""
         fq = fts_query(query)
         amplo = max(k * 3, 20)
         listas: list[tuple[Kind, str, list[tuple[int, str, str]]]] = []
@@ -958,11 +986,32 @@ class MemoryStore:
                 placar[chave] = placar.get(chave, 0.0) + KIND_WEIGHT[kind] / (RRF_K + rank)
                 textos[chave] = (texto, fonte)
                 vias.setdefault(chave, set()).add(via)
+        if project_id != "todos":
+            placar = self._sem_documentos_de_outro_projeto(placar, project_id)
         ordem = sorted(placar, key=lambda x: placar[x], reverse=True)[:k]
         return [
             Hit(kd, iid, *textos[(kd, iid)], placar[(kd, iid)], "+".join(sorted(vias[(kd, iid)])))  # type: ignore[arg-type]
             for kd, iid in ordem
         ]
+
+    def _sem_documentos_de_outro_projeto(
+        self, placar: dict[tuple[str, int], float], project_id: int | None
+    ) -> dict[tuple[str, int], float]:
+        chunks = [i for kd, i in placar if kd == "chunk"]
+        if not chunks:
+            return placar
+        marcas = ",".join("?" * len(chunks))
+        with self._lock:
+            fora = {
+                r[0]
+                for r in self._conn.execute(
+                    "SELECT c.id FROM chunks c JOIN documents d ON d.id=c.document_id"
+                    f" WHERE c.id IN ({marcas}) AND d.project_id IS NOT NULL"
+                    " AND d.project_id IS NOT ?",
+                    (*chunks, project_id),
+                )
+            }
+        return {k: v for k, v in placar.items() if not (k[0] == "chunk" and k[1] in fora)}
 
     def _vec_lists(
         self, query: str, kinds: Sequence[str], amplo: int
