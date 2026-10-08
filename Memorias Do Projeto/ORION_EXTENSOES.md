@@ -1,6 +1,6 @@
 # Orion — referências de produto e plano de extensões
 
-Pesquisa em 04/10/2026. **Plano de implementação com execuções registradas até C44** (registro na seção 9).
+Pesquisa em 04/10/2026. **Plano de implementação com execuções registradas até C45** (registro na seção 9).
 Plugins e skills seguem em implementação. MCP já tem prova com servidores controlados;
 nenhuma conta pessoal ou servidor externo do usuário foi conectado.
 Complementa [ORION_FRONT.md](ORION_FRONT.md), as fases 4 e 6 do
@@ -339,8 +339,8 @@ como fundação do recurso novo. Exportar leitura primeiro, com identidade e esc
 
 ## 8. Próximo trabalho concreto
 
-As execuções até C44 estão registradas. Estados e evidências por checklist; C41 com validação real pendente.
-Continuar pelo **C45: Orion Desenvolvimento com Git em leitura**. O usuário autorizou os checklists restantes,
+As execuções até C45 estão registradas. Estados e evidências por checklist; C41 com validação real pendente.
+Continuar pelo **C46: Validação de extensões e projetos por ambiente**. O usuário autorizou os checklists restantes,
 com commits, validação, vault e push. Fixtures não substituem prova de conta ou desktop reais.
 
 Decisões recomendadas para o MVP: manter Python/FastAPI e o front atual; padrão Agent Skills;
@@ -416,10 +416,10 @@ a integração real de Pesquisa fica registrada separadamente se ainda não tive
 
 ### Registro para retomar no próximo dia
 
-- Último checklist concluído: **C44**, commit `6a2d80f`; conferir as etapas parciais explicitadas abaixo.
-- Próximo commit sugerido: **C45 — Orion Desenvolvimento com Git em leitura**.
+- Último checklist concluído: **C45**, commit `f862286`; conferir as etapas parciais explicitadas abaixo.
+- Próximo commit sugerido: **C46 — Validação de extensões e projetos por ambiente**.
 - Dependências/impedimentos: Estados e evidências por checklist; C41 com validação real pendente. Windows/pywebview real e contas externas ainda precisam de evidência específica.
-- Evidências: ver os registros C00–C44 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
+- Evidências: ver os registros C00–C45 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
 - Atualizações: registrar aqui o ID concluído, hash/link e o próximo ID; não preencher com
   hash fictício nem tratar evidência de mock como teste contra conta real.
 
@@ -1173,6 +1173,23 @@ scripts foi encontrado no primeiro ensaio e corrigido antes desta validação. R
 Pyright passaram. Suite backend e testes Node registrados no log desta execução.
 
 
+### Execução C45 — Orion Desenvolvimento
+
+Commit de implementação: `f862286`. Pacote 1.0.0 com revisar-alteracao e
+explicar-repositorio. Git em leitura com raiz explícita, status/diff/log fixos,
+128 KB/10 s, sem shell/hooks/fsmonitor/ext-diff/textconv. PathGuard bloqueia
+segredos conhecidos e links no diff; worktrees vinculados recusados no MVP.
+Skill de revisão permite delegar pela ferramenta existente somente após autorização
+EXEC; explicação não concede CLI. Origem/resultado já passam pelo contrato e atividade
+existentes. O pacote não faz commit, push ou publicação automática.
+
+Evidências: 18 testes Git/delegação passaram, incluindo repositório de ensaio,
+index/refs/config preservados, segredo no diff recusado, canário entre raízes,
+instalação/ativação/chat sem invocar CLI, timeout/erro e confirmação obrigatória.
+Ruff/Pyright passaram. Um teste usou nome incorreto da tabela de contadores e foi
+corrigido para meta antes da validação. Não houve execução de assinatura pessoal.
+
+
 ### C00 — fix(ui): estabilizar conexão e consolidar o refinamento visual
 
 Etapa: **A** · Depende de: **base atual do repositório** · Estado: **concluído**.
@@ -1625,13 +1642,13 @@ Etapa: **G** · Depende de: **C38, C18** · Estado: **concluído**.
 
 ### C45 — feat(plugins): adicionar Orion Desenvolvimento
 
-Etapa: **G** · Depende de: **C39, C18** · Estado: **planejado**.
+Etapa: **G** · Depende de: **C39, C18** · Estado: **concluído**.
 
-- [ ] Empacotar revisar-alteracao e explicar-repositorio com Git em leitura.
-- [ ] Integrar CLI delegada existente somente quando autorizada e registrar origem/resultado.
-- [ ] Referenciar arquivos na análise sem fazer commit, push ou publicação por padrão.
-- [ ] **Validar:** Revisar repositório de ensaio e provar ausência de efeitos colaterais; testar timeout/erro da CLI.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Empacotar revisar-alteracao e explicar-repositorio com Git em leitura.
+- [x] Integrar CLI delegada existente somente quando autorizada e registrar origem/resultado.
+- [x] Referenciar arquivos na análise sem fazer commit, push ou publicação por padrão.
+- [x] **Validar:** Revisar repositório de ensaio e provar ausência de efeitos colaterais; testar timeout/erro da CLI.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C46 — test(desktop): validar extensões e projetos em uso real
 
