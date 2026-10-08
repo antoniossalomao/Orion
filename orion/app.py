@@ -91,6 +91,7 @@ class AppState:
     calendar: Any = None
     events: Any = None
     file_plans: Any = None
+    export_credentials: Any = None
     telegram: TelegramChannel | None = None  # None sem token, sem usuários ou sem gateway
 
 
@@ -332,6 +333,7 @@ def create_app(
 
         file_plans = FilePlans(events)
         from .development import Development
+        from .export_credentials import ExportCredentials
 
         Development(memory, catalog.registry, policy)
         skills = await asyncio.to_thread(SkillRuntime, settings.skill_sources)
@@ -355,6 +357,7 @@ def create_app(
             calendar=calendar,
             events=events,
             file_plans=file_plans,
+            export_credentials=ExportCredentials(memory),
         )
         try:
             yield
@@ -810,7 +813,10 @@ def create_app(
     from .calendar import router as calendar_router
     from .calendar_events import router as event_router
     from .documents import router as document_router
+    from .export_credentials import router as export_client_router
     from .file_plans import router as file_plan_router
+
+    app.include_router(export_client_router(require_admin))
 
     app.include_router(file_plan_router(require_admin))
 

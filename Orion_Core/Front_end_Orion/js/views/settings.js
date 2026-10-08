@@ -200,10 +200,11 @@
     O.views = O.views || {};
     O.views.config = {
         init() {
+            O.exportClients.init($('#cfg-conexao'));
             ligarPrefs(); ligarConexao(); montarAtalhos(); ligarNavegacao();
         },
         ativar(opcoes = {}) {
-            ativo = true;
+            ativo = true; O.exportClients.activate();
             let aviso = $('#activity-capabilities');
             if (!api.suporta('metrics') && api.estado().api === 'online') {
                 if (!aviso) { aviso = el('p', { id: 'activity-capabilities', class: 'banner banner-warn', role: 'status', text: 'Métricas de atividade ainda indisponíveis neste backend.' }); $('#cfg-atividade').append(aviso); }
@@ -213,6 +214,6 @@
             montarAtalhos();
             if (opcoes.secao) requestAnimationFrame(() => irPara(opcoes.secao));
         },
-        desativar() { ativo = false; parar(); },
+        desativar() { ativo = false; parar(); O.exportClients.deactivate(); },
     };
 })();
