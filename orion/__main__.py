@@ -158,6 +158,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     wt.add_argument("--listar", action="store_true", help="lista os microfones e sai")
     wt.add_argument("--segundos", type=int, default=30, help="quanto tempo escutar")
+    sub.add_parser(
+        "doctor", help="confere instalação, banco, login, chaves, MCP e backup (sem rede)"
+    )
     es = sub.add_parser(
         "esquecer", help="apaga fatos da memória (texto, índice de busca e vetor); pede confirmação"
     )
@@ -203,6 +206,13 @@ def main(argv: list[str] | None = None) -> int:
             store.close()
         print(f"backup: {feito}" if feito else "backup de hoje já existe")
         return 0
+
+    if args.cmd == "doctor":
+        from .doctor import checar, relatorio
+
+        texto, codigo = relatorio(checar(settings))
+        print(texto)
+        return codigo
 
     if args.cmd == "esquecer":
         return _esquecer(settings, args.consulta, args.sim)
