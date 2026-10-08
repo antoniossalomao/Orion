@@ -40,7 +40,7 @@
     }
 
     async function editarInstrucoes(p) {
-        const novo = await ui.perguntar({ titulo: `Instruções de ${p.nome}`, rotulo: 'Instruções', valor: p.instrucoes, ok: 'Salvar', max: 4000 });
+        const novo = await ui.perguntar({ titulo: `Instruções de ${p.nome}`, rotulo: 'Instruções', valor: p.instrucoes, ok: 'Salvar', max: 4000, multilinha: true });
         if (novo == null || novo === p.instrucoes) return;
         if (await agir(() => api.ajustarProjeto(p.id, { instrucoes: novo }), 'Não consegui salvar.')) O.anunciar('Instruções salvas.');
     }

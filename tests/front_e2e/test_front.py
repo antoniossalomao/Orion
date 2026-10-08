@@ -1726,9 +1726,10 @@ def test_conhecimento_cria_edita_arquiva_e_apaga_projeto(abrir, mock_isolado_url
     expect(item).to_contain_text("TCC")
     expect(item).to_contain_text("Cite a ABNT")
     page.get_by_role("button", name="Editar instruções de TCC").click()
-    page.get_by_label("Instruções", exact=True).fill("Cite a ABNT e seja formal")
-    page.keyboard.press("Enter")
+    page.get_by_label("Instruções", exact=True).fill("Cite a ABNT\ne seja formal")
+    page.keyboard.press("Control+Enter")  # Enter sozinho é quebra de linha
     expect(item).to_contain_text("seja formal")
+    assert "\n" in page.evaluate("document.querySelector('[data-projeto] small').textContent")
     page.get_by_role("button", name="Arquivar TCC").click()
     expect(corpo.locator("[data-projeto]")).to_have_count(0)
     page.reload()
@@ -1766,3 +1767,24 @@ def test_conhecimento_busca_corrige_e_esquece_fatos(abrir, mock_isolado_url):
     expect(alerta).to_contain_text("Backups antigos")
     alerta.get_by_role("button", name="Esquecer").click()
     expect(page.locator("#conhecimento-corpo")).to_contain_text("Nenhum fato casa com")
+
+
+def test_mover_conversa_para_projeto_pelo_menu(abrir, mock_isolado_url):
+    page = abrir("#/conhecimento", url=mock_isolado_url)
+    page.get_by_label("Nome do projeto").fill("Faculdade")
+    page.get_by_role("button", name="Criar projeto").click()
+    expect(page.locator("[data-projeto]")).to_have_count(1)
+    page.evaluate("location.hash = '#/chat'")
+    _abrir_menu(page, "Dúvida de UML")
+    page.get_by_role("menuitem", name="Mover para projeto…").click()
+    dialogo = page.get_by_role("dialog", name="Mover para projeto")
+    dialogo.get_by_label("Projeto").select_option(label="Faculdade")
+    dialogo.get_by_role("button", name="Mover").click()
+    expect(dialogo).to_have_count(0)
+    # reabre: o projeto escolhido vem selecionado
+    _abrir_menu(page, "Dúvida de UML")
+    page.get_by_role("menuitem", name="Mover para projeto…").click()
+    expect(
+        page.get_by_role("dialog", name="Mover para projeto").get_by_label("Projeto")
+    ).to_have_value("1")
+    page.keyboard.press("Escape")

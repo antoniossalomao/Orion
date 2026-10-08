@@ -110,9 +110,9 @@
         menuDono = s; menuBotao = botao;
         const item = (acao, rotulo, perigo = false) => el('button', {
             class: `menu-item${perigo ? ' menu-item-perigo' : ''}`, type: 'button', role: 'menuitem', text: rotulo,
-            on: { click: () => { const dono = menuDono; fecharMenu(false); if (acao === 'renomear') renomear(dono); else if (acao === 'fixar') alternarFixa(dono); else if (acao === 'arquivar') arquivar(dono); else apagar(dono); } },
+            on: { click: () => { const dono = menuDono; fecharMenu(false); if (acao === 'renomear') renomear(dono); else if (acao === 'fixar') alternarFixa(dono); else if (acao === 'arquivar') arquivar(dono); else if (acao === 'projeto') moverParaProjeto(dono); else apagar(dono); } },
         });
-        menu.replaceChildren(item('renomear', 'Renomear'), item('fixar', rotuloFixar(s)), item('arquivar', 'Arquivar'), item('apagar', 'Apagar', true));
+        menu.replaceChildren(item('renomear', 'Renomear'), item('fixar', rotuloFixar(s)), item('arquivar', 'Arquivar'), item('projeto', 'Mover para projeto…'), item('apagar', 'Apagar', true));
         const r = botao.getBoundingClientRect();
         menu.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - 190))}px`;
         menu.style.top = `${Math.min(r.bottom + 4, window.innerHeight - 140)}px`;
@@ -162,6 +162,25 @@
         const nova = sessoes.find(x => x.sessao_id === ativa);
         if (nova && !nova.somente_leitura) {
             try { O.chat.renderHistorico((await api.ativarSessao(nova.sessao_id)).mensagens || []); } catch (_) { /* fica vazia */ }
+        }
+    }
+
+    /** associa a conversa a um projeto (as instruções dele passam a valer nela) ou a tira de qualquer projeto */
+    async function moverParaProjeto(s) {
+        if (!s || s.somente_leitura) return;
+        let lista;
+        try { lista = (await api.projetos()).projetos || []; }
+        catch (e) { ui.toast(`Não consegui ler os projetos. ${e.message || ''}`.trim(), { tipo: 'erro' }); return; }
+        if (!lista.length) { ui.toast('Ainda não há projetos. Crie um em Conhecimento.', { tipo: 'aviso' }); return; }
+        const escolhido = await ui.escolher({
+            titulo: 'Mover para projeto', rotulo: 'Projeto', ok: 'Mover', valor: s.projeto_id != null ? String(s.projeto_id) : '',
+            opcoes: [{ valor: '', rotulo: '(sem projeto)' }, ...lista.map(p => ({ valor: String(p.id), rotulo: p.nome }))],
+        });
+        if (escolhido == null) return;
+        const id = escolhido === '' ? null : Number(escolhido);
+        if (id === (s.projeto_id ?? null)) return;
+        if (await executar(() => api.moverParaProjeto(s.sessao_id, id), 'Não consegui mover.')) {
+            O.anunciar(id == null ? 'Conversa fora de qualquer projeto.' : 'Conversa movida para o projeto.');
         }
     }
 
@@ -294,7 +313,7 @@
     }
 
     O.sidebar = {
-        init, nova, alternar, carregar, abrir, renomear, alternarFixa, arquivar, apagar,
+        init, nova, alternar, carregar, abrir, renomear, alternarFixa, arquivar, moverParaProjeto, apagar,
         sessoes: () => sessoes, ativa: () => sessoes.find(s => s.sessao_id === ativa) || null,
         online: () => online,
     };

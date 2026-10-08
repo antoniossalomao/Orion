@@ -56,6 +56,7 @@ ESTADO: dict[str, Any] = {
         2: {"texto": "Prefere respostas curtas e diretas", "fonte": "manual"},
         3: {"texto": "Usa o Obsidian como segundo cérebro", "fonte": "vault"},
     },
+    "projeto_de": {},  # sessao -> id do projeto
     "arquivadas": set(),  # PATCH {"arquivada": true}: sai da barra, a busca ainda acha
     "rng": random.Random(7),
     "delay": 0.018,
@@ -86,6 +87,7 @@ def _sessoes(arquivadas: bool = False) -> list[dict[str, Any]]:
             "ativa": sid == ESTADO["sessao_ativa"],
             "favorita": sid in ESTADO["fixadas"],
             "arquivada": sid in ESTADO["arquivadas"],
+            "projeto_id": ESTADO["projeto_de"].get(sid),
         }
         for sid, titulo, criada in base
         if sid not in ESTADO["apagadas"] and (sid in ESTADO["arquivadas"]) == arquivadas
@@ -512,6 +514,13 @@ def create_app() -> FastAPI:
         todas = _sessoes() + _sessoes(arquivadas=True)
         if sid not in {i["sessao_id"] for i in todas} or sid == "legado":
             raise HTTPException(404, "conversa não encontrada")
+        if "projeto_id" in corpo:
+            if corpo["projeto_id"] is None:
+                ESTADO["projeto_de"].pop(sid, None)
+            elif corpo["projeto_id"] in ESTADO["projetos"]:
+                ESTADO["projeto_de"][sid] = corpo["projeto_id"]
+            else:
+                raise HTTPException(404, "projeto não encontrado")
         if "arquivada" in corpo:
             (ESTADO["arquivadas"].add if corpo["arquivada"] else ESTADO["arquivadas"].discard)(sid)
             ESTADO["fixadas"].discard(sid)
