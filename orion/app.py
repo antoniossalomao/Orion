@@ -331,6 +331,9 @@ def create_app(
         from .file_plans import FilePlans
 
         file_plans = FilePlans(events)
+        from .development import Development
+
+        Development(memory, catalog.registry, policy)
         skills = await asyncio.to_thread(SkillRuntime, settings.skill_sources)
         if agent is not None:
             skills.attach_tools(agent.tools, policy)

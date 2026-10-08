@@ -93,3 +93,14 @@ Em Fontes, revise todos os caminhos e confirme as cópias. A origem é preservad
 destinos existentes não são substituídos e planos parciais não são repetidos.
 A pasta precisa estar autorizada no PathGuard e dentro da raiz do projeto selecionado.
 Não há shell ou scripts; use pastas locais confiáveis. Windows ainda exige ensaio real.
+
+## Orion Desenvolvimento
+
+O pacote 1.0.0 reúne revisar-alteracao e explicar-repositorio. consultar_git aceita
+somente status, diff e log em raiz explícita: a raiz exata do projeto ou uma pasta
+pessoal autorizada. Saída limitada a 128 KB, timeout de 10 s, sem shell, hooks,
+fsmonitor, diff externo ou textconv. Segredos conhecidos pelo PathGuard e symlinks
+bloqueiam diff; isso não substitui revisão de segredos embutidos no código.
+Worktrees com .git como arquivo ainda não são suportados. Delegação usa a CLI existente
+somente mediante aprovação EXEC, com origem, resultado e timeout. Não há commit,
+push ou publicação automática no pacote. Windows/CLIs pessoais precisam de prova real.

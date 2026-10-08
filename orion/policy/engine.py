@@ -117,6 +117,7 @@ class PolicyEngine:
             scoped = {
                 "criar_evento_agenda",
                 "propor_organizacao",
+                "consultar_git",
                 "aplicar_organizacao",
                 "propor_evento_agenda",
                 "consultar_agenda",
