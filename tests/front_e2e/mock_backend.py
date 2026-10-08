@@ -71,7 +71,7 @@ ESTADO: dict[str, Any] = {
             "versao": 2,
             "texto": "# Ata v2\nDecisões revisadas.",
         },
-    },  # fmt: skip
+    },
     "documentos": {},  # id -> {nome, trechos, projeto_id}
     "tela": {"ligada": True, "pausada": False, "registros": 42},
     "projeto_de": {},  # sessao -> id do projeto
