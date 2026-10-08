@@ -1,6 +1,6 @@
 # Orion — referências de produto e plano de extensões
 
-Pesquisa em 04/10/2026. **Plano de implementação com execuções registradas até C48** (registro na seção 9).
+Pesquisa em 04/10/2026. **Plano de implementação com execuções registradas até C49** (registro na seção 9).
 Plugins e skills seguem em implementação. MCP já tem prova com servidores controlados;
 nenhuma conta pessoal ou servidor externo do usuário foi conectado.
 Complementa [ORION_FRONT.md](ORION_FRONT.md), as fases 4 e 6 do
@@ -339,8 +339,8 @@ como fundação do recurso novo. Exportar leitura primeiro, com identidade e esc
 
 ## 8. Próximo trabalho concreto
 
-As execuções até C48 estão registradas. Estados e evidências por checklist; C41, C46 com validação real pendente.
-Continuar pelo **C49: Compatibilidade e isolamento entre clientes**. O usuário autorizou os checklists restantes,
+As execuções até C49 estão registradas. Estados e evidências por checklist; C41, C46, C49 com validação real pendente.
+Continuar pelo **C50: Prévia HTML isolada**. O usuário autorizou os checklists restantes,
 com commits, validação, vault e push. Fixtures não substituem prova de conta ou desktop reais.
 
 Decisões recomendadas para o MVP: manter Python/FastAPI e o front atual; padrão Agent Skills;
@@ -417,9 +417,9 @@ a integração real de Pesquisa fica registrada separadamente se ainda não tive
 ### Registro para retomar no próximo dia
 
 - Último checklist concluído: **C48**, commit `7339543`; conferir as etapas parciais explicitadas abaixo.
-- Próximo commit sugerido: **C49 — Compatibilidade e isolamento entre clientes**.
-- Dependências/impedimentos: Estados e evidências por checklist; C41, C46 com validação real pendente. Windows/pywebview real e contas externas ainda precisam de evidência específica.
-- Evidências: ver os registros C00–C48 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
+- Próximo commit sugerido: **C50 — Prévia HTML isolada**.
+- Dependências/impedimentos: Estados e evidências por checklist; C41, C46, C49 com validação real pendente. Windows/pywebview real e contas externas ainda precisam de evidência específica.
+- Evidências: ver os registros C00–C49 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
 - Atualizações: registrar aqui o ID concluído, hash/link e o próximo ID; não preencher com
   hash fictício nem tratar evidência de mock como teste contra conta real.
 
@@ -1241,6 +1241,20 @@ Ruff/format/Pyright passaram. Chromium: 8 casos Fontes/Configurações em temas 
 ORION_MCP_EXPORT.md. Compatibilidade desktop específica segue no C49.
 
 
+### Execução C49 — clientes e isolamento (parcial)
+
+Commit de implementação/ensaio: `f8b9074`. Provas HTTP reais locais com dois clientes
+Python MCP 2.3.0 e Node @modelcontextprotocol/sdk 1.32.1, escopos A/B, discovery
+filtrado, canários, override de projeto recusado, revogação e reinício persistidos.
+Protocolos: Python 2026-07-28/2025-11-25; Node 2025-11-25. Testes do Node exigem pacote
+instalado explicitamente por ORION_TEST_NODE_SDK, sem skip na prova registrada.
+
+Evidências: 6 testes SDK/clientes passaram nesta rodada, mais 4 clientes/credenciais
+na rodada anterior. /mcp legado ausente. Ruff passou; guia atualizado com versões,
+transporte, limits e limites conhecidos. Claude Desktop e Codex desktop não estão
+disponíveis aqui; a compatibilidade com esses apps permanece pendente, C49 parcial.
+
+
 ### C00 — fix(ui): estabilizar conexão e consolidar o refinamento visual
 
 Etapa: **A** · Depende de: **base atual do repositório** · Estado: **concluído**.
@@ -1733,13 +1747,13 @@ Etapa: **H** · Depende de: **C47, C14** · Estado: **concluído**.
 
 ### C49 — test(mcp-export): provar compatibilidade e isolamento entre clientes
 
-Etapa: **H** · Depende de: **C48** · Estado: **planejado**.
+Etapa: **H** · Depende de: **C48** · Estado: **parcial — validação real pendente**.
 
-- [ ] Testar dois clientes com escopos distintos, revogação e reinício.
+- [x] Testar dois clientes com escopos distintos, revogação e reinício.
 - [ ] Conferir compatibilidade com clientes realmente escolhidos e versões suportadas.
-- [ ] Atualizar referência técnica, guia local e limites conhecidos; não declarar compatibilidade que não foi provada.
+- [x] Atualizar referência técnica, guia local e limites conhecidos; não declarar compatibilidade que não foi provada.
 - [ ] **Validar:** Cliente A não acessa fontes de B; cliente revogado deixa de operar; nenhum endpoint legado é exposto por acidente.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C50 — feat(artifacts): oferecer prévia HTML isolada
 
