@@ -2,6 +2,7 @@
 
 import shutil
 import subprocess
+from pathlib import Path
 from types import SimpleNamespace
 
 import httpx
@@ -25,9 +26,9 @@ def _provedor(textos):
 
 def _runner_falso(n_partes, codigo=0):
     def run(cmd, **kw):
-        destino = cmd[-1].rsplit("/", 1)[0]
+        destino = Path(cmd[-1]).parent
         for i in range(n_partes):
-            open(f"{destino}/parte_{i:03d}.mp3", "wb").write(b"ID3" + bytes([i]) * 50)
+            (destino / f"parte_{i:03d}.mp3").write_bytes(b"ID3" + bytes([i]) * 50)
         return SimpleNamespace(returncode=codigo, stderr="")
 
     return run

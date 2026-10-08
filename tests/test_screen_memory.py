@@ -184,7 +184,7 @@ def test_comandos_por_sistema_sem_executar_nada_de_verdade():
     assert titulo_da_janela(platform="win32", runner=runner, which=lambda n: "pwsh")
     assert "GetForegroundWindow" in visto[-1][-1]
     assert ocr_tesseract(Path("/x.jpg"), runner=runner, which=which) == "Meu Documento - Word\n"
-    assert visto[-1][1:] == ["/x.jpg", "stdout", "-l", "por+eng"]
+    assert visto[-1][1:] == [str(Path("/x.jpg")), "stdout", "-l", "por+eng"]
     assert ocr_tesseract(Path("/x.jpg"), runner=runner, which=lambda n: None) is None
     cap = capturador_de_tela(platform="linux", runner=runner, which=which)
     assert cap(Path("/nao/existe.jpg")) is False  # o comando "rodou", mas não gerou imagem
