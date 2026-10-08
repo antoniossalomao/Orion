@@ -162,6 +162,8 @@ def main(argv: list[str] | None = None) -> int:
         "doctor", help="confere instalação, banco, login, chaves, MCP e backup (sem rede)"
     )
     sub.add_parser("skills", help="lista as skills válidas e as rejeitadas, com o motivo")
+    ft = sub.add_parser("fatos", help="lista os fatos da memória (com id, fonte e data)")
+    ft.add_argument("--duplicados", action="store_true", help="mostra pares quase iguais")
     es = sub.add_parser(
         "esquecer", help="apaga fatos da memória (texto, índice de busca e vetor); pede confirmação"
     )
@@ -206,6 +208,23 @@ def main(argv: list[str] | None = None) -> int:
         finally:
             store.close()
         print(f"backup: {feito}" if feito else "backup de hoje já existe")
+        return 0
+
+    if args.cmd == "fatos":
+        from .memory import MemoryStore
+
+        store = MemoryStore(settings.db_path)
+        try:
+            if args.duplicados:
+                pares = store.duplicate_facts()
+                for a, b, j in pares:
+                    print(f"{j:.0%}  [{a.id}] {a.text}\n     [{b.id}] {b.text}")
+                print(f"{len(pares)} par(es); apague um com `orion esquecer <id>`")
+            else:
+                for f in store.facts():
+                    print(f"[{f.id}] {f.text}  (fonte: {f.source})")
+        finally:
+            store.close()
         return 0
 
     if args.cmd == "skills":

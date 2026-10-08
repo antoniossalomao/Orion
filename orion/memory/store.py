@@ -16,6 +16,7 @@ import re
 import sqlite3
 import threading
 import time
+import unicodedata
 import uuid
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import AbstractContextManager, contextmanager
@@ -647,6 +648,27 @@ class MemoryStore:
             ]
             achados = [self.get_fact(i) for i in ids[:limit]]
         return [f for f in achados if f is not None]
+
+    def duplicate_facts(self, limiar: float = 0.75) -> list[tuple[Fact, Fact, float]]:
+        """Pares de fatos quase iguais (palavras em comum / palavras no total, sem acento nem
+        caixa). Só sugere: quem decide qual apagar é o Antônio (`orion esquecer`)."""
+
+        def palavras(t: str) -> set[str]:
+            sem = unicodedata.normalize("NFKD", t.casefold()).encode("ascii", "ignore").decode()
+            return {w for w in re.findall(r"[a-z0-9]+", sem) if len(w) > 2}
+
+        fatos = self.facts()
+        conj = {f.id: palavras(f.text) for f in fatos}
+        achados: list[tuple[Fact, Fact, float]] = []
+        for i, a in enumerate(fatos):
+            for b in fatos[i + 1 :]:
+                u = conj[a.id] | conj[b.id]
+                if not u:
+                    continue
+                j = len(conj[a.id] & conj[b.id]) / len(u)
+                if j >= limiar:
+                    achados.append((a, b, j))
+        return sorted(achados, key=lambda t: -t[2])
 
     def get_fact(self, fact_id: int) -> Fact | None:
         with self._lock:

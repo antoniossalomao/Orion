@@ -67,3 +67,27 @@ def test_cli_esquecer_por_trecho_e_por_id(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr("builtins.input", lambda _: "s")
     assert main(["esquecer", str(ident)]) == 0
     assert f1.id != ident
+
+
+def test_duplicados_acha_pares_quase_iguais_sem_ligar_para_acento_e_caixa(tmp_path):
+    m = MemoryStore(tmp_path / "d.db")
+    m.add_fact("Antônio estuda Sistemas de Informação na Unimar", "conversa")
+    m.add_fact("antonio estuda sistemas de informacao na unimar em Marília", "vault")
+    m.add_fact("Gosta de café sem açúcar", "conversa")
+    pares = m.duplicate_facts()
+    assert len(pares) == 1 and {pares[0][0].source, pares[0][1].source} == {"conversa", "vault"}
+    assert m.duplicate_facts(limiar=0.99) == []
+    m.close()
+
+
+def test_cli_fatos_lista_e_mostra_duplicados(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("ORION_DATA_DIR", str(tmp_path / "d"))
+    monkeypatch.chdir(tmp_path)
+    store = MemoryStore(Settings(_env_file=None).db_path)
+    store.add_fact("mora em Marília", "conversa")
+    store.add_fact("mora em Marilia", "vault")
+    store.close()
+    assert main(["fatos"]) == 0
+    assert "mora em Marília" in capsys.readouterr().out
+    assert main(["fatos", "--duplicados"]) == 0
+    assert "1 par(es)" in capsys.readouterr().out
