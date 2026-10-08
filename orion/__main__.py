@@ -35,6 +35,35 @@ def _set_password(settings: Settings, *, from_stdin: bool) -> int:
     return 0
 
 
+def _esquecer(settings: Settings, consulta: str, sim: bool) -> int:
+    from .memory import MemoryStore
+
+    store = MemoryStore(settings.db_path)
+    try:
+        if consulta.strip().isdigit():
+            fato = store.get_fact(int(consulta))
+            achados = [fato] if fato else []
+        else:
+            achados = store.search_facts(consulta)
+        if not achados:
+            print("nenhum fato casa com isso")
+            return 2
+        for f in achados:
+            print(f"[{f.id}] {f.text}  (fonte: {f.source})")
+        if not sim and input(f"apagar {len(achados)} fato(s)? [s/N] ").strip().lower() != "s":
+            print("nada foi apagado")
+            return 1
+        apagados = sum(store.forget_fact(f.id) for f in achados)
+    finally:
+        store.close()
+    print(
+        f"{apagados} fato(s) apagado(s) do banco, do índice de busca e dos vetores.\n"
+        "Atenção: backups antigos (<dados>/backups), mensagens de conversas e notas do vault "
+        "que repetem o fato NÃO foram tocados."
+    )
+    return 0
+
+
 def _mcp_check(config: Path) -> int:
     from .mcp_client import McpConfigError, describe, manager_from_file
 
@@ -129,6 +158,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     wt.add_argument("--listar", action="store_true", help="lista os microfones e sai")
     wt.add_argument("--segundos", type=int, default=30, help="quanto tempo escutar")
+    es = sub.add_parser(
+        "esquecer", help="apaga fatos da memória (texto, índice de busca e vetor); pede confirmação"
+    )
+    es.add_argument("consulta", help="trecho do fato, ou o id (número) mostrado na lista")
+    es.add_argument("--sim", action="store_true", help="não pergunta (apaga todos que casarem)")
     rs = sub.add_parser("restore", help="restaura um backup no lugar do banco (confere antes)")
     rs.add_argument("arquivo", type=Path, help="backup .db (veja <dados>/backups)")
     rs.add_argument("--force", action="store_true", help="substitui o banco atual, se existir")
@@ -169,6 +203,9 @@ def main(argv: list[str] | None = None) -> int:
             store.close()
         print(f"backup: {feito}" if feito else "backup de hoje já existe")
         return 0
+
+    if args.cmd == "esquecer":
+        return _esquecer(settings, args.consulta, args.sim)
 
     if args.cmd == "autostart":
         from .autostart import detectar, instalar, render

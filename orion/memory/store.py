@@ -623,6 +623,38 @@ class MemoryStore:
             Fact(r["id"], r["text"], r["source"], r["created_at"], r["updated_at"]) for r in rows
         ]
 
+    def search_facts(self, query: str, limit: int = 20) -> list[Fact]:
+        """Fatos que casam com a consulta (FTS) ou que a contêm como trecho literal."""
+        limit = max(1, min(limit, 100))
+        q = fts_query(query)
+        with self._lock:
+            ids: list[int] = []
+            if q:
+                ids = [
+                    r[0]
+                    for r in self._conn.execute(
+                        "SELECT rowid FROM facts_fts WHERE facts_fts MATCH ? ORDER BY rank LIMIT ?",
+                        (q, limit),
+                    )
+                ]
+            ids += [
+                r[0]
+                for r in self._conn.execute(
+                    "SELECT id FROM facts WHERE lower(text) LIKE ? ESCAPE '\\' LIMIT ?",
+                    ("%" + _like(query.strip().lower()) + "%", limit),
+                )
+                if r[0] not in ids
+            ]
+            achados = [self.get_fact(i) for i in ids[:limit]]
+        return [f for f in achados if f is not None]
+
+    def get_fact(self, fact_id: int) -> Fact | None:
+        with self._lock:
+            r = self._conn.execute("SELECT * FROM facts WHERE id=?", (fact_id,)).fetchone()
+        if r is None:
+            return None
+        return Fact(r["id"], r["text"], r["source"], r["created_at"], r["updated_at"])
+
     def facts_markdown(self) -> str:
         """Nota para o vault do Obsidian (a pessoa confere e corrige em texto)."""
         agora = datetime.fromtimestamp(self._clock()).astimezone()

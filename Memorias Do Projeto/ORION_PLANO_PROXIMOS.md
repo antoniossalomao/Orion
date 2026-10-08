@@ -14,8 +14,8 @@
 |---|---|---|---|
 | A1 | Renomear, fixar e arquivar conversas, foco preservado (C05) | EXTENSOES | — | **backend feito (08/10)**: renomear/fixar já existiam; `arquivada` no `PATCH /sessoes/{id}`, `GET /sessoes?arquivadas=true`, esquema v6; falta menu na sidebar |
 | A2 | Busca de conversas por conteúdo no backend (C06) | EXTENSOES | A1 | **backend feito (08/10)**: `GET /sessoes/busca?q=`, título + corpo, trecho, isolada por canal; falta ligar no front |
-| A3 | Memória pesquisável: fonte, data, editar, esquecer (C36) | EXTENSOES | — |
-| A4 | `orion esquecer <fato>`: apaga o fato, os embeddings e o rastro no audit | nova | A3 |
+| A3 | Memória pesquisável: fonte, data, editar, esquecer (C36) | EXTENSOES | — | **API feita (08/10)**: `GET/PATCH/DELETE /memoria/fatos`; falta a tela |
+| A4 | `orion esquecer <trecho ou id>`: apaga o fato, o índice de busca e o vetor | nova | A3 | **feito (08/10)**; avisa que backups, mensagens de conversa e notas do vault não são tocados |
 | A5 | Caixa de atividade: avisos e pendências juntos (C37) | EXTENSOES | — |
 
 ## Bloco B — Skills antes de plugins (C15–C18)

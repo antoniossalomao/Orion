@@ -430,6 +430,10 @@ class Ativacao(BaseModel):
     canal: str = Field(default="web", pattern=_CANAL)
 
 
+class AjusteDeFato(BaseModel):
+    texto: str = Field(min_length=1, max_length=2000)
+
+
 class AjusteDeConversa(BaseModel):
     titulo: str | None = Field(default=None, min_length=1, max_length=120)
     favorita: bool | None = None
@@ -457,6 +461,16 @@ def _item_da_conversa(memory: MemoryStore, s: Any, ativa_id: str | None) -> dict
         "favorita": s.pinned,
         "somente_leitura": s.archived,
         "arquivada": s.shelved,
+    }
+
+
+def _item_do_fato(f: Any) -> dict[str, Any]:
+    return {
+        "id": f.id,
+        "texto": f.text,
+        "fonte": f.source,
+        "criado": _iso(f.created_at),
+        "atualizado": _iso(f.updated_at),
     }
 
 
@@ -1152,6 +1166,34 @@ def create_app(
             "conversa_apagada",
             extra={"audit": {"sessao": s.id, "canal": canal, "titulo": (s.title or "")[:60]}},
         )
+        return {"ok": True}
+
+    # ── memória: o que o Orion sabe sobre o Antônio (C36) ─────────────────
+    @app.get("/memoria/fatos", dependencies=[Admin])
+    def listar_fatos(
+        state: State,
+        q: Annotated[str | None, Query(max_length=200)] = None,
+        limite: Annotated[int, Query(ge=1, le=200)] = 100,
+    ) -> dict[str, Any]:
+        achados = state.memory.search_facts(q, limite) if q else state.memory.facts()[:limite]
+        return {"total": len(achados), "fatos": [_item_do_fato(f) for f in achados]}
+
+    @app.patch("/memoria/fatos/{fato_id}", dependencies=[Admin])
+    def corrigir_fato(fato_id: int, corpo: AjusteDeFato, state: State) -> dict[str, Any]:
+        try:
+            novo = state.memory.update_fact(fato_id, corpo.texto, source="manual")
+        except KeyError:
+            raise HTTPException(404, "fato não encontrado") from None
+        except ValueError:
+            raise HTTPException(422, "fato vazio") from None
+        audit_log.info("fato_corrigido", extra={"audit": {"fato": fato_id}})
+        return {"ok": True, "fato": _item_do_fato(novo)}
+
+    @app.delete("/memoria/fatos/{fato_id}", dependencies=[Admin])
+    def esquecer_fato(fato_id: int, state: State) -> dict[str, bool]:
+        if not state.memory.forget_fact(fato_id):
+            raise HTTPException(404, "fato não encontrado")
+        audit_log.info("fato_esquecido", extra={"audit": {"fato": fato_id}})
         return {"ok": True}
 
     @app.post("/approvals/{approval_id}/resume", dependencies=[Admin])
