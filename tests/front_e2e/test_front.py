@@ -1491,6 +1491,17 @@ def test_paleta_renomeia_fixa_e_apaga_a_conversa_atual(abrir, mock_isolado_url):
     expect(_linha(page, "Fase zero revisada")).to_have_count(0)
 
 
+def test_paleta_arquiva_a_conversa_atual(abrir, mock_isolado_url):
+    page = abrir("#/chat", url=mock_isolado_url)
+    atual = page.locator('#sb-convs-list .conv[aria-current="true"]')
+    expect(atual).to_be_visible(timeout=5000)
+    titulo = atual.inner_text().strip()
+    page.keyboard.press("Control+k")
+    page.fill("#palette-input", "arquivar conversa atual")
+    page.keyboard.press("Enter")
+    expect(_linha(page, titulo)).to_have_count(0)
+
+
 def test_conversa_apagada_sem_cerebro_que_aceite_mostra_erro_legivel(abrir, mock_isolado_url):
     page = abrir("#/chat", url=mock_isolado_url, http_ok=True)  # o 404 é de propósito
     page.route(
