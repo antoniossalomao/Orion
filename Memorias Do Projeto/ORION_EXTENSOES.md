@@ -1,8 +1,9 @@
 # Orion — referências de produto e plano de extensões
 
 Pesquisa em 04/10/2026. **Plano de implementação com execuções registradas até C50** (registro na seção 9).
-Plugins e skills seguem em implementação. MCP já tem prova com servidores controlados;
-nenhuma conta pessoal ou servidor externo do usuário foi conectado.
+Plugins, skills e exportação MCP estão implementados na branch `codex/orion-evolucao`.
+Há provas com servidores e clientes SDK controlados; validações reais pendentes estão
+identificadas nos checklists. Nenhuma conta pessoal do usuário foi conectada.
 Complementa [ORION_FRONT.md](ORION_FRONT.md), as fases 4 e 6 do
 [ORION_NUCLEO.md](ORION_NUCLEO.md) e a triagem de [ORION_FERRAMENTAS.md](ORION_FERRAMENTAS.md).
 As regras de [ORION_REGRAS.md](ORION_REGRAS.md) continuam valendo.
@@ -1274,6 +1275,29 @@ final: 653 testes passou em 39,30 s com SDK Node habilitado, sem skip. Node fron
 curso e terá resultado separado. Windows/ponte reais indisponíveis: C50 parcial
 para desktop, recurso explicitamente bloqueado nesse ambiente.
 
+
+### Verificação final — 08/10/2026
+
+As implementações previstas até C50 estão na branch `codex/orion-evolucao`.
+**47 checklists concluídos; C41, C46, C49 e C50 parciais** pelas provas reais
+explicitadas. Nenhum checklist permanece apenas planejado. Não houve merge em main,
+login pessoal, convite ou publicação automática.
+
+- Backend completo: **653 passou em 39,30 s**, com ensaio Node habilitado e sem skip.
+- JavaScript: **91 passou**, usando Node 24.19.0 com test-isolation=none.
+- Navegador completo final: **138 passou em 471,59 s**, Chromium 151, sem falha/erro.
+- Ruff, formatação e Pyright passaram. Checklists do repositório e do vault idênticos.
+- Correção adicional `9e23dfa`: flags opcionais de leitura por plataforma; 3 testes
+  de arquivos passaram em 1,33 s. Isso não comprova Windows real.
+- Prévia HTML a 700 px inspecionada em artefato local, mantendo a identidade do Orion.
+
+A bateria completa final substitui o estado “em curso” dos registros C46/C50, sem
+apagar os erros encontrados e corrigidos na primeira execução. Acesso Google com
+escopos mínimos/conta real, Windows/pywebview e Claude/Codex desktop continuam
+pendentes; prévia HTML permanece bloqueada no desktop até prova da ponte.
+
+Guias: [MCP de leitura](https://github.com/antoniossalomao/Orion/blob/codex/orion-evolucao/Memorias%20Do%20Projeto/ORION_MCP_EXPORT.md)
+e [validação por ambiente](https://github.com/antoniossalomao/Orion/blob/codex/orion-evolucao/Memorias%20Do%20Projeto/ORION_VALIDACAO_AMBIENTES.md).
 
 ### C00 — fix(ui): estabilizar conexão e consolidar o refinamento visual
 
