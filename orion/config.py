@@ -72,6 +72,8 @@ class Settings(BaseSettings):
     telegram_token: str = ""  # ou no cofre do SO (ORION_TELEGRAM_TOKEN)
     # IDs numéricos do Telegram, separados por vírgula ("123,456") ou lista JSON ("[123]")
     telegram_allowed_users: Annotated[list[int], NoDecode] = Field(default_factory=list)
+    plugins_enabled: bool = True
+    plugins_dir: Path | None = None  # padrão: <dados>/plugins (concessão por plugin, regra 45)
     skills_enabled: bool = True
     skills_dir: Path | None = None  # padrão: <dados>/skills (pasta por skill, com SKILL.md)
     # n8n: webhooks que VOCÊ cadastra, {"nome": "https://..."} em JSON (regra 41); vazio: desligado
@@ -255,6 +257,10 @@ class Settings(BaseSettings):
     @property
     def effective_mcp_config(self) -> Path:
         return self.mcp_config or self.data_dir / "mcp.json"
+
+    @property
+    def effective_plugins_dir(self) -> Path:
+        return self.plugins_dir or self.data_dir / "plugins"
 
     @property
     def effective_skills_dir(self) -> Path:

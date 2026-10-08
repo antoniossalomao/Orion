@@ -1871,3 +1871,22 @@ def test_painel_caixa_de_atividade_mostra_avisos_e_marca_como_lido(abrir, mock_i
     page.get_by_role("button", name="Marcar aviso briefing como lido").click()
     expect(cartao).to_contain_text("0 não lido(s)", timeout=8000)
     expect(cartao.locator('[data-aviso="1"]')).to_have_attribute("data-lido", "true")
+
+
+def test_conhecimento_plugin_mostra_o_que_libera_e_concede_e_revoga(abrir, mock_isolado_url):
+    page = abrir("#/conhecimento", url=mock_isolado_url)
+    item = page.locator('[data-plugin="estudo"]')
+    expect(item).to_be_visible(timeout=5000)
+    expect(item).to_contain_text("Sem concessão")
+    expect(item).to_contain_text("1 skill(s) · 1 servidor(es) MCP: estudocalc")
+    page.get_by_role("button", name="Conceder o plugin estudo").click()
+    alerta = page.get_by_role("alertdialog", name="Conceder o plugin estudo?")
+    expect(alerta).to_contain_text("estudocalc (local (comando): python calc.py)")
+    expect(alerta).to_contain_text("depois de reiniciar")
+    alerta.get_by_role("button", name="Cancelar").click()
+    expect(item).to_have_attribute("data-estado", "sem_concessao")
+    page.get_by_role("button", name="Conceder o plugin estudo").click()
+    page.get_by_role("alertdialog").get_by_role("button", name="Conceder").click()
+    expect(item).to_have_attribute("data-estado", "ativo")
+    page.get_by_role("button", name="Revogar o plugin estudo").click()
+    expect(item).to_have_attribute("data-estado", "sem_concessao")

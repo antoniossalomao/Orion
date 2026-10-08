@@ -9,7 +9,7 @@
     const { $, el, icone, api, ui } = O;
     const U = O.util;
 
-    let projetos = [], fatos = [], documentos = [], resultados = [], aberto = null, enviando = false, tela = { ligada: false }, filtro = '', erro = null, tokenBusca = 0;
+    let projetos = [], fatos = [], documentos = [], resultados = [], plugins = [], aberto = null, enviando = false, tela = { ligada: false }, filtro = '', erro = null, tokenBusca = 0;
 
     const vazio = t => el('p', { class: 'painel-vazio', text: t });
     const data = iso => (iso ? new Date(iso).toLocaleDateString('pt-BR') : '');
@@ -111,6 +111,33 @@
             el('small', { text: `${d.trechos} trecho(s) · indexado em ${data(d.indexado)}` }),
             el('div', { class: 'conh-acoes' },
                 el('button', { class: 'btn btn-ghost btn-sm', type: 'button', text: 'Remover', 'aria-label': `Remover documento ${d.nome}`, on: { click: () => apagarDoc(d) } })));
+    }
+
+    /* ── plugins: instalar é pela linha de comando; aqui você lê o que ele libera e concede ou revoga ── */
+    const ESTADO_PLUGIN = { ativo: ['Ativo', 'ok'], mudou: ['Mudou desde a concessão', 'warn'], sem_concessao: ['Sem concessão', 'muted'] };
+
+    async function conceder(p) {
+        const mcp = p.servidores.map(s => `${s.nome} (${s.transporte}: ${s.executa})`).join('; ') || 'nenhum servidor';
+        const ok = await ui.confirmar({
+            titulo: `Conceder o plugin ${p.nome}?`, ok: 'Conceder',
+            texto: `Libera ${p.skills} skill(s) e estes servidores MCP: ${mcp}. Cada ferramenta segue a classe de risco do plugin e as aprovações de sempre. Vale depois de reiniciar o Orion; qualquer mudança no pacote cancela a concessão.`,
+        });
+        if (ok && await agir(() => api.concederPlugin(p.nome), 'Não consegui conceder.')) O.anunciar('Plugin concedido. Reinicie o Orion para valer.');
+    }
+
+    function itemPlugin(p) {
+        const [rotulo, nivel] = ESTADO_PLUGIN[p.estado] || [p.estado, 'muted'];
+        return el('li', { class: 'painel-item conh-item', dataset: { plugin: p.nome, estado: p.estado } },
+            el('div', { class: 'painel-item-top' }, el('strong', { text: p.nome }), el('span', { class: 'mono', text: p.versao }),
+                el('span', { class: `badge badge-${nivel}`, text: rotulo })),
+            el('small', { text: p.descricao }),
+            el('small', { text: `${p.skills} skill(s) · ${p.servidores.length} servidor(es) MCP${p.servidores.length ? ': ' + p.servidores.map(s => s.nome).join(', ') : ''}` }),
+            el('div', { class: 'conh-acoes' },
+                p.estado === 'ativo'
+                    ? el('button', { class: 'btn btn-outline btn-sm', type: 'button', text: 'Revogar', 'aria-label': `Revogar o plugin ${p.nome}`,
+                        on: { click: () => agir(() => api.revogarPlugin(p.nome), 'Não consegui revogar.') } })
+                    : el('button', { class: 'btn btn-primary btn-sm', type: 'button', text: p.estado === 'mudou' ? 'Conceder de novo' : 'Conceder', 'aria-label': `Conceder o plugin ${p.nome}`,
+                        on: { click: () => conceder(p) } })));
     }
 
     /* ── resultados: o que o Orion gerou (documentos e imagens), com versões ── */
@@ -229,6 +256,9 @@
             cartao('documentos', 'Documentos', `${documentos.length} na memória`, formDocumento(),
                 documentos.length ? el('ul', { class: 'painel-lista', 'aria-label': 'Documentos' }, ...documentos.map(itemDocumento))
                     : vazio('Nenhum documento enviado. PDF, Word, Excel, HTML e texto viram trechos pesquisáveis.')),
+            cartao('plugins', 'Plugins', 'valem depois de reiniciar',
+                plugins.length ? el('ul', { class: 'painel-lista', 'aria-label': 'Plugins' }, ...plugins.map(itemPlugin))
+                    : vazio('Nenhum plugin instalado. Instale uma pasta com “orion plugin instalar <pasta>”; nada vale sem a sua concessão.')),
             cartao('resultados', 'Resultados', `${resultados.length} gerado(s)`,
                 resultados.length ? el('ul', { class: 'painel-lista', 'aria-label': 'Resultados' }, ...resultados.map(itemResultado))
                     : vazio('Nada gerado ainda. Documentos e imagens que o Orion criar aparecem aqui, com versões.')),
@@ -251,9 +281,9 @@
 
     async function carregar() {
         try {
-            const [p, f, t, dc, rs] = await Promise.all([api.projetos(), api.fatos(filtro), api.tela().catch(() => ({ ligada: false })),
-                api.documentos().catch(() => ({ documentos: [] })), api.resultados().catch(() => ({ resultados: [] }))]);
-            projetos = p.projetos || []; fatos = f.fatos || []; documentos = dc.documentos || []; resultados = rs.resultados || []; tela = t || { ligada: false }; erro = null;
+            const [p, f, t, dc, rs, pl] = await Promise.all([api.projetos(), api.fatos(filtro), api.tela().catch(() => ({ ligada: false })),
+                api.documentos().catch(() => ({ documentos: [] })), api.resultados().catch(() => ({ resultados: [] })), api.plugins().catch(() => ({ plugins: [] }))]);
+            projetos = p.projetos || []; fatos = f.fatos || []; documentos = dc.documentos || []; resultados = rs.resultados || []; plugins = pl.plugins || []; tela = t || { ligada: false }; erro = null;
         } catch (e) { erro = e; }
         desenhar();
     }

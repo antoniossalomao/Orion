@@ -63,24 +63,27 @@ def _frontmatter(texto: str) -> tuple[dict[str, str], str]:
 
 
 class SkillCatalog:
-    def __init__(self, raiz: Path | str) -> None:
+    def __init__(self, raiz: Path | str, extras: list[Path] | None = None) -> None:
+        """`extras`: pastas de skills de plugins concedidos (a sua própria pasta vale primeiro)."""
         self.raiz = Path(raiz)
+        self.extras = [Path(e) for e in extras or []]
         self.skills: dict[str, Skill] = {}
         self.rejeitadas: list[Rejeitada] = []
         self.scan()
 
     def scan(self) -> None:
         self.skills, self.rejeitadas = {}, []
-        if not self.raiz.is_dir():
-            return
-        base = self.raiz.resolve()
-        for pasta in sorted(self.raiz.iterdir()):
-            if not pasta.is_dir() or pasta.name.startswith("."):
+        for raiz in (self.raiz, *self.extras):
+            if not raiz.is_dir():
                 continue
-            try:
-                self._ler(pasta, base)
-            except OSError as e:
-                self.rejeitadas.append(Rejeitada(pasta.name, f"ilegível: {type(e).__name__}"))
+            base = raiz.resolve()
+            for pasta in sorted(raiz.iterdir()):
+                if not pasta.is_dir() or pasta.name.startswith("."):
+                    continue
+                try:
+                    self._ler(pasta, base)
+                except OSError as e:
+                    self.rejeitadas.append(Rejeitada(pasta.name, f"ilegível: {type(e).__name__}"))
 
     def _ler(self, pasta: Path, base: Path) -> None:
         arquivo = pasta / "SKILL.md"
@@ -103,6 +106,8 @@ class SkillCatalog:
             self.rejeitadas.append(Rejeitada(pasta.name, "description vazia ou longa demais"))
         elif len(corpo) > MAX_CORPO:
             self.rejeitadas.append(Rejeitada(pasta.name, f"corpo acima de {MAX_CORPO} caracteres"))
+        elif nome in self.skills:
+            self.rejeitadas.append(Rejeitada(pasta.name, "nome já usado por outra skill"))
         else:
             avisos = (
                 ("scripts/ ignorada: skill não executa código",)

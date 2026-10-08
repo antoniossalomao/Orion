@@ -60,6 +60,8 @@ from .memory.ops import Operations
 from .memory.sleep import SleepCycle
 from .memory.store import Message, Session
 from .painel import Painel, texto_do_painel
+from .plugins import PluginError, PluginStore
+from .plugins import describe as describe_plugin
 from .policy import ApprovalStore, PathGuard, PolicyEngine, redact
 from .policy.paths import default_safe_roots
 from .resultados import PREVIA_IMAGEM, PREVIA_TEXTO, Library
@@ -288,7 +290,12 @@ def mcp_from_settings(settings: Settings) -> McpManager | None:
     if not settings.mcp_enabled:
         return None
     try:
-        return manager_from_file(settings.effective_mcp_config)
+        extras = (
+            PluginStore(settings.effective_plugins_dir).servidores_mcp()
+            if settings.plugins_enabled
+            else {}
+        )
+        return manager_from_file(settings.effective_mcp_config, extras)
     except McpConfigError as e:
         log.error("MCP desligado: %s", e)
         return None
@@ -759,7 +766,14 @@ def create_app(
             if settings.desktop_tools:
                 processos = ProcessManager(settings.data_dir / "processos")
             skills = (
-                SkillCatalog(settings.effective_skills_dir) if settings.skills_enabled else None
+                SkillCatalog(
+                    settings.effective_skills_dir,
+                    PluginStore(settings.effective_plugins_dir).pastas_de_skills()
+                    if settings.plugins_enabled
+                    else [],
+                )
+                if settings.skills_enabled
+                else None
             )
             if skills is not None and skills.skills:
                 policy.register_tool(SKILL_SPEC)
@@ -1304,6 +1318,31 @@ def create_app(
             extra={"audit": {"sessao": s.id, "canal": canal, "titulo": (s.title or "")[:60]}},
         )
         return {"ok": True}
+
+    # ── plugins (regra 45): conceder e revogar; instalar é só pela linha de comando ──
+    def _plugins(state: AppState) -> PluginStore:
+        return PluginStore(state.settings.effective_plugins_dir)
+
+    @app.get("/plugins", dependencies=[Admin])
+    def listar_plugins(state: State) -> dict[str, Any]:
+        itens = [describe_plugin(p) for p in _plugins(state).lista()]
+        return {"total": len(itens), "plugins": itens, "vale_depois_de_reiniciar": True}
+
+    @app.post("/plugins/{nome}/conceder", dependencies=[Admin])
+    def conceder_plugin(nome: str, state: State) -> dict[str, Any]:
+        try:
+            p = _plugins(state).conceder(nome)
+        except PluginError as e:
+            raise HTTPException(404, str(e)) from None
+        audit_log.info("plugin_concedido", extra={"audit": {"plugin": nome, "versao": p.versao}})
+        return {"ok": True, "plugin": describe_plugin(p), "vale_depois_de_reiniciar": True}
+
+    @app.post("/plugins/{nome}/revogar", dependencies=[Admin])
+    def revogar_plugin(nome: str, state: State) -> dict[str, Any]:
+        if not _plugins(state).revogar(nome):
+            raise HTTPException(404, "esse plugin não tem concessão")
+        audit_log.info("plugin_revogado", extra={"audit": {"plugin": nome}})
+        return {"ok": True, "vale_depois_de_reiniciar": True}
 
     # ── biblioteca de resultados (C34/C35): o que o Orion gerou, com origem e versões ──
     def _biblioteca(state: AppState) -> Library:

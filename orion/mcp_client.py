@@ -420,9 +420,15 @@ class McpManager:
         return {"erro": texto or "erro sem mensagem"} if erro else {"texto": texto}
 
 
-def manager_from_file(path: Path | str, **kw: Any) -> McpManager | None:
-    """Gerente para o `mcp.json` (None se não há arquivo ou servidor habilitado)."""
+def manager_from_file(
+    path: Path | str, extra_servers: Mapping[str, ServerConfig] | None = None, **kw: Any
+) -> McpManager | None:
+    """Gerente para o `mcp.json` (None se não há arquivo ou servidor habilitado).
+    `extra_servers`: servidores de plugins concedidos; o `mcp.json` vale primeiro em colisão."""
     cfg = load_config(path)
+    for nome, srv in (extra_servers or {}).items():
+        if nome not in cfg.servers:
+            cfg.servers[nome] = srv
     if not any(c.enabled for c in cfg.servers.values()):
         return None
     return McpManager(cfg, **kw)

@@ -72,6 +72,24 @@ ESTADO: dict[str, Any] = {
             "texto": "# Ata v2\nDecisões revisadas.",
         },
     },
+    "plugins": {
+        "estudo": {
+            "versao": "1.0.0",
+            "descricao": "Ajuda nos estudos",
+            "skills": 1,
+            "estado": "sem_concessao",
+            "servidores": [
+                {
+                    "nome": "estudocalc",
+                    "transporte": "local (comando)",
+                    "executa": "python calc.py",
+                    "risco_padrao": "exec",
+                    "ferramentas": {},
+                    "externo": False,
+                }
+            ],
+        },
+    },
     "avisos": {
         1: {"tipo": "briefing", "texto": "☀️ Bom dia, Antônio. Hoje é quinta-feira.", "lido": False},
         2: {"tipo": "semanal", "texto": "🗓️ Semana de 01/10 a 08/10.", "lido": True},
@@ -516,6 +534,28 @@ def create_app() -> FastAPI:
         if ESTADO["fatos"].pop(fid, None) is None:
             raise HTTPException(404, "fato não encontrado")
         return {"ok": True}
+
+    def _plugin(nome: str) -> dict[str, Any]:
+        return {"nome": nome, **ESTADO["plugins"][nome]}
+
+    @app.get("/plugins")
+    def plugins_listar() -> dict[str, Any]:
+        return {"total": len(ESTADO["plugins"]), "plugins": [_plugin(n) for n in ESTADO["plugins"]],
+                "vale_depois_de_reiniciar": True}  # fmt: skip
+
+    @app.post("/plugins/{nome}/conceder")
+    def plugins_conceder(nome: str) -> dict[str, Any]:
+        if nome not in ESTADO["plugins"]:
+            raise HTTPException(404, "plugin não encontrado")
+        ESTADO["plugins"][nome]["estado"] = "ativo"
+        return {"ok": True, "plugin": _plugin(nome), "vale_depois_de_reiniciar": True}
+
+    @app.post("/plugins/{nome}/revogar")
+    def plugins_revogar(nome: str) -> dict[str, Any]:
+        if nome not in ESTADO["plugins"] or ESTADO["plugins"][nome]["estado"] != "ativo":
+            raise HTTPException(404, "esse plugin não tem concessão")
+        ESTADO["plugins"][nome]["estado"] = "sem_concessao"
+        return {"ok": True, "vale_depois_de_reiniciar": True}
 
     @app.get("/atividade")
     def atividade() -> dict[str, Any]:

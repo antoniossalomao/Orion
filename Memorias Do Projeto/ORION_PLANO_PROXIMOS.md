@@ -61,6 +61,9 @@
 ## Bloco F — Plugins e integrações (C19–C30, C39–C50)
 Só depois de A, B e C. Plugins entram com concessões revogáveis (C23) e catálogo (C25–C26); o primeiro plugin é "Orion Pesquisa" (C28–C29).
 
+### Plugins (C19–C30) — versão mínima feita em 08/10 (regra 45)
+`orion/plugins.py`: pacote local com `plugin.json`, skills e servidores MCP; **instalar só valida e copia**; nada vale sem `orion plugin conceder` (hash do pacote inteiro, mudança cancela); `GET /plugins`, `POST /plugins/{nome}/conceder|revogar` e card Plugins na tela Conhecimento. Fora desta versão: instalar por upload na interface, importar pacote de distribuição do Claude Code/Codex (C21), atualização com reversão de versão (C22), catálogo/marketplace (C25), diagnóstico de conexão MCP na interface (C26), fontes e atividade das extensões no chat (C27), pacote "Orion Pesquisa" (C28–C29).
+
 ### MCP (C07–C14) reavaliado em 08/10 contra o cliente que já existia
 | Item | Situação |
 |---|---|
