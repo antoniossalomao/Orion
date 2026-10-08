@@ -53,10 +53,10 @@
 | ID | Entrega | Observação |
 |---|---|---|
 | E1 | Resumo semanal da memória e do que foi feito | Texto determinístico + um turno de modelo, enviado pelo briefing |
-| E2 | Modo "só leitura" por sessão (nenhuma ferramenta de escrita ou execução disponível) | Base para D2 e para ler conteúdo de terceiros |
+| E2 | Modo "só leitura" por turno (nenhuma ferramenta de escrita ou execução disponível) | **feito (08/10)**: `Agent.run(..., read_only=True)`; o que pediria aprovação é negado sem deixar pedido. Base para D2 |
 | E3 | Painel de custo/cota por provedor ao longo da semana | Estende V13 e `/painel` |
-| E4 | `orion doctor`: confere chaves, serviços, `mcp.json` e fase 0 em um comando | Reduz a lista "só o Antônio faz" |
-| E5 | Teste de regressão de prompt injection (conjunto fixo de páginas hostis) | Roda no CI contra a política, sem modelo |
+| E4 | `orion doctor`: confere chaves, serviços, `mcp.json` e fase 0 em um comando | **feito (08/10)**, offline; não testa rede nem a fase 0 |
+| E5 | Teste de regressão de prompt injection (conjunto fixo de páginas hostis) | **feito (08/10)**: invariantes sobre todas as ferramentas + 12 comandos hostis, `tests/policy/test_injecao_invariantes.py` |
 
 ## Bloco F — Plugins e integrações (C19–C30, C39–C50)
 Só depois de A, B e C. Reavaliar C07–C14 contra o cliente MCP que já existe. Plugins entram com concessões revogáveis (C23) e catálogo (C25–C26); o primeiro plugin é "Orion Pesquisa" (C28–C29).
