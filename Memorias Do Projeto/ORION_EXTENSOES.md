@@ -1,6 +1,6 @@
 # Orion — referências de produto e plano de extensões
 
-Pesquisa em 04/10/2026. **Plano de implementação com execuções registradas até C45** (registro na seção 9).
+Pesquisa em 04/10/2026. **Plano de implementação com execuções registradas até C46** (registro na seção 9).
 Plugins e skills seguem em implementação. MCP já tem prova com servidores controlados;
 nenhuma conta pessoal ou servidor externo do usuário foi conectado.
 Complementa [ORION_FRONT.md](ORION_FRONT.md), as fases 4 e 6 do
@@ -339,8 +339,8 @@ como fundação do recurso novo. Exportar leitura primeiro, com identidade e esc
 
 ## 8. Próximo trabalho concreto
 
-As execuções até C45 estão registradas. Estados e evidências por checklist; C41 com validação real pendente.
-Continuar pelo **C46: Validação de extensões e projetos por ambiente**. O usuário autorizou os checklists restantes,
+As execuções até C46 estão registradas. Estados e evidências por checklist; C41, C46 com validação real pendente.
+Continuar pelo **C47: Identidade e escopo de clientes externos MCP**. O usuário autorizou os checklists restantes,
 com commits, validação, vault e push. Fixtures não substituem prova de conta ou desktop reais.
 
 Decisões recomendadas para o MVP: manter Python/FastAPI e o front atual; padrão Agent Skills;
@@ -417,9 +417,9 @@ a integração real de Pesquisa fica registrada separadamente se ainda não tive
 ### Registro para retomar no próximo dia
 
 - Último checklist concluído: **C45**, commit `f862286`; conferir as etapas parciais explicitadas abaixo.
-- Próximo commit sugerido: **C46 — Validação de extensões e projetos por ambiente**.
-- Dependências/impedimentos: Estados e evidências por checklist; C41 com validação real pendente. Windows/pywebview real e contas externas ainda precisam de evidência específica.
-- Evidências: ver os registros C00–C45 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
+- Próximo commit sugerido: **C47 — Identidade e escopo de clientes externos MCP**.
+- Dependências/impedimentos: Estados e evidências por checklist; C41, C46 com validação real pendente. Windows/pywebview real e contas externas ainda precisam de evidência específica.
+- Evidências: ver os registros C00–C46 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
 - Atualizações: registrar aqui o ID concluído, hash/link e o próximo ID; não preencher com
   hash fictício nem tratar evidência de mock como teste contra conta real.
 
@@ -1190,6 +1190,17 @@ Ruff/Pyright passaram. Um teste usou nome incorreto da tabela de contadores e fo
 corrigido para meta antes da validação. Não houve execução de assinatura pessoal.
 
 
+### Execução C46 — matriz por ambiente (parcial)
+
+Commit de registro: `7a13edb`. ORION_VALIDACAO_AMBIENTES.md consolida o que foi
+verificado e o que exige ambiente/conta reais. Linux/Chromium, contexto, revogação,
+recursos e persistência possuem evidências por etapa; a bateria completa do front
+está em curso nesta rodada e terá resultado separado, sem presumir aprovação.
+Windows/pywebview e integrações de leitura com contas reais continuam pendentes.
+A exportação local de leitura prossegue com validações próprias; C46 não é marcado
+concluído com evidências simuladas. Não houve login, convite ou CLI de assinatura real.
+
+
 ### C00 — fix(ui): estabilizar conexão e consolidar o refinamento visual
 
 Etapa: **A** · Depende de: **base atual do repositório** · Estado: **concluído**.
@@ -1652,13 +1663,13 @@ Etapa: **G** · Depende de: **C39, C18** · Estado: **concluído**.
 
 ### C46 — test(desktop): validar extensões e projetos em uso real
 
-Etapa: **G** · Depende de: **C42, C43, C44, C45, C37** · Estado: **planejado**.
+Etapa: **G** · Depende de: **C42, C43, C44, C45, C37** · Estado: **parcial — validação real pendente**.
 
 - [ ] Conferir Windows/pywebview real além do Chromium; registrar comportamento por SO.
 - [ ] Executar integrações reais de leitura autorizadas e cenários de revogação/cota/reinício.
-- [ ] Conferir acessibilidade, persistência, orçamento de contexto e recursos; atualizar docs com verificado e pendente.
+- [x] Conferir acessibilidade, persistência, orçamento de contexto e recursos; atualizar docs com verificado e pendente.
 - [ ] **Validar:** Registrar evidências dos fluxos completos e corrigir defeitos encontrados em commits separados antes de marcar esta entrega concluída.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C47 — feat(mcp-export): definir identidade e escopo de acesso ao Orion
 
