@@ -360,7 +360,8 @@ def create_app(
             export_credentials=ExportCredentials(memory),
         )
         try:
-            yield
+            async with mcp_export.server.session_manager.run():
+                yield
         finally:
             for tarefa in (tarefa_jobs, tarefa_telegram):
                 if tarefa is not None:
@@ -378,6 +379,9 @@ def create_app(
             memory.close()
 
     app = FastAPI(title="Orion", version=__version__, lifespan=lifespan)
+    from .mcp_export import Export, ExportAuth
+
+    mcp_export = Export(lambda: app.state.orion)
     # Host fora da lista (DNS rebinding a partir de uma página web) é recusado.
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts)
 
@@ -817,6 +821,7 @@ def create_app(
     from .file_plans import router as file_plan_router
 
     app.include_router(export_client_router(require_admin))
+    app.mount("/mcp-export", ExportAuth(mcp_export.app, lambda: app.state.orion))
 
     app.include_router(file_plan_router(require_admin))
 
