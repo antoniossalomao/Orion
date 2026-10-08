@@ -1,4 +1,4 @@
-"""`orion transcrever <arquivo>`: áudio ou vídeo vira uma nota Markdown na caixa de entrada do vault.
+"""`orion transcrever <arquivo>`: áudio ou vídeo vira uma nota Markdown no Inbox do vault.
 
 É um comando do **próprio Antônio** (como o `/capturar`), não uma ferramenta do modelo: o modelo
 não escolhe o arquivo nem o destino (regra 43). O `ffmpeg` extrai o áudio em mono, 16 kHz, 32 kbps e
