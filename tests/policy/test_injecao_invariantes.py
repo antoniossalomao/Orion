@@ -91,3 +91,16 @@ def test_comando_hostil_nunca_roda_sem_aprovacao_nem_em_sessao_limpa(motor, cmd)
 
 def test_ferramenta_desconhecida_e_negada(motor):
     assert motor.evaluate(ToolCall("apagar_tudo", {}), Context("s")).action is Action.DENY
+
+
+def test_ferramentas_registradas_em_tempo_de_execucao_seguem_as_mesmas_regras(motor):
+    """As que não estão em DEFAULT_TOOLS (n8n, skills) também passam pelos invariantes."""
+    from orion.skills import TOOL_SPEC as SKILL
+    from orion.tools.n8n import TOOL_SPEC as N8N
+
+    motor.register_tool(N8N)
+    motor.register_tool(SKILL)
+    for tainted in (False, True):
+        ctx = Context("s", tainted=tainted)
+        assert motor.evaluate(ToolCall("acionar_n8n", {"nome": "x"}), ctx).action is Action.CONFIRM
+    assert N8N.external and SKILL.risk is Risk.READ and not SKILL.external
