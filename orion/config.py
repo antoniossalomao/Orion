@@ -72,6 +72,10 @@ class Settings(BaseSettings):
     telegram_token: str = ""  # ou no cofre do SO (ORION_TELEGRAM_TOKEN)
     # IDs numéricos do Telegram, separados por vírgula ("123,456") ou lista JSON ("[123]")
     telegram_allowed_users: Annotated[list[int], NoDecode] = Field(default_factory=list)
+    skills_enabled: bool = True
+    skills_dir: Path | None = None  # padrão: <dados>/skills (pasta por skill, com SKILL.md)
+    # n8n: webhooks que VOCÊ cadastra, {"nome": "https://..."} em JSON (regra 41); vazio: desligado
+    n8n_webhooks: str = ""
     # Servidores MCP (fase 4): sobem do mcp.json (padrão: <dados>/mcp.json), só com gateway.
     mcp_enabled: bool = True
     mcp_config: Path | None = None
@@ -119,6 +123,8 @@ class Settings(BaseSettings):
     # ninguém olhando. Liga com o e-mail da conta; a ferramenta precisa ser `read` no mcp.json.
     briefing_calendar_email: str = ""
     briefing_calendar_tool: str = "google__get_events"
+    research_at: str = ""  # HH:MM: pesquisa noturna só leitura (regra 39); vazio: desligada
+    research_topics: str = ""  # assuntos separados por ";" (até 5); só o Antônio escolhe
     consolidate: bool = True  # fatos a partir das conversas (precisa do gateway)
     # Embeddings por API gratuita (Gemini). Sem chave, a busca é só por palavra-chave.
     embed_api_key: str = ""  # ou no cofre do SO (ORION_EMBED_API_KEY)
@@ -229,6 +235,10 @@ class Settings(BaseSettings):
     @property
     def effective_mcp_config(self) -> Path:
         return self.mcp_config or self.data_dir / "mcp.json"
+
+    @property
+    def effective_skills_dir(self) -> Path:
+        return self.skills_dir or self.data_dir / "skills"
 
     @property
     def effective_backup_dir(self) -> Path:

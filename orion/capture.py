@@ -78,17 +78,19 @@ class Capturer:
         dt = datetime.fromtimestamp(self._clock())
         return f"{dt:%Y-%m-%d}", f"{dt:%H:%M}", f"{dt:%Y-%m-%d %H%M}"
 
-    def save_text(self, texto: str, origem: str = "texto") -> Path:
-        """Grava uma nota com o texto (ou link). `origem`: texto, link ou voz (vai nas tags)."""
+    def save_text(self, texto: str, origem: str = "texto", fonte: str = "telegram") -> Path:
+        """Grava uma nota com o texto (ou link). `origem`: texto, link, voz ou pesquisa (vai nas
+        tags); `fonte`: quem mandou (telegram, ou orion para a pesquisa noturna)."""
         texto = texto.strip()
         if not texto:
             raise CaptureError("nada para guardar")
         if len(texto) > MAX_TEXTO:
             raise CaptureError(f"texto passa de {MAX_TEXTO} caracteres")
         data, hora, carimbo = self._carimbo()
-        tag = origem if origem in ("texto", "link", "voz") else "texto"
+        tag = origem if origem in ("texto", "link", "voz", "pesquisa") else "texto"
+        fonte = fonte if fonte in ("telegram", "orion") else "telegram"
         nota = (
-            f"---\ndate: {data}\nhora: {hora}\nfonte: telegram\ntags: [captura, {tag}]\n---\n\n"
+            f"---\ndate: {data}\nhora: {hora}\nfonte: {fonte}\ntags: [captura, {tag}]\n---\n\n"
             f"{texto}\n"
         )
         return self._gravar(

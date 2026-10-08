@@ -28,7 +28,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from .briefing import build_briefing
+from .briefing import build_briefing, build_weekly
 from .memory import MemoryStore
 from .memory.consolidate import Consolidator
 from .memory.ops import Operations
@@ -49,6 +49,7 @@ class TickReport:
     processos: int = 0
     briefing: bool = False
     consolidacao: dict[str, Any] | None = None
+    pesquisa: str | None = None
     erros: list[str] = field(default_factory=list)
 
 
@@ -80,6 +81,7 @@ class JobRunner:
         briefing_at: str = "",
         agenda: Callable[[float], str | None] | None = None,
         briefing_window_h: float = 6.0,
+        research: Any = None,
         embed_every_s: float = 300.0,
         vault_every_s: float = 3600.0,
         backup_every_s: float = 3600.0,
@@ -96,6 +98,7 @@ class JobRunner:
         self._briefing_at = _hora(briefing_at)
         self._agenda = agenda  # consulta direta de leitura, sem modelo (orion/agenda.py, regra 37)
         self._briefing_window = timedelta(hours=briefing_window_h)
+        self._research = research  # orion/research.py (regra 39), None: desligada
         self._clock = clock
         self._every = {
             "embed": embed_every_s,
@@ -127,6 +130,12 @@ class JobRunner:
             except Exception as e:
                 log.exception("job consolidação falhou")
                 rel.erros.append(f"consolidação: {e}")
+        if self._research is not None and self._research.devida():
+            try:
+                rel.pesquisa = await self._research.run()
+            except Exception as e:
+                log.exception("job pesquisa noturna falhou")
+                rel.erros.append(f"pesquisa noturna: {e}")
         self.ultima_rodada = self._clock()
         self.ultimos_erros = list(rel.erros)
         return rel
@@ -195,6 +204,13 @@ class JobRunner:
             "briefing", build_briefing(self.ops, agora, agenda=self._agenda), ref=f"briefing:{hoje}"
         )
         self.memory.counter_set("briefing:ultimo", hoje)  # depois do aviso: falhar não o perde
+        if dt.weekday() == 0:  # segunda: o resumo da semana que passou, uma vez por semana
+            semana = int(dt.strftime("%G%V"))
+            if self.memory.counter_get("semanal:ultimo") < semana:
+                self.ops.notify(
+                    "semanal", build_weekly(self.memory, agora), ref=f"semanal:{semana}"
+                )
+                self.memory.counter_set("semanal:ultimo", semana)
         return True
 
     def _processos_terminados(self) -> int:

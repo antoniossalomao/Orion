@@ -1402,6 +1402,29 @@ def test_apagar_pede_confirmacao_e_so_apaga_ao_confirmar(abrir, mock_isolado_url
     expect(_linha(page, "Bot do Telegram")).to_have_count(0)
 
 
+def test_arquivar_tira_da_barra_e_a_busca_no_conteudo_ainda_acha(abrir, mock_isolado_url):
+    page = abrir("#/chat", url=mock_isolado_url)
+    _abrir_menu(page, "Backup diário do vault")
+    page.get_by_role("menuitem", name="Arquivar").click()
+    expect(_linha(page, "Backup diário do vault")).to_have_count(0)
+    page.reload()
+    page.wait_for_selector("html[data-pronto='true']")
+    expect(_linha(page, "Dúvida de UML")).to_have_count(1, timeout=5000)
+    expect(_linha(page, "Backup diário do vault")).to_have_count(0)
+
+
+def test_busca_acha_palavra_que_so_existe_no_corpo_da_conversa(abrir, mock_isolado_url):
+    page = abrir("#/chat", url=mock_isolado_url)
+    page.locator("#sb-search").fill("Obsidian")  # nenhum título tem essa palavra
+    grupo = page.locator("#sb-convs-list .conv-group", has_text="No conteúdo")
+    expect(grupo).to_have_count(1, timeout=5000)
+    achado = page.locator("#sb-convs-list .conv-hit", has_text="Plano da fase 0")
+    expect(achado).to_have_count(1)
+    expect(achado.locator(".conv-snippet")).to_contain_text("Obsidian")
+    page.locator("#sb-search").press("Escape")
+    expect(grupo).to_have_count(0)
+
+
 def test_apagar_a_conversa_ativa_troca_para_a_proxima(abrir, mock_isolado_url):
     page = abrir("#/chat", url=mock_isolado_url)
     atual = page.locator('#sb-convs-list .conv[aria-current="true"]')
@@ -1466,6 +1489,17 @@ def test_paleta_renomeia_fixa_e_apaga_a_conversa_atual(abrir, mock_isolado_url):
     page.keyboard.press("Enter")
     page.get_by_role("alertdialog").get_by_role("button", name="Apagar").click()
     expect(_linha(page, "Fase zero revisada")).to_have_count(0)
+
+
+def test_paleta_arquiva_a_conversa_atual(abrir, mock_isolado_url):
+    page = abrir("#/chat", url=mock_isolado_url)
+    atual = page.locator('#sb-convs-list .conv[aria-current="true"]')
+    expect(atual).to_be_visible(timeout=5000)
+    titulo = atual.inner_text().strip()
+    page.keyboard.press("Control+k")
+    page.fill("#palette-input", "arquivar conversa atual")
+    page.keyboard.press("Enter")
+    expect(_linha(page, titulo)).to_have_count(0)
 
 
 def test_conversa_apagada_sem_cerebro_que_aceite_mostra_erro_legivel(abrir, mock_isolado_url):

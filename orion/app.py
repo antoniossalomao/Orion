@@ -58,6 +58,8 @@ from .painel import Painel, texto_do_painel
 from .policy import ApprovalStore, PathGuard, PolicyEngine, redact
 from .policy.paths import default_safe_roots
 from .secrets import get_secret
+from .skills import TOOL_SPEC as SKILL_SPEC
+from .skills import SkillCatalog, skill_tool
 from .tools import default_registry
 from .tools.processes import ProcessManager
 from .transcribe import Transcriber
@@ -430,9 +432,26 @@ class Ativacao(BaseModel):
     canal: str = Field(default="web", pattern=_CANAL)
 
 
+class NovoProjeto(BaseModel):
+    nome: str = Field(min_length=1, max_length=80)
+    instrucoes: str = Field(default="", max_length=4000)
+
+
+class AjusteDeProjeto(BaseModel):
+    nome: str | None = Field(default=None, min_length=1, max_length=80)
+    instrucoes: str | None = Field(default=None, max_length=4000)
+    arquivado: bool | None = None
+
+
+class AjusteDeFato(BaseModel):
+    texto: str = Field(min_length=1, max_length=2000)
+
+
 class AjusteDeConversa(BaseModel):
     titulo: str | None = Field(default=None, min_length=1, max_length=120)
     favorita: bool | None = None
+    arquivada: bool | None = None
+    projeto_id: int | None = None  # presente e nulo: tira do projeto
 
 
 def _canal_valido(canal: str) -> None:
@@ -455,6 +474,48 @@ def _item_da_conversa(memory: MemoryStore, s: Any, ativa_id: str | None) -> dict
         "ativa": s.id == ativa_id,
         "favorita": s.pinned,
         "somente_leitura": s.archived,
+        "arquivada": s.shelved,
+        "projeto_id": s.project_id,
+    }
+
+
+def _pesquisa_noturna(settings: Settings, agent: Any, memory: MemoryStore) -> Any:
+    """Só liga com hora, assuntos, agente, ferramentas de web e vault: tudo escolhido por você."""
+    from .research import NightResearch, parse_assuntos
+
+    assuntos = parse_assuntos(settings.research_topics)
+    if not (settings.research_at and assuntos):
+        return None
+    if agent is None or not settings.web_tools or settings.vault_dir is None:
+        log.warning("pesquisa noturna pedida, mas faltam gateway, ORION_WEB_TOOLS ou o vault")
+        return None
+    return NightResearch(
+        memory=memory,
+        run_turn=lambda canal, texto: agent.run(canal, texto, read_only=True),
+        capturer=Capturer(settings.vault_dir, settings.capture_folder),
+        assuntos=assuntos,
+        at=settings.research_at,
+        clock=time.time,
+    )
+
+
+def _item_do_projeto(p: Any) -> dict[str, Any]:
+    return {
+        "id": p.id,
+        "nome": p.name,
+        "instrucoes": p.instructions,
+        "arquivado": p.archived,
+        "atualizado": _iso(p.updated_at),
+    }
+
+
+def _item_do_fato(f: Any) -> dict[str, Any]:
+    return {
+        "id": f.id,
+        "texto": f.text,
+        "fonte": f.source,
+        "criado": _iso(f.created_at),
+        "atualizado": _iso(f.updated_at),
     }
 
 
@@ -646,6 +707,12 @@ def create_app(
                     policy.register_tool(spec)
             if settings.desktop_tools:
                 processos = ProcessManager(settings.data_dir / "processos")
+            skills = (
+                SkillCatalog(settings.effective_skills_dir) if settings.skills_enabled else None
+            )
+            if skills is not None and skills.skills:
+                policy.register_tool(SKILL_SPEC)
+                mcp_tools = [*mcp_tools, skill_tool(skills)]
             agent = Agent(
                 gateway=gateway,
                 tools=default_registry(
@@ -687,6 +754,7 @@ def create_app(
                 memory=memory,
                 ops=ops,
                 routing=roteamento_ligado(settings),
+                skills=skills,
             )
         jobs, tarefa_jobs, agenda = None, None, None
         if settings.jobs_enabled:
@@ -702,6 +770,7 @@ def create_app(
                 call=mcp.call if mcp is not None else _sem_mcp,
                 audit=ops.audit_add,
             )
+            pesquisa = _pesquisa_noturna(settings, agent, memory)
             jobs = JobRunner(
                 memory,
                 ops,
@@ -713,6 +782,7 @@ def create_app(
                 processes=processos,
                 briefing_at=settings.briefing_at,
                 agenda=agenda,
+                research=pesquisa,
             )
             tarefa_jobs = asyncio.create_task(jobs.run_forever(settings.jobs_tick_s))
         telegram = (telegram_factory or telegram_from_settings)(
@@ -952,14 +1022,35 @@ def create_app(
     # delas continua na memória). Só mexe nas conversas que a barra do canal mostra: as do
     # Telegram e de outros canais não passam por aqui.
     @app.get("/sessoes", dependencies=[Admin])
-    def listar_conversas(state: State, canal: str = "web") -> dict[str, Any]:
+    def listar_conversas(
+        state: State, canal: str = "web", arquivadas: bool = False, projeto: int | None = None
+    ) -> dict[str, Any]:
         _canal_valido(canal)
         ativa = state.memory.active_session(canal)
         itens = [
             _item_da_conversa(state.memory, s, ativa.id)
-            for s in state.memory.list_sessions_ui(canal)
+            for s in state.memory.list_sessions_ui(canal, shelved=arquivadas, project_id=projeto)
         ]
         return {"total": len(itens), "sessoes": itens, "ativa": ativa.id}
+
+    @app.get("/sessoes/busca", dependencies=[Admin])
+    def buscar_conversas(
+        state: State,
+        q: Annotated[str, Query(min_length=1, max_length=200)],
+        canal: str = "web",
+        limite: Annotated[int, Query(ge=1, le=50)] = 20,
+        deslocamento: Annotated[int, Query(ge=0)] = 0,
+    ) -> dict[str, Any]:
+        """Acha conversas pelo título ou por uma palavra do corpo das mensagens."""
+        _canal_valido(canal)
+        achados = state.memory.search_sessions(canal, q, limite, deslocamento)
+        return {
+            "total": len(achados),
+            "resultados": [
+                {**_item_da_conversa(state.memory, a["sessao"], None), "trecho": a["trecho"]}
+                for a in achados
+            ],
+        }
 
     @app.post("/sessoes", dependencies=[Admin])
     def nova_conversa(state: State, canal: str = "web") -> dict[str, Any]:
@@ -1099,11 +1190,27 @@ def create_app(
         sessao_id: str, corpo: AjusteDeConversa, state: State, canal: str = "web"
     ) -> dict[str, Any]:
         _canal_valido(canal)
-        if corpo.titulo is None and corpo.favorita is None:
-            raise HTTPException(422, "nada para mudar: mande `titulo` e/ou `favorita`")
+        muda_projeto = "projeto_id" in corpo.model_fields_set
+        if (
+            corpo.titulo is None
+            and corpo.favorita is None
+            and corpo.arquivada is None
+            and not muda_projeto
+        ):
+            raise HTTPException(
+                422, "nada para mudar: mande `titulo`, `favorita`, `arquivada` e/ou `projeto_id`"
+            )
         s = state.memory.session_visible(sessao_id, canal)
         if s is None:
             raise HTTPException(404, "conversa não encontrada")
+        if muda_projeto:
+            try:
+                if not state.memory.assign_session(s.id, corpo.projeto_id):
+                    raise HTTPException(409, "conversa importada é só leitura")
+            except KeyError:
+                raise HTTPException(404, "projeto não encontrado") from None
+        if corpo.arquivada is not None and not state.memory.shelve_session(s.id, corpo.arquivada):
+            raise HTTPException(409, "conversa importada é só leitura: não dá para arquivar")
         if corpo.titulo is not None and not state.memory.rename_session(s.id, corpo.titulo):
             raise HTTPException(422, "título vazio")
         if corpo.favorita is not None:
@@ -1123,6 +1230,69 @@ def create_app(
             "conversa_apagada",
             extra={"audit": {"sessao": s.id, "canal": canal, "titulo": (s.title or "")[:60]}},
         )
+        return {"ok": True}
+
+    # ── projetos (C31): instruções próprias para um grupo de conversas ─────
+    @app.get("/projetos", dependencies=[Admin])
+    def listar_projetos(state: State, arquivados: bool = False) -> dict[str, Any]:
+        itens = [_item_do_projeto(p) for p in state.memory.list_projects(arquivados)]
+        return {"total": len(itens), "projetos": itens}
+
+    @app.post("/projetos", dependencies=[Admin], status_code=201)
+    def criar_projeto(corpo: NovoProjeto, state: State) -> dict[str, Any]:
+        try:
+            p = state.memory.create_project(corpo.nome, corpo.instrucoes)
+        except ValueError as e:
+            raise HTTPException(409, str(e)) from None
+        return {"ok": True, "projeto": _item_do_projeto(p)}
+
+    @app.patch("/projetos/{projeto_id}", dependencies=[Admin])
+    def ajustar_projeto(projeto_id: int, corpo: AjusteDeProjeto, state: State) -> dict[str, Any]:
+        try:
+            p = state.memory.update_project(
+                projeto_id,
+                name=corpo.nome,
+                instructions=corpo.instrucoes,
+                archived=corpo.arquivado,
+            )
+        except KeyError:
+            raise HTTPException(404, "projeto não encontrado") from None
+        except ValueError as e:
+            raise HTTPException(409, str(e)) from None
+        return {"ok": True, "projeto": _item_do_projeto(p)}
+
+    @app.delete("/projetos/{projeto_id}", dependencies=[Admin])
+    def apagar_projeto(projeto_id: int, state: State) -> dict[str, bool]:
+        if not state.memory.delete_project(projeto_id):
+            raise HTTPException(404, "projeto não encontrado")
+        return {"ok": True}
+
+    # ── memória: o que o Orion sabe sobre o Antônio (C36) ─────────────────
+    @app.get("/memoria/fatos", dependencies=[Admin])
+    def listar_fatos(
+        state: State,
+        q: Annotated[str | None, Query(max_length=200)] = None,
+        limite: Annotated[int, Query(ge=1, le=200)] = 100,
+    ) -> dict[str, Any]:
+        achados = state.memory.search_facts(q, limite) if q else state.memory.facts()[:limite]
+        return {"total": len(achados), "fatos": [_item_do_fato(f) for f in achados]}
+
+    @app.patch("/memoria/fatos/{fato_id}", dependencies=[Admin])
+    def corrigir_fato(fato_id: int, corpo: AjusteDeFato, state: State) -> dict[str, Any]:
+        try:
+            novo = state.memory.update_fact(fato_id, corpo.texto, source="manual")
+        except KeyError:
+            raise HTTPException(404, "fato não encontrado") from None
+        except ValueError:
+            raise HTTPException(422, "fato vazio") from None
+        audit_log.info("fato_corrigido", extra={"audit": {"fato": fato_id}})
+        return {"ok": True, "fato": _item_do_fato(novo)}
+
+    @app.delete("/memoria/fatos/{fato_id}", dependencies=[Admin])
+    def esquecer_fato(fato_id: int, state: State) -> dict[str, bool]:
+        if not state.memory.forget_fact(fato_id):
+            raise HTTPException(404, "fato não encontrado")
+        audit_log.info("fato_esquecido", extra={"audit": {"fato": fato_id}})
         return {"ok": True}
 
     @app.post("/approvals/{approval_id}/resume", dependencies=[Admin])

@@ -128,3 +128,34 @@ async def test_sem_hora_configurada_o_briefing_fica_desligado(store, ops, relogi
 def test_hora_invalida_e_recusada_na_criacao(store, ops, relogio, ruim):
     with pytest.raises(ValueError, match="HH:MM"):
         runner(store, ops, relogio, briefing_at=ruim)
+
+
+def semanais(ops):
+    return [n for n in ops.pending_notifications() if n["kind"] == "semanal"]
+
+
+async def test_resumo_semanal_sai_na_segunda_uma_vez_e_conta_a_semana(store, ops, relogio):
+    from orion.briefing import build_weekly
+
+    relogio.t = ts(1, 10)  # quinta passada
+    s = store.new_session("web")
+    store.add_message(s.id, "user", "oi")
+    t = ops.add_task("Entregar UML")
+    ops.set_task_status(t["id"], "concluida")
+    store.add_fact("Antônio usa Obsidian", "conversa")
+    relogio.t = ts(5, 7, 31)  # segunda
+    texto = build_weekly(store, relogio.t)
+    assert "1 vez(es)" in texto and "1 concluída(s)" in texto and "Entregar UML" in texto
+    assert "Antônio usa Obsidian" in texto
+    r = runner(store, ops, relogio)
+    assert (await r.tick()).briefing is True
+    assert len(semanais(ops)) == 1 and semanais(ops)[0]["ref"] == "semanal:202641"
+    relogio.t = ts(6, 7, 31)  # terça: só o briefing diário
+    await r.tick()
+    assert len(semanais(ops)) == 1
+
+
+async def test_resumo_semanal_nao_sai_fora_da_segunda(store, ops, relogio):
+    relogio.t = ts(6, 7, 31)  # terça
+    await runner(store, ops, relogio).tick()
+    assert semanais(ops) == []

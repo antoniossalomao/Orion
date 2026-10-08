@@ -53,6 +53,7 @@
             c.push(
                 { g: 'acao', rotulo: 'Renomear conversa atual', icone: 'edit', exec: () => O.sidebar.renomear(atual), chaves: 'título nome' },
                 { g: 'acao', rotulo: atual.favorita ? 'Desafixar conversa atual' : 'Fixar conversa atual', icone: 'pin', exec: () => O.sidebar.alternarFixa(atual), chaves: 'favoritar topo' },
+                { g: 'acao', rotulo: 'Arquivar conversa atual', icone: 'archive', exec: () => O.sidebar.arquivar(atual), chaves: 'guardar esconder' },
                 { g: 'acao', rotulo: 'Apagar conversa atual', icone: 'trash', exec: () => O.sidebar.apagar(atual), chaves: 'excluir remover' },
             );
         }

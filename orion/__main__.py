@@ -35,6 +35,35 @@ def _set_password(settings: Settings, *, from_stdin: bool) -> int:
     return 0
 
 
+def _esquecer(settings: Settings, consulta: str, sim: bool) -> int:
+    from .memory import MemoryStore
+
+    store = MemoryStore(settings.db_path)
+    try:
+        if consulta.strip().isdigit():
+            fato = store.get_fact(int(consulta))
+            achados = [fato] if fato else []
+        else:
+            achados = store.search_facts(consulta)
+        if not achados:
+            print("nenhum fato casa com isso")
+            return 2
+        for f in achados:
+            print(f"[{f.id}] {f.text}  (fonte: {f.source})")
+        if not sim and input(f"apagar {len(achados)} fato(s)? [s/N] ").strip().lower() != "s":
+            print("nada foi apagado")
+            return 1
+        apagados = sum(store.forget_fact(f.id) for f in achados)
+    finally:
+        store.close()
+    print(
+        f"{apagados} fato(s) apagado(s) do banco, do índice de busca e dos vetores.\n"
+        "Atenção: backups antigos (<dados>/backups), mensagens de conversas e notas do vault "
+        "que repetem o fato NÃO foram tocados."
+    )
+    return 0
+
+
 def _mcp_check(config: Path) -> int:
     from .mcp_client import McpConfigError, describe, manager_from_file
 
@@ -129,6 +158,17 @@ def main(argv: list[str] | None = None) -> int:
     )
     wt.add_argument("--listar", action="store_true", help="lista os microfones e sai")
     wt.add_argument("--segundos", type=int, default=30, help="quanto tempo escutar")
+    sub.add_parser(
+        "doctor", help="confere instalação, banco, login, chaves, MCP e backup (sem rede)"
+    )
+    sub.add_parser("skills", help="lista as skills válidas e as rejeitadas, com o motivo")
+    ft = sub.add_parser("fatos", help="lista os fatos da memória (com id, fonte e data)")
+    ft.add_argument("--duplicados", action="store_true", help="mostra pares quase iguais")
+    es = sub.add_parser(
+        "esquecer", help="apaga fatos da memória (texto, índice de busca e vetor); pede confirmação"
+    )
+    es.add_argument("consulta", help="trecho do fato, ou o id (número) mostrado na lista")
+    es.add_argument("--sim", action="store_true", help="não pergunta (apaga todos que casarem)")
     rs = sub.add_parser("restore", help="restaura um backup no lugar do banco (confere antes)")
     rs.add_argument("arquivo", type=Path, help="backup .db (veja <dados>/backups)")
     rs.add_argument("--force", action="store_true", help="substitui o banco atual, se existir")
@@ -169,6 +209,46 @@ def main(argv: list[str] | None = None) -> int:
             store.close()
         print(f"backup: {feito}" if feito else "backup de hoje já existe")
         return 0
+
+    if args.cmd == "fatos":
+        from .memory import MemoryStore
+
+        store = MemoryStore(settings.db_path)
+        try:
+            if args.duplicados:
+                pares = store.duplicate_facts()
+                for a, b, j in pares:
+                    print(f"{j:.0%}  [{a.id}] {a.text}\n     [{b.id}] {b.text}")
+                print(f"{len(pares)} par(es); apague um com `orion esquecer <id>`")
+            else:
+                for f in store.facts():
+                    print(f"[{f.id}] {f.text}  (fonte: {f.source})")
+        finally:
+            store.close()
+        return 0
+
+    if args.cmd == "skills":
+        from .skills import SkillCatalog
+
+        cat = SkillCatalog(settings.effective_skills_dir)
+        print(f"pasta: {settings.effective_skills_dir}")
+        for sk in cat.skills.values():
+            print(f"[ok]  {sk.nome}: {sk.descricao[:80]}" + "".join(f"  ({a})" for a in sk.avisos))
+        for r in cat.rejeitadas:
+            print(f"[rejeitada] {r.pasta}: {r.motivo}")
+        if not cat.skills and not cat.rejeitadas:
+            print("nenhuma skill (crie <pasta>/<nome>/SKILL.md)")
+        return 0
+
+    if args.cmd == "doctor":
+        from .doctor import checar, relatorio
+
+        texto, codigo = relatorio(checar(settings))
+        print(texto)
+        return codigo
+
+    if args.cmd == "esquecer":
+        return _esquecer(settings, args.consulta, args.sim)
 
     if args.cmd == "autostart":
         from .autostart import detectar, instalar, render

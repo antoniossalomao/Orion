@@ -10,6 +10,7 @@
 
     let sessoes = [], ativa = null, filtro = '', online = null, abrindo = false;
     let lista, busca;
+    let achadosCorpo = [], tokenBusca = 0;   // busca no conteúdo das mensagens (GET /sessoes/busca)
 
     /* ── lista de conversas ────────────────────────────────────────────── */
     function titulo(s) { return s.titulo || 'Sem título'; }
@@ -54,8 +55,14 @@
         }
         if (filtro) {
             const achadas = O.fuzzy.buscar(sessoes, filtro, titulo);
-            lista.replaceChildren(...(achadas.length ? achadas.map(botaoConversa)
-                : [el('div', { class: 'sb-empty', text: `Nada encontrado para “${filtro}”.` })]));
+            const ids = new Set(achadas.map(s => s.sessao_id));
+            const corpo = achadosCorpo.filter(r => !ids.has(r.sessao_id));
+            const nos = achadas.map(botaoConversa);
+            if (corpo.length) {
+                nos.push(el('div', { class: 'conv-group', text: 'No conteúdo' }),
+                    ...corpo.map(r => el('div', { class: 'conv-hit' }, botaoConversa(r), r.trecho ? el('div', { class: 'conv-snippet', text: r.trecho.replace(/[\[\]]/g, '') }) : null)));
+            }
+            lista.replaceChildren(...(nos.length ? nos : [el('div', { class: 'sb-empty', text: `Nada encontrado para “${filtro}”.` })]));
             return;
         }
         const nos = [];
@@ -103,9 +110,9 @@
         menuDono = s; menuBotao = botao;
         const item = (acao, rotulo, perigo = false) => el('button', {
             class: `menu-item${perigo ? ' menu-item-perigo' : ''}`, type: 'button', role: 'menuitem', text: rotulo,
-            on: { click: () => { const dono = menuDono; fecharMenu(false); if (acao === 'renomear') renomear(dono); else if (acao === 'fixar') alternarFixa(dono); else apagar(dono); } },
+            on: { click: () => { const dono = menuDono; fecharMenu(false); if (acao === 'renomear') renomear(dono); else if (acao === 'fixar') alternarFixa(dono); else if (acao === 'arquivar') arquivar(dono); else apagar(dono); } },
         });
-        menu.replaceChildren(item('renomear', 'Renomear'), item('fixar', rotuloFixar(s)), item('apagar', 'Apagar', true));
+        menu.replaceChildren(item('renomear', 'Renomear'), item('fixar', rotuloFixar(s)), item('arquivar', 'Arquivar'), item('apagar', 'Apagar', true));
         const r = botao.getBoundingClientRect();
         menu.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - 190))}px`;
         menu.style.top = `${Math.min(r.bottom + 4, window.innerHeight - 140)}px`;
@@ -146,14 +153,25 @@
         if (!ok) return;
         if (!await executar(() => api.apagarSessao(s.sessao_id), 'Não consegui apagar.')) return;
         O.anunciar('Conversa apagada.');
-        if (eraAtiva) {
-            // o cérebro escolheu outra conversa como ativa: mostra o histórico dela (ou a tela vazia)
-            O.chat.limpar();
-            const nova = sessoes.find(x => x.sessao_id === ativa);
-            if (nova && !nova.somente_leitura) {
-                try { O.chat.renderHistorico((await api.ativarSessao(nova.sessao_id)).mensagens || []); } catch (_) { /* fica vazia */ }
-            }
+        if (eraAtiva) await mostrarAtiva();
+    }
+
+    /** o cérebro escolheu outra conversa como ativa: mostra o histórico dela (ou a tela vazia) */
+    async function mostrarAtiva() {
+        O.chat.limpar();
+        const nova = sessoes.find(x => x.sessao_id === ativa);
+        if (nova && !nova.somente_leitura) {
+            try { O.chat.renderHistorico((await api.ativarSessao(nova.sessao_id)).mensagens || []); } catch (_) { /* fica vazia */ }
         }
+    }
+
+    async function arquivar(s) {
+        if (!s || s.somente_leitura) return;
+        const eraAtiva = s.sessao_id === ativa;
+        if (eraAtiva && O.chat.ocupado()) { ui.toast('Espere a resposta terminar para arquivar a conversa.', { tipo: 'aviso' }); return; }
+        if (!await executar(() => api.arquivarSessao(s.sessao_id, true), 'Não consegui arquivar.')) return;
+        O.anunciar('Conversa arquivada. Ela continua na busca.');
+        if (eraAtiva) await mostrarAtiva();
     }
 
     async function carregar() {
@@ -240,12 +258,24 @@
         primeiraVez = false;
     }
 
+    /** além do título, procura a palavra no corpo das mensagens (inclui as arquivadas) */
+    const buscarNoCorpo = U.debounce(async () => {
+        const meu = ++tokenBusca, consulta = filtro;
+        if (consulta.length < 3) return;
+        try {
+            const d = await api.buscarSessoes(consulta);
+            if (meu !== tokenBusca || consulta !== filtro) return;   // resposta velha
+            achadosCorpo = d.resultados || [];
+            desenhar();
+        } catch (_) { /* a busca por título continua valendo */ }
+    }, 300);
+
     function init() {
         lista = $('#sb-convs-list'); busca = $('#sb-search');
         $('#sb-toggle').addEventListener('click', alternar);
         $('#sb-new').addEventListener('click', nova);
-        busca.addEventListener('input', () => { filtro = busca.value.trim(); desenhar(); });
-        busca.addEventListener('keydown', e => { if (e.key === 'Escape' && busca.value) { e.stopPropagation(); busca.value = ''; filtro = ''; desenhar(); } });
+        busca.addEventListener('input', () => { filtro = busca.value.trim(); achadosCorpo = []; desenhar(); buscarNoCorpo(); });
+        busca.addEventListener('keydown', e => { if (e.key === 'Escape' && busca.value) { e.stopPropagation(); busca.value = ''; filtro = ''; achadosCorpo = []; desenhar(); } });
         lista.addEventListener('keydown', e => {
             if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
             const itens = $$('.conv', lista), i = itens.indexOf(document.activeElement);
@@ -264,7 +294,7 @@
     }
 
     O.sidebar = {
-        init, nova, alternar, carregar, abrir, renomear, alternarFixa, apagar,
+        init, nova, alternar, carregar, abrir, renomear, alternarFixa, arquivar, apagar,
         sessoes: () => sessoes, ativa: () => sessoes.find(s => s.sessao_id === ativa) || null,
         online: () => online,
     };
