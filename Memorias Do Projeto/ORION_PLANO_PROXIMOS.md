@@ -21,10 +21,10 @@
 ## Bloco B — Skills antes de plugins (C15–C18)
 | ID | Entrega | Origem | Depende de |
 |---|---|---|---|
-| B1 | Validar e listar pacotes `SKILL.md` (C15) | EXTENSOES | — |
-| B2 | Carregar contexto gradual por relevância (C16) | EXTENSOES | B1 |
+| B1 | Validar e listar pacotes `SKILL.md` (C15) | EXTENSOES | — | **feito (08/10)**: `orion/skills.py`, `orion skills` |
+| B2 | Carregar contexto gradual por relevância (C16) | EXTENSOES | B1 | **feito (08/10)**: só nome+descrição no prompt, corpo por `carregar_skill` |
 | B3 | Invocar skills pelo chat e pela paleta (C17) | EXTENSOES | B2 |
-| B4 | Confiança e scripts de skill sempre com aprovação (C18) | EXTENSOES | B3 |
+| B4 | Confiança e scripts de skill sempre com aprovação (C18) | EXTENSOES | B3 | decisão provisória: skill **não executa script nenhum** (`scripts/` é ignorada e avisada); reavaliar se um dia precisar |
 
 ## Bloco C — Projetos e resultados (C31–C35, C38)
 | ID | Entrega | Origem | Depende de |

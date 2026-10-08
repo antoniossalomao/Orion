@@ -58,6 +58,8 @@ from .painel import Painel, texto_do_painel
 from .policy import ApprovalStore, PathGuard, PolicyEngine, redact
 from .policy.paths import default_safe_roots
 from .secrets import get_secret
+from .skills import TOOL_SPEC as SKILL_SPEC
+from .skills import SkillCatalog, skill_tool
 from .tools import default_registry
 from .tools.processes import ProcessManager
 from .transcribe import Transcriber
@@ -662,6 +664,12 @@ def create_app(
                     policy.register_tool(spec)
             if settings.desktop_tools:
                 processos = ProcessManager(settings.data_dir / "processos")
+            skills = (
+                SkillCatalog(settings.effective_skills_dir) if settings.skills_enabled else None
+            )
+            if skills is not None and skills.skills:
+                policy.register_tool(SKILL_SPEC)
+                mcp_tools = [*mcp_tools, skill_tool(skills)]
             agent = Agent(
                 gateway=gateway,
                 tools=default_registry(
@@ -703,6 +711,7 @@ def create_app(
                 memory=memory,
                 ops=ops,
                 routing=roteamento_ligado(settings),
+                skills=skills,
             )
         jobs, tarefa_jobs, agenda = None, None, None
         if settings.jobs_enabled:

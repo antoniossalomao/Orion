@@ -73,6 +73,8 @@ class Settings(BaseSettings):
     # IDs numéricos do Telegram, separados por vírgula ("123,456") ou lista JSON ("[123]")
     telegram_allowed_users: Annotated[list[int], NoDecode] = Field(default_factory=list)
     # Servidores MCP (fase 4): sobem do mcp.json (padrão: <dados>/mcp.json), só com gateway.
+    skills_enabled: bool = True
+    skills_dir: Path | None = None  # padrão: <dados>/skills (pasta por skill, com SKILL.md)
     mcp_enabled: bool = True
     mcp_config: Path | None = None
     # Voz no Telegram: transcrição por API compatível com a da OpenAI (Whisper no Groq, grátis).
@@ -229,6 +231,10 @@ class Settings(BaseSettings):
     @property
     def effective_mcp_config(self) -> Path:
         return self.mcp_config or self.data_dir / "mcp.json"
+
+    @property
+    def effective_skills_dir(self) -> Path:
+        return self.skills_dir or self.data_dir / "skills"
 
     @property
     def effective_backup_dir(self) -> Path:

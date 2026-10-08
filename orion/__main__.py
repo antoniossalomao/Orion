@@ -161,6 +161,7 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser(
         "doctor", help="confere instalação, banco, login, chaves, MCP e backup (sem rede)"
     )
+    sub.add_parser("skills", help="lista as skills válidas e as rejeitadas, com o motivo")
     es = sub.add_parser(
         "esquecer", help="apaga fatos da memória (texto, índice de busca e vetor); pede confirmação"
     )
@@ -205,6 +206,19 @@ def main(argv: list[str] | None = None) -> int:
         finally:
             store.close()
         print(f"backup: {feito}" if feito else "backup de hoje já existe")
+        return 0
+
+    if args.cmd == "skills":
+        from .skills import SkillCatalog
+
+        cat = SkillCatalog(settings.effective_skills_dir)
+        print(f"pasta: {settings.effective_skills_dir}")
+        for sk in cat.skills.values():
+            print(f"[ok]  {sk.nome}: {sk.descricao[:80]}" + "".join(f"  ({a})" for a in sk.avisos))
+        for r in cat.rejeitadas:
+            print(f"[rejeitada] {r.pasta}: {r.motivo}")
+        if not cat.skills and not cat.rejeitadas:
+            print("nenhuma skill (crie <pasta>/<nome>/SKILL.md)")
         return 0
 
     if args.cmd == "doctor":
