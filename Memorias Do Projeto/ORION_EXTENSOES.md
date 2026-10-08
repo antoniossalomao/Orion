@@ -1,6 +1,6 @@
 # Orion — referências de produto e plano de extensões
 
-Pesquisa em 04/10/2026. **Plano de implementação com execuções registradas até C49** (registro na seção 9).
+Pesquisa em 04/10/2026. **Plano de implementação com execuções registradas até C50** (registro na seção 9).
 Plugins e skills seguem em implementação. MCP já tem prova com servidores controlados;
 nenhuma conta pessoal ou servidor externo do usuário foi conectado.
 Complementa [ORION_FRONT.md](ORION_FRONT.md), as fases 4 e 6 do
@@ -339,8 +339,8 @@ como fundação do recurso novo. Exportar leitura primeiro, com identidade e esc
 
 ## 8. Próximo trabalho concreto
 
-As execuções até C49 estão registradas. Estados e evidências por checklist; C41, C46, C49 com validação real pendente.
-Continuar pelo **C50: Prévia HTML isolada**. O usuário autorizou os checklists restantes,
+As execuções até C50 estão registradas. Estados e evidências por checklist; C41, C46, C49, C50 com validação real pendente.
+Continuar pelo **Validações reais: contas externas, Windows e clientes desktop**. O usuário autorizou os checklists restantes,
 com commits, validação, vault e push. Fixtures não substituem prova de conta ou desktop reais.
 
 Decisões recomendadas para o MVP: manter Python/FastAPI e o front atual; padrão Agent Skills;
@@ -417,9 +417,9 @@ a integração real de Pesquisa fica registrada separadamente se ainda não tive
 ### Registro para retomar no próximo dia
 
 - Último checklist concluído: **C48**, commit `7339543`; conferir as etapas parciais explicitadas abaixo.
-- Próximo commit sugerido: **C50 — Prévia HTML isolada**.
-- Dependências/impedimentos: Estados e evidências por checklist; C41, C46, C49 com validação real pendente. Windows/pywebview real e contas externas ainda precisam de evidência específica.
-- Evidências: ver os registros C00–C49 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
+- Próximo commit sugerido: **Validações reais — contas externas, Windows e clientes desktop**.
+- Dependências/impedimentos: Estados e evidências por checklist; C41, C46, C49, C50 com validação real pendente. Windows/pywebview real e contas externas ainda precisam de evidência específica.
+- Evidências: ver os registros C00–C50 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
 - Atualizações: registrar aqui o ID concluído, hash/link e o próximo ID; não preencher com
   hash fictício nem tratar evidência de mock como teste contra conta real.
 
@@ -1255,6 +1255,26 @@ transporte, limits e limites conhecidos. Claude Desktop e Codex desktop não est
 disponíveis aqui; a compatibilidade com esses apps permanece pendente, C49 parcial.
 
 
+### Execução C50 — prévia HTML estática (desktop pendente)
+
+Commit de implementação: `8198584`. Biblioteca aceita linguagem do código html e
+oferece HTML estático em navegador compatível, mantendo código/download originais.
+Blob em iframe sandbox sem permissões/origem opaca; CSP sem scripts/rede/formulários,
+parent permite só frames blob. Prévia remove scripts/metadados ativos/frames,
+links de recursos e atributos de rede/ação; não usa srcdoc, ponte ou comandos por
+postMessage. URLs/frames liberados ao fechar, trocar versão/contexto ou sair.
+Windows e pywebview ficam com código/download; pywebviewready fecha prévia existente.
+
+Evidências: 3 testes Chromium passaram em 20,25 s, ataques de script/rede/CSS/frame/
+formulário/navegação/origem/ponte, código preservado, fluxo da biblioteca e axe a
+700 px. Primeiro ensaio corrigiu posição do retorno de fixture e segundo encontrou
+link para blob que gerava erro; prévia agora remove links ativos. Suite backend
+final: 653 testes passou em 39,30 s com SDK Node habilitado, sem skip. Node front
+91 passou; Ruff/format/Pyright passaram. A suite completa do front final está em
+curso e terá resultado separado. Windows/ponte reais indisponíveis: C50 parcial
+para desktop, recurso explicitamente bloqueado nesse ambiente.
+
+
 ### C00 — fix(ui): estabilizar conexão e consolidar o refinamento visual
 
 Etapa: **A** · Depende de: **base atual do repositório** · Estado: **concluído**.
@@ -1757,13 +1777,13 @@ Etapa: **H** · Depende de: **C48** · Estado: **parcial — validação real pe
 
 ### C50 — feat(artifacts): oferecer prévia HTML isolada
 
-Etapa: **Depois do MVP** · Depende de: **C35, C46** · Estado: **planejado**.
+Etapa: **Depois do MVP** · Depende de: **C35, C46** · Estado: **parcial — validação real pendente**.
 
-- [ ] Implementar preview HTML em contexto isolado, com rede bloqueada por padrão e sem ponte pywebview.
-- [ ] Separar origem da prévia, leitura de arquivo e comandos privilegiados do app.
-- [ ] Mostrar limitações e manter prévia de código disponível quando HTML não for suportado.
+- [x] Implementar preview HTML em contexto isolado, com rede bloqueada por padrão e sem ponte pywebview.
+- [x] Separar origem da prévia, leitura de arquivo e comandos privilegiados do app.
+- [x] Mostrar limitações e manter prévia de código disponível quando HTML não for suportado.
 - [ ] **Validar:** Usar HTML de teste que tenta buscar rede, acessar origem do app e invocar ponte; todas as tentativas devem falhar.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### Itens que ficam fora da sequência inicial
 
