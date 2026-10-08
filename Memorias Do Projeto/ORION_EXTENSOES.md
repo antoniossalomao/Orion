@@ -1,6 +1,6 @@
 # Orion — referências de produto e plano de extensões
 
-Pesquisa em 04/10/2026. **Plano de implementação com execuções registradas até C46** (registro na seção 9).
+Pesquisa em 04/10/2026. **Plano de implementação com execuções registradas até C47** (registro na seção 9).
 Plugins e skills seguem em implementação. MCP já tem prova com servidores controlados;
 nenhuma conta pessoal ou servidor externo do usuário foi conectado.
 Complementa [ORION_FRONT.md](ORION_FRONT.md), as fases 4 e 6 do
@@ -339,8 +339,8 @@ como fundação do recurso novo. Exportar leitura primeiro, com identidade e esc
 
 ## 8. Próximo trabalho concreto
 
-As execuções até C46 estão registradas. Estados e evidências por checklist; C41, C46 com validação real pendente.
-Continuar pelo **C47: Identidade e escopo de clientes externos MCP**. O usuário autorizou os checklists restantes,
+As execuções até C47 estão registradas. Estados e evidências por checklist; C41, C46 com validação real pendente.
+Continuar pelo **C48: Servidor MCP oficial de leitura**. O usuário autorizou os checklists restantes,
 com commits, validação, vault e push. Fixtures não substituem prova de conta ou desktop reais.
 
 Decisões recomendadas para o MVP: manter Python/FastAPI e o front atual; padrão Agent Skills;
@@ -416,10 +416,10 @@ a integração real de Pesquisa fica registrada separadamente se ainda não tive
 
 ### Registro para retomar no próximo dia
 
-- Último checklist concluído: **C45**, commit `f862286`; conferir as etapas parciais explicitadas abaixo.
-- Próximo commit sugerido: **C47 — Identidade e escopo de clientes externos MCP**.
+- Último checklist concluído: **C47**, commit `601c9dc`; conferir as etapas parciais explicitadas abaixo.
+- Próximo commit sugerido: **C48 — Servidor MCP oficial de leitura**.
 - Dependências/impedimentos: Estados e evidências por checklist; C41, C46 com validação real pendente. Windows/pywebview real e contas externas ainda precisam de evidência específica.
-- Evidências: ver os registros C00–C46 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
+- Evidências: ver os registros C00–C47 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
 - Atualizações: registrar aqui o ID concluído, hash/link e o próximo ID; não preencher com
   hash fictício nem tratar evidência de mock como teste contra conta real.
 
@@ -1201,6 +1201,22 @@ A exportação local de leitura prossegue com validações próprias; C46 não �
 concluído com evidências simuladas. Não houve login, convite ou CLI de assinatura real.
 
 
+### Execução C47 — identidade e escopo de clientes externos
+
+Commit de implementação: `601c9dc`. Credenciais MCP de entrada independentes do
+token administrativo, cofre OAuth e MCP de saída. Um contexto pessoal ou projeto,
+allowlist search/facts/sources/artifacts de leitura, validade de 1–720 h, revogação.
+Token aleatório de 256 bits exibido uma vez; banco persiste apenas SHA-256, listagem
+sem hash/segredo. Configurações > Conexão permite criar e revogar clientes.
+
+Evidências: identidade, escopo, permissão ausente, token inválido/ausente/expirado,
+revogação e reinício testados; token externo negado em plugins, MCP de saída, fatos,
+sessões e administração dos clientes. Nenhum token pessoal foi usado. Ruff passou;
+Pyright e testes integrados desta rodada sem erro. Transporte oficial segue no C48.
+Chromium: criação, exibição única, listagem sem token, revogação e axe a 700 px passaram
+em 6,86 s. Corrigida inicialização do valor do textarea antes da prova final.
+
+
 ### C00 — fix(ui): estabilizar conexão e consolidar o refinamento visual
 
 Etapa: **A** · Depende de: **base atual do repositório** · Estado: **concluído**.
@@ -1673,13 +1689,13 @@ Etapa: **G** · Depende de: **C42, C43, C44, C45, C37** · Estado: **parcial —
 
 ### C47 — feat(mcp-export): definir identidade e escopo de acesso ao Orion
 
-Etapa: **H** · Depende de: **C46, C11** · Estado: **planejado**.
+Etapa: **H** · Depende de: **C46, C11** · Estado: **concluído**.
 
-- [ ] Definir concessões e credenciais de cliente externo separadas do cliente MCP de saída.
-- [ ] Selecionar tools/resources de leitura que podem ser exportados, com escopo de dados.
-- [ ] Garantir que token externo não autoriza administração de plugins nem todo o REST.
-- [ ] **Validar:** Testar credencial ausente, inválida, expirada e fora de escopo; acessos administrativos devem ser negados.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Definir concessões e credenciais de cliente externo separadas do cliente MCP de saída.
+- [x] Selecionar tools/resources de leitura que podem ser exportados, com escopo de dados.
+- [x] Garantir que token externo não autoriza administração de plugins nem todo o REST.
+- [x] **Validar:** Testar credencial ausente, inválida, expirada e fora de escopo; acessos administrativos devem ser negados.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C48 — feat(mcp-export): expor servidor Orion de leitura pelo SDK
 
