@@ -1,0 +1,79 @@
+# ORION — Plano de próximos passos (08/10/2026)
+
+> Junta três fontes: o plano C05–C50 de [ORION_EXTENSOES.md](ORION_EXTENSOES.md), o que a Lyra tinha e não veio, e ideias novas.
+> Levantamento por leitura de docs e do vault; nada aqui foi testado. Cada item novo precisa de regra em [ORION_REGRAS.md](ORION_REGRAS.md) antes do código.
+> Nota: o cliente MCP já existe (L4, `orion/mcp_client.py`); os itens C07–C14 devem ser reavaliados contra ele antes de executar, para não refazer.
+
+## Critério de ordem
+1. Dá para testar sem serviço real (Linux, API falsa) vem antes.
+2. Não abre canal novo de saída de dados nem captura contínua sem aval (Ring 0 #3, regras 18, 32, 38).
+3. Depende só do Orion vem antes do que depende de conta ou chave do Antônio.
+
+## Bloco A — App confiável e conversas (C05–C06, C36–C37)
+| ID | Entrega | Origem | Depende de |
+|---|---|---|---|
+| A1 | Renomear, fixar e arquivar conversas, foco preservado (C05) | EXTENSOES | — |
+| A2 | Busca de conversas por conteúdo no backend (C06) | EXTENSOES | A1 |
+| A3 | Memória pesquisável: fonte, data, editar, esquecer (C36) | EXTENSOES | — |
+| A4 | `orion esquecer <fato>`: apaga o fato, os embeddings e o rastro no audit | nova | A3 |
+| A5 | Caixa de atividade: avisos e pendências juntos (C37) | EXTENSOES | — |
+
+## Bloco B — Skills antes de plugins (C15–C18)
+| ID | Entrega | Origem | Depende de |
+|---|---|---|---|
+| B1 | Validar e listar pacotes `SKILL.md` (C15) | EXTENSOES | — |
+| B2 | Carregar contexto gradual por relevância (C16) | EXTENSOES | B1 |
+| B3 | Invocar skills pelo chat e pela paleta (C17) | EXTENSOES | B2 |
+| B4 | Confiança e scripts de skill sempre com aprovação (C18) | EXTENSOES | B3 |
+
+## Bloco C — Projetos e resultados (C31–C35, C38)
+| ID | Entrega | Origem | Depende de |
+|---|---|---|---|
+| C1 | Projetos com conversas associadas (C31) | EXTENSOES | A1 |
+| C2 | Memória, fontes e extensões isoladas por projeto (C32) | EXTENSOES | C1 |
+| C3 | Biblioteca de resultados com origem, versões e prévia lateral (C34–C35) | EXTENSOES | C1 |
+| C4 | Ingerir PDF, texto e Markdown com progresso (C38) | EXTENSOES | C2 |
+
+## Bloco D — O que a Lyra tinha e não veio
+| ID | Entrega | Como encaixa no Orion | Risco / regra nova |
+|---|---|---|---|
+| D1 | **Ciclo de sono** (dedup, cruzamento pelo grafo, destilação) | Estende `consolidate.py` e o job existente; roda de madrugada, sem ferramentas | Qualidade dos fatos exige revisão humana (`facts_markdown`) |
+| D2 | **Pesquisa noturna supervisionada** (ideia nº 1 do catálogo) | Job que só lê (`pesquisar_internet`, `buscar_url`) e deixa um relatório na caixa de entrada do vault; nunca executa nem escreve fora do vault | Choca com a regra de egress (V9): rodar em sessão limpa, só leitura, URL só de resultado de busca; regra nova + opt-in |
+| D3 | **Screenpipe / memória da tela** | Captura periódica da tela, OCR local, texto no SQLite com retenção curta; imagem nunca sai | Ring 0 #3 (captura contínua) pede aval; opt-in, pausa, retenção e audit sem conteúdo |
+| D4 | **Transcrição de lives** (yt-dlp + faster-whisper) | Ferramenta que transcreve vídeo/áudio para Markdown timestampado e grava na caixa de entrada do vault | Download é egress com destino escolhido: aprovação a cada uso; whisper local pesa em 8 GB, ver D4b |
+| D4b | Alternativa leve: Whisper pelo Groq (já usado no Telegram) | Reaproveita `orion/transcribe.py` | Áudio vai ao provedor; avisar |
+| D5 | **n8n** (conversa de 18/08 no vault) | Orion chama workflows por webhook fixo, classificado como execução no `mcp.json`/ferramenta | Só webhooks cadastrados, nunca URL escolhida pelo modelo |
+| D6 | **Personas dinâmicas** | Perfis de estilo por projeto (Bloco C) sobre a persona imutável; nunca mudam regras | A persona base continua versionada e imutável |
+| D7 | **Grafo 3D de memória** | Visualização opcional sobre A3 (a lista vem primeiro) | Só front; baixa prioridade |
+| D8 | **MQTT / automação do quarto** | Servidor MCP de MQTT com classes de risco no `mcp.json` | Depende de hardware; só quando houver dispositivo |
+| D9 | **WhatsApp** | Adiado na Lyra (passa pelos servidores da Meta); manter adiado, Telegram cobre | Decisão do Antônio |
+| D10 | Ofuscação de tráfego por ruído | **Não recomendo**: gera tráfego falso e não faz sentido com nuvem por padrão | Decisão do Antônio |
+
+## Bloco E — Ideias novas
+| ID | Entrega | Observação |
+|---|---|---|
+| E1 | Resumo semanal da memória e do que foi feito | Texto determinístico + um turno de modelo, enviado pelo briefing |
+| E2 | Modo "só leitura" por sessão (nenhuma ferramenta de escrita ou execução disponível) | Base para D2 e para ler conteúdo de terceiros |
+| E3 | Painel de custo/cota por provedor ao longo da semana | Estende V13 e `/painel` |
+| E4 | `orion doctor`: confere chaves, serviços, `mcp.json` e fase 0 em um comando | Reduz a lista "só o Antônio faz" |
+| E5 | Teste de regressão de prompt injection (conjunto fixo de páginas hostis) | Roda no CI contra a política, sem modelo |
+
+## Bloco F — Plugins e integrações (C19–C30, C39–C50)
+Só depois de A, B e C. Reavaliar C07–C14 contra o cliente MCP que já existe. Plugins entram com concessões revogáveis (C23) e catálogo (C25–C26); o primeiro plugin é "Orion Pesquisa" (C28–C29).
+
+## Fora do código (só o Antônio)
+Fase 0 e `verify-export`, venda do PC, serviços e chaves, teste de voz e da palavra de ativação com microfone real, `Orion-windows-x64.zip`, senha de fábrica ([ORION_OPERACAO.md](ORION_OPERACAO.md), [ORION_CORTE.md](ORION_CORTE.md)).
+
+## Sequência sugerida
+1. A1, A2, A3 (testáveis já).
+2. E4, E5 (reduzem risco antes de abrir mais).
+3. B1–B4.
+4. C1–C4.
+5. D1 e E1.
+6. D2, D4 e D3, cada um com regra nova e aval.
+7. Bloco F; D5–D8 conforme necessidade.
+
+## Decisões que preciso de você
+- D3 (captura de tela contínua) e D2 (pesquisa noturna): liberar o desenho?
+- D4: Whisper local ou Groq?
+- D9 e D10: manter adiado e descartado?
