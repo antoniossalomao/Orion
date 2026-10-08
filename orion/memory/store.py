@@ -1014,6 +1014,60 @@ class MemoryStore:
                 c.execute("SELECT value FROM meta WHERE key=?", (f"counter:{chave}",)).fetchone()[0]
             )
 
+    # ── memória da tela (D3): texto de OCR, retenção curta, nunca imagem ───
+    def add_screen(self, text: str, title: str = "") -> int:
+        with self._tx() as c:
+            return int(
+                c.execute(
+                    "INSERT INTO screen_log(ts, title, text) VALUES (?,?,?)",
+                    (self._clock(), " ".join(title.split())[:200], text),
+                ).lastrowid
+                or 0
+            )
+
+    def last_screen_text(self) -> str | None:
+        with self._lock:
+            r = self._conn.execute(
+                "SELECT text FROM screen_log ORDER BY id DESC LIMIT 1"
+            ).fetchone()
+        return r[0] if r else None
+
+    def search_screen(self, query: str, limit: int = 5, dias: int = 30) -> list[dict[str, Any]]:
+        q = fts_query(query)
+        if q is None:
+            return []
+        desde = self._clock() - dias * 86400
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT s.id, s.ts, s.title,"
+                " snippet(screen_log_fts, 0, '[', ']', '…', 24) AS trecho"
+                " FROM screen_log_fts f JOIN screen_log s ON s.id=f.rowid"
+                " WHERE screen_log_fts MATCH ? AND s.ts>=? ORDER BY f.rank LIMIT ?",
+                (q, desde, max(1, min(limit, 20))),
+            ).fetchall()
+        return [
+            {"id": r["id"], "ts": r["ts"], "titulo": r["title"], "trecho": r["trecho"]}
+            for r in rows
+        ]
+
+    def prune_screen(self, dias: int) -> int:
+        with self._tx() as c:
+            return c.execute(
+                "DELETE FROM screen_log WHERE ts<?", (self._clock() - dias * 86400,)
+            ).rowcount
+
+    def clear_screen(self) -> int:
+        with self._tx() as c:
+            return c.execute("DELETE FROM screen_log").rowcount
+
+    def screen_count(self, desde: float = 0.0) -> int:
+        with self._lock:
+            return int(
+                self._conn.execute(
+                    "SELECT COUNT(*) FROM screen_log WHERE ts>=?", (desde,)
+                ).fetchone()[0]
+            )
+
     def counters_with_prefix(self, prefixo: str) -> dict[str, int]:
         """Contadores cujo nome começa com `prefixo` (nome sem o prefixo interno)."""
         base = "counter:"

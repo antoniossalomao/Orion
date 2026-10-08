@@ -210,6 +210,8 @@ def main(argv: list[str] | None = None) -> int:
     tr.add_argument("arquivo", type=Path)
     tr.add_argument("--titulo", default="", help="título da nota (padrão: nome do arquivo)")
     tr.add_argument("--sim", action="store_true", help="não pergunta antes de enviar o áudio")
+    tl = sub.add_parser("tela", help="memória da tela: estado, ou apagar tudo o que foi guardado")
+    tl.add_argument("--limpar", action="store_true", help="apaga todo o texto de tela guardado")
     es = sub.add_parser(
         "esquecer", help="apaga fatos da memória (texto, índice de busca e vetor); pede confirmação"
     )
@@ -254,6 +256,24 @@ def main(argv: list[str] | None = None) -> int:
         finally:
             store.close()
         print(f"backup: {feito}" if feito else "backup de hoje já existe")
+        return 0
+
+    if args.cmd == "tela":
+        from .memory import MemoryStore
+
+        store = MemoryStore(settings.db_path)
+        try:
+            if args.limpar:
+                print(f"{store.clear_screen()} registro(s) de tela apagado(s)")
+            else:
+                estado = "ligada" if settings.screen_memory else "desligada (ORION_SCREEN_MEMORY)"
+                pausa = " e pausada" if store.counter_get("tela:pausa") else ""
+                print(
+                    f"memória da tela {estado}{pausa}: {store.screen_count()} registro(s), "
+                    f"guarda {settings.screen_retention_days} dia(s)"
+                )
+        finally:
+            store.close()
         return 0
 
     if args.cmd == "transcrever":

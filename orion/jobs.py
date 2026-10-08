@@ -51,6 +51,7 @@ class TickReport:
     consolidacao: dict[str, Any] | None = None
     pesquisa: str | None = None
     sono: dict[str, Any] | None = None
+    tela: str | None = None
     erros: list[str] = field(default_factory=list)
 
 
@@ -84,6 +85,7 @@ class JobRunner:
         briefing_window_h: float = 6.0,
         research: Any = None,
         sleep: Any = None,
+        screen: Any = None,
         embed_every_s: float = 300.0,
         vault_every_s: float = 3600.0,
         backup_every_s: float = 3600.0,
@@ -101,6 +103,7 @@ class JobRunner:
         self._agenda = agenda  # consulta direta de leitura, sem modelo (orion/agenda.py, regra 37)
         self._briefing_window = timedelta(hours=briefing_window_h)
         self._research = research  # orion/research.py (regra 39), None: desligada
+        self._screen = screen  # orion/screen_memory.py (regra 44), None: desligada
         self._sleep = sleep  # orion/memory/sleep.py (ciclo de sono), None: desligado
         self._clock = clock
         self._every = {
@@ -133,6 +136,12 @@ class JobRunner:
             except Exception as e:
                 log.exception("job consolidação falhou")
                 rel.erros.append(f"consolidação: {e}")
+        if self._screen is not None and self._screen.devida():
+            try:
+                rel.tela = await asyncio.to_thread(self._screen.run)
+            except Exception as e:
+                log.exception("job memória da tela falhou")
+                rel.erros.append(f"memória da tela: {e}")
         if self._sleep is not None and self._sleep.devida():
             try:
                 r = await self._sleep.run()

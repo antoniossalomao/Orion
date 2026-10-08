@@ -58,6 +58,13 @@ from .memory.store import Message, Session
 from .painel import Painel, texto_do_painel
 from .policy import ApprovalStore, PathGuard, PolicyEngine, redact
 from .policy.paths import default_safe_roots
+from .screen_memory import (
+    ScreenMemory,
+    capturador_de_tela,
+    ocr_tesseract,
+    parse_lista,
+    titulo_da_janela,
+)
 from .secrets import get_secret
 from .skills import TOOL_SPEC as SKILL_SPEC
 from .skills import SkillCatalog, skill_tool
@@ -118,6 +125,7 @@ class AppState:
     live: Callable[[], AbstractAsyncContextManager[Any]] | None = None  # voz ao vivo (B)
     voz: VozStats = field(default_factory=VozStats)
     escuta: WakeListener | None = None  # palavra de ativação (regra 38)
+    tela: ScreenMemory | None = None  # memória da tela (regra 44)
 
 
 def build_policy(
@@ -275,6 +283,36 @@ def mcp_from_settings(settings: Settings) -> McpManager | None:
     except McpConfigError as e:
         log.error("MCP desligado: %s", e)
         return None
+
+
+def _estado_da_tela(tela: ScreenMemory | None, memory: MemoryStore) -> dict[str, Any]:
+    """Só contagens: o texto guardado nunca aparece no painel nem na API de estado."""
+    if tela is None:
+        return {"ligada": False}
+    return {
+        "ligada": True,
+        "pausada": tela.pausada,
+        "registros": memory.screen_count(),
+        "hoje": memory.screen_count(time.time() - 86400),
+        **tela.stats,
+    }
+
+
+def screen_from_settings(settings: Settings, memory: MemoryStore) -> ScreenMemory | None:
+    """Só com ORION_SCREEN_MEMORY=true. Sem tesseract a rodada avisa e não grava nada."""
+    if not settings.screen_memory:
+        return None
+    langs = settings.screen_ocr_langs
+    return ScreenMemory(
+        memory,
+        capture=capturador_de_tela(),
+        ocr=lambda img: ocr_tesseract(img, langs=langs),
+        title=titulo_da_janela,
+        interval_s=settings.screen_interval_s,
+        retention_days=settings.screen_retention_days,
+        exclude=parse_lista(settings.screen_exclude),
+        allow_unknown_title=settings.screen_allow_unknown_title,
+    )
 
 
 def transcriber_from_settings(settings: Settings) -> Transcriber | None:
@@ -659,6 +697,7 @@ def create_app(
         ]
         | None
     ) = None,
+    screen_factory: Callable[[Settings, MemoryStore], ScreenMemory | None] | None = None,
 ) -> FastAPI:
     settings = settings or Settings()
 
@@ -694,6 +733,7 @@ def create_app(
             )
         gateway = (gateway_factory or gateway_from_settings)(settings)
         transcriber = (transcriber_factory or transcriber_from_settings)(settings)
+        tela = (screen_factory or screen_from_settings)(settings, memory)
         agent = None
         mcp = None
         delegador: Delegator | None = None
@@ -795,6 +835,7 @@ def create_app(
                 agenda=agenda,
                 research=pesquisa,
                 sleep=sono,
+                screen=tela,
             )
             tarefa_jobs = asyncio.create_task(jobs.run_forever(settings.jobs_tick_s))
         telegram = (telegram_factory or telegram_from_settings)(
@@ -823,6 +864,7 @@ def create_app(
             mcp=mcp,
             delegator=delegador,
             telegram_ativo=lambda: telegram is not None,
+            tela=lambda: _estado_da_tela(tela, memory),
             voz=lambda: _painel_da_voz(
                 settings,
                 voz_stats,
@@ -843,6 +885,7 @@ def create_app(
             live=live,
             voz=voz_stats,
             escuta=escuta[0],
+            tela=tela,
         )  # fmt: skip
         try:
             yield
@@ -1384,6 +1427,20 @@ def create_app(
         else:
             state.escuta.pausar()
         return {"pausada": state.escuta.stats.pausada}
+
+    @app.get("/tela", dependencies=[Admin])
+    def tela_estado(state: State) -> dict[str, Any]:
+        """Estado da memória da tela (regra 44): ligada, pausada e contagens; nunca o texto."""
+        return _estado_da_tela(state.tela, state.memory)
+
+    @app.post("/tela/pausa", dependencies=[Admin])
+    def tela_pausar(corpo: EscutaControle, state: State) -> dict[str, Any]:
+        """`ativa=false` pausa a captura; `ativa=true` retoma. 409 se a memória da tela está
+        desligada."""
+        if state.tela is None:
+            raise HTTPException(status_code=409, detail="a memória da tela está desligada")
+        state.tela.pausar(not corpo.ativa)
+        return {"pausada": state.tela.pausada}
 
     @app.get("/notifications", dependencies=[Admin])
     def avisos(state: State) -> list[dict[str, Any]]:

@@ -123,6 +123,16 @@ class Settings(BaseSettings):
     # ninguém olhando. Liga com o e-mail da conta; a ferramenta precisa ser `read` no mcp.json.
     briefing_calendar_email: str = ""
     briefing_calendar_tool: str = "google__get_events"
+    # Memória da tela (regra 44): OCR local da tela, só texto, retenção curta. Opt-in.
+    screen_memory: bool = False
+    screen_interval_s: int = Field(default=300, ge=60, le=3600)
+    screen_retention_days: int = Field(default=7, ge=1, le=90)
+    screen_exclude: str = (  # título de janela que casa com algum item: nem captura (separe com ;)
+        "senha;password;passwd;banco;bank;bitwarden;1password;keepass;lastpass;nubank;login;"
+        "token;pix;cartão;cartao;cpf"
+    )
+    screen_allow_unknown_title: bool = False  # false: sem título da janela, não captura
+    screen_ocr_langs: str = "por+eng"
     sleep_at: str = (
         ""  # HH:MM: revisão noturna da memória (duplicados, relações, padrões); vazio: não
     )

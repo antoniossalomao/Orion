@@ -46,6 +46,7 @@ class Painel:
         mcp: McpManager | None = None,
         delegator: Delegator | None = None,
         telegram_ativo: Callable[[], bool] = lambda: False,
+        tela: Callable[[], dict[str, Any] | None] | None = None,
         voz: Callable[[], dict[str, Any]] | None = None,
         clock: Callable[[], float] = time.time,
     ) -> None:
@@ -53,6 +54,7 @@ class Painel:
         self.memory, self.ops, self.policy = memory, ops, policy
         self.agent, self.jobs, self.mcp, self.delegator = agent, jobs, mcp, delegator
         self.telegram_ativo = telegram_ativo
+        self._tela = tela
         self._voz = voz
         self._clock = clock
 
@@ -97,6 +99,7 @@ class Painel:
             },
             "memoria": {"ok": memoria_ok, "vetores": self.memory.vectors_available},
             "canais": {"telegram": bool(self.telegram_ativo())},
+            "tela": self._tela() if self._tela is not None else None,
             "voz": self._voz() if self._voz is not None else None,
             "ferramentas": len(self.agent.tools.names()) if self.agent is not None else 0,
             "mcp": dict(self.mcp.status) if self.mcp is not None else {},
@@ -248,6 +251,13 @@ def texto_do_painel(p: dict[str, Any]) -> str:
             )
         erro = f" · falhas: {v['falhas']} (última: {v['ultimo_erro']})" if v["falhas"] else ""
         linhas.append("🎙️ Voz: " + "; ".join(partes) + erro)
+    tela = p.get("tela")
+    if tela and tela.get("ligada"):
+        estado = "pausada" if tela["pausada"] else "capturando"
+        linhas.append(
+            f"🖥️ Memória da tela: {estado}, {tela['registros']} registro(s) guardado(s), "
+            f"{tela['gravadas']} nesta sessão (só texto, OCR local)"
+        )
     if p["mcp"]:
         linhas.append("🔌 MCP: " + ", ".join(f"{k} {v}" for k, v in p["mcp"].items()))
     return "\n".join(linhas)
