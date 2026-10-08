@@ -11,13 +11,16 @@ memória sozinho.
 
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 import tempfile
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 from .capture import Capturer
+from .netguard import URLBloqueada, validar
 from .transcribe import TranscribeError, Transcriber
 
 EXTENSOES = {
@@ -27,11 +30,45 @@ EXTENSOES = {
 MAX_ARQUIVO = 4 * 1024**3
 PEDACO_S = 1200  # 20 min
 MAX_TEXTO_NOTA = 400_000
-Runner = Callable[..., subprocess.CompletedProcess]
+Runner = Callable[..., Any]
 
 
 class MediaError(RuntimeError):
     """Falha com mensagem segura de mostrar (sem chave nem URL)."""
+
+
+def baixar_audio(
+    url: str,
+    destino: Path,
+    *,
+    yt_dlp: str | None = None,
+    runner: Runner = subprocess.run,
+    resolver: Callable[..., Any] | None = None,
+) -> Path:
+    """Baixa SÓ o áudio de um link com o `yt-dlp` (comando seu, link seu). O endereço passa pela
+    barreira de rede (host público, nada de IP local); `--no-playlist`, teto de tamanho, sem
+    configuração do usuário e sem `--exec`. Devolve o arquivo baixado."""
+    try:
+        validar(url, resolver) if resolver else validar(url)
+    except (URLBloqueada, ValueError) as e:
+        raise MediaError(f"endereço recusado: {e}") from None
+    exe = yt_dlp or shutil.which("yt-dlp")
+    if not exe:
+        raise MediaError("yt-dlp não está instalado (necessário para baixar o áudio de um link)")
+    cmd = [
+        exe, "--ignore-config", "--no-playlist", "--no-cache-dir", "--restrict-filenames",
+        "--max-downloads", "1", "--max-filesize", "1G", "--socket-timeout", "30", "--retries", "2",
+        "-x", "--audio-format", "mp3", "--audio-quality", "9",
+        "-o", str(destino / "%(title).80s [%(id)s].%(ext)s"), "--", url,
+    ]  # fmt: skip
+    try:
+        runner(cmd, capture_output=True, text=True, timeout=3600, check=False)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        raise MediaError(f"o yt-dlp não terminou: {type(e).__name__}") from None
+    baixados = sorted(destino.glob("*.mp3"))
+    if not baixados:
+        raise MediaError("o yt-dlp não conseguiu baixar o áudio desse link")
+    return baixados[0]
 
 
 def extrair_pedacos(
@@ -60,6 +97,27 @@ def _marca(segundos: int) -> str:
     h, resto = divmod(segundos, 3600)
     m, s = divmod(resto, 60)
     return f"{h:02d}:{m:02d}:{s:02d}"
+
+
+def transcrever_link(
+    url: str,
+    transcriber: Transcriber,
+    capturer: Capturer,
+    *,
+    titulo: str = "",
+    yt_dlp: str | None = None,
+    baixar_runner: Runner = subprocess.run,
+    resolver: Callable[..., Any] | None = None,
+    **kw: Any,
+) -> Path:
+    """Baixa o áudio do link (arquivo temporário, apagado ao fim) e transcreve. Os demais
+    argumentos (`runner` do ffmpeg, `transport`, `progresso`...) vão para `transcrever_arquivo`."""
+    with tempfile.TemporaryDirectory(prefix="orion-baixar-") as tmp:
+        arquivo = baixar_audio(
+            url, Path(tmp), yt_dlp=yt_dlp, runner=baixar_runner, resolver=resolver
+        )
+        nome = titulo or re.sub(r"\s*\[[\w-]+\]$", "", arquivo.stem).replace("_", " ")
+        return transcrever_arquivo(arquivo, transcriber, capturer, titulo=nome, **kw)
 
 
 def transcrever_arquivo(

@@ -35,10 +35,10 @@ def _set_password(settings: Settings, *, from_stdin: bool) -> int:
     return 0
 
 
-def _transcrever(settings: Settings, arquivo: Path, titulo: str, sim: bool) -> int:
+def _transcrever(settings: Settings, alvo: str, titulo: str, sim: bool) -> int:
     from .app import transcriber_from_settings
     from .capture import Capturer
-    from .media_transcribe import MediaError, transcrever_arquivo
+    from .media_transcribe import MediaError, transcrever_arquivo, transcrever_link
 
     tr = transcriber_from_settings(settings)
     if tr is None:
@@ -47,26 +47,25 @@ def _transcrever(settings: Settings, arquivo: Path, titulo: str, sim: bool) -> i
     if settings.vault_dir is None:
         print("defina ORION_VAULT_DIR: a nota vai para o 00 Inbox do vault", file=sys.stderr)
         return 1
-    if (
-        not sim
-        and input(
-            f"O áudio de '{arquivo.name}' será ENVIADO ao provedor de transcrição "
-            f"({settings.transcribe_url}). Continuar? [s/N] "
-        )
-        .strip()
-        .lower()
-        != "s"
-    ):
+    e_link = alvo.lower().startswith(("http://", "https://"))
+    origem = "baixado do link" if e_link else f"de '{Path(alvo).name}'"
+    pergunta = (
+        f"O áudio {origem} será ENVIADO ao provedor de transcrição ({settings.transcribe_url}). "
+        "Continuar? [s/N] "
+    )
+    if not sim and input(pergunta).strip().lower() != "s":
         print("nada foi enviado")
         return 1
+    capturador = Capturer(settings.vault_dir, settings.capture_folder)
+    progresso = lambda i, n: print(f"transcrevendo parte {i}/{n}…")  # noqa: E731
     try:
-        nota = transcrever_arquivo(
-            arquivo,
-            tr,
-            Capturer(settings.vault_dir, settings.capture_folder),
-            titulo=titulo,
-            progresso=lambda i, n: print(f"transcrevendo parte {i}/{n}…"),
-        )
+        if e_link:
+            print("baixando o áudio…")
+            nota = transcrever_link(alvo, tr, capturador, titulo=titulo, progresso=progresso)
+        else:
+            nota = transcrever_arquivo(
+                Path(alvo), tr, capturador, titulo=titulo, progresso=progresso
+            )
     except MediaError as e:
         print(e, file=sys.stderr)
         return 1
@@ -257,7 +256,7 @@ def main(argv: list[str] | None = None) -> int:
         "transcrever",
         help="transcreve áudio ou vídeo para uma nota no 00 Inbox (o áudio vai ao provedor)",
     )
-    tr.add_argument("arquivo", type=Path)
+    tr.add_argument("arquivo", help="arquivo local, ou um link http(s) (precisa do yt-dlp)")
     tr.add_argument("--titulo", default="", help="título da nota (padrão: nome do arquivo)")
     tr.add_argument("--sim", action="store_true", help="não pergunta antes de enviar o áudio")
     tl = sub.add_parser("tela", help="memória da tela: estado, ou apagar tudo o que foi guardado")

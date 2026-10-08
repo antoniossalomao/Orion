@@ -120,3 +120,73 @@ def test_cli_exige_chave_vault_e_confirmacao(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr("builtins.input", lambda _: "n")
     assert main(["transcrever", str(arq)]) == 1
     assert "nada foi enviado" in capsys.readouterr().out
+
+
+# ── link (yt-dlp) ──────────────────────────────────────────────────────────────
+def _yt_dlp_falso(titulo="Aula_de_UML_[abc123]"):
+    chamadas = []
+
+    def run(cmd, **kw):
+        chamadas.append(cmd)
+        if "-o" in cmd:  # yt-dlp: grava o mp3 na pasta pedida
+            modelo = cmd[cmd.index("-o") + 1]
+            Path(modelo).parent.joinpath(f"{titulo}.mp3").write_bytes(b"ID3" + b"x" * 40)
+        return SimpleNamespace(returncode=0, stderr="")
+
+    return run, chamadas
+
+
+def _publico(host, porta):
+    return ["93.184.216.34"]
+
+
+def test_link_baixa_so_o_audio_com_flags_seguras_e_transcreve(entorno):
+    from orion.media_transcribe import transcrever_link
+
+    _, _, cap = entorno
+    baixar, chamadas = _yt_dlp_falso()
+    transport, _ = _provedor(["conteúdo da aula"])
+    nota = transcrever_link(
+        "https://exemplo.com/watch?v=abc123",
+        Transcriber("k"),
+        cap,
+        yt_dlp="yt-dlp",
+        baixar_runner=baixar,
+        resolver=_publico,
+        runner=_runner_falso(1),
+        ffmpeg="ffmpeg",
+        transport=transport,
+    )
+    cmd = chamadas[0]
+    for flag in ("--ignore-config", "--no-playlist", "--restrict-filenames", "--max-filesize"):
+        assert flag in cmd
+    assert cmd[-2:] == ["--", "https://exemplo.com/watch?v=abc123"] and "--exec" not in cmd
+    texto = nota.read_text(encoding="utf-8")
+    assert "# Transcrição: Aula de UML" in texto and "conteúdo da aula" in texto
+
+
+def test_link_para_rede_local_ou_esquema_estranho_e_recusado_antes_de_baixar(entorno):
+    from orion.media_transcribe import transcrever_link
+
+    _, _, cap = entorno
+    baixar, chamadas = _yt_dlp_falso()
+    local = lambda host, porta: ["127.0.0.1"]  # noqa: E731
+    for url in ("http://localhost:8000/x", "file:///etc/passwd", "https://u:p@exemplo.com/x"):
+        with pytest.raises(MediaError, match="endereço recusado"):
+            transcrever_link(
+                url, Transcriber("k"), cap, yt_dlp="yt-dlp", baixar_runner=baixar, resolver=local
+            )
+    assert chamadas == []  # nada foi baixado
+
+
+def test_link_sem_yt_dlp_ou_com_falha_tem_mensagem_clara(monkeypatch, tmp_path):
+    from orion.media_transcribe import baixar_audio
+
+    monkeypatch.setattr(shutil, "which", lambda _: None)
+    with pytest.raises(MediaError, match="yt-dlp não está instalado"):
+        baixar_audio("https://exemplo.com/x", tmp_path, resolver=_publico)
+    vazio = lambda cmd, **kw: SimpleNamespace(returncode=1, stderr="erro")  # noqa: E731
+    with pytest.raises(MediaError, match="não conseguiu baixar"):
+        baixar_audio(
+            "https://exemplo.com/x", tmp_path, yt_dlp="yt-dlp", runner=vazio, resolver=_publico
+        )
