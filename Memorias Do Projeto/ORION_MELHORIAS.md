@@ -127,6 +127,22 @@ Pedido: "pode fazer o 1 (Ring 0 #4), o 2 (palavra \"Orion\", agente escutando o 
 
 **Não verificado nesta rodada:** (a) **nenhum áudio de microfone real**: a escuta foi provada com microfone de mentira (quadros sintéticos), com o Vosk de verdade sobre voz sintética do edge-tts (que é limpa, de uma só pessoa por vez e sem ruído de sala) e com o laço completo contra a API do app; **ruído de ambiente, TV ao fundo, a sua voz e o seu microfone mudam as taxas acima**. (b) `sounddevice` não carrega no ambiente em que testei (um Linux sem PortAudio): `SoundDeviceSource` só foi testado com um `sd` falso; o PortAudio de verdade no Windows/macOS nunca rodou. (c) **openWakeWord não foi executado**: o ambiente de teste é Linux, onde a dependência `tflite-runtime` não instala (só existe roda para o Python 3.11); no Windows e no macOS ela não é exigida, então deve instalar, mas ninguém testou. Só a camada em volta dele foi testada, com um modelo falso, e **você ainda precisa gerar o modelo `.onnx` de "orion"** (Colab oficial do projeto, voz sintética: não precisa gravar amostras). (d) Tocar a resposta usa o `MediaPlayer` do PowerShell (Windows) e `afplay` (macOS): só o `argv` foi testado, nenhum som foi tocado, e o PowerShell nunca rodou no Windows. (e) `get_events` do workspace-mcp 2.0.1: conferi os **parâmetros** subindo o servidor, mas **o texto que ele devolve não foi visto** (precisa de uma conta Google): a limpeza é genérica e a primeira consulta real pode mostrar linhas que valha ajustar. (f) O Vosk com o modelo grande ou com outra voz (a sua) pode acertar mais ou menos que o small testado.
 
+## Oitava rodada (08/10/2026): plano de próximos passos e o que dava para testar sem serviço real
+
+Plano em [ORION_PLANO_PROXIMOS.md](ORION_PLANO_PROXIMOS.md). Regras 39–41 em [ORION_REGRAS.md](ORION_REGRAS.md). PR Orion#15.
+
+| ID | Entrega | Status |
+|---|---|---|
+| A1/A2 | Arquivar conversa (esquema v6) e busca por título e conteúdo (`GET /sessoes/busca`), com menu e busca no front | ✅ (API, front e navegador com backend de mentira) |
+| A3/A4 | `GET/PATCH/DELETE /memoria/fatos`, `orion esquecer`, `orion fatos --duplicados` | ✅ API e CLI; ⏳ tela |
+| B1/B2 | Skills Agent Skills com carregamento gradual (`carregar_skill`, `orion skills`); script nunca executa (regra 40) | ✅ |
+| C1 | Projetos com instruções próprias (esquema v7, `/projetos`) | ✅ API; ⏳ tela |
+| D2 | Pesquisa noturna só leitura para o `00 Inbox` (regra 39) | ✅ com agente falso; desligada por padrão |
+| D5 | `acionar_n8n` por webhook cadastrado (regra 41) | ✅ com transporte falso |
+| E1/E2/E4/E5 | Resumo semanal, modo só leitura, `orion doctor`, invariantes contra prompt injection | ✅ |
+
+**Não verificado nesta rodada:** nada rodou com modelo, rede, n8n, conta Google ou microfone reais; a pesquisa noturna nunca chamou uma busca de verdade; o `orion doctor` não testa rede nem a fase 0; as telas de projetos e de memória editável não existem ainda.
+
 ## O que foi construído (por fase do NUCLEO)
 
 | Fase | Entrega | Status |
