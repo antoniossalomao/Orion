@@ -73,8 +73,8 @@ Só depois de A, B e C. Plugins entram com concessões revogáveis (C23) e catá
 | C10 Streamable HTTP | ✅ **feito (08/10)**: `url` + `headers` no `mcp.json`, segredos `${NOME}` do cofre (também dentro do valor, ex. `Bearer ${TOKEN}`), testado contra servidor HTTP real do SDK; OAuth do MCP não implementado |
 | C11 classes de risco e limites | ✅ já existia (regra 24) |
 | C12 timeout, cancelamento, reconexão | ✅ **feito (08/10)**: servidor que cai (processo morto ou conexão perdida) reconecta na PRÓXIMA chamada, no máximo 1 tentativa a cada 30 s; a chamada que o encontrou fora do ar **não é repetida** (pode ter efeito colateral); testado com servidor real que se mata. Cancelamento propagado ao servidor não foi tratado |
-| C13 descoberta sob demanda | ⏳ não feito; só vale a pena com catálogo grande |
-| C14 resources e prompts | ⏳ não feito; o cliente só usa `tools` |
+| C13 descoberta sob demanda | ⏳ **adiado de propósito**: só vale a pena com dezenas de ferramentas MCP; hoje o `allow` por servidor já limita o que o modelo vê |
+| C14 resources e prompts | ⏳ **adiado de propósito**: ler resources de servidor de terceiros por URI que o modelo escolhe abre outra superfície (leitura de caminho/URL fora da política); só entra com regra própria |
 
 ## Fora do código (só o Antônio)
 Fase 0 e `verify-export`, venda do PC, serviços e chaves, teste de voz e da palavra de ativação com microfone real, `Orion-windows-x64.zip`, senha de fábrica ([ORION_OPERACAO.md](ORION_OPERACAO.md), [ORION_CORTE.md](ORION_CORTE.md)).
