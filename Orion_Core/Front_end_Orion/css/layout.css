@@ -93,6 +93,7 @@ html[data-theme="contraste"]:not([data-view="home"]) #sky-veil { opacity: 1 !imp
 .menu .menu-item-perigo:hover, .menu .menu-item-perigo:focus-visible { color: var(--danger); background: var(--danger-soft); }
 .conv-group { padding: var(--s-3) 0.8rem 0.3rem; font-size: var(--fs-2xs); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3); }
 .conv-group:first-child { padding-top: var(--s-1); }
+.conv-snippet { padding: 0 0.8rem 0.4rem 1.6rem; font-size: var(--fs-2xs); color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .conv {
     display: flex; align-items: center; gap: var(--s-2); min-height: 2.1rem; padding: 0.3rem 0.8rem;
     border-radius: var(--r-2); color: var(--text-2); font-size: var(--fs-sm); text-align: left; width: 100%;

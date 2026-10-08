@@ -12,7 +12,7 @@
 ## Bloco A — App confiável e conversas (C05–C06, C36–C37)
 | ID | Entrega | Origem | Depende de |
 |---|---|---|---|
-| A1 | Renomear, fixar e arquivar conversas, foco preservado (C05) | EXTENSOES | — | **backend feito (08/10)**: renomear/fixar já existiam; `arquivada` no `PATCH /sessoes/{id}`, `GET /sessoes?arquivadas=true`, esquema v6; falta menu na sidebar |
+| A1 | Renomear, fixar e arquivar conversas, foco preservado (C05) | EXTENSOES | — | **backend feito (08/10)**: renomear/fixar já existiam; `arquivada` no `PATCH /sessoes/{id}`, `GET /sessoes?arquivadas=true`, esquema v6; menu "Arquivar" e busca no conteúdo já estão no front (testados só com os testes Node e o backend de mentira) |
 | A2 | Busca de conversas por conteúdo no backend (C06) | EXTENSOES | A1 | **backend feito (08/10)**: `GET /sessoes/busca?q=`, título + corpo, trecho, isolada por canal; falta ligar no front |
 | A3 | Memória pesquisável: fonte, data, editar, esquecer (C36) | EXTENSOES | — | **API feita (08/10)**: `GET/PATCH/DELETE /memoria/fatos`; falta a tela |
 | A4 | `orion esquecer <trecho ou id>`: apaga o fato, o índice de busca e o vetor | nova | A3 | **feito (08/10)**; avisa que backups, mensagens de conversa e notas do vault não são tocados |
@@ -43,7 +43,7 @@
 | D4 | **Transcrição de lives** (yt-dlp + faster-whisper) | Ferramenta que transcreve vídeo/áudio para Markdown timestampado e grava na caixa de entrada do vault | Download é egress com destino escolhido: aprovação a cada uso; whisper local pesa em 8 GB, ver D4b |
 | D4b | Alternativa leve: Whisper pelo Groq (já usado no Telegram) | Reaproveita `orion/transcribe.py` | Áudio vai ao provedor; avisar |
 | D5 | **n8n** (conversa de 18/08 no vault) — **feito (08/10)**, regra 41; nunca falou com um n8n real | Orion chama workflows por webhook fixo, classificado como execução no `mcp.json`/ferramenta | Só webhooks cadastrados, nunca URL escolhida pelo modelo |
-| D6 | **Personas dinâmicas** | Perfis de estilo por projeto (Bloco C) sobre a persona imutável; nunca mudam regras | A persona base continua versionada e imutável |
+| D6 | **Personas dinâmicas** — **coberto (08/10)** pelas instruções de projeto (C1); não há troca de persona base | Perfis de estilo por projeto (Bloco C) sobre a persona imutável; nunca mudam regras | A persona base continua versionada e imutável |
 | D7 | **Grafo 3D de memória** | Visualização opcional sobre A3 (a lista vem primeiro) | Só front; baixa prioridade |
 | D8 | **MQTT / automação do quarto** | Servidor MCP de MQTT com classes de risco no `mcp.json` | Depende de hardware; só quando houver dispositivo |
 | D9 | **WhatsApp** | Adiado na Lyra (passa pelos servidores da Meta); manter adiado, Telegram cobre | Decisão do Antônio |

@@ -111,6 +111,8 @@
         ativarSessao: id => req('/sessoes/ativar', { metodo: 'POST', json: { sessao_id: id }, timeout: 6000 }),
         renomearSessao: (id, titulo) => req(`/sessoes/${encodeURIComponent(id)}`, { metodo: 'PATCH', json: { titulo }, timeout: 5000 }),
         fixarSessao: (id, favorita) => req(`/sessoes/${encodeURIComponent(id)}`, { metodo: 'PATCH', json: { favorita }, timeout: 5000 }),
+        arquivarSessao: (id, arquivada) => req(`/sessoes/${encodeURIComponent(id)}`, { metodo: 'PATCH', json: { arquivada }, timeout: 5000 }),
+        buscarSessoes: texto => req(`/sessoes/busca?${q({ q: texto, limite: 10 })}`, { timeout: 5000 }),
         apagarSessao: id => req(`/sessoes/${encodeURIComponent(id)}`, { metodo: 'DELETE', timeout: 5000 }),
         historico: sessao => req(`/historico?${q({ sessao })}`, { timeout: 6000 }),
         limparHistorico: () => req('/historico', { metodo: 'DELETE', timeout: 5000 }),
