@@ -839,3 +839,16 @@ def test_app_liga_o_painel_ao_canal_telegram(tmp_path, tg):
     ):
         assert canais[0].painel is not None
         assert "Painel do Orion" in canais[0].painel()
+
+
+async def test_tela_passa_o_argumento_ao_app_e_sem_ele_avisa(store, policy, tg):
+    canal, gw, _ = montar(store, policy, tg)
+    await canal.handle_update(msg("/tela"))
+    assert "indisponível" in tg.textos()[0]
+    recebidos = []
+    canal.tela = lambda acao: recebidos.append(acao) or f"ok:{acao}"
+    await canal.handle_update(msg("/tela pausar"))
+    await canal.handle_update(msg("/tela"))
+    assert recebidos == ["pausar", ""] and tg.textos()[1:] == ["ok:pausar", "ok:"]
+    await canal.handle_update(msg("/tela limpar", uid=OUTRO))  # estranho: nada
+    assert len(tg.textos()) == 3 and gw.chamadas == [] and "/tela" in BOAS_VINDAS

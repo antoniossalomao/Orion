@@ -286,3 +286,23 @@ def screen_tool(memory: Any) -> Tool:
         },
         buscar_tela,
     )
+
+
+def comando_tela(tela: ScreenMemory | None, memory: Any, acao: str = "") -> str:
+    """O `/tela` do Telegram: `pausar`, `retomar`, `limpar` ou, sem argumento, o estado."""
+    if tela is None:
+        return "A memória da tela está desligada (ORION_SCREEN_MEMORY)."
+    acao = acao.strip().lower()
+    if acao == "pausar":
+        tela.pausar(True)
+        return "Memória da tela pausada. Nada novo é capturado até você mandar /tela retomar."
+    if acao == "retomar":
+        tela.pausar(False)
+        return "Memória da tela retomada."
+    if acao == "limpar":
+        return f"{memory.clear_screen()} registro(s) de tela apagado(s)."
+    estado = "pausada" if tela.pausada else "capturando"
+    return (
+        f"Memória da tela: {estado}, {memory.screen_count()} registro(s) guardado(s) "
+        "(só texto, OCR local). /tela pausar · /tela retomar · /tela limpar"
+    )

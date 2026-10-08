@@ -1788,3 +1788,22 @@ def test_mover_conversa_para_projeto_pelo_menu(abrir, mock_isolado_url):
         page.get_by_role("dialog", name="Mover para projeto").get_by_label("Projeto")
     ).to_have_value("1")
     page.keyboard.press("Escape")
+
+
+def test_conhecimento_pausa_retoma_e_apaga_a_memoria_da_tela(abrir, mock_isolado_url):
+    page = abrir("#/conhecimento", url=mock_isolado_url)
+    estado = page.locator("[data-tela]")
+    expect(estado).to_contain_text("Capturando · 42 registro(s)", timeout=5000)
+    expect(estado).to_contain_text("só texto, OCR local")
+    page.locator("[data-tela-pausa]").click()
+    expect(estado).to_contain_text("Pausada")
+    expect(page.locator("[data-tela-pausa]")).to_have_text("Retomar captura")
+    page.locator("[data-tela-pausa]").click()
+    expect(estado).to_contain_text("Capturando")
+    page.locator("#conhecimento-corpo").get_by_role("button", name="Apagar tudo").click()
+    alerta = page.get_by_role("alertdialog", name="Apagar a memória da tela?")
+    alerta.get_by_role("button", name="Cancelar").click()
+    expect(estado).to_contain_text("42 registro(s)")
+    page.locator("#conhecimento-corpo").get_by_role("button", name="Apagar tudo").click()
+    page.get_by_role("alertdialog").get_by_role("button", name="Apagar tudo").click()
+    expect(estado).to_contain_text("0 registro(s)")

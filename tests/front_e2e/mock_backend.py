@@ -56,6 +56,7 @@ ESTADO: dict[str, Any] = {
         2: {"texto": "Prefere respostas curtas e diretas", "fonte": "manual"},
         3: {"texto": "Usa o Obsidian como segundo cérebro", "fonte": "vault"},
     },
+    "tela": {"ligada": True, "pausada": False, "registros": 42},
     "projeto_de": {},  # sessao -> id do projeto
     "arquivadas": set(),  # PATCH {"arquivada": true}: sai da barra, a busca ainda acha
     "rng": random.Random(7),
@@ -494,6 +495,21 @@ def create_app() -> FastAPI:
         if ESTADO["fatos"].pop(fid, None) is None:
             raise HTTPException(404, "fato não encontrado")
         return {"ok": True}
+
+    @app.get("/tela")
+    def tela_estado() -> dict[str, Any]:
+        t = ESTADO["tela"]
+        return {**t, "hoje": min(t["registros"], 12), "gravadas": 3, "excluidas": 1}
+
+    @app.post("/tela/pausa")
+    def tela_pausa(corpo: dict[str, Any]) -> dict[str, Any]:
+        ESTADO["tela"]["pausada"] = not corpo["ativa"]
+        return {"pausada": ESTADO["tela"]["pausada"]}
+
+    @app.delete("/tela")
+    def tela_limpar() -> dict[str, Any]:
+        n, ESTADO["tela"]["registros"] = ESTADO["tela"]["registros"], 0
+        return {"ok": True, "apagados": n}
 
     @app.get("/sessoes/busca")
     def sessao_busca(q: str, limite: int = 10) -> dict[str, Any]:

@@ -226,3 +226,25 @@ def test_desligada_por_padrao_e_api_diz_409(tmp_path):
     ) as cli:
         assert cli.get("/tela", headers=AUTH).json() == {"ligada": False}
         assert cli.post("/tela/pausa", json={"ativa": False}, headers=AUTH).status_code == 409
+
+
+def test_api_limpar_apaga_so_o_texto_guardado(c):
+    c.app.state.orion.memory.add_screen("texto de tela guardado para teste de limpeza", "x")
+    assert c.get("/tela", headers=AUTH).json()["registros"] == 1
+    assert c.delete("/tela").status_code == 401
+    assert c.delete("/tela", headers=AUTH).json() == {"ok": True, "apagados": 1}
+    assert c.get("/tela", headers=AUTH).json()["registros"] == 0
+
+
+def test_comando_do_telegram_pausa_retoma_limpa_e_mostra_estado(store, relogio):
+    from orion.screen_memory import comando_tela
+
+    assert "desligada" in comando_tela(None, store)
+    t, _ = _tela(store, relogio)
+    store.add_screen("algum texto qualquer guardado", "x")
+    assert "capturando, 1 registro" in comando_tela(t, store)
+    assert "pausada" in comando_tela(t, store, "pausar") and t.pausada
+    assert "pausada, 1 registro" in comando_tela(t, store, "")
+    assert "retomada" in comando_tela(t, store, "retomar") and not t.pausada
+    assert "1 registro(s) de tela apagado(s)" in comando_tela(t, store, "limpar")
+    assert store.screen_count() == 0

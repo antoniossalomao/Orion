@@ -61,6 +61,7 @@ from .policy.paths import default_safe_roots
 from .screen_memory import (
     ScreenMemory,
     capturador_de_tela,
+    comando_tela,
     ocr_tesseract,
     parse_lista,
     titulo_da_janela,
@@ -876,6 +877,7 @@ def create_app(
         )
         if telegram is not None:
             telegram.painel = lambda: texto_do_painel(painel.montar())
+            telegram.tela = lambda acao: comando_tela(tela, memory, acao)
             telegram.agenda = agenda
         app.state.orion = AppState(
             settings, memory, policy, painel.started_at, ops, auth, agent, jobs, telegram, mcp,
@@ -1432,6 +1434,13 @@ def create_app(
     def tela_estado(state: State) -> dict[str, Any]:
         """Estado da memória da tela (regra 44): ligada, pausada e contagens; nunca o texto."""
         return _estado_da_tela(state.tela, state.memory)
+
+    @app.delete("/tela", dependencies=[Admin])
+    def tela_limpar(state: State) -> dict[str, Any]:
+        """Apaga TODO o texto de tela guardado (a captura em si segue como estava)."""
+        apagados = state.memory.clear_screen()
+        audit_log.info("tela_limpa", extra={"audit": {"registros": apagados}})
+        return {"ok": True, "apagados": apagados}
 
     @app.post("/tela/pausa", dependencies=[Admin])
     def tela_pausar(corpo: EscutaControle, state: State) -> dict[str, Any]:

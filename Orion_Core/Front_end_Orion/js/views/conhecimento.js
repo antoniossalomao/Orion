@@ -9,7 +9,7 @@
     const { $, el, icone, api, ui } = O;
     const U = O.util;
 
-    let projetos = [], fatos = [], filtro = '', erro = null, tokenBusca = 0;
+    let projetos = [], fatos = [], tela = { ligada: false }, filtro = '', erro = null, tokenBusca = 0;
 
     const vazio = t => el('p', { class: 'painel-vazio', text: t });
     const data = iso => (iso ? new Date(iso).toLocaleDateString('pt-BR') : '');
@@ -89,6 +89,25 @@
                 el('button', { class: 'btn btn-ghost btn-sm', type: 'button', text: 'Esquecer', 'aria-label': `Esquecer fato: ${resumo(f.texto, 40)}`, on: { click: () => esquecer(f) } })));
     }
 
+    /* ── memória da tela (regra 44): só estado e controles; o texto guardado nunca é mostrado ── */
+    async function limparTela() {
+        const ok = await ui.confirmar({
+            titulo: 'Apagar a memória da tela?', ok: 'Apagar tudo', perigo: true,
+            texto: 'Todo o texto de tela guardado é apagado do banco e da busca. Isso não desliga a captura.',
+        });
+        if (ok && await agir(() => api.telaLimpar(), 'Não consegui apagar.')) O.anunciar('Memória da tela apagada.');
+    }
+
+    function telaEl() {
+        if (!tela.ligada) return vazio('Desligada. Para ligar, use ORION_SCREEN_MEMORY no computador onde o cérebro roda.');
+        return el('div', { class: 'conh-tela' },
+            el('p', { class: 'painel-top', 'data-tela': '', text: `${tela.pausada ? 'Pausada' : 'Capturando'} · ${tela.registros} registro(s) guardado(s) · ${tela.hoje} nas últimas 24 h · só texto, OCR local` }),
+            el('div', { class: 'conh-acoes' },
+                el('button', { class: 'btn btn-outline btn-sm', type: 'button', 'data-tela-pausa': '', text: tela.pausada ? 'Retomar captura' : 'Pausar captura',
+                    on: { click: () => agir(() => api.telaPausa(!!tela.pausada), 'Não consegui mudar.') } }),
+                el('button', { class: 'btn btn-ghost btn-sm', type: 'button', text: 'Apagar tudo', on: { click: limparTela } })));
+    }
+
     function cartao(id, titulo, dica, ...filhos) {
         return el('section', { class: 'card painel-card', 'aria-labelledby': `cn-${id}`, dataset: { id } },
             el('div', { class: 'card-head' }, el('h3', { class: 'card-title', id: `cn-${id}`, text: titulo }),
@@ -107,6 +126,7 @@
         const busca = el('input', { id: 'fatos-busca', class: 'input', type: 'search', maxlength: '200', autocomplete: 'off', value: filtro });
         busca.addEventListener('input', () => { filtro = busca.value.trim(); buscar(); });
         raiz.replaceChildren(el('div', { class: 'grid grid-2 painel-grade' },
+            cartao('tela', 'Memória da tela', tela.ligada ? 'ligada' : 'desligada', telaEl()),
             cartao('projetos', 'Projetos', `${projetos.length} ativo(s)`, formProjeto(),
                 projetos.length ? el('ul', { class: 'painel-lista', 'aria-label': 'Projetos' }, ...projetos.map(itemProjeto))
                     : vazio('Nenhum projeto ainda. Crie um para dar instruções próprias a um grupo de conversas.')),
@@ -129,8 +149,8 @@
 
     async function carregar() {
         try {
-            const [p, f] = await Promise.all([api.projetos(), api.fatos(filtro)]);
-            projetos = p.projetos || []; fatos = f.fatos || []; erro = null;
+            const [p, f, t] = await Promise.all([api.projetos(), api.fatos(filtro), api.tela().catch(() => ({ ligada: false }))]);
+            projetos = p.projetos || []; fatos = f.fatos || []; tela = t || { ligada: false }; erro = null;
         } catch (e) { erro = e; }
         desenhar();
     }
