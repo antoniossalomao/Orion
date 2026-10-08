@@ -10,8 +10,8 @@ from playwright.sync_api import expect
 
 from .conftest import AXE, SENHA, TOKEN
 
-ROTAS = ["", "#/chat", "#/memoria", "#/integracoes", "#/config", "#/painel"]
-VIEWS = ["home", "chat", "memoria", "integracoes", "config", "painel"]
+ROTAS = ["", "#/chat", "#/memoria", "#/integracoes", "#/config", "#/painel", "#/conhecimento"]
+VIEWS = ["home", "chat", "memoria", "integracoes", "config", "painel", "conhecimento"]
 TEMAS = ["noite", "grafite", "contraste"]
 
 
@@ -1712,3 +1712,57 @@ def test_painel_mostra_o_uso_da_semana_com_barras_e_total(abrir):
     expect(cartao.locator("[data-semana]")).to_contain_text("56 resposta(s) em 7 dias")
     expect(cartao.locator("[data-semana]")).to_contain_text("1 falha(s)")
     expect(cartao.locator('.painel-dia[data-total="20"]')).to_have_count(1)
+
+
+def test_conhecimento_cria_edita_arquiva_e_apaga_projeto(abrir, mock_isolado_url):
+    page = abrir("#/conhecimento", url=mock_isolado_url)
+    corpo = page.locator("#conhecimento-corpo")
+    expect(corpo.locator('[data-id="projetos"]')).to_be_visible(timeout=5000)
+    expect(corpo).to_contain_text("Nenhum projeto ainda")
+    page.get_by_label("Nome do projeto").fill("TCC")
+    page.get_by_label("Instruções (entram no prompt das conversas do projeto)").fill("Cite a ABNT")
+    page.get_by_role("button", name="Criar projeto").click()
+    item = corpo.locator("[data-projeto]").first
+    expect(item).to_contain_text("TCC")
+    expect(item).to_contain_text("Cite a ABNT")
+    page.get_by_role("button", name="Editar instruções de TCC").click()
+    page.get_by_label("Instruções", exact=True).fill("Cite a ABNT e seja formal")
+    page.keyboard.press("Enter")
+    expect(item).to_contain_text("seja formal")
+    page.get_by_role("button", name="Arquivar TCC").click()
+    expect(corpo.locator("[data-projeto]")).to_have_count(0)
+    page.reload()
+    page.wait_for_selector("html[data-pronto='true']")
+    expect(corpo.locator("[data-projeto]")).to_have_count(0, timeout=5000)
+
+
+def test_conhecimento_apagar_projeto_pede_confirmacao(abrir, mock_isolado_url):
+    page = abrir("#/conhecimento", url=mock_isolado_url)
+    page.get_by_label("Nome do projeto").fill("Velho")
+    page.get_by_role("button", name="Criar projeto").click()
+    expect(page.locator("[data-projeto]")).to_have_count(1)
+    page.get_by_role("button", name="Apagar projeto Velho").click()
+    alerta = page.get_by_role("alertdialog", name="Apagar este projeto?")
+    alerta.get_by_role("button", name="Cancelar").click()
+    expect(page.locator("[data-projeto]")).to_have_count(1)
+    page.get_by_role("button", name="Apagar projeto Velho").click()
+    page.get_by_role("alertdialog").get_by_role("button", name="Apagar").click()
+    expect(page.locator("[data-projeto]")).to_have_count(0)
+
+
+def test_conhecimento_busca_corrige_e_esquece_fatos(abrir, mock_isolado_url):
+    page = abrir("#/conhecimento", url=mock_isolado_url)
+    fatos = page.locator("[data-fato]")
+    expect(fatos).to_have_count(3, timeout=5000)
+    page.get_by_label("Buscar nos fatos").fill("obsidian")
+    expect(fatos).to_have_count(1, timeout=5000)
+    page.get_by_role("button", name="Corrigir fato: Usa o Obsidian como segundo cérebro").click()
+    page.get_by_label("O que o Orion deve saber").fill("Usa o Obsidian e o Orion")
+    page.keyboard.press("Enter")
+    expect(fatos.first).to_contain_text("Usa o Obsidian e o Orion")
+    expect(fatos.first).to_contain_text("fonte: manual")
+    page.get_by_role("button", name="Esquecer fato: Usa o Obsidian e o Orion").click()
+    alerta = page.get_by_role("alertdialog", name="Esquecer este fato?")
+    expect(alerta).to_contain_text("Backups antigos")
+    alerta.get_by_role("button", name="Esquecer").click()
+    expect(page.locator("#conhecimento-corpo")).to_contain_text("Nenhum fato casa com")

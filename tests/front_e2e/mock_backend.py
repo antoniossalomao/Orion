@@ -50,6 +50,12 @@ ESTADO: dict[str, Any] = {
     "titulos": {},  # renomeadas (PATCH /sessoes/{id})
     "fixadas": set(),
     "apagadas": set(),  # DELETE /sessoes/{id}: some da lista
+    "projetos": {},  # id -> {nome, instrucoes, arquivado}
+    "fatos": {
+        1: {"texto": "Antônio estuda Sistemas de Informação na Unimar", "fonte": "conversa"},
+        2: {"texto": "Prefere respostas curtas e diretas", "fonte": "manual"},
+        3: {"texto": "Usa o Obsidian como segundo cérebro", "fonte": "vault"},
+    },
     "arquivadas": set(),  # PATCH {"arquivada": true}: sai da barra, a busca ainda acha
     "rng": random.Random(7),
     "delay": 0.018,
@@ -422,6 +428,70 @@ def create_app() -> FastAPI:
         ESTADO["sessao_ativa"] = sid
         ESTADO["arquivadas"].discard(sid)  # como o cérebro: abrir uma arquivada a desarquiva
         return {"ok": True, "sessao_id": sid, "mensagens": _historico(sid)}
+
+    def _projeto(pid: int) -> dict[str, Any]:
+        p = ESTADO["projetos"][pid]
+        return {"id": pid, "nome": p["nome"], "instrucoes": p["instrucoes"],
+                "arquivado": p["arquivado"], "atualizado": _agora().isoformat()}  # fmt: skip
+
+    @app.get("/projetos")
+    def projetos_listar(arquivados: bool = False) -> dict[str, Any]:
+        itens = [_projeto(i) for i, p in ESTADO["projetos"].items() if p["arquivado"] == arquivados]
+        return {"total": len(itens), "projetos": itens}
+
+    @app.post("/projetos", status_code=201)
+    def projetos_criar(corpo: dict[str, Any]) -> dict[str, Any]:
+        nome = str(corpo.get("nome", "")).strip()
+        if not nome or any(p["nome"].lower() == nome.lower() for p in ESTADO["projetos"].values()):
+            raise HTTPException(409, "já existe um projeto com esse nome")
+        pid = max(ESTADO["projetos"], default=0) + 1
+        ESTADO["projetos"][pid] = {"nome": nome, "instrucoes": str(corpo.get("instrucoes", "")),
+                                   "arquivado": False}  # fmt: skip
+        return {"ok": True, "projeto": _projeto(pid)}
+
+    @app.patch("/projetos/{pid}")
+    def projetos_ajustar(pid: int, corpo: dict[str, Any]) -> dict[str, Any]:
+        if pid not in ESTADO["projetos"]:
+            raise HTTPException(404, "projeto não encontrado")
+        for k_api, k in (
+            ("nome", "nome"),
+            ("instrucoes", "instrucoes"),
+            ("arquivado", "arquivado"),
+        ):
+            if k_api in corpo and corpo[k_api] is not None:
+                ESTADO["projetos"][pid][k] = corpo[k_api]
+        return {"ok": True, "projeto": _projeto(pid)}
+
+    @app.delete("/projetos/{pid}")
+    def projetos_apagar(pid: int) -> dict[str, Any]:
+        if ESTADO["projetos"].pop(pid, None) is None:
+            raise HTTPException(404, "projeto não encontrado")
+        return {"ok": True}
+
+    def _fato(fid: int) -> dict[str, Any]:
+        f = ESTADO["fatos"][fid]
+        return {"id": fid, "texto": f["texto"], "fonte": f["fonte"],
+                "criado": _agora().isoformat(), "atualizado": _agora().isoformat()}  # fmt: skip
+
+    @app.get("/memoria/fatos")
+    def fatos_listar(q: str | None = None) -> dict[str, Any]:
+        itens = [
+            _fato(i) for i, f in ESTADO["fatos"].items() if not q or q.lower() in f["texto"].lower()
+        ]
+        return {"total": len(itens), "fatos": itens}
+
+    @app.patch("/memoria/fatos/{fid}")
+    def fatos_corrigir(fid: int, corpo: dict[str, Any]) -> dict[str, Any]:
+        if fid not in ESTADO["fatos"]:
+            raise HTTPException(404, "fato não encontrado")
+        ESTADO["fatos"][fid].update(texto=str(corpo["texto"]), fonte="manual")
+        return {"ok": True, "fato": _fato(fid)}
+
+    @app.delete("/memoria/fatos/{fid}")
+    def fatos_esquecer(fid: int) -> dict[str, Any]:
+        if ESTADO["fatos"].pop(fid, None) is None:
+            raise HTTPException(404, "fato não encontrado")
+        return {"ok": True}
 
     @app.get("/sessoes/busca")
     def sessao_busca(q: str, limite: int = 10) -> dict[str, Any]:

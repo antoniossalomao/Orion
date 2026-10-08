@@ -14,7 +14,7 @@
 |---|---|---|---|
 | A1 | Renomear, fixar e arquivar conversas, foco preservado (C05) | EXTENSOES | — | **backend feito (08/10)**: renomear/fixar já existiam; `arquivada` no `PATCH /sessoes/{id}`, `GET /sessoes?arquivadas=true`, esquema v6; menu "Arquivar" e busca no conteúdo já estão no front (testados só com os testes Node e o backend de mentira) |
 | A2 | Busca de conversas por conteúdo no backend (C06) | EXTENSOES | A1 | **backend feito (08/10)**: `GET /sessoes/busca?q=`, título + corpo, trecho, isolada por canal; falta ligar no front |
-| A3 | Memória pesquisável: fonte, data, editar, esquecer (C36) | EXTENSOES | — | **API feita (08/10)**: `GET/PATCH/DELETE /memoria/fatos`; falta a tela |
+| A3 | Memória pesquisável: fonte, data, editar, esquecer (C36) | EXTENSOES | — | **feito (08/10)**: `GET/PATCH/DELETE /memoria/fatos` e a tela Conhecimento (`#/conhecimento`) para buscar, corrigir e esquecer |
 | A4 | `orion esquecer <trecho ou id>`: apaga o fato, o índice de busca e o vetor | nova | A3 | **feito (08/10)**; avisa que backups, mensagens de conversa e notas do vault não são tocados |
 | A5 | Caixa de atividade: avisos e pendências juntos (C37) | EXTENSOES | — |
 
@@ -29,7 +29,7 @@
 ## Bloco C — Projetos e resultados (C31–C35, C38)
 | ID | Entrega | Origem | Depende de |
 |---|---|---|---|
-| C1 | Projetos com conversas associadas (C31) | EXTENSOES | A1 | **backend feito (08/10)**: esquema v7, `/projetos`, `projeto_id` na conversa, instruções entram no prompt; falta a tela |
+| C1 | Projetos com conversas associadas (C31) | EXTENSOES | A1 | **feito (08/10)**: esquema v7, `/projetos`, `projeto_id` na conversa, instruções entram no prompt; tela Conhecimento cria, edita instruções, arquiva e apaga projetos. Falta mover conversa para projeto pela barra lateral |
 | C2 | Memória, fontes e extensões isoladas por projeto (C32) | EXTENSOES | C1 |
 | C3 | Biblioteca de resultados com origem, versões e prévia lateral (C34–C35) | EXTENSOES | C1 |
 | C4 | Ingerir PDF, texto e Markdown com progresso (C38) | EXTENSOES | C2 |

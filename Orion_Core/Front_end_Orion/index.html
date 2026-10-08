@@ -116,6 +116,7 @@
             <a class="sb-item" href="#/memoria" data-view="memoria" data-tip="Memória" data-tip-pos="right"><svg class="i" aria-hidden="true"><use href="#i-memory"/></svg><span class="sb-txt">Memória</span></a>
             <a class="sb-item" href="#/integracoes" data-view="integracoes" data-tip="Integrações" data-tip-pos="right"><svg class="i" aria-hidden="true"><use href="#i-plug"/></svg><span class="sb-txt">Integrações</span></a>
             <a class="sb-item" href="#/painel" data-view="painel" data-tip="Painel" data-tip-pos="right"><svg class="i" aria-hidden="true"><use href="#i-gauge"/></svg><span class="sb-txt">Painel</span></a>
+            <a class="sb-item" href="#/conhecimento" data-view="conhecimento" data-tip="Conhecimento" data-tip-pos="right"><svg class="i" aria-hidden="true"><use href="#i-file"/></svg><span class="sb-txt">Conhecimento</span></a>
             <a class="sb-item" href="#/config" data-view="config" data-tip="Configurações" data-tip-pos="right"><svg class="i" aria-hidden="true"><use href="#i-sliders"/></svg><span class="sb-txt">Configurações</span></a>
         </nav>
 
@@ -264,6 +265,17 @@
                         <button id="painel-refresh" class="btn btn-outline btn-sm" type="button"><svg class="i" aria-hidden="true"><use href="#i-refresh"/></svg>Atualizar</button>
                     </div>
                     <div id="painel-corpo" class="painel-corpo" aria-busy="true"></div>
+                </div>
+            </section>
+
+            <!-- Conhecimento: projetos e fatos da memória -->
+            <section id="view-conhecimento" class="view page" data-view="conhecimento" aria-label="Conhecimento">
+                <div class="page-inner">
+                    <div class="page-head">
+                        <div><h2>Conhecimento</h2><p>Projetos com instruções próprias e o que o Orion sabe sobre você: dá para corrigir ou esquecer.</p></div>
+                        <button id="conhecimento-refresh" class="btn btn-outline btn-sm" type="button"><svg class="i" aria-hidden="true"><use href="#i-refresh"/></svg>Atualizar</button>
+                    </div>
+                    <div id="conhecimento-corpo" class="painel-corpo" aria-busy="true"></div>
                 </div>
             </section>
 
@@ -434,6 +446,7 @@
 <script src="js/views/memory.js"></script>
 <script src="js/views/integrations.js"></script>
 <script src="js/views/painel.js"></script>
+<script src="js/views/conhecimento.js"></script>
 <script src="js/views/settings.js"></script>
 <script src="js/app.js"></script>
 </body>
