@@ -1063,6 +1063,72 @@ class MemoryStore:
                 c.execute("SELECT value FROM meta WHERE key=?", (f"counter:{chave}",)).fetchone()[0]
             )
 
+    # ── biblioteca de resultados (C34) ────────────────────────────────────
+    def add_artifact(
+        self,
+        *,
+        session_id: str | None,
+        kind: str,
+        name: str,
+        stored: str,
+        size: int,
+        tool: str,
+    ) -> dict[str, Any]:
+        """Registra um resultado; mesmo nome de novo vira a versão seguinte (a antiga fica)."""
+        with self._tx() as c:
+            ant = c.execute(
+                "SELECT id, version FROM artifacts WHERE name=? AND kind=?"
+                " ORDER BY version DESC LIMIT 1",
+                (name, kind),
+            ).fetchone()
+            projeto = None
+            if session_id:
+                r = c.execute(
+                    "SELECT project_id FROM sessions WHERE id=?", (session_id,)
+                ).fetchone()
+                projeto = r[0] if r else None
+            aid = c.execute(
+                "INSERT INTO artifacts(session_id, project_id, kind, name, stored, bytes, tool,"
+                " version, parent_id, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                (
+                    session_id, projeto, kind, name, stored, size, tool,
+                    (ant["version"] + 1) if ant else 1, ant["id"] if ant else None, self._clock(),
+                ),
+            ).lastrowid  # fmt: skip
+            return self._artifact_row(c, int(aid or 0))
+
+    @staticmethod
+    def _artifact_row(c: sqlite3.Connection, aid: int) -> dict[str, Any]:
+        r = c.execute("SELECT * FROM artifacts WHERE id=?", (aid,)).fetchone()
+        return dict(r) if r else {}
+
+    def get_artifact(self, aid: int) -> dict[str, Any] | None:
+        with self._lock:
+            d = self._artifact_row(self._conn, aid)
+        return d or None
+
+    def list_artifacts(
+        self, project_id: int | None = None, limit: int = 100
+    ) -> list[dict[str, Any]]:
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT a.*, s.title AS sessao_titulo FROM artifacts a"
+                " LEFT JOIN sessions s ON s.id=a.session_id"
+                " WHERE (? IS NULL OR a.project_id=?)"
+                " ORDER BY a.created_at DESC, a.id DESC LIMIT ?",
+                (project_id, project_id, max(1, min(limit, 500))),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def delete_artifact(self, aid: int) -> str | None:
+        """Apaga o registro e devolve o nome do arquivo guardado (para o chamador apagar)."""
+        with self._tx() as c:
+            r = c.execute("SELECT stored FROM artifacts WHERE id=?", (aid,)).fetchone()
+            if not r:
+                return None
+            c.execute("DELETE FROM artifacts WHERE id=?", (aid,))
+            return str(r["stored"])
+
     # ── memória da tela (D3): texto de OCR, retenção curta, nunca imagem ───
     def add_screen(self, text: str, title: str = "") -> int:
         with self._tx() as c:

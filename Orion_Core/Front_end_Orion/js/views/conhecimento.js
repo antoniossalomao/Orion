@@ -9,7 +9,7 @@
     const { $, el, icone, api, ui } = O;
     const U = O.util;
 
-    let projetos = [], fatos = [], documentos = [], enviando = false, tela = { ligada: false }, filtro = '', erro = null, tokenBusca = 0;
+    let projetos = [], fatos = [], documentos = [], resultados = [], aberto = null, enviando = false, tela = { ligada: false }, filtro = '', erro = null, tokenBusca = 0;
 
     const vazio = t => el('p', { class: 'painel-vazio', text: t });
     const data = iso => (iso ? new Date(iso).toLocaleDateString('pt-BR') : '');
@@ -113,6 +113,54 @@
                 el('button', { class: 'btn btn-ghost btn-sm', type: 'button', text: 'Remover', 'aria-label': `Remover documento ${d.nome}`, on: { click: () => apagarDoc(d) } })));
     }
 
+    /* ── resultados: o que o Orion gerou (documentos e imagens), com versões ── */
+    const tamanho = n => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
+
+    async function baixar(r) {
+        try {
+            const blob = await (await api.arquivoDoResultado(r.id)).blob();
+            const url = URL.createObjectURL(blob);
+            const a = el('a', { href: url, download: r.nome });
+            document.body.append(a); a.click(); a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 10000);
+        } catch (e) { ui.toast(`Não consegui baixar. ${e.message || ''}`.trim(), { tipo: 'erro' }); }
+    }
+
+    async function ver(r) {
+        if (aberto?.id === r.id) { aberto = null; desenhar(); return; }
+        try {
+            if (r.previa === 'texto') aberto = { id: r.id, tipo: 'texto', ...(await api.textoDoResultado(r.id)) };
+            else if (r.previa === 'imagem') aberto = { id: r.id, tipo: 'imagem', url: URL.createObjectURL(await (await api.arquivoDoResultado(r.id, true)).blob()) };
+        } catch (e) { ui.toast(`Não consegui abrir a prévia. ${e.message || ''}`.trim(), { tipo: 'erro' }); return; }
+        desenhar();
+    }
+
+    async function apagarResultado(r) {
+        const ok = await ui.confirmar({
+            titulo: 'Apagar este resultado?', ok: 'Apagar', perigo: true,
+            texto: `“${r.nome}” (versão ${r.versao}) sai da biblioteca. Outras versões e o arquivo original, se existir, não são tocados.`,
+        });
+        if (ok && await agir(() => api.apagarResultado(r.id), 'Não consegui apagar.')) { if (aberto?.id === r.id) aberto = null; O.anunciar('Resultado apagado.'); }
+    }
+
+    function previaEl(a) {
+        if (a.tipo === 'imagem') return el('img', { class: 'conh-previa-img', src: a.url, alt: 'Prévia da imagem gerada' });
+        return el('pre', { class: 'conh-previa', text: a.texto + (a.truncado ? '\n…' : '') });
+    }
+
+    function itemResultado(r) {
+        return el('li', { class: 'painel-item conh-item', dataset: { resultado: String(r.id) } },
+            el('div', { class: 'painel-item-top' }, el('strong', { text: r.nome }),
+                el('span', { class: 'badge badge-muted', text: `v${r.versao}` }),
+                el('span', { class: 'badge badge-muted', text: r.tipo })),
+            el('small', { text: `${tamanho(r.bytes)} · ${r.ferramenta}${r.conversa ? ` · conversa “${r.conversa}”` : ''} · ${data(r.criado)}` }),
+            aberto?.id === r.id ? previaEl(aberto) : null,
+            el('div', { class: 'conh-acoes' },
+                r.previa ? el('button', { class: 'btn btn-outline btn-sm', type: 'button', text: aberto?.id === r.id ? 'Fechar prévia' : 'Ver', 'aria-label': `${aberto?.id === r.id ? 'Fechar prévia de' : 'Ver'} ${r.nome} versão ${r.versao}`, on: { click: () => ver(r) } }) : null,
+                el('button', { class: 'btn btn-outline btn-sm', type: 'button', text: 'Baixar', 'aria-label': `Baixar ${r.nome} versão ${r.versao}`, on: { click: () => baixar(r) } }),
+                el('button', { class: 'btn btn-ghost btn-sm', type: 'button', text: 'Apagar', 'aria-label': `Apagar ${r.nome} versão ${r.versao}`, on: { click: () => apagarResultado(r) } })));
+    }
+
     /* ── fatos ─────────────────────────────────────────────────────────── */
     async function corrigir(f) {
         const novo = await ui.perguntar({ titulo: 'Corrigir fato', rotulo: 'O que o Orion deve saber', valor: f.texto, ok: 'Salvar', max: 2000 });
@@ -181,6 +229,9 @@
             cartao('documentos', 'Documentos', `${documentos.length} na memória`, formDocumento(),
                 documentos.length ? el('ul', { class: 'painel-lista', 'aria-label': 'Documentos' }, ...documentos.map(itemDocumento))
                     : vazio('Nenhum documento enviado. PDF, Word, Excel, HTML e texto viram trechos pesquisáveis.')),
+            cartao('resultados', 'Resultados', `${resultados.length} gerado(s)`,
+                resultados.length ? el('ul', { class: 'painel-lista', 'aria-label': 'Resultados' }, ...resultados.map(itemResultado))
+                    : vazio('Nada gerado ainda. Documentos e imagens que o Orion criar aparecem aqui, com versões.')),
             cartao('fatos', 'O que o Orion sabe sobre você', `${fatos.length} fato(s)`,
                 el('div', { class: 'field' }, el('label', { for: 'fatos-busca', text: 'Buscar nos fatos' }), busca),
                 fatos.length ? el('ul', { class: 'painel-lista', 'aria-label': 'Fatos' }, ...fatos.map(itemFato))
@@ -200,9 +251,9 @@
 
     async function carregar() {
         try {
-            const [p, f, t, dc] = await Promise.all([api.projetos(), api.fatos(filtro), api.tela().catch(() => ({ ligada: false })),
-                api.documentos().catch(() => ({ documentos: [] }))]);
-            projetos = p.projetos || []; fatos = f.fatos || []; documentos = dc.documentos || []; tela = t || { ligada: false }; erro = null;
+            const [p, f, t, dc, rs] = await Promise.all([api.projetos(), api.fatos(filtro), api.tela().catch(() => ({ ligada: false })),
+                api.documentos().catch(() => ({ documentos: [] })), api.resultados().catch(() => ({ resultados: [] }))]);
+            projetos = p.projetos || []; fatos = f.fatos || []; documentos = dc.documentos || []; resultados = rs.resultados || []; tela = t || { ligada: false }; erro = null;
         } catch (e) { erro = e; }
         desenhar();
     }

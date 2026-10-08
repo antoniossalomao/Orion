@@ -29,6 +29,7 @@ from .memory.ops import Operations
 from .persona import PERSONA, PERSONA_VERSION
 from .policy import Action, Context, PolicyEngine, Status, ToolCall, redact
 from .policy.classes import Risk
+from .resultados import Library
 from .router import Rota, classificar
 from .skills import SkillCatalog
 from .tools import ToolRegistry
@@ -86,10 +87,12 @@ class Agent:
         max_tool_chars: int = 8000,
         routing: bool = False,
         skills: SkillCatalog | None = None,
+        library: Library | None = None,
     ) -> None:
         self.gateway, self.tools, self.policy, self.memory = gateway, tools, policy, memory
         self._ops = ops
         self._skills = skills
+        self._library = library
         self._persona = persona
         self._clock = clock
         self._max_iter = max_iterations
@@ -344,6 +347,8 @@ class Agent:
                 {"erro": f"tempo esgotado ({self._tool_timeout:.0f}s)"}, ensure_ascii=False
             )
         self.policy.note_result(chamada, ctx)
+        if self._library is not None and chamada.name in ("gerar_documento", "gerar_imagem"):
+            await asyncio.to_thread(self._library.registrar, ctx.session_id, chamada.name, bruto)
         if ctx.tainted:
             self.memory.counter_set(f"taint:{ctx.session_id}", 1)
         spec = self.policy.tools.get(chamada.name)

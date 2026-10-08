@@ -114,6 +114,7 @@ def test_migracao_v5_para_v6_preserva_conversas(tmp_path):
     s = _conversa(m, "web", "antes")
     m._conn.executescript(
         "DROP INDEX idx_sessions_project; ALTER TABLE sessions DROP COLUMN project_id;"
+        "DROP TABLE artifacts;"
         "ALTER TABLE documents DROP COLUMN project_id;"
         "DROP TABLE screen_log_fts; DROP TABLE screen_log;"
         "DROP TABLE projects; ALTER TABLE sessions DROP COLUMN shelved;"

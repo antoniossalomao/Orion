@@ -129,6 +129,7 @@ def test_migracao_v8_para_v9(tmp_path):
     m = MemoryStore(db)
     m.index_document("upload:a.md", "a", TEXTO)
     m._conn.executescript(
+        "DROP TABLE artifacts;"
         "ALTER TABLE documents DROP COLUMN project_id;"
         "UPDATE meta SET value='8' WHERE key='schema_version';"
     )

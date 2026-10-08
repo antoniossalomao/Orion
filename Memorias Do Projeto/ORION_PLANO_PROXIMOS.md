@@ -31,7 +31,7 @@
 |---|---|---|---|
 | C1 | Projetos com conversas associadas (C31) | EXTENSOES | A1 | **feito (08/10)**: esquema v7, `/projetos`, `projeto_id` na conversa, instruções entram no prompt; tela Conhecimento cria, edita instruções, arquiva e apaga projetos. Falta mover conversa para projeto pela barra lateral |
 | C2 | Memória, fontes e extensões isoladas por projeto (C32) | EXTENSOES | C1 |
-| C3 | Biblioteca de resultados com origem, versões e prévia lateral (C34–C35) | EXTENSOES | C1 |
+| C3 | Biblioteca de resultados com origem, versões e prévia lateral (C34–C35) | EXTENSOES | C1 | **feito (08/10)**: esquema v10, o agente copia o que `gerar_documento`/`gerar_imagem` produziram para `<dados>/resultados`, versões por nome, `/resultados` (lista, prévia de texto/imagem, download como anexo, apagar) e card Resultados; prévia fica no próprio card, não é painel lateral |
 | C4 | Ingerir PDF, texto e Markdown com progresso (C38) | EXTENSOES | C2 | **feito (08/10)**: `POST/GET/DELETE /memoria/documentos` (PDF, Word, Excel, HTML, texto, CSV, JSON; esquema v9) e card Documentos na tela Conhecimento; documento de projeto só entra no contexto automático do projeto (C32); sem barra de progresso (a indexação é uma chamada só); PDF escaneado não tem OCR |
 
 ## Bloco D — O que a Lyra tinha e não veio

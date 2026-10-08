@@ -62,6 +62,7 @@ from .memory.store import Message, Session
 from .painel import Painel, texto_do_painel
 from .policy import ApprovalStore, PathGuard, PolicyEngine, redact
 from .policy.paths import default_safe_roots
+from .resultados import PREVIA_IMAGEM, PREVIA_TEXTO, Library
 from .screen_memory import (
     ScreenMemory,
     capturador_de_tela,
@@ -133,6 +134,7 @@ class AppState:
     voz: VozStats = field(default_factory=VozStats)
     escuta: WakeListener | None = None  # palavra de ativação (regra 38)
     tela: ScreenMemory | None = None  # memória da tela (regra 44)
+    biblioteca: Library | None = None  # resultados gerados (C34)
 
 
 def build_policy(
@@ -741,6 +743,7 @@ def create_app(
         gateway = (gateway_factory or gateway_from_settings)(settings)
         transcriber = (transcriber_factory or transcriber_from_settings)(settings)
         tela = (screen_factory or screen_from_settings)(settings, memory)
+        biblioteca = Library(memory, settings.data_dir / "resultados")
         agent = None
         mcp = None
         delegador: Delegator | None = None
@@ -803,6 +806,7 @@ def create_app(
                 ops=ops,
                 routing=roteamento_ligado(settings),
                 skills=skills,
+                library=biblioteca,
             )
         jobs, tarefa_jobs, agenda = None, None, None
         if settings.jobs_enabled:
@@ -894,6 +898,7 @@ def create_app(
             voz=voz_stats,
             escuta=escuta[0],
             tela=tela,
+            biblioteca=biblioteca,
         )  # fmt: skip
         try:
             yield
@@ -1293,6 +1298,75 @@ def create_app(
             "conversa_apagada",
             extra={"audit": {"sessao": s.id, "canal": canal, "titulo": (s.title or "")[:60]}},
         )
+        return {"ok": True}
+
+    # ── biblioteca de resultados (C34/C35): o que o Orion gerou, com origem e versões ──
+    def _biblioteca(state: AppState) -> Library:
+        assert state.biblioteca is not None
+        return state.biblioteca
+
+    @app.get("/resultados", dependencies=[Admin])
+    def listar_resultados(state: State, projeto: int | None = None) -> dict[str, Any]:
+        itens = [
+            {
+                "id": a["id"],
+                "nome": a["name"],
+                "tipo": a["kind"],
+                "versao": a["version"],
+                "anterior": a["parent_id"],
+                "bytes": a["bytes"],
+                "ferramenta": a["tool"],
+                "conversa": a["sessao_titulo"],
+                "sessao_id": a["session_id"],
+                "projeto_id": a["project_id"],
+                "criado": _iso(a["created_at"]),
+                "previa": (
+                    "texto"
+                    if Path(a["name"]).suffix.lower() in PREVIA_TEXTO
+                    else "imagem"
+                    if Path(a["name"]).suffix.lower() in PREVIA_IMAGEM
+                    else None
+                ),
+            }
+            for a in state.memory.list_artifacts(projeto)
+        ]
+        return {"total": len(itens), "resultados": itens}
+
+    @app.get("/resultados/{rid}/texto", dependencies=[Admin])
+    def previa_de_texto(rid: int, state: State) -> dict[str, Any]:
+        caminho = _biblioteca(state).caminho(rid)
+        if caminho is None:
+            raise HTTPException(404, "resultado não encontrado")
+        if caminho.suffix.lower() not in PREVIA_TEXTO:
+            raise HTTPException(415, "sem prévia de texto para este tipo (baixe o arquivo)")
+        texto = caminho.read_text(encoding="utf-8", errors="replace")
+        return {"texto": texto[:20_000], "truncado": len(texto) > 20_000}
+
+    @app.get("/resultados/{rid}/arquivo", dependencies=[Admin])
+    def arquivo_do_resultado(rid: int, state: State, previa: bool = False) -> FileResponse:
+        """Download (sempre como anexo, nunca renderizado); com `previa=true`, só imagem raster
+        é entregue inline. HTML/SVG gerados pelo modelo nunca executam no navegador."""
+        biblioteca = _biblioteca(state)
+        caminho = biblioteca.caminho(rid)
+        a = state.memory.get_artifact(rid)
+        if caminho is None or a is None:
+            raise HTTPException(404, "resultado não encontrado")
+        cabecalhos = {"X-Content-Type-Options": "nosniff", "Content-Security-Policy": "sandbox"}
+        mime = PREVIA_IMAGEM.get(Path(a["name"]).suffix.lower())
+        if previa and mime:
+            return FileResponse(caminho, media_type=mime, headers=cabecalhos)
+        return FileResponse(
+            caminho,
+            media_type="application/octet-stream",
+            filename=a["name"],
+            headers=cabecalhos,
+        )
+
+    @app.delete("/resultados/{rid}", dependencies=[Admin])
+    def apagar_resultado(rid: int, state: State) -> dict[str, bool]:
+        if not _biblioteca(state).apagar(rid):
+            raise HTTPException(404, "resultado não encontrado")
+        audit_log.info("resultado_apagado", extra={"audit": {"resultado": rid}})
         return {"ok": True}
 
     # ── documentos enviados pela interface (C38): PDF, Word, Excel, HTML, texto ──

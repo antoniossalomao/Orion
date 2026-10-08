@@ -7,7 +7,7 @@ mensagens ficam). v5: seleção persistente de sessão por canal. Banco antigo s
 (`MIGRATIONS`).
 """
 
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 10
 
 TOKENIZER = "unicode61 remove_diacritics 2"  # "açúcar" casa com "acucar"
 
@@ -250,7 +250,26 @@ DDL_V9 = """
 ALTER TABLE documents ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL;
 """
 
-DDL = DDL_V1 + DDL_V2 + DDL_V3 + DDL_V4 + DDL_V5 + DDL_V6 + DDL_V7 + DDL_V8 + DDL_V9
+# Biblioteca de resultados (C34): cópia do que o Orion gerou, com origem e versões.
+DDL_V10 = """
+CREATE TABLE artifacts (
+    id INTEGER PRIMARY KEY,
+    session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+    project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL,
+    kind TEXT NOT NULL,            -- documento | imagem
+    name TEXT NOT NULL,
+    stored TEXT NOT NULL,          -- nome do arquivo dentro da pasta da biblioteca
+    bytes INTEGER NOT NULL,
+    tool TEXT NOT NULL,
+    version INTEGER NOT NULL DEFAULT 1,
+    parent_id INTEGER REFERENCES artifacts(id) ON DELETE SET NULL,
+    created_at REAL NOT NULL
+);
+CREATE INDEX idx_artifacts_name ON artifacts(name, version);
+CREATE INDEX idx_artifacts_created ON artifacts(created_at);
+"""
+
+DDL = DDL_V1 + DDL_V2 + DDL_V3 + DDL_V4 + DDL_V5 + DDL_V6 + DDL_V7 + DDL_V8 + DDL_V9 + DDL_V10
 
 # versão de origem -> script que leva à seguinte
 MIGRATIONS: dict[int, str] = {
@@ -262,4 +281,5 @@ MIGRATIONS: dict[int, str] = {
     6: DDL_V7,
     7: DDL_V8,
     8: DDL_V9,
+    9: DDL_V10,
 }

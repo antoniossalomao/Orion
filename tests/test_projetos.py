@@ -79,6 +79,7 @@ def test_migracao_v6_para_v7(tmp_path):
     s = m.new_session("web")
     m._conn.executescript(
         "DROP INDEX idx_sessions_project; ALTER TABLE sessions DROP COLUMN project_id;"
+        "DROP TABLE artifacts;"
         "ALTER TABLE documents DROP COLUMN project_id;"
         "DROP TABLE screen_log_fts; DROP TABLE screen_log;"
         "DROP TABLE projects; UPDATE meta SET value='6' WHERE key='schema_version';"

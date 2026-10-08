@@ -57,6 +57,21 @@ ESTADO: dict[str, Any] = {
         2: {"texto": "Prefere respostas curtas e diretas", "fonte": "manual"},
         3: {"texto": "Usa o Obsidian como segundo cérebro", "fonte": "vault"},
     },
+    "resultados": {  # o id maior é o mais novo (a lista sai do mais novo para o mais antigo)
+        1: {"nome": "diagrama.pdf", "tipo": "documento", "versao": 1, "texto": None},
+        2: {
+            "nome": "ata-reuniao.md",
+            "tipo": "documento",
+            "versao": 1,
+            "texto": "# Ata\nDecisões da reunião.",
+        },
+        3: {
+            "nome": "ata-reuniao.md",
+            "tipo": "documento",
+            "versao": 2,
+            "texto": "# Ata v2\nDecisões revisadas.",
+        },
+    },  # fmt: skip
     "documentos": {},  # id -> {nome, trechos, projeto_id}
     "tela": {"ligada": True, "pausada": False, "registros": 42},
     "projeto_de": {},  # sessao -> id do projeto
@@ -496,6 +511,41 @@ def create_app() -> FastAPI:
     def fatos_esquecer(fid: int) -> dict[str, Any]:
         if ESTADO["fatos"].pop(fid, None) is None:
             raise HTTPException(404, "fato não encontrado")
+        return {"ok": True}
+
+    @app.get("/resultados")
+    def resultados_listar() -> dict[str, Any]:
+        itens = [
+            {"id": i, "nome": r["nome"], "tipo": r["tipo"], "versao": r["versao"], "anterior": None,
+             "bytes": 2048, "ferramenta": "gerar_documento", "conversa": "Dúvida de UML",
+             "sessao_id": "s3", "projeto_id": None, "criado": _agora().isoformat(),
+             "previa": "texto" if r["texto"] else None}
+            for i, r in sorted(ESTADO["resultados"].items(), reverse=True)
+        ]  # fmt: skip
+        return {"total": len(itens), "resultados": itens}
+
+    @app.get("/resultados/{rid}/texto")
+    def resultados_texto(rid: int) -> dict[str, Any]:
+        r = ESTADO["resultados"].get(rid)
+        if not r or not r["texto"]:
+            raise HTTPException(404, "resultado não encontrado")
+        return {"texto": r["texto"], "truncado": False}
+
+    @app.get("/resultados/{rid}/arquivo")
+    def resultados_arquivo(rid: int) -> Response:
+        r = ESTADO["resultados"].get(rid)
+        if not r:
+            raise HTTPException(404, "resultado não encontrado")
+        return Response(
+            (r["texto"] or "pdf").encode(),
+            media_type="application/octet-stream",
+            headers={"Content-Disposition": f'attachment; filename="{r["nome"]}"'},
+        )
+
+    @app.delete("/resultados/{rid}")
+    def resultados_apagar(rid: int) -> dict[str, Any]:
+        if ESTADO["resultados"].pop(rid, None) is None:
+            raise HTTPException(404, "resultado não encontrado")
         return {"ok": True}
 
     @app.get("/memoria/documentos")

@@ -1831,3 +1831,29 @@ def test_conhecimento_envia_lista_e_remove_documento(abrir, mock_isolado_url, tm
     expect(alerta).to_contain_text("não é tocado")
     alerta.get_by_role("button", name="Remover").click()
     expect(corpo.locator("[data-documento]")).to_have_count(0)
+
+
+def test_conhecimento_resultados_com_versao_previa_download_e_apagar(abrir, mock_isolado_url):
+    page = abrir("#/conhecimento", url=mock_isolado_url)
+    itens = page.locator("[data-resultado]")
+    expect(itens).to_have_count(3, timeout=5000)
+    expect(itens.first).to_contain_text("v2")  # a mais nova primeiro
+    expect(itens.first).to_contain_text("conversa “Dúvida de UML”")
+    expect(itens.nth(2)).to_contain_text("diagrama.pdf")
+    expect(page.get_by_role("button", name="Ver diagrama.pdf versão 1")).to_have_count(
+        0
+    )  # sem prévia
+    page.get_by_role("button", name="Ver ata-reuniao.md versão 2").click()
+    expect(itens.first.locator(".conh-previa")).to_contain_text("Decisões revisadas")
+    page.get_by_role("button", name="Ver ata-reuniao.md versão 1").click()
+    expect(itens.nth(1).locator(".conh-previa")).to_contain_text("Decisões da reunião")
+    with page.expect_download() as d:
+        page.get_by_role("button", name="Baixar ata-reuniao.md versão 2").click()
+    assert d.value.suggested_filename == "ata-reuniao.md"
+    page.get_by_role("button", name="Apagar diagrama.pdf versão 1").click()
+    alerta = page.get_by_role("alertdialog", name="Apagar este resultado?")
+    alerta.get_by_role("button", name="Cancelar").click()
+    expect(itens).to_have_count(3)
+    page.get_by_role("button", name="Apagar diagrama.pdf versão 1").click()
+    page.get_by_role("alertdialog").get_by_role("button", name="Apagar").click()
+    expect(itens).to_have_count(2)
