@@ -50,6 +50,7 @@ class TickReport:
     briefing: bool = False
     consolidacao: dict[str, Any] | None = None
     pesquisa: str | None = None
+    sono: dict[str, Any] | None = None
     erros: list[str] = field(default_factory=list)
 
 
@@ -82,6 +83,7 @@ class JobRunner:
         agenda: Callable[[float], str | None] | None = None,
         briefing_window_h: float = 6.0,
         research: Any = None,
+        sleep: Any = None,
         embed_every_s: float = 300.0,
         vault_every_s: float = 3600.0,
         backup_every_s: float = 3600.0,
@@ -99,6 +101,7 @@ class JobRunner:
         self._agenda = agenda  # consulta direta de leitura, sem modelo (orion/agenda.py, regra 37)
         self._briefing_window = timedelta(hours=briefing_window_h)
         self._research = research  # orion/research.py (regra 39), None: desligada
+        self._sleep = sleep  # orion/memory/sleep.py (ciclo de sono), None: desligado
         self._clock = clock
         self._every = {
             "embed": embed_every_s,
@@ -130,6 +133,18 @@ class JobRunner:
             except Exception as e:
                 log.exception("job consolidação falhou")
                 rel.erros.append(f"consolidação: {e}")
+        if self._sleep is not None and self._sleep.devida():
+            try:
+                r = await self._sleep.run()
+                rel.sono = {
+                    "duplicados": r.duplicados,
+                    "relacoes": r.relacoes,
+                    "padroes": r.padroes,
+                    "ok": r.ok,
+                }
+            except Exception as e:
+                log.exception("job ciclo de sono falhou")
+                rel.erros.append(f"ciclo de sono: {e}")
         if self._research is not None and self._research.devida():
             try:
                 rel.pesquisa = await self._research.run()

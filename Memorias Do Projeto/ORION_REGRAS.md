@@ -60,6 +60,7 @@
 | 39 | **Pesquisa noturna é só leitura e sem ninguém aprovando**: hora e assuntos vêm do Antônio (`ORION_RESEARCH_AT`, `ORION_RESEARCH_TOPICS`), nunca do modelo; cada assunto roda num turno `read_only` com conversa própria; o que pediria aprovação é negado; o resultado vai marcado como não confiável, só para a caixa de entrada do vault, nunca para a memória sozinho. | `orion/research.py`, `Agent.run(read_only=True)` + `tests/test_research.py`, `tests/test_agent.py` |
 | 40 | **Skill é texto, não código**: só nome e descrição entram no prompt, o corpo vem por `carregar_skill`; `scripts/` de um pacote nunca é executada; skill não muda classe de risco nem libera aprovação. | `orion/skills.py` + `tests/test_skills.py` |
 | 41 | **n8n: o destino é seu, não do modelo.** Os webhooks vêm de `ORION_N8N_WEBHOOKS`; o modelo só escolhe o nome. `acionar_n8n` é execução (sempre confirma), a resposta é conteúdo externo (contamina a sessão), corpo e resposta têm teto. | `orion/tools/n8n.py` + `tests/test_n8n.py` |
+| 42 | **O ciclo de sono revisa, não decide.** Duplicados só são avisados (nunca apagados); o modelo vê só fatos já guardados, devolve JSON validado (tamanho, formato, nada com cara de segredo), as relações entram no grafo com `kind=sono` e os padrões (até 3) como fatos `sono:destilado:<data>`, editáveis e apagáveis. Hora escolhida por você (`ORION_SLEEP_AT`); desligado por padrão. | `orion/memory/sleep.py` + `tests/test_sleep.py` |
 
 ## Código
 

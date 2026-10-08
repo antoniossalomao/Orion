@@ -37,7 +37,7 @@
 ## Bloco D — O que a Lyra tinha e não veio
 | ID | Entrega | Como encaixa no Orion | Risco / regra nova |
 |---|---|---|---|
-| D1 | **Ciclo de sono** (dedup, cruzamento pelo grafo, destilação) — **parcial (08/10)**: só a detecção de fatos duplicados (`orion fatos --duplicados`, sugere e não apaga); cruzamento pelo grafo e destilação seguem pendentes | Estende `consolidate.py` e o job existente; roda de madrugada, sem ferramentas | Qualidade dos fatos exige revisão humana (`facts_markdown`) |
+| D1 | **Ciclo de sono** (dedup, cruzamento pelo grafo, destilação) — **feito (08/10)**, regra 42: `orion/memory/sleep.py` avisa duplicados, grava relações no grafo e até 3 padrões; testado só com modelo falso, desligado por padrão | Estende `consolidate.py` e o job existente; roda de madrugada, sem ferramentas | Qualidade dos fatos exige revisão humana (`facts_markdown`) |
 | D2 | **Pesquisa noturna supervisionada** (ideia nº 1 do catálogo) — **feito (08/10)**, `orion/research.py`, regra 39, desligada por padrão; nunca rodou com modelo e rede reais | Job que só lê (`pesquisar_internet`, `buscar_url`) e deixa um relatório na caixa de entrada do vault; nunca executa nem escreve fora do vault | Choca com a regra de egress (V9): rodar em sessão limpa, só leitura, URL só de resultado de busca; regra nova + opt-in |
 | D3 | **Screenpipe / memória da tela** | Captura periódica da tela, OCR local, texto no SQLite com retenção curta; imagem nunca sai | Ring 0 #3 (captura contínua) pede aval; opt-in, pausa, retenção e audit sem conteúdo |
 | D4 | **Transcrição de lives** (yt-dlp + faster-whisper) | Ferramenta que transcreve vídeo/áudio para Markdown timestampado e grava na caixa de entrada do vault | Download é egress com destino escolhido: aprovação a cada uso; whisper local pesa em 8 GB, ver D4b |
@@ -54,7 +54,7 @@
 |---|---|---|
 | E1 | Resumo semanal da memória e do que foi feito | **feito (08/10)**, versão determinística (sem modelo), sai na segunda com o briefing; a versão com modelo fica para depois |
 | E2 | Modo "só leitura" por turno (nenhuma ferramenta de escrita ou execução disponível) | **feito (08/10)**: `Agent.run(..., read_only=True)`; o que pediria aprovação é negado sem deixar pedido. Base para D2 |
-| E3 | Painel de custo/cota por provedor ao longo da semana | Estende V13 e `/painel` |
+| E3 | Painel de custo/cota por provedor ao longo da semana | **feito (08/10)**: respostas por dia e endpoint, persistidas em contadores (`uso:<dia>:<endpoint>`), card "Uso da semana" no painel; não mede a cota real do provedor |
 | E4 | `orion doctor`: confere chaves, serviços, `mcp.json` e fase 0 em um comando | **feito (08/10)**, offline; não testa rede nem a fase 0 |
 | E5 | Teste de regressão de prompt injection (conjunto fixo de páginas hostis) | **feito (08/10)**: invariantes sobre todas as ferramentas + 12 comandos hostis, `tests/policy/test_injecao_invariantes.py` |
 

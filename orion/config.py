@@ -123,6 +123,9 @@ class Settings(BaseSettings):
     # ninguém olhando. Liga com o e-mail da conta; a ferramenta precisa ser `read` no mcp.json.
     briefing_calendar_email: str = ""
     briefing_calendar_tool: str = "google__get_events"
+    sleep_at: str = (
+        ""  # HH:MM: revisão noturna da memória (duplicados, relações, padrões); vazio: não
+    )
     research_at: str = ""  # HH:MM: pesquisa noturna só leitura (regra 39); vazio: desligada
     # assuntos separados por ";" (até 5); só o Antônio escolhe. Os padrões vêm das notas recentes do
     # vault; sem ORION_RESEARCH_AT a pesquisa continua desligada.

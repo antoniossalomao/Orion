@@ -53,6 +53,7 @@ from .memory import MemoryStore
 from .memory.consolidate import Consolidator
 from .memory.embedders import GeminiEmbedder
 from .memory.ops import Operations
+from .memory.sleep import SleepCycle
 from .memory.store import Message, Session
 from .painel import Painel, texto_do_painel
 from .policy import ApprovalStore, PathGuard, PolicyEngine, redact
@@ -771,6 +772,16 @@ def create_app(
                 audit=ops.audit_add,
             )
             pesquisa = _pesquisa_noturna(settings, agent, memory)
+            sono = (
+                SleepCycle(
+                    memory,
+                    ops,
+                    gateway if gateway is not None and hasattr(gateway, "complete") else None,
+                    at=settings.sleep_at,
+                )
+                if settings.sleep_at
+                else None
+            )
             jobs = JobRunner(
                 memory,
                 ops,
@@ -783,6 +794,7 @@ def create_app(
                 briefing_at=settings.briefing_at,
                 agenda=agenda,
                 research=pesquisa,
+                sleep=sono,
             )
             tarefa_jobs = asyncio.create_task(jobs.run_forever(settings.jobs_tick_s))
         telegram = (telegram_factory or telegram_from_settings)(
