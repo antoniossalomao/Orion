@@ -847,6 +847,11 @@ def create_app(
                 research=pesquisa,
                 sleep=sono,
                 screen=tela,
+                weekly_ai=(
+                    gateway
+                    if settings.weekly_ai and gateway is not None and hasattr(gateway, "complete")
+                    else None
+                ),
             )
             tarefa_jobs = asyncio.create_task(jobs.run_forever(settings.jobs_tick_s))
         telegram = (telegram_factory or telegram_from_settings)(

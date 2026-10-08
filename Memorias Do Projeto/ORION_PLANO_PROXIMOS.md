@@ -52,7 +52,7 @@
 ## Bloco E — Ideias novas
 | ID | Entrega | Observação |
 |---|---|---|
-| E1 | Resumo semanal da memória e do que foi feito | **feito (08/10)**, versão determinística (sem modelo), sai na segunda com o briefing; a versão com modelo fica para depois |
+| E1 | Resumo semanal da memória e do que foi feito | **feito (08/10)**: resumo determinístico na segunda com o briefing e, com `ORION_WEEKLY_AI=true`, uma leitura de até 5 linhas escrita pelo modelo a partir do resumo (uma chamada por semana; nunca falou com modelo real) |
 | E2 | Modo "só leitura" por turno (nenhuma ferramenta de escrita ou execução disponível) | **feito (08/10)**: `Agent.run(..., read_only=True)`; o que pediria aprovação é negado sem deixar pedido. Base para D2 |
 | E3 | Painel de custo/cota por provedor ao longo da semana | **feito (08/10)**: respostas por dia e endpoint, persistidas em contadores (`uso:<dia>:<endpoint>`), card "Uso da semana" no painel; não mede a cota real do provedor |
 | E4 | `orion doctor`: confere chaves, serviços, `mcp.json` e fase 0 em um comando | **feito (08/10)**, offline; não testa rede nem a fase 0 |

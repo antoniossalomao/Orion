@@ -136,6 +136,7 @@ class Settings(BaseSettings):
     sleep_at: str = (
         ""  # HH:MM: revisão noturna da memória (duplicados, relações, padrões); vazio: não
     )
+    weekly_ai: bool = False  # segunda: o modelo escreve uma leitura curta do resumo semanal
     research_at: str = ""  # HH:MM: pesquisa noturna só leitura (regra 39); vazio: desligada
     # assuntos separados por ";" (até 5); só o Antônio escolhe. Os padrões vêm das notas recentes do
     # vault; sem ORION_RESEARCH_AT a pesquisa continua desligada.
