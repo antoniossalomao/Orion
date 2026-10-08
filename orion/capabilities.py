@@ -1,5 +1,6 @@
 """Contrato público de capacidades; detalhes da instalação ficam em rota autenticada."""
 
+import sys
 from typing import Literal
 
 from pydantic import BaseModel
@@ -65,8 +66,11 @@ def describe(*, agent_ready: bool, admin_configured: bool) -> Capabilities:
         memory_facts=admin_configured,
         mcp=admin_configured,
         mcp_export=admin_configured,
+        html_preview=admin_configured and sys.platform != "win32",
     )
     unavailable: dict[str, str] = dict.fromkeys(PENDING_FEATURES, "not_implemented")
+    if not features["html_preview"]:
+        unavailable["html_preview"] = "desktop_validation_pending"
     if not features["chat"]:
         unavailable["chat"] = (
             "auth_not_configured" if not admin_configured else "gateway_not_configured"

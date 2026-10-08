@@ -8,7 +8,7 @@
     const button = (text, fn, cls = 'btn btn-outline btn-sm') => el('button', { type: 'button', class: cls, text, on: { click: fn } });
     const field = (label, input) => el('label', { class: 'extension-field' }, el('span', { text: label }), input);
     const hint = text => el('p', { class: 'extension-hint', text });
-    function release() { if (blobUrl) URL.revokeObjectURL(blobUrl); blobUrl = null; }
+    function release() { O.htmlPreview.release(); if (blobUrl) URL.revokeObjectURL(blobUrl); blobUrl = null; }
     function close(focus = true) {
         ++generation; release(); const id = selected; selected = null;
         $('#artifact-preview').hidden = true; $('#artifact-preview').replaceChildren();
@@ -50,7 +50,10 @@
                 const template = document.createElement('template'); template.innerHTML = O.md.renderizar(row.content.slice(0, 120000));
                 template.content.querySelectorAll('img').forEach(img => img.replaceWith(document.createTextNode('[Imagem incorporada bloqueada. Abra uma imagem salva na biblioteca.]')));
                 content.classList.add('prose'); content.append(template.content);
-            } else content.append(el('pre', { class: 'artifact-code', text: row.content.slice(0, 120000) }));
+            } else {
+                if (row.kind === 'code' && row.language.toLowerCase() === 'html') content.append(O.htmlPreview.panel(row));
+                content.append(el('pre', { class: 'artifact-code', text: row.content.slice(0, 120000) }));
+            }
             if (row.content?.length > 120000) content.append(hint('Prévia abreviada. Baixe o conteúdo completo.'));
             const labels = [...(row.provenance?.memoria || []).map(p => p.fonte), ...(row.provenance?.skills || []).map(p => `${p.id} · ${p.version}`), ...(row.provenance?.atividades || []).map(p => `${p.display_name || p.name} · ${p.origin_label || p.origin || 'Orion'}`)].filter(Boolean);
             panel.replaceChildren(el('div', { class: 'artifact-preview-head' }, title, button('Fechar prévia', () => close(), 'btn btn-ghost btn-sm')),
@@ -70,8 +73,11 @@
         const kind = el('select', { class: 'input', 'aria-label': 'Tipo do resultado' }, ...Object.entries(names).filter(([k]) => k !== 'image').map(([value, text]) => el('option', { value, text })));
         kind.value = draft.kind || 'markdown'; kind.disabled = !!row;
         const content = el('textarea', { class: 'input artifact-editor', rows: '9', 'aria-label': 'Conteúdo do resultado', text: draft.content || responseText });
-        const accepted = await O.extensions.dialog(row ? 'Criar nova versão' : 'Salvar resultado', 'O resultado fica associado a esta conversa. Você poderá reabrir, revisar e baixar depois.', [field('Título do resultado', title), field('Tipo do resultado', kind), field('Conteúdo do resultado', content)], row ? 'Salvar nova versão' : 'Salvar resultado');
-        const data = { title: title.value.trim(), kind: kind.value, content: content.value, session_id: sid, message_id: row?.message_id || messageId, language: row?.language || '', expected_version: expectedVersion };
+        const language = el('input', { class: 'input', 'aria-label': 'Linguagem do código', maxlength: '48', value: draft.language || '', placeholder: 'Ex.: html, python' });
+        const languageField = field('Linguagem do código', language); languageField.hidden = kind.value !== 'code';
+        kind.addEventListener('change', () => { languageField.hidden = kind.value !== 'code'; });
+        const accepted = await O.extensions.dialog(row ? 'Criar nova versão' : 'Salvar resultado', 'O resultado fica associado a esta conversa. Você poderá reabrir, revisar e baixar depois.', [field('Título do resultado', title), field('Tipo do resultado', kind), languageField, field('Conteúdo do resultado', content)], row ? 'Salvar nova versão' : 'Salvar resultado');
+        const data = { title: title.value.trim(), kind: kind.value, content: content.value, session_id: sid, message_id: row?.message_id || messageId, language: kind.value === 'code' ? language.value.trim() : '', expected_version: expectedVersion };
         drafts.set(key, data); if (!accepted || source !== origin() || context !== scope()) return;
         busy = true;
         try {

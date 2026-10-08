@@ -39,3 +39,22 @@ e artifacts continuam associados aos IDs originais. Trocar Caminhos não chama o
 Tools e mensagens de sistema não são copiadas; decisões não são transferidas. O estado de
 conteúdo externo é conservado. Máximo 100 caminhos/grupo, 200 falas e 128 mil caracteres de
 prefixo; mensagens anteriores a uma limpeza do contexto não podem ser ramificadas.
+
+## Prévia HTML estática — C50
+
+Salve um resultado como Código e informe html em Linguagem do código. A biblioteca
+mantém o código original e oferece Prévia HTML em navegador compatível. A prévia é
+estática: JavaScript, rede, formulários e navegação externa ficam bloqueados.
+Scripts, links de recursos, metadados ativos, frames e atributos de ação/rede são
+removidos apenas da prévia; o resultado salvo e o download permanecem originais.
+
+O documento abre em blob com sandbox sem permissões, origem opaca e CSP sem rede.
+O app permite somente blobs como frames; a prévia não compartilha origem, cofre,
+REST autenticado ou comandos do app. Sem mensagens privilegiadas entre frame/app.
+URLs e frames são liberados ao fechar, trocar versão/contexto ou sair da tela.
+Estilos inline são permitidos; imagens/fontes externas e JavaScript não são.
+
+Windows e contexto pywebview ficam com código e download, sem prévia HTML até
+validação real da ponte. pywebviewready fecha prévias existentes. O teste de ponte
+simulada é regressão, não prova de desktop real. Conteúdo interativo fica para uma
+etapa futura, com contrato e isolamento próprios.

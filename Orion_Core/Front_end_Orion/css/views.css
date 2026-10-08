@@ -212,3 +212,5 @@
 .calendar-section .fact-item { margin-block: var(--s-3); }
 
 .file-plan-path { overflow-wrap: anywhere; font-family: var(--font-mono); font-size: .85rem; }
+
+.artifact-html-preview { width: 100%; height: 360px; border: 1px solid var(--line-2); border-radius: .7rem; background: #fff; margin-top: var(--s-4); }
