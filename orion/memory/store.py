@@ -36,6 +36,10 @@ MAX_NOTA_BYTES = 5 * 1024 * 1024
 KIND_WEIGHT: dict[str, float] = {"fact": 1.25, "chunk": 1.0, "message": 0.8}
 
 
+def _like(texto: str) -> str:
+    return texto.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 def _sessao(r: sqlite3.Row) -> Session:
     return Session(
         r["id"],
@@ -45,6 +49,7 @@ def _sessao(r: sqlite3.Row) -> Session:
         r["last_active_at"],
         bool(r["pinned"]),
         bool(r["archived"]),
+        bool(r["shelved"]),
     )
 
 
@@ -63,6 +68,7 @@ class Session:
     last_active_at: float
     pinned: bool = False
     archived: bool = False  # arquivada: conversa importada do legado (só leitura)
+    shelved: bool = False  # arquivada pelo usuário: some da barra, mensagens intactas
 
 
 @dataclass(frozen=True)
@@ -324,7 +330,9 @@ class MemoryStore:
             ).fetchone()
             if r is None:
                 return None
-            c.execute("UPDATE sessions SET last_active_at=? WHERE id=?", (agora, session_id))
+            c.execute(
+                "UPDATE sessions SET last_active_at=?, shelved=0 WHERE id=?", (agora, session_id)
+            )
             self._select(c, r["channel"], session_id)
         return self.get_session(session_id)
 
@@ -347,6 +355,21 @@ class MemoryStore:
                     (int(pinned), session_id),
                 ).rowcount
             )
+
+    def shelve_session(self, session_id: str, shelved: bool) -> bool:
+        """Arquivar/desarquivar pelo usuário. Arquivar tira a conversa de ativa do canal; as
+        mensagens ficam e a busca ainda a encontra. Importada (só leitura) não entra aqui."""
+        with self._tx() as c:
+            mudou = c.execute(
+                "UPDATE sessions SET shelved=?, pinned=CASE WHEN ? THEN 0 ELSE pinned END"
+                " WHERE id=? AND deleted=0 AND archived=0",
+                (int(shelved), int(shelved), session_id),
+            ).rowcount
+            if mudou and shelved:
+                c.execute(
+                    "UPDATE active_sessions SET session_id=NULL WHERE session_id=?", (session_id,)
+                )
+            return bool(mudou)
 
     def delete_session(self, session_id: str) -> bool:
         """Apagar = esconder da lista (e deixar de ser a ativa). As mensagens FICAM: o que o Orion
@@ -390,17 +413,60 @@ class MemoryStore:
             ).fetchone()
         return _sessao(r) if r else None
 
-    def list_sessions_ui(self, channel: str, limit: int = 100) -> list[Session]:
+    def list_sessions_ui(
+        self, channel: str, limit: int = 100, *, shelved: bool = False
+    ) -> list[Session]:
         """O que a barra lateral mostra: as conversas do canal + as importadas do legado (somente
-        leitura), sem as apagadas; fixadas primeiro, depois a atividade mais recente."""
+        leitura), sem as apagadas; fixadas primeiro, depois a atividade mais recente.
+        `shelved=True` lista só as que o usuário arquivou."""
         with self._lock:
             rows = self._conn.execute(
-                "SELECT * FROM sessions WHERE deleted=0 AND (channel=? OR id IN"
+                "SELECT * FROM sessions WHERE deleted=0 AND shelved=? AND (channel=? OR id IN"
                 " (SELECT ref FROM imported WHERE kind='sessao'))"
                 " ORDER BY pinned DESC, last_active_at DESC LIMIT ?",
-                (channel, limit),
+                (int(shelved), channel, limit),
             ).fetchall()
         return [_sessao(r) for r in rows]
+
+    def search_sessions(
+        self, channel: str, query: str, limit: int = 20, offset: int = 0
+    ) -> list[dict[str, Any]]:
+        """Busca por título e por conteúdo nas conversas que a barra do canal enxerga (inclui as
+        arquivadas pelo usuário, não as apagadas). Uma linha por conversa, com um trecho."""
+        q = fts_query(query)
+        if q is None:
+            return []
+        limit, offset = max(1, min(limit, 50)), max(0, offset)
+        with self._lock:
+            # snippet() não funciona com GROUP BY: pega as melhores mensagens e fica com a
+            # primeira de cada conversa
+            rows = self._conn.execute(
+                "SELECT s.id AS sid,"
+                " snippet(messages_fts, 0, '[', ']', '…', 12) AS trecho"
+                " FROM messages_fts f JOIN messages m ON m.id=f.rowid"
+                " JOIN sessions s ON s.id=m.session_id"
+                " WHERE messages_fts MATCH ? AND m.role IN ('user','assistant') AND s.deleted=0"
+                " AND (s.channel=? OR s.id IN (SELECT ref FROM imported WHERE kind='sessao'))"
+                " ORDER BY f.rank LIMIT ?",
+                (q, channel, (limit + offset) * 8),
+            ).fetchall()
+            titulos = self._conn.execute(
+                "SELECT id FROM sessions WHERE deleted=0 AND title IS NOT NULL"
+                " AND (channel=? OR id IN (SELECT ref FROM imported WHERE kind='sessao'))"
+                " AND lower(title) LIKE ? ESCAPE '\\' LIMIT ?",
+                (channel, "%" + _like(query.lower()) + "%", limit),
+            ).fetchall()
+        achados: dict[str, str | None] = {}
+        for r in rows:
+            achados.setdefault(r["sid"], r["trecho"])
+        for t in titulos:
+            achados.setdefault(t["id"], None)
+        saida: list[dict[str, Any]] = []
+        for sid, trecho in list(achados.items())[offset : offset + limit]:
+            sess = self.get_session(sid)
+            if sess is not None:
+                saida.append({"sessao": sess, "trecho": trecho})
+        return saida
 
     def add_message(
         self, session_id: str, role: str, text: str, provenance: dict[str, Any] | None = None

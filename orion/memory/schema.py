@@ -7,7 +7,7 @@ mensagens ficam). v5: seleção persistente de sessão por canal. Banco antigo s
 (`MIGRATIONS`).
 """
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 TOKENIZER = "unicode61 remove_diacritics 2"  # "açúcar" casa com "acucar"
 
@@ -214,7 +214,12 @@ WHERE s.archived=0 AND s.deleted=0 AND s.id=(
 );
 """
 
-DDL = DDL_V1 + DDL_V2 + DDL_V3 + DDL_V4 + DDL_V5
+# Arquivar pelo usuário: sai da barra, mantém as mensagens (`archived` = importada, só leitura).
+DDL_V6 = """
+ALTER TABLE sessions ADD COLUMN shelved INTEGER NOT NULL DEFAULT 0;
+"""
+
+DDL = DDL_V1 + DDL_V2 + DDL_V3 + DDL_V4 + DDL_V5 + DDL_V6
 
 # versão de origem -> script que leva à seguinte
-MIGRATIONS: dict[int, str] = {1: DDL_V2, 2: DDL_V3, 3: DDL_V4, 4: DDL_V5}
+MIGRATIONS: dict[int, str] = {1: DDL_V2, 2: DDL_V3, 3: DDL_V4, 4: DDL_V5, 5: DDL_V6}

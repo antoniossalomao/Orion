@@ -12,8 +12,8 @@
 ## Bloco A — App confiável e conversas (C05–C06, C36–C37)
 | ID | Entrega | Origem | Depende de |
 |---|---|---|---|
-| A1 | Renomear, fixar e arquivar conversas, foco preservado (C05) | EXTENSOES | — |
-| A2 | Busca de conversas por conteúdo no backend (C06) | EXTENSOES | A1 |
+| A1 | Renomear, fixar e arquivar conversas, foco preservado (C05) | EXTENSOES | — | **backend feito (08/10)**: renomear/fixar já existiam; `arquivada` no `PATCH /sessoes/{id}`, `GET /sessoes?arquivadas=true`, esquema v6; falta menu na sidebar |
+| A2 | Busca de conversas por conteúdo no backend (C06) | EXTENSOES | A1 | **backend feito (08/10)**: `GET /sessoes/busca?q=`, título + corpo, trecho, isolada por canal; falta ligar no front |
 | A3 | Memória pesquisável: fonte, data, editar, esquecer (C36) | EXTENSOES | — |
 | A4 | `orion esquecer <fato>`: apaga o fato, os embeddings e o rastro no audit | nova | A3 |
 | A5 | Caixa de atividade: avisos e pendências juntos (C37) | EXTENSOES | — |

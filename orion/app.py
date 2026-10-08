@@ -433,6 +433,7 @@ class Ativacao(BaseModel):
 class AjusteDeConversa(BaseModel):
     titulo: str | None = Field(default=None, min_length=1, max_length=120)
     favorita: bool | None = None
+    arquivada: bool | None = None
 
 
 def _canal_valido(canal: str) -> None:
@@ -455,6 +456,7 @@ def _item_da_conversa(memory: MemoryStore, s: Any, ativa_id: str | None) -> dict
         "ativa": s.id == ativa_id,
         "favorita": s.pinned,
         "somente_leitura": s.archived,
+        "arquivada": s.shelved,
     }
 
 
@@ -952,14 +954,35 @@ def create_app(
     # delas continua na memória). Só mexe nas conversas que a barra do canal mostra: as do
     # Telegram e de outros canais não passam por aqui.
     @app.get("/sessoes", dependencies=[Admin])
-    def listar_conversas(state: State, canal: str = "web") -> dict[str, Any]:
+    def listar_conversas(
+        state: State, canal: str = "web", arquivadas: bool = False
+    ) -> dict[str, Any]:
         _canal_valido(canal)
         ativa = state.memory.active_session(canal)
         itens = [
             _item_da_conversa(state.memory, s, ativa.id)
-            for s in state.memory.list_sessions_ui(canal)
+            for s in state.memory.list_sessions_ui(canal, shelved=arquivadas)
         ]
         return {"total": len(itens), "sessoes": itens, "ativa": ativa.id}
+
+    @app.get("/sessoes/busca", dependencies=[Admin])
+    def buscar_conversas(
+        state: State,
+        q: Annotated[str, Query(min_length=1, max_length=200)],
+        canal: str = "web",
+        limite: Annotated[int, Query(ge=1, le=50)] = 20,
+        deslocamento: Annotated[int, Query(ge=0)] = 0,
+    ) -> dict[str, Any]:
+        """Acha conversas pelo título ou por uma palavra do corpo das mensagens."""
+        _canal_valido(canal)
+        achados = state.memory.search_sessions(canal, q, limite, deslocamento)
+        return {
+            "total": len(achados),
+            "resultados": [
+                {**_item_da_conversa(state.memory, a["sessao"], None), "trecho": a["trecho"]}
+                for a in achados
+            ],
+        }
 
     @app.post("/sessoes", dependencies=[Admin])
     def nova_conversa(state: State, canal: str = "web") -> dict[str, Any]:
@@ -1099,8 +1122,14 @@ def create_app(
         sessao_id: str, corpo: AjusteDeConversa, state: State, canal: str = "web"
     ) -> dict[str, Any]:
         _canal_valido(canal)
-        if corpo.titulo is None and corpo.favorita is None:
-            raise HTTPException(422, "nada para mudar: mande `titulo` e/ou `favorita`")
+        if corpo.titulo is None and corpo.favorita is None and corpo.arquivada is None:
+            raise HTTPException(422, "nada para mudar: mande `titulo`, `favorita` e/ou `arquivada`")
+        if (
+            corpo.arquivada is not None
+            and state.memory.session_visible(sessao_id, canal) is not None
+        ):
+            if not state.memory.shelve_session(sessao_id, corpo.arquivada):
+                raise HTTPException(409, "conversa importada é só leitura: não dá para arquivar")
         s = state.memory.session_visible(sessao_id, canal)
         if s is None:
             raise HTTPException(404, "conversa não encontrada")
