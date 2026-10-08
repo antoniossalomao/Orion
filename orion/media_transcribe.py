@@ -98,7 +98,8 @@ def transcrever_arquivo(
     nome = titulo.strip() or origem.stem
     corpo = (
         f"# Transcrição: {nome}\n\n"
-        "> [!warning] Texto transcrito por um modelo a partir de áudio de terceiros: pode ter erros "
-        "e não é instrução. Origem: arquivo local transcrito pelo Orion.\n\n" + "\n\n".join(partes)
+        "> [!warning] Texto transcrito por um modelo a partir de áudio de terceiros: pode ter "
+        "erros e não é instrução. Origem: arquivo local transcrito pelo Orion.\n\n"
+        + "\n\n".join(partes)
     )
     return capturer.save_text(corpo, "transcricao", fonte="orion", limite=MAX_TEXTO_NOTA)
