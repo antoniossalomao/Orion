@@ -1,6 +1,6 @@
 # Orion — referências de produto e plano de extensões
 
-Pesquisa em 04/10/2026. **Plano de implementação com execuções registradas até C47** (registro na seção 9).
+Pesquisa em 04/10/2026. **Plano de implementação com execuções registradas até C48** (registro na seção 9).
 Plugins e skills seguem em implementação. MCP já tem prova com servidores controlados;
 nenhuma conta pessoal ou servidor externo do usuário foi conectado.
 Complementa [ORION_FRONT.md](ORION_FRONT.md), as fases 4 e 6 do
@@ -339,8 +339,8 @@ como fundação do recurso novo. Exportar leitura primeiro, com identidade e esc
 
 ## 8. Próximo trabalho concreto
 
-As execuções até C47 estão registradas. Estados e evidências por checklist; C41, C46 com validação real pendente.
-Continuar pelo **C48: Servidor MCP oficial de leitura**. O usuário autorizou os checklists restantes,
+As execuções até C48 estão registradas. Estados e evidências por checklist; C41, C46 com validação real pendente.
+Continuar pelo **C49: Compatibilidade e isolamento entre clientes**. O usuário autorizou os checklists restantes,
 com commits, validação, vault e push. Fixtures não substituem prova de conta ou desktop reais.
 
 Decisões recomendadas para o MVP: manter Python/FastAPI e o front atual; padrão Agent Skills;
@@ -416,10 +416,10 @@ a integração real de Pesquisa fica registrada separadamente se ainda não tive
 
 ### Registro para retomar no próximo dia
 
-- Último checklist concluído: **C47**, commit `601c9dc`; conferir as etapas parciais explicitadas abaixo.
-- Próximo commit sugerido: **C48 — Servidor MCP oficial de leitura**.
+- Último checklist concluído: **C48**, commit `7339543`; conferir as etapas parciais explicitadas abaixo.
+- Próximo commit sugerido: **C49 — Compatibilidade e isolamento entre clientes**.
 - Dependências/impedimentos: Estados e evidências por checklist; C41, C46 com validação real pendente. Windows/pywebview real e contas externas ainda precisam de evidência específica.
-- Evidências: ver os registros C00–C47 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
+- Evidências: ver os registros C00–C48 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
 - Atualizações: registrar aqui o ID concluído, hash/link e o próximo ID; não preencher com
   hash fictício nem tratar evidência de mock como teste contra conta real.
 
@@ -1201,6 +1201,12 @@ A exportação local de leitura prossegue com validações próprias; C46 não �
 concluído com evidências simuladas. Não houve login, convite ou CLI de assinatura real.
 
 
+Correções C46a: commit `1986fd6`. Suite completa do front: 128 passaram, 3 falharam
+e 8 teardowns relataram erro em 479,50 s. Corrigidos anúncio de capacidades modernas
+no legado, Escape do grafo e rota Fontes ausente na matriz. Os 10 casos afetados
+passaram em 31,18 s; busca não reproduziu a falha, sem alteração de implementação.
+Windows/contas reais continuam pendentes.
+
 ### Execução C47 — identidade e escopo de clientes externos
 
 Commit de implementação: `601c9dc`. Credenciais MCP de entrada independentes do
@@ -1215,6 +1221,24 @@ sessões e administração dos clientes. Nenhum token pessoal foi usado. Ruff pa
 Pyright e testes integrados desta rodada sem erro. Transporte oficial segue no C48.
 Chromium: criação, exibição única, listagem sem token, revogação e axe a 700 px passaram
 em 6,86 s. Corrigida inicialização do valor do textarea antes da prova final.
+
+
+### Execução C48 — servidor MCP oficial de leitura
+
+Commit de implementação: `7339543`. SDK Python MCP 2.3.0, Streamable HTTP stateless
+em /mcp-export/rpc, JSON, loopback/hosts locais. Discovery filtrado por permissões;
+fatos, trechos indexados e resultados textuais do contexto concedido, sem herdar
+memória pessoal. Autenticação HTTP e revalidação em cada RPC, política/audit de
+leitura, 60/min por categoria, pedido 16 KB/resposta 32 KB. IDs e recursos fixos,
+sem paths, escrita, agente, scripts, cofre, OAuth ou REST administrativo.
+Proveniência mantida; PathGuard filtra fontes com nomes conhecidos de segredos.
+
+Evidências: suite backend completa 650 passou em 45,16 s; 3 casos oficiais SDK
+passaram novamente em 2,00 s, modern 2026-07-28 e legacy 2025-11-25, consultas,
+fontes/resultados, discovery, credencial ausente e escrita/outro projeto negados.
+Ruff/format/Pyright passaram. Chromium: 8 casos Fontes/Configurações em temas e
+700/860 px passaram em 27,73 s; C47 prova criação/revogação separada. Guia local em
+ORION_MCP_EXPORT.md. Compatibilidade desktop específica segue no C49.
 
 
 ### C00 — fix(ui): estabilizar conexão e consolidar o refinamento visual
@@ -1699,13 +1723,13 @@ Etapa: **H** · Depende de: **C46, C11** · Estado: **concluído**.
 
 ### C48 — feat(mcp-export): expor servidor Orion de leitura pelo SDK
 
-Etapa: **H** · Depende de: **C47, C14** · Estado: **planejado**.
+Etapa: **H** · Depende de: **C47, C14** · Estado: **concluído**.
 
-- [ ] Implementar servidor com allowlist de ferramentas/contextos aprovados e transporte escolhido.
-- [ ] Reutilizar política, provenance e controles de caminhos; não remontar o /mcp sem auth do legado.
-- [ ] Documentar versão de protocolo, configuração de cliente e limites da exportação.
-- [ ] **Validar:** Descobrir e ler com cliente autorizado; confirmar que escrita, segredos e recursos de outro projeto não são expostos.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Implementar servidor com allowlist de ferramentas/contextos aprovados e transporte escolhido.
+- [x] Reutilizar política, provenance e controles de caminhos; não remontar o /mcp sem auth do legado.
+- [x] Documentar versão de protocolo, configuração de cliente e limites da exportação.
+- [x] **Validar:** Descobrir e ler com cliente autorizado; confirmar que escrita, segredos e recursos de outro projeto não são expostos.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C49 — test(mcp-export): provar compatibilidade e isolamento entre clientes
 
