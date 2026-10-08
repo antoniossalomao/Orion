@@ -466,6 +466,26 @@ def _item_da_conversa(memory: MemoryStore, s: Any, ativa_id: str | None) -> dict
     }
 
 
+def _pesquisa_noturna(settings: Settings, agent: Any, memory: MemoryStore) -> Any:
+    """Só liga com hora, assuntos, agente, ferramentas de web e vault: tudo escolhido por você."""
+    from .research import NightResearch, parse_assuntos
+
+    assuntos = parse_assuntos(settings.research_topics)
+    if not (settings.research_at and assuntos):
+        return None
+    if agent is None or not settings.web_tools or settings.vault_dir is None:
+        log.warning("pesquisa noturna pedida, mas faltam gateway, ORION_WEB_TOOLS ou o vault")
+        return None
+    return NightResearch(
+        memory=memory,
+        run_turn=lambda canal, texto: agent.run(canal, texto, read_only=True),
+        capturer=Capturer(settings.vault_dir, settings.capture_folder),
+        assuntos=assuntos,
+        at=settings.research_at,
+        clock=time.time,
+    )
+
+
 def _item_do_fato(f: Any) -> dict[str, Any]:
     return {
         "id": f.id,
@@ -727,6 +747,7 @@ def create_app(
                 call=mcp.call if mcp is not None else _sem_mcp,
                 audit=ops.audit_add,
             )
+            pesquisa = _pesquisa_noturna(settings, agent, memory)
             jobs = JobRunner(
                 memory,
                 ops,
@@ -738,6 +759,7 @@ def create_app(
                 processes=processos,
                 briefing_at=settings.briefing_at,
                 agenda=agenda,
+                research=pesquisa,
             )
             tarefa_jobs = asyncio.create_task(jobs.run_forever(settings.jobs_tick_s))
         telegram = (telegram_factory or telegram_from_settings)(

@@ -121,6 +121,8 @@ class Settings(BaseSettings):
     # ninguém olhando. Liga com o e-mail da conta; a ferramenta precisa ser `read` no mcp.json.
     briefing_calendar_email: str = ""
     briefing_calendar_tool: str = "google__get_events"
+    research_at: str = ""  # HH:MM: pesquisa noturna só leitura (regra 39); vazio: desligada
+    research_topics: str = ""  # assuntos separados por ";" (até 5); só o Antônio escolhe
     consolidate: bool = True  # fatos a partir das conversas (precisa do gateway)
     # Embeddings por API gratuita (Gemini). Sem chave, a busca é só por palavra-chave.
     embed_api_key: str = ""  # ou no cofre do SO (ORION_EMBED_API_KEY)

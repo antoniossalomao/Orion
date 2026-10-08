@@ -38,7 +38,7 @@
 | ID | Entrega | Como encaixa no Orion | Risco / regra nova |
 |---|---|---|---|
 | D1 | **Ciclo de sono** (dedup, cruzamento pelo grafo, destilação) | Estende `consolidate.py` e o job existente; roda de madrugada, sem ferramentas | Qualidade dos fatos exige revisão humana (`facts_markdown`) |
-| D2 | **Pesquisa noturna supervisionada** (ideia nº 1 do catálogo) | Job que só lê (`pesquisar_internet`, `buscar_url`) e deixa um relatório na caixa de entrada do vault; nunca executa nem escreve fora do vault | Choca com a regra de egress (V9): rodar em sessão limpa, só leitura, URL só de resultado de busca; regra nova + opt-in |
+| D2 | **Pesquisa noturna supervisionada** (ideia nº 1 do catálogo) — **feito (08/10)**, `orion/research.py`, regra 39, desligada por padrão; nunca rodou com modelo e rede reais | Job que só lê (`pesquisar_internet`, `buscar_url`) e deixa um relatório na caixa de entrada do vault; nunca executa nem escreve fora do vault | Choca com a regra de egress (V9): rodar em sessão limpa, só leitura, URL só de resultado de busca; regra nova + opt-in |
 | D3 | **Screenpipe / memória da tela** | Captura periódica da tela, OCR local, texto no SQLite com retenção curta; imagem nunca sai | Ring 0 #3 (captura contínua) pede aval; opt-in, pausa, retenção e audit sem conteúdo |
 | D4 | **Transcrição de lives** (yt-dlp + faster-whisper) | Ferramenta que transcreve vídeo/áudio para Markdown timestampado e grava na caixa de entrada do vault | Download é egress com destino escolhido: aprovação a cada uso; whisper local pesa em 8 GB, ver D4b |
 | D4b | Alternativa leve: Whisper pelo Groq (já usado no Telegram) | Reaproveita `orion/transcribe.py` | Áudio vai ao provedor; avisar |

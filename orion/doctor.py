@@ -119,6 +119,10 @@ def _opcionais(s: Settings) -> list[Checagem]:
             out.append(Checagem(nome, "ok", "chave presente"))
         elif ligado:
             out.append(Checagem(nome, "aviso", falta))
+    if s.research_at and not (s.web_tools and s.vault_dir):
+        out.append(
+            Checagem("pesquisa noturna", "aviso", "ORION_RESEARCH_AT sem ORION_WEB_TOOLS e vault")
+        )
     if s.wake_enabled and not s.voice_enabled:
         out.append(Checagem("palavra de ativação", "aviso", "wake ligado sem ORION_VOICE_ENABLED"))
     return out
