@@ -28,7 +28,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from .briefing import build_briefing
+from .briefing import build_briefing, build_weekly
 from .memory import MemoryStore
 from .memory.consolidate import Consolidator
 from .memory.ops import Operations
@@ -204,6 +204,13 @@ class JobRunner:
             "briefing", build_briefing(self.ops, agora, agenda=self._agenda), ref=f"briefing:{hoje}"
         )
         self.memory.counter_set("briefing:ultimo", hoje)  # depois do aviso: falhar não o perde
+        if dt.weekday() == 0:  # segunda: o resumo da semana que passou, uma vez por semana
+            semana = int(dt.strftime("%G%V"))
+            if self.memory.counter_get("semanal:ultimo") < semana:
+                self.ops.notify(
+                    "semanal", build_weekly(self.memory, agora), ref=f"semanal:{semana}"
+                )
+                self.memory.counter_set("semanal:ultimo", semana)
         return True
 
     def _processos_terminados(self) -> int:

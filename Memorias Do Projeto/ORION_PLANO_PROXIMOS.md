@@ -52,7 +52,7 @@
 ## Bloco E — Ideias novas
 | ID | Entrega | Observação |
 |---|---|---|
-| E1 | Resumo semanal da memória e do que foi feito | Texto determinístico + um turno de modelo, enviado pelo briefing |
+| E1 | Resumo semanal da memória e do que foi feito | **feito (08/10)**, versão determinística (sem modelo), sai na segunda com o briefing; a versão com modelo fica para depois |
 | E2 | Modo "só leitura" por turno (nenhuma ferramenta de escrita ou execução disponível) | **feito (08/10)**: `Agent.run(..., read_only=True)`; o que pediria aprovação é negado sem deixar pedido. Base para D2 |
 | E3 | Painel de custo/cota por provedor ao longo da semana | Estende V13 e `/painel` |
 | E4 | `orion doctor`: confere chaves, serviços, `mcp.json` e fase 0 em um comando | **feito (08/10)**, offline; não testa rede nem a fase 0 |
