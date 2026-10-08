@@ -130,6 +130,15 @@ class ApprovalStore:
             key=lambda a: a.created_at,
         )
 
+    def unresolved(self, session_id: str) -> bool:
+        """Pendentes ou aprovadas ainda não consumidas não podem desaparecer do contexto."""
+        with self._lock:
+            return any(
+                self._expire(a).status in (Status.PENDING, Status.APPROVED)
+                for a in list(self._items.values())
+                if a.session_id == session_id
+            )
+
     def get(self, approval_id: str) -> Approval | None:
         with self._lock:
             a = self._items.get(approval_id)

@@ -3,10 +3,11 @@
 v1: conversas, fatos, documentos e vetores. v2: operação (lembretes, agendamentos,
 tarefas, números, prompts), arestas do grafo e fila de notificações. v3: trilha de
 auditoria das decisões da política. v4: conversa fixada e apagada (apagar = esconder: as
-mensagens ficam). Banco antigo sobe sozinho (`MIGRATIONS`).
+mensagens ficam). v5: seleção persistente de sessão por canal. Banco antigo sobe sozinho
+(`MIGRATIONS`).
 """
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 TOKENIZER = "unicode61 remove_diacritics 2"  # "açúcar" casa com "acucar"
 
@@ -198,7 +199,22 @@ ALTER TABLE sessions ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE sessions ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0;
 """
 
-DDL = DDL_V1 + DDL_V2 + DDL_V3 + DDL_V4
+# A seleção não depende da última mensagem: uma resposta atrasada não troca a conversa.
+DDL_V5 = """
+CREATE TABLE active_sessions (
+    channel TEXT PRIMARY KEY,
+    session_id TEXT UNIQUE REFERENCES sessions(id) ON DELETE SET NULL
+);
+INSERT INTO active_sessions(channel, session_id)
+SELECT s.channel, s.id FROM sessions s
+WHERE s.archived=0 AND s.deleted=0 AND s.id=(
+    SELECT candidate.id FROM sessions candidate
+    WHERE candidate.channel=s.channel AND candidate.archived=0 AND candidate.deleted=0
+    ORDER BY candidate.last_active_at DESC, candidate.created_at DESC, candidate.id DESC LIMIT 1
+);
+"""
+
+DDL = DDL_V1 + DDL_V2 + DDL_V3 + DDL_V4 + DDL_V5
 
 # versão de origem -> script que leva à seguinte
-MIGRATIONS: dict[int, str] = {1: DDL_V2, 2: DDL_V3, 3: DDL_V4}
+MIGRATIONS: dict[int, str] = {1: DDL_V2, 2: DDL_V3, 3: DDL_V4, 4: DDL_V5}

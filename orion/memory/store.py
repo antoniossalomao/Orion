@@ -201,28 +201,44 @@ class MemoryStore:
             return self._conn.execute("SELECT 1").fetchone()[0] == 1
 
     # ── sessões e mensagens (episódico), uma sessão ativa por canal ───────
-    def new_session(self, channel: str, title: str | None = None) -> Session:
-        agora = self._clock()
-        sid = uuid.uuid4().hex
-        with self._tx() as c:
-            c.execute(
-                "INSERT INTO sessions(id, channel, title, created_at, last_active_at)"
-                " VALUES (?,?,?,?,?)",
-                (sid, channel, title, agora, agora),
-            )
+    def _select(self, c: sqlite3.Connection, channel: str, session_id: str) -> None:
+        c.execute(
+            "INSERT INTO active_sessions(channel, session_id) VALUES (?,?)"
+            " ON CONFLICT(channel) DO UPDATE SET session_id=excluded.session_id",
+            (channel, session_id),
+        )
+
+    def _new_session(self, c: sqlite3.Connection, channel: str, title: str | None) -> Session:
+        agora, sid = self._clock(), uuid.uuid4().hex
+        c.execute(
+            "INSERT INTO sessions(id, channel, title, created_at, last_active_at)"
+            " VALUES (?,?,?,?,?)",
+            (sid, channel, title, agora, agora),
+        )
+        self._select(c, channel, sid)
         return Session(sid, channel, title, agora, agora)
 
-    def active_session(self, channel: str) -> Session:
-        """Sessão aberta mais recente DO CANAL (Telegram, web e voz não se misturam)."""
+    def new_session(self, channel: str, title: str | None = None) -> Session:
+        """Cria e seleciona no mesmo commit SQLite, preservando as outras conversas."""
+        with self._tx() as c:
+            return self._new_session(c, channel, title)
+
+    def selected_session(self, channel: str) -> Session | None:
+        """Consulta sem criar sessão; só o ponteiro persistido determina a ativa."""
         with self._lock:
             r = self._conn.execute(
-                "SELECT * FROM sessions WHERE channel=? AND archived=0"
-                " ORDER BY last_active_at DESC LIMIT 1",
-                (channel,),
+                "SELECT s.* FROM active_sessions a JOIN sessions s ON s.id=a.session_id"
+                " WHERE a.channel=? AND s.channel=? AND s.archived=0 AND s.deleted=0"
+                " AND NOT EXISTS(SELECT 1 FROM imported WHERE kind='sessao' AND ref=s.id)",
+                (channel, channel),
             ).fetchone()
-        if r is None:
-            return self.new_session(channel)
-        return _sessao(r)
+        return _sessao(r) if r else None
+
+    def active_session(self, channel: str) -> Session:
+        """Sessão selecionada DO CANAL (Telegram, web e voz não se misturam); cria uma vazia
+        quando ainda não há seleção válida (nunca pega a "mais recente" por conta própria)."""
+        with self._tx() as c:
+            return self.selected_session(channel) or self._new_session(c, channel, None)
 
     # ── importação (export do legado) ─────────────────────────────────────
     def import_session(
@@ -293,17 +309,24 @@ class MemoryStore:
     def archive_session(self, session_id: str) -> None:
         with self._tx() as c:
             c.execute("UPDATE sessions SET archived=1 WHERE id=?", (session_id,))
+            c.execute(
+                "UPDATE active_sessions SET session_id=NULL WHERE session_id=?", (session_id,)
+            )
 
     def activate_session(self, session_id: str) -> Session | None:
-        """Torna a conversa a ativa do canal dela (a "ativa" é a de atividade mais recente).
+        """Torna a conversa a ativa do canal dela (escolha persistente, não muda o canal).
         Só conversa aberta e não apagada: arquivada (importada) é só leitura. None se não dá."""
         agora = self._clock()
         with self._tx() as c:
-            n = c.execute(
-                "UPDATE sessions SET last_active_at=? WHERE id=? AND archived=0 AND deleted=0",
-                (agora, session_id),
-            ).rowcount
-        return self.get_session(session_id) if n else None
+            r = c.execute(
+                "SELECT channel FROM sessions WHERE id=? AND archived=0 AND deleted=0",
+                (session_id,),
+            ).fetchone()
+            if r is None:
+                return None
+            c.execute("UPDATE sessions SET last_active_at=? WHERE id=?", (agora, session_id))
+            self._select(c, r["channel"], session_id)
+        return self.get_session(session_id)
 
     def rename_session(self, session_id: str, title: str) -> bool:
         titulo = " ".join(title.split())[:120]
@@ -329,12 +352,14 @@ class MemoryStore:
         """Apagar = esconder da lista (e deixar de ser a ativa). As mensagens FICAM: o que o Orion
         já consolidou delas continua na memória, e dá para desfazer pelo banco."""
         with self._tx() as c:
-            return bool(
-                c.execute(
-                    "UPDATE sessions SET deleted=1, archived=1, pinned=0 WHERE id=? AND deleted=0",
-                    (session_id,),
-                ).rowcount
+            apagou = c.execute(
+                "UPDATE sessions SET deleted=1, archived=1, pinned=0 WHERE id=? AND deleted=0",
+                (session_id,),
+            ).rowcount
+            c.execute(
+                "UPDATE active_sessions SET session_id=NULL WHERE session_id=?", (session_id,)
             )
+            return bool(apagou)
 
     def first_user_text(self, session_id: str) -> str | None:
         """Primeira fala do usuário: serve de título quando a conversa não foi renomeada."""
@@ -391,12 +416,13 @@ class MemoryStore:
             mid = cur.lastrowid
         return Message(int(mid or 0), session_id, role, text, agora, provenance)
 
-    def history(self, session_id: str, limit: int = 50) -> list[Message]:
+    def history(self, session_id: str, limit: int = 50, *, after: int = 0) -> list[Message]:
         with self._lock:
             rows = self._conn.execute(
-                "SELECT * FROM (SELECT * FROM messages WHERE session_id=? ORDER BY id DESC LIMIT ?)"
+                "SELECT * FROM (SELECT * FROM messages WHERE session_id=? AND id>?"
+                " ORDER BY id DESC LIMIT ?)"
                 " ORDER BY id",
-                (session_id, limit),
+                (session_id, after, limit),
             ).fetchall()
         return [
             Message(
@@ -409,6 +435,66 @@ class MemoryStore:
             )
             for r in rows
         ]
+
+    def context_history(self, session_id: str, limit: int = 50) -> list[Message]:
+        return self.history(
+            session_id, limit, after=self.counter_get(f"history_after:{session_id}")
+        )
+
+    def history_page(
+        self,
+        session_id: str,
+        *,
+        limit: int = 50,
+        before: int | None = None,
+        complete: bool = False,
+    ) -> tuple[list[Message], int, int | None]:
+        """Página por ID: timestamps repetidos/importados não duplicam nem pulam mensagens."""
+        with self._lock:
+            after = 0 if complete else self.counter_get(f"history_after:{session_id}")
+            total = self._conn.execute(
+                "SELECT count(*) FROM messages WHERE session_id=? AND id>?"
+                " AND role IN ('user','assistant')",
+                (session_id, after),
+            ).fetchone()[0]
+            rows = self._conn.execute(
+                "SELECT * FROM messages WHERE session_id=? AND id>? AND (? IS NULL OR id<?)"
+                " AND role IN ('user','assistant') ORDER BY id DESC LIMIT ?",
+                (session_id, after, before, before, limit + 1),
+            ).fetchall()
+            more = len(rows) > limit
+            rows = rows[:limit]
+            next_before = rows[-1]["id"] if more else None
+            messages = [
+                Message(
+                    row["id"],
+                    row["session_id"],
+                    row["role"],
+                    row["text"],
+                    row["created_at"],
+                    json.loads(row["provenance"]) if row["provenance"] else None,
+                )
+                for row in reversed(rows)
+            ]
+            return messages, total, next_before
+
+    def clear_context(self, session_id: str) -> int:
+        """Avança o limite de contexto; não apaga mensagens, fatos, documentos ou vetores."""
+        with self._tx() as c:
+            session = self.get_session(session_id)
+            if session is None:
+                raise KeyError(session_id)
+            if session.archived:
+                raise ValueError("sessão somente leitura")
+            last = c.execute(
+                "SELECT coalesce(max(id),0) FROM messages WHERE session_id=?", (session_id,)
+            ).fetchone()[0]
+            c.execute(
+                "INSERT INTO meta(key,value) VALUES (?,?) "
+                "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                (f"counter:history_after:{session_id}", str(last)),
+            )
+            return last
 
     # ── fatos sobre o Antônio: com fonte e data, auditáveis, editáveis ────
     @staticmethod

@@ -3,7 +3,7 @@
 import sqlite3
 
 from orion.memory import MemoryStore
-from orion.memory.schema import DDL_V1, DDL_V2, DDL_V3
+from orion.memory.schema import DDL_V1, DDL_V2, DDL_V3, SCHEMA_VERSION
 
 
 def test_ativar_vira_a_ativa_do_canal_e_nao_toca_outro_canal(store):
@@ -94,7 +94,9 @@ def test_banco_v3_sobe_para_v4_sem_perder_conversas(tmp_path):
     c.close()
     store = MemoryStore(caminho)
     try:
-        assert store.query("SELECT value FROM meta WHERE key='schema_version'")[0][0] == "4"
+        assert store.query("SELECT value FROM meta WHERE key='schema_version'")[0][0] == str(
+            SCHEMA_VERSION
+        )
         s = store.get_session("s1")
         assert s is not None and s.title == "antiga" and not s.pinned and not s.archived
         assert store.pin_session("s1", True) and store.delete_session("s1")
