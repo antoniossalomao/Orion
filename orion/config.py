@@ -72,9 +72,11 @@ class Settings(BaseSettings):
     telegram_token: str = ""  # ou no cofre do SO (ORION_TELEGRAM_TOKEN)
     # IDs numéricos do Telegram, separados por vírgula ("123,456") ou lista JSON ("[123]")
     telegram_allowed_users: Annotated[list[int], NoDecode] = Field(default_factory=list)
-    # Servidores MCP (fase 4): sobem do mcp.json (padrão: <dados>/mcp.json), só com gateway.
     skills_enabled: bool = True
     skills_dir: Path | None = None  # padrão: <dados>/skills (pasta por skill, com SKILL.md)
+    # n8n: webhooks que VOCÊ cadastra, {"nome": "https://..."} em JSON (regra 41); vazio: desligado
+    n8n_webhooks: str = ""
+    # Servidores MCP (fase 4): sobem do mcp.json (padrão: <dados>/mcp.json), só com gateway.
     mcp_enabled: bool = True
     mcp_config: Path | None = None
     # Voz no Telegram: transcrição por API compatível com a da OpenAI (Whisper no Groq, grátis).
