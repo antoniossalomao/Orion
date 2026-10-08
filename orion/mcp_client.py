@@ -33,6 +33,7 @@ import json
 import logging
 import re
 import threading
+import time
 from collections.abc import Callable, Mapping
 from concurrent.futures import Future
 from contextlib import AbstractAsyncContextManager
@@ -274,6 +275,11 @@ class McpManager:
         self.specs: dict[str, ToolSpec] = {}
         self.status: dict[str, str] = {}  # servidor -> "ok (N ferramentas)" ou o motivo da falha
         self._remotas: dict[str, tuple[str, str]] = {}  # nome exposto -> (servidor, nome original)
+        self._paradas: dict[str, asyncio.Event] = {}
+        self._caiu: set[str] = (
+            set()
+        )  # servidores que estavam de pé e caíram (candidatos a reconectar)
+        self._tentou: dict[str, float] = {}  # servidor -> quando tentou reconectar pela última vez
 
     # ── ciclo de vida ─────────────────────────────────────────────────────────────
     def start(self) -> list[Tool]:
@@ -330,6 +336,10 @@ class McpManager:
         # com `url`, o dicionário resolvido são os cabeçalhos HTTP (segredos `${NOME}` do cofre)
         env = resolve_env(cfg.headers if cfg.url else cfg.env, self._lookup)
         pronto: asyncio.Future[list[Tool]] = asyncio.get_running_loop().create_future()
+        parada = (
+            asyncio.Event()
+        )  # fecha SÓ este servidor (reconexão); a parada geral cancela a tarefa
+        self._paradas[nome] = parada
 
         async def viver() -> None:
             try:
@@ -337,8 +347,7 @@ class McpManager:
                     anunciadas = await self._listar(cliente)
                     self._clients[nome] = cliente
                     pronto.set_result(self._expor(nome, cfg, anunciadas))
-                    assert self._stop is not None
-                    await self._stop.wait()
+                    await parada.wait()
             except asyncio.CancelledError:
                 raise
             except Exception as e:  # noqa: BLE001
@@ -346,8 +355,11 @@ class McpManager:
                     pronto.set_exception(e)
                 else:
                     log.error("servidor MCP '%s' caiu: %s", nome, e)
+                    self._caiu.add(nome)
+                    self.status[nome] = f"caiu: {type(e).__name__}"
             finally:
-                self._clients.pop(nome, None)
+                if self._paradas.get(nome) is parada:
+                    self._clients.pop(nome, None)
 
         self._tarefas.append(asyncio.create_task(viver(), name=f"mcp-{nome}"))
         return await asyncio.wait_for(pronto, timeout=self._connect_timeout)
@@ -398,10 +410,46 @@ class McpManager:
 
         return chamar
 
+    # ── reconexão (C12) ───────────────────────────────────────────────────────────
+    RECONECTAR_A_CADA_S = 30.0
+
+    def _tentar_reconectar(self, servidor: str, loop: asyncio.AbstractEventLoop) -> dict[str, Any]:
+        """Servidor que caiu volta na PRÓXIMA chamada (no máximo 1 tentativa a cada 30 s). A
+        chamada que o encontrou fora do ar **não é repetida**: ela pode ter efeito colateral, e
+        quem decide repetir é o modelo (com a política de sempre) ou você."""
+        agora = time.monotonic()
+        if agora - self._tentou.get(servidor, float("-inf")) < self.RECONECTAR_A_CADA_S:
+            return {"erro": f"o servidor MCP '{servidor}' caiu; nova tentativa de conexão em breve"}
+        self._tentou[servidor] = agora
+        cfg = self._cfg.servers[servidor]
+        fut = asyncio.run_coroutine_threadsafe(self._conectar(servidor, cfg), loop)
+        try:
+            fut.result(timeout=self._connect_timeout + 5)
+        except Exception as e:  # noqa: BLE001
+            fut.cancel()
+            self.status[servidor] = f"caiu: {type(e).__name__}"
+            return {"erro": f"o servidor MCP '{servidor}' caiu e não voltou ({type(e).__name__})"}
+        self._caiu.discard(servidor)
+        self.status[servidor] = "ok (reconectado)"
+        return {
+            "erro": f"o servidor MCP '{servidor}' tinha caído e foi reconectado agora; esta "
+            "chamada NÃO foi repetida (pode ter efeito colateral): peça de novo se for seguro"
+        }
+
+    def _marcar_queda(self, servidor: str, loop: asyncio.AbstractEventLoop) -> None:
+        self._caiu.add(servidor)
+        self.status[servidor] = "caiu: conexão perdida"
+        parada = self._paradas.get(servidor)
+        if parada is not None:  # encerra a tarefa velha (processo órfão, conexão pendurada)
+            loop.call_soon_threadsafe(parada.set)
+        self._clients.pop(servidor, None)
+
     # ── chamada ───────────────────────────────────────────────────────────────────
     def call(self, nome: str, args: dict[str, Any], timeout_s: float = 60.0) -> dict[str, Any]:
         servidor, original = self._remotas[nome]
         cliente, loop = self._clients.get(servidor), self._loop
+        if cliente is None and loop is not None and servidor in self._caiu:
+            return self._tentar_reconectar(servidor, loop)
         if cliente is None or loop is None:
             return {"erro": f"o servidor MCP '{servidor}' não está conectado"}
         futuro: Future[Any] = asyncio.run_coroutine_threadsafe(
@@ -415,9 +463,31 @@ class McpManager:
         except Exception as e:  # noqa: BLE001 — falha do servidor vira resultado, não derruba o turno
             if "timed out" in str(e).lower():  # o SDK levanta MCPError, não TimeoutError
                 return {"erro": f"tempo esgotado ({timeout_s:.0f}s) no servidor MCP '{servidor}'"}
+            if _conexao_perdida(e):  # o processo/conexão morreu: a PRÓXIMA chamada reconecta
+                self._marcar_queda(servidor, loop)
+                return {
+                    "erro": f"o servidor MCP '{servidor}' caiu durante a chamada; ela pode ou não "
+                    "ter tido efeito. Na próxima chamada o Orion tenta reconectar"
+                }
             return {"erro": f"servidor MCP '{servidor}': {type(e).__name__}: {e}"}
         texto, erro = _texto(resultado)
         return {"erro": texto or "erro sem mensagem"} if erro else {"texto": texto}
+
+
+def _conexao_perdida(e: BaseException) -> bool:
+    """O erro indica que o servidor morreu ou a conexão acabou (e não que a ferramenta falhou)."""
+    nomes = {c.__name__ for c in type(e).__mro__}
+    texto = str(e).lower()
+    return bool(
+        nomes
+        & {
+            "ClosedResourceError",
+            "BrokenResourceError",
+            "EndOfStream",
+            "ConnectionError",
+            "BrokenPipeError",
+        }
+    ) or any(t in texto for t in ("connection closed", "closed", "broken pipe", "eof"))
 
 
 def manager_from_file(

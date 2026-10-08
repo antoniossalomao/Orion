@@ -72,7 +72,7 @@ Só depois de A, B e C. Plugins entram com concessões revogáveis (C23) e catá
 | C09 servidores locais por stdio | ✅ já existia |
 | C10 Streamable HTTP | ✅ **feito (08/10)**: `url` + `headers` no `mcp.json`, segredos `${NOME}` do cofre (também dentro do valor, ex. `Bearer ${TOKEN}`), testado contra servidor HTTP real do SDK; OAuth do MCP não implementado |
 | C11 classes de risco e limites | ✅ já existia (regra 24) |
-| C12 timeout, cancelamento, reconexão | 🟡 timeout existe; **reconexão automática não** (servidor que cai fica marcado como falho até reiniciar o Orion) |
+| C12 timeout, cancelamento, reconexão | ✅ **feito (08/10)**: servidor que cai (processo morto ou conexão perdida) reconecta na PRÓXIMA chamada, no máximo 1 tentativa a cada 30 s; a chamada que o encontrou fora do ar **não é repetida** (pode ter efeito colateral); testado com servidor real que se mata. Cancelamento propagado ao servidor não foi tratado |
 | C13 descoberta sob demanda | ⏳ não feito; só vale a pena com catálogo grande |
 | C14 resources e prompts | ⏳ não feito; o cliente só usa `tools` |
 

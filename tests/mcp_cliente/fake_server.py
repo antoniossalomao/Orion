@@ -39,6 +39,14 @@ def dormir(segundos: float) -> str:
 
 
 @servidor.tool()
+def sair() -> str:
+    """Derruba o processo do servidor (para testar a reconexão)."""
+    import os
+
+    os._exit(1)
+
+
+@servidor.tool()
 def nome_estranho_com_espacos_e_acentos_ção() -> str:
     """Nome que precisa ser sanitizado."""
     return "ok"
