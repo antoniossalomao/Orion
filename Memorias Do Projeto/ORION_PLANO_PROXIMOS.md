@@ -59,7 +59,19 @@
 | E5 | Teste de regressão de prompt injection (conjunto fixo de páginas hostis) | **feito (08/10)**: invariantes sobre todas as ferramentas + 12 comandos hostis, `tests/policy/test_injecao_invariantes.py` |
 
 ## Bloco F — Plugins e integrações (C19–C30, C39–C50)
-Só depois de A, B e C. Reavaliar C07–C14 contra o cliente MCP que já existe. Plugins entram com concessões revogáveis (C23) e catálogo (C25–C26); o primeiro plugin é "Orion Pesquisa" (C28–C29).
+Só depois de A, B e C. Plugins entram com concessões revogáveis (C23) e catálogo (C25–C26); o primeiro plugin é "Orion Pesquisa" (C28–C29).
+
+### MCP (C07–C14) reavaliado em 08/10 contra o cliente que já existia
+| Item | Situação |
+|---|---|
+| C07 SDK fixado e prova de protocolo | ✅ já existia (`mcp` 2.3.0 no lock, servidor de teste real em `tests/mcp_cliente`); falta só testar versão incompatível com mensagem legível |
+| C08 validar argumentos pelo JSON Schema | ✅ **feito (08/10)** para ferramentas MCP (`Tool.validar`, `jsonschema`); as nativas continuam tolerantes (aceitam "5" onde o esquema diz integer) |
+| C09 servidores locais por stdio | ✅ já existia |
+| C10 Streamable HTTP | ✅ **feito (08/10)**: `url` + `headers` no `mcp.json`, segredos `${NOME}` do cofre (também dentro do valor, ex. `Bearer ${TOKEN}`), testado contra servidor HTTP real do SDK; OAuth do MCP não implementado |
+| C11 classes de risco e limites | ✅ já existia (regra 24) |
+| C12 timeout, cancelamento, reconexão | 🟡 timeout existe; **reconexão automática não** (servidor que cai fica marcado como falho até reiniciar o Orion) |
+| C13 descoberta sob demanda | ⏳ não feito; só vale a pena com catálogo grande |
+| C14 resources e prompts | ⏳ não feito; o cliente só usa `tools` |
 
 ## Fora do código (só o Antônio)
 Fase 0 e `verify-export`, venda do PC, serviços e chaves, teste de voz e da palavra de ativação com microfone real, `Orion-windows-x64.zip`, senha de fábrica ([ORION_OPERACAO.md](ORION_OPERACAO.md), [ORION_CORTE.md](ORION_CORTE.md)).

@@ -45,4 +45,9 @@ def nome_estranho_com_espacos_e_acentos_ção() -> str:
 
 
 if __name__ == "__main__":
-    servidor.run("stdio")
+    import sys
+
+    if len(sys.argv) > 2 and sys.argv[1] == "http":  # python fake_server.py http <porta>
+        servidor.run("streamable-http", host="127.0.0.1", port=int(sys.argv[2]))
+    else:
+        servidor.run("stdio")

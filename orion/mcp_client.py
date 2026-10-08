@@ -38,8 +38,16 @@ from concurrent.futures import Future
 from contextlib import AbstractAsyncContextManager
 from pathlib import Path
 from typing import Any, Protocol
+from urllib.parse import urlsplit
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
 from .policy.classes import Risk, ToolSpec
 from .secrets import get_secret
@@ -73,8 +81,12 @@ class ToolRule(BaseModel):
 
 
 class ServerConfig(BaseModel):
+    """Um servidor MCP: ou um comando local (stdio) ou um endereço (Streamable HTTP)."""
+
     model_config = ConfigDict(extra="forbid")
-    command: str = Field(min_length=1)
+    command: str | None = None
+    url: str | None = None  # servidor remoto (Streamable HTTP): http(s)://..., sem usuário na URL
+    headers: dict[str, str] = Field(default_factory=dict)  # só com `url`; `${NOME}` vem do cofre
     args: list[str] = Field(default_factory=list)
     env: dict[str, str] = Field(default_factory=dict)
     cwd: str | None = None
@@ -84,6 +96,22 @@ class ServerConfig(BaseModel):
     allow: list[str] | None = None  # só estas ferramentas são expostas
     tools: dict[str, ToolRule] = Field(default_factory=dict)
     timeout_s: float = Field(default=60.0, gt=0, le=600)
+
+    @model_validator(mode="after")
+    def _um_transporte(self) -> ServerConfig:
+        if bool(self.command) == bool(self.url):
+            raise ValueError(
+                "use `command` (servidor local) OU `url` (servidor remoto), não os dois"
+            )
+        if self.url:
+            partes = urlsplit(self.url)
+            if partes.scheme not in ("http", "https") or not partes.hostname or partes.username:
+                raise ValueError("`url` deve ser http(s) e sem usuário/senha na própria URL")
+            if self.args or self.cwd or self.env:
+                raise ValueError("`args`, `cwd` e `env` só valem com `command`; use `headers`")
+        elif self.headers:
+            raise ValueError("`headers` só vale com `url`")
+        return self
 
     @field_validator("default_risk")
     @classmethod
@@ -144,17 +172,18 @@ def tool_name(servidor: str, ferramenta: str) -> str:
 def resolve_env(
     env: Mapping[str, str], lookup: Callable[[str], str | None] = get_secret
 ) -> dict[str, str]:
-    """`"${NOME}"` vira o segredo `NOME` (ambiente ou cofre); falta = erro claro."""
+    """`${NOME}` (no valor todo ou dentro dele, ex.: `Bearer ${TOKEN}`) vira o segredo `NOME`
+    (ambiente ou cofre); falta = erro claro."""
     saida: dict[str, str] = {}
     for chave, valor in env.items():
-        m = re.fullmatch(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}", valor)
-        if m:
+
+        def trocar(m: re.Match[str], chave: str = chave) -> str:
             segredo = lookup(m.group(1))
             if not segredo:
                 raise McpConfigError(f"variável {m.group(1)} (env.{chave}) não está definida")
-            saida[chave] = segredo
-        else:
-            saida[chave] = valor
+            return segredo
+
+        saida[chave] = re.sub(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}", trocar, valor)
     return saida
 
 
@@ -190,8 +219,17 @@ ClientFactory = Callable[
 def sdk_client_factory(
     _nome: str, cfg: ServerConfig, env: dict[str, str]
 ) -> AbstractAsyncContextManager[McpClient]:
-    """Cliente do SDK oficial falando com o servidor por stdin/stdout."""
+    """Cliente do SDK oficial: stdin/stdout (`command`) ou Streamable HTTP (`url`)."""
     from mcp import Client, StdioServerParameters
+
+    if cfg.url:
+        import httpx2
+        from mcp.client.streamable_http import streamable_http_client
+
+        # cabeçalhos próprios do servidor MCP (nunca o token do Orion); sem seguir para outro host
+        http = httpx2.AsyncClient(headers=env, timeout=httpx2.Timeout(30.0, read=300.0))
+        return Client(streamable_http_client(cfg.url, http_client=http))  # type: ignore[return-value]
+    assert cfg.command is not None
 
     args = [str(Path(a).expanduser()) if a.startswith("~") else a for a in cfg.args]
     return Client(  # type: ignore[return-value]  # o Client é um contexto async que devolve a si
@@ -289,7 +327,8 @@ class McpManager:
         await asyncio.gather(*self._tarefas, return_exceptions=True)
 
     async def _conectar(self, nome: str, cfg: ServerConfig) -> list[Tool]:
-        env = resolve_env(cfg.env, self._lookup)
+        # com `url`, o dicionário resolvido são os cabeçalhos HTTP (segredos `${NOME}` do cofre)
+        env = resolve_env(cfg.headers if cfg.url else cfg.env, self._lookup)
         pronto: asyncio.Future[list[Tool]] = asyncio.get_running_loop().create_future()
 
         async def viver() -> None:
@@ -343,7 +382,13 @@ class McpManager:
                 esquema = {"type": "object", "properties": {}}
             descricao = f"[MCP {servidor}] {(a.description or a.name)[:MAX_DESCRICAO]}"
             tools.append(
-                Tool(spec.name, descricao, esquema, self._chamador(spec.name, cfg.timeout_s))
+                Tool(
+                    spec.name,
+                    descricao,
+                    esquema,
+                    self._chamador(spec.name, cfg.timeout_s),
+                    validar=True,  # o esquema do servidor vale de verdade (C08)
+                )
             )
         return tools
 
