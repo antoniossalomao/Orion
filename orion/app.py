@@ -66,6 +66,7 @@ from .plugins import PluginError, PluginStore
 from .plugins import describe as describe_plugin
 from .policy import ApprovalStore, PathGuard, PolicyEngine, redact
 from .policy.paths import default_safe_roots
+from .provedores import chave_env
 from .resultados import PREVIA_IMAGEM, PREVIA_TEXTO, Library
 from .screen_memory import (
     ScreenMemory,
@@ -225,8 +226,38 @@ def _alguma_cli() -> bool:
     return any(shutil.which(c) for c in ("claude", "codex", "gemini"))
 
 
-def gateway_from_settings(settings: Settings) -> ChatGateway | None:
+_ESPERA = {"": 60.0, "rapido": 60.0, "pesado": 120.0, "visao": 90.0}
+
+
+def endpoints_dos_provedores(settings: Settings, camadas: set[str] | None = None) -> list[Endpoint]:
+    """Um endpoint por modelo configurado em `ORION_PROVEDORES`, na ordem da lista (prioridade).
+    `camadas` filtra (ex.: {"visao"}); provedor sem chave fica de fora, com aviso no log."""
     endpoints: list[Endpoint] = []
+    for p in settings.provedores:
+        chave = get_secret(chave_env(p.id))
+        if not chave:
+            log.warning("provedor %s sem chave (%s): fica de fora", p.id, chave_env(p.id))
+            continue
+        for camada, modelo in p.modelos():
+            if camadas is not None and camada not in camadas:
+                continue
+            nome = f"{p.id}:{camada}" if camada else p.id
+            endpoints.append(
+                Endpoint(
+                    nome,
+                    p.base_url(),
+                    modelo,
+                    chave,
+                    timeout_s=_ESPERA[camada],
+                    tier=camada,
+                    provedor=p.id,
+                )
+            )
+    return endpoints
+
+
+def gateway_from_settings(settings: Settings) -> ChatGateway | None:
+    endpoints = endpoints_dos_provedores(settings)
     if settings.gateway_url and settings.gateway_model:
         chave = settings.gateway_api_key or get_secret("ORION_GATEWAY_API_KEY")
         url = settings.gateway_url
@@ -260,7 +291,10 @@ def gateway_from_settings(settings: Settings) -> ChatGateway | None:
 def roteamento_ligado(settings: Settings) -> bool:
     """O roteamento só liga se alguma camada tem modelo próprio (senão não há o que escolher)."""
     return bool(
-        settings.gateway_model_fast or settings.gateway_model_heavy or settings.vision_model
+        settings.gateway_model_fast
+        or settings.gateway_model_heavy
+        or settings.vision_model
+        or any(p.rapido or p.pesado or p.visao for p in settings.provedores)
     )
 
 
@@ -279,7 +313,9 @@ def telegram_from_settings(
         log.error("telegram desligado: defina ORION_TELEGRAM_ALLOWED_USERS (default-deny)")
         return None
     if agent is None:
-        log.error("telegram desligado: configure o gateway de modelos (ORION_GATEWAY_URL/MODEL)")
+        log.error(
+            "telegram desligado: configure os modelos (ORION_PROVEDORES ou ORION_GATEWAY_URL/MODEL)"
+        )
         return None
     return TelegramChannel(
         transcriber=transcriber_from_settings(settings),
@@ -297,11 +333,19 @@ def telegram_from_settings(
 
 def vision_from_settings(settings: Settings) -> Vision | None:
     """Visão só com `ORION_VISION_TOOLS=true` e gateway configurado (o mesmo endpoint e chave)."""
-    if not (settings.vision_tools and settings.gateway_url and settings.gateway_model):
+    if not settings.vision_tools:
         return None
-    chave = settings.gateway_api_key or get_secret("ORION_GATEWAY_API_KEY")
-    modelo = settings.vision_model or settings.gateway_model
-    return Vision([Endpoint("gateway", settings.gateway_url, modelo, chave, timeout_s=90.0)])
+    # provedores: o modelo de visão de cada um (ou o padrão, se não houver) — ordem da lista
+    endpoints = endpoints_dos_provedores(settings, {"visao"})
+    com_visao = {e.provedor for e in endpoints}
+    endpoints += [
+        e for e in endpoints_dos_provedores(settings, {""}) if e.provedor not in com_visao
+    ]
+    if settings.gateway_url and settings.gateway_model:
+        chave = settings.gateway_api_key or get_secret("ORION_GATEWAY_API_KEY")
+        modelo = settings.vision_model or settings.gateway_model
+        endpoints.append(Endpoint("gateway", settings.gateway_url, modelo, chave, timeout_s=90.0))
+    return Vision(endpoints) if endpoints else None
 
 
 def mcp_from_settings(settings: Settings) -> McpManager | None:
@@ -867,6 +911,8 @@ def create_app(
                 "(regra 17 do ORION_REGRAS.md: acesso de fora só com login)"
             )
         gateway = (gateway_factory or gateway_from_settings)(settings)
+        if gateway is not None:  # orçamento diário por provedor (`limite_dia`): fim da fila
+            gateway.orcamento = lambda ep: custos.no_orcamento(ep.provedor)
         transcriber = (transcriber_factory or transcriber_from_settings)(settings)
         tela = (screen_factory or screen_from_settings)(settings, memory)
         biblioteca = Library(memory, settings.data_dir / "resultados")
@@ -1224,7 +1270,9 @@ def create_app(
 
     def _agente(state: AppState) -> Agent:
         if state.agent is None:
-            raise HTTPException(503, "gateway de modelos não configurado (ORION_GATEWAY_URL/MODEL)")
+            raise HTTPException(
+                503, "modelos não configurados (ORION_PROVEDORES ou ORION_GATEWAY_URL/MODEL)"
+            )
         return state.agent
 
     @app.post("/chat", dependencies=[Admin])

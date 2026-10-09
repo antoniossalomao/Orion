@@ -24,7 +24,7 @@ venda: [ORION_CORTE.md](Memorias%20Do%20Projeto/ORION_CORTE.md)).
 **Reescrita em andamento (`orion/`):** fundação (fase 1), memória em SQLite com importador completo,
 agendador, backup e consolidação (fase 3), política de ferramentas com audit em banco, gateway, agente e `/chat`
 (fase 2), `orion-desktop` (com visão, mídia e janelas), cliente MCP e painel único (fase 4), login com senha, canal Telegram com voz, foto, `/capturar` (nota no vault), briefing matinal e `/painel` e
-`orion autostart` (fase 5), voz por clique, voz ao vivo e palavra de ativação "Orion" (escuta local, `orion wake-test`) no front (fase 6) e a agenda do Google no briefing já existem e têm testes; falta ligar o que só você pode: modelos reais (OmniRoute),
+`orion autostart` (fase 5), voz por clique, voz ao vivo e palavra de ativação "Orion" (escuta local, `orion wake-test`) no front (fase 6) e a agenda do Google no briefing já existem e têm testes; falta ligar o que só você pode: chaves dos provedores de modelo (`orion chave <id>`),
 chave de embeddings, servidores MCP de e-mail/agenda/navegador, Tailscale e o bot. O que foi feito, o que não
 foi verificado e os próximos passos: [ORION_MELHORIAS.md](Memorias%20Do%20Projeto/ORION_MELHORIAS.md); como ligar:
 [ORION_OPERACAO.md](Memorias%20Do%20Projeto/ORION_OPERACAO.md).
@@ -53,7 +53,7 @@ Notebook ── web / casca desktop ─┤
                                  ▼
                      Orion (Python, FastAPI, 1 processo)
                      ├─ Agente: persona fixa + ferramentas + memória
-                     ├─ Modelos ──► OmniRoute (local) ──► free tiers por chave de API
+                     ├─ Modelos ──► provedores direto (free tiers por chave de API)
                      ├─ Tarefa pesada ──► CLIs oficiais: claude -p · codex exec · gemini -p
                      ├─ Ferramentas ──► servidores MCP (prontos + orion-desktop próprio)
                      │                   └─ política: leitura livre · escrita com log ·
@@ -249,7 +249,8 @@ python -m orion.memory.eval <casos.json> --db <orion.db> [--embeddings]    # med
 | `uv run orion set-password` | Login: toda rota da API exige sessão (cookie) ou o token abaixo. Sem senha e sem token a API fica desligada (503) |
 | `ORION_ADMIN_TOKEN` | Credencial de **máquina** (16+ caracteres): `Authorization: Bearer` para scripts e o app desktop. O navegador usa a senha |
 | `ORION_SESSION_TTL_H`, `ORION_COOKIE_SECURE`, `ORION_AUTH_USER` | Validade da sessão (padrão 168 h), cookie `Secure` (automático em HTTPS) e o nome do usuário (padrão `admin`) |
-| `ORION_GATEWAY_URL`, `ORION_GATEWAY_MODEL`, `ORION_GATEWAY_API_KEY` | Gateway de modelos (OmniRoute ou API compatível com a da OpenAI); sem eles `/chat` responde 503 |
+| `ORION_PROVEDORES` + `uv run orion chave <id>` | Provedores de modelo ligados direto (Gemini, Groq, Cerebras, OpenRouter, Mistral, GitHub Models, NVIDIA, Z.ai ou outro com `url`), em ordem de prioridade; guia em [ORION_OPERACAO.md §4.2](Memorias%20Do%20Projeto/ORION_OPERACAO.md) |
+| `ORION_GATEWAY_URL`, `ORION_GATEWAY_MODEL`, `ORION_GATEWAY_API_KEY` | Endpoint avulso compatível com a API da OpenAI (opcional). Sem provedor nem endpoint, `/chat` responde 503 |
 | `ORION_DATA_DIR` | Onde fica o `orion.db` (padrão: pasta de dados do usuário no SO) |
 | `ORION_EXTRA_SAFE_ROOTS` | Lista JSON de pastas extras onde as ferramentas escrevem sem confirmação (ex.: Documents no OneDrive) |
 | `ORION_HOST`, `ORION_PORT`, `ORION_ALLOWED_HOSTS` | Só `127.0.0.1` por padrão; bind público é recusado. Host de fora (ex.: nome do Tailscale, lista JSON) só sobe **com login** (senha ou token); guia em [ORION_OPERACAO.md](Memorias%20Do%20Projeto/ORION_OPERACAO.md). A porta padrão (8000) é a do legado: não suba os dois juntos |

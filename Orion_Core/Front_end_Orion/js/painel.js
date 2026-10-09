@@ -28,7 +28,7 @@
      */
     function estadoModelo(e) {
         const q = num(e?.quarentena_s), chamadas = num(e?.chamadas), ok = num(e?.ok), falhas = num(e?.falhas);
-        if (q > 0) return { estado: 'danger', rotulo: `Em quarentena · volta em ${duracao(q)}` };
+        if (q > 0) return { estado: 'danger', rotulo: `${e?.motivo === 'falhas' ? 'Em pausa por falhas' : 'Em quarentena'} · volta em ${duracao(q)}` };
         if (chamadas > 0 && ok === 0 && falhas > 0) return { estado: 'danger', rotulo: 'Só falhas' };
         if (falhas > 0 && falhas / Math.max(1, ok + falhas) > 0.3) return { estado: 'warn', rotulo: 'Instável' };
         if (chamadas === 0 && num(e?.pulos) === 0) return { estado: 'idle', rotulo: 'Sem uso ainda' };
@@ -96,12 +96,6 @@
         if (!total) return `Nenhuma decisão nas últimas ${num(d?.janela_h) || 24} h.`;
         return `${plural(total, 'decisão', 'decisões')}: ${plural(num(ac.allow), 'liberada', 'liberadas')}, `
             + `${plural(num(ac.confirm), 'pediu aval', 'pediram aval')}, ${plural(num(ac.deny), 'negada', 'negadas')}.`;
-    }
-
-    /** {gemini: 30, groq: 8} → "gemini ×30 · groq ×8" (quem o OmniRoute diz que serviu); '' se vazio */
-    function resumoProvedores(p) {
-        return Object.entries(p || {}).filter(([, n]) => num(n) > 0).sort((a, b) => num(b[1]) - num(a[1]))
-            .map(([nome, n]) => `${nome} ×${num(n)}`).join(' · ');
     }
 
     /** "12 rápidas · 3 pesadas · 1 com imagem" (ou null se o roteamento está desligado) */
@@ -174,5 +168,5 @@
     const rotuloAcao = a => ROTULO_ACAO[a] || String(a || '—');
     const tomAcao = a => TOM_ACAO[a] || 'muted';
 
-    return { duracao, estadoModelo, usoCli, usoCota, bytes, linhasProvedores, resumoModos, alertas, resumoVoz, resumoDecisoes, resumoRoteamento, resumoProvedores, rotuloAcao, tomAcao };
+    return { duracao, estadoModelo, usoCli, usoCota, bytes, linhasProvedores, resumoModos, alertas, resumoVoz, resumoDecisoes, resumoRoteamento, rotuloAcao, tomAcao };
 });

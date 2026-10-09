@@ -273,7 +273,7 @@ class JobRunner:
         self.ops.notify(
             "gateway",
             f"Modelos fora do ar desde {hora}: {len(falhas)} chamada(s) seguida(s) sem resposta. "
-            "Confira o gateway (OmniRoute) e o painel.",
+            "Confira os provedores (`orion doctor`) e o painel.",
             ref="gateway:fora",
         )
         return "fora"

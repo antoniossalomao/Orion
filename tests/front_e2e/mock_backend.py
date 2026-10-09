@@ -980,7 +980,7 @@ def create_app() -> FastAPI:
                 "configurado": True,
                 "endpoints": [
                     {
-                        "nome": "omniroute",
+                        "nome": "gemini",
                         "modelo": "gemini-2.5-flash",
                         "camada": "padrão",
                         "chamadas": 40,
@@ -991,8 +991,8 @@ def create_app() -> FastAPI:
                         "quarentena_s": 0,
                         "ultimo_ok": agora - 90,
                         "ultimo_erro": "HTTP 502",
-                        "provedores": {"gemini": 30, "groq": 8},
-                        "trocas_do_gateway": 1,
+                        "provedor": "gemini",
+                        "orcamento": 2,
                     },
                     {
                         "nome": "reserva",
@@ -1015,7 +1015,7 @@ def create_app() -> FastAPI:
                     "dia": (datetime.now() - timedelta(days=6 - i)).strftime("%Y%m%d"),
                     "total": n,
                     "erros": 1 if i == 4 else 0,
-                    "por_endpoint": {"omniroute": n} if n else {},
+                    "por_endpoint": {"gemini": n} if n else {},
                 }
                 for i, n in enumerate([0, 3, 12, 7, 20, 5, 9])
             ],

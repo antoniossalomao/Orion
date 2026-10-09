@@ -52,7 +52,7 @@ def test_nao_imprime_valor_de_chave(tmp_path):
     s = _s(tmp_path, gateway_url="http://127.0.0.1:20128/v1", gateway_api_key="SEGREDO-123456")
     texto, _ = relatorio(checar(s))
     assert "SEGREDO-123456" not in texto
-    assert _por_nome(s)["gateway de modelos"].nivel == "ok"
+    assert _por_nome(s)["modelos"].nivel == "ok"
 
 
 def test_mcp_invalido_e_voz_sem_chave(tmp_path):

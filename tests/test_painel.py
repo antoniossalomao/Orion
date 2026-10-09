@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 from orion.app import create_app
 from orion.config import Settings
 from orion.delegate import CliAgent, Delegator
-from orion.gateway import ChatGateway, Endpoint
+from orion.gateway import ChatGateway, Endpoint, GatewayError
 from orion.jobs import JobRunner
 from orion.memory import MemoryStore
 from orion.memory.ops import Operations
@@ -317,56 +317,93 @@ def test_painel_http_com_gateway_mostra_os_endpoints(tmp_path):
     assert "chave" not in json.dumps(p)
 
 
-# ── provedores que o OmniRoute diz ter servido ────────────────────────────────
-async def test_gateway_anota_o_provedor_dos_cabecalhos_do_omniroute():
+# ── resiliência sem gateway externo: pausa por falhas e orçamento do dia ────────
+async def test_falhas_seguidas_pausam_o_modelo_e_a_pausa_dobra():
+    agora = {"t": 0.0}
+    chamadas = {"a": 0, "b": 0}
+
     def h(req):
-        modelo = json.loads(req.content)["model"]
-        cab = {
-            "modelo-a": {"x-omniroute-provider": "gemini", "x-omniroute-fallback-attempts": "1"},
-            "modelo-b": {"x-omniroute-decision": "strategy=auto; provider=groq; latency_ms=420"},
-        }.get(modelo, {})
-        r = resposta(sse(texto("ok", "stop"), "[DONE]"))
-        r.headers.update(cab)
-        return r
+        nome = req.url.host.split(".")[0]
+        chamadas[nome] += 1
+        if nome == "a":
+            return httpx.Response(502, content=b"fora")
+        return resposta(sse(texto("ok", "stop"), "[DONE]"))
 
-    gw = gateway(h, "a")
-    await coletar(gw)
-    await coletar(gw)
+    gw = gateway(h, "a", "b", relogio=lambda: agora["t"])
+    for _ in range(3):
+        await coletar(gw)
     st = gw.stats()[0]
-    assert st["provedores"] == {"gemini": 2} and st["trocas_do_gateway"] == 2
-    gw2 = gateway(h, "b")  # só o cabeçalho de decisão (e sem tentativas de fallback)
-    await coletar(gw2)
-    assert gw2.stats()[0]["provedores"] == {"groq": 1} and gw2.stats()[0]["trocas_do_gateway"] == 0
+    assert st["pausas"] == 1 and st["motivo"] == "falhas" and st["quarentena_s"] == 60
+    await coletar(gw)
+    assert chamadas["a"] == 3 and chamadas["b"] == 4  # em pausa: nem tentou o "a"
+    agora["t"] = 61.0
+    await coletar(gw)  # voltou, falhou de novo: a pausa dobra
+    assert chamadas["a"] == 4 and gw.stats()[0]["quarentena_s"] == 120
 
 
-async def test_cabecalho_estranho_ou_ausente_nao_quebra_nem_enche_a_memoria():
+async def test_sucesso_zera_as_falhas_seguidas():
     n = {"i": 0}
 
     def h(req):
         n["i"] += 1
-        r = resposta(sse(texto("ok", "stop"), "[DONE]"))
-        r.headers["x-omniroute-provider"] = (
-            f"p{n['i']}" if n["i"] <= 30 else "<script>alert(1)</script>"
-        )
-        r.headers["x-omniroute-fallback-attempts"] = "abc"
-        return r
-
-    gw = gateway(h, "a")
-    for _ in range(35):
-        await coletar(gw)
-    st = gw.stats()[0]
-    assert st["trocas_do_gateway"] == 0 and len(gw._stats["a"].provedores) == 20  # teto de chaves
-    assert len(st["provedores"]) == 6 and "<" not in json.dumps(st)  # o painel mostra o topo
-
-    def sem(req):
+        if n["i"] in (1, 2, 4, 5):
+            return httpx.Response(500, content=b"x")
         return resposta(sse(texto("ok", "stop"), "[DONE]"))
 
-    gw3 = gateway(sem, "a")
-    await coletar(gw3)
-    assert gw3.stats()[0]["provedores"] == {}  # outro gateway: sem cabeçalho, sem nada
+    gw = gateway(h, "a", "a2")
+    gw.endpoints = gw.endpoints[:1]  # só o "a": falha, falha, ok, falha, falha
+    for _ in range(5):
+        try:
+            await coletar(gw)
+        except GatewayError:  # nenhum endpoint respondeu: esperado aqui
+            continue
+    assert gw.stats()[0]["pausas"] == 0  # nunca chegou a 3 seguidas
 
 
-def test_texto_do_painel_diz_quem_serviu():
+async def test_429_nao_conta_como_falha_seguida():
+    def h(req):
+        return httpx.Response(429, content=b"cota", headers={"retry-after": "5"})
+
+    agora = {"t": 0.0}
+    gw = gateway(h, "a", relogio=lambda: agora["t"])
+    for _ in range(4):
+        agora["t"] += 10
+        with pytest.raises(GatewayError):
+            await coletar(gw)
+    st = gw.stats()[0]
+    assert st["limitada"] == 4 and st["pausas"] == 0 and st["motivo"] in ("", "cota")
+
+
+async def test_orcamento_gasto_manda_o_provedor_para_o_fim_da_fila():
+    vistos = []
+
+    def h(req):
+        vistos.append(req.url.host.split(".")[0])
+        return resposta(sse(texto("ok", "stop"), "[DONE]"))
+
+    gw = gateway(h, "a", "b")
+    gw.endpoints = [
+        Endpoint("a", "http://a.test/v1", "m", "k", provedor="groq"),
+        Endpoint("b", "http://b.test/v1", "m", "k", provedor="gemini"),
+    ]
+    gw._stats = {e.name: type(gw._stats["a"])() for e in gw.endpoints}
+    gw.orcamento = lambda ep: ep.provedor != "groq"
+    await coletar(gw)
+    assert vistos == ["b"] and gw.stats()[0]["orcamento"] == 1
+
+    def b_fora(req):
+        vistos.append(req.url.host.split(".")[0])
+        if req.url.host.startswith("b"):
+            return httpx.Response(503, content=b"x")
+        return resposta(sse(texto("ok", "stop"), "[DONE]"))
+
+    gw._client = httpx.AsyncClient(transport=httpx.MockTransport(b_fora))
+    vistos.clear()
+    await coletar(gw)  # o chat nunca é bloqueado: sem outro, usa o que passou do limite
+    assert vistos == ["b", "a"]
+
+
+def test_texto_do_painel_mostra_pausa_e_orcamento():
     p = Painel(started_at=0, memory=None, ops=None, policy=None)  # type: ignore[arg-type]
     base = {
         "uptime_s": 5, "clis": [], "aprovacoes": {"pendentes": 0, "itens": []},
@@ -374,11 +411,12 @@ def test_texto_do_painel_diz_quem_serviu():
         "jobs": {"ativo": False, "erros": []}, "avisos": {"pendentes": 0}, "ferramentas": 0,
         "memoria": {"ok": True}, "mcp": {},
         "modelos": {"configurado": True, "endpoints": [{
-            "nome": "omni", "modelo": "m", "chamadas": 9, "ok": 9, "falhas": 0, "limitada": 0,
-            "pulos": 0, "quarentena_s": 0, "ultimo_ok": 1.0, "ultimo_erro": None,
-            "provedores": {"gemini": 7, "groq": 2}}]},
+            "nome": "groq:rapido", "modelo": "m", "chamadas": 9, "ok": 6, "falhas": 3, "limitada": 0,
+            "pulos": 0, "quarentena_s": 60, "motivo": "falhas", "ultimo_ok": 1.0,
+            "ultimo_erro": "HTTP 502", "pausas": 1, "orcamento": 2}]},
     }  # fmt: skip
-    assert p is not None and "serviu: gemini ×7, groq ×2" in texto_do_painel(base)
+    t = texto_do_painel(base)
+    assert p is not None and "pausa (falhas seguidas)" in t and "2× para o fim da fila" in t
 
 
 # ── uso da semana (E3) ────────────────────────────────────────────────────────

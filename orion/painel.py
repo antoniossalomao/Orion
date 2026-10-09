@@ -8,8 +8,8 @@ servidores MCP.
 Só leitura e **sem segredo**: nome de endpoint, modelo, contagens e o tipo do último erro (nunca o
 corpo da resposta, a URL nem a chave); aprovações e decisões aparecem sem os argumentos (quem
 quiser ver o que se aprova abre o cartão de aprovação, que mostra tudo). Os números dos modelos
-são o que **o Orion viu desde que subiu**: não são a cota do provedor (quem a conhece é o
-OmniRoute).
+são o que **o Orion viu desde que subiu**: não são a cota que o provedor vê (outro programa com a
+mesma chave também gasta).
 """
 
 from __future__ import annotations
@@ -185,14 +185,14 @@ def texto_do_painel(p: dict[str, Any]) -> str:
         linhas.append("\n🧠 Modelos (desde que o Orion subiu)")
         for e in m["endpoints"]:
             camada = f", camada {e['camada']}" if e.get("camada", "padrão") != "padrão" else ""
-            estado = f"⛔ quarentena {_dur(e['quarentena_s'])}" if e["quarentena_s"] else "ok"
+            pausa = "pausa (falhas seguidas)" if e.get("motivo") == "falhas" else "quarentena"
+            estado = f"⛔ {pausa} {_dur(e['quarentena_s'])}" if e["quarentena_s"] else "ok"
             extra = f", {e['limitada']}× cota" if e["limitada"] else ""
             erro = f" · último erro: {e['ultimo_erro']}" if e["ultimo_erro"] else ""
             quem = f"{e['nome']} ({e['modelo']}{camada})"
             linhas.append(f"• {quem}: {e['ok']} ok, {e['falhas']} falha(s){extra} · {estado}{erro}")
-            if e.get("provedores"):
-                servidos = ", ".join(f"{k} ×{v}" for k, v in e["provedores"].items())
-                linhas.append(f"   serviu: {servidos}")
+            if e.get("orcamento"):
+                linhas.append(f"   limite do dia gasto: {e['orcamento']}× para o fim da fila")
 
     semana = p.get("semana") or []
     if any(d["total"] or d["erros"] for d in semana):

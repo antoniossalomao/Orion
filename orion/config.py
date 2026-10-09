@@ -12,6 +12,8 @@ from platformdirs import user_data_dir
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
+from .provedores import ProvedorConf
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 _PUBLICOS = {"0.0.0.0", "::", ""}  # noqa: S104 — só para recusar
 _LOCAIS = {"127.0.0.1", "localhost", "::1"}
@@ -37,12 +39,15 @@ class Settings(BaseSettings):
     session_ttl_h: int = Field(default=168, ge=1, le=24 * 90)  # validade da sessão: 7 dias
     cookie_secure: bool = False  # true atrás de HTTPS (`tailscale serve`); em https é automático
     audit_retention_days: int = Field(default=90, ge=1)  # trilha de decisões da política
-    # Gateway de modelos (OmniRoute local ou qualquer API compatível com a da OpenAI).
-    gateway_url: str = ""  # ex.: http://127.0.0.1:20128/v1 — vazio: /chat desligado
+    # Provedores de modelo ligados direto (orion/provedores.py): lista JSON, a ordem é a
+    # prioridade; chave de cada um em ORION_KEY_<ID> (cofre do SO ou ambiente).
+    provedores: list[ProvedorConf] = Field(default_factory=list)
+    # Endpoint avulso compatível com a API da OpenAI (opcional, além dos provedores acima).
+    gateway_url: str = ""  # ex.: https://api.groq.com/openai/v1
     gateway_model: str = ""
     # Roteamento por tipo de tarefa (orion/router.py): modelo para conversa curta e para trabalho
-    # pesado, no mesmo gateway. Vazios: tudo vai no `gateway_model`. A camada de imagem usa
-    # `vision_model`. No OmniRoute, o "modelo" pode ser um combo seu (ex.: "rapido", "forte").
+    # pesado, no mesmo endpoint avulso. Vazios: tudo vai no `gateway_model`. A camada de imagem
+    # usa `vision_model`.
     gateway_model_fast: str = ""
     gateway_model_heavy: str = ""
     gateway_api_key: str = ""  # ou no cofre do SO (orion.secrets)
@@ -167,6 +172,14 @@ class Settings(BaseSettings):
     embed_api_key: str = ""  # ou no cofre do SO (ORION_EMBED_API_KEY)
     embed_model: str = "gemini-embedding-001"
     embed_dim: int = Field(default=768, ge=64, le=3072)
+
+    @field_validator("provedores")
+    @classmethod
+    def _provedores_unicos(cls, v: list[ProvedorConf]) -> list[ProvedorConf]:
+        ids = [p.id for p in v]
+        if dup := sorted({i for i in ids if ids.count(i) > 1}):
+            raise ValueError(f"provedor repetido em ORION_PROVEDORES: {', '.join(dup)}")
+        return v
 
     @field_validator("admin_token")
     @classmethod

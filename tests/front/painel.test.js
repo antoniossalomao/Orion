@@ -95,11 +95,8 @@ test('resumoRoteamento: só aparece com o roteamento ligado', () => {
     assert.equal(P.resumoRoteamento(undefined), null);
 });
 
-test('resumoProvedores: do que mais serviu para o que menos serviu', () => {
-    assert.equal(P.resumoProvedores({ groq: 8, gemini: 30, vazio: 0 }), 'gemini ×30 · groq ×8');
-    assert.equal(P.resumoProvedores({}), '');
-    assert.equal(P.resumoProvedores(null), '');
-    assert.equal(P.resumoProvedores({ x: 'lixo' }), '');
+test('estadoModelo: pausa por falhas seguidas tem rótulo próprio', () => {
+    assert.equal(P.estadoModelo({ quarentena_s: 60, motivo: 'falhas' }).rotulo, 'Em pausa por falhas · volta em 60 s');
 });
 
 test('resumoVoz: desligada sem opt-in ou chave; ligada mostra o uso', () => {
