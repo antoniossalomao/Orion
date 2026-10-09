@@ -5,7 +5,7 @@
 > (`Orion_Ollama/`, `Orion_Core/`) e dos docs da Lyra no vault (`LYRA_ESTADO_ATUAL`, `LYRA_AGENTES_E_PLANOS`,
 > `LYRA_IDE_PLANO`, catálogo de 140 ideias), e ideias novas.
 > Nada aqui foi testado. Item com **regra nova** precisa da linha em [ORION_REGRAS.md](ORION_REGRAS.md) antes do código.
-> Decisões abertas em §9: os itens marcados **(pergunta)** dependem delas.
+> Respostas em §9 (09/10). Itens **(pergunta)** ainda abertos: 2, 5, 6, 11, 12, 14, 15. **Nada desta rodada vira código até o Antônio liberar.**
 
 ## 0. Critério de ordem (o mesmo da rodada 1)
 1. Testável sem serviço real (Linux, API falsa) vem antes.
@@ -62,7 +62,7 @@ Pronto quando: cada opt-in de `config.py` aparece na tabela R1.9 (teste falha se
 | R3.9 | **Compressão de histórico longo** (Lyra tinha, Orion perdeu) | Hoje `context_history` só corta as mensagens antigas. Proposta: ao passar da janela, resumo rolante das mais antigas, guardado por sessão e marcado como gerado; nunca substitui o registro | nova **(pergunta 6)** |
 | R3.10 | **Validade e substituição de fatos** (Lyra: Knowledge Freshness Tags; vault: nota de supersession) | Fato ganha `valido_ate` opcional e `substituido_por`; o sono **avisa** conflito ("mora em X" × "mora em Y"), você escolhe; busca rebaixa fato vencido/substituído | nova |
 | R3.11 | **Reranker** (Lyra tinha `bge-reranker-v2-m3`) | Etapa opcional depois do RRF; só entra se o `eval_pessoal` subir o acerto. Local leve ou por provedor | **(pergunta 5)** |
-| R3.12 | **Grafo de memória visual** (D7 da rodada 1; Lyra tinha 3D) | Agora existem relações do sono. Começa 2D, só leitura, filtrado por projeto; clicar num nó abre o fato | **(pergunta 8)** |
+| R3.12 | **Grafo de memória 3D** (D7 da rodada 1) | A tela 3D já existe (`views/memory.js`); falta `/grafo/completo` no backend novo (fatos, relações do sono, tópicos), filtro por projeto; clicar num nó abre o fato | decidido (§9) |
 
 ---
 
@@ -76,7 +76,7 @@ Pronto quando: cada opt-in de `config.py` aparece na tabela R1.9 (teste falha se
 | R4.4 | Associar resultado a projeto manualmente | (pendência que sobrou da rodada 1) | — |
 | R4.5 | Fontes e atividade das extensões no chat (C27) | Cada resposta mostra quais ferramentas/servidores MCP/skills/plugins usou e as fontes, expansível | — |
 | R4.6 | Pesquisa noturna pela interface | Editar assuntos (fora do `.env`, decisão de 08/10), ver relatórios, rodar agora | — |
-| R4.7 | **Teto de custo** | Primeiro para a pesquisa noturna; depois global por dia/provedor: ao bater, para os jobs opcionais e avisa; o chat continua | nova **(pergunta 10)** |
+| R4.7 | **Custo zero** | Nada usa API paga; só cota gratuita e as CLIs das assinaturas. Ao bater a cota gratuita: para os jobs opcionais (pesquisa, sono, leitura semanal) e avisa; o chat continua | nova (decidido §9) |
 | R4.8 | **Telemetria por provedor** (Lyra tinha `/stats`: usos, falhas, latência, taxa de sucesso por andar) | Hoje E3 só conta respostas. Somar falhas, latência p50/p95 e qual modelo respondeu; card no painel | — |
 
 ---
@@ -115,10 +115,10 @@ Achados novos, conferidos no código:
 | L6 | `lyra_agent`: objetivo autônomo com orçamento de iterações, persistido (`agente_run`) | Só `delegar` (CLIs) e o turno do chat | **Tarefa em segundo plano**: objetivo + orçamento (iterações, tempo, custo), em modo só leitura (E2), relatório na caixa de atividade; o que for escrita vira proposta para aprovar | nova regra **(pergunta 3)** |
 | L7 | `commands.py`: frases locais ("bom dia" → saudação + música + abrir app; "pausa", "volume") | Palavra de ativação existe, mas tudo passa pelo modelo e pede aprovação | **Rotinas**: arquivo seu com frase/atalho → passos (ferramentas existentes). Concedida por hash como plugin; passo de leitura/mídia roda direto, execução confirma. Disparo por voz, paleta, Telegram | nova regra **(pergunta 3)** |
 | L8 | Sidecar de alucinação (draft compara divergência) + avaliação factual por afirmação (vault) | Nada | **"Conferir resposta"** sob demanda: separa afirmações e marca cada uma como apoiada/sem apoio pela memória e pelas fontes do turno | — |
-| L9 | Modelo local (Ollama) como último andar da cascata | Sem nuvem, sem resposta | **Modo reserva local**: modelo pequeno no notebook, só conversa e memória, sem ferramentas | **(pergunta 1)** |
+| L9 | Modelo local (Ollama) como último andar da cascata | Sem nuvem, sem resposta | **Modo reserva local**: `qwen3.5:4b`, só conversa e memória, sem ferramentas; por ora só o encaixe | decidido (§9) |
 | L10 | Self-healing de serviços | Não há serviços para curar | Só um aviso: gateway fora do ar por >N min → caixa de atividade + Telegram | — |
 | L11 | Carga cognitiva (menos contexto quando lento) | Nada | **Não recomendo**: o gateway resolve latência; fica registrado como descartado | — |
-| L12 | Câmera (`camera_engine.py`, ideias "Olho de Vidro", "Grafo Social") | Nada | **Não recomendo** (captura contínua de terceiros) | **(pergunta 4)** |
+| L12 | Câmera (`camera_engine.py`, ideias "Olho de Vidro", "Grafo Social") | Nada | **Visão por câmera local**: detecção de objetos e pessoas, sob demanda primeiro (§9) | nova regra **(perguntas 14, 15)** |
 
 ---
 
@@ -146,25 +146,37 @@ Achados novos, conferidos no código:
 
 ---
 
-## 9. Perguntas para você
+## 9. Perguntas e respostas (respondidas em 09/10/2026)
 
-| # | Pergunta | Minha recomendação |
-|---|---|---|
-| 1 | Modelo local pequeno (Ollama, ~1–4 B) como reserva quando a nuvem cair, no notebook de 8 GB? | Sim, só conversa + memória, sem ferramentas; desligado por padrão |
-| 2 | Orion como servidor MCP para o Claude Code/Codex? | Sim, **só leitura**, token próprio |
-| 3 | Rotinas e tarefa em segundo plano podem rodar passos sem confirmar cada um? | Leitura e mídia sim; escrita/execução sempre confirmam (como hoje) |
-| 4 | Câmera: descartar de vez? | Sim |
-| 5 | Reranker local (CPU, ~300 MB, +latência) ou por provedor (custo, texto sai)? | Local, opcional, só se o `eval_pessoal` melhorar |
-| 6 | Compressão de histórico gasta 1 chamada a cada ~N mensagens. Pode? | Sim, com o resumo visível e marcado como gerado |
-| 7 | IDE própria (Theia) está enterrada? | Sim; R5.11 entrega o principal (memória no editor) |
-| 8 | Grafo: 2D simples ou 3D como a Lyra? | 2D primeiro |
-| 9 | Ordem: documentação → conversas → memória → resultados → MCP/plugins → Lyra/novas → testes ao longo? | Sim, com testes junto de cada item |
-| 10 | Teto de custo: valor por mês? | ______ **(você)** |
-| 11 | Catálogo de plugins remoto (baixar da internet) ou só local? | Só local nesta rodada |
-| 12 | C13/C14: entram agora? | Não |
-| 13 | Dos achados L6–L10 e N1–N6, quais você quer nesta rodada? | L7, L10, N1, N2, N3 |
+| # | Pergunta | Resposta do Antônio | Efeito no plano |
+|---|---|---|---|
+| 1 | Modelo local de reserva? | **Sim**, básico mas o melhor possível; por ora só deixar pronto e escolher o modelo | L9: **`qwen3.5:4b`** (Q4_K_M, ~2,5 GB de RAM, Apache 2.0); alternativa `gemma3:4b` (~3 GB). Entrega só o encaixe: `ORION_LOCAL_MODEL` + Ollama em `127.0.0.1`, último andar, sem ferramentas, desligado por padrão. Escolha conferida em guias de 2026, não testada no notebook |
+| 2 | Orion como servidor MCP? | Não entendeu | Explicado abaixo; **em aberto** |
+| 3 | Rotinas sem confirmar leitura e mídia? | **Sim** | L6 e L7 seguem como proposto |
+| 4 | Câmera: descartar? | **Não**: quer câmera que identifica objetos e pessoas | L12 vira **visão por câmera local** (ver abaixo) |
+| 5 | Reranker local ou provedor? | Não entendeu | Explicado abaixo; pela resposta 10, só **local** é possível; **em aberto** |
+| 6 | Compressão de histórico? | Não entendeu | Explicado abaixo; **em aberto** |
+| 7 | IDE enterrada? | **Sim, sem IDE** | — |
+| 8 | Grafo 2D ou 3D? | **3D** (já existe no projeto) | R3.12: reaproveitar `views/memory.js` (3d-force-graph, vendorizado). Ela lê `/grafo/completo`, que só o legado tem: falta a rota no backend novo, com fatos, relações do sono e tópicos, filtrada por projeto |
+| 9 | Ordem? | **Eu decido** | Mantida a §10 |
+| 10 | Teto de custo? | **Zero**: só as assinaturas já pagas (Google AI Pro, Claude Pro, ChatGPT Plus) | R4.7 vira **"custo zero"**: nada usa API paga; só cota gratuita (Groq, Gemini grátis) e as CLIs das assinaturas (`delegar`). Assinatura **não** inclui API: o que precisar de API paga sai do plano. Ao bater a cota gratuita, o Orion para os jobs opcionais e avisa |
+| 11 | Catálogo remoto ou local? | Não entendeu | Explicado abaixo; **em aberto** |
+| 12 | C13/C14 agora? | Perguntou o que são | Explicado abaixo; **em aberto** |
+| 13 | Quais extras entram? | **Todos**; **ainda sem código** | L6–L12 e N1–N6 entram no plano; nada é implementado até você liberar |
 
----
+### Explicações das perguntas em aberto
+- **2. Orion como servidor MCP.** Hoje o Orion *usa* servidores MCP (Google, navegador). A ideia é o contrário: o Orion virar um servidor MCP para o **Claude Code e o Codex** que você já usa pelas assinaturas. Exemplo: programando no Claude Code, ele pergunta ao Orion "o que o Antônio decidiu sobre o login do DrinkControl?" e recebe a resposta da sua memória. Só leitura: eles não conseguem gravar nem executar nada no Orion. Custo zero.
+- **5. Reranker.** A busca na memória devolve, digamos, 20 trechos; o reranker é uma segunda passada que os relê junto da pergunta e põe os mais relevantes no topo. Melhora o acerto, custa ~0,3 s e ~300 MB de RAM. Com custo zero, só pode ser local (no notebook). Pergunta: vale ligar, se o teste com as suas perguntas (`eval_pessoal`) mostrar melhora?
+- **6. Compressão de histórico.** Em conversa longa, as mensagens mais antigas saem da janela que o modelo vê, e o Orion "esquece" o começo da conversa. A correção é resumir a parte antiga em poucas linhas e mandar o resumo junto. Cada resumo é 1 chamada ao modelo (usa a cota gratuita). Pergunta: pode?
+- **11. Catálogo de plugins.** É a lista de plugins disponíveis para instalar. **Local**: uma pasta/lista que você monta, sem internet. **Remoto**: o Orion baixa a lista e os pacotes de um site (tipo uma loja), o que abre um caminho de código de terceiros entrando no seu computador. Recomendo só local.
+- **12. C13 e C14.** **C13 (descoberta sob demanda)**: quando houver dezenas de ferramentas MCP, em vez de mostrar todas ao modelo a cada turno (gasta contexto), o modelo busca e carrega só as que precisa. Hoje são poucas, não compensa. **C14 (resources e prompts)**: além de ferramentas, um servidor MCP pode oferecer *resources* (arquivos e dados que o modelo lê por endereço) e *prompts* (modelos de pedido prontos). Abre leitura de dados de terceiros por endereço que o modelo escolhe, então precisaria de regra própria. Recomendo manter os dois adiados.
+
+### L12 revisto: visão por câmera local
+- Detecção de objetos e pessoas com modelo pequeno no notebook (ex.: YOLO "nano" exportado para ONNX, roda na CPU); nada de imagem sai do computador.
+- Começa **sob demanda** ("o que a câmera vê?", no chat, na paleta ou no Telegram): devolve a lista de objetos com confiança e, se você pedir, a foto anotada na biblioteca de resultados.
+- Modo contínuo (ex.: avisar quando aparecer uma pessoa) só depois, com opt-in, pausa, retenção curta e regra nova, como a memória da tela (Ring 0 #3).
+- **Pessoa ≠ quem é a pessoa**: detectar "há uma pessoa" é simples; **reconhecer quem é** (reconhecimento facial) é outro nível de risco (dado biométrico, LGPD). Fica fora até você decidir.
+- Perguntas novas: **14.** Para que você quer usar (segurança do quarto, "o que tem na mesa", contar pessoas, outra coisa)? **15.** Quer reconhecimento facial (quem é) ou só detecção (há uma pessoa)?
 
 ## 10. Sequência sugerida
 
