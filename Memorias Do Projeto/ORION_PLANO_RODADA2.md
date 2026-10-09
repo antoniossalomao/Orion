@@ -283,7 +283,8 @@ Decisão do Antônio: **entram Z4, Z11, Z12**; as demais ficam em incubação.
 | Z13 | **Postura e pausas** (ideia 129 Bio Clock) | Com a câmera local ligada, nota postura ruim ou muito tempo sem pausa e sugere levantar | Só local; um aviso por hora no máximo |
 | Z14 | **Orçamentista de renders 3D** | Para pedidos de visualização (SketchUp/Enscape), monta orçamento, prazo e escopo a partir dos seus trabalhos anteriores | Renda extra; rascunho para você enviar |
 
-## 16. Quinta leva: só o que se usa todo dia (09/10) — em avaliação
+## 16. Quinta leva: só o que se usa todo dia (09/10)
+Decisão do Antônio: **entram todas (U1–U8)**.
 Pedido do Antônio: menos ideia "de vitrine", mais utilidade. Filtro: resolve algo que acontece **toda semana ou todo dia**, reaproveita peça existente e cabe em um marco curto.
 
 | ID | Ideia | Como seria | Peça que já existe |
