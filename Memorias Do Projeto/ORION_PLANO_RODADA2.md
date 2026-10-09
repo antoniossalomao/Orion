@@ -200,3 +200,24 @@ Respostas: a imagem **pode sair** do computador; uso "pra tudo que der" (pergunt
 
 ## 11. Fora do código (só você)
 Continua o mesmo de [ORION_CORTE.md](ORION_CORTE.md): fase 0, serviços e chaves, Telegram real, microfone real, Tailscale, senha de fábrica.
+
+## 12. Incubação — ideias em avaliação (09/10, sem decisão)
+Saídas do brainstorm a partir do perfil do Antônio no vault (estágio, faculdade, DevCore, projetos, rotina). Cada uma espera "entra / incubação / não".
+
+| ID | Ideia | Por que faz sentido | Custo |
+|---|---|---|---|
+| N9 | **Revisão semanal guiada** (domingo): o Orion conduz os 20 min do [Sistema de Priorização] do vault — tarefas abertas, escolher **1 marco**, sugerir 2 blocos na agenda, mover ideias novas para incubação | O método já existe no vault; falta quem puxe | cota grátis |
+| N10 | **Diário automático**: à noite, nota no vault com o que você fez (commits, conversas, documentos, resumo da memória da tela) | Alimenta o segundo cérebro sem esforço; base para portfólio | local/grátis |
+| N11 | **Gastos pelo Telegram**: "gastei 30 no mercado" → lançamento local (`registrar_numero` já existe); resumo mensal; ler fatura em PDF localmente | Financeiro nunca sai do computador (perfil: dado financeiro não vai a terceiros) | zero |
+| N12 | **Monitor de preço**: itens que você marca (inclusive pela câmera, N7) são conferidos 1x/dia; avisa queda | Junta "ver e agir" com compra do carro/peças (ideia 128 da Lyra, Auto Tracker) | cota grátis |
+| N13 | **Modo estudo**: projeto por disciplina, aula gravada → `orion transcrever` → resumo + flashcards; quiz pelo Telegram com repetição espaçada | 2º termo de ADS; reaproveita transcrição e projetos | cota grátis |
+| N14 | **Base de soluções do estágio**: chamado resolvido vira nota ("erro X no Firebird → `gfix ...`"); "já vi esse erro?" busca nela | Suporte repetitivo na Bredas. **Dado de cliente nunca entra** (só a solução, anonimizada por você) | zero |
+| N15 | **Standup do DevCore**: resumo semanal dos commits/PRs dos repositórios do time (PreciFly) pelo MCP do GitHub | Acompanhamento semanal já é rotina do grupo | cota grátis |
+| N16 | **Rascunho de case de portfólio**: a partir de decisões, commits e notas, gera o texto do case no formato do Mapa de Evidências | Objetivo "portfólio ou renda" | cota grátis |
+| N17 | **Radar de vagas e freelas**: assunto fixo da pesquisa noturna (D2), filtrado por stack e Marília/remoto | Pesquisa noturna já existe | cota grátis |
+| N18 | **Atalho global "o que é isso?"**: tecla que captura a janela atual e pergunta (usa `explicar_tela` + N7) | Hoje precisa abrir o chat | cota/assinatura |
+| N19 | **Modo pânico**: um comando (voz, Telegram, tecla) corta tudo: captura de tela e câmera, jobs, ferramentas de rede e execução, até você liberar | Muitos opt-ins de captura agora; desligar rápido é segurança | zero |
+| N20 | **Eval semanal automático**: roda o `eval_pessoal` e o teste de injeção toda semana; avisa se a busca piorou | Pega regressão de memória/embeddings cedo | local |
+| N21 | **Contexto por lugar/horário**: no horário do estágio, o Orion prioriza projeto "Estágio"; à noite, faculdade/pessoal (instruções de projeto por horário) | Rotina fixa de 6 h/dia | zero |
+| N22 | **Respostas por voz no carro/fone pelo Telegram**: mensagem de voz → resposta em áudio (TTS já existe) | Uso com mãos ocupadas | cota grátis |
+
