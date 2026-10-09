@@ -1276,6 +1276,16 @@ curso e terá resultado separado. Windows/ponte reais indisponíveis: C50 parcia
 para desktop, recurso explicitamente bloqueado nesse ambiente.
 
 
+### Pull request — 09/10/2026
+
+Revisão: [PR #20](https://github.com/antoniossalomao/Orion/pull/20),
+`codex/orion-evolucao` → `main`, aberto em rascunho.
+A `main` recebeu entregas paralelas; há conflitos no frontend, backend,
+migrações do banco e dependências. A integração deve preservar as entregas
+das duas linhas e reconciliar as migrações antes do merge.
+Os testes registrados validam a branch; a combinação com a `main` atual
+permanece pendente. O PR não foi mesclado.
+
 ### Verificação final — 08/10/2026
 
 As implementações previstas até C50 estão na branch `codex/orion-evolucao`.
