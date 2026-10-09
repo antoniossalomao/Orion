@@ -263,7 +263,8 @@ Decisão do Antônio: **entram Y5, Y9, Y11, Y14, Y15, Y16**; as demais ficam em 
 | Y15 | **Documentador dos seus projetos** | Lê os repositórios (Nortis, PreciFly, DrinkControl) e mantém arquitetura e decisões no vault atualizadas, por PR no vault (como X6) | Só PR; você aprova |
 | Y16 | **Andar pelo segundo cérebro** | No grafo 3D (R3.12), navegação por voz: "me leva até Firebird", "o que liga isso ao estágio?"; o vault inteiro no mesmo grafo da memória | Grafo grande pesa no front: filtrar por área |
 
-## 15. Quarta leva de ideias (09/10) — em avaliação
+## 15. Quarta leva de ideias (09/10)
+Decisão do Antônio: **entram Z4, Z11, Z12**; as demais ficam em incubação.
 
 | ID | Ideia | Como seria | Risco / limite |
 |---|---|---|---|
