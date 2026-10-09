@@ -25,6 +25,11 @@ class Checagem:
     detalhe: str
 
 
+def _ver(secao: str) -> str:
+    """Sufixo dos avisos de opt-in: onde o ORION_OPERACAO.md explica como ligar direito."""
+    return f" (ver ORION_OPERACAO §{secao})"
+
+
 def _chave(settings: Settings, campo: str, cofre: str) -> bool:
     return bool(getattr(settings, campo, "") or get_secret(cofre))
 
@@ -104,14 +109,14 @@ def _opcionais(s: Settings) -> list[Checagem]:
             s.voice_enabled,
             "transcribe_api_key",
             "ORION_TRANSCRIBE_API_KEY",
-            "voz ligada sem chave de transcrição",
+            "voz ligada sem chave de transcrição" + _ver("4.3"),
         ),
         (
             "Telegram",
             bool(s.telegram_allowed_users),
             "telegram_token",
             "ORION_TELEGRAM_TOKEN",
-            "usuários liberados mas sem token",
+            "usuários liberados mas sem token" + _ver("6"),
         ),
     ]
     for nome, ligado, campo, cofre, falta in precisa:
@@ -126,7 +131,9 @@ def _opcionais(s: Settings) -> list[Checagem]:
         if faltando:
             out.append(
                 Checagem(
-                    "memória da tela", "aviso", f"ligada, mas falta instalar: {', '.join(faltando)}"
+                    "memória da tela",
+                    "aviso",
+                    f"ligada, mas falta instalar: {', '.join(faltando)}" + _ver("8"),
                 )
             )
         else:
@@ -137,10 +144,26 @@ def _opcionais(s: Settings) -> list[Checagem]:
             )
     if s.research_at and not (s.web_tools and s.vault_dir):
         out.append(
-            Checagem("pesquisa noturna", "aviso", "ORION_RESEARCH_AT sem ORION_WEB_TOOLS e vault")
+            Checagem(
+                "pesquisa noturna",
+                "aviso",
+                "ORION_RESEARCH_AT sem ORION_WEB_TOOLS e vault" + _ver("10"),
+            )
         )
     if s.wake_enabled and not s.voice_enabled:
-        out.append(Checagem("palavra de ativação", "aviso", "wake ligado sem ORION_VOICE_ENABLED"))
+        out.append(
+            Checagem(
+                "palavra de ativação", "aviso", "wake ligado sem ORION_VOICE_ENABLED" + _ver("4.4")
+            )
+        )
+    if s.weekly_ai and not s.briefing_at:
+        out.append(
+            Checagem(
+                "leitura semanal",
+                "aviso",
+                "ORION_WEEKLY_AI sem ORION_BRIEFING_AT: sai junto com o briefing" + _ver("11"),
+            )
+        )
     return out
 
 

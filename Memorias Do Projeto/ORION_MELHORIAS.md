@@ -155,6 +155,18 @@ Plano em [ORION_PLANO_PROXIMOS.md](ORION_PLANO_PROXIMOS.md). Regras 39–41 em [
 
 **Não verificado nesta rodada:** nada rodou com modelo, rede, n8n, conta Google ou microfone reais; a pesquisa noturna nunca chamou uma busca de verdade; o `orion doctor` não testa rede nem a fase 0; as telas de projetos e de memória editável não existem ainda.
 
+## Nona rodada (09/10/2026): plano da rodada 2, etapas E0 e E1
+
+Plano em [ORION_PLANO_RODADA2.md](ORION_PLANO_RODADA2.md).
+
+| ID | Entrega | Status |
+|---|---|---|
+| E0.1 | Seções §8–§15 no [ORION_OPERACAO.md](ORION_OPERACAO.md) (memória da tela, sono, pesquisa noturna, leitura semanal, n8n, plugins e skills, `orion transcrever`, documentos e resultados), todas no formato fixo | ✅ texto conferido contra o código; `tests/test_operacao_doc.py` cobra o formato |
+| E0.2 | §16, tabela-resumo dos opt-ins, e o teste que falha se faltar linha (`OPT_INS` no próprio teste) | ✅ |
+| E0.3 | `orion doctor` aponta a seção nos avisos de opt-in (`(ver ORION_OPERACAO §N)`); aviso novo de `ORION_WEEKLY_AI` sem briefing | ✅ |
+
+**Não verificado (E0):** ninguém seguiu a §8 num Windows de verdade (instalador do tesseract do UB Mannheim, pacote `por`); o exemplo de workflow do n8n (§12) não foi montado num n8n real. O plano previa `ORION_N8N_WEBHOOKS` no formato `nome=url;nome=url`, mas o código lê JSON: a §12 documenta o JSON, que é o que funciona.
+
 ## O que foi construído (por fase do NUCLEO)
 
 | Fase | Entrega | Status |

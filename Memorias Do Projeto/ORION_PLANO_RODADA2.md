@@ -66,12 +66,12 @@ E3 e E6 não dependem de E2: se E2 travar em teste de hardware, adiantam-se E3 e
 Marque ao concluir. Uma etapa só fecha com todos os itens, a prova e o PR mergeado.
 
 ### E0 — Documentação dos opt-ins
-- [ ] E0.1 Seções novas em `ORION_OPERACAO.md` (R1.1–R1.8)
-- [ ] E0.2 Tabela-resumo de opt-ins (R1.9)
-- [ ] E0.3 `orion doctor` aponta a seção
+- [x] E0.1 Seções novas em `ORION_OPERACAO.md` (R1.1–R1.8)
+- [x] E0.2 Tabela-resumo de opt-ins (R1.9)
+- [x] E0.3 `orion doctor` aponta a seção
 - [ ] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas
-- [ ] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
-- [ ] **Prova:** `uv run pytest tests/test_operacao_doc.py` verde; ler a tabela e conseguir ligar a memória da tela só com ela.
+- [x] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
+- [x] **Prova:** `uv run pytest tests/test_operacao_doc.py` verde; ler a tabela e conseguir ligar a memória da tela só com ela.
 - [ ] PR da E0 mergeado
 
 ### E1 — Base de custo, privacidade e controle

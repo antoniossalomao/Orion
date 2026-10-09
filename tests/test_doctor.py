@@ -71,3 +71,17 @@ def test_cli_doctor_devolve_codigo(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
     assert main(["doctor"]) == 0
     assert "pasta de dados" in capsys.readouterr().out
+
+
+def test_aviso_de_opt_in_aponta_a_secao_do_guia(tmp_path, monkeypatch):
+    """Memória da tela ligada sem tesseract: o aviso diz onde o ORION_OPERACAO explica (§8)."""
+    import shutil
+
+    monkeypatch.setattr(shutil, "which", lambda nome: None)
+    item = _por_nome(_s(tmp_path, screen_memory=True))["memória da tela"]
+    assert item.nivel == "aviso" and "tesseract" in item.detalhe
+    assert "(ver ORION_OPERACAO §8)" in item.detalhe
+    pesquisa = _por_nome(_s(tmp_path, research_at="04:00"))["pesquisa noturna"]
+    assert "§10" in pesquisa.detalhe
+    semanal = _por_nome(_s(tmp_path, weekly_ai=True))["leitura semanal"]
+    assert "§11" in semanal.detalhe
