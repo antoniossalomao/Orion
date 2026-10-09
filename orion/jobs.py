@@ -12,7 +12,12 @@ Um laço assíncrono chama `tick()` a cada poucos segundos. Cada passo falha soz
 - consolidação das conversas em fatos (se houver gateway);
 - pastas vigiadas (arquivo novo vira aviso) e processos em segundo plano que terminaram;
 - poda da trilha de auditoria e do registro de saída (mais velhos que N dias);
-- briefing matinal (`ORION_BRIEFING_AT`): um aviso por dia com lembretes, agendamentos e tarefas.
+- briefing matinal (`ORION_BRIEFING_AT`): um aviso por dia com lembretes, agendamentos e tarefas;
+- saúde do gateway (só pelo registro de saída, sem chamada extra): "fora do ar" e "de volta".
+
+Jobs opcionais que gastam cota gratuita (consolidação, leitura semanal, sono, pesquisa noturna)
+perguntam antes a `Custos.pode_usar` (regra 46). Em modo pânico (regra 48) nada que use rede roda,
+e com pânico ou não perturbe a memória da tela fica parada.
 
 Quem entrega os avisos é o canal (Telegram, web) lendo `GET /notifications`.
 """
@@ -36,6 +41,8 @@ from .tools.processes import ProcessManager
 
 log = logging.getLogger("orion.jobs")
 
+FALHAS_FORA = 3  # chamadas seguidas sem resposta para dizer que o gateway caiu
+
 
 @dataclass
 class TickReport:
@@ -53,6 +60,8 @@ class TickReport:
     sono: dict[str, Any] | None = None
     tela: str | None = None
     semanal_ia: bool = False
+    gateway: str | None = None  # "fora" | "voltou" quando o aviso sai
+    adiados: list[str] = field(default_factory=list)  # jobs opcionais barrados pela cota
     erros: list[str] = field(default_factory=list)
 
 
@@ -88,11 +97,15 @@ class JobRunner:
         sleep: Any = None,
         screen: Any = None,
         weekly_ai: Any = None,
+        custos: Any = None,
+        modos: Any = None,
+        gateway_down_min: int = 10,
         embed_every_s: float = 300.0,
         vault_every_s: float = 3600.0,
         backup_every_s: float = 3600.0,
         consolidate_every_s: float = 6 * 3600.0,
         audit_every_s: float = 86400.0,
+        saude_every_s: float = 60.0,
         clock: Callable[[], float] = time.time,
     ) -> None:
         self.memory, self.ops = memory, ops
@@ -108,6 +121,9 @@ class JobRunner:
         self._weekly_ai = weekly_ai  # modelo (complete) para a leitura do resumo semanal; None: sem
         self._screen = screen  # orion/screen_memory.py (regra 44), None: desligada
         self._sleep = sleep  # orion/memory/sleep.py (ciclo de sono), None: desligado
+        self._custos = custos  # orion/costs.py (regra 46), None: sem conta de cota
+        self._modos = modos  # orion/modos.py (regra 48), None: sem pânico nem não perturbe
+        self._gateway_down_s = gateway_down_min * 60.0
         self._clock = clock
         self._every = {
             "embed": embed_every_s,
@@ -115,6 +131,7 @@ class JobRunner:
             "backup": backup_every_s,
             "consolidar": consolidate_every_s,
             "auditoria": audit_every_s,
+            "saude_gateway": saude_every_s,
         }
         self._last: dict[str, float] = {}
         self.ultima_rodada: float | None = None  # epoch do último `tick` (para o painel)
@@ -127,10 +144,33 @@ class JobRunner:
         self._last[passo] = agora
         return True
 
+    def _panico(self) -> bool:
+        return self._modos is not None and self._modos.panico()
+
+    def _tela_suspensa(self) -> bool:
+        """Pânico corta e não perturbe pausa a memória da tela (regra 48)."""
+        return self._modos is not None and (self._modos.panico() or self._modos.nao_perturbe())
+
+    def _pode(self, rel: TickReport, quem: str, *provedores: str) -> bool:
+        """Job opcional: sem pânico e com cota (regra 46). Quem foi adiado vai para o relatório."""
+        if self._panico():
+            return False
+        if self._custos is None:
+            return True
+        for p in provedores:
+            if not self._custos.pode_usar(p, opcional=True, quem=quem):
+                rel.adiados.append(quem)
+                return False
+        return True
+
     async def tick(self) -> TickReport:
         rel = TickReport()
         await asyncio.to_thread(self._passos_sincronos, rel)
-        if self._consolidator is not None and self._devido("consolidar"):
+        if (
+            self._consolidator is not None
+            and self._devido("consolidar")
+            and self._pode(rel, "a consolidação da memória", "gateway")
+        ):
             try:
                 r = await self._consolidator.run()
                 rel.consolidacao = {"ran": r.ran, "falas": r.messages, "fatos": r.facts_added}
@@ -139,19 +179,27 @@ class JobRunner:
             except Exception as e:
                 log.exception("job consolidação falhou")
                 rel.erros.append(f"consolidação: {e}")
-        if self._weekly_ai is not None and rel.briefing:
+        if (
+            self._weekly_ai is not None
+            and rel.briefing
+            and self._pode(rel, "a leitura semanal", "gateway")
+        ):
             try:
                 rel.semanal_ia = await self._leitura_semanal()
             except Exception as e:
                 log.exception("job leitura semanal falhou")
                 rel.erros.append(f"leitura semanal: {e}")
-        if self._screen is not None and self._screen.devida():
+        if self._screen is not None and not self._tela_suspensa() and self._screen.devida():
             try:
                 rel.tela = await asyncio.to_thread(self._screen.run)
             except Exception as e:
                 log.exception("job memória da tela falhou")
                 rel.erros.append(f"memória da tela: {e}")
-        if self._sleep is not None and self._sleep.devida():
+        if (
+            self._sleep is not None
+            and self._sleep.devida()
+            and self._pode(rel, "o ciclo de sono", "gateway")
+        ):
             try:
                 r = await self._sleep.run()
                 rel.sono = {
@@ -163,7 +211,11 @@ class JobRunner:
             except Exception as e:
                 log.exception("job ciclo de sono falhou")
                 rel.erros.append(f"ciclo de sono: {e}")
-        if self._research is not None and self._research.devida():
+        if (
+            self._research is not None
+            and self._research.devida()
+            and self._pode(rel, "a pesquisa noturna", "gateway", "gemini")
+        ):
             try:
                 rel.pesquisa = await self._research.run()
             except Exception as e:
@@ -181,7 +233,7 @@ class JobRunner:
             self._passo(rel, "briefing", self._briefing)
         if self._processes is not None:
             self._passo(rel, "processos", self._processos_terminados)
-        if self._devido("embed"):
+        if self._devido("embed") and not self._panico():  # os trechos vão ao Gemini
             self._passo(rel, "embeddings", self.memory.embed_pending)
         if self._vault_dir is not None and self._devido("vault"):
             self._passo(rel, "vault", lambda: self.memory.index_vault(self._vault_dir or "."))
@@ -189,6 +241,42 @@ class JobRunner:
             self._passo(rel, "backup", self._backup)
         if self._devido("auditoria"):
             self._passo(rel, "auditoria", self._podar_trilhas)
+        if self._devido("saude_gateway"):
+            self._passo(rel, "gateway", self._saude_gateway)
+
+    def _saude_gateway(self) -> str | None:
+        """Modelos fora do ar (L10), só pelo registro de saída: sem chamada extra ao provedor.
+        Fora = as últimas `FALHAS_FORA` chamadas ao gateway falharam e a primeira dessas falhas
+        tem mais de `ORION_GATEWAY_DOWN_MIN` minutos. Um aviso ao cair, outro ao voltar."""
+        agora = self._clock()
+        linhas = self.memory.external_calls(agora - 86400, prefixo="gateway:", limite=500)
+        fora_desde = self.memory.meta_get("gateway:fora_desde")
+        if not linhas:
+            return None
+        if fora_desde is not None and linhas[0]["ok"]:
+            self.memory.meta_set("gateway:fora_desde", None)
+            volta = datetime.fromtimestamp(linhas[0]["ts"]).strftime("%H:%M")
+            self.ops.notify("gateway", f"Modelos de volta às {volta}.", ref="gateway:voltou")
+            return "voltou"
+        if fora_desde is not None:
+            return None
+        falhas: list[dict[str, Any]] = []
+        for r in linhas:  # mais novas primeiro: as falhas seguidas desde a última que deu certo
+            if r["ok"]:
+                break
+            falhas.append(r)
+        if len(falhas) < FALHAS_FORA or agora - falhas[-1]["ts"] < self._gateway_down_s:
+            return None
+        desde = falhas[-1]["ts"]
+        self.memory.meta_set("gateway:fora_desde", str(desde))
+        hora = datetime.fromtimestamp(desde).strftime("%H:%M")
+        self.ops.notify(
+            "gateway",
+            f"Modelos fora do ar desde {hora}: {len(falhas)} chamada(s) seguida(s) sem resposta. "
+            "Confira o gateway (OmniRoute) e o painel.",
+            ref="gateway:fora",
+        )
+        return "fora"
 
     def _podar_trilhas(self) -> int:
         """Audit e registro de saída (regra 47) com a mesma retenção (90 dias por padrão)."""
@@ -209,7 +297,7 @@ class JobRunner:
         for r in self.ops.due_reminders(self._clock()):
             quando = datetime.fromtimestamp(r["due_at"]).strftime("%d/%m %H:%M")
             texto = f"Lembrete ({quando}): {r['title']}" + (f" — {r['note']}" if r["note"] else "")
-            self.ops.notify("lembrete", texto, ref=f"reminder:{r['id']}")
+            self.ops.notify("lembrete", texto, ref=f"reminder:{r['id']}", urgente=True)
             self.ops.mark_reminder_notified(r["id"])
             n += 1
         return n
@@ -221,7 +309,7 @@ class JobRunner:
             texto = f"Agendamento: {s['title']}"
             if s["tool"]:
                 texto += f" (ferramenta '{s['tool']}' registrada; não é executada sozinha)"
-            self.ops.notify("agendamento", texto, ref=f"schedule:{s['id']}")
+            self.ops.notify("agendamento", texto, ref=f"schedule:{s['id']}", urgente=True)
             self.ops.mark_schedule_fired(s["id"], agora)
             n += 1
         return n
@@ -239,8 +327,9 @@ class JobRunner:
         hoje = int(dt.strftime("%Y%m%d"))
         if self.memory.counter_get("briefing:ultimo") >= hoje:
             return False
+        agenda = None if self._panico() else self._agenda  # pânico: nada de rede (regra 48)
         self.ops.notify(
-            "briefing", build_briefing(self.ops, agora, agenda=self._agenda), ref=f"briefing:{hoje}"
+            "briefing", build_briefing(self.ops, agora, agenda=agenda), ref=f"briefing:{hoje}"
         )
         self.memory.counter_set("briefing:ultimo", hoje)  # depois do aviso: falhar não o perde
         if dt.weekday() == 0:  # segunda: o resumo da semana que passou, uma vez por semana

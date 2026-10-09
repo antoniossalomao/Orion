@@ -44,6 +44,7 @@ SEM_SAIDA_PROPRIA = {
     "orion.netguard": "é o transporte do `buscar_url`; quem registra é orion.tools.web",
     "orion.tools.vision": "só o tipo do transporte; a chamada é do orion.vision",
     "orion.tools.audio": "só o tipo do transporte; a chamada é do orion.transcribe",
+    "orion.doctor": "só pergunta ao Ollama deste computador (127.0.0.1) se o modelo está baixado",
 }
 
 # Provedores que rodam neste computador: entram no registro (telemetria), mas não são "saída".

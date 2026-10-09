@@ -43,6 +43,7 @@ from ..briefing import build_briefing
 from ..capture import EXTENSOES_FOTO, CaptureError, Capturer
 from ..memory import MemoryStore
 from ..memory.ops import Operations
+from ..modos import ModoError, Modos
 from ..policy import ApprovalStore, redact
 from ..transcribe import MAX_AUDIO, TranscribeError, Transcriber
 
@@ -73,6 +74,7 @@ BOAS_VINDAS = (
     "/briefing — o que há para hoje\n"
     "/painel — modelos, CLIs, aprovações e política num só lugar\n"
     "/tela — memória da tela: estado, pausar, retomar ou limpar\n"
+    "/panico — corta rede, execução, tela e escuta; /panico sair para voltar\n"
     "/ajuda — mostra isto de novo\n\n"
     "Ações que mexem no computador chegam aqui com botões para aprovar ou negar."
 )
@@ -124,6 +126,7 @@ class TelegramChannel:
         self.painel: Callable[[], str] | None = None  # texto do /painel (o app liga depois)
         self.agenda: Callable[[float], str | None] | None = None  # agenda do briefing (regra 37)
         self.tela: Callable[[str], str] | None = None  # `/tela` (regra 44); o app liga depois
+        self.modos: Modos | None = None  # `/panico` (regra 48); o app liga depois
         self._clock = clock
         self._armados: dict[int, float] = {}  # chat -> até quando o próximo envio vira nota
         self._offset = 0
@@ -135,6 +138,28 @@ class TelegramChannel:
             await self._client.aclose()
         if self._transcriber is not None:
             await self._transcriber.aclose()
+
+    def _panico(self, argumento: str) -> str:
+        """`/panico` liga; `/panico sair` desliga (comando explícito do usuário da lista, em
+        conversa privada: regras 21 e 48); `/panico estado` só mostra."""
+        if self.modos is None:
+            return "Modo pânico indisponível neste canal."
+        acao = argumento.strip().lower()
+        if acao == "estado":
+            return "Modo pânico LIGADO." if self.modos.panico() else "Modo pânico desligado."
+        if acao == "sair":
+            try:
+                saiu = self.modos.sair_panico("telegram")
+            except ModoError as e:
+                return str(e)
+            return "Modo pânico desligado: tudo volta ao normal." if saiu else "Não estava ligado."
+        if acao:
+            return "Use /panico, /panico sair ou /panico estado."
+        self.modos.entrar_panico("telegram")
+        return (
+            "🚨 Modo pânico LIGADO: ferramentas de rede e de execução cortadas, memória da tela, "
+            "escuta e jobs de rede parados. Nada volta sozinho: /panico sair para desligar."
+        )
 
     # ── API do Telegram ───────────────────────────────────────────────────
     async def _api(self, metodo: str, **payload: Any) -> Any:
@@ -344,6 +369,9 @@ class TelegramChannel:
                 if resposta
                 else "Memória da tela indisponível neste canal.",
             )
+        elif comando == "/panico":
+            argumento = texto.split(None, 1)[1] if len(texto.split(None, 1)) > 1 else ""
+            await self._enviar(chat_id, await asyncio.to_thread(self._panico, argumento))
         elif comando == "/briefing":
             await self._enviar(chat_id, await asyncio.to_thread(self._briefing))
         elif comando == "/nova":

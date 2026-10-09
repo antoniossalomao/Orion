@@ -80,6 +80,54 @@ def _transcrever(settings: Settings, alvo: str, titulo: str, sim: bool) -> int:
     return 0
 
 
+def _modos(settings: Settings, args: argparse.Namespace) -> int:
+    """Pânico e não perturbe pela linha de comando (regra 48). O estado mora no banco: o servidor
+    que estiver de pé obedece em segundos, e o audit registra entrada e saída."""
+    from datetime import datetime
+
+    from .memory import MemoryStore
+    from .memory.ops import Operations
+    from .modos import ModoError, Modos
+
+    store = MemoryStore(settings.db_path)
+    try:
+        modos = Modos(store, dnd_at=settings.dnd_at, audit=Operations(store).audit_add)
+        if args.cmd == "panico":
+            if args.estado:
+                print("modo pânico LIGADO" if modos.panico() else "modo pânico desligado")
+            elif args.sair:
+                try:
+                    saiu = modos.sair_panico("cli")
+                except ModoError as e:
+                    print(e, file=sys.stderr)
+                    return 1
+                print("modo pânico desligado" if saiu else "o modo pânico não estava ligado")
+            else:
+                modos.entrar_panico("cli")
+                print(
+                    "MODO PÂNICO LIGADO: ferramentas de rede e de execução cortadas, memória da "
+                    "tela, escuta e jobs de rede parados. Nada volta sozinho: "
+                    "`orion panico --sair`."
+                )
+            return 0
+        if args.sair:
+            modos.desligar_nao_perturbe()
+            print("não perturbe manual desligado")
+        elif args.ate:
+            try:
+                fim = modos.ligar_nao_perturbe(args.ate)
+            except ValueError as e:
+                print(e, file=sys.stderr)
+                return 1
+            print(f"não perturbe até {datetime.fromtimestamp(fim):%d/%m %H:%M}")
+        else:
+            e = modos.estado()
+            print("não perturbe " + ("ligado" if e["nao_perturbe"] else "desligado"))
+        return 0
+    finally:
+        store.close()
+
+
 def _plugin(settings: Settings, acao: str, alvo: str | None) -> int:
     from .plugins import PluginError, PluginStore, describe
 
@@ -266,6 +314,16 @@ def main(argv: list[str] | None = None) -> int:
     tr.add_argument("arquivo", help="arquivo local, ou um link http(s) (precisa do yt-dlp)")
     tr.add_argument("--titulo", default="", help="título da nota (padrão: nome do arquivo)")
     tr.add_argument("--sim", action="store_true", help="não pergunta antes de enviar o áudio")
+    pn = sub.add_parser(
+        "panico", help="modo pânico: corta rede, execução, tela e escuta (só sai com --sair)"
+    )
+    pn.add_argument("--sair", action="store_true", help="desliga o modo pânico")
+    pn.add_argument("--estado", action="store_true", help="só mostra se está ligado")
+    nd = sub.add_parser(
+        "nao-perturbe", help="segura avisos não urgentes até um horário (HH:MM) ou --sair"
+    )
+    nd.add_argument("ate", nargs="?", help="até quando, HH:MM (ex.: 07:00)")
+    nd.add_argument("--sair", action="store_true", help="desliga o não perturbe manual")
     tl = sub.add_parser("tela", help="memória da tela: estado, ou apagar tudo o que foi guardado")
     tl.add_argument("--limpar", action="store_true", help="apaga todo o texto de tela guardado")
     pl = sub.add_parser(
@@ -323,6 +381,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.cmd == "plugin":
         return _plugin(settings, args.acao, args.alvo)
+
+    if args.cmd in ("panico", "nao-perturbe"):
+        return _modos(settings, args)
 
     if args.cmd == "tela":
         from .memory import MemoryStore

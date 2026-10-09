@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Callable
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -94,6 +95,8 @@ def _dicts(rows: list[Any]) -> list[dict[str, Any]]:
 class Operations:
     def __init__(self, store: MemoryStore) -> None:
         self._s = store
+        # não perturbe (regra 48): o app liga em `Modos.nao_perturbe`; segura os não urgentes
+        self.segurar: Callable[[], bool] = lambda: False
 
     def _now(self) -> float:
         return self._s.clock()
@@ -337,21 +340,29 @@ class Operations:
         return int(self._s.query("SELECT COUNT(*) FROM edges")[0][0])
 
     # ── fila de avisos ────────────────────────────────────────────────────
-    def notify(self, kind: str, text: str, ref: str | None = None) -> int:
+    def notify(self, kind: str, text: str, ref: str | None = None, urgente: bool = False) -> int:
+        """`urgente`: sai mesmo com o não perturbe ligado (regra 48); o resto espera na fila."""
         with self._s.transaction() as c:
             return int(
                 c.execute(
-                    "INSERT INTO notifications(kind, ref, text, created_at) VALUES (?,?,?,?)",
-                    (kind, ref, text, self._now()),
+                    "INSERT INTO notifications(kind, ref, text, created_at, urgent)"
+                    " VALUES (?,?,?,?,?)",
+                    (kind, ref, text, self._now(), 1 if urgente else 0),
                 ).lastrowid
                 or 0
             )
 
-    def pending_notifications(self, limit: int = 50) -> list[dict[str, Any]]:
+    def pending_notifications(
+        self, limit: int = 50, *, todos: bool = False
+    ) -> list[dict[str, Any]]:
+        """O que os canais entregam. Com o não perturbe ligado (`segurar`), só os urgentes; o
+        resto fica na fila e sai quando ele acaba. `todos=True` conta tudo (painel)."""
+        so_urgentes = not todos and self.segurar()
         return _dicts(
             self._s.query(
-                "SELECT * FROM notifications WHERE delivered_at IS NULL ORDER BY id LIMIT ?",
-                (limit,),
+                "SELECT * FROM notifications WHERE delivered_at IS NULL AND (urgent=1 OR ?=0)"
+                " ORDER BY id LIMIT ?",
+                (1 if so_urgentes else 0, limit),
             )
         )
 

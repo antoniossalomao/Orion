@@ -48,8 +48,9 @@ from .capabilities import Capabilities, describe
 from .capture import Capturer
 from .channels import TelegramChannel
 from .config import PROJECT_ROOT, Settings
+from .costs import Custos, cotas_de
 from .delegate import Delegator
-from .gateway import ChatGateway, Endpoint
+from .gateway import CAMADA_LOCAL, ChatGateway, Endpoint
 from .jobs import JobRunner
 from .log import request_id
 from .mcp_client import McpConfigError, McpManager, manager_from_file
@@ -59,6 +60,7 @@ from .memory.embedders import GeminiEmbedder
 from .memory.ops import Operations
 from .memory.sleep import SleepCycle
 from .memory.store import Message, Session
+from .modos import ModoError, Modos
 from .painel import Painel, texto_do_painel
 from .plugins import PluginError, PluginStore
 from .plugins import describe as describe_plugin
@@ -137,6 +139,8 @@ class AppState:
     escuta: WakeListener | None = None  # palavra de ativação (regra 38)
     tela: ScreenMemory | None = None  # memória da tela (regra 44)
     biblioteca: Library | None = None  # resultados gerados (C34)
+    modos: Modos | None = None  # pânico e não perturbe (regra 48)
+    custos: Custos | None = None  # cota gratuita (regra 46)
 
 
 def build_policy(
@@ -222,20 +226,35 @@ def _alguma_cli() -> bool:
 
 
 def gateway_from_settings(settings: Settings) -> ChatGateway | None:
-    if not (settings.gateway_url and settings.gateway_model):
-        return None
-    chave = settings.gateway_api_key or get_secret("ORION_GATEWAY_API_KEY")
-    url = settings.gateway_url
-    endpoints = [Endpoint("gateway", url, settings.gateway_model, chave)]
-    # camadas do roteamento: só entram as que têm modelo próprio; o "gateway" fica de reserva
-    for camada, modelo, espera in (
-        ("rapido", settings.gateway_model_fast, 60.0),
-        ("pesado", settings.gateway_model_heavy, 120.0),
-        ("visao", settings.vision_model, 90.0),
-    ):
-        if modelo and modelo != settings.gateway_model:
-            endpoints.append(Endpoint(camada, url, modelo, chave, timeout_s=espera, tier=camada))
-    return ChatGateway(endpoints)
+    endpoints: list[Endpoint] = []
+    if settings.gateway_url and settings.gateway_model:
+        chave = settings.gateway_api_key or get_secret("ORION_GATEWAY_API_KEY")
+        url = settings.gateway_url
+        endpoints.append(Endpoint("gateway", url, settings.gateway_model, chave))
+        # camadas do roteamento: só entram as que têm modelo próprio; o "gateway" fica de reserva
+        for camada, modelo, espera in (
+            ("rapido", settings.gateway_model_fast, 60.0),
+            ("pesado", settings.gateway_model_heavy, 120.0),
+            ("visao", settings.vision_model, 90.0),
+        ):
+            if modelo and modelo != settings.gateway_model:
+                endpoints.append(
+                    Endpoint(camada, url, modelo, chave, timeout_s=espera, tier=camada)
+                )
+    if settings.local_model:
+        # regra 49: o modelo deste computador entra por último e nunca recebe ferramentas
+        endpoints.append(
+            Endpoint(
+                "local",
+                settings.local_url,
+                settings.local_model,
+                None,
+                timeout_s=180.0,
+                tier=CAMADA_LOCAL,
+                tools=False,
+            )
+        )
+    return ChatGateway(endpoints) if endpoints else None
 
 
 def roteamento_ligado(settings: Settings) -> bool:
@@ -312,6 +331,57 @@ def _estado_da_tela(tela: ScreenMemory | None, memory: MemoryStore) -> dict[str,
         "hoje": memory.screen_count(time.time() - 86400),
         **tela.stats,
     }
+
+
+def _privacidade(memory: MemoryStore, dias: int, agora: float) -> dict[str, Any]:
+    """Por dia e provedor: envios, bytes e tipos de conteúdo; e o que saiu hoje, mais novo antes.
+    Só tamanhos e tipos (regra 47); o que roda neste computador (`saidas.LOCAIS`) fica de fora."""
+    hoje = datetime.fromtimestamp(agora).replace(hour=0, minute=0, second=0, microsecond=0)
+    inicio = hoje.timestamp() - (dias - 1) * 86400
+    linhas = [
+        r
+        for r in memory.external_calls(inicio, limite=50_000)
+        if r["provider"] not in saidas.LOCAIS and not r["provider"].startswith("local")
+    ]
+    por_dia: dict[str, dict[str, dict[str, Any]]] = {}
+    for r in linhas:
+        dia = datetime.fromtimestamp(r["ts"]).strftime("%Y-%m-%d")
+        p = por_dia.setdefault(dia, {}).setdefault(
+            r["provider"], {"envios": 0, "bytes": 0, "tipos": {}}
+        )
+        p["envios"] += 1
+        p["bytes"] += int(r["bytes_out"])
+        tipo = r["content_kind"] or "texto"
+        p["tipos"][tipo] = p["tipos"].get(tipo, 0) + 1
+    dias_lista = [
+        (hoje.timestamp() - i * 86400) for i in range(dias - 1, -1, -1)
+    ]  # do mais velho para hoje
+    serie = []
+    for ts in dias_lista:
+        dia = datetime.fromtimestamp(ts).strftime("%Y-%m-%d")
+        provs = por_dia.get(dia, {})
+        serie.append(
+            {
+                "dia": dia,
+                "envios": sum(p["envios"] for p in provs.values()),
+                "bytes": sum(p["bytes"] for p in provs.values()),
+                "provedores": provs,
+            }
+        )
+    de_hoje = [
+        {
+            "hora": datetime.fromtimestamp(r["ts"]).strftime("%H:%M:%S"),
+            "provedor": r["provider"],
+            "tipo": r["kind"],
+            "conteudo": r["content_kind"] or "texto",
+            "bytes": int(r["bytes_out"]),
+            "ok": bool(r["ok"]),
+        }
+        for r in linhas
+        if r["ts"] >= hoje.timestamp()
+    ][:200]
+    provedores = sorted({r["provider"] for r in linhas})
+    return {"dias": dias, "serie": serie, "provedores": provedores, "hoje": de_hoje}
 
 
 def screen_from_settings(settings: Settings, memory: MemoryStore) -> ScreenMemory | None:
@@ -471,6 +541,15 @@ def _sem_mcp(nome: str, args: dict[str, Any]) -> dict[str, Any]:
 
 class EscutaControle(BaseModel):
     ativa: bool
+
+
+class PanicoControle(BaseModel):
+    ativo: bool
+    senha: str = Field(default="", max_length=1024)  # só para sair (regra 48)
+
+
+class NaoPerturbeControle(BaseModel):
+    ate: str | None = Field(default=None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")  # None: desliga
 
 
 class Mensagem(BaseModel):
@@ -695,6 +774,42 @@ def _painel_da_voz(
     }
 
 
+async def _vigiar_modos(modos: Modos, escuta: WakeListener | None, a_cada_s: float = 2.0) -> None:
+    """Aplica o pânico à palavra de ativação mesmo quando quem ligou foi a CLI (o estado mora no
+    banco). Só retoma a escuta que o próprio pânico pausou (regra 48: a sua pausa continua sua)."""
+    pausada_pelo_panico = False
+    while True:
+        try:
+            panico = await asyncio.to_thread(modos.panico)
+            if escuta is not None:
+                if panico and not escuta.stats.pausada:
+                    escuta.pausar()
+                    pausada_pelo_panico = True
+                elif not panico and pausada_pelo_panico:
+                    escuta.retomar()
+                    pausada_pelo_panico = False
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            log.exception("vigia dos modos falhou")
+        await asyncio.sleep(a_cada_s)
+
+
+def _senha_de_novo(state: AppState, senha: str, cliente: str) -> bool:
+    """Sair do pânico pelo painel pede a senha de novo (regra 48), com a mesma trava do login.
+    Sem senha definida (só token de máquina), vale o próprio token."""
+    if not state.auth.has_password():
+        esperado = state.settings.admin_token
+        return bool(esperado) and hmac.compare_digest(senha.encode(), esperado.encode())
+    if state.auth.throttle.espera(cliente):
+        return False
+    if len(senha) <= 1024 and state.auth.check_password(senha):
+        state.auth.throttle.acertou(cliente)
+        return True
+    state.auth.throttle.falhou(cliente)
+    return False
+
+
 def create_app(
     settings: Settings | None = None,
     memory_factory: Callable[[Settings], MemoryStore] | None = None,
@@ -723,6 +838,9 @@ def create_app(
         memory = (memory_factory or memory_from_settings)(settings)
         saidas.definir_destino(memory.add_external_call)  # registro de saída (regra 47)
         ops = Operations(memory)
+        modos = Modos(memory, dnd_at=settings.dnd_at, audit=ops.audit_add)
+        ops.segurar = modos.nao_perturbe  # não perturbe segura os avisos não urgentes
+        custos = Custos(memory, cotas_de(settings), ops=ops)
         policy = build_policy(settings, ops=ops)
         auth = AuthService(
             settings.auth_db_path, user=settings.auth_user, ttl_s=settings.session_ttl_h * 3600
@@ -822,6 +940,7 @@ def create_app(
                 routing=roteamento_ligado(settings),
                 skills=skills,
                 library=biblioteca,
+                modos=modos,
             )
         jobs, tarefa_jobs, agenda = None, None, None
         if settings.jobs_enabled:
@@ -867,6 +986,9 @@ def create_app(
                     if settings.weekly_ai and gateway is not None and hasattr(gateway, "complete")
                     else None
                 ),
+                custos=custos,
+                modos=modos,
+                gateway_down_min=settings.gateway_down_min,
             )
             tarefa_jobs = asyncio.create_task(jobs.run_forever(settings.jobs_tick_s))
         telegram = (telegram_factory or telegram_from_settings)(
@@ -885,11 +1007,14 @@ def create_app(
             voz_stats,
             wake_factory or wake_from_settings,
         )
+        tarefa_modos = asyncio.create_task(_vigiar_modos(modos, escuta[0]))
         painel = Painel(
             started_at=time.time(),
             memory=memory,
             ops=ops,
             policy=policy,
+            modos=modos,
+            custos=custos,
             agent=agent,
             jobs=jobs,
             mcp=mcp,
@@ -907,6 +1032,7 @@ def create_app(
         )
         if telegram is not None:
             telegram.painel = lambda: texto_do_painel(painel.montar())
+            telegram.modos = modos
             telegram.tela = lambda acao: comando_tela(tela, memory, acao)
             telegram.agenda = agenda
         app.state.orion = AppState(
@@ -919,13 +1045,15 @@ def create_app(
             escuta=escuta[0],
             tela=tela,
             biblioteca=biblioteca,
+            modos=modos,
+            custos=custos,
         )  # fmt: skip
         try:
             yield
         finally:
             if escuta[0] is not None:
                 escuta[0].parar()  # a thread é daemon; o microfone fecha no `finally` do laço
-            for tarefa in (tarefa_jobs, tarefa_telegram):
+            for tarefa in (tarefa_jobs, tarefa_telegram, tarefa_modos):
                 if tarefa is not None:
                     tarefa.cancel()
                     with contextlib.suppress(asyncio.CancelledError):
@@ -1017,7 +1145,7 @@ def create_app(
                 },
             },
             "pending_approvals": len(state.policy.approvals.pending()),
-            "pending_notifications": len(state.ops.pending_notifications(limit=1000)),
+            "pending_notifications": len(state.ops.pending_notifications(limit=1000, todos=True)),
         }
 
     # ── login ─────────────────────────────────────────────────────────────
@@ -1648,6 +1776,47 @@ def create_app(
             raise HTTPException(status_code=409, detail="a memória da tela está desligada")
         state.tela.pausar(not corpo.ativa)
         return {"pausada": state.tela.pausada}
+
+    # ── modos (regra 48) e privacidade (regra 47) ─────────────────────────
+    @app.get("/modo", dependencies=[Admin])
+    def modo_estado(state: State) -> dict[str, Any]:
+        assert state.modos is not None
+        return state.modos.estado()
+
+    @app.post("/modo/panico", dependencies=[Admin])
+    def modo_panico(corpo: PanicoControle, request: Request, state: State) -> dict[str, Any]:
+        """Entrar é um clique; sair pede a senha de novo (o pânico nunca volta sozinho)."""
+        assert state.modos is not None
+        if corpo.ativo:
+            state.modos.entrar_panico("web")
+            if state.escuta is not None:
+                state.escuta.pausar()  # já, sem esperar a vigia
+            return state.modos.estado()
+        cliente = request.client.host if request.client else "?"
+        if not _senha_de_novo(state, corpo.senha, cliente):
+            raise HTTPException(403, "para sair do modo pânico, confirme a senha")
+        try:
+            state.modos.sair_panico("web")
+        except ModoError as e:
+            raise HTTPException(503, str(e)) from None
+        return state.modos.estado()
+
+    @app.post("/modo/nao-perturbe", dependencies=[Admin])
+    def modo_nao_perturbe(corpo: NaoPerturbeControle, state: State) -> dict[str, Any]:
+        """`ate: "07:00"` liga até a próxima vez que o relógio marcar; `null` desliga o manual
+        (o horário fixo de `ORION_DND_AT` continua valendo)."""
+        assert state.modos is not None
+        if corpo.ate is None:
+            state.modos.desligar_nao_perturbe()
+        else:
+            state.modos.ligar_nao_perturbe(corpo.ate)
+        return state.modos.estado()
+
+    @app.get("/privacidade", dependencies=[Admin])
+    def privacidade(state: State, dias: Annotated[int, Query(ge=1, le=90)] = 7) -> dict[str, Any]:
+        """O que saiu do computador (regra 47): por dia e provedor, envios, bytes e tipo de
+        conteúdo; e a lista de hoje. Nunca o conteúdo. O modelo local não conta como saída."""
+        return _privacidade(state.memory, dias, time.time())
 
     @app.get("/atividade", dependencies=[Admin])
     def atividade(state: State, limite: Annotated[int, Query(ge=1, le=100)] = 30) -> dict[str, Any]:
