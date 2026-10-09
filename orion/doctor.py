@@ -97,11 +97,23 @@ def _rede(s: Settings) -> Checagem:
 
 
 def _gateway(s: Settings) -> Checagem:
-    if not s.gateway_url:
-        return Checagem("gateway de modelos", "aviso", "ORION_GATEWAY_URL vazio: /chat desligado")
-    if not _chave(s, "gateway_api_key", "ORION_GATEWAY_API_KEY"):
-        return Checagem("gateway de modelos", "aviso", "sem ORION_GATEWAY_API_KEY")
-    return Checagem("gateway de modelos", "ok", f"{s.gateway_url} (não testei a rede)")
+    from .provedores import chave_env
+    from .secrets import get_secret
+
+    nome = "modelos"
+    ligados = [p.id for p in s.provedores if get_secret(chave_env(p.id))]
+    sem_chave = [chave_env(p.id) for p in s.provedores if p.id not in ligados]
+    if s.gateway_url:
+        if not _chave(s, "gateway_api_key", "ORION_GATEWAY_API_KEY"):
+            sem_chave.append("ORION_GATEWAY_API_KEY")
+        else:
+            ligados.append("avulso")
+    if not ligados:
+        motivo = f"sem chave: {', '.join(sem_chave)}" if sem_chave else "ORION_PROVEDORES vazio"
+        return Checagem(nome, "aviso", f"{motivo}: /chat desligado")
+    if sem_chave:
+        return Checagem(nome, "aviso", f"{', '.join(ligados)} · sem chave: {', '.join(sem_chave)}")
+    return Checagem(nome, "ok", f"{', '.join(ligados)} (não testei a rede)")
 
 
 def _opcionais(s: Settings) -> list[Checagem]:
@@ -215,6 +227,7 @@ def _custo(s: Settings) -> list[Checagem]:
     for nome, url, usado in (
         ("gateway", s.gateway_url, bool(s.gateway_url)),
         ("transcrição", s.transcribe_url, s.voice_enabled or bool(s.transcribe_api_key)),
+        *((f"provedor {p.id}", p.url, bool(p.url)) for p in s.provedores),
     ):
         if not usado or host_gratuito(url):
             continue

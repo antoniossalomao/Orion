@@ -11,6 +11,34 @@ from .config import Settings
 from .log import setup_logging
 
 
+def _guardar_chave(provedor_id: str, *, from_stdin: bool) -> int:
+    """Guarda a chave de um provedor no cofre do SO (ORION_KEY_<ID>), sem passar pelo `.env`."""
+    import getpass
+
+    from .provedores import CATALOGO, chave_env
+    from .secrets import set_secret
+
+    pid = provedor_id.strip().lower()
+    if from_stdin:
+        chave = sys.stdin.readline().strip()
+    else:
+        chave = getpass.getpass(f"Chave de API de {pid} (não aparece na tela): ").strip()
+    if not chave:
+        print("chave vazia: nada foi gravado", file=sys.stderr)
+        return 1
+    try:
+        set_secret(chave_env(pid), chave)
+    except Exception as e:  # noqa: BLE001 — sem cofre no sistema: diz como seguir
+        print(
+            f"cofre indisponível ({type(e).__name__}): use {chave_env(pid)} no ambiente",
+            file=sys.stderr,
+        )
+        return 1
+    extra = "" if pid in CATALOGO else " (fora do catálogo: informe 'url' em ORION_PROVEDORES)"
+    print(f"chave de {pid} guardada no cofre como {chave_env(pid)}{extra}")
+    return 0
+
+
 def _set_password(settings: Settings, *, from_stdin: bool) -> int:
     import getpass
 
@@ -291,6 +319,9 @@ def main(argv: list[str] | None = None) -> int:
     pw.add_argument(
         "--stdin", action="store_true", help="lê a senha da entrada padrão (sem confirmação)"
     )
+    ch = sub.add_parser("chave", help="guarda a chave de API de um provedor no cofre do sistema")
+    ch.add_argument("provedor", help="id do provedor (ex.: groq, gemini, openrouter)")
+    ch.add_argument("--stdin", action="store_true", help="lê a chave da entrada padrão")
     mc = sub.add_parser(
         "mcp-check", help="sobe os servidores do mcp.json e mostra as ferramentas e suas classes"
     )
@@ -473,6 +504,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "mcp-check":
         return _mcp_check(args.config or settings.effective_mcp_config)
 
+    if args.cmd == "chave":
+        return _guardar_chave(args.provedor, from_stdin=args.stdin)
     if args.cmd == "set-password":
         return _set_password(settings, from_stdin=args.stdin)
 

@@ -93,7 +93,7 @@ Decisão #5 fechada: **front só desktop** (sem PWA nem layout para celular; o c
 | V10 | Média | O `/mcp` do legado aceitava qualquer página do navegador (o CORS tolera `Origin: null` por causa do pywebview) e não conferia o `Host` (DNS rebinding) | ✅ no código; legado não testado com Qdrant/SurrealDB no ar | `origem.RecusaOrigemEstranhaNoMcp` (403 a qualquer `Origin` que não seja o próprio cérebro; Claude Code e Cursor não mandam `Origin` e seguem funcionando) e `TrustedHostMiddleware`. O resto da API legada não muda. Regra 34 |
 | V11 | Baixa | O roteamento do legado era um regex de palavras-chave, sem motivo registrado | ✅ | `orion/router.py`: pontuação explicável (tamanho, código colado, verbos de trabalho, vários itens, tema técnico), camadas `rapido`/`pesado`/`visao`, `#pesado`/`#rapido`/`#visao` força; modelo por camada em `ORION_GATEWAY_MODEL_FAST/HEAVY` e `ORION_VISION_MODEL`; o padrão é o reserva; a retomada após aprovação fica na camada do pedido; o motivo vai na proveniência da resposta |
 | V12 | Baixa | Sobravam `gerar_imagem` e `pesquisar_internet` | ✅ (APIs **não validadas** contra o serviço real) | `gerar_imagem` (Gemini, `ORION_IMAGE_MODEL`): nome do arquivo gerado no código, assinatura do arquivo conferida (PNG/JPEG/WEBP, nunca SVG), `/imagens/<arquivo>` só com login; `pesquisar_internet` (Brave Search, `ORION_BRAVE_API_KEY`): HTML removido, resultado é conteúdo externo. O front passou a aceitar `/imagens/<arquivo>` sem host. Regra 33 |
-| V13 | Baixa | O painel mostrava só "o endpoint respondeu", não **quem** o OmniRoute usou | 🟡 | Lê os cabeçalhos documentados `X-OmniRoute-Provider`, `-Decision` e `-Fallback-Attempts` e mostra "Serviu: gemini ×30 · groq ×8". **A cota real do provedor não entra**: o OmniRoute a expõe em `/api/rate-limits`, `/api/monitoring/health` e `/dashboard/free-tiers` com credencial de "Management" cujo formato e cujas respostas a documentação não dá, e eu não tenho um OmniRoute no ar para descobrir |
+| V13 | Baixa | O painel mostrava só "o endpoint respondeu", não **quem** o OmniRoute usou | 🟡 | Lê os cabeçalhos documentados `X-OmniRoute-Provider`, `-Decision` e `-Fallback-Attempts` e mostra "Serviu: gemini ×30 · groq ×8". **A cota real do provedor não entra**: o OmniRoute a expõe em `/api/rate-limits`, `/api/monitoring/health` e `/dashboard/free-tiers` com credencial de "Management" cujo formato e cujas respostas a documentação não dá, e eu não tenho um OmniRoute no ar para descobrir **Removido em 09/10/2026 com o OmniRoute** (provedores agora são ligados direto). |
 
 **Não verificado nesta rodada:** (a) `gerar_imagem` (corpo `generateContent` com `responseModalities` e leitura de `inlineData`) e `pesquisar_internet` (`X-Subscription-Token`, `web.results[]`) foram escritos pela documentação, de memória, e testados só contra API falsa; o nome do modelo de imagem e se o plano gratuito cobre imagem mudam com o tempo; (b) os cabeçalhos `X-OmniRoute-*` seguem a documentação da versão v3.8.52, não um OmniRoute real; (c) a pontuação do roteamento é uma heurística: ela vai errar alguns casos (por isso o `#pesado`/`#rapido`) e só ficará boa com o seu uso; (d) a trava do `/mcp` e o `TrustedHost` do legado compilam e a lógica tem teste, mas o legado inteiro não subiu aqui; (e) o `orion_app.py` (pywebview) é o casco do legado e entra por `ORION_ADMIN_TOKEN`: o caminho desktop do Orion novo é o navegador (`orion.exe` abre `/ui/` com a senha), então não mexi nele e ele sai na fase 7.
 
@@ -233,7 +233,7 @@ da ponte (E2).
 - **Legado em produção:** o gate novo foi testado com stubs, não com Qdrant/SurrealDB no ar. **Antes de usar no PC,
   suba o cérebro e faça um pedido que rode `executar_comando`** — agora ele vai pedir confirmação em quase tudo
   que não for leitura (esse é o comportamento desejado, mas muda o uso).
-- **Modelos reais:** nenhum gateway real foi chamado; o formato é o da OpenAI (OmniRoute o fala), mas o primeiro
+- **Modelos reais:** nenhum gateway real foi chamado; o formato é o da OpenAI (todos os provedores do catálogo o falam), mas o primeiro
   teste ao vivo é seu.
 - **Embeddings reais:** a busca vetorial foi testada com um embedder falso (sinônimos). Falta o cliente da API
   gratuita (Gemini) e medir com suas perguntas reais — o conjunto de avaliação existe para isso.
@@ -260,7 +260,7 @@ da ponte (E2).
 3. `orion import-surreal <pasta-do-backup> --assistente <nome-antigo>` e escrever 15–30 perguntas reais em
    `tests/eval_pessoal.local.json` (modelo em `tests/eval_pessoal.example.json`); medir com
    `python -m orion.memory.eval <casos> --db <orion.db> --embeddings --min-hit-rate 0.8`.
-4. Subir o OmniRoute e testar `ORION_GATEWAY_URL`/`ORION_GATEWAY_MODEL` com `POST /chat`.
+4. Criar as chaves (`orion chave <id>`), preencher `ORION_PROVEDORES` e testar com `POST /chat`.
 5. Fase 5: `uv run orion set-password`; criar o bot (@BotFather), preencher `ORION_TELEGRAM_TOKEN`/`ORION_TELEGRAM_ALLOWED_USERS`
    (e `ORION_TRANSCRIBE_API_KEY` para voz) e testar no notebook (pare o bot do legado antes); instalar o Tailscale
    ([ORION_OPERACAO.md](ORION_OPERACAO.md)); `uv run orion autostart`.
@@ -275,7 +275,7 @@ da ponte (E2).
 
 - ~~Briefing matinal no Telegram~~ (feito em 06/10: lembretes, agendamentos e tarefas; a agenda do Google entra desde 07/10, regra 37, depois de ligar o servidor `google`).
 - ~~Captura rápida~~ (feito em 06/10: `/capturar`; o link é guardado como veio, sem buscar o título da página).
-- ~~Painel único~~ (feito em 06/10: `GET /painel`, tela Painel, `/painel` no Telegram; a cota **real** por provedor ainda exige consultar o OmniRoute).
+- ~~Painel único~~ (feito em 06/10: `GET /painel`, tela Painel, `/painel` no Telegram; a cota **real** por provedor só o painel de cada provedor mostra).
 - ~~Roteamento por tipo de tarefa~~ (feito em 07/10: `orion/router.py`, V11).
 - ~~Front no celular / PWA~~ (descartado em 07/10: front só desktop, decisão #5).
 - ~~Consolidação noturna da memória~~ (feito em 03/10: `orion/memory/consolidate.py`).

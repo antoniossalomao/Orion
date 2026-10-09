@@ -41,7 +41,7 @@
             const s = L.estadoModelo(e);
             const detalhe = `${e.ok} ok · ${e.falhas} falha(s)${e.limitada ? ` · ${e.limitada}× cota` : ''}`
                 + (e.ultimo_erro ? ` · último erro: ${e.ultimo_erro}` : '') + (e.ultimo_ok ? ` · última resposta ${tempo(e.ultimo_ok)}` : '');
-            const servidos = L.resumoProvedores(e.provedores);
+            const adiado = Number(e.orcamento) > 0 ? `Limite do dia gasto: ${Number(e.orcamento)}× para o fim da fila` : '';
             return el('li', { class: 'painel-item', dataset: { endpoint: e.nome, estado: s.estado } },
                 el('div', { class: 'painel-item-top' },
                     el('span', { class: 'status-dot', dataset: { state: s.estado === 'idle' ? '' : s.estado }, 'aria-hidden': 'true' }),
@@ -49,7 +49,7 @@
                     el('span', { class: 'mono painel-modelo', text: e.camada && e.camada !== 'padrão' ? `${e.modelo} · ${e.camada}` : e.modelo }),
                     el('span', { class: `badge badge-${s.estado === 'idle' ? 'muted' : s.estado}`, text: s.rotulo })),
                 el('small', { text: detalhe }),
-                servidos ? el('small', { class: 'painel-provedores', text: `Serviu: ${servidos}` }) : null);
+                adiado ? el('small', { class: 'painel-orcamento', text: adiado }) : null);
         })), rot ? el('p', { class: 'painel-top', 'data-roteamento': '' }, `Roteamento por tipo de tarefa: ${rot}`) : null);
     }
 

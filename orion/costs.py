@@ -24,6 +24,8 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any, Literal
 from urllib.parse import urlsplit
 
+from .provedores import CATALOGO
+
 if TYPE_CHECKING:
     from .config import Settings
     from .memory import MemoryStore
@@ -31,8 +33,8 @@ if TYPE_CHECKING:
 
 log = logging.getLogger("orion.costs")
 
-# Host -> o que é. Local (OmniRoute, Ollama) é gratuito por definição: quem decide para onde o
-# OmniRoute manda é a configuração dele (decisão #2 do NUCLEO: só combos de free tier).
+# Host -> o que é. Local (Ollama, 127.0.0.1) é gratuito por definição; os do catálogo de
+# provedores (orion/provedores.py) têm plano gratuito — o que você paga lá é escolha sua de conta.
 PROVEDORES_GRATUITOS = frozenset(
     {
         "127.0.0.1",
@@ -41,6 +43,7 @@ PROVEDORES_GRATUITOS = frozenset(
         "api.groq.com",  # Whisper e modelos abertos, cota gratuita
         "generativelanguage.googleapis.com",  # Gemini (AI Studio), cota gratuita
         "api.search.brave.com",  # plano gratuito
+        *(urlsplit(c.base_url).hostname or "" for c in CATALOGO.values()),
     }
 )
 LIMIAR_OPCIONAL = 0.9  # job opcional para com 90% da cota
@@ -60,6 +63,12 @@ def cotas_de(settings: Settings) -> dict[str, Cota]:
         "groq": Cota("groq", "Groq (transcrição)", settings.quota_groq_dia),
         "gemini": Cota("gemini", "Gemini (busca, embeddings, imagem)", settings.quota_gemini_dia),
         "brave": Cota("brave", "Brave Search", settings.quota_brave_mes, "mes"),
+        # orçamento por provedor de modelo (`limite_dia` em ORION_PROVEDORES)
+        **{
+            f"prov:{p.id}": Cota(f"gateway:{p.id}", f"Modelos · {p.id}", p.limite_dia)
+            for p in settings.provedores
+            if p.limite_dia
+        },
     }
 
 
@@ -96,6 +105,11 @@ class Custos:
     def fracao(self, provedor: str) -> float:
         c = self.cotas[provedor]
         return self.uso(provedor) / c.limite if c.limite else 0.0
+
+    def no_orcamento(self, provedor_id: str) -> bool:
+        """Gateway: o provedor ainda está dentro do `limite_dia` hoje? Sem limite, sempre."""
+        chave = f"prov:{provedor_id}"
+        return chave not in self.cotas or self.uso(chave) < self.cotas[chave].limite
 
     def pode_usar(self, provedor: str, opcional: bool, quem: str = "") -> bool:
         """O chat (`opcional=False`) sempre pode. Job opcional para com 90% e avisa 1× por dia."""

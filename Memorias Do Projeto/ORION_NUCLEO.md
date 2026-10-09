@@ -66,7 +66,7 @@ Notebook ── web (Tailscale) / casca desktop ─┤
                                              ▼
                      Orion (Python, FastAPI, 1 processo)
                      ├─ Agente: persona fixa + ferramentas + memória
-                     ├─ Modelos ──► OmniRoute (local) ──► free tiers por chave de API
+                     ├─ Modelos ──► provedores direto (free tiers por chave de API)
                      ├─ Tarefa pesada ──► CLIs oficiais: claude -p · codex exec · gemini -p
                      ├─ Ferramentas ──► servidores MCP (prontos + orion-desktop próprio)
                      │                   └─ política: leitura livre · escrita com log ·
@@ -83,7 +83,7 @@ Notebook ── web (Tailscale) / casca desktop ─┤
 | Linguagem/servidor | Python + FastAPI, pacote `orion/` com `pyproject` + uv | Ecossistema de IA; uv resolve Python e dependências igual no Windows e no Mac |
 | Qualidade | ruff, pyright, pytest; CI no GitHub Actions em Windows e macOS | Garantia de que roda nas duas máquinas |
 | Configuração/segredos | pydantic-settings + `.env`; chaves no cofre do SO (`keyring`) | Funciona no Credential Manager e no Keychain |
-| Modelos (conversa) | **OmniRoute** rodando local, endpoint compatível com a API da OpenAI | Já rastreia cotas de free tiers e faz fallback; o Orion só fala um formato |
+| Modelos (conversa) | Provedores ligados **direto** (`orion/provedores.py`), API compatível com a da OpenAI | Sem processo extra: fallback, quarentena por modelo, pausa por falhas e orçamento diário no próprio `gateway.py` (OmniRoute descartado em 09/10/2026) |
 | Modelos (tarefa pesada) | Claude Code, Codex e Gemini CLI em modo sem interface | Usa as assinaturas pelo caminho oficial, sem token extraído |
 | Último recurso | Nenhum por enquanto (sem modelo local) | Ollama saiu em 01/10/2026; reavaliar se faltar internet ou cota |
 | Agente | PydanticAI | Ferramentas tipadas, MCP nativo, streaming, testável com modelo falso |
@@ -98,7 +98,7 @@ Notebook ── web (Tailscale) / casca desktop ─┤
 1. Chega por um canal (Telegram ou web) e passa pela autenticação.
 2. O Orion monta o contexto: persona fixa + fatos sobre o Antônio + memória
    relevante (busca híbrida) + histórico da sessão.
-3. O agente chama o modelo pelo OmniRoute com as ferramentas disponíveis.
+3. O agente chama o modelo direto no provedor (na ordem configurada) com as ferramentas disponíveis.
 4. Pedido de ferramenta passa pela política: leitura roda direto, escrita roda e
    fica no log, destrutiva pede confirmação no próprio canal (botão no Telegram).
 5. Tarefa pesada vira a ferramenta `delegar(agente, tarefa, pasta)`, que roda a
@@ -127,8 +127,7 @@ Response Provenance (de onde veio cada resposta).
 - Login obrigatório em toda rota: senha em PBKDF2 e **sessão opaca** em cookie httpOnly
   (revogável; não é JWT, que não se revoga) — `orion/auth.py`; token de admin só para
   máquinas; bot do Telegram só responde ao ID do Antônio.
-- OmniRoute com a senha padrão trocada e só provedores por chave de API (os
-  marcados como risco ficam desligados).
+- Só provedores por chave de API oficial (nada de token de assinatura); chaves no cofre do SO.
 - Política de ferramentas com rate limit, Câmara de Eco e audit log (portados do legado).
 
 ## 5. Inventário do legado
@@ -139,7 +138,7 @@ O que existe hoje e o destino de cada peça. "Fase" = quando é substituído e a
 |---|---|---|
 | `cerebro_maestro.py`, `routers/`, `models/` | Reescrever como app FastAPI com lifespan e injeção de dependências; portar chat, sessões, prompts, logs, sistema | 1–2 |
 | `config.py`, `logger.py`, `test_smoke.py`, `requirements.txt` | pydantic-settings + keyring, logging padrão, pytest, `pyproject` | 1 |
-| `llm_cascade.py` (3 formatos de API) | Apagar — OmniRoute | 2 |
+| `llm_cascade.py` (3 formatos de API) | Apagar — `orion/gateway.py` + `orion/provedores.py` | 2 |
 | Andar Claude CLI / `consultar_especialista` | Generalizar para Claude Code, Codex e Gemini CLI | 2 |
 | Roteamento MoE por regex | Apagar | 2 |
 | `orion_agentes.py` (enxame) | Apagar — o agente vira o núcleo; tarefa grande vai para as CLIs | 2 |
@@ -177,7 +176,7 @@ Tudo continua no histórico do git.
 |---|---|---|
 | **0 — Antes de vender o PC** *(urgente)* | Exportar do SurrealDB as tabelas pessoais (`evento`, `sessao`, `prompt`, `lembrete`, `agendamento`, `tarefa`, `numero`) para JSON; copiar `.env` e `Orion_Core/google_auth/`; conferir o vault do Obsidian no iCloud | `orion verify-export` termina em PRONTO (contagens, importação de ensaio, backup e restauração); detalhes em [ORION_CORTE.md](ORION_CORTE.md) |
 | **1 — Fundação** | Pacote `orion/` (uv, ruff, pyright, pytest), configuração, app FastAPI com `/health`, CI em Windows e macOS | CI verde nos dois SOs; `uv run orion` sobe |
-| **2 — Cérebro** | OmniRoute configurado; agente com persona; `/chat` em streaming; `delegar` nas 3 CLIs | Conversa segue funcionando com um provedor derrubado de propósito; delegação testada nas 3 CLIs |
+| **2 — Cérebro** | Provedores configurados; agente com persona; `/chat` em streaming; `delegar` nas 3 CLIs | Conversa segue funcionando com um provedor derrubado de propósito; delegação testada nas 3 CLIs |
 | **3 — Memória** | SQLite + FTS5 + vetores (numpy); importação do export; indexação do vault; fatos e consolidação; backup | Perguntas reais sobre o Antônio (conjunto fixo, em pytest) recuperam a memória certa |
 | **4 — Ferramentas** | Cliente MCP; servidores prontos + `orion-desktop`; política, confirmação, audit | Teste prova que nenhuma ação destrutiva roda sem confirmação |
 | **5 — Canais** | Telegram (texto, voz, foto, botões), login, Tailscale, autostart | Usar o Orion pelo celular fora de casa |
@@ -188,7 +187,7 @@ Tudo continua no histórico do git.
 a fase 0 continua pendente (é sua), mas há `orion verify-export` e o [plano de corte](ORION_CORTE.md); a fase 1 está
 pronta (CI verde em Linux, Windows e macOS); a fase 3 está pronta no código (memória SQLite com esquema v3, importador
 completo, embeddings pela API gratuita, consolidação, agendador, backup diário; falta a chave de embeddings e as suas
-perguntas reais); a fase 2 existe com gateway e CLIs falsos (falta OmniRoute e CLIs reais); a fase 4 está pronta no
+perguntas reais); a fase 2 existe com gateway e CLIs falsos (faltam chaves reais dos provedores e CLIs reais); a fase 4 está pronta no
 código: política com audit em banco, ferramentas de memória, operação, `delegar`, `orion-desktop` completo (comando,
 arquivos, documentos, área de transferência, notificação, abrir app, Git somente-leitura, saúde, processos em segundo
 plano, vigilância de pastas), web (opt-in) e cliente MCP; faltam os servidores MCP que **você** escolher (e-mail, agenda,
@@ -202,7 +201,7 @@ a fase 7 não começou.
 | # | Decisão | Recomendação | Alternativa |
 |---|---|---|---|
 | 1 | Banco da memória | SQLite + FTS5 + vetores em tabela comum (numpy). sqlite-vec foi descartado em 02/10 | SurrealDB (servidor ou embutido) |
-| 2 | Gateway de modelos | OmniRoute | LiteLLM (biblioteca, sem processo extra, cotas na mão) |
+| 2 | Gateway de modelos | **Decidido em 09/10/2026: direto no Orion** (`orion/provedores.py` + `gateway.py`), sem OmniRoute nem o MCP dele | ~~OmniRoute~~ (processo externo, descartado) · LiteLLM |
 | 3 | Framework do agente | PydanticAI | Loop próprio (~200 linhas) — **adotado em 02/10 (alternativa)**, ver registro; reversível |
 | 4 | Ritmo de apagar o legado | Por fase (código antigo à mão para portar) | Tudo agora, consultando o histórico do git |
 | 5 | Interface | **Decidido em 07/10/2026: front só desktop**, sem versão para celular (sem PWA, gaveta, toque nem manifest). Ver [ORION_FRONT.md](ORION_FRONT.md). O celular continua só pelo Telegram, que já existia | ~~Web no celular via Tailscale~~ — descartada |

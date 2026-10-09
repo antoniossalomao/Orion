@@ -941,10 +941,12 @@ def test_painel_mostra_alertas_modelos_clis_aprovacoes_e_politica(abrir):
     primeiro = corpo.locator(".painel-alertas .banner").first
     assert "banner-danger" in (primeiro.get_attribute("class") or "")
     # modelos
-    ok = corpo.locator('[data-endpoint="omniroute"]')
+    ok = corpo.locator('[data-endpoint="gemini"]')
     expect(ok).to_contain_text("Funcionando")
     expect(ok).to_contain_text("último erro: HTTP 502")
-    expect(ok.locator(".painel-provedores")).to_have_text("Serviu: gemini ×30 · groq ×8")
+    expect(ok.locator(".painel-orcamento")).to_have_text(
+        "Limite do dia gasto: 2× para o fim da fila"
+    )
     reserva = corpo.locator('[data-endpoint="reserva"]')
     expect(reserva).to_contain_text("Em quarentena · volta em 2 min")
     expect(reserva).to_contain_text("3× cota")

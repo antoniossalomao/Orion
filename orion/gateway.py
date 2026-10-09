@@ -1,10 +1,15 @@
 """Cliente do gateway de modelos (API compatível com a da OpenAI) com streaming.
 
-O Orion fala um formato só; quem roteia entre free tiers e controla cota é o
-OmniRoute (decisão #2 do NUCLEO). Mesmo assim aceita uma lista de endpoints:
-se o gateway cair ou recusar (429, 5xx, timeout), tenta o próximo; um 429
-põe o endpoint em quarentena. Falha no meio do texto não troca de endpoint
-(a resposta já começou) e vira `GatewayError`.
+O Orion fala um formato só com cada provedor (orion/provedores.py), sem gateway externo. Recebe
+uma lista de endpoints (um por modelo) e, se um cair ou recusar (429, 5xx, timeout), tenta o
+próximo:
+
+- 429 põe aquele modelo em quarentena pelo `Retry-After` (ou `cooldown_s`);
+- `FALHAS_PARA_PAUSA` falhas seguidas o pausam, com espera que dobra até `PAUSA_MAX_S`;
+- `orcamento(ep)` falso (o Orion já gastou o `limite_dia` do provedor hoje) o manda para o fim
+  da fila: só é tentado se nenhum outro responder, porque o chat nunca é bloqueado (regra 46).
+
+Falha no meio do texto não troca de endpoint (a resposta já começou) e vira `GatewayError`.
 
 Cada tentativa por endpoint vira uma linha no registro de saída (regra 47, `on_call`): provedor,
 modelo, ok, latência e bytes, nunca o conteúdo. O modelo local (regra 49) entra como endpoint de
@@ -15,10 +20,9 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 import time
 from collections.abc import AsyncIterator, Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 import httpx
@@ -43,17 +47,21 @@ class Endpoint:
     # "local" (regra 49) é o modelo deste computador: sempre por último, em qualquer camada.
     tier: str = ""
     tools: bool = True  # False: a requisição sai sem `tools` (modelo local, regra 49)
+    provedor: str = ""  # id em orion/provedores.py; vazio = endpoint avulso (ORION_GATEWAY_URL)
 
     @property
     def provider(self) -> str:
-        """Nome no registro de saída: `gateway:<camada>` ou `ollama` para o modelo local."""
-        return "ollama" if self.tier == CAMADA_LOCAL else f"gateway:{self.tier or 'padrão'}"
+        """Nome no registro de saída: `gateway:<provedor>`, `gateway:<camada>` (endpoint avulso)
+        ou `ollama` para o modelo local. O prefixo `gateway:` soma tudo na cota geral."""
+        if self.tier == CAMADA_LOCAL:
+            return "ollama"
+        return f"gateway:{self.provedor or self.tier or 'padrão'}"
 
 
 @dataclass
 class EndpointStats:
     """Contadores de um endpoint desde que o Orion subiu (o painel mostra; reiniciar zera).
-    Não é a cota do provedor: quem a conhece é o OmniRoute. Mostra o que o Orion viu."""
+    Não é a cota do provedor (outra chave igual também gasta): é o que o Orion viu."""
 
     chamadas: int = 0  # tentativas de resposta (cada uma conta, com ou sem sucesso)
     ok: int = 0
@@ -62,10 +70,9 @@ class EndpointStats:
     pulos: int = 0  # vezes que ficou de fora por estar em quarentena
     ultimo_ok: float | None = None  # epoch
     ultimo_erro: str | None = None  # só o tipo ("HTTP 502", "ConnectError"), nunca corpo nem URL
-    # Quem o OmniRoute diz que serviu cada resposta (cabeçalhos `X-OmniRoute-Provider` e
-    # `X-OmniRoute-Decision`) e quantas vezes ele mesmo trocou de provedor no meio do caminho.
-    provedores: dict[str, int] = field(default_factory=dict)
-    trocas_do_gateway: int = 0
+    seguidas: int = 0  # falhas seguidas (zera no primeiro sucesso)
+    pausas: int = 0  # vezes que ficou em pausa por falhas seguidas
+    orcamento: int = 0  # vezes que foi para o fim da fila por ter gasto o limite do dia
 
 
 @dataclass(frozen=True)
@@ -97,9 +104,8 @@ class GatewayError(RuntimeError):
         self.tentativas = tentativas or []
 
 
-_ALIAS = re.compile(r"^[A-Za-z0-9_.:-]{1,40}$")
-_DECISAO_PROVEDOR = re.compile(r"provider=([^;\s]+)")
-MAX_PROVEDORES = 20  # chaves distintas por endpoint (o cabeçalho vem de fora: tem teto)
+FALHAS_PARA_PAUSA = 3  # falhas seguidas (sem ser 429) que pausam o modelo
+PAUSA_MAX_S = 900.0  # a pausa dobra a cada nova falha, até 15 min
 
 
 class _FalhaAntesDoTexto(Exception):
@@ -143,8 +149,11 @@ class ChatGateway:
         self._clock = clock
         self._cooldown_s = cooldown_s
         self._quarentena: dict[str, float] = {}
+        self._motivo: dict[str, str] = {}  # "cota" (429) ou "falhas" (pausa)
         self._wall = wall
         self._stats = {ep.name: EndpointStats() for ep in endpoints}
+        # Orçamento diário por provedor (ligado pelo app a `Custos`): False = já gastou o de hoje
+        self.orcamento: Callable[[Endpoint], bool] | None = None
 
     def stats(self) -> list[dict[str, Any]]:
         """Um dicionário por endpoint, na ordem de tentativa (para o painel)."""
@@ -164,10 +173,12 @@ class ChatGateway:
                     "limitada": st.limitada,
                     "pulos": st.pulos,
                     "quarentena_s": round(restante),
+                    "motivo": self._motivo.get(ep.name, "") if restante else "",
+                    "provedor": ep.provedor,
                     "ultimo_ok": st.ultimo_ok,
                     "ultimo_erro": st.ultimo_erro,
-                    "provedores": dict(sorted(st.provedores.items(), key=lambda kv: -kv[1])[:6]),
-                    "trocas_do_gateway": st.trocas_do_gateway,
+                    "pausas": st.pausas,
+                    "orcamento": st.orcamento,
                 }
             )
         return saida
@@ -191,10 +202,22 @@ class ChatGateway:
         tier: str | None = None,
     ) -> AsyncIterator[Event]:
         tentativas: list[tuple[str, str]] = []
+        ordem, adiados = [], []
         for ep in self._ordem(tier):
+            if self.orcamento is not None and ep.provedor and not self.orcamento(ep):
+                self._stats[ep.name].orcamento += 1
+                adiados.append(ep)
+            else:
+                ordem.append(ep)
+        for ep in [*ordem, *adiados]:
             st = self._stats[ep.name]
             if self._quarentena.get(ep.name, 0.0) > self._clock():
-                tentativas.append((ep.name, "em quarentena (cota)"))
+                motivo = (
+                    "pausa (falhas seguidas)"
+                    if self._motivo.get(ep.name) == "falhas"
+                    else ("quarentena (cota)")
+                )
+                tentativas.append((ep.name, f"em {motivo}"))
                 st.pulos += 1
                 continue
             st.chamadas += 1
@@ -206,16 +229,17 @@ class ChatGateway:
                     comecou = True
                     yield evento
                 st.ok += 1
+                st.seguidas = 0
                 st.ultimo_ok = self._wall()
                 return
             except _FalhaAntesDoTexto as e:
                 tentativa.falhou = True
-                self._falhou(st, str(e).split(":", 1)[0])
+                self._falhou(ep, str(e).split(":", 1)[0], limitada=str(e).startswith("HTTP 429"))
                 tentativas.append((ep.name, str(e)))
                 log.warning("endpoint %s falhou, tentando o próximo: %s", ep.name, e)
             except (httpx.HTTPError, ValueError) as e:
                 tentativa.falhou = True
-                self._falhou(st, type(e).__name__)
+                self._falhou(ep, type(e).__name__)
                 if comecou:
                     raise GatewayError(f"{ep.name} interrompeu no meio da resposta: {e}") from e
                 tentativas.append((ep.name, f"{type(e).__name__}: {e}"))
@@ -234,26 +258,23 @@ class ChatGateway:
                 )
         raise GatewayError("nenhum endpoint respondeu", tentativas)
 
-    @staticmethod
-    def _anotar_provedor(st: EndpointStats, headers: httpx.Headers) -> None:
-        """Lê quem serviu a resposta nos cabeçalhos do OmniRoute (ausentes em outro gateway)."""
-        alias = headers.get("x-omniroute-provider") or ""
-        if not alias:
-            achou = _DECISAO_PROVEDOR.search(headers.get("x-omniroute-decision") or "")
-            alias = achou.group(1) if achou else ""
-        if _ALIAS.match(alias) and (alias in st.provedores or len(st.provedores) < MAX_PROVEDORES):
-            st.provedores[alias] = st.provedores.get(alias, 0) + 1
-        try:
-            st.trocas_do_gateway += max(
-                0, min(int(headers.get("x-omniroute-fallback-attempts", 0)), 50)
-            )
-        except ValueError:
-            pass  # cabeçalho fora do formato: ignora, é só telemetria
-
-    @staticmethod
-    def _falhou(st: EndpointStats, tipo: str) -> None:
+    def _falhou(self, ep: Endpoint, tipo: str, limitada: bool = False) -> None:
+        """Conta a falha; a partir de `FALHAS_PARA_PAUSA` seguidas, pausa o modelo. O 429 já pôs
+        a quarentena pelo `Retry-After` e não entra na conta (cota não é instabilidade)."""
+        st = self._stats[ep.name]
         st.falhas += 1
         st.ultimo_erro = tipo[:40]
+        if limitada:
+            return
+        st.seguidas += 1
+        if st.seguidas >= FALHAS_PARA_PAUSA:
+            espera = min(self._cooldown_s * 2 ** (st.seguidas - FALHAS_PARA_PAUSA), PAUSA_MAX_S)
+            self._quarentena[ep.name] = self._clock() + espera
+            self._motivo[ep.name] = "falhas"
+            st.pausas += 1
+            log.warning(
+                "modelo %s em pausa por %.0f s (%d falhas seguidas)", ep.name, espera, st.seguidas
+            )
 
     async def complete(self, messages: list[dict[str, Any]]) -> str:
         """Resposta inteira em texto, sem ferramentas (jobs como a consolidação da memória)."""
@@ -291,9 +312,9 @@ class ChatGateway:
                 if resp.status_code == 429:
                     espera = _retry_after(resp.headers.get("retry-after"), self._cooldown_s)
                     self._quarentena[ep.name] = self._clock() + espera
+                    self._motivo[ep.name] = "cota"
                     self._stats[ep.name].limitada += 1
                 raise _FalhaAntesDoTexto(f"HTTP {resp.status_code}: {resp.text[:200]}")
-            self._anotar_provedor(self._stats[ep.name], resp.headers)
             async for linha in resp.aiter_lines():
                 tentativa.bytes_in += len(linha) + 1
                 if not linha.startswith("data:"):

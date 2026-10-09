@@ -96,17 +96,37 @@ endpoint de modelo (funcionando, instável, **em quarentena por cota** e quando 
 (`claude`, `codex`, `gemini`), as aprovações esperando você, o que a política decidiu nas últimas 24 h, jobs, memória, Telegram e
 servidores MCP. Atualiza sozinha a cada 10 s e destaca em texto o que pede atenção.
 
-**Limite:** os números dos modelos são o que o Orion viu **desde que subiu** (reiniciar zera); não são a cota do provedor,
-que só o OmniRoute conhece. Com o OmniRoute, o painel mostra também **quem serviu** as respostas ("Serviu: gemini ×30 ·
-groq ×8"), lido dos cabeçalhos `X-OmniRoute-Provider` e `-Decision` (formato da documentação, não testado num OmniRoute
-real). A cota de verdade está nos endpoints de gerenciamento do OmniRoute (`/api/rate-limits`, `/dashboard/free-tiers`),
-com credencial própria que o Orion não usa. O painel não mostra os argumentos das ações nem nenhum segredo.
+**Limite:** os números dos modelos são o que o Orion viu **desde que subiu** (reiniciar zera); não são a cota que o
+provedor vê (outro programa com a mesma chave também gasta). Cada modelo aparece com o estado: funcionando, **em
+quarentena** (429, volta pelo `Retry-After`), **em pausa por falhas** (3 falhas seguidas; a pausa dobra até 15 min) e
+quantas vezes foi para o fim da fila por ter gasto o `limite_dia`. O painel não mostra os argumentos das ações nem
+nenhum segredo.
 Desde a E1 o painel também tem **Controle** (pânico e não perturbe), **Cota de hoje** e **Provedores** (a semana,
 pelo registro de saída, que sobrevive a reinício): ver §17.
 
-### 4.2 Roteamento por tipo de tarefa
+### 4.2 Provedores de modelo e roteamento por tipo de tarefa
 
-Com `ORION_GATEWAY_MODEL_FAST` e/ou `ORION_GATEWAY_MODEL_HEAVY` (e `ORION_VISION_MODEL` para foto), o Orion escolhe o
+O Orion fala **direto** com cada provedor (sem gateway externo; o OmniRoute foi descartado em 09/10/2026). Catálogo em
+`orion/provedores.py`: `gemini`, `groq`, `cerebras`, `openrouter`, `mistral`, `github`, `nvidia`, `zai` (todos com
+API compatível com a da OpenAI); outro provedor entra com `"url"` (https).
+
+1. **(você)** crie a chave no site de cada provedor e guarde: `uv run orion chave groq` (cofre do SO; ou
+   `ORION_KEY_GROQ` no ambiente).
+2. Liste os provedores em `ORION_PROVEDORES` (JSON; **a ordem é a prioridade**). Por provedor: `padrao`, `rapido`,
+   `pesado`, `visao` (o modelo de cada camada) e `limite_dia` (chamadas/dia que o Orion se permite):
+
+   ```
+   ORION_PROVEDORES=[{"id":"groq","rapido":"llama-3.3-70b-versatile","limite_dia":1000},{"id":"gemini","padrao":"gemini-2.5-flash","visao":"gemini-2.5-flash"}]
+   ```
+
+3. `uv run orion doctor` mostra quem ficou ligado e quem está sem chave.
+
+Os modelos e limites gratuitos mudam sem aviso: por isso ficam na sua configuração, não no código. Cada modelo é um
+endpoint: 429 põe **só aquele modelo** em quarentena; 3 falhas seguidas o pausam (60 s, dobrando até 15 min); com o
+`limite_dia` gasto ele vai para o fim da fila (o chat nunca é bloqueado: se ninguém mais responder, ele ainda é
+tentado). `ORION_GATEWAY_URL`/`_MODEL` continua valendo como um endpoint avulso, depois dos provedores.
+
+Roteamento: com modelos de camada (`rapido`, `pesado`, `visao` em `ORION_PROVEDORES`, ou `ORION_GATEWAY_MODEL_FAST` e/ou `ORION_GATEWAY_MODEL_HEAVY` (e `ORION_VISION_MODEL` para foto), o Orion escolhe o
 modelo pela mensagem: conversa curta e comando de ferramenta vão ao rápido; código, análise, texto longo e pedidos
 de várias etapas vão ao pesado; mensagem com foto vai ao de visão. Sem nenhum desses, tudo segue em
 `ORION_GATEWAY_MODEL`, que também é o **reserva** de cada camada (se o rápido ou o pesado falhar, cai nele).
@@ -114,7 +134,7 @@ de várias etapas vão ao pesado; mensagem com foto vai ao de visão. Sem nenhum
 - A decisão é uma pontuação, não um modelo: tamanho, código ou erro colado, verbos como *analise*, *compare*, *refatore*,
   várias perguntas, tema técnico. O motivo fica registrado em cada resposta (proveniência) e o painel conta as camadas.
 - Errou? Comece a mensagem com `#pesado`, `#rapido` ou `#visao` e a camada é forçada.
-- No OmniRoute o "modelo" pode ser um combo seu (ex.: um combo `rapido` só com free tiers rápidos).
+- Numa camada, a ordem é: os modelos daquela camada (na ordem dos provedores), depois os `padrao` de cada um.
 - É uma heurística: vai errar alguns casos. Ajustar os pesos é editar `orion/router.py`.
 
 ### 4.3 Voz (fase 6)
@@ -592,7 +612,8 @@ chamadas, falhas, latência p50/p95, modelo mais usado e tráfego). `/painel` no
 
 **Custo zero.** O `orion doctor` avisa se o gateway (ou a transcrição) aponta para um endereço fora da lista de
 gratuitos (`127.0.0.1`/`localhost`, `api.groq.com`, `generativelanguage.googleapis.com`, `api.search.brave.com`).
-Se o endereço é seu e gratuito (um OmniRoute em outra máquina, por exemplo), confirme com `ORION_ALLOW_PAID=true`.
+Se o endereço é seu e gratuito (um modelo seu em outra máquina, por exemplo), confirme com `ORION_ALLOW_PAID=true`.
+Os hosts do catálogo de provedores já contam como gratuitos; um provedor com `"url"` própria passa pela mesma checagem.
 
 **Regra.** 46; código em `orion/costs.py`.
 
