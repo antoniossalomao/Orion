@@ -298,3 +298,18 @@ Pedido do Antônio: menos ideia "de vitrine", mais utilidade. Filtro: resolve al
 | U7 | **Organizador de Downloads com regras** | Regras suas ("fatura*.pdf → Finanças", ".exe → Instaladores", "foto → Fotos/AAAA-MM"); aplica sozinho com registro e **desfazer**; o que não casa fica | `organizar_pasta`, vigilância de pasta |
 | U8 | **"Posso desligar?"** | Um comando que confere: repositórios com mudança não commitada ou não enviada, processos em segundo plano rodando, backup do dia feito, download em andamento | `consultar_git`, processos, backup |
 
+## 17. Sexta leva: utilidade diária (09/10) — em avaliação
+Mesmo filtro da §16: acontece toda semana ou todo dia e reaproveita peça existente.
+
+| ID | Ideia | Como seria | Peça que já existe |
+|---|---|---|---|
+| V1 | **Ferramentas no texto selecionado** | Seleciona texto em qualquer programa, aperta uma tecla: corrigir português, deixar formal, resumir, traduzir, virar e-mail; o resultado volta colado no lugar (com desfazer) | Área de transferência, modelo do gateway |
+| V2 | **Ditado em qualquer lugar** | Segura uma tecla, fala, solta: o texto transcrito aparece onde o cursor está (WhatsApp Web, VS Code, Word) | Transcrição Groq (cota grátis), área de transferência |
+| V3 | **Copiar texto de qualquer parte da tela** | Tecla → seleciona uma área → o texto (OCR local) vai para a área de transferência; serve para erro em imagem, vídeo, PDF travado | Tesseract da memória da tela |
+| V4 | **Achar arquivo pela descrição** | "a planilha de orçamento da adega de agosto" → índice local de Documentos/Downloads (nome + conteúdo) devolve o arquivo | Indexação de documentos da memória |
+| V5 | **Conversor de arquivos** | Arrasta ou manda pelo Telegram: PDF↔Word, imagens→PDF, vídeo→MP3, áudio→texto, comprimir PDF/imagem; tudo local | `ffmpeg`, geração/leitura de documentos |
+| V6 | **Relatório de estágio pronto** | No fim do mês, monta o relatório de atividades do estágio (exigido pela faculdade) a partir do diário (N10) e da base de soluções (N14), no modelo que você enviar | N10, N14, `gerar_documento` |
+| V7 | **Contas e vencimentos** | Lê boleto/fatura (PDF ou foto), guarda valor e vencimento, avisa 3 dias e 1 dia antes; marca pago com um toque. Tudo local | N11, leitura de documentos, lembretes |
+| V8 | **Cuidado da bateria do notebook** | Avisa para tirar o carregador aos 80% e ligar aos 20%; relatório mensal de desgaste | `checar_saude_sistema` (psutil) |
+| V9 | **Rascunho de resposta a cliente** | Cola ou encaminha a mensagem do cliente do estágio → rascunho de resposta no seu tom, com a solução da base N14; você revisa e envia | N14, área de transferência |
+
