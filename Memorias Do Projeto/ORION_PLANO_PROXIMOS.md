@@ -1,5 +1,7 @@
 # ORION — Plano de próximos passos (08/10/2026)
 
+> Continuação: [ORION_PLANO_RODADA2.md](ORION_PLANO_RODADA2.md) (09/10/2026).
+
 > Junta três fontes: o plano C05–C50 de [ORION_EXTENSOES.md](ORION_EXTENSOES.md), o que a Lyra tinha e não veio, e ideias novas.
 > Levantamento por leitura de docs e do vault; nada aqui foi testado. Cada item novo precisa de regra em [ORION_REGRAS.md](ORION_REGRAS.md) antes do código.
 > Nota: o cliente MCP já existe (L4, `orion/mcp_client.py`); os itens C07–C14 devem ser reavaliados contra ele antes de executar, para não refazer.
