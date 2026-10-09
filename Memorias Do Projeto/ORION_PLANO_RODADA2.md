@@ -180,6 +180,10 @@ Respostas: a imagem **pode sair** do computador; uso "pra tudo que der" (pergunt
 - **Detecção local** (YOLO nano em ONNX, CPU): rápida e gratuita, para "há uma pessoa/objeto X" sem mandar foto; serve também de filtro antes de mandar algo à nuvem.
 - **Reconhecimento facial**: modelo de rosto local; o cadastro (só o seu, para começar) e os vetores de rosto **ficam no computador e nunca vão à nuvem** (dado biométrico, LGPD). Só funciona com o PC desbloqueado e você em uso (mesma detecção de tela bloqueada do R3.7).
 - **Começa sob demanda** (chat, paleta, Telegram). Modo contínuo depois, com opt-in, pausa, retenção curta e regra nova (Ring 0 #3), igual à memória da tela.
+- **Objetivo (3ª resposta): "ver e agir"**, estilo *The Machine*: "tá vendo esse objeto? pesquisa o preço no Mercado Livre", "tá vendo esse mouse? acha o software dele". Fluxo: foto da câmera → modelo de visão identifica (marca/modelo, texto da etiqueta) → **o agente normal** segue com as ferramentas que já existem (`pesquisar_com_ia`, `pesquisar_internet`, `buscar_url`, navegador MCP) e a política de sempre. Baixar/instalar o software continua pedindo aprovação.
+- **Dois modos de "enxergar"**:
+  1. **Foto por pedido** (padrão): 1 imagem por pergunta, pelo agente, com memória e ferramentas. Custo zero na cota gratuita do Gemini (entrada de imagem é grátis nos modelos Flash; o limite é de pedidos por minuto/dia).
+  2. **Vídeo ao vivo** (conversar enquanto ele vê): estender a voz ao vivo (`/ws/voice`, Gemini Live) com quadros da câmera (~1 por segundo). O Live tem cota gratuita, mas é **preview com limite menor e não garantido**; e pela regra atual o Live **não tem ferramentas nem memória**: para "pesquisa o preço", o Live passa o pedido (com o quadro atual) para o agente. Assinatura Google AI Pro **não** cobre a API: se a cota gratuita acabar, para (custo zero, R4.7).
 - A foto enviada à nuvem conta no painel de privacidade (N2). Imagem de terceiros que apareçam no quadro também sai: avisar na primeira vez.
 
 ## 10. Sequência sugerida
