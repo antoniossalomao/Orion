@@ -61,6 +61,210 @@ E3 e E6 não dependem de E2: se E2 travar em teste de hardware, adiantam-se E3 e
 
 ---
 
+## 2. Checklist de execução
+
+Marque ao concluir. Uma etapa só fecha com todos os itens, a prova e o PR mergeado.
+
+### E0 — Documentação dos opt-ins
+- [ ] E0.1 Seções novas em `ORION_OPERACAO.md` (R1.1–R1.8)
+- [ ] E0.2 Tabela-resumo de opt-ins (R1.9)
+- [ ] E0.3 `orion doctor` aponta a seção
+- [ ] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas
+- [ ] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
+- [ ] **Prova:** `uv run pytest tests/test_operacao_doc.py` verde; ler a tabela e conseguir ligar a memória da tela só com ela.
+- [ ] PR da E0 mergeado
+
+### E1 — Base de custo, privacidade e controle
+- [ ] Regras escritas em `ORION_REGRAS.md` antes do código (46 (custo zero), 47 (registro de saída), 48 (pânico e não perturbe), 49 (modelo local))
+- [ ] E1.1 Registro de chamadas externas (base de R4.7, R4.8 e N2)
+- [ ] E1.2 Custo zero e cota gratuita (R4.7)
+- [ ] E1.3 Telemetria por provedor (R4.8 / L3)
+- [ ] E1.4 Aviso de gateway fora do ar (L10)
+- [ ] E1.5 Painel de privacidade (N2)
+- [ ] E1.6 Modo pânico e não perturbe (N19, N3)
+- [ ] E1.7 Encaixe do modelo local (L9)
+- [ ] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas
+- [ ] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
+- [ ] **Prova:** com o gateway falso, 10 chamadas (2 falhas) aparecem no card "Provedores"; `orion panico` corta captura e ferramentas de rede e o painel mostra "Modo pânico"; com `ORION_LOCAL_MODEL` apontando para um servidor falso, o chat responde quando o gateway falha.
+- [ ] PR da E1 mergeado
+
+### E2 — Ponte de desktop
+- [ ] Antônio: testar teclas globais e microfone no notebook; calibrar as palmas
+- [ ] Regras escritas em `ORION_REGRAS.md` antes do código (50 (ponte), 51 (palmas))
+- [ ] E2.1 Processo da ponte
+- [ ] E2.2 Duas palmas abrem o Orion (U1)
+- [ ] E2.3 Captura rápida (U2)
+- [ ] E2.4 Copiar texto de uma área da tela (V3)
+- [ ] E2.5 "O que é isso?" (N18)
+- [ ] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas
+- [ ] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
+- [ ] **Prova:** no notebook, `Ctrl+Alt+Espaço` abre a captura rápida e grava uma tarefa; duas palmas abrem `/ui/`; `Ctrl+Alt+T` copia texto de uma área da tela.
+- [ ] PR da E2 mergeado
+
+### E3 — Conversas e projetos
+- [ ] E3.1 Tela de conversas arquivadas (R2.1)
+- [ ] E3.2 Filtro por projeto na barra lateral (R2.2)
+- [ ] E3.3 "Mover para projeto" na paleta (R2.3)
+- [ ] E3.4 "Disponível em" editável nos documentos (R2.4)
+- [ ] E3.5 Editar o pedido como nova versão (R2.5 / C39)
+- [ ] E3.6 Telas novas contra o backend real (R8.1)
+- [ ] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas
+- [ ] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
+- [ ] **Prova:** cenários de navegador nos dois backends (mentira e real) para cada item.
+- [ ] PR da E3 mergeado
+
+### E4 — Memória: núcleo
+- [ ] Antônio: instalar o Ollama e rodar `ollama pull qwen3.5:4b`
+- [ ] Regras escritas em `ORION_REGRAS.md` antes do código (52 (isolamento por projeto), 53 (auto-compact), 54 (validade de fatos))
+- [ ] E4.1 Isolamento por projeto para fatos e mensagens (R3.1)
+- [ ] E4.2 OCR para PDF escaneado (R3.2)
+- [ ] E4.3 Progresso e reindexar (R3.3, R3.4)
+- [ ] E4.4 Auto-compact do histórico (R3.9 / L1)
+- [ ] E4.5 Validade e substituição de fatos (R3.10 / L5)
+- [ ] E4.6 Reranker pronto e desligado (R3.11 / L2)
+- [ ] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas
+- [ ] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
+- [ ] **Prova:** `eval_pessoal` roda antes/depois e não piora; conversa de 200 mensagens mantém resumo; PDF só de imagem vira texto pesquisável.
+- [ ] PR da E4 mergeado
+
+### E5 — Memória: tela, sono, grafo 3D e busca global
+- [ ] Regras escritas em `ORION_REGRAS.md` antes do código (estende 44)
+- [ ] E5.1 Busca da memória da tela na interface (R3.5)
+- [ ] E5.2 Exclusão por aplicativo (R3.6)
+- [ ] E5.3 Não capturar com a tela bloqueada (R3.7)
+- [ ] E5.4 Ciclo de sono na interface (R3.8)
+- [ ] E5.5 Grafo de memória 3D (R3.12 / L4)
+- [ ] E5.6 Andar pelo segundo cérebro por voz (Y16)
+- [ ] E5.7 Busca global (N1)
+- [ ] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas
+- [ ] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
+- [ ] **Prova:** cenários de navegador; tela bloqueada não gera linha em `screen_log`.
+- [ ] PR da E5 mergeado
+
+### E6 — Resultados e atividade
+- [ ] E6.1 Painel lateral da biblioteca (R4.1)
+- [ ] E6.2 Comparar versões (R4.2)
+- [ ] E6.3 Apagar versões antigas em lote (R4.3)
+- [ ] E6.4 Fontes e atividade das extensões no chat (R4.5 / C27)
+- [ ] E6.5 Pesquisa noturna pela interface (R4.6)
+- [ ] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas
+- [ ] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
+- [ ] **Prova:** cenários de navegador nos dois backends.
+- [ ] PR da E6 mergeado
+
+### E7 — MCP e skills
+- [ ] Antônio: registrar o MCP do Orion no Claude Code (`claude mcp add orion -- orion mcp-servidor`)
+- [ ] Regras escritas em `ORION_REGRAS.md` antes do código (55 (C14), 56 (Orion como servidor MCP))
+- [ ] E7.1 Versão de SDK incompatível (R5.1 / C07)
+- [ ] E7.2 Cancelamento propagado (R5.2)
+- [ ] E7.3 Diagnóstico MCP na interface (R5.3 / C26)
+- [ ] E7.4 Descoberta sob demanda (R5.12 / C13)
+- [ ] E7.5 Resources e prompts (R5.13 / C14)
+- [ ] E7.6 Skills pelo chat e pela paleta (R5.10 / B3)
+- [ ] E7.7 Orion como servidor MCP (R5.11)
+- [ ] E7.8 Seu estilo de código como skill (Z12)
+- [ ] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas
+- [ ] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
+- [ ] **Prova:** testes com o servidor MCP de teste real (`tests/mcp_cliente`); `claude mcp add orion -- orion mcp-servidor` lista as 3 ferramentas.
+- [ ] PR da E7 mergeado
+
+### E8 — Plugins
+- [ ] Regras escritas em `ORION_REGRAS.md` antes do código (estende 45; 57 (catálogo remoto))
+- [ ] E8.1 Instalar por upload (R5.4)
+- [ ] E8.2 Atualização com reversão (R5.5 / C22)
+- [ ] E8.3 Importar formato Claude Code e Codex (R5.6 / C21)
+- [ ] E8.4 Catálogo local e remoto (R5.7 / C25)
+- [ ] E8.5 Conceder sem reiniciar (R5.9)
+- [ ] E8.6 Plugin "Orion Pesquisa" (R5.8 / C28–C29)
+- [ ] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas
+- [ ] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
+- [ ] **Prova:** instalar o "Orion Pesquisa" pelo catálogo local, conceder, usar sem reiniciar, atualizar, voltar.
+- [ ] PR da E8 mergeado
+
+### E9 — Automação do dia a dia
+- [ ] Regras escritas em `ORION_REGRAS.md` antes do código (58 (rotinas), 59 (tarefa em segundo plano), 60 (históricos locais))
+- [ ] E9.1 Rotinas (L7)
+- [ ] E9.2 Tarefa em segundo plano (L6)
+- [ ] E9.3 Lembrete insistente (U3)
+- [ ] E9.4 Organizador de Downloads com regras (U7)
+- [ ] E9.5 "Posso desligar?" (U8)
+- [ ] E9.6 Histórico da área de transferência (U4)
+- [ ] E9.7 Histórico de comandos pesquisável (U5)
+- [ ] E9.8 Ler depois (U6)
+- [ ] E9.9 Conversor de arquivos (V5)
+- [ ] E9.10 Voz no Telegram (N22)
+- [ ] E9.11 Transcrever → tarefas (N4)
+- [ ] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas
+- [ ] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
+- [ ] **Prova:** rotina "bom dia" por palmas abre o briefing, toca música e abre o app; histórico de comandos acha um `gbak` de ontem.
+- [ ] PR da E9 mergeado
+
+### E10 — Vida pessoal
+- [ ] Regras escritas em `ORION_REGRAS.md` antes do código (61 (finanças locais), 62 (escudo de foco), 63 (estado pela voz))
+- [ ] E10.1 Revisão semanal guiada (N9)
+- [ ] E10.2 Diário automático (N10)
+- [ ] E10.3 Gastos pelo Telegram (N11)
+- [ ] E10.4 Contas e vencimentos (V7)
+- [ ] E10.5 Monitor de preço (N12)
+- [ ] E10.6 Cápsula do tempo (X9)
+- [ ] E10.7 Árvore de cenários (X8)
+- [ ] E10.8 Linha do tempo da vida (X4)
+- [ ] E10.9 Sonhos: ideia do dia (X7)
+- [ ] E10.10 Escudo de foco (X11)
+- [ ] E10.11 Estado pela voz (X12)
+- [ ] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas
+- [ ] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
+- [ ] **Prova:** uma semana real: revisão de domingo feita, 7 diários no vault, gastos lançados pelo Telegram, um aviso de conta a vencer.
+- [ ] PR da E10 mergeado
+
+### E11 — Visão e câmera
+- [ ] Antônio: webcam ligada no notebook; cadastrar o próprio rosto (`orion rosto cadastrar`)
+- [ ] Regras escritas em `ORION_REGRAS.md` antes do código (64 (câmera), 65 (rosto), 66 (presença))
+- [ ] E11.1 Ver e agir por foto (L12)
+- [ ] E11.2 Visão pelas assinaturas (N7)
+- [ ] E11.3 Detecção local de objetos (base de X1 e E11.6)
+- [ ] E11.4 "Onde eu deixei?" (X1)
+- [ ] E11.5 Reconhecimento facial local (pedido "só quando eu estiver no PC")
+- [ ] E11.6 Presença (X5)
+- [ ] E11.7 Tradutor do mundo (Y5)
+- [ ] E11.8 Geração de imagem pelo Flow, semiautomático (N8)
+- [ ] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas
+- [ ] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
+- [ ] **Prova:** com a webcam, perguntar sobre um mouse e receber o modelo e o link do software; "onde vi meu fone?" responde com hora.
+- [ ] PR da E11 mergeado
+
+### E12 — Trabalho, estudo e carreira
+- [ ] Antônio: enviar os modelos de documentos da faculdade e preencher `ORION_CLIENT_NAMES`
+- [ ] Regras escritas em `ORION_REGRAS.md` antes do código (67 (base do estágio sem dado de cliente))
+- [ ] E12.1 Base de soluções do estágio (N14)
+- [ ] E12.2 Rascunho de case de portfólio (N16)
+- [ ] E12.3 Tutor que percebe o travamento (Y11)
+- [ ] E12.4 Headhunter (Y14)
+- [ ] E12.5 Documentador dos seus projetos (Y15)
+- [ ] E12.6 Memória de pessoas (Z4)
+- [ ] E12.7 Do sonho ao MVP (Z11)
+- [ ] E12.8 Gêmeo digital (X3)
+- [ ] E12.9 Conferir resposta (L8)
+- [ ] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas
+- [ ] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
+- [ ] **Prova:** um chamado real resolvido entra na base e é achado depois; um case de portfólio gerado; um MVP criado em pasta nova.
+- [ ] PR da E12 mergeado
+
+### E13 — Segurança e continuidade
+- [ ] Antônio: escolher a pessoa de confiança e escrever o texto do plano de emergência
+- [ ] Regras escritas em `ORION_REGRAS.md` antes do código (68 (sentinela), 69 (plano de emergência), 70 (Protocolo Darwin), 71 (atualização))
+- [ ] E13.1 Sentinela de exposição pelo Claude (Y9)
+- [ ] E13.2 Plano de emergência (X10)
+- [ ] E13.3 Protocolo Darwin (X6)
+- [ ] E13.4 `orion atualizar` (N5)
+- [ ] E13.5 Backup da configuração (N6)
+- [ ] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas
+- [ ] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
+- [ ] **Prova:** relatório da sentinela no vault; PR do Protocolo Darwin aberto e revisado; `orion atualizar` recusa pacote com hash errado.
+- [ ] PR da E13 mergeado
+
+---
+
 ## E0 — Documentação dos opt-ins
 
 **Marco:** qualquer opt-in existente tem seção em `ORION_OPERACAO.md` dizendo como ligar, o que sai do computador e como desligar; um teste falha se aparecer opt-in sem documentação.
@@ -628,6 +832,6 @@ O Orion hoje é servidor + navegador: não há processo com tecla global, bandej
 
 ---
 
-## 2. Fora deste plano (não escolhidos)
+## 3. Fora deste plano (não escolhidos)
 Em incubação: modo estudo (N13), standup do DevCore (N15), radar diário de vagas (N17), eval semanal (N20), contexto por horário (N21), Y1–Y4, Y6–Y8, Y10, Y12, Y13, Z1–Z3, Z5–Z10, Z13, Z14, V1, V2, V4, V6, V8, V9, "retomar de onde parou", associar resultado a projeto manualmente.
 Descartados: conselho de IAs (X2), Orion físico (X13), carga cognitiva (L11), IDE, WhatsApp (D9), ofuscação de tráfego (D10), automação do site do Flow.
