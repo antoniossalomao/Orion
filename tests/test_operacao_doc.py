@@ -29,6 +29,10 @@ OPT_INS = {
     "skills_enabled",
     "mcp_enabled",
     "jobs_enabled",
+    # E1 (regras 46 a 49)
+    "local_model",
+    "dnd_at",
+    "allow_paid",
 }
 
 

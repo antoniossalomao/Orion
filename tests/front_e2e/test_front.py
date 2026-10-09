@@ -10,8 +10,13 @@ from playwright.sync_api import expect
 
 from .conftest import AXE, SENHA, TOKEN
 
-ROTAS = ["", "#/chat", "#/memoria", "#/integracoes", "#/config", "#/painel", "#/conhecimento"]
-VIEWS = ["home", "chat", "memoria", "integracoes", "config", "painel", "conhecimento"]
+ROTAS = [
+    "", "#/chat", "#/memoria", "#/integracoes", "#/config", "#/painel", "#/conhecimento",
+    "#/privacidade",
+]  # fmt: skip
+VIEWS = [
+    "home", "chat", "memoria", "integracoes", "config", "painel", "conhecimento", "privacidade",
+]  # fmt: skip
 TEMAS = ["noite", "grafite", "contraste"]
 
 
@@ -1890,3 +1895,123 @@ def test_conhecimento_plugin_mostra_o_que_libera_e_concede_e_revoga(abrir, mock_
     expect(item).to_have_attribute("data-estado", "ativo")
     page.get_by_role("button", name="Revogar o plugin estudo").click()
     expect(item).to_have_attribute("data-estado", "sem_concessao")
+
+
+# ── E1: cota, provedores, controle (pânico e não perturbe) e privacidade ───────
+def test_painel_mostra_cota_de_hoje_e_provedores_da_semana(abrir):
+    page = abrir("#/painel")
+    corpo = page.locator("#painel-corpo")
+    cota = corpo.locator('[data-id="cota"]')
+    expect(cota.locator('[data-cota="gateway"] .meter-val')).to_have_text("420/1000", timeout=8000)
+    expect(cota.locator('[data-cota="gateway"]')).to_have_attribute("data-sev", "normal")
+    expect(cota.locator('[data-cota="gemini"]')).to_have_attribute("data-sev", "alto")
+    expect(cota.locator('[data-cota="gemini"] .painel-meter-nota')).to_have_text(
+        "jobs opcionais parados (96%)"
+    )
+    expect(cota.locator('[data-cota="brave"] .painel-meter-nota')).to_have_text(
+        "sem limite · 0 no mês"
+    )
+    expect(corpo.locator(".painel-alertas")).to_contain_text(
+        "Cota gratuita de Gemini (busca, embeddings, imagem) em 96%"
+    )
+    prov = corpo.locator('[data-id="provedores"]')
+    linha = prov.locator('tr[data-provedor="gateway:padrão"]')
+    expect(linha).to_contain_text("10")
+    expect(linha).to_contain_text("p50 640 ms · p95 2100 ms")
+    expect(linha).to_contain_text("gemini-2.5-flash")
+    expect(prov.locator("tbody tr").first).to_have_attribute("data-provedor", "gateway:padrão")
+    expect(prov.locator('tr[data-provedor="groq"]')).to_contain_text("↑ 742,2 KB")
+
+
+def test_modo_panico_liga_com_um_clique_e_so_sai_com_a_senha(abrir, mock_isolado_url):
+    page = abrir("#/painel", url=mock_isolado_url, http_ok=True)  # a senha errada dá 403
+    controle = page.locator('#painel-corpo [data-id="controle"]')
+    expect(controle.locator('[data-modo="panico"]')).to_have_attribute(
+        "data-estado", "desligado", timeout=8000
+    )
+    controle.get_by_role("button", name="Ligar modo pânico").click()
+    page.get_by_role("alertdialog").get_by_role("button", name="Ligar").click()
+    expect(page.locator("#painel-corpo .painel-alertas .banner-danger").first).to_contain_text(
+        "Modo pânico ligado", timeout=8000
+    )
+    expect(controle.locator('[data-modo="panico"]')).to_contain_text("LIGADO")
+    # sair: a senha é pedida de novo; errada não sai
+    controle.get_by_role("button", name="Sair do modo pânico").click()
+    campo = page.get_by_label("Confirme a senha")
+    assert campo.get_attribute("type") == "password"
+    campo.fill("errada")
+    page.keyboard.press("Enter")
+    expect(page.locator(".toast").last).to_contain_text("confirme a senha", timeout=5000)
+    expect(controle.locator('[data-modo="panico"]')).to_have_attribute("data-estado", "ligado")
+    controle.get_by_role("button", name="Sair do modo pânico").click()
+    page.get_by_label("Confirme a senha").fill("senha-do-mock-123")
+    page.keyboard.press("Enter")
+    expect(controle.locator('[data-modo="panico"]')).to_have_attribute(
+        "data-estado", "desligado", timeout=5000
+    )
+    expect(page.locator("#painel-corpo .painel-alertas")).not_to_contain_text("Modo pânico")
+
+
+def test_nao_perturbe_pelo_painel_e_panico_pela_paleta(abrir, mock_isolado_url):
+    page = abrir("#/painel", url=mock_isolado_url)
+    controle = page.locator('#painel-corpo [data-id="controle"]')
+    controle.get_by_role("button", name="Não perturbe até…").click(timeout=8000)
+    page.get_by_label("Até que horas? (HH:MM)").fill("06:30")
+    page.keyboard.press("Enter")
+    expect(controle.locator('[data-modo="nao-perturbe"]')).to_contain_text(
+        "até 06:30", timeout=5000
+    )
+    controle.get_by_role("button", name="Desligar não perturbe").click()
+    expect(controle.locator('[data-modo="nao-perturbe"]')).to_have_attribute(
+        "data-estado", "desligado", timeout=5000
+    )
+    page.keyboard.press("Control+k")
+    page.fill("#palette-input", "pânico")
+    page.keyboard.press("Enter")
+    page.get_by_role("alertdialog").get_by_role("button", name="Ligar").click()
+    expect(page.locator(".toast").last).to_contain_text("Modo pânico ligado.")
+    page.click("#painel-refresh")
+    expect(controle.locator('[data-modo="panico"]')).to_have_attribute(
+        "data-estado", "ligado", timeout=5000
+    )
+
+
+def test_privacidade_mostra_o_grafico_os_totais_e_o_que_saiu_hoje(abrir):
+    page = abrir()
+    page.click('.sb-item[data-view="privacidade"]')
+    expect(page.locator("html")).to_have_attribute("data-view", "privacidade")
+    corpo = page.locator("#privacidade-corpo")
+    expect(corpo.locator(".banner-info")).to_contain_text("em 7 dias", timeout=8000)
+    expect(corpo.locator(".banner-info")).to_contain_text("o conteúdo nunca é guardado")
+    grafico = corpo.locator('[data-id="grafico"]')
+    expect(grafico.locator(".priv-dia")).to_have_count(7)
+    hoje = grafico.locator(".priv-dia").last
+    expect(hoje.locator(".priv-seg")).to_have_count(2)  # gateway e imagem
+    expect(hoje.locator(".sr-only")).to_contain_text("gateway:visao 1")
+    expect(grafico.locator(".priv-legenda li")).to_have_count(3)
+    totais = corpo.locator('[data-id="totais"]')
+    expect(totais.locator('[data-provedor="groq"]')).to_contain_text("4 envio(s)")
+    expect(totais.locator('[data-provedor="groq"]')).to_contain_text("audio ×4")
+    tabela = corpo.locator('[data-id="hoje"] tbody tr')
+    expect(tabela).to_have_count(2)
+    expect(tabela.first).to_contain_text("imagem")
+    expect(tabela.last).to_contain_text("falhou")
+    page.select_option("#privacidade-dias", "30")
+    expect(grafico.locator(".priv-dia")).to_have_count(30, timeout=5000)
+    # pela paleta também
+    page.keyboard.press("Alt+2")
+    page.keyboard.press("Control+k")
+    page.fill("#palette-input", "privacidade")
+    page.keyboard.press("Enter")
+    expect(page.locator("html")).to_have_attribute("data-view", "privacidade")
+
+
+@pytestmark_axe
+def test_axe_painel_com_controle_e_dialogo_de_senha(abrir, mock_isolado_url):
+    page = abrir("#/painel", url=mock_isolado_url, axe=True)
+    controle = page.locator('#painel-corpo [data-id="controle"]')
+    controle.get_by_role("button", name="Ligar modo pânico").click(timeout=8000)
+    page.get_by_role("alertdialog").get_by_role("button", name="Ligar").click()
+    controle.get_by_role("button", name="Sair do modo pânico").click()
+    expect(page.get_by_label("Confirme a senha")).to_be_visible()
+    assert _violacoes(page) == []

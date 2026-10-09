@@ -75,17 +75,17 @@ Marque ao concluir. Uma etapa só fecha com todos os itens, a prova e o PR merge
 - [ ] PR da E0 mergeado
 
 ### E1 — Base de custo, privacidade e controle
-- [ ] Regras escritas em `ORION_REGRAS.md` antes do código (46 (custo zero), 47 (registro de saída), 48 (pânico e não perturbe), 49 (modelo local))
-- [ ] E1.1 Registro de chamadas externas (base de R4.7, R4.8 e N2)
-- [ ] E1.2 Custo zero e cota gratuita (R4.7)
-- [ ] E1.3 Telemetria por provedor (R4.8 / L3)
-- [ ] E1.4 Aviso de gateway fora do ar (L10)
-- [ ] E1.5 Painel de privacidade (N2)
-- [ ] E1.6 Modo pânico e não perturbe (N19, N3)
-- [ ] E1.7 Encaixe do modelo local (L9)
+- [x] Regras escritas em `ORION_REGRAS.md` antes do código (46 (custo zero), 47 (registro de saída), 48 (pânico e não perturbe), 49 (modelo local))
+- [x] E1.1 Registro de chamadas externas (base de R4.7, R4.8 e N2)
+- [x] E1.2 Custo zero e cota gratuita (R4.7)
+- [x] E1.3 Telemetria por provedor (R4.8 / L3)
+- [x] E1.4 Aviso de gateway fora do ar (L10)
+- [x] E1.5 Painel de privacidade (N2)
+- [x] E1.6 Modo pânico e não perturbe (N19, N3)
+- [x] E1.7 Encaixe do modelo local (L9)
 - [ ] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas
-- [ ] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
-- [ ] **Prova:** com o gateway falso, 10 chamadas (2 falhas) aparecem no card "Provedores"; `orion panico` corta captura e ferramentas de rede e o painel mostra "Modo pânico"; com `ORION_LOCAL_MODEL` apontando para um servidor falso, o chat responde quando o gateway falha.
+- [x] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
+- [x] **Prova:** com o gateway falso, 10 chamadas (2 falhas) aparecem no card "Provedores"; `orion panico` corta captura e ferramentas de rede e o painel mostra "Modo pânico"; com `ORION_LOCAL_MODEL` apontando para um servidor falso, o chat responde quando o gateway falha.
 - [ ] PR da E1 mergeado
 
 ### E2 — Ponte de desktop

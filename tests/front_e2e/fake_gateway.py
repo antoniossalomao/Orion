@@ -12,7 +12,7 @@ import json
 import os
 
 import uvicorn
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fastapi.responses import StreamingResponse
 
 
@@ -30,16 +30,28 @@ def _texto(m: dict) -> str:
 def create_app() -> FastAPI:
     app = FastAPI()
     app.state.pedidos = []
+    app.state.ferramentas = []  # nomes das `tools` de cada pedido (pânico e modelo local: regras 48 e 49)
+    # FAKE_FALHAS="3,7": esses pedidos (1, 2, 3...) respondem 502, para o painel contar falhas
+    falhas = {int(x) for x in os.environ.get("FAKE_FALHAS", "").split(",") if x.strip()}
 
     @app.get("/pedidos")
     def pedidos():
         return app.state.pedidos
+
+    @app.get("/ferramentas")
+    def ferramentas():
+        return app.state.ferramentas
 
     @app.post("/v1/chat/completions")
     async def completions(req: Request):
         corpo = await req.json()
         msgs = corpo["messages"]
         app.state.pedidos.append(msgs)
+        app.state.ferramentas.append(
+            None if "tools" not in corpo else [t["function"]["name"] for t in corpo["tools"]]
+        )
+        if len(app.state.pedidos) in falhas:
+            return Response("fora do ar", status_code=502)
         ultima = msgs[-1]
 
         async def gerar():

@@ -56,6 +56,7 @@
         const a = [];
         const add = (nivel, texto) => a.push({ nivel, texto });
         if (!p) return a;
+        if (p.modos?.panico) add('danger', 'Modo pânico ligado: rede, execução, memória da tela e escuta estão cortadas até você sair.');
         if (p.memoria && p.memoria.ok === false) add('danger', 'A memória (SQLite) não respondeu.');
         if (p.modelos && p.modelos.configurado === false) {
             add('warn', 'Nenhum modelo configurado: o chat está desligado (ORION_GATEWAY_URL e ORION_GATEWAY_MODEL).');
@@ -67,6 +68,11 @@
         }
         for (const c of p.clis || []) {
             if (c.instalada && usoCli(c).sev === 'critico') add('warn', `A CLI “${c.nome}” esgotou o limite de hoje.`);
+        }
+        for (const c of p.cota || []) {
+            const u = usoCota(c);
+            if (u.sev === 'critico') add('warn', `Cota gratuita de ${c.nome} passou do limite (${u.valor}): jobs opcionais parados; o chat continua.`);
+            else if (u.sev === 'alto') add('warn', `Cota gratuita de ${c.nome} em ${u.pct}%: jobs opcionais parados até virar o dia.`);
         }
         const pend = num(p.aprovacoes?.pendentes);
         if (pend > 0) add('warn', pend === 1 ? '1 ação espera o seu aval.' : `${pend} ações esperam o seu aval.`);
@@ -118,10 +124,55 @@
         return { clique, aoVivo, escuta };
     }
 
+    /** 512 → "512 B", 1536 → "1,5 KB", 3_500_000 → "3,3 MB" (vírgula decimal, como o resto da tela) */
+    function bytes(n) {
+        const b = Math.max(0, Math.round(num(n)));
+        if (b < 1024) return `${b} B`;
+        const [v, u] = b < 1024 * 1024 ? [b / 1024, 'KB'] : [b / 1024 / 1024, 'MB'];
+        return `${(Math.round(v * 10) / 10).toString().replace('.', ',')} ${u}`;
+    }
+
+    /**
+     * Cota gratuita contada pelo Orion (regra 46). `sev` casa com `.meter[data-sev]` do CSS.
+     * @returns {{pct: number, sev: 'normal'|'alto'|'critico'|'nd', texto: string, valor: string}}
+     */
+    function usoCota(c) {
+        const usado = num(c?.usado), limite = num(c?.limite);
+        const quando = c?.periodo === 'mes' ? 'no mês' : 'hoje';
+        if (!limite) return { pct: 0, sev: 'nd', texto: `sem limite · ${usado} ${quando}`, valor: String(usado) };
+        const pct = Math.min(100, Math.round((usado / limite) * 100));
+        const sev = usado >= limite ? 'critico' : pct >= 90 ? 'alto' : 'normal';
+        const texto = usado >= limite ? `passou do limite ${quando}: jobs opcionais parados`
+            : pct >= 90 ? `jobs opcionais parados (${pct}%)` : `${limite - usado} restantes ${quando}`;
+        return { pct, sev, texto, valor: `${usado}/${limite}` };
+    }
+
+    /** Linhas da tabela "Provedores" (a semana pelo registro de saída), mais usadas primeiro. */
+    function linhasProvedores(lista) {
+        return (lista || []).filter(x => x && x.provider).sort((a, b) => num(b.chamadas) - num(a.chamadas)).map(x => ({
+            provedor: String(x.provider),
+            tipo: String(x.kind || ''),
+            chamadas: num(x.chamadas),
+            falhas: num(x.falhas),
+            latencia: `p50 ${num(x.p50_ms)} ms · p95 ${num(x.p95_ms)} ms`,
+            modelo: String(x.modelo || '—'),
+            trafego: `↑ ${bytes(x.bytes_out)} · ↓ ${bytes(x.bytes_in)}`,
+        }));
+    }
+
+    /** Pânico e não perturbe em texto (regra 48). `hora(ts)` formata o horário (injetado para testar). */
+    function resumoModos(m, hora = ts => new Date(ts * 1000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })) {
+        const panico = m?.panico ? 'LIGADO: rede, execução, memória da tela e escuta cortadas' : 'desligado';
+        const dnd = !m?.nao_perturbe ? 'desligado'
+            : m.nao_perturbe_ate ? `até ${hora(m.nao_perturbe_ate)}: avisos não urgentes esperando`
+            : `no horário ${m.nao_perturbe_horario || ''}: avisos não urgentes esperando`.replace('  ', ' ');
+        return { panico, dnd };
+    }
+
     const ROTULO_ACAO = { allow: 'Liberada', confirm: 'Pediu aval', deny: 'Negada' };
     const TOM_ACAO = { allow: 'ok', confirm: 'warn', deny: 'danger' };
     const rotuloAcao = a => ROTULO_ACAO[a] || String(a || '—');
     const tomAcao = a => TOM_ACAO[a] || 'muted';
 
-    return { duracao, estadoModelo, usoCli, alertas, resumoVoz, resumoDecisoes, resumoRoteamento, resumoProvedores, rotuloAcao, tomAcao };
+    return { duracao, estadoModelo, usoCli, usoCota, bytes, linhasProvedores, resumoModos, alertas, resumoVoz, resumoDecisoes, resumoRoteamento, resumoProvedores, rotuloAcao, tomAcao };
 });

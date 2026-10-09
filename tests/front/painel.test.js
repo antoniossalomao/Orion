@@ -125,3 +125,51 @@ test('alertas: falha de voz só avisa se a voz está ligada', () => {
     assert.ok(P.alertas(base).some(a => a.texto.includes('Voz: 2 falha(s) (última: a fala falhou: Timeout)')));
     assert.ok(!P.alertas({ voz: { ...base.voz, clique: { ligada: false } } }).some(a => a.texto.startsWith('Voz')));
 });
+
+test('bytes: B, KB e MB com vírgula; tolera lixo', () => {
+    assert.equal(P.bytes(512), '512 B');
+    assert.equal(P.bytes(1536), '1,5 KB');
+    assert.equal(P.bytes(3.5 * 1024 * 1024), '3,5 MB');
+    assert.equal(P.bytes('x'), '0 B');
+    assert.equal(P.bytes(-3), '0 B');
+});
+
+test('usoCota: normal, 90% para os jobs, estourada e sem limite (regra 46)', () => {
+    assert.deepEqual(P.usoCota({ usado: 100, limite: 1000, periodo: 'dia' }),
+        { pct: 10, sev: 'normal', texto: '900 restantes hoje', valor: '100/1000' });
+    assert.equal(P.usoCota({ usado: 950, limite: 1000 }).sev, 'alto');
+    const estourada = P.usoCota({ usado: 1200, limite: 1000, periodo: 'mes' });
+    assert.deepEqual([estourada.sev, estourada.pct, estourada.valor], ['critico', 100, '1200/1000']);
+    assert.match(estourada.texto, /no mês/);
+    assert.deepEqual(P.usoCota({ usado: 7, limite: 0 }), { pct: 0, sev: 'nd', texto: 'sem limite · 7 hoje', valor: '7' });
+    assert.equal(P.usoCota(null).sev, 'nd');
+});
+
+test('linhasProvedores: mais usados primeiro, latência e tráfego formatados', () => {
+    const l = P.linhasProvedores([
+        { provider: 'groq', kind: 'transcribe', chamadas: 2, falhas: 0, p50_ms: 800, p95_ms: 900, bytes_out: 2048, bytes_in: 100 },
+        { provider: 'gateway:padrão', kind: 'chat', chamadas: 10, falhas: 2, p50_ms: 300, p95_ms: 1200, bytes_out: 0, bytes_in: 0, modelo: 'm' },
+        null, { kind: 'x' },
+    ]);
+    assert.deepEqual(l.map(x => x.provedor), ['gateway:padrão', 'groq']);
+    assert.equal(l[0].latencia, 'p50 300 ms · p95 1200 ms');
+    assert.equal(l[1].trafego, '↑ 2 KB · ↓ 100 B');
+    assert.equal(l[1].modelo, '—');
+    assert.deepEqual(P.linhasProvedores(undefined), []);
+});
+
+test('alertas: pânico é o mais grave e cota estourada vira aviso', () => {
+    const a = P.alertas({ modos: { panico: true }, cota: [{ nome: 'Gateway', usado: 1001, limite: 1000 }, { nome: 'Groq', usado: 5, limite: 2000 }] });
+    assert.equal(a[0].nivel, 'danger');
+    assert.match(a[0].texto, /Modo pânico ligado/);
+    assert.equal(a.filter(x => /Cota gratuita/.test(x.texto)).length, 1);
+    assert.match(P.alertas({ cota: [{ nome: 'Gemini', usado: 95, limite: 100 }] })[0].texto, /em 95%/);
+});
+
+test('resumoModos: pânico e não perturbe em texto', () => {
+    const h = () => '07:00';
+    assert.deepEqual(P.resumoModos({}, h), { panico: 'desligado', dnd: 'desligado' });
+    assert.match(P.resumoModos({ panico: true }, h).panico, /^LIGADO/);
+    assert.equal(P.resumoModos({ nao_perturbe: true, nao_perturbe_ate: 1 }, h).dnd, 'até 07:00: avisos não urgentes esperando');
+    assert.match(P.resumoModos({ nao_perturbe: true, nao_perturbe_horario: '22:30-07:00' }, h).dnd, /no horário 22:30-07:00/);
+});

@@ -45,3 +45,17 @@ test('barras: ordena, normaliza soma acima de 100 e ignora lixo', () => {
     assert.deepEqual(C.barras(null), []);
     assert.equal(C.barras({ x: 'lixo' })[0].pct, 0);
 });
+
+test('empilhadas: um segmento por provedor, altura relativa ao maior dia e cor estável', () => {
+    const serie = [
+        { dia: '2026-10-08', provedores: { groq: { envios: 2 }, 'gateway:padrão': { envios: 6 } } },
+        { dia: '2026-10-09', provedores: { 'gateway:padrão': { envios: 4 } } },
+        { dia: '2026-10-10', provedores: {} },
+    ];
+    const e = C.empilhadas(serie, ['gateway:padrão', 'groq']);
+    assert.deepEqual(e.map(d => [d.total, d.altura]), [[8, 100], [4, 50], [0, 0]]);
+    assert.deepEqual(e[0].segmentos.map(s => [s.nome, s.cor, s.pct]), [['gateway:padrão', 0, 75], ['groq', 1, 25]]);
+    assert.equal(e[1].segmentos[0].cor, 0);
+    assert.deepEqual(C.empilhadas(null, null), []);
+    assert.equal(C.empilhadas([{ dia: 'x', provedores: { a: { envios: 'lixo' } } }], ['a'])[0].total, 0);
+});

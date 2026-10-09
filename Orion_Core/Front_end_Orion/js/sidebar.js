@@ -115,7 +115,10 @@
         menu.replaceChildren(item('renomear', 'Renomear'), item('fixar', rotuloFixar(s)), item('arquivar', 'Arquivar'), item('projeto', 'Mover para projeto…'), item('apagar', 'Apagar', true));
         const r = botao.getBoundingClientRect();
         menu.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - 190))}px`;
-        menu.style.top = `${Math.min(r.bottom + 4, window.innerHeight - 140)}px`;
+        // altura real do menu (5 itens): se não cabe abaixo do botão, abre para cima
+        const alto = menu.offsetHeight || 200;
+        const cabe = r.bottom + 4 + alto <= window.innerHeight - 8;
+        menu.style.top = `${Math.max(8, cabe ? r.bottom + 4 : r.top - 4 - alto)}px`;
         menu.dataset.open = 'true';
         botao.setAttribute('aria-expanded', 'true');
         menu.querySelector('[role="menuitem"]')?.focus();

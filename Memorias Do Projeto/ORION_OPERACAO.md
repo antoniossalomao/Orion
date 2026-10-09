@@ -101,6 +101,8 @@ que só o OmniRoute conhece. Com o OmniRoute, o painel mostra também **quem ser
 groq ×8"), lido dos cabeçalhos `X-OmniRoute-Provider` e `-Decision` (formato da documentação, não testado num OmniRoute
 real). A cota de verdade está nos endpoints de gerenciamento do OmniRoute (`/api/rate-limits`, `/dashboard/free-tiers`),
 com credencial própria que o Orion não usa. O painel não mostra os argumentos das ações nem nenhum segredo.
+Desde a E1 o painel também tem **Controle** (pânico e não perturbe), **Cota de hoje** e **Provedores** (a semana,
+pelo registro de saída, que sobrevive a reinício): ver §17.
 
 ### 4.2 Roteamento por tipo de tarefa
 
@@ -548,7 +550,126 @@ opt-in novo sem linha aqui.
 | `ORION_SKILLS_ENABLED` | Skills (§13) | Só nome e descrição no prompt (ao gateway) | 40 | `true` (padrão) → `false` |
 | `ORION_MCP_ENABLED` | Servidores do `mcp.json` (§5) | Depende do servidor (e-mail e agenda falam com o Google) | 24, 32 | `true` (padrão) → `false` |
 | `ORION_JOBS_ENABLED` | Jobs: lembretes, backup, vault, embeddings, consolidação, briefing | Embeddings ao Gemini (com chave); o resto conforme cada opt-in acima | 18, 20 | `true` (padrão) → `false` |
+| `ORION_LOCAL_MODEL` | Modelo local de reserva, sem ferramentas (§17.4) | Não: só `127.0.0.1` (a configuração recusa outro host) | 49 | vazio (padrão) |
+| `ORION_DND_AT` | Não perturbe por horário (§17.3) | Não | 48 | vazio (padrão) |
+| `ORION_ALLOW_PAID` | Aceitar um endereço fora da lista de provedores gratuitos (§17.1) | Para o provedor que você apontou, que **pode cobrar** | 46 | `false` (padrão) |
 
 **Exemplo: ligar a memória da tela só com esta tabela.** Instale o `tesseract` com português (§8), ponha
 `ORION_SCREEN_MEMORY=true` no `.env`, reinicie e rode `uv run orion doctor` (deve dizer "memória da tela: OCR
 local"). Para pausar, `POST /tela/pausa {"ativa": false}`; para apagar o que guardou, `orion tela --limpar`.
+
+## 17. Custo, privacidade e controle
+
+Regras 46 a 49 ([ORION_REGRAS.md](ORION_REGRAS.md)). Tudo aqui se apoia no **registro de saída**: cada chamada
+que leva dado para fora do computador vira uma linha na tabela `external_calls` (provedor, tipo, modelo, ok,
+latência, bytes de ida e volta, tipo do conteúdo), **nunca o conteúdo, a URL nem a chave**. Guarda 90 dias,
+como o audit.
+
+### 17.1 Custo zero e cota gratuita
+
+**O que faz.** Conta quanto da cota gratuita **o Orion** já usou (por dia; Brave por mês) e, com 90% usado,
+segura os jobs opcionais (pesquisa noturna, ciclo de sono, leitura semanal, consolidação) até virar o dia, com
+um aviso `cota` por dia. **O chat nunca é bloqueado**; passar de 100% vira aviso no painel.
+
+**Como ligar.** Já vem ligado. Limites (padrão = estimativa do gratuito; 0 = sem limite):
+```
+# ORION_QUOTA_GATEWAY_DIA=1000
+# ORION_QUOTA_GROQ_DIA=2000
+# ORION_QUOTA_GEMINI_DIA=1000
+# ORION_QUOTA_BRAVE_MES=1000
+```
+**(você)** Os gratuitos mudam sem aviso (o Google já cortou o do Gemini mais de uma vez): confira no painel de
+cada provedor e ajuste. A conta é a do Orion: outro programa com a mesma chave gasta a mesma cota e não aparece aqui.
+
+**Dependências.** Nenhuma.
+
+**O que sai do computador.** Nada além do que cada recurso já manda.
+
+**Onde ver.** Painel › **Cota de hoje** (barra por provedor) e **Provedores** (por provedor e tipo, na semana:
+chamadas, falhas, latência p50/p95, modelo mais usado e tráfego). `/painel` no Telegram mostra a cota.
+
+**Pausar/desligar.** Limite `0` desliga a conta daquele provedor.
+
+**Custo zero.** O `orion doctor` avisa se o gateway (ou a transcrição) aponta para um endereço fora da lista de
+gratuitos (`127.0.0.1`/`localhost`, `api.groq.com`, `generativelanguage.googleapis.com`, `api.search.brave.com`).
+Se o endereço é seu e gratuito (um OmniRoute em outra máquina, por exemplo), confirme com `ORION_ALLOW_PAID=true`.
+
+**Regra.** 46; código em `orion/costs.py`.
+
+### 17.2 Modelos fora do ar e painel de privacidade
+
+**O que faz.** Sem chamada extra a provedor nenhum, o job lê o registro de saída: se as últimas 3 chamadas ao
+gateway falharam e a primeira delas tem mais de `ORION_GATEWAY_DOWN_MIN` minutos (padrão 10), sai o aviso "Modelos
+fora do ar desde HH:MM"; quando uma volta a responder, "Modelos de volta". A tela **Privacidade** (`#/privacidade`,
+item na barra lateral e na paleta) mostra, por dia e provedor, quantos envios, quantos bytes e de que tipo (texto,
+imagem, áudio), e a lista do que saiu hoje.
+
+**Como ligar.** Já vem ligado (`ORION_GATEWAY_DOWN_MIN=10` ajusta o tempo).
+
+**Dependências.** Nenhuma.
+
+**O que sai do computador.** Nada: é leitura do que já foi registrado. O modelo local não conta como saída.
+
+**Onde ver.** Caixa de atividade (avisos `gateway`), tela Privacidade, `GET /privacidade?dias=7`.
+
+**Pausar/desligar.** O aviso não é urgente: o não perturbe o segura.
+
+**Regra.** 47; código em `orion/saidas.py`, `orion/jobs.py` (`_saude_gateway`), `orion/app.py` (`/privacidade`).
+
+### 17.3 Modo pânico e não perturbe
+
+**O que faz.** **Pânico** é um corte: tira do modelo toda ferramenta que fala com a rede, traz conteúdo de fora,
+executa ou apaga; para a memória da tela, a palavra de ativação e os jobs que usam rede (consolidação, sono,
+pesquisa, leitura semanal, embeddings, agenda do briefing). O chat continua, só com leitura local e escrita.
+**Nada volta sozinho.** **Não perturbe** só segura: os avisos não urgentes ficam na fila (lembrete e agendamento,
+que você marcou, são urgentes) e a memória da tela pausa; quando acaba, a fila sai.
+
+**Como ligar.**
+```
+uv run orion panico                 # liga (o servidor que estiver de pé obedece em segundos)
+uv run orion panico --estado
+uv run orion panico --sair          # o único jeito pela linha de comando
+uv run orion nao-perturbe 07:00     # até a próxima vez que o relógio marcar 07:00
+uv run orion nao-perturbe --sair
+ORION_DND_AT=22:30-07:00            # todo dia nesse horário
+```
+No Painel › **Controle**: "Ligar modo pânico" (confirma) e "Sair do modo pânico" (**pede a senha de novo**);
+"Não perturbe até…". Na paleta (`Ctrl+K`): "Ligar modo pânico". No Telegram: `/panico`, `/panico sair`,
+`/panico estado`. Pela API: `POST /modo/panico {"ativo": true}` (sair: `{"ativo": false, "senha": "..."}`),
+`POST /modo/nao-perturbe {"ate": "07:00"}` (ou `null`), `GET /modo`. A tecla global chega com a ponte (E2).
+
+**Dependências.** Nenhuma.
+
+**O que sai do computador.** Nada.
+
+**Onde ver.** Alerta vermelho no topo do Painel, cartão Controle, `orion doctor` e `/painel` no Telegram.
+Entrada e saída do pânico ficam no audit (`modo_panico`).
+
+**Pausar/desligar.** `orion panico --sair`, `/panico sair` ou o botão do painel com a senha. Se o audit falhar,
+o Orion **não** sai do pânico (entrar nunca é barrado).
+
+**Regra.** 48; código em `orion/modos.py`.
+
+### 17.4 Modelo local de reserva
+
+**O que faz.** Um modelo no próprio computador (Ollama) que só responde quando o gateway falha, **sem
+ferramentas** (a requisição sai sem `tools` e com "Modo reserva: sem ferramentas"). Também é o modelo do
+auto-compact (E4). Sem gateway configurado, ele sozinho mantém o chat de pé.
+
+**Como ligar.**
+```
+ORION_LOCAL_MODEL=qwen3.5:4b                 # ou gemma3:4b
+# ORION_LOCAL_URL=http://127.0.0.1:11434/v1  # só 127.0.0.1, localhost ou ::1
+```
+
+**Dependências.** **(você)** Instalar o [Ollama](https://ollama.com) e rodar `ollama pull qwen3.5:4b`. O
+`orion doctor` confere se o Ollama responde e se o modelo está baixado.
+
+**O que sai do computador.** Nada: o endereço só aceita este computador.
+
+**Onde ver.** Painel › Modelos (endpoint `local`, camada `local`) e Provedores (`ollama`); a resposta mostra
+`local/<modelo>` como quem respondeu.
+
+**Pausar/desligar.** Esvaziar `ORION_LOCAL_MODEL` e reiniciar.
+
+**Regra.** 49; código em `orion/gateway.py` (`Endpoint.tools`), `orion/app.py` (`gateway_from_settings`).

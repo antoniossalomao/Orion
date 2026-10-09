@@ -165,6 +165,22 @@ Plano em [ORION_PLANO_RODADA2.md](ORION_PLANO_RODADA2.md).
 | E0.2 | §16, tabela-resumo dos opt-ins, e o teste que falha se faltar linha (`OPT_INS` no próprio teste) | ✅ |
 | E0.3 | `orion doctor` aponta a seção nos avisos de opt-in (`(ver ORION_OPERACAO §N)`); aviso novo de `ORION_WEEKLY_AI` sem briefing | ✅ |
 
+| E1.1 | Registro de chamadas externas (`external_calls`, esquema v11; regra 47): gateway por tentativa, Groq, visão, web (busca, clima, URL, imagem), embeddings, edge-tts, voz ao vivo, `delegar`, envios do Telegram, n8n e MCP remoto/externo; teste estático exige o registro em todo módulo que fala com a rede | ✅ com transportes falsos |
+| E1.2 | Custo zero e cota gratuita (`orion/costs.py`, regra 46): jobs opcionais param com 90%, aviso `cota` 1×/dia, chat nunca bloqueado; `doctor` avisa endereço fora da lista de gratuitos sem `ORION_ALLOW_PAID` | ✅ |
+| E1.3 | Telemetria por provedor: `provedores` e `cota` no `GET /painel`, cartões Provedores e Cota de hoje | ✅ API, Node e navegador nos dois backends (a prova: 10 chamadas, 2 falhas) |
+| E1.4 | Aviso "Modelos fora do ar desde HH:MM" e "de volta", só pelo registro de saída | ✅ com relógio falso |
+| E1.5 | `GET /privacidade` e a tela `#/privacidade` (barras empilhadas por provedor, totais, o que saiu hoje) | ✅ navegador nos dois backends, axe nos 3 temas |
+| E1.6 | Modo pânico e não perturbe (`orion/modos.py`, regra 48): CLI, API, painel (sair com senha), paleta, Telegram; corta ferramentas egress/external/exec/destrutivas, tela, escuta e jobs de rede; avisos não urgentes seguros na fila | ✅ (a prova: `orion panico` no Orion real corta as ferramentas e o painel mostra) |
+| E1.7 | Modelo local de reserva (regra 49): último endpoint, sem `tools`, endereço só local; `doctor` confere o Ollama | ✅ com servidor falso no lugar do Ollama (a prova, no Orion real) |
+
+**Não verificado (E1):** nenhum provedor real foi chamado (as cotas padrão são estimativas: o gratuito do Gemini e do
+Brave mudou em 2025 e pode ter mudado de novo); o Ollama e o `qwen3.5:4b` nunca rodaram aqui (o teste usa um
+servidor compatível com a API da OpenAI no lugar dele, então a qualidade da resposta em português e o tempo no
+notebook são desconhecidos); a pausa da palavra de ativação pelo pânico só foi provada com a escuta falsa; o
+tamanho registrado da voz ao vivo e do edge-tts nunca foi conferido com o serviço real; servidor MCP por `stdio`
+que não é `external` não entra no registro (o Orion não vê para onde ele fala); a tecla global do pânico depende
+da ponte (E2).
+
 **Não verificado (E0):** ninguém seguiu a §8 num Windows de verdade (instalador do tesseract do UB Mannheim, pacote `por`); o exemplo de workflow do n8n (§12) não foi montado num n8n real. O plano previa `ORION_N8N_WEBHOOKS` no formato `nome=url;nome=url`, mas o código lê JSON: a §12 documenta o JSON, que é o que funciona.
 
 ## O que foi construído (por fase do NUCLEO)

@@ -31,7 +31,7 @@
     const configurarToken = t => { tokenDesktop = String(t || ''); };
 
     /** rotas que exigem o token do orion.app; o legado não conhece cabeçalho Authorization */
-    const comAuth = caminho => /^\/(approvals|chat|painel|sessoes|historico|projetos|memoria|tela|resultados|atividade|notifications|plugins)(\/|$|\?)/.test(caminho);
+    const comAuth = caminho => /^\/(approvals|chat|painel|sessoes|historico|projetos|memoria|tela|resultados|atividade|notifications|plugins|modo|privacidade)(\/|$|\?)/.test(caminho);
 
     function cabecalhos(caminho, extra = {}) {
         const h = { ...extra };
@@ -44,7 +44,7 @@
         let detalhe = '';
         try { const j = JSON.parse(corpo); detalhe = j.detail || j.erro || j.error || ''; } catch (_) { detalhe = corpo.slice(0, 160); }
         if (typeof detalhe !== 'string') detalhe = JSON.stringify(detalhe);
-        if (caminho === '/auth/password' && detalhe) return detalhe;   // o servidor já explica (senha atual errada, senha fraca)
+        if ((caminho === '/auth/password' || caminho === '/modo/panico') && detalhe) return detalhe;   // o servidor já explica
         if (caminho === '/auth/login') {
             if (status === 401) return 'Usuário ou senha incorretos.';
             if (status === 429) return 'Muitas tentativas erradas. Espere um pouco para tentar de novo.';
@@ -139,6 +139,11 @@
         arquivoDoResultado: (id, previa = false) => req(`/resultados/${encodeURIComponent(id)}/arquivo?${q({ previa: previa ? 'true' : null })}`, { bruto: true, timeout: 60000 }),
         apagarResultado: id => req(`/resultados/${encodeURIComponent(id)}`, { metodo: 'DELETE', timeout: 5000 }),
         atividade: () => req('/atividade', { timeout: 4000 }),
+        modo: () => req('/modo', { timeout: 4000 }),
+        /** entrar é um clique; sair pede a senha de novo (regra 48) */
+        panico: (ativo, senha = '') => req('/modo/panico', { metodo: 'POST', json: { ativo: !!ativo, senha }, timeout: 20000 }),
+        naoPerturbe: ate => req('/modo/nao-perturbe', { metodo: 'POST', json: { ate: ate || null }, timeout: 4000 }),
+        privacidade: (dias = 7) => req(`/privacidade?${q({ dias })}`, { timeout: 6000 }),
         lerAviso: id => req(`/notifications/${encodeURIComponent(id)}/ack`, { metodo: 'POST', timeout: 4000 }),
         plugins: () => req('/plugins', { timeout: 5000 }),
         concederPlugin: nome => req(`/plugins/${encodeURIComponent(nome)}/conceder`, { metodo: 'POST', timeout: 6000 }),
