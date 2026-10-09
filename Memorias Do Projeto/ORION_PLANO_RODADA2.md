@@ -223,6 +223,7 @@ Saídas do brainstorm a partir do perfil do Antônio no vault (estágio, faculda
 
 ## 13. Fora da curva (ficção científica viável) — em avaliação
 Critério: dá para fazer com o que o Orion já tem, custo zero, e não quebra o Ring 0. Referência de ficção entre parênteses.
+Decisão do Antônio (09/10): **entram X1, X3–X12**; **não entram X2** (conselho de IAs) **e X13** (Orion físico).
 
 | ID | Ideia | Como seria no Orion | Risco / limite |
 |---|---|---|---|
@@ -239,4 +240,25 @@ Critério: dá para fazer com o que o Orion já tem, custo zero, e não quebra o
 | X11 | **Escudo de foco** (ideias 67 e 81) | Num bloco de foco (N9 marca os blocos), se a memória da tela vir app de distração, o Orion pergunta "isso é do marco da semana?"; segura avisos não urgentes até o fim do bloco | Pode irritar: um aviso por bloco, fácil de desligar |
 | X12 | **Leitura do seu estado pela voz** (Emotion Engine da Lyra) | Pelo tom (local, sem mandar áudio a mais ninguém), percebe cansaço/pressa e ajusta: respostas mais curtas, adia o que não é urgente | Inferência imprecisa; só ajusta estilo, nunca decide nada |
 | X13 | **Orion físico** (ideia 75 Tamagotchi Hardware; D8 MQTT) | Um ESP32 com anel de LED na mesa (~R$ 40) mostra o estado: pensando, aviso pendente, aguardando aprovação, captura ligada (luz vermelha = alguma câmera/tela gravando) | Única com custo (hardware barato); depende de D8 |
+
+## 14. Terceira leva de ideias (09/10) — em avaliação
+
+| ID | Ideia | Como seria | Risco / limite |
+|---|---|---|---|
+| Y1 | **Treinador de bateria** | Microfone local mede andamento enquanto você toca (desvio do BPM, aceleração em viradas); relatório do treino e evolução por semana | Só áudio local; precisa de microfone razoável perto da bateria |
+| Y2 | **Ensaio de entrevista/apresentação** | Conversa por voz (Gemini Live grátis) simulando entrevista de estágio/vaga ou banca da faculdade; no fim, feedback com pontos fracos usando o que o Orion sabe de você | Cota preview limitada |
+| Y3 | **Vendedor do DrinkControl** | Para cada adega/distribuidora, pesquisa pública (site, Instagram, Google Maps) e monta proposta e roteiro de demo personalizados | Só dado público; rascunho, você envia |
+| Y4 | **Fábrica de conteúdo** (ideia 53 da Lyra) | Semanal: de commits, decisões e casos (N16), rascunho de post técnico (LinkedIn) no seu tom | Rascunho; nunca publica sozinho |
+| Y5 | **Tradutor do mundo** (*Star Trek*) | Câmera ou tela num texto em outra língua (manual, embalagem, erro) → tradução e explicação; legenda ao vivo de vídeo/aula com transcrição local | Legenda ao vivo local pesa no notebook |
+| Y6 | **Inventário vivo** (ideia 120) | Fotografa um item (peça do PC, eletrônico) → ficha com modelo, nota fiscal, data e garantia; avisa antes de a garantia vencer; liga com X1 e N12 | Nota fiscal fica local |
+| Y7 | **Caçador de assinaturas** | Nas faturas lidas pelo N11, acha cobranças recorrentes; avisa renovação, aumento de preço e o que você não usa há tempo | Depende do N11 |
+| Y8 | **Arquivos-isca** (ideia 48 Honeypot Files) | Arquivos falsos tentadores no notebook ("senhas.txt", "backup_banco.xlsx"); se algum processo abrir, alerta no Telegram com o nome do processo | Zero custo; só alerta, não age |
+| Y9 | **Sentinela de exposição** (ideias 5 e 60) | Semanal: senhas vazadas conferidas pelo método k-anonimato (a senha nunca sai), portas abertas no notebook, atualizações pendentes, regras do Tailscale | Busca de e-mail em vazamentos costuma exigir chave paga: fica fora |
+| Y10 | **Tela de visitante** (*Minority Report*) | Com a presença (X5), se a câmera vê um segundo rosto atrás de você, o Orion borra painéis sensíveis e segura avisos até a pessoa sair | Falso positivo; um toque desfaz |
+| Y11 | **Tutor que percebe o travamento** (ideia 76 Dicionário Sênior) | Pela memória da tela, nota o mesmo erro de compilação 3 vezes seguidas e oferece explicar o conceito por trás (não a correção pronta) | Um aviso por erro; desliga fácil |
+| Y12 | **Despertador com briefing** | No horário, fala o briefing (agenda, clima, tarefas, ideia do dia X7) pelo PC ou manda áudio no Telegram (N22) | — |
+| Y13 | **Mapa de energia** (*quantified self*) | Cruza horário de uso, commits, foco (X11) e diário (N10): "você rende mais das 20h às 22h"; a revisão semanal (N9) usa isso para sugerir os blocos | Correlação, não causa |
+| Y14 | **Headhunter** (ideia 58) | Compara suas habilidades do vault com vagas reais (N17) e mostra a lacuna + plano de estudo curto | Depende do radar de vagas |
+| Y15 | **Documentador dos seus projetos** | Lê os repositórios (Nortis, PreciFly, DrinkControl) e mantém arquitetura e decisões no vault atualizadas, por PR no vault (como X6) | Só PR; você aprova |
+| Y16 | **Andar pelo segundo cérebro** | No grafo 3D (R3.12), navegação por voz: "me leva até Firebird", "o que liga isso ao estágio?"; o vault inteiro no mesmo grafo da memória | Grafo grande pesa no front: filtrar por área |
 
