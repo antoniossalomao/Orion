@@ -283,3 +283,17 @@ Decisão do Antônio: **entram Z4, Z11, Z12**; as demais ficam em incubação.
 | Z13 | **Postura e pausas** (ideia 129 Bio Clock) | Com a câmera local ligada, nota postura ruim ou muito tempo sem pausa e sugere levantar | Só local; um aviso por hora no máximo |
 | Z14 | **Orçamentista de renders 3D** | Para pedidos de visualização (SketchUp/Enscape), monta orçamento, prazo e escopo a partir dos seus trabalhos anteriores | Renda extra; rascunho para você enviar |
 
+## 16. Quinta leva: só o que se usa todo dia (09/10) — em avaliação
+Pedido do Antônio: menos ideia "de vitrine", mais utilidade. Filtro: resolve algo que acontece **toda semana ou todo dia**, reaproveita peça existente e cabe em um marco curto.
+
+| ID | Ideia | Como seria | Peça que já existe |
+|---|---|---|---|
+| U1 | **Duas palmas → Orion abre** (pedido do Antônio) | Detector de palmas local no mesmo laço do microfone da palavra de ativação: dois picos fortes e curtos com 150–700 ms entre eles → traz a janela do Orion para frente e começa a ouvir. Configurável: só abrir, abrir e ouvir, ou rodar uma rotina (L7). Proteções: pico medido contra o ruído do ambiente, teto de ativações por hora, pausa, desligado por padrão (`ORION_CLAP_ENABLED`). Detalhe: o Orion precisa estar rodando em segundo plano (`orion autostart`); as palmas trazem a janela, não ligam o programa do zero | `orion/wake.py` já tem a interface `Detector` e o laço do microfone; é um detector a mais, sem modelo |
+| U2 | **Captura rápida** | Tecla global abre uma caixinha flutuante: digita "comprar cabo HDMI amanhã" e ele decide se é tarefa, lembrete, gasto (N11) ou nota no vault. Sem abrir o app | `/capturar` do Telegram, lembretes, tarefas |
+| U3 | **Lembrete insistente** | "Me cobra até eu fazer": repete no intervalo escolhido (PC e Telegram) até você marcar feito ou adiar | Lembretes e fila de avisos |
+| U4 | **Histórico da área de transferência** | Guarda localmente o texto copiado nos últimos 7 dias (descartando o que parece senha/token/CPF); "o que eu copiei ontem do terminal?" | `ler_clipboard`, filtro de segredos da memória da tela |
+| U5 | **Histórico de comandos pesquisável** | Indexa o histórico do terminal (PowerShell/bash) e responde "como eu fiz aquele `gbak` com restore?" com o comando exato e a data | Busca da memória; casa com N14 (estágio) |
+| U6 | **Ler depois** | Manda um link (artigo, vídeo, thread) pelo Telegram ou pela captura rápida → o Orion lê/transcreve, resume em 5 linhas e guarda no vault com a fonte; lista semanal do que ficou pendente | `buscar_url`, `orion transcrever`, vault |
+| U7 | **Organizador de Downloads com regras** | Regras suas ("fatura*.pdf → Finanças", ".exe → Instaladores", "foto → Fotos/AAAA-MM"); aplica sozinho com registro e **desfazer**; o que não casa fica | `organizar_pasta`, vigilância de pasta |
+| U8 | **"Posso desligar?"** | Um comando que confere: repositórios com mudança não commitada ou não enviada, processos em segundo plano rodando, backup do dia feito, download em andamento | `consultar_git`, processos, backup |
+
