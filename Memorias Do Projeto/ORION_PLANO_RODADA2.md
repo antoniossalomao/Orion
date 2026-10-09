@@ -1,315 +1,633 @@
-# ORION — Plano da rodada 2 (09/10/2026)
+# ORION — Plano da rodada 2 (versão de execução, 09/10/2026)
 
-> Continua [ORION_PLANO_PROXIMOS.md](ORION_PLANO_PROXIMOS.md) (rodada 1, 08/10, quase toda feita).
-> Três fontes: as pendências de código depois do Orion#16, uma segunda varredura do legado
-> (`Orion_Ollama/`, `Orion_Core/`) e dos docs da Lyra no vault (`LYRA_ESTADO_ATUAL`, `LYRA_AGENTES_E_PLANOS`,
-> `LYRA_IDE_PLANO`, catálogo de 140 ideias), e ideias novas.
-> Nada aqui foi testado. Item com **regra nova** precisa da linha em [ORION_REGRAS.md](ORION_REGRAS.md) antes do código.
-> Respostas em §9 (duas rodadas, 09/10). Todas as perguntas têm resposta. **Nada desta rodada vira código até o Antônio liberar.**
-
-## 0. Critério de ordem (o mesmo da rodada 1)
-1. Testável sem serviço real (Linux, API falsa) vem antes.
-2. Nada abre canal novo de saída de dados ou captura sem aval (Ring 0 #3, regras 18, 32, 38).
-3. Só depende do Orion antes do que depende de conta ou chave.
+> Só o que o Antônio escolheu, em etapas, na ordem de execução. Cada etapa é **um marco** no formato do
+> [Sistema de Priorização Pessoal] do vault: resultado observável, prova de conclusão, limite de escopo
+> e próximo passo separado. Uma etapa = um PR. Não se começa a seguinte com a anterior vermelha.
+> O histórico do brainstorm (ideias descartadas e em incubação) está no git deste arquivo e na nota
+> de conversa do vault de 09/10/2026.
+> Rodada anterior: [ORION_PLANO_PROXIMOS.md](ORION_PLANO_PROXIMOS.md). Regras: [ORION_REGRAS.md](ORION_REGRAS.md).
 
 ---
 
-## 1. Documentação (primeiro, antes de qualquer código)
+## 0. Como usar este plano
 
-`ORION_OPERACAO.md` hoje para no §7 (checklist) e não explica nenhuma novidade de 08/10. Entregas:
-
-| ID | Seção nova em `ORION_OPERACAO.md` | Conteúdo mínimo |
-|---|---|---|
-| R1.1 | §8 Memória da tela | `ORION_SCREEN_MEMORY`, dependências (`tesseract` + `por`, `xdotool` no X11), lista de exclusão por título, `ORION_SCREEN_ALLOW_UNKNOWN_TITLE`, retenção, pausar/limpar (interface, `/tela` no Telegram), o que **não** é capturado, como conferir no audit |
-| R1.2 | §9 Ciclo de sono | `ORION_SLEEP_AT`, o que ele faz e não faz (regra 42), onde aparecem duplicados, relações e padrões, como apagar um padrão |
-| R1.3 | §10 Pesquisa noturna | `ORION_RESEARCH_AT` + `ORION_WEB_TOOLS` + `ORION_VAULT_DIR`, de onde vêm os assuntos, onde cai o relatório (`00 Inbox`), regra 39 |
-| R1.4 | §11 Leitura semanal | `ORION_WEEKLY_AI`, custo (1 chamada/semana), quando chega |
-| R1.5 | §12 n8n | `ORION_N8N_WEBHOOKS` (formato), exemplo de workflow, por que sempre confirma (regra 41) |
-| R1.6 | §13 Plugins e skills | estrutura do pacote, `orion plugin instalar/conceder/revogar`, hash, reiniciar, `orion skills`, `carregar_skill` |
-| R1.7 | §14 `orion transcrever` | arquivo e link, `ffmpeg`/`yt-dlp`, Groq, aviso antes de enviar, onde cai a nota |
-| R1.8 | §15 Documentos e resultados | formatos aceitos, "Disponível em" (global vs. projeto), limites, biblioteca de resultados, versões, download |
-| R1.9 | §16 Tabela-resumo de opt-ins | uma tabela: variável → o que liga → o que sai do computador → regra → como desligar. Conferida por teste contra `config.py` (como já é feito com `.env.example`) |
-
-Pronto quando: cada opt-in de `config.py` aparece na tabela R1.9 (teste falha se faltar) e o `orion doctor` aponta a seção certa ao achar um opt-in mal configurado.
-
----
-
-## 2. Conversas e projetos
-
-| ID | Entrega | Detalhe | Regra |
-|---|---|---|---|
-| R2.1 | Tela de conversas arquivadas | Lista `?arquivadas=true`, busca, desarquivar, apagar de vez (com confirmação) | — |
-| R2.2 | Filtro por projeto na barra lateral | Seletor no topo; selo do projeto (cor + nome curto) em cada item; "Sem projeto" como opção | — |
-| R2.3 | "Mover para projeto" na paleta | Comando + `/projeto <nome>` no `slash.js` | — |
-| R2.4 | "Disponível em" editável nos documentos | `PATCH /memoria/documentos/{id}` (global ↔ projeto); reindexa só o escopo | — |
-| R2.5 | Editar pedido enviado como nova versão (C39) | A resposta antiga vira versão anterior (setas ‹ 1/2 ›), não é apagada; ramo novo a partir dali; aprovação pendente bloqueia | — |
-| R2.6 | **Retomar de onde parou** (novo, vem do `/resumo_sessao` da Lyra) | Ao abrir uma conversa parada há >24 h, um cartão com 3 linhas: o que ficou em aberto. Gerado sob demanda, não em segundo plano | — |
-
----
-
-## 3. Memória
-
-| ID | Entrega | Detalhe | Regra |
-|---|---|---|---|
-| R3.1 | Isolamento por projeto para fatos e mensagens (fecha C32) | Fato ganha `projeto_id` opcional; busca no projeto vê global + do projeto; conversa sem projeto não vê fatos de projeto. Migração: todos os fatos atuais ficam globais | nova (estende 32) |
-| R3.2 | OCR para PDF escaneado | Página sem texto → tesseract local (já é dependência da tela); teto de páginas | — |
-| R3.3 | Progresso da indexação | Indexar vira job; `GET /memoria/documentos/{id}` com `estado` e `%`; barra no card | — |
-| R3.4 | Reindexar documento | Botão + `POST .../reindexar` (útil depois de trocar o modelo de embeddings) | — |
-| R3.5 | Memória da tela: busca na interface | Caixa de busca no card, resultado com hora e app; abrir o trecho | — |
-| R3.6 | Memória da tela: exclusão por aplicativo | Lista por nome de processo, além do título | — |
-| R3.7 | Memória da tela: não capturar com a tela bloqueada | Windows (sessão bloqueada), macOS (`CGSession`), Linux (`loginctl`/screensaver); sem detecção → não captura | estende 44 |
-| R3.8 | Ciclo de sono na interface | Ver/editar/apagar relações (`kind=sono`) e padrões; "apagar duplicado" direto do aviso da caixa de atividade | — |
-| R3.9 | **Auto-compact do histórico** (Lyra tinha; como nas IAs comerciais) | Ao chegar perto do limite da janela, as mensagens antigas viram um resumo feito pelo **modelo local** (L9), em segundo plano depois da resposta; o resumo fica visível e marcado como gerado e nunca substitui o registro. Sem modelo local ligado, mantém o corte de hoje | nova (decidido §9) |
-| R3.10 | **Validade e substituição de fatos** (Lyra: Knowledge Freshness Tags; vault: nota de supersession) | Fato ganha `valido_ate` opcional e `substituido_por`; o sono **avisa** conflito ("mora em X" × "mora em Y"), você escolhe; busca rebaixa fato vencido/substituído | nova |
-| R3.11 | **Reranker** (Lyra tinha `bge-reranker-v2-m3`) | Local (CPU, ~300 MB), etapa depois do RRF. **Fica pronto e desligado** (`ORION_RERANK=false`); ligar só se o `eval_pessoal` mostrar ganho | decidido (§9) |
-| R3.12 | **Grafo de memória 3D** (D7 da rodada 1) | A tela 3D já existe (`views/memory.js`); falta `/grafo/completo` no backend novo (fatos, relações do sono, tópicos), filtro por projeto; clicar num nó abre o fato | decidido (§9) |
-
----
-
-## 4. Resultados e atividade
-
-| ID | Entrega | Detalhe | Regra |
-|---|---|---|---|
-| R4.1 | Painel lateral de verdade na biblioteca | Abre ao lado do chat, prévia de texto/imagem/PDF, sem sair da conversa | — |
-| R4.2 | Comparar versões | Diff lado a lado para texto/Markdown/CSV; imagem lado a lado | — |
-| R4.3 | Apagar versões antigas em lote | "Manter só as N últimas" por resultado e global | — |
-| R4.4 | Associar resultado a projeto manualmente | (pendência que sobrou da rodada 1) | — |
-| R4.5 | Fontes e atividade das extensões no chat (C27) | Cada resposta mostra quais ferramentas/servidores MCP/skills/plugins usou e as fontes, expansível | — |
-| R4.6 | Pesquisa noturna pela interface | Editar assuntos (fora do `.env`, decisão de 08/10), ver relatórios, rodar agora | — |
-| R4.7 | **Custo zero** | Nada usa API paga; só cota gratuita e as CLIs das assinaturas. Ao bater a cota gratuita: para os jobs opcionais (pesquisa, sono, leitura semanal) e avisa; o chat continua | nova (decidido §9) |
-| R4.8 | **Telemetria por provedor** (Lyra tinha `/stats`: usos, falhas, latência, taxa de sucesso por andar) | Hoje E3 só conta respostas. Somar falhas, latência p50/p95 e qual modelo respondeu; card no painel | — |
-
----
-
-## 5. MCP, plugins e skills
-
-| ID | Entrega | Detalhe | Regra |
-|---|---|---|---|
-| R5.1 | Teste de SDK incompatível (C07) | Servidor que fala versão de protocolo não suportada → mensagem legível no `mcp-check` e no painel | — |
-| R5.2 | Cancelamento propagado ao servidor | Cancelar o turno manda `notifications/cancelled` ao servidor MCP | — |
-| R5.3 | Diagnóstico MCP na interface (C26) | Por servidor: estado, última falha, ferramentas expostas, classe de risco de cada uma, botão "testar" | — |
-| R5.4 | Plugin por upload | `.zip` pela interface → mesma validação do `orion plugin instalar` (sem link, ≤200 arquivos/5 MB, nada roda) | 45 |
-| R5.5 | Atualização com reversão (C22) | Versão nova fica ao lado; concessão não migra (hash muda); "voltar à anterior" em um clique | estende 45 |
-| R5.6 | Importar formato Claude Code / Codex (C21) | Converte `.claude-plugin/plugin.json` (skills, MCP) e o formato do Codex; o que não tem equivalente (hooks, comandos) é listado e ignorado | estende 45 |
-| R5.7 | Catálogo (C25), **local e remoto** | Local: pasta/lista sua. Remoto: índice baixado de endereços cadastrados por você, cada pacote com hash fixado no índice; baixar **não** instala nem concede: passa pela mesma validação e pela concessão por hash (regra 45); nunca atualiza sozinho | nova (decidido §9) |
-| R5.8 | Pacote "Orion Pesquisa" (C28–C29) | Primeiro plugin oficial: skills de pesquisa + servidor MCP de busca, já classificado | — |
-| R5.9 | Conceder sem reiniciar | Recarregar registro de ferramentas com segurança (turno em andamento termina na versão antiga) | estende 45 |
-| R5.10 | Skills pelo chat e pela paleta (B3) | `/skill <nome>` e item na paleta: força `carregar_skill` no turno | 40 |
-| R5.11 | **Orion como servidor MCP** (pendência nº 6 da Lyra; substitui a IDE) | Expõe só leitura: `buscar_memoria`, `listar_fatos`, `buscar_conversas`. Token próprio, revogável, stdio local. Claude Code/Codex passam a consultar a memória do Orion | nova (decidido §9) |
-| R5.12 | **C13 descoberta sob demanda** | Com muitas ferramentas MCP, o modelo vê só um índice (nome + resumo) e carrega o esquema da que precisa; a classe de risco e a aprovação não mudam. Entra por limiar (ex.: >30 ferramentas) | — |
-| R5.13 | **C14 resources e prompts** | *Resources*: o modelo só lê URIs que o próprio servidor listou (nunca endereço livre), leitura é conteúdo externo (contamina a sessão), com teto de tamanho e allowlist por servidor no `mcp.json`. *Prompts*: só você invoca, pela paleta/`/`; o modelo não dispara | nova |
-
----
-
-## 6. O que mais a Lyra tinha e o Orion perdeu (segunda varredura)
-
-Já tratados na rodada 1: ciclo de sono, pesquisa noturna, tela, transcrição, n8n, personas, enxame (descartado), IDE Theia (descartada), MQTT, WhatsApp, ofuscação.
-Achados novos, conferidos no código:
-
-| ID | Lyra tinha | Orion hoje | Proposta | Onde entra |
-|---|---|---|---|---|
-| L1 | Compressão de histórico (>14 msgs, resume as 8 antigas) | Janela fixa: o que sai da janela some do contexto | R3.9 | §3 |
-| L2 | Reranker cross-encoder no RAG híbrido | FTS5 + vetores + RRF, sem rerank | R3.11 | §3 |
-| L3 | Telemetria da cascata (usos, falhas, latência por andar) | Só contagem de respostas (E3) | R4.8 | §4 |
-| L4 | Grafo `/grafo` + visualizador 3D | Relações existem, não há tela | R3.12 | §3 |
-| L5 | Knowledge Freshness Tags | Fato tem data e fonte, sem validade | R3.10 | §3 |
-| L6 | `lyra_agent`: objetivo autônomo com orçamento de iterações, persistido (`agente_run`) | Só `delegar` (CLIs) e o turno do chat | **Tarefa em segundo plano**: objetivo + orçamento (iterações, tempo, custo), em modo só leitura (E2), relatório na caixa de atividade; o que for escrita vira proposta para aprovar | nova regra (decidido §9) |
-| L7 | `commands.py`: frases locais ("bom dia" → saudação + música + abrir app; "pausa", "volume") | Palavra de ativação existe, mas tudo passa pelo modelo e pede aprovação | **Rotinas**: arquivo seu com frase/atalho → passos (ferramentas existentes). Concedida por hash como plugin; passo de leitura/mídia roda direto, execução confirma. Disparo por voz, paleta, Telegram | nova regra (decidido §9) |
-| L8 | Sidecar de alucinação (draft compara divergência) + avaliação factual por afirmação (vault) | Nada | **"Conferir resposta"** sob demanda: separa afirmações e marca cada uma como apoiada/sem apoio pela memória e pelas fontes do turno | — |
-| L9 | Modelo local (Ollama) como último andar da cascata | Sem nuvem, sem resposta | **Modo reserva local**: `qwen3.5:4b`, só conversa e memória, sem ferramentas; por ora só o encaixe | decidido (§9) |
-| L10 | Self-healing de serviços | Não há serviços para curar | Só um aviso: gateway fora do ar por >N min → caixa de atividade + Telegram | — |
-| L11 | Carga cognitiva (menos contexto quando lento) | Nada | **Não recomendo**: o gateway resolve latência; fica registrado como descartado | — |
-| L12 | Câmera (`camera_engine.py`, ideias "Olho de Vidro", "Grafo Social") | Nada | **Câmera**: perguntas sobre a imagem pela nuvem gratuita, detecção e rosto locais, sob demanda primeiro (§9) | nova regra (decidido §9) |
-
----
-
-## 7. Ideias novas
-
-| ID | Ideia | Por quê |
-|---|---|---|
-| N1 | **Busca global** (Ctrl+K): conversas, fatos, documentos, tela, resultados numa caixa só | Hoje cada um tem sua busca, em telas diferentes |
-| N2 | **Painel de privacidade**: o que saiu do computador, por provedor e por dia (tipo e tamanho, nunca conteúdo) | O Ring 0 é "nada sai sem você saber"; hoje só o audit sabe |
-| N3 | **Não perturbe**: um toque pausa tela, pesquisa, avisos proativos; com horário | Vários opt-ins proativos agora; desligar um por um é ruim |
-| N4 | **Transcrever → tarefas**: depois do `orion transcrever`, propõe tarefas e fatos extraídos, você aprova item a item | Fecha o ciclo da reunião/aula gravada |
-| N5 | **Atualização do Orion no notebook**: `orion atualizar` confere hash/assinatura da release antes de trocar | Depois da venda do PC, atualizar vai ser rotina |
-| N6 | **Backup da configuração** (opt-ins, `mcp.json`, rotinas, plugins concedidos) junto com o do banco | Restaurar hoje traz dados, não o jeito que estava ligado |
-| N7 | **Visão pelas assinaturas** (ideia do Antônio, 09/10) | O `delegar` já chama `claude -p`, `codex exec` e `gemini -p` sem janela. Estender para mandar **a imagem + o pedido** e devolver a resposta: Claude Code lê o arquivo da imagem, Codex aceita imagem por parâmetro, Gemini CLI por `@arquivo`. Usa a cota das assinaturas (Claude Pro, ChatGPT Plus, Google AI Pro), custo zero. Ordem proposta: Gemini API gratuita (mais rápida) → quando a cota acabar, a CLI escolhida. Mais lento (alguns segundos) e divide o limite com o seu uso pessoal. A imagem vai à Anthropic/OpenAI/Google: conta no painel de privacidade (N2) |
-| N8 | **Geração de imagem pelo Google Flow** (ideia do Antônio, 09/10) | **Não recomendo automatizar o site em segundo plano**: os termos do Google proíbem acesso automatizado, e a conta em risco é a mesma do Gmail, Drive e agenda; além disso quebra a cada mudança do site e esbarra em login/2FA/captcha. Proposta segura: **semiautomático**. O Orion escreve o prompt, abre o Flow no navegador visível com o prompt copiado; você clica em gerar e baixar; a vigilância de pasta (já existe) pega a imagem nova em Downloads e a põe na biblioteca de resultados ligada ao pedido. O `gerar_imagem` atual (API, sem cota grátis para imagem) fica desligado por causa do custo zero |
-
----
-
-## 8. Testes
-
-| ID | Entrega |
+### 0.1 Decisões que valem para tudo (tomadas em 09/10)
+| Decisão | Efeito em cada etapa |
 |---|---|
-| R8.1 | `test_orion_real.py` cobrindo as telas novas contra o backend real (SQLite temporário, gateway falso): Conhecimento, Documentos, Resultados, Atividade, Plugins, arquivadas, filtro por projeto |
-| R8.2 | Para cada item novo de interface desta rodada, um cenário no backend de mentira **e** um no real |
-| R8.3 | Teste de documentação (R1.9): opt-in sem linha na tabela falha |
-| R8.4 | Invariantes de injeção (`test_injecao_invariantes.py`) estendidos a rotinas, tarefa em segundo plano e servidor MCP do Orion |
+| **Custo zero** | Nada usa API paga. Só cota gratuita (Groq, Gemini grátis), modelo local e as CLIs das assinaturas (Claude Pro, ChatGPT Plus, Google AI Pro) pelo `delegar`. Assinatura **não** inclui API. Ao bater cota gratuita: jobs opcionais param e avisam; o chat continua |
+| **Modelo local de reserva** | `qwen3.5:4b` no Ollama (alternativa `gemma3:4b`), só conversa e memória, sem ferramentas, desligado por padrão. Também é o modelo do auto-compact |
+| **Imagem pode sair do computador** | Perguntas sobre imagem/câmera vão à nuvem gratuita (Gemini) ou à CLI de assinatura. **Rosto e vetores de rosto nunca saem** (biometria) |
+| **Sem IDE** | A memória chega ao editor pelo Orion como servidor MCP (E7) |
+| **Grafo em 3D** | Reaproveita `views/memory.js` (3d-force-graph já vendorizado) |
+| **Catálogo de plugins local e remoto**; **C13 e C14 entram** | Ver E8 e E7 |
+| **Rotinas e tarefas em segundo plano** | Passos de leitura e mídia rodam sem confirmar; escrita e execução sempre confirmam |
+
+### 0.2 Definição de pronto (vale para todo item)
+1. Regra nova escrita em `ORION_REGRAS.md` **antes** do código, quando o item marcar "regra nova".
+2. Testes: unitário com falsos (`tests/fakes.py`), teste Node para lógica pura do front (`tests/front/*.test.js`), cenário de navegador no backend de mentira (`tests/front_e2e/test_front.py`) **e** contra o backend real (`tests/front_e2e/test_orion_real.py`) para toda tela nova.
+3. Ferramenta nova do modelo: classe de risco em `orion/policy/classes.py` (o `tests/test_ferramentas_doc.py` cobra), entrada no `tests/policy/test_injecao_invariantes.py` se for leitura externa ou egress.
+4. Opt-in novo: entra em `config.py`, no `.env.example` (o `test_env_example.py` cobra) e na tabela de opt-ins do `ORION_OPERACAO.md` (E0 cria o teste que cobra).
+5. `uv run ruff check`, `uv run ruff format --check`, `uv run pyright`, `uv run pytest -q`, `node --test "tests/front/*.test.js"` e `uv run pytest tests/front_e2e -q` verdes. CI verde em Linux, Windows e macOS.
+6. `ORION_MELHORIAS.md` ganha uma linha por item com o que foi e o que **não** foi validado com serviço real.
+
+### 0.3 Numeração usada aqui
+- **Esquema do banco**: hoje é v10. As versões novas estão reservadas por etapa (v11…v17), na ordem deste plano.
+- **Regras**: a última é a 45. As novas vão de 46 em diante, na ordem em que aparecem.
+- IDs antigos (R, L, N, X, Y, Z, U, V) ficam entre parênteses para rastrear de onde veio cada item.
 
 ---
 
-## 9. Perguntas e respostas (respondidas em 09/10/2026)
+## 1. Sequência de execução
 
-| # | Pergunta | Resposta do Antônio | Efeito no plano |
+| # | Etapa | Entrega em uma frase | Depende de | Precisa do Antônio |
+|---|---|---|---|---|
+| E0 | Documentação | Todo opt-in explicado e conferido por teste | — | — |
+| E1 | Base de custo, privacidade e controle | O Orion sabe quanto gastou, o que saiu, e para tudo com um comando | E0 | — |
+| E2 | Ponte de desktop | Teclas globais, bandeja, palmas, captura rápida, OCR da tela | E1 | Testar teclas/microfone no notebook |
+| E3 | Conversas e projetos | Arquivadas, filtro por projeto, editar pedido | E0 | — |
+| E4 | Memória: núcleo | Isolamento por projeto, OCR de PDF, progresso, auto-compact, validade de fatos, reranker | E1 (modelo local) | Instalar Ollama + `qwen3.5:4b` |
+| E5 | Memória: tela, sono e grafo 3D | Busca da tela, exclusões, sono editável, grafo 3D por voz, busca global | E4 | — |
+| E6 | Resultados e atividade | Painel lateral, comparar versões, fontes no chat, pesquisa noturna pela interface | E1 | — |
+| E7 | MCP e skills | Diagnóstico, cancelamento, C13, C14, skills no chat, Orion como servidor MCP | E1 | Registrar o MCP do Orion no Claude Code |
+| E8 | Plugins | Upload, atualizar/voltar, importar Claude Code/Codex, catálogo, conceder sem reiniciar, "Orion Pesquisa" | E7 | — |
+| E9 | Automação do dia a dia | Rotinas, tarefa em segundo plano, lembrete insistente, Downloads, "posso desligar?", históricos, ler depois, conversor | E2, E4 | — |
+| E10 | Vida pessoal | Revisão semanal, diário, gastos, contas, monitor de preço, cápsula, cenários, linha do tempo, sonhos, foco, estado pela voz | E9 | — |
+| E11 | Visão e câmera | Ver e agir, visão pelas assinaturas, detecção local, rosto local, "onde eu deixei", presença, tradutor, Flow | E2, E10 | Webcam; cadastrar o próprio rosto |
+| E12 | Trabalho, estudo e carreira | Base do estágio, portfólio, tutor, headhunter, documentador, pessoas, MVP, gêmeo, conferir resposta | E7, E10 | Modelos de documentos da faculdade |
+| E13 | Segurança e continuidade | Sentinela, plano de emergência, Protocolo Darwin, `orion atualizar`, backup da configuração | E8, E12 | Pessoa de confiança (E13.2) |
+
+Ordem fixa: E0 → E1 → E2 → E3 → E4 → E5 → E6 → E7 → E8 → E9 → E10 → E11 → E12 → E13.
+E3 e E6 não dependem de E2: se E2 travar em teste de hardware, adiantam-se E3 e E6 sem mudar o resto.
+
+---
+
+## E0 — Documentação dos opt-ins
+
+**Marco:** qualquer opt-in existente tem seção em `ORION_OPERACAO.md` dizendo como ligar, o que sai do computador e como desligar; um teste falha se aparecer opt-in sem documentação.
+**Prova:** `uv run pytest tests/test_operacao_doc.py` verde; ler a tabela e conseguir ligar a memória da tela só com ela.
+**Fora do escopo:** mudar comportamento de qualquer recurso.
+
+### E0.1 Seções novas em `ORION_OPERACAO.md` (R1.1–R1.8)
+Formato fixo de cada seção: **O que faz · Como ligar (variáveis com exemplo) · Dependências a instalar · O que sai do computador · Onde ver o resultado · Como pausar/desligar · Regra**.
+| § | Recurso | Variáveis e comandos | Fontes no código |
 |---|---|---|---|
-| 1 | Modelo local de reserva? | **Sim**, básico mas o melhor possível; por ora só deixar pronto e escolher o modelo | L9: **`qwen3.5:4b`** (Q4_K_M, ~2,5 GB de RAM, Apache 2.0); alternativa `gemma3:4b` (~3 GB). Entrega só o encaixe: `ORION_LOCAL_MODEL` + Ollama em `127.0.0.1`, último andar, sem ferramentas, desligado por padrão. Escolha conferida em guias de 2026, não testada no notebook |
-| 2 | Orion como servidor MCP? | **Pode fazer** | R5.11 |
-| 3 | Rotinas sem confirmar leitura e mídia? | **Sim** | L6 e L7 seguem como proposto |
-| 4 | Câmera: descartar? | **Não**: identificar objetos e pessoas; a imagem pode sair do computador | L12 revisto abaixo |
-| 5 | Reranker? | **Pronto e desligado** | R3.11 |
-| 6 | Compressão de histórico? | **Auto-compact como nas IAs, usando o modelo local** | R3.9 |
-| 7 | IDE enterrada? | **Sim, sem IDE** | — |
-| 8 | Grafo 2D ou 3D? | **3D** (já existe no projeto) | R3.12: reaproveitar `views/memory.js` (3d-force-graph, vendorizado). Ela lê `/grafo/completo`, que só o legado tem: falta a rota no backend novo, com fatos, relações do sono e tópicos, filtrada por projeto |
-| 9 | Ordem? | **Eu decido** | Mantida a §10 |
-| 10 | Teto de custo? | **Zero**: só as assinaturas já pagas (Google AI Pro, Claude Pro, ChatGPT Plus) | R4.7 vira **"custo zero"**: nada usa API paga; só cota gratuita (Groq, Gemini grátis) e as CLIs das assinaturas (`delegar`). Assinatura **não** inclui API: o que precisar de API paga sai do plano. Ao bater a cota gratuita, o Orion para os jobs opcionais e avisa |
-| 11 | Catálogo remoto ou local? | **Os dois** | R5.7 |
-| 12 | C13/C14? | **Entram neste plano, sem adiar** | R5.12, R5.13 |
-| 13 | Quais extras entram? | **Todos**; **ainda sem código** | L6–L12 e N1–N6 entram no plano; nada é implementado até você liberar |
-| 14 | Uso da câmera? | **Tudo que der**, ex.: perguntar sobre um objeto | L12 |
-| 15 | Reconhecimento facial? | **Sim, só quando você estiver no PC** | L12 |
+| 8 | Memória da tela | `ORION_SCREEN_MEMORY`, `ORION_SCREEN_INTERVAL_S`, `ORION_SCREEN_RETENTION_DAYS`, `ORION_SCREEN_EXCLUDE`, `ORION_SCREEN_ALLOW_UNKNOWN_TITLE`, `ORION_SCREEN_OCR_LANGS`; instalar `tesseract` + pacote `por`, `xdotool` (X11); `POST /tela/pausa`, `DELETE /tela`, `/tela` no Telegram, `orion tela` | `orion/screen_memory.py`, regra 44 |
+| 9 | Ciclo de sono | `ORION_SLEEP_AT`; onde ver duplicados, relações (`kind=sono`) e padrões (`sono:destilado:<data>`); como apagar um padrão (`orion esquecer`) | `orion/memory/sleep.py`, regra 42 |
+| 10 | Pesquisa noturna | `ORION_RESEARCH_AT` + `ORION_WEB_TOOLS` + `ORION_VAULT_DIR`, `ORION_RESEARCH_TOPICS`; relatório no `00 Inbox` | `orion/research.py`, regra 39 |
+| 11 | Leitura semanal | `ORION_WEEKLY_AI`; 1 chamada por semana, segunda com o briefing | `orion/briefing.py`, `jobs.py` |
+| 12 | n8n | `ORION_N8N_WEBHOOKS` (formato `nome=url;nome=url`), exemplo de workflow, por que sempre confirma | `orion/tools/n8n.py`, regra 41 |
+| 13 | Plugins e skills | estrutura de `plugin.json` e de `SKILL.md`, `orion plugin instalar/conceder/revogar`, hash, reiniciar, `orion skills` | `orion/plugins.py`, `orion/skills.py`, regras 40 e 45 |
+| 14 | `orion transcrever` | arquivo ou link, `ffmpeg`, `yt-dlp`, Groq, aviso antes de enviar, nota no `00 Inbox` | `orion/media_transcribe.py`, regra 43 |
+| 15 | Documentos e resultados | formatos aceitos, "Disponível em" (global × projeto), limites de tamanho, biblioteca, versões, download | `app.py` (`/memoria/documentos`, `/resultados`), `orion/resultados.py` |
 
-### Explicações dadas na 1ª rodada (já respondidas)
-- **2. Orion como servidor MCP.** Hoje o Orion *usa* servidores MCP (Google, navegador). A ideia é o contrário: o Orion virar um servidor MCP para o **Claude Code e o Codex** que você já usa pelas assinaturas. Exemplo: programando no Claude Code, ele pergunta ao Orion "o que o Antônio decidiu sobre o login do DrinkControl?" e recebe a resposta da sua memória. Só leitura: eles não conseguem gravar nem executar nada no Orion. Custo zero.
-- **5. Reranker.** A busca na memória devolve, digamos, 20 trechos; o reranker é uma segunda passada que os relê junto da pergunta e põe os mais relevantes no topo. Melhora o acerto, custa ~0,3 s e ~300 MB de RAM. Com custo zero, só pode ser local (no notebook). Pergunta: vale ligar, se o teste com as suas perguntas (`eval_pessoal`) mostrar melhora?
-- **6. Compressão de histórico.** Em conversa longa, as mensagens mais antigas saem da janela que o modelo vê, e o Orion "esquece" o começo da conversa. A correção é resumir a parte antiga em poucas linhas e mandar o resumo junto. Cada resumo é 1 chamada ao modelo (usa a cota gratuita). Pergunta: pode?
-- **11. Catálogo de plugins.** É a lista de plugins disponíveis para instalar. **Local**: uma pasta/lista que você monta, sem internet. **Remoto**: o Orion baixa a lista e os pacotes de um site (tipo uma loja), o que abre um caminho de código de terceiros entrando no seu computador. Recomendo só local.
-- **12. C13 e C14.** **C13 (descoberta sob demanda)**: quando houver dezenas de ferramentas MCP, em vez de mostrar todas ao modelo a cada turno (gasta contexto), o modelo busca e carrega só as que precisa. Hoje são poucas, não compensa. **C14 (resources e prompts)**: além de ferramentas, um servidor MCP pode oferecer *resources* (arquivos e dados que o modelo lê por endereço) e *prompts* (modelos de pedido prontos). Abre leitura de dados de terceiros por endereço que o modelo escolhe, então precisaria de regra própria. Recomendo manter os dois adiados.
+### E0.2 Tabela-resumo de opt-ins (R1.9)
+- Nova §16 com colunas: **Variável · Liga · Sai do computador? (o quê, para quem) · Regra · Desligar**.
+- Uma linha por campo de `Settings` que liga recurso: `desktop_tools`, `web_tools`, `vision_tools`, `voice_enabled`, `voice_live_enabled`, `wake_enabled`, `screen_memory`, `sleep_at`, `research_at`, `weekly_ai`, `consolidate`, `briefing_at`, `n8n_webhooks`, `telegram_token`, `plugins_enabled`, `skills_enabled`, `mcp_enabled`, `jobs_enabled`.
+- **Teste novo** `tests/test_operacao_doc.py`: lê `Settings.model_fields`, filtra por uma lista explícita `OPT_INS` mantida no próprio teste, e falha se algum nome (`ORION_<CAMPO>`) não aparece na §16. Toda etapa seguinte que criar opt-in acrescenta a linha **e** o nome em `OPT_INS`.
 
-### L12 revisto (2ª rodada): câmera
-Respostas: a imagem **pode sair** do computador; uso "pra tudo que der" (perguntar sobre um objeto etc.); reconhecimento facial **sim, só quando você estiver no PC**.
-- **Perguntas sobre a imagem** ("o que é isso na minha mão?"): a foto vai ao modelo de visão na nuvem pela cota gratuita (Gemini), como já faz `analisar_imagem`. Custo zero.
-- **Detecção local** (YOLO nano em ONNX, CPU): rápida e gratuita, para "há uma pessoa/objeto X" sem mandar foto; serve também de filtro antes de mandar algo à nuvem.
-- **Reconhecimento facial**: modelo de rosto local; o cadastro (só o seu, para começar) e os vetores de rosto **ficam no computador e nunca vão à nuvem** (dado biométrico, LGPD). Só funciona com o PC desbloqueado e você em uso (mesma detecção de tela bloqueada do R3.7).
-- **Começa sob demanda** (chat, paleta, Telegram). Modo contínuo depois, com opt-in, pausa, retenção curta e regra nova (Ring 0 #3), igual à memória da tela.
-- **Objetivo (3ª resposta): "ver e agir"**, estilo *The Machine*: "tá vendo esse objeto? pesquisa o preço no Mercado Livre", "tá vendo esse mouse? acha o software dele". Fluxo: foto da câmera → modelo de visão identifica (marca/modelo, texto da etiqueta) → **o agente normal** segue com as ferramentas que já existem (`pesquisar_com_ia`, `pesquisar_internet`, `buscar_url`, navegador MCP) e a política de sempre. Baixar/instalar o software continua pedindo aprovação.
-- **Dois modos de "enxergar"**:
-  1. **Foto por pedido** (padrão): 1 imagem por pergunta, pelo agente, com memória e ferramentas. Custo zero na cota gratuita do Gemini (entrada de imagem é grátis nos modelos Flash; o limite é de pedidos por minuto/dia).
-  2. **Vídeo ao vivo** (conversar enquanto ele vê): estender a voz ao vivo (`/ws/voice`, Gemini Live) com quadros da câmera (~1 por segundo). O Live tem cota gratuita, mas é **preview com limite menor e não garantido**; e pela regra atual o Live **não tem ferramentas nem memória**: para "pesquisa o preço", o Live passa o pedido (com o quadro atual) para o agente. Assinatura Google AI Pro **não** cobre a API: se a cota gratuita acabar, para (custo zero, R4.7).
-- A foto enviada à nuvem conta no painel de privacidade (N2). Imagem de terceiros que apareçam no quadro também sai: avisar na primeira vez.
+### E0.3 `orion doctor` aponta a seção
+- Em `orion/doctor.py`, cada aviso de opt-in mal configurado ganha o sufixo `(ver ORION_OPERACAO §N)`.
+- Teste em `tests/test_doctor.py`: memória da tela ligada sem `tesseract` → mensagem contém `§8`.
 
-## 10. Sequência sugerida
+---
 
-1. **R1** (documentação inteira) + R8.3.
-2. **R2.1–R2.4** (rápidos, só front + 1 rota) + R8.1 para as telas que já existem.
-3. **R3.1** (isolamento) → R3.2–R3.8.
-4. **R4.1–R4.6**, depois R4.8.
-5. **R5.1–R5.3**, R5.10, depois plugins R5.4–R5.9.
-6. L9 (encaixe do modelo local) antes do R3.9, que depende dele; depois R3.10–R3.12, R5.11–R5.13, R5.7 remoto, L6–L8, L10, L12, N1–N6, R4.7.
-7. R2.5 (C39) e R2.6 por último: mexem no modelo de mensagens.
+## E1 — Base de custo, privacidade e controle
 
-## 11. Fora do código (só você)
-Continua o mesmo de [ORION_CORTE.md](ORION_CORTE.md): fase 0, serviços e chaves, Telegram real, microfone real, Tailscale, senha de fábrica.
+**Marco:** o painel mostra, por provedor, chamadas, falhas, latência e quanto da cota gratuita foi usado; mostra o que saiu do computador; um comando pausa tudo; o modelo local pode ser ligado.
+**Prova:** com o gateway falso, 10 chamadas (2 falhas) aparecem no card "Provedores"; `orion panico` corta captura e ferramentas de rede e o painel mostra "Modo pânico"; com `ORION_LOCAL_MODEL` apontando para um servidor falso, o chat responde quando o gateway falha.
+**Esquema:** v11. **Regras:** 46 (custo zero), 47 (registro de saída), 48 (pânico e não perturbe), 49 (modelo local).
+**Fora do escopo:** medir a cota real do provedor (só o que o Orion contou).
 
-## 12. Incubação — ideias em avaliação (09/10, sem decisão)
-Saídas do brainstorm a partir do perfil do Antônio no vault (estágio, faculdade, DevCore, projetos, rotina). Decisão do Antônio (09/10): **entram** N9, N10, N11, N12, N14, N16, N18, N19, N22; **continuam em incubação** N13, N15, N17, N20, N21 (não citadas).
+### E1.1 Registro de chamadas externas (base de R4.7, R4.8 e N2)
+- **Esquema v11** em `orion/memory/schema.py`:
+  ```sql
+  CREATE TABLE external_calls (
+      id INTEGER PRIMARY KEY,
+      ts REAL NOT NULL,
+      provider TEXT NOT NULL,      -- gateway:<camada>, groq, gemini, brave, ollama, cli:<nome>
+      kind TEXT NOT NULL,          -- chat, embed, transcribe, vision, search, tts, image, cli
+      model TEXT NOT NULL DEFAULT '',
+      ok INTEGER NOT NULL,
+      latency_ms INTEGER NOT NULL,
+      bytes_out INTEGER NOT NULL DEFAULT 0,
+      bytes_in INTEGER NOT NULL DEFAULT 0,
+      content_kind TEXT NOT NULL DEFAULT ''   -- texto, imagem, audio (nunca o conteúdo)
+  );
+  CREATE INDEX idx_external_calls_ts ON external_calls(ts);
+  CREATE INDEX idx_external_calls_provider ON external_calls(provider, ts);
+  ```
+  `MIGRATIONS[10] = DDL_V11`, `SCHEMA_VERSION = 11`, teste de migração v10→v11 em `tests/memory/`.
+- `MemoryStore.add_external_call(...)`, `external_calls_summary(desde: float)` (agrupado por provider/kind: total, falhas, p50/p95 de latência, bytes) e poda de 90 dias junto com `audit_prune`.
+- **Onde registrar** (um ponto por cliente, nunca o texto):
+  - `orion/gateway.py`: em `_run`, ao fim de cada tentativa por endpoint (já existe `EndpointStats`; gravar também no banco por um callback `on_call` passado no construtor).
+  - `orion/transcribe.py`, `orion/vision.py`, `orion/tools/web.py` (busca, Gemini Search, imagem), `orion/memory/embedders.py`, `orion/voice.py` (TTS), `orion/delegate.py` (`cli:<nome>`, bytes do prompt).
+- **Regra 47**: toda saída de dado do computador passa por esse registro; registro só com tamanho e tipo, nunca conteúdo. Teste: varrer chamadas `httpx` em `orion/` (teste estático) e exigir que o módulo esteja na lista de clientes registrados.
 
-| ID | Ideia | Por que faz sentido | Custo |
-|---|---|---|---|
-| N9 | **Revisão semanal guiada** (domingo): o Orion conduz os 20 min do [Sistema de Priorização] do vault — tarefas abertas, escolher **1 marco**, sugerir 2 blocos na agenda, mover ideias novas para incubação | O método já existe no vault; falta quem puxe | cota grátis |
-| N10 | **Diário automático**: à noite, nota no vault com o que você fez (commits, conversas, documentos, resumo da memória da tela) | Alimenta o segundo cérebro sem esforço; base para portfólio | local/grátis |
-| N11 | **Gastos pelo Telegram**: "gastei 30 no mercado" → lançamento local (`registrar_numero` já existe); resumo mensal; ler fatura em PDF localmente | Financeiro nunca sai do computador (perfil: dado financeiro não vai a terceiros) | zero |
-| N12 | **Monitor de preço**: itens que você marca (inclusive pela câmera, N7) são conferidos 1x/dia; avisa queda | Junta "ver e agir" com compra do carro/peças (ideia 128 da Lyra, Auto Tracker) | cota grátis |
-| N13 | **Modo estudo**: projeto por disciplina, aula gravada → `orion transcrever` → resumo + flashcards; quiz pelo Telegram com repetição espaçada | 2º termo de ADS; reaproveita transcrição e projetos | cota grátis |
-| N14 | **Base de soluções do estágio**: chamado resolvido vira nota ("erro X no Firebird → `gfix ...`"); "já vi esse erro?" busca nela | Suporte repetitivo na Bredas. **Dado de cliente nunca entra** (só a solução, anonimizada por você) | zero |
-| N15 | **Standup do DevCore**: resumo semanal dos commits/PRs dos repositórios do time (PreciFly) pelo MCP do GitHub | Acompanhamento semanal já é rotina do grupo | cota grátis |
-| N16 | **Rascunho de case de portfólio**: a partir de decisões, commits e notas, gera o texto do case no formato do Mapa de Evidências | Objetivo "portfólio ou renda" | cota grátis |
-| N17 | **Radar de vagas e freelas**: assunto fixo da pesquisa noturna (D2), filtrado por stack e Marília/remoto | Pesquisa noturna já existe | cota grátis |
-| N18 | **Atalho global "o que é isso?"**: tecla que captura a janela atual e pergunta (usa `explicar_tela` + N7) | Hoje precisa abrir o chat | cota/assinatura |
-| N19 | **Modo pânico**: um comando (voz, Telegram, tecla) corta tudo: captura de tela e câmera, jobs, ferramentas de rede e execução, até você liberar | Muitos opt-ins de captura agora; desligar rápido é segurança | zero |
-| N20 | **Eval semanal automático**: roda o `eval_pessoal` e o teste de injeção toda semana; avisa se a busca piorou | Pega regressão de memória/embeddings cedo | local |
-| N21 | **Contexto por lugar/horário**: no horário do estágio, o Orion prioriza projeto "Estágio"; à noite, faculdade/pessoal (instruções de projeto por horário) | Rotina fixa de 6 h/dia | zero |
-| N22 | **Respostas por voz no carro/fone pelo Telegram**: mensagem de voz → resposta em áudio (TTS já existe) | Uso com mãos ocupadas | cota grátis |
+### E1.2 Custo zero e cota gratuita (R4.7)
+- Novo `orion/costs.py`:
+  - `QUOTAS`: dicionário por provedor com limites **diários** configuráveis por variável (`ORION_QUOTA_GROQ_DIA`, `ORION_QUOTA_GEMINI_DIA`, `ORION_QUOTA_BRAVE_MES`…), padrão = limites gratuitos conhecidos, documentados como estimativa.
+  - `uso_hoje(provider)` a partir de `external_calls`; `pode_usar(provider, opcional: bool) -> bool`: se `opcional` e uso ≥ 90%, nega.
+  - Jobs opcionais (pesquisa noturna, sono, leitura semanal, consolidação, auto-compact pela nuvem) chamam `pode_usar(..., opcional=True)` antes de rodar; se negado, `ops.notify("cota", ...)` uma vez por dia.
+  - O chat não é bloqueado; ao passar de 100% o painel mostra aviso.
+- **Regra 46**: nenhum código chama API paga; uma lista `PROVEDORES_GRATUITOS` em `costs.py`, e `doctor` avisa se `gateway_url` apontar para provedor fora dela sem confirmação (`ORION_ALLOW_PAID=false` por padrão).
+- Card "Cota de hoje" no painel (`views/painel.js`): barra por provedor.
 
-## 13. Fora da curva (ficção científica viável) — em avaliação
-Critério: dá para fazer com o que o Orion já tem, custo zero, e não quebra o Ring 0. Referência de ficção entre parênteses.
-Decisão do Antônio (09/10): **entram X1, X3–X12**; **não entram X2** (conselho de IAs) **e X13** (Orion físico).
+### E1.3 Telemetria por provedor (R4.8 / L3)
+- `GET /painel` ganha `provedores`: por provider/kind, chamadas, falhas, p50/p95 e modelo mais usado, na semana.
+- Card "Provedores" em `views/painel.js` com tabela; teste Node para a formatação (`tests/front/painel.test.js`).
 
-| ID | Ideia | Como seria no Orion | Risco / limite |
-|---|---|---|---|
-| X1 | **"Onde eu deixei?"** (*Person of Interest*) | Com a câmera ligada, a detecção local (YOLO) guarda só **rótulos + hora + posição** dos objetos (sem imagem). "Onde vi meu fone por último?" → "na mesa, 14:32". Memória do mundo físico | Captura contínua: opt-in, retenção curta, regra nova; só objetos, nunca pessoas de terceiros |
-| X2 | **Conselho de IAs** (*Câmara de Eco* da Lyra, ideia 136) | Decisão importante → Claude, Codex e Gemini (assinaturas, via `delegar`) respondem separados, depois cada um critica os outros; o Orion resume consenso e divergência | Lento (minutos); gasta limite das assinaturas |
-| X3 | **Gêmeo digital** ("o que eu faria?") | A partir do Registro de Decisões do vault e dos fatos, responde como você decidiria, citando as decisões passadas que embasam; útil para "isso fere meus princípios?" | É espelho, não oráculo: sempre mostra as fontes |
-| X4 | **Linha do tempo da vida** (*Black Mirror*, "The Entire History of You") | "O que eu fazia dia 3/8 às 15h?" junta conversas, commits, documentos, memória da tela, diário (N10) e gastos (N11) numa linha do tempo navegável | Tudo local; respeita retenções de cada fonte |
-| X5 | **Presença** (*Jarvis*; ideia 83 BLE Presence) | Sabe se você está no PC: celular por Bluetooth perto, rosto (câmera, local) ou só tela desbloqueada. Chegou → briefing; saiu → bloqueia a tela e pausa capturas. Também é o "só quando eu estiver no PC" do reconhecimento facial | Bluetooth no Windows varia; fallback = tela bloqueada |
-| X6 | **Protocolo Darwin** (auto-evolução supervisionada, roadmap da Lyra) | Semanal: lê falhas, negações e erros do audit, escolhe 1 melhoria e abre um **PR no próprio repositório** via Claude Code (assinatura). Você revisa e faz merge | Nunca faz merge, nunca toca política/regras/auth (lista bloqueada); só PR |
-| X7 | **Sonhos** (REM do ciclo de sono) | De madrugada, cruza notas e fatos de áreas sem ligação e entrega de manhã 1 "ideia do dia" com as duas fontes ("o que você leu sobre X serve no projeto Y") | Qualidade variável; 1 por dia, descartável |
-| X8 | **Árvore de cenários** (ideia 6 da Lyra) | Para decisões com números (carro à vista × financiado), usa seus gastos reais (N11) e simula cenários (Monte Carlo local), mostrando faixas, não uma resposta única | Só tão bom quanto os dados lançados |
-| X9 | **Cápsula do tempo** | "Daqui 6 meses me lembra disso": guarda intenções/previsões suas e, na data, confronta: "você disse que terminaria o Nortis até março" | Zero; só lembrete com contexto |
-| X10 | **Lazarus / dead man's switch** (ideias 70 e 77) | Se você ficar N dias sem interagir, envia a uma pessoa de confiança instruções que você escreveu (onde estão backups, senhas mestras **não**) | Configuração cuidadosa; nunca manda segredo; vários avisos antes |
-| X11 | **Escudo de foco** (ideias 67 e 81) | Num bloco de foco (N9 marca os blocos), se a memória da tela vir app de distração, o Orion pergunta "isso é do marco da semana?"; segura avisos não urgentes até o fim do bloco | Pode irritar: um aviso por bloco, fácil de desligar |
-| X12 | **Leitura do seu estado pela voz** (Emotion Engine da Lyra) | Pelo tom (local, sem mandar áudio a mais ninguém), percebe cansaço/pressa e ajusta: respostas mais curtas, adia o que não é urgente | Inferência imprecisa; só ajusta estilo, nunca decide nada |
-| X13 | **Orion físico** (ideia 75 Tamagotchi Hardware; D8 MQTT) | Um ESP32 com anel de LED na mesa (~R$ 40) mostra o estado: pensando, aviso pendente, aguardando aprovação, captura ligada (luz vermelha = alguma câmera/tela gravando) | Única com custo (hardware barato); depende de D8 |
+### E1.4 Aviso de gateway fora do ar (L10)
+- No `JobRunner.tick`, passo `saude_gateway` a cada 60 s: se as últimas N chamadas do gateway falharam há mais de `ORION_GATEWAY_DOWN_MIN` (padrão 10) minutos, `notify("gateway", "Modelos fora do ar desde HH:MM")` uma vez; ao voltar, outro aviso. Sem chamada extra ao provedor: usa só `external_calls`.
 
-## 14. Terceira leva de ideias (09/10)
-Decisão do Antônio: **entram Y5, Y9, Y11, Y14, Y15, Y16**; as demais ficam em incubação. Y9 roda pelo Claude Code (assinatura, via `delegar`, só leitura): ele faz a varredura e o Orion entrega o relatório.
+### E1.5 Painel de privacidade (N2)
+- Rota `GET /privacidade?dias=7` → por dia e provedor: nº de envios, bytes, tipo (texto/imagem/áudio).
+- Tela nova `#/privacidade` (arquivo `views/privacidade.js`, item na paleta e no menu): gráfico de barras empilhadas por provedor (usar `charts.js` existente) e lista "o que saiu hoje".
 
-| ID | Ideia | Como seria | Risco / limite |
-|---|---|---|---|
-| Y1 | **Treinador de bateria** | Microfone local mede andamento enquanto você toca (desvio do BPM, aceleração em viradas); relatório do treino e evolução por semana | Só áudio local; precisa de microfone razoável perto da bateria |
-| Y2 | **Ensaio de entrevista/apresentação** | Conversa por voz (Gemini Live grátis) simulando entrevista de estágio/vaga ou banca da faculdade; no fim, feedback com pontos fracos usando o que o Orion sabe de você | Cota preview limitada |
-| Y3 | **Vendedor do DrinkControl** | Para cada adega/distribuidora, pesquisa pública (site, Instagram, Google Maps) e monta proposta e roteiro de demo personalizados | Só dado público; rascunho, você envia |
-| Y4 | **Fábrica de conteúdo** (ideia 53 da Lyra) | Semanal: de commits, decisões e casos (N16), rascunho de post técnico (LinkedIn) no seu tom | Rascunho; nunca publica sozinho |
-| Y5 | **Tradutor do mundo** (*Star Trek*) | Câmera ou tela num texto em outra língua (manual, embalagem, erro) → tradução e explicação; legenda ao vivo de vídeo/aula com transcrição local | Legenda ao vivo local pesa no notebook |
-| Y6 | **Inventário vivo** (ideia 120) | Fotografa um item (peça do PC, eletrônico) → ficha com modelo, nota fiscal, data e garantia; avisa antes de a garantia vencer; liga com X1 e N12 | Nota fiscal fica local |
-| Y7 | **Caçador de assinaturas** | Nas faturas lidas pelo N11, acha cobranças recorrentes; avisa renovação, aumento de preço e o que você não usa há tempo | Depende do N11 |
-| Y8 | **Arquivos-isca** (ideia 48 Honeypot Files) | Arquivos falsos tentadores no notebook ("senhas.txt", "backup_banco.xlsx"); se algum processo abrir, alerta no Telegram com o nome do processo | Zero custo; só alerta, não age |
-| Y9 | **Sentinela de exposição** (ideias 5 e 60) | Semanal: senhas vazadas conferidas pelo método k-anonimato (a senha nunca sai), portas abertas no notebook, atualizações pendentes, regras do Tailscale | Busca de e-mail em vazamentos costuma exigir chave paga: fica fora |
-| Y10 | **Tela de visitante** (*Minority Report*) | Com a presença (X5), se a câmera vê um segundo rosto atrás de você, o Orion borra painéis sensíveis e segura avisos até a pessoa sair | Falso positivo; um toque desfaz |
-| Y11 | **Tutor que percebe o travamento** (ideia 76 Dicionário Sênior) | Pela memória da tela, nota o mesmo erro de compilação 3 vezes seguidas e oferece explicar o conceito por trás (não a correção pronta) | Um aviso por erro; desliga fácil |
-| Y12 | **Despertador com briefing** | No horário, fala o briefing (agenda, clima, tarefas, ideia do dia X7) pelo PC ou manda áudio no Telegram (N22) | — |
-| Y13 | **Mapa de energia** (*quantified self*) | Cruza horário de uso, commits, foco (X11) e diário (N10): "você rende mais das 20h às 22h"; a revisão semanal (N9) usa isso para sugerir os blocos | Correlação, não causa |
-| Y14 | **Headhunter** (ideia 58) | Compara suas habilidades do vault com vagas reais (N17) e mostra a lacuna + plano de estudo curto | Depende do radar de vagas |
-| Y15 | **Documentador dos seus projetos** | Lê os repositórios (Nortis, PreciFly, DrinkControl) e mantém arquitetura e decisões no vault atualizadas, por PR no vault (como X6) | Só PR; você aprova |
-| Y16 | **Andar pelo segundo cérebro** | No grafo 3D (R3.12), navegação por voz: "me leva até Firebird", "o que liga isso ao estágio?"; o vault inteiro no mesmo grafo da memória | Grafo grande pesa no front: filtrar por área |
+### E1.6 Modo pânico e não perturbe (N19, N3)
+- Novo `orion/modos.py` com estado persistido em `meta` (`modo:panico`, `modo:nao_perturbe_ate`):
+  - **Pânico**: para memória da tela, palavra de ativação, palmas (E2), câmera (E11), jobs que usam rede, e tira do registro de ferramentas tudo que é `egress`, `exec` ou `external`. Só sai por comando explícito (`orion panico --sair`, botão no painel com senha de novo, `/panico sair` no Telegram).
+  - **Não perturbe**: segura avisos não urgentes (`notify` ganha `urgente: bool`; não urgentes ficam na fila sem entregar) e pausa capturas proativas; com horário (`ORION_DND_AT=22:30-07:00`) ou por toque até um horário.
+- Gatilhos: `orion panico`, `POST /modo/panico`, `/panico` no Telegram, botão no painel, tecla global (E2).
+- **Regra 48**: pânico é corte, não pausa: nada volta sozinho; o audit registra entrada e saída.
+- Testes: com pânico ligado, `ToolRegistry.schemas()` não contém nenhuma ferramenta egress/exec/external; job de tela não roda.
 
-## 15. Quarta leva de ideias (09/10)
-Decisão do Antônio: **entram Z4, Z11, Z12**; as demais ficam em incubação.
+### E1.7 Encaixe do modelo local (L9)
+- Variáveis: `ORION_LOCAL_MODEL` (padrão vazio; recomendado `qwen3.5:4b`), `ORION_LOCAL_URL` (padrão `http://127.0.0.1:11434/v1`).
+- Em `app.py` (onde os `Endpoint` são montados, perto da linha 229): se `local_model` definido, acrescenta `Endpoint("local", local_url, local_model, "", tier="local")` como **último** da lista, com flag `tools=False`.
+- Em `gateway.py`: endpoint com `tools=False` recebe a requisição sem `tools` e com uma linha a mais no sistema: "Modo reserva: sem ferramentas".
+- `orion doctor`: confere se o Ollama responde em `/api/tags` e se o modelo está baixado.
+- Testes: gateway falso que falha + servidor falso compatível com OpenAI no lugar do Ollama → resposta vem do `local`, sem `tools` no corpo.
+- **Regra 49**: modelo local nunca recebe ferramentas; endereço só local (`127.0.0.1`/`localhost`), validado na config.
+- **Antônio**: `ollama pull qwen3.5:4b` no notebook.
 
-| ID | Ideia | Como seria | Risco / limite |
-|---|---|---|---|
-| Z1 | **Orion no celular de verdade** | O front como app instalável no celular (PWA) pelo Tailscale: voz, câmera do celular ("ver e agir" fora de casa), aprovações | Só pela rede do Tailscale; login de sempre |
-| Z2 | **Revisão antes do push** | Gancho local de `git pre-push` nos seus repositórios: o Claude Code (assinatura) revisa o diff com as suas regras e aponta problemas antes de subir | Atrasa o push alguns segundos; dá para pular |
-| Z3 | **Curadoria de fotos** | Num lote de fotos, separa as melhores (foco, exposição, olhos fechados, duplicadas) localmente; a visão por assinatura sugere corte e edição | Fotos de terceiros: avisar antes de mandar à nuvem |
-| Z4 | **Memória de pessoas** | Das notas de pessoas do vault e das conversas: antes de falar com alguém, "da última vez ele falou de X"; aniversários | Dados de terceiros: só o que você já anotou, nada coletado fora |
-| Z5 | **Lembrete por lugar** | Você compartilha a localização pelo Telegram; "quando eu chegar na faculdade, me lembra de X" | Localização só quando você compartilha; nunca guardada como trilha |
-| Z6 | **Planejador do dia** | De manhã propõe o plano do dia nos seus horários livres, com as tarefas e o marco da semana (N9); você aprova e ele grava na agenda do Google | Escrita na agenda pede aprovação |
-| Z7 | **Teste automático dos seus apps** | Semanal: navegador automático percorre Nortis, DrinkControl e PreciFly (versões web/locais), procura erros e problemas de acessibilidade, manda relatório | Só nos seus apps, em ambiente de teste |
-| Z8 | **Monitor dos sistemas em produção** | Confere se os sistemas dos seus clientes estão no ar e se houve erro novo; alerta no Telegram | Só o que você cadastrar; nada de dado de cliente no Orion |
-| Z9 | **Detector de golpe** | Encaminha ao bot uma mensagem, link ou Pix suspeito; o Orion analisa sem abrir o link (barreira de rede), procura padrões de golpe e responde "é golpe?" | Serve também para ajudar a família, encaminhando por você |
-| Z10 | **Leitor de contratos e termos** | Antes de assinar (estágio, freela, aluguel), destaca cláusulas de risco e o que perguntar, pela assinatura | Não substitui advogado |
-| Z11 | **Do sonho ao MVP** | Descreve uma ideia de app → o Claude Code (assinatura) cria o repositório com estrutura, README e primeira tela, para você avaliar | Só cria em pasta nova; nunca publica |
-| Z12 | **Seu estilo de código como skill** | Lê seus repositórios e gera uma skill com o seu jeito de nomear, comentar e organizar; o Claude Code e o Codex usam via o servidor MCP do Orion (R5.11) | Revisar a skill antes de usar |
-| Z13 | **Postura e pausas** (ideia 129 Bio Clock) | Com a câmera local ligada, nota postura ruim ou muito tempo sem pausa e sugere levantar | Só local; um aviso por hora no máximo |
-| Z14 | **Orçamentista de renders 3D** | Para pedidos de visualização (SketchUp/Enscape), monta orçamento, prazo e escopo a partir dos seus trabalhos anteriores | Renda extra; rascunho para você enviar |
+---
 
-## 16. Quinta leva: só o que se usa todo dia (09/10)
-Decisão do Antônio: **entram todas (U1–U8)**.
-Pedido do Antônio: menos ideia "de vitrine", mais utilidade. Filtro: resolve algo que acontece **toda semana ou todo dia**, reaproveita peça existente e cabe em um marco curto.
+## E2 — Ponte de desktop
 
-| ID | Ideia | Como seria | Peça que já existe |
-|---|---|---|---|
-| U1 | **Duas palmas → Orion abre** (pedido do Antônio) | Detector de palmas local no mesmo laço do microfone da palavra de ativação: dois picos fortes e curtos com 150–700 ms entre eles → traz a janela do Orion para frente e começa a ouvir. Configurável: só abrir, abrir e ouvir, ou rodar uma rotina (L7). Proteções: pico medido contra o ruído do ambiente, teto de ativações por hora, pausa, desligado por padrão (`ORION_CLAP_ENABLED`). Detalhe: o Orion precisa estar rodando em segundo plano (`orion autostart`); as palmas trazem a janela, não ligam o programa do zero | `orion/wake.py` já tem a interface `Detector` e o laço do microfone; é um detector a mais, sem modelo |
-| U2 | **Captura rápida** | Tecla global abre uma caixinha flutuante: digita "comprar cabo HDMI amanhã" e ele decide se é tarefa, lembrete, gasto (N11) ou nota no vault. Sem abrir o app | `/capturar` do Telegram, lembretes, tarefas |
-| U3 | **Lembrete insistente** | "Me cobra até eu fazer": repete no intervalo escolhido (PC e Telegram) até você marcar feito ou adiar | Lembretes e fila de avisos |
-| U4 | **Histórico da área de transferência** | Guarda localmente o texto copiado nos últimos 7 dias (descartando o que parece senha/token/CPF); "o que eu copiei ontem do terminal?" | `ler_clipboard`, filtro de segredos da memória da tela |
-| U5 | **Histórico de comandos pesquisável** | Indexa o histórico do terminal (PowerShell/bash) e responde "como eu fiz aquele `gbak` com restore?" com o comando exato e a data | Busca da memória; casa com N14 (estágio) |
-| U6 | **Ler depois** | Manda um link (artigo, vídeo, thread) pelo Telegram ou pela captura rápida → o Orion lê/transcreve, resume em 5 linhas e guarda no vault com a fonte; lista semanal do que ficou pendente | `buscar_url`, `orion transcrever`, vault |
-| U7 | **Organizador de Downloads com regras** | Regras suas ("fatura*.pdf → Finanças", ".exe → Instaladores", "foto → Fotos/AAAA-MM"); aplica sozinho com registro e **desfazer**; o que não casa fica | `organizar_pasta`, vigilância de pasta |
-| U8 | **"Posso desligar?"** | Um comando que confere: repositórios com mudança não commitada ou não enviada, processos em segundo plano rodando, backup do dia feito, download em andamento | `consultar_git`, processos, backup |
+O Orion hoje é servidor + navegador: não há processo com tecla global, bandeja ou acesso para colar texto no programa em foco. Esta etapa cria esse processo, base de U1, U2, N18, V3 e dos atalhos de E9–E11.
 
-## 17. Sexta leva: utilidade diária (09/10) — em avaliação
-Mesmo filtro da §16: acontece toda semana ou todo dia e reaproveita peça existente.
+**Marco:** um processo leve (`orion ponte`) fica na bandeja, registra teclas globais, recebe comandos do servidor (abrir janela, colar texto) e duas palmas abrem o Orion.
+**Prova:** no notebook, `Ctrl+Alt+Espaço` abre a captura rápida e grava uma tarefa; duas palmas abrem `/ui/`; `Ctrl+Alt+T` copia texto de uma área da tela.
+**Regras:** 50 (ponte), 51 (palmas). **Esquema:** nenhum.
+**Fora do escopo:** atalhos de outras etapas (só a infraestrutura e os 4 itens abaixo).
 
-| ID | Ideia | Como seria | Peça que já existe |
-|---|---|---|---|
-| V1 | **Ferramentas no texto selecionado** | Seleciona texto em qualquer programa, aperta uma tecla: corrigir português, deixar formal, resumir, traduzir, virar e-mail; o resultado volta colado no lugar (com desfazer) | Área de transferência, modelo do gateway |
-| V2 | **Ditado em qualquer lugar** | Segura uma tecla, fala, solta: o texto transcrito aparece onde o cursor está (WhatsApp Web, VS Code, Word) | Transcrição Groq (cota grátis), área de transferência |
-| V3 | **Copiar texto de qualquer parte da tela** | Tecla → seleciona uma área → o texto (OCR local) vai para a área de transferência; serve para erro em imagem, vídeo, PDF travado | Tesseract da memória da tela |
-| V4 | **Achar arquivo pela descrição** | "a planilha de orçamento da adega de agosto" → índice local de Documentos/Downloads (nome + conteúdo) devolve o arquivo | Indexação de documentos da memória |
-| V5 | **Conversor de arquivos** | Arrasta ou manda pelo Telegram: PDF↔Word, imagens→PDF, vídeo→MP3, áudio→texto, comprimir PDF/imagem; tudo local | `ffmpeg`, geração/leitura de documentos |
-| V6 | **Relatório de estágio pronto** | No fim do mês, monta o relatório de atividades do estágio (exigido pela faculdade) a partir do diário (N10) e da base de soluções (N14), no modelo que você enviar | N10, N14, `gerar_documento` |
-| V7 | **Contas e vencimentos** | Lê boleto/fatura (PDF ou foto), guarda valor e vencimento, avisa 3 dias e 1 dia antes; marca pago com um toque. Tudo local | N11, leitura de documentos, lembretes |
-| V8 | **Cuidado da bateria do notebook** | Avisa para tirar o carregador aos 80% e ligar aos 20%; relatório mensal de desgaste | `checar_saude_sistema` (psutil) |
-| V9 | **Rascunho de resposta a cliente** | Cola ou encaminha a mensagem do cliente do estágio → rascunho de resposta no seu tom, com a solução da base N14; você revisa e envia | N14, área de transferência |
+### E2.1 Processo da ponte
+- Novo pacote `orion/ponte/`:
+  - `__main__.py`: `orion ponte` (subcomando em `orion/__main__.py`).
+  - Bandeja: `pystray` + ícone `assets/` existente; menu: Abrir Orion, Captura rápida, Não perturbe, Pânico, Sair.
+  - Teclas globais: `pynput.keyboard.GlobalHotKeys`; mapa em `ORION_HOTKEYS` (JSON) com padrões: captura `ctrl+alt+space`, "o que é isso?" `ctrl+alt+o`, OCR `ctrl+alt+t`, pânico `ctrl+alt+shift+p`.
+  - Janela pequena: `pywebview` (já usado pelo front antigo) abrindo uma página nova do front `ui/#/rapido` sem barras.
+  - Colar no programa em foco: grava na área de transferência e envia `Ctrl+V` (`pynput`), devolvendo o conteúdo anterior da área de transferência depois de 1 s.
+- Comunicação: a ponte fala com o servidor por HTTP local (`127.0.0.1`) com um **token próprio** (`orion ponte --parear` grava em `auth.db` um token com escopo `ponte`); o servidor manda comandos à ponte por um WebSocket que a ponte abre (`/ws/ponte`).
+- `orion autostart` passa a instalar também a ponte.
+- **Regra 50**: a ponte não executa nada por conta própria: só abre janelas, lê a tela/área de transferência quando você aperta a tecla, e cola o que você aprovou; token de escopo `ponte` não acessa `/chat` com ferramentas de escrita.
+- Testes: `tests/test_ponte.py` com `pynput`/`pystray` falsos (injeção pelo construtor); WebSocket com o `TestClient`.
 
+### E2.2 Duas palmas abrem o Orion (U1)
+- `orion/wake.py`: novo `ClapDetector(Detector)`:
+  - Por quadro de 80 ms: RMS e pico; mantém o ruído médio (já existe `_acompanhar_ruido`).
+  - Palma = pico ≥ `ORION_CLAP_RATIO` (padrão 6×) acima do ruído e com queda rápida (energia do quadro seguinte < 40% do pico).
+  - Duas palmas com 150–700 ms entre elas → `True`. Terceira palma em menos de 700 ms cancela (aplauso, batida).
+- O laço do microfone passa a aceitar vários detectores; palmas e palavra de ativação dividem o mesmo `AudioSource`.
+- Ação (`ORION_CLAP_ACTION`): `abrir` (manda à ponte "abrir/focar janela"; sem ponte, `webbrowser.open('/ui/')`), `abrir_e_ouvir` (abre e inicia o turno de voz como a palavra de ativação), `rotina:<nome>` (E9.1).
+- Proteções: `ORION_CLAP_ENABLED=false` por padrão, `ORION_CLAP_MAX_PER_HOUR=20`, respeita pausa, pânico e não perturbe; audit sem áudio.
+- **Regra 51**: palmas só abrem; nunca aprovam nem executam ferramenta.
+- Testes: sinais sintéticos (duas palmas, três palmas, porta batendo = um pico longo, digitação = picos fracos) em `tests/test_wake.py`.
+- **Antônio**: calibrar `ORION_CLAP_RATIO` no quarto (o painel mostra os picos detectados na última hora).
+
+### E2.3 Captura rápida (U2)
+- Página `#/rapido`: um campo e Enter. Envia a `POST /captura` (nova rota).
+- `POST /captura {texto}`: o modelo **rápido** classifica em `tarefa | lembrete | gasto | nota` com JSON validado (pydantic) e extrai campos (data, valor). Sem modelo disponível: regra simples por palavra-chave ("amanhã", "R$", "lembra") e, se nada casar, vira nota no `00 Inbox`.
+- Resultado mostrado na própria janela com "desfazer" (rota `DELETE /captura/{id}` desfaz o que foi criado).
+- `gasto` só funciona depois de E10.3; até lá cai em nota.
+
+### E2.4 Copiar texto de uma área da tela (V3)
+- Tecla → a ponte abre seleção de área (sobreposição de tela cheia com `tkinter`, arrastar para escolher), recorta a captura (`mss`) e roda `tesseract` local (`pytesseract`, mesmos idiomas da memória da tela).
+- Texto vai para a área de transferência e aparece uma notificação "Copiado (N caracteres)". Imagem descartada na hora. Nada vai ao servidor nem à nuvem.
+
+### E2.5 "O que é isso?" (N18)
+- Tecla → captura a janela em foco (comando nativo de `capturar_tela` já existente), abre a janela pequena com a imagem e um campo de pergunta; envia ao `explicar_tela` (vai à nuvem: aviso na primeira vez). Depois de E11.2, usa a ordem de visão definida lá.
+
+---
+
+## E3 — Conversas e projetos
+
+**Marco:** dá para ver/desarquivar conversas, filtrar a barra por projeto, mover por paleta, editar "Disponível em" e editar um pedido criando versão.
+**Prova:** cenários de navegador nos dois backends (mentira e real) para cada item.
+**Esquema:** v12 (versões de mensagem). **Regras:** nenhuma.
+
+### E3.1 Tela de conversas arquivadas (R2.1)
+- API já existe (`GET /sessoes?arquivadas=true`, `PATCH /sessoes/{id}` com `arquivada`).
+- Front: seção "Arquivadas" em `views/conhecimento.js` (ou rota `#/arquivadas`): lista com busca (reusa `/sessoes/busca`), botões Desarquivar e Apagar (confirmação com o título).
+
+### E3.2 Filtro por projeto na barra lateral (R2.2)
+- API: `GET /sessoes?projeto=<id|nenhum>`; se faltar, acrescentar o filtro em `store.list_sessions_ui`.
+- Front (`sidebar.js`): seletor no topo (Todos · Sem projeto · cada projeto), lembrado em `localStorage`; selo com cor (hash do nome) + nome curto em cada item.
+
+### E3.3 "Mover para projeto" na paleta (R2.3)
+- `palette.js`: comando "Mover conversa para projeto…" que abre a lista de projetos; `slash.js`: `/projeto <nome>` (teste em `tests/front/slash.test.js`).
+- Usa `PATCH /sessoes/{id}` com `projeto_id` (já existe).
+
+### E3.4 "Disponível em" editável nos documentos (R2.4)
+- `PATCH /memoria/documentos/{id} {projeto_id: int|null}` → `UPDATE documents SET project_id=?`; não precisa reindexar (o filtro é na consulta).
+- Front: seletor no card Documentos.
+
+### E3.5 Editar o pedido como nova versão (R2.5 / C39)
+- **Esquema v12**: `ALTER TABLE messages ADD COLUMN version_of INTEGER REFERENCES messages(id)`; `ALTER TABLE messages ADD COLUMN superseded INTEGER NOT NULL DEFAULT 0`.
+- `POST /historico/{msg_id}/editar {texto}`: marca `superseded=1` na mensagem original e em todas as posteriores da sessão; cria a nova mensagem com `version_of=<original>` e roda o turno normal.
+- `context_history` ignora `superseded=1`; `history_page` devolve as versões agrupadas.
+- Front: lápis na bolha do usuário; setas ‹ 1/2 › trocam a versão exibida (só exibição).
+- Bloqueios: aprovação pendente ou resposta em andamento → 409 (mesma regra da limpeza).
+
+### E3.6 Telas novas contra o backend real (R8.1)
+- Acrescentar a `tests/front_e2e/test_orion_real.py` os cenários que hoje só rodam no backend de mentira: Conhecimento (projetos e fatos), Documentos (upload), Resultados, Atividade, Plugins, arquivadas, filtro por projeto.
+
+---
+
+## E4 — Memória: núcleo
+
+**Marco:** fatos e mensagens respeitam o projeto, PDF escaneado entra, a indexação mostra progresso, conversa longa não "esquece o começo", fato vencido perde peso e o reranker fica pronto para ligar.
+**Prova:** `eval_pessoal` roda antes/depois e não piora; conversa de 200 mensagens mantém resumo; PDF só de imagem vira texto pesquisável.
+**Esquema:** v13. **Regras:** 52 (isolamento por projeto), 53 (auto-compact), 54 (validade de fatos).
+
+### E4.1 Isolamento por projeto para fatos e mensagens (R3.1)
+- v13: `ALTER TABLE facts ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL`. Fatos atuais ficam globais (NULL).
+- `add_fact(..., project_id)`: a consolidação grava o projeto da sessão de origem.
+- `search_facts`/`search(...)`: novo argumento `project_id`; dentro de projeto → globais + do projeto; fora → só globais. Mensagens: a busca de conversas já filtra por sessão; acrescentar o mesmo filtro por projeto em `search_sessions` e no `hits` do agente.
+- Tela Conhecimento: coluna "Projeto" editável por fato.
+- **Regra 52**: memória de um projeto não aparece em conversa de outro projeto nem sem projeto.
+
+### E4.2 OCR para PDF escaneado (R3.2)
+- Em `orion/tools/documents.py` (leitura de PDF): página com menos de 20 caracteres extraídos → renderiza (`pypdfium2`) e roda `tesseract` local. Teto `ORION_OCR_MAX_PAGES=50`.
+
+### E4.3 Progresso e reindexar (R3.3, R3.4)
+- v13: `ALTER TABLE documents ADD COLUMN status TEXT NOT NULL DEFAULT 'pronto'`, `ADD COLUMN progress INTEGER NOT NULL DEFAULT 100`.
+- Upload vira job em segundo plano (`asyncio.create_task`): `status='indexando'`, `progress` atualizado por página/trecho. `GET /memoria/documentos/{id}` devolve os dois; barra no card com polling de 1 s.
+- `POST /memoria/documentos/{id}/reindexar`: apaga trechos e vetores e reindexa.
+
+### E4.4 Auto-compact do histórico (R3.9 / L1)
+- v13:
+  ```sql
+  CREATE TABLE session_summaries (
+      session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
+      upto_message_id INTEGER NOT NULL,
+      text TEXT NOT NULL,
+      model TEXT NOT NULL,
+      created_at REAL NOT NULL
+  );
+  ```
+- Novo `orion/memory/compact.py`: quando a sessão passa de `ORION_COMPACT_AT` mensagens (padrão 40), resume as que estão fora da janela de contexto em até 12 linhas, **só com o modelo local**. Roda depois da resposta (não atrasa o turno). Sem modelo local: não faz nada (mantém o corte atual).
+- `Agent._mensagens`: se há resumo, entra como bloco `[RESUMO DA CONVERSA ATÉ AQUI: gerado, pode ter erro]` antes do histórico.
+- Front: aviso discreto "conversa resumida até a mensagem X" com "ver resumo".
+- **Regra 53**: o resumo nunca substitui o registro; é marcado como gerado; só roda com modelo local.
+
+### E4.5 Validade e substituição de fatos (R3.10 / L5)
+- v13: `ALTER TABLE facts ADD COLUMN valid_until REAL`, `ADD COLUMN superseded_by INTEGER REFERENCES facts(id)`.
+- Busca: fato vencido ou substituído recebe peso 0,3 no ranking e aparece com a marca "(antigo)".
+- Ciclo de sono (`sleep.py`): nova verificação de conflito: pares de fatos parecidos com informação diferente ("mora em X" × "mora em Y") viram **aviso** na caixa de atividade com dois botões: "o novo vale" (marca `superseded_by`) e "os dois valem".
+- **Regra 54**: o Orion nunca decide sozinho qual fato vale.
+
+### E4.6 Reranker pronto e desligado (R3.11 / L2)
+- `orion/memory/rerank.py`: interface `Reranker.rerank(pergunta, trechos) -> trechos`; implementação local com cross-encoder pequeno via `onnxruntime` (modelo baixado sob demanda para `<dados>/modelos/`).
+- `ORION_RERANK=false` por padrão. `python -m orion.memory.eval ... --rerank` compara com e sem; ligar só se o acerto subir.
+
+---
+
+## E5 — Memória: tela, sono, grafo 3D e busca global
+
+**Marco:** a memória da tela é pesquisável e mais segura; o resultado do sono é editável; o grafo 3D volta a funcionar no backend novo e navega por voz; uma busca procura em tudo.
+**Prova:** cenários de navegador; tela bloqueada não gera linha em `screen_log`.
+**Esquema:** v14. **Regras:** estende 44.
+
+### E5.1 Busca da memória da tela na interface (R3.5)
+- `GET /tela/busca?q=&dias=` (usa `search_screen` existente); caixa de busca no card da tela com hora e janela.
+
+### E5.2 Exclusão por aplicativo (R3.6)
+- v14: `ALTER TABLE screen_log ADD COLUMN app TEXT NOT NULL DEFAULT ''`.
+- Nome do processo da janela em foco: Windows (`win32gui` + `psutil`), macOS (`NSWorkspace` via `osascript`), Linux X11 (`xdotool getactivewindow getwindowpid`).
+- `ORION_SCREEN_EXCLUDE_APPS` (ex.: `KeePassXC;1Password;bitwarden`) → nem captura.
+
+### E5.3 Não capturar com a tela bloqueada (R3.7)
+- Função `tela_bloqueada()` em `screen_memory.py`: Windows (`OpenInputDesktop` falha), macOS (`CGSessionCopyCurrentDictionary` → `CGSSessionScreenIsLocked`), Linux (`loginctl show-session -p LockedHint`). Sem como detectar → não captura. Reaproveitada pela presença (E11.6).
+
+### E5.4 Ciclo de sono na interface (R3.8)
+- `GET/DELETE /memoria/relacoes` (arestas `kind=sono`), padrões são fatos `sono:destilado:*` (já editáveis em `/memoria/fatos`).
+- Aviso de duplicado na caixa de atividade ganha botão "apagar o repetido" → `DELETE /memoria/fatos/{id}`.
+
+### E5.5 Grafo de memória 3D (R3.12 / L4)
+- Rota `GET /grafo/completo?projeto=&limite=500` no backend novo, no formato que `views/memory.js` já espera (nós e links): fatos, tópicos (`topic:*`), relações do sono e documentos.
+- Remover o "modo demo" quando o backend responde; clicar no nó abre o fato na tela Conhecimento.
+
+### E5.6 Andar pelo segundo cérebro por voz (Y16)
+- Notas do vault entram no grafo como nós (`doc:<caminho>`) ligadas por wikilinks (extraídos na indexação do vault, `index_vault`).
+- Comandos no campo/voz: "me leva até X" (foca o nó cujo título casa), "o que liga X a Y" (menor caminho no grafo, BFS no servidor: `GET /grafo/caminho?de=&para=`).
+- Filtro por área/pasta para não carregar o vault inteiro.
+
+### E5.7 Busca global (N1)
+- `GET /busca?q=`: junta `search_sessions`, `search_facts`, chunks de documentos, `search_screen`, resultados (nome) e, depois de E9, área de transferência e comandos. Resposta agrupada por fonte com 5 itens cada.
+- Front: a paleta (Ctrl+K) ganha seção "Em tudo" que chama essa rota com 300 ms de espera após digitar.
+
+---
+
+## E6 — Resultados e atividade
+
+**Marco:** a biblioteca abre ao lado do chat, compara versões e limpa em lote; cada resposta mostra o que usou; a pesquisa noturna é editável pela interface.
+**Prova:** cenários de navegador nos dois backends.
+**Esquema:** nenhum (usa `artifacts` v10). **Regras:** nenhuma.
+
+### E6.1 Painel lateral da biblioteca (R4.1)
+- Componente de painel à direita do chat (`views/resultados.js` novo), aberto pelo card ou por link na resposta; prévia de texto, imagem e PDF (`<iframe>` com `GET /resultados/{id}/arquivo` em `Content-Disposition: inline` só para PDF, mantendo CSP).
+
+### E6.2 Comparar versões (R4.2)
+- `GET /resultados/{id}/diff?com=<id>`: diff de linhas (`difflib.unified_diff`) para texto/Markdown/CSV; imagens lado a lado no front.
+
+### E6.3 Apagar versões antigas em lote (R4.3)
+- `POST /resultados/limpar {manter: N, nome?: str}` apaga as versões além das N mais novas (arquivo + linha), com confirmação mostrando o total.
+
+### E6.4 Fontes e atividade das extensões no chat (R4.5 / C27)
+- O evento final do `/chat` (SSE) já tem `provenance`; acrescentar lista de ferramentas usadas com origem (`nativa`, `mcp:<servidor>`, `skill:<nome>`, `plugin:<nome>`) e links das fontes.
+- Front: rodapé expansível na bolha "Usou: …".
+
+### E6.5 Pesquisa noturna pela interface (R4.6)
+- Assuntos saem do código para `meta` (`research:topics`), editáveis por `GET/PUT /pesquisa/assuntos` (até 5, 200 caracteres cada, mesma validação de `research.py`).
+- `GET /pesquisa/relatorios` lista os relatórios do `00 Inbox` (nome com prefixo fixo); "rodar agora" (`POST /pesquisa/rodar`) respeita a cota (E1.2).
+
+---
+
+## E7 — MCP e skills
+
+**Marco:** problemas de MCP aparecem na interface; cancelar chega ao servidor; muitas ferramentas não lotam o contexto; resources e prompts entram com regra; skills por `/`; Claude Code e Codex consultam a memória do Orion.
+**Prova:** testes com o servidor MCP de teste real (`tests/mcp_cliente`); `claude mcp add orion -- orion mcp-servidor` lista as 3 ferramentas.
+**Regras:** 55 (C14), 56 (Orion como servidor MCP).
+
+### E7.1 Versão de SDK incompatível (R5.1 / C07)
+- Servidor de teste que anuncia versão de protocolo não suportada → `mcp-check` e painel mostram "o servidor X fala o protocolo Y, o Orion fala Z".
+
+### E7.2 Cancelamento propagado (R5.2)
+- Ao cancelar o turno, cancelar a tarefa que roda `session.call_tool`; confirmar no teste com servidor real que chega `notifications/cancelled` (o servidor de teste registra).
+
+### E7.3 Diagnóstico MCP na interface (R5.3 / C26)
+- `GET /mcp/servidores`: estado, última falha, ferramentas expostas e classe de risco de cada; `POST /mcp/servidores/{nome}/testar`. Card em Integrações.
+
+### E7.4 Descoberta sob demanda (R5.12 / C13)
+- Acima de `ORION_MCP_INDEX_AT` (padrão 30) ferramentas MCP, o modelo vê só uma ferramenta `procurar_ferramenta(consulta)` + índice (nome + uma linha); escolhida a ferramenta, o esquema completo entra no turno seguinte. Classe de risco e aprovação não mudam.
+
+### E7.5 Resources e prompts (R5.13 / C14)
+- Resources: ferramenta `ler_recurso_mcp(servidor, uri)` só aceita URI que o próprio servidor listou em `resources/list` e que bata com a allowlist do servidor no `mcp.json` (`"resources": ["file:///docs/*"]`); leitura é `external` (contamina a sessão), teto 200 KB.
+- Prompts: só você invoca, pela paleta e por `/prompt <servidor>:<nome>`; o modelo não vê prompts como ferramenta.
+- **Regra 55**.
+
+### E7.6 Skills pelo chat e pela paleta (R5.10 / B3)
+- `/skill <nome>` e item "Usar skill…" na paleta: o turno começa com o corpo da skill já carregado (equivale a `carregar_skill` forçado).
+
+### E7.7 Orion como servidor MCP (R5.11)
+- `orion mcp-servidor` (stdio) com o SDK `mcp` já fixado: ferramentas **só leitura** `buscar_memoria`, `listar_fatos`, `buscar_conversas`, respeitando projeto (E4.1) se o cliente passar `projeto`.
+- Autenticação: o processo exige `ORION_MCP_SERVER_TOKEN` (gerado por `orion mcp-servidor --token`, guardado no cofre do sistema); revogável.
+- Doc em `ORION_OPERACAO.md`: `claude mcp add orion -- orion mcp-servidor` e o equivalente do Codex.
+- **Regra 56**: nada de escrita, execução ou egress por esse servidor; cada chamada vai ao audit com o cliente.
+
+### E7.8 Seu estilo de código como skill (Z12)
+- `orion estilo <pasta-repo> [...]`: delega ao Claude Code (assinatura) a leitura dos repositórios e gera `SKILL.md` "estilo-antonio" (nomes, comentários, testes, commits) em `<dados>/skills/`; você revisa antes de valer (skill nova nasce desativada).
+- Exposta também pelo servidor MCP (E7.7) como prompt `estilo-antonio`.
+
+---
+
+## E8 — Plugins
+
+**Marco:** plugin entra pela interface, atualiza com volta, vem do formato do Claude Code/Codex, de catálogo local ou remoto, sem reiniciar; existe o primeiro plugin oficial.
+**Prova:** instalar o "Orion Pesquisa" pelo catálogo local, conceder, usar sem reiniciar, atualizar, voltar.
+**Regras:** estende 45; 57 (catálogo remoto).
+
+### E8.1 Instalar por upload (R5.4)
+- `POST /plugins/upload` (multipart `.zip`): extrai em pasta temporária sem seguir links, aplica `_validar_pasta` (≤200 arquivos, ≤5 MB) e `PluginStore.instalar`.
+
+### E8.2 Atualização com reversão (R5.5 / C22)
+- `PluginStore` guarda versões em `<plugins>/<nome>/versoes/<hash>/`; `instalar(atualizar=True)` cria versão nova (concessão não migra); `POST /plugins/{nome}/voltar` restaura a anterior e a concessão dela.
+
+### E8.3 Importar formato Claude Code e Codex (R5.6 / C21)
+- `orion/plugins_import.py`: lê `.claude-plugin/plugin.json` (skills em `skills/`, MCP em `.mcp.json`) e o formato do Codex; converte para `plugin.json` do Orion. O que não tem equivalente (hooks, comandos, agentes) vai para uma lista "ignorado" mostrada antes de instalar.
+
+### E8.4 Catálogo local e remoto (R5.7 / C25)
+- Local: pasta `<dados>/catalogo/` com `catalogo.json` (nome, versão, descrição, caminho, hash).
+- Remoto: `ORION_PLUGIN_CATALOGS` com URLs cadastradas por você; baixa só o `catalogo.json` pela barreira de rede (`netguard`); cada pacote tem hash fixado no índice e é conferido após baixar; **baixar não instala nem concede**; nunca atualiza sozinho.
+- **Regra 57**.
+- Tela: aba "Catálogo" no card Plugins.
+
+### E8.5 Conceder sem reiniciar (R5.9)
+- `ToolRegistry` ganha `replace_all(tools)` atômico; skills (`SkillCatalog.scan()`) e servidores MCP do plugin sobem/caem na concessão/revogação. Turno em andamento termina com a versão antiga (o agente copia a lista no início do turno).
+
+### E8.6 Plugin "Orion Pesquisa" (R5.8 / C28–C29)
+- Pasta `plugins_oficiais/orion-pesquisa/`: skills "pesquisa-com-fontes" e "comparar-precos", servidor MCP de busca já classificado (`read`, `external`); publicado no catálogo local.
+
+---
+
+## E9 — Automação do dia a dia
+
+**Marco:** rotinas e tarefas em segundo plano funcionam com a política de sempre; os utilitários diários (lembrete insistente, Downloads, "posso desligar?", históricos, ler depois, conversor, voz no Telegram, transcrever→tarefas) estão no ar.
+**Prova:** rotina "bom dia" por palmas abre o briefing, toca música e abre o app; histórico de comandos acha um `gbak` de ontem.
+**Esquema:** v15. **Regras:** 58 (rotinas), 59 (tarefa em segundo plano), 60 (históricos locais).
+
+### E9.1 Rotinas (L7)
+- Arquivo `<dados>/rotinas/<nome>.yaml`: `gatilhos` (frase, palmas, tecla, Telegram), `passos` (ferramenta + argumentos fixos, ou "falar texto").
+- `orion rotina conceder <nome>` guarda o hash (como plugin); mudou o arquivo → concessão cai.
+- Executor: passos `read` e mídia (`controlar_midia`, `abrir_app` **se listado na concessão**) rodam direto; `write`/`exec` pedem aprovação pelo botão como sempre.
+- Rotina pronta de exemplo: `bom-dia.yaml` (briefing falado + música + abrir o Orion).
+- **Regra 58**.
+
+### E9.2 Tarefa em segundo plano (L6)
+- v15: `CREATE TABLE background_tasks (id INTEGER PRIMARY KEY, objective TEXT NOT NULL, budget TEXT NOT NULL, status TEXT NOT NULL, report TEXT NOT NULL DEFAULT '', proposals TEXT NOT NULL DEFAULT '[]', created_at REAL NOT NULL, finished_at REAL)`.
+- `POST /tarefas-bg {objetivo, max_passos, max_min}`: roda `Agent.run(read_only=True)` em sessão própria; o que seria escrita vira **proposta** (lista) que você aprova depois; relatório na caixa de atividade.
+- **Regra 59**: tarefa em segundo plano nunca escreve nem executa; teto de passos, tempo e cota.
+
+### E9.3 Lembrete insistente (U3)
+- v15: `ALTER TABLE reminders ADD COLUMN insist_min INTEGER NOT NULL DEFAULT 0`.
+- `gerenciar_lembretes` aceita `insistir_min`; o job reenvia a cada N minutos até `done=1`; botões "Feito" e "Adiar 1 h" no Telegram e na notificação.
+
+### E9.4 Organizador de Downloads com regras (U7)
+- `<dados>/regras_downloads.yaml`: padrão de nome/extensão → pasta destino.
+- Usa a vigilância de pasta existente (`ops.watch_*`); cada movimento registra origem/destino em `meta`; `orion downloads desfazer [--ultimo|--hoje]`. O que não casa fica.
+
+### E9.5 "Posso desligar?" (U8)
+- `orion posso-desligar`, `/desligar` no Telegram e item na bandeja: repositórios em `ORION_REPOS` com mudança não commitada ou não enviada (`consultar_git`), processos em segundo plano vivos, backup do dia feito, downloads em andamento (arquivos `.crdownload/.part` em Downloads).
+
+### E9.6 Histórico da área de transferência (U4)
+- A ponte observa a área de transferência (texto apenas); filtra o que parece segredo (mesmo filtro da memória da tela); v15: `clipboard_log(id, ts, text)` + FTS; retenção `ORION_CLIPBOARD_DAYS=7`.
+- Tecla `ctrl+alt+v` abre lista pesquisável; ferramenta `buscar_area_transferencia` (read, external).
+- **Regra 60**: históricos ficam só no computador, com retenção e opt-in.
+
+### E9.7 Histórico de comandos pesquisável (U5)
+- Lê o histórico do PowerShell (`ConsoleHost_history.txt`) e do bash/zsh a cada hora; v15: `command_log(id, ts, shell, command)` + FTS; descarta linhas com cara de segredo.
+- Ferramenta `buscar_comandos` (read) e busca global (E5.7). Opt-in `ORION_COMMAND_HISTORY`.
+
+### E9.8 Ler depois (U6)
+- `/ler <link>` no Telegram, captura rápida com link, ou `POST /ler-depois`: `buscar_url` (ou `orion transcrever` para vídeo) → resumo de 5 linhas → nota no vault `Ler depois/` com fonte. v15: `read_later(id, url, title, status, note_path, created_at)`; lista semanal no briefing de segunda.
+
+### E9.9 Conversor de arquivos (V5)
+- `orion converter <arquivo> <formato>` e envio pelo Telegram ("converte para PDF"): `ffmpeg` (áudio/vídeo), `img2pdf`/`Pillow` (imagens), LibreOffice headless (`soffice --convert-to`) para Word↔PDF quando instalado, `pikepdf` para comprimir PDF. Tudo local; resultado na biblioteca de resultados.
+
+### E9.10 Voz no Telegram (N22)
+- Mensagem de voz recebida já é transcrita; se veio por voz, responder também em áudio (edge-tts já usado em `voice.py`), `ORION_TELEGRAM_VOICE_REPLY=true`.
+
+### E9.11 Transcrever → tarefas (N4)
+- Depois de `orion transcrever`, o modelo propõe tarefas, lembretes e fatos extraídos; aparecem na caixa de atividade com aprovar/descartar item a item.
+
+---
+
+## E10 — Vida pessoal
+
+**Marco:** semana planejada com o Orion, diário automático, finanças locais com contas e preços, e as ferramentas de reflexão (cápsula, cenários, linha do tempo, sonhos, foco, estado pela voz).
+**Prova:** uma semana real: revisão de domingo feita, 7 diários no vault, gastos lançados pelo Telegram, um aviso de conta a vencer.
+**Esquema:** v16. **Regras:** 61 (finanças locais), 62 (escudo de foco), 63 (estado pela voz).
+
+### E10.1 Revisão semanal guiada (N9)
+- Domingo no horário `ORION_WEEKLY_REVIEW_AT`: conversa guiada (projeto "Revisão") com os 5 passos do Sistema de Priorização: tarefas abertas → escolher **1 marco** → 2 blocos na agenda (proposta; escrita na agenda pede aprovação) → ideias novas para incubação → bloqueio e próxima ação de cada projeto. Resultado salvo como nota no vault.
+
+### E10.2 Diário automático (N10)
+- Job às `ORION_DIARY_AT` (ex.: 23:00): junta commits do dia (`ORION_REPOS`), conversas (títulos), documentos novos, resultados, resumo da memória da tela (se ligada) e gastos; escreve `Diário/AAAA-MM-DD.md` no vault com frontmatter `type: diario`. Resumo pelo modelo local se ligado, senão cota gratuita.
+
+### E10.3 Gastos pelo Telegram (N11)
+- v16: `transactions(id, ts, cents INTEGER, category TEXT, description TEXT, source TEXT)`.
+- "gastei 30 no mercado" (Telegram, captura rápida) → parser local (valor e categoria por palavra; modelo local se ambíguo). Resumo mensal por categoria no briefing do dia 1. Fatura em PDF: leitura local e lançamento das linhas após confirmação.
+- **Regra 61**: dado financeiro nunca vai à nuvem (só modelo local ou parser).
+
+### E10.4 Contas e vencimentos (V7)
+- v16: `bills(id, description, cents, due_at, barcode TEXT, paid INTEGER DEFAULT 0, file TEXT)`.
+- Boleto/fatura (PDF ou foto) → OCR local + regex de linha digitável e vencimento; avisos 3 dias e 1 dia antes; "paguei" marca e lança em `transactions`.
+
+### E10.5 Monitor de preço (N12)
+- v16: `price_watch(id, item, query, target_cents, last_cents, history TEXT, active)`.
+- 1×/dia por item: `pesquisar_internet`/`pesquisar_com_ia` (cota) com a consulta; extrai preço; avisa queda ou alvo atingido. Item pode vir da câmera (E11).
+
+### E10.6 Cápsula do tempo (X9)
+- v16: `ALTER TABLE reminders ADD COLUMN kind TEXT NOT NULL DEFAULT 'lembrete'`.
+- "daqui 6 meses me cobra isso": lembrete `kind='capsula'` com o contexto da conversa (link para a sessão); no dia, aviso com o texto original.
+
+### E10.7 Árvore de cenários (X8)
+- Ferramenta `simular_cenarios(descricao)`: o modelo monta as variáveis; um simulador local (Monte Carlo, `random`, 10 000 rodadas) usa os gastos reais (E10.3) como base; resposta com faixas (p10/p50/p90), nunca um número só.
+
+### E10.8 Linha do tempo da vida (X4)
+- `GET /linha-do-tempo?de=&ate=`: junta mensagens, commits, documentos, tela, diário, gastos e área de transferência por hora; tela `#/linha-do-tempo` com zoom de dia/semana. Respeita a retenção de cada fonte.
+
+### E10.9 Sonhos: ideia do dia (X7)
+- No ciclo de sono, um passo a mais: escolhe 2 fatos/notas de áreas sem ligação no grafo e pede ao modelo 1 ideia que conecte os dois, com as duas fontes; entra no briefing da manhã; botão "boa" grava como fato, "descartar" apaga.
+
+### E10.10 Escudo de foco (X11)
+- Blocos de foco vêm da revisão semanal (E10.1) ou de `/foco 50` no chat.
+- Durante o bloco: avisos não urgentes ficam presos (usa o não perturbe de E1.6); se a memória da tela vir app/site da lista `ORION_FOCUS_DISTRACTIONS`, uma pergunta discreta "isso é do marco da semana?" (no máximo 1 por bloco).
+- **Regra 62**: o escudo pergunta, nunca bloqueia nem fecha nada.
+
+### E10.11 Estado pela voz (X12)
+- Nas falas por voz (já transcritas), extrair localmente ritmo (palavras/min), pausas e energia média do áudio; comparação com a sua média → estilo "curto" quando há pressa/cansaço. Nada é guardado além das médias.
+- **Regra 63**: só muda o estilo da resposta; nunca decide nada nem entra na memória.
+
+---
+
+## E11 — Visão e câmera
+
+**Marco:** "tá vendo esse objeto? pesquisa o preço" funciona por foto; o Orion reconhece você localmente; sabe onde viu um objeto; percebe presença; traduz o que a câmera vê; gera imagem pelo Flow de forma segura.
+**Prova:** com a webcam, perguntar sobre um mouse e receber o modelo e o link do software; "onde vi meu fone?" responde com hora.
+**Esquema:** v17. **Regras:** 64 (câmera), 65 (rosto), 66 (presença).
+
+### E11.1 Ver e agir por foto (L12)
+- Ferramenta `ver_camera(pergunta)` (opt-in `ORION_CAMERA=true`): uma foto (`opencv-python`, dispositivo `ORION_CAMERA_DEVICE`), enviada ao modelo de visão; o agente continua com as ferramentas normais (pesquisar preço, achar software). Classe `exec` + `external` na primeira vez da sessão (confirma), depois `read`.
+- Atalho: "o que a câmera vê?" na paleta, voz e Telegram (`/camera`).
+- Vídeo ao vivo: estender `/ws/voice` (Gemini Live) com 1 quadro/s da câmera quando você ligar no botão; o Live continua sem ferramentas: pedidos de ação passam o quadro atual ao agente (regra 36 atualizada). Cota preview: some se acabar.
+- **Regra 64**: câmera só liga por pedido seu; luz/indicador na interface enquanto ligada; foto descartada após a resposta (salvo se você pedir para guardar).
+
+### E11.2 Visão pelas assinaturas (N7)
+- `Vision` ganha ordem configurável `ORION_VISION_ORDER=gemini,claude,codex,gemini_cli`: Gemini (cota grátis) primeiro; ao falhar por cota, `delegar` com a imagem: `claude -p` lendo o arquivo da imagem em pasta temporária, `codex exec -i <img>`, `gemini -p "@<img> pergunta"`. Resposta volta ao chat. Registro em `external_calls` como `cli:<nome>`.
+
+### E11.3 Detecção local de objetos (base de X1 e E11.6)
+- `orion/visao_local.py`: YOLO nano em ONNX (`onnxruntime`, CPU), modelo baixado sob demanda; devolve rótulo, confiança e caixa. Usado como filtro antes de mandar foto à nuvem e pelos itens abaixo.
+
+### E11.4 "Onde eu deixei?" (X1)
+- Modo contínuo opcional (`ORION_CAMERA_WATCH=true`, intervalo padrão 60 s, só com presença): guarda **só rótulos**; v17: `object_sightings(id, ts, label, confidence, x, y)`; retenção 7 dias; **nunca a classe "pessoa"**.
+- Ferramenta `onde_vi(objeto)` (read).
+
+### E11.5 Reconhecimento facial local (pedido "só quando eu estiver no PC")
+- `orion rosto cadastrar` tira 5 fotos e guarda **vetores** (modelo de rosto ONNX local) em v17: `faces(id, name, embedding BLOB, created_at)`, cifrados com chave no cofre do sistema.
+- Só roda com tela desbloqueada (E5.3) e câmera ligada; uso: confirmar que é você (presença, E11.6).
+- **Regra 65**: rosto nunca sai do computador; cadastro só por você, e só de você por enquanto; apagar com `orion rosto apagar`.
+
+### E11.6 Presença (X5)
+- Sinais, do mais barato ao mais caro: tela desbloqueada e entrada de teclado/mouse recente → celular por Bluetooth perto (`bleak`, endereço em `ORION_PRESENCE_BT`) → rosto (E11.5) se a câmera estiver ligada.
+- Chegou → briefing curto; saiu (sem sinal por `ORION_AWAY_MIN`) → bloquear a tela (pede confirmação na primeira configuração) e pausar capturas.
+- **Regra 66**: presença só pausa/retoma e cumprimenta; nunca envia nada para fora.
+
+### E11.7 Tradutor do mundo (Y5)
+- "traduz o que a câmera/tela mostra": OCR local (tesseract com idiomas `eng+spa+...`) → tradução pelo modelo; explicação curta. Legenda ao vivo de áudio/vídeo: Vosk local (já usado na palavra de ativação) em janela flutuante da ponte; opt-in, pesado.
+
+### E11.8 Geração de imagem pelo Flow, semiautomático (N8)
+- Ferramenta `preparar_imagem_flow(descricao)`: o modelo escreve o prompt; a ponte copia para a área de transferência e abre o Flow no navegador visível. Você gera e baixa.
+- A vigilância de Downloads (E9.4) reconhece a imagem nova e a põe na biblioteca de resultados ligada ao pedido. **Nada é automatizado no site** (termos do Google e risco à conta principal).
+
+---
+
+## E12 — Trabalho, estudo e carreira
+
+**Marco:** o estágio tem base de soluções e respostas prontas; portfólio, vagas e documentação dos projetos andam sozinhos; o Orion lembra das pessoas, cria MVP, responde como você e confere a própria resposta.
+**Prova:** um chamado real resolvido entra na base e é achado depois; um case de portfólio gerado; um MVP criado em pasta nova.
+**Regras:** 67 (base do estágio sem dado de cliente).
+
+### E12.1 Base de soluções do estágio (N14)
+- Pasta do vault `02 Areas/Estágio - Bredas Sistemas/Soluções/` com template (sintoma, causa, comando, cuidado); `/solucao` no Telegram e captura rápida criam nota.
+- Antes de gravar: filtro de CPF/CNPJ/nome de cliente/IP (regex + lista de clientes em `ORION_CLIENT_NAMES` para mascarar).
+- "já vi esse erro?": busca restrita a essa pasta.
+- **Regra 67**.
+
+### E12.2 Rascunho de case de portfólio (N16)
+- `orion portfolio <projeto>`: lê decisões (nota do projeto no vault), commits e testes; gera rascunho no formato do "Mapa de Evidências de Portfólio" do vault; nota em `00 Inbox`.
+
+### E12.3 Tutor que percebe o travamento (Y11)
+- Pela memória da tela: o mesmo texto de erro (hash da linha de erro) 3 vezes em 15 min → aviso "quer que eu explique o conceito por trás?"; explicação conceitual, sem colar a correção pronta. 1 aviso por erro.
+
+### E12.4 Headhunter (Y14)
+- `orion vagas` (sob demanda; o radar diário ficou em incubação): busca vagas pela stack do vault (perfil), compara com as habilidades e devolve lacunas + plano de estudo de 2 semanas.
+
+### E12.5 Documentador dos seus projetos (Y15)
+- Semanal por repositório em `ORION_REPOS`: `delegar` ao Claude Code em modo leitura para resumir arquitetura e decisões novas; abre PR **no vault** atualizando a nota do projeto. Nunca faz merge.
+
+### E12.6 Memória de pessoas (Z4)
+- Notas de `03 Recursos/People/` + menções nas conversas → "antes de falar com X": última conversa, assuntos, aniversário. Só o que já está anotado; nada coletado de fora.
+
+### E12.7 Do sonho ao MVP (Z11)
+- `orion mvp "<descrição>"`: o Claude Code (assinatura) cria pasta nova em `ORION_MVP_DIR` com estrutura, README e primeira tela; nunca publica, nunca toca em repositório existente.
+
+### E12.8 Gêmeo digital (X3)
+- Ferramenta `como_eu_decidiria(pergunta)`: busca no Registro de Decisões do vault e nos fatos; responde citando as decisões usadas; sem fonte suficiente, diz que não sabe.
+
+### E12.9 Conferir resposta (L8)
+- Botão "conferir" na bolha: separa afirmações, busca cada uma na memória e nas fontes do turno, marca apoiada/sem apoio; usa o modelo rápido.
+
+---
+
+## E13 — Segurança e continuidade
+
+**Marco:** exposição verificada toda semana, plano de emergência configurado, o Orion propõe melhorias para si mesmo por PR, atualiza com segurança e restaura a configuração junto com os dados.
+**Prova:** relatório da sentinela no vault; PR do Protocolo Darwin aberto e revisado; `orion atualizar` recusa pacote com hash errado.
+**Regras:** 68 (sentinela), 69 (plano de emergência), 70 (Protocolo Darwin), 71 (atualização).
+
+### E13.1 Sentinela de exposição pelo Claude (Y9)
+- Semanal: `delegar` ao Claude Code (modo leitura) com roteiro fixo: portas abertas (`netstat`), atualizações pendentes, regras do Tailscale, programas na inicialização; senhas vazadas por k-anonimato (só os 5 primeiros caracteres do SHA-1 saem) a partir de uma lista que você mantém localmente.
+- Relatório no vault e resumo na caixa de atividade. **Regra 68**: só leitura; nenhuma correção automática.
+
+### E13.2 Plano de emergência (X10)
+- Configuração: dias sem interação (`ORION_DEADMAN_DAYS`), pessoa de confiança (contato Telegram), texto que você escreveu (sem senhas; o Orion recusa texto com cara de segredo).
+- Avisos a você em 3 etapas antes de disparar (D-3, D-1, D-0 com "estou bem"). **Regra 69**.
+
+### E13.3 Protocolo Darwin (X6)
+- Semanal: lê falhas, negações e erros de `audit` e logs; escolhe 1 melhoria pequena; `delegar` ao Claude Code em clone temporário do repositório Orion; abre PR com testes.
+- Lista bloqueada de caminhos que o Darwin não pode tocar: `orion/policy/`, `orion/auth.py`, `ORION_REGRAS.md`, `orion/netguard.py`, `orion/ponte/` (o PR é recusado se tocar).
+- **Regra 70**: nunca faz merge; nunca toca segurança.
+
+### E13.4 `orion atualizar` (N5)
+- Baixa a release do GitHub do repositório Orion, confere o hash publicado nas notas da release (e assinatura quando houver), troca a instalação mantendo a anterior para `orion atualizar --voltar`. **Regra 71**.
+
+### E13.5 Backup da configuração (N6)
+- `backup_to` passa a incluir `config/` com `.env` **sem segredos** (só nomes), `mcp.json`, rotinas, regras de Downloads, concessões de plugins e skills; `orion restore` restaura junto, pedindo os segredos que faltam.
+
+---
+
+## 2. Fora deste plano (não escolhidos)
+Em incubação: modo estudo (N13), standup do DevCore (N15), radar diário de vagas (N17), eval semanal (N20), contexto por horário (N21), Y1–Y4, Y6–Y8, Y10, Y12, Y13, Z1–Z3, Z5–Z10, Z13, Z14, V1, V2, V4, V6, V8, V9, "retomar de onde parou", associar resultado a projeto manualmente.
+Descartados: conselho de IAs (X2), Orion físico (X13), carga cognitiva (L11), IDE, WhatsApp (D9), ofuscação de tráfego (D10), automação do site do Flow.
