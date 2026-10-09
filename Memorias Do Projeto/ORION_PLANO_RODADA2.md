@@ -66,27 +66,27 @@ E3 e E6 não dependem de E2: se E2 travar em teste de hardware, adiantam-se E3 e
 Marque ao concluir. Uma etapa só fecha com todos os itens, a prova e o PR mergeado.
 
 ### E0 — Documentação dos opt-ins
-- [ ] E0.1 Seções novas em `ORION_OPERACAO.md` (R1.1–R1.8)
-- [ ] E0.2 Tabela-resumo de opt-ins (R1.9)
-- [ ] E0.3 `orion doctor` aponta a seção
-- [ ] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas
-- [ ] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
-- [ ] **Prova:** `uv run pytest tests/test_operacao_doc.py` verde; ler a tabela e conseguir ligar a memória da tela só com ela.
-- [ ] PR da E0 mergeado
+- [x] E0.1 Seções novas em `ORION_OPERACAO.md` (R1.1–R1.8)
+- [x] E0.2 Tabela-resumo de opt-ins (R1.9)
+- [x] E0.3 `orion doctor` aponta a seção
+- [x] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas
+- [x] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
+- [x] **Prova:** `uv run pytest tests/test_operacao_doc.py` verde; ler a tabela e conseguir ligar a memória da tela só com ela.
+- [x] PR da E0 mergeado (junto com a E1: antoniossalomao/Orion#18)
 
 ### E1 — Base de custo, privacidade e controle
-- [ ] Regras escritas em `ORION_REGRAS.md` antes do código (46 (custo zero), 47 (registro de saída), 48 (pânico e não perturbe), 49 (modelo local))
-- [ ] E1.1 Registro de chamadas externas (base de R4.7, R4.8 e N2)
-- [ ] E1.2 Custo zero e cota gratuita (R4.7)
-- [ ] E1.3 Telemetria por provedor (R4.8 / L3)
-- [ ] E1.4 Aviso de gateway fora do ar (L10)
-- [ ] E1.5 Painel de privacidade (N2)
-- [ ] E1.6 Modo pânico e não perturbe (N19, N3)
-- [ ] E1.7 Encaixe do modelo local (L9)
-- [ ] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas
-- [ ] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
-- [ ] **Prova:** com o gateway falso, 10 chamadas (2 falhas) aparecem no card "Provedores"; `orion panico` corta captura e ferramentas de rede e o painel mostra "Modo pânico"; com `ORION_LOCAL_MODEL` apontando para um servidor falso, o chat responde quando o gateway falha.
-- [ ] PR da E1 mergeado
+- [x] Regras escritas em `ORION_REGRAS.md` antes do código (46 (custo zero), 47 (registro de saída), 48 (pânico e não perturbe), 49 (modelo local))
+- [x] E1.1 Registro de chamadas externas (base de R4.7, R4.8 e N2)
+- [x] E1.2 Custo zero e cota gratuita (R4.7)
+- [x] E1.3 Telemetria por provedor (R4.8 / L3)
+- [x] E1.4 Aviso de gateway fora do ar (L10)
+- [x] E1.5 Painel de privacidade (N2)
+- [x] E1.6 Modo pânico e não perturbe (N19, N3)
+- [x] E1.7 Encaixe do modelo local (L9)
+- [x] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas
+- [x] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
+- [x] **Prova:** com o gateway falso, 10 chamadas (2 falhas) aparecem no card "Provedores"; `orion panico` corta captura e ferramentas de rede e o painel mostra "Modo pânico"; com `ORION_LOCAL_MODEL` apontando para um servidor falso, o chat responde quando o gateway falha.
+- [x] PR da E1 mergeado (antoniossalomao/Orion#18)
 
 ### E2 — Ponte de desktop
 - [ ] Antônio: testar teclas globais e microfone no notebook; calibrar as palmas

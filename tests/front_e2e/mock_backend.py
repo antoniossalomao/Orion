@@ -98,6 +98,7 @@ ESTADO: dict[str, Any] = {
     "tela": {"ligada": True, "pausada": False, "registros": 42},
     "projeto_de": {},  # sessao -> id do projeto
     "arquivadas": set(),  # PATCH {"arquivada": true}: sai da barra, a busca ainda acha
+    "modos": {"panico": False, "nao_perturbe_ate": None},  # regra 48
     "rng": random.Random(7),
     "delay": 0.018,
 }
@@ -313,6 +314,53 @@ async def _pedacos(texto: str, delay: float):
         yield texto[i : i + n]
         i += n
         await asyncio.sleep(delay)
+
+
+SENHA_PANICO = LOGIN or TOKEN or "senha-do-mock-123"  # sair do pânico pede a senha de novo
+
+
+def _modos() -> dict[str, Any]:
+    m = ESTADO["modos"]
+    return {
+        "panico": m["panico"],
+        "panico_desde": time.time() - 60 if m["panico"] else None,
+        "panico_origem": "web" if m["panico"] else None,
+        "nao_perturbe": m["nao_perturbe_ate"] is not None,
+        "nao_perturbe_ate": m["nao_perturbe_ate"],
+        "nao_perturbe_horario": None,
+    }
+
+
+def _privacidade(dias: int) -> dict[str, Any]:
+    """Uma semana com o gateway todo dia, o Groq em dois dias e uma imagem hoje."""
+    hoje = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    serie = []
+    for i in range(dias - 1, -1, -1):
+        dia = (hoje - timedelta(days=i)).strftime("%Y-%m-%d")
+        provs: dict[str, Any] = {}
+        n = [3, 5, 2, 8, 6, 4, 7][i % 7]
+        provs["gateway:padrão"] = {"envios": n, "bytes": n * 2400, "tipos": {"texto": n}}
+        if i in (1, 4):
+            provs["groq"] = {"envios": 2, "bytes": 380_000, "tipos": {"audio": 2}}
+        if i == 0:
+            provs["gateway:visao"] = {"envios": 1, "bytes": 512_000, "tipos": {"imagem": 1}}
+        serie.append(
+            {
+                "dia": dia,
+                "envios": sum(p["envios"] for p in provs.values()),
+                "bytes": sum(p["bytes"] for p in provs.values()),
+                "provedores": provs,
+            }
+        )
+    agora = datetime.now()
+    hoje_lista = [
+        {"hora": (agora - timedelta(minutes=5)).strftime("%H:%M:%S"), "provedor": "gateway:visao",
+         "tipo": "vision", "conteudo": "imagem", "bytes": 512_000, "ok": True},
+        {"hora": (agora - timedelta(minutes=9)).strftime("%H:%M:%S"), "provedor": "gateway:padrão",
+         "tipo": "chat", "conteudo": "texto", "bytes": 2400, "ok": False},
+    ]  # fmt: skip
+    provedores = sorted({k for d in serie for k in d["provedores"]})
+    return {"dias": dias, "serie": serie, "provedores": provedores, "hoje": hoje_lista}
 
 
 def _auth(authorization: str | None, orion_session: str | None = None) -> None:
@@ -1052,7 +1100,76 @@ def create_app() -> FastAPI:
             },
             "ferramentas": 41,
             "mcp": {"google": "ok (12 ferramentas)", "web": "falhou: TimeoutError"},
-        }
+            "modos": _modos(),
+            "cota": [
+                {"provedor": "gateway", "nome": "Gateway de modelos", "usado": 420, "limite": 1000,
+                 "periodo": "dia", "pct": 42, "estado": "ok"},
+                {"provedor": "groq", "nome": "Groq (transcrição)", "usado": 4, "limite": 2000,
+                 "periodo": "dia", "pct": 0, "estado": "ok"},
+                {"provedor": "gemini", "nome": "Gemini (busca, embeddings, imagem)", "usado": 960,
+                 "limite": 1000, "periodo": "dia", "pct": 96, "estado": "alta"},
+                {"provedor": "brave", "nome": "Brave Search", "usado": 0, "limite": 0,
+                 "periodo": "mes", "pct": 0, "estado": "sem_limite"},
+            ],
+            "provedores": [
+                {"provider": "gateway:padrão", "kind": "chat", "chamadas": 10, "falhas": 2,
+                 "p50_ms": 640, "p95_ms": 2100, "bytes_out": 24_000, "bytes_in": 9_000,
+                 "modelo": "gemini-2.5-flash"},
+                {"provider": "groq", "kind": "transcribe", "chamadas": 4, "falhas": 0,
+                 "p50_ms": 900, "p95_ms": 1300, "bytes_out": 760_000, "bytes_in": 1_200,
+                 "modelo": "whisper-large-v3-turbo"},
+            ],
+        }  # fmt: skip
+
+    @app.get("/modo")
+    def modo(
+        authorization: str | None = Header(default=None),
+        orion_session: str | None = Cookie(default=None),
+    ) -> dict[str, Any]:
+        _auth(authorization, orion_session)
+        return _modos()
+
+    @app.post("/modo/panico")
+    def modo_panico(
+        corpo: dict[str, Any],
+        authorization: str | None = Header(default=None),
+        orion_session: str | None = Cookie(default=None),
+    ) -> dict[str, Any]:
+        _auth(authorization, orion_session)
+        if corpo.get("ativo"):
+            ESTADO["modos"]["panico"] = True
+        elif corpo.get("senha") != SENHA_PANICO:
+            raise HTTPException(403, "para sair do modo pânico, confirme a senha")
+        else:
+            ESTADO["modos"]["panico"] = False
+        return _modos()
+
+    @app.post("/modo/nao-perturbe")
+    def modo_nao_perturbe(
+        corpo: dict[str, Any],
+        authorization: str | None = Header(default=None),
+        orion_session: str | None = Cookie(default=None),
+    ) -> dict[str, Any]:
+        _auth(authorization, orion_session)
+        ate = corpo.get("ate")
+        if ate:
+            h, m = (int(x) for x in str(ate).split(":"))
+            alvo = datetime.now().replace(hour=h, minute=m, second=0, microsecond=0)
+            if alvo <= datetime.now():
+                alvo += timedelta(days=1)
+            ESTADO["modos"]["nao_perturbe_ate"] = alvo.timestamp()
+        else:
+            ESTADO["modos"]["nao_perturbe_ate"] = None
+        return _modos()
+
+    @app.get("/privacidade")
+    def privacidade(
+        dias: int = 7,
+        authorization: str | None = Header(default=None),
+        orion_session: str | None = Cookie(default=None),
+    ) -> dict[str, Any]:
+        _auth(authorization, orion_session)
+        return _privacidade(max(1, min(dias, 90)))
 
     @app.get("/approvals")
     def aprovacoes(

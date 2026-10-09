@@ -175,6 +175,7 @@ def test_migracao_v9_para_v10(tmp_path):
     db = tmp_path / "m.db"
     m = MemoryStore(db)
     m._conn.executescript(
+        "DROP TABLE external_calls; ALTER TABLE notifications DROP COLUMN urgent;"
         "DROP TABLE artifacts; UPDATE meta SET value='9' WHERE key='schema_version';"
     )
     m._conn.close()

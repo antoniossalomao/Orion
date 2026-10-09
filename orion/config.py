@@ -6,6 +6,7 @@ import json
 import re
 from pathlib import Path
 from typing import Annotated, Literal
+from urllib.parse import urlsplit
 
 from platformdirs import user_data_dir
 from pydantic import Field, field_validator, model_validator
@@ -148,6 +149,20 @@ class Settings(BaseSettings):
         " LLMs locais e on-device"
     )
     consolidate: bool = True  # fatos a partir das conversas (precisa do gateway)
+    # Custo zero (regra 46): a cota que o ORION contou (external_calls), por dia (Brave por mês).
+    # Padrões = estimativa do gratuito de cada provedor (mudam sem aviso: confira no painel deles).
+    # Job opcional não roda com 90% usado; o chat nunca é bloqueado. 0 = sem limite.
+    quota_gateway_dia: int = Field(default=1000, ge=0)
+    quota_groq_dia: int = Field(default=2000, ge=0)
+    quota_gemini_dia: int = Field(default=1000, ge=0)
+    quota_brave_mes: int = Field(default=1000, ge=0)
+    allow_paid: bool = False  # true: você confirma que um endereço fora da lista gratuita é seu
+    gateway_down_min: int = Field(default=10, ge=1, le=1440)  # avisa "modelos fora do ar" depois
+    # Não perturbe (regra 48): "22:30-07:00" segura avisos não urgentes e pausa a memória da tela
+    dnd_at: str = ""
+    # Modelo local de reserva (regra 49): último endpoint, sem ferramentas, só neste computador.
+    local_model: str = ""  # ex.: qwen3.5:4b (Ollama); vazio = desligado
+    local_url: str = "http://127.0.0.1:11434/v1"
     # Embeddings por API gratuita (Gemini). Sem chave, a busca é só por palavra-chave.
     embed_api_key: str = ""  # ou no cofre do SO (ORION_EMBED_API_KEY)
     embed_model: str = "gemini-embedding-001"
@@ -213,6 +228,26 @@ class Settings(BaseSettings):
         if not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", v):
             raise ValueError("ORION_BRIEFING_AT precisa estar no formato HH:MM (ex.: 07:30)")
         return v
+
+    @field_validator("dnd_at")
+    @classmethod
+    def _janela_do_nao_perturbe(cls, v: str) -> str:
+        v = v.strip().replace(" ", "")
+        if v and not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d", v):
+            raise ValueError("ORION_DND_AT precisa ser HH:MM-HH:MM (ex.: 22:30-07:00)")
+        return v
+
+    @field_validator("local_url")
+    @classmethod
+    def _modelo_local_so_aqui(cls, v: str) -> str:
+        """Regra 49: o modelo local não sai do computador; outro host é recusado."""
+        partes = urlsplit(v.strip())
+        if partes.scheme not in ("http", "https") or partes.hostname not in _LOCAIS:
+            raise ValueError(
+                "ORION_LOCAL_URL só aceita 127.0.0.1, localhost ou ::1 (o modelo local é deste "
+                "computador; regra 49)"
+            )
+        return v.strip()
 
     @field_validator("log_level")
     @classmethod

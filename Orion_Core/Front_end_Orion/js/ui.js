@@ -96,14 +96,15 @@
 
     /** Diálogo com um campo de texto (ex.: renomear). Enter confirma, Esc cancela; vazio não confirma.
      *  @returns {Promise<string|null>} o texto, ou null se cancelou */
-    function perguntar({ titulo, rotulo, valor = '', ok = 'Salvar', cancelar = 'Cancelar', max = 120, multilinha = false }) {
+    function perguntar({ titulo, rotulo, valor = '', ok = 'Salvar', cancelar = 'Cancelar', max = 120, multilinha = false, senha = false }) {
         return new Promise(resolver => {
             const raiz = $('#dialog-root');
             const anterior = document.activeElement;
             const idT = O.util.uid('dlg-t'), idC = O.util.uid('dlg-c');
             const campo = multilinha
                 ? el('textarea', { id: idC, class: 'input', rows: '6', maxlength: String(max), autocomplete: 'off' })
-                : el('input', { id: idC, class: 'input', type: 'text', maxlength: String(max), autocomplete: 'off', spellcheck: 'false' });
+                : el('input', { id: idC, class: 'input', type: senha ? 'password' : 'text', maxlength: String(max),
+                    autocomplete: senha ? 'current-password' : 'off', spellcheck: 'false' });
             campo.value = valor;
             const btnOk = el('button', { class: 'btn btn-primary', type: 'submit', text: ok });
             const btnNo = el('button', { class: 'btn btn-ghost', type: 'button', text: cancelar });
@@ -127,7 +128,8 @@
             form.addEventListener('submit', e => {
                 e.preventDefault();
                 // em campo multilinha as quebras de linha ficam; no de uma linha viram espaço
-                const t = multilinha ? campo.value.trim() : campo.value.replace(/\s+/g, ' ').trim();
+                // senha vai como foi digitada (espaço conta)
+                const t = senha ? campo.value : multilinha ? campo.value.trim() : campo.value.replace(/\s+/g, ' ').trim();
                 if (t) fim(t); else campo.focus();
             });
             if (multilinha) campo.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); form.requestSubmit(); } });

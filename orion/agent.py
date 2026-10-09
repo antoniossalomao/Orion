@@ -26,6 +26,7 @@ from typing import Any
 from .gateway import ChatGateway, Finish, GatewayError, TextDelta, ToolCallRequest
 from .memory import MemoryStore, Session
 from .memory.ops import Operations
+from .modos import Modos
 from .persona import PERSONA, PERSONA_VERSION
 from .policy import Action, Context, PolicyEngine, Status, ToolCall, redact
 from .policy.classes import Risk
@@ -88,11 +89,13 @@ class Agent:
         routing: bool = False,
         skills: SkillCatalog | None = None,
         library: Library | None = None,
+        modos: Modos | None = None,
     ) -> None:
         self.gateway, self.tools, self.policy, self.memory = gateway, tools, policy, memory
         self._ops = ops
         self._skills = skills
         self._library = library
+        self._modos = modos  # pânico (regra 48): corta egress, external, exec e destrutiva
         self._persona = persona
         self._clock = clock
         self._max_iter = max_iterations
@@ -268,8 +271,23 @@ class Agent:
         spec = self.policy.tools.get(nome)
         return spec is not None and spec.risk is Risk.READ
 
+    def _cortada_pelo_panico(self, nome: str) -> bool:
+        """Em pânico some tudo que fala com a rede, traz conteúdo de fora ou executa (regra 48).
+        Ferramenta sem classe conhecida também some (falha fechada)."""
+        if self._modos is None or not self._modos.panico():
+            return False
+        spec = self.policy.tools.get(nome)
+        return (
+            spec is None
+            or spec.egress
+            or spec.external
+            or spec.risk in (Risk.EXEC, Risk.DESTRUCTIVE)
+        )
+
     def _esquemas(self, read_only: bool) -> list[dict[str, Any]]:
-        todos = self.tools.schemas()
+        todos = [
+            t for t in self.tools.schemas() if not self._cortada_pelo_panico(t["function"]["name"])
+        ]
         if not read_only:
             return todos
         return [t for t in todos if self._so_leitura(t["function"]["name"])]
@@ -282,6 +300,11 @@ class Agent:
                 AgentEvent("tool", {"name": c.name, "error": c.error})
             ]
         chamada = ToolCall(c.name, c.arguments)
+        if self._cortada_pelo_panico(c.name):
+            motivo = "modo pânico: ferramentas de rede e de execução estão cortadas"
+            return json.dumps({"erro": f"bloqueada: {motivo}"}, ensure_ascii=False), [
+                AgentEvent("tool", {"name": c.name, "decision": "deny", "reason": motivo})
+            ]
         if read_only and not self._so_leitura(c.name):
             motivo = "modo só leitura: esta ferramenta não é de leitura"
             return json.dumps({"erro": f"bloqueada: {motivo}"}, ensure_ascii=False), [

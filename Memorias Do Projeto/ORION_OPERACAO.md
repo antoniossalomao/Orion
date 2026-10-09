@@ -101,6 +101,8 @@ que só o OmniRoute conhece. Com o OmniRoute, o painel mostra também **quem ser
 groq ×8"), lido dos cabeçalhos `X-OmniRoute-Provider` e `-Decision` (formato da documentação, não testado num OmniRoute
 real). A cota de verdade está nos endpoints de gerenciamento do OmniRoute (`/api/rate-limits`, `/dashboard/free-tiers`),
 com credencial própria que o Orion não usa. O painel não mostra os argumentos das ações nem nenhum segredo.
+Desde a E1 o painel também tem **Controle** (pânico e não perturbe), **Cota de hoje** e **Provedores** (a semana,
+pelo registro de saída, que sobrevive a reinício): ver §17.
 
 ### 4.2 Roteamento por tipo de tarefa
 
@@ -287,3 +289,387 @@ aceitar imagem. Aprovar ação continua **só por botão**, nunca por frase ou p
 - [ ] `ORION_WEB_TOOLS` ligado só se precisar.
 - [ ] Backup diário apontando para uma pasta sincronizada (`ORION_BACKUP_DIR`) e um `orion restore` já testado.
 - [ ] Bot do Telegram do legado parado (o Telegram recusa dois clientes no mesmo token).
+
+## 8. Memória da tela
+
+**O que faz.** De tempos em tempos lê o texto que está na tela por OCR **local** e guarda só o texto, com
+retenção curta. O modelo consulta por `buscar_tela` ("o que eu estava lendo ontem sobre Pix?").
+
+**Como ligar.**
+```
+ORION_SCREEN_MEMORY=true
+# ORION_SCREEN_INTERVAL_S=300            # uma captura a cada 5 min (mínimo 60)
+# ORION_SCREEN_RETENTION_DAYS=7          # apaga o texto mais velho que isso (1 a 90)
+# ORION_SCREEN_EXCLUDE=senha;banco;pix   # título de janela que casa com um item: nem captura
+# ORION_SCREEN_ALLOW_UNKNOWN_TITLE=false # sem título da janela, não captura
+# ORION_SCREEN_OCR_LANGS=por+eng
+```
+
+**Dependências.** **(você)** `tesseract` com o pacote de português (`por`): no Windows, o instalador do
+UB Mannheim marcando "Portuguese"; no macOS, `brew install tesseract tesseract-lang`; no Linux,
+`tesseract-ocr tesseract-ocr-por`. No Linux X11 também `xdotool` (título da janela) e `grim`, `scrot` ou
+`imagemagick` (captura). `orion doctor` avisa se faltar o `tesseract`.
+
+**O que sai do computador.** Nada. A imagem vai para um arquivo temporário apagado na hora; o OCR roda
+aqui; linhas com cara de segredo, CPF ou cartão são descartadas antes de gravar. O texto só sai se você
+perguntar algo no chat e o modelo chamar `buscar_tela` (aí os trechos achados vão ao provedor do modelo,
+como qualquer resultado de ferramenta).
+
+**Onde ver.** `orion tela` (estado e contagem), `/tela` no Telegram, Painel › Sistema e `GET /tela`.
+
+**Pausar/desligar.** Pausar: `POST /tela/pausa {"ativa": false}` (retomar com `true`), `/tela pausar` no
+Telegram. Apagar tudo o que foi guardado: `orion tela --limpar`, `DELETE /tela` ou `/tela limpar`.
+Desligar: `ORION_SCREEN_MEMORY=false` e reiniciar.
+
+**Regra.** 44 ([ORION_REGRAS.md](ORION_REGRAS.md)); código em `orion/screen_memory.py`.
+
+## 9. Ciclo de sono
+
+**O que faz.** Uma vez por noite revisa a memória: avisa fatos quase repetidos (nunca apaga), tira
+relações entre coisas ("Antônio —estuda_em→ Unimar") e destila até 3 padrões a partir dos fatos novos.
+
+**Como ligar.**
+```
+ORION_SLEEP_AT=03:00    # HH:MM; vazio = desligado
+```
+Precisa dos jobs ligados (`ORION_JOBS_ENABLED=true`, o padrão). Sem gateway de modelos só o passo dos
+duplicados roda.
+
+**Dependências.** Nenhuma além do gateway.
+
+**O que sai do computador.** Uma chamada por noite ao gateway, só com **fatos já guardados** (nunca a
+conversa crua nem conteúdo externo). A resposta é validada (tamanho, formato, nada com cara de segredo).
+
+**Onde ver.**
+- Duplicados: aviso na caixa de atividade (Painel › Atividade) e `orion fatos --duplicados`.
+- Relações: arestas do grafo com `kind=sono`.
+- Padrões: fatos com fonte `sono:destilado:<data>` na tela Conhecimento e em `orion fatos`.
+
+**Pausar/desligar.** Apagar um padrão ou duplicado: `orion esquecer <id>` (ou pela tela Conhecimento).
+Desligar: esvaziar `ORION_SLEEP_AT` e reiniciar.
+
+**Regra.** 42; código em `orion/memory/sleep.py`.
+
+## 10. Pesquisa noturna
+
+**O que faz.** Na hora marcada pesquisa na internet os assuntos que **você** escolheu, um turno só
+leitura por assunto, e grava um relatório no `00 Inbox` do vault.
+
+**Como ligar.** As três juntas, senão não sobe (o log e o `orion doctor` dizem o que falta):
+```
+ORION_RESEARCH_AT=04:00
+ORION_WEB_TOOLS=true
+ORION_VAULT_DIR=C:\Users\voce\Obsidian\Vault
+# ORION_RESEARCH_TOPICS=MCP segurança e novidades; Pix e Open Finance; LLMs locais   # até 5, separados por ;
+```
+
+**Dependências.** Gateway de modelos; chave do Gemini (`ORION_SEARCH_API_KEY` ou a de embeddings) para
+`pesquisar_com_ia`, ou `ORION_BRAVE_API_KEY` para `pesquisar_internet`.
+
+**O que sai do computador.** Os assuntos (como texto de busca) vão aos provedores de busca e ao gateway;
+as páginas lidas voltam como conteúdo externo. Nada do seu computador além disso.
+
+**Onde ver.** Uma nota por dia no `00 Inbox` (`<data hora> - Pesquisa noturna...`, tag `pesquisa`), com o
+aviso "conteúdo de fontes externas". Cada assunto vira uma conversa no canal `pesquisa`.
+
+**Pausar/desligar.** Esvaziar `ORION_RESEARCH_AT` e reiniciar.
+
+**Regra.** 39; código em `orion/research.py`.
+
+## 11. Leitura semanal
+
+**O que faz.** Na segunda-feira, junto com o briefing, o modelo escreve até 5 linhas sobre o que merece
+atenção na semana, a partir do resumo da semana que passou.
+
+**Como ligar.**
+```
+ORION_WEEKLY_AI=true
+ORION_BRIEFING_AT=07:30   # a leitura sai junto com o briefing de segunda: sem briefing, não sai
+```
+
+**Dependências.** Gateway de modelos.
+
+**O que sai do computador.** **Uma** chamada por semana ao gateway, com o resumo semanal (contagens,
+títulos de tarefas concluídas e fatos já guardados).
+
+**Onde ver.** Aviso `semanal` ("💬 Leitura do Orion: ...") na caixa de atividade e no Telegram.
+
+**Pausar/desligar.** `ORION_WEEKLY_AI=false` e reiniciar (o resumo semanal sem modelo continua saindo).
+
+**Regra.** Segue a 37 (o resumo é determinístico) com uma chamada de modelo por cima; código em
+`orion/briefing.py` (`build_weekly`) e `orion/jobs.py` (`_leitura_semanal`).
+
+## 12. n8n
+
+**O que faz.** Deixa o modelo disparar um workflow seu do n8n por webhook (`acionar_n8n`), escolhendo
+**só o nome** entre os que você cadastrou.
+
+**Como ligar.** JSON com nome e URL de cada webhook:
+```
+ORION_N8N_WEBHOOKS={"diario": "http://127.0.0.1:5678/webhook/diario", "planilha": "https://n8n.exemplo.com/webhook/abc"}
+```
+Exemplo de workflow: nó **Webhook** (método POST, caminho `diario`) → nó que usa `{{$json.body}}` (o
+corpo JSON que o modelo mandou, até 8 mil caracteres) → nó **Respond to Webhook** com um texto curto.
+
+**Dependências.** Um n8n rodando (local ou seu servidor).
+
+**O que sai do computador.** O corpo JSON vai ao endereço do webhook (se o n8n é local, não sai daqui).
+
+**Onde ver.** O cartão de aprovação mostra nome e corpo; a resposta do n8n aparece no chat (até 2 mil
+caracteres, marcada como conteúdo externo).
+
+**Pausar/desligar.** Esvaziar `ORION_N8N_WEBHOOKS` e reiniciar.
+
+**Por que sempre confirma.** Um workflow pode fazer qualquer coisa no mundo (mandar e-mail, pagar,
+apagar). Por isso `acionar_n8n` é **execução**: cada uso pede o seu aval no canal, e a resposta contamina
+a sessão (pode trazer texto de terceiros).
+
+**Regra.** 41; código em `orion/tools/n8n.py`.
+
+## 13. Plugins e skills
+
+**O que faz.** Skill é um texto de orientação (formato Agent Skills) que o modelo carrega quando precisa;
+plugin é um pacote com skills e servidores MCP, instalado e concedido por você.
+
+**Como ligar.** Já vêm ligados (`ORION_SKILLS_ENABLED=true`, `ORION_PLUGINS_ENABLED=true`); pastas em
+`ORION_SKILLS_DIR` (padrão `<dados>/skills`) e `ORION_PLUGINS_DIR` (padrão `<dados>/plugins`).
+
+Estrutura de uma skill (`<skills>/<nome>/SKILL.md`):
+```
+---
+name: resumo-de-reuniao            # a-z, 0-9 e hífen; igual ao nome da pasta
+description: Como resumir uma reunião em tópicos e próximos passos.
+---
+(corpo em Markdown, até 20 mil caracteres)
+```
+Estrutura de um plugin (`<pasta>/plugin.json`, até 200 arquivos e 5 MB, sem link simbólico):
+```json
+{"name": "pesquisa", "version": "1.0.0", "description": "Skills e busca para pesquisa",
+ "mcp": {"busca": {"command": "uvx", "args": ["pacote@1.2.3"], "default_risk": "exec",
+                   "tools": {"buscar": {"risk": "read"}}}}}
+```
+Skills do plugin ficam em `skills/` dentro da pasta.
+
+```
+uv run orion skills                         # lista as válidas e as rejeitadas, com o motivo
+uv run orion plugin instalar <pasta>        # só valida e copia
+uv run orion plugin conceder <nome>         # guarda o hash do pacote; vale depois de reiniciar
+uv run orion plugin revogar <nome>
+uv run orion plugin listar | atualizar <pasta> | remover <nome>
+```
+
+**Dependências.** As de cada servidor MCP do plugin (`npx`, `uvx`...).
+
+**O que sai do computador.** A skill é texto: só nome e descrição entram no prompt (vão ao gateway como o
+resto do contexto). Servidores MCP de plugin seguem a §5.
+
+**Onde ver.** `orion skills`, `orion plugin listar`, a tela Conhecimento (cartão Plugins) e `GET /plugins`.
+
+**Pausar/desligar.** `orion plugin revogar <nome>` (vale depois de reiniciar); qualquer mudança nos
+arquivos do plugin também cancela a concessão. `ORION_SKILLS_ENABLED=false` ou `ORION_PLUGINS_ENABLED=false`
+desligam tudo.
+
+**Regra.** 40 (skill é texto) e 45 (plugin sem poder próprio); código em `orion/skills.py` e `orion/plugins.py`.
+
+## 14. `orion transcrever`
+
+**O que faz.** Transcreve um arquivo de áudio/vídeo ou um link para uma nota no `00 Inbox` do vault.
+
+**Como ligar.** É um comando seu (nunca ferramenta do modelo):
+```
+uv run orion transcrever reuniao.mp4 --titulo "Reunião com o cliente"
+uv run orion transcrever https://www.youtube.com/watch?v=...   # baixa só o áudio
+```
+Precisa de `ORION_TRANSCRIBE_API_KEY` (Groq) e `ORION_VAULT_DIR`.
+
+**Dependências.** **(você)** `ffmpeg` no PATH; para link, `yt-dlp`.
+
+**O que sai do computador.** **O áudio** vai ao provedor de transcrição (`ORION_TRANSCRIBE_URL`, Groq por
+padrão), em pedaços de 20 min. O comando avisa e pergunta antes de enviar (`--sim` pula a pergunta). O link
+passa pela barreira de rede (só host público, sem playlist).
+
+**Onde ver.** A nota (`<data hora> - <título>.md`) no `00 Inbox`, com aviso de conteúdo de terceiros.
+
+**Pausar/desligar.** É sob demanda: sem o comando nada acontece.
+
+**Regra.** 43; código em `orion/media_transcribe.py`.
+
+## 15. Documentos e resultados
+
+**O que faz.** Documentos enviados pela interface viram texto pesquisável na memória; arquivos que o Orion
+gera (`gerar_documento`, `gerar_imagem`) ficam guardados numa biblioteca com versões.
+
+**Como ligar.** Já vem ligado (é parte da interface).
+
+**Documentos** (tela Conhecimento › Documentos, `POST /memoria/documentos`):
+- Formatos: `.txt`, `.md`, `.csv`, `.json`, `.html`, `.htm`, `.docx`, `.xlsx`, `.pdf` (PDF escaneado só
+  imagem ainda não entra: precisa de OCR antes).
+- Limite: 25 MB por arquivo; até 2 milhões de caracteres indexados. O arquivo não fica guardado: só o texto,
+  em trechos.
+- **"Disponível em"**: *global* (entra no contexto de qualquer conversa) ou um **projeto** (só nas conversas
+  dele). Hoje se escolhe no envio.
+
+**Resultados** (tela Conhecimento › Resultados, `GET /resultados`): cópia em `<dados>/resultados/` com origem (conversa,
+projeto, ferramenta); gerar de novo o mesmo nome vira a versão seguinte e as antigas ficam. Prévia de texto
+(`.txt`, `.md`, `.csv`, `.json`) e imagem; o resto (HTML, SVG inclusive) só baixa como anexo.
+
+**Dependências.** Nenhuma (a leitura de PDF, Word e Excel usa bibliotecas que já vêm no `uv sync`).
+
+**O que sai do computador.** Nada no envio: a extração de texto é local. Os trechos achados entram no
+contexto do chat (vão ao gateway) e, com `ORION_EMBED_API_KEY`, os trechos vão ao Gemini para virar vetores.
+
+**Onde ver.** Tela Conhecimento (cartões Documentos e Resultados), `GET /memoria/documentos` e `GET /resultados`.
+
+**Pausar/desligar.** Apagar: `DELETE /memoria/documentos/{id}` e `DELETE /resultados/{id}` (ou pelos botões).
+
+**Regra.** 11 (limite de upload) e 33 (imagem gerada); código em `orion/app.py` (`/memoria/documentos`,
+`/resultados`) e `orion/resultados.py`.
+
+## 16. Tabela-resumo dos opt-ins
+
+Tudo o que liga um recurso, num lugar só. Um teste (`tests/test_operacao_doc.py`) falha se aparecer
+opt-in novo sem linha aqui.
+
+| Variável | Liga | Sai do computador? (o quê, para quem) | Regra | Desligar |
+|---|---|---|---|---|
+| `ORION_DESKTOP_TOOLS` | Agir no computador: comando, arquivos, documentos, clipboard, app, Git, processos, vigilância (§4) | Não por si; o resultado das ferramentas vai ao gateway como contexto | 1, 3, 6, 22, 26 | `false` (padrão) |
+| `ORION_WEB_TOOLS` | Busca, leitura de URL, clima, Gemini Search, imagem (§4) | Sim: a busca/URL ao Google, Brave, Open-Meteo e ao site lido | 7, 32, 33 | `false` (padrão) |
+| `ORION_VISION_TOOLS` | Capturar e explicar a tela, analisar imagem (§4) | Sim, só com o seu aval: a imagem ao provedor do modelo | 28 | `false` (padrão) |
+| `ORION_VOICE_ENABLED` | Falar com o Orion pelo microfone (§4.3 A) | Sim: a fala ao Groq; o texto da resposta à Microsoft (edge-tts) | 35 | `false` (padrão) |
+| `ORION_VOICE_LIVE_ENABLED` | Voz ao vivo com o Gemini Live (§4.3 B) | Sim: o áudio do microfone ao Google | 36 | `false` (padrão) |
+| `ORION_WAKE_ENABLED` | Palavra de ativação "Orion" (§4.4) | Não antes da palavra; depois, como a voz (Groq, Microsoft) | 38 | `false` (padrão); pausa: `POST /voz/escuta` |
+| `ORION_SCREEN_MEMORY` | Memória da tela por OCR local (§8) | Não (só os trechos que o modelo buscar entram no chat) | 44 | `false` (padrão); pausa: `POST /tela/pausa` |
+| `ORION_SLEEP_AT` | Ciclo de sono à noite (§9) | Sim: fatos já guardados, uma chamada por noite ao gateway | 42 | vazio (padrão) |
+| `ORION_RESEARCH_AT` | Pesquisa noturna (§10) | Sim: os assuntos aos provedores de busca e ao gateway | 39 | vazio (padrão) |
+| `ORION_WEEKLY_AI` | Leitura semanal do modelo (§11) | Sim: o resumo semanal, uma vez por semana, ao gateway | 37 | `false` (padrão) |
+| `ORION_CONSOLIDATE` | Fatos a partir das suas falas (a cada 6 h) | Sim: as suas falas novas ao gateway | 19 | `true` (padrão) → `false` |
+| `ORION_BRIEFING_AT` | Briefing diário (§5.1, §6) | Não sem agenda; com `ORION_BRIEFING_CALENDAR_EMAIL`, a consulta ao Google pelo MCP | 30, 37 | vazio (padrão) |
+| `ORION_N8N_WEBHOOKS` | `acionar_n8n` (§12) | Sim, com o seu aval: o corpo JSON ao webhook | 41 | vazio (padrão) |
+| `ORION_TELEGRAM_TOKEN` | Canal do celular (§6) | Sim: mensagens e respostas pelo Telegram | 21, 27, 30 | vazio (padrão) |
+| `ORION_PLUGINS_ENABLED` | Plugins concedidos (§13) | Os servidores MCP do plugin seguem a §5 | 45 | `true` (padrão) → `false` |
+| `ORION_SKILLS_ENABLED` | Skills (§13) | Só nome e descrição no prompt (ao gateway) | 40 | `true` (padrão) → `false` |
+| `ORION_MCP_ENABLED` | Servidores do `mcp.json` (§5) | Depende do servidor (e-mail e agenda falam com o Google) | 24, 32 | `true` (padrão) → `false` |
+| `ORION_JOBS_ENABLED` | Jobs: lembretes, backup, vault, embeddings, consolidação, briefing | Embeddings ao Gemini (com chave); o resto conforme cada opt-in acima | 18, 20 | `true` (padrão) → `false` |
+| `ORION_LOCAL_MODEL` | Modelo local de reserva, sem ferramentas (§17.4) | Não: só `127.0.0.1` (a configuração recusa outro host) | 49 | vazio (padrão) |
+| `ORION_DND_AT` | Não perturbe por horário (§17.3) | Não | 48 | vazio (padrão) |
+| `ORION_ALLOW_PAID` | Aceitar um endereço fora da lista de provedores gratuitos (§17.1) | Para o provedor que você apontou, que **pode cobrar** | 46 | `false` (padrão) |
+
+**Exemplo: ligar a memória da tela só com esta tabela.** Instale o `tesseract` com português (§8), ponha
+`ORION_SCREEN_MEMORY=true` no `.env`, reinicie e rode `uv run orion doctor` (deve dizer "memória da tela: OCR
+local"). Para pausar, `POST /tela/pausa {"ativa": false}`; para apagar o que guardou, `orion tela --limpar`.
+
+## 17. Custo, privacidade e controle
+
+Regras 46 a 49 ([ORION_REGRAS.md](ORION_REGRAS.md)). Tudo aqui se apoia no **registro de saída**: cada chamada
+que leva dado para fora do computador vira uma linha na tabela `external_calls` (provedor, tipo, modelo, ok,
+latência, bytes de ida e volta, tipo do conteúdo), **nunca o conteúdo, a URL nem a chave**. Guarda 90 dias,
+como o audit.
+
+### 17.1 Custo zero e cota gratuita
+
+**O que faz.** Conta quanto da cota gratuita **o Orion** já usou (por dia; Brave por mês) e, com 90% usado,
+segura os jobs opcionais (pesquisa noturna, ciclo de sono, leitura semanal, consolidação) até virar o dia, com
+um aviso `cota` por dia. **O chat nunca é bloqueado**; passar de 100% vira aviso no painel.
+
+**Como ligar.** Já vem ligado. Limites (padrão = estimativa do gratuito; 0 = sem limite):
+```
+# ORION_QUOTA_GATEWAY_DIA=1000
+# ORION_QUOTA_GROQ_DIA=2000
+# ORION_QUOTA_GEMINI_DIA=1000
+# ORION_QUOTA_BRAVE_MES=1000
+```
+**(você)** Os gratuitos mudam sem aviso (o Google já cortou o do Gemini mais de uma vez): confira no painel de
+cada provedor e ajuste. A conta é a do Orion: outro programa com a mesma chave gasta a mesma cota e não aparece aqui.
+
+**Dependências.** Nenhuma.
+
+**O que sai do computador.** Nada além do que cada recurso já manda.
+
+**Onde ver.** Painel › **Cota de hoje** (barra por provedor) e **Provedores** (por provedor e tipo, na semana:
+chamadas, falhas, latência p50/p95, modelo mais usado e tráfego). `/painel` no Telegram mostra a cota.
+
+**Pausar/desligar.** Limite `0` desliga a conta daquele provedor.
+
+**Custo zero.** O `orion doctor` avisa se o gateway (ou a transcrição) aponta para um endereço fora da lista de
+gratuitos (`127.0.0.1`/`localhost`, `api.groq.com`, `generativelanguage.googleapis.com`, `api.search.brave.com`).
+Se o endereço é seu e gratuito (um OmniRoute em outra máquina, por exemplo), confirme com `ORION_ALLOW_PAID=true`.
+
+**Regra.** 46; código em `orion/costs.py`.
+
+### 17.2 Modelos fora do ar e painel de privacidade
+
+**O que faz.** Sem chamada extra a provedor nenhum, o job lê o registro de saída: se as últimas 3 chamadas ao
+gateway falharam e a primeira delas tem mais de `ORION_GATEWAY_DOWN_MIN` minutos (padrão 10), sai o aviso "Modelos
+fora do ar desde HH:MM"; quando uma volta a responder, "Modelos de volta". A tela **Privacidade** (`#/privacidade`,
+item na barra lateral e na paleta) mostra, por dia e provedor, quantos envios, quantos bytes e de que tipo (texto,
+imagem, áudio), e a lista do que saiu hoje.
+
+**Como ligar.** Já vem ligado (`ORION_GATEWAY_DOWN_MIN=10` ajusta o tempo).
+
+**Dependências.** Nenhuma.
+
+**O que sai do computador.** Nada: é leitura do que já foi registrado. O modelo local não conta como saída.
+
+**Onde ver.** Caixa de atividade (avisos `gateway`), tela Privacidade, `GET /privacidade?dias=7`.
+
+**Pausar/desligar.** O aviso não é urgente: o não perturbe o segura.
+
+**Regra.** 47; código em `orion/saidas.py`, `orion/jobs.py` (`_saude_gateway`), `orion/app.py` (`/privacidade`).
+
+### 17.3 Modo pânico e não perturbe
+
+**O que faz.** **Pânico** é um corte: tira do modelo toda ferramenta que fala com a rede, traz conteúdo de fora,
+executa ou apaga; para a memória da tela, a palavra de ativação e os jobs que usam rede (consolidação, sono,
+pesquisa, leitura semanal, embeddings, agenda do briefing). O chat continua, só com leitura local e escrita.
+**Nada volta sozinho.** **Não perturbe** só segura: os avisos não urgentes ficam na fila (lembrete e agendamento,
+que você marcou, são urgentes) e a memória da tela pausa; quando acaba, a fila sai.
+
+**Como ligar.**
+```
+uv run orion panico                 # liga (o servidor que estiver de pé obedece em segundos)
+uv run orion panico --estado
+uv run orion panico --sair          # o único jeito pela linha de comando
+uv run orion nao-perturbe 07:00     # até a próxima vez que o relógio marcar 07:00
+uv run orion nao-perturbe --sair
+ORION_DND_AT=22:30-07:00            # todo dia nesse horário
+```
+No Painel › **Controle**: "Ligar modo pânico" (confirma) e "Sair do modo pânico" (**pede a senha de novo**);
+"Não perturbe até…". Na paleta (`Ctrl+K`): "Ligar modo pânico". No Telegram: `/panico`, `/panico sair`,
+`/panico estado`. Pela API: `POST /modo/panico {"ativo": true}` (sair: `{"ativo": false, "senha": "..."}`),
+`POST /modo/nao-perturbe {"ate": "07:00"}` (ou `null`), `GET /modo`. A tecla global chega com a ponte (E2).
+
+**Dependências.** Nenhuma.
+
+**O que sai do computador.** Nada.
+
+**Onde ver.** Alerta vermelho no topo do Painel, cartão Controle, `orion doctor` e `/painel` no Telegram.
+Entrada e saída do pânico ficam no audit (`modo_panico`).
+
+**Pausar/desligar.** `orion panico --sair`, `/panico sair` ou o botão do painel com a senha. Se o audit falhar,
+o Orion **não** sai do pânico (entrar nunca é barrado).
+
+**Regra.** 48; código em `orion/modos.py`.
+
+### 17.4 Modelo local de reserva
+
+**O que faz.** Um modelo no próprio computador (Ollama) que só responde quando o gateway falha, **sem
+ferramentas** (a requisição sai sem `tools` e com "Modo reserva: sem ferramentas"). Também é o modelo do
+auto-compact (E4). Sem gateway configurado, ele sozinho mantém o chat de pé.
+
+**Como ligar.**
+```
+ORION_LOCAL_MODEL=qwen3.5:4b                 # ou gemma3:4b
+# ORION_LOCAL_URL=http://127.0.0.1:11434/v1  # só 127.0.0.1, localhost ou ::1
+```
+
+**Dependências.** **(você)** Instalar o [Ollama](https://ollama.com) e rodar `ollama pull qwen3.5:4b`. O
+`orion doctor` confere se o Ollama responde e se o modelo está baixado.
+
+**O que sai do computador.** Nada: o endereço só aceita este computador.
+
+**Onde ver.** Painel › Modelos (endpoint `local`, camada `local`) e Provedores (`ollama`); a resposta mostra
+`local/<modelo>` como quem respondeu.
+
+**Pausar/desligar.** Esvaziar `ORION_LOCAL_MODEL` e reiniciar.
+
+**Regra.** 49; código em `orion/gateway.py` (`Endpoint.tools`), `orion/app.py` (`gateway_from_settings`).

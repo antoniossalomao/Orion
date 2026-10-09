@@ -1,5 +1,8 @@
 """`orion doctor`: confere a instalação num comando, sem rede e sem imprimir segredo.
 
+A única chamada é local: com `ORION_LOCAL_MODEL`, pergunta ao Ollama deste computador
+(`127.0.0.1`) se o modelo está baixado.
+
 Cada checagem devolve (nível, o que viu). Nível `erro` impede o uso; `aviso` é algo a
 resolver; `ok` está certo. Só os NOMES das chaves aparecem, nunca o valor.
 """
@@ -10,7 +13,8 @@ import sqlite3
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
+from urllib.parse import urlsplit
 
 from .config import Settings
 from .secrets import get_secret
@@ -23,6 +27,11 @@ class Checagem:
     nome: str
     nivel: Nivel
     detalhe: str
+
+
+def _ver(secao: str) -> str:
+    """Sufixo dos avisos de opt-in: onde o ORION_OPERACAO.md explica como ligar direito."""
+    return f" (ver ORION_OPERACAO §{secao})"
 
 
 def _chave(settings: Settings, campo: str, cofre: str) -> bool:
@@ -104,14 +113,14 @@ def _opcionais(s: Settings) -> list[Checagem]:
             s.voice_enabled,
             "transcribe_api_key",
             "ORION_TRANSCRIBE_API_KEY",
-            "voz ligada sem chave de transcrição",
+            "voz ligada sem chave de transcrição" + _ver("4.3"),
         ),
         (
             "Telegram",
             bool(s.telegram_allowed_users),
             "telegram_token",
             "ORION_TELEGRAM_TOKEN",
-            "usuários liberados mas sem token",
+            "usuários liberados mas sem token" + _ver("6"),
         ),
     ]
     for nome, ligado, campo, cofre, falta in precisa:
@@ -126,7 +135,9 @@ def _opcionais(s: Settings) -> list[Checagem]:
         if faltando:
             out.append(
                 Checagem(
-                    "memória da tela", "aviso", f"ligada, mas falta instalar: {', '.join(faltando)}"
+                    "memória da tela",
+                    "aviso",
+                    f"ligada, mas falta instalar: {', '.join(faltando)}" + _ver("8"),
                 )
             )
         else:
@@ -137,10 +148,26 @@ def _opcionais(s: Settings) -> list[Checagem]:
             )
     if s.research_at and not (s.web_tools and s.vault_dir):
         out.append(
-            Checagem("pesquisa noturna", "aviso", "ORION_RESEARCH_AT sem ORION_WEB_TOOLS e vault")
+            Checagem(
+                "pesquisa noturna",
+                "aviso",
+                "ORION_RESEARCH_AT sem ORION_WEB_TOOLS e vault" + _ver("10"),
+            )
         )
     if s.wake_enabled and not s.voice_enabled:
-        out.append(Checagem("palavra de ativação", "aviso", "wake ligado sem ORION_VOICE_ENABLED"))
+        out.append(
+            Checagem(
+                "palavra de ativação", "aviso", "wake ligado sem ORION_VOICE_ENABLED" + _ver("4.4")
+            )
+        )
+    if s.weekly_ai and not s.briefing_at:
+        out.append(
+            Checagem(
+                "leitura semanal",
+                "aviso",
+                "ORION_WEEKLY_AI sem ORION_BRIEFING_AT: sai junto com o briefing" + _ver("11"),
+            )
+        )
     return out
 
 
@@ -180,11 +207,83 @@ def _vault(s: Settings) -> Checagem:
     return Checagem("vault", "ok", str(s.vault_dir))
 
 
+def _custo(s: Settings) -> list[Checagem]:
+    """Regra 46: endereço configurado fora da lista de gratuitos pede `ORION_ALLOW_PAID=true`."""
+    from .costs import host_gratuito
+
+    out: list[Checagem] = []
+    for nome, url, usado in (
+        ("gateway", s.gateway_url, bool(s.gateway_url)),
+        ("transcrição", s.transcribe_url, s.voice_enabled or bool(s.transcribe_api_key)),
+    ):
+        if not usado or host_gratuito(url):
+            continue
+        host = urlsplit(url).hostname or "?"
+        if s.allow_paid:
+            out.append(Checagem(f"custo ({nome})", "ok", f"{host} confirmado (ORION_ALLOW_PAID)"))
+        else:
+            out.append(
+                Checagem(
+                    f"custo ({nome})",
+                    "aviso",
+                    f"{host} está fora da lista de provedores gratuitos (regra 46): se é seu e "
+                    "gratuito, confirme com ORION_ALLOW_PAID=true" + _ver("17"),
+                )
+            )
+    return out
+
+
+def _modelo_local(s: Settings, get: Callable[[str], Any] | None = None) -> list[Checagem]:
+    """Regra 49: o Ollama responde em `/api/tags` e o modelo está baixado."""
+    if not s.local_model:
+        return []
+    import httpx
+
+    base = s.local_url.rstrip("/").removesuffix("/v1")
+    try:
+        resp = (get or (lambda u: httpx.get(u, timeout=2.0)))(f"{base}/api/tags")
+        nomes = {str(m.get("name", "")) for m in resp.json().get("models", [])}
+    except (httpx.HTTPError, ValueError, AttributeError, OSError) as e:
+        return [
+            Checagem(
+                "modelo local",
+                "aviso",
+                f"o Ollama não respondeu em {base} ({type(e).__name__}): instale e abra o "
+                "Ollama" + _ver("17"),
+            )
+        ]
+    alvo = s.local_model
+    if alvo in nomes or f"{alvo}:latest" in nomes:
+        return [Checagem("modelo local", "ok", f"{alvo} baixado; reserva sem ferramentas")]
+    return [
+        Checagem(
+            "modelo local", "aviso", f"{alvo} não está baixado: `ollama pull {alvo}`" + _ver("17")
+        )
+    ]
+
+
+def _modos(s: Settings) -> list[Checagem]:
+    """Pânico ligado é coisa que você precisa ver logo (regra 48)."""
+    if not s.db_path.exists():
+        return []
+    try:
+        con = sqlite3.connect(f"file:{s.db_path}?mode=ro", uri=True)
+        try:
+            r = con.execute("SELECT value FROM meta WHERE key='valor:modo:panico'").fetchone()
+        finally:
+            con.close()
+    except sqlite3.Error:
+        return []
+    if r:
+        return [Checagem("modo pânico", "aviso", "LIGADO: saia com `orion panico --sair`")]
+    return []
+
+
 def checar(s: Settings) -> list[Checagem]:
     fixas: list[Callable[[Settings], Checagem]] = [
         _dados, _banco, _login, _rede, _gateway, _mcp, _backup, _vault,
     ]  # fmt: skip
-    return [f(s) for f in fixas] + _opcionais(s)
+    return [f(s) for f in fixas] + _opcionais(s) + _custo(s) + _modelo_local(s) + _modos(s)
 
 
 def relatorio(itens: list[Checagem]) -> tuple[str, int]:

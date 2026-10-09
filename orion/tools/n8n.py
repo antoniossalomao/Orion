@@ -15,6 +15,7 @@ from urllib.parse import urlsplit
 
 import httpx
 
+from .. import saidas
 from ..policy.classes import Risk, ToolSpec
 from .registry import Tool
 
@@ -58,10 +59,17 @@ def n8n_tool(webhooks: dict[str, str], transport: httpx.BaseTransport | None = N
         if len(corpo) > MAX_CORPO:
             return {"erro": f"corpo passa de {MAX_CORPO} caracteres"}
         try:
-            with httpx.Client(timeout=15.0, transport=transport, follow_redirects=False) as c:
+            # n8n local (127.0.0.1) é "local" no registro de saída; o seu servidor, o host dele
+            with (
+                saidas.medir(
+                    saidas.provedor_da_url(url, "n8n"), "webhook", bytes_out=len(corpo.encode())
+                ) as m,
+                httpx.Client(timeout=15.0, transport=transport, follow_redirects=False) as c,
+            ):
                 r = c.post(
                     url, content=corpo.encode(), headers={"Content-Type": "application/json"}
                 )
+                m.ok, m.bytes_in = r.status_code < 400, len(r.content)
         except httpx.HTTPError as e:
             return {"erro": f"falha ao chamar o webhook: {type(e).__name__}"}
         return {"status": r.status_code, "resposta": r.text[:MAX_RESPOSTA]}

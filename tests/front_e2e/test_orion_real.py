@@ -35,16 +35,19 @@ def _esperar(url: str, caminho: str = "/health", tentativas: int = 150) -> None:
 
 
 @contextlib.contextmanager
-def _subir(tmp_path, extra_env=None):
-    """Sobe o gateway de mentira e o Orion de verdade; devolve (url, arquivo-marca)."""
+def _subir(tmp_path, extra_env=None, gw_env=None):
+    """Sobe o gateway de mentira e o Orion de verdade; devolve (url, arquivo-marca).
+    Em `extra_env`, `{p_gw}` vira a porta do gateway de mentira (para apontar outro endereço,
+    como o do modelo local, para ele)."""
     p_gw, p_app = _porta_livre(), _porta_livre()
     alvo = tmp_path / "marca.txt"
     base = {**os.environ, "PYTHONPATH": str(RAIZ)}
     gw = subprocess.Popen(
         [sys.executable, "-m", "tests.front_e2e.fake_gateway"],
         cwd=RAIZ, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-        env={**base, "FAKE_GATEWAY_PORT": str(p_gw), "FAKE_ALVO": str(alvo)},
+        env={**base, "FAKE_GATEWAY_PORT": str(p_gw), "FAKE_ALVO": str(alvo), **(gw_env or {})},
     )  # fmt: skip
+    extra_env = {k: v.replace("{p_gw}", str(p_gw)) for k, v in (extra_env or {}).items()}
     env = {
         **base,
         "ORION_DATA_DIR": str(tmp_path / "dados"),
@@ -56,7 +59,7 @@ def _subir(tmp_path, extra_env=None):
         "ORION_MCP_ENABLED": "false",
         "ORION_LOG_JSON": "false",
         "ORION_ADMIN_TOKEN": "",
-        **(extra_env or {}),
+        **extra_env,
     }
     subprocess.run(
         [sys.executable, "-m", "orion", "set-password", "--stdin"],
@@ -70,6 +73,7 @@ def _subir(tmp_path, extra_env=None):
     try:
         _esperar(f"http://127.0.0.1:{p_gw}", "/pedidos")
         _esperar(url)
+        _subir.gateway = f"http://127.0.0.1:{p_gw}"  # type: ignore[attr-defined]
         yield url, alvo
     finally:
         for proc in (app, gw):
@@ -294,3 +298,103 @@ def test_conversas_listar_renomear_fixar_e_apagar_no_orion_real(navegador, orion
     finally:
         ctx.close()
     assert not erros, erros
+
+
+# ── E1: provedores, pânico, privacidade e modelo local, no Orion de verdade ────
+@contextlib.contextmanager
+def _cliente_logado(url: str):
+    with httpx.Client(base_url=url, timeout=30) as c:
+        assert c.post("/auth/login", json={"senha": SENHA}).status_code == 200
+        yield c
+
+
+def test_prova_e1_provedores_panico_e_privacidade(navegador, tmp_path):
+    """10 chamadas ao gateway (2 falhas) aparecem no card "Provedores"; `orion panico` (a CLI, no
+    mesmo banco) corta as ferramentas de rede e execução e o painel mostra "Modo pânico"; a tela
+    de privacidade mostra o que saiu; sair do pânico pelo painel pede a senha."""
+    with _subir(tmp_path, gw_env={"FAKE_FALHAS": "3,7"}) as (url, _):
+        gw = _subir.gateway  # type: ignore[attr-defined]
+        with _cliente_logado(url) as c:
+            for i in range(10):
+                c.post("/chat", json={"texto": f"oi {i}"})
+            linha = next(
+                x
+                for x in c.get("/painel").json()["provedores"]
+                if x["provider"] == "gateway:padrão"
+            )
+            assert (linha["chamadas"], linha["falhas"]) == (10, 2)
+        env = {
+            **os.environ,
+            "PYTHONPATH": str(RAIZ),
+            "ORION_DATA_DIR": str(tmp_path / "dados"),
+        }
+        r = subprocess.run(
+            [sys.executable, "-m", "orion", "panico"], cwd=RAIZ, env=env,
+            capture_output=True, text=True, check=True,
+        )  # fmt: skip
+        assert "PÂNICO LIGADO" in r.stdout
+        with _cliente_logado(url) as c:
+            c.post("/chat", json={"texto": "oi em pânico"})
+        cortadas = httpx.get(f"{gw}/ferramentas").json()[-1]
+        assert cortadas and "executar_comando" not in cortadas and "buscar_url" not in cortadas
+        assert "buscar_memoria" in cortadas  # leitura local continua
+
+        ctx, page, erros = _pagina(navegador, url)
+        try:
+            _entrar(page)
+            page.keyboard.press("Alt+6")
+            corpo = page.locator("#painel-corpo")
+            expect(corpo.locator(".painel-alertas .banner-danger").first).to_contain_text(
+                "Modo pânico ligado", timeout=15000
+            )
+            linha = corpo.locator('[data-id="provedores"] tr[data-provedor="gateway:padrão"]')
+            expect(linha).to_contain_text("11")  # as 10 + a conversa em pânico
+            expect(linha).to_contain_text("modelo-falso")
+            expect(corpo.locator('[data-cota="gateway"] .meter-val')).to_have_text("11/1000")
+            # sair do pânico pelo painel: a senha é pedida de novo
+            corpo.get_by_role("button", name="Sair do modo pânico").click()
+            page.get_by_label("Confirme a senha").fill(SENHA)
+            page.keyboard.press("Enter")
+            expect(corpo.locator('[data-modo="panico"]')).to_have_attribute(
+                "data-estado", "desligado", timeout=8000
+            )
+            # privacidade: o que saiu hoje, sem o conteúdo
+            page.goto(f"{url}/ui/?semboot#/privacidade")
+            page.wait_for_selector("html[data-pronto='true']")
+            priv = page.locator("#privacidade-corpo")
+            expect(
+                priv.locator('[data-id="totais"] [data-provedor="gateway:padrão"]')
+            ).to_contain_text("11 envio(s)", timeout=15000)
+            expect(priv.locator('[data-id="hoje"] tbody tr')).to_have_count(11)
+            expect(priv).not_to_contain_text("oi em pânico")
+            assert [e for e in erros if "502" not in e] == []
+        finally:
+            ctx.close()
+    banco = sqlite3.connect(tmp_path / "dados" / "orion.db")
+    try:
+        acoes = [r[0] for r in banco.execute("SELECT action FROM audit WHERE tool='modo_panico'")]
+    finally:
+        banco.close()
+    assert acoes == ["entrar", "sair"]
+
+
+def test_prova_e1_modelo_local_responde_quando_o_gateway_falha(tmp_path):
+    """Gateway fora do ar (porta fechada) + o "Ollama" de mentira no lugar do modelo local: o chat
+    responde pelo local, e o pedido ao local sai sem `tools` (regra 49)."""
+    morto = _porta_livre()
+    extra = {
+        "ORION_GATEWAY_URL": f"http://127.0.0.1:{morto}/v1",
+        "ORION_LOCAL_MODEL": "qwen3.5:4b",
+        "ORION_LOCAL_URL": "http://127.0.0.1:{p_gw}/v1",
+    }
+    with _subir(tmp_path, extra) as (url, _):
+        gw = _subir.gateway  # type: ignore[attr-defined]
+        with _cliente_logado(url) as c:
+            ev = _eventos(c.post("/chat", json={"texto": "oi"}))
+            provedores = {x["provider"] for x in c.get("/painel").json()["provedores"]}
+        assert {"text": "Tudo certo."} in ev
+        assert any(isinstance(e, dict) and e.get("tier", "").startswith("local/") for e in ev)
+        assert httpx.get(f"{gw}/ferramentas").json() == [None]  # sem `tools` no corpo
+        primeira = httpx.get(f"{gw}/pedidos").json()[0][0]
+        assert primeira["role"] == "system" and "Modo reserva" in primeira["content"]
+        assert provedores == {"gateway:padrão", "ollama"}

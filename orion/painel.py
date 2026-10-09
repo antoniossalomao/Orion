@@ -22,11 +22,13 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from .agent import Agent
+    from .costs import Custos
     from .delegate import Delegator
     from .jobs import JobRunner
     from .mcp_client import McpManager
     from .memory import MemoryStore
     from .memory.ops import Operations
+    from .modos import Modos
     from .policy import PolicyEngine
 
 JANELA_H = 24
@@ -48,6 +50,8 @@ class Painel:
         telegram_ativo: Callable[[], bool] = lambda: False,
         tela: Callable[[], dict[str, Any] | None] | None = None,
         voz: Callable[[], dict[str, Any]] | None = None,
+        modos: Modos | None = None,
+        custos: Custos | None = None,
         clock: Callable[[], float] = time.time,
     ) -> None:
         self.started_at = started_at
@@ -56,6 +60,7 @@ class Painel:
         self.telegram_ativo = telegram_ativo
         self._tela = tela
         self._voz = voz
+        self.modos, self.custos = modos, custos
         self._clock = clock
 
     def montar(self) -> dict[str, Any]:
@@ -91,7 +96,7 @@ class Painel:
                 ],
             },
             "decisoes": self._decisoes(agora),
-            "avisos": {"pendentes": len(self.ops.pending_notifications(limit=1000))},
+            "avisos": {"pendentes": len(self.ops.pending_notifications(limit=1000, todos=True))},
             "jobs": {
                 "ativo": self.jobs is not None,
                 "ultima_rodada": getattr(self.jobs, "ultima_rodada", None),
@@ -103,6 +108,10 @@ class Painel:
             "voz": self._voz() if self._voz is not None else None,
             "ferramentas": len(self.agent.tools.names()) if self.agent is not None else 0,
             "mcp": dict(self.mcp.status) if self.mcp is not None else {},
+            "modos": self.modos.estado() if self.modos is not None else None,
+            "cota": self.custos.resumo() if self.custos is not None else [],
+            # o que o Orion contou por provedor na semana (registro de saída, regra 47)
+            "provedores": self.memory.external_calls_summary(agora - 7 * 86400),
         }
 
     def _semana(self, agora: float) -> list[dict[str, Any]]:
@@ -163,6 +172,11 @@ def _dur(segundos: float) -> str:
 def texto_do_painel(p: dict[str, Any]) -> str:
     """O painel em texto puro (Telegram): uma seção por assunto, só o que importa."""
     linhas = [f"📊 Painel do Orion · no ar há {_dur(p['uptime_s'])}"]
+    modos = p.get("modos") or {}
+    if modos.get("panico"):
+        linhas.append("🚨 MODO PÂNICO: rede, execução, tela e escuta cortadas (/panico sair)")
+    if modos.get("nao_perturbe"):
+        linhas.append("🌙 Não perturbe: avisos não urgentes esperando na fila")
 
     m = p["modelos"]
     if not m["configurado"]:
@@ -189,6 +203,15 @@ def texto_do_painel(p: dict[str, Any]) -> str:
             "• por dia: "
             + " · ".join(f"{d['dia'][6:]}/{d['dia'][4:6]} {d['total']}" for d in semana)
         )
+
+    cota = [c for c in p.get("cota") or [] if c.get("usado") or c.get("estado") != "ok"]
+    if cota:
+        linhas.append("\n🎟️ Cota gratuita (o que o Orion contou)")
+        for c in cota:
+            limite = f"/{c['limite']}" if c["limite"] else ""
+            quando = "hoje" if c["periodo"] == "dia" else "no mês"
+            alerta = " ⚠️" if c["estado"] in ("alta", "estourada") else ""
+            linhas.append(f"• {c['nome']}: {c['usado']}{limite} {quando}{alerta}")
 
     if p["clis"]:
         linhas.append("\n💻 CLIs oficiais (hoje)")

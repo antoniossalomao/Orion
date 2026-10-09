@@ -215,3 +215,29 @@
 .painel-kv:first-child { border-top: none; padding-top: 0; }
 .painel-kv dt { color: var(--text-2); }
 .painel-kv dd { margin: 0; color: var(--text-1); text-align: right; overflow-wrap: anywhere; font-size: var(--fs-xs); }
+
+/* ── tabelas do painel e da privacidade ─────────────────────────────────── */
+.tabela-rola { overflow-x: auto; border: 1px solid var(--line-1); border-radius: var(--r-3); }
+.tabela { width: 100%; border-collapse: collapse; font-size: var(--fs-xs); }
+.tabela th, .tabela td { padding: 0.45rem 0.65rem; text-align: left; border-bottom: 1px solid var(--line-1); vertical-align: top; overflow-wrap: anywhere; }
+.tabela thead th { background: rgb(255 255 255 / 0.03); font-weight: 600; color: var(--text-2); white-space: nowrap; }
+.tabela tbody th { font-weight: 500; color: var(--text-1); }
+.tabela tbody tr:last-child > * { border-bottom: none; }
+.page-acoes { display: flex; align-items: center; gap: var(--s-2); }
+
+/* ── privacidade: barras empilhadas por provedor (geometria em charts.empilhadas) ── */
+.priv-grafico { display: flex; align-items: flex-end; gap: var(--s-2); height: 9rem; margin: 0 0 var(--s-3); padding: 0; list-style: none; }
+.priv-dia { flex: 1; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 0.15rem; min-width: 0; }
+.priv-coluna { width: 70%; min-height: 2px; display: flex; flex-direction: column-reverse; border-radius: 3px 3px 0 0; overflow: hidden; background: var(--line-1); }
+.priv-seg { display: block; width: 100%; }
+.priv-n { font-size: var(--fs-2xs); color: var(--text-2); }
+.priv-r { font-size: var(--fs-2xs); color: var(--text-3); }
+.priv-legenda { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-4); margin: 0; padding: 0; list-style: none; font-size: var(--fs-xs); color: var(--text-2); }
+.priv-legenda li { display: inline-flex; align-items: center; gap: 0.4rem; }
+.priv-cor { width: 0.7rem; height: 0.7rem; border-radius: 2px; }
+.priv-c0 { background: var(--accent); }
+.priv-c1 { background: var(--ok); }
+.priv-c2 { background: var(--signal); }
+.priv-c3 { background: var(--danger); }
+.priv-c4 { background: var(--star); }
+.priv-c5 { background: var(--text-3); }

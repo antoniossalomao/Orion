@@ -113,6 +113,7 @@ def test_migracao_v5_para_v6_preserva_conversas(tmp_path):
     m = MemoryStore(db)
     s = _conversa(m, "web", "antes")
     m._conn.executescript(
+        "DROP TABLE external_calls; ALTER TABLE notifications DROP COLUMN urgent;"
         "DROP INDEX idx_sessions_project; ALTER TABLE sessions DROP COLUMN project_id;"
         "DROP TABLE artifacts;"
         "ALTER TABLE documents DROP COLUMN project_id;"

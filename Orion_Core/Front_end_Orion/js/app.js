@@ -1,6 +1,6 @@
 /* ==========================================================================
    ORION — app.js | rotas por hash, atalhos, janela, boot e ligação dos módulos
-   Rotas: #/ · #/chat · #/memoria · #/integracoes · #/config · #/painel · #/conhecimento (botão voltar funciona,
+   Rotas: #/ · #/chat · #/memoria · #/integracoes · #/config · #/painel · #/conhecimento · #/privacidade (botão voltar funciona,
    dá para abrir direto numa tela). Telas ocultas ficam `inert`: nada de Tab invisível.
    ========================================================================== */
 (function () {
@@ -20,6 +20,7 @@
         config: { titulo: 'Configurações', rota: '/config' },
         painel: { titulo: 'Painel', rota: '/painel' },   // por último: não muda os atalhos Alt+1…5
         conhecimento: { titulo: 'Conhecimento', rota: '/conhecimento' },
+        privacidade: { titulo: 'Privacidade', rota: '/privacidade' },
     };
     const VIEW_DA_ROTA = Object.fromEntries(Object.entries(VIEWS).map(([v, d]) => [d.rota, v]));
     let atual = null, opcoesPendentes = {};
@@ -124,6 +125,14 @@
                 if (!d.markdown || !d.total_msgs) { ui.toast('Nada para copiar ainda.', { tipo: 'aviso', ms: 2400 }); return; }
                 ui.toast((await ui.copiar(d.markdown)) ? `Conversa copiada (${d.total_msgs} mensagens).` : 'Não consegui copiar.', { tipo: 'ok', ms: 2000 });
             } catch (e) { ui.toast(`Falha ao copiar: ${e.message}`, { tipo: 'erro' }); }
+        },
+        /** modo pânico (regra 48): ligar é um clique confirmado; sair é no Painel, com a senha */
+        async panico() {
+            const sim = await ui.confirmar({ titulo: 'Ligar o modo pânico?', ok: 'Ligar', perigo: true,
+                texto: 'Corta as ferramentas de rede e de execução, a memória da tela, a escuta e os jobs que usam rede. Nada volta sozinho: para sair, a senha é pedida de novo no Painel.' });
+            if (!sim) return;
+            try { await api.panico(true); ui.toast('Modo pânico ligado.', { tipo: 'aviso' }); }
+            catch (e) { ui.toast(`Não consegui ligar: ${e.message}`, { tipo: 'erro' }); }
         },
         modelo(id) {
             prefs.set('model', id);

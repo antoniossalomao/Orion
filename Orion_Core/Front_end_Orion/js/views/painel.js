@@ -94,6 +94,80 @@
         }));
     }
 
+    /** Cota gratuita que o Orion contou hoje (regra 46), no mesmo medidor das CLIs */
+    function cotaEl(cota) {
+        if (!cota?.length) return vazio('Sem conta de cota neste cérebro.');
+        return el('div', { class: 'painel-meters' }, ...cota.map(c => {
+            const u = L.usoCota(c);
+            const medido = c.limite ? { role: 'meter', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': String(u.pct) } : {};
+            return el('div', { class: 'meter painel-meter', dataset: { sev: u.sev, cota: c.provedor }, 'aria-label': `${c.nome}: ${u.valor}, ${u.texto}`, ...medido },
+                el('span', { text: c.nome }), el('span', { class: 'meter-track' }, el('span', { class: 'meter-fill', style: `width:${u.pct}%` })),
+                el('span', { class: 'meter-val', text: u.valor }), el('small', { class: 'painel-meter-nota', text: u.texto }));
+        }));
+    }
+
+    /** Provedores na semana (registro de saída, regra 47): chamadas, falhas, latência e tráfego */
+    function provedoresEl(lista) {
+        const linhas = L.linhasProvedores(lista);
+        if (!linhas.length) return vazio('Nenhuma chamada para fora nesta semana.');
+        const th = texto => el('th', { scope: 'col', text: texto });
+        // rolável na horizontal: precisa de foco pelo teclado (axe: scrollable-region-focusable)
+        return el('div', { class: 'tabela-rola', tabindex: '0', role: 'region', 'aria-label': 'Provedores na semana' }, el('table', { class: 'tabela painel-provedores-tab' },
+            el('caption', { class: 'sr-only', text: 'Chamadas por provedor nos últimos 7 dias' }),
+            el('thead', {}, el('tr', {}, th('Provedor'), th('Tipo'), th('Chamadas'), th('Falhas'), th('Latência'), th('Modelo'), th('Tráfego'))),
+            el('tbody', {}, ...linhas.map(x => el('tr', { dataset: { provedor: x.provedor, tipo: x.tipo } },
+                el('th', { scope: 'row', class: 'mono', text: x.provedor }), el('td', { text: x.tipo }),
+                el('td', { class: 'mono', text: String(x.chamadas) }), el('td', { class: 'mono', text: String(x.falhas) }),
+                el('td', { class: 'mono', text: x.latencia }), el('td', { class: 'mono', text: x.modelo }),
+                el('td', { class: 'mono', text: x.trafego }))))));
+    }
+
+    /** Pânico e não perturbe (regra 48): entrar no pânico é um clique; sair pede a senha de novo */
+    function controleEl(m) {
+        if (!m) return vazio('Este cérebro não tem modo pânico.');
+        const r = L.resumoModos(m);
+        const botao = (texto, fn, extra = {}) => el('button', { class: 'btn btn-outline btn-sm', type: 'button', text: texto, on: { click: fn }, ...extra });
+        return el('div', {},
+            el('dl', { class: 'painel-dl' },
+                el('div', { class: 'painel-kv', dataset: { modo: 'panico', estado: m.panico ? 'ligado' : 'desligado' } },
+                    el('dt', { text: 'Modo pânico' }), el('dd', { text: r.panico })),
+                el('div', { class: 'painel-kv', dataset: { modo: 'nao-perturbe', estado: m.nao_perturbe ? 'ligado' : 'desligado' } },
+                    el('dt', { text: 'Não perturbe' }), el('dd', { text: r.dnd }))),
+            el('div', { class: 'conh-acoes' },
+                m.panico ? botao('Sair do modo pânico', sairDoPanico) : botao('Ligar modo pânico', entrarNoPanico, { class: 'btn btn-danger btn-sm' }),
+                m.nao_perturbe_ate ? botao('Desligar não perturbe', () => naoPerturbe(null)) : botao('Não perturbe até…', perguntarNaoPerturbe)));
+    }
+
+    async function entrarNoPanico() {
+        const sim = await O.ui.confirmar({ titulo: 'Ligar o modo pânico?', ok: 'Ligar', perigo: true,
+            texto: 'Corta as ferramentas de rede e de execução, a memória da tela, a escuta e os jobs que usam rede. Nada volta sozinho: para sair, a senha é pedida de novo.' });
+        if (!sim) return;
+        try { await api.panico(true); O.ui.toast('Modo pânico ligado.', { tipo: 'aviso' }); }
+        catch (e) { O.ui.toast(`Não consegui ligar: ${e.message}`, { tipo: 'erro' }); }
+        atualizar();
+    }
+
+    async function sairDoPanico() {
+        const senha = await O.ui.perguntar({ titulo: 'Sair do modo pânico', rotulo: 'Confirme a senha', ok: 'Sair', senha: true, max: 256 });
+        if (senha == null) return;
+        try { await api.panico(false, senha); O.ui.toast('Modo pânico desligado.', { tipo: 'ok' }); }
+        catch (e) { O.ui.toast(e.message, { tipo: 'erro' }); }
+        atualizar();
+    }
+
+    async function perguntarNaoPerturbe() {
+        const ate = await O.ui.perguntar({ titulo: 'Não perturbe', rotulo: 'Até que horas? (HH:MM)', valor: '07:00', ok: 'Ligar', max: 5 });
+        if (ate == null) return;
+        if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(ate)) { O.ui.toast('Use o formato HH:MM, por exemplo 07:00.', { tipo: 'aviso' }); return; }
+        naoPerturbe(ate);
+    }
+
+    async function naoPerturbe(ate) {
+        try { await api.naoPerturbe(ate); O.ui.toast(ate ? `Não perturbe até ${ate}.` : 'Não perturbe desligado.', { ms: 2200 }); }
+        catch (e) { O.ui.toast(`Não consegui mudar: ${e.message}`, { tipo: 'erro' }); }
+        atualizar();
+    }
+
     function aprovacoesEl(a) {
         if (!a?.pendentes) return vazio('Nenhuma ação esperando aval.');
         return el('div', {}, el('ul', { class: 'painel-lista' }, ...a.itens.map(i => el('li', { class: 'painel-item' },
@@ -151,7 +225,10 @@
         raiz.replaceChildren(
             alertasEl(a),
             el('div', { class: 'grid grid-2 painel-grade' },
+                cartao('controle', 'Controle', dados.modos?.panico ? 'Modo pânico' : null, controleEl(dados.modos)),
+                cartao('cota', 'Cota de hoje', 'o que o Orion contou; não é o painel do provedor', cotaEl(dados.cota)),
                 cartao('modelos', 'Modelos', 'desde que o Orion subiu; não é a cota do provedor', modelosEl(dados.modelos, dados.roteamento)),
+                cartao('provedores', 'Provedores', 'últimos 7 dias, pelo registro de saída', provedoresEl(dados.provedores)),
                 cartao('atividade', 'Atividade', atividade ? `${atividade.nao_lidos} não lido(s)` : null, atividadeEl(atividade)),
                 cartao('semana', 'Uso da semana', 'respostas por dia', semanaEl(dados.semana)),
                 cartao('clis', 'CLIs oficiais', 'uso de hoje', clisEl(dados.clis)),

@@ -117,6 +117,7 @@
             <a class="sb-item" href="#/integracoes" data-view="integracoes" data-tip="Integrações" data-tip-pos="right"><svg class="i" aria-hidden="true"><use href="#i-plug"/></svg><span class="sb-txt">Integrações</span></a>
             <a class="sb-item" href="#/painel" data-view="painel" data-tip="Painel" data-tip-pos="right"><svg class="i" aria-hidden="true"><use href="#i-gauge"/></svg><span class="sb-txt">Painel</span></a>
             <a class="sb-item" href="#/conhecimento" data-view="conhecimento" data-tip="Conhecimento" data-tip-pos="right"><svg class="i" aria-hidden="true"><use href="#i-file"/></svg><span class="sb-txt">Conhecimento</span></a>
+            <a class="sb-item" href="#/privacidade" data-view="privacidade" data-tip="Privacidade" data-tip-pos="right"><svg class="i" aria-hidden="true"><use href="#i-shield"/></svg><span class="sb-txt">Privacidade</span></a>
             <a class="sb-item" href="#/config" data-view="config" data-tip="Configurações" data-tip-pos="right"><svg class="i" aria-hidden="true"><use href="#i-sliders"/></svg><span class="sb-txt">Configurações</span></a>
         </nav>
 
@@ -276,6 +277,24 @@
                         <button id="conhecimento-refresh" class="btn btn-outline btn-sm" type="button"><svg class="i" aria-hidden="true"><use href="#i-refresh"/></svg>Atualizar</button>
                     </div>
                     <div id="conhecimento-corpo" class="painel-corpo" aria-busy="true"></div>
+                </div>
+            </section>
+
+            <!-- Privacidade: o que saiu do computador (regra 47) -->
+            <section id="view-privacidade" class="view page" data-view="privacidade" aria-label="Privacidade">
+                <div class="page-inner">
+                    <div class="page-head">
+                        <div><h2>Privacidade</h2><p>O que saiu do computador: para quem, quanto e de que tipo. Nunca o conteúdo.</p></div>
+                        <div class="page-acoes">
+                            <label class="sr-only" for="privacidade-dias">Período</label>
+                            <select id="privacidade-dias" class="select w-11">
+                                <option value="7" selected>7 dias</option>
+                                <option value="30">30 dias</option>
+                            </select>
+                            <button id="privacidade-refresh" class="btn btn-outline btn-sm" type="button"><svg class="i" aria-hidden="true"><use href="#i-refresh"/></svg>Atualizar</button>
+                        </div>
+                    </div>
+                    <div id="privacidade-corpo" class="painel-corpo" aria-busy="true"></div>
                 </div>
             </section>
 
@@ -447,6 +466,7 @@
 <script src="js/views/integrations.js"></script>
 <script src="js/views/painel.js"></script>
 <script src="js/views/conhecimento.js"></script>
+<script src="js/views/privacidade.js"></script>
 <script src="js/views/settings.js"></script>
 <script src="js/app.js"></script>
 </body>
