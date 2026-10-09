@@ -33,13 +33,22 @@ import json
 import logging
 import re
 import threading
+import time
 from collections.abc import Callable, Mapping
 from concurrent.futures import Future
 from contextlib import AbstractAsyncContextManager
 from pathlib import Path
 from typing import Any, Protocol
+from urllib.parse import urlsplit
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
 from .policy.classes import Risk, ToolSpec
 from .secrets import get_secret
@@ -73,8 +82,12 @@ class ToolRule(BaseModel):
 
 
 class ServerConfig(BaseModel):
+    """Um servidor MCP: ou um comando local (stdio) ou um endereço (Streamable HTTP)."""
+
     model_config = ConfigDict(extra="forbid")
-    command: str = Field(min_length=1)
+    command: str | None = None
+    url: str | None = None  # servidor remoto (Streamable HTTP): http(s)://..., sem usuário na URL
+    headers: dict[str, str] = Field(default_factory=dict)  # só com `url`; `${NOME}` vem do cofre
     args: list[str] = Field(default_factory=list)
     env: dict[str, str] = Field(default_factory=dict)
     cwd: str | None = None
@@ -84,6 +97,22 @@ class ServerConfig(BaseModel):
     allow: list[str] | None = None  # só estas ferramentas são expostas
     tools: dict[str, ToolRule] = Field(default_factory=dict)
     timeout_s: float = Field(default=60.0, gt=0, le=600)
+
+    @model_validator(mode="after")
+    def _um_transporte(self) -> ServerConfig:
+        if bool(self.command) == bool(self.url):
+            raise ValueError(
+                "use `command` (servidor local) OU `url` (servidor remoto), não os dois"
+            )
+        if self.url:
+            partes = urlsplit(self.url)
+            if partes.scheme not in ("http", "https") or not partes.hostname or partes.username:
+                raise ValueError("`url` deve ser http(s) e sem usuário/senha na própria URL")
+            if self.args or self.cwd or self.env:
+                raise ValueError("`args`, `cwd` e `env` só valem com `command`; use `headers`")
+        elif self.headers:
+            raise ValueError("`headers` só vale com `url`")
+        return self
 
     @field_validator("default_risk")
     @classmethod
@@ -144,17 +173,18 @@ def tool_name(servidor: str, ferramenta: str) -> str:
 def resolve_env(
     env: Mapping[str, str], lookup: Callable[[str], str | None] = get_secret
 ) -> dict[str, str]:
-    """`"${NOME}"` vira o segredo `NOME` (ambiente ou cofre); falta = erro claro."""
+    """`${NOME}` (no valor todo ou dentro dele, ex.: `Bearer ${TOKEN}`) vira o segredo `NOME`
+    (ambiente ou cofre); falta = erro claro."""
     saida: dict[str, str] = {}
     for chave, valor in env.items():
-        m = re.fullmatch(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}", valor)
-        if m:
+
+        def trocar(m: re.Match[str], chave: str = chave) -> str:
             segredo = lookup(m.group(1))
             if not segredo:
                 raise McpConfigError(f"variável {m.group(1)} (env.{chave}) não está definida")
-            saida[chave] = segredo
-        else:
-            saida[chave] = valor
+            return segredo
+
+        saida[chave] = re.sub(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}", trocar, valor)
     return saida
 
 
@@ -190,8 +220,17 @@ ClientFactory = Callable[
 def sdk_client_factory(
     _nome: str, cfg: ServerConfig, env: dict[str, str]
 ) -> AbstractAsyncContextManager[McpClient]:
-    """Cliente do SDK oficial falando com o servidor por stdin/stdout."""
+    """Cliente do SDK oficial: stdin/stdout (`command`) ou Streamable HTTP (`url`)."""
     from mcp import Client, StdioServerParameters
+
+    if cfg.url:
+        import httpx2
+        from mcp.client.streamable_http import streamable_http_client
+
+        # cabeçalhos próprios do servidor MCP (nunca o token do Orion); sem seguir para outro host
+        http = httpx2.AsyncClient(headers=env, timeout=httpx2.Timeout(30.0, read=300.0))
+        return Client(streamable_http_client(cfg.url, http_client=http))  # type: ignore[return-value]
+    assert cfg.command is not None
 
     args = [str(Path(a).expanduser()) if a.startswith("~") else a for a in cfg.args]
     return Client(  # type: ignore[return-value]  # o Client é um contexto async que devolve a si
@@ -236,6 +275,11 @@ class McpManager:
         self.specs: dict[str, ToolSpec] = {}
         self.status: dict[str, str] = {}  # servidor -> "ok (N ferramentas)" ou o motivo da falha
         self._remotas: dict[str, tuple[str, str]] = {}  # nome exposto -> (servidor, nome original)
+        self._paradas: dict[str, asyncio.Event] = {}
+        self._caiu: set[str] = (
+            set()
+        )  # servidores que estavam de pé e caíram (candidatos a reconectar)
+        self._tentou: dict[str, float] = {}  # servidor -> quando tentou reconectar pela última vez
 
     # ── ciclo de vida ─────────────────────────────────────────────────────────────
     def start(self) -> list[Tool]:
@@ -289,8 +333,13 @@ class McpManager:
         await asyncio.gather(*self._tarefas, return_exceptions=True)
 
     async def _conectar(self, nome: str, cfg: ServerConfig) -> list[Tool]:
-        env = resolve_env(cfg.env, self._lookup)
+        # com `url`, o dicionário resolvido são os cabeçalhos HTTP (segredos `${NOME}` do cofre)
+        env = resolve_env(cfg.headers if cfg.url else cfg.env, self._lookup)
         pronto: asyncio.Future[list[Tool]] = asyncio.get_running_loop().create_future()
+        parada = (
+            asyncio.Event()
+        )  # fecha SÓ este servidor (reconexão); a parada geral cancela a tarefa
+        self._paradas[nome] = parada
 
         async def viver() -> None:
             try:
@@ -298,8 +347,7 @@ class McpManager:
                     anunciadas = await self._listar(cliente)
                     self._clients[nome] = cliente
                     pronto.set_result(self._expor(nome, cfg, anunciadas))
-                    assert self._stop is not None
-                    await self._stop.wait()
+                    await parada.wait()
             except asyncio.CancelledError:
                 raise
             except Exception as e:  # noqa: BLE001
@@ -307,8 +355,11 @@ class McpManager:
                     pronto.set_exception(e)
                 else:
                     log.error("servidor MCP '%s' caiu: %s", nome, e)
+                    self._caiu.add(nome)
+                    self.status[nome] = f"caiu: {type(e).__name__}"
             finally:
-                self._clients.pop(nome, None)
+                if self._paradas.get(nome) is parada:
+                    self._clients.pop(nome, None)
 
         self._tarefas.append(asyncio.create_task(viver(), name=f"mcp-{nome}"))
         return await asyncio.wait_for(pronto, timeout=self._connect_timeout)
@@ -343,7 +394,13 @@ class McpManager:
                 esquema = {"type": "object", "properties": {}}
             descricao = f"[MCP {servidor}] {(a.description or a.name)[:MAX_DESCRICAO]}"
             tools.append(
-                Tool(spec.name, descricao, esquema, self._chamador(spec.name, cfg.timeout_s))
+                Tool(
+                    spec.name,
+                    descricao,
+                    esquema,
+                    self._chamador(spec.name, cfg.timeout_s),
+                    validar=True,  # o esquema do servidor vale de verdade (C08)
+                )
             )
         return tools
 
@@ -353,10 +410,46 @@ class McpManager:
 
         return chamar
 
+    # ── reconexão (C12) ───────────────────────────────────────────────────────────
+    RECONECTAR_A_CADA_S = 30.0
+
+    def _tentar_reconectar(self, servidor: str, loop: asyncio.AbstractEventLoop) -> dict[str, Any]:
+        """Servidor que caiu volta na PRÓXIMA chamada (no máximo 1 tentativa a cada 30 s). A
+        chamada que o encontrou fora do ar **não é repetida**: ela pode ter efeito colateral, e
+        quem decide repetir é o modelo (com a política de sempre) ou você."""
+        agora = time.monotonic()
+        if agora - self._tentou.get(servidor, float("-inf")) < self.RECONECTAR_A_CADA_S:
+            return {"erro": f"o servidor MCP '{servidor}' caiu; nova tentativa de conexão em breve"}
+        self._tentou[servidor] = agora
+        cfg = self._cfg.servers[servidor]
+        fut = asyncio.run_coroutine_threadsafe(self._conectar(servidor, cfg), loop)
+        try:
+            fut.result(timeout=self._connect_timeout + 5)
+        except Exception as e:  # noqa: BLE001
+            fut.cancel()
+            self.status[servidor] = f"caiu: {type(e).__name__}"
+            return {"erro": f"o servidor MCP '{servidor}' caiu e não voltou ({type(e).__name__})"}
+        self._caiu.discard(servidor)
+        self.status[servidor] = "ok (reconectado)"
+        return {
+            "erro": f"o servidor MCP '{servidor}' tinha caído e foi reconectado agora; esta "
+            "chamada NÃO foi repetida (pode ter efeito colateral): peça de novo se for seguro"
+        }
+
+    def _marcar_queda(self, servidor: str, loop: asyncio.AbstractEventLoop) -> None:
+        self._caiu.add(servidor)
+        self.status[servidor] = "caiu: conexão perdida"
+        parada = self._paradas.get(servidor)
+        if parada is not None:  # encerra a tarefa velha (processo órfão, conexão pendurada)
+            loop.call_soon_threadsafe(parada.set)
+        self._clients.pop(servidor, None)
+
     # ── chamada ───────────────────────────────────────────────────────────────────
     def call(self, nome: str, args: dict[str, Any], timeout_s: float = 60.0) -> dict[str, Any]:
         servidor, original = self._remotas[nome]
         cliente, loop = self._clients.get(servidor), self._loop
+        if cliente is None and loop is not None and servidor in self._caiu:
+            return self._tentar_reconectar(servidor, loop)
         if cliente is None or loop is None:
             return {"erro": f"o servidor MCP '{servidor}' não está conectado"}
         futuro: Future[Any] = asyncio.run_coroutine_threadsafe(
@@ -370,14 +463,42 @@ class McpManager:
         except Exception as e:  # noqa: BLE001 — falha do servidor vira resultado, não derruba o turno
             if "timed out" in str(e).lower():  # o SDK levanta MCPError, não TimeoutError
                 return {"erro": f"tempo esgotado ({timeout_s:.0f}s) no servidor MCP '{servidor}'"}
+            if _conexao_perdida(e):  # o processo/conexão morreu: a PRÓXIMA chamada reconecta
+                self._marcar_queda(servidor, loop)
+                return {
+                    "erro": f"o servidor MCP '{servidor}' caiu durante a chamada; ela pode ou não "
+                    "ter tido efeito. Na próxima chamada o Orion tenta reconectar"
+                }
             return {"erro": f"servidor MCP '{servidor}': {type(e).__name__}: {e}"}
         texto, erro = _texto(resultado)
         return {"erro": texto or "erro sem mensagem"} if erro else {"texto": texto}
 
 
-def manager_from_file(path: Path | str, **kw: Any) -> McpManager | None:
-    """Gerente para o `mcp.json` (None se não há arquivo ou servidor habilitado)."""
+def _conexao_perdida(e: BaseException) -> bool:
+    """O erro indica que o servidor morreu ou a conexão acabou (e não que a ferramenta falhou)."""
+    nomes = {c.__name__ for c in type(e).__mro__}
+    texto = str(e).lower()
+    return bool(
+        nomes
+        & {
+            "ClosedResourceError",
+            "BrokenResourceError",
+            "EndOfStream",
+            "ConnectionError",
+            "BrokenPipeError",
+        }
+    ) or any(t in texto for t in ("connection closed", "closed", "broken pipe", "eof"))
+
+
+def manager_from_file(
+    path: Path | str, extra_servers: Mapping[str, ServerConfig] | None = None, **kw: Any
+) -> McpManager | None:
+    """Gerente para o `mcp.json` (None se não há arquivo ou servidor habilitado).
+    `extra_servers`: servidores de plugins concedidos; o `mcp.json` vale primeiro em colisão."""
     cfg = load_config(path)
+    for nome, srv in (extra_servers or {}).items():
+        if nome not in cfg.servers:
+            cfg.servers[nome] = srv
     if not any(c.enabled for c in cfg.servers.values()):
         return None
     return McpManager(cfg, **kw)

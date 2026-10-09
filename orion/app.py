@@ -9,6 +9,7 @@ import json
 import logging
 import re
 import shutil
+import tempfile
 import threading
 import time
 import uuid
@@ -16,17 +17,20 @@ from collections.abc import AsyncIterator, Callable
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Annotated, Any
 from urllib.parse import urlparse
 
 from fastapi import (
     Depends,
     FastAPI,
+    Form,
     Header,
     HTTPException,
     Query,
     Request,
     Response,
+    UploadFile,
     WebSocket,
     WebSocketDisconnect,
 )
@@ -53,14 +57,27 @@ from .memory import MemoryStore
 from .memory.consolidate import Consolidator
 from .memory.embedders import GeminiEmbedder
 from .memory.ops import Operations
+from .memory.sleep import SleepCycle
 from .memory.store import Message, Session
 from .painel import Painel, texto_do_painel
+from .plugins import PluginError, PluginStore
+from .plugins import describe as describe_plugin
 from .policy import ApprovalStore, PathGuard, PolicyEngine, redact
 from .policy.paths import default_safe_roots
+from .resultados import PREVIA_IMAGEM, PREVIA_TEXTO, Library
+from .screen_memory import (
+    ScreenMemory,
+    capturador_de_tela,
+    comando_tela,
+    ocr_tesseract,
+    parse_lista,
+    titulo_da_janela,
+)
 from .secrets import get_secret
 from .skills import TOOL_SPEC as SKILL_SPEC
 from .skills import SkillCatalog, skill_tool
 from .tools import default_registry
+from .tools.documents import MAX_ARQUIVO, TIPOS_LEITURA, extrair_texto
 from .tools.processes import ProcessManager
 from .transcribe import Transcriber
 from .vision import Vision
@@ -86,6 +103,7 @@ FRONT_DIR = PROJECT_ROOT / "Orion_Core" / "Front_end_Orion"
 
 audit_log = logging.getLogger("orion.audit")
 log = logging.getLogger("orion.app")
+MAX_TEXTO_DOCUMENTO = 2_000_000  # caracteres indexados por documento enviado
 
 
 class FrontStatic(StaticFiles):
@@ -117,6 +135,8 @@ class AppState:
     live: Callable[[], AbstractAsyncContextManager[Any]] | None = None  # voz ao vivo (B)
     voz: VozStats = field(default_factory=VozStats)
     escuta: WakeListener | None = None  # palavra de ativação (regra 38)
+    tela: ScreenMemory | None = None  # memória da tela (regra 44)
+    biblioteca: Library | None = None  # resultados gerados (C34)
 
 
 def build_policy(
@@ -270,10 +290,45 @@ def mcp_from_settings(settings: Settings) -> McpManager | None:
     if not settings.mcp_enabled:
         return None
     try:
-        return manager_from_file(settings.effective_mcp_config)
+        extras = (
+            PluginStore(settings.effective_plugins_dir).servidores_mcp()
+            if settings.plugins_enabled
+            else {}
+        )
+        return manager_from_file(settings.effective_mcp_config, extras)
     except McpConfigError as e:
         log.error("MCP desligado: %s", e)
         return None
+
+
+def _estado_da_tela(tela: ScreenMemory | None, memory: MemoryStore) -> dict[str, Any]:
+    """Só contagens: o texto guardado nunca aparece no painel nem na API de estado."""
+    if tela is None:
+        return {"ligada": False}
+    return {
+        "ligada": True,
+        "pausada": tela.pausada,
+        "registros": memory.screen_count(),
+        "hoje": memory.screen_count(time.time() - 86400),
+        **tela.stats,
+    }
+
+
+def screen_from_settings(settings: Settings, memory: MemoryStore) -> ScreenMemory | None:
+    """Só com ORION_SCREEN_MEMORY=true. Sem tesseract a rodada avisa e não grava nada."""
+    if not settings.screen_memory:
+        return None
+    langs = settings.screen_ocr_langs
+    return ScreenMemory(
+        memory,
+        capture=capturador_de_tela(),
+        ocr=lambda img: ocr_tesseract(img, langs=langs),
+        title=titulo_da_janela,
+        interval_s=settings.screen_interval_s,
+        retention_days=settings.screen_retention_days,
+        exclude=parse_lista(settings.screen_exclude),
+        allow_unknown_title=settings.screen_allow_unknown_title,
+    )
 
 
 def transcriber_from_settings(settings: Settings) -> Transcriber | None:
@@ -658,6 +713,7 @@ def create_app(
         ]
         | None
     ) = None,
+    screen_factory: Callable[[Settings, MemoryStore], ScreenMemory | None] | None = None,
 ) -> FastAPI:
     settings = settings or Settings()
 
@@ -693,6 +749,8 @@ def create_app(
             )
         gateway = (gateway_factory or gateway_from_settings)(settings)
         transcriber = (transcriber_factory or transcriber_from_settings)(settings)
+        tela = (screen_factory or screen_from_settings)(settings, memory)
+        biblioteca = Library(memory, settings.data_dir / "resultados")
         agent = None
         mcp = None
         delegador: Delegator | None = None
@@ -708,7 +766,14 @@ def create_app(
             if settings.desktop_tools:
                 processos = ProcessManager(settings.data_dir / "processos")
             skills = (
-                SkillCatalog(settings.effective_skills_dir) if settings.skills_enabled else None
+                SkillCatalog(
+                    settings.effective_skills_dir,
+                    PluginStore(settings.effective_plugins_dir).pastas_de_skills()
+                    if settings.plugins_enabled
+                    else [],
+                )
+                if settings.skills_enabled
+                else None
             )
             if skills is not None and skills.skills:
                 policy.register_tool(SKILL_SPEC)
@@ -755,6 +820,7 @@ def create_app(
                 ops=ops,
                 routing=roteamento_ligado(settings),
                 skills=skills,
+                library=biblioteca,
             )
         jobs, tarefa_jobs, agenda = None, None, None
         if settings.jobs_enabled:
@@ -771,6 +837,16 @@ def create_app(
                 audit=ops.audit_add,
             )
             pesquisa = _pesquisa_noturna(settings, agent, memory)
+            sono = (
+                SleepCycle(
+                    memory,
+                    ops,
+                    gateway if gateway is not None and hasattr(gateway, "complete") else None,
+                    at=settings.sleep_at,
+                )
+                if settings.sleep_at
+                else None
+            )
             jobs = JobRunner(
                 memory,
                 ops,
@@ -783,6 +859,13 @@ def create_app(
                 briefing_at=settings.briefing_at,
                 agenda=agenda,
                 research=pesquisa,
+                sleep=sono,
+                screen=tela,
+                weekly_ai=(
+                    gateway
+                    if settings.weekly_ai and gateway is not None and hasattr(gateway, "complete")
+                    else None
+                ),
             )
             tarefa_jobs = asyncio.create_task(jobs.run_forever(settings.jobs_tick_s))
         telegram = (telegram_factory or telegram_from_settings)(
@@ -811,6 +894,7 @@ def create_app(
             mcp=mcp,
             delegator=delegador,
             telegram_ativo=lambda: telegram is not None,
+            tela=lambda: _estado_da_tela(tela, memory),
             voz=lambda: _painel_da_voz(
                 settings,
                 voz_stats,
@@ -822,6 +906,7 @@ def create_app(
         )
         if telegram is not None:
             telegram.painel = lambda: texto_do_painel(painel.montar())
+            telegram.tela = lambda acao: comando_tela(tela, memory, acao)
             telegram.agenda = agenda
         app.state.orion = AppState(
             settings, memory, policy, painel.started_at, ops, auth, agent, jobs, telegram, mcp,
@@ -831,6 +916,8 @@ def create_app(
             live=live,
             voz=voz_stats,
             escuta=escuta[0],
+            tela=tela,
+            biblioteca=biblioteca,
         )  # fmt: skip
         try:
             yield
@@ -1232,6 +1319,172 @@ def create_app(
         )
         return {"ok": True}
 
+    # ── plugins (regra 45): conceder e revogar; instalar é só pela linha de comando ──
+    def _plugins(state: AppState) -> PluginStore:
+        return PluginStore(state.settings.effective_plugins_dir)
+
+    @app.get("/plugins", dependencies=[Admin])
+    def listar_plugins(state: State) -> dict[str, Any]:
+        itens = [describe_plugin(p) for p in _plugins(state).lista()]
+        return {"total": len(itens), "plugins": itens, "vale_depois_de_reiniciar": True}
+
+    @app.post("/plugins/{nome}/conceder", dependencies=[Admin])
+    def conceder_plugin(nome: str, state: State) -> dict[str, Any]:
+        try:
+            p = _plugins(state).conceder(nome)
+        except PluginError as e:
+            raise HTTPException(404, str(e)) from None
+        audit_log.info("plugin_concedido", extra={"audit": {"plugin": nome, "versao": p.versao}})
+        return {"ok": True, "plugin": describe_plugin(p), "vale_depois_de_reiniciar": True}
+
+    @app.post("/plugins/{nome}/revogar", dependencies=[Admin])
+    def revogar_plugin(nome: str, state: State) -> dict[str, Any]:
+        if not _plugins(state).revogar(nome):
+            raise HTTPException(404, "esse plugin não tem concessão")
+        audit_log.info("plugin_revogado", extra={"audit": {"plugin": nome}})
+        return {"ok": True, "vale_depois_de_reiniciar": True}
+
+    # ── biblioteca de resultados (C34/C35): o que o Orion gerou, com origem e versões ──
+    def _biblioteca(state: AppState) -> Library:
+        assert state.biblioteca is not None
+        return state.biblioteca
+
+    @app.get("/resultados", dependencies=[Admin])
+    def listar_resultados(state: State, projeto: int | None = None) -> dict[str, Any]:
+        itens = [
+            {
+                "id": a["id"],
+                "nome": a["name"],
+                "tipo": a["kind"],
+                "versao": a["version"],
+                "anterior": a["parent_id"],
+                "bytes": a["bytes"],
+                "ferramenta": a["tool"],
+                "conversa": a["sessao_titulo"],
+                "sessao_id": a["session_id"],
+                "projeto_id": a["project_id"],
+                "criado": _iso(a["created_at"]),
+                "previa": (
+                    "texto"
+                    if Path(a["name"]).suffix.lower() in PREVIA_TEXTO
+                    else "imagem"
+                    if Path(a["name"]).suffix.lower() in PREVIA_IMAGEM
+                    else None
+                ),
+            }
+            for a in state.memory.list_artifacts(projeto)
+        ]
+        return {"total": len(itens), "resultados": itens}
+
+    @app.get("/resultados/{rid}/texto", dependencies=[Admin])
+    def previa_de_texto(rid: int, state: State) -> dict[str, Any]:
+        caminho = _biblioteca(state).caminho(rid)
+        if caminho is None:
+            raise HTTPException(404, "resultado não encontrado")
+        if caminho.suffix.lower() not in PREVIA_TEXTO:
+            raise HTTPException(415, "sem prévia de texto para este tipo (baixe o arquivo)")
+        texto = caminho.read_text(encoding="utf-8", errors="replace")
+        return {"texto": texto[:20_000], "truncado": len(texto) > 20_000}
+
+    @app.get("/resultados/{rid}/arquivo", dependencies=[Admin])
+    def arquivo_do_resultado(rid: int, state: State, previa: bool = False) -> FileResponse:
+        """Download (sempre como anexo, nunca renderizado); com `previa=true`, só imagem raster
+        é entregue inline. HTML/SVG gerados pelo modelo nunca executam no navegador."""
+        biblioteca = _biblioteca(state)
+        caminho = biblioteca.caminho(rid)
+        a = state.memory.get_artifact(rid)
+        if caminho is None or a is None:
+            raise HTTPException(404, "resultado não encontrado")
+        cabecalhos = {"X-Content-Type-Options": "nosniff", "Content-Security-Policy": "sandbox"}
+        mime = PREVIA_IMAGEM.get(Path(a["name"]).suffix.lower())
+        if previa and mime:
+            return FileResponse(caminho, media_type=mime, headers=cabecalhos)
+        return FileResponse(
+            caminho,
+            media_type="application/octet-stream",
+            filename=a["name"],
+            headers=cabecalhos,
+        )
+
+    @app.delete("/resultados/{rid}", dependencies=[Admin])
+    def apagar_resultado(rid: int, state: State) -> dict[str, bool]:
+        if not _biblioteca(state).apagar(rid):
+            raise HTTPException(404, "resultado não encontrado")
+        audit_log.info("resultado_apagado", extra={"audit": {"resultado": rid}})
+        return {"ok": True}
+
+    # ── documentos enviados pela interface (C38): PDF, Word, Excel, HTML, texto ──
+    @app.get("/memoria/documentos", dependencies=[Admin])
+    def listar_documentos(state: State) -> dict[str, Any]:
+        itens = [
+            {
+                "id": d["id"],
+                "nome": str(d["source"]).removeprefix("upload:"),
+                "titulo": d["title"],
+                "trechos": d["trechos"],
+                "projeto_id": d["project_id"],
+                "indexado": _iso(d["indexed_at"]),
+            }
+            for d in state.memory.list_documents()
+        ]
+        return {"total": len(itens), "documentos": itens}
+
+    @app.post("/memoria/documentos", dependencies=[Admin], status_code=201)
+    async def enviar_documento(
+        state: State, arquivo: UploadFile, projeto_id: Annotated[int | None, Form()] = None
+    ) -> dict[str, Any]:
+        """Lê o arquivo, tira o texto e indexa na memória (busca por palavra e por sentido). Com
+        `projeto_id`, só entra no contexto automático das conversas do projeto. O arquivo em si
+        não fica guardado: só o texto, em trechos."""
+        nome = Path(arquivo.filename or "").name
+        ext = Path(nome).suffix.lower()
+        if not nome or ext not in TIPOS_LEITURA:
+            raise HTTPException(415, f"tipo não suportado. Use: {', '.join(TIPOS_LEITURA)}")
+        if projeto_id is not None and state.memory.get_project(projeto_id) is None:
+            raise HTTPException(404, "projeto não encontrado")
+        dados = await arquivo.read(MAX_ARQUIVO + 1)
+        if len(dados) > MAX_ARQUIVO:
+            raise HTTPException(413, f"arquivo passa de {MAX_ARQUIVO // 1024 // 1024} MB")
+        if not dados:
+            raise HTTPException(422, "arquivo vazio")
+
+        def processar() -> tuple[str, int]:
+            with tempfile.TemporaryDirectory(prefix="orion-doc-") as tmp:
+                caminho = Path(tmp) / f"doc{ext}"
+                caminho.write_bytes(dados)
+                texto = extrair_texto(caminho).strip()
+            if len(texto) < 20:
+                raise ValueError("não achei texto nesse arquivo (escaneado? use OCR antes)")
+            resultado = state.memory.index_document(
+                f"upload:{nome}", Path(nome).stem, texto[:MAX_TEXTO_DOCUMENTO], projeto_id
+            )
+            return resultado, len(texto)
+
+        try:
+            resultado, tamanho = await asyncio.to_thread(processar)
+        except ValueError as e:
+            raise HTTPException(422, str(e)) from None
+        except Exception as e:  # noqa: BLE001 — arquivo corrompido/protegido
+            raise HTTPException(422, f"não consegui ler o documento ({type(e).__name__})") from None
+        doc = next(
+            (d for d in state.memory.list_documents() if d["source"] == f"upload:{nome}"), None
+        )
+        audit_log.info("documento_indexado", extra={"audit": {"tipo": ext, "caracteres": tamanho}})
+        return {
+            "ok": True,
+            "resultado": resultado,  # new, updated ou same (mesmo conteúdo, nada refeito)
+            "caracteres": tamanho,
+            "trechos": doc["trechos"] if doc else 0,
+            "id": doc["id"] if doc else None,
+        }
+
+    @app.delete("/memoria/documentos/{doc_id}", dependencies=[Admin])
+    def apagar_documento(doc_id: int, state: State) -> dict[str, bool]:
+        if not state.memory.remove_document_id(doc_id):
+            raise HTTPException(404, "documento não encontrado")
+        audit_log.info("documento_apagado", extra={"audit": {"documento": doc_id}})
+        return {"ok": True}
+
     # ── projetos (C31): instruções próprias para um grupo de conversas ─────
     @app.get("/projetos", dependencies=[Admin])
     def listar_projetos(state: State, arquivados: bool = False) -> dict[str, Any]:
@@ -1372,6 +1625,49 @@ def create_app(
         else:
             state.escuta.pausar()
         return {"pausada": state.escuta.stats.pausada}
+
+    @app.get("/tela", dependencies=[Admin])
+    def tela_estado(state: State) -> dict[str, Any]:
+        """Estado da memória da tela (regra 44): ligada, pausada e contagens; nunca o texto."""
+        return _estado_da_tela(state.tela, state.memory)
+
+    @app.delete("/tela", dependencies=[Admin])
+    def tela_limpar(state: State) -> dict[str, Any]:
+        """Apaga TODO o texto de tela guardado (a captura em si segue como estava)."""
+        apagados = state.memory.clear_screen()
+        audit_log.info("tela_limpa", extra={"audit": {"registros": apagados}})
+        return {"ok": True, "apagados": apagados}
+
+    @app.post("/tela/pausa", dependencies=[Admin])
+    def tela_pausar(corpo: EscutaControle, state: State) -> dict[str, Any]:
+        """`ativa=false` pausa a captura; `ativa=true` retoma. 409 se a memória da tela está
+        desligada."""
+        if state.tela is None:
+            raise HTTPException(status_code=409, detail="a memória da tela está desligada")
+        state.tela.pausar(not corpo.ativa)
+        return {"pausada": state.tela.pausada}
+
+    @app.get("/atividade", dependencies=[Admin])
+    def atividade(state: State, limite: Annotated[int, Query(ge=1, le=100)] = 30) -> dict[str, Any]:
+        """A caixa de atividade: avisos (lembretes, briefing, relatórios, ciclo de sono...),
+        aprovações esperando e erros dos jobs, num lugar só. Só leitura."""
+        avisos = [
+            {
+                "id": n["id"],
+                "tipo": n["kind"],
+                "texto": str(n["text"])[:1500],
+                "criado": _iso(n["created_at"]),
+                "entregue": n["delivered_at"] is not None,
+            }
+            for n in state.ops.recent_notifications(limite)
+        ]
+        pendentes = state.policy.approvals.pending()
+        return {
+            "avisos": avisos,
+            "nao_lidos": sum(not a["entregue"] for a in avisos),
+            "aprovacoes": len(pendentes),
+            "erros_dos_jobs": list(getattr(state.jobs, "ultimos_erros", []))[:5],
+        }
 
     @app.get("/notifications", dependencies=[Admin])
     def avisos(state: State) -> list[dict[str, Any]]:

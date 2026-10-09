@@ -103,3 +103,13 @@ def test_hora_invalida_e_recusada(store, tmp_path):
             at="25:00",
             clock=lambda: 0,  # type: ignore[arg-type]
         )
+
+
+def test_assuntos_padrao_vem_do_codigo_mas_sem_hora_a_pesquisa_fica_desligada(tmp_path):
+    from orion.app import _pesquisa_noturna
+    from orion.config import Settings
+
+    s = Settings(data_dir=tmp_path / "d", _env_file=None)
+    assuntos = parse_assuntos(s.research_topics)
+    assert len(assuntos) == 3 and any("MCP" in a for a in assuntos)
+    assert s.research_at == "" and _pesquisa_noturna(s, object(), None) is None  # type: ignore[arg-type]

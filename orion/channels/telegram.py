@@ -69,6 +69,7 @@ BOAS_VINDAS = (
     "/capturar — guarda no vault o próximo texto, link, foto ou voz (ou /capturar <texto>)\n"
     "/briefing — o que há para hoje\n"
     "/painel — modelos, CLIs, aprovações e política num só lugar\n"
+    "/tela — memória da tela: estado, pausar, retomar ou limpar\n"
     "/ajuda — mostra isto de novo\n\n"
     "Ações que mexem no computador chegam aqui com botões para aprovar ou negar."
 )
@@ -119,6 +120,7 @@ class TelegramChannel:
         self._capture = capture
         self.painel: Callable[[], str] | None = None  # texto do /painel (o app liga depois)
         self.agenda: Callable[[float], str | None] | None = None  # agenda do briefing (regra 37)
+        self.tela: Callable[[str], str] | None = None  # `/tela` (regra 44); o app liga depois
         self._clock = clock
         self._armados: dict[int, float] = {}  # chat -> até quando o próximo envio vira nota
         self._offset = 0
@@ -316,6 +318,15 @@ class TelegramChannel:
             await self._enviar(
                 chat_id,
                 await asyncio.to_thread(ver) if ver else "Painel indisponível neste canal.",
+            )
+        elif comando == "/tela":
+            resposta = self.tela
+            argumento = texto.split(None, 1)[1] if len(texto.split(None, 1)) > 1 else ""
+            await self._enviar(
+                chat_id,
+                await asyncio.to_thread(resposta, argumento)
+                if resposta
+                else "Memória da tela indisponível neste canal.",
             )
         elif comando == "/briefing":
             await self._enviar(chat_id, await asyncio.to_thread(self._briefing))

@@ -14,9 +14,9 @@
 |---|---|---|---|
 | A1 | Renomear, fixar e arquivar conversas, foco preservado (C05) | EXTENSOES | — | **backend feito (08/10)**: renomear/fixar já existiam; `arquivada` no `PATCH /sessoes/{id}`, `GET /sessoes?arquivadas=true`, esquema v6; menu "Arquivar" e busca no conteúdo já estão no front (testados só com os testes Node e o backend de mentira) |
 | A2 | Busca de conversas por conteúdo no backend (C06) | EXTENSOES | A1 | **backend feito (08/10)**: `GET /sessoes/busca?q=`, título + corpo, trecho, isolada por canal; falta ligar no front |
-| A3 | Memória pesquisável: fonte, data, editar, esquecer (C36) | EXTENSOES | — | **API feita (08/10)**: `GET/PATCH/DELETE /memoria/fatos`; falta a tela |
+| A3 | Memória pesquisável: fonte, data, editar, esquecer (C36) | EXTENSOES | — | **feito (08/10)**: `GET/PATCH/DELETE /memoria/fatos` e a tela Conhecimento (`#/conhecimento`) para buscar, corrigir e esquecer |
 | A4 | `orion esquecer <trecho ou id>`: apaga o fato, o índice de busca e o vetor | nova | A3 | **feito (08/10)**; avisa que backups, mensagens de conversa e notas do vault não são tocados |
-| A5 | Caixa de atividade: avisos e pendências juntos (C37) | EXTENSOES | — |
+| A5 | Caixa de atividade: avisos e pendências juntos (C37) | EXTENSOES | — | **feito (08/10)**: `GET /atividade` e card Atividade no Painel (avisos novos/lidos, marcar como lido). Marcar como lido na interface tira o aviso da fila do Telegram |
 
 ## Bloco B — Skills antes de plugins (C15–C18)
 | ID | Entrega | Origem | Depende de |
@@ -29,18 +29,18 @@
 ## Bloco C — Projetos e resultados (C31–C35, C38)
 | ID | Entrega | Origem | Depende de |
 |---|---|---|---|
-| C1 | Projetos com conversas associadas (C31) | EXTENSOES | A1 | **backend feito (08/10)**: esquema v7, `/projetos`, `projeto_id` na conversa, instruções entram no prompt; falta a tela |
+| C1 | Projetos com conversas associadas (C31) | EXTENSOES | A1 | **feito (08/10)**: esquema v7, `/projetos`, `projeto_id` na conversa, instruções entram no prompt; tela Conhecimento cria, edita instruções, arquiva e apaga projetos. Falta mover conversa para projeto pela barra lateral |
 | C2 | Memória, fontes e extensões isoladas por projeto (C32) | EXTENSOES | C1 |
-| C3 | Biblioteca de resultados com origem, versões e prévia lateral (C34–C35) | EXTENSOES | C1 |
-| C4 | Ingerir PDF, texto e Markdown com progresso (C38) | EXTENSOES | C2 |
+| C3 | Biblioteca de resultados com origem, versões e prévia lateral (C34–C35) | EXTENSOES | C1 | **feito (08/10)**: esquema v10, o agente copia o que `gerar_documento`/`gerar_imagem` produziram para `<dados>/resultados`, versões por nome, `/resultados` (lista, prévia de texto/imagem, download como anexo, apagar) e card Resultados; prévia fica no próprio card, não é painel lateral |
+| C4 | Ingerir PDF, texto e Markdown com progresso (C38) | EXTENSOES | C2 | **feito (08/10)**: `POST/GET/DELETE /memoria/documentos` (PDF, Word, Excel, HTML, texto, CSV, JSON; esquema v9) e card Documentos na tela Conhecimento; documento de projeto só entra no contexto automático do projeto (C32); sem barra de progresso (a indexação é uma chamada só); PDF escaneado não tem OCR |
 
 ## Bloco D — O que a Lyra tinha e não veio
 | ID | Entrega | Como encaixa no Orion | Risco / regra nova |
 |---|---|---|---|
-| D1 | **Ciclo de sono** (dedup, cruzamento pelo grafo, destilação) — **parcial (08/10)**: só a detecção de fatos duplicados (`orion fatos --duplicados`, sugere e não apaga); cruzamento pelo grafo e destilação seguem pendentes | Estende `consolidate.py` e o job existente; roda de madrugada, sem ferramentas | Qualidade dos fatos exige revisão humana (`facts_markdown`) |
+| D1 | **Ciclo de sono** (dedup, cruzamento pelo grafo, destilação) — **feito (08/10)**, regra 42: `orion/memory/sleep.py` avisa duplicados, grava relações no grafo e até 3 padrões; testado só com modelo falso, desligado por padrão | Estende `consolidate.py` e o job existente; roda de madrugada, sem ferramentas | Qualidade dos fatos exige revisão humana (`facts_markdown`) |
 | D2 | **Pesquisa noturna supervisionada** (ideia nº 1 do catálogo) — **feito (08/10)**, `orion/research.py`, regra 39, desligada por padrão; nunca rodou com modelo e rede reais | Job que só lê (`pesquisar_internet`, `buscar_url`) e deixa um relatório na caixa de entrada do vault; nunca executa nem escreve fora do vault | Choca com a regra de egress (V9): rodar em sessão limpa, só leitura, URL só de resultado de busca; regra nova + opt-in |
-| D3 | **Screenpipe / memória da tela** | Captura periódica da tela, OCR local, texto no SQLite com retenção curta; imagem nunca sai | Ring 0 #3 (captura contínua) pede aval; opt-in, pausa, retenção e audit sem conteúdo |
-| D4 | **Transcrição de lives** (yt-dlp + faster-whisper) | Ferramenta que transcreve vídeo/áudio para Markdown timestampado e grava na caixa de entrada do vault | Download é egress com destino escolhido: aprovação a cada uso; whisper local pesa em 8 GB, ver D4b |
+| D3 | **Screenpipe / memória da tela** — **feito (08/10)**, aval dado; regra 44, desligado por padrão; nunca rodou com tesseract nem tela reais | Captura periódica da tela, OCR local, texto no SQLite com retenção curta; imagem nunca sai | Ring 0 #3 (captura contínua) pede aval; opt-in, pausa, retenção e audit sem conteúdo |
+| D4 | **Transcrição de lives** (yt-dlp + faster-whisper) — **parcial (08/10)**, decisão: Groq. `orion transcrever <arquivo>` (regra 43) funciona com arquivo local e com link (yt-dlp, só áudio, link digitado por você e validado pela barreira de rede). Groq e yt-dlp nunca foram chamados de verdade | Ferramenta que transcreve vídeo/áudio para Markdown timestampado e grava na caixa de entrada do vault | Download é egress com destino escolhido: aprovação a cada uso; whisper local pesa em 8 GB, ver D4b |
 | D4b | Alternativa leve: Whisper pelo Groq (já usado no Telegram) | Reaproveita `orion/transcribe.py` | Áudio vai ao provedor; avisar |
 | D5 | **n8n** (conversa de 18/08 no vault) — **feito (08/10)**, regra 41; nunca falou com um n8n real | Orion chama workflows por webhook fixo, classificado como execução no `mcp.json`/ferramenta | Só webhooks cadastrados, nunca URL escolhida pelo modelo |
 | D6 | **Personas dinâmicas** — **coberto (08/10)** pelas instruções de projeto (C1); não há troca de persona base | Perfis de estilo por projeto (Bloco C) sobre a persona imutável; nunca mudam regras | A persona base continua versionada e imutável |
@@ -52,14 +52,29 @@
 ## Bloco E — Ideias novas
 | ID | Entrega | Observação |
 |---|---|---|
-| E1 | Resumo semanal da memória e do que foi feito | **feito (08/10)**, versão determinística (sem modelo), sai na segunda com o briefing; a versão com modelo fica para depois |
+| E1 | Resumo semanal da memória e do que foi feito | **feito (08/10)**: resumo determinístico na segunda com o briefing e, com `ORION_WEEKLY_AI=true`, uma leitura de até 5 linhas escrita pelo modelo a partir do resumo (uma chamada por semana; nunca falou com modelo real) |
 | E2 | Modo "só leitura" por turno (nenhuma ferramenta de escrita ou execução disponível) | **feito (08/10)**: `Agent.run(..., read_only=True)`; o que pediria aprovação é negado sem deixar pedido. Base para D2 |
-| E3 | Painel de custo/cota por provedor ao longo da semana | Estende V13 e `/painel` |
+| E3 | Painel de custo/cota por provedor ao longo da semana | **feito (08/10)**: respostas por dia e endpoint, persistidas em contadores (`uso:<dia>:<endpoint>`), card "Uso da semana" no painel; não mede a cota real do provedor |
 | E4 | `orion doctor`: confere chaves, serviços, `mcp.json` e fase 0 em um comando | **feito (08/10)**, offline; não testa rede nem a fase 0 |
 | E5 | Teste de regressão de prompt injection (conjunto fixo de páginas hostis) | **feito (08/10)**: invariantes sobre todas as ferramentas + 12 comandos hostis, `tests/policy/test_injecao_invariantes.py` |
 
 ## Bloco F — Plugins e integrações (C19–C30, C39–C50)
-Só depois de A, B e C. Reavaliar C07–C14 contra o cliente MCP que já existe. Plugins entram com concessões revogáveis (C23) e catálogo (C25–C26); o primeiro plugin é "Orion Pesquisa" (C28–C29).
+Só depois de A, B e C. Plugins entram com concessões revogáveis (C23) e catálogo (C25–C26); o primeiro plugin é "Orion Pesquisa" (C28–C29).
+
+### Plugins (C19–C30) — versão mínima feita em 08/10 (regra 45)
+`orion/plugins.py`: pacote local com `plugin.json`, skills e servidores MCP; **instalar só valida e copia**; nada vale sem `orion plugin conceder` (hash do pacote inteiro, mudança cancela); `GET /plugins`, `POST /plugins/{nome}/conceder|revogar` e card Plugins na tela Conhecimento. Fora desta versão: instalar por upload na interface, importar pacote de distribuição do Claude Code/Codex (C21), atualização com reversão de versão (C22), catálogo/marketplace (C25), diagnóstico de conexão MCP na interface (C26), fontes e atividade das extensões no chat (C27), pacote "Orion Pesquisa" (C28–C29).
+
+### MCP (C07–C14) reavaliado em 08/10 contra o cliente que já existia
+| Item | Situação |
+|---|---|
+| C07 SDK fixado e prova de protocolo | ✅ já existia (`mcp` 2.3.0 no lock, servidor de teste real em `tests/mcp_cliente`); falta só testar versão incompatível com mensagem legível |
+| C08 validar argumentos pelo JSON Schema | ✅ **feito (08/10)** para ferramentas MCP (`Tool.validar`, `jsonschema`); as nativas continuam tolerantes (aceitam "5" onde o esquema diz integer) |
+| C09 servidores locais por stdio | ✅ já existia |
+| C10 Streamable HTTP | ✅ **feito (08/10)**: `url` + `headers` no `mcp.json`, segredos `${NOME}` do cofre (também dentro do valor, ex. `Bearer ${TOKEN}`), testado contra servidor HTTP real do SDK; OAuth do MCP não implementado |
+| C11 classes de risco e limites | ✅ já existia (regra 24) |
+| C12 timeout, cancelamento, reconexão | ✅ **feito (08/10)**: servidor que cai (processo morto ou conexão perdida) reconecta na PRÓXIMA chamada, no máximo 1 tentativa a cada 30 s; a chamada que o encontrou fora do ar **não é repetida** (pode ter efeito colateral); testado com servidor real que se mata. Cancelamento propagado ao servidor não foi tratado |
+| C13 descoberta sob demanda | ⏳ **adiado de propósito**: só vale a pena com dezenas de ferramentas MCP; hoje o `allow` por servidor já limita o que o modelo vê |
+| C14 resources e prompts | ⏳ **adiado de propósito**: ler resources de servidor de terceiros por URI que o modelo escolhe abre outra superfície (leitura de caminho/URL fora da política); só entra com regra própria |
 
 ## Fora do código (só o Antônio)
 Fase 0 e `verify-export`, venda do PC, serviços e chaves, teste de voz e da palavra de ativação com microfone real, `Orion-windows-x64.zip`, senha de fábrica ([ORION_OPERACAO.md](ORION_OPERACAO.md), [ORION_CORTE.md](ORION_CORTE.md)).

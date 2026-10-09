@@ -29,6 +29,7 @@ from .memory.ops import Operations
 from .persona import PERSONA, PERSONA_VERSION
 from .policy import Action, Context, PolicyEngine, Status, ToolCall, redact
 from .policy.classes import Risk
+from .resultados import Library
 from .router import Rota, classificar
 from .skills import SkillCatalog
 from .tools import ToolRegistry
@@ -86,10 +87,12 @@ class Agent:
         max_tool_chars: int = 8000,
         routing: bool = False,
         skills: SkillCatalog | None = None,
+        library: Library | None = None,
     ) -> None:
         self.gateway, self.tools, self.policy, self.memory = gateway, tools, policy, memory
         self._ops = ops
         self._skills = skills
+        self._library = library
         self._persona = persona
         self._clock = clock
         self._max_iter = max_iterations
@@ -173,7 +176,16 @@ class Agent:
         read_only: bool = False,
     ) -> AsyncIterator[AgentEvent]:
         ctx = self._context(session.id)
-        hits = await asyncio.to_thread(self.memory.search, consulta, self._k) if consulta else []
+        hits = (
+            await asyncio.to_thread(
+                self.memory.search,
+                consulta,
+                self._k,
+                project_id=session.project_id,  # documentos de projeto só no contexto dele
+            )
+            if consulta
+            else []
+        )
         mensagens = self._mensagens(session, hits)
         if images and mensagens[-1]["role"] == "user":
             mensagens[-1]["content"] = [
@@ -200,6 +212,7 @@ class Agent:
                         yield AgentEvent("tier", {"endpoint": ev.endpoint, "model": ev.model})
             except GatewayError as e:
                 log.error("gateway falhou: %s", e)
+                self._contar_uso("__erro")
                 yield AgentEvent("error", {"message": f"nenhum modelo respondeu: {e}"})
                 return
 
@@ -214,6 +227,7 @@ class Agent:
                 if rota:
                     prov["roteamento"] = {"camada": rota.camada, "motivo": rota.motivo}
                 self.memory.add_message(session.id, "assistant", texto.strip(), provenance=prov)
+                self._contar_uso(destino[0] if destino else "?")
                 yield AgentEvent("done", {"provenance": prov})
                 return
 
@@ -241,6 +255,14 @@ class Agent:
         yield AgentEvent(
             "error", {"message": f"limite de {self._max_iter} iterações de ferramenta"}
         )
+
+    def _contar_uso(self, endpoint: str) -> None:
+        """Respostas por dia e endpoint, no banco: sobrevive a reinício e alimenta o painel."""
+        try:
+            dia = datetime.fromtimestamp(self._clock()).strftime("%Y%m%d")
+            self.memory.counter_incr(f"uso:{dia}:{endpoint}")
+        except Exception:
+            log.debug("não consegui contar o uso", exc_info=True)
 
     def _so_leitura(self, nome: str) -> bool:
         spec = self.policy.tools.get(nome)
@@ -325,6 +347,8 @@ class Agent:
                 {"erro": f"tempo esgotado ({self._tool_timeout:.0f}s)"}, ensure_ascii=False
             )
         self.policy.note_result(chamada, ctx)
+        if self._library is not None and chamada.name in ("gerar_documento", "gerar_imagem"):
+            await asyncio.to_thread(self._library.registrar, ctx.session_id, chamada.name, bruto)
         if ctx.tainted:
             self.memory.counter_set(f"taint:{ctx.session_id}", 1)
         spec = self.policy.tools.get(chamada.name)

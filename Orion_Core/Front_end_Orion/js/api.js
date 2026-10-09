@@ -31,7 +31,7 @@
     const configurarToken = t => { tokenDesktop = String(t || ''); };
 
     /** rotas que exigem o token do orion.app; o legado não conhece cabeçalho Authorization */
-    const comAuth = caminho => /^\/(approvals|chat|painel|sessoes|historico)(\/|$|\?)/.test(caminho);
+    const comAuth = caminho => /^\/(approvals|chat|painel|sessoes|historico|projetos|memoria|tela|resultados|atividade|notifications|plugins)(\/|$|\?)/.test(caminho);
 
     function cabecalhos(caminho, extra = {}) {
         const h = { ...extra };
@@ -122,6 +122,27 @@
         fatos: (texto = '') => req(`/memoria/fatos?${q(texto ? { q: texto } : {})}`, { timeout: 5000 }),
         corrigirFato: (id, texto) => req(`/memoria/fatos/${encodeURIComponent(id)}`, { metodo: 'PATCH', json: { texto }, timeout: 5000 }),
         esquecerFato: id => req(`/memoria/fatos/${encodeURIComponent(id)}`, { metodo: 'DELETE', timeout: 5000 }),
+        tela: () => req('/tela', { timeout: 4000 }),
+        telaPausa: ativa => req('/tela/pausa', { metodo: 'POST', json: { ativa: !!ativa }, timeout: 4000 }),
+        telaLimpar: () => req('/tela', { metodo: 'DELETE', timeout: 5000 }),
+        documentos: () => req('/memoria/documentos', { timeout: 5000 }),
+        enviarDocumento(arquivo, projetoId) {
+            const f = new FormData();
+            f.append('arquivo', arquivo);
+            if (projetoId != null && projetoId !== '') f.append('projeto_id', String(projetoId));
+            return req('/memoria/documentos', { metodo: 'POST', form: f, timeout: 180000 });
+        },
+        apagarDocumento: id => req(`/memoria/documentos/${encodeURIComponent(id)}`, { metodo: 'DELETE', timeout: 5000 }),
+        resultados: () => req('/resultados', { timeout: 5000 }),
+        textoDoResultado: id => req(`/resultados/${encodeURIComponent(id)}/texto`, { timeout: 5000 }),
+        /** bytes do resultado (Response): `previa` pede a imagem inline, senão é o download */
+        arquivoDoResultado: (id, previa = false) => req(`/resultados/${encodeURIComponent(id)}/arquivo?${q({ previa: previa ? 'true' : null })}`, { bruto: true, timeout: 60000 }),
+        apagarResultado: id => req(`/resultados/${encodeURIComponent(id)}`, { metodo: 'DELETE', timeout: 5000 }),
+        atividade: () => req('/atividade', { timeout: 4000 }),
+        lerAviso: id => req(`/notifications/${encodeURIComponent(id)}/ack`, { metodo: 'POST', timeout: 4000 }),
+        plugins: () => req('/plugins', { timeout: 5000 }),
+        concederPlugin: nome => req(`/plugins/${encodeURIComponent(nome)}/conceder`, { metodo: 'POST', timeout: 6000 }),
+        revogarPlugin: nome => req(`/plugins/${encodeURIComponent(nome)}/revogar`, { metodo: 'POST', timeout: 6000 }),
         apagarSessao: id => req(`/sessoes/${encodeURIComponent(id)}`, { metodo: 'DELETE', timeout: 5000 }),
         historico: sessao => req(`/historico?${q({ sessao })}`, { timeout: 6000 }),
         limparHistorico: () => req('/historico', { metodo: 'DELETE', timeout: 5000 }),

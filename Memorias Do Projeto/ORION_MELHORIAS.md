@@ -141,6 +141,18 @@ Plano em [ORION_PLANO_PROXIMOS.md](ORION_PLANO_PROXIMOS.md). Regras 39–41 em [
 | D5 | `acionar_n8n` por webhook cadastrado (regra 41) | ✅ com transporte falso |
 | E1/E2/E4/E5 | Resumo semanal, modo só leitura, `orion doctor`, invariantes contra prompt injection | ✅ |
 
+### Novas entregas depois das decisões do dia
+
+| ID | Entrega | Status |
+|---|---|---|
+| E3 | Uso da semana: respostas por dia e endpoint em contadores persistentes, card no painel | ✅ (não mede a cota real do provedor) |
+| D1 | Ciclo de sono (regra 42): duplicados avisados, relações no grafo, até 3 padrões | ✅ com modelo falso; desligado por padrão |
+| D4 | `orion transcrever <arquivo>` (regra 43): ffmpeg + Groq, nota no Inbox | ✅ ffmpeg real, provedor falso; só arquivo local |
+| D3 | Memória da tela (regra 44): OCR local, só texto, retenção de 7 dias, janelas excluídas | ✅ com captura e OCR falsos; desligada por padrão |
+| A3/C1 | Tela Conhecimento (`#/conhecimento`): projetos e fatos | ✅ navegador com backend de mentira |
+
+**Não verificado nas novas entregas:** tesseract, captura de tela e título de janela nunca rodaram em Windows ou macOS reais (só o argv é testado); o Groq nunca foi chamado; o ciclo de sono nunca falou com um modelo real; a tela Conhecimento só foi vista com o backend de mentira (edição de instruções colapsa quebras de linha, porque o diálogo tem um campo de uma linha).
+
 **Não verificado nesta rodada:** nada rodou com modelo, rede, n8n, conta Google ou microfone reais; a pesquisa noturna nunca chamou uma busca de verdade; o `orion doctor` não testa rede nem a fase 0; as telas de projetos e de memória editável não existem ainda.
 
 ## O que foi construído (por fase do NUCLEO)

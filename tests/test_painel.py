@@ -379,3 +379,55 @@ def test_texto_do_painel_diz_quem_serviu():
             "provedores": {"gemini": 7, "groq": 2}}]},
     }  # fmt: skip
     assert p is not None and "serviu: gemini ×7, groq ×2" in texto_do_painel(base)
+
+
+# ── uso da semana (E3) ────────────────────────────────────────────────────────
+def test_semana_soma_respostas_por_dia_e_endpoint_e_conta_erros(tmp_path):
+    t = datetime(2026, 10, 8, 12, 0).timestamp()
+    s = MemoryStore(tmp_path / "u.db", clock=lambda: t)
+    s.counter_incr("uso:20261008:omni", 3)
+    s.counter_incr("uso:20261008:groq", 2)
+    s.counter_incr("uso:20261008:__erro")
+    s.counter_incr("uso:20261005:omni", 4)
+    s.counter_incr("uso:20260901:omni", 99)  # fora da janela de 7 dias
+    p = Painel(
+        started_at=t,
+        memory=s,
+        ops=Operations(s),
+        policy=PolicyEngine(path_guard=PathGuard(protected_roots=(tmp_path / "x",), safe_roots=())),
+        clock=lambda: t,
+    )
+    semana = p.montar()["semana"]
+    assert semana[0]["dia"] == "20261002" and semana[-1]["dia"] == "20261008"
+    hoje = semana[-1]
+    assert (
+        hoje["total"] == 5 and hoje["erros"] == 1 and hoje["por_endpoint"] == {"omni": 3, "groq": 2}
+    )
+    assert next(d for d in semana if d["dia"] == "20261005")["total"] == 4
+    assert sum(d["total"] for d in semana) == 9
+    texto = texto_do_painel({**p.montar()})
+    assert "Últimos 7 dias: 9 resposta(s), 1 falha(s)" in texto
+    s.close()
+
+
+async def test_agente_conta_resposta_e_falha_no_banco(tmp_path):
+    from orion.agent import Agent
+    from orion.gateway import GatewayError
+    from orion.tools import ToolRegistry, memory_tools
+    from tests.fakes import FakeGateway, fala
+
+    t = datetime(2026, 10, 8, 9, 0).timestamp()
+    s = MemoryStore(tmp_path / "a.db", clock=lambda: t)
+    policy = PolicyEngine(path_guard=PathGuard(protected_roots=(tmp_path / "x",), safe_roots=()))
+    agente = Agent(
+        gateway=FakeGateway(fala("oi", endpoint="omni"), GatewayError("caiu")),
+        tools=ToolRegistry(memory_tools(s)),
+        policy=policy,
+        memory=s,
+        clock=lambda: t,
+    )
+    [e async for e in agente.run("web", "oi")]
+    [e async for e in agente.run("web", "de novo")]
+    usos = s.counters_with_prefix("uso:")
+    assert usos == {"uso:20261008:omni": 1, "uso:20261008:__erro": 1}
+    s.close()

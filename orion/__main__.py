@@ -35,6 +35,94 @@ def _set_password(settings: Settings, *, from_stdin: bool) -> int:
     return 0
 
 
+def _transcrever(settings: Settings, alvo: str, titulo: str, sim: bool) -> int:
+    from .app import transcriber_from_settings
+    from .capture import Capturer
+    from .media_transcribe import MediaError, transcrever_arquivo, transcrever_link
+
+    tr = transcriber_from_settings(settings)
+    if tr is None:
+        print("sem ORION_TRANSCRIBE_API_KEY: não há provedor de transcrição", file=sys.stderr)
+        return 1
+    if settings.vault_dir is None:
+        print("defina ORION_VAULT_DIR: a nota vai para o 00 Inbox do vault", file=sys.stderr)
+        return 1
+    e_link = alvo.lower().startswith(("http://", "https://"))
+    origem = "baixado do link" if e_link else f"de '{Path(alvo).name}'"
+    pergunta = (
+        f"O áudio {origem} será ENVIADO ao provedor de transcrição ({settings.transcribe_url}). "
+        "Continuar? [s/N] "
+    )
+    if not sim and input(pergunta).strip().lower() != "s":
+        print("nada foi enviado")
+        return 1
+    capturador = Capturer(settings.vault_dir, settings.capture_folder)
+    progresso = lambda i, n: print(f"transcrevendo parte {i}/{n}…")  # noqa: E731
+    try:
+        if e_link:
+            print("baixando o áudio…")
+            nota = transcrever_link(alvo, tr, capturador, titulo=titulo, progresso=progresso)
+        else:
+            nota = transcrever_arquivo(
+                Path(alvo), tr, capturador, titulo=titulo, progresso=progresso
+            )
+    except MediaError as e:
+        print(e, file=sys.stderr)
+        return 1
+    print(f"nota criada: {nota.name}")
+    return 0
+
+
+def _plugin(settings: Settings, acao: str, alvo: str | None) -> int:
+    from .plugins import PluginError, PluginStore, describe
+
+    loja = PluginStore(settings.effective_plugins_dir)
+    if acao == "listar":
+        for p in loja.lista():
+            d = describe(p)
+            print(f"{d['nome']} {d['versao']} [{d['estado']}] — {d['descricao']}")
+            print(f"   skills: {d['skills']}")
+            for sv in d["servidores"]:
+                print(
+                    f"   MCP {sv['nome']}: {sv['transporte']} → {sv['executa']} "
+                    f"(risco padrão {sv['risco_padrao']})"
+                )
+        if not loja.lista():
+            print(f"nenhum plugin em {loja.raiz}")
+        return 0
+    if not alvo:
+        print("faltou a pasta ou o nome do plugin", file=sys.stderr)
+        return 1
+    try:
+        if acao in ("instalar", "atualizar"):
+            p = loja.instalar(Path(alvo), atualizar=acao == "atualizar")
+            d = describe(p)
+            print(f"{p.nome} {p.versao} instalado, SEM concessão. Isto é o que ele liberaria:")
+            print(f"   skills: {d['skills']}")
+            for sv in d["servidores"]:
+                print(f"   MCP {sv['nome']}: {sv['transporte']} → {sv['executa']}")
+                livres = sv["ferramentas"] or f"(todas com risco {sv['risco_padrao']})"
+                print(f"      ferramentas: {livres}")
+            print(
+                f"Para liberar: orion plugin conceder {p.nome} (vale depois de reiniciar o Orion)"
+            )
+        elif acao == "conceder":
+            loja.conceder(alvo)
+            print(f"{alvo}: concedido; reinicie o Orion para valer")
+        elif acao == "revogar":
+            print(
+                "revogado; reinicie o Orion"
+                if loja.revogar(alvo)
+                else "esse plugin não tinha concessão"
+            )
+        else:
+            print("removido" if loja.remover(alvo) else "plugin não encontrado")
+    except PluginError as e:
+        print(e, file=sys.stderr)
+        return 1
+    return 0
+
+
 def _esquecer(settings: Settings, consulta: str, sim: bool) -> int:
     from .memory import MemoryStore
 
@@ -164,6 +252,22 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("skills", help="lista as skills válidas e as rejeitadas, com o motivo")
     ft = sub.add_parser("fatos", help="lista os fatos da memória (com id, fonte e data)")
     ft.add_argument("--duplicados", action="store_true", help="mostra pares quase iguais")
+    tr = sub.add_parser(
+        "transcrever",
+        help="transcreve áudio ou vídeo para uma nota no 00 Inbox (o áudio vai ao provedor)",
+    )
+    tr.add_argument("arquivo", help="arquivo local, ou um link http(s) (precisa do yt-dlp)")
+    tr.add_argument("--titulo", default="", help="título da nota (padrão: nome do arquivo)")
+    tr.add_argument("--sim", action="store_true", help="não pergunta antes de enviar o áudio")
+    tl = sub.add_parser("tela", help="memória da tela: estado, ou apagar tudo o que foi guardado")
+    tl.add_argument("--limpar", action="store_true", help="apaga todo o texto de tela guardado")
+    pl = sub.add_parser(
+        "plugin", help="plugins locais: listar, instalar, conceder, revogar, remover"
+    )
+    pl.add_argument(
+        "acao", choices=("listar", "instalar", "atualizar", "conceder", "revogar", "remover")
+    )
+    pl.add_argument("alvo", nargs="?", help="pasta do plugin (instalar/atualizar) ou o nome")
     es = sub.add_parser(
         "esquecer", help="apaga fatos da memória (texto, índice de busca e vetor); pede confirmação"
     )
@@ -209,6 +313,30 @@ def main(argv: list[str] | None = None) -> int:
             store.close()
         print(f"backup: {feito}" if feito else "backup de hoje já existe")
         return 0
+
+    if args.cmd == "plugin":
+        return _plugin(settings, args.acao, args.alvo)
+
+    if args.cmd == "tela":
+        from .memory import MemoryStore
+
+        store = MemoryStore(settings.db_path)
+        try:
+            if args.limpar:
+                print(f"{store.clear_screen()} registro(s) de tela apagado(s)")
+            else:
+                estado = "ligada" if settings.screen_memory else "desligada (ORION_SCREEN_MEMORY)"
+                pausa = " e pausada" if store.counter_get("tela:pausa") else ""
+                print(
+                    f"memória da tela {estado}{pausa}: {store.screen_count()} registro(s), "
+                    f"guarda {settings.screen_retention_days} dia(s)"
+                )
+        finally:
+            store.close()
+        return 0
+
+    if args.cmd == "transcrever":
+        return _transcrever(settings, args.arquivo, args.titulo, args.sim)
 
     if args.cmd == "fatos":
         from .memory import MemoryStore

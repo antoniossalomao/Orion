@@ -315,3 +315,28 @@ def test_decisoes_da_politica_vao_para_a_tabela_audit_e_falha_de_gravacao_nega(c
     escrita = estado.policy.evaluate(ToolCall("salvar_memoria", {"texto": "x"}), ctx)
     assert leitura.action is Action.ALLOW  # leitura segue (regra 8)
     assert escrita.action is Action.DENY and "audit" in escrita.reason  # o resto é fail-closed
+
+
+def test_atividade_junta_avisos_aprovacoes_e_erros_de_jobs(tmp_path):
+    from fastapi.testclient import TestClient
+
+    from orion.app import create_app
+    from orion.config import Settings
+
+    settings = Settings(
+        data_dir=tmp_path / "d", admin_token="token-de-teste-com-16+", _env_file=None
+    )
+    auth = {"Authorization": "Bearer token-de-teste-com-16+"}
+    with TestClient(
+        create_app(settings, gateway_factory=lambda _: None), base_url="http://127.0.0.1"
+    ) as c:
+        assert c.get("/atividade").status_code == 401
+        ops = c.app.state.orion.ops
+        a = ops.notify("briefing", "☀️ Bom dia")
+        ops.notify("sono", "🌙 2 pares de fatos quase iguais")
+        ops.ack_notification(a)
+        d = c.get("/atividade", headers=auth).json()
+        assert [n["tipo"] for n in d["avisos"]] == ["sono", "briefing"]  # o mais novo primeiro
+        assert [n["entregue"] for n in d["avisos"]] == [False, True]
+        assert d["nao_lidos"] == 1 and d["aprovacoes"] == 0 and d["erros_dos_jobs"] == []
+        assert c.get("/atividade?limite=1", headers=auth).json()["avisos"][0]["tipo"] == "sono"

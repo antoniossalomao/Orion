@@ -159,3 +159,64 @@ async def test_resumo_semanal_nao_sai_fora_da_segunda(store, ops, relogio):
     relogio.t = ts(6, 7, 31)  # terça
     await runner(store, ops, relogio).tick()
     assert semanais(ops) == []
+
+
+class ModeloFalso:
+    def __init__(self, resposta):
+        self.resposta, self.pedidos = resposta, []
+
+    async def complete(self, messages):
+        self.pedidos.append(messages)
+        if isinstance(self.resposta, Exception):
+            raise self.resposta
+        return self.resposta
+
+
+def runner_ia(store, ops, relogio, modelo):
+    return JobRunner(
+        store, ops, briefing_at="07:30", clock=relogio, weekly_ai=modelo, embed_every_s=10**9
+    )
+
+
+async def test_leitura_semanal_com_modelo_so_na_segunda_e_uma_vez(store, ops, relogio):
+    ops.set_task_status(ops.add_task("Entregar UML")["id"], "concluida")
+    modelo = ModeloFalso("Priorize a entrega de UML.\n\nReveja as tarefas abertas.")
+    r = runner_ia(store, ops, relogio, modelo)
+    relogio.t = ts(5, 7, 31)  # segunda
+    rel = await r.tick()
+    assert rel.semanal_ia is True
+    leituras = [n for n in ops.pending_notifications() if n["ref"] == "semanal-ia:202641"]
+    assert len(leituras) == 1
+    assert (
+        leituras[0]["text"]
+        == "💬 Leitura do Orion: Priorize a entrega de UML. Reveja as tarefas abertas."
+    )
+    assert (
+        "[RESUMO]" in modelo.pedidos[0][1]["content"]
+        and "Entregar UML" in modelo.pedidos[0][1]["content"]
+    )
+    relogio.t = ts(5, 9, 0)
+    await r.tick()
+    assert len(modelo.pedidos) == 1  # uma por semana
+    relogio.t = ts(6, 7, 31)  # terça: nem o briefing do dia chama o modelo
+    await r.tick()
+    assert len(modelo.pedidos) == 1
+
+
+async def test_leitura_semanal_com_modelo_fora_do_ar_nao_derruba_nem_repete(store, ops, relogio):
+    modelo = ModeloFalso(RuntimeError("gateway fora"))
+    r = runner_ia(store, ops, relogio, modelo)
+    relogio.t = ts(5, 7, 31)
+    rel = await r.tick()
+    assert rel.semanal_ia is False and any("leitura semanal" in e for e in rel.erros)
+    assert [n for n in ops.pending_notifications() if n["kind"] == "briefing"]  # o briefing saiu
+    relogio.t = ts(5, 7, 40)
+    await r.tick()
+    assert len(modelo.pedidos) == 1  # marcado antes: não insiste a cada tick
+
+
+async def test_sem_modelo_nao_ha_leitura(store, ops, relogio):
+    relogio.t = ts(5, 7, 31)
+    rel = await runner(store, ops, relogio).tick()
+    assert rel.semanal_ia is False
+    assert [n for n in ops.pending_notifications() if n["ref"].startswith("semanal-ia")] == []

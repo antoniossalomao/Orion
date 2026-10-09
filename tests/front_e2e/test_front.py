@@ -10,8 +10,8 @@ from playwright.sync_api import expect
 
 from .conftest import AXE, SENHA, TOKEN
 
-ROTAS = ["", "#/chat", "#/memoria", "#/integracoes", "#/config", "#/painel"]
-VIEWS = ["home", "chat", "memoria", "integracoes", "config", "painel"]
+ROTAS = ["", "#/chat", "#/memoria", "#/integracoes", "#/config", "#/painel", "#/conhecimento"]
+VIEWS = ["home", "chat", "memoria", "integracoes", "config", "painel", "conhecimento"]
 TEMAS = ["noite", "grafite", "contraste"]
 
 
@@ -1702,3 +1702,191 @@ def test_painel_mostra_a_voz(abrir):
     expect(page.locator("#painel-corpo")).to_contain_text("Voz por clique")
     expect(page.locator("#painel-corpo")).to_contain_text("7 fala(s), com resposta falada")
     expect(page.locator("#painel-corpo")).to_contain_text("2 sessão(ões), 12.5 min")
+
+
+def test_painel_mostra_o_uso_da_semana_com_barras_e_total(abrir):
+    page = abrir("#/painel")
+    cartao = page.locator('[data-id="semana"]')
+    expect(cartao).to_be_visible(timeout=5000)
+    expect(cartao.locator(".painel-dia")).to_have_count(7)
+    expect(cartao.locator("[data-semana]")).to_contain_text("56 resposta(s) em 7 dias")
+    expect(cartao.locator("[data-semana]")).to_contain_text("1 falha(s)")
+    expect(cartao.locator('.painel-dia[data-total="20"]')).to_have_count(1)
+
+
+def test_conhecimento_cria_edita_arquiva_e_apaga_projeto(abrir, mock_isolado_url):
+    page = abrir("#/conhecimento", url=mock_isolado_url)
+    corpo = page.locator("#conhecimento-corpo")
+    expect(corpo.locator('[data-id="projetos"]')).to_be_visible(timeout=5000)
+    expect(corpo).to_contain_text("Nenhum projeto ainda")
+    page.get_by_label("Nome do projeto").fill("TCC")
+    page.get_by_label("Instruções (entram no prompt das conversas do projeto)").fill("Cite a ABNT")
+    page.get_by_role("button", name="Criar projeto").click()
+    item = corpo.locator("[data-projeto]").first
+    expect(item).to_contain_text("TCC")
+    expect(item).to_contain_text("Cite a ABNT")
+    page.get_by_role("button", name="Editar instruções de TCC").click()
+    page.get_by_label("Instruções", exact=True).fill("Cite a ABNT\ne seja formal")
+    page.keyboard.press("Control+Enter")  # Enter sozinho é quebra de linha
+    expect(item).to_contain_text("seja formal")
+    assert "\n" in page.evaluate("document.querySelector('[data-projeto] small').textContent")
+    page.get_by_role("button", name="Arquivar TCC").click()
+    expect(corpo.locator("[data-projeto]")).to_have_count(0)
+    page.reload()
+    page.wait_for_selector("html[data-pronto='true']")
+    expect(corpo.locator("[data-projeto]")).to_have_count(0, timeout=5000)
+
+
+def test_conhecimento_apagar_projeto_pede_confirmacao(abrir, mock_isolado_url):
+    page = abrir("#/conhecimento", url=mock_isolado_url)
+    page.get_by_label("Nome do projeto").fill("Velho")
+    page.get_by_role("button", name="Criar projeto").click()
+    expect(page.locator("[data-projeto]")).to_have_count(1)
+    page.get_by_role("button", name="Apagar projeto Velho").click()
+    alerta = page.get_by_role("alertdialog", name="Apagar este projeto?")
+    alerta.get_by_role("button", name="Cancelar").click()
+    expect(page.locator("[data-projeto]")).to_have_count(1)
+    page.get_by_role("button", name="Apagar projeto Velho").click()
+    page.get_by_role("alertdialog").get_by_role("button", name="Apagar").click()
+    expect(page.locator("[data-projeto]")).to_have_count(0)
+
+
+def test_conhecimento_busca_corrige_e_esquece_fatos(abrir, mock_isolado_url):
+    page = abrir("#/conhecimento", url=mock_isolado_url)
+    fatos = page.locator("[data-fato]")
+    expect(fatos).to_have_count(3, timeout=5000)
+    page.get_by_label("Buscar nos fatos").fill("obsidian")
+    expect(fatos).to_have_count(1, timeout=5000)
+    page.get_by_role("button", name="Corrigir fato: Usa o Obsidian como segundo cérebro").click()
+    page.get_by_label("O que o Orion deve saber").fill("Usa o Obsidian e o Orion")
+    page.keyboard.press("Enter")
+    expect(fatos.first).to_contain_text("Usa o Obsidian e o Orion")
+    expect(fatos.first).to_contain_text("fonte: manual")
+    page.get_by_role("button", name="Esquecer fato: Usa o Obsidian e o Orion").click()
+    alerta = page.get_by_role("alertdialog", name="Esquecer este fato?")
+    expect(alerta).to_contain_text("Backups antigos")
+    alerta.get_by_role("button", name="Esquecer").click()
+    expect(page.locator("#conhecimento-corpo")).to_contain_text("Nenhum fato casa com")
+
+
+def test_mover_conversa_para_projeto_pelo_menu(abrir, mock_isolado_url):
+    page = abrir("#/conhecimento", url=mock_isolado_url)
+    page.get_by_label("Nome do projeto").fill("Faculdade")
+    page.get_by_role("button", name="Criar projeto").click()
+    expect(page.locator("[data-projeto]")).to_have_count(1)
+    page.evaluate("location.hash = '#/chat'")
+    _abrir_menu(page, "Dúvida de UML")
+    page.get_by_role("menuitem", name="Mover para projeto…").click()
+    dialogo = page.get_by_role("dialog", name="Mover para projeto")
+    dialogo.get_by_label("Projeto").select_option(label="Faculdade")
+    dialogo.get_by_role("button", name="Mover").click()
+    expect(dialogo).to_have_count(0)
+    # reabre: o projeto escolhido vem selecionado
+    _abrir_menu(page, "Dúvida de UML")
+    page.get_by_role("menuitem", name="Mover para projeto…").click()
+    expect(
+        page.get_by_role("dialog", name="Mover para projeto").get_by_label("Projeto")
+    ).to_have_value("1")
+    page.keyboard.press("Escape")
+
+
+def test_conhecimento_pausa_retoma_e_apaga_a_memoria_da_tela(abrir, mock_isolado_url):
+    page = abrir("#/conhecimento", url=mock_isolado_url)
+    estado = page.locator("[data-tela]")
+    expect(estado).to_contain_text("Capturando · 42 registro(s)", timeout=5000)
+    expect(estado).to_contain_text("só texto, OCR local")
+    page.locator("[data-tela-pausa]").click()
+    expect(estado).to_contain_text("Pausada")
+    expect(page.locator("[data-tela-pausa]")).to_have_text("Retomar captura")
+    page.locator("[data-tela-pausa]").click()
+    expect(estado).to_contain_text("Capturando")
+    page.locator("#conhecimento-corpo").get_by_role("button", name="Apagar tudo").click()
+    alerta = page.get_by_role("alertdialog", name="Apagar a memória da tela?")
+    alerta.get_by_role("button", name="Cancelar").click()
+    expect(estado).to_contain_text("42 registro(s)")
+    page.locator("#conhecimento-corpo").get_by_role("button", name="Apagar tudo").click()
+    page.get_by_role("alertdialog").get_by_role("button", name="Apagar tudo").click()
+    expect(estado).to_contain_text("0 registro(s)")
+
+
+def test_conhecimento_envia_lista_e_remove_documento(abrir, mock_isolado_url, tmp_path):
+    page = abrir("#/conhecimento", url=mock_isolado_url)
+    corpo = page.locator("#conhecimento-corpo")
+    expect(corpo).to_contain_text("Nenhum documento enviado", timeout=5000)
+    page.get_by_label("Nome do projeto").fill("TCC")
+    page.get_by_role("button", name="Criar projeto").click()
+    expect(page.locator("[data-projeto]")).to_have_count(1)
+    nota = tmp_path / "norma.md"
+    nota.write_text("A norma ABNT NBR 6023 define como citar referências.", encoding="utf-8")
+    page.locator("#doc-arquivo").set_input_files(str(nota))
+    page.get_by_label("Disponível em").select_option(label="TCC")
+    page.get_by_role("button", name="Enviar para a memória").click()
+    item = corpo.locator("[data-documento]")
+    expect(item).to_have_count(1, timeout=5000)
+    expect(item).to_contain_text("norma.md")
+    expect(item).to_contain_text("Projeto: TCC")
+    expect(item).to_contain_text("3 trecho(s)")
+    page.get_by_role("button", name="Remover documento norma.md").click()
+    alerta = page.get_by_role("alertdialog", name="Remover este documento?")
+    expect(alerta).to_contain_text("não é tocado")
+    alerta.get_by_role("button", name="Remover").click()
+    expect(corpo.locator("[data-documento]")).to_have_count(0)
+
+
+def test_conhecimento_resultados_com_versao_previa_download_e_apagar(abrir, mock_isolado_url):
+    page = abrir("#/conhecimento", url=mock_isolado_url)
+    itens = page.locator("[data-resultado]")
+    expect(itens).to_have_count(3, timeout=5000)
+    expect(itens.first).to_contain_text("v2")  # a mais nova primeiro
+    expect(itens.first).to_contain_text("conversa “Dúvida de UML”")
+    expect(itens.nth(2)).to_contain_text("diagrama.pdf")
+    expect(page.get_by_role("button", name="Ver diagrama.pdf versão 1")).to_have_count(
+        0
+    )  # sem prévia
+    page.get_by_role("button", name="Ver ata-reuniao.md versão 2").click()
+    expect(itens.first.locator(".conh-previa")).to_contain_text("Decisões revisadas")
+    page.get_by_role("button", name="Ver ata-reuniao.md versão 1").click()
+    expect(itens.nth(1).locator(".conh-previa")).to_contain_text("Decisões da reunião")
+    with page.expect_download() as d:
+        page.get_by_role("button", name="Baixar ata-reuniao.md versão 2").click()
+    assert d.value.suggested_filename == "ata-reuniao.md"
+    page.get_by_role("button", name="Apagar diagrama.pdf versão 1").click()
+    alerta = page.get_by_role("alertdialog", name="Apagar este resultado?")
+    alerta.get_by_role("button", name="Cancelar").click()
+    expect(itens).to_have_count(3)
+    page.get_by_role("button", name="Apagar diagrama.pdf versão 1").click()
+    page.get_by_role("alertdialog").get_by_role("button", name="Apagar").click()
+    expect(itens).to_have_count(2)
+
+
+def test_painel_caixa_de_atividade_mostra_avisos_e_marca_como_lido(abrir, mock_isolado_url):
+    page = abrir("#/painel", url=mock_isolado_url)
+    cartao = page.locator('[data-id="atividade"]')
+    expect(cartao).to_be_visible(timeout=8000)
+    expect(cartao).to_contain_text("1 não lido(s)")
+    novo = cartao.locator('[data-aviso="1"]')
+    expect(novo).to_contain_text("Bom dia, Antônio")
+    expect(novo).to_have_attribute("data-lido", "false")
+    expect(cartao.locator('[data-aviso="2"]')).to_have_attribute("data-lido", "true")
+    page.get_by_role("button", name="Marcar aviso briefing como lido").click()
+    expect(cartao).to_contain_text("0 não lido(s)", timeout=8000)
+    expect(cartao.locator('[data-aviso="1"]')).to_have_attribute("data-lido", "true")
+
+
+def test_conhecimento_plugin_mostra_o_que_libera_e_concede_e_revoga(abrir, mock_isolado_url):
+    page = abrir("#/conhecimento", url=mock_isolado_url)
+    item = page.locator('[data-plugin="estudo"]')
+    expect(item).to_be_visible(timeout=5000)
+    expect(item).to_contain_text("Sem concessão")
+    expect(item).to_contain_text("1 skill(s) · 1 servidor(es) MCP: estudocalc")
+    page.get_by_role("button", name="Conceder o plugin estudo").click()
+    alerta = page.get_by_role("alertdialog", name="Conceder o plugin estudo?")
+    expect(alerta).to_contain_text("estudocalc (local (comando): python calc.py)")
+    expect(alerta).to_contain_text("depois de reiniciar")
+    alerta.get_by_role("button", name="Cancelar").click()
+    expect(item).to_have_attribute("data-estado", "sem_concessao")
+    page.get_by_role("button", name="Conceder o plugin estudo").click()
+    page.get_by_role("alertdialog").get_by_role("button", name="Conceder").click()
+    expect(item).to_have_attribute("data-estado", "ativo")
+    page.get_by_role("button", name="Revogar o plugin estudo").click()
+    expect(item).to_have_attribute("data-estado", "sem_concessao")

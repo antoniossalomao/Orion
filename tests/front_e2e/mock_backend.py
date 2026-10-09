@@ -26,6 +26,7 @@ from fastapi import (
     Cookie,
     FastAPI,
     File,
+    Form,
     Header,
     HTTPException,
     Response,
@@ -50,6 +51,52 @@ ESTADO: dict[str, Any] = {
     "titulos": {},  # renomeadas (PATCH /sessoes/{id})
     "fixadas": set(),
     "apagadas": set(),  # DELETE /sessoes/{id}: some da lista
+    "projetos": {},  # id -> {nome, instrucoes, arquivado}
+    "fatos": {
+        1: {"texto": "Antônio estuda Sistemas de Informação na Unimar", "fonte": "conversa"},
+        2: {"texto": "Prefere respostas curtas e diretas", "fonte": "manual"},
+        3: {"texto": "Usa o Obsidian como segundo cérebro", "fonte": "vault"},
+    },
+    "resultados": {  # o id maior é o mais novo (a lista sai do mais novo para o mais antigo)
+        1: {"nome": "diagrama.pdf", "tipo": "documento", "versao": 1, "texto": None},
+        2: {
+            "nome": "ata-reuniao.md",
+            "tipo": "documento",
+            "versao": 1,
+            "texto": "# Ata\nDecisões da reunião.",
+        },
+        3: {
+            "nome": "ata-reuniao.md",
+            "tipo": "documento",
+            "versao": 2,
+            "texto": "# Ata v2\nDecisões revisadas.",
+        },
+    },
+    "plugins": {
+        "estudo": {
+            "versao": "1.0.0",
+            "descricao": "Ajuda nos estudos",
+            "skills": 1,
+            "estado": "sem_concessao",
+            "servidores": [
+                {
+                    "nome": "estudocalc",
+                    "transporte": "local (comando)",
+                    "executa": "python calc.py",
+                    "risco_padrao": "exec",
+                    "ferramentas": {},
+                    "externo": False,
+                }
+            ],
+        },
+    },
+    "avisos": {
+        1: {"tipo": "briefing", "texto": "☀️ Bom dia, Antônio. Hoje é quinta-feira.", "lido": False},
+        2: {"tipo": "semanal", "texto": "🗓️ Semana de 01/10 a 08/10.", "lido": True},
+    },
+    "documentos": {},  # id -> {nome, trechos, projeto_id}
+    "tela": {"ligada": True, "pausada": False, "registros": 42},
+    "projeto_de": {},  # sessao -> id do projeto
     "arquivadas": set(),  # PATCH {"arquivada": true}: sai da barra, a busca ainda acha
     "rng": random.Random(7),
     "delay": 0.018,
@@ -80,6 +127,7 @@ def _sessoes(arquivadas: bool = False) -> list[dict[str, Any]]:
             "ativa": sid == ESTADO["sessao_ativa"],
             "favorita": sid in ESTADO["fixadas"],
             "arquivada": sid in ESTADO["arquivadas"],
+            "projeto_id": ESTADO["projeto_de"].get(sid),
         }
         for sid, titulo, criada in base
         if sid not in ESTADO["apagadas"] and (sid in ESTADO["arquivadas"]) == arquivadas
@@ -423,6 +471,197 @@ def create_app() -> FastAPI:
         ESTADO["arquivadas"].discard(sid)  # como o cérebro: abrir uma arquivada a desarquiva
         return {"ok": True, "sessao_id": sid, "mensagens": _historico(sid)}
 
+    def _projeto(pid: int) -> dict[str, Any]:
+        p = ESTADO["projetos"][pid]
+        return {"id": pid, "nome": p["nome"], "instrucoes": p["instrucoes"],
+                "arquivado": p["arquivado"], "atualizado": _agora().isoformat()}  # fmt: skip
+
+    @app.get("/projetos")
+    def projetos_listar(arquivados: bool = False) -> dict[str, Any]:
+        itens = [_projeto(i) for i, p in ESTADO["projetos"].items() if p["arquivado"] == arquivados]
+        return {"total": len(itens), "projetos": itens}
+
+    @app.post("/projetos", status_code=201)
+    def projetos_criar(corpo: dict[str, Any]) -> dict[str, Any]:
+        nome = str(corpo.get("nome", "")).strip()
+        if not nome or any(p["nome"].lower() == nome.lower() for p in ESTADO["projetos"].values()):
+            raise HTTPException(409, "já existe um projeto com esse nome")
+        pid = max(ESTADO["projetos"], default=0) + 1
+        ESTADO["projetos"][pid] = {"nome": nome, "instrucoes": str(corpo.get("instrucoes", "")),
+                                   "arquivado": False}  # fmt: skip
+        return {"ok": True, "projeto": _projeto(pid)}
+
+    @app.patch("/projetos/{pid}")
+    def projetos_ajustar(pid: int, corpo: dict[str, Any]) -> dict[str, Any]:
+        if pid not in ESTADO["projetos"]:
+            raise HTTPException(404, "projeto não encontrado")
+        for k_api, k in (
+            ("nome", "nome"),
+            ("instrucoes", "instrucoes"),
+            ("arquivado", "arquivado"),
+        ):
+            if k_api in corpo and corpo[k_api] is not None:
+                ESTADO["projetos"][pid][k] = corpo[k_api]
+        return {"ok": True, "projeto": _projeto(pid)}
+
+    @app.delete("/projetos/{pid}")
+    def projetos_apagar(pid: int) -> dict[str, Any]:
+        if ESTADO["projetos"].pop(pid, None) is None:
+            raise HTTPException(404, "projeto não encontrado")
+        return {"ok": True}
+
+    def _fato(fid: int) -> dict[str, Any]:
+        f = ESTADO["fatos"][fid]
+        return {"id": fid, "texto": f["texto"], "fonte": f["fonte"],
+                "criado": _agora().isoformat(), "atualizado": _agora().isoformat()}  # fmt: skip
+
+    @app.get("/memoria/fatos")
+    def fatos_listar(q: str | None = None) -> dict[str, Any]:
+        itens = [
+            _fato(i) for i, f in ESTADO["fatos"].items() if not q or q.lower() in f["texto"].lower()
+        ]
+        return {"total": len(itens), "fatos": itens}
+
+    @app.patch("/memoria/fatos/{fid}")
+    def fatos_corrigir(fid: int, corpo: dict[str, Any]) -> dict[str, Any]:
+        if fid not in ESTADO["fatos"]:
+            raise HTTPException(404, "fato não encontrado")
+        ESTADO["fatos"][fid].update(texto=str(corpo["texto"]), fonte="manual")
+        return {"ok": True, "fato": _fato(fid)}
+
+    @app.delete("/memoria/fatos/{fid}")
+    def fatos_esquecer(fid: int) -> dict[str, Any]:
+        if ESTADO["fatos"].pop(fid, None) is None:
+            raise HTTPException(404, "fato não encontrado")
+        return {"ok": True}
+
+    def _plugin(nome: str) -> dict[str, Any]:
+        return {"nome": nome, **ESTADO["plugins"][nome]}
+
+    @app.get("/plugins")
+    def plugins_listar() -> dict[str, Any]:
+        return {"total": len(ESTADO["plugins"]), "plugins": [_plugin(n) for n in ESTADO["plugins"]],
+                "vale_depois_de_reiniciar": True}  # fmt: skip
+
+    @app.post("/plugins/{nome}/conceder")
+    def plugins_conceder(nome: str) -> dict[str, Any]:
+        if nome not in ESTADO["plugins"]:
+            raise HTTPException(404, "plugin não encontrado")
+        ESTADO["plugins"][nome]["estado"] = "ativo"
+        return {"ok": True, "plugin": _plugin(nome), "vale_depois_de_reiniciar": True}
+
+    @app.post("/plugins/{nome}/revogar")
+    def plugins_revogar(nome: str) -> dict[str, Any]:
+        if nome not in ESTADO["plugins"] or ESTADO["plugins"][nome]["estado"] != "ativo":
+            raise HTTPException(404, "esse plugin não tem concessão")
+        ESTADO["plugins"][nome]["estado"] = "sem_concessao"
+        return {"ok": True, "vale_depois_de_reiniciar": True}
+
+    @app.get("/atividade")
+    def atividade() -> dict[str, Any]:
+        avisos = [
+            {"id": i, "tipo": a["tipo"], "texto": a["texto"], "criado": _agora().isoformat(),
+             "entregue": a["lido"]}
+            for i, a in sorted(ESTADO["avisos"].items(), reverse=True)
+        ]  # fmt: skip
+        return {"avisos": avisos, "nao_lidos": sum(not a["entregue"] for a in avisos),
+                "aprovacoes": 0, "erros_dos_jobs": []}  # fmt: skip
+
+    @app.post("/notifications/{nid}/ack")
+    def aviso_ack(nid: int) -> dict[str, Any]:
+        if nid not in ESTADO["avisos"]:
+            raise HTTPException(404, "aviso não encontrado")
+        ESTADO["avisos"][nid]["lido"] = True
+        return {"ok": True}
+
+    @app.get("/resultados")
+    def resultados_listar() -> dict[str, Any]:
+        itens = [
+            {"id": i, "nome": r["nome"], "tipo": r["tipo"], "versao": r["versao"], "anterior": None,
+             "bytes": 2048, "ferramenta": "gerar_documento", "conversa": "Dúvida de UML",
+             "sessao_id": "s3", "projeto_id": None, "criado": _agora().isoformat(),
+             "previa": "texto" if r["texto"] else None}
+            for i, r in sorted(ESTADO["resultados"].items(), reverse=True)
+        ]  # fmt: skip
+        return {"total": len(itens), "resultados": itens}
+
+    @app.get("/resultados/{rid}/texto")
+    def resultados_texto(rid: int) -> dict[str, Any]:
+        r = ESTADO["resultados"].get(rid)
+        if not r or not r["texto"]:
+            raise HTTPException(404, "resultado não encontrado")
+        return {"texto": r["texto"], "truncado": False}
+
+    @app.get("/resultados/{rid}/arquivo")
+    def resultados_arquivo(rid: int) -> Response:
+        r = ESTADO["resultados"].get(rid)
+        if not r:
+            raise HTTPException(404, "resultado não encontrado")
+        return Response(
+            (r["texto"] or "pdf").encode(),
+            media_type="application/octet-stream",
+            headers={"Content-Disposition": f'attachment; filename="{r["nome"]}"'},
+        )
+
+    @app.delete("/resultados/{rid}")
+    def resultados_apagar(rid: int) -> dict[str, Any]:
+        if ESTADO["resultados"].pop(rid, None) is None:
+            raise HTTPException(404, "resultado não encontrado")
+        return {"ok": True}
+
+    @app.get("/memoria/documentos")
+    def documentos_listar() -> dict[str, Any]:
+        itens = [{"id": i, "nome": d["nome"], "titulo": d["nome"], "trechos": d["trechos"],
+                  "projeto_id": d["projeto_id"], "indexado": _agora().isoformat()}
+                 for i, d in ESTADO["documentos"].items()]  # fmt: skip
+        return {"total": len(itens), "documentos": itens}
+
+    @app.post("/memoria/documentos", status_code=201)
+    async def documentos_enviar(
+        arquivo: UploadFile, projeto_id: int | None = Form(default=None)
+    ) -> dict[str, Any]:
+        if not arquivo.filename or not arquivo.filename.lower().endswith(
+            (".txt", ".md", ".pdf", ".docx")
+        ):
+            raise HTTPException(415, "tipo não suportado")
+        corpo = await arquivo.read()
+        if any(d["nome"] == arquivo.filename for d in ESTADO["documentos"].values()):
+            return {
+                "ok": True,
+                "resultado": "same",
+                "caracteres": len(corpo),
+                "trechos": 2,
+                "id": 0,
+            }
+        did = max(ESTADO["documentos"], default=0) + 1
+        ESTADO["documentos"][did] = {
+            "nome": arquivo.filename,
+            "trechos": 3,
+            "projeto_id": projeto_id,
+        }
+        return {"ok": True, "resultado": "new", "caracteres": len(corpo), "trechos": 3, "id": did}
+
+    @app.delete("/memoria/documentos/{did}")
+    def documentos_apagar(did: int) -> dict[str, Any]:
+        if ESTADO["documentos"].pop(did, None) is None:
+            raise HTTPException(404, "documento não encontrado")
+        return {"ok": True}
+
+    @app.get("/tela")
+    def tela_estado() -> dict[str, Any]:
+        t = ESTADO["tela"]
+        return {**t, "hoje": min(t["registros"], 12), "gravadas": 3, "excluidas": 1}
+
+    @app.post("/tela/pausa")
+    def tela_pausa(corpo: dict[str, Any]) -> dict[str, Any]:
+        ESTADO["tela"]["pausada"] = not corpo["ativa"]
+        return {"pausada": ESTADO["tela"]["pausada"]}
+
+    @app.delete("/tela")
+    def tela_limpar() -> dict[str, Any]:
+        n, ESTADO["tela"]["registros"] = ESTADO["tela"]["registros"], 0
+        return {"ok": True, "apagados": n}
+
     @app.get("/sessoes/busca")
     def sessao_busca(q: str, limite: int = 10) -> dict[str, Any]:
         termo = q.casefold()
@@ -442,6 +681,13 @@ def create_app() -> FastAPI:
         todas = _sessoes() + _sessoes(arquivadas=True)
         if sid not in {i["sessao_id"] for i in todas} or sid == "legado":
             raise HTTPException(404, "conversa não encontrada")
+        if "projeto_id" in corpo:
+            if corpo["projeto_id"] is None:
+                ESTADO["projeto_de"].pop(sid, None)
+            elif corpo["projeto_id"] in ESTADO["projetos"]:
+                ESTADO["projeto_de"][sid] = corpo["projeto_id"]
+            else:
+                raise HTTPException(404, "projeto não encontrado")
         if "arquivada" in corpo:
             (ESTADO["arquivadas"].add if corpo["arquivada"] else ESTADO["arquivadas"].discard)(sid)
             ESTADO["fixadas"].discard(sid)
@@ -716,6 +962,15 @@ def create_app() -> FastAPI:
                 ],
             },
             "roteamento": {"ativo": True, "contagem": {"rapido": 12, "pesado": 3, "visao": 1}},
+            "semana": [
+                {
+                    "dia": (datetime.now() - timedelta(days=6 - i)).strftime("%Y%m%d"),
+                    "total": n,
+                    "erros": 1 if i == 4 else 0,
+                    "por_endpoint": {"omniroute": n} if n else {},
+                }
+                for i, n in enumerate([0, 3, 12, 7, 20, 5, 9])
+            ],
             "clis": [
                 {
                     "nome": "claude",

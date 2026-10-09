@@ -355,6 +355,14 @@ class Operations:
             )
         )
 
+    def recent_notifications(self, limit: int = 30) -> list[dict[str, Any]]:
+        """Avisos mais novos primeiro, entregues ou não (a caixa de atividade da interface)."""
+        return _dicts(
+            self._s.query(
+                "SELECT * FROM notifications ORDER BY id DESC LIMIT ?", (max(1, min(limit, 200)),)
+            )
+        )
+
     def ack_notification(self, notification_id: int) -> bool:
         with self._s.transaction() as c:
             return (

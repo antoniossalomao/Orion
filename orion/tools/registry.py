@@ -14,6 +14,9 @@ class Tool:
     description: str
     parameters: dict[str, Any]  # JSON Schema
     fn: Callable[..., Any]
+    # valida os argumentos pelo JSON Schema completo (tipos, enum, limites). As ferramentas nativas
+    # ficam de fora de propósito (aceitam "5" onde o esquema diz integer); as de servidor MCP não.
+    validar: bool = False
 
     def schema(self) -> dict[str, Any]:
         return {
@@ -33,12 +36,32 @@ class Tool:
                 {"erro": f"argumentos obrigatórios ausentes: {', '.join(faltando)}"},
                 ensure_ascii=False,
             )
+        if self.validar:
+            erro = _erro_de_esquema(self.parameters, args)
+            if erro:
+                return json.dumps({"erro": f"argumento inválido: {erro}"}, ensure_ascii=False)
         try:
             return json.dumps(self.fn(**args), ensure_ascii=False, default=str)
         except TypeError as e:
             return json.dumps({"erro": f"argumentos inválidos: {e}"}, ensure_ascii=False)
         except Exception as e:  # noqa: BLE001 — falha de ferramenta vira resultado, não derruba o turno
             return json.dumps({"erro": f"{type(e).__name__}: {e}"}, ensure_ascii=False)
+
+
+def _erro_de_esquema(esquema: dict[str, Any], args: dict[str, Any]) -> str | None:
+    """Primeiro erro de JSON Schema, curto e sem eco do valor inteiro; None se está tudo certo.
+    Um esquema que o validador não entende não derruba a ferramenta (o servidor decide)."""
+    from jsonschema import Draft202012Validator
+    from jsonschema.exceptions import best_match
+
+    try:
+        erro = best_match(Draft202012Validator(esquema).iter_errors(args))
+    except Exception:  # noqa: BLE001 — esquema inválido/desconhecido/ref remota: o servidor decide
+        return None
+    if erro is None:
+        return None
+    onde = ".".join(str(p) for p in erro.absolute_path) or "(raiz)"
+    return f"{onde}: {erro.message[:160]}"
 
 
 class ToolRegistry:

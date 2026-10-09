@@ -11,7 +11,7 @@
     const U = O.util;
     const L = O.painelLogica;
 
-    let timer = null, dados = null, falhou = false, desde = 0;
+    let timer = null, dados = null, atividade = null, falhou = false, desde = 0;
 
     const tempo = ts => (ts ? U.hora(new Date(ts * 1000)) : '—');
 
@@ -51,6 +51,35 @@
                 el('small', { text: detalhe }),
                 servidos ? el('small', { class: 'painel-provedores', text: `Serviu: ${servidos}` }) : null);
         })), rot ? el('p', { class: 'painel-top', 'data-roteamento': '' }, `Roteamento por tipo de tarefa: ${rot}`) : null);
+    }
+
+    /** barras simples (uma por dia) das respostas dos últimos 7 dias; só textContent e CSS */
+    function semanaEl(semana) {
+        if (!semana?.some(d => d.total || d.erros)) return vazio('Ainda sem respostas contadas nesta semana.');
+        const maior = Math.max(1, ...semana.map(d => d.total));
+        const total = semana.reduce((a, d) => a + d.total, 0), erros = semana.reduce((a, d) => a + d.erros, 0);
+        return el('div', {}, el('ul', { class: 'painel-semana', 'aria-label': 'Respostas por dia' }, ...semana.map(d => {
+            const rotulo = `${d.dia.slice(6)}/${d.dia.slice(4, 6)}`;
+            return el('li', { class: 'painel-dia', dataset: { dia: d.dia, total: String(d.total) } },
+                el('span', { class: 'painel-barra', style: `height:${Math.round((d.total / maior) * 100)}%`, 'aria-hidden': 'true' }),
+                el('span', { class: 'painel-dia-n mono', text: String(d.total) }),
+                el('span', { class: 'painel-dia-r', text: rotulo }),
+                el('span', { class: 'sr-only', text: `${rotulo}: ${d.total} resposta(s)${d.erros ? `, ${d.erros} falha(s)` : ''}` }));
+        })), el('p', { class: 'painel-top', 'data-semana': '' }, `${total} resposta(s) em 7 dias · ${erros} falha(s) sem resposta · não é a cota do provedor`));
+    }
+
+    /** caixa de atividade: avisos do Orion (briefing, lembretes, relatórios...) mesmo sem Telegram */
+    function atividadeEl(a) {
+        if (!a) return vazio('Consultando…');
+        if (!a.avisos.length) return vazio('Nenhum aviso ainda.');
+        return el('ul', { class: 'painel-lista', 'aria-label': 'Avisos' }, ...a.avisos.slice(0, 10).map(n =>
+            el('li', { class: 'painel-item', dataset: { aviso: String(n.id), lido: String(n.entregue) } },
+                el('div', { class: 'painel-item-top' }, el('strong', { text: n.tipo }),
+                    el('span', { class: `badge badge-${n.entregue ? 'muted' : 'warn'}`, text: n.entregue ? 'Lido' : 'Novo' })),
+                el('small', { class: 'conh-aviso', text: n.texto.length > 280 ? `${n.texto.slice(0, 280)}…` : n.texto }),
+                n.entregue ? null : el('div', { class: 'conh-acoes' }, el('button', { class: 'btn btn-outline btn-sm', type: 'button',
+                    'aria-label': `Marcar aviso ${n.tipo} como lido`, text: 'Marcar como lido',
+                    on: { click: async () => { try { await api.lerAviso(n.id); } catch (_) { /* a lista real vem no próximo refresh */ } atualizar(); } } })))));
     }
 
     function clisEl(clis) {
@@ -123,6 +152,8 @@
             alertasEl(a),
             el('div', { class: 'grid grid-2 painel-grade' },
                 cartao('modelos', 'Modelos', 'desde que o Orion subiu; não é a cota do provedor', modelosEl(dados.modelos, dados.roteamento)),
+                cartao('atividade', 'Atividade', atividade ? `${atividade.nao_lidos} não lido(s)` : null, atividadeEl(atividade)),
+                cartao('semana', 'Uso da semana', 'respostas por dia', semanaEl(dados.semana)),
                 cartao('clis', 'CLIs oficiais', 'uso de hoje', clisEl(dados.clis)),
                 cartao('aprovacoes', 'Aprovações', `${dados.aprovacoes?.pendentes ?? 0} pendente(s)`, aprovacoesEl(dados.aprovacoes)),
                 cartao('decisoes', 'Política', `últimas ${dados.decisoes?.janela_h ?? 24} h`, decisoesEl(dados.decisoes)),
@@ -131,7 +162,10 @@
     }
 
     async function atualizar() {
-        try { dados = await api.painel(); falhou = false; desde = Date.now(); }
+        try {
+            [dados, atividade] = await Promise.all([api.painel(), api.atividade().catch(() => atividade)]);
+            falhou = false; desde = Date.now();
+        }
         catch (_) { falhou = true; }
         desenhar();
     }

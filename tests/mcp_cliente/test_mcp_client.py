@@ -290,3 +290,45 @@ def test_egress_vem_do_mcp_json_e_o_exemplo_marca_o_fetch():
     assert spec_for("web", c.servers["web"], "fetch").egress is True
     assert spec_for("web", c.servers["web"], "outra").egress is False
     assert cfg(tools={"x": ToolRule(egress=True)}).tools["x"].egress is True
+
+
+# ── validação pelo esquema completo (C08) ──────────────────────────────────────
+def test_argumento_de_tipo_errado_e_recusado_antes_de_chamar_o_servidor(gerente):
+    somar = next(t for t in gerente.tools if t.name == "fake__somar")
+    ok = json.loads(somar.run({"a": 2, "b": 3}))
+    assert "erro" not in ok
+    errado = json.loads(somar.run({"a": "dois", "b": 3}))
+    assert errado["erro"].startswith("argumento inválido: a:") and "integer" in errado["erro"]
+    ausente = json.loads(somar.run({"a": 1}))
+    assert "obrigatórios ausentes" in ausente["erro"]
+
+
+def test_ferramentas_nativas_continuam_aceitando_numero_como_texto():
+    from orion.tools import Tool
+
+    t = Tool("x", "x", {"type": "object", "properties": {"n": {"type": "integer"}}}, lambda n: n)
+    assert json.loads(t.run({"n": "5"})) == "5"  # nativas não validam tipo (comportamento antigo)
+    assert json.loads(Tool("x", "x", t.parameters, lambda n: n, validar=True).run({"n": "5"}))[
+        "erro"
+    ]
+
+
+def test_esquema_que_o_validador_nao_entende_nao_derruba_a_ferramenta():
+    from orion.tools import Tool
+
+    t = Tool(
+        "x",
+        "x",
+        {"type": "object", "properties": {"n": {"type": "inexistente"}}},
+        lambda n: n,
+        validar=True,
+    )
+    assert json.loads(t.run({"n": 1})) == 1
+
+
+def test_resolve_env_troca_segredo_dentro_do_valor():
+    assert resolve_env({"Authorization": "Bearer ${T}"}, lambda n: "abc") == {
+        "Authorization": "Bearer abc"
+    }
+    with pytest.raises(McpConfigError, match="T"):
+        resolve_env({"a": "x ${T} y"}, lambda n: None)

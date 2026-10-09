@@ -238,3 +238,16 @@ input[type="search"]::-webkit-search-cancel-button { appearance: none; }
 .spark[hidden] { display: none; }
 
 .dialog-form { display: contents; }   /* o <form> do diálogo com campo não muda o layout do .dialog */
+
+/* painel: uso da semana (E3) */
+.painel-semana { display: flex; align-items: flex-end; gap: var(--s-2); height: 7rem; margin: 0; padding: 0; list-style: none; }
+.painel-dia { position: relative; flex: 1; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 0.15rem; }
+.painel-barra { width: 70%; min-height: 2px; border-radius: 3px 3px 0 0; background: var(--accent, #4f8cff); }
+.painel-dia-n { font-size: var(--fs-2xs); color: var(--text-2); }
+.painel-dia-r { font-size: var(--fs-2xs); color: var(--text-3); }
+.conh-previa { margin: var(--s-2) 0 0; padding: var(--s-3); max-height: 16rem; overflow: auto; white-space: pre-wrap; border-radius: var(--r-2, 8px); background: var(--surface-2, rgba(255,255,255,0.04)); font-size: var(--fs-xs); }
+.conh-previa-img { margin-top: var(--s-2); max-width: 100%; max-height: 16rem; border-radius: var(--r-2, 8px); }
+.conh-form { display: flex; flex-direction: column; gap: var(--s-3); margin-bottom: var(--s-4); }
+.conh-acoes { display: flex; flex-wrap: wrap; gap: var(--s-2); margin-top: var(--s-2); }
+.conh-fato { color: var(--text-1); line-height: 1.5; }
+.conh-tela { display: flex; flex-direction: column; gap: var(--s-2); }

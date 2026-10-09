@@ -140,6 +140,21 @@ def _gerar_pdf(caminho: Path, conteudo: str, titulo: str) -> None:
     SimpleDocTemplate(str(caminho), pagesize=A4).build(pecas)
 
 
+def extrair_texto(caminho: Path) -> str:
+    """Texto de um documento pelo tipo (pdf, docx, xlsx, html, texto). Levanta se ilegível."""
+    ext = caminho.suffix.lower()
+    if ext == ".pdf":
+        return _texto_pdf(caminho)
+    if ext == ".docx":
+        return _texto_docx(caminho)
+    if ext == ".xlsx":
+        return _texto_xlsx(caminho)
+    texto = caminho.read_text(encoding="utf-8", errors="replace")
+    if ext in (".html", ".htm"):
+        texto = netguard.html_para_texto(texto)[1]
+    return texto
+
+
 def document_tools() -> list[Tool]:
     def ler_documento(path: str, max_chars: int = 8000) -> dict[str, Any]:
         caminho = Path(path).expanduser()
@@ -154,16 +169,7 @@ def document_tools() -> list[Tool]:
         if caminho.stat().st_size > MAX_ARQUIVO:
             return {"erro": f"arquivo passa de {MAX_ARQUIVO // 1024 // 1024} MB"}
         try:
-            if ext == ".pdf":
-                texto = _texto_pdf(caminho)
-            elif ext == ".docx":
-                texto = _texto_docx(caminho)
-            elif ext == ".xlsx":
-                texto = _texto_xlsx(caminho)
-            else:
-                texto = caminho.read_text(encoding="utf-8", errors="replace")
-                if ext in (".html", ".htm"):
-                    texto = netguard.html_para_texto(texto)[1]
+            texto = extrair_texto(caminho)
         except Exception as e:  # noqa: BLE001 — arquivo corrompido/protegido vira resultado
             return {"erro": f"não consegui ler o documento ({type(e).__name__})"}
         texto = texto.strip()

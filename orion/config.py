@@ -72,6 +72,8 @@ class Settings(BaseSettings):
     telegram_token: str = ""  # ou no cofre do SO (ORION_TELEGRAM_TOKEN)
     # IDs numéricos do Telegram, separados por vírgula ("123,456") ou lista JSON ("[123]")
     telegram_allowed_users: Annotated[list[int], NoDecode] = Field(default_factory=list)
+    plugins_enabled: bool = True
+    plugins_dir: Path | None = None  # padrão: <dados>/plugins (concessão por plugin, regra 45)
     skills_enabled: bool = True
     skills_dir: Path | None = None  # padrão: <dados>/skills (pasta por skill, com SKILL.md)
     # n8n: webhooks que VOCÊ cadastra, {"nome": "https://..."} em JSON (regra 41); vazio: desligado
@@ -123,8 +125,28 @@ class Settings(BaseSettings):
     # ninguém olhando. Liga com o e-mail da conta; a ferramenta precisa ser `read` no mcp.json.
     briefing_calendar_email: str = ""
     briefing_calendar_tool: str = "google__get_events"
+    # Memória da tela (regra 44): OCR local da tela, só texto, retenção curta. Opt-in.
+    screen_memory: bool = False
+    screen_interval_s: int = Field(default=300, ge=60, le=3600)
+    screen_retention_days: int = Field(default=7, ge=1, le=90)
+    screen_exclude: str = (  # título de janela que casa com algum item: nem captura (separe com ;)
+        "senha;password;passwd;banco;bank;bitwarden;1password;keepass;lastpass;nubank;login;"
+        "token;pix;cartão;cartao;cpf"
+    )
+    screen_allow_unknown_title: bool = False  # false: sem título da janela, não captura
+    screen_ocr_langs: str = "por+eng"
+    sleep_at: str = (
+        ""  # HH:MM: revisão noturna da memória (duplicados, relações, padrões); vazio: não
+    )
+    weekly_ai: bool = False  # segunda: o modelo escreve uma leitura curta do resumo semanal
     research_at: str = ""  # HH:MM: pesquisa noturna só leitura (regra 39); vazio: desligada
-    research_topics: str = ""  # assuntos separados por ";" (até 5); só o Antônio escolhe
+    # assuntos separados por ";" (até 5); só o Antônio escolhe. Os padrões vêm das notas recentes do
+    # vault; sem ORION_RESEARCH_AT a pesquisa continua desligada.
+    research_topics: str = (
+        "MCP (Model Context Protocol) segurança e novidades;"
+        " Pix e Open Finance (regras do Banco Central);"
+        " LLMs locais e on-device"
+    )
     consolidate: bool = True  # fatos a partir das conversas (precisa do gateway)
     # Embeddings por API gratuita (Gemini). Sem chave, a busca é só por palavra-chave.
     embed_api_key: str = ""  # ou no cofre do SO (ORION_EMBED_API_KEY)
@@ -235,6 +257,10 @@ class Settings(BaseSettings):
     @property
     def effective_mcp_config(self) -> Path:
         return self.mcp_config or self.data_dir / "mcp.json"
+
+    @property
+    def effective_plugins_dir(self) -> Path:
+        return self.plugins_dir or self.data_dir / "plugins"
 
     @property
     def effective_skills_dir(self) -> Path:

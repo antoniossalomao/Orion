@@ -119,6 +119,22 @@ def _opcionais(s: Settings) -> list[Checagem]:
             out.append(Checagem(nome, "ok", "chave presente"))
         elif ligado:
             out.append(Checagem(nome, "aviso", falta))
+    if s.screen_memory:
+        import shutil
+
+        faltando = [n for n in ("tesseract",) if shutil.which(n) is None]
+        if faltando:
+            out.append(
+                Checagem(
+                    "memória da tela", "aviso", f"ligada, mas falta instalar: {', '.join(faltando)}"
+                )
+            )
+        else:
+            out.append(
+                Checagem(
+                    "memória da tela", "ok", f"OCR local, guarda {s.screen_retention_days} dia(s)"
+                )
+            )
     if s.research_at and not (s.web_tools and s.vault_dir):
         out.append(
             Checagem("pesquisa noturna", "aviso", "ORION_RESEARCH_AT sem ORION_WEB_TOOLS e vault")
