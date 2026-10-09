@@ -202,7 +202,7 @@ Respostas: a imagem **pode sair** do computador; uso "pra tudo que der" (pergunt
 Continua o mesmo de [ORION_CORTE.md](ORION_CORTE.md): fase 0, serviços e chaves, Telegram real, microfone real, Tailscale, senha de fábrica.
 
 ## 12. Incubação — ideias em avaliação (09/10, sem decisão)
-Saídas do brainstorm a partir do perfil do Antônio no vault (estágio, faculdade, DevCore, projetos, rotina). Cada uma espera "entra / incubação / não".
+Saídas do brainstorm a partir do perfil do Antônio no vault (estágio, faculdade, DevCore, projetos, rotina). Decisão do Antônio (09/10): **entram** N9, N10, N11, N12, N14, N16, N18, N19, N22; **continuam em incubação** N13, N15, N17, N20, N21 (não citadas).
 
 | ID | Ideia | Por que faz sentido | Custo |
 |---|---|---|---|
@@ -220,4 +220,23 @@ Saídas do brainstorm a partir do perfil do Antônio no vault (estágio, faculda
 | N20 | **Eval semanal automático**: roda o `eval_pessoal` e o teste de injeção toda semana; avisa se a busca piorou | Pega regressão de memória/embeddings cedo | local |
 | N21 | **Contexto por lugar/horário**: no horário do estágio, o Orion prioriza projeto "Estágio"; à noite, faculdade/pessoal (instruções de projeto por horário) | Rotina fixa de 6 h/dia | zero |
 | N22 | **Respostas por voz no carro/fone pelo Telegram**: mensagem de voz → resposta em áudio (TTS já existe) | Uso com mãos ocupadas | cota grátis |
+
+## 13. Fora da curva (ficção científica viável) — em avaliação
+Critério: dá para fazer com o que o Orion já tem, custo zero, e não quebra o Ring 0. Referência de ficção entre parênteses.
+
+| ID | Ideia | Como seria no Orion | Risco / limite |
+|---|---|---|---|
+| X1 | **"Onde eu deixei?"** (*Person of Interest*) | Com a câmera ligada, a detecção local (YOLO) guarda só **rótulos + hora + posição** dos objetos (sem imagem). "Onde vi meu fone por último?" → "na mesa, 14:32". Memória do mundo físico | Captura contínua: opt-in, retenção curta, regra nova; só objetos, nunca pessoas de terceiros |
+| X2 | **Conselho de IAs** (*Câmara de Eco* da Lyra, ideia 136) | Decisão importante → Claude, Codex e Gemini (assinaturas, via `delegar`) respondem separados, depois cada um critica os outros; o Orion resume consenso e divergência | Lento (minutos); gasta limite das assinaturas |
+| X3 | **Gêmeo digital** ("o que eu faria?") | A partir do Registro de Decisões do vault e dos fatos, responde como você decidiria, citando as decisões passadas que embasam; útil para "isso fere meus princípios?" | É espelho, não oráculo: sempre mostra as fontes |
+| X4 | **Linha do tempo da vida** (*Black Mirror*, "The Entire History of You") | "O que eu fazia dia 3/8 às 15h?" junta conversas, commits, documentos, memória da tela, diário (N10) e gastos (N11) numa linha do tempo navegável | Tudo local; respeita retenções de cada fonte |
+| X5 | **Presença** (*Jarvis*; ideia 83 BLE Presence) | Sabe se você está no PC: celular por Bluetooth perto, rosto (câmera, local) ou só tela desbloqueada. Chegou → briefing; saiu → bloqueia a tela e pausa capturas. Também é o "só quando eu estiver no PC" do reconhecimento facial | Bluetooth no Windows varia; fallback = tela bloqueada |
+| X6 | **Protocolo Darwin** (auto-evolução supervisionada, roadmap da Lyra) | Semanal: lê falhas, negações e erros do audit, escolhe 1 melhoria e abre um **PR no próprio repositório** via Claude Code (assinatura). Você revisa e faz merge | Nunca faz merge, nunca toca política/regras/auth (lista bloqueada); só PR |
+| X7 | **Sonhos** (REM do ciclo de sono) | De madrugada, cruza notas e fatos de áreas sem ligação e entrega de manhã 1 "ideia do dia" com as duas fontes ("o que você leu sobre X serve no projeto Y") | Qualidade variável; 1 por dia, descartável |
+| X8 | **Árvore de cenários** (ideia 6 da Lyra) | Para decisões com números (carro à vista × financiado), usa seus gastos reais (N11) e simula cenários (Monte Carlo local), mostrando faixas, não uma resposta única | Só tão bom quanto os dados lançados |
+| X9 | **Cápsula do tempo** | "Daqui 6 meses me lembra disso": guarda intenções/previsões suas e, na data, confronta: "você disse que terminaria o Nortis até março" | Zero; só lembrete com contexto |
+| X10 | **Lazarus / dead man's switch** (ideias 70 e 77) | Se você ficar N dias sem interagir, envia a uma pessoa de confiança instruções que você escreveu (onde estão backups, senhas mestras **não**) | Configuração cuidadosa; nunca manda segredo; vários avisos antes |
+| X11 | **Escudo de foco** (ideias 67 e 81) | Num bloco de foco (N9 marca os blocos), se a memória da tela vir app de distração, o Orion pergunta "isso é do marco da semana?"; segura avisos não urgentes até o fim do bloco | Pode irritar: um aviso por bloco, fácil de desligar |
+| X12 | **Leitura do seu estado pela voz** (Emotion Engine da Lyra) | Pelo tom (local, sem mandar áudio a mais ninguém), percebe cansaço/pressa e ajusta: respostas mais curtas, adia o que não é urgente | Inferência imprecisa; só ajusta estilo, nunca decide nada |
+| X13 | **Orion físico** (ideia 75 Tamagotchi Hardware; D8 MQTT) | Um ESP32 com anel de LED na mesa (~R$ 40) mostra o estado: pensando, aviso pendente, aguardando aprovação, captura ligada (luz vermelha = alguma câmera/tela gravando) | Única com custo (hardware barato); depende de D8 |
 
