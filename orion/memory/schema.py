@@ -3,11 +3,12 @@
 v1: conversas, fatos, documentos e vetores. v2: operação (lembretes, agendamentos,
 tarefas, números, prompts), arestas do grafo e fila de notificações. v3: trilha de
 auditoria das decisões da política. v4: conversa fixada e apagada (apagar = esconder: as
-mensagens ficam). v5: seleção persistente de sessão por canal. Banco antigo sobe sozinho
+mensagens ficam). v5: seleção persistente de sessão por canal. v11: registro de saída
+(`external_calls`, regra 47) e aviso urgente (não perturbe, regra 48). Banco antigo sobe sozinho
 (`MIGRATIONS`).
 """
 
-SCHEMA_VERSION = 10
+SCHEMA_VERSION = 11
 
 TOKENIZER = "unicode61 remove_diacritics 2"  # "açúcar" casa com "acucar"
 
@@ -269,7 +270,31 @@ CREATE INDEX idx_artifacts_name ON artifacts(name, version);
 CREATE INDEX idx_artifacts_created ON artifacts(created_at);
 """
 
-DDL = DDL_V1 + DDL_V2 + DDL_V3 + DDL_V4 + DDL_V5 + DDL_V6 + DDL_V7 + DDL_V8 + DDL_V9 + DDL_V10
+# Registro de saída (regra 47): uma linha por chamada a provedor de fora, sem o conteúdo. Base da
+# cota gratuita (regra 46), da telemetria por provedor e do painel de privacidade. `urgent`: o não
+# perturbe (regra 48) segura na fila o aviso que não for urgente.
+DDL_V11 = """
+CREATE TABLE external_calls (
+    id INTEGER PRIMARY KEY,
+    ts REAL NOT NULL,
+    provider TEXT NOT NULL,      -- gateway:<camada>, groq, gemini, brave, ollama, cli:<nome>...
+    kind TEXT NOT NULL,          -- chat, embed, transcribe, vision, search, tts, image, cli...
+    model TEXT NOT NULL DEFAULT '',
+    ok INTEGER NOT NULL,
+    latency_ms INTEGER NOT NULL,
+    bytes_out INTEGER NOT NULL DEFAULT 0,
+    bytes_in INTEGER NOT NULL DEFAULT 0,
+    content_kind TEXT NOT NULL DEFAULT ''   -- texto, imagem, audio (nunca o conteúdo)
+);
+CREATE INDEX idx_external_calls_ts ON external_calls(ts);
+CREATE INDEX idx_external_calls_provider ON external_calls(provider, ts);
+ALTER TABLE notifications ADD COLUMN urgent INTEGER NOT NULL DEFAULT 0;
+"""
+
+DDL = (
+    DDL_V1 + DDL_V2 + DDL_V3 + DDL_V4 + DDL_V5 + DDL_V6 + DDL_V7 + DDL_V8 + DDL_V9 + DDL_V10
+    + DDL_V11
+)  # fmt: skip
 
 # versão de origem -> script que leva à seguinte
 MIGRATIONS: dict[int, str] = {
@@ -282,4 +307,5 @@ MIGRATIONS: dict[int, str] = {
     7: DDL_V8,
     8: DDL_V9,
     9: DDL_V10,
+    10: DDL_V11,
 }

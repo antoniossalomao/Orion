@@ -22,6 +22,7 @@ from __future__ import annotations
 import base64
 import binascii
 import html
+import json
 import re
 import secrets
 import time
@@ -31,7 +32,7 @@ from typing import Any
 
 import httpx
 
-from .. import netguard
+from .. import netguard, saidas
 from .registry import Tool
 
 # WMO weather interpretation codes (Open-Meteo)
@@ -88,7 +89,10 @@ def web_tools(
     def buscar_url(url: str, max_chars: int = 6000) -> dict[str, Any]:
         limite = max(200, min(int(max_chars), MAX_CHARS_URL))
         try:
-            r = netguard.buscar(url, resolver=resolver, transport=transport)
+            # o site lido fica no registro de saída só como "web" (a URL não é guardada)
+            with saidas.medir("web", "fetch", bytes_out=len(url.encode())) as m:
+                r = netguard.buscar(url, resolver=resolver, transport=transport)
+                m.ok, m.bytes_in = True, len(r.corpo)
         except netguard.URLBloqueada as e:
             return {"erro": f"URL bloqueada: {e}"}
         except httpx.HTTPError as e:
@@ -107,7 +111,10 @@ def web_tools(
     def consultar_clima(cidade: str = "") -> dict[str, Any]:
         nome = cidade.strip() or cidade_padrao
         try:
-            with httpx.Client(transport=transport, timeout=15.0) as c:
+            with (
+                saidas.medir("open-meteo", "weather", bytes_out=len(nome.encode())) as m,
+                httpx.Client(transport=transport, timeout=15.0) as c,
+            ):
                 g = c.get(GEOCODING, params={"name": nome, "count": 1, "language": "pt"})
                 g.raise_for_status()
                 achados = g.json().get("results") or []
@@ -129,6 +136,7 @@ def web_tools(
                 )
                 p.raise_for_status()
                 d = p.json()
+                m.ok, m.bytes_in = True, len(g.content) + len(p.content)
         except (httpx.HTTPError, ValueError, KeyError) as e:
             return {"erro": f"falha ao consultar o clima: {type(e).__name__}"}
         agora, dia = d.get("current", {}), d.get("daily", {})
@@ -163,14 +171,21 @@ def web_tools(
             "tools": [{"google_search": {}}],
         }
         try:
-            with httpx.Client(transport=transport, timeout=45.0) as c:
+            with (
+                saidas.medir(
+                    "gemini", "search", model=search_model, bytes_out=len(json.dumps(corpo))
+                ) as m,
+                httpx.Client(transport=transport, timeout=45.0) as c,
+            ):
                 r = c.post(
                     f"{GEMINI}/{search_model}:generateContent",
                     json=corpo,
                     headers={"x-goog-api-key": chave},  # em cabeçalho, nunca na URL (regra 5)
                 )
+                m.bytes_in = len(r.content)
                 r.raise_for_status()
                 d = r.json()
+                m.ok = True
         except httpx.HTTPStatusError as e:
             return {"erro": f"a busca falhou (HTTP {e.response.status_code})"}
         except (httpx.HTTPError, ValueError) as e:
@@ -196,14 +211,19 @@ def web_tools(
             return {"erro": "consulta vazia"}
         n = max(1, min(int(max_resultados), 10))
         try:
-            with httpx.Client(transport=transport, timeout=20.0) as c:
+            with (
+                saidas.medir("brave", "search", bytes_out=len(consulta.encode())) as m,
+                httpx.Client(transport=transport, timeout=20.0) as c,
+            ):
                 r = c.get(
                     BRAVE,
                     params={"q": consulta, "count": n, "search_lang": "pt"},
                     headers={"X-Subscription-Token": chave, "Accept": "application/json"},
                 )  # chave em cabeçalho, nunca na URL (regra 5)
+                m.bytes_in = len(r.content)
                 r.raise_for_status()
                 d = r.json()
+                m.ok = True
         except httpx.HTTPStatusError as e:
             return {"erro": f"a busca falhou (HTTP {e.response.status_code})"}
         except (httpx.HTTPError, ValueError) as e:
@@ -241,14 +261,21 @@ def web_tools(
             "generationConfig": {"responseModalities": ["TEXT", "IMAGE"]},
         }
         try:
-            with httpx.Client(transport=transport, timeout=90.0) as c:
+            with (
+                saidas.medir(
+                    "gemini", "image", model=image_model, bytes_out=len(json.dumps(corpo))
+                ) as m,
+                httpx.Client(transport=transport, timeout=90.0) as c,
+            ):
                 r = c.post(
                     f"{GEMINI}/{image_model}:generateContent",
                     json=corpo,
                     headers={"x-goog-api-key": chave},  # em cabeçalho, nunca na URL (regra 5)
                 )
+                m.bytes_in = len(r.content)
                 r.raise_for_status()
                 d = r.json()
+                m.ok = True
         except httpx.HTTPStatusError as e:
             return {"erro": f"a geração falhou (HTTP {e.response.status_code})"}
         except (httpx.HTTPError, ValueError) as e:

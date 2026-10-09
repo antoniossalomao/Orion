@@ -41,6 +41,14 @@ def _like(texto: str) -> str:
     return texto.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
+def _percentil(ordenados: Sequence[int], p: int) -> int:
+    """Percentil pelo vizinho mais próximo (lista já ordenada); 0 se vazia."""
+    if not ordenados:
+        return 0
+    i = max(0, min(len(ordenados) - 1, -(-p * len(ordenados) // 100) - 1))
+    return int(ordenados[i])
+
+
 def _sessao(r: sqlite3.Row) -> Session:
     return Session(
         r["id"],
@@ -1062,6 +1070,119 @@ class MemoryStore:
             return int(
                 c.execute("SELECT value FROM meta WHERE key=?", (f"counter:{chave}",)).fetchone()[0]
             )
+
+    # ── valores livres no `meta` (estado dos modos, regra 48) ──────────────
+    def meta_get(self, chave: str) -> str | None:
+        with self._lock:
+            return self._meta(self._conn, f"valor:{chave}")
+
+    def meta_set(self, chave: str, valor: str | None) -> None:
+        """`None` apaga. Chave com prefixo próprio: não colide com contador nem com `watch:`."""
+        with self._tx() as c:
+            if valor is None:
+                c.execute("DELETE FROM meta WHERE key=?", (f"valor:{chave}",))
+            else:
+                c.execute(
+                    "INSERT INTO meta(key, value) VALUES (?, ?)"
+                    " ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                    (f"valor:{chave}", valor),
+                )
+
+    # ── registro de saída (regra 47): tamanho e tipo, nunca o conteúdo ─────
+    def add_external_call(
+        self,
+        *,
+        provider: str,
+        kind: str,
+        ok: bool,
+        latency_ms: int,
+        model: str = "",
+        bytes_out: int = 0,
+        bytes_in: int = 0,
+        content_kind: str = "",
+        ts: float | None = None,
+    ) -> int:
+        with self._tx() as c:
+            return int(
+                c.execute(
+                    "INSERT INTO external_calls(ts, provider, kind, model, ok, latency_ms,"
+                    " bytes_out, bytes_in, content_kind) VALUES (?,?,?,?,?,?,?,?,?)",
+                    (
+                        self._clock() if ts is None else ts,
+                        provider[:60],
+                        kind[:30],
+                        model[:120],
+                        1 if ok else 0,
+                        max(0, int(latency_ms)),
+                        max(0, int(bytes_out)),
+                        max(0, int(bytes_in)),
+                        content_kind[:20],
+                    ),
+                ).lastrowid
+                or 0
+            )
+
+    def external_calls(
+        self, desde: float, *, prefixo: str | None = None, limite: int = 5000
+    ) -> list[dict[str, Any]]:
+        """Linhas desde `desde` (mais novas primeiro); `prefixo` filtra o provedor."""
+        filtro = ""
+        params: list[Any] = [desde]
+        if prefixo:
+            filtro = " AND provider LIKE ? ESCAPE '\\'"
+            params.append(_like(prefixo) + "%")
+        rows = self.query(
+            f"SELECT * FROM external_calls WHERE ts>=?{filtro} ORDER BY ts DESC, id DESC LIMIT ?",
+            (*params, max(1, min(int(limite), 50_000))),
+        )
+        return [dict(r) for r in rows]
+
+    def external_calls_count(self, provider_prefix: str, desde: float) -> int:
+        """Chamadas de um provedor (ou família, `gateway:`) desde `desde`: a base da cota."""
+        with self._lock:
+            r = self._conn.execute(
+                "SELECT COUNT(*) FROM external_calls WHERE ts>=? AND provider LIKE ? ESCAPE '\\'",
+                (desde, _like(provider_prefix) + "%"),
+            ).fetchone()
+        return int(r[0]) if r else 0
+
+    def external_calls_summary(self, desde: float) -> list[dict[str, Any]]:
+        """Por provedor e tipo: chamadas, falhas, p50/p95 da latência, bytes e o modelo mais
+        usado."""
+        grupos: dict[tuple[str, str], list[sqlite3.Row]] = {}
+        for r in self.query(
+            "SELECT provider, kind, model, ok, latency_ms, bytes_out, bytes_in"
+            " FROM external_calls WHERE ts>=? ORDER BY ts",
+            (desde,),
+        ):
+            grupos.setdefault((r["provider"], r["kind"]), []).append(r)
+        saida = []
+        for (provider, kind), linhas in sorted(grupos.items()):
+            lat = sorted(int(r["latency_ms"]) for r in linhas)
+            modelos: dict[str, int] = {}
+            for r in linhas:
+                if r["model"]:
+                    modelos[r["model"]] = modelos.get(r["model"], 0) + 1
+            saida.append(
+                {
+                    "provider": provider,
+                    "kind": kind,
+                    "chamadas": len(linhas),
+                    "falhas": sum(1 for r in linhas if not r["ok"]),
+                    "p50_ms": _percentil(lat, 50),
+                    "p95_ms": _percentil(lat, 95),
+                    "bytes_out": sum(int(r["bytes_out"]) for r in linhas),
+                    "bytes_in": sum(int(r["bytes_in"]) for r in linhas),
+                    "modelo": max(modelos, key=lambda m: modelos[m]) if modelos else "",
+                }
+            )
+        return saida
+
+    def prune_external_calls(self, dias: int = 90) -> int:
+        with self._tx() as c:
+            return c.execute(
+                "DELETE FROM external_calls WHERE ts < ?", (self._clock() - dias * 86400,)
+            ).rowcount
 
     # ── biblioteca de resultados (C34) ────────────────────────────────────
     def add_artifact(

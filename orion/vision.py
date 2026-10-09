@@ -14,10 +14,12 @@ chave.
 from __future__ import annotations
 
 import base64
+import json
 from typing import Any
 
 import httpx
 
+from . import saidas
 from .gateway import Endpoint
 
 MAX_IMAGEM = 6 * 1024 * 1024  # bytes; imagem maior que isso o provedor gratuito costuma recusar
@@ -74,13 +76,29 @@ class Vision:
 
     @staticmethod
     def _perguntar(cliente: httpx.Client, ep: Endpoint, mensagens: list[dict[str, Any]]) -> str:
+        corpo = {"model": ep.model, "messages": mensagens, "stream": False}
+        with saidas.medir(
+            "gateway:visao",
+            "vision",
+            model=ep.model,
+            bytes_out=len(json.dumps(corpo).encode()),
+            content_kind="imagem",
+        ) as m:  # a imagem sai do computador: fica no registro de saída (regra 47)
+            texto = Vision._enviar(cliente, ep, corpo, m)
+            m.ok = True
+        return texto
+
+    @staticmethod
+    def _enviar(
+        cliente: httpx.Client, ep: Endpoint, corpo: dict[str, Any], m: saidas.Medida
+    ) -> str:
         headers = {"Authorization": f"Bearer {ep.api_key}"} if ep.api_key else {}
         url = ep.base_url.rstrip("/") + "/chat/completions"
-        corpo = {"model": ep.model, "messages": mensagens, "stream": False}
         try:
             resp = cliente.post(url, json=corpo, headers=headers, timeout=ep.timeout_s)
         except httpx.HTTPError as e:
             raise VisionError(type(e).__name__) from None  # a mensagem do httpx leva a URL
+        m.bytes_in = len(resp.content)
         if resp.status_code >= 400:
             raise VisionError(f"HTTP {resp.status_code}")
         try:

@@ -40,7 +40,7 @@ from pydantic import BaseModel, Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from . import __version__
+from . import __version__, saidas
 from .agenda import agenda_do_briefing
 from .agent import Agent, AgentEvent
 from .auth import AuthError, AuthService, LockedOut, NotConfigured, WeakPassword
@@ -721,6 +721,7 @@ def create_app(
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         settings.data_dir.mkdir(parents=True, exist_ok=True)
         memory = (memory_factory or memory_from_settings)(settings)
+        saidas.definir_destino(memory.add_external_call)  # registro de saída (regra 47)
         ops = Operations(memory)
         policy = build_policy(settings, ops=ops)
         auth = AuthService(
@@ -937,6 +938,7 @@ def create_app(
                 await gateway.aclose()
             if transcriber is not None:
                 await transcriber.aclose()
+            saidas.definir_destino(None)
             auth.close()
             memory.close()
 

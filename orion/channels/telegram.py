@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import contextlib
 import json
 import logging
 import re
@@ -36,6 +37,7 @@ from typing import Any
 
 import httpx
 
+from .. import saidas
 from ..agent import Agent, AgentEvent
 from ..briefing import build_briefing
 from ..capture import EXTENSOES_FOTO, CaptureError, Capturer
@@ -50,6 +52,7 @@ CANAL = "telegram"
 API = "https://api.telegram.org"
 LIMITE_MENSAGEM = 4000  # o Telegram aceita 4096; folga para o que o cliente conta diferente
 LIMITE_ENTRADA = 8000  # o mesmo teto do POST /chat
+_METODOS_DE_SAIDA = ("send", "edit", "answer")
 MAX_VOZ_S = 300  # áudio mais longo que 5 min não é transcrito
 MAX_FOTO = 4 * 1024 * 1024  # bytes; escolhe o maior tamanho que couber
 _MIME_FOTO = {
@@ -136,10 +139,23 @@ class TelegramChannel:
     # ── API do Telegram ───────────────────────────────────────────────────
     async def _api(self, metodo: str, **payload: Any) -> Any:
         url = f"{self._base}/bot{self._token}/{metodo}"
-        try:
-            resp = await self._client.post(url, json=payload, timeout=self._poll_timeout + 15)
-        except httpx.HTTPError as e:
-            raise TelegramError(f"{metodo}: {type(e).__name__}") from None  # sem a URL
+        # o que leva texto seu para fora (enviar, editar, responder) entra no registro de saída
+        # (regra 47); a escuta (getUpdates) e o download (getFile) não levam nada daqui
+        medir = (
+            saidas.medir(
+                "telegram",
+                "canal",
+                bytes_out=len(json.dumps(payload, ensure_ascii=False).encode()),
+            )
+            if metodo.startswith(_METODOS_DE_SAIDA)
+            else contextlib.nullcontext(saidas.Medida())
+        )
+        with medir as m:
+            try:
+                resp = await self._client.post(url, json=payload, timeout=self._poll_timeout + 15)
+            except httpx.HTTPError as e:
+                raise TelegramError(f"{metodo}: {type(e).__name__}") from None  # sem a URL
+            m.ok, m.bytes_in = resp.status_code < 400, len(resp.content)
         try:
             corpo = resp.json()
         except ValueError:

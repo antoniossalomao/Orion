@@ -11,7 +11,7 @@ Um laço assíncrono chama `tick()` a cada poucos segundos. Cada passo falha soz
 - backup diário da memória, mantendo os últimos N;
 - consolidação das conversas em fatos (se houver gateway);
 - pastas vigiadas (arquivo novo vira aviso) e processos em segundo plano que terminaram;
-- poda da trilha de auditoria (decisões da política mais velhas que N dias);
+- poda da trilha de auditoria e do registro de saída (mais velhos que N dias);
 - briefing matinal (`ORION_BRIEFING_AT`): um aviso por dia com lembretes, agendamentos e tarefas.
 
 Quem entrega os avisos é o canal (Telegram, web) lendo `GET /notifications`.
@@ -188,7 +188,13 @@ class JobRunner:
         if self._backup_dir is not None and self._devido("backup"):
             self._passo(rel, "backup", self._backup)
         if self._devido("auditoria"):
-            self._passo(rel, "auditoria", lambda: self.ops.audit_prune(self._audit_days))
+            self._passo(rel, "auditoria", self._podar_trilhas)
+
+    def _podar_trilhas(self) -> int:
+        """Audit e registro de saída (regra 47) com a mesma retenção (90 dias por padrão)."""
+        return self.ops.audit_prune(self._audit_days) + self.memory.prune_external_calls(
+            self._audit_days
+        )
 
     @staticmethod
     def _passo(rel: TickReport, nome: str, fn: Callable[[], Any]) -> None:

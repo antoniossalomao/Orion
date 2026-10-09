@@ -36,9 +36,11 @@ def _set_password(settings: Settings, *, from_stdin: bool) -> int:
 
 
 def _transcrever(settings: Settings, alvo: str, titulo: str, sim: bool) -> int:
+    from . import saidas
     from .app import transcriber_from_settings
     from .capture import Capturer
     from .media_transcribe import MediaError, transcrever_arquivo, transcrever_link
+    from .memory import MemoryStore
 
     tr = transcriber_from_settings(settings)
     if tr is None:
@@ -58,6 +60,8 @@ def _transcrever(settings: Settings, alvo: str, titulo: str, sim: bool) -> int:
         return 1
     capturador = Capturer(settings.vault_dir, settings.capture_folder)
     progresso = lambda i, n: print(f"transcrevendo parte {i}/{n}…")  # noqa: E731
+    store = MemoryStore(settings.db_path)
+    saidas.definir_destino(store.add_external_call)  # o áudio sai do computador (regra 47)
     try:
         if e_link:
             print("baixando o áudio…")
@@ -69,6 +73,9 @@ def _transcrever(settings: Settings, alvo: str, titulo: str, sim: bool) -> int:
     except MediaError as e:
         print(e, file=sys.stderr)
         return 1
+    finally:
+        saidas.definir_destino(None)
+        store.close()
     print(f"nota criada: {nota.name}")
     return 0
 

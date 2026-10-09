@@ -20,6 +20,7 @@ import contextlib
 import json
 import logging
 import re
+import time
 from collections.abc import AsyncIterator
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
@@ -27,6 +28,7 @@ from typing import Any, Protocol
 
 from fastapi import WebSocket, WebSocketDisconnect
 
+from . import saidas
 from .agent import Agent
 from .transcribe import MAX_AUDIO, TranscribeError, Transcriber
 
@@ -138,12 +140,15 @@ class EdgeSpeaker:
             ]
             return b"".join(partes)
 
-        try:
-            audio = await asyncio.wait_for(coletar(), self._timeout)
-        except (TimeoutError, OSError, aiohttp.ClientError, EdgeTTSException) as e:
-            raise SpeakError(f"a fala falhou: {type(e).__name__}") from None
-        if not audio:
-            raise SpeakError("a fala veio vazia")
+        # o TEXTO da resposta vai para a Microsoft: fica no registro de saída (regra 47)
+        with saidas.medir("microsoft", "tts", model=self._voz, bytes_out=len(texto.encode())) as m:
+            try:
+                audio = await asyncio.wait_for(coletar(), self._timeout)
+            except (TimeoutError, OSError, aiohttp.ClientError, EdgeTTSException) as e:
+                raise SpeakError(f"a fala falhou: {type(e).__name__}") from None
+            if not audio:
+                raise SpeakError("a fala veio vazia")
+            m.ok, m.bytes_in = True, len(audio)
         return audio
 
 
@@ -229,6 +234,8 @@ async def ponte_ao_vivo(
     e a transcrição. Devolve por que terminou: "navegador" | "tempo" | "erro"."""
     from google.genai import types
 
+    trafego = {"subiu": 0, "desceu": 0}  # só tamanhos, para o registro de saída (regra 47)
+
     async def subida(sessao: Any) -> None:
         while True:
             msg = await ws.receive()
@@ -238,6 +245,7 @@ async def ponte_ao_vivo(
             if dados:
                 if len(dados) > MAX_QUADRO_LIVE:
                     raise ValueError("quadro de áudio grande demais")
+                trafego["subiu"] += len(dados)
                 await sessao.send_realtime_input(
                     audio=types.Blob(data=dados, mime_type="audio/pcm;rate=16000")
                 )
@@ -262,6 +270,7 @@ async def ponte_ao_vivo(
                 if sc.model_turn:
                     for parte in sc.model_turn.parts or []:
                         if parte.inline_data and parte.inline_data.data:
+                            trafego["desceu"] += len(parte.inline_data.data)
                             await ws.send_bytes(parte.inline_data.data)
                 if sc.input_transcription and sc.input_transcription.text:
                     await _enviar(ws, {"type": "heard", "text": sc.input_transcription.text})
@@ -273,6 +282,7 @@ async def ponte_ao_vivo(
                 return
 
     motivo = "navegador"
+    inicio = time.monotonic()
     try:
         async with asyncio.timeout(max_s), conexao as sessao:
             tarefas = [asyncio.create_task(subida(sessao)), asyncio.create_task(descida(sessao))]
@@ -293,6 +303,15 @@ async def ponte_ao_vivo(
         motivo = "erro"
         log.warning("voz ao vivo falhou: %s", type(e).__name__)
         await _enviar(ws, {"type": "error", "msg": f"falha na voz ao vivo ({type(e).__name__})"})
+    saidas.registrar(
+        "gemini",
+        "voz_ao_vivo",
+        ok=motivo != "erro",
+        latency_ms=(time.monotonic() - inicio) * 1000,
+        bytes_out=trafego["subiu"],
+        bytes_in=trafego["desceu"],
+        content_kind="audio",
+    )
     return motivo
 
 

@@ -28,6 +28,7 @@ numa tarefa; `call` envia a chamada para esse laço e espera o resultado.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hashlib
 import json
 import logging
@@ -50,6 +51,7 @@ from pydantic import (
     model_validator,
 )
 
+from . import saidas
 from .policy.classes import Risk, ToolSpec
 from .secrets import get_secret
 from .tools.registry import Tool
@@ -452,6 +454,34 @@ class McpManager:
             return self._tentar_reconectar(servidor, loop)
         if cliente is None or loop is None:
             return {"erro": f"o servidor MCP '{servidor}' não está conectado"}
+        cfg = self._cfg.servers.get(servidor)
+        # servidor remoto (`url`) ou que fala com a rua (`external`): os argumentos saem do
+        # computador, então a chamada entra no registro de saída (regra 47), sem o conteúdo
+        medir = (
+            saidas.medir(
+                f"mcp:{servidor}",
+                "mcp",
+                model=original,
+                bytes_out=len(json.dumps(args, ensure_ascii=False, default=str).encode()),
+            )
+            if cfg is not None and (cfg.url or cfg.external)
+            else contextlib.nullcontext(saidas.Medida())
+        )
+        with medir as m:
+            saida = self._chamar(cliente, loop, servidor, original, args, timeout_s)
+            m.ok = "erro" not in saida
+            m.bytes_in = len(str(saida.get("texto") or saida.get("erro") or "").encode())
+        return saida
+
+    def _chamar(
+        self,
+        cliente: McpClient,
+        loop: asyncio.AbstractEventLoop,
+        servidor: str,
+        original: str,
+        args: dict[str, Any],
+        timeout_s: float,
+    ) -> dict[str, Any]:
         futuro: Future[Any] = asyncio.run_coroutine_threadsafe(
             cliente.call_tool(original, args, read_timeout_seconds=timeout_s), loop
         )

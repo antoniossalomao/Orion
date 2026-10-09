@@ -8,9 +8,12 @@ ORION_MELHORIAS): o formato segue a documentação do provedor.
 
 from __future__ import annotations
 
+from contextlib import AbstractContextManager
 from typing import Any
 
 import httpx
+
+from . import saidas
 
 GROQ = "https://api.groq.com/openai/v1"
 MAX_AUDIO = 20 * 1024 * 1024  # o limite de download de arquivo do bot do Telegram
@@ -35,6 +38,7 @@ class Transcriber:
             raise ValueError("chave de transcrição vazia")
         self._key = api_key
         self._url = f"{base_url.rstrip('/')}/audio/transcriptions"
+        self._provedor = saidas.provedor_da_url(base_url)  # registro de saída (regra 47)
         self._model, self._language = model, language
         self._timeout = timeout_s
         self._dono_do_cliente = client is None
@@ -80,11 +84,24 @@ class Transcriber:
         pedido = self._pedido(audio, filename, mime)
         if self._client is None:
             self._client = httpx.AsyncClient()
-        try:
-            r = await self._client.post(**pedido)
-        except httpx.HTTPError as e:
-            raise TranscribeError(f"a transcrição falhou: {type(e).__name__}") from None
-        return self._texto(r)
+        with self._medir(audio) as m:
+            try:
+                r = await self._client.post(**pedido)
+            except httpx.HTTPError as e:
+                raise TranscribeError(f"a transcrição falhou: {type(e).__name__}") from None
+            m.bytes_in = len(r.content)
+            texto = self._texto(r)
+            m.ok = True
+        return texto
+
+    def _medir(self, audio: bytes) -> AbstractContextManager[saidas.Medida]:
+        return saidas.medir(
+            self._provedor,
+            "transcribe",
+            model=self._model,
+            bytes_out=len(audio),
+            content_kind="audio",
+        )
 
     def transcribe_sync(
         self,
@@ -96,9 +113,13 @@ class Transcriber:
         """Mesma coisa para ferramentas síncronas (rodam em thread): um cliente por chamada, para
         não usar o cliente async do laço principal de outra thread."""
         pedido = self._pedido(audio, filename, mime)
-        try:
-            with httpx.Client(transport=transport) as c:
-                r = c.post(**pedido)
-        except httpx.HTTPError as e:
-            raise TranscribeError(f"a transcrição falhou: {type(e).__name__}") from None
-        return self._texto(r)
+        with self._medir(audio) as m:
+            try:
+                with httpx.Client(transport=transport) as c:
+                    r = c.post(**pedido)
+            except httpx.HTTPError as e:
+                raise TranscribeError(f"a transcrição falhou: {type(e).__name__}") from None
+            m.bytes_in = len(r.content)
+            texto = self._texto(r)
+            m.ok = True
+        return texto
