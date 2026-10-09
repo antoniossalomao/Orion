@@ -241,7 +241,8 @@ Decisão do Antônio (09/10): **entram X1, X3–X12**; **não entram X2** (conse
 | X12 | **Leitura do seu estado pela voz** (Emotion Engine da Lyra) | Pelo tom (local, sem mandar áudio a mais ninguém), percebe cansaço/pressa e ajusta: respostas mais curtas, adia o que não é urgente | Inferência imprecisa; só ajusta estilo, nunca decide nada |
 | X13 | **Orion físico** (ideia 75 Tamagotchi Hardware; D8 MQTT) | Um ESP32 com anel de LED na mesa (~R$ 40) mostra o estado: pensando, aviso pendente, aguardando aprovação, captura ligada (luz vermelha = alguma câmera/tela gravando) | Única com custo (hardware barato); depende de D8 |
 
-## 14. Terceira leva de ideias (09/10) — em avaliação
+## 14. Terceira leva de ideias (09/10)
+Decisão do Antônio: **entram Y5, Y9, Y11, Y14, Y15, Y16**; as demais ficam em incubação. Y9 roda pelo Claude Code (assinatura, via `delegar`, só leitura): ele faz a varredura e o Orion entrega o relatório.
 
 | ID | Ideia | Como seria | Risco / limite |
 |---|---|---|---|
@@ -261,4 +262,23 @@ Decisão do Antônio (09/10): **entram X1, X3–X12**; **não entram X2** (conse
 | Y14 | **Headhunter** (ideia 58) | Compara suas habilidades do vault com vagas reais (N17) e mostra a lacuna + plano de estudo curto | Depende do radar de vagas |
 | Y15 | **Documentador dos seus projetos** | Lê os repositórios (Nortis, PreciFly, DrinkControl) e mantém arquitetura e decisões no vault atualizadas, por PR no vault (como X6) | Só PR; você aprova |
 | Y16 | **Andar pelo segundo cérebro** | No grafo 3D (R3.12), navegação por voz: "me leva até Firebird", "o que liga isso ao estágio?"; o vault inteiro no mesmo grafo da memória | Grafo grande pesa no front: filtrar por área |
+
+## 15. Quarta leva de ideias (09/10) — em avaliação
+
+| ID | Ideia | Como seria | Risco / limite |
+|---|---|---|---|
+| Z1 | **Orion no celular de verdade** | O front como app instalável no celular (PWA) pelo Tailscale: voz, câmera do celular ("ver e agir" fora de casa), aprovações | Só pela rede do Tailscale; login de sempre |
+| Z2 | **Revisão antes do push** | Gancho local de `git pre-push` nos seus repositórios: o Claude Code (assinatura) revisa o diff com as suas regras e aponta problemas antes de subir | Atrasa o push alguns segundos; dá para pular |
+| Z3 | **Curadoria de fotos** | Num lote de fotos, separa as melhores (foco, exposição, olhos fechados, duplicadas) localmente; a visão por assinatura sugere corte e edição | Fotos de terceiros: avisar antes de mandar à nuvem |
+| Z4 | **Memória de pessoas** | Das notas de pessoas do vault e das conversas: antes de falar com alguém, "da última vez ele falou de X"; aniversários | Dados de terceiros: só o que você já anotou, nada coletado fora |
+| Z5 | **Lembrete por lugar** | Você compartilha a localização pelo Telegram; "quando eu chegar na faculdade, me lembra de X" | Localização só quando você compartilha; nunca guardada como trilha |
+| Z6 | **Planejador do dia** | De manhã propõe o plano do dia nos seus horários livres, com as tarefas e o marco da semana (N9); você aprova e ele grava na agenda do Google | Escrita na agenda pede aprovação |
+| Z7 | **Teste automático dos seus apps** | Semanal: navegador automático percorre Nortis, DrinkControl e PreciFly (versões web/locais), procura erros e problemas de acessibilidade, manda relatório | Só nos seus apps, em ambiente de teste |
+| Z8 | **Monitor dos sistemas em produção** | Confere se os sistemas dos seus clientes estão no ar e se houve erro novo; alerta no Telegram | Só o que você cadastrar; nada de dado de cliente no Orion |
+| Z9 | **Detector de golpe** | Encaminha ao bot uma mensagem, link ou Pix suspeito; o Orion analisa sem abrir o link (barreira de rede), procura padrões de golpe e responde "é golpe?" | Serve também para ajudar a família, encaminhando por você |
+| Z10 | **Leitor de contratos e termos** | Antes de assinar (estágio, freela, aluguel), destaca cláusulas de risco e o que perguntar, pela assinatura | Não substitui advogado |
+| Z11 | **Do sonho ao MVP** | Descreve uma ideia de app → o Claude Code (assinatura) cria o repositório com estrutura, README e primeira tela, para você avaliar | Só cria em pasta nova; nunca publica |
+| Z12 | **Seu estilo de código como skill** | Lê seus repositórios e gera uma skill com o seu jeito de nomear, comentar e organizar; o Claude Code e o Codex usam via o servidor MCP do Orion (R5.11) | Revisar a skill antes de usar |
+| Z13 | **Postura e pausas** (ideia 129 Bio Clock) | Com a câmera local ligada, nota postura ruim ou muito tempo sem pausa e sugere levantar | Só local; um aviso por hora no máximo |
+| Z14 | **Orçamentista de renders 3D** | Para pedidos de visualização (SketchUp/Enscape), monta orçamento, prazo e escopo a partir dos seus trabalhos anteriores | Renda extra; rascunho para você enviar |
 
