@@ -34,7 +34,14 @@
     }
 
     function pararAudio() {
-        if (tocando) { try { tocando.pause(); URL.revokeObjectURL(tocando.src); } catch (_) { /* já solto */ } tocando = null; marcar(); }
+        if (!tocando) return;
+        const a = tocando, url = a.src;
+        tocando = null;
+        // tirar o src antes de revogar: revogar com o elemento ainda buscando dá ERR_FILE_NOT_FOUND
+        a.onended = a.onerror = null;
+        try { a.pause(); a.removeAttribute('src'); a.load(); } catch (_) { /* já solto */ }
+        URL.revokeObjectURL(url);
+        marcar();
     }
     function tocar(bytes, mime) {
         pararAudio();
