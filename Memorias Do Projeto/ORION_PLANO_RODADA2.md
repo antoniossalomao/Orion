@@ -69,10 +69,10 @@ Marque ao concluir. Uma etapa só fecha com todos os itens, a prova e o PR merge
 - [x] E0.1 Seções novas em `ORION_OPERACAO.md` (R1.1–R1.8)
 - [x] E0.2 Tabela-resumo de opt-ins (R1.9)
 - [x] E0.3 `orion doctor` aponta a seção
-- [ ] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas
+- [x] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas
 - [x] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
 - [x] **Prova:** `uv run pytest tests/test_operacao_doc.py` verde; ler a tabela e conseguir ligar a memória da tela só com ela.
-- [ ] PR da E0 mergeado
+- [x] PR da E0 mergeado (junto com a E1: antoniossalomao/Orion#18)
 
 ### E1 — Base de custo, privacidade e controle
 - [x] Regras escritas em `ORION_REGRAS.md` antes do código (46 (custo zero), 47 (registro de saída), 48 (pânico e não perturbe), 49 (modelo local))
@@ -83,10 +83,10 @@ Marque ao concluir. Uma etapa só fecha com todos os itens, a prova e o PR merge
 - [x] E1.5 Painel de privacidade (N2)
 - [x] E1.6 Modo pânico e não perturbe (N19, N3)
 - [x] E1.7 Encaixe do modelo local (L9)
-- [ ] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas
+- [x] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas
 - [x] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
 - [x] **Prova:** com o gateway falso, 10 chamadas (2 falhas) aparecem no card "Provedores"; `orion panico` corta captura e ferramentas de rede e o painel mostra "Modo pânico"; com `ORION_LOCAL_MODEL` apontando para um servidor falso, o chat responde quando o gateway falha.
-- [ ] PR da E1 mergeado
+- [x] PR da E1 mergeado (antoniossalomao/Orion#18)
 
 ### E2 — Ponte de desktop
 - [ ] Antônio: testar teclas globais e microfone no notebook; calibrar as palmas
