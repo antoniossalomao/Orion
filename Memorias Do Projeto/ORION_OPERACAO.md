@@ -572,6 +572,7 @@ opt-in novo sem linha aqui.
 | `ORION_JOBS_ENABLED` | Jobs: lembretes, backup, vault, embeddings, consolidação, briefing | Embeddings ao Gemini (com chave); o resto conforme cada opt-in acima | 18, 20 | `true` (padrão) → `false` |
 | `ORION_LOCAL_MODEL` | Modelo local de reserva, sem ferramentas (§17.4) | Não: só `127.0.0.1` (a configuração recusa outro host) | 49 | vazio (padrão) |
 | `ORION_DND_AT` | Não perturbe por horário (§17.3) | Não | 48 | vazio (padrão) |
+| `ORION_CLAP_ENABLED` | Duas palmas abrem o Orion (§18.2) | Não antes nem depois das palmas; só com `abrir_e_ouvir` a fala seguinte vai como na voz (Groq, Microsoft) | 51 | `false` (padrão); pausa: `POST /voz/escuta` |
 | `ORION_ALLOW_PAID` | Aceitar um endereço fora da lista de provedores gratuitos (§17.1) | Para o provedor que você apontou, que **pode cobrar** | 46 | `false` (padrão) |
 
 **Exemplo: ligar a memória da tela só com esta tabela.** Instale o `tesseract` com português (§8), ponha
@@ -735,3 +736,41 @@ do pânico. `orion ponte --parear` de novo, ou trocar a senha, invalida a ponte 
 
 **Regra.** 50; código em `orion/ponte/` (`nucleo.py` é testado com adaptadores falsos; `adaptadores.py` é o que
 fala com o sistema e **não foi exercitado numa tela real** nesta etapa).
+
+### 18.2 Duas palmas abrem o Orion
+
+**O que faz.** Detecta duas palmas no mesmo microfone da palavra de ativação (§4.4) e abre o Orion. Uma palma é um
+**pico curto**: acima de `ORION_CLAP_RATIO` vezes o ruído de fundo (e de um piso absoluto), e o quadro seguinte
+cai para menos de 40% da energia. Porta batendo, móvel arrastado e música têm cauda e não contam; digitação fica
+abaixo do piso. Duas palmas com 150 a 700 ms entre elas disparam; uma terceira dentro de 700 ms é aplauso ou
+batida: cancela e o detector fica surdo por 1,5 s. **Palma só abre** (regra 51): nunca aprova ação pendente e nunca chama
+ferramenta.
+
+**Como ligar.**
+```
+ORION_CLAP_ENABLED=true
+# ORION_CLAP_RATIO=6.0            # suba se aplaudir/falar alto dispara à toa; desça se não pega
+# ORION_CLAP_ACTION=abrir         # abrir | abrir_e_ouvir | rotina:<nome> (a rotina só existe a partir da E9.1)
+# ORION_CLAP_MAX_PER_HOUR=20
+```
+`abrir` manda `abrir` à ponte (§18.1) ou, sem ponte, abre `http://127.0.0.1:<porta>/ui/#/chat` no navegador.
+`abrir_e_ouvir` também começa um turno de voz, como a palavra de ativação (precisa de `ORION_VOICE_ENABLED` e da chave
+de transcrição). **(você)** Calibrar no quarto: o Painel › Voz mostra quantas palmas acionaram e a força (pico ÷ ruído) das
+últimas detectadas na última hora; ajuste `ORION_CLAP_RATIO` até pegar as suas e ignorar o resto.
+
+**Dependências.** **(você)** `pip install "orion[wake]"` (ou `wake-vosk`): só o `sounddevice` e o PortAudio importam
+aqui; o detector de palmas não usa modelo.
+
+**O que sai do computador.** Nada: o áudio existe só no quadro de 80 ms que está sendo analisado, nunca é gravado
+nem enviado. Com `abrir_e_ouvir`, a fala **depois** das palmas segue o caminho da voz (Groq para a transcrição, Microsoft
+para a resposta falada).
+
+**Onde ver.** Painel › Voz (linha "Duas palmas"), audit (`voz_palmas`, `voz_palmas_recusadas`: só o horário e o motivo),
+`orion doctor`.
+
+**Pausar/desligar.** `ORION_CLAP_ENABLED=false`; ou `POST /voz/escuta {"ativa": false}` (pausa a escuta inteira); o
+**modo pânico** e o **não perturbe** seguram as palmas (nada acontece, e fica no audit); teto por hora em
+`ORION_CLAP_MAX_PER_HOUR`.
+
+**Regra.** 51; código em `orion/palmas.py` (detector, provado com sinais sintéticos: duas palmas, três, porta batendo,
+digitação, ruído alto) e `orion/wake.py` (`WakeListener` divide o microfone entre palavra e palmas).

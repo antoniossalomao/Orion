@@ -118,6 +118,18 @@
         return { clique, aoVivo, escuta };
     }
 
+    /** Duas palmas (regra 51): estado e a força das últimas, para calibrar ORION_CLAP_RATIO. */
+    function resumoPalmas(v) {
+        const p = v?.palmas;
+        if (!p?.pedida) return 'desligadas';
+        if (!p.ouvindo) return `não subiram${v?.escuta?.ultimo_erro ? `: ${v.escuta.ultimo_erro}` : ''}`;
+        const picos = (p.picos_ultima_hora || []).slice(-6).map(x => `${String(Math.round(num(x) * 10) / 10).replace('.', ',')}×`);
+        const partes = [`${v.escuta?.pausada ? 'pausadas' : 'ouvindo'} (${p.acao || 'abrir'})`, `${num(p.acionadas)} acionada(s)`];
+        if (num(p.recusadas)) partes.push(`${num(p.recusadas)} recusada(s)`);
+        partes.push(picos.length ? `força das últimas: ${picos.join(' ')}` : 'nenhuma palma na última hora');
+        return partes.join(' · ');
+    }
+
     /** 512 → "512 B", 1536 → "1,5 KB", 3_500_000 → "3,3 MB" (vírgula decimal, como o resto da tela) */
     function bytes(n) {
         const b = Math.max(0, Math.round(num(n)));
@@ -168,5 +180,5 @@
     const rotuloAcao = a => ROTULO_ACAO[a] || String(a || '—');
     const tomAcao = a => TOM_ACAO[a] || 'muted';
 
-    return { duracao, estadoModelo, usoCli, usoCota, bytes, linhasProvedores, resumoModos, alertas, resumoVoz, resumoDecisoes, resumoRoteamento, rotuloAcao, tomAcao };
+    return { duracao, estadoModelo, usoCli, usoCota, bytes, linhasProvedores, resumoModos, alertas, resumoVoz, resumoPalmas, resumoDecisoes, resumoRoteamento, rotuloAcao, tomAcao };
 });

@@ -92,7 +92,7 @@ Marque ao concluir. Uma etapa só fecha com todos os itens, a prova e o PR merge
 - [ ] Antônio: testar teclas globais e microfone no notebook; calibrar as palmas
 - [x] Regras escritas em `ORION_REGRAS.md` antes do código (50 (ponte), 51 (palmas))
 - [x] E2.1 Processo da ponte
-- [ ] E2.2 Duas palmas abrem o Orion (U1)
+- [x] E2.2 Duas palmas abrem o Orion (U1)
 - [ ] E2.3 Captura rápida (U2)
 - [ ] E2.4 Copiar texto de uma área da tela (V3)
 - [ ] E2.5 "O que é isso?" (N18)

@@ -12,6 +12,7 @@ import shutil
 import threading
 import time
 import uuid
+import webbrowser
 from collections.abc import AsyncIterator, Callable
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from dataclasses import dataclass, field
@@ -71,6 +72,7 @@ from .memory.sleep import SleepCycle
 from .memory.store import Message, Session
 from .modos import ModoError, Modos
 from .painel import Painel, texto_do_painel
+from .palmas import ClapDetector, acao_das_palmas
 from .plugins import PluginStore
 from .policy import ApprovalStore, PathGuard, PolicyEngine, redact
 from .policy.paths import default_safe_roots
@@ -512,14 +514,22 @@ def wake_from_settings(
     settings: Settings,
     on_fala: Callable[[bytes], None],
     evento: Callable[[str, str], None],
+    on_palmas: Callable[[], bool | None] | None = None,
 ) -> tuple[WakeListener | None, str]:
-    """A escuta da palavra de ativação, ou (None, motivo) se não pode subir. O motivo vai ao
-    painel: a escuta nunca deixa de subir em silêncio."""
-    if not settings.wake_enabled:
+    """A escuta (palavra de ativação e/ou duas palmas), ou (None, motivo) se não pode subir. O
+    motivo vai ao painel: a escuta nunca deixa de subir em silêncio."""
+    if not (settings.wake_enabled or settings.clap_enabled):
         return None, ""
     try:
-        detector = criar_detector(
-            settings.wake_engine, settings.wake_model, settings.wake_words, settings.wake_threshold
+        detector = (
+            criar_detector(
+                settings.wake_engine,
+                settings.wake_model,
+                settings.wake_words,
+                settings.wake_threshold,
+            )
+            if settings.wake_enabled
+            else None
         )
         source = SoundDeviceSource(settings.wake_device)
     except ValueError as e:
@@ -534,7 +544,21 @@ def wake_from_settings(
         max_por_hora=settings.wake_max_per_hour,
     )
     bipe = bipe_com_sounddevice() if settings.wake_beep else None
-    return WakeListener(source, detector, on_fala, config=cfg, bipe=bipe, evento=evento), ""
+    palmas = ClapDetector(settings.clap_ratio) if settings.clap_enabled and on_palmas else None
+    return (
+        WakeListener(
+            source,
+            detector,
+            on_fala,
+            config=cfg,
+            bipe=bipe,
+            evento=evento,
+            palmas=palmas,
+            on_palmas=on_palmas,
+            max_palmas_por_hora=settings.clap_max_per_hour,
+        ),
+        "",
+    )
 
 
 def embedder_from_settings(settings: Settings) -> GeminiEmbedder | None:
@@ -568,19 +592,31 @@ def _iniciar_escuta(
     speaker: Speaker | None,
     stats: VozStats,
     fabrica: Callable[..., tuple[WakeListener | None, str]],
+    *,
+    ponte: PonteHub | None = None,
+    modos: Modos | None = None,
 ) -> tuple[tuple[WakeListener | None], str]:
-    """Sobe a escuta da palavra de ativação numa thread. Devolve `((escuta,), motivo)`: o motivo
-    explica por que não subiu (aparece no painel). A fala gravada segue o mesmo caminho do botão
-    de microfone (`turno_de_voz`), com o canal "web": memória, política e audit valem igual."""
-    if not settings.wake_enabled:
+    """Sobe a escuta (palavra de ativação e/ou duas palmas) numa thread. Devolve `((escuta,),
+    motivo)`: o motivo explica por que não subiu (aparece no painel). A fala gravada segue o mesmo
+    caminho do botão de microfone (`turno_de_voz`), com o canal "web": memória, política e audit
+    valem igual. Palmas só abrem o Orion (regra 51); só `abrir_e_ouvir` usa a voz."""
+    if not (settings.wake_enabled or settings.clap_enabled):
         return (None,), ""
-    if not settings.voice_enabled:
-        return (None,), "a palavra de ativação usa a voz: ligue ORION_VOICE_ENABLED"
-    if agent is None or transcriber is None:
-        return (None,), "precisa do gateway e da chave de transcrição (ORION_TRANSCRIBE_API_KEY)"
+    precisa_voz = settings.wake_enabled or (
+        settings.clap_enabled and settings.clap_action == "abrir_e_ouvir"
+    )
+    if precisa_voz:
+        if not settings.voice_enabled:
+            return (None,), "a escuta com voz usa a voz: ligue ORION_VOICE_ENABLED"
+        if agent is None or transcriber is None:
+            return (
+                None,
+            ), "precisa do gateway e da chave de transcrição (ORION_TRANSCRIBE_API_KEY)"
     loop = asyncio.get_running_loop()
 
     async def turno(wav: bytes) -> None:
+        if agent is None or transcriber is None:
+            return
         async for m in turno_de_voz(
             agent=agent, transcriber=transcriber, speaker=speaker, audio=wav
         ):
@@ -598,16 +634,39 @@ def _iniciar_escuta(
         ops.audit_add(
             {
                 "tool": f"voz_{tipo}",
-                "action": "deny" if tipo == "recusada" else "allow",
+                "action": "deny" if tipo in ("recusada", "palmas_recusadas") else "allow",
                 "risk": "read",
                 "reason": motivo,
             }
         )
 
-    escuta, motivo = fabrica(settings, on_fala, evento)
+    def bloqueio() -> str:
+        if modos is None:
+            return ""
+        if modos.panico():
+            return "pânico"
+        return "não perturbe" if modos.nao_perturbe() else ""
+
+    def abrir_navegador() -> object:
+        return webbrowser.open(f"http://127.0.0.1:{settings.port}/ui/#/chat")
+
+    on_palmas = (
+        acao_das_palmas(
+            settings.clap_action,
+            abrir_ponte=lambda: bool(ponte and ponte.enviar({"cmd": "abrir", "rota": "#/chat"})),
+            abrir_navegador=abrir_navegador,
+            bloqueado=bloqueio,
+        )
+        if settings.clap_enabled
+        else None
+    )
+    if on_palmas is not None:
+        escuta, motivo = fabrica(settings, on_fala, evento, on_palmas=on_palmas)
+    else:
+        escuta, motivo = fabrica(settings, on_fala, evento)
     if escuta is None:
         if motivo:
-            log.warning("palavra de ativação não subiu: %s", motivo)
+            log.warning("escuta não subiu: %s", motivo)
         return (None,), motivo
     threading.Thread(target=escuta.run, name="orion-wake", daemon=True).start()
     return (escuta,), ""
@@ -801,6 +860,14 @@ def _painel_da_voz(
             "ativacoes": escuta.stats.ativacoes if escuta else 0,
             "ultima": escuta.stats.ultima if escuta else None,
             "ultimo_erro": (escuta.stats.ultimo_erro if escuta else None) or escuta_motivo or None,
+        },
+        "palmas": {
+            "pedida": settings.clap_enabled,
+            "ouvindo": bool(escuta and escuta.stats.ouvindo and settings.clap_enabled),
+            "acao": settings.clap_action,
+            "acionadas": escuta.stats.palmas if escuta else 0,
+            "recusadas": escuta.stats.palmas_recusadas if escuta else 0,
+            "picos_ultima_hora": escuta.picos_de_palmas() if escuta else [],
         },
         "clique": {
             "ligada": settings.voice_enabled and clique_pronto,
@@ -1076,6 +1143,7 @@ def create_app(
             settings.data_dir / "extensions", skill_runtime, mcp_host, catalog, policy
         )
         voz_stats = VozStats()
+        ponte_hub = PonteHub()
         speaker = (speaker_factory or speaker_from_settings)(settings)
         live = (live_factory or live_from_settings)(settings)
         escuta, escuta_motivo = _iniciar_escuta(
@@ -1086,6 +1154,8 @@ def create_app(
             speaker,
             voz_stats,
             wake_factory or wake_from_settings,
+            ponte=ponte_hub,
+            modos=modos,
         )
         tarefa_modos = asyncio.create_task(_vigiar_modos(modos, escuta[0]))
         painel = Painel(
@@ -1145,6 +1215,7 @@ def create_app(
             biblioteca=biblioteca,
             modos=modos,
             custos=custos,
+            ponte=ponte_hub,
         )
         try:
             async with mcp_export.server.session_manager.run():

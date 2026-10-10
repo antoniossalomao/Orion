@@ -118,6 +118,12 @@ class Settings(BaseSettings):
     wake_silence_s: float = Field(default=1.0, ge=0.3, le=5.0)  # silêncio que encerra a fala
     wake_max_s: float = Field(default=15.0, ge=3.0, le=60.0)  # teto de uma fala
     wake_max_per_hour: int = Field(default=30, ge=1, le=600)  # acima disso a palavra é ignorada
+    # Duas palmas abrem o Orion (regra 51), no mesmo microfone da palavra de ativação. Desligado:
+    # é captura contínua de áudio (só no quadro atual; nada é gravado). Palma só abre, nunca aprova.
+    clap_enabled: bool = False
+    clap_ratio: float = Field(default=6.0, ge=2.0, le=60.0)  # pico = N × o ruído de fundo
+    clap_action: str = "abrir"  # abrir | abrir_e_ouvir | rotina:<nome> (a partir da E9.1)
+    clap_max_per_hour: int = Field(default=20, ge=1, le=600)
     # B: voz ao vivo (Gemini Live). O áudio do microfone vai para o Google; o modelo só conversa
     # (sem ferramentas nem memória). Desligada. Chave: a daqui ou a de busca/embeddings.
     voice_live_enabled: bool = False
@@ -257,6 +263,14 @@ class Settings(BaseSettings):
         v = v.strip().replace(" ", "")
         if v and not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d", v):
             raise ValueError("ORION_DND_AT precisa ser HH:MM-HH:MM (ex.: 22:30-07:00)")
+        return v
+
+    @field_validator("clap_action")
+    @classmethod
+    def _acao_das_palmas(cls, v: str) -> str:
+        v = v.strip()
+        if not re.fullmatch(r"abrir|abrir_e_ouvir|rotina:[a-z0-9_-]{1,32}", v):
+            raise ValueError("ORION_CLAP_ACTION: use abrir, abrir_e_ouvir ou rotina:<nome>")
         return v
 
     @field_validator("hotkeys")

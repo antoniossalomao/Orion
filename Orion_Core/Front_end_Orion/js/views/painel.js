@@ -201,7 +201,7 @@
             linha('Jobs', !p.jobs?.ativo ? 'desligados' : p.jobs.ultima_rodada ? `última rodada às ${tempo(p.jobs.ultima_rodada)}` : 'ainda sem rodada'),
             linha('Telegram', p.canais?.telegram ? 'conectado' : 'desligado'),
             ...(p.voz ? [linha('Voz por clique', L.resumoVoz(p.voz).clique), linha('Voz ao vivo', L.resumoVoz(p.voz).aoVivo),
-                linha('Palavra de ativação', L.resumoVoz(p.voz).escuta)] : []),
+                linha('Palavra de ativação', L.resumoVoz(p.voz).escuta), linha('Duas palmas', L.resumoPalmas(p.voz))] : []),
             ...(p.voz?.escuta?.ouvindo ? [el('div', { class: 'painel-kv' }, el('dt', { text: 'Escuta do microfone' }),
                 el('dd', {}, el('button', { class: 'btn btn-outline btn-sm', type: 'button', 'data-escuta': '',
                     text: p.voz.escuta.pausada ? 'Retomar escuta' : 'Pausar escuta',
