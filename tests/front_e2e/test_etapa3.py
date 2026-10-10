@@ -187,7 +187,10 @@ def test_editar_pedido_cria_versao_e_as_setas_so_trocam_a_exibicao(abrir, novo_b
     page.get_by_role("button", name="Próxima versão do pedido").click()
     expect(page.locator(".msg-user .bubble")).to_have_text("pergunta certa")
     # nada foi apagado do banco, e o contexto do modelo só tem a versão nova
-    assert m.query("SELECT count(*) FROM messages WHERE session_id=? AND superseded=1", (sid,))[0][0] == 2
+    assert (
+        m.query("SELECT count(*) FROM messages WHERE session_id=? AND superseded=1", (sid,))[0][0]
+        == 2
+    )
     assert "pergunta torta" not in str(gw.chamadas[1])
     page.wait_for_timeout(300)
     assert page.evaluate("async () => (await axe.run(document)).violations.map(v => v.id)") == []

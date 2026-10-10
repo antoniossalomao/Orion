@@ -348,7 +348,7 @@ def test_prova_e3_telas_de_conversas_e_projetos_no_orion_real(navegador, tmp_pat
     pedido) contra o app, a política e o SQLite de verdade."""
     with _subir(tmp_path) as (url, _):
         with _cliente_logado(url) as c:
-            proj = c.post("/projects", json={"name": "Estágio"}).json()["id"]
+            c.post("/projects", json={"name": "Estágio"})
             c.post("/chat", json={"texto": "primeira conversa"})
             antiga = c.post("/sessoes").json()["sessao_id"]
             c.patch(f"/sessoes/{antiga}", json={"titulo": "Conversa antiga"})
@@ -392,9 +392,13 @@ def test_prova_e3_telas_de_conversas_e_projetos_no_orion_real(navegador, tmp_pat
             page.wait_for_function("() => !Orion.historico.leitura()")
             page.fill("#composer-input", "/projeto Estágio")
             page.keyboard.press("Enter")
-            expect(page.locator("#sb-convs-list .conv-projeto:not([hidden])")).to_have_text("Estágio")
+            expect(page.locator("#sb-convs-list .conv-projeto:not([hidden])")).to_have_text(
+                "Estágio"
+            )
             seletor.select_option(label="Sem projeto")
-            expect(page.locator("#sb-convs-list .conv", has_text="Conversa antiga")).to_have_count(0)
+            expect(page.locator("#sb-convs-list .conv", has_text="Conversa antiga")).to_have_count(
+                0
+            )
             seletor.select_option(label="Estágio")
             expect(page.locator("#sb-convs-list .conv")).to_have_count(1)
             seletor.select_option("todos")
