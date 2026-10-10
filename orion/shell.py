@@ -8,6 +8,7 @@ só expõe o que o front usa para ser app: controles da janela e abrir link fora
 from __future__ import annotations
 
 import re
+from typing import Any
 
 _EXTERNA = re.compile(r"^(https?://|mailto:)", re.IGNORECASE)
 
@@ -18,7 +19,7 @@ class ShellApi:
     """Ponte JS→Python (`window.pywebview.api`)."""
 
     def __init__(self) -> None:
-        self.janela = None
+        self.janela: Any = None
 
     def open_external(self, url: str) -> bool:
         if not isinstance(url, str) or not _EXTERNA.match(url.strip()):
