@@ -79,7 +79,7 @@ def import_package(page, path):
 def test_complete_real_backend_mcp_ui_version_and_restart(abrir, novo_backend, tmp_path):
     gateway = ResearchGateway()
     url, app, _, _ = novo_backend(gateway_override=gateway)
-    page = abrir("#/integracoes", url=url, init=TOKEN_INIT)
+    page = abrir("#/integracoes", url=url, init=TOKEN_INIT, http_ok=True)
     expect(page.get_by_role("heading", name="Seu Orion pode ir além")).to_be_visible()
     import_package(page, zip_fixture(tmp_path, "1.0.0"))
     card = page.locator('[data-plugin="pesquisa-demo"]')
