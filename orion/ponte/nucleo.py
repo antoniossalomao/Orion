@@ -79,6 +79,30 @@ class Adaptadores:
     captura_da_janela: Callable[[], bytes | None] | None = field(default=None)
 
 
+def limpar_texto_ocr(texto: str) -> str:
+    """Texto do OCR pronto para colar: quebras de linha normalizadas, sem espaço no fim da linha e
+    no máximo uma linha em branco seguida. Não mexe nas palavras (hífen de fim de linha fica)."""
+    linhas = [ln.rstrip() for ln in texto.replace("\r\n", "\n").replace("\r", "\n").split("\n")]
+    saida: list[str] = []
+    for ln in linhas:
+        if ln or (saida and saida[-1]):
+            saida.append(ln)
+    return "\n".join(saida).strip()
+
+
+def normalizar_area(
+    x0: int, y0: int, x1: int, y1: int, minimo: int = 8
+) -> tuple[int, int, int, int] | None:
+    """(esquerda, topo, largura, altura) de um arrasto em qualquer direção; None se a área é
+    pequena demais (um clique sem arrastar não é seleção)."""
+    esquerda, direita = sorted((x0, x1))
+    topo, base = sorted((y0, y1))
+    largura, altura = direita - esquerda, base - topo
+    if largura < minimo or altura < minimo:
+        return None
+    return esquerda, topo, largura, altura
+
+
 class Ponte:
     def __init__(
         self,
@@ -151,12 +175,53 @@ class Ponte:
         ]
         return itens
 
-    # E2.4 e E2.5 (preenchidos nas próprias etapas)
     def copiar_texto_da_tela(self) -> None:
-        raise NotImplementedError
+        """E2.4 (V3): arrasta uma área, o OCR local lê, o texto vai para a área de transferência.
+        A imagem existe só na memória desta função; nada vai ao servidor nem à nuvem."""
+        if self.a.ocr_da_area is None:
+            return
+        try:
+            bruto = self.a.ocr_da_area()
+        except Exception as e:  # noqa: BLE001 — sem tesseract, sem tela: diz o que faltou
+            log.warning("OCR da área falhou: %s", type(e).__name__)
+            self.a.notificar("Orion", f"Não consegui ler a tela ({type(e).__name__}).")
+            return
+        if bruto is None:  # Esc: você desistiu
+            return
+        texto = limpar_texto_ocr(bruto)
+        if not texto:
+            self.a.notificar("Orion", "Não achei texto nessa área.")
+            return
+        self.a.area.gravar(texto)
+        self.a.notificar("Orion", f"Copiado ({len(texto)} caracteres).")
 
     def o_que_e_isso(self) -> None:
-        raise NotImplementedError
+        """E2.5 (N18): captura a tela, entrega a imagem ao servidor local (só na memória dele, 5
+        minutos) e abre a janela de pergunta. A imagem só vai à nuvem se você perguntar e aceitar
+        o aviso da primeira vez."""
+        if self.a.captura_da_janela is None:
+            return
+        try:
+            imagem = self.a.captura_da_janela()
+        except Exception as e:  # noqa: BLE001 — sem mss/tela: diz o que faltou
+            log.warning("captura para o 'o que é isso?' falhou: %s", type(e).__name__)
+            self.a.notificar("Orion", f"Não consegui capturar a tela ({type(e).__name__}).")
+            return
+        if not imagem:
+            return
+        try:
+            r = self._http.post(
+                "/ponte/imagem",
+                content=imagem,
+                headers={"Content-Type": "application/octet-stream"},
+            )
+            r.raise_for_status()
+            id_ = str(r.json()["id"])
+        except (httpx.HTTPError, KeyError, ValueError) as e:
+            log.warning("entrega da captura ao servidor falhou: %s", type(e).__name__)
+            self.a.notificar("Orion", "Não consegui entregar a captura ao servidor.")
+            return
+        self.a.janela.abrir(self.pagina("isso", imagem=id_), "O que é isso?", 680, 560)
 
     # ── comandos que vêm do servidor ──────────────────────────────────────
     def tratar(self, bruto: dict[str, Any]) -> None:

@@ -94,8 +94,8 @@ Marque ao concluir. Uma etapa só fecha com todos os itens, a prova e o PR merge
 - [x] E2.1 Processo da ponte
 - [x] E2.2 Duas palmas abrem o Orion (U1)
 - [x] E2.3 Captura rápida (U2)
-- [ ] E2.4 Copiar texto de uma área da tela (V3)
-- [ ] E2.5 "O que é isso?" (N18)
+- [x] E2.4 Copiar texto de uma área da tela (V3)
+- [x] E2.5 "O que é isso?" (N18)
 - [ ] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas
 - [ ] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
 - [ ] **Prova:** no notebook, `Ctrl+Alt+Espaço` abre a captura rápida e grava uma tarefa; duas palmas abrem `/ui/`; `Ctrl+Alt+T` copia texto de uma área da tela.

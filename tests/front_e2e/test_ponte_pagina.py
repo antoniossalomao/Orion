@@ -1,5 +1,8 @@
 """A janela pequena da ponte (E2.3): captura rápida contra o Orion real, com o token da ponte."""
 
+from typing import ClassVar
+
+import httpx
 from playwright.sync_api import expect
 
 from tests.fakes import FakeGateway, fala
@@ -79,3 +82,51 @@ def test_sem_token_ou_com_token_errado_a_pagina_nao_guarda(abrir, novo_backend):
     errado.get_by_label("Anotar").press("Enter")
     expect(errado.locator("#erro")).to_contain_text("parear")
     assert app.state.orion.ops.list_tasks() == []
+
+
+def test_o_que_e_isso_mostra_a_captura_pede_o_aviso_e_so_entao_envia(
+    abrir, novo_backend, monkeypatch
+):
+    class Visao:
+        chamadas: ClassVar[list] = []
+
+        def describe(self, imagem, mime, pergunta="", transport=None):
+            Visao.chamadas.append((len(imagem), mime, pergunta))
+            return "É a tela de um terminal com um erro de compilação."
+
+    monkeypatch.setattr("orion.app.vision_from_settings", lambda settings: Visao())
+    url, app, _, _ = novo_backend()
+    s = app.state.orion
+    token = s.auth.create_device_token("ponte", "teste")
+    from tests.test_ponte import JPEG
+
+    id_ = httpx.post(
+        f"{url}/ponte/imagem", content=JPEG, headers={"Authorization": f"Bearer {token}"}
+    ).json()["id"]
+    page = abrir(url=url, pagina=f"/ui/ponte.html?modo=isso&imagem={id_}#t={token}", axe=True)
+    expect(page.locator("#isso-imagem")).to_be_visible()
+    pergunta = page.get_by_label("O que você quer saber sobre esta imagem?")
+    expect(pergunta).to_have_value("O que é isso?")
+    pergunta.fill("que erro é esse?")
+    page.get_by_role("button", name="Perguntar").click()
+    # 1ª vez: o aviso aparece e NADA foi enviado ao modelo
+    expect(page.locator("#isso-aviso")).to_contain_text("vai sair do computador")
+    assert Visao.chamadas == []
+    page.get_by_role("button", name="Entendi, enviar").click()
+    expect(page.locator("#resultado-texto")).to_have_text(
+        "É a tela de um terminal com um erro de compilação."
+    )
+    assert Visao.chamadas == [(len(JPEG), "image/jpeg", "que erro é esse?")]
+    page.wait_for_timeout(300)
+    assert page.evaluate("async () => (await axe.run(document)).violations.map(v => v.id)") == []
+
+
+def test_o_que_e_isso_com_captura_expirada_ou_sem_visao_explica(abrir, novo_backend):
+    url, app, _, _ = novo_backend()
+    token = app.state.orion.auth.create_device_token("ponte", "teste")
+    page = abrir(
+        url=url,
+        pagina=f"/ui/ponte.html?modo=isso&imagem=naoexiste123#t={token}",
+        http_ok=True,
+    )
+    expect(page.locator("#erro")).to_contain_text("expirou")

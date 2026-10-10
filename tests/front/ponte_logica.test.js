@@ -33,3 +33,18 @@ test('erros da captura têm mensagem própria', () => {
     assert.match(P.erroDaCaptura(422), /2000/);
     assert.match(P.erroDaCaptura(0), /sem conexão/);
 });
+
+test('imagem da busca: só o id no formato que o servidor gera', () => {
+    assert.equal(P.imagemDaBusca('?modo=isso&imagem=AbCd1234_-xyz'), 'AbCd1234_-xyz');
+    assert.equal(P.imagemDaBusca('?imagem=curto'), '');
+    assert.equal(P.imagemDaBusca('?imagem=../../etc/passwd'), '');
+    assert.equal(P.imagemDaBusca(''), '');
+});
+
+test('erros do "o que é isso?" e o aviso da primeira vez', () => {
+    assert.match(P.erroDaExplicacao(404), /expirou/);
+    assert.equal(P.erroDaExplicacao(409, 'ligue ORION_VISION_TOOLS'), 'ligue ORION_VISION_TOOLS');
+    assert.match(P.erroDaExplicacao(502, 'Timeout'), /Timeout/);
+    assert.match(P.erroDaExplicacao(403), /parear/);
+    assert.match(P.AVISO_PRIMEIRA_VEZ, /sair do computador/);
+});

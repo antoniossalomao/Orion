@@ -26,6 +26,16 @@
             <p class="ponte-dica">Enter guarda · Esc fecha · “amanhã às 9 …” vira lembrete · “R$ 20 …” vira gasto</p>
         </form>
 
+        <section id="isso" hidden>
+            <img id="isso-imagem" alt="Janela em foco no momento da tecla" hidden>
+            <form id="isso-form" autocomplete="off">
+                <label for="isso-pergunta">O que você quer saber sobre esta imagem?</label>
+                <input id="isso-pergunta" class="input" type="text" maxlength="500" value="O que é isso?" autocomplete="off">
+                <p id="isso-aviso" class="ponte-dica" hidden></p>
+                <button id="isso-enviar" class="btn btn-primary btn-sm" type="submit">Perguntar</button>
+            </form>
+        </section>
+
         <div id="resultado" role="status" aria-live="polite" class="ponte-resultado" hidden>
             <p id="resultado-texto"></p>
             <button id="desfazer" class="btn btn-outline btn-sm" type="button" hidden>Desfazer</button>

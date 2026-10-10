@@ -471,3 +471,182 @@ def test_panico_derruba_a_ponte_e_recusa_nova_conexao(tmp_path, monkeypatch):
             with c.websocket_connect(WS + "/ws/ponte", headers=h):
                 pass
         assert c.post("/ponte/comando", headers=AUTH, json={"cmd": "abrir"}).status_code == 409
+
+
+# ── E2.4: copiar texto de uma área da tela ───────────────────────────────
+
+
+def test_limpar_texto_do_ocr():
+    from orion.ponte.nucleo import limpar_texto_ocr
+
+    assert limpar_texto_ocr("  Olá  \r\n\r\n\r\n\r\nmundo \r\n") == "Olá\n\nmundo"
+    assert limpar_texto_ocr("a-\nb") == "a-\nb"  # não mexe nas palavras
+    assert limpar_texto_ocr("   \n \n") == ""
+
+
+def test_normalizar_area_aceita_qualquer_direcao_e_recusa_clique():
+    from orion.ponte.nucleo import normalizar_area
+
+    assert normalizar_area(10, 20, 110, 70) == (10, 20, 100, 50)
+    assert normalizar_area(110, 70, 10, 20) == (10, 20, 100, 50)  # arrastou para cima e à esquerda
+    assert normalizar_area(5, 5, 5, 5) is None  # um clique não é seleção
+    assert normalizar_area(0, 0, 300, 4) is None  # fina demais
+
+
+def test_ocr_da_area_vai_para_a_area_de_transferencia_e_avisa_quantos_caracteres():
+    ponte, r, a = montar(ocr_da_area=lambda: "  Texto lido  \n\n\n da tela ")
+    ponte.copiar_texto_da_tela()
+    assert a.area.conteudo == "Texto lido\n\n da tela"
+    assert r.eventos[-1] == ("notificar", "Orion", "Copiado (20 caracteres).")
+    assert not [e for e in r.eventos if e[0] == "janela"]  # nada foi ao servidor
+
+
+def test_ocr_cancelado_vazio_ou_quebrado_nao_estraga_a_area_de_transferencia():
+    ponte, r, a = montar(ocr_da_area=lambda: None)  # Esc
+    ponte.copiar_texto_da_tela()
+    assert a.area.conteudo == "anterior" and r.eventos == []
+    ponte, r, a = montar(ocr_da_area=lambda: " \n ")
+    ponte.copiar_texto_da_tela()
+    assert a.area.conteudo == "anterior" and "Não achei texto" in r.eventos[-1][2]
+
+    def quebra():
+        raise FileNotFoundError("tesseract")
+
+    ponte, r, a = montar(ocr_da_area=quebra)
+    ponte.copiar_texto_da_tela()
+    assert a.area.conteudo == "anterior" and "FileNotFoundError" in r.eventos[-1][2]
+
+
+def test_a_tecla_do_ocr_so_existe_com_o_adaptador():
+    sem, _, _ = montar()
+    com, _, _ = montar(ocr_da_area=lambda: "x")
+    assert "<ctrl>+<alt>+t" not in sem.acoes_das_teclas()
+    assert "<ctrl>+<alt>+t" in com.acoes_das_teclas()
+
+
+# ── E2.5: "o que é isso?" ────────────────────────────────────────────────
+
+JPEG = b"\xff\xd8\xff\xe0" + b"0" * 64
+
+
+def test_o_que_e_isso_entrega_a_captura_ao_servidor_e_abre_a_janela_com_o_id():
+    vistos = []
+
+    def handler(req):
+        vistos.append((req.method, req.url.path, req.content[:4], req.headers["content-type"]))
+        return httpx.Response(200, json={"id": "AbCd1234_-xyz"})
+
+    ponte, r, _ = montar(handler, captura_da_janela=lambda: JPEG)
+    ponte.o_que_e_isso()
+    assert vistos == [("POST", "/ponte/imagem", b"\xff\xd8\xff\xe0", "application/octet-stream")]
+    [(_, url, titulo, _w, _h)] = [e for e in r.eventos if e[0] == "janela"]
+    assert (
+        url == "http://127.0.0.1:8000/ui/ponte.html?modo=isso&imagem=AbCd1234_-xyz#t=tok-da-ponte"
+    )
+    assert titulo == "O que é isso?"
+
+
+def test_o_que_e_isso_avisa_quando_a_captura_ou_a_entrega_falham():
+    def cai(req):
+        raise httpx.ConnectError("sem servidor")
+
+    ponte, r, _ = montar(cai, captura_da_janela=lambda: JPEG)
+    ponte.o_que_e_isso()
+    assert "Não consegui entregar" in r.eventos[-1][2]
+    assert not [e for e in r.eventos if e[0] == "janela"]
+
+    def sem_tela():
+        raise OSError("sem display")
+
+    ponte, r, _ = montar(captura_da_janela=sem_tela)
+    ponte.o_que_e_isso()
+    assert "OSError" in r.eventos[-1][2]
+    ponte, r, _ = montar(captura_da_janela=lambda: None)  # nada capturado: silêncio
+    ponte.o_que_e_isso()
+    assert r.eventos == []
+
+
+# ── servidor: imagem em memória e explicar ───────────────────────────────
+
+
+class VisaoFalsa:
+    def __init__(self, texto="É um terminal aberto."):
+        self.texto, self.chamadas = texto, []
+
+    def describe(self, imagem, mime, pergunta="", transport=None):
+        self.chamadas.append((len(imagem), mime, pergunta))
+        return self.texto
+
+
+def test_imagem_so_na_memoria_com_tipo_tamanho_e_prazo(tmp_path):
+    with cliente(tmp_path) as c:
+        h = {"Authorization": f"Bearer {parear(c)}"}
+        assert c.post("/ponte/imagem", headers=h, content=b"").status_code == 422
+        assert c.post("/ponte/imagem", headers=h, content=b"GIF89a....").status_code == 422
+        assert (
+            c.post(
+                "/ponte/imagem", headers=h, content=b"\xff\xd8\xff" + b"0" * 7_000_000
+            ).status_code
+            == 413
+        )
+        id_ = c.post("/ponte/imagem", headers=h, content=JPEG).json()["id"]
+        r = c.get(f"/ponte/imagem/{id_}", headers=h)
+        assert (
+            r.status_code == 200 and r.content == JPEG and r.headers["content-type"] == "image/jpeg"
+        )
+        assert r.headers["cache-control"] == "no-store"
+        assert c.get("/ponte/imagem/inexistente123", headers=h).status_code == 404
+        assert c.get(f"/ponte/imagem/{id_}").status_code == 401
+        assert not list(tmp_path.rglob("*.jpg"))  # nunca em disco
+
+
+def test_imagens_expiram_e_so_ficam_tres():
+    from orion.ponte.imagens import Imagens
+
+    t = [0.0]
+    im = Imagens(relogio=lambda: t[0])
+    ids = [im.guardar(JPEG) for _ in range(4)]
+    assert im.pegar(ids[0]) is None and im.pegar(ids[3]) is not None  # a mais velha saiu
+    t[0] += 301
+    assert im.pegar(ids[3]) is None
+
+
+def test_explicar_pede_o_aviso_na_primeira_vez_e_depois_nao(tmp_path, monkeypatch):
+    visao = VisaoFalsa()
+    monkeypatch.setattr("orion.app.vision_from_settings", lambda settings: visao)
+    with cliente(tmp_path) as c:
+        h = {"Authorization": f"Bearer {parear(c)}"}
+        id_ = c.post("/ponte/imagem", headers=h, content=JPEG).json()["id"]
+        pedido = {"imagem_id": id_, "pergunta": "o que é isso?"}
+        r = c.post("/ponte/explicar", headers=h, json=pedido)
+        assert r.status_code == 200 and r.json() == {"aviso": "primeira_vez"}
+        assert visao.chamadas == []  # nada saiu antes do aceite
+        ok = c.post("/ponte/explicar", headers=h, json={**pedido, "aceito": True})
+        assert ok.status_code == 200 and ok.json() == {"texto": "É um terminal aberto."}
+        assert visao.chamadas == [(len(JPEG), "image/jpeg", "o que é isso?")]
+        outra = c.post("/ponte/explicar", headers=h, json=pedido)  # aviso já aceito antes
+        assert outra.status_code == 200
+        ev = [e for e in c.app.state.orion.ops.audit_recent(20) if e["tool"] == "ponte_explicar"]
+        assert len(ev) == 2 and "bytes" in ev[0]["reason"] and "terminal" not in str(ev)
+
+
+def test_explicar_recusa_sem_visao_ligada_em_panico_e_captura_expirada(tmp_path, monkeypatch):
+    with cliente(tmp_path) as c:
+        h = {"Authorization": f"Bearer {parear(c)}"}
+        id_ = c.post("/ponte/imagem", headers=h, content=JPEG).json()["id"]
+        corpo = {"imagem_id": id_, "aceito": True}
+        sem = c.post("/ponte/explicar", headers=h, json=corpo)
+        assert sem.status_code == 409 and "ORION_VISION_TOOLS" in sem.json()["detail"]
+        monkeypatch.setattr("orion.app.vision_from_settings", lambda settings: VisaoFalsa())
+        assert (
+            c.post(
+                "/ponte/explicar", headers=h, json={**corpo, "imagem_id": "naoexiste99"}
+            ).status_code
+            == 404
+        )
+        assert c.post("/ponte/explicar", json=corpo).status_code == 401
+        assert c.post("/ponte/explicar", headers=h, json={**corpo, "extra": 1}).status_code == 422
+        c.app.state.orion.modos.entrar_panico("teste")
+        # em pânico o token da ponte nem alcança a rota (403) e o admin recebe 409
+        assert c.post("/ponte/explicar", headers=h, json=corpo).status_code == 403
+        assert c.post("/ponte/explicar", headers=AUTH, json=corpo).status_code == 409

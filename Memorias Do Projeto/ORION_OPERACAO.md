@@ -797,3 +797,45 @@ qualquer conversa; em modo pânico não vai (usa a regra simples). O audit guard
 **Pausar/desligar.** Não subir a ponte. O token da ponte só alcança `/captura` (regra 50).
 
 **Regra.** 50; código em `orion/captura_rapida.py` e `Orion_Core/Front_end_Orion/ponte.html`.
+
+### 18.4 Copiar texto de uma área da tela
+
+**O que faz.** `Ctrl+Alt+T`: a tela escurece, você arrasta uma área, solta, e o texto dela (OCR **local**, tesseract) vai para a
+área de transferência com o aviso "Copiado (N caracteres)". Esc cancela. A imagem fica só na memória do processo da
+ponte (o `pytesseract` usa um arquivo temporário dele, apagado ao terminar); **nada vai ao servidor nem à nuvem**.
+
+**Como ligar.** Vem com a ponte (§18.1). Idiomas: `ORION_SCREEN_OCR_LANGS` (padrão `por+eng`, o mesmo da memória da tela).
+
+**Dependências.** **(você)** `tesseract` com o pacote `por` (§8) e `tkinter` (já vem com o Python do Windows e do macOS;
+no Linux, `python3-tk`). No macOS dar à ponte a permissão de Gravação de Tela.
+
+**O que sai do computador.** Nada.
+
+**Onde ver.** A notificação do sistema e a área de transferência.
+
+**Pausar/desligar.** Trocar a tecla em `ORION_HOTKEYS` por outra combinação (a ação não some, mas a tecla padrão libera) ou
+fechar a ponte.
+
+**Regra.** 50; código em `orion/ponte/nucleo.py` (`copiar_texto_da_tela`, testado com falsos) e
+`orion/ponte/adaptadores.py` (`selecionar_area`, `ocr_da_area`: **não exercitados numa tela real**).
+
+### 18.5 "O que é isso?"
+
+**O que faz.** `Ctrl+Alt+O`: captura a tela principal, entrega a imagem ao servidor local (só na memória dele, por
+5 minutos, **nunca em disco**) e abre uma janela com a prévia e uma pergunta ("O que é isso?"). Ao perguntar, a imagem vai
+ao modelo de visão e a resposta aparece na janela. Na **primeira vez** a janela avisa que a imagem sai do computador
+e só envia depois do seu "Entendi, enviar" (o aceite fica gravado).
+
+**Como ligar.** `ORION_VISION_TOOLS=true` (§4: é o opt-in que autoriza mandar imagem ao provedor de visão) e o
+`ORION_VISION_MODEL` se o modelo do gateway não aceitar imagem. Depois da E11.2 usa a ordem de visão definida lá.
+
+**Dependências.** **(você)** `mss` e `Pillow` (vêm no extra `ponte`); no macOS, a permissão de Gravação de Tela.
+
+**O que sai do computador.** **A tela inteira** (JPEG) para o provedor de visão, só quando você clica em enviar. Rosto, senha e
+e-mail que estiverem na tela vão junto: feche o que for sensível antes de apertar a tecla. O audit registra só o tamanho.
+
+**Onde ver.** A janela; `GET /privacidade` (a chamada de visão aparece como `vision`); audit `ponte_explicar`.
+
+**Pausar/desligar.** `ORION_VISION_TOOLS=false`; o **modo pânico** bloqueia (nada sai do computador).
+
+**Regra.** 28 e 50; código em `orion/ponte/rotas.py` (`/ponte/imagem`, `/ponte/explicar`), `orion/ponte/imagens.py`.

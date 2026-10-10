@@ -1,6 +1,7 @@
 /* ==========================================================================
    ORION — ponte_pagina.js | as janelas pequenas da ponte de desktop (regra 50)
    Modo `rapido` (E2.3): uma linha vira tarefa/lembrete/gasto/nota por POST /captura.
+   Modo `isso` (E2.5): mostra a captura da tela e pergunta ao modelo de visão (POST /ponte/explicar).
    O token da ponte vem no fragmento da URL, fica só em memória e sai da barra de endereços.
    Só `textContent`: nada que vem do servidor vira HTML.
    ========================================================================== */
@@ -60,6 +61,37 @@
         finally { ocupado = false; $('#rapido-texto').focus(); }
     }
 
+    /* ── "o que é isso?" (E2.5) ───────────────────────────────────────── */
+    let confirmado = false;
+    async function carregarImagem() {
+        const id = P.imagemDaBusca(location.search);
+        if (!id) { erro(P.erroDaExplicacao(404)); return null; }
+        try {
+            const resp = await fetch(`/ponte/imagem/${encodeURIComponent(id)}`, { headers: { Authorization: `Bearer ${token}` } });
+            if (!resp.ok) { erro(P.erroDaExplicacao(resp.status)); return null; }
+            const img = $('#isso-imagem');
+            img.src = URL.createObjectURL(await resp.blob()); img.hidden = false;
+            return id;
+        } catch (_) { erro(P.erroDaExplicacao(0)); return null; }
+    }
+    async function perguntar(ev, id) {
+        ev.preventDefault();
+        if (ocupado) return;
+        ocupado = true; erro(''); resultado('', false); $('#isso-enviar').disabled = true;
+        try {
+            const r = await chamar('/ponte/explicar', { method: 'POST', json: { imagem_id: id, pergunta: $('#isso-pergunta').value, aceito: confirmado } });
+            if (r.aviso === 'primeira_vez') {   // nada saiu: o servidor espera o seu aceite
+                confirmado = true; const aviso = $('#isso-aviso'); aviso.textContent = P.AVISO_PRIMEIRA_VEZ; aviso.hidden = false;
+                $('#isso-enviar').textContent = 'Entendi, enviar';
+            } else {
+                $('#isso-aviso').hidden = true;
+                resultado(r.texto || 'O modelo não devolveu texto.', false);
+            }
+        } catch (e) {
+            erro(P.erroDaExplicacao(e.status, e.detalhe));
+        } finally { ocupado = false; $('#isso-enviar').disabled = false; }
+    }
+
     /* ── início ────────────────────────────────────────────────────────── */
     function fechar() { try { window.close(); } catch (_) { /* a ponte fecha a janela */ } }
     document.addEventListener('keydown', e => { if (e.key === 'Escape') fechar(); });
@@ -69,6 +101,10 @@
         $('#rapido').addEventListener('submit', guardar);
         $('#desfazer').addEventListener('click', desfazer);
         $('#rapido-texto').focus();
+    }
+    if (modo === 'isso') {
+        mostrar('#isso', true);
+        carregarImagem().then(id => { if (id) { $('#isso-form').addEventListener('submit', ev => perguntar(ev, id)); $('#isso-pergunta').focus(); $('#isso-pergunta').select(); } else $('#isso-enviar').disabled = true; });
     }
     window.Orion.ponte = { fechar };
 })();

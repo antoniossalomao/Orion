@@ -22,6 +22,22 @@
         return m && ['rapido', 'isso'].includes(m[1]) ? m[1] : 'rapido';
     }
 
+    /** `?modo=isso&imagem=abc123...` → 'abc123...'; vazio se não há ou se tem caracteres fora do padrão */
+    function imagemDaBusca(busca) {
+        const m = /(?:^\?|&)imagem=([A-Za-z0-9_-]{8,40})(?:&|$)/.exec(String(busca || ''));
+        return m ? m[1] : '';
+    }
+
+    /** Mensagem humana para o erro do "O que é isso?". */
+    function erroDaExplicacao(status, detalhe) {
+        if (status === 404) return 'A captura expirou (5 minutos). Aperte a tecla de novo.';
+        if (status === 409 && detalhe) return String(detalhe);
+        if (status === 502) return `O modelo de visão não respondeu${detalhe ? `: ${detalhe}` : '.'}`;
+        return erroDaCaptura(status, detalhe);
+    }
+
+    const AVISO_PRIMEIRA_VEZ = 'Esta imagem vai sair do computador, para o provedor do modelo de visão, só se você continuar. Rosto, senha ou e-mail na tela vão junto. Continue só se concordar.';
+
     const ROTULO = { tarefa: 'Tarefa', lembrete: 'Lembrete', gasto: 'Gasto', nota: 'Nota' };
 
     /** A frase mostrada depois de gravar: o que foi criado, com data/valor quando houver. */
@@ -47,5 +63,5 @@
         return `O servidor não respondeu (${status || 'sem conexão'}).`;
     }
 
-    return { tokenDoFragmento, modoDaBusca, resumoDaCaptura, formatarQuando, erroDaCaptura };
+    return { tokenDoFragmento, modoDaBusca, imagemDaBusca, resumoDaCaptura, formatarQuando, erroDaCaptura, erroDaExplicacao, AVISO_PRIMEIRA_VEZ };
 });
