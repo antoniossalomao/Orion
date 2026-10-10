@@ -48,7 +48,7 @@ class ShellApi:
 def abrir_janela(url: str, icone: str | None = None) -> bool:
     """Abre a janela do app e só volta ao fechá-la. False se não há pywebview ou backend gráfico."""
     try:
-        import webview
+        import webview  # pyright: ignore[reportMissingImports] — só no Windows (pyproject)
     except ImportError:
         return False
     api = ShellApi()
