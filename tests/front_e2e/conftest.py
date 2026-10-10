@@ -154,6 +154,16 @@ def abrir(navegador, mock_url):
         page = ctx.new_page()
         page.on("pageerror", lambda e: erros.append(f"pageerror: {e}"))
         page.on(
+            "response",
+            lambda r: (
+                erros.append(
+                    f"console.error: Failed to load resource: {r.status} {r.request.method} {r.url}"
+                )
+                if r.status >= 400 and r.status != 401
+                else None
+            ),
+        )
+        page.on(
             "console",
             lambda m: (
                 erros.append(f"console.{m.type}: {m.text}")
