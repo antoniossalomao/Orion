@@ -14,8 +14,11 @@ def runtime(tmp_path, *, enabled=True, allowed="buscar_memoria"):
     skill = root / "financas"
     skill.mkdir(parents=True)
     (skill / "references").mkdir()
-    (skill / "references/manual.md").write_text("referência carregada apenas quando pedida")
-    (skill / "SKILL.md").write_text(f"""---
+    (skill / "references/manual.md").write_text(
+        "referência carregada apenas quando pedida", encoding="utf-8"
+    )
+    (skill / "SKILL.md").write_text(
+        f"""---
 name: financas
 description: Analisar relatórios finanças orçamento
 allowed-tools: {allowed}
@@ -23,7 +26,9 @@ metadata:
   version: "1.0"
 ---
 Trabalho auxiliar. [manual](references/manual.md)
-""")
+""",
+        encoding="utf-8",
+    )
     return SkillRuntime([SkillSource(root=root, namespace="pesquisa", enabled=enabled)])
 
 
