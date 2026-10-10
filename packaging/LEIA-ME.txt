@@ -1,8 +1,9 @@
 ORION (Windows)
 ===============
 
-1. Dê dois cliques em orion.exe. Abre uma janela preta (é o log; fechá-la encerra o Orion) e,
-   em seguida, o navegador em http://127.0.0.1:8000/ui/.
+1. Dê dois cliques em orion.exe. O Orion abre numa janela própria (é um app, não uma aba do
+   navegador); fechar a janela encerra o Orion. Precisa do WebView2 (já vem no Windows 10/11
+   atualizado). Sem ele, o Orion abre no navegador em http://127.0.0.1:8000/ui/.
 
 2. Entre com:
        usuário: admin

@@ -24,6 +24,7 @@ dependencies = [
     "openpyxl>=3.1.5",
     "edge-tts>=7.2.8",
     "google-genai>=2.28.0",
+    "pywebview>=5.3; sys_platform == 'win32'",  # janela do app (orion.shell); o front usa só a ponte mínima
 ]
 
 [dependency-groups]
