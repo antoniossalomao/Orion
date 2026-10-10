@@ -61,7 +61,7 @@ def test_development_profile_review_does_not_invoke_cli(tmp_path):
     subprocess.run(["git", "init", str(root)], check=True, capture_output=True)
     (root / "app.py").write_text("print('fixture')")
     gateway = FakeGateway(
-        pede(chama("consultar_git", root=str(root), operation="status")),
+        pede(chama("consultar_git_projeto", root=str(root), operation="status")),
         fala("app.py ainda não rastreado; nenhum arquivo alterado."),
     )
     app = create_app(

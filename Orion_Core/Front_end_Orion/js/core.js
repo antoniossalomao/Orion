@@ -89,8 +89,20 @@
             estado.atual = s;
             document.documentElement.dataset.estado = s;
             const l = $('#state-label');
-            if (l) l.textContent = ROTULO[s];
+            estado.pintar();
             bus.emit('estado', s);
+        },
+        /** aprovação pendente: a pílula do topo avisa (âmbar) mesmo com o Orion parado; sem nada acontecendo ela some */
+        aprovacao(pendente) {
+            if (!!pendente === estado.pendente) return;
+            estado.pendente = !!pendente;
+            estado.pintar();
+        },
+        pendente: false,
+        pintar() {
+            const d = document.documentElement, l = $('#state-label');
+            if (estado.pendente) d.dataset.aprovacao = 'true'; else delete d.dataset.aprovacao;
+            if (l) l.textContent = estado.pendente && estado.atual === 'idle' ? 'Aguardando aprovação' : ROTULO[estado.atual];
         },
     };
 

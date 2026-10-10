@@ -20,6 +20,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from . import saidas
 from .memory import MemoryStore
 
 log = logging.getLogger("orion.delegate")
@@ -41,6 +42,20 @@ DEFAULT_AGENTS = (
     CliAgent("codex", ("codex", "exec", "{prompt}")),
     CliAgent("gemini", ("gemini", "-p", "{prompt}")),
 )
+
+
+def _registrar(
+    nome: str, tarefa: str, inicio: float, r: subprocess.CompletedProcess[str] | None
+) -> None:
+    """O prompt sai do computador pela CLI: registro de saída (regra 47), só tamanhos."""
+    saidas.registrar(
+        f"cli:{nome}",
+        "cli",
+        ok=r is not None and r.returncode == 0,
+        latency_ms=(time.monotonic() - inicio) * 1000,
+        bytes_out=len(tarefa.encode()),
+        bytes_in=len((r.stdout or "").encode()) if r is not None else 0,
+    )
 
 
 class Delegator:
@@ -72,6 +87,23 @@ class Delegator:
 
     def _chave(self, nome: str) -> str:
         return f"delegar:{nome}:{datetime.fromtimestamp(self._clock()).strftime('%Y%m%d')}"
+
+    def status(self) -> list[dict[str, Any]]:
+        """Uso de hoje por CLI (para o painel): instalada, usadas, limite e o que resta."""
+        saida = []
+        for nome in self._order:
+            ag = self._agents[nome]
+            usadas = self._store.counter_get(self._chave(nome))
+            saida.append(
+                {
+                    "nome": nome,
+                    "instalada": self._which(ag.argv[0]) is not None,
+                    "usadas_hoje": usadas,
+                    "limite_diario": ag.daily_limit,
+                    "restante": max(0, ag.daily_limit - usadas),
+                }
+            )
+        return saida
 
     def delegate(self, tarefa: str, pasta: str, agente: str | None = None) -> dict[str, Any]:
         if not tarefa.strip():
@@ -106,6 +138,7 @@ class Delegator:
             self._store.counter_incr(self._chave(nome))
             # "Tarefa:" evita que um prompt iniciado por "-" vire opção da CLI.
             argv = [exe, *(a.replace("{prompt}", f"Tarefa: {tarefa}") for a in ag.argv[1:])]
+            inicio = time.monotonic()
             try:
                 r = self._run(
                     argv,
@@ -120,6 +153,7 @@ class Delegator:
                     errors="replace",
                 )
             except subprocess.TimeoutExpired:
+                _registrar(nome, tarefa, inicio, None)
                 return {
                     "ok": False,
                     "agente": nome,
@@ -127,8 +161,10 @@ class Delegator:
                     "tentativas": tentativas,
                 }
             except OSError as e:
+                _registrar(nome, tarefa, inicio, None)
                 tentativas.append({"agente": nome, "motivo": f"não executou: {e}"})
                 continue
+            _registrar(nome, tarefa, inicio, r)
             saida = (r.stdout or "").strip()
             if r.returncode == 0:
                 return {

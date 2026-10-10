@@ -57,3 +57,6 @@ bin/backup_pip_freeze_*.txt
 
 # conjunto de avaliação com perguntas reais sobre o Antônio (dados pessoais)
 tests/eval_pessoal.local.json
+
+# capturas de tela do front (tests/front_e2e/capturas.py)
+capturas/

@@ -70,7 +70,7 @@ def test_app_lifespan_closes_server(tmp_path):
     )
     with TestClient(create_app(settings), base_url="http://127.0.0.1") as app:
         assert app.get("/health").status_code == 200
-        host = app.app.state.orion.mcp
+        host = app.app.state.orion.mcp_host
         result = app.portal.call(host.connections["ensaio"].call, "eco", {"texto": "app"})
         pid = result.structured_content["pid"]
     if os.name == "posix":

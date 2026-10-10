@@ -1276,6 +1276,36 @@ curso e terá resultado separado. Windows/ponte reais indisponíveis: C50 parcia
 para desktop, recurso explicitamente bloqueado nesse ambiente.
 
 
+### Integração com a `main` — 10/10/2026
+
+Conflitos do [PR #20](https://github.com/antoniossalomao/Orion/pull/20) resolvidos mesclando a
+`main` (`2e3e4ce`) na branch. A evolução ficou como base onde as duas linhas fizeram a mesma
+coisa; da `main` entram provedores diretos, custo/cota, registro de saída (regra 47), pânico e
+não perturbe (regra 48), painel, privacidade, memória da tela, biblioteca de arquivos gerados,
+voz, login por senha e as ferramentas de desktop.
+
+- **Esquema SQLite.** As duas linhas numeraram as versões 3 em diante de formas diferentes
+  (`main`: v3 = `audit`, v4 = fixada/apagada, v5 = `active_sessions`, v6 = guardada…; evolução:
+  v3 = `active_sessions`, v4 = favorita, v5 = índice de títulos…). O esquema unificado é a
+  linhagem da evolução (v1–v16) mais a **v17** (memória da tela, `library_results`,
+  `external_calls`, `audit`, aviso urgente). Banco da `main` (v3–v11, reconhecido pela tabela
+  `audit`) é convertido na abertura por `orion/memory/legacy_main.py`: guarda
+  `<arquivo>.main-vN.bak`, cria um banco novo e copia tudo (ids de projeto viram hexadecimais,
+  fixada → favorita, arquivada/apagada/guardada → arquivada, `artifacts` da `main` →
+  `library_results`). Cobertura: `tests/memory/test_legacy_main.py` (v3 a v11).
+- **Nomes que colidiam.** `orion/research.py` → `orion/research/night.py`; ferramenta
+  `consultar_git` da evolução → `consultar_git_projeto`; `AppState.mcp` é o `McpManager` da
+  `main`, o `MCPHost` da evolução é `AppState.mcp_host`; `Tool.validar`/`origin` valida o esquema
+  completo (nativas antigas só exigem os obrigatórios, como na `main`).
+- **Front-end.** A base é o front da evolução (detecção por capacidades, histórico paginado,
+  caminhos, projetos, fontes, extensões). Da `main` entram painel, privacidade, login, voz
+  (fala e AudioWorklet), "Editar e reenviar", pílula de aprovação pendente e imagens
+  `/imagens/`. A tela Conhecimento ficou só com memória da tela e arquivos gerados.
+- **Deixado de lado de propósito (a evolução já tem equivalente).** Apagar conversa (só
+  arquivar), `/projetos`, `/memoria/fatos`, `/memoria/documentos`, `/plugins/{nome}/conceder` e
+  os testes que cobriam essas rotas. Os dois sistemas de plugins (`orion/plugins.py` da `main`
+  e `orion/extensions/`) convivem; unificar é a próxima etapa.
+
 ### Pull request — 09/10/2026
 
 Revisão: [PR #20](https://github.com/antoniossalomao/Orion/pull/20),
@@ -1832,3 +1862,19 @@ Não eram requisitos fechados do MVP; só abrir novo checklist/commit quando hou
 - [ ] Se marketplace público for solicitado depois, criar plano próprio de distribuição,
   assinatura/proveniência, atualização e manutenção. Não é dependência dos pacotes locais.
 
+
+## Integração do C03 com a `main` (2026-10-07)
+
+A `main` ganhou, em paralelo, o próprio sistema de conversas (`/sessoes`, `/historico`,
+renomear/fixar/apagar, esquema v3 = audit, v4 = pinned/deleted). A `main` ficou como base:
+
+- API, store e front da `main` prevalecem; o adaptador legado/novo por capacidades do front
+  deixou de existir (o front da `main` já fala só com o `orion.app`).
+- Do C03 ficam: `/capabilities` e `/capabilities/details`, o ponteiro persistente de sessão
+  ativa por canal (**esquema v5**, `active_sessions`) e os testes de seleção estável.
+- `activate_session(session_id)` mantém a assinatura da `main`, mas agora grava o ponteiro.
+- C04 (já mergeado nesta branch pelo PR #14) entra sobre a `main`: `GET /historico` paginado por ID
+  (substitui o simples da `main`, mesmo `total`/`mensagens`), `DELETE /historico` (limpa só o
+  contexto), `GET /exportar`, `context_history`/`clear_context` no store e `Agent.clear_history`.
+  O front da `main` já chamava `/exportar` e `DELETE /historico`; o `history.js` do C04 foi
+  descartado junto com o adaptador por capacidades.

@@ -1,0 +1,29 @@
+ORION (Windows)
+===============
+
+1. Dê dois cliques em orion.exe. Abre uma janela preta (é o log; fechá-la encerra o Orion) e,
+   em seguida, o navegador em http://127.0.0.1:8000/ui/.
+
+2. Entre com:
+       usuário: admin
+       senha:   261210@
+
+   Essa é a SENHA DE FÁBRICA. Ela está num repositório público: troque logo em
+   Configurações > Conexão > Trocar a senha. Enquanto ela valer, o Orion recusa subir exposto
+   na rede (Tailscale).
+
+3. Para o Orion falar com modelos, crie um arquivo .env ao lado do orion.exe (veja .env.example no
+   repositório) com, no mínimo:
+       ORION_GATEWAY_URL=http://127.0.0.1:20128/v1
+       ORION_GATEWAY_MODEL=<modelo>
+
+Seus dados (memória, senha, backups) ficam em %LOCALAPPDATA%\orion, fora desta pasta: atualizar o
+Orion é trocar esta pasta por uma nova.
+
+Linha de comando (abra o PowerShell nesta pasta):
+    .\orion.exe set-password        troca a senha
+    .\orion.exe backup              backup da memória
+    .\orion.exe mcp-check           confere os servidores MCP
+
+O Windows pode mostrar "O Windows protegeu o computador" (SmartScreen): o executável não é assinado.
+Clique em "Mais informações" > "Executar assim mesmo" se você mesmo o baixou do repositório.

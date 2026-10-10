@@ -123,6 +123,7 @@ class SkillRuntime:
                     "required": ["skill", "script"],
                 },
                 execute,
+                validar=True,
             )
         )
         policy.tools[name] = ToolSpec(

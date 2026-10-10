@@ -8,11 +8,12 @@
     const { prefs } = O;
 
     class ApiError extends Error {
-        constructor(mensagem, { status = 0, rede = false } = {}) {
+        constructor(mensagem, { status = 0, rede = false, esperar = 0 } = {}) {
             super(mensagem);
             this.name = 'ApiError';
             this.status = status;
             this.rede = rede;
+            this.esperar = esperar;   // segundos até poder tentar de novo (429 do login)
         }
     }
 
@@ -30,7 +31,7 @@
     const configurarToken = t => { tokenDesktop = String(t || ''); };
 
     /** rotas que exigem o token do orion.app; o legado não conhece cabeçalho Authorization */
-    const comAuth = caminho => /^\/(mcp-export|files|approvals|chat|calendar|accounts|branches|documents|activity|notifications|facts|artifacts|projects|skills|plugins|mcp|sessoes|historico|exportar|capabilities\/details)(\/|$|\?)/.test(caminho);
+    const comAuth = caminho => /^\/(mcp-export|files|approvals|chat|calendar|accounts|branches|documents|activity|notifications|facts|artifacts|projects|skills|plugins|mcp|sessoes|historico|exportar|painel|tela|resultados|atividade|modo|privacidade|capabilities\/details)(\/|$|\?)/.test(caminho);
 
     function cabecalhos(caminho, extra = {}) {
         const h = { ...extra };
@@ -39,18 +40,24 @@
         return h;
     }
 
-    function mensagemHttp(status, corpo) {
+    function mensagemHttp(status, corpo, caminho = '') {
         let detalhe = '';
         try { const j = JSON.parse(corpo); detalhe = j.detail || j.erro || j.error || ''; } catch (_) { detalhe = corpo.slice(0, 160); }
         if (typeof detalhe !== 'string') detalhe = JSON.stringify(detalhe);
-        if (status === 401 || status === 403) return 'Acesso negado: confira o token em Configurações › Conexão.';
+        if ((caminho === '/auth/password' || caminho === '/modo/panico') && detalhe) return detalhe;   // o servidor já explica
+        if (caminho === '/auth/login') {
+            if (status === 401) return 'Usuário ou senha incorretos.';
+            if (status === 429) return 'Muitas tentativas erradas. Espere um pouco para tentar de novo.';
+            if (status === 503) return 'Ainda não há senha definida: rode "orion set-password" no computador do Orion.';
+        }
+        if (status === 401 || status === 403) return 'Acesso negado: entre com a senha ou confira o token em Configurações › Conexão.';
         if (status === 404) return detalhe || 'Recurso não encontrado neste cérebro.';
         if (status === 409) return detalhe || 'Essa ação já foi tratada.';
         if (status >= 500) return `O cérebro falhou (${status})${detalhe ? ': ' + detalhe : ''}.`;
         return detalhe || `Erro ${status}.`;
     }
 
-    async function req(caminho, { metodo = 'GET', json, form, timeout = 8000, sinal, bruto = false, body, contentType } = {}) {
+    async function req(caminho, { metodo = 'GET', json, form, timeout = 8000, sinal, bruto = false, body, contentType, semAviso = false } = {}) {
         const ctrl = new AbortController();
         const tid = setTimeout(() => ctrl.abort(), timeout);
         if (sinal) sinal.addEventListener('abort', () => ctrl.abort(), { once: true });
@@ -64,7 +71,12 @@
             throw new ApiError(ctrl.signal.aborted && !sinal?.aborted ? 'O cérebro demorou demais para responder.'
                 : 'Sem conexão com o cérebro.', { rede: true });
         } finally { clearTimeout(tid); }
-        if (!r.ok) throw new ApiError(mensagemHttp(r.status, await r.text().catch(() => '')), { status: r.status });
+        if (!r.ok) {
+            // sessão vencida ou ainda sem login: o app abre a tela de entrada (ver app.js)
+            if (r.status === 401 && comAuth(caminho) && !token() && !semAviso) O.bus.emit('auth:necessario');
+            throw new ApiError(mensagemHttp(r.status, await r.text().catch(() => ''), caminho),
+                { status: r.status, esperar: Number(r.headers.get('retry-after')) || 0 });
+        }
         if (bruto) return r;
         const tipo = r.headers.get('content-type') || '';
         return tipo.includes('json') ? r.json() : r.text();
@@ -106,7 +118,8 @@
             try {
                 // /health existe nos dois backends: evita sondar rotas ausentes no legado.
                 const h = await req('/health', { timeout });
-                if (h && h.components && typeof h.components.gateway === 'boolean') {
+                // sem login /health só devolve o mínimo (sem `components`): o que distingue o legado é `cerebro`
+                if (h && !h.cerebro && typeof h.status === 'string') {
                     const c = await req('/capabilities', { timeout });
                     if (c.contract_version !== 1 || c.backend !== 'orion' || !c.features || !['ready', 'unavailable'].includes(c.model)) {
                         novo = { backend: 'unknown', api: 'online', model: 'unknown', features: {}, unavailable: {}, incompatible: true };
@@ -202,11 +215,38 @@
         exportar: (sessao, completo) => recurso('export', `/exportar?${q({ sessao, completo })}`, { timeout: 8000 }),
         ttsMudo: mudo => recurso('tts', '/tts/mudo', { metodo: 'POST', json: { mudo }, timeout: 3000 }),
         ttsFalar: texto => recurso('tts', '/tts/falar', { metodo: 'POST', json: { texto }, timeout: 4000 }),
+        /** estado do Orion numa resposta só (orion.app: modelos, CLIs, aprovações, política, jobs) */
+        painel: () => req('/painel', { timeout: 5000 }),
+        /** pausa (ativa=false) ou retoma a escuta da palavra de ativação; 409 se ela está desligada */
+        escutaAtivar: ativa => req('/voz/escuta', { metodo: 'POST', json: { ativa: !!ativa }, timeout: 4000 }),
+        tela: () => req('/tela', { timeout: 4000 }),
+        telaPausa: ativa => req('/tela/pausa', { metodo: 'POST', json: { ativa: !!ativa }, timeout: 4000 }),
+        telaLimpar: () => req('/tela', { metodo: 'DELETE', timeout: 5000 }),
+        /** biblioteca de arquivos gerados (documentos e imagens), com versões */
+        biblioteca: () => req('/resultados', { timeout: 5000 }),
+        bibliotecaTexto: id => req(`/resultados/${encodeURIComponent(id)}/texto`, { timeout: 5000 }),
+        /** bytes do arquivo (Response): `previa` pede a imagem inline, senão é o download */
+        bibliotecaArquivo: (id, previa = false) => req(`/resultados/${encodeURIComponent(id)}/arquivo?${q({ previa: previa ? 'true' : null })}`, { bruto: true, timeout: 60000 }),
+        bibliotecaApagar: id => req(`/resultados/${encodeURIComponent(id)}`, { metodo: 'DELETE', timeout: 5000 }),
+        /** caixa de atividade: avisos novos e lidos (não confundir com `atividade`, da atividade das ferramentas) */
+        caixaDeAtividade: () => req('/atividade', { timeout: 4000 }),
+        modo: () => req('/modo', { timeout: 4000 }),
+        /** entrar é um clique; sair pede a senha de novo (regra 48) */
+        panico: (ativo, senha = '') => req('/modo/panico', { metodo: 'POST', json: { ativo: !!ativo, senha }, timeout: 20000 }),
+        naoPerturbe: ate => req('/modo/nao-perturbe', { metodo: 'POST', json: { ate: ate || null }, timeout: 4000 }),
+        privacidade: (dias = 7) => req(`/privacidade?${q({ dias })}`, { timeout: 6000 }),
         upload(arquivo) {
             const f = new FormData();
             f.append('file', arquivo);
-            return recurso('upload', '/upload', { metodo: 'POST', form: f, timeout: 120000 });
+            return req('/upload', { metodo: 'POST', form: f, timeout: 120000 });
         },
+        /** {configured, authenticated, token_auth}; null no legado (sem login) ou sem conexão */
+        async authStatus() {
+            try { return await req('/auth/status', { timeout: 3000 }); } catch (_) { return null; }
+        },
+        login: (usuario, senha) => req('/auth/login', { metodo: 'POST', json: { usuario, senha }, timeout: 20000 }),
+        logout: () => req('/auth/logout', { metodo: 'POST', timeout: 5000 }),
+        trocarSenha: (atual, nova) => req('/auth/password', { metodo: 'POST', json: { senha_atual: atual, nova }, timeout: 20000 }),
         clientesExternos: () => recurso('mcp_export', '/mcp-export/clients'),
         criarClienteExterno: json => recurso('mcp_export', '/mcp-export/clients', { metodo: 'POST', json }),
         revogarClienteExterno: id => recurso('mcp_export', `/mcp-export/clients/${id}/revoke`, { metodo: 'POST' }),
@@ -233,7 +273,8 @@
         atividade: (project_id, unread = false) => recurso('activity', `/activity?${q({ project_id, unread })}`),
         preferenciasAtividade: (project_id, json) => recurso('activity', `/activity/preferences?${q({ project_id })}`, { metodo: 'PUT', json }),
         lerAviso: (id, project_id) => recurso('notifications', `/notifications/${id}/ack?${q({ project_id })}`, { metodo: 'POST' }),
-        aprovacoes: () => recurso('approvals', '/approvals', { timeout: 4000 }),
+        /** `semAviso`: consulta de fundo; um 401 não reabre a tela de entrada */
+        aprovacoes: ({ semAviso = false } = {}) => recurso('approvals', '/approvals', { timeout: 4000, semAviso }),
         decidir: (id, aprovada) => recurso('approvals', `/approvals/${encodeURIComponent(id)}/decide`,
                                        { metodo: 'POST', json: { approved: !!aprovada }, timeout: 6000 }),
         /** abre o link fora do app: no desktop pela ponte do pywebview, na web numa aba nova */
@@ -250,5 +291,5 @@
     // as imagens que o markdown aceita dependem do endereço do cérebro
     const sincronizarImagens = () => O.md.configurar({ basesImagens: [`${base()}/imagens/`] });
     sincronizarImagens();
-    prefs.assinar('base_url', () => { sincronizarImagens(); origem = ''; geracao++; emDeteccao = null; publicar({ backend: 'unknown', api: 'offline', model: 'unknown', features: {}, unavailable: {} }); detectar(); });
+    prefs.assinar('base_url', sincronizarImagens);
 })();

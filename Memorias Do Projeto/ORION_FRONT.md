@@ -74,7 +74,7 @@ quando um endpoint não existe. Transporte do chat: no pywebview, API + hub WS (
 | Contraste de texto | ≥ 4,5:1 (AA) |
 | Console | 0 erros/avisos de página ao navegar por todas as telas |
 | Teclado | toda ação alcançável sem mouse; foco sempre visível; views ocultas `inert` |
-| Janela estreita | ≥ 700 px sem rolagem horizontal; a barra lateral vira trilho de ícones (o app é só desktop) |
+| Janela estreita | ≥ 700 px sem rolagem horizontal; a barra lateral vira trilho de ícones. **Só desktop (decidido em 06/10/2026):** abaixo de 700 px não é suportado, celular = Telegram |
 | Streaming | 1 render por quadro (rAF), não por pedaço |
 | Céu fora da home | ≤ 20 fps; pausado com a aba oculta |
 
@@ -89,7 +89,9 @@ quando um endpoint não existe. Transporte do chat: no pywebview, API + hub WS (
 | **Chat** | Reparseia o texto todo a cada pedaço; sem tabela/link/realce | Streaming com ≤ 1 render por quadro; tabelas, listas aninhadas, citação, tarefas, código com linguagem, realce e "Copiar"; ferramentas usadas viram chips; **cartão de aprovação** de ação; erro com "Tentar de novo"; "Mais recentes"; parar com `Esc`; anexos (clipe, colar, arrastar) |
 | **Memória** | Overlay de grafo sem teclado | Grafo pausado fora da tela; busca por trecho + lista de resultados + painel de detalhes com vizinhos (caminho por teclado); filtros por tipo; aviso explícito quando os dados são de demonstração |
 | **Integrações** | Cartões estáticos | Estado real de `/integracoes`, ação por cartão (voz ao vivo, resposta por voz), aviso quando o cérebro não responde |
+| **Painel** (06/10) | Não existia | Modelos (estado por endpoint, quarentena por cota, último erro), CLIs oficiais (uso do dia), aprovações pendentes, política das últimas 24 h e sistema (jobs, memória, Telegram, MCP), com alertas em texto (`GET /painel`; atualiza a cada 10 s). Só `textContent`; lógica pura em `js/painel.js` |
 | **Configurações** | Cartões de altura igual, gráfico quebrado com 1 ponto | Aparência (3 temas, densidade, escala, movimento), voz e sons, modelo, conexão (endereço, token, testar), atividade (CPU/RAM/GPU, latência, cascata, serviços), atalhos, sobre |
+| **Entrada (login)** | Só o token colado em Configurações | Tela cheia e **opaca** "Entrar no Orion" (usuário e senha, `autocomplete` certo, foco preso; o app fica `inert` por trás e nada dele aparece; não há "agora não" e `Esc` não fecha): abre sozinha no boot, quando um 401 chega do `/chat` e depois de sair; erro de usuário/senha e bloqueio (429) na própria tela; consulta de fundo (aprovações pendentes) **não** a reabre. Configurações › Conexão ganha a linha **Sessão** (Entrar/Sair). Sem `/auth/status` (legado) ou com token configurado, nada disso aparece |
 | **Paleta (`Ctrl+K`)** | Não existia | Ir para, ações, modelo, tema/densidade/escala, conversas (por trecho), "Perguntar ao Orion", "Revisar ação pendente" |
 | **Comandos `/`** | Não existia | `/` no campo abre a lista: `/nova`, `/buscar`, `/copiar`, `/exportar`, `/limpar`, `/modelo`, `/tema`, `/foco`, `/mudo`, `/voz`, `/ajuda` e as telas. Completa com `Tab`/`Enter`; `//` envia uma barra literal; caminho de arquivo e texto de várias linhas não são comando |
 | **Na conversa** | — | `Ctrl+F` busca (sem acento, destaca todas as ocorrências, `Enter` navega); selecionar um trecho oferece **Citar**; tempo de cada resposta; `Ctrl+Shift+C` copia a última resposta; rascunho guardado por conversa; aprovação pendente acende o ponto do Chat e entra na paleta |
@@ -98,15 +100,17 @@ quando um endpoint não existe. Transporte do chat: no pywebview, API + hub WS (
 
 | Orçamento | Resultado | Onde |
 |---|---|---|
-| Axe (serious/critical **e** moderate/best-practice) | 0 violações em 5 telas × 3 temas, no chat com resposta + aprovação + erro, e com paleta e menu abertos | `test_axe_*` |
-| Console | 0 erros/avisos em todos os 77 testes de navegador (a fixture derruba o teste) | `conftest.py` |
-| Teclado | `Ctrl+K`, `Alt+1..5`, `/`, `?`, `Ctrl+B`, `Ctrl+.`, `Ctrl+F`, `Esc`; telas ocultas `inert`; menu `/` e paleta no padrão combobox | `test_atalhos_*`, `test_paleta_*`, `test_comandos_*` |
-| Janela estreita | Sem rolagem horizontal a 700 e 860 px nas 5 telas; barra vira trilho e volta ao alargar | `test_janela_*` |
+| Axe (serious/critical **e** moderate/best-practice) | 0 violações em 6 telas × 3 temas, no chat com resposta + aprovação + erro, e com paleta e menu abertos | `test_axe_*` |
+| Entrada | Cobre a janela inteira com cor sólida (pontos dos cantos e do centro caem na tela, app inerte, só 3 controles focáveis), pede usuário e senha, recusa usuário ou senha errados sem deixá-los no campo, mostra o aviso de espera, volta quando a sessão some, sair leva de volta a ela, axe sem violações nos 3 temas (tela aberta e com erro) | `test_tela_de_entrada_*`, `test_login_*`, `test_sessao_vencida_*`, `test_sair_*`, `test_axe_tela_de_entrada_aberta` |
+| Orion de verdade | App, política e SQLite reais com o front real (só o modelo é de mentira): login por cookie `httpOnly`/`Strict`, conversa em streaming, aprovação que executa o comando depois do clique, audit no banco, servidor MCP real. Achou o 422 do `resume` | `tests/front_e2e/test_orion_real.py` |
+| Console | 0 erros/avisos em todos os 97 testes de navegador com backend de mentira (a fixture derruba o teste) | `conftest.py` |
+| Teclado | `Ctrl+K`, `Alt+1..6`, `/`, `?`, `Ctrl+B`, `Ctrl+.`, `Ctrl+F`, `Esc`; telas ocultas `inert`; menu `/` e paleta no padrão combobox | `test_atalhos_*`, `test_paleta_*`, `test_comandos_*` |
+| Janela estreita | Sem rolagem horizontal a 700 e 860 px nas 6 telas; barra vira trilho e volta ao alargar | `test_janela_*` |
 | Streaming | Renderizações ≤ quadros + 2 (a resposta chega em ~100 pedaços) | `test_streaming_rende_*` |
 | Céu fora da home | ≤ 22 quadros/s | `test_ceu_fora_*` |
 | Segurança | `<script>`, `onerror`, `javascript:` e imagem externa em texto do modelo: nada executa, nada sai do app; CSP com o hash do único script inline (teste falha se o script mudar sem atualizar o hash) | `test_markdown_malicioso_*`, `test_csp_*` |
 | Desktop | Caminho `process_command` + hub com shim (eco sem duplicar, ferramenta, modelo, fala vinda do microfone, link por `open_external`, controles da janela) | `test_desktop_*` |
-| Lógica pura | 89 testes em Node (md, sse, store, util, fuzzy, charts, slash) | `tests/front/` |
+| Lógica pura | 99 testes em Node (md, sse, store, util, fuzzy, charts, slash, painel) | `tests/front/` |
 | Ponte e servidor | `ponte.py` (relay de eventos, URL externa, cabeçalho, geração de comandos) e `/ui/` do `orion.app` (sem `.py`, sem `__pycache__`) | `tests/legacy/test_ponte.py`, `tests/test_app_ui.py` |
 
 Peso: ~1,1 MB no primeiro carregamento (three.js 600 KB, Inter 48 KB, CSS 80 KB, JS ~200 KB);
@@ -133,7 +137,7 @@ o 3d-force-graph (700 KB) só baixa na primeira visita à Memória.
 
 ### O que **não** foi verificado
 
-- O app desktop real (pywebview no Windows): só o shim dos testes. `get_config`/`open_external`
+- O app desktop real (pywebview no Windows): só o shim dos testes; ele continua entrando por token (`get_config`), não pela tela de senha. `get_config`/`open_external`
   e o relay de `tool`/`approval`/`error` em `orion_app.py` têm teste da lógica pura, não do launcher.
 - Safari e Firefox; leitor de tela de verdade (NVDA/VoiceOver) — só axe e a árvore de acessibilidade.
 - Desempenho da constelação em GPU real: o CI usa WebGL por software; o orçamento medido é de
@@ -156,33 +160,46 @@ uv run python -m tests.front_e2e.mock_backend      # http://127.0.0.1:8000/ui/
 Mensagens que acionam fluxos: "apague…" (cartão de aprovação), "me lembra…" (ferramenta),
 "falha" (erro), "lento" (demora), "xss" (markdown malicioso), qualquer pergunta longa (tabela + código).
 
+## 7. Acabamento (06/10/2026, depois da análise visual com capturas)
 
-## 7. Refinamento visual e conexão (04/10/2026)
+Decisão: **só desktop** (fecha a decisão #5 do NUCLEO). Corrigido, cada item com teste em `test_front.py`:
 
-A interface passa a priorizar o conteúdo e a conversa, com referência à organização dos apps
-Codex e Claude. A identidade continua sendo o observatório noturno: Rigel como acento, o
-cinturão de Órion como marca e a constelação discreta no início. Chat, configurações e
-integrações têm fundo sólido para facilitar a leitura.
+| Achado | Correção |
+|---|---|
+| Composer mais largo que a coluna de mensagens (832 × 750 px) | `.composer-inner` com a mesma largura útil da coluna: borda esquerda no avatar, direita na bolha do usuário |
+| Parágrafo depois de tabela/código/citação colado no bloco | `.prose p { margin: 0 }` (0,1,1) vencia `.prose > * + *` (0,1,0); agora `:where(p)` |
+| Pílula "Em espera" permanente, em mono | Some quando o Orion está parado; aparece em `Processando`/`Ouvindo`/`Respondendo` e **"Aguardando aprovação"** (âmbar) enquanto houver cartão pendente |
+| Memória: resultados e vizinhos só com título truncado; grafo pequeno e sem texto | Linha extra com tipo · data · nº de ligações; tópicos com rótulo no 3D; câmera mais perto |
+| Integrações: nome de arquivo (`mic_engine.py`), status em mono, faixa de altura irregular, Microfone sem explicação | Texto humanizado, faixa com altura mínima igual, dica "Ligar é feito no computador onde o cérebro roda" (não há endpoint para ligar o microfone daqui) |
+| Atividade: gráfico esticado com 1–2 pontos | Só desenha a partir de 3 medições; legenda com nº de medições, mín e máx |
+| Alto contraste: constelação sumia também na home | Véu total só fora da home |
+| `style=""` no `index.html` | Classes utilitárias em `components.css`; teste impede a volta |
 
-- Início centralizado, saudação com maior hierarquia, campo de mensagem amplo e quatro cartões
-  de sugestões com ícones. A sugestão de organizar arquivos começa por um plano.
-- Sidebar de 256 px, seção “Suas conversas”, seleção consistente e conexão no rodapé,
-  inclusive no trilho recolhido. A conexão tem nome acessível e tooltip quando recolhida.
-- Mensagens do usuário, composer e cartões usam superfícies sólidas e sombras leves. O
-  indicador “Em espera” fica oculto; o estado volta a aparecer quando há atividade.
-- O início mostra apenas modelo e memória. O estado “Cérebro conectado” duplicado saiu;
-  o estado da conexão fica na sidebar, sem toast de queda/retorno.
-- `carregar()` não altera mais `online`: falha em `/sessoes` não é falha de conexão. O ping
-  impede chamadas concorrentes, e seus rótulos só mudam quando o estado muda. A home preserva
-  os nós dos indicadores quando os dados não mudam e consulta detalhes apenas enquanto ativa.
-- A mensagem de erro na lista de conversas descreve a falha de carregamento, evitando chamar
-  o cérebro de offline quando apenas `/sessoes` falhou.
+**CSP não foi apertada (verificado):** `style-src 'unsafe-inline'` continua porque o `3d-force-graph` injeta um `<style>` em
+tempo de execução e o `md.js` emite `style="text-align:…"` nas células de tabela; `connect-src *` e `img-src` seguem porque o
+endereço do cérebro é configurável (Tailscale). Tirar isso exige trocar a lib do grafo ou usar hash/nonce por estilo.
 
-Validação: os 81 cenários da suíte completa de navegador passaram, incluindo as
-regressões de reconexão silenciosa, falha isolada da lista e estabilidade da home.
-As sete suítes de lógica do front em Node, Ruff e verificação de whitespace também passaram.
-A suíte de navegador inclui axe nas cinco telas e três temas, streaming, anexos, segurança,
-aprovações e o shim do desktop. Capturas visuais conferidas a 1440×900 e 700×650.
+**Capturas:** `uv run python -m tests.front_e2e.capturas capturas/` gera 5 telas × 3 temas × 2 tamanhos para revisão visual.
+Não há teste de pixel (céu em WebGL e fonte mudam por plataforma); o que é medível está nos testes.
 
-O pywebview real no Windows continua sem validação neste ambiente; o backend utilizado
-nas capturas e nos testes é o mock, sem conectar aos dados pessoais do usuário.
+## 8. Conversas: renomear, fixar e apagar (07/10/2026)
+
+A barra lateral do `orion.app` ficava vazia: o front chamava `/sessoes` e `/historico` (contrato do legado) e o app novo não os tinha.
+Agora tem, com a mesma forma do legado + os campos novos, todas atrás do login/token (e do bloqueio de outra origem para cookie):
+
+| Rota | O que faz |
+|---|---|
+| `GET /sessoes?canal=web` | Conversas do canal + as importadas do legado (somente leitura), sem as apagadas; título = o dado, ou a 1ª fala, ou "Nova conversa"; `favorita`, `ultima_atividade`, `ativa` |
+| `POST /sessoes` | Nova conversa (se a ativa ainda está vazia, reaproveita: não empilha conversas em branco) |
+| `POST /sessoes/ativar` | Torna a conversa a ativa do canal e devolve as mensagens (`user`/`assistant`); importada → 409 |
+| `GET /historico?sessao=` | Mensagens de uma conversa (a importada abre só por aqui) |
+| `PATCH /sessoes/{id}` | `titulo` e/ou `favorita` |
+| `DELETE /sessoes/{id}` | Apaga = **esconde** (`deleted=1`): as mensagens ficam no banco e o que o Orion já consolidou delas continua na memória; vai para o log de auditoria |
+
+- **Esquema v4** (migração automática de banco v3): `sessions.pinned` e `sessions.deleted`.
+- **Escopo:** só conversas do canal `web` e importadas. Telegram e outros canais não são alcançáveis por essas rotas (404).
+- **Front:** menu ⋯ em cada conversa (aparece com mouse, foco ou menu aberto; teclado completo), grupo "Fixadas", confirmação para apagar
+  (foco em "Cancelar"), e na paleta `Ctrl+K`: renomear, fixar e apagar a conversa atual. Conversa importada não tem menu.
+- **Legado:** se o cérebro não aceitar `PATCH`/`DELETE`, o erro aparece num aviso legível e a lista não muda.
+- **Provado:** `tests/test_app_sessoes.py`, `tests/memory/test_conversas.py`, 10 testes de navegador em `test_front.py` (inclui axe com menu e
+  diálogos abertos) e um em `test_orion_real.py` (login real, SQLite real, recarregar a página, mensagens ainda no banco após apagar).

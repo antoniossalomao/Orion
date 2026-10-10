@@ -79,6 +79,7 @@ class Events:
                 "revisão; sem enviar ou criar.",
                 schema,
                 propose,
+                validar=True,
             )
         )
         self.policy.tools["propor_evento_agenda"] = ToolSpec("propor_evento_agenda", Risk.WRITE)
@@ -192,7 +193,11 @@ class Events:
         ctx, conn = self.validate(proposal, project_id)
         remotes = {t.name: t for t in await conn.list_tools()}
         if "create-event" not in remotes or Tool(
-            "remote", "", remotes["create-event"].input_schema, lambda: None
+            "remote",
+            "",
+            remotes["create-event"].input_schema,
+            lambda: None,
+            validar=True,
         )._invalid(proposal["payload"]):
             raise MCPError("event_creation_not_supported")
         creation_revision = hashlib.sha256(

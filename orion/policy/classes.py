@@ -26,6 +26,9 @@ class ToolSpec:
     organize: bool = False  # path_arg é uma pasta que será reorganizada
     external: bool = False  # devolve conteúdo não confiável (web, e-mail, arquivos)
     read_path_arg: str | None = None  # argumento com caminho que a ferramenta LÊ (segredo confirma)
+    # O modelo escolhe PARA ONDE a ferramenta fala na rede (URL, host): é um canal de exfiltração
+    # por GET. Depois de ler conteúdo externo, a sessão confirma antes de cada uso (regra 4).
+    egress: bool = False
 
     origin: str | None = None
     revision: str | None = None
@@ -48,11 +51,11 @@ DEFAULT_TOOLS: dict[str, ToolSpec] = dict(
         _t("listar_arquivos", Risk.READ, read_path_arg="path"),
         _t("ler_clipboard", Risk.READ, external=True),
         _t("analisar_clipboard_com_ia", Risk.READ, external=True),
-        _t("ler_documento", Risk.READ, external=True),
+        _t("ler_documento", Risk.READ, external=True, read_path_arg="path"),
         _t("resumir_documento", Risk.READ, external=True),
-        _t("transcrever_audio", Risk.READ),
+        _t("transcrever_audio", Risk.READ, external=True, read_path_arg="path"),
         _t("traduzir_texto", Risk.READ),
-        _t("consultar_git", Risk.READ),
+        _t("consultar_git", Risk.READ, read_path_arg="repo_path"),
         _t("buscar_memoria", Risk.READ),
         _t("listar_numeros", Risk.READ),
         _t("status_processo_bg", Risk.READ),
@@ -61,9 +64,7 @@ DEFAULT_TOOLS: dict[str, ToolSpec] = dict(
         _t("consultar_audit_log", Risk.READ),
         _t("checar_saude_sistema", Risk.READ),
         _t("checar_servicos_orion", Risk.READ),
-        _t("capturar_tela", Risk.READ),
-        _t("explicar_tela", Risk.READ),
-        _t("analisar_imagem", Risk.READ),
+        _t("analisar_imagem", Risk.READ, external=True, read_path_arg="path"),
         _t("consultar_clima", Risk.READ),
         _t("obter_topico_celular", Risk.READ),
         _t("status_enxame", Risk.READ),
@@ -71,7 +72,7 @@ DEFAULT_TOOLS: dict[str, ToolSpec] = dict(
         # leitura de conteúdo externo (fonte de prompt injection)
         _t("pesquisar_internet", Risk.READ, external=True),
         _t("pesquisar_com_ia", Risk.READ, external=True),
-        _t("buscar_url", Risk.READ, external=True),
+        _t("buscar_url", Risk.READ, external=True, egress=True),
         _t("ler_emails", Risk.READ, external=True),
         _t("ler_email", Risk.READ, external=True),
         # escrita (com log)
@@ -89,7 +90,8 @@ DEFAULT_TOOLS: dict[str, ToolSpec] = dict(
         _t("criar_rascunho_email", Risk.WRITE),
         _t("criar_evento", Risk.WRITE),
         _t("gerar_imagem", Risk.WRITE),
-        _t("abrir_app", Risk.WRITE),
+        _t("capturar_tela", Risk.WRITE),  # deixa um arquivo no computador; não sai dele
+        _t("abrir_app", Risk.EXEC),  # abre programa ou arquivo qualquer: confirma
         _t("controlar_midia", Risk.WRITE),
         _t("backup_memoria", Risk.WRITE),
         _t("iniciar_vigilancia_pasta", Risk.WRITE),
@@ -99,8 +101,9 @@ DEFAULT_TOOLS: dict[str, ToolSpec] = dict(
         # execução
         _t("executar_comando", Risk.EXEC, cmd_arg="cmd"),
         _t("iniciar_processo_bg", Risk.EXEC, cmd_arg="comando"),
-        _t("controlar_janela", Risk.EXEC),
-        _t("navegar_web", Risk.EXEC, external=True),
+        _t("controlar_janela", Risk.EXEC, external=True),  # título de aba é texto de terceiros
+        _t("explicar_tela", Risk.EXEC, external=True),  # envia a tela inteira ao modelo: confirma
+        _t("navegar_web", Risk.EXEC, external=True, egress=True),
         _t("consultar_especialista", Risk.EXEC),
         # reescrita (fase 2)
         _t("listar_fatos", Risk.READ),
@@ -118,4 +121,6 @@ DEFAULT_RATE_LIMITS: dict[str, tuple[int, int]] = {
     "organizar_pasta": (3, 300),
     "consultar_especialista": (3, 600),
     "navegar_web": (10, 300),
+    "gerar_imagem": (5, 600),  # protege a cota gratuita do provedor
+    "pesquisar_internet": (20, 300),
 }

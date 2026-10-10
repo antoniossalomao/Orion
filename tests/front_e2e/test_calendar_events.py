@@ -13,7 +13,7 @@ def test_event_product_review_reject_then_create_exactly_once(abrir, novo_backen
     session = s.memory.new_session("web")
     s.memory.add_message(session.id, "user", "Preparar reunião, sem criar até revisar")
     conn = EventConnector("personal")
-    s.mcp.connections["agenda"] = conn
+    s.mcp_host.connections["agenda"] = conn
     from .conftest import TOKEN
 
     response = httpx.post(

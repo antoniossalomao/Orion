@@ -8,11 +8,14 @@ em `embed_pending` (job). `embed_query` usa o modo de consulta do modelo
 
 from __future__ import annotations
 
+import json
 import logging
 import time
 from collections.abc import Callable
 
 import httpx
+
+from .. import saidas
 
 log = logging.getLogger("orion.embeddings")
 
@@ -77,13 +80,26 @@ class GeminiEmbedder:
         }
         # a chave vai em cabeçalho, nunca na URL (URL aparece em log e traceback)
         url = f"{self._base}/models/{self._model}:batchEmbedContents"
+        enviados = len(json.dumps(corpo).encode())
         for tentativa in range(self._retries + 1):
             resp = None
+            erro = ""
+            inicio = time.monotonic()
             try:
                 resp = self._client.post(url, json=corpo, headers={"x-goog-api-key": self._key})
             except httpx.TransportError as e:
                 erro = type(e).__name__
-            else:
+            finally:  # cada tentativa conta na cota do provedor (regras 46 e 47)
+                saidas.registrar(
+                    "gemini",
+                    "embed",
+                    ok=resp is not None and resp.status_code < 400,
+                    latency_ms=(time.monotonic() - inicio) * 1000,
+                    model=self._model,
+                    bytes_out=enviados,
+                    bytes_in=len(resp.content) if resp is not None else 0,
+                )
+            if resp is not None:
                 if resp.status_code < 400:
                     return self._vetores(resp, len(texts))
                 erro = f"HTTP {resp.status_code}"

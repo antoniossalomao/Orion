@@ -16,6 +16,7 @@ import re
 import sqlite3
 import threading
 import time
+import unicodedata
 import uuid
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import AbstractContextManager, contextmanager
@@ -24,6 +25,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, ClassVar, Literal, Protocol
 
+from . import legacy_main
 from .schema import DDL, MIGRATIONS, SCHEMA_VERSION
 from .scope import clause, current
 from .text import chunk_text, fts_query, strip_frontmatter
@@ -35,6 +37,18 @@ Kind = Literal["fact", "chunk", "message"]
 RRF_K = 60
 MAX_NOTA_BYTES = 5 * 1024 * 1024
 KIND_WEIGHT: dict[str, float] = {"fact": 1.25, "chunk": 1.0, "message": 0.8}
+
+
+def _like(texto: str) -> str:
+    return texto.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def _percentil(ordenados: Sequence[int], p: int) -> int:
+    """Percentil pelo vizinho mais próximo (lista já ordenada); 0 se vazia."""
+    if not ordenados:
+        return 0
+    i = max(0, min(len(ordenados) - 1, -(-p * len(ordenados) // 100) - 1))
+    return int(ordenados[i])
 
 
 class Embedder(Protocol):
@@ -96,6 +110,10 @@ class MemoryStore:
         self.path = Path(path)
         if str(path) != ":memory:":
             self.path.parent.mkdir(parents=True, exist_ok=True)
+            if self.path.exists():  # banco da linhagem antiga da `main`: converte antes de abrir
+                de = legacy_main.converter(self.path)
+                if de is not None:
+                    log.info("banco da main (esquema v%d) convertido para v%d", de, SCHEMA_VERSION)
         self._embedder = embedder
         self._clock = clock
         self._lock = threading.RLock()
@@ -610,6 +628,59 @@ class MemoryStore:
             for r in rows
         ]
 
+    def search_facts(self, query: str, limit: int = 20) -> list[Fact]:
+        """Fatos que casam com a consulta (FTS) ou que a contêm como trecho literal."""
+        limit = max(1, min(limit, 100))
+        q = fts_query(query)
+        with self._lock:
+            ids: list[int] = []
+            if q:
+                ids = [
+                    r[0]
+                    for r in self._conn.execute(
+                        "SELECT rowid FROM facts_fts WHERE facts_fts MATCH ? ORDER BY rank LIMIT ?",
+                        (q, limit),
+                    )
+                ]
+            ids += [
+                r[0]
+                for r in self._conn.execute(
+                    "SELECT id FROM facts WHERE lower(text) LIKE ? ESCAPE '\\' LIMIT ?",
+                    ("%" + _like(query.strip().lower()) + "%", limit),
+                )
+                if r[0] not in ids
+            ]
+            achados = [self.get_fact(i) for i in ids[:limit]]
+        return [f for f in achados if f is not None]
+
+    def duplicate_facts(self, limiar: float = 0.75) -> list[tuple[Fact, Fact, float]]:
+        """Pares de fatos quase iguais (palavras em comum / palavras no total, sem acento nem
+        caixa). Só sugere: quem decide qual apagar é o Antônio (`orion esquecer`)."""
+
+        def palavras(t: str) -> set[str]:
+            sem = unicodedata.normalize("NFKD", t.casefold()).encode("ascii", "ignore").decode()
+            return {w for w in re.findall(r"[a-z0-9]+", sem) if len(w) > 2}
+
+        fatos = self.facts()
+        conj = {f.id: palavras(f.text) for f in fatos}
+        achados: list[tuple[Fact, Fact, float]] = []
+        for i, a in enumerate(fatos):
+            for b in fatos[i + 1 :]:
+                u = conj[a.id] | conj[b.id]
+                if not u:
+                    continue
+                j = len(conj[a.id] & conj[b.id]) / len(u)
+                if j >= limiar:
+                    achados.append((a, b, j))
+        return sorted(achados, key=lambda t: -t[2])
+
+    def get_fact(self, fact_id: int) -> Fact | None:
+        with self._lock:
+            r = self._conn.execute("SELECT * FROM facts WHERE id=?", (fact_id,)).fetchone()
+        if r is None:
+            return None
+        return Fact(r["id"], r["text"], r["source"], r["created_at"], r["updated_at"])
+
     def facts_markdown(self) -> str:
         """Nota para o vault do Obsidian (a pessoa confere e corrige em texto)."""
         agora = datetime.fromtimestamp(self._clock()).astimezone()
@@ -670,6 +741,26 @@ class MemoryStore:
         ids = [x[0] for x in c.execute("SELECT id FROM chunks WHERE document_id=?", (doc_id,))]
         self._drop_vec(c, "chunk", ids)
         c.execute("DELETE FROM documents WHERE id=?", (doc_id,))
+
+    def list_documents(self, prefix: str = "upload:") -> list[dict[str, Any]]:
+        """Documentos cuja origem começa com `prefix` (os enviados pela interface), com o
+        número de trechos. O texto em si não vai na lista."""
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT d.id, d.source, d.title, d.indexed_at, d.project_id,"
+                " (SELECT COUNT(*) FROM chunks c WHERE c.document_id=d.id) AS trechos"
+                " FROM documents d WHERE d.source LIKE ? ESCAPE '\\' ORDER BY d.indexed_at DESC",
+                (_like(prefix) + "%",),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def remove_document_id(self, doc_id: int, prefix: str = "upload:") -> bool:
+        with self._tx() as c:
+            r = c.execute("SELECT id, source FROM documents WHERE id=?", (doc_id,)).fetchone()
+            if not r or not str(r["source"]).startswith(prefix):
+                return False  # só apaga o que veio de upload; nota do vault não é daqui
+            self._delete_document(c, r["id"])
+            return True
 
     def remove_document(self, source: str) -> bool:
         project_id = current.get().project_id
@@ -776,7 +867,10 @@ class MemoryStore:
     }
 
     def search(
-        self, query: str, k: int = 8, kinds: Sequence[Kind] = ("fact", "chunk", "message")
+        self,
+        query: str,
+        k: int = 8,
+        kinds: Sequence[Kind] = ("fact", "chunk", "message"),
     ) -> list[Hit]:
         fq = fts_query(query)
         amplo = max(k * 3, 20)
@@ -874,6 +968,250 @@ class MemoryStore:
             return int(
                 c.execute("SELECT value FROM meta WHERE key=?", (f"counter:{chave}",)).fetchone()[0]
             )
+
+    # ── valores livres no `meta` (estado dos modos, regra 48) ──────────────
+    def meta_get(self, chave: str) -> str | None:
+        with self._lock:
+            return self._meta(self._conn, f"valor:{chave}")
+
+    def meta_set(self, chave: str, valor: str | None) -> None:
+        """`None` apaga. Chave com prefixo próprio: não colide com contador nem com `watch:`."""
+        with self._tx() as c:
+            if valor is None:
+                c.execute("DELETE FROM meta WHERE key=?", (f"valor:{chave}",))
+            else:
+                c.execute(
+                    "INSERT INTO meta(key, value) VALUES (?, ?)"
+                    " ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                    (f"valor:{chave}", valor),
+                )
+
+    # ── registro de saída (regra 47): tamanho e tipo, nunca o conteúdo ─────
+    def add_external_call(
+        self,
+        *,
+        provider: str,
+        kind: str,
+        ok: bool,
+        latency_ms: int,
+        model: str = "",
+        bytes_out: int = 0,
+        bytes_in: int = 0,
+        content_kind: str = "",
+        ts: float | None = None,
+    ) -> int:
+        with self._tx() as c:
+            return int(
+                c.execute(
+                    "INSERT INTO external_calls(ts, provider, kind, model, ok, latency_ms,"
+                    " bytes_out, bytes_in, content_kind) VALUES (?,?,?,?,?,?,?,?,?)",
+                    (
+                        self._clock() if ts is None else ts,
+                        provider[:60],
+                        kind[:30],
+                        model[:120],
+                        1 if ok else 0,
+                        max(0, int(latency_ms)),
+                        max(0, int(bytes_out)),
+                        max(0, int(bytes_in)),
+                        content_kind[:20],
+                    ),
+                ).lastrowid
+                or 0
+            )
+
+    def external_calls(
+        self, desde: float, *, prefixo: str | None = None, limite: int = 5000
+    ) -> list[dict[str, Any]]:
+        """Linhas desde `desde` (mais novas primeiro); `prefixo` filtra o provedor."""
+        filtro = ""
+        params: list[Any] = [desde]
+        if prefixo:
+            filtro = " AND provider LIKE ? ESCAPE '\\'"
+            params.append(_like(prefixo) + "%")
+        rows = self.query(
+            f"SELECT * FROM external_calls WHERE ts>=?{filtro} ORDER BY ts DESC, id DESC LIMIT ?",
+            (*params, max(1, min(int(limite), 50_000))),
+        )
+        return [dict(r) for r in rows]
+
+    def external_calls_count(self, provider_prefix: str, desde: float) -> int:
+        """Chamadas de um provedor (ou família, `gateway:`) desde `desde`: a base da cota."""
+        with self._lock:
+            r = self._conn.execute(
+                "SELECT COUNT(*) FROM external_calls WHERE ts>=? AND provider LIKE ? ESCAPE '\\'",
+                (desde, _like(provider_prefix) + "%"),
+            ).fetchone()
+        return int(r[0]) if r else 0
+
+    def external_calls_summary(self, desde: float) -> list[dict[str, Any]]:
+        """Por provedor e tipo: chamadas, falhas, p50/p95 da latência, bytes e o modelo mais
+        usado."""
+        grupos: dict[tuple[str, str], list[sqlite3.Row]] = {}
+        for r in self.query(
+            "SELECT provider, kind, model, ok, latency_ms, bytes_out, bytes_in"
+            " FROM external_calls WHERE ts>=? ORDER BY ts",
+            (desde,),
+        ):
+            grupos.setdefault((r["provider"], r["kind"]), []).append(r)
+        saida = []
+        for (provider, kind), linhas in sorted(grupos.items()):
+            lat = sorted(int(r["latency_ms"]) for r in linhas)
+            modelos: dict[str, int] = {}
+            for r in linhas:
+                if r["model"]:
+                    modelos[r["model"]] = modelos.get(r["model"], 0) + 1
+            saida.append(
+                {
+                    "provider": provider,
+                    "kind": kind,
+                    "chamadas": len(linhas),
+                    "falhas": sum(1 for r in linhas if not r["ok"]),
+                    "p50_ms": _percentil(lat, 50),
+                    "p95_ms": _percentil(lat, 95),
+                    "bytes_out": sum(int(r["bytes_out"]) for r in linhas),
+                    "bytes_in": sum(int(r["bytes_in"]) for r in linhas),
+                    "modelo": max(modelos, key=lambda m: modelos[m]) if modelos else "",
+                }
+            )
+        return saida
+
+    def prune_external_calls(self, dias: int = 90) -> int:
+        with self._tx() as c:
+            return c.execute(
+                "DELETE FROM external_calls WHERE ts < ?", (self._clock() - dias * 86400,)
+            ).rowcount
+
+    # ── biblioteca de resultados (C34) ────────────────────────────────────
+    def add_artifact(
+        self,
+        *,
+        session_id: str | None,
+        kind: str,
+        name: str,
+        stored: str,
+        size: int,
+        tool: str,
+    ) -> dict[str, Any]:
+        """Registra um resultado; mesmo nome de novo vira a versão seguinte (a antiga fica)."""
+        with self._tx() as c:
+            ant = c.execute(
+                "SELECT id, version FROM library_results WHERE name=? AND kind=?"
+                " ORDER BY version DESC LIMIT 1",
+                (name, kind),
+            ).fetchone()
+            projeto = None
+            if session_id:
+                r = c.execute(
+                    "SELECT project_id FROM sessions WHERE id=?", (session_id,)
+                ).fetchone()
+                projeto = r[0] if r else None
+            aid = c.execute(
+                "INSERT INTO library_results(session_id, project_id, kind, name, stored, bytes,"
+                " tool,"
+                " version, parent_id, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                (
+                    session_id, projeto, kind, name, stored, size, tool,
+                    (ant["version"] + 1) if ant else 1, ant["id"] if ant else None, self._clock(),
+                ),
+            ).lastrowid  # fmt: skip
+            return self._artifact_row(c, int(aid or 0))
+
+    @staticmethod
+    def _artifact_row(c: sqlite3.Connection, aid: int) -> dict[str, Any]:
+        r = c.execute("SELECT * FROM library_results WHERE id=?", (aid,)).fetchone()
+        return dict(r) if r else {}
+
+    def get_artifact(self, aid: int) -> dict[str, Any] | None:
+        with self._lock:
+            d = self._artifact_row(self._conn, aid)
+        return d or None
+
+    def list_artifacts(
+        self, project_id: str | None = None, limit: int = 100
+    ) -> list[dict[str, Any]]:
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT a.*, s.title AS sessao_titulo FROM library_results a"
+                " LEFT JOIN sessions s ON s.id=a.session_id"
+                " WHERE (? IS NULL OR a.project_id=?)"
+                " ORDER BY a.created_at DESC, a.id DESC LIMIT ?",
+                (project_id, project_id, max(1, min(limit, 500))),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def delete_artifact(self, aid: int) -> str | None:
+        """Apaga o registro e devolve o nome do arquivo guardado (para o chamador apagar)."""
+        with self._tx() as c:
+            r = c.execute("SELECT stored FROM library_results WHERE id=?", (aid,)).fetchone()
+            if not r:
+                return None
+            c.execute("DELETE FROM library_results WHERE id=?", (aid,))
+            return str(r["stored"])
+
+    # ── memória da tela (D3): texto de OCR, retenção curta, nunca imagem ───
+    def add_screen(self, text: str, title: str = "") -> int:
+        with self._tx() as c:
+            return int(
+                c.execute(
+                    "INSERT INTO screen_log(ts, title, text) VALUES (?,?,?)",
+                    (self._clock(), " ".join(title.split())[:200], text),
+                ).lastrowid
+                or 0
+            )
+
+    def last_screen_text(self) -> str | None:
+        with self._lock:
+            r = self._conn.execute(
+                "SELECT text FROM screen_log ORDER BY id DESC LIMIT 1"
+            ).fetchone()
+        return r[0] if r else None
+
+    def search_screen(self, query: str, limit: int = 5, dias: int = 30) -> list[dict[str, Any]]:
+        q = fts_query(query)
+        if q is None:
+            return []
+        desde = self._clock() - dias * 86400
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT s.id, s.ts, s.title,"
+                " snippet(screen_log_fts, 0, '[', ']', '…', 24) AS trecho"
+                " FROM screen_log_fts f JOIN screen_log s ON s.id=f.rowid"
+                " WHERE screen_log_fts MATCH ? AND s.ts>=? ORDER BY f.rank LIMIT ?",
+                (q, desde, max(1, min(limit, 20))),
+            ).fetchall()
+        return [
+            {"id": r["id"], "ts": r["ts"], "titulo": r["title"], "trecho": r["trecho"]}
+            for r in rows
+        ]
+
+    def prune_screen(self, dias: int) -> int:
+        with self._tx() as c:
+            return c.execute(
+                "DELETE FROM screen_log WHERE ts<?", (self._clock() - dias * 86400,)
+            ).rowcount
+
+    def clear_screen(self) -> int:
+        with self._tx() as c:
+            return c.execute("DELETE FROM screen_log").rowcount
+
+    def screen_count(self, desde: float = 0.0) -> int:
+        with self._lock:
+            return int(
+                self._conn.execute(
+                    "SELECT COUNT(*) FROM screen_log WHERE ts>=?", (desde,)
+                ).fetchone()[0]
+            )
+
+    def counters_with_prefix(self, prefixo: str) -> dict[str, int]:
+        """Contadores cujo nome começa com `prefixo` (nome sem o prefixo interno)."""
+        base = "counter:"
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT key, value FROM meta WHERE key LIKE ? ESCAPE '\\'",
+                (base + _like(prefixo) + "%",),
+            ).fetchall()
+        return {r[0][len(base) :]: int(r[1]) for r in rows}
 
     def counter_set(self, chave: str, valor: int) -> None:
         with self._tx() as c:

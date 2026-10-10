@@ -5,6 +5,10 @@
 > [ORION_NUCLEO.md](ORION_NUCLEO.md). Consolidado em 30/09/2026 (último registro de
 > trabalho no legado: 12/08/2026). Operação do legado: [README.md](../README.md) ·
 > Histórico completo: histórico do git deste repositório.
+>
+> **Este arquivo descreve só o legado.** O pacote novo (`orion/`): o que cada peça faz e o que foi
+> verificado em [ORION_MELHORIAS.md](ORION_MELHORIAS.md), as regras e os testes que as provam em
+> [ORION_REGRAS.md](ORION_REGRAS.md), como ligar em [ORION_OPERACAO.md](ORION_OPERACAO.md).
 
 ---
 

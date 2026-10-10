@@ -37,13 +37,13 @@ def test_chat_exige_token_e_valida_o_corpo(tmp_path):
 def test_chat_503_sem_gateway_e_health_informa(tmp_path):
     with cliente(tmp_path, gateway=False)[0] as c:
         assert c.post("/chat", json={"texto": "oi"}, headers=AUTH).status_code == 503
-        assert c.get("/health").json()["components"]["gateway"] is False
+        assert c.get("/health", headers=AUTH).json()["components"]["gateway"] is False
 
 
 def test_chat_em_streaming_no_formato_do_legado(tmp_path):
     c, gw = cliente(tmp_path, fala("Olá, Antônio."))
     with c:
-        assert c.get("/health").json()["components"]["gateway"] is True
+        assert c.get("/health", headers=AUTH).json()["components"]["gateway"] is True
         with c.stream(
             "POST", "/chat", json={"texto": "oi", "canal": "telegram"}, headers=AUTH
         ) as r:
@@ -111,6 +111,15 @@ def test_resume_exige_token_e_aprovacao_existente(tmp_path):
         with c.stream("POST", "/approvals/inexistente/resume", json={}, headers=AUTH) as r:
             ev = eventos(r)
         assert "error" in ev[0] and ev[-1] == "[DONE]"
+
+
+def test_resume_sem_corpo_vale_para_o_canal_web_como_o_front_manda(tmp_path):
+    """Regressão achada rodando o Orion de verdade: o front retoma sem corpo e dava HTTP 422."""
+    c, _ = cliente(tmp_path)
+    with c:
+        resp = c.post("/approvals/inexistente/resume", headers=AUTH)  # nenhum corpo
+        assert resp.status_code == 200
+        assert "aprovação inexistente" in resp.text
 
 
 def test_erro_interno_do_turno_vira_evento_e_nao_derruba_o_stream(tmp_path):

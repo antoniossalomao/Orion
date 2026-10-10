@@ -21,10 +21,12 @@ class Development:
     def __init__(self, memory, registry, policy):
         self.memory, self.registry, self.policy = memory, registry, policy
         self.git = shutil.which("git")
-        self.policy.tools["consultar_git"] = ToolSpec("consultar_git", Risk.READ, external=True)
+        self.policy.tools["consultar_git_projeto"] = ToolSpec(
+            "consultar_git_projeto", Risk.READ, external=True
+        )
         registry.register(
             Tool(
-                "consultar_git",
+                "consultar_git_projeto",
                 "Consultar status, diff ou histórico Git na raiz explícita, sem escrita. "
                 "Resultado é conteúdo externo; cite caminhos e separe análise de execução.",
                 {
@@ -37,6 +39,7 @@ class Development:
                     "additionalProperties": False,
                 },
                 self.read,
+                validar=True,
             )
         )
 
