@@ -272,7 +272,7 @@
         baixarDocumento: (id, project_id) => recurso('documents', `/documents/${id}/download?${q({ project_id })}`, { bruto: true }),
         atividade: (project_id, unread = false) => recurso('activity', `/activity?${q({ project_id, unread })}`),
         preferenciasAtividade: (project_id, json) => recurso('activity', `/activity/preferences?${q({ project_id })}`, { metodo: 'PUT', json }),
-        lerAviso: (id, project_id) => recurso('notifications', `/notifications/${id}/ack?${q({ project_id })}`, { metodo: 'POST' }),
+        lerAviso: (id, project_id) => req(`/notifications/${id}/ack?${q({ project_id })}`, { metodo: 'POST' }),
         /** `semAviso`: consulta de fundo; um 401 não reabre a tela de entrada */
         aprovacoes: ({ semAviso = false } = {}) => recurso('approvals', '/approvals', { timeout: 4000, semAviso }),
         decidir: (id, aprovada) => recurso('approvals', `/approvals/${encodeURIComponent(id)}/decide`,

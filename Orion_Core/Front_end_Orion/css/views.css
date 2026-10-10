@@ -3,9 +3,9 @@
    ========================================================================== */
 
 /* ── Início: o céu é o palco; o conteúdo fica embaixo ───────────────── */
-#view-home { justify-content: flex-end; align-items: center; pointer-events: none; padding: 0 var(--s-5) var(--s-8); }
+#view-home { justify-content: flex-start; align-items: center; overflow-y: auto; pointer-events: none; padding: 0 var(--s-5) var(--s-8); }
 #view-home > * { pointer-events: auto; }
-.home-hero { width: min(100%, 40rem); display: flex; flex-direction: column; gap: var(--s-4); }
+.home-hero { width: min(100%, 40rem); display: flex; flex-direction: column; gap: var(--s-4); margin-top: auto; }   /* margin-top:auto: encosta embaixo quando cabe; quando não cabe, rola em vez de cortar o topo */
 .home-greet h2 { font-size: var(--fs-2xl); font-weight: 500; letter-spacing: -0.02em; line-height: var(--lh-tight); }
 .home-greet h2 em { font-style: normal; color: var(--accent); }
 .home-greet p { margin-top: 0.3rem; color: var(--text-2); font-size: var(--fs-md); }

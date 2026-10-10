@@ -100,7 +100,7 @@ def test_atalhos_de_teclado(abrir):
     page = abrir()
     page.keyboard.press("Alt+3")
     expect(page.locator("html")).to_have_attribute("data-view", "memoria")
-    page.evaluate("location.hash = '#/painel'")
+    page.keyboard.press("Alt+6")
     expect(page.locator("html")).to_have_attribute("data-view", "projetos")
     page.keyboard.press("Alt+7")
     expect(page.locator("html")).to_have_attribute("data-view", "resultados")
@@ -1419,7 +1419,8 @@ def test_esc_descarta_a_gravacao_sem_enviar(abrir):
 def test_falar_a_partir_da_home_abre_o_chat_e_a_paleta_tem_o_comando(abrir):
     page = abrir("", init=GRAVADOR_FALSO)
     page.locator("#home-form .voice-ptt-btn").click()
-    page.locator("#home-form .voice-ptt-btn").click()
+    # a tela pode já ter ido para o chat: o segundo clique vale no botão que estiver visível
+    page.locator(".view[data-active='true'] .voice-ptt-btn").first.click()
     expect(page).to_have_url(re.compile(r"#/chat$"))
     expect(page.locator(".msg-user").last).to_contain_text("que horas são")
     page.keyboard.press("Control+k")
