@@ -1184,7 +1184,7 @@ def create_app(
     def capabilities(state: State) -> Capabilities:
         return describe(
             agent_ready=state.agent is not None,
-            admin_configured=bool(state.settings.admin_token),
+            admin_configured=bool(state.settings.admin_token) or state.auth.has_password(),
         )
 
     @app.get("/capabilities/details", dependencies=[Admin])

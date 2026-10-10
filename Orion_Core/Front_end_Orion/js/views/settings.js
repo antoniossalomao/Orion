@@ -129,7 +129,7 @@
     const medidor = (nome, pct) => {
         const sev = CH.severidade(pct);
         const v = pct == null ? null : Math.max(0, Math.min(100, +pct));
-        return el('div', { class: 'meter', dataset: { sev }, role: 'meter', 'aria-label': nome, 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': v == null ? null : String(Math.round(v)) },
+        return el('div', { class: 'meter', dataset: { sev }, role: v == null ? 'group' : 'meter', 'aria-label': nome, 'aria-valuemin': v == null ? null : '0', 'aria-valuemax': v == null ? null : '100', 'aria-valuenow': v == null ? null : String(Math.round(v)) },
             el('span', { text: nome }), el('span', { class: 'meter-track' }, el('span', { class: 'meter-fill', style: `width:${v ?? 0}%` })),
             el('span', { class: 'meter-val', text: U.fmtPct(pct) }));
     };
