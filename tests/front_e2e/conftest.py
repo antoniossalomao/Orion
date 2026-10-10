@@ -9,6 +9,7 @@ Todo teste também é um teste de console: erro ou aviso da página derruba o te
 
 from __future__ import annotations
 
+import contextlib
 import os
 import socket
 import subprocess
@@ -165,9 +166,14 @@ def abrir(navegador, mock_url):
         page.wait_for_selector("html[data-pronto='true']")
         return page
 
+    def _fechar():
+        for c in contextos:
+            with contextlib.suppress(Exception):
+                c.close()
+
+    _abrir.fechar = _fechar
     yield _abrir
-    for c in contextos:
-        c.close()
+    _fechar()
     relevantes = [
         e
         for e in erros
@@ -178,7 +184,7 @@ def abrir(navegador, mock_url):
 
 
 @pytest.fixture
-def novo_backend(tmp_path):
+def novo_backend(tmp_path, abrir):
     """API real, gateway simulado e dados temporários; nunca chama um provedor."""
     import threading
 
@@ -247,6 +253,7 @@ def novo_backend(tmp_path):
         return url, app, gw, caminhos
 
     yield criar
+    abrir.fechar()  # as páginas fecham antes do servidor: sem erro de conexão recusada no console
     for server, thread in servidores:
         server.should_exit = True
         thread.join(timeout=10)
