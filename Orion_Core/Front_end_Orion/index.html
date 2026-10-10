@@ -132,6 +132,11 @@
                 <svg class="i" aria-hidden="true"><use href="#i-search"/></svg>
                 <input id="sb-search" class="input" type="search" placeholder="Buscar conversas" aria-label="Buscar conversas" autocomplete="off" spellcheck="false">
             </div>
+            <label class="sr-only" for="sb-projeto">Filtrar conversas por projeto</label>
+            <select id="sb-projeto" class="select sb-projeto" hidden>
+                <option value="todos">Todos os projetos</option>
+                <option value="nenhum">Sem projeto</option>
+            </select>
             <nav id="sb-convs-list" tabindex="0" aria-label="Conversas" aria-busy="true"></nav>
         </div>
 
@@ -488,6 +493,7 @@
 <script src="js/util.js"></script>
 <script src="js/md.js"></script>
 <script src="js/fuzzy.js"></script>
+<script src="js/conversas.js"></script>
 <script src="js/slash.js"></script>
 <script src="js/store.js"></script>
 <script src="js/sse.js"></script>

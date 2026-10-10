@@ -94,7 +94,7 @@
     async function loadRows() {
         if (!api.suporta('projects') || !api.token()) { rows = []; paintContext(); return; }
         const source = origin(); const values = await api.projetos();
-        if (source !== origin()) return; rows = values; paintContext();
+        if (source !== origin()) return; rows = values; paintContext(); bus.emit('projetos', rows);
     }
     async function load() {
         const token = ++generation;
@@ -124,5 +124,5 @@
         },
         ativar() { active = true; load(); }, desativar() { active = false; ++generation; }
     };
-    O.projects = { current, options, mover: move, use, loadRows };
+    O.projects = { current, options, mover: move, use, loadRows, lista: () => rows };
 })();

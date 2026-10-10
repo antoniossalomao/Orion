@@ -9,7 +9,7 @@
     const U = O.util;
 
     let sessoes = [], ativa = null, filtro = '', online = null, listaOnline = null, abrindo = false;
-    let lista, busca, restaurado = false, origem = null;
+    let lista, busca, seletor, restaurado = false, origem = null;
     bus.on('capabilities', () => { const novaOrigem = `${api.base()}:${api.estado().backend}`; if (origem !== novaOrigem) { origem = novaOrigem; restaurado = false; if (busca) filtrar(); } });
 
     /* ── lista de conversas ────────────────────────────────────────────── */
@@ -97,9 +97,10 @@
             const nome = el('span', { class: 'conv-title' });
             const marca = el('span', { class: 'conv-ro' });
             const trecho = el('span', { class: 'conv-snippet', hidden: true });
-            const b = el('button', { class: 'conv', type: 'button', dataset: { id: s.sessao_id } }, el('span', { class: 'conv-text' }, nome, trecho), marca);
+            const selo = el('span', { class: 'conv-projeto', hidden: true });
+            const b = el('button', { class: 'conv', type: 'button', dataset: { id: s.sessao_id } }, el('span', { class: 'conv-text' }, nome, trecho), selo, marca);
             const mais = el('button', { class: 'icon-btn conv-more', type: 'button', 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'aria-controls': 'conv-menu', text: '⋯' });
-            linha = { el: el('div', { class: 'conv-row' }, b, mais), botao: b, nome, trecho, marca, mais, dados: s, desenho: '' };
+            linha = { el: el('div', { class: 'conv-row' }, b, mais), botao: b, nome, trecho, marca, selo, mais, dados: s, desenho: '' };
             b.addEventListener('click', () => abrir(linha.dados));
             mais.addEventListener('click', () => abrirMenu(linha));
             mais.addEventListener('keydown', e => { if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); e.stopPropagation(); abrirMenu(linha); } });
@@ -107,6 +108,12 @@
         }
         linha.dados = s;
         linha.trecho.textContent = s.trecho || ''; linha.trecho.hidden = !s.trecho;
+        const proj = projetoDaConversa(s);
+        linha.selo.hidden = !proj;
+        if (proj) {
+            linha.selo.textContent = O.conversas.nomeCurto(proj.name); linha.selo.title = `Projeto: ${proj.name}`;
+            linha.selo.style.setProperty('--matiz', String(O.conversas.matiz(proj.name)));
+        }
         const chave = `${titulo(s)}:${filtro}`;
         if (chave !== linha.desenho) { linha.nome.replaceChildren(...comMarcas(titulo(s), filtro)); linha.desenho = chave; }
         const atual = s.sessao_id === (O.historico?.sessao() || ativa);
@@ -134,6 +141,23 @@
         if (foco && !foco.isConnected) busca.focus({ preventScroll: true });
         lista.scrollTop = top;
     }
+    const projetos = () => O.projects?.lista?.() || [];
+    function projetoDaConversa(s) {
+        const id = O.conversas.projetoDe(s);
+        return id ? projetos().find(p => p.id === id) || null : null;
+    }
+    function filtroAtual() { return O.conversas.filtroValido(prefs.get('filtro_projeto'), projetos()); }
+    function montarSeletor() {
+        const visivel = api.suporta('projects') && projetos().length > 0;
+        seletor.hidden = !visivel;
+        const ativos = projetos().filter(p => !p.archived);
+        seletor.replaceChildren(el('option', { value: 'todos', text: 'Todos os projetos' }), el('option', { value: 'nenhum', text: 'Sem projeto' }),
+            ...ativos.map(p => el('option', { value: p.id, text: p.name })));
+        seletor.value = filtroAtual();
+        if (!visivel) seletor.value = 'todos';
+    }
+    const visiveis = () => O.conversas.filtrar(sessoes, seletor?.hidden ? 'todos' : filtroAtual(), projetos());
+
     function desenhar() {
         lista.setAttribute('aria-busy', String(buscando));
         if (resultadosBusca !== null) {
@@ -142,18 +166,22 @@
             if (proximoBusca != null) { maisBusca.disabled = buscando; nos.push(maisBusca); }
             reconciliar(nos); return;
         }
+        const doFiltro = visiveis();
+        if (!doFiltro.length && sessoes.length) {
+            reconciliar([grupo('Nenhuma conversa neste filtro.')]); lista.firstElementChild.className = 'sb-empty'; return;
+        }
         if (!sessoes.length) {
             reconciliar([grupo(!api.suporta('sessions') && api.estado().api === 'online' ? 'Conversas salvas ainda indisponíveis neste backend.' : listaOnline === false ? 'Não foi possível carregar as conversas. Tentando novamente…' : 'Nenhuma conversa ainda. Comece uma nova.')]);
             lista.firstElementChild.className = 'sb-empty'; return;
         }
         if (filtro) {
-            const achadas = O.fuzzy.buscar(sessoes, filtro, titulo);
+            const achadas = O.fuzzy.buscar(doFiltro, filtro, titulo);
             reconciliar(achadas.length ? achadas.map(botaoConversa) : [grupo(`Nada encontrado para “${filtro}”.`)]); return;
         }
-        const nos = [], fixadas = sessoes.filter(x => x.favorita && !x.arquivada);
+        const nos = [], fixadas = doFiltro.filter(x => x.favorita && !x.arquivada);
         if (fixadas.length) nos.push(grupo('Fixadas'), ...fixadas.map(botaoConversa));
-        for (const g of U.agruparPorDia(sessoes.filter(x => !x.arquivada && !x.favorita), s => s.criada)) nos.push(grupo(g.rotulo), ...g.itens.map(botaoConversa));
-        const antigas = sessoes.filter(x => x.arquivada);
+        for (const g of U.agruparPorDia(doFiltro.filter(x => !x.arquivada && !x.favorita), s => s.criada)) nos.push(grupo(g.rotulo), ...g.itens.map(botaoConversa));
+        const antigas = doFiltro.filter(x => x.arquivada);
         if (antigas.length) nos.push(grupo('Arquivadas'), ...antigas.map(botaoConversa), gerirArquivadas());
         reconciliar(nos);
     }
@@ -258,7 +286,9 @@
     }
 
     function init() {
-        lista = $('#sb-convs-list'); busca = $('#sb-search');
+        lista = $('#sb-convs-list'); busca = $('#sb-search'); seletor = $('#sb-projeto');
+        seletor.addEventListener('change', () => { prefs.set('filtro_projeto', seletor.value); desenhar(); O.anunciar?.(`Conversas: ${seletor.selectedOptions[0].text}.`); });
+        bus.on('projetos', () => { montarSeletor(); desenhar(); });
         menu = el('div', { id: 'conv-menu', class: 'conv-menu', role: 'menu', 'aria-label': 'Ações da conversa', hidden: true });
         document.body.append(menu);
         menu.addEventListener('click', e => { const it = e.target.closest('[role="menuitem"]'); if (!it) return; const linha = alvoMenu; fecharMenu(); gerenciar(linha, it.dataset.valor); });

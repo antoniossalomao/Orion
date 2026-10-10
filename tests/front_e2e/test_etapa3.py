@@ -44,3 +44,36 @@ def test_arquivadas_no_backend_de_mentira(abrir):
     page.evaluate("Orion.app.ir('arquivadas')")
     expect(page.locator("#view-arquivadas")).to_be_visible()
     expect(page.locator("#arquivadas-corpo")).to_contain_text("Nenhuma conversa arquivada")
+
+
+def test_filtro_por_projeto_na_barra_lateral_e_selo(abrir, novo_backend):
+    url, app, _, _ = novo_backend()
+    m = app.state.orion.memory
+    from orion.projects import Projects
+
+    pid = Projects(m).create("Estágio")["id"]
+    solta = m.new_session("web", "Conversa solta").id
+    dentro = m.new_session("web", "Tarefa do estágio", project_id=pid).id
+    page = abrir("#/chat", url=url, init=TOKEN_INIT, axe=True)
+    convs = page.locator("#sb-convs-list .conv")
+    expect(convs).to_have_count(2)
+    seletor = page.get_by_label("Filtrar conversas por projeto")
+    expect(seletor).to_be_visible()
+    # selo com o nome curto do projeto só na conversa que está nele
+    expect(page.locator(f'.conv[data-id="{dentro}"] .conv-projeto')).to_have_text("Estágio")
+    expect(page.locator(f'.conv[data-id="{solta}"] .conv-projeto')).to_be_hidden()
+    seletor.select_option("nenhum")
+    expect(convs).to_have_count(1)
+    expect(convs.first).to_contain_text("Conversa solta")
+    seletor.select_option(pid)
+    expect(convs).to_have_count(1)
+    expect(convs.first).to_contain_text("Tarefa do estágio")
+    # a escolha sobrevive ao recarregar (localStorage)
+    page.reload()
+    page.wait_for_selector("html[data-pronto='true']")
+    expect(page.get_by_label("Filtrar conversas por projeto")).to_have_value(pid)
+    expect(page.locator("#sb-convs-list .conv")).to_have_count(1)
+    page.get_by_label("Filtrar conversas por projeto").select_option("todos")
+    expect(page.locator("#sb-convs-list .conv")).to_have_count(2)
+    page.wait_for_timeout(300)
+    assert page.evaluate("async () => (await axe.run(document)).violations.map(v => v.id)") == []
