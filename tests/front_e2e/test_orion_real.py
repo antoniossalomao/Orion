@@ -340,3 +340,76 @@ def test_prova_e1_modelo_local_responde_quando_o_gateway_falha(tmp_path):
         primeira = httpx.get(f"{gw}/pedidos").json()[0][0]
         assert primeira["role"] == "system" and "Modo reserva" in primeira["content"]
         assert provedores == {"gateway:padrão", "ollama"}
+
+
+def test_prova_e3_telas_de_conversas_e_projetos_no_orion_real(navegador, tmp_path):
+    """E3.6: as telas que antes só rodavam no backend de mentira (projetos, fontes, resultados,
+    atividade, integrações) e as novas da E3 (arquivadas, filtro por projeto, mover, editar
+    pedido) contra o app, a política e o SQLite de verdade."""
+    with _subir(tmp_path) as (url, _):
+        with _cliente_logado(url) as c:
+            proj = c.post("/projects", json={"name": "Estágio"}).json()["id"]
+            c.post("/chat", json={"texto": "primeira conversa"})
+            antiga = c.post("/sessoes").json()["sessao_id"]
+            c.patch(f"/sessoes/{antiga}", json={"titulo": "Conversa antiga"})
+            c.patch(f"/sessoes/{antiga}", json={"arquivada": True})
+        ctx, page, erros = _pagina(navegador, url)
+        try:
+            _entrar(page)
+            # telas já existentes, agora no backend real
+            for rota, view, texto in (
+                ("#/projetos", "projetos", "Estágio"),
+                ("#/fontes", "fontes", "Suas fontes"),
+                ("#/resultados", "resultados", None),
+                ("#/atividade", "atividade", None),
+                ("#/integracoes", "integracoes", None),
+                ("#/conhecimento", "conhecimento", "Memória da tela"),
+            ):
+                page.evaluate(f"location.hash = '{rota}'")
+                expect(page.locator("html")).to_have_attribute("data-view", view)
+                if texto:
+                    expect(page.locator(f"#view-{view}")).to_contain_text(texto, timeout=15000)
+            # upload de documento pela interface
+            page.evaluate("location.hash = '#/fontes'")
+            page.get_by_label("Adicionar documento").set_input_files(
+                {"name": "n.md", "mimeType": "text/markdown", "buffer": b"# Nota\n\ntexto real"}
+            )
+            page.get_by_role("button", name="Enviar e indexar").click()
+            expect(page.locator("[data-document-id]")).to_contain_text("Indexado", timeout=15000)
+            page.get_by_label("Disponível em: n.md").select_option(label="Estágio")
+            expect(page.locator("#document-status")).to_contain_text("movido", timeout=15000)
+            # E3.1: arquivadas
+            page.evaluate("location.hash = '#/arquivadas'")
+            expect(page.locator("#arquivadas-corpo .arq-item")).to_have_count(1)
+            expect(page.locator("#arquivadas-corpo")).to_contain_text("Conversa antiga")
+            page.get_by_role("button", name="Desarquivar Conversa antiga").click()
+            expect(page.locator("#arquivadas-corpo")).to_contain_text("Nenhuma conversa arquivada")
+            # E3.2/E3.3: filtro por projeto e mover
+            page.evaluate("location.hash = '#/chat'")
+            seletor = page.get_by_label("Filtrar conversas por projeto")
+            expect(seletor).to_be_visible()
+            page.locator("#sb-convs-list .conv", has_text="Conversa antiga").click()
+            page.wait_for_function("() => !Orion.historico.leitura()")
+            page.fill("#composer-input", "/projeto Estágio")
+            page.keyboard.press("Enter")
+            expect(page.locator("#sb-convs-list .conv-projeto:not([hidden])")).to_have_text("Estágio")
+            seletor.select_option(label="Sem projeto")
+            expect(page.locator("#sb-convs-list .conv", has_text="Conversa antiga")).to_have_count(0)
+            seletor.select_option(label="Estágio")
+            expect(page.locator("#sb-convs-list .conv")).to_have_count(1)
+            seletor.select_option("todos")
+            # E3.5: editar o pedido
+            page.locator("#sb-convs-list .conv", has_text="Conversa sem título").click()
+            page.wait_for_function("() => !Orion.historico.leitura()")
+            expect(page.locator(".msg-user")).to_contain_text("primeira conversa")
+            page.get_by_role("button", name="Editar pedido (nova versão)").click()
+            dialogo = page.get_by_role("dialog")
+            dialogo.get_by_label("Pedido revisado").fill("pedido reescrito")
+            dialogo.get_by_role("button", name="Enviar nova versão").click()
+            expect(page.locator(".msg-user")).to_contain_text("pedido reescrito", timeout=20000)
+            expect(page.get_by_role("group", name="Versões do pedido")).to_contain_text(
+                "2/2", timeout=20000
+            )
+            assert erros == []
+        finally:
+            ctx.close()
