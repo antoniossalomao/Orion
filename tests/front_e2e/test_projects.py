@@ -1,3 +1,6 @@
+import tempfile
+from pathlib import Path
+
 from playwright.sync_api import expect
 
 from .test_capabilities import TOKEN_INIT
@@ -65,7 +68,9 @@ def test_projects_keyboard_context_move_drafts_archive_and_narrow(abrir, novo_ba
     assert not page.evaluate(
         "async () => (await axe.run(document, {runOnly: {type:'tag', values:['wcag2a','wcag2aa']}})).violations"
     )
-    page.screenshot(path="/workspace/artifacts/orion-c33-projects-700.png", full_page=True)
+    page.screenshot(
+        path=str(Path(tempfile.gettempdir()) / "orion-c33-projects-700.png"), full_page=True
+    )
     page.get_by_role("button", name="Arquivar projeto", exact=True).click()
     page.locator("#project-archived").check()
     expect(page.get_by_role("button", name="Pesquisa B", exact=True)).to_be_visible()
