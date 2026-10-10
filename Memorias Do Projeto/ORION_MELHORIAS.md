@@ -183,6 +183,46 @@ da ponte (E2).
 
 **Não verificado (E0):** ninguém seguiu a §8 num Windows de verdade (instalador do tesseract do UB Mannheim, pacote `por`); o exemplo de workflow do n8n (§12) não foi montado num n8n real. O plano previa `ORION_N8N_WEBHOOKS` no formato `nome=url;nome=url`, mas o código lê JSON: a §12 documenta o JSON, que é o que funciona.
 
+## Décima rodada (10/10/2026): plano da rodada 2, etapas E2 e E3
+
+Plano em [ORION_PLANO_RODADA2.md](ORION_PLANO_RODADA2.md). O esquema do banco já estava em v17 (a E1 entrou como v17, não
+v11 como o plano previa): a E3 acrescentou a **v18**. As rotas que o plano chamava de "já existem" (`?arquivadas`, `projeto_id`
+no `PATCH`) não existiam no `orion.app`; foram criadas.
+
+| ID | Entrega | Status |
+|---|---|---|
+| E3.1 | Tela `#/arquivadas` (busca, Desarquivar, Apagar com confirmação pelo título); `GET /sessoes` e `/sessoes/busca` com `?arquivadas=true`; `DELETE /sessoes/{id}` só apaga conversa **arquivada** e recusa a que ainda tem ramo, artefato, proposta de evento ou plano de arquivos apontando para ela (`409` com o motivo) | ✅ API (`tests/test_app_sessoes_etapa3.py`), navegador no Orion real e no de mentira |
+| E3.2 | Seletor Todos / Sem projeto / cada projeto na barra lateral (lembrado no `localStorage`), selo com o nome curto e cor estável por projeto; lógica pura em `js/conversas.js` | ✅ Node (`conversas.test.js`), navegador, axe |
+| E3.3 | `/projeto <nome>` (sem acento nem caixa; ambíguo não move; `nenhum` tira do projeto) e "Mover conversa para projeto…" na paleta | ✅ Node (`slash.test.js`) e navegador |
+| E3.4 | "Disponível em" em cada documento da tela Fontes: `PATCH /documents/{id}` muda o escopo e **reindexa** a partir do original (o texto não fica nos dois lugares) | ✅ API e navegador |
+| E3.5 | Editar o pedido como nova versão: esquema v18 (`messages.version_of`, `superseded`), `POST /historico/{id}/editar`, lápis na bolha, setas ‹ n/m › que só trocam a exibição. O pedido antigo e o que veio depois saem do contexto, do histórico e da **busca da memória** (nada é apagado). Bloqueado com resposta em andamento ou aprovação pendente (409) | ✅ API, migração v17→v18, navegador |
+| E3.6 | Telas contra o Orion de verdade (login por senha, SQLite real): projetos, fontes (upload e mover), resultados, atividade, integrações, conhecimento, arquivadas, filtro, `/projeto` e editar pedido | ✅ `test_prova_e3_telas_de_conversas_e_projetos_no_orion_real` |
+
+**E2: ponte de desktop** (regras 50 e 51; o código roda no Linux sem tela, com adaptadores falsos; a prova de hardware é sua).
+
+| ID | Entrega | Status |
+|---|---|---|
+| E2.1 | `orion ponte [--parear]`: núcleo (`orion/ponte/nucleo.py`) com teclado, bandeja, janela, área de transferência e WebSocket injetados; servidor com `/ws/ponte`, `/ponte/comando` (`abrir` e `colar`, validados dos dois lados) e token de dispositivo com escopo `ponte` no `auth.db` (só o hash; trocar a senha ou parear de novo desfaz). O token alcança só `/captura`, `/ponte/imagem`, `/ponte/explicar` e **entrar** no pânico (403 no resto); o pânico derruba a ponte. `ORION_HOTKEYS`, `orion autostart --ponte`, extra `ponte` | ✅ núcleo e servidor provados (38 testes); ❌ `adaptadores.py` (pynput, pystray, pyperclip, websockets, pywebview) **nunca rodou numa tela** |
+| E2.2 | `ClapDetector` (`orion/palmas.py`) + `WakeListener` dividindo o microfone com a palavra; `ORION_CLAP_*`; ação `abrir` / `abrir_e_ouvir`; pânico e não perturbe seguram; teto por hora; audit sem áudio; linha "Duas palmas" no painel com a força das últimas | ✅ sinais sintéticos (duas, três, porta, digitação, ruído alto), laço e app; ❌ **nenhuma palma de verdade**: a calibração de `ORION_CLAP_RATIO` é sua |
+| E2.3 | `POST /captura` (o modelo só classifica, regra por palavra-chave como reserva; tarefa, lembrete, nota no `00 Inbox`; gasto cai em nota até a E10.3) e `DELETE /captura/{id}` (10 min); janela avulsa `ponte.html` | ✅ API, regra e navegador no Orion real; desvio do plano: página avulsa em vez de `#/rapido` no SPA (o SPA exige o login completo, o token da ponte alcança só `/captura`) |
+| E2.4 | Ctrl+Alt+T: seleção de área (tkinter), captura em memória (mss), tesseract local, texto na área de transferência | ✅ lógica (`limpar_texto_ocr`, `normalizar_area`, avisos) com falsos; ❌ seleção, captura e OCR **reais** |
+| E2.5 | Ctrl+Alt+O: captura da tela principal → servidor (memória, 5 min) → janela com prévia e pergunta → visão; aviso da primeira vez; exige `ORION_VISION_TOOLS`; nada em pânico | ✅ servidor, janela e aviso; ❌ a captura real e um modelo de visão de verdade |
+
+**Não verificado (E2):** teclas globais, bandeja, janela, colar no programa em foco e a captura de tela em Windows/macOS/Linux de
+verdade (o plano pede exatamente isso do Antônio); o microfone e as palmas; o OCR com tesseract; `mss` em monitor
+HiDPI/vários monitores (captura só o principal); permissões do macOS (Acessibilidade e Gravação de Tela); a janela
+pequena com `pywebview` (sem ele cai no navegador padrão). A "janela em foco" do plano virou "tela principal": o comando
+nativo de captura que existe também captura a tela inteira.
+
+**Bug achado pelo E3.6 (e corrigido):** com **login por senha** (cookie `httpOnly`) as telas de Projetos e as skills do
+campo de mensagem ficavam **vazias**: `projects.js` e `composer.js` só carregavam com token de acesso (`api.token()`). Quem
+entra por cookie nunca tinha token. Agora `api.autenticado()` vale para token ou sessão.
+
+**Não verificado (E3):** o "Apagar" conversa nunca rodou contra um banco com meses de uso (a recusa por artefato/ramo foi
+provada, mas só com linhas criadas pelos testes); a cor do selo foi vista só nos três temas do teste, não a olho; a edição
+de pedido não refaz as ferramentas já executadas (só o texto e a resposta: uma ação aprovada no turno antigo continua
+tendo acontecido).
+
 ## O que foi construído (por fase do NUCLEO)
 
 | Fase | Entrega | Status |

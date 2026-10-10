@@ -51,6 +51,7 @@ def describe(
         session_search=admin_configured,
         history=admin_configured,
         history_clear=admin_configured,
+        message_edit=agent_ready and admin_configured,
         export=admin_configured,
         approvals=admin_configured,
         notifications=admin_configured,
@@ -82,6 +83,10 @@ def describe(
         unavailable["chat"] = (
             "auth_not_configured" if not admin_configured else "gateway_not_configured"
         )
+    if not features["message_edit"]:
+        unavailable["message_edit"] = (
+            "auth_not_configured" if not admin_configured else "gateway_not_configured"
+        )
     if not admin_configured:
         unavailable.update(
             sessions="auth_not_configured",
@@ -89,6 +94,7 @@ def describe(
             session_search="auth_not_configured",
             history="auth_not_configured",
             history_clear="auth_not_configured",
+            message_edit="auth_not_configured",
             export="auth_not_configured",
             approvals="auth_not_configured",
             notifications="auth_not_configured",

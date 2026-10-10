@@ -132,6 +132,11 @@
                 <svg class="i" aria-hidden="true"><use href="#i-search"/></svg>
                 <input id="sb-search" class="input" type="search" placeholder="Buscar conversas" aria-label="Buscar conversas" autocomplete="off" spellcheck="false">
             </div>
+            <label class="sr-only" for="sb-projeto">Filtrar conversas por projeto</label>
+            <select id="sb-projeto" class="select sb-projeto" hidden>
+                <option value="todos">Todos os projetos</option>
+                <option value="nenhum">Sem projeto</option>
+            </select>
             <nav id="sb-convs-list" tabindex="0" aria-label="Conversas" aria-busy="true"></nav>
         </div>
 
@@ -311,6 +316,21 @@
                 </div>
             </section>
 
+            <!-- Conversas arquivadas: buscar, desarquivar, apagar -->
+            <section id="view-arquivadas" class="view page" tabindex="0" data-view="arquivadas" aria-label="Conversas arquivadas">
+                <div class="page-inner">
+                    <div class="page-head">
+                        <div><h2>Conversas arquivadas</h2><p>Ficam só para leitura. Desarquive para continuar ou apague de vez.</p></div>
+                        <div class="page-acoes">
+                            <label class="sr-only" for="arquivadas-busca">Buscar nas arquivadas</label>
+                            <input id="arquivadas-busca" class="input" type="search" placeholder="Buscar nas arquivadas" autocomplete="off">
+                            <button id="arquivadas-refresh" class="btn btn-outline btn-sm" type="button"><svg class="i" aria-hidden="true"><use href="#i-refresh"/></svg>Atualizar</button>
+                        </div>
+                    </div>
+                    <div id="arquivadas-corpo" class="painel-corpo" aria-busy="true"></div>
+                </div>
+            </section>
+
             <!-- Privacidade: o que saiu do computador (regra 47) -->
             <section id="view-privacidade" class="view page" tabindex="0" data-view="privacidade" aria-label="Privacidade">
                 <div class="page-inner">
@@ -473,6 +493,7 @@
 <script src="js/util.js"></script>
 <script src="js/md.js"></script>
 <script src="js/fuzzy.js"></script>
+<script src="js/conversas.js"></script>
 <script src="js/slash.js"></script>
 <script src="js/store.js"></script>
 <script src="js/sse.js"></script>
@@ -510,6 +531,7 @@
 <script src="js/views/artifacts.js"></script>
 <script src="js/views/painel.js"></script>
 <script src="js/views/conhecimento.js"></script>
+<script src="js/views/arquivadas.js"></script>
 <script src="js/views/privacidade.js"></script>
 <script src="js/views/settings.js"></script>
 <script src="js/views/export_clients.js"></script>

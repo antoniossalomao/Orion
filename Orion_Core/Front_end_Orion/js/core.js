@@ -52,8 +52,8 @@
     try { storage = window.localStorage; storage.getItem('orion_probe'); } catch (_) { storage = null; }
     const prefs = O.Store.criar(
         { theme: 'noite', sb: 'expanded', density: 'confortavel', scale: 1, motion: 'system',
-          model: 'auto', tts_mudo: false, sons: true, base_url: '', token: '' },
-        { persistir: ['theme', 'sb', 'density', 'scale', 'motion', 'model', 'tts_mudo', 'sons', 'base_url', 'token'], storage });
+          model: 'auto', tts_mudo: false, sons: true, base_url: '', token: '', filtro_projeto: 'todos' },
+        { persistir: ['theme', 'sb', 'density', 'scale', 'motion', 'model', 'tts_mudo', 'sons', 'base_url', 'token', 'filtro_projeto'], storage });
 
     const mqReduzido = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
     const movimentoReduzido = () => {

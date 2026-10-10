@@ -16,6 +16,7 @@ from xml.sax.saxutils import escape
 
 PLATAFORMAS = ("windows", "macos", "linux")
 ROTULO = "com.orion.assistente"
+ROTULO_PONTE = "com.orion.ponte"
 
 
 @dataclass(frozen=True)
@@ -50,9 +51,16 @@ def render(
     projeto: Path,
     logs: Path,
     home: Path | None = None,
+    ponte: bool = False,
 ) -> Autostart:
+    """`ponte=True` gera o início da ponte de desktop (`orion ponte`), um arquivo à parte: ela
+    precisa de sessão gráfica e dos extras `orion[ponte]`, o servidor não."""
     py = python or sys.executable
     home = home or Path.home()
+    comando = "ponte" if ponte else "serve"
+    nome = "orion-ponte" if ponte else "orion"
+    rotulo = ROTULO_PONTE if ponte else ROTULO
+    saida = "orion-ponte" if ponte else "orion"
     if plataforma == "windows":
         pasta = (
             Path(os.environ.get("APPDATA", str(home / "AppData" / "Roaming")))
@@ -62,12 +70,12 @@ def render(
             / "Programs"
             / "Startup"
         )
-        arquivo = pasta / "orion.cmd"
+        arquivo = pasta / f"{nome}.cmd"
         conteudo = (
             "@echo off\r\n"
             "rem Gerado por `orion autostart`. Apague este arquivo para desligar o inicio.\r\n"
             f'cd /d "{_cmd(str(projeto))}"\r\n'
-            f'start "Orion" /min "{_cmd(py)}" -m orion serve\r\n'
+            f'start "Orion" /min "{_cmd(py)}" -m orion {comando}\r\n'
         )
         return Autostart(
             plataforma,
@@ -77,21 +85,21 @@ def render(
             f'del "{arquivo}"',
         )
     if plataforma == "macos":
-        arquivo = home / "Library" / "LaunchAgents" / f"{ROTULO}.plist"
-        args = "".join(f"\n    <string>{escape(a)}</string>" for a in (py, "-m", "orion", "serve"))
+        arquivo = home / "Library" / "LaunchAgents" / f"{rotulo}.plist"
+        args = "".join(f"\n    <string>{escape(a)}</string>" for a in (py, "-m", "orion", comando))
         conteudo = f"""<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>Label</key><string>{ROTULO}</string>
+  <key>Label</key><string>{rotulo}</string>
   <key>ProgramArguments</key>
   <array>{args}
   </array>
   <key>WorkingDirectory</key><string>{escape(str(projeto))}</string>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
-  <key>StandardOutPath</key><string>{escape(str(logs / "orion.out.log"))}</string>
-  <key>StandardErrorPath</key><string>{escape(str(logs / "orion.err.log"))}</string>
+  <key>StandardOutPath</key><string>{escape(str(logs / f"{saida}.out.log"))}</string>
+  <key>StandardErrorPath</key><string>{escape(str(logs / f"{saida}.err.log"))}</string>
 </dict>
 </plist>
 """
@@ -103,27 +111,27 @@ def render(
             f'launchctl bootout "gui/$(id -u)" "{arquivo}" && rm "{arquivo}"',
         )
     if plataforma == "linux":
-        arquivo = home / ".config" / "systemd" / "user" / "orion.service"
+        arquivo = home / ".config" / "systemd" / "user" / f"{nome}.service"
         conteudo = f"""[Unit]
-Description=Orion (assistente pessoal)
-After=network-online.target
+Description=Orion ({"ponte de desktop" if ponte else "assistente pessoal"})
+After={"graphical-session.target" if ponte else "network-online.target"}
 
 [Service]
 Type=simple
 WorkingDirectory={_unit(str(projeto))}
-ExecStart="{_unit(py)}" -m orion serve
+ExecStart="{_unit(py)}" -m orion {comando}
 Restart=on-failure
 RestartSec=5
 
 [Install]
-WantedBy=default.target
+WantedBy={"graphical-session.target" if ponte else "default.target"}
 """
         return Autostart(
             plataforma,
             arquivo,
             conteudo,
-            "systemctl --user daemon-reload && systemctl --user enable --now orion.service",
-            f'systemctl --user disable --now orion.service && rm "{arquivo}"',
+            f"systemctl --user daemon-reload && systemctl --user enable --now {nome}.service",
+            f'systemctl --user disable --now {nome}.service && rm "{arquivo}"',
         )
     raise ValueError(f"plataforma desconhecida: {plataforma}. Use: {', '.join(PLATAFORMAS)}")
 

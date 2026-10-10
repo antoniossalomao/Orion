@@ -120,6 +120,19 @@ class Capturer:
         )
         return self._gravar(pasta, f"{carimbo} - {_resumo(legenda, 'foto')}", ".md", nota.encode())
 
+    def apagar_nota(self, relativo: str) -> bool:
+        """Desfaz uma captura: apaga a nota `.md` que **esta pasta** de captura criou. Recusa o que
+        sai da pasta (`..`, caminho absoluto, outra extensão). False se já não existe."""
+        pasta = self._destino()
+        alvo = (self._vault.expanduser().resolve() / relativo).resolve()
+        if alvo.suffix != ".md" or alvo.parent != pasta:
+            raise CaptureError("só desfaz notas da pasta de captura")
+        try:
+            alvo.unlink()
+        except FileNotFoundError:
+            return False
+        return True
+
     def relativo(self, caminho: Path) -> str:
         """Caminho da nota relativo ao vault (é o que se mostra no chat, nunca o absoluto)."""
         return caminho.relative_to(self._vault.expanduser().resolve()).as_posix()

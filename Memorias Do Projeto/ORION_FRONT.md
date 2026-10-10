@@ -203,3 +203,18 @@ Agora tem, com a mesma forma do legado + os campos novos, todas atrás do login/
 - **Legado:** se o cérebro não aceitar `PATCH`/`DELETE`, o erro aparece num aviso legível e a lista não muda.
 - **Provado:** `tests/test_app_sessoes.py`, `tests/memory/test_conversas.py`, 10 testes de navegador em `test_front.py` (inclui axe com menu e
   diálogos abertos) e um em `test_orion_real.py` (login real, SQLite real, recarregar a página, mensagens ainda no banco após apagar).
+
+## 9. Conversas e projetos (E3, 10/10/2026)
+
+| Item | Onde | Como funciona |
+|---|---|---|
+| Arquivadas | `#/arquivadas` (`views/arquivadas.js`), grupo "Arquivadas" da barra lateral → "Gerenciar arquivadas" | `GET /sessoes?arquivadas=true`; busca reaproveita `/sessoes/busca?arquivadas=true` (sem busca no backend, filtra pelo título); Desarquivar = `PATCH {arquivada:false}`; Apagar = `DELETE /sessoes/{id}` depois de confirmar com o título |
+| Filtro por projeto | `<select id="sb-projeto">` na barra lateral; `js/conversas.js` (puro, testado em Node) | `todos`, `nenhum` ou o id do projeto, em `prefs.filtro_projeto`; projeto apagado/arquivado vira `todos`; cada conversa de projeto leva um selo (`.conv-projeto`) com nome curto e cor `hsl(matiz)` derivada do nome |
+| Mover para projeto | `/projeto <nome>` (`slash.js`), paleta "Mover conversa para projeto…" | `O.projects.moverPorNome` / `moverAtual`; `PUT /projects/sessions/{id}` |
+| Disponível em | cartão de cada documento em Fontes | `PATCH /documents/{id}` com `{project_id}`; o texto é reindexado no escopo novo |
+| Editar pedido | lápis na bolha do usuário (`aria-label` "Editar pedido (nova versão)") e ‹ n/m › | `POST /historico/{id}/editar` (SSE, igual ao `/chat`); a tela remove a bolha e o que veio depois, mostra o texto novo, e ao fim do turno recarrega o histórico (ids e versões). As setas só trocam o texto exibido (versão antiga em itálico, "só leitura") |
+
+- **Capacidade nova:** `message_edit` (precisa de gateway e login). No backend legado o lápis nem aparece.
+- **Bug corrigido na E3.6:** `api.autenticado()` (token **ou** sessão de login). Antes, quem entrava por senha via Projetos e skills vazios.
+- **Provado:** `tests/front_e2e/test_etapa3.py` (6 cenários contra o `orion.app` real em processo), `test_orion_real.py::test_prova_e3_...` (login por senha, processo à parte) e `tests/front/{conversas,slash}.test.js`.
+

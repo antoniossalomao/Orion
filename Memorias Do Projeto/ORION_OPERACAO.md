@@ -572,6 +572,7 @@ opt-in novo sem linha aqui.
 | `ORION_JOBS_ENABLED` | Jobs: lembretes, backup, vault, embeddings, consolidação, briefing | Embeddings ao Gemini (com chave); o resto conforme cada opt-in acima | 18, 20 | `true` (padrão) → `false` |
 | `ORION_LOCAL_MODEL` | Modelo local de reserva, sem ferramentas (§17.4) | Não: só `127.0.0.1` (a configuração recusa outro host) | 49 | vazio (padrão) |
 | `ORION_DND_AT` | Não perturbe por horário (§17.3) | Não | 48 | vazio (padrão) |
+| `ORION_CLAP_ENABLED` | Duas palmas abrem o Orion (§18.2) | Não antes nem depois das palmas; só com `abrir_e_ouvir` a fala seguinte vai como na voz (Groq, Microsoft) | 51 | `false` (padrão); pausa: `POST /voz/escuta` |
 | `ORION_ALLOW_PAID` | Aceitar um endereço fora da lista de provedores gratuitos (§17.1) | Para o provedor que você apontou, que **pode cobrar** | 46 | `false` (padrão) |
 
 **Exemplo: ligar a memória da tela só com esta tabela.** Instale o `tesseract` com português (§8), ponha
@@ -694,3 +695,147 @@ ORION_LOCAL_MODEL=qwen3.5:4b                 # ou gemma3:4b
 **Pausar/desligar.** Esvaziar `ORION_LOCAL_MODEL` e reiniciar.
 
 **Regra.** 49; código em `orion/gateway.py` (`Endpoint.tools`), `orion/app.py` (`gateway_from_settings`).
+
+## 18. Ponte de desktop
+
+Regras 50 e 51 ([ORION_REGRAS.md](ORION_REGRAS.md)). O Orion é servidor + navegador: sem processo à parte não há
+tecla global, bandeja nem como colar texto no programa em foco. `orion ponte` é esse processo.
+
+### 18.1 A ponte (bandeja, teclas globais, janela pequena)
+
+**O que faz.** Fica na bandeja do sistema (Abrir Orion · Captura rápida · Modo pânico · Sair), registra as teclas
+globais e escuta o servidor por um WebSocket **que ela abre** (`/ws/ponte`). O servidor só consegue mandar duas
+coisas: `abrir` (uma tela do Orion no navegador) e `colar` (texto que você já viu e aprovou na tela; a ponte
+guarda o que estava na área de transferência, cola e devolve 1 s depois). Teclas padrão: captura rápida
+`Ctrl+Alt+Espaço`, "o que é isso?" `Ctrl+Alt+O`, copiar texto de uma área da tela `Ctrl+Alt+T`, pânico
+`Ctrl+Alt+Shift+P`.
+
+**Como ligar.** No computador do servidor, uma vez:
+```
+uv sync --extra ponte                  # pystray, pynput, pyperclip, mss, pytesseract, websockets, pywebview
+uv run orion ponte --parear            # cria o token da ponte e o guarda no cofre do sistema (ORION_PONTE_TOKEN)
+uv run orion ponte                     # sobe a ponte (o servidor precisa estar de pé)
+uv run orion autostart --ponte --install   # início automático da ponte, arquivo à parte do servidor
+# ORION_HOTKEYS={"captura": "ctrl+alt+k"}   # troca só as teclas que quiser (JSON)
+```
+O token tem **escopo `ponte`**: alcança `/captura`, `/ponte/explicar`, o WebSocket e **entrar** no modo pânico;
+`/chat`, ferramentas, configuração e sair do pânico respondem 403. Parear de novo desfaz o pareamento anterior, e
+trocar a senha também. Só uma ponte conectada por vez.
+
+**Dependências.** **(você)** Sessão gráfica; no Linux, `xclip` ou `xsel` (área de transferência) e libs de
+bandeja; no macOS, dar à ponte as permissões de Acessibilidade e Gravação de Tela; no Windows, `tesseract` +
+pacote `por` para o OCR (mesmo da memória da tela). A janela pequena usa `pywebview`; sem ele, abre no navegador.
+
+**O que sai do computador.** Nada: a ponte só fala com o servidor local (`127.0.0.1`). O que o servidor faz com a
+captura rápida é descrito em §18.3.
+
+**Onde ver.** `GET /ponte/estado` (conectada, desde quando, quantos comandos); o ícone da bandeja.
+
+**Pausar/desligar.** "Sair" na bandeja. O **modo pânico** derruba a ponte e o servidor recusa o token até a saída
+do pânico. `orion ponte --parear` de novo, ou trocar a senha, invalida a ponte velha.
+
+**Regra.** 50; código em `orion/ponte/` (`nucleo.py` é testado com adaptadores falsos; `adaptadores.py` é o que
+fala com o sistema e **não foi exercitado numa tela real** nesta etapa).
+
+### 18.2 Duas palmas abrem o Orion
+
+**O que faz.** Detecta duas palmas no mesmo microfone da palavra de ativação (§4.4) e abre o Orion. Uma palma é um
+**pico curto**: acima de `ORION_CLAP_RATIO` vezes o ruído de fundo (e de um piso absoluto), e o quadro seguinte
+cai para menos de 40% da energia. Porta batendo, móvel arrastado e música têm cauda e não contam; digitação fica
+abaixo do piso. Duas palmas com 150 a 700 ms entre elas disparam; uma terceira dentro de 700 ms é aplauso ou
+batida: cancela e o detector fica surdo por 1,5 s. **Palma só abre** (regra 51): nunca aprova ação pendente e nunca chama
+ferramenta.
+
+**Como ligar.**
+```
+ORION_CLAP_ENABLED=true
+# ORION_CLAP_RATIO=6.0            # suba se aplaudir/falar alto dispara à toa; desça se não pega
+# ORION_CLAP_ACTION=abrir         # abrir | abrir_e_ouvir | rotina:<nome> (a rotina só existe a partir da E9.1)
+# ORION_CLAP_MAX_PER_HOUR=20
+```
+`abrir` manda `abrir` à ponte (§18.1) ou, sem ponte, abre `http://127.0.0.1:<porta>/ui/#/chat` no navegador.
+`abrir_e_ouvir` também começa um turno de voz, como a palavra de ativação (precisa de `ORION_VOICE_ENABLED` e da chave
+de transcrição). **(você)** Calibrar no quarto: o Painel › Voz mostra quantas palmas acionaram e a força (pico ÷ ruído) das
+últimas detectadas na última hora; ajuste `ORION_CLAP_RATIO` até pegar as suas e ignorar o resto.
+
+**Dependências.** **(você)** `pip install "orion[wake]"` (ou `wake-vosk`): só o `sounddevice` e o PortAudio importam
+aqui; o detector de palmas não usa modelo.
+
+**O que sai do computador.** Nada: o áudio existe só no quadro de 80 ms que está sendo analisado, nunca é gravado
+nem enviado. Com `abrir_e_ouvir`, a fala **depois** das palmas segue o caminho da voz (Groq para a transcrição, Microsoft
+para a resposta falada).
+
+**Onde ver.** Painel › Voz (linha "Duas palmas"), audit (`voz_palmas`, `voz_palmas_recusadas`: só o horário e o motivo),
+`orion doctor`.
+
+**Pausar/desligar.** `ORION_CLAP_ENABLED=false`; ou `POST /voz/escuta {"ativa": false}` (pausa a escuta inteira); o
+**modo pânico** e o **não perturbe** seguram as palmas (nada acontece, e fica no audit); teto por hora em
+`ORION_CLAP_MAX_PER_HOUR`.
+
+**Regra.** 51; código em `orion/palmas.py` (detector, provado com sinais sintéticos: duas palmas, três, porta batendo,
+digitação, ruído alto) e `orion/wake.py` (`WakeListener` divide o microfone entre palavra e palmas).
+
+### 18.3 Captura rápida
+
+**O que faz.** `Ctrl+Alt+Espaço` abre uma janelinha com um campo: você digita uma linha e dá Enter. O modelo **rápido** só
+**classifica** (JSON validado) em `tarefa`, `lembrete` (com data), `gasto` ou `nota`; quem grava é o Orion, em destino
+fixo: tarefa e lembrete no banco, nota no `00 Inbox` do vault. Sem modelo (ou com resposta ilegível), vale a regra por
+palavra-chave ("amanhã às 15h", "R$", "lembra"); o que não casar vira nota. `gasto` só funciona depois da E10.3: até lá cai em nota.
+A janela mostra o que foi criado e um botão **Desfazer** (vale 10 minutos, só para o que este servidor criou).
+
+**Como ligar.** Vem com a ponte (§18.1). Notas precisam de `ORION_VAULT_DIR` (a pasta é `ORION_CAPTURE_FOLDER`); sem
+ele, tarefa e lembrete funcionam e a nota responde "defina ORION_VAULT_DIR". Também dá para chamar pela API:
+`POST /captura {"texto": "..."}` → `{id, tipo, titulo, quando, valor, origem, aviso}` e `DELETE /captura/{id}`.
+
+**Dependências.** Nenhuma além da ponte.
+
+**O que sai do computador.** A **frase digitada** vai ao gateway de modelos (camada `rapido`) para ser classificada, como
+qualquer conversa; em modo pânico não vai (usa a regra simples). O audit guarda só o tipo, nunca o texto.
+
+**Onde ver.** Tarefas (`/painel`, ferramentas de tarefa), lembretes, `00 Inbox`; audit `captura_rapida`.
+
+**Pausar/desligar.** Não subir a ponte. O token da ponte só alcança `/captura` (regra 50).
+
+**Regra.** 50; código em `orion/captura_rapida.py` e `Orion_Core/Front_end_Orion/ponte.html`.
+
+### 18.4 Copiar texto de uma área da tela
+
+**O que faz.** `Ctrl+Alt+T`: a tela escurece, você arrasta uma área, solta, e o texto dela (OCR **local**, tesseract) vai para a
+área de transferência com o aviso "Copiado (N caracteres)". Esc cancela. A imagem fica só na memória do processo da
+ponte (o `pytesseract` usa um arquivo temporário dele, apagado ao terminar); **nada vai ao servidor nem à nuvem**.
+
+**Como ligar.** Vem com a ponte (§18.1). Idiomas: `ORION_SCREEN_OCR_LANGS` (padrão `por+eng`, o mesmo da memória da tela).
+
+**Dependências.** **(você)** `tesseract` com o pacote `por` (§8) e `tkinter` (já vem com o Python do Windows e do macOS;
+no Linux, `python3-tk`). No macOS dar à ponte a permissão de Gravação de Tela.
+
+**O que sai do computador.** Nada.
+
+**Onde ver.** A notificação do sistema e a área de transferência.
+
+**Pausar/desligar.** Trocar a tecla em `ORION_HOTKEYS` por outra combinação (a ação não some, mas a tecla padrão libera) ou
+fechar a ponte.
+
+**Regra.** 50; código em `orion/ponte/nucleo.py` (`copiar_texto_da_tela`, testado com falsos) e
+`orion/ponte/adaptadores.py` (`selecionar_area`, `ocr_da_area`: **não exercitados numa tela real**).
+
+### 18.5 "O que é isso?"
+
+**O que faz.** `Ctrl+Alt+O`: captura a tela principal, entrega a imagem ao servidor local (só na memória dele, por
+5 minutos, **nunca em disco**) e abre uma janela com a prévia e uma pergunta ("O que é isso?"). Ao perguntar, a imagem vai
+ao modelo de visão e a resposta aparece na janela. Na **primeira vez** a janela avisa que a imagem sai do computador
+e só envia depois do seu "Entendi, enviar" (o aceite fica gravado).
+
+**Como ligar.** `ORION_VISION_TOOLS=true` (§4: é o opt-in que autoriza mandar imagem ao provedor de visão) e o
+`ORION_VISION_MODEL` se o modelo do gateway não aceitar imagem. Depois da E11.2 usa a ordem de visão definida lá.
+
+**Dependências.** **(você)** `mss` e `Pillow` (vêm no extra `ponte`); no macOS, a permissão de Gravação de Tela.
+
+**O que sai do computador.** **A tela inteira** (JPEG) para o provedor de visão, só quando você clica em enviar. Rosto, senha e
+e-mail que estiverem na tela vão junto: feche o que for sensível antes de apertar a tecla. O audit registra só o tamanho.
+
+**Onde ver.** A janela; `GET /privacidade` (a chamada de visão aparece como `vision`); audit `ponte_explicar`.
+
+**Pausar/desligar.** `ORION_VISION_TOOLS=false`; o **modo pânico** bloqueia (nada sai do computador).
+
+**Regra.** 28 e 50; código em `orion/ponte/rotas.py` (`/ponte/imagem`, `/ponte/explicar`), `orion/ponte/imagens.py`.

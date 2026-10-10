@@ -28,7 +28,7 @@
     const skillRotulo = s => `${s.id} · ${s.origin} · ${s.version}`;
     function limparSkills() { catalogo = []; cargaSkills = null; geracaoSkills++; }
     async function carregarSkills() {
-        if (!api.suporta('skills') || !api.token()) return [];
+        if (!api.suporta('skills') || !api.autenticado()) return [];
         if (cargaSkills) return cargaSkills;
         const geracao = geracaoSkills;
         cargaSkills = api.skills().then(lista => {

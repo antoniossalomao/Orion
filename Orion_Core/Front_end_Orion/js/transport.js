@@ -120,6 +120,12 @@
             return 'sse';
         },
 
+        /** E3.5: reescreve o pedido `id` como nova versão e refaz o turno (só pelo SSE) */
+        editar(id, texto) {
+            lerStream(`/historico/${encodeURIComponent(id)}/editar`, { json: { texto } }, 'O cérebro recusou a edição');
+            return 'sse';
+        },
+
         /** continua a resposta depois que o usuário aprovou a ação */
         retomar(id) {
             lerStream(`/approvals/${encodeURIComponent(id)}/resume`, api.pedidoRetomada(), 'Não consegui retomar a ação');

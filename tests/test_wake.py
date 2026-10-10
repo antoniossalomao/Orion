@@ -334,3 +334,126 @@ def test_o_laco_roda_em_thread_e_para_quando_pedido():
     o.parar()
     t.join(2)
     assert not t.is_alive()
+
+
+# ── duas palmas (regra 51) ────────────────────────────────────────────────
+
+
+class PalmasFalsas:
+    """Dispara quando recebe exatamente `PALMA`."""
+
+    def __init__(self):
+        self.resets = 0
+
+    def feed(self, frame):
+        return frame is PALMA
+
+    def reset(self):
+        self.resets += 1
+
+
+PALMA = tom(2)  # outro quadro-sinal, distinto do GATILHO
+
+
+def com_palmas(quadros, on_palmas, *, so_palmas=True, **kw):
+    fala, eventos = [], []
+    fonte = FonteFalsa(quadros)
+    ouvinte = WakeListener(
+        fonte,
+        None if so_palmas else DetectorFalso(),
+        fala.append,
+        config=WakeConfig(resfriamento_s=0.0),
+        evento=lambda t, m: eventos.append((t, m)),
+        palmas=PalmasFalsas(),
+        on_palmas=on_palmas,
+        **kw,
+    )
+    return ouvinte, fala, eventos
+
+
+def test_palmas_abrem_sem_ouvir_e_so_com_palmas_ligadas():
+    chamadas = []
+    ouvinte, fala, eventos = com_palmas(
+        [SILENCIO, PALMA, SILENCIO], lambda: chamadas.append(1) or False
+    )
+    ouvinte.run()
+    assert chamadas == [1] and fala == []  # não gravou fala nenhuma
+    assert ouvinte.stats.palmas == 1 and ouvinte.stats.ativacoes == 0
+    assert ("palmas", "duas palmas; só abrem o Orion, não aprovam nada") in eventos
+
+
+def test_palmas_com_abrir_e_ouvir_gravam_a_fala_seguinte():
+    quadros = [PALMA] + [FALA] * 12 + [SILENCIO] * segundos(1.3)
+    ouvinte, fala, eventos = com_palmas(quadros, lambda: True)
+    ouvinte.run()
+    assert len(fala) == 1 and fala[0][:4] == b"RIFF"
+    assert ouvinte.stats.palmas == 1 and ouvinte.stats.ativacoes == 1
+    assert any(t == "ativacao" and "palmas" in m for t, m in eventos)
+
+
+def test_palmas_bloqueadas_pelo_panico_ou_nao_perturbe_nao_fazem_nada():
+    ouvinte, _fala, eventos = com_palmas([PALMA, SILENCIO], lambda: None)
+    ouvinte.run()
+    assert ouvinte.stats.palmas == 0 and ouvinte.stats.palmas_recusadas == 1
+    assert ("palmas_recusadas", "ação bloqueada (pânico ou não perturbe)") in eventos
+
+
+def test_teto_de_palmas_por_hora():
+    chamadas = []
+    ouvinte, _, eventos = com_palmas(
+        [PALMA, SILENCIO] * 5, lambda: chamadas.append(1) or False, max_palmas_por_hora=3
+    )
+    ouvinte.run()
+    assert len(chamadas) == 3 and ouvinte.stats.palmas == 3 and ouvinte.stats.palmas_recusadas == 2
+    assert ("palmas_recusadas", "teto de palmas por hora") in eventos
+
+
+def test_palmas_pausadas_com_a_escuta_nao_chegam_ao_detector():
+    chamadas = []
+    ouvinte, _, _ = com_palmas([PALMA, SILENCIO], lambda: chamadas.append(1) or False)
+    ouvinte.pausar()
+    ouvinte.run()
+    assert chamadas == []
+
+
+def test_palavra_e_palmas_dividem_o_mesmo_microfone():
+    chamadas = []
+    quadros = [PALMA, GATILHO] + [FALA] * 12 + [SILENCIO] * segundos(1.3)
+    ouvinte, fala, _ = com_palmas(quadros, lambda: chamadas.append(1) or False, so_palmas=False)
+    ouvinte.run()
+    assert chamadas == [1] and len(fala) == 1  # as palmas abriram e a palavra gravou a fala
+
+
+def test_erro_na_acao_das_palmas_nao_derruba_a_escuta():
+    def quebra():
+        raise RuntimeError("sem navegador")
+
+    ouvinte, _, _ = com_palmas([PALMA, SILENCIO, SILENCIO], quebra)
+    ouvinte.run()
+    assert ouvinte.stats.ultimo_erro == "RuntimeError" and ouvinte.stats.palmas == 0
+
+
+# ── o que as palmas fazem ─────────────────────────────────────────────────
+
+
+def test_acao_das_palmas_abre_pela_ponte_ou_pelo_navegador_e_respeita_bloqueios():
+    from orion.palmas import acao_das_palmas
+
+    log = []
+
+    def monta(acao, ponte_ok=True, bloqueio=""):
+        return acao_das_palmas(
+            acao,
+            abrir_ponte=lambda: log.append("ponte") or ponte_ok,
+            abrir_navegador=lambda: log.append("navegador"),
+            bloqueado=lambda: bloqueio,
+        )
+
+    assert monta("abrir")() is False and log == ["ponte"]
+    log.clear()
+    assert monta("abrir", ponte_ok=False)() is False and log == ["ponte", "navegador"]
+    log.clear()
+    assert monta("abrir_e_ouvir")() is True
+    log.clear()
+    assert monta("abrir", bloqueio="pânico")() is None and log == []  # nada é feito
+    assert monta("rotina:bom-dia")() is False  # rotinas só chegam na E9.1: faz o mesmo que abrir

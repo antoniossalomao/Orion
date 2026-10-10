@@ -14,12 +14,19 @@ from pathlib import Path
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from pydantic import BaseModel, Field
 
 from .memory.scope import data_scope
 
 MAX_UPLOAD = 6 * 1024 * 1024
 MAX_TOTAL = 256 * 1024 * 1024
 _WORKERS = threading.BoundedSemaphore(2)
+
+
+class DocumentoMover(BaseModel):
+    """`project_id` None = memória pessoal. Obrigatório no corpo: omitir não vale como pessoal."""
+
+    project_id: str | None = Field(pattern=r"^[a-f0-9]{32}$")
 
 
 def process(memory, id_: str, project_id: str | None):
@@ -130,6 +137,28 @@ def router(require_admin):
         validate(s, project_id)
         await asyncio.to_thread(process, s.memory, id_, project_id)
         return next(r for r in rows(s, project_id) if r["id"] == id_)
+
+    @api.patch("/{id_}")
+    async def mover(
+        id_: str, corpo: DocumentoMover, request: Request, project_id: str | None = None
+    ):
+        """ "Disponível em": muda o escopo do documento. O texto indexado é refeito a partir do
+        original no escopo novo; o do escopo antigo sai da busca antes (nunca fica nos dois)."""
+        s = request.app.state.orion
+        validate(s, corpo.project_id)
+        if corpo.project_id == project_id:
+            return next(r for r in rows(s, project_id) if r["id"] == id_)
+        achados = s.memory.query(
+            "SELECT name FROM uploads WHERE id=? AND project_id IS ?", (id_, project_id)
+        )
+        if not achados:
+            raise HTTPException(404, "document_not_found")
+        with data_scope(project_id, include_personal=False):
+            s.memory.remove_document(f"upload:{id_}/{achados[0][0]}")
+        with s.memory.transaction() as c:
+            c.execute("UPDATE uploads SET project_id=? WHERE id=?", (corpo.project_id, id_))
+        await asyncio.to_thread(process, s.memory, id_, corpo.project_id)
+        return next(r for r in rows(s, corpo.project_id) if r["id"] == id_)
 
     @api.get("/{id_}/download")
     def download(id_: str, request: Request, project_id: str | None = None):
