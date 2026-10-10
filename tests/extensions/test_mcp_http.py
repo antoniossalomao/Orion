@@ -72,7 +72,7 @@ async def test_http_without_auth_unavailable_and_missing_secret(endpoint, monkey
     ]:
         host = MCPHost(
             [HTTPConfig(id="http", url=url, enabled=True, authorized=True, secret_ref=secret)],
-            timeout=1,
+            timeout=10,  # Windows demora ~2s para recusar a conexão
         )
         await host.start()
         assert host.statuses()[0]["error"] == expected
