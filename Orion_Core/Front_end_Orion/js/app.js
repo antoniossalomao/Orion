@@ -1,6 +1,6 @@
 /* ==========================================================================
    ORION — app.js | rotas por hash, atalhos, janela, boot e ligação dos módulos
-   Rotas: #/ · #/chat · #/memoria · #/integracoes · #/config · #/painel · #/conhecimento · #/privacidade (botão voltar funciona,
+   Rotas: #/ · #/chat · #/memoria · #/integracoes · #/config · #/painel · #/conhecimento · #/privacidade · #/arquivadas (botão voltar funciona,
    dá para abrir direto numa tela). Telas ocultas ficam `inert`: nada de Tab invisível.
    ========================================================================== */
 (function () {
@@ -25,6 +25,7 @@
         painel: { titulo: 'Painel', rota: '/painel' },   // por último: não muda os atalhos Alt+1…5
         conhecimento: { titulo: 'Conhecimento', rota: '/conhecimento' },
         privacidade: { titulo: 'Privacidade', rota: '/privacidade' },
+        arquivadas: { titulo: 'Conversas arquivadas', rota: '/arquivadas' },
     };
     const VIEW_DA_ROTA = Object.fromEntries(Object.entries(VIEWS).map(([v, d]) => [d.rota, v]));
     let atual = null, opcoesPendentes = {};

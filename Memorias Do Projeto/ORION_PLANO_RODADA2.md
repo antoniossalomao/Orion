@@ -102,7 +102,7 @@ Marque ao concluir. Uma etapa só fecha com todos os itens, a prova e o PR merge
 - [ ] PR da E2 mergeado
 
 ### E3 — Conversas e projetos
-- [ ] E3.1 Tela de conversas arquivadas (R2.1)
+- [x] E3.1 Tela de conversas arquivadas (R2.1)
 - [ ] E3.2 Filtro por projeto na barra lateral (R2.2)
 - [ ] E3.3 "Mover para projeto" na paleta (R2.3)
 - [ ] E3.4 "Disponível em" editável nos documentos (R2.4)

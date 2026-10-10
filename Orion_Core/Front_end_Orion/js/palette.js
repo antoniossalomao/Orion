@@ -25,6 +25,7 @@
             { g: 'ir', rotulo: 'Configurações', icone: 'sliders', atalho: ['Alt', '5'], exec: ir('config'), chaves: 'preferências ajustes' },
             { g: 'ir', rotulo: 'Conhecimento', icone: 'file', exec: ir('conhecimento'), chaves: 'projetos fatos memória esquecer corrigir instruções' },
             { g: 'ir', rotulo: 'Painel', icone: 'gauge', atalho: ['Alt', '6'], exec: ir('painel'), chaves: 'status cota modelos aprovações política auditoria' },
+            { g: 'ir', rotulo: 'Conversas arquivadas', icone: 'folder', exec: ir('arquivadas'), chaves: 'arquivar restaurar desarquivar apagar conversa antiga' },
             { g: 'ir', rotulo: 'Privacidade', icone: 'shield', exec: ir('privacidade'), chaves: 'o que saiu dados enviados provedores rede' },
             { g: 'acao', rotulo: 'Ligar modo pânico', icone: 'shield', exec: () => A.panico(), chaves: 'panico pânico emergência cortar rede parar tudo' },
             { g: 'acao', rotulo: 'Nova conversa', icone: 'plus', atalho: ['Ctrl', '⇧', 'O'], exec: () => O.sidebar.nova() },

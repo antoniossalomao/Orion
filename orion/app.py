@@ -1347,10 +1347,18 @@ def create_app(
         state: State,
         canal: Annotated[str, Query(pattern=_CANAL)] = "web",
         limite: Annotated[int, Query(ge=1, le=100)] = 50,
+        arquivadas: bool | None = None,
+        projeto: Annotated[str | None, Query(max_length=64)] = None,
     ) -> dict[str, Any]:
+        """`arquivadas=true`: só as arquivadas. `projeto=<id>` ou `nenhum` (sem projeto)."""
         selected = state.memory.selected_session(canal)
         ativa = selected.id if selected else None
-        sessoes = [sessao_json(s, ativa) for s in state.memory.list_sessions(canal, limite)]
+        sessoes = [
+            sessao_json(s, ativa)
+            for s in state.memory.list_sessions(
+                canal, limite, archived=arquivadas or None, project=projeto or None
+            )
+        ]
         return {"sessoes": sessoes, "total": len(sessoes), "ativa": ativa}
 
     @app.get("/sessoes/busca", dependencies=[Admin])
@@ -1360,8 +1368,11 @@ def create_app(
         canal: Annotated[str, Query(pattern=_CANAL)] = "web",
         limite: Annotated[int, Query(ge=1, le=100)] = 25,
         offset: Annotated[int, Query(ge=0, le=1_000_000)] = 0,
+        arquivadas: bool | None = None,
     ) -> dict[str, Any]:
-        sessions, total = state.memory.search_sessions(canal, texto, limit=limite, offset=offset)
+        sessions, total = state.memory.search_sessions(
+            canal, texto, limit=limite, offset=offset, archived=arquivadas or None
+        )
         selected = state.memory.selected_session(canal)
         items = [
             {**sessao_json(s, selected.id if selected else None), "trecho": snippet}
@@ -1435,6 +1446,25 @@ def create_app(
             raise HTTPException(409, str(e)) from None
         selected = state.memory.selected_session(corpo.canal)
         return {"ok": True, **sessao_json(updated, selected.id if selected else None)}
+
+    @app.delete("/sessoes/{session_id}", dependencies=[Admin])
+    def sessao_apagar(
+        session_id: Annotated[str, PathParam(pattern=r"^[a-f0-9]{32}$")],
+        state: State,
+        canal: Annotated[str, Query(pattern=_CANAL)] = "web",
+    ) -> dict[str, Any]:
+        """Só conversa arquivada e sem nada apontando para ela (ramos, artefatos, planos)."""
+        if state.policy.approvals.unresolved(session_id) or (
+            state.agent and state.agent.busy(session_id)
+        ):
+            raise HTTPException(409, "termine a resposta e resolva as aprovações antes de apagar")
+        try:
+            state.memory.delete_session(canal, session_id)
+        except KeyError:
+            raise HTTPException(404, "sessão inexistente neste canal") from None
+        except ValueError as e:
+            raise HTTPException(409, str(e)) from None
+        return {"ok": True}
 
     def conversation(state: AppState, canal: str, sessao: str | None) -> Session | None:
         session = (

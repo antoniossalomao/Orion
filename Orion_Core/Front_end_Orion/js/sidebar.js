@@ -116,6 +116,11 @@
         linha.mais.setAttribute('aria-label', `Opções de ${titulo(s)}`);
         return linha.el;
     }
+    let botaoArquivadas = null;
+    function gerirArquivadas() {
+        if (!botaoArquivadas) botaoArquivadas = el('button', { class: 'btn btn-ghost btn-sm conv-arquivadas', type: 'button', text: 'Gerenciar arquivadas', on: { click: () => O.app.ir('arquivadas') } });
+        return botaoArquivadas;
+    }
     function grupo(nome) {
         if (!grupos.has(nome)) grupos.set(nome, el('div', { class: 'conv-group', text: nome }));
         return grupos.get(nome);
@@ -149,7 +154,7 @@
         if (fixadas.length) nos.push(grupo('Fixadas'), ...fixadas.map(botaoConversa));
         for (const g of U.agruparPorDia(sessoes.filter(x => !x.arquivada && !x.favorita), s => s.criada)) nos.push(grupo(g.rotulo), ...g.itens.map(botaoConversa));
         const antigas = sessoes.filter(x => x.arquivada);
-        if (antigas.length) nos.push(grupo('Arquivadas'), ...antigas.map(botaoConversa));
+        if (antigas.length) nos.push(grupo('Arquivadas'), ...antigas.map(botaoConversa), gerirArquivadas());
         reconciliar(nos);
     }
 

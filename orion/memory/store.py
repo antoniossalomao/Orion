@@ -100,6 +100,25 @@ class Hit:
     via: str  # "fts", "vec" ou "fts+vec"
 
 
+SEM_PROJETO = "nenhum"  # filtro de `list_sessions`: só as conversas sem projeto
+
+# Tabelas que ainda apontam para uma conversa (sem ON DELETE): apagar a conversa as deixaria órfãs.
+_REFERENCIAS_DE_SESSAO = (
+    ("message_branches", "session_id"),
+    ("message_branches", "root_session"),
+    ("message_branches", "parent_session"),
+    ("artifacts", "session_id"),
+    ("event_proposals", "session_id"),
+    ("file_plans", "session_id"),
+)
+_ROTULO_REFERENCIA = {
+    "message_branches": "ramos",
+    "artifacts": "artefatos",
+    "event_proposals": "propostas de evento",
+    "file_plans": "planos de arquivos",
+}
+
+
 class MemoryStore:
     def __init__(
         self,
@@ -409,16 +428,59 @@ class MemoryStore:
             assert updated is not None
             return updated
 
-    def list_sessions(self, channel: str | None = None, limit: int = 50) -> list[Session]:
+    def list_sessions(
+        self,
+        channel: str | None = None,
+        limit: int = 50,
+        *,
+        archived: bool | None = None,
+        project: str | None = None,
+    ) -> list[Session]:
+        """`archived`: None = todas, True = só arquivadas. `project`: None = qualquer,
+        `SEM_PROJETO` = só as sem projeto, senão o id do projeto."""
         with self._lock:
             rows = self._conn.execute(
                 "SELECT s.*, EXISTS(SELECT 1 FROM imported"
                 " WHERE kind='sessao' AND ref=s.id) AS read_only"
                 " FROM sessions s WHERE (? IS NULL OR channel=?)"
+                " AND (? IS NULL OR archived=?)"
+                " AND (? IS NULL OR (? = ? AND project_id IS NULL) OR project_id = ?)"
                 " ORDER BY favorite DESC, last_active_at DESC, created_at DESC, id DESC LIMIT ?",
-                (channel, channel, limit),
+                (
+                    channel,
+                    channel,
+                    None if archived is None else int(archived),
+                    None if archived is None else int(archived),
+                    project,
+                    project,
+                    SEM_PROJETO,
+                    project,
+                    limit,
+                ),
             ).fetchall()
         return [self._session(r) for r in rows]
+
+    def delete_session(self, channel: str, session_id: str) -> None:
+        """Apaga uma conversa **arquivada** com as mensagens. Recusa (ValueError) a que ainda é
+        referência de outra coisa: ramos, artefatos, propostas e planos apontam para ela."""
+        with self._tx() as c:
+            session = self.get_session(session_id)
+            if session is None or session.channel != channel:
+                raise KeyError(session_id)
+            if session.read_only:
+                raise ValueError("sessão importada é somente leitura")
+            if not session.archived:
+                raise ValueError("arquive a conversa antes de apagar")
+            for tabela, coluna in _REFERENCIAS_DE_SESSAO:
+                if c.execute(
+                    f"SELECT 1 FROM {tabela} WHERE {coluna}=? LIMIT 1", (session_id,)
+                ).fetchone():
+                    raise ValueError(
+                        f"a conversa tem {_ROTULO_REFERENCIA[tabela]}: mantenha-a arquivada"
+                    )
+            c.execute("DELETE FROM active_sessions WHERE session_id=?", (session_id,))
+            c.execute("DELETE FROM meta WHERE key=?", (f"counter:history_after:{session_id}",))
+            c.execute("DELETE FROM sessions WHERE id=?", (session_id,))
 
     def search_sessions(
         self,
@@ -427,6 +489,7 @@ class MemoryStore:
         *,
         limit: int = 25,
         offset: int = 0,
+        archived: bool | None = None,
     ) -> tuple[list[tuple[Session, str]], int]:
         query = fts_query(text)
         if not query:
@@ -438,10 +501,12 @@ class MemoryStore:
             "JOIN messages m ON m.id=messages_fts.rowid WHERE messages_fts MATCH ? "
             "AND m.role IN ('user','assistant')) "
         )
+        filtro_arq = None if archived is None else int(archived)
         with self._lock:
             total = self._conn.execute(
-                hits + "SELECT count(*) FROM sessions s WHERE channel=? AND id IN hits",
-                (query, query, channel),
+                hits + "SELECT count(*) FROM sessions s WHERE channel=? AND id IN hits"
+                " AND (? IS NULL OR archived=?)",
+                (query, query, channel, filtro_arq, filtro_arq),
             ).fetchone()[0]
             rows = self._conn.execute(
                 hits + "SELECT s.*, EXISTS(SELECT 1 FROM imported "
@@ -449,10 +514,10 @@ class MemoryStore:
                 "(SELECT snippet(messages_fts,0,'','','…',8) FROM messages_fts "
                 "JOIN messages m ON m.id=messages_fts.rowid WHERE m.session_id=s.id "
                 "AND m.role IN ('user','assistant') AND messages_fts MATCH ? LIMIT 1) AS trecho "
-                "FROM sessions s WHERE channel=? AND id IN hits "
+                "FROM sessions s WHERE channel=? AND id IN hits AND (? IS NULL OR archived=?) "
                 "ORDER BY favorite DESC, last_active_at DESC, created_at DESC, id DESC "
                 "LIMIT ? OFFSET ?",
-                (query, query, query, channel, limit, offset),
+                (query, query, query, channel, filtro_arq, filtro_arq, limit, offset),
             ).fetchall()
         return [(self._session(row), row["trecho"] or "") for row in rows], total
 
