@@ -24,6 +24,10 @@ datas += collect_data_files("jsonschema_specifications") + collect_data_files("j
 datas += collect_data_files("docx") + collect_data_files("openpyxl")  # modelos de documento
 if sys.platform == "win32":
     ocultos += ["keyring.backends.Windows"]
+    d, b, h = collect_all("webview")  # janela do app (orion.shell)
+    datas += d
+    binarios += b
+    ocultos += h
 
 # a interface (front) é servida em /ui/: vai junto, sem o código Python que ele traz
 front = raiz / "Orion_Core" / "Front_end_Orion"
@@ -53,7 +57,7 @@ exe = EXE(
     [],
     exclude_binaries=True,
     name="orion",
-    console=True,  # a janela mostra o log; fechá-la encerra o Orion
+    console=True,  # a CLI (set-password, backup...) precisa dele; no modo app o orion_exe.py esconde a janela
     icon=str(raiz / "assets" / "orion.ico"),
     upx=False,
 )
