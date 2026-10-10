@@ -18,6 +18,7 @@
     }
 
     let tokenDesktop = '';
+    let sessaoAtiva = false;   // login por cookie (httpOnly: o JS não o enxerga, então guardamos o resultado)
 
     /** Endereço do cérebro: o configurado > a origem desta página (http/https) > 127.0.0.1:8000 */
     function base() {
@@ -243,10 +244,12 @@
         },
         /** {configured, authenticated, token_auth}; null no legado (sem login) ou sem conexão */
         async authStatus() {
-            try { return await req('/auth/status', { timeout: 3000 }); } catch (_) { return null; }
+            try { const st = await req('/auth/status', { timeout: 3000 }); sessaoAtiva = !!st?.authenticated; return st; } catch (_) { return null; }
         },
-        login: (usuario, senha) => req('/auth/login', { metodo: 'POST', json: { usuario, senha }, timeout: 20000 }),
-        logout: () => req('/auth/logout', { metodo: 'POST', timeout: 5000 }),
+        login: (usuario, senha) => req('/auth/login', { metodo: 'POST', json: { usuario, senha }, timeout: 20000 }).then(r => { sessaoAtiva = true; return r; }),
+        logout: () => req('/auth/logout', { metodo: 'POST', timeout: 5000 }).finally(() => { sessaoAtiva = false; }),
+        /** há como falar com as rotas protegidas: token de acesso ou sessão de login (cookie) */
+        autenticado: () => !!token() || sessaoAtiva,
         trocarSenha: (atual, nova) => req('/auth/password', { metodo: 'POST', json: { senha_atual: atual, nova }, timeout: 20000 }),
         clientesExternos: () => recurso('mcp_export', '/mcp-export/clients'),
         criarClienteExterno: json => recurso('mcp_export', '/mcp-export/clients', { metodo: 'POST', json }),

@@ -118,7 +118,7 @@
         $('#project-list').querySelectorAll('button').forEach(b => b.setAttribute('aria-current', b.dataset.id === id ? 'true' : 'false'));
     }
     async function loadRows() {
-        if (!api.suporta('projects') || !api.token()) { rows = []; paintContext(); return; }
+        if (!api.suporta('projects') || !api.autenticado()) { rows = []; paintContext(); return; }
         const source = origin(); const values = await api.projetos();
         if (source !== origin()) return; rows = values; paintContext(); bus.emit('projetos', rows);
     }
