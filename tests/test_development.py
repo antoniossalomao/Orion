@@ -48,7 +48,7 @@ def test_git_read_preserves_index_refs_and_rejects_secret_diff(tmp_path):
     memory.close()
 
 
-def test_development_profile_review_does_not_invoke_cli(tmp_path):
+def test_development_profile_review_does_not_invoke_cli(tmp_path, monkeypatch):
     from fastapi.testclient import TestClient
 
     from orion.app import create_app
@@ -56,6 +56,8 @@ def test_development_profile_review_does_not_invoke_cli(tmp_path):
     from tests.fakes import FakeGateway, chama, fala, pede
     from tests.projects.test_projects import AUTH, TOKEN
 
+    # `delegar` só existe com alguma CLI oficial instalada; o runner do CI não tem nenhuma
+    monkeypatch.setattr("orion.app._alguma_cli", lambda: True)
     root = tmp_path / "repo"
     root.mkdir()
     subprocess.run(["git", "init", str(root)], check=True, capture_output=True)
