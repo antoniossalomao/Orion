@@ -90,7 +90,7 @@ Marque ao concluir. Uma etapa só fecha com todos os itens, a prova e o PR merge
 
 ### E2 — Ponte de desktop
 - [ ] Antônio: testar teclas globais e microfone no notebook; calibrar as palmas
-- [ ] Regras escritas em `ORION_REGRAS.md` antes do código (50 (ponte), 51 (palmas))
+- [x] Regras escritas em `ORION_REGRAS.md` antes do código (50 (ponte), 51 (palmas))
 - [ ] E2.1 Processo da ponte
 - [ ] E2.2 Duas palmas abrem o Orion (U1)
 - [ ] E2.3 Captura rápida (U2)
