@@ -46,6 +46,7 @@ from .artifacts import ArtifactError
 from .artifacts import router as artifact_router
 from .auth import AuthError, AuthService, LockedOut, NotConfigured, WeakPassword
 from .capabilities import Capabilities, describe
+from .captura_rapida import router as captura_router
 from .capture import Capturer
 from .channels import TelegramChannel
 from .config import PROJECT_ROOT, Settings
@@ -2035,6 +2036,7 @@ def create_app(
     from .file_plans import router as file_plan_router
 
     app.include_router(ponte_router(require_auth))
+    app.include_router(captura_router(require_auth))
     app.include_router(export_client_router(require_auth))
     app.mount("/mcp-export", ExportAuth(mcp_export.app, lambda: app.state.orion))
 

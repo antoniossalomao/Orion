@@ -774,3 +774,26 @@ para a resposta falada).
 
 **Regra.** 51; código em `orion/palmas.py` (detector, provado com sinais sintéticos: duas palmas, três, porta batendo,
 digitação, ruído alto) e `orion/wake.py` (`WakeListener` divide o microfone entre palavra e palmas).
+
+### 18.3 Captura rápida
+
+**O que faz.** `Ctrl+Alt+Espaço` abre uma janelinha com um campo: você digita uma linha e dá Enter. O modelo **rápido** só
+**classifica** (JSON validado) em `tarefa`, `lembrete` (com data), `gasto` ou `nota`; quem grava é o Orion, em destino
+fixo: tarefa e lembrete no banco, nota no `00 Inbox` do vault. Sem modelo (ou com resposta ilegível), vale a regra por
+palavra-chave ("amanhã às 15h", "R$", "lembra"); o que não casar vira nota. `gasto` só funciona depois da E10.3: até lá cai em nota.
+A janela mostra o que foi criado e um botão **Desfazer** (vale 10 minutos, só para o que este servidor criou).
+
+**Como ligar.** Vem com a ponte (§18.1). Notas precisam de `ORION_VAULT_DIR` (a pasta é `ORION_CAPTURE_FOLDER`); sem
+ele, tarefa e lembrete funcionam e a nota responde "defina ORION_VAULT_DIR". Também dá para chamar pela API:
+`POST /captura {"texto": "..."}` → `{id, tipo, titulo, quando, valor, origem, aviso}` e `DELETE /captura/{id}`.
+
+**Dependências.** Nenhuma além da ponte.
+
+**O que sai do computador.** A **frase digitada** vai ao gateway de modelos (camada `rapido`) para ser classificada, como
+qualquer conversa; em modo pânico não vai (usa a regra simples). O audit guarda só o tipo, nunca o texto.
+
+**Onde ver.** Tarefas (`/painel`, ferramentas de tarefa), lembretes, `00 Inbox`; audit `captura_rapida`.
+
+**Pausar/desligar.** Não subir a ponte. O token da ponte só alcança `/captura` (regra 50).
+
+**Regra.** 50; código em `orion/captura_rapida.py` e `Orion_Core/Front_end_Orion/ponte.html`.
