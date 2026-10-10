@@ -1185,6 +1185,8 @@ def create_app(
         return describe(
             agent_ready=state.agent is not None,
             admin_configured=bool(state.settings.admin_token) or state.auth.has_password(),
+            voice=state.live is not None,
+            tts=state.speaker is not None,
         )
 
     @app.get("/capabilities/details", dependencies=[Admin])

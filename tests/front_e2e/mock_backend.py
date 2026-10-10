@@ -416,10 +416,26 @@ def create_app() -> FastAPI:
             response.delete_cookie("orion_session")
             return {"ok": True}
 
+    @app.get("/capabilities")
+    def capabilities() -> dict[str, Any]:
+        nomes = (
+            "chat sessions session_management session_search history history_clear export approvals"
+            " notifications activity documents branches accounts calendar file_plans skills plugins"
+            " plugin_profiles projects artifacts memory_facts mcp mcp_export voice tts upload"
+            " memory_graph memory_categories metrics stats stats_history integrations"
+            " model_selection"
+        ).split()
+        return {
+            "contract_version": 1, "backend": "orion", "app_version": "mock", "api": "online",
+            "model": "ready", "auth_required": True,
+            "features": dict.fromkeys(nomes, True), "unavailable": {},
+        }  # fmt: skip
+
     @app.get("/health")
     def health() -> dict[str, Any]:
         return {
-            "cerebro": {"ok": True, "embedder": True, "bm25": True},
+            "status": "ok",
+            "version": "mock",
             "qdrant": {"ok": True, "latencia_ms": 4.2, "vetores": {"orion_memory": 3_091_204}},
             "surreal": {"ok": True, "latencia_ms": 11.8},
             "vram": {"usada_mb": 3120, "total_mb": 8192, "gpu_pct": 22},

@@ -40,7 +40,9 @@ class Capabilities(BaseModel):
     unavailable: dict[str, str]
 
 
-def describe(*, agent_ready: bool, admin_configured: bool) -> Capabilities:
+def describe(
+    *, agent_ready: bool, admin_configured: bool, voice: bool = False, tts: bool = False
+) -> Capabilities:
     features: dict[str, bool] = dict.fromkeys(PENDING_FEATURES, False)
     features.update(
         chat=agent_ready and admin_configured,
@@ -67,8 +69,13 @@ def describe(*, agent_ready: bool, admin_configured: bool) -> Capabilities:
         mcp=admin_configured,
         mcp_export=admin_configured,
         html_preview=admin_configured and sys.platform != "win32",
+        voice=admin_configured and voice,
+        tts=admin_configured and tts,
     )
     unavailable: dict[str, str] = dict.fromkeys(PENDING_FEATURES, "not_implemented")
+    for ready in ("voice", "tts"):
+        if features[ready]:
+            unavailable.pop(ready, None)
     if not features["html_preview"]:
         unavailable["html_preview"] = "desktop_validation_pending"
     if not features["chat"]:
