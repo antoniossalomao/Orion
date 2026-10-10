@@ -1,3 +1,6 @@
+import tempfile
+from pathlib import Path
+
 import httpx
 from playwright.sync_api import expect
 
@@ -13,7 +16,7 @@ def test_event_product_review_reject_then_create_exactly_once(abrir, novo_backen
     session = s.memory.new_session("web")
     s.memory.add_message(session.id, "user", "Preparar reunião, sem criar até revisar")
     conn = EventConnector("personal")
-    s.mcp.connections["agenda"] = conn
+    s.mcp_host.connections["agenda"] = conn
     from .conftest import TOKEN
 
     response = httpx.post(
@@ -59,4 +62,4 @@ def test_event_product_review_reject_then_create_exactly_once(abrir, novo_backen
         '() => getComputedStyle(document.querySelector("#view-integracoes")).opacity === "1"'
     )
     assert not page.evaluate("async () => (await axe.run(document)).violations")
-    page.screenshot(path="/workspace/artifacts/orion-c42-agenda-700.png")
+    page.screenshot(path=str(Path(tempfile.gettempdir()) / "orion-c42-agenda-700.png"))

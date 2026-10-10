@@ -22,8 +22,8 @@ async def test_sync_nao_bloqueia_e_async_usa_o_loop_existente():
         return {"x": x + 1}
 
     schema = {"type": "object", "properties": {"x": {"type": "integer"}}, "required": ["x"]}
-    sync_tool = Tool("sync", "teste", schema, sync)
-    async_tool = Tool("async", "teste", schema, async_fn)
+    sync_tool = Tool("sync", "teste", schema, sync, validar=True)
+    async_tool = Tool("async", "teste", schema, async_fn, validar=True)
     assert json.loads(await sync_tool.run_async({"x": 1})) == {"x": 1}
     assert called[0] != main_thread
     assert json.loads(await async_tool.run_async({"x": 1})) == {"x": 2}
@@ -61,7 +61,7 @@ async def test_schema_completo_rejeita_sem_executar(args):
             }
         },
     }
-    tool = Tool("remote", "teste", schema, lambda **kw: calls.append(kw))
+    tool = Tool("remote", "teste", schema, lambda **kw: calls.append(kw), validar=True)
     assert json.loads(await tool.run_async(args))["codigo"] == "arguments_invalid"
     assert calls == []
 
@@ -82,7 +82,11 @@ def test_schema_invalido_recusado_ao_registrar(schema):
 async def test_ref_remoto_nao_abre_rede_e_erro_execucao_estruturado():
     called = []
     tool = Tool(
-        "ref", "x", {"$ref": "https://example.invalid/schema"}, lambda **kw: called.append(kw)
+        "ref",
+        "x",
+        {"$ref": "https://example.invalid/schema"},
+        lambda **kw: called.append(kw),
+        validar=True,
     )
     assert json.loads(await tool.run_async({}))["codigo"] == "schema_invalid"
     assert called == []

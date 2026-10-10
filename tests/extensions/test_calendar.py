@@ -1,4 +1,5 @@
 import json
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -17,7 +18,7 @@ class Connector:
     def __init__(self, scope):
         self.config = StdioConfig(
             id="agenda",
-            command="/fixture/node",
+            command=sys.executable,
             scope=scope,
             classifications={"list-events": Risk.READ, "get-freebusy": Risk.READ},
         )

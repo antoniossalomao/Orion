@@ -93,6 +93,12 @@ import orion_voice_live
 log("[4] Imports OK.")
 
 app = FastAPI()
+# Host fora da lista = DNS rebinding (uma página que resolve para 127.0.0.1 e fala como "mesma
+# origem"); e nenhuma página do navegador fala com o /mcp (ver origem.py).
+from starlette.middleware.trustedhost import TrustedHostMiddleware
+from origem import RecusaOrigemEstranhaNoMcp
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost"])
+app.add_middleware(RecusaOrigemEstranhaNoMcp)
 # CORS restrito (03/08/2026): antes era ["*"] + credentials, que ecoa qualquer
 # Origin — qualquer site aberto no navegador conseguia ler /historico, /buscar,
 # /exportar e postar no /chat (drive-by via localhost). O frontend pywebview

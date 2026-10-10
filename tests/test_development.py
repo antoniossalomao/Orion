@@ -48,7 +48,7 @@ def test_git_read_preserves_index_refs_and_rejects_secret_diff(tmp_path):
     memory.close()
 
 
-def test_development_profile_review_does_not_invoke_cli(tmp_path):
+def test_development_profile_review_does_not_invoke_cli(tmp_path, monkeypatch):
     from fastapi.testclient import TestClient
 
     from orion.app import create_app
@@ -56,12 +56,14 @@ def test_development_profile_review_does_not_invoke_cli(tmp_path):
     from tests.fakes import FakeGateway, chama, fala, pede
     from tests.projects.test_projects import AUTH, TOKEN
 
+    # `delegar` só existe com alguma CLI oficial instalada; o runner do CI não tem nenhuma
+    monkeypatch.setattr("orion.app._alguma_cli", lambda: True)
     root = tmp_path / "repo"
     root.mkdir()
     subprocess.run(["git", "init", str(root)], check=True, capture_output=True)
     (root / "app.py").write_text("print('fixture')")
     gateway = FakeGateway(
-        pede(chama("consultar_git", root=str(root), operation="status")),
+        pede(chama("consultar_git_projeto", root=str(root), operation="status")),
         fala("app.py ainda não rastreado; nenhum arquivo alterado."),
     )
     app = create_app(
@@ -82,7 +84,7 @@ def test_development_profile_review_does_not_invoke_cli(tmp_path):
                 "scope": "project:" + project,
             },
         )
-        assert result.json()["state"] == "active"
+        assert result.json()["state"] == "active", result.json()
         response = c.post(
             "/chat",
             headers=AUTH,

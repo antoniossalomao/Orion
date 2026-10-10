@@ -22,12 +22,25 @@ from pathlib import Path
 from typing import Any
 
 import uvicorn
-from fastapi import FastAPI, File, Header, HTTPException, UploadFile
+from fastapi import (
+    Cookie,
+    FastAPI,
+    File,
+    Form,
+    Header,
+    HTTPException,
+    Response,
+    UploadFile,
+    WebSocket,
+)
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 FRONT = Path(__file__).resolve().parents[2] / "Orion_Core" / "Front_end_Orion"
 TOKEN = os.environ.get("MOCK_TOKEN", "")  # vazio = sem auth (como o legado)
+LOGIN = os.environ.get("MOCK_LOGIN", "")  # senha do login por cookie (orion.app); vazio = sem login
+SESSAO = "sessao-do-mock"
+DEFAULT_PW = bool(os.environ.get("MOCK_DEFAULT_PW"))  # a senha do mock é a "de fábrica"
 
 ESTADO: dict[str, Any] = {
     "mudo": False,
@@ -35,6 +48,57 @@ ESTADO: dict[str, Any] = {
     "chats": 128,
     "aprovacoes": {},
     "sessao_ativa": "s1",
+    "titulos": {},  # renomeadas (PATCH /sessoes/{id})
+    "fixadas": set(),
+    "apagadas": set(),  # DELETE /sessoes/{id}: some da lista
+    "projetos": {},  # id -> {nome, instrucoes, arquivado}
+    "fatos": {
+        1: {"texto": "Antônio estuda Sistemas de Informação na Unimar", "fonte": "conversa"},
+        2: {"texto": "Prefere respostas curtas e diretas", "fonte": "manual"},
+        3: {"texto": "Usa o Obsidian como segundo cérebro", "fonte": "vault"},
+    },
+    "resultados": {  # o id maior é o mais novo (a lista sai do mais novo para o mais antigo)
+        1: {"nome": "diagrama.pdf", "tipo": "documento", "versao": 1, "texto": None},
+        2: {
+            "nome": "ata-reuniao.md",
+            "tipo": "documento",
+            "versao": 1,
+            "texto": "# Ata\nDecisões da reunião.",
+        },
+        3: {
+            "nome": "ata-reuniao.md",
+            "tipo": "documento",
+            "versao": 2,
+            "texto": "# Ata v2\nDecisões revisadas.",
+        },
+    },
+    "plugins": {
+        "estudo": {
+            "versao": "1.0.0",
+            "descricao": "Ajuda nos estudos",
+            "skills": 1,
+            "estado": "sem_concessao",
+            "servidores": [
+                {
+                    "nome": "estudocalc",
+                    "transporte": "local (comando)",
+                    "executa": "python calc.py",
+                    "risco_padrao": "exec",
+                    "ferramentas": {},
+                    "externo": False,
+                }
+            ],
+        },
+    },
+    "avisos": {
+        1: {"tipo": "briefing", "texto": "☀️ Bom dia, Antônio. Hoje é quinta-feira.", "lido": False},
+        2: {"tipo": "semanal", "texto": "🗓️ Semana de 01/10 a 08/10.", "lido": True},
+    },
+    "documentos": {},  # id -> {nome, trechos, projeto_id}
+    "tela": {"ligada": True, "pausada": False, "registros": 42},
+    "projeto_de": {},  # sessao -> id do projeto
+    "arquivadas": set(),  # PATCH {"arquivada": true}: sai da barra, a busca ainda acha
+    "modos": {"panico": False, "nao_perturbe_ate": None},  # regra 48
     "rng": random.Random(7),
     "delay": 0.018,
 }
@@ -44,7 +108,7 @@ def _agora() -> datetime:
     return datetime.now().replace(microsecond=0)
 
 
-def _sessoes() -> list[dict[str, Any]]:
+def _sessoes(arquivadas: bool = False) -> list[dict[str, Any]]:
     a = _agora()
     base = [
         ("s1", "Plano da fase 0: exportar os dados", a - timedelta(minutes=18)),
@@ -58,13 +122,19 @@ def _sessoes() -> list[dict[str, Any]]:
     itens = [
         {
             "sessao_id": sid,
-            "titulo": titulo,
+            "titulo": ESTADO["titulos"].get(sid, titulo),
             "criada": criada.isoformat(),
+            "ultima_atividade": criada.isoformat(),
             "ativa": sid == ESTADO["sessao_ativa"],
-            "favorita": False,
+            "favorita": sid in ESTADO["fixadas"],
+            "arquivada": sid in ESTADO["arquivadas"],
+            "projeto_id": ESTADO["projeto_de"].get(sid),
         }
         for sid, titulo, criada in base
+        if sid not in ESTADO["apagadas"] and (sid in ESTADO["arquivadas"]) == arquivadas
     ]
+    if arquivadas:
+        return itens
     itens.append(
         {
             "sessao_id": "legado",
@@ -225,6 +295,18 @@ def _sse(obj: dict[str, Any] | str) -> str:
     return f"data: {corpo}\n\n"
 
 
+def _wav_mudo(segundos: float) -> bytes:
+    """WAV de silêncio (8 kHz, 8 bits, mono): um áudio que o navegador toca de verdade."""
+    n = int(8000 * segundos)
+    cab = (
+        b"RIFF" + (36 + n).to_bytes(4, "little") + b"WAVEfmt " + (16).to_bytes(4, "little")
+        + (1).to_bytes(2, "little") + (1).to_bytes(2, "little") + (8000).to_bytes(4, "little")
+        + (8000).to_bytes(4, "little") + (1).to_bytes(2, "little") + (8).to_bytes(2, "little")
+        + b"data" + n.to_bytes(4, "little")
+    )  # fmt: skip
+    return cab + b"\x80" * n
+
+
 async def _pedacos(texto: str, delay: float):
     i = 0
     while i < len(texto):
@@ -234,7 +316,58 @@ async def _pedacos(texto: str, delay: float):
         await asyncio.sleep(delay)
 
 
-def _auth(authorization: str | None) -> None:
+SENHA_PANICO = LOGIN or TOKEN or "senha-do-mock-123"  # sair do pânico pede a senha de novo
+
+
+def _modos() -> dict[str, Any]:
+    m = ESTADO["modos"]
+    return {
+        "panico": m["panico"],
+        "panico_desde": time.time() - 60 if m["panico"] else None,
+        "panico_origem": "web" if m["panico"] else None,
+        "nao_perturbe": m["nao_perturbe_ate"] is not None,
+        "nao_perturbe_ate": m["nao_perturbe_ate"],
+        "nao_perturbe_horario": None,
+    }
+
+
+def _privacidade(dias: int) -> dict[str, Any]:
+    """Uma semana com o gateway todo dia, o Groq em dois dias e uma imagem hoje."""
+    hoje = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    serie = []
+    for i in range(dias - 1, -1, -1):
+        dia = (hoje - timedelta(days=i)).strftime("%Y-%m-%d")
+        provs: dict[str, Any] = {}
+        n = [3, 5, 2, 8, 6, 4, 7][i % 7]
+        provs["gateway:padrão"] = {"envios": n, "bytes": n * 2400, "tipos": {"texto": n}}
+        if i in (1, 4):
+            provs["groq"] = {"envios": 2, "bytes": 380_000, "tipos": {"audio": 2}}
+        if i == 0:
+            provs["gateway:visao"] = {"envios": 1, "bytes": 512_000, "tipos": {"imagem": 1}}
+        serie.append(
+            {
+                "dia": dia,
+                "envios": sum(p["envios"] for p in provs.values()),
+                "bytes": sum(p["bytes"] for p in provs.values()),
+                "provedores": provs,
+            }
+        )
+    agora = datetime.now()
+    hoje_lista = [
+        {"hora": (agora - timedelta(minutes=5)).strftime("%H:%M:%S"), "provedor": "gateway:visao",
+         "tipo": "vision", "conteudo": "imagem", "bytes": 512_000, "ok": True},
+        {"hora": (agora - timedelta(minutes=9)).strftime("%H:%M:%S"), "provedor": "gateway:padrão",
+         "tipo": "chat", "conteudo": "texto", "bytes": 2400, "ok": False},
+    ]  # fmt: skip
+    provedores = sorted({k for d in serie for k in d["provedores"]})
+    return {"dias": dias, "serie": serie, "provedores": provedores, "hoje": hoje_lista}
+
+
+def _auth(authorization: str | None, orion_session: str | None = None) -> None:
+    if LOGIN:
+        if orion_session != SESSAO:
+            raise HTTPException(401, "login necessário")
+        return
     if TOKEN and (authorization or "").removeprefix("Bearer ").strip() != TOKEN:
         raise HTTPException(401, "token inválido")
 
@@ -244,7 +377,44 @@ def create_app() -> FastAPI:
 
     @app.get("/api-info")
     def info() -> dict[str, Any]:
-        return {"mock": True, "token": bool(TOKEN)}
+        return {"mock": True, "token": bool(TOKEN), "login": bool(LOGIN)}
+
+    @app.get("/auth/status")
+    def auth_status(orion_session: str | None = Cookie(default=None)) -> dict[str, bool]:
+        # o legado real responde 404 aqui (ruído só no console do navegador); o mock responde
+        # "sem senha" para os testes seguirem sem erro de console
+        autenticado = bool(LOGIN) and orion_session == SESSAO
+        saida = {"configured": bool(LOGIN), "authenticated": autenticado, "token_auth": bool(TOKEN)}
+        if autenticado:  # como o orion.app: só depois do login diz que a senha é a de fábrica
+            saida["default_password"] = bool(ESTADO.get("senha_de_fabrica", DEFAULT_PW))
+        return saida
+
+    if LOGIN:
+
+        @app.post("/auth/login")
+        def auth_login(corpo: dict[str, Any], response: Response) -> dict[str, bool]:
+            if corpo.get("senha") == "bloqueada":
+                raise HTTPException(429, "muitas tentativas", headers={"Retry-After": "30"})
+            if corpo.get("senha") != ESTADO.get("senha", LOGIN) or corpo.get("usuario") != "admin":
+                raise HTTPException(401, "usuário ou senha incorretos")
+            response.set_cookie("orion_session", SESSAO, httponly=True, samesite="strict")
+            return {"ok": True}
+
+        @app.post("/auth/password")
+        def auth_password(corpo: dict[str, Any], orion_session: str | None = Cookie(default=None)):
+            if orion_session != SESSAO:
+                raise HTTPException(401, "login necessário")
+            if corpo.get("senha_atual") != ESTADO.get("senha", LOGIN):
+                raise HTTPException(401, "senha atual incorreta")
+            if len(str(corpo.get("nova", ""))) < 12:
+                raise HTTPException(422, "a senha precisa de pelo menos 12 caracteres")
+            ESTADO["senha"], ESTADO["senha_de_fabrica"] = corpo["nova"], False
+            return {"ok": True}
+
+        @app.post("/auth/logout")
+        def auth_logout(response: Response) -> dict[str, bool]:
+            response.delete_cookie("orion_session")
+            return {"ok": True}
 
     @app.get("/health")
     def health() -> dict[str, Any]:
@@ -346,7 +516,248 @@ def create_app() -> FastAPI:
     def sessao_ativar(corpo: dict[str, Any]) -> dict[str, Any]:
         sid = corpo.get("sessao_id", "s1")
         ESTADO["sessao_ativa"] = sid
+        ESTADO["arquivadas"].discard(sid)  # como o cérebro: abrir uma arquivada a desarquiva
         return {"ok": True, "sessao_id": sid, "mensagens": _historico(sid)}
+
+    def _projeto(pid: int) -> dict[str, Any]:
+        p = ESTADO["projetos"][pid]
+        return {"id": pid, "nome": p["nome"], "instrucoes": p["instrucoes"],
+                "arquivado": p["arquivado"], "atualizado": _agora().isoformat()}  # fmt: skip
+
+    @app.get("/projetos")
+    def projetos_listar(arquivados: bool = False) -> dict[str, Any]:
+        itens = [_projeto(i) for i, p in ESTADO["projetos"].items() if p["arquivado"] == arquivados]
+        return {"total": len(itens), "projetos": itens}
+
+    @app.post("/projetos", status_code=201)
+    def projetos_criar(corpo: dict[str, Any]) -> dict[str, Any]:
+        nome = str(corpo.get("nome", "")).strip()
+        if not nome or any(p["nome"].lower() == nome.lower() for p in ESTADO["projetos"].values()):
+            raise HTTPException(409, "já existe um projeto com esse nome")
+        pid = max(ESTADO["projetos"], default=0) + 1
+        ESTADO["projetos"][pid] = {"nome": nome, "instrucoes": str(corpo.get("instrucoes", "")),
+                                   "arquivado": False}  # fmt: skip
+        return {"ok": True, "projeto": _projeto(pid)}
+
+    @app.patch("/projetos/{pid}")
+    def projetos_ajustar(pid: int, corpo: dict[str, Any]) -> dict[str, Any]:
+        if pid not in ESTADO["projetos"]:
+            raise HTTPException(404, "projeto não encontrado")
+        for k_api, k in (
+            ("nome", "nome"),
+            ("instrucoes", "instrucoes"),
+            ("arquivado", "arquivado"),
+        ):
+            if k_api in corpo and corpo[k_api] is not None:
+                ESTADO["projetos"][pid][k] = corpo[k_api]
+        return {"ok": True, "projeto": _projeto(pid)}
+
+    @app.delete("/projetos/{pid}")
+    def projetos_apagar(pid: int) -> dict[str, Any]:
+        if ESTADO["projetos"].pop(pid, None) is None:
+            raise HTTPException(404, "projeto não encontrado")
+        return {"ok": True}
+
+    def _fato(fid: int) -> dict[str, Any]:
+        f = ESTADO["fatos"][fid]
+        return {"id": fid, "texto": f["texto"], "fonte": f["fonte"],
+                "criado": _agora().isoformat(), "atualizado": _agora().isoformat()}  # fmt: skip
+
+    @app.get("/memoria/fatos")
+    def fatos_listar(q: str | None = None) -> dict[str, Any]:
+        itens = [
+            _fato(i) for i, f in ESTADO["fatos"].items() if not q or q.lower() in f["texto"].lower()
+        ]
+        return {"total": len(itens), "fatos": itens}
+
+    @app.patch("/memoria/fatos/{fid}")
+    def fatos_corrigir(fid: int, corpo: dict[str, Any]) -> dict[str, Any]:
+        if fid not in ESTADO["fatos"]:
+            raise HTTPException(404, "fato não encontrado")
+        ESTADO["fatos"][fid].update(texto=str(corpo["texto"]), fonte="manual")
+        return {"ok": True, "fato": _fato(fid)}
+
+    @app.delete("/memoria/fatos/{fid}")
+    def fatos_esquecer(fid: int) -> dict[str, Any]:
+        if ESTADO["fatos"].pop(fid, None) is None:
+            raise HTTPException(404, "fato não encontrado")
+        return {"ok": True}
+
+    def _plugin(nome: str) -> dict[str, Any]:
+        return {"nome": nome, **ESTADO["plugins"][nome]}
+
+    @app.get("/plugins")
+    def plugins_listar() -> dict[str, Any]:
+        return {"total": len(ESTADO["plugins"]), "plugins": [_plugin(n) for n in ESTADO["plugins"]],
+                "vale_depois_de_reiniciar": True}  # fmt: skip
+
+    @app.post("/plugins/{nome}/conceder")
+    def plugins_conceder(nome: str) -> dict[str, Any]:
+        if nome not in ESTADO["plugins"]:
+            raise HTTPException(404, "plugin não encontrado")
+        ESTADO["plugins"][nome]["estado"] = "ativo"
+        return {"ok": True, "plugin": _plugin(nome), "vale_depois_de_reiniciar": True}
+
+    @app.post("/plugins/{nome}/revogar")
+    def plugins_revogar(nome: str) -> dict[str, Any]:
+        if nome not in ESTADO["plugins"] or ESTADO["plugins"][nome]["estado"] != "ativo":
+            raise HTTPException(404, "esse plugin não tem concessão")
+        ESTADO["plugins"][nome]["estado"] = "sem_concessao"
+        return {"ok": True, "vale_depois_de_reiniciar": True}
+
+    @app.get("/atividade")
+    def atividade() -> dict[str, Any]:
+        avisos = [
+            {"id": i, "tipo": a["tipo"], "texto": a["texto"], "criado": _agora().isoformat(),
+             "entregue": a["lido"]}
+            for i, a in sorted(ESTADO["avisos"].items(), reverse=True)
+        ]  # fmt: skip
+        return {"avisos": avisos, "nao_lidos": sum(not a["entregue"] for a in avisos),
+                "aprovacoes": 0, "erros_dos_jobs": []}  # fmt: skip
+
+    @app.post("/notifications/{nid}/ack")
+    def aviso_ack(nid: int) -> dict[str, Any]:
+        if nid not in ESTADO["avisos"]:
+            raise HTTPException(404, "aviso não encontrado")
+        ESTADO["avisos"][nid]["lido"] = True
+        return {"ok": True}
+
+    @app.get("/resultados")
+    def resultados_listar() -> dict[str, Any]:
+        itens = [
+            {"id": i, "nome": r["nome"], "tipo": r["tipo"], "versao": r["versao"], "anterior": None,
+             "bytes": 2048, "ferramenta": "gerar_documento", "conversa": "Dúvida de UML",
+             "sessao_id": "s3", "projeto_id": None, "criado": _agora().isoformat(),
+             "previa": "texto" if r["texto"] else None}
+            for i, r in sorted(ESTADO["resultados"].items(), reverse=True)
+        ]  # fmt: skip
+        return {"total": len(itens), "resultados": itens}
+
+    @app.get("/resultados/{rid}/texto")
+    def resultados_texto(rid: int) -> dict[str, Any]:
+        r = ESTADO["resultados"].get(rid)
+        if not r or not r["texto"]:
+            raise HTTPException(404, "resultado não encontrado")
+        return {"texto": r["texto"], "truncado": False}
+
+    @app.get("/resultados/{rid}/arquivo")
+    def resultados_arquivo(rid: int) -> Response:
+        r = ESTADO["resultados"].get(rid)
+        if not r:
+            raise HTTPException(404, "resultado não encontrado")
+        return Response(
+            (r["texto"] or "pdf").encode(),
+            media_type="application/octet-stream",
+            headers={"Content-Disposition": f'attachment; filename="{r["nome"]}"'},
+        )
+
+    @app.delete("/resultados/{rid}")
+    def resultados_apagar(rid: int) -> dict[str, Any]:
+        if ESTADO["resultados"].pop(rid, None) is None:
+            raise HTTPException(404, "resultado não encontrado")
+        return {"ok": True}
+
+    @app.get("/memoria/documentos")
+    def documentos_listar() -> dict[str, Any]:
+        itens = [{"id": i, "nome": d["nome"], "titulo": d["nome"], "trechos": d["trechos"],
+                  "projeto_id": d["projeto_id"], "indexado": _agora().isoformat()}
+                 for i, d in ESTADO["documentos"].items()]  # fmt: skip
+        return {"total": len(itens), "documentos": itens}
+
+    @app.post("/memoria/documentos", status_code=201)
+    async def documentos_enviar(
+        arquivo: UploadFile, projeto_id: int | None = Form(default=None)
+    ) -> dict[str, Any]:
+        if not arquivo.filename or not arquivo.filename.lower().endswith(
+            (".txt", ".md", ".pdf", ".docx")
+        ):
+            raise HTTPException(415, "tipo não suportado")
+        corpo = await arquivo.read()
+        if any(d["nome"] == arquivo.filename for d in ESTADO["documentos"].values()):
+            return {
+                "ok": True,
+                "resultado": "same",
+                "caracteres": len(corpo),
+                "trechos": 2,
+                "id": 0,
+            }
+        did = max(ESTADO["documentos"], default=0) + 1
+        ESTADO["documentos"][did] = {
+            "nome": arquivo.filename,
+            "trechos": 3,
+            "projeto_id": projeto_id,
+        }
+        return {"ok": True, "resultado": "new", "caracteres": len(corpo), "trechos": 3, "id": did}
+
+    @app.delete("/memoria/documentos/{did}")
+    def documentos_apagar(did: int) -> dict[str, Any]:
+        if ESTADO["documentos"].pop(did, None) is None:
+            raise HTTPException(404, "documento não encontrado")
+        return {"ok": True}
+
+    @app.get("/tela")
+    def tela_estado() -> dict[str, Any]:
+        t = ESTADO["tela"]
+        return {**t, "hoje": min(t["registros"], 12), "gravadas": 3, "excluidas": 1}
+
+    @app.post("/tela/pausa")
+    def tela_pausa(corpo: dict[str, Any]) -> dict[str, Any]:
+        ESTADO["tela"]["pausada"] = not corpo["ativa"]
+        return {"pausada": ESTADO["tela"]["pausada"]}
+
+    @app.delete("/tela")
+    def tela_limpar() -> dict[str, Any]:
+        n, ESTADO["tela"]["registros"] = ESTADO["tela"]["registros"], 0
+        return {"ok": True, "apagados": n}
+
+    @app.get("/sessoes/busca")
+    def sessao_busca(q: str, limite: int = 10) -> dict[str, Any]:
+        termo = q.casefold()
+        achados = []
+        for item in _sessoes() + _sessoes(arquivadas=True):
+            sid = item["sessao_id"]
+            for m in _historico(sid) if sid != "legado" else []:
+                pos = m["content"].casefold().find(termo)
+                if pos >= 0:
+                    trecho = m["content"][max(0, pos - 20) : pos + len(termo) + 20]
+                    achados.append({**item, "trecho": trecho})
+                    break
+        return {"total": len(achados[:limite]), "resultados": achados[:limite]}
+
+    @app.patch("/sessoes/{sid}")
+    def sessao_ajustar(sid: str, corpo: dict[str, Any]) -> dict[str, Any]:
+        todas = _sessoes() + _sessoes(arquivadas=True)
+        if sid not in {i["sessao_id"] for i in todas} or sid == "legado":
+            raise HTTPException(404, "conversa não encontrada")
+        if "projeto_id" in corpo:
+            if corpo["projeto_id"] is None:
+                ESTADO["projeto_de"].pop(sid, None)
+            elif corpo["projeto_id"] in ESTADO["projetos"]:
+                ESTADO["projeto_de"][sid] = corpo["projeto_id"]
+            else:
+                raise HTTPException(404, "projeto não encontrado")
+        if "arquivada" in corpo:
+            (ESTADO["arquivadas"].add if corpo["arquivada"] else ESTADO["arquivadas"].discard)(sid)
+            ESTADO["fixadas"].discard(sid)
+            if corpo["arquivada"] and ESTADO["sessao_ativa"] == sid:
+                restantes = [i["sessao_id"] for i in _sessoes() if i["sessao_id"] != "legado"]
+                ESTADO["sessao_ativa"] = restantes[0] if restantes else "s1"
+        if "titulo" in corpo:
+            ESTADO["titulos"][sid] = str(corpo["titulo"])
+        if "favorita" in corpo:
+            (ESTADO["fixadas"].add if corpo["favorita"] else ESTADO["fixadas"].discard)(sid)
+        return {"ok": True}
+
+    @app.delete("/sessoes/{sid}")
+    def sessao_apagar(sid: str) -> dict[str, Any]:
+        if sid not in {i["sessao_id"] for i in _sessoes()} or sid == "legado":
+            raise HTTPException(404, "conversa não encontrada")
+        ESTADO["apagadas"].add(sid)
+        ESTADO["fixadas"].discard(sid)
+        if ESTADO["sessao_ativa"] == sid:  # como o cérebro de verdade: a mais recente que sobrou
+            restantes = [i["sessao_id"] for i in _sessoes() if i["sessao_id"] != "legado"]
+            ESTADO["sessao_ativa"] = restantes[0] if restantes else "s1"
+        return {"ok": True}
 
     @app.get("/historico")
     def historico(sessao: str | None = None) -> dict[str, Any]:
@@ -384,12 +795,84 @@ def create_app() -> FastAPI:
             "bytes": len(dados),
         }
 
+    # ── voz por clique (fase 6): cada fala gravada recebe um turno roteirizado ─────
+    # Fala de 4001 bytes = turno lento (para testar "parar a resposta"); `cancel` o interrompe.
+    @app.websocket("/ws/voz")
+    async def ws_voz(ws: WebSocket) -> None:
+        await ws.accept()
+
+        async def turno(tamanho: int) -> None:
+            await ws.send_json({"type": "heard", "text": "que horas são"})
+            if tamanho == 4001:
+                await asyncio.sleep(30)
+            await ws.send_json(
+                {"type": "ev", "ev": {"text": f"São três e meia ({tamanho} bytes)."}}
+            )
+            await ws.send_json({"type": "audio", "mime": "audio/mpeg"})
+            await ws.send_bytes(_wav_mudo(3.0))  # 3 s de silêncio: dá tempo de apertar "parar"
+            await ws.send_json({"type": "done"})
+
+        tarefa: asyncio.Task[None] | None = None
+        while True:
+            msg = await ws.receive()
+            if msg["type"] == "websocket.disconnect":
+                if tarefa is not None:
+                    tarefa.cancel()
+                return
+            if msg.get("bytes"):
+                ESTADO["falas"] = ESTADO.get("falas", 0) + 1
+                tarefa = asyncio.create_task(turno(len(msg["bytes"])))
+            elif msg.get("text") and tarefa is not None:
+                if json.loads(msg["text"]).get("cmd") == "cancel":
+                    tarefa.cancel()
+                    ESTADO["falas_canceladas"] = ESTADO.get("falas_canceladas", 0) + 1
+                    await ws.send_json({"type": "done"})
+
+    # ── voz ao vivo (B): ecoa um turno quando chega áudio; conta o que recebeu ─────
+    @app.websocket("/ws/voice")
+    async def ws_voice(ws: WebSocket) -> None:
+        await ws.accept()
+        if ws.query_params.get("falha"):  # voz ao vivo desligada no servidor
+            await ws.send_json(
+                {"type": "error", "msg": "voz ao vivo desligada (ORION_VOICE_LIVE_ENABLED)"}
+            )
+            await ws.close()
+            return
+        ESTADO["live_sessoes"] = ESTADO.get("live_sessoes", 0) + 1
+        respondeu = False
+        while True:
+            msg = await ws.receive()
+            if msg["type"] == "websocket.disconnect":
+                return
+            dados = msg.get("bytes")
+            if dados:
+                ESTADO["live_bytes"] = ESTADO.get("live_bytes", 0) + len(dados)
+                ESTADO["live_quadros"] = ESTADO.get("live_quadros", 0) + 1
+                if not respondeu:  # um turno só: responde ao primeiro áudio
+                    respondeu = True
+                    await ws.send_bytes(b"\x00\x01" * 480)
+                    await ws.send_json({"type": "heard", "text": "oi orion"})
+                    await ws.send_json({"type": "text", "text": "Olá da voz ao vivo."})
+                    await ws.send_json({"type": "done"})
+            elif msg.get("text"):
+                cmd = json.loads(msg["text"]).get("cmd")
+                if cmd == "stop":
+                    ESTADO["live_stop"] = ESTADO.get("live_stop", 0) + 1
+                    await ws.close()
+                    return
+
+    @app.get("/voz-stats")
+    def voz_stats() -> dict[str, Any]:
+        return {k: v for k, v in ESTADO.items() if k.startswith(("live_", "falas"))}
+
     # ── chat ───────────────────────────────────────────────────────────────
     @app.post("/chat")
     async def chat(
-        corpo: dict[str, Any], authorization: str | None = Header(default=None)
+        corpo: dict[str, Any],
+        authorization: str | None = Header(default=None),
+        orion_session: str | None = Cookie(default=None),
     ) -> StreamingResponse:
-        _auth(authorization)
+        _auth(authorization, orion_session)
         texto = str(corpo.get("texto", ""))
         baixo = texto.lower()
 
@@ -480,9 +963,220 @@ def create_app() -> FastAPI:
 
         return StreamingResponse(gerar(), media_type="text/event-stream")
 
+    @app.get("/painel")
+    def painel(
+        authorization: str | None = Header(default=None),
+        orion_session: str | None = Cookie(default=None),
+    ) -> dict[str, Any]:
+        """Painel único (orion.painel) com um cenário que mostra quase tudo: um endpoint em
+        quarentena por cota, uma CLI esgotada, uma não instalada, uma aprovação, decisões."""
+        _auth(authorization, orion_session)
+        agora = time.time()
+        pendentes = [k for k, v in ESTADO["aprovacoes"].items() if v["status"] == "pending"]
+        return {
+            "gerado_em": agora,
+            "uptime_s": 7260,
+            "modelos": {
+                "configurado": True,
+                "endpoints": [
+                    {
+                        "nome": "gemini",
+                        "modelo": "gemini-2.5-flash",
+                        "camada": "padrão",
+                        "chamadas": 40,
+                        "ok": 38,
+                        "falhas": 2,
+                        "limitada": 0,
+                        "pulos": 0,
+                        "quarentena_s": 0,
+                        "ultimo_ok": agora - 90,
+                        "ultimo_erro": "HTTP 502",
+                        "provedor": "gemini",
+                        "orcamento": 2,
+                    },
+                    {
+                        "nome": "reserva",
+                        "modelo": "llama-3.3-70b",
+                        "camada": "pesado",
+                        "chamadas": 6,
+                        "ok": 3,
+                        "falhas": 3,
+                        "limitada": 3,
+                        "pulos": 4,
+                        "quarentena_s": 140,
+                        "ultimo_ok": agora - 900,
+                        "ultimo_erro": "HTTP 429",
+                    },
+                ],
+            },
+            "roteamento": {"ativo": True, "contagem": {"rapido": 12, "pesado": 3, "visao": 1}},
+            "semana": [
+                {
+                    "dia": (datetime.now() - timedelta(days=6 - i)).strftime("%Y%m%d"),
+                    "total": n,
+                    "erros": 1 if i == 4 else 0,
+                    "por_endpoint": {"gemini": n} if n else {},
+                }
+                for i, n in enumerate([0, 3, 12, 7, 20, 5, 9])
+            ],
+            "clis": [
+                {
+                    "nome": "claude",
+                    "instalada": True,
+                    "usadas_hoje": 4,
+                    "limite_diario": 20,
+                    "restante": 16,
+                },
+                {
+                    "nome": "gemini",
+                    "instalada": True,
+                    "usadas_hoje": 20,
+                    "limite_diario": 20,
+                    "restante": 0,
+                },
+                {
+                    "nome": "codex",
+                    "instalada": False,
+                    "usadas_hoje": 0,
+                    "limite_diario": 20,
+                    "restante": 20,
+                },
+            ],
+            "aprovacoes": {
+                "pendentes": len(pendentes),
+                "itens": [
+                    {
+                        "id": k,
+                        "ferramenta": "executar_comando",
+                        "motivo": "execução fora da lista de leitura segura",
+                        "idade_s": 30,
+                        "expira_em_s": 570,
+                    }
+                    for k in pendentes
+                ],
+            },
+            "decisoes": {
+                "janela_h": 24,
+                "total": 12,
+                "truncado": False,
+                "por_acao": {"allow": 9, "confirm": 2, "deny": 1},
+                "mais_usadas": [
+                    {"ferramenta": "buscar_memoria", "n": 6},
+                    {"ferramenta": "ler_arquivo", "n": 3},
+                ],
+                "recentes": [
+                    {
+                        "ts": agora - 60,
+                        "ferramenta": "executar_comando",
+                        "acao": "confirm",
+                        "risco": "exec",
+                        "motivo": "execução: pede confirmação",
+                    },
+                    {
+                        "ts": agora - 600,
+                        "ferramenta": "ferramenta_x",
+                        "acao": "deny",
+                        "risco": None,
+                        "motivo": "ferramenta sem classe de risco",
+                    },
+                    {
+                        "ts": agora - 900,
+                        "ferramenta": "buscar_memoria",
+                        "acao": "allow",
+                        "risco": "read",
+                        "motivo": "",
+                    },
+                ],
+            },
+            "avisos": {"pendentes": 2},
+            "jobs": {"ativo": True, "ultima_rodada": agora - 20, "erros": []},
+            "memoria": {"ok": True, "vetores": True},
+            "canais": {"telegram": True},
+            "voz": {
+                "clique": {"ligada": True, "fala": True, "turnos": 7},
+                "ao_vivo": {"ligada": True, "sessoes": 2, "ativas": 0, "minutos": 12.5},
+                "falhas": 0,
+                "ultimo_erro": None,
+            },
+            "ferramentas": 41,
+            "mcp": {"google": "ok (12 ferramentas)", "web": "falhou: TimeoutError"},
+            "modos": _modos(),
+            "cota": [
+                {"provedor": "gateway", "nome": "Gateway de modelos", "usado": 420, "limite": 1000,
+                 "periodo": "dia", "pct": 42, "estado": "ok"},
+                {"provedor": "groq", "nome": "Groq (transcrição)", "usado": 4, "limite": 2000,
+                 "periodo": "dia", "pct": 0, "estado": "ok"},
+                {"provedor": "gemini", "nome": "Gemini (busca, embeddings, imagem)", "usado": 960,
+                 "limite": 1000, "periodo": "dia", "pct": 96, "estado": "alta"},
+                {"provedor": "brave", "nome": "Brave Search", "usado": 0, "limite": 0,
+                 "periodo": "mes", "pct": 0, "estado": "sem_limite"},
+            ],
+            "provedores": [
+                {"provider": "gateway:padrão", "kind": "chat", "chamadas": 10, "falhas": 2,
+                 "p50_ms": 640, "p95_ms": 2100, "bytes_out": 24_000, "bytes_in": 9_000,
+                 "modelo": "gemini-2.5-flash"},
+                {"provider": "groq", "kind": "transcribe", "chamadas": 4, "falhas": 0,
+                 "p50_ms": 900, "p95_ms": 1300, "bytes_out": 760_000, "bytes_in": 1_200,
+                 "modelo": "whisper-large-v3-turbo"},
+            ],
+        }  # fmt: skip
+
+    @app.get("/modo")
+    def modo(
+        authorization: str | None = Header(default=None),
+        orion_session: str | None = Cookie(default=None),
+    ) -> dict[str, Any]:
+        _auth(authorization, orion_session)
+        return _modos()
+
+    @app.post("/modo/panico")
+    def modo_panico(
+        corpo: dict[str, Any],
+        authorization: str | None = Header(default=None),
+        orion_session: str | None = Cookie(default=None),
+    ) -> dict[str, Any]:
+        _auth(authorization, orion_session)
+        if corpo.get("ativo"):
+            ESTADO["modos"]["panico"] = True
+        elif corpo.get("senha") != SENHA_PANICO:
+            raise HTTPException(403, "para sair do modo pânico, confirme a senha")
+        else:
+            ESTADO["modos"]["panico"] = False
+        return _modos()
+
+    @app.post("/modo/nao-perturbe")
+    def modo_nao_perturbe(
+        corpo: dict[str, Any],
+        authorization: str | None = Header(default=None),
+        orion_session: str | None = Cookie(default=None),
+    ) -> dict[str, Any]:
+        _auth(authorization, orion_session)
+        ate = corpo.get("ate")
+        if ate:
+            h, m = (int(x) for x in str(ate).split(":"))
+            alvo = datetime.now().replace(hour=h, minute=m, second=0, microsecond=0)
+            if alvo <= datetime.now():
+                alvo += timedelta(days=1)
+            ESTADO["modos"]["nao_perturbe_ate"] = alvo.timestamp()
+        else:
+            ESTADO["modos"]["nao_perturbe_ate"] = None
+        return _modos()
+
+    @app.get("/privacidade")
+    def privacidade(
+        dias: int = 7,
+        authorization: str | None = Header(default=None),
+        orion_session: str | None = Cookie(default=None),
+    ) -> dict[str, Any]:
+        _auth(authorization, orion_session)
+        return _privacidade(max(1, min(dias, 90)))
+
     @app.get("/approvals")
-    def aprovacoes(authorization: str | None = Header(default=None)) -> list[dict[str, Any]]:
-        _auth(authorization)
+    def aprovacoes(
+        authorization: str | None = Header(default=None),
+        orion_session: str | None = Cookie(default=None),
+    ) -> list[dict[str, Any]]:
+        _auth(authorization, orion_session)
         return [
             {
                 "id": k,
@@ -496,9 +1190,12 @@ def create_app() -> FastAPI:
 
     @app.post("/approvals/{aid}/decide")
     def decidir(
-        aid: str, corpo: dict[str, Any], authorization: str | None = Header(default=None)
+        aid: str,
+        corpo: dict[str, Any],
+        authorization: str | None = Header(default=None),
+        orion_session: str | None = Cookie(default=None),
     ) -> dict[str, Any]:
-        _auth(authorization)
+        _auth(authorization, orion_session)
         a = ESTADO["aprovacoes"].get(aid)
         if not a:
             raise HTTPException(404, "aprovação inexistente")
@@ -509,9 +1206,11 @@ def create_app() -> FastAPI:
 
     @app.post("/approvals/{aid}/resume")
     async def retomar(
-        aid: str, authorization: str | None = Header(default=None)
+        aid: str,
+        authorization: str | None = Header(default=None),
+        orion_session: str | None = Cookie(default=None),
     ) -> StreamingResponse:
-        _auth(authorization)
+        _auth(authorization, orion_session)
         a = ESTADO["aprovacoes"].get(aid)
 
         async def gerar():

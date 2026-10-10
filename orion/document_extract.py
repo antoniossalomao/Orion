@@ -43,8 +43,16 @@ def main():
     if sys.platform != "win32":
         import resource
 
-        resource.setrlimit(resource.RLIMIT_AS, (512 * 1024 * 1024, 512 * 1024 * 1024))
-        resource.setrlimit(resource.RLIMIT_CPU, (10, 10))
+        # no macOS o RLIMIT_AS é recusado: cada limite é tentado sozinho (o prazo e o teto de bytes
+        # do processo pai continuam valendo)
+        for limite, valor in (
+            (resource.RLIMIT_AS, 512 * 1024 * 1024),
+            (resource.RLIMIT_CPU, 10),
+        ):
+            try:
+                resource.setrlimit(limite, (valor, valor))
+            except (ValueError, OSError):
+                pass
     try:
         text = extract(Path(sys.argv[1]).read_bytes(), sys.argv[2])
         result = {"text": text}

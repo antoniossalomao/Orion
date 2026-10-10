@@ -1,0 +1,60 @@
+name: Orion.exe (Windows)
+
+# Compila o Orion num executável do Windows (PyInstaller, pasta `orion/` com `orion.exe`), SOBE o
+# executável de verdade e roda o teste de fumaça (login, interface empacotada, troca de senha) antes
+# de entregar. Disparos: manual (Actions > Orion.exe > Run workflow), tag `v*` (publica um release
+# com o zip) e PRs que mexem no empacotamento.
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+  pull_request:
+    paths:
+      - "orion_exe.py"
+      - "orion.spec"
+      - "assets/**"
+      - "packaging/**"
+      - "scripts/smoke_exe.py"
+      - "scripts/gerar_icone.py"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/build-exe.yml"
+
+permissions:
+  contents: read
+
+env:
+  PYTHONUTF8: "1" # acentos no console do runner do Windows
+
+jobs:
+  exe:
+    name: Compilar e testar o orion.exe
+    runs-on: windows-latest
+    permissions:
+      contents: write # só o release de tag precisa; o resto do job só lê
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --python 3.12 --locked --group build
+      - name: Compilar (PyInstaller)
+        run: uv run pyinstaller orion.spec --noconfirm
+      - name: Testar o executável de verdade
+        run: uv run python scripts/smoke_exe.py dist\orion\orion.exe
+      - name: Montar o zip
+        shell: pwsh
+        run: |
+          Copy-Item packaging\LEIA-ME.txt dist\orion\LEIA-ME.txt
+          Copy-Item .env.example dist\orion\.env.example
+          Compress-Archive -Path dist\orion\* -DestinationPath Orion-windows-x64.zip
+          (Get-Item Orion-windows-x64.zip).Length / 1MB | ForEach-Object { "{0:N0} MB" -f $_ }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Orion-windows-x64
+          path: Orion-windows-x64.zip
+          if-no-files-found: error
+      - name: Publicar o release (só em tag v*)
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${{ github.ref_name }}" Orion-windows-x64.zip --generate-notes --title "Orion ${{ github.ref_name }}"

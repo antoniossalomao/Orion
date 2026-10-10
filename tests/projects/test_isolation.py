@@ -1,5 +1,5 @@
+import sys
 from contextlib import closing
-from pathlib import Path
 
 import pytest
 
@@ -146,7 +146,7 @@ async def test_skill_and_mcp_context_reject_other_scope_before_rpc(tmp_path):
     host.connections["a"] = Connection(
         StdioConfig(
             id="a",
-            command=str(Path("/usr/bin/python3")),
+            command=sys.executable,
             resources=["fixture://private"],
             scope=scope,
         )

@@ -82,6 +82,7 @@ class FilePlans:
                     "additionalProperties": False,
                 },
                 propose,
+                validar=True,
             )
         )
 

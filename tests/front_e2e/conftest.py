@@ -9,6 +9,7 @@ Todo teste também é um teste de console: erro ou aviso da página derruba o te
 
 from __future__ import annotations
 
+import contextlib
 import os
 import socket
 import subprocess
@@ -41,9 +42,11 @@ def _porta_livre() -> int:
         return s.getsockname()[1]
 
 
-def _subir(token: str):
+def _subir(token: str, login: str = "", senha_de_fabrica: bool = False):
     porta = _porta_livre()
-    env = {**os.environ, "MOCK_PORT": str(porta), "MOCK_TOKEN": token}
+    env = {**os.environ, "MOCK_PORT": str(porta), "MOCK_TOKEN": token, "MOCK_LOGIN": login}
+    if senha_de_fabrica:
+        env["MOCK_DEFAULT_PW"] = "1"
     proc = subprocess.Popen(
         [sys.executable, "-m", "tests.front_e2e.mock_backend"],
         cwd=RAIZ,
@@ -73,9 +76,30 @@ def mock_url():
     yield from _subir("")
 
 
+@pytest.fixture
+def mock_isolado_url():
+    """Um mock só deste teste: para quem renomeia, fixa ou apaga conversas sem sujar os outros testes."""
+    yield from _subir("")
+
+
 @pytest.fixture(scope="session")
 def mock_token_url():
     yield from _subir(TOKEN)
+
+
+SENHA = "senha-do-e2e-123"
+
+
+@pytest.fixture
+def mock_login_url():
+    """Um cérebro com login por senha (como o orion.app): cada teste sobe o seu, sem sessão."""
+    yield from _subir("", SENHA)
+
+
+@pytest.fixture
+def mock_fabrica_url():
+    """Cérebro com login cuja senha ainda é a de fábrica (aviso depois de entrar, troca em Configurações)."""
+    yield from _subir("", SENHA, senha_de_fabrica=True)
 
 
 @pytest.fixture(scope="session")
@@ -88,6 +112,9 @@ def navegador():
                 "--use-gl=swiftshader",
                 "--enable-unsafe-swiftshader",
                 "--ignore-gpu-blocklist",
+                # microfone de mentira (um bipe): a voz ao vivo roda o AudioWorklet de verdade
+                "--use-fake-device-for-media-stream",
+                "--use-fake-ui-for-media-stream",
             ],
         )
         yield b
@@ -95,9 +122,8 @@ def navegador():
 
 
 @pytest.fixture
-def abrir(navegador, mock_url, novo_backend):
+def abrir(navegador, mock_url):
     """`abrir("#/chat")` → página aberta no front. Opções: viewport, url, reduced, axe, init, http_ok, boot."""
-    # A dependência mantém a API real viva até todos os contextos fecharem.
     contextos: list = []
     erros: list[str] = []
     permitir_http: list[bool] = [False]
@@ -127,6 +153,18 @@ def abrir(navegador, mock_url, novo_backend):
             ctx.add_init_script(init)
         page = ctx.new_page()
         page.on("pageerror", lambda e: erros.append(f"pageerror: {e}"))
+
+        def _resposta(r):
+            if r.status >= 400 and r.status != 401:
+                try:
+                    corpo = r.text()[:200]
+                except Exception:
+                    corpo = ""
+                erros.append(
+                    f"console.error: Failed to load resource: {r.status} {r.request.method} {r.url} {corpo}"
+                )
+
+        page.on("response", _resposta)
         page.on(
             "console",
             lambda m: (
@@ -140,9 +178,14 @@ def abrir(navegador, mock_url, novo_backend):
         page.wait_for_selector("html[data-pronto='true']")
         return page
 
+    def _fechar():
+        for c in contextos:
+            with contextlib.suppress(Exception):
+                c.close()
+
+    _abrir.fechar = _fechar
     yield _abrir
-    for c in contextos:
-        c.close()
+    _fechar()
     relevantes = [
         e
         for e in erros
@@ -153,7 +196,7 @@ def abrir(navegador, mock_url, novo_backend):
 
 
 @pytest.fixture
-def novo_backend(tmp_path):
+def novo_backend(tmp_path, abrir):
     """API real, gateway simulado e dados temporários; nunca chama um provedor."""
     import threading
 
@@ -222,6 +265,7 @@ def novo_backend(tmp_path):
         return url, app, gw, caminhos
 
     yield criar
+    abrir.fechar()  # as páginas fecham antes do servidor: sem erro de conexão recusada no console
     for server, thread in servidores:
         server.should_exit = True
         thread.join(timeout=10)

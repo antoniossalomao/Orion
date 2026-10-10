@@ -75,7 +75,7 @@ def test_memory_vault_sources_project_canaries_no_write_or_new_mcp(tmp_path):
             for schema in tools
         )
         assert note.read_bytes() == before
-        assert not s.mcp.connections
+        assert not s.mcp_host.connections
         assert s.memory.get_session(session.id).project_id == a
         assert c.post("/plugins/orion-memoria-vault/deactivate", headers=AUTH).status_code == 200
         with data_scope(a, include_personal=False):

@@ -25,6 +25,10 @@ class Tool:
     parameters: dict[str, Any]  # JSON Schema
     fn: Callable[..., Any]
     origin: str | None = None
+    # `validar` (ou `origin`, as de servidor MCP e de extensões): valida o esquema completo (tipos,
+    # enum, limites) antes de executar. As nativas antigas do Orion só exigem os obrigatórios:
+    # aceitam "5" onde o esquema diz integer, porque modelos mandam número como texto.
+    validar: bool = False
 
     def schema(self) -> dict[str, Any]:
         return {
@@ -54,6 +58,14 @@ class Tool:
         return json.dumps({"ok": False, "erro": message, "codigo": code}, ensure_ascii=False)
 
     def _invalid(self, args: dict[str, Any]) -> str | None:
+        if not (self.validar or self.origin is not None):
+            # só os obrigatórios
+            missing = [k for k in self.parameters.get("required", []) if k not in args]
+            if missing:
+                return self._error(
+                    "argumentos obrigatórios ausentes: " + ", ".join(missing), "arguments_invalid"
+                )
+            return None
         try:
             self.validator.validate(args)
         except SchemaError:

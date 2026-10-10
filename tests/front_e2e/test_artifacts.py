@@ -1,5 +1,7 @@
 import base64
 import io
+import tempfile
+from pathlib import Path
 
 from PIL import Image
 from playwright.sync_api import expect
@@ -56,7 +58,9 @@ def test_save_response_versions_safe_preview_download_scope_and_narrow(abrir, no
     )
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
     assert not page.evaluate("async () => (await axe.run(document)).violations")
-    page.screenshot(path="/workspace/artifacts/orion-c35-library-700.png", full_page=True)
+    page.screenshot(
+        path=str(Path(tempfile.gettempdir()) / "orion-c35-library-700.png"), full_page=True
+    )
     result = Artifacts(app.state.orion.memory).read(artifact_id, None)[1]
     assert result["message_id"] is not None and result["provenance"]
 

@@ -33,7 +33,8 @@
             if (!resp.ok) {
                 const corpo = await resp.text().catch(() => '');
                 let msg = `${rotuloFalha} (HTTP ${resp.status}).`;
-                if (resp.status === 401 || resp.status === 403) msg = 'Acesso negado: confira o token em Configurações › Conexão.';
+                if (resp.status === 401 || resp.status === 403) msg = 'Acesso negado: entre com a senha ou confira o token em Configurações › Conexão.';
+                if (resp.status === 401 && !token) bus.emit('auth:necessario');
                 else { try { const d = JSON.parse(corpo).detail; if (typeof d === 'string') msg = d; } catch (_) { /* corpo não-JSON */ } }
                 bus.emit('chat:recusado', { caminho, pedido: init.json, status: resp.status, mensagem: msg });
                 emitir({ tipo: 'erro', mensagem: msg, status: resp.status });
@@ -126,6 +127,7 @@
         },
 
         cancelar() {
+            if (O.fala?.ocupada()) { O.fala.cancelar(); return; }   // turno de voz: não usa o fetch abortável
             if (abortar) { abortar(); return; }
             if (hubAberto) {
                 ignorarHub = true;                              // descarta o que ainda chegar, até o idle

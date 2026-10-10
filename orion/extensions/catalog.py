@@ -94,6 +94,7 @@ class Catalog:
                 remote.input_schema,
                 bind(connection, remote.name, entry),
                 origin=entry.canonical_id,
+                validar=True,
             )
             _ = tool.validator
             spec = ToolSpec(

@@ -60,7 +60,7 @@ class Calendar:
             async def execute(start, end, remote=remote):
                 return await self.read(remote, start, end)
 
-            registry.register(Tool(name, description, parameters, execute))
+            registry.register(Tool(name, description, parameters, execute, validar=True))
             policy.tools[name] = ToolSpec(
                 name, Risk.READ, external=True, origin="google-calendar-mcp:2.7.0"
             )
@@ -157,7 +157,11 @@ class Calendar:
             if remote not in READ_TOOLS or remote not in tools:
                 raise MCPError("calendar_connector_incompatible")
             validated = Tool(
-                "calendar_remote", "", tools[remote].input_schema, lambda: None
+                "calendar_remote",
+                "",
+                tools[remote].input_schema,
+                lambda: None,
+                validar=True,
             )._invalid(args)
             if validated:
                 raise MCPError("calendar_connector_incompatible")

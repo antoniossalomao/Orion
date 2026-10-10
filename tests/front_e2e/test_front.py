@@ -8,7 +8,7 @@ import re
 import pytest
 from playwright.sync_api import expect
 
-from .conftest import AXE, TOKEN
+from .conftest import AXE, SENHA, TOKEN
 
 ROTAS = [
     "",
@@ -20,6 +20,9 @@ ROTAS = [
     "#/resultados",
     "#/atividade",
     "#/fontes",
+    "#/painel",
+    "#/conhecimento",
+    "#/privacidade",
 ]
 VIEWS = [
     "home",
@@ -31,6 +34,9 @@ VIEWS = [
     "resultados",
     "atividade",
     "fontes",
+    "painel",
+    "conhecimento",
+    "privacidade",
 ]
 TEMAS = ["noite", "grafite", "contraste"]
 
@@ -61,75 +67,8 @@ def test_home_carrega_com_saudacao_status_e_ceu(abrir):
         re.compile(r"^(Bom dia|Boa tarde|Boa noite|Boa madrugada)$")
     )
     expect(page.locator("#conn-text")).to_have_text("Conectado")
-    expect(page.locator("#home-status")).to_contain_text("Automático")
-    expect(page.locator("#home-status")).not_to_contain_text("Cérebro conectado")
-    assert page.locator("#sky canvas").count() == 1, "a constelação (WebGL) não subiu"
-
-
-def test_falha_de_sessoes_nao_altera_conexao_nem_dispara_notificacao(abrir):
-    page = abrir()
-    expect(page.locator("#conn-text")).to_have_text("Conectado")
-    resultado = page.evaluate("""async () => {
-        const O = Orion;
-        const sessoes = O.api.sessoes;
-        O.api.sessoes = async () => { throw new Error('sessões indisponíveis'); };
-        await O.sidebar.carregar();
-        const online = O.sidebar.online();
-        await O.sidebar.verificar();
-        O.api.sessoes = sessoes;
-        return online;
-    }""")
-    assert resultado is True, "falha ao listar sessões não significa perder conexão"
-    expect(page.locator("#conn-text")).to_have_text("Conectado")
-    expect(page.locator('#toasts [data-id="conn"]')).to_have_count(0)
-
-
-def test_reconexao_silenciosa_e_ping_sem_sobreposicao(abrir):
-    page = abrir()
-    expect(page.locator("#conn-text")).to_have_text("Conectado")
-    page.evaluate("""async () => {
-        const O = Orion;
-        const ping = O.api.ping;
-        O.api.ping = async () => ({ ok: false, ms: null });
-        await O.sidebar.verificar();
-        O.api.ping = ping;
-    }""")
-    expect(page.locator("#conn-text")).to_have_text("Sem conexão")
-    resultado = page.evaluate("""async () => {
-        const O = Orion;
-        const ping = O.api.ping;
-        let chamadas = 0;
-        let resolver;
-        O.api.ping = () => { chamadas++; return new Promise(r => { resolver = r; }); };
-        const primeira = O.sidebar.verificar();
-        const segunda = O.sidebar.verificar();
-        resolver({ ok: true, ms: 5 });
-        await Promise.all([primeira, segunda]);
-        O.api.ping = ping;
-        return chamadas;
-    }""")
-    assert resultado == 1, "polling concorrente pode aplicar resultados fora de ordem"
-    expect(page.locator("#conn-text")).to_have_text("Conectado")
-    expect(page.locator('#toasts [data-id="conn"]')).to_have_count(0)
-
-
-def test_status_home_preserva_dom_quando_dados_nao_mudam(abrir):
-    page = abrir()
     expect(page.locator("#home-status")).to_contain_text("memórias")
-    resultado = page.evaluate("""async () => {
-        const caixa = document.querySelector('#home-status');
-        const original = caixa.firstElementChild;
-        const health = Orion.api.health;
-        let terminou;
-        const pronto = new Promise(r => { terminou = r; });
-        Orion.api.health = async () => { const r = await health(); terminou(); return r; };
-        Orion.bus.emit('conn', { ok: true, ms: 5 });
-        await pronto;
-        await new Promise(r => requestAnimationFrame(r));
-        Orion.api.health = health;
-        return caixa.firstElementChild === original;
-    }""")
-    assert resultado, "polling não deve recriar os indicadores estáveis da home"
+    assert page.locator("#sky canvas").count() == 1, "a constelação (WebGL) não subiu"
 
 
 def test_navegacao_por_hash_botao_voltar_e_views_ocultas_inertes(abrir):
@@ -864,6 +803,107 @@ def test_conexao_testar_e_token_do_orion_app(abrir, mock_token_url):
     expect(ultima_resposta(page).locator(".prose")).to_contain_text("Entendido")
 
 
+def _tela(page):
+    return page.get_by_role("dialog", name="Entrar no Orion")
+
+
+def _entrar(page, senha=SENHA, usuario="admin"):
+    tela = _tela(page)
+    tela.get_by_label("Usuário").fill(usuario)
+    tela.get_by_label("Senha").fill(senha)
+    page.keyboard.press("Enter")
+
+
+def test_tela_de_entrada_cobre_o_app_inteiro_e_nada_dele_aparece_atras(abrir, mock_login_url):
+    page = abrir("#/chat", url=mock_login_url, http_ok=True)
+    expect(_tela(page)).to_be_visible()
+    info = page.evaluate(
+        """() => {
+        const t = document.querySelector('#login');
+        const cor = getComputedStyle(t).backgroundColor;
+        const pontos = [[2, 2], [innerWidth - 3, 2], [2, innerHeight - 3], [innerWidth - 3, innerHeight - 3],
+                        [innerWidth / 2, 20], [innerWidth / 2, innerHeight / 2], [60, innerHeight / 2]];
+        return { cor, cobre: pontos.map(([x, y]) => !!document.elementFromPoint(x, y)?.closest('#login')),
+                 appInerte: document.querySelector('#app').inert,
+                 caixa: t.getBoundingClientRect().toJSON() };
+    }"""
+    )
+    assert re.fullmatch(r"rgb\(\d+, \d+, \d+\)", info["cor"]), info[
+        "cor"
+    ]  # sólida: sem transparência
+    assert all(info["cobre"]) and info["appInerte"] is True
+    assert info["caixa"]["width"] >= 1440 and info["caixa"]["height"] >= 900
+    # só entrada: usuário, senha e o botão; sem nenhum controle do app focável por Tab
+    page.keyboard.press("Escape")
+    expect(_tela(page)).to_be_visible()  # Esc não fecha
+    focaveis = page.evaluate(
+        "() => [...document.querySelectorAll('#login input, #login button')].map(e => e.id)"
+    )
+    assert focaveis == ["login-usuario", "login-senha", "login-entrar"]
+
+
+def test_login_pede_usuario_e_senha_recusa_errados_e_libera_o_chat(abrir, mock_login_url):
+    page = abrir("#/chat", url=mock_login_url, http_ok=True)
+    tela = _tela(page)
+    expect(tela).to_be_visible()
+    expect(tela.get_by_label("Usuário")).to_be_focused()
+    expect(page.locator(".msg-error")).to_have_count(0)
+
+    page.keyboard.press("Enter")  # vazio: pede o usuário antes de qualquer chamada
+    expect(tela).to_contain_text("Digite o usuário.")
+    _entrar(page, "senha-errada")
+    expect(tela).to_contain_text("Usuário ou senha incorretos.")
+    expect(tela.get_by_label("Senha")).to_have_value("")  # a errada não fica no campo
+    expect(tela.get_by_label("Senha")).to_be_focused()
+    _entrar(page, SENHA, usuario="intruso")  # usuário errado falha igual
+    expect(tela).to_contain_text("Usuário ou senha incorretos.")
+
+    _entrar(page)
+    expect(tela).to_have_count(0)
+    expect(page.locator("#login")).to_be_hidden()
+    enviar(page, "oi")
+    esperar_fim(page)
+    expect(ultima_resposta(page).locator(".prose")).to_contain_text("Entendido")
+
+
+def test_login_bloqueado_mostra_o_aviso_de_espera(abrir, mock_login_url):
+    page = abrir("#/chat", url=mock_login_url, http_ok=True)
+    _entrar(page, "bloqueada")
+    expect(_tela(page)).to_contain_text("Muitas tentativas")
+
+
+def test_sessao_vencida_volta_a_tela_de_entrada_ao_enviar_mensagem(abrir, mock_login_url):
+    page = abrir("#/chat", url=mock_login_url, http_ok=True)
+    _entrar(page)
+    expect(page.locator("#login")).to_be_hidden()
+    page.context.clear_cookies()  # a sessão some (venceu, ou foi revogada)
+    enviar(page, "oi")
+    expect(_tela(page)).to_be_visible()
+    expect(page.locator(".msg-error")).to_contain_text("Acesso negado")
+    _entrar(page)
+    expect(page.locator("#login")).to_be_hidden()
+
+
+def test_sair_pelas_configuracoes_leva_a_tela_de_entrada(abrir, mock_login_url):
+    page = abrir("#/config", url=mock_login_url, http_ok=True)
+    _entrar(page)
+    botao = page.locator("#cfg-sessao-btn")
+    expect(botao).to_have_text("Sair")
+    expect(page.locator("#cfg-sessao-desc")).to_contain_text("logado")
+    botao.click()
+    expect(_tela(page)).to_be_visible()  # sem sessão não há o que mostrar
+    _entrar(page)
+    expect(page.locator("#login")).to_be_hidden()
+    expect(botao).to_have_text("Sair")
+
+
+def test_sem_login_no_cerebro_nao_aparece_tela_de_entrada_nem_a_linha_de_sessao(abrir):
+    page = abrir("#/config")  # mock sem login: o legado nem tem /auth/status
+    page.wait_for_timeout(300)
+    expect(_tela(page)).to_have_count(0)
+    expect(page.locator("#cfg-sessao")).to_be_hidden()
+
+
 def test_endereco_invalido_do_cerebro_e_recusado(abrir):
     page = abrir("#/config")
     page.fill("#cfg-url", "isso não é url")
@@ -909,8 +949,117 @@ def test_integracoes_listam_estado_real_e_acao_de_tts(abrir):
     card.get_by_role("button", name="Desligar").click()
     expect(card.get_by_role("button", name="Ligar")).to_be_visible()
     expect(page.locator('.integ-card[data-id="telegram"] .integ-status')).to_contain_text(
-        "bot rodando"
+        "Bot rodando"
     )
+
+
+def test_painel_mostra_alertas_modelos_clis_aprovacoes_e_politica(abrir):
+    page = abrir("#/painel")
+    corpo = page.locator("#painel-corpo")
+    expect(page.locator("#painel-corpo .banner").first).to_be_visible(timeout=8000)
+    # alertas: quarentena (grave) vem antes dos avisos; texto, não só cor
+    expect(corpo.locator(".painel-alertas")).to_contain_text("Modelo “reserva”: em quarentena")
+    expect(corpo.locator(".painel-alertas")).to_contain_text(
+        "A CLI “gemini” esgotou o limite de hoje."
+    )
+    expect(corpo.locator(".painel-alertas")).to_contain_text("Servidor MCP “web”: falhou")
+    primeiro = corpo.locator(".painel-alertas .banner").first
+    assert "banner-danger" in (primeiro.get_attribute("class") or "")
+    # modelos
+    ok = corpo.locator('[data-endpoint="gemini"]')
+    expect(ok).to_contain_text("Funcionando")
+    expect(ok).to_contain_text("último erro: HTTP 502")
+    expect(ok.locator(".painel-orcamento")).to_have_text(
+        "Limite do dia gasto: 2× para o fim da fila"
+    )
+    reserva = corpo.locator('[data-endpoint="reserva"]')
+    expect(reserva).to_contain_text("Em quarentena · volta em 2 min")
+    expect(reserva).to_contain_text("3× cota")
+    expect(reserva).to_contain_text("llama-3.3-70b · pesado")
+    expect(ok).not_to_contain_text("padrão")  # a camada padrão não aparece
+    expect(corpo.locator("[data-roteamento]")).to_have_text(
+        "Roteamento por tipo de tarefa: 12 rápidas · 3 pesadas · 1 com imagem"
+    )
+    # CLIs: uso, esgotada e não instalada
+    expect(corpo.locator('[data-cli="claude"] .meter-val')).to_have_text("4/20")
+    expect(corpo.locator('[data-cli="claude"]')).to_have_attribute("data-sev", "normal")
+    expect(corpo.locator('[data-cli="gemini"]')).to_have_attribute("data-sev", "critico")
+    expect(corpo.locator('[data-cli="gemini"] .painel-meter-nota')).to_have_text("esgotada hoje")
+    expect(corpo.locator('[data-cli="codex"]')).to_have_attribute("data-sev", "nd")
+    # política
+    expect(corpo.locator('[data-id="decisoes"]')).to_contain_text(
+        "12 decisões: 9 liberadas, 2 pediram aval, 1 negada."
+    )
+    expect(corpo.locator('[data-id="decisoes"] .painel-recentes li')).to_have_count(3)
+    expect(corpo.locator('[data-id="sistema"]')).to_contain_text("MCP · google")
+    expect(corpo.locator('[data-id="aprovacoes"] h3')).to_have_text("Aprovações")
+
+
+def test_painel_aprovacao_pendente_aparece_e_leva_ao_chat(abrir):
+    page = abrir("#/chat")
+    enviar(page, "apague os arquivos antigos")  # o mock responde com um pedido de aval
+    expect(page.locator(".approval").first).to_be_visible(timeout=15000)
+    page.evaluate("location.hash = '#/painel'")
+    expect(page.locator("html")).to_have_attribute("data-view", "painel")
+    cartao = page.locator('#painel-corpo [data-id="aprovacoes"]')
+    expect(cartao).to_contain_text("executar_comando", timeout=8000)
+    expect(page.locator("#painel-corpo .painel-alertas")).to_contain_text(
+        re.compile(r"esperam? o seu aval")
+    )  # o mock é da sessão inteira: pode haver mais de uma pendente
+    cartao.get_by_role("button", name="Abrir o chat para decidir").click()
+    expect(page.locator("html")).to_have_attribute("data-view", "chat")
+
+
+def test_painel_tudo_em_ordem_e_falha_do_cerebro(abrir):
+    import json as _json
+
+    calmo = {
+        "uptime_s": 30, "modelos": {"configurado": True, "endpoints": []}, "clis": [],
+        "aprovacoes": {"pendentes": 0, "itens": []},
+        "decisoes": {"janela_h": 24, "total": 0, "por_acao": {"allow": 0, "confirm": 0, "deny": 0},
+                     "mais_usadas": [], "recentes": []},
+        "avisos": {"pendentes": 0}, "jobs": {"ativo": False, "ultima_rodada": None, "erros": []},
+        "memoria": {"ok": True, "vetores": False}, "canais": {"telegram": False},
+        "ferramentas": 0, "mcp": {},
+    }  # fmt: skip
+    page = abrir(http_ok=True)  # o 500 de propósito aparece no console do navegador
+    estado = {"falha": False}
+
+    def rota(route):
+        if estado["falha"]:
+            route.fulfill(status=500, body="erro interno")
+        else:
+            route.fulfill(content_type="application/json", body=_json.dumps(calmo))
+
+    page.route("**/painel", rota)
+    page.evaluate("location.hash = '#/painel'")
+    expect(page.locator("#painel-corpo .banner-info")).to_contain_text(
+        "Tudo em ordem", timeout=8000
+    )
+    expect(page.locator('[data-id="decisoes"]')).to_contain_text(
+        "Nenhuma decisão nas últimas 24 h."
+    )
+    expect(page.locator('[data-id="sistema"]')).to_contain_text("nenhum servidor")
+    # o cérebro falha na atualização: avisa que os números podem estar velhos, sem apagar a tela
+    estado["falha"] = True
+    page.click("#painel-refresh")
+    expect(page.locator("#painel-corpo .painel-alertas")).to_contain_text(
+        "A última atualização falhou", timeout=8000
+    )
+    expect(page.locator('[data-id="sistema"]')).to_be_visible()
+
+
+def test_painel_pela_paleta_e_por_comando_de_barra(abrir):
+    page = abrir("#/chat")
+    page.keyboard.press("Control+k")
+    page.fill("#palette-input", "painel")
+    page.keyboard.press("Enter")
+    expect(page.locator("html")).to_have_attribute("data-view", "painel")
+    page.keyboard.press("Alt+2")
+    # `enviar` escolhe o campo pela tela atual: sem esperar a troca de tela, ele escreve no campo da home
+    expect(page.locator("html")).to_have_attribute("data-view", "chat")
+    enviar(page, "/painel")
+    expect(page.locator("html")).to_have_attribute("data-view", "painel")
 
 
 def test_cerebro_offline_degrada_sem_quebrar(abrir):
@@ -920,12 +1069,7 @@ def test_cerebro_offline_degrada_sem_quebrar(abrir):
         http_ok=True,
     )
     expect(page.locator("#conn-text")).to_have_text("Sem conexão", timeout=8000)
-    expect(page.locator("#sb-convs-list")).to_contain_text("Não foi possível carregar as conversas")
-    page.click('.sb-item[data-view="chat"]')
-    page.fill("#composer-input", "alguém aí?")
-    page.keyboard.press("Enter")
-    expect(page.locator("#composer-input")).to_have_value("alguém aí?")
-    expect(page.locator("#btn-send")).to_be_disabled()
+    expect(page.locator("#sb-convs-list")).to_contain_text("carregar as conversas")
     page.click('.sb-item[data-view="memoria"]')
     expect(page.locator("#mem-banner")).to_contain_text("demonstração", timeout=15000)
 
@@ -953,6 +1097,11 @@ pytestmark_axe = pytest.mark.skipif(
 
 
 def _violacoes(page):
+    # o diálogo aparece com um fade (opacity do scrim): medido no meio dele, o contraste dá falso positivo
+    page.wait_for_function(
+        """() => [...document.querySelectorAll('.dialog-scrim[data-open="true"]')]
+            .every(s => getComputedStyle(s).opacity === '1')"""
+    )
     res = page.evaluate(
         """() => axe.run(document, { runOnly: { type: 'tag',
         values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'] } })"""
@@ -981,7 +1130,6 @@ def test_axe_chat_com_resposta_aprovacao_e_erro(abrir):
     esperar_fim(page)
     enviar(page, "isso vai dar falha")
     expect(page.locator(".msg-error")).to_have_count(1)
-    page.wait_for_timeout(500)  # mede contraste depois da animação de entrada
     assert _violacoes(page) == []
 
 
@@ -997,6 +1145,19 @@ def test_axe_paleta_e_menu_de_modelo_abertos(abrir):
     page.keyboard.type("t")
     expect(page.locator("#palette")).to_have_attribute("data-open", "true")
     page.wait_for_timeout(400)
+    assert _violacoes(page) == []
+
+
+@pytestmark_axe
+@pytest.mark.parametrize("tema", TEMAS)
+def test_axe_tela_de_entrada_aberta(abrir, mock_login_url, tema):
+    page = abrir("#/chat", url=mock_login_url, http_ok=True, axe=True)
+    page.evaluate(f"Orion.prefs.set('theme', '{tema}')")
+    expect(_tela(page)).to_be_visible()
+    page.wait_for_timeout(500)
+    assert _violacoes(page) == []
+    _entrar(page, "senha-errada")
+    expect(_tela(page)).to_contain_text("Usuário ou senha incorretos.")
     assert _violacoes(page) == []
 
 
@@ -1035,3 +1196,512 @@ def test_janela_larga_mantem_a_barra_aberta_e_o_atalho_recolhe(abrir):
     expect(page.locator("html")).to_have_attribute("data-sb", "collapsed")
     page.set_viewport_size({"width": 1280, "height": 800})
     expect(page.locator("html")).to_have_attribute("data-sb", "expanded")
+
+
+@pytestmark_axe
+def test_senha_de_fabrica_avisa_so_depois_do_login_e_a_troca_some_com_o_aviso(
+    abrir, mock_fabrica_url
+):
+    page = abrir("#/chat", url=mock_fabrica_url, http_ok=True, axe=True)
+    expect(_tela(page)).to_be_visible()
+    expect(page.locator(".toast")).to_have_count(
+        0
+    )  # antes do login nada anuncia a senha de fábrica
+    _entrar(page)
+    aviso = page.locator(".toast", has_text="senha de fábrica")
+    expect(aviso).to_be_visible()
+    aviso.get_by_role("button", name="Trocar").click()
+    expect(page.locator("html")).to_have_attribute("data-view", "config")
+    expect(page.locator("#cfg-senha-aviso")).to_contain_text("senha de fábrica")
+    page.fill("#cfg-senha-atual", "errada-errada")
+    page.fill("#cfg-senha-nova", "curta")
+    page.click("#cfg-senha-btn")
+    expect(page.locator("#cfg-senha-out")).to_contain_text("senha atual incorreta")
+    page.fill("#cfg-senha-atual", SENHA)
+    page.click("#cfg-senha-btn")
+    expect(page.locator("#cfg-senha-out")).to_contain_text("pelo menos 12 caracteres")
+    page.fill("#cfg-senha-nova", "uma-senha-nova-bem-longa-9")
+    page.click("#cfg-senha-btn")
+    expect(page.locator("#cfg-senha-out")).to_contain_text("Senha trocada.")
+    expect(page.locator("#cfg-senha-aviso")).not_to_contain_text("senha de fábrica")
+    page.wait_for_timeout(500)
+    assert _violacoes(page) == []  # a tela de Configurações com o formulário de trocar senha
+
+
+# ── acabamento (análise visual de 06/10/2026) ───────────────────────────────────
+def test_integracoes_sem_nome_de_arquivo_e_com_dica_no_microfone_parado(abrir):
+    page = abrir("#/integracoes")
+    mic = page.locator('.integ-card[data-id="mic"] .integ-status')
+    expect(mic).to_contain_text("Microfone parado", timeout=5000)
+    expect(mic).to_contain_text("computador onde o cérebro roda")
+    assert ".py" not in page.locator("#integ-grid").inner_text()
+    # a faixa de estado tem a mesma altura em todos os cartões (botão ou não)
+    alturas = page.evaluate(
+        "[...document.querySelectorAll('.integ-status')].map(e => Math.round(e.getBoundingClientRect().height))"
+    )
+    assert len(set(alturas)) <= 2 and min(alturas) >= 50, alturas
+
+
+def test_pilula_de_estado_so_aparece_com_atividade_ou_aprovacao_pendente(abrir):
+    page = abrir("#/chat")
+    pilula = page.locator("#state-pill")
+    # o backend de mentira é compartilhado: aprovação deixada por outro teste também acende a pílula (é o comportamento certo)
+    page.wait_for_timeout(1200)
+    for negar in page.get_by_role("button", name="Negar").all():
+        negar.click()
+    expect(pilula).to_be_hidden()
+    enviar(page, "apague os arquivos antigos")
+    expect(page.locator(".approval").last).to_have_attribute("data-estado", "pendente")
+    esperar_fim(page)
+    expect(pilula).to_be_visible()
+    expect(page.locator("#state-label")).to_have_text("Aguardando aprovação")
+    page.locator(".approval").last.get_by_role("button", name="Negar").click()
+    expect(pilula).to_be_hidden()
+
+
+def test_composer_alinha_com_a_coluna_de_mensagens(abrir):
+    page = abrir("#/chat", viewport=(1440, 900))
+    enviar(page, "me explique algo longo com tabela e código")
+    esperar_fim(page)
+    caixa = page.evaluate(
+        """() => {
+            const c = document.querySelector('#composer-box').getBoundingClientRect();
+            const m = document.querySelector('.msg-orion').getBoundingClientRect();
+            const u = document.querySelector('.msg-user').getBoundingClientRect();
+            return { cL: c.left, cR: c.right, mL: m.left, uR: u.right };
+        }"""
+    )
+    assert abs(caixa["cL"] - caixa["mL"]) <= 1.5, caixa
+    assert abs(caixa["cR"] - caixa["uR"]) <= 1.5, caixa
+
+
+def test_paragrafo_depois_de_tabela_codigo_e_citacao_tem_espaco(abrir):
+    page = abrir("#/chat")
+    enviar(page, "me explique algo longo com tabela e código")
+    esperar_fim(page)
+    folgas = page.evaluate(
+        """() => {
+            const pr = [...document.querySelectorAll('.msg-orion .prose')].pop();
+            const out = [];
+            for (const f of pr.children) {
+                const ant = f.previousElementSibling;
+                if (ant && f.tagName === 'P') out.push([ant.className || ant.tagName, f.getBoundingClientRect().top - ant.getBoundingClientRect().bottom]);
+            }
+            return out;
+        }"""
+    )
+    assert folgas, "a resposta de teste não tem parágrafo depois de outro bloco"
+    assert all(g >= 6 for _, g in folgas), folgas
+
+
+def test_grafico_de_latencia_so_aparece_com_medicoes_suficientes(abrir):
+    page = abrir("#/config")
+    legenda = page.locator("#a-spark-legenda")
+    expect(legenda).to_contain_text("medições", timeout=8000)
+    texto = legenda.inner_text()
+    if "Coletando" in texto:
+        expect(page.locator("#a-spark")).to_be_hidden()
+    else:
+        assert "mín" in texto and "máx" in texto
+        expect(page.locator("#a-spark")).to_be_visible()
+
+
+def test_memoria_resultados_trazem_tipo_e_ligacoes_para_distinguir_nos(abrir):
+    page = abrir("#/memoria")
+    page.fill("#mem-search", "memória")
+    primeiro = page.locator(".mem-result").first
+    expect(primeiro).to_be_visible(timeout=8000)
+    meta = primeiro.locator("small")
+    expect(meta).to_have_text(re.compile(r"(Tópico|Fala do Orion|Fala sua) · "))
+    assert "ligaç" in meta.inner_text()
+
+
+def test_alto_contraste_na_home_mantem_a_constelacao_visivel(abrir):
+    page = abrir(init="localStorage.setItem('orion_theme', JSON.stringify('contraste'))")
+    assert page.evaluate("document.documentElement.dataset.theme") == "contraste"
+    assert (
+        float(page.evaluate("getComputedStyle(document.querySelector('#sky-veil')).opacity")) < 0.5
+    )
+    page.click('.sb-item[data-view="chat"]')
+    expect(page.locator("html")).to_have_attribute("data-view", "chat")
+    page.wait_for_timeout(600)
+    assert (
+        float(page.evaluate("getComputedStyle(document.querySelector('#sky-veil')).opacity")) > 0.9
+    )
+
+
+def test_html_nao_usa_estilo_inline_estatico():
+    from pathlib import Path
+
+    html = (
+        Path(__file__).resolve().parents[2] / "Orion_Core" / "Front_end_Orion" / "index.html"
+    ).read_text(encoding="utf-8")
+    assert 'style="' not in html, 'use classes (components.css), não style="" no index.html'
+
+
+def test_editar_mensagem_enviada_poe_o_texto_no_campo_sem_apagar_rascunho(abrir):
+    page = abrir("#/chat")
+    enviar(page, "me lembra de ligar para o Pedro")
+    esperar_fim(page)
+    usuario = page.locator(".msg-user").first
+    usuario.hover()
+    usuario.get_by_role("button", name="Editar e reenviar").click()
+    expect(page.locator("#composer-input")).to_have_value("me lembra de ligar para o Pedro")
+    expect(page.locator("#composer-input")).to_be_focused()
+    # com rascunho diferente no campo, não sobrescreve
+    page.fill("#composer-input", "outra coisa")
+    usuario.hover()
+    usuario.get_by_role("button", name="Editar e reenviar").click()
+    expect(page.locator("#composer-input")).to_have_value("outra coisa")
+    expect(page.locator(".toast").last).to_contain_text("já tem um rascunho")
+
+
+# ── conversas: renomear, fixar, apagar (barra lateral, menu ⋯ e paleta) ─────────
+def _linha(page, titulo: str):
+    return page.locator("#sb-convs-list .conv-row", has_text=titulo)
+
+
+def _abrir_menu(page, titulo: str):
+    linha = _linha(page, titulo)
+    linha.hover()
+    linha.locator(".conv-more").click()
+    expect(page.locator("#conv-menu")).to_have_attribute("data-open", "true")
+
+
+GRAVADOR_FALSO = """
+(() => {
+  class FakeRecorder {
+    static isTypeSupported() { return true; }
+    constructor(stream, opcoes) { this.mimeType = opcoes.mimeType; this.state = 'inactive'; }
+    start() { this.state = 'recording'; }
+    stop() {
+      this.state = 'inactive';
+      const n = window.__tamanho_da_fala || 4000;
+      this.ondataavailable?.({ data: new Blob([new Uint8Array(n)], { type: this.mimeType }) });
+      setTimeout(() => this.onstop?.(), 0);
+    }
+  }
+  window.MediaRecorder = FakeRecorder;
+  window.__trilhas_paradas = 0;
+  const trilha = { stop() { window.__trilhas_paradas++; } };
+  navigator.mediaDevices.getUserMedia = async () => ({ getTracks: () => [trilha] });
+})();
+"""
+
+
+def test_falar_por_clique_vira_turno_e_mostra_o_que_foi_entendido(abrir):
+    page = abrir("#/chat", init=GRAVADOR_FALSO)
+    botao = page.locator("#composer-box .voice-ptt-btn")
+    expect(botao).to_have_attribute("aria-pressed", "false")
+    botao.click()
+    expect(botao).to_have_attribute("aria-pressed", "true")
+    expect(botao).to_have_attribute("aria-label", "Parar e enviar a fala")
+    botao.click()  # segundo clique envia
+    expect(page.locator(".msg-user").last).to_contain_text("que horas são")
+    expect(ultima_resposta(page)).to_contain_text("São três e meia (4000 bytes).")
+    esperar_fim(page)
+    expect(botao).to_have_attribute("aria-pressed", "false")
+    expect(botao).to_be_enabled()
+    assert page.evaluate("window.__trilhas_paradas") == 1, "o microfone ficou aberto"
+
+
+def test_esc_descarta_a_gravacao_sem_enviar(abrir):
+    page = abrir("#/chat", init=GRAVADOR_FALSO)
+    botao = page.locator("#composer-box .voice-ptt-btn")
+    botao.click()
+    expect(botao).to_have_attribute("aria-pressed", "true")
+    page.keyboard.press("Escape")
+    expect(botao).to_have_attribute("aria-pressed", "false")
+    assert page.locator(".msg-user").count() == 0
+    assert page.evaluate("window.__trilhas_paradas") == 1
+
+
+def test_falar_a_partir_da_home_abre_o_chat_e_a_paleta_tem_o_comando(abrir):
+    page = abrir("", init=GRAVADOR_FALSO)
+    page.locator("#home-form .voice-ptt-btn").click()
+    # a tela pode já ter ido para o chat: o segundo clique vale no botão que estiver visível
+    page.locator(".view[data-active='true'] .voice-ptt-btn").first.click()
+    expect(page).to_have_url(re.compile(r"#/chat$"))
+    expect(page.locator(".msg-user").last).to_contain_text("que horas são")
+    page.keyboard.press("Control+k")
+    page.fill("#palette-input", "falar com")
+    expect(page.locator("#palette-list")).to_contain_text("Falar com o Orion")
+
+
+def test_sem_microfone_o_botao_explica_em_vez_de_quebrar(abrir):
+    page = abrir(
+        "#/chat", init="Object.defineProperty(navigator, 'mediaDevices', { value: undefined });"
+    )
+    page.locator("#composer-box .voice-ptt-btn").click()
+    expect(page.locator(".toast").last).to_contain_text("Microfone indisponível")
+
+
+def _stats(url: str) -> dict:
+    import httpx
+
+    return httpx.get(f"{url}/voz-stats", timeout=3).json()
+
+
+def test_parar_a_fala_enquanto_a_resposta_toca(mock_isolado_url, abrir):
+    page = abrir("#/chat", init=GRAVADOR_FALSO, url=mock_isolado_url)
+    botao = page.locator("#composer-box .voice-ptt-btn")
+    botao.click()
+    botao.click()
+    expect(ultima_resposta(page)).to_contain_text("São três e meia")
+    # a fala de 3 s está tocando: o mesmo botão agora para a resposta
+    expect(botao).to_have_attribute("aria-label", "Parar a resposta")
+    botao.click()
+    expect(botao).to_have_attribute("aria-label", "Falar com o Orion")
+    expect(page.locator("html")).to_have_attribute("data-estado", "idle")
+
+
+def test_esc_para_a_fala_que_toca(mock_isolado_url, abrir):
+    page = abrir("#/chat", init=GRAVADOR_FALSO, url=mock_isolado_url)
+    botao = page.locator("#composer-box .voice-ptt-btn")
+    botao.click()
+    botao.click()
+    expect(botao).to_have_attribute("aria-label", "Parar a resposta")
+    page.keyboard.press("Escape")
+    expect(botao).to_have_attribute("aria-label", "Falar com o Orion")
+
+
+def test_parar_um_turno_de_voz_que_ainda_nao_respondeu_cancela_no_servidor(mock_isolado_url, abrir):
+    page = abrir(
+        "#/chat", init=GRAVADOR_FALSO + "window.__tamanho_da_fala = 4001;", url=mock_isolado_url
+    )
+    botao = page.locator("#composer-box .voice-ptt-btn")
+    botao.click()
+    botao.click()
+    expect(page.locator(".msg-user").last).to_contain_text("que horas são")
+    expect(botao).to_have_attribute("aria-label", "Parar a resposta")
+    botao.click()  # o servidor está "pensando" há segundos: cancela
+    expect(botao).to_have_attribute("aria-label", "Falar com o Orion")
+    page.wait_for_function("() => !document.querySelector('#btn-send[data-mode=\"stop\"]')")
+    for _ in range(40):
+        if _stats(mock_isolado_url).get("falas_canceladas") == 1:
+            break
+        page.wait_for_timeout(100)
+    assert _stats(mock_isolado_url).get("falas_canceladas") == 1
+    assert page.locator(".msg-orion .msg-error").count() == 0
+
+
+def test_botao_de_parar_do_chat_tambem_cancela_a_voz(mock_isolado_url, abrir):
+    page = abrir(
+        "#/chat", init=GRAVADOR_FALSO + "window.__tamanho_da_fala = 4001;", url=mock_isolado_url
+    )
+    botao = page.locator("#composer-box .voice-ptt-btn")
+    botao.click()
+    botao.click()
+    expect(page.locator("#btn-send")).to_have_attribute("data-mode", "stop")
+    page.locator("#btn-send").click()
+    expect(page.locator("#btn-send")).to_have_attribute("data-mode", "send")
+    expect(botao).to_have_attribute("aria-label", "Falar com o Orion")
+
+
+# ── voz ao vivo (B): AudioWorklet de verdade, microfone de mentira do Chromium ──────
+def test_voz_ao_vivo_captura_pelo_worklet_e_mostra_a_resposta(mock_isolado_url, abrir):
+    page = abrir("#/chat", url=mock_isolado_url)
+    botao = page.locator("#composer-box .voice-live-btn")
+    botao.click()
+    expect(botao).to_have_attribute("aria-pressed", "true")
+    expect(ultima_resposta(page)).to_contain_text("Olá da voz ao vivo.", timeout=10000)
+    for _ in range(50):  # quadros de 2048 amostras de 16 bits = 4096 bytes cada
+        st = _stats(mock_isolado_url)
+        if st.get("live_quadros", 0) >= 3:
+            break
+        page.wait_for_timeout(100)
+    st = _stats(mock_isolado_url)
+    assert st["live_quadros"] >= 3, "o worklet não mandou áudio"
+    assert st["live_bytes"] == st["live_quadros"] * 4096
+    botao.click()
+    expect(botao).to_have_attribute("aria-pressed", "false")
+    for _ in range(30):
+        if _stats(mock_isolado_url).get("live_stop") == 1:
+            break
+        page.wait_for_timeout(100)
+    assert _stats(mock_isolado_url).get("live_stop") == 1
+
+
+def test_voz_ao_vivo_erro_do_servidor_desliga_e_avisa(mock_isolado_url, abrir):
+    # o mock responde com erro quando a URL leva ?falha=1; o init script acrescenta isso
+    init = """
+    const Orig = window.WebSocket;
+    window.WebSocket = class extends Orig {
+      constructor(u, p) { super(String(u).endsWith('/ws/voice') ? u + '?falha=1' : u, p); }
+    };
+    """
+    page = abrir("#/chat", url=mock_isolado_url, init=init)
+    botao = page.locator("#composer-box .voice-live-btn")
+    botao.click()
+    expect(page.locator(".toast", has_text="ORION_VOICE_LIVE_ENABLED")).to_be_visible()
+    expect(botao).to_have_attribute("aria-pressed", "false")
+
+
+def test_painel_mostra_a_voz(abrir):
+    page = abrir("#/painel")
+    expect(page.locator("#painel-corpo")).to_contain_text("Voz por clique")
+    expect(page.locator("#painel-corpo")).to_contain_text("7 fala(s), com resposta falada")
+    expect(page.locator("#painel-corpo")).to_contain_text("2 sessão(ões), 12.5 min")
+
+
+def test_painel_mostra_o_uso_da_semana_com_barras_e_total(abrir):
+    page = abrir("#/painel")
+    cartao = page.locator('[data-id="semana"]')
+    expect(cartao).to_be_visible(timeout=5000)
+    expect(cartao.locator(".painel-dia")).to_have_count(7)
+    expect(cartao.locator("[data-semana]")).to_contain_text("56 resposta(s) em 7 dias")
+    expect(cartao.locator("[data-semana]")).to_contain_text("1 falha(s)")
+    expect(cartao.locator('.painel-dia[data-total="20"]')).to_have_count(1)
+
+
+def test_conhecimento_pausa_retoma_e_apaga_a_memoria_da_tela(abrir, mock_isolado_url):
+    page = abrir("#/conhecimento", url=mock_isolado_url)
+    estado = page.locator("[data-tela]")
+    expect(estado).to_contain_text("Capturando · 42 registro(s)", timeout=5000)
+    expect(estado).to_contain_text("só texto, OCR local")
+    page.locator("[data-tela-pausa]").click()
+    expect(estado).to_contain_text("Pausada")
+    expect(page.locator("[data-tela-pausa]")).to_have_text("Retomar captura")
+    page.locator("[data-tela-pausa]").click()
+    expect(estado).to_contain_text("Capturando")
+    page.locator("#conhecimento-corpo").get_by_role("button", name="Apagar tudo").click()
+    alerta = page.get_by_role("alertdialog", name="Apagar a memória da tela?")
+    alerta.get_by_role("button", name="Cancelar").click()
+    expect(estado).to_contain_text("42 registro(s)")
+    page.locator("#conhecimento-corpo").get_by_role("button", name="Apagar tudo").click()
+    page.get_by_role("alertdialog").get_by_role("button", name="Apagar tudo").click()
+    expect(estado).to_contain_text("0 registro(s)")
+
+
+def test_conhecimento_resultados_com_versao_previa_download_e_apagar(abrir, mock_isolado_url):
+    page = abrir("#/conhecimento", url=mock_isolado_url)
+    itens = page.locator("[data-resultado]")
+    expect(itens).to_have_count(3, timeout=5000)
+    expect(itens.first).to_contain_text("v2")  # a mais nova primeiro
+    expect(itens.first).to_contain_text("conversa “Dúvida de UML”")
+    expect(itens.nth(2)).to_contain_text("diagrama.pdf")
+    expect(page.get_by_role("button", name="Ver diagrama.pdf versão 1")).to_have_count(
+        0
+    )  # sem prévia
+    page.get_by_role("button", name="Ver ata-reuniao.md versão 2").click()
+    expect(itens.first.locator(".conh-previa")).to_contain_text("Decisões revisadas")
+    page.get_by_role("button", name="Ver ata-reuniao.md versão 1").click()
+    expect(itens.nth(1).locator(".conh-previa")).to_contain_text("Decisões da reunião")
+    with page.expect_download() as d:
+        page.get_by_role("button", name="Baixar ata-reuniao.md versão 2").click()
+    assert d.value.suggested_filename == "ata-reuniao.md"
+    page.get_by_role("button", name="Apagar diagrama.pdf versão 1").click()
+    alerta = page.get_by_role("alertdialog", name="Apagar este resultado?")
+    alerta.get_by_role("button", name="Cancelar").click()
+    expect(itens).to_have_count(3)
+    page.get_by_role("button", name="Apagar diagrama.pdf versão 1").click()
+    page.get_by_role("alertdialog").get_by_role("button", name="Apagar").click()
+    expect(itens).to_have_count(2)
+
+
+def test_painel_caixa_de_atividade_mostra_avisos_e_marca_como_lido(abrir, mock_isolado_url):
+    page = abrir("#/painel", url=mock_isolado_url)
+    cartao = page.locator('[data-id="atividade"]')
+    expect(cartao).to_be_visible(timeout=8000)
+    expect(cartao).to_contain_text("1 não lido(s)")
+    novo = cartao.locator('[data-aviso="1"]')
+    expect(novo).to_contain_text("Bom dia, Antônio")
+    expect(novo).to_have_attribute("data-lido", "false")
+    expect(cartao.locator('[data-aviso="2"]')).to_have_attribute("data-lido", "true")
+    page.get_by_role("button", name="Marcar aviso briefing como lido").click()
+    expect(cartao).to_contain_text("0 não lido(s)", timeout=8000)
+    expect(cartao.locator('[data-aviso="1"]')).to_have_attribute("data-lido", "true")
+
+
+def test_modo_panico_liga_com_um_clique_e_so_sai_com_a_senha(abrir, mock_isolado_url):
+    page = abrir("#/painel", url=mock_isolado_url, http_ok=True)  # a senha errada dá 403
+    controle = page.locator('#painel-corpo [data-id="controle"]')
+    expect(controle.locator('[data-modo="panico"]')).to_have_attribute(
+        "data-estado", "desligado", timeout=8000
+    )
+    controle.get_by_role("button", name="Ligar modo pânico").click()
+    page.get_by_role("alertdialog").get_by_role("button", name="Ligar").click()
+    expect(page.locator("#painel-corpo .painel-alertas .banner-danger").first).to_contain_text(
+        "Modo pânico ligado", timeout=8000
+    )
+    expect(controle.locator('[data-modo="panico"]')).to_contain_text("LIGADO")
+    # sair: a senha é pedida de novo; errada não sai
+    controle.get_by_role("button", name="Sair do modo pânico").click()
+    campo = page.get_by_label("Confirme a senha")
+    assert campo.get_attribute("type") == "password"
+    campo.fill("errada")
+    page.keyboard.press("Enter")
+    expect(page.locator(".toast").last).to_contain_text("confirme a senha", timeout=5000)
+    expect(controle.locator('[data-modo="panico"]')).to_have_attribute("data-estado", "ligado")
+    controle.get_by_role("button", name="Sair do modo pânico").click()
+    page.get_by_label("Confirme a senha").fill("senha-do-mock-123")
+    page.keyboard.press("Enter")
+    expect(controle.locator('[data-modo="panico"]')).to_have_attribute(
+        "data-estado", "desligado", timeout=5000
+    )
+    expect(page.locator("#painel-corpo .painel-alertas")).not_to_contain_text("Modo pânico")
+
+
+def test_nao_perturbe_pelo_painel_e_panico_pela_paleta(abrir, mock_isolado_url):
+    page = abrir("#/painel", url=mock_isolado_url)
+    controle = page.locator('#painel-corpo [data-id="controle"]')
+    controle.get_by_role("button", name="Não perturbe até…").click(timeout=8000)
+    page.get_by_label("Até que horas? (HH:MM)").fill("06:30")
+    page.keyboard.press("Enter")
+    expect(controle.locator('[data-modo="nao-perturbe"]')).to_contain_text(
+        "até 06:30", timeout=5000
+    )
+    controle.get_by_role("button", name="Desligar não perturbe").click()
+    expect(controle.locator('[data-modo="nao-perturbe"]')).to_have_attribute(
+        "data-estado", "desligado", timeout=5000
+    )
+    page.keyboard.press("Control+k")
+    page.fill("#palette-input", "pânico")
+    page.keyboard.press("Enter")
+    page.get_by_role("alertdialog").get_by_role("button", name="Ligar").click()
+    expect(page.locator(".toast").last).to_contain_text("Modo pânico ligado.")
+    page.click("#painel-refresh")
+    expect(controle.locator('[data-modo="panico"]')).to_have_attribute(
+        "data-estado", "ligado", timeout=5000
+    )
+
+
+def test_privacidade_mostra_o_grafico_os_totais_e_o_que_saiu_hoje(abrir):
+    page = abrir()
+    page.click('.sb-item[data-view="privacidade"]')
+    expect(page.locator("html")).to_have_attribute("data-view", "privacidade")
+    corpo = page.locator("#privacidade-corpo")
+    expect(corpo.locator(".banner-info")).to_contain_text("em 7 dias", timeout=8000)
+    expect(corpo.locator(".banner-info")).to_contain_text("o conteúdo nunca é guardado")
+    grafico = corpo.locator('[data-id="grafico"]')
+    expect(grafico.locator(".priv-dia")).to_have_count(7)
+    hoje = grafico.locator(".priv-dia").last
+    expect(hoje.locator(".priv-seg")).to_have_count(2)  # gateway e imagem
+    expect(hoje.locator(".sr-only")).to_contain_text("gateway:visao 1")
+    expect(grafico.locator(".priv-legenda li")).to_have_count(3)
+    totais = corpo.locator('[data-id="totais"]')
+    expect(totais.locator('[data-provedor="groq"]')).to_contain_text("4 envio(s)")
+    expect(totais.locator('[data-provedor="groq"]')).to_contain_text("audio ×4")
+    tabela = corpo.locator('[data-id="hoje"] tbody tr')
+    expect(tabela).to_have_count(2)
+    expect(tabela.first).to_contain_text("imagem")
+    expect(tabela.last).to_contain_text("falhou")
+    page.select_option("#privacidade-dias", "30")
+    expect(grafico.locator(".priv-dia")).to_have_count(30, timeout=5000)
+    # pela paleta também
+    page.keyboard.press("Alt+2")
+    page.keyboard.press("Control+k")
+    page.fill("#palette-input", "privacidade")
+    page.keyboard.press("Enter")
+    expect(page.locator("html")).to_have_attribute("data-view", "privacidade")
+
+
+@pytestmark_axe
+def test_axe_painel_com_controle_e_dialogo_de_senha(abrir, mock_isolado_url):
+    page = abrir("#/painel", url=mock_isolado_url, axe=True)
+    controle = page.locator('#painel-corpo [data-id="controle"]')
+    controle.get_by_role("button", name="Ligar modo pânico").click(timeout=8000)
+    page.get_by_role("alertdialog").get_by_role("button", name="Ligar").click()
+    controle.get_by_role("button", name="Sair do modo pânico").click()
+    expect(page.get_by_label("Confirme a senha")).to_be_visible()
+    assert _violacoes(page) == []

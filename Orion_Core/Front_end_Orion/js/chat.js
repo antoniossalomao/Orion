@@ -67,7 +67,7 @@
             m.append(el('div', { class: 'attach-note' }, el('span', { html: icone('clip') }), `${anexos.map(a => a).join(', ')}`));
         }
         for (const skill of skills) m.append(el('div', { class: 'attach-note', text: `Skill: ${skill.id} · ${skill.origin} · ${skill.version}` }));
-        m.append(el('div', { class: 'msg-actions' }, botaoAcao('copiar', 'Copiar mensagem', 'copy')));
+        m.append(el('div', { class: 'msg-actions' }, botaoAcao('copiar', 'Copiar mensagem', 'copy'), botaoAcao('editar', 'Editar e reenviar', 'edit')));
         textoDe.set(m, texto);
         acrescentar(m);
         mostrar(m, animar);
@@ -392,7 +392,7 @@
 
     async function carregarPendentes() {
         try {
-            const lista = await api.aprovacoes();
+            const lista = await api.aprovacoes({ semAviso: true });
             if (!Array.isArray(lista) || !lista.length) return;
             const a = criarOrion({ pensando: false, animar: false });
             a.el.dataset.streaming = 'false';
@@ -443,6 +443,7 @@
         const msg = acao.closest('.msg');
         switch (acao.dataset.acao) {
             case 'salvar-resultado': O.artifacts.salvarResposta(textoDe.get(msg) || '', Number(msg.dataset.messageId) || null, msg.dataset.sessionId || null); break;
+            case 'editar': O.composer.editar(textoDe.get(msg) || ''); break;
             case 'editar-pedido': O.caminhos.editar(msg.dataset.messageId, msg.dataset.sessionId, textoDe.get(msg) || ''); break;
             case 'copiar': ui.copiar(textoDe.get(msg) || '').then(ok => ok ? ui.piscarOk(acao) : ui.toast('Não consegui copiar.', { tipo: 'erro' })); break;
             case 'ouvir': {
@@ -472,6 +473,9 @@
         rolagem.addEventListener('keydown', e => { if (['ArrowUp', 'PageUp', 'Home'].includes(e.key)) soltar(); });
         btnFim.addEventListener('click', () => { seguir = true; naoLidas = 0; irAoFim(true); atualizarBotaoFim(); });
         col.addEventListener('click', clique);
+        // a pílula do topo acompanha os cartões de aprovação pendentes (criar, aprovar, negar, limpar a conversa)
+        new MutationObserver(() => O.estado.aprovacao(pendentes().length > 0))
+            .observe(col, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-estado'] });
         bus.on('chat:evento', aoEvento);
         ligarCitar();
         new ResizeObserver(() => { if (seguir) irAoFim(); atualizarBotaoFim(); }).observe(col);

@@ -6,14 +6,25 @@ e pelo `orion-desktop`, sempre com a classe de risco em `orion.policy.classes`.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from ..delegate import Delegator
 from ..memory import MemoryStore
 from ..memory.ops import Operations
+from ..transcribe import Transcriber
+from ..vision import Vision
+from .audio import audio_tools
 from .desktop import desktop_tools
+from .documents import document_tools
+from .fs_tools import fs_tools
+from .media import media_tools
 from .ops_tools import ops_tools
+from .processes import ProcessManager, process_tools
 from .registry import Tool, ToolRegistry
+from .system_tools import system_tools
+from .vision import vision_tools
+from .web import web_tools
 
 
 def memory_tools(store: MemoryStore) -> list[Tool]:
@@ -119,14 +130,37 @@ def default_registry(
     ops: Operations | None = None,
     *,
     desktop: bool = False,
+    web: bool = False,
+    processes: ProcessManager | None = None,
+    web_options: dict[str, Any] | None = None,
+    transcriber: Transcriber | None = None,
+    vision: Vision | None = None,
+    captures_dir: Path | None = None,
+    extra: list[Tool] | None = None,
 ) -> ToolRegistry:
     reg = ToolRegistry(memory_tools(store))
     if desktop:  # opt-in (ORION_DESKTOP_TOOLS): age no computador, sempre sob a política
-        for t in desktop_tools():
+        for t in (
+            *desktop_tools(), *fs_tools(), *system_tools(), *document_tools(), *media_tools()
+        ):  # fmt: skip
+            reg.register(t)
+        if vision is not None and captures_dir is not None:  # opt-in próprio (ORION_VISION_TOOLS)
+            for t in vision_tools(vision, captures_dir):
+                reg.register(t)
+        if transcriber is not None:  # só com a chave de transcrição configurada
+            for t in audio_tools(transcriber):
+                reg.register(t)
+        if processes is not None and ops is not None:
+            for t in process_tools(processes, ops):
+                reg.register(t)
+    if web:  # opt-in (ORION_WEB_TOOLS): rede, conteúdo externo
+        for t in web_tools(**(web_options or {})):
             reg.register(t)
     if ops is not None:
         for t in ops_tools(ops):
             reg.register(t)
     if delegator is not None:
         reg.register(delegate_tool(delegator))
+    for t in extra or []:  # servidores MCP: já classificados na política
+        reg.register(t)
     return reg

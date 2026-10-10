@@ -53,3 +53,4 @@ def test_csp_do_index_libera_exatamente_o_script_inline_de_preferencias():
     assert f"'sha256-{hash_real}'" in csp
     assert "script-src 'self'" in csp and "'unsafe-inline'" not in csp.split("style-src")[0]
     assert "object-src 'none'" in csp and "base-uri 'none'" in csp
+    assert "media-src 'self' blob:" in csp  # a fala da resposta toca de um blob (js/fala.js)

@@ -3,10 +3,14 @@
 v1: conversas, fatos, documentos e vetores. v2: operação (lembretes, agendamentos,
 tarefas, números, prompts), arestas do grafo e fila de notificações. Banco v1 sobe
 para a versão atual sozinho (`MIGRATIONS`). v3: seleção persistente de sessão por canal.
-v4: conversas fixadas. v5: índice de títulos para busca de conversas.
+v4: conversas fixadas. v5: índice de títulos para busca de conversas. v6–v16: projetos,
+resultados, uploads, contas, agenda, planos de arquivos e clientes de exportação. v17: memória da
+tela, biblioteca de arquivos gerados, registro de saída (`external_calls`, regra 47) e aviso
+urgente (não perturbe, regra 48). Um banco da linhagem anterior da `main` (versão 11, com
+`external_calls`) é reconhecido e migrado por `MAIN_V11` (ver `store.py`).
 """
 
-SCHEMA_VERSION = 16
+SCHEMA_VERSION = 17
 
 TOKENIZER = "unicode61 remove_diacritics 2"  # "açúcar" casa com "acucar"
 
@@ -296,6 +300,67 @@ CREATE TABLE export_clients(id TEXT PRIMARY KEY,name TEXT NOT NULL,
  expires_at REAL NOT NULL,revoked INTEGER NOT NULL DEFAULT 0,created_at REAL NOT NULL);
 """
 
+# Memória da tela (D3): SÓ texto lido por OCR local, com retenção curta; imagem nunca é guardada.
+# Biblioteca de arquivos gerados (C34), cópia com origem e versões (`library_results`: o nome
+# `artifacts` é dos resultados versionados do chat). Registro de saída (regra 47): uma linha por
+# chamada a provedor de fora, sem o conteúdo; base da cota gratuita (regra 46), da telemetria por
+# provedor e do painel de privacidade. `urgent`: o não perturbe (regra 48) segura na fila o aviso
+# que não for urgente.
+DDL_V17 = f"""
+CREATE TABLE screen_log (
+    id INTEGER PRIMARY KEY,
+    ts REAL NOT NULL,
+    title TEXT NOT NULL DEFAULT '',
+    text TEXT NOT NULL
+);
+CREATE INDEX idx_screen_ts ON screen_log(ts);
+{_fts("screen_log")}
+CREATE TABLE library_results (
+    id INTEGER PRIMARY KEY,
+    session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+    project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+    kind TEXT NOT NULL,            -- documento | imagem
+    name TEXT NOT NULL,
+    stored TEXT NOT NULL,          -- nome do arquivo dentro da pasta da biblioteca
+    bytes INTEGER NOT NULL,
+    tool TEXT NOT NULL,
+    version INTEGER NOT NULL DEFAULT 1,
+    parent_id INTEGER REFERENCES library_results(id) ON DELETE SET NULL,
+    created_at REAL NOT NULL
+);
+CREATE INDEX idx_library_results_name ON library_results(name, version);
+CREATE INDEX idx_library_results_created ON library_results(created_at);
+CREATE TABLE external_calls (
+    id INTEGER PRIMARY KEY,
+    ts REAL NOT NULL,
+    provider TEXT NOT NULL,      -- gateway:<camada>, groq, gemini, brave, ollama, cli:<nome>...
+    kind TEXT NOT NULL,          -- chat, embed, transcribe, vision, search, tts, image, cli...
+    model TEXT NOT NULL DEFAULT '',
+    ok INTEGER NOT NULL,
+    latency_ms INTEGER NOT NULL,
+    bytes_out INTEGER NOT NULL DEFAULT 0,
+    bytes_in INTEGER NOT NULL DEFAULT 0,
+    content_kind TEXT NOT NULL DEFAULT ''   -- texto, imagem, audio (nunca o conteúdo)
+);
+CREATE INDEX idx_external_calls_ts ON external_calls(ts);
+CREATE INDEX idx_external_calls_provider ON external_calls(provider, ts);
+ALTER TABLE notifications ADD COLUMN urgent INTEGER NOT NULL DEFAULT 0;
+-- uma linha por decisão da política (já redigida: ver `orion.policy.audit.redact`)
+CREATE TABLE audit (
+    id INTEGER PRIMARY KEY,
+    ts REAL NOT NULL,
+    session_id TEXT,
+    tool TEXT NOT NULL,
+    action TEXT NOT NULL,
+    risk TEXT,
+    reason TEXT NOT NULL DEFAULT '',
+    tainted INTEGER NOT NULL DEFAULT 0,
+    args TEXT NOT NULL DEFAULT '{{}}'
+);
+CREATE INDEX idx_audit_ts ON audit(ts);
+CREATE INDEX idx_audit_tool ON audit(tool, ts);
+"""
+
 DDL = (
     DDL_V1
     + DDL_V2
@@ -313,6 +378,7 @@ DDL = (
     + DDL_V14
     + DDL_V15
     + DDL_V16
+    + DDL_V17
 )
 MIGRATIONS: dict[int, str] = {
     1: DDL_V2,
@@ -330,4 +396,5 @@ MIGRATIONS: dict[int, str] = {
     13: DDL_V14,
     14: DDL_V15,
     15: DDL_V16,
+    16: DDL_V17,
 }

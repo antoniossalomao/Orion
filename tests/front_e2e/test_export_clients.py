@@ -26,4 +26,7 @@ def test_external_client_issue_once_list_and_revoke(abrir, novo_backend):
     page.wait_for_function(
         '() => getComputedStyle(document.querySelector("#view-config")).opacity === "1"'
     )
-    assert not page.evaluate("async () => (await axe.run(document)).violations")
+    v = page.evaluate(
+        "async () => (await axe.run(document)).violations.map(x=>[x.id,x.nodes.map(n=>n.target)])"
+    )
+    assert not v, v

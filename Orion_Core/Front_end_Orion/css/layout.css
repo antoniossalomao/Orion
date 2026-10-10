@@ -17,12 +17,11 @@ html[data-sb="collapsed"] { --sb-cur: var(--sb-wc); }
     opacity: 0; pointer-events: none;
     transition: opacity var(--dur-3) var(--ease), left var(--dur-3) var(--ease-out);
 }
-html[data-view="home"] #sky-veil        { opacity: 0.72; }
-html[data-view="chat"] #sky-veil        { opacity: 1; background: var(--bg-1); }
+html[data-view="chat"] #sky-veil        { opacity: 0.93; }
 html[data-view="integracoes"] #sky-veil,
-html[data-view="config"] #sky-veil      { opacity: 1; background: var(--bg-1); }
+html[data-view="config"] #sky-veil      { opacity: 0.92; }
 html[data-view="memoria"] #sky-veil     { opacity: 0.55; }
-[data-theme="contraste"] #sky-veil      { opacity: 1 !important; }
+html[data-theme="contraste"]:not([data-view="home"]) #sky-veil { opacity: 1 !important; }   /* fora da home o céu some (leitura); na home ele continua visível */
 
 /* ── Casca ───────────────────────────────────────────────────────────── */
 #app {
@@ -39,20 +38,18 @@ html[data-view="memoria"] #sky-veil     { opacity: 0.55; }
     position: relative; z-index: var(--z-sidebar);
     display: flex; flex-direction: column; gap: var(--s-1);
     min-height: 0; padding: var(--s-3) var(--s-3) var(--s-3);
-    background: var(--bg-2);
+    background: var(--glass-2);
     border-right: 1px solid var(--line-1);
     backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
     overflow: hidden;
 }
 .sb-head { display: flex; align-items: center; gap: var(--s-2); height: var(--topbar-h); margin: calc(var(--s-3) * -1) 0 var(--s-1); flex-shrink: 0; }
-.brand { display: flex; align-items: center; gap: 0.6rem; color: var(--text-1); font-weight: 600; font-size: var(--fs-lg); letter-spacing: -0.03em; }
+.brand { display: flex; align-items: center; gap: 0.6rem; color: var(--text-1); font-weight: 600; font-size: var(--fs-lg); letter-spacing: 0.02em; }
 .brand:hover { text-decoration: none; }
 .sb-txt { white-space: nowrap; transition: opacity var(--dur-1) var(--ease); }
 
 .sb-new { width: 100%; justify-content: flex-start; height: 2.5rem; margin-bottom: var(--s-2); gap: 0.7rem; padding: 0 0.8rem; }
-.sb-new kbd { margin-left: auto; font-size: 0.625rem; }
-.sb-new { background: var(--bg-3); border-color: var(--line-2); color: var(--text-1); }
-.sb-section-label { padding: 0 0.8rem var(--s-3); font-size: var(--fs-xs); font-weight: 500; color: var(--text-3); }
+.sb-new kbd { margin-left: auto; }
 
 .sb-nav { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; }
 .sb-item {
@@ -63,9 +60,9 @@ html[data-view="memoria"] #sky-veil     { opacity: 0.55; }
 }
 .sb-item svg { width: 1.1rem; height: 1.1rem; }
 .sb-item:hover { background: rgb(255 255 255 / 0.04); color: var(--text-1); text-decoration: none; }
-.sb-item[aria-current="page"] { background: var(--accent-soft); color: var(--accent-strong); }
+.sb-item[aria-current="page"] { background: var(--accent-soft); color: var(--text-1); }
 .sb-item[aria-current="page"]::before {
-    content: ''; position: absolute; left: 0; top: 28%; bottom: 28%;
+    content: ''; position: absolute; left: calc(var(--s-3) * -1); top: 22%; bottom: 22%;
     width: 3px; border-radius: 0 3px 3px 0; background: var(--accent);
 }
 .sb-item .dot-badge {
@@ -80,8 +77,23 @@ html[data-view="memoria"] #sky-veil     { opacity: 0.55; }
 .sb-search svg { position: absolute; left: 0.7rem; top: 50%; width: 0.95rem; height: 0.95rem; transform: translateY(-50%); color: var(--text-3); pointer-events: none; }
 .sb-search input { width: 100%; height: 2.1rem; padding: 0 0.7rem 0 2.1rem; }
 #sb-convs-list { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 1px; margin: 0 calc(var(--s-1) * -1); padding: 0 var(--s-1); }
+/* linha da conversa: botão que abre + menu ⋯ (aparece com o mouse em cima, foco dentro ou menu aberto) */
+.conv-row { position: relative; display: flex; align-items: center; }
+.conv-row .conv { flex: 1; min-width: 0; }
+.conv-more { position: absolute; right: 2px; top: 50%; transform: translateY(-50%); width: 1.7rem; height: 1.7rem; opacity: 0; }
+.conv-more svg { width: 1rem; height: 1rem; }
+.conv-row:hover .conv-more, .conv-row:focus-within .conv-more, .conv-more[aria-expanded="true"] { opacity: 1; }
+.conv-row:hover .conv, .conv-row:focus-within .conv { padding-right: 2rem; }
+.conv-pin { display: inline-flex; flex-shrink: 0; color: var(--text-3); }
+.conv-pin svg { width: 0.85rem; height: 0.85rem; }
+/* .menu (chat.css, carregado depois) é absolute/bottom: a classe dupla vence na especificidade */
+.menu.conv-menu { position: fixed; bottom: auto; min-width: 11rem; z-index: var(--z-overlay); }
+.conv-menu .menu-item { flex-direction: row; }
+.menu .menu-item-perigo { color: var(--danger); }
+.menu .menu-item-perigo:hover, .menu .menu-item-perigo:focus-visible { color: var(--danger); background: var(--danger-soft); }
 .conv-group { padding: var(--s-3) 0.8rem 0.3rem; font-size: var(--fs-2xs); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3); }
 .conv-group:first-child { padding-top: var(--s-1); }
+.conv-snippet { padding: 0 0.8rem 0.4rem 1.6rem; font-size: var(--fs-2xs); color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .conv {
     display: flex; align-items: center; gap: var(--s-2); min-height: 2.1rem; padding: 0.3rem 0.8rem;
     border-radius: var(--r-2); color: var(--text-2); font-size: var(--fs-sm); text-align: left; width: 100%;
@@ -108,7 +120,7 @@ html[data-sb="collapsed"] .sb-new,
 html[data-sb="collapsed"] .sb-item,
 html[data-sb="collapsed"] .conn { justify-content: center; padding: 0; gap: 0; }
 html[data-sb="collapsed"] .sb-item[aria-current="page"]::before { left: calc(var(--s-3) * -1); }
-html[data-sb="collapsed"] .sb-foot { border-top: none; margin-top: auto; }
+html[data-sb="collapsed"] .sb-foot { border-top: none; }
 html[data-sb="collapsed"] #sidebar { overflow: visible; }
 html[data-sb="collapsed"] .sb-item .dot-badge { position: absolute; top: 0.45rem; right: 0.55rem; margin: 0; }
 
@@ -116,8 +128,7 @@ html[data-sb="collapsed"] .sb-item .dot-badge { position: absolute; top: 0.45rem
 #topbar {
     position: relative; z-index: var(--z-topbar);
     display: flex; align-items: center; gap: var(--s-3);
-    height: var(--topbar-h); padding: 0 var(--s-5) 0 var(--s-6); flex-shrink: 0;
-    border-bottom: 1px solid var(--line-1); background: var(--bg-1);
+    height: var(--topbar-h); padding: 0 var(--s-4) 0 var(--s-5); flex-shrink: 0;
     -webkit-app-region: drag;
 }
 #topbar > * { -webkit-app-region: no-drag; }
@@ -135,6 +146,10 @@ html[data-sb="collapsed"] .sb-item .dot-badge { position: absolute; top: 0.45rem
 html[data-estado="processing"] .state-dot { background: var(--signal); box-shadow: 0 0 8px var(--signal); animation: pulsar 1.2s var(--ease) infinite; }
 html[data-estado="listening"]  .state-dot { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
 html[data-estado="speaking"]   .state-dot { background: var(--star); box-shadow: 0 0 8px var(--star); }
+/* parada e sem nada pendente, a pílula some (ela é jargão permanente); aprovação pendente usa o âmbar de "atenção" */
+html[data-estado="idle"]:not([data-aprovacao="true"]) .state-pill { display: none; }
+html[data-aprovacao="true"][data-estado="idle"] .state-dot { background: var(--signal); box-shadow: 0 0 8px var(--signal); }
+html[data-aprovacao="true"][data-estado="idle"] .state-pill { border-color: rgb(245 185 95 / 0.45); color: var(--text-1); }
 @keyframes pulsar { 50% { transform: scale(1.6); opacity: 0.5; } }
 
 .palette-trigger { gap: 0.6rem; color: var(--text-3); padding: 0 0.5rem 0 0.8rem; height: 2rem; }
@@ -145,8 +160,6 @@ html.shell-desktop #window-controls { display: flex; }
 #window-controls .icon-btn { width: 2rem; height: 2rem; }
 #btn-close:hover { background: var(--danger-soft); color: var(--danger); }
 
-html[data-estado="idle"] #state-pill { visibility: hidden; }
-
 /* ── Telas ───────────────────────────────────────────────────────────── */
 .view {
     position: absolute; inset: 0; display: flex; flex-direction: column; min-height: 0;
@@ -154,11 +167,13 @@ html[data-estado="idle"] #state-pill { visibility: hidden; }
     transition: opacity var(--dur-2) var(--ease), transform var(--dur-3) var(--ease-out), visibility 0s linear var(--dur-3);
 }
 .view[data-active="true"] { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
+/* Tela que sai ainda fica visível durante a transição: sem rolagem, para não virar região rolável sem foco. */
+.view:not([data-active="true"]) { overflow: hidden !important; }
 .page { overflow-y: auto; padding: var(--s-2) var(--s-6) var(--s-12); }
 .page-inner { max-width: 64rem; margin: 0 auto; }
 .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--s-4); margin: var(--s-4) 0 var(--s-6); flex-wrap: wrap; }
 .page-head h2 { font-size: var(--fs-2xl); font-weight: 600; letter-spacing: -0.02em; line-height: var(--lh-tight); }
-.page-head p { margin-top: var(--s-1); color: var(--text-2); font-size: var(--fs-md); max-width: 46rem; }
+.page-head p { margin-top: var(--s-1); color: var(--text-2); font-size: var(--fs-md); max-width: 40rem; }
 
 /* ── Modo foco (Ctrl+.): só a conversa ───────────────────────────────── */
 html[data-foco="true"] { --sb-cur: 0px; }

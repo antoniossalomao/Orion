@@ -54,5 +54,25 @@
         return itens.sort((a, b) => b.pct - a.pct).map(x => ({ ...x, largura: Math.round(x.pct * k * 10) / 10 }));
     }
 
-    return { serie, severidade, barras };
+    /**
+     * Barras empilhadas (uma por dia, um segmento por provedor), em % da maior barra: a geometria
+     * fica aqui e o desenho é CSS (altura em %). `serie`: [{dia, provedores: {nome: {envios}}}].
+     * @returns {[{dia: string, total: number, altura: number, segmentos: [{nome, valor, pct, cor}]}]}
+     */
+    function empilhadas(serie, nomes, campo = 'envios') {
+        const ordem = [...new Set(nomes || [])];
+        const dias = (serie || []).map(d => {
+            const segs = ordem.map((nome, cor) => ({ nome, cor, valor: Math.max(0, +(d?.provedores?.[nome]?.[campo]) || 0) }))
+                .filter(s => s.valor > 0);
+            return { dia: String(d?.dia || ''), total: segs.reduce((s, x) => s + x.valor, 0), segmentos: segs };
+        });
+        const maior = Math.max(1, ...dias.map(d => d.total));
+        return dias.map(d => ({
+            ...d,
+            altura: Math.round((d.total / maior) * 1000) / 10,
+            segmentos: d.segmentos.map(s => ({ ...s, pct: d.total ? Math.round((s.valor / d.total) * 1000) / 10 : 0 })),
+        }));
+    }
+
+    return { serie, severidade, barras, empilhadas };
 });

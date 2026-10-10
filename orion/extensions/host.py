@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import json
 import logging
 import os
 import uuid
@@ -18,6 +20,7 @@ from mcp.client.stdio import stdio_client
 from mcp.client.streamable_http import streamable_http_client
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from .. import saidas
 from ..policy.classes import Risk
 from ..secrets import get_secret
 from .protocol import MCPCompatibilityError, ensure_compatible
@@ -287,9 +290,23 @@ class Connection:
         task = asyncio.current_task()
         if task is not None:
             self._calls.add(task)
+        # servidor remoto: os argumentos saem do computador, então a chamada entra no registro de
+        # saída (regra 47), sem o conteúdo; conexão local (stdio) é só telemetria sem saída
+        medir = (
+            saidas.medir(
+                f"mcp:{self.config.id}",
+                "mcp",
+                model=name,
+                bytes_out=len(json.dumps(arguments, ensure_ascii=False, default=str).encode()),
+            )
+            if self.config.transport == "http"
+            else contextlib.nullcontext(saidas.Medida())
+        )
         try:
-            async with asyncio.timeout(self.timeout), self._slots:
-                result = await client.call_tool(name, arguments)
+            with medir as medida:
+                async with asyncio.timeout(self.timeout), self._slots:
+                    result = await client.call_tool(name, arguments)
+                medida.ok = not getattr(result, "is_error", False)
             self.last_call = {"state": "completed", "possibly_active": False}
             return result
         except asyncio.CancelledError:

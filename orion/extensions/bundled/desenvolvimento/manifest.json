@@ -11,7 +11,7 @@
     "skills/explicar-repositorio"
   ],
   "capabilities": [
-    "native:consultar_git",
+    "native:consultar_git_projeto",
     "native:buscar_memoria",
     "native:delegar"
   ]

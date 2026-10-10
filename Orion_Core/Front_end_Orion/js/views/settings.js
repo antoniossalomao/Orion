@@ -7,7 +7,7 @@
     const { $, $$, el, bus, ui, api, prefs } = O;
     const U = O.util, CH = O.charts;
 
-    const MAX_LAT = 24;
+    const MAX_LAT = 24, MIN_PONTOS = 3;
     let latencias = [], timers = [], ativo = false;
 
     /* ── aparência, voz, modelo ────────────────────────────────────────── */
@@ -69,6 +69,29 @@
         });
         token.addEventListener('change', () => prefs.set('token', token.value.trim()));
 
+        $('#cfg-sessao-btn').addEventListener('click', async e => {
+            const b = e.currentTarget;
+            b.disabled = true;
+            try { if (b.dataset.acao === 'entrar') await O.login.entrar({ forcar: true }); else await O.login.sair(); }
+            finally { b.disabled = false; sessao(); }
+        });
+        $('#cfg-senha').addEventListener('submit', async e => {
+            e.preventDefault();
+            const atual = $('#cfg-senha-atual'), nova = $('#cfg-senha-nova'), out = $('#cfg-senha-out'), b = $('#cfg-senha-btn');
+            if (!atual.value || !nova.value) { out.textContent = 'Preencha a senha atual e a nova.'; return; }
+            b.disabled = true;
+            out.textContent = 'Trocando…';
+            try {
+                await api.trocarSenha(atual.value, nova.value);
+                atual.value = nova.value = '';
+                out.textContent = 'Senha trocada.';
+                ui.toast('Senha trocada.', { tipo: 'ok', ms: 2400 });
+            } catch (err) { out.textContent = err.message; }
+            finally { b.disabled = false; sessao(); }
+        });
+        bus.on('auth:ok', sessao);
+        bus.on('auth:fim', sessao);
+
         $('#cfg-test').addEventListener('click', async e => {
             const b = e.currentTarget;
             b.disabled = true;
@@ -83,6 +106,23 @@
             saida.textContent = `Conectado a ${api.base()} em ${r.ms} ms${extra}.`;
             b.disabled = false;
         });
+    }
+
+    /** linha "Sessão" (só quando este cérebro tem login com senha e não se usa token) */
+    async function sessao() {
+        const linha = $('#cfg-sessao');
+        const st = await api.authStatus();
+        if (!st?.configured || api.token()) { linha.hidden = true; return; }
+        const dentro = !!st.authenticated;
+        linha.hidden = false;
+        $('#cfg-senha').hidden = !dentro;
+        $('#cfg-senha-aviso').textContent = st.default_password
+            ? 'Esta ainda é a senha de fábrica: troque agora, ela está num repositório público.'
+            : 'Digite a senha atual e a nova.';
+        $('#cfg-sessao-desc').textContent = dentro ? 'Você está logado neste navegador.' : 'Você ainda não entrou.';
+        const b = $('#cfg-sessao-btn');
+        b.textContent = dentro ? 'Sair' : 'Entrar';
+        b.dataset.acao = dentro ? 'sair' : 'entrar';
     }
 
     /* ── atividade ─────────────────────────────────────────────────────── */
@@ -107,7 +147,14 @@
         const svg = $('#a-spark');
         svg.querySelector('.line').setAttribute('d', s.linha);
         svg.querySelector('.area').setAttribute('d', s.area);
-        svg.setAttribute('aria-label', latencias.length > 1 ? `Latência recente: de ${U.fmtMs(s.min)} a ${U.fmtMs(s.max)}` : 'Latência recente: ainda sem pontos suficientes');
+        // com 1–2 pontos a linha é uma rampa/traço que não diz nada: só desenha a partir de 3 medições
+        const legenda = $('#a-spark-legenda');
+        const pronto = s.n >= MIN_PONTOS;
+        svg.toggleAttribute('hidden', !pronto);   // SVGElement não tem a propriedade .hidden
+        legenda.textContent = pronto
+            ? `Últimas ${s.n} medições · mín ${U.fmtMs(s.min)} · máx ${U.fmtMs(s.max)}`
+            : `Coletando medições (${s.n} de ${MIN_PONTOS}) para o gráfico.`;
+        svg.setAttribute('aria-label', pronto ? `Latência recente: de ${U.fmtMs(s.min)} a ${U.fmtMs(s.max)}` : 'Latência recente: ainda sem pontos suficientes');
     }
 
     async function cascata() {
@@ -211,6 +258,7 @@
             } else aviso?.remove();
             iniciarAtividade();
             sobre();
+            sessao();
             montarAtalhos();
             if (opcoes.secao) requestAnimationFrame(() => irPara(opcoes.secao));
         },

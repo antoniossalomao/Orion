@@ -164,6 +164,7 @@ class Research:
                     },
                     function,
                     origin="provider:brave",
+                    validar=True,
                 )
             )
             policy.tools[name] = ToolSpec(
