@@ -49,6 +49,13 @@ CREATE TABLE IF NOT EXISTS sessions (
     created_at REAL NOT NULL,
     expires_at REAL NOT NULL
 );
+-- credenciais de dispositivo com escopo estreito (a ponte de desktop, regra 50): só o hash fica
+CREATE TABLE IF NOT EXISTS device_tokens (
+    token_hash TEXT PRIMARY KEY,
+    scope TEXT NOT NULL,
+    name TEXT NOT NULL,
+    created_at REAL NOT NULL
+);
 """
 
 
@@ -228,7 +235,7 @@ class AuthService:
         return True
 
     def set_password(self, senha: str) -> None:
-        """Define ou troca a senha e **revoga todas as sessões** (quem estava dentro sai)."""
+        """Define ou troca a senha e **revoga todas as sessões** e os pareamentos de dispositivo."""
         if len(senha) < SENHA_MIN:
             raise WeakPassword(f"a senha precisa de pelo menos {SENHA_MIN} caracteres")
         if len(senha) > SENHA_MAX:
@@ -244,6 +251,9 @@ class AuthService:
                 (self.user, novo, self._clock()),
             )
             self._conn.execute("DELETE FROM sessions")
+            self._conn.execute(
+                "DELETE FROM device_tokens"
+            )  # trocar a senha também desfaz o pareamento
 
     def check_password(self, senha: str) -> bool:
         """Confere a senha sem criar sessão nem contar tentativa (use `login`)."""
@@ -293,6 +303,35 @@ class AuthService:
         if r is None or r[1] < self._clock():
             return None
         return str(r[0])
+
+    # ── credenciais de dispositivo (escopo estreito, sem expirar; revogáveis) ─────
+    def create_device_token(self, scope: str, name: str = "") -> str:
+        """Token novo para um dispositivo/processo (ex.: `ponte`). Parear de novo revoga o anterior
+        do mesmo escopo: só uma ponte por vez. O token só aparece aqui, uma vez."""
+        token = secrets.token_urlsafe(32)
+        with self._lock, self._conn:
+            self._conn.execute("DELETE FROM device_tokens WHERE scope=?", (scope,))
+            self._conn.execute(
+                "INSERT INTO device_tokens(token_hash, scope, name, created_at) VALUES (?,?,?,?)",
+                (_digest(token), scope, name[:60], self._clock()),
+            )
+        return token
+
+    def device_scope(self, token: str | None) -> str | None:
+        """Escopo do token de dispositivo, ou None se não existe/foi revogado."""
+        if not token or len(token) > 200:
+            return None
+        with self._lock:
+            r = self._conn.execute(
+                "SELECT scope FROM device_tokens WHERE token_hash=?", (_digest(token),)
+            ).fetchone()
+        return str(r[0]) if r else None
+
+    def revoke_device_tokens(self, scope: str | None = None) -> int:
+        with self._lock, self._conn:
+            if scope is None:
+                return self._conn.execute("DELETE FROM device_tokens").rowcount
+            return self._conn.execute("DELETE FROM device_tokens WHERE scope=?", (scope,)).rowcount
 
     def logout(self, token: str | None) -> None:
         if token:

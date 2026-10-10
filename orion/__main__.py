@@ -313,6 +313,9 @@ def main(argv: list[str] | None = None) -> int:
     au.add_argument("--install", action="store_true", help="grava o arquivo no lugar do sistema")
     au.add_argument("--dir", type=Path, default=None, help="grava aqui em vez do lugar do sistema")
     au.add_argument("--force", action="store_true", help="substitui um arquivo existente")
+    au.add_argument(
+        "--ponte", action="store_true", help="gera o início automático da ponte, não do servidor"
+    )
     pw = sub.add_parser(
         "set-password", help="define ou troca a senha do login (revoga as sessões abertas)"
     )
@@ -345,6 +348,12 @@ def main(argv: list[str] | None = None) -> int:
     tr.add_argument("arquivo", help="arquivo local, ou um link http(s) (precisa do yt-dlp)")
     tr.add_argument("--titulo", default="", help="título da nota (padrão: nome do arquivo)")
     tr.add_argument("--sim", action="store_true", help="não pergunta antes de enviar o áudio")
+    po = sub.add_parser(
+        "ponte", help="ponte de desktop: bandeja e teclas globais (pip install 'orion[ponte]')"
+    )
+    po.add_argument(
+        "--parear", action="store_true", help="cria o token da ponte (escopo 'ponte') e o guarda"
+    )
     pn = sub.add_parser(
         "panico", help="modo pânico: corta rede, execução, tela e escuta (só sai com --sair)"
     )
@@ -412,6 +421,11 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.cmd == "plugin":
         return _plugin(settings, args.acao, args.alvo)
+
+    if args.cmd == "ponte":
+        from .ponte.__main__ import executar, parear
+
+        return parear(settings) if args.parear else executar(settings)
 
     if args.cmd in ("panico", "nao-perturbe"):
         return _modos(settings, args)
@@ -482,7 +496,10 @@ def main(argv: list[str] | None = None) -> int:
         from .config import PROJECT_ROOT
 
         a = render(
-            args.plataforma or detectar(), projeto=PROJECT_ROOT, logs=settings.data_dir / "logs"
+            args.plataforma or detectar(),
+            projeto=PROJECT_ROOT,
+            logs=settings.data_dir / "logs",
+            ponte=args.ponte,
         )
         if not (args.install or args.dir):
             print(f"# {a.arquivo}\n{a.conteudo}")

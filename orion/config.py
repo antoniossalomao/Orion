@@ -171,6 +171,9 @@ class Settings(BaseSettings):
     gateway_down_min: int = Field(default=10, ge=1, le=1440)  # avisa "modelos fora do ar" depois
     # Não perturbe (regra 48): "22:30-07:00" segura avisos não urgentes e pausa a memória da tela
     dnd_at: str = ""
+    # Ponte de desktop (regra 50): mapa de teclas globais em JSON, ex.: {"captura": "ctrl+alt+k"}.
+    # Vazio = as teclas padrão (ver orion/ponte/config.py). A ponte em si é `orion ponte`.
+    hotkeys: str = ""
     # Modelo local de reserva (regra 49): último endpoint, sem ferramentas, só neste computador.
     local_model: str = ""  # ex.: qwen3.5:4b (Ollama); vazio = desligado
     local_url: str = "http://127.0.0.1:11434/v1"
@@ -255,6 +258,17 @@ class Settings(BaseSettings):
         if v and not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d", v):
             raise ValueError("ORION_DND_AT precisa ser HH:MM-HH:MM (ex.: 22:30-07:00)")
         return v
+
+    @field_validator("hotkeys")
+    @classmethod
+    def _teclas_da_ponte(cls, v: str) -> str:
+        from .ponte.config import TeclasInvalidas, mapa_de_teclas
+
+        try:
+            mapa_de_teclas(v)
+        except TeclasInvalidas as e:
+            raise ValueError(f"ORION_HOTKEYS: {e}") from None
+        return v.strip()
 
     @field_validator("local_url")
     @classmethod

@@ -694,3 +694,44 @@ ORION_LOCAL_MODEL=qwen3.5:4b                 # ou gemma3:4b
 **Pausar/desligar.** Esvaziar `ORION_LOCAL_MODEL` e reiniciar.
 
 **Regra.** 49; código em `orion/gateway.py` (`Endpoint.tools`), `orion/app.py` (`gateway_from_settings`).
+
+## 18. Ponte de desktop
+
+Regras 50 e 51 ([ORION_REGRAS.md](ORION_REGRAS.md)). O Orion é servidor + navegador: sem processo à parte não há
+tecla global, bandeja nem como colar texto no programa em foco. `orion ponte` é esse processo.
+
+### 18.1 A ponte (bandeja, teclas globais, janela pequena)
+
+**O que faz.** Fica na bandeja do sistema (Abrir Orion · Captura rápida · Modo pânico · Sair), registra as teclas
+globais e escuta o servidor por um WebSocket **que ela abre** (`/ws/ponte`). O servidor só consegue mandar duas
+coisas: `abrir` (uma tela do Orion no navegador) e `colar` (texto que você já viu e aprovou na tela; a ponte
+guarda o que estava na área de transferência, cola e devolve 1 s depois). Teclas padrão: captura rápida
+`Ctrl+Alt+Espaço`, "o que é isso?" `Ctrl+Alt+O`, copiar texto de uma área da tela `Ctrl+Alt+T`, pânico
+`Ctrl+Alt+Shift+P`.
+
+**Como ligar.** No computador do servidor, uma vez:
+```
+uv sync --extra ponte                  # pystray, pynput, pyperclip, mss, pytesseract, websockets, pywebview
+uv run orion ponte --parear            # cria o token da ponte e o guarda no cofre do sistema (ORION_PONTE_TOKEN)
+uv run orion ponte                     # sobe a ponte (o servidor precisa estar de pé)
+uv run orion autostart --ponte --install   # início automático da ponte, arquivo à parte do servidor
+# ORION_HOTKEYS={"captura": "ctrl+alt+k"}   # troca só as teclas que quiser (JSON)
+```
+O token tem **escopo `ponte`**: alcança `/captura`, `/ponte/explicar`, o WebSocket e **entrar** no modo pânico;
+`/chat`, ferramentas, configuração e sair do pânico respondem 403. Parear de novo desfaz o pareamento anterior, e
+trocar a senha também. Só uma ponte conectada por vez.
+
+**Dependências.** **(você)** Sessão gráfica; no Linux, `xclip` ou `xsel` (área de transferência) e libs de
+bandeja; no macOS, dar à ponte as permissões de Acessibilidade e Gravação de Tela; no Windows, `tesseract` +
+pacote `por` para o OCR (mesmo da memória da tela). A janela pequena usa `pywebview`; sem ele, abre no navegador.
+
+**O que sai do computador.** Nada: a ponte só fala com o servidor local (`127.0.0.1`). O que o servidor faz com a
+captura rápida é descrito em §18.3.
+
+**Onde ver.** `GET /ponte/estado` (conectada, desde quando, quantos comandos); o ícone da bandeja.
+
+**Pausar/desligar.** "Sair" na bandeja. O **modo pânico** derruba a ponte e o servidor recusa o token até a saída
+do pânico. `orion ponte --parear` de novo, ou trocar a senha, invalida a ponte velha.
+
+**Regra.** 50; código em `orion/ponte/` (`nucleo.py` é testado com adaptadores falsos; `adaptadores.py` é o que
+fala com o sistema e **não foi exercitado numa tela real** nesta etapa).

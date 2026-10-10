@@ -74,6 +74,10 @@ from .painel import Painel, texto_do_painel
 from .plugins import PluginStore
 from .policy import ApprovalStore, PathGuard, PolicyEngine, redact
 from .policy.paths import default_safe_roots
+from .ponte.hub import PonteHub
+from .ponte.rotas import ESCOPO as PONTE_ESCOPO
+from .ponte.rotas import rota_permitida as rota_da_ponte_permitida
+from .ponte.rotas import router as ponte_router
 from .project_routes import router as project_router
 from .projects import ProjectError
 from .provedores import chave_env
@@ -162,6 +166,7 @@ class AppState:
     biblioteca: Library | None = None  # resultados gerados (C34)
     modos: Modos | None = None  # pânico e não perturbe (regra 48)
     custos: Custos | None = None  # cota gratuita (regra 46)
+    ponte: PonteHub = field(default_factory=PonteHub)  # ponte de desktop (regra 50)
 
 
 def build_policy(
@@ -216,6 +221,8 @@ def quem_e(request: Request, state: AppState, authorization: str | None) -> str 
         enviado = authorization.removeprefix("Bearer ").strip()
         if esperado and hmac.compare_digest(enviado.encode(), esperado.encode()):
             return "token"
+        if state.auth.device_scope(enviado) == PONTE_ESCOPO:
+            return "ponte"  # escopo estreito: `require_auth` confere o caminho (regra 50)
         return None
     if state.auth.validate(request.cookies.get(COOKIE_SESSAO)):
         return "sessao"
@@ -234,6 +241,13 @@ def require_auth(
     quem = quem_e(request, state, authorization)
     if quem is None:
         raise HTTPException(401, "login necessário")
+    if quem == "ponte" and not (
+        rota_da_ponte_permitida(request.method, request.url.path)
+        and not (
+            state.modos is not None and state.modos.panico() and request.url.path != "/modo/panico"
+        )
+    ):
+        raise HTTPException(403, "o token da ponte não alcança esta rota")
     if quem == "sessao" and request.method not in _METODOS_SEGUROS and not _mesma_origem(request):
         raise HTTPException(403, "origem não permitida")
     return quem
@@ -1949,6 +1963,7 @@ def create_app(
     from .export_credentials import router as export_client_router
     from .file_plans import router as file_plan_router
 
+    app.include_router(ponte_router(require_auth))
     app.include_router(export_client_router(require_auth))
     app.mount("/mcp-export", ExportAuth(mcp_export.app, lambda: app.state.orion))
 

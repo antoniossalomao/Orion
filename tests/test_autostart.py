@@ -91,3 +91,23 @@ def test_cli_so_imprime_por_padrao_e_grava_com_dir(tmp_path, monkeypatch, capsys
     assert "--force" in capsys.readouterr().err
     assert main(["autostart", "--plataforma", "macos", "--dir", str(tmp_path / "m")]) == 0
     assert (tmp_path / "dados" / "logs").is_dir()  # o launchd exige a pasta de logs
+
+
+def test_ponte_gera_arquivo_a_parte_e_nao_toca_no_do_servidor():
+    mac = gerar("macos", ponte=True)
+    dados = plistlib.loads(mac.conteudo.encode())
+    assert dados["Label"] == "com.orion.ponte" and dados["ProgramArguments"][-2:] == [
+        "orion",
+        "ponte",
+    ]
+    assert mac.arquivo.name == "com.orion.ponte.plist"
+    assert dados["StandardOutPath"] == str(LOGS / "orion-ponte.out.log")
+    linux = gerar("linux", ponte=True)
+    assert linux.arquivo.name == "orion-ponte.service"
+    assert "-m orion ponte" in linux.conteudo and "graphical-session.target" in linux.conteudo
+    assert "enable --now orion-ponte.service" in linux.ativar
+    win = gerar("windows", ponte=True)
+    assert win.arquivo.name == "orion-ponte.cmd" and "-m orion ponte" in win.conteudo
+    # o do servidor continua igual
+    assert gerar("linux").arquivo.name == "orion.service"
+    assert "-m orion serve" in gerar("windows").conteudo
