@@ -77,3 +77,47 @@ def test_filtro_por_projeto_na_barra_lateral_e_selo(abrir, novo_backend):
     expect(page.locator("#sb-convs-list .conv")).to_have_count(2)
     page.wait_for_timeout(300)
     assert page.evaluate("async () => (await axe.run(document)).violations.map(v => v.id)") == []
+
+
+def test_mover_conversa_para_projeto_por_slash_e_por_paleta(abrir, novo_backend):
+    from orion.projects import Projects
+
+    url, app, _, _ = novo_backend()
+    m = app.state.orion.memory
+    estagio = Projects(m).create("Estágio")["id"]
+    Projects(m).create("Estudos")
+    Projects(m).create("Estudos avançados")
+    sid = m.new_session("web", "Para mover").id
+    m.add_message(sid, "user", "oi")
+    page = abrir("#/chat", url=url, init=TOKEN_INIT, axe=True)
+    expect(page.locator(".msg-user")).to_contain_text("oi")
+    campo = page.locator("#composer-input")
+    # sugestão do slash
+    campo.fill("/proj")
+    expect(page.locator(".slash-item, [role=option]").first).to_contain_text("/projeto")
+    # nome ambíguo não move nada
+    campo.fill("/projeto estud")
+    campo.press("Enter")
+    expect(page.locator(".toast, [role=status]").filter(has_text="Mais de um projeto")).to_be_visible()
+    assert m.get_session(sid).project_id is None
+    # nome único move (sem acento e sem caixa)
+    campo.fill("/projeto estagio")
+    campo.press("Enter")
+    expect(page.locator(f'.conv[data-id="{sid}"] .conv-projeto')).to_have_text("Estágio")
+    assert m.get_session(sid).project_id == estagio
+    # "nenhum" tira do projeto
+    campo.fill("/projeto nenhum")
+    campo.press("Enter")
+    expect(page.locator(f'.conv[data-id="{sid}"] .conv-projeto')).to_be_hidden()
+    assert m.get_session(sid).project_id is None
+    # paleta: comando existe e abre o diálogo de destino
+    page.keyboard.press("Control+k")
+    page.keyboard.type("mover conversa")
+    expect(page.get_by_role("option", name="Mover conversa para projeto…")).to_be_visible()
+    page.keyboard.press("Enter")
+    dialogo = page.get_by_role("dialog")
+    expect(dialogo).to_contain_text("Mover conversa")
+    dialogo.get_by_label("Destino da conversa").select_option(label="Estágio")
+    dialogo.get_by_role("button", name="Mover conversa").click()
+    expect(page.locator(f'.conv[data-id="{sid}"] .conv-projeto')).to_have_text("Estágio")
+    assert m.get_session(sid).project_id == estagio

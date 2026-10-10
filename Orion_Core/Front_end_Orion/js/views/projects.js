@@ -67,6 +67,32 @@
             await O.sidebar.carregar(); bus.emit('skills:changed'); if (active) await load();
         });
     }
+    /** Palavra a palavra sem acento nem caixa; devolve o projeto único que casa, ou o motivo de não haver. */
+    function acharPorNome(nome) {
+        const q = O.util.norm(nome);
+        if (['nenhum', 'pessoal', 'nenhuma', 'sem'].includes(q)) return { id: null };
+        const ativos = rows.filter(r => !r.archived);
+        const exato = ativos.filter(r => O.util.norm(r.name) === q);
+        const achados = exato.length ? exato : ativos.filter(r => O.util.norm(r.name).includes(q));
+        if (achados.length === 1) return { id: achados[0].id, nome: achados[0].name };
+        return { erro: achados.length ? `Mais de um projeto casa com “${nome}”: ${achados.map(r => r.name).join(', ')}.` : `Nenhum projeto se chama “${nome}”.` };
+    }
+    async function moverPorNome(nome) {
+        const atual = O.sidebar.ativa();
+        if (!atual) { ui.toast('Abra uma conversa primeiro.', { tipo: 'aviso' }); return; }
+        if (atual.somente_leitura) { ui.toast('Esta conversa é somente leitura.', { tipo: 'aviso' }); return; }
+        if (O.chat.ocupado()) { ui.toast('Espere a resposta terminar para mover a conversa.', { tipo: 'aviso' }); return; }
+        await loadRows();
+        const r = acharPorNome(nome || '');
+        if (r.erro) { ui.toast(r.erro, { tipo: 'aviso', ms: 4200 }); return; }
+        await operation(async source => {
+            await api.moverConversa(atual.sessao_id, r.id);
+            if (source !== origin()) return;
+            await O.sidebar.carregar(); bus.emit('skills:changed');
+            ui.toast(r.id ? `Conversa movida para “${r.nome}”.` : 'Conversa fora de qualquer projeto.', { tipo: 'ok' });
+        });
+    }
+    function moverAtual() { const atual = O.sidebar.ativa(); if (atual) return move(atual.sessao_id); ui.toast('Abra uma conversa primeiro.', { tipo: 'aviso' }); }
     async function show(id, token = generation) {
         selected = id; if (!id) { $('#project-detail').replaceChildren(hint('Crie seu primeiro projeto para reunir conversas e fontes.')); return; }
         const row = await api.projeto(id);
@@ -124,5 +150,5 @@
         },
         ativar() { active = true; load(); }, desativar() { active = false; ++generation; }
     };
-    O.projects = { current, options, mover: move, use, loadRows, lista: () => rows };
+    O.projects = { current, options, mover: move, moverAtual, moverPorNome, use, loadRows, lista: () => rows, disponivel: () => api.suporta('projects') };
 })();

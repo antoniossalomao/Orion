@@ -104,7 +104,7 @@ Marque ao concluir. Uma etapa só fecha com todos os itens, a prova e o PR merge
 ### E3 — Conversas e projetos
 - [x] E3.1 Tela de conversas arquivadas (R2.1)
 - [x] E3.2 Filtro por projeto na barra lateral (R2.2)
-- [ ] E3.3 "Mover para projeto" na paleta (R2.3)
+- [x] E3.3 "Mover para projeto" na paleta (R2.3)
 - [ ] E3.4 "Disponível em" editável nos documentos (R2.4)
 - [ ] E3.5 Editar o pedido como nova versão (R2.5 / C39)
 - [ ] E3.6 Telas novas contra o backend real (R8.1)

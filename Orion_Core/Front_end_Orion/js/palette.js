@@ -39,6 +39,7 @@
             { g: 'acao', rotulo: 'Modo foco (sem barras)', icone: 'maximize', atalho: ['Ctrl', '.'], exec: () => A.foco(), chaves: 'zen concentrar' },
             ...O.composer.MODELOS.map(m => ({ g: 'acao', rotulo: `Modelo: ${m.nome}`, icone: 'bolt', exec: () => A.modelo(m.id), chaves: 'trocar llm' })),
             { g: 'acao', rotulo: 'Exportar conversa (Markdown)', icone: 'download', exec: () => A.exportar() },
+            ...(O.projects?.disponivel?.() ? [{ g: 'acao', rotulo: 'Mover conversa para projeto…', icone: 'folder', exec: () => O.projects.moverAtual(), chaves: 'projeto mover trocar conversa' }] : []),
             { g: 'acao', rotulo: 'Limpar histórico da sessão', icone: 'trash', exec: () => A.limpar() },
             { g: 'acao', rotulo: 'Atalhos de teclado', icone: 'keyboard', atalho: ['?'], exec: () => O.app.ir('config', { secao: 'cfg-atalhos' }), chaves: 'ajuda' },
             { g: 'aparencia', rotulo: 'Tema Noite', icone: 'palette', exec: () => A.tema('noite') },

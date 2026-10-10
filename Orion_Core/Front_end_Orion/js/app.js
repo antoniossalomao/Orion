@@ -155,7 +155,7 @@
             const mapa = {
                 nova: () => O.sidebar.nova(), buscar: () => O.busca.abrir(arg),
                 copiar: () => (arg === 'conversa' ? A.copiarConversa() : A.copiarUltima()),
-                exportar: () => A.exportar(), limpar: () => A.limpar(), modelo: () => A.modelo(arg), tema: () => A.tema(arg),
+                exportar: () => A.exportar(), limpar: () => A.limpar(), projeto: () => O.projects.moverPorNome(arg), modelo: () => A.modelo(arg), tema: () => A.tema(arg),
                 foco: () => A.foco(), mudo: () => A.alternarTts(), voz: () => O.voz.alternar(),
                 inicio: () => ir('home'), memoria: () => ir('memoria'), integracoes: () => ir('integracoes'), config: () => ir('config'), painel: () => ir('painel'),
                 ajuda: () => ir('config', { secao: 'cfg-atalhos' }),
