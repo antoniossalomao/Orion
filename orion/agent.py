@@ -131,12 +131,15 @@ class Agent:
         selection: Selection | None = None,
         expected_session: str | None = None,
         read_only: bool = False,
+        edit_message: int | None = None,
     ) -> AsyncIterator[AgentEvent]:
         """`images`: data URLs (`data:image/jpeg;base64,...`) que valem só para este turno; o
         histórico guarda o texto e um aviso de que houve imagem, nunca a imagem.
         `read_only`: modo para turnos sem ninguém olhando (e para ler conteúdo de terceiros):
         o modelo só vê e só pode chamar ferramentas de LEITURA; o que pediria aprovação é
-        negado na hora, porque não há quem aprove."""
+        negado na hora, porque não há quem aprove.
+        `edit_message`: id do pedido do Antônio que este texto reescreve (E3.5). O pedido e o que
+        veio depois somem do contexto; o texto novo entra como outra versão do mesmo pedido."""
         session = self.memory.active_session(channel)
         if session.project_id and Projects(self.memory).get(session.project_id)["archived"]:
             yield AgentEvent("error", {"message": "project_archived"})
@@ -158,6 +161,13 @@ class Agent:
             if ctx.authorized and not ctx.authorized():
                 yield AgentEvent("error", {"message": "skill_revision_revoked"})
                 return
+            version_of = None
+            if edit_message is not None:
+                try:
+                    version_of = self.memory.supersede_from(session.id, edit_message)
+                except (KeyError, ValueError):
+                    yield AgentEvent("error", {"message": "editable_message_not_found"})
+                    return
             external = [*(external or []), *(selection.data if selection else [])]
             if external:
                 self._context(session.id).tainted = True
@@ -178,6 +188,7 @@ class Agent:
                 provenance={"skills": list(selection.skills)}
                 if selection and selection.skills
                 else None,
+                version_of=version_of,
             )
             async for ev in self._turn(
                 session,

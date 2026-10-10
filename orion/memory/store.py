@@ -78,6 +78,7 @@ class Message:
     text: str
     created_at: float
     provenance: dict[str, Any] | None
+    version_of: int | None = None  # E3.5: primeira versão do pedido que esta mensagem reescreve
 
 
 @dataclass(frozen=True)
@@ -230,6 +231,18 @@ class MemoryStore:
             return self._conn.execute("SELECT 1").fetchone()[0] == 1
 
     # ── sessões e mensagens (episódico), uma sessão ativa por canal ───────
+    @staticmethod
+    def _message(row: sqlite3.Row) -> Message:
+        return Message(
+            row["id"],
+            row["session_id"],
+            row["role"],
+            row["text"],
+            row["created_at"],
+            json.loads(row["provenance"]) if row["provenance"] else None,
+            row["version_of"],
+        )
+
     @staticmethod
     def _session(row: sqlite3.Row) -> Session:
         return Session(
@@ -522,38 +535,86 @@ class MemoryStore:
         return [(self._session(row), row["trecho"] or "") for row in rows], total
 
     def add_message(
-        self, session_id: str, role: str, text: str, provenance: dict[str, Any] | None = None
+        self,
+        session_id: str,
+        role: str,
+        text: str,
+        provenance: dict[str, Any] | None = None,
+        *,
+        version_of: int | None = None,
     ) -> Message:
         agora = self._clock()
         with self._tx() as c:
             cur = c.execute(
-                "INSERT INTO messages(session_id, role, text, created_at, provenance)"
-                " VALUES (?,?,?,?,?)",
-                (session_id, role, text, agora, json.dumps(provenance) if provenance else None),
+                "INSERT INTO messages(session_id, role, text, created_at, provenance, version_of)"
+                " VALUES (?,?,?,?,?,?)",
+                (
+                    session_id,
+                    role,
+                    text,
+                    agora,
+                    json.dumps(provenance) if provenance else None,
+                    version_of,
+                ),
             )
             c.execute("UPDATE sessions SET last_active_at=? WHERE id=?", (agora, session_id))
             mid = cur.lastrowid
-        return Message(int(mid or 0), session_id, role, text, agora, provenance)
+        return Message(int(mid or 0), session_id, role, text, agora, provenance, version_of)
+
+    def supersede_from(self, session_id: str, message_id: int) -> int:
+        """Substitui o pedido `message_id` (e tudo que veio depois dele) por uma nova versão: as
+        mensagens ficam no banco, mas somem do contexto e do histórico. Devolve o id da PRIMEIRA
+        versão do pedido, a que a nova mensagem deve citar em `version_of`. `KeyError` se não é
+        pedido do Antônio nesta conversa (ou já foi substituído); `ValueError` se a conversa não
+        aceita mais mensagens."""
+        with self._tx() as c:
+            session = self.get_session(session_id)
+            if session is None:
+                raise KeyError(session_id)
+            if session.archived or session.read_only:
+                raise ValueError("sessão somente leitura")
+            piso = self.counter_get(f"history_after:{session_id}")
+            r = c.execute(
+                "SELECT id, version_of FROM messages WHERE id=? AND session_id=? AND role='user'"
+                " AND superseded=0 AND id>? AND text NOT LIKE '[CONTEXTO EXTERNO%'",
+                (message_id, session_id, piso),
+            ).fetchone()
+            if r is None:
+                raise KeyError(message_id)
+            inicio = message_id
+            while True:  # os marcadores de contexto externo do mesmo turno vão junto
+                anterior = c.execute(
+                    "SELECT id, text FROM messages WHERE session_id=? AND id<? AND superseded=0"
+                    " AND id>? ORDER BY id DESC LIMIT 1",
+                    (session_id, inicio, piso),
+                ).fetchone()
+                if anterior is None or not anterior["text"].startswith("[CONTEXTO EXTERNO"):
+                    break
+                inicio = anterior["id"]
+            c.execute(
+                "UPDATE messages SET superseded=1 WHERE session_id=? AND id>=?",
+                (session_id, inicio),
+            )
+            return int(r["version_of"] or r["id"])
+
+    def message_versions(self, session_id: str, root_id: int) -> list[Message]:
+        """Todas as versões de um pedido, da mais antiga à mais nova (inclui a primeira)."""
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT * FROM messages WHERE session_id=? AND (id=? OR version_of=?) ORDER BY id",
+                (session_id, root_id, root_id),
+            ).fetchall()
+        return [self._message(r) for r in rows]
 
     def history(self, session_id: str, limit: int = 50, *, after: int = 0) -> list[Message]:
         with self._lock:
             rows = self._conn.execute(
                 "SELECT * FROM (SELECT * FROM messages WHERE session_id=? AND id>?"
-                " ORDER BY id DESC LIMIT ?)"
+                " AND superseded=0 ORDER BY id DESC LIMIT ?)"
                 " ORDER BY id",
                 (session_id, after, limit),
             ).fetchall()
-        return [
-            Message(
-                r["id"],
-                r["session_id"],
-                r["role"],
-                r["text"],
-                r["created_at"],
-                json.loads(r["provenance"]) if r["provenance"] else None,
-            )
-            for r in rows
-        ]
+        return [self._message(r) for r in rows]
 
     def context_history(self, session_id: str, limit: int = 50) -> list[Message]:
         return self.history(
@@ -573,28 +634,18 @@ class MemoryStore:
             after = 0 if complete else self.counter_get(f"history_after:{session_id}")
             total = self._conn.execute(
                 "SELECT count(*) FROM messages WHERE session_id=? AND id>?"
-                " AND role IN ('user','assistant')",
+                " AND superseded=0 AND role IN ('user','assistant')",
                 (session_id, after),
             ).fetchone()[0]
             rows = self._conn.execute(
                 "SELECT * FROM messages WHERE session_id=? AND id>? AND (? IS NULL OR id<?)"
-                " AND role IN ('user','assistant') ORDER BY id DESC LIMIT ?",
+                " AND superseded=0 AND role IN ('user','assistant') ORDER BY id DESC LIMIT ?",
                 (session_id, after, before, before, limit + 1),
             ).fetchall()
             more = len(rows) > limit
             rows = rows[:limit]
             next_before = rows[-1]["id"] if more else None
-            messages = [
-                Message(
-                    row["id"],
-                    row["session_id"],
-                    row["role"],
-                    row["text"],
-                    row["created_at"],
-                    json.loads(row["provenance"]) if row["provenance"] else None,
-                )
-                for row in reversed(rows)
-            ]
+            messages = [self._message(row) for row in reversed(rows)]
             return messages, total, next_before
 
     def clear_context(self, session_id: str) -> int:
@@ -919,7 +970,7 @@ class MemoryStore:
         "message": (
             "SELECT t.id, t.text, 'sessão ' || s.channel AS source FROM messages_fts"
             " JOIN messages t ON t.id=messages_fts.rowid JOIN sessions s ON s.id=t.session_id"
-            " WHERE messages_fts MATCH ? AND t.role IN ('user','assistant')"
+            " WHERE messages_fts MATCH ? AND t.superseded=0 AND t.role IN ('user','assistant')"
             " ORDER BY bm25(messages_fts) LIMIT ?"
         ),
     }

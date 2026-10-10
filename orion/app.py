@@ -624,6 +624,11 @@ class Mensagem(BaseModel):
     referencias: list[SkillReference] = Field(default_factory=list, max_length=8)
 
 
+class PedidoEditado(BaseModel):
+    texto: str = Field(min_length=1, max_length=8000)
+    canal: str = Field(default="web", pattern=_CANAL)
+
+
 class SessaoNova(BaseModel):
     project_id: str | None = Field(default=None, pattern=r"^[a-f0-9]{32}$")
     canal: str = Field(default="web", pattern=_CANAL)
@@ -1474,14 +1479,21 @@ def create_app(
             raise HTTPException(404, "sessão inexistente neste canal")
         return session
 
-    def mensagem_json(m: Message) -> dict[str, Any]:
-        return {
+    def mensagem_json(m: Message, state: AppState | None = None) -> dict[str, Any]:
+        d: dict[str, Any] = {
             "id": m.id,
             "role": m.role,
             "content": m.text,
             "timestamp": datetime.fromtimestamp(m.created_at, UTC).isoformat(),
             "provenance": m.provenance,
         }
+        if state is not None and m.role == "user":
+            versoes = state.memory.message_versions(m.session_id, m.version_of or m.id)
+            if len(versoes) > 1:  # E3.5: o pedido foi editado; as setas ‹ n/m › trocam a exibição
+                d["versoes"] = [
+                    {"id": v.id, "texto": v.text, "atual": v.id == m.id} for v in versoes
+                ]
+        return d
 
     @app.get("/historico", dependencies=[Admin])
     def historico(
@@ -1503,13 +1515,42 @@ def create_app(
         return {
             "sessao": session.id if session else None,
             "total": total,
-            "mensagens": [mensagem_json(m) for m in messages],
+            "mensagens": [mensagem_json(m, state) for m in messages],
             "mais": cursor is not None,
             "proximo_antes": cursor,
             "somente_leitura": bool(
                 session and (session.archived or session.read_only or project_archived(session))
             ),
         }
+
+    @app.post("/historico/{msg_id}/editar", dependencies=[Admin])
+    async def editar_pedido(msg_id: int, corpo: PedidoEditado, state: State) -> StreamingResponse:
+        """Reescreve um pedido como nova versão e refaz o turno (E3.5). O pedido antigo e tudo que
+        veio depois ficam guardados, fora do contexto. Bloqueado com resposta em andamento ou
+        aprovação pendente (a mesma regra de "limpar")."""
+        agente = _agente(state)
+        session = state.memory.active_session(corpo.canal)
+        if session.archived or session.read_only or project_archived(session):
+            raise HTTPException(409, "conversa somente leitura")
+        if state.policy.approvals.unresolved(session.id) or agente.busy(session.id):
+            raise HTTPException(409, "termine a resposta e resolva as aprovações antes de editar")
+        achou = state.memory.query(
+            "SELECT 1 FROM messages WHERE id=? AND session_id=? AND role='user' AND superseded=0",
+            (msg_id, session.id),
+        )
+        if not achou:
+            raise HTTPException(404, "pedido não encontrado nesta conversa")
+        return StreamingResponse(
+            _stream(
+                agente.run(
+                    corpo.canal,
+                    corpo.texto,
+                    expected_session=session.id,
+                    edit_message=msg_id,
+                )
+            ),
+            media_type="text/event-stream",
+        )
 
     @app.delete("/historico", dependencies=[Admin])
     async def limpar_historico(
