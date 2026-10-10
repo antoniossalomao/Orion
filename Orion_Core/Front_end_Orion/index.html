@@ -2,7 +2,7 @@
 <html lang="pt-BR" data-view="home" data-estado="idle" data-theme="noite">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-kFMOHBRbTGtQcI+9xbdcmv50TEZFQfjBoDqLtVerheM='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http://127.0.0.1:8000 http://localhost:8000; font-src 'self'; media-src 'self' blob:; connect-src *; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-kFMOHBRbTGtQcI+9xbdcmv50TEZFQfjBoDqLtVerheM='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http://127.0.0.1:8000 http://localhost:8000; font-src 'self'; media-src 'self' blob:; connect-src *; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src blob:">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="dark">
     <title>Orion</title>
@@ -40,6 +40,7 @@
         <g id="ico-base" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></g>
     </defs>
     <symbol id="i-home" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="5" r="1.4"/><circle cx="17" cy="4" r="1.4"/><circle cx="9.5" cy="12.5" r="1.1"/><circle cx="12" cy="11.5" r="1.1"/><circle cx="14.5" cy="10.5" r="1.1"/><circle cx="7" cy="20" r="1.4"/><circle cx="18" cy="19" r="1.4"/><path d="M6 5l3.5 7.5M17 4l-2.5 6.5M9.5 12.5L7 20M14.5 10.5L18 19" stroke-opacity="0.55"/></g></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7V5h6l3 3h9v12H3z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></symbol>
     <symbol id="i-chat" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"/></g></symbol>
     <symbol id="i-memory" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2.2"/><circle cx="5" cy="6" r="1.6"/><circle cx="19" cy="6" r="1.6"/><circle cx="6" cy="19" r="1.6"/><circle cx="18" cy="18" r="1.6"/><path d="M6.3 7.1l4 3.4M17.7 7.1l-4 3.4M7.2 17.8l3.3-4.2M16.8 16.8l-3.2-3.3"/></g></symbol>
     <symbol id="i-plug" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M17.5 14v7M14 17.5h7"/></g></symbol>
@@ -111,22 +112,27 @@
         </button>
 
         <nav class="sb-nav" aria-label="Seções">
-            <a class="sb-item" href="#/" data-view="home" data-tip="Início" data-tip-pos="right"><svg class="i" aria-hidden="true"><use href="#i-home"/></svg><span class="sb-txt">Início</span></a>
-            <a class="sb-item" href="#/chat" data-view="chat" data-tip="Chat" data-tip-pos="right"><svg class="i" aria-hidden="true"><use href="#i-chat"/></svg><span class="sb-txt">Chat</span><span id="badge-chat" class="dot-badge" aria-hidden="true"></span></a>
-            <a class="sb-item" href="#/memoria" data-view="memoria" data-tip="Memória" data-tip-pos="right"><svg class="i" aria-hidden="true"><use href="#i-memory"/></svg><span class="sb-txt">Memória</span></a>
-            <a class="sb-item" href="#/integracoes" data-view="integracoes" data-tip="Integrações" data-tip-pos="right"><svg class="i" aria-hidden="true"><use href="#i-plug"/></svg><span class="sb-txt">Integrações</span></a>
-            <a class="sb-item" href="#/painel" data-view="painel" data-tip="Painel" data-tip-pos="right"><svg class="i" aria-hidden="true"><use href="#i-gauge"/></svg><span class="sb-txt">Painel</span></a>
-            <a class="sb-item" href="#/conhecimento" data-view="conhecimento" data-tip="Conhecimento" data-tip-pos="right"><svg class="i" aria-hidden="true"><use href="#i-file"/></svg><span class="sb-txt">Conhecimento</span></a>
-            <a class="sb-item" href="#/privacidade" data-view="privacidade" data-tip="Privacidade" data-tip-pos="right"><svg class="i" aria-hidden="true"><use href="#i-shield"/></svg><span class="sb-txt">Privacidade</span></a>
-            <a class="sb-item" href="#/config" data-view="config" data-tip="Configurações" data-tip-pos="right"><svg class="i" aria-hidden="true"><use href="#i-sliders"/></svg><span class="sb-txt">Configurações</span></a>
+            <a class="sb-item" href="#/" data-view="home" data-tip="Início" aria-label="Início" data-tip-pos="right"><svg class="i" aria-hidden="true"><use href="#i-home"/></svg><span class="sb-txt">Início</span></a>
+            <a class="sb-item" href="#/chat" data-view="chat" data-tip="Chat" aria-label="Chat" data-tip-pos="right"><svg class="i" aria-hidden="true"><use href="#i-chat"/></svg><span class="sb-txt">Chat</span><span id="badge-chat" class="dot-badge" aria-hidden="true"></span></a>
+            <a class="sb-item" href="#/projetos" data-view="projetos" data-tip="Projetos" aria-label="Projetos" data-tip-pos="right"><svg class="i" aria-hidden="true"><use href="#i-folder"/></svg><span class="sb-txt">Projetos</span></a>
+            <a class="sb-item" href="#/fontes" data-view="fontes" aria-label="Fontes" data-tip="Fontes" data-tip-pos="right"><svg class="i" aria-hidden="true"><use href="#i-folder"/></svg><span class="sb-txt">Fontes</span></a>
+            <a class="sb-item" href="#/atividade" data-view="atividade" aria-label="Atividade" data-tip="Atividade" data-tip-pos="right"><svg class="i" aria-hidden="true"><use href="#i-info"/></svg><span class="sb-txt">Atividade</span></a>
+            <a class="sb-item" href="#/resultados" data-view="resultados" data-tip="Resultados" aria-label="Resultados" data-tip-pos="right"><svg class="i" aria-hidden="true"><use href="#i-copy"/></svg><span class="sb-txt">Resultados</span></a>
+            <a class="sb-item" href="#/memoria" data-view="memoria" data-tip="Memória" aria-label="Memória" data-tip-pos="right"><svg class="i" aria-hidden="true"><use href="#i-memory"/></svg><span class="sb-txt">Memória</span></a>
+            <a class="sb-item" href="#/integracoes" data-view="integracoes" data-tip="Integrações" aria-label="Integrações" data-tip-pos="right"><svg class="i" aria-hidden="true"><use href="#i-plug"/></svg><span class="sb-txt">Integrações</span></a>
+            <a class="sb-item" href="#/painel" data-view="painel" data-tip="Painel" aria-label="Painel" data-tip-pos="right"><svg class="i" aria-hidden="true"><use href="#i-gauge"/></svg><span class="sb-txt">Painel</span></a>
+            <a class="sb-item" href="#/conhecimento" data-view="conhecimento" data-tip="Conhecimento" aria-label="Conhecimento" data-tip-pos="right"><svg class="i" aria-hidden="true"><use href="#i-file"/></svg><span class="sb-txt">Conhecimento</span></a>
+            <a class="sb-item" href="#/privacidade" data-view="privacidade" data-tip="Privacidade" aria-label="Privacidade" data-tip-pos="right"><svg class="i" aria-hidden="true"><use href="#i-shield"/></svg><span class="sb-txt">Privacidade</span></a>
+            <a class="sb-item" href="#/config" data-view="config" data-tip="Configurações" aria-label="Configurações" data-tip-pos="right"><svg class="i" aria-hidden="true"><use href="#i-sliders"/></svg><span class="sb-txt">Configurações</span></a>
         </nav>
 
         <div class="sb-convs">
+            <div class="sb-section-label sb-txt">Suas conversas</div>
             <div class="sb-search">
                 <svg class="i" aria-hidden="true"><use href="#i-search"/></svg>
                 <input id="sb-search" class="input" type="search" placeholder="Buscar conversas" aria-label="Buscar conversas" autocomplete="off" spellcheck="false">
             </div>
-            <nav id="sb-convs-list" aria-label="Conversas" aria-busy="true"></nav>
+            <nav id="sb-convs-list" tabindex="0" aria-label="Conversas" aria-busy="true"></nav>
         </div>
 
         <div class="sb-foot">
@@ -159,20 +165,22 @@
             <section id="view-home" class="view" data-view="home" aria-label="Início">
                 <div class="home-hero">
                     <div class="home-greet">
+                        <span class="home-eyebrow"><span class="belt-mark" aria-hidden="true"><i></i><i></i><i></i></span> SEU ESPAÇO COM ORION</span>
                         <h2><span id="home-saudacao">Olá</span>, <em>Antônio</em>.</h2>
-                        <p>O que vamos resolver agora?</p>
+                        <p>Uma ideia, uma pergunta, um próximo passo.</p>
                     </div>
-                    <div id="home-status" class="home-status" aria-label="Situação"></div>
                     <form id="home-form" class="home-composer" autocomplete="off">
                         <div class="composer-box">
                             <div class="composer-row">
-                                <textarea id="home-input" class="composer-input" rows="1" placeholder="Comando ou pergunta…" aria-label="Mensagem para o Orion" spellcheck="false"></textarea>
+                                <textarea id="home-input" class="composer-input" rows="1" placeholder="Pergunte ou peça algo ao Orion…" aria-label="Mensagem para o Orion" spellcheck="false"></textarea>
                                 <button type="button" class="icon-btn voice-ptt-btn" aria-label="Falar com o Orion" aria-pressed="false" data-tip="Falar (clique para gravar)"><svg class="i" aria-hidden="true"><use href="#i-mic"/></svg></button>
                                 <button type="button" class="icon-btn voice-live-btn" aria-label="Voz ao vivo" aria-pressed="false" data-tip="Voz ao vivo"><svg class="i" aria-hidden="true"><use href="#i-wave"/></svg></button>
                                 <button type="submit" class="btn-send" aria-label="Enviar" data-tip="Enviar (Enter)" disabled><svg class="i" aria-hidden="true"><use href="#i-send"/></svg></button>
                             </div>
                         </div>
+                        <div class="home-composer-foot"><span>Shift+Enter para nova linha</span><span><kbd>Enter</kbd> para enviar</span></div>
                     </form>
+                    <div id="home-status" class="home-status" aria-label="Modelo e memória"></div>
                     <div id="home-suggest" class="suggest-row" role="group" aria-label="Sugestões"></div>
                 </div>
             </section>
@@ -193,7 +201,7 @@
                         <div id="chat-empty" class="chat-empty">
                             <span class="belt-mark" aria-hidden="true"><i></i><i></i><i></i></span>
                             <h2>Como posso ajudar?</h2>
-                            <p>Pergunte, peça uma ação no computador ou consulte a sua memória. Ações que mudam algo exigem a sua aprovação.</p>
+                            <p>Pergunte, peça uma ação no computador ou consulte a sua memória. Você decide antes de executar ações.</p>
                             <div id="suggest-grid" class="suggest-grid"></div>
                         </div>
                     </div>
@@ -206,7 +214,7 @@
                             <div class="composer-row">
                                 <button id="btn-attach" type="button" class="icon-btn" aria-label="Anexar imagem, áudio ou vídeo" data-tip="Anexar (ou arraste/cole)"><svg class="i" aria-hidden="true"><use href="#i-clip"/></svg></button>
                                 <input id="file-input" type="file" accept="image/*,audio/*,video/mp4,video/quicktime,video/webm" hidden multiple>
-                                <textarea id="composer-input" class="composer-input" rows="1" placeholder="Comando ou pergunta…" aria-label="Mensagem para o Orion" aria-describedby="composer-help" spellcheck="false"></textarea>
+                                <textarea id="composer-input" class="composer-input" rows="1" placeholder="Pergunte ou peça algo ao Orion…" aria-label="Mensagem para o Orion" aria-describedby="composer-help" spellcheck="false"></textarea>
                                 <button type="button" class="icon-btn voice-ptt-btn" aria-label="Falar com o Orion" aria-pressed="false" data-tip="Falar (clique para gravar)"><svg class="i" aria-hidden="true"><use href="#i-mic"/></svg></button>
                                 <button type="button" class="icon-btn voice-live-btn" aria-label="Voz ao vivo" aria-pressed="false" data-tip="Voz ao vivo"><svg class="i" aria-hidden="true"><use href="#i-wave"/></svg></button>
                                 <button id="btn-send" type="submit" class="btn-send" aria-label="Enviar" data-mode="send" data-tip="Enviar (Enter)" disabled><svg class="i" aria-hidden="true"><use href="#i-send"/></svg></button>
@@ -247,19 +255,42 @@
                 </div>
             </section>
 
+            <section id="view-projetos" class="view page" tabindex="0" data-view="projetos" aria-label="Projetos">
+                <div class="page-inner">
+                    <div class="page-head"><div><h2>Projetos</h2><p>Um lugar para suas conversas, fontes e instruções.</p></div>
+                        <button id="project-new" class="btn btn-primary" type="button">Novo projeto</button></div>
+                    <div class="project-toolbar"><button id="project-personal" class="btn btn-outline" type="button">Conversar sem projeto</button>
+                        <label class="extension-check"><input id="project-archived" type="checkbox"> Mostrar arquivados</label></div>
+                    <div id="project-status" role="status"></div>
+                    <div class="project-layout"><nav id="project-list" aria-label="Seus projetos"></nav>
+                        <article id="project-detail" class="card project-detail" aria-label="Detalhes do projeto"></article></div>
+                </div>
+            </section>
+            <section id="view-fontes" class="view page" tabindex="0" data-view="fontes" aria-label="Fontes"><div class="page-inner" id="documents-root"></div></section>
+            <section id="view-atividade" class="view page" tabindex="0" data-view="atividade" aria-label="Atividade"><div class="page-inner" id="activity-root"></div></section>
+            <section id="view-resultados" class="view page" tabindex="0" data-view="resultados" aria-label="Resultados">
+                <div class="page-inner"><div class="page-head"><div><h2>Seus resultados</h2><p id="artifact-context">Conteúdo que vale guardar, com versões e fontes.</p></div>
+                    <button id="artifact-new" class="btn btn-primary" type="button">Novo resultado</button></div>
+                    <label class="extension-field"><span>Buscar resultados</span><input id="artifact-search" class="input" type="search" placeholder="Buscar por título"></label>
+                    <p id="artifact-status" role="status"></p>
+                    <div class="artifact-layout"><div id="artifact-list" class="artifact-list" role="region" aria-label="Resultados persistidos"></div>
+                        <section id="artifact-preview" class="card artifact-preview" aria-label="Prévia do resultado" hidden></section></div>
+                </div>
+            </section>
             <!-- Integrações -->
-            <section id="view-integracoes" class="view page" data-view="integracoes" aria-label="Integrações">
+            <section id="view-integracoes" class="view page" tabindex="0" data-view="integracoes" aria-label="Integrações">
                 <div class="page-inner">
                     <div class="page-head">
                         <div><h2>Integrações</h2><p>Canais e serviços ligados ao Orion. O estado vem do cérebro em tempo real.</p></div>
                         <button id="integ-refresh" class="btn btn-outline btn-sm" type="button"><svg class="i" aria-hidden="true"><use href="#i-refresh"/></svg>Atualizar</button>
                     </div>
+                    <div id="extension-root" hidden></div>
                     <div id="integ-grid" class="grid" aria-busy="true"></div>
                 </div>
             </section>
 
             <!-- Painel -->
-            <section id="view-painel" class="view page" data-view="painel" aria-label="Painel">
+            <section id="view-painel" class="view page" tabindex="0" data-view="painel" aria-label="Painel">
                 <div class="page-inner">
                     <div class="page-head">
                         <div><h2>Painel</h2><p>Modelos, CLIs, aprovações e política num lugar só. <span id="painel-quando" class="painel-quando"></span></p></div>
@@ -270,7 +301,7 @@
             </section>
 
             <!-- Conhecimento: projetos e fatos da memória -->
-            <section id="view-conhecimento" class="view page" data-view="conhecimento" aria-label="Conhecimento">
+            <section id="view-conhecimento" class="view page" tabindex="0" data-view="conhecimento" aria-label="Conhecimento">
                 <div class="page-inner">
                     <div class="page-head">
                         <div><h2>Conhecimento</h2><p>Projetos com instruções próprias e o que o Orion sabe sobre você: dá para corrigir ou esquecer.</p></div>
@@ -281,7 +312,7 @@
             </section>
 
             <!-- Privacidade: o que saiu do computador (regra 47) -->
-            <section id="view-privacidade" class="view page" data-view="privacidade" aria-label="Privacidade">
+            <section id="view-privacidade" class="view page" tabindex="0" data-view="privacidade" aria-label="Privacidade">
                 <div class="page-inner">
                     <div class="page-head">
                         <div><h2>Privacidade</h2><p>O que saiu do computador: para quem, quanto e de que tipo. Nunca o conteúdo.</p></div>
@@ -299,7 +330,7 @@
             </section>
 
             <!-- Configurações -->
-            <section id="view-config" class="view page" data-view="config" aria-label="Configurações">
+            <section id="view-config" class="view page" tabindex="0" data-view="config" aria-label="Configurações">
                 <div class="page-inner">
                     <div class="page-head"><div><h2>Configurações</h2><p>Aparência, voz, modelo e conexão. As escolhas ficam neste dispositivo.</p></div></div>
                     <div class="settings">
@@ -457,17 +488,31 @@
 <script src="js/fala_core.js"></script>
 <script src="js/fala.js"></script>
 <script src="js/chat.js"></script>
+<script src="js/history.js"></script>
+<script src="js/branches.js"></script>
 <script src="js/composer.js"></script>
 <script src="js/sidebar.js"></script>
 <script src="js/palette.js"></script>
 <script src="js/busca.js"></script>
 <script src="js/views/home.js"></script>
 <script src="js/views/memory.js"></script>
+<script src="js/views/facts.js"></script>
+<script src="js/views/activity.js"></script>
+<script src="js/views/documents.js"></script>
 <script src="js/views/integrations.js"></script>
+<script src="js/views/extensions.js"></script>
+<script src="js/views/mcp.js"></script>
+<script src="js/views/accounts.js"></script>
+<script src="js/views/calendar.js"></script>
+<script src="js/views/file_plans.js"></script>
+<script src="js/views/projects.js"></script>
+<script src="js/html_preview.js"></script>
+<script src="js/views/artifacts.js"></script>
 <script src="js/views/painel.js"></script>
 <script src="js/views/conhecimento.js"></script>
 <script src="js/views/privacidade.js"></script>
 <script src="js/views/settings.js"></script>
+<script src="js/views/export_clients.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

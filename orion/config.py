@@ -12,7 +12,10 @@ from platformdirs import user_data_dir
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
+from .extensions.host import ConnectionConfig
+from .extensions.skill_runtime import SkillSource
 from .provedores import ProvedorConf
+from .research import ResearchConfig
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 _PUBLICOS = {"0.0.0.0", "::", ""}  # noqa: S104 — só para recusar
@@ -55,6 +58,9 @@ class Settings(BaseSettings):
         default_factory=lambda: ["127.0.0.1", "localhost"]
     )  # + Tailscale: só sobe com senha (`orion set-password`) ou token de admin (regra 17)
     # `orion-desktop` v0 (executar_comando, ler_arquivo, listar_arquivos): desligado por padrão
+    skill_sources: list[SkillSource] = Field(default_factory=list, max_length=32)
+    mcp_connections: list[ConnectionConfig] = Field(default_factory=list, max_length=32)
+    research: ResearchConfig = Field(default_factory=ResearchConfig)
     desktop_tools: bool = False
     # Ferramentas de web (buscar_url, consultar_clima, pesquisar_com_ia): desligadas por padrão,
     # porque página lida pode mandar o modelo buscar outra URL com dados na query (tools/web.py).

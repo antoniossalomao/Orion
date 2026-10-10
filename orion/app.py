@@ -9,7 +9,6 @@ import json
 import logging
 import re
 import shutil
-import tempfile
 import threading
 import time
 import uuid
@@ -24,17 +23,16 @@ from urllib.parse import urlparse
 from fastapi import (
     Depends,
     FastAPI,
-    Form,
     Header,
     HTTPException,
     Query,
     Request,
     Response,
-    UploadFile,
     WebSocket,
     WebSocketDisconnect,
 )
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi import Path as PathParam
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -43,6 +41,8 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from . import __version__, saidas
 from .agenda import agenda_do_briefing
 from .agent import Agent, AgentEvent
+from .artifacts import ArtifactError
+from .artifacts import router as artifact_router
 from .auth import AuthError, AuthService, LockedOut, NotConfigured, WeakPassword
 from .capabilities import Capabilities, describe
 from .capture import Capturer
@@ -50,6 +50,15 @@ from .channels import TelegramChannel
 from .config import PROJECT_ROOT, Settings
 from .costs import Custos, cotas_de
 from .delegate import Delegator
+from .extensions.catalog import Catalog
+from .extensions.context import ContextReader, ContextRequest
+from .extensions.host import MCPError, MCPHost
+from .extensions.manager import PluginManager
+from .extensions.plugins import PluginError
+from .extensions.routes import router as extension_router
+from .extensions.skill_runtime import SkillReference, SkillRuntime
+from .extensions.skills import SkillError
+from .fact_routes import router as fact_router
 from .gateway import CAMADA_LOCAL, ChatGateway, Endpoint
 from .jobs import JobRunner
 from .log import request_id
@@ -62,11 +71,13 @@ from .memory.sleep import SleepCycle
 from .memory.store import Message, Session
 from .modos import ModoError, Modos
 from .painel import Painel, texto_do_painel
-from .plugins import PluginError, PluginStore
-from .plugins import describe as describe_plugin
+from .plugins import PluginStore
 from .policy import ApprovalStore, PathGuard, PolicyEngine, redact
 from .policy.paths import default_safe_roots
+from .project_routes import router as project_router
+from .projects import ProjectError
 from .provedores import chave_env
+from .research import Research
 from .resultados import PREVIA_IMAGEM, PREVIA_TEXTO, Library
 from .screen_memory import (
     ScreenMemory,
@@ -80,8 +91,8 @@ from .secrets import get_secret
 from .skills import TOOL_SPEC as SKILL_SPEC
 from .skills import SkillCatalog, skill_tool
 from .tools import default_registry
-from .tools.documents import MAX_ARQUIVO, TIPOS_LEITURA, extrair_texto
 from .tools.processes import ProcessManager
+from .tools.registry import ToolRegistry
 from .transcribe import Transcriber
 from .vision import Vision
 from .voice import (
@@ -130,6 +141,15 @@ class AppState:
     auth: AuthService
     agent: Agent | None = None  # None enquanto o gateway não está configurado
     jobs: JobRunner | None = None  # None com ORION_JOBS_ENABLED=false
+    skills: SkillRuntime | None = None
+    catalog: Catalog | None = None
+    mcp_host: MCPHost | None = None
+    extensions: PluginManager | None = None
+    accounts: Any = None
+    calendar: Any = None
+    events: Any = None
+    file_plans: Any = None
+    export_credentials: Any = None
     telegram: TelegramChannel | None = None  # None sem token, sem usuários ou sem gateway
     mcp: McpManager | None = None  # None sem mcp.json, sem servidor habilitado ou sem gateway
     painel: Painel | None = None
@@ -599,62 +619,35 @@ class NaoPerturbeControle(BaseModel):
 class Mensagem(BaseModel):
     texto: str = Field(min_length=1, max_length=8000)
     canal: str = Field(default="web", pattern=_CANAL)
+    contexto: list[ContextRequest] = Field(default_factory=list, max_length=8)
+    skills: list[str] = Field(default_factory=list, max_length=3)
+    referencias: list[SkillReference] = Field(default_factory=list, max_length=8)
+
+
+class SessaoNova(BaseModel):
+    project_id: str | None = Field(default=None, pattern=r"^[a-f0-9]{32}$")
+    canal: str = Field(default="web", pattern=_CANAL)
+    titulo: str | None = Field(default=None, max_length=120)
+
+
+class SessaoEditar(BaseModel):
+    canal: str = Field(default="web", pattern=_CANAL)
+    titulo: str | None = Field(default=None, min_length=1, max_length=120)
+    favorita: bool | None = None
+    arquivada: bool | None = None
+
+
+class SessaoAtivar(BaseModel):
+    sessao_id: str = Field(pattern=r"^[a-f0-9]{32}$")
+    canal: str = Field(default="web", pattern=_CANAL)
 
 
 class Retomada(BaseModel):
     canal: str = Field(default="web", pattern=_CANAL)
 
 
-class Ativacao(BaseModel):
-    sessao_id: str = Field(min_length=1, max_length=64)
-    canal: str = Field(default="web", pattern=_CANAL)
-
-
-class NovoProjeto(BaseModel):
-    nome: str = Field(min_length=1, max_length=80)
-    instrucoes: str = Field(default="", max_length=4000)
-
-
-class AjusteDeProjeto(BaseModel):
-    nome: str | None = Field(default=None, min_length=1, max_length=80)
-    instrucoes: str | None = Field(default=None, max_length=4000)
-    arquivado: bool | None = None
-
-
-class AjusteDeFato(BaseModel):
-    texto: str = Field(min_length=1, max_length=2000)
-
-
-class AjusteDeConversa(BaseModel):
-    titulo: str | None = Field(default=None, min_length=1, max_length=120)
-    favorita: bool | None = None
-    arquivada: bool | None = None
-    projeto_id: int | None = None  # presente e nulo: tira do projeto
-
-
-def _canal_valido(canal: str) -> None:
-    if not re.fullmatch(_CANAL, canal):
-        raise HTTPException(422, "canal inválido")
-
-
 def _iso(ts: float) -> str:
     return datetime.fromtimestamp(ts, UTC).isoformat()
-
-
-def _item_da_conversa(memory: MemoryStore, s: Any, ativa_id: str | None) -> dict[str, Any]:
-    """Mesma forma que o legado usa (`sessao_id`, `titulo`, `criada`, `ativa`, `favorita`)."""
-    titulo = s.title or (memory.first_user_text(s.id) or "").strip()
-    return {
-        "sessao_id": s.id,
-        "titulo": " ".join(titulo.split())[:80] or "Nova conversa",
-        "criada": _iso(s.created_at),
-        "ultima_atividade": _iso(s.last_active_at),
-        "ativa": s.id == ativa_id,
-        "favorita": s.pinned,
-        "somente_leitura": s.archived,
-        "arquivada": s.shelved,
-        "projeto_id": s.project_id,
-    }
 
 
 def _pesquisa_noturna(settings: Settings, agent: Any, memory: MemoryStore) -> Any:
@@ -677,39 +670,27 @@ def _pesquisa_noturna(settings: Settings, agent: Any, memory: MemoryStore) -> An
     )
 
 
-def _item_do_projeto(p: Any) -> dict[str, Any]:
-    return {
-        "id": p.id,
-        "nome": p.name,
-        "instrucoes": p.instructions,
-        "arquivado": p.archived,
-        "atualizado": _iso(p.updated_at),
-    }
-
-
-def _item_do_fato(f: Any) -> dict[str, Any]:
-    return {
-        "id": f.id,
-        "texto": f.text,
-        "fonte": f.source,
-        "criado": _iso(f.created_at),
-        "atualizado": _iso(f.updated_at),
-    }
-
-
-def _mensagens(memory: MemoryStore, sid: str, limite: int = 80) -> list[dict[str, Any]]:
-    return [
-        {"role": m.role, "content": m.text, "timestamp": _iso(m.created_at)}
-        for m in memory.context_history(sid, limite)
-        if m.role in ("user", "assistant")
-    ]
-
-
 def sse(ev: AgentEvent) -> str:
     """Mesmo formato do /chat do legado (`text`, `tier`, `[DONE]`) + `tool`/`approval`/`error`."""
-    corpo = ev.corpo()
-    if corpo is None:  # "done"
-        return "data: [DONE]\n\n"
+    d = ev.data
+    if ev.kind == "done":
+        payload = json.dumps(
+            {
+                "provenance": d.get("provenance", {}),
+                **({"message_id": d["message_id"]} if "message_id" in d else {}),
+                **({"session_id": d["session_id"]} if "session_id" in d else {}),
+            },
+            ensure_ascii=False,
+        )
+        return f"data: {payload}\n\ndata: [DONE]\n\n"
+    corpo = {
+        "text": {"text": d.get("text")},
+        "tier": {"tier": f"{d.get('endpoint')}/{d.get('model')}"},
+        "tool": {"tool": d},
+        "activity": {"tool": d},
+        "approval": {"approval": d},
+        "error": {"error": d.get("message")},
+    }[ev.kind]
     return f"data: {json.dumps(corpo, ensure_ascii=False)}\n\n"
 
 
@@ -1041,6 +1022,40 @@ def create_app(
             settings, agent, memory, policy, ops
         )
         tarefa_telegram = asyncio.create_task(telegram.run()) if telegram is not None else None
+        if agent is not None:
+            Research(settings.research).attach(agent.tools, policy)
+        from .accounts import Accounts
+
+        accounts = Accounts(memory)
+        mcp_host = MCPHost(settings.mcp_connections, oauth_factory=accounts.provider)
+        accounts.host = mcp_host
+        await mcp_host.start()
+        catalog = Catalog(mcp_host, agent.tools if agent else ToolRegistry(), policy)
+        if catalog is not None and agent is not None:
+            agent.refresh_tools = catalog.refresh
+            try:
+                await catalog.refresh()
+            except Exception:  # noqa: BLE001 — catálogo externo não derruba chat nativo
+                log.warning("mcp_catalog_unavailable")
+        from .calendar import Calendar
+
+        calendar = Calendar(memory, mcp_host, catalog.registry, policy)
+        from .calendar_events import Events
+
+        events = Events(calendar)
+        from .file_plans import FilePlans
+
+        file_plans = FilePlans(events)
+        from .development import Development
+        from .export_credentials import ExportCredentials
+
+        Development(memory, catalog.registry, policy)
+        skill_runtime = await asyncio.to_thread(SkillRuntime, settings.skill_sources)
+        if agent is not None:
+            skill_runtime.attach_tools(agent.tools, policy)
+        extensions = PluginManager(
+            settings.data_dir / "extensions", skill_runtime, mcp_host, catalog, policy
+        )
         voz_stats = VozStats()
         speaker = (speaker_factory or speaker_from_settings)(settings)
         live = (live_factory or live_from_settings)(settings)
@@ -1082,8 +1097,26 @@ def create_app(
             telegram.tela = lambda acao: comando_tela(tela, memory, acao)
             telegram.agenda = agenda
         app.state.orion = AppState(
-            settings, memory, policy, painel.started_at, ops, auth, agent, jobs, telegram, mcp,
-            painel,
+            settings,
+            memory,
+            policy,
+            painel.started_at,
+            ops,
+            auth,
+            agent,
+            jobs,
+            skills=skill_runtime,
+            catalog=catalog,
+            mcp_host=mcp_host,
+            extensions=extensions,
+            accounts=accounts,
+            calendar=calendar,
+            events=events,
+            file_plans=file_plans,
+            export_credentials=ExportCredentials(memory),
+            telegram=telegram,
+            mcp=mcp,
+            painel=painel,
             transcriber=transcriber,
             speaker=speaker,
             live=live,
@@ -1093,9 +1126,10 @@ def create_app(
             biblioteca=biblioteca,
             modos=modos,
             custos=custos,
-        )  # fmt: skip
+        )
         try:
-            yield
+            async with mcp_export.server.session_manager.run():
+                yield
         finally:
             if escuta[0] is not None:
                 escuta[0].parar()  # a thread é daemon; o microfone fecha no `finally` do laço
@@ -1106,6 +1140,10 @@ def create_app(
                         await tarefa
             if telegram is not None:
                 await telegram.aclose()
+            await accounts.close()
+            await extensions.close()
+            await skill_runtime.close()
+            await mcp_host.close()
             if mcp is not None:
                 await asyncio.to_thread(mcp.stop)
             if gateway is not None and hasattr(gateway, "aclose"):
@@ -1125,6 +1163,9 @@ def create_app(
         redoc_url=None,
         openapi_url=None,
     )
+    from .mcp_export import Export, ExportAuth
+
+    mcp_export = Export(lambda: app.state.orion)
     # Host fora da lista (DNS rebinding a partir de uma página web) é recusado.
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts)
 
@@ -1143,7 +1184,9 @@ def create_app(
     def capabilities(state: State) -> Capabilities:
         return describe(
             agent_ready=state.agent is not None,
-            admin_configured=bool(state.settings.admin_token),
+            admin_configured=bool(state.settings.admin_token) or state.auth.has_password(),
+            voice=state.live is not None,
+            tts=state.speaker is not None,
         )
 
     @app.get("/capabilities/details", dependencies=[Admin])
@@ -1192,6 +1235,30 @@ def create_app(
             },
             "pending_approvals": len(state.policy.approvals.pending()),
             "pending_notifications": len(state.ops.pending_notifications(limit=1000, todos=True)),
+        }
+
+    def project_archived(session: Session | None) -> bool:
+        return bool(
+            session
+            and session.project_id
+            and app.state.orion.memory.query(
+                "SELECT archived FROM projects WHERE id=?", (session.project_id,)
+            )[0][0]
+        )
+
+    def sessao_json(session: Session, ativa: str | None) -> dict[str, Any]:
+        return {
+            "sessao_id": session.id,
+            "titulo": session.title or "Conversa sem título",
+            "canal": session.channel,
+            "project_id": session.project_id,
+            "criada": datetime.fromtimestamp(session.created_at, UTC).isoformat(),
+            "ultima_atividade": datetime.fromtimestamp(session.last_active_at, UTC).isoformat(),
+            "ativa": session.id == ativa,
+            "favorita": session.favorite,
+            "arquivada": session.archived,
+            "importada": session.read_only,
+            "somente_leitura": session.archived or session.read_only or project_archived(session),
         }
 
     # ── login ─────────────────────────────────────────────────────────────
@@ -1275,75 +1342,106 @@ def create_app(
             )
         return state.agent
 
-    @app.post("/chat", dependencies=[Admin])
-    async def chat(corpo: Mensagem, state: State) -> StreamingResponse:
-        agente = _agente(state)
-        return StreamingResponse(
-            _stream(agente.run(corpo.canal, corpo.texto)), media_type="text/event-stream"
-        )
-
-    # ── conversas (barra lateral do front) ────────────────────────────────
-    # "Apagar" esconde a conversa (as mensagens ficam no banco e o que o Orion já consolidou
-    # delas continua na memória). Só mexe nas conversas que a barra do canal mostra: as do
-    # Telegram e de outros canais não passam por aqui.
     @app.get("/sessoes", dependencies=[Admin])
-    def listar_conversas(
-        state: State, canal: str = "web", arquivadas: bool = False, projeto: int | None = None
+    def sessoes_listar(
+        state: State,
+        canal: Annotated[str, Query(pattern=_CANAL)] = "web",
+        limite: Annotated[int, Query(ge=1, le=100)] = 50,
     ) -> dict[str, Any]:
-        _canal_valido(canal)
-        ativa = state.memory.active_session(canal)
-        itens = [
-            _item_da_conversa(state.memory, s, ativa.id)
-            for s in state.memory.list_sessions_ui(canal, shelved=arquivadas, project_id=projeto)
-        ]
-        return {"total": len(itens), "sessoes": itens, "ativa": ativa.id}
+        selected = state.memory.selected_session(canal)
+        ativa = selected.id if selected else None
+        sessoes = [sessao_json(s, ativa) for s in state.memory.list_sessions(canal, limite)]
+        return {"sessoes": sessoes, "total": len(sessoes), "ativa": ativa}
 
     @app.get("/sessoes/busca", dependencies=[Admin])
-    def buscar_conversas(
+    def buscar_sessoes(
         state: State,
-        q: Annotated[str, Query(min_length=1, max_length=200)],
-        canal: str = "web",
-        limite: Annotated[int, Query(ge=1, le=50)] = 20,
-        deslocamento: Annotated[int, Query(ge=0)] = 0,
+        texto: Annotated[str, Query(min_length=1, max_length=200)],
+        canal: Annotated[str, Query(pattern=_CANAL)] = "web",
+        limite: Annotated[int, Query(ge=1, le=100)] = 25,
+        offset: Annotated[int, Query(ge=0, le=1_000_000)] = 0,
     ) -> dict[str, Any]:
-        """Acha conversas pelo título ou por uma palavra do corpo das mensagens."""
-        _canal_valido(canal)
-        achados = state.memory.search_sessions(canal, q, limite, deslocamento)
+        sessions, total = state.memory.search_sessions(canal, texto, limit=limite, offset=offset)
+        selected = state.memory.selected_session(canal)
+        items = [
+            {**sessao_json(s, selected.id if selected else None), "trecho": snippet}
+            for s, snippet in sessions
+        ]
+        next_offset = offset + len(items)
         return {
-            "total": len(achados),
-            "resultados": [
-                {**_item_da_conversa(state.memory, a["sessao"], None), "trecho": a["trecho"]}
-                for a in achados
-            ],
+            "sessoes": items,
+            "total": total,
+            "mais": next_offset < total,
+            "proximo_offset": next_offset if next_offset < total else None,
         }
 
     @app.post("/sessoes", dependencies=[Admin])
-    def nova_conversa(state: State, canal: str = "web") -> dict[str, Any]:
-        _canal_valido(canal)
-        atual = state.memory.active_session(canal)
-        # já está numa conversa vazia: reaproveita em vez de empilhar conversas em branco
-        if state.memory.history(atual.id, 1):
-            atual = state.memory.new_session(canal)
-        return {"ok": True, "sessao_id": atual.id}
+    def sessao_nova(state: State, corpo: SessaoNova | None = None) -> dict[str, Any]:
+        corpo = corpo or SessaoNova()
+        try:
+            session = state.memory.new_session(
+                corpo.canal, (corpo.titulo or "").strip() or None, project_id=corpo.project_id
+            )
+        except ValueError:
+            raise HTTPException(422, "project_unavailable") from None
+        return {"ok": True, **sessao_json(session, session.id), "mensagens": []}
 
     @app.post("/sessoes/ativar", dependencies=[Admin])
-    def ativar_conversa(corpo: Ativacao, state: State) -> dict[str, Any]:
-        s = state.memory.session_visible(corpo.sessao_id, corpo.canal)
-        if s is None:
-            raise HTTPException(404, "conversa não encontrada")
-        if s.archived:
-            raise HTTPException(409, "conversa arquivada: só leitura (use o histórico)")
-        state.memory.activate_session(s.id)
-        return {"ok": True, "sessao_id": s.id, "mensagens": _mensagens(state.memory, s.id)}
+    def sessao_ativar(corpo: SessaoAtivar, state: State) -> dict[str, Any]:
+        try:
+            session = state.memory.activate_session(corpo.canal, corpo.sessao_id)
+        except KeyError:
+            # Mesmo resultado para inexistente e sessão de outro canal: não revela existência.
+            raise HTTPException(404, "sessão inexistente neste canal") from None
+        except ValueError as e:
+            raise HTTPException(409, str(e)) from None
+        # Snapshot compatível com o adaptador e com o limite de contexto após limpeza.
+        mensagens = [
+            {
+                "role": m.role,
+                "content": m.text,
+                "timestamp": datetime.fromtimestamp(m.created_at, UTC).isoformat(),
+                "provenance": m.provenance,
+            }
+            for m in state.memory.context_history(session.id, limit=50)
+            if m.role in {"user", "assistant"}
+        ]
+        return {"ok": True, **sessao_json(session, session.id), "mensagens": mensagens}
 
-    def conversa(state: AppState, canal: str, sessao: str | None) -> Session | None:
-        """A conversa pedida (visível neste canal) ou, sem `sessao`, a selecionada do canal."""
-        _canal_valido(canal)
-        if not sessao:
-            return state.memory.selected_session(canal)
-        session = state.memory.session_visible(sessao, canal)
-        if session is None:
-            raise HTTPException(404, "conversa não encontrada")
+    @app.patch("/sessoes/{session_id}", dependencies=[Admin])
+    async def sessao_editar(
+        session_id: Annotated[str, PathParam(pattern=r"^[a-f0-9]{32}$")],
+        corpo: SessaoEditar,
+        state: State,
+    ) -> dict[str, Any]:
+        session = conversation(state, corpo.canal, session_id)
+        assert session is not None
+        if corpo.arquivada and (
+            state.policy.approvals.unresolved(session_id)
+            or (state.agent and state.agent.busy(session_id))
+        ):
+            raise HTTPException(409, "termine a resposta e resolva as aprovações antes de arquivar")
+        try:
+            updated = state.memory.edit_session(
+                corpo.canal,
+                session_id,
+                title=corpo.titulo,
+                favorite=corpo.favorita,
+                archived=corpo.arquivada,
+            )
+        except KeyError:
+            raise HTTPException(404, "sessão inexistente neste canal") from None
+        except ValueError as e:
+            raise HTTPException(409, str(e)) from None
+        selected = state.memory.selected_session(corpo.canal)
+        return {"ok": True, **sessao_json(updated, selected.id if selected else None)}
+
+    def conversation(state: AppState, canal: str, sessao: str | None) -> Session | None:
+        session = (
+            state.memory.get_session(sessao) if sessao else state.memory.selected_session(canal)
+        )
+        if sessao and (session is None or session.channel != canal):
+            raise HTTPException(404, "sessão inexistente neste canal")
         return session
 
     def mensagem_json(m: Message) -> dict[str, Any]:
@@ -1351,7 +1449,7 @@ def create_app(
             "id": m.id,
             "role": m.role,
             "content": m.text,
-            "timestamp": _iso(m.created_at),
+            "timestamp": datetime.fromtimestamp(m.created_at, UTC).isoformat(),
             "provenance": m.provenance,
         }
 
@@ -1366,7 +1464,7 @@ def create_app(
     ) -> dict[str, Any]:
         """Página por ID (do fim para o começo). Por padrão respeita o limite de contexto de
         "limpar"; `completo=true` mostra tudo (a limpeza nunca apaga mensagens)."""
-        session = conversa(state, canal, sessao)
+        session = conversation(state, canal, sessao)
         messages, total, cursor = (
             state.memory.history_page(session.id, limit=limite, before=antes, complete=completo)
             if session
@@ -1378,7 +1476,9 @@ def create_app(
             "mensagens": [mensagem_json(m) for m in messages],
             "mais": cursor is not None,
             "proximo_antes": cursor,
-            "somente_leitura": bool(session and session.archived),
+            "somente_leitura": bool(
+                session and (session.archived or session.read_only or project_archived(session))
+            ),
         }
 
     @app.delete("/historico", dependencies=[Admin])
@@ -1387,7 +1487,7 @@ def create_app(
         canal: str = "web",
         sessao: Annotated[str | None, Query(max_length=64)] = None,
     ) -> dict[str, Any]:
-        session = conversa(state, canal, sessao)
+        session = conversation(state, canal, sessao)
         if session:
             if session.archived:
                 raise HTTPException(409, "conversa arquivada: só leitura")
@@ -1413,7 +1513,7 @@ def create_app(
         sessao: Annotated[str | None, Query(max_length=64)] = None,
         completo: bool = False,
     ) -> dict[str, Any]:
-        session = conversa(state, canal, sessao)
+        session = conversation(state, canal, sessao)
         lines = ["# Conversa com o Orion", ""]
         total = 0
         if session:
@@ -1450,77 +1550,47 @@ def create_app(
             "sessao": session.id if session else None,
         }
 
-    @app.patch("/sessoes/{sessao_id}", dependencies=[Admin])
-    def ajustar_conversa(
-        sessao_id: str, corpo: AjusteDeConversa, state: State, canal: str = "web"
-    ) -> dict[str, Any]:
-        _canal_valido(canal)
-        muda_projeto = "projeto_id" in corpo.model_fields_set
-        if (
-            corpo.titulo is None
-            and corpo.favorita is None
-            and corpo.arquivada is None
-            and not muda_projeto
-        ):
-            raise HTTPException(
-                422, "nada para mudar: mande `titulo`, `favorita`, `arquivada` e/ou `projeto_id`"
-            )
-        s = state.memory.session_visible(sessao_id, canal)
-        if s is None:
-            raise HTTPException(404, "conversa não encontrada")
-        if muda_projeto:
+    @app.get("/skills", dependencies=[Admin])
+    def listar_skills(
+        state: State, canal: Annotated[str, Query(pattern=_CANAL)] = "web"
+    ) -> list[dict]:
+        session = state.memory.selected_session(canal)
+        scope = f"project:{session.project_id}" if session and session.project_id else "personal"
+        return [s for s in state.skills.summaries() if s["scope"] == scope] if state.skills else []
+
+    @app.post("/chat", dependencies=[Admin])
+    async def chat(corpo: Mensagem, state: State) -> StreamingResponse:
+        agente = _agente(state)
+        session = state.memory.active_session(corpo.canal)
+        scope = f"project:{session.project_id}" if session.project_id else "personal"
+        selection = None
+        if state.skills is not None:
             try:
-                if not state.memory.assign_session(s.id, corpo.projeto_id):
-                    raise HTTPException(409, "conversa importada é só leitura")
-            except KeyError:
-                raise HTTPException(404, "projeto não encontrado") from None
-        if corpo.arquivada is not None and not state.memory.shelve_session(s.id, corpo.arquivada):
-            raise HTTPException(409, "conversa importada é só leitura: não dá para arquivar")
-        if corpo.titulo is not None and not state.memory.rename_session(s.id, corpo.titulo):
-            raise HTTPException(422, "título vazio")
-        if corpo.favorita is not None:
-            state.memory.pin_session(s.id, corpo.favorita)
-        novo = state.memory.get_session(s.id)
-        assert novo is not None
-        return {"ok": True, "sessao": _item_da_conversa(state.memory, novo, None)}
-
-    @app.delete("/sessoes/{sessao_id}", dependencies=[Admin])
-    def apagar_conversa(sessao_id: str, state: State, canal: str = "web") -> dict[str, bool]:
-        _canal_valido(canal)
-        s = state.memory.session_visible(sessao_id, canal)
-        if s is None:
-            raise HTTPException(404, "conversa não encontrada")
-        state.memory.delete_session(s.id)
-        audit_log.info(
-            "conversa_apagada",
-            extra={"audit": {"sessao": s.id, "canal": canal, "titulo": (s.title or "")[:60]}},
+                selection = await asyncio.to_thread(
+                    state.skills.select, corpo.texto, corpo.skills, corpo.referencias, context=scope
+                )
+            except SkillError as error:
+                raise HTTPException(422, str(error)) from error
+        external = []
+        if corpo.contexto:
+            if state.mcp_host is None:
+                raise HTTPException(503, "mcp_unavailable")
+            try:
+                external = await ContextReader(state.mcp_host).selected(corpo.contexto, scope)
+            except MCPError as error:
+                raise HTTPException(422, error.code) from error
+        return StreamingResponse(
+            _stream(
+                agente.run(
+                    corpo.canal,
+                    corpo.texto,
+                    external=external,
+                    selection=selection,
+                    expected_session=session.id,
+                )
+            ),
+            media_type="text/event-stream",
         )
-        return {"ok": True}
-
-    # ── plugins (regra 45): conceder e revogar; instalar é só pela linha de comando ──
-    def _plugins(state: AppState) -> PluginStore:
-        return PluginStore(state.settings.effective_plugins_dir)
-
-    @app.get("/plugins", dependencies=[Admin])
-    def listar_plugins(state: State) -> dict[str, Any]:
-        itens = [describe_plugin(p) for p in _plugins(state).lista()]
-        return {"total": len(itens), "plugins": itens, "vale_depois_de_reiniciar": True}
-
-    @app.post("/plugins/{nome}/conceder", dependencies=[Admin])
-    def conceder_plugin(nome: str, state: State) -> dict[str, Any]:
-        try:
-            p = _plugins(state).conceder(nome)
-        except PluginError as e:
-            raise HTTPException(404, str(e)) from None
-        audit_log.info("plugin_concedido", extra={"audit": {"plugin": nome, "versao": p.versao}})
-        return {"ok": True, "plugin": describe_plugin(p), "vale_depois_de_reiniciar": True}
-
-    @app.post("/plugins/{nome}/revogar", dependencies=[Admin])
-    def revogar_plugin(nome: str, state: State) -> dict[str, Any]:
-        if not _plugins(state).revogar(nome):
-            raise HTTPException(404, "esse plugin não tem concessão")
-        audit_log.info("plugin_revogado", extra={"audit": {"plugin": nome}})
-        return {"ok": True, "vale_depois_de_reiniciar": True}
 
     # ── biblioteca de resultados (C34/C35): o que o Orion gerou, com origem e versões ──
     def _biblioteca(state: AppState) -> Library:
@@ -1528,7 +1598,7 @@ def create_app(
         return state.biblioteca
 
     @app.get("/resultados", dependencies=[Admin])
-    def listar_resultados(state: State, projeto: int | None = None) -> dict[str, Any]:
+    def listar_resultados(state: State, projeto: str | None = None) -> dict[str, Any]:
         itens = [
             {
                 "id": a["id"],
@@ -1591,141 +1661,6 @@ def create_app(
         audit_log.info("resultado_apagado", extra={"audit": {"resultado": rid}})
         return {"ok": True}
 
-    # ── documentos enviados pela interface (C38): PDF, Word, Excel, HTML, texto ──
-    @app.get("/memoria/documentos", dependencies=[Admin])
-    def listar_documentos(state: State) -> dict[str, Any]:
-        itens = [
-            {
-                "id": d["id"],
-                "nome": str(d["source"]).removeprefix("upload:"),
-                "titulo": d["title"],
-                "trechos": d["trechos"],
-                "projeto_id": d["project_id"],
-                "indexado": _iso(d["indexed_at"]),
-            }
-            for d in state.memory.list_documents()
-        ]
-        return {"total": len(itens), "documentos": itens}
-
-    @app.post("/memoria/documentos", dependencies=[Admin], status_code=201)
-    async def enviar_documento(
-        state: State, arquivo: UploadFile, projeto_id: Annotated[int | None, Form()] = None
-    ) -> dict[str, Any]:
-        """Lê o arquivo, tira o texto e indexa na memória (busca por palavra e por sentido). Com
-        `projeto_id`, só entra no contexto automático das conversas do projeto. O arquivo em si
-        não fica guardado: só o texto, em trechos."""
-        nome = Path(arquivo.filename or "").name
-        ext = Path(nome).suffix.lower()
-        if not nome or ext not in TIPOS_LEITURA:
-            raise HTTPException(415, f"tipo não suportado. Use: {', '.join(TIPOS_LEITURA)}")
-        if projeto_id is not None and state.memory.get_project(projeto_id) is None:
-            raise HTTPException(404, "projeto não encontrado")
-        dados = await arquivo.read(MAX_ARQUIVO + 1)
-        if len(dados) > MAX_ARQUIVO:
-            raise HTTPException(413, f"arquivo passa de {MAX_ARQUIVO // 1024 // 1024} MB")
-        if not dados:
-            raise HTTPException(422, "arquivo vazio")
-
-        def processar() -> tuple[str, int]:
-            with tempfile.TemporaryDirectory(prefix="orion-doc-") as tmp:
-                caminho = Path(tmp) / f"doc{ext}"
-                caminho.write_bytes(dados)
-                texto = extrair_texto(caminho).strip()
-            if len(texto) < 20:
-                raise ValueError("não achei texto nesse arquivo (escaneado? use OCR antes)")
-            resultado = state.memory.index_document(
-                f"upload:{nome}", Path(nome).stem, texto[:MAX_TEXTO_DOCUMENTO], projeto_id
-            )
-            return resultado, len(texto)
-
-        try:
-            resultado, tamanho = await asyncio.to_thread(processar)
-        except ValueError as e:
-            raise HTTPException(422, str(e)) from None
-        except Exception as e:  # noqa: BLE001 — arquivo corrompido/protegido
-            raise HTTPException(422, f"não consegui ler o documento ({type(e).__name__})") from None
-        doc = next(
-            (d for d in state.memory.list_documents() if d["source"] == f"upload:{nome}"), None
-        )
-        audit_log.info("documento_indexado", extra={"audit": {"tipo": ext, "caracteres": tamanho}})
-        return {
-            "ok": True,
-            "resultado": resultado,  # new, updated ou same (mesmo conteúdo, nada refeito)
-            "caracteres": tamanho,
-            "trechos": doc["trechos"] if doc else 0,
-            "id": doc["id"] if doc else None,
-        }
-
-    @app.delete("/memoria/documentos/{doc_id}", dependencies=[Admin])
-    def apagar_documento(doc_id: int, state: State) -> dict[str, bool]:
-        if not state.memory.remove_document_id(doc_id):
-            raise HTTPException(404, "documento não encontrado")
-        audit_log.info("documento_apagado", extra={"audit": {"documento": doc_id}})
-        return {"ok": True}
-
-    # ── projetos (C31): instruções próprias para um grupo de conversas ─────
-    @app.get("/projetos", dependencies=[Admin])
-    def listar_projetos(state: State, arquivados: bool = False) -> dict[str, Any]:
-        itens = [_item_do_projeto(p) for p in state.memory.list_projects(arquivados)]
-        return {"total": len(itens), "projetos": itens}
-
-    @app.post("/projetos", dependencies=[Admin], status_code=201)
-    def criar_projeto(corpo: NovoProjeto, state: State) -> dict[str, Any]:
-        try:
-            p = state.memory.create_project(corpo.nome, corpo.instrucoes)
-        except ValueError as e:
-            raise HTTPException(409, str(e)) from None
-        return {"ok": True, "projeto": _item_do_projeto(p)}
-
-    @app.patch("/projetos/{projeto_id}", dependencies=[Admin])
-    def ajustar_projeto(projeto_id: int, corpo: AjusteDeProjeto, state: State) -> dict[str, Any]:
-        try:
-            p = state.memory.update_project(
-                projeto_id,
-                name=corpo.nome,
-                instructions=corpo.instrucoes,
-                archived=corpo.arquivado,
-            )
-        except KeyError:
-            raise HTTPException(404, "projeto não encontrado") from None
-        except ValueError as e:
-            raise HTTPException(409, str(e)) from None
-        return {"ok": True, "projeto": _item_do_projeto(p)}
-
-    @app.delete("/projetos/{projeto_id}", dependencies=[Admin])
-    def apagar_projeto(projeto_id: int, state: State) -> dict[str, bool]:
-        if not state.memory.delete_project(projeto_id):
-            raise HTTPException(404, "projeto não encontrado")
-        return {"ok": True}
-
-    # ── memória: o que o Orion sabe sobre o Antônio (C36) ─────────────────
-    @app.get("/memoria/fatos", dependencies=[Admin])
-    def listar_fatos(
-        state: State,
-        q: Annotated[str | None, Query(max_length=200)] = None,
-        limite: Annotated[int, Query(ge=1, le=200)] = 100,
-    ) -> dict[str, Any]:
-        achados = state.memory.search_facts(q, limite) if q else state.memory.facts()[:limite]
-        return {"total": len(achados), "fatos": [_item_do_fato(f) for f in achados]}
-
-    @app.patch("/memoria/fatos/{fato_id}", dependencies=[Admin])
-    def corrigir_fato(fato_id: int, corpo: AjusteDeFato, state: State) -> dict[str, Any]:
-        try:
-            novo = state.memory.update_fact(fato_id, corpo.texto, source="manual")
-        except KeyError:
-            raise HTTPException(404, "fato não encontrado") from None
-        except ValueError:
-            raise HTTPException(422, "fato vazio") from None
-        audit_log.info("fato_corrigido", extra={"audit": {"fato": fato_id}})
-        return {"ok": True, "fato": _item_do_fato(novo)}
-
-    @app.delete("/memoria/fatos/{fato_id}", dependencies=[Admin])
-    def esquecer_fato(fato_id: int, state: State) -> dict[str, bool]:
-        if not state.memory.forget_fact(fato_id):
-            raise HTTPException(404, "fato não encontrado")
-        audit_log.info("fato_esquecido", extra={"audit": {"fato": fato_id}})
-        return {"ok": True}
-
     @app.post("/approvals/{approval_id}/resume", dependencies=[Admin])
     async def retomar(
         approval_id: str, state: State, corpo: Retomada | None = None
@@ -1765,6 +1700,10 @@ def create_app(
         except ValueError as e:
             raise HTTPException(409, str(e)) from None
         return {"id": a.id, "status": a.status.value}
+
+    from .activity_routes import router as activity_router
+
+    app.include_router(activity_router(require_auth))
 
     @app.get("/imagens/{nome}", dependencies=[Admin])
     def imagem(nome: str, state: State) -> FileResponse:
@@ -1889,16 +1828,70 @@ def create_app(
         }
 
     @app.get("/notifications", dependencies=[Admin])
-    def avisos(state: State) -> list[dict[str, Any]]:
+    def avisos(state: State, project_id: str | None = None) -> list[dict[str, Any]]:
         """Avisos ainda não entregues (lembrete vencido, agendamento disparado). O canal
         entrega e confirma em `/notifications/{id}/ack`."""
-        return state.ops.pending_notifications()
+        from .memory.scope import data_scope
+
+        with data_scope(project_id, include_personal=False):
+            return state.ops.pending_notifications()
 
     @app.post("/notifications/{notification_id}/ack", dependencies=[Admin])
-    def confirmar_aviso(notification_id: int, state: State) -> dict[str, bool]:
-        if not state.ops.ack_notification(notification_id):
+    def confirmar_aviso(
+        notification_id: int, state: State, project_id: str | None = None
+    ) -> dict[str, bool]:
+        from .memory.scope import data_scope
+
+        with data_scope(project_id, include_personal=False):
+            acknowledged = state.ops.ack_notification(notification_id)
+        if not acknowledged:
             raise HTTPException(404, "aviso inexistente ou já confirmado")
         return {"ok": True}
+
+    @app.exception_handler(MCPError)
+    async def mcp_error(request: Request, error: MCPError):
+        return JSONResponse(status_code=422, content={"detail": error.code})
+
+    @app.exception_handler(PluginError)
+    async def plugin_error(request: Request, error: PluginError):
+        return JSONResponse(status_code=422, content={"detail": str(error)})
+
+    @app.exception_handler(ProjectError)
+    async def project_error(request: Request, error: ProjectError):
+        return JSONResponse(
+            status_code=404 if str(error).endswith("not_found") else 409,
+            content={"detail": str(error)},
+        )
+
+    @app.exception_handler(ArtifactError)
+    async def artifact_error(request: Request, error: ArtifactError):
+        return JSONResponse(
+            status_code=404 if str(error).endswith("not_found") else 409,
+            content={"detail": str(error)},
+        )
+
+    from .accounts import router as account_router
+    from .branches import router as branch_router
+    from .calendar import router as calendar_router
+    from .calendar_events import router as event_router
+    from .documents import router as document_router
+    from .export_credentials import router as export_client_router
+    from .file_plans import router as file_plan_router
+
+    app.include_router(export_client_router(require_auth))
+    app.mount("/mcp-export", ExportAuth(mcp_export.app, lambda: app.state.orion))
+
+    app.include_router(file_plan_router(require_auth))
+
+    app.include_router(event_router(require_auth))
+    app.include_router(calendar_router(require_auth))
+    app.include_router(account_router(require_auth))
+    app.include_router(branch_router(require_auth))
+    app.include_router(document_router(require_auth))
+    app.include_router(fact_router(require_auth))
+    app.include_router(artifact_router(require_auth))
+    app.include_router(project_router(require_auth))
+    app.include_router(extension_router(require_auth))
 
     # ── voz (fase 6) ──────────────────────────────────────────────────────
     async def _erro_e_fecha(ws: WebSocket, msg: str) -> None:

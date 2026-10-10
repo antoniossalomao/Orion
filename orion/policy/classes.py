@@ -30,6 +30,14 @@ class ToolSpec:
     # por GET. Depois de ler conteúdo externo, a sessão confirma antes de cada uso (regra 4).
     egress: bool = False
 
+    origin: str | None = None
+    revision: str | None = None
+    require_confirmation: bool = False
+    masked_args: tuple[str, ...] = ()
+    display_name: str | None = None
+    origin_label: str | None = None
+    scope: str | None = None
+
 
 def _t(name: str, risk: Risk, **kw) -> tuple[str, ToolSpec]:
     return name, ToolSpec(name, risk, **kw)
@@ -100,6 +108,7 @@ DEFAULT_TOOLS: dict[str, ToolSpec] = dict(
         # reescrita (fase 2)
         _t("listar_fatos", Risk.READ),
         _t("esquecer_fato", Risk.DESTRUCTIVE),
+        _t("editar_fato", Risk.WRITE, require_confirmation=True),
         _t("delegar", Risk.EXEC),
     ]
 )

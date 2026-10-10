@@ -41,6 +41,7 @@
     const cmd = c => { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ cmd: c })); };
 
     async function iniciar() {
+        if (!O.api.suporta('voice')) { nota('Voz ao vivo ainda indisponível neste backend.'); return; }
         if (ativa) return;
         if (!navigator.mediaDevices?.getUserMedia) {
             nota('Microfone indisponível neste endereço: o navegador só libera com HTTPS ou localhost.');

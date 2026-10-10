@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "orion_api": 1,
+  "id": "orion-agenda",
+  "version": "1.0.0",
+  "name": "Orion Agenda",
+  "description": "Planeje o dia e prepare reuniões com fontes e propostas revisáveis.",
+  "license": "LicenseRef-Orion-Proprietary",
+  "skills": [
+    "skills/planejar-dia",
+    "skills/preparar-reuniao"
+  ],
+  "capabilities": [
+    "native:consultar_agenda",
+    "native:consultar_disponibilidade",
+    "native:propor_evento_agenda"
+  ]
+}

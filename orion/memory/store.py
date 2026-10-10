@@ -25,7 +25,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, ClassVar, Literal, Protocol
 
+from . import legacy_main
 from .schema import DDL, MIGRATIONS, SCHEMA_VERSION
+from .scope import clause, current
 from .text import chunk_text, fts_query, strip_frontmatter
 from .vectors import VectorIndex, para_blob
 
@@ -49,20 +51,6 @@ def _percentil(ordenados: Sequence[int], p: int) -> int:
     return int(ordenados[i])
 
 
-def _sessao(r: sqlite3.Row) -> Session:
-    return Session(
-        r["id"],
-        r["channel"],
-        r["title"],
-        r["created_at"],
-        r["last_active_at"],
-        bool(r["pinned"]),
-        bool(r["archived"]),
-        bool(r["shelved"]),
-        r["project_id"],
-    )
-
-
 class Embedder(Protocol):
     dim: int
 
@@ -76,23 +64,10 @@ class Session:
     title: str | None
     created_at: float
     last_active_at: float
-    pinned: bool = False
-    archived: bool = False  # arquivada: conversa importada do legado (só leitura)
-    shelved: bool = False  # arquivada pelo usuário: some da barra, mensagens intactas
-    project_id: int | None = None
-
-
-@dataclass(frozen=True)
-class Project:
-    id: int
-    name: str
-    instructions: str
-    archived: bool
-    created_at: float
-    updated_at: float
-
-
-MAX_INSTRUCOES = 4000
+    archived: bool = False
+    read_only: bool = False
+    favorite: bool = False
+    project_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -112,6 +87,7 @@ class Fact:
     source: str
     created_at: float
     updated_at: float
+    project_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -134,6 +110,10 @@ class MemoryStore:
         self.path = Path(path)
         if str(path) != ":memory:":
             self.path.parent.mkdir(parents=True, exist_ok=True)
+            if self.path.exists():  # banco da linhagem antiga da `main`: converte antes de abrir
+                de = legacy_main.converter(self.path)
+                if de is not None:
+                    log.info("banco da main (esquema v%d) convertido para v%d", de, SCHEMA_VERSION)
         self._embedder = embedder
         self._clock = clock
         self._lock = threading.RLock()
@@ -231,44 +211,91 @@ class MemoryStore:
             return self._conn.execute("SELECT 1").fetchone()[0] == 1
 
     # ── sessões e mensagens (episódico), uma sessão ativa por canal ───────
-    def _select(self, c: sqlite3.Connection, channel: str, session_id: str) -> None:
+    @staticmethod
+    def _session(row: sqlite3.Row) -> Session:
+        return Session(
+            row["id"],
+            row["channel"],
+            row["title"],
+            row["created_at"],
+            row["last_active_at"],
+            bool(row["archived"]),
+            bool(row["read_only"]),
+            bool(row["favorite"]),
+            row["project_id"],
+        )
+
+    def _new_session(
+        self, c: sqlite3.Connection, channel: str, title: str | None, project_id: str | None = None
+    ) -> Session:
+        if project_id is not None:
+            project = c.execute(
+                "SELECT archived FROM projects WHERE id=?", (project_id,)
+            ).fetchone()
+            if project is None or project[0]:
+                raise ValueError("project_unavailable")
+        agora, sid = self._clock(), uuid.uuid4().hex
+        c.execute(
+            "INSERT INTO sessions(id, channel, title, created_at, last_active_at, project_id)"
+            " VALUES (?,?,?,?,?,?)",
+            (sid, channel, title, agora, agora, project_id),
+        )
         c.execute(
             "INSERT INTO active_sessions(channel, session_id) VALUES (?,?)"
             " ON CONFLICT(channel) DO UPDATE SET session_id=excluded.session_id",
-            (channel, session_id),
+            (channel, sid),
         )
+        return Session(sid, channel, title, agora, agora, project_id=project_id)
 
-    def _new_session(self, c: sqlite3.Connection, channel: str, title: str | None) -> Session:
-        agora, sid = self._clock(), uuid.uuid4().hex
-        c.execute(
-            "INSERT INTO sessions(id, channel, title, created_at, last_active_at)"
-            " VALUES (?,?,?,?,?)",
-            (sid, channel, title, agora, agora),
-        )
-        self._select(c, channel, sid)
-        return Session(sid, channel, title, agora, agora)
-
-    def new_session(self, channel: str, title: str | None = None) -> Session:
+    def new_session(
+        self, channel: str, title: str | None = None, *, project_id: str | None = None
+    ) -> Session:
         """Cria e seleciona no mesmo commit SQLite, preservando as outras conversas."""
         with self._tx() as c:
-            return self._new_session(c, channel, title)
+            return self._new_session(c, channel, title, project_id)
 
     def selected_session(self, channel: str) -> Session | None:
         """Consulta sem criar sessão; só o ponteiro persistido determina a ativa."""
         with self._lock:
-            r = self._conn.execute(
-                "SELECT s.* FROM active_sessions a JOIN sessions s ON s.id=a.session_id"
-                " WHERE a.channel=? AND s.channel=? AND s.archived=0 AND s.deleted=0"
+            row = self._conn.execute(
+                "SELECT s.*, 0 AS read_only FROM active_sessions a"
+                " JOIN sessions s ON s.id=a.session_id"
+                " WHERE a.channel=? AND s.channel=? AND s.archived=0"
                 " AND NOT EXISTS(SELECT 1 FROM imported WHERE kind='sessao' AND ref=s.id)",
                 (channel, channel),
             ).fetchone()
-        return _sessao(r) if r else None
+            return self._session(row) if row else None
 
     def active_session(self, channel: str) -> Session:
-        """Sessão selecionada DO CANAL (Telegram, web e voz não se misturam); cria uma vazia
-        quando ainda não há seleção válida (nunca pega a "mais recente" por conta própria)."""
+        """Sessão selecionada DO CANAL; cria uma vazia quando ainda não há seleção."""
         with self._tx() as c:
             return self.selected_session(channel) or self._new_session(c, channel, None)
+
+    def activate_session(self, channel: str, session_id: str) -> Session:
+        """Nunca muda canal nem reabre importada/arquivada; escolha é persistente."""
+        with self._tx() as c:
+            session = self.get_session(session_id)
+            if session is None or session.channel != channel:
+                raise KeyError(session_id)
+            if session.archived or session.read_only:
+                raise ValueError("sessão arquivada ou importada é somente leitura")
+            if (
+                session.project_id
+                and c.execute(
+                    "SELECT archived FROM projects WHERE id=?", (session.project_id,)
+                ).fetchone()[0]
+            ):
+                raise ValueError("project_archived")
+            agora = self._clock()
+            c.execute("UPDATE sessions SET last_active_at=? WHERE id=?", (agora, session.id))
+            c.execute(
+                "INSERT INTO active_sessions(channel, session_id) VALUES (?,?)"
+                " ON CONFLICT(channel) DO UPDATE SET session_id=excluded.session_id",
+                (channel, session.id),
+            )
+            updated = self.get_session(session.id)
+            assert updated is not None
+            return updated
 
     # ── importação (export do legado) ─────────────────────────────────────
     def import_session(
@@ -331,10 +358,15 @@ class MemoryStore:
 
     def get_session(self, session_id: str) -> Session | None:
         with self._lock:
-            r = self._conn.execute("SELECT * FROM sessions WHERE id=?", (session_id,)).fetchone()
+            r = self._conn.execute(
+                "SELECT s.*, EXISTS(SELECT 1 FROM imported"
+                " WHERE kind='sessao' AND ref=s.id) AS read_only"
+                " FROM sessions s WHERE s.id=?",
+                (session_id,),
+            ).fetchone()
         if r is None:
             return None
-        return _sessao(r)
+        return self._session(r)
 
     def archive_session(self, session_id: str) -> None:
         with self._tx() as c:
@@ -343,249 +375,86 @@ class MemoryStore:
                 "UPDATE active_sessions SET session_id=NULL WHERE session_id=?", (session_id,)
             )
 
-    def activate_session(self, session_id: str) -> Session | None:
-        """Torna a conversa a ativa do canal dela (escolha persistente, não muda o canal).
-        Só conversa aberta e não apagada: arquivada (importada) é só leitura. None se não dá."""
-        agora = self._clock()
-        with self._tx() as c:
-            r = c.execute(
-                "SELECT channel FROM sessions WHERE id=? AND archived=0 AND deleted=0",
-                (session_id,),
-            ).fetchone()
-            if r is None:
-                return None
-            c.execute(
-                "UPDATE sessions SET last_active_at=?, shelved=0 WHERE id=?", (agora, session_id)
-            )
-            self._select(c, r["channel"], session_id)
-        return self.get_session(session_id)
-
-    def rename_session(self, session_id: str, title: str) -> bool:
-        titulo = " ".join(title.split())[:120]
-        if not titulo:
-            return False
-        with self._tx() as c:
-            return bool(
-                c.execute(
-                    "UPDATE sessions SET title=? WHERE id=? AND deleted=0", (titulo, session_id)
-                ).rowcount
-            )
-
-    def pin_session(self, session_id: str, pinned: bool) -> bool:
-        with self._tx() as c:
-            return bool(
-                c.execute(
-                    "UPDATE sessions SET pinned=? WHERE id=? AND deleted=0",
-                    (int(pinned), session_id),
-                ).rowcount
-            )
-
-    # ── projetos (C31): instruções próprias para um grupo de conversas ────
-    @staticmethod
-    def _projeto(r: sqlite3.Row) -> Project:
-        return Project(
-            r["id"],
-            r["name"],
-            r["instructions"],
-            bool(r["archived"]),
-            r["created_at"],
-            r["updated_at"],
-        )
-
-    def create_project(self, name: str, instructions: str = "") -> Project:
-        nome = " ".join(name.split())[:80]
-        if not nome:
-            raise ValueError("nome do projeto vazio")
-        agora = self._clock()
-        with self._tx() as c:
-            try:
-                pid = c.execute(
-                    "INSERT INTO projects(name, instructions, created_at, updated_at)"
-                    " VALUES (?,?,?,?)",
-                    (nome, instructions.strip()[:MAX_INSTRUCOES], agora, agora),
-                ).lastrowid
-            except sqlite3.IntegrityError:
-                raise ValueError("já existe um projeto com esse nome") from None
-            return self._projeto(c.execute("SELECT * FROM projects WHERE id=?", (pid,)).fetchone())
-
-    def get_project(self, project_id: int) -> Project | None:
-        with self._lock:
-            r = self._conn.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone()
-        return self._projeto(r) if r else None
-
-    def list_projects(self, archived: bool = False) -> list[Project]:
-        with self._lock:
-            rows = self._conn.execute(
-                "SELECT * FROM projects WHERE archived=? ORDER BY name", (int(archived),)
-            ).fetchall()
-        return [self._projeto(r) for r in rows]
-
-    def update_project(
-        self,
-        project_id: int,
-        *,
-        name: str | None = None,
-        instructions: str | None = None,
-        archived: bool | None = None,
-    ) -> Project:
-        atual = self.get_project(project_id)
-        if atual is None:
-            raise KeyError(project_id)
-        nome = " ".join(name.split())[:80] if name is not None else atual.name
-        if not nome:
-            raise ValueError("nome do projeto vazio")
-        instr = (
-            instructions.strip()[:MAX_INSTRUCOES]
-            if instructions is not None
-            else atual.instructions
-        )
-        arq = atual.archived if archived is None else archived
-        with self._tx() as c:
-            try:
-                c.execute(
-                    "UPDATE projects SET name=?, instructions=?, archived=?, updated_at=?"
-                    " WHERE id=?",
-                    (nome, instr, int(arq), self._clock(), project_id),
-                )
-            except sqlite3.IntegrityError:
-                raise ValueError("já existe um projeto com esse nome") from None
-        novo = self.get_project(project_id)
-        assert novo is not None
-        return novo
-
-    def delete_project(self, project_id: int) -> bool:
-        """Apaga o projeto; as conversas ficam, sem projeto (ON DELETE SET NULL)."""
-        with self._tx() as c:
-            return c.execute("DELETE FROM projects WHERE id=?", (project_id,)).rowcount > 0
-
-    def assign_session(self, session_id: str, project_id: int | None) -> bool:
-        if project_id is not None and self.get_project(project_id) is None:
-            raise KeyError(project_id)
-        with self._tx() as c:
-            return bool(
-                c.execute(
-                    "UPDATE sessions SET project_id=? WHERE id=? AND deleted=0 AND archived=0",
-                    (project_id, session_id),
-                ).rowcount
-            )
-
-    def shelve_session(self, session_id: str, shelved: bool) -> bool:
-        """Arquivar/desarquivar pelo usuário. Arquivar tira a conversa de ativa do canal; as
-        mensagens ficam e a busca ainda a encontra. Importada (só leitura) não entra aqui."""
-        with self._tx() as c:
-            mudou = c.execute(
-                "UPDATE sessions SET shelved=?, pinned=CASE WHEN ? THEN 0 ELSE pinned END"
-                " WHERE id=? AND deleted=0 AND archived=0",
-                (int(shelved), int(shelved), session_id),
-            ).rowcount
-            if mudou and shelved:
-                c.execute(
-                    "UPDATE active_sessions SET session_id=NULL WHERE session_id=?", (session_id,)
-                )
-            return bool(mudou)
-
-    def delete_session(self, session_id: str) -> bool:
-        """Apagar = esconder da lista (e deixar de ser a ativa). As mensagens FICAM: o que o Orion
-        já consolidou delas continua na memória, e dá para desfazer pelo banco."""
-        with self._tx() as c:
-            apagou = c.execute(
-                "UPDATE sessions SET deleted=1, archived=1, pinned=0 WHERE id=? AND deleted=0",
-                (session_id,),
-            ).rowcount
-            c.execute(
-                "UPDATE active_sessions SET session_id=NULL WHERE session_id=?", (session_id,)
-            )
-            return bool(apagou)
-
-    def first_user_text(self, session_id: str) -> str | None:
-        """Primeira fala do usuário: serve de título quando a conversa não foi renomeada."""
-        with self._lock:
-            r = self._conn.execute(
-                "SELECT text FROM messages WHERE session_id=? AND role='user' ORDER BY id LIMIT 1",
-                (session_id,),
-            ).fetchone()
-        return r[0] if r else None
-
-    def list_sessions(self, channel: str | None = None, limit: int = 50) -> list[Session]:
-        """Conversas não apagadas, da mais recente para a mais antiga."""
-        with self._lock:
-            rows = self._conn.execute(
-                "SELECT * FROM sessions WHERE deleted=0 AND (? IS NULL OR channel=?)"
-                " ORDER BY last_active_at DESC LIMIT ?",
-                (channel, channel, limit),
-            ).fetchall()
-        return [_sessao(r) for r in rows]
-
-    def session_visible(self, session_id: str, channel: str) -> Session | None:
-        """A conversa, se a barra do canal a mostra (do canal ou importada, e não apagada)."""
-        with self._lock:
-            r = self._conn.execute(
-                "SELECT * FROM sessions WHERE id=? AND deleted=0 AND (channel=? OR id IN"
-                " (SELECT ref FROM imported WHERE kind='sessao'))",
-                (session_id, channel),
-            ).fetchone()
-        return _sessao(r) if r else None
-
-    def list_sessions_ui(
+    def edit_session(
         self,
         channel: str,
-        limit: int = 100,
+        session_id: str,
         *,
-        shelved: bool = False,
-        project_id: int | None = None,
-    ) -> list[Session]:
-        """O que a barra lateral mostra: as conversas do canal + as importadas do legado (somente
-        leitura), sem as apagadas; fixadas primeiro, depois a atividade mais recente.
-        `shelved=True` lista só as que o usuário arquivou."""
+        title: str | None = None,
+        favorite: bool | None = None,
+        archived: bool | None = None,
+    ) -> Session:
+        """Metadados persistentes; arquivar preserva mensagens e libera a seleção."""
+        with self._tx() as c:
+            session = self.get_session(session_id)
+            if session is None or session.channel != channel:
+                raise KeyError(session_id)
+            if session.read_only:
+                raise ValueError("sessão importada é somente leitura")
+            if title is not None:
+                title = title.strip()
+                if not title or len(title) > 120:
+                    raise ValueError("título deve ter entre 1 e 120 caracteres")
+                c.execute("UPDATE sessions SET title=? WHERE id=?", (title, session_id))
+            if favorite is not None:
+                c.execute("UPDATE sessions SET favorite=? WHERE id=?", (int(favorite), session_id))
+            if archived is not None:
+                c.execute("UPDATE sessions SET archived=? WHERE id=?", (int(archived), session_id))
+                if archived:
+                    c.execute(
+                        "UPDATE active_sessions SET session_id=NULL WHERE session_id=?",
+                        (session_id,),
+                    )
+            updated = self.get_session(session_id)
+            assert updated is not None
+            return updated
+
+    def list_sessions(self, channel: str | None = None, limit: int = 50) -> list[Session]:
         with self._lock:
             rows = self._conn.execute(
-                "SELECT * FROM sessions WHERE deleted=0 AND shelved=? AND (channel=? OR id IN"
-                " (SELECT ref FROM imported WHERE kind='sessao'))"
-                " AND (? IS NULL OR project_id=?)"
-                " ORDER BY pinned DESC, last_active_at DESC LIMIT ?",
-                (int(shelved), channel, project_id, project_id, limit),
+                "SELECT s.*, EXISTS(SELECT 1 FROM imported"
+                " WHERE kind='sessao' AND ref=s.id) AS read_only"
+                " FROM sessions s WHERE (? IS NULL OR channel=?)"
+                " ORDER BY favorite DESC, last_active_at DESC, created_at DESC, id DESC LIMIT ?",
+                (channel, channel, limit),
             ).fetchall()
-        return [_sessao(r) for r in rows]
+        return [self._session(r) for r in rows]
 
     def search_sessions(
-        self, channel: str, query: str, limit: int = 20, offset: int = 0
-    ) -> list[dict[str, Any]]:
-        """Busca por título e por conteúdo nas conversas que a barra do canal enxerga (inclui as
-        arquivadas pelo usuário, não as apagadas). Uma linha por conversa, com um trecho."""
-        q = fts_query(query)
-        if q is None:
-            return []
-        limit, offset = max(1, min(limit, 50)), max(0, offset)
+        self,
+        channel: str,
+        text: str,
+        *,
+        limit: int = 25,
+        offset: int = 0,
+    ) -> tuple[list[tuple[Session, str]], int]:
+        query = fts_query(text)
+        if not query:
+            return [], 0
+        hits = (
+            "WITH hits AS (SELECT s.id FROM sessions_fts "
+            "JOIN sessions s ON s.rowid=sessions_fts.rowid WHERE sessions_fts MATCH ? "
+            "UNION SELECT m.session_id FROM messages_fts "
+            "JOIN messages m ON m.id=messages_fts.rowid WHERE messages_fts MATCH ? "
+            "AND m.role IN ('user','assistant')) "
+        )
         with self._lock:
-            # snippet() não funciona com GROUP BY: pega as melhores mensagens e fica com a
-            # primeira de cada conversa
+            total = self._conn.execute(
+                hits + "SELECT count(*) FROM sessions s WHERE channel=? AND id IN hits",
+                (query, query, channel),
+            ).fetchone()[0]
             rows = self._conn.execute(
-                "SELECT s.id AS sid,"
-                " snippet(messages_fts, 0, '[', ']', '…', 12) AS trecho"
-                " FROM messages_fts f JOIN messages m ON m.id=f.rowid"
-                " JOIN sessions s ON s.id=m.session_id"
-                " WHERE messages_fts MATCH ? AND m.role IN ('user','assistant') AND s.deleted=0"
-                " AND (s.channel=? OR s.id IN (SELECT ref FROM imported WHERE kind='sessao'))"
-                " ORDER BY f.rank LIMIT ?",
-                (q, channel, (limit + offset) * 8),
+                hits + "SELECT s.*, EXISTS(SELECT 1 FROM imported "
+                "WHERE kind='sessao' AND ref=s.id) AS read_only, "
+                "(SELECT snippet(messages_fts,0,'','','…',8) FROM messages_fts "
+                "JOIN messages m ON m.id=messages_fts.rowid WHERE m.session_id=s.id "
+                "AND m.role IN ('user','assistant') AND messages_fts MATCH ? LIMIT 1) AS trecho "
+                "FROM sessions s WHERE channel=? AND id IN hits "
+                "ORDER BY favorite DESC, last_active_at DESC, created_at DESC, id DESC "
+                "LIMIT ? OFFSET ?",
+                (query, query, query, channel, limit, offset),
             ).fetchall()
-            titulos = self._conn.execute(
-                "SELECT id FROM sessions WHERE deleted=0 AND title IS NOT NULL"
-                " AND (channel=? OR id IN (SELECT ref FROM imported WHERE kind='sessao'))"
-                " AND lower(title) LIKE ? ESCAPE '\\' LIMIT ?",
-                (channel, "%" + _like(query.lower()) + "%", limit),
-            ).fetchall()
-        achados: dict[str, str | None] = {}
-        for r in rows:
-            achados.setdefault(r["sid"], r["trecho"])
-        for t in titulos:
-            achados.setdefault(t["id"], None)
-        saida: list[dict[str, Any]] = []
-        for sid, trecho in list(achados.items())[offset : offset + limit]:
-            sess = self.get_session(sid)
-            if sess is not None:
-                saida.append({"sessao": sess, "trecho": trecho})
-        return saida
+        return [(self._session(row), row["trecho"] or "") for row in rows], total
 
     def add_message(
         self, session_id: str, role: str, text: str, provenance: dict[str, Any] | None = None
@@ -669,7 +538,7 @@ class MemoryStore:
             session = self.get_session(session_id)
             if session is None:
                 raise KeyError(session_id)
-            if session.archived:
+            if session.archived or session.read_only:
                 raise ValueError("sessão somente leitura")
             last = c.execute(
                 "SELECT coalesce(max(id),0) FROM messages WHERE session_id=?", (session_id,)
@@ -693,13 +562,16 @@ class MemoryStore:
             raise ValueError("fato vazio")
         agora = self._clock()
         with self._tx() as c:
-            for r in c.execute("SELECT id, text FROM facts"):
+            for r in c.execute(
+                "SELECT id,text FROM facts WHERE project_id IS ?", (current.get().project_id,)
+            ):
                 if self._norm(r["text"]) == self._norm(texto):
                     c.execute("UPDATE facts SET updated_at=? WHERE id=?", (agora, r["id"]))
                     return self._fact(c, r["id"])
             fid = c.execute(
-                "INSERT INTO facts(text, source, created_at, updated_at) VALUES (?,?,?,?)",
-                (texto, source, agora, agora),
+                "INSERT INTO facts(text, source, created_at, updated_at, project_id) "
+                "VALUES (?,?,?,?,?)",
+                (texto, source, agora, agora, current.get().project_id),
             ).lastrowid
             fato = self._fact(c, int(fid or 0))
         self._try_embed()
@@ -707,14 +579,19 @@ class MemoryStore:
 
     def _fact(self, c: sqlite3.Connection, fid: int) -> Fact:
         r = c.execute("SELECT * FROM facts WHERE id=?", (fid,)).fetchone()
-        return Fact(r["id"], r["text"], r["source"], r["created_at"], r["updated_at"])
+        return Fact(
+            r["id"], r["text"], r["source"], r["created_at"], r["updated_at"], r["project_id"]
+        )
 
     def update_fact(self, fact_id: int, text: str, source: str | None = None) -> Fact:
         texto = re.sub(r"\s+", " ", text).strip()
         if not texto:
             raise ValueError("fato vazio")
         with self._tx() as c:
-            if not c.execute("SELECT 1 FROM facts WHERE id=?", (fact_id,)).fetchone():
+            if not c.execute(
+                "SELECT 1 FROM facts WHERE id=? AND project_id IS ?",
+                (fact_id, current.get().project_id),
+            ).fetchone():
                 raise KeyError(fact_id)
             c.execute(
                 "UPDATE facts SET text=?, source=COALESCE(?, source), updated_at=?,"
@@ -729,6 +606,11 @@ class MemoryStore:
     def forget_fact(self, fact_id: int) -> bool:
         """Esquece de verdade: apaga o texto, o índice FTS e o vetor."""
         with self._tx() as c:
+            if not c.execute(
+                "SELECT 1 FROM facts WHERE id=? AND project_id IS ?",
+                (fact_id, current.get().project_id),
+            ).fetchone():
+                return False
             self._drop_vec(c, "fact", [fact_id])
             return c.execute("DELETE FROM facts WHERE id=?", (fact_id,)).rowcount > 0
 
@@ -736,10 +618,14 @@ class MemoryStore:
         """Tudo o que o Orion sabe sobre o Antônio, do mais recente ao mais antigo."""
         with self._lock:
             rows = self._conn.execute(
-                "SELECT * FROM facts ORDER BY updated_at DESC, id DESC"
+                "SELECT * FROM facts WHERE "
+                + clause("project_id")[0]
+                + " ORDER BY updated_at DESC,id DESC",
+                clause("project_id")[1],
             ).fetchall()
         return [
-            Fact(r["id"], r["text"], r["source"], r["created_at"], r["updated_at"]) for r in rows
+            Fact(r["id"], r["text"], r["source"], r["created_at"], r["updated_at"], r["project_id"])
+            for r in rows
         ]
 
     def search_facts(self, query: str, limit: int = 20) -> list[Fact]:
@@ -821,23 +707,26 @@ class MemoryStore:
 
     # ── documentos (vault do Obsidian, uploads) ───────────────────────────
     def index_document(
-        self, source: str, title: str, text: str, project_id: int | None = None
+        self, source: str, title: str, text: str
     ) -> Literal["new", "updated", "same"]:
-        """Indexa (ou reindexa) um documento. Idempotente por hash de conteúdo.
-        Com `project_id`, o documento só entra no contexto automático das conversas do projeto."""
-        h = hashlib.sha256((text + f"|{project_id}").encode()).hexdigest()
+        """Indexa (ou reindexa) um documento. Idempotente por hash de conteúdo."""
+        project_id = current.get().project_id
+        if project_id is not None:
+            source = f"project:{project_id}/{source}"
+        h = hashlib.sha256(text.encode()).hexdigest()
         corpo = strip_frontmatter(text)
         with self._tx() as c:
             r = c.execute(
-                "SELECT id, content_hash FROM documents WHERE source=?", (source,)
+                "SELECT id, content_hash FROM documents WHERE source=? AND project_id IS ?",
+                (source, project_id),
             ).fetchone()
             if r and r["content_hash"] == h:
                 return "same"
             if r:
                 self._delete_document(c, r["id"])
             did = c.execute(
-                "INSERT INTO documents(source, title, content_hash, indexed_at, project_id)"
-                " VALUES (?,?,?,?,?)",
+                "INSERT INTO documents(source, title, content_hash, indexed_at, project_id) "
+                "VALUES (?,?,?,?,?)",
                 (source, title, h, self._clock(), project_id),
             ).lastrowid
             for i, trecho in enumerate(chunk_text(corpo)):
@@ -874,8 +763,13 @@ class MemoryStore:
             return True
 
     def remove_document(self, source: str) -> bool:
+        project_id = current.get().project_id
+        if project_id is not None:
+            source = f"project:{project_id}/{source}"
         with self._tx() as c:
-            r = c.execute("SELECT id FROM documents WHERE source=?", (source,)).fetchone()
+            r = c.execute(
+                "SELECT id FROM documents WHERE source=? AND project_id IS ?", (source, project_id)
+            ).fetchone()
             if not r:
                 return False
             self._delete_document(c, r["id"])
@@ -896,7 +790,14 @@ class MemoryStore:
             vistos.add(fonte)
             contagem[self.index_document(fonte, arq.stem, arq.read_text(encoding="utf-8"))] += 1
         with self._lock:
-            antigos = [r[0] for r in self._conn.execute("SELECT source FROM documents")]
+            prefix = f"project:{current.get().project_id}/" if current.get().project_id else ""
+            antigos = [
+                r[0][len(prefix) :]
+                for r in self._conn.execute(
+                    "SELECT source FROM documents WHERE project_id IS ?",
+                    (current.get().project_id,),
+                )
+            ]
         for fonte in antigos:
             if fonte not in vistos and self.remove_document(fonte):
                 contagem["removed"] += 1
@@ -970,16 +871,20 @@ class MemoryStore:
         query: str,
         k: int = 8,
         kinds: Sequence[Kind] = ("fact", "chunk", "message"),
-        project_id: int | Literal["todos"] | None = "todos",
     ) -> list[Hit]:
-        """`project_id="todos"` (padrão, usado pelas ferramentas) não filtra nada. Um número ou
-        None isola o contexto automático: documentos de projeto só aparecem nas conversas dele."""
         fq = fts_query(query)
         amplo = max(k * 3, 20)
         listas: list[tuple[Kind, str, list[tuple[int, str, str]]]] = []
         with self._lock:
             for kind in kinds:
-                rows = self._conn.execute(self._SQL_FTS[kind], (fq, amplo)).fetchall() if fq else []
+                column = {
+                    "fact": "t.project_id",
+                    "chunk": "d.project_id",
+                    "message": "s.project_id",
+                }[kind]
+                predicate, params = clause(column)
+                sql = self._SQL_FTS[kind].replace(" ORDER BY", f" AND {predicate} ORDER BY")
+                rows = self._conn.execute(sql, (fq, *params, amplo)).fetchall() if fq else []
                 listas.append((kind, "fts", [(r[0], r[1], r[2]) for r in rows]))
             vec_kinds = [kd for kd in kinds if kd in ("fact", "chunk")]
             if self._embedder and vec_kinds:
@@ -994,32 +899,11 @@ class MemoryStore:
                 placar[chave] = placar.get(chave, 0.0) + KIND_WEIGHT[kind] / (RRF_K + rank)
                 textos[chave] = (texto, fonte)
                 vias.setdefault(chave, set()).add(via)
-        if project_id != "todos":
-            placar = self._sem_documentos_de_outro_projeto(placar, project_id)
         ordem = sorted(placar, key=lambda x: placar[x], reverse=True)[:k]
         return [
             Hit(kd, iid, *textos[(kd, iid)], placar[(kd, iid)], "+".join(sorted(vias[(kd, iid)])))  # type: ignore[arg-type]
             for kd, iid in ordem
         ]
-
-    def _sem_documentos_de_outro_projeto(
-        self, placar: dict[tuple[str, int], float], project_id: int | None
-    ) -> dict[tuple[str, int], float]:
-        chunks = [i for kd, i in placar if kd == "chunk"]
-        if not chunks:
-            return placar
-        marcas = ",".join("?" * len(chunks))
-        with self._lock:
-            fora = {
-                r[0]
-                for r in self._conn.execute(
-                    "SELECT c.id FROM chunks c JOIN documents d ON d.id=c.document_id"
-                    f" WHERE c.id IN ({marcas}) AND d.project_id IS NOT NULL"
-                    " AND d.project_id IS NOT ?",
-                    (*chunks, project_id),
-                )
-            }
-        return {k: v for k, v in placar.items() if not (k[0] == "chunk" and k[1] in fora)}
 
     def _vec_lists(
         self, query: str, kinds: Sequence[str], amplo: int
@@ -1033,20 +917,34 @@ class MemoryStore:
             return []
         saida: list[tuple[Kind, str, list[tuple[int, str, str]]]] = []
         for kind in kinds:
+            scope = current.get()
+            cache_key = f"{kind}@{scope.project_id}:{int(scope.include_personal)}"
+            column = "t.project_id" if kind == "fact" else "d.project_id"
+            predicate, params = clause(column)
+            join = (
+                " JOIN facts t ON t.id=v.ref_id"
+                if kind == "fact"
+                else " JOIN chunks t ON t.id=v.ref_id JOIN documents d ON d.id=t.document_id"
+            )
             ids = self._index.topk(
-                kind,
+                cache_key,
                 consulta,
                 amplo,
-                lambda kind=kind: [
+                lambda kind=kind, join=join, predicate=predicate, params=params: [
                     (r[0], r[1])
                     for r in self._conn.execute(
-                        "SELECT ref_id, embedding FROM vectors WHERE kind=?", (kind,)
+                        f"SELECT v.ref_id,v.embedding FROM vectors v{join} "
+                        f"WHERE v.kind=? AND {predicate}",
+                        (kind, *params),
                     )
                 ],
             )
             itens = []
             for i in ids:
-                r = self._conn.execute(self._SQL_ROW[kind], (i,)).fetchone()
+                predicate, params = clause("facts.project_id" if kind == "fact" else "d.project_id")
+                r = self._conn.execute(
+                    self._SQL_ROW[kind] + " AND " + predicate, (i, *params)
+                ).fetchone()
                 if r:
                     itens.append((r[0], r[1], r[2]))
             saida.append((kind, "vec", itens))  # type: ignore[arg-type]
@@ -1198,7 +1096,7 @@ class MemoryStore:
         """Registra um resultado; mesmo nome de novo vira a versão seguinte (a antiga fica)."""
         with self._tx() as c:
             ant = c.execute(
-                "SELECT id, version FROM artifacts WHERE name=? AND kind=?"
+                "SELECT id, version FROM library_results WHERE name=? AND kind=?"
                 " ORDER BY version DESC LIMIT 1",
                 (name, kind),
             ).fetchone()
@@ -1209,7 +1107,8 @@ class MemoryStore:
                 ).fetchone()
                 projeto = r[0] if r else None
             aid = c.execute(
-                "INSERT INTO artifacts(session_id, project_id, kind, name, stored, bytes, tool,"
+                "INSERT INTO library_results(session_id, project_id, kind, name, stored, bytes,"
+                " tool,"
                 " version, parent_id, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
                 (
                     session_id, projeto, kind, name, stored, size, tool,
@@ -1220,7 +1119,7 @@ class MemoryStore:
 
     @staticmethod
     def _artifact_row(c: sqlite3.Connection, aid: int) -> dict[str, Any]:
-        r = c.execute("SELECT * FROM artifacts WHERE id=?", (aid,)).fetchone()
+        r = c.execute("SELECT * FROM library_results WHERE id=?", (aid,)).fetchone()
         return dict(r) if r else {}
 
     def get_artifact(self, aid: int) -> dict[str, Any] | None:
@@ -1229,11 +1128,11 @@ class MemoryStore:
         return d or None
 
     def list_artifacts(
-        self, project_id: int | None = None, limit: int = 100
+        self, project_id: str | None = None, limit: int = 100
     ) -> list[dict[str, Any]]:
         with self._lock:
             rows = self._conn.execute(
-                "SELECT a.*, s.title AS sessao_titulo FROM artifacts a"
+                "SELECT a.*, s.title AS sessao_titulo FROM library_results a"
                 " LEFT JOIN sessions s ON s.id=a.session_id"
                 " WHERE (? IS NULL OR a.project_id=?)"
                 " ORDER BY a.created_at DESC, a.id DESC LIMIT ?",
@@ -1244,10 +1143,10 @@ class MemoryStore:
     def delete_artifact(self, aid: int) -> str | None:
         """Apaga o registro e devolve o nome do arquivo guardado (para o chamador apagar)."""
         with self._tx() as c:
-            r = c.execute("SELECT stored FROM artifacts WHERE id=?", (aid,)).fetchone()
+            r = c.execute("SELECT stored FROM library_results WHERE id=?", (aid,)).fetchone()
             if not r:
                 return None
-            c.execute("DELETE FROM artifacts WHERE id=?", (aid,))
+            c.execute("DELETE FROM library_results WHERE id=?", (aid,))
             return str(r["stored"])
 
     # ── memória da tela (D3): texto de OCR, retenção curta, nunca imagem ───

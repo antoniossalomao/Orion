@@ -37,6 +37,7 @@ CLIENTES_REGISTRADOS = frozenset(
         "orion.channels.telegram",
         "orion.tools.n8n",
         "orion.mcp_client",
+        "orion.extensions.host",
     }
 )
 SEM_SAIDA_PROPRIA = {

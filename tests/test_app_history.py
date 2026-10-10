@@ -65,7 +65,7 @@ def test_paginas_exportacao_e_limpeza_persistente(tmp_path):
             ]
             == 205
         )
-        m.activate_session(a.id)
+        m.activate_session("web", a.id)
     with TestClient(app_at(tmp_path), base_url="http://127.0.0.1") as c:
         assert c.get("/historico", headers=AUTH).json()["total"] == 0
         assert (

@@ -93,4 +93,4 @@ de lido, escrita e execução da sessão passam a pedir confirmação (regra 4).
 
 ## Fora desta tabela
 
-`listar_fatos`, `esquecer_fato` e `delegar` já nasceram na reescrita (fase 2/3) e não existiam no legado.
+`listar_fatos`, `esquecer_fato`, `editar_fato` e `delegar` já nasceram na reescrita (fase 2/3; edição adicionada em C36) e não existiam no legado.

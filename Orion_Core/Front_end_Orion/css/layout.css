@@ -167,6 +167,8 @@ html.shell-desktop #window-controls { display: flex; }
     transition: opacity var(--dur-2) var(--ease), transform var(--dur-3) var(--ease-out), visibility 0s linear var(--dur-3);
 }
 .view[data-active="true"] { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
+/* Tela que sai ainda fica visível durante a transição: sem rolagem, para não virar região rolável sem foco. */
+.view:not([data-active="true"]) { overflow: hidden !important; }
 .page { overflow-y: auto; padding: var(--s-2) var(--s-6) var(--s-12); }
 .page-inner { max-width: 64rem; margin: 0 auto; }
 .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--s-4); margin: var(--s-4) 0 var(--s-6); flex-wrap: wrap; }
@@ -188,3 +190,14 @@ html[data-foco="true"] #topbar > :not(.tb-drag):not(#window-controls) { display:
     .tb-title .tb-sub { display: none; }
     .page { padding-inline: var(--s-4); }
 }
+
+.conv-row { display: flex; align-items: center; min-width: 0; flex-shrink: 0; }
+.conv-row .conv { flex: 1; min-width: 0; }
+.conv-more { flex-shrink: 0; width: 1.8rem; height: 1.8rem; font-size: 1.2rem; }
+.conv-menu { position: fixed; z-index: var(--z-overlay); width: 168px; padding: 4px; background: var(--bg-3); border: 1px solid var(--line-2); border-radius: var(--r-2); box-shadow: var(--sh-2); }
+.conv-menu button { display: block; width: 100%; padding: 8px 12px; text-align: left; border-radius: var(--r-1); font-size: var(--fs-sm); }
+.conv-menu button:hover, .conv-menu button:focus-visible { background: var(--accent-soft); color: var(--text-1); }
+.dialog-body input { width: 100%; margin-top: 8px; }
+
+.conv-text { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 3px; }
+.conv-snippet { font-size: var(--fs-xs); color: var(--text-3); overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow-wrap: anywhere; }

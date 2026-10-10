@@ -43,6 +43,11 @@
     function desenharAcoes() { desenhar(); }
     function desenhar() {
         const grade = $('#integ-grid');
+        if (!api.suporta('integrations') && api.estado().api === 'online') {
+            grade.setAttribute('aria-busy', 'false');
+            grade.replaceChildren(el('p', { class: 'banner banner-warn', role: 'status', text: 'Integrações ainda indisponíveis neste backend.' }));
+            return;
+        }
         grade.setAttribute('aria-busy', 'false');
         const topo = falhou ? [el('div', { class: 'banner banner-warn', role: 'status', style: 'grid-column:1/-1' }, el('span', { html: icone('alert') }),
             el('div', {}, el('strong', { text: 'O cérebro não respondeu. ' }), 'Os estados abaixo podem estar desatualizados.'))] : [];

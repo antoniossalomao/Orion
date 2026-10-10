@@ -240,7 +240,7 @@
 
     async function atualizar() {
         try {
-            [dados, atividade] = await Promise.all([api.painel(), api.atividade().catch(() => atividade)]);
+            [dados, atividade] = await Promise.all([api.painel(), api.caixaDeAtividade().catch(() => atividade)]);
             falhou = false; desde = Date.now();
         }
         catch (_) { falhou = true; }

@@ -6,7 +6,7 @@
 (function () {
     'use strict';
     const O = window.Orion;
-    const { $, $$, bus, prefs, ui, api } = O;
+    const { $, $$, el, bus, prefs, ui, api } = O;
     const U = O.util;
     const html = document.documentElement;
     O.versao = '2.0.0';
@@ -15,8 +15,12 @@
     const VIEWS = {
         home: { titulo: 'Início', rota: '/' },
         chat: { titulo: 'Chat', rota: '/chat' },
+        resultados: { titulo: 'Resultados', rota: '/resultados' },
+        projetos: { titulo: 'Projetos', rota: '/projetos' },
         memoria: { titulo: 'Memória', rota: '/memoria' },
         integracoes: { titulo: 'Integrações', rota: '/integracoes' },
+        fontes: { titulo: 'Fontes', rota: '/fontes' },
+        atividade: { titulo: 'Atividade', rota: '/atividade' },
         config: { titulo: 'Configurações', rota: '/config' },
         painel: { titulo: 'Painel', rota: '/painel' },   // por último: não muda os atalhos Alt+1…5
         conhecimento: { titulo: 'Conhecimento', rota: '/conhecimento' },
@@ -75,6 +79,7 @@
     const NOMES_TEMA = { noite: 'Noite', grafite: 'Grafite', contraste: 'Alto contraste' };
     O.acoes = {
         alternarTts() {
+            if (!api.suporta('tts')) return ui.toast('Resposta por voz ainda indisponível neste backend.', { tipo: 'aviso' });
             const mudo = !prefs.get('tts_mudo');
             prefs.set('tts_mudo', mudo);
             api.ttsMudo(mudo).catch(() => ui.toast('Não consegui avisar o cérebro agora; a escolha vale quando ele voltar.', { tipo: 'aviso' }));
@@ -86,7 +91,7 @@
         escala(delta) { prefs.set('scale', U.clamp(Math.round((prefs.get('scale') + delta) * 100) / 100, 0.9, 1.3)); },
         async exportar() {
             try {
-                const d = await api.exportar();
+                const d = await api.exportar(O.historico?.sessao(), O.historico?.completo());
                 if (!d.markdown || d.total_msgs === 0) { ui.toast('Nada para exportar ainda.', { tipo: 'aviso' }); return; }
                 const url = URL.createObjectURL(new Blob([d.markdown], { type: 'text/markdown;charset=utf-8' }));
                 const a = document.createElement('a');
@@ -98,11 +103,14 @@
             } catch (e) { ui.toast(`Falha ao exportar: ${e.message}`, { tipo: 'erro' }); }
         },
         async limpar() {
+            const sid = O.historico?.sessao();
+            if (O.historico?.leitura()) { ui.toast('Esta conversa está em modo de leitura.', { tipo: 'aviso' }); return; }
             if (O.chat.ocupado()) { ui.toast('Espere a resposta terminar, ou pare com Esc, para limpar.', { tipo: 'aviso', ms: 2800, id: 'ocupado' }); return; }
             const sim = await ui.confirmar({ titulo: 'Limpar o histórico desta sessão?', ok: 'Limpar', perigo: true,
-                texto: 'Apaga a conversa em memória nesta sessão. A memória de longo prazo não é afetada.' });
-            if (!sim || O.chat.ocupado()) return;
-            try { await api.limparHistorico(); O.chat.limpar(); ui.toast('Histórico em memória limpo.', { tipo: 'ok' }); }
+                texto: 'Limpa o contexto desta conversa. O registro permanente e a memória de longo prazo são preservados.' });
+            if (!sim || O.chat.ocupado() || sid !== O.historico?.sessao()) return;
+            try { await api.limparHistorico(sid);
+                if (sid === O.historico?.sessao()) { O.chat.limpar(); if (sid) await O.historico.abrir(sid); } ui.toast('Histórico em memória limpo.', { tipo: 'ok' }); }
             catch (e) { ui.toast(`Falha ao limpar: ${e.message}`, { tipo: 'erro' }); }
         },
     };
@@ -121,7 +129,7 @@
         },
         async copiarConversa() {
             try {
-                const d = await api.exportar();
+                const d = await api.exportar(O.historico?.sessao(), O.historico?.completo());
                 if (!d.markdown || !d.total_msgs) { ui.toast('Nada para copiar ainda.', { tipo: 'aviso', ms: 2400 }); return; }
                 ui.toast((await ui.copiar(d.markdown)) ? `Conversa copiada (${d.total_msgs} mensagens).` : 'Não consegui copiar.', { tipo: 'ok', ms: 2000 });
             } catch (e) { ui.toast(`Falha ao copiar: ${e.message}`, { tipo: 'erro' }); }
@@ -135,6 +143,7 @@
             catch (e) { ui.toast(`Não consegui ligar: ${e.message}`, { tipo: 'erro' }); }
         },
         modelo(id) {
+            if (!api.suporta('model_selection')) return ui.toast('A seleção de modelo ainda está indisponível neste backend.', { tipo: 'aviso' });
             prefs.set('model', id);
             const m = O.composer.MODELOS.find(x => x.id === id);
             ui.toast(`Modelo: ${m ? m.nome : id}.`, { ms: 1800 });
@@ -163,7 +172,7 @@
         { grupo: 'Geral', rotulo: 'Mostrar atalhos', teclas: ['?'], digitando: false, quando: e => e.key === '?' && !ctrl(e), fn: () => ir('config', { secao: 'cfg-atalhos' }) },
         { grupo: 'Geral', rotulo: 'Modo foco (sem barras)', teclas: ['Ctrl', '.'], quando: e => ctrl(e) && !e.shiftKey && e.key === '.', fn: () => O.acoes.foco() },
         { grupo: 'Geral', rotulo: 'Fechar painel ou voltar ao início', teclas: ['Esc'] },
-        ...Object.keys(VIEWS).map((v, i) => ({ grupo: 'Navegação', rotulo: VIEWS[v].titulo, teclas: ['Alt', String(i + 1)],
+        ...['home', 'chat', 'memoria', 'integracoes', 'config', 'projetos', 'resultados', 'atividade', 'fontes'].map((v, i) => ({ grupo: 'Navegação', rotulo: VIEWS[v].titulo, teclas: ['Alt', String(i + 1)],
             quando: e => e.altKey && !ctrl(e) && !e.shiftKey && e.code === `Digit${i + 1}`, fn: () => ir(v) })),
         { grupo: 'Chat', rotulo: 'Focar na caixa de mensagem', teclas: ['/'], digitando: false, quando: e => e.key === '/' && !ctrl(e), fn: () => { if (atual !== 'home') ir('chat'); else O.composer.foco(); } },
         { grupo: 'Chat', rotulo: 'Comandos (digite / no começo da mensagem)', teclas: ['/'] },
@@ -323,8 +332,9 @@
     O.login = { entrar, sair };
 
     /* ── início ────────────────────────────────────────────────────────── */
-    function init() {
+    async function init() {
         O.aplicarPrefs();
+        await api.detectar();
         O.sky.init($('#sky'));
         O.chat.init();
         O.composer.init();
@@ -334,6 +344,26 @@
         for (const v of Object.values(O.views)) v.init?.();
         O.voz.ligar();
         O.fala.ligar();
+        const capacidades = () => {
+            const controles = { model_selection: '#model-btn, #cfg-model', upload: '#btn-attach',
+                voice: '.voice-live-btn', tts: '#cfg-tts, #btn-mute, [data-acao=ouvir]', sessions: '#sb-new' };
+            for (const [recurso, seletor] of Object.entries(controles)) {
+                document.querySelectorAll(seletor).forEach(b => {
+                    b.disabled = !api.suporta(recurso);
+                    b.title = b.disabled ? 'Ainda indisponível neste backend' : '';
+                });
+            }
+            let aviso = $('#chat-capabilities');
+            const c = api.estado();
+            if (c.backend === 'orion' && !api.suporta('chat')) {
+                const texto = c.unavailable?.chat === 'auth_not_configured' ? 'O acesso ao chat ainda não foi configurado no servidor.' : 'O modelo ainda está indisponível. Você pode continuar escrevendo seu rascunho.';
+                if (!aviso) { aviso = el('p', { id: 'chat-capabilities', class: 'banner banner-warn', role: 'status' }); $('#composer .composer-inner').prepend(aviso); }
+                aviso.textContent = texto;
+            } else aviso?.remove();
+            O.composer.atualizar();
+        };
+        bus.on('capabilities', capacidades);
+        capacidades();
         ligarJanela();
         ligarAtencao();
         document.addEventListener('keydown', aoTecla);

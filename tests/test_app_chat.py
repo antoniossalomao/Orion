@@ -49,7 +49,8 @@ def test_chat_em_streaming_no_formato_do_legado(tmp_path):
         ) as r:
             assert r.headers["content-type"].startswith("text/event-stream")
             ev = eventos(r)
-    assert ev == [{"text": "Olá, Antônio."}, {"tier": "omni/modelo-x"}, "[DONE]"]
+    assert ev[:2] == [{"text": "Olá, Antônio."}, {"tier": "omni/modelo-x"}]
+    assert "provenance" in ev[2] and ev[-1] == "[DONE]"
     assert gw.chamadas[0][-1] == {"role": "user", "content": "oi"}
 
 

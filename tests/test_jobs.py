@@ -69,7 +69,7 @@ async def test_agendamento_avisa_recalcula_e_nao_executa_a_ferramenta(store, ops
     relogio.t = datetime(2026, 10, 3, 14, 1).timestamp()
     assert (await j.tick()).agendamentos == 1
     aviso = ops.pending_notifications()[0]
-    assert aviso["kind"] == "agendamento" and aviso["ref"] == f"schedule:{s['id']}"
+    assert aviso["kind"] == "agendamento" and aviso["ref"].startswith(f"schedule:{s['id']}:")
     assert "não é executada sozinha" in aviso["text"]  # só registrada: nunca roda sem aprovação
     seguinte = ops.list_schedules()[0]
     assert seguinte["next_run"] == datetime(2026, 10, 4, 14).timestamp()

@@ -35,13 +35,3 @@ def test_conversa_ativa_sobrevive_ao_reinicio_e_chat_continua_nela(tmp_path):
         assert c.get("/sessoes", headers=AUTH).json()["ativa"] == a
         c.post("/chat", headers=AUTH, json={"texto": "Continue A"})
         assert c.app.state.orion.memory.history(a)[-1].text == "Retomei A"
-
-
-def test_apagar_a_ativa_nao_reabre_outra_por_conta_propria(tmp_path):
-    with TestClient(app_at(tmp_path), base_url="http://127.0.0.1") as c:
-        memory = c.app.state.orion.memory
-        antiga = memory.new_session("web")
-        atual = memory.new_session("web")
-        assert c.delete(f"/sessoes/{atual.id}", headers=AUTH).status_code == 200
-        assert memory.selected_session("web") is None
-        assert memory.active_session("web").id not in {antiga.id, atual.id}

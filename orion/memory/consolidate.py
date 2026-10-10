@@ -77,7 +77,7 @@ class Consolidator:
         nao = f" AND s.channel NOT IN ({','.join('?' * len(self._skip))})" if self._skip else ""
         rows = self.memory.query(
             "SELECT m.id, m.text FROM messages m JOIN sessions s ON s.id=m.session_id"
-            f" WHERE m.id>? AND m.role='user'{nao} ORDER BY m.id LIMIT ?",
+            f" WHERE m.id>? AND m.role='user' AND s.project_id IS NULL{nao} ORDER BY m.id LIMIT ?",
             (marca, *self._skip, self._batch),
         )
         return [(r["id"], r["text"]) for r in rows]

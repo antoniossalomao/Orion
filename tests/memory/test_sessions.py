@@ -10,12 +10,12 @@ def test_resposta_atrasada_e_relogio_igual_nao_trocam_selecao(tmp_path):
     path = tmp_path / "sessions.db"
     with closing(MemoryStore(path, clock=lambda: 100)) as store:
         a, b = store.new_session("web"), store.new_session("web")
-        store.activate_session(a.id)
+        store.activate_session("web", a.id)
         store.add_message(b.id, "assistant", "Resposta atrasada de B")
         assert store.active_session("web").id == a.id
     with closing(MemoryStore(path, clock=lambda: 1)) as store:
         assert store.active_session("web").id == a.id
-        store.activate_session(b.id)
+        store.activate_session("web", b.id)
         store.add_message(a.id, "assistant", "Resposta atrasada de A")
         assert store.active_session("web").id == b.id
 
@@ -62,7 +62,29 @@ def test_banco_v2_migra_selecao_sem_perder_mensagens(tmp_path):
         assert web is not None and web.id == "new"
         assert telegram is not None and telegram.id == "tg"
         assert store.history("new")[0].text == "Mensagem v2"
-        store.activate_session("old")
+        store.activate_session("web", "old")
     with closing(MemoryStore(path)) as store:
         assert store.active_session("web").id == "old"
         assert store.history("new")[0].text == "Mensagem v2"
+
+
+def test_v4_migra_indice_de_titulos_preservando_fixacao_e_contexto(tmp_path):
+    from orion.memory.schema import DDL_V3, DDL_V4
+
+    path = tmp_path / "v4.db"
+    with sqlite3.connect(path) as c:
+        c.executescript(DDL_V1 + DDL_V2 + DDL_V3 + DDL_V4)
+        c.execute("INSERT INTO meta VALUES ('schema_version','4')")
+        c.execute("INSERT INTO sessions VALUES ('abc','web','Cérebro antigo',1,1,0,1)")
+        c.execute("INSERT INTO active_sessions VALUES ('web','abc')")
+        c.execute(
+            "INSERT INTO messages(id,session_id,role,text,created_at) VALUES (1,'abc','user','antiga',1)"
+        )
+        c.execute("INSERT INTO meta VALUES ('counter:history_after:abc','1')")
+    with closing(MemoryStore(path)) as store:
+        resultado, total = store.search_sessions("web", "cerebro")
+        assert total == 1 and resultado[0][0].favorite
+        selected = store.selected_session("web")
+        assert selected is not None and selected.id == "abc"
+        assert store.context_history("abc") == []
+        assert store.history("abc")[0].text == "antiga"

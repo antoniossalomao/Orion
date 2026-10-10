@@ -9,6 +9,7 @@ Todo teste também é um teste de console: erro ou aviso da página derruba o te
 
 from __future__ import annotations
 
+import contextlib
 import os
 import socket
 import subprocess
@@ -152,6 +153,18 @@ def abrir(navegador, mock_url):
             ctx.add_init_script(init)
         page = ctx.new_page()
         page.on("pageerror", lambda e: erros.append(f"pageerror: {e}"))
+
+        def _resposta(r):
+            if r.status >= 400 and r.status != 401:
+                try:
+                    corpo = r.text()[:200]
+                except Exception:
+                    corpo = ""
+                erros.append(
+                    f"console.error: Failed to load resource: {r.status} {r.request.method} {r.url} {corpo}"
+                )
+
+        page.on("response", _resposta)
         page.on(
             "console",
             lambda m: (
@@ -165,9 +178,14 @@ def abrir(navegador, mock_url):
         page.wait_for_selector("html[data-pronto='true']")
         return page
 
+    def _fechar():
+        for c in contextos:
+            with contextlib.suppress(Exception):
+                c.close()
+
+    _abrir.fechar = _fechar
     yield _abrir
-    for c in contextos:
-        c.close()
+    _fechar()
     relevantes = [
         e
         for e in erros
@@ -175,3 +193,80 @@ def abrir(navegador, mock_url):
         and not (permitir_http[0] and "Failed to load resource" in e)
     ]
     assert not relevantes, "console da página não está limpo:\n" + "\n".join(relevantes)
+
+
+@pytest.fixture
+def novo_backend(tmp_path, abrir):
+    """API real, gateway simulado e dados temporários; nunca chama um provedor."""
+    import threading
+
+    import uvicorn
+
+    from orion.app import create_app
+    from orion.config import Settings
+    from tests.fakes import FakeGateway, chama, fala, pede
+
+    servidores = []
+
+    def criar(
+        *,
+        gateway=True,
+        auth=True,
+        approval=False,
+        skills=None,
+        gateway_override=None,
+        data_dir=None,
+    ):
+        porta = _porta_livre()
+        roteiros = (
+            [pede(chama("esquecer_fato", id=1)), fala("Aguardando você."), fala("Esqueci.")]
+            if approval
+            else [fala("Resposta do backend novo.")]
+        )
+        gw = gateway_override if gateway_override is not None else FakeGateway(*roteiros)
+        app = create_app(
+            Settings(
+                data_dir=data_dir if data_dir is not None else tmp_path / str(porta),
+                admin_token=TOKEN if auth else "",
+                jobs_enabled=False,
+                skill_sources=skills or [],
+                embed_api_key="",
+                telegram_token="",
+                _env_file=None,
+            ),
+            gateway_factory=(lambda _: gw) if gateway else (lambda _: None),
+        )
+        caminhos = []
+
+        @app.middleware("http")
+        async def registrar(request, call_next):
+            caminhos.append(request.url.path)
+            return await call_next(request)
+
+        server = uvicorn.Server(
+            uvicorn.Config(app, host="127.0.0.1", port=porta, log_level="error")
+        )
+        thread = threading.Thread(target=server.run, daemon=True)
+        thread.start()
+        app.state.e2e_server = server
+        app.state.e2e_thread = thread
+        servidores.append((server, thread))
+        url = f"http://127.0.0.1:{porta}"
+        for _ in range(100):
+            try:
+                if httpx.get(f"{url}/health", timeout=0.5).status_code == 200:
+                    break
+            except httpx.HTTPError:
+                time.sleep(0.05)
+        else:
+            raise RuntimeError("API real não subiu")
+        if approval:
+            app.state.orion.memory.add_fact("Fato temporário do teste", "manual")
+        return url, app, gw, caminhos
+
+    yield criar
+    abrir.fechar()  # as páginas fecham antes do servidor: sem erro de conexão recusada no console
+    for server, thread in servidores:
+        server.should_exit = True
+        thread.join(timeout=10)
+        assert not thread.is_alive(), "API de teste não encerrou"

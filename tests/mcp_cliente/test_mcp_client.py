@@ -298,7 +298,9 @@ def test_argumento_de_tipo_errado_e_recusado_antes_de_chamar_o_servidor(gerente)
     ok = json.loads(somar.run({"a": 2, "b": 3}))
     assert "erro" not in ok
     errado = json.loads(somar.run({"a": "dois", "b": 3}))
-    assert errado["erro"].startswith("argumento inválido: a:") and "integer" in errado["erro"]
+    assert (
+        "argumentos inválidos em $[a]" in errado["erro"] and errado["codigo"] == "arguments_invalid"
+    )
     ausente = json.loads(somar.run({"a": 1}))
     assert "obrigatórios ausentes" in ausente["erro"]
 
@@ -306,14 +308,19 @@ def test_argumento_de_tipo_errado_e_recusado_antes_de_chamar_o_servidor(gerente)
 def test_ferramentas_nativas_continuam_aceitando_numero_como_texto():
     from orion.tools import Tool
 
-    t = Tool("x", "x", {"type": "object", "properties": {"n": {"type": "integer"}}}, lambda n: n)
+    t = Tool(
+        "x",
+        "x",
+        {"type": "object", "properties": {"n": {"type": "integer"}}},
+        lambda n: n,
+    )
     assert json.loads(t.run({"n": "5"})) == "5"  # nativas não validam tipo (comportamento antigo)
     assert json.loads(Tool("x", "x", t.parameters, lambda n: n, validar=True).run({"n": "5"}))[
         "erro"
     ]
 
 
-def test_esquema_que_o_validador_nao_entende_nao_derruba_a_ferramenta():
+def test_esquema_que_o_validador_nao_entende_recusa_a_chamada_sem_derrubar_o_turno():
     from orion.tools import Tool
 
     t = Tool(
@@ -323,7 +330,7 @@ def test_esquema_que_o_validador_nao_entende_nao_derruba_a_ferramenta():
         lambda n: n,
         validar=True,
     )
-    assert json.loads(t.run({"n": 1})) == 1
+    assert json.loads(t.run({"n": 1}))["codigo"] == "schema_invalid"
 
 
 def test_resolve_env_troca_segredo_dentro_do_valor():

@@ -40,7 +40,7 @@
      * @returns {{rotulo: string, completar: string, desc: string, cmd: string, arg?: string, fecha: boolean}[]}
      *   `fecha`: o texto de `completar` já é um comando completo (Enter executa).
      */
-    function sugerir(texto) {
+    function sugerir(texto, skills = []) {
         const p = dividir(texto);
         if (!p || String(texto).includes('\n')) return [];
         const exato = POR_NOME.get(p.nome);
@@ -50,10 +50,12 @@
             return exato.args.filter(a => a.startsWith(alvo)).map(a => ({
                 rotulo: `/${exato.nome} ${a}`, completar: `/${exato.nome} ${a}`, desc: exato.desc, cmd: exato.nome, arg: a, fecha: true }));
         }
-        return COMANDOS.filter(c => c.nome.startsWith(p.nome)).map(c => ({
+        const aux = p.temEspaco ? [] : skills.filter(s => s.enabled && s.id.startsWith(p.nome)).map(s => ({
+            rotulo: `/${s.id} …`, completar: `/${s.id} `, desc: s.description, skill: s.id, fecha: false }));
+        return [...COMANDOS.filter(c => c.nome.startsWith(p.nome)).map(c => ({
             rotulo: `/${c.nome}${c.args || c.livre ? ' …' : ''}`,
             completar: `/${c.nome}${c.args || c.livre ? ' ' : ''}`,
-            desc: c.desc, cmd: c.nome, fecha: !c.args && !c.livre }));
+            desc: c.desc, cmd: c.nome, fecha: !c.args && !c.livre })), ...aux];
     }
 
     /**
@@ -63,6 +65,8 @@
      */
     function interpretar(texto) {
         const bruto = String(texto ?? '');
+        const skill = /^\s*\/([a-z0-9][a-z0-9_-]{0,47}:[a-z0-9]+(?:-[a-z0-9]+)*)(?:\s+([\s\S]*))?$/.exec(bruto);
+        if (skill) return { skill: skill[1], arg: (skill[2] || '').trim() };
         if (bruto.includes('\n') || !/^\s*\/[a-zà-ÿ]*(\s|$)/i.test(bruto)) return null;
         const p = dividir(bruto);
         if (!p) return null;

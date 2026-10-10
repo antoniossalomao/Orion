@@ -36,6 +36,7 @@
                 if (resp.status === 401 || resp.status === 403) msg = 'Acesso negado: entre com a senha ou confira o token em Configurações › Conexão.';
                 if (resp.status === 401 && !token) bus.emit('auth:necessario');
                 else { try { const d = JSON.parse(corpo).detail; if (typeof d === 'string') msg = d; } catch (_) { /* corpo não-JSON */ } }
+                bus.emit('chat:recusado', { caminho, pedido: init.json, status: resp.status, mensagem: msg });
                 emitir({ tipo: 'erro', mensagem: msg, status: resp.status });
                 return;
             }
@@ -95,6 +96,7 @@
         if (m.user_text) emitir({ tipo: 'usuario', texto: String(m.user_text) });
         if (m.tier) emitir({ tipo: 'modelo', nome: String(m.tier) });
         if (m.ai_chunk) emitir({ tipo: 'texto', texto: String(m.ai_chunk) });
+        if (m.provenance) emitir(O.sse.normalizar({ provenance: m.provenance }));
         if (m.tool) emitir(O.sse.normalizar({ tool: m.tool }));
         if (m.approval) emitir(O.sse.normalizar({ approval: m.approval }));
         if (typeof m.error === 'string') emitir({ tipo: 'erro', mensagem: m.error });
@@ -107,20 +109,20 @@
         hubAberto: () => hubAberto,
 
         /** @returns {'hub'|'sse'} por onde a mensagem foi — o chat usa para não duplicar o eco do hub */
-        enviar({ texto, modelo = 'auto' }) {
+        enviar({ texto, modelo = 'auto', skills = [] }) {
             const ponte = window.pywebview?.api;
-            if (ponte?.process_command && hubAberto) {
+            if (api.usarHub() && ponte?.process_command && hubAberto) {
                 // `ignorarHub` NÃO é limpo aqui: sobra de um pedido cancelado não entra na resposta nova
                 ponte.process_command(texto, modelo);
                 return 'hub';
             }
-            lerStream('/chat', { json: { texto, modelo } }, 'O cérebro recusou o pedido');
+            lerStream('/chat', { json: api.pedidoChat({ texto, modelo, skills }) }, 'O cérebro recusou o pedido');
             return 'sse';
         },
 
         /** continua a resposta depois que o usuário aprovou a ação */
         retomar(id) {
-            lerStream(`/approvals/${encodeURIComponent(id)}/resume`, {}, 'Não consegui retomar a ação');
+            lerStream(`/approvals/${encodeURIComponent(id)}/resume`, api.pedidoRetomada(), 'Não consegui retomar a ação');
             return 'sse';
         },
 

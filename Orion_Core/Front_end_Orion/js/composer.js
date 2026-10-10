@@ -24,6 +24,40 @@
     let anexos = [];                // {id, arquivo, estado, caminho, url, erro}
     const hist = { itens: [], idx: 0, rascunho: '', MAX: 50 };
 
+    let catalogo = [], cargaSkills = null, geracaoSkills = 0;
+    const skillRotulo = s => `${s.id} · ${s.origin} · ${s.version}`;
+    function limparSkills() { catalogo = []; cargaSkills = null; geracaoSkills++; }
+    async function carregarSkills() {
+        if (!api.suporta('skills') || !api.token()) return [];
+        if (cargaSkills) return cargaSkills;
+        const geracao = geracaoSkills;
+        cargaSkills = api.skills().then(lista => {
+            if (geracao !== geracaoSkills) return [];
+            catalogo = Array.isArray(lista) ? lista : [];
+            atualizar();
+            return catalogo;
+        }).catch(() => { if (geracao === geracaoSkills) cargaSkills = null; return []; });
+        return cargaSkills;
+    }
+    function mostrarSkill(inst) {
+        const comando = O.slash.interpretar(inst.ta.value);
+        const skill = comando?.skill ? catalogo.find(s => s.id === comando.skill) : null;
+        inst.skillStatus.hidden = !comando?.skill;
+        const rotulo = skill?.enabled ? `Skill: ${skillRotulo(skill)}`
+            : (comando?.skill ? `Skill indisponível: ${comando.skill}` : '');
+        if (inst.skillStatus.textContent !== rotulo) inst.skillStatus.textContent = rotulo;
+    }
+    function selecionarSkill(id) {
+        const skill = catalogo.find(s => s.id === id);
+        if (!skill?.enabled) { ui.toast('Esta skill está indisponível ou desativada.', { tipo: 'aviso' }); return; }
+        const inst = document.documentElement.dataset.view === 'home' ? inicio : chat;
+        const anterior = O.slash.interpretar(inst.ta.value);
+        const texto = anterior?.skill ? anterior.arg : inst.ta.value;
+        inst.ta.value = `/${id} ${texto}`;
+        autoajustar(inst.ta); atualizar(); inst.ta.focus();
+        if (inst === chat) salvarRascunho();
+    }
+
     /* ── estado dos botões ─────────────────────────────────────────────── */
     const temTexto = inst => inst.ta.value.trim().length > 0;
     function atualizar() {
@@ -36,9 +70,10 @@
         chat.enviar.setAttribute('aria-label', parar ? 'Parar resposta' : 'Enviar');
         chat.enviar.dataset.tip = parar ? 'Parar (Esc)' : 'Enviar (Enter)';
         chat.enviar.querySelector('use').setAttribute('href', parar ? '#i-stop' : '#i-send');
-        chat.enviar.disabled = parar ? false : !(temTexto(chat) || prontos) || enviando;
-        inicio.enviar.disabled = ocupado || !temTexto(inicio);
+        chat.enviar.disabled = parar ? false : (!api.suporta('chat') || O.historico?.leitura()) || !(temTexto(chat) || prontos) || enviando;
+        inicio.enviar.disabled = (!api.suporta('chat') || O.historico?.leitura()) || ocupado || !temTexto(inicio);
         chat.ta.setAttribute('aria-busy', String(ocupado));
+        [chat, inicio].forEach(mostrarSkill);
     }
 
     function autoajustar(ta) {
@@ -49,9 +84,8 @@
 
     /* ── rascunho por conversa (conveniência: cada conversa guarda o que ficou por escrever) ── */
     let sidRascunho = null;
-    const chaveRascunho = sid => `${CHAVE_RASCUNHO}:${sid}`;
+    const chaveRascunho = sid => `${CHAVE_RASCUNHO}:${sid == null ? 'pendente:' + api.base() : sid}`;
     function gravarRascunho(sid, texto) {
-        if (sid == null) return;
         try { texto ? localStorage.setItem(chaveRascunho(sid), texto) : localStorage.removeItem(chaveRascunho(sid)); } catch (_) { /* storage bloqueado */ }
     }
     function lerRascunho(sid) {
@@ -63,7 +97,12 @@
         salvarRascunho.cancel();
         if (sidRascunho === null) {                       // 1ª carga: quem já digitou antes das conversas chegarem não perde o texto
             sidRascunho = novo;
-            if (chat.ta.value) { gravarRascunho(novo, chat.ta.value); return; }
+            const pending = lerRascunho(null);
+            if (chat.ta.value || pending) {
+                if (!chat.ta.value) chat.ta.value = pending;
+                gravarRascunho(novo, chat.ta.value); gravarRascunho(null, '');
+                autoajustar(chat.ta); atualizar(); return;
+            }
         } else { gravarRascunho(sidRascunho, chat.ta.value); sidRascunho = novo; }
         chat.ta.value = lerRascunho(novo);
         autoajustar(chat.ta);
@@ -78,14 +117,15 @@
         return [texto, linhas.join('\n')].filter(Boolean).join('\n\n');
     }
 
-    function disparar({ prompt, exibir, nomes = [], semBolha = false }) {
+    function disparar({ prompt, exibir, nomes = [], semBolha = false, skills = [], original = null }) {
+        if (O.historico?.leitura()) return;
         const modelo = prefs.get('model') || 'auto';
-        ultimoPedido = { prompt, exibir, nomes, modelo };
+        ultimoPedido = { prompt, exibir, nomes, modelo, skills, original, sid: O.sidebar.ativa() };
         if (hist.itens[hist.itens.length - 1] !== exibir) { hist.itens.push(exibir); if (hist.itens.length > hist.MAX) hist.itens.shift(); }
         hist.idx = hist.itens.length;
         hist.rascunho = '';
-        if (!semBolha) O.chat.usuario(exibir, { anexos: nomes });
-        const via = O.transport.enviar({ texto: prompt, modelo });
+        if (!semBolha) O.chat.usuario(exibir, { anexos: nomes, skills: catalogo.filter(s => skills.includes(s.id)) });
+        const via = O.transport.enviar({ texto: prompt, modelo, skills });
         if (via === 'hub') O.chat.esperarEco(prompt);
         O.som?.envio?.();
     }
@@ -93,7 +133,7 @@
     /** `/comando` não vai ao modelo; `//texto` envia "/texto" literal. @returns {boolean} true se tratou */
     function tratarComando(inst) {
         const r = O.slash.interpretar(inst.ta.value);
-        if (!r) return false;
+        if (!r || r.skill) return false;
         if (r.desconhecido || r.invalido) {
             const dica = r.invalido ? `Argumento inválido${r.opcoes ? `: ${r.opcoes.join(', ')}` : ''}.` : 'Comando desconhecido.';
             ui.toast(`${dica} Digite / para ver a lista, ou // para enviar uma barra.`, { tipo: 'aviso', ms: 3600, id: 'slash' });
@@ -108,14 +148,27 @@
         return true;
     }
 
-    function enviar(inst) {
+    async function enviar(inst) {
+        if (O.historico?.leitura()) { ui.toast('A conversa está em modo de leitura ou carregando. Abra a conversa atual para enviar.', { tipo: 'aviso' }); return; }
+        if (!api.suporta('chat')) { ui.toast('O modelo está indisponível. Confira a conexão em Configurações.', { tipo: 'aviso' }); return; }
         if (tratarComando(inst)) return;
         if (O.chat.ocupado() || O.transport.cancelando()) {
             // Enter com a resposta em andamento NÃO a cancela (quem digita o próximo pedido não perde a resposta)
             ui.toast('Espere a resposta terminar, ou pare com Esc.', { tipo: 'aviso', ms: 2600, id: 'ocupado' });
             return;
         }
-        let texto = inst.ta.value.trim();
+        const original = inst.ta.value;
+        const comando = O.slash.interpretar(original);
+        let skills = [], texto = original.trim();
+        if (comando?.skill) {
+            const sid = O.sidebar.ativa();
+            await carregarSkills();
+            if (inst.ta.value !== original || O.sidebar.ativa() !== sid || O.chat.ocupado()) return;
+            const skill = catalogo.find(s => s.id === comando.skill);
+            if (!skill?.enabled) { ui.toast('Skill indisponível ou desativada. Seu rascunho foi preservado.', { tipo: 'aviso' }); return; }
+            if (!comando.arg) { ui.toast('Escreva seu pedido depois do nome da skill.', { tipo: 'aviso' }); return; }
+            skills = [comando.skill]; texto = comando.arg;
+        }
         if (texto.startsWith('//')) texto = texto.slice(1);
         const prontos = inst === chat ? anexos.filter(a => a.estado === 'ok') : [];
         if (!texto && !prontos.length) return;
@@ -126,7 +179,7 @@
         autoajustar(inst.ta);
         if (inst === chat) { limparAnexos(true); salvarRascunho(); }   // a bolha mostra só os nomes: libera as miniaturas
         if (document.documentElement.dataset.view !== 'chat') O.app.ir('chat');
-        disparar({ prompt, exibir: texto || nomes.join(', '), nomes });
+        disparar({ prompt, exibir: texto || nomes.join(', '), nomes, skills, original: skills.length ? original : null });
         atualizar();
         if (inst === chat) chat.ta.focus();
     }
@@ -163,6 +216,7 @@
     }
 
     async function adicionar(arquivos) {
+        if (!api.suporta('upload')) { ui.toast('Anexos ainda indisponíveis neste backend.', { tipo: 'aviso' }); return; }
         const lista = Array.from(arquivos || []);
         if (!lista.length) return;
         if (document.documentElement.dataset.view !== 'chat') O.app.ir('chat');
@@ -201,7 +255,7 @@
     function fecharSlash(inst) { if (inst.menu) inst.menu.dataset.open = 'false'; inst.itens = []; }
 
     function desenharSlash(inst) {
-        const itens = O.slash.sugerir(inst.ta.value);
+        const itens = O.slash.sugerir(inst.ta.value, catalogo);
         inst.itens = itens;
         inst.sel = Math.min(inst.sel || 0, Math.max(0, itens.length - 1));
         const menu = menuSlash(inst);
@@ -282,13 +336,14 @@
         const desenhar = () => {
             const atual = prefs.get('model');
             const valido = MODELOS.some(m => m.id === atual) ? atual : 'auto';
-            $('#model-label').textContent = MODELOS.find(m => m.id === valido).nome;
+            $('#model-label').textContent = api.estado().backend === 'orion' ? 'Modelo do servidor' : MODELOS.find(m => m.id === valido).nome;
             menu.replaceChildren(...MODELOS.map(m => el('button', {
                 class: 'menu-item', type: 'button', role: 'menuitemradio', 'aria-checked': String(m.id === valido), dataset: { valor: m.id },
             }, m.nome, m.desc ? el('small', { text: m.desc }) : null)));
         };
         desenhar();
         prefs.assinar('model', desenhar);
+        bus.on('capabilities', desenhar);
         // abre ACIMA da caixa de mensagem inteira: não cobre o clipe nem o texto que a pessoa digita
         const acima = () => {
             const dica = menu.parentElement.getBoundingClientRect(), caixa = $('#composer-box').getBoundingClientRect();
@@ -316,32 +371,58 @@
         alvo.focus({ preventScroll: true });
     }
     function sugerir(texto) {
+        if ((!api.suporta('chat') || O.historico?.leitura())) { O.app.ir('chat'); chat.ta.value = texto; autoajustar(chat.ta); atualizar(); foco(); return; }
         if (O.chat.ocupado()) return;
         if (document.documentElement.dataset.view !== 'chat') O.app.ir('chat');
         disparar({ prompt: texto, exibir: texto });
         atualizar();
     }
     function reenviar() {
+        if ((!api.suporta('chat') || O.historico?.leitura())) { ui.toast('O modelo ainda está indisponível.', { tipo: 'aviso' }); return; }
         if (!ultimoPedido || O.chat.ocupado()) return;
         const p = ultimoPedido;
-        disparar({ prompt: p.prompt, exibir: p.exibir, nomes: p.nomes, semBolha: true });
+        disparar({ prompt: p.prompt, exibir: p.exibir, nomes: p.nomes, skills: p.skills, original: p.original, semBolha: true });
         atualizar();
     }
 
     function init() {
         chat = { form: $('#composer'), ta: $('#composer-input'), enviar: $('#btn-send'), caixa: $('#composer-box') };
         inicio = { form: $('#home-form'), ta: $('#home-input'), enviar: $('#home-form .btn-send'), caixa: $('#home-form .composer-box') };
+        [chat, inicio].forEach(inst => {
+            inst.skillStatus = el('div', { class: 'composer-skill', role: 'status', hidden: true });
+            inst.caixa.prepend(inst.skillStatus);
+        });
         ligar(chat); ligar(inicio);
+        bus.on('capabilities', () => { limparSkills(); carregarSkills(); atualizar(); });
+        prefs.assinar('token', () => { limparSkills(); carregarSkills(); });
+        bus.on('chat:recusado', ({ pedido, mensagem }) => {
+            const p = ultimoPedido;
+            if (!p?.original || pedido?.texto !== p.prompt) return;
+            if (['skill_disabled', 'skill_not_found', 'skill_changed'].includes(mensagem)) {
+                catalogo = catalogo.map(s => p.skills.includes(s.id) ? { ...s, enabled: false } : s);
+                cargaSkills = null;
+            }
+            const sid = p.sid;
+            const atual = sid === sidRascunho ? chat.ta.value : lerRascunho(sid);
+            const recuperar = atual ? `${p.original}\n\n${atual}` : p.original;
+            gravarRascunho(sid, recuperar);
+            if (sid === sidRascunho) { chat.ta.value = recuperar; autoajustar(chat.ta); atualizar(); }
+        });
+        window.addEventListener('pagehide', () => { salvarRascunho.cancel(); gravarRascunho(sidRascunho, chat.ta.value); });
+        window.addEventListener('resize', U.noProximoQuadro(() => { autoajustar(chat.ta); autoajustar(inicio.ta); }));
         $('#btn-attach').addEventListener('click', () => $('#file-input').click());
         $('#file-input').addEventListener('change', e => { adicionar(e.target.files); e.target.value = ''; });
         montarMenuModelo();
         ligarArrastar();
+        bus.on('skills:changed', () => { limparSkills(); carregarSkills(); });
         bus.on('sessoes', ({ ativa }) => trocarRascunho(ativa));
         bus.on('chat:limpo', () => { ultimoPedido = null; });     // "tentar de novo" nunca reenvia o pedido de outra conversa
         bus.on('chat:ocupado', atualizar);
+        bus.on('historico', () => { trocarRascunho(O.historico?.sessao()); atualizar(); });
         atualizar();
         // ao trocar o texto por fora (sugestões), reajusta a altura
         [chat, inicio].forEach(i => autoajustar(i.ta));
+        carregarSkills();
     }
 
     /** coloca o trecho como citação (`> …`) no fim do campo do chat */
@@ -376,5 +457,5 @@
         O.anunciar('Mensagem no campo. Ao enviar, vira uma mensagem nova na conversa.');
     }
 
-    O.composer = { init, foco, sugerir, reenviar, adicionar, citar, editar, temPedido: () => !!ultimoPedido, MODELOS };
+    O.composer = { skills: () => catalogo.slice(), selecionarSkill, carregarSkills, init, atualizar, foco, sugerir, reenviar, adicionar, citar, editar, temPedido: () => !!ultimoPedido, MODELOS };
 })();

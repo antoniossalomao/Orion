@@ -65,17 +65,18 @@
         return () => document.removeEventListener('keydown', tecla, true);
     }
 
-    /** @returns {Promise<boolean>} */
-    function confirmar({ titulo, texto, ok = 'Confirmar', cancelar = 'Cancelar', perigo = false }) {
+    /** Confirmação ou entrada de texto com o mesmo foco e teclado. */
+    function confirmar({ titulo, texto, ok = 'Confirmar', cancelar = 'Cancelar', perigo = false, campo = null }) {
         return new Promise(resolver => {
             const raiz = $('#dialog-root');
             const anterior = document.activeElement;
             const idT = O.util.uid('dlg-t');
             const btnOk = el('button', { class: `btn ${perigo ? 'btn-danger' : 'btn-primary'}`, type: 'button', text: ok });
+            const input = campo ? el('input', { type: 'text', value: campo.valor || '', maxlength: campo.limite || 120, 'aria-label': campo.rotulo || titulo, class: 'input' }) : null;
             const btnNo = el('button', { class: 'btn btn-ghost', type: 'button', text: cancelar });
             const dialogo = el('div', { class: 'dialog', role: 'alertdialog', 'aria-modal': 'true', 'aria-labelledby': idT, style: 'max-width:26rem' },
                 el('div', { class: 'dialog-head' }, el('h2', { id: idT, text: titulo })),
-                el('div', { class: 'dialog-body', text: texto }),
+                el('div', { class: 'dialog-body' }, el('p', { text: texto || '' }), input),
                 el('div', { class: 'dialog-foot' }, btnNo, btnOk));
             const scrim = el('div', { class: 'dialog-scrim center', dataset: { open: 'false' } }, dialogo);
             raiz.append(scrim);
@@ -87,10 +88,12 @@
                 anterior?.focus?.();
                 resolver(valor);
             };
-            btnOk.addEventListener('click', () => fim(true));
+            const aceitar = () => { if (input && !input.value.trim()) { input.focus(); return; } fim(input ? input.value.trim() : true); };
+            btnOk.addEventListener('click', aceitar);
+            input?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); aceitar(); } });
             btnNo.addEventListener('click', () => fim(false));
             scrim.addEventListener('mousedown', e => { if (e.target === scrim) fim(false); });
-            requestAnimationFrame(() => { scrim.dataset.open = 'true'; (perigo ? btnNo : btnOk).focus(); });
+            requestAnimationFrame(() => { scrim.dataset.open = 'true'; (input || (perigo ? btnNo : btnOk)).focus(); if (input) input.select(); });
         });
     }
 

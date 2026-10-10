@@ -68,7 +68,7 @@ class Library:
             guardado = f"{prov['id']}-{nome}"
             shutil.copyfile(origem, self.pasta / guardado)
             with self.memory.transaction() as c:
-                c.execute("UPDATE artifacts SET stored=? WHERE id=?", (guardado, prov["id"]))
+                c.execute("UPDATE library_results SET stored=? WHERE id=?", (guardado, prov["id"]))
             return self.memory.get_artifact(prov["id"])
         except OSError:
             log.warning("não consegui guardar o resultado na biblioteca", exc_info=True)

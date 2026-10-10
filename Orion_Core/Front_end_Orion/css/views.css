@@ -3,9 +3,9 @@
    ========================================================================== */
 
 /* ── Início: o céu é o palco; o conteúdo fica embaixo ───────────────── */
-#view-home { justify-content: flex-end; align-items: center; pointer-events: none; padding: 0 var(--s-5) var(--s-8); }
+#view-home { justify-content: flex-start; align-items: center; overflow-y: auto; pointer-events: none; padding: 0 var(--s-5) var(--s-8); }
 #view-home > * { pointer-events: auto; }
-.home-hero { width: min(100%, 40rem); display: flex; flex-direction: column; gap: var(--s-4); }
+.home-hero { width: min(100%, 40rem); display: flex; flex-direction: column; gap: var(--s-4); margin-top: auto; }   /* margin-top:auto: encosta embaixo quando cabe; quando não cabe, rola em vez de cortar o topo */
 .home-greet h2 { font-size: var(--fs-2xl); font-weight: 500; letter-spacing: -0.02em; line-height: var(--lh-tight); }
 .home-greet h2 em { font-style: normal; color: var(--accent); }
 .home-greet p { margin-top: 0.3rem; color: var(--text-2); font-size: var(--fs-md); }
@@ -182,6 +182,50 @@
 /* ── Configurações: respiro entre o seletor de tema e as linhas ─────── */
 .settings-section fieldset { margin: 0 0 var(--s-4); padding: 0; min-width: 0; border: 0; }
 .settings-section fieldset + .row { padding-top: 0.7rem; border-top: 1px solid var(--line-1); }
+
+/* Projetos: lista compacta e contexto legível também em janelas estreitas. */
+.project-toolbar { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:20px; }
+.project-layout { display:grid; grid-template-columns:minmax(140px,220px) minmax(0,1fr); gap:24px; }
+#project-list { display:flex; flex-direction:column; gap:6px; }
+.project-list-item { justify-content:flex-start; white-space:normal; overflow-wrap:anywhere; text-align:left; }
+.project-list-item[aria-current="true"] { background:var(--accent-soft); color:var(--accent); }
+.project-detail { padding:24px; min-width:0; }
+.project-detail h3 { font-size:22px; margin-bottom:8px; }
+.project-detail h4 { margin:24px 0 10px; color:var(--text-2); }
+.project-instructions { white-space:pre-wrap; overflow-wrap:anywhere; }
+.project-conversation { display:flex; width:100%; text-align:left; white-space:normal; justify-content:flex-start; }
+.project-context { margin-bottom:8px; max-width:100%; text-overflow:ellipsis; overflow:hidden; }
+@media(max-width:760px) { .project-layout { grid-template-columns:1fr; gap:16px; } #project-list { flex-direction:row; flex-wrap:wrap; } .project-detail { padding:18px; } }
+
+.artifact-layout { display:grid; grid-template-columns:minmax(180px,1fr) minmax(0,1.6fr); gap:20px; align-items:start; }
+.artifact-list { display:grid; gap:12px; min-width:0; }
+.artifact-item { padding:14px; min-width:0; }
+.artifact-title { font-size:16px; text-align:left; justify-content:flex-start; width:100%; white-space:normal; overflow-wrap:anywhere; }
+.artifact-preview { min-width:0; padding:22px; }
+.artifact-preview-head { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
+.artifact-preview h3 { overflow-wrap:anywhere; }
+.artifact-content { margin-top:22px; overflow-wrap:anywhere; }
+.artifact-code { white-space:pre-wrap; overflow-wrap:anywhere; font-family:var(--font-mono); }
+.artifact-image { max-width:100%; height:auto; border-radius:var(--r-3); }
+.artifact-editor { font-family:var(--font-mono); min-height:180px; }
+@media(max-width:900px) { .artifact-layout { grid-template-columns:1fr; } .artifact-preview { padding:18px; } }
+
+.facts-root { flex:1; min-height:0; overflow-y:auto; padding:var(--s-8) var(--s-6); }
+.fact-list { display:grid; gap:14px; }
+.fact-item, .fact-approval { padding:20px; }
+.fact-text { white-space:pre-wrap; overflow-wrap:anywhere; line-height:1.6; }
+.fact-approval { margin-bottom:18px; border-color:var(--accent-line); }
+#facts-status { margin:18px 0; color:var(--text-2); }
+@media(max-width:760px) { .facts-root { padding:24px 18px; } .fact-item, .fact-approval { padding:16px; } }
+
+/* Agenda em Extensões: ações e blocos com espaço para revisão. */
+.calendar-section { margin-block: var(--s-6); }
+.calendar-actions { margin-block: var(--s-3); }
+.calendar-section .fact-item { margin-block: var(--s-3); }
+
+.file-plan-path { overflow-wrap: anywhere; font-family: var(--font-mono); font-size: .85rem; }
+
+.artifact-html-preview { width: 100%; height: 360px; border: 1px solid var(--line-2); border-radius: .7rem; background: #fff; margin-top: var(--s-4); }
 
 .mem-item-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .mem-item-txt .conv-title { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

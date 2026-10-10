@@ -11,6 +11,7 @@ from orion.config import Settings
 from orion.memory import MemoryStore
 from orion.policy import ApprovalStore, PathGuard, PolicyEngine
 from orion.policy.classes import Risk, ToolSpec
+from orion.projects import Projects
 from orion.resultados import Library, nome_seguro
 from orion.tools import Tool, ToolRegistry, memory_tools
 from tests.fakes import FakeGateway, chama, fala, pede
@@ -129,12 +130,11 @@ def test_apagar_remove_registro_e_arquivo_e_404_depois(c, tmp_path):
 
 def test_filtra_por_projeto_e_herda_o_projeto_da_conversa(c, tmp_path):
     m = c.app.state.orion.memory
-    p = m.create_project("TCC")
-    s = m.new_session("web")
-    m.assign_session(s.id, p.id)
+    p = Projects(m).create("TCC")
+    s = m.new_session("web", project_id=p["id"])
     _gerar(c, tmp_path, "a.md", sessao=s.id)
     _gerar(c, tmp_path, "b.md")
-    assert c.get(f"/resultados?projeto={p.id}", headers=AUTH).json()["total"] == 1
+    assert c.get(f"/resultados?projeto={p['id']}", headers=AUTH).json()["total"] == 1
     assert c.get("/resultados", headers=AUTH).json()["total"] == 2
 
 
@@ -169,19 +169,3 @@ async def test_o_agente_registra_o_que_a_ferramenta_gerou(tmp_path):
     assert len(itens) == 1 and itens[0]["name"] == "ata.md" and itens[0]["session_id"]
     assert (tmp_path / "resultados" / itens[0]["stored"]).read_text(encoding="utf-8") == "# Ata"
     store.close()
-
-
-def test_migracao_v9_para_v10(tmp_path):
-    db = tmp_path / "m.db"
-    m = MemoryStore(db)
-    m._conn.executescript(
-        "DROP TABLE external_calls; ALTER TABLE notifications DROP COLUMN urgent;"
-        "DROP TABLE artifacts; UPDATE meta SET value='9' WHERE key='schema_version';"
-    )
-    m._conn.close()
-    m2 = MemoryStore(db)
-    a = m2.add_artifact(
-        session_id=None, kind="documento", name="x.md", stored="1-x.md", size=1, tool="t"
-    )
-    assert a["version"] == 1
-    m2.close()

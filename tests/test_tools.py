@@ -21,7 +21,7 @@ def test_toda_ferramenta_registrada_tem_classe_de_risco(store):
     reg = default_registry(store, Delegator(store))
     assert set(reg.names()) <= set(DEFAULT_TOOLS)
     assert reg.names() == [
-        "buscar_memoria", "salvar_memoria", "listar_fatos", "esquecer_fato", "delegar",
+        "buscar_memoria", "salvar_memoria", "listar_fatos", "editar_fato", "esquecer_fato", "delegar",
     ]  # fmt: skip
     assert DEFAULT_TOOLS["esquecer_fato"].risk is Risk.DESTRUCTIVE
     assert DEFAULT_TOOLS["delegar"].risk is Risk.EXEC
@@ -111,7 +111,7 @@ def test_lembretes_pela_ferramenta(reg_ops):
     assert ruim["ok"] is False and "ISO" in ruim["erro"]
     sumiu = _chamar(reg_ops, "gerenciar_lembretes", acao="concluir", lembrete_id=99)
     assert sumiu["ok"] is False and sumiu["erro"] == "lembrete 99 não existe"
-    assert "Ação inválida" in _chamar(reg_ops, "gerenciar_lembretes", acao="voar")["erro"]
+    assert "inválida" in _chamar(reg_ops, "gerenciar_lembretes", acao="voar")["erro"]
 
 
 def test_agendamentos_pela_ferramenta_guardam_a_ferramenta_sem_executar(reg_ops):

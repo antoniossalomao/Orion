@@ -37,6 +37,7 @@ from .briefing import build_briefing, build_weekly
 from .memory import MemoryStore
 from .memory.consolidate import Consolidator
 from .memory.ops import Operations
+from .memory.scope import data_scope
 from .tools.processes import ProcessManager
 
 log = logging.getLogger("orion.jobs")
@@ -117,7 +118,7 @@ class JobRunner:
         self._briefing_at = _hora(briefing_at)
         self._agenda = agenda  # consulta direta de leitura, sem modelo (orion/agenda.py, regra 37)
         self._briefing_window = timedelta(hours=briefing_window_h)
-        self._research = research  # orion/research.py (regra 39), None: desligada
+        self._research = research  # orion/research/night.py (regra 39), None: desligada
         self._weekly_ai = weekly_ai  # modelo (complete) para a leitura do resumo semanal; None: sem
         self._screen = screen  # orion/screen_memory.py (regra 44), None: desligada
         self._sleep = sleep  # orion/memory/sleep.py (ciclo de sono), None: desligado
@@ -226,8 +227,20 @@ class JobRunner:
         return rel
 
     def _passos_sincronos(self, rel: TickReport) -> None:
-        self._passo(rel, "lembretes", self._lembretes)
-        self._passo(rel, "agendamentos", self._agendamentos)
+        scopes = [None] + [
+            r[0] for r in self.memory.query("SELECT id FROM projects WHERE archived=0")
+        ]
+        for project_id in scopes:
+            with data_scope(project_id, include_personal=False):
+                for name, fn in (
+                    ("lembretes", self._lembretes),
+                    ("agendamentos", self._agendamentos),
+                ):
+                    try:
+                        setattr(rel, name, getattr(rel, name) + fn())
+                    except Exception:
+                        log.exception("job %s falhou", name)
+                        rel.erros.append(f"{name}: falha no processamento")
         self._passo(rel, "vigilancias", self.ops.watch_poll)
         if self._briefing_at is not None:
             self._passo(rel, "briefing", self._briefing)
@@ -309,7 +322,12 @@ class JobRunner:
             texto = f"Agendamento: {s['title']}"
             if s["tool"]:
                 texto += f" (ferramenta '{s['tool']}' registrada; não é executada sozinha)"
-            self.ops.notify("agendamento", texto, ref=f"schedule:{s['id']}", urgente=True)
+            self.ops.notify(
+                "agendamento",
+                texto,
+                ref=f"schedule:{s['id']}:{s['next_run']}",
+                urgente=True,
+            )
             self.ops.mark_schedule_fired(s["id"], agora)
             n += 1
         return n

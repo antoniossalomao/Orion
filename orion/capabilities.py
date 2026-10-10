@@ -1,5 +1,6 @@
 """Contrato público de capacidades; detalhes da instalação ficam em rota autenticada."""
 
+import sys
 from typing import Literal
 
 from pydantic import BaseModel
@@ -18,9 +19,6 @@ PENDING_FEATURES = (
     "tts",
     "voice",
     "model_selection",
-    "plugins",
-    "skills",
-    "mcp",
 )
 
 
@@ -42,18 +40,44 @@ class Capabilities(BaseModel):
     unavailable: dict[str, str]
 
 
-def describe(*, agent_ready: bool, admin_configured: bool) -> Capabilities:
+def describe(
+    *, agent_ready: bool, admin_configured: bool, voice: bool = False, tts: bool = False
+) -> Capabilities:
     features: dict[str, bool] = dict.fromkeys(PENDING_FEATURES, False)
     features.update(
         chat=agent_ready and admin_configured,
         sessions=admin_configured,
+        session_management=admin_configured,
+        session_search=admin_configured,
         history=admin_configured,
         history_clear=admin_configured,
         export=admin_configured,
         approvals=admin_configured,
         notifications=admin_configured,
+        activity=admin_configured,
+        documents=admin_configured,
+        branches=admin_configured,
+        accounts=admin_configured,
+        calendar=admin_configured,
+        file_plans=admin_configured,
+        skills=admin_configured,
+        plugins=admin_configured,
+        plugin_profiles=admin_configured,
+        projects=admin_configured,
+        artifacts=admin_configured,
+        memory_facts=admin_configured,
+        mcp=admin_configured,
+        mcp_export=admin_configured,
+        html_preview=admin_configured and sys.platform != "win32",
+        voice=admin_configured and voice,
+        tts=admin_configured and tts,
     )
     unavailable: dict[str, str] = dict.fromkeys(PENDING_FEATURES, "not_implemented")
+    for ready in ("voice", "tts"):
+        if features[ready]:
+            unavailable.pop(ready, None)
+    if not features["html_preview"]:
+        unavailable["html_preview"] = "desktop_validation_pending"
     if not features["chat"]:
         unavailable["chat"] = (
             "auth_not_configured" if not admin_configured else "gateway_not_configured"
@@ -61,11 +85,27 @@ def describe(*, agent_ready: bool, admin_configured: bool) -> Capabilities:
     if not admin_configured:
         unavailable.update(
             sessions="auth_not_configured",
+            session_management="auth_not_configured",
+            session_search="auth_not_configured",
             history="auth_not_configured",
             history_clear="auth_not_configured",
             export="auth_not_configured",
             approvals="auth_not_configured",
             notifications="auth_not_configured",
+            activity="auth_not_configured",
+            documents="auth_not_configured",
+            branches="auth_not_configured",
+            accounts="auth_not_configured",
+            calendar="auth_not_configured",
+            file_plans="auth_not_configured",
+            skills="auth_not_configured",
+            plugins="auth_not_configured",
+            plugin_profiles="auth_not_configured",
+            projects="auth_not_configured",
+            artifacts="auth_not_configured",
+            memory_facts="auth_not_configured",
+            mcp="auth_not_configured",
+            mcp_export="auth_not_configured",
         )
     return Capabilities(
         model="ready" if agent_ready else "unavailable",

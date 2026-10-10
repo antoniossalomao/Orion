@@ -1,32 +1,36 @@
 """Esquema SQLite da memória (fase 3 do NUCLEO): um arquivo, sem servidor.
 
 v1: conversas, fatos, documentos e vetores. v2: operação (lembretes, agendamentos,
-tarefas, números, prompts), arestas do grafo e fila de notificações. v3: trilha de
-auditoria das decisões da política. v4: conversa fixada e apagada (apagar = esconder: as
-mensagens ficam). v5: seleção persistente de sessão por canal. v11: registro de saída
-(`external_calls`, regra 47) e aviso urgente (não perturbe, regra 48). Banco antigo sobe sozinho
-(`MIGRATIONS`).
+tarefas, números, prompts), arestas do grafo e fila de notificações. Banco v1 sobe
+para a versão atual sozinho (`MIGRATIONS`). v3: seleção persistente de sessão por canal.
+v4: conversas fixadas. v5: índice de títulos para busca de conversas. v6–v16: projetos,
+resultados, uploads, contas, agenda, planos de arquivos e clientes de exportação. v17: memória da
+tela, biblioteca de arquivos gerados, registro de saída (`external_calls`, regra 47) e aviso
+urgente (não perturbe, regra 48). Um banco da linhagem anterior da `main` (versão 11, com
+`external_calls`) é reconhecido e migrado por `MAIN_V11` (ver `store.py`).
 """
 
-SCHEMA_VERSION = 11
+SCHEMA_VERSION = 17
 
 TOKENIZER = "unicode61 remove_diacritics 2"  # "açúcar" casa com "acucar"
 
 
-def _fts(tabela: str, coluna: str = "text") -> str:
+def _fts(tabela: str, coluna: str = "text", pk: str = "id") -> str:
     """Índice FTS5 de conteúdo externo + triggers que o mantêm em dia."""
     return f"""
 CREATE VIRTUAL TABLE {tabela}_fts USING fts5(
-    {coluna}, content='{tabela}', content_rowid='id', tokenize='{TOKENIZER}');
+    {coluna}, content='{tabela}', content_rowid='{pk}', tokenize='{TOKENIZER}');
 CREATE TRIGGER {tabela}_ai AFTER INSERT ON {tabela} BEGIN
-    INSERT INTO {tabela}_fts(rowid, {coluna}) VALUES (new.id, new.{coluna});
+    INSERT INTO {tabela}_fts(rowid, {coluna}) VALUES (new.{pk}, new.{coluna});
 END;
 CREATE TRIGGER {tabela}_ad AFTER DELETE ON {tabela} BEGIN
-    INSERT INTO {tabela}_fts({tabela}_fts, rowid, {coluna}) VALUES ('delete', old.id, old.{coluna});
+    INSERT INTO {tabela}_fts({tabela}_fts, rowid, {coluna})
+        VALUES ('delete', old.{pk}, old.{coluna});
 END;
 CREATE TRIGGER {tabela}_au AFTER UPDATE OF {coluna} ON {tabela} BEGIN
-    INSERT INTO {tabela}_fts({tabela}_fts, rowid, {coluna}) VALUES ('delete', old.id, old.{coluna});
-    INSERT INTO {tabela}_fts(rowid, {coluna}) VALUES (new.id, new.{coluna});
+    INSERT INTO {tabela}_fts({tabela}_fts, rowid, {coluna})
+        VALUES ('delete', old.{pk}, old.{coluna});
+    INSERT INTO {tabela}_fts(rowid, {coluna}) VALUES (new.{pk}, new.{coluna});
 END;
 """
 
@@ -178,64 +182,131 @@ CREATE TABLE notifications (
 CREATE INDEX idx_notifications_pending ON notifications(delivered_at, id);
 """
 
-# v3: uma linha por decisão da política (já redigida: ver `orion.policy.audit.redact`).
-DDL_V3 = """
-CREATE TABLE audit (
-    id INTEGER PRIMARY KEY,
-    ts REAL NOT NULL,
-    session_id TEXT,
-    tool TEXT NOT NULL,
-    action TEXT NOT NULL,
-    risk TEXT,
-    reason TEXT NOT NULL DEFAULT '',
-    tainted INTEGER NOT NULL DEFAULT 0,
-    args TEXT NOT NULL DEFAULT '{}'
-);
-CREATE INDEX idx_audit_ts ON audit(ts);
-CREATE INDEX idx_audit_tool ON audit(tool, ts);
-"""
-
-DDL_V4 = """
-ALTER TABLE sessions ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE sessions ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0;
-"""
-
 # A seleção não depende da última mensagem: uma resposta atrasada não troca a conversa.
-DDL_V5 = """
+DDL_V3 = """
 CREATE TABLE active_sessions (
     channel TEXT PRIMARY KEY,
     session_id TEXT UNIQUE REFERENCES sessions(id) ON DELETE SET NULL
 );
 INSERT INTO active_sessions(channel, session_id)
 SELECT s.channel, s.id FROM sessions s
-WHERE s.archived=0 AND s.deleted=0 AND s.id=(
+WHERE s.archived=0 AND s.id=(
     SELECT candidate.id FROM sessions candidate
-    WHERE candidate.channel=s.channel AND candidate.archived=0 AND candidate.deleted=0
+    WHERE candidate.channel=s.channel AND candidate.archived=0
     ORDER BY candidate.last_active_at DESC, candidate.created_at DESC, candidate.id DESC LIMIT 1
 );
 """
 
-# Arquivar pelo usuário: sai da barra, mantém as mensagens (`archived` = importada, só leitura).
+DDL_V4 = "ALTER TABLE sessions ADD COLUMN favorite INTEGER NOT NULL DEFAULT 0;"
+
+DDL_V5 = (
+    _fts("sessions", "title", "rowid")
+    + """
+INSERT INTO sessions_fts(sessions_fts) VALUES ('rebuild');
+"""
+)
+
 DDL_V6 = """
-ALTER TABLE sessions ADD COLUMN shelved INTEGER NOT NULL DEFAULT 0;
+CREATE TABLE projects (
+    id TEXT PRIMARY KEY, name TEXT NOT NULL, instructions TEXT NOT NULL DEFAULT '',
+    share_personal INTEGER NOT NULL DEFAULT 0, archived INTEGER NOT NULL DEFAULT 0,
+    created_at REAL NOT NULL, updated_at REAL NOT NULL);
+ALTER TABLE sessions ADD COLUMN project_id TEXT REFERENCES projects(id);
+CREATE INDEX idx_sessions_project ON sessions(project_id, channel, last_active_at);
 """
 
-# Projetos: contexto explícito (instruções próprias) para um grupo de conversas.
 DDL_V7 = """
-CREATE TABLE projects (
-    id INTEGER PRIMARY KEY,
-    name TEXT NOT NULL UNIQUE COLLATE NOCASE,
-    instructions TEXT NOT NULL DEFAULT '',
-    archived INTEGER NOT NULL DEFAULT 0,
-    created_at REAL NOT NULL,
-    updated_at REAL NOT NULL
-);
-ALTER TABLE sessions ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL;
-CREATE INDEX idx_sessions_project ON sessions(project_id);
+ALTER TABLE projects ADD COLUMN root TEXT;
+ALTER TABLE facts ADD COLUMN project_id TEXT REFERENCES projects(id);
+ALTER TABLE documents ADD COLUMN project_id TEXT REFERENCES projects(id);
+CREATE INDEX idx_facts_project ON facts(project_id);
+CREATE INDEX idx_documents_project ON documents(project_id);
+"""
+
+DDL_V8 = """
+CREATE TABLE artifacts (
+    id TEXT PRIMARY KEY, project_id TEXT REFERENCES projects(id),
+    session_id TEXT NOT NULL REFERENCES sessions(id), title TEXT NOT NULL,
+    kind TEXT NOT NULL, language TEXT NOT NULL DEFAULT '', created_at REAL NOT NULL,
+    updated_at REAL NOT NULL);
+CREATE INDEX idx_artifacts_project ON artifacts(project_id,updated_at);
+CREATE TABLE artifact_versions (
+    artifact_id TEXT NOT NULL REFERENCES artifacts(id), version INTEGER NOT NULL,
+    content BLOB NOT NULL, digest TEXT NOT NULL, message_id INTEGER REFERENCES messages(id),
+    provenance TEXT, created_at REAL NOT NULL, PRIMARY KEY(artifact_id,version));
+"""
+
+DDL_V9 = (
+    "".join(
+        f"ALTER TABLE {table} ADD COLUMN project_id TEXT REFERENCES projects(id);"
+        f"CREATE INDEX idx_{table}_project ON {table}(project_id);"
+        for table in ("reminders", "schedules", "tasks", "numbers", "prompts", "notifications")
+    )
+    + """
+CREATE TABLE activity_preferences (
+    scope TEXT PRIMARY KEY, completion INTEGER NOT NULL DEFAULT 1,
+    question INTEGER NOT NULL DEFAULT 1, approval INTEGER NOT NULL DEFAULT 1);
+"""
+)
+
+DDL_V10 = """
+CREATE TABLE uploads(id TEXT PRIMARY KEY, project_id TEXT REFERENCES projects(id),
+ name TEXT NOT NULL,kind TEXT NOT NULL,raw BLOB NOT NULL,status TEXT NOT NULL,
+ error TEXT,created_at REAL NOT NULL);
+CREATE INDEX idx_uploads_project ON uploads(project_id,created_at);
+"""
+
+DDL_V11 = """
+CREATE TABLE message_branches(session_id TEXT PRIMARY KEY REFERENCES sessions(id),
+ root_session TEXT NOT NULL REFERENCES sessions(id),
+ parent_session TEXT NOT NULL REFERENCES sessions(id),
+ source_message INTEGER NOT NULL REFERENCES messages(id),edited_text TEXT NOT NULL,
+ prefix_count INTEGER NOT NULL,
+ created_at REAL NOT NULL);
+CREATE INDEX idx_branches_root ON message_branches(root_session);
+"""
+
+DDL_V12 = """
+CREATE TABLE oauth_accounts(id TEXT PRIMARY KEY,name TEXT NOT NULL,url TEXT NOT NULL,
+ scope TEXT NOT NULL,scopes TEXT NOT NULL,granted TEXT NOT NULL,revision TEXT NOT NULL,
+ state TEXT NOT NULL,expires_at REAL,error TEXT);
+"""
+
+DDL_V13 = """
+CREATE TABLE calendar_bindings(scope TEXT PRIMARY KEY,connection_id TEXT NOT NULL,
+ account TEXT NOT NULL,calendar_id TEXT NOT NULL,timezone TEXT NOT NULL,revision TEXT NOT NULL,
+ connection_revision TEXT NOT NULL);
+"""
+
+DDL_V14 = """
+CREATE TABLE event_proposals(id TEXT PRIMARY KEY,project_id TEXT REFERENCES projects(id),
+ session_id TEXT NOT NULL REFERENCES sessions(id),payload TEXT NOT NULL,digest TEXT NOT NULL,
+ binding_revision TEXT NOT NULL,generation TEXT NOT NULL,creation_revision TEXT,
+ status TEXT NOT NULL,
+ created_at REAL NOT NULL);
+"""
+
+DDL_V15 = """
+CREATE TABLE file_plans(id TEXT PRIMARY KEY,project_id TEXT REFERENCES projects(id),
+ session_id TEXT NOT NULL REFERENCES sessions(id),payload TEXT NOT NULL,digest TEXT NOT NULL,
+ skipped TEXT NOT NULL,status TEXT NOT NULL,created_at REAL NOT NULL,
+ completed INTEGER NOT NULL DEFAULT 0);
+CREATE INDEX idx_file_plans_scope ON file_plans(project_id,created_at);
+"""
+
+DDL_V16 = """
+CREATE TABLE export_clients(id TEXT PRIMARY KEY,name TEXT NOT NULL,
+ project_id TEXT REFERENCES projects(id),permissions TEXT NOT NULL,token_hash TEXT UNIQUE NOT NULL,
+ expires_at REAL NOT NULL,revoked INTEGER NOT NULL DEFAULT 0,created_at REAL NOT NULL);
 """
 
 # Memória da tela (D3): SÓ texto lido por OCR local, com retenção curta; imagem nunca é guardada.
-DDL_V8 = f"""
+# Biblioteca de arquivos gerados (C34), cópia com origem e versões (`library_results`: o nome
+# `artifacts` é dos resultados versionados do chat). Registro de saída (regra 47): uma linha por
+# chamada a provedor de fora, sem o conteúdo; base da cota gratuita (regra 46), da telemetria por
+# provedor e do painel de privacidade. `urgent`: o não perturbe (regra 48) segura na fila o aviso
+# que não for urgente.
+DDL_V17 = f"""
 CREATE TABLE screen_log (
     id INTEGER PRIMARY KEY,
     ts REAL NOT NULL,
@@ -244,36 +315,21 @@ CREATE TABLE screen_log (
 );
 CREATE INDEX idx_screen_ts ON screen_log(ts);
 {_fts("screen_log")}
-"""
-
-# Documento de projeto (C32/C38): só aparece no contexto automático das conversas do projeto.
-DDL_V9 = """
-ALTER TABLE documents ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL;
-"""
-
-# Biblioteca de resultados (C34): cópia do que o Orion gerou, com origem e versões.
-DDL_V10 = """
-CREATE TABLE artifacts (
+CREATE TABLE library_results (
     id INTEGER PRIMARY KEY,
     session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
-    project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL,
+    project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
     kind TEXT NOT NULL,            -- documento | imagem
     name TEXT NOT NULL,
     stored TEXT NOT NULL,          -- nome do arquivo dentro da pasta da biblioteca
     bytes INTEGER NOT NULL,
     tool TEXT NOT NULL,
     version INTEGER NOT NULL DEFAULT 1,
-    parent_id INTEGER REFERENCES artifacts(id) ON DELETE SET NULL,
+    parent_id INTEGER REFERENCES library_results(id) ON DELETE SET NULL,
     created_at REAL NOT NULL
 );
-CREATE INDEX idx_artifacts_name ON artifacts(name, version);
-CREATE INDEX idx_artifacts_created ON artifacts(created_at);
-"""
-
-# Registro de saída (regra 47): uma linha por chamada a provedor de fora, sem o conteúdo. Base da
-# cota gratuita (regra 46), da telemetria por provedor e do painel de privacidade. `urgent`: o não
-# perturbe (regra 48) segura na fila o aviso que não for urgente.
-DDL_V11 = """
+CREATE INDEX idx_library_results_name ON library_results(name, version);
+CREATE INDEX idx_library_results_created ON library_results(created_at);
 CREATE TABLE external_calls (
     id INTEGER PRIMARY KEY,
     ts REAL NOT NULL,
@@ -289,14 +345,41 @@ CREATE TABLE external_calls (
 CREATE INDEX idx_external_calls_ts ON external_calls(ts);
 CREATE INDEX idx_external_calls_provider ON external_calls(provider, ts);
 ALTER TABLE notifications ADD COLUMN urgent INTEGER NOT NULL DEFAULT 0;
+-- uma linha por decisão da política (já redigida: ver `orion.policy.audit.redact`)
+CREATE TABLE audit (
+    id INTEGER PRIMARY KEY,
+    ts REAL NOT NULL,
+    session_id TEXT,
+    tool TEXT NOT NULL,
+    action TEXT NOT NULL,
+    risk TEXT,
+    reason TEXT NOT NULL DEFAULT '',
+    tainted INTEGER NOT NULL DEFAULT 0,
+    args TEXT NOT NULL DEFAULT '{{}}'
+);
+CREATE INDEX idx_audit_ts ON audit(ts);
+CREATE INDEX idx_audit_tool ON audit(tool, ts);
 """
 
 DDL = (
-    DDL_V1 + DDL_V2 + DDL_V3 + DDL_V4 + DDL_V5 + DDL_V6 + DDL_V7 + DDL_V8 + DDL_V9 + DDL_V10
+    DDL_V1
+    + DDL_V2
+    + DDL_V3
+    + DDL_V4
+    + DDL_V5
+    + DDL_V6
+    + DDL_V7
+    + DDL_V8
+    + DDL_V9
+    + DDL_V10
     + DDL_V11
-)  # fmt: skip
-
-# versão de origem -> script que leva à seguinte
+    + DDL_V12
+    + DDL_V13
+    + DDL_V14
+    + DDL_V15
+    + DDL_V16
+    + DDL_V17
+)
 MIGRATIONS: dict[int, str] = {
     1: DDL_V2,
     2: DDL_V3,
@@ -308,4 +391,10 @@ MIGRATIONS: dict[int, str] = {
     8: DDL_V9,
     9: DDL_V10,
     10: DDL_V11,
+    11: DDL_V12,
+    12: DDL_V13,
+    13: DDL_V14,
+    14: DDL_V15,
+    15: DDL_V16,
+    16: DDL_V17,
 }

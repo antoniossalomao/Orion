@@ -34,7 +34,9 @@ class VectorIndex:
         if kind is None:
             self._dados.clear()
         else:
-            self._dados.pop(kind, None)
+            for key in list(self._dados):
+                if key == kind or key.startswith(kind + "@"):
+                    self._dados.pop(key, None)
 
     def topk(
         self,

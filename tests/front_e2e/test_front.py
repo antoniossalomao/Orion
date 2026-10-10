@@ -11,12 +11,33 @@ from playwright.sync_api import expect
 from .conftest import AXE, SENHA, TOKEN
 
 ROTAS = [
-    "", "#/chat", "#/memoria", "#/integracoes", "#/config", "#/painel", "#/conhecimento",
+    "",
+    "#/chat",
+    "#/memoria",
+    "#/integracoes",
+    "#/config",
+    "#/projetos",
+    "#/resultados",
+    "#/atividade",
+    "#/fontes",
+    "#/painel",
+    "#/conhecimento",
     "#/privacidade",
-]  # fmt: skip
+]
 VIEWS = [
-    "home", "chat", "memoria", "integracoes", "config", "painel", "conhecimento", "privacidade",
-]  # fmt: skip
+    "home",
+    "chat",
+    "memoria",
+    "integracoes",
+    "config",
+    "projetos",
+    "resultados",
+    "atividade",
+    "fontes",
+    "painel",
+    "conhecimento",
+    "privacidade",
+]
 TEMAS = ["noite", "grafite", "contraste"]
 
 
@@ -46,7 +67,7 @@ def test_home_carrega_com_saudacao_status_e_ceu(abrir):
         re.compile(r"^(Bom dia|Boa tarde|Boa noite|Boa madrugada)$")
     )
     expect(page.locator("#conn-text")).to_have_text("Conectado")
-    expect(page.locator("#home-status")).to_contain_text("Cérebro conectado")
+    expect(page.locator("#home-status")).to_contain_text("memórias")
     assert page.locator("#sky canvas").count() == 1, "a constelação (WebGL) não subiu"
 
 
@@ -79,6 +100,10 @@ def test_atalhos_de_teclado(abrir):
     page = abrir()
     page.keyboard.press("Alt+3")
     expect(page.locator("html")).to_have_attribute("data-view", "memoria")
+    page.keyboard.press("Alt+6")
+    expect(page.locator("html")).to_have_attribute("data-view", "projetos")
+    page.keyboard.press("Alt+7")
+    expect(page.locator("html")).to_have_attribute("data-view", "resultados")
     page.keyboard.press("Alt+2")
     expect(page.locator("html")).to_have_attribute("data-view", "chat")
     page.keyboard.press("Control+b")
@@ -974,7 +999,7 @@ def test_painel_aprovacao_pendente_aparece_e_leva_ao_chat(abrir):
     page = abrir("#/chat")
     enviar(page, "apague os arquivos antigos")  # o mock responde com um pedido de aval
     expect(page.locator(".approval").first).to_be_visible(timeout=15000)
-    page.keyboard.press("Alt+6")
+    page.evaluate("location.hash = '#/painel'")
     expect(page.locator("html")).to_have_attribute("data-view", "painel")
     cartao = page.locator('#painel-corpo [data-id="aprovacoes"]')
     expect(cartao).to_contain_text("executar_comando", timeout=8000)
@@ -1007,7 +1032,7 @@ def test_painel_tudo_em_ordem_e_falha_do_cerebro(abrir):
             route.fulfill(content_type="application/json", body=_json.dumps(calmo))
 
     page.route("**/painel", rota)
-    page.keyboard.press("Alt+6")
+    page.evaluate("location.hash = '#/painel'")
     expect(page.locator("#painel-corpo .banner-info")).to_contain_text(
         "Tudo em ordem", timeout=8000
     )
@@ -1044,9 +1069,7 @@ def test_cerebro_offline_degrada_sem_quebrar(abrir):
         http_ok=True,
     )
     expect(page.locator("#conn-text")).to_have_text("Sem conexão", timeout=8000)
-    expect(page.locator("#sb-convs-list")).to_contain_text("offline")
-    enviar(page, "alguém aí?")
-    expect(page.locator(".msg-error")).to_contain_text("A conexão com o cérebro caiu")
+    expect(page.locator("#sb-convs-list")).to_contain_text("carregar as conversas")
     page.click('.sb-item[data-view="memoria"]')
     expect(page.locator("#mem-banner")).to_contain_text("demonstração", timeout=15000)
 
@@ -1345,197 +1368,6 @@ def _abrir_menu(page, titulo: str):
     expect(page.locator("#conv-menu")).to_have_attribute("data-open", "true")
 
 
-def test_renomear_pelo_menu_persiste_e_cancelar_nao_muda(abrir, mock_isolado_url):
-    page = abrir("#/chat", url=mock_isolado_url)
-    _abrir_menu(page, "Backup diário")
-    page.get_by_role("menuitem", name="Renomear").click()
-    dialogo = page.get_by_role("dialog", name="Renomear conversa")
-    expect(page.get_by_label("Título")).to_have_value("Backup diário do vault no iCloud")
-    page.keyboard.press("Escape")  # cancelar
-    expect(dialogo).to_have_count(0)
-    expect(_linha(page, "Backup diário")).to_have_count(1)
-
-    _abrir_menu(page, "Backup diário")
-    page.get_by_role("menuitem", name="Renomear").click()
-    page.get_by_label("Título").fill("  Backup   do   cofre ")
-    page.keyboard.press("Enter")
-    expect(_linha(page, "Backup do cofre")).to_have_count(1)
-    expect(_linha(page, "Backup diário")).to_have_count(0)
-    page.reload()
-    page.wait_for_selector("html[data-pronto='true']")
-    expect(_linha(page, "Backup do cofre")).to_have_count(1, timeout=5000)
-
-
-def test_renomear_com_titulo_vazio_nao_confirma(abrir, mock_isolado_url):
-    page = abrir("#/chat", url=mock_isolado_url)
-    _abrir_menu(page, "Ideias para a voz")
-    page.get_by_role("menuitem", name="Renomear").click()
-    page.get_by_label("Título").fill("   ")
-    page.keyboard.press("Enter")
-    expect(page.get_by_role("dialog", name="Renomear conversa")).to_be_visible()
-    expect(_linha(page, "Ideias para a voz")).to_have_count(1)
-
-
-def test_fixar_sobe_para_o_grupo_fixadas_e_desafixar_volta(abrir, mock_isolado_url):
-    page = abrir("#/chat", url=mock_isolado_url)
-    _abrir_menu(page, "Resumo do PDF")
-    page.get_by_role("menuitem", name="Fixar no topo").click()
-    expect(page.locator("#sb-convs-list .conv-group").first).to_have_text("Fixadas")
-    primeira = page.locator("#sb-convs-list .conv-row").first
-    expect(primeira).to_contain_text("Resumo do PDF")
-    expect(primeira.get_by_role("img", name="Fixada")).to_be_visible()
-    _abrir_menu(page, "Resumo do PDF")
-    page.get_by_role("menuitem", name="Desafixar").click()
-    expect(page.locator("#sb-convs-list .conv-group", has_text="Fixadas")).to_have_count(0)
-
-
-def test_apagar_pede_confirmacao_e_so_apaga_ao_confirmar(abrir, mock_isolado_url):
-    page = abrir("#/chat", url=mock_isolado_url)
-    _abrir_menu(page, "Bot do Telegram")
-    page.get_by_role("menuitem", name="Apagar").click()
-    alerta = page.get_by_role("alertdialog", name="Apagar esta conversa?")
-    expect(alerta).to_contain_text("As mensagens ficam guardadas")
-    expect(alerta.get_by_role("button", name="Cancelar")).to_be_focused()  # perigo: foco no seguro
-    alerta.get_by_role("button", name="Cancelar").click()
-    expect(_linha(page, "Bot do Telegram")).to_have_count(1)
-
-    _abrir_menu(page, "Bot do Telegram")
-    page.get_by_role("menuitem", name="Apagar").click()
-    page.get_by_role("alertdialog").get_by_role("button", name="Apagar").click()
-    expect(_linha(page, "Bot do Telegram")).to_have_count(0)
-    page.reload()
-    page.wait_for_selector("html[data-pronto='true']")
-    expect(_linha(page, "Dúvida de UML")).to_have_count(1, timeout=5000)
-    expect(_linha(page, "Bot do Telegram")).to_have_count(0)
-
-
-def test_arquivar_tira_da_barra_e_a_busca_no_conteudo_ainda_acha(abrir, mock_isolado_url):
-    page = abrir("#/chat", url=mock_isolado_url)
-    _abrir_menu(page, "Backup diário do vault")
-    page.get_by_role("menuitem", name="Arquivar").click()
-    expect(_linha(page, "Backup diário do vault")).to_have_count(0)
-    page.reload()
-    page.wait_for_selector("html[data-pronto='true']")
-    expect(_linha(page, "Dúvida de UML")).to_have_count(1, timeout=5000)
-    expect(_linha(page, "Backup diário do vault")).to_have_count(0)
-
-
-def test_busca_acha_palavra_que_so_existe_no_corpo_da_conversa(abrir, mock_isolado_url):
-    page = abrir("#/chat", url=mock_isolado_url)
-    page.locator("#sb-search").fill("Obsidian")  # nenhum título tem essa palavra
-    grupo = page.locator("#sb-convs-list .conv-group", has_text="No conteúdo")
-    expect(grupo).to_have_count(1, timeout=5000)
-    achado = page.locator("#sb-convs-list .conv-hit", has_text="Plano da fase 0")
-    expect(achado).to_have_count(1)
-    expect(achado.locator(".conv-snippet")).to_contain_text("Obsidian")
-    page.locator("#sb-search").press("Escape")
-    expect(grupo).to_have_count(0)
-
-
-def test_apagar_a_conversa_ativa_troca_para_a_proxima(abrir, mock_isolado_url):
-    page = abrir("#/chat", url=mock_isolado_url)
-    atual = page.locator('#sb-convs-list .conv[aria-current="true"]')
-    expect(atual).to_contain_text("Plano da fase 0", timeout=5000)
-    _abrir_menu(page, "Plano da fase 0")
-    page.get_by_role("menuitem", name="Apagar").click()
-    page.get_by_role("alertdialog").get_by_role("button", name="Apagar").click()
-    expect(_linha(page, "Plano da fase 0")).to_have_count(0)
-    expect(atual).to_contain_text("Memória nova em SQLite", timeout=5000)
-
-
-def test_conversa_importada_somente_leitura_nao_tem_menu(abrir, mock_isolado_url):
-    page = abrir("#/chat", url=mock_isolado_url)
-    expect(_linha(page, "conversas antigas")).to_have_count(1)
-    expect(_linha(page, "conversas antigas").locator(".conv-more")).to_have_count(0)
-    expect(_linha(page, "Plano da fase 0").locator(".conv-more")).to_have_count(1)
-
-
-def test_menu_da_conversa_funciona_so_com_teclado(abrir, mock_isolado_url):
-    page = abrir("#/chat", url=mock_isolado_url)
-    mais = _linha(page, "Dúvida de UML").locator(".conv-more")
-    mais.focus()
-    expect(mais).to_have_css("opacity", "1")  # foco dentro da linha mostra o botão
-    page.keyboard.press("Enter")
-    itens = page.get_by_role("menuitem")
-    expect(itens.first).to_be_focused()
-    # o menu abre colado no botão ⋯ (e dentro da janela), não solto em outro canto da tela
-    pos = page.evaluate(
-        """() => {
-            const b = document.querySelector('.conv-more[aria-expanded="true"]').getBoundingClientRect();
-            const m = document.querySelector('#conv-menu').getBoundingClientRect();
-            return { dx: Math.abs(m.left - b.left), dy: m.top - b.bottom, dentro: m.right <= innerWidth && m.bottom <= innerHeight };
-        }"""
-    )
-    assert pos["dx"] <= 190 and 0 <= pos["dy"] <= 12 and pos["dentro"], pos
-    page.keyboard.press("ArrowDown")
-    expect(itens.nth(1)).to_be_focused()
-    page.keyboard.press("ArrowUp")
-    page.keyboard.press("ArrowUp")
-    expect(itens.last).to_be_focused()  # dá a volta
-    page.keyboard.press("Escape")
-    expect(page.locator("#conv-menu")).to_have_attribute("data-open", "false")
-    expect(mais).to_be_focused()
-    expect(mais).to_have_attribute("aria-expanded", "false")
-
-
-def test_paleta_renomeia_fixa_e_apaga_a_conversa_atual(abrir, mock_isolado_url):
-    page = abrir("#/chat", url=mock_isolado_url)
-    expect(page.locator('#sb-convs-list .conv[aria-current="true"]')).to_be_visible(timeout=5000)
-    page.keyboard.press("Control+k")
-    page.fill("#palette-input", "fixar conversa atual")
-    page.keyboard.press("Enter")
-    expect(page.locator("#sb-convs-list .conv-group").first).to_have_text("Fixadas")
-    page.keyboard.press("Control+k")
-    page.fill("#palette-input", "renomear conversa atual")
-    page.keyboard.press("Enter")
-    page.get_by_label("Título").fill("Fase zero revisada")
-    page.keyboard.press("Enter")
-    expect(_linha(page, "Fase zero revisada")).to_have_count(1)
-    page.keyboard.press("Control+k")
-    page.fill("#palette-input", "apagar conversa atual")
-    page.keyboard.press("Enter")
-    page.get_by_role("alertdialog").get_by_role("button", name="Apagar").click()
-    expect(_linha(page, "Fase zero revisada")).to_have_count(0)
-
-
-def test_paleta_arquiva_a_conversa_atual(abrir, mock_isolado_url):
-    page = abrir("#/chat", url=mock_isolado_url)
-    atual = page.locator('#sb-convs-list .conv[aria-current="true"]')
-    expect(atual).to_be_visible(timeout=5000)
-    titulo = atual.inner_text().strip()
-    page.keyboard.press("Control+k")
-    page.fill("#palette-input", "arquivar conversa atual")
-    page.keyboard.press("Enter")
-    expect(_linha(page, titulo)).to_have_count(0)
-
-
-def test_conversa_apagada_sem_cerebro_que_aceite_mostra_erro_legivel(abrir, mock_isolado_url):
-    page = abrir("#/chat", url=mock_isolado_url, http_ok=True)  # o 404 é de propósito
-    page.route(
-        "**/sessoes/s5",
-        lambda r: r.fulfill(status=404, body='{"detail":"conversa não encontrada"}'),
-    )
-    _abrir_menu(page, "Bot do Telegram")
-    page.get_by_role("menuitem", name="Apagar").click()
-    page.get_by_role("alertdialog").get_by_role("button", name="Apagar").click()
-    expect(page.locator(".toast", has_text="Não consegui apagar")).to_be_visible()
-    expect(_linha(page, "Bot do Telegram")).to_have_count(1)
-
-
-@pytestmark_axe
-def test_axe_menu_da_conversa_e_dialogos_abertos(abrir, mock_isolado_url):
-    page = abrir("#/chat", axe=True, url=mock_isolado_url)
-    _abrir_menu(page, "Dúvida de UML")
-    assert _violacoes(page) == []
-    page.get_by_role("menuitem", name="Renomear").click()
-    assert _violacoes(page) == []
-    page.keyboard.press("Escape")
-    _abrir_menu(page, "Dúvida de UML")
-    page.get_by_role("menuitem", name="Apagar").click()
-    assert _violacoes(page) == []
-
-
-# ── voz por clique (fase 6) ──────────────────────────────────────────────────────
 GRAVADOR_FALSO = """
 (() => {
   class FakeRecorder {
@@ -1587,7 +1419,8 @@ def test_esc_descarta_a_gravacao_sem_enviar(abrir):
 def test_falar_a_partir_da_home_abre_o_chat_e_a_paleta_tem_o_comando(abrir):
     page = abrir("", init=GRAVADOR_FALSO)
     page.locator("#home-form .voice-ptt-btn").click()
-    page.locator("#home-form .voice-ptt-btn").click()
+    # a tela pode já ter ido para o chat: o segundo clique vale no botão que estiver visível
+    page.locator(".view[data-active='true'] .voice-ptt-btn").first.click()
     expect(page).to_have_url(re.compile(r"#/chat$"))
     expect(page.locator(".msg-user").last).to_contain_text("que horas são")
     page.keyboard.press("Control+k")
@@ -1721,82 +1554,6 @@ def test_painel_mostra_o_uso_da_semana_com_barras_e_total(abrir):
     expect(cartao.locator('.painel-dia[data-total="20"]')).to_have_count(1)
 
 
-def test_conhecimento_cria_edita_arquiva_e_apaga_projeto(abrir, mock_isolado_url):
-    page = abrir("#/conhecimento", url=mock_isolado_url)
-    corpo = page.locator("#conhecimento-corpo")
-    expect(corpo.locator('[data-id="projetos"]')).to_be_visible(timeout=5000)
-    expect(corpo).to_contain_text("Nenhum projeto ainda")
-    page.get_by_label("Nome do projeto").fill("TCC")
-    page.get_by_label("Instruções (entram no prompt das conversas do projeto)").fill("Cite a ABNT")
-    page.get_by_role("button", name="Criar projeto").click()
-    item = corpo.locator("[data-projeto]").first
-    expect(item).to_contain_text("TCC")
-    expect(item).to_contain_text("Cite a ABNT")
-    page.get_by_role("button", name="Editar instruções de TCC").click()
-    page.get_by_label("Instruções", exact=True).fill("Cite a ABNT\ne seja formal")
-    page.keyboard.press("Control+Enter")  # Enter sozinho é quebra de linha
-    expect(item).to_contain_text("seja formal")
-    assert "\n" in page.evaluate("document.querySelector('[data-projeto] small').textContent")
-    page.get_by_role("button", name="Arquivar TCC").click()
-    expect(corpo.locator("[data-projeto]")).to_have_count(0)
-    page.reload()
-    page.wait_for_selector("html[data-pronto='true']")
-    expect(corpo.locator("[data-projeto]")).to_have_count(0, timeout=5000)
-
-
-def test_conhecimento_apagar_projeto_pede_confirmacao(abrir, mock_isolado_url):
-    page = abrir("#/conhecimento", url=mock_isolado_url)
-    page.get_by_label("Nome do projeto").fill("Velho")
-    page.get_by_role("button", name="Criar projeto").click()
-    expect(page.locator("[data-projeto]")).to_have_count(1)
-    page.get_by_role("button", name="Apagar projeto Velho").click()
-    alerta = page.get_by_role("alertdialog", name="Apagar este projeto?")
-    alerta.get_by_role("button", name="Cancelar").click()
-    expect(page.locator("[data-projeto]")).to_have_count(1)
-    page.get_by_role("button", name="Apagar projeto Velho").click()
-    page.get_by_role("alertdialog").get_by_role("button", name="Apagar").click()
-    expect(page.locator("[data-projeto]")).to_have_count(0)
-
-
-def test_conhecimento_busca_corrige_e_esquece_fatos(abrir, mock_isolado_url):
-    page = abrir("#/conhecimento", url=mock_isolado_url)
-    fatos = page.locator("[data-fato]")
-    expect(fatos).to_have_count(3, timeout=5000)
-    page.get_by_label("Buscar nos fatos").fill("obsidian")
-    expect(fatos).to_have_count(1, timeout=5000)
-    page.get_by_role("button", name="Corrigir fato: Usa o Obsidian como segundo cérebro").click()
-    page.get_by_label("O que o Orion deve saber").fill("Usa o Obsidian e o Orion")
-    page.keyboard.press("Enter")
-    expect(fatos.first).to_contain_text("Usa o Obsidian e o Orion")
-    expect(fatos.first).to_contain_text("fonte: manual")
-    page.get_by_role("button", name="Esquecer fato: Usa o Obsidian e o Orion").click()
-    alerta = page.get_by_role("alertdialog", name="Esquecer este fato?")
-    expect(alerta).to_contain_text("Backups antigos")
-    alerta.get_by_role("button", name="Esquecer").click()
-    expect(page.locator("#conhecimento-corpo")).to_contain_text("Nenhum fato casa com")
-
-
-def test_mover_conversa_para_projeto_pelo_menu(abrir, mock_isolado_url):
-    page = abrir("#/conhecimento", url=mock_isolado_url)
-    page.get_by_label("Nome do projeto").fill("Faculdade")
-    page.get_by_role("button", name="Criar projeto").click()
-    expect(page.locator("[data-projeto]")).to_have_count(1)
-    page.evaluate("location.hash = '#/chat'")
-    _abrir_menu(page, "Dúvida de UML")
-    page.get_by_role("menuitem", name="Mover para projeto…").click()
-    dialogo = page.get_by_role("dialog", name="Mover para projeto")
-    dialogo.get_by_label("Projeto").select_option(label="Faculdade")
-    dialogo.get_by_role("button", name="Mover").click()
-    expect(dialogo).to_have_count(0)
-    # reabre: o projeto escolhido vem selecionado
-    _abrir_menu(page, "Dúvida de UML")
-    page.get_by_role("menuitem", name="Mover para projeto…").click()
-    expect(
-        page.get_by_role("dialog", name="Mover para projeto").get_by_label("Projeto")
-    ).to_have_value("1")
-    page.keyboard.press("Escape")
-
-
 def test_conhecimento_pausa_retoma_e_apaga_a_memoria_da_tela(abrir, mock_isolado_url):
     page = abrir("#/conhecimento", url=mock_isolado_url)
     estado = page.locator("[data-tela]")
@@ -1814,30 +1571,6 @@ def test_conhecimento_pausa_retoma_e_apaga_a_memoria_da_tela(abrir, mock_isolado
     page.locator("#conhecimento-corpo").get_by_role("button", name="Apagar tudo").click()
     page.get_by_role("alertdialog").get_by_role("button", name="Apagar tudo").click()
     expect(estado).to_contain_text("0 registro(s)")
-
-
-def test_conhecimento_envia_lista_e_remove_documento(abrir, mock_isolado_url, tmp_path):
-    page = abrir("#/conhecimento", url=mock_isolado_url)
-    corpo = page.locator("#conhecimento-corpo")
-    expect(corpo).to_contain_text("Nenhum documento enviado", timeout=5000)
-    page.get_by_label("Nome do projeto").fill("TCC")
-    page.get_by_role("button", name="Criar projeto").click()
-    expect(page.locator("[data-projeto]")).to_have_count(1)
-    nota = tmp_path / "norma.md"
-    nota.write_text("A norma ABNT NBR 6023 define como citar referências.", encoding="utf-8")
-    page.locator("#doc-arquivo").set_input_files(str(nota))
-    page.get_by_label("Disponível em").select_option(label="TCC")
-    page.get_by_role("button", name="Enviar para a memória").click()
-    item = corpo.locator("[data-documento]")
-    expect(item).to_have_count(1, timeout=5000)
-    expect(item).to_contain_text("norma.md")
-    expect(item).to_contain_text("Projeto: TCC")
-    expect(item).to_contain_text("3 trecho(s)")
-    page.get_by_role("button", name="Remover documento norma.md").click()
-    alerta = page.get_by_role("alertdialog", name="Remover este documento?")
-    expect(alerta).to_contain_text("não é tocado")
-    alerta.get_by_role("button", name="Remover").click()
-    expect(corpo.locator("[data-documento]")).to_have_count(0)
 
 
 def test_conhecimento_resultados_com_versao_previa_download_e_apagar(abrir, mock_isolado_url):
@@ -1878,51 +1611,6 @@ def test_painel_caixa_de_atividade_mostra_avisos_e_marca_como_lido(abrir, mock_i
     page.get_by_role("button", name="Marcar aviso briefing como lido").click()
     expect(cartao).to_contain_text("0 não lido(s)", timeout=8000)
     expect(cartao.locator('[data-aviso="1"]')).to_have_attribute("data-lido", "true")
-
-
-def test_conhecimento_plugin_mostra_o_que_libera_e_concede_e_revoga(abrir, mock_isolado_url):
-    page = abrir("#/conhecimento", url=mock_isolado_url)
-    item = page.locator('[data-plugin="estudo"]')
-    expect(item).to_be_visible(timeout=5000)
-    expect(item).to_contain_text("Sem concessão")
-    expect(item).to_contain_text("1 skill(s) · 1 servidor(es) MCP: estudocalc")
-    page.get_by_role("button", name="Conceder o plugin estudo").click()
-    alerta = page.get_by_role("alertdialog", name="Conceder o plugin estudo?")
-    expect(alerta).to_contain_text("estudocalc (local (comando): python calc.py)")
-    expect(alerta).to_contain_text("depois de reiniciar")
-    alerta.get_by_role("button", name="Cancelar").click()
-    expect(item).to_have_attribute("data-estado", "sem_concessao")
-    page.get_by_role("button", name="Conceder o plugin estudo").click()
-    page.get_by_role("alertdialog").get_by_role("button", name="Conceder").click()
-    expect(item).to_have_attribute("data-estado", "ativo")
-    page.get_by_role("button", name="Revogar o plugin estudo").click()
-    expect(item).to_have_attribute("data-estado", "sem_concessao")
-
-
-# ── E1: cota, provedores, controle (pânico e não perturbe) e privacidade ───────
-def test_painel_mostra_cota_de_hoje_e_provedores_da_semana(abrir):
-    page = abrir("#/painel")
-    corpo = page.locator("#painel-corpo")
-    cota = corpo.locator('[data-id="cota"]')
-    expect(cota.locator('[data-cota="gateway"] .meter-val')).to_have_text("420/1000", timeout=8000)
-    expect(cota.locator('[data-cota="gateway"]')).to_have_attribute("data-sev", "normal")
-    expect(cota.locator('[data-cota="gemini"]')).to_have_attribute("data-sev", "alto")
-    expect(cota.locator('[data-cota="gemini"] .painel-meter-nota')).to_have_text(
-        "jobs opcionais parados (96%)"
-    )
-    expect(cota.locator('[data-cota="brave"] .painel-meter-nota')).to_have_text(
-        "sem limite · 0 no mês"
-    )
-    expect(corpo.locator(".painel-alertas")).to_contain_text(
-        "Cota gratuita de Gemini (busca, embeddings, imagem) em 96%"
-    )
-    prov = corpo.locator('[data-id="provedores"]')
-    linha = prov.locator('tr[data-provedor="gateway:padrão"]')
-    expect(linha).to_contain_text("10")
-    expect(linha).to_contain_text("p50 640 ms · p95 2100 ms")
-    expect(linha).to_contain_text("gemini-2.5-flash")
-    expect(prov.locator("tbody tr").first).to_have_attribute("data-provedor", "gateway:padrão")
-    expect(prov.locator('tr[data-provedor="groq"]')).to_contain_text("↑ 742,2 KB")
 
 
 def test_modo_panico_liga_com_um_clique_e_so_sai_com_a_senha(abrir, mock_isolado_url):

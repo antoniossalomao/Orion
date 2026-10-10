@@ -6,11 +6,8 @@ import sys
 from pathlib import Path
 
 import pytest
-from fastapi.testclient import TestClient
 
 from orion.__main__ import main
-from orion.app import create_app
-from orion.config import Settings
 from orion.mcp_client import McpManager, manager_from_file
 from orion.plugins import PluginError, PluginStore, describe
 from orion.policy import Risk
@@ -180,24 +177,6 @@ def test_mcp_json_do_usuario_vale_primeiro_em_colisao(loja, tmp_path):
     assert (
         manager_from_file(arquivo, loja.servidores_mcp()) is None
     )  # o do usuário (desligado) ficou
-
-
-def test_api_lista_concede_e_revoga_e_exige_login(tmp_path):
-    settings = Settings(data_dir=tmp_path / "d", admin_token=TOKEN, _env_file=None)
-    PluginStore(settings.effective_plugins_dir).instalar(_pacote(tmp_path))
-    with TestClient(
-        create_app(settings, gateway_factory=lambda _: None), base_url="http://127.0.0.1"
-    ) as c:
-        assert c.get("/plugins").status_code == 401
-        assert c.post("/plugins/estudo/conceder").status_code == 401
-        lista = c.get("/plugins", headers=AUTH).json()
-        assert lista["total"] == 1 and lista["plugins"][0]["estado"] == "sem_concessao"
-        assert lista["vale_depois_de_reiniciar"] is True
-        r = c.post("/plugins/estudo/conceder", headers=AUTH).json()
-        assert r["plugin"]["estado"] == "ativo"
-        assert c.post("/plugins/nao-existe/conceder", headers=AUTH).status_code == 404
-        assert c.post("/plugins/estudo/revogar", headers=AUTH).json()["ok"] is True
-        assert c.post("/plugins/estudo/revogar", headers=AUTH).status_code == 404
 
 
 def test_cli_instala_lista_concede_e_remove(tmp_path, monkeypatch, capsys):

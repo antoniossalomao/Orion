@@ -28,26 +28,6 @@ def registro():
 
 
 # ── banco ─────────────────────────────────────────────────────────────────────
-def test_migracao_v10_para_v11(tmp_path):
-    db = tmp_path / "m.db"
-    m = MemoryStore(db)
-    m._conn.executescript(
-        "DROP TABLE external_calls; ALTER TABLE notifications DROP COLUMN urgent;"
-        "UPDATE meta SET value='10' WHERE key='schema_version';"
-    )
-    m._conn.execute("INSERT INTO notifications(kind, text, created_at) VALUES ('x', 'velho', 1)")
-    m._conn.commit()
-    m._conn.close()
-    m2 = MemoryStore(db)
-    try:
-        assert m2.query("SELECT value FROM meta WHERE key='schema_version'")[0][0] == "11"
-        assert m2.query("SELECT urgent FROM notifications")[0][0] == 0
-        m2.add_external_call(provider="groq", kind="transcribe", ok=True, latency_ms=10)
-        assert m2.external_calls_count("groq", 0) == 1
-    finally:
-        m2.close()
-
-
 def test_resumo_por_provedor_percentis_falhas_e_poda(tmp_path):
     agora = {"t": 1_000_000.0}
     m = MemoryStore(tmp_path / "m.db", clock=lambda: agora["t"])

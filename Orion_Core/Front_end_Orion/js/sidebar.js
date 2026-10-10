@@ -5,12 +5,12 @@
 (function () {
     'use strict';
     const O = window.Orion;
-    const { $, $$, el, icone, bus, ui, api, prefs } = O;
+    const { $, $$, el, bus, ui, api, prefs } = O;
     const U = O.util;
 
-    let sessoes = [], ativa = null, filtro = '', online = null, abrindo = false;
-    let lista, busca;
-    let achadosCorpo = [], tokenBusca = 0;   // busca no conteúdo das mensagens (GET /sessoes/busca)
+    let sessoes = [], ativa = null, filtro = '', online = null, listaOnline = null, abrindo = false;
+    let lista, busca, restaurado = false, origem = null;
+    bus.on('capabilities', () => { const novaOrigem = `${api.base()}:${api.estado().backend}`; if (origem !== novaOrigem) { origem = novaOrigem; restaurado = false; if (busca) filtrar(); } });
 
     /* ── lista de conversas ────────────────────────────────────────────── */
     function titulo(s) { return s.titulo || 'Sem título'; }
@@ -30,170 +30,127 @@
         return saida;
     }
 
-    function botaoConversa(s) {
-        const atual = s.sessao_id === ativa;
-        const b = el('button', { class: 'conv', type: 'button', 'aria-current': atual ? 'true' : null, title: titulo(s), dataset: { id: s.sessao_id } },
-            s.favorita ? el('span', { class: 'conv-pin', html: icone('pin'), 'aria-label': 'Fixada', role: 'img' }) : null,
-            el('span', { class: 'conv-title' }, ...comMarcas(titulo(s), filtro)),
-            s.somente_leitura ? el('span', { class: 'conv-ro', text: 'leitura' }) : null);
-        b.addEventListener('click', () => abrir(s));
-        // conversa importada (somente leitura) não tem ações; as demais têm o menu ⋯ (Renomear, Fixar, Apagar)
-        const mais = s.somente_leitura ? null : el('button', {
-            class: 'icon-btn conv-more', type: 'button', 'aria-label': `Ações da conversa ${titulo(s)}`,
-            'aria-haspopup': 'menu', 'aria-expanded': 'false', html: icone('more'),
-        });
-        mais?.addEventListener('click', e => { e.stopPropagation(); alternarMenu(s, mais); });
-        return el('div', { class: 'conv-row', dataset: { id: s.sessao_id } }, b, mais);
+    const linhas = new Map(), grupos = new Map();
+    let menu, alvoMenu = null, resultadosBusca = null, proximoBusca = null, buscando = false, geracaoBusca = 0, erroBusca = null, maisBusca;
+    async function buscarConteudo(g, mais = false) {
+        if (!filtro || g !== geracaoBusca) return;
+        buscando = true; erroBusca = null; desenhar();
+        try {
+            const d = await api.buscarSessoes(filtro, mais ? proximoBusca : 0);
+            if (g !== geracaoBusca) return;
+            resultadosBusca = mais ? [...resultadosBusca, ...d.sessoes] : d.sessoes;
+            resultadosBusca = [...new Map(resultadosBusca.map(x => [x.sessao_id, x])).values()];
+            proximoBusca = d.proximo_offset;
+        } catch (e) { if (g === geracaoBusca) erroBusca = `Não consegui buscar conversas: ${e.message}`; }
+        finally { if (g === geracaoBusca) { buscando = false; desenhar(); } }
     }
-
+    const agendarBusca = U.debounce(buscarConteudo, 350);
+    function filtrar() {
+        filtro = busca.value.trim(); const g = ++geracaoBusca;
+        agendarBusca.cancel(); erroBusca = null; proximoBusca = null; buscando = false;
+        if (filtro && api.suporta('session_search')) { resultadosBusca = []; buscando = true; agendarBusca(g); }
+        else resultadosBusca = null;
+        desenhar();
+    }
+    function fecharMenu(devolver = true) {
+        if (!menu || menu.hidden) return;
+        menu.hidden = true;
+        if (alvoMenu) { alvoMenu.mais.setAttribute('aria-expanded', 'false'); if (devolver) alvoMenu.mais.focus({ preventScroll: true }); }
+    }
+    function abrirMenu(linha) {
+        fecharMenu(false); alvoMenu = linha;
+        const s = linha.dados;
+        menu.replaceChildren(...[
+            ['renomear', 'Renomear'], ['fixar', s.favorita ? 'Desafixar' : 'Fixar'],
+            ['arquivar', s.arquivada ? 'Restaurar' : 'Arquivar'],
+            ...(api.suporta('projects') ? [['projeto', 'Mover para projeto']] : []),
+        ].map(([valor, text]) => el('button', { type: 'button', role: 'menuitem', text, dataset: { valor } })));
+        const r = linha.mais.getBoundingClientRect();
+        menu.style.left = `${Math.max(8, Math.min(innerWidth - 180, r.right - 168))}px`;
+        menu.style.top = `${Math.min(r.bottom + 4, innerHeight - 130)}px`;
+        menu.hidden = false; linha.mais.setAttribute('aria-expanded', 'true'); menu.firstElementChild.focus();
+    }
+    async function gerenciar(linha, acao) {
+        const s = linha.dados;
+        if (acao === 'projeto') return O.projects.mover(s.sessao_id);
+        try {
+            let dados;
+            if (acao === 'renomear') {
+                const texto = await ui.confirmar({ titulo: 'Renomear conversa', ok: 'Salvar', campo: { valor: titulo(s), rotulo: 'Título da conversa' } });
+                if (texto === false) return;
+                dados = { titulo: texto };
+            } else if (acao === 'fixar') dados = { favorita: !s.favorita };
+            else {
+                if (O.chat.ocupado()) { ui.toast('Espere a resposta terminar para arquivar.', { tipo: 'aviso' }); return; }
+                dados = { arquivada: !s.arquivada };
+            }
+            const d = await api.editarSessao(s.sessao_id, dados);
+            if (dados.arquivada && O.historico?.sessao() === s.sessao_id) await O.historico.abrir(s.sessao_id);
+            await carregar();
+            if (filtro && api.suporta('session_search')) await buscarConteudo(geracaoBusca);
+            ui.toast(dados.titulo ? 'Conversa renomeada.' : dados.favorita != null ? (dados.favorita ? 'Conversa fixada.' : 'Conversa desafixada.') : d.arquivada ? 'Conversa arquivada; mensagens preservadas.' : 'Conversa restaurada.', { tipo: 'ok' });
+        } catch (e) { ui.toast(`Não consegui atualizar a conversa: ${e.message}`, { tipo: 'erro' }); }
+    }
+    function botaoConversa(s) {
+        let linha = linhas.get(s.sessao_id);
+        if (!linha) {
+            const nome = el('span', { class: 'conv-title' });
+            const marca = el('span', { class: 'conv-ro' });
+            const trecho = el('span', { class: 'conv-snippet', hidden: true });
+            const b = el('button', { class: 'conv', type: 'button', dataset: { id: s.sessao_id } }, el('span', { class: 'conv-text' }, nome, trecho), marca);
+            const mais = el('button', { class: 'icon-btn conv-more', type: 'button', 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'aria-controls': 'conv-menu', text: '⋯' });
+            linha = { el: el('div', { class: 'conv-row' }, b, mais), botao: b, nome, trecho, marca, mais, dados: s, desenho: '' };
+            b.addEventListener('click', () => abrir(linha.dados));
+            mais.addEventListener('click', () => abrirMenu(linha));
+            mais.addEventListener('keydown', e => { if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); e.stopPropagation(); abrirMenu(linha); } });
+            linhas.set(s.sessao_id, linha);
+        }
+        linha.dados = s;
+        linha.trecho.textContent = s.trecho || ''; linha.trecho.hidden = !s.trecho;
+        const chave = `${titulo(s)}:${filtro}`;
+        if (chave !== linha.desenho) { linha.nome.replaceChildren(...comMarcas(titulo(s), filtro)); linha.desenho = chave; }
+        const atual = s.sessao_id === (O.historico?.sessao() || ativa);
+        linha.botao.setAttribute('aria-current', String(atual)); linha.botao.title = titulo(s);
+        linha.marca.textContent = s.favorita ? 'fixada' : s.somente_leitura ? 'leitura' : '';
+        linha.mais.hidden = !api.suporta('session_management') || s.importada;
+        linha.mais.setAttribute('aria-label', `Opções de ${titulo(s)}`);
+        return linha.el;
+    }
+    function grupo(nome) {
+        if (!grupos.has(nome)) grupos.set(nome, el('div', { class: 'conv-group', text: nome }));
+        return grupos.get(nome);
+    }
+    function reconciliar(nos) {
+        const foco = lista.contains(document.activeElement) ? document.activeElement : null;
+        const top = lista.scrollTop, manter = new Set(nos);
+        [...lista.children].filter(n => !manter.has(n)).forEach(n => n.remove());
+        nos.forEach((n, i) => { if (lista.children[i] !== n) lista.insertBefore(n, lista.children[i] || null); });
+        if (foco?.isConnected && document.activeElement !== foco) foco.focus({ preventScroll: true });
+        if (foco && !foco.isConnected) busca.focus({ preventScroll: true });
+        lista.scrollTop = top;
+    }
     function desenhar() {
-        lista.setAttribute('aria-busy', 'false');
+        lista.setAttribute('aria-busy', String(buscando));
+        if (resultadosBusca !== null) {
+            const nos = resultadosBusca.map(botaoConversa);
+            if (!nos.length) nos.push(grupo(erroBusca || (buscando ? 'Buscando conversas…' : `Nada encontrado para “${filtro}”.`)));
+            if (proximoBusca != null) { maisBusca.disabled = buscando; nos.push(maisBusca); }
+            reconciliar(nos); return;
+        }
         if (!sessoes.length) {
-            lista.replaceChildren(el('div', { class: 'sb-empty', text: online === false
-                ? 'Cérebro offline. As conversas aparecem quando ele voltar.' : 'Nenhuma conversa ainda. Comece uma nova.' }));
-            return;
+            reconciliar([grupo(!api.suporta('sessions') && api.estado().api === 'online' ? 'Conversas salvas ainda indisponíveis neste backend.' : listaOnline === false ? 'Não foi possível carregar as conversas. Tentando novamente…' : 'Nenhuma conversa ainda. Comece uma nova.')]);
+            lista.firstElementChild.className = 'sb-empty'; return;
         }
         if (filtro) {
             const achadas = O.fuzzy.buscar(sessoes, filtro, titulo);
-            const ids = new Set(achadas.map(s => s.sessao_id));
-            const corpo = achadosCorpo.filter(r => !ids.has(r.sessao_id));
-            const nos = achadas.map(botaoConversa);
-            if (corpo.length) {
-                nos.push(el('div', { class: 'conv-group', text: 'No conteúdo' }),
-                    ...corpo.map(r => el('div', { class: 'conv-hit' }, botaoConversa(r), r.trecho ? el('div', { class: 'conv-snippet', text: r.trecho.replace(/[\[\]]/g, '') }) : null)));
-            }
-            lista.replaceChildren(...(nos.length ? nos : [el('div', { class: 'sb-empty', text: `Nada encontrado para “${filtro}”.` })]));
-            return;
+            reconciliar(achadas.length ? achadas.map(botaoConversa) : [grupo(`Nada encontrado para “${filtro}”.`)]); return;
         }
-        const nos = [];
-        const fixadas = sessoes.filter(s => s.favorita);
-        if (fixadas.length) nos.push(el('div', { class: 'conv-group', text: 'Fixadas' }), ...fixadas.map(botaoConversa));
-        for (const g of U.agruparPorDia(sessoes.filter(s => !s.favorita), s => s.ultima_atividade || s.criada)) {
-            nos.push(el('div', { class: 'conv-group', text: g.rotulo }), ...g.itens.map(botaoConversa));
-        }
-        lista.replaceChildren(...nos);
-    }
-
-    /* ── ações da conversa: renomear, fixar, apagar (menu ⋯, paleta) ─────── */
-    let menu = null, menuDono = null, menuBotao = null;
-    const rotuloFixar = s => (s.favorita ? 'Desafixar' : 'Fixar no topo');
-
-    function fecharMenu(devolverFoco = true) {
-        if (!menu || menu.dataset.open !== 'true') return;
-        menu.dataset.open = 'false';
-        menuBotao?.setAttribute('aria-expanded', 'false');
-        if (devolverFoco) menuBotao?.focus();
-        menuDono = null;
-    }
-
-    function montarMenu() {
-        menu = el('div', { id: 'conv-menu', class: 'menu conv-menu', role: 'menu', 'aria-label': 'Ações da conversa', dataset: { open: 'false' } });
-        $('#main').append(menu);   // dentro do <main>: fora de um marco o axe reclama (regra "region"); fixed não é cortado aqui
-        menu.addEventListener('keydown', e => {
-            const itens = $$('[role="menuitem"]', menu), i = itens.indexOf(document.activeElement);
-            if (e.key === 'ArrowDown') { e.preventDefault(); itens[(i + 1) % itens.length].focus(); }
-            else if (e.key === 'ArrowUp') { e.preventDefault(); itens[(i - 1 + itens.length) % itens.length].focus(); }
-            else if (e.key === 'Home') { e.preventDefault(); itens[0].focus(); }
-            else if (e.key === 'End') { e.preventDefault(); itens[itens.length - 1].focus(); }
-            else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); fecharMenu(); }
-            else if (e.key === 'Tab') fecharMenu(false);
-        });
-        document.addEventListener('pointerdown', e => {
-            if (menu.dataset.open === 'true' && !menu.contains(e.target) && !e.target.closest?.('.conv-more')) fecharMenu(false);
-        });
-    }
-
-    function alternarMenu(s, botao) {
-        if (!menu) montarMenu();
-        if (menu.dataset.open === 'true' && menuDono?.sessao_id === s.sessao_id) { fecharMenu(); return; }
-        fecharMenu(false);
-        menuDono = s; menuBotao = botao;
-        const item = (acao, rotulo, perigo = false) => el('button', {
-            class: `menu-item${perigo ? ' menu-item-perigo' : ''}`, type: 'button', role: 'menuitem', text: rotulo,
-            on: { click: () => { const dono = menuDono; fecharMenu(false); if (acao === 'renomear') renomear(dono); else if (acao === 'fixar') alternarFixa(dono); else if (acao === 'arquivar') arquivar(dono); else if (acao === 'projeto') moverParaProjeto(dono); else apagar(dono); } },
-        });
-        menu.replaceChildren(item('renomear', 'Renomear'), item('fixar', rotuloFixar(s)), item('arquivar', 'Arquivar'), item('projeto', 'Mover para projeto…'), item('apagar', 'Apagar', true));
-        const r = botao.getBoundingClientRect();
-        menu.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - 190))}px`;
-        // altura real do menu (5 itens): se não cabe abaixo do botão, abre para cima
-        const alto = menu.offsetHeight || 200;
-        const cabe = r.bottom + 4 + alto <= window.innerHeight - 8;
-        menu.style.top = `${Math.max(8, cabe ? r.bottom + 4 : r.top - 4 - alto)}px`;
-        menu.dataset.open = 'true';
-        botao.setAttribute('aria-expanded', 'true');
-        menu.querySelector('[role="menuitem"]')?.focus();
-    }
-
-    async function executar(fn, falha) {
-        try { await fn(); await carregar(); return true; }
-        catch (e) { ui.toast(`${falha} ${e.message}`.trim(), { tipo: 'erro' }); return false; }
-    }
-
-    async function renomear(s) {
-        if (!s || s.somente_leitura) return;
-        const novo = await ui.perguntar({ titulo: 'Renomear conversa', rotulo: 'Título', valor: titulo(s), ok: 'Salvar' });
-        if (!novo || novo === titulo(s)) return;
-        if (await executar(() => api.renomearSessao(s.sessao_id, novo), 'Não consegui renomear.')) O.anunciar(`Conversa renomeada para ${novo}.`);
-    }
-
-    async function alternarFixa(s) {
-        if (!s || s.somente_leitura) return;
-        const fixar = !s.favorita;
-        if (await executar(() => api.fixarSessao(s.sessao_id, fixar), fixar ? 'Não consegui fixar.' : 'Não consegui desafixar.')) {
-            O.anunciar(fixar ? 'Conversa fixada no topo.' : 'Conversa desafixada.');
-        }
-    }
-
-    async function apagar(s) {
-        if (!s || s.somente_leitura) return;
-        const eraAtiva = s.sessao_id === ativa;
-        if (eraAtiva && O.chat.ocupado()) { ui.toast('Espere a resposta terminar para apagar a conversa.', { tipo: 'aviso' }); return; }
-        const ok = await ui.confirmar({
-            titulo: 'Apagar esta conversa?',
-            texto: `“${titulo(s)}” sai da lista. As mensagens ficam guardadas no banco e o que o Orion já aprendeu delas continua na memória.`,
-            ok: 'Apagar', perigo: true,
-        });
-        if (!ok) return;
-        if (!await executar(() => api.apagarSessao(s.sessao_id), 'Não consegui apagar.')) return;
-        O.anunciar('Conversa apagada.');
-        if (eraAtiva) await mostrarAtiva();
-    }
-
-    /** o cérebro escolheu outra conversa como ativa: mostra o histórico dela (ou a tela vazia) */
-    async function mostrarAtiva() {
-        O.chat.limpar();
-        const nova = sessoes.find(x => x.sessao_id === ativa);
-        if (nova && !nova.somente_leitura) {
-            try { O.chat.renderHistorico((await api.ativarSessao(nova.sessao_id)).mensagens || []); } catch (_) { /* fica vazia */ }
-        }
-    }
-
-    /** associa a conversa a um projeto (as instruções dele passam a valer nela) ou a tira de qualquer projeto */
-    async function moverParaProjeto(s) {
-        if (!s || s.somente_leitura) return;
-        let lista;
-        try { lista = (await api.projetos()).projetos || []; }
-        catch (e) { ui.toast(`Não consegui ler os projetos. ${e.message || ''}`.trim(), { tipo: 'erro' }); return; }
-        if (!lista.length) { ui.toast('Ainda não há projetos. Crie um em Conhecimento.', { tipo: 'aviso' }); return; }
-        const escolhido = await ui.escolher({
-            titulo: 'Mover para projeto', rotulo: 'Projeto', ok: 'Mover', valor: s.projeto_id != null ? String(s.projeto_id) : '',
-            opcoes: [{ valor: '', rotulo: '(sem projeto)' }, ...lista.map(p => ({ valor: String(p.id), rotulo: p.nome }))],
-        });
-        if (escolhido == null) return;
-        const id = escolhido === '' ? null : Number(escolhido);
-        if (id === (s.projeto_id ?? null)) return;
-        if (await executar(() => api.moverParaProjeto(s.sessao_id, id), 'Não consegui mover.')) {
-            O.anunciar(id == null ? 'Conversa fora de qualquer projeto.' : 'Conversa movida para o projeto.');
-        }
-    }
-
-    async function arquivar(s) {
-        if (!s || s.somente_leitura) return;
-        const eraAtiva = s.sessao_id === ativa;
-        if (eraAtiva && O.chat.ocupado()) { ui.toast('Espere a resposta terminar para arquivar a conversa.', { tipo: 'aviso' }); return; }
-        if (!await executar(() => api.arquivarSessao(s.sessao_id, true), 'Não consegui arquivar.')) return;
-        O.anunciar('Conversa arquivada. Ela continua na busca.');
-        if (eraAtiva) await mostrarAtiva();
+        const nos = [], fixadas = sessoes.filter(x => x.favorita && !x.arquivada);
+        if (fixadas.length) nos.push(grupo('Fixadas'), ...fixadas.map(botaoConversa));
+        for (const g of U.agruparPorDia(sessoes.filter(x => !x.arquivada && !x.favorita), s => s.criada)) nos.push(grupo(g.rotulo), ...g.itens.map(botaoConversa));
+        const antigas = sessoes.filter(x => x.arquivada);
+        if (antigas.length) nos.push(grupo('Arquivadas'), ...antigas.map(botaoConversa));
+        reconciliar(nos);
     }
 
     async function carregar() {
@@ -201,48 +158,57 @@
             const d = await api.sessoes();
             sessoes = d.sessoes || [];
             ativa = d.ativa || sessoes.find(s => s.ativa)?.sessao_id || null;
-            online = true;
-        } catch (_) { online = false; }
+            listaOnline = true;
+        } catch (e) { listaOnline = false; if (e.indisponivel) { sessoes = []; ativa = null; } }
         desenhar();
-        bus.emit('sessoes', { lista: sessoes, ativa });
+        bus.emit('sessoes', { lista: sessoes, ativa: O.historico?.sessao() || ativa, ativaServidor: ativa });
+        if (!restaurado && ativa && api.estado().backend === 'orion' && api.suporta('history') && !O.chat.ocupado()) {
+            restaurado = true;
+            try { await O.historico.abrir(ativa); } catch (e) { restaurado = false; }
+        }
     }
 
     async function abrir(s) {
         if (abrindo) return;
-        if (s.sessao_id === ativa && !s.somente_leitura) { O.app.ir('chat'); return; }
+        if (s.sessao_id === ativa && !s.somente_leitura && (!O.historico?.sessao() || (O.historico.sessao() === ativa && !O.historico.leitura()))) { O.app.ir('chat'); return; }
         if (O.chat.ocupado()) { ui.toast('Espere a resposta terminar para trocar de conversa.', { tipo: 'aviso' }); return; }
-        abrindo = true;
+        abrindo = true; bus.emit('historico');
         try {
             let msgs;
-            if (s.somente_leitura) msgs = (await api.historico(s.sessao_id)).mensagens || [];
+            if (s.somente_leitura) {
+                if (api.estado().backend !== 'orion') msgs = (await api.historico(s.sessao_id)).mensagens || [];
+            }
             else {
                 const d = await api.ativarSessao(s.sessao_id);
                 if (d.erro) throw new Error(d.erro);
                 msgs = d.mensagens || [];
             }
-            O.chat.limpar();
-            O.chat.renderHistorico(msgs);
+            if (api.estado().backend === 'orion') { await O.historico.abrir(s.sessao_id); restaurado = true; }
+            else { O.chat.limpar(); O.chat.renderHistorico(msgs); }
             if (s.somente_leitura) O.chat.nota('Sessão antiga, somente leitura.');
             O.app.ir('chat');
             await carregar();
         } catch (e) {
             ui.toast(`Não consegui abrir a conversa: ${e.message}`, { tipo: 'erro' });
-        } finally { abrindo = false; }
+        } finally { abrindo = false; bus.emit('historico'); }
     }
 
     async function nova() {
+        if (abrindo) return;
+        if (!api.suporta('sessions')) { ui.toast('Conversas salvas ainda indisponíveis neste backend.', { tipo: 'aviso' }); return; }
         if (O.chat.ocupado()) { ui.toast('Espere a resposta terminar para começar outra conversa.', { tipo: 'aviso' }); return; }
+        abrindo = true; bus.emit('historico'); O.app.ir('chat');
         try {
-            const d = await api.novaSessao();
+            const d = await api.novaSessao(O.projects?.current()?.id || null);
             if (d && d.erro) throw new Error(d.erro);
             O.chat.limpar();
+            if (api.estado().backend === 'orion') { restaurado = true; await O.historico.abrir(d.sessao_id); }
             await carregar();
         } catch (e) {
             ui.toast(`Cérebro fora do ar: não deu para criar a conversa. ${e.rede ? '' : e.message}`.trim(), { tipo: 'erro' });
-            O.chat.limpar();
-        }
-        O.app.ir('chat');
-        O.composer.foco();
+            }
+        finally { abrindo = false; bus.emit('historico'); }
+        if (O.app.view() === 'chat') O.composer.foco();
     }
 
     /* ── recolher ──────────────────────────────────────────────────────── */
@@ -260,44 +226,50 @@
     }
 
     /* ── conexão ───────────────────────────────────────────────────────── */
-    let primeiraVez = true;
+    let verificando = false;
     async function verificar() {
-        if (document.hidden) return;
-        const r = await api.ping();
-        const antes = online;
-        online = r.ok;
-        const dot = $('#conn-dot');
-        dot.dataset.state = r.ok ? 'ok' : 'danger';
-        $('#conn-text').textContent = r.ok ? 'Conectado' : 'Sem conexão';
-        $('#conn-sub').textContent = r.ok ? `${r.ms} ms` : 'tentando de novo…';
-        if (antes !== online) {
-            bus.emit('conn', { ok: r.ok, ms: r.ms });
-            if (!primeiraVez) {
-                if (!r.ok) ui.toast('O cérebro parou de responder. Vou continuar tentando.', { tipo: 'aviso', ms: 0, id: 'conn' });
-                else { ui.toast('Cérebro de volta.', { tipo: 'ok', id: 'conn' }); carregar(); }
-            }
-        }
-        primeiraVez = false;
-    }
-
-    /** além do título, procura a palavra no corpo das mensagens (inclui as arquivadas) */
-    const buscarNoCorpo = U.debounce(async () => {
-        const meu = ++tokenBusca, consulta = filtro;
-        if (consulta.length < 3) return;
+        if (document.hidden || verificando) return;
+        verificando = true;
         try {
-            const d = await api.buscarSessoes(consulta);
-            if (meu !== tokenBusca || consulta !== filtro) return;   // resposta velha
-            achadosCorpo = d.resultados || [];
-            desenhar();
-        } catch (_) { /* a busca por título continua valendo */ }
-    }, 300);
+            const r = await api.ping();
+            const antes = online;
+            online = r.ok;
+            $('#conn-dot').dataset.state = r.ok ? (r.model === 'ready' ? 'ok' : 'warn') : 'danger';
+            const texto = r.ok ? (r.incompatible ? 'Versão incompatível' : r.model === 'unavailable' ? 'Modelo indisponível' : r.model === 'unknown' ? 'API disponível' : 'Conectado') : 'Sem conexão';
+            // O status só é anunciado quando muda, nunca a cada polling.
+            if ($('#conn-text').textContent !== texto) {
+                $('#conn-text').textContent = texto;
+                // A conexão continua identificável quando só o trilho de ícones está visível.
+                $('#conn').setAttribute('aria-label', texto);
+                $('#conn').title = texto;
+            }
+            const sub = r.ok ? (r.model === 'unavailable' ? 'API disponível' : '') : 'tentando de novo…';
+            if ($('#conn-sub').textContent !== sub) $('#conn-sub').textContent = sub;
+            if (antes !== online) {
+                bus.emit('conn', { ok: r.ok, ms: r.ms });
+                if (r.ok && antes === false) carregar();
+            }
+        } finally { verificando = false; }
+    }
 
     function init() {
         lista = $('#sb-convs-list'); busca = $('#sb-search');
+        menu = el('div', { id: 'conv-menu', class: 'conv-menu', role: 'menu', 'aria-label': 'Ações da conversa', hidden: true });
+        document.body.append(menu);
+        menu.addEventListener('click', e => { const it = e.target.closest('[role="menuitem"]'); if (!it) return; const linha = alvoMenu; fecharMenu(); gerenciar(linha, it.dataset.valor); });
+        menu.addEventListener('keydown', e => {
+            const itens = [...menu.children], i = itens.indexOf(document.activeElement);
+            if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) { e.preventDefault(); const j = e.key === 'Home' ? 0 : e.key === 'End' ? itens.length - 1 : (i + (e.key === 'ArrowDown' ? 1 : -1) + itens.length) % itens.length; itens[j].focus(); }
+            else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); fecharMenu(); }
+            else if (e.key === 'Tab') fecharMenu(false);
+        });
+        document.addEventListener('pointerdown', e => { if (!menu.hidden && !menu.contains(e.target) && !alvoMenu.mais.contains(e.target)) fecharMenu(false); });
         $('#sb-toggle').addEventListener('click', alternar);
         $('#sb-new').addEventListener('click', nova);
-        busca.addEventListener('input', () => { filtro = busca.value.trim(); achadosCorpo = []; desenhar(); buscarNoCorpo(); });
-        busca.addEventListener('keydown', e => { if (e.key === 'Escape' && busca.value) { e.stopPropagation(); busca.value = ''; filtro = ''; achadosCorpo = []; desenhar(); } });
+        maisBusca = el('button', { class: 'btn btn-ghost btn-sm', type: 'button', text: 'Mais conversas', on: { click: () => buscarConteudo(geracaoBusca, true) } });
+        busca.addEventListener('input', filtrar);
+        busca.addEventListener('keydown', e => { if (e.key === 'Enter') { lista.querySelector('.conv')?.focus(); e.preventDefault(); } });
+        busca.addEventListener('keydown', e => { if (e.key === 'Escape' && busca.value) { e.stopPropagation(); busca.value = ''; filtrar(); } });
         lista.addEventListener('keydown', e => {
             if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
             const itens = $$('.conv', lista), i = itens.indexOf(document.activeElement);
@@ -316,8 +288,8 @@
     }
 
     O.sidebar = {
-        init, nova, alternar, carregar, abrir, renomear, alternarFixa, arquivar, moverParaProjeto, apagar,
-        sessoes: () => sessoes, ativa: () => sessoes.find(s => s.sessao_id === ativa) || null,
-        online: () => online,
+        init, nova, alternar, carregar, abrir, verificar,
+        sessoes: () => sessoes, ativa: () => [...(resultadosBusca || []), ...sessoes].find(s => s.sessao_id === (O.historico?.sessao() || ativa)) || null,
+        online: () => online, abrindo: () => abrindo,
     };
 })();

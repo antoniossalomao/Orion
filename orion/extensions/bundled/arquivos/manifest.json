@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "orion_api": 1,
+  "id": "orion-arquivos",
+  "version": "1.0.0",
+  "name": "Orion Arquivos",
+  "description": "Prepare cópias revisáveis e analise documentos indexados com fontes.",
+  "license": "LicenseRef-Orion-Proprietary",
+  "skills": [
+    "skills/planejar-organizacao",
+    "skills/revisar-documento"
+  ],
+  "capabilities": [
+    "native:propor_organizacao",
+    "native:buscar_memoria"
+  ]
+}

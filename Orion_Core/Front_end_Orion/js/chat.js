@@ -45,31 +45,33 @@
         vazio.hidden = !!col.querySelector('.msg, .day-sep, .msg-system');
     }
     function podar() {
+        if (O.historico?.sessao()) return;
         const nos = col.querySelectorAll('.msg, .day-sep, .msg-system');
         for (let i = 0; i < nos.length - MAX_NOS; i++) nos[i].remove();
     }
+    let destinoHistorico = null;
     function acrescentar(no) {
+        if (destinoHistorico) { destinoHistorico.append(no); return; }
         podar();
         col.append(no);
         atualizarVazio();
     }
 
     const botaoAcao = (acao, rotulo, icon) =>
-        el('button', { class: 'icon-btn', type: 'button', 'aria-label': rotulo, dataset: { acao, tip: rotulo, tipPos: 'bottom' }, html: icone(icon) });
+        el('button', { class: 'icon-btn', type: 'button', 'aria-label': rotulo, dataset: { acao, tip: rotulo, tipPos: 'bottom' }, disabled: acao === 'ouvir' && !api.suporta('tts'), title: acao === 'ouvir' && !api.suporta('tts') ? 'Resposta por voz indisponível neste backend' : null, html: icone(icon) });
 
     /* ── usuário ───────────────────────────────────────────────────────── */
-    function usuario(texto, { anexos = [], animar = true } = {}) {
+    function usuario(texto, { anexos = [], skills = [], animar = true } = {}) {
         const m = el('div', { class: 'msg msg-user' }, el('div', { class: 'bubble', text: texto }));
         if (anexos.length) {
             m.append(el('div', { class: 'attach-note' }, el('span', { html: icone('clip') }), `${anexos.map(a => a).join(', ')}`));
         }
+        for (const skill of skills) m.append(el('div', { class: 'attach-note', text: `Skill: ${skill.id} · ${skill.origin} · ${skill.version}` }));
         m.append(el('div', { class: 'msg-actions' }, botaoAcao('copiar', 'Copiar mensagem', 'copy'), botaoAcao('editar', 'Editar e reenviar', 'edit')));
         textoDe.set(m, texto);
         acrescentar(m);
         mostrar(m, animar);
-        seguir = true;
-        irAoFim();
-        atualizarBotaoFim();
+        if (!destinoHistorico) { seguir = true; irAoFim(); atualizarBotaoFim(); }
         return m;
     }
 
@@ -134,8 +136,10 @@
     }
 
     /* ── ferramentas ───────────────────────────────────────────────────── */
-    const ROTULO_ESTADO = { ok: 'permitida', espera: 'aguardando aprovação', negado: 'negada' };
+    const ROTULO_ESTADO = { ok: 'permitida', concluida: 'concluída', processando: 'processando', espera: 'aguardando aprovação', negado: 'negada', falha: 'falhou', cancelada: 'interrompida' };
     function estadoFerramenta(ev) {
+        const states = { processing: 'processando', waiting_approval: 'espera', completed: 'concluida', failed: 'falha', cancelled: 'cancelada', denied: 'negado' };
+        if (states[ev.estado]) return states[ev.estado];
         if (ev.erro || ev.decisao === 'deny') return 'negado';
         if (ev.decisao === 'confirm' && !ev.aprovada) return 'espera';
         return 'ok';
@@ -144,10 +148,10 @@
         const a = atual || iniciar({ pensando: false });
         tirarPensando(a);
         const est = estadoFerramenta(ev);
-        const icon = est === 'ok' ? 'check' : est === 'negado' ? 'close' : 'tool';
+        const icon = ['ok','concluida'].includes(est) ? 'check' : ['negado','falha','cancelada'].includes(est) ? 'close' : 'tool';
         // o evento não traz id da chamada: uma chamada que esperava aprovação é "retomada" no mesmo chip;
         // qualquer outra vira chip novo (duas chamadas da mesma ferramenta não se sobrescrevem)
-        let chip = [...a.chips].reverse().find(c => c.dataset.nome === ev.nome && c.dataset.estado === 'espera');
+        let chip = [...a.chips].reverse().find(c => ev.chamada ? c.dataset.chamada === ev.chamada : c.dataset.nome === ev.nome && c.dataset.estado === 'espera');
         if (!chip) {
             chip = el('span', { class: 'tool-chip', role: 'img', dataset: { nome: ev.nome } });
             a.chips.push(chip);
@@ -155,10 +159,11 @@
             a.atividade.hidden = false;
         }
         chip.dataset.estado = est;
-        chip.title = ev.motivo || ev.erro || '';
-        chip.setAttribute('aria-label', `Ferramenta ${ev.nome}: ${ROTULO_ESTADO[est]}${ev.motivo ? '. ' + ev.motivo : ''}`);
+        if (ev.chamada) chip.dataset.chamada = ev.chamada;
+        chip.title = [ev.origem, ev.revisao ? `revisão ${ev.revisao.slice(0,12)}` : '', ev.resumo || ev.motivo || ev.erro].filter(Boolean).join(' · ');
+        chip.setAttribute('aria-label', `Ferramenta ${ev.rotulo || ev.nome}: ${ROTULO_ESTADO[est]}${ev.motivo ? '. ' + ev.motivo : ''}`);
         chip.innerHTML = icone(icon);
-        chip.append(ev.nome.replace(/_/g, ' '));
+        chip.append((ev.rotulo || ev.nome).replace(/_/g, ' '));
         acompanhar();
     }
 
@@ -177,6 +182,14 @@
     function cartaoAprovacao(ev, a = atual || iniciar({ pensando: false }), { depoisDoTexto = false } = {}) {
         tirarPensando(a);
         if (a.cartoes.has(ev.id)) return;
+        if (ev.ferramenta === 'aplicar_organizacao') {
+            const card = el('div', { class: 'approval', dataset: { id: ev.id } }, el('h4', { text: 'Cópias aguardando revisão' }), el('p', { text: 'Confira todos os caminhos em Fontes antes de criar as cópias.' }), el('button', { class: 'btn btn-primary btn-sm', type: 'button', text: 'Revisar cópias', on: { click: () => O.app.ir('fontes') } }));
+            a.cartoes.set(ev.id, card); a.principal.insertBefore(card, a.prose); return;
+        }
+        if (ev.ferramenta === 'criar_evento_agenda') {
+            const card = el('div', { class: 'approval', dataset: { id: ev.id } }, el('h4', { text: 'Evento aguardando revisão' }), el('p', { text: 'Confira conta, horários e conteúdo na Agenda antes de confirmar a criação.' }), el('button', { class: 'btn btn-primary btn-sm', type: 'button', text: 'Revisar evento', on: { click: () => { O.app.ir('integracoes'); O.extensions.abrirMcp(); } } }));
+            a.cartoes.set(ev.id, card); a.principal.insertBefore(card, a.prose); return;
+        }
         const estado = el('span', { class: 'approval-state', role: 'status', 'aria-live': 'polite' });
         // argumento cortado pelo servidor (grande demais): quem decide não vê tudo, então só dá para negar
         const grande = !!ev.truncado;
@@ -252,6 +265,7 @@
 
     function barraAcoes(a, ultima) {
         const barra = el('div', { class: 'msg-actions' }, botaoAcao('copiar', 'Copiar resposta', 'copy'), botaoAcao('ouvir', 'Ouvir resposta', 'speaker'));
+        if (api.suporta('artifacts')) barra.append(botaoAcao('salvar-resultado', 'Salvar resultado', 'copy'));
         if (ultima) barra.append(botaoAcao('repetir', 'Gerar de novo', 'retry'));
         a.principal.append(barra);
         a.acoes = true;
@@ -262,10 +276,14 @@
 
     function finalizar(a, { interrompida = false } = {}) {
         a.fim = true;
+        for (const chip of a.chips) if (chip.dataset.estado === 'processando') {
+            chip.dataset.estado = interrompida ? 'cancelada' : 'falha';
+            chip.setAttribute('aria-label', `Ferramenta ${chip.dataset.nome}: ${interrompida ? 'interrompida' : 'resultado não confirmado'}`);
+        }
         tirarPensando(a);
         if (a.texto) a.dur.textContent = U.fmtDur(performance.now() - a.t0);
         if (a.retoma) {
-            const falhou = a.erro || a.chips.some(c => c.dataset.estado === 'negado');
+            const falhou = a.erro || a.chips.some(c => ['negado','falha','cancelada'].includes(c.dataset.estado));
             a.retoma.querySelector('.approval-state').textContent = falhou ? 'Aprovada · a execução falhou.' : 'Aprovada · executada.';
         }
         if (a.texto) a.prose.innerHTML = a.rs.renderizar(a.texto);
@@ -302,20 +320,54 @@
     }
 
     /* ── histórico ─────────────────────────────────────────────────────── */
-    function renderHistorico(msgs) {
+    function mostrarFontes(a, provenance) {
+        if (!provenance || typeof provenance !== 'object') return;
+        const rows = value => Array.isArray(value) ? value.slice(0, 128) : [];
+        const sourceName = value => String(value).replace(/^project:[a-f0-9]{32}\//, '').replace(/^upload:[a-f0-9]{32}\//, '');
+        const labels = [
+            ...rows(provenance.memoria).map(x => x.fonte ? `Memória: ${sourceName(x.fonte)}` : `Memória: ${x.tipo || 'fonte'} ${x.id || ''}`),
+            ...rows(provenance.skills).map(x => `Skill: ${x.id} · ${x.origin} · ${x.version}`),
+            ...rows(provenance.contexto_externo).map(x => `Fonte externa: ${x.origin || x.connection || ''} · ${x.kind || ''} · ${x.key || x.uri || x.name || x.reference || ''}`),
+        ];
+        const activity = rows(provenance.atividades);
+        if (!activity.length) labels.push(...rows(provenance.ferramentas).map(x => typeof x === 'string' ? x.replace(/_/g, ' ') : x.nome || x.name));
+        const states = { completed:'Concluída', failed:'Falhou', denied:'Negada', waiting_approval:'Aguardando aprovação', cancelled:'Interrompida', processing:'Processando' };
+        const details = el('details', { class: 'history-sources' }, el('summary', { text: 'Fontes e atividade' }),
+            ...[...new Set(labels)].filter(Boolean).map(text => el('p', { text })),
+            ...activity.map(item => el('p', { text: `${item.label || item.name} · ${states[item.state] || item.decision || 'Registrada'}${item.origin ? ' · ' + item.origin : ''}${item.revision ? ' · revisão ' + item.revision.slice(0, 12) : ''}${item.summary ? ' · ' + item.summary : ''}` })));
+        a.fontes?.remove(); a.fontes = null;
+        if (labels.length || activity.length) { a.principal.append(details); a.fontes = details; }
+    }
+
+    function renderHistorico(msgs, { antes = false } = {}) {
+        const altura = rolagem.scrollHeight, top = rolagem.scrollTop;
+        destinoHistorico = document.createDocumentFragment();
         let dia = '';
-        for (const m of (msgs || []).slice(-80)) {
+        for (const m of (msgs || [])) {
             const rotulo = m.timestamp ? U.rotuloDia(m.timestamp) : '';
             if (rotulo && rotulo !== dia) { dia = rotulo; acrescentar(el('div', { class: 'day-sep', text: rotulo })); }
-            if (m.role === 'user') { usuario(String(m.content ?? ''), { animar: false }); continue; }
+            if (m.role === 'user') {
+                const n = usuario(String(m.content ?? ''), { animar: false, skills: m.provenance?.skills || [] });
+                if (m.id) { n.dataset.messageId = String(m.id); n.dataset.sessionId = O.historico.sessao(); if (api.suporta('branches')) n.querySelector('.msg-actions').append(botaoAcao('editar-pedido', 'Editar em novo caminho', 'copy')); }
+                if (m.timestamp) n.insertBefore(el('time', { class: 'msg-time', datetime: m.timestamp, text: U.hora(m.timestamp) || '' }), n.querySelector('.msg-actions'));
+                continue;
+            }
             const a = criarOrion({ quando: m.timestamp ? U.hora(m.timestamp) || '' : '', pensando: false, animar: false });
             a.el.dataset.streaming = 'false';
+            if (m.id) a.el.dataset.messageId = String(m.id);
+            if (O.historico.sessao()) a.el.dataset.sessionId = O.historico.sessao();
             a.texto = String(m.content ?? '');
             a.prose.hidden = false;
             a.prose.innerHTML = a.rs.renderizar(a.texto);
             textoDe.set(a.el, a.texto);
             barraAcoes(a, false);
+            if (m.timestamp) a.el.querySelector('time').setAttribute('datetime', m.timestamp);
+            mostrarFontes(a, m.provenance);
         }
+        if (antes) col.prepend(destinoHistorico); else col.append(destinoHistorico);
+        destinoHistorico = null;
+        atualizarVazio();
+        if (antes) { rolagem.scrollTop = top + rolagem.scrollHeight - altura; atualizarBotaoFim(); return; }
         $('#badge-chat')?.classList.remove('show');
         seguir = true;
         irAoFim();
@@ -349,6 +401,10 @@
             lista.forEach(p => cartaoAprovacao({ id: String(p.id), ferramenta: String(p.tool || p.tool_name || p.ferramenta || 'ação'),
                 motivo: p.reason || p.motivo || '', args: p.args && typeof p.args === 'object' ? p.args : {} }, a, { depoisDoTexto: true }));
             a.fim = true;
+        for (const chip of a.chips) if (chip.dataset.estado === 'processando') {
+            chip.dataset.estado = interrompida ? 'cancelada' : 'falha';
+            chip.setAttribute('aria-label', `Ferramenta ${chip.dataset.nome}: ${interrompida ? 'interrompida' : 'resultado não confirmado'}`);
+        }
         } catch (_) { /* sem token ou sem orion.app: não há o que mostrar */ }
     }
 
@@ -364,6 +420,7 @@
             case 'texto': receberTexto(ev.texto); break;
             case 'ferramenta': chipFerramenta(ev); break;
             case 'aprovacao': cartaoAprovacao(ev); break;
+            case 'fontes': { const a = atual || iniciar({ pensando:false }); mostrarFontes(a, ev.provenance); if (ev.message_id) a.el.dataset.messageId = String(ev.message_id); if (ev.session_id) a.el.dataset.sessionId = ev.session_id; break; }
             case 'erro': mostrarErro(ev); break;
             case 'fim': if (atual) finalizar(atual, ev); else setOcupado(false); break;
             default: break;
@@ -385,13 +442,15 @@
         if (!acao) return;
         const msg = acao.closest('.msg');
         switch (acao.dataset.acao) {
+            case 'salvar-resultado': O.artifacts.salvarResposta(textoDe.get(msg) || '', Number(msg.dataset.messageId) || null, msg.dataset.sessionId || null); break;
+            case 'editar': O.composer.editar(textoDe.get(msg) || ''); break;
+            case 'editar-pedido': O.caminhos.editar(msg.dataset.messageId, msg.dataset.sessionId, textoDe.get(msg) || ''); break;
             case 'copiar': ui.copiar(textoDe.get(msg) || '').then(ok => ok ? ui.piscarOk(acao) : ui.toast('Não consegui copiar.', { tipo: 'erro' })); break;
             case 'ouvir': {
                 const t = MD.paraFala(textoDe.get(msg) || '');
                 if (t) api.ttsFalar(t).then(() => ui.piscarOk(acao)).catch(err => ui.toast(`Não consegui falar: ${err.message}`, { tipo: 'aviso' }));
                 break;
             }
-            case 'editar': O.composer.editar(textoDe.get(msg) || ''); break;
             case 'repetir': O.composer.reenviar(); break;
             case 'config': O.app.ir('config'); break;
             default: break;
@@ -414,10 +473,10 @@
         rolagem.addEventListener('keydown', e => { if (['ArrowUp', 'PageUp', 'Home'].includes(e.key)) soltar(); });
         btnFim.addEventListener('click', () => { seguir = true; naoLidas = 0; irAoFim(true); atualizarBotaoFim(); });
         col.addEventListener('click', clique);
-        bus.on('chat:evento', aoEvento);
         // a pílula do topo acompanha os cartões de aprovação pendentes (criar, aprovar, negar, limpar a conversa)
         new MutationObserver(() => O.estado.aprovacao(pendentes().length > 0))
             .observe(col, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-estado'] });
+        bus.on('chat:evento', aoEvento);
         ligarCitar();
         new ResizeObserver(() => { if (seguir) irAoFim(); atualizarBotaoFim(); }).observe(col);
         atualizarVazio();

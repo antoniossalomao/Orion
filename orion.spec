@@ -19,6 +19,8 @@ ocultos += collect_submodules("mcp", filter=lambda n: not n.startswith("mcp.cli"
 datas += collect_data_files("mcp")
 ocultos += collect_submodules("uvicorn") + collect_submodules("orion")
 ocultos += ["multipart", "multipart.multipart"]  # upload do front
+ocultos += collect_submodules("jsonschema_specifications") + ["PIL.Image", "yaml"]  # extensões e resultados
+datas += collect_data_files("jsonschema_specifications") + collect_data_files("jsonschema")
 datas += collect_data_files("docx") + collect_data_files("openpyxl")  # modelos de documento
 if sys.platform == "win32":
     ocultos += ["keyring.backends.Windows"]
@@ -29,6 +31,11 @@ for arq in front.rglob("*"):
     if arq.is_file() and arq.suffix not in (".py", ".pyc") and "__pycache__" not in arq.parts:
         datas.append((str(arq), str(Path("Orion_Core") / "Front_end_Orion" / arq.relative_to(front).parent)))
 datas.append((str(raiz / "mcp.example.json"), "."))
+# pacotes de extensões que já vêm no Orion (manifestos e SKILL.md): arquivos de dados, não Python
+bundled = raiz / "orion" / "extensions" / "bundled"
+for arq in bundled.rglob("*"):
+    if arq.is_file() and arq.suffix != ".pyc" and "__pycache__" not in arq.parts:
+        datas.append((str(arq), str(Path("orion") / "extensions" / "bundled" / arq.relative_to(bundled).parent)))
 
 a = Analysis(
     ["orion_exe.py"],
@@ -36,7 +43,7 @@ a = Analysis(
     binaries=binarios,
     datas=datas,
     hiddenimports=ocultos,
-    excludes=["tkinter", "pytest", "playwright", "reportlab", "PIL", "pyright"],
+    excludes=["tkinter", "pytest", "playwright", "reportlab", "pyright"],
     noarchive=False,
 )
 pyz = PYZ(a.pure)

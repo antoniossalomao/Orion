@@ -52,6 +52,7 @@ class Approval:
     status: Status = Status.PENDING
     decided_by: str | None = None
     channel: str | None = None
+    binding: str = ""
 
 
 class ApprovalStore:
@@ -67,13 +68,20 @@ class ApprovalStore:
             self._items[a.id] = a
         return a
 
-    def request(self, session_id: str, tool: str, args: dict[str, Any], reason: str) -> Approval:
+    def request(
+        self, session_id: str, tool: str, args: dict[str, Any], reason: str, *, binding: str = ""
+    ) -> Approval:
         """Cria (ou devolve a pendente idêntica) uma solicitação de aprovação."""
         h = hash_call(tool, args)
         with self._lock:
             for a in list(self._items.values()):
                 a = self._expire(a)
-                if (a.session_id, a.args_hash, a.status) == (session_id, h, Status.PENDING):
+                if (a.session_id, a.args_hash, a.binding, a.status) == (
+                    session_id,
+                    h,
+                    binding,
+                    Status.PENDING,
+                ):
                     return a
             agora = self._clock()
             novo = Approval(
@@ -85,6 +93,7 @@ class ApprovalStore:
                 created_at=agora,
                 expires_at=agora + self._ttl,
                 args=json.loads(json.dumps(args, default=str)),
+                binding=binding,
             )
             self._items[novo.id] = novo
             return novo
@@ -107,25 +116,37 @@ class ApprovalStore:
             self._items[a.id] = a
             return a
 
-    def consume(self, session_id: str, tool: str, args: dict[str, Any]) -> bool:
+    def consume(
+        self, session_id: str, tool: str, args: dict[str, Any], *, binding: str = ""
+    ) -> bool:
         """True uma única vez se há aprovação válida para exatamente esta chamada."""
         h = hash_call(tool, args)
         with self._lock:
             for a in list(self._items.values()):
                 a = self._expire(a)
-                if (a.session_id, a.args_hash, a.status) == (session_id, h, Status.APPROVED):
+                if (a.session_id, a.args_hash, a.binding, a.status) == (
+                    session_id,
+                    h,
+                    binding,
+                    Status.APPROVED,
+                ):
                     self._items[a.id] = replace(a, status=Status.CONSUMED)
                     return True
         return False
 
-    def pending(self, session_id: str | None = None) -> list[Approval]:
+    def pending(
+        self, session_id: str | None = None, *, include_approved: bool = False
+    ) -> list[Approval]:
         with self._lock:
             vivos = [self._expire(a) for a in list(self._items.values())]
         return sorted(
             (
                 a
                 for a in vivos
-                if a.status is Status.PENDING and (session_id is None or a.session_id == session_id)
+                if (
+                    a.status is Status.PENDING or (include_approved and a.status is Status.APPROVED)
+                )
+                and (session_id is None or a.session_id == session_id)
             ),
             key=lambda a: a.created_at,
         )
@@ -138,6 +159,31 @@ class ApprovalStore:
                 for a in list(self._items.values())
                 if a.session_id == session_id
             )
+
+    def invalidate_fact(self, fact_id: int) -> None:
+        """Editar/esquecer invalida decisões pendentes sobre o conteúdo anterior."""
+        with self._lock:
+            for approval in list(self._items.values()):
+                if (
+                    approval.tool in {"editar_fato", "esquecer_fato"}
+                    and approval.args.get("id") == fact_id
+                    and approval.status in (Status.PENDING, Status.APPROVED)
+                ):
+                    self._items[approval.id] = replace(approval, status=Status.DENIED)
+
+    def invalidate_tools(self, names: set[str]) -> None:
+        with self._lock:
+            for a in list(self._items.values()):
+                if a.tool in names and a.status in (Status.PENDING, Status.APPROVED):
+                    self._items[a.id] = replace(
+                        a, status=Status.DENIED, reason="origem ou revisão revogada"
+                    )
+
+    def invalidate_binding(self, binding: str) -> None:
+        with self._lock:
+            for a in list(self._items.values()):
+                if binding in a.binding and a.status in (Status.PENDING, Status.APPROVED):
+                    self._items[a.id] = replace(a, status=Status.DENIED, reason="escopo revogado")
 
     def get(self, approval_id: str) -> Approval | None:
         with self._lock:

@@ -8,10 +8,12 @@ escolhido pelo modelo) → aprovação fora de banda
 
 from __future__ import annotations
 
+import json
 import logging
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
+from pathlib import Path
 from typing import Any
 
 from .approvals import ApprovalStore
@@ -43,6 +45,13 @@ class Context:
 
     session_id: str
     tainted: bool = False
+    allowed_tools: frozenset[str] | None = None
+    authorities: tuple[str, ...] = ()
+    authorized: Callable[[], bool] | None = None
+    project_id: str | None = None
+    share_personal: bool = False
+    root: str | None = None
+    project_revision: float | None = None
 
 
 @dataclass(frozen=True)
@@ -73,8 +82,8 @@ class PolicyEngine:
         self._audit = audit
 
     # ── API ────────────────────────────────────────────────────────────────
-    def evaluate(self, call: ToolCall, ctx: Context) -> Decision:
-        decision = self._decide(call, ctx)
+    def evaluate(self, call: ToolCall, ctx: Context, *, consume_approval: bool = True) -> Decision:
+        decision = self._decide(call, ctx, consume_approval=consume_approval)
         if not self._record(call, ctx, decision):
             if decision.action is Action.ALLOW and decision.risk is not Risk.READ:
                 return Decision(Action.DENY, decision.risk, "audit indisponível (fail-closed)")
@@ -87,7 +96,7 @@ class PolicyEngine:
             raise ValueError(f"ferramenta já registrada: {spec.name}")
         self.tools[spec.name] = spec
         if rate is not None:
-            self.rate.set_limit(spec.name, *rate)
+            self.rate.set_limit(spec.name, rate)
 
     def note_result(self, call: ToolCall, ctx: Context) -> None:
         """O orquestrador chama depois de executar: ferramenta que devolve conteúdo
@@ -97,10 +106,55 @@ class PolicyEngine:
             ctx.tainted = True
 
     # ── interno ────────────────────────────────────────────────────────────
-    def _decide(self, call: ToolCall, ctx: Context) -> Decision:
+    def _decide(self, call: ToolCall, ctx: Context, *, consume_approval: bool = True) -> Decision:
         spec = self.tools.get(call.name)
         if spec is None:
             return Decision(Action.DENY, None, f"ferramenta '{call.name}' não registrada")
+        if ctx.authorized is not None and not ctx.authorized():
+            return Decision(Action.DENY, spec.risk, "concessão ou revisão revogada")
+        if ctx.allowed_tools is not None and call.name not in ctx.allowed_tools:
+            return Decision(Action.DENY, spec.risk, "ferramenta fora do escopo da skill")
+        scope = f"project:{ctx.project_id}" if ctx.project_id else "personal"
+        if spec.scope is not None and spec.scope != scope:
+            return Decision(Action.DENY, spec.risk, "ferramenta de outro escopo")
+        if ctx.project_id and spec.scope is None:
+            paths = {
+                "ler_arquivo": "path",
+                "listar_arquivos": "path",
+                "escrever_arquivo": "path",
+                "delegar": "pasta",
+            }
+            scoped = {
+                "criar_evento_agenda",
+                "propor_organizacao",
+                "consultar_git",
+                "consultar_git_projeto",
+                "mcp_export_search",
+                "mcp_export_facts",
+                "mcp_export_sources",
+                "mcp_export_artifacts",
+                "aplicar_organizacao",
+                "propor_evento_agenda",
+                "consultar_agenda",
+                "consultar_disponibilidade",
+                "buscar_memoria",
+                "salvar_memoria",
+                "listar_fatos",
+                "esquecer_fato",
+                "editar_fato",
+                "pesquisar_internet",
+                "buscar_url",
+            }
+            if call.name in paths:
+                path = Path(str(call.args.get(paths[call.name], "")))
+                if (
+                    not ctx.root
+                    or not path.is_absolute()
+                    or not path.resolve().is_relative_to(Path(ctx.root).resolve())
+                ):
+                    return Decision(Action.DENY, spec.risk, "caminho fora da raiz do projeto")
+            elif call.name not in scoped:
+                return Decision(Action.DENY, spec.risk, "ferramenta sem isolamento de projeto")
         limite = self.rate.check(call.name)
         if limite:
             return Decision(Action.DENY, spec.risk, limite)
@@ -109,14 +163,36 @@ class PolicyEngine:
         if motivo is None:
             return Decision(Action.ALLOW, spec.risk)
 
-        if self.approvals.consume(ctx.session_id, call.name, call.args):
+        binding = self.binding(call.name, ctx)
+        if consume_approval and self.approvals.consume(
+            ctx.session_id, call.name, call.args, binding=binding
+        ):
             return Decision(Action.ALLOW, spec.risk, f"aprovado fora de banda ({motivo})")
-        pedido = self.approvals.request(ctx.session_id, call.name, call.args, motivo)
+        pedido = self.approvals.request(
+            ctx.session_id, call.name, call.args, motivo, binding=binding
+        )
         return Decision(Action.CONFIRM, spec.risk, motivo, pedido.id)
+
+    def binding(self, name: str, ctx: Context) -> str:
+        spec = self.tools.get(name)
+        if not ctx.authorities and not ctx.project_id and not (spec and spec.revision):
+            return ""
+        return json.dumps(
+            [
+                ctx.project_id,
+                ctx.project_revision,
+                ctx.authorities,
+                spec.origin if spec else None,
+                spec.revision if spec else None,
+            ],
+            sort_keys=True,
+        )
 
     def _motivo_confirmacao(self, spec: ToolSpec, call: ToolCall, ctx: Context) -> str | None:
         if spec.risk is Risk.DESTRUCTIVE:
             return "ação destrutiva"
+        if spec.require_confirmation:
+            return "ação externa exige confirmação para esta revisão"
         motivo: str | None = None
         if spec.risk is Risk.EXEC:
             if spec.cmd_arg:
@@ -150,12 +226,20 @@ class PolicyEngine:
     def _record(self, call: ToolCall, ctx: Context, d: Decision) -> bool:
         if self._audit is None:
             return True
+        spec = self.tools.get(call.name)
         try:
             self._audit(
                 {
                     "session_id": ctx.session_id,
                     "tool": call.name,
-                    "args": redact(call.args),
+                    "origin": self.tools[call.name].origin if call.name in self.tools else None,
+                    "revision": self.tools[call.name].revision if call.name in self.tools else None,
+                    "args": redact(
+                        {
+                            k: "***" if spec and k in spec.masked_args else v
+                            for k, v in call.args.items()
+                        }
+                    ),
                     "action": d.action.value,
                     "risk": d.risk.value if d.risk else None,
                     "reason": d.reason,

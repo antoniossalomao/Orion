@@ -1,7 +1,9 @@
 # Orion — referências de produto e plano de extensões
 
-Pesquisa em 04/10/2026. **Plano de implementação com C00–C04 concluídos** (registro na seção 9).
-Plugins, skills e MCP continuam propostos; nenhuma conta ou servidor MCP foi conectado.
+Pesquisa em 04/10/2026. **Plano de implementação com execuções registradas até C50** (registro na seção 9).
+Plugins, skills e exportação MCP estão implementados na branch `codex/orion-evolucao`.
+Há provas com servidores e clientes SDK controlados; validações reais pendentes estão
+identificadas nos checklists. Nenhuma conta pessoal do usuário foi conectada.
 Complementa [ORION_FRONT.md](ORION_FRONT.md), as fases 4 e 6 do
 [ORION_NUCLEO.md](ORION_NUCLEO.md) e a triagem de [ORION_FERRAMENTAS.md](ORION_FERRAMENTAS.md).
 As regras de [ORION_REGRAS.md](ORION_REGRAS.md) continuam valendo.
@@ -58,7 +60,7 @@ substitui a verificação do pacote publicado. SSE legado só entra se houver ne
 
 | Área | Evidência no Orion | Próxima melhoria | Prioridade |
 |---|---|---|---|
-| Integração front/backend | C01–C04 entregam capacidades, adaptadores, sessões, histórico paginado, exportação e limpeza por canal. Métricas, uploads e voz continuam ausentes | Gerenciar conversas (C05), mantendo flags coerentes com rotas reais | P0 |
+| Integração front/backend | C01–C06 entregam capacidades, sessões, histórico, exportação, limpeza, gestão e busca de conversas por canal. Métricas, uploads e voz continuam ausentes | Preparar MCP a partir de C07, mantendo flags coerentes com rotas reais | P0 |
 | Conexão e avisos | C00–C02 corrigem o toast e separam API acessível, modelo configurado e recursos disponíveis | Manter reconexão silenciosa e ampliar o painel de atividade nos checklists seguintes | P1 |
 | Conversas | Criar, listar, buscar e trocar existem; busca atual depende da lista de títulos | Menu renomear/fixar/arquivar, busca por conteúdo no backend e preservação de foco durante polling | P1 |
 | Edição e versões | Copiar, ouvir e gerar novamente a última resposta já existem | Editar pedido com nova versão; escolher versões sem apagar o caminho anterior | P2 |
@@ -338,10 +340,9 @@ como fundação do recurso novo. Exportar leitura primeiro, com identidade e esc
 
 ## 8. Próximo trabalho concreto
 
-C00–C04 foram concluídos e validados. Continuar pelo **C05: gestão de conversas**,
-com renomear, fixar e arquivar; preservar foco e rolagem durante polling. O spike MCP começa
-em C07, conforme as dependências. O usuário autorizou a execução dos checklists restantes;
-commit e push das entregas foram autorizados.
+As execuções até C50 estão registradas. Estados e evidências por checklist; C41, C46, C49, C50 com validação real pendente.
+Continuar pelo **Validações reais: contas externas, Windows e clientes desktop**. O usuário autorizou os checklists restantes,
+com commits, validação, vault e push. Fixtures não substituem prova de conta ou desktop reais.
 
 Decisões recomendadas para o MVP: manter Python/FastAPI e o front atual; padrão Agent Skills;
 manifesto Orion declarativo; MCP via SDK oficial; instalação local; escopos simples; um usuário;
@@ -350,8 +351,8 @@ quando houver integração concreta para revisar. Este documento não muda as de
 
 ## 9. Checklists por commit e sequência de dias
 
-Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C04 têm commits reais
-registrados; C05–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
+Esta seção transforma as etapas A–H em entregas retomáveis. **C00–C40 têm commits reais
+registrados; C41–C50 são planejados.** A numeração é a ordem sugerida de trabalho; dependências explícitas dizem o que
 precisa estar pronto. Não é necessário concluir o plano inteiro para usar o primeiro MVP.
 
 ### Ritmo de trabalho
@@ -364,8 +365,7 @@ precisa estar pronto. Não é necessário concluir o plano inteiro para usar o p
   manter os dependentes esperando a entrega completa.
 - Ao pedir continuação, usar o ID: **“Faça o próximo commit pendente”** ou **“Faça o C09”**.
   O executor confere o checklist e as dependências antes de iniciar.
-- C00–C04 estão implementados, validados e registrados abaixo; C05–C50 permanecem
-  planejados. Cada continuação deve conferir as dependências e os limites da entrega anterior.
+- Estados e evidências por checklist; C41 com validação real pendente.
 
 ### Como concluir e pausar cada commit
 
@@ -417,10 +417,10 @@ a integração real de Pesquisa fica registrada separadamente se ainda não tive
 
 ### Registro para retomar no próximo dia
 
-- Último checklist concluído: **C04**, commit `53074d2c` (C03: `c3c4b1e`; C00: `188ad9f`; C01: `856ce62`; C02: `81d5a99`).
-- Próximo commit sugerido: **C05 — gestão de conversas sem perder foco**.
-- Dependências/impedimentos: C04 está pronto para C05. Windows/pywebview real e provedor externo seguem sem validação; não bloqueiam os testes locais de gestão de conversas.
-- Evidências: ver os registros C00–C04 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
+- Último checklist concluído: **C48**, commit `7339543`; conferir as etapas parciais explicitadas abaixo.
+- Próximo commit sugerido: **Validações reais — contas externas, Windows e clientes desktop**.
+- Dependências/impedimentos: Estados e evidências por checklist; C41, C46, C49, C50 com validação real pendente. Windows/pywebview real e contas externas ainda precisam de evidência específica.
+- Evidências: ver os registros C00–C50 abaixo e `ORION_FRONT.md` / `ORION_CAPACIDADES.md` no repositório.
 - Atualizações: registrar aqui o ID concluído, hash/link e o próximo ID; não preencher com
   hash fictício nem tratar evidência de mock como teste contra conta real.
 
@@ -520,6 +520,825 @@ e `/workspace/artifacts/orion-c04/node.log`.
 no polling. Windows/pywebview real e provedor externo seguem sem validação neste ambiente.
 Plugins, skills e MCP continuam nos checklists seguintes, a partir do C07.
 
+### Execução C05 — 05/10/2026
+
+Entrega: [`f0bc68b2`](https://github.com/antoniossalomao/Orion/commit/f0bc68b2), branch
+`codex/orion-evolucao`, incluindo C00–C04. A mesma branch no vault mantém a continuidade.
+
+- Migração aditiva SQLite v4 para fixação; título, fixação e arquivo persistem após reinício.
+- `PATCH /sessoes/{id}` autenticado, isolado por canal, com validação de título e proteção
+  de sessões importadas. Arquivar preserva mensagens, limpa a seleção e não esconde aprovações.
+- Menu acessível oferece renomear, fixar/desafixar e arquivar/restaurar; grupos Fixadas e
+  Arquivadas. Restaurar não seleciona automaticamente uma conversa.
+- Lista reconciliada por ID: polling preserva foco, rolagem e menu aberto. Título e rascunhos
+  seguem a conversa visualizada, mesmo quando o registro está em modo de leitura.
+
+**Validação:** 507 testes completos de backend, 94 de navegador e 89 Node passaram.
+Ruff, formatação, Pyright, sintaxe JavaScript, whitespace e checks do legado passaram.
+O navegador usou API nova real/SQLite temporário e gateway simulado; menu foi operado com
+teclado, polling e recarga, com axe sem violações. Captura do menu foi inspecionada em
+`/workspace/artifacts/orion-c05/menu-conversa.png`; logs no mesmo diretório.
+
+**Próximo:** C06 — buscar conversas por título/conteúdo e mostrar trechos, com paginação.
+A execução dos checklists seguintes e commit/push continuam autorizados pelo usuário.
+Integração em `main`, Windows/pywebview real e contas externas permanecem pendentes.
+
+### Execução C06 — 05/10/2026
+
+Entrega: [`b440a3d0`](https://github.com/antoniossalomao/Orion/commit/b440a3d0), branch
+`codex/orion-evolucao`, incluindo C00–C05. Plano do vault na branch de mesmo nome.
+
+- Busca autenticada `/sessoes/busca` por títulos e mensagens, com total, trechos e paginação;
+  canal filtrado antes de retornar. Importadas/arquivadas continuam em modo de leitura.
+- Migração SQLite v5 cria/reconstrói o índice de títulos, preservando fixação, mensagens,
+  seleção e contexto limpo. Busca usa índices FTS com acentos normalizados e prefixos.
+- Sidebar mostra trechos seguros e mais resultados; Enter navega e Escape limpa. Respostas
+  atrasadas e de backend anterior são ignoradas. Renomear atualiza a consulta corrente.
+- Busca local na conversa e o comportamento de títulos do legado continuam disponíveis.
+  Offset pode mudar de composição após alterações concorrentes; a UI deduplica os IDs.
+
+**Validação:** 511 testes completos de backend, 96 de navegador e 89 Node passaram.
+Após ajustes finais de trechos e rename durante busca, três cenários de busca/gestão passaram
+novamente. Migração v4 foi comprovada com dados existentes; corpo, acentos, zero resultados,
+paginação, teclado, persistência e isolamento de canal foram testados. Ruff, formatação,
+Pyright, sintaxe JavaScript, whitespace e checks do legado passaram. Captura da busca foi
+inspecionada; evidências em `/workspace/artifacts/orion-c06/`.
+
+**Próximo:** C07 — fixar o SDK MCP e provar as versões de protocolo com servidor controlado.
+Windows/pywebview real, contas externas e integração em `main` permanecem pendentes.
+
+
+### Execução C07 — 05/10/2026
+
+Entrega: [`c678a4be`](https://github.com/antoniossalomao/Orion/commit/c678a4be), branch
+`codex/orion-evolucao`. Detalhes de reprodução em `Memorias Do Projeto/ORION_MCP.md`.
+
+- SDK oficial `mcp==2.3.0` e dependências fixadas no lockfile; licença MIT e origem
+  verificadas no PyPI e repositório oficial. APIs v2 `Client`/`MCPServer` usadas.
+- Servidor controlado stdio: descoberta, chamada de leitura, resultado estruturado e
+  encerramento real do filho. Sem conta, chave pessoal ou servidor externo.
+- Protocolos comprovados: `2026-07-28` (auto) e `2025-11-25` (legacy). Versões antigas
+  declaradas pelo SDK mas não comprovadas no Orion são recusadas pelo guard.
+- Erros legíveis para SDK/protocolo incompatíveis; não declara sampling/elicitation/Tasks,
+  HTTP, cliente de produto ou servidor de exportação prontos. Flag MCP permanece falsa.
+
+**Validação:** seis testes específicos passaram no ambiente do projeto e novamente em
+ambiente limpo. 517 testes completos de backend passaram após instalar as dependências
+novas; Ruff, formatação e Pyright passaram. Logs em `/workspace/artifacts/orion-c07/`.
+
+**Próximo:** C08 — execução assíncrona e validação completa de schemas, antes dos transports
+MCP do produto. Windows/pywebview real e integrações externas continuam sem validação.
+
+
+### Execução C08 — ferramentas assíncronas e schemas (05/10/2026)
+
+**Commit de implementação:** `11f2bbb`.
+ToolRegistry valida JSON Schema completo com formatos e referências locais; referências
+remotas não abrem rede implicitamente. Schemas inválidos são recusados ao registrar.
+O agente aguarda funções async no loop existente e desloca ferramentas síncronas para
+uma thread. Cancelamento async propaga; cancelar a espera de uma ferramenta síncrona
+não garante interromper a thread já iniciada. A política continua antes da execução.
+
+**Evidências:** 529 testes backend, 8 testes de integração da interface, Ruff e Pyright
+sem erros. Casos novos comprovam argumentos inválidos sem execução, formatos, `$ref`,
+loop preservado, cancelamento e ação async sem execução antes da aprovação.
+Logs em `/workspace/artifacts/orion-c08/`. Nenhum servidor pessoal foi conectado.
+
+
+### Execução C09 — MCP local com lifecycle (05/10/2026)
+
+**Commit de implementação:** `60f44fc`.
+Configuração stdio validada com executável absoluto, argv sem shell e confiança local
+explícita. Leitura da configuração não inicia código. Tarefa proprietária abre e fecha
+SDK/transporte; lifespan fecha o host, falhas não derrubam o backend. Diagnóstico registra
+ID/estado/código; stderr externo descartado, stdout reservado ao protocolo. Ambiente
+herda apenas variáveis operacionais do SDK, não credenciais ORION arbitrárias.
+
+**Evidências:** suíte backend com 532 testes passou; teste adicional do lifespan passou
+com os demais quatro casos do host, comprovando encerramento real do PID em Linux.
+Ruff, formatação e Pyright passaram. Host ainda não entrega tools não classificadas ao
+modelo. Windows e servidores pessoais não foram validados.
+
+
+### Execução C10 — Streamable HTTP e credenciais (05/10/2026)
+
+**Commit de implementação:** `0cec198`.
+HTTP pelo SDK oficial, endereços explicitamente autorizados e TLS fora de loopback.
+Secret refs usam namespace próprio, sem persistência de valores nem uso do token admin.
+Diagnóstico distingue falta/recusa de credencial, transporte, timeout e protocolo.
+Logs de dependências não expõem payloads ou erros remotos; proxy ambiente não herdado.
+
+**Evidências:** 539 testes backend passaram; seis casos HTTP incluem servidor Uvicorn
+real, leitura autenticada, recusa sem token, segredo ausente, endpoint indisponível e
+URLs inválidas. Ruff/Pyright passaram. OAuth/contas externas ainda não validados.
+
+
+### Execução C11 — classificação e revisão MCP (05/10/2026)
+
+**Commit de implementação:** `a5e796f`.
+Registro local de Tool/ToolSpec com nome derivado da origem/revisão, classificação fixa
+e limite por identidade. Annotations externas não concedem autorização. Resultados MCP
+marcam taint; escrita/execução externa e destrutivos exigem aprovação. Audit contém
+origem/revisão. Remoção/troca de identidade revoga aprovações e referências antigas.
+
+**Evidências:** 540 testes backend passaram, incluindo dois subprocessos MCP e agente
+com gateway controlado. Leitura executa; ferramenta desconhecida marcada readOnlyHint
+fica indisponível; destrutivo não altera nem fixture antes da aprovação; alteração de
+catálogo invalida aprovação antiga. Ruff/Pyright passaram; nenhum dado real foi alterado.
+
+
+### Execução C12 — resiliência MCP (05/10/2026)
+
+**Commit de implementação:** `e190992`.
+Prazo por chamada, cancelamento propagado ao SDK, quatro slots por conexão e códigos
+sanitizados. Timeout/queda sem confirmação indicam execução possivelmente ativa. Não há
+replay de tools; reconnect explícito descarta client e invalida identidades/aprovações.
+Parada cancela esperas e encerra o subprocesso pelo SDK na tarefa proprietária.
+
+**Evidências:** 542 testes backend passaram; 30 casos de extensões incluem chamada lenta,
+queda abrupta, cancelamento, reconnect, contadores que provam ausência de repetição e
+shutdown sem PID órfão em POSIX. Ruff/Pyright passaram. Não se presume cancelamento de
+efeitos externos sem confirmação; Windows permanece sem teste real.
+
+
+### Execução C13 — catálogo sob demanda (06/10/2026)
+
+**Commit de implementação:** `25d295b`.
+Catálogo resumido com busca lexical e seleção explícita. Ferramentas nativas preservadas;
+schemas externos limitados a oito/24 KB por turno. Métrica de bytes e estimativa de tokens.
+Chamada externa fora do conjunto é recusada. Descoberta antes do turno/retomada revoga
+identidades/aprovações removidas ou indisponíveis; refresh é serializado.
+
+**Evidências:** 543 testes backend passaram. Servidor MCP real com 121 ferramentas envia
+apenas uma externa para astronomia, respeita o teto na busca ampla e invalida aprovação
+após remoção no servidor. Falha de descoberta revoga o catálogo anterior. Ruff, formatação
+e Pyright passaram. Busca lexical é a estratégia inicial, sem embeddings remotos.
+
+
+### Execução C14 — contexto externo MCP (06/10/2026)
+
+**Commit de implementação:** `89bc6a9`.
+Resources/prompts por escolha explícita no chat autenticado e allowlist da conexão.
+Até oito escolhas e 32 KB textuais totais, com fonte/digest/truncamento; template chega
+como dado em role user e não altera política. Referência/procedência persiste, conteúdo
+bruto não é indexado na memória; taint da sessão é durável. Erros sanitizados.
+
+**Evidências:** 545 testes backend passaram. Servidor real fornece resource grande,
+resource fora de escopo e template tentando dispensar aprovação: execução segue
+bloqueada antes da aprovação. API exige admin e escopo. Handshake real confirma ausência
+de sampling, elicitation, extensions e experimental. Ruff/formatação/Pyright passaram.
+Limite é de contexto após receber texto, não isolamento de memória do processo remoto.
+
+
+### Execução C15 — pacotes Agent Skills (06/10/2026)
+
+**Commit de implementação:** `a212d5a`.
+Parser conforme subconjunto documentado da especificação oficial consultada: campos,
+nomes, descrição/compatibilidade, metadados, limites, YAML sem tags/aliases/duplicatas.
+Descoberta lê frontmatter sem corpo; carregamento valida referências confinadas à raiz,
+symlinks/drive/file URLs/travessia. Namespace, origem e versão sem colisão; nenhum script
+é importado/executado. PyYAML 6.0.3 MIT fixado no lockfile.
+
+**Evidências:** 560 testes backend passaram; 15 casos de skills cobrem frontmatter inválido,
+referências externas/codificadas, symlink, metadados sem corpo, mudança de cabeçalho e
+script com marcador não executado. Ruff/formatação/Pyright passaram. Body e referências
+continuam sob demanda; não se instala dependência declarada por compatibilidade.
+
+
+### Execução C16 — seleção progressiva de skills (06/10/2026)
+
+**Commit de implementação:** `fd51452`.
+Fontes configuradas, descoberta só de metadados e seleção explícita ou lexical com dois
+termos relevantes. Corpos/referências somente escolhidos, até três skills e 12 KB de
+contexto, com origem/versão/digest. Referência exige skill selecionada e caminho declarado.
+`allowed-tools` intersecta restrições, filtra schemas e não concede privilégios na política.
+
+**Evidências:** 562 testes backend passaram. Casos positivos/negativos de relevância,
+referência sob demanda, orçamento e fonte desativada; agente comprova desconhecido negado,
+execução listada ainda confirmada e chamada fora do escopo negada. Ruff, formatação e
+Pyright passaram. Scripts não são executados nesta entrega.
+
+
+### Execução C17 — skills no chat e paleta (06/10/2026)
+
+**Commit de implementação:** `59a9972`.
+Namespace /plugin:skill, sugestões por teclado e grupo na paleta, com origem/versão no
+composer e turno. Comandos existentes, barras literais e caminhos preservados. Escolha
+na paleta mantém texto; skill inválida/desativada e recusa HTTP recuperam rascunho sem
+reenvio automático. Catálogo autenticado somente de metadados; legado não é sondado.
+
+**Evidências:** 563 testes backend, 90 Node e 98 navegador completo passaram. Casos reais
+de teclado, paleta, skill escolhida no gateway controlado e revogação pelo servidor.
+Ruff/formatação/Pyright, sintaxe JS e checks do legado passaram. Capturas desktop do
+composer/paleta em `/workspace/artifacts/orion-c17/` inspecionadas visualmente.
+
+
+### Execução C18 — confiança e scripts de skills (06/10/2026)
+
+**Commit de implementação:** `553f644`.
+Ativação explícita de fonte e confiança separada para scripts. Runner só registra código
+revisado POSIX e sempre passa pela aprovação da política. Script declarado/confino à raiz,
+snapshot/hash de bytes, argv sem shell, ambiente mínimo, limite de pacote/saída/prazo e
+cleanup do grupo. Audit mascara argv. Segredos .env/referências sensíveis bloqueados.
+
+**Evidências:** 567 testes backend passaram. Script real somente após aprovação, argumento
+literal sem shell, segredo de ensaio ausente no filho e PID encerrado; atualização/desativação
+bloqueiam nova execução. Testes de timeout, saída excessiva, cancelamento e paths.
+Ruff/formatação/Pyright passaram. Sem sandbox, código local não confiável continua desativado;
+Windows não recebe runner até validação real. Não se promete isolamento de código confiável.
+
+
+### Execução C19 — manifesto e versões de plugins (06/10/2026)
+
+**Commit de implementação:** `fa9c3cc`.
+Manifesto Orion v1 com compatibilidade da API, IDs/semver, licença, namespaces, skills,
+MCP, capabilities e dependências exatas. Paths/colisões/JSON duplicado recusados; campos
+para tokens literais/hooks ausentes e secret refs têm namespace próprio. Declaração não
+concede acesso. SQLite separado de chats registra versão/origem/hash/estado, sem ativar.
+
+**Evidências:** 581 testes backend passaram; 14 casos de manifesto/registro comprovam
+pacote skill-only e MCP, persistência após reabrir SQLite, conflito de ID/versão e rejeição
+de incompatibilidade, traversal, credenciais literais e hook. Ruff/formatação/Pyright passaram.
+Instalação e lifecycle de plugins seguem para C20–C24; nenhuma conta foi conectada.
+
+
+### Execução C20 — instalação local de plugins (06/10/2026)
+
+**Commit de implementação:** `1f2de45`.
+Snapshot/staging em data_dir, validação completa e objeto por hash, independente da origem
+e somente leitura. Até 512 arquivos/16 MB, 2 MB por arquivo. Symlinks/hardlinks/segredos/
+traversal/colisões/arquivos especiais recusados; nenhum código, hook ou instalação de
+pacotes executado. Publicação só aponta objeto completo e deixa plugin desativado.
+
+**Evidências:** 588 testes backend passaram; sete casos de instalação cobrem cópia imutável,
+origem alterada depois, script com marcador não executado, caminhos externos/segredos e
+interrupção simulada após publicação do objeto (rollback de objeto/staging/registro).
+Ruff/formatação/Pyright passaram. Permissões não representam sandbox contra o dono do SO.
+
+
+### Execução C21 — distribuição ZIP de plugins (06/10/2026)
+
+**Commit de implementação:** `57a3e66`.
+ZIP padrão armazenado/deflate, até 16 MB/512 arquivos/2 MB por arquivo e razão 200.
+Central directory limitada antes do parser; criptografia/ZIP64/multipart não suportados.
+Sem extractall: nomes, symlinks/tipos, expansão, CRC, ADS/Windows/Unicode/case e colisões
+arquivo/diretório validados. Mesmo snapshot/validador/staging da pasta; sem execução.
+
+**Evidências:** 598 testes backend passaram; dez casos de ZIP verificam igualdade de hash
+com pasta, importação desativada sem script, sete paths de escape, symlink, colisões,
+bomba de expansão, quantidade excessiva, corrupção/CRC e tamanho de entrada. Ruff,
+formatação e Pyright passaram. Nenhum arquivo sai da raiz controlada de staging.
+
+
+### Execução C22 — 06/10/2026
+
+Commit `597b8b5`: seleção transacional de revisão, revisão integral de capacidades,
+conservação das versões e rollback. A seleção publica o bundle revisado atomicamente;
+a execução continua desativada até as concessões/lifecycle de C23–C24. Update de
+plugin ativo é recusado. Remoção elimina somente bundles, preservando dados produzidos.
+
+**Evidências:** 600 testes backend; Ruff e Pyright sem erros. Trigger SQLite que
+interrompe update não altera a revisão anterior; rollback conserva ambos os bundles;
+remoção preserva arquivo produzido fora do pacote. Bundle adulterado é recusado.
+
+
+### Execução C23 — 06/10/2026
+
+Commit `87e4314`: concessões persistentes por bundle/escopo; capacidades efetivas são
+interseção entre manifesto, concessão e limite do escopo. Seleções de skills carregam
+uma revisão revogável e restringem o motor de política. Aprovações incluem identidade,
+revisão, sessão, argumentos e projeto; revogação invalida decisões não consumidas.
+
+**Evidências:** 601 testes backend, Ruff/Pyright. O teste novo cobre dois projetos,
+capacidade não declarada, revisão revogada após aprovação e chamada nativa fora do
+escopo. Testes C12/C18 continuam cobrindo cancelamento de chamadas/processos. O lifecycle
+administrativo que aciona essas garantias é integrado em C24; não há ativação automática.
+
+
+### Execução C24 — 06/10/2026
+
+Commit `72d40ff`: API autenticada para instalar/importar ZIP, revisar e ativar,
+desativar, remover, consultar versões/diagnósticos e configurar/testar MCP. Catálogo
+sanitizado sem caminhos internos ou credenciais; ZIP recebido em stream limitado.
+Instalação, confiança em código, autorização do endereço e concessão são decisões
+separadas. Restart deixa pacotes desativados. O modelo não recebe tools administrativas.
+
+**Evidências:** 604 testes backend, Ruff/Pyright. TestClient prova tokens ausentes/
+inválidos, importação inválida, capabilities incompletas, update/rollback/restart.
+Pacote com servidor SDK real só conecta após confiança/classificação local; discovery
+mantém contador de escritas em zero; desativar fecha e remove a conexão/catálogo.
+Scripts de plugins não são concedidos por instalação: runner de fontes locais revisadas
+(C18) continua separado. Nenhuma conta externa foi conectada.
+
+
+### Execução C25 — 06/10/2026
+
+Commit `7050d69`: Extensões tem abas Plugins, Skills, Conexões MCP e Voz/canais,
+importação ZIP/pasta, revisão de capacidades/servidores, ativação, desativação,
+versões/rollback e remoção. Dados externos entram por textContent; trocar origem invalida
+respostas antigas. Composer atualiza catálogo sem perder draft. Barra recolhida mantém
+nomes acessíveis dos links.
+
+**Evidências:** quatro cenários novos de navegador passaram com API real, teclado,
+axe WCAG A/AA, layout 700 px, Noite/Grafite/Alto contraste, instalação/ativação/skill/
+desativação e erro recuperável. O conjunto anterior com capabilities (11 cenários antes
+de ampliar os temas) também passou. Sete arquivos de testes Node passaram. Screenshots
+1440/700 px em `/workspace/artifacts/orion-c25/` inspecionados visualmente. Não há prova
+Windows/pywebview neste ambiente; configurar conexão pelo formulário segue em C26.
+
+
+### Execução C26 — 06/10/2026
+
+Commit `b94f1d5`: formulário local/remoto com argv JSON sem shell, confiança explícita,
+endereço autorizado e referência de credencial no cofre. Permissões locais independem
+de annotations do servidor. Salvar não inicia; testar faz handshake/list_tools apenas.
+Estados/diagnóstico ficam no cartão, sem popup periódico. Reconfigurar/desativar revoga
+catálogo anterior; configuração persiste e reinicia desativada. Erros preservam draft.
+
+**Evidências:** 605 testes backend, Ruff/Pyright; teste real SDK mostra contador de
+escritas zero após discovery, revisões antigas retiradas e restart/desativação/remoção.
+Navegador com API real cobre comando inválido, reconfiguração, servidor real, teste sem
+call_tool e desativação, com axe WCAG A/AA. Os quatro cenários C25 também passaram no
+conjunto. Executar servidor local confiável possui privilégios do usuário; teste de
+conexão não é sandbox e não prova ausência de efeitos de inicialização do servidor.
+
+
+### Execução C27 — 06/10/2026
+
+Commit `098e2ad`: SSE preserva provenance antes de [DONE], sem quebrar leitor legado.
+Eventos internos e hub aceitam fontes; histórico exibe memória/skill/contexto externo,
+origem/revisão e atividade com conclusão, aprovação, falha ou cancelamento. Não mostra
+raciocínio interno nem argumentos/resultados privados em resumos de atividade. MCP
+mantém nome legível independente do identificador técnico. Aprovações retomadas deixam
+atividade com revisão; cancelamento preserva um registro sem replay.
+
+**Evidências:** 606 testes backend na etapa; 12 testes direcionados SDK/agente/SSE após
+ajustes; 91 testes Node; Ruff/Pyright. A suíte Chromium executou 104 cenários: 103 passaram
+e um revelou perda de draft antes do ID/salvamento automático. Correção incluída no
+commit usa draft pendente por origem e flush em pagehide; o cenário falho foi repetido
+e passou, preservando fonte/draft após recarga imediata. Log integral em
+`/workspace/artifacts/orion-c27/browser.log` conserva a falha original, sem ocultá-la.
+A etapa seguinte permanece sem conta Brave real ou validação Windows.
+
+
+### Execução C28 — 06/10/2026
+
+Commit `7eb1823`: provedor Brave Search API, referência oficial MCP com manutenção e
+licença MIT verificadas. Adaptador próprio em leitura; desligado por padrão, chave por
+referência no cofre, 10 chamadas/minuto. Fetch HTTPS público fixa DNS, valida TLS/SNI,
+barra rede privada/metadata IPv4/IPv6, credenciais na URL, redirects autenticados,
+compressão e corpos acima de 1 MB; texto 16 KB, timeout/deadline, nenhum retry de cota.
+
+**Evidências:** 620 testes backend; 14 cenários de pesquisa repetidos após ajustes;
+Ruff/Pyright. Fixtures provam ausência de chave sem chamada, cota, URL privada/redirect,
+endereço fixado antes de socket, parsing/limites e fetch sem credencial Brave. Registro
+público GitHub/licença/README em `/workspace/artifacts/orion-c28/`; documentação de
+configuração/limites em ORION_PESQUISA.md. **Não foi usada conta ou chave Brave real.**
+Cotas/preços dependem da assinatura; não há promessa de plano gratuito. Proxy herdado
+não é usado pelo fetch; ambientes que o exigem podem retornar indisponibilidade.
+
+
+### Execução C29 — 06/10/2026
+
+Commit `810f93f`: pacote Orion Pesquisa mantido no repositório com pesquisar-assunto
+/comparar-fontes e somente busca/fetch. Catálogo oferece Adicionar; instala desativado
+pelo mesmo validador. Skills restringem o turno ao concedido e exigem evidência, confronto
+de fontes e abstenção. Provedor não registrado mantém waiting_connection. Revisão ativa
+é publicada no SQLite; schemas de tools concedidas entram no orçamento do turno.
+
+**Evidências:** 622 testes backend; seis cenários de interface de extensões com API real
+passaram; 91 testes Node, Ruff/Pyright. Fixtures passam fontes divergentes/resultado vazio
+pelo provedor e gateway simulado, invocam ambas as skills e verificam gatilho negativo/
+escopo de schemas. Isso não prova qualidade de raciocínio de um modelo real. Wheel foi
+construído e inspecionado: manifesto e as duas SKILL.md estão incluídos. Licença do pacote
+é a do Orion; MIT do servidor Brave não foi atribuída ao conteúdo proprietário.
+Nenhuma conta/chave real foi conectada; C30 valida o fluxo completo com MCP real de ensaio.
+
+
+### Execução C30 — 06/10/2026
+
+Commit `1d64ac8`: ensaio completo pela interface com API nova real e processo MCP do
+SDK oficial. Instala ZIP, revisa capacidades/classificação/confiança, realiza duas RPCs
+(busca/leitura), confere fonte/revisão, desativa, prepara update, troca e volta à versão
+anterior. Encerra servidor e recria com o mesmo banco: conversa/provenance são recuperadas.
+Guia local e limites adicionados a ORION_PESQUISA.md.
+
+**Evidências:** fluxo novo passou; suíte Chromium completa **105 passou, zero falhas**
+(347,8 s), incluindo chat, aprovações, offline, temas, teclado e regressão de draft C27.
+Log em `/workspace/artifacts/orion-c30/browser.log`. Backend mantinha 622 testes e
+Ruff/Pyright passaram. Gateway e conteúdo da pesquisa são fixtures; processo MCP,
+interface, API, banco, staging/lifecycle e restart são reais no Linux. **Conta Brave,
+integrações pessoais e Windows/pywebview seguem sem prova real.** Não houve merge em main.
+
+
+### Execução C31 — 06/10/2026
+
+Commit `c5430cf`: migração aditiva SQLite v6 para projetos/instruções e project_id
+opcional em sessões. CRUD autenticado, arquivar/restaurar, seleção pessoal/projeto e
+associação de conversa com histórico/IDs preservados. Arquivar não apaga chats; troca
+/associação são recusadas enquanto houver execução/aprovação pendente. Conversas antigas
+continuam sem projeto. Compartilhar memória pessoal é escolha explícita, default falso.
+
+**Evidências:** 624 testes backend, Ruff/Pyright. Migração de banco v5 com mensagem real,
+associação/arquivo/restart preserva ID e texto; API prova auth, validação, seleção e
+guarda de aprovação. C31 ainda não afirma isolamento da recuperação nem oferece tela de
+projetos: esses contratos passam a operar em C32 e C33 respectivamente.
+
+
+### Execução C32 — escopo operacional de projetos (07/10/2026)
+
+Commit real `51acf58`. Migração SQLite v7 adiciona raiz autorizada e escopo de fatos/documentos.
+O turno usa o projeto persistido da sessão; FTS, vetores e ferramentas nativas de memória
+filtram antes de recuperar dados. Compartilhar memória pessoal é explícito, não compartilha
+concessões de extensões e não permite modificar fatos pessoais pelo contexto de projeto.
+Skills, ferramentas MCP e resources/prompts rejeitam outro escopo; aprovações incluem
+projeto/revisão e são invalidadas ao editar configurações. Caminhos locais passam por raiz
+resolvida e PathGuard; operações globais sem isolamento são recusadas. Contexto recuperado
+entra como dados de usuário e documentos aplicam taint. Consolidação pessoal ignora projetos.
+
+Validação: **628 testes backend**, Ruff/format/Pyright, **7 arquivos de testes Node** e
+**1 ensaio Chromium completo de pesquisa/plugin/MCP/versionamento/reinício** passaram.
+Os novos testes usam canários em dois projetos, busca lexical e vetorial, deduplicação,
+compartilhamento pessoal, reinício, symlink, ferramentas, skills/resources e aprovação antiga.
+Detalhes em `ORION_PROJETOS.md`. Código MCP confiável não é sandbox; a validação de Windows
+e contas pessoais continua pendente. Próxima etapa: C33.
+
+
+### Execução C33 — interface de projetos (07/10/2026)
+
+Commit real `0d755cf`. Seção Projetos reúne conversas, instruções, fontes e extensões;
+contexto pessoal/projeto aparece no composer. Edição inclui raiz e compartilhamento pessoal
+explícito. Conversas podem ser movidas pelo menu, mantendo IDs e rascunhos, e novas conversas
+herdam o contexto. Arquivar preserva histórico e impede novos turnos/ativação para escrita.
+A revisão de plugins e MCP permite escolher escopo, e skills acompanham a conversa atual.
+
+Validação: **628 testes backend**, Ruff/format/Pyright e **7 arquivos Node** passaram.
+Chromium: **7 testes existentes de extensões e fluxo MCP**, mais **1 novo fluxo de projetos**
+passaram. O ensaio cobre teclado, dois rascunhos, alternância, conversa nova no projeto,
+movimentação, contexto pessoal, arquivar/restaurar, 700 px e axe sem violações WCAG A/AA.
+Imagem `orion-c33-projects-700.png` foi inspecionada. Corrigida navegação tardia ao criar
+conversa; uma espera de teste que incluía a paleta oculta foi corrigida. Próxima etapa: C34.
+
+
+### Execução C34 — resultados duráveis e versionados (07/10/2026)
+
+Commit real `483edb5`. Migração SQLite v8 adiciona artifacts e versões imutáveis, IDs opacos,
+associação à conversa/projeto/mensagem, digest e fontes originais. API autenticada separa
+escopos, exige versão atual ao revisar e oferece downloads protegidos. Texto, Markdown,
+código e imagens locais têm limites de tamanho/quantidade/armazenamento; PNG/JPEG/WebP
+são normalizadas em PNG sem metadados, usando Pillow 12.3.0 (MIT-CMU). Não aceita SVG
+nem caminhos arbitrários. Resultados vivem fora dos bundles e sobrevivem à desinstalação.
+
+Validação: **630 testes backend**, Ruff e Pyright passaram; testes novos comprovam versões,
+conflito de edição, mensagem/sessão de outro projeto, autenticação, escopo incorreto,
+remoção real de plugin, reinício e download da versão original, rejeição de caminho/imagem
+inválida e tamanho excessivo, normalização e falha de integridade. A biblioteca visual vem
+no C35. Configuração e limites registrados em `ORION_RESULTADOS.md`.
+
+
+### Execução C35 — biblioteca e prévia de resultados (07/10/2026)
+
+Commit real `26555eb`. Biblioteca pesquisável respeita o projeto atual; prévia mostra
+conversa, fontes, tipo, versões e download autenticado. Chat salva a resposta com IDs da
+mensagem/sessão recebidos no SSE, inclusive antes da atualização da sidebar. Revisar cria
+nova versão; voltar ao painel preserva a versão escolhida, e fechar devolve o foco à lista.
+Texto/código usam texto; Markdown bloqueia imagens incorporadas e HTML; imagem usa blob
+local autorizado e revogado ao fechar/sair. Prévia abreviada não reduz o download.
+
+Validação: **51 testes backend de agente/API/artifacts**, **91 testes Node**, Ruff/format e
+Pyright passaram. A regressão Chromium inicial executou **108 cenários: 105 passaram e 3
+falharam** por atalhos reordenados e expectativa antiga de cinco views. Preservados Alt+1…5,
+adicionados Alt+6 Projetos/Alt+7 Resultados e atualizado teste de views ocultas. Todos esses
+cenários passaram após correção. Acrescentados **10 cenários** para novas telas em três temas
++ 700/860 px; corrigida semântica da região de resultados. **3 fluxos** de projetos/biblioteca
+passaram; os **2 fluxos de artifacts** passaram novamente com axe completo, versões,
+retorno ao painel, persistência, imagem local e bloqueio de imagem externa/script. Captura
+`orion-c35-library-700.png` inspecionada. Evidências mantêm os logs iniciais de falha.
+Guia de results e contrato operacional dos plugins atualizados. Próxima etapa: C36.
+
+
+### Execução C36 — fatos com fonte e revisão
+
+Commit de implementação: `87f43a7`. Lista e busca de fatos pessoais/do projeto, origem e data,
+correção e esquecimento com revisão e aprovação explícitas. O grafo permanece alternativo.
+A API valida sessão, projeto, revisão, estado da conversa e uso único da decisão; mudar um fato
+revoga propostas antigas sobre ele. Esquecimento remove texto, FTS e vetor; nenhuma edição
+acontece ao pedir aprovação. Fonte preservada e pendências recuperadas após reabrir.
+
+Evidências: 631 testes backend passaram (24,84 s); Pyright sem erros, Ruff e formatação verdes;
+91 testes Node; navegador validou corrigir, reabrir, rejeitar e aprovar esquecimento, fonte,
+700 px e axe completo (8,88 s). Testes também cobrem dois projetos, sessão estrangeira,
+revogação por mudança no projeto, duplicação de revisão sem consumir aprovação e reinício.
+Não houve chamadas a contas externas.
+
+
+### Execução C37 — caixa de atividade persistente
+
+Commit de implementação: `7c78d8a`. Rota Atividade com filtros de todos/não lidos/aprovações,
+confirmação de leitura e preferências persistidas para conclusões, perguntas e destaque de decisões.
+Aprovações continuam acessíveis independentemente das preferências. Avisos não geram popup
+na reconexão. Migração v9 isola lembretes, agendamentos, tarefas, números, prompts e notificações
+por projeto; jobs percorrem contextos ativos e apenas avisam, sem executar tools.
+Referência do disparo deduplica avisos mesmo se ocorrer interrupção antes de marcar o lembrete.
+
+Evidências: 632 testes backend (27,51 s), 91 Node, Ruff/format/Pyright verdes; Chromium confirmou
+leitura após reload, decisão acessível com filtro, 700 px e axe completo (7,08 s). Fixtures provam
+lembrete uma vez, reinício, ack estrangeiro negado, operação de outro projeto negada,
+agendamento sem escrita e preferências separadas por contexto.
+
+
+### Execução C38 — documentos e fontes externas
+
+Commit de implementação: `59cb225`. Tela Fontes com envio/extração indeterminados, estados
+persistentes, reprocessamento e download do original. PDF textual/TXT/Markdown usam o índice
+existente por projeto. Parser pypdf 6.19.0 (BSD-3-Clause), 6 MiB/arquivo, 256 MiB de originais,
+200 páginas e 2 MiB de texto; processo descartável com ambiente sem credenciais e deadline
+12 s, dois workers, limites adicionais CPU/memória POSIX. Arquivo inválido/sem texto fica
+preservado; escaneado sinaliza necessidade de OCR. Rascunhos não são alterados.
+
+Evidências: 633 testes backend (25,12 s), 91 Node e checks estáticos verdes; teste com PDF
+textual real, PDF vazio/inválido, Markdown, upload grande, nome com travessia, original após
+falha/retry/reinício e canários de projeto. Chromium validou envio, retry, draft e axe/700 px
+(7,62 s). Limites e restrições documentados em ORION_DOCUMENTOS.md; Windows ainda pendente.
+
+
+### Execução C39 — versões explícitas de pedidos
+
+Commit de implementação: `3bbfdf5`. Migração v11 cria versões com sessão original, pai,
+mensagem fonte e pedido revisado. UI permite editar e escolher Caminhos; mantém histórico
+original e resultados associados aos IDs efetivos. A revisão vira rascunho e exige Enviar:
+nenhum agente/action é chamado ao criar ou alternar caminho. Prefixo só copia user/assistant,
+sem tools, instruções de sistema ou decisões; taint conservado, projeto e limites validados.
+
+Evidências: rodada backend 633 passaram e um teste novo falhou por consultar versions na
+rota errada; corrigido, os três testes de branches/documentos/fatos passaram (1,88 s).
+Chromium confirmou editar, rascunho, voltar ao caminho original e ausência de geração (10,12 s).
+91 Node, Ruff/format/Pyright verdes. Fixture preserva artifact na mensagem da resposta original,
+aprovação não copiada e fato intacto; versão persiste no reinício. Não se declara replay de tools.
+
+
+### Execução C40 — contas OAuth MCP
+
+Commit de implementação: `ab406ec`. Contas separadas de conexões, contextos e escopos
+explícitos, UI para adicionar/autorizar/revogar e escolher conta na conexão. SDK 2.3.0 faz
+PKCE e protocolo OAuth; callback local exato, state/issuer, TTL e uso único. Credenciais
+ficam no cofre por conta/revisão; ausência de cofre falha sem arquivo plaintext. Prazo e
+issuer são recompostos ao carregar storage para refresh correto após reabrir o provider.
+Revogação encerra acesso/catálogo/decisões sem apagar dados. Não promete revogar consentimento
+no provedor: isso continua disponível no painel da conta externa.
+
+Evidências: 635 backend passaram (26,60 s); dois testes OAuth/API adicionais passaram (1,08 s)
+após corrigir erro de endpoint para resposta 422; 91 Node, Ruff/format/Pyright verdes.
+SDK autenticou contra fixture controlada, conferiu PKCE, callback inválido/repetido,
+expiração/refresh, escopo excessivo e revogação sem tokens no banco. Chromium: sete casos
+contas/extensões/MCP passaram (32,81 s), incluindo axe/700 px e conversa preservada.
+Conta pessoal, cofre real Windows e callback de deployment não foram validados.
+
+
+### Execução C41 — ponte Agenda em leitura, prova real pendente
+
+Commit de implementação: `cb6ea2f`. Conector selecionado @cocal/google-calendar-mcp 2.7.0,
+MIT, Node >=20, mantido em 01/10/2026. Pacote público instalado para ensaio sem hooks npm;
+inicialização/discovery reais pelo SDK Python 2.3.0 negociaram MCP 2025-11-25. Filtros upstream
+continuam anunciando manage-accounts: Orion exclui essa operação. Esquemas reais de leitura
+estão em fixture, com conta explícita para evitar mesclagem automática.
+
+Ponte consultar_agenda/consultar_disponibilidade, vínculo administrativo com projeto, conta,
+calendário e IANA timezone; período com offsets, limite de 31 dias/32 KB. Reconfigurar conexão
+invalida vínculo. Cota/timeout/revogação/indisponibilidade são acionáveis, sem replay de chamadas.
+UI em Conexões MCP mostra Agenda e permite revisar a configuração.
+
+Evidências: 637 backend passaram (33,36 s), fixture dedicada passou (0,77 s), 91 Node,
+Ruff/format/Pyright verdes; dois fluxos Chromium contas/configuração passaram (18,16 s).
+Consulta controlada validou fuso -03:00, conta, dois projetos, get-freebusy, cota, timeout e
+conexão encerrada; nenhuma operação de escrita foi chamada.
+
+**C41 permanece parcial:** falta consulta com conta real autorizada e adequação dos escopos
+Google. O upstream usa consentimento calendar amplo e arquivos próprios; reduzir tools não
+reduz essa concessão nem transfere seus tokens ao cofre do Orion. Nenhuma agenda pessoal foi
+acessada. Esses limites estão em ORION_AGENDA.md e não impedem preparar pacotes/fixtures locais.
+
+
+### Execução C42 — Orion Agenda e confirmação de evento
+
+Commit de implementação: `6f7473b`. Pacote Orion Agenda 1.0.0 com planejar-dia e
+preparar-reuniao. O modelo consulta e prepara propostas, sem ferramenta de criação em seu
+catálogo. A confirmação acontece na Agenda, após revisão de conta/calendário/horários/fuso,
+título, descrição e local. Proposta imutável; sem participantes, sendUpdates=none e eventId
+estável. Decisão vinculada a conteúdo, sessão/projeto/revisão, configuração, geração da conexão
+e revisão da ferramenta create-event; origem/escopo/revisão alterados impedem envio.
+Rejeição não chama o conector. Timeout/cancelamento grava unknown e impede replay.
+
+Evidências: rodada ampla 638 backend passaram (29,01 s); após reforço de snapshot, 39 testes
+de agente/projetos/pacotes passaram (4,47 s) e 25 finais de agente/eventos passaram (2,18 s).
+91 Node, Ruff/format/Pyright verdes. Dois fluxos Chromium evento/MVP passaram (20,99 s);
+a conferência visual final da Agenda a 700 px e axe completo passou (10,52 s), screenshot
+inspecionado em artifacts/orion-c42-agenda-700.png. Fixture prova proposta/rejeição sem efeitos,
+criação uma vez, revisão exata, conversa/reload preservados, timeout sem retry, geração
+revogada e schema alterado recusados. Somente conector controlado recebeu create-event.
+A prova com Google pessoal/escopos reais permanece pendente no C41/C46; não houve convites,
+login ou criação de evento real pelo assistente nesta execução.
+
+
+### Execução C43 — Orion Memória e Vault
+
+Commit de implementação: `03c1f21`. Pacote 1.0.0 com retomar-contexto e sintetizar-notas,
+capabilities nativas buscar_memoria/listar_fatos. Usa índice existente, sem MCP adicional,
+sem escrita no vault e sem acesso inferido a outra raiz. Instruções distinguem fontes,
+memória compartilhada, hipótese e lacunas. Fontes no chat removem prefixos internos de
+projeto/upload para apresentar o nome legível da nota.
+
+Evidências: 15 testes pacotes/pesquisa/projetos passaram (3,53 s); 91 Node e Ruff/format/Pyright
+verdes. Fixture retomou/sintetizou notas com origem, canários de dois projetos e memória pessoal
+separados, arquivo intacto e nenhum MCP novo; pedido de salvar fato fora da skill foi recusado.
+Chromium confirmou adicionar/ativar pacote nativo, escolher skill, draft no chat, fonte legível,
+700 px e axe completo (7,28 s). Desativar conserva notas e índice. Gateway controlado:
+não se declara qualidade de síntese de um modelo pessoal ou escrita automática no vault.
+
+
+### Execução C44 — Orion Arquivos
+
+Commit de implementação: `6a2d80f`. Pacote 1.0.0 com planejar-organizacao e
+revisar-documento. Plano imutável de cópias por tipo para Organizados, apresentado em
+Fontes com origem/destino, quantidade e arquivos ignorados; originais preservados.
+Aplicação só pelo produto após digest, sessão, projeto, revisão e aprovação exatos.
+Sem shell, scripts, exclusão, movimento ou substituição de destinos existentes.
+PathGuard restringe raízes e segredos; symlinks/hardlinks recusados, 100 cópias/32 MB,
+8 MB por arquivo. Bytes aprovados validados e congelados antes do primeiro efeito.
+Falha parcial fica persistida e não admite replay; ambiente exige pasta local confiável,
+não há promessa de sandbox do SO nem prova de concorrência hostil/Windows.
+
+Evidências: 5 testes de organização/perfis/agenda passaram; Chromium 2 fluxos em
+11,30 s com rejeição, cópias, originais, reload e axe a 700 px. Um erro de ordem de
+scripts foi encontrado no primeiro ensaio e corrigido antes desta validação. Ruff e
+Pyright passaram. Suite backend e testes Node registrados no log desta execução.
+
+
+### Execução C45 — Orion Desenvolvimento
+
+Commit de implementação: `f862286`. Pacote 1.0.0 com revisar-alteracao e
+explicar-repositorio. Git em leitura com raiz explícita, status/diff/log fixos,
+128 KB/10 s, sem shell/hooks/fsmonitor/ext-diff/textconv. PathGuard bloqueia
+segredos conhecidos e links no diff; worktrees vinculados recusados no MVP.
+Skill de revisão permite delegar pela ferramenta existente somente após autorização
+EXEC; explicação não concede CLI. Origem/resultado já passam pelo contrato e atividade
+existentes. O pacote não faz commit, push ou publicação automática.
+
+Evidências: 18 testes Git/delegação passaram, incluindo repositório de ensaio,
+index/refs/config preservados, segredo no diff recusado, canário entre raízes,
+instalação/ativação/chat sem invocar CLI, timeout/erro e confirmação obrigatória.
+Ruff/Pyright passaram. Um teste usou nome incorreto da tabela de contadores e foi
+corrigido para meta antes da validação. Não houve execução de assinatura pessoal.
+
+
+### Execução C46 — matriz por ambiente (parcial)
+
+Commit de registro: `7a13edb`. ORION_VALIDACAO_AMBIENTES.md consolida o que foi
+verificado e o que exige ambiente/conta reais. Linux/Chromium, contexto, revogação,
+recursos e persistência possuem evidências por etapa; a bateria completa do front
+está em curso nesta rodada e terá resultado separado, sem presumir aprovação.
+Windows/pywebview e integrações de leitura com contas reais continuam pendentes.
+A exportação local de leitura prossegue com validações próprias; C46 não é marcado
+concluído com evidências simuladas. Não houve login, convite ou CLI de assinatura real.
+
+
+Correções C46a: commit `1986fd6`. Suite completa do front: 128 passaram, 3 falharam
+e 8 teardowns relataram erro em 479,50 s. Corrigidos anúncio de capacidades modernas
+no legado, Escape do grafo e rota Fontes ausente na matriz. Os 10 casos afetados
+passaram em 31,18 s; busca não reproduziu a falha, sem alteração de implementação.
+Windows/contas reais continuam pendentes.
+
+### Execução C47 — identidade e escopo de clientes externos
+
+Commit de implementação: `601c9dc`. Credenciais MCP de entrada independentes do
+token administrativo, cofre OAuth e MCP de saída. Um contexto pessoal ou projeto,
+allowlist search/facts/sources/artifacts de leitura, validade de 1–720 h, revogação.
+Token aleatório de 256 bits exibido uma vez; banco persiste apenas SHA-256, listagem
+sem hash/segredo. Configurações > Conexão permite criar e revogar clientes.
+
+Evidências: identidade, escopo, permissão ausente, token inválido/ausente/expirado,
+revogação e reinício testados; token externo negado em plugins, MCP de saída, fatos,
+sessões e administração dos clientes. Nenhum token pessoal foi usado. Ruff passou;
+Pyright e testes integrados desta rodada sem erro. Transporte oficial segue no C48.
+Chromium: criação, exibição única, listagem sem token, revogação e axe a 700 px passaram
+em 6,86 s. Corrigida inicialização do valor do textarea antes da prova final.
+
+
+### Execução C48 — servidor MCP oficial de leitura
+
+Commit de implementação: `7339543`. SDK Python MCP 2.3.0, Streamable HTTP stateless
+em /mcp-export/rpc, JSON, loopback/hosts locais. Discovery filtrado por permissões;
+fatos, trechos indexados e resultados textuais do contexto concedido, sem herdar
+memória pessoal. Autenticação HTTP e revalidação em cada RPC, política/audit de
+leitura, 60/min por categoria, pedido 16 KB/resposta 32 KB. IDs e recursos fixos,
+sem paths, escrita, agente, scripts, cofre, OAuth ou REST administrativo.
+Proveniência mantida; PathGuard filtra fontes com nomes conhecidos de segredos.
+
+Evidências: suite backend completa 650 passou em 45,16 s; 3 casos oficiais SDK
+passaram novamente em 2,00 s, modern 2026-07-28 e legacy 2025-11-25, consultas,
+fontes/resultados, discovery, credencial ausente e escrita/outro projeto negados.
+Ruff/format/Pyright passaram. Chromium: 8 casos Fontes/Configurações em temas e
+700/860 px passaram em 27,73 s; C47 prova criação/revogação separada. Guia local em
+ORION_MCP_EXPORT.md. Compatibilidade desktop específica segue no C49.
+
+
+### Execução C49 — clientes e isolamento (parcial)
+
+Commit de implementação/ensaio: `f8b9074`. Provas HTTP reais locais com dois clientes
+Python MCP 2.3.0 e Node @modelcontextprotocol/sdk 1.32.1, escopos A/B, discovery
+filtrado, canários, override de projeto recusado, revogação e reinício persistidos.
+Protocolos: Python 2026-07-28/2025-11-25; Node 2025-11-25. Testes do Node exigem pacote
+instalado explicitamente por ORION_TEST_NODE_SDK, sem skip na prova registrada.
+
+Evidências: 6 testes SDK/clientes passaram nesta rodada, mais 4 clientes/credenciais
+na rodada anterior. /mcp legado ausente. Ruff passou; guia atualizado com versões,
+transporte, limits e limites conhecidos. Claude Desktop e Codex desktop não estão
+disponíveis aqui; a compatibilidade com esses apps permanece pendente, C49 parcial.
+
+
+### Execução C50 — prévia HTML estática (desktop pendente)
+
+Commit de implementação: `8198584`. Biblioteca aceita linguagem do código html e
+oferece HTML estático em navegador compatível, mantendo código/download originais.
+Blob em iframe sandbox sem permissões/origem opaca; CSP sem scripts/rede/formulários,
+parent permite só frames blob. Prévia remove scripts/metadados ativos/frames,
+links de recursos e atributos de rede/ação; não usa srcdoc, ponte ou comandos por
+postMessage. URLs/frames liberados ao fechar, trocar versão/contexto ou sair.
+Windows e pywebview ficam com código/download; pywebviewready fecha prévia existente.
+
+Evidências: 3 testes Chromium passaram em 20,25 s, ataques de script/rede/CSS/frame/
+formulário/navegação/origem/ponte, código preservado, fluxo da biblioteca e axe a
+700 px. Primeiro ensaio corrigiu posição do retorno de fixture e segundo encontrou
+link para blob que gerava erro; prévia agora remove links ativos. Suite backend
+final: 653 testes passou em 39,30 s com SDK Node habilitado, sem skip. Node front
+91 passou; Ruff/format/Pyright passaram. A suite completa do front final está em
+curso e terá resultado separado. Windows/ponte reais indisponíveis: C50 parcial
+para desktop, recurso explicitamente bloqueado nesse ambiente.
+
+
+### Integração com a `main` — 10/10/2026
+
+Conflitos do [PR #20](https://github.com/antoniossalomao/Orion/pull/20) resolvidos mesclando a
+`main` (`2e3e4ce`) na branch. A evolução ficou como base onde as duas linhas fizeram a mesma
+coisa; da `main` entram provedores diretos, custo/cota, registro de saída (regra 47), pânico e
+não perturbe (regra 48), painel, privacidade, memória da tela, biblioteca de arquivos gerados,
+voz, login por senha e as ferramentas de desktop.
+
+- **Esquema SQLite.** As duas linhas numeraram as versões 3 em diante de formas diferentes
+  (`main`: v3 = `audit`, v4 = fixada/apagada, v5 = `active_sessions`, v6 = guardada…; evolução:
+  v3 = `active_sessions`, v4 = favorita, v5 = índice de títulos…). O esquema unificado é a
+  linhagem da evolução (v1–v16) mais a **v17** (memória da tela, `library_results`,
+  `external_calls`, `audit`, aviso urgente). Banco da `main` (v3–v11, reconhecido pela tabela
+  `audit`) é convertido na abertura por `orion/memory/legacy_main.py`: guarda
+  `<arquivo>.main-vN.bak`, cria um banco novo e copia tudo (ids de projeto viram hexadecimais,
+  fixada → favorita, arquivada/apagada/guardada → arquivada, `artifacts` da `main` →
+  `library_results`). Cobertura: `tests/memory/test_legacy_main.py` (v3 a v11).
+- **Nomes que colidiam.** `orion/research.py` → `orion/research/night.py`; ferramenta
+  `consultar_git` da evolução → `consultar_git_projeto`; `AppState.mcp` é o `McpManager` da
+  `main`, o `MCPHost` da evolução é `AppState.mcp_host`; `Tool.validar`/`origin` valida o esquema
+  completo (nativas antigas só exigem os obrigatórios, como na `main`).
+- **Front-end.** A base é o front da evolução (detecção por capacidades, histórico paginado,
+  caminhos, projetos, fontes, extensões). Da `main` entram painel, privacidade, login, voz
+  (fala e AudioWorklet), "Editar e reenviar", pílula de aprovação pendente e imagens
+  `/imagens/`. A tela Conhecimento ficou só com memória da tela e arquivos gerados.
+- **Deixado de lado de propósito (a evolução já tem equivalente).** Apagar conversa (só
+  arquivar), `/projetos`, `/memoria/fatos`, `/memoria/documentos`, `/plugins/{nome}/conceder` e
+  os testes que cobriam essas rotas. Os dois sistemas de plugins (`orion/plugins.py` da `main`
+  e `orion/extensions/`) convivem; unificar é a próxima etapa.
+
+### Pull request — 09/10/2026
+
+Revisão: [PR #20](https://github.com/antoniossalomao/Orion/pull/20),
+`codex/orion-evolucao` → `main`, aberto em rascunho.
+A `main` recebeu entregas paralelas; há conflitos no frontend, backend,
+migrações do banco e dependências. A integração deve preservar as entregas
+das duas linhas e reconciliar as migrações antes do merge.
+Os testes registrados validam a branch; a combinação com a `main` atual
+permanece pendente. O PR não foi mesclado.
+
+### Verificação final — 08/10/2026
+
+As implementações previstas até C50 estão na branch `codex/orion-evolucao`.
+**47 checklists concluídos; C41, C46, C49 e C50 parciais** pelas provas reais
+explicitadas. Nenhum checklist permanece apenas planejado. Não houve merge em main,
+login pessoal, convite ou publicação automática.
+
+- Backend completo: **653 passou em 39,30 s**, com ensaio Node habilitado e sem skip.
+- JavaScript: **91 passou**, usando Node 24.19.0 com test-isolation=none.
+- Navegador completo final: **138 passou em 471,59 s**, Chromium 151, sem falha/erro.
+- Ruff, formatação e Pyright passaram. Checklists do repositório e do vault idênticos.
+- Correção adicional `9e23dfa`: flags opcionais de leitura por plataforma; 3 testes
+  de arquivos passaram em 1,33 s. Isso não comprova Windows real.
+- Prévia HTML a 700 px inspecionada em artefato local, mantendo a identidade do Orion.
+
+A bateria completa final substitui o estado “em curso” dos registros C46/C50, sem
+apagar os erros encontrados e corrigidos na primeira execução. Acesso Google com
+escopos mínimos/conta real, Windows/pywebview e Claude/Codex desktop continuam
+pendentes; prévia HTML permanece bloqueada no desktop até prova da ponte.
+
+Guias: [MCP de leitura](https://github.com/antoniossalomao/Orion/blob/codex/orion-evolucao/Memorias%20Do%20Projeto/ORION_MCP_EXPORT.md)
+e [validação por ambiente](https://github.com/antoniossalomao/Orion/blob/codex/orion-evolucao/Memorias%20Do%20Projeto/ORION_VALIDACAO_AMBIENTES.md).
+
 ### C00 — fix(ui): estabilizar conexão e consolidar o refinamento visual
 
 Etapa: **A** · Depende de: **base atual do repositório** · Estado: **concluído**.
@@ -572,463 +1391,463 @@ Etapa: **A** · Depende de: **C03, C02** · Estado: **concluído**.
 
 ### C05 — feat(chat): gerenciar conversas sem perder foco
 
-Etapa: **A** · Depende de: **C04** · Estado: **planejado**.
+Etapa: **A** · Depende de: **C04** · Estado: **concluído**.
 
-- [ ] Adicionar persistência e ações de renomear, fixar e arquivar sessões.
-- [ ] Implementar menu acessível na sidebar e evitar reconstruir itens estáveis durante polling.
-- [ ] Preservar foco, seleção e rolagem; arquivar não deve apagar mensagens.
-- [ ] **Validar:** Usar menu pelo teclado, aguardar polling e reiniciar; confirmar título, fixação e arquivo persistentes.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Adicionar persistência e ações de renomear, fixar e arquivar sessões.
+- [x] Implementar menu acessível na sidebar e evitar reconstruir itens estáveis durante polling.
+- [x] Preservar foco, seleção e rolagem; arquivar não deve apagar mensagens.
+- [x] **Validar:** Usar menu pelo teclado, aguardar polling e reiniciar; confirmar título, fixação e arquivo persistentes.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C06 — feat(chat): buscar conversas por conteúdo
 
-Etapa: **A** · Depende de: **C05** · Estado: **planejado**.
+Etapa: **A** · Depende de: **C05** · Estado: **concluído**.
 
-- [ ] Adicionar busca no backend por título e conteúdo, com limite e paginação.
-- [ ] Mostrar trechos e abrir a sessão correta; respeitar canal e futuros escopos de projeto.
-- [ ] Preservar a busca local na conversa e os atalhos já existentes.
-- [ ] **Validar:** Encontrar um termo presente apenas no corpo de uma mensagem; testar zero resultados, teclado e isolamento de canal.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Adicionar busca no backend por título e conteúdo, com limite e paginação.
+- [x] Mostrar trechos e abrir a sessão correta; respeitar canal e futuros escopos de projeto.
+- [x] Preservar a busca local na conversa e os atalhos já existentes.
+- [x] **Validar:** Encontrar um termo presente apenas no corpo de uma mensagem; testar zero resultados, teclado e isolamento de canal.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C07 — chore(mcp): fixar SDK e provar compatibilidade de protocolo
 
-Etapa: **B** · Depende de: **C01** · Estado: **planejado**.
+Etapa: **B** · Depende de: **C01** · Estado: **concluído**.
 
-- [ ] Verificar o pacote MCP publicado, fixar versão no lockfile e registrar licença e protocolos suportados.
-- [ ] Criar servidor de teste controlado e prova mínima de descoberta/chamada, sem credenciais pessoais.
-- [ ] Registrar quais APIs da versão atual e quais versões antigas são suportadas; não presumir compatibilidade universal.
-- [ ] **Validar:** Reproduzir a prova do SDK no ambiente limpo e testar versão incompatível com erro legível.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Verificar o pacote MCP publicado, fixar versão no lockfile e registrar licença e protocolos suportados.
+- [x] Criar servidor de teste controlado e prova mínima de descoberta/chamada, sem credenciais pessoais.
+- [x] Registrar quais APIs da versão atual e quais versões antigas são suportadas; não presumir compatibilidade universal.
+- [x] **Validar:** Reproduzir a prova do SDK no ambiente limpo e testar versão incompatível com erro legível.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C08 — refactor(tools): executar ferramentas assíncronas e validar schemas
 
-Etapa: **B** · Depende de: **C07** · Estado: **planejado**.
+Etapa: **B** · Depende de: **C07** · Estado: **concluído**.
 
-- [ ] Estender ToolRegistry para execução async preservando as ferramentas nativas síncronas.
-- [ ] Validar argumentos pelo JSON Schema completo e padronizar resultados estruturados e erros.
-- [ ] Manter a política antes da execução e evitar criar um event loop por chamada.
-- [ ] **Validar:** Testar ferramenta sync e async, schema inválido e erro de execução; rerodar os testes de ferramentas nativas e do agente.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Estender ToolRegistry para execução async preservando as ferramentas nativas síncronas.
+- [x] Validar argumentos pelo JSON Schema completo e padronizar resultados estruturados e erros.
+- [x] Manter a política antes da execução e evitar criar um event loop por chamada.
+- [x] **Validar:** Testar ferramenta sync e async, schema inválido e erro de execução; rerodar os testes de ferramentas nativas e do agente.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C09 — feat(mcp): conectar servidores locais por stdio
 
-Etapa: **B** · Depende de: **C08** · Estado: **planejado**.
+Etapa: **B** · Depende de: **C08** · Estado: **concluído**.
 
-- [ ] Implementar configuração executável + argv e lifecycle no lifespan de orion.app.
-- [ ] Usar ambiente mínimo por conexão; leitura do manifesto não inicia subprocessos.
-- [ ] Registrar origem, estado e logs sanitizados, preservando stdout para o protocolo.
-- [ ] **Validar:** Conectar ao servidor local de teste, executar leitura e encerrar o app sem processo órfão; testar falha ao iniciar.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Implementar configuração executável + argv e lifecycle no lifespan de orion.app.
+- [x] Usar ambiente mínimo por conexão; leitura do manifesto não inicia subprocessos.
+- [x] Registrar origem, estado e logs sanitizados, preservando stdout para o protocolo.
+- [x] **Validar:** Conectar ao servidor local de teste, executar leitura e encerrar o app sem processo órfão; testar falha ao iniciar.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C10 — feat(mcp): conectar servidores Streamable HTTP
 
-Etapa: **B** · Depende de: **C09** · Estado: **planejado**.
+Etapa: **B** · Depende de: **C09** · Estado: **concluído**.
 
-- [ ] Adicionar transporte HTTP pelo SDK e configuração explícita de endereço autorizado.
-- [ ] Separar credenciais MCP do token admin Orion; suportar referências a segredos sem persistir valores.
-- [ ] Retornar erros de transporte, autenticação e protocolo com códigos estáveis.
-- [ ] **Validar:** Usar servidor HTTP de teste com e sem autorização; testar indisponibilidade e ausência de vazamento de tokens.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Adicionar transporte HTTP pelo SDK e configuração explícita de endereço autorizado.
+- [x] Separar credenciais MCP do token admin Orion; suportar referências a segredos sem persistir valores.
+- [x] Retornar erros de transporte, autenticação e protocolo com códigos estáveis.
+- [x] **Validar:** Usar servidor HTTP de teste com e sem autorização; testar indisponibilidade e ausência de vazamento de tokens.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C11 — feat(policy): classificar e limitar ferramentas MCP
 
-Etapa: **B** · Depende de: **C10** · Estado: **planejado**.
+Etapa: **B** · Depende de: **C10** · Estado: **concluído**.
 
-- [ ] Registrar ToolSpec e ferramenta juntos com identidade canônica, nome curto estável e revisão de origem.
-- [ ] Manter ferramenta desconhecida indisponível; annotations do servidor não concedem autorização.
-- [ ] Aplicar audit, taint, limites e aprovações a MCP, preservando o comportamento de destrutivos.
-- [ ] **Validar:** Provar que leitura classificada funciona e desconhecido/destrutivo não executa indevidamente; testar nomes em colisão.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Registrar ToolSpec e ferramenta juntos com identidade canônica, nome curto estável e revisão de origem.
+- [x] Manter ferramenta desconhecida indisponível; annotations do servidor não concedem autorização.
+- [x] Aplicar audit, taint, limites e aprovações a MCP, preservando o comportamento de destrutivos.
+- [x] **Validar:** Provar que leitura classificada funciona e desconhecido/destrutivo não executa indevidamente; testar nomes em colisão.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C12 — feat(mcp): tratar timeout cancelamento e reconexão
 
-Etapa: **B** · Depende de: **C11** · Estado: **planejado**.
+Etapa: **B** · Depende de: **C11** · Estado: **concluído**.
 
-- [ ] Propagar cancelamento e timeout até o client/transporte quando suportado.
-- [ ] Indicar execução possivelmente ainda ativa quando o servidor não confirma cancelamento.
-- [ ] Controlar reconexão, descarte de clients e atualização do catálogo sem repetir ações com efeitos colaterais.
-- [ ] **Validar:** Testar chamada lenta, queda durante execução, parada e encerramento; verificar ausência de repetição e processos órfãos.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Propagar cancelamento e timeout até o client/transporte quando suportado.
+- [x] Indicar execução possivelmente ainda ativa quando o servidor não confirma cancelamento.
+- [x] Controlar reconexão, descarte de clients e atualização do catálogo sem repetir ações com efeitos colaterais.
+- [x] **Validar:** Testar chamada lenta, queda durante execução, parada e encerramento; verificar ausência de repetição e processos órfãos.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C13 — feat(mcp): descobrir ferramentas sob demanda
 
-Etapa: **B** · Depende de: **C12** · Estado: **planejado**.
+Etapa: **B** · Depende de: **C12** · Estado: **concluído**.
 
-- [ ] Adicionar catálogo resumido e busca de ferramentas relevantes por turno.
-- [ ] Carregar schemas somente do conjunto escolhido; medir o uso de contexto.
-- [ ] Tratar alteração de catálogo e invalidar mapeamentos/aprovações quando a identidade mudar.
-- [ ] **Validar:** Usar catálogo grande e confirmar que o turno não envia todos os schemas; testar remoção de ferramenta durante sessão.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Adicionar catálogo resumido e busca de ferramentas relevantes por turno.
+- [x] Carregar schemas somente do conjunto escolhido; medir o uso de contexto.
+- [x] Tratar alteração de catálogo e invalidar mapeamentos/aprovações quando a identidade mudar.
+- [x] **Validar:** Usar catálogo grande e confirmar que o turno não envia todos os schemas; testar remoção de ferramenta durante sessão.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C14 — feat(mcp): ler resources e oferecer prompts com procedência
 
-Etapa: **B** · Depende de: **C13** · Estado: **planejado**.
+Etapa: **B** · Depende de: **C13** · Estado: **concluído**.
 
-- [ ] Adicionar leitura explícita de resources com limite, fonte e escopo.
-- [ ] Oferecer prompts como templates opcionais escolhidos pelo usuário.
-- [ ] Tratar conteúdo externo como dado; não anunciar sampling, elicitation ou Tasks sem implementação.
-- [ ] **Validar:** Testar resource grande, acesso sem escopo e prompt malicioso; confirmar que política e instruções do núcleo permanecem válidas.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Adicionar leitura explícita de resources com limite, fonte e escopo.
+- [x] Oferecer prompts como templates opcionais escolhidos pelo usuário.
+- [x] Tratar conteúdo externo como dado; não anunciar sampling, elicitation ou Tasks sem implementação.
+- [x] **Validar:** Testar resource grande, acesso sem escopo e prompt malicioso; confirmar que política e instruções do núcleo permanecem válidas.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C15 — feat(skills): validar e listar pacotes Agent Skills
 
-Etapa: **C** · Depende de: **C01** · Estado: **planejado**.
+Etapa: **C** · Depende de: **C01** · Estado: **concluído**.
 
-- [ ] Implementar parser de SKILL.md e validação de name, description, limites e estrutura.
-- [ ] Descobrir metadados sem carregar o corpo e validar referências dentro da raiz.
-- [ ] Registrar origem, versão e colisões de nomes; nenhum script deve rodar ao carregar.
-- [ ] **Validar:** Testar frontmatter inválido, referência externa, nomes duplicados e pacote válido; conferir que scripts não foram executados.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Implementar parser de SKILL.md e validação de name, description, limites e estrutura.
+- [x] Descobrir metadados sem carregar o corpo e validar referências dentro da raiz.
+- [x] Registrar origem, versão e colisões de nomes; nenhum script deve rodar ao carregar.
+- [x] **Validar:** Testar frontmatter inválido, referência externa, nomes duplicados e pacote válido; conferir que scripts não foram executados.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C16 — feat(skills): carregar contexto gradualmente por relevância
 
-Etapa: **C** · Depende de: **C15, C13** · Estado: **planejado**.
+Etapa: **C** · Depende de: **C15, C13** · Estado: **concluído**.
 
-- [ ] Adicionar seleção explícita e por relevância com limites de contexto.
-- [ ] Carregar corpo e referências apenas quando necessários, guardando a origem no turno.
-- [ ] Tratar allowed-tools como restrição de escopo, nunca como concessão de privilégio.
-- [ ] **Validar:** Testar gatilhos positivos e negativos, referência carregada sob demanda e skill que tenta ampliar privilégios.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Adicionar seleção explícita e por relevância com limites de contexto.
+- [x] Carregar corpo e referências apenas quando necessários, guardando a origem no turno.
+- [x] Tratar allowed-tools como restrição de escopo, nunca como concessão de privilégio.
+- [x] **Validar:** Testar gatilhos positivos e negativos, referência carregada sob demanda e skill que tenta ampliar privilégios.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C17 — feat(ui): invocar skills pelo chat e pela paleta
 
-Etapa: **C** · Depende de: **C16, C02** · Estado: **planejado**.
+Etapa: **C** · Depende de: **C16, C02** · Estado: **concluído**.
 
-- [ ] Adicionar resolução de /plugin:skill e escolha de skill na paleta.
-- [ ] Preservar comandos existentes, texto literal com barra e caminhos de arquivo.
-- [ ] Mostrar skill ativa, origem e versão no turno, incluindo skill não disponível.
-- [ ] **Validar:** Invocar skill pelo teclado e testar colisão com /nova, /modelo e comandos inválidos; o draft deve ser preservado.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Adicionar resolução de /plugin:skill e escolha de skill na paleta.
+- [x] Preservar comandos existentes, texto literal com barra e caminhos de arquivo.
+- [x] Mostrar skill ativa, origem e versão no turno, incluindo skill não disponível.
+- [x] **Validar:** Invocar skill pelo teclado e testar colisão com /nova, /modelo e comandos inválidos; o draft deve ser preservado.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C18 — feat(skills): controlar confiança e execução de scripts
 
-Etapa: **C** · Depende de: **C17, C11** · Estado: **planejado**.
+Etapa: **C** · Depende de: **C17, C11** · Estado: **concluído**.
 
-- [ ] Exigir ativação explícita para skill importada de projeto ou pacote de terceiro.
-- [ ] Encaminhar scripts ao caminho de execução sob política, com argv, ambiente e limites.
-- [ ] Manter execução de código local não confiável desabilitada enquanto não houver isolamento adequado ao SO.
-- [ ] **Validar:** Provar que importação não executa nada e skill não contorna aprovação; testar segredo, timeout e escopo de caminhos.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Exigir ativação explícita para skill importada de projeto ou pacote de terceiro.
+- [x] Encaminhar scripts ao caminho de execução sob política, com argv, ambiente e limites.
+- [x] Manter execução de código local não confiável desabilitada enquanto não houver isolamento adequado ao SO.
+- [x] **Validar:** Provar que importação não executa nada e skill não contorna aprovação; testar segredo, timeout e escopo de caminhos.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C19 — feat(plugins): validar manifesto e registrar versões
 
-Etapa: **D** · Depende de: **C18, C14** · Estado: **planejado**.
+Etapa: **D** · Depende de: **C18, C14** · Estado: **concluído**.
 
-- [ ] Definir schema do manifesto Orion, compatibilidade, dependências e namespaces.
-- [ ] Persistir origem, versão, hash e permissões por referências, sem segredos no bundle.
-- [ ] Distinguir instalado, desativado, aguardando conexão, ativo e erro.
-- [ ] **Validar:** Validar pacote apenas de skill e pacote com MCP; rejeitar manifesto incompatível e IDs conflitantes.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Definir schema do manifesto Orion, compatibilidade, dependências e namespaces.
+- [x] Persistir origem, versão, hash e permissões por referências, sem segredos no bundle.
+- [x] Distinguir instalado, desativado, aguardando conexão, ativo e erro.
+- [x] **Validar:** Validar pacote apenas de skill e pacote com MCP; rejeitar manifesto incompatível e IDs conflitantes.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C20 — feat(plugins): instalar pacotes locais sem executar código
 
-Etapa: **D** · Depende de: **C19** · Estado: **planejado**.
+Etapa: **D** · Depende de: **C19** · Estado: **concluído**.
 
-- [ ] Importar pasta para staging e armazenamento imutável em Settings.data_dir.
-- [ ] Validar symlinks, referências, tamanho e travessia de caminho.
-- [ ] Instalar desativado; não importar Python dinamicamente nem executar pip/npm/hooks.
-- [ ] **Validar:** Instalar pacote válido e rejeitar caminhos externos; uma instalação interrompida não deixa pacote parcialmente ativo.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Importar pasta para staging e armazenamento imutável em Settings.data_dir.
+- [x] Validar symlinks, referências, tamanho e travessia de caminho.
+- [x] Instalar desativado; não importar Python dinamicamente nem executar pip/npm/hooks.
+- [x] **Validar:** Instalar pacote válido e rejeitar caminhos externos; uma instalação interrompida não deixa pacote parcialmente ativo.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C21 — feat(plugins): importar arquivos de distribuição com validação
 
-Etapa: **D** · Depende de: **C20** · Estado: **planejado**.
+Etapa: **D** · Depende de: **C20** · Estado: **concluído**.
 
-- [ ] Adicionar importação de arquivo de pacote e regras de extensão/formato.
-- [ ] Limitar tamanho expandido e quantidade de arquivos; bloquear zip-slip, symlinks e entradas em colisão.
-- [ ] Usar o mesmo validador e staging da importação de pasta.
-- [ ] **Validar:** Testar pacote válido, arquivo corrompido, expansão excessiva e travessia; nenhum arquivo pode sair da raiz de staging.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Adicionar importação de arquivo de pacote e regras de extensão/formato.
+- [x] Limitar tamanho expandido e quantidade de arquivos; bloquear zip-slip, symlinks e entradas em colisão.
+- [x] Usar o mesmo validador e staging da importação de pasta.
+- [x] **Validar:** Testar pacote válido, arquivo corrompido, expansão excessiva e travessia; nenhum arquivo pode sair da raiz de staging.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C22 — feat(plugins): atualizar reverter e remover versões
 
-Etapa: **D** · Depende de: **C21** · Estado: **planejado**.
+Etapa: **D** · Depende de: **C21** · Estado: **concluído**.
 
-- [ ] Implementar ativação atômica de versão e conservar versão anterior para rollback.
-- [ ] Pedir revisão de novas capacidades antes de ativar update.
-- [ ] Remover bundle sem apagar chats/arquivos; revogar conta permanece ação separada.
-- [ ] **Validar:** Simular falha no update e rollback; confirmar que o pacote anterior e os resultados produzidos continuam disponíveis.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Implementar ativação atômica de versão e conservar versão anterior para rollback.
+- [x] Pedir revisão de novas capacidades antes de ativar update.
+- [x] Remover bundle sem apagar chats/arquivos; revogar conta permanece ação separada.
+- [x] **Validar:** Simular falha no update e rollback; confirmar que o pacote anterior e os resultados produzidos continuam disponíveis.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C23 — feat(plugins): aplicar concessões e revogar aprovações obsoletas
 
-Etapa: **D** · Depende de: **C22, C11** · Estado: **planejado**.
+Etapa: **D** · Depende de: **C22, C11** · Estado: **concluído**.
 
-- [ ] Calcular capacidades efetivas pela interseção de pacote revisado, concessão e escopo.
-- [ ] Vincular aprovação à identidade/versão da ferramenta, argumentos e sessão.
-- [ ] Desativar novas chamadas e tratar tarefas em curso; não consumir aprovação de versão anterior.
-- [ ] **Validar:** Testar update durante aprovação, desativação durante tarefa e tentativa de execução fora do escopo.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Calcular capacidades efetivas pela interseção de pacote revisado, concessão e escopo.
+- [x] Vincular aprovação à identidade/versão da ferramenta, argumentos e sessão.
+- [x] Desativar novas chamadas e tratar tarefas em curso; não consumir aprovação de versão anterior.
+- [x] **Validar:** Testar update durante aprovação, desativação durante tarefa e tentativa de execução fora do escopo.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C24 — feat(api): gerenciar plugins skills e conexões autenticadas
 
-Etapa: **D** · Depende de: **C23** · Estado: **planejado**.
+Etapa: **D** · Depende de: **C23** · Estado: **concluído**.
 
-- [ ] Adicionar rotas de catálogo, instalação, ativação, desativação, teste e diagnóstico.
-- [ ] Autenticar operações administrativas e sanitizar dados retornados à interface.
-- [ ] Separar instalação, autorização da conta e concessão de capacidades nos contratos.
-- [ ] **Validar:** Testar operações com token ausente/inválido, permissões incompletas e logs sem segredo; o modelo não administra conexões sozinho.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Adicionar rotas de catálogo, instalação, ativação, desativação, teste e diagnóstico.
+- [x] Autenticar operações administrativas e sanitizar dados retornados à interface.
+- [x] Separar instalação, autorização da conta e concessão de capacidades nos contratos.
+- [x] **Validar:** Testar operações com token ausente/inválido, permissões incompletas e logs sem segredo; o modelo não administra conexões sozinho.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C25 — feat(ui): criar catálogo de plugins e skills
 
-Etapa: **E** · Depende de: **C24, C17** · Estado: **planejado**.
+Etapa: **E** · Depende de: **C24, C17** · Estado: **concluído**.
 
-- [ ] Evoluir Integrações para Extensões com abas Plugins, Skills e Conexões MCP.
-- [ ] Adicionar detalhes, origem, versão, capacidades e controles de instalação/ativação.
-- [ ] Preservar voz e canais em seção própria; apresentar benefícios em linguagem de produto.
-- [ ] **Validar:** Navegar pelas abas com teclado, axe e temas; testar a 700 px com catálogo vazio, instalado e erro.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Evoluir Integrações para Extensões com abas Plugins, Skills e Conexões MCP.
+- [x] Adicionar detalhes, origem, versão, capacidades e controles de instalação/ativação.
+- [x] Preservar voz e canais em seção própria; apresentar benefícios em linguagem de produto.
+- [x] **Validar:** Navegar pelas abas com teclado, axe e temas; testar a 700 px com catálogo vazio, instalado e erro.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C26 — feat(ui): configurar e diagnosticar conexões MCP
 
-Etapa: **E** · Depende de: **C25** · Estado: **planejado**.
+Etapa: **E** · Depende de: **C25** · Estado: **concluído**.
 
-- [ ] Adicionar formulário de conexão local/remota com configuração administrativa explícita.
-- [ ] Oferecer teste de leitura ou simulação sem efeito colateral e ações para resolver falhas.
-- [ ] Exibir estado sem popup repetido; comando, transporte e logs ficam em detalhes técnicos.
-- [ ] **Validar:** Configurar servidores de teste pela UI, recuperar falha e desativar; teste de conexão nunca executa escrita.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Adicionar formulário de conexão local/remota com configuração administrativa explícita.
+- [x] Oferecer teste de leitura ou simulação sem efeito colateral e ações para resolver falhas.
+- [x] Exibir estado sem popup repetido; comando, transporte e logs ficam em detalhes técnicos.
+- [x] **Validar:** Configurar servidores de teste pela UI, recuperar falha e desativar; teste de conexão nunca executa escrita.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C27 — feat(chat): mostrar fontes e atividade das extensões
 
-Etapa: **E** · Depende de: **C26, C04** · Estado: **planejado**.
+Etapa: **E** · Depende de: **C26, C04** · Estado: **concluído**.
 
-- [ ] Preservar proveniência no SSE/WS, nos eventos internos e no histórico.
-- [ ] Mostrar fonte de memória/documento, skill/plugin e atividade expansível com resultado resumido.
-- [ ] Diferenciar processando, esperando aprovação, falha, cancelamento e conclusão sem exibir raciocínio interno.
-- [ ] **Validar:** Reabrir conversa e manter fontes; testar streaming, erro e aprovação sem regressão de foco ou anúncios de acessibilidade.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Preservar proveniência no SSE/WS, nos eventos internos e no histórico.
+- [x] Mostrar fonte de memória/documento, skill/plugin e atividade expansível com resultado resumido.
+- [x] Diferenciar processando, esperando aprovação, falha, cancelamento e conclusão sem exibir raciocínio interno.
+- [x] **Validar:** Reabrir conversa e manter fontes; testar streaming, erro e aprovação sem regressão de foco ou anúncios de acessibilidade.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C28 — feat(research): integrar busca e fetch de um provedor validado
 
-Etapa: **E** · Depende de: **C27** · Estado: **planejado**.
+Etapa: **E** · Depende de: **C27** · Estado: **concluído**.
 
-- [ ] Escolher servidor/provedor após conferir manutenção, licença, autenticação e cotas; registrar a escolha.
-- [ ] Implementar busca/fetch com fonte, limites e proteção de URLs/SSRF.
-- [ ] Criar fixtures reproduzíveis e configuração por referência a segredo quando necessária.
-- [ ] **Validar:** Testar busca, redirecionamento inválido, cota/erro e ausência de chave. A prova real depende de serviço/conta autorizados.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Escolher servidor/provedor após conferir manutenção, licença, autenticação e cotas; registrar a escolha.
+- [x] Implementar busca/fetch com fonte, limites e proteção de URLs/SSRF.
+- [x] Criar fixtures reproduzíveis e configuração por referência a segredo quando necessária.
+- [x] **Validar:** Testar busca, redirecionamento inválido, cota/erro e ausência de chave. A prova real depende de serviço/conta autorizados.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C29 — feat(plugins): distribuir Orion Pesquisa
 
-Etapa: **E** · Depende de: **C28, C16** · Estado: **planejado**.
+Etapa: **E** · Depende de: **C28, C16** · Estado: **concluído**.
 
-- [ ] Criar pacote com pesquisar-assunto e comparar-fontes, usando o formato já validado.
-- [ ] Definir evidência, critérios de comparação e abstenção quando fonte não sustenta a afirmação.
-- [ ] Adicionar exemplos e concessões mínimas para busca/fetch, sem capacidades de escrita.
-- [ ] **Validar:** Instalar e invocar as duas skills; testar fontes contraditórias, ausência de resultado e gatilho que não deveria ativar.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Criar pacote com pesquisar-assunto e comparar-fontes, usando o formato já validado.
+- [x] Definir evidência, critérios de comparação e abstenção quando fonte não sustenta a afirmação.
+- [x] Adicionar exemplos e concessões mínimas para busca/fetch, sem capacidades de escrita.
+- [x] **Validar:** Instalar e invocar as duas skills; testar fontes contraditórias, ausência de resultado e gatilho que não deveria ativar.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C30 — test(extensions): validar o MVP completo no backend novo
 
-Etapa: **E** · Depende de: **C29, C06** · Estado: **planejado**.
+Etapa: **E** · Depende de: **C29, C06** · Estado: **concluído**.
 
-- [ ] Cobrir instalar, ativar, pesquisar, revisar fontes, desativar e voltar à versão anterior pela interface.
-- [ ] Usar backend novo real com fixture MCP, não somente o mock de contratos do front.
-- [ ] Publicar instruções locais e evidências; registrar pendências de integração externa e Windows.
-- [ ] **Validar:** Concluir um pedido de pesquisa e reabrir o resultado após reiniciar; fluxos de chat, aprovação e offline continuam funcionando.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Cobrir instalar, ativar, pesquisar, revisar fontes, desativar e voltar à versão anterior pela interface.
+- [x] Usar backend novo real com fixture MCP, não somente o mock de contratos do front.
+- [x] Publicar instruções locais e evidências; registrar pendências de integração externa e Windows.
+- [x] **Validar:** Concluir um pedido de pesquisa e reabrir o resultado após reiniciar; fluxos de chat, aprovação e offline continuam funcionando.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C31 — feat(projects): persistir projetos e associar conversas
 
-Etapa: **F** · Depende de: **C30** · Estado: **planejado**.
+Etapa: **F** · Depende de: **C30** · Estado: **concluído**.
 
-- [ ] Adicionar migração aditiva para projetos, associação de sessões e instruções.
-- [ ] Criar endpoints autenticados de criar, editar, listar e arquivar projetos.
-- [ ] Manter conversas anteriores funcionando sem projeto e preservar IDs.
-- [ ] **Validar:** Migrar banco com dados antigos, criar projetos e reiniciar; arquivar projeto não apaga conversas.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Adicionar migração aditiva para projetos, associação de sessões e instruções.
+- [x] Criar endpoints autenticados de criar, editar, listar e arquivar projetos.
+- [x] Manter conversas anteriores funcionando sem projeto e preservar IDs.
+- [x] **Validar:** Migrar banco com dados antigos, criar projetos e reiniciar; arquivar projeto não apaga conversas.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C32 — feat(context): isolar fontes memória e extensões por projeto
 
-Etapa: **F** · Depende de: **C31, C23** · Estado: **planejado**.
+Etapa: **F** · Depende de: **C31, C23** · Estado: **concluído**.
 
-- [ ] Aplicar project_id no contexto do turno, recuperação de fontes e concessões de extensões.
-- [ ] Separar memória pessoal compartilhada de documentos de projeto e tornar essa escolha explícita.
-- [ ] Vincular aprovações ao escopo e impedir que uma decisão de projeto autorize outro.
-- [ ] **Validar:** Criar dois projetos com canários distintos; busca, fontes, tools e aprovações não podem cruzar escopos indevidamente.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Aplicar project_id no contexto do turno, recuperação de fontes e concessões de extensões.
+- [x] Separar memória pessoal compartilhada de documentos de projeto e tornar essa escolha explícita.
+- [x] Vincular aprovações ao escopo e impedir que uma decisão de projeto autorize outro.
+- [x] **Validar:** Criar dois projetos com canários distintos; busca, fontes, tools e aprovações não podem cruzar escopos indevidamente.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C33 — feat(ui): organizar conversas arquivos e instruções por projeto
 
-Etapa: **F** · Depende de: **C32, C05** · Estado: **planejado**.
+Etapa: **F** · Depende de: **C32, C05** · Estado: **concluído**.
 
-- [ ] Adicionar seleção e detalhe de projeto com chats, instruções, fontes e extensões.
-- [ ] Oferecer contexto claramente visível no composer e acesso a conversa sem projeto.
-- [ ] Implementar associação/movimentação de conversa com preservação do histórico.
-- [ ] **Validar:** Criar e alternar projetos pelo teclado, conferir contexto e reabrir chats; testar layout estreito e estados vazios.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Adicionar seleção e detalhe de projeto com chats, instruções, fontes e extensões.
+- [x] Oferecer contexto claramente visível no composer e acesso a conversa sem projeto.
+- [x] Implementar associação/movimentação de conversa com preservação do histórico.
+- [x] **Validar:** Criar e alternar projetos pelo teclado, conferir contexto e reabrir chats; testar layout estreito e estados vazios.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C34 — feat(artifacts): persistir resultados com origem e versões
 
-Etapa: **F** · Depende de: **C33** · Estado: **planejado**.
+Etapa: **F** · Depende de: **C33** · Estado: **concluído**.
 
-- [ ] Criar armazenamento de texto, Markdown, código e imagens locais com IDs e metadados.
-- [ ] Associar resultado a conversa/projeto, versão e fontes; proteger caminhos e downloads.
-- [ ] Garantir que desinstalar plugin não remove os resultados que ele produziu.
-- [ ] **Validar:** Criar resultado, reiniciar e baixar; testar acesso fora do escopo e caminhos inválidos.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Criar armazenamento de texto, Markdown, código e imagens locais com IDs e metadados.
+- [x] Associar resultado a conversa/projeto, versão e fontes; proteger caminhos e downloads.
+- [x] Garantir que desinstalar plugin não remove os resultados que ele produziu.
+- [x] **Validar:** Criar resultado, reiniciar e baixar; testar acesso fora do escopo e caminhos inválidos.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C35 — feat(ui): adicionar biblioteca e prévia lateral de resultados
 
-Etapa: **F** · Depende de: **C34** · Estado: **planejado**.
+Etapa: **F** · Depende de: **C34** · Estado: **concluído**.
 
-- [ ] Criar biblioteca pesquisável e painel lateral com título, tipo, versão, origem e download.
-- [ ] Adicionar prévia segura de texto/Markdown/código/imagem e ligação ao ponto da conversa.
-- [ ] Preservar estado ao fechar painel, trocar conversa ou usar janela estreita.
-- [ ] **Validar:** Encontrar e abrir resultado persistido, escolher versão e baixar; validar foco, acessibilidade e imagem externa bloqueada.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Criar biblioteca pesquisável e painel lateral com título, tipo, versão, origem e download.
+- [x] Adicionar prévia segura de texto/Markdown/código/imagem e ligação ao ponto da conversa.
+- [x] Preservar estado ao fechar painel, trocar conversa ou usar janela estreita.
+- [x] **Validar:** Encontrar e abrir resultado persistido, escolher versão e baixar; validar foco, acessibilidade e imagem externa bloqueada.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C36 — feat(memory): consultar editar e esquecer fatos com fonte
 
-Etapa: **F** · Depende de: **C33, C27** · Estado: **planejado**.
+Etapa: **F** · Depende de: **C33, C27** · Estado: **concluído**.
 
-- [ ] Criar/ajustar API autenticada para fatos e seus escopos usando a memória existente.
-- [ ] Adicionar lista, busca e detalhe com origem/data, edição e ação de esquecer sob política.
-- [ ] Manter o grafo como alternativa, sem depender dele para usar memória.
-- [ ] **Validar:** Buscar e corrigir fato, reabrir a nota e testar esquecimento com aprovação; fonte e escopo devem continuar claros.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Criar/ajustar API autenticada para fatos e seus escopos usando a memória existente.
+- [x] Adicionar lista, busca e detalhe com origem/data, edição e ação de esquecer sob política.
+- [x] Manter o grafo como alternativa, sem depender dele para usar memória.
+- [x] **Validar:** Buscar e corrigir fato, reabrir a nota e testar esquecimento com aprovação; fonte e escopo devem continuar claros.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C37 — feat(ui): reunir avisos e pendências em atividade
 
-Etapa: **F** · Depende de: **C33, C27** · Estado: **planejado**.
+Etapa: **F** · Depende de: **C33, C27** · Estado: **concluído**.
 
-- [ ] Conectar /notifications e ack autenticado a uma caixa de atividade.
-- [ ] Oferecer filtros de pendência, estado de leitura e preferências para conclusão/pergunta/aprovação.
-- [ ] Evitar repetição de avisos e manter jobs como avisadores, sem execução automática de tools.
-- [ ] **Validar:** Receber lembrete uma vez, confirmar leitura e reiniciar; reconexão não gera popup e uma aprovação segue acessível.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Conectar /notifications e ack autenticado a uma caixa de atividade.
+- [x] Oferecer filtros de pendência, estado de leitura e preferências para conclusão/pergunta/aprovação.
+- [x] Evitar repetição de avisos e manter jobs como avisadores, sem execução automática de tools.
+- [x] **Validar:** Receber lembrete uma vez, confirmar leitura e reiniciar; reconexão não gera popup e uma aprovação segue acessível.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C38 — feat(files): ingerir PDF texto e Markdown com progresso
 
-Etapa: **G** · Depende de: **C35, C32** · Estado: **planejado**.
+Etapa: **G** · Depende de: **C35, C32** · Estado: **concluído**.
 
-- [ ] Adicionar upload/documentos com limites de tipo/tamanho e estado de processamento.
-- [ ] Extrair/indexar com fonte e escopo de projeto; tratar arquivos como conteúdo externo.
-- [ ] Oferecer falha recuperável sem perder o arquivo ou draft; documentar limites de PDF escaneado/OCR.
-- [ ] **Validar:** Usar documento válido, grande e inválido; verificar progresso, erro e que busca de outro projeto não recupera seu conteúdo.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Adicionar upload/documentos com limites de tipo/tamanho e estado de processamento.
+- [x] Extrair/indexar com fonte e escopo de projeto; tratar arquivos como conteúdo externo.
+- [x] Oferecer falha recuperável sem perder o arquivo ou draft; documentar limites de PDF escaneado/OCR.
+- [x] **Validar:** Usar documento válido, grande e inválido; verificar progresso, erro e que busca de outro projeto não recupera seu conteúdo.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C39 — feat(chat): versionar pedidos editados e resultados associados
 
-Etapa: **G** · Depende de: **C38, C34** · Estado: **planejado**.
+Etapa: **G** · Depende de: **C38, C34** · Estado: **concluído**.
 
-- [ ] Adicionar migração para versões/ramificações de mensagens sem sobrescrever histórico anterior.
-- [ ] Editar pedido, escolher caminho e ligar artifacts à versão correta.
-- [ ] Não reexecutar automaticamente ações aprovadas do caminho anterior.
-- [ ] **Validar:** Editar pedido após uma resposta com artifact e aprovação; alternar versões sem duplicar efeitos colaterais.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Adicionar migração para versões/ramificações de mensagens sem sobrescrever histórico anterior.
+- [x] Editar pedido, escolher caminho e ligar artifacts à versão correta.
+- [x] Não reexecutar automaticamente ações aprovadas do caminho anterior.
+- [x] **Validar:** Editar pedido após uma resposta com artifact e aprovação; alternar versões sem duplicar efeitos colaterais.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C40 — feat(auth): autorizar e revogar contas MCP com escopos mínimos
 
-Etapa: **G** · Depende de: **C24, C10** · Estado: **planejado**.
+Etapa: **G** · Depende de: **C24, C10** · Estado: **concluído**.
 
-- [ ] Implementar OAuth compatível com o SDK/servidor escolhido, callback validado e armazenamento no cofre.
-- [ ] Separar conexões e contas; mostrar escopos e permitir revogação sem apagar dados produzidos.
-- [ ] Integrar expiração, refresh e reconexão à interface sem registrar tokens.
-- [ ] **Validar:** Testar autorização falsa controlada, callback inválido, expiração e revogação; conta real exige autorização específica.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Implementar OAuth compatível com o SDK/servidor escolhido, callback validado e armazenamento no cofre.
+- [x] Separar conexões e contas; mostrar escopos e permitir revogação sem apagar dados produzidos.
+- [x] Integrar expiração, refresh e reconexão à interface sem registrar tokens.
+- [x] **Validar:** Testar autorização falsa controlada, callback inválido, expiração e revogação; conta real exige autorização específica.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C41 — feat(calendar): consultar agenda por conector validado
 
-Etapa: **G** · Depende de: **C40, C32** · Estado: **planejado**.
+Etapa: **G** · Depende de: **C40, C32** · Estado: **parcial — validação real pendente**.
 
-- [ ] Selecionar conector mantido, registrar licença/compatibilidade e mapear tools em leitura.
-- [ ] Consultar eventos e horários respeitando timezone e escopo da conta.
-- [ ] Tratar cota, indisponibilidade e conta revogada com resposta acionável.
+- [x] Selecionar conector mantido, registrar licença/compatibilidade e mapear tools em leitura.
+- [x] Consultar eventos e horários respeitando timezone e escopo da conta.
+- [x] Tratar cota, indisponibilidade e conta revogada com resposta acionável.
 - [ ] **Validar:** Provar leitura com fixtures e conta autorizada; conferir horário local e que nenhuma operação de escrita foi chamada.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C42 — feat(plugins): adicionar Orion Agenda com revisão de eventos
 
-Etapa: **G** · Depende de: **C41, C29** · Estado: **planejado**.
+Etapa: **G** · Depende de: **C41, C29** · Estado: **concluído**.
 
-- [ ] Empacotar planejar-dia e preparar-reuniao com instruções e capabilities mínimas.
-- [ ] Separar consulta de proposta/criação de evento e mostrar o que será enviado.
-- [ ] Implementar criação apenas por operação explicitamente revisada sob política e aprovação de produto.
-- [ ] **Validar:** Planejar dia e propor evento; rejeitar aprovação não deve criar nada, e revogar conta não pode perder a conversa.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Empacotar planejar-dia e preparar-reuniao com instruções e capabilities mínimas.
+- [x] Separar consulta de proposta/criação de evento e mostrar o que será enviado.
+- [x] Implementar criação apenas por operação explicitamente revisada sob política e aprovação de produto.
+- [x] **Validar:** Planejar dia e propor evento; rejeitar aprovação não deve criar nada, e revogar conta não pode perder a conversa.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C43 — feat(plugins): adicionar Orion Memória e Vault
 
-Etapa: **G** · Depende de: **C36, C16** · Estado: **planejado**.
+Etapa: **G** · Depende de: **C36, C16** · Estado: **concluído**.
 
-- [ ] Empacotar retomar-contexto e sintetizar-notas sobre o índice e ferramentas já existentes.
-- [ ] Mostrar notas usadas como fonte e respeitar projeto, raiz autorizada e contexto pessoal compartilhado.
-- [ ] Não adicionar MCP novo onde ferramentas nativas já resolvem o fluxo.
-- [ ] **Validar:** Retomar projeto com canários de escopo e sintetizar notas com fonte; nenhuma escrita no vault ocorre por inferência.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Empacotar retomar-contexto e sintetizar-notas sobre o índice e ferramentas já existentes.
+- [x] Mostrar notas usadas como fonte e respeitar projeto, raiz autorizada e contexto pessoal compartilhado.
+- [x] Não adicionar MCP novo onde ferramentas nativas já resolvem o fluxo.
+- [x] **Validar:** Retomar projeto com canários de escopo e sintetizar notas com fonte; nenhuma escrita no vault ocorre por inferência.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C44 — feat(plugins): adicionar Orion Arquivos com plano revisável
 
-Etapa: **G** · Depende de: **C38, C18** · Estado: **planejado**.
+Etapa: **G** · Depende de: **C38, C18** · Estado: **concluído**.
 
-- [ ] Empacotar planejar-organizacao e revisar-documento com ferramentas existentes.
-- [ ] Apresentar plano de organização com caminhos e mudanças antes da execução.
-- [ ] Respeitar PathGuard e segredos; restringir execução local a componentes confiáveis.
-- [ ] **Validar:** Testar uma pasta de ensaio: plano não altera arquivos, rejeição não altera nada e aprovação executa apenas o plano revisado.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Empacotar planejar-organizacao e revisar-documento com ferramentas existentes.
+- [x] Apresentar plano de organização com caminhos e mudanças antes da execução.
+- [x] Respeitar PathGuard e segredos; restringir execução local a componentes confiáveis.
+- [x] **Validar:** Testar uma pasta de ensaio: plano não altera arquivos, rejeição não altera nada e aprovação executa apenas o plano revisado.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C45 — feat(plugins): adicionar Orion Desenvolvimento
 
-Etapa: **G** · Depende de: **C39, C18** · Estado: **planejado**.
+Etapa: **G** · Depende de: **C39, C18** · Estado: **concluído**.
 
-- [ ] Empacotar revisar-alteracao e explicar-repositorio com Git em leitura.
-- [ ] Integrar CLI delegada existente somente quando autorizada e registrar origem/resultado.
-- [ ] Referenciar arquivos na análise sem fazer commit, push ou publicação por padrão.
-- [ ] **Validar:** Revisar repositório de ensaio e provar ausência de efeitos colaterais; testar timeout/erro da CLI.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Empacotar revisar-alteracao e explicar-repositorio com Git em leitura.
+- [x] Integrar CLI delegada existente somente quando autorizada e registrar origem/resultado.
+- [x] Referenciar arquivos na análise sem fazer commit, push ou publicação por padrão.
+- [x] **Validar:** Revisar repositório de ensaio e provar ausência de efeitos colaterais; testar timeout/erro da CLI.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C46 — test(desktop): validar extensões e projetos em uso real
 
-Etapa: **G** · Depende de: **C42, C43, C44, C45, C37** · Estado: **planejado**.
+Etapa: **G** · Depende de: **C42, C43, C44, C45, C37** · Estado: **parcial — validação real pendente**.
 
 - [ ] Conferir Windows/pywebview real além do Chromium; registrar comportamento por SO.
 - [ ] Executar integrações reais de leitura autorizadas e cenários de revogação/cota/reinício.
-- [ ] Conferir acessibilidade, persistência, orçamento de contexto e recursos; atualizar docs com verificado e pendente.
+- [x] Conferir acessibilidade, persistência, orçamento de contexto e recursos; atualizar docs com verificado e pendente.
 - [ ] **Validar:** Registrar evidências dos fluxos completos e corrigir defeitos encontrados em commits separados antes de marcar esta entrega concluída.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C47 — feat(mcp-export): definir identidade e escopo de acesso ao Orion
 
-Etapa: **H** · Depende de: **C46, C11** · Estado: **planejado**.
+Etapa: **H** · Depende de: **C46, C11** · Estado: **concluído**.
 
-- [ ] Definir concessões e credenciais de cliente externo separadas do cliente MCP de saída.
-- [ ] Selecionar tools/resources de leitura que podem ser exportados, com escopo de dados.
-- [ ] Garantir que token externo não autoriza administração de plugins nem todo o REST.
-- [ ] **Validar:** Testar credencial ausente, inválida, expirada e fora de escopo; acessos administrativos devem ser negados.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Definir concessões e credenciais de cliente externo separadas do cliente MCP de saída.
+- [x] Selecionar tools/resources de leitura que podem ser exportados, com escopo de dados.
+- [x] Garantir que token externo não autoriza administração de plugins nem todo o REST.
+- [x] **Validar:** Testar credencial ausente, inválida, expirada e fora de escopo; acessos administrativos devem ser negados.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C48 — feat(mcp-export): expor servidor Orion de leitura pelo SDK
 
-Etapa: **H** · Depende de: **C47, C14** · Estado: **planejado**.
+Etapa: **H** · Depende de: **C47, C14** · Estado: **concluído**.
 
-- [ ] Implementar servidor com allowlist de ferramentas/contextos aprovados e transporte escolhido.
-- [ ] Reutilizar política, provenance e controles de caminhos; não remontar o /mcp sem auth do legado.
-- [ ] Documentar versão de protocolo, configuração de cliente e limites da exportação.
-- [ ] **Validar:** Descobrir e ler com cliente autorizado; confirmar que escrita, segredos e recursos de outro projeto não são expostos.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Implementar servidor com allowlist de ferramentas/contextos aprovados e transporte escolhido.
+- [x] Reutilizar política, provenance e controles de caminhos; não remontar o /mcp sem auth do legado.
+- [x] Documentar versão de protocolo, configuração de cliente e limites da exportação.
+- [x] **Validar:** Descobrir e ler com cliente autorizado; confirmar que escrita, segredos e recursos de outro projeto não são expostos.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C49 — test(mcp-export): provar compatibilidade e isolamento entre clientes
 
-Etapa: **H** · Depende de: **C48** · Estado: **planejado**.
+Etapa: **H** · Depende de: **C48** · Estado: **parcial — validação real pendente**.
 
-- [ ] Testar dois clientes com escopos distintos, revogação e reinício.
+- [x] Testar dois clientes com escopos distintos, revogação e reinício.
 - [ ] Conferir compatibilidade com clientes realmente escolhidos e versões suportadas.
-- [ ] Atualizar referência técnica, guia local e limites conhecidos; não declarar compatibilidade que não foi provada.
+- [x] Atualizar referência técnica, guia local e limites conhecidos; não declarar compatibilidade que não foi provada.
 - [ ] **Validar:** Cliente A não acessa fontes de B; cliente revogado deixa de operar; nenhum endpoint legado é exposto por acidente.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### C50 — feat(artifacts): oferecer prévia HTML isolada
 
-Etapa: **Depois do MVP** · Depende de: **C35, C46** · Estado: **planejado**.
+Etapa: **Depois do MVP** · Depende de: **C35, C46** · Estado: **parcial — validação real pendente**.
 
-- [ ] Implementar preview HTML em contexto isolado, com rede bloqueada por padrão e sem ponte pywebview.
-- [ ] Separar origem da prévia, leitura de arquivo e comandos privilegiados do app.
-- [ ] Mostrar limitações e manter prévia de código disponível quando HTML não for suportado.
+- [x] Implementar preview HTML em contexto isolado, com rede bloqueada por padrão e sem ponte pywebview.
+- [x] Separar origem da prévia, leitura de arquivo e comandos privilegiados do app.
+- [x] Mostrar limitações e manter prévia de código disponível quando HTML não for suportado.
 - [ ] **Validar:** Usar HTML de teste que tenta buscar rede, acessar origem do app e invocar ponte; todas as tentativas devem falhar.
-- [ ] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
+- [x] Registrar evidências e commit real; atualizar progresso nas duas cópias do plano.
 
 ### Itens que ficam fora da sequência inicial
 
