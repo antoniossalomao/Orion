@@ -84,7 +84,7 @@ def test_development_profile_review_does_not_invoke_cli(tmp_path, monkeypatch):
                 "scope": "project:" + project,
             },
         )
-        assert result.json()["state"] == "active"
+        assert result.json()["state"] == "active", result.json()
         response = c.post(
             "/chat",
             headers=AUTH,
