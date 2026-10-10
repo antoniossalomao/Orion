@@ -270,6 +270,7 @@
         documentos: project_id => recurso('documents', `/documents?${q({ project_id })}`),
         ingerirDocumento: (file, project_id) => recurso('documents', `/documents?${q({ name: file.name, project_id })}`, { metodo: 'POST', body: file, contentType: 'application/octet-stream', timeout: 60000 }),
         repetirDocumento: (id, project_id) => recurso('documents', `/documents/${id}/retry?${q({ project_id })}`, { metodo: 'POST', timeout: 60000 }),
+        moverDocumento: (id, project_id, destino) => recurso('documents', `/documents/${id}?${q({ project_id })}`, { metodo: 'PATCH', json: { project_id: destino }, timeout: 60000 }),
         baixarDocumento: (id, project_id) => recurso('documents', `/documents/${id}/download?${q({ project_id })}`, { bruto: true }),
         atividade: (project_id, unread = false) => recurso('activity', `/activity?${q({ project_id, unread })}`),
         preferenciasAtividade: (project_id, json) => recurso('activity', `/activity/preferences?${q({ project_id })}`, { metodo: 'PUT', json }),

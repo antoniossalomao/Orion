@@ -98,7 +98,9 @@ def test_mover_conversa_para_projeto_por_slash_e_por_paleta(abrir, novo_backend)
     # nome ambíguo não move nada
     campo.fill("/projeto estud")
     campo.press("Enter")
-    expect(page.locator(".toast, [role=status]").filter(has_text="Mais de um projeto")).to_be_visible()
+    expect(
+        page.locator(".toast, [role=status]").filter(has_text="Mais de um projeto")
+    ).to_be_visible()
     assert m.get_session(sid).project_id is None
     # nome único move (sem acento e sem caixa)
     campo.fill("/projeto estagio")
@@ -121,3 +123,34 @@ def test_mover_conversa_para_projeto_por_slash_e_por_paleta(abrir, novo_backend)
     dialogo.get_by_role("button", name="Mover conversa").click()
     expect(page.locator(f'.conv[data-id="{sid}"] .conv-projeto')).to_have_text("Estágio")
     assert m.get_session(sid).project_id == estagio
+
+
+def test_documento_muda_de_escopo_pelo_disponivel_em(abrir, novo_backend):
+    from orion.memory.scope import data_scope
+    from orion.projects import Projects
+
+    url, app, _, _ = novo_backend()
+    m = app.state.orion.memory
+    pid = Projects(m).create("Estágio")["id"]
+    page = abrir("#/fontes", url=url, init=TOKEN_INIT, axe=True)
+    page.get_by_label("Adicionar documento").set_input_files(
+        {
+            "name": "manual.md",
+            "mimeType": "text/markdown",
+            "buffer": b"# Manual\n\nFrase-rara-do-manual.",
+        }
+    )
+    page.get_by_role("button", name="Enviar e indexar").click()
+    card = page.locator("[data-document-id]")
+    expect(card).to_contain_text("Indexado")
+    with data_scope(None, include_personal=True):
+        assert m.search("Frase-rara-do-manual")
+    page.get_by_label("Disponível em: manual.md").select_option(label="Estágio")
+    expect(page.locator("#document-status")).to_contain_text("movido")
+    expect(card).to_have_count(0)  # saiu da lista pessoal
+    with data_scope(None, include_personal=True):
+        assert not m.search("Frase-rara-do-manual")
+    with data_scope(pid, include_personal=False):
+        assert m.search("Frase-rara-do-manual")
+    page.wait_for_timeout(300)
+    assert page.evaluate("async () => (await axe.run(document)).violations.map(v => v.id)") == []
