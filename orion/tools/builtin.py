@@ -42,7 +42,17 @@ def memory_tools(store: MemoryStore) -> list[Tool]:
         return {"ok": True, "id": f.id, "texto": f.text}
 
     def listar_fatos() -> dict[str, Any]:
-        return {"fatos": [{"id": f.id, "texto": f.text, "fonte": f.source} for f in store.facts()]}
+        return {
+            "fatos": [
+                {
+                    "id": f.id,
+                    "texto": f.text,
+                    "fonte": f.source,
+                    **({"antigo": True} if f.old else {}),
+                }
+                for f in store.facts()
+            ]
+        }
 
     def editar_fato(id: int, texto: str, fonte: str | None = None) -> dict[str, Any]:
         fact = store.update_fact(id, texto, fonte)

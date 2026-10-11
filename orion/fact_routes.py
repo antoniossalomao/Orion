@@ -28,6 +28,32 @@ class Review(BaseModel):
         return self
 
 
+class Mover(BaseModel):
+    """`project_id` None = memória pessoal. Obrigatório no corpo: omitir não vale como pessoal."""
+
+    model_config = ConfigDict(extra="forbid")
+    project_id: str | None = Field(pattern=r"^[a-f0-9]{32}$")
+
+
+class Validade(BaseModel):
+    """`valid_until` em epoch (segundos); None tira o prazo."""
+
+    model_config = ConfigDict(extra="forbid")
+    valid_until: float | None = Field(ge=0)
+
+
+class Substituir(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    by: int = Field(ge=1)
+
+
+class Decisao(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    older_id: int = Field(ge=1)
+    newer_id: int = Field(ge=1)
+    decision: Literal["novo", "ambos"]
+
+
 class Resume(BaseModel):
     model_config = ConfigDict(extra="forbid")
     approval_id: str = Field(min_length=1, max_length=128)
@@ -73,6 +99,29 @@ def router(require_admin) -> APIRouter:
                 asdict(f) for f in s.memory.facts() if query[:200].casefold() in f.text.casefold()
             ][:200]
 
+    @api.get("/conflicts")
+    def conflicts(request: Request, project_id: str | None = None):
+        """Pares de fatos que o ciclo de sono achou contraditórios e esperam a sua decisão."""
+        s = state(request)
+        with data_scope(project_id, include_personal=False):
+            return [
+                {"older": asdict(a), "newer": asdict(b)} for a, b in s.memory.pending_conflicts()
+            ]
+
+    @api.post("/conflicts/resolve")
+    def resolve_conflict(body: Decisao, request: Request, project_id: str | None = None):
+        """ "o novo vale" marca o antigo como substituído (pesa menos na busca); "os dois valem"
+        encerra o aviso. Nenhum dos dois apaga nada, e só o Antônio decide (regra 54)."""
+        s = state(request)
+        with data_scope(project_id, include_personal=False):
+            fact(s, body.older_id, project_id)
+            fact(s, body.newer_id, project_id)
+            try:
+                s.memory.resolve_conflict(body.older_id, body.newer_id, body.decision)
+            except KeyError as erro:
+                raise HTTPException(404, "conflict_not_found") from erro
+        return {"ok": True}
+
     @api.get("/pending")
     def pending(request: Request, project_id: str | None = None):
         s = state(request)
@@ -107,6 +156,48 @@ def router(require_admin) -> APIRouter:
     @api.get("/{id_}")
     def detail(id_: int, request: Request, project_id: str | None = None):
         return fact(state(request), id_, project_id)
+
+    @api.delete("/{id_}")
+    def forget(id_: int, request: Request, project_id: str | None = None):
+        """Apaga o fato por um clique do próprio Antônio (ex.: "apagar o repetido"). O que o
+        modelo pede continua passando por `/review` e pela aprovação (regra 2)."""
+        s = state(request)
+        fact(s, id_, project_id)
+        s.policy.approvals.invalidate_fact(id_)
+        with data_scope(project_id, include_personal=False):
+            return {"ok": s.memory.forget_fact(id_)}
+
+    @api.post("/{id_}/move")
+    def move(id_: int, body: Mover, request: Request, project_id: str | None = None):
+        """ "Projeto" do fato: muda onde ele vale (None = pessoal). Fato de projeto nunca aparece
+        em outro projeto nem sem projeto (regra 52)."""
+        s = state(request)
+        fact(s, id_, project_id)
+        if body.project_id:
+            rows = s.memory.query("SELECT archived FROM projects WHERE id=?", (body.project_id,))
+            if not rows or rows[0][0]:
+                raise HTTPException(409, "project_missing_or_archived")
+        s.policy.approvals.invalidate_fact(id_)
+        return asdict(s.memory.move_fact(id_, body.project_id))
+
+    @api.post("/{id_}/validity")
+    def validity(id_: int, body: Validade, request: Request, project_id: str | None = None):
+        s = state(request)
+        fact(s, id_, project_id)
+        with data_scope(project_id, include_personal=False):
+            return asdict(s.memory.set_fact_validity(id_, body.valid_until))
+
+    @api.post("/{id_}/supersede")
+    def supersede(id_: int, body: Substituir, request: Request, project_id: str | None = None):
+        """O fato `by` vale no lugar de `id_` (os dois ficam; o antigo pesa menos na busca)."""
+        s = state(request)
+        fact(s, id_, project_id)
+        fact(s, body.by, project_id)
+        with data_scope(project_id, include_personal=False):
+            try:
+                return asdict(s.memory.supersede_fact(id_, body.by))
+            except ValueError as erro:
+                raise HTTPException(422, str(erro)) from erro
 
     @api.post("/{id_}/review")
     def review(id_: int, body: Review, request: Request, project_id: str | None = None):

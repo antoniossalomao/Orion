@@ -10,7 +10,7 @@ urgente (não perturbe, regra 48). Um banco da linhagem anterior da `main` (vers
 `external_calls`) é reconhecido e migrado por `MAIN_V11` (ver `store.py`).
 """
 
-SCHEMA_VERSION = 18
+SCHEMA_VERSION = 20
 
 TOKENIZER = "unicode61 remove_diacritics 2"  # "açúcar" casa com "acucar"
 
@@ -369,6 +369,36 @@ ALTER TABLE messages ADD COLUMN superseded INTEGER NOT NULL DEFAULT 0;
 CREATE INDEX idx_messages_version ON messages(version_of) WHERE version_of IS NOT NULL;
 """
 
+# E4 (regras 52–54). `uploads.progress`: andamento da indexação (0–100). `facts.valid_until` e
+# `superseded_by`: fato vencido ou substituído pesa menos na busca (nunca é apagado sozinho).
+# `session_summaries`: resumo gerado do começo de uma conversa longa (nunca substitui o registro).
+# `fact_conflicts`: par de fatos que o sono achou parecidos com informação diferente, esperando a
+# decisão do Antônio (`novo`: o mais novo vale; `ambos`: os dois valem).
+DDL_V19 = """
+ALTER TABLE uploads ADD COLUMN progress INTEGER NOT NULL DEFAULT 100;
+ALTER TABLE facts ADD COLUMN valid_until REAL;
+ALTER TABLE facts ADD COLUMN superseded_by INTEGER REFERENCES facts(id) ON DELETE SET NULL;
+CREATE TABLE session_summaries (
+    session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
+    upto_message_id INTEGER NOT NULL,
+    text TEXT NOT NULL,
+    model TEXT NOT NULL,
+    created_at REAL NOT NULL
+);
+CREATE TABLE fact_conflicts (
+    older_id INTEGER NOT NULL REFERENCES facts(id) ON DELETE CASCADE,
+    newer_id INTEGER NOT NULL REFERENCES facts(id) ON DELETE CASCADE,
+    status TEXT NOT NULL DEFAULT 'pendente',
+    created_at REAL NOT NULL,
+    PRIMARY KEY (older_id, newer_id)
+);
+"""
+
+# E5 (estende a regra 44): aplicativo em foco na hora da captura da tela, para a exclusão por app.
+DDL_V20 = """
+ALTER TABLE screen_log ADD COLUMN app TEXT NOT NULL DEFAULT '';
+"""
+
 DDL = (
     DDL_V1
     + DDL_V2
@@ -388,6 +418,8 @@ DDL = (
     + DDL_V16
     + DDL_V17
     + DDL_V18
+    + DDL_V19
+    + DDL_V20
 )
 MIGRATIONS: dict[int, str] = {
     1: DDL_V2,
@@ -407,4 +439,6 @@ MIGRATIONS: dict[int, str] = {
     15: DDL_V16,
     16: DDL_V17,
     17: DDL_V18,
+    18: DDL_V19,
+    19: DDL_V20,
 }

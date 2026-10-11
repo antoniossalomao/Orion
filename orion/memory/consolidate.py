@@ -23,6 +23,7 @@ from datetime import datetime
 from typing import Any, Protocol
 
 from ..policy import redact
+from .scope import data_scope
 from .store import MemoryStore
 
 log = logging.getLogger("orion.consolidate")
@@ -70,20 +71,53 @@ class Consolidator:
         self._max_facts, self._min_new = max_facts, min_new
         self._skip = tuple(skip_channels)
 
-    def _novas(self) -> list[tuple[int, str]]:
-        marca = self.memory.counter_get(MARCA)
+    def _projetos_com_novidade(self) -> list[str]:
+        """Projetos com falas do Antônio depois da marca do próprio projeto (no máximo 3 por
+        rodada: cada um custa uma chamada ao modelo)."""
+        achados: list[str] = []
+        for r in self.memory.query(
+            "SELECT DISTINCT s.project_id FROM sessions s WHERE s.project_id IS NOT NULL"
+        ):
+            pid = r["project_id"]
+            marca = self.memory.counter_get(f"{MARCA}:{pid}")
+            if self.memory.query(
+                "SELECT 1 FROM messages m JOIN sessions s ON s.id=m.session_id"
+                " WHERE s.project_id=? AND m.id>? AND m.role='user' LIMIT 1",
+                (pid, marca),
+            ):
+                achados.append(pid)
+        return achados[:3]
+
+    def _novas(self, project_id: str | None = None) -> list[tuple[int, str]]:
+        chave = MARCA if project_id is None else f"{MARCA}:{project_id}"
+        marca = self.memory.counter_get(chave)
         # o canal "legado" (histórico importado) fica de fora: seriam milhares de falas de uma vez
         # na cota gratuita; consolidar o histórico é decisão à parte
         nao = f" AND s.channel NOT IN ({','.join('?' * len(self._skip))})" if self._skip else ""
         rows = self.memory.query(
             "SELECT m.id, m.text FROM messages m JOIN sessions s ON s.id=m.session_id"
-            f" WHERE m.id>? AND m.role='user' AND s.project_id IS NULL{nao} ORDER BY m.id LIMIT ?",
-            (marca, *self._skip, self._batch),
+            f" WHERE m.id>? AND m.role='user' AND s.project_id IS ?{nao} ORDER BY m.id LIMIT ?",
+            (marca, project_id, *self._skip, self._batch),
         )
         return [(r["id"], r["text"]) for r in rows]
 
     async def run(self) -> ConsolidationResult:
-        novas = await asyncio.to_thread(self._novas)
+        """Memória pessoal primeiro; depois, cada projeto com novidade, com a marca e os fatos
+        DELE (regra 52: o fato nasce no projeto da conversa de origem, nunca em outro)."""
+        pessoal = await self._rodar(None)
+        total = pessoal
+        for pid in await asyncio.to_thread(self._projetos_com_novidade):
+            r = await self._rodar(pid)
+            total = ConsolidationResult(
+                ran=total.ran or r.ran,
+                messages=total.messages + r.messages,
+                facts_added=total.facts_added + r.facts_added,
+                ok=total.ok and r.ok,
+            )
+        return total
+
+    async def _rodar(self, project_id: str | None) -> ConsolidationResult:
+        novas = await asyncio.to_thread(self._novas, project_id)
         if len(novas) < self._min_new:
             return ConsolidationResult(ran=False, messages=len(novas))
         falas, usado = [], 0
@@ -103,18 +137,22 @@ class Consolidator:
             log.warning("consolidação adiada: %s", e)
             return ConsolidationResult(ran=True, messages=len(novas), ok=False)
         hoje = datetime.fromtimestamp(self.memory.clock()).strftime("%Y-%m-%d")
-        adicionados = await asyncio.to_thread(self._gravar, fatos, f"consolidacao:{hoje}")
+        adicionados = await asyncio.to_thread(
+            self._gravar, fatos, f"consolidacao:{hoje}", project_id
+        )
         # a marca vai até a última fala que coube no pedido (as demais ficam para a próxima)
         ultima = novas[len(falas) - 1][0]
-        await asyncio.to_thread(self.memory.counter_set, MARCA, ultima)
+        chave = MARCA if project_id is None else f"{MARCA}:{project_id}"
+        await asyncio.to_thread(self.memory.counter_set, chave, ultima)
         log.info("consolidação: %d falas, %d fatos novos", len(falas), adicionados)
         return ConsolidationResult(ran=True, messages=len(falas), facts_added=adicionados)
 
-    def _gravar(self, fatos: list[str], fonte: str) -> int:
-        antes = len(self.memory.facts())
-        for f in fatos:
-            self.memory.add_fact(f, fonte)
-        return len(self.memory.facts()) - antes
+    def _gravar(self, fatos: list[str], fonte: str, project_id: str | None = None) -> int:
+        with data_scope(project_id, include_personal=False):
+            antes = len(self.memory.facts())
+            for f in fatos:
+                self.memory.add_fact(f, fonte)
+            return len(self.memory.facts()) - antes
 
 
 def _ler_fatos(bruto: str, maximo: int) -> list[str]:

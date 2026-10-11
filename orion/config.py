@@ -183,6 +183,20 @@ class Settings(BaseSettings):
     # Modelo local de reserva (regra 49): último endpoint, sem ferramentas, só neste computador.
     local_model: str = ""  # ex.: qwen3.5:4b (Ollama); vazio = desligado
     local_url: str = "http://127.0.0.1:11434/v1"
+    # Auto-compact (regra 53): passou deste número de mensagens, o que saiu da janela de contexto é
+    # resumido em segundo plano, SÓ pelo modelo local (precisa de ORION_LOCAL_MODEL). 0 = desligado.
+    compact_at: int = Field(default=40, ge=0, le=1000)
+    # OCR de PDF escaneado (E4.2): páginas sem texto passam pelo tesseract local, até este teto.
+    ocr_max_pages: int = Field(default=50, ge=0, le=200)
+    ocr_langs: str = "por+eng"
+    # Reranker local (E4.6): cross-encoder em ONNX que reordena os melhores trechos. Pronto e
+    # desligado: só ligue se `python -m orion.memory.eval --rerank` mostrar que o acerto sobe.
+    rerank: bool = False
+    rerank_model_dir: str = (
+        ""  # pasta com model.onnx e tokenizer.json (vazio: <dados>/modelos/rerank)
+    )
+    # Memória da tela (E5.2): programas cujo nome, quando em foco, impedem a captura (separe com ;)
+    screen_exclude_apps: str = "KeePassXC;1Password;Bitwarden;KeePass;LastPass;Authy"
     # Embeddings por API gratuita (Gemini). Sem chave, a busca é só por palavra-chave.
     embed_api_key: str = ""  # ou no cofre do SO (ORION_EMBED_API_KEY)
     embed_model: str = "gemini-embedding-001"

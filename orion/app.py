@@ -62,10 +62,12 @@ from .extensions.skill_runtime import SkillReference, SkillRuntime
 from .extensions.skills import SkillError
 from .fact_routes import router as fact_router
 from .gateway import CAMADA_LOCAL, ChatGateway, Endpoint
+from .grafo_routes import router as grafo_router
 from .jobs import JobRunner
 from .log import request_id
 from .mcp_client import McpConfigError, McpManager, manager_from_file
 from .memory import MemoryStore
+from .memory.compact import Compactor
 from .memory.consolidate import Consolidator
 from .memory.embedders import GeminiEmbedder
 from .memory.ops import Operations
@@ -88,10 +90,12 @@ from .research import Research
 from .resultados import PREVIA_IMAGEM, PREVIA_TEXTO, Library
 from .screen_memory import (
     ScreenMemory,
+    app_em_foco,
     capturador_de_tela,
     comando_tela,
     ocr_tesseract,
     parse_lista,
+    tela_bloqueada,
     titulo_da_janela,
 )
 from .secrets import get_secret
@@ -325,6 +329,28 @@ def gateway_from_settings(settings: Settings) -> ChatGateway | None:
     return ChatGateway(endpoints) if endpoints else None
 
 
+def compactor_from_settings(settings: Settings, memory: MemoryStore) -> Compactor | None:
+    """Auto-compact (regra 53): só liga com o modelo local, num gateway PRÓPRIO que não tem outro
+    endpoint, para o texto da conversa nunca sair do computador para ser resumido."""
+    if settings.compact_at <= 0 or not settings.local_model:
+        return None
+    local = Endpoint(
+        "local",
+        settings.local_url,
+        settings.local_model,
+        None,
+        timeout_s=300.0,
+        tier=CAMADA_LOCAL,
+        tools=False,
+    )
+    return Compactor(
+        memory,
+        ChatGateway([local]),
+        at=settings.compact_at,
+        model=f"local:{settings.local_model}",
+    )
+
+
 def roteamento_ligado(settings: Settings) -> bool:
     """O roteamento só liga se alguma camada tem modelo próprio (senão não há o que escolher)."""
     return bool(
@@ -479,6 +505,9 @@ def screen_from_settings(settings: Settings, memory: MemoryStore) -> ScreenMemor
         retention_days=settings.screen_retention_days,
         exclude=parse_lista(settings.screen_exclude),
         allow_unknown_title=settings.screen_allow_unknown_title,
+        app=app_em_foco,
+        exclude_apps=parse_lista(settings.screen_exclude_apps),
+        locked=tela_bloqueada,
     )
 
 
@@ -948,7 +977,16 @@ def create_app(
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         settings.data_dir.mkdir(parents=True, exist_ok=True)
         memory = (memory_factory or memory_from_settings)(settings)
+        if settings.rerank:  # E4.6: pronto e desligado; sem o modelo, segue sem reranker
+            from .memory.rerank import reranker_da_pasta
+
+            memory.reranker = reranker_da_pasta(
+                settings.rerank_model_dir or settings.data_dir / "modelos" / "rerank"
+            )
         saidas.definir_destino(memory.add_external_call)  # registro de saída (regra 47)
+        from .documents import recuperar_interrompidos
+
+        recuperar_interrompidos(memory)  # indexação que a queda do Orion deixou pela metade
         ops = Operations(memory)
         modos = Modos(memory, dnd_at=settings.dnd_at, audit=ops.audit_add)
         ops.segurar = modos.nao_perturbe  # não perturbe segura os avisos não urgentes
@@ -1055,6 +1093,7 @@ def create_app(
                 skills=skills,
                 library=biblioteca,
                 modos=modos,
+                compactor=compactor_from_settings(settings, memory),
             )
         jobs, tarefa_jobs, agenda = None, None, None
         if settings.jobs_enabled:
@@ -1557,6 +1596,36 @@ def create_app(
             raise HTTPException(409, str(e)) from None
         return {"ok": True}
 
+    @app.get("/sessoes/{session_id}/resumo", dependencies=[Admin])
+    def sessao_resumo(
+        session_id: Annotated[str, PathParam(pattern=r"^[a-f0-9]{32}$")], state: State
+    ) -> dict[str, Any]:
+        """O resumo gerado do começo da conversa (auto-compact, regra 53), se existe. É um texto
+        gerado por um modelo local e pode ter erro; o registro da conversa não muda."""
+        if state.memory.get_session(session_id) is None:
+            raise HTTPException(404, "sessão inexistente")
+        r = state.memory.get_summary(session_id)
+        if r is None:
+            return {"resumo": None}
+        return {
+            "resumo": {
+                "texto": r["text"],
+                "ate_mensagem": r["upto_message_id"],
+                "modelo": r["model"],
+                "criado": r["created_at"],
+                "gerado": True,
+            }
+        }
+
+    @app.delete("/sessoes/{session_id}/resumo", dependencies=[Admin])
+    def sessao_resumo_descartar(
+        session_id: Annotated[str, PathParam(pattern=r"^[a-f0-9]{32}$")], state: State
+    ) -> dict[str, bool]:
+        """Descarta o resumo (o modelo volta a ver só a janela de contexto até gerar outro)."""
+        if state.memory.get_session(session_id) is None:
+            raise HTTPException(404, "sessão inexistente")
+        return {"ok": state.memory.drop_summary(session_id)}
+
     def conversation(state: AppState, canal: str, sessao: str | None) -> Session | None:
         session = (
             state.memory.get_session(sessao) if sessao else state.memory.selected_session(canal)
@@ -1905,6 +1974,29 @@ def create_app(
         """Estado da memória da tela (regra 44): ligada, pausada e contagens; nunca o texto."""
         return _estado_da_tela(state.tela, state.memory)
 
+    @app.get("/tela/busca", dependencies=[Admin])
+    def tela_busca(
+        state: State,
+        q: str = Query(min_length=2, max_length=200),
+        dias: int = Query(7, ge=1, le=90),
+        limite: int = Query(10, ge=1, le=20),
+    ) -> dict[str, Any]:
+        """Busca no texto que esteve na tela (E5.1): quando, em qual janela e o trecho. O mesmo
+        texto que o modelo lê por `buscar_tela`, só que a pedido do próprio Antônio."""
+        achados = state.memory.search_screen(q, limit=limite, dias=dias)
+        return {
+            "resultados": [
+                {
+                    "id": a["id"],
+                    "quando": a["ts"],
+                    "janela": a["titulo"],
+                    "app": a["app"],
+                    "trecho": a["trecho"],
+                }
+                for a in achados
+            ]
+        }
+
     @app.delete("/tela", dependencies=[Admin])
     def tela_limpar(state: State) -> dict[str, Any]:
         """Apaga TODO o texto de tela guardado (a captura em si segue como estava)."""
@@ -2048,6 +2140,7 @@ def create_app(
     app.include_router(branch_router(require_auth))
     app.include_router(document_router(require_auth))
     app.include_router(fact_router(require_auth))
+    app.include_router(grafo_router(require_auth))
     app.include_router(artifact_router(require_auth))
     app.include_router(project_router(require_auth))
     app.include_router(extension_router(require_auth))

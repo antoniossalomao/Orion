@@ -1,7 +1,7 @@
 # ORION — Plano de melhorias e o que foi feito
 
 > Auditoria de 02/10/2026 (backend, front, regras, docs) e a execução dela, mais a segunda
-> rodada de 03/10/2026 (achados R1–R11) a terceira de 06/10/2026 (L1–L12: login, MCP, ferramentas) a quarta de 06/10/2026 (V1–V8: visão, mídia, janela, briefing, captura, MCP, painel) a quinta de 07/10/2026 (V9–V13: segurança, roteamento, ferramentas que sobraram, quem serviu) e a sexta de 07/10/2026 (V14–V19: voz por clique, voz ao vivo, painel e acabamento). Cada achado tem ID, evidência e status. O que
+> rodada de 03/10/2026 (achados R1–R11) a terceira de 06/10/2026 (L1–L12: login, MCP, ferramentas) a quarta de 06/10/2026 (V1–V8: visão, mídia, janela, briefing, captura, MCP, painel) a quinta de 07/10/2026 (V9–V13: segurança, roteamento, ferramentas que sobraram, quem serviu) e a sexta de 07/10/2026 (V14–V19: voz por clique, voz ao vivo, painel e acabamento); a rodada 2 (E0 a E5) está nas seções finais. Cada achado tem ID, evidência e status. O que
 > **não** foi verificado está na seção própria.
 > Regras resultantes: [ORION_REGRAS.md](ORION_REGRAS.md). Plano de fases: [ORION_NUCLEO.md](ORION_NUCLEO.md).
 
@@ -222,6 +222,47 @@ entra por cookie nunca tinha token. Agora `api.autenticado()` vale para token ou
 provada, mas só com linhas criadas pelos testes); a cor do selo foi vista só nos três temas do teste, não a olho; a edição
 de pedido não refaz as ferramentas já executadas (só o texto e a resposta: uma ação aprovada no turno antigo continua
 tendo acontecido).
+
+## Décima primeira rodada (11/10/2026): plano da rodada 2, etapas E4 e E5
+
+Plano em [ORION_PLANO_RODADA2.md](ORION_PLANO_RODADA2.md). Regras 52 a 54 (a 44 foi estendida) em
+[ORION_REGRAS.md](ORION_REGRAS.md); como ligar em [ORION_OPERACAO.md](ORION_OPERACAO.md) §19. O esquema do banco estava
+em v18: a E4 entrou como **v19** (não v13) e a E5 como **v20** (não v14). Várias coisas que o plano dava como a fazer já
+existiam (escopo por projeto em fatos, trechos e conversas, upload de documentos, extração isolada de PDF): o trabalho foi
+fechar o que faltava e provar.
+
+**E4: memória, núcleo**
+
+| ID | Entrega | Status |
+|---|---|---|
+| E4.1 | Isolamento por projeto fechado: `search_facts` agora respeita o escopo (vazava no CLI), consolidação por escopo com marca própria (fato nasce no projeto da conversa), `POST /facts/{id}/move` + seletor "Projeto" em cada fato (desfaz ligações de substituição/conflito que cruzariam escopos) | ✅ unitário, API e navegador no Orion real |
+| E4.2 | PDF escaneado: página com menos de 20 caracteres passa pelo tesseract local (até `ORION_OCR_MAX_PAGES`), imagem em pasta temporária apagada; sem tesseract continua "requer OCR" | ✅ ponta a ponta com um "tesseract" de mentira (script) na cadeia servidor → extrator isolado → índice; ❌ tesseract real |
+| E4.3 | Upload indexa em segundo plano (volta pronto se for rápido), `progress` 0–100 e barra com consulta a cada 1 s, `POST /documents/{id}/reindex`, indexação interrompida por queda vira erro (`document_interrupted`) | ✅ API e navegador |
+| E4.4 | Auto-compact (regra 53): `orion/memory/compact.py`, tabela `session_summaries`, resumo só pelo modelo local num gateway só com o endpoint local, depois da resposta, entra no prompt como "gerado, pode ter erro"; faixa no chat com ver/descartar | ✅ com modelo falso (200 mensagens mantêm o resumo; o registro fica intacto); ❌ Ollama e `qwen3.5:4b` reais |
+| E4.5 | Validade e substituição de fatos (peso 0,3 e marca "(antigo)"), contradições achadas pelo ciclo de sono (`fact_conflicts`), avisos com "o novo vale" / "os dois valem", `GET /facts/conflicts`, validade pela tela | ✅ unitário, API e navegador; a heurística de contradição (metade das palavras em comum, não quase iguais) vai errar casos: por isso só avisa |
+| E4.6 | Reranker local em ONNX (`orion/memory/rerank.py`), pronto e desligado, `eval --rerank` compara, `orion doctor` avisa se ligado sem os arquivos, extra `rerank` | ✅ com sessão e tokenizador falsos; ❌ nenhum modelo ONNX real foi carregado; o Orion não baixa o modelo |
+
+**E5: memória, tela, sono, grafo 3D e busca global**
+
+| ID | Entrega | Status |
+|---|---|---|
+| E5.1 | `GET /tela/busca` e caixa de busca no cartão da memória da tela (quando, janela, programa, trecho) | ✅ API e navegador |
+| E5.2 | Exclusão por programa (`ORION_SCREEN_EXCLUDE_APPS`, esquema v20 `screen_log.app`): Windows (PowerShell), macOS (`osascript`), Linux X11 (`xdotool` + `psutil`) | ✅ lógica com falsos; ❌ os três comandos nunca rodaram numa tela real |
+| E5.3 | Tela bloqueada não grava linha em `screen_log` (Windows `OpenInputDesktop`, macOS `CGSSessionCopyCurrentDictionary`, Linux `loginctl LockedHint`); sem como saber, não captura | ✅ lógica com falsos; ❌ nenhuma tela bloqueada de verdade |
+| E5.4 | `GET`/`DELETE /memoria/relacoes` (só `kind=sono`), cartão "Relações do sono", avisos do sono com botões ("apagar o repetido", decisão de contradição); um aviso por par de repetidos | ✅ API e navegador |
+| E5.5 | `GET /grafo/completo` no backend novo (fatos, tópicos e falas importadas, relações do sono, notas), filtros Fatos/Notas, filtro de pasta do vault, "modo demonstração" só se o cérebro não responde; botão "Abrir na lista de fatos" | ✅ API e navegador (WebGL por software) |
+| E5.6 | Notas do vault viram nós ligados por `[[wikilinks]]` (refeitos a cada indexação); "me leva até X" e "o que liga X a Y" (`/grafo/no`, `/grafo/caminho`, BFS no servidor) no campo da Memória, em `/grafo ...` no chat e pela voz com a Memória aberta | ✅ Node (parser), API e navegador; ❌ a voz de verdade não foi testada: só o caminho do texto reconhecido (`heard`) |
+| E5.7 | `GET /busca` (conversas, fatos, documentos, tela, arquivos gerados, 5 por fonte, no escopo pedido) e grupo "Em tudo" na paleta com 300 ms de espera | ✅ API e navegador |
+
+**Achado no caminho:** `search_facts` não filtrava por escopo (só o CLI o usava); o `comAuth` do `api.js` não incluía as
+rotas novas (`/grafo`, `/memoria/relacoes`, `/busca`), o que fazia o navegador receber 401 sem avisar; nome que não casa
+com nenhum nó em `/grafo/caminho` devolve 200 com `de`/`para` nulos (404 sujava o console).
+
+**Não verificado (E4/E5):** nenhum modelo real (Ollama, ONNX) rodou; o tesseract real, `xdotool`, `loginctl`, PowerShell e
+`osascript` dos itens E4.2, E5.2 e E5.3 só foram provados com falsos; o grafo 3D só foi visto no Chromium com WebGL por
+software, com poucos nós (a legibilidade com 500 nós misturados, a olho, é sua); a voz do "me leva até" só foi
+provada pelo texto reconhecido; a heurística de contradição e a pontuação de `achar_no` são regras simples; o `eval_pessoal`
+real (suas perguntas) não rodou antes/depois: o conjunto fixo do repositório (`tests/memory/test_eval.py`) segue passando.
 
 ## O que foi construído (por fase do NUCLEO)
 

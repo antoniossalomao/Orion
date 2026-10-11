@@ -24,6 +24,7 @@
         { nome: 'voz', desc: 'Voz ao vivo' },
         { nome: 'inicio', desc: 'Ir para o início' },
         { nome: 'memoria', desc: 'Ir para a memória' },
+        { nome: 'grafo', livre: 'frase', desc: 'Andar pelo grafo: “me leva até X” ou “o que liga X a Y”' },
         { nome: 'integracoes', desc: 'Ir para as integrações' },
         { nome: 'config', desc: 'Ir para as configurações' },
         { nome: 'painel', desc: 'Ir para o painel (modelos, CLIs, aprovações, política)' },

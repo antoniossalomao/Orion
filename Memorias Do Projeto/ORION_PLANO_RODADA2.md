@@ -69,7 +69,7 @@ Marque ao concluir. Uma etapa só fecha com todos os itens, a prova e o PR merge
 - [x] E0.1 Seções novas em `ORION_OPERACAO.md` (R1.1–R1.8)
 - [x] E0.2 Tabela-resumo de opt-ins (R1.9)
 - [x] E0.3 `orion doctor` aponta a seção
-- [x] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas
+- [ ] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas
 - [x] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
 - [x] **Prova:** `uv run pytest tests/test_operacao_doc.py` verde; ler a tabela e conseguir ligar a memória da tela só com ela.
 - [x] PR da E0 mergeado (junto com a E1: antoniossalomao/Orion#18)
@@ -83,7 +83,7 @@ Marque ao concluir. Uma etapa só fecha com todos os itens, a prova e o PR merge
 - [x] E1.5 Painel de privacidade (N2)
 - [x] E1.6 Modo pânico e não perturbe (N19, N3)
 - [x] E1.7 Encaixe do modelo local (L9)
-- [x] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas
+- [ ] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas
 - [x] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
 - [x] **Prova:** com o gateway falso, 10 chamadas (2 falhas) aparecem no card "Provedores"; `orion panico` corta captura e ferramentas de rede e o painel mostra "Modo pânico"; com `ORION_LOCAL_MODEL` apontando para um servidor falso, o chat responde quando o gateway falha.
 - [x] PR da E1 mergeado (antoniossalomao/Orion#18)
@@ -96,7 +96,7 @@ Marque ao concluir. Uma etapa só fecha com todos os itens, a prova e o PR merge
 - [x] E2.3 Captura rápida (U2)
 - [x] E2.4 Copiar texto de uma área da tela (V3)
 - [x] E2.5 "O que é isso?" (N18)
-- [x] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas
+- [ ] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas
 - [x] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
 - [ ] **Prova:** no notebook, `Ctrl+Alt+Espaço` abre a captura rápida e grava uma tarefa; duas palmas abrem `/ui/`; `Ctrl+Alt+T` copia texto de uma área da tela.
 - [ ] PR da E2 mergeado
@@ -108,37 +108,37 @@ Marque ao concluir. Uma etapa só fecha com todos os itens, a prova e o PR merge
 - [x] E3.4 "Disponível em" editável nos documentos (R2.4)
 - [x] E3.5 Editar o pedido como nova versão (R2.5 / C39)
 - [x] E3.6 Telas novas contra o backend real (R8.1)
-- [x] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas
+- [ ] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas
 - [x] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
 - [x] **Prova:** cenários de navegador nos dois backends (mentira e real) para cada item.
 - [ ] PR da E3 mergeado
 
 ### E4 — Memória: núcleo
-- [ ] Antônio: instalar o Ollama e rodar `ollama pull qwen3.5:4b`
-- [ ] Regras escritas em `ORION_REGRAS.md` antes do código (52 (isolamento por projeto), 53 (auto-compact), 54 (validade de fatos))
-- [ ] E4.1 Isolamento por projeto para fatos e mensagens (R3.1)
-- [ ] E4.2 OCR para PDF escaneado (R3.2)
-- [ ] E4.3 Progresso e reindexar (R3.3, R3.4)
-- [ ] E4.4 Auto-compact do histórico (R3.9 / L1)
-- [ ] E4.5 Validade e substituição de fatos (R3.10 / L5)
-- [ ] E4.6 Reranker pronto e desligado (R3.11 / L2)
+- [ ] Antônio: instalar o Ollama e rodar `ollama pull qwen3.5:4b` (o auto-compact só roda com ele)
+- [x] Regras escritas em `ORION_REGRAS.md` antes do código (52 (isolamento por projeto), 53 (auto-compact), 54 (validade de fatos))
+- [x] E4.1 Isolamento por projeto para fatos e mensagens (R3.1)
+- [x] E4.2 OCR para PDF escaneado (R3.2)
+- [x] E4.3 Progresso e reindexar (R3.3, R3.4)
+- [x] E4.4 Auto-compact do histórico (R3.9 / L1)
+- [x] E4.5 Validade e substituição de fatos (R3.10 / L5)
+- [x] E4.6 Reranker pronto e desligado (R3.11 / L2)
 - [ ] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas
-- [ ] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
-- [ ] **Prova:** `eval_pessoal` roda antes/depois e não piora; conversa de 200 mensagens mantém resumo; PDF só de imagem vira texto pesquisável.
+- [x] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
+- [x] **Prova:** conversa de 200 mensagens mantém resumo (`tests/memory/test_compact.py`); PDF só de imagem vira texto pesquisável (`tests/projects/test_documents_e4.py`, com um tesseract de mentira na cadeia real); o conjunto fixo de `tests/memory/test_eval.py` segue passando. O `eval_pessoal` com as **suas** perguntas é seu: rode antes e depois (`python -m orion.memory.eval ... [--rerank]`).
 - [ ] PR da E4 mergeado
 
 ### E5 — Memória: tela, sono, grafo 3D e busca global
-- [ ] Regras escritas em `ORION_REGRAS.md` antes do código (estende 44)
-- [ ] E5.1 Busca da memória da tela na interface (R3.5)
-- [ ] E5.2 Exclusão por aplicativo (R3.6)
-- [ ] E5.3 Não capturar com a tela bloqueada (R3.7)
-- [ ] E5.4 Ciclo de sono na interface (R3.8)
-- [ ] E5.5 Grafo de memória 3D (R3.12 / L4)
-- [ ] E5.6 Andar pelo segundo cérebro por voz (Y16)
-- [ ] E5.7 Busca global (N1)
+- [x] Regras escritas em `ORION_REGRAS.md` antes do código (estende 44)
+- [x] E5.1 Busca da memória da tela na interface (R3.5)
+- [x] E5.2 Exclusão por aplicativo (R3.6)
+- [x] E5.3 Não capturar com a tela bloqueada (R3.7)
+- [x] E5.4 Ciclo de sono na interface (R3.8)
+- [x] E5.5 Grafo de memória 3D (R3.12 / L4)
+- [x] E5.6 Andar pelo segundo cérebro por voz (Y16)
+- [x] E5.7 Busca global (N1)
 - [ ] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas
-- [ ] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
-- [ ] **Prova:** cenários de navegador; tela bloqueada não gera linha em `screen_log`.
+- [x] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
+- [x] **Prova:** cenários de navegador; tela bloqueada não gera linha em `screen_log`.
 - [ ] PR da E5 mergeado
 
 ### E6 — Resultados e atividade
@@ -452,7 +452,7 @@ O Orion hoje é servidor + navegador: não há processo com tecla global, bandej
 
 **Marco:** fatos e mensagens respeitam o projeto, PDF escaneado entra, a indexação mostra progresso, conversa longa não "esquece o começo", fato vencido perde peso e o reranker fica pronto para ligar.
 **Prova:** `eval_pessoal` roda antes/depois e não piora; conversa de 200 mensagens mantém resumo; PDF só de imagem vira texto pesquisável.
-**Esquema:** v13. **Regras:** 52 (isolamento por projeto), 53 (auto-compact), 54 (validade de fatos).
+**Esquema:** v13 no plano; **na prática v19** (o banco já estava em v18). **Regras:** 52 (isolamento por projeto), 53 (auto-compact), 54 (validade de fatos).
 
 ### E4.1 Isolamento por projeto para fatos e mensagens (R3.1)
 - v13: `ALTER TABLE facts ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL`. Fatos atuais ficam globais (NULL).
@@ -501,7 +501,7 @@ O Orion hoje é servidor + navegador: não há processo com tecla global, bandej
 
 **Marco:** a memória da tela é pesquisável e mais segura; o resultado do sono é editável; o grafo 3D volta a funcionar no backend novo e navega por voz; uma busca procura em tudo.
 **Prova:** cenários de navegador; tela bloqueada não gera linha em `screen_log`.
-**Esquema:** v14. **Regras:** estende 44.
+**Esquema:** v14 no plano; **na prática v20**. **Regras:** estende 44.
 
 ### E5.1 Busca da memória da tela na interface (R3.5)
 - `GET /tela/busca?q=&dias=` (usa `search_screen` existente); caixa de busca no card da tela com hora e janela.

@@ -26,9 +26,10 @@ from pathlib import Path
 from typing import Any, ClassVar, Literal, Protocol
 
 from . import legacy_main
+from .rerank import Reranker
 from .schema import DDL, MIGRATIONS, SCHEMA_VERSION
 from .scope import clause, current
-from .text import chunk_text, fts_query, strip_frontmatter
+from .text import chunk_text, fts_query, strip_frontmatter, wikilinks
 from .vectors import VectorIndex, para_blob
 
 log = logging.getLogger("orion.memory")
@@ -89,6 +90,9 @@ class Fact:
     created_at: float
     updated_at: float
     project_id: str | None = None
+    valid_until: float | None = None  # E4.5: depois disto o fato pesa menos na busca
+    superseded_by: int | None = None  # E4.5: id do fato que o substituiu (Antônio decidiu)
+    old: bool = False  # vencido ou substituído: sai do topo da busca e leva a marca "(antigo)"
 
 
 @dataclass(frozen=True)
@@ -101,6 +105,7 @@ class Hit:
     via: str  # "fts", "vec" ou "fts+vec"
 
 
+PESO_FATO_ANTIGO = 0.3  # regra 54
 SEM_PROJETO = "nenhum"  # filtro de `list_sessions`: só as conversas sem projeto
 
 # Tabelas que ainda apontam para uma conversa (sem ON DELETE): apagar a conversa as deixaria órfãs.
@@ -142,6 +147,7 @@ class MemoryStore:
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("PRAGMA foreign_keys=ON")
         self._index = VectorIndex()
+        self.reranker: Reranker | None = None  # E4.6: reordena os candidatos (ORION_RERANK)
         self.vectors_available = embedder is not None  # há embedder: a busca vetorial está ligada
         self._init_schema()
         if self._embedder:
@@ -595,6 +601,11 @@ class MemoryStore:
                 "UPDATE messages SET superseded=1 WHERE session_id=? AND id>=?",
                 (session_id, inicio),
             )
+            # um resumo que já cobre o trecho reescrito ficaria falando do que não vale mais
+            c.execute(
+                "DELETE FROM session_summaries WHERE session_id=? AND upto_message_id>=?",
+                (session_id, inicio),
+            )
             return int(r["version_of"] or r["id"])
 
     def message_versions(self, session_id: str, root_id: int) -> list[Message]:
@@ -620,6 +631,26 @@ class MemoryStore:
         return self.history(
             session_id, limit, after=self.counter_get(f"history_after:{session_id}")
         )
+
+    # ── resumo da conversa (E4.4, regra 53): tabela à parte, o registro nunca muda ──
+    def get_summary(self, session_id: str) -> dict[str, Any] | None:
+        rows = self.query("SELECT * FROM session_summaries WHERE session_id=?", (session_id,))
+        return dict(rows[0]) if rows else None
+
+    def set_summary(self, session_id: str, upto_message_id: int, text: str, model: str) -> None:
+        with self._tx() as c:
+            c.execute(
+                "INSERT INTO session_summaries(session_id, upto_message_id, text, model,"
+                " created_at) VALUES (?,?,?,?,?) ON CONFLICT(session_id) DO UPDATE SET"
+                " upto_message_id=excluded.upto_message_id, text=excluded.text,"
+                " model=excluded.model, created_at=excluded.created_at",
+                (session_id, upto_message_id, text, model, self._clock()),
+            )
+
+    def drop_summary(self, session_id: str) -> bool:
+        with self._tx() as c:
+            apagou = c.execute("DELETE FROM session_summaries WHERE session_id=?", (session_id,))
+            return apagou.rowcount > 0
 
     def history_page(
         self,
@@ -664,6 +695,7 @@ class MemoryStore:
                 "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                 (f"counter:history_after:{session_id}", str(last)),
             )
+            c.execute("DELETE FROM session_summaries WHERE session_id=?", (session_id,))
             return last
 
     # ── fatos sobre o Antônio: com fonte e data, auditáveis, editáveis ────
@@ -671,7 +703,7 @@ class MemoryStore:
     def _norm(texto: str) -> str:
         return re.sub(r"\s+", " ", texto).strip().casefold()
 
-    def add_fact(self, text: str, source: str) -> Fact:
+    def add_fact(self, text: str, source: str, *, valid_until: float | None = None) -> Fact:
         """Registra um fato. Fato idêntico (ignorando caixa/espaços) só renova a data."""
         texto = re.sub(r"\s+", " ", text).strip()
         if not texto:
@@ -685,19 +717,31 @@ class MemoryStore:
                     c.execute("UPDATE facts SET updated_at=? WHERE id=?", (agora, r["id"]))
                     return self._fact(c, r["id"])
             fid = c.execute(
-                "INSERT INTO facts(text, source, created_at, updated_at, project_id) "
-                "VALUES (?,?,?,?,?)",
-                (texto, source, agora, agora, current.get().project_id),
+                "INSERT INTO facts(text, source, created_at, updated_at, project_id, valid_until) "
+                "VALUES (?,?,?,?,?,?)",
+                (texto, source, agora, agora, current.get().project_id, valid_until),
             ).lastrowid
             fato = self._fact(c, int(fid or 0))
         self._try_embed()
         return fato
 
-    def _fact(self, c: sqlite3.Connection, fid: int) -> Fact:
-        r = c.execute("SELECT * FROM facts WHERE id=?", (fid,)).fetchone()
+    def _fato(self, r: sqlite3.Row) -> Fact:
+        vence = r["valid_until"]
+        antigo = r["superseded_by"] is not None or (vence is not None and vence < self._clock())
         return Fact(
-            r["id"], r["text"], r["source"], r["created_at"], r["updated_at"], r["project_id"]
+            r["id"],
+            r["text"],
+            r["source"],
+            r["created_at"],
+            r["updated_at"],
+            r["project_id"],
+            vence,
+            r["superseded_by"],
+            antigo,
         )
+
+    def _fact(self, c: sqlite3.Connection, fid: int) -> Fact:
+        return self._fato(c.execute("SELECT * FROM facts WHERE id=?", (fid,)).fetchone())
 
     def update_fact(self, fact_id: int, text: str, source: str | None = None) -> Fact:
         texto = re.sub(r"\s+", " ", text).strip()
@@ -739,46 +783,141 @@ class MemoryStore:
                 + " ORDER BY updated_at DESC,id DESC",
                 clause("project_id")[1],
             ).fetchall()
-        return [
-            Fact(r["id"], r["text"], r["source"], r["created_at"], r["updated_at"], r["project_id"])
-            for r in rows
-        ]
+        return [self._fato(r) for r in rows]
 
     def search_facts(self, query: str, limit: int = 20) -> list[Fact]:
-        """Fatos que casam com a consulta (FTS) ou que a contêm como trecho literal."""
+        """Fatos que casam com a consulta (FTS) ou que a contêm como trecho literal, só do escopo
+        atual (regra 52). Fato vencido ou substituído vem depois dos vigentes."""
         limit = max(1, min(limit, 100))
         q = fts_query(query)
+        predicado, params = clause("project_id")
+        predicado_fts = predicado.replace("project_id", "f.project_id")
         with self._lock:
             ids: list[int] = []
             if q:
                 ids = [
                     r[0]
                     for r in self._conn.execute(
-                        "SELECT rowid FROM facts_fts WHERE facts_fts MATCH ? ORDER BY rank LIMIT ?",
-                        (q, limit),
+                        "SELECT f.id FROM facts_fts JOIN facts f ON f.id=facts_fts.rowid"
+                        f" WHERE facts_fts MATCH ? AND {predicado_fts}"
+                        " ORDER BY rank LIMIT ?",
+                        (q, *params, limit),
                     )
                 ]
             ids += [
                 r[0]
                 for r in self._conn.execute(
-                    "SELECT id FROM facts WHERE lower(text) LIKE ? ESCAPE '\\' LIMIT ?",
-                    ("%" + _like(query.strip().lower()) + "%", limit),
+                    f"SELECT id FROM facts WHERE lower(text) LIKE ? ESCAPE '\\' AND {predicado}"
+                    " LIMIT ?",
+                    ("%" + _like(query.strip().lower()) + "%", *params, limit),
                 )
                 if r[0] not in ids
             ]
             achados = [self.get_fact(i) for i in ids[:limit]]
-        return [f for f in achados if f is not None]
+        fatos = [f for f in achados if f is not None]
+        return sorted(fatos, key=lambda f: f.old)  # estável: mantém a ordem da busca
+
+    # ── projeto, validade e substituição de fatos (E4.1 e E4.5; regras 52 e 54) ──
+    def move_fact(self, fact_id: int, project_id: str | None) -> Fact:
+        """Muda o escopo do fato (None = pessoal). Quem chama já conferiu o projeto de destino.
+        Como o fato sai do escopo atual, o vetor e o índice seguem o `id` e não precisam refazer.
+        Ligações de substituição ou conflito com fatos do escopo antigo são desfeitas: um projeto
+        nunca aponta para fato de outro."""
+        with self._tx() as c:
+            if not c.execute("SELECT 1 FROM facts WHERE id=?", (fact_id,)).fetchone():
+                raise KeyError(fact_id)
+            c.execute("UPDATE facts SET project_id=? WHERE id=?", (project_id, fact_id))
+            c.execute("UPDATE facts SET superseded_by=NULL WHERE superseded_by=?", (fact_id,))
+            c.execute("UPDATE facts SET superseded_by=NULL WHERE id=?", (fact_id,))
+            c.execute("DELETE FROM fact_conflicts WHERE older_id=? OR newer_id=?", (fact_id,) * 2)
+            self._index.invalidar("fact")
+            return self._fact(c, fact_id)
+
+    def set_fact_validity(self, fact_id: int, valid_until: float | None) -> Fact:
+        """Data em que o fato deixa de valer (None = sem prazo). Só o Antônio define."""
+        with self._tx() as c:
+            if not c.execute(
+                "SELECT 1 FROM facts WHERE id=? AND project_id IS ?",
+                (fact_id, current.get().project_id),
+            ).fetchone():
+                raise KeyError(fact_id)
+            c.execute("UPDATE facts SET valid_until=? WHERE id=?", (valid_until, fact_id))
+            return self._fact(c, fact_id)
+
+    def supersede_fact(self, old_id: int, new_id: int) -> Fact:
+        """O fato `new_id` vale no lugar de `old_id`. Os dois ficam no banco; o antigo pesa 0,3
+        na busca e leva a marca "(antigo)". Só no mesmo escopo."""
+        if old_id == new_id:
+            raise ValueError("um fato não substitui a si mesmo")
+        with self._tx() as c:
+            for fid in (old_id, new_id):
+                if not c.execute(
+                    "SELECT 1 FROM facts WHERE id=? AND project_id IS ?",
+                    (fid, current.get().project_id),
+                ).fetchone():
+                    raise KeyError(fid)
+            c.execute("UPDATE facts SET superseded_by=? WHERE id=?", (new_id, old_id))
+            return self._fact(c, old_id)
+
+    def record_conflict(self, older_id: int, newer_id: int) -> bool:
+        """Registra o par para decisão. False se o par já foi visto (decidido ou não)."""
+        with self._tx() as c:
+            return (
+                c.execute(
+                    "INSERT OR IGNORE INTO fact_conflicts(older_id, newer_id, created_at)"
+                    " VALUES (?,?,?)",
+                    (older_id, newer_id, self._clock()),
+                ).rowcount
+                > 0
+            )
+
+    def pending_conflicts(self) -> list[tuple[Fact, Fact]]:
+        """Pares esperando decisão, só do escopo atual."""
+        predicado, params = clause("a.project_id")
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT fc.older_id, fc.newer_id FROM fact_conflicts fc"
+                " JOIN facts a ON a.id=fc.older_id JOIN facts b ON b.id=fc.newer_id"
+                f" WHERE fc.status='pendente' AND {predicado} AND a.project_id IS b.project_id"
+                " ORDER BY fc.created_at, fc.older_id",
+                params,
+            ).fetchall()
+        pares = []
+        for r in rows:
+            a, b = self.get_fact(r["older_id"]), self.get_fact(r["newer_id"])
+            if a and b:
+                pares.append((a, b))
+        return pares
+
+    def resolve_conflict(self, older_id: int, newer_id: int, decisao: str) -> None:
+        """`novo`: o mais novo vale (marca `superseded_by`); `ambos`: os dois valem."""
+        if decisao not in ("novo", "ambos"):
+            raise ValueError("decisão inválida")
+        with self._tx() as c:
+            if not c.execute(
+                "SELECT 1 FROM fact_conflicts"
+                " WHERE older_id=? AND newer_id=? AND status='pendente'",
+                (older_id, newer_id),
+            ).fetchone():
+                raise KeyError((older_id, newer_id))
+        if decisao == "novo":
+            self.supersede_fact(older_id, newer_id)
+        with self._tx() as c:
+            c.execute(
+                "UPDATE fact_conflicts SET status=? WHERE older_id=? AND newer_id=?",
+                (decisao, older_id, newer_id),
+            )
+
+    @staticmethod
+    def _palavras(t: str) -> set[str]:
+        sem = unicodedata.normalize("NFKD", t.casefold()).encode("ascii", "ignore").decode()
+        return {w for w in re.findall(r"[a-z0-9]+", sem) if len(w) > 2}
 
     def duplicate_facts(self, limiar: float = 0.75) -> list[tuple[Fact, Fact, float]]:
         """Pares de fatos quase iguais (palavras em comum / palavras no total, sem acento nem
         caixa). Só sugere: quem decide qual apagar é o Antônio (`orion esquecer`)."""
-
-        def palavras(t: str) -> set[str]:
-            sem = unicodedata.normalize("NFKD", t.casefold()).encode("ascii", "ignore").decode()
-            return {w for w in re.findall(r"[a-z0-9]+", sem) if len(w) > 2}
-
         fatos = self.facts()
-        conj = {f.id: palavras(f.text) for f in fatos}
+        conj = {f.id: self._palavras(f.text) for f in fatos}
         achados: list[tuple[Fact, Fact, float]] = []
         for i, a in enumerate(fatos):
             for b in fatos[i + 1 :]:
@@ -790,12 +929,35 @@ class MemoryStore:
                     achados.append((a, b, j))
         return sorted(achados, key=lambda t: -t[2])
 
+    def conflicting_facts(self, limite: int = 300) -> list[tuple[Fact, Fact]]:
+        """Pares (mais antigo, mais novo) que falam do mesmo assunto com informação diferente
+        ("mora em Marília" × "mora em Bauru"): metade ou mais das palavras do menor fato em comum,
+        mas não tão parecidos a ponto de serem duplicados, e cada um com palavras que o outro não
+        tem. Fato já substituído ou gerado pelo sono não entra. Só sugere (regra 54)."""
+        fatos = [
+            f
+            for f in self.facts()[:limite]
+            if f.superseded_by is None and not f.source.startswith("sono:")
+        ]
+        conj = {f.id: self._palavras(f.text) for f in fatos}
+        achados: list[tuple[Fact, Fact]] = []
+        for i, a in enumerate(fatos):
+            for b in fatos[i + 1 :]:
+                ca, cb = conj[a.id], conj[b.id]
+                comum = ca & cb
+                menor = min(len(ca), len(cb))
+                if not menor or len(comum) < 2 or len(comum) / menor < 0.5:
+                    continue
+                if len(comum) / len(ca | cb) >= 0.75 or not (ca - cb) or not (cb - ca):
+                    continue
+                velho, novo = sorted((a, b), key=lambda f: (f.created_at, f.id))
+                achados.append((velho, novo))
+        return achados
+
     def get_fact(self, fact_id: int) -> Fact | None:
         with self._lock:
             r = self._conn.execute("SELECT * FROM facts WHERE id=?", (fact_id,)).fetchone()
-        if r is None:
-            return None
-        return Fact(r["id"], r["text"], r["source"], r["created_at"], r["updated_at"])
+        return None if r is None else self._fato(r)
 
     def facts_markdown(self) -> str:
         """Nota para o vault do Obsidian (a pessoa confere e corrige em texto)."""
@@ -896,6 +1058,7 @@ class MemoryStore:
         raiz = Path(pasta)
         contagem = {"new": 0, "updated": 0, "same": 0, "removed": 0}
         vistos: set[str] = set()
+        links: dict[str, set[str]] = {}  # nota → nomes citados em [[wikilinks]] (E5.6)
         for arq in sorted(raiz.rglob("*.md")):
             rel = arq.relative_to(raiz)
             if any(p.startswith(".") for p in rel.parts):
@@ -904,7 +1067,9 @@ class MemoryStore:
                 continue
             fonte = rel.as_posix()
             vistos.add(fonte)
-            contagem[self.index_document(fonte, arq.stem, arq.read_text(encoding="utf-8"))] += 1
+            texto = arq.read_text(encoding="utf-8")
+            links[fonte] = wikilinks(texto)
+            contagem[self.index_document(fonte, arq.stem, texto)] += 1
         with self._lock:
             prefix = f"project:{current.get().project_id}/" if current.get().project_id else ""
             antigos = [
@@ -917,7 +1082,31 @@ class MemoryStore:
         for fonte in antigos:
             if fonte not in vistos and self.remove_document(fonte):
                 contagem["removed"] += 1
+        if current.get().project_id is None:  # o vault inteiro é da memória pessoal
+            self._gravar_wikilinks(links)
         return contagem
+
+    def _gravar_wikilinks(self, links: dict[str, set[str]]) -> None:
+        """Arestas `doc:<nota>` —liga→ `doc:<nota>` (kind `vault`), refeitas a cada indexação.
+        Um [[nome]] vira a nota de mesmo nome (sem pasta nem extensão, sem caixa); nome que não
+        existe no vault é ignorado."""
+        por_nome: dict[str, str] = {}
+        for fonte in sorted(links):  # a mais rasa (menos pastas) vence um nome repetido
+            por_nome.setdefault(Path(fonte).stem.casefold(), fonte)
+        agora = self._clock()
+        arestas = {
+            (f"doc:{origem}", "liga", f"doc:{por_nome[nome.casefold()]}")
+            for origem, nomes in links.items()
+            for nome in nomes
+            if nome.casefold() in por_nome and por_nome[nome.casefold()] != origem
+        }
+        with self._tx() as c:
+            c.execute("DELETE FROM edges WHERE kind='vault'")
+            c.executemany(
+                "INSERT OR IGNORE INTO edges(src, rel, dst, weight, kind, created_at)"
+                " VALUES (?,?,?,1,'vault',?)",
+                [(a, r, b, agora) for a, r, b in arestas],
+            )
 
     # ── vetores ───────────────────────────────────────────────────────────
     def _drop_vec(self, c: sqlite3.Connection, kind: str, ids: Sequence[int]) -> None:
@@ -1015,11 +1204,56 @@ class MemoryStore:
                 placar[chave] = placar.get(chave, 0.0) + KIND_WEIGHT[kind] / (RRF_K + rank)
                 textos[chave] = (texto, fonte)
                 vias.setdefault(chave, set()).add(via)
-        ordem = sorted(placar, key=lambda x: placar[x], reverse=True)[:k]
+        antigos = self._fatos_antigos([i for kd, i in placar if kd == "fact"])
+        for i in antigos:  # regra 54: vencido ou substituído pesa 0,3, mas não some
+            placar[("fact", i)] *= PESO_FATO_ANTIGO
+        ordem = sorted(placar, key=lambda x: placar[x], reverse=True)
+        if self.reranker is not None and len(ordem) > 1:
+            ordem = self._reordenar(query, ordem[: max(k * 3, 20)], textos, placar, antigos)
+        ordem = ordem[:k]
         return [
-            Hit(kd, iid, *textos[(kd, iid)], placar[(kd, iid)], "+".join(sorted(vias[(kd, iid)])))  # type: ignore[arg-type]
+            Hit(
+                kd,  # type: ignore[arg-type]
+                iid,
+                ("(antigo) " if kd == "fact" and iid in antigos else "") + textos[(kd, iid)][0],
+                textos[(kd, iid)][1],
+                placar[(kd, iid)],
+                "+".join(sorted(vias[(kd, iid)])),
+            )
             for kd, iid in ordem
         ]
+
+    def _reordenar(
+        self,
+        query: str,
+        candidatos: list[tuple[str, int]],
+        textos: dict[tuple[str, int], tuple[str, str]],
+        placar: dict[tuple[str, int], float],
+        antigos: set[int],
+    ) -> list[tuple[str, int]]:
+        """Reranker local: troca a nota do RRF pela do cross-encoder (o fato antigo continua
+        valendo 0,3). Se falhar, a ordem do RRF fica."""
+        assert self.reranker is not None
+        try:
+            notas = self.reranker.score(query, [textos[c][0] for c in candidatos])
+        except Exception as e:  # noqa: BLE001 — reranker quebrado não derruba a busca
+            log.warning("reranker falhou, mantendo a ordem do RRF: %s", e)
+            return candidatos
+        for c, n in zip(candidatos, notas, strict=True):
+            placar[c] = n * (PESO_FATO_ANTIGO if c[0] == "fact" and c[1] in antigos else 1.0)
+        return sorted(candidatos, key=lambda c: placar[c], reverse=True)
+
+    def _fatos_antigos(self, ids: Sequence[int]) -> set[int]:
+        if not ids:
+            return set()
+        marcas = ",".join("?" * len(ids))
+        with self._lock:
+            rows = self._conn.execute(
+                f"SELECT id FROM facts WHERE id IN ({marcas}) AND (superseded_by IS NOT NULL"
+                " OR (valid_until IS NOT NULL AND valid_until<?))",
+                (*ids, self._clock()),
+            ).fetchall()
+        return {r[0] for r in rows}
 
     def _vec_lists(
         self, query: str, kinds: Sequence[str], amplo: int
@@ -1266,12 +1500,12 @@ class MemoryStore:
             return str(r["stored"])
 
     # ── memória da tela (D3): texto de OCR, retenção curta, nunca imagem ───
-    def add_screen(self, text: str, title: str = "") -> int:
+    def add_screen(self, text: str, title: str = "", app: str = "") -> int:
         with self._tx() as c:
             return int(
                 c.execute(
-                    "INSERT INTO screen_log(ts, title, text) VALUES (?,?,?)",
-                    (self._clock(), " ".join(title.split())[:200], text),
+                    "INSERT INTO screen_log(ts, title, text, app) VALUES (?,?,?,?)",
+                    (self._clock(), " ".join(title.split())[:200], text, app[:80]),
                 ).lastrowid
                 or 0
             )
@@ -1290,14 +1524,20 @@ class MemoryStore:
         desde = self._clock() - dias * 86400
         with self._lock:
             rows = self._conn.execute(
-                "SELECT s.id, s.ts, s.title,"
+                "SELECT s.id, s.ts, s.title, s.app,"
                 " snippet(screen_log_fts, 0, '[', ']', '…', 24) AS trecho"
                 " FROM screen_log_fts f JOIN screen_log s ON s.id=f.rowid"
                 " WHERE screen_log_fts MATCH ? AND s.ts>=? ORDER BY f.rank LIMIT ?",
                 (q, desde, max(1, min(limit, 20))),
             ).fetchall()
         return [
-            {"id": r["id"], "ts": r["ts"], "titulo": r["title"], "trecho": r["trecho"]}
+            {
+                "id": r["id"],
+                "ts": r["ts"],
+                "titulo": r["title"],
+                "app": r["app"],
+                "trecho": r["trecho"],
+            }
             for r in rows
         ]
 

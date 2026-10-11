@@ -29,6 +29,16 @@ def fts_query(texto: str) -> str | None:
     return " OR ".join(saida) or None
 
 
+_WIKILINK = re.compile(r"\[\[([^\[\]|#^\n]{1,120})(?:[#^|][^\[\]\n]*)?\]\]")
+
+
+def wikilinks(markdown: str) -> set[str]:
+    """Nomes citados em `[[Nota]]`, `[[Nota|apelido]]`, `[[Nota#seção]]` e `[[pasta/Nota]]`
+    (só o nome da nota, sem pasta). Embed `![[...]]` conta como citação."""
+    nomes = {m.group(1).strip().rsplit("/", 1)[-1].strip() for m in _WIKILINK.finditer(markdown)}
+    return {n for n in nomes if n}
+
+
 def strip_frontmatter(markdown: str) -> str:
     return _FRONTMATTER.sub("", markdown, count=1)
 

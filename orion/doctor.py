@@ -275,6 +275,36 @@ def _modelo_local(s: Settings, get: Callable[[str], Any] | None = None) -> list[
     ]
 
 
+def _memoria_nova(s: Settings) -> list[Checagem]:
+    """E4: o auto-compact precisa do modelo local; o reranker,
+    do modelo ONNX. Só avisa do que está ligado e não vai funcionar."""
+    out: list[Checagem] = []
+    if s.compact_at not in (0, 40) and not s.local_model:  # 40 é o padrão: só avisa de quem mexeu
+        out.append(
+            Checagem(
+                "auto-compact",
+                "aviso",
+                "ORION_COMPACT_AT foi ajustado, mas sem ORION_LOCAL_MODEL o resumo da conversa "
+                "não roda (o texto nunca vai a um provedor de fora para ser resumido, regra 53)"
+                + _ver("19"),
+            )
+        )
+    if s.rerank:
+        pasta = (
+            Path(s.rerank_model_dir) if s.rerank_model_dir else s.data_dir / "modelos" / "rerank"
+        )
+        if not (pasta / "model.onnx").is_file() or not (pasta / "tokenizer.json").is_file():
+            out.append(
+                Checagem(
+                    "reranker",
+                    "aviso",
+                    f"ORION_RERANK ligado, mas faltam model.onnx e tokenizer.json em {pasta}"
+                    + _ver("19"),
+                )
+            )
+    return out
+
+
 def _modos(s: Settings) -> list[Checagem]:
     """Pânico ligado é coisa que você precisa ver logo (regra 48)."""
     if not s.db_path.exists():
@@ -296,7 +326,14 @@ def checar(s: Settings) -> list[Checagem]:
     fixas: list[Callable[[Settings], Checagem]] = [
         _dados, _banco, _login, _rede, _gateway, _mcp, _backup, _vault,
     ]  # fmt: skip
-    return [f(s) for f in fixas] + _opcionais(s) + _custo(s) + _modelo_local(s) + _modos(s)
+    return (
+        [f(s) for f in fixas]
+        + _opcionais(s)
+        + _custo(s)
+        + _modelo_local(s)
+        + _memoria_nova(s)
+        + _modos(s)
+    )
 
 
 def relatorio(itens: list[Checagem]) -> tuple[str, int]:

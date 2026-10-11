@@ -244,6 +244,8 @@
                         <button type="button" class="chip" data-filtro="topico" aria-pressed="true"><span class="leg-dot leg-topico"></span>Tópicos</button>
                         <button type="button" class="chip" data-filtro="orion" aria-pressed="true"><span class="leg-dot leg-orion"></span>Orion</button>
                         <button type="button" class="chip" data-filtro="user" aria-pressed="true"><span class="leg-dot leg-user"></span>Você</button>
+                        <button type="button" class="chip" data-filtro="fato" aria-pressed="true"><span class="leg-dot leg-fato"></span>Fatos</button>
+                        <button type="button" class="chip" data-filtro="nota" aria-pressed="true"><span class="leg-dot leg-nota"></span>Notas</button>
                     </div>
                     <div id="mem-stats" class="mem-stats" aria-live="polite"></div>
                     <button id="mem-reload" class="icon-btn" type="button" aria-label="Recarregar memória" data-tip="Recarregar" data-tip-pos="bottom"><svg class="i" aria-hidden="true"><use href="#i-refresh"/></svg></button>
@@ -252,7 +254,7 @@
                     <div id="grafo-container" role="img" aria-label="Grafo 3D da memória do Orion. Use a busca e a lista de detalhes para navegar pelo teclado."></div>
                     <div id="mem-banner" class="mem-banner" hidden></div>
                     <div id="mem-overlay" class="mem-overlay"></div>
-                    <div class="mem-legend" aria-hidden="true"><span class="leg leg-topico"><i></i>Tópico</span><span class="leg leg-orion"><i></i>Fala do Orion</span><span class="leg leg-user"><i></i>Fala sua</span></div>
+                    <div class="mem-legend" aria-hidden="true"><span class="leg leg-topico"><i></i>Tópico</span><span class="leg leg-orion"><i></i>Fala do Orion</span><span class="leg leg-user"><i></i>Fala sua</span><span class="leg leg-fato"><i></i>Fato</span><span class="leg leg-nota"><i></i>Nota</span></div>
                     <aside id="mem-detail" class="mem-detail" aria-label="Detalhes do nó" data-open="false">
                         <div class="mem-detail-head"><span id="mem-detail-tipo" class="chip"></span><button id="mem-detail-close" class="icon-btn" type="button" aria-label="Fechar detalhes"><svg class="i" aria-hidden="true"><use href="#i-close"/></svg></button></div>
                         <div id="mem-detail-body" class="mem-detail-body selectable"></div>
@@ -495,6 +497,7 @@
 <script src="js/fuzzy.js"></script>
 <script src="js/conversas.js"></script>
 <script src="js/slash.js"></script>
+<script src="js/grafo_cmd.js"></script>
 <script src="js/store.js"></script>
 <script src="js/sse.js"></script>
 <script src="js/charts.js"></script>
