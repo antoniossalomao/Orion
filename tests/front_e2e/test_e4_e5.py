@@ -171,10 +171,14 @@ def vault(tmp_path):
     v = tmp_path / "vault"
     (v / "01 Projetos").mkdir(parents=True)
     (v / "03 Recursos").mkdir(parents=True)
-    (v / "01 Projetos" / "Orion.md").write_text("# Orion\nUsa [[RAG]] e [[MCP]].\n")
-    (v / "03 Recursos" / "RAG.md").write_text("# RAG\nLigado a [[Busca Hibrida]].\n")
-    (v / "03 Recursos" / "MCP.md").write_text("# MCP\nProtocolo.\n")
-    (v / "03 Recursos" / "Busca Hibrida.md").write_text("# Busca Hibrida\nRRF.\n")
+    (v / "01 Projetos" / "Orion.md").write_text(
+        "# Orion\nUsa [[RAG]] e [[MCP]].\n", encoding="utf-8"
+    )
+    (v / "03 Recursos" / "RAG.md").write_text(
+        "# RAG\nLigado a [[Busca Hibrida]].\n", encoding="utf-8"
+    )
+    (v / "03 Recursos" / "MCP.md").write_text("# MCP\nProtocolo.\n", encoding="utf-8")
+    (v / "03 Recursos" / "Busca Hibrida.md").write_text("# Busca Hibrida\nRRF.\n", encoding="utf-8")
     return v
 
 

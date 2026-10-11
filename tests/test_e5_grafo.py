@@ -27,13 +27,16 @@ def vault(tmp_path):
     (v / "01 Projetos" / "Orion").mkdir(parents=True)
     (v / "03 Recursos" / "Conceitos").mkdir(parents=True)
     (v / "01 Projetos" / "Orion" / "Orion.md").write_text(
-        "---\ntype: projeto\n---\n# Orion\nUsa [[RAG]] e [[MCP|protocolo]]. Veja [[Nota que não existe]].\n"
+        "---\ntype: projeto\n---\n# Orion\nUsa [[RAG]] e [[MCP|protocolo]]. Veja [[Nota que não existe]].\n",
+        encoding="utf-8",
     )
     (v / "03 Recursos" / "Conceitos" / "RAG.md").write_text(
-        "# RAG\nBusca híbrida. Ligada a [[MCP]].\n"
+        "# RAG\nBusca híbrida. Ligada a [[MCP]].\n", encoding="utf-8"
     )
-    (v / "03 Recursos" / "Conceitos" / "MCP.md").write_text("# MCP\nProtocolo.\n")
-    (v / "03 Recursos" / "Conceitos" / "Ilha.md").write_text("# Ilha\nSem links.\n")
+    (v / "03 Recursos" / "Conceitos" / "MCP.md").write_text("# MCP\nProtocolo.\n", encoding="utf-8")
+    (v / "03 Recursos" / "Conceitos" / "Ilha.md").write_text(
+        "# Ilha\nSem links.\n", encoding="utf-8"
+    )
     return v
 
 
@@ -57,7 +60,9 @@ def test_indexar_o_vault_cria_arestas_de_wikilink_e_refaz_a_cada_vez(mem, vault)
         ("doc:01 Projetos/Orion/Orion.md", "doc:03 Recursos/Conceitos/MCP.md"),
         ("doc:03 Recursos/Conceitos/RAG.md", "doc:03 Recursos/Conceitos/MCP.md"),
     }
-    (vault / "03 Recursos" / "Conceitos" / "RAG.md").write_text("# RAG\nSem link agora.\n")
+    (vault / "03 Recursos" / "Conceitos" / "RAG.md").write_text(
+        "# RAG\nSem link agora.\n", encoding="utf-8"
+    )
     mem.index_vault(vault)
     assert mem.query("SELECT count(*) FROM edges WHERE kind='vault'")[0][0] == 2
     # projeto não mexe nas arestas do vault pessoal

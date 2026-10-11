@@ -410,7 +410,7 @@
             resultados = el('div', { class: 'mem-results', role: 'group', hidden: true });
             caixa.append(resultados);
             const busca = $('#mem-search');
-            busca.addEventListener('input', U.debounce(() => { consulta = busca.value; aplicar(); }, 150));
+            busca.addEventListener('input', U.debounce(() => { const c = O.grafoCmd.interpretar(busca.value) ? '' : busca.value; if (c === consulta) return; consulta = c; aplicar(); }, 150));   // um comando (“me leva até…”) não é filtro: não apaga a lista de caminho
             seletorPasta = el('select', { id: 'mem-pasta', class: 'input mem-pasta', 'aria-label': 'Filtrar notas por pasta do vault', hidden: true });
             seletorPasta.addEventListener('change', () => { pasta = seletorPasta.value; carregar(); });
             $('#mem-filters').after(seletorPasta);
