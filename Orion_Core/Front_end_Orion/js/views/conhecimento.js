@@ -86,7 +86,7 @@
                 el('button', { class: 'btn btn-outline btn-sm', type: 'button', 'data-tela-pausa': '', text: tela.pausada ? 'Retomar captura' : 'Pausar captura',
                     on: { click: () => agir(() => api.telaPausa(!!tela.pausada), 'Não consegui mudar.') } }),
                 el('button', { class: 'btn btn-ghost btn-sm', type: 'button', text: 'Apagar tudo', on: { click: limparTela } })),
-            api.suporta('screen_search') ? buscaDaTelaEl() : null);
+            api.estado().backend === 'orion' && api.suporta('screen_search') ? buscaDaTelaEl() : null);
     }
 
     /* ── busca no texto da tela (E5.1): quando, em qual janela/programa, e o trecho ── */
@@ -140,7 +140,7 @@
         }
         raiz.replaceChildren(el('div', { class: 'grid grid-2 painel-grade' },
             cartao('tela', 'Memória da tela', tela.ligada ? 'ligada' : 'desligada', telaEl()),
-            api.suporta('memory_graph') ? cartao('relacoes', 'Relações do sono', `${relacoes.length} relação(ões)`, relacoesEl()) : null,
+            api.estado().backend === 'orion' && api.suporta('memory_graph') ? cartao('relacoes', 'Relações do sono', `${relacoes.length} relação(ões)`, relacoesEl()) : null,
             cartao('resultados', 'Arquivos gerados', `${resultados.length} gerado(s)`,
                 resultados.length ? el('ul', { class: 'painel-lista', 'aria-label': 'Arquivos gerados' }, ...resultados.map(itemResultado))
                     : vazio('Nada gerado ainda. Documentos e imagens que o Orion criar aparecem aqui, com versões.'))));
@@ -149,7 +149,7 @@
     async function carregar() {
         try {
             const [t, rs, rel] = await Promise.all([api.tela().catch(() => ({ ligada: false })), api.biblioteca().catch(() => ({ resultados: [] })),
-                api.suporta('memory_graph') ? api.relacoesSono().catch(() => []) : []]);
+                api.estado().backend === 'orion' && api.suporta('memory_graph') ? api.relacoesSono().catch(() => []) : []]);
             resultados = rs.resultados || []; tela = t || { ligada: false }; relacoes = Array.isArray(rel) ? rel : []; erro = null;
         } catch (e) { erro = e; }
         desenhar();
