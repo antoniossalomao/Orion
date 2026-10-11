@@ -18,6 +18,7 @@
     }
 
     let tokenDesktop = '';
+    let sessaoAtiva = false;   // login por cookie (httpOnly: o JS não o enxerga, então guardamos o resultado)
 
     /** Endereço do cérebro: o configurado > a origem desta página (http/https) > 127.0.0.1:8000 */
     function base() {
@@ -205,8 +206,9 @@
         usarProjeto: project_id => recurso('projects', '/projects/activate', { metodo: 'POST', json: { project_id } }),
         moverConversa: (id, project_id) => recurso('projects', `/projects/sessions/${encodeURIComponent(id)}`, { metodo: 'PUT', json: { project_id } }),
         skills: () => recurso('skills', '/skills', { timeout: 5000 }),
-        sessoes: () => recurso('sessions', '/sessoes', { timeout: 4000 }),
-        buscarSessoes: (texto, offset = 0) => recurso('session_search', `/sessoes/busca?${q({ texto, offset })}`, { timeout: 6000 }),
+        sessoes: (filtros = {}) => recurso('sessions', `/sessoes${Object.keys(filtros).length ? '?' + q(filtros) : ''}`, { timeout: 4000 }),
+        buscarSessoes: (texto, offset = 0, arquivadas = null) => recurso('session_search', `/sessoes/busca?${q({ texto, offset, arquivadas })}`, { timeout: 6000 }),
+        apagarSessao: id => recurso('session_management', `/sessoes/${encodeURIComponent(id)}`, { metodo: 'DELETE', timeout: 5000 }),
         editarSessao: (id, json) => recurso('session_management', `/sessoes/${encodeURIComponent(id)}`, { metodo: 'PATCH', json, timeout: 5000 }),
         novaSessao: (project_id = null) => recurso('sessions', '/sessoes', { metodo: 'POST', ...(api.suporta('projects') ? { json: { project_id } } : {}), timeout: 5000 }),
         ativarSessao: id => recurso('sessions', '/sessoes/ativar', { metodo: 'POST', json: { sessao_id: id }, timeout: 6000 }),
@@ -242,10 +244,12 @@
         },
         /** {configured, authenticated, token_auth}; null no legado (sem login) ou sem conexão */
         async authStatus() {
-            try { return await req('/auth/status', { timeout: 3000 }); } catch (_) { return null; }
+            try { const st = await req('/auth/status', { timeout: 3000 }); sessaoAtiva = !!st?.authenticated; return st; } catch (_) { return null; }
         },
-        login: (usuario, senha) => req('/auth/login', { metodo: 'POST', json: { usuario, senha }, timeout: 20000 }),
-        logout: () => req('/auth/logout', { metodo: 'POST', timeout: 5000 }),
+        login: (usuario, senha) => req('/auth/login', { metodo: 'POST', json: { usuario, senha }, timeout: 20000 }).then(r => { sessaoAtiva = true; return r; }),
+        logout: () => req('/auth/logout', { metodo: 'POST', timeout: 5000 }).finally(() => { sessaoAtiva = false; }),
+        /** há como falar com as rotas protegidas: token de acesso ou sessão de login (cookie) */
+        autenticado: () => !!token() || sessaoAtiva,
         trocarSenha: (atual, nova) => req('/auth/password', { metodo: 'POST', json: { senha_atual: atual, nova }, timeout: 20000 }),
         clientesExternos: () => recurso('mcp_export', '/mcp-export/clients'),
         criarClienteExterno: json => recurso('mcp_export', '/mcp-export/clients', { metodo: 'POST', json }),
@@ -269,6 +273,7 @@
         documentos: project_id => recurso('documents', `/documents?${q({ project_id })}`),
         ingerirDocumento: (file, project_id) => recurso('documents', `/documents?${q({ name: file.name, project_id })}`, { metodo: 'POST', body: file, contentType: 'application/octet-stream', timeout: 60000 }),
         repetirDocumento: (id, project_id) => recurso('documents', `/documents/${id}/retry?${q({ project_id })}`, { metodo: 'POST', timeout: 60000 }),
+        moverDocumento: (id, project_id, destino) => recurso('documents', `/documents/${id}?${q({ project_id })}`, { metodo: 'PATCH', json: { project_id: destino }, timeout: 60000 }),
         baixarDocumento: (id, project_id) => recurso('documents', `/documents/${id}/download?${q({ project_id })}`, { bruto: true }),
         atividade: (project_id, unread = false) => recurso('activity', `/activity?${q({ project_id, unread })}`),
         preferenciasAtividade: (project_id, json) => recurso('activity', `/activity/preferences?${q({ project_id })}`, { metodo: 'PUT', json }),

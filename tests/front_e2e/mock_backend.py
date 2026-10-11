@@ -503,8 +503,8 @@ def create_app() -> FastAPI:
         return _grafo(limite)
 
     @app.get("/sessoes")
-    def sessoes() -> dict[str, Any]:
-        itens = _sessoes()
+    def sessoes(arquivadas: bool = False) -> dict[str, Any]:
+        itens = _sessoes(arquivadas=True) if arquivadas else _sessoes()
         return {"total": len(itens), "sessoes": itens, "ativa": ESTADO["sessao_ativa"]}
 
     @app.post("/sessoes")
@@ -750,7 +750,10 @@ def create_app() -> FastAPI:
 
     @app.delete("/sessoes/{sid}")
     def sessao_apagar(sid: str) -> dict[str, Any]:
-        if sid not in {i["sessao_id"] for i in _sessoes()} or sid == "legado":
+        if (
+            sid not in {i["sessao_id"] for i in _sessoes() + _sessoes(arquivadas=True)}
+            or sid == "legado"
+        ):
             raise HTTPException(404, "conversa não encontrada")
         ESTADO["apagadas"].add(sid)
         ESTADO["fixadas"].discard(sid)

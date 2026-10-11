@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="noite">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' http://127.0.0.1:* http://localhost:*; object-src 'none'; base-uri 'none'; form-action 'none'">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <title>Orion · ponte</title>
+    <link rel="icon" href="orion.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="vendor/fonts/inter.css">
+    <link rel="stylesheet" href="css/tokens.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/ponte.css">
+</head>
+<body class="ponte">
+    <!-- Janela pequena da ponte de desktop (regra 50): não é o app. Não carrega o resto do front;
+         fala só com as rotas que o token da ponte alcança (/captura, /ponte/explicar). -->
+    <main id="ponte" aria-labelledby="ponte-titulo">
+        <h1 id="ponte-titulo" class="sr-only">Orion · ponte</h1>
+
+        <form id="rapido" hidden autocomplete="off">
+            <label for="rapido-texto">Anotar</label>
+            <input id="rapido-texto" class="input" type="text" maxlength="2000" autofocus
+                   placeholder="tarefa, lembrete, gasto ou nota…" autocomplete="off" spellcheck="true">
+            <p class="ponte-dica">Enter guarda · Esc fecha · “amanhã às 9 …” vira lembrete · “R$ 20 …” vira gasto</p>
+        </form>
+
+        <section id="isso" hidden>
+            <img id="isso-imagem" alt="Janela em foco no momento da tecla" hidden>
+            <form id="isso-form" autocomplete="off">
+                <label for="isso-pergunta">O que você quer saber sobre esta imagem?</label>
+                <input id="isso-pergunta" class="input" type="text" maxlength="500" value="O que é isso?" autocomplete="off">
+                <p id="isso-aviso" class="ponte-dica" hidden></p>
+                <button id="isso-enviar" class="btn btn-primary btn-sm" type="submit">Perguntar</button>
+            </form>
+        </section>
+
+        <div id="resultado" role="status" aria-live="polite" class="ponte-resultado" hidden>
+            <p id="resultado-texto"></p>
+            <button id="desfazer" class="btn btn-outline btn-sm" type="button" hidden>Desfazer</button>
+        </div>
+        <p id="erro" role="alert" class="ponte-erro" hidden></p>
+    </main>
+    <script src="js/ponte_logica.js"></script>
+    <script src="js/ponte_pagina.js"></script>
+</body>
+</html>

@@ -90,27 +90,27 @@ Marque ao concluir. Uma etapa só fecha com todos os itens, a prova e o PR merge
 
 ### E2 — Ponte de desktop
 - [ ] Antônio: testar teclas globais e microfone no notebook; calibrar as palmas
-- [ ] Regras escritas em `ORION_REGRAS.md` antes do código (50 (ponte), 51 (palmas))
-- [ ] E2.1 Processo da ponte
-- [ ] E2.2 Duas palmas abrem o Orion (U1)
-- [ ] E2.3 Captura rápida (U2)
-- [ ] E2.4 Copiar texto de uma área da tela (V3)
-- [ ] E2.5 "O que é isso?" (N18)
-- [ ] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas
-- [ ] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
+- [x] Regras escritas em `ORION_REGRAS.md` antes do código (50 (ponte), 51 (palmas))
+- [x] E2.1 Processo da ponte
+- [x] E2.2 Duas palmas abrem o Orion (U1)
+- [x] E2.3 Captura rápida (U2)
+- [x] E2.4 Copiar texto de uma área da tela (V3)
+- [x] E2.5 "O que é isso?" (N18)
+- [x] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas
+- [x] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
 - [ ] **Prova:** no notebook, `Ctrl+Alt+Espaço` abre a captura rápida e grava uma tarefa; duas palmas abrem `/ui/`; `Ctrl+Alt+T` copia texto de uma área da tela.
 - [ ] PR da E2 mergeado
 
 ### E3 — Conversas e projetos
-- [ ] E3.1 Tela de conversas arquivadas (R2.1)
-- [ ] E3.2 Filtro por projeto na barra lateral (R2.2)
-- [ ] E3.3 "Mover para projeto" na paleta (R2.3)
-- [ ] E3.4 "Disponível em" editável nos documentos (R2.4)
-- [ ] E3.5 Editar o pedido como nova versão (R2.5 / C39)
-- [ ] E3.6 Telas novas contra o backend real (R8.1)
-- [ ] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas
-- [ ] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
-- [ ] **Prova:** cenários de navegador nos dois backends (mentira e real) para cada item.
+- [x] E3.1 Tela de conversas arquivadas (R2.1)
+- [x] E3.2 Filtro por projeto na barra lateral (R2.2)
+- [x] E3.3 "Mover para projeto" na paleta (R2.3)
+- [x] E3.4 "Disponível em" editável nos documentos (R2.4)
+- [x] E3.5 Editar o pedido como nova versão (R2.5 / C39)
+- [x] E3.6 Telas novas contra o backend real (R8.1)
+- [x] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas
+- [x] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
+- [x] **Prova:** cenários de navegador nos dois backends (mentira e real) para cada item.
 - [ ] PR da E3 mergeado
 
 ### E4 — Memória: núcleo

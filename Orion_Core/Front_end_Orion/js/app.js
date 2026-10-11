@@ -1,6 +1,6 @@
 /* ==========================================================================
    ORION — app.js | rotas por hash, atalhos, janela, boot e ligação dos módulos
-   Rotas: #/ · #/chat · #/memoria · #/integracoes · #/config · #/painel · #/conhecimento · #/privacidade (botão voltar funciona,
+   Rotas: #/ · #/chat · #/memoria · #/integracoes · #/config · #/painel · #/conhecimento · #/privacidade · #/arquivadas (botão voltar funciona,
    dá para abrir direto numa tela). Telas ocultas ficam `inert`: nada de Tab invisível.
    ========================================================================== */
 (function () {
@@ -25,6 +25,7 @@
         painel: { titulo: 'Painel', rota: '/painel' },   // por último: não muda os atalhos Alt+1…5
         conhecimento: { titulo: 'Conhecimento', rota: '/conhecimento' },
         privacidade: { titulo: 'Privacidade', rota: '/privacidade' },
+        arquivadas: { titulo: 'Conversas arquivadas', rota: '/arquivadas' },
     };
     const VIEW_DA_ROTA = Object.fromEntries(Object.entries(VIEWS).map(([v, d]) => [d.rota, v]));
     let atual = null, opcoesPendentes = {};
@@ -154,7 +155,7 @@
             const mapa = {
                 nova: () => O.sidebar.nova(), buscar: () => O.busca.abrir(arg),
                 copiar: () => (arg === 'conversa' ? A.copiarConversa() : A.copiarUltima()),
-                exportar: () => A.exportar(), limpar: () => A.limpar(), modelo: () => A.modelo(arg), tema: () => A.tema(arg),
+                exportar: () => A.exportar(), limpar: () => A.limpar(), projeto: () => O.projects.moverPorNome(arg), modelo: () => A.modelo(arg), tema: () => A.tema(arg),
                 foco: () => A.foco(), mudo: () => A.alternarTts(), voz: () => O.voz.alternar(),
                 inicio: () => ir('home'), memoria: () => ir('memoria'), integracoes: () => ir('integracoes'), config: () => ir('config'), painel: () => ir('painel'),
                 ajuda: () => ir('config', { secao: 'cfg-atalhos' }),

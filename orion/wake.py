@@ -112,6 +112,8 @@ class WakeStats:
     ativacoes: int = 0
     falas_vazias: int = 0  # ouviu a palavra e mais nada
     recusadas: int = 0  # palavra ouvida acima do teto por hora
+    palmas: int = 0  # duas palmas que abriram o Orion (regra 51)
+    palmas_recusadas: int = 0  # duas palmas acima do teto por hora, ou com a ação bloqueada
     ultima: float | None = None  # epoch da última ativação
     ultimo_erro: str | None = None  # só o tipo da exceção
 
@@ -123,15 +125,25 @@ class WakeListener:
     def __init__(
         self,
         source: AudioSource,
-        detector: Detector,
+        detector: Detector | None,
         on_fala: Callable[[bytes], None],
         *,
         config: WakeConfig | None = None,
         bipe: Callable[[], None] | None = None,
         evento: Callable[[str, str], None] | None = None,
         relogio: Callable[[], float] = time.time,
+        palmas: Detector | None = None,
+        on_palmas: Callable[[], bool | None] | None = None,
+        max_palmas_por_hora: int = 20,
     ) -> None:
+        """`detector` None = só palmas (a palavra de ativação desligada). `palmas` + `on_palmas`:
+        o detector de duas palmas (`orion.palmas`) e o que fazer quando acontecem; `on_palmas`
+        devolve True para começar um turno de voz agora (como se a palavra tivesse sido dita), False
+        se só abriu o Orion e None se estava bloqueada (pânico, não perturbe)."""
         self._source, self._detector, self._on_fala = source, detector, on_fala
+        self._palmas, self._on_palmas = palmas, on_palmas
+        self._max_palmas = max_palmas_por_hora
+        self._palmas_feitas: deque[float] = deque()
         self._cfg = config or WakeConfig()
         self._bipe, self._evento, self._relogio = bipe, evento, relogio
         self._pausa = threading.Event()
@@ -174,7 +186,12 @@ class WakeListener:
                 if self._pausa.is_set():
                     continue  # com a escuta pausada o quadro é descartado sem passar pelo detector
                 self._acompanhar_ruido(quadro)
-                if not self._detector.feed(quadro):
+                if self._palmas is not None and self._palmas.feed(quadro):
+                    self._palmas.reset()
+                    if self._tratar_palmas():
+                        self._atender(quadros, "palmas")
+                    continue
+                if self._detector is None or not self._detector.feed(quadro):
                     continue
                 if not self._pode_ativar():
                     self._detector.reset()
@@ -206,14 +223,52 @@ class WakeListener:
             return False
         return True
 
+    def picos_de_palmas(self, janela_s: float = 3600.0) -> list[float]:
+        """A força (pico ÷ ruído de fundo) das palmas confirmadas na última hora, para calibrar
+        `ORION_CLAP_RATIO` no painel. Vazio sem detector de palmas."""
+        ultimos = getattr(self._palmas, "ultimos_picos", None)
+        return [forca for _, forca in ultimos(janela_s)] if ultimos else []
+
+    def _tratar_palmas(self) -> bool:
+        """Duas palmas: respeita o teto por hora e deixa `on_palmas` decidir (pânico, não
+        perturbe). True = começar um turno de voz."""
+        if self._on_palmas is None:
+            return False
+        agora = self._relogio()
+        while self._palmas_feitas and agora - self._palmas_feitas[0] > 3600:
+            self._palmas_feitas.popleft()
+        if len(self._palmas_feitas) >= self._max_palmas:
+            self.stats.palmas_recusadas += 1
+            self._registrar("palmas_recusadas", "teto de palmas por hora")
+            return False
+        try:
+            ouvir = self._on_palmas()
+        except Exception as e:  # noqa: BLE001 — a ação falhar não derruba a escuta
+            self.stats.ultimo_erro = type(e).__name__
+            log.warning("ação das palmas falhou: %s", type(e).__name__)
+            return False
+        if ouvir is None:  # pânico ou não perturbe: nada aconteceu
+            self.stats.palmas_recusadas += 1
+            self._registrar("palmas_recusadas", "ação bloqueada (pânico ou não perturbe)")
+            return False
+        self._palmas_feitas.append(agora)
+        self.stats.palmas += 1
+        self._registrar("palmas", "duas palmas; só abrem o Orion, não aprovam nada")
+        return bool(ouvir)
+
     def _limiar(self) -> float:
         return max(self._cfg.piso, self._ruido * self._cfg.fator_ruido)
 
-    def _atender(self, quadros: Iterator[bytes]) -> None:
+    def _atender(self, quadros: Iterator[bytes], origem: str = "palavra") -> None:
         self._ativadas.append(self._relogio())
         self.stats.ativacoes += 1
         self.stats.ultima = self._relogio()
-        self._registrar("ativacao", "palavra ouvida; a fala seguinte vai à transcrição")
+        self._registrar(
+            "ativacao",
+            "duas palmas; a fala seguinte vai à transcrição"
+            if origem == "palmas"
+            else "palavra ouvida; a fala seguinte vai à transcrição",
+        )
         if self._bipe is not None:
             with contextlib.suppress(Exception):
                 self._bipe()
@@ -226,7 +281,10 @@ class WakeListener:
             except Exception as e:  # noqa: BLE001 — um turno com erro não derruba a escuta
                 self.stats.ultimo_erro = type(e).__name__
                 log.warning("turno de voz da ativação falhou: %s", type(e).__name__)
-        self._detector.reset()
+        if self._detector is not None:
+            self._detector.reset()
+        if self._palmas is not None:
+            self._palmas.reset()
         self._source.drain()
         t0 = time.monotonic()
         for _ in quadros:  # resfriamento: o eco da própria resposta não reativa

@@ -10,9 +10,20 @@
         if (busy) return; busy = true; input.disabled = true; progress.hidden = false; progress.removeAttribute('value');
         const project = scope(), source = api.base();
         status.textContent = 'Enviando e extraindo texto…';
-        try { const row = await fn(project); if (project === scope() && source === api.base()) { input.value = ''; await load(); status.textContent = row.status === 'ready' ? 'Fonte indexada neste contexto.' : (errors[row.error] || 'Falha na extração. Original preservado para baixar ou tentar novamente.'); } }
+        try { const row = await fn(project); if (project === scope() && source === api.base()) { input.value = ''; await load(); status.textContent = row.status === 'movido' ? 'Documento movido; o texto foi indexado de novo no destino.' : row.status === 'ready' ? 'Fonte indexada neste contexto.' : (errors[row.error] || 'Falha na extração. Original preservado para baixar ou tentar novamente.'); } }
         catch (error) { if (project === scope() && source === api.base()) status.textContent = `Não foi possível enviar: ${error.message}. O arquivo selecionado e seu rascunho foram preservados.`; }
         finally { busy = false; input.disabled = false; progress.hidden = true; }
+    }
+    /** "Disponível em": muda o escopo do documento (pessoal ou um projeto); o texto é refeito lá. */
+    function disponivelEm(row, project) {
+        const select = O.projects.options(`Disponível em: ${row.name}`, project ? `project:${project}` : 'personal');
+        select.addEventListener('change', async () => {
+            const destino = select.value === 'personal' ? null : select.value.slice(8);
+            select.disabled = true;
+            await operation(() => api.moverDocumento(row.id, project, destino).then(r => (r.status === 'ready' ? { ...r, status: 'movido' } : r)));
+            select.disabled = false;
+        });
+        return el('label', { class: 'extension-field doc-escopo' }, el('span', { text: 'Disponível em' }), select);
     }
     async function load() {
         const token = ++generation, project = scope(), source = api.base();
@@ -23,6 +34,7 @@
             status.textContent = `${project ? O.projects.current().name : 'Pessoal'} · ${rows.length} documento(s)`;
             list.replaceChildren(...rows.map(row => el('article', { class: 'card fact-item', dataset: { documentId: row.id } },
                 el('h3', { text: row.name }), el('p', { class: 'extension-hint', text: `${Math.ceil(row.size / 1024)} KB · ${row.status === 'ready' ? 'Indexado' : row.status === 'error' ? (errors[row.error] || 'Falha de extração') : 'Processamento interrompido'}` }),
+                disponivelEm(row, project),
                 el('div', { class: 'extension-actions' }, row.status !== 'ready' ? button('Tentar novamente', () => operation(context => api.repetirDocumento(row.id, context))) : null,
                     button('Baixar original', async () => { try { const response = await api.baixarDocumento(row.id, project), url = URL.createObjectURL(await response.blob()), a = el('a', { href: url, download: row.name }); a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); } catch (error) { status.textContent = error.message; } })))));
         } catch (error) { if (token === generation) status.textContent = error.message; }

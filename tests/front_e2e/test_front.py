@@ -38,6 +38,7 @@ VIEWS = [
     "conhecimento",
     "privacidade",
 ]
+VIEWS_SEM_MENU = ["arquivadas"]  # telas sem item na barra (abertas por link/paleta)
 TEMAS = ["noite", "grafite", "contraste"]
 
 
@@ -80,7 +81,7 @@ def test_navegacao_por_hash_botao_voltar_e_views_ocultas_inertes(abrir):
         inertes = page.evaluate(
             "[...document.querySelectorAll('.view')].filter(v => v.inert).map(v => v.dataset.view)"
         )
-        assert sorted(inertes) == sorted(v for v in VIEWS if v != view), (
+        assert sorted(inertes) == sorted(v for v in [*VIEWS, *VIEWS_SEM_MENU] if v != view), (
             "view oculta ainda alcançável por Tab"
         )
         expect(page.locator(f'.sb-item[data-view="{view}"]')).to_have_attribute(

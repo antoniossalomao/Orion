@@ -17,6 +17,7 @@
 
     let col, rolagem, vazio, btnFim;
     let atual = null;             // resposta em curso
+    let recarregarAoFim = false;  // depois de editar um pedido: recarrega o histórico (ids e versões novos)
     let seguir = true;
     let naoLidas = 0;
     let ecoEsperado = null;       // texto que enviamos pelo hub: ignora o eco `user_text`
@@ -339,6 +340,43 @@
         if (labels.length || activity.length) { a.principal.append(details); a.fontes = details; }
     }
 
+    /** ‹ n/m ›: troca só o que está exibido na bolha; a versão valendo continua sendo a atual (E3.5) */
+    function versoesDoPedido(no, versoes) {
+        const bolha = no.querySelector('.bubble');
+        let i = Math.max(0, versoes.findIndex(v => v.atual));
+        const rotulo = el('span', { class: 'ver-n', 'aria-live': 'polite' });
+        const aviso = el('span', { class: 'ver-aviso', hidden: true, text: 'versão antiga · só leitura' });
+        const ant = el('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Versão anterior do pedido', text: '‹' });
+        const prox = el('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Próxima versão do pedido', text: '›' });
+        const pintar = () => {
+            bolha.textContent = versoes[i].texto; textoDe.set(no, versoes[i].texto);
+            rotulo.textContent = `${i + 1}/${versoes.length}`; aviso.hidden = versoes[i].atual;
+            ant.disabled = i === 0; prox.disabled = i === versoes.length - 1;
+            no.classList.toggle('ver-antiga', !versoes[i].atual);
+        };
+        ant.addEventListener('click', () => { i = Math.max(0, i - 1); pintar(); });
+        prox.addEventListener('click', () => { i = Math.min(versoes.length - 1, i + 1); pintar(); });
+        no.insertBefore(el('div', { class: 'ver-nav', role: 'group', 'aria-label': 'Versões do pedido' }, ant, rotulo, prox, aviso), no.querySelector('.msg-actions'));
+        pintar();
+    }
+
+    /** Reescreve o pedido como nova versão: o que veio depois sai da tela e o turno é refeito. */
+    async function editarPedido(no) {
+        const id = no.dataset.messageId, sessao = no.dataset.sessionId;
+        if (!id || O.chat.ocupado() || O.historico.leitura()) { ui.toast('Espere a resposta terminar para editar.', { tipo: 'aviso' }); return; }
+        const campo = el('textarea', { class: 'input', rows: '5', maxlength: '8000', 'aria-label': 'Pedido revisado', text: textoDe.get(no) || '' });
+        const ok = await O.extensions.dialog('Editar pedido', 'O pedido atual e o que veio depois ficam guardados como versão anterior; o Orion responde de novo a partir do texto novo.', [campo], 'Enviar nova versão');
+        const texto = campo.value.trim();
+        if (!ok || !texto || sessao !== O.historico.sessao() || O.chat.ocupado()) return;
+        const alvo = col.querySelector(`.msg[data-message-id="${CSS.escape(id)}"]`);
+        if (!alvo) return;
+        while (alvo.nextElementSibling) alvo.nextElementSibling.remove();
+        alvo.remove();
+        recarregarAoFim = true;
+        usuario(texto);
+        O.transport.editar(id, texto);
+    }
+
     function renderHistorico(msgs, { antes = false } = {}) {
         const altura = rolagem.scrollHeight, top = rolagem.scrollTop;
         destinoHistorico = document.createDocumentFragment();
@@ -348,6 +386,8 @@
             if (rotulo && rotulo !== dia) { dia = rotulo; acrescentar(el('div', { class: 'day-sep', text: rotulo })); }
             if (m.role === 'user') {
                 const n = usuario(String(m.content ?? ''), { animar: false, skills: m.provenance?.skills || [] });
+                if (m.id && api.suporta('message_edit') && !O.historico.somenteLeitura()) n.querySelector('.msg-actions').append(botaoAcao('editar-versao', 'Editar pedido (nova versão)', 'edit'));
+                if (m.versoes?.length > 1) versoesDoPedido(n, m.versoes);
                 if (m.id) { n.dataset.messageId = String(m.id); n.dataset.sessionId = O.historico.sessao(); if (api.suporta('branches')) n.querySelector('.msg-actions').append(botaoAcao('editar-pedido', 'Editar em novo caminho', 'copy')); }
                 if (m.timestamp) n.insertBefore(el('time', { class: 'msg-time', datetime: m.timestamp, text: U.hora(m.timestamp) || '' }), n.querySelector('.msg-actions'));
                 continue;
@@ -422,7 +462,10 @@
             case 'aprovacao': cartaoAprovacao(ev); break;
             case 'fontes': { const a = atual || iniciar({ pensando:false }); mostrarFontes(a, ev.provenance); if (ev.message_id) a.el.dataset.messageId = String(ev.message_id); if (ev.session_id) a.el.dataset.sessionId = ev.session_id; break; }
             case 'erro': mostrarErro(ev); break;
-            case 'fim': if (atual) finalizar(atual, ev); else setOcupado(false); break;
+            case 'fim':
+                if (atual) finalizar(atual, ev); else setOcupado(false);
+                if (recarregarAoFim) { recarregarAoFim = false; const id = O.historico.sessao(); if (id) O.historico.abrir(id).catch(() => {}); }
+                break;
             default: break;
         }
     }
@@ -444,6 +487,7 @@
         switch (acao.dataset.acao) {
             case 'salvar-resultado': O.artifacts.salvarResposta(textoDe.get(msg) || '', Number(msg.dataset.messageId) || null, msg.dataset.sessionId || null); break;
             case 'editar': O.composer.editar(textoDe.get(msg) || ''); break;
+            case 'editar-versao': editarPedido(msg); break;
             case 'editar-pedido': O.caminhos.editar(msg.dataset.messageId, msg.dataset.sessionId, textoDe.get(msg) || ''); break;
             case 'copiar': ui.copiar(textoDe.get(msg) || '').then(ok => ok ? ui.piscarOk(acao) : ui.toast('Não consegui copiar.', { tipo: 'erro' })); break;
             case 'ouvir': {

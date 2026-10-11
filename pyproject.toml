@@ -61,6 +61,17 @@ wake = [
     "sounddevice>=0.5",
     "openwakeword>=0.6",
 ]
+# Ponte de desktop (`orion ponte`, regra 50): bandeja, teclas globais, área de transferência e OCR
+# da tela. Fora do .exe de propósito: é opt-in e depende de sessão gráfica.
+ponte = [
+    "pystray>=0.19",
+    "pynput>=1.7",
+    "pyperclip>=1.9",
+    "mss>=9.0",
+    "pytesseract>=0.3",
+    "websockets>=13",
+    "pywebview>=5.3",
+]
 wake-vosk = [
     "sounddevice>=0.5",
     "vosk>=0.3.45",

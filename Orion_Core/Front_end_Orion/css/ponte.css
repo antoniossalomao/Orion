@@ -1,0 +1,12 @@
+/* Janela pequena da ponte de desktop: um campo, uma frase, nada mais. */
+body.ponte { margin: 0; padding: var(--s-4, 1rem); background: var(--bg-1, #10131a); color: var(--text-1, #e8ecf4); min-height: 100vh; box-sizing: border-box; }
+#ponte { display: grid; gap: var(--s-3, 0.75rem); max-width: 34rem; margin: 0 auto; }
+#ponte label { display: block; font-size: var(--fs-sm, 0.85rem); color: var(--text-2, #aab2c5); margin-bottom: 0.3rem; }
+#ponte .input { width: 100%; box-sizing: border-box; font-size: 1.05rem; }
+.ponte-dica { margin: 0.4rem 0 0; font-size: var(--fs-xs, 0.78rem); color: var(--text-3, #7d869b); }
+.ponte-resultado { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3, 0.75rem); padding: 0.6rem 0.8rem; border-radius: var(--r-2, 8px); background: var(--bg-2, #181c26); }
+.ponte-resultado p { margin: 0; overflow-wrap: anywhere; }
+.ponte-erro { margin: 0; padding: 0.6rem 0.8rem; border-radius: var(--r-2, 8px); background: var(--danger-soft, #3a1c22); color: var(--danger, #ff8a8a); }
+#isso-imagem { max-width: 100%; max-height: 14rem; border-radius: var(--r-2, 8px); object-fit: contain; background: #000; }
+#isso form { display: grid; gap: 0.5rem; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

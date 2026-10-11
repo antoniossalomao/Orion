@@ -12,6 +12,7 @@ import shutil
 import threading
 import time
 import uuid
+import webbrowser
 from collections.abc import AsyncIterator, Callable
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from dataclasses import dataclass, field
@@ -45,6 +46,7 @@ from .artifacts import ArtifactError
 from .artifacts import router as artifact_router
 from .auth import AuthError, AuthService, LockedOut, NotConfigured, WeakPassword
 from .capabilities import Capabilities, describe
+from .captura_rapida import router as captura_router
 from .capture import Capturer
 from .channels import TelegramChannel
 from .config import PROJECT_ROOT, Settings
@@ -71,9 +73,14 @@ from .memory.sleep import SleepCycle
 from .memory.store import Message, Session
 from .modos import ModoError, Modos
 from .painel import Painel, texto_do_painel
+from .palmas import ClapDetector, acao_das_palmas
 from .plugins import PluginStore
 from .policy import ApprovalStore, PathGuard, PolicyEngine, redact
 from .policy.paths import default_safe_roots
+from .ponte.hub import PonteHub
+from .ponte.rotas import ESCOPO as PONTE_ESCOPO
+from .ponte.rotas import rota_permitida as rota_da_ponte_permitida
+from .ponte.rotas import router as ponte_router
 from .project_routes import router as project_router
 from .projects import ProjectError
 from .provedores import chave_env
@@ -162,6 +169,7 @@ class AppState:
     biblioteca: Library | None = None  # resultados gerados (C34)
     modos: Modos | None = None  # pânico e não perturbe (regra 48)
     custos: Custos | None = None  # cota gratuita (regra 46)
+    ponte: PonteHub = field(default_factory=PonteHub)  # ponte de desktop (regra 50)
 
 
 def build_policy(
@@ -216,6 +224,8 @@ def quem_e(request: Request, state: AppState, authorization: str | None) -> str 
         enviado = authorization.removeprefix("Bearer ").strip()
         if esperado and hmac.compare_digest(enviado.encode(), esperado.encode()):
             return "token"
+        if state.auth.device_scope(enviado) == PONTE_ESCOPO:
+            return "ponte"  # escopo estreito: `require_auth` confere o caminho (regra 50)
         return None
     if state.auth.validate(request.cookies.get(COOKIE_SESSAO)):
         return "sessao"
@@ -234,6 +244,13 @@ def require_auth(
     quem = quem_e(request, state, authorization)
     if quem is None:
         raise HTTPException(401, "login necessário")
+    if quem == "ponte" and not (
+        rota_da_ponte_permitida(request.method, request.url.path)
+        and not (
+            state.modos is not None and state.modos.panico() and request.url.path != "/modo/panico"
+        )
+    ):
+        raise HTTPException(403, "o token da ponte não alcança esta rota")
     if quem == "sessao" and request.method not in _METODOS_SEGUROS and not _mesma_origem(request):
         raise HTTPException(403, "origem não permitida")
     return quem
@@ -498,14 +515,22 @@ def wake_from_settings(
     settings: Settings,
     on_fala: Callable[[bytes], None],
     evento: Callable[[str, str], None],
+    on_palmas: Callable[[], bool | None] | None = None,
 ) -> tuple[WakeListener | None, str]:
-    """A escuta da palavra de ativação, ou (None, motivo) se não pode subir. O motivo vai ao
-    painel: a escuta nunca deixa de subir em silêncio."""
-    if not settings.wake_enabled:
+    """A escuta (palavra de ativação e/ou duas palmas), ou (None, motivo) se não pode subir. O
+    motivo vai ao painel: a escuta nunca deixa de subir em silêncio."""
+    if not (settings.wake_enabled or settings.clap_enabled):
         return None, ""
     try:
-        detector = criar_detector(
-            settings.wake_engine, settings.wake_model, settings.wake_words, settings.wake_threshold
+        detector = (
+            criar_detector(
+                settings.wake_engine,
+                settings.wake_model,
+                settings.wake_words,
+                settings.wake_threshold,
+            )
+            if settings.wake_enabled
+            else None
         )
         source = SoundDeviceSource(settings.wake_device)
     except ValueError as e:
@@ -520,7 +545,21 @@ def wake_from_settings(
         max_por_hora=settings.wake_max_per_hour,
     )
     bipe = bipe_com_sounddevice() if settings.wake_beep else None
-    return WakeListener(source, detector, on_fala, config=cfg, bipe=bipe, evento=evento), ""
+    palmas = ClapDetector(settings.clap_ratio) if settings.clap_enabled and on_palmas else None
+    return (
+        WakeListener(
+            source,
+            detector,
+            on_fala,
+            config=cfg,
+            bipe=bipe,
+            evento=evento,
+            palmas=palmas,
+            on_palmas=on_palmas,
+            max_palmas_por_hora=settings.clap_max_per_hour,
+        ),
+        "",
+    )
 
 
 def embedder_from_settings(settings: Settings) -> GeminiEmbedder | None:
@@ -554,19 +593,31 @@ def _iniciar_escuta(
     speaker: Speaker | None,
     stats: VozStats,
     fabrica: Callable[..., tuple[WakeListener | None, str]],
+    *,
+    ponte: PonteHub | None = None,
+    modos: Modos | None = None,
 ) -> tuple[tuple[WakeListener | None], str]:
-    """Sobe a escuta da palavra de ativação numa thread. Devolve `((escuta,), motivo)`: o motivo
-    explica por que não subiu (aparece no painel). A fala gravada segue o mesmo caminho do botão
-    de microfone (`turno_de_voz`), com o canal "web": memória, política e audit valem igual."""
-    if not settings.wake_enabled:
+    """Sobe a escuta (palavra de ativação e/ou duas palmas) numa thread. Devolve `((escuta,),
+    motivo)`: o motivo explica por que não subiu (aparece no painel). A fala gravada segue o mesmo
+    caminho do botão de microfone (`turno_de_voz`), com o canal "web": memória, política e audit
+    valem igual. Palmas só abrem o Orion (regra 51); só `abrir_e_ouvir` usa a voz."""
+    if not (settings.wake_enabled or settings.clap_enabled):
         return (None,), ""
-    if not settings.voice_enabled:
-        return (None,), "a palavra de ativação usa a voz: ligue ORION_VOICE_ENABLED"
-    if agent is None or transcriber is None:
-        return (None,), "precisa do gateway e da chave de transcrição (ORION_TRANSCRIBE_API_KEY)"
+    precisa_voz = settings.wake_enabled or (
+        settings.clap_enabled and settings.clap_action == "abrir_e_ouvir"
+    )
+    if precisa_voz:
+        if not settings.voice_enabled:
+            return (None,), "a escuta com voz usa a voz: ligue ORION_VOICE_ENABLED"
+        if agent is None or transcriber is None:
+            return (
+                None,
+            ), "precisa do gateway e da chave de transcrição (ORION_TRANSCRIBE_API_KEY)"
     loop = asyncio.get_running_loop()
 
     async def turno(wav: bytes) -> None:
+        if agent is None or transcriber is None:
+            return
         async for m in turno_de_voz(
             agent=agent, transcriber=transcriber, speaker=speaker, audio=wav
         ):
@@ -584,16 +635,39 @@ def _iniciar_escuta(
         ops.audit_add(
             {
                 "tool": f"voz_{tipo}",
-                "action": "deny" if tipo == "recusada" else "allow",
+                "action": "deny" if tipo in ("recusada", "palmas_recusadas") else "allow",
                 "risk": "read",
                 "reason": motivo,
             }
         )
 
-    escuta, motivo = fabrica(settings, on_fala, evento)
+    def bloqueio() -> str:
+        if modos is None:
+            return ""
+        if modos.panico():
+            return "pânico"
+        return "não perturbe" if modos.nao_perturbe() else ""
+
+    def abrir_navegador() -> object:
+        return webbrowser.open(f"http://127.0.0.1:{settings.port}/ui/#/chat")
+
+    on_palmas = (
+        acao_das_palmas(
+            settings.clap_action,
+            abrir_ponte=lambda: bool(ponte and ponte.enviar({"cmd": "abrir", "rota": "#/chat"})),
+            abrir_navegador=abrir_navegador,
+            bloqueado=bloqueio,
+        )
+        if settings.clap_enabled
+        else None
+    )
+    if on_palmas is not None:
+        escuta, motivo = fabrica(settings, on_fala, evento, on_palmas=on_palmas)
+    else:
+        escuta, motivo = fabrica(settings, on_fala, evento)
     if escuta is None:
         if motivo:
-            log.warning("palavra de ativação não subiu: %s", motivo)
+            log.warning("escuta não subiu: %s", motivo)
         return (None,), motivo
     threading.Thread(target=escuta.run, name="orion-wake", daemon=True).start()
     return (escuta,), ""
@@ -622,6 +696,11 @@ class Mensagem(BaseModel):
     contexto: list[ContextRequest] = Field(default_factory=list, max_length=8)
     skills: list[str] = Field(default_factory=list, max_length=3)
     referencias: list[SkillReference] = Field(default_factory=list, max_length=8)
+
+
+class PedidoEditado(BaseModel):
+    texto: str = Field(min_length=1, max_length=8000)
+    canal: str = Field(default="web", pattern=_CANAL)
 
 
 class SessaoNova(BaseModel):
@@ -782,6 +861,14 @@ def _painel_da_voz(
             "ativacoes": escuta.stats.ativacoes if escuta else 0,
             "ultima": escuta.stats.ultima if escuta else None,
             "ultimo_erro": (escuta.stats.ultimo_erro if escuta else None) or escuta_motivo or None,
+        },
+        "palmas": {
+            "pedida": settings.clap_enabled,
+            "ouvindo": bool(escuta and escuta.stats.ouvindo and settings.clap_enabled),
+            "acao": settings.clap_action,
+            "acionadas": escuta.stats.palmas if escuta else 0,
+            "recusadas": escuta.stats.palmas_recusadas if escuta else 0,
+            "picos_ultima_hora": escuta.picos_de_palmas() if escuta else [],
         },
         "clique": {
             "ligada": settings.voice_enabled and clique_pronto,
@@ -1057,6 +1144,7 @@ def create_app(
             settings.data_dir / "extensions", skill_runtime, mcp_host, catalog, policy
         )
         voz_stats = VozStats()
+        ponte_hub = PonteHub()
         speaker = (speaker_factory or speaker_from_settings)(settings)
         live = (live_factory or live_from_settings)(settings)
         escuta, escuta_motivo = _iniciar_escuta(
@@ -1067,6 +1155,8 @@ def create_app(
             speaker,
             voz_stats,
             wake_factory or wake_from_settings,
+            ponte=ponte_hub,
+            modos=modos,
         )
         tarefa_modos = asyncio.create_task(_vigiar_modos(modos, escuta[0]))
         painel = Painel(
@@ -1126,6 +1216,7 @@ def create_app(
             biblioteca=biblioteca,
             modos=modos,
             custos=custos,
+            ponte=ponte_hub,
         )
         try:
             async with mcp_export.server.session_manager.run():
@@ -1347,10 +1438,18 @@ def create_app(
         state: State,
         canal: Annotated[str, Query(pattern=_CANAL)] = "web",
         limite: Annotated[int, Query(ge=1, le=100)] = 50,
+        arquivadas: bool | None = None,
+        projeto: Annotated[str | None, Query(max_length=64)] = None,
     ) -> dict[str, Any]:
+        """`arquivadas=true`: só as arquivadas. `projeto=<id>` ou `nenhum` (sem projeto)."""
         selected = state.memory.selected_session(canal)
         ativa = selected.id if selected else None
-        sessoes = [sessao_json(s, ativa) for s in state.memory.list_sessions(canal, limite)]
+        sessoes = [
+            sessao_json(s, ativa)
+            for s in state.memory.list_sessions(
+                canal, limite, archived=arquivadas or None, project=projeto or None
+            )
+        ]
         return {"sessoes": sessoes, "total": len(sessoes), "ativa": ativa}
 
     @app.get("/sessoes/busca", dependencies=[Admin])
@@ -1360,8 +1459,11 @@ def create_app(
         canal: Annotated[str, Query(pattern=_CANAL)] = "web",
         limite: Annotated[int, Query(ge=1, le=100)] = 25,
         offset: Annotated[int, Query(ge=0, le=1_000_000)] = 0,
+        arquivadas: bool | None = None,
     ) -> dict[str, Any]:
-        sessions, total = state.memory.search_sessions(canal, texto, limit=limite, offset=offset)
+        sessions, total = state.memory.search_sessions(
+            canal, texto, limit=limite, offset=offset, archived=arquivadas or None
+        )
         selected = state.memory.selected_session(canal)
         items = [
             {**sessao_json(s, selected.id if selected else None), "trecho": snippet}
@@ -1436,6 +1538,25 @@ def create_app(
         selected = state.memory.selected_session(corpo.canal)
         return {"ok": True, **sessao_json(updated, selected.id if selected else None)}
 
+    @app.delete("/sessoes/{session_id}", dependencies=[Admin])
+    def sessao_apagar(
+        session_id: Annotated[str, PathParam(pattern=r"^[a-f0-9]{32}$")],
+        state: State,
+        canal: Annotated[str, Query(pattern=_CANAL)] = "web",
+    ) -> dict[str, Any]:
+        """Só conversa arquivada e sem nada apontando para ela (ramos, artefatos, planos)."""
+        if state.policy.approvals.unresolved(session_id) or (
+            state.agent and state.agent.busy(session_id)
+        ):
+            raise HTTPException(409, "termine a resposta e resolva as aprovações antes de apagar")
+        try:
+            state.memory.delete_session(canal, session_id)
+        except KeyError:
+            raise HTTPException(404, "sessão inexistente neste canal") from None
+        except ValueError as e:
+            raise HTTPException(409, str(e)) from None
+        return {"ok": True}
+
     def conversation(state: AppState, canal: str, sessao: str | None) -> Session | None:
         session = (
             state.memory.get_session(sessao) if sessao else state.memory.selected_session(canal)
@@ -1444,14 +1565,21 @@ def create_app(
             raise HTTPException(404, "sessão inexistente neste canal")
         return session
 
-    def mensagem_json(m: Message) -> dict[str, Any]:
-        return {
+    def mensagem_json(m: Message, state: AppState | None = None) -> dict[str, Any]:
+        d: dict[str, Any] = {
             "id": m.id,
             "role": m.role,
             "content": m.text,
             "timestamp": datetime.fromtimestamp(m.created_at, UTC).isoformat(),
             "provenance": m.provenance,
         }
+        if state is not None and m.role == "user":
+            versoes = state.memory.message_versions(m.session_id, m.version_of or m.id)
+            if len(versoes) > 1:  # E3.5: o pedido foi editado; as setas ‹ n/m › trocam a exibição
+                d["versoes"] = [
+                    {"id": v.id, "texto": v.text, "atual": v.id == m.id} for v in versoes
+                ]
+        return d
 
     @app.get("/historico", dependencies=[Admin])
     def historico(
@@ -1473,13 +1601,42 @@ def create_app(
         return {
             "sessao": session.id if session else None,
             "total": total,
-            "mensagens": [mensagem_json(m) for m in messages],
+            "mensagens": [mensagem_json(m, state) for m in messages],
             "mais": cursor is not None,
             "proximo_antes": cursor,
             "somente_leitura": bool(
                 session and (session.archived or session.read_only or project_archived(session))
             ),
         }
+
+    @app.post("/historico/{msg_id}/editar", dependencies=[Admin])
+    async def editar_pedido(msg_id: int, corpo: PedidoEditado, state: State) -> StreamingResponse:
+        """Reescreve um pedido como nova versão e refaz o turno (E3.5). O pedido antigo e tudo que
+        veio depois ficam guardados, fora do contexto. Bloqueado com resposta em andamento ou
+        aprovação pendente (a mesma regra de "limpar")."""
+        agente = _agente(state)
+        session = state.memory.active_session(corpo.canal)
+        if session.archived or session.read_only or project_archived(session):
+            raise HTTPException(409, "conversa somente leitura")
+        if state.policy.approvals.unresolved(session.id) or agente.busy(session.id):
+            raise HTTPException(409, "termine a resposta e resolva as aprovações antes de editar")
+        achou = state.memory.query(
+            "SELECT 1 FROM messages WHERE id=? AND session_id=? AND role='user' AND superseded=0",
+            (msg_id, session.id),
+        )
+        if not achou:
+            raise HTTPException(404, "pedido não encontrado nesta conversa")
+        return StreamingResponse(
+            _stream(
+                agente.run(
+                    corpo.canal,
+                    corpo.texto,
+                    expected_session=session.id,
+                    edit_message=msg_id,
+                )
+            ),
+            media_type="text/event-stream",
+        )
 
     @app.delete("/historico", dependencies=[Admin])
     async def limpar_historico(
@@ -1878,6 +2035,8 @@ def create_app(
     from .export_credentials import router as export_client_router
     from .file_plans import router as file_plan_router
 
+    app.include_router(ponte_router(require_auth))
+    app.include_router(captura_router(require_auth))
     app.include_router(export_client_router(require_auth))
     app.mount("/mcp-export", ExportAuth(mcp_export.app, lambda: app.state.orion))
 

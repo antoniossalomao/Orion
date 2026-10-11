@@ -48,5 +48,5 @@
         if (origem !== chave) { origem = chave; ++geracao; sid = null; leitura = false; completo = false; cursor = null; carregando = false; if (barra) controles(); bus.emit('historico'); }
     });
     bus.on('chat:ocupado', () => { if (barra) controles(); });
-    O.historico = { abrir, sessao: () => sid, completo: () => completo, leitura: () => leitura || carregando || O.sidebar?.abrindo() };
+    O.historico = { abrir, sessao: () => sid, completo: () => completo, somenteLeitura: () => leitura, leitura: () => leitura || carregando || O.sidebar?.abrindo() };
 })();

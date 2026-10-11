@@ -138,6 +138,7 @@ def abrir(navegador, mock_url):
         init: str | None = None,
         http_ok: bool = False,
         boot: bool = False,
+        pagina: str | None = None,
     ):
         permitir_http[0] = http_ok
         ctx = navegador.new_context(
@@ -174,6 +175,12 @@ def abrir(navegador, mock_url):
             ),
         )
         base = url or mock_url
+        if (
+            pagina is not None
+        ):  # página avulsa do front (ex.: ponte.html): não é o app, não há "pronto"
+            page.goto(f"{base}{pagina}")
+            page.wait_for_load_state("domcontentloaded")
+            return page
         page.goto(f"{base}/ui/{'' if boot else '?semboot'}{rota}")
         page.wait_for_selector("html[data-pronto='true']")
         return page
@@ -216,6 +223,7 @@ def novo_backend(tmp_path, abrir):
         skills=None,
         gateway_override=None,
         data_dir=None,
+        **extra,
     ):
         porta = _porta_livre()
         roteiros = (
@@ -233,6 +241,7 @@ def novo_backend(tmp_path, abrir):
                 embed_api_key="",
                 telegram_token="",
                 _env_file=None,
+                **extra,
             ),
             gateway_factory=(lambda _: gw) if gateway else (lambda _: None),
         )

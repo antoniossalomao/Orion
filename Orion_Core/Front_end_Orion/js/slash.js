@@ -16,6 +16,7 @@
         { nome: 'copiar', args: ['resposta', 'conversa'], desc: 'Copiar a última resposta ou a conversa' },
         { nome: 'exportar', desc: 'Exportar a conversa em Markdown' },
         { nome: 'limpar', desc: 'Limpar o histórico da sessão' },
+        { nome: 'projeto', livre: 'nome', desc: 'Mover a conversa para um projeto ("nenhum" tira do projeto)' },
         { nome: 'modelo', args: ['auto', 'groq', 'gemini', 'claude'], desc: 'Trocar o modelo' },
         { nome: 'tema', args: ['noite', 'grafite', 'contraste'], desc: 'Trocar o tema' },
         { nome: 'foco', desc: 'Modo foco (sem barras)' },

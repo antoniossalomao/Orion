@@ -10,7 +10,7 @@ urgente (não perturbe, regra 48). Um banco da linhagem anterior da `main` (vers
 `external_calls`) é reconhecido e migrado por `MAIN_V11` (ver `store.py`).
 """
 
-SCHEMA_VERSION = 17
+SCHEMA_VERSION = 18
 
 TOKENIZER = "unicode61 remove_diacritics 2"  # "açúcar" casa com "acucar"
 
@@ -361,6 +361,14 @@ CREATE INDEX idx_audit_ts ON audit(ts);
 CREATE INDEX idx_audit_tool ON audit(tool, ts);
 """
 
+# E3.5: editar o pedido como nova versão. `version_of` aponta para a primeira versão do pedido;
+# `superseded` esconde do contexto e do histórico o que veio depois do pedido substituído.
+DDL_V18 = """
+ALTER TABLE messages ADD COLUMN version_of INTEGER REFERENCES messages(id);
+ALTER TABLE messages ADD COLUMN superseded INTEGER NOT NULL DEFAULT 0;
+CREATE INDEX idx_messages_version ON messages(version_of) WHERE version_of IS NOT NULL;
+"""
+
 DDL = (
     DDL_V1
     + DDL_V2
@@ -379,6 +387,7 @@ DDL = (
     + DDL_V15
     + DDL_V16
     + DDL_V17
+    + DDL_V18
 )
 MIGRATIONS: dict[int, str] = {
     1: DDL_V2,
@@ -397,4 +406,5 @@ MIGRATIONS: dict[int, str] = {
     14: DDL_V15,
     15: DDL_V16,
     16: DDL_V17,
+    17: DDL_V18,
 }

@@ -109,3 +109,43 @@ def test_document_ingestion_scope_limits_invalid_recover_original(tmp_path):
         assert "PDF AMBER" in extract(buffer.getvalue(), ".pdf")
     with TestClient(create_app(settings), base_url="http://127.0.0.1") as c:
         assert len(c.get("/documents", params={"project_id": a}, headers=AUTH).json()) == 4
+
+
+def test_mover_documento_muda_o_escopo_e_refaz_a_busca(tmp_path):
+    settings = Settings(data_dir=tmp_path, admin_token=TOKEN, jobs_enabled=False, _env_file=None)
+    with TestClient(create_app(settings), base_url="http://127.0.0.1") as c:
+        s = c.app.state.orion
+        a, b = [Projects(s.memory).create(n)["id"] for n in ("A", "B")]
+        raw = b"# AMBER\n\nCanario-mudanca escopado."
+        row = c.post(
+            "/documents", params={"name": "nota.md", "project_id": a}, content=raw, headers=AUTH
+        ).json()
+        mover = lambda para, de: c.patch(  # noqa: E731
+            f"/documents/{row['id']}",
+            params={"project_id": de},
+            json={"project_id": para},
+            headers=AUTH,
+        )
+        # A → B: some de A, aparece em B; o original acompanha
+        assert mover(b, a).json()["status"] == "ready"
+        with data_scope(a, include_personal=False):
+            assert not s.memory.search("Canario-mudanca")
+        with data_scope(b, include_personal=False):
+            assert s.memory.search("Canario-mudanca")
+        assert c.get("/documents", params={"project_id": a}, headers=AUTH).json() == []
+        assert (
+            c.get(
+                f"/documents/{row['id']}/download", params={"project_id": b}, headers=AUTH
+            ).content
+            == raw
+        )
+        # B → pessoal: sai de B
+        assert mover(None, b).status_code == 200
+        with data_scope(b, include_personal=False):
+            assert not s.memory.search("Canario-mudanca")
+        with data_scope(None, include_personal=True):
+            assert s.memory.search("Canario-mudanca")
+        # não está mais em B (404); projeto arquivado/inexistente (409); sem autenticação (401)
+        assert mover(a, b).status_code == 404
+        assert mover("f" * 32, None).status_code == 409
+        assert c.patch(f"/documents/{row['id']}", json={"project_id": a}).status_code == 401

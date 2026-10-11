@@ -46,6 +46,8 @@ SEM_SAIDA_PROPRIA = {
     "orion.tools.vision": "só o tipo do transporte; a chamada é do orion.vision",
     "orion.tools.audio": "só o tipo do transporte; a chamada é do orion.transcribe",
     "orion.doctor": "só pergunta ao Ollama deste computador (127.0.0.1) se o modelo está baixado",
+    "orion.ponte.nucleo": "só fala com o servidor deste computador (127.0.0.1, regra 50)",
+    "orion.ponte.adaptadores": "só abre o WebSocket com o servidor deste computador (regra 50)",
 }
 
 # Provedores que rodam neste computador: entram no registro (telemetria), mas não são "saída".

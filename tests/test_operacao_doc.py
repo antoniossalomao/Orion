@@ -33,6 +33,8 @@ OPT_INS = {
     "local_model",
     "dnd_at",
     "allow_paid",
+    # E2 (regras 50 e 51)
+    "clap_enabled",
 }
 
 

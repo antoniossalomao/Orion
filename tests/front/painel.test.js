@@ -111,6 +111,16 @@ test('resumoVoz: desligada sem opt-in ou chave; ligada mostra o uso', () => {
     assert.equal(P.resumoVoz({ clique: { ligada: true, fala: false, turnos: 0 } }).clique, '0 fala(s), só texto');
 });
 
+test('resumoPalmas: desligadas, não subiram, ouvindo com a força das últimas', () => {
+    assert.equal(P.resumoPalmas(null), 'desligadas');
+    assert.equal(P.resumoPalmas({ palmas: { pedida: false } }), 'desligadas');
+    assert.equal(P.resumoPalmas({ palmas: { pedida: true, ouvindo: false }, escuta: { ultimo_erro: 'falta instalar sounddevice' } }), 'não subiram: falta instalar sounddevice');
+    assert.equal(P.resumoPalmas({ palmas: { pedida: true, ouvindo: true, acao: 'abrir', acionadas: 0, recusadas: 0, picos_ultima_hora: [] }, escuta: { pausada: false } }),
+        'ouvindo (abrir) · 0 acionada(s) · nenhuma palma na última hora');
+    assert.equal(P.resumoPalmas({ palmas: { pedida: true, ouvindo: true, acao: 'abrir_e_ouvir', acionadas: 2, recusadas: 1, picos_ultima_hora: [8.04, 11.5, 9] }, escuta: { pausada: true } }),
+        'pausadas (abrir_e_ouvir) · 2 acionada(s) · 1 recusada(s) · força das últimas: 8× 11,5× 9×');
+});
+
 test('alertas: escuta pedida que não subiu avisa; pausada de propósito não', () => {
     assert.ok(P.alertas({ voz: { escuta: { pedida: true, ouvindo: false, ultimo_erro: 'sem modelo' } } }).some(a => a.texto.includes('Palavra de ativação') && a.texto.includes('sem modelo')));
     assert.ok(!P.alertas({ voz: { escuta: { pedida: true, ouvindo: true, pausada: true } } }).some(a => a.texto.includes('Palavra')));

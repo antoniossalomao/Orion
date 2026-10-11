@@ -58,6 +58,11 @@
 .msg-actions { display: flex; gap: 2px; margin: 0.25rem 0 0 -0.4rem; opacity: 0; transition: opacity var(--dur-1) var(--ease); }
 .msg:hover .msg-actions, .msg:focus-within .msg-actions, .msg[data-last="true"] .msg-actions { opacity: 1; }
 .msg-user .msg-actions { margin: 0; }
+.ver-nav { display: flex; align-items: center; gap: 2px; justify-content: flex-end; font-size: var(--fs-2xs); color: var(--text-3); }
+.ver-nav .icon-btn { width: 1.5rem; height: 1.5rem; font-size: var(--fs-sm); }
+.ver-n { min-width: 2.2rem; text-align: center; font-variant-numeric: tabular-nums; }
+.ver-aviso { margin-left: var(--s-2); }
+.msg-user.ver-antiga .bubble { opacity: 0.7; font-style: italic; }
 .msg-actions .icon-btn { width: 1.9rem; height: 1.9rem; }
 .msg-actions .icon-btn svg { width: 0.95rem; height: 0.95rem; }
 .msg[data-streaming="true"] .msg-actions { display: none; }
