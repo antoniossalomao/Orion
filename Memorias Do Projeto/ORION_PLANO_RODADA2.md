@@ -122,7 +122,7 @@ Marque ao concluir. Uma etapa só fecha com todos os itens, a prova e o PR merge
 - [x] E4.4 Auto-compact do histórico (R3.9 / L1)
 - [x] E4.5 Validade e substituição de fatos (R3.10 / L5)
 - [x] E4.6 Reranker pronto e desligado (R3.11 / L2)
-- [ ] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas
+- [x] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas (PR #24)
 - [x] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
 - [x] **Prova:** conversa de 200 mensagens mantém resumo (`tests/memory/test_compact.py`); PDF só de imagem vira texto pesquisável (`tests/projects/test_documents_e4.py`, com um tesseract de mentira na cadeia real); o conjunto fixo de `tests/memory/test_eval.py` segue passando. O `eval_pessoal` com as **suas** perguntas é seu: rode antes e depois (`python -m orion.memory.eval ... [--rerank]`).
 - [ ] PR da E4 mergeado
@@ -136,7 +136,7 @@ Marque ao concluir. Uma etapa só fecha com todos os itens, a prova e o PR merge
 - [x] E5.5 Grafo de memória 3D (R3.12 / L4)
 - [x] E5.6 Andar pelo segundo cérebro por voz (Y16)
 - [x] E5.7 Busca global (N1)
-- [ ] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas
+- [x] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas (PR #24)
 - [x] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
 - [x] **Prova:** cenários de navegador; tela bloqueada não gera linha em `screen_log`.
 - [ ] PR da E5 mergeado
