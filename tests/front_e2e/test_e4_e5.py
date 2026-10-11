@@ -108,8 +108,13 @@ def test_documento_lento_mostra_progresso_e_reindexar_refaz(abrir, novo_backend,
     with app.state.orion.memory.transaction() as c:
         c.execute("UPDATE chunks SET text='CORROMPIDO'")
     card.get_by_role("button", name="Reindexar").click()
-    expect(card).to_contain_text("Indexado", timeout=8000)
+    # o cartão já diz "Indexado" antes do POST terminar: espera pelo efeito no índice
+    for _ in range(100):
+        if app.state.orion.memory.search("Zeta-42", kinds=("chunk",)):
+            break
+        page.wait_for_timeout(100)
     assert app.state.orion.memory.search("Zeta-42", kinds=("chunk",))
+    expect(card).to_contain_text("Indexado", timeout=8000)
 
 
 # ── E5.4: botões nos avisos do sono ─────────────────────────────────────────
