@@ -2,8 +2,9 @@
 
 Uma vez por noite, na hora que o Antônio escolheu (`ORION_SLEEP_AT`), faz três coisas pequenas:
 
-1. **Duplicados:** acha fatos quase iguais e AVISA (nunca apaga: quem decide é você, com
-   `orion esquecer`).
+1. **Duplicados e contradições:** acha fatos quase iguais e fatos que parecem se contradizer
+   ("mora em X" × "mora em Y") e AVISA (nunca apaga nem escolhe: quem decide é você, na caixa de
+   atividade ou com `orion esquecer`; regra 54).
 2. **Relações:** com UMA chamada ao modelo sobre os fatos novos, tira ligações entre coisas
    ("Antônio" —estuda_em→ "Unimar") e grava no grafo como `kind=sono`.
 3. **Padrões:** na mesma chamada, no máximo 3 fatos de nível mais alto que resumem os novos,
@@ -50,6 +51,7 @@ _INSTRUCAO = (
 @dataclass(frozen=True)
 class SleepResult:
     duplicados: int = 0
+    conflitos: int = 0
     relacoes: int = 0
     padroes: int = 0
     ran_model: bool = False
@@ -117,11 +119,12 @@ class SleepCycle:
         hoje = int(datetime.fromtimestamp(self.memory.clock()).strftime("%Y%m%d"))
         self.memory.counter_set("sono:ultimo", hoje)  # marca antes: falha não repete a noite toda
         dups = await asyncio.to_thread(self._duplicados)
+        conflitos = await asyncio.to_thread(self._conflitos)
         if self.gateway is None:
-            return SleepResult(duplicados=dups)
+            return SleepResult(duplicados=dups, conflitos=conflitos)
         novos = await asyncio.to_thread(self._fatos_novos)
         if len(novos) < self._min_new:
-            return SleepResult(duplicados=dups)
+            return SleepResult(duplicados=dups, conflitos=conflitos)
         linhas, usado = [], 0
         for _, texto in novos:
             linha = "- " + texto
@@ -137,14 +140,18 @@ class SleepCycle:
             relacoes, padroes = ler_resposta(await self.gateway.complete(pedido))
         except Exception as e:  # noqa: BLE001 — gateway fora ou resposta ilegível: fica para a próxima
             log.warning("ciclo de sono adiado: %s", e)
-            return SleepResult(duplicados=dups, ran_model=True, ok=False)
+            return SleepResult(duplicados=dups, conflitos=conflitos, ran_model=True, ok=False)
         n_rel, n_pad = await asyncio.to_thread(self._gravar, relacoes, padroes, hoje)
         await asyncio.to_thread(self.memory.counter_set, MARCA, novos[len(linhas) - 1][0])
         log.info("sono: %d duplicados, %d relações, %d padrões", dups, n_rel, n_pad)
-        return SleepResult(duplicados=dups, relacoes=n_rel, padroes=n_pad, ran_model=True)
+        return SleepResult(
+            duplicados=dups, conflitos=conflitos, relacoes=n_rel, padroes=n_pad, ran_model=True
+        )
 
     # ── passos ────────────────────────────────────────────────────────────
     def _duplicados(self) -> int:
+        """Um aviso por par (até 5 por noite), com os dois ids na referência: a caixa de atividade
+        mostra "apagar o repetido". Nunca apaga sozinho."""
         pares = self.memory.duplicate_facts()
         if not pares:
             return 0
@@ -153,15 +160,33 @@ class SleepCycle:
         ).hexdigest()[:12]
         if self.memory.counter_get("sono:dup") == int(assinatura, 16) % 2**31:
             return len(pares)  # o mesmo conjunto que já foi avisado
-        linhas = [f"[{a.id}] {a.text}\n[{b.id}] {b.text}" for a, b, _ in pares[:5]]
-        self.ops.notify(
-            "sono",
-            f"🌙 {len(pares)} par(es) de fatos quase iguais na memória. "
-            "Apague um com `orion esquecer <id>`:\n\n" + "\n\n".join(linhas),
-            ref=f"sono:dup:{assinatura}",
-        )
+        for a, b, _ in pares[:5]:
+            self.ops.notify(
+                "sono",
+                f"🌙 Dois fatos quase iguais na memória:\n[{a.id}] {a.text}\n[{b.id}] {b.text}\n"
+                "Apague um com `orion esquecer <id>` ou pela caixa de atividade.",
+                ref=f"sono:dup:{a.id}:{b.id}",
+            )
         self.memory.counter_set("sono:dup", int(assinatura, 16) % 2**31)
         return len(pares)
+
+    def _conflitos(self) -> int:
+        """Fatos que parecem se contradizer viram aviso com dois botões (regra 54): "o novo vale"
+        ou "os dois valem". O mesmo par nunca é avisado duas vezes."""
+        novos = 0
+        for velho, novo in self.memory.conflicting_facts():
+            if not self.memory.record_conflict(velho.id, novo.id):
+                continue
+            novos += 1
+            self.ops.notify(
+                "sono",
+                f"🌙 Estes fatos parecem se contradizer:\n[{velho.id}] {velho.text}\n"
+                f"[{novo.id}] {novo.text}\nO mais novo vale, ou os dois valem?",
+                ref=f"sono:conflito:{velho.id}:{novo.id}",
+            )
+            if novos >= 5:
+                break
+        return novos
 
     def _fatos_novos(self) -> list[tuple[int, str]]:
         marca = self.memory.counter_get(MARCA)

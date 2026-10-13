@@ -75,6 +75,8 @@
                 try { m = JSON.parse(data); } catch (_) { return; }
                 if (ignorando) { if (m.type === 'done') ignorando = false; return; }   // resto de um turno cancelado
                 if (m.type === 'audio') { proximoEhAudio = true; return; }
+                // com a Memória aberta, “me leva até X” / “o que liga X a Y” andam pelo grafo e não vão ao chat
+                if (m.type === 'heard' && O.memoriaGrafo?.tratarFala?.(m.text)) { cancelar(); return; }
                 if (m.type === 'heard' && O.app?.ir) O.app.ir('chat', { foco: false });
                 Core.eventosDaMensagem(m, O.sse.normalizar).forEach(ev => bus.emit('chat:evento', ev));
                 if (m.type === 'done') { esperando = false; marcar(); if (!tocando) O.estado.definir('idle'); }

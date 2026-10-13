@@ -11,8 +11,43 @@
 
     let raiz, campo, lista, anterior = null, aberta = false;
     let visiveis = [], sel = 0;
+    /* "Em tudo" (busca global): o servidor procura em conversas, fatos, documentos, tela e arquivos gerados. 300 ms depois de parar de digitar. */
+    let tudo = { q: '', itens: [] }, esperaTudo = null, geracaoTudo = 0;
+    const FONTE_ICONE = { conversas: 'chat', fatos: 'memory', documentos: 'file', tela: 'search', resultados: 'file' };
 
-    const G = { ir: 'Ir para', acao: 'Ações', aparencia: 'Aparência', conversa: 'Conversas', perguntar: 'Perguntar', skill: 'Skills' };
+    function itensDaBusca(grupos) {
+        const itens = [];
+        for (const g of grupos) {
+            for (const r of g.itens) {
+                const base = { g: 'tudo', icone: FONTE_ICONE[g.fonte] || 'search', literal: true, dica: g.titulo };
+                if (g.fonte === 'conversas') itens.push({ ...base, rotulo: U.truncar(r.titulo, 70), exec: async () => {
+                    const s = O.sidebar.sessoes().find(x => x.sessao_id === r.id);
+                    if (s) await O.sidebar.abrir(s); else await O.historico.abrir(r.id);
+                    O.app.ir('chat'); } });
+                else if (g.fonte === 'fatos') itens.push({ ...base, rotulo: U.truncar(`${r.antigo ? '(antigo) ' : ''}${r.texto}`, 80), exec: () => O.memoriaFatos?.abrirFato(r.texto) });
+                else if (g.fonte === 'documentos') itens.push({ ...base, rotulo: U.truncar(r.fonte, 70), dica: U.truncar(r.trecho, 40), exec: () => (/^upload:/.test(r.fonte) ? O.app.ir('fontes') : O.app.ir('memoria')) });
+                else if (g.fonte === 'tela') itens.push({ ...base, rotulo: U.truncar(`${r.janela || 'tela'}: ${r.trecho}`, 80), exec: () => O.conhecimento?.buscarNaTela(campo.value.trim()) });
+                else if (g.fonte === 'resultados') itens.push({ ...base, rotulo: `${r.nome} (v${r.versao})`, exec: () => O.app.ir('conhecimento') });
+            }
+        }
+        return itens;
+    }
+    function buscarTudo() {
+        clearTimeout(esperaTudo);
+        const q = campo.value.trim(), g = ++geracaoTudo;
+        if (q.length < 2 || !api().suporta('global_search')) { if (tudo.itens.length) { tudo = { q: '', itens: [] }; desenhar(); } return; }
+        esperaTudo = setTimeout(async () => {
+            try {
+                const r = await api().buscaGlobal(q, O.projects?.current?.()?.id || null);
+                if (g !== geracaoTudo || !aberta) return;
+                tudo = { q, itens: itensDaBusca(r.grupos || []) };
+                desenhar();
+            } catch (_) { /* busca global é um extra: a paleta segue com o que tem */ }
+        }, 300);
+    }
+    const api = () => O.api;
+
+    const G = { ir: 'Ir para', acao: 'Ações', aparencia: 'Aparência', conversa: 'Conversas', tudo: 'Em tudo', perguntar: 'Perguntar', skill: 'Skills' };
     const ORDEM_PADRAO = ['ir', 'acao', 'skill', 'aparencia', 'conversa'];
 
     function comandos() {
@@ -85,6 +120,7 @@
         const grupos = [...porGrupo.entries()].map(([g, xs]) => ({ g, xs: xs.sort((a, b) => b.n - a.n).slice(0, 8), topo: Math.max(...xs.map(x => x.n)) }))
             .sort((a, b) => b.topo - a.topo);
         const saida = grupos.flatMap(gr => gr.xs.map(x => x.i));
+        if (tudo.q === q) saida.push(...tudo.itens);
         if (q.length >= 2) saida.push({ g: 'perguntar', rotulo: `Perguntar ao Orion: “${U.truncar(q, 60)}”`, icone: 'send-tg', exec: () => O.composer.sugerir(q), literal: true });
         return saida;
     }
@@ -155,6 +191,7 @@
         raiz.hidden = false;
         $('#app').inert = true;
         campo.value = '';
+        tudo = { q: '', itens: [] }; geracaoTudo++;
         sel = 0;
         desenhar();
         campo.focus();     // na hora: um Esc digitado no mesmo quadro tem de cair no campo
@@ -163,6 +200,7 @@
     function fechar(devolverFoco = true) {
         if (!aberta) return;
         aberta = false;
+        clearTimeout(esperaTudo); geracaoTudo++;
         raiz.dataset.open = 'false';
         $('#app').inert = false;
         setTimeout(() => { if (!aberta) raiz.hidden = true; }, 180);
@@ -172,7 +210,7 @@
     function init() {
         raiz = $('#palette'); campo = $('#palette-input'); lista = $('#palette-list');
         $('#palette-btn').addEventListener('click', abrir);
-        campo.addEventListener('input', () => { sel = 0; desenhar(); });
+        campo.addEventListener('input', () => { sel = 0; desenhar(); buscarTudo(); });
         campo.addEventListener('keydown', e => {
             if (e.key === 'ArrowDown') { e.preventDefault(); mover(sel + 1); }
             else if (e.key === 'ArrowUp') { e.preventDefault(); mover(sel - 1); }

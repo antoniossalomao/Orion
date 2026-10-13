@@ -32,7 +32,8 @@
     const configurarToken = t => { tokenDesktop = String(t || ''); };
 
     /** rotas que exigem o token do orion.app; o legado não conhece cabeçalho Authorization */
-    const comAuth = caminho => /^\/(mcp-export|files|approvals|chat|calendar|accounts|branches|documents|activity|notifications|facts|artifacts|projects|skills|plugins|mcp|sessoes|historico|exportar|painel|tela|resultados|atividade|modo|privacidade|capabilities\/details)(\/|$|\?)/.test(caminho);
+    const comAuth = caminho => /^\/(mcp-export|files|approvals|chat|calendar|accounts|branches|documents|activity|notifications|facts|artifacts|projects|skills|plugins|mcp|sessoes|historico|exportar|painel|tela|resultados|atividade|modo|privacidade|capabilities\/details)(\/|$|\?)/.test(caminho)
+        || (estado.backend === 'orion' && /^\/(grafo|memoria\/relacoes|busca)(\/|$|\?)/.test(caminho));   // no legado essas rotas não têm login
 
     function cabecalhos(caminho, extra = {}) {
         const h = { ...extra };
@@ -132,7 +133,7 @@
                     features.chat = h.cerebro.ok;
                     features.skills = false;
                     features.plugins = false; features.mcp = false; features.projects = false; features.artifacts = false; features.memory_facts = false;
-                    for (const name of ['notifications', 'activity', 'documents', 'branches', 'accounts', 'calendar', 'file_plans', 'mcp_export']) features[name] = false; // somente backend novo
+                    for (const name of ['notifications', 'activity', 'documents', 'branches', 'accounts', 'calendar', 'file_plans', 'mcp_export', 'global_search', 'screen_search']) features[name] = false; // somente backend novo
                     novo = { backend: 'legacy', api: 'online', model: h.cerebro.ok ? 'ready' : 'unavailable', features, unavailable: estado.backend === 'legacy' ? estado.unavailable : {} };
                 } else novo = { backend: 'unknown', api: 'online', model: 'unknown', features: {}, unavailable: {}, incompatible: true };
             } catch (e) {
@@ -189,7 +190,24 @@
         statsHistorico: (limite = 48) => recurso('stats_history', `/stats/historico?${q({ limite })}`, { timeout: 3000 }),
         integracoes: () => recurso('integrations', '/integracoes', { timeout: 3500 }),
         categorias: () => recurso('memory_categories', '/memoria/categorias', { timeout: 4000 }),
-        grafo: (limite = 500) => recurso('memory_graph', `/grafo/completo?${q({ limite })}`, { timeout: 7000 }),
+        grafo: (limite = 500, extra = {}) => recurso('memory_graph', `/grafo/completo?${q({ limite, ...extra })}`, { timeout: 7000 }),
+        /** "me leva até X": o nó que melhor casa com o nome; {no: null} se nenhum */
+        grafoNo: (texto, projeto) => recurso('memory_graph', `/grafo/no?${q({ q: texto, projeto })}`, { timeout: 7000 }),
+        /** "o que liga X a Y?": menor caminho entre dois nós (404 se um dos nomes não existe) */
+        grafoCaminho: (de, para, projeto) => recurso('memory_graph', `/grafo/caminho?${q({ de, para, projeto })}`, { timeout: 7000 }),
+        relacoesSono: () => recurso('memory_graph', '/memoria/relacoes', { timeout: 5000 }),
+        apagarRelacaoSono: (src, rel, dst) => recurso('memory_graph', `/memoria/relacoes?${q({ src, rel, dst })}`, { metodo: 'DELETE', timeout: 5000 }),
+        /** busca global (paleta): conversas, fatos, documentos, tela e arquivos gerados, agrupados */
+        buscaGlobal: (texto, project_id) => recurso('global_search', `/busca?${q({ q: texto, project_id })}`, { timeout: 6000 }),
+        telaBusca: (texto, dias = 7) => recurso('screen_search', `/tela/busca?${q({ q: texto, dias })}`, { timeout: 6000 }),
+        conflitosFatos: project_id => recurso('memory_facts', `/facts/conflicts?${q({ project_id })}`),
+        resolverConflito: (project_id, json) => recurso('memory_facts', `/facts/conflicts/resolve?${q({ project_id })}`, { metodo: 'POST', json }),
+        moverFato: (id, project_id, destino) => recurso('memory_facts', `/facts/${encodeURIComponent(id)}/move?${q({ project_id })}`, { metodo: 'POST', json: { project_id: destino } }),
+        validadeFato: (id, project_id, valid_until) => recurso('memory_facts', `/facts/${encodeURIComponent(id)}/validity?${q({ project_id })}`, { metodo: 'POST', json: { valid_until } }),
+        apagarFato: (id, project_id) => recurso('memory_facts', `/facts/${encodeURIComponent(id)}?${q({ project_id })}`, { metodo: 'DELETE' }),
+        /** resumo gerado do começo da conversa (auto-compact, regra 53) */
+        resumoSessao: id => recurso('sessions', `/sessoes/${encodeURIComponent(id)}/resumo`, { timeout: 4000 }),
+        descartarResumo: id => recurso('sessions', `/sessoes/${encodeURIComponent(id)}/resumo`, { metodo: 'DELETE', timeout: 4000 }),
         fatos: (project_id, query = '') => recurso('memory_facts', `/facts?${q({ project_id, query })}`),
         aprovacoesFatos: project_id => recurso('memory_facts', `/facts/pending?${q({ project_id })}`),
         revisarFato: (id, project_id, json) => recurso('memory_facts', `/facts/${encodeURIComponent(id)}/review?${q({ project_id })}`, { metodo: 'POST', json }),
@@ -272,6 +290,8 @@
         ramificarPedido: (id, session_id, text) => recurso('branches', `/branches/messages/${id}`, { metodo: 'POST', json: { session_id, text } }),
         documentos: project_id => recurso('documents', `/documents?${q({ project_id })}`),
         ingerirDocumento: (file, project_id) => recurso('documents', `/documents?${q({ name: file.name, project_id })}`, { metodo: 'POST', body: file, contentType: 'application/octet-stream', timeout: 60000 }),
+        documento: (id, project_id) => recurso('documents', `/documents/${id}?${q({ project_id })}`),
+        reindexarDocumento: (id, project_id) => recurso('documents', `/documents/${id}/reindex?${q({ project_id })}`, { metodo: 'POST', timeout: 60000 }),
         repetirDocumento: (id, project_id) => recurso('documents', `/documents/${id}/retry?${q({ project_id })}`, { metodo: 'POST', timeout: 60000 }),
         moverDocumento: (id, project_id, destino) => recurso('documents', `/documents/${id}?${q({ project_id })}`, { metodo: 'PATCH', json: { project_id: destino }, timeout: 60000 }),
         baixarDocumento: (id, project_id) => recurso('documents', `/documents/${id}/download?${q({ project_id })}`, { bruto: true }),

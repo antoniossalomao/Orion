@@ -218,3 +218,20 @@ Agora tem, com a mesma forma do legado + os campos novos, todas atrás do login/
 - **Bug corrigido na E3.6:** `api.autenticado()` (token **ou** sessão de login). Antes, quem entrava por senha via Projetos e skills vazios.
 - **Provado:** `tests/front_e2e/test_etapa3.py` (6 cenários contra o `orion.app` real em processo), `test_orion_real.py::test_prova_e3_...` (login por senha, processo à parte) e `tests/front/{conversas,slash}.test.js`.
 
+
+## 10. Memória: fatos, documentos, grafo e busca global (E4 e E5, 11/10/2026)
+
+| Item | Onde | Como funciona |
+|---|---|---|
+| Projeto, validade e conflitos dos fatos | Memória › fatos (`views/facts.js`) | seletor "Projeto" por fato (`POST /facts/{id}/move`), botão "Validade" (`POST /facts/{id}/validity`), "(antigo)" no fato vencido/substituído, cartões de contradição com "O novo vale" / "Os dois valem" (`/facts/conflicts`) |
+| Progresso e reindexar | Fontes (`views/documents.js`) | documento `processing` mostra `<progress>` e consulta a lista a cada 1 s; "Reindexar" = `POST /documents/{id}/reindex`; erro `pdf_requires_ocr` explica o tesseract |
+| Resumo da conversa | faixa `.history-resumo` no topo do chat (`history.js`) | `GET /sessoes/{id}/resumo`: "Conversa resumida até a mensagem N", ver resumo, descartar; recarrega 1,5 s depois de cada resposta |
+| Busca na tela e relações do sono | Conhecimento (`views/conhecimento.js`) | `GET /tela/busca`; lista de relações com "Apagar" (`/memoria/relacoes`) |
+| Avisos do sono com decisão | Atividade (`views/activity.js`) | ref `sono:dup:A:B` → "Apagar o repetido (#id)" (`DELETE /facts/{id}`); ref `sono:conflito:A:B` → "O novo vale" / "Os dois valem" |
+| Grafo 3D | Memória › Ver grafo (`views/memory.js`) | `GET /grafo/completo?limite&pasta&projeto`; tipos `fato` e `nota` com filtros e legenda; seletor de pasta do vault; "Abrir na lista de fatos"; **dados de demonstração só se o cérebro não responde** |
+| Andar pelo grafo | `js/grafo_cmd.js` (puro, Node) | "me leva até X" / "o que liga X a Y" no campo da Memória, `/grafo ...` no chat e pela voz com a Memória aberta (`fala.js` cancela o turno e executa); `GET /grafo/no` e `/grafo/caminho` resolvem os nomes; o caminho aparece em lista (equivalente por teclado) e como ligações brancas no 3D; Esc limpa |
+| Busca global | paleta Ctrl+K, grupo "Em tudo" (`palette.js`) | 300 ms depois de parar de digitar, `GET /busca?q=&project_id=`; conversa abre o chat, fato abre a lista de fatos, tela abre a busca da tela |
+
+- **Rotas com login:** `api.js` só manda `Authorization` para `/grafo`, `/memoria/relacoes` e `/busca` no backend novo (o legado tem `/grafo/completo` sem login).
+- **Capacidades novas:** `memory_graph` (saiu da lista de pendentes), `global_search`, `screen_search`.
+- **Provado:** `tests/front_e2e/test_e4_e5.py` (9 cenários contra o `orion.app` real, axe nas telas novas), `tests/front/grafo_cmd.test.js`.

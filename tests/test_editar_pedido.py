@@ -131,7 +131,9 @@ def test_banco_v17_sobe_para_v18_sem_perder_mensagens(tmp_path):
     c.close()
     store = MemoryStore(caminho)
     try:
-        assert store.query("SELECT value FROM meta WHERE key='schema_version'")[0][0] == "18"
+        assert store.query("SELECT value FROM meta WHERE key='schema_version'")[0][0] == str(
+            schema.SCHEMA_VERSION
+        )
         [m] = store.history("s1")
         assert m.text == "oi" and m.version_of is None
         assert store.query("SELECT superseded FROM messages")[0][0] == 0

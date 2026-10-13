@@ -72,6 +72,11 @@ ponte = [
     "websockets>=13",
     "pywebview>=5.3",
 ]
+# Reranker local (E4.6; ver orion/memory/rerank.py): opt-in e desligado por padrão.
+rerank = [
+    "onnxruntime>=1.18",
+    "tokenizers>=0.20",
+]
 wake-vosk = [
     "sounddevice>=0.5",
     "vosk>=0.3.45",

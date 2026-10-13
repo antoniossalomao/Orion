@@ -149,6 +149,13 @@
             const m = O.composer.MODELOS.find(x => x.id === id);
             ui.toast(`Modelo: ${m ? m.nome : id}.`, { ms: 1800 });
         },
+        /** `/grafo me leva até X`: abre a Memória no grafo e executa o comando */
+        async grafo(frase) {
+            if (!O.grafoCmd.interpretar(frase)) return ui.toast('Diga “me leva até X” ou “o que liga X a Y”.', { tipo: 'aviso' });
+            if (!(await O.memoriaFatos.mostrarGrafo())) return ui.toast('O grafo da memória está indisponível neste backend.', { tipo: 'aviso' });
+            for (let i = 0; i < 80 && !O.memoriaGrafo.pronto?.(); i++) await new Promise(r => setTimeout(r, 100));
+            O.memoriaGrafo.comando(frase);
+        },
         /** executa o que o campo de mensagem interpretou como `/comando` (ver slash.js) */
         slash(cmd, arg) {
             const A = O.acoes;
@@ -157,7 +164,7 @@
                 copiar: () => (arg === 'conversa' ? A.copiarConversa() : A.copiarUltima()),
                 exportar: () => A.exportar(), limpar: () => A.limpar(), projeto: () => O.projects.moverPorNome(arg), modelo: () => A.modelo(arg), tema: () => A.tema(arg),
                 foco: () => A.foco(), mudo: () => A.alternarTts(), voz: () => O.voz.alternar(),
-                inicio: () => ir('home'), memoria: () => ir('memoria'), integracoes: () => ir('integracoes'), config: () => ir('config'), painel: () => ir('painel'),
+                inicio: () => ir('home'), memoria: () => ir('memoria'), grafo: () => A.grafo(arg), integracoes: () => ir('integracoes'), config: () => ir('config'), painel: () => ir('painel'),
                 ajuda: () => ir('config', { secao: 'cfg-atalhos' }),
             };
             mapa[cmd]?.();

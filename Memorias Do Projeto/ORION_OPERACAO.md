@@ -323,7 +323,12 @@ ORION_SCREEN_MEMORY=true
 # ORION_SCREEN_EXCLUDE=senha;banco;pix   # título de janela que casa com um item: nem captura
 # ORION_SCREEN_ALLOW_UNKNOWN_TITLE=false # sem título da janela, não captura
 # ORION_SCREEN_OCR_LANGS=por+eng
+# ORION_SCREEN_EXCLUDE_APPS=KeePassXC;1Password;Bitwarden   # programa em foco que impede a captura
 ```
+Além do título da janela, o **programa em foco** também pode excluir a captura (`ORION_SCREEN_EXCLUDE_APPS`:
+gerenciadores de senha por padrão), e **com a tela bloqueada nada é capturado**; se o sistema não consegue dizer o
+programa ou se a tela está bloqueada, a captura não acontece (a menos que você libere
+`ORION_SCREEN_ALLOW_UNKNOWN_TITLE=true`). No Linux, a checagem do bloqueio usa `loginctl` e a do programa usa `xdotool`.
 
 **Dependências.** **(você)** `tesseract` com o pacote de português (`por`): no Windows, o instalador do
 UB Mannheim marcando "Portuguese"; no macOS, `brew install tesseract tesseract-lang`; no Linux,
@@ -335,7 +340,9 @@ aqui; linhas com cara de segredo, CPF ou cartão são descartadas antes de grava
 perguntar algo no chat e o modelo chamar `buscar_tela` (aí os trechos achados vão ao provedor do modelo,
 como qualquer resultado de ferramenta).
 
-**Onde ver.** `orion tela` (estado e contagem), `/tela` no Telegram, Painel › Sistema e `GET /tela`.
+**Onde ver.** `orion tela` (estado e contagem), `/tela` no Telegram, Painel › Sistema e `GET /tela`. A tela
+Conhecimento tem uma **caixa de busca** no cartão da memória da tela (`GET /tela/busca?q=&dias=`): mostra quando,
+em qual janela e programa, e o trecho. O texto só aparece a pedido seu.
 
 **Pausar/desligar.** Pausar: `POST /tela/pausa {"ativa": false}` (retomar com `true`), `/tela pausar` no
 Telegram. Apagar tudo o que foi guardado: `orion tela --limpar`, `DELETE /tela` ou `/tela limpar`.
@@ -361,8 +368,12 @@ duplicados roda.
 conversa crua nem conteúdo externo). A resposta é validada (tamanho, formato, nada com cara de segredo).
 
 **Onde ver.**
-- Duplicados: aviso na caixa de atividade (Painel › Atividade) e `orion fatos --duplicados`.
-- Relações: arestas do grafo com `kind=sono`.
+- Duplicados: um aviso por par na caixa de atividade (Painel › Atividade), com o botão **"Apagar o repetido"**
+  de cada fato, e `orion fatos --duplicados`.
+- Contradições ("mora em Marília" × "mora em Bauru"): aviso com **"O novo vale"** (o antigo passa a pesar menos na
+  busca e leva "(antigo)") e **"Os dois valem"**. O Orion nunca escolhe sozinho (regra 54).
+- Relações: arestas do grafo com `kind=sono`; a tela Conhecimento tem o cartão **Relações do sono**, onde cada
+  uma pode ser apagada (`GET`/`DELETE /memoria/relacoes`).
 - Padrões: fatos com fonte `sono:destilado:<data>` na tela Conhecimento e em `orion fatos`.
 
 **Pausar/desligar.** Apagar um padrão ou duplicado: `orion esquecer <id>` (ou pela tela Conhecimento).
@@ -523,7 +534,7 @@ gera (`gerar_documento`, `gerar_imagem`) ficam guardados numa biblioteca com ver
 
 **Documentos** (tela Conhecimento › Documentos, `POST /memoria/documentos`):
 - Formatos: `.txt`, `.md`, `.csv`, `.json`, `.html`, `.htm`, `.docx`, `.xlsx`, `.pdf` (PDF escaneado só
-  imagem ainda não entra: precisa de OCR antes).
+  imagem passa pelo tesseract local: ver a §19.2).
 - Limite: 25 MB por arquivo; até 2 milhões de caracteres indexados. O arquivo não fica guardado: só o texto,
   em trechos.
 - **"Disponível em"**: *global* (entra no contexto de qualquer conversa) ou um **projeto** (só nas conversas
@@ -573,6 +584,8 @@ opt-in novo sem linha aqui.
 | `ORION_LOCAL_MODEL` | Modelo local de reserva, sem ferramentas (§17.4) | Não: só `127.0.0.1` (a configuração recusa outro host) | 49 | vazio (padrão) |
 | `ORION_DND_AT` | Não perturbe por horário (§17.3) | Não | 48 | vazio (padrão) |
 | `ORION_CLAP_ENABLED` | Duas palmas abrem o Orion (§18.2) | Não antes nem depois das palmas; só com `abrir_e_ouvir` a fala seguinte vai como na voz (Groq, Microsoft) | 51 | `false` (padrão); pausa: `POST /voz/escuta` |
+| `ORION_COMPACT_AT` | Resumo do começo de conversas longas (§19.1) | Não: só pelo modelo local (`ORION_LOCAL_MODEL`) | 53 | `0` (ou sem modelo local) |
+| `ORION_RERANK` | Reranker local da busca (§19.4) | Não: roda no computador | 54 | `false` (padrão) |
 | `ORION_ALLOW_PAID` | Aceitar um endereço fora da lista de provedores gratuitos (§17.1) | Para o provedor que você apontou, que **pode cobrar** | 46 | `false` (padrão) |
 
 **Exemplo: ligar a memória da tela só com esta tabela.** Instale o `tesseract` com português (§8), ponha
@@ -839,3 +852,100 @@ e-mail que estiverem na tela vão junto: feche o que for sensível antes de aper
 **Pausar/desligar.** `ORION_VISION_TOOLS=false`; o **modo pânico** bloqueia (nada sai do computador).
 
 **Regra.** 28 e 50; código em `orion/ponte/rotas.py` (`/ponte/imagem`, `/ponte/explicar`), `orion/ponte/imagens.py`.
+
+## 19. Memória: resumo, OCR, validade de fatos e reranker (E4)
+
+Quatro recursos da memória. Os três primeiros já vêm prontos; o auto-compact precisa do modelo local e o
+reranker só liga se você quiser.
+
+### 19.1 Auto-compact do histórico
+
+**O que faz.** Conversa longa não "esquece o começo": passou de `ORION_COMPACT_AT` mensagens, o que saiu da janela
+de contexto é resumido em até 12 linhas, em segundo plano, **depois** da resposta. O resumo entra no prompt marcado
+como "gerado por modelo, pode ter erro". O registro da conversa não muda.
+
+**Como ligar.**
+```
+ORION_LOCAL_MODEL=qwen3.5:4b   # §17.4: sem ele, o auto-compact não faz nada
+# ORION_COMPACT_AT=40          # 0 desliga
+```
+
+**Dependências.** **(você)** Ollama e `ollama pull qwen3.5:4b` (§17.4). `orion doctor` avisa se o auto-compact está
+ligado sem modelo local.
+
+**O que sai do computador.** Nada: o resumo usa só o modelo local, num gateway que não tem outro endpoint.
+
+**Onde ver.** No chat, a faixa "Conversa resumida até a mensagem N" com **ver resumo** e **descartar**;
+`GET /sessoes/{id}/resumo`.
+
+**Pausar/desligar.** `ORION_COMPACT_AT=0` e reiniciar, ou **descartar** o resumo de uma conversa
+(`DELETE /sessoes/{id}/resumo`). Limpar o contexto ou reescrever um pedido que o resumo cobre também o descarta.
+
+**Regra.** 53; código em `orion/memory/compact.py`.
+
+### 19.2 PDF escaneado (OCR)
+
+**O que faz.** Página de PDF sem texto (menos de 20 caracteres) tem a imagem lida pelo tesseract local. A tela
+Fontes mostra uma **barra de progresso** enquanto indexa (a indexação segue em segundo plano) e o botão
+**Reindexar** apaga os trechos e refaz tudo a partir do original.
+
+**Como ligar.**
+```
+# ORION_OCR_MAX_PAGES=50   # páginas lidas por OCR em cada documento; 0 desliga
+# ORION_OCR_LANGS=por+eng
+```
+
+**Dependências.** **(você)** `tesseract` com o pacote `por` (§8). Sem ele, o PDF só de imagem continua dando
+"requer OCR"; instale e use **Reindexar**.
+
+**O que sai do computador.** Nada: a imagem de cada página vai para uma pasta temporária apagada ao fim e o OCR roda
+aqui. Os trechos achados entram no chat como qualquer resultado de ferramenta.
+
+**Onde ver.** Tela Fontes (estado e barra), `GET /documents` (campo `progress`) e `GET /documents/{id}`.
+
+**Pausar/desligar.** `ORION_OCR_MAX_PAGES=0`. Indexação que a queda do Orion deixou pela metade vira erro
+"interrompida" (com **Tentar novamente**).
+
+**Regra.** 52 (escopo do documento); código em `orion/document_extract.py` e `orion/documents.py`.
+
+### 19.3 Validade e substituição de fatos
+
+**O que faz.** Um fato pode ter data de validade (**Validade** na tela de fatos) e pode ser substituído por outro.
+Vencido ou substituído, ele pesa 0,3 na busca e aparece como "(antigo)". Nada é apagado. O **ciclo de sono** (§9)
+avisa de fatos que parecem se contradizer e você decide. A coluna **Projeto** de cada fato muda onde ele vale.
+
+**Como ligar.** Já vem pronto; os avisos de contradição dependem de `ORION_SLEEP_AT` (§9).
+
+**Dependências.** Nenhuma.
+
+**O que sai do computador.** Nada.
+
+**Onde ver.** Tela de fatos (Memória › Ver fatos), caixa de atividade, `GET /facts`, `GET /facts/conflicts`.
+
+**Pausar/desligar.** Tirar a validade (data vazia) ou desfazer pela tela; desligar o aviso: esvaziar `ORION_SLEEP_AT`.
+
+**Regra.** 52 e 54; código em `orion/memory/store.py` e `orion/fact_routes.py`.
+
+### 19.4 Reranker local
+
+**O que faz.** Reordena os melhores trechos da busca com um modelo cross-encoder em ONNX. Pronto e **desligado**.
+
+**Como ligar.** Só depois de medir:
+```
+uv sync --extra rerank
+# ponha model.onnx e tokenizer.json em <dados>/modelos/rerank (ou aponte ORION_RERANK_MODEL_DIR)
+python -m orion.memory.eval tests/eval_pessoal.local.json --db <orion.db> --rerank
+ORION_RERANK=true              # só se o acerto SUBIR na comparação
+```
+
+**Dependências.** **(você)** `onnxruntime`, `tokenizers` (extra `rerank`) e os dois arquivos do modelo. O Orion não
+baixa o modelo sozinho.
+
+**O que sai do computador.** Nada.
+
+**Onde ver.** `python -m orion.memory.eval ... --rerank` imprime o acerto sem e com o reranker; `orion doctor` avisa se
+está ligado sem os arquivos.
+
+**Pausar/desligar.** `ORION_RERANK=false` e reiniciar. Se o reranker falhar numa busca, a ordem original fica.
+
+**Regra.** 54; código em `orion/memory/rerank.py`.

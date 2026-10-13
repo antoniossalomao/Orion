@@ -9,7 +9,6 @@ from . import __version__
 
 # Recursos de interface que ainda não têm endpoint no backend novo.
 PENDING_FEATURES = (
-    "memory_graph",
     "memory_categories",
     "metrics",
     "stats",
@@ -67,6 +66,9 @@ def describe(
         projects=admin_configured,
         artifacts=admin_configured,
         memory_facts=admin_configured,
+        memory_graph=admin_configured,
+        global_search=admin_configured,
+        screen_search=admin_configured,
         mcp=admin_configured,
         mcp_export=admin_configured,
         html_preview=admin_configured and sys.platform != "win32",
@@ -110,6 +112,9 @@ def describe(
             projects="auth_not_configured",
             artifacts="auth_not_configured",
             memory_facts="auth_not_configured",
+            memory_graph="auth_not_configured",
+            global_search="auth_not_configured",
+            screen_search="auth_not_configured",
             mcp="auth_not_configured",
             mcp_export="auth_not_configured",
         )

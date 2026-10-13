@@ -10,7 +10,7 @@
     const { $, el, icone, api, ui } = O;
     const U = O.util;
 
-    let resultados = [], aberto = null, tela = { ligada: false }, erro = null;
+    let resultados = [], aberto = null, tela = { ligada: false }, erro = null, relacoes = [], buscaTela = { texto: '', achados: null };
 
     const vazio = t => el('p', { class: 'painel-vazio', text: t });
     const data = iso => (iso ? new Date(iso).toLocaleDateString('pt-BR') : '');
@@ -85,7 +85,42 @@
             el('div', { class: 'conh-acoes' },
                 el('button', { class: 'btn btn-outline btn-sm', type: 'button', 'data-tela-pausa': '', text: tela.pausada ? 'Retomar captura' : 'Pausar captura',
                     on: { click: () => agir(() => api.telaPausa(!!tela.pausada), 'Não consegui mudar.') } }),
-                el('button', { class: 'btn btn-ghost btn-sm', type: 'button', text: 'Apagar tudo', on: { click: limparTela } })));
+                el('button', { class: 'btn btn-ghost btn-sm', type: 'button', text: 'Apagar tudo', on: { click: limparTela } })),
+            api.estado().backend === 'orion' && api.suporta('screen_search') ? buscaDaTelaEl() : null);
+    }
+
+    /* ── busca no texto da tela (E5.1): quando, em qual janela/programa, e o trecho ── */
+    const quando = ts => new Date(ts * 1000).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    async function procurarNaTela(texto) {
+        buscaTela.texto = texto;
+        if (texto.trim().length < 2) { buscaTela.achados = null; desenhar(); return; }
+        try { buscaTela.achados = (await api.telaBusca(texto.trim(), 30)).resultados; }
+        catch (e) { buscaTela.achados = null; ui.toast(`Não consegui buscar na tela. ${e.message || ''}`.trim(), { tipo: 'erro' }); }
+        desenhar();
+        $('#tela-busca-campo')?.focus();
+    }
+    function buscaDaTelaEl() {
+        const campo = el('input', { id: 'tela-busca-campo', class: 'input', type: 'search', 'aria-label': 'Buscar no texto da tela', placeholder: 'Buscar no que esteve na tela…', value: buscaTela.texto });
+        campo.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); procurarNaTela(campo.value); } });
+        const lista = buscaTela.achados == null ? null : buscaTela.achados.length
+            ? el('ul', { class: 'painel-lista', 'aria-label': 'Resultados na memória da tela' }, ...buscaTela.achados.map(a => el('li', { class: 'painel-item', dataset: { telaResultado: String(a.id) } },
+                el('small', { text: `${quando(a.quando)} · ${a.janela || 'sem título'}${a.app ? ` · ${a.app}` : ''}` }),
+                el('p', { class: 'selectable', text: a.trecho }))))
+            : vazio('Nada na memória da tela com esse texto.');
+        return el('div', { class: 'conh-tela-busca' }, campo, lista);
+    }
+
+    /* ── relações do ciclo de sono (E5.4): o que o Orion ligou entre as coisas; dá para apagar ── */
+    async function apagarRelacao(r) {
+        const ok = await ui.confirmar({ titulo: 'Apagar esta relação?', ok: 'Apagar', perigo: true,
+            texto: `“${r.src}” —${r.rel}→ “${r.dst}” sai do grafo. Os fatos continuam como estão.` });
+        if (ok && await agir(() => api.apagarRelacaoSono(r.src, r.rel, r.dst), 'Não consegui apagar.')) O.anunciar('Relação apagada.');
+    }
+    function relacoesEl() {
+        if (!relacoes.length) return vazio('Nenhuma relação ainda. Com ORION_SLEEP_AT ligado, o Orion liga as coisas citadas nos seus fatos toda noite.');
+        return el('ul', { class: 'painel-lista', 'aria-label': 'Relações do ciclo de sono' }, ...relacoes.map(r => el('li', { class: 'painel-item', dataset: { relacao: `${r.src}|${r.rel}|${r.dst}` } },
+            el('div', { class: 'painel-item-top' }, el('strong', { text: r.src }), el('span', { class: 'badge badge-muted', text: r.rel }), el('strong', { text: r.dst })),
+            el('div', { class: 'conh-acoes' }, el('button', { class: 'btn btn-ghost btn-sm', type: 'button', text: 'Apagar', 'aria-label': `Apagar a relação ${r.src} ${r.rel} ${r.dst}`, on: { click: () => apagarRelacao(r) } })))));
     }
 
     function cartao(id, titulo, dica, ...filhos) {
@@ -105,6 +140,7 @@
         }
         raiz.replaceChildren(el('div', { class: 'grid grid-2 painel-grade' },
             cartao('tela', 'Memória da tela', tela.ligada ? 'ligada' : 'desligada', telaEl()),
+            api.estado().backend === 'orion' && api.suporta('memory_graph') ? cartao('relacoes', 'Relações do sono', `${relacoes.length} relação(ões)`, relacoesEl()) : null,
             cartao('resultados', 'Arquivos gerados', `${resultados.length} gerado(s)`,
                 resultados.length ? el('ul', { class: 'painel-lista', 'aria-label': 'Arquivos gerados' }, ...resultados.map(itemResultado))
                     : vazio('Nada gerado ainda. Documentos e imagens que o Orion criar aparecem aqui, com versões.'))));
@@ -112,15 +148,16 @@
 
     async function carregar() {
         try {
-            const [t, rs] = await Promise.all([api.tela().catch(() => ({ ligada: false })), api.biblioteca().catch(() => ({ resultados: [] }))]);
-            resultados = rs.resultados || []; tela = t || { ligada: false }; erro = null;
+            const [t, rs, rel] = await Promise.all([api.tela().catch(() => ({ ligada: false })), api.biblioteca().catch(() => ({ resultados: [] })),
+                api.estado().backend === 'orion' && api.suporta('memory_graph') ? api.relacoesSono().catch(() => []) : []]);
+            resultados = rs.resultados || []; tela = t || { ligada: false }; relacoes = Array.isArray(rel) ? rel : []; erro = null;
         } catch (e) { erro = e; }
         desenhar();
     }
 
     O.views = O.views || {};
     O.views.conhecimento = {
-        init() { $('#conhecimento-refresh').addEventListener('click', carregar); },
+        init() { $('#conhecimento-refresh').addEventListener('click', carregar); O.conhecimento = { buscarNaTela: t => { buscaTela.texto = t; O.app.ir('conhecimento'); return procurarNaTela(t); } }; },
         ativar() { carregar(); },
         desativar() {},
     };

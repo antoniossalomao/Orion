@@ -77,6 +77,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument(
         "--embeddings", action="store_true", help="mede a busca híbrida (gasta cota da API)"
     )
+    p.add_argument(
+        "--rerank",
+        action="store_true",
+        help="mede também com o reranker local (ORION_RERANK_MODEL_DIR) e compara",
+    )
     a = p.parse_args(argv)
     embedder = None
     if a.embeddings:
@@ -95,6 +100,20 @@ def main(argv: list[str] | None = None) -> int:
     print(f"casos={rel.n} busca={modo} hit@{a.k}={rel.hit_rate:.1%} mrr={rel.mrr:.3f}")
     for c in rel.misses:
         print(f"  ERROU: {c.question}")
+    if a.rerank:
+        from ..config import Settings
+        from .rerank import reranker_da_pasta
+
+        cfg = Settings()
+        pasta = cfg.rerank_model_dir or str(cfg.data_dir / "modelos" / "rerank")
+        store.reranker = reranker_da_pasta(pasta)
+        if store.reranker is None:
+            print("sem reranker (ver o aviso acima): nada a comparar", file=sys.stderr)
+            return 2
+        com = run_eval(store, load_cases(a.casos), k=a.k)
+        print(f"com reranker: hit@{a.k}={com.hit_rate:.1%} mrr={com.mrr:.3f}")
+        veredito = "SOBE" if com.hit_rate > rel.hit_rate or com.mrr > rel.mrr else "não sobe"
+        print(f"o acerto {veredito} com o reranker (só ligue ORION_RERANK se subir)")
     return 0 if rel.hit_rate >= a.min_hit_rate else 1
 
 

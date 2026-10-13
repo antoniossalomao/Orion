@@ -363,6 +363,27 @@ class Operations:
         )
         return _dicts(rows)
 
+    def list_edges(self, kind: str | None = None, limit: int = 2000) -> list[dict[str, Any]]:
+        """Arestas do grafo (todas, ou só de um `kind`: `sono`, `vault`...), das mais novas."""
+        return _dicts(
+            self._query(
+                "SELECT src, rel, dst, weight, kind, created_at FROM edges"
+                " WHERE (? IS NULL OR kind=?) ORDER BY created_at DESC, src, rel, dst LIMIT ?",
+                (kind, kind, max(1, min(limit, 20_000))),
+            )
+        )
+
+    def remove_edge(self, src: str, rel: str, dst: str, kind: str | None = None) -> bool:
+        """Apaga uma aresta (com `kind`, só se for daquele tipo)."""
+        with self._s.transaction() as c:
+            return (
+                c.execute(
+                    "DELETE FROM edges WHERE src=? AND rel=? AND dst=? AND (? IS NULL OR kind=?)",
+                    (src, rel, dst, kind, kind),
+                ).rowcount
+                > 0
+            )
+
     def edge_count(self) -> int:
         return int(self._query("SELECT COUNT(*) FROM edges")[0][0])
 

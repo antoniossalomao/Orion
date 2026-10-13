@@ -35,6 +35,9 @@ OPT_INS = {
     "allow_paid",
     # E2 (regras 50 e 51)
     "clap_enabled",
+    # E4 (regras 53 e 54)
+    "compact_at",
+    "rerank",
 }
 
 

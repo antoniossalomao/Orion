@@ -22,13 +22,14 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import logging
+import os
 import re
 import shutil
 import subprocess
 import sys
 import tempfile
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -62,6 +63,11 @@ _PS_JANELA = (
     "$sb = New-Object System.Text.StringBuilder 256;"
     "[void][W]::GetWindowText([W]::GetForegroundWindow(), $sb, 256); $sb.ToString()"
 )
+
+
+def _nome_de_app(nome: str) -> str:
+    """ "KeePassXC.exe" → "keepassxc": compara sem caixa nem extensão."""
+    return nome.strip().casefold().removesuffix(".exe").removesuffix(".app")
 
 
 def parse_lista(bruto: str) -> list[str]:
@@ -101,6 +107,121 @@ def titulo_da_janela(
         return None
     saida = r.stdout.decode("utf-8", "replace") if isinstance(r.stdout, bytes) else str(r.stdout)
     return saida.strip() or None
+
+
+_PS_PROCESSO = (
+    'Add-Type @"\n'
+    "using System; using System.Runtime.InteropServices;\n"
+    "public class P {\n"
+    '  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();\n'
+    '  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(\n'
+    "    IntPtr h, out uint pid); }\n"
+    '"@;\n'
+    "$p = 0; [void][P]::GetWindowThreadProcessId([P]::GetForegroundWindow(), [ref]$p);"
+    "if ($p) { (Get-Process -Id $p -ErrorAction SilentlyContinue).ProcessName }"
+)
+# Windows: a estação de entrada some (OpenInputDesktop falha) quando a tela está bloqueada.
+_PS_BLOQUEIO = (
+    'Add-Type @"\n'
+    "using System; using System.Runtime.InteropServices;\n"
+    "public class L {\n"
+    '  [DllImport("user32.dll")] public static extern IntPtr OpenInputDesktop(\n'
+    "    uint f, bool i, uint a);\n"
+    '  [DllImport("user32.dll")] public static extern bool CloseDesktop(IntPtr h); }\n'
+    '"@;\n'
+    "$d = [L]::OpenInputDesktop(0, $false, 0x0100);"
+    "if ($d -eq [IntPtr]::Zero) { 'locked' } else { [void][L]::CloseDesktop($d); 'unlocked' }"
+)
+_JXA_BLOQUEIO = (
+    'ObjC.import("CoreGraphics");'
+    "var d = ObjC.deepUnwrap(ObjC.castRefToObject($.CGSessionCopyCurrentDictionary()));"
+    "(d && d.CGSSessionScreenIsLocked) ? 'locked' : 'unlocked'"
+)
+
+
+def _rodar_texto(argv: list[str], env: dict[str, str], runner: Callable[..., Any]) -> str | None:
+    try:
+        r = runner(
+            argv, env=env, stdin=subprocess.DEVNULL, capture_output=True, timeout=10, check=False
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if r.returncode != 0:
+        return None
+    saida = r.stdout.decode("utf-8", "replace") if isinstance(r.stdout, bytes) else str(r.stdout)
+    return saida.strip() or None
+
+
+def app_em_foco(
+    *,
+    platform: str = sys.platform,
+    runner: Callable[..., Any] = subprocess.run,
+    which: Callable[[str], str | None] = shutil.which,
+) -> str | None:
+    """Nome do programa da janela ativa ("keepassxc", "chrome"), ou None se este sistema não
+    consegue dizer. Serve à exclusão por aplicativo (E5.2): o título muda, o programa não."""
+    if platform == "win32":
+        exe = which("pwsh") or which("powershell")
+        if not exe:
+            return None
+        argv, env = _script_ps(_PS_PROCESSO, {}, exe)
+        return _rodar_texto(argv, env, runner)
+    if platform == "darwin":
+        return _rodar_texto(
+            [
+                "osascript",
+                "-e",
+                'tell application "System Events" to get name of first application process '
+                "whose frontmost is true",
+            ],
+            env_limpo(),
+            runner,
+        )
+    if which("xdotool"):
+        pid = _rodar_texto(["xdotool", "getactivewindow", "getwindowpid"], env_limpo(), runner)
+        if pid and pid.isdigit():
+            import psutil
+
+            try:
+                return psutil.Process(int(pid)).name() or None
+            except (psutil.Error, OSError):
+                return None
+    return None
+
+
+def tela_bloqueada(
+    *,
+    platform: str = sys.platform,
+    runner: Callable[..., Any] = subprocess.run,
+    which: Callable[[str], str | None] = shutil.which,
+    environ: Mapping[str, str] | None = None,
+) -> bool | None:
+    """True se a tela está bloqueada, False se não, None se este sistema não consegue dizer.
+    Quem chama trata None como bloqueada (falha fechada, regra 44); a presença (E11.6) também."""
+    ambiente: Mapping[str, str] = os.environ if environ is None else environ
+    if platform == "win32":
+        exe = which("pwsh") or which("powershell")
+        if not exe:
+            return None
+        argv, env = _script_ps(_PS_BLOQUEIO, {}, exe)
+        saida = _rodar_texto(argv, env, runner)
+    elif platform == "darwin":
+        saida = _rodar_texto(
+            ["osascript", "-l", "JavaScript", "-e", _JXA_BLOQUEIO], env_limpo(), runner
+        )
+    elif which("loginctl"):
+        sessao = ambiente.get("XDG_SESSION_ID") or "auto"
+        saida = _rodar_texto(
+            ["loginctl", "show-session", sessao, "-p", "LockedHint", "--value"], env_limpo(), runner
+        )
+        if saida in ("yes", "no"):
+            return saida == "yes"
+        return None
+    else:
+        return None
+    if saida in ("locked", "unlocked"):
+        return saida == "locked"
+    return None
 
 
 def ocr_tesseract(
@@ -157,18 +278,31 @@ class ScreenMemory:
         exclude: list[str] | None = None,
         allow_unknown_title: bool = False,
         clock: Callable[[], float] = time.time,
+        app: Callable[[], str | None] | None = None,
+        exclude_apps: list[str] | None = None,
+        locked: Callable[[], bool | None] | None = None,
     ) -> None:
         self.memory = memory
         self._capture, self._ocr, self._title = capture, ocr, title
         self._interval = max(MIN_INTERVALO_S, interval_s)
         self._retention = retention_days
         self._exclude = [e.casefold() for e in (exclude or [])]
+        self._app = app  # E5.2: programa em foco; None = sem exclusão por programa
+        self._exclude_apps = [_nome_de_app(e) for e in (exclude_apps or []) if _nome_de_app(e)]
+        self._locked = locked  # E5.3: tela bloqueada; None = sem checagem
         self._allow_unknown = allow_unknown_title
         self._clock = clock
         self._ultima = float("-inf")
         self._ultimo_hash = ""
         self._dia_poda = ""
-        self.stats = {"gravadas": 0, "excluidas": 0, "sem_titulo": 0, "ocr_falhou": 0, "iguais": 0}
+        self.stats = {
+            "gravadas": 0,
+            "excluidas": 0,
+            "sem_titulo": 0,
+            "ocr_falhou": 0,
+            "iguais": 0,
+            "bloqueada": 0,
+        }
 
     # ── controle ──────────────────────────────────────────────────────────
     @property
@@ -186,6 +320,12 @@ class ScreenMemory:
         """Faz UMA captura. Devolve o que aconteceu (para o audit e os testes), nunca o conteúdo."""
         self._ultima = self._clock()
         self._podar()
+        if self._locked is not None:
+            # tela bloqueada (ou sem como saber, a menos que você libere): nem captura (E5.3)
+            estado = self._locked()
+            if estado is True or (estado is None and not self._allow_unknown):
+                self.stats["bloqueada"] += 1
+                return "bloqueada"
         titulo = self._title()
         if titulo is None:
             if not self._allow_unknown:
@@ -196,6 +336,18 @@ class ScreenMemory:
         if any(e in baixo for e in self._exclude):
             self.stats["excluidas"] += 1
             return "excluida"
+        programa = ""
+        if self._app is not None and self._exclude_apps:
+            achado = self._app()
+            if achado is None:
+                if not self._allow_unknown:
+                    self.stats["sem_titulo"] += 1
+                    return "sem_app"
+            else:
+                programa = _nome_de_app(achado)
+                if any(e in programa for e in self._exclude_apps):
+                    self.stats["excluidas"] += 1
+                    return "excluida"
         with tempfile.TemporaryDirectory(prefix="orion-tela-") as tmp:
             arquivo = Path(tmp) / "t.jpg"
             try:
@@ -216,7 +368,7 @@ class ScreenMemory:
             self.stats["iguais"] += 1
             return "igual"
         self._ultimo_hash = h
-        self.memory.add_screen(texto, titulo)
+        self.memory.add_screen(texto, titulo, programa)
         self.stats["gravadas"] += 1
         audit_log.info("tela_gravada", extra={"audit": {"caracteres": len(texto)}})
         return "gravada"

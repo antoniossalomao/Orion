@@ -13,18 +13,20 @@
 
     const NUCLEO = 'orion:core';
     const RAIO = 70;
-    const COR = { topico: 0xf5b95f, orion: 0x8fabff, user: 0x9aa6bd };
-    const ROTULO_TIPO = { topico: 'Tópico', orion: 'Fala do Orion', user: 'Fala sua', nucleo: 'Núcleo' };
+    const COR = { topico: 0xf5b95f, orion: 0x8fabff, user: 0x9aa6bd, fato: 0xf08fc0, nota: 0x7fd6a6 };
+    const ROTULO_TIPO = { topico: 'Tópico', orion: 'Fala do Orion', user: 'Fala sua', fato: 'Fato', nota: 'Nota', nucleo: 'Núcleo' };
     const ehUsuario = ator => /^ant[oô]nio$/i.test(String(ator || '').trim());
     const dataCurta = ts => { const d = ts ? new Date(ts) : null; return d && !Number.isNaN(+d) ? d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''; };
     /** "Fala sua · 12/10/26 14:30 · 3 ligações": o que distingue nós de títulos parecidos */
     const metaDe = n => [ROTULO_TIPO[tipoDe(n)], dataCurta(n.ts), n._grau ? `${n._grau} ${n._grau === 1 ? 'ligação' : 'ligações'}` : ''].filter(Boolean).join(' · ');
-    const tipoDe = n => (n.id === NUCLEO ? 'nucleo' : n.tipo === 'topico' ? 'topico' : ehUsuario(n.ator) ? 'user' : 'orion');
+    const tipoDe = n => (n.id === NUCLEO ? 'nucleo' : n.tipo === 'topico' ? 'topico' : n.tipo === 'fato' ? 'fato' : n.tipo === 'nota' ? 'nota' : ehUsuario(n.ator) ? 'user' : 'orion');
 
     let grafo = null, dados = null, demo = false, ativo = false, carregando = false, iniciando = false;
-    let filtros = { topico: true, orion: true, user: true }, consulta = '', selecionado = null;
+    let filtros = { topico: true, orion: true, user: true, fato: true, nota: true }, consulta = '', selecionado = null;
+    let pasta = '', caminhoAtual = null;   // filtro de pasta do vault; caminho destacado ({ids, pares})
+    const escopo = () => O.projects?.current?.()?.id || null;
     const nos = new Map();      // id → nó (mesmo objeto entre reconstruções: mantém posição)
-    let caixa, resultados, texNo = null;
+    let caixa, resultados, texNo = null, seletorPasta = null;
 
     /* o 3d-force-graph (700 KB) só carrega na primeira visita à Memória. O bundle traz o próprio
        three.js (mesma revisão r128): soltar o marcador evita o aviso "múltiplas instâncias". */
@@ -134,6 +136,8 @@
         return f;
     })();
 
+    const noCaminho = l => !!caminhoAtual && caminhoAtual.pares.has(`${l.source?.id ?? l.source}|${l.target?.id ?? l.target}`);
+
     /* ── dados → grafo ─────────────────────────────────────────────────── */
     function preparar() {
         const grau = {};
@@ -197,8 +201,8 @@
             .width(w).height(h).backgroundColor('rgba(0,0,0,0)').showNavInfo(false)
             .nodeLabel(n => U.escapar(n.id === NUCLEO ? 'Orion' : (n.label || n.id)))
             .nodeThreeObject(objetoNo).nodeThreeObjectExtend(false)
-            .linkColor(l => (l.rel === 'nucleo' ? 'rgba(143,171,255,0.28)' : 'rgba(0,0,0,0)'))
-            .linkWidth(l => (l.rel === 'nucleo' ? 0.4 : 0))
+            .linkColor(l => (noCaminho(l) ? 'rgba(255,255,255,0.95)' : l.rel === 'nucleo' ? 'rgba(143,171,255,0.28)' : 'rgba(0,0,0,0)'))
+            .linkWidth(l => (noCaminho(l) ? 1.6 : l.rel === 'nucleo' ? 0.4 : 0))
             .linkCurvature(l => l._curv || 0).linkCurveRotation(l => l._rot || 0)
             .d3AlphaDecay(0.04).d3VelocityDecay(0.35).cooldownTicks(200)
             .onEngineStop(() => {
@@ -233,7 +237,7 @@
         sobre.replaceChildren(el('div', { class: 'empty', role: 'status' }, el('span', { class: 'status-dot', dataset: { state: 'loading' } }), el('p', { text: 'Carregando memória…' })));
         $('#mem-banner').hidden = true;
         try {
-            const d = await api.grafo(500);
+            const d = await api.grafo(500, { projeto: escopo(), pasta: pasta || null });
             if (!d.nodes?.length) throw new Error('vazio');
             dados = d; demo = false;
         } catch (e) {
@@ -245,10 +249,23 @@
                 el('button', { class: 'btn btn-outline btn-sm', type: 'button', text: 'Tentar de novo', on: { click: carregar } })));
             faixa.hidden = false;
         }
+        caminhoAtual = null;
         base = preparar();
         sobre.replaceChildren();
         aplicar();
+        pastasDoVault();
         carregando = false;
+    }
+
+    /** pastas das notas do vault (só se há notas): "área" do vault para não carregar tudo */
+    function pastasDoVault() {
+        if (!seletorPasta) return;
+        const todas = [...new Set(dados.nodes.filter(n => n.tipo === 'nota' && n.pasta).map(n => n.pasta.split('/').slice(0, 2).join('/')))].sort();
+        seletorPasta.hidden = demo || (!todas.length && !pasta);
+        const opcoes = ['', ...todas];
+        if (pasta && !opcoes.includes(pasta)) opcoes.push(pasta);
+        seletorPasta.replaceChildren(...opcoes.map(p => el('option', { value: p, text: p || 'Todas as pastas' })));
+        seletorPasta.value = pasta;
     }
 
     /* ── seleção, detalhe e resultados ─────────────────────────────────── */
@@ -280,8 +297,13 @@
             filhos.push(el('h3', { tabindex: '-1', text: n.label || n.id }));
             const meta = el('div', { class: 'meta' });
             if (n.ts) meta.append(el('span', { text: dataCurta(n.ts) }));
+            if (n.pasta) meta.append(el('span', { text: n.pasta }));
+            if (n.antigo) meta.append(el('span', { text: '(antigo)' }));
             meta.append(el('span', { text: `${n._grau} ${n._grau === 1 ? 'ligação' : 'ligações'}` }));
             filhos.push(meta);
+            if (tipo === 'fato' && O.memoriaFatos) {
+                filhos.push(el('button', { type: 'button', class: 'btn btn-outline btn-sm', text: 'Abrir na lista de fatos', on: { click: () => O.memoriaFatos.abrirFato(n.label) } }));
+            }
             const viz = vizinhos(n).slice(0, 14);
             if (viz.length) {
                 filhos.push(el('div', { class: 'card-sub', text: 'Conectado a', style: 'margin-bottom:.3rem' }),
@@ -319,6 +341,67 @@
         resultados.setAttribute('aria-label', `${lista.length} resultados`);
     }
 
+
+    /* ── andar pelo grafo: "me leva até X", "o que liga X a Y" (grafo_cmd.js) ── */
+    function garantirNo(no) {
+        if (!no || nos.has(no.id) && base.lista.some(n => n.id === no.id)) return nos.get(no.id);
+        // o servidor achou o nó no grafo inteiro, mas o recorte de 500 não o trouxe: acrescenta
+        dados.nodes.push(no);
+        base = preparar();
+        return nos.get(no.id);
+    }
+    function listaDeCaminho(titulo, lista) {
+        resultados.hidden = !lista.length;
+        resultados.replaceChildren(el('div', { class: 'card-sub', role: 'status', text: titulo, style: 'padding:.4rem .6rem' }),
+            ...lista.map(n => el('button', { type: 'button', class: 'mem-result', on: { click: () => selecionar(n) } },
+                el('span', { class: `leg-dot leg-${tipoDe(n)}`, 'aria-hidden': 'true' }),
+                el('span', { class: 'mem-item-txt' }, el('span', { class: 'conv-title', text: n.label || n.id }), el('small', { text: metaDe(n) })))));
+        resultados.setAttribute('aria-label', titulo);
+    }
+    function limparCaminho() {
+        if (!caminhoAtual) return;
+        caminhoAtual = null;
+        if (base) aplicar();
+    }
+    async function comando(texto) {
+        const c = O.grafoCmd.interpretar(texto);
+        if (!c) return false;
+        if (!dados || demo) { ui.toast('Abra a Memória com dados reais para andar pelo grafo.', { tipo: 'aviso' }); return true; }
+        try {
+            if (c.tipo === 'ir') {
+                const { no } = await api.grafoNo(c.alvo, escopo());
+                if (!no) { ui.toast(`Não achei “${U.truncar(c.alvo, 60)}” na memória.`, { tipo: 'aviso' }); return true; }
+                limparCaminho();
+                const alvo = garantirNo(no);
+                aplicar();
+                if (alvo) selecionar(alvo, { foco: true });
+                return true;
+            }
+            for (const [de, para] of c.opcoes) {
+                const r = await api.grafoCaminho(de, para, escopo());
+                if (!r.de || !r.para) continue;   // um dos nomes não existe: tenta a outra forma de separar
+                if (!r.caminho.length) { ui.toast(`“${U.truncar(r.de.label, 40)}” e “${U.truncar(r.para.label, 40)}” existem, mas nada os liga.`, { tipo: 'aviso' }); return true; }
+                const lista = r.caminho.map(garantirNo).filter(Boolean);
+                const pares = new Set();
+                for (let i = 1; i < r.caminho.length; i++) { pares.add(`${r.caminho[i - 1].id}|${r.caminho[i].id}`); pares.add(`${r.caminho[i].id}|${r.caminho[i - 1].id}`); }
+                caminhoAtual = { ids: new Set(r.caminho.map(n => n.id)), pares };
+                dados.links = dados.links || [];
+                for (const l of r.ligacoes) {
+                    const novo = { source: l.source, target: l.target, rel: l.rel };
+                    if (!base.ligacoes.some(x => x.source === novo.source && x.target === novo.target)) { dados.links.push(novo); base.ligacoes.push(novo); }
+                }
+                aplicar();
+                const passos = r.caminho.length - 1;
+                listaDeCaminho(`${U.truncar(r.de.label, 40)} → ${U.truncar(r.para.label, 40)} · ${passos} ${passos === 1 ? 'ligação' : 'ligações'}`, lista);
+                if (lista[0]) voarPara(lista[0]);
+                O.anunciar(`Caminho com ${passos} ${passos === 1 ? 'ligação' : 'ligações'}: ${lista.map(n => U.truncar(n.label || n.id, 40)).join(', depois ')}.`);
+                return true;
+            }
+            ui.toast('Não achei um dos dois nomes na memória.', { tipo: 'aviso' });
+        } catch (e) { ui.toast(`Não consegui andar pelo grafo: ${e.message}`, { tipo: 'erro' }); }
+        return true;
+    }
+
     /* ── API da view ───────────────────────────────────────────────────── */
     O.views = O.views || {};
     O.views.memoria = {
@@ -327,8 +410,12 @@
             resultados = el('div', { class: 'mem-results', role: 'group', hidden: true });
             caixa.append(resultados);
             const busca = $('#mem-search');
-            busca.addEventListener('input', U.debounce(() => { consulta = busca.value; aplicar(); }, 150));
+            busca.addEventListener('input', U.debounce(() => { const c = O.grafoCmd.interpretar(busca.value) ? '' : busca.value; if (c === consulta) return; consulta = c; aplicar(); }, 150));   // um comando (“me leva até…”) não é filtro: não apaga a lista de caminho
+            seletorPasta = el('select', { id: 'mem-pasta', class: 'input mem-pasta', 'aria-label': 'Filtrar notas por pasta do vault', hidden: true });
+            seletorPasta.addEventListener('change', () => { pasta = seletorPasta.value; carregar(); });
+            $('#mem-filters').after(seletorPasta);
             busca.addEventListener('keydown', e => {
+                if (e.key === 'Enter' && O.grafoCmd.interpretar(busca.value)) { e.preventDefault(); const t = busca.value; busca.value = ''; consulta = ''; aplicar(); comando(t); return; }
                 if (e.key === 'Enter') { const [primeiro] = achados(); if (primeiro) { e.preventDefault(); selecionar(primeiro); } }
                 if (e.key === 'Escape' && busca.value) { e.stopPropagation(); busca.value = ''; consulta = ''; aplicar(); }
             });
@@ -367,7 +454,14 @@
             requestAnimationFrame(() => { const box = $('#grafo-container'); grafo?.width(box.clientWidth).height(box.clientHeight); });
         },
         desativar() { ativo = false; grafo?.pauseAnimation?.(); },
-        escape() { return fecharDetalhe(); },
+        escape() { return fecharDetalhe() || (caminhoAtual ? (limparCaminho(), resultados.hidden = true, true) : false); },
         ativoAgora: () => ativo,
+    };
+    O.memoriaGrafo = {
+        comando,
+        /** o grafo já carregou dados reais (o `/grafo` espera por isto) */
+        pronto: () => !!dados && !demo && !carregando,
+        /** a fala dita com a Memória aberta: se é um comando do grafo, executa e avisa quem chamou */
+        tratarFala: texto => (ativo && !!dados && !demo && !!O.grafoCmd.interpretar(texto) ? (comando(texto), true) : false),
     };
 })();

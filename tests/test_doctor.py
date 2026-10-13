@@ -85,3 +85,20 @@ def test_aviso_de_opt_in_aponta_a_secao_do_guia(tmp_path, monkeypatch):
     assert "§10" in pesquisa.detalhe
     semanal = _por_nome(_s(tmp_path, weekly_ai=True))["leitura semanal"]
     assert "§11" in semanal.detalhe
+
+
+def test_memoria_nova_avisa_do_que_esta_ligado_e_nao_vai_funcionar(tmp_path):
+    itens = _por_nome(_s(tmp_path, compact_at=25))
+    assert "auto-compact" in itens and "ORION_LOCAL_MODEL" in itens["auto-compact"].detalhe
+    assert "ver ORION_OPERACAO §19" in itens["auto-compact"].detalhe
+    assert "auto-compact" not in _por_nome(_s(tmp_path))  # padrão: sem ruído em instalação nova
+    assert "auto-compact" not in _por_nome(_s(tmp_path, compact_at=0))
+    assert "auto-compact" not in _por_nome(_s(tmp_path, local_model="qwen3.5:4b"))
+    assert "reranker" not in _por_nome(_s(tmp_path))
+    r = _por_nome(_s(tmp_path, rerank=True))["reranker"]
+    assert r.nivel == "aviso" and "model.onnx" in r.detalhe
+    pasta = tmp_path / "m"
+    pasta.mkdir()
+    (pasta / "model.onnx").write_bytes(b"x")
+    (pasta / "tokenizer.json").write_text("{}")
+    assert "reranker" not in _por_nome(_s(tmp_path, rerank=True, rerank_model_dir=str(pasta)))
