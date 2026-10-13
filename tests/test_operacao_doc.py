@@ -40,6 +40,10 @@ OPT_INS = {
     "rerank",
     # E8 (regra 57)
     "plugin_catalogs",
+    # E9 (regras 58 a 60 e 35)
+    "clipboard_days",
+    "command_history",
+    "telegram_voice_reply",
 }
 
 

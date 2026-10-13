@@ -38,6 +38,7 @@ CLIENTES_REGISTRADOS = frozenset(
         "orion.tools.n8n",
         "orion.mcp_client",
         "orion.extensions.host",
+        "orion.ler_depois",
     }
 )
 SEM_SAIDA_PROPRIA = {

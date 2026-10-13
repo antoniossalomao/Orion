@@ -33,9 +33,10 @@
         return el('div', { class: 'extension-actions', dataset: { lembrete: achou[1] } }, agir('feito', 'Feito'), agir('adiar', 'Adiar 1 h'));
     }
     /** proposta tirada de uma transcrição (E9.11): nada é criado até aprovar */
+    let propostasAbertas = new Set();
     function acoesDaProposta(n, project, reload) {
         const achou = /^proposta:(\d+)$/.exec(n.ref || '');
-        if (!achou) return null;
+        if (!achou || !propostasAbertas.has(+achou[1])) return null;   // já decidida (ou o servidor não respondeu): sem botões
         const agir = (acao, rotulo) => button(rotulo, async () => {
             try { await api.decidirProposta(+achou[1], acao, project); await api.lerAviso(n.id, project).catch(() => {}); await reload(); }
             catch (error) { status.textContent = error.message; }
@@ -47,6 +48,7 @@
         if (!api.suporta('activity')) { status.textContent = 'Atividade ainda indisponível neste backend.'; return; }
         try {
             const data = await api.atividade(project, filter.value === 'unread');
+            propostasAbertas = new Set(await api.propostasAbertas().then(r => r.itens.map(x => x.id)).catch(() => []));
             if (token !== generation || project !== scope() || source !== api.base()) return;
             status.textContent = `${project ? O.projects.current().name : 'Pessoal'} · ${data.notifications.filter(n => !n.delivered_at).length} aviso(s) não lido(s)`;
             // Preferences affect optional notices. Decisions remain accessible.

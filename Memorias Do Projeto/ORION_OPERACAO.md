@@ -593,6 +593,9 @@ opt-in novo sem linha aqui.
 | `ORION_COMPACT_AT` | Resumo do começo de conversas longas (§19.1) | Não: só pelo modelo local (`ORION_LOCAL_MODEL`) | 53 | `0` (ou sem modelo local) |
 | `ORION_RERANK` | Reranker local da busca (§19.4) | Não: roda no computador | 54 | `false` (padrão) |
 | `ORION_PLUGIN_CATALOGS` | Catálogos remotos de plugins (§21) | Sim: o pedido do índice e, quando você manda instalar, do pacote, ao host que você cadastrou | 7, 47, 57 | vazio (padrão) |
+| `ORION_CLIPBOARD_DAYS` | Histórico da área de transferência, só texto (§22.6) | Não: fica no banco do computador; só entra no chat o que o modelo buscar com `buscar_area_transferencia` | 60 | `0` (padrão) |
+| `ORION_COMMAND_HISTORY` | Histórico de comandos do PowerShell, bash e zsh (§22.7) | Não: idem, com `buscar_comandos` | 60 | `false` (padrão) |
+| `ORION_TELEGRAM_VOICE_REPLY` | Quem manda voz no Telegram recebe voz (§22.10) | Sim: o texto da resposta à Microsoft (edge-tts), além do Telegram | 35, 47 | `false` (padrão) |
 | `ORION_ALLOW_PAID` | Aceitar um endereço fora da lista de provedores gratuitos (§17.1) | Para o provedor que você apontou, que **pode cobrar** | 46 | `false` (padrão) |
 
 **Exemplo: ligar a memória da tela só com esta tabela.** Instale o `tesseract` com português (§8), ponha
@@ -1036,3 +1039,79 @@ IP de saída. Cada download entra no registro de saída (sem o conteúdo). O cat
 **Pausar/desligar.** Esvaziar `ORION_PLUGIN_CATALOGS` e reiniciar; remover o plugin em Plugins; apagar `catalogo/`.
 
 **Regra.** 45 e 57; código em `orion/extensions/catalogo.py` e `orion/extensions/importar.py`.
+
+
+## 22. Automação do dia a dia (E9)
+
+Tudo aqui é **seu**: arquivos que você escreve, liberações que você dá e botões que você aperta. O Orion não cria rotina nem
+regra sozinho. As liberações valem pelo **hash do arquivo**: se o arquivo mudar, a liberação cai e é preciso liberar de novo
+(regra 58). Tela: **Atividade › Automação** (rotinas, tarefa em segundo plano, Downloads e "posso desligar?").
+
+### 22.1 Rotinas (regra 58)
+Um arquivo `<dados>/rotinas/<nome>.yaml` (`orion rotina exemplo` mostra o `bom-dia`): `descricao`, `gatilhos` (`frase`, `palmas`,
+`tecla`, `telegram`), `passos` (ferramentas com argumentos) e `liberar` (as ferramentas que rodam **sem perguntar**: só leitura,
+`controlar_midia` e `abrir_app`; qualquer outra pede a sua aprovação e a rotina **para** ali). `orion rotina conceder <nome>`
+(ou o botão Conceder) libera. Como disparar: `/rotina <nome>` no chat ou no Telegram, a frase **exata** do gatilho (sem acento nem
+pontuação), duas palmas (`ORION_CLAP_ACTION=rotina:<nome>`), uma tecla da ponte (`ORION_HOTKEYS={"rotina:bom-dia": "ctrl+alt+b"}`) ou
+o botão Executar. O pânico bloqueia tudo; o não perturbe bloqueia os gatilhos automáticos (palmas e tecla).
+**Sai do computador:** nada por si; os passos seguem as próprias regras (ex.: `abrir_app` não sai, uma busca na web sim).
+
+### 22.2 Tarefa em segundo plano (regra 59)
+`POST /tarefas-bg {objetivo, max_passos, max_min}` ou o formulário da tela. Roda uma conversa própria **só com ferramentas de leitura**
+(até 30 passos e 30 minutos, uma por vez, respeita o pânico e a cota gratuita). O que o modelo quiser fazer vira **proposta**:
+"Trazer para o campo" devolve o texto ao campo de mensagem (aí vale a política de sempre); "Descartar" só marca. **Sai do
+computador:** como qualquer conversa, o que o modelo ler e o relatório vão ao gateway.
+
+### 22.3 Lembrete insistente
+`gerenciar_lembretes` aceita `insistir_min` (0 ou de 5 a 1440): enquanto não estiver pronto, o aviso volta a cada N minutos
+("⏰ Ainda pendente"). No Telegram o aviso traz **Feito** e **Adiar 1 h**; na Atividade, os mesmos botões.
+
+### 22.4 Organizador de Downloads (regra 58)
+`<dados>/regras_downloads.yaml` (`orion downloads exemplo`): `pasta` e `regras` (`extensoes`, `padrao`, `destino`). Libere com
+`orion downloads conceder`. Roda a cada minuto pelo job: só arquivos **prontos** (sem `.crdownload`/`.part`, parados há 30 s),
+nunca atalhos, **nunca sobrescreve** (vira `nome (2).pdf`), e o destino passa pela política de escrita (núcleo, sistema e
+arquivos sensíveis são recusados). `orion downloads rodar --simular` mostra o que moveria; `desfazer` volta o último (ou os de hoje)
+se o lugar de origem estiver livre. Os últimos 500 movimentos ficam no banco. **Não sai do computador.**
+
+### 22.5 "Posso desligar?"
+`orion posso-desligar` (sai com 1 se há pendência), `/desligar` no Telegram, item **Posso desligar?** da bandeja e botão na tela:
+confere os repositórios de `ORION_REPOS` (`pasta1;pasta2`) — mudança não commitada e commit que não está em nenhum remoto —,
+tarefa em segundo plano rodando, backup do dia e downloads em andamento. **Só lê**; não corrige nada. Na linha de comando a tarefa
+em segundo plano vem do banco (pode estar velha se o Orion caiu no meio).
+
+### 22.6 Histórico da área de transferência (regra 60)
+`ORION_CLIPBOARD_DAYS=7` (0 desliga). A **ponte** (`orion ponte`) lê o texto copiado a cada 1,5 s e manda ao servidor, que descarta
+o que parece segredo (senha, token, chave, CPF, cartão), repetidos e o que a própria ponte colou. `ctrl+alt+v` abre a lista
+pesquisável (clicar copia de volta). O modelo lê só por `buscar_area_transferencia` (leitura, conteúdo externo); também aparece
+na busca global. Apagar: `DELETE /area-transferencia`. **Não sai do computador** (só o que o modelo buscar entra no chat).
+
+### 22.7 Histórico de comandos (regra 60)
+`ORION_COMMAND_HISTORY=true`. A cada hora lê só o que é novo de `ConsoleHost_history.txt` (PowerShell), `~/.bash_history` e
+`~/.zsh_history`; linhas com senha, token, `--password`, URL com senha ou variável de segredo são descartadas. **Sem carimbo de
+hora no arquivo** (PowerShell e bash comum) o horário é o da leitura, então "de ontem" vale a partir de ligar o recurso; zsh estendido
+e bash com `HISTTIMEFORMAT` trazem a hora real. O modelo lê por `buscar_comandos`. Apagar: `DELETE /comandos`.
+
+### 22.8 Ler depois
+`/ler <link>` no Telegram, só um link na captura rápida (`ctrl+alt+space`) ou `POST /ler-depois {url}`. Com `ORION_WEB_TOOLS` e
+`ORION_VAULT_DIR`, a página é lida pelo mesmo guarda de rede de `buscar_url`, o modelo resume em 5 linhas (sem modelo, as primeiras
+frases) e a nota vai para `Ler depois/` no vault. Sem isso o link fica na fila e entra na lista da **leitura semanal de segunda**. Vídeo
+fica na fila: use `orion transcrever <link>`. **Sai do computador:** a página lida (host da página) e o texto dela ao modelo.
+
+### 22.9 Conversor de arquivos
+`orion converter <arquivo> <formato>` (`?` no lugar do formato lista as opções) ou, no Telegram, o arquivo com a legenda
+"converte para pdf". Áudio/vídeo: `ffmpeg`; imagem: Pillow (e `img2pdf` se instalado); Word, planilha, slides e texto ↔ PDF:
+LibreOffice (`soffice`); comprimir PDF: `pikepdf` (`pip install pikepdf`). O resultado fica em `<dados>/conversoes/` e uma cópia
+(até 25 MB) na biblioteca de resultados. **Não sai do computador**; só o Telegram, se você mandou por lá, recebe o arquivo de volta.
+
+### 22.10 Voz no Telegram
+`ORION_TELEGRAM_VOICE_REPLY=true` (precisa de `ORION_TRANSCRIBE_API_KEY`): a mensagem de voz já era transcrita; agora a resposta
+também volta em áudio (mp3, sem código nem links). O texto sempre vai antes. **Sai do computador:** o texto da resposta à Microsoft
+(edge-tts), registrado em Privacidade. Mensagem digitada nunca vira áudio.
+
+### 22.11 Transcrever → tarefas
+`orion transcrever <arquivo|link> --propor`: depois da nota, pergunta (a menos que `--sim`) e manda o **texto transcrito** ao modelo, que
+propõe tarefas, lembretes (só com data e hora) e fatos. Cada item vira um aviso na **Atividade** com Aprovar e Descartar; só
+aprovar cria. **Sai do computador:** o texto transcrito ao modelo de chat (além do áudio ao provedor de transcrição).
+
+**Regras.** 58, 59 e 60; código em `orion/rotinas.py`, `orion/tarefas_bg.py`, `orion/downloads.py`, `orion/desligar.py`,
+`orion/historicos.py`, `orion/ler_depois.py`, `orion/conversor.py` e `orion/propostas.py`.

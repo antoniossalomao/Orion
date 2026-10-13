@@ -160,7 +160,11 @@ async def test_resposta_de_voz_volta_em_audio_alem_do_texto(store, policy, tg): 
     t, _ = transcritor(tg)
     tg.arquivos["voz1.ogg"] = b"OggS"
     canal, _, _ = montar(
-        store, policy, tg, fala("Anotado, **tudo certo**. Veja https://x.test agora."), transcriber=t
+        store,
+        policy,
+        tg,
+        fala("Anotado, **tudo certo**. Veja https://x.test agora."),
+        transcriber=t,
     )
     canal.speaker = Voz()
     await canal.handle_update(msg_voz())

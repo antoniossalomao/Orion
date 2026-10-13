@@ -133,7 +133,7 @@
                     features.chat = h.cerebro.ok;
                     features.skills = false;
                     features.plugins = false; features.mcp = false; features.projects = false; features.artifacts = false; features.memory_facts = false;
-                    for (const name of ['notifications', 'activity', 'documents', 'branches', 'accounts', 'calendar', 'file_plans', 'mcp_export', 'global_search', 'screen_search', 'library_panel', 'research_ui', 'mcp_servers']) features[name] = false; // somente backend novo
+                    for (const name of ['notifications', 'activity', 'documents', 'branches', 'accounts', 'calendar', 'file_plans', 'mcp_export', 'global_search', 'screen_search', 'library_panel', 'research_ui', 'mcp_servers', 'automacao']) features[name] = false; // somente backend novo
                     novo = { backend: 'legacy', api: 'online', model: h.cerebro.ok ? 'ready' : 'unavailable', features, unavailable: estado.backend === 'legacy' ? estado.unavailable : {} };
                 } else novo = { backend: 'unknown', api: 'online', model: 'unknown', features: {}, unavailable: {}, incompatible: true };
             } catch (e) {
@@ -320,6 +320,17 @@
         atividade: (project_id, unread = false) => recurso('activity', `/activity?${q({ project_id, unread })}`),
         preferenciasAtividade: (project_id, json) => recurso('activity', `/activity/preferences?${q({ project_id })}`, { metodo: 'PUT', json }),
         agirNoLembrete: (id, acao, project_id) => req(`/lembretes/${id}/${acao}?${q({ project_id })}`, { metodo: 'POST' }),
+        rotinas: () => recurso('automacao', '/rotinas', { timeout: 6000 }),
+        rotinaAcao: (nome, acao) => recurso('automacao', `/rotinas/${encodeURIComponent(nome)}/${acao}`, { metodo: 'POST', timeout: acao === 'executar' ? 120000 : 8000 }),
+        tarefasBg: () => recurso('automacao', '/tarefas-bg', { timeout: 6000 }),
+        criarTarefaBg: json => recurso('automacao', '/tarefas-bg', { metodo: 'POST', json, timeout: 8000 }),
+        cancelarTarefaBg: id => recurso('automacao', `/tarefas-bg/${id}/cancelar`, { metodo: 'POST' }),
+        decidirPropostaBg: (id, indice, acao) => recurso('automacao', `/tarefas-bg/${id}/propostas/${indice}`, { metodo: 'POST', json: { acao } }),
+        downloads: () => recurso('automacao', '/downloads', { timeout: 6000 }),
+        downloadsAcao: (acao, params = {}) => recurso('automacao', `/downloads/${acao}?${q(params)}`, { metodo: 'POST', timeout: 60000 }),
+        desfazerDownloads: escopo => recurso('automacao', '/downloads/desfazer', { metodo: 'POST', json: { escopo } }),
+        possoDesligar: () => recurso('automacao', '/posso-desligar', { timeout: 30000 }),
+        propostasAbertas: () => recurso('automacao', '/transcricao/propostas', { timeout: 4000 }),
         decidirProposta: (id, acao, project_id) => req(`/transcricao/propostas/${id}/${acao}?${q({ project_id })}`, { metodo: 'POST' }),
         lerAviso: (id, project_id) => req(`/notifications/${id}/ack?${q({ project_id })}`, { metodo: 'POST' }),
         /** `semAviso`: consulta de fundo; um 401 não reabre a tela de entrada */

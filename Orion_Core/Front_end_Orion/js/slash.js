@@ -18,6 +18,7 @@
         { nome: 'limpar', desc: 'Limpar o histórico da sessão' },
         { nome: 'skill', livre: 'nome e pedido', desc: 'Usar uma skill sua neste pedido: /skill nome pedido' },
         { nome: 'prompt', livre: 'servidor:nome', desc: 'Trazer um prompt de servidor MCP para o campo de mensagem' },
+        { nome: 'rotina', livre: 'nome', desc: 'Rodar uma rotina sua já liberada (/rotina bom-dia)' },
         { nome: 'projeto', livre: 'nome', desc: 'Mover a conversa para um projeto ("nenhum" tira do projeto)' },
         { nome: 'modelo', args: ['auto', 'groq', 'gemini', 'claude'], desc: 'Trocar o modelo' },
         { nome: 'tema', args: ['noite', 'grafite', 'contraste'], desc: 'Trocar o tema' },

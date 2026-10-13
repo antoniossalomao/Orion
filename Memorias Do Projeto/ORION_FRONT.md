@@ -272,3 +272,19 @@ Agora tem, com a mesma forma do legado + os campos novos, todas atrás do login/
 | Catálogo | Extensões › Catálogo (aba nova) | `GET /plugins/catalogo`; cartão por pacote (`data-catalogo`, `data-versao`) com "Instalar" ou "Atualizar para vX" (confirma: a versão atual segue valendo); fontes com erro viram aviso |
 
 - **Provado:** `tests/front_e2e/test_e8.py` (4 cenários contra o `orion.app` real, axe).
+
+
+## 14. Automação do dia a dia (E9, 13/10/2026)
+
+| Item | Onde | Como funciona |
+|---|---|---|
+| Automação | Atividade, abaixo dos avisos (`views/automacao.js`, `automacao_logica.js`) | Quatro cartões: **Rotinas** (`GET /rotinas`; Conceder/Revogar/Executar por rotina, com o estado “Liberada / o arquivo mudou / esperando”), **Tarefa em segundo plano** (formulário com objetivo, passos e minutos; “Começar” desliga enquanto uma roda; propostas abertas com “Trazer para o campo” e “Descartar”; recarrega a cada 4 s enquanto roda), **Organizador de Downloads** (Conceder, Simular, Organizar agora, Desfazer o último) e **Posso desligar?** (Conferir). Só aparece com a capacidade `automacao`. |
+| Propostas da transcrição | Atividade › avisos (`acoesDaProposta`) | Aviso com `ref=proposta:<id>` ganha **Aprovar** e **Descartar** (`POST /transcricao/propostas/{id}/{ação}`); só aprovar cria a tarefa, o lembrete ou o fato. |
+| Lembrete insistente | Atividade › avisos (`acoesDoLembrete`) | **Feito** e **Adiar 1 h** nos avisos `reminder:<id>` (inclusive os repetidos `:n<k>`). |
+| `/rotina nome` | Campo de mensagem (`slash.js`, `app.js`) | Roda a rotina liberada e mostra o resultado num aviso; passo que pede aprovação para e espera. |
+| Paleta | Ctrl+K | “Automação (…)”, “Posso desligar?” e “Rotina: <nome>” para cada rotina liberada; a busca “Em tudo” também mostra **Área de transferência** e **Comandos de terminal** (clicar copia o trecho). |
+| Janela da área de transferência | Ponte, `ctrl+alt+v` (`ponte.html?modo=area`) | Lista pesquisável do que foi copiado; clicar copia de volta. Fala só com `/area-transferencia`. |
+| Captura rápida | `ponte.html?modo=rapido` | Um link sozinho vira “Ler depois” (desfazer em 10 min). |
+
+- **Capacidade nova:** `automacao`. No legado nada disso aparece.
+- **Provado:** `tests/front/automacao_logica.test.js` (lógica pura), `tests/front_e2e/test_e9.py` (cenários contra o `orion.app` real, axe).

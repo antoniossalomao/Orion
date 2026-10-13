@@ -343,6 +343,36 @@ voltar") está em `tests/extensions/test_e8.py::test_prova_orion_pesquisa_...`, 
 **Não verificado (E8):** catálogo remoto real (só a rede de mentira); plugin real do Claude Code/Codex; a busca real do Brave
 dentro da prova.
 
+## Décima quinta rodada (13/10/2026): plano da rodada 2, etapa E9
+
+Plano em [ORION_PLANO_RODADA2.md](ORION_PLANO_RODADA2.md). Regras 58, 59 e 60 (escritas antes do código) em
+[ORION_REGRAS.md](ORION_REGRAS.md); como usar em [ORION_OPERACAO.md](ORION_OPERACAO.md) §22. **Esquema v21** (tarefas em segundo plano,
+lembrete insistente, `clipboard_log`, `command_log`, `read_later`, `transcript_proposals`; o plano falava em v15, mas o banco já estava
+na v20). Os arquivos que você escreve (rotinas e regras de Downloads) valem pelo **hash**: mudou, caiu a liberação.
+
+| ID | Entrega | Status |
+|---|---|---|
+| E9.1 Rotinas | `orion/rotinas.py` + `orion/automacao.py`: YAML, `liberar`, gatilhos frase/palmas/tecla/Telegram, `orion rotina`, `/rotina`, cartão na Atividade, palmas (`rotina:<nome>`) e tecla da ponte | ✅ unidade (fakes), API, Telegram e navegador; ❌ palmas e tecla com microfone e teclado reais |
+| E9.2 Tarefa em segundo plano | `orion/tarefas_bg.py`: só leitura, 30 passos/30 min, uma por vez, propostas que voltam ao campo | ✅ unidade e API com modelo falso; ❌ nunca rodou com modelo e ferramentas reais por 30 min |
+| E9.3 Lembrete insistente | `insistir_min`, reaviso `⏰ Ainda pendente`, botões no Telegram e na Atividade | ✅ unidade e Telegram falso |
+| E9.4 Downloads | `orion/downloads.py`: regras por extensão/padrão, nunca sobrescreve, desfazer, política de escrita no destino | ✅ unidade (incl. Windows no CI), API, job; ❌ pasta Downloads real com navegador baixando |
+| E9.5 Posso desligar | `orion/desligar.py`, `orion posso-desligar`, `/desligar`, bandeja, botão | ✅ Git de verdade em pasta temporária; ❌ item da bandeja num desktop real |
+| E9.6 Área de transferência | ponte observa (1,5 s), filtro de segredo, `clipboard_log`, `ctrl+alt+v`, `buscar_area_transferencia` | ✅ núcleo da ponte com falsos, API e busca global; ❌ `pyperclip` e a janela reais |
+| E9.7 Comandos | `orion/historicos.py`: PowerShell/bash/zsh de hora em hora, `buscar_comandos`, busca global | ✅ arquivos de teste nos três formatos (acha o `gbak` de ontem); ❌ histórico real do PowerShell no Windows |
+| E9.8 Ler depois | `orion/ler_depois.py`: `/ler`, captura rápida, `POST /ler-depois`, nota em `Ler depois/`, lista semanal | ✅ com a página e o modelo de mentira; ❌ página real e vault real |
+| E9.9 Conversor | `orion/conversor.py`: ffmpeg, Pillow, LibreOffice, pikepdf; CLI e Telegram | ✅ imagem (Pillow real); **ffmpeg e LibreOffice reais testados só em Linux, à mão** (`wav→mp3`, `txt→pdf`); nos testes automáticos os programas são falsos; ❌ Word↔PDF real, `pikepdf` (teste pulado se ausente) |
+| E9.10 Voz no Telegram | `ORION_TELEGRAM_VOICE_REPLY`: resposta em mp3 além do texto | ✅ com a voz de mentira; ❌ edge-tts real e o áudio tocando no celular |
+| E9.11 Transcrever → tarefas | `orion transcrever --propor`, avisos com Aprovar/Descartar | ✅ unidade, API, CLI; ❌ transcrição de reunião real |
+
+**Prova do plano.** "Rotina bom-dia por palmas abre o briefing, toca música e abre o app" está no teste de rotinas com o
+detector de palmas e as ferramentas de mentira; **não foi feita com palmas e música de verdade**. "Histórico de comandos acha um
+`gbak` de ontem" está em `tests/test_historicos.py::test_importa_so_o_novo_e_acha_o_gbak_de_ontem`.
+
+**Limites que ficaram:** histórico de comandos sem carimbo de hora usa a hora da leitura; `buscar_tela` existia no código mas não
+estava ligada ao agente (não mexi; as duas ferramentas novas de histórico estão); o Telegram só decide proposta pela tela.
+
+**Não verificado (E9):** tudo marcado ❌ acima.
+
 ## O que foi construído (por fase do NUCLEO)
 
 | Fase | Entrega | Status |
