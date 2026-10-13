@@ -17,11 +17,11 @@ CRU = Path(__file__).resolve().parents[1] / "mcp_cliente" / "servidor_cru.py"
 def _dados(tmp_path, servidores, skills=None):
     pasta = tmp_path / "dados"
     pasta.mkdir()
-    (pasta / "mcp.json").write_text(json.dumps({"servers": servidores}))
+    (pasta / "mcp.json").write_text(json.dumps({"servers": servidores}), encoding="utf-8")
     for nome, corpo in (skills or {}).items():
         (pasta / "skills" / nome).mkdir(parents=True)
         (pasta / "skills" / nome / "SKILL.md").write_text(
-            f"---\nname: {nome}\ndescription: Skill {nome}.\n---\n\n{corpo}\n"
+            f"---\nname: {nome}\ndescription: Skill {nome}.\n---\n\n{corpo}\n", encoding="utf-8"
         )
     return pasta
 

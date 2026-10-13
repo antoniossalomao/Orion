@@ -82,7 +82,8 @@ def test_mcp_check_sai_com_erro_e_explica_o_protocolo(tmp_path, capsys):
                     }
                 }
             }
-        )
+        ),
+        encoding="utf-8",
     )
     assert _mcp_check(conf) == 1
     assert "o servidor velho fala o protocolo 2024-11-05" in capsys.readouterr().out
@@ -92,10 +93,10 @@ def test_mcp_check_sai_com_erro_e_explica_o_protocolo(tmp_path, capsys):
 def _esperar_linhas(arquivo, n=1, ate=8.0):
     fim = time.monotonic() + ate
     while time.monotonic() < fim:
-        if arquivo.exists() and len(arquivo.read_text().splitlines()) >= n:
+        if arquivo.exists() and len(arquivo.read_text(encoding="utf-8").splitlines()) >= n:
             break
         time.sleep(0.1)
-    return arquivo.read_text().splitlines() if arquivo.exists() else []
+    return arquivo.read_text(encoding="utf-8").splitlines() if arquivo.exists() else []
 
 
 async def test_cancelar_a_ferramenta_avisa_o_servidor(tmp_path):

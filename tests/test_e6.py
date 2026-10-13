@@ -304,9 +304,9 @@ def test_lista_so_tem_relatorios_da_pesquisa(c, tmp_path):
     pesq, _ = _pesquisa(c, tmp_path)
     pasta = tmp_path / "vault" / "00 Inbox"
     pasta.mkdir(parents=True)
-    (pasta / "2026-10-08 0300 - captura.md").write_text("x")
-    (pasta / "2026-10-07 0300 - pesquisa-noturna-aviso.md").write_text("y")
-    (pasta / "pesquisa-noturna.txt").write_text("z")
+    (pasta / "2026-10-08 0300 - captura.md").write_text("x", encoding="utf-8")
+    (pasta / "2026-10-07 0300 - pesquisa-noturna-aviso.md").write_text("y", encoding="utf-8")
+    (pasta / "pesquisa-noturna.txt").write_text("z", encoding="utf-8")
     nomes = [r["nome"] for r in pesq.relatorios()]
     assert nomes == ["2026-10-07 0300 - pesquisa-noturna-aviso"]
 
@@ -316,7 +316,7 @@ async def test_arquivo_gerado_no_turno_vira_cartao_na_proveniencia(store, policy
 
     arquivo = tmp_path / "Documents" / "ata.md"
     arquivo.parent.mkdir()
-    arquivo.write_text("# Ata")
+    arquivo.write_text("# Ata", encoding="utf-8")
     gerar = Tool(
         "gerar_documento",
         "x",

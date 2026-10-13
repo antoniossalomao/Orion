@@ -11,6 +11,10 @@ import sys
 import threading
 import time
 
+# Windows: o pipe vem em cp1252 por padrão, e o protocolo é UTF-8
+sys.stdin.reconfigure(encoding="utf-8")
+sys.stdout.reconfigure(encoding="utf-8")
+
 PROTOCOLO = os.environ.get("PROTOCOLO", "2025-11-25")
 LOG = os.environ.get("LOG_CANCELADO")
 EXTRAS = int(os.environ.get("N_FERRAMENTAS", "0"))

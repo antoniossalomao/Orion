@@ -26,7 +26,9 @@ AUTH = {"Authorization": f"Bearer {TOKEN}"}
 def _skill(raiz, nome="resumir", corpo="Resuma em 3 linhas.", desc="Resume textos."):
     pasta = raiz / nome
     pasta.mkdir(parents=True)
-    (pasta / "SKILL.md").write_text(f"---\nname: {nome}\ndescription: {desc}\n---\n\n{corpo}\n")
+    (pasta / "SKILL.md").write_text(
+        f"---\nname: {nome}\ndescription: {desc}\n---\n\n{corpo}\n", encoding="utf-8"
+    )
 
 
 @pytest.fixture
@@ -115,7 +117,7 @@ def test_estilo_gera_skill_pendente_que_o_catalogo_ainda_nao_ve(tmp_path):
         "```markdown\n## Nomes\nsnake_case. " + "x" * 100 + "\napi_key = abcdefgh12345\n```"
     )
     arquivo = estilo.gerar([repo], d, skills)
-    texto = arquivo.read_text()
+    texto = arquivo.read_text(encoding="utf-8")
     assert arquivo == skills / ".pendentes" / "estilo-antonio" / "SKILL.md"
     assert texto.startswith("---\nname: estilo-antonio\n") and "# Estilo em `meu-repo`" in texto
     assert "api_key" not in texto and "```" not in texto  # linha com cara de segredo e cerca saem
@@ -159,7 +161,7 @@ def test_estilo_muitos_repos_cabem_no_limite_da_skill(tmp_path):
         r.mkdir()
         repos.append(r)
     d = FalsoDelegador("## Nomes\n" + "y" * 9000)
-    texto = estilo.gerar(repos, d, tmp_path / "s").read_text()
+    texto = estilo.gerar(repos, d, tmp_path / "s").read_text(encoding="utf-8")
     assert len(texto) <= 20_000 and texto.count("# Estilo em `r") == 5
     skills = tmp_path / "s"
     estilo.ativar(skills)

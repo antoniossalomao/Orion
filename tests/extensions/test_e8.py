@@ -97,7 +97,7 @@ def test_zip_de_uma_pasta_e_o_formato_codex_tambem_funcionam():
 def test_pacote_orion_passa_direto_e_erros_tem_codigo():
     orion = zip_de(
         {
-            "manifest.json": (BUNDLED / "manifest.json").read_text(),
+            "manifest.json": (BUNDLED / "manifest.json").read_text(encoding="utf-8"),
             **{
                 str(p.relative_to(BUNDLED)): p.read_bytes()
                 for p in BUNDLED.rglob("*")
@@ -206,9 +206,9 @@ def test_catalogo_local_confere_o_hash_e_nao_sai_da_pasta(tmp_path):
     with pytest.raises(PluginError, match="catalog_source_unknown"):
         cat.baixar("https://x.com/c.json", "orion-pesquisa")
     # arquivo com caminho no índice é recusado já na leitura do índice
-    indice = json.loads((pasta / "catalogo.json").read_text())
+    indice = json.loads((pasta / "catalogo.json").read_text(encoding="utf-8"))
     indice["plugins"][0]["file"] = "../fora.zip"
-    (pasta / "catalogo.json").write_text(json.dumps(indice))
+    (pasta / "catalogo.json").write_text(json.dumps(indice), encoding="utf-8")
     _, fontes = cat.listar()
     assert fontes[0]["ok"] is False and "catalog_index_invalid" in fontes[0]["erro"]
 
@@ -424,9 +424,9 @@ def test_instalar_do_catalogo_recusa_fonte_desconhecida_e_manifesto_diferente_do
     )
     pasta = settings.effective_catalog_dir
     escrever_indice(pasta, [("p.zip", _pesquisa_zip("1.1.0"))])
-    indice = json.loads((pasta / "catalogo.json").read_text())
+    indice = json.loads((pasta / "catalogo.json").read_text(encoding="utf-8"))
     indice["plugins"][0]["version"] = "9.9.9"  # o índice mente sobre a versão
-    (pasta / "catalogo.json").write_text(json.dumps(indice))
+    (pasta / "catalogo.json").write_text(json.dumps(indice), encoding="utf-8")
     with TestClient(create_app(settings), base_url="http://127.0.0.1") as c:
         r = c.post(
             "/plugins/catalogo/instalar",
