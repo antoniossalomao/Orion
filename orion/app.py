@@ -53,6 +53,8 @@ from .channels import TelegramChannel
 from .config import PROJECT_ROOT, Settings
 from .costs import Custos, cotas_de
 from .delegate import Delegator
+from .desligar import posso_desligar
+from .desligar import texto as texto_desligar
 from .downloads import Downloads
 from .extensions.catalog import Catalog
 from .extensions.catalogo import Catalogos, urls_validas
@@ -66,7 +68,10 @@ from .extensions.skills import SkillError
 from .fact_routes import router as fact_router
 from .gateway import CAMADA_LOCAL, ChatGateway, Endpoint
 from .grafo_routes import router as grafo_router
+from .historicos import Historicos
+from .historicos import ferramentas as historicos_tools
 from .jobs import JobRunner
+from .ler_depois import LerDepois, LerDepoisError
 from .log import request_id
 from .mcp_client import SPEC_RECURSO, McpConfigError, McpManager, manager_from_file
 from .mcp_indice import SPEC as INDICE_SPEC
@@ -182,6 +187,8 @@ class AppState:
     modos: Modos | None = None  # pânico e não perturbe (regra 48)
     custos: Custos | None = None  # cota gratuita (regra 46)
     downloads: Downloads | None = None  # organizador de Downloads (regra 58)
+    historicos: Historicos | None = None  # área de transferência e comandos (regra 60)
+    ler_depois: LerDepois | None = None  # links para ler depois (E9.8)
     rotinas: RotinaStore | None = None  # rotinas suas e concedidas (regra 58)
     executor_rotinas: ExecutorRotinas | None = None
     tarefas_bg: Any = None  # TarefasBg (regra 59); None sem agente
@@ -787,6 +794,29 @@ class LimparResultados(BaseModel):
     simular: bool = False
 
 
+def _conferir_desligar(settings: Settings, tarefas_bg: Any, downloads: Any) -> dict[str, Any]:
+    """E9.5: lê o que ficaria pela metade (repositórios, tarefa, backup, downloads)."""
+    pasta = (
+        Path(downloads.estado()["pasta"]) if downloads is not None else Path.home() / "Downloads"
+    )
+    return posso_desligar(
+        repos=list(settings.repos),
+        backup_dir=settings.effective_backup_dir,
+        downloads_dir=pasta,
+        tarefas=tarefas_bg.listar() if tarefas_bg is not None else [],
+    )
+
+
+class LinkLerDepois(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    url: str = Field(min_length=8, max_length=2000)
+
+
+class AreaTexto(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    texto: str = Field(min_length=1, max_length=20_000)
+
+
 class DesfazerDownloads(BaseModel):
     model_config = ConfigDict(extra="forbid")
     escopo: str = Field(default="ultimo", pattern="^(ultimo|hoje)$")
@@ -1108,6 +1138,7 @@ def create_app(
             gateway.orcamento = lambda ep: custos.no_orcamento(ep.provedor)
         transcriber = (transcriber_factory or transcriber_from_settings)(settings)
         tela = (screen_factory or screen_from_settings)(settings, memory)
+        historicos = Historicos(memory)
         biblioteca = Library(memory, settings.data_dir / "resultados")
         agent = None
         indice = None
@@ -1144,6 +1175,15 @@ def create_app(
             if skills is not None and skills.skills:
                 policy.register_tool(SKILL_SPEC)
                 mcp_tools = [*mcp_tools, skill_tool(skills)]
+            mcp_tools = [
+                *mcp_tools,
+                *historicos_tools(
+                    historicos,
+                    policy.tools,
+                    area=settings.clipboard_days > 0,
+                    comandos=settings.command_history,
+                ),
+            ]
             agent = Agent(
                 gateway=gateway,
                 tools=default_registry(
@@ -1196,6 +1236,13 @@ def create_app(
         pesquisa = _pesquisa_noturna(settings, agent, memory)
         downloads = Downloads(
             settings.data_dir / "regras_downloads.yaml", memory, policy.path_guard
+        )
+        ler_depois = LerDepois(
+            memory,
+            vault_dir=settings.vault_dir,
+            web=settings.web_tools,
+            gateway=gateway,
+            modos=modos,
         )
         rotinas = RotinaStore(settings.data_dir / "rotinas", memory)
         executor_rotinas = ExecutorRotinas(
@@ -1256,6 +1303,9 @@ def create_app(
                 sleep=sono,
                 screen=tela,
                 downloads=downloads,
+                historicos=historicos,
+                clipboard_days=settings.clipboard_days,
+                command_history=settings.command_history,
                 weekly_ai=(
                     gateway
                     if settings.weekly_ai and gateway is not None and hasattr(gateway, "complete")
@@ -1355,6 +1405,10 @@ def create_app(
             telegram.tela = lambda acao: comando_tela(tela, memory, acao)
             telegram.agenda = agenda
             telegram.rotinas = rotinas
+            telegram.ler_depois = ler_depois
+            telegram.desligar = lambda: texto_desligar(
+                _conferir_desligar(settings, tarefas_bg, downloads)
+            )
             telegram.executar_rotina = executor_rotinas.executar
         app.state.orion = AppState(
             settings,
@@ -1389,6 +1443,8 @@ def create_app(
             pesquisa=pesquisa,
             tarefas_bg=tarefas_bg,
             downloads=downloads,
+            historicos=historicos,
+            ler_depois=ler_depois,
             rotinas=rotinas,
             executor_rotinas=executor_rotinas,
             ponte=ponte_hub,
@@ -1404,6 +1460,7 @@ def create_app(
                     tarefa.cancel()
                     with contextlib.suppress(asyncio.CancelledError):
                         await tarefa
+            await ler_depois.encerrar()
             if tarefas_bg is not None:
                 await tarefas_bg.encerrar()
             if telegram is not None:
@@ -2395,6 +2452,86 @@ def create_app(
         return {"ok": True}
 
     # ── organizador de Downloads (E9.4, regra 58) ──
+    def _historicos(state: AppState, qual: str) -> Historicos:
+        """404 quando o histórico está desligado (regra 60: opt-in); 409 no pânico."""
+        ligado = (
+            state.settings.clipboard_days > 0 if qual == "area" else state.settings.command_history
+        )
+        if state.historicos is None or not ligado:
+            raise HTTPException(
+                404, "histórico desligado (ORION_CLIPBOARD_DAYS / ORION_COMMAND_HISTORY)"
+            )
+        if state.modos is not None and state.modos.panico():
+            raise HTTPException(409, "modo pânico")
+        return state.historicos
+
+    @app.post("/ler-depois", dependencies=[Admin])
+    async def ler_depois_adicionar(corpo: LinkLerDepois, state: State) -> dict[str, Any]:
+        assert state.ler_depois is not None
+        try:
+            item = state.ler_depois.adicionar(corpo.url)
+        except LerDepoisError as e:
+            raise HTTPException(422, str(e)) from None
+        if item["status"] == "pendente":
+            state.ler_depois.agendar(item["id"])
+        return item
+
+    @app.get("/ler-depois", dependencies=[Admin])
+    def ler_depois_listar(
+        state: State, status: str | None = Query(None, max_length=20)
+    ) -> dict[str, Any]:
+        assert state.ler_depois is not None
+        return {"itens": state.ler_depois.listar(status)}
+
+    @app.delete("/ler-depois/{rid}", dependencies=[Admin])
+    def ler_depois_descartar(rid: int, state: State) -> dict[str, Any]:
+        assert state.ler_depois is not None
+        try:
+            return state.ler_depois.descartar(rid)
+        except LerDepoisError as e:
+            raise HTTPException(404, str(e)) from None
+
+    @app.post("/area-transferencia", dependencies=[Admin])
+    def guardar_area(corpo: AreaTexto, state: State) -> dict[str, str]:
+        return {"resultado": _historicos(state, "area").guardar_area(corpo.texto)}
+
+    @app.get("/area-transferencia", dependencies=[Admin])
+    def ver_area(
+        state: State, q: str = Query("", max_length=200), limite: int = Query(30, ge=1, le=100)
+    ) -> dict[str, Any]:
+        h = _historicos(state, "area")
+        itens = (
+            h.buscar_area(q, limite, state.settings.clipboard_days)
+            if q.strip()
+            else h.recentes_area(limite)
+        )
+        return {"dias": state.settings.clipboard_days, "itens": itens}
+
+    @app.delete("/area-transferencia", dependencies=[Admin])
+    def limpar_area(state: State) -> dict[str, int]:
+        return {"apagados": _historicos(state, "area").limpar_area()}
+
+    @app.get("/comandos", dependencies=[Admin])
+    def ver_comandos(
+        state: State,
+        q: str = Query("", max_length=200),
+        limite: int = Query(20, ge=1, le=50),
+        dias: int = Query(90, ge=1, le=365),
+    ) -> dict[str, Any]:
+        return {"itens": _historicos(state, "comandos").buscar_comandos(q, limite, dias)}
+
+    @app.post("/comandos/importar", dependencies=[Admin])
+    def importar_comandos(state: State) -> dict[str, int]:
+        return {"novos": _historicos(state, "comandos").importar()}
+
+    @app.delete("/comandos", dependencies=[Admin])
+    def limpar_comandos(state: State) -> dict[str, int]:
+        return {"apagados": _historicos(state, "comandos").limpar_comandos()}
+
+    @app.get("/posso-desligar", dependencies=[Admin])
+    def posso_desligar_rota(state: State) -> dict[str, Any]:
+        return _conferir_desligar(state.settings, state.tarefas_bg, state.downloads)
+
     def _downloads(state: AppState) -> Downloads:
         assert state.downloads is not None
         return state.downloads

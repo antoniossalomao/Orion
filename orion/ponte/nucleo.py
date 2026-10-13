@@ -114,6 +114,8 @@ class Ponte:
         http: httpx.Client | None = None,
         dormir: Callable[[float], None] = time.sleep,
         atraso_colar_s: float = 1.0,
+        observar_area: bool = False,
+        intervalo_area_s: float = 1.5,
     ) -> None:
         self.url = url.rstrip("/")
         self._token = token
@@ -126,6 +128,9 @@ class Ponte:
         self._atraso_colar = atraso_colar_s
         self._parar = threading.Event()
         self._colar_lock = threading.Lock()
+        self._observar_area = observar_area  # E9.6: só com ORION_CLIPBOARD_DAYS > 0
+        self._intervalo_area = intervalo_area_s
+        self._proprios: list[str] = []  # o que esta ponte pôs na área (a colagem não é "cópia")
 
     # ── endereços ─────────────────────────────────────────────────────────
     @property
@@ -160,6 +165,8 @@ class Ponte:
             "captura": self.captura_rapida,
             "panico": self.panico,
         }
+        if self._observar_area:
+            acoes["area"] = self.abrir_area
         if self.a.ocr_da_area is not None:
             acoes["ocr"] = self.copiar_texto_da_tela
         if self.a.captura_da_janela is not None:
@@ -168,6 +175,53 @@ class Ponte:
             if nome.startswith("rotina:"):
                 acoes[nome] = lambda n=nome[7:]: self.rotina(n)
         return {para_pynput(self.teclas[nome]): fn for nome, fn in acoes.items()}
+
+    def abrir_area(self) -> None:
+        self.a.janela.abrir(self.pagina("area"), "Área de transferência", 560, 480)
+
+    def _marcar_proprio(self, texto: str) -> None:
+        self._proprios = [*self._proprios[-19:], texto.strip()]
+
+    def vigiar_area_uma_vez(self, ultimo: str | None) -> str | None:
+        """Lê a área de transferência; se o texto é novo e não foi esta ponte que o pôs, manda ao
+        servidor (que filtra segredo e guarda com retenção). Devolve o último texto visto."""
+        try:
+            atual = self.a.area.ler()
+        except Exception:  # noqa: BLE001 — a área pode estar ocupada por outro programa
+            return ultimo
+        if not atual or not atual.strip() or atual == ultimo:
+            return ultimo
+        if atual.strip() in self._proprios:
+            return atual
+        try:
+            r = self._http.post("/area-transferencia", json={"texto": atual[:20_000]})
+            if r.status_code == 404:  # o servidor está com o histórico desligado
+                self._observar_area = False
+        except httpx.HTTPError:
+            return ultimo  # tenta de novo na próxima volta
+        return atual
+
+    def _vigiar_area(self) -> None:
+        ultimo: str | None = None
+        with contextlib.suppress(Exception):
+            ultimo = self.a.area.ler()  # o que já estava lá ao subir não é "cópia nova"
+        while self._observar_area and not self._parar.wait(self._intervalo_area):
+            ultimo = self.vigiar_area_uma_vez(ultimo)
+
+    def posso_desligar(self) -> None:
+        """E9.5: pergunta ao servidor o que ficaria pela metade e avisa em uma notificação."""
+        try:
+            r = self._http.get("/posso-desligar")
+            r.raise_for_status()
+            d = r.json()
+            if d.get("pode"):
+                self.a.notificar("Orion", "Pode desligar: nada pendente.")
+                return
+            pend = [i["texto"] for i in d.get("itens", []) if not i.get("ok")]
+            self.a.notificar("Orion", "Ainda não: " + "; ".join(pend)[:240])
+        except (httpx.HTTPError, ValueError) as e:
+            log.warning("posso desligar pela ponte falhou: %s", type(e).__name__)
+            self.a.notificar("Orion", "Não consegui conferir: servidor fora do ar?")
 
     def rotina(self, nome: str) -> None:
         try:
@@ -186,6 +240,7 @@ class Ponte:
         itens = [
             ("Abrir Orion", self.abrir_orion),
             ("Captura rápida", self.captura_rapida),
+            ("Posso desligar?", self.posso_desligar),
             ("Modo pânico", self.panico),
             ("Sair", self.sair),
         ]
@@ -259,6 +314,9 @@ class Ponte:
             antes = None
             with contextlib.suppress(Exception):
                 antes = self.a.area.ler()
+            self._marcar_proprio(texto)
+            if antes is not None:
+                self._marcar_proprio(antes)
             self.a.area.gravar(texto)
             self.a.colador.colar()
             self._dormir(self._atraso_colar)
@@ -310,6 +368,8 @@ class Ponte:
         """Sobe teclado e bandeja e fica no WebSocket até `sair` (ou o servidor recusar)."""
         self.a.teclado.iniciar(self.acoes_das_teclas())
         self.a.bandeja.iniciar(self.itens_da_bandeja())
+        if self._observar_area:
+            threading.Thread(target=self._vigiar_area, daemon=True).start()
         try:
             return asyncio.run(self.escutar(conectar))
         finally:

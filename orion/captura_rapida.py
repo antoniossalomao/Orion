@@ -26,6 +26,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from .capture import CaptureError, Capturer
+from .ler_depois import LerDepoisError, so_um_link
 
 log = logging.getLogger("orion.captura")
 
@@ -198,6 +199,23 @@ def router(require_auth: Any) -> Any:
         texto = corpo.texto.strip()
         if not texto:
             raise HTTPException(422, "texto vazio")
+        link = so_um_link(texto)
+        if link is not None and s.ler_depois is not None:  # E9.8: só um link → ler depois
+            try:
+                item = s.ler_depois.adicionar(link)
+            except LerDepoisError as e:
+                raise HTTPException(422, str(e)) from None
+            if item["status"] == "pendente":
+                s.ler_depois.agendar(item["id"])
+            return {
+                "id": desfazer.registrar("leitura", item["id"]),
+                "tipo": "leitura",
+                "titulo": link,
+                "quando": None,
+                "valor": None,
+                "origem": "regra",
+                "aviso": "guardei para ler depois",
+            }
         # em pânico (regra 48) nada vai ao modelo; a regra simples basta
         gateway = s.agent.gateway if s.agent is not None else None
         if s.modos is not None and s.modos.panico():
@@ -238,7 +256,9 @@ def router(require_auth: Any) -> Any:
         if feito is None:
             raise HTTPException(404, "não há mais o que desfazer (passaram 10 minutos?)")
         tipo, ref = feito
-        if tipo == "tarefa":
+        if tipo == "leitura":
+            s.ler_depois.descartar(int(ref))
+        elif tipo == "tarefa":
             s.ops.remove_task(int(ref))
         elif tipo == "lembrete":
             s.ops.remove_reminder(int(ref))

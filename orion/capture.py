@@ -82,6 +82,15 @@ class Capturer:
         dt = datetime.fromtimestamp(self._clock())
         return f"{dt:%Y-%m-%d}", f"{dt:%H:%M}", f"{dt:%Y-%m-%d %H%M}"
 
+    def save_markdown(self, titulo: str, conteudo: str) -> Path:
+        """Grava uma nota pronta (com o próprio frontmatter) na pasta deste Capturer, sem
+        sobrescrever nada. O título vira o nome do arquivo."""
+        _, _, carimbo = self._carimbo()
+        return self._gravar(
+            self._destino(), f"{carimbo} - {_resumo(titulo, 'leitura')}", ".md",
+            conteudo.encode("utf-8"),
+        )  # fmt: skip
+
     def save_text(
         self, texto: str, origem: str = "texto", fonte: str = "telegram", limite: int = MAX_TEXTO
     ) -> Path:

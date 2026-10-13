@@ -28,7 +28,8 @@ if TYPE_CHECKING:
 
 ESCOPO = "ponte"
 # Tudo que o token da ponte alcança (regra 50). O resto responde 403 em `require_auth`.
-ROTAS_DA_PONTE = ("/captura", "/ponte/imagem", "/ponte/explicar")
+ROTAS_DA_PONTE = ("/captura", "/ponte/imagem", "/ponte/explicar", "/posso-desligar",
+                  "/area-transferencia")  # fmt: skip
 ENTRAR_PANICO = ("POST", "/modo/panico")  # cortar é sempre seguro; sair exige a senha
 CHAVE_AVISO = "ponte:isso_aviso_aceito"
 MAX_BYTES = 6 * 1024 * 1024

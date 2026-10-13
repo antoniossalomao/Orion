@@ -92,6 +92,28 @@
         } finally { ocupado = false; $('#isso-enviar').disabled = false; }
     }
 
+    /* ── área de transferência (E9.6) ─────────────────────────────────── */
+    let esperaArea = 0;
+    async function listarArea() {
+        try {
+            const q = $('#area-busca').value.trim();
+            const r = await chamar(`/area-transferencia?limite=30${q ? `&q=${encodeURIComponent(q)}` : ''}`);
+            const ul = $('#area-lista'); ul.replaceChildren();
+            for (const item of r.itens) {
+                const li = document.createElement('li'), b = document.createElement('button'), s = document.createElement('small');
+                b.type = 'button'; b.className = 'area-item'; b.textContent = item.texto.length > 160 ? `${item.texto.slice(0, 160)}…` : item.texto;
+                s.textContent = new Date(item.ts * 1000).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+                b.append(s);
+                b.addEventListener('click', async () => {
+                    try { await navigator.clipboard.writeText(item.texto); resultado('Copiado de volta.', false); } catch (_) { erro('Não consegui copiar.'); }
+                });
+                li.append(b); ul.append(li);
+            }
+            if (!r.itens.length) { const li = document.createElement('li'); li.className = 'ponte-dica'; li.textContent = q ? 'Nada achado.' : 'Nada copiado ainda.'; ul.append(li); }
+            erro('');
+        } catch (e) { erro(e.status === 404 ? 'O histórico da área de transferência está desligado (ORION_CLIPBOARD_DAYS).' : e.message); }
+    }
+
     /* ── início ────────────────────────────────────────────────────────── */
     function fechar() { try { window.close(); } catch (_) { /* a ponte fecha a janela */ } }
     document.addEventListener('keydown', e => { if (e.key === 'Escape') fechar(); });
@@ -105,6 +127,12 @@
     if (modo === 'isso') {
         mostrar('#isso', true);
         carregarImagem().then(id => { if (id) { $('#isso-form').addEventListener('submit', ev => perguntar(ev, id)); $('#isso-pergunta').focus(); $('#isso-pergunta').select(); } else $('#isso-enviar').disabled = true; });
+    }
+    if (modo === 'area') {
+        mostrar('#area', true);
+        $('#area-busca').addEventListener('input', () => { clearTimeout(esperaArea); esperaArea = setTimeout(listarArea, 200); });
+        $('#area-busca').focus();
+        listarArea();
     }
     window.Orion.ponte = { fechar };
 })();

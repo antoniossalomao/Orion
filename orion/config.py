@@ -148,6 +148,12 @@ class Settings(BaseSettings):
     # ninguém olhando. Liga com o e-mail da conta; a ferramenta precisa ser `read` no mcp.json.
     briefing_calendar_email: str = ""
     briefing_calendar_tool: str = "google__get_events"
+    # E9 (regras 58-60). `repos`: pastas conferidas por "posso desligar?" (separe com ;).
+    repos: Annotated[list[Path], NoDecode] = Field(default_factory=list)
+    # Históricos locais (regra 60): só no computador, com retenção e opt-in. 0 = desligado.
+    clipboard_days: int = Field(default=0, ge=0, le=90)
+    command_history: bool = False
+    telegram_voice_reply: bool = False  # E9.10: quem manda voz no Telegram recebe voz de volta
     # Memória da tela (regra 44): OCR local da tela, só texto, retenção curta. Opt-in.
     screen_memory: bool = False
     screen_interval_s: int = Field(default=300, ge=60, le=3600)
@@ -235,6 +241,16 @@ class Settings(BaseSettings):
             return (
                 json.loads(v) if v.startswith("[") else [int(x) for x in v.split(",") if x.strip()]
             )
+        return v
+
+    @field_validator("repos", mode="before")
+    @classmethod
+    def _pastas_dos_repos(cls, v: object) -> object:
+        if isinstance(v, str):
+            v = v.strip()
+            if v.startswith("["):
+                return json.loads(v)
+            return [x.strip() for x in v.replace("\n", ";").split(";") if x.strip()]
         return v
 
     @field_validator("wake_words", mode="before")

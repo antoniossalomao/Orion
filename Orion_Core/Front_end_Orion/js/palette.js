@@ -13,7 +13,7 @@
     let visiveis = [], sel = 0;
     /* "Em tudo" (busca global): o servidor procura em conversas, fatos, documentos, tela e arquivos gerados. 300 ms depois de parar de digitar. */
     let tudo = { q: '', itens: [] }, esperaTudo = null, geracaoTudo = 0;
-    const FONTE_ICONE = { conversas: 'chat', fatos: 'memory', documentos: 'file', tela: 'search', resultados: 'file' };
+    const FONTE_ICONE = { conversas: 'chat', fatos: 'memory', documentos: 'file', tela: 'search', resultados: 'file', area: 'copy', comandos: 'search' };
 
     function itensDaBusca(grupos) {
         const itens = [];
@@ -27,6 +27,7 @@
                 else if (g.fonte === 'fatos') itens.push({ ...base, rotulo: U.truncar(`${r.antigo ? '(antigo) ' : ''}${r.texto}`, 80), exec: () => O.memoriaFatos?.abrirFato(r.texto) });
                 else if (g.fonte === 'documentos') itens.push({ ...base, rotulo: U.truncar(r.fonte, 70), dica: U.truncar(r.trecho, 40), exec: () => (/^upload:/.test(r.fonte) ? O.app.ir('fontes') : O.app.ir('memoria')) });
                 else if (g.fonte === 'tela') itens.push({ ...base, rotulo: U.truncar(`${r.janela || 'tela'}: ${r.trecho}`, 80), exec: () => O.conhecimento?.buscarNaTela(campo.value.trim()) });
+                else if (g.fonte === 'area' || g.fonte === 'comandos') itens.push({ ...base, rotulo: U.truncar(r.trecho, 80), dica: g.titulo, exec: () => navigator.clipboard?.writeText(r.trecho).catch(() => {}) });
                 else if (g.fonte === 'resultados') itens.push({ ...base, rotulo: `${r.nome} (v${r.versao})`, exec: () => O.app.ir('conhecimento') });
             }
         }

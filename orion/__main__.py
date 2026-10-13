@@ -350,6 +350,29 @@ def _rotina(settings: Settings, args: argparse.Namespace) -> int:
         store.close()
 
 
+def _posso_desligar(settings: Settings, args: argparse.Namespace) -> int:
+    """E9.5: o que ficaria pela metade se o computador desligasse agora (só lê)."""
+    from .desligar import posso_desligar, texto
+    from .memory import MemoryStore
+
+    store = MemoryStore(settings.db_path)
+    try:
+        rodando = [
+            {"status": "rodando", "objective": str(r[0])}
+            for r in store.query("SELECT objective FROM background_tasks WHERE status='rodando'")
+        ]
+    finally:
+        store.close()
+    r = posso_desligar(
+        repos=list(settings.repos),
+        backup_dir=settings.effective_backup_dir,
+        downloads_dir=Path.home() / "Downloads",
+        tarefas=rodando,
+    )
+    print(texto(r))
+    return 0 if r["pode"] else 1
+
+
 def _downloads(settings: Settings, args: argparse.Namespace) -> int:
     """Organizador de Downloads com regras suas (E9.4, regra 58)."""
     from .downloads import EXEMPLO, Downloads
@@ -540,6 +563,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     ms.add_argument("--token", action="store_true", help="gera um token novo (revoga o anterior)")
     ms.add_argument("--revogar", action="store_true", help="revoga o token: nada mais lê")
+    sub.add_parser("posso-desligar", help="o que ficaria pela metade se desligasse agora")
     dl = sub.add_parser("downloads", help="organizador de Downloads com as suas regras")
     dl.add_argument(
         "acao", choices=("exemplo", "estado", "conceder", "revogar", "rodar", "desfazer")
@@ -748,6 +772,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "wake-test":
         return _wake_test(settings, listar=args.listar, segundos=args.segundos)
 
+    if args.cmd == "posso-desligar":
+        return _posso_desligar(settings, args)
     if args.cmd == "downloads":
         return _downloads(settings, args)
 

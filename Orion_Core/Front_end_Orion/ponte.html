@@ -36,6 +36,14 @@
             </form>
         </section>
 
+        <section id="area" hidden>
+            <label for="area-busca">Copiados nos últimos dias</label>
+            <input id="area-busca" class="input" type="search" maxlength="200" autocomplete="off"
+                   placeholder="buscar no que você copiou…">
+            <ul id="area-lista" class="ponte-lista" aria-label="Itens copiados"></ul>
+            <p class="ponte-dica">Enter ou clique copia o item de volta · Esc fecha · segredos nunca entram aqui</p>
+        </section>
+
         <div id="resultado" role="status" aria-live="polite" class="ponte-resultado" hidden>
             <p id="resultado-texto"></p>
             <button id="desfazer" class="btn btn-outline btn-sm" type="button" hidden>Desfazer</button>

@@ -71,6 +71,7 @@ CAPTURA_ESPERA_S = 300  # depois do `/capturar` sozinho, o próximo envio vale p
 BOAS_VINDAS = (
     "Orion aqui. Escreva o que precisa e eu respondo.\n\n"
     "/nova — começa uma conversa nova (a atual fica arquivada)\n"
+    "/ler <link> — guarda para ler depois (resumo de 5 linhas no vault)\n"
     "/capturar — guarda no vault o próximo texto, link, foto ou voz (ou /capturar <texto>)\n"
     "/briefing — o que há para hoje\n"
     "/painel — modelos, CLIs, aprovações e política num só lugar\n"
@@ -128,6 +129,8 @@ class TelegramChannel:
         self.agenda: Callable[[float], str | None] | None = None  # agenda do briefing (regra 37)
         self.tela: Callable[[str], str] | None = None  # `/tela` (regra 44); o app liga depois
         self.modos: Modos | None = None  # `/panico` (regra 48); o app liga depois
+        self.desligar: Callable[[], str] | None = None  # `/desligar` (E9.5); o app liga depois
+        self.ler_depois: Any = None  # LerDepois (E9.8); o app liga depois
         self.rotinas: Any = None  # RotinaStore (regra 58); o app liga depois
         self.executar_rotina: Callable[[str, str], Awaitable[Any]] | None = None
         self._clock = clock
@@ -375,6 +378,15 @@ class TelegramChannel:
         elif comando == "/panico":
             argumento = texto.split(None, 1)[1] if len(texto.split(None, 1)) > 1 else ""
             await self._enviar(chat_id, await asyncio.to_thread(self._panico, argumento))
+        elif comando == "/desligar":
+            ver = self.desligar
+            await self._enviar(
+                chat_id,
+                await asyncio.to_thread(ver) if ver else "Conferência indisponível neste canal.",
+            )
+        elif comando == "/ler":
+            argumento = texto.split(None, 1)[1].strip() if len(texto.split(None, 1)) > 1 else ""
+            await self._enviar(chat_id, await self._ler_depois(argumento))
         elif comando == "/rotina":
             argumento = texto.split(None, 1)[1].strip() if len(texto.split(None, 1)) > 1 else ""
             await self._on_rotina(chat_id, argumento)
@@ -430,6 +442,24 @@ class TelegramChannel:
         return build_briefing(self.ops, self.memory.clock(), agenda=self.agenda)
 
     # ── captura rápida (regra 30): comando do Antônio, não ferramenta do modelo ──
+    async def _ler_depois(self, link: str) -> str:
+        """`/ler <link>` (E9.8): guarda na fila, resume em segundo plano e deixa a nota no vault."""
+        if self.ler_depois is None:
+            return "Ler depois indisponível neste canal."
+        if not link:
+            lista = await asyncio.to_thread(self.ler_depois.listar, "pendente", 10)
+            if not lista:
+                return "Nada na fila. Use /ler <link>."
+            return "Na fila para ler:\n" + "\n".join(f"• {i['title'] or i['url']}" for i in lista)
+        try:
+            item = await asyncio.to_thread(self.ler_depois.adicionar, link)
+        except ValueError as e:
+            return str(e)
+        if item["status"] == "pendente":
+            self.ler_depois.agendar(item["id"])
+            return "📚 Guardei. Vou resumir e deixar a nota em 'Ler depois' no vault."
+        return f"Esse link já estava na lista ({item['status']})."
+
     async def _on_capturar(self, chat_id: int, texto: str) -> None:
         if self._capture is None:
             await self._enviar(

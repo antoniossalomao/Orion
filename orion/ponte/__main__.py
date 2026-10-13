@@ -51,7 +51,13 @@ def executar(settings: Settings) -> int:
     from .config import TeclasInvalidas
 
     try:
-        ponte = Ponte(url, token, montar(settings.screen_ocr_langs), teclas=settings.hotkeys)
+        ponte = Ponte(
+            url,
+            token,
+            montar(settings.screen_ocr_langs),
+            teclas=settings.hotkeys,
+            observar_area=settings.clipboard_days > 0,
+        )
     except TeclasInvalidas as e:
         print(f"ORION_HOTKEYS inválido: {e}", file=sys.stderr)
         return 1

@@ -9,6 +9,7 @@ PADRAO: dict[str, str] = {
     "captura": "ctrl+alt+space",  # captura rápida (E2.3)
     "isso": "ctrl+alt+o",  # "o que é isso?" (E2.5)
     "ocr": "ctrl+alt+t",  # copiar texto de uma área da tela (E2.4)
+    "area": "ctrl+alt+v",  # lista pesquisável do que foi copiado (E9.6, regra 60)
     "panico": "ctrl+alt+shift+p",  # modo pânico (regra 48)
 }
 MODIFICADORES = ("ctrl", "alt", "shift", "cmd")
