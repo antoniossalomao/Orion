@@ -51,6 +51,10 @@ class Capturer:
         self._pasta = pasta
         self._clock = clock
 
+    def pasta(self) -> Path:
+        """A pasta de captura (criada se faltar), sempre dentro do vault."""
+        return self._destino()
+
     def _destino(self) -> Path:
         vault = self._vault.expanduser().resolve()
         if not vault.is_dir():

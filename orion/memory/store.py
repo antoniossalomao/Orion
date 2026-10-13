@@ -1490,6 +1490,23 @@ class MemoryStore:
             ).fetchall()
         return [dict(r) for r in rows]
 
+    def surplus_artifacts(self, manter: int, nome: str | None = None) -> list[dict[str, Any]]:
+        """Versões além das `manter` mais novas de cada (nome, tipo); só `nome`, se dado (E6.3)."""
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT id, name, kind, version, stored, bytes FROM library_results"
+                " WHERE (? IS NULL OR name=?) ORDER BY name, kind, version DESC, id DESC",
+                (nome, nome),
+            ).fetchall()
+        vistos: dict[tuple[str, str], int] = {}
+        sobra: list[dict[str, Any]] = []
+        for r in rows:
+            chave = (r["name"], r["kind"])
+            vistos[chave] = vistos.get(chave, 0) + 1
+            if vistos[chave] > manter:
+                sobra.append(dict(r))
+        return sobra
+
     def delete_artifact(self, aid: int) -> str | None:
         """Apaga o registro e devolve o nome do arquivo guardado (para o chamador apagar)."""
         with self._tx() as c:

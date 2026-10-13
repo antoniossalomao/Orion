@@ -10,6 +10,7 @@ no navegador: a API entrega tudo como download (ou como texto/imagem raster para
 
 from __future__ import annotations
 
+import difflib
 import json
 import logging
 import re
@@ -23,6 +24,8 @@ log = logging.getLogger("orion.resultados")
 
 MAX_COPIA = 25 * 1024 * 1024
 PREVIA_TEXTO = (".txt", ".md", ".csv", ".json")
+PREVIA_PDF = ".pdf"
+MAX_DIFF_LINHAS = 2000
 PREVIA_IMAGEM = {
     ".png": "image/png",
     ".jpg": "image/jpeg",
@@ -96,3 +99,39 @@ class Library:
         if guardado and alvo.is_relative_to(self.pasta.resolve()):
             alvo.unlink(missing_ok=True)
         return True
+
+    def diff(self, aid: int, com: int) -> dict[str, Any] | None:
+        """Diff de linhas entre duas versões de texto (E6.2): `com` é a base, `aid` o novo.
+        None se um dos dois não existe; `ValueError` se algum não é texto."""
+        novo, base = self.caminho(aid), self.caminho(com)
+        if novo is None or base is None:
+            return None
+        if novo.suffix.lower() not in PREVIA_TEXTO or base.suffix.lower() not in PREVIA_TEXTO:
+            raise ValueError("só texto, Markdown e CSV têm diff (imagem: compare lado a lado)")
+        a = base.read_text(encoding="utf-8", errors="replace").splitlines()
+        b = novo.read_text(encoding="utf-8", errors="replace").splitlines()
+        linhas = list(difflib.unified_diff(a, b, "base", "novo", lineterm="", n=3))
+        return {
+            "de": com,
+            "para": aid,
+            "iguais": not linhas,
+            "adicionadas": sum(1 for x in linhas if x.startswith("+") and not x.startswith("+++")),
+            "removidas": sum(1 for x in linhas if x.startswith("-") and not x.startswith("---")),
+            "linhas": linhas[:MAX_DIFF_LINHAS],
+            "truncado": len(linhas) > MAX_DIFF_LINHAS,
+        }
+
+    def limpar(
+        self, manter: int, nome: str | None = None, *, simular: bool = False
+    ) -> dict[str, Any]:
+        """Apaga as versões além das `manter` mais novas de cada resultado (E6.3). Com `simular`,
+        só conta. Nada fora da pasta da biblioteca é tocado."""
+        sobra = self.memory.surplus_artifacts(manter, nome)
+        total = {"total": len(sobra), "bytes": sum(int(x["bytes"]) for x in sobra)}
+        if simular:
+            return {**total, "apagados": 0}
+        apagados = 0
+        for x in sobra:
+            if self.apagar(int(x["id"])):
+                apagados += 1
+        return {**total, "apagados": apagados}
