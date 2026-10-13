@@ -403,9 +403,15 @@ as páginas lidas voltam como conteúdo externo. Nada do seu computador além di
 **Onde ver.** Uma nota por dia no `00 Inbox` (`<data hora> - Pesquisa noturna...`, tag `pesquisa`), com o
 aviso "conteúdo de fontes externas". Cada assunto vira uma conversa no canal `pesquisa`.
 
+**Pela interface (E6.5).** Conhecimento › "Pesquisa noturna": edita os assuntos (até 5, 200 caracteres cada; ficam no
+banco e valem no lugar de `ORION_RESEARCH_TOPICS`), lista os relatórios do `00 Inbox` e tem "Rodar agora". "Rodar agora"
+(`POST /pesquisa/rodar`) roda em segundo plano, **não gasta a rodada da noite**, não funciona em pânico e é barrado quando
+a cota gratuita do dia passa de 90% (regra 46). Ele só precisa de `ORION_WEB_TOOLS`, gateway e vault: sem
+`ORION_RESEARCH_AT` a pesquisa simplesmente não roda sozinha.
+
 **Pausar/desligar.** Esvaziar `ORION_RESEARCH_AT` e reiniciar.
 
-**Regra.** 39; código em `orion/research.py`.
+**Regra.** 39; código em `orion/research/night.py`.
 
 ## 11. Leitura semanal
 
@@ -949,3 +955,53 @@ está ligado sem os arquivos.
 **Pausar/desligar.** `ORION_RERANK=false` e reiniciar. Se o reranker falhar numa busca, a ordem original fica.
 
 **Regra.** 54; código em `orion/memory/rerank.py`.
+
+## 20. MCP e skills (E7)
+
+**Diagnóstico.** Integrações › "Servidores MCP (mcp.json)": estado de cada servidor (conectado, falhou, **protocolo
+incompatível**, caiu, desligado), protocolo negociado, última falha, as ferramentas com a classe de risco que **você** deu
+no `mcp.json` e "Testar" (só lista as ferramentas, não chama nenhuma). `orion mcp-check` mostra o mesmo no terminal e sai
+com erro se algum servidor não subiu. Servidor que fala um protocolo fora de 2025-11-25 e 2026-07-28 é recusado inteiro,
+sem expor ferramenta, com a mensagem "o servidor X fala o protocolo Y, o Orion fala Z".
+
+**Cancelar.** Parar o turno (Esc) cancela a chamada em andamento no servidor MCP, e o SDK avisa o servidor com
+`notifications/cancelled`. O servidor pode ignorar o aviso: o que ele já fez não se desfaz.
+
+**Muitas ferramentas.** Acima de `ORION_MCP_INDEX_AT` (padrão 30) ferramentas de servidores MCP, o modelo vê só um índice
+(nome e uma linha) e `procurar_ferramenta(consulta)`; o esquema completo das que ela achar entra na rodada seguinte (até 16
+por conversa). Classe de risco e aprovação não mudam (regra 55).
+
+**Recursos.** `ler_recurso_mcp(servidor, uri)` só existe se algum servidor tiver `"resources": ["file:///docs/*"]` no
+`mcp.json`: lê só URI que o servidor listou **e** que casa com a lista, até 200 KB, como conteúdo externo (a sessão passa a
+confirmar escrita e execução). Servidor remoto entra no registro de saída (regra 47).
+
+**Prompts.** Só você invoca: `/prompt servidor:nome k=valor` ou "Prompt MCP: …" na paleta. O texto vai para o campo de
+mensagem para você revisar; nada é enviado sozinho e o modelo não vê prompt como ferramenta.
+
+**Skills.** `/skill nome pedido` ou "Usar skill…" na paleta: o turno começa com o corpo da skill (da sua pasta `skills/`)
+já carregado, como se o modelo tivesse chamado `carregar_skill`. Regra 40: continua sendo só texto.
+
+**Seu estilo de código.** `orion estilo <pasta-repo> [...]` pede à CLI da sua assinatura (`--agente claude`, o padrão) que leia
+cada repositório e descreva nomes, comentários, testes e commits. **O código lido sai do computador** (a CLI o envia ao
+provedor da assinatura; o comando pergunta antes e entra no registro de saída). A skill `estilo-antonio` nasce
+**desativada**, em `<skills>/.pendentes/`: leia e rode `orion estilo --ativar`. Ela pode errar e pode ecoar o que leu.
+
+**O Orion como servidor MCP (só leitura).** No computador do Orion:
+```
+orion mcp-servidor --token        # mostra o token UMA vez (no banco fica só o SHA-256) e os comandos abaixo
+claude mcp add orion -e ORION_MCP_SERVER_TOKEN=<token> -- orion mcp-servidor
+```
+Codex (`~/.codex/config.toml`): `[mcp_servers.orion]` com `command = "orion"`, `args = ["mcp-servidor"]` e
+`env = { ORION_MCP_SERVER_TOKEN = "<token>" }`. Três ferramentas: `buscar_memoria`, `listar_fatos`, `buscar_conversas`
+(`projeto` por nome ou id; sem ele, só a memória pessoal) e o prompt `estilo-antonio` quando a skill está ativa. Sem
+escrita, sem execução, sem rede e sem embeddings (a busca é lexical). `orion mcp-servidor --revogar` derruba o acesso na
+hora: o token é conferido a cada chamada. Cada chamada vai ao audit com o nome do cliente (sem o texto da consulta).
+Para dar acesso a um cliente por HTTP, com credencial por contexto, existe o servidor de
+[ORION_MCP_EXPORT.md](ORION_MCP_EXPORT.md); este é o de linha de comando.
+
+**O que sai do computador.** `orion estilo`: código dos repositórios, para a CLI da assinatura. O resto: nada (o servidor
+MCP responde ao processo que **você** registrou no seu cliente; o que o cliente faz com a resposta é dele).
+
+**Desligar.** `orion mcp-servidor --revogar`; tirar o `claude mcp remove orion`; `ORION_MCP_INDEX_AT` alto desliga o índice.
+
+**Regras.** 55 e 56; código em `orion/mcp_client.py`, `orion/mcp_indice.py`, `orion/mcp_servidor.py`, `orion/estilo.py`.

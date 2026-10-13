@@ -93,6 +93,8 @@ class Settings(BaseSettings):
     # Servidores MCP (fase 4): sobem do mcp.json (padrão: <dados>/mcp.json), só com gateway.
     mcp_enabled: bool = True
     mcp_config: Path | None = None
+    # acima disto, o modelo vê só o índice das ferramentas MCP e `procurar_ferramenta` (regra 55)
+    mcp_index_at: int = Field(default=30, ge=1, le=1000)
     # Voz no Telegram: transcrição por API compatível com a da OpenAI (Whisper no Groq, grátis).
     transcribe_api_key: str = ""  # ou no cofre do SO (ORION_TRANSCRIBE_API_KEY); vazio: sem voz
     transcribe_url: str = "https://api.groq.com/openai/v1"

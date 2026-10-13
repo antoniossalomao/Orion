@@ -32,7 +32,7 @@
     const configurarToken = t => { tokenDesktop = String(t || ''); };
 
     /** rotas que exigem o token do orion.app; o legado não conhece cabeçalho Authorization */
-    const comAuth = caminho => /^\/(mcp-export|files|approvals|chat|calendar|accounts|branches|documents|activity|notifications|facts|artifacts|projects|skills|plugins|mcp|sessoes|historico|exportar|painel|tela|resultados|atividade|modo|privacidade|capabilities\/details)(\/|$|\?)/.test(caminho)
+    const comAuth = caminho => /^\/(mcp-export|files|approvals|chat|calendar|accounts|branches|documents|activity|notifications|facts|artifacts|projects|skills|plugins|mcp|sessoes|historico|exportar|painel|tela|resultados|pesquisa|prompts|atividade|modo|privacidade|capabilities\/details)(\/|$|\?)/.test(caminho)
         || (estado.backend === 'orion' && /^\/(grafo|memoria\/relacoes|busca)(\/|$|\?)/.test(caminho));   // no legado essas rotas não têm login
 
     function cabecalhos(caminho, extra = {}) {
@@ -133,7 +133,7 @@
                     features.chat = h.cerebro.ok;
                     features.skills = false;
                     features.plugins = false; features.mcp = false; features.projects = false; features.artifacts = false; features.memory_facts = false;
-                    for (const name of ['notifications', 'activity', 'documents', 'branches', 'accounts', 'calendar', 'file_plans', 'mcp_export', 'global_search', 'screen_search']) features[name] = false; // somente backend novo
+                    for (const name of ['notifications', 'activity', 'documents', 'branches', 'accounts', 'calendar', 'file_plans', 'mcp_export', 'global_search', 'screen_search', 'library_panel', 'research_ui', 'mcp_servers']) features[name] = false; // somente backend novo
                     novo = { backend: 'legacy', api: 'online', model: h.cerebro.ok ? 'ready' : 'unavailable', features, unavailable: estado.backend === 'legacy' ? estado.unavailable : {} };
                 } else novo = { backend: 'unknown', api: 'online', model: 'unknown', features: {}, unavailable: {}, incompatible: true };
             } catch (e) {
@@ -174,8 +174,8 @@
         desativarMcp: id => recurso('mcp', `/mcp/connections/${encodeURIComponent(id)}/disable`, { metodo: 'POST', timeout: 30000 }),
         removerMcp: id => recurso('mcp', `/mcp/connections/${encodeURIComponent(id)}`, { metodo: 'DELETE', timeout: 30000 }),
         conexoesMcp: () => recurso('mcp', '/mcp/connections'),
-        pedidoChat: ({ texto, modelo, skills = [] }) => estado.backend === 'orion'
-            ? { texto, canal: 'web', ...(skills.length ? { skills } : {}) } : { texto, modelo },
+        pedidoChat: ({ texto, modelo, skills = [], skillSimples = null }) => estado.backend === 'orion'
+            ? { texto, canal: 'web', ...(skills.length ? { skills } : {}), ...(skillSimples ? { skill: skillSimples } : {}) } : { texto, modelo },
         pedidoRetomada: () => estado.backend === 'orion' ? { json: { canal: 'web' } } : {},
         usarHub: () => estado.backend === 'legacy',
         async ping(timeout = 2000) {
@@ -247,6 +247,23 @@
         bibliotecaTexto: id => req(`/resultados/${encodeURIComponent(id)}/texto`, { timeout: 5000 }),
         /** bytes do arquivo (Response): `previa` pede a imagem inline, senão é o download */
         bibliotecaArquivo: (id, previa = false) => req(`/resultados/${encodeURIComponent(id)}/arquivo?${q({ previa: previa ? 'true' : null })}`, { bruto: true, timeout: 60000 }),
+        /** diff de linhas entre duas versões de texto: `id` é a nova, `com` a base (E6.2) */
+        bibliotecaDiff: (id, com) => recurso('library_panel', `/resultados/${encodeURIComponent(id)}/diff?${q({ com })}`, { timeout: 6000 }),
+        /** apaga as versões além das `manter` mais novas; `simular` só conta (E6.3) */
+        bibliotecaLimpar: (manter, simular = false, nome = null) => recurso('library_panel', '/resultados/limpar', { metodo: 'POST', json: { manter, simular, ...(nome ? { nome } : {}) }, timeout: 15000 }),
+        /** servidores do mcp.json: estado, última falha, ferramentas e risco (E7.3) */
+        mcpServidores: () => recurso('mcp_servers', '/mcp/servidores', { timeout: 6000 }),
+        mcpTestar: nome => recurso('mcp_servers', `/mcp/servidores/${encodeURIComponent(nome)}/testar`, { metodo: 'POST', timeout: 70000 }),
+        /** prompts de servidores MCP: só você invoca (E7.5, regra 55) */
+        mcpPrompts: () => recurso('mcp_servers', '/mcp/prompts', { timeout: 20000 }),
+        mcpPrompt: (servidor, nome, argumentos) => recurso('mcp_servers', `/mcp/prompts/${encodeURIComponent(servidor)}/${encodeURIComponent(nome)}`, { metodo: 'POST', json: { argumentos }, timeout: 40000 }),
+        /** skills da sua pasta skills/ (catálogo simples), para /skill (E7.6) */
+        skillsCatalogo: () => recurso('mcp_servers', '/skills/catalogo', { timeout: 4000 }),
+        /** pesquisa noturna (E6.5): assuntos, relatórios e "rodar agora" */
+        pesquisaAssuntos: () => recurso('research_ui', '/pesquisa/assuntos', { timeout: 4000 }),
+        pesquisaSalvar: assuntos => recurso('research_ui', '/pesquisa/assuntos', { metodo: 'PUT', json: { assuntos }, timeout: 5000 }),
+        pesquisaRelatorios: () => recurso('research_ui', '/pesquisa/relatorios', { timeout: 4000 }),
+        pesquisaRodar: () => recurso('research_ui', '/pesquisa/rodar', { metodo: 'POST', timeout: 8000 }),
         bibliotecaApagar: id => req(`/resultados/${encodeURIComponent(id)}`, { metodo: 'DELETE', timeout: 5000 }),
         /** caixa de atividade: avisos novos e lidos (não confundir com `atividade`, da atividade das ferramentas) */
         caixaDeAtividade: () => req('/atividade', { timeout: 4000 }),

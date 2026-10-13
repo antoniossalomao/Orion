@@ -254,6 +254,75 @@ def _mcp_check(config: Path) -> int:
         gerente.stop()
 
 
+def _mcp_servidor(settings: Settings, args: argparse.Namespace) -> int:
+    """O Orion como servidor MCP só de leitura (E7.7, regra 56). Em modo servidor, stdout é do
+    protocolo: tudo que for mensagem humana sai em stderr."""
+    import os
+
+    from .mcp_servidor import ENV_TOKEN, gerar_token, revogar, servir
+    from .memory import MemoryStore
+
+    store = MemoryStore(settings.db_path)
+    try:
+        if args.token:
+            token = gerar_token(store)
+            print(
+                "Token gerado (aparece só agora; o anterior deixou de valer):\n\n"
+                f"  {token}\n\n"
+                "Claude Code:\n"
+                f"  claude mcp add orion -e {ENV_TOKEN}={token} -- orion mcp-servidor\n"
+                "Codex (~/.codex/config.toml):\n"
+                '  [mcp_servers.orion]\n  command = "orion"\n  args = ["mcp-servidor"]\n'
+                f'  env = {{ {ENV_TOKEN} = "{token}" }}'
+            )
+            return 0
+        if args.revogar:
+            print("token revogado" if revogar(store) else "não havia token")
+            return 0
+        return servir(store, os.environ.get(ENV_TOKEN), settings.effective_skills_dir)
+    finally:
+        store.close()
+
+
+def _estilo(settings: Settings, args: argparse.Namespace) -> int:
+    """Skill `estilo-antonio` a partir dos seus repositórios (E7.8). Nasce desativada."""
+    from . import saidas
+    from .delegate import Delegator
+    from .estilo import EstiloError, ativar, gerar, pendente
+    from .memory import MemoryStore
+
+    pasta = settings.effective_skills_dir
+    try:
+        if args.ativar:
+            print(f"skill ativada: {ativar(pasta)}")
+            return 0
+        if not args.repos:
+            print("informe as pastas dos repositórios (ou --ativar)", file=sys.stderr)
+            return 1
+        pergunta = (
+            f"O código de {len(args.repos)} repositório(s) será LIDO pela CLI da sua assinatura "
+            f"({args.agente}) e o resumo volta para uma skill. Continuar? [s/N] "
+        )
+        if not args.sim and input(pergunta).strip().lower() != "s":
+            print("nada foi enviado")
+            return 1
+        store = MemoryStore(settings.db_path)
+        saidas.definir_destino(store.add_external_call)  # o código sai do computador (regra 47)
+        try:
+            arquivo = gerar([Path(r) for r in args.repos], Delegator(store), pasta, args.agente)
+        finally:
+            saidas.definir_destino(None)
+            store.close()
+    except EstiloError as e:
+        print(e, file=sys.stderr)
+        return 1
+    print(
+        f"skill PENDENTE (desativada) gravada em {pendente(pasta).parent}\n"
+        f"leia {arquivo} e, se concordar, rode: orion estilo --ativar"
+    )
+    return 0
+
+
 def _wake_test(settings: Settings, *, listar: bool, segundos: int) -> int:
     """Diagnóstico da escuta: mostra o nível do microfone e avisa quando a palavra é ouvida.
     Não usa agente, não fala com a rede e não grava nada."""
@@ -329,6 +398,20 @@ def main(argv: list[str] | None = None) -> int:
         "mcp-check", help="sobe os servidores do mcp.json e mostra as ferramentas e suas classes"
     )
     mc.add_argument("--config", type=Path, default=None, help="padrão: <dados>/mcp.json")
+    ms = sub.add_parser(
+        "mcp-servidor",
+        help="o Orion como servidor MCP só de leitura (stdio) para o Claude Code ou o Codex",
+    )
+    ms.add_argument("--token", action="store_true", help="gera um token novo (revoga o anterior)")
+    ms.add_argument("--revogar", action="store_true", help="revoga o token: nada mais lê")
+    es = sub.add_parser(
+        "estilo",
+        help="gera a skill estilo-antonio lendo seus repositórios (nasce desativada)",
+    )
+    es.add_argument("repos", nargs="*", help="pastas dos repositórios")
+    es.add_argument("--agente", default="claude", choices=("claude", "codex", "gemini"))
+    es.add_argument("--ativar", action="store_true", help="ativa a skill pendente revisada")
+    es.add_argument("--sim", action="store_true", help="não pergunta antes de enviar o código")
     wt = sub.add_parser(
         "wake-test",
         help="testa o microfone e a palavra de ativação (sem agente, sem rede, sem gravar nada)",
@@ -517,6 +600,12 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.cmd == "wake-test":
         return _wake_test(settings, listar=args.listar, segundos=args.segundos)
+
+    if args.cmd == "estilo":
+        return _estilo(settings, args)
+
+    if args.cmd == "mcp-servidor":
+        return _mcp_servidor(settings, args)
 
     if args.cmd == "mcp-check":
         return _mcp_check(args.config or settings.effective_mcp_config)

@@ -117,15 +117,15 @@
         return [texto, linhas.join('\n')].filter(Boolean).join('\n\n');
     }
 
-    function disparar({ prompt, exibir, nomes = [], semBolha = false, skills = [], original = null }) {
+    function disparar({ prompt, exibir, nomes = [], semBolha = false, skills = [], original = null, skillSimples = null }) {
         if (O.historico?.leitura()) return;
         const modelo = prefs.get('model') || 'auto';
-        ultimoPedido = { prompt, exibir, nomes, modelo, skills, original, sid: O.sidebar.ativa() };
+        ultimoPedido = { prompt, exibir, nomes, modelo, skills, skillSimples, original, sid: O.sidebar.ativa() };
         if (hist.itens[hist.itens.length - 1] !== exibir) { hist.itens.push(exibir); if (hist.itens.length > hist.MAX) hist.itens.shift(); }
         hist.idx = hist.itens.length;
         hist.rascunho = '';
         if (!semBolha) O.chat.usuario(exibir, { anexos: nomes, skills: catalogo.filter(s => skills.includes(s.id)) });
-        const via = O.transport.enviar({ texto: prompt, modelo, skills });
+        const via = O.transport.enviar({ texto: prompt, modelo, skills, skillSimples });
         if (via === 'hub') O.chat.esperarEco(prompt);
         O.som?.envio?.();
     }
@@ -139,6 +139,7 @@
             ui.toast(`${dica} Digite / para ver a lista, ou // para enviar uma barra.`, { tipo: 'aviso', ms: 3600, id: 'slash' });
             return true;
         }
+        if (r.cmd === 'skill') { usarSkillSimples(inst, r.arg); return true; }
         inst.ta.value = '';
         autoajustar(inst.ta);
         fecharSlash(inst);
@@ -146,6 +147,45 @@
         if (inst === chat) salvarRascunho();
         O.acoes.slash(r.cmd, r.arg);
         return true;
+    }
+
+    /** `/skill nome pedido` (E7.6): o turno começa com o corpo da skill já carregado no servidor */
+    async function usarSkillSimples(inst, arg) {
+        const p = O.slash.separarSkill(arg);
+        if (!p?.pedido) { ui.toast('Use /skill nome e escreva o pedido depois do nome.', { tipo: 'aviso', id: 'slash' }); return; }
+        if (!api.suporta('mcp_servers')) { ui.toast('Skills por /skill precisam do backend novo.', { tipo: 'aviso', id: 'slash' }); return; }
+        if (O.chat.ocupado() || O.transport.cancelando()) { ui.toast('Espere a resposta terminar, ou pare com Esc.', { tipo: 'aviso', id: 'ocupado' }); return; }
+        const original = inst.ta.value, sid = O.sidebar.ativa();
+        let achada = false;
+        try { achada = (await api.skillsCatalogo()).skills.some(s => s.nome === p.nome); }
+        catch (e) { ui.toast(`Não consegui ler as skills. ${e.message || ''}`.trim(), { tipo: 'erro' }); return; }
+        if (inst.ta.value !== original || O.sidebar.ativa() !== sid || O.chat.ocupado()) return;
+        if (!achada) { ui.toast(`Não existe a skill “${p.nome}” na sua pasta de skills. Seu rascunho foi preservado.`, { tipo: 'aviso' }); return; }
+        inst.ta.value = '';
+        autoajustar(inst.ta);
+        fecharSlash(inst);
+        if (inst === chat) salvarRascunho();
+        if (document.documentElement.dataset.view !== 'chat') O.app.ir('chat');
+        disparar({ prompt: p.pedido, exibir: p.pedido, skillSimples: p.nome });
+        atualizar();
+    }
+
+    /** escolhe uma skill do catálogo simples e deixa `/skill nome ` pronto no campo (paleta) */
+    async function escolherSkillSimples() {
+        let lista = [];
+        try { lista = (await api.skillsCatalogo()).skills; }
+        catch (e) { ui.toast(`Não consegui ler as skills. ${e.message || ''}`.trim(), { tipo: 'erro' }); return; }
+        if (!lista.length) { ui.toast('Você ainda não tem skills na pasta skills/.', { tipo: 'info' }); return; }
+        const nome = await ui.escolher({ titulo: 'Usar skill', rotulo: 'Skill', ok: 'Usar', opcoes: lista.map(s => ({ valor: s.nome, rotulo: `${s.nome} — ${s.descricao}`.slice(0, 120) })) });
+        if (nome) preencher(`/skill ${nome} `);
+    }
+
+    /** põe um texto no campo de mensagem do chat para você revisar (nada é enviado) */
+    function preencher(texto) {
+        if (document.documentElement.dataset.view !== 'chat') O.app.ir('chat');
+        chat.ta.value = texto;
+        autoajustar(chat.ta); atualizar(); salvarRascunho(); chat.ta.focus();
+        chat.ta.setSelectionRange(texto.length, texto.length);
     }
 
     async function enviar(inst) {
@@ -381,7 +421,7 @@
         if ((!api.suporta('chat') || O.historico?.leitura())) { ui.toast('O modelo ainda está indisponível.', { tipo: 'aviso' }); return; }
         if (!ultimoPedido || O.chat.ocupado()) return;
         const p = ultimoPedido;
-        disparar({ prompt: p.prompt, exibir: p.exibir, nomes: p.nomes, skills: p.skills, original: p.original, semBolha: true });
+        disparar({ prompt: p.prompt, exibir: p.exibir, nomes: p.nomes, skills: p.skills, skillSimples: p.skillSimples, original: p.original, semBolha: true });
         atualizar();
     }
 
@@ -457,5 +497,5 @@
         O.anunciar('Mensagem no campo. Ao enviar, vira uma mensagem nova na conversa.');
     }
 
-    O.composer = { skills: () => catalogo.slice(), selecionarSkill, carregarSkills, init, atualizar, foco, sugerir, reenviar, adicionar, citar, editar, temPedido: () => !!ultimoPedido, MODELOS };
+    O.composer = { skills: () => catalogo.slice(), selecionarSkill, escolherSkillSimples, preencher, carregarSkills, init, atualizar, foco, sugerir, reenviar, adicionar, citar, editar, temPedido: () => !!ultimoPedido, MODELOS };
 })();

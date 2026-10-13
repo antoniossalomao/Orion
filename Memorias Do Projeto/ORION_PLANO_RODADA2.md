@@ -142,29 +142,29 @@ Marque ao concluir. Uma etapa só fecha com todos os itens, a prova e o PR merge
 - [ ] PR da E5 mergeado
 
 ### E6 — Resultados e atividade
-- [ ] E6.1 Painel lateral da biblioteca (R4.1)
-- [ ] E6.2 Comparar versões (R4.2)
-- [ ] E6.3 Apagar versões antigas em lote (R4.3)
-- [ ] E6.4 Fontes e atividade das extensões no chat (R4.5 / C27)
-- [ ] E6.5 Pesquisa noturna pela interface (R4.6)
+- [x] E6.1 Painel lateral da biblioteca (R4.1)
+- [x] E6.2 Comparar versões (R4.2)
+- [x] E6.3 Apagar versões antigas em lote (R4.3)
+- [x] E6.4 Fontes e atividade das extensões no chat (R4.5 / C27)
+- [x] E6.5 Pesquisa noturna pela interface (R4.6)
 - [ ] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas
-- [ ] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
-- [ ] **Prova:** cenários de navegador nos dois backends.
+- [x] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
+- [x] **Prova:** cenários de navegador nos dois backends.
 - [ ] PR da E6 mergeado
 
 ### E7 — MCP e skills
 - [ ] Antônio: registrar o MCP do Orion no Claude Code (`claude mcp add orion -- orion mcp-servidor`)
-- [ ] Regras escritas em `ORION_REGRAS.md` antes do código (55 (C14), 56 (Orion como servidor MCP))
-- [ ] E7.1 Versão de SDK incompatível (R5.1 / C07)
-- [ ] E7.2 Cancelamento propagado (R5.2)
-- [ ] E7.3 Diagnóstico MCP na interface (R5.3 / C26)
-- [ ] E7.4 Descoberta sob demanda (R5.12 / C13)
-- [ ] E7.5 Resources e prompts (R5.13 / C14)
-- [ ] E7.6 Skills pelo chat e pela paleta (R5.10 / B3)
-- [ ] E7.7 Orion como servidor MCP (R5.11)
-- [ ] E7.8 Seu estilo de código como skill (Z12)
+- [x] Regras escritas em `ORION_REGRAS.md` antes do código (55 (C14), 56 (Orion como servidor MCP))
+- [x] E7.1 Versão de SDK incompatível (R5.1 / C07)
+- [x] E7.2 Cancelamento propagado (R5.2)
+- [x] E7.3 Diagnóstico MCP na interface (R5.3 / C26)
+- [x] E7.4 Descoberta sob demanda (R5.12 / C13)
+- [x] E7.5 Resources e prompts (R5.13 / C14)
+- [x] E7.6 Skills pelo chat e pela paleta (R5.10 / B3)
+- [x] E7.7 Orion como servidor MCP (R5.11)
+- [x] E7.8 Seu estilo de código como skill (Z12)
 - [ ] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas
-- [ ] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
+- [x] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
 - [ ] **Prova:** testes com o servidor MCP de teste real (`tests/mcp_cliente`); `claude mcp add orion -- orion mcp-servidor` lista as 3 ferramentas.
 - [ ] PR da E7 mergeado
 

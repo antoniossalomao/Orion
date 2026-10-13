@@ -264,6 +264,60 @@ software, com poucos nós (a legibilidade com 500 nós misturados, a olho, é su
 provada pelo texto reconhecido; a heurística de contradição e a pontuação de `achar_no` são regras simples; o `eval_pessoal`
 real (suas perguntas) não rodou antes/depois: o conjunto fixo do repositório (`tests/memory/test_eval.py`) segue passando.
 
+## Décima segunda rodada (13/10/2026): plano da rodada 2, etapa E6
+
+Plano em [ORION_PLANO_RODADA2.md](ORION_PLANO_RODADA2.md). Sem esquema novo (usa `library_results` v10 e `meta`) e sem
+regra nova (a 39 foi estendida); front em [ORION_FRONT.md](ORION_FRONT.md) §11; como usar a pesquisa em
+[ORION_OPERACAO.md](ORION_OPERACAO.md) §10.
+
+**E6: resultados e atividade**
+
+| ID | Entrega | Status |
+|---|---|---|
+| E6.1 | Painel lateral (`views/resultados.js`) com prévia de texto, imagem e PDF; PDF vai por `fetch` → `Blob` → `<iframe src="blob:">` (a CSP da página só tem `frame-src blob:`) e `GET /resultados/{id}/arquivo?previa=true` entrega PDF inline com CSP `default-src 'none'` (o visualizador não abre sob `sandbox`); HTML/SVG continuam só como anexo; cartão "Abrir <arquivo>" na resposta que gerou o arquivo (`provenance.resultados`) | ✅ API e navegador (a prévia do PDF só prova o `<iframe>` com `blob:`; o visualizador do Chromium sem tela não foi visto) |
+| E6.2 | `GET /resultados/{id}/diff?com=` (`difflib.unified_diff`, teto de 2000 linhas, 415 para imagem/PDF); imagens lado a lado no front | ✅ API e navegador |
+| E6.3 | `POST /resultados/limpar {manter, nome?, simular?}` (mantém as N mais novas de cada nome+tipo, apaga linha e arquivo); o front mostra o total e os bytes (simulação) antes de apagar | ✅ API e navegador |
+| E6.4 | `provenance.usou` (nome, origem `nativa`/`mcp:<servidor>`/`skill:<nome>`/`plugin:<nome>`, estado) e `provenance.fontes` (links achados só em resultado de ferramenta `external`/`egress`, até 20); rodapé "Usou: …" expansível na bolha e no histórico; `McpManager.servidor_de` | ✅ unitário, Node e navegador |
+| E6.5 | Assuntos da pesquisa em `meta` (`research:topics`), `GET/PUT /pesquisa/assuntos` (até 5, 200 caracteres, `;` recusado, 422 sem cortar), `GET /pesquisa/relatorios` (notas `pesquisa-noturna` do 00 Inbox), `POST /pesquisa/rodar` (202, segundo plano, não gasta a rodada da noite, 409 em pânico ou já rodando, 429 sem cota); cartão em Conhecimento | ✅ API e navegador com um turno de mentira; ❌ nenhuma pesquisa real na web |
+
+**Mudou além do plano:** `NightResearch` agora existe sem `ORION_RESEARCH_AT` (só não roda sozinha), para o "rodar agora"
+funcionar; `Capturer.pasta()` público; `library_panel` e `research_ui` entram em `/capabilities` (o legado continua com o
+"Ver" inline).
+
+**Não verificado (E6):** nenhuma pesquisa noturna real (Brave/Gemini) rodou pelo botão; o PDF não foi visto renderizado num
+Chromium com tela; o `servidor_de` só foi provado com a função de teste e o `McpManager` existente, não com um servidor
+MCP real novo; links das fontes saem do texto do resultado da ferramenta (uma ferramenta que não imprime URL não gera link).
+
+## Décima terceira rodada (13/10/2026): plano da rodada 2, etapa E7
+
+Plano em [ORION_PLANO_RODADA2.md](ORION_PLANO_RODADA2.md). Regras 55 e 56 (escritas antes do código) em
+[ORION_REGRAS.md](ORION_REGRAS.md); como usar em [ORION_OPERACAO.md](ORION_OPERACAO.md) §20 e
+[ORION_MCP.md](ORION_MCP.md). Sem esquema novo. Não há opt-in novo (`ORION_MCP_INDEX_AT` é um limite, não liga nada).
+
+**E7: MCP e skills**
+
+| ID | Entrega | Status |
+|---|---|---|
+| E7.1 | Protocolo fora de 2025-11-25/2026-07-28 → `incompatível: o servidor X fala o protocolo Y, o Orion fala Z` (no `mcp-check`, no painel e em `/mcp/servidores`); a versão que o próprio SDK recusa (1900-01-01) recebe a mesma mensagem | ✅ servidor MCP de verdade (JSON-RPC à mão) |
+| E7.2 | `call_async` + `Tool.run_async` usa `fn.async_fn`: cancelar o turno cancela `call_tool` no laço do MCP; o servidor registra `notifications/cancelled` | ✅ servidor real; ❌ nenhum servidor de terceiros foi cancelado |
+| E7.3 | `GET /mcp/servidores`, `POST /mcp/servidores/{nome}/testar`, card em Integrações (estado, protocolo, última falha, ferramentas e risco) | ✅ API e navegador |
+| E7.4 | `orion/mcp_indice.py`: acima de `ORION_MCP_INDEX_AT` (30) o modelo vê o índice e `procurar_ferramenta`; o esquema entra na rodada seguinte (até 16 por conversa); a política decide pelo nome, como sempre | ✅ agente + 42 ferramentas de um servidor real |
+| E7.5 | `resources` no `mcp.json`, `ler_recurso_mcp` (URI listada pelo servidor e permitida, 200 KB, `external`), prompts só por `/prompt` e paleta (vão ao campo, nunca enviados sozinhos) | ✅ servidor real e navegador |
+| E7.6 | `POST /chat {skill}` carrega o corpo da skill como um `carregar_skill` forçado; `/skill nome pedido`, "Usar skill…", `GET /skills/catalogo` | ✅ API e navegador |
+| E7.7 | `orion mcp-servidor` (stdio): `buscar_memoria`, `listar_fatos`, `buscar_conversas`; token gerado por `--token`, só o SHA-256 no banco, conferido a cada chamada, `--revogar`; audit com o cliente | ✅ SDK oficial como cliente, processo de verdade; ❌ o Claude Code e o Codex reais não foram usados: a prova do plano (`claude mcp add ...` listar 3 ferramentas) é sua |
+| E7.8 | `orion estilo <repos>` delega à CLI da assinatura, grava a skill em `.pendentes/` (desativada), `--ativar` move; exposta como prompt `estilo-antonio` do servidor MCP | ✅ com a CLI de mentira; ❌ nenhuma CLI real foi chamada |
+
+**Decisões minhas (reverta se discordar):** o token do servidor MCP fica como SHA-256 no banco (`meta`), igual às
+credenciais de exportação, e não no cofre do sistema como o plano dizia: o processo do servidor é separado e o cofre pode
+não existir (Linux sem keyring); a mesma coisa vale para a revogação, que assim é conferida a cada chamada. "Skill nasce
+desativada" virou "mora em `.pendentes/`" porque o catálogo não tem estado de ativação. A tela de Integrações e o
+`/skill` só existem no backend novo.
+
+**Não verificado (E7):** o Claude Code e o Codex de verdade nunca falaram com `orion mcp-servidor`; nenhum servidor MCP de
+terceiros (filesystem, fetch, git) foi usado com recursos, prompts, índice ou cancelamento; `orion estilo` nunca chamou
+a CLI real (qualidade do resumo é sua de julgar); o servidor MCP recusa o que o SDK deixa passar, mas o texto de erro do SDK
+para ferramenta com exceção é genérico ("Error executing tool") quando não é `ToolError`.
+
 ## O que foi construído (por fase do NUCLEO)
 
 | Fase | Entrega | Status |

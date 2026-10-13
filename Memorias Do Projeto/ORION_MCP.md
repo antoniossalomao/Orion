@@ -129,3 +129,19 @@ Conteúdo binário não é aceito neste fluxo. Erros públicos são códigos san
 Prova real do handshake confirma que Orion não anuncia sampling, elicitation,
 extensões ou capacidades experimentais sem implementação. Testes incluem resource
 80 KB, scope negado, template que tenta dispensar aprovação e `/chat` autenticado.
+
+
+## Cliente do mcp.json: E7 (13/10/2026)
+
+Servidor de teste escrito à mão, com o protocolo de verdade por stdio (`tests/mcp_cliente/servidor_cru.py`): permite
+anunciar a versão de protocolo que o teste quiser, registrar `notifications/cancelled`, servir recursos e prompts.
+
+| Item | Prova |
+|---|---|
+| Protocolo incompatível (2024-11-05, e 1900-01-01 que o próprio SDK recusa) vira `incompatível: o servidor X fala o protocolo Y, o Orion fala 2025-11-25 e 2026-07-28`, sem ferramentas | `tests/mcp_cliente/test_e7.py`, `orion mcp-check` sai com 1 |
+| Cancelar o turno (ou a ferramenta) cancela `call_tool` no laço do MCP e o servidor recebe `notifications/cancelled` (`{"reason": "caller cancelled"}`) | `test_cancelar_*` com o servidor real |
+| `GET /mcp/servidores` e `POST /mcp/servidores/{nome}/testar` (sem comando, argumentos nem segredos na resposta) | API e navegador |
+| Índice acima de `ORION_MCP_INDEX_AT`; o esquema só entra depois de `procurar_ferramenta` | `test_agente_so_mostra_o_esquema_depois_de_procurar` |
+| `resources` no `mcp.json`, `ler_recurso_mcp` (URI listada e permitida, 200 KB, externo), prompts só pela paleta e por `/prompt` | `test_recurso_*`, `test_prompts_*` |
+
+Servidor do Orion para o Claude Code e o Codex: [ORION_OPERACAO.md](ORION_OPERACAO.md) §20 (regra 56).

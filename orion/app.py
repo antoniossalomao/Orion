@@ -35,7 +35,7 @@ from fastapi import (
 from fastapi import Path as PathParam
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
@@ -65,7 +65,9 @@ from .gateway import CAMADA_LOCAL, ChatGateway, Endpoint
 from .grafo_routes import router as grafo_router
 from .jobs import JobRunner
 from .log import request_id
-from .mcp_client import McpConfigError, McpManager, manager_from_file
+from .mcp_client import SPEC_RECURSO, McpConfigError, McpManager, manager_from_file
+from .mcp_indice import SPEC as INDICE_SPEC
+from .mcp_indice import Indice
 from .memory import MemoryStore
 from .memory.compact import Compactor
 from .memory.consolidate import Consolidator
@@ -87,7 +89,7 @@ from .project_routes import router as project_router
 from .projects import ProjectError
 from .provedores import chave_env
 from .research import Research
-from .resultados import PREVIA_IMAGEM, PREVIA_TEXTO, Library
+from .resultados import PREVIA_IMAGEM, PREVIA_PDF, PREVIA_TEXTO, Library
 from .screen_memory import (
     ScreenMemory,
     app_em_foco,
@@ -173,6 +175,8 @@ class AppState:
     biblioteca: Library | None = None  # resultados gerados (C34)
     modos: Modos | None = None  # pânico e não perturbe (regra 48)
     custos: Custos | None = None  # cota gratuita (regra 46)
+    pesquisa: Any = None  # NightResearch (regra 39); None sem agente, ORION_WEB_TOOLS ou vault
+    tarefas_pesquisa: Any = None  # a tarefa do `rodar agora` (guarda a referência)
     ponte: PonteHub = field(default_factory=PonteHub)  # ponte de desktop (regra 50)
 
 
@@ -725,6 +729,8 @@ class Mensagem(BaseModel):
     contexto: list[ContextRequest] = Field(default_factory=list, max_length=8)
     skills: list[str] = Field(default_factory=list, max_length=3)
     referencias: list[SkillReference] = Field(default_factory=list, max_length=8)
+    # skill do catálogo simples (`orion/skills.py`) carregada à força no começo do turno (E7.6)
+    skill: str | None = Field(default=None, pattern=r"^[a-z0-9][a-z0-9-]{0,63}$")
 
 
 class PedidoEditado(BaseModel):
@@ -754,25 +760,42 @@ class Retomada(BaseModel):
     canal: str = Field(default="web", pattern=_CANAL)
 
 
+class LimparResultados(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    manter: int = Field(ge=1, le=1000)
+    nome: str | None = Field(default=None, min_length=1, max_length=120)
+    simular: bool = False
+
+
+class PromptMcp(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    argumentos: dict[str, str] = Field(default_factory=dict, max_length=20)
+
+
+class AssuntosPesquisa(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    assuntos: list[str] = Field(max_length=20)
+
+
 def _iso(ts: float) -> str:
     return datetime.fromtimestamp(ts, UTC).isoformat()
 
 
 def _pesquisa_noturna(settings: Settings, agent: Any, memory: MemoryStore) -> Any:
-    """Só liga com hora, assuntos, agente, ferramentas de web e vault: tudo escolhido por você."""
-    from .research import NightResearch, parse_assuntos
+    """Só existe com agente, ferramentas de web e vault: tudo escolhido por você. Sem hora
+    (`ORION_RESEARCH_AT`) ela não roda sozinha, só no `rodar agora` da interface. Os assuntos
+    são os editados na interface (E6.5) ou, na falta deles, `ORION_RESEARCH_TOPICS`."""
+    from .research import NightResearch, assuntos_salvos
 
-    assuntos = parse_assuntos(settings.research_topics)
-    if not (settings.research_at and assuntos):
-        return None
     if agent is None or not settings.web_tools or settings.vault_dir is None:
-        log.warning("pesquisa noturna pedida, mas faltam gateway, ORION_WEB_TOOLS ou o vault")
+        if settings.research_at:
+            log.warning("pesquisa noturna pedida, mas faltam gateway, ORION_WEB_TOOLS ou o vault")
         return None
     return NightResearch(
         memory=memory,
         run_turn=lambda canal, texto: agent.run(canal, texto, read_only=True),
         capturer=Capturer(settings.vault_dir, settings.capture_folder),
-        assuntos=assuntos,
+        assuntos=lambda: assuntos_salvos(memory, settings.research_topics)[0],
         at=settings.research_at,
         clock=time.time,
     )
@@ -1023,6 +1046,7 @@ def create_app(
         tela = (screen_factory or screen_from_settings)(settings, memory)
         biblioteca = Library(memory, settings.data_dir / "resultados")
         agent = None
+        indice = None
         mcp = None
         delegador: Delegator | None = None
         processos: ProcessManager | None = None
@@ -1034,6 +1058,13 @@ def create_app(
             if mcp is not None:
                 for spec in mcp.specs.values():
                     policy.register_tool(spec)
+            indice = Indice(mcp_tools, settings.mcp_index_at)  # só as de servidor MCP (E7.4)
+            if indice.ativo:
+                policy.register_tool(INDICE_SPEC)
+                mcp_tools = [*mcp_tools, indice.tool()]
+            if mcp is not None and mcp.recursos_ativos():
+                policy.register_tool(SPEC_RECURSO)
+                mcp_tools = [*mcp_tools, mcp.tool_recurso()]
             if settings.desktop_tools:
                 processos = ProcessManager(settings.data_dir / "processos")
             skills = (
@@ -1094,8 +1125,11 @@ def create_app(
                 library=biblioteca,
                 modos=modos,
                 compactor=compactor_from_settings(settings, memory),
+                servidor_mcp=getattr(mcp, "servidor_de", None),
+                mcp_indice=indice,
             )
         jobs, tarefa_jobs, agenda = None, None, None
+        pesquisa = _pesquisa_noturna(settings, agent, memory)
         if settings.jobs_enabled:
             consolidador = (
                 Consolidator(memory, gateway)
@@ -1109,7 +1143,6 @@ def create_app(
                 call=mcp.call if mcp is not None else _sem_mcp,
                 audit=ops.audit_add,
             )
-            pesquisa = _pesquisa_noturna(settings, agent, memory)
             sono = (
                 SleepCycle(
                     memory,
@@ -1255,6 +1288,7 @@ def create_app(
             biblioteca=biblioteca,
             modos=modos,
             custos=custos,
+            pesquisa=pesquisa,
             ponte=ponte_hub,
         )
         try:
@@ -1813,10 +1847,21 @@ def create_app(
                     external=external,
                     selection=selection,
                     expected_session=session.id,
+                    skill_forcada=corpo.skill,
                 )
             ),
             media_type="text/event-stream",
         )
+
+    @app.get("/skills/catalogo", dependencies=[Admin])
+    def catalogo_de_skills(state: State) -> dict[str, Any]:
+        """As skills da sua pasta `skills/` (nome e descrição): para `/skill` e a paleta."""
+        skills = state.agent._skills if state.agent is not None else None
+        itens = [
+            {"nome": s.nome, "descricao": s.descricao}
+            for s in (skills.skills.values() if skills else [])
+        ]
+        return {"total": len(itens), "skills": itens}
 
     # ── biblioteca de resultados (C34/C35): o que o Orion gerou, com origem e versões ──
     def _biblioteca(state: AppState) -> Library:
@@ -1843,6 +1888,8 @@ def create_app(
                     if Path(a["name"]).suffix.lower() in PREVIA_TEXTO
                     else "imagem"
                     if Path(a["name"]).suffix.lower() in PREVIA_IMAGEM
+                    else "pdf"
+                    if Path(a["name"]).suffix.lower() == PREVIA_PDF
                     else None
                 ),
             }
@@ -1862,17 +1909,30 @@ def create_app(
 
     @app.get("/resultados/{rid}/arquivo", dependencies=[Admin])
     def arquivo_do_resultado(rid: int, state: State, previa: bool = False) -> FileResponse:
-        """Download (sempre como anexo, nunca renderizado); com `previa=true`, só imagem raster
-        é entregue inline. HTML/SVG gerados pelo modelo nunca executam no navegador."""
+        """Download (sempre como anexo, nunca renderizado); com `previa=true`, só imagem raster e
+        PDF são entregues inline. HTML/SVG gerados pelo modelo nunca executam no navegador."""
         biblioteca = _biblioteca(state)
         caminho = biblioteca.caminho(rid)
         a = state.memory.get_artifact(rid)
         if caminho is None or a is None:
             raise HTTPException(404, "resultado não encontrado")
         cabecalhos = {"X-Content-Type-Options": "nosniff", "Content-Security-Policy": "sandbox"}
-        mime = PREVIA_IMAGEM.get(Path(a["name"]).suffix.lower())
+        sufixo = Path(a["name"]).suffix.lower()
+        mime = PREVIA_IMAGEM.get(sufixo)
         if previa and mime:
             return FileResponse(caminho, media_type=mime, headers=cabecalhos)
+        if previa and sufixo == PREVIA_PDF:
+            # o visualizador de PDF do navegador não abre sob `sandbox`: aqui vale a CSP vazia
+            return FileResponse(
+                caminho,
+                media_type="application/pdf",
+                filename=a["name"],
+                content_disposition_type="inline",
+                headers={
+                    "X-Content-Type-Options": "nosniff",
+                    "Content-Security-Policy": "default-src 'none'",
+                },
+            )
         return FileResponse(
             caminho,
             media_type="application/octet-stream",
@@ -1880,12 +1940,139 @@ def create_app(
             headers=cabecalhos,
         )
 
+    @app.get("/resultados/{rid}/diff", dependencies=[Admin])
+    def diff_do_resultado(rid: int, com: int, state: State) -> dict[str, Any]:
+        """Compara a versão `rid` (nova) com `com` (base): linhas de `difflib.unified_diff`."""
+        try:
+            achado = _biblioteca(state).diff(rid, com)
+        except ValueError as e:
+            raise HTTPException(415, str(e)) from None
+        if achado is None:
+            raise HTTPException(404, "resultado não encontrado")
+        return achado
+
+    @app.post("/resultados/limpar", dependencies=[Admin])
+    def limpar_resultados(corpo: LimparResultados, state: State) -> dict[str, Any]:
+        """Apaga as versões além das `manter` mais novas. `simular` só conta (o front mostra o
+        total e pede confirmação antes de apagar de verdade)."""
+        r = _biblioteca(state).limpar(corpo.manter, corpo.nome, simular=corpo.simular)
+        if not corpo.simular and r["apagados"]:
+            audit_log.info(
+                "resultados_limpos",
+                extra={"audit": {"manter": corpo.manter, "apagados": r["apagados"]}},
+            )
+        return r
+
     @app.delete("/resultados/{rid}", dependencies=[Admin])
     def apagar_resultado(rid: int, state: State) -> dict[str, bool]:
         if not _biblioteca(state).apagar(rid):
             raise HTTPException(404, "resultado não encontrado")
         audit_log.info("resultado_apagado", extra={"audit": {"resultado": rid}})
         return {"ok": True}
+
+    # ── diagnóstico do cliente MCP (E7.3): o que o mcp.json subiu, e o que não ──
+    @app.get("/mcp/servidores", dependencies=[Admin])
+    def servidores_mcp(state: State) -> dict[str, Any]:
+        if state.mcp is None:
+            return {"ativo": False, "servidores": []}
+        return {"ativo": True, "servidores": state.mcp.diagnostico()}
+
+    @app.post("/mcp/servidores/{nome}/testar", dependencies=[Admin])
+    def testar_servidor_mcp(nome: str, state: State) -> dict[str, Any]:
+        if state.mcp is None:
+            raise HTTPException(409, "nenhum servidor MCP configurado em mcp.json")
+        resultado = state.mcp.testar(nome)
+        audit_log.info(
+            "mcp_teste", extra={"audit": {"servidor": nome, "ok": bool(resultado.get("ok"))}}
+        )
+        if resultado.get("erro") == "servidor desconhecido":
+            raise HTTPException(404, "servidor desconhecido")
+        return resultado
+
+    # ── prompts de servidores MCP (E7.5, regra 55): só você invoca, o modelo não os vê ──
+    @app.get("/mcp/prompts", dependencies=[Admin])
+    def prompts_mcp(state: State) -> dict[str, Any]:
+        itens = state.mcp.listar_prompts() if state.mcp is not None else []
+        return {"total": len(itens), "prompts": itens}
+
+    @app.post("/mcp/prompts/{servidor}/{nome}", dependencies=[Admin])
+    def obter_prompt_mcp(
+        servidor: str, nome: str, corpo: PromptMcp, state: State
+    ) -> dict[str, Any]:
+        """Devolve o texto do prompt para o campo de mensagem; nada é enviado ao modelo aqui."""
+        if state.mcp is None:
+            raise HTTPException(409, "nenhum servidor MCP configurado em mcp.json")
+        r = state.mcp.obter_prompt(servidor, nome, corpo.argumentos)
+        audit_log.info("mcp_prompt", extra={"audit": {"servidor": servidor, "prompt": nome}})
+        if "erro" in r:
+            raise HTTPException(502, r["erro"])
+        return {**r, "origem": f"mcp:{servidor}"}
+
+    # ── pesquisa noturna pela interface (E6.5, regra 39) ──
+    def _assuntos_da_pesquisa(state: AppState) -> dict[str, Any]:
+        from .research import MAX_ASSUNTO, MAX_ASSUNTOS, assuntos_salvos
+
+        assuntos, origem = assuntos_salvos(state.memory, state.settings.research_topics)
+        return {
+            "assuntos": assuntos,
+            "origem": origem,
+            "max": MAX_ASSUNTOS,
+            "max_tamanho": MAX_ASSUNTO,
+            "hora": state.settings.research_at or None,
+            "disponivel": state.pesquisa is not None,
+            "rodando": bool(state.pesquisa is not None and state.pesquisa.rodando),
+        }
+
+    @app.get("/pesquisa/assuntos", dependencies=[Admin])
+    def ver_assuntos_da_pesquisa(state: State) -> dict[str, Any]:
+        return _assuntos_da_pesquisa(state)
+
+    @app.put("/pesquisa/assuntos", dependencies=[Admin])
+    def trocar_assuntos_da_pesquisa(corpo: AssuntosPesquisa, state: State) -> dict[str, Any]:
+        """Quem escolhe os assuntos é você (nunca o modelo): até 5, 200 caracteres cada."""
+        from .research import salvar_assuntos
+
+        try:
+            salvar_assuntos(state.memory, corpo.assuntos)
+        except ValueError as e:
+            raise HTTPException(422, str(e)) from None
+        audit_log.info("pesquisa_assuntos", extra={"audit": {"total": len(corpo.assuntos)}})
+        return _assuntos_da_pesquisa(state)
+
+    @app.get("/pesquisa/relatorios", dependencies=[Admin])
+    def relatorios_da_pesquisa(state: State) -> dict[str, Any]:
+        itens = state.pesquisa.relatorios() if state.pesquisa is not None else []
+        return {"total": len(itens), "relatorios": itens}
+
+    @app.post("/pesquisa/rodar", status_code=202, dependencies=[Admin])
+    async def rodar_pesquisa_agora(state: State) -> dict[str, Any]:
+        """Dispara a pesquisa em segundo plano (o relatório cai no 00 Inbox). Respeita o pânico
+        e a cota gratuita (regra 46): o job opcional não passa de 90% do dia."""
+        pesquisa = state.pesquisa
+        if pesquisa is None:
+            raise HTTPException(
+                409, "pesquisa indisponível: falta ORION_WEB_TOOLS, gateway ou vault"
+            )
+        if state.modos is not None and state.modos.panico():
+            raise HTTPException(409, "modo pânico: a pesquisa está cortada")
+        if pesquisa.rodando:
+            raise HTTPException(409, "a pesquisa já está rodando")
+        if not pesquisa.assuntos:
+            raise HTTPException(422, "nenhum assunto definido")
+        if state.custos is not None:
+            for provedor in ("gateway", "gemini"):
+                if not state.custos.pode_usar(provedor, opcional=True, quem="a pesquisa noturna"):
+                    raise HTTPException(429, "cota gratuita do dia quase no fim: tente amanhã")
+        audit_log.info("pesquisa_manual", extra={"audit": {"assuntos": len(pesquisa.assuntos)}})
+
+        async def rodar() -> None:
+            try:
+                await pesquisa.run(marcar=False)
+            except Exception:  # um relatório que falha não derruba o servidor
+                log.exception("pesquisa manual falhou")
+
+        state.tarefas_pesquisa = asyncio.create_task(rodar())
+        return {"iniciada": True}
 
     @app.post("/approvals/{approval_id}/resume", dependencies=[Admin])
     async def retomar(

@@ -88,6 +88,11 @@
         if (O.chat.pendentes().length) {
             c.unshift({ g: 'acao', rotulo: `Revisar ação pendente (${O.chat.pendentes().length})`, icone: 'shield', exec: () => O.chat.irParaPendente(), chaves: 'aprovar aprovação' });
         }
+        if (O.api.estado().backend === 'orion' && O.api.suporta('mcp_servers')) {
+            c.push({ g: 'skill', rotulo: 'Usar skill…', icone: 'bolt', chaves: 'skill catálogo pasta', exec: () => O.composer.escolherSkillSimples() });
+            c.push(...(O.mcpServidores?.prompts() || []).map(p => ({ g: 'skill', rotulo: `Prompt MCP: ${p.servidor}:${p.nome}`, icone: 'bolt',
+                dica: p.descricao || 'prompt de servidor MCP', chaves: 'prompt mcp', exec: () => O.mcpServidores.trazerPrompt(p) })));
+        }
         c.push(...O.composer.skills().map(s => ({ g: 'skill', rotulo: `Skill: ${s.id}`,
             icone: 'bolt', dica: s.enabled ? `${s.origin} · ${s.version}` : 'Desativada',
             chaves: s.description, exec: () => O.composer.selecionarSkill(s.id) })));

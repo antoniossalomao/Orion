@@ -113,8 +113,12 @@ class Tool:
         if invalid := self._invalid(args):
             return invalid
         try:
+            # `async_fn`: ferramenta cancelável (cliente MCP, E7.2); sem ele, roda numa thread
+            nativa = getattr(self.fn, "async_fn", None)
             value = (
-                self.fn(**args)
+                nativa(**args)
+                if nativa is not None
+                else self.fn(**args)
                 if inspect.iscoroutinefunction(self.fn)
                 else await asyncio.to_thread(self.fn, **args)
             )
