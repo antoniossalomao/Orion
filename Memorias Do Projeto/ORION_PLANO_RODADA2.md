@@ -182,20 +182,20 @@ Marque ao concluir. Uma etapa só fecha com todos os itens, a prova e o PR merge
 - [ ] PR da E8 mergeado
 
 ### E9 — Automação do dia a dia
-- [ ] Regras escritas em `ORION_REGRAS.md` antes do código (58 (rotinas), 59 (tarefa em segundo plano), 60 (históricos locais))
-- [ ] E9.1 Rotinas (L7)
-- [ ] E9.2 Tarefa em segundo plano (L6)
-- [ ] E9.3 Lembrete insistente (U3)
-- [ ] E9.4 Organizador de Downloads com regras (U7)
-- [ ] E9.5 "Posso desligar?" (U8)
-- [ ] E9.6 Histórico da área de transferência (U4)
-- [ ] E9.7 Histórico de comandos pesquisável (U5)
-- [ ] E9.8 Ler depois (U6)
-- [ ] E9.9 Conversor de arquivos (V5)
-- [ ] E9.10 Voz no Telegram (N22)
-- [ ] E9.11 Transcrever → tarefas (N4)
+- [x] Regras escritas em `ORION_REGRAS.md` antes do código (58 (rotinas), 59 (tarefa em segundo plano), 60 (históricos locais))
+- [x] E9.1 Rotinas (L7)
+- [x] E9.2 Tarefa em segundo plano (L6)
+- [x] E9.3 Lembrete insistente (U3)
+- [x] E9.4 Organizador de Downloads com regras (U7)
+- [x] E9.5 "Posso desligar?" (U8)
+- [x] E9.6 Histórico da área de transferência (U4)
+- [x] E9.7 Histórico de comandos pesquisável (U5)
+- [x] E9.8 Ler depois (U6)
+- [x] E9.9 Conversor de arquivos (V5)
+- [x] E9.10 Voz no Telegram (N22)
+- [x] E9.11 Transcrever → tarefas (N4)
 - [ ] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas
-- [ ] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
+- [x] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
 - [ ] **Prova:** rotina "bom dia" por palmas abre o briefing, toca música e abre o app; histórico de comandos acha um `gbak` de ontem.
 - [ ] PR da E9 mergeado
 
