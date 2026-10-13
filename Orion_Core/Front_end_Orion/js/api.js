@@ -32,7 +32,7 @@
     const configurarToken = t => { tokenDesktop = String(t || ''); };
 
     /** rotas que exigem o token do orion.app; o legado não conhece cabeçalho Authorization */
-    const comAuth = caminho => /^\/(mcp-export|files|approvals|chat|calendar|accounts|branches|documents|activity|notifications|facts|artifacts|projects|skills|plugins|mcp|sessoes|historico|exportar|painel|tela|resultados|pesquisa|prompts|atividade|modo|privacidade|capabilities\/details)(\/|$|\?)/.test(caminho)
+    const comAuth = caminho => /^\/(mcp-export|files|approvals|chat|calendar|accounts|branches|documents|activity|notifications|facts|artifacts|projects|skills|plugins|mcp|sessoes|historico|exportar|painel|tela|resultados|pesquisa|prompts|lembretes|atividade|modo|privacidade|capabilities\/details)(\/|$|\?)/.test(caminho)
         || (estado.backend === 'orion' && /^\/(grafo|memoria\/relacoes|busca)(\/|$|\?)/.test(caminho));   // no legado essas rotas não têm login
 
     function cabecalhos(caminho, extra = {}) {
@@ -319,6 +319,7 @@
         baixarDocumento: (id, project_id) => recurso('documents', `/documents/${id}/download?${q({ project_id })}`, { bruto: true }),
         atividade: (project_id, unread = false) => recurso('activity', `/activity?${q({ project_id, unread })}`),
         preferenciasAtividade: (project_id, json) => recurso('activity', `/activity/preferences?${q({ project_id })}`, { metodo: 'PUT', json }),
+        agirNoLembrete: (id, acao, project_id) => req(`/lembretes/${id}/${acao}?${q({ project_id })}`, { metodo: 'POST' }),
         lerAviso: (id, project_id) => req(`/notifications/${id}/ack?${q({ project_id })}`, { metodo: 'POST' }),
         /** `semAviso`: consulta de fundo; um 401 não reabre a tela de entrada */
         aprovacoes: ({ semAviso = false } = {}) => recurso('approvals', '/approvals', { timeout: 4000, semAviso }),

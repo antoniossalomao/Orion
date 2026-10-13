@@ -21,11 +21,19 @@ def _erro(e: Exception) -> dict[str, Any]:
 
 def ops_tools(ops: Operations) -> list[Tool]:
     def gerenciar_lembretes(
-        acao: str, titulo: str = "", quando: str = "", lembrete_id: int = 0, nota: str = ""
+        acao: str,
+        titulo: str = "",
+        quando: str = "",
+        lembrete_id: int = 0,
+        nota: str = "",
+        insistir_min: int = 0,
     ) -> dict[str, Any]:
         try:
             if acao == "criar":
-                return {"ok": True, "lembrete": ops.add_reminder(titulo, quando, nota)}
+                return {
+                    "ok": True,
+                    "lembrete": ops.add_reminder(titulo, quando, nota, int(insistir_min)),
+                }
             if acao == "listar":
                 lista = ops.list_reminders(include_done=True)
                 return {"ok": True, "total": len(lista), "lembretes": lista}
@@ -160,6 +168,10 @@ def ops_tools(ops: Operations) -> list[Tool]:
                     "quando": {"type": "string", "description": "ISO, ex.: 2026-06-25T14:30:00"},
                     "lembrete_id": inteiro,
                     "nota": texto,
+                    "insistir_min": {
+                        "type": "integer",
+                        "description": "reavisa a cada N min (5 a 1440); 0 = uma vez",
+                    },
                 },
                 "required": ["acao"],
             },

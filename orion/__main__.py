@@ -284,6 +284,142 @@ def _mcp_servidor(settings: Settings, args: argparse.Namespace) -> int:
         store.close()
 
 
+def _rotina(settings: Settings, args: argparse.Namespace) -> int:
+    """Rotinas suas (E9.1, regra 58): listar, exemplo, conceder, revogar e executar."""
+
+    from .memory import MemoryStore
+    from .rotinas import EXEMPLO_BOM_DIA, RotinaStore
+
+    pasta = settings.data_dir / "rotinas"
+    store = MemoryStore(settings.db_path)
+    try:
+        rotinas = RotinaStore(pasta, store)
+        if args.acao == "exemplo":
+            pasta.mkdir(parents=True, exist_ok=True)
+            alvo = pasta / "bom-dia.yaml"
+            if alvo.exists():
+                print(f"{alvo} já existe; nada foi trocado")
+                return 1
+            alvo.write_text(EXEMPLO_BOM_DIA, encoding="utf-8")
+            print(
+                f"exemplo gravado em {alvo}\nleia o arquivo e rode: orion rotina conceder bom-dia"
+            )
+            return 0
+        if args.acao == "listar":
+            lista = rotinas.listar()
+            for c in lista:
+                extra = f" — ERRO: {c.erro}" if c.erro else ""
+                print(f"{c.nome}: {c.estado.replace('_', ' ')}{extra}")
+            if not lista:
+                print(f"nenhuma rotina em {pasta} (orion rotina exemplo cria uma)")
+            return 0
+        if not args.nome:
+            print("faltou o nome da rotina", file=sys.stderr)
+            return 1
+        if args.acao == "conceder":
+            c = rotinas.obter(args.nome)
+            if c is None or c.rotina is None:
+                print(
+                    f"rotina '{args.nome}' não existe ou tem erro: {c.erro if c else ''}",
+                    file=sys.stderr,
+                )
+                return 1
+            print(f"A rotina '{c.nome}' vai poder rodar SEM perguntar:")
+            for i, p in enumerate(c.rotina.passos, 1):
+                print(
+                    f"  {i}. {p.ferramenta or ('falar: ' + p.falar if p.falar else 'briefing')}"
+                    f"{' ' + str(p.argumentos) if p.argumentos else ''}"
+                )
+            print(f"liberar: {', '.join(c.rotina.liberar) or 'nada'}. O resto pede aprovação.")
+            if not args.sim and input("Conceder? [s/N] ").strip().lower() != "s":
+                print("nada foi concedido")
+                return 1
+            rotinas.conceder(args.nome)
+            print("concedida (vale enquanto o arquivo não mudar)")
+            return 0
+        if args.acao == "revogar":
+            print("concessão revogada" if rotinas.revogar(args.nome) else "não havia concessão")
+            return 0
+        print(
+            "para executar: com o Orion no ar, /rotina no Telegram, a frase no chat ou "
+            "POST /rotinas/<nome>/executar",
+            file=sys.stderr,
+        )
+        return 1
+    finally:
+        store.close()
+
+
+def _downloads(settings: Settings, args: argparse.Namespace) -> int:
+    """Organizador de Downloads com regras suas (E9.4, regra 58)."""
+    from .downloads import EXEMPLO, Downloads
+    from .memory import MemoryStore
+    from .policy import PathGuard
+    from .policy.paths import default_safe_roots
+
+    store = MemoryStore(settings.db_path)
+    try:
+        d = Downloads(
+            settings.data_dir / "regras_downloads.yaml",
+            store,
+            PathGuard(
+                protected_roots=(Path(__file__).resolve().parents[1],),
+                safe_roots=(*default_safe_roots(), *settings.extra_safe_roots),
+            ),
+        )
+        if args.acao == "exemplo":
+            if d.arquivo.exists():
+                print(f"{d.arquivo} já existe; nada foi trocado")
+                return 1
+            d.arquivo.parent.mkdir(parents=True, exist_ok=True)
+            d.arquivo.write_text(EXEMPLO, encoding="utf-8")
+            print(f"exemplo gravado em {d.arquivo}\nleia e rode: orion downloads conceder")
+            return 0
+        if args.acao == "estado":
+            e = d.estado()
+            print(f"{e['arquivo']}: {e['estado'].replace('_', ' ')}, {e['regras']} regra(s)")
+            if e["erro"]:
+                print(f"ERRO: {e['erro']}")
+            for m in d.historico(10):
+                print(f"  {'(desfeito) ' if m['desfeito'] else ''}{m['de']} -> {m['para']}")
+            return 0
+        if args.acao == "conceder":
+            if (
+                not args.sim
+                and input("As regras vão mover arquivos SEM perguntar. Conceder? [s/N] ")
+                .strip()
+                .lower()
+                != "s"
+            ):
+                print("nada foi concedido")
+                return 1
+            d.conceder()
+            print("concedido (vale enquanto o arquivo de regras não mudar)")
+            return 0
+        if args.acao == "revogar":
+            print("concessão revogada" if d.revogar() else "não havia concessão")
+            return 0
+        if args.acao == "desfazer":
+            r = d.desfazer("hoje" if args.hoje else "ultimo")
+            print(f"{len(r['desfeitos'])} desfeito(s)")
+            for p in r["pulados"]:
+                print(f"  pulado — {p}")
+            return 0
+        r = d.rodar(simular=args.simular)
+        quando = "a mover" if args.simular else "movido(s)"
+        print(f"{r.status}: {len(r.movidos)} {quando}, {r.ficaram} ficaram")
+        for m in r.movidos:
+            print(f"  {m['de']} -> {m['para']}")
+        for x in r.recusados:
+            print(f"  recusado — {x}")
+        return 0 if r.status == "ok" else 1
+    except ValueError as e:
+        print(e, file=sys.stderr)
+        return 1
+    finally:
+        store.close()
+
+
 def _estilo(settings: Settings, args: argparse.Namespace) -> int:
     """Skill `estilo-antonio` a partir dos seus repositórios (E7.8). Nasce desativada."""
     from . import saidas
@@ -404,6 +540,17 @@ def main(argv: list[str] | None = None) -> int:
     )
     ms.add_argument("--token", action="store_true", help="gera um token novo (revoga o anterior)")
     ms.add_argument("--revogar", action="store_true", help="revoga o token: nada mais lê")
+    dl = sub.add_parser("downloads", help="organizador de Downloads com as suas regras")
+    dl.add_argument(
+        "acao", choices=("exemplo", "estado", "conceder", "revogar", "rodar", "desfazer")
+    )
+    dl.add_argument("--simular", action="store_true", help="rodar: só mostra o que moveria")
+    dl.add_argument("--hoje", action="store_true", help="desfazer: tudo de hoje (padrão: o último)")
+    dl.add_argument("--sim", action="store_true", help="conceder sem perguntar")
+    rt = sub.add_parser("rotina", help="suas rotinas: listar, exemplo, conceder, revogar")
+    rt.add_argument("acao", choices=("listar", "exemplo", "conceder", "revogar"))
+    rt.add_argument("nome", nargs="?")
+    rt.add_argument("--sim", action="store_true", help="não pergunta antes de conceder")
     es = sub.add_parser(
         "estilo",
         help="gera a skill estilo-antonio lendo seus repositórios (nasce desativada)",
@@ -600,6 +747,12 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.cmd == "wake-test":
         return _wake_test(settings, listar=args.listar, segundos=args.segundos)
+
+    if args.cmd == "downloads":
+        return _downloads(settings, args)
+
+    if args.cmd == "rotina":
+        return _rotina(settings, args)
 
     if args.cmd == "estilo":
         return _estilo(settings, args)

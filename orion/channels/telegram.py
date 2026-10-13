@@ -32,7 +32,7 @@ import json
 import logging
 import re
 import time
-from collections.abc import AsyncIterator, Callable, Coroutine, Sequence
+from collections.abc import AsyncIterator, Awaitable, Callable, Coroutine, Sequence
 from typing import Any
 
 import httpx
@@ -64,6 +64,7 @@ _MIME_FOTO = {
 }
 _CAMINHO_ARQUIVO = re.compile(r"^[A-Za-z0-9_./-]{1,200}$")
 _CALLBACK = re.compile(r"^ap:([A-Za-z0-9_-]{6,32}):([yn])$")  # cabe nos 64 bytes do Telegram
+_LEMBRETE = re.compile(r"^lem:(\d{1,9}):([fa])$")  # "Feito" / "Adiar 1 h" no aviso de lembrete
 _LINK = re.compile(r"^https?://\S+$")
 CAPTURA_ESPERA_S = 300  # depois do `/capturar` sozinho, o próximo envio vale por 5 minutos
 
@@ -127,6 +128,8 @@ class TelegramChannel:
         self.agenda: Callable[[float], str | None] | None = None  # agenda do briefing (regra 37)
         self.tela: Callable[[str], str] | None = None  # `/tela` (regra 44); o app liga depois
         self.modos: Modos | None = None  # `/panico` (regra 48); o app liga depois
+        self.rotinas: Any = None  # RotinaStore (regra 58); o app liga depois
+        self.executar_rotina: Callable[[str, str], Awaitable[Any]] | None = None
         self._clock = clock
         self._armados: dict[int, float] = {}  # chat -> até quando o próximo envio vira nota
         self._offset = 0
@@ -303,7 +306,7 @@ class TelegramChannel:
         enviados = 0
         for n in await asyncio.to_thread(self.ops.pending_notifications):
             try:
-                await self._enviar(self._home, f"🔔 {n['text']}")
+                await self._enviar(self._home, f"🔔 {n['text']}", _teclado_lembrete(n))
             except TelegramError as e:
                 log.warning("telegram: aviso %s não enviado: %s", n["id"], e)
                 break
@@ -372,15 +375,56 @@ class TelegramChannel:
         elif comando == "/panico":
             argumento = texto.split(None, 1)[1] if len(texto.split(None, 1)) > 1 else ""
             await self._enviar(chat_id, await asyncio.to_thread(self._panico, argumento))
+        elif comando == "/rotina":
+            argumento = texto.split(None, 1)[1].strip() if len(texto.split(None, 1)) > 1 else ""
+            await self._on_rotina(chat_id, argumento)
         elif comando == "/briefing":
             await self._enviar(chat_id, await asyncio.to_thread(self._briefing))
         elif comando == "/nova":
             atual = await asyncio.to_thread(self.memory.active_session, CANAL)
             await asyncio.to_thread(self.memory.archive_session, atual.id)
             await self._enviar(chat_id, "Conversa nova. A anterior ficou arquivada.")
+        elif self.rotinas is not None and (c := self.rotinas.por_frase(texto)) is not None:
+            await self._on_rotina(chat_id, c.nome)  # a frase é exatamente a de uma rotina sua
         else:
             await self._api("sendChatAction", chat_id=chat_id, action="typing")
             await self._consumir(chat_id, self.agent.run(CANAL, texto[:LIMITE_ENTRADA]))
+
+    async def _on_rotina(self, chat_id: int, nome: str) -> None:
+        """`/rotina` lista as suas; `/rotina <nome>` roda uma concedida (regra 58). Passo que pede
+        aprovação vira o cartão de sempre aqui mesmo, e a rotina para nele."""
+        if self.rotinas is None or self.executar_rotina is None:
+            await self._enviar(chat_id, "Rotinas indisponíveis neste canal.")
+            return
+        if not nome:
+            lista = await asyncio.to_thread(self.rotinas.listar)
+            linhas = [f"• {c.nome} — {c.estado.replace('_', ' ')}" for c in lista]
+            await self._enviar(
+                chat_id,
+                "Suas rotinas:\n" + "\n".join(linhas)
+                if linhas
+                else "Nenhuma rotina em <dados>/rotinas.",
+            )
+            return
+        r = await self.executar_rotina(nome, "telegram")
+        icone = {"concluida": "✅", "aguardando_aprovacao": "⏸", "recusada": "⛔"}.get(
+            r.status, "⚠️"
+        )
+        resumo = f"{icone} Rotina {nome}: {r.status.replace('_', ' ')}" + (
+            f" — {r.motivo}" if r.motivo else ""
+        )
+        await self._enviar(chat_id, resumo)
+        if r.aprovacao_id:
+            a = self.approvals.get(r.aprovacao_id)
+            if a is not None:
+                cartao = {
+                    "id": a.id,
+                    "tool": a.tool,
+                    "reason": a.reason,
+                    "args": redact(a.args, limite=2000),
+                }
+                texto_cartao, revisavel = _cartao(cartao)
+                await self._enviar(chat_id, texto_cartao, _teclado(str(a.id), aprovar=revisavel))
 
     def _briefing(self) -> str:
         return build_briefing(self.ops, self.memory.clock(), agenda=self.agenda)
@@ -539,6 +583,10 @@ class TelegramChannel:
         if not self._permitido(uid, chat) or "id" not in cb:
             return
         chat_id = int(chat["id"])
+        lembrete = _LEMBRETE.match(str(cb.get("data", "")))
+        if lembrete:
+            await self._on_lembrete(cb, chat_id, msg, int(lembrete.group(1)), lembrete.group(2))
+            return
         casou = _CALLBACK.match(str(cb.get("data", "")))
         if not casou:
             await self._api(
@@ -569,6 +617,21 @@ class TelegramChannel:
         else:
             await self._enviar(chat_id, f"Ação negada: {a.tool}. Não foi executada.")
 
+    async def _on_lembrete(
+        self, cb: dict[str, Any], chat_id: int, msg: dict[str, Any], rid: int, acao: str
+    ) -> None:
+        """ "Feito" conclui o lembrete e "Adiar 1 h" o marca para daqui a uma hora (E9.3)."""
+        try:
+            if acao == "f":
+                await asyncio.to_thread(self.ops.complete_reminder, rid)
+                texto = "Feito ✅"
+            else:
+                await asyncio.to_thread(self.ops.snooze_reminder, rid, 60)
+                texto = "Adiado 1 h ⏳"
+        except (KeyError, ValueError):
+            texto = "Esse lembrete não existe mais."
+        await self._fechar_botoes(cb, chat_id, msg, texto)
+
     async def _fechar_botoes(
         self, cb: dict[str, Any], chat_id: int, msg: dict[str, Any], texto: str
     ) -> None:
@@ -584,6 +647,20 @@ class TelegramChannel:
                 )
             except TelegramError as e:  # mensagem antiga demais para editar: o clique já valeu
                 log.info("telegram: botões não removidos: %s", e)
+
+
+def _teclado_lembrete(n: dict[str, Any]) -> list[list[dict[str, str]]] | None:
+    """Botões só nos avisos de lembrete (`ref` = `reminder:<id>` ou `reminder:<id>:n<k>`)."""
+    achou = re.match(r"^reminder:(\d{1,9})(?::n\d+)?$", str(n.get("ref") or ""))
+    if not achou:
+        return None
+    rid = achou.group(1)
+    return [
+        [
+            {"text": "✅ Feito", "callback_data": f"lem:{rid}:f"},
+            {"text": "⏳ Adiar 1 h", "callback_data": f"lem:{rid}:a"},
+        ]
+    ]
 
 
 def _teclado(aprovacao_id: str, *, aprovar: bool = True) -> list[list[dict[str, str]]]:

@@ -45,6 +45,7 @@ from .agent import Agent, AgentEvent
 from .artifacts import ArtifactError
 from .artifacts import router as artifact_router
 from .auth import AuthError, AuthService, LockedOut, NotConfigured, WeakPassword
+from .briefing import build_briefing
 from .capabilities import Capabilities, describe
 from .captura_rapida import router as captura_router
 from .capture import Capturer
@@ -52,6 +53,7 @@ from .channels import TelegramChannel
 from .config import PROJECT_ROOT, Settings
 from .costs import Custos, cotas_de
 from .delegate import Delegator
+from .downloads import Downloads
 from .extensions.catalog import Catalog
 from .extensions.catalogo import Catalogos, urls_validas
 from .extensions.context import ContextReader, ContextRequest
@@ -91,6 +93,8 @@ from .projects import ProjectError
 from .provedores import chave_env
 from .research import Research
 from .resultados import PREVIA_IMAGEM, PREVIA_PDF, PREVIA_TEXTO, Library
+from .rotinas import Executor as ExecutorRotinas
+from .rotinas import RotinaStore
 from .screen_memory import (
     ScreenMemory,
     app_em_foco,
@@ -104,6 +108,7 @@ from .screen_memory import (
 from .secrets import get_secret
 from .skills import TOOL_SPEC as SKILL_SPEC
 from .skills import SkillCatalog, skill_tool
+from .tarefas_bg import TarefaBgError, TarefasBg
 from .tools import default_registry
 from .tools.processes import ProcessManager
 from .tools.registry import ToolRegistry
@@ -176,6 +181,10 @@ class AppState:
     biblioteca: Library | None = None  # resultados gerados (C34)
     modos: Modos | None = None  # pânico e não perturbe (regra 48)
     custos: Custos | None = None  # cota gratuita (regra 46)
+    downloads: Downloads | None = None  # organizador de Downloads (regra 58)
+    rotinas: RotinaStore | None = None  # rotinas suas e concedidas (regra 58)
+    executor_rotinas: ExecutorRotinas | None = None
+    tarefas_bg: Any = None  # TarefasBg (regra 59); None sem agente
     pesquisa: Any = None  # NightResearch (regra 39); None sem agente, ORION_WEB_TOOLS ou vault
     tarefas_pesquisa: Any = None  # a tarefa do `rodar agora` (guarda a referência)
     ponte: PonteHub = field(default_factory=PonteHub)  # ponte de desktop (regra 50)
@@ -630,6 +639,7 @@ def _iniciar_escuta(
     *,
     ponte: PonteHub | None = None,
     modos: Modos | None = None,
+    rotinas: ExecutorRotinas | None = None,
 ) -> tuple[tuple[WakeListener | None], str]:
     """Sobe a escuta (palavra de ativação e/ou duas palmas) numa thread. Devolve `((escuta,),
     motivo)`: o motivo explica por que não subiu (aparece no painel). A fala gravada segue o mesmo
@@ -691,6 +701,15 @@ def _iniciar_escuta(
             abrir_ponte=lambda: bool(ponte and ponte.enviar({"cmd": "abrir", "rota": "#/chat"})),
             abrir_navegador=abrir_navegador,
             bloqueado=bloqueio,
+            rotina=(
+                (
+                    lambda nome: asyncio.run_coroutine_threadsafe(
+                        rotinas.executar(nome, "palmas"), loop
+                    )
+                )
+                if rotinas is not None
+                else None
+            ),
         )
         if settings.clap_enabled
         else None
@@ -768,6 +787,28 @@ class LimparResultados(BaseModel):
     simular: bool = False
 
 
+class DesfazerDownloads(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    escopo: str = Field(default="ultimo", pattern="^(ultimo|hoje)$")
+
+
+class FraseRotina(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    texto: str = Field(min_length=1, max_length=200)
+
+
+class TarefaBgPedido(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    objetivo: str = Field(min_length=1, max_length=500)
+    max_passos: int = Field(default=10, ge=1, le=30)
+    max_min: int = Field(default=10, ge=1, le=30)
+
+
+class PropostaDecisao(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    acao: str = Field(pattern="^(aceitar|descartar)$")
+
+
 class PromptMcp(BaseModel):
     model_config = ConfigDict(extra="forbid")
     argumentos: dict[str, str] = Field(default_factory=dict, max_length=20)
@@ -776,6 +817,28 @@ class PromptMcp(BaseModel):
 class AssuntosPesquisa(BaseModel):
     model_config = ConfigDict(extra="forbid")
     assuntos: list[str] = Field(max_length=20)
+
+
+async def _turno_de_rotina(state: AppState, nome: str) -> AsyncIterator[AgentEvent]:
+    """A frase de uma rotina concedida roda a rotina em vez de ir ao modelo (regra 58)."""
+    assert state.executor_rotinas is not None
+    r = await state.executor_rotinas.executar(nome, "frase")
+    icone = {"concluida": "✅", "aguardando_aprovacao": "⏸", "recusada": "⛔"}.get(r.status, "⚠️")
+    texto = f"{icone} Rotina {nome}: {r.status.replace('_', ' ')}"
+    yield AgentEvent("text", {"text": texto + (f" — {r.motivo}" if r.motivo else "")})
+    a = state.policy.approvals.get(r.aprovacao_id) if r.aprovacao_id else None
+    if a is not None:
+        yield AgentEvent(
+            "approval",
+            {
+                "id": a.id,
+                "tool": a.tool,
+                "reason": a.reason,
+                "args": redact(a.args, limite=2000),
+                "args_truncated": False,
+            },
+        )
+    yield AgentEvent("done", {"provenance": {"rotina": nome, "passos": r.passos}})
 
 
 def _iso(ts: float) -> str:
@@ -1131,6 +1194,30 @@ def create_app(
             )
         jobs, tarefa_jobs, agenda = None, None, None
         pesquisa = _pesquisa_noturna(settings, agent, memory)
+        downloads = Downloads(
+            settings.data_dir / "regras_downloads.yaml", memory, policy.path_guard
+        )
+        rotinas = RotinaStore(settings.data_dir / "rotinas", memory)
+        executor_rotinas = ExecutorRotinas(
+            store=rotinas,
+            tools=agent.tools if agent is not None else ToolRegistry([]),
+            policy=policy,
+            memory=memory,
+            ops=ops,
+            briefing=lambda: build_briefing(ops, time.time(), agenda=agenda),
+            modos=modos,
+        )
+        tarefas_bg = (
+            TarefasBg(
+                memory=memory,
+                ops=ops,
+                run_turn=lambda canal, texto: agent.run(canal, texto, read_only=True),
+                custos=custos,
+                modos=modos,
+            )
+            if agent is not None
+            else None
+        )
         if settings.jobs_enabled:
             consolidador = (
                 Consolidator(memory, gateway)
@@ -1168,6 +1255,7 @@ def create_app(
                 research=pesquisa,
                 sleep=sono,
                 screen=tela,
+                downloads=downloads,
                 weekly_ai=(
                     gateway
                     if settings.weekly_ai and gateway is not None and hasattr(gateway, "complete")
@@ -1236,6 +1324,7 @@ def create_app(
             wake_factory or wake_from_settings,
             ponte=ponte_hub,
             modos=modos,
+            rotinas=executor_rotinas,
         )
         tarefa_modos = asyncio.create_task(_vigiar_modos(modos, escuta[0]))
         painel = Painel(
@@ -1265,6 +1354,8 @@ def create_app(
             telegram.modos = modos
             telegram.tela = lambda acao: comando_tela(tela, memory, acao)
             telegram.agenda = agenda
+            telegram.rotinas = rotinas
+            telegram.executar_rotina = executor_rotinas.executar
         app.state.orion = AppState(
             settings,
             memory,
@@ -1296,6 +1387,10 @@ def create_app(
             modos=modos,
             custos=custos,
             pesquisa=pesquisa,
+            tarefas_bg=tarefas_bg,
+            downloads=downloads,
+            rotinas=rotinas,
+            executor_rotinas=executor_rotinas,
             ponte=ponte_hub,
         )
         try:
@@ -1309,6 +1404,8 @@ def create_app(
                     tarefa.cancel()
                     with contextlib.suppress(asyncio.CancelledError):
                         await tarefa
+            if tarefas_bg is not None:
+                await tarefas_bg.encerrar()
             if telegram is not None:
                 await telegram.aclose()
             await accounts.close()
@@ -1828,6 +1925,12 @@ def create_app(
     @app.post("/chat", dependencies=[Admin])
     async def chat(corpo: Mensagem, state: State) -> StreamingResponse:
         agente = _agente(state)
+        if state.rotinas is not None and state.executor_rotinas is not None:
+            rotina = state.rotinas.por_frase(corpo.texto)  # frase EXATA de uma rotina concedida
+            if rotina is not None:
+                return StreamingResponse(
+                    _stream(_turno_de_rotina(state, rotina.nome)), media_type="text/event-stream"
+                )
         session = state.memory.active_session(corpo.canal)
         scope = f"project:{session.project_id}" if session.project_id else "personal"
         selection = None
@@ -2290,6 +2393,162 @@ def create_app(
         if not acknowledged:
             raise HTTPException(404, "aviso inexistente ou já confirmado")
         return {"ok": True}
+
+    # ── organizador de Downloads (E9.4, regra 58) ──
+    def _downloads(state: AppState) -> Downloads:
+        assert state.downloads is not None
+        return state.downloads
+
+    @app.get("/downloads", dependencies=[Admin])
+    def ver_downloads(state: State) -> dict[str, Any]:
+        d = _downloads(state)
+        return {**d.estado(), "historico": d.historico(20)}
+
+    @app.post("/downloads/conceder", dependencies=[Admin])
+    def conceder_downloads(state: State) -> dict[str, Any]:
+        try:
+            r = _downloads(state).conceder()
+        except ValueError as e:
+            raise HTTPException(422, str(e)) from None
+        audit_log.info("downloads_concedido")
+        return r
+
+    @app.post("/downloads/revogar", dependencies=[Admin])
+    def revogar_downloads(state: State) -> dict[str, bool]:
+        return {"ok": _downloads(state).revogar()}
+
+    @app.post("/downloads/rodar", dependencies=[Admin])
+    def rodar_downloads(state: State, simular: bool = False) -> dict[str, Any]:
+        if state.modos is not None and state.modos.panico():
+            raise HTTPException(409, "modo pânico: o organizador está cortado")
+        r = _downloads(state).rodar(simular=simular)
+        return {
+            "status": r.status,
+            "movidos": r.movidos,
+            "ficaram": r.ficaram,
+            "recusados": r.recusados,
+            "simulado": simular,
+        }
+
+    @app.post("/downloads/desfazer", dependencies=[Admin])
+    def desfazer_downloads(corpo: DesfazerDownloads, state: State) -> dict[str, Any]:
+        return _downloads(state).desfazer(corpo.escopo)
+
+    # ── rotinas (E9.1, regra 58): arquivos seus, concedidos pelo hash ──
+    def _rotinas(state: AppState) -> RotinaStore:
+        assert state.rotinas is not None
+        return state.rotinas
+
+    def _rotina_json(c: Any) -> dict[str, Any]:
+        r = c.rotina
+        return {
+            "nome": c.nome,
+            "estado": c.estado,
+            "erro": c.erro,
+            "descricao": r.descricao if r else "",
+            "gatilhos": [g.model_dump(exclude_none=True) for g in r.gatilhos] if r else [],
+            "passos": len(r.passos) if r else 0,
+            "liberar": r.liberar if r else [],
+        }
+
+    @app.get("/rotinas", dependencies=[Admin])
+    def listar_rotinas(state: State) -> dict[str, Any]:
+        itens = [_rotina_json(c) for c in _rotinas(state).listar()]
+        return {"total": len(itens), "rotinas": itens}
+
+    @app.post("/rotinas/por-frase", dependencies=[Admin])
+    async def rotina_por_frase(corpo: FraseRotina, state: State) -> dict[str, Any]:
+        """Roda a rotina concedida cuja frase bate EXATAMENTE (sem acento nem pontuação)."""
+        c = _rotinas(state).por_frase(corpo.texto)
+        if c is None or state.executor_rotinas is None:
+            raise HTTPException(404, "nenhuma rotina concedida com essa frase")
+        return (await state.executor_rotinas.executar(c.nome, "frase")).publico()
+
+    @app.post("/rotinas/{nome}/conceder", dependencies=[Admin])
+    def conceder_rotina(nome: str, state: State) -> dict[str, Any]:
+        try:
+            c = _rotinas(state).conceder(nome)
+        except KeyError:
+            raise HTTPException(404, "rotina não encontrada") from None
+        except ValueError as e:
+            raise HTTPException(422, str(e)) from None
+        audit_log.info("rotina_concedida", extra={"audit": {"rotina": nome}})
+        return _rotina_json(c)
+
+    @app.post("/rotinas/{nome}/revogar", dependencies=[Admin])
+    def revogar_rotina(nome: str, state: State) -> dict[str, bool]:
+        return {"ok": _rotinas(state).revogar(nome)}
+
+    @app.post("/rotinas/{nome}/executar", dependencies=[Admin])
+    async def executar_rotina(
+        nome: str,
+        state: State,
+        origem: Annotated[str, Query(pattern="^(manual|tecla|frase|telegram|palmas)$")] = "manual",
+    ) -> dict[str, Any]:
+        if state.executor_rotinas is None or _rotinas(state).obter(nome) is None:
+            raise HTTPException(404, "rotina não encontrada")
+        r = await state.executor_rotinas.executar(nome, origem)
+        return r.publico()
+
+    # ── tarefa em segundo plano (E9.2, regra 59): só lê; o que faria vira proposta ──
+    def _tarefas(state: AppState) -> TarefasBg:
+        if state.tarefas_bg is None:
+            raise HTTPException(503, "tarefa em segundo plano indisponível: falta o gateway")
+        return state.tarefas_bg
+
+    def _bg(fn: Callable[[], Any]) -> Any:
+        try:
+            return fn()
+        except TarefaBgError as e:
+            raise HTTPException(e.status, str(e)) from None
+
+    @app.post("/tarefas-bg", status_code=202, dependencies=[Admin])
+    async def criar_tarefa_bg(corpo: TarefaBgPedido, state: State) -> dict[str, Any]:
+        t = _tarefas(state)
+        r = _bg(lambda: t.criar(corpo.objetivo, corpo.max_passos, corpo.max_min))
+        audit_log.info("tarefa_bg", extra={"audit": {"id": r["id"], "passos": corpo.max_passos}})
+        return r
+
+    @app.get("/tarefas-bg", dependencies=[Admin])
+    def listar_tarefas_bg(state: State) -> dict[str, Any]:
+        itens = _tarefas(state).listar()
+        return {"total": len(itens), "tarefas": itens}
+
+    @app.get("/tarefas-bg/{tid}", dependencies=[Admin])
+    def ver_tarefa_bg(tid: int, state: State) -> dict[str, Any]:
+        return _bg(lambda: _tarefas(state).obter(tid))
+
+    @app.post("/tarefas-bg/{tid}/cancelar", dependencies=[Admin])
+    def cancelar_tarefa_bg(tid: int, state: State) -> dict[str, Any]:
+        return _bg(lambda: _tarefas(state).cancelar(tid))
+
+    @app.post("/tarefas-bg/{tid}/propostas/{indice}", dependencies=[Admin])
+    def decidir_proposta_bg(
+        tid: int, indice: int, corpo: PropostaDecisao, state: State
+    ) -> dict[str, Any]:
+        return _bg(lambda: _tarefas(state).decidir(tid, indice, corpo.acao))
+
+    @app.post("/lembretes/{lembrete_id}/{acao}", dependencies=[Admin])
+    def agir_no_lembrete(
+        lembrete_id: int,
+        acao: Annotated[str, PathParam(pattern="^(feito|adiar)$")],
+        state: State,
+        project_id: str | None = None,
+        minutos: Annotated[int, Query(ge=1, le=1440)] = 60,
+    ) -> dict[str, Any]:
+        """ "Feito" conclui (e para de insistir); "adiar" volta a ser um lembrete novo (E9.3)."""
+        from .memory.scope import data_scope
+
+        try:
+            with data_scope(project_id, include_personal=False):
+                r = (
+                    state.ops.complete_reminder(lembrete_id)
+                    if acao == "feito"
+                    else state.ops.snooze_reminder(lembrete_id, minutos)
+                )
+        except KeyError:
+            raise HTTPException(404, "lembrete não encontrado") from None
+        return {"ok": True, "lembrete": r}
 
     @app.exception_handler(MCPError)
     async def mcp_error(request: Request, error: MCPError):

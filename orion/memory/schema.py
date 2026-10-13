@@ -10,7 +10,7 @@ urgente (não perturbe, regra 48). Um banco da linhagem anterior da `main` (vers
 `external_calls`) é reconhecido e migrado por `MAIN_V11` (ver `store.py`).
 """
 
-SCHEMA_VERSION = 20
+SCHEMA_VERSION = 21
 
 TOKENIZER = "unicode61 remove_diacritics 2"  # "açúcar" casa com "acucar"
 
@@ -399,6 +399,46 @@ DDL_V20 = """
 ALTER TABLE screen_log ADD COLUMN app TEXT NOT NULL DEFAULT '';
 """
 
+DDL_V21 = f"""
+-- E9: tarefa em segundo plano (regra 59), lembrete insistente, históricos (regra 60), ler depois
+CREATE TABLE background_tasks (
+    id INTEGER PRIMARY KEY,
+    objective TEXT NOT NULL,
+    budget TEXT NOT NULL,
+    status TEXT NOT NULL,
+    report TEXT NOT NULL DEFAULT '',
+    proposals TEXT NOT NULL DEFAULT '[]',
+    created_at REAL NOT NULL,
+    finished_at REAL
+);
+ALTER TABLE reminders ADD COLUMN insist_min INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE reminders ADD COLUMN last_nudge REAL;
+CREATE TABLE clipboard_log (
+    id INTEGER PRIMARY KEY,
+    ts REAL NOT NULL,
+    text TEXT NOT NULL
+);
+CREATE INDEX clipboard_log_ts ON clipboard_log(ts);
+{_fts("clipboard_log")}
+CREATE TABLE command_log (
+    id INTEGER PRIMARY KEY,
+    ts REAL NOT NULL,
+    shell TEXT NOT NULL,
+    command TEXT NOT NULL,
+    UNIQUE (shell, ts, command)
+);
+CREATE INDEX command_log_ts ON command_log(ts);
+{_fts("command_log", "command")}
+CREATE TABLE read_later (
+    id INTEGER PRIMARY KEY,
+    url TEXT NOT NULL UNIQUE,
+    title TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'pendente',
+    note_path TEXT NOT NULL DEFAULT '',
+    created_at REAL NOT NULL
+);
+"""
+
 DDL = (
     DDL_V1
     + DDL_V2
@@ -420,6 +460,7 @@ DDL = (
     + DDL_V18
     + DDL_V19
     + DDL_V20
+    + DDL_V21
 )
 MIGRATIONS: dict[int, str] = {
     1: DDL_V2,
@@ -441,4 +482,5 @@ MIGRATIONS: dict[int, str] = {
     17: DDL_V18,
     18: DDL_V19,
     19: DDL_V20,
+    20: DDL_V21,
 }

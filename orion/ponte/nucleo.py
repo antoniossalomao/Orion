@@ -164,7 +164,23 @@ class Ponte:
             acoes["ocr"] = self.copiar_texto_da_tela
         if self.a.captura_da_janela is not None:
             acoes["isso"] = self.o_que_e_isso
+        for nome in self.teclas:  # tecla de rotina (E9.1, regra 58): só dispara a rotina concedida
+            if nome.startswith("rotina:"):
+                acoes[nome] = lambda n=nome[7:]: self.rotina(n)
         return {para_pynput(self.teclas[nome]): fn for nome, fn in acoes.items()}
+
+    def rotina(self, nome: str) -> None:
+        try:
+            r = self._http.post(f"/rotinas/{nome}/executar", params={"origem": "tecla"})
+            r.raise_for_status()
+            dados = r.json()
+            if dados.get("status") != "concluida":
+                self.a.notificar(
+                    "Orion", f"Rotina {nome}: {dados.get('motivo') or dados.get('status')}"
+                )
+        except (httpx.HTTPError, ValueError) as e:
+            log.warning("rotina %s pela tecla falhou: %s", nome, type(e).__name__)
+            self.a.notificar("Orion", f"Não consegui rodar a rotina {nome}.")
 
     def itens_da_bandeja(self) -> list[tuple[str, Callable[[], None]]]:
         itens = [

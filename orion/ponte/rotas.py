@@ -6,6 +6,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import re
 from typing import TYPE_CHECKING, Any
 
 from fastapi import (
@@ -34,8 +35,13 @@ MAX_BYTES = 6 * 1024 * 1024
 VIGIA_S = 2.0  # de quanto em quanto tempo o handler confere o pânico
 
 
+_ROTINA = re.compile(r"^/rotinas/[a-z0-9][a-z0-9_-]{0,31}/executar$")
+
+
 def rota_permitida(metodo: str, caminho: str) -> bool:
     if (metodo, caminho) == ENTRAR_PANICO:
+        return True
+    if metodo == "POST" and _ROTINA.match(caminho):  # tecla de rotina (regra 58): só concedidas
         return True
     return any(caminho == r or caminho.startswith(r + "/") for r in ROTAS_DA_PONTE)
 
