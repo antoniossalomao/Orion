@@ -1,6 +1,7 @@
 """E9.4 (regra 58): organizador de Downloads com regras suas, concedidas pelo hash."""
 
 import os
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -82,7 +83,7 @@ def test_move_so_o_que_casa_e_nunca_sobrescreve(mundo):
     (baixados / "subpasta").mkdir()
     arquivo(baixados, ".oculto.pdf")
     r = d.rodar()
-    assert sorted(m["para"].rsplit("/", 1)[-1] for m in r.movidos) == [
+    assert sorted(Path(m["para"]).name for m in r.movidos) == [
         "fatura-10 (2).pdf", "foto.PNG", "foto.jpg"
     ]  # fmt: skip
     assert (docs / "Faturas" / "fatura-10.pdf").read_text() == "antigo"  # nunca sobrescreveu
