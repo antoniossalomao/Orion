@@ -242,6 +242,7 @@ def test_pesquisa_edita_assuntos_roda_agora_e_lista_o_relatorio(abrir, novo_back
     cartao.get_by_label("Assunto 1", exact=True).fill("modelos locais em notebook")
     expect(cartao).to_contain_text("Salve os assuntos para poder rodar agora")
     cartao.get_by_role("button", name="Salvar assuntos").click()
+    expect(cartao).not_to_contain_text("usando os do .env")  # só some depois que o servidor gravou
     assert json.loads(app.state.orion.memory.meta_get("research:topics")) == [
         "modelos locais em notebook"
     ]
