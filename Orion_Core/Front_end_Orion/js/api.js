@@ -167,6 +167,11 @@
         plugins: () => recurso('plugins', '/plugins'),
         importarPlugin: arquivo => recurso('plugins', '/plugins/import?update=true', { metodo: 'POST', body: arquivo, contentType: 'application/zip', timeout: 30000 }),
         instalarPlugin: folder => recurso('plugins', '/plugins/install', { metodo: 'POST', json: { folder, update: true }, timeout: 30000 }),
+        /** E8: catálogo local/remoto e importação de pacotes do Claude Code ou do Codex */
+        catalogoPlugins: () => recurso('plugins', '/plugins/catalogo', { timeout: 30000 }),
+        instalarDoCatalogo: (fonte, id, version = null) => recurso('plugins', '/plugins/catalogo/instalar', { metodo: 'POST', json: { fonte, id, ...(version ? { version } : {}) }, timeout: 60000 }),
+        previaImportacao: arquivo => recurso('plugins', '/plugins/importar/previa', { metodo: 'POST', body: arquivo, contentType: 'application/zip', timeout: 30000 }),
+        importarConvertido: arquivo => recurso('plugins', '/plugins/importar?update=true', { metodo: 'POST', body: arquivo, contentType: 'application/zip', timeout: 30000 }),
         plugin: (id, action, json) => recurso('plugins', `/plugins/${encodeURIComponent(id)}${action ? '/' + action : ''}`, { metodo: action === '' ? 'DELETE' : 'POST', json, timeout: 30000 }),
         versoesPlugin: id => recurso('plugins', `/plugins/${encodeURIComponent(id)}/versions`),
         configurarMcp: (config, edit = false) => recurso('mcp', `/mcp/connections${edit ? '/' + encodeURIComponent(config.id) : ''}`, { metodo: edit ? 'PUT' : 'POST', json: config }),

@@ -56,7 +56,8 @@ def _check_directory(data: bytes) -> None:
         raise PluginError("archive_corrupt")
 
 
-def archive_snapshot(data: bytes, filename: str) -> Package:
+def archive_files(data: bytes, filename: str) -> dict[str, bytes]:
+    """Os arquivos do ZIP, já verificados (a importação E8.3 converte a partir daqui)."""
     if not filename.lower().endswith(".zip"):
         raise PluginError("archive_extension_unsupported")
     if len(data) > MAX_ARCHIVE:
@@ -106,6 +107,11 @@ def archive_snapshot(data: bytes, filename: str) -> Package:
         parts = name.split("/")
         if any("/".join(parts[:i]) in canonical_files for i in range(1, len(parts))):
             raise PluginError("archive_file_directory_collision")
+    return files
+
+
+def archive_snapshot(data: bytes, filename: str) -> Package:
+    files = archive_files(data, filename)
     if "manifest.json" not in files:
         raise PluginError("manifest_missing")
     return Package(parse_manifest(files["manifest.json"]), fingerprint(files), files)

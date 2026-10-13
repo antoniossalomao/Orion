@@ -169,16 +169,16 @@ Marque ao concluir. Uma etapa só fecha com todos os itens, a prova e o PR merge
 - [ ] PR da E7 mergeado
 
 ### E8 — Plugins
-- [ ] Regras escritas em `ORION_REGRAS.md` antes do código (estende 45; 57 (catálogo remoto))
-- [ ] E8.1 Instalar por upload (R5.4)
-- [ ] E8.2 Atualização com reversão (R5.5 / C22)
-- [ ] E8.3 Importar formato Claude Code e Codex (R5.6 / C21)
-- [ ] E8.4 Catálogo local e remoto (R5.7 / C25)
-- [ ] E8.5 Conceder sem reiniciar (R5.9)
-- [ ] E8.6 Plugin "Orion Pesquisa" (R5.8 / C28–C29)
+- [x] Regras escritas em `ORION_REGRAS.md` antes do código (estende 45; 57 (catálogo remoto))
+- [x] E8.1 Instalar por upload (R5.4)
+- [x] E8.2 Atualização com reversão (R5.5 / C22)
+- [x] E8.3 Importar formato Claude Code e Codex (R5.6 / C21)
+- [x] E8.4 Catálogo local e remoto (R5.7 / C25)
+- [x] E8.5 Conceder sem reiniciar (R5.9)
+- [x] E8.6 Plugin "Orion Pesquisa" (R5.8 / C28–C29)
 - [ ] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas
-- [ ] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
-- [ ] **Prova:** instalar o "Orion Pesquisa" pelo catálogo local, conceder, usar sem reiniciar, atualizar, voltar.
+- [x] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
+- [x] **Prova:** instalar o "Orion Pesquisa" pelo catálogo local, conceder, usar sem reiniciar, atualizar, voltar.
 - [ ] PR da E8 mergeado
 
 ### E9 — Automação do dia a dia

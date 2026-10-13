@@ -318,6 +318,31 @@ terceiros (filesystem, fetch, git) foi usado com recursos, prompts, índice ou c
 a CLI real (qualidade do resumo é sua de julgar); o servidor MCP recusa o que o SDK deixa passar, mas o texto de erro do SDK
 para ferramenta com exceção é genérico ("Error executing tool") quando não é `ToolError`.
 
+## Décima quarta rodada (13/10/2026): plano da rodada 2, etapa E8
+
+Plano em [ORION_PLANO_RODADA2.md](ORION_PLANO_RODADA2.md). Regra 57 (escrita antes do código) em
+[ORION_REGRAS.md](ORION_REGRAS.md); como usar em [ORION_OPERACAO.md](ORION_OPERACAO.md) §21. Sem esquema novo.
+**O plano foi escrito contra o `PluginStore` antigo** (pastas, CLI `orion plugin`, "vale depois de reiniciar"), mas a
+interface de Extensões usa há tempo o sistema de `orion/extensions` (ZIP endurecido, versões, ativação na hora). Por isso a
+etapa foi feita **sobre o sistema que a tela usa**, e só entrou o que faltava:
+
+| ID | Entrega | Status |
+|---|---|---|
+| E8.1 Upload | **Já existia**: `POST /plugins/import` (ZIP de até 16 MB, sem `extractall`, sem links, anti zip-slip) e o botão "Importar pacote ZIP" | ✅ já provado antes (`tests/extensions/test_plugin_archive.py`) |
+| E8.2 Atualizar e voltar | **Já existia**: versões lado a lado, nova versão não vale sozinha, `POST /plugins/{id}/version` volta; agora provado ponta a ponta pelo catálogo | ✅ `test_prova_orion_pesquisa_...` |
+| E8.3 Importar Claude Code/Codex | `orion/extensions/importar.py`: só skills (frontmatter limpo), o resto numa lista "ignorado"; `POST /plugins/importar/previa` e `/plugins/importar`; botão + diálogo com a lista antes de instalar | ✅ API e navegador; ❌ nenhum plugin real do Claude Code/Codex foi importado, e o formato do Codex é suposição |
+| E8.4 Catálogo | `orion/extensions/catalogo.py`: pasta `catalogo/` + `ORION_PLUGIN_CATALOGS` (https, até 5), pacote no mesmo host do índice, SHA-256 fixado, `netguard`, registro de saída, nunca atualiza sozinho (regra 57); aba Catálogo | ✅ remoto com a rede de mentira; ❌ nenhum catálogo remoto real |
+| E8.5 Conceder sem reiniciar | **Já existia** no `PluginManager` (ativar/desativar/trocar versão sobem e descem skills e conexões na hora); provado usando a skill na mesma sessão. O `orion plugin conceder` do sistema antigo continua pedindo para reiniciar | ✅ |
+| E8.6 Orion Pesquisa | já existia como perfil embutido (`pesquisar-assunto`, `comparar-fontes`); ganhou `comparar-precos` e foi a **1.1.0** (isso dá a atualização real da prova) | ✅ |
+
+**Não feito, de propósito:** o servidor MCP de busca próprio do plano (o plugin usa as ferramentas `pesquisar_internet` e
+`buscar_url`, que já têm classe de risco e trava de rede), `ToolRegistry.replace_all` e o `PluginStore` antigo (nada na tela
+os usa). **A prova do plano** ("instalar o Orion Pesquisa pelo catálogo local, conceder, usar sem reiniciar, atualizar,
+voltar") está em `tests/extensions/test_e8.py::test_prova_orion_pesquisa_...`, com a busca na web de mentira.
+
+**Não verificado (E8):** catálogo remoto real (só a rede de mentira); plugin real do Claude Code/Codex; a busca real do Brave
+dentro da prova.
+
 ## O que foi construído (por fase do NUCLEO)
 
 | Fase | Entrega | Status |

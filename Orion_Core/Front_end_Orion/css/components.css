@@ -314,3 +314,6 @@ html[data-res-aberto="true"] .view[data-active="true"] { right: min(30rem, 55%);
 .pesq-assuntos { display: flex; flex-direction: column; gap: var(--s-2); margin: 0; padding: 0; list-style: none; }
 .pesq-assunto { display: flex; gap: var(--s-2); align-items: center; }
 .pesq-assunto .input { flex: 1; min-width: 0; }
+
+/* ── Plugins: importação e catálogo (E8) ──────────────────────────────── */
+.extension-ignorado { margin: 0; padding-left: 1.2rem; color: var(--text-2); font-size: var(--fs-sm); line-height: 1.6; overflow-wrap: anywhere; }

@@ -592,6 +592,7 @@ opt-in novo sem linha aqui.
 | `ORION_CLAP_ENABLED` | Duas palmas abrem o Orion (§18.2) | Não antes nem depois das palmas; só com `abrir_e_ouvir` a fala seguinte vai como na voz (Groq, Microsoft) | 51 | `false` (padrão); pausa: `POST /voz/escuta` |
 | `ORION_COMPACT_AT` | Resumo do começo de conversas longas (§19.1) | Não: só pelo modelo local (`ORION_LOCAL_MODEL`) | 53 | `0` (ou sem modelo local) |
 | `ORION_RERANK` | Reranker local da busca (§19.4) | Não: roda no computador | 54 | `false` (padrão) |
+| `ORION_PLUGIN_CATALOGS` | Catálogos remotos de plugins (§21) | Sim: o pedido do índice e, quando você manda instalar, do pacote, ao host que você cadastrou | 7, 47, 57 | vazio (padrão) |
 | `ORION_ALLOW_PAID` | Aceitar um endereço fora da lista de provedores gratuitos (§17.1) | Para o provedor que você apontou, que **pode cobrar** | 46 | `false` (padrão) |
 
 **Exemplo: ligar a memória da tela só com esta tabela.** Instale o `tesseract` com português (§8), ponha
@@ -1005,3 +1006,33 @@ MCP responde ao processo que **você** registrou no seu cliente; o que o cliente
 **Desligar.** `orion mcp-servidor --revogar`; tirar o `claude mcp remove orion`; `ORION_MCP_INDEX_AT` alto desliga o índice.
 
 **Regras.** 55 e 56; código em `orion/mcp_client.py`, `orion/mcp_indice.py`, `orion/mcp_servidor.py`, `orion/estilo.py`.
+
+## 21. Plugins: importar e catálogo (E8)
+
+**Importar do Claude Code ou do Codex.** Extensões › Plugins › "Importar do Claude Code ou Codex": escolha o `.zip`; antes de
+instalar o Orion mostra o que viraria plugin e o que fica de fora. Só as **skills** (texto) viajam: o frontmatter é limpo
+(`model`, `allowed-tools` e outros campos que o Orion não usa saem e são listados) e as referências vão como estão. Servidores
+MCP (liste-os em Conexões MCP, onde você revisa comando e risco), hooks, comandos e agentes **não** viajam. O plugin entra
+**desativado** e sem concessão; o formato do Codex segue o do Claude Code e nunca foi testado com um plugin real do Codex.
+
+**Catálogo.** Extensões › Catálogo lista os pacotes da pasta `<dados>/catalogo/` (`catalogo.json` com `id`, `name`, `version`,
+`sha256` e `file`, mais os `.zip`) e dos catálogos remotos. Remoto: `ORION_PLUGIN_CATALOGS=https://host/catalogo.json;...`
+(até 5, só https, índice de até 256 KB); cada entrada traz `url` (absoluta ou relativa) **no mesmo host** do índice e o
+`sha256` do pacote, conferido antes de qualquer coisa. Instalar do catálogo **não ativa**: o plugin cai no fluxo de sempre
+(revisar capacidades e ativar). Versão nova aparece como "Atualização" e só instala se você clicar; a anterior continua
+valendo até você trocar (Versões) e dá para voltar.
+
+**Sem reiniciar.** Ativar, desativar e trocar de versão valem na hora (skills, ferramentas e conexões sobem e caem sem reiniciar o
+Orion). O `orion plugin ...` da linha de comando é o sistema antigo de pastas (§13) e continua pedindo para reiniciar.
+
+**Orion Pesquisa 1.1.0.** O plugin oficial ganhou a skill `comparar-precos` (junto de `pesquisar-assunto` e `comparar-fontes`). Busca
+na web continua usando as ferramentas de pesquisa que você configurou (Brave).
+
+**O que sai do computador.** Só com `ORION_PLUGIN_CATALOGS`: a URL do índice e do pacote (para o host que você escolheu) e o
+IP de saída. Cada download entra no registro de saída (sem o conteúdo). O catálogo local e a importação por ZIP não saem.
+
+**Onde ver.** Extensões › Catálogo e Plugins; Privacidade (provedor `catalogo:<host>`).
+
+**Pausar/desligar.** Esvaziar `ORION_PLUGIN_CATALOGS` e reiniciar; remover o plugin em Plugins; apagar `catalogo/`.
+
+**Regra.** 45 e 57; código em `orion/extensions/catalogo.py` e `orion/extensions/importar.py`.

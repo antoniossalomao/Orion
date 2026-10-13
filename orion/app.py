@@ -53,6 +53,7 @@ from .config import PROJECT_ROOT, Settings
 from .costs import Custos, cotas_de
 from .delegate import Delegator
 from .extensions.catalog import Catalog
+from .extensions.catalogo import Catalogos, urls_validas
 from .extensions.context import ContextReader, ContextRequest
 from .extensions.host import MCPError, MCPHost
 from .extensions.manager import PluginManager
@@ -1215,6 +1216,12 @@ def create_app(
         extensions = PluginManager(
             settings.data_dir / "extensions", skill_runtime, mcp_host, catalog, policy
         )
+        try:
+            urls_catalogo = urls_validas(settings.plugin_catalogs)
+        except ValueError as e:
+            log.warning("ORION_PLUGIN_CATALOGS ignorado: %s", e)
+            urls_catalogo = []
+        extensions.catalogos = Catalogos(settings.effective_catalog_dir, urls_catalogo)
         voz_stats = VozStats()
         ponte_hub = PonteHub()
         speaker = (speaker_factory or speaker_from_settings)(settings)

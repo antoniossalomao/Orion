@@ -38,6 +38,8 @@ OPT_INS = {
     # E4 (regras 53 e 54)
     "compact_at",
     "rerank",
+    # E8 (regra 57)
+    "plugin_catalogs",
 }
 
 

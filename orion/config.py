@@ -93,6 +93,9 @@ class Settings(BaseSettings):
     # Servidores MCP (fase 4): sobem do mcp.json (padrão: <dados>/mcp.json), só com gateway.
     mcp_enabled: bool = True
     mcp_config: Path | None = None
+    # Catálogos remotos de plugins (regra 57): URLs https que VOCÊ cadastra, separadas por ";"
+    # (até 5). Vazio: só o catálogo local (<dados>/catalogo). O pedido ao índice sai do computador.
+    plugin_catalogs: str = ""
     # acima disto, o modelo vê só o índice das ferramentas MCP e `procurar_ferramenta` (regra 55)
     mcp_index_at: int = Field(default=30, ge=1, le=1000)
     # Voz no Telegram: transcrição por API compatível com a da OpenAI (Whisper no Groq, grátis).
@@ -359,6 +362,10 @@ class Settings(BaseSettings):
     @property
     def effective_plugins_dir(self) -> Path:
         return self.plugins_dir or self.data_dir / "plugins"
+
+    @property
+    def effective_catalog_dir(self) -> Path:
+        return self.data_dir / "catalogo"
 
     @property
     def effective_skills_dir(self) -> Path:

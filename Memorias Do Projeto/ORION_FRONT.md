@@ -262,3 +262,13 @@ Agora tem, com a mesma forma do legado + os campos novos, todas atrás do login/
 
 - **Capacidade nova:** `mcp_servers` (também libera `/skill`). No legado nada disso aparece.
 - **Provado:** `tests/front_e2e/test_e7.py` (8 cenários contra o `orion.app` real com servidores MCP de verdade, axe), `tests/front/slash.test.js`.
+
+
+## 13. Plugins: importar e catálogo (E8, 13/10/2026)
+
+| Item | Onde | Como funciona |
+|---|---|---|
+| Importar do Claude Code ou Codex | Extensões › Plugins (`views/extensions.js`, `importForeign`) | `POST /plugins/importar/previa` → diálogo com formato, skills e a lista "ficam de fora" (`aria-label="O que não foi importado"`) → "Instalar sem ativar" = `POST /plugins/importar` |
+| Catálogo | Extensões › Catálogo (aba nova) | `GET /plugins/catalogo`; cartão por pacote (`data-catalogo`, `data-versao`) com "Instalar" ou "Atualizar para vX" (confirma: a versão atual segue valendo); fontes com erro viram aviso |
+
+- **Provado:** `tests/front_e2e/test_e8.py` (4 cenários contra o `orion.app` real, axe).

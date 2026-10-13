@@ -9,8 +9,10 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
 from ..policy import Risk
-from .archives import MAX_ARCHIVE, archive_snapshot
+from .archives import MAX_ARCHIVE, archive_files, archive_snapshot
+from .catalogo import LOCAL, versao_maior
 from .host import ConnectionConfig
+from .importar import converter
 from .manager import PluginManager, public_plugin
 from .plugins import PluginError
 from .profiles import profile, profiles
@@ -20,6 +22,13 @@ class Install(BaseModel):
     model_config = ConfigDict(extra="forbid")
     folder: str = Field(min_length=1, max_length=4096)
     update: bool = False
+
+
+class CatalogoInstalar(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    fonte: str = Field(min_length=1, max_length=2048)
+    id: str = Field(pattern=r"^[a-z0-9][a-z0-9_-]{0,47}$")
+    version: str | None = Field(default=None, max_length=80)
 
 
 class Review(BaseModel):
@@ -93,6 +102,79 @@ def router(require_admin) -> APIRouter:
         async with m.lock:
             row = await asyncio.to_thread(
                 m.installer.install_snapshot, package, origin="zip", update=update
+            )
+        return public_plugin(row)
+
+    async def _zip(request: Request) -> bytes:
+        if request.headers.get("content-type", "").split(";")[0] != "application/zip":
+            raise HTTPException(415, "plugin_zip_required")
+        data = bytearray()
+        async for chunk in request.stream():
+            data.extend(chunk)
+            if len(data) > MAX_ARCHIVE:
+                raise HTTPException(413, "archive_size_limit")
+        return bytes(data)
+
+    @api.post("/plugins/importar/previa")
+    async def import_preview(request: Request):
+        """Lê um ZIP no formato do Claude Code, do Codex ou do Orion e diz o que viraria um plugin
+        e o que ficaria de fora. Não instala nada."""
+        files = await asyncio.to_thread(archive_files, await _zip(request), "plugin.zip")
+        return (await asyncio.to_thread(converter, files)).resumo()
+
+    @api.post("/plugins/importar")
+    async def import_foreign(request: Request, update: bool = False):
+        """Converte (skills apenas) e instala como qualquer pacote: inativo e sem concessão."""
+        files = await asyncio.to_thread(archive_files, await _zip(request), "plugin.zip")
+        conversao = await asyncio.to_thread(converter, files)
+        m = manager(request)
+        async with m.lock:
+            row = await asyncio.to_thread(
+                m.installer.install_snapshot,
+                conversao.package,
+                origin=f"import:{conversao.formato}",
+                update=update,
+            )
+        return {**public_plugin(row), "ignorado": conversao.ignorado}
+
+    def catalogos(request: Request):
+        c = manager(request).catalogos
+        if c is None:
+            raise HTTPException(503, "catalog_unavailable")
+        return c
+
+    @api.get("/plugins/catalogo")
+    async def catalog_list(request: Request):
+        """Plugins dos catálogos (local e cadastrados). Versão nova é só aviso: nada atualiza."""
+        entradas, fontes = await asyncio.to_thread(catalogos(request).listar)
+        instalados = {r["id"]: r["version"] for r in manager(request).store.list()}
+        return {
+            "fontes": fontes,
+            "plugins": [
+                {
+                    **e.publico(),
+                    "instalado": instalados.get(e.id),
+                    "atualizacao": e.id in instalados and versao_maior(e.version, instalados[e.id]),
+                    "local": e.fonte == LOCAL,
+                }
+                for e in entradas
+            ],
+        }
+
+    @api.post("/plugins/catalogo/instalar")
+    async def catalog_install(body: CatalogoInstalar, request: Request):
+        """Baixa um pacote do catálogo, confere o SHA-256 do índice e instala INATIVO e sem
+        concessão. Quem ativa é você, depois de revisar."""
+        c = catalogos(request)
+        entrada, dados = await asyncio.to_thread(c.baixar, body.fonte, body.id, body.version)
+        package = await asyncio.to_thread(archive_snapshot, dados, f"{entrada.id}.zip")
+        if package.manifest.id != entrada.id or package.manifest.version != entrada.version:
+            raise PluginError("catalog_manifest_mismatch")
+        m = manager(request)
+        async with m.lock:
+            ja = any(r["id"] == entrada.id for r in m.store.list())
+            row = await asyncio.to_thread(
+                m.installer.install_snapshot, package, origin="catalogo", update=ja
             )
         return public_plugin(row)
 
