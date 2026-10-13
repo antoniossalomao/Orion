@@ -13,7 +13,7 @@
     let visiveis = [], sel = 0;
     /* "Em tudo" (busca global): o servidor procura em conversas, fatos, documentos, tela e arquivos gerados. 300 ms depois de parar de digitar. */
     let tudo = { q: '', itens: [] }, esperaTudo = null, geracaoTudo = 0;
-    const FONTE_ICONE = { conversas: 'chat', fatos: 'memory', documentos: 'file', tela: 'search', resultados: 'file' };
+    const FONTE_ICONE = { conversas: 'chat', fatos: 'memory', documentos: 'file', tela: 'search', resultados: 'file', area: 'copy', comandos: 'search' };
 
     function itensDaBusca(grupos) {
         const itens = [];
@@ -27,6 +27,7 @@
                 else if (g.fonte === 'fatos') itens.push({ ...base, rotulo: U.truncar(`${r.antigo ? '(antigo) ' : ''}${r.texto}`, 80), exec: () => O.memoriaFatos?.abrirFato(r.texto) });
                 else if (g.fonte === 'documentos') itens.push({ ...base, rotulo: U.truncar(r.fonte, 70), dica: U.truncar(r.trecho, 40), exec: () => (/^upload:/.test(r.fonte) ? O.app.ir('fontes') : O.app.ir('memoria')) });
                 else if (g.fonte === 'tela') itens.push({ ...base, rotulo: U.truncar(`${r.janela || 'tela'}: ${r.trecho}`, 80), exec: () => O.conhecimento?.buscarNaTela(campo.value.trim()) });
+                else if (g.fonte === 'area' || g.fonte === 'comandos') itens.push({ ...base, rotulo: U.truncar(r.trecho, 80), dica: g.titulo, exec: () => navigator.clipboard?.writeText(r.trecho).catch(() => {}) });
                 else if (g.fonte === 'resultados') itens.push({ ...base, rotulo: `${r.nome} (v${r.versao})`, exec: () => O.app.ir('conhecimento') });
             }
         }
@@ -63,6 +64,9 @@
             { g: 'ir', rotulo: 'Conversas arquivadas', icone: 'folder', exec: ir('arquivadas'), chaves: 'arquivar restaurar desarquivar apagar conversa antiga' },
             { g: 'ir', rotulo: 'Privacidade', icone: 'shield', exec: ir('privacidade'), chaves: 'o que saiu dados enviados provedores rede' },
             { g: 'acao', rotulo: 'Ligar modo pânico', icone: 'shield', exec: () => A.panico(), chaves: 'panico pânico emergência cortar rede parar tudo' },
+            { g: 'ir', rotulo: 'Automação (rotinas, tarefas, Downloads)', icone: 'gauge', exec: ir('atividade'), chaves: 'rotina tarefa segundo plano downloads organizar desligar' },
+            { g: 'acao', rotulo: 'Posso desligar?', icone: 'shield', exec: async () => { try { O.ui.toast(O.automacaoLogica.resumoDeDesligar(await api().possoDesligar()), { tipo: 'info', ms: 6000 }); } catch (e) { O.ui.toast(`Não consegui conferir. ${e.message || ''}`.trim(), { tipo: 'erro' }); } }, chaves: 'desligar computador repositório commit backup download pendente' },
+            ...(O.automacao?.rotinas?.() || []).filter(r => r.estado === 'concedida').map(r => ({ g: 'acao', rotulo: `Rotina: ${r.nome}`, icone: 'bolt', exec: () => A.rotina(r.nome), chaves: `rotina ${r.descricao || ''}` })),
             { g: 'acao', rotulo: 'Nova conversa', icone: 'plus', atalho: ['Ctrl', '⇧', 'O'], exec: () => O.sidebar.nova() },
             { g: 'acao', rotulo: 'Alternar barra lateral', icone: 'panel', atalho: ['Ctrl', 'B'], exec: () => O.sidebar.alternar(), chaves: 'recolher menu' },
             { g: 'acao', rotulo: O.fala?.gravando() ? 'Enviar a fala' : 'Falar com o Orion', icone: 'mic', exec: () => O.fala.alternar(), chaves: 'microfone falar gravar voz ditar' },
@@ -87,6 +91,11 @@
         // ação esperando o seu aval: sobe para o topo da lista
         if (O.chat.pendentes().length) {
             c.unshift({ g: 'acao', rotulo: `Revisar ação pendente (${O.chat.pendentes().length})`, icone: 'shield', exec: () => O.chat.irParaPendente(), chaves: 'aprovar aprovação' });
+        }
+        if (O.api.estado().backend === 'orion' && O.api.suporta('mcp_servers')) {
+            c.push({ g: 'skill', rotulo: 'Usar skill…', icone: 'bolt', chaves: 'skill catálogo pasta', exec: () => O.composer.escolherSkillSimples() });
+            c.push(...(O.mcpServidores?.prompts() || []).map(p => ({ g: 'skill', rotulo: `Prompt MCP: ${p.servidor}:${p.nome}`, icone: 'bolt',
+                dica: p.descricao || 'prompt de servidor MCP', chaves: 'prompt mcp', exec: () => O.mcpServidores.trazerPrompt(p) })));
         }
         c.push(...O.composer.skills().map(s => ({ g: 'skill', rotulo: `Skill: ${s.id}`,
             icone: 'bolt', dica: s.enabled ? `${s.origin} · ${s.version}` : 'Desativada',

@@ -12,6 +12,7 @@ from pydantic import TypeAdapter
 
 from ..policy import PolicyEngine, Risk
 from .catalog import Catalog
+from .catalogo import Catalogos
 from .grants import Grants
 from .host import ConnectionConfig, HTTPConfig, MCPHost, StdioConfig
 from .installer import Installer
@@ -35,7 +36,7 @@ def public_plugin(row: dict) -> dict:
             {"id": c["id"], "transport": c["transport"], "tools": c["tools"]}
             for c in manifest["mcp"]
         ],
-        "origin": row["origin"] if row["origin"] in {"local", "orion"} else "imported",
+        "origin": row["origin"] if row["origin"] in {"local", "orion", "catalogo"} else "imported",
     }
 
 
@@ -56,6 +57,7 @@ class PluginManager:
         self.owned_skills: dict[str, set[str]] = {}
         self.active_scopes: dict[str, str] = {}
         self.lock = asyncio.Lock()
+        self.catalogos: Catalogos | None = None  # E8.4: catálogo local e remotos
         with self.store._lock, self.store._db:
             self.store._db.execute(
                 "CREATE TABLE IF NOT EXISTS extension_connections "

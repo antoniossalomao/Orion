@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 import time
 from collections import Counter
 from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
@@ -26,6 +27,8 @@ from typing import Any
 from .extensions.context import ExternalData
 from .extensions.skill_runtime import Selection
 from .gateway import ChatGateway, Finish, GatewayError, TextDelta, ToolCallRequest
+from .mcp_indice import NOME as NOME_PROCURAR
+from .mcp_indice import Indice
 from .memory import MemoryStore, Session
 from .memory.compact import CABECALHO, Compactor
 from .memory.ops import Operations
@@ -51,6 +54,17 @@ _DIAS = [
     "sábado",
     "domingo",
 ]
+
+
+_URL = re.compile(r"https?://[^\s<>\"')\]}]+")
+MAX_FONTES = 20
+MAX_REVELADAS = 16
+
+
+def _links(texto: str) -> list[str]:
+    """Links http(s) de um resultado de ferramenta, sem pontuação colada e sem repetir."""
+    achados = (u.rstrip(".,;:!?") for u in _URL.findall(texto))
+    return list(dict.fromkeys(u for u in achados if len(u) <= 500))
 
 
 def _truncado(args: dict[str, Any]) -> bool:
@@ -96,7 +110,13 @@ class Agent:
         library: Library | None = None,
         modos: Modos | None = None,
         compactor: Compactor | None = None,
+        servidor_mcp: Callable[[str], str | None] | None = None,
+        mcp_indice: Indice | None = None,
     ) -> None:
+        self._indice = mcp_indice if mcp_indice is not None and mcp_indice.ativo else None
+        self._reveladas: dict[str, list[str]] = {}  # sessão -> ferramentas MCP já reveladas
+        self._servidor_mcp = servidor_mcp  # nome da ferramenta -> servidor MCP (E6.4)
+        self._gerados: dict[str, list[dict[str, Any]]] = {}  # arquivos gerados no turno (E6.1)
         self.gateway, self.tools, self.policy, self.memory = gateway, tools, policy, memory
         self.refresh_tools: Callable[[], Awaitable[None]] | None = None
         self._ops = ops
@@ -135,6 +155,7 @@ class Agent:
         expected_session: str | None = None,
         read_only: bool = False,
         edit_message: int | None = None,
+        skill_forcada: str | None = None,
     ) -> AsyncIterator[AgentEvent]:
         """`images`: data URLs (`data:image/jpeg;base64,...`) que valem só para este turno; o
         histórico guarda o texto e um aviso de que houve imagem, nunca a imagem.
@@ -142,13 +163,18 @@ class Agent:
         o modelo só vê e só pode chamar ferramentas de LEITURA; o que pediria aprovação é
         negado na hora, porque não há quem aprove.
         `edit_message`: id do pedido do Antônio que este texto reescreve (E3.5). O pedido e o que
-        veio depois somem do contexto; o texto novo entra como outra versão do mesmo pedido."""
+        veio depois somem do contexto; o texto novo entra como outra versão do mesmo pedido.
+        `skill_forcada`: nome de uma skill do catálogo simples (E7.6): o turno começa com o corpo
+        dela já carregado, como se o modelo tivesse chamado `carregar_skill`."""
         session = self.memory.active_session(channel)
         if session.project_id and Projects(self.memory).get(session.project_id)["archived"]:
             yield AgentEvent("error", {"message": "project_archived"})
             return
         if expected_session is not None and session.id != expected_session:
             yield AgentEvent("error", {"message": "session_scope_changed"})
+            return
+        if skill_forcada and (self._skills is None or skill_forcada not in self._skills.skills):
+            yield AgentEvent("error", {"message": "skill_not_found"})
             return
         async with self._lock(session.id):
             self._ctx.pop(session.id, None)
@@ -201,6 +227,7 @@ class Agent:
                     external=external,
                     selection=selection,
                     read_only=read_only,
+                    skill_forcada=skill_forcada,
                 ):
                     yield ev
             finally:
@@ -280,6 +307,7 @@ class Agent:
         prior_activity: list[dict] | None = None,
         images: Sequence[str] = (),
         read_only: bool = False,
+        skill_forcada: str | None = None,
     ) -> AsyncIterator[AgentEvent]:
         if self.refresh_tools is not None:
             await self.refresh_tools()
@@ -295,6 +323,28 @@ class Agent:
             ctx.tainted = True
             self.memory.counter_set(f"taint:{session.id}", 1)
         mensagens.extend(item.message() for item in external or [])
+        if skill_forcada and self._skills is not None:
+            # como se o modelo tivesse chamado `carregar_skill` (regra 40)
+            carga = json.dumps(self._skills.load(skill_forcada), ensure_ascii=False)
+            mensagens.extend(
+                [
+                    {
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": [
+                            {
+                                "id": "skill_forcada",
+                                "type": "function",
+                                "function": {
+                                    "name": "carregar_skill",
+                                    "arguments": json.dumps({"nome": skill_forcada}),
+                                },
+                            }
+                        ],
+                    },
+                    {"role": "tool", "tool_call_id": "skill_forcada", "content": carga},
+                ]
+            )
         if images and mensagens[-1]["role"] == "user":
             mensagens[-1]["content"] = [
                 {"type": "text", "text": mensagens[-1]["content"]},
@@ -302,6 +352,12 @@ class Agent:
             ]
         usadas: list[str] = list(extra_tools or [])
         activity: list[dict] = list(prior_activity or [])
+        usou: list[dict[str, str]] = (  # o que o turno usou, com origem (E6.4)
+            [{"nome": "carregar_skill", "origem": f"skill:{skill_forcada}", "estado": "completed"}]
+            if skill_forcada
+            else []
+        )
+        fontes: list[str] = []  # links lidos por ferramentas de fora
         destino: tuple[str, str] | None = None
         selected_names: list[str] = list(extra_tools or [])
         if ctx.allowed_tools is not None:
@@ -329,7 +385,8 @@ class Agent:
             if self.policy.tools.get(s["function"]["name"]) is None
             or self.policy.tools[s["function"]["name"]].scope in (None, actual_scope)
         ] or None
-        esquemas = self._esquemas(read_only, esquemas) or None
+        esquemas_cheios = self._esquemas(read_only, esquemas) or None
+        esquemas = self._ocultar(esquemas_cheios, session.id)
         selected = {s["function"]["name"] for s in esquemas or []}
         rota = self._rotear(session.id, consulta, len(images))
         extra_gw = {"tier": rota.camada} if rota else {}
@@ -363,6 +420,13 @@ class Agent:
                     "contexto_externo": [item.provenance() for item in external or []],
                     "skills": list(selection.skills) if selection else [],
                 }
+                gerados = self._gerados.pop(session.id, [])
+                if gerados:
+                    prov["resultados"] = gerados
+                if usou:
+                    prov["usou"] = usou
+                if fontes:
+                    prov["fontes"] = fontes[:MAX_FONTES]
                 if rota:
                     prov["roteamento"] = {"camada": rota.camada, "motivo": rota.motivo}
                 message = self.memory.add_message(
@@ -409,6 +473,9 @@ class Agent:
                     )
                     raise
                 activity.extend(event.data for event in eventos if event.kind == "tool")
+                self._anotar_uso(c, conteudo, eventos, usou, fontes)
+                if self._revelar(c, eventos, session.id):  # o esquema entra na rodada seguinte
+                    esquemas = self._ocultar(esquemas_cheios, session.id)
                 for e in eventos:
                     yield e
                 mensagens.append({"role": "tool", "tool_call_id": c.id, "content": conteudo})
@@ -416,6 +483,71 @@ class Agent:
         yield AgentEvent(
             "error", {"message": f"limite de {self._max_iter} iterações de ferramenta"}
         )
+
+    def _ocultar(
+        self, esquemas: list[dict[str, Any]] | None, session_id: str
+    ) -> list[dict[str, Any]] | None:
+        """Com o índice ligado (E7.4), tira o esquema das ferramentas MCP ainda não reveladas."""
+        if self._indice is None or not esquemas:
+            return esquemas
+        reveladas = set(self._reveladas.get(session_id, []))
+        ocultas = self._indice.nomes - reveladas
+        return [s for s in esquemas if s["function"]["name"] not in ocultas] or None
+
+    def _revelar(self, c: ToolCallRequest, eventos: list[AgentEvent], session_id: str) -> bool:
+        """`procurar_ferramenta` que deu certo revela o que achou (no máx. 16 por conversa)."""
+        if self._indice is None or c.name != NOME_PROCURAR:
+            return False
+        dados = next((e.data for e in eventos if e.kind == "tool"), {})
+        if dados.get("state") != "completed":
+            return False
+        achadas = [t.name for t in self._indice.procurar(str(c.arguments.get("consulta", "")))]
+        lista = self._reveladas.setdefault(session_id, [])
+        mudou = False
+        for nome in achadas:
+            if nome not in lista:
+                lista.append(nome)
+                mudou = True
+        del lista[:-MAX_REVELADAS]
+        return mudou
+
+    def _origem_de(self, c: ToolCallRequest) -> str:
+        """`nativa`, `mcp:<servidor>`, `skill:<nome>` ou `plugin:<nome>` (E6.4)."""
+        if c.name == "carregar_skill":
+            nome = str(c.arguments.get("nome", "")).strip().lower()[:64]
+            return f"skill:{nome}" if nome else "skill"
+        servidor = self._servidor_mcp(c.name) if self._servidor_mcp else None
+        if servidor:
+            return f"mcp:{servidor}"
+        spec = self.policy.tools.get(c.name)
+        if spec and spec.origin and spec.origin.startswith("plugin"):
+            return spec.origin if ":" in spec.origin else "plugin"
+        return "nativa"
+
+    def _anotar_uso(
+        self,
+        c: ToolCallRequest,
+        conteudo: str,
+        eventos: list[AgentEvent],
+        usou: list[dict[str, str]],
+        fontes: list[str],
+    ) -> None:
+        """Guarda o que a chamada usou e os links que ela trouxe (só de ferramenta de fora)."""
+        dados = next((e.data for e in eventos if e.kind == "tool"), {})
+        item = {
+            "nome": str(dados.get("label") or c.name),
+            "origem": self._origem_de(c),
+            "estado": str(
+                dados.get("state") or ("denied" if dados.get("decision") == "deny" else "failed")
+            ),
+        }
+        if item not in usou:
+            usou.append(item)
+        spec = self.policy.tools.get(c.name)
+        if spec is not None and (spec.external or spec.egress):
+            for url in _links(conteudo):
+                if url not in fontes and len(fontes) < MAX_FONTES:
+                    fontes.append(url)
 
     def _contar_uso(self, endpoint: str) -> None:
         """Respostas por dia e endpoint, no banco: sobrevive a reinício e alimenta o painel."""
@@ -607,7 +739,13 @@ class Agent:
             except (ValueError, AttributeError, TypeError):
                 ctx.tainted = True
         if self._library is not None and chamada.name in ("gerar_documento", "gerar_imagem"):
-            await asyncio.to_thread(self._library.registrar, ctx.session_id, chamada.name, bruto)
+            guardado = await asyncio.to_thread(
+                self._library.registrar, ctx.session_id, chamada.name, bruto
+            )
+            if guardado:  # a resposta mostra o cartão do arquivo (E6.1)
+                self._gerados.setdefault(ctx.session_id, []).append(
+                    {"id": guardado["id"], "nome": guardado["name"], "versao": guardado["version"]}
+                )
         if ctx.tainted:
             self.memory.counter_set(f"taint:{ctx.session_id}", 1)
         spec = self.policy.tools.get(chamada.name)
@@ -669,6 +807,8 @@ class Agent:
             sistema += "\n\n[EM ABERTO: tarefas e lembretes do Antônio]\n" + "\n".join(
                 f"- {o}" for o in objetivos
             )
+        if self._indice is not None:
+            sistema += "\n\n" + self._indice.bloco()
         bloco_skills = self._skills.prompt_block() if self._skills else ""
         if bloco_skills:
             sistema += "\n\n" + bloco_skills

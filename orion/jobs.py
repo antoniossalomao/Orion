@@ -61,6 +61,8 @@ class TickReport:
     sono: dict[str, Any] | None = None
     tela: str | None = None
     semanal_ia: bool = False
+    downloads: int = 0  # arquivos que o organizador de Downloads moveu (E9.4)
+    comandos: int = 0  # comandos novos lidos do histórico do terminal (E9.7)
     gateway: str | None = None  # "fora" | "voltou" quando o aviso sai
     adiados: list[str] = field(default_factory=list)  # jobs opcionais barrados pela cota
     erros: list[str] = field(default_factory=list)
@@ -98,6 +100,10 @@ class JobRunner:
         sleep: Any = None,
         screen: Any = None,
         weekly_ai: Any = None,
+        downloads: Any = None,
+        historicos: Any = None,
+        clipboard_days: int = 0,
+        command_history: bool = False,
         custos: Any = None,
         modos: Any = None,
         gateway_down_min: int = 10,
@@ -107,6 +113,8 @@ class JobRunner:
         consolidate_every_s: float = 6 * 3600.0,
         audit_every_s: float = 86400.0,
         saude_every_s: float = 60.0,
+        downloads_every_s: float = 60.0,
+        historicos_every_s: float = 3600.0,
         clock: Callable[[], float] = time.time,
     ) -> None:
         self.memory, self.ops = memory, ops
@@ -122,6 +130,9 @@ class JobRunner:
         self._weekly_ai = weekly_ai  # modelo (complete) para a leitura do resumo semanal; None: sem
         self._screen = screen  # orion/screen_memory.py (regra 44), None: desligada
         self._sleep = sleep  # orion/memory/sleep.py (ciclo de sono), None: desligado
+        self._downloads = downloads  # orion/downloads.py (regra 58), None: sem regras
+        self._historicos = historicos  # orion/historicos.py (regra 60), None: sem históricos
+        self._clipboard_days, self._command_history = clipboard_days, command_history
         self._custos = custos  # orion/costs.py (regra 46), None: sem conta de cota
         self._modos = modos  # orion/modos.py (regra 48), None: sem pânico nem não perturbe
         self._gateway_down_s = gateway_down_min * 60.0
@@ -133,6 +144,8 @@ class JobRunner:
             "consolidar": consolidate_every_s,
             "auditoria": audit_every_s,
             "saude_gateway": saude_every_s,
+            "downloads": downloads_every_s,
+            "historicos": historicos_every_s,
         }
         self._last: dict[str, float] = {}
         self.ultima_rodada: float | None = None  # epoch do último `tick` (para o painel)
@@ -256,6 +269,13 @@ class JobRunner:
             self._passo(rel, "auditoria", self._podar_trilhas)
         if self._devido("saude_gateway"):
             self._passo(rel, "gateway", self._saude_gateway)
+        if self._historicos is not None and self._devido("historicos"):
+            if self._command_history:
+                self._passo(rel, "comandos", self._historicos.importar)
+            if self._clipboard_days > 0:
+                self._passo(rel, "area", lambda: self._historicos.podar_area(self._clipboard_days))
+        if self._downloads is not None and not self._panico() and self._devido("downloads"):
+            self._passo(rel, "downloads", lambda: len(self._downloads.rodar().movidos))
 
     def _saude_gateway(self) -> str | None:
         """Modelos fora do ar (L10), só pelo registro de saída: sem chamada extra ao provedor.
@@ -312,6 +332,16 @@ class JobRunner:
             texto = f"Lembrete ({quando}): {r['title']}" + (f" — {r['note']}" if r["note"] else "")
             self.ops.notify("lembrete", texto, ref=f"reminder:{r['id']}", urgente=True)
             self.ops.mark_reminder_notified(r["id"])
+            n += 1
+        for r in self.ops.due_nudges(self._clock()):  # insistente (E9.3): até você dizer "feito"
+            vezes = int(self._clock() // (r["insist_min"] * 60))
+            self.ops.notify(
+                "lembrete",
+                f"⏰ Ainda pendente: {r['title']}" + (f" — {r['note']}" if r["note"] else ""),
+                ref=f"reminder:{r['id']}:n{vezes}",
+                urgente=True,
+            )
+            self.ops.mark_reminder_nudged(r["id"], self._clock())
             n += 1
         return n
 

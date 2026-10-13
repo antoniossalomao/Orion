@@ -9,6 +9,7 @@ PADRAO: dict[str, str] = {
     "captura": "ctrl+alt+space",  # captura rápida (E2.3)
     "isso": "ctrl+alt+o",  # "o que é isso?" (E2.5)
     "ocr": "ctrl+alt+t",  # copiar texto de uma área da tela (E2.4)
+    "area": "ctrl+alt+v",  # lista pesquisável do que foi copiado (E9.6, regra 60)
     "panico": "ctrl+alt+shift+p",  # modo pânico (regra 48)
 }
 MODIFICADORES = ("ctrl", "alt", "shift", "cmd")
@@ -46,6 +47,13 @@ def mapa_de_teclas(bruto: str = "") -> dict[str, str]:
         if not isinstance(pedido, dict):
             raise TeclasInvalidas('ORION_HOTKEYS precisa ser um objeto: {"captura": "ctrl+alt+k"}')
         for acao, combo in pedido.items():
+            if not isinstance(acao, str):
+                raise TeclasInvalidas("ação precisa ser texto")
+            if re.fullmatch(r"rotina:[a-z0-9][a-z0-9_-]{0,31}", acao):  # tecla de rotina (E9.1)
+                if not isinstance(combo, str):
+                    raise TeclasInvalidas(f"{acao}: a combinação precisa ser texto")
+                mapa[acao] = combo
+                continue
             if acao not in PADRAO:
                 raise TeclasInvalidas(f"ação desconhecida: {acao!r} (use {', '.join(PADRAO)})")
             if not isinstance(combo, str):

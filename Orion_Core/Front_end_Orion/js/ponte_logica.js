@@ -19,7 +19,7 @@
     /** `?modo=isso` → 'isso'; qualquer outra coisa vale 'rapido' */
     function modoDaBusca(busca) {
         const m = /(?:^\?|&)modo=([a-z]+)(?:&|$)/.exec(String(busca || ''));
-        return m && ['rapido', 'isso'].includes(m[1]) ? m[1] : 'rapido';
+        return m && ['rapido', 'isso', 'area'].includes(m[1]) ? m[1] : 'rapido';
     }
 
     /** `?modo=isso&imagem=abc123...` → 'abc123...'; vazio se não há ou se tem caracteres fora do padrão */
@@ -38,7 +38,7 @@
 
     const AVISO_PRIMEIRA_VEZ = 'Esta imagem vai sair do computador, para o provedor do modelo de visão, só se você continuar. Rosto, senha ou e-mail na tela vão junto. Continue só se concordar.';
 
-    const ROTULO = { tarefa: 'Tarefa', lembrete: 'Lembrete', gasto: 'Gasto', nota: 'Nota' };
+    const ROTULO = { tarefa: 'Tarefa', lembrete: 'Lembrete', gasto: 'Gasto', nota: 'Nota', leitura: 'Ler depois' };
 
     /** A frase mostrada depois de gravar: o que foi criado, com data/valor quando houver. */
     function resumoDaCaptura(r) {

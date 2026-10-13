@@ -25,3 +25,26 @@ test('comandos fixos continuam iguais', () => {
     assert.equal(S.interpretar('texto comum'), null);
     assert.equal(S.interpretar('/xyz').desconhecido, true);
 });
+
+test('/skill e /prompt são comandos de texto livre', () => {
+    assert.deepEqual(S.interpretar('/skill resumir meu texto'), { cmd: 'skill', arg: 'resumir meu texto' });
+    assert.deepEqual(S.interpretar('/prompt cru:revisar texto="olá mundo"'), { cmd: 'prompt', arg: 'cru:revisar texto="olá mundo"' });
+    assert.equal(S.interpretar('/skill').invalido, true);
+    assert.ok(S.sugerir('/ski').some(s => s.cmd === 'skill'));
+    assert.ok(S.sugerir('/pro').some(s => s.cmd === 'prompt'));
+});
+
+test('/skill separa o nome do pedido', () => {
+    assert.deepEqual(S.separarSkill('resumir texto longo'), { nome: 'resumir', pedido: 'texto longo' });
+    assert.deepEqual(S.separarSkill('  estilo-antonio  '), { nome: 'estilo-antonio', pedido: '' });
+    assert.equal(S.separarSkill('Maiúscula x'), null);
+    assert.equal(S.separarSkill(''), null);
+});
+
+test('/prompt separa servidor, nome e argumentos com ou sem aspas', () => {
+    assert.deepEqual(S.separarPrompt('cru:revisar'), { servidor: 'cru', nome: 'revisar', argumentos: {} });
+    assert.deepEqual(S.separarPrompt('cru:revisar texto="olá mundo" nivel=alto'),
+        { servidor: 'cru', nome: 'revisar', argumentos: { texto: 'olá mundo', nivel: 'alto' } });
+    assert.equal(S.separarPrompt('sem-dois-pontos'), null);
+    assert.equal(S.separarPrompt('Maiusc:x'), null);
+});

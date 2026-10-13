@@ -274,3 +274,46 @@ input[type="search"]::-webkit-search-cancel-button { appearance: none; }
 .conh-acoes { display: flex; flex-wrap: wrap; gap: var(--s-2); margin-top: var(--s-2); }
 .conh-fato { color: var(--text-1); line-height: 1.5; }
 .conh-tela { display: flex; flex-direction: column; gap: var(--s-2); }
+
+/* ── Painel lateral dos arquivos gerados (E6.1 a E6.3) ─────────────────── */
+.res-painel {
+    position: absolute; top: 0; right: 0; bottom: 0; z-index: var(--z-topbar);
+    width: min(30rem, 55%); display: flex; flex-direction: column; gap: var(--s-3);
+    padding: var(--s-4); overflow-y: auto;
+    background: var(--bg-2); border-left: 1px solid var(--line-2);
+}
+.res-painel[hidden] { display: none; }
+html[data-res-aberto="true"] .view[data-active="true"] { right: min(30rem, 55%); }
+.res-cab { display: flex; align-items: center; gap: var(--s-2); }
+.res-cab h3 { margin: 0; flex: 1; min-width: 0; overflow-wrap: anywhere; outline: none; }
+.res-meta { color: var(--text-3); font-size: var(--fs-xs); overflow-wrap: anywhere; }
+.res-texto { margin: 0; padding: var(--s-3); max-height: 22rem; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; border-radius: var(--r-2); background: var(--bg-3); font-size: var(--fs-xs); }
+.res-img { max-width: 100%; max-height: 22rem; border-radius: var(--r-2); }
+.res-pdf { width: 100%; height: 26rem; border: 1px solid var(--line-2); border-radius: var(--r-2); background: #fff; }
+.res-versoes h4 { margin: 0 0 var(--s-2); font-size: var(--fs-sm); color: var(--text-2); }
+.res-lista-versoes { display: flex; flex-wrap: wrap; gap: var(--s-1); margin: 0 0 var(--s-2); padding: 0; list-style: none; }
+.res-comparacao { margin-top: var(--s-2); }
+.res-lado { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-2); }
+.res-lado figure { margin: 0; } .res-lado figcaption { font-size: var(--fs-xs); color: var(--text-3); }
+.res-diff-resumo { margin: 0 0 var(--s-1); font-size: var(--fs-xs); color: var(--text-2); }
+.res-diff { margin: 0; padding: var(--s-2) 0; max-height: 20rem; overflow: auto; border-radius: var(--r-2); background: var(--bg-3); font-size: var(--fs-xs); }
+.res-diff-l { display: block; padding: 0 var(--s-3); white-space: pre-wrap; overflow-wrap: anywhere; }
+.res-diff-add { background: var(--ok-soft); color: var(--text-1); }
+.res-diff-del { background: var(--danger-soft); color: var(--text-1); }
+.res-diff-hunk, .res-diff-cab { color: var(--text-3); }
+@media (max-width: 860px) { .res-painel { width: 100%; } html[data-res-aberto="true"] .view[data-active="true"] { right: 0; } }
+
+/* ── "Usou: …" na bolha (E6.4) ────────────────────────────────────────── */
+.usou-caixa { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--s-2); margin-top: var(--s-2); font-size: var(--fs-xs); color: var(--text-3); }
+.usou-rodape { flex: 1 1 100%; overflow-wrap: anywhere; }
+.usou-rodape summary { cursor: pointer; }
+.usou-item { margin: var(--s-1) 0 0; }
+.usou-link { display: block; margin-top: var(--s-1); color: var(--text-2); text-decoration: underline; }
+
+/* ── Pesquisa noturna (E6.5) ──────────────────────────────────────────── */
+.pesq-assuntos { display: flex; flex-direction: column; gap: var(--s-2); margin: 0; padding: 0; list-style: none; }
+.pesq-assunto { display: flex; gap: var(--s-2); align-items: center; }
+.pesq-assunto .input { flex: 1; min-width: 0; }
+
+/* ── Plugins: importação e catálogo (E8) ──────────────────────────────── */
+.extension-ignorado { margin: 0; padding-left: 1.2rem; color: var(--text-2); font-size: var(--fs-sm); line-height: 1.6; overflow-wrap: anywhere; }

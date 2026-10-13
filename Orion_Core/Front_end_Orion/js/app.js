@@ -156,13 +156,27 @@
             for (let i = 0; i < 80 && !O.memoriaGrafo.pronto?.(); i++) await new Promise(r => setTimeout(r, 100));
             O.memoriaGrafo.comando(frase);
         },
+        /** `/prompt servidor:nome k=v`: traz o prompt do servidor MCP para o campo (E7.5) */
+        prompt(arg) {
+            const p = O.slash.separarPrompt(arg);
+            if (!p) { ui.toast('Use /prompt servidor:nome (e k=valor para os argumentos).', { tipo: 'aviso' }); return; }
+            O.mcpServidores?.trazerPrompt(p, p.argumentos);
+        },
+        /** `/rotina nome`: roda a rotina que VOCÊ liberou; passo que pede aprovação para e espera (regra 58) */
+        async rotina(nome) {
+            const alvo = String(nome || '').trim().toLowerCase();
+            if (!/^[a-z0-9][a-z0-9_-]{0,31}$/.test(alvo)) { ui.toast('Use /rotina e o nome da rotina (letras minúsculas, números, - e _).', { tipo: 'aviso' }); return; }
+            if (!api.suporta('automacao')) { ui.toast('Rotinas precisam do backend novo.', { tipo: 'aviso' }); return; }
+            try { ui.toast(O.automacaoLogica.resumoDaExecucao(await api.rotinaAcao(alvo, 'executar')), { tipo: 'info', ms: 5200 }); }
+            catch (e) { ui.toast(`Não consegui rodar a rotina. ${e.message || ''}`.trim(), { tipo: 'erro' }); }
+        },
         /** executa o que o campo de mensagem interpretou como `/comando` (ver slash.js) */
         slash(cmd, arg) {
             const A = O.acoes;
             const mapa = {
                 nova: () => O.sidebar.nova(), buscar: () => O.busca.abrir(arg),
                 copiar: () => (arg === 'conversa' ? A.copiarConversa() : A.copiarUltima()),
-                exportar: () => A.exportar(), limpar: () => A.limpar(), projeto: () => O.projects.moverPorNome(arg), modelo: () => A.modelo(arg), tema: () => A.tema(arg),
+                exportar: () => A.exportar(), limpar: () => A.limpar(), projeto: () => O.projects.moverPorNome(arg), rotina: () => A.rotina(arg), prompt: () => A.prompt(arg), modelo: () => A.modelo(arg), tema: () => A.tema(arg),
                 foco: () => A.foco(), mudo: () => A.alternarTts(), voz: () => O.voz.alternar(),
                 inicio: () => ir('home'), memoria: () => ir('memoria'), grafo: () => A.grafo(arg), integracoes: () => ir('integracoes'), config: () => ir('config'), painel: () => ir('painel'),
                 ajuda: () => ir('config', { secao: 'cfg-atalhos' }),

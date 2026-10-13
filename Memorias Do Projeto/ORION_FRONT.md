@@ -235,3 +235,56 @@ Agora tem, com a mesma forma do legado + os campos novos, todas atrás do login/
 - **Rotas com login:** `api.js` só manda `Authorization` para `/grafo`, `/memoria/relacoes` e `/busca` no backend novo (o legado tem `/grafo/completo` sem login).
 - **Capacidades novas:** `memory_graph` (saiu da lista de pendentes), `global_search`, `screen_search`.
 - **Provado:** `tests/front_e2e/test_e4_e5.py` (9 cenários contra o `orion.app` real, axe nas telas novas), `tests/front/grafo_cmd.test.js`.
+
+
+## 11. Resultados e atividade (E6, 13/10/2026)
+
+| Item | Onde | Como funciona |
+|---|---|---|
+| Painel lateral | `views/resultados.js`, `#res-painel` (dentro de `#stage`) | abre ao lado da tela atual (`html[data-res-aberto]` encolhe a tela ativa; em janela estreita cobre tudo). Prévia de texto, imagem e **PDF**: imagem e PDF vão por `fetch` autenticado → `Blob` → `blob:` (a CSP da página só tem `frame-src blob:`). Abre por "Ver" em Conhecimento ou pelo cartão "Abrir <arquivo>" na resposta. Esc fecha |
+| Comparar versões | painel › "Comparar com…" | texto/Markdown/CSV: `GET /resultados/{id}/diff?com=` (linhas coloridas, `data-diff`); imagem: lado a lado; PDF e outros: avisa que não dá |
+| Limpar em lote | Conhecimento › "Limpar versões antigas" | pergunta quantas manter (1–1000), `POST /resultados/limpar` com `simular` mostra o total e os bytes, e só apaga depois da confirmação |
+| "Usou: …" | rodapé da bolha (`chat.js` `mostrarUso`) | `provenance.usou` (nome · origem `nativa`/`mcp:<servidor>`/`skill:<nome>`/`plugin:<nome>` · estado), `provenance.fontes` (links; só http/https viram `<a>`, abertos fora do app) e `provenance.resultados` (cartões dos arquivos gerados no turno). Vale também no histórico |
+| Pesquisa noturna | Conhecimento › cartão "Pesquisa noturna" | assuntos editáveis (`GET/PUT /pesquisa/assuntos`), relatórios do 00 Inbox, "Rodar agora" com consulta a cada 4 s enquanto roda |
+
+- **Lógica pura** (Node): `js/resultados_logica.js` (linha de diff, origem legível, link seguro, resumo do "Usou", validação dos assuntos, data sem fuso).
+- **Capacidades novas:** `library_panel` e `research_ui` (só no backend novo; no legado o "Ver" continua inline).
+- **Provado:** `tests/front_e2e/test_e6.py` (9 cenários contra o `orion.app` real, axe nas telas novas), `tests/front/resultados_logica.test.js`.
+
+
+## 12. MCP e skills (E7, 13/10/2026)
+
+| Item | Onde | Como funciona |
+|---|---|---|
+| Servidores MCP | Integrações (`views/mcp_servidores.js`, `#mcp-servidores-root`) | `GET /mcp/servidores`: estado, protocolo, última falha, ferramentas com a classe de risco; "Testar" = `POST /mcp/servidores/{nome}/testar`. Some se não há `mcp.json` |
+| `/prompt` e paleta | `slash.js` (`separarPrompt`), `app.js` (`acoes.prompt`), `composer.preencher` | o texto do prompt do servidor vai para o campo de mensagem (nunca é enviado sozinho); argumentos que faltam são perguntados |
+| `/skill` e "Usar skill…" | `composer.js` (`usarSkillSimples`, `escolherSkillSimples`) | `POST /chat {skill}`; confere `GET /skills/catalogo` antes de enviar e preserva o rascunho se a skill não existe |
+
+- **Capacidade nova:** `mcp_servers` (também libera `/skill`). No legado nada disso aparece.
+- **Provado:** `tests/front_e2e/test_e7.py` (8 cenários contra o `orion.app` real com servidores MCP de verdade, axe), `tests/front/slash.test.js`.
+
+
+## 13. Plugins: importar e catálogo (E8, 13/10/2026)
+
+| Item | Onde | Como funciona |
+|---|---|---|
+| Importar do Claude Code ou Codex | Extensões › Plugins (`views/extensions.js`, `importForeign`) | `POST /plugins/importar/previa` → diálogo com formato, skills e a lista "ficam de fora" (`aria-label="O que não foi importado"`) → "Instalar sem ativar" = `POST /plugins/importar` |
+| Catálogo | Extensões › Catálogo (aba nova) | `GET /plugins/catalogo`; cartão por pacote (`data-catalogo`, `data-versao`) com "Instalar" ou "Atualizar para vX" (confirma: a versão atual segue valendo); fontes com erro viram aviso |
+
+- **Provado:** `tests/front_e2e/test_e8.py` (4 cenários contra o `orion.app` real, axe).
+
+
+## 14. Automação do dia a dia (E9, 13/10/2026)
+
+| Item | Onde | Como funciona |
+|---|---|---|
+| Automação | Atividade, abaixo dos avisos (`views/automacao.js`, `automacao_logica.js`) | Quatro cartões: **Rotinas** (`GET /rotinas`; Conceder/Revogar/Executar por rotina, com o estado “Liberada / o arquivo mudou / esperando”), **Tarefa em segundo plano** (formulário com objetivo, passos e minutos; “Começar” desliga enquanto uma roda; propostas abertas com “Trazer para o campo” e “Descartar”; recarrega a cada 4 s enquanto roda), **Organizador de Downloads** (Conceder, Simular, Organizar agora, Desfazer o último) e **Posso desligar?** (Conferir). Só aparece com a capacidade `automacao`. |
+| Propostas da transcrição | Atividade › avisos (`acoesDaProposta`) | Aviso com `ref=proposta:<id>` ganha **Aprovar** e **Descartar** (`POST /transcricao/propostas/{id}/{ação}`); só aprovar cria a tarefa, o lembrete ou o fato. |
+| Lembrete insistente | Atividade › avisos (`acoesDoLembrete`) | **Feito** e **Adiar 1 h** nos avisos `reminder:<id>` (inclusive os repetidos `:n<k>`). |
+| `/rotina nome` | Campo de mensagem (`slash.js`, `app.js`) | Roda a rotina liberada e mostra o resultado num aviso; passo que pede aprovação para e espera. |
+| Paleta | Ctrl+K | “Automação (…)”, “Posso desligar?” e “Rotina: <nome>” para cada rotina liberada; a busca “Em tudo” também mostra **Área de transferência** e **Comandos de terminal** (clicar copia o trecho). |
+| Janela da área de transferência | Ponte, `ctrl+alt+v` (`ponte.html?modo=area`) | Lista pesquisável do que foi copiado; clicar copia de volta. Fala só com `/area-transferencia`. |
+| Captura rápida | `ponte.html?modo=rapido` | Um link sozinho vira “Ler depois” (desfazer em 10 min). |
+
+- **Capacidade nova:** `automacao`. No legado nada disso aparece.
+- **Provado:** `tests/front/automacao_logica.test.js` (lógica pura), `tests/front_e2e/test_e9.py` (cenários contra o `orion.app` real, axe).

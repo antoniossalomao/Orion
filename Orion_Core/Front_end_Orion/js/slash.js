@@ -16,6 +16,9 @@
         { nome: 'copiar', args: ['resposta', 'conversa'], desc: 'Copiar a última resposta ou a conversa' },
         { nome: 'exportar', desc: 'Exportar a conversa em Markdown' },
         { nome: 'limpar', desc: 'Limpar o histórico da sessão' },
+        { nome: 'skill', livre: 'nome e pedido', desc: 'Usar uma skill sua neste pedido: /skill nome pedido' },
+        { nome: 'prompt', livre: 'servidor:nome', desc: 'Trazer um prompt de servidor MCP para o campo de mensagem' },
+        { nome: 'rotina', livre: 'nome', desc: 'Rodar uma rotina sua já liberada (/rotina bom-dia)' },
         { nome: 'projeto', livre: 'nome', desc: 'Mover a conversa para um projeto ("nenhum" tira do projeto)' },
         { nome: 'modelo', args: ['auto', 'groq', 'gemini', 'claude'], desc: 'Trocar o modelo' },
         { nome: 'tema', args: ['noite', 'grafite', 'contraste'], desc: 'Trocar o tema' },
@@ -82,5 +85,22 @@
         return { cmd: c.nome };
     }
 
-    return { COMANDOS, sugerir, interpretar };
+    /** `/skill resumir texto longo` → {nome: 'resumir', pedido: 'texto longo'} (nome do catálogo simples) */
+    function separarSkill(arg) {
+        const m = /^([a-z0-9][a-z0-9-]{0,63})(?:\s+([\s\S]*))?$/.exec(String(arg ?? '').trim());
+        return m ? { nome: m[1], pedido: (m[2] ?? '').trim() } : null;
+    }
+
+    /** `servidor:nome k=v k2="v com espaço"` → {servidor, nome, argumentos}; null se não casa */
+    function separarPrompt(arg) {
+        const m = /^([a-z][a-z0-9]{0,23}):(\S+)(?:\s+([\s\S]*))?$/.exec(String(arg ?? '').trim());
+        if (!m) return null;
+        const argumentos = {};
+        const re = /([A-Za-z_][\w-]*)=(?:"([^"]*)"|(\S*))/g;
+        let k;
+        while ((k = re.exec(m[3] ?? ''))) argumentos[k[1]] = k[2] ?? k[3] ?? '';
+        return { servidor: m[1], nome: m[2], argumentos };
+    }
+
+    return { COMANDOS, sugerir, interpretar, separarSkill, separarPrompt };
 });

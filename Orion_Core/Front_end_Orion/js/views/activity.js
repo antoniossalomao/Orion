@@ -22,18 +22,40 @@
         });
         return el('div', { class: 'extension-actions', dataset: { sono: 'repetido' } }, apagar(+dup[1], `Apagar o repetido (#${dup[1]})`), apagar(+dup[2], `Apagar o repetido (#${dup[2]})`));
     }
+    /** lembrete (inclusive o insistente): "Feito" conclui e para de insistir; "Adiar 1 h" volta daqui a uma hora (E9.3) */
+    function acoesDoLembrete(n, project, reload) {
+        const achou = /^reminder:(\d+)(?::n\d+)?$/.exec(n.ref || '');
+        if (!achou) return null;
+        const agir = (acao, rotulo) => button(rotulo, async () => {
+            try { await api.agirNoLembrete(+achou[1], acao, project); await api.lerAviso(n.id, project).catch(() => {}); await reload(); }
+            catch (error) { status.textContent = error.message; }
+        });
+        return el('div', { class: 'extension-actions', dataset: { lembrete: achou[1] } }, agir('feito', 'Feito'), agir('adiar', 'Adiar 1 h'));
+    }
+    /** proposta tirada de uma transcrição (E9.11): nada é criado até aprovar */
+    let propostasAbertas = new Set();
+    function acoesDaProposta(n, project, reload) {
+        const achou = /^proposta:(\d+)$/.exec(n.ref || '');
+        if (!achou || !propostasAbertas.has(+achou[1])) return null;   // já decidida (ou o servidor não respondeu): sem botões
+        const agir = (acao, rotulo) => button(rotulo, async () => {
+            try { await api.decidirProposta(+achou[1], acao, project); await api.lerAviso(n.id, project).catch(() => {}); await reload(); }
+            catch (error) { status.textContent = error.message; }
+        });
+        return el('div', { class: 'extension-actions', dataset: { proposta: achou[1] } }, agir('aprovar', 'Aprovar'), agir('descartar', 'Descartar'));
+    }
     async function load() {
         const token = ++generation, project = scope(), source = api.base();
         if (!api.suporta('activity')) { status.textContent = 'Atividade ainda indisponível neste backend.'; return; }
         try {
             const data = await api.atividade(project, filter.value === 'unread');
+            propostasAbertas = new Set(await api.propostasAbertas().then(r => r.itens.map(x => x.id)).catch(() => []));
             if (token !== generation || project !== scope() || source !== api.base()) return;
             status.textContent = `${project ? O.projects.current().name : 'Pessoal'} · ${data.notifications.filter(n => !n.delivered_at).length} aviso(s) não lido(s)`;
             // Preferences affect optional notices. Decisions remain accessible.
             list.replaceChildren(...data.notifications.filter(n => filter.value !== 'pending' && (data.preferences[n.kind] !== false || filter.value === 'all')).map(n => el('article', { class: 'card fact-item', dataset: { notificationId: String(n.id) } },
                 el('h3', { text: n.kind }), el('p', { class: 'fact-text', text: n.text }),
                 el('p', { class: 'extension-hint', text: `${new Date(n.created_at * 1000).toLocaleString('pt-BR')} · ${n.delivered_at ? 'Lido' : 'Não lido'}` }),
-                decisoesDoSono(n, project, load),
+                decisoesDoSono(n, project, load), acoesDoLembrete(n, project, load), acoesDaProposta(n, project, load),
                 n.delivered_at ? null : button('Marcar como lido', async () => { try { await api.lerAviso(n.id, project); await load(); } catch (error) { status.textContent = error.message; } }))));
             decisions.replaceChildren(el('h3', { text: 'Aprovações pendentes' }), ...data.approvals.map(a => el('article', { class: 'card fact-item' },
                 el('p', { text: `${a.title} · ${a.tool}` }), el('p', { class: 'extension-hint', text: a.reason }),

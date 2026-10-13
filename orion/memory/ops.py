@@ -118,15 +118,29 @@ class Operations:
         return self._s.clock()
 
     # ── lembretes (aviso pontual, com hora) ───────────────────────────────
-    def add_reminder(self, title: str, due_at: str | float, note: str = "") -> dict[str, Any]:
+    def add_reminder(
+        self, title: str, due_at: str | float, note: str = "", insist_min: int = 0
+    ) -> dict[str, Any]:
+        """`insist_min` (E9.3): 0 avisa uma vez; de 5 a 1440, reavisa a cada N minutos até
+        ficar pronto."""
         titulo = title.strip()
         if not titulo:
             raise ValueError("informe o título do lembrete")
+        insist_min = int(insist_min)
+        if insist_min and not 5 <= insist_min <= 1440:
+            raise ValueError("insistir de 5 a 1440 minutos (0 avisa uma vez só)")
         with self._s.transaction() as c:
             rid = c.execute(
-                "INSERT INTO reminders(title, due_at, note, created_at, project_id) "
-                "VALUES (?,?,?,?,?)",
-                (titulo, parse_when(due_at), note, self._now(), current.get().project_id),
+                "INSERT INTO reminders(title, due_at, note, created_at, project_id, insist_min) "
+                "VALUES (?,?,?,?,?,?)",
+                (
+                    titulo,
+                    parse_when(due_at),
+                    note,
+                    self._now(),
+                    current.get().project_id,
+                    insist_min,
+                ),
             ).lastrowid
         return self._one("reminders", int(rid or 0))
 
@@ -146,6 +160,33 @@ class Operations:
                 (self._now() if now is None else now,),
             )
         )
+
+    def due_nudges(self, now: float | None = None) -> list[dict[str, Any]]:
+        """Insistentes já avisados, ainda não feitos, cujo intervalo passou desde o último aviso."""
+        return _dicts(
+            self._query(
+                "SELECT * FROM reminders WHERE done=0 AND notified=1 AND insist_min>0"
+                " AND COALESCE(last_nudge, due_at) + insist_min*60 <= ? ORDER BY due_at",
+                (self._now() if now is None else now,),
+            )
+        )
+
+    def mark_reminder_nudged(self, reminder_id: int, now: float | None = None) -> None:
+        self._update(
+            "reminders", reminder_id, "last_nudge=?", (self._now() if now is None else now,)
+        )
+
+    def snooze_reminder(self, reminder_id: int, minutes: int = 60) -> dict[str, Any]:
+        """Adiar (E9.3): volta a ser um lembrete novo daqui a `minutes`."""
+        if not 1 <= int(minutes) <= 1440:
+            raise ValueError("adiar de 1 a 1440 minutos")
+        self._update(
+            "reminders",
+            reminder_id,
+            "due_at=?, notified=0, last_nudge=NULL",
+            (self._now() + int(minutes) * 60,),
+        )
+        return self._one("reminders", reminder_id)
 
     def complete_reminder(self, reminder_id: int) -> dict[str, Any]:
         self._update("reminders", reminder_id, "done=1")

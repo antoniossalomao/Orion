@@ -52,6 +52,8 @@ def test_catalog_keyboard_permissions_skills_and_deactivate(
     tab = page.get_by_role("tab", name="Plugins", exact=True)
     tab.focus()
     page.keyboard.press("ArrowRight")
+    expect(page.get_by_role("tab", name="Catálogo", exact=True)).to_be_focused()  # E8: aba nova
+    page.keyboard.press("ArrowRight")
     expect(page.get_by_role("tab", name="Skills", exact=True)).to_be_focused()
     expect(page.get_by_role("button", name="Usar no chat")).to_be_visible()
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")

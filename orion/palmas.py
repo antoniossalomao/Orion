@@ -120,6 +120,7 @@ def acao_das_palmas(
     abrir_ponte: Callable[[], bool],
     abrir_navegador: Callable[[], object],
     bloqueado: Callable[[], str],
+    rotina: Callable[[str], object] | None = None,
 ) -> Callable[[], bool | None]:
     """A função que a escuta chama quando acontecem duas palmas. Devolve True se a escuta deve
     começar um turno de voz agora (`abrir_e_ouvir`), False se só abriu, None se estava bloqueada.
@@ -127,9 +128,20 @@ def acao_das_palmas(
     Regra 51: palma só **abre**. Nunca aprova nem executa ferramenta; o único efeito é abrir a
     interface (pela ponte, se houver, senão no navegador) e, se você pediu, ouvir uma fala.
     `bloqueado()` devolve o motivo ("pânico", "não perturbe") ou "" — nesses casos nada acontece.
-    `rotina:<nome>` só existe a partir da E9.1: até lá faz o mesmo que `abrir`.
+    `rotina:<nome>` (E9.1, regra 58) aciona uma rotina que você concedeu: a palma só dispara, e a
+    rotina segue as próprias regras (leitura e mídia direto; o resto pede aprovação).
     """
     ouvir = acao == "abrir_e_ouvir"
+    if acao.startswith("rotina:") and rotina is not None:
+        nome = acao[7:]
+
+        def ao_bater_rotina() -> bool | None:
+            if bloqueado():
+                return None
+            rotina(nome)
+            return False
+
+        return ao_bater_rotina
 
     def ao_bater() -> bool | None:
         if bloqueado():

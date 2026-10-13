@@ -64,7 +64,7 @@ def test_bundled_profile_two_skills_empty_and_contradictory_sources(monkeypatch,
             == "active"
         )
         skills = client.get("/skills", headers=AUTH).json()
-        assert len(skills) == 2 and all(skill["enabled"] for skill in skills)
+        assert len(skills) == 3 and all(skill["enabled"] for skill in skills)
         runtime = app.state.orion.skills
         assert not runtime.select("bom dia escreva um poema").skills
         for name in ["comparar-fontes", "pesquisar-assunto"]:

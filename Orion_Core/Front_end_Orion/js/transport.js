@@ -109,14 +109,14 @@
         hubAberto: () => hubAberto,
 
         /** @returns {'hub'|'sse'} por onde a mensagem foi — o chat usa para não duplicar o eco do hub */
-        enviar({ texto, modelo = 'auto', skills = [] }) {
+        enviar({ texto, modelo = 'auto', skills = [], skillSimples = null }) {
             const ponte = window.pywebview?.api;
             if (api.usarHub() && ponte?.process_command && hubAberto) {
                 // `ignorarHub` NÃO é limpo aqui: sobra de um pedido cancelado não entra na resposta nova
                 ponte.process_command(texto, modelo);
                 return 'hub';
             }
-            lerStream('/chat', { json: api.pedidoChat({ texto, modelo, skills }) }, 'O cérebro recusou o pedido');
+            lerStream('/chat', { json: api.pedidoChat({ texto, modelo, skills, skillSimples }) }, 'O cérebro recusou o pedido');
             return 'sse';
         },
 

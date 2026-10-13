@@ -232,6 +232,7 @@ def test_teclas_e_bandeja_so_registram_o_que_a_ponte_sabe_fazer():
     assert [t for t, _ in ponte.itens_da_bandeja()] == [
         "Abrir Orion",
         "Captura rápida",
+        "Posso desligar?",
         "Modo pânico",
         "Sair",
     ]

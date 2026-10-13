@@ -93,6 +93,11 @@ class Settings(BaseSettings):
     # Servidores MCP (fase 4): sobem do mcp.json (padrão: <dados>/mcp.json), só com gateway.
     mcp_enabled: bool = True
     mcp_config: Path | None = None
+    # Catálogos remotos de plugins (regra 57): URLs https que VOCÊ cadastra, separadas por ";"
+    # (até 5). Vazio: só o catálogo local (<dados>/catalogo). O pedido ao índice sai do computador.
+    plugin_catalogs: str = ""
+    # acima disto, o modelo vê só o índice das ferramentas MCP e `procurar_ferramenta` (regra 55)
+    mcp_index_at: int = Field(default=30, ge=1, le=1000)
     # Voz no Telegram: transcrição por API compatível com a da OpenAI (Whisper no Groq, grátis).
     transcribe_api_key: str = ""  # ou no cofre do SO (ORION_TRANSCRIBE_API_KEY); vazio: sem voz
     transcribe_url: str = "https://api.groq.com/openai/v1"
@@ -143,6 +148,12 @@ class Settings(BaseSettings):
     # ninguém olhando. Liga com o e-mail da conta; a ferramenta precisa ser `read` no mcp.json.
     briefing_calendar_email: str = ""
     briefing_calendar_tool: str = "google__get_events"
+    # E9 (regras 58-60). `repos`: pastas conferidas por "posso desligar?" (separe com ;).
+    repos: Annotated[list[Path], NoDecode] = Field(default_factory=list)
+    # Históricos locais (regra 60): só no computador, com retenção e opt-in. 0 = desligado.
+    clipboard_days: int = Field(default=0, ge=0, le=90)
+    command_history: bool = False
+    telegram_voice_reply: bool = False  # E9.10: quem manda voz no Telegram recebe voz de volta
     # Memória da tela (regra 44): OCR local da tela, só texto, retenção curta. Opt-in.
     screen_memory: bool = False
     screen_interval_s: int = Field(default=300, ge=60, le=3600)
@@ -230,6 +241,16 @@ class Settings(BaseSettings):
             return (
                 json.loads(v) if v.startswith("[") else [int(x) for x in v.split(",") if x.strip()]
             )
+        return v
+
+    @field_validator("repos", mode="before")
+    @classmethod
+    def _pastas_dos_repos(cls, v: object) -> object:
+        if isinstance(v, str):
+            v = v.strip()
+            if v.startswith("["):
+                return json.loads(v)
+            return [x.strip() for x in v.replace("\n", ";").split(";") if x.strip()]
         return v
 
     @field_validator("wake_words", mode="before")
@@ -357,6 +378,10 @@ class Settings(BaseSettings):
     @property
     def effective_plugins_dir(self) -> Path:
         return self.plugins_dir or self.data_dir / "plugins"
+
+    @property
+    def effective_catalog_dir(self) -> Path:
+        return self.data_dir / "catalogo"
 
     @property
     def effective_skills_dir(self) -> Path:

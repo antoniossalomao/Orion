@@ -63,7 +63,9 @@ def _set_password(settings: Settings, *, from_stdin: bool) -> int:
     return 0
 
 
-def _transcrever(settings: Settings, alvo: str, titulo: str, sim: bool) -> int:
+def _transcrever(
+    settings: Settings, alvo: str, titulo: str, sim: bool, propor: bool = False
+) -> int:
     from . import saidas
     from .app import transcriber_from_settings
     from .capture import Capturer
@@ -105,6 +107,42 @@ def _transcrever(settings: Settings, alvo: str, titulo: str, sim: bool) -> int:
         saidas.definir_destino(None)
         store.close()
     print(f"nota criada: {nota.name}")
+    if propor:
+        return _propor_da_nota(settings, nota, sim)
+    return 0
+
+
+def _propor_da_nota(settings: Settings, nota: Path, sim: bool) -> int:
+    """E9.11: o texto transcrito vai ao modelo, que propõe tarefas, lembretes e fatos. Cada item
+    vira um aviso na caixa de atividade para aprovar ou descartar; nada é criado aqui."""
+    import asyncio
+
+    from . import saidas
+    from .app import gateway_from_settings
+    from .memory import MemoryStore
+    from .memory.ops import Operations
+    from .propostas import Propostas, extrair
+
+    gateway = gateway_from_settings(settings)
+    if gateway is None:
+        print("sem modelo configurado: a nota ficou, mas não há propostas", file=sys.stderr)
+        return 0
+    aviso = (
+        "O TEXTO transcrito será enviado ao modelo de chat para extrair tarefas. Continuar? [s/N] "
+    )
+    if not sim and input(aviso).strip().lower() != "s":
+        print("nenhuma proposta foi pedida")
+        return 0
+    store = MemoryStore(settings.db_path)
+    saidas.definir_destino(store.add_external_call)
+    try:
+        texto = nota.read_text(encoding="utf-8", errors="replace")
+        itens = asyncio.run(extrair(gateway, texto))
+        ids = Propostas(store, Operations(store)).guardar(nota.stem, itens)
+    finally:
+        saidas.definir_destino(None)
+        store.close()
+    print(f"{len(ids)} proposta(s) na caixa de atividade (Atividade → Aprovar ou Descartar)")
     return 0
 
 
@@ -254,6 +292,263 @@ def _mcp_check(config: Path) -> int:
         gerente.stop()
 
 
+def _mcp_servidor(settings: Settings, args: argparse.Namespace) -> int:
+    """O Orion como servidor MCP só de leitura (E7.7, regra 56). Em modo servidor, stdout é do
+    protocolo: tudo que for mensagem humana sai em stderr."""
+    import os
+
+    from .mcp_servidor import ENV_TOKEN, gerar_token, revogar, servir
+    from .memory import MemoryStore
+
+    store = MemoryStore(settings.db_path)
+    try:
+        if args.token:
+            token = gerar_token(store)
+            print(
+                "Token gerado (aparece só agora; o anterior deixou de valer):\n\n"
+                f"  {token}\n\n"
+                "Claude Code:\n"
+                f"  claude mcp add orion -e {ENV_TOKEN}={token} -- orion mcp-servidor\n"
+                "Codex (~/.codex/config.toml):\n"
+                '  [mcp_servers.orion]\n  command = "orion"\n  args = ["mcp-servidor"]\n'
+                f'  env = {{ {ENV_TOKEN} = "{token}" }}'
+            )
+            return 0
+        if args.revogar:
+            print("token revogado" if revogar(store) else "não havia token")
+            return 0
+        return servir(store, os.environ.get(ENV_TOKEN), settings.effective_skills_dir)
+    finally:
+        store.close()
+
+
+def _rotina(settings: Settings, args: argparse.Namespace) -> int:
+    """Rotinas suas (E9.1, regra 58): listar, exemplo, conceder, revogar e executar."""
+
+    from .memory import MemoryStore
+    from .rotinas import EXEMPLO_BOM_DIA, RotinaStore
+
+    pasta = settings.data_dir / "rotinas"
+    store = MemoryStore(settings.db_path)
+    try:
+        rotinas = RotinaStore(pasta, store)
+        if args.acao == "exemplo":
+            pasta.mkdir(parents=True, exist_ok=True)
+            alvo = pasta / "bom-dia.yaml"
+            if alvo.exists():
+                print(f"{alvo} já existe; nada foi trocado")
+                return 1
+            alvo.write_text(EXEMPLO_BOM_DIA, encoding="utf-8")
+            print(
+                f"exemplo gravado em {alvo}\nleia o arquivo e rode: orion rotina conceder bom-dia"
+            )
+            return 0
+        if args.acao == "listar":
+            lista = rotinas.listar()
+            for c in lista:
+                extra = f" — ERRO: {c.erro}" if c.erro else ""
+                print(f"{c.nome}: {c.estado.replace('_', ' ')}{extra}")
+            if not lista:
+                print(f"nenhuma rotina em {pasta} (orion rotina exemplo cria uma)")
+            return 0
+        if not args.nome:
+            print("faltou o nome da rotina", file=sys.stderr)
+            return 1
+        if args.acao == "conceder":
+            c = rotinas.obter(args.nome)
+            if c is None or c.rotina is None:
+                print(
+                    f"rotina '{args.nome}' não existe ou tem erro: {c.erro if c else ''}",
+                    file=sys.stderr,
+                )
+                return 1
+            print(f"A rotina '{c.nome}' vai poder rodar SEM perguntar:")
+            for i, p in enumerate(c.rotina.passos, 1):
+                print(
+                    f"  {i}. {p.ferramenta or ('falar: ' + p.falar if p.falar else 'briefing')}"
+                    f"{' ' + str(p.argumentos) if p.argumentos else ''}"
+                )
+            print(f"liberar: {', '.join(c.rotina.liberar) or 'nada'}. O resto pede aprovação.")
+            if not args.sim and input("Conceder? [s/N] ").strip().lower() != "s":
+                print("nada foi concedido")
+                return 1
+            rotinas.conceder(args.nome)
+            print("concedida (vale enquanto o arquivo não mudar)")
+            return 0
+        if args.acao == "revogar":
+            print("concessão revogada" if rotinas.revogar(args.nome) else "não havia concessão")
+            return 0
+        print(
+            "para executar: com o Orion no ar, /rotina no Telegram, a frase no chat ou "
+            "POST /rotinas/<nome>/executar",
+            file=sys.stderr,
+        )
+        return 1
+    finally:
+        store.close()
+
+
+def _converter(settings: Settings, args: argparse.Namespace) -> int:
+    """E9.9: converte um arquivo no computador e guarda a cópia na biblioteca de resultados."""
+    from .conversor import ConversaoError, converter_e_guardar, formatos_para
+    from .memory import MemoryStore
+    from .resultados import Library
+
+    origem = Path(args.arquivo).expanduser()
+    if args.formato == "?":
+        lista = formatos_para(origem.suffix)
+        print(", ".join(lista) if lista else "não sei converter esse tipo de arquivo")
+        return 0 if lista else 1
+    store = MemoryStore(settings.db_path)
+    try:
+        saida = Path(args.saida).expanduser() if args.saida else settings.data_dir / "conversoes"
+        try:
+            r = converter_e_guardar(
+                origem, args.formato, saida, Library(store, settings.data_dir / "resultados")
+            )
+        except ConversaoError as e:
+            print(f"não converteu: {e}", file=sys.stderr)
+            return 1
+    finally:
+        store.close()
+    print(f"pronto: {r['arquivo']}")
+    if r["biblioteca"]:
+        print(f"cópia na biblioteca de resultados (id {r['biblioteca']['id']})")
+    return 0
+
+
+def _posso_desligar(settings: Settings, args: argparse.Namespace) -> int:
+    """E9.5: o que ficaria pela metade se o computador desligasse agora (só lê)."""
+    from .desligar import posso_desligar, texto
+    from .memory import MemoryStore
+
+    store = MemoryStore(settings.db_path)
+    try:
+        rodando = [
+            {"status": "rodando", "objective": str(r[0])}
+            for r in store.query("SELECT objective FROM background_tasks WHERE status='rodando'")
+        ]
+    finally:
+        store.close()
+    r = posso_desligar(
+        repos=list(settings.repos),
+        backup_dir=settings.effective_backup_dir,
+        downloads_dir=Path.home() / "Downloads",
+        tarefas=rodando,
+    )
+    print(texto(r))
+    return 0 if r["pode"] else 1
+
+
+def _downloads(settings: Settings, args: argparse.Namespace) -> int:
+    """Organizador de Downloads com regras suas (E9.4, regra 58)."""
+    from .downloads import EXEMPLO, Downloads
+    from .memory import MemoryStore
+    from .policy import PathGuard
+    from .policy.paths import default_safe_roots
+
+    store = MemoryStore(settings.db_path)
+    try:
+        d = Downloads(
+            settings.data_dir / "regras_downloads.yaml",
+            store,
+            PathGuard(
+                protected_roots=(Path(__file__).resolve().parents[1],),
+                safe_roots=(*default_safe_roots(), *settings.extra_safe_roots),
+            ),
+        )
+        if args.acao == "exemplo":
+            if d.arquivo.exists():
+                print(f"{d.arquivo} já existe; nada foi trocado")
+                return 1
+            d.arquivo.parent.mkdir(parents=True, exist_ok=True)
+            d.arquivo.write_text(EXEMPLO, encoding="utf-8")
+            print(f"exemplo gravado em {d.arquivo}\nleia e rode: orion downloads conceder")
+            return 0
+        if args.acao == "estado":
+            e = d.estado()
+            print(f"{e['arquivo']}: {e['estado'].replace('_', ' ')}, {e['regras']} regra(s)")
+            if e["erro"]:
+                print(f"ERRO: {e['erro']}")
+            for m in d.historico(10):
+                print(f"  {'(desfeito) ' if m['desfeito'] else ''}{m['de']} -> {m['para']}")
+            return 0
+        if args.acao == "conceder":
+            if (
+                not args.sim
+                and input("As regras vão mover arquivos SEM perguntar. Conceder? [s/N] ")
+                .strip()
+                .lower()
+                != "s"
+            ):
+                print("nada foi concedido")
+                return 1
+            d.conceder()
+            print("concedido (vale enquanto o arquivo de regras não mudar)")
+            return 0
+        if args.acao == "revogar":
+            print("concessão revogada" if d.revogar() else "não havia concessão")
+            return 0
+        if args.acao == "desfazer":
+            r = d.desfazer("hoje" if args.hoje else "ultimo")
+            print(f"{len(r['desfeitos'])} desfeito(s)")
+            for p in r["pulados"]:
+                print(f"  pulado — {p}")
+            return 0
+        r = d.rodar(simular=args.simular)
+        quando = "a mover" if args.simular else "movido(s)"
+        print(f"{r.status}: {len(r.movidos)} {quando}, {r.ficaram} ficaram")
+        for m in r.movidos:
+            print(f"  {m['de']} -> {m['para']}")
+        for x in r.recusados:
+            print(f"  recusado — {x}")
+        return 0 if r.status == "ok" else 1
+    except ValueError as e:
+        print(e, file=sys.stderr)
+        return 1
+    finally:
+        store.close()
+
+
+def _estilo(settings: Settings, args: argparse.Namespace) -> int:
+    """Skill `estilo-antonio` a partir dos seus repositórios (E7.8). Nasce desativada."""
+    from . import saidas
+    from .delegate import Delegator
+    from .estilo import EstiloError, ativar, gerar, pendente
+    from .memory import MemoryStore
+
+    pasta = settings.effective_skills_dir
+    try:
+        if args.ativar:
+            print(f"skill ativada: {ativar(pasta)}")
+            return 0
+        if not args.repos:
+            print("informe as pastas dos repositórios (ou --ativar)", file=sys.stderr)
+            return 1
+        pergunta = (
+            f"O código de {len(args.repos)} repositório(s) será LIDO pela CLI da sua assinatura "
+            f"({args.agente}) e o resumo volta para uma skill. Continuar? [s/N] "
+        )
+        if not args.sim and input(pergunta).strip().lower() != "s":
+            print("nada foi enviado")
+            return 1
+        store = MemoryStore(settings.db_path)
+        saidas.definir_destino(store.add_external_call)  # o código sai do computador (regra 47)
+        try:
+            arquivo = gerar([Path(r) for r in args.repos], Delegator(store), pasta, args.agente)
+        finally:
+            saidas.definir_destino(None)
+            store.close()
+    except EstiloError as e:
+        print(e, file=sys.stderr)
+        return 1
+    print(
+        f"skill PENDENTE (desativada) gravada em {pendente(pasta).parent}\n"
+        f"leia {arquivo} e, se concordar, rode: orion estilo --ativar"
+    )
+    return 0
+
+
 def _wake_test(settings: Settings, *, listar: bool, segundos: int) -> int:
     """Diagnóstico da escuta: mostra o nível do microfone e avisa quando a palavra é ouvida.
     Não usa agente, não fala com a rede e não grava nada."""
@@ -329,6 +624,36 @@ def main(argv: list[str] | None = None) -> int:
         "mcp-check", help="sobe os servidores do mcp.json e mostra as ferramentas e suas classes"
     )
     mc.add_argument("--config", type=Path, default=None, help="padrão: <dados>/mcp.json")
+    ms = sub.add_parser(
+        "mcp-servidor",
+        help="o Orion como servidor MCP só de leitura (stdio) para o Claude Code ou o Codex",
+    )
+    ms.add_argument("--token", action="store_true", help="gera um token novo (revoga o anterior)")
+    ms.add_argument("--revogar", action="store_true", help="revoga o token: nada mais lê")
+    cv = sub.add_parser("converter", help="converte um arquivo no computador (use '?' de formato)")
+    cv.add_argument("arquivo")
+    cv.add_argument("formato", help="pdf, docx, mp3, png, comprimir… ou ? para ver as opções")
+    cv.add_argument("--saida", default="", help="pasta de saída (padrão: <dados>/conversoes)")
+    sub.add_parser("posso-desligar", help="o que ficaria pela metade se desligasse agora")
+    dl = sub.add_parser("downloads", help="organizador de Downloads com as suas regras")
+    dl.add_argument(
+        "acao", choices=("exemplo", "estado", "conceder", "revogar", "rodar", "desfazer")
+    )
+    dl.add_argument("--simular", action="store_true", help="rodar: só mostra o que moveria")
+    dl.add_argument("--hoje", action="store_true", help="desfazer: tudo de hoje (padrão: o último)")
+    dl.add_argument("--sim", action="store_true", help="conceder sem perguntar")
+    rt = sub.add_parser("rotina", help="suas rotinas: listar, exemplo, conceder, revogar")
+    rt.add_argument("acao", choices=("listar", "exemplo", "conceder", "revogar"))
+    rt.add_argument("nome", nargs="?")
+    rt.add_argument("--sim", action="store_true", help="não pergunta antes de conceder")
+    es = sub.add_parser(
+        "estilo",
+        help="gera a skill estilo-antonio lendo seus repositórios (nasce desativada)",
+    )
+    es.add_argument("repos", nargs="*", help="pastas dos repositórios")
+    es.add_argument("--agente", default="claude", choices=("claude", "codex", "gemini"))
+    es.add_argument("--ativar", action="store_true", help="ativa a skill pendente revisada")
+    es.add_argument("--sim", action="store_true", help="não pergunta antes de enviar o código")
     wt = sub.add_parser(
         "wake-test",
         help="testa o microfone e a palavra de ativação (sem agente, sem rede, sem gravar nada)",
@@ -348,6 +673,11 @@ def main(argv: list[str] | None = None) -> int:
     tr.add_argument("arquivo", help="arquivo local, ou um link http(s) (precisa do yt-dlp)")
     tr.add_argument("--titulo", default="", help="título da nota (padrão: nome do arquivo)")
     tr.add_argument("--sim", action="store_true", help="não pergunta antes de enviar o áudio")
+    tr.add_argument(
+        "--propor",
+        action="store_true",
+        help="depois, o modelo propõe tarefas, lembretes e fatos (você aprova na Atividade)",
+    )
     po = sub.add_parser(
         "ponte", help="ponte de desktop: bandeja e teclas globais (pip install 'orion[ponte]')"
     )
@@ -449,7 +779,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.cmd == "transcrever":
-        return _transcrever(settings, args.arquivo, args.titulo, args.sim)
+        return _transcrever(settings, args.arquivo, args.titulo, args.sim, args.propor)
 
     if args.cmd == "fatos":
         from .memory import MemoryStore
@@ -517,6 +847,22 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.cmd == "wake-test":
         return _wake_test(settings, listar=args.listar, segundos=args.segundos)
+
+    if args.cmd == "converter":
+        return _converter(settings, args)
+    if args.cmd == "posso-desligar":
+        return _posso_desligar(settings, args)
+    if args.cmd == "downloads":
+        return _downloads(settings, args)
+
+    if args.cmd == "rotina":
+        return _rotina(settings, args)
+
+    if args.cmd == "estilo":
+        return _estilo(settings, args)
+
+    if args.cmd == "mcp-servidor":
+        return _mcp_servidor(settings, args)
 
     if args.cmd == "mcp-check":
         return _mcp_check(args.config or settings.effective_mcp_config)

@@ -9,6 +9,7 @@ import json
 import logging
 import re
 import shutil
+import tempfile
 import threading
 import time
 import uuid
@@ -35,7 +36,7 @@ from fastapi import (
 from fastapi import Path as PathParam
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
@@ -45,14 +46,20 @@ from .agent import Agent, AgentEvent
 from .artifacts import ArtifactError
 from .artifacts import router as artifact_router
 from .auth import AuthError, AuthService, LockedOut, NotConfigured, WeakPassword
+from .briefing import build_briefing
 from .capabilities import Capabilities, describe
 from .captura_rapida import router as captura_router
 from .capture import Capturer
 from .channels import TelegramChannel
 from .config import PROJECT_ROOT, Settings
+from .conversor import ConversaoError, converter_e_guardar
 from .costs import Custos, cotas_de
 from .delegate import Delegator
+from .desligar import posso_desligar
+from .desligar import texto as texto_desligar
+from .downloads import Downloads
 from .extensions.catalog import Catalog
+from .extensions.catalogo import Catalogos, urls_validas
 from .extensions.context import ContextReader, ContextRequest
 from .extensions.host import MCPError, MCPHost
 from .extensions.manager import PluginManager
@@ -63,9 +70,14 @@ from .extensions.skills import SkillError
 from .fact_routes import router as fact_router
 from .gateway import CAMADA_LOCAL, ChatGateway, Endpoint
 from .grafo_routes import router as grafo_router
+from .historicos import Historicos
+from .historicos import ferramentas as historicos_tools
 from .jobs import JobRunner
+from .ler_depois import LerDepois, LerDepoisError
 from .log import request_id
-from .mcp_client import McpConfigError, McpManager, manager_from_file
+from .mcp_client import SPEC_RECURSO, McpConfigError, McpManager, manager_from_file
+from .mcp_indice import SPEC as INDICE_SPEC
+from .mcp_indice import Indice
 from .memory import MemoryStore
 from .memory.compact import Compactor
 from .memory.consolidate import Consolidator
@@ -85,9 +97,12 @@ from .ponte.rotas import rota_permitida as rota_da_ponte_permitida
 from .ponte.rotas import router as ponte_router
 from .project_routes import router as project_router
 from .projects import ProjectError
+from .propostas import PropostaError, Propostas
 from .provedores import chave_env
 from .research import Research
-from .resultados import PREVIA_IMAGEM, PREVIA_TEXTO, Library
+from .resultados import PREVIA_IMAGEM, PREVIA_PDF, PREVIA_TEXTO, Library, nome_seguro
+from .rotinas import Executor as ExecutorRotinas
+from .rotinas import RotinaStore
 from .screen_memory import (
     ScreenMemory,
     app_em_foco,
@@ -101,6 +116,7 @@ from .screen_memory import (
 from .secrets import get_secret
 from .skills import TOOL_SPEC as SKILL_SPEC
 from .skills import SkillCatalog, skill_tool
+from .tarefas_bg import TarefaBgError, TarefasBg
 from .tools import default_registry
 from .tools.processes import ProcessManager
 from .tools.registry import ToolRegistry
@@ -128,6 +144,7 @@ FRONT_DIR = PROJECT_ROOT / "Orion_Core" / "Front_end_Orion"
 
 audit_log = logging.getLogger("orion.audit")
 log = logging.getLogger("orion.app")
+MAX_ENVIO_TELEGRAM = 50 * 1024 * 1024  # limite de envio de arquivo por bot
 MAX_TEXTO_DOCUMENTO = 2_000_000  # caracteres indexados por documento enviado
 
 
@@ -173,6 +190,14 @@ class AppState:
     biblioteca: Library | None = None  # resultados gerados (C34)
     modos: Modos | None = None  # pânico e não perturbe (regra 48)
     custos: Custos | None = None  # cota gratuita (regra 46)
+    downloads: Downloads | None = None  # organizador de Downloads (regra 58)
+    historicos: Historicos | None = None  # área de transferência e comandos (regra 60)
+    ler_depois: LerDepois | None = None  # links para ler depois (E9.8)
+    rotinas: RotinaStore | None = None  # rotinas suas e concedidas (regra 58)
+    executor_rotinas: ExecutorRotinas | None = None
+    tarefas_bg: Any = None  # TarefasBg (regra 59); None sem agente
+    pesquisa: Any = None  # NightResearch (regra 39); None sem agente, ORION_WEB_TOOLS ou vault
+    tarefas_pesquisa: Any = None  # a tarefa do `rodar agora` (guarda a referência)
     ponte: PonteHub = field(default_factory=PonteHub)  # ponte de desktop (regra 50)
 
 
@@ -625,6 +650,7 @@ def _iniciar_escuta(
     *,
     ponte: PonteHub | None = None,
     modos: Modos | None = None,
+    rotinas: ExecutorRotinas | None = None,
 ) -> tuple[tuple[WakeListener | None], str]:
     """Sobe a escuta (palavra de ativação e/ou duas palmas) numa thread. Devolve `((escuta,),
     motivo)`: o motivo explica por que não subiu (aparece no painel). A fala gravada segue o mesmo
@@ -686,6 +712,15 @@ def _iniciar_escuta(
             abrir_ponte=lambda: bool(ponte and ponte.enviar({"cmd": "abrir", "rota": "#/chat"})),
             abrir_navegador=abrir_navegador,
             bloqueado=bloqueio,
+            rotina=(
+                (
+                    lambda nome: asyncio.run_coroutine_threadsafe(
+                        rotinas.executar(nome, "palmas"), loop
+                    )
+                )
+                if rotinas is not None
+                else None
+            ),
         )
         if settings.clap_enabled
         else None
@@ -725,6 +760,8 @@ class Mensagem(BaseModel):
     contexto: list[ContextRequest] = Field(default_factory=list, max_length=8)
     skills: list[str] = Field(default_factory=list, max_length=3)
     referencias: list[SkillReference] = Field(default_factory=list, max_length=8)
+    # skill do catálogo simples (`orion/skills.py`) carregada à força no começo do turno (E7.6)
+    skill: str | None = Field(default=None, pattern=r"^[a-z0-9][a-z0-9-]{0,63}$")
 
 
 class PedidoEditado(BaseModel):
@@ -754,25 +791,126 @@ class Retomada(BaseModel):
     canal: str = Field(default="web", pattern=_CANAL)
 
 
+class LimparResultados(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    manter: int = Field(ge=1, le=1000)
+    nome: str | None = Field(default=None, min_length=1, max_length=120)
+    simular: bool = False
+
+
+def _converter_do_telegram(
+    settings: Settings, biblioteca: Library, nome: str, dados: bytes, formato: str
+) -> tuple[str, bytes]:
+    """E9.9: o arquivo mandado pelo Telegram vai para uma pasta temporária, é convertido no
+    computador e a cópia fica na biblioteca de resultados; só o convertido volta."""
+    base = settings.data_dir / "conversoes"
+    base.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="tg-", dir=base) as tmp:
+        origem = Path(tmp) / nome_seguro(nome)
+        origem.write_bytes(dados)
+        r = converter_e_guardar(origem, formato, Path(tmp) / "saida", biblioteca)
+        arquivo = r["arquivo"]
+        if arquivo.stat().st_size > MAX_ENVIO_TELEGRAM:
+            raise ConversaoError("o resultado passa de 50 MB (limite do Telegram)")
+        return arquivo.name, arquivo.read_bytes()
+
+
+def _conferir_desligar(settings: Settings, tarefas_bg: Any, downloads: Any) -> dict[str, Any]:
+    """E9.5: lê o que ficaria pela metade (repositórios, tarefa, backup, downloads)."""
+    pasta = (
+        Path(downloads.estado()["pasta"]) if downloads is not None else Path.home() / "Downloads"
+    )
+    return posso_desligar(
+        repos=list(settings.repos),
+        backup_dir=settings.effective_backup_dir,
+        downloads_dir=pasta,
+        tarefas=tarefas_bg.listar() if tarefas_bg is not None else [],
+    )
+
+
+class LinkLerDepois(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    url: str = Field(min_length=8, max_length=2000)
+
+
+class AreaTexto(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    texto: str = Field(min_length=1, max_length=20_000)
+
+
+class DesfazerDownloads(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    escopo: str = Field(default="ultimo", pattern="^(ultimo|hoje)$")
+
+
+class FraseRotina(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    texto: str = Field(min_length=1, max_length=200)
+
+
+class TarefaBgPedido(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    objetivo: str = Field(min_length=1, max_length=500)
+    max_passos: int = Field(default=10, ge=1, le=30)
+    max_min: int = Field(default=10, ge=1, le=30)
+
+
+class PropostaDecisao(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    acao: str = Field(pattern="^(aceitar|descartar)$")
+
+
+class PromptMcp(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    argumentos: dict[str, str] = Field(default_factory=dict, max_length=20)
+
+
+class AssuntosPesquisa(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    assuntos: list[str] = Field(max_length=20)
+
+
+async def _turno_de_rotina(state: AppState, nome: str) -> AsyncIterator[AgentEvent]:
+    """A frase de uma rotina concedida roda a rotina em vez de ir ao modelo (regra 58)."""
+    assert state.executor_rotinas is not None
+    r = await state.executor_rotinas.executar(nome, "frase")
+    icone = {"concluida": "✅", "aguardando_aprovacao": "⏸", "recusada": "⛔"}.get(r.status, "⚠️")
+    texto = f"{icone} Rotina {nome}: {r.status.replace('_', ' ')}"
+    yield AgentEvent("text", {"text": texto + (f" — {r.motivo}" if r.motivo else "")})
+    a = state.policy.approvals.get(r.aprovacao_id) if r.aprovacao_id else None
+    if a is not None:
+        yield AgentEvent(
+            "approval",
+            {
+                "id": a.id,
+                "tool": a.tool,
+                "reason": a.reason,
+                "args": redact(a.args, limite=2000),
+                "args_truncated": False,
+            },
+        )
+    yield AgentEvent("done", {"provenance": {"rotina": nome, "passos": r.passos}})
+
+
 def _iso(ts: float) -> str:
     return datetime.fromtimestamp(ts, UTC).isoformat()
 
 
 def _pesquisa_noturna(settings: Settings, agent: Any, memory: MemoryStore) -> Any:
-    """Só liga com hora, assuntos, agente, ferramentas de web e vault: tudo escolhido por você."""
-    from .research import NightResearch, parse_assuntos
+    """Só existe com agente, ferramentas de web e vault: tudo escolhido por você. Sem hora
+    (`ORION_RESEARCH_AT`) ela não roda sozinha, só no `rodar agora` da interface. Os assuntos
+    são os editados na interface (E6.5) ou, na falta deles, `ORION_RESEARCH_TOPICS`."""
+    from .research import NightResearch, assuntos_salvos
 
-    assuntos = parse_assuntos(settings.research_topics)
-    if not (settings.research_at and assuntos):
-        return None
     if agent is None or not settings.web_tools or settings.vault_dir is None:
-        log.warning("pesquisa noturna pedida, mas faltam gateway, ORION_WEB_TOOLS ou o vault")
+        if settings.research_at:
+            log.warning("pesquisa noturna pedida, mas faltam gateway, ORION_WEB_TOOLS ou o vault")
         return None
     return NightResearch(
         memory=memory,
         run_turn=lambda canal, texto: agent.run(canal, texto, read_only=True),
         capturer=Capturer(settings.vault_dir, settings.capture_folder),
-        assuntos=assuntos,
+        assuntos=lambda: assuntos_salvos(memory, settings.research_topics)[0],
         at=settings.research_at,
         clock=time.time,
     )
@@ -1021,8 +1159,10 @@ def create_app(
             gateway.orcamento = lambda ep: custos.no_orcamento(ep.provedor)
         transcriber = (transcriber_factory or transcriber_from_settings)(settings)
         tela = (screen_factory or screen_from_settings)(settings, memory)
+        historicos = Historicos(memory)
         biblioteca = Library(memory, settings.data_dir / "resultados")
         agent = None
+        indice = None
         mcp = None
         delegador: Delegator | None = None
         processos: ProcessManager | None = None
@@ -1034,6 +1174,13 @@ def create_app(
             if mcp is not None:
                 for spec in mcp.specs.values():
                     policy.register_tool(spec)
+            indice = Indice(mcp_tools, settings.mcp_index_at)  # só as de servidor MCP (E7.4)
+            if indice.ativo:
+                policy.register_tool(INDICE_SPEC)
+                mcp_tools = [*mcp_tools, indice.tool()]
+            if mcp is not None and mcp.recursos_ativos():
+                policy.register_tool(SPEC_RECURSO)
+                mcp_tools = [*mcp_tools, mcp.tool_recurso()]
             if settings.desktop_tools:
                 processos = ProcessManager(settings.data_dir / "processos")
             skills = (
@@ -1049,6 +1196,15 @@ def create_app(
             if skills is not None and skills.skills:
                 policy.register_tool(SKILL_SPEC)
                 mcp_tools = [*mcp_tools, skill_tool(skills)]
+            mcp_tools = [
+                *mcp_tools,
+                *historicos_tools(
+                    historicos,
+                    policy.tools,
+                    area=settings.clipboard_days > 0,
+                    comandos=settings.command_history,
+                ),
+            ]
             agent = Agent(
                 gateway=gateway,
                 tools=default_registry(
@@ -1094,8 +1250,42 @@ def create_app(
                 library=biblioteca,
                 modos=modos,
                 compactor=compactor_from_settings(settings, memory),
+                servidor_mcp=getattr(mcp, "servidor_de", None),
+                mcp_indice=indice,
             )
         jobs, tarefa_jobs, agenda = None, None, None
+        pesquisa = _pesquisa_noturna(settings, agent, memory)
+        downloads = Downloads(
+            settings.data_dir / "regras_downloads.yaml", memory, policy.path_guard
+        )
+        ler_depois = LerDepois(
+            memory,
+            vault_dir=settings.vault_dir,
+            web=settings.web_tools,
+            gateway=gateway,
+            modos=modos,
+        )
+        rotinas = RotinaStore(settings.data_dir / "rotinas", memory)
+        executor_rotinas = ExecutorRotinas(
+            store=rotinas,
+            tools=agent.tools if agent is not None else ToolRegistry([]),
+            policy=policy,
+            memory=memory,
+            ops=ops,
+            briefing=lambda: build_briefing(ops, time.time(), agenda=agenda),
+            modos=modos,
+        )
+        tarefas_bg = (
+            TarefasBg(
+                memory=memory,
+                ops=ops,
+                run_turn=lambda canal, texto: agent.run(canal, texto, read_only=True),
+                custos=custos,
+                modos=modos,
+            )
+            if agent is not None
+            else None
+        )
         if settings.jobs_enabled:
             consolidador = (
                 Consolidator(memory, gateway)
@@ -1109,7 +1299,6 @@ def create_app(
                 call=mcp.call if mcp is not None else _sem_mcp,
                 audit=ops.audit_add,
             )
-            pesquisa = _pesquisa_noturna(settings, agent, memory)
             sono = (
                 SleepCycle(
                     memory,
@@ -1134,6 +1323,10 @@ def create_app(
                 research=pesquisa,
                 sleep=sono,
                 screen=tela,
+                downloads=downloads,
+                historicos=historicos,
+                clipboard_days=settings.clipboard_days,
+                command_history=settings.command_history,
                 weekly_ai=(
                     gateway
                     if settings.weekly_ai and gateway is not None and hasattr(gateway, "complete")
@@ -1182,6 +1375,12 @@ def create_app(
         extensions = PluginManager(
             settings.data_dir / "extensions", skill_runtime, mcp_host, catalog, policy
         )
+        try:
+            urls_catalogo = urls_validas(settings.plugin_catalogs)
+        except ValueError as e:
+            log.warning("ORION_PLUGIN_CATALOGS ignorado: %s", e)
+            urls_catalogo = []
+        extensions.catalogos = Catalogos(settings.effective_catalog_dir, urls_catalogo)
         voz_stats = VozStats()
         ponte_hub = PonteHub()
         speaker = (speaker_factory or speaker_from_settings)(settings)
@@ -1196,6 +1395,7 @@ def create_app(
             wake_factory or wake_from_settings,
             ponte=ponte_hub,
             modos=modos,
+            rotinas=executor_rotinas,
         )
         tarefa_modos = asyncio.create_task(_vigiar_modos(modos, escuta[0]))
         painel = Painel(
@@ -1225,6 +1425,17 @@ def create_app(
             telegram.modos = modos
             telegram.tela = lambda acao: comando_tela(tela, memory, acao)
             telegram.agenda = agenda
+            telegram.rotinas = rotinas
+            telegram.ler_depois = ler_depois
+            if settings.telegram_voice_reply:
+                telegram.speaker = EdgeSpeaker(settings.voice_tts_voice)
+            telegram.converter = lambda nome, dados, formato: _converter_do_telegram(
+                settings, biblioteca, nome, dados, formato
+            )
+            telegram.desligar = lambda: texto_desligar(
+                _conferir_desligar(settings, tarefas_bg, downloads)
+            )
+            telegram.executar_rotina = executor_rotinas.executar
         app.state.orion = AppState(
             settings,
             memory,
@@ -1255,6 +1466,13 @@ def create_app(
             biblioteca=biblioteca,
             modos=modos,
             custos=custos,
+            pesquisa=pesquisa,
+            tarefas_bg=tarefas_bg,
+            downloads=downloads,
+            historicos=historicos,
+            ler_depois=ler_depois,
+            rotinas=rotinas,
+            executor_rotinas=executor_rotinas,
             ponte=ponte_hub,
         )
         try:
@@ -1268,6 +1486,9 @@ def create_app(
                     tarefa.cancel()
                     with contextlib.suppress(asyncio.CancelledError):
                         await tarefa
+            await ler_depois.encerrar()
+            if tarefas_bg is not None:
+                await tarefas_bg.encerrar()
             if telegram is not None:
                 await telegram.aclose()
             await accounts.close()
@@ -1787,6 +2008,12 @@ def create_app(
     @app.post("/chat", dependencies=[Admin])
     async def chat(corpo: Mensagem, state: State) -> StreamingResponse:
         agente = _agente(state)
+        if state.rotinas is not None and state.executor_rotinas is not None:
+            rotina = state.rotinas.por_frase(corpo.texto)  # frase EXATA de uma rotina concedida
+            if rotina is not None:
+                return StreamingResponse(
+                    _stream(_turno_de_rotina(state, rotina.nome)), media_type="text/event-stream"
+                )
         session = state.memory.active_session(corpo.canal)
         scope = f"project:{session.project_id}" if session.project_id else "personal"
         selection = None
@@ -1813,10 +2040,21 @@ def create_app(
                     external=external,
                     selection=selection,
                     expected_session=session.id,
+                    skill_forcada=corpo.skill,
                 )
             ),
             media_type="text/event-stream",
         )
+
+    @app.get("/skills/catalogo", dependencies=[Admin])
+    def catalogo_de_skills(state: State) -> dict[str, Any]:
+        """As skills da sua pasta `skills/` (nome e descrição): para `/skill` e a paleta."""
+        skills = state.agent._skills if state.agent is not None else None
+        itens = [
+            {"nome": s.nome, "descricao": s.descricao}
+            for s in (skills.skills.values() if skills else [])
+        ]
+        return {"total": len(itens), "skills": itens}
 
     # ── biblioteca de resultados (C34/C35): o que o Orion gerou, com origem e versões ──
     def _biblioteca(state: AppState) -> Library:
@@ -1843,6 +2081,8 @@ def create_app(
                     if Path(a["name"]).suffix.lower() in PREVIA_TEXTO
                     else "imagem"
                     if Path(a["name"]).suffix.lower() in PREVIA_IMAGEM
+                    else "pdf"
+                    if Path(a["name"]).suffix.lower() == PREVIA_PDF
                     else None
                 ),
             }
@@ -1862,17 +2102,30 @@ def create_app(
 
     @app.get("/resultados/{rid}/arquivo", dependencies=[Admin])
     def arquivo_do_resultado(rid: int, state: State, previa: bool = False) -> FileResponse:
-        """Download (sempre como anexo, nunca renderizado); com `previa=true`, só imagem raster
-        é entregue inline. HTML/SVG gerados pelo modelo nunca executam no navegador."""
+        """Download (sempre como anexo, nunca renderizado); com `previa=true`, só imagem raster e
+        PDF são entregues inline. HTML/SVG gerados pelo modelo nunca executam no navegador."""
         biblioteca = _biblioteca(state)
         caminho = biblioteca.caminho(rid)
         a = state.memory.get_artifact(rid)
         if caminho is None or a is None:
             raise HTTPException(404, "resultado não encontrado")
         cabecalhos = {"X-Content-Type-Options": "nosniff", "Content-Security-Policy": "sandbox"}
-        mime = PREVIA_IMAGEM.get(Path(a["name"]).suffix.lower())
+        sufixo = Path(a["name"]).suffix.lower()
+        mime = PREVIA_IMAGEM.get(sufixo)
         if previa and mime:
             return FileResponse(caminho, media_type=mime, headers=cabecalhos)
+        if previa and sufixo == PREVIA_PDF:
+            # o visualizador de PDF do navegador não abre sob `sandbox`: aqui vale a CSP vazia
+            return FileResponse(
+                caminho,
+                media_type="application/pdf",
+                filename=a["name"],
+                content_disposition_type="inline",
+                headers={
+                    "X-Content-Type-Options": "nosniff",
+                    "Content-Security-Policy": "default-src 'none'",
+                },
+            )
         return FileResponse(
             caminho,
             media_type="application/octet-stream",
@@ -1880,12 +2133,139 @@ def create_app(
             headers=cabecalhos,
         )
 
+    @app.get("/resultados/{rid}/diff", dependencies=[Admin])
+    def diff_do_resultado(rid: int, com: int, state: State) -> dict[str, Any]:
+        """Compara a versão `rid` (nova) com `com` (base): linhas de `difflib.unified_diff`."""
+        try:
+            achado = _biblioteca(state).diff(rid, com)
+        except ValueError as e:
+            raise HTTPException(415, str(e)) from None
+        if achado is None:
+            raise HTTPException(404, "resultado não encontrado")
+        return achado
+
+    @app.post("/resultados/limpar", dependencies=[Admin])
+    def limpar_resultados(corpo: LimparResultados, state: State) -> dict[str, Any]:
+        """Apaga as versões além das `manter` mais novas. `simular` só conta (o front mostra o
+        total e pede confirmação antes de apagar de verdade)."""
+        r = _biblioteca(state).limpar(corpo.manter, corpo.nome, simular=corpo.simular)
+        if not corpo.simular and r["apagados"]:
+            audit_log.info(
+                "resultados_limpos",
+                extra={"audit": {"manter": corpo.manter, "apagados": r["apagados"]}},
+            )
+        return r
+
     @app.delete("/resultados/{rid}", dependencies=[Admin])
     def apagar_resultado(rid: int, state: State) -> dict[str, bool]:
         if not _biblioteca(state).apagar(rid):
             raise HTTPException(404, "resultado não encontrado")
         audit_log.info("resultado_apagado", extra={"audit": {"resultado": rid}})
         return {"ok": True}
+
+    # ── diagnóstico do cliente MCP (E7.3): o que o mcp.json subiu, e o que não ──
+    @app.get("/mcp/servidores", dependencies=[Admin])
+    def servidores_mcp(state: State) -> dict[str, Any]:
+        if state.mcp is None:
+            return {"ativo": False, "servidores": []}
+        return {"ativo": True, "servidores": state.mcp.diagnostico()}
+
+    @app.post("/mcp/servidores/{nome}/testar", dependencies=[Admin])
+    def testar_servidor_mcp(nome: str, state: State) -> dict[str, Any]:
+        if state.mcp is None:
+            raise HTTPException(409, "nenhum servidor MCP configurado em mcp.json")
+        resultado = state.mcp.testar(nome)
+        audit_log.info(
+            "mcp_teste", extra={"audit": {"servidor": nome, "ok": bool(resultado.get("ok"))}}
+        )
+        if resultado.get("erro") == "servidor desconhecido":
+            raise HTTPException(404, "servidor desconhecido")
+        return resultado
+
+    # ── prompts de servidores MCP (E7.5, regra 55): só você invoca, o modelo não os vê ──
+    @app.get("/mcp/prompts", dependencies=[Admin])
+    def prompts_mcp(state: State) -> dict[str, Any]:
+        itens = state.mcp.listar_prompts() if state.mcp is not None else []
+        return {"total": len(itens), "prompts": itens}
+
+    @app.post("/mcp/prompts/{servidor}/{nome}", dependencies=[Admin])
+    def obter_prompt_mcp(
+        servidor: str, nome: str, corpo: PromptMcp, state: State
+    ) -> dict[str, Any]:
+        """Devolve o texto do prompt para o campo de mensagem; nada é enviado ao modelo aqui."""
+        if state.mcp is None:
+            raise HTTPException(409, "nenhum servidor MCP configurado em mcp.json")
+        r = state.mcp.obter_prompt(servidor, nome, corpo.argumentos)
+        audit_log.info("mcp_prompt", extra={"audit": {"servidor": servidor, "prompt": nome}})
+        if "erro" in r:
+            raise HTTPException(502, r["erro"])
+        return {**r, "origem": f"mcp:{servidor}"}
+
+    # ── pesquisa noturna pela interface (E6.5, regra 39) ──
+    def _assuntos_da_pesquisa(state: AppState) -> dict[str, Any]:
+        from .research import MAX_ASSUNTO, MAX_ASSUNTOS, assuntos_salvos
+
+        assuntos, origem = assuntos_salvos(state.memory, state.settings.research_topics)
+        return {
+            "assuntos": assuntos,
+            "origem": origem,
+            "max": MAX_ASSUNTOS,
+            "max_tamanho": MAX_ASSUNTO,
+            "hora": state.settings.research_at or None,
+            "disponivel": state.pesquisa is not None,
+            "rodando": bool(state.pesquisa is not None and state.pesquisa.rodando),
+        }
+
+    @app.get("/pesquisa/assuntos", dependencies=[Admin])
+    def ver_assuntos_da_pesquisa(state: State) -> dict[str, Any]:
+        return _assuntos_da_pesquisa(state)
+
+    @app.put("/pesquisa/assuntos", dependencies=[Admin])
+    def trocar_assuntos_da_pesquisa(corpo: AssuntosPesquisa, state: State) -> dict[str, Any]:
+        """Quem escolhe os assuntos é você (nunca o modelo): até 5, 200 caracteres cada."""
+        from .research import salvar_assuntos
+
+        try:
+            salvar_assuntos(state.memory, corpo.assuntos)
+        except ValueError as e:
+            raise HTTPException(422, str(e)) from None
+        audit_log.info("pesquisa_assuntos", extra={"audit": {"total": len(corpo.assuntos)}})
+        return _assuntos_da_pesquisa(state)
+
+    @app.get("/pesquisa/relatorios", dependencies=[Admin])
+    def relatorios_da_pesquisa(state: State) -> dict[str, Any]:
+        itens = state.pesquisa.relatorios() if state.pesquisa is not None else []
+        return {"total": len(itens), "relatorios": itens}
+
+    @app.post("/pesquisa/rodar", status_code=202, dependencies=[Admin])
+    async def rodar_pesquisa_agora(state: State) -> dict[str, Any]:
+        """Dispara a pesquisa em segundo plano (o relatório cai no 00 Inbox). Respeita o pânico
+        e a cota gratuita (regra 46): o job opcional não passa de 90% do dia."""
+        pesquisa = state.pesquisa
+        if pesquisa is None:
+            raise HTTPException(
+                409, "pesquisa indisponível: falta ORION_WEB_TOOLS, gateway ou vault"
+            )
+        if state.modos is not None and state.modos.panico():
+            raise HTTPException(409, "modo pânico: a pesquisa está cortada")
+        if pesquisa.rodando:
+            raise HTTPException(409, "a pesquisa já está rodando")
+        if not pesquisa.assuntos:
+            raise HTTPException(422, "nenhum assunto definido")
+        if state.custos is not None:
+            for provedor in ("gateway", "gemini"):
+                if not state.custos.pode_usar(provedor, opcional=True, quem="a pesquisa noturna"):
+                    raise HTTPException(429, "cota gratuita do dia quase no fim: tente amanhã")
+        audit_log.info("pesquisa_manual", extra={"audit": {"assuntos": len(pesquisa.assuntos)}})
+
+        async def rodar() -> None:
+            try:
+                await pesquisa.run(marcar=False)
+            except Exception:  # um relatório que falha não derruba o servidor
+                log.exception("pesquisa manual falhou")
+
+        state.tarefas_pesquisa = asyncio.create_task(rodar())
+        return {"iniciada": True}
 
     @app.post("/approvals/{approval_id}/resume", dependencies=[Admin])
     async def retomar(
@@ -2096,6 +2476,257 @@ def create_app(
         if not acknowledged:
             raise HTTPException(404, "aviso inexistente ou já confirmado")
         return {"ok": True}
+
+    # ── organizador de Downloads (E9.4, regra 58) ──
+    def _historicos(state: AppState, qual: str) -> Historicos:
+        """404 quando o histórico está desligado (regra 60: opt-in); 409 no pânico."""
+        ligado = (
+            state.settings.clipboard_days > 0 if qual == "area" else state.settings.command_history
+        )
+        if state.historicos is None or not ligado:
+            raise HTTPException(
+                404, "histórico desligado (ORION_CLIPBOARD_DAYS / ORION_COMMAND_HISTORY)"
+            )
+        if state.modos is not None and state.modos.panico():
+            raise HTTPException(409, "modo pânico")
+        return state.historicos
+
+    @app.get("/transcricao/propostas", dependencies=[Admin])
+    def propostas_da_transcricao(state: State) -> dict[str, Any]:
+        return {"itens": Propostas(state.memory, state.ops).listar()}
+
+    @app.post("/transcricao/propostas/{pid}/{acao}", dependencies=[Admin])
+    def decidir_proposta(
+        pid: int, acao: Annotated[str, PathParam(pattern="^(aprovar|descartar)$")], state: State
+    ) -> dict[str, Any]:
+        try:
+            return Propostas(state.memory, state.ops).decidir(pid, acao)
+        except PropostaError as e:
+            raise HTTPException(e.status, str(e)) from None
+        except ValueError as e:  # data do lembrete inválida etc.
+            raise HTTPException(422, str(e)) from None
+
+    @app.post("/ler-depois", dependencies=[Admin])
+    async def ler_depois_adicionar(corpo: LinkLerDepois, state: State) -> dict[str, Any]:
+        assert state.ler_depois is not None
+        try:
+            item = state.ler_depois.adicionar(corpo.url)
+        except LerDepoisError as e:
+            raise HTTPException(422, str(e)) from None
+        if item["status"] == "pendente":
+            state.ler_depois.agendar(item["id"])
+        return item
+
+    @app.get("/ler-depois", dependencies=[Admin])
+    def ler_depois_listar(
+        state: State, status: str | None = Query(None, max_length=20)
+    ) -> dict[str, Any]:
+        assert state.ler_depois is not None
+        return {"itens": state.ler_depois.listar(status)}
+
+    @app.delete("/ler-depois/{rid}", dependencies=[Admin])
+    def ler_depois_descartar(rid: int, state: State) -> dict[str, Any]:
+        assert state.ler_depois is not None
+        try:
+            return state.ler_depois.descartar(rid)
+        except LerDepoisError as e:
+            raise HTTPException(404, str(e)) from None
+
+    @app.post("/area-transferencia", dependencies=[Admin])
+    def guardar_area(corpo: AreaTexto, state: State) -> dict[str, str]:
+        return {"resultado": _historicos(state, "area").guardar_area(corpo.texto)}
+
+    @app.get("/area-transferencia", dependencies=[Admin])
+    def ver_area(
+        state: State, q: str = Query("", max_length=200), limite: int = Query(30, ge=1, le=100)
+    ) -> dict[str, Any]:
+        h = _historicos(state, "area")
+        itens = (
+            h.buscar_area(q, limite, state.settings.clipboard_days)
+            if q.strip()
+            else h.recentes_area(limite)
+        )
+        return {"dias": state.settings.clipboard_days, "itens": itens}
+
+    @app.delete("/area-transferencia", dependencies=[Admin])
+    def limpar_area(state: State) -> dict[str, int]:
+        return {"apagados": _historicos(state, "area").limpar_area()}
+
+    @app.get("/comandos", dependencies=[Admin])
+    def ver_comandos(
+        state: State,
+        q: str = Query("", max_length=200),
+        limite: int = Query(20, ge=1, le=50),
+        dias: int = Query(90, ge=1, le=365),
+    ) -> dict[str, Any]:
+        return {"itens": _historicos(state, "comandos").buscar_comandos(q, limite, dias)}
+
+    @app.post("/comandos/importar", dependencies=[Admin])
+    def importar_comandos(state: State) -> dict[str, int]:
+        return {"novos": _historicos(state, "comandos").importar()}
+
+    @app.delete("/comandos", dependencies=[Admin])
+    def limpar_comandos(state: State) -> dict[str, int]:
+        return {"apagados": _historicos(state, "comandos").limpar_comandos()}
+
+    @app.get("/posso-desligar", dependencies=[Admin])
+    def posso_desligar_rota(state: State) -> dict[str, Any]:
+        return _conferir_desligar(state.settings, state.tarefas_bg, state.downloads)
+
+    def _downloads(state: AppState) -> Downloads:
+        assert state.downloads is not None
+        return state.downloads
+
+    @app.get("/downloads", dependencies=[Admin])
+    def ver_downloads(state: State) -> dict[str, Any]:
+        d = _downloads(state)
+        return {**d.estado(), "historico": d.historico(20)}
+
+    @app.post("/downloads/conceder", dependencies=[Admin])
+    def conceder_downloads(state: State) -> dict[str, Any]:
+        try:
+            r = _downloads(state).conceder()
+        except ValueError as e:
+            raise HTTPException(422, str(e)) from None
+        audit_log.info("downloads_concedido")
+        return r
+
+    @app.post("/downloads/revogar", dependencies=[Admin])
+    def revogar_downloads(state: State) -> dict[str, bool]:
+        return {"ok": _downloads(state).revogar()}
+
+    @app.post("/downloads/rodar", dependencies=[Admin])
+    def rodar_downloads(state: State, simular: bool = False) -> dict[str, Any]:
+        if state.modos is not None and state.modos.panico():
+            raise HTTPException(409, "modo pânico: o organizador está cortado")
+        r = _downloads(state).rodar(simular=simular)
+        return {
+            "status": r.status,
+            "movidos": r.movidos,
+            "ficaram": r.ficaram,
+            "recusados": r.recusados,
+            "simulado": simular,
+        }
+
+    @app.post("/downloads/desfazer", dependencies=[Admin])
+    def desfazer_downloads(corpo: DesfazerDownloads, state: State) -> dict[str, Any]:
+        return _downloads(state).desfazer(corpo.escopo)
+
+    # ── rotinas (E9.1, regra 58): arquivos seus, concedidos pelo hash ──
+    def _rotinas(state: AppState) -> RotinaStore:
+        assert state.rotinas is not None
+        return state.rotinas
+
+    def _rotina_json(c: Any) -> dict[str, Any]:
+        r = c.rotina
+        return {
+            "nome": c.nome,
+            "estado": c.estado,
+            "erro": c.erro,
+            "descricao": r.descricao if r else "",
+            "gatilhos": [g.model_dump(exclude_none=True) for g in r.gatilhos] if r else [],
+            "passos": len(r.passos) if r else 0,
+            "liberar": r.liberar if r else [],
+        }
+
+    @app.get("/rotinas", dependencies=[Admin])
+    def listar_rotinas(state: State) -> dict[str, Any]:
+        itens = [_rotina_json(c) for c in _rotinas(state).listar()]
+        return {"total": len(itens), "rotinas": itens}
+
+    @app.post("/rotinas/por-frase", dependencies=[Admin])
+    async def rotina_por_frase(corpo: FraseRotina, state: State) -> dict[str, Any]:
+        """Roda a rotina concedida cuja frase bate EXATAMENTE (sem acento nem pontuação)."""
+        c = _rotinas(state).por_frase(corpo.texto)
+        if c is None or state.executor_rotinas is None:
+            raise HTTPException(404, "nenhuma rotina concedida com essa frase")
+        return (await state.executor_rotinas.executar(c.nome, "frase")).publico()
+
+    @app.post("/rotinas/{nome}/conceder", dependencies=[Admin])
+    def conceder_rotina(nome: str, state: State) -> dict[str, Any]:
+        try:
+            c = _rotinas(state).conceder(nome)
+        except KeyError:
+            raise HTTPException(404, "rotina não encontrada") from None
+        except ValueError as e:
+            raise HTTPException(422, str(e)) from None
+        audit_log.info("rotina_concedida", extra={"audit": {"rotina": nome}})
+        return _rotina_json(c)
+
+    @app.post("/rotinas/{nome}/revogar", dependencies=[Admin])
+    def revogar_rotina(nome: str, state: State) -> dict[str, bool]:
+        return {"ok": _rotinas(state).revogar(nome)}
+
+    @app.post("/rotinas/{nome}/executar", dependencies=[Admin])
+    async def executar_rotina(
+        nome: str,
+        state: State,
+        origem: Annotated[str, Query(pattern="^(manual|tecla|frase|telegram|palmas)$")] = "manual",
+    ) -> dict[str, Any]:
+        if state.executor_rotinas is None or _rotinas(state).obter(nome) is None:
+            raise HTTPException(404, "rotina não encontrada")
+        r = await state.executor_rotinas.executar(nome, origem)
+        return r.publico()
+
+    # ── tarefa em segundo plano (E9.2, regra 59): só lê; o que faria vira proposta ──
+    def _tarefas(state: AppState) -> TarefasBg:
+        if state.tarefas_bg is None:
+            raise HTTPException(503, "tarefa em segundo plano indisponível: falta o gateway")
+        return state.tarefas_bg
+
+    def _bg(fn: Callable[[], Any]) -> Any:
+        try:
+            return fn()
+        except TarefaBgError as e:
+            raise HTTPException(e.status, str(e)) from None
+
+    @app.post("/tarefas-bg", status_code=202, dependencies=[Admin])
+    async def criar_tarefa_bg(corpo: TarefaBgPedido, state: State) -> dict[str, Any]:
+        t = _tarefas(state)
+        r = _bg(lambda: t.criar(corpo.objetivo, corpo.max_passos, corpo.max_min))
+        audit_log.info("tarefa_bg", extra={"audit": {"id": r["id"], "passos": corpo.max_passos}})
+        return r
+
+    @app.get("/tarefas-bg", dependencies=[Admin])
+    def listar_tarefas_bg(state: State) -> dict[str, Any]:
+        itens = _tarefas(state).listar()
+        return {"total": len(itens), "tarefas": itens}
+
+    @app.get("/tarefas-bg/{tid}", dependencies=[Admin])
+    def ver_tarefa_bg(tid: int, state: State) -> dict[str, Any]:
+        return _bg(lambda: _tarefas(state).obter(tid))
+
+    @app.post("/tarefas-bg/{tid}/cancelar", dependencies=[Admin])
+    def cancelar_tarefa_bg(tid: int, state: State) -> dict[str, Any]:
+        return _bg(lambda: _tarefas(state).cancelar(tid))
+
+    @app.post("/tarefas-bg/{tid}/propostas/{indice}", dependencies=[Admin])
+    def decidir_proposta_bg(
+        tid: int, indice: int, corpo: PropostaDecisao, state: State
+    ) -> dict[str, Any]:
+        return _bg(lambda: _tarefas(state).decidir(tid, indice, corpo.acao))
+
+    @app.post("/lembretes/{lembrete_id}/{acao}", dependencies=[Admin])
+    def agir_no_lembrete(
+        lembrete_id: int,
+        acao: Annotated[str, PathParam(pattern="^(feito|adiar)$")],
+        state: State,
+        project_id: str | None = None,
+        minutos: Annotated[int, Query(ge=1, le=1440)] = 60,
+    ) -> dict[str, Any]:
+        """ "Feito" conclui (e para de insistir); "adiar" volta a ser um lembrete novo (E9.3)."""
+        from .memory.scope import data_scope
+
+        try:
+            with data_scope(project_id, include_personal=False):
+                r = (
+                    state.ops.complete_reminder(lembrete_id)
+                    if acao == "feito"
+                    else state.ops.snooze_reminder(lembrete_id, minutos)
+                )
+        except KeyError:
+            raise HTTPException(404, "lembrete não encontrado") from None
+        return {"ok": True, "lembrete": r}
 
     @app.exception_handler(MCPError)
     async def mcp_error(request: Request, error: MCPError):

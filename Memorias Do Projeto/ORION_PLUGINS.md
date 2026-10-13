@@ -104,3 +104,12 @@ bloqueiam diff; isso não substitui revisão de segredos embutidos no código.
 Worktrees com .git como arquivo ainda não são suportados. Delegação usa a CLI existente
 somente mediante aprovação EXEC, com origem, resultado e timeout. Não há commit,
 push ou publicação automática no pacote. Windows/CLIs pessoais precisam de prova real.
+
+
+## Importar e catálogo — E8 (13/10/2026)
+
+`orion/extensions/importar.py` converte `.claude-plugin/plugin.json` (Claude Code) e `.codex-plugin/plugin.json` (Codex, por
+semelhança) em um pacote Orion comum: só as skills, com o frontmatter reduzido aos campos que o Orion aceita. Servidores MCP,
+hooks, comandos e agentes ficam numa lista "ignorado" mostrada antes de instalar. `orion/extensions/catalogo.py` lê a pasta
+`<dados>/catalogo/` e os catálogos de `ORION_PLUGIN_CATALOGS`; todo pacote tem o SHA-256 fixado no índice e conferido; instalar
+nunca ativa (regra 57). Orion Pesquisa está na 1.1.0 (`comparar-precos`).

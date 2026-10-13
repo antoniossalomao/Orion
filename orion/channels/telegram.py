@@ -32,7 +32,7 @@ import json
 import logging
 import re
 import time
-from collections.abc import AsyncIterator, Callable, Coroutine, Sequence
+from collections.abc import AsyncIterator, Awaitable, Callable, Coroutine, Sequence
 from typing import Any
 
 import httpx
@@ -54,6 +54,8 @@ API = "https://api.telegram.org"
 LIMITE_MENSAGEM = 4000  # o Telegram aceita 4096; folga para o que o cliente conta diferente
 LIMITE_ENTRADA = 8000  # o mesmo teto do POST /chat
 _METODOS_DE_SAIDA = ("send", "edit", "answer")
+_CONVERTE = re.compile(r"\bconvert\w*\s+(?:para|pra|em|to)\s+\.?([A-Za-z0-9]{2,12})", re.I)
+MAX_DOCUMENTO = 20 * 1024 * 1024  # limite de download do Telegram para bots
 MAX_VOZ_S = 300  # áudio mais longo que 5 min não é transcrito
 MAX_FOTO = 4 * 1024 * 1024  # bytes; escolhe o maior tamanho que couber
 _MIME_FOTO = {
@@ -64,12 +66,14 @@ _MIME_FOTO = {
 }
 _CAMINHO_ARQUIVO = re.compile(r"^[A-Za-z0-9_./-]{1,200}$")
 _CALLBACK = re.compile(r"^ap:([A-Za-z0-9_-]{6,32}):([yn])$")  # cabe nos 64 bytes do Telegram
+_LEMBRETE = re.compile(r"^lem:(\d{1,9}):([fa])$")  # "Feito" / "Adiar 1 h" no aviso de lembrete
 _LINK = re.compile(r"^https?://\S+$")
 CAPTURA_ESPERA_S = 300  # depois do `/capturar` sozinho, o próximo envio vale por 5 minutos
 
 BOAS_VINDAS = (
     "Orion aqui. Escreva o que precisa e eu respondo.\n\n"
     "/nova — começa uma conversa nova (a atual fica arquivada)\n"
+    "/ler <link> — guarda para ler depois (resumo de 5 linhas no vault)\n"
     "/capturar — guarda no vault o próximo texto, link, foto ou voz (ou /capturar <texto>)\n"
     "/briefing — o que há para hoje\n"
     "/painel — modelos, CLIs, aprovações e política num só lugar\n"
@@ -127,6 +131,14 @@ class TelegramChannel:
         self.agenda: Callable[[float], str | None] | None = None  # agenda do briefing (regra 37)
         self.tela: Callable[[str], str] | None = None  # `/tela` (regra 44); o app liga depois
         self.modos: Modos | None = None  # `/panico` (regra 48); o app liga depois
+        self.desligar: Callable[[], str] | None = None  # `/desligar` (E9.5); o app liga depois
+        # E9.9: (nome, bytes, formato) → (nome novo, bytes); levanta ConversaoError. O app liga.
+        self.converter: Callable[[str, bytes, str], tuple[str, bytes]] | None = None
+        # E9.10: quem manda voz recebe voz; o app liga com ORION_TELEGRAM_VOICE_REPLY
+        self.speaker: Any = None  # tem `async falar(texto) -> bytes` (mp3)
+        self.ler_depois: Any = None  # LerDepois (E9.8); o app liga depois
+        self.rotinas: Any = None  # RotinaStore (regra 58); o app liga depois
+        self.executar_rotina: Callable[[str, str], Awaitable[Any]] | None = None
         self._clock = clock
         self._armados: dict[int, float] = {}  # chat -> até quando o próximo envio vira nota
         self._offset = 0
@@ -303,7 +315,7 @@ class TelegramChannel:
         enviados = 0
         for n in await asyncio.to_thread(self.ops.pending_notifications):
             try:
-                await self._enviar(self._home, f"🔔 {n['text']}")
+                await self._enviar(self._home, f"🔔 {n['text']}", _teclado_lembrete(n))
             except TelegramError as e:
                 log.warning("telegram: aviso %s não enviado: %s", n["id"], e)
                 break
@@ -349,6 +361,9 @@ class TelegramChannel:
         if not texto and m.get("photo"):
             await self._on_foto(chat_id, m)
             return
+        if not texto and m.get("document"):
+            await self._on_documento(chat_id, m)
+            return
         if not texto:
             await self._enviar(chat_id, "Entendo texto, voz e foto por aqui.")
             return
@@ -372,20 +387,141 @@ class TelegramChannel:
         elif comando == "/panico":
             argumento = texto.split(None, 1)[1] if len(texto.split(None, 1)) > 1 else ""
             await self._enviar(chat_id, await asyncio.to_thread(self._panico, argumento))
+        elif comando == "/desligar":
+            ver = self.desligar
+            await self._enviar(
+                chat_id,
+                await asyncio.to_thread(ver) if ver else "Conferência indisponível neste canal.",
+            )
+        elif comando == "/ler":
+            argumento = texto.split(None, 1)[1].strip() if len(texto.split(None, 1)) > 1 else ""
+            await self._enviar(chat_id, await self._ler_depois(argumento))
+        elif comando == "/rotina":
+            argumento = texto.split(None, 1)[1].strip() if len(texto.split(None, 1)) > 1 else ""
+            await self._on_rotina(chat_id, argumento)
         elif comando == "/briefing":
             await self._enviar(chat_id, await asyncio.to_thread(self._briefing))
         elif comando == "/nova":
             atual = await asyncio.to_thread(self.memory.active_session, CANAL)
             await asyncio.to_thread(self.memory.archive_session, atual.id)
             await self._enviar(chat_id, "Conversa nova. A anterior ficou arquivada.")
+        elif self.rotinas is not None and (c := self.rotinas.por_frase(texto)) is not None:
+            await self._on_rotina(chat_id, c.nome)  # a frase é exatamente a de uma rotina sua
         else:
             await self._api("sendChatAction", chat_id=chat_id, action="typing")
             await self._consumir(chat_id, self.agent.run(CANAL, texto[:LIMITE_ENTRADA]))
+
+    async def _on_rotina(self, chat_id: int, nome: str) -> None:
+        """`/rotina` lista as suas; `/rotina <nome>` roda uma concedida (regra 58). Passo que pede
+        aprovação vira o cartão de sempre aqui mesmo, e a rotina para nele."""
+        if self.rotinas is None or self.executar_rotina is None:
+            await self._enviar(chat_id, "Rotinas indisponíveis neste canal.")
+            return
+        if not nome:
+            lista = await asyncio.to_thread(self.rotinas.listar)
+            linhas = [f"• {c.nome} — {c.estado.replace('_', ' ')}" for c in lista]
+            await self._enviar(
+                chat_id,
+                "Suas rotinas:\n" + "\n".join(linhas)
+                if linhas
+                else "Nenhuma rotina em <dados>/rotinas.",
+            )
+            return
+        r = await self.executar_rotina(nome, "telegram")
+        icone = {"concluida": "✅", "aguardando_aprovacao": "⏸", "recusada": "⛔"}.get(
+            r.status, "⚠️"
+        )
+        resumo = f"{icone} Rotina {nome}: {r.status.replace('_', ' ')}" + (
+            f" — {r.motivo}" if r.motivo else ""
+        )
+        await self._enviar(chat_id, resumo)
+        if r.aprovacao_id:
+            a = self.approvals.get(r.aprovacao_id)
+            if a is not None:
+                cartao = {
+                    "id": a.id,
+                    "tool": a.tool,
+                    "reason": a.reason,
+                    "args": redact(a.args, limite=2000),
+                }
+                texto_cartao, revisavel = _cartao(cartao)
+                await self._enviar(chat_id, texto_cartao, _teclado(str(a.id), aprovar=revisavel))
 
     def _briefing(self) -> str:
         return build_briefing(self.ops, self.memory.clock(), agenda=self.agenda)
 
     # ── captura rápida (regra 30): comando do Antônio, não ferramenta do modelo ──
+    async def _on_documento(self, chat_id: int, m: dict[str, Any]) -> None:
+        """E9.9: arquivo com a legenda "converte para pdf" volta convertido (tudo local)."""
+        from ..conversor import ConversaoError, formatos_para
+
+        doc = m.get("document") or {}
+        legenda = str(m.get("caption") or "")
+        nome = str(doc.get("file_name") or "arquivo")
+        achou = _CONVERTE.search(legenda)
+        if self.converter is None:
+            await self._enviar(chat_id, "Conversão indisponível neste canal.")
+            return
+        if achou is None:
+            ext = nome.rsplit(".", 1)[-1] if "." in nome else ""
+            opcoes = ", ".join(formatos_para(ext))
+            await self._enviar(
+                chat_id,
+                "Mande o arquivo com a legenda “converte para <formato>”."
+                + (f" Para .{ext} posso: {opcoes}." if opcoes else " Não sei converter esse tipo."),
+            )
+            return
+        if int(doc.get("file_size") or 0) > MAX_DOCUMENTO:
+            await self._enviar(chat_id, "Arquivo grande demais (o Telegram libera até 20 MB).")
+            return
+        await self._api("sendChatAction", chat_id=chat_id, action="upload_document")
+        try:
+            dados, _ = await self._baixar(str(doc.get("file_id", "")), MAX_DOCUMENTO)
+            novo, saida = await asyncio.to_thread(self.converter, nome, dados, achou.group(1))
+        except (TelegramError, ConversaoError) as e:
+            await self._enviar(chat_id, f"⚠️ Não converti: {e}")
+            return
+        await self._enviar_documento(chat_id, novo, saida)
+
+    async def _enviar_documento(self, chat_id: int, nome: str, dados: bytes) -> None:
+        await self._enviar_arquivo("sendDocument", "document", chat_id, nome, dados)
+
+    async def _enviar_arquivo(
+        self, metodo: str, campo: str, chat_id: int, nome: str, dados: bytes
+    ) -> None:
+        url = f"{self._base}/bot{self._token}/{metodo}"
+        with saidas.medir("telegram", "canal", bytes_out=len(dados)) as med:
+            try:
+                resp = await self._client.post(
+                    url,
+                    data={"chat_id": str(chat_id)},
+                    files={campo: (nome, dados)},
+                    timeout=self._poll_timeout + 60,
+                )
+            except httpx.HTTPError as e:
+                raise TelegramError(f"{metodo}: {type(e).__name__}") from None
+            med.ok, med.bytes_in = resp.status_code < 400, len(resp.content)
+        if resp.status_code >= 400:
+            raise TelegramError(f"{metodo}: HTTP {resp.status_code}", resp.status_code)
+
+    async def _ler_depois(self, link: str) -> str:
+        """`/ler <link>` (E9.8): guarda na fila, resume em segundo plano e deixa a nota no vault."""
+        if self.ler_depois is None:
+            return "Ler depois indisponível neste canal."
+        if not link:
+            lista = await asyncio.to_thread(self.ler_depois.listar, "pendente", 10)
+            if not lista:
+                return "Nada na fila. Use /ler <link>."
+            return "Na fila para ler:\n" + "\n".join(f"• {i['title'] or i['url']}" for i in lista)
+        try:
+            item = await asyncio.to_thread(self.ler_depois.adicionar, link)
+        except ValueError as e:
+            return str(e)
+        if item["status"] == "pendente":
+            self.ler_depois.agendar(item["id"])
+            return "📚 Guardei. Vou resumir e deixar a nota em 'Ler depois' no vault."
+        return f"Esse link já estava na lista ({item['status']})."
+
     async def _on_capturar(self, chat_id: int, texto: str) -> None:
         if self._capture is None:
             await self._enviar(
@@ -477,7 +613,25 @@ class TelegramChannel:
             return
         # mostra o que foi entendido: quem falou confere (e aprovação continua só por botão)
         await self._enviar(chat_id, f"🎙️ Entendi: {texto}")
-        await self._consumir(chat_id, self.agent.run(CANAL, texto))
+        resposta = await self._consumir(chat_id, self.agent.run(CANAL, texto))
+        await self._responder_em_audio(chat_id, resposta)
+
+    async def _responder_em_audio(self, chat_id: int, resposta: str) -> None:
+        """E9.10: só com ORION_TELEGRAM_VOICE_REPLY. O texto da resposta vai ao serviço de voz
+        (edge-tts, Microsoft), já registrado na saída; falha da voz nunca esconde o texto."""
+        if self.speaker is None or not resposta:
+            return
+        from ..voice import SpeakError, falavel
+
+        fala = falavel(resposta)
+        if not fala:
+            return
+        try:
+            audio = await self.speaker.falar(fala)
+            await self._api("sendChatAction", chat_id=chat_id, action="upload_voice")
+            await self._enviar_arquivo("sendAudio", "audio", chat_id, "resposta.mp3", audio)
+        except (SpeakError, TelegramError) as e:
+            log.warning("telegram: resposta em áudio falhou: %s", e)
 
     async def _baixar_foto(self, chat_id: int, m: dict[str, Any]) -> tuple[bytes, str] | None:
         """O maior tamanho da foto que couber no limite; falha avisa e devolve None."""
@@ -505,8 +659,9 @@ class TelegramChannel:
         legenda = (m.get("caption") or "").strip() or "O que você vê nesta imagem?"
         await self._consumir(chat_id, self.agent.run(CANAL, legenda[:LIMITE_ENTRADA], [url]))
 
-    async def _consumir(self, chat_id: int, eventos: AsyncIterator[AgentEvent]) -> None:
-        """Junta o turno do agente e responde: texto, depois um cartão por aprovação pedida."""
+    async def _consumir(self, chat_id: int, eventos: AsyncIterator[AgentEvent]) -> str:
+        """Junta o turno do agente e responde: texto, depois um cartão por aprovação pedida.
+        Devolve o texto da resposta (a voz do Telegram, E9.10, fala o mesmo texto)."""
         texto: list[str] = []
         cartoes: list[dict[str, Any]] = []
         erros: list[str] = []
@@ -531,6 +686,7 @@ class TelegramChannel:
             await self._enviar(chat_id, f"⚠️ {e}")
         if not (resposta or cartoes or erros):
             await self._enviar(chat_id, "(sem resposta)")
+        return resposta
 
     async def _on_callback(self, cb: dict[str, Any]) -> None:
         msg = cb.get("message") or {}
@@ -539,6 +695,10 @@ class TelegramChannel:
         if not self._permitido(uid, chat) or "id" not in cb:
             return
         chat_id = int(chat["id"])
+        lembrete = _LEMBRETE.match(str(cb.get("data", "")))
+        if lembrete:
+            await self._on_lembrete(cb, chat_id, msg, int(lembrete.group(1)), lembrete.group(2))
+            return
         casou = _CALLBACK.match(str(cb.get("data", "")))
         if not casou:
             await self._api(
@@ -569,6 +729,21 @@ class TelegramChannel:
         else:
             await self._enviar(chat_id, f"Ação negada: {a.tool}. Não foi executada.")
 
+    async def _on_lembrete(
+        self, cb: dict[str, Any], chat_id: int, msg: dict[str, Any], rid: int, acao: str
+    ) -> None:
+        """ "Feito" conclui o lembrete e "Adiar 1 h" o marca para daqui a uma hora (E9.3)."""
+        try:
+            if acao == "f":
+                await asyncio.to_thread(self.ops.complete_reminder, rid)
+                texto = "Feito ✅"
+            else:
+                await asyncio.to_thread(self.ops.snooze_reminder, rid, 60)
+                texto = "Adiado 1 h ⏳"
+        except (KeyError, ValueError):
+            texto = "Esse lembrete não existe mais."
+        await self._fechar_botoes(cb, chat_id, msg, texto)
+
     async def _fechar_botoes(
         self, cb: dict[str, Any], chat_id: int, msg: dict[str, Any], texto: str
     ) -> None:
@@ -584,6 +759,20 @@ class TelegramChannel:
                 )
             except TelegramError as e:  # mensagem antiga demais para editar: o clique já valeu
                 log.info("telegram: botões não removidos: %s", e)
+
+
+def _teclado_lembrete(n: dict[str, Any]) -> list[list[dict[str, str]]] | None:
+    """Botões só nos avisos de lembrete (`ref` = `reminder:<id>` ou `reminder:<id>:n<k>`)."""
+    achou = re.match(r"^reminder:(\d{1,9})(?::n\d+)?$", str(n.get("ref") or ""))
+    if not achou:
+        return None
+    rid = achou.group(1)
+    return [
+        [
+            {"text": "✅ Feito", "callback_data": f"lem:{rid}:f"},
+            {"text": "⏳ Adiar 1 h", "callback_data": f"lem:{rid}:a"},
+        ]
+    ]
 
 
 def _teclado(aprovacao_id: str, *, aprovar: bool = True) -> list[list[dict[str, str]]]:

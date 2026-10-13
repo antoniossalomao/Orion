@@ -338,6 +338,30 @@
             ...activity.map(item => el('p', { text: `${item.label || item.name} · ${states[item.state] || item.decision || 'Registrada'}${item.origin ? ' · ' + item.origin : ''}${item.revision ? ' · revisão ' + item.revision.slice(0, 12) : ''}${item.summary ? ' · ' + item.summary : ''}` })));
         a.fontes?.remove(); a.fontes = null;
         if (labels.length || activity.length) { a.principal.append(details); a.fontes = details; }
+        mostrarUso(a, provenance);
+    }
+
+    /* ── "Usou: …" (E6.4): o que o turno usou, com origem, e os links lidos; cartão dos arquivos gerados ── */
+    function mostrarUso(a, provenance) {
+        const L = O.resultadosLogica;
+        a.uso?.remove(); a.uso = null;
+        const linhas = (Array.isArray(provenance.usou) ? provenance.usou : []).slice(0, 64);
+        const links = L.linksDeFontes(provenance.fontes);
+        const arquivos = api.estado().backend === 'orion' && api.suporta('library_panel') ? (Array.isArray(provenance.resultados) ? provenance.resultados : []).filter(r => Number.isInteger(r?.id)).slice(0, 8) : [];
+        if (!linhas.length && !links.length && !arquivos.length) return;
+        const caixa = el('div', { class: 'usou-caixa', dataset: { usou: '' } });
+        if (linhas.length || links.length) {
+            caixa.append(el('details', { class: 'usou-rodape' },
+                el('summary', { text: L.resumoDeUso(linhas, links.length) }),
+                ...linhas.map(x => el('p', { class: 'usou-item', text: L.linhaDeUso(x) })),
+                ...links.map(u => el('a', { class: 'usou-link', href: u, rel: 'noopener noreferrer', text: u }))));
+        }
+        for (const r of arquivos) {
+            caixa.append(el('button', { type: 'button', class: 'btn btn-outline btn-sm usou-arquivo', dataset: { resultado: String(r.id) },
+                text: `Abrir ${String(r.nome).slice(0, 60)}${r.versao > 1 ? ` · v${r.versao}` : ''}`, 'aria-label': `Abrir o arquivo gerado ${r.nome} versão ${r.versao}`,
+                on: { click: () => O.resultadosPainel?.abrir(r.id) } }));
+        }
+        a.principal.append(caixa); a.uso = caixa;
     }
 
     /** ‹ n/m ›: troca só o que está exibido na bolha; a versão valendo continua sendo a atual (E3.5) */

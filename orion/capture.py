@@ -51,6 +51,10 @@ class Capturer:
         self._pasta = pasta
         self._clock = clock
 
+    def pasta(self) -> Path:
+        """A pasta de captura (criada se faltar), sempre dentro do vault."""
+        return self._destino()
+
     def _destino(self) -> Path:
         vault = self._vault.expanduser().resolve()
         if not vault.is_dir():
@@ -77,6 +81,15 @@ class Capturer:
     def _carimbo(self) -> tuple[str, str, str]:
         dt = datetime.fromtimestamp(self._clock())
         return f"{dt:%Y-%m-%d}", f"{dt:%H:%M}", f"{dt:%Y-%m-%d %H%M}"
+
+    def save_markdown(self, titulo: str, conteudo: str) -> Path:
+        """Grava uma nota pronta (com o próprio frontmatter) na pasta deste Capturer, sem
+        sobrescrever nada. O título vira o nome do arquivo."""
+        _, _, carimbo = self._carimbo()
+        return self._gravar(
+            self._destino(), f"{carimbo} - {_resumo(titulo, 'leitura')}", ".md",
+            conteudo.encode("utf-8"),
+        )  # fmt: skip
 
     def save_text(
         self, texto: str, origem: str = "texto", fonte: str = "telegram", limite: int = MAX_TEXTO

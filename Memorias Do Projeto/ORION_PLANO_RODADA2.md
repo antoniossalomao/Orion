@@ -142,60 +142,60 @@ Marque ao concluir. Uma etapa só fecha com todos os itens, a prova e o PR merge
 - [ ] PR da E5 mergeado
 
 ### E6 — Resultados e atividade
-- [ ] E6.1 Painel lateral da biblioteca (R4.1)
-- [ ] E6.2 Comparar versões (R4.2)
-- [ ] E6.3 Apagar versões antigas em lote (R4.3)
-- [ ] E6.4 Fontes e atividade das extensões no chat (R4.5 / C27)
-- [ ] E6.5 Pesquisa noturna pela interface (R4.6)
+- [x] E6.1 Painel lateral da biblioteca (R4.1)
+- [x] E6.2 Comparar versões (R4.2)
+- [x] E6.3 Apagar versões antigas em lote (R4.3)
+- [x] E6.4 Fontes e atividade das extensões no chat (R4.5 / C27)
+- [x] E6.5 Pesquisa noturna pela interface (R4.6)
 - [ ] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas
-- [ ] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
-- [ ] **Prova:** cenários de navegador nos dois backends.
+- [x] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
+- [x] **Prova:** cenários de navegador nos dois backends.
 - [ ] PR da E6 mergeado
 
 ### E7 — MCP e skills
 - [ ] Antônio: registrar o MCP do Orion no Claude Code (`claude mcp add orion -- orion mcp-servidor`)
-- [ ] Regras escritas em `ORION_REGRAS.md` antes do código (55 (C14), 56 (Orion como servidor MCP))
-- [ ] E7.1 Versão de SDK incompatível (R5.1 / C07)
-- [ ] E7.2 Cancelamento propagado (R5.2)
-- [ ] E7.3 Diagnóstico MCP na interface (R5.3 / C26)
-- [ ] E7.4 Descoberta sob demanda (R5.12 / C13)
-- [ ] E7.5 Resources e prompts (R5.13 / C14)
-- [ ] E7.6 Skills pelo chat e pela paleta (R5.10 / B3)
-- [ ] E7.7 Orion como servidor MCP (R5.11)
-- [ ] E7.8 Seu estilo de código como skill (Z12)
+- [x] Regras escritas em `ORION_REGRAS.md` antes do código (55 (C14), 56 (Orion como servidor MCP))
+- [x] E7.1 Versão de SDK incompatível (R5.1 / C07)
+- [x] E7.2 Cancelamento propagado (R5.2)
+- [x] E7.3 Diagnóstico MCP na interface (R5.3 / C26)
+- [x] E7.4 Descoberta sob demanda (R5.12 / C13)
+- [x] E7.5 Resources e prompts (R5.13 / C14)
+- [x] E7.6 Skills pelo chat e pela paleta (R5.10 / B3)
+- [x] E7.7 Orion como servidor MCP (R5.11)
+- [x] E7.8 Seu estilo de código como skill (Z12)
 - [ ] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas
-- [ ] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
+- [x] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
 - [ ] **Prova:** testes com o servidor MCP de teste real (`tests/mcp_cliente`); `claude mcp add orion -- orion mcp-servidor` lista as 3 ferramentas.
 - [ ] PR da E7 mergeado
 
 ### E8 — Plugins
-- [ ] Regras escritas em `ORION_REGRAS.md` antes do código (estende 45; 57 (catálogo remoto))
-- [ ] E8.1 Instalar por upload (R5.4)
-- [ ] E8.2 Atualização com reversão (R5.5 / C22)
-- [ ] E8.3 Importar formato Claude Code e Codex (R5.6 / C21)
-- [ ] E8.4 Catálogo local e remoto (R5.7 / C25)
-- [ ] E8.5 Conceder sem reiniciar (R5.9)
-- [ ] E8.6 Plugin "Orion Pesquisa" (R5.8 / C28–C29)
+- [x] Regras escritas em `ORION_REGRAS.md` antes do código (estende 45; 57 (catálogo remoto))
+- [x] E8.1 Instalar por upload (R5.4)
+- [x] E8.2 Atualização com reversão (R5.5 / C22)
+- [x] E8.3 Importar formato Claude Code e Codex (R5.6 / C21)
+- [x] E8.4 Catálogo local e remoto (R5.7 / C25)
+- [x] E8.5 Conceder sem reiniciar (R5.9)
+- [x] E8.6 Plugin "Orion Pesquisa" (R5.8 / C28–C29)
 - [ ] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas
-- [ ] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
-- [ ] **Prova:** instalar o "Orion Pesquisa" pelo catálogo local, conceder, usar sem reiniciar, atualizar, voltar.
+- [x] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
+- [x] **Prova:** instalar o "Orion Pesquisa" pelo catálogo local, conceder, usar sem reiniciar, atualizar, voltar.
 - [ ] PR da E8 mergeado
 
 ### E9 — Automação do dia a dia
-- [ ] Regras escritas em `ORION_REGRAS.md` antes do código (58 (rotinas), 59 (tarefa em segundo plano), 60 (históricos locais))
-- [ ] E9.1 Rotinas (L7)
-- [ ] E9.2 Tarefa em segundo plano (L6)
-- [ ] E9.3 Lembrete insistente (U3)
-- [ ] E9.4 Organizador de Downloads com regras (U7)
-- [ ] E9.5 "Posso desligar?" (U8)
-- [ ] E9.6 Histórico da área de transferência (U4)
-- [ ] E9.7 Histórico de comandos pesquisável (U5)
-- [ ] E9.8 Ler depois (U6)
-- [ ] E9.9 Conversor de arquivos (V5)
-- [ ] E9.10 Voz no Telegram (N22)
-- [ ] E9.11 Transcrever → tarefas (N4)
+- [x] Regras escritas em `ORION_REGRAS.md` antes do código (58 (rotinas), 59 (tarefa em segundo plano), 60 (históricos locais))
+- [x] E9.1 Rotinas (L7)
+- [x] E9.2 Tarefa em segundo plano (L6)
+- [x] E9.3 Lembrete insistente (U3)
+- [x] E9.4 Organizador de Downloads com regras (U7)
+- [x] E9.5 "Posso desligar?" (U8)
+- [x] E9.6 Histórico da área de transferência (U4)
+- [x] E9.7 Histórico de comandos pesquisável (U5)
+- [x] E9.8 Ler depois (U6)
+- [x] E9.9 Conversor de arquivos (V5)
+- [x] E9.10 Voz no Telegram (N22)
+- [x] E9.11 Transcrever → tarefas (N4)
 - [ ] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas
-- [ ] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
+- [x] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
 - [ ] **Prova:** rotina "bom dia" por palmas abre o briefing, toca música e abre o app; histórico de comandos acha um `gbak` de ontem.
 - [ ] PR da E9 mergeado
 

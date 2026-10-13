@@ -137,6 +137,22 @@ def router(require_admin) -> APIRouter:
             ]
             grupos.append({"fonte": "tela", "titulo": "Memória da tela", "itens": tela})
 
+        if escopo is None and s.historicos is not None:  # históricos locais (regra 60), opt-in
+            if s.settings.clipboard_days > 0:
+                area = [
+                    {"id": a["id"], "ts": a["ts"], "trecho": a["texto"][:240]}
+                    for a in s.historicos.buscar_area(q, 5, s.settings.clipboard_days)
+                ]
+                grupos.append({"fonte": "area", "titulo": "Área de transferência", "itens": area})
+            if s.settings.command_history:
+                cmds = [
+                    {"id": c["id"], "ts": c["ts"], "shell": c["shell"], "trecho": c["comando"]}
+                    for c in s.historicos.buscar_comandos(q, 5)
+                ]
+                grupos.append(
+                    {"fonte": "comandos", "titulo": "Comandos de terminal", "itens": cmds}
+                )
+
         gerados = s.memory.query(
             "SELECT id, name, kind, version FROM library_results WHERE project_id IS ?"
             " AND lower(name) LIKE ? ESCAPE '\\' ORDER BY created_at DESC LIMIT 5",

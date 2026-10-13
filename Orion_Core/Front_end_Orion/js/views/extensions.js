@@ -99,7 +99,7 @@
         }, 'btn btn-ghost btn-sm'));
         return el('article', { class: 'card extension-card', dataset: { plugin: row.id } },
             el('div', { class: 'extension-card-head' }, el('h3', { text: row.name }), badge(row.state)),
-            hint(row.description), el('div', { class: 'extension-meta', text: `v${row.version} · ${row.license} · ${row.origin === 'local' ? 'Pasta local' : row.origin === 'orion' ? 'Orion' : 'Pacote importado'}` }),
+            hint(row.description), el('div', { class: 'extension-meta', text: `v${row.version} · ${row.license} · ${row.origin === 'local' ? 'Pasta local' : row.origin === 'orion' ? 'Orion' : row.origin === 'catalogo' ? 'Catálogo' : 'Pacote importado'}` }),
             row.error ? el('p', { class: 'banner banner-warn', text: row.error === 'capability_unavailable' ? 'Uma ferramenta necessária não está disponível. Confira a configuração do provedor antes de ativar.' : 'A ativação falhou. Confira a conexão e revise as permissões antes de tentar novamente.' }) : null,
             el('details', {}, el('summary', { text: 'Detalhes e capacidades' }),
                 hint(`Identidade: ${row.id} · Revisão: ${row.selected_digest.slice(0, 16)}`),
@@ -115,16 +115,69 @@
         } }, { once: true }); input.click();
     }
 
+    /* ── E8.3: pacote do Claude Code ou do Codex → só as skills; o resto aparece antes de instalar ── */
+    async function importForeign() {
+        const source = origin();
+        const input = el('input', { type: 'file', accept: '.zip,application/zip' });
+        input.addEventListener('change', async () => {
+            const file = input.files[0];
+            if (!file || source !== origin()) return;
+            if (file.size > 16000000) { O.ui.toast('O pacote deve ter até 16 MB.', { tipo: 'erro' }); return; }
+            let previa;
+            try { previa = await api.previaImportacao(file); }
+            catch (error) { O.ui.toast(`Não consegui ler o pacote: ${error.message}`, { tipo: 'erro' }); return; }
+            const formatos = { 'claude-code': 'Claude Code', codex: 'Codex', orion: 'Orion' };
+            const linhas = [hint(`Formato ${formatos[previa.formato] || previa.formato} · ${previa.name} v${previa.version} · ${previa.license}`),
+                hint(`Skills que viram parte do plugin: ${previa.skills.join(', ') || 'nenhuma'}.`)];
+            if (previa.ignorado.length) linhas.push(el('p', { class: 'extension-hint', text: 'Ficam de fora (não têm equivalente seguro no Orion):' }),
+                el('ul', { class: 'extension-ignorado', 'aria-label': 'O que não foi importado' }, ...previa.ignorado.map(t => el('li', { text: t }))));
+            linhas.push(hint('O plugin entra desativado. Você revisa e ativa depois.'));
+            if (!await dialog('Importar do Claude Code ou Codex', 'Só o texto das skills é convertido. Nada do pacote é executado.', linhas, 'Instalar sem ativar') || source !== origin()) return;
+            mutate(() => api.importarConvertido(file));
+        }, { once: true });
+        input.click();
+    }
+
+    /* ── E8.4: catálogo local e remotos. Instalar não ativa; versão nova é só aviso ── */
+    function catalogoCard(row) {
+        const rotulo = row.local ? 'Catálogo local' : `Catálogo ${(() => { try { return new URL(row.fonte).hostname; } catch (_) { return 'remoto'; } })()}`;
+        const acao = row.instalado === row.version ? null
+            : button(row.atualizacao ? `Atualizar para v${row.version}` : 'Instalar', async () => {
+                const source = origin();
+                if (row.atualizacao && !await O.ui.confirmar({ titulo: `Atualizar ${row.name}?`, ok: 'Baixar e instalar',
+                    texto: `A v${row.instalado} continua valendo até você revisar e trocar de versão. Nada é ativado sozinho.` })) return;
+                if (source !== origin()) return;
+                await mutate(() => api.instalarDoCatalogo(row.fonte, row.id, row.version));
+                tab === 'catalogo' && refresh();
+            }, 'btn btn-primary btn-sm');
+        return el('article', { class: 'card extension-card', dataset: { catalogo: row.id, versao: row.version } },
+            el('div', { class: 'extension-card-head' }, el('h3', { text: row.name }),
+                row.atualizacao ? el('span', { class: 'badge badge-ok', text: 'Atualização' }) : row.instalado ? el('span', { class: 'badge badge-muted', text: 'Instalado' }) : null),
+            hint(row.description || 'Sem descrição.'),
+            el('div', { class: 'extension-meta', text: `v${row.version} · ${rotulo} · ${row.sha256.slice(0, 12)}${row.instalado && row.instalado !== row.version ? ` · instalado: v${row.instalado}` : ''}` }), acao);
+    }
+
     async function refresh() {
         if (!active || tab === 'channels') return;
         const current = ++generation, source = origin(), selected = tab;
         panel.setAttribute('aria-busy', 'true');
         try {
-            const rows = selected === 'plugins' ? await api.plugins() : selected === 'skills' ? await api.skills() : await api.conexoesMcp();
+            let dadosCatalogo = null;
+            if (selected === 'catalogo') dadosCatalogo = await api.catalogoPlugins();
+            const rows = selected === 'catalogo' ? dadosCatalogo.plugins : selected === 'plugins' ? await api.plugins() : selected === 'skills' ? await api.skills() : await api.conexoesMcp();
             if (current !== generation || source !== origin() || selected !== tab) return;
             const nodes = [];
+            if (selected === 'catalogo') {
+                nodes.push(hint('Pacotes da pasta catalogo/ do Orion e dos catálogos que você cadastrou. Baixar não ativa nada e nada atualiza sozinho.'));
+                for (const f of dadosCatalogo.fontes.filter(f => !f.ok)) nodes.push(el('p', { class: 'banner banner-warn', role: 'status', text: `Não consegui ler o catálogo ${f.fonte === 'local' ? 'local' : f.fonte}: ${f.erro}` }));
+                nodes.push(el('div', { class: 'extension-grid' }, ...rows.map(catalogoCard)));
+                if (!rows.length) nodes.push(el('div', { class: 'extension-empty' }, el('h3', { text: 'Nenhum pacote no catálogo' }),
+                    hint('Coloque um catalogo.json e os .zip na pasta catalogo/ dos dados do Orion, ou cadastre um catálogo em ORION_PLUGIN_CATALOGS.')));
+                panel.replaceChildren(...nodes);
+                return;
+            }
             if (selected === 'plugins') {
-                nodes.push(el('div', { class: 'extension-toolbar' }, hint('Instale capacidades novas e escolha quando ativá-las.'), button('Importar pacote ZIP', importFile, 'btn btn-primary btn-sm')));
+                nodes.push(el('div', { class: 'extension-toolbar' }, hint('Instale capacidades novas e escolha quando ativá-las.'), button('Importar pacote ZIP', importFile, 'btn btn-primary btn-sm'), button('Importar do Claude Code ou Codex', importForeign, 'btn btn-outline btn-sm')));
                 const folder = button('Instalar por pasta', async () => { const source = origin(); const path = await O.ui.confirmar({ titulo: 'Instalar pacote local', texto: 'Informe a pasta que contém manifest.json. O código não será executado durante a instalação.', campo: { rotulo: 'Caminho absoluto da pasta', limite: 4096 }, ok: 'Instalar' }); if (path && source === origin()) await mutate(() => api.instalarPlugin(path)); });
                 nodes.push(el('details', { class: 'extension-local' }, el('summary', { text: 'Pacote de desenvolvimento' }), folder));
                 nodes.push(el('div', { class: 'extension-grid' }, ...rows.map(pluginCard)));
@@ -171,13 +224,13 @@
         init() {
             legacy.init();
             tabs = el('div', { class: 'extension-tabs', role: 'tablist', 'aria-label': 'Tipos de extensão' });
-            for (const [id, text] of [['plugins', 'Plugins'], ['skills', 'Skills'], ['mcp', 'Conexões MCP'], ['channels', 'Voz e canais']]) {
+            for (const [id, text] of [['plugins', 'Plugins'], ['catalogo', 'Catálogo'], ['skills', 'Skills'], ['mcp', 'Conexões MCP'], ['channels', 'Voz e canais']]) {
                 const item = button(text, () => select(id), 'extension-tab');
                 Object.assign(item.dataset, { tab: id }); item.id = `extension-tab-${id}`; item.setAttribute('role', 'tab'); item.setAttribute('aria-controls', id === 'channels' ? 'integ-grid' : 'extension-panel'); tabs.append(item);
             }
             tabs.addEventListener('keydown', event => {
-                const ids = ['plugins', 'skills', 'mcp', 'channels'], index = ids.indexOf(tab);
-                const next = event.key === 'ArrowRight' ? (index + 1) % 4 : event.key === 'ArrowLeft' ? (index + 3) % 4 : event.key === 'Home' ? 0 : event.key === 'End' ? 3 : null;
+                const ids = ['plugins', 'catalogo', 'skills', 'mcp', 'channels'], n = ids.length, index = ids.indexOf(tab);
+                const next = event.key === 'ArrowRight' ? (index + 1) % n : event.key === 'ArrowLeft' ? (index + n - 1) % n : event.key === 'Home' ? 0 : event.key === 'End' ? n - 1 : null;
                 if (next === null) return; event.preventDefault(); select(ids[next]); tabs.children[next].focus();
             });
             panel = el('div', { id: 'extension-panel', role: 'tabpanel', tabindex: '0' });

@@ -118,6 +118,13 @@ def build_weekly(memory: MemoryStore, agora: float, nome: str = "Antônio") -> s
             "SELECT COUNT(DISTINCT session_id) FROM messages WHERE role='user' AND created_at>=?",
             (desde,),
         ).fetchone()[0]
+        para_ler = [
+            (r[0] or r[1])
+            for r in c.execute(
+                "SELECT title, url FROM read_later WHERE status IN ('pendente','erro')"
+                " ORDER BY created_at LIMIT 10"
+            )
+        ]
     ini = datetime.fromtimestamp(desde)
     fim = datetime.fromtimestamp(agora)
     partes = [
@@ -126,5 +133,6 @@ def build_weekly(memory: MemoryStore, agora: float, nome: str = "Antônio") -> s
         f"Tarefas: {len(concluidas)} concluída(s), {criadas} criada(s), {abertas} em aberto.",
         _secao("✅ Concluídas", concluidas),
         _secao("🧠 Fatos novos na memória", fatos),
+        _secao("📚 Para ler (ler depois)", para_ler),
     ]
     return "\n\n".join(p for p in partes if p)

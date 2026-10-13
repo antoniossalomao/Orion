@@ -32,7 +32,7 @@
     const configurarToken = t => { tokenDesktop = String(t || ''); };
 
     /** rotas que exigem o token do orion.app; o legado não conhece cabeçalho Authorization */
-    const comAuth = caminho => /^\/(mcp-export|files|approvals|chat|calendar|accounts|branches|documents|activity|notifications|facts|artifacts|projects|skills|plugins|mcp|sessoes|historico|exportar|painel|tela|resultados|atividade|modo|privacidade|capabilities\/details)(\/|$|\?)/.test(caminho)
+    const comAuth = caminho => /^\/(mcp-export|files|approvals|chat|calendar|accounts|branches|documents|activity|notifications|facts|artifacts|projects|skills|plugins|mcp|sessoes|historico|exportar|painel|tela|resultados|pesquisa|prompts|lembretes|rotinas|tarefas-bg|downloads|ler-depois|posso-desligar|transcricao|area-transferencia|comandos|atividade|modo|privacidade|capabilities\/details)(\/|$|\?)/.test(caminho)
         || (estado.backend === 'orion' && /^\/(grafo|memoria\/relacoes|busca)(\/|$|\?)/.test(caminho));   // no legado essas rotas não têm login
 
     function cabecalhos(caminho, extra = {}) {
@@ -133,7 +133,7 @@
                     features.chat = h.cerebro.ok;
                     features.skills = false;
                     features.plugins = false; features.mcp = false; features.projects = false; features.artifacts = false; features.memory_facts = false;
-                    for (const name of ['notifications', 'activity', 'documents', 'branches', 'accounts', 'calendar', 'file_plans', 'mcp_export', 'global_search', 'screen_search']) features[name] = false; // somente backend novo
+                    for (const name of ['notifications', 'activity', 'documents', 'branches', 'accounts', 'calendar', 'file_plans', 'mcp_export', 'global_search', 'screen_search', 'library_panel', 'research_ui', 'mcp_servers', 'automacao']) features[name] = false; // somente backend novo
                     novo = { backend: 'legacy', api: 'online', model: h.cerebro.ok ? 'ready' : 'unavailable', features, unavailable: estado.backend === 'legacy' ? estado.unavailable : {} };
                 } else novo = { backend: 'unknown', api: 'online', model: 'unknown', features: {}, unavailable: {}, incompatible: true };
             } catch (e) {
@@ -167,6 +167,11 @@
         plugins: () => recurso('plugins', '/plugins'),
         importarPlugin: arquivo => recurso('plugins', '/plugins/import?update=true', { metodo: 'POST', body: arquivo, contentType: 'application/zip', timeout: 30000 }),
         instalarPlugin: folder => recurso('plugins', '/plugins/install', { metodo: 'POST', json: { folder, update: true }, timeout: 30000 }),
+        /** E8: catálogo local/remoto e importação de pacotes do Claude Code ou do Codex */
+        catalogoPlugins: () => recurso('plugins', '/plugins/catalogo', { timeout: 30000 }),
+        instalarDoCatalogo: (fonte, id, version = null) => recurso('plugins', '/plugins/catalogo/instalar', { metodo: 'POST', json: { fonte, id, ...(version ? { version } : {}) }, timeout: 60000 }),
+        previaImportacao: arquivo => recurso('plugins', '/plugins/importar/previa', { metodo: 'POST', body: arquivo, contentType: 'application/zip', timeout: 30000 }),
+        importarConvertido: arquivo => recurso('plugins', '/plugins/importar?update=true', { metodo: 'POST', body: arquivo, contentType: 'application/zip', timeout: 30000 }),
         plugin: (id, action, json) => recurso('plugins', `/plugins/${encodeURIComponent(id)}${action ? '/' + action : ''}`, { metodo: action === '' ? 'DELETE' : 'POST', json, timeout: 30000 }),
         versoesPlugin: id => recurso('plugins', `/plugins/${encodeURIComponent(id)}/versions`),
         configurarMcp: (config, edit = false) => recurso('mcp', `/mcp/connections${edit ? '/' + encodeURIComponent(config.id) : ''}`, { metodo: edit ? 'PUT' : 'POST', json: config }),
@@ -174,8 +179,8 @@
         desativarMcp: id => recurso('mcp', `/mcp/connections/${encodeURIComponent(id)}/disable`, { metodo: 'POST', timeout: 30000 }),
         removerMcp: id => recurso('mcp', `/mcp/connections/${encodeURIComponent(id)}`, { metodo: 'DELETE', timeout: 30000 }),
         conexoesMcp: () => recurso('mcp', '/mcp/connections'),
-        pedidoChat: ({ texto, modelo, skills = [] }) => estado.backend === 'orion'
-            ? { texto, canal: 'web', ...(skills.length ? { skills } : {}) } : { texto, modelo },
+        pedidoChat: ({ texto, modelo, skills = [], skillSimples = null }) => estado.backend === 'orion'
+            ? { texto, canal: 'web', ...(skills.length ? { skills } : {}), ...(skillSimples ? { skill: skillSimples } : {}) } : { texto, modelo },
         pedidoRetomada: () => estado.backend === 'orion' ? { json: { canal: 'web' } } : {},
         usarHub: () => estado.backend === 'legacy',
         async ping(timeout = 2000) {
@@ -247,6 +252,23 @@
         bibliotecaTexto: id => req(`/resultados/${encodeURIComponent(id)}/texto`, { timeout: 5000 }),
         /** bytes do arquivo (Response): `previa` pede a imagem inline, senão é o download */
         bibliotecaArquivo: (id, previa = false) => req(`/resultados/${encodeURIComponent(id)}/arquivo?${q({ previa: previa ? 'true' : null })}`, { bruto: true, timeout: 60000 }),
+        /** diff de linhas entre duas versões de texto: `id` é a nova, `com` a base (E6.2) */
+        bibliotecaDiff: (id, com) => recurso('library_panel', `/resultados/${encodeURIComponent(id)}/diff?${q({ com })}`, { timeout: 6000 }),
+        /** apaga as versões além das `manter` mais novas; `simular` só conta (E6.3) */
+        bibliotecaLimpar: (manter, simular = false, nome = null) => recurso('library_panel', '/resultados/limpar', { metodo: 'POST', json: { manter, simular, ...(nome ? { nome } : {}) }, timeout: 15000 }),
+        /** servidores do mcp.json: estado, última falha, ferramentas e risco (E7.3) */
+        mcpServidores: () => recurso('mcp_servers', '/mcp/servidores', { timeout: 6000 }),
+        mcpTestar: nome => recurso('mcp_servers', `/mcp/servidores/${encodeURIComponent(nome)}/testar`, { metodo: 'POST', timeout: 70000 }),
+        /** prompts de servidores MCP: só você invoca (E7.5, regra 55) */
+        mcpPrompts: () => recurso('mcp_servers', '/mcp/prompts', { timeout: 20000 }),
+        mcpPrompt: (servidor, nome, argumentos) => recurso('mcp_servers', `/mcp/prompts/${encodeURIComponent(servidor)}/${encodeURIComponent(nome)}`, { metodo: 'POST', json: { argumentos }, timeout: 40000 }),
+        /** skills da sua pasta skills/ (catálogo simples), para /skill (E7.6) */
+        skillsCatalogo: () => recurso('mcp_servers', '/skills/catalogo', { timeout: 4000 }),
+        /** pesquisa noturna (E6.5): assuntos, relatórios e "rodar agora" */
+        pesquisaAssuntos: () => recurso('research_ui', '/pesquisa/assuntos', { timeout: 4000 }),
+        pesquisaSalvar: assuntos => recurso('research_ui', '/pesquisa/assuntos', { metodo: 'PUT', json: { assuntos }, timeout: 5000 }),
+        pesquisaRelatorios: () => recurso('research_ui', '/pesquisa/relatorios', { timeout: 4000 }),
+        pesquisaRodar: () => recurso('research_ui', '/pesquisa/rodar', { metodo: 'POST', timeout: 8000 }),
         bibliotecaApagar: id => req(`/resultados/${encodeURIComponent(id)}`, { metodo: 'DELETE', timeout: 5000 }),
         /** caixa de atividade: avisos novos e lidos (não confundir com `atividade`, da atividade das ferramentas) */
         caixaDeAtividade: () => req('/atividade', { timeout: 4000 }),
@@ -297,6 +319,19 @@
         baixarDocumento: (id, project_id) => recurso('documents', `/documents/${id}/download?${q({ project_id })}`, { bruto: true }),
         atividade: (project_id, unread = false) => recurso('activity', `/activity?${q({ project_id, unread })}`),
         preferenciasAtividade: (project_id, json) => recurso('activity', `/activity/preferences?${q({ project_id })}`, { metodo: 'PUT', json }),
+        agirNoLembrete: (id, acao, project_id) => req(`/lembretes/${id}/${acao}?${q({ project_id })}`, { metodo: 'POST' }),
+        rotinas: () => recurso('automacao', '/rotinas', { timeout: 6000 }),
+        rotinaAcao: (nome, acao) => recurso('automacao', `/rotinas/${encodeURIComponent(nome)}/${acao}`, { metodo: 'POST', timeout: acao === 'executar' ? 120000 : 8000 }),
+        tarefasBg: () => recurso('automacao', '/tarefas-bg', { timeout: 6000 }),
+        criarTarefaBg: json => recurso('automacao', '/tarefas-bg', { metodo: 'POST', json, timeout: 8000 }),
+        cancelarTarefaBg: id => recurso('automacao', `/tarefas-bg/${id}/cancelar`, { metodo: 'POST' }),
+        decidirPropostaBg: (id, indice, acao) => recurso('automacao', `/tarefas-bg/${id}/propostas/${indice}`, { metodo: 'POST', json: { acao } }),
+        downloads: () => recurso('automacao', '/downloads', { timeout: 6000 }),
+        downloadsAcao: (acao, params = {}) => recurso('automacao', `/downloads/${acao}?${q(params)}`, { metodo: 'POST', timeout: 60000 }),
+        desfazerDownloads: escopo => recurso('automacao', '/downloads/desfazer', { metodo: 'POST', json: { escopo } }),
+        possoDesligar: () => recurso('automacao', '/posso-desligar', { timeout: 30000 }),
+        propostasAbertas: () => recurso('automacao', '/transcricao/propostas', { timeout: 4000 }),
+        decidirProposta: (id, acao, project_id) => req(`/transcricao/propostas/${id}/${acao}?${q({ project_id })}`, { metodo: 'POST' }),
         lerAviso: (id, project_id) => req(`/notifications/${id}/ack?${q({ project_id })}`, { metodo: 'POST' }),
         /** `semAviso`: consulta de fundo; um 401 não reabre a tela de entrada */
         aprovacoes: ({ semAviso = false } = {}) => recurso('approvals', '/approvals', { timeout: 4000, semAviso }),
