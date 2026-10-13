@@ -150,7 +150,12 @@ def test_lembrete_insistente_tem_feito_e_adiar_na_atividade(abrir, novo_backend)
     expect(botoes.get_by_role("button", name="Adiar 1 h")).to_be_visible()
     _axe_limpo(page)
     botoes.get_by_role("button", name="Feito").click()
-    assert all(x["id"] != r["id"] or x["done"] for x in ops.list_reminders(include_done=True))
+    for _ in range(100):  # o clique é assíncrono: espera o servidor concluir
+        if all(x["id"] != r["id"] or x["done"] for x in ops.list_reminders(include_done=True)):
+            break
+        page.wait_for_timeout(50)
+    else:
+        raise AssertionError("o lembrete não foi concluído")
 
 
 def test_janela_da_area_de_transferencia_lista_busca_e_avisa_quando_desligada(abrir, novo_backend):
