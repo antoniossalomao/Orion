@@ -63,7 +63,9 @@ def _set_password(settings: Settings, *, from_stdin: bool) -> int:
     return 0
 
 
-def _transcrever(settings: Settings, alvo: str, titulo: str, sim: bool) -> int:
+def _transcrever(
+    settings: Settings, alvo: str, titulo: str, sim: bool, propor: bool = False
+) -> int:
     from . import saidas
     from .app import transcriber_from_settings
     from .capture import Capturer
@@ -105,6 +107,42 @@ def _transcrever(settings: Settings, alvo: str, titulo: str, sim: bool) -> int:
         saidas.definir_destino(None)
         store.close()
     print(f"nota criada: {nota.name}")
+    if propor:
+        return _propor_da_nota(settings, nota, sim)
+    return 0
+
+
+def _propor_da_nota(settings: Settings, nota: Path, sim: bool) -> int:
+    """E9.11: o texto transcrito vai ao modelo, que propõe tarefas, lembretes e fatos. Cada item
+    vira um aviso na caixa de atividade para aprovar ou descartar; nada é criado aqui."""
+    import asyncio
+
+    from . import saidas
+    from .app import gateway_from_settings
+    from .memory import MemoryStore
+    from .memory.ops import Operations
+    from .propostas import Propostas, extrair
+
+    gateway = gateway_from_settings(settings)
+    if gateway is None:
+        print("sem modelo configurado: a nota ficou, mas não há propostas", file=sys.stderr)
+        return 0
+    aviso = (
+        "O TEXTO transcrito será enviado ao modelo de chat para extrair tarefas. Continuar? [s/N] "
+    )
+    if not sim and input(aviso).strip().lower() != "s":
+        print("nenhuma proposta foi pedida")
+        return 0
+    store = MemoryStore(settings.db_path)
+    saidas.definir_destino(store.add_external_call)
+    try:
+        texto = nota.read_text(encoding="utf-8", errors="replace")
+        itens = asyncio.run(extrair(gateway, texto))
+        ids = Propostas(store, Operations(store)).guardar(nota.stem, itens)
+    finally:
+        saidas.definir_destino(None)
+        store.close()
+    print(f"{len(ids)} proposta(s) na caixa de atividade (Atividade → Aprovar ou Descartar)")
     return 0
 
 
@@ -350,6 +388,35 @@ def _rotina(settings: Settings, args: argparse.Namespace) -> int:
         store.close()
 
 
+def _converter(settings: Settings, args: argparse.Namespace) -> int:
+    """E9.9: converte um arquivo no computador e guarda a cópia na biblioteca de resultados."""
+    from .conversor import ConversaoError, converter_e_guardar, formatos_para
+    from .memory import MemoryStore
+    from .resultados import Library
+
+    origem = Path(args.arquivo).expanduser()
+    if args.formato == "?":
+        lista = formatos_para(origem.suffix)
+        print(", ".join(lista) if lista else "não sei converter esse tipo de arquivo")
+        return 0 if lista else 1
+    store = MemoryStore(settings.db_path)
+    try:
+        saida = Path(args.saida).expanduser() if args.saida else settings.data_dir / "conversoes"
+        try:
+            r = converter_e_guardar(
+                origem, args.formato, saida, Library(store, settings.data_dir / "resultados")
+            )
+        except ConversaoError as e:
+            print(f"não converteu: {e}", file=sys.stderr)
+            return 1
+    finally:
+        store.close()
+    print(f"pronto: {r['arquivo']}")
+    if r["biblioteca"]:
+        print(f"cópia na biblioteca de resultados (id {r['biblioteca']['id']})")
+    return 0
+
+
 def _posso_desligar(settings: Settings, args: argparse.Namespace) -> int:
     """E9.5: o que ficaria pela metade se o computador desligasse agora (só lê)."""
     from .desligar import posso_desligar, texto
@@ -563,6 +630,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     ms.add_argument("--token", action="store_true", help="gera um token novo (revoga o anterior)")
     ms.add_argument("--revogar", action="store_true", help="revoga o token: nada mais lê")
+    cv = sub.add_parser("converter", help="converte um arquivo no computador (use '?' de formato)")
+    cv.add_argument("arquivo")
+    cv.add_argument("formato", help="pdf, docx, mp3, png, comprimir… ou ? para ver as opções")
+    cv.add_argument("--saida", default="", help="pasta de saída (padrão: <dados>/conversoes)")
     sub.add_parser("posso-desligar", help="o que ficaria pela metade se desligasse agora")
     dl = sub.add_parser("downloads", help="organizador de Downloads com as suas regras")
     dl.add_argument(
@@ -602,6 +673,11 @@ def main(argv: list[str] | None = None) -> int:
     tr.add_argument("arquivo", help="arquivo local, ou um link http(s) (precisa do yt-dlp)")
     tr.add_argument("--titulo", default="", help="título da nota (padrão: nome do arquivo)")
     tr.add_argument("--sim", action="store_true", help="não pergunta antes de enviar o áudio")
+    tr.add_argument(
+        "--propor",
+        action="store_true",
+        help="depois, o modelo propõe tarefas, lembretes e fatos (você aprova na Atividade)",
+    )
     po = sub.add_parser(
         "ponte", help="ponte de desktop: bandeja e teclas globais (pip install 'orion[ponte]')"
     )
@@ -703,7 +779,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.cmd == "transcrever":
-        return _transcrever(settings, args.arquivo, args.titulo, args.sim)
+        return _transcrever(settings, args.arquivo, args.titulo, args.sim, args.propor)
 
     if args.cmd == "fatos":
         from .memory import MemoryStore
@@ -772,6 +848,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "wake-test":
         return _wake_test(settings, listar=args.listar, segundos=args.segundos)
 
+    if args.cmd == "converter":
+        return _converter(settings, args)
     if args.cmd == "posso-desligar":
         return _posso_desligar(settings, args)
     if args.cmd == "downloads":

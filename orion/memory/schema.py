@@ -429,6 +429,15 @@ CREATE TABLE command_log (
 );
 CREATE INDEX command_log_ts ON command_log(ts);
 {_fts("command_log", "command")}
+CREATE TABLE transcript_proposals (
+    id INTEGER PRIMARY KEY,
+    source TEXT NOT NULL,
+    kind TEXT NOT NULL CHECK (kind IN ('tarefa', 'lembrete', 'fato')),
+    title TEXT NOT NULL,
+    due TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'pendente',
+    created_at REAL NOT NULL
+);
 CREATE TABLE read_later (
     id INTEGER PRIMARY KEY,
     url TEXT NOT NULL UNIQUE,

@@ -54,6 +54,8 @@ API = "https://api.telegram.org"
 LIMITE_MENSAGEM = 4000  # o Telegram aceita 4096; folga para o que o cliente conta diferente
 LIMITE_ENTRADA = 8000  # o mesmo teto do POST /chat
 _METODOS_DE_SAIDA = ("send", "edit", "answer")
+_CONVERTE = re.compile(r"\bconvert\w*\s+(?:para|pra|em|to)\s+\.?([A-Za-z0-9]{2,12})", re.I)
+MAX_DOCUMENTO = 20 * 1024 * 1024  # limite de download do Telegram para bots
 MAX_VOZ_S = 300  # áudio mais longo que 5 min não é transcrito
 MAX_FOTO = 4 * 1024 * 1024  # bytes; escolhe o maior tamanho que couber
 _MIME_FOTO = {
@@ -130,6 +132,10 @@ class TelegramChannel:
         self.tela: Callable[[str], str] | None = None  # `/tela` (regra 44); o app liga depois
         self.modos: Modos | None = None  # `/panico` (regra 48); o app liga depois
         self.desligar: Callable[[], str] | None = None  # `/desligar` (E9.5); o app liga depois
+        # E9.9: (nome, bytes, formato) → (nome novo, bytes); levanta ConversaoError. O app liga.
+        self.converter: Callable[[str, bytes, str], tuple[str, bytes]] | None = None
+        # E9.10: quem manda voz recebe voz; o app liga com ORION_TELEGRAM_VOICE_REPLY
+        self.speaker: Any = None  # tem `async falar(texto) -> bytes` (mp3)
         self.ler_depois: Any = None  # LerDepois (E9.8); o app liga depois
         self.rotinas: Any = None  # RotinaStore (regra 58); o app liga depois
         self.executar_rotina: Callable[[str, str], Awaitable[Any]] | None = None
@@ -355,6 +361,9 @@ class TelegramChannel:
         if not texto and m.get("photo"):
             await self._on_foto(chat_id, m)
             return
+        if not texto and m.get("document"):
+            await self._on_documento(chat_id, m)
+            return
         if not texto:
             await self._enviar(chat_id, "Entendo texto, voz e foto por aqui.")
             return
@@ -442,6 +451,59 @@ class TelegramChannel:
         return build_briefing(self.ops, self.memory.clock(), agenda=self.agenda)
 
     # ── captura rápida (regra 30): comando do Antônio, não ferramenta do modelo ──
+    async def _on_documento(self, chat_id: int, m: dict[str, Any]) -> None:
+        """E9.9: arquivo com a legenda "converte para pdf" volta convertido (tudo local)."""
+        from ..conversor import ConversaoError, formatos_para
+
+        doc = m.get("document") or {}
+        legenda = str(m.get("caption") or "")
+        nome = str(doc.get("file_name") or "arquivo")
+        achou = _CONVERTE.search(legenda)
+        if self.converter is None:
+            await self._enviar(chat_id, "Conversão indisponível neste canal.")
+            return
+        if achou is None:
+            ext = nome.rsplit(".", 1)[-1] if "." in nome else ""
+            opcoes = ", ".join(formatos_para(ext))
+            await self._enviar(
+                chat_id,
+                "Mande o arquivo com a legenda “converte para <formato>”."
+                + (f" Para .{ext} posso: {opcoes}." if opcoes else " Não sei converter esse tipo."),
+            )
+            return
+        if int(doc.get("file_size") or 0) > MAX_DOCUMENTO:
+            await self._enviar(chat_id, "Arquivo grande demais (o Telegram libera até 20 MB).")
+            return
+        await self._api("sendChatAction", chat_id=chat_id, action="upload_document")
+        try:
+            dados, _ = await self._baixar(str(doc.get("file_id", "")), MAX_DOCUMENTO)
+            novo, saida = await asyncio.to_thread(self.converter, nome, dados, achou.group(1))
+        except (TelegramError, ConversaoError) as e:
+            await self._enviar(chat_id, f"⚠️ Não converti: {e}")
+            return
+        await self._enviar_documento(chat_id, novo, saida)
+
+    async def _enviar_documento(self, chat_id: int, nome: str, dados: bytes) -> None:
+        await self._enviar_arquivo("sendDocument", "document", chat_id, nome, dados)
+
+    async def _enviar_arquivo(
+        self, metodo: str, campo: str, chat_id: int, nome: str, dados: bytes
+    ) -> None:
+        url = f"{self._base}/bot{self._token}/{metodo}"
+        with saidas.medir("telegram", "canal", bytes_out=len(dados)) as med:
+            try:
+                resp = await self._client.post(
+                    url,
+                    data={"chat_id": str(chat_id)},
+                    files={campo: (nome, dados)},
+                    timeout=self._poll_timeout + 60,
+                )
+            except httpx.HTTPError as e:
+                raise TelegramError(f"{metodo}: {type(e).__name__}") from None
+            med.ok, med.bytes_in = resp.status_code < 400, len(resp.content)
+        if resp.status_code >= 400:
+            raise TelegramError(f"{metodo}: HTTP {resp.status_code}", resp.status_code)
+
     async def _ler_depois(self, link: str) -> str:
         """`/ler <link>` (E9.8): guarda na fila, resume em segundo plano e deixa a nota no vault."""
         if self.ler_depois is None:
@@ -551,7 +613,25 @@ class TelegramChannel:
             return
         # mostra o que foi entendido: quem falou confere (e aprovação continua só por botão)
         await self._enviar(chat_id, f"🎙️ Entendi: {texto}")
-        await self._consumir(chat_id, self.agent.run(CANAL, texto))
+        resposta = await self._consumir(chat_id, self.agent.run(CANAL, texto))
+        await self._responder_em_audio(chat_id, resposta)
+
+    async def _responder_em_audio(self, chat_id: int, resposta: str) -> None:
+        """E9.10: só com ORION_TELEGRAM_VOICE_REPLY. O texto da resposta vai ao serviço de voz
+        (edge-tts, Microsoft), já registrado na saída; falha da voz nunca esconde o texto."""
+        if self.speaker is None or not resposta:
+            return
+        from ..voice import SpeakError, falavel
+
+        fala = falavel(resposta)
+        if not fala:
+            return
+        try:
+            audio = await self.speaker.falar(fala)
+            await self._api("sendChatAction", chat_id=chat_id, action="upload_voice")
+            await self._enviar_arquivo("sendAudio", "audio", chat_id, "resposta.mp3", audio)
+        except (SpeakError, TelegramError) as e:
+            log.warning("telegram: resposta em áudio falhou: %s", e)
 
     async def _baixar_foto(self, chat_id: int, m: dict[str, Any]) -> tuple[bytes, str] | None:
         """O maior tamanho da foto que couber no limite; falha avisa e devolve None."""
@@ -579,8 +659,9 @@ class TelegramChannel:
         legenda = (m.get("caption") or "").strip() or "O que você vê nesta imagem?"
         await self._consumir(chat_id, self.agent.run(CANAL, legenda[:LIMITE_ENTRADA], [url]))
 
-    async def _consumir(self, chat_id: int, eventos: AsyncIterator[AgentEvent]) -> None:
-        """Junta o turno do agente e responde: texto, depois um cartão por aprovação pedida."""
+    async def _consumir(self, chat_id: int, eventos: AsyncIterator[AgentEvent]) -> str:
+        """Junta o turno do agente e responde: texto, depois um cartão por aprovação pedida.
+        Devolve o texto da resposta (a voz do Telegram, E9.10, fala o mesmo texto)."""
         texto: list[str] = []
         cartoes: list[dict[str, Any]] = []
         erros: list[str] = []
@@ -605,6 +686,7 @@ class TelegramChannel:
             await self._enviar(chat_id, f"⚠️ {e}")
         if not (resposta or cartoes or erros):
             await self._enviar(chat_id, "(sem resposta)")
+        return resposta
 
     async def _on_callback(self, cb: dict[str, Any]) -> None:
         msg = cb.get("message") or {}

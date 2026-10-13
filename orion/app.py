@@ -9,6 +9,7 @@ import json
 import logging
 import re
 import shutil
+import tempfile
 import threading
 import time
 import uuid
@@ -51,6 +52,7 @@ from .captura_rapida import router as captura_router
 from .capture import Capturer
 from .channels import TelegramChannel
 from .config import PROJECT_ROOT, Settings
+from .conversor import ConversaoError, converter_e_guardar
 from .costs import Custos, cotas_de
 from .delegate import Delegator
 from .desligar import posso_desligar
@@ -95,9 +97,10 @@ from .ponte.rotas import rota_permitida as rota_da_ponte_permitida
 from .ponte.rotas import router as ponte_router
 from .project_routes import router as project_router
 from .projects import ProjectError
+from .propostas import PropostaError, Propostas
 from .provedores import chave_env
 from .research import Research
-from .resultados import PREVIA_IMAGEM, PREVIA_PDF, PREVIA_TEXTO, Library
+from .resultados import PREVIA_IMAGEM, PREVIA_PDF, PREVIA_TEXTO, Library, nome_seguro
 from .rotinas import Executor as ExecutorRotinas
 from .rotinas import RotinaStore
 from .screen_memory import (
@@ -141,6 +144,7 @@ FRONT_DIR = PROJECT_ROOT / "Orion_Core" / "Front_end_Orion"
 
 audit_log = logging.getLogger("orion.audit")
 log = logging.getLogger("orion.app")
+MAX_ENVIO_TELEGRAM = 50 * 1024 * 1024  # limite de envio de arquivo por bot
 MAX_TEXTO_DOCUMENTO = 2_000_000  # caracteres indexados por documento enviado
 
 
@@ -794,6 +798,23 @@ class LimparResultados(BaseModel):
     simular: bool = False
 
 
+def _converter_do_telegram(
+    settings: Settings, biblioteca: Library, nome: str, dados: bytes, formato: str
+) -> tuple[str, bytes]:
+    """E9.9: o arquivo mandado pelo Telegram vai para uma pasta temporária, é convertido no
+    computador e a cópia fica na biblioteca de resultados; só o convertido volta."""
+    base = settings.data_dir / "conversoes"
+    base.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="tg-", dir=base) as tmp:
+        origem = Path(tmp) / nome_seguro(nome)
+        origem.write_bytes(dados)
+        r = converter_e_guardar(origem, formato, Path(tmp) / "saida", biblioteca)
+        arquivo = r["arquivo"]
+        if arquivo.stat().st_size > MAX_ENVIO_TELEGRAM:
+            raise ConversaoError("o resultado passa de 50 MB (limite do Telegram)")
+        return arquivo.name, arquivo.read_bytes()
+
+
 def _conferir_desligar(settings: Settings, tarefas_bg: Any, downloads: Any) -> dict[str, Any]:
     """E9.5: lê o que ficaria pela metade (repositórios, tarefa, backup, downloads)."""
     pasta = (
@@ -1406,6 +1427,11 @@ def create_app(
             telegram.agenda = agenda
             telegram.rotinas = rotinas
             telegram.ler_depois = ler_depois
+            if settings.telegram_voice_reply:
+                telegram.speaker = EdgeSpeaker(settings.voice_tts_voice)
+            telegram.converter = lambda nome, dados, formato: _converter_do_telegram(
+                settings, biblioteca, nome, dados, formato
+            )
             telegram.desligar = lambda: texto_desligar(
                 _conferir_desligar(settings, tarefas_bg, downloads)
             )
@@ -2464,6 +2490,21 @@ def create_app(
         if state.modos is not None and state.modos.panico():
             raise HTTPException(409, "modo pânico")
         return state.historicos
+
+    @app.get("/transcricao/propostas", dependencies=[Admin])
+    def propostas_da_transcricao(state: State) -> dict[str, Any]:
+        return {"itens": Propostas(state.memory, state.ops).listar()}
+
+    @app.post("/transcricao/propostas/{pid}/{acao}", dependencies=[Admin])
+    def decidir_proposta(
+        pid: int, acao: Annotated[str, PathParam(pattern="^(aprovar|descartar)$")], state: State
+    ) -> dict[str, Any]:
+        try:
+            return Propostas(state.memory, state.ops).decidir(pid, acao)
+        except PropostaError as e:
+            raise HTTPException(e.status, str(e)) from None
+        except ValueError as e:  # data do lembrete inválida etc.
+            raise HTTPException(422, str(e)) from None
 
     @app.post("/ler-depois", dependencies=[Admin])
     async def ler_depois_adicionar(corpo: LinkLerDepois, state: State) -> dict[str, Any]:

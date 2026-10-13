@@ -32,6 +32,16 @@
         });
         return el('div', { class: 'extension-actions', dataset: { lembrete: achou[1] } }, agir('feito', 'Feito'), agir('adiar', 'Adiar 1 h'));
     }
+    /** proposta tirada de uma transcrição (E9.11): nada é criado até aprovar */
+    function acoesDaProposta(n, project, reload) {
+        const achou = /^proposta:(\d+)$/.exec(n.ref || '');
+        if (!achou) return null;
+        const agir = (acao, rotulo) => button(rotulo, async () => {
+            try { await api.decidirProposta(+achou[1], acao, project); await api.lerAviso(n.id, project).catch(() => {}); await reload(); }
+            catch (error) { status.textContent = error.message; }
+        });
+        return el('div', { class: 'extension-actions', dataset: { proposta: achou[1] } }, agir('aprovar', 'Aprovar'), agir('descartar', 'Descartar'));
+    }
     async function load() {
         const token = ++generation, project = scope(), source = api.base();
         if (!api.suporta('activity')) { status.textContent = 'Atividade ainda indisponível neste backend.'; return; }
@@ -43,7 +53,7 @@
             list.replaceChildren(...data.notifications.filter(n => filter.value !== 'pending' && (data.preferences[n.kind] !== false || filter.value === 'all')).map(n => el('article', { class: 'card fact-item', dataset: { notificationId: String(n.id) } },
                 el('h3', { text: n.kind }), el('p', { class: 'fact-text', text: n.text }),
                 el('p', { class: 'extension-hint', text: `${new Date(n.created_at * 1000).toLocaleString('pt-BR')} · ${n.delivered_at ? 'Lido' : 'Não lido'}` }),
-                decisoesDoSono(n, project, load), acoesDoLembrete(n, project, load),
+                decisoesDoSono(n, project, load), acoesDoLembrete(n, project, load), acoesDaProposta(n, project, load),
                 n.delivered_at ? null : button('Marcar como lido', async () => { try { await api.lerAviso(n.id, project); await load(); } catch (error) { status.textContent = error.message; } }))));
             decisions.replaceChildren(el('h3', { text: 'Aprovações pendentes' }), ...data.approvals.map(a => el('article', { class: 'card fact-item' },
                 el('p', { text: `${a.title} · ${a.tool}` }), el('p', { class: 'extension-hint', text: a.reason }),

@@ -59,6 +59,12 @@ class Library:
             origem, kind = self._imagens / Path(dados["arquivo"]).name, "imagem"
         else:
             return None
+        return self.registrar_arquivo(session_id, tool, origem, kind)
+
+    def registrar_arquivo(
+        self, session_id: str | None, tool: str, origem: Path, kind: str
+    ) -> dict[str, Any] | None:
+        """Guarda a cópia de um arquivo já pronto na biblioteca (E9.9 usa para conversões)."""
         try:
             if not origem.is_file() or origem.stat().st_size > MAX_COPIA:
                 return None
