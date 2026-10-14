@@ -6,11 +6,12 @@ para a versão atual sozinho (`MIGRATIONS`). v3: seleção persistente de sessã
 v4: conversas fixadas. v5: índice de títulos para busca de conversas. v6–v16: projetos,
 resultados, uploads, contas, agenda, planos de arquivos e clientes de exportação. v17: memória da
 tela, biblioteca de arquivos gerados, registro de saída (`external_calls`, regra 47) e aviso
-urgente (não perturbe, regra 48). Um banco da linhagem anterior da `main` (versão 11, com
+urgente (não perturbe, regra 48). v22: vida pessoal (E10: finanças, contas, preços,
+cápsula). Um banco da linhagem anterior da `main` (versão 11, com
 `external_calls`) é reconhecido e migrado por `MAIN_V11` (ver `store.py`).
 """
 
-SCHEMA_VERSION = 21
+SCHEMA_VERSION = 22
 
 TOKENIZER = "unicode61 remove_diacritics 2"  # "açúcar" casa com "acucar"
 
@@ -448,6 +449,42 @@ CREATE TABLE read_later (
 );
 """
 
+# v22 (E10, vida pessoal): finanças locais (regra 61), contas, monitor de preço e cápsula do tempo
+# (lembrete com `kind`). Valores em centavos (INTEGER); datas em segundos desde a época.
+DDL_V22 = """
+ALTER TABLE reminders ADD COLUMN kind TEXT NOT NULL DEFAULT 'lembrete';
+CREATE TABLE transactions (
+    id INTEGER PRIMARY KEY,
+    ts REAL NOT NULL,
+    cents INTEGER NOT NULL,
+    category TEXT NOT NULL DEFAULT 'outros',
+    description TEXT NOT NULL DEFAULT '',
+    source TEXT NOT NULL DEFAULT 'chat'
+);
+CREATE INDEX idx_transactions_ts ON transactions(ts);
+CREATE TABLE bills (
+    id INTEGER PRIMARY KEY,
+    description TEXT NOT NULL,
+    cents INTEGER NOT NULL DEFAULT 0,
+    due_at REAL NOT NULL,
+    barcode TEXT NOT NULL DEFAULT '',
+    paid INTEGER NOT NULL DEFAULT 0,
+    file TEXT NOT NULL DEFAULT '',
+    avisado TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX idx_bills_due ON bills(paid, due_at);
+CREATE TABLE price_watch (
+    id INTEGER PRIMARY KEY,
+    item TEXT NOT NULL,
+    query TEXT NOT NULL,
+    target_cents INTEGER,
+    last_cents INTEGER,
+    history TEXT NOT NULL DEFAULT '',
+    active INTEGER NOT NULL DEFAULT 1,
+    checked_on INTEGER NOT NULL DEFAULT 0
+);
+"""
+
 DDL = (
     DDL_V1
     + DDL_V2
@@ -470,6 +507,7 @@ DDL = (
     + DDL_V19
     + DDL_V20
     + DDL_V21
+    + DDL_V22
 )
 MIGRATIONS: dict[int, str] = {
     1: DDL_V2,
@@ -492,4 +530,5 @@ MIGRATIONS: dict[int, str] = {
     18: DDL_V19,
     19: DDL_V20,
     20: DDL_V21,
+    21: DDL_V22,
 }

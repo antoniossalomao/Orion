@@ -200,7 +200,8 @@ Marque ao concluir. Uma etapa só fecha com todos os itens, a prova e o PR merge
 - [ ] PR da E9 mergeado
 
 ### E10 — Vida pessoal
-- [ ] Regras escritas em `ORION_REGRAS.md` antes do código (61 (finanças locais), 62 (escudo de foco), 63 (estado pela voz))
+> **Status (14/10): feito em código**, com testes de unidade, API, Telegram e Node. Pendências registradas no ORION_MELHORIAS.md (décima sexta rodada): e2e de navegador da tela Vida, OCR de boleto, energia de áudio comprimido, aviso de foco preso pelo não perturbe, e a prova de uma semana real (sua).
+- [x] Regras escritas em `ORION_REGRAS.md` antes do código (61 (finanças locais), 62 (escudo de foco), 63 (estado pela voz))
 - [ ] E10.1 Revisão semanal guiada (N9)
 - [ ] E10.2 Diário automático (N10)
 - [ ] E10.3 Gastos pelo Telegram (N11)

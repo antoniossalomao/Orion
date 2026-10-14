@@ -26,6 +26,7 @@
         conhecimento: { titulo: 'Conhecimento', rota: '/conhecimento' },
         privacidade: { titulo: 'Privacidade', rota: '/privacidade' },
         arquivadas: { titulo: 'Conversas arquivadas', rota: '/arquivadas' },
+        vida: { titulo: 'Vida', rota: '/vida' },
     };
     const VIEW_DA_ROTA = Object.fromEntries(Object.entries(VIEWS).map(([v, d]) => [d.rota, v]));
     let atual = null, opcoesPendentes = {};

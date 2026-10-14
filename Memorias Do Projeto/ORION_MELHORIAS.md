@@ -373,6 +373,32 @@ estava ligada ao agente (não mexi; as duas ferramentas novas de histórico est�
 
 **Não verificado (E9):** tudo marcado ❌ acima.
 
+## Décima sexta rodada (14/10/2026): plano da rodada 2, etapa E10
+
+Plano em [ORION_PLANO_RODADA2.md](ORION_PLANO_RODADA2.md). Regras 61, 62 e 63 (escritas antes do código) em
+[ORION_REGRAS.md](ORION_REGRAS.md). **Esquema v22** (`transactions`, `bills`, `price_watch`, `reminders.kind`): o plano falava em
+v16, mas o banco já estava na v21. Opt-ins novos: `ORION_DIARY_AT`, `ORION_WEEKLY_REVIEW_AT`, `ORION_FOCUS_DISTRACTIONS`.
+
+| ID | Entrega | Status |
+|---|---|---|
+| E10.1 Revisão semanal | `Revisao` (5 passos por conversa no Telegram, `/revisao`, `/fim`), nota em `Revisão/`; `montar_revisao` e job de domingo | ✅ unidade e `VidaCanal`; ❌ blocos reais na agenda (só proposta em texto; a agenda pede aprovação e não foi ligada) e lista de projetos (sai vazia) |
+| E10.2 Diário | `montar_diario` + `VidaJobs` escreve `Diário/AAAA-MM-DD.md`, uma vez por dia (commits de `ORION_REPOS` e gastos) | ✅ com git real em pasta temporária; ❌ resumo pelo modelo local (sai a linha de contagem); conversas, documentos, resultados e tela não entram |
+| E10.3 Gastos | `parse_gasto` por regra; modelo local como fallback (`gasto_por_modelo`); `/financas`, `POST /financas/gastos`, captura e `VidaCanal` com desfazer | ✅ API, captura e `VidaCanal` com teste (é o objeto que o Telegram chama; o canal em si não foi testado); ❌ navegador real |
+| E10.4 Contas | `bills`; boleto de 47 dígitos (valor e vencimento pelo fator); avisos 3 e 1 dia; `/contas`, `/pagar`, fatura em texto com revisão e confirmação (`/financas/fatura/*`) | ✅ unidade e API; ❌ PDF e foto de boleto (OCR não ligado; a fatura entra como texto extraído) |
+| E10.5 Monitor de preço | `price_watch`; job diário com a busca da web, gated pela cota (regra 46); alerta de alvo ou queda de 5% | ✅ job com busca falsa e cota; ❌ busca real (depende de `ORION_WEB_TOOLS` e da chave do Brave) |
+| E10.6 Cápsula | "daqui 6 meses me cobra isso" (captura e Telegram) vira lembrete `kind='capsula'`; desfazer | ✅ unidade e captura; ❌ link para a conversa de origem (guarda o texto, não o link) |
+| E10.7 Cenários | `simular()` Monte Carlo sobre o histórico mensal; `/simular` (VidaCanal) e `POST /vida/simular`; tela | ✅ unidade, `VidaCanal` e API; ❌ ferramenta do modelo: **de propósito, não feita** (regra 61: o resultado sairia para a nuvem) |
+| E10.8 Linha do tempo | `linha_do_tempo` (conversas, gastos, tela, área, cápsulas, documentos, diário, commits); `GET /linha-do-tempo`; tela com zoom dia e semana | ✅ unidade, API e Node; ❌ navegador real (e2e não rodou) |
+| E10.9 Sonhos | Passo no ciclo de sono (`ORION_SLEEP_AT`): ideia que liga dois fatos sem palavra em comum; fica pendente até o 'boa' (`POST /sonhos/{id}/boa`), 'descartar' fecha | ✅ unidade com modelo falso e API; ❌ aparece no briefing da manhã (só na lista de avisos) |
+| E10.10 Escudo de foco | `/foco N` (Telegram) e `POST /foco/iniciar`; a tela de captura de memória chama o escudo; uma pergunta por bloco; nunca bloqueia (regra 62, testada) | ✅ unidade, `VidaCanal` e API; ❌ avisos não urgentes presos pelo não perturbe (não ligado) |
+| E10.11 Estado pela voz | `medir_wav` (duração e energia de WAV PCM 16 bits); `EstadoVoz` por fala; resposta mais curta quando a fala vem apressada ou baixa | ✅ unidade e lógica no turno de voz; ❌ energia de OGG, WebM e MP3 (sem decodificador no projeto: só ritmo, e sem duração não há ritmo) |
+
+**Limites que ficaram por decisão, não por falta de tempo:** nenhuma ferramenta do modelo expõe finanças (regra 61); o escudo
+de foco nunca fecha nem bloqueia (regra 62); o estado pela voz só guarda médias em memória (regra 63).
+
+**Não verificado (E10):** navegador (`tests/front_e2e`) não foi rodado para a tela Vida; o teste Node cobre só a lógica pura.
+Prova de uma semana real segue pendente: é com o Antônio.
+
 ## O que foi construído (por fase do NUCLEO)
 
 | Fase | Entrega | Status |

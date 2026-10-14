@@ -32,7 +32,7 @@
     const configurarToken = t => { tokenDesktop = String(t || ''); };
 
     /** rotas que exigem o token do orion.app; o legado não conhece cabeçalho Authorization */
-    const comAuth = caminho => /^\/(mcp-export|files|approvals|chat|calendar|accounts|branches|documents|activity|notifications|facts|artifacts|projects|skills|plugins|mcp|sessoes|historico|exportar|painel|tela|resultados|pesquisa|prompts|lembretes|rotinas|tarefas-bg|downloads|ler-depois|posso-desligar|transcricao|area-transferencia|comandos|atividade|modo|privacidade|capabilities\/details)(\/|$|\?)/.test(caminho)
+    const comAuth = caminho => /^\/(mcp-export|files|approvals|chat|calendar|accounts|branches|documents|activity|notifications|facts|artifacts|projects|skills|plugins|mcp|sessoes|historico|exportar|painel|tela|resultados|pesquisa|prompts|lembretes|rotinas|tarefas-bg|downloads|ler-depois|financas|precos|linha-do-tempo|sonhos|foco|posso-desligar|transcricao|area-transferencia|comandos|atividade|modo|privacidade|capabilities\/details)(\/|$|\?)/.test(caminho)
         || (estado.backend === 'orion' && /^\/(grafo|memoria\/relacoes|busca)(\/|$|\?)/.test(caminho));   // no legado essas rotas não têm login
 
     function cabecalhos(caminho, extra = {}) {
@@ -249,6 +249,20 @@
         telaLimpar: () => req('/tela', { metodo: 'DELETE', timeout: 5000 }),
         /** biblioteca de arquivos gerados (documentos e imagens), com versões */
         biblioteca: () => req('/resultados', { timeout: 5000 }),
+        /** vida pessoal (E10): finanças e contas são locais (regra 61); o foco só pergunta (regra 62) */
+        financasResumo: () => req('/financas/resumo', { timeout: 6000 }),
+        financasContas: () => req('/financas/contas', { timeout: 6000 }),
+        financasPagar: id => req(`/financas/contas/${encodeURIComponent(id)}/pagar`, { metodo: 'POST', timeout: 6000 }),
+        financasPrevia: texto => req('/financas/fatura/previa', { metodo: 'POST', json: { texto }, timeout: 15000 }),
+        financasConfirmarFatura: linhas => req('/financas/fatura/confirmar', { metodo: 'POST', json: { linhas, confirmado: true }, timeout: 15000 }),
+        simularCenarios: corpo => req('/vida/simular', { metodo: 'POST', json: corpo, timeout: 10000 }),
+        precosLista: () => req('/precos', { timeout: 6000 }),
+        precoAcompanhar: corpo => req('/precos', { metodo: 'POST', json: corpo, timeout: 6000 }),
+        linhaDoTempo: (de, ate) => req(`/linha-do-tempo?${q({ de, ate })}`, { timeout: 10000 }),
+        sonhoBoa: id => req(`/sonhos/${encodeURIComponent(id)}/boa`, { metodo: 'POST', timeout: 6000 }),
+        sonhoDescartar: id => req(`/sonhos/${encodeURIComponent(id)}/descartar`, { metodo: 'POST', timeout: 6000 }),
+        focoEstado: () => req('/foco', { timeout: 6000 }),
+        focoIniciar: minutos => req('/foco/iniciar', { metodo: 'POST', json: { minutos }, timeout: 6000 }),
         bibliotecaTexto: id => req(`/resultados/${encodeURIComponent(id)}/texto`, { timeout: 5000 }),
         /** bytes do arquivo (Response): `previa` pede a imagem inline, senão é o download */
         bibliotecaArquivo: (id, previa = false) => req(`/resultados/${encodeURIComponent(id)}/arquivo?${q({ previa: previa ? 'true' : null })}`, { bruto: true, timeout: 60000 }),

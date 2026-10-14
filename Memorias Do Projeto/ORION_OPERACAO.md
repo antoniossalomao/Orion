@@ -589,6 +589,9 @@ opt-in novo sem linha aqui.
 | `ORION_JOBS_ENABLED` | Jobs: lembretes, backup, vault, embeddings, consolidação, briefing | Embeddings ao Gemini (com chave); o resto conforme cada opt-in acima | 18, 20 | `true` (padrão) → `false` |
 | `ORION_LOCAL_MODEL` | Modelo local de reserva, sem ferramentas (§17.4) | Não: só `127.0.0.1` (a configuração recusa outro host) | 49 | vazio (padrão) |
 | `ORION_DND_AT` | Não perturbe por horário (§17.3) | Não | 48 | vazio (padrão) |
+| `ORION_DIARY_AT` | Diário do dia em `Diário/` no vault: commits de `ORION_REPOS` e gastos (E10.2) | Não: git local e banco local | 61 | vazio (padrão) |
+| `ORION_WEEKLY_REVIEW_AT` | Nota de revisão semanal em `Revisão/`, aos domingos (E10.1) | Não: só o vault | 61 | vazio (padrão) |
+| `ORION_FOCUS_DISTRACTIONS` | Apps/sites que disparam a pergunta do bloco de foco (E10.10) | Não | 62 | vazio (padrão) |
 | `ORION_CLAP_ENABLED` | Duas palmas abrem o Orion (§18.2) | Não antes nem depois das palmas; só com `abrir_e_ouvir` a fala seguinte vai como na voz (Groq, Microsoft) | 51 | `false` (padrão); pausa: `POST /voz/escuta` |
 | `ORION_COMPACT_AT` | Resumo do começo de conversas longas (§19.1) | Não: só pelo modelo local (`ORION_LOCAL_MODEL`) | 53 | `0` (ou sem modelo local) |
 | `ORION_RERANK` | Reranker local da busca (§19.4) | Não: roda no computador | 54 | `false` (padrão) |

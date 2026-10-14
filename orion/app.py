@@ -121,6 +121,8 @@ from .tools import default_registry
 from .tools.processes import ProcessManager
 from .tools.registry import ToolRegistry
 from .transcribe import Transcriber
+from .vida import EstadoVoz, Financas, Foco, Precos, Revisao, VidaCanal, VidaJobs
+from .vida_routes import router as vida_router
 from .vision import Vision
 from .voice import (
     MAX_AUDIO,
@@ -193,6 +195,12 @@ class AppState:
     downloads: Downloads | None = None  # organizador de Downloads (regra 58)
     historicos: Historicos | None = None  # área de transferência e comandos (regra 60)
     ler_depois: LerDepois | None = None  # links para ler depois (E9.8)
+    financas: Financas | None = None  # gastos e contas, local (regra 61, E10)
+    precos: Precos | None = None  # monitor de preço (E10.5)
+    vida: VidaJobs | None = None  # avisos de conta, diário e revisão (E10)
+    vida_canal: VidaCanal | None = None  # comandos da vida no Telegram (E10)
+    gateway_local: Any = None  # só o modelo deste computador (regra 49/61), None: sem
+    foco: Foco | None = None  # bloco de foco (E10.10, regra 62)
     rotinas: RotinaStore | None = None  # rotinas suas e concedidas (regra 58)
     executor_rotinas: ExecutorRotinas | None = None
     tarefas_bg: Any = None  # TarefasBg (regra 59); None sem agente
@@ -674,7 +682,7 @@ def _iniciar_escuta(
         if agent is None or transcriber is None:
             return
         async for m in turno_de_voz(
-            agent=agent, transcriber=transcriber, speaker=speaker, audio=wav
+            agent=agent, transcriber=transcriber, speaker=speaker, audio=wav, estado=_ESTADO_VOZ
         ):
             if isinstance(m, bytes):
                 await asyncio.to_thread(tocar_mp3, m)
@@ -1089,6 +1097,10 @@ def _senha_de_novo(state: AppState, senha: str, cliente: str) -> bool:
     return False
 
 
+# E10.11 (regra 63): médias de ritmo e energia da sua fala, só em memória
+_ESTADO_VOZ = EstadoVoz()
+
+
 def create_app(
     settings: Settings | None = None,
     memory_factory: Callable[[Settings], MemoryStore] | None = None,
@@ -1265,6 +1277,71 @@ def create_app(
             gateway=gateway,
             modos=modos,
         )
+        financas = Financas(memory)
+        precos = Precos(memory)
+
+        def _pesquisa_de_preco(consulta: str) -> str | None:
+            # E10.5: usa a pesquisa da web; a cota (regra 46) já foi checada no job
+            if agent is None:
+                return None
+            pesquisa = agent.tools.get("pesquisar_internet")
+            if pesquisa is None:
+                return None
+            return pesquisa.run({"query": consulta, "max_resultados": 5})
+
+        foco = Foco(
+            [d for d in settings.focus_distractions.split(";") if d.strip()],
+        )
+        revisao = Revisao(memory, vault_dir=settings.vault_dir)
+
+        def _foco_olha(alvo: str) -> None:
+            if foco.pergunta_permitida(alvo):
+                ops.notify(
+                    "foco",
+                    f"isso é do marco da semana? ({alvo[:80]})",
+                    ref=f"foco:{int(time.time())}",
+                )
+
+        if tela is not None:
+            tela.on_capture = _foco_olha
+        # regra 61: só o modelo deste computador lê texto de gasto (nunca a nuvem)
+        local_gw = (
+            ChatGateway(
+                [
+                    Endpoint(
+                        "local",
+                        settings.local_url,
+                        settings.local_model,
+                        None,
+                        timeout_s=60.0,
+                        tier=CAMADA_LOCAL,
+                        tools=False,
+                    )
+                ]
+            )
+            if settings.local_model
+            else None
+        )
+        vida_canal = VidaCanal(
+            memory,
+            gateway_local=local_gw,
+            financas=financas,
+            precos=precos,
+            foco=foco,
+            revisao=revisao,
+            tarefas=lambda: [t["title"] for t in ops.list_tasks() if t["status"] != "concluida"],
+        )
+        vida = VidaJobs(
+            memory,
+            financas,
+            ops=ops,
+            precos=precos,
+            pesquisar=_pesquisa_de_preco,
+            vault_dir=settings.vault_dir,
+            repos=settings.repos,
+            diary_at=settings.diary_at,
+            weekly_at=settings.weekly_review_at,
+        )
         rotinas = RotinaStore(settings.data_dir / "rotinas", memory)
         executor_rotinas = ExecutorRotinas(
             store=rotinas,
@@ -1309,6 +1386,10 @@ def create_app(
                 if settings.sleep_at
                 else None
             )
+            if sono is not None:
+                sono.sonhos = (
+                    True  # E10.9: o sono também sonha uma ideia (fica pendente até o 'boa')
+                )
             jobs = JobRunner(
                 memory,
                 ops,
@@ -1325,6 +1406,7 @@ def create_app(
                 screen=tela,
                 downloads=downloads,
                 historicos=historicos,
+                vida=vida,
                 clipboard_days=settings.clipboard_days,
                 command_history=settings.command_history,
                 weekly_ai=(
@@ -1427,6 +1509,7 @@ def create_app(
             telegram.agenda = agenda
             telegram.rotinas = rotinas
             telegram.ler_depois = ler_depois
+            telegram.vida = vida_canal
             if settings.telegram_voice_reply:
                 telegram.speaker = EdgeSpeaker(settings.voice_tts_voice)
             telegram.converter = lambda nome, dados, formato: _converter_do_telegram(
@@ -1471,6 +1554,12 @@ def create_app(
             downloads=downloads,
             historicos=historicos,
             ler_depois=ler_depois,
+            financas=financas,
+            precos=precos,
+            vida=vida,
+            vida_canal=vida_canal,
+            foco=foco,
+            gateway_local=local_gw,
             rotinas=rotinas,
             executor_rotinas=executor_rotinas,
             ponte=ponte_hub,
@@ -2760,6 +2849,7 @@ def create_app(
 
     app.include_router(ponte_router(require_auth))
     app.include_router(captura_router(require_auth))
+    app.include_router(vida_router(require_auth))
     app.include_router(export_client_router(require_auth))
     app.mount("/mcp-export", ExportAuth(mcp_export.app, lambda: app.state.orion))
 
@@ -2789,6 +2879,7 @@ def create_app(
                 transcriber=state.transcriber,
                 speaker=state.speaker,
                 audio=audio,
+                estado=_ESTADO_VOZ,
             ):
                 if isinstance(m, bytes):
                     await ws.send_bytes(m)

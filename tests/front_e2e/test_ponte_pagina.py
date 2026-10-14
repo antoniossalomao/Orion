@@ -1,5 +1,6 @@
 """A janela pequena da ponte (E2.3): captura rápida contra o Orion real, com o token da ponte."""
 
+from datetime import datetime
 from typing import ClassVar
 
 import httpx
@@ -65,8 +66,10 @@ def test_captura_sem_modelo_usa_a_regra_e_cria_lembrete(abrir, novo_backend):
     assert "dentista" in lembrete["title"]
     campo.fill("gastei R$ 42,50 no almoço")
     campo.press("Enter")
-    # gasto só existe depois da E10.3: cai em nota, e sem vault configurado diz por quê
-    expect(page.locator("#erro")).to_contain_text("ORION_VAULT_DIR")
+    # E10.3: o gasto é lançado no banco local (não precisa de vault) e a ponte mostra o lançamento
+    expect(page.locator("#resultado-texto")).to_contain_text("R$ 42,50")
+    hoje = datetime.now()
+    assert app.state.orion.financas.resumo_mensal(hoje.year, hoje.month)["total_cents"] == 4250
 
 
 def test_sem_token_ou_com_token_errado_a_pagina_nao_guarda(abrir, novo_backend):

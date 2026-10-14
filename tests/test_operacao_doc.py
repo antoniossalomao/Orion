@@ -32,6 +32,9 @@ OPT_INS = {
     # E1 (regras 46 a 49)
     "local_model",
     "dnd_at",
+    "diary_at",
+    "weekly_review_at",
+    "focus_distractions",
     "allow_paid",
     # E2 (regras 50 e 51)
     "clap_enabled",
