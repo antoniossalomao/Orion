@@ -22,6 +22,11 @@ NOVAS = {
     "esquecer_fato",
     "editar_fato",
     "delegar",
+    # E11 (visão e câmera): nasceram depois do legado (REGRAS.md, seção Vida pessoal e visão)
+    "ver_camera",
+    "onde_vi",
+    "ler_texto_imagem",
+    "preparar_imagem_flow",
 }  # nasceram na reescrita, não vieram do legado
 SITUACOES = {"portada", "substituida", "a-portar", "descartar"}
 LINHA = re.compile(

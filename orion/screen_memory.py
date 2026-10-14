@@ -283,6 +283,9 @@ class ScreenMemory:
         app: Callable[[], str | None] | None = None,
         exclude_apps: list[str] | None = None,
         locked: Callable[[], bool | None] | None = None,
+        # E10.10: escudo de foco (REGRAS.md: o escudo de foco pergunta; nunca bloqueia, fecha nem
+        # segura nada)
+        on_capture: Callable[[str], None] | None = None,
     ) -> None:
         self.memory = memory
         self._capture, self._ocr, self._title = capture, ocr, title
@@ -292,6 +295,7 @@ class ScreenMemory:
         self._app = app  # E5.2: programa em foco; None = sem exclusão por programa
         self._exclude_apps = [_nome_de_app(e) for e in (exclude_apps or []) if _nome_de_app(e)]
         self._locked = locked  # E5.3: tela bloqueada; None = sem checagem
+        self.on_capture = on_capture
         self._allow_unknown = allow_unknown_title
         self._clock = clock
         self._ultima = float("-inf")
@@ -372,6 +376,10 @@ class ScreenMemory:
         self._ultimo_hash = h
         self.memory.add_screen(texto, titulo, programa)
         self.stats["gravadas"] += 1
+        # escudo de foco: só pergunta, nunca fecha nada (REGRAS.md: o escudo de foco pergunta; nunca
+        # bloqueia, fecha nem segura nada)
+        if self.on_capture is not None:
+            self.on_capture(programa or titulo)
         audit_log.info("tela_gravada", extra={"audit": {"caracteres": len(texto)}})
         return "gravada"
 

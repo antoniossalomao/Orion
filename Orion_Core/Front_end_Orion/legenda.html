@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Legenda</title>
+<style>
+  :root { color-scheme: light dark; --bg: #f4f4f6; --fg: #15151a; --dim: #6b6b78; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #101014; --fg: #f1f1f5; --dim: #8b8b99; } }
+  :root[data-theme="dark"] { --bg: #101014; --fg: #f1f1f5; --dim: #8b8b99; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); font-family: system-ui, sans-serif; }
+  body { display: flex; align-items: flex-end; justify-content: center; padding: 16px; box-sizing: border-box; }
+  #linhas { width: 100%; text-align: center; font-size: clamp(18px, 3.2vw, 30px); line-height: 1.35; }
+  #linhas p { margin: 0.2em 0; }
+  #linhas p:last-child { font-weight: 600; }
+  #aviso { color: var(--dim); font-size: 14px; }
+</style>
+</head>
+<body>
+<div id="linhas" aria-live="polite"><p id="aviso">Aguardando falas…</p></div>
+<script src="js/legenda_logica.js"></script>
+<script>
+(function () {
+  const L = window.OrionLegendaLogica;
+  const onde = document.getElementById('linhas');
+  const aviso = (texto) => { onde.innerHTML = ''; const p = document.createElement('p'); p.id = 'aviso'; p.textContent = texto; onde.appendChild(p); };
+  async function atualizar() {
+    try {
+      const r = await fetch('/legenda', { credentials: 'same-origin', cache: 'no-store' });
+      if (r.status === 401 || r.status === 403) return aviso('Entre na interface do Orion para ver a legenda.');
+      if (!r.ok) return aviso('Legenda indisponível.');
+      const dados = await r.json();
+      if (!dados.ativa) return aviso('Legenda desligada (ORION_SUBTITLES).');
+      const falas = L.ultimasFalas(dados.linhas, 3);
+      if (!falas.length) return aviso('Aguardando falas…');
+      onde.innerHTML = '';
+      for (const f of falas) { const p = document.createElement('p'); p.textContent = f; onde.appendChild(p); }
+    } catch (_) { aviso('Sem conexão com o Orion.'); }
+  }
+  atualizar();
+  setInterval(atualizar, 1000);
+})();
+</script>
+</body>
+</html>

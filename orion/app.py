@@ -121,6 +121,8 @@ from .tools import default_registry
 from .tools.processes import ProcessManager
 from .tools.registry import ToolRegistry
 from .transcribe import Transcriber
+from .vida import EstadoVoz, Financas, Foco, Precos, Revisao, VidaCanal, VidaJobs
+from .vida_routes import router as vida_router
 from .vision import Vision
 from .voice import (
     MAX_AUDIO,
@@ -184,6 +186,7 @@ class AppState:
     transcriber: Transcriber | None = None  # voz (A) e `transcrever_audio`
     speaker: Speaker | None = None  # voz (A): fala da resposta; None sem voz ou sem fala
     live: Callable[[], AbstractAsyncContextManager[Any]] | None = None  # voz ao vivo (B)
+    legenda: Any = None  # legenda ao vivo do áudio do sistema (E11.7; ORION_SUBTITLES)
     voz: VozStats = field(default_factory=VozStats)
     # palavra de ativação (REGRAS.md: palavra de ativação só abre o microfone; detecção local)
     escuta: WakeListener | None = None
@@ -199,6 +202,17 @@ class AppState:
     # computador)
     historicos: Historicos | None = None
     ler_depois: LerDepois | None = None  # links para ler depois (E9.8)
+    # gastos e contas, local (REGRAS.md: finanças são locais: valor, conta e extrato nunca saem do
+    # computador, E10)
+    financas: Financas | None = None
+    precos: Precos | None = None  # monitor de preço (E10.5)
+    vida: VidaJobs | None = None  # avisos de conta, diário e revisão (E10)
+    vida_canal: VidaCanal | None = None  # comandos da vida no Telegram (E10)
+    # só o modelo deste computador (REGRAS.md: modelo local é reserva sem ferramentas), None: sem
+    gateway_local: Any = None
+    # bloco de foco (E10.10, REGRAS.md: o escudo de foco pergunta; nunca bloqueia, fecha nem segura
+    # nada)
+    foco: Foco | None = None
     # rotinas suas e concedidas (REGRAS.md: automação sua vale pelo arquivo concedido)
     rotinas: RotinaStore | None = None
     executor_rotinas: ExecutorRotinas | None = None
@@ -431,6 +445,127 @@ def telegram_from_settings(
         memory=memory,
         approvals=policy.approvals,
         ops=ops,
+    )
+
+
+def _rosto_da_camera(settings: Settings, memory: Any) -> Callable[[], bool | None]:
+    """Sinal de rosto da presença (REGRAS.md: rosto é local, cadastrado só pelo dono, e nunca sai do
+    computador): uma foto e a comparação com o cadastro. Sem câmera,
+    sem modelo ou sem a biblioteca, não diz nada (None) e a presença segue pelos outros sinais."""
+    modelo = settings.face_model
+    if not (settings.camera and modelo):
+        return lambda: None
+    from .camera import CameraError, decodificar, foto_jpeg
+    from .rosto import RostoError, Rostos, embedder_onnx
+
+    cache: dict[str, Any] = {}
+
+    def reconhecer() -> bool | None:
+        try:
+            if "rostos" not in cache:
+                cache["rostos"] = Rostos(memory, embedder_onnx(modelo))
+            return cache["rostos"].reconhecer(decodificar(foto_jpeg(settings.camera_device)))
+        except (RostoError, CameraError, ImportError):
+            return None
+
+    return reconhecer
+
+
+def _camera_da_voz(settings: Settings) -> Callable[[], bytes] | None:
+    """Quadro da câmera para a voz ao vivo: só com ORION_CAMERA (REGRAS.md: a câmera só liga por
+    pedido seu, e cada uso fica registrado)."""
+    if not settings.camera:
+        return None
+    from .camera import foto_jpeg
+
+    return lambda: foto_jpeg(settings.camera_device)
+
+
+def _texto_da_camera(settings: Settings, vision: Vision | None, pergunta: str = "") -> str:
+    """`/camera` e a paleta: uma foto descrita, ou o motivo de não dar (REGRAS.md: a câmera só liga
+    por pedido seu, e cada uso fica registrado)."""
+    from .camera import CameraError
+    from .tools.camera import descrever_camera
+    from .visao_cli import ordem
+    from .vision import VisionError
+
+    try:
+        return descrever_camera(
+            settings.camera_device, vision, ordem(settings.vision_order), pergunta
+        )
+    except (CameraError, VisionError) as e:
+        return f"Não consegui olhar: {e}"
+
+
+def vigia_from_settings(settings: Settings, memory: Any, tela: Any, ops: Any) -> Any:
+    """Presença (REGRAS.md: presença só pausa e retoma, cumpre e bloqueia só com sua confirmação) e
+    vigília da câmera (REGRAS.md: a câmera só liga por pedido seu, e cada uso fica registrado): só
+    com `ORION_PRESENCE_ENABLED`."""
+    if not settings.presence_enabled:
+        # a câmera só olha com presença (REGRAS.md: a câmera só liga por pedido seu, e cada uso fica
+        # registrado): sem presença, nada a ligar
+        return None
+    from .presenca import Presenca
+    from .vigia import CHAVE_BLOQUEIO, Vigia, acoes_de_presenca, sinais_padrao
+
+    def notificar(texto: str) -> None:
+        try:
+            ops.notify("presenca", texto)
+        except Exception:
+            log.exception("aviso de presença falhou")
+
+    def auditar(motivo: str) -> None:
+        ops.audit_add({"tool": "presenca", "action": "allow", "risk": "exec", "reason": motivo})
+
+    chegou, saiu = acoes_de_presenca(
+        bloquear=settings.presence_lock,
+        notificar=notificar,
+        auditar=auditar,
+        confirmado=lambda: memory.counter_get(CHAVE_BLOQUEIO) == 1,
+        hora=lambda: time.strftime("%H:%M"),
+    )
+    presenca = Presenca(away_s=settings.presence_away_min * 60, on_chegou=chegou, on_saiu=saiu)
+    vigiar = None
+    if settings.camera and settings.camera_watch and settings.object_model:
+        from .camera import foto_jpeg
+        from .visao_local import Avistamentos, Detector, olhar_uma_vez
+
+        detector = Detector(settings.object_model)
+        avistamentos = Avistamentos(memory)
+        vigiar = lambda: olhar_uma_vez(  # noqa: E731 — uma linha, usada só pelo vigia
+            foto=lambda: foto_jpeg(settings.camera_device),
+            detector=detector,
+            avistamentos=avistamentos,
+            pode_olhar=lambda: presenca.presente,
+        )
+    return Vigia(
+        presenca=presenca,
+        sinais=sinais_padrao(
+            bt_endereco=settings.presence_bt, rosto=_rosto_da_camera(settings, memory)
+        ),
+        vigiar=vigiar,
+        tela=tela,
+    )
+
+
+def camera_from_settings(
+    settings: Settings, vision: Vision | None, memory: Any
+) -> list[Any] | None:
+    """Ferramentas da câmera (E11) só com `ORION_CAMERA=true` (REGRAS.md: a câmera só liga por
+    pedido seu, e cada uso fica registrado)."""
+    if not settings.camera:
+        return None
+    from .tools.camera import camera_tools
+    from .visao_cli import ordem
+    from .visao_local import Avistamentos
+
+    avistamentos = Avistamentos(memory) if settings.camera_watch else None
+    return camera_tools(
+        device=settings.camera_device,
+        vision=vision,
+        ordem=ordem(settings.vision_order),
+        avistamentos=avistamentos,
+        langs=settings.translator_langs,
     )
 
 
@@ -691,7 +826,7 @@ def _iniciar_escuta(
         if agent is None or transcriber is None:
             return
         async for m in turno_de_voz(
-            agent=agent, transcriber=transcriber, speaker=speaker, audio=wav
+            agent=agent, transcriber=transcriber, speaker=speaker, audio=wav, estado=_ESTADO_VOZ
         ):
             if isinstance(m, bytes):
                 await asyncio.to_thread(tocar_mp3, m)
@@ -1109,6 +1244,11 @@ def _senha_de_novo(state: AppState, senha: str, cliente: str) -> bool:
     return False
 
 
+# E10.11 (REGRAS.md: o estado pela voz só muda o estilo da resposta): médias de ritmo e energia da
+# sua fala, só em memória
+_ESTADO_VOZ = EstadoVoz()
+
+
 def create_app(
     settings: Settings | None = None,
     memory_factory: Callable[[Settings], MemoryStore] | None = None,
@@ -1237,6 +1377,7 @@ def create_app(
                     transcriber=transcriber,
                     vision=vision_from_settings(settings),
                     captures_dir=settings.data_dir / "capturas",
+                    camera=camera_from_settings(settings, vision_from_settings(settings), memory),
                     processes=processos,
                     web_options={
                         "search_key": lambda: (
@@ -1286,6 +1427,72 @@ def create_app(
             gateway=gateway,
             modos=modos,
         )
+        financas = Financas(memory)
+        precos = Precos(memory)
+
+        def _pesquisa_de_preco(consulta: str) -> str | None:
+            # E10.5: usa a pesquisa da web; a cota (REGRAS.md: custo zero (sem API paga)) já foi
+            # checada no job
+            if agent is None:
+                return None
+            pesquisa = agent.tools.get("pesquisar_internet")
+            if pesquisa is None:
+                return None
+            return pesquisa.run({"query": consulta, "max_resultados": 5})
+
+        foco = Foco(
+            [d for d in settings.focus_distractions.split(";") if d.strip()],
+        )
+        revisao = Revisao(memory, vault_dir=settings.vault_dir)
+
+        def _foco_olha(alvo: str) -> None:
+            if foco.pergunta_permitida(alvo):
+                ops.notify(
+                    "foco",
+                    f"isso é do marco da semana? ({alvo[:80]})",
+                    ref=f"foco:{int(time.time())}",
+                )
+
+        if tela is not None:
+            tela.on_capture = _foco_olha
+        # REGRAS.md: só o modelo deste computador lê texto de gasto (nunca a nuvem)
+        local_gw = (
+            ChatGateway(
+                [
+                    Endpoint(
+                        "local",
+                        settings.local_url,
+                        settings.local_model,
+                        None,
+                        timeout_s=60.0,
+                        tier=CAMADA_LOCAL,
+                        tools=False,
+                    )
+                ]
+            )
+            if settings.local_model
+            else None
+        )
+        vida_canal = VidaCanal(
+            memory,
+            gateway_local=local_gw,
+            financas=financas,
+            precos=precos,
+            foco=foco,
+            revisao=revisao,
+            tarefas=lambda: [t["title"] for t in ops.list_tasks() if t["status"] != "concluida"],
+        )
+        vida = VidaJobs(
+            memory,
+            financas,
+            ops=ops,
+            precos=precos,
+            pesquisar=_pesquisa_de_preco,
+            vault_dir=settings.vault_dir,
+            repos=settings.repos,
+            diary_at=settings.diary_at,
+            weekly_at=settings.weekly_review_at,
+        )
         rotinas = RotinaStore(settings.data_dir / "rotinas", memory)
         executor_rotinas = ExecutorRotinas(
             store=rotinas,
@@ -1330,6 +1537,10 @@ def create_app(
                 if settings.sleep_at
                 else None
             )
+            if sono is not None:
+                sono.sonhos = (
+                    True  # E10.9: o sono também sonha uma ideia (fica pendente até o 'boa')
+                )
             jobs = JobRunner(
                 memory,
                 ops,
@@ -1346,6 +1557,8 @@ def create_app(
                 screen=tela,
                 downloads=downloads,
                 historicos=historicos,
+                vida=vida,
+                vigia=vigia_from_settings(settings, memory, tela, ops),
                 clipboard_days=settings.clipboard_days,
                 command_history=settings.command_history,
                 weekly_ai=(
@@ -1358,6 +1571,12 @@ def create_app(
                 gateway_down_min=settings.gateway_down_min,
             )
             tarefa_jobs = asyncio.create_task(jobs.run_forever(settings.jobs_tick_s))
+        legenda_ref: list[Any] = [None]
+        if settings.subtitles and settings.subtitle_model:
+            from .legenda import Legenda, iniciar_thread
+
+            legenda_ref[0] = Legenda(settings.subtitle_model, dispositivo=settings.subtitle_device)
+            iniciar_thread(legenda_ref[0])
         telegram = (telegram_factory or telegram_from_settings)(
             settings, agent, memory, policy, ops
         )
@@ -1448,6 +1667,11 @@ def create_app(
             telegram.agenda = agenda
             telegram.rotinas = rotinas
             telegram.ler_depois = ler_depois
+            telegram.vida = vida_canal
+            if settings.camera:
+                telegram.camera = lambda pergunta: _texto_da_camera(
+                    settings, vision_from_settings(settings), pergunta
+                )
             if settings.telegram_voice_reply:
                 telegram.speaker = EdgeSpeaker(settings.voice_tts_voice)
             telegram.converter = lambda nome, dados, formato: _converter_do_telegram(
@@ -1481,6 +1705,7 @@ def create_app(
             transcriber=transcriber,
             speaker=speaker,
             live=live,
+            legenda=legenda_ref[0],
             voz=voz_stats,
             escuta=escuta[0],
             tela=tela,
@@ -1492,6 +1717,12 @@ def create_app(
             downloads=downloads,
             historicos=historicos,
             ler_depois=ler_depois,
+            financas=financas,
+            precos=precos,
+            vida=vida,
+            vida_canal=vida_canal,
+            foco=foco,
+            gateway_local=local_gw,
             rotinas=rotinas,
             executor_rotinas=executor_rotinas,
             ponte=ponte_hub,
@@ -1502,6 +1733,8 @@ def create_app(
         finally:
             if escuta[0] is not None:
                 escuta[0].parar()  # a thread é daemon; o microfone fecha no `finally` do laço
+            if legenda_ref[0] is not None:
+                legenda_ref[0].parar()  # a thread é daemon; o fluxo fecha no `with`
             for tarefa in (tarefa_jobs, tarefa_telegram, tarefa_modos):
                 if tarefa is not None:
                     tarefa.cancel()
@@ -2410,6 +2643,25 @@ def create_app(
         audit_log.info("tela_limpa", extra={"audit": {"registros": apagados}})
         return {"ok": True, "apagados": apagados}
 
+    @app.get("/legenda")
+    def legenda_linhas(quem: Annotated[str, Depends(require_auth)], state: State) -> dict[str, Any]:
+        """Últimas falas da legenda ao vivo (E11.7). Só texto em memória; nada gravado."""
+        if state.legenda is None:
+            return {"ativa": False, "linhas": []}
+        return {"ativa": True, "linhas": state.legenda.ultimas()}
+
+    @app.post("/camera/ver", dependencies=[Admin])
+    def camera_ver(corpo: dict[str, Any], state: State) -> dict[str, Any]:
+        """Uma foto da webcam, descrita (paleta e `/camera`). Só com ORION_CAMERA (REGRAS.md: a
+        câmera só liga por pedido seu, e cada uso fica registrado)."""
+        if not state.settings.camera:
+            raise HTTPException(status_code=409, detail="câmera desligada (ORION_CAMERA)")
+        pergunta = str(corpo.get("pergunta", ""))[:1000]
+        vision = vision_from_settings(state.settings)
+        texto = _texto_da_camera(state.settings, vision, pergunta)
+        audit_log.info("câmera: foto pedida pela interface")
+        return {"descricao": texto}
+
     @app.post("/tela/pausa", dependencies=[Admin])
     def tela_pausar(corpo: EscutaControle, state: State) -> dict[str, Any]:
         """`ativa=false` pausa a captura; `ativa=true` retoma. 409 se a memória da tela está
@@ -2790,6 +3042,7 @@ def create_app(
 
     app.include_router(ponte_router(require_auth))
     app.include_router(captura_router(require_auth))
+    app.include_router(vida_router(require_auth))
     app.include_router(export_client_router(require_auth))
     app.mount("/mcp-export", ExportAuth(mcp_export.app, lambda: app.state.orion))
 
@@ -2819,6 +3072,7 @@ def create_app(
                 transcriber=state.transcriber,
                 speaker=state.speaker,
                 audio=audio,
+                estado=_ESTADO_VOZ,
             ):
                 if isinstance(m, bytes):
                     await ws.send_bytes(m)
@@ -2902,7 +3156,10 @@ def create_app(
         motivo = "erro"
         try:
             motivo = await ponte_ao_vivo(
-                ws, state.live(), max_s=state.settings.voice_live_max_min * 60.0
+                ws,
+                state.live(),
+                max_s=state.settings.voice_live_max_min * 60.0,
+                camera=_camera_da_voz(state.settings),
             )
         finally:
             state.voz.ao_vivo_ativas -= 1

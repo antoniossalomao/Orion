@@ -28,7 +28,9 @@ Antônio é o administrador: decide, aprova e pode desligar qualquer coisa. Nada
 | E7 | Cliente e servidor MCP, skills | Código feito; falta registrar o Orion no Claude Code |
 | E8 | Plugins: instalar, atualizar, importar, catálogo | Código feito |
 | E9 | Rotinas, tarefa em segundo plano, lembrete insistente, Downloads, conversor, voz no Telegram | Código feito; falta a prova com palmas e música reais |
-| E10–E13 | Vida pessoal, visão e câmera, trabalho e carreira, segurança e continuidade | Não começaram |
+| E10 | Vida pessoal: revisão, diário, gastos, contas, preço, cápsula, cenários, linha do tempo, sonhos, escudo de foco e estado pela voz | Código feito (main); falta navegador real e a prova de uma semana |
+| E11 | Visão e câmera: ver e agir, visão pelas assinaturas, detecção local, "onde eu deixei", rosto, presença, tradutor, legenda ao vivo e Flow | Código feito (main); falta equipamento real (webcam, microfone e modelos) |
+| E12–E13 | Trabalho e carreira, segurança e continuidade | Não começaram |
 
 - **Fases gerais (plano de 2026-10, fases 0 a 7):**
   - 0, exportar os dados da base antiga: pendente, é sua (PC).
@@ -47,6 +49,7 @@ Antônio é o administrador: decide, aprova e pode desligar qualquer coisa. Nada
   - Autostart: gerado, não ativado no sistema.
   - `orion-desktop` no Windows e no macOS: só o argv testado.
   - MCP: testado com o servidor do SDK; os servidores reais não foram escolhidos.
+  - E10 e E11: navegador da tela Vida, webcam, microfone, loopback, modelos ONNX e Vosk, Bluetooth, tesseract, CLIs de assinatura e a URL do Flow.
 
 ## Pendências suas (só você faz)
 
@@ -62,6 +65,9 @@ Antônio é o administrador: decide, aprova e pode desligar qualquer coisa. Nada
 10. Decidir a licença-alvo: uso pessoal ou distribuição. Isso muda a escolha de modelos (ver [ARQUITETURA.md](ARQUITETURA.md), seção 8.3).
 11. Decidir a lista de telas do primeiro marco em Rust.
 12. Plano de corte: data da venda do PC e o que roda em paralelo.
+13. E10: a prova de uma semana real (revisão, diário, gastos e contas).
+14. E11: provas com equipamento: webcam, microfone, modelo de objetos (`ORION_OBJECT_MODEL`), rosto (`ORION_FACE_MODEL`, `ORION_FACE_KEY`, `orion rosto cadastrar`), legenda (`ORION_SUBTITLE_MODEL`) e Bluetooth (`ORION_PRESENCE_BT`).
+15. E11.8: conferir a URL do Flow (`https://labs.google/fx/tools/flow`) no site real.
 
 ## Plano de migração para Rust (decidido em 14/10/2026)
 
@@ -108,7 +114,7 @@ Os itens em aberto das etapas antigas foram reescritos aqui, com IDs novos.
 | B-10 | Decidir a licença-alvo (ver Pendências, item 10) | Você |
 | B-11 | Sidecar Python com browser-use e crawl4ai (fase 7) | Claude |
 
-**Fora do marco 1 (planejado, sem código):** E10 a E13 (vida pessoal, visão e câmera, trabalho e carreira, segurança e continuidade). Cada um começa pelas próprias regras em [REGRAS.md](REGRAS.md).
+**Fora do marco 1:** E10 a E13. E10 e E11 já têm código em Python (ver Estado), sem Rust; E12 e E13 não começaram. Cada um começa pelas regras em [REGRAS.md](REGRAS.md).
 
 ## Decisões
 
@@ -124,6 +130,7 @@ Registro das decisões que valem para o projeto hoje. O histórico completo, des
 | 14/10/2026 | Regras por princípio, sem número; o código cita o nome do princípio | Pedido seu |
 | 14/10/2026 | Documentação em quatro arquivos, mais o legado e o AGENTS.md; o repositório é a origem e o vault espelha | Pedido seu |
 | 14/10/2026 | Etapas E0 a E13 viram backlog Rust | Pedido seu |
+| 14/10/2026 | E10 e E11 entram no Python com as regras de vida pessoal e visão escritas antes do código; câmera e presença só com opt-in | Plano da rodada 2 |
 | 09/10/2026 | Modelos direto nos provedores, sem OmniRoute | Um processo a menos; fallback no próprio `gateway.py` |
 | 07/10/2026 | Front só desktop; o celular fica no Telegram | Pedido seu |
 | 07/10/2026 | Palavra de ativação "Orion", com escuta local | Pedido seu |

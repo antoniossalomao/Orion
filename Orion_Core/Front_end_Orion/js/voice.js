@@ -9,11 +9,14 @@
     const { bus, $$, ui } = O;
 
     let ws = null, stream = null, ctx = null, fonte = null, proc = null;
+    let camera = false; // indicador da câmera na voz (REGRAS.md: a câmera só liga por pedido seu, e cada uso fica registrado): liga e desliga só por pedido seu
     let ctxPlay = null, proximo = 0, ativa = false;
 
     const botoes = () => $$('.voice-live-btn');
     const marcar = on => botoes().forEach(b => { b.classList.toggle('active', on); b.setAttribute('aria-pressed', String(on)); });
     const nota = (msg, tipo = 'aviso') => ui.toast(msg, { tipo, ms: 5200 });
+    const L = window.OrionLegendaLogica;
+    const marcarCamera = on => $$('.voice-camera-btn').forEach(b => { b.classList.toggle('active', on); b.setAttribute('aria-pressed', String(on)); });
 
     function contextoSaida() {
         if (!ctxPlay) { try { ctxPlay = new (window.AudioContext || window.webkitAudioContext)(); } catch (_) { ctxPlay = null; } }
@@ -87,6 +90,7 @@
             try { m = JSON.parse(data); } catch (_) { return; }
             if (m.type === 'text' && m.text) bus.emit('chat:evento', { tipo: 'texto', texto: m.text });
             if (m.type === 'done') { bus.emit('chat:evento', { tipo: 'fim' }); if (ativa) O.estado.definir('listening'); }
+            if (m.type === 'camera') { camera = L.estadoDaCamera(m, camera); marcarCamera(camera); O.anunciar(L.avisoDaCamera(camera)); }
             if (m.type === 'error') { nota(`Voz ao vivo: ${m.msg}`, 'erro'); parar(); }
         };
         ws.onerror = () => { nota('Voz ao vivo: falha na conexão com o cérebro.', 'erro'); parar(); };
@@ -100,6 +104,7 @@
         cmd('stop');
         try { ws?.close(); } catch (_) { /* já fechado */ }
         ws = null;
+        camera = false; marcarCamera(false);
         stream?.getTracks().forEach(t => t.stop());
         stream = null;
         try { proc?.disconnect(); fonte?.disconnect(); } catch (_) { /* nós já soltos */ }
@@ -112,7 +117,12 @@
     }
 
     function alternar() { (ativa ? parar() : iniciar()); }
-    function ligar() { document.addEventListener('click', e => { if (e.target.closest('.voice-live-btn')) alternar(); }); }
+    /** câmera na voz: só com a voz ligada; o servidor manda o indicador de volta (REGRAS.md: a câmera só liga por pedido seu, e cada uso fica registrado) */
+    function alternarCamera() {
+        if (!ativa || ws?.readyState !== WebSocket.OPEN) { nota('Ligue a voz ao vivo antes de ligar a câmera.', 'aviso'); return; }
+        cmd(camera ? 'camera_off' : 'camera_on');
+    }
+    function ligar() { document.addEventListener('click', e => { if (e.target.closest('.voice-live-btn')) alternar(); if (e.target.closest('.voice-camera-btn')) alternarCamera(); }); }
 
-    O.voz = { ligar, iniciar, parar, alternar, ativa: () => ativa };
+    O.voz = { ligar, iniciar, parar, alternar, alternarCamera, camera: () => camera, ativa: () => ativa };
 })();

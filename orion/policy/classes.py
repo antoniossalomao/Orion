@@ -66,6 +66,10 @@ DEFAULT_TOOLS: dict[str, ToolSpec] = dict(
         _t("checar_saude_sistema", Risk.READ),
         _t("checar_servicos_orion", Risk.READ),
         _t("analisar_imagem", Risk.READ, external=True, read_path_arg="path"),
+        _t("ler_texto_imagem", Risk.READ, external=True, read_path_arg="path"),
+        # rótulos com hora, sem imagem (REGRAS.md: a câmera só liga por pedido seu, e cada uso fica
+        # registrado)
+        _t("onde_vi", Risk.READ),
         _t("consultar_clima", Risk.READ),
         _t("obter_topico_celular", Risk.READ),
         _t("status_enxame", Risk.READ),
@@ -104,6 +108,10 @@ DEFAULT_TOOLS: dict[str, ToolSpec] = dict(
         _t("iniciar_processo_bg", Risk.EXEC, cmd_arg="comando"),
         _t("controlar_janela", Risk.EXEC, external=True),  # título de aba é texto de terceiros
         _t("explicar_tela", Risk.EXEC, external=True),  # envia a tela inteira ao modelo: confirma
+        # foto da webcam: confirma sempre (REGRAS.md: a câmera só liga por pedido seu, e cada uso
+        # fica registrado)
+        _t("ver_camera", Risk.EXEC, external=True),
+        _t("preparar_imagem_flow", Risk.EXEC),  # abre o navegador; não gera nem baixa (E11.8)
         _t("navegar_web", Risk.EXEC, external=True, egress=True),
         _t("consultar_especialista", Risk.EXEC),
         # reescrita (fase 2)

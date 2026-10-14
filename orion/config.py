@@ -73,6 +73,35 @@ class Settings(BaseSettings):
     # manda a imagem para o provedor do modelo.
     vision_tools: bool = False
     vision_model: str = ""  # vazio: o mesmo modelo do gateway
+    # E11 (visão e câmera). Tudo desligado por padrão; ver REGRAS.md, seção Vida pessoal e visão.
+    # ver_camera, onde_vi, ler_texto_imagem (REGRAS.md: a câmera só liga por pedido seu, e cada uso
+    # fica registrado)
+    camera: bool = False
+    camera_device: int = Field(default=0, ge=0, le=16)  # índice da webcam (0 = a principal)
+    # guarda rótulos de objetos (7 dias), só com presença (REGRAS.md: a câmera só liga por pedido
+    # seu, e cada uso fica registrado)
+    camera_watch: bool = False
+    vision_order: str = "gemini,claude,codex,gemini_cli"  # ordem da visão; a CLI só entra se falhar
+    object_model: Path | None = (
+        None  # YOLO nano em ONNX, colocado por você (sem download automático)
+    )
+    # modelo de rosto em ONNX local (REGRAS.md: rosto é local, cadastrado só pelo dono, e nunca sai
+    # do computador)
+    face_model: Path | None = None
+    translator_langs: str = "por+eng+spa"  # idiomas do OCR do tesseract (ler_texto_imagem)
+    # presença: cumprimento e pausa das capturas (REGRAS.md: presença só pausa e retoma, cumpre e
+    # bloqueia só com sua confirmação)
+    presence_enabled: bool = False
+    presence_bt: str = ""  # endereço Bluetooth do celular, para o sinal "perto"
+    presence_away_min: int = Field(default=10, ge=1, le=240)  # sem sinal por tanto tempo = saiu
+    presence_lock: bool = (
+        False  # ao sair, bloqueia a tela (só depois de `orion presenca confirmar`)
+    )
+    # legenda ao vivo do áudio do sistema, Vosk local (REGRAS.md: a câmera só liga por pedido seu, e
+    # cada uso fica registrado)
+    subtitles: bool = False
+    subtitle_model: Path | None = None  # pasta do modelo Vosk em português, colocada por você
+    subtitle_device: str = ""  # dispositivo de áudio do sistema (loopback); vazio: o padrão
     weather_city: str = "Marília"  # cidade quando o pedido não diz qual
     search_api_key: str = ""  # Gemini com Google Search; sem ela vale a chave de embeddings
     search_model: str = "gemini-2.5-flash"
@@ -206,6 +235,12 @@ class Settings(BaseSettings):
     # Não perturbe (REGRAS.md: pânico é corte; não perturbe só segura): "22:30-07:00" segura avisos
     # não urgentes e pausa a memória da tela
     dnd_at: str = ""
+    # E10 (vida pessoal). Diário e revisão escrevem no vault; ambos desligados por padrão.
+    diary_at: str = ""  # HH:MM: diário do dia em `Diário/` no vault (E10.2); vazio: desligado
+    weekly_review_at: str = ""  # HH:MM de domingo: nota de revisão semanal em `Revisão/` (E10.1)
+    # apps/sites que pedem pergunta no bloco de foco (REGRAS.md: o escudo de foco pergunta; nunca
+    # bloqueia, fecha nem segura nada), ";"
+    focus_distractions: str = ""
     # Ponte de desktop (REGRAS.md: ponte de desktop só abre e cola o que você aprovou): mapa de
     # teclas globais em JSON, ex.: {"captura": "ctrl+alt+k"}.
     # Vazio = as teclas padrão (ver orion/ponte/config.py). A ponte em si é `orion ponte`.
@@ -311,6 +346,14 @@ class Settings(BaseSettings):
             return ""
         if not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", v):
             raise ValueError("ORION_BRIEFING_AT precisa estar no formato HH:MM (ex.: 07:30)")
+        return v
+
+    @field_validator("diary_at", "weekly_review_at")
+    @classmethod
+    def _hora_da_vida(cls, v: str) -> str:
+        v = v.strip()
+        if v and not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", v):
+            raise ValueError("ORION_DIARY_AT e ORION_WEEKLY_REVIEW_AT precisam ser HH:MM")
         return v
 
     @field_validator("dnd_at")

@@ -417,3 +417,37 @@ def test_prova_e3_telas_de_conversas_e_projetos_no_orion_real(navegador, tmp_pat
             assert erros == []
         finally:
             ctx.close()
+
+
+def test_prova_e10_vida_no_orion_real(navegador, tmp_path):
+    """E10: a tela Vida contra o app, a política e o SQLite de verdade: gasto e conta lançados
+    pela API aparecem na tela, a conta se paga pela tela e o bloco de foco inicia."""
+    with _subir(tmp_path) as (url, _):
+        with _cliente_logado(url) as c:
+            assert (
+                c.post("/financas/gastos", json={"texto": "gastei 30 no mercado"}).status_code
+                == 200
+            )
+            c.post(
+                "/financas/contas",
+                json={"descricao": "Luz", "reais": 150, "vencimento": "2026-12-01"},
+            )
+        ctx, page, erros = _pagina(navegador, url)
+        try:
+            _entrar(page)
+            page.evaluate("location.hash = '#/vida'")
+            expect(page.locator("html")).to_have_attribute("data-view", "vida")
+            expect(page.locator("#vida-resumo")).to_contain_text("R$ 30,00", timeout=15000)
+            expect(page.locator("#vida-contas")).to_contain_text("Luz", timeout=15000)
+            page.get_by_role("button", name="Paguei").click()
+            expect(page.locator("#vida-contas")).to_contain_text(
+                "Nenhuma conta aberta", timeout=15000
+            )
+            page.locator("#vida-foco-min").fill("25")
+            page.locator("#vida-foco-iniciar").click()
+            expect(page.locator("#vida-foco-estado")).to_contain_text(
+                "Bloco de foco ativo", timeout=15000
+            )
+            assert erros == []
+        finally:
+            ctx.close()

@@ -38,7 +38,7 @@ VIEWS = [
     "conhecimento",
     "privacidade",
 ]
-VIEWS_SEM_MENU = ["arquivadas"]  # telas sem item na barra (abertas por link/paleta)
+VIEWS_SEM_MENU = ["arquivadas", "vida"]  # telas sem item na barra (abertas por link/paleta)
 TEMAS = ["noite", "grafite", "contraste"]
 
 

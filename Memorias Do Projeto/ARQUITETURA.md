@@ -18,6 +18,8 @@ Um processo FastAPI em `127.0.0.1`, com política de ferramentas, memória em SQ
 | Extensões | `skills.py`, `plugins.py`, `extensions/` (`catalogo.py`, `importar.py`, `host.py`, `bundled/`), `mcp_client.py`, `mcp_servidor.py`, `mcp_indice.py` | Skills em texto, plugins com concessão por hash, catálogo local e remoto, cliente e servidor MCP |
 | Canais | `channels/telegram.py`, `ponte/`, `painel.py` | Telegram (texto, voz, foto, botões); ponte de desktop (teclas, captura rápida, colar o aprovado); painel de leitura |
 | Voz e sentidos | `voice.py`, `wake.py` (palavra de ativação e `ClapDetector`), `transcribe.py`, `vision.py`, `screen_memory.py`, `capture.py` | Voz por clique e ao vivo; palavra de ativação e palmas (detecção local); transcrição; OCR local da tela; captura rápida |
+| Visão e presença (E11) | `camera.py`, `visao_cli.py`, `visao_local.py`, `rosto.py`, `presenca.py`, `vigia.py`, `legenda.py`, `tools/camera.py` | Foto sob pedido, visão pelas assinaturas ou local (YOLO ONNX, rótulos sem imagem), rosto local do dono, presença (pausa e cumprimento; bloqueio só confirmado) e legenda ao vivo (Vosk) |
+| Vida pessoal (E10) | `vida.py`, `vida_routes.py` | Finanças locais (gastos, contas, preço), cápsula do tempo, linha do tempo, diário, revisão semanal, escudo de foco, estado pela voz, sonhos e cenários |
 | Rotina e segundo plano | `jobs.py`, `briefing.py`, `agenda.py`, `rotinas.py`, `downloads.py`, `automacao.py`, `tarefas_bg.py`, `research/night.py`, `historicos.py`, `modos.py`, `media_transcribe.py`, `autostart.py` | Lembretes, agendamentos, consolidação, backup; briefing; agenda; rotinas e regras de Downloads concedidas; pesquisa noturna; pânico e não perturbe |
 
 A ordem de leitura do código, para quem entra agora: `app.py` (rotas), `policy/engine.py` (decisões), `agent.py` (turno), `memory/store.py` (dados).
@@ -28,6 +30,7 @@ A ordem de leitura do código, para quem entra agora: `app.py` (rotas), `policy/
 |---|---|
 | `orion.db` (SQLite, pasta de dados do usuário ou `ORION_DATA_DIR`) | Sessões e mensagens; fatos; documentos e trechos com FTS5 e vetores; arestas do grafo; lembretes, prompts e usuários; `audit` (esquema v3, poda de 90 dias); `external_calls` (esquema v11, sem conteúdo); resumos de sessão; `screen_log` |
 | `auth.db` | Senha em hash, sessões e tokens de dispositivo. Fica **fora** do backup |
+| `orion.db`, tabelas de vida e visão (esquema v23) | `transactions`, `bills`, `price_watch` (finanças, só local); `object_sightings` (rótulos de objetos, 7 dias, sem imagem); `faces` (vetores cifrados, chave no cofre) |
 | `<dados>/backups/` | Backup diário da memória, mantém 7 (`ORION_BACKUP_DIR` aponta para iCloud ou OneDrive) |
 | `<dados>/` (pastas) | `mcp.json`, `plugins/`, `catalogo/`, `rotinas/`, `regras_downloads.yaml`, `capturas/`, `imagens/` |
 | Vault do Obsidian (`ORION_VAULT_DIR`) | Indexado de hora em hora. Escrita só em `00 Inbox` e na pasta de captura |
@@ -48,6 +51,10 @@ Toda chamada a um destino de fora grava uma linha em `external_calls` (sem o con
 | n8n | Webhooks que você cadastra | `ORION_N8N_WEBHOOKS`; acionar sempre confirma |
 | CLIs delegadas (`claude -p`, `codex exec`, `gemini -p`) | Tarefa pesada, com as assinaturas oficiais | Tempo-limite, pasta de trabalho definida, contador diário |
 | Modelo local (Ollama em `127.0.0.1`) | Reserva, sem ferramentas | `ORION_LOCAL_MODEL`; só loopback |
+| Gateway de visão e CLIs de assinatura (`ORION_VISION_ORDER`) | Foto da câmera (`ver_camera`, `/camera`) e quadros da voz ao vivo, quando ligados | `ORION_CAMERA=true`; `ver_camera` sempre confirma; cada uso vai ao registro de saídas |
+| Pesquisa na web (Brave ou Google, conforme o provedor) | Só o nome do produto cadastrado no monitor de preço | Opt-in (`ORION_WEB_TOOLS`) e cota gratuita; o preço que volta é guardado |
+
+Não saem do computador: finanças, rosto, rótulos de objetos, presença, detecção local e legenda ao vivo.
 
 ## 4. Fluxos
 
@@ -55,6 +62,7 @@ Toda chamada a um destino de fora grava uma linha em `external_calls` (sem o con
 - **Aprovação.** Cartão no canal, com botão. Vale por 10 minutos, uso único, e só para os argumentos exatos. Voz e frase nunca aprovam.
 - **Voz.** Transcrição (Groq) → texto mostrado antes da resposta → turno comum, com memória, política e audit. A palavra de ativação e as palmas só abrem o microfone ou a janela, e a detecção é local.
 - **Conteúdo externo.** Marcado como dado. Depois de lido, a sessão pede confirmação para escrita, execução e rede com destino escolhido pelo modelo.
+- **Câmera.** Só com pedido seu (`ver_camera`, `/camera`, a paleta ou o botão da voz ao vivo). A foto vai ao modelo de visão, é descartada logo depois e cada uso fica registrado. Vigília e presença são locais: só rótulo, sem imagem, e a tela só é bloqueada com a sua confirmação.
 
 ## 5. Legado (sai na fase 7)
 
@@ -69,6 +77,8 @@ Continuam no repositório como referência e rodando no PC atual até a venda. O
 - **Hoje:** navegador local, servido em `/ui/` pelo `orion.app`, com tela de entrada. O front v1 do legado usa pywebview.
 - **Decisão:** só desktop, sem versão para celular. O celular fica no Telegram.
 - **Destino:** iced (Rust), com o tema "Observatório noturno": paleta noturna, constelação de Órion, três temas. O design e a engenharia do front atual estão em [ORION_LEGADO.md](ORION_LEGADO.md) (documento ORION_FRONT).
+
+A tela Vida (E10) e a legenda ao vivo (`/ui/legenda.html`, E11) fazem parte do front de desktop.
 
 ## 7. Destino em Rust
 

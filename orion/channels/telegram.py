@@ -80,6 +80,7 @@ BOAS_VINDAS = (
     "/briefing — o que há para hoje\n"
     "/painel — modelos, CLIs, aprovações e política num só lugar\n"
     "/tela — memória da tela: estado, pausar, retomar ou limpar\n"
+    "/camera [pergunta] — uma foto da webcam, descrita (pede aprovação no app)\n"
     "/panico — corta rede, execução, tela e escuta; /panico sair para voltar\n"
     "/ajuda — mostra isto de novo\n\n"
     "Ações que mexem no computador chegam aqui com botões para aprovar ou negar."
@@ -134,6 +135,9 @@ class TelegramChannel:
         self.agenda: Callable[[float], str | None] | None = None
         # `/tela` (REGRAS.md: memória da tela: só texto, local e com opt-in); o app liga depois
         self.tela: Callable[[str], str] | None = None
+        # `/camera` (REGRAS.md: a câmera só liga por pedido seu, e cada uso fica registrado); só com
+        # ORION_CAMERA
+        self.camera: Callable[[str], str] | None = None
         # `/panico` (REGRAS.md: pânico é corte; não perturbe só segura); o app liga depois
         self.modos: Modos | None = None
         self.desligar: Callable[[], str] | None = None  # `/desligar` (E9.5); o app liga depois
@@ -142,6 +146,7 @@ class TelegramChannel:
         # E9.10: quem manda voz recebe voz; o app liga com ORION_TELEGRAM_VOICE_REPLY
         self.speaker: Any = None  # tem `async falar(texto) -> bytes` (mp3)
         self.ler_depois: Any = None  # LerDepois (E9.8); o app liga depois
+        self.vida: Any = None  # VidaCanal (E10): /financas, /contas, /foco, /revisao, gastos
         # RotinaStore (REGRAS.md: automação sua vale pelo arquivo concedido); o app liga depois
         self.rotinas: Any = None
         self.executar_rotina: Callable[[str, str], Awaitable[Any]] | None = None
@@ -375,6 +380,11 @@ class TelegramChannel:
         if not texto:
             await self._enviar(chat_id, "Entendo texto, voz e foto por aqui.")
             return
+        if self.vida is not None:
+            resposta_vida = await self.vida.tratar_async(chat_id, texto)
+            if resposta_vida is not None:  # E10: é da vida pessoal; o resto segue para o agente
+                await self._enviar(chat_id, resposta_vida)
+                return
         if comando in ("/start", "/ajuda"):
             await self._enviar(chat_id, BOAS_VINDAS)
         elif comando == "/painel":
@@ -391,6 +401,15 @@ class TelegramChannel:
                 await asyncio.to_thread(resposta, argumento)
                 if resposta
                 else "Memória da tela indisponível neste canal.",
+            )
+        elif comando == "/camera":
+            resposta = self.camera
+            argumento = texto.split(None, 1)[1] if len(texto.split(None, 1)) > 1 else ""
+            await self._enviar(
+                chat_id,
+                await asyncio.to_thread(resposta, argumento)
+                if resposta
+                else "Câmera desligada (ORION_CAMERA).",
             )
         elif comando == "/panico":
             argumento = texto.split(None, 1)[1] if len(texto.split(None, 1)) > 1 else ""

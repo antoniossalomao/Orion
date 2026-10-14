@@ -31,6 +31,8 @@ uv run orion set-password          # senha do login; toda rota da API exige logi
 uv run orion                       # sobe em 127.0.0.1:8000
 ```
 
+Extras opcionais, cada um opt-in: `uv sync --extra camera` (câmera e visão, E11), `--extra wake` (palavra de ativação), `--extra ponte` (ponte de desktop), `--extra rerank` (reranker local) e `--extra pdf`.
+
 Windows sem instalar nada: na aba Actions, o workflow "Orion.exe (Windows)" gera o `orion.exe` (ver a seção de operação em [ORION_LEGADO.md](Memorias%20Do%20Projeto/ORION_LEGADO.md)).
 
 Comandos úteis:

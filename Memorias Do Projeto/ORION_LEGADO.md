@@ -72,7 +72,13 @@ As regras antigas eram numeradas. Em REGRAS.md os princípios não têm número;
 | 58 | automação sua vale pelo arquivo concedido |
 | 59 | tarefa em segundo plano só lê e propõe |
 | 60 | históricos locais: opt-in, só texto, só neste computador |
-| 61–71 | planejadas (E10–E13 do plano da rodada 2); ainda sem código. Se aparecerem no código, avise em vez de trocar. |
+| 61 | finanças são locais: valor, conta e extrato nunca saem do computador |
+| 62 | o escudo de foco pergunta; nunca bloqueia, fecha nem segura nada |
+| 63 | o estado pela voz só muda o estilo da resposta |
+| 64 | a câmera só liga por pedido seu, e cada uso fica registrado |
+| 65 | rosto é local, cadastrado só pelo dono, e nunca sai do computador |
+| 66 | presença só pausa e retoma, cumpre e bloqueia só com sua confirmação |
+
 
 ## Índice
 
@@ -80,14 +86,14 @@ As regras antigas eram numeradas. Em REGRAS.md os princípios não têm número;
 |---|---|---|
 | `README.md` | README anterior (raiz): Como rodar a base, arquitetura antiga (Qdrant, SurrealDB, cascata), segurança e layout. | 336 |
 | `ORION_NUCLEO.md` | Plano antigo: Ring 0 de 01/10, inventário do legado, fases 0–7 e o registro de decisões desde 25/06/2026. | 270 |
-| `ORION_REGRAS.md` | Regras antigas (numeradas): Tabela com 60 regras, onde o código as impõe e o teste que as prova. Fonte do mapa de princípios. | 100 |
-| `ORION_OPERACAO.md` | Operação do Python: Como ligar: login, Tailscale, variáveis, MCP, Telegram, checklists e a tabela de opt-ins (§16, lida por testes). | 1117 |
+| `ORION_REGRAS.md` | Regras antigas (numeradas): Tabela com 66 regras, onde o código as impõe e o teste que as prova. Fonte do mapa de princípios. | 106 |
+| `ORION_OPERACAO.md` | Operação do Python: Como ligar: login, Tailscale, variáveis, MCP, Telegram, checklists e a tabela de opt-ins (§16, lida por testes). | 1127 |
 | `ORION_TECNICO.md` | Referência técnica do legado: Stack, regras críticas, backend, memória/RAG, agentes, voz, front, avaliações e versão 2.0. | 527 |
 | `ORION_FRONT.md` | Front-end (design e engenharia): Diagnóstico, direção, sistema de design e entregas do front 'Observatório noturno'. | 290 |
 | `ORION_FERRAMENTAS.md` | Triagem das 55 ferramentas do legado: Tabela de situação por ferramenta (portada, substituída, a portar, descartar); lida por teste. | 96 |
 | `ORION_CORTE.md` | Plano de corte (venda do PC): Bloco A (dados), bloco B (Orion mínimo), corte, rollback e decisões pendentes. | 84 |
-| `ORION_MELHORIAS.md` | Rodadas de auditoria e melhorias: Achados, rodadas 1 a 15, o que foi construído, decisões tomadas por você e o que não foi verificado. | 471 |
-| `ORION_PLANO_RODADA2.md` | Plano de execução E0–E13: Checklists por etapa, com provas e pendências suas. Substituído pelo backlog em ORION.md. | 837 |
+| `ORION_MELHORIAS.md` | Rodadas de auditoria e melhorias: Achados, rodadas 1 a 17, o que foi construído, decisões tomadas por você e o que não foi verificado. | 523 |
+| `ORION_PLANO_RODADA2.md` | Plano de execução E0–E13: Checklists por etapa, com provas e pendências suas. Substituído pelo backlog em ORION.md. | 838 |
 | `ORION_PLANO_PROXIMOS.md` | Plano de próximos passos (08/10): Blocos A a F e a sequência sugerida daquela data. | 96 |
 | `ORION_MIGRACAO_RUST.md` | Plano de migração para Rust (primeira versão): Princípios, plataforma, arquitetura, fases, métricas e riscos. Substituído pelo ORION.md e pelo ARQUITETURA.md. | 176 |
 | `ORION_EXTENSOES.md` | Referências de produto e plano de extensões: Referências pesquisadas, plugins, skills e MCP, etapas e critérios de aceite. | 1880 |
@@ -809,6 +815,12 @@ aula) · Sensor Fusion · Biometria passiva · Ghost OS Level 2.
 | 58 | **Automação sua vale pelo arquivo que você escreveu e concedeu.** Rotina (`<dados>/rotinas/<nome>.yaml`) e regras de Downloads (`<dados>/regras_downloads.yaml`) só rodam depois de `orion rotina conceder <nome>` / `orion downloads conceder`, que guarda o SHA-256 do arquivo: qualquer mudança derruba a concessão. Quem aciona é um gatilho **seu** (frase exata, tecla, `/rotina` no Telegram, duas palmas com `ORION_CLAP_ACTION=rotina:<nome>`), nunca o modelo. Passo de leitura roda direto; `controlar_midia` e, **só se a rotina o listar em `liberar`**, `abrir_app` rodam direto com os argumentos fixos do arquivo; todo o resto (escrita, execução) vira o pedido de aprovação de sempre (botão, regra 2) e **a rotina para ali**. Pânico e não perturbe barram o gatilho. Cada passo vai ao audit. Isto estende a regra 51: a palma continua só acionando, e o que ela aciona é uma rotina concedida. | `orion/rotinas.py`, `orion/downloads.py`, `orion/automacao.py` + `tests/test_rotinas.py`, `tests/test_downloads.py` |
 | 59 | **Tarefa em segundo plano só lê e propõe.** `POST /tarefas-bg` roda `Agent.run(read_only=True)` numa conversa própria, com teto de passos, de minutos e de cota (regra 46); nada é escrito nem executado: o que seria escrita vira **proposta** que você aprova depois, item a item. O relatório vai para a caixa de atividade. Pânico e cota esgotada recusam o pedido. | `orion/tarefas_bg.py` + `tests/test_tarefas_bg.py` |
 | 60 | **Históricos locais: opt-in, só texto, só neste computador, com retenção.** Histórico da área de transferência (`ORION_CLIPBOARD_DAYS`, a ponte observa) e de comandos (`ORION_COMMAND_HISTORY`) ficam desligados por padrão, guardam só texto, descartam linha com cara de segredo (o filtro da memória da tela), apagam sozinhos depois da retenção e nunca saem do computador. As ferramentas `buscar_area_transferencia` e `buscar_comandos` são de leitura e `external` (o texto guardado pode ter vindo de terceiros). | `orion/historicos.py` + `tests/test_historicos.py` |
+| 61 | **Finanças são locais: valor, conta e extrato nunca saem do computador.** Gastos (`transactions`), contas (`bills`) e o histórico de preço ficam no banco local (esquema v22). O lançamento é por regra (valor e palavra-chave dão a categoria); texto de gasto que a regra não entende vai só ao **modelo local** (`ORION_LOCAL_MODEL`, num gateway próprio, sem a nuvem), e texto de gasto nunca passa pela classificação da nuvem da captura. Nenhuma ferramenta do modelo expõe valores, extrato ou simulação: o resultado sairia para o gateway. Fatura é lida no computador e lançada só com a sua confirmação. O monitor de preço (só os itens que você cadastrou) manda à pesquisa **só o nome do produto** (cota da regra 46, registro da regra 47); o preço que volta é guardado, o extrato não. Aviso de conta sai 3 e 1 dia antes, uma vez por dia e por aviso. | `orion/vida.py`, `orion/vida_routes.py`, `orion/captura_rapida.py` | `tests/test_e10_vida.py` |
+| 62 | **O escudo de foco pergunta; nunca bloqueia, fecha nem segura nada.** O bloco de foco (`/foco`, ou o da revisão) só ativa a pergunta discreta ("isso é do marco da semana?") quando o app ou site em foco casa com `ORION_FOCUS_DISTRACTIONS`, no máximo uma vez por bloco. Não fecha janela, não mata processo, não muda o não perturbe (regra 48) nem a memória da tela. Desligado por padrão, é só uma lista sua. | `orion/vida.py` (`Foco`, `e_distracao`) | `tests/test_e10_vida.py` |
+| 63 | **O estado pela voz só muda o estilo da resposta.** Ritmo (palavras por minuto) e energia do áudio são medidos localmente e comparados com a sua média; fala mais rápida ou mais baixa que o normal dá resposta mais curta. As médias ficam só em memória, não viram fato, não entram no grafo nem em nenhuma decisão, e o áudio não é guardado. | `orion/vida.py` (`EstadoVoz`) | `tests/test_e10_vida.py` |
+| 64 | **A câmera só liga por pedido seu, e cada uso fica registrado.** `ORION_CAMERA=true` liga as ferramentas. Uma foto é tirada só quando você pede (`ver_camera`, `/camera` no Telegram, o item "O que a câmera vê?" da paleta, ou o botão de câmera da voz ao vivo). `ver_camera` é execução e **sempre pede aprovação**; cada uso sai no registro de saídas (regra 47). A foto é descartada logo após a resposta, salvo pedido para guardar. A voz ao vivo com câmera manda **um quadro por segundo** só enquanto o botão estiver ligado; o navegador mostra o indicador e a sessão fica registrada. O modo contínuo (`ORION_CAMERA_WATCH`) guarda **só rótulos de objetos** com retenção de 7 dias, nunca a imagem, nunca a classe "pessoa", e só roda com presença detectada (regra 66). A legenda ao vivo (`ORION_SUBTITLES`) escuta o áudio do sistema só com a opção ligada, nunca grava nem envia áudio, e guarda só as últimas falas em memória. Imagem da câmera pode ir ao modelo de visão em nuvem, como qualquer imagem (regra 4: resultado é externo). | `orion/camera.py`, `orion/visao_local.py`, `orion/tools/camera.py`, `orion/voice.py`, `orion/legenda.py` | `tests/test_e11_visao.py`, `tests/test_e11_pendentes.py`, `tests/front_e2e/test_e11.py` |
+| 65 | **Rosto é local, cadastrado só pelo dono, e nunca sai do computador.** Os vetores faciais ficam cifrados (Fernet) no banco local, com a chave no cofre do sistema (`ORION_FACE_KEY`). Não existe ferramenta do modelo para rosto: só o comando `orion rosto` cadastra, compara e apaga. Rosto nunca é enviado a nenhum provedor, nem como parte de uma foto de visão. A comparação só roda com tela desbloqueada (regra 44) e câmera ligada; `orion rosto apagar` remove vetores e chave. | `orion/rosto.py` | `tests/test_e11_visao.py` |
+| 66 | **Presença só pausa e retoma, cumprimenta, e bloqueia só com a sua confirmação; nunca envia nada para fora.** Os sinais são locais: tela desbloqueada com teclado/mouse recente, celular por Bluetooth perto, e rosto (só com a tela desbloqueada e a câmera ligada, regra 65). Ao chegar: um cumprimento curto na fila de avisos. Sem sinal por `ORION_PRESENCE_AWAY_MIN` minutos, você está ausente: a memória da tela é pausada (só a pausa que a própria presença fez) e a vigília da câmera para. Ao voltar, a memória da tela é retomada. Com `ORION_PRESENCE_LOCK=true`, a tela também é bloqueada ao sair, **mas só depois de `orion presenca confirmar`**; antes disso a presença avisa uma vez e não bloqueia. Cada bloqueio vai ao registro de auditoria. | `orion/presenca.py`, `orion/vigia.py` | `tests/test_e11_visao.py`, `tests/test_e11_pendentes.py` |
 
 #### Código
 
@@ -828,6 +840,7 @@ aula) · Sensor Fusion · Biometria passiva · Ghost OS Level 2.
 
 - **Aprovação por voz/por frase** foi descartada pela regra 2. Se quiser um canal sem botão
   (voz, por exemplo), ele precisa de autenticação própria (palavra de ativação não basta, regra 38).
+
 
 
 ## Documento: `ORION_OPERACAO.md`
@@ -1425,7 +1438,17 @@ opt-in novo sem linha aqui.
 | `ORION_JOBS_ENABLED` | Jobs: lembretes, backup, vault, embeddings, consolidação, briefing | Embeddings ao Gemini (com chave); o resto conforme cada opt-in acima | 18, 20 | `true` (padrão) → `false` |
 | `ORION_LOCAL_MODEL` | Modelo local de reserva, sem ferramentas (§17.4) | Não: só `127.0.0.1` (a configuração recusa outro host) | 49 | vazio (padrão) |
 | `ORION_DND_AT` | Não perturbe por horário (§17.3) | Não | 48 | vazio (padrão) |
+| `ORION_DIARY_AT` | Diário do dia em `Diário/` no vault: commits de `ORION_REPOS` e gastos (E10.2) | Não: git local e banco local | 61 | vazio (padrão) |
+| `ORION_WEEKLY_REVIEW_AT` | Nota de revisão semanal em `Revisão/`, aos domingos (E10.1) | Não: só o vault | 61 | vazio (padrão) |
+| `ORION_FOCUS_DISTRACTIONS` | Apps/sites que disparam a pergunta do bloco de foco (E10.10) | Não | 62 | vazio (padrão) |
 | `ORION_CLAP_ENABLED` | Duas palmas abrem o Orion (§18.2) | Não antes nem depois das palmas; só com `abrir_e_ouvir` a fala seguinte vai como na voz (Groq, Microsoft) | 51 | `false` (padrão); pausa: `POST /voz/escuta` |
+| `ORION_CAMERA` (`=true`) | `ver_camera` (uma foto, descrita pela visão), `onde_vi` (com a vigília), `ler_texto_imagem` (OCR local), `preparar_imagem_flow` (abre o Flow; você gera e baixa). Precisa do extra `camera` (`opencv-python-headless`) | A foto da webcam vai ao modelo de visão (gateway, depois as CLIs de assinatura, na ordem de `ORION_VISION_ORDER`). `ver_camera` e `/camera` **pedem aprovação** no app; a foto é apagada depois da resposta; a voz ao vivo com câmera manda um quadro por segundo enquanto o botão estiver ligado; cada uso fica no registro de saídas | 64 | `false` (padrão) |
+| `ORION_CAMERA_WATCH` (`=true`; exige `ORION_CAMERA`, `ORION_PRESENCE_ENABLED` e `ORION_OBJECT_MODEL`) | Guarda rótulos de objetos vistos enquanto você está presente (`onde_vi`) | Não: só rótulo, hora e posição ficam no banco local, por 7 dias; nunca imagem nem a classe "pessoa" | 64 | `false` (padrão) |
+| `ORION_PRESENCE_ENABLED` (`=true`) | Presença: ao sair, pausa a memória da tela e a vigília da câmera; ao voltar, retoma | Não: sinais locais (tela, teclado/mouse, Bluetooth se `ORION_PRESENCE_BT`); nada sai | 66 | `false` (padrão) |
+| `ORION_OBJECT_MODEL` (caminho do `.onnx`) | Detecção local de objetos (YOLO nano), base da vigília | Não; o modelo é colocado por você, sem download automático | 64 | apague o caminho |
+| `ORION_FACE_MODEL` (caminho do `.onnx`) | Reconhecimento facial local, só do dono (`orion rosto cadastrar`) | Não: vetores cifrados no banco local, chave no cofre; nunca vão a provedor | 65 | `orion rosto apagar` |
+| `ORION_PRESENCE_LOCK` (`=true`; depois de `orion presenca confirmar`) | Bloqueia a tela ao sair (presença); cada bloqueio vai à auditoria | Não | 66 | `false` (padrão) ou `orion presenca desfazer` |
+| `ORION_SUBTITLES` (`=true`; exige `ORION_SUBTITLE_MODEL`) | Legenda ao vivo do áudio do sistema (Vosk local), mostrada em `/ui/legenda.html` e no comando `orion legenda` | Não: o áudio é processado na memória e nunca gravado ou enviado; só as últimas falas ficam em memória | 64 | `false` (padrão) |
 | `ORION_COMPACT_AT` | Resumo do começo de conversas longas (§19.1) | Não: só pelo modelo local (`ORION_LOCAL_MODEL`) | 53 | `0` (ou sem modelo local) |
 | `ORION_RERANK` | Reranker local da busca (§19.4) | Não: roda no computador | 54 | `false` (padrão) |
 | `ORION_PLUGIN_CATALOGS` | Catálogos remotos de plugins (§21) | Sim: o pedido do índice e, quando você manda instalar, do pacote, ao host que você cadastrou | 7, 47, 57 | vazio (padrão) |
@@ -1951,6 +1974,7 @@ aprovar cria. **Sai do computador:** o texto transcrito ao modelo de chat (além
 
 **Regras.** 58, 59 e 60; código em `orion/rotinas.py`, `orion/tarefas_bg.py`, `orion/downloads.py`, `orion/desligar.py`,
 `orion/historicos.py`, `orion/ler_depois.py`, `orion/conversor.py` e `orion/propostas.py`.
+
 
 
 ## Documento: `ORION_TECNICO.md`
@@ -3353,6 +3377,32 @@ estava ligada ao agente (não mexi; as duas ferramentas novas de histórico est�
 
 **Não verificado (E9):** tudo marcado ❌ acima.
 
+#### Décima sexta rodada (14/10/2026): plano da rodada 2, etapa E10
+
+Plano em [ORION_PLANO_RODADA2.md](ORION_PLANO_RODADA2.md). Regras 61, 62 e 63 (escritas antes do código) em
+[ORION_REGRAS.md](ORION_REGRAS.md). **Esquema v22** (`transactions`, `bills`, `price_watch`, `reminders.kind`): o plano falava em
+v16, mas o banco já estava na v21. Opt-ins novos: `ORION_DIARY_AT`, `ORION_WEEKLY_REVIEW_AT`, `ORION_FOCUS_DISTRACTIONS`.
+
+| ID | Entrega | Status |
+|---|---|---|
+| E10.1 Revisão semanal | `Revisao` (5 passos por conversa no Telegram, `/revisao`, `/fim`), nota em `Revisão/`; `montar_revisao` e job de domingo | ✅ unidade e `VidaCanal`; ❌ blocos reais na agenda (só proposta em texto; a agenda pede aprovação e não foi ligada) e lista de projetos (sai vazia) |
+| E10.2 Diário | `montar_diario` + `VidaJobs` escreve `Diário/AAAA-MM-DD.md`, uma vez por dia (commits de `ORION_REPOS` e gastos) | ✅ com git real em pasta temporária; ❌ resumo pelo modelo local (sai a linha de contagem); conversas, documentos, resultados e tela não entram |
+| E10.3 Gastos | `parse_gasto` por regra; modelo local como fallback (`gasto_por_modelo`); `/financas`, `POST /financas/gastos`, captura e `VidaCanal` com desfazer | ✅ API, captura e `VidaCanal` com teste (é o objeto que o Telegram chama; o canal em si não foi testado); ❌ navegador real |
+| E10.4 Contas | `bills`; boleto de 47 dígitos (valor e vencimento pelo fator); avisos 3 e 1 dia; `/contas`, `/pagar`, fatura em texto com revisão e confirmação (`/financas/fatura/*`) | ✅ unidade e API; ❌ PDF e foto de boleto (OCR não ligado; a fatura entra como texto extraído) |
+| E10.5 Monitor de preço | `price_watch`; job diário com a busca da web, gated pela cota (regra 46); alerta de alvo ou queda de 5% | ✅ job com busca falsa e cota; ❌ busca real (depende de `ORION_WEB_TOOLS` e da chave do Brave) |
+| E10.6 Cápsula | "daqui 6 meses me cobra isso" (captura e Telegram) vira lembrete `kind='capsula'`; desfazer | ✅ unidade e captura; ❌ link para a conversa de origem (guarda o texto, não o link) |
+| E10.7 Cenários | `simular()` Monte Carlo sobre o histórico mensal; `/simular` (VidaCanal) e `POST /vida/simular`; tela | ✅ unidade, `VidaCanal` e API; ❌ ferramenta do modelo: **de propósito, não feita** (regra 61: o resultado sairia para a nuvem) |
+| E10.8 Linha do tempo | `linha_do_tempo` (conversas, gastos, tela, área, cápsulas, documentos, diário, commits); `GET /linha-do-tempo`; tela com zoom dia e semana | ✅ unidade, API e Node; ❌ navegador real (e2e não rodou) |
+| E10.9 Sonhos | Passo no ciclo de sono (`ORION_SLEEP_AT`): ideia que liga dois fatos sem palavra em comum; fica pendente até o 'boa' (`POST /sonhos/{id}/boa`), 'descartar' fecha | ✅ unidade com modelo falso e API; ❌ aparece no briefing da manhã (só na lista de avisos) |
+| E10.10 Escudo de foco | `/foco N` (Telegram) e `POST /foco/iniciar`; a tela de captura de memória chama o escudo; uma pergunta por bloco; nunca bloqueia (regra 62, testada) | ✅ unidade, `VidaCanal` e API; ❌ avisos não urgentes presos pelo não perturbe (não ligado) |
+| E10.11 Estado pela voz | `medir_wav` (duração e energia de WAV PCM 16 bits); `EstadoVoz` por fala; resposta mais curta quando a fala vem apressada ou baixa | ✅ unidade e lógica no turno de voz; ❌ energia de OGG, WebM e MP3 (sem decodificador no projeto: só ritmo, e sem duração não há ritmo) |
+
+**Limites que ficaram por decisão, não por falta de tempo:** nenhuma ferramenta do modelo expõe finanças (regra 61); o escudo
+de foco nunca fecha nem bloqueia (regra 62); o estado pela voz só guarda médias em memória (regra 63).
+
+**Não verificado (E10):** navegador (`tests/front_e2e`) não foi rodado para a tela Vida; o teste Node cobre só a lógica pura.
+Prova de uma semana real segue pendente: é com o Antônio.
+
 #### O que foi construído (por fase do NUCLEO)
 
 | Fase | Entrega | Status |
@@ -3449,6 +3499,33 @@ estava ligada ao agente (não mexi; as duas ferramentas novas de histórico est�
 - ~~Roteamento por tipo de tarefa~~ (feito em 07/10: `orion/router.py`, V11).
 - ~~Front no celular / PWA~~ (descartado em 07/10: front só desktop, decisão #5).
 - ~~Consolidação noturna da memória~~ (feito em 03/10: `orion/memory/consolidate.py`).
+
+#### Décima sétima rodada (14/10/2026): plano da rodada 2, etapa E11
+
+Plano em [ORION_PLANO_RODADA2.md](ORION_PLANO_RODADA2.md). Regras 64, 65 e 66 (escritas antes do código) em
+[ORION_REGRAS.md](ORION_REGRAS.md). **Esquema v23** (`object_sightings`, `faces`): o plano falava em v17, mas o banco já estava
+na v22. Opt-ins: `ORION_CAMERA`, `ORION_CAMERA_WATCH`, `ORION_PRESENCE_ENABLED`, `ORION_PRESENCE_LOCK`, `ORION_SUBTITLES`,
+`ORION_OBJECT_MODEL`, `ORION_FACE_MODEL`, `ORION_SUBTITLE_MODEL`. Extra novo: `camera` (`opencv-python-headless`).
+`ORION_CAMERA_ENABLED` foi renomeado para `ORION_CAMERA` (o nome que a regra 64 usa).
+
+| ID | Entrega | Status |
+|---|---|---|
+| E11.1 Ver e agir | `ver_camera` (foto em memória, descrita pela visão, apagada depois; **sempre confirma**); `/camera` no Telegram; "O que a câmera vê?" na paleta; vídeo ao vivo na voz (`camera_on`/`camera_off`, um quadro por segundo, indicador no botão) | ✅ unidade com foto falsa e sessão falsa (quadros chegam à sessão, indicador vai ao navegador); ✅ e2e: botão de câmera na voz; ❌ webcam real e Gemini Live real |
+| E11.2 Visão pelas assinaturas | `ORION_VISION_ORDER` (padrão `gemini,claude,codex,gemini_cli`); CLIs rodam numa pasta temporária, registradas como `cli:<nome>` | ✅ unidade com runner falso (argumentos e fallback); ❌ CLIs reais (o `claude -p` precisa da permissão `Read` aprovada na máquina) |
+| E11.3 Detecção local | `visao_local.Detector` (YOLO ONNX, letterbox, NMS); **as classes vêm dos metadados do próprio modelo** | ✅ unidade com saída sintética e sessão falsa; ❌ modelo real (você coloca o `.onnx` em `ORION_OBJECT_MODEL`; sem download automático, de propósito) |
+| E11.4 "Onde eu deixei?" | `object_sightings` (7 dias, sem `person`, sem imagem); `onde_vi`; vigília no job a cada 60 s, só com presença. `fone` → `headphones` | ✅ unidade e `onde_vi` com banco real; ❌ "onde vi meu fone" de verdade: **depende de um modelo com a classe `headphones`** (o COCO não tem). O código lê a classe do modelo; falta o arquivo do modelo |
+| E11.5 Rosto local | `orion rosto cadastrar NOME` (5 fotos) e `orion rosto apagar`; vetores cifrados (Fernet), chave em `ORION_FACE_KEY` no cofre; **o reconhecimento entra como sinal da presença** (só com tela desbloqueada e câmera ligada) | ✅ unidade com embedder falso e presença; ❌ modelo real e Haar do OpenCV na câmera |
+| E11.6 Presença | `Presenca` (tela, ocioso via `xprintidle`, Bluetooth via bleak, rosto); `Vigia` no job; cumprimento ao chegar (fila de avisos); saiu → pausa a memória da tela e para a vigília; **bloqueio ao sair só com `ORION_PRESENCE_LOCK` e `orion presenca confirmar`**, com auditoria | ✅ unidade da máquina de estados, das ações (cumprimento, bloqueio sem e com confirmação) e da CLI; ❌ Bluetooth real; ❌ `xprintidle` só no Linux X11; ❌ bloqueio real de tela em cada sistema |
+| E11.7 Tradutor | `ler_texto_imagem` (OCR do tesseract, `ORION_TRANSLATOR_LANGS`); a tradução é do próprio modelo. **Legenda ao vivo**: `orion/legenda.py` (Vosk, `ORION_SUBTITLES`, loopback do áudio do sistema), `GET /legenda`, página `/ui/legenda.html`, `orion legenda` abre a janela sempre por cima | ✅ unidade com reconhecedor falso e fluxo falso; ✅ e2e da página (pede login sem sessão); ❌ Vosk real com áudio real; ❌ loopback do áudio (depende do dispositivo de cada máquina) |
+| E11.8 Flow | `preparar_imagem_flow`: copia o prompt para a área de transferência (comando nativo: `pbcopy`, `wl-copy`, `xclip` ou PowerShell), abre o site; nada é automatizado no site | ✅ unidade com comandos falsos; ❌ **a URL `https://labs.google/fx/tools/flow` não foi conferida contra o site real** |
+
+**Limites que ficaram por decisão:** nenhuma ferramenta de rosto para o modelo (regra 65); `ver_camera` sempre pede aprovação, inclusive
+depois da primeira vez; o modelo de detecção e o de legenda são arquivos seus (sem download automático: é tráfego sem pedido).
+
+**Não verificado (E11):** webcam, microfone e loopback reais, modelos ONNX e Vosk reais, Bluetooth, `xprintidle`, tesseract, as CLIs de
+assinatura e o bloqueio de tela em cada sistema. Testes de navegador: `tests/front_e2e/test_e11.py` (legenda e botão da câmera); o
+restante da tela de voz segue coberto pelos testes existentes. A prova de E11 com equipamento segue com o Antônio.
+
 
 
 ## Documento: `ORION_PLANO_RODADA2.md`
@@ -3657,7 +3734,8 @@ Marque ao concluir. Uma etapa só fecha com todos os itens, a prova e o PR merge
 - [ ] PR da E9 mergeado
 
 ##### E10 — Vida pessoal
-- [ ] Regras escritas em `ORION_REGRAS.md` antes do código (61 (finanças locais), 62 (escudo de foco), 63 (estado pela voz))
+> **Status (14/10): feito em código**, com testes de unidade, API, Telegram e Node. Pendências registradas no ORION_MELHORIAS.md (décima sexta rodada): e2e de navegador da tela Vida, OCR de boleto, energia de áudio comprimido, aviso de foco preso pelo não perturbe, e a prova de uma semana real (sua).
+- [x] Regras escritas em `ORION_REGRAS.md` antes do código (61 (finanças locais), 62 (escudo de foco), 63 (estado pela voz))
 - [ ] E10.1 Revisão semanal guiada (N9)
 - [ ] E10.2 Diário automático (N10)
 - [ ] E10.3 Gastos pelo Telegram (N11)
@@ -3676,15 +3754,15 @@ Marque ao concluir. Uma etapa só fecha com todos os itens, a prova e o PR merge
 
 ##### E11 — Visão e câmera
 - [ ] Antônio: webcam ligada no notebook; cadastrar o próprio rosto (`orion rosto cadastrar`)
-- [ ] Regras escritas em `ORION_REGRAS.md` antes do código (64 (câmera), 65 (rosto), 66 (presença))
-- [ ] E11.1 Ver e agir por foto (L12)
-- [ ] E11.2 Visão pelas assinaturas (N7)
-- [ ] E11.3 Detecção local de objetos (base de X1 e E11.6)
-- [ ] E11.4 "Onde eu deixei?" (X1)
-- [ ] E11.5 Reconhecimento facial local (pedido "só quando eu estiver no PC")
-- [ ] E11.6 Presença (X5)
-- [ ] E11.7 Tradutor do mundo (Y5)
-- [ ] E11.8 Geração de imagem pelo Flow, semiautomático (N8)
+- [x] Regras escritas em `ORION_REGRAS.md` antes do código (64 (câmera), 65 (rosto), 66 (presença))
+- [x] E11.1 Ver e agir por foto (L12) — inclui vídeo ao vivo na voz e `/camera`
+- [x] E11.2 Visão pelas assinaturas (N7)
+- [x] E11.3 Detecção local de objetos (base de X1 e E11.6) — modelo colocado pelo Antônio, sem download
+- [x] E11.4 "Onde eu deixei?" (X1) — "fone" depende de um modelo com essa classe (ver MELHORIAS)
+- [x] E11.5 Reconhecimento facial local (pedido "só quando eu estiver no PC") — entra na presença
+- [x] E11.6 Presença (X5) — com cumprimento e bloqueio confirmado
+- [x] E11.7 Tradutor do mundo (Y5) — OCR, tradução pelo modelo e legenda ao vivo
+- [x] E11.8 Geração de imagem pelo Flow, semiautomático (N8) — prompt copiado e site aberto
 - [ ] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas
 - [ ] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
 - [ ] **Prova:** com a webcam, perguntar sobre um mouse e receber o modelo e o link do software; "onde vi meu fone?" responde com hora.
@@ -4292,6 +4370,7 @@ O Orion hoje é servidor + navegador: não há processo com tecla global, bandej
 #### 3. Fora deste plano (não escolhidos)
 Em incubação: modo estudo (N13), standup do DevCore (N15), radar diário de vagas (N17), eval semanal (N20), contexto por horário (N21), Y1–Y4, Y6–Y8, Y10, Y12, Y13, Z1–Z3, Z5–Z10, Z13, Z14, V1, V2, V4, V6, V8, V9, "retomar de onde parou", associar resultado a projeto manualmente.
 Descartados: conselho de IAs (X2), Orion físico (X13), carga cognitiva (L11), IDE, WhatsApp (D9), ofuscação de tráfego (D10), automação do site do Flow.
+
 
 
 ## Documento: `ORION_PLANO_PROXIMOS.md`

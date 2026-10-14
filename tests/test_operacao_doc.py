@@ -32,6 +32,9 @@ OPT_INS = {
     # E1 (custo zero, registro de saída, pânico e modelo local)
     "local_model",
     "dnd_at",
+    "diary_at",
+    "weekly_review_at",
+    "focus_distractions",
     "allow_paid",
     # E2 (ponte de desktop e palmas)
     "clap_enabled",
@@ -44,6 +47,14 @@ OPT_INS = {
     "clipboard_days",
     "command_history",
     "telegram_voice_reply",
+    # E11 (REGRAS.md, seção Vida pessoal e visão)
+    "camera",
+    "camera_watch",
+    "presence_enabled",
+    "object_model",
+    "face_model",
+    "presence_lock",
+    "subtitles",
 }
 
 
