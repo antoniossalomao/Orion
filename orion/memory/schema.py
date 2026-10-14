@@ -11,7 +11,7 @@ cápsula). Um banco da linhagem anterior da `main` (versão 11, com
 `external_calls`) é reconhecido e migrado por `MAIN_V11` (ver `store.py`).
 """
 
-SCHEMA_VERSION = 22
+SCHEMA_VERSION = 23
 
 TOKENIZER = "unicode61 remove_diacritics 2"  # "açúcar" casa com "acucar"
 
@@ -484,6 +484,25 @@ CREATE TABLE price_watch (
     checked_on INTEGER NOT NULL DEFAULT 0
 );
 """
+# v23 (E11, visão e câmera): rótulos de objetos vistos pela câmera (regra 64: só rótulo, sem imagem,
+# nunca "person", 7 dias) e vetores faciais cifrados (regra 65: a chave fica no cofre do sistema).
+DDL_V23 = """
+CREATE TABLE object_sightings (
+    id INTEGER PRIMARY KEY,
+    ts REAL NOT NULL,
+    label TEXT NOT NULL,
+    confidence REAL NOT NULL,
+    x INTEGER NOT NULL DEFAULT 0,
+    y INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX idx_object_sightings_label ON object_sightings(label, ts);
+CREATE TABLE faces (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    embedding BLOB NOT NULL,
+    created_at REAL NOT NULL
+);
+"""
 
 DDL = (
     DDL_V1
@@ -508,6 +527,7 @@ DDL = (
     + DDL_V20
     + DDL_V21
     + DDL_V22
+    + DDL_V23
 )
 MIGRATIONS: dict[int, str] = {
     1: DDL_V2,
@@ -531,4 +551,5 @@ MIGRATIONS: dict[int, str] = {
     19: DDL_V20,
     20: DDL_V21,
     21: DDL_V22,
+    22: DDL_V23,
 }

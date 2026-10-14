@@ -47,6 +47,14 @@ OPT_INS = {
     "clipboard_days",
     "command_history",
     "telegram_voice_reply",
+    # E11 (regras 64 a 66)
+    "camera",
+    "camera_watch",
+    "presence_enabled",
+    "object_model",
+    "face_model",
+    "presence_lock",
+    "subtitles",
 }
 
 

@@ -72,6 +72,10 @@ ponte = [
     "websockets>=13",
     "pywebview>=5.3",
 ]
+# Câmera e visão (E11; orion/camera.py): só carregada quando ORION_CAMERA está ligado.
+camera = [
+    "opencv-python-headless>=4.10",
+]
 # Reranker local (E4.6; ver orion/memory/rerank.py): opt-in e desligado por padrão.
 rerank = [
     "onnxruntime>=1.18",

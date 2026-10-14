@@ -196,6 +196,7 @@ li.md-tarefa { list-style: none; margin-left: -1.4em; }
 .btn-send:active:not(:disabled) { transform: scale(0.94); }
 .btn-send:disabled { background: rgb(255 255 255 / 0.08); color: var(--text-3); cursor: not-allowed; }
 .btn-send[data-mode="stop"] { background: var(--signal); color: #1c1203; }
+.voice-camera-btn.active { color: var(--danger); background: var(--danger-soft); box-shadow: 0 0 0 1px rgb(255 107 122 / 0.45); }
 .voice-live-btn.active, .voice-ptt-btn.active { color: var(--ok); background: var(--ok-soft); box-shadow: 0 0 0 1px rgb(98 232 200 / 0.35); animation: vozAtiva 1.6s var(--ease) infinite; }
 @keyframes vozAtiva { 50% { box-shadow: 0 0 0 5px rgb(98 232 200 / 0.12); } }
 

@@ -186,6 +186,7 @@ class AppState:
     transcriber: Transcriber | None = None  # voz (A) e `transcrever_audio`
     speaker: Speaker | None = None  # voz (A): fala da resposta; None sem voz ou sem fala
     live: Callable[[], AbstractAsyncContextManager[Any]] | None = None  # voz ao vivo (B)
+    legenda: Any = None  # legenda ao vivo do áudio do sistema (E11.7; ORION_SUBTITLES)
     voz: VozStats = field(default_factory=VozStats)
     escuta: WakeListener | None = None  # palavra de ativação (regra 38)
     tela: ScreenMemory | None = None  # memória da tela (regra 44)
@@ -424,6 +425,119 @@ def telegram_from_settings(
         memory=memory,
         approvals=policy.approvals,
         ops=ops,
+    )
+
+
+def _rosto_da_camera(settings: Settings, memory: Any) -> Callable[[], bool | None]:
+    """Sinal de rosto da presença (regra 65): uma foto e a comparação com o cadastro. Sem câmera,
+    sem modelo ou sem a biblioteca, não diz nada (None) e a presença segue pelos outros sinais."""
+    modelo = settings.face_model
+    if not (settings.camera and modelo):
+        return lambda: None
+    from .camera import CameraError, decodificar, foto_jpeg
+    from .rosto import RostoError, Rostos, embedder_onnx
+
+    cache: dict[str, Any] = {}
+
+    def reconhecer() -> bool | None:
+        try:
+            if "rostos" not in cache:
+                cache["rostos"] = Rostos(memory, embedder_onnx(modelo))
+            return cache["rostos"].reconhecer(decodificar(foto_jpeg(settings.camera_device)))
+        except (RostoError, CameraError, ImportError):
+            return None
+
+    return reconhecer
+
+
+def _camera_da_voz(settings: Settings) -> Callable[[], bytes] | None:
+    """Quadro da câmera para a voz ao vivo: só com ORION_CAMERA (regra 64)."""
+    if not settings.camera:
+        return None
+    from .camera import foto_jpeg
+
+    return lambda: foto_jpeg(settings.camera_device)
+
+
+def _texto_da_camera(settings: Settings, vision: Vision | None, pergunta: str = "") -> str:
+    """`/camera` e a paleta: uma foto descrita, ou o motivo de não dar (regra 64)."""
+    from .camera import CameraError
+    from .tools.camera import descrever_camera
+    from .visao_cli import ordem
+    from .vision import VisionError
+
+    try:
+        return descrever_camera(
+            settings.camera_device, vision, ordem(settings.vision_order), pergunta
+        )
+    except (CameraError, VisionError) as e:
+        return f"Não consegui olhar: {e}"
+
+
+def vigia_from_settings(settings: Settings, memory: Any, tela: Any, ops: Any) -> Any:
+    """Presença (regra 66) e vigília da câmera (regra 64): só com `ORION_PRESENCE_ENABLED`."""
+    if not settings.presence_enabled:
+        return None  # a câmera só olha com presença (regra 64): sem presença, nada a ligar
+    from .presenca import Presenca
+    from .vigia import CHAVE_BLOQUEIO, Vigia, acoes_de_presenca, sinais_padrao
+
+    def notificar(texto: str) -> None:
+        try:
+            ops.notify("presenca", texto)
+        except Exception:
+            log.exception("aviso de presença falhou")
+
+    def auditar(motivo: str) -> None:
+        ops.audit_add({"tool": "presenca", "action": "allow", "risk": "exec", "reason": motivo})
+
+    chegou, saiu = acoes_de_presenca(
+        bloquear=settings.presence_lock,
+        notificar=notificar,
+        auditar=auditar,
+        confirmado=lambda: memory.counter_get(CHAVE_BLOQUEIO) == 1,
+        hora=lambda: time.strftime("%H:%M"),
+    )
+    presenca = Presenca(away_s=settings.presence_away_min * 60, on_chegou=chegou, on_saiu=saiu)
+    vigiar = None
+    if settings.camera and settings.camera_watch and settings.object_model:
+        from .camera import foto_jpeg
+        from .visao_local import Avistamentos, Detector, olhar_uma_vez
+
+        detector = Detector(settings.object_model)
+        avistamentos = Avistamentos(memory)
+        vigiar = lambda: olhar_uma_vez(  # noqa: E731 — uma linha, usada só pelo vigia
+            foto=lambda: foto_jpeg(settings.camera_device),
+            detector=detector,
+            avistamentos=avistamentos,
+            pode_olhar=lambda: presenca.presente,
+        )
+    return Vigia(
+        presenca=presenca,
+        sinais=sinais_padrao(
+            bt_endereco=settings.presence_bt, rosto=_rosto_da_camera(settings, memory)
+        ),
+        vigiar=vigiar,
+        tela=tela,
+    )
+
+
+def camera_from_settings(
+    settings: Settings, vision: Vision | None, memory: Any
+) -> list[Any] | None:
+    """Ferramentas da câmera (E11) só com `ORION_CAMERA=true` (regra 64)."""
+    if not settings.camera:
+        return None
+    from .tools.camera import camera_tools
+    from .visao_cli import ordem
+    from .visao_local import Avistamentos
+
+    avistamentos = Avistamentos(memory) if settings.camera_watch else None
+    return camera_tools(
+        device=settings.camera_device,
+        vision=vision,
+        ordem=ordem(settings.vision_order),
+        avistamentos=avistamentos,
+        langs=settings.translator_langs,
     )
 
 
@@ -1228,6 +1342,7 @@ def create_app(
                     transcriber=transcriber,
                     vision=vision_from_settings(settings),
                     captures_dir=settings.data_dir / "capturas",
+                    camera=camera_from_settings(settings, vision_from_settings(settings), memory),
                     processes=processos,
                     web_options={
                         "search_key": lambda: (
@@ -1407,6 +1522,7 @@ def create_app(
                 downloads=downloads,
                 historicos=historicos,
                 vida=vida,
+                vigia=vigia_from_settings(settings, memory, tela, ops),
                 clipboard_days=settings.clipboard_days,
                 command_history=settings.command_history,
                 weekly_ai=(
@@ -1419,6 +1535,12 @@ def create_app(
                 gateway_down_min=settings.gateway_down_min,
             )
             tarefa_jobs = asyncio.create_task(jobs.run_forever(settings.jobs_tick_s))
+        legenda_ref: list[Any] = [None]
+        if settings.subtitles and settings.subtitle_model:
+            from .legenda import Legenda, iniciar_thread
+
+            legenda_ref[0] = Legenda(settings.subtitle_model, dispositivo=settings.subtitle_device)
+            iniciar_thread(legenda_ref[0])
         telegram = (telegram_factory or telegram_from_settings)(
             settings, agent, memory, policy, ops
         )
@@ -1510,6 +1632,10 @@ def create_app(
             telegram.rotinas = rotinas
             telegram.ler_depois = ler_depois
             telegram.vida = vida_canal
+            if settings.camera:
+                telegram.camera = lambda pergunta: _texto_da_camera(
+                    settings, vision_from_settings(settings), pergunta
+                )
             if settings.telegram_voice_reply:
                 telegram.speaker = EdgeSpeaker(settings.voice_tts_voice)
             telegram.converter = lambda nome, dados, formato: _converter_do_telegram(
@@ -1543,6 +1669,7 @@ def create_app(
             transcriber=transcriber,
             speaker=speaker,
             live=live,
+            legenda=legenda_ref[0],
             voz=voz_stats,
             escuta=escuta[0],
             tela=tela,
@@ -1570,6 +1697,8 @@ def create_app(
         finally:
             if escuta[0] is not None:
                 escuta[0].parar()  # a thread é daemon; o microfone fecha no `finally` do laço
+            if legenda_ref[0] is not None:
+                legenda_ref[0].parar()  # a thread é daemon; o fluxo fecha no `with`
             for tarefa in (tarefa_jobs, tarefa_telegram, tarefa_modos):
                 if tarefa is not None:
                     tarefa.cancel()
@@ -2473,6 +2602,24 @@ def create_app(
         audit_log.info("tela_limpa", extra={"audit": {"registros": apagados}})
         return {"ok": True, "apagados": apagados}
 
+    @app.get("/legenda")
+    def legenda_linhas(quem: Annotated[str, Depends(require_auth)], state: State) -> dict[str, Any]:
+        """Últimas falas da legenda ao vivo (E11.7). Só texto em memória; nada gravado."""
+        if state.legenda is None:
+            return {"ativa": False, "linhas": []}
+        return {"ativa": True, "linhas": state.legenda.ultimas()}
+
+    @app.post("/camera/ver", dependencies=[Admin])
+    def camera_ver(corpo: dict[str, Any], state: State) -> dict[str, Any]:
+        """Uma foto da webcam, descrita (paleta e `/camera`). Só com ORION_CAMERA (regra 64)."""
+        if not state.settings.camera:
+            raise HTTPException(status_code=409, detail="câmera desligada (ORION_CAMERA)")
+        pergunta = str(corpo.get("pergunta", ""))[:1000]
+        vision = vision_from_settings(state.settings)
+        texto = _texto_da_camera(state.settings, vision, pergunta)
+        audit_log.info("câmera: foto pedida pela interface")
+        return {"descricao": texto}
+
     @app.post("/tela/pausa", dependencies=[Admin])
     def tela_pausar(corpo: EscutaControle, state: State) -> dict[str, Any]:
         """`ativa=false` pausa a captura; `ativa=true` retoma. 409 se a memória da tela está
@@ -2963,7 +3110,10 @@ def create_app(
         motivo = "erro"
         try:
             motivo = await ponte_ao_vivo(
-                ws, state.live(), max_s=state.settings.voice_live_max_min * 60.0
+                ws,
+                state.live(),
+                max_s=state.settings.voice_live_max_min * 60.0,
+                camera=_camera_da_voz(state.settings),
             )
         finally:
             state.voz.ao_vivo_ativas -= 1

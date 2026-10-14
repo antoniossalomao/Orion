@@ -495,3 +495,29 @@ Prova de uma semana real segue pendente: é com o Antônio.
 - ~~Roteamento por tipo de tarefa~~ (feito em 07/10: `orion/router.py`, V11).
 - ~~Front no celular / PWA~~ (descartado em 07/10: front só desktop, decisão #5).
 - ~~Consolidação noturna da memória~~ (feito em 03/10: `orion/memory/consolidate.py`).
+
+## Décima sétima rodada (14/10/2026): plano da rodada 2, etapa E11
+
+Plano em [ORION_PLANO_RODADA2.md](ORION_PLANO_RODADA2.md). Regras 64, 65 e 66 (escritas antes do código) em
+[ORION_REGRAS.md](ORION_REGRAS.md). **Esquema v23** (`object_sightings`, `faces`): o plano falava em v17, mas o banco já estava
+na v22. Opt-ins: `ORION_CAMERA`, `ORION_CAMERA_WATCH`, `ORION_PRESENCE_ENABLED`, `ORION_PRESENCE_LOCK`, `ORION_SUBTITLES`,
+`ORION_OBJECT_MODEL`, `ORION_FACE_MODEL`, `ORION_SUBTITLE_MODEL`. Extra novo: `camera` (`opencv-python-headless`).
+`ORION_CAMERA_ENABLED` foi renomeado para `ORION_CAMERA` (o nome que a regra 64 usa).
+
+| ID | Entrega | Status |
+|---|---|---|
+| E11.1 Ver e agir | `ver_camera` (foto em memória, descrita pela visão, apagada depois; **sempre confirma**); `/camera` no Telegram; "O que a câmera vê?" na paleta; vídeo ao vivo na voz (`camera_on`/`camera_off`, um quadro por segundo, indicador no botão) | ✅ unidade com foto falsa e sessão falsa (quadros chegam à sessão, indicador vai ao navegador); ✅ e2e: botão de câmera na voz; ❌ webcam real e Gemini Live real |
+| E11.2 Visão pelas assinaturas | `ORION_VISION_ORDER` (padrão `gemini,claude,codex,gemini_cli`); CLIs rodam numa pasta temporária, registradas como `cli:<nome>` | ✅ unidade com runner falso (argumentos e fallback); ❌ CLIs reais (o `claude -p` precisa da permissão `Read` aprovada na máquina) |
+| E11.3 Detecção local | `visao_local.Detector` (YOLO ONNX, letterbox, NMS); **as classes vêm dos metadados do próprio modelo** | ✅ unidade com saída sintética e sessão falsa; ❌ modelo real (você coloca o `.onnx` em `ORION_OBJECT_MODEL`; sem download automático, de propósito) |
+| E11.4 "Onde eu deixei?" | `object_sightings` (7 dias, sem `person`, sem imagem); `onde_vi`; vigília no job a cada 60 s, só com presença. `fone` → `headphones` | ✅ unidade e `onde_vi` com banco real; ❌ "onde vi meu fone" de verdade: **depende de um modelo com a classe `headphones`** (o COCO não tem). O código lê a classe do modelo; falta o arquivo do modelo |
+| E11.5 Rosto local | `orion rosto cadastrar NOME` (5 fotos) e `orion rosto apagar`; vetores cifrados (Fernet), chave em `ORION_FACE_KEY` no cofre; **o reconhecimento entra como sinal da presença** (só com tela desbloqueada e câmera ligada) | ✅ unidade com embedder falso e presença; ❌ modelo real e Haar do OpenCV na câmera |
+| E11.6 Presença | `Presenca` (tela, ocioso via `xprintidle`, Bluetooth via bleak, rosto); `Vigia` no job; cumprimento ao chegar (fila de avisos); saiu → pausa a memória da tela e para a vigília; **bloqueio ao sair só com `ORION_PRESENCE_LOCK` e `orion presenca confirmar`**, com auditoria | ✅ unidade da máquina de estados, das ações (cumprimento, bloqueio sem e com confirmação) e da CLI; ❌ Bluetooth real; ❌ `xprintidle` só no Linux X11; ❌ bloqueio real de tela em cada sistema |
+| E11.7 Tradutor | `ler_texto_imagem` (OCR do tesseract, `ORION_TRANSLATOR_LANGS`); a tradução é do próprio modelo. **Legenda ao vivo**: `orion/legenda.py` (Vosk, `ORION_SUBTITLES`, loopback do áudio do sistema), `GET /legenda`, página `/ui/legenda.html`, `orion legenda` abre a janela sempre por cima | ✅ unidade com reconhecedor falso e fluxo falso; ✅ e2e da página (pede login sem sessão); ❌ Vosk real com áudio real; ❌ loopback do áudio (depende do dispositivo de cada máquina) |
+| E11.8 Flow | `preparar_imagem_flow`: copia o prompt para a área de transferência (comando nativo: `pbcopy`, `wl-copy`, `xclip` ou PowerShell), abre o site; nada é automatizado no site | ✅ unidade com comandos falsos; ❌ **a URL `https://labs.google/fx/tools/flow` não foi conferida contra o site real** |
+
+**Limites que ficaram por decisão:** nenhuma ferramenta de rosto para o modelo (regra 65); `ver_camera` sempre pede aprovação, inclusive
+depois da primeira vez; o modelo de detecção e o de legenda são arquivos seus (sem download automático: é tráfego sem pedido).
+
+**Não verificado (E11):** webcam, microfone e loopback reais, modelos ONNX e Vosk reais, Bluetooth, `xprintidle`, tesseract, as CLIs de
+assinatura e o bloqueio de tela em cada sistema. Testes de navegador: `tests/front_e2e/test_e11.py` (legenda e botão da câmera); o
+restante da tela de voz segue coberto pelos testes existentes. A prova de E11 com equipamento segue com o Antônio.

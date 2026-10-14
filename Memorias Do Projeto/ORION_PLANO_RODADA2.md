@@ -220,15 +220,15 @@ Marque ao concluir. Uma etapa só fecha com todos os itens, a prova e o PR merge
 
 ### E11 — Visão e câmera
 - [ ] Antônio: webcam ligada no notebook; cadastrar o próprio rosto (`orion rosto cadastrar`)
-- [ ] Regras escritas em `ORION_REGRAS.md` antes do código (64 (câmera), 65 (rosto), 66 (presença))
-- [ ] E11.1 Ver e agir por foto (L12)
-- [ ] E11.2 Visão pelas assinaturas (N7)
-- [ ] E11.3 Detecção local de objetos (base de X1 e E11.6)
-- [ ] E11.4 "Onde eu deixei?" (X1)
-- [ ] E11.5 Reconhecimento facial local (pedido "só quando eu estiver no PC")
-- [ ] E11.6 Presença (X5)
-- [ ] E11.7 Tradutor do mundo (Y5)
-- [ ] E11.8 Geração de imagem pelo Flow, semiautomático (N8)
+- [x] Regras escritas em `ORION_REGRAS.md` antes do código (64 (câmera), 65 (rosto), 66 (presença))
+- [x] E11.1 Ver e agir por foto (L12) — inclui vídeo ao vivo na voz e `/camera`
+- [x] E11.2 Visão pelas assinaturas (N7)
+- [x] E11.3 Detecção local de objetos (base de X1 e E11.6) — modelo colocado pelo Antônio, sem download
+- [x] E11.4 "Onde eu deixei?" (X1) — "fone" depende de um modelo com essa classe (ver MELHORIAS)
+- [x] E11.5 Reconhecimento facial local (pedido "só quando eu estiver no PC") — entra na presença
+- [x] E11.6 Presença (X5) — com cumprimento e bloqueio confirmado
+- [x] E11.7 Tradutor do mundo (Y5) — OCR, tradução pelo modelo e legenda ao vivo
+- [x] E11.8 Geração de imagem pelo Flow, semiautomático (N8) — prompt copiado e site aberto
 - [ ] Testes verdes (ruff, pyright, pytest, Node, navegador nos dois backends) e CI verde nos 3 sistemas
 - [ ] `ORION_MELHORIAS.md` atualizado (o que foi e o que não foi validado com serviço real)
 - [ ] **Prova:** com a webcam, perguntar sobre um mouse e receber o modelo e o link do software; "onde vi meu fone?" responde com hora.

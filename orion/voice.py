@@ -21,7 +21,7 @@ import json
 import logging
 import re
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 from typing import Any, Protocol
@@ -30,6 +30,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 
 from . import saidas
 from .agent import Agent
+from .camera import CameraError
 from .transcribe import MAX_AUDIO, TranscribeError, Transcriber
 from .vida import medir_wav
 
@@ -235,14 +236,36 @@ async def _enviar(ws: WebSocket, msg: dict[str, Any]) -> None:
         await ws.send_text(json.dumps(msg, ensure_ascii=False))
 
 
+INTERVALO_QUADRO_S = 1.0  # vídeo ao vivo: um quadro por segundo, só com a câmera ligada (regra 64)
+
+
 async def ponte_ao_vivo(
-    ws: WebSocket, conexao: AbstractAsyncContextManager[Any], *, max_s: float
+    ws: WebSocket,
+    conexao: AbstractAsyncContextManager[Any],
+    *,
+    max_s: float,
+    camera: Callable[[], bytes] | None = None,
 ) -> str:
     """Liga o microfone do navegador (PCM 16 kHz) à sessão ao vivo e devolve o áudio (PCM 24 kHz)
     e a transcrição. Devolve por que terminou: "navegador" | "tempo" | "erro"."""
     from google.genai import types
 
     trafego = {"subiu": 0, "desceu": 0}  # só tamanhos, para o registro de saída (regra 47)
+    extras: list[asyncio.Task[None]] = []  # o fluxo de quadros da câmera, quando ligado
+
+    async def quadros(sessao: Any) -> None:
+        # um quadro por vez; a foto sai da memória logo depois de enviada (regra 64)
+        while True:
+            try:
+                jpeg = await asyncio.to_thread(camera) if camera else b""
+            except CameraError as e:
+                await _enviar(ws, {"type": "camera", "on": False})
+                await _enviar(ws, {"type": "error", "msg": str(e)})
+                return
+            trafego["subiu"] += len(jpeg)
+            await sessao.send_realtime_input(video=types.Blob(data=jpeg, mime_type="image/jpeg"))
+            del jpeg
+            await asyncio.sleep(INTERVALO_QUADRO_S)
 
     async def subida(sessao: Any) -> None:
         while True:
@@ -264,6 +287,19 @@ async def ponte_ao_vivo(
                     continue
                 if cmd == "stop":
                     return
+                if cmd == "camera_on":
+                    if camera is None:
+                        await _enviar(
+                            ws, {"type": "error", "msg": "câmera desligada (ORION_CAMERA)"}
+                        )
+                    elif not extras:
+                        extras.append(asyncio.create_task(quadros(sessao)))
+                        await _enviar(ws, {"type": "camera", "on": True})
+                elif cmd == "camera_off":
+                    for t in extras:
+                        t.cancel()
+                    extras.clear()
+                    await _enviar(ws, {"type": "camera", "on": False})
 
     async def descida(sessao: Any) -> None:
         # `receive()` termina a cada fim de turno: precisa de laço. Uma volta sem nada é conexão
@@ -299,9 +335,9 @@ async def ponte_ao_vivo(
                 for t in feitas:
                     t.result()  # propaga a falha de quem terminou
             finally:
-                for t in tarefas:
+                for t in [*tarefas, *extras]:
                     t.cancel()
-                await asyncio.gather(*tarefas, return_exceptions=True)
+                await asyncio.gather(*tarefas, *extras, return_exceptions=True)
     except TimeoutError:
         motivo = "tempo"
         await _enviar(ws, {"type": "error", "msg": "sessão ao vivo encerrada pelo tempo máximo"})

@@ -146,6 +146,7 @@ def default_registry(
     transcriber: Transcriber | None = None,
     vision: Vision | None = None,
     captures_dir: Path | None = None,
+    camera: list[Tool] | None = None,  # E11: câmera e visão (opt-in ORION_CAMERA)
     extra: list[Tool] | None = None,
 ) -> ToolRegistry:
     reg = ToolRegistry(memory_tools(store))
@@ -163,6 +164,8 @@ def default_registry(
         if processes is not None and ops is not None:
             for t in process_tools(processes, ops):
                 reg.register(t)
+    for t in camera or []:  # só com ORION_CAMERA; cada uma já está na política
+        reg.register(t)
     if web:  # opt-in (ORION_WEB_TOOLS): rede, conteúdo externo
         for t in web_tools(**(web_options or {})):
             reg.register(t)

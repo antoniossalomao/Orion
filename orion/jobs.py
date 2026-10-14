@@ -118,6 +118,8 @@ class JobRunner:
         downloads_every_s: float = 60.0,
         historicos_every_s: float = 3600.0,
         vida_every_s: float = 300.0,
+        vigia: Any = None,  # E11: presença e câmera (orion/vigia.py)
+        vigia_every_s: float = 60.0,
         clock: Callable[[], float] = time.time,
     ) -> None:
         self.memory, self.ops = memory, ops
@@ -136,6 +138,7 @@ class JobRunner:
         self._downloads = downloads  # orion/downloads.py (regra 58), None: sem regras
         self._historicos = historicos  # orion/historicos.py (regra 60), None: sem históricos
         self._vida = vida  # orion/vida.py (E10): contas, diário e revisão; None: desligado
+        self._vigia = vigia  # orion/vigia.py (E11): presença e câmera; None: desligado
         self._clipboard_days, self._command_history = clipboard_days, command_history
         self._custos = custos  # orion/costs.py (regra 46), None: sem conta de cota
         self._modos = modos  # orion/modos.py (regra 48), None: sem pânico nem não perturbe
@@ -151,6 +154,7 @@ class JobRunner:
             "downloads": downloads_every_s,
             "historicos": historicos_every_s,
             "vida": vida_every_s,
+            "vigia": vigia_every_s,
         }
         self._last: dict[str, float] = {}
         self.ultima_rodada: float | None = None  # epoch do último `tick` (para o painel)
@@ -287,6 +291,8 @@ class JobRunner:
                     permitido=lambda: self._pode(rel, "o monitor de preço", "brave")
                 ),
             )
+        if self._vigia is not None and self._devido("vigia") and not self._panico():
+            self._passo(rel, "vigia", self._vigia.tick)
         if self._downloads is not None and not self._panico() and self._devido("downloads"):
             self._passo(rel, "downloads", lambda: len(self._downloads.rodar().movidos))
 

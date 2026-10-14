@@ -78,6 +78,7 @@ BOAS_VINDAS = (
     "/briefing — o que há para hoje\n"
     "/painel — modelos, CLIs, aprovações e política num só lugar\n"
     "/tela — memória da tela: estado, pausar, retomar ou limpar\n"
+    "/camera [pergunta] — uma foto da webcam, descrita (pede aprovação no app)\n"
     "/panico — corta rede, execução, tela e escuta; /panico sair para voltar\n"
     "/ajuda — mostra isto de novo\n\n"
     "Ações que mexem no computador chegam aqui com botões para aprovar ou negar."
@@ -130,6 +131,7 @@ class TelegramChannel:
         self.painel: Callable[[], str] | None = None  # texto do /painel (o app liga depois)
         self.agenda: Callable[[float], str | None] | None = None  # agenda do briefing (regra 37)
         self.tela: Callable[[str], str] | None = None  # `/tela` (regra 44); o app liga depois
+        self.camera: Callable[[str], str] | None = None  # `/camera` (regra 64); só com ORION_CAMERA
         self.modos: Modos | None = None  # `/panico` (regra 48); o app liga depois
         self.desligar: Callable[[], str] | None = None  # `/desligar` (E9.5); o app liga depois
         # E9.9: (nome, bytes, formato) → (nome novo, bytes); levanta ConversaoError. O app liga.
@@ -389,6 +391,15 @@ class TelegramChannel:
                 await asyncio.to_thread(resposta, argumento)
                 if resposta
                 else "Memória da tela indisponível neste canal.",
+            )
+        elif comando == "/camera":
+            resposta = self.camera
+            argumento = texto.split(None, 1)[1] if len(texto.split(None, 1)) > 1 else ""
+            await self._enviar(
+                chat_id,
+                await asyncio.to_thread(resposta, argumento)
+                if resposta
+                else "Câmera desligada (ORION_CAMERA).",
             )
         elif comando == "/panico":
             argumento = texto.split(None, 1)[1] if len(texto.split(None, 1)) > 1 else ""
