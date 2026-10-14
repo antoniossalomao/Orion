@@ -135,7 +135,7 @@
                 ui.toast((await ui.copiar(d.markdown)) ? `Conversa copiada (${d.total_msgs} mensagens).` : 'Não consegui copiar.', { tipo: 'ok', ms: 2000 });
             } catch (e) { ui.toast(`Falha ao copiar: ${e.message}`, { tipo: 'erro' }); }
         },
-        /** modo pânico (regra 48): ligar é um clique confirmado; sair é no Painel, com a senha */
+        /** modo pânico (REGRAS.md: pânico é corte; não perturbe só segura): ligar é um clique confirmado; sair é no Painel, com a senha */
         async panico() {
             const sim = await ui.confirmar({ titulo: 'Ligar o modo pânico?', ok: 'Ligar', perigo: true,
                 texto: 'Corta as ferramentas de rede e de execução, a memória da tela, a escuta e os jobs que usam rede. Nada volta sozinho: para sair, a senha é pedida de novo no Painel.' });
@@ -162,7 +162,7 @@
             if (!p) { ui.toast('Use /prompt servidor:nome (e k=valor para os argumentos).', { tipo: 'aviso' }); return; }
             O.mcpServidores?.trazerPrompt(p, p.argumentos);
         },
-        /** `/rotina nome`: roda a rotina que VOCÊ liberou; passo que pede aprovação para e espera (regra 58) */
+        /** `/rotina nome`: roda a rotina que VOCÊ liberou; passo que pede aprovação para e espera (REGRAS.md: automação sua vale pelo arquivo concedido) */
         async rotina(nome) {
             const alvo = String(nome || '').trim().toLowerCase();
             if (!/^[a-z0-9][a-z0-9_-]{0,31}$/.test(alvo)) { ui.toast('Use /rotina e o nome da rotina (letras minúsculas, números, - e _).', { tipo: 'aviso' }); return; }

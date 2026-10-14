@@ -89,7 +89,9 @@ class GeminiEmbedder:
                 resp = self._client.post(url, json=corpo, headers={"x-goog-api-key": self._key})
             except httpx.TransportError as e:
                 erro = type(e).__name__
-            finally:  # cada tentativa conta na cota do provedor (regras 46 e 47)
+            # cada tentativa conta na cota do provedor (REGRAS.md: custo zero (sem API paga); toda
+            # saída de dado fica registrada, sem conteúdo)
+            finally:
                 saidas.registrar(
                     "gemini",
                     "embed",

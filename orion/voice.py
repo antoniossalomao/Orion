@@ -3,14 +3,15 @@
 **A — voz como canal do agente (`/ws/voz`).** O navegador manda uma fala gravada; o Orion
 transcreve (Whisper no Groq), roda o turno do agente normalmente (memória, ferramentas, política,
 audit) e fala a resposta (edge-tts, `pt-BR-AntonioNeural`). Nada muda na segurança: a aprovação de
-uma ação continua só por botão (regra 2) — se o turno pede uma, a voz avisa e o cartão aparece.
+uma ação continua só por botão (REGRAS.md: confirmação fora de banda (canal autenticado)) — se o
+turno pede uma, a voz avisa e o cartão aparece.
 
 **B — voz ao vivo (`/ws/voice`).** Ponte do microfone para o Gemini Live (voz Charon). O Gemini
 conversa direto: **sem ferramentas, sem memória e sem acesso ao computador**; é só conversa.
 Cada sessão vai para o audit, tem duração máxima e só abre com opt-in (o áudio vai ao Google).
 
 **Não validado contra as APIs reais** (Groq, edge-tts, Gemini Live): os testes usam falsos
-(ver ORION_MELHORIAS).
+(ver ORION_LEGADO.md).
 """
 
 from __future__ import annotations
@@ -140,7 +141,8 @@ class EdgeSpeaker:
             ]
             return b"".join(partes)
 
-        # o TEXTO da resposta vai para a Microsoft: fica no registro de saída (regra 47)
+        # o TEXTO da resposta vai para a Microsoft: fica no registro de saída (REGRAS.md: toda saída
+        # de dado fica registrada, sem conteúdo)
         with saidas.medir("microsoft", "tts", model=self._voz, bytes_out=len(texto.encode())) as m:
             try:
                 audio = await asyncio.wait_for(coletar(), self._timeout)
@@ -234,7 +236,9 @@ async def ponte_ao_vivo(
     e a transcrição. Devolve por que terminou: "navegador" | "tempo" | "erro"."""
     from google.genai import types
 
-    trafego = {"subiu": 0, "desceu": 0}  # só tamanhos, para o registro de saída (regra 47)
+    # só tamanhos, para o registro de saída (REGRAS.md: toda saída de dado fica registrada, sem
+    # conteúdo)
+    trafego = {"subiu": 0, "desceu": 0}
 
     async def subida(sessao: Any) -> None:
         while True:

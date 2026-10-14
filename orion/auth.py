@@ -49,7 +49,8 @@ CREATE TABLE IF NOT EXISTS sessions (
     created_at REAL NOT NULL,
     expires_at REAL NOT NULL
 );
--- credenciais de dispositivo com escopo estreito (a ponte de desktop, regra 50): só o hash fica
+-- credenciais de dispositivo com escopo estreito (a ponte de desktop, REGRAS.md: ponte de desktop
+-- só abre e cola o que você aprovou): só o hash fica
 CREATE TABLE IF NOT EXISTS device_tokens (
     token_hash TEXT PRIMARY KEY,
     scope TEXT NOT NULL,

@@ -1,8 +1,9 @@
-"""Custo zero e cota gratuita (regra 46).
+"""Custo zero e cota gratuita (REGRAS.md: custo zero (sem API paga)).
 
 O Orion só fala com provedores de cota gratuita, modelo local e as CLIs das assinaturas (que não
 incluem API). Este módulo conta quanto da cota gratuita **o próprio Orion** já usou, a partir do
-registro de saída (`external_calls`, regra 47): não é a cota que o provedor vê (outro programa com
+registro de saída (`external_calls`, REGRAS.md: toda saída de dado fica registrada, sem conteúdo):
+não é a cota que o provedor vê (outro programa com
 a mesma chave também gasta), é o que passou por aqui.
 
 - `QUOTAS`: limite por provedor, por dia (Brave por mês), configurável por `ORION_QUOTA_*`. Os

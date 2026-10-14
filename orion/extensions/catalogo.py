@@ -1,4 +1,5 @@
-"""Catálogo de plugins, local e remoto (E8.4, regra 57).
+"""Catálogo de plugins, local e remoto (E8.4, REGRAS.md: catálogo de plugins: baixar não instala,
+nada atualiza sozinho).
 
 - **Local**: a pasta `<dados>/catalogo/` com `catalogo.json` e os `.zip` que ele lista.
 - **Remoto**: só as URLs que você cadastrou em `ORION_PLUGIN_CATALOGS`. Baixa-se o índice
@@ -6,7 +7,8 @@
   barreira de rede (`netguard`). O SHA-256 que o índice fixa é conferido antes de o pacote entrar
   em qualquer lugar.
 
-Baixar não instala, instalar não concede (regra 45) e nada atualiza sozinho: uma versão nova só
+Baixar não instala, instalar não concede (REGRAS.md: plugin é pacote sem poder próprio) e nada
+atualiza sozinho: uma versão nova só
 aparece como aviso. O índice e o pacote são texto/dados de terceiros e nunca executam.
 """
 
@@ -139,7 +141,9 @@ class Catalogos:
                 continue
             alvo = urljoin(r.url_final, e.url)
             if not _mesma_origem(alvo, r.url_final):
-                continue  # pacote em outro host: recusado (regra 57)
+                # pacote em outro host: recusado (REGRAS.md: catálogo de plugins: baixar não
+                # instala, nada atualiza sozinho)
+                continue
             saida.append(Entrada(url, e.id, e.name, e.version, e.description, e.sha256, alvo))
         return saida
 

@@ -1,4 +1,4 @@
-"""E9.6/E9.7 (regra 60): histórico da área de transferência e dos comandos, só local e opt-in."""
+"""E9.6/E9.7 (REGRAS.md: históricos locais: opt-in, só texto, só neste computador): histórico da área de transferência e dos comandos, só local e opt-in."""
 
 import httpx
 from fastapi.testclient import TestClient

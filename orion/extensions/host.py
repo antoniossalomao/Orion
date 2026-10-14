@@ -291,7 +291,8 @@ class Connection:
         if task is not None:
             self._calls.add(task)
         # servidor remoto: os argumentos saem do computador, então a chamada entra no registro de
-        # saída (regra 47), sem o conteúdo; conexão local (stdio) é só telemetria sem saída
+        # saída (REGRAS.md: toda saída de dado fica registrada, sem conteúdo), sem o conteúdo;
+        # conexão local (stdio) é só telemetria sem saída
         medir = (
             saidas.medir(
                 f"mcp:{self.config.id}",

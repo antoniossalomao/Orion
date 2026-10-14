@@ -1,7 +1,8 @@
-"""Agenda do Google no briefing matinal (regra 37).
+"""Agenda do Google no briefing matinal (REGRAS.md: agenda do briefing é leitura fixa, sem modelo).
 
-O briefing roda **sem ninguém olhando**, e a regra 18 proíbe agendamento de executar ferramenta
-sozinho. Esta é a única exceção, e é estreita de propósito:
+O briefing roda **sem ninguém olhando**, e REGRAS.md (agendamento avisa; não executa
+ferramenta sozinho) proíbe agendamento de executar ferramenta sozinho. Esta é a única
+exceção, e é estreita de propósito:
 
 - **sem modelo**: o job chama a ferramenta MCP diretamente e cola o texto no aviso. Nenhum agente
   roda, então um evento de agenda com instrução escrita ("ignore o que veio antes...") não chega
@@ -9,7 +10,8 @@ sozinho. Esta é a única exceção, e é estreita de propósito:
 - **uma ferramenta fixa** (`ORION_BRIEFING_CALENDAR_TOOL`, padrão `google__get_events`), com
   argumentos montados aqui (e-mail, calendário `primary`, o dia de hoje), nunca vindos de texto;
 - **só vale se o `mcp.json` classifica essa ferramenta como `read`**: a classe vem do arquivo
-  (regra 24), então trocar por uma ferramenta que escreve não liga o recurso;
+  (REGRAS.md: MCP: a classe de risco é do mcp.json, não do servidor), então trocar por uma
+  ferramenta que escreve não liga o recurso;
 - o resultado é conteúdo de terceiros: sem URL, sem ID, linhas e total limitados, e só vai
   para o aviso (nunca para a memória nem para um prompt);
 - cada consulta fica no audit (`briefing_agenda`); falha não derruba o briefing, vira uma linha
@@ -17,7 +19,7 @@ sozinho. Esta é a única exceção, e é estreita de propósito:
 
 **Formato do `get_events` do workspace-mcp 2.0.1 só foi visto pelo esquema** (parâmetros
 `user_google_email`, `calendar_id`, `time_min`, `time_max`); o texto que ele devolve não foi
-validado com uma conta real (ver ORION_MELHORIAS).
+validado com uma conta real (ver ORION_LEGADO.md).
 """
 
 from __future__ import annotations

@@ -27,7 +27,8 @@ class Settings(BaseSettings):
 
     host: str = "127.0.0.1"
     port: int = Field(default=8000, ge=1, le=65535)
-    allow_public_bind: bool = False  # acesso de fora só pelo Tailscale (ver ORION_REGRAS.md)
+    # acesso de fora só pelo Tailscale (ver REGRAS.md: acesso de fora só com login)
+    allow_public_bind: bool = False
     data_dir: Path = Field(default_factory=lambda: Path(user_data_dir("orion", appauthor=False)))
     log_level: str = "INFO"
     log_json: bool = True
@@ -56,7 +57,9 @@ class Settings(BaseSettings):
     gateway_api_key: str = ""  # ou no cofre do SO (orion.secrets)
     allowed_hosts: list[str] = Field(
         default_factory=lambda: ["127.0.0.1", "localhost"]
-    )  # + Tailscale: só sobe com senha (`orion set-password`) ou token de admin (regra 17)
+        # + Tailscale: só sobe com senha (`orion set-password`) ou token de admin
+        # (REGRAS.md: acesso de fora só com login)
+    )
     # `orion-desktop` v0 (executar_comando, ler_arquivo, listar_arquivos): desligado por padrão
     skill_sources: list[SkillSource] = Field(default_factory=list, max_length=32)
     mcp_connections: list[ConnectionConfig] = Field(default_factory=list, max_length=32)
@@ -85,18 +88,22 @@ class Settings(BaseSettings):
     # IDs numéricos do Telegram, separados por vírgula ("123,456") ou lista JSON ("[123]")
     telegram_allowed_users: Annotated[list[int], NoDecode] = Field(default_factory=list)
     plugins_enabled: bool = True
-    plugins_dir: Path | None = None  # padrão: <dados>/plugins (concessão por plugin, regra 45)
+    # padrão: <dados>/plugins (concessão por plugin, REGRAS.md: plugin é pacote sem poder próprio)
+    plugins_dir: Path | None = None
     skills_enabled: bool = True
     skills_dir: Path | None = None  # padrão: <dados>/skills (pasta por skill, com SKILL.md)
-    # n8n: webhooks que VOCÊ cadastra, {"nome": "https://..."} em JSON (regra 41); vazio: desligado
+    # n8n: webhooks que VOCÊ cadastra, {"nome": "https://..."} em JSON (REGRAS.md: n8n: o destino é
+    # seu, não do modelo); vazio: desligado
     n8n_webhooks: str = ""
     # Servidores MCP (fase 4): sobem do mcp.json (padrão: <dados>/mcp.json), só com gateway.
     mcp_enabled: bool = True
     mcp_config: Path | None = None
-    # Catálogos remotos de plugins (regra 57): URLs https que VOCÊ cadastra, separadas por ";"
+    # Catálogos remotos de plugins (REGRAS.md: catálogo de plugins: baixar não instala, nada
+    # atualiza sozinho): URLs https que VOCÊ cadastra, separadas por ";"
     # (até 5). Vazio: só o catálogo local (<dados>/catalogo). O pedido ao índice sai do computador.
     plugin_catalogs: str = ""
-    # acima disto, o modelo vê só o índice das ferramentas MCP e `procurar_ferramenta` (regra 55)
+    # acima disto, o modelo vê só o índice das ferramentas MCP e `procurar_ferramenta` (REGRAS.md:
+    # recurso e prompt de MCP são dado, não comando)
     mcp_index_at: int = Field(default=30, ge=1, le=1000)
     # Voz no Telegram: transcrição por API compatível com a da OpenAI (Whisper no Groq, grátis).
     transcribe_api_key: str = ""  # ou no cofre do SO (ORION_TRANSCRIBE_API_KEY); vazio: sem voz
@@ -107,7 +114,8 @@ class Settings(BaseSettings):
     voice_enabled: bool = False
     voice_speak: bool = True  # false: só transcreve e responde em texto, sem sintetizar a fala
     voice_tts_voice: str = "pt-BR-AntonioNeural"
-    # Palavra de ativação "Orion" (regra 38): escuta o microfone o tempo todo, com a detecção SÓ
+    # Palavra de ativação "Orion" (REGRAS.md: palavra de ativação só abre o microfone; detecção
+    # local): escuta o microfone o tempo todo, com a detecção SÓ
     # neste computador. Depois da palavra, a fala vai pela via do botão de microfone (Groq,
     # edge-tts), por isso exige `voice_enabled`. Desligada: é captura contínua de áudio.
     wake_enabled: bool = False
@@ -123,7 +131,8 @@ class Settings(BaseSettings):
     wake_silence_s: float = Field(default=1.0, ge=0.3, le=5.0)  # silêncio que encerra a fala
     wake_max_s: float = Field(default=15.0, ge=3.0, le=60.0)  # teto de uma fala
     wake_max_per_hour: int = Field(default=30, ge=1, le=600)  # acima disso a palavra é ignorada
-    # Duas palmas abrem o Orion (regra 51), no mesmo microfone da palavra de ativação. Desligado:
+    # Duas palmas abrem o Orion (REGRAS.md: palmas só abrem; nunca aprovam nem executam), no mesmo
+    # microfone da palavra de ativação. Desligado:
     # é captura contínua de áudio (só no quadro atual; nada é gravado). Palma só abre, nunca aprova.
     clap_enabled: bool = False
     clap_ratio: float = Field(default=6.0, ge=2.0, le=60.0)  # pico = N × o ruído de fundo
@@ -144,17 +153,22 @@ class Settings(BaseSettings):
     vault_dir: Path | None = None  # vault do Obsidian a indexar na memória (vazio: não indexa)
     capture_folder: str = "00 Inbox"  # /capturar (Telegram) grava aqui, dentro do vault
     briefing_at: str = ""  # HH:MM: aviso diário com lembretes, agendamentos e tarefas (vazio: não)
-    # Agenda no briefing (regra 37): consulta de LEITURA direta ao servidor MCP, sem modelo e sem
+    # Agenda no briefing (REGRAS.md: agenda do briefing é leitura fixa, sem modelo): consulta de
+    # LEITURA direta ao servidor MCP, sem modelo e sem
     # ninguém olhando. Liga com o e-mail da conta; a ferramenta precisa ser `read` no mcp.json.
     briefing_calendar_email: str = ""
     briefing_calendar_tool: str = "google__get_events"
-    # E9 (regras 58-60). `repos`: pastas conferidas por "posso desligar?" (separe com ;).
+    # E9 (REGRAS.md: automação sua vale pelo arquivo concedido; tarefa em segundo plano só lê e
+    # propõe; históricos locais: opt-in, só texto, só neste computador). `repos`: pastas conferidas
+    # por "posso desligar?" (separe com ;).
     repos: Annotated[list[Path], NoDecode] = Field(default_factory=list)
-    # Históricos locais (regra 60): só no computador, com retenção e opt-in. 0 = desligado.
+    # Históricos locais (REGRAS.md: históricos locais: opt-in, só texto, só neste computador): só no
+    # computador, com retenção e opt-in. 0 = desligado.
     clipboard_days: int = Field(default=0, ge=0, le=90)
     command_history: bool = False
     telegram_voice_reply: bool = False  # E9.10: quem manda voz no Telegram recebe voz de volta
-    # Memória da tela (regra 44): OCR local da tela, só texto, retenção curta. Opt-in.
+    # Memória da tela (REGRAS.md: memória da tela: só texto, local e com opt-in): OCR local da tela,
+    # só texto, retenção curta. Opt-in.
     screen_memory: bool = False
     screen_interval_s: int = Field(default=300, ge=60, le=3600)
     screen_retention_days: int = Field(default=7, ge=1, le=90)
@@ -168,7 +182,9 @@ class Settings(BaseSettings):
         ""  # HH:MM: revisão noturna da memória (duplicados, relações, padrões); vazio: não
     )
     weekly_ai: bool = False  # segunda: o modelo escreve uma leitura curta do resumo semanal
-    research_at: str = ""  # HH:MM: pesquisa noturna só leitura (regra 39); vazio: desligada
+    # HH:MM: pesquisa noturna só leitura (REGRAS.md: pesquisa noturna só lê, sem aprovação); vazio:
+    # desligada
+    research_at: str = ""
     # assuntos separados por ";" (até 5); só o Antônio escolhe. Os padrões vêm das notas recentes do
     # vault; sem ORION_RESEARCH_AT a pesquisa continua desligada.
     research_topics: str = (
@@ -177,7 +193,8 @@ class Settings(BaseSettings):
         " LLMs locais e on-device"
     )
     consolidate: bool = True  # fatos a partir das conversas (precisa do gateway)
-    # Custo zero (regra 46): a cota que o ORION contou (external_calls), por dia (Brave por mês).
+    # Custo zero (REGRAS.md: custo zero (sem API paga)): a cota que o ORION contou (external_calls),
+    # por dia (Brave por mês).
     # Padrões = estimativa do gratuito de cada provedor (mudam sem aviso: confira no painel deles).
     # Job opcional não roda com 90% usado; o chat nunca é bloqueado. 0 = sem limite.
     quota_gateway_dia: int = Field(default=1000, ge=0)
@@ -186,15 +203,19 @@ class Settings(BaseSettings):
     quota_brave_mes: int = Field(default=1000, ge=0)
     allow_paid: bool = False  # true: você confirma que um endereço fora da lista gratuita é seu
     gateway_down_min: int = Field(default=10, ge=1, le=1440)  # avisa "modelos fora do ar" depois
-    # Não perturbe (regra 48): "22:30-07:00" segura avisos não urgentes e pausa a memória da tela
+    # Não perturbe (REGRAS.md: pânico é corte; não perturbe só segura): "22:30-07:00" segura avisos
+    # não urgentes e pausa a memória da tela
     dnd_at: str = ""
-    # Ponte de desktop (regra 50): mapa de teclas globais em JSON, ex.: {"captura": "ctrl+alt+k"}.
+    # Ponte de desktop (REGRAS.md: ponte de desktop só abre e cola o que você aprovou): mapa de
+    # teclas globais em JSON, ex.: {"captura": "ctrl+alt+k"}.
     # Vazio = as teclas padrão (ver orion/ponte/config.py). A ponte em si é `orion ponte`.
     hotkeys: str = ""
-    # Modelo local de reserva (regra 49): último endpoint, sem ferramentas, só neste computador.
+    # Modelo local de reserva (REGRAS.md: modelo local é reserva sem ferramentas): último endpoint,
+    # sem ferramentas, só neste computador.
     local_model: str = ""  # ex.: qwen3.5:4b (Ollama); vazio = desligado
     local_url: str = "http://127.0.0.1:11434/v1"
-    # Auto-compact (regra 53): passou deste número de mensagens, o que saiu da janela de contexto é
+    # Auto-compact (REGRAS.md: resumo da conversa nunca substitui o registro): passou deste número
+    # de mensagens, o que saiu da janela de contexto é
     # resumido em segundo plano, SÓ pelo modelo local (precisa de ORION_LOCAL_MODEL). 0 = desligado.
     compact_at: int = Field(default=40, ge=0, le=1000)
     # OCR de PDF escaneado (E4.2): páginas sem texto passam pelo tesseract local, até este teto.
@@ -322,12 +343,12 @@ class Settings(BaseSettings):
     @field_validator("local_url")
     @classmethod
     def _modelo_local_so_aqui(cls, v: str) -> str:
-        """Regra 49: o modelo local não sai do computador; outro host é recusado."""
+        """REGRAS.md: o modelo local não sai do computador; outro host é recusado."""
         partes = urlsplit(v.strip())
         if partes.scheme not in ("http", "https") or partes.hostname not in _LOCAIS:
             raise ValueError(
                 "ORION_LOCAL_URL só aceita 127.0.0.1, localhost ou ::1 (o modelo local é deste "
-                "computador; regra 49)"
+                "computador; REGRAS.md: modelo local é reserva, sem ferramentas)"
             )
         return v.strip()
 
@@ -359,7 +380,8 @@ class Settings(BaseSettings):
 
     @property
     def hosts_de_fora(self) -> list[str]:
-        """Hosts permitidos que não são locais (Tailscale, curinga): só com login (regra 17)."""
+        """Hosts permitidos que não são locais (Tailscale, curinga): só com login (REGRAS.md: acesso
+        de fora só com login)."""
         return [h for h in self.allowed_hosts if h not in _LOCAIS]
 
     @property

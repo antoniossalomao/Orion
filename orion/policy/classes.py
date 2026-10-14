@@ -1,4 +1,4 @@
-"""Classes de risco por ferramenta (regra 1 do ORION_REGRAS.md).
+"""Classes de risco por ferramenta (REGRAS.md: classe de risco fixa por ferramenta).
 
 A classe é fixa por ferramenta e declarada aqui — não inferida por regex no
 texto da chamada. O argumento dá só o refinamento (comando de shell, caminho).
@@ -27,7 +27,8 @@ class ToolSpec:
     external: bool = False  # devolve conteúdo não confiável (web, e-mail, arquivos)
     read_path_arg: str | None = None  # argumento com caminho que a ferramenta LÊ (segredo confirma)
     # O modelo escolhe PARA ONDE a ferramenta fala na rede (URL, host): é um canal de exfiltração
-    # por GET. Depois de ler conteúdo externo, a sessão confirma antes de cada uso (regra 4).
+    # por GET. Depois de ler conteúdo externo, a sessão confirma antes de cada uso (REGRAS.md:
+    # conteúdo externo é dado, não instrução).
     egress: bool = False
 
     origin: str | None = None

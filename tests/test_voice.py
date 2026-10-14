@@ -233,7 +233,7 @@ def test_erro_de_transcricao_chega_ao_navegador_sem_rodar_o_agente(tmp_path):
 
 
 def test_acao_que_pede_aprovacao_so_e_avisada_na_voz_nunca_decidida(tmp_path):
-    """Regra 2: a aprovação é por botão. A voz avisa e o cartão aparece; nada executa."""
+    """REGRAS.md: a aprovação é por botão. A voz avisa e o cartão aparece; nada executa."""
     sp = FakeSpeaker()
     c, _ = cliente(
         tmp_path,

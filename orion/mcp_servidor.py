@@ -1,4 +1,4 @@
-"""O Orion como servidor MCP, só de leitura (E7.7, regra 56).
+"""O Orion como servidor MCP, só de leitura (E7.7, REGRAS.md: o Orion como servidor MCP só lê).
 
 `orion mcp-servidor` fala MCP por stdin/stdout, para o Claude Code ou o Codex consultarem a sua
 memória sem IDE. É um processo à parte que abre o banco do Orion e expõe **três** ferramentas de

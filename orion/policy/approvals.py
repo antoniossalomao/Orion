@@ -1,4 +1,4 @@
-"""Aprovações fora de banda (regra 2).
+"""Aprovações fora de banda (REGRAS.md: confirmação fora de banda (canal autenticado)).
 
 A confirmação NÃO vem de uma frase no chat: o motor pede, e só um canal
 autenticado (botão do Telegram, tela web com login) chama `decide`. A

@@ -313,7 +313,8 @@ def test_decisoes_da_politica_vao_para_a_tabela_audit_e_falha_de_gravacao_nega(c
     estado.ops.audit_add = quebrado  # type: ignore[method-assign]
     leitura = estado.policy.evaluate(ToolCall("buscar_memoria", {"consulta": "oi"}), ctx)
     escrita = estado.policy.evaluate(ToolCall("salvar_memoria", {"texto": "x"}), ctx)
-    assert leitura.action is Action.ALLOW  # leitura segue (regra 8)
+    # leitura segue (REGRAS.md: falha de auditoria nega a ação)
+    assert leitura.action is Action.ALLOW
     assert escrita.action is Action.DENY and "audit" in escrita.reason  # o resto é fail-closed
 
 

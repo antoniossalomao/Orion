@@ -1,7 +1,8 @@
 """`orion transcrever <arquivo>`: áudio ou vídeo vira uma nota Markdown no Inbox do vault.
 
 É um comando do **próprio Antônio** (como o `/capturar`), não uma ferramenta do modelo: o modelo
-não escolhe o arquivo nem o destino (regra 43). O `ffmpeg` extrai o áudio em mono, 16 kHz, 32 kbps e
+não escolhe o arquivo nem o destino (REGRAS.md: transcrever mídia é comando seu). O `ffmpeg` extrai
+o áudio em mono, 16 kHz, 32 kbps e
 o corta em pedaços de 20 min (cada um cabe folgado no limite do provedor); cada pedaço vai à
 API de transcrição (Groq por padrão, ver `orion.transcribe`) e o texto volta com a marca de tempo do
 começo do pedaço. **O áudio sai do computador** (vai ao provedor): o comando avisa antes. A nota é

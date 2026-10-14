@@ -1,4 +1,5 @@
-"""Ponte de desktop (E2, regra 50): o processo que o navegador não consegue ser.
+"""Ponte de desktop (E2, REGRAS.md: ponte de desktop só abre e cola o que você aprovou): o processo
+que o navegador não consegue ser.
 
 O Orion é servidor + navegador: não há como registrar tecla global, ficar na bandeja nem colar
 texto no programa em foco. `orion ponte` sobe esse processo, à parte do servidor:

@@ -1,4 +1,5 @@
-"""Descoberta sob demanda de ferramentas MCP (E7.4, regra 55).
+"""Descoberta sob demanda de ferramentas MCP (E7.4, REGRAS.md: recurso e prompt de MCP são dado, não
+comando).
 
 Com muitas ferramentas de servidores MCP, mandar o esquema de todas a cada turno estoura o contexto
 do modelo. Acima de `ORION_MCP_INDEX_AT` o modelo vê só um índice (nome e uma linha) no prompt e a

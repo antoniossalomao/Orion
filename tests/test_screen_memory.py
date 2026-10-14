@@ -1,4 +1,4 @@
-"""Memória da tela (regra 44): OCR local, só texto, janelas excluídas, retenção e pausa."""
+"""Memória da tela (REGRAS.md: memória da tela: só texto, local e com opt-in): OCR local, só texto, janelas excluídas, retenção e pausa."""
 
 from pathlib import Path
 from types import SimpleNamespace

@@ -1,10 +1,12 @@
-"""Tarefa em segundo plano (E9.2, regra 59): o Orion trabalha num objetivo sem ninguém olhando.
+"""Tarefa em segundo plano (E9.2, REGRAS.md: tarefa em segundo plano só lê e propõe): o Orion
+trabalha num objetivo sem ninguém olhando.
 
 Roda `Agent.run(read_only=True)` numa conversa própria: o modelo só vê e só chama ferramentas de
 **leitura**; escrita e execução nem aparecem para ele. O que ele julgar útil fazer vira uma
 **proposta** (texto, no fim do relatório, depois de `PROPOSTAS:`) que você aceita ou descarta item
 a item; aceitar devolve o texto para o campo de mensagem, e aí vale a política de sempre.
-Tetos: passos (ferramentas chamadas), minutos e cota gratuita (regra 46).
+Tetos: passos (ferramentas chamadas), minutos e cota gratuita (REGRAS.md: custo zero (sem API
+paga)).
 """
 
 from __future__ import annotations

@@ -141,7 +141,7 @@ test('bytes: B, KB e MB com vírgula; tolera lixo', () => {
     assert.equal(P.bytes(-3), '0 B');
 });
 
-test('usoCota: normal, 90% para os jobs, estourada e sem limite (regra 46)', () => {
+test('usoCota: normal, 90% para os jobs, estourada e sem limite (REGRAS.md: custo zero (sem API paga))', () => {
     assert.deepEqual(P.usoCota({ usado: 100, limite: 1000, periodo: 'dia' }),
         { pct: 10, sev: 'normal', texto: '900 restantes hoje', valor: '100/1000' });
     assert.equal(P.usoCota({ usado: 950, limite: 1000 }).sev, 'alto');

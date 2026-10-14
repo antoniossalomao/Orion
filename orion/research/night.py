@@ -1,4 +1,5 @@
-"""Pesquisa noturna supervisionada (regra 39): um relatório por dia na caixa de entrada do vault.
+"""Pesquisa noturna supervisionada (REGRAS.md: pesquisa noturna só lê, sem aprovação): um relatório
+por dia na caixa de entrada do vault.
 
 O Antônio escolhe os assuntos (`ORION_RESEARCH_TOPICS`) e a hora (`ORION_RESEARCH_AT`); o modelo
 não escolhe nada disso. Cada assunto roda num turno **só leitura** (`Agent.run(read_only=True)`):

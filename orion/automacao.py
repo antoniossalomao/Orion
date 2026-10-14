@@ -1,4 +1,5 @@
-"""Concessão de automações suas (regra 58): rotinas e regras de Downloads.
+"""Concessão de automações suas (REGRAS.md: automação sua vale pelo arquivo concedido): rotinas e
+regras de Downloads.
 
 Uma automação é um arquivo que **você** escreveu. Ela só roda depois de `conceder`, que guarda o
 SHA-256 do arquivo inteiro: qualquer edição (sua ou de outro programa) derruba a concessão até você

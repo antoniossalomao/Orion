@@ -1,4 +1,4 @@
-"""Custo zero e cota gratuita (regra 46), telemetria por provedor e "modelos fora do ar"."""
+"""Custo zero e cota gratuita (REGRAS.md: custo zero (sem API paga)), telemetria por provedor e "modelos fora do ar"."""
 
 import json
 from datetime import datetime

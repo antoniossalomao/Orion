@@ -1,4 +1,4 @@
-"""Duas palmas ligadas ao app (regra 51): a ação, o pânico, a ponte, o audit e o painel."""
+"""Duas palmas ligadas ao app (REGRAS.md: palmas só abrem; nunca aprovam nem executam): a ação, o pânico, a ponte, o audit e o painel."""
 
 import json
 
@@ -101,7 +101,8 @@ def test_com_a_ponte_conectada_o_comando_vai_para_ela_e_o_navegador_fica_quieto(
 def test_em_panico_as_palmas_nao_fazem_nada_e_o_audit_registra_a_recusa(tmp_path, monkeypatch):
     c, _abertos, _ouvintes = app_com_palmas(tmp_path, monkeypatch, quadros=[])
     with c:
-        c.app.state.orion.modos.entrar_panico("teste")  # o estado fica no banco (regra 48)
+        # o estado fica no banco (REGRAS.md: pânico é corte; não perturbe só segura)
+        c.app.state.orion.modos.entrar_panico("teste")
     # reinicia no mesmo banco com as palmas: já nasce em pânico
     c2, abertos2, ouvintes2 = app_com_palmas(tmp_path, monkeypatch)
     with c2:

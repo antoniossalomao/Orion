@@ -4,7 +4,7 @@
     const O = window.Orion, { $, el, api, bus } = O;
     let active = false, generation = 0, input, status, list, busy = false, progress, poll = null;
     const scope = () => O.projects.current()?.id || null;
-    const errors = { pdf_requires_ocr: 'Este PDF é uma imagem e o OCR não rodou: instale o tesseract (ORION_OPERACAO §19) e use “Reindexar”.', document_interrupted: 'A indexação foi interrompida (o Orion reiniciou). Tente novamente.', pdf_encrypted: 'PDF protegido por senha.', pdf_page_limit: 'Limite de 200 páginas.', document_size_limit: 'Limite de 6 MB por arquivo.', document_invalid: 'Não consegui ler o documento. O original foi preservado.', document_text_limit: 'Texto vazio ou maior que 2 MB.', document_extraction_timeout: 'A extração demorou demais. Tente novamente.' };
+    const errors = { pdf_requires_ocr: 'Este PDF é uma imagem e o OCR não rodou: instale o tesseract (ORION_LEGADO.md §19) e use “Reindexar”.', document_interrupted: 'A indexação foi interrompida (o Orion reiniciou). Tente novamente.', pdf_encrypted: 'PDF protegido por senha.', pdf_page_limit: 'Limite de 200 páginas.', document_size_limit: 'Limite de 6 MB por arquivo.', document_invalid: 'Não consegui ler o documento. O original foi preservado.', document_text_limit: 'Texto vazio ou maior que 2 MB.', document_extraction_timeout: 'A extração demorou demais. Tente novamente.' };
     const button = (text, fn) => el('button', { class: 'btn btn-outline btn-sm', type: 'button', text, on: { click: fn } });
     async function operation(fn) {
         if (busy) return; busy = true; input.disabled = true; progress.hidden = false; progress.removeAttribute('value');

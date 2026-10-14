@@ -1,6 +1,6 @@
 """PathGuard: onde as ferramentas podem escrever sem confirmação.
 
-Regra 3: código, persona e política ficam FORA da área gravável das ferramentas.
+REGRAS.md: código, persona e política ficam FORA da área gravável das ferramentas.
 Escrever dentro de `protected_roots` (a raiz do projeto) sempre pede confirmação,
 o que também cobre a auto-modificação (Ring 0 #5). Caminhos são resolvidos
 (`realpath`: segue symlinks e `..`) antes de comparar.
@@ -56,7 +56,8 @@ _NOMES_SENSIVEIS = frozenset(
 _COMPONENTES_SENSIVEIS = frozenset(
     {".ssh", ".aws", ".gnupg", "startup", "launchagents", "launchdaemons"}
 )
-# Leitura que vaza segredo para o LLM (regra 5): ler isto pede confirmação do Antônio.
+# Leitura que vaza segredo para o LLM (REGRAS.md: segredos nunca em log, audit ou processo filho):
+# ler isto pede confirmação do Antônio.
 _NOMES_LEITURA_SENSIVEL = _NOMES_SENSIVEIS | frozenset(
     {
         "id_rsa",

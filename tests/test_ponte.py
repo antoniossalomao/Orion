@@ -1,4 +1,4 @@
-"""Ponte de desktop (E2.1, regra 50): núcleo com adaptadores falsos e as rotas do servidor."""
+"""Ponte de desktop (E2.1, REGRAS.md: ponte de desktop só abre e cola o que você aprovou): núcleo com adaptadores falsos e as rotas do servidor."""
 
 from __future__ import annotations
 

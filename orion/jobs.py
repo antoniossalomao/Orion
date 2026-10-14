@@ -16,7 +16,8 @@ Um laço assíncrono chama `tick()` a cada poucos segundos. Cada passo falha soz
 - saúde do gateway (só pelo registro de saída, sem chamada extra): "fora do ar" e "de volta".
 
 Jobs opcionais que gastam cota gratuita (consolidação, leitura semanal, sono, pesquisa noturna)
-perguntam antes a `Custos.pode_usar` (regra 46). Em modo pânico (regra 48) nada que use rede roda,
+perguntam antes a `Custos.pode_usar` (REGRAS.md: custo zero (sem API paga)). Em modo pânico
+(REGRAS.md: pânico é corte; não perturbe só segura) nada que use rede roda,
 e com pânico ou não perturbe a memória da tela fica parada.
 
 Quem entrega os avisos é o canal (Telegram, web) lendo `GET /notifications`.
@@ -124,17 +125,30 @@ class JobRunner:
         self._audit_days = audit_days
         self._processes = processes
         self._briefing_at = _hora(briefing_at)
-        self._agenda = agenda  # consulta direta de leitura, sem modelo (orion/agenda.py, regra 37)
+        # consulta direta de leitura, sem modelo (orion/agenda.py, REGRAS.md: agenda do briefing é
+        # leitura fixa, sem modelo)
+        self._agenda = agenda
         self._briefing_window = timedelta(hours=briefing_window_h)
-        self._research = research  # orion/research/night.py (regra 39), None: desligada
+        # orion/research/night.py (REGRAS.md: pesquisa noturna só lê, sem aprovação), None:
+        # desligada
+        self._research = research
         self._weekly_ai = weekly_ai  # modelo (complete) para a leitura do resumo semanal; None: sem
-        self._screen = screen  # orion/screen_memory.py (regra 44), None: desligada
+        # orion/screen_memory.py (REGRAS.md: memória da tela: só texto, local e com opt-in), None:
+        # desligada
+        self._screen = screen
         self._sleep = sleep  # orion/memory/sleep.py (ciclo de sono), None: desligado
-        self._downloads = downloads  # orion/downloads.py (regra 58), None: sem regras
-        self._historicos = historicos  # orion/historicos.py (regra 60), None: sem históricos
+        # orion/downloads.py (REGRAS.md: automação sua vale pelo arquivo concedido), None: sem
+        # regras
+        self._downloads = downloads
+        # orion/historicos.py (REGRAS.md: históricos locais: opt-in, só texto, só neste computador),
+        # None: sem históricos
+        self._historicos = historicos
         self._clipboard_days, self._command_history = clipboard_days, command_history
-        self._custos = custos  # orion/costs.py (regra 46), None: sem conta de cota
-        self._modos = modos  # orion/modos.py (regra 48), None: sem pânico nem não perturbe
+        # orion/costs.py (REGRAS.md: custo zero (sem API paga)), None: sem conta de cota
+        self._custos = custos
+        # orion/modos.py (REGRAS.md: pânico é corte; não perturbe só segura), None: sem pânico nem
+        # não perturbe
+        self._modos = modos
         self._gateway_down_s = gateway_down_min * 60.0
         self._clock = clock
         self._every = {
@@ -162,11 +176,13 @@ class JobRunner:
         return self._modos is not None and self._modos.panico()
 
     def _tela_suspensa(self) -> bool:
-        """Pânico corta e não perturbe pausa a memória da tela (regra 48)."""
+        """Pânico corta e não perturbe pausa a memória da tela (REGRAS.md: pânico é corte; não
+        perturbe só segura)."""
         return self._modos is not None and (self._modos.panico() or self._modos.nao_perturbe())
 
     def _pode(self, rel: TickReport, quem: str, *provedores: str) -> bool:
-        """Job opcional: sem pânico e com cota (regra 46). Quem foi adiado vai para o relatório."""
+        """Job opcional: sem pânico e com cota (REGRAS.md: custo zero (sem API paga)). Quem foi
+        adiado vai para o relatório."""
         if self._panico():
             return False
         if self._custos is None:
@@ -312,7 +328,8 @@ class JobRunner:
         return "fora"
 
     def _podar_trilhas(self) -> int:
-        """Audit e registro de saída (regra 47) com a mesma retenção (90 dias por padrão)."""
+        """Audit e registro de saída (REGRAS.md: toda saída de dado fica registrada, sem conteúdo)
+        com a mesma retenção (90 dias por padrão)."""
         return self.ops.audit_prune(self._audit_days) + self.memory.prune_external_calls(
             self._audit_days
         )
@@ -375,7 +392,8 @@ class JobRunner:
         hoje = int(dt.strftime("%Y%m%d"))
         if self.memory.counter_get("briefing:ultimo") >= hoje:
             return False
-        agenda = None if self._panico() else self._agenda  # pânico: nada de rede (regra 48)
+        # pânico: nada de rede (REGRAS.md: pânico é corte; não perturbe só segura)
+        agenda = None if self._panico() else self._agenda
         self.ops.notify(
             "briefing", build_briefing(self.ops, agora, agenda=agenda), ref=f"briefing:{hoje}"
         )

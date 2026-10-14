@@ -1,4 +1,4 @@
-"""E9.2 (regra 59): tarefa em segundo plano só lê, tem teto e deixa propostas para você decidir."""
+"""E9.2 (REGRAS.md: tarefa em segundo plano só lê e propõe): tarefa em segundo plano só lê, tem teto e deixa propostas para você decidir."""
 
 import asyncio
 

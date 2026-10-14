@@ -1,4 +1,4 @@
-"""Agenda no briefing (regra 37): leitura direta, sem modelo, só se o mcp.json diz `read`."""
+"""Agenda no briefing (REGRAS.md: agenda do briefing é leitura fixa, sem modelo): leitura direta, sem modelo, só se o mcp.json diz `read`."""
 
 from datetime import datetime
 

@@ -5,8 +5,10 @@ tarefas, números, prompts), arestas do grafo e fila de notificações. Banco v1
 para a versão atual sozinho (`MIGRATIONS`). v3: seleção persistente de sessão por canal.
 v4: conversas fixadas. v5: índice de títulos para busca de conversas. v6–v16: projetos,
 resultados, uploads, contas, agenda, planos de arquivos e clientes de exportação. v17: memória da
-tela, biblioteca de arquivos gerados, registro de saída (`external_calls`, regra 47) e aviso
-urgente (não perturbe, regra 48). Um banco da linhagem anterior da `main` (versão 11, com
+tela, biblioteca de arquivos gerados, registro de saída (`external_calls`, REGRAS.md: toda saída de
+dado fica registrada, sem conteúdo) e aviso
+urgente (não perturbe, REGRAS.md: pânico é corte; não perturbe só segura). Um banco da linhagem
+anterior da `main` (versão 11, com
 `external_calls`) é reconhecido e migrado por `MAIN_V11` (ver `store.py`).
 """
 
@@ -302,9 +304,12 @@ CREATE TABLE export_clients(id TEXT PRIMARY KEY,name TEXT NOT NULL,
 
 # Memória da tela (D3): SÓ texto lido por OCR local, com retenção curta; imagem nunca é guardada.
 # Biblioteca de arquivos gerados (C34), cópia com origem e versões (`library_results`: o nome
-# `artifacts` é dos resultados versionados do chat). Registro de saída (regra 47): uma linha por
-# chamada a provedor de fora, sem o conteúdo; base da cota gratuita (regra 46), da telemetria por
-# provedor e do painel de privacidade. `urgent`: o não perturbe (regra 48) segura na fila o aviso
+# `artifacts` é dos resultados versionados do chat). Registro de saída (REGRAS.md: toda saída de
+# dado fica registrada, sem conteúdo): uma linha por
+# chamada a provedor de fora, sem o conteúdo; base da cota gratuita (REGRAS.md: custo zero (sem API
+# paga)), da telemetria por
+# provedor e do painel de privacidade. `urgent`: o não perturbe (REGRAS.md: pânico é corte; não
+# perturbe só segura) segura na fila o aviso
 # que não for urgente.
 DDL_V17 = f"""
 CREATE TABLE screen_log (
@@ -369,7 +374,9 @@ ALTER TABLE messages ADD COLUMN superseded INTEGER NOT NULL DEFAULT 0;
 CREATE INDEX idx_messages_version ON messages(version_of) WHERE version_of IS NOT NULL;
 """
 
-# E4 (regras 52–54). `uploads.progress`: andamento da indexação (0–100). `facts.valid_until` e
+# E4 (REGRAS.md: o que é de um projeto fica no projeto; resumo da conversa nunca substitui o
+# registro; o Orion não decide sozinho qual fato vale). `uploads.progress`: andamento da indexação
+# (0–100). `facts.valid_until` e
 # `superseded_by`: fato vencido ou substituído pesa menos na busca (nunca é apagado sozinho).
 # `session_summaries`: resumo gerado do começo de uma conversa longa (nunca substitui o registro).
 # `fact_conflicts`: par de fatos que o sono achou parecidos com informação diferente, esperando a
@@ -394,13 +401,16 @@ CREATE TABLE fact_conflicts (
 );
 """
 
-# E5 (estende a regra 44): aplicativo em foco na hora da captura da tela, para a exclusão por app.
+# E5 (estende REGRAS.md: memória da tela: só texto, local e com opt-in): aplicativo em foco na hora
+# da captura da tela, para a exclusão por app.
 DDL_V20 = """
 ALTER TABLE screen_log ADD COLUMN app TEXT NOT NULL DEFAULT '';
 """
 
 DDL_V21 = f"""
--- E9: tarefa em segundo plano (regra 59), lembrete insistente, históricos (regra 60), ler depois
+-- E9: tarefa em segundo plano (REGRAS.md: tarefa em segundo plano só lê e propõe),
+-- lembrete insistente, históricos (REGRAS.md: históricos locais: opt-in, só texto,
+-- só neste computador), ler depois
 CREATE TABLE background_tasks (
     id INTEGER PRIMARY KEY,
     objective TEXT NOT NULL,

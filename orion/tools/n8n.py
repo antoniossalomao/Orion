@@ -1,4 +1,5 @@
-"""`acionar_n8n`: dispara um workflow do n8n por webhook (regra 41).
+"""`acionar_n8n`: dispara um workflow do n8n por webhook (REGRAS.md: n8n: o destino é seu, não do
+modelo).
 
 O destino NUNCA vem do modelo: o Antônio cadastra os webhooks em `ORION_N8N_WEBHOOKS`
 (`{"nome": "https://..."}`) e o modelo só escolhe o nome entre os cadastrados, mais um corpo JSON

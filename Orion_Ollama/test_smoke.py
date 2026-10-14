@@ -1,6 +1,6 @@
 """
 test_smoke.py — suite de smoke test do cerebro_maestro.py (recriado 01/07/2026;
-o original documentado no README/ORION_TECNICO.md sumiu do disco em algum
+o original documentado no README/ORION_LEGADO.md sumiu do disco em algum
 momento — nenhum arquivo test_*.py restava no projeto).
 
 Cobre os endpoints atuais (checados via grep em cerebro_maestro.py na hora de

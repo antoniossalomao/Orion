@@ -185,27 +185,39 @@ class AppState:
     speaker: Speaker | None = None  # voz (A): fala da resposta; None sem voz ou sem fala
     live: Callable[[], AbstractAsyncContextManager[Any]] | None = None  # voz ao vivo (B)
     voz: VozStats = field(default_factory=VozStats)
-    escuta: WakeListener | None = None  # palavra de ativação (regra 38)
-    tela: ScreenMemory | None = None  # memória da tela (regra 44)
+    # palavra de ativação (REGRAS.md: palavra de ativação só abre o microfone; detecção local)
+    escuta: WakeListener | None = None
+    # memória da tela (REGRAS.md: memória da tela: só texto, local e com opt-in)
+    tela: ScreenMemory | None = None
     biblioteca: Library | None = None  # resultados gerados (C34)
-    modos: Modos | None = None  # pânico e não perturbe (regra 48)
-    custos: Custos | None = None  # cota gratuita (regra 46)
-    downloads: Downloads | None = None  # organizador de Downloads (regra 58)
-    historicos: Historicos | None = None  # área de transferência e comandos (regra 60)
+    # pânico e não perturbe (REGRAS.md: pânico é corte; não perturbe só segura)
+    modos: Modos | None = None
+    custos: Custos | None = None  # cota gratuita (REGRAS.md: custo zero (sem API paga))
+    # organizador de Downloads (REGRAS.md: automação sua vale pelo arquivo concedido)
+    downloads: Downloads | None = None
+    # área de transferência e comandos (REGRAS.md: históricos locais: opt-in, só texto, só neste
+    # computador)
+    historicos: Historicos | None = None
     ler_depois: LerDepois | None = None  # links para ler depois (E9.8)
-    rotinas: RotinaStore | None = None  # rotinas suas e concedidas (regra 58)
+    # rotinas suas e concedidas (REGRAS.md: automação sua vale pelo arquivo concedido)
+    rotinas: RotinaStore | None = None
     executor_rotinas: ExecutorRotinas | None = None
-    tarefas_bg: Any = None  # TarefasBg (regra 59); None sem agente
-    pesquisa: Any = None  # NightResearch (regra 39); None sem agente, ORION_WEB_TOOLS ou vault
+    # TarefasBg (REGRAS.md: tarefa em segundo plano só lê e propõe); None sem agente
+    tarefas_bg: Any = None
+    # NightResearch (REGRAS.md: pesquisa noturna só lê, sem aprovação); None sem agente,
+    # ORION_WEB_TOOLS ou vault
+    pesquisa: Any = None
     tarefas_pesquisa: Any = None  # a tarefa do `rodar agora` (guarda a referência)
-    ponte: PonteHub = field(default_factory=PonteHub)  # ponte de desktop (regra 50)
+    # ponte de desktop (REGRAS.md: ponte de desktop só abre e cola o que você aprovou)
+    ponte: PonteHub = field(default_factory=PonteHub)
 
 
 def build_policy(
     settings: Settings, approvals: ApprovalStore | None = None, ops: Operations | None = None
 ) -> PolicyEngine:
     """Com `ops`, cada decisão também vai para a tabela `audit` (`consultar_audit_log`); se a
-    gravação falhar, a política nega o que não for leitura (fail-closed, regra 8)."""
+    gravação falhar, a política nega o que não for leitura (fail-closed, REGRAS.md: falha de
+    auditoria nega a ação)."""
     guard = PathGuard(
         protected_roots=(PROJECT_ROOT,),
         safe_roots=(*default_safe_roots(), *settings.extra_safe_roots),
@@ -254,7 +266,9 @@ def quem_e(request: Request, state: AppState, authorization: str | None) -> str 
         if esperado and hmac.compare_digest(enviado.encode(), esperado.encode()):
             return "token"
         if state.auth.device_scope(enviado) == PONTE_ESCOPO:
-            return "ponte"  # escopo estreito: `require_auth` confere o caminho (regra 50)
+            # escopo estreito: `require_auth` confere o caminho (REGRAS.md: ponte de desktop só abre
+            # e cola o que você aprovou)
+            return "ponte"
         return None
     if state.auth.validate(request.cookies.get(COOKIE_SESSAO)):
         return "sessao"
@@ -339,7 +353,7 @@ def gateway_from_settings(settings: Settings) -> ChatGateway | None:
                     Endpoint(camada, url, modelo, chave, timeout_s=espera, tier=camada)
                 )
     if settings.local_model:
-        # regra 49: o modelo deste computador entra por último e nunca recebe ferramentas
+        # REGRAS.md: o modelo deste computador entra por último e nunca recebe ferramentas
         endpoints.append(
             Endpoint(
                 "local",
@@ -355,7 +369,8 @@ def gateway_from_settings(settings: Settings) -> ChatGateway | None:
 
 
 def compactor_from_settings(settings: Settings, memory: MemoryStore) -> Compactor | None:
-    """Auto-compact (regra 53): só liga com o modelo local, num gateway PRÓPRIO que não tem outro
+    """Auto-compact (REGRAS.md: resumo da conversa nunca substitui o registro): só liga com o modelo
+    local, num gateway PRÓPRIO que não tem outro
     endpoint, para o texto da conversa nunca sair do computador para ser resumido."""
     if settings.compact_at <= 0 or not settings.local_model:
         return None
@@ -467,7 +482,8 @@ def _estado_da_tela(tela: ScreenMemory | None, memory: MemoryStore) -> dict[str,
 
 def _privacidade(memory: MemoryStore, dias: int, agora: float) -> dict[str, Any]:
     """Por dia e provedor: envios, bytes e tipos de conteúdo; e o que saiu hoje, mais novo antes.
-    Só tamanhos e tipos (regra 47); o que roda neste computador (`saidas.LOCAIS`) fica de fora."""
+    Só tamanhos e tipos (REGRAS.md: toda saída de dado fica registrada, sem conteúdo); o que roda
+    neste computador (`saidas.LOCAIS`) fica de fora."""
     hoje = datetime.fromtimestamp(agora).replace(hour=0, minute=0, second=0, microsecond=0)
     inicio = hoje.timestamp() - (dias - 1) * 86400
     linhas = [
@@ -590,7 +606,7 @@ def wake_from_settings(
     except ValueError as e:
         return None, str(e)
     except ImportError as e:
-        return None, f"falta instalar {e.name or 'uma dependência'} (ver ORION_OPERACAO §4.4)"
+        return None, f"falta instalar {e.name or 'uma dependência'} (ver ORION_LEGADO.md §4.4)"
     except Exception as e:  # noqa: BLE001 — modelo corrompido, PortAudio ausente: motivo curto
         return None, f"não consegui preparar a escuta ({type(e).__name__})"
     cfg = WakeConfig(
@@ -655,7 +671,8 @@ def _iniciar_escuta(
     """Sobe a escuta (palavra de ativação e/ou duas palmas) numa thread. Devolve `((escuta,),
     motivo)`: o motivo explica por que não subiu (aparece no painel). A fala gravada segue o mesmo
     caminho do botão de microfone (`turno_de_voz`), com o canal "web": memória, política e audit
-    valem igual. Palmas só abrem o Orion (regra 51); só `abrir_e_ouvir` usa a voz."""
+    valem igual. Palmas só abrem o Orion (REGRAS.md: palmas só abrem; nunca aprovam nem executam);
+    só `abrir_e_ouvir` usa a voz."""
     if not (settings.wake_enabled or settings.clap_enabled):
         return (None,), ""
     precisa_voz = settings.wake_enabled or (
@@ -747,7 +764,8 @@ class EscutaControle(BaseModel):
 
 class PanicoControle(BaseModel):
     ativo: bool
-    senha: str = Field(default="", max_length=1024)  # só para sair (regra 48)
+    # só para sair (REGRAS.md: pânico é corte; não perturbe só segura)
+    senha: str = Field(default="", max_length=1024)
 
 
 class NaoPerturbeControle(BaseModel):
@@ -871,7 +889,8 @@ class AssuntosPesquisa(BaseModel):
 
 
 async def _turno_de_rotina(state: AppState, nome: str) -> AsyncIterator[AgentEvent]:
-    """A frase de uma rotina concedida roda a rotina em vez de ir ao modelo (regra 58)."""
+    """A frase de uma rotina concedida roda a rotina em vez de ir ao modelo (REGRAS.md: automação
+    sua vale pelo arquivo concedido)."""
     assert state.executor_rotinas is not None
     r = await state.executor_rotinas.executar(nome, "frase")
     icone = {"concluida": "✅", "aguardando_aprovacao": "⏸", "recusada": "⛔"}.get(r.status, "⚠️")
@@ -1055,7 +1074,7 @@ def _painel_da_voz(
 
 async def _vigiar_modos(modos: Modos, escuta: WakeListener | None, a_cada_s: float = 2.0) -> None:
     """Aplica o pânico à palavra de ativação mesmo quando quem ligou foi a CLI (o estado mora no
-    banco). Só retoma a escuta que o próprio pânico pausou (regra 48: a sua pausa continua sua)."""
+    banco). Só retoma a escuta que o próprio pânico pausou (REGRAS.md: a sua pausa continua sua)."""
     pausada_pelo_panico = False
     while True:
         try:
@@ -1075,7 +1094,8 @@ async def _vigiar_modos(modos: Modos, escuta: WakeListener | None, a_cada_s: flo
 
 
 def _senha_de_novo(state: AppState, senha: str, cliente: str) -> bool:
-    """Sair do pânico pelo painel pede a senha de novo (regra 48), com a mesma trava do login.
+    """Sair do pânico pelo painel pede a senha de novo (REGRAS.md: pânico é corte; não perturbe só
+    segura), com a mesma trava do login.
     Sem senha definida (só token de máquina), vale o próprio token."""
     if not state.auth.has_password():
         esperado = state.settings.admin_token
@@ -1121,7 +1141,8 @@ def create_app(
             memory.reranker = reranker_da_pasta(
                 settings.rerank_model_dir or settings.data_dir / "modelos" / "rerank"
             )
-        saidas.definir_destino(memory.add_external_call)  # registro de saída (regra 47)
+        # registro de saída (REGRAS.md: toda saída de dado fica registrada, sem conteúdo)
+        saidas.definir_destino(memory.add_external_call)
         from .documents import recuperar_interrompidos
 
         recuperar_interrompidos(memory)  # indexação que a queda do Orion deixou pela metade
@@ -1152,7 +1173,7 @@ def create_app(
             raise RuntimeError(
                 f"host {', '.join(settings.hosts_de_fora)} em ORION_ALLOWED_HOSTS exige login: "
                 "defina a senha (`orion set-password`) ou ORION_ADMIN_TOKEN "
-                "(regra 17 do ORION_REGRAS.md: acesso de fora só com login)"
+                "(REGRAS.md: acesso de fora só com login)"
             )
         gateway = (gateway_factory or gateway_from_settings)(settings)
         if gateway is not None:  # orçamento diário por provedor (`limite_dia`): fim da fila
@@ -1505,7 +1526,8 @@ def create_app(
             auth.close()
             memory.close()
 
-    # sem /docs, /redoc nem /openapi.json: o mapa da API não é público (regra 17)
+    # sem /docs, /redoc nem /openapi.json: o mapa da API não é público (REGRAS.md: acesso de fora só
+    # com login)
     app = FastAPI(
         title="Orion",
         version=__version__,
@@ -1821,7 +1843,8 @@ def create_app(
     def sessao_resumo(
         session_id: Annotated[str, PathParam(pattern=r"^[a-f0-9]{32}$")], state: State
     ) -> dict[str, Any]:
-        """O resumo gerado do começo da conversa (auto-compact, regra 53), se existe. É um texto
+        """O resumo gerado do começo da conversa (auto-compact, REGRAS.md: resumo da conversa nunca
+        substitui o registro), se existe. É um texto
         gerado por um modelo local e pode ter erro; o registro da conversa não muda."""
         if state.memory.get_session(session_id) is None:
             raise HTTPException(404, "sessão inexistente")
@@ -2182,7 +2205,8 @@ def create_app(
             raise HTTPException(404, "servidor desconhecido")
         return resultado
 
-    # ── prompts de servidores MCP (E7.5, regra 55): só você invoca, o modelo não os vê ──
+    # ── prompts de servidores MCP (E7.5, REGRAS.md: recurso e prompt de MCP são dado, não comando):
+    # só você invoca, o modelo não os vê ──
     @app.get("/mcp/prompts", dependencies=[Admin])
     def prompts_mcp(state: State) -> dict[str, Any]:
         itens = state.mcp.listar_prompts() if state.mcp is not None else []
@@ -2201,7 +2225,7 @@ def create_app(
             raise HTTPException(502, r["erro"])
         return {**r, "origem": f"mcp:{servidor}"}
 
-    # ── pesquisa noturna pela interface (E6.5, regra 39) ──
+    # ── pesquisa noturna pela interface (E6.5, REGRAS.md: pesquisa noturna só lê, sem aprovação) ──
     def _assuntos_da_pesquisa(state: AppState) -> dict[str, Any]:
         from .research import MAX_ASSUNTO, MAX_ASSUNTOS, assuntos_salvos
 
@@ -2240,7 +2264,8 @@ def create_app(
     @app.post("/pesquisa/rodar", status_code=202, dependencies=[Admin])
     async def rodar_pesquisa_agora(state: State) -> dict[str, Any]:
         """Dispara a pesquisa em segundo plano (o relatório cai no 00 Inbox). Respeita o pânico
-        e a cota gratuita (regra 46): o job opcional não passa de 90% do dia."""
+        e a cota gratuita (REGRAS.md: custo zero (sem API paga)): o job opcional não passa de 90% do
+        dia."""
         pesquisa = state.pesquisa
         if pesquisa is None:
             raise HTTPException(
@@ -2351,7 +2376,8 @@ def create_app(
 
     @app.get("/tela", dependencies=[Admin])
     def tela_estado(state: State) -> dict[str, Any]:
-        """Estado da memória da tela (regra 44): ligada, pausada e contagens; nunca o texto."""
+        """Estado da memória da tela (REGRAS.md: memória da tela: só texto, local e com opt-in):
+        ligada, pausada e contagens; nunca o texto."""
         return _estado_da_tela(state.tela, state.memory)
 
     @app.get("/tela/busca", dependencies=[Admin])
@@ -2393,7 +2419,8 @@ def create_app(
         state.tela.pausar(not corpo.ativa)
         return {"pausada": state.tela.pausada}
 
-    # ── modos (regra 48) e privacidade (regra 47) ─────────────────────────
+    # ── modos (REGRAS.md: pânico é corte; não perturbe só segura) e privacidade (REGRAS.md: toda
+    # saída de dado fica registrada, sem conteúdo) ─────────────────────────
     @app.get("/modo", dependencies=[Admin])
     def modo_estado(state: State) -> dict[str, Any]:
         assert state.modos is not None
@@ -2430,7 +2457,8 @@ def create_app(
 
     @app.get("/privacidade", dependencies=[Admin])
     def privacidade(state: State, dias: Annotated[int, Query(ge=1, le=90)] = 7) -> dict[str, Any]:
-        """O que saiu do computador (regra 47): por dia e provedor, envios, bytes e tipo de
+        """O que saiu do computador (REGRAS.md: toda saída de dado fica registrada, sem conteúdo):
+        por dia e provedor, envios, bytes e tipo de
         conteúdo; e a lista de hoje. Nunca o conteúdo. O modelo local não conta como saída."""
         return _privacidade(state.memory, dias, time.time())
 
@@ -2477,9 +2505,9 @@ def create_app(
             raise HTTPException(404, "aviso inexistente ou já confirmado")
         return {"ok": True}
 
-    # ── organizador de Downloads (E9.4, regra 58) ──
+    # ── organizador de Downloads (E9.4, REGRAS.md: automação sua vale pelo arquivo concedido) ──
     def _historicos(state: AppState, qual: str) -> Historicos:
-        """404 quando o histórico está desligado (regra 60: opt-in); 409 no pânico."""
+        """404 quando o histórico está desligado (REGRAS.md: opt-in); 409 no pânico."""
         ligado = (
             state.settings.clipboard_days > 0 if qual == "area" else state.settings.command_history
         )
@@ -2612,7 +2640,8 @@ def create_app(
     def desfazer_downloads(corpo: DesfazerDownloads, state: State) -> dict[str, Any]:
         return _downloads(state).desfazer(corpo.escopo)
 
-    # ── rotinas (E9.1, regra 58): arquivos seus, concedidos pelo hash ──
+    # ── rotinas (E9.1, REGRAS.md: automação sua vale pelo arquivo concedido): arquivos seus,
+    # concedidos pelo hash ──
     def _rotinas(state: AppState) -> RotinaStore:
         assert state.rotinas is not None
         return state.rotinas
@@ -2668,7 +2697,8 @@ def create_app(
         r = await state.executor_rotinas.executar(nome, origem)
         return r.publico()
 
-    # ── tarefa em segundo plano (E9.2, regra 59): só lê; o que faria vira proposta ──
+    # ── tarefa em segundo plano (E9.2, REGRAS.md: tarefa em segundo plano só lê e propõe): só lê; o
+    # que faria vira proposta ──
     def _tarefas(state: AppState) -> TarefasBg:
         if state.tarefas_bg is None:
             raise HTTPException(503, "tarefa em segundo plano indisponível: falta o gateway")

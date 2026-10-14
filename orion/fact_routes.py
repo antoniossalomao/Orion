@@ -111,7 +111,8 @@ def router(require_admin) -> APIRouter:
     @api.post("/conflicts/resolve")
     def resolve_conflict(body: Decisao, request: Request, project_id: str | None = None):
         """ "o novo vale" marca o antigo como substituído (pesa menos na busca); "os dois valem"
-        encerra o aviso. Nenhum dos dois apaga nada, e só o Antônio decide (regra 54)."""
+        encerra o aviso. Nenhum dos dois apaga nada, e só o Antônio decide (REGRAS.md: o Orion não
+        decide sozinho qual fato vale)."""
         s = state(request)
         with data_scope(project_id, include_personal=False):
             fact(s, body.older_id, project_id)
@@ -160,7 +161,8 @@ def router(require_admin) -> APIRouter:
     @api.delete("/{id_}")
     def forget(id_: int, request: Request, project_id: str | None = None):
         """Apaga o fato por um clique do próprio Antônio (ex.: "apagar o repetido"). O que o
-        modelo pede continua passando por `/review` e pela aprovação (regra 2)."""
+        modelo pede continua passando por `/review` e pela aprovação (REGRAS.md: confirmação fora de
+        banda (canal autenticado))."""
         s = state(request)
         fact(s, id_, project_id)
         s.policy.approvals.invalidate_fact(id_)
@@ -170,7 +172,7 @@ def router(require_admin) -> APIRouter:
     @api.post("/{id_}/move")
     def move(id_: int, body: Mover, request: Request, project_id: str | None = None):
         """ "Projeto" do fato: muda onde ele vale (None = pessoal). Fato de projeto nunca aparece
-        em outro projeto nem sem projeto (regra 52)."""
+        em outro projeto nem sem projeto (REGRAS.md: o que é de um projeto fica no projeto)."""
         s = state(request)
         fact(s, id_, project_id)
         if body.project_id:

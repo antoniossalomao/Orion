@@ -1,4 +1,5 @@
-"""Memória da tela (D3, regra 44): o texto que esteve na tela, lido por OCR LOCAL, retenção curta.
+"""Memória da tela (D3, REGRAS.md: memória da tela: só texto, local e com opt-in): o texto que
+esteve na tela, lido por OCR LOCAL, retenção curta.
 
 Opt-in (`ORION_SCREEN_MEMORY=true`), pensado para ser o oposto de gravar a tela:
 
@@ -197,7 +198,8 @@ def tela_bloqueada(
     environ: Mapping[str, str] | None = None,
 ) -> bool | None:
     """True se a tela está bloqueada, False se não, None se este sistema não consegue dizer.
-    Quem chama trata None como bloqueada (falha fechada, regra 44); a presença (E11.6) também."""
+    Quem chama trata None como bloqueada (falha fechada, REGRAS.md: memória da tela: só texto, local
+    e com opt-in); a presença (E11.6) também."""
     ambiente: Mapping[str, str] = os.environ if environ is None else environ
     if platform == "win32":
         exe = which("pwsh") or which("powershell")

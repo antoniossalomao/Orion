@@ -1,4 +1,4 @@
-"""E2.2 (regra 51): detector de palmas com sinais sintéticos (quadros de 80 ms, 16 kHz)."""
+"""E2.2 (REGRAS.md: palmas só abrem; nunca aprovam nem executam): detector de palmas com sinais sintéticos (quadros de 80 ms, 16 kHz)."""
 
 import math
 import random

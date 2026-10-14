@@ -1,4 +1,5 @@
-"""Registro de saída (regra 47): toda chamada que leva dado para fora do computador vira uma linha.
+"""Registro de saída (REGRAS.md: toda saída de dado fica registrada, sem conteúdo): toda chamada que
+leva dado para fora do computador vira uma linha.
 
 Cada cliente de rede chama `registrar` (ou usa `medir`) com o provedor, o tipo da chamada, o modelo,
 se deu certo, a latência, os **tamanhos** de ida e volta e o **tipo** do conteúdo (texto, imagem,
@@ -6,7 +7,8 @@ se deu certo, a latência, os **tamanhos** de ida e volta e o **tipo** do conte�
 no lifespan; sem destino (testes, CLI) o registro não faz nada.
 
 Registrar é telemetria: uma falha aqui nunca derruba a chamada que está sendo medida. É a base da
-cota gratuita (regra 46, `orion/costs.py`), do card "Provedores" do painel e da tela de privacidade.
+cota gratuita (REGRAS.md: custo zero (sem API paga); `orion/costs.py`), do card "Provedores" do
+painel e da tela de privacidade.
 """
 
 from __future__ import annotations
@@ -47,8 +49,14 @@ SEM_SAIDA_PROPRIA = {
     "orion.tools.vision": "só o tipo do transporte; a chamada é do orion.vision",
     "orion.tools.audio": "só o tipo do transporte; a chamada é do orion.transcribe",
     "orion.doctor": "só pergunta ao Ollama deste computador (127.0.0.1) se o modelo está baixado",
-    "orion.ponte.nucleo": "só fala com o servidor deste computador (127.0.0.1, regra 50)",
-    "orion.ponte.adaptadores": "só abre o WebSocket com o servidor deste computador (regra 50)",
+    "orion.ponte.nucleo": (
+        "só fala com o servidor deste computador (127.0.0.1, "
+        "REGRAS.md: ponte de desktop só abre e cola o que você aprovou)"
+    ),
+    "orion.ponte.adaptadores": (
+        "só abre o WebSocket com o servidor deste computador "
+        "(REGRAS.md: ponte de desktop só abre e cola o que você aprovou)"
+    ),
 }
 
 # Provedores que rodam neste computador: entram no registro (telemetria), mas não são "saída".

@@ -100,7 +100,8 @@ def router(require_admin) -> APIRouter:
         project_id: str | None = None,
     ) -> dict[str, Any]:
         """Busca global (N1): conversas, fatos, documentos, memória da tela e resultados gerados,
-        até 5 de cada, no escopo pedido (pessoal ou um projeto, regra 52)."""
+        até 5 de cada, no escopo pedido (pessoal ou um projeto, REGRAS.md: o que é de um projeto
+        fica no projeto)."""
         s = request.app.state.orion
         escopo = _escopo(projeto, project_id)
         grupos: list[dict[str, Any]] = []
@@ -137,7 +138,9 @@ def router(require_admin) -> APIRouter:
             ]
             grupos.append({"fonte": "tela", "titulo": "Memória da tela", "itens": tela})
 
-        if escopo is None and s.historicos is not None:  # históricos locais (regra 60), opt-in
+        # históricos locais (REGRAS.md: históricos locais: opt-in, só texto, só neste computador),
+        # opt-in
+        if escopo is None and s.historicos is not None:
             if s.settings.clipboard_days > 0:
                 area = [
                     {"id": a["id"], "ts": a["ts"], "trecho": a["texto"][:240]}

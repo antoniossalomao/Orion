@@ -1,4 +1,4 @@
-"""Barreira de rede para URLs que vêm do modelo (regra 7 do ORION_REGRAS.md).
+"""Barreira de rede para URLs que vêm do modelo (REGRAS.md: URL do modelo só para host público).
 
 O modelo monta URLs a partir de texto não confiável (páginas, e-mails, memória). Sem esta
 checagem, uma injeção de prompt aponta `buscar_url` para o próprio Orion (127.0.0.1), para a

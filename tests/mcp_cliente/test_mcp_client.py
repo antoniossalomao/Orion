@@ -241,7 +241,7 @@ def test_servidor_externo_marca_a_sessao_como_contaminada(tmp_path):
         chamada = ToolCall("web__somar", {"a": 1, "b": 1})
         assert politica.evaluate(chamada, ctx).action is Action.ALLOW
         politica.note_result(chamada, ctx)
-        assert ctx.tainted  # depois de ler conteúdo externo, o resto pede confirmação (regra 4)
+        assert ctx.tainted  # depois de ler conteúdo externo, o resto pede confirmação (REGRAS.md: conteúdo externo é dado, não instrução)
     finally:
         g.stop()
 

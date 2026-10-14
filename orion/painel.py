@@ -110,7 +110,8 @@ class Painel:
             "mcp": dict(self.mcp.status) if self.mcp is not None else {},
             "modos": self.modos.estado() if self.modos is not None else None,
             "cota": self.custos.resumo() if self.custos is not None else [],
-            # o que o Orion contou por provedor na semana (registro de saída, regra 47)
+            # o que o Orion contou por provedor na semana (registro de saída, REGRAS.md: toda saída
+            # de dado fica registrada, sem conteúdo)
             "provedores": self.memory.external_calls_summary(agora - 7 * 86400),
         }
 

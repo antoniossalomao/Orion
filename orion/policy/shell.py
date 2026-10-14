@@ -18,7 +18,7 @@ from dataclasses import dataclass
 # acesso estático (::), escape e variáveis.
 _PROIBIDOS = re.compile(r"[<>`$(){}\[\]]|::")
 _SEPARADORES = re.compile(r"\|\||&&|[;|&\n\r]")
-# Leitura que vaza segredo para o LLM (regra 5: segredos não saem do cofre/arquivo).
+# Leitura que vaza segredo para o LLM (REGRAS.md: segredos não saem do cofre/arquivo).
 _SEGREDOS = re.compile(
     r"\.env\b|credentials|token\.json|id_rsa|id_ed25519|\.ssh|\.aws|\.gnupg|\bsecrets?\b|keychain|\benv:",
     re.IGNORECASE,

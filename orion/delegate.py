@@ -47,7 +47,8 @@ DEFAULT_AGENTS = (
 def _registrar(
     nome: str, tarefa: str, inicio: float, r: subprocess.CompletedProcess[str] | None
 ) -> None:
-    """O prompt sai do computador pela CLI: registro de saída (regra 47), só tamanhos."""
+    """O prompt sai do computador pela CLI: registro de saída (REGRAS.md: toda saída de dado fica
+    registrada, sem conteúdo), só tamanhos."""
     saidas.registrar(
         f"cli:{nome}",
         "cli",
@@ -78,7 +79,8 @@ class Delegator:
         self._run = run
         self._which = which
         self._clock = clock
-        # O segredo do próprio Orion não vai para o processo filho (regra 5).
+        # O segredo do próprio Orion não vai para o processo filho (REGRAS.md: segredos nunca em
+        # log, audit ou processo filho).
         base = os.environ if env is None else env
         self._env = {k: v for k, v in base.items() if not k.upper().startswith("ORION_")}
         # Windows: CLI em Python escreve no pipe com a codepage local (cp1252) e o texto volta

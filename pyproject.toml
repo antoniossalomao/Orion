@@ -55,13 +55,13 @@ orion = "orion.__main__:main"
 pdf = [
     "reportlab>=5.0.1",
 ]
-# Palavra de ativação "Orion" (ORION_OPERACAO §4.4): microfone + um detector à escolha.
+# Palavra de ativação "Orion" (ORION_LEGADO.md §4.4): microfone + um detector à escolha.
 # Fora do .exe de propósito: é opt-in e o microfone depende do sistema.
 wake = [
     "sounddevice>=0.5",
     "openwakeword>=0.6",
 ]
-# Ponte de desktop (`orion ponte`, regra 50): bandeja, teclas globais, área de transferência e OCR
+# Ponte de desktop (`orion ponte`, REGRAS.md: ponte de desktop só abre e cola o que você aprovou): bandeja, teclas globais, área de transferência e OCR
 # da tela. Fora do .exe de propósito: é opt-in e depende de sessão gráfica.
 ponte = [
     "pystray>=0.19",

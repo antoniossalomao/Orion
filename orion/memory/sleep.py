@@ -4,7 +4,7 @@ Uma vez por noite, na hora que o Antônio escolheu (`ORION_SLEEP_AT`), faz três
 
 1. **Duplicados e contradições:** acha fatos quase iguais e fatos que parecem se contradizer
    ("mora em X" × "mora em Y") e AVISA (nunca apaga nem escolhe: quem decide é você, na caixa de
-   atividade ou com `orion esquecer`; regra 54).
+   atividade ou com `orion esquecer`; REGRAS.md: o Orion não decide sozinho qual fato vale).
 2. **Relações:** com UMA chamada ao modelo sobre os fatos novos, tira ligações entre coisas
    ("Antônio" —estuda_em→ "Unimar") e grava no grafo como `kind=sono`.
 3. **Padrões:** na mesma chamada, no máximo 3 fatos de nível mais alto que resumem os novos,
@@ -171,7 +171,8 @@ class SleepCycle:
         return len(pares)
 
     def _conflitos(self) -> int:
-        """Fatos que parecem se contradizer viram aviso com dois botões (regra 54): "o novo vale"
+        """Fatos que parecem se contradizer viram aviso com dois botões (REGRAS.md: o Orion não
+        decide sozinho qual fato vale): "o novo vale"
         ou "os dois valem". O mesmo par nunca é avisado duas vezes."""
         novos = 0
         for velho, novo in self.memory.conflicting_facts():

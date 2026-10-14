@@ -1,4 +1,4 @@
-"""Registro de saída (regra 47): cada chamada para fora vira uma linha, sem o conteúdo."""
+"""Registro de saída (REGRAS.md: toda saída de dado fica registrada, sem conteúdo): cada chamada para fora vira uma linha, sem o conteúdo."""
 
 import ast
 import json

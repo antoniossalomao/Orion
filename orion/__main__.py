@@ -91,7 +91,8 @@ def _transcrever(
     capturador = Capturer(settings.vault_dir, settings.capture_folder)
     progresso = lambda i, n: print(f"transcrevendo parte {i}/{n}…")  # noqa: E731
     store = MemoryStore(settings.db_path)
-    saidas.definir_destino(store.add_external_call)  # o áudio sai do computador (regra 47)
+    # o áudio sai do computador (REGRAS.md: toda saída de dado fica registrada, sem conteúdo)
+    saidas.definir_destino(store.add_external_call)
     try:
         if e_link:
             print("baixando o áudio…")
@@ -147,7 +148,8 @@ def _propor_da_nota(settings: Settings, nota: Path, sim: bool) -> int:
 
 
 def _modos(settings: Settings, args: argparse.Namespace) -> int:
-    """Pânico e não perturbe pela linha de comando (regra 48). O estado mora no banco: o servidor
+    """Pânico e não perturbe pela linha de comando (REGRAS.md: pânico é corte; não perturbe só
+    segura). O estado mora no banco: o servidor
     que estiver de pé obedece em segundos, e o audit registra entrada e saída."""
     from datetime import datetime
 
@@ -293,7 +295,8 @@ def _mcp_check(config: Path) -> int:
 
 
 def _mcp_servidor(settings: Settings, args: argparse.Namespace) -> int:
-    """O Orion como servidor MCP só de leitura (E7.7, regra 56). Em modo servidor, stdout é do
+    """O Orion como servidor MCP só de leitura (E7.7, REGRAS.md: o Orion como servidor MCP só lê).
+    Em modo servidor, stdout é do
     protocolo: tudo que for mensagem humana sai em stderr."""
     import os
 
@@ -323,7 +326,8 @@ def _mcp_servidor(settings: Settings, args: argparse.Namespace) -> int:
 
 
 def _rotina(settings: Settings, args: argparse.Namespace) -> int:
-    """Rotinas suas (E9.1, regra 58): listar, exemplo, conceder, revogar e executar."""
+    """Rotinas suas (E9.1, REGRAS.md: automação sua vale pelo arquivo concedido): listar, exemplo,
+    conceder, revogar e executar."""
 
     from .memory import MemoryStore
     from .rotinas import EXEMPLO_BOM_DIA, RotinaStore
@@ -441,7 +445,8 @@ def _posso_desligar(settings: Settings, args: argparse.Namespace) -> int:
 
 
 def _downloads(settings: Settings, args: argparse.Namespace) -> int:
-    """Organizador de Downloads com regras suas (E9.4, regra 58)."""
+    """Organizador de Downloads com regras suas (E9.4, REGRAS.md: automação sua vale pelo arquivo
+    concedido)."""
     from .downloads import EXEMPLO, Downloads
     from .memory import MemoryStore
     from .policy import PathGuard
@@ -533,7 +538,8 @@ def _estilo(settings: Settings, args: argparse.Namespace) -> int:
             print("nada foi enviado")
             return 1
         store = MemoryStore(settings.db_path)
-        saidas.definir_destino(store.add_external_call)  # o código sai do computador (regra 47)
+        # o código sai do computador (REGRAS.md: toda saída de dado fica registrada, sem conteúdo)
+        saidas.definir_destino(store.add_external_call)
         try:
             arquivo = gerar([Path(r) for r in args.repos], Delegator(store), pasta, args.agente)
         finally:

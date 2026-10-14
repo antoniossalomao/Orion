@@ -122,8 +122,12 @@ class Agent:
         self._ops = ops
         self._skills = skills
         self._library = library
-        self._compactor = compactor  # auto-compact (regra 53): resume o que saiu da janela
-        self._modos = modos  # pânico (regra 48): corta egress, external, exec e destrutiva
+        # auto-compact (REGRAS.md: resumo da conversa nunca substitui o registro): resume o que saiu
+        # da janela
+        self._compactor = compactor
+        # pânico (REGRAS.md: pânico é corte; não perturbe só segura): corta egress, external, exec e
+        # destrutiva
+        self._modos = modos
         self._persona = persona
         self._clock = clock
         self._max_iter = max_iterations
@@ -231,7 +235,9 @@ class Agent:
                 ):
                     yield ev
             finally:
-                if self._compactor is not None:  # depois da resposta, em segundo plano (regra 53)
+                # depois da resposta, em segundo plano (REGRAS.md: resumo da conversa nunca
+                # substitui o registro)
+                if self._compactor is not None:
                     self._compactor.agendar(session.id)
 
     def busy(self, session_id: str) -> bool:
@@ -324,7 +330,8 @@ class Agent:
             self.memory.counter_set(f"taint:{session.id}", 1)
         mensagens.extend(item.message() for item in external or [])
         if skill_forcada and self._skills is not None:
-            # como se o modelo tivesse chamado `carregar_skill` (regra 40)
+            # como se o modelo tivesse chamado `carregar_skill` (REGRAS.md: skill é texto, não
+            # código)
             carga = json.dumps(self._skills.load(skill_forcada), ensure_ascii=False)
             mensagens.extend(
                 [
@@ -562,7 +569,8 @@ class Agent:
         return spec is not None and spec.risk is Risk.READ
 
     def _cortada_pelo_panico(self, nome: str) -> bool:
-        """Em pânico some tudo que fala com a rede, traz conteúdo de fora ou executa (regra 48).
+        """Em pânico some tudo que fala com a rede, traz conteúdo de fora ou executa (REGRAS.md:
+        pânico é corte; não perturbe só segura).
         Ferramenta sem classe conhecida também some (falha fechada)."""
         if self._modos is None or not self._modos.panico():
             return False
@@ -831,7 +839,7 @@ class Agent:
                 }
             )
         resumo = self.memory.get_summary(session.id)
-        if resumo:  # regra 53: o que saiu da janela, resumido; sempre marcado como gerado
+        if resumo:  # REGRAS.md: o que saiu da janela, resumido; sempre marcado como gerado
             msgs.append({"role": "user", "content": f"{CABECALHO}\n{resumo['text']}"})
         # nota do sistema vira fala de "user": nem todo provedor aceita system no meio
         msgs.extend(

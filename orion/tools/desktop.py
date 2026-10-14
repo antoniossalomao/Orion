@@ -5,10 +5,11 @@ Três ferramentas, com os nomes e as classes de risco do legado: `executar_coman
 `listar_arquivos` (leitura; segredo e chave pedem confirmação, via `PathGuard.check_read`).
 **Desligado por padrão**: só entra no registro com `ORION_DESKTOP_TOOLS=true`.
 
-O shell roda sem herdar `ORION_*` nem variável com nome de segredo (regra 5), sem entrada
+O shell roda sem herdar `ORION_*` nem variável com nome de segredo (REGRAS.md: segredos nunca em
+log, audit ou processo filho), sem entrada
 padrão, com tempo-limite e saída truncada. No Windows usa PowerShell; no macOS/Linux, `sh`.
 O caminho do Windows só tem o argv testado aqui (o CI de Windows roda esses testes, mas
-nenhum comando real: ver ORION_MELHORIAS).
+nenhum comando real: ver ORION_LEGADO.md).
 """
 
 from __future__ import annotations
@@ -70,7 +71,8 @@ def desktop_tools(
         if argv is None:
             return {"erro": "nenhum shell encontrado (PowerShell no Windows, sh no macOS/Linux)"}
         try:
-            # argv fixo (shell + cmd); a política já decidiu se `cmd` roda sem confirmação (regra 6)
+            # argv fixo (shell + cmd); a política já decidiu se `cmd` roda sem confirmação
+            # (REGRAS.md: shell só roda sem confirmação o que é leitura provada)
             r = runner(
                 argv,
                 cwd=cwd,

@@ -1,5 +1,5 @@
 /* ==========================================================================
-   ORION — ponte_pagina.js | as janelas pequenas da ponte de desktop (regra 50)
+   ORION — ponte_pagina.js | as janelas pequenas da ponte de desktop (REGRAS.md: ponte de desktop só abre e cola o que você aprovou)
    Modo `rapido` (E2.3): uma linha vira tarefa/lembrete/gasto/nota por POST /captura.
    Modo `isso` (E2.5): mostra a captura da tela e pergunta ao modelo de visão (POST /ponte/explicar).
    O token da ponte vem no fragmento da URL, fica só em memória e sai da barra de endereços.

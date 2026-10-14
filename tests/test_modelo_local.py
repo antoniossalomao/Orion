@@ -1,4 +1,4 @@
-"""Modelo local de reserva (regra 49): último da fila, sem ferramentas, só neste computador."""
+"""Modelo local de reserva (REGRAS.md: modelo local é reserva sem ferramentas): último da fila, sem ferramentas, só neste computador."""
 
 import json
 
@@ -24,7 +24,7 @@ FERRAMENTA = {"type": "function", "function": {"name": "x", "parameters": {"type
     ["http://192.168.0.10:11434/v1", "https://ollama.exemplo.com/v1", "ftp://127.0.0.1/v1"],
 )
 def test_endereco_do_modelo_local_so_aceita_este_computador(url):
-    with pytest.raises(ValidationError, match="regra 49"):
+    with pytest.raises(ValidationError, match="ORION_LOCAL_URL só aceita"):
         Settings(local_url=url, _env_file=None)
 
 

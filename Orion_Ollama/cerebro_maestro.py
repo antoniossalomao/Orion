@@ -469,7 +469,7 @@ _TOOL_KEYWORDS_RE = re.compile(r"\b(" + "|".join(
     re.escape(k) for k in sorted(_TOOL_KEYWORDS, key=len, reverse=True)) + r")", re.IGNORECASE)
 
 
-# Enxame de Especialistas (MoE roteado) — ver ORION_TECNICO.md
+# Enxame de Especialistas (MoE roteado) — ver ORION_LEGADO.md
 # §3.2, formalizada aqui em 02/07/2026. Cada especialista declara categoria +
 # trigger (função que decide se casa com a mensagem) + ordem de andares da
 # cascata pra essa categoria. O roteador percorre a lista NA ORDEM e usa o

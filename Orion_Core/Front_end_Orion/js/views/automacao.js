@@ -1,6 +1,6 @@
 /* ==========================================================================
    ORION — views/automacao.js | automação do dia a dia (E9) em Atividade
-   Rotinas (regra 58), tarefa em segundo plano (regra 59), organizador de Downloads (regra 58) e
+   Rotinas (REGRAS.md: automação sua vale pelo arquivo concedido), tarefa em segundo plano (REGRAS.md: tarefa em segundo plano só lê e propõe), organizador de Downloads (REGRAS.md: automação sua vale pelo arquivo concedido) e
    "posso desligar?". Nada aqui executa por conta própria: cada botão é um pedido seu, e o que o
    modelo propõe volta para o campo de mensagem (onde vale a política de sempre).
    Só `textContent`: nada que vem do servidor vira HTML.

@@ -1,4 +1,5 @@
-"""Plugins locais (C19–C30, regra 45): pacote de skills e servidores MCP, instalado e concedido.
+"""Plugins locais (C19–C30, REGRAS.md: plugin é pacote sem poder próprio): pacote de skills e
+servidores MCP, instalado e concedido.
 
 Um plugin é uma pasta com `plugin.json` (nome, versão, descrição), uma pasta opcional `skills/`
 (cada skill é uma pasta com `SKILL.md`, ver `orion.skills`) e servidores MCP declarados no próprio
@@ -9,9 +10,10 @@ manifesto (no formato do `mcp.json`, com a classe de risco de cada ferramenta).
 - **Nada vale sem concessão**: depois de instalado o plugin fica inativo. `conceder` registra o
   hash do pacote inteiro (manifesto + todos os arquivos); `revogar` tira. **Qualquer mudança no
   pacote (atualização, edição) invalida a concessão** até você conceder de novo.
-- **O que a concessão libera** é exatamente o que `describe()` mostra: as skills (texto, regra 40)
-  e os servidores MCP (que sobem sob a política de risco de sempre, regra 24; a classe vem do
-  manifesto que você leu, nunca do servidor). Mudanças valem depois de reiniciar o Orion.
+- **O que a concessão libera** é exatamente o que `describe()` mostra: as skills (texto,
+  REGRAS.md: skill é texto, não código) e os servidores MCP (que sobem sob a política de
+  risco de sempre, REGRAS.md: MCP: a classe de risco é do mcp.json, não do servidor; a classe
+  vem do manifesto que você leu, nunca do servidor). Mudanças valem depois de reiniciar o Orion.
 """
 
 from __future__ import annotations

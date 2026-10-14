@@ -140,7 +140,9 @@ class LerDepois:
             return item
         url = item["url"]
         if e_video(url):
-            return item  # vídeo: `orion transcrever <link>` (regra 43); aqui só fica na lista
+            # vídeo: `orion transcrever <link>` (REGRAS.md: transcrever mídia é comando seu); aqui
+            # só fica na lista
+            return item
         try:
             titulo, texto = await asyncio.to_thread(self._ler, url)
             resumo = await self._resumir(url, titulo, texto)

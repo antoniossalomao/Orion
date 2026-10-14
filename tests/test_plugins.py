@@ -1,4 +1,4 @@
-"""Plugins locais (regra 45): instalar não executa, nada vale sem concessão, mudança revoga."""
+"""Plugins locais (REGRAS.md: plugin é pacote sem poder próprio): instalar não executa, nada vale sem concessão, mudança revoga."""
 
 import json
 import shutil

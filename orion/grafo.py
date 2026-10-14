@@ -3,7 +3,8 @@ mais curto entre duas coisas ("o que liga X a Y?").
 
 O grafo é montado na hora, só de leitura, a partir do que já está no banco:
 
-- `fato:<id>`: um fato (tipo `fato`), no escopo pedido (regra 52);
+- `fato:<id>`: um fato (tipo `fato`), no escopo pedido (REGRAS.md: o que é de um projeto fica no
+  projeto);
 - `topic:<nome>` e `message:<id>`: o grafo importado do legado (tipos `topico` e `evento`);
 - `entidade:<texto>`: as coisas que o ciclo de sono ligou (arestas `kind=sono`), tipo `topico`;
 - `doc:<fonte>`: notas do vault e documentos enviados (tipo `nota`), ligadas por [[wikilinks]]

@@ -2,7 +2,7 @@
 
 Importados só quando `orion ponte` sobe (`pip install "orion[ponte]"`). Nada disto foi exercitado
 numa tela real nesta etapa: `tests/test_ponte.py` prova o núcleo com falsos; o que depende de
-teclado, bandeja e janela de verdade é a prova manual da E2 (ORION_PLANO_RODADA2 §E2).
+teclado, bandeja e janela de verdade é a prova manual da E2 (ORION_LEGADO.md §E2).
 """
 
 from __future__ import annotations

@@ -7,12 +7,15 @@ próximo:
 - 429 põe aquele modelo em quarentena pelo `Retry-After` (ou `cooldown_s`);
 - `FALHAS_PARA_PAUSA` falhas seguidas o pausam, com espera que dobra até `PAUSA_MAX_S`;
 - `orcamento(ep)` falso (o Orion já gastou o `limite_dia` do provedor hoje) o manda para o fim
-  da fila: só é tentado se nenhum outro responder, porque o chat nunca é bloqueado (regra 46).
+  da fila: só é tentado se nenhum outro responder, porque o chat nunca é bloqueado (REGRAS.md: custo
+  zero (sem API paga)).
 
 Falha no meio do texto não troca de endpoint (a resposta já começou) e vira `GatewayError`.
 
-Cada tentativa por endpoint vira uma linha no registro de saída (regra 47, `on_call`): provedor,
-modelo, ok, latência e bytes, nunca o conteúdo. O modelo local (regra 49) entra como endpoint de
+Cada tentativa por endpoint vira uma linha no registro de saída (REGRAS.md: toda saída de dado fica
+registrada, sem conteúdo; `on_call`): provedor,
+modelo, ok, latência e bytes, nunca o conteúdo. O modelo local (REGRAS.md: modelo local é reserva
+sem ferramentas) entra como endpoint de
 camada `local`: é sempre o último e nunca recebe `tools`.
 """
 
@@ -31,7 +34,9 @@ from . import saidas
 
 log = logging.getLogger("orion.gateway")
 
-CAMADA_LOCAL = "local"  # modelo local de reserva (regra 49): último da fila e sem ferramentas
+# modelo local de reserva (REGRAS.md: modelo local é reserva sem ferramentas): último da fila e sem
+# ferramentas
+CAMADA_LOCAL = "local"
 AVISO_RESERVA = "Modo reserva: sem ferramentas. Responda só com texto; não prometa executar ações."
 
 
@@ -44,9 +49,12 @@ class Endpoint:
     timeout_s: float = 60.0
     # camada de roteamento (`orion.router`): "rapido", "pesado", "visao" ou vazio (modelo padrão).
     # Endpoint de camada só é tentado quando a mensagem é daquela camada; o padrão é o reserva.
-    # "local" (regra 49) é o modelo deste computador: sempre por último, em qualquer camada.
+    # "local" (REGRAS.md: modelo local é reserva sem ferramentas) é o modelo deste computador:
+    # sempre por último, em qualquer camada.
     tier: str = ""
-    tools: bool = True  # False: a requisição sai sem `tools` (modelo local, regra 49)
+    # False: a requisição sai sem `tools` (modelo local, REGRAS.md: modelo local é reserva sem
+    # ferramentas)
+    tools: bool = True
     provedor: str = ""  # id em orion/provedores.py; vazio = endpoint avulso (ORION_GATEWAY_URL)
 
     @property
@@ -292,7 +300,9 @@ class ChatGateway:
         tentativa: _Tentativa | None = None,
     ) -> AsyncIterator[Event]:
         tentativa = tentativa or _Tentativa()
-        if not ep.tools:  # modelo local (regra 49): nunca recebe ferramentas, e sabe disso
+        # modelo local (REGRAS.md: modelo local é reserva sem ferramentas): nunca recebe
+        # ferramentas, e sabe disso
+        if not ep.tools:
             messages = [{"role": "system", "content": AVISO_RESERVA}, *messages]
         corpo: dict[str, Any] = {"model": ep.model, "messages": messages, "stream": True}
         if tools and ep.tools:

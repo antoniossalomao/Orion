@@ -1,7 +1,7 @@
 /* ==========================================================================
    ORION — md.js | markdown seguro + realce de código (puro, sem DOM)
    ==========================================================================
-   Regras de segurança (ORION_REGRAS.md 10–12), todas cobertas em tests/front:
+   Regras de segurança (REGRAS.md: WebSocket confere Origin; upload com limite de tamanho e nome sanitizado; chat só renderiza imagem gerada pelo Orion), todas cobertas em tests/front:
      1. escapa & < > " ' ANTES de qualquer formatação; nada do texto vira tag;
      2. link só http(s)/mailto, com `rel` seguro e o host visível quando o texto engana;
      3. a única imagem renderizada é a gerada pelo próprio Orion (/imagens/<arquivo>):

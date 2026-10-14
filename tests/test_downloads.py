@@ -1,4 +1,4 @@
-"""E9.4 (regra 58): organizador de Downloads com regras suas, concedidas pelo hash."""
+"""E9.4 (REGRAS.md: automação sua vale pelo arquivo concedido): organizador de Downloads com regras suas, concedidas pelo hash."""
 
 import os
 from pathlib import Path

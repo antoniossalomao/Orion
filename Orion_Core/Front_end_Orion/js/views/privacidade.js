@@ -1,5 +1,5 @@
 /* ==========================================================================
-   ORION — views/privacidade.js | o que saiu do computador (regra 47)
+   ORION — views/privacidade.js | o que saiu do computador (REGRAS.md: toda saída de dado fica registrada, sem conteúdo)
    Tudo vem de `GET /privacidade` (orion/app.py): por dia e provedor, quantos envios, quantos bytes e
    de que tipo (texto, imagem, áudio). Nunca o conteúdo. Barras empilhadas em CSS com a geometria de
    `charts.empilhadas` (testada em Node); só `textContent`.

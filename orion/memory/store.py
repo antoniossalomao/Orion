@@ -105,7 +105,7 @@ class Hit:
     via: str  # "fts", "vec" ou "fts+vec"
 
 
-PESO_FATO_ANTIGO = 0.3  # regra 54
+PESO_FATO_ANTIGO = 0.3  # REGRAS.md: o Orion não decide sozinho qual fato vale
 SEM_PROJETO = "nenhum"  # filtro de `list_sessions`: só as conversas sem projeto
 
 # Tabelas que ainda apontam para uma conversa (sem ON DELETE): apagar a conversa as deixaria órfãs.
@@ -632,7 +632,8 @@ class MemoryStore:
             session_id, limit, after=self.counter_get(f"history_after:{session_id}")
         )
 
-    # ── resumo da conversa (E4.4, regra 53): tabela à parte, o registro nunca muda ──
+    # ── resumo da conversa (E4.4, REGRAS.md: resumo da conversa nunca substitui o registro): tabela
+    # à parte, o registro nunca muda ──
     def get_summary(self, session_id: str) -> dict[str, Any] | None:
         rows = self.query("SELECT * FROM session_summaries WHERE session_id=?", (session_id,))
         return dict(rows[0]) if rows else None
@@ -787,7 +788,8 @@ class MemoryStore:
 
     def search_facts(self, query: str, limit: int = 20) -> list[Fact]:
         """Fatos que casam com a consulta (FTS) ou que a contêm como trecho literal, só do escopo
-        atual (regra 52). Fato vencido ou substituído vem depois dos vigentes."""
+        atual (REGRAS.md: o que é de um projeto fica no projeto). Fato vencido ou substituído vem
+        depois dos vigentes."""
         limit = max(1, min(limit, 100))
         q = fts_query(query)
         predicado, params = clause("project_id")
@@ -817,7 +819,8 @@ class MemoryStore:
         fatos = [f for f in achados if f is not None]
         return sorted(fatos, key=lambda f: f.old)  # estável: mantém a ordem da busca
 
-    # ── projeto, validade e substituição de fatos (E4.1 e E4.5; regras 52 e 54) ──
+    # ── projeto, validade e substituição de fatos (E4.1 e E4.5; REGRAS.md: o que é de um projeto
+    # fica no projeto; o Orion não decide sozinho qual fato vale) ──
     def move_fact(self, fact_id: int, project_id: str | None) -> Fact:
         """Muda o escopo do fato (None = pessoal). Quem chama já conferiu o projeto de destino.
         Como o fato sai do escopo atual, o vetor e o índice seguem o `id` e não precisam refazer.
@@ -933,7 +936,8 @@ class MemoryStore:
         """Pares (mais antigo, mais novo) que falam do mesmo assunto com informação diferente
         ("mora em Marília" × "mora em Bauru"): metade ou mais das palavras do menor fato em comum,
         mas não tão parecidos a ponto de serem duplicados, e cada um com palavras que o outro não
-        tem. Fato já substituído ou gerado pelo sono não entra. Só sugere (regra 54)."""
+        tem. Fato já substituído ou gerado pelo sono não entra. Só sugere (REGRAS.md: o Orion não
+        decide sozinho qual fato vale)."""
         fatos = [
             f
             for f in self.facts()[:limite]
@@ -1205,7 +1209,7 @@ class MemoryStore:
                 textos[chave] = (texto, fonte)
                 vias.setdefault(chave, set()).add(via)
         antigos = self._fatos_antigos([i for kd, i in placar if kd == "fact"])
-        for i in antigos:  # regra 54: vencido ou substituído pesa 0,3, mas não some
+        for i in antigos:  # REGRAS.md: vencido ou substituído pesa 0,3, mas não some
             placar[("fact", i)] *= PESO_FATO_ANTIGO
         ordem = sorted(placar, key=lambda x: placar[x], reverse=True)
         if self.reranker is not None and len(ordem) > 1:
@@ -1319,7 +1323,8 @@ class MemoryStore:
                 c.execute("SELECT value FROM meta WHERE key=?", (f"counter:{chave}",)).fetchone()[0]
             )
 
-    # ── valores livres no `meta` (estado dos modos, regra 48) ──────────────
+    # ── valores livres no `meta` (estado dos modos, REGRAS.md: pânico é corte; não perturbe só
+    # segura) ──────────────
     def meta_get(self, chave: str) -> str | None:
         with self._lock:
             return self._meta(self._conn, f"valor:{chave}")
@@ -1336,7 +1341,8 @@ class MemoryStore:
                     (f"valor:{chave}", valor),
                 )
 
-    # ── registro de saída (regra 47): tamanho e tipo, nunca o conteúdo ─────
+    # ── registro de saída (REGRAS.md: toda saída de dado fica registrada, sem conteúdo): tamanho e
+    # tipo, nunca o conteúdo ─────
     def add_external_call(
         self,
         *,
