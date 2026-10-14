@@ -137,6 +137,7 @@ class TelegramChannel:
         # E9.10: quem manda voz recebe voz; o app liga com ORION_TELEGRAM_VOICE_REPLY
         self.speaker: Any = None  # tem `async falar(texto) -> bytes` (mp3)
         self.ler_depois: Any = None  # LerDepois (E9.8); o app liga depois
+        self.vida: Any = None  # VidaCanal (E10): /financas, /contas, /foco, /revisao, gastos
         self.rotinas: Any = None  # RotinaStore (regra 58); o app liga depois
         self.executar_rotina: Callable[[str, str], Awaitable[Any]] | None = None
         self._clock = clock
@@ -367,6 +368,11 @@ class TelegramChannel:
         if not texto:
             await self._enviar(chat_id, "Entendo texto, voz e foto por aqui.")
             return
+        if self.vida is not None:
+            resposta_vida = await self.vida.tratar_async(chat_id, texto)
+            if resposta_vida is not None:  # E10: é da vida pessoal; o resto segue para o agente
+                await self._enviar(chat_id, resposta_vida)
+                return
         if comando in ("/start", "/ajuda"):
             await self._enviar(chat_id, BOAS_VINDAS)
         elif comando == "/painel":

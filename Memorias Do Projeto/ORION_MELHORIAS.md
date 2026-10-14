@@ -373,31 +373,31 @@ estava ligada ao agente (não mexi; as duas ferramentas novas de histórico est�
 
 **Não verificado (E9):** tudo marcado ❌ acima.
 
-## Décima sexta rodada (14/10/2026): plano da rodada 2, etapa E10 (parcial)
+## Décima sexta rodada (14/10/2026): plano da rodada 2, etapa E10
 
-Plano em [ORION_PLANO_RODADA2.md](ORION_PLANO_RODADA2.md). Regras 61, 62 e 63 escritas antes do código em
+Plano em [ORION_PLANO_RODADA2.md](ORION_PLANO_RODADA2.md). Regras 61, 62 e 63 (escritas antes do código) em
 [ORION_REGRAS.md](ORION_REGRAS.md). **Esquema v22** (`transactions`, `bills`, `price_watch`, `reminders.kind`): o plano falava em
 v16, mas o banco já estava na v21. Opt-ins novos: `ORION_DIARY_AT`, `ORION_WEEKLY_REVIEW_AT`, `ORION_FOCUS_DISTRACTIONS`.
 
-**Esta etapa não está fechada.** O motor e a API estão prontos e testados; a superfície (Telegram, telas, ferramentas do modelo,
-voz, linha do tempo) e a prova de uma semana real não. O PR da E10 não deve ser tratado como etapa concluída.
-
 | ID | Entrega | Status |
 |---|---|---|
-| E10.1 Revisão semanal | `montar_revisao` (5 passos) e nota em `Revisão/` aos domingos (`ORION_WEEKLY_REVIEW_AT`) | ◐ esqueleto da nota; ❌ conversa guiada, blocos na agenda, projetos reais (sai vazio) |
-| E10.2 Diário | `montar_diario` + `VidaJobs` escreve `Diário/AAAA-MM-DD.md` uma vez por dia (commits de `ORION_REPOS`, gastos do dia) | ◐ ✅ unidade com git real em pasta temporária; ❌ resumo pelo modelo local, conversas, documentos, resultados e tela |
-| E10.3 Gastos | `parse_gasto` por regra, `transactions`, `GET /financas/resumo`, `POST /financas/gastos`, captura rápida (`gastei 30 no mercado`) com desfazer | ◐ ✅ API e captura com teste; ❌ Telegram, fatura em PDF, parser por modelo local quando ambíguo |
-| E10.4 Contas | `bills`, `parse_linha_digitavel` (boleto de 47 dígitos, valor e vencimento pelo fator), avisos 3 e 1 dia antes uma vez por dia, `POST …/pagar` (lança em `transactions`) | ◐ ✅ unidade e API; ❌ leitura de boleto em PDF e foto (OCR), "paguei" pelo chat |
-| E10.5 Monitor de preço | `price_watch`, `avaliar_preco` (alvo ou queda de 5%), uma consulta por item por dia, `GET/POST /precos` | ◐ ✅ lógica e API com pesquisa falsa; ❌ job não agendado (falta injetar a pesquisa e a cota), sem aviso ao celular |
-| E10.6 Cápsula | `capsula()` cria lembrete com `kind='capsula'` | ◐ ✅ banco; ❌ comando no chat, contexto da conversa com link |
-| E10.7 Cenários | `simular()` Monte Carlo (10 mil rodadas, seed opcional) sobre o histórico mensal; `POST /vida/simular` devolve p10/p50/p90 | ◐ ✅ unidade e API; ❌ ferramenta do modelo `simular_cenarios` (precisa de classe de risco), tela |
-| E10.8 Linha do tempo | — | ❌ não feito |
-| E10.9 Sonhos | — | ❌ não feito (depende de entrar no ciclo de sono) |
-| E10.10 Escudo de foco | `Foco`: bloco em memória, `e_distracao` por lista, **uma** pergunta por bloco, nunca bloqueia (regra 62, testada) | ◐ ✅ lógica; ❌ `/foco`, avisos presos pelo não perturbe, ligação com a memória da tela |
-| E10.11 Estado pela voz | `EstadoVoz`: ritmo e energia contra a sua média (só memória, regra 63) | ◐ ✅ lógica; ❌ ligação ao pipeline de voz (medir energia do áudio), estilo aplicado à resposta |
+| E10.1 Revisão semanal | `Revisao` (5 passos por conversa no Telegram, `/revisao`, `/fim`), nota em `Revisão/`; `montar_revisao` e job de domingo | ✅ unidade e `VidaCanal`; ❌ blocos reais na agenda (só proposta em texto; a agenda pede aprovação e não foi ligada) e lista de projetos (sai vazia) |
+| E10.2 Diário | `montar_diario` + `VidaJobs` escreve `Diário/AAAA-MM-DD.md`, uma vez por dia (commits de `ORION_REPOS` e gastos) | ✅ com git real em pasta temporária; ❌ resumo pelo modelo local (sai a linha de contagem); conversas, documentos, resultados e tela não entram |
+| E10.3 Gastos | `parse_gasto` por regra; modelo local como fallback (`gasto_por_modelo`); `/financas`, `POST /financas/gastos`, captura e `VidaCanal` com desfazer | ✅ API, captura e `VidaCanal` com teste (é o objeto que o Telegram chama; o canal em si não foi testado); ❌ navegador real |
+| E10.4 Contas | `bills`; boleto de 47 dígitos (valor e vencimento pelo fator); avisos 3 e 1 dia; `/contas`, `/pagar`, fatura em texto com revisão e confirmação (`/financas/fatura/*`) | ✅ unidade e API; ❌ PDF e foto de boleto (OCR não ligado; a fatura entra como texto extraído) |
+| E10.5 Monitor de preço | `price_watch`; job diário com a busca da web, gated pela cota (regra 46); alerta de alvo ou queda de 5% | ✅ job com busca falsa e cota; ❌ busca real (depende de `ORION_WEB_TOOLS` e da chave do Brave) |
+| E10.6 Cápsula | "daqui 6 meses me cobra isso" (captura e Telegram) vira lembrete `kind='capsula'`; desfazer | ✅ unidade e captura; ❌ link para a conversa de origem (guarda o texto, não o link) |
+| E10.7 Cenários | `simular()` Monte Carlo sobre o histórico mensal; `/simular` (VidaCanal) e `POST /vida/simular`; tela | ✅ unidade, `VidaCanal` e API; ❌ ferramenta do modelo: **de propósito, não feita** (regra 61: o resultado sairia para a nuvem) |
+| E10.8 Linha do tempo | `linha_do_tempo` (conversas, gastos, tela, área, cápsulas, documentos, diário, commits); `GET /linha-do-tempo`; tela com zoom dia e semana | ✅ unidade, API e Node; ❌ navegador real (e2e não rodou) |
+| E10.9 Sonhos | Passo no ciclo de sono (`ORION_SLEEP_AT`): ideia que liga dois fatos sem palavra em comum; fica pendente até o 'boa' (`POST /sonhos/{id}/boa`), 'descartar' fecha | ✅ unidade com modelo falso e API; ❌ aparece no briefing da manhã (só na lista de avisos) |
+| E10.10 Escudo de foco | `/foco N` (Telegram) e `POST /foco/iniciar`; a tela de captura de memória chama o escudo; uma pergunta por bloco; nunca bloqueia (regra 62, testada) | ✅ unidade, `VidaCanal` e API; ❌ avisos não urgentes presos pelo não perturbe (não ligado) |
+| E10.11 Estado pela voz | `medir_wav` (duração e energia de WAV PCM 16 bits); `EstadoVoz` por fala; resposta mais curta quando a fala vem apressada ou baixa | ✅ unidade e lógica no turno de voz; ❌ energia de OGG, WebM e MP3 (sem decodificador no projeto: só ritmo, e sem duração não há ritmo) |
 
-**Não verificado (E10):** tudo acima que está marcado ◐ com ❌ ao lado. Os testes de navegador (`tests/front_e2e`) e os de Node
-do front não foram rodados nesta rodada, porque a E10 ainda não tem tela.
+**Limites que ficaram por decisão, não por falta de tempo:** nenhuma ferramenta do modelo expõe finanças (regra 61); o escudo
+de foco nunca fecha nem bloqueia (regra 62); o estado pela voz só guarda médias em memória (regra 63).
+
+**Não verificado (E10):** navegador (`tests/front_e2e`) não foi rodado para a tela Vida; o teste Node cobre só a lógica pura.
+Prova de uma semana real segue pendente: é com o Antônio.
 
 ## O que foi construído (por fase do NUCLEO)
 

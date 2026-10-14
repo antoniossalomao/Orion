@@ -206,7 +206,12 @@ def test_jobs_de_vida_escrevem_diario_e_revisao_uma_vez(memoria, tmp_path):
     assert primeiro["diario"] and primeiro["revisao"]
     assert (vault / "Diário" / "2026-10-11.md").read_text(encoding="utf-8").count("R$ 25,00") >= 1
     assert "tarefa A" in next((vault / "Revisão").glob("*.md")).read_text(encoding="utf-8")
-    assert vida.tick() == {"avisos": 0, "diario": None, "revisao": None}  # idempotente
+    assert vida.tick() == {
+        "avisos": 0,
+        "diario": None,
+        "revisao": None,
+        "precos": [],
+    }  # idempotente
     segunda = datetime(2026, 10, 12, 23, 30).timestamp()
     relogio["t"] = segunda
     assert vida.tick()["revisao"] is None  # revisão é só no domingo

@@ -280,7 +280,13 @@ class JobRunner:
             if self._clipboard_days > 0:
                 self._passo(rel, "area", lambda: self._historicos.podar_area(self._clipboard_days))
         if self._vida is not None and self._devido("vida"):
-            self._passo(rel, "vida", self._vida.tick)
+            self._passo(
+                rel,
+                "vida",
+                lambda: self._vida.tick(
+                    permitido=lambda: self._pode(rel, "o monitor de preço", "brave")
+                ),
+            )
         if self._downloads is not None and not self._panico() and self._devido("downloads"):
             self._passo(rel, "downloads", lambda: len(self._downloads.rodar().movidos))
 

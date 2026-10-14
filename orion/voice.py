@@ -31,6 +31,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 from . import saidas
 from .agent import Agent
 from .transcribe import MAX_AUDIO, TranscribeError, Transcriber
+from .vida import medir_wav
 
 log = logging.getLogger("orion.voice")
 
@@ -159,6 +160,7 @@ async def turno_de_voz(
     speaker: Speaker | None,
     audio: bytes,
     canal: str = "web",
+    estado: Any = None,  # EstadoVoz (E10.11, regra 63); None: sem estilo pela fala
 ) -> AsyncIterator[dict[str, Any] | bytes]:
     """Uma fala vira um turno do agente. Produz mensagens JSON (dict) e, no fim, o áudio da
     resposta (bytes) logo depois de `{"type": "audio"}`. O turno sempre termina em `done`, com ou
@@ -175,6 +177,11 @@ async def turno_de_voz(
         yield {"type": "done"}
         return
     yield {"type": "heard", "text": texto}
+    estilo = "normal"
+    medida = medir_wav(audio) if estado is not None and tipo[1] == "audio/wav" else None
+    if estado is not None and medida is not None:
+        duracao, energia = medida
+        estilo = estado.observar(len(texto.split()), duracao, energia)  # só médias (regra 63)
     falado: list[str] = []
     precisa_aprovar = False
     async for ev in agent.run(canal, texto):
@@ -185,7 +192,8 @@ async def turno_de_voz(
         corpo = ev.corpo()
         if corpo is not None:
             yield {"type": "ev", "ev": corpo}
-    resposta = falavel("".join(falado))
+    # regra 63: o estilo só encurta a fala; não decide nada e não entra na memória
+    resposta = falavel("".join(falado), limite=180 if estilo == "curto" else MAX_FALA_CHARS)
     if precisa_aprovar:
         resposta = f"{resposta} {AVISO_APROVACAO}".strip()
     if speaker is not None and resposta:

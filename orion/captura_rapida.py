@@ -27,11 +27,18 @@ from pydantic import BaseModel, Field
 
 from .capture import CaptureError, Capturer
 from .ler_depois import LerDepoisError, so_um_link
-from .vida import categoria_de, parse_gasto
+from .vida import (
+    VERBO_GASTO,
+    capsula,
+    categoria_de,
+    dias_da_capsula,
+    gasto_por_modelo,
+    parse_gasto,
+)
 
 log = logging.getLogger("orion.captura")
 
-TipoCaptura = Literal["tarefa", "lembrete", "gasto", "nota"]
+TipoCaptura = Literal["tarefa", "lembrete", "gasto", "nota", "capsula"]
 DESFAZER_S = 600.0
 MAX_TEXTO = 2000
 
@@ -221,8 +228,34 @@ def router(require_auth: Any) -> Any:
         gateway = s.agent.gateway if s.agent is not None else None
         if s.modos is not None and s.modos.panico():
             gateway = None
+        if VERBO_GASTO.search(_sem_acento(texto)):
+            # regra 61: texto de gasto não vai à nuvem; a regra (ou o modelo local) decide
+            gateway = None
         c, origem = await classificar(gateway, texto)
+        if c.tipo == "gasto" and c.valor is None and parse_gasto(texto) is None:
+            g_local = await gasto_por_modelo(texto, s.gateway_local)
+            if g_local is not None:
+                c = Classificacao(
+                    tipo="gasto", titulo=g_local["description"], valor=g_local["cents"] / 100
+                )
+                origem = "modelo local"
         tipo, aviso = c.tipo, None
+        dias = (
+            dias_da_capsula(texto)
+            if re.search(r"\bme (cobra|lembra|avisa)", _sem_acento(texto))
+            else None
+        )
+        if dias is not None and s.memory is not None:  # E10.6: "daqui 6 meses me cobra isso"
+            cap = capsula(s.memory, texto[:200], dias, contexto=texto)
+            return {
+                "id": desfazer.registrar("capsula", cap["id"]),
+                "tipo": "capsula",
+                "titulo": cap["titulo"],
+                "quando": cap["quando"],
+                "valor": None,
+                "origem": origem,
+                "aviso": "cápsula guardada",
+            }
         g = parse_gasto(texto) if tipo == "gasto" else None  # "gastei 30 no mercado" sem R$
         cents = g["cents"] if g else (round(c.valor * 100) if c.valor is not None else None)
         if tipo == "gasto" and s.financas is not None and cents:
@@ -278,6 +311,9 @@ def router(require_auth: Any) -> Any:
             s.ler_depois.descartar(int(ref))
         elif tipo == "gasto" and s.financas is not None:
             s.financas.apagar_gasto(int(ref))
+        elif tipo == "capsula":
+            with s.memory.transaction() as c:
+                c.execute("DELETE FROM reminders WHERE id=? AND kind='capsula'", (int(ref),))
         elif tipo == "tarefa":
             s.ops.remove_task(int(ref))
         elif tipo == "lembrete":

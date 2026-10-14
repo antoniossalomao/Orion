@@ -107,6 +107,7 @@ class SleepCycle:
         self._hm = (h, m)
         self.memory, self.ops, self.gateway = memory, ops, gateway
         self._min_new, self._max_chars = min_new, max_chars
+        self.sonhos: bool = False  # E10.9: uma ideia que liga dois fatos (ligado pelo app)
 
     def devida(self) -> bool:
         dt = datetime.fromtimestamp(self.memory.clock())
@@ -122,6 +123,8 @@ class SleepCycle:
         conflitos = await asyncio.to_thread(self._conflitos)
         if self.gateway is None:
             return SleepResult(duplicados=dups, conflitos=conflitos)
+        if self.sonhos and self.gateway is not None:
+            await self._sonho(hoje)  # falha do sonho não atrasa a revisão (E10.9)
         novos = await asyncio.to_thread(self._fatos_novos)
         if len(novos) < self._min_new:
             return SleepResult(duplicados=dups, conflitos=conflitos)
@@ -206,3 +209,21 @@ class SleepCycle:
         for p in padroes:
             self.memory.add_fact(p, f"sono:destilado:{data}")
         return n_rel, len(self.memory.facts()) - antes
+
+    async def _sonho(self, hoje: int) -> None:
+        """E10.9: ideia que conecta dois fatos sem ligação. Só vira fato com o seu 'boa'."""
+        from ..vida import sonho_do_dia
+
+        fatos = await asyncio.to_thread(
+            lambda: [
+                r["text"]
+                for r in self.memory.query(
+                    "SELECT text FROM facts WHERE superseded_by IS NULL ORDER BY RANDOM() LIMIT 60"
+                )
+            ]
+        )
+        ideia = await sonho_do_dia(fatos, self.gateway)
+        if ideia:
+            await asyncio.to_thread(
+                self.ops.notify, "sonho", f"Sonho do dia: {ideia}", f"sonho:{hoje}"
+            )
