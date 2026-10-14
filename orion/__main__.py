@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import sqlite3
 import sys
+import time
 from pathlib import Path
 
 from .config import Settings
@@ -510,6 +511,40 @@ def _downloads(settings: Settings, args: argparse.Namespace) -> int:
         store.close()
 
 
+def _rosto(settings: Settings, args: argparse.Namespace) -> int:
+    """Cadastro e apagar do próprio rosto (E11.5, regra 65). Nenhuma ferramenta do modelo."""
+    from .camera import CameraError, decodificar, foto_jpeg
+    from .memory import MemoryStore
+    from .rosto import RostoError, Rostos, embedder_onnx
+
+    store = MemoryStore(settings.db_path)
+    try:
+        if args.acao == "apagar":
+            print(f"rosto apagado: {Rostos(store, lambda _: None).apagar()} vetor(es)")
+            return 0
+        if settings.face_model is None:
+            print(
+                "defina ORION_FACE_MODEL com o caminho do modelo de rosto (.onnx)", file=sys.stderr
+            )
+            return 1
+        if not args.nome.strip():
+            print("diga o seu nome: orion rosto cadastrar <nome>", file=sys.stderr)
+            return 1
+        print("olhe para a câmera: 5 fotos, uma por segundo")
+        fotos = []
+        for _ in range(5):
+            fotos.append(decodificar(foto_jpeg(settings.camera_device)))
+            time.sleep(1.0)
+        rostos = Rostos(store, embedder_onnx(settings.face_model))
+        print(f"cadastrado: {rostos.cadastrar(args.nome, fotos)} amostra(s)")
+        return 0
+    except (RostoError, CameraError) as e:
+        print(str(e), file=sys.stderr)
+        return 1
+    finally:
+        store.close()
+
+
 def _estilo(settings: Settings, args: argparse.Namespace) -> int:
     """Skill `estilo-antonio` a partir dos seus repositórios (E7.8). Nasce desativada."""
     from . import saidas
@@ -634,6 +669,9 @@ def main(argv: list[str] | None = None) -> int:
     cv.add_argument("arquivo")
     cv.add_argument("formato", help="pdf, docx, mp3, png, comprimir… ou ? para ver as opções")
     cv.add_argument("--saida", default="", help="pasta de saída (padrão: <dados>/conversoes)")
+    ro = sub.add_parser("rosto", help="reconhecimento facial local (E11.5): cadastrar, apagar")
+    ro.add_argument("acao", choices=["cadastrar", "apagar"])
+    ro.add_argument("nome", nargs="?", default="", help="seu nome, no cadastro")
     sub.add_parser("posso-desligar", help="o que ficaria pela metade se desligasse agora")
     dl = sub.add_parser("downloads", help="organizador de Downloads com as suas regras")
     dl.add_argument(
@@ -850,6 +888,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.cmd == "converter":
         return _converter(settings, args)
+    if args.cmd == "rosto":
+        return _rosto(settings, args)
     if args.cmd == "posso-desligar":
         return _posso_desligar(settings, args)
     if args.cmd == "downloads":

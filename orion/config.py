@@ -70,6 +70,19 @@ class Settings(BaseSettings):
     # manda a imagem para o provedor do modelo.
     vision_tools: bool = False
     vision_model: str = ""  # vazio: o mesmo modelo do gateway
+    # E11 (visão e câmera). Tudo desligado por padrão; ver ORION_REGRAS.md 64 a 66.
+    camera: bool = False  # ver_camera, onde_vi, ler_texto_imagem (regra 64)
+    camera_device: int = Field(default=0, ge=0, le=16)  # índice da webcam (0 = a principal)
+    camera_watch: bool = False  # guarda rótulos de objetos (7 dias), só com presença (regra 64)
+    vision_order: str = "gemini,claude,codex,gemini_cli"  # ordem da visão; a CLI só entra se falhar
+    object_model: Path | None = (
+        None  # YOLO nano em ONNX, colocado por você (sem download automático)
+    )
+    face_model: Path | None = None  # modelo de rosto em ONNX local (regra 65)
+    translator_langs: str = "por+eng+spa"  # idiomas do OCR do tesseract (ler_texto_imagem)
+    presence_enabled: bool = False  # presença: cumprimento e pausa das capturas (regra 66)
+    presence_bt: str = ""  # endereço Bluetooth do celular, para o sinal "perto"
+    presence_away_min: int = Field(default=10, ge=1, le=240)  # sem sinal por tanto tempo = saiu
     weather_city: str = "Marília"  # cidade quando o pedido não diz qual
     search_api_key: str = ""  # Gemini com Google Search; sem ela vale a chave de embeddings
     search_model: str = "gemini-2.5-flash"

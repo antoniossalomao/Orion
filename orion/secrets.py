@@ -27,3 +27,9 @@ def set_secret(nome: str, valor: str) -> None:
     import keyring
 
     keyring.set_password(SERVICO, nome, valor)
+
+
+def delete_secret(nome: str) -> None:
+    import keyring
+
+    keyring.delete_password(SERVICO, nome)

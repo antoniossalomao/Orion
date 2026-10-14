@@ -427,6 +427,60 @@ def telegram_from_settings(
     )
 
 
+def vigia_from_settings(settings: Settings, memory: Any, tela: Any) -> Any:
+    """Presença (regra 66) e vigília da câmera (regra 64): só com `ORION_PRESENCE_ENABLED`."""
+    if not settings.presence_enabled:
+        return None  # a câmera só olha com presença (regra 64): sem presença, nada a ligar
+    from .presenca import Presenca
+    from .vigia import Vigia, sinais_padrao
+
+    log = logging.getLogger("orion.presenca")
+    presenca = Presenca(
+        away_s=settings.presence_away_min * 60,
+        on_chegou=lambda: log.info("presença: chegou"),
+        on_saiu=lambda: log.info("presença: saiu"),
+    )
+    vigiar = None
+    if settings.camera and settings.camera_watch and settings.object_model:
+        from .camera import foto_jpeg
+        from .visao_local import Avistamentos, Detector, olhar_uma_vez
+
+        detector = Detector(settings.object_model)
+        avistamentos = Avistamentos(memory)
+        vigiar = lambda: olhar_uma_vez(  # noqa: E731 — uma linha, usada só pelo vigia
+            foto=lambda: foto_jpeg(settings.camera_device),
+            detector=detector,
+            avistamentos=avistamentos,
+            pode_olhar=lambda: presenca.presente,
+        )
+    return Vigia(
+        presenca=presenca,
+        sinais=sinais_padrao(bt_endereco=settings.presence_bt),
+        vigiar=vigiar,
+        tela=tela,
+    )
+
+
+def camera_from_settings(
+    settings: Settings, vision: Vision | None, memory: Any
+) -> list[Any] | None:
+    """Ferramentas da câmera (E11) só com `ORION_CAMERA=true` (regra 64)."""
+    if not settings.camera:
+        return None
+    from .tools.camera import camera_tools
+    from .visao_cli import ordem
+    from .visao_local import Avistamentos
+
+    avistamentos = Avistamentos(memory) if settings.camera_watch else None
+    return camera_tools(
+        device=settings.camera_device,
+        vision=vision,
+        ordem=ordem(settings.vision_order),
+        avistamentos=avistamentos,
+        langs=settings.translator_langs,
+    )
+
+
 def vision_from_settings(settings: Settings) -> Vision | None:
     """Visão só com `ORION_VISION_TOOLS=true` e gateway configurado (o mesmo endpoint e chave)."""
     if not settings.vision_tools:
@@ -1228,6 +1282,7 @@ def create_app(
                     transcriber=transcriber,
                     vision=vision_from_settings(settings),
                     captures_dir=settings.data_dir / "capturas",
+                    camera=camera_from_settings(settings, vision_from_settings(settings), memory),
                     processes=processos,
                     web_options={
                         "search_key": lambda: (
@@ -1407,6 +1462,7 @@ def create_app(
                 downloads=downloads,
                 historicos=historicos,
                 vida=vida,
+                vigia=vigia_from_settings(settings, memory, tela),
                 clipboard_days=settings.clipboard_days,
                 command_history=settings.command_history,
                 weekly_ai=(

@@ -495,3 +495,27 @@ Prova de uma semana real segue pendente: é com o Antônio.
 - ~~Roteamento por tipo de tarefa~~ (feito em 07/10: `orion/router.py`, V11).
 - ~~Front no celular / PWA~~ (descartado em 07/10: front só desktop, decisão #5).
 - ~~Consolidação noturna da memória~~ (feito em 03/10: `orion/memory/consolidate.py`).
+
+## Décima sétima rodada (14/10/2026): plano da rodada 2, etapa E11
+
+Plano em [ORION_PLANO_RODADA2.md](ORION_PLANO_RODADA2.md). Regras 64, 65 e 66 (escritas antes do código) em
+[ORION_REGRAS.md](ORION_REGRAS.md). **Esquema v23** (`object_sightings`, `faces`): o plano falava em v17, mas o banco já estava
+na v22. Opt-ins novos: `ORION_CAMERA`, `ORION_CAMERA_WATCH`, `ORION_PRESENCE_ENABLED`, `ORION_OBJECT_MODEL`, `ORION_FACE_MODEL`.
+Extra novo: `camera` (`opencv-python-headless`). `ORION_CAMERA_ENABLED` foi renomeado para `ORION_CAMERA` (o nome que a regra 64 usa).
+
+| ID | Entrega | Status |
+|---|---|---|
+| E11.1 Ver e agir | `ver_camera` (foto em memória, descrita pela visão, apagada depois; **sempre confirma**) | ✅ unidade com foto falsa; ❌ webcam real; ❌ vídeo ao vivo no `/ws/voice` (não feito); ❌ atalho `/camera` no Telegram e na paleta |
+| E11.2 Visão pelas assinaturas | `ORION_VISION_ORDER` (padrão `gemini,claude,codex,gemini_cli`); CLIs rodam numa pasta temporária, registradas como `cli:<nome>` | ✅ unidade com runner falso (argumentos e fallback); ❌ CLIs reais (o `claude -p` precisa da permissão `Read` aprovada na máquina) |
+| E11.3 Detecção local | `visao_local.Detector` (YOLO nano ONNX, letterbox, NMS) | ✅ unidade com saída sintética e sessão falsa; ❌ modelo real (você coloca o `.onnx` em `ORION_OBJECT_MODEL`; não há download automático, de propósito) |
+| E11.4 "Onde eu deixei?" | `object_sightings` (7 dias, sem `person`, sem imagem); `onde_vi`; vigília no job a cada 60 s, só com presença | ✅ unidade e `onde_vi` com banco real; ❌ prova "onde vi meu fone" (COCO não tem fone de ouvido: o modelo não detecta) |
+| E11.5 Rosto local | `orion rosto cadastrar NOME` (5 fotos) e `orion rosto apagar`; vetores cifrados (Fernet), chave em `ORION_FACE_KEY` no cofre | ✅ unidade com embedder falso (cifragem, reconhecimento, apagar); ❌ modelo real e Haar do OpenCV na câmera; ❌ o reconhecimento **não entra na presença** (`rosto=None`) |
+| E11.6 Presença | `Presenca` (sinais: tela, ocioso via `xprintidle`, Bluetooth via bleak, rosto) + `Vigia` no job; saiu → pausa a memória da tela (só a pausa que ela mesma fez) e para a vigília; `bloquear_tela` existe | ✅ unidade da máquina de estados e do vigia; ❌ cumprimento ao chegar (pendente); ❌ bloqueio automático (sem gatilho, de propósito até haver a confirmação da primeira configuração); ❌ Bluetooth real; ❌ `xprintidle` só no Linux X11 |
+| E11.7 Tradutor | `ler_texto_imagem` (OCR do tesseract com `ORION_TRANSLATOR_LANGS`); a tradução é do próprio modelo | ✅ unidade com OCR falso; ❌ legenda ao vivo de áudio/vídeo (Vosk, não feita) |
+| E11.8 Flow | `preparar_imagem_flow`: devolve o prompt e abre o site; nada é automatizado no site | ✅ unidade; ❌ **a URL `https://labs.google/fx/tools/flow` não foi conferida contra o site real**; ❌ cópia para a área de transferência (não feita) |
+
+**Limites que ficaram por decisão:** nenhuma ferramenta de rosto para o modelo (regra 65); `ver_camera` sempre pede aprovação, inclusive depois da primeira
+vez (a regra do plano falava em "depois, leitura", mas isso não cabe na política atual e a foto é dado sensível); vigília sem presença não roda (regra 64).
+
+**Não verificado (E11):** webcam, modelos ONNX reais, Bluetooth, `xprintidle`, tesseract e as CLIs de assinatura. Nenhum front novo nesta etapa, então
+não houve teste de navegador novo. Prova da E11 segue pendente: é com o Antônio (webcam ligada, `orion rosto cadastrar`, modelo de detecção no lugar).
