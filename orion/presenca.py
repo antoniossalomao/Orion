@@ -131,11 +131,13 @@ def sinais_do_sistema(
 ) -> Sinais:
     """Coleta os sinais agora. A tela e o rosto vêm de quem chama (testáveis e opcionais)."""
     bloqueada = tela()
+    desbloqueada = None if bloqueada is None else not bloqueada
     return Sinais(
-        tela_desbloqueada=None if bloqueada is None else not bloqueada,
+        tela_desbloqueada=desbloqueada,
         ocioso_s=ocioso_segundos(),
         bt_perto=bt_perto(bt_endereco),
-        rosto=rosto(),
+        # regra 65: o rosto só é comparado com a tela desbloqueada
+        rosto=rosto() if desbloqueada else None,
     )
 
 

@@ -53,6 +53,8 @@ OPT_INS = {
     "presence_enabled",
     "object_model",
     "face_model",
+    "presence_lock",
+    "subtitles",
 }
 
 

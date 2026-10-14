@@ -123,17 +123,18 @@ def test_ler_texto_imagem_valida_arquivo_e_usa_o_ocr(tmp_path):
 
 
 def test_preparar_imagem_flow_abre_site_e_devolve_prompt_sem_gerar():
-    abertos = []
+    abertos, copiados = [], []
     ferramentas = {
         t.name: t
         for t in camera_tools(
             device=0, vision=None, ordem=None, avistamentos=None,
             abrir_navegador=lambda url: abertos.append(url) or True,
+            copiar=lambda texto: copiados.append(texto) or True,
         )
     }  # fmt: skip
     r = ferramentas["preparar_imagem_flow"].fn(descricao="  um gato   azul ")
     assert r["ok"] and r["prompt"] == "um gato azul" and r["aberto"] is True
-    assert abertos == [r["url"]]
+    assert abertos == [r["url"]] and copiados == ["um gato azul"] and r["copiado"] is True
 
 
 def test_todas_as_ferramentas_novas_estao_na_politica():
@@ -476,3 +477,27 @@ def test_gateway_de_visao_sem_resposta_levanta_erro_de_visao():
 def test_saida_sem_batch_tambem_e_aceita():
     saida = _saida([((320, 320, 40, 40), 56, 0.8)])
     assert decodificar_saida(saida[0], 1.0, 0, 0)[0].label == "chair"
+
+
+def test_copia_para_a_area_de_transferencia_com_o_comando_do_sistema():
+    from orion.tools.camera import copiar_area_de_transferencia
+
+    chamadas = []
+
+    def runner(argv, **kw):
+        chamadas.append((argv, kw.get("input")))
+        return subprocess.CompletedProcess(argv, 0, b"", b"")
+
+    assert copiar_area_de_transferencia("prompt", platform="darwin", runner=runner) is True
+    assert chamadas[0][0] == ["pbcopy"] and chamadas[0][1] == b"prompt"
+    assert copiar_area_de_transferencia("x", platform="linux", which=lambda n: None) is False
+    assert (
+        copiar_area_de_transferencia(
+            "x",
+            platform="linux",
+            which=lambda n: "/usr/bin/xclip" if n == "xclip" else None,
+            runner=runner,
+        )
+        is True
+    )
+    assert chamadas[-1][0][:2] == ["xclip", "-selection"]

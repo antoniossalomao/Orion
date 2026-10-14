@@ -247,6 +247,8 @@
         tela: () => req('/tela', { timeout: 4000 }),
         telaPausa: ativa => req('/tela/pausa', { metodo: 'POST', json: { ativa: !!ativa }, timeout: 4000 }),
         telaLimpar: () => req('/tela', { metodo: 'DELETE', timeout: 5000 }),
+        /** uma foto da webcam descrita (paleta); 409 se ORION_CAMERA estiver desligada */
+        cameraVer: pergunta => req('/camera/ver', { metodo: 'POST', json: { pergunta: pergunta || '' }, timeout: 90000 }),
         /** biblioteca de arquivos gerados (documentos e imagens), com versões */
         biblioteca: () => req('/resultados', { timeout: 5000 }),
         /** vida pessoal (E10): finanças e contas são locais (regra 61); o foco só pergunta (regra 62) */

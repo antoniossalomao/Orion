@@ -83,6 +83,12 @@ class Settings(BaseSettings):
     presence_enabled: bool = False  # presença: cumprimento e pausa das capturas (regra 66)
     presence_bt: str = ""  # endereço Bluetooth do celular, para o sinal "perto"
     presence_away_min: int = Field(default=10, ge=1, le=240)  # sem sinal por tanto tempo = saiu
+    presence_lock: bool = (
+        False  # ao sair, bloqueia a tela (só depois de `orion presenca confirmar`)
+    )
+    subtitles: bool = False  # legenda ao vivo do áudio do sistema, Vosk local (regra 64)
+    subtitle_model: Path | None = None  # pasta do modelo Vosk em português, colocada por você
+    subtitle_device: str = ""  # dispositivo de áudio do sistema (loopback); vazio: o padrão
     weather_city: str = "Marília"  # cidade quando o pedido não diz qual
     search_api_key: str = ""  # Gemini com Google Search; sem ela vale a chave de embeddings
     search_model: str = "gemini-2.5-flash"

@@ -12,6 +12,9 @@
 
 from __future__ import annotations
 
+import shutil
+import subprocess
+import sys
 import webbrowser
 from collections.abc import Callable
 from pathlib import Path
@@ -22,6 +25,7 @@ from ..screen_memory import ocr_tesseract
 from ..visao_cli import describe_ordenado
 from ..visao_local import Avistamentos
 from ..vision import MAX_IMAGEM, MIMES, Vision, VisionError
+from .desktop import env_limpo
 from .registry import Tool
 
 FLOW_URL = (
@@ -29,6 +33,60 @@ FLOW_URL = (
 )
 MAX_PROMPT = 1000
 MAX_TEXTO = 4000
+
+
+def descrever_camera(
+    device: int,
+    vision: Vision | None,
+    ordem: list[str] | None,
+    pergunta: str = "",
+    foto: Callable[[int], bytes] | None = None,
+) -> str:
+    """Uma foto da câmera, descrita pela ordem de visão. Usado pela ferramenta, pelo Telegram
+    (`/camera`) e pela rota da paleta. A foto sai da memória logo depois (regra 64)."""
+    jpeg = foto_jpeg(device, fonte=foto)
+    try:
+        return describe_ordenado(jpeg, "image/jpeg", pergunta, vision=vision, ordem_=ordem)
+    finally:
+        del jpeg
+
+
+def copiar_area_de_transferencia(
+    texto: str,
+    *,
+    platform: str = sys.platform,
+    which: Callable[[str], str | None] = shutil.which,
+    runner: Callable[..., Any] = subprocess.run,
+) -> bool:
+    """Põe o texto na área de transferência com o comando nativo do sistema (E11.8). O texto vai
+    por entrada padrão ou por variável de ambiente, nunca pela linha de comando."""
+    if platform == "win32":
+        exe = which("pwsh") or which("powershell")
+        if not exe:
+            return False
+        argv = [
+            exe,
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            "Set-Clipboard -Value $env:CLIP_TEXTO",
+        ]
+        env = {**env_limpo(), "CLIP_TEXTO": texto}
+    elif platform == "darwin":
+        argv, env = ["pbcopy"], env_limpo()
+    elif which("wl-copy"):
+        argv, env = ["wl-copy"], env_limpo()
+    elif which("xclip"):
+        argv, env = ["xclip", "-selection", "clipboard", "-i"], env_limpo()
+    else:
+        return False
+    try:
+        r = runner(
+            argv, env=env, input=texto.encode("utf-8"), capture_output=True, timeout=10, check=False
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return r.returncode == 0
 
 
 def camera_tools(
@@ -41,19 +99,16 @@ def camera_tools(
     foto: Callable[[int], bytes] | None = None,
     abrir_navegador: Callable[[str], bool] = webbrowser.open,
     ocr: Callable[..., str | None] = ocr_tesseract,
+    copiar: Callable[[str], bool] = copiar_area_de_transferencia,
 ) -> list[Tool]:
     def ver_camera(pergunta: str = "") -> dict[str, Any]:
         try:
-            jpeg = foto_jpeg(device, fonte=foto)
-        except CameraError as e:
+            return {
+                "ok": True,
+                "descricao": descrever_camera(device, vision, ordem, pergunta, foto),
+            }
+        except (CameraError, VisionError) as e:
             return {"ok": False, "erro": str(e)}
-        try:
-            texto = describe_ordenado(jpeg, "image/jpeg", pergunta, vision=vision, ordem_=ordem)
-        except VisionError as e:
-            return {"ok": False, "erro": str(e)}
-        finally:
-            del jpeg  # a foto não fica em memória depois da resposta (regra 64)
-        return {"ok": True, "descricao": texto}
 
     def onde_vi(objeto: str) -> dict[str, Any]:
         if avistamentos is None:
@@ -95,12 +150,18 @@ def camera_tools(
             aberto = bool(abrir_navegador(FLOW_URL))
         except Exception:  # noqa: BLE001 — sem navegador, o prompt ainda volta na resposta
             aberto = False
+        copiado = copiar(prompt)
         return {
             "ok": True,
             "prompt": prompt,
             "aberto": aberto,
+            "copiado": copiado,
             "url": FLOW_URL,
-            "nota": "Copie o prompt, gere a imagem no Flow e baixe o resultado.",
+            "nota": (
+                "O prompt está na área de transferência: cole no Flow, gere e baixe o resultado."
+                if copiado
+                else "Copie o prompt, gere a imagem no Flow e baixe o resultado."
+            ),
         }
 
     obj = "object"

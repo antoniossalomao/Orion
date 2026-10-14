@@ -511,6 +511,42 @@ def _downloads(settings: Settings, args: argparse.Namespace) -> int:
         store.close()
 
 
+def _legenda(settings: Settings) -> int:
+    """Abre a janela pequena e sempre por cima com as últimas falas (E11.7). O servidor precisa
+    estar de pé, e a janela pede o login da interface na primeira vez."""
+    import subprocess
+
+    if not (settings.subtitles and settings.subtitle_model):
+        print(
+            "legenda desligada: defina ORION_SUBTITLES=true e ORION_SUBTITLE_MODEL", file=sys.stderr
+        )
+        return 1
+    url = f"http://127.0.0.1:{settings.port}/ui/legenda.html"
+    subprocess.Popen(  # noqa: S603 — argv fixo; a URL é a do próprio servidor local
+        [sys.executable, "-m", "orion.ponte.janela", url, "Legenda", "900", "160"]
+    )
+    print(f"janela da legenda aberta: {url}")
+    return 0
+
+
+def _presenca(settings: Settings, args: argparse.Namespace) -> int:
+    """Confirma (ou desfaz) que a tela pode ser bloqueada ao sair (regra 66)."""
+    from .memory import MemoryStore
+    from .vigia import CHAVE_BLOQUEIO
+
+    store = MemoryStore(settings.db_path)
+    try:
+        store.counter_set(CHAVE_BLOQUEIO, 1 if args.acao == "confirmar" else 0)
+        if args.acao == "confirmar":
+            aviso = "" if settings.presence_lock else " (ligue ORION_PRESENCE_LOCK=true)"
+            print("bloqueio ao sair confirmado" + aviso)
+        else:
+            print("bloqueio ao sair desfeito")
+        return 0
+    finally:
+        store.close()
+
+
 def _rosto(settings: Settings, args: argparse.Namespace) -> int:
     """Cadastro e apagar do próprio rosto (E11.5, regra 65). Nenhuma ferramenta do modelo."""
     from .camera import CameraError, decodificar, foto_jpeg
@@ -669,6 +705,11 @@ def main(argv: list[str] | None = None) -> int:
     cv.add_argument("arquivo")
     cv.add_argument("formato", help="pdf, docx, mp3, png, comprimir… ou ? para ver as opções")
     cv.add_argument("--saida", default="", help="pasta de saída (padrão: <dados>/conversoes)")
+    pr = sub.add_parser(
+        "presenca", help="presença (E11.6): confirmar ou desfazer o bloqueio ao sair"
+    )
+    pr.add_argument("acao", choices=["confirmar", "desfazer"])
+    sub.add_parser("legenda", help="abre a janela flutuante da legenda ao vivo (E11.7)")
     ro = sub.add_parser("rosto", help="reconhecimento facial local (E11.5): cadastrar, apagar")
     ro.add_argument("acao", choices=["cadastrar", "apagar"])
     ro.add_argument("nome", nargs="?", default="", help="seu nome, no cadastro")
@@ -888,6 +929,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.cmd == "converter":
         return _converter(settings, args)
+    if args.cmd == "legenda":
+        return _legenda(settings)
+    if args.cmd == "presenca":
+        return _presenca(settings, args)
     if args.cmd == "rosto":
         return _rosto(settings, args)
     if args.cmd == "posso-desligar":

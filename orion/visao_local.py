@@ -41,6 +41,10 @@ COCO_NOMES = [
 ]  # fmt: skip
 ALIAS = {
     "celular": "cell phone",
+    "fone": "headphones",
+    "fones": "headphones",
+    "fone de ouvido": "headphones",
+    "headset": "headphones",
     "telefone": "cell phone",
     "notebook": "laptop",
     "mouse": "mouse",
@@ -99,7 +103,13 @@ def _iou(a: np.ndarray, b: np.ndarray) -> float:
 
 
 def decodificar_saida(
-    saida: np.ndarray, escala: float, pad_x: int, pad_y: int, *, limiar: float = LIMIAR
+    saida: np.ndarray,
+    escala: float,
+    pad_x: int,
+    pad_y: int,
+    *,
+    limiar: float = LIMIAR,
+    nomes: list[str] | None = None,
 ) -> list[Deteccao]:
     """Saída do YOLOv8 (1×84×N, ou 84×N) → detecções na imagem original."""
     p = np.squeeze(saida, 0) if saida.ndim == 3 else saida
@@ -118,7 +128,9 @@ def decodificar_saida(
     dets: list[Deteccao] = []
     for i in _nms(caixas, confs, classes):
         x1, y1, x2, y2 = caixas[i]
-        nome = COCO_NOMES[int(classes[i])] if int(classes[i]) < len(COCO_NOMES) else "?"
+        indice = int(classes[i])
+        tabela = nomes or COCO_NOMES
+        nome = tabela[indice] if indice < len(tabela) else "?"
         dets.append(
             Deteccao(
                 label=nome,
@@ -132,13 +144,31 @@ def decodificar_saida(
     return dets
 
 
+def nomes_do_modelo(sessao: Any) -> list[str] | None:
+    """Nomes das classes que o próprio modelo traz nos metadados (formato Ultralytics:
+    "{0: 'person', 1: 'bicycle', ...}"). Sem metadados, None: vale o COCO padrão."""
+    import ast
+
+    try:
+        bruto = sessao.get_modelmeta().custom_metadata_map.get("names")
+        if not bruto:
+            return None
+        mapa = ast.literal_eval(bruto)
+        return [str(mapa[i]) for i in range(len(mapa))]
+    except (AttributeError, ValueError, SyntaxError, KeyError, TypeError):
+        return None
+
+
 class Detector:
-    """YOLO nano em ONNX. A sessão é criada na primeira detecção (import tardio)."""
+    """YOLO em ONNX. A sessão é criada na primeira detecção (import tardio). As classes vêm do
+    próprio modelo (metadados); um modelo treinado com outras classes, como "headphones", vale
+    sem mudar código. Sem metadados, usa as 80 do COCO."""
 
     def __init__(self, modelo: Path, *, sessao: Any = None) -> None:
         self.modelo = modelo
         self._sessao = sessao
         self._entrada: str | None = None
+        self._nomes: list[str] | None = None
 
     def _sess(self) -> Any:
         if self._sessao is None:
@@ -151,6 +181,7 @@ class Detector:
             )
         if self._entrada is None:
             self._entrada = self._sessao.get_inputs()[0].name
+            self._nomes = nomes_do_modelo(self._sessao)
         return self._sessao
 
     def detectar(self, bgr: np.ndarray) -> list[Deteccao]:
@@ -165,7 +196,7 @@ class Detector:
         tela[pad_y : pad_y + nh, pad_x : pad_x + nw] = cv2.resize(bgr, (nw, nh))
         x = tela[:, :, ::-1].transpose(2, 0, 1)[None].astype(np.float32) / 255.0
         saida = sess.run(None, {self._entrada: x})[0]
-        return decodificar_saida(np.asarray(saida), escala, pad_x, pad_y)
+        return decodificar_saida(np.asarray(saida), escala, pad_x, pad_y, nomes=self._nomes)
 
 
 class Avistamentos:
