@@ -188,6 +188,10 @@ class Settings(BaseSettings):
     gateway_down_min: int = Field(default=10, ge=1, le=1440)  # avisa "modelos fora do ar" depois
     # Não perturbe (regra 48): "22:30-07:00" segura avisos não urgentes e pausa a memória da tela
     dnd_at: str = ""
+    # E10 (vida pessoal). Diário e revisão escrevem no vault; ambos desligados por padrão.
+    diary_at: str = ""  # HH:MM: diário do dia em `Diário/` no vault (E10.2); vazio: desligado
+    weekly_review_at: str = ""  # HH:MM de domingo: nota de revisão semanal em `Revisão/` (E10.1)
+    focus_distractions: str = ""  # apps/sites que pedem pergunta no bloco de foco (regra 62), ";"
     # Ponte de desktop (regra 50): mapa de teclas globais em JSON, ex.: {"captura": "ctrl+alt+k"}.
     # Vazio = as teclas padrão (ver orion/ponte/config.py). A ponte em si é `orion ponte`.
     hotkeys: str = ""
@@ -290,6 +294,14 @@ class Settings(BaseSettings):
             return ""
         if not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", v):
             raise ValueError("ORION_BRIEFING_AT precisa estar no formato HH:MM (ex.: 07:30)")
+        return v
+
+    @field_validator("diary_at", "weekly_review_at")
+    @classmethod
+    def _hora_da_vida(cls, v: str) -> str:
+        v = v.strip()
+        if v and not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", v):
+            raise ValueError("ORION_DIARY_AT e ORION_WEEKLY_REVIEW_AT precisam ser HH:MM")
         return v
 
     @field_validator("dnd_at")

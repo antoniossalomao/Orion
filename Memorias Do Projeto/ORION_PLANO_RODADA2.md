@@ -200,7 +200,8 @@ Marque ao concluir. Uma etapa só fecha com todos os itens, a prova e o PR merge
 - [ ] PR da E9 mergeado
 
 ### E10 — Vida pessoal
-- [ ] Regras escritas em `ORION_REGRAS.md` antes do código (61 (finanças locais), 62 (escudo de foco), 63 (estado pela voz))
+> **Status (14/10): parcial.** Motor, API e testes prontos; superfície e prova pendentes. Ver ORION_MELHORIAS.md, décima sexta rodada.
+- [x] Regras escritas em `ORION_REGRAS.md` antes do código (61 (finanças locais), 62 (escudo de foco), 63 (estado pela voz))
 - [ ] E10.1 Revisão semanal guiada (N9)
 - [ ] E10.2 Diário automático (N10)
 - [ ] E10.3 Gastos pelo Telegram (N11)

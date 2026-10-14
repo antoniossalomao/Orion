@@ -62,6 +62,7 @@ class TickReport:
     tela: str | None = None
     semanal_ia: bool = False
     downloads: int = 0  # arquivos que o organizador de Downloads moveu (E9.4)
+    vida: Any = None  # avisos de conta, diário e revisão (E10)
     comandos: int = 0  # comandos novos lidos do histórico do terminal (E9.7)
     gateway: str | None = None  # "fora" | "voltou" quando o aviso sai
     adiados: list[str] = field(default_factory=list)  # jobs opcionais barrados pela cota
@@ -102,6 +103,7 @@ class JobRunner:
         weekly_ai: Any = None,
         downloads: Any = None,
         historicos: Any = None,
+        vida: Any = None,
         clipboard_days: int = 0,
         command_history: bool = False,
         custos: Any = None,
@@ -115,6 +117,7 @@ class JobRunner:
         saude_every_s: float = 60.0,
         downloads_every_s: float = 60.0,
         historicos_every_s: float = 3600.0,
+        vida_every_s: float = 300.0,
         clock: Callable[[], float] = time.time,
     ) -> None:
         self.memory, self.ops = memory, ops
@@ -132,6 +135,7 @@ class JobRunner:
         self._sleep = sleep  # orion/memory/sleep.py (ciclo de sono), None: desligado
         self._downloads = downloads  # orion/downloads.py (regra 58), None: sem regras
         self._historicos = historicos  # orion/historicos.py (regra 60), None: sem históricos
+        self._vida = vida  # orion/vida.py (E10): contas, diário e revisão; None: desligado
         self._clipboard_days, self._command_history = clipboard_days, command_history
         self._custos = custos  # orion/costs.py (regra 46), None: sem conta de cota
         self._modos = modos  # orion/modos.py (regra 48), None: sem pânico nem não perturbe
@@ -146,6 +150,7 @@ class JobRunner:
             "saude_gateway": saude_every_s,
             "downloads": downloads_every_s,
             "historicos": historicos_every_s,
+            "vida": vida_every_s,
         }
         self._last: dict[str, float] = {}
         self.ultima_rodada: float | None = None  # epoch do último `tick` (para o painel)
@@ -274,6 +279,8 @@ class JobRunner:
                 self._passo(rel, "comandos", self._historicos.importar)
             if self._clipboard_days > 0:
                 self._passo(rel, "area", lambda: self._historicos.podar_area(self._clipboard_days))
+        if self._vida is not None and self._devido("vida"):
+            self._passo(rel, "vida", self._vida.tick)
         if self._downloads is not None and not self._panico() and self._devido("downloads"):
             self._passo(rel, "downloads", lambda: len(self._downloads.rodar().movidos))
 

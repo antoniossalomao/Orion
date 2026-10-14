@@ -121,6 +121,8 @@ from .tools import default_registry
 from .tools.processes import ProcessManager
 from .tools.registry import ToolRegistry
 from .transcribe import Transcriber
+from .vida import Financas, Precos, VidaJobs
+from .vida_routes import router as vida_router
 from .vision import Vision
 from .voice import (
     MAX_AUDIO,
@@ -193,6 +195,9 @@ class AppState:
     downloads: Downloads | None = None  # organizador de Downloads (regra 58)
     historicos: Historicos | None = None  # área de transferência e comandos (regra 60)
     ler_depois: LerDepois | None = None  # links para ler depois (E9.8)
+    financas: Financas | None = None  # gastos e contas, local (regra 61, E10)
+    precos: Precos | None = None  # monitor de preço (E10.5)
+    vida: VidaJobs | None = None  # avisos de conta, diário e revisão (E10)
     rotinas: RotinaStore | None = None  # rotinas suas e concedidas (regra 58)
     executor_rotinas: ExecutorRotinas | None = None
     tarefas_bg: Any = None  # TarefasBg (regra 59); None sem agente
@@ -1265,6 +1270,17 @@ def create_app(
             gateway=gateway,
             modos=modos,
         )
+        financas = Financas(memory)
+        precos = Precos(memory)
+        vida = VidaJobs(
+            memory,
+            financas,
+            ops=ops,
+            vault_dir=settings.vault_dir,
+            repos=settings.repos,
+            diary_at=settings.diary_at,
+            weekly_at=settings.weekly_review_at,
+        )
         rotinas = RotinaStore(settings.data_dir / "rotinas", memory)
         executor_rotinas = ExecutorRotinas(
             store=rotinas,
@@ -1325,6 +1341,7 @@ def create_app(
                 screen=tela,
                 downloads=downloads,
                 historicos=historicos,
+                vida=vida,
                 clipboard_days=settings.clipboard_days,
                 command_history=settings.command_history,
                 weekly_ai=(
@@ -1471,6 +1488,9 @@ def create_app(
             downloads=downloads,
             historicos=historicos,
             ler_depois=ler_depois,
+            financas=financas,
+            precos=precos,
+            vida=vida,
             rotinas=rotinas,
             executor_rotinas=executor_rotinas,
             ponte=ponte_hub,
@@ -2760,6 +2780,7 @@ def create_app(
 
     app.include_router(ponte_router(require_auth))
     app.include_router(captura_router(require_auth))
+    app.include_router(vida_router(require_auth))
     app.include_router(export_client_router(require_auth))
     app.mount("/mcp-export", ExportAuth(mcp_export.app, lambda: app.state.orion))
 

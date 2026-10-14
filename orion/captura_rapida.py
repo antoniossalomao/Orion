@@ -27,6 +27,7 @@ from pydantic import BaseModel, Field
 
 from .capture import CaptureError, Capturer
 from .ler_depois import LerDepoisError, so_um_link
+from .vida import categoria_de, parse_gasto
 
 log = logging.getLogger("orion.captura")
 
@@ -222,8 +223,25 @@ def router(require_auth: Any) -> Any:
             gateway = None
         c, origem = await classificar(gateway, texto)
         tipo, aviso = c.tipo, None
+        g = parse_gasto(texto) if tipo == "gasto" else None  # "gastei 30 no mercado" sem R$
+        cents = g["cents"] if g else (round(c.valor * 100) if c.valor is not None else None)
+        if tipo == "gasto" and s.financas is not None and cents:
+            # E10.3 (regra 61): o gasto vai ao banco local, nunca a provedor de fora
+            cat, desc = (
+                (g["category"], g["description"]) if g else (categoria_de(c.titulo), c.titulo)
+            )
+            lancado = s.financas.registrar_gasto(cents, cat, desc, source="captura")
+            return {
+                "id": desfazer.registrar("gasto", lancado["id"]),
+                "tipo": "gasto",
+                "titulo": desc,
+                "quando": None,
+                "valor": cents / 100,
+                "origem": origem,
+                "aviso": f"gasto lançado em {cat}",
+            }
         if tipo == "gasto":
-            tipo, aviso = "nota", "gastos só entram depois da etapa E10.3; guardei como nota"
+            tipo, aviso = "nota", "diga o valor para lançar o gasto; guardei como nota"
         try:
             if tipo == "tarefa":
                 ref: Any = s.ops.add_task(c.titulo)["id"]
@@ -258,6 +276,8 @@ def router(require_auth: Any) -> Any:
         tipo, ref = feito
         if tipo == "leitura":
             s.ler_depois.descartar(int(ref))
+        elif tipo == "gasto" and s.financas is not None:
+            s.financas.apagar_gasto(int(ref))
         elif tipo == "tarefa":
             s.ops.remove_task(int(ref))
         elif tipo == "lembrete":
