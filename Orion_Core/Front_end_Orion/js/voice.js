@@ -9,7 +9,7 @@
     const { bus, $$, ui } = O;
 
     let ws = null, stream = null, ctx = null, fonte = null, proc = null;
-    let camera = false; // indicador da câmera na voz (regra 64): liga e desliga só por pedido seu
+    let camera = false; // indicador da câmera na voz (REGRAS.md: a câmera só liga por pedido seu, e cada uso fica registrado): liga e desliga só por pedido seu
     let ctxPlay = null, proximo = 0, ativa = false;
 
     const botoes = () => $$('.voice-live-btn');
@@ -117,7 +117,7 @@
     }
 
     function alternar() { (ativa ? parar() : iniciar()); }
-    /** câmera na voz: só com a voz ligada; o servidor manda o indicador de volta (regra 64) */
+    /** câmera na voz: só com a voz ligada; o servidor manda o indicador de volta (REGRAS.md: a câmera só liga por pedido seu, e cada uso fica registrado) */
     function alternarCamera() {
         if (!ativa || ws?.readyState !== WebSocket.OPEN) { nota('Ligue a voz ao vivo antes de ligar a câmera.', 'aviso'); return; }
         cmd(camera ? 'camera_off' : 'camera_on');

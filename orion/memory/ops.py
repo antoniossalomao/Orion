@@ -97,7 +97,8 @@ def _dicts(rows: list[Any]) -> list[dict[str, Any]]:
 class Operations:
     def __init__(self, store: MemoryStore) -> None:
         self._s = store
-        # não perturbe (regra 48): o app liga em `Modos.nao_perturbe`; segura os não urgentes
+        # não perturbe (REGRAS.md: pânico é corte; não perturbe só segura): o app liga em
+        # `Modos.nao_perturbe`; segura os não urgentes
         self.segurar: Callable[[], bool] = lambda: False
 
     def _query(self, sql: str, params: tuple[Any, ...] = ()):
@@ -430,7 +431,8 @@ class Operations:
 
     # ── fila de avisos ────────────────────────────────────────────────────
     def notify(self, kind: str, text: str, ref: str | None = None, urgente: bool = False) -> int:
-        """`urgente`: sai mesmo com o não perturbe ligado (regra 48); o resto espera na fila."""
+        """`urgente`: sai mesmo com o não perturbe ligado (REGRAS.md: pânico é corte; não perturbe
+        só segura); o resto espera na fila."""
         with self._s.transaction() as c:
             if ref is not None:
                 old = c.execute(

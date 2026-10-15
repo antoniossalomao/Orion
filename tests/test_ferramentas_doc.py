@@ -1,4 +1,4 @@
-"""A triagem das ferramentas (ORION_FERRAMENTAS.md) não pode divergir do código."""
+"""A triagem das ferramentas (ORION_LEGADO.md, triagem) não pode divergir do código."""
 
 import re
 from collections import Counter
@@ -16,13 +16,13 @@ from orion.tools.processes import ProcessManager
 from orion.transcribe import Transcriber
 from orion.vision import Vision
 
-DOC = PROJECT_ROOT / "Memorias Do Projeto" / "ORION_FERRAMENTAS.md"
+DOC = PROJECT_ROOT / "Memorias Do Projeto" / "ORION_LEGADO.md"
 NOVAS = {
     "listar_fatos",
     "esquecer_fato",
     "editar_fato",
     "delegar",
-    # E11 (visão e câmera): nasceram depois do legado (regras 64 e 66)
+    # E11 (visão e câmera): nasceram depois do legado (REGRAS.md, seção Vida pessoal e visão)
     "ver_camera",
     "onde_vi",
     "ler_texto_imagem",

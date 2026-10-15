@@ -17,7 +17,7 @@
         registroBtn.disabled = carregando || O.chat.ocupado();
         barra.hidden = !sid;
     }
-    /** auto-compact (regra 53): quando o começo da conversa foi resumido, avisa e deixa ver/descartar o resumo */
+    /** auto-compact (REGRAS.md: resumo da conversa nunca substitui o registro): quando o começo da conversa foi resumido, avisa e deixa ver/descartar o resumo */
     let resumoMostrado = '';   // chave do que está na tela: só mexe no DOM quando muda
     function esconderResumo() { resumoMostrado = ''; if (caixaResumo) { caixaResumo.hidden = true; caixaResumo.replaceChildren(); } }
     async function mostrarResumo(id) {

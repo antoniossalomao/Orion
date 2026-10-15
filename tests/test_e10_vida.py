@@ -1,5 +1,5 @@
-"""E10: vida pessoal: finanças locais (regra 61), escudo de foco (regra 62), estado pela voz
-(regra 63), contas, preços, cápsula, diário, revisão e cenários."""
+"""E10: vida pessoal: finanças locais (REGRAS.md: finanças são locais: valor, conta e extrato nunca saem do computador), escudo de foco (REGRAS.md: o escudo de foco pergunta; nunca bloqueia, fecha nem segura nada), estado pela voz
+(REGRAS.md: o estado pela voz só muda o estilo da resposta), contas, preços, cápsula, diário, revisão e cenários."""
 
 from datetime import date, datetime
 from types import SimpleNamespace
@@ -235,7 +235,9 @@ def test_escudo_de_foco_so_pergunta_uma_vez_e_so_no_bloco():
     assert not foco.pergunta_permitida("Visual Studio Code")  # não é distração
     relogio["t"] = AGORA + 31 * 60
     assert not foco.ativo()
-    assert not hasattr(foco, "bloquear") and not hasattr(foco, "fechar")  # regra 62
+    assert not hasattr(foco, "bloquear") and not hasattr(
+        foco, "fechar"
+    )  # REGRAS.md: o escudo de foco pergunta; nunca bloqueia, fecha nem segura nada
 
 
 def test_estado_pela_voz_so_muda_o_estilo_depois_de_uma_base():

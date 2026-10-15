@@ -1,4 +1,5 @@
-"""Rotinas (E9.1, regra 58): uma sequência de passos que **você** escreveu e concedeu.
+"""Rotinas (E9.1, REGRAS.md: automação sua vale pelo arquivo concedido): uma sequência de passos que
+**você** escreveu e concedeu.
 
 `<dados>/rotinas/<nome>.yaml`:
 

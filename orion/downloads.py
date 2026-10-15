@@ -1,4 +1,5 @@
-"""Organizador de Downloads com regras suas (E9.4, regra 58).
+"""Organizador de Downloads com regras suas (E9.4, REGRAS.md: automação sua vale pelo arquivo
+concedido).
 
 `<dados>/regras_downloads.yaml`:
 
@@ -7,7 +8,8 @@
       - {extensoes: [pdf], padrao: "fatura*", destino: ~/Documents/Faturas}
       - {extensoes: [jpg, png], destino: ~/Pictures/Baixadas}
 
-Só roda depois de `orion downloads conceder` (SHA-256 do arquivo, regra 58). Move **só arquivos
+Só roda depois de `orion downloads conceder` (SHA-256 do arquivo, REGRAS.md: automação sua vale pelo
+arquivo concedido). Move **só arquivos
 soltos** da pasta (nada de subpasta, link, arquivo em download ou parado há menos de 30 s), nunca
 sobrescreve (o repetido ganha ` (2)`), só para destinos que a política de escrita aceitaria sem
 perguntar (Documents, Downloads, Desktop; nunca sistema, núcleo do Orion ou extensão sensível) e

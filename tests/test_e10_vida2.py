@@ -228,7 +228,7 @@ def test_api_linha_do_tempo_fatura_e_sonho(tmp_path):
 
 
 def test_texto_de_gasto_nunca_vai_a_nuvem_e_o_local_so_completa(m, tmp_path):
-    """Regra 61: o parser é por regra; sem entender, o modelo LOCAL tenta; nunca a nuvem."""
+    """REGRAS.md: o parser é por regra; sem entender, o modelo LOCAL tenta; nunca a nuvem."""
     nuvem = Texto("{}")  # não deve ser chamado para texto de gasto
     local = Texto('{"valor": 42.5, "descricao": "gasolina do posto"}')
     c = canal(m, tmp_path, gw=local)

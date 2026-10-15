@@ -1,4 +1,4 @@
-"""E7.7 (regra 56): o Orion como servidor MCP só de leitura, com o SDK oficial por stdio."""
+"""E7.7 (REGRAS.md: o Orion como servidor MCP só lê): o Orion como servidor MCP só de leitura, com o SDK oficial por stdio."""
 
 import json
 import os

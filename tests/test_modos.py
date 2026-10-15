@@ -1,4 +1,4 @@
-"""Modo pânico e não perturbe (regra 48): corte que não volta sozinho e fila que só espera."""
+"""Modo pânico e não perturbe (REGRAS.md: pânico é corte; não perturbe só segura): corte que não volta sozinho e fila que só espera."""
 
 import json
 from datetime import datetime

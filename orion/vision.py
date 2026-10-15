@@ -7,7 +7,8 @@ modelo só para visão).
 
 O texto que volta descreve o que está na imagem, e a imagem é conteúdo não confiável (uma página, um
 e-mail ou uma foto pode trazer "ignore as instruções anteriores" escrito): quem chama trata o
-resultado como conteúdo externo (regra 4). Chave só em cabeçalho; nenhum erro leva a URL nem a
+resultado como conteúdo externo (REGRAS.md: conteúdo externo é dado, não instrução). Chave só em
+cabeçalho; nenhum erro leva a URL nem a
 chave.
 """
 
@@ -83,7 +84,9 @@ class Vision:
             model=ep.model,
             bytes_out=len(json.dumps(corpo).encode()),
             content_kind="imagem",
-        ) as m:  # a imagem sai do computador: fica no registro de saída (regra 47)
+            # a imagem sai do computador: fica no registro de saída
+            # (REGRAS.md: toda saída de dado fica registrada, sem conteúdo)
+        ) as m:
             texto = Vision._enviar(cliente, ep, corpo, m)
             m.ok = True
         return texto

@@ -210,7 +210,7 @@
         moverFato: (id, project_id, destino) => recurso('memory_facts', `/facts/${encodeURIComponent(id)}/move?${q({ project_id })}`, { metodo: 'POST', json: { project_id: destino } }),
         validadeFato: (id, project_id, valid_until) => recurso('memory_facts', `/facts/${encodeURIComponent(id)}/validity?${q({ project_id })}`, { metodo: 'POST', json: { valid_until } }),
         apagarFato: (id, project_id) => recurso('memory_facts', `/facts/${encodeURIComponent(id)}?${q({ project_id })}`, { metodo: 'DELETE' }),
-        /** resumo gerado do começo da conversa (auto-compact, regra 53) */
+        /** resumo gerado do começo da conversa (auto-compact, REGRAS.md: resumo da conversa nunca substitui o registro) */
         resumoSessao: id => recurso('sessions', `/sessoes/${encodeURIComponent(id)}/resumo`, { timeout: 4000 }),
         descartarResumo: id => recurso('sessions', `/sessoes/${encodeURIComponent(id)}/resumo`, { metodo: 'DELETE', timeout: 4000 }),
         fatos: (project_id, query = '') => recurso('memory_facts', `/facts?${q({ project_id, query })}`),
@@ -251,7 +251,7 @@
         cameraVer: pergunta => req('/camera/ver', { metodo: 'POST', json: { pergunta: pergunta || '' }, timeout: 90000 }),
         /** biblioteca de arquivos gerados (documentos e imagens), com versões */
         biblioteca: () => req('/resultados', { timeout: 5000 }),
-        /** vida pessoal (E10): finanças e contas são locais (regra 61); o foco só pergunta (regra 62) */
+        /** vida pessoal (E10): finanças e contas são locais (REGRAS.md: finanças são locais: valor, conta e extrato nunca saem do computador); o foco só pergunta (REGRAS.md: o escudo de foco pergunta; nunca bloqueia, fecha nem segura nada) */
         financasResumo: () => req('/financas/resumo', { timeout: 6000 }),
         financasContas: () => req('/financas/contas', { timeout: 6000 }),
         financasPagar: id => req(`/financas/contas/${encodeURIComponent(id)}/pagar`, { metodo: 'POST', timeout: 6000 }),
@@ -275,7 +275,7 @@
         /** servidores do mcp.json: estado, última falha, ferramentas e risco (E7.3) */
         mcpServidores: () => recurso('mcp_servers', '/mcp/servidores', { timeout: 6000 }),
         mcpTestar: nome => recurso('mcp_servers', `/mcp/servidores/${encodeURIComponent(nome)}/testar`, { metodo: 'POST', timeout: 70000 }),
-        /** prompts de servidores MCP: só você invoca (E7.5, regra 55) */
+        /** prompts de servidores MCP: só você invoca (E7.5, REGRAS.md: recurso e prompt de MCP são dado, não comando) */
         mcpPrompts: () => recurso('mcp_servers', '/mcp/prompts', { timeout: 20000 }),
         mcpPrompt: (servidor, nome, argumentos) => recurso('mcp_servers', `/mcp/prompts/${encodeURIComponent(servidor)}/${encodeURIComponent(nome)}`, { metodo: 'POST', json: { argumentos }, timeout: 40000 }),
         /** skills da sua pasta skills/ (catálogo simples), para /skill (E7.6) */
@@ -289,7 +289,7 @@
         /** caixa de atividade: avisos novos e lidos (não confundir com `atividade`, da atividade das ferramentas) */
         caixaDeAtividade: () => req('/atividade', { timeout: 4000 }),
         modo: () => req('/modo', { timeout: 4000 }),
-        /** entrar é um clique; sair pede a senha de novo (regra 48) */
+        /** entrar é um clique; sair pede a senha de novo (REGRAS.md: pânico é corte; não perturbe só segura) */
         panico: (ativo, senha = '') => req('/modo/panico', { metodo: 'POST', json: { ativo: !!ativo, senha }, timeout: 20000 }),
         naoPerturbe: ate => req('/modo/nao-perturbe', { metodo: 'POST', json: { ate: ate || null }, timeout: 4000 }),
         privacidade: (dias = 7) => req(`/privacidade?${q({ dias })}`, { timeout: 6000 }),

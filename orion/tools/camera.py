@@ -1,9 +1,10 @@
-"""Câmera e visão do E11 (regras 64 e 66): `ver_camera`, `onde_vi`, `ler_texto_imagem`,
-`preparar_imagem_flow`.
+"""Câmera e visão do E11 (REGRAS.md, seção Vida pessoal e visão): `ver_camera`, `onde_vi`,
+`ler_texto_imagem`, `preparar_imagem_flow`.
 
 - `ver_camera` é **execução** (confirma sempre): tira uma foto, descreve pela ordem de visão
   (`visao_cli`) e apaga a foto logo depois. A resposta é conteúdo externo.
-- `onde_vi` é leitura dos rótulos guardados (regra 64): devolve hora e confiança, nunca imagem.
+- `onde_vi` é leitura dos rótulos guardados (REGRAS.md: a câmera só liga por pedido seu, e cada
+  uso fica registrado): devolve hora e confiança, nunca imagem.
 - `ler_texto_imagem` é leitura de um arquivo de imagem que o modelo indicou (OCR local, tesseract);
   a tradução é feita pelo próprio modelo com o texto devolvido.
 - `preparar_imagem_flow` **não** gera imagem nem mexe no site: devolve o prompt e abre o Flow no
@@ -28,9 +29,7 @@ from ..vision import MAX_IMAGEM, MIMES, Vision, VisionError
 from .desktop import env_limpo
 from .registry import Tool
 
-FLOW_URL = (
-    "https://labs.google/fx/tools/flow"  # confirmar antes de publicar: ver ORION_MELHORIAS.md
-)
+FLOW_URL = "https://labs.google/fx/tools/flow"  # confirmar antes de publicar: ver ORION_LEGADO.md
 MAX_PROMPT = 1000
 MAX_TEXTO = 4000
 
@@ -43,7 +42,8 @@ def descrever_camera(
     foto: Callable[[int], bytes] | None = None,
 ) -> str:
     """Uma foto da câmera, descrita pela ordem de visão. Usado pela ferramenta, pelo Telegram
-    (`/camera`) e pela rota da paleta. A foto sai da memória logo depois (regra 64)."""
+    (`/camera`) e pela rota da paleta. A foto sai da memória logo depois (REGRAS.md: a câmera só
+    liga por pedido seu, e cada uso fica registrado)."""
     jpeg = foto_jpeg(device, fonte=foto)
     try:
         return describe_ordenado(jpeg, "image/jpeg", pergunta, vision=vision, ordem_=ordem)

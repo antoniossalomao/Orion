@@ -1,4 +1,5 @@
-"""Reconhecimento facial local (E11.5, regra 65).
+"""Reconhecimento facial local (E11.5, REGRAS.md: rosto é local, cadastrado só pelo dono, e nunca
+sai do computador).
 
 Cadastro só do dono, pelo comando `orion rosto`; não há ferramenta do modelo para isso. Cada
 vetor facial é cifrado (Fernet) antes de entrar no banco; a chave fica no cofre do sistema

@@ -145,7 +145,8 @@ def test_pesquisa_manda_a_chave_em_cabecalho_e_devolve_resposta_e_fontes():
         GEMINI
     )
     assert req.headers["x-goog-api-key"] == "CHAVE-SECRETA"
-    assert "CHAVE-SECRETA" not in str(req.url)  # nunca na URL (regra 5)
+    # nunca na URL (REGRAS.md: segredos nunca em log, audit ou processo filho)
+    assert "CHAVE-SECRETA" not in str(req.url)
     assert json.loads(req.content)["tools"] == [{"google_search": {}}]
 
 

@@ -5,7 +5,8 @@ público nem de Tailscale para este canal. O que o canal garante:
 
 - **default-deny**: só responde a usuários da lista, em conversa privada; qualquer outro
   é ignorado em silêncio (só vai para o log), para o bot não revelar que existe;
-- **aprovação fora de banda** (regra 2): ação que a política manda confirmar vira uma
+- **aprovação fora de banda** (REGRAS.md: confirmação fora de banda (canal autenticado)): ação que a
+  política manda confirmar vira uma
   mensagem com botões ✅/❌; só o clique de um usuário permitido decide, nunca uma frase;
 - **avisos**: lembretes e agendamentos da fila (`orion.memory.ops`) saem aqui e só são
   confirmados (`ack`) depois de enviados;
@@ -17,7 +18,8 @@ mostrado antes da resposta, para quem falou conferir; a foto vai ao modelo como 
 naquele turno** (o histórico guarda um aviso, não a imagem). Aprovação continua só por botão.
 
 `/capturar` guarda a próxima mensagem (texto, link, foto ou voz) como nota no vault, sem passar
-pelo modelo (`orion.capture`, regra 30); `/briefing` manda o resumo do dia (`orion.briefing`);
+pelo modelo (`orion.capture`, REGRAS.md: captura rápida e briefing não passam pelo modelo);
+`/briefing` manda o resumo do dia (`orion.briefing`);
 `/painel` manda o painel único (`orion.painel`).
 
 Texto puro (sem `parse_mode`): resposta de modelo com `*` ou `_` não quebra a mensagem.
@@ -129,10 +131,15 @@ class TelegramChannel:
         self._transcriber = transcriber
         self._capture = capture
         self.painel: Callable[[], str] | None = None  # texto do /painel (o app liga depois)
-        self.agenda: Callable[[float], str | None] | None = None  # agenda do briefing (regra 37)
-        self.tela: Callable[[str], str] | None = None  # `/tela` (regra 44); o app liga depois
-        self.camera: Callable[[str], str] | None = None  # `/camera` (regra 64); só com ORION_CAMERA
-        self.modos: Modos | None = None  # `/panico` (regra 48); o app liga depois
+        # agenda do briefing (REGRAS.md: agenda do briefing é leitura fixa, sem modelo)
+        self.agenda: Callable[[float], str | None] | None = None
+        # `/tela` (REGRAS.md: memória da tela: só texto, local e com opt-in); o app liga depois
+        self.tela: Callable[[str], str] | None = None
+        # `/camera` (REGRAS.md: a câmera só liga por pedido seu, e cada uso fica registrado); só com
+        # ORION_CAMERA
+        self.camera: Callable[[str], str] | None = None
+        # `/panico` (REGRAS.md: pânico é corte; não perturbe só segura); o app liga depois
+        self.modos: Modos | None = None
         self.desligar: Callable[[], str] | None = None  # `/desligar` (E9.5); o app liga depois
         # E9.9: (nome, bytes, formato) → (nome novo, bytes); levanta ConversaoError. O app liga.
         self.converter: Callable[[str, bytes, str], tuple[str, bytes]] | None = None
@@ -140,7 +147,8 @@ class TelegramChannel:
         self.speaker: Any = None  # tem `async falar(texto) -> bytes` (mp3)
         self.ler_depois: Any = None  # LerDepois (E9.8); o app liga depois
         self.vida: Any = None  # VidaCanal (E10): /financas, /contas, /foco, /revisao, gastos
-        self.rotinas: Any = None  # RotinaStore (regra 58); o app liga depois
+        # RotinaStore (REGRAS.md: automação sua vale pelo arquivo concedido); o app liga depois
+        self.rotinas: Any = None
         self.executar_rotina: Callable[[str, str], Awaitable[Any]] | None = None
         self._clock = clock
         self._armados: dict[int, float] = {}  # chat -> até quando o próximo envio vira nota
@@ -156,7 +164,8 @@ class TelegramChannel:
 
     def _panico(self, argumento: str) -> str:
         """`/panico` liga; `/panico sair` desliga (comando explícito do usuário da lista, em
-        conversa privada: regras 21 e 48); `/panico estado` só mostra."""
+        conversa privada: REGRAS.md: Telegram com default-deny e aprovação só por botão; pânico é
+        corte; não perturbe só segura); `/panico estado` só mostra."""
         if self.modos is None:
             return "Modo pânico indisponível neste canal."
         acao = argumento.strip().lower()
@@ -180,7 +189,8 @@ class TelegramChannel:
     async def _api(self, metodo: str, **payload: Any) -> Any:
         url = f"{self._base}/bot{self._token}/{metodo}"
         # o que leva texto seu para fora (enviar, editar, responder) entra no registro de saída
-        # (regra 47); a escuta (getUpdates) e o download (getFile) não levam nada daqui
+        # (REGRAS.md: toda saída de dado fica registrada, sem conteúdo); a escuta (getUpdates) e o
+        # download (getFile) não levam nada daqui
         medir = (
             saidas.medir(
                 "telegram",
@@ -429,7 +439,8 @@ class TelegramChannel:
             await self._consumir(chat_id, self.agent.run(CANAL, texto[:LIMITE_ENTRADA]))
 
     async def _on_rotina(self, chat_id: int, nome: str) -> None:
-        """`/rotina` lista as suas; `/rotina <nome>` roda uma concedida (regra 58). Passo que pede
+        """`/rotina` lista as suas; `/rotina <nome>` roda uma concedida (REGRAS.md: automação sua
+        vale pelo arquivo concedido). Passo que pede
         aprovação vira o cartão de sempre aqui mesmo, e a rotina para nele."""
         if self.rotinas is None or self.executar_rotina is None:
             await self._enviar(chat_id, "Rotinas indisponíveis neste canal.")
@@ -467,7 +478,8 @@ class TelegramChannel:
     def _briefing(self) -> str:
         return build_briefing(self.ops, self.memory.clock(), agenda=self.agenda)
 
-    # ── captura rápida (regra 30): comando do Antônio, não ferramenta do modelo ──
+    # ── captura rápida (REGRAS.md: captura rápida e briefing não passam pelo modelo): comando do
+    # Antônio, não ferramenta do modelo ──
     async def _on_documento(self, chat_id: int, m: dict[str, Any]) -> None:
         """E9.9: arquivo com a legenda "converte para pdf" volta convertido (tudo local)."""
         from ..conversor import ConversaoError, formatos_para

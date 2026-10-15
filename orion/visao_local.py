@@ -1,11 +1,13 @@
-"""Detecção local de objetos (E11.3) e memória de avistamentos (E11.4), regra 64.
+"""Detecção local de objetos (E11.3) e memória de avistamentos (E11.4), REGRAS.md: a câmera só liga
+por pedido seu, e cada uso fica registrado.
 
 O detector é um YOLO nano exportado para ONNX (`ORION_OBJECT_MODEL`), rodando na CPU com
 `onnxruntime`. O arquivo do modelo é colocado por você: o Orion não baixa modelo sozinho (download
 seria tráfego de rede sem pedido seu). Sem o arquivo, a detecção simplesmente não roda.
 
 Os avistamentos guardam **só o rótulo**, a confiança e a posição do centro. Nunca a imagem, nunca a
-classe "person" (regra 64) e apagam sozinhos depois de 7 dias. Os rótulos são os do COCO (inglês);
+classe "person" (REGRAS.md: a câmera só liga por pedido seu, e cada uso fica registrado) e apagam
+sozinhos depois de 7 dias. Os rótulos são os do COCO (inglês);
 os nomes em português que o modelo pede passam por `ALIAS`. Objeto que o COCO não tem (fone de
 ouvido, por exemplo) não é detectado: essa é a limitação do modelo, não do código.
 """
@@ -24,7 +26,7 @@ ENTRADA = 640  # lado da entrada do YOLO
 LIMIAR = 0.35  # confiança mínima
 IOU_MAX = 0.45  # sobreposição acima disso = mesma caixa (NMS)
 RETENCAO_S = 7 * 24 * 3600
-NUNCA_GUARDAR = frozenset({"person"})  # regra 64: pessoa não entra na memória
+NUNCA_GUARDAR = frozenset({"person"})  # REGRAS.md: pessoa não entra na memória
 
 # Nomes do COCO (80 classes, na ordem do modelo)
 COCO_NOMES = [
@@ -200,7 +202,8 @@ class Detector:
 
 
 class Avistamentos:
-    """Rótulos vistos pela câmera (regra 64). Nunca guarda imagem nem a classe "person"."""
+    """Rótulos vistos pela câmera (REGRAS.md: a câmera só liga por pedido seu, e cada uso fica
+    registrado). Nunca guarda imagem nem a classe "person"."""
 
     def __init__(self, memory: Any, *, clock: Callable[[], float] = time.time) -> None:
         self.memory = memory
@@ -240,7 +243,8 @@ def olhar_uma_vez(
     avistamentos: Avistamentos,
     pode_olhar: Callable[[], bool],
 ) -> int:
-    """Um quadro: detecta e guarda só os rótulos. `pode_olhar` é a presença (regra 66)."""
+    """Um quadro: detecta e guarda só os rótulos. `pode_olhar` é a presença (REGRAS.md: presença só
+    pausa e retoma, cumpre e bloqueia só com sua confirmação)."""
     from .camera import decodificar
 
     if not pode_olhar():

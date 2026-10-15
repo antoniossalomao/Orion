@@ -5,7 +5,8 @@ ferramenta do modelo: o modelo só **classifica** o texto (JSON validado), nunca
 nem executa nada. O destino de cada tipo é fixo:
 
 - `tarefa` → `Operations.add_task`;  `lembrete` → `Operations.add_reminder` (precisa de data);
-- `nota` → `00 Inbox` do vault (`orion.capture.Capturer`, regra 30);
+- `nota` → `00 Inbox` do vault (`orion.capture.Capturer`, REGRAS.md: captura rápida e briefing não
+  passam pelo modelo);
 - `gasto` só existe depois da E10.3; até lá cai em nota.
 
 Sem modelo (ou com resposta ilegível) vale a regra simples por palavra-chave, e o que não casar vira
@@ -192,7 +193,8 @@ class PedidoCaptura(BaseModel):
 
 
 def router(require_auth: Any) -> Any:
-    """`POST /captura` e `DELETE /captura/{id}`. O token da ponte alcança só estas (regra 50)."""
+    """`POST /captura` e `DELETE /captura/{id}`. O token da ponte alcança só estas (REGRAS.md: ponte
+    de desktop só abre e cola o que você aprovou)."""
     api = APIRouter(dependencies=[Depends(require_auth)])
     desfazer = Desfazer()
 
@@ -224,12 +226,13 @@ def router(require_auth: Any) -> Any:
                 "origem": "regra",
                 "aviso": "guardei para ler depois",
             }
-        # em pânico (regra 48) nada vai ao modelo; a regra simples basta
+        # em pânico (REGRAS.md: pânico é corte; não perturbe só segura) nada vai ao modelo; a regra
+        # simples basta
         gateway = s.agent.gateway if s.agent is not None else None
         if s.modos is not None and s.modos.panico():
             gateway = None
         if VERBO_GASTO.search(_sem_acento(texto)):
-            # regra 61: texto de gasto não vai à nuvem; a regra (ou o modelo local) decide
+            # REGRAS.md: texto de gasto não vai à nuvem; a regra (ou o modelo local) decide
             gateway = None
         c, origem = await classificar(gateway, texto)
         if c.tipo == "gasto" and c.valor is None and parse_gasto(texto) is None:
@@ -259,7 +262,8 @@ def router(require_auth: Any) -> Any:
         g = parse_gasto(texto) if tipo == "gasto" else None  # "gastei 30 no mercado" sem R$
         cents = g["cents"] if g else (round(c.valor * 100) if c.valor is not None else None)
         if tipo == "gasto" and s.financas is not None and cents:
-            # E10.3 (regra 61): o gasto vai ao banco local, nunca a provedor de fora
+            # E10.3 (REGRAS.md: finanças são locais: valor, conta e extrato nunca saem do
+            # computador): o gasto vai ao banco local, nunca a provedor de fora
             cat, desc = (
                 (g["category"], g["description"]) if g else (categoria_de(c.titulo), c.titulo)
             )

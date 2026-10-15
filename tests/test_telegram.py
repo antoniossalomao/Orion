@@ -374,7 +374,7 @@ async def test_resposta_vazia_e_erro_do_modelo_viram_mensagem(store, policy, tg)
     assert tg.textos()[1].startswith("⚠️ nenhum modelo respondeu")
 
 
-# ── aprovação por botão (regra 2) ─────────────────────────────────────────
+# ── aprovação por botão (REGRAS.md: confirmação fora de banda (canal autenticado)) ─────────────────────────────────────────
 async def _pedir_aprovacao(canal, store, tg):
     fato = store.add_fact("dado a apagar", "manual")
     await canal.handle_update(msg("apague aquele fato"))

@@ -30,7 +30,7 @@ def _texto(m: dict) -> str:
 def create_app() -> FastAPI:
     app = FastAPI()
     app.state.pedidos = []
-    app.state.ferramentas = []  # nomes das `tools` de cada pedido (pânico e modelo local: regras 48 e 49)
+    app.state.ferramentas = []  # nomes das `tools` de cada pedido (pânico e modelo local, REGRAS.md: pânico é corte; não perturbe só segura; modelo local é reserva sem ferramentas)
     # FAKE_FALHAS="3,7": esses pedidos (1, 2, 3...) respondem 502, para o painel contar falhas
     falhas = {int(x) for x in os.environ.get("FAKE_FALHAS", "").split(",") if x.strip()}
 

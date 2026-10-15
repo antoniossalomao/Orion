@@ -3,14 +3,15 @@
 **A — voz como canal do agente (`/ws/voz`).** O navegador manda uma fala gravada; o Orion
 transcreve (Whisper no Groq), roda o turno do agente normalmente (memória, ferramentas, política,
 audit) e fala a resposta (edge-tts, `pt-BR-AntonioNeural`). Nada muda na segurança: a aprovação de
-uma ação continua só por botão (regra 2) — se o turno pede uma, a voz avisa e o cartão aparece.
+uma ação continua só por botão (REGRAS.md: confirmação fora de banda (canal autenticado)) — se o
+turno pede uma, a voz avisa e o cartão aparece.
 
 **B — voz ao vivo (`/ws/voice`).** Ponte do microfone para o Gemini Live (voz Charon). O Gemini
 conversa direto: **sem ferramentas, sem memória e sem acesso ao computador**; é só conversa.
 Cada sessão vai para o audit, tem duração máxima e só abre com opt-in (o áudio vai ao Google).
 
 **Não validado contra as APIs reais** (Groq, edge-tts, Gemini Live): os testes usam falsos
-(ver ORION_MELHORIAS).
+(ver ORION_LEGADO.md).
 """
 
 from __future__ import annotations
@@ -142,7 +143,8 @@ class EdgeSpeaker:
             ]
             return b"".join(partes)
 
-        # o TEXTO da resposta vai para a Microsoft: fica no registro de saída (regra 47)
+        # o TEXTO da resposta vai para a Microsoft: fica no registro de saída (REGRAS.md: toda saída
+        # de dado fica registrada, sem conteúdo)
         with saidas.medir("microsoft", "tts", model=self._voz, bytes_out=len(texto.encode())) as m:
             try:
                 audio = await asyncio.wait_for(coletar(), self._timeout)
@@ -161,7 +163,9 @@ async def turno_de_voz(
     speaker: Speaker | None,
     audio: bytes,
     canal: str = "web",
-    estado: Any = None,  # EstadoVoz (E10.11, regra 63); None: sem estilo pela fala
+    # EstadoVoz (E10.11, REGRAS.md: o estado pela voz só muda o estilo da resposta); None: sem
+    # estilo pela fala
+    estado: Any = None,
 ) -> AsyncIterator[dict[str, Any] | bytes]:
     """Uma fala vira um turno do agente. Produz mensagens JSON (dict) e, no fim, o áudio da
     resposta (bytes) logo depois de `{"type": "audio"}`. O turno sempre termina em `done`, com ou
@@ -182,7 +186,8 @@ async def turno_de_voz(
     medida = medir_wav(audio) if estado is not None and tipo[1] == "audio/wav" else None
     if estado is not None and medida is not None:
         duracao, energia = medida
-        estilo = estado.observar(len(texto.split()), duracao, energia)  # só médias (regra 63)
+        # só médias (REGRAS.md: o estado pela voz só muda o estilo da resposta)
+        estilo = estado.observar(len(texto.split()), duracao, energia)
     falado: list[str] = []
     precisa_aprovar = False
     async for ev in agent.run(canal, texto):
@@ -193,7 +198,7 @@ async def turno_de_voz(
         corpo = ev.corpo()
         if corpo is not None:
             yield {"type": "ev", "ev": corpo}
-    # regra 63: o estilo só encurta a fala; não decide nada e não entra na memória
+    # REGRAS.md: o estilo só encurta a fala; não decide nada e não entra na memória
     resposta = falavel("".join(falado), limite=180 if estilo == "curto" else MAX_FALA_CHARS)
     if precisa_aprovar:
         resposta = f"{resposta} {AVISO_APROVACAO}".strip()
@@ -236,7 +241,9 @@ async def _enviar(ws: WebSocket, msg: dict[str, Any]) -> None:
         await ws.send_text(json.dumps(msg, ensure_ascii=False))
 
 
-INTERVALO_QUADRO_S = 1.0  # vídeo ao vivo: um quadro por segundo, só com a câmera ligada (regra 64)
+# vídeo ao vivo: um quadro por segundo, só com a câmera ligada (REGRAS.md: a câmera só liga por
+# pedido seu, e cada uso fica registrado)
+INTERVALO_QUADRO_S = 1.0
 
 
 async def ponte_ao_vivo(
@@ -250,11 +257,14 @@ async def ponte_ao_vivo(
     e a transcrição. Devolve por que terminou: "navegador" | "tempo" | "erro"."""
     from google.genai import types
 
-    trafego = {"subiu": 0, "desceu": 0}  # só tamanhos, para o registro de saída (regra 47)
+    # só tamanhos, para o registro de saída (REGRAS.md: toda saída de dado fica registrada, sem
+    # conteúdo)
+    trafego = {"subiu": 0, "desceu": 0}
     extras: list[asyncio.Task[None]] = []  # o fluxo de quadros da câmera, quando ligado
 
     async def quadros(sessao: Any) -> None:
-        # um quadro por vez; a foto sai da memória logo depois de enviada (regra 64)
+        # um quadro por vez; a foto sai da memória logo depois de enviada (REGRAS.md: a câmera só
+        # liga por pedido seu, e cada uso fica registrado)
         while True:
             try:
                 jpeg = await asyncio.to_thread(camera) if camera else b""

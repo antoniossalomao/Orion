@@ -1,4 +1,5 @@
-"""Presença (E11.6, regra 66): chegou, saiu. Só pausa, retoma e cumprimenta.
+"""Presença (E11.6, REGRAS.md: presença só pausa e retoma, cumpre e bloqueia só com sua
+confirmação): chegou, saiu. Só pausa, retoma e cumprimenta.
 
 Sinais locais, do mais barato ao mais caro: tela desbloqueada com teclado/mouse recente, celular
 por Bluetooth perto, rosto (E11.5) com a câmera ligada. Ninguém sai do computador com isso. Sem
@@ -88,7 +89,8 @@ def bloquear_tela(
     which: Callable[[str], str | None] = shutil.which,
     runner: Callable[..., Any] = subprocess.run,
 ) -> bool:
-    """Bloqueia a sessão. True se o comando foi disparado; quem chama confirma antes (regra 66)."""
+    """Bloqueia a sessão. True se o comando foi disparado; quem chama confirma antes (REGRAS.md:
+    presença só pausa e retoma, cumpre e bloqueia só com sua confirmação)."""
     if platform == "win32":
         argv = ["rundll32.exe", "user32.dll,LockWorkStation"]
     elif platform == "darwin":
@@ -136,7 +138,7 @@ def sinais_do_sistema(
         tela_desbloqueada=desbloqueada,
         ocioso_s=ocioso_segundos(),
         bt_perto=bt_perto(bt_endereco),
-        # regra 65: o rosto só é comparado com a tela desbloqueada
+        # REGRAS.md: o rosto só é comparado com a tela desbloqueada
         rosto=rosto() if desbloqueada else None,
     )
 

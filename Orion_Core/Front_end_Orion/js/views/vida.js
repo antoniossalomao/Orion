@@ -1,7 +1,7 @@
 /* ==========================================================================
    ORION — views/vida.js | Vida pessoal (E10): finanças, preços, linha do tempo, sonhos e foco
-   Tudo local (regra 61). Fatura: você cola o texto, revisa as linhas e só então lança. Foco só
-   pergunta (regra 62). Só `textContent`. Lógica pura em vida_logica.js.
+   Tudo local (REGRAS.md: finanças são locais: valor, conta e extrato nunca saem do computador). Fatura: você cola o texto, revisa as linhas e só então lança. Foco só
+   pergunta (REGRAS.md: o escudo de foco pergunta; nunca bloqueia, fecha nem segura nada). Só `textContent`. Lógica pura em vida_logica.js.
    ========================================================================== */
 (function () {
     'use strict';

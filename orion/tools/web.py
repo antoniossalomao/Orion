@@ -3,7 +3,8 @@
 
 Desligadas por padrão (`ORION_WEB_TOOLS=true`). `buscar_url` e `pesquisar_com_ia` devolvem
 conteúdo **externo**: chega marcado como dado e, depois dele, a sessão confirma escrita e
-execução (regra 4). O risco que sobra, uma página injetada pedir outro `buscar_url` com dados na
+execução (REGRAS.md: conteúdo externo é dado, não instrução). O risco que sobra, uma página injetada
+pedir outro `buscar_url` com dados na
 própria URL (exfiltração por GET), tem trava própria: `buscar_url` é uma ferramenta de **egress**
 (`orion.policy.classes`). Numa sessão que já leu conteúdo externo, cada uso pede o seu aval, com a
 URL inteira no cartão. O endereço também passa pela barreira de rede (`orion.netguard`: só host
@@ -14,7 +15,7 @@ e `pesquisar_com_ia` falam com um destino fixo (Open-Meteo, Google), que o ataca
 qualquer página. `gerar_imagem` manda a descrição ao Google e grava a imagem em `<dados>/imagens`
 com nome gerado aqui (o app a serve em `/imagens/<arquivo>`, só com login); a resposta diz o
 arquivo, nunca texto do provedor. Nenhuma das duas foi chamada contra a API real (formatos por
-memória da documentação): ver ORION_MELHORIAS.
+memória da documentação): ver ORION_LEGADO.md.
 """
 
 from __future__ import annotations
@@ -180,7 +181,9 @@ def web_tools(
                 r = c.post(
                     f"{GEMINI}/{search_model}:generateContent",
                     json=corpo,
-                    headers={"x-goog-api-key": chave},  # em cabeçalho, nunca na URL (regra 5)
+                    # em cabeçalho, nunca na URL (REGRAS.md: segredos nunca em log, audit ou
+                    # processo filho)
+                    headers={"x-goog-api-key": chave},
                 )
                 m.bytes_in = len(r.content)
                 r.raise_for_status()
@@ -219,7 +222,9 @@ def web_tools(
                     BRAVE,
                     params={"q": consulta, "count": n, "search_lang": "pt"},
                     headers={"X-Subscription-Token": chave, "Accept": "application/json"},
-                )  # chave em cabeçalho, nunca na URL (regra 5)
+                    # chave em cabeçalho, nunca na URL (REGRAS.md: segredos nunca em log, audit ou
+                    # processo filho)
+                )
                 m.bytes_in = len(r.content)
                 r.raise_for_status()
                 d = r.json()
@@ -270,7 +275,9 @@ def web_tools(
                 r = c.post(
                     f"{GEMINI}/{image_model}:generateContent",
                     json=corpo,
-                    headers={"x-goog-api-key": chave},  # em cabeçalho, nunca na URL (regra 5)
+                    # em cabeçalho, nunca na URL (REGRAS.md: segredos nunca em log, audit ou
+                    # processo filho)
+                    headers={"x-goog-api-key": chave},
                 )
                 m.bytes_in = len(r.content)
                 r.raise_for_status()

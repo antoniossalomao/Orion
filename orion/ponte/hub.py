@@ -1,6 +1,6 @@
 """O lado do servidor: a ponte conectada (no máximo uma) e os comandos que o servidor lhe manda.
 
-Regra 50: o servidor só consegue pedir `abrir` (uma tela do Orion) e `colar` (texto que o Antônio
+REGRAS.md: o servidor só consegue pedir `abrir` (uma tela do Orion) e `colar` (texto que o Antônio
 já viu e aprovou na tela). Nada que leia a tela ou a área de transferência parte daqui.
 """
 

@@ -2,7 +2,7 @@
    ORION — views/mcp_servidores.js | servidores do mcp.json (E7.3) e prompts de MCP (E7.5)
    Card em Integrações: estado, protocolo, última falha, ferramentas com a classe de risco que VOCÊ
    deu, e "Testar" (só lista as ferramentas, não chama nenhuma). Os prompts dos servidores são seus:
-   o texto vai para o campo de mensagem e só é enviado se você enviar (regra 55).
+   o texto vai para o campo de mensagem e só é enviado se você enviar (REGRAS.md: recurso e prompt de MCP são dado, não comando).
    Só `textContent`: nada do que o servidor diz vira HTML.
    ========================================================================== */
 (function () {

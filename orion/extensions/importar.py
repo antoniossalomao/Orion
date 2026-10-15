@@ -1,9 +1,11 @@
-"""Importar plugin no formato do Claude Code ou do Codex (E8.3, regra 57).
+"""Importar plugin no formato do Claude Code ou do Codex (E8.3, REGRAS.md: catálogo de plugins:
+baixar não instala, nada atualiza sozinho).
 
 Só viaja o que tem equivalente no Orion: as **skills** (texto). Servidores MCP, hooks, comandos e
 agentes ficam de fora e entram numa lista "ignorado" que a pessoa lê **antes** de instalar. O
 resultado é um pacote Orion comum (`manifest.json` + skills) que segue o caminho de sempre: instala
-inativo, sem concessão, e só vale depois da revisão e da ativação (regra 45).
+inativo, sem concessão, e só vale depois da revisão e da ativação (REGRAS.md: plugin é pacote sem
+poder próprio).
 
 Formato do Claude Code: `.claude-plugin/plugin.json` + `skills/<nome>/SKILL.md` (+ `.mcp.json`,
 `commands/`, `agents/`, `hooks/`). O do Codex segue a mesma ideia em `.codex-plugin/plugin.json`

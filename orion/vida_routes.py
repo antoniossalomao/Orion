@@ -1,4 +1,4 @@
-"""E10: rotas de finanças, contas, preços e simulação. Regra 61: tudo local, nada sai daqui."""
+"""E10: rotas de finanças, contas, preços e simulação. REGRAS.md: tudo local, nada sai daqui."""
 
 from __future__ import annotations
 
@@ -207,7 +207,7 @@ def router(require_auth: Any) -> Any:
 
     @api.post("/foco/iniciar")
     def foco_iniciar(corpo: PedidoFoco, request: Request) -> dict[str, Any]:
-        """Regra 62: o bloco só habilita a pergunta discreta; não bloqueia nada."""
+        """REGRAS.md: o bloco só habilita a pergunta discreta; não bloqueia nada."""
         s = request.app.state.orion
         if s.foco is None:
             raise HTTPException(409, "escudo de foco indisponível")

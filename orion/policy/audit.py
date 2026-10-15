@@ -1,6 +1,6 @@
 """Audit: redação de segredos e limite de chamadas.
 
-Regra 5: segredos nunca vão para log/audit. `redact` mascara por nome de chave e
+REGRAS.md: segredos nunca vão para log/audit. `redact` mascara por nome de chave e
 por padrões de token conhecidos, e trunca textos longos.
 """
 

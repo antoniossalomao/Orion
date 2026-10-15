@@ -1,4 +1,5 @@
-"""Palavra de ativação "Orion": um agente que escuta o microfone o tempo todo (regra 38).
+"""Palavra de ativação "Orion": um agente que escuta o microfone o tempo todo (REGRAS.md: palavra de
+ativação só abre o microfone; detecção local).
 
 **Como funciona.** Um laço numa thread lê o microfone em quadros de 80 ms (16 kHz, 16 bits, mono) e
 passa cada quadro a um *detector* que roda **no próprio computador**. Enquanto a palavra não é
@@ -6,14 +7,15 @@ ouvida, o áudio só existe no quadro atual: nada é gravado em disco, guardado 
 "Orion" → um bipe → grava a fala seguinte (até o silêncio) → entrega à mesma via do botão de
 microfone (`turno_de_voz`: Whisper no Groq → turno do agente → edge-tts) e toca a resposta.
 
-**Dois detectores** (nenhum validado com áudio real, ver ORION_MELHORIAS):
+**Dois detectores** (nenhum validado com áudio real, ver ORION_LEGADO.md):
 - `openwakeword`: um modelo `.onnx` treinado na palavra "orion". O projeto openWakeWord treina o
   modelo sozinho, com voz sintética (Colab oficial): **não precisa gravar amostras**.
 - `vosk`: reconhecimento offline restrito à palavra (gramática `["orion", "[unk]"]`), sem treino,
   mas a palavra precisa existir no vocabulário do modelo baixado.
 
-**O que a palavra de ativação NÃO faz** (regra 38): não aprova nada (aprovar é só por botão,
-regra 2: a voz avisa e o cartão aparece), não abre ferramenta que a política não abriria e não
+**O que a palavra de ativação NÃO faz** (REGRAS.md: palavra de ativação só abre o microfone;
+detecção local): não aprova nada (aprovar é só por botão,
+REGRAS.md: a voz avisa e o cartão aparece), não abre ferramenta que a política não abriria e não
 liga sozinha (`ORION_WAKE_ENABLED`). Tem teto de ativações por hora (uma TV que diga "Orion" não
 vira rajada), pausa pela API/painel e cada ativação vai para o audit sem o áudio.
 """
@@ -112,7 +114,8 @@ class WakeStats:
     ativacoes: int = 0
     falas_vazias: int = 0  # ouviu a palavra e mais nada
     recusadas: int = 0  # palavra ouvida acima do teto por hora
-    palmas: int = 0  # duas palmas que abriram o Orion (regra 51)
+    # duas palmas que abriram o Orion (REGRAS.md: palmas só abrem; nunca aprovam nem executam)
+    palmas: int = 0
     palmas_recusadas: int = 0  # duas palmas acima do teto por hora, ou com a ação bloqueada
     ultima: float | None = None  # epoch da última ativação
     ultimo_erro: str | None = None  # só o tipo da exceção
@@ -467,7 +470,8 @@ def argv_player(
     plataforma: str, arquivo: Path, *, existe: Callable[[str], str | None] = shutil.which
 ) -> tuple[list[str], dict[str, str]] | None:
     """(argv, env extra) para tocar um mp3. Caminho por variável de ambiente no Windows, nunca
-    montado no script (regra 26). None se o sistema não tem tocador."""
+    montado no script (REGRAS.md: o que o modelo escreve nunca vira comando para o computador). None
+    se o sistema não tem tocador."""
     if plataforma == "darwin":
         return ["afplay", str(arquivo)], {}
     if plataforma.startswith("win"):

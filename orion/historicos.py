@@ -1,4 +1,5 @@
-"""E9.6/E9.7 — históricos locais (regra 60): área de transferência e comandos de terminal.
+"""E9.6/E9.7 — históricos locais (REGRAS.md: históricos locais: opt-in, só texto, só neste
+computador): área de transferência e comandos de terminal.
 
 Ficam só no banco do computador, com retenção e opt-in (`ORION_CLIPBOARD_DAYS`,
 `ORION_COMMAND_HISTORY`). Nada sai daqui sozinho: só as ferramentas de leitura `buscar_*` os

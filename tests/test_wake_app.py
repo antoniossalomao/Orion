@@ -1,4 +1,4 @@
-"""Palavra de ativação ligada ao app (regra 38): da palavra ouvida ao turno do agente e à fala."""
+"""Palavra de ativação ligada ao app (REGRAS.md: palavra de ativação só abre o microfone; detecção local): da palavra ouvida ao turno do agente e à fala."""
 
 import time
 

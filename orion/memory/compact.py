@@ -1,10 +1,12 @@
-"""Auto-compact do histórico (E4.4, regra 53): conversa longa não "esquece o começo".
+"""Auto-compact do histórico (E4.4, REGRAS.md: resumo da conversa nunca substitui o registro):
+conversa longa não "esquece o começo".
 
 O contexto do agente é uma janela das últimas mensagens (`context_history`); o que fica para trás
 some do prompt. Quando a conversa passa de `ORION_COMPACT_AT` mensagens, este módulo resume o que
 já saiu da janela em poucas linhas, e o resumo entra no prompt antes do histórico.
 
-- **só com o modelo local** (regra 49): o texto da conversa não sai do computador para resumir;
+- **só com o modelo local** (REGRAS.md: modelo local é reserva sem ferramentas): o texto da conversa
+  não sai do computador para resumir;
   sem modelo local, não faz nada e o corte da janela continua como era;
 - **roda depois da resposta**, em segundo plano: nunca atrasa o turno;
 - **o resumo nunca substitui o registro**: as mensagens ficam no banco, na busca e no histórico;

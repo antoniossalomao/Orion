@@ -322,7 +322,7 @@ def test_prova_e1_provedores_panico_e_privacidade(navegador, tmp_path):
 
 def test_prova_e1_modelo_local_responde_quando_o_gateway_falha(tmp_path):
     """Gateway fora do ar (porta fechada) + o "Ollama" de mentira no lugar do modelo local: o chat
-    responde pelo local, e o pedido ao local sai sem `tools` (regra 49)."""
+    responde pelo local, e o pedido ao local sai sem `tools` (REGRAS.md: modelo local é reserva sem ferramentas)."""
     morto = _porta_livre()
     extra = {
         "ORION_GATEWAY_URL": f"http://127.0.0.1:{morto}/v1",

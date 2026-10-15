@@ -1,4 +1,5 @@
-"""Duas palmas abrem o Orion (E2.2, regra 51): um detector de palmas no mesmo microfone da palavra
+"""Duas palmas abrem o Orion (E2.2, REGRAS.md: palmas só abrem; nunca aprovam nem executam): um
+detector de palmas no mesmo microfone da palavra
 de ativação.
 
 Roda sobre os mesmos quadros de 80 ms (16 kHz, 16 bits, mono) que `orion.wake` já lê; o áudio só
@@ -125,10 +126,11 @@ def acao_das_palmas(
     """A função que a escuta chama quando acontecem duas palmas. Devolve True se a escuta deve
     começar um turno de voz agora (`abrir_e_ouvir`), False se só abriu, None se estava bloqueada.
 
-    Regra 51: palma só **abre**. Nunca aprova nem executa ferramenta; o único efeito é abrir a
+    REGRAS.md: palma só **abre**. Nunca aprova nem executa ferramenta; o único efeito é abrir a
     interface (pela ponte, se houver, senão no navegador) e, se você pediu, ouvir uma fala.
     `bloqueado()` devolve o motivo ("pânico", "não perturbe") ou "" — nesses casos nada acontece.
-    `rotina:<nome>` (E9.1, regra 58) aciona uma rotina que você concedeu: a palma só dispara, e a
+    `rotina:<nome>` (E9.1, REGRAS.md: automação sua vale pelo arquivo concedido) aciona uma rotina
+    que você concedeu: a palma só dispara, e a
     rotina segue as próprias regras (leitura e mídia direto; o resto pede aprovação).
     """
     ouvir = acao == "abrir_e_ouvir"

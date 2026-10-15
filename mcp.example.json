@@ -41,7 +41,7 @@
       "enabled": false
     },
     "google": {
-      "_nota": "E-mail e agenda pelo workspace-mcp (PyPI), com permissão 'gmail:drafts': lê e cria RASCUNHO, e o servidor nem registra a ferramenta de envio. Passo a passo em ORION_OPERACAO.md §5.1 (cliente OAuth no Google Cloud, ORION_GOOGLE_CLIENT_ID e ORION_GOOGLE_CLIENT_SECRET no cofre). Só leitura vira read; manage_event (cria, altera e apaga evento) e start_google_auth ficam em exec e pedem confirmação. Nunca classifique envio de e-mail como read nem write.",
+      "_nota": "E-mail e agenda pelo workspace-mcp (PyPI), com permissão 'gmail:drafts': lê e cria RASCUNHO, e o servidor nem registra a ferramenta de envio. Passo a passo em ORION_LEGADO.md (operação, §5.1) (cliente OAuth no Google Cloud, ORION_GOOGLE_CLIENT_ID e ORION_GOOGLE_CLIENT_SECRET no cofre). Só leitura vira read; manage_event (cria, altera e apaga evento) e start_google_auth ficam em exec e pedem confirmação. Nunca classifique envio de e-mail como read nem write.",
       "command": "uvx",
       "args": ["workspace-mcp==2.0.1", "--permissions", "gmail:drafts", "calendar:full"],
       "env": {

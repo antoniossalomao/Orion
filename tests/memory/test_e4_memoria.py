@@ -1,4 +1,4 @@
-"""E4: isolamento por projeto (regra 52), validade e substituição de fatos (regra 54), reranker."""
+"""E4: isolamento por projeto (REGRAS.md: o que é de um projeto fica no projeto), validade e substituição de fatos (REGRAS.md: o Orion não decide sozinho qual fato vale), reranker."""
 
 import pytest
 

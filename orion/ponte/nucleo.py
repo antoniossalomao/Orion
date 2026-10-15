@@ -1,4 +1,5 @@
-"""O lado do cliente da ponte (regra 50): teclas globais, bandeja, janelas e área de transferência.
+"""O lado do cliente da ponte (REGRAS.md: ponte de desktop só abre e cola o que você aprovou):
+teclas globais, bandeja, janelas e área de transferência.
 
 Nada aqui importa pynput, pystray, webview nem tesseract: os adaptadores entram por construtor
 (`Adaptadores`), como a fonte de áudio em `orion.wake`. Assim a ponte inteira é provada com
@@ -171,7 +172,9 @@ class Ponte:
             acoes["ocr"] = self.copiar_texto_da_tela
         if self.a.captura_da_janela is not None:
             acoes["isso"] = self.o_que_e_isso
-        for nome in self.teclas:  # tecla de rotina (E9.1, regra 58): só dispara a rotina concedida
+        # tecla de rotina (E9.1, REGRAS.md: automação sua vale pelo arquivo concedido): só dispara a
+        # rotina concedida
+        for nome in self.teclas:
             if nome.startswith("rotina:"):
                 acoes[nome] = lambda n=nome[7:]: self.rotina(n)
         return {para_pynput(self.teclas[nome]): fn for nome, fn in acoes.items()}

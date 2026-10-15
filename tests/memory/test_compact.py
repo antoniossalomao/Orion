@@ -1,4 +1,4 @@
-"""E4.4, regra 53: o auto-compact resume o que saiu da janela, só com o modelo local, sem
+"""E4.4, REGRAS.md: o auto-compact resume o que saiu da janela, só com o modelo local, sem
 atrasar o turno e sem tocar no registro."""
 
 import asyncio

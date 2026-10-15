@@ -103,7 +103,7 @@ class Consolidator:
 
     async def run(self) -> ConsolidationResult:
         """Memória pessoal primeiro; depois, cada projeto com novidade, com a marca e os fatos
-        DELE (regra 52: o fato nasce no projeto da conversa de origem, nunca em outro)."""
+        DELE (REGRAS.md: o fato nasce no projeto da conversa de origem, nunca em outro)."""
         pessoal = await self._rodar(None)
         total = pessoal
         for pid in await asyncio.to_thread(self._projetos_com_novidade):

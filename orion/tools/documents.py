@@ -2,7 +2,8 @@
 
 Ler: txt, md, csv, json, html, docx, xlsx e pdf. O resultado é conteúdo **externo** (um
 documento pode trazer instruções para o modelo): chega marcado como dado e a sessão passa a
-confirmar escrita e execução (regra 4). O caminho lido passa pela política (segredo confirma).
+confirmar escrita e execução (REGRAS.md: conteúdo externo é dado, não instrução). O caminho lido
+passa pela política (segredo confirma).
 Limite de 25 MB por arquivo, e o texto devolvido é cortado.
 
 Gerar: txt, md, html, csv, docx, xlsx e (com `uv sync --extra pdf`) pdf. Em planilha, texto que

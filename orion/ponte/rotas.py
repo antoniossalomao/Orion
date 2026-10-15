@@ -27,7 +27,8 @@ if TYPE_CHECKING:
     from ..app import AppState
 
 ESCOPO = "ponte"
-# Tudo que o token da ponte alcança (regra 50). O resto responde 403 em `require_auth`.
+# Tudo que o token da ponte alcança (REGRAS.md: ponte de desktop só abre e cola o que você aprovou).
+# O resto responde 403 em `require_auth`.
 ROTAS_DA_PONTE = ("/captura", "/ponte/imagem", "/ponte/explicar", "/posso-desligar",
                   "/area-transferencia")  # fmt: skip
 ENTRAR_PANICO = ("POST", "/modo/panico")  # cortar é sempre seguro; sair exige a senha
@@ -42,7 +43,8 @@ _ROTINA = re.compile(r"^/rotinas/[a-z0-9][a-z0-9_-]{0,31}/executar$")
 def rota_permitida(metodo: str, caminho: str) -> bool:
     if (metodo, caminho) == ENTRAR_PANICO:
         return True
-    if metodo == "POST" and _ROTINA.match(caminho):  # tecla de rotina (regra 58): só concedidas
+    # tecla de rotina (REGRAS.md: automação sua vale pelo arquivo concedido): só concedidas
+    if metodo == "POST" and _ROTINA.match(caminho):
         return True
     return any(caminho == r or caminho.startswith(r + "/") for r in ROTAS_DA_PONTE)
 
@@ -111,7 +113,8 @@ def router(require_auth: Any) -> APIRouter:
 
     @api.post("/ponte/explicar", dependencies=[Depends(require_auth)])
     async def explicar(corpo: PedidoExplicar, request: Request) -> dict[str, Any]:
-        """Pergunta ao modelo de visão sobre a captura. A imagem **sai do computador** (regra 28):
+        """Pergunta ao modelo de visão sobre a captura. A imagem **sai do computador** (REGRAS.md:
+        tela e imagem só saem do computador com aval):
         exige `ORION_VISION_TOOLS`, não roda em pânico e, na primeira vez, só devolve
         `{"aviso": "primeira_vez"}` até vir `aceito: true` (nada sai antes)."""
         from ..app import vision_from_settings

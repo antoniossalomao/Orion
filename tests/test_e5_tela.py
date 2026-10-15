@@ -1,4 +1,4 @@
-"""E5.1 a E5.3 (estende a regra 44): busca pela interface, exclusão por programa e tela bloqueada."""
+"""E5.1 a E5.3 (estende REGRAS.md: memória da tela: só texto, local e com opt-in): busca pela interface, exclusão por programa e tela bloqueada."""
 
 import pytest
 from fastapi.testclient import TestClient

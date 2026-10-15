@@ -1,4 +1,5 @@
-"""Câmera (E11.1, regra 64): uma foto por pedido, em memória, sem vídeo e sem arquivo.
+"""Câmera (E11.1, REGRAS.md: a câmera só liga por pedido seu, e cada uso fica registrado): uma foto
+por pedido, em memória, sem vídeo e sem arquivo.
 
 A biblioteca (`opencv-python-headless`, extra `camera`) só é carregada quando a câmera é usada. A
 foto volta como JPEG em bytes; quem chama a descarta logo depois da resposta. Nenhuma mensagem de

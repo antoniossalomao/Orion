@@ -2,7 +2,7 @@
 routers/system.py — Endpoints de status/telemetria/saúde do sistema.
 
 Extraído de cerebro_maestro.py na reorganização OOP (08/2026, ver
-ORION_TECNICO.md §9.3). Comportamento idêntico ao original —
+ORION_LEGADO.md §9.3). Comportamento idêntico ao original —
 só move código de lugar, não muda lógica nenhuma.
 """
 import asyncio

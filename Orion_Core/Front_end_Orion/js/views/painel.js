@@ -94,7 +94,7 @@
         }));
     }
 
-    /** Cota gratuita que o Orion contou hoje (regra 46), no mesmo medidor das CLIs */
+    /** Cota gratuita que o Orion contou hoje (REGRAS.md: custo zero (sem API paga)), no mesmo medidor das CLIs */
     function cotaEl(cota) {
         if (!cota?.length) return vazio('Sem conta de cota neste cérebro.');
         return el('div', { class: 'painel-meters' }, ...cota.map(c => {
@@ -106,7 +106,7 @@
         }));
     }
 
-    /** Provedores na semana (registro de saída, regra 47): chamadas, falhas, latência e tráfego */
+    /** Provedores na semana (registro de saída, REGRAS.md: toda saída de dado fica registrada, sem conteúdo): chamadas, falhas, latência e tráfego */
     function provedoresEl(lista) {
         const linhas = L.linhasProvedores(lista);
         if (!linhas.length) return vazio('Nenhuma chamada para fora nesta semana.');
@@ -122,7 +122,7 @@
                 el('td', { class: 'mono', text: x.trafego }))))));
     }
 
-    /** Pânico e não perturbe (regra 48): entrar no pânico é um clique; sair pede a senha de novo */
+    /** Pânico e não perturbe (REGRAS.md: pânico é corte; não perturbe só segura): entrar no pânico é um clique; sair pede a senha de novo */
     function controleEl(m) {
         if (!m) return vazio('Este cérebro não tem modo pânico.');
         const r = L.resumoModos(m);

@@ -1,4 +1,4 @@
-"""E9.1 (regra 58): rotinas suas, concedidas pelo hash, com gatilhos e aprovação onde precisa."""
+"""E9.1 (REGRAS.md: automação sua vale pelo arquivo concedido): rotinas suas, concedidas pelo hash, com gatilhos e aprovação onde precisa."""
 
 import pytest
 from fastapi.testclient import TestClient

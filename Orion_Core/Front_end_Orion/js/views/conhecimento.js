@@ -1,7 +1,7 @@
 /* ==========================================================================
    ORION — views/conhecimento.js | memória da tela e biblioteca de arquivos gerados
    Projetos, fatos e documentos têm tela própria (projects.js, facts.js, documents.js). Aqui ficam
-   a memória da tela (regra 44) e o que o Orion gerou (documentos e imagens, com versões).
+   a memória da tela (REGRAS.md: memória da tela: só texto, local e com opt-in) e o que o Orion gerou (documentos e imagens, com versões).
    Só `textContent`: nada do que vem do servidor vira HTML.
    ========================================================================== */
 (function () {
@@ -73,7 +73,7 @@
                 el('button', { class: 'btn btn-ghost btn-sm', type: 'button', text: 'Apagar', 'aria-label': `Apagar ${r.nome} versão ${r.versao}`, on: { click: () => apagarResultado(r) } })));
     }
 
-    /* ── memória da tela (regra 44): só estado e controles; o texto guardado nunca é mostrado ── */
+    /* ── memória da tela (REGRAS.md: memória da tela: só texto, local e com opt-in): só estado e controles; o texto guardado nunca é mostrado ── */
     async function limparTela() {
         const ok = await ui.confirmar({
             titulo: 'Apagar a memória da tela?', ok: 'Apagar tudo', perigo: true,
@@ -127,7 +127,7 @@
             el('div', { class: 'conh-acoes' }, el('button', { class: 'btn btn-ghost btn-sm', type: 'button', text: 'Apagar', 'aria-label': `Apagar a relação ${r.src} ${r.rel} ${r.dst}`, on: { click: () => apagarRelacao(r) } })))));
     }
 
-    /* ── pesquisa noturna (E6.5, regra 39): assuntos editáveis, relatórios e "rodar agora" ── */
+    /* ── pesquisa noturna (E6.5, REGRAS.md: pesquisa noturna só lê, sem aprovação): assuntos editáveis, relatórios e "rodar agora" ── */
     const MB = n => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
     const mudou = () => JSON.stringify(rascunho.map(x => x.trim()).filter(Boolean)) !== JSON.stringify(pesq.assuntos);
 

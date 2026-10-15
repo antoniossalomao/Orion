@@ -9,8 +9,10 @@ PADRAO: dict[str, str] = {
     "captura": "ctrl+alt+space",  # captura rápida (E2.3)
     "isso": "ctrl+alt+o",  # "o que é isso?" (E2.5)
     "ocr": "ctrl+alt+t",  # copiar texto de uma área da tela (E2.4)
-    "area": "ctrl+alt+v",  # lista pesquisável do que foi copiado (E9.6, regra 60)
-    "panico": "ctrl+alt+shift+p",  # modo pânico (regra 48)
+    # lista pesquisável do que foi copiado (E9.6, REGRAS.md: históricos locais: opt-in, só texto, só
+    # neste computador)
+    "area": "ctrl+alt+v",
+    "panico": "ctrl+alt+shift+p",  # modo pânico (REGRAS.md: pânico é corte; não perturbe só segura)
 }
 MODIFICADORES = ("ctrl", "alt", "shift", "cmd")
 _TECLA = re.compile(

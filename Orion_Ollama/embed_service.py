@@ -38,7 +38,7 @@ import time
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
-# pyarrow antes de torch — access violation no Windows (ver ORION_TECNICO)
+# pyarrow antes de torch — access violation no Windows (ver ORION_LEGADO.md)
 import pyarrow  # noqa: F401
 import torch
 from sentence_transformers import SentenceTransformer, CrossEncoder

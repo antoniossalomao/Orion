@@ -16,7 +16,7 @@ o id hexadecimal. Uma busca que acha mais de uma janela **não age** (devolve a 
 "primeira" poderia fechar a janela errada. Os títulos que voltam são conteúdo externo (o título de
 uma aba pode trazer instrução escrita), então a ferramenta é marcada como externa na política.
 
-Só o argv foi testado fora do sistema de cada um (ver ORION_MELHORIAS).
+Só o argv foi testado fora do sistema de cada um (ver ORION_LEGADO.md).
 """
 
 from __future__ import annotations

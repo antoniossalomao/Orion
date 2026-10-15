@@ -30,8 +30,8 @@ class Checagem:
 
 
 def _ver(secao: str) -> str:
-    """Sufixo dos avisos de opt-in: onde o ORION_OPERACAO.md explica como ligar direito."""
-    return f" (ver ORION_OPERACAO §{secao})"
+    """Sufixo dos avisos de opt-in: onde o ORION_LEGADO.md (operação) explica como ligar direito."""
+    return f" (ver ORION_LEGADO, operação §{secao})"
 
 
 def _chave(settings: Settings, campo: str, cofre: str) -> bool:
@@ -90,7 +90,11 @@ def _login(s: Settings) -> Checagem:
 
 def _rede(s: Settings) -> Checagem:
     if s.hosts_de_fora and not (s.admin_token or s.auth_db_path.exists()):
-        return Checagem("acesso de fora", "erro", "host liberado sem login (regra 17)")
+        return Checagem(
+            "acesso de fora",
+            "erro",
+            "host liberado sem login (REGRAS.md: acesso de fora só com login)",
+        )
     if s.host not in ("127.0.0.1", "localhost", "::1") and not s.allow_public_bind:
         return Checagem("acesso de fora", "erro", f"host {s.host} sem allow_public_bind")
     return Checagem("acesso de fora", "ok", "só local" if not s.hosts_de_fora else "com login")
@@ -220,7 +224,7 @@ def _vault(s: Settings) -> Checagem:
 
 
 def _custo(s: Settings) -> list[Checagem]:
-    """Regra 46: endereço configurado fora da lista de gratuitos pede `ORION_ALLOW_PAID=true`."""
+    """REGRAS.md (custo zero): endereço fora da lista de gratuitos pede ORION_ALLOW_PAID=true."""
     from .costs import host_gratuito
 
     out: list[Checagem] = []
@@ -239,15 +243,16 @@ def _custo(s: Settings) -> list[Checagem]:
                 Checagem(
                     f"custo ({nome})",
                     "aviso",
-                    f"{host} está fora da lista de provedores gratuitos (regra 46): se é seu e "
-                    "gratuito, confirme com ORION_ALLOW_PAID=true" + _ver("17"),
+                    f"{host} está fora da lista de provedores gratuitos "
+                    "(REGRAS.md: custo zero): se é seu e gratuito, confirme com "
+                    "ORION_ALLOW_PAID=true" + _ver("17"),
                 )
             )
     return out
 
 
 def _modelo_local(s: Settings, get: Callable[[str], Any] | None = None) -> list[Checagem]:
-    """Regra 49: o Ollama responde em `/api/tags` e o modelo está baixado."""
+    """REGRAS.md (modelo local): o Ollama responde em /api/tags e o modelo está baixado."""
     if not s.local_model:
         return []
     import httpx
@@ -285,8 +290,8 @@ def _memoria_nova(s: Settings) -> list[Checagem]:
                 "auto-compact",
                 "aviso",
                 "ORION_COMPACT_AT foi ajustado, mas sem ORION_LOCAL_MODEL o resumo da conversa "
-                "não roda (o texto nunca vai a um provedor de fora para ser resumido, regra 53)"
-                + _ver("19"),
+                "não roda (o texto nunca vai a um provedor de fora para ser resumido; "
+                "REGRAS.md: o resumo nunca substitui o registro)" + _ver("19"),
             )
         )
     if s.rerank:
@@ -306,7 +311,7 @@ def _memoria_nova(s: Settings) -> list[Checagem]:
 
 
 def _modos(s: Settings) -> list[Checagem]:
-    """Pânico ligado é coisa que você precisa ver logo (regra 48)."""
+    """Pânico ligado é coisa que você precisa ver logo (REGRAS.md: pânico é corte, não pausa)."""
     if not s.db_path.exists():
         return []
     try:

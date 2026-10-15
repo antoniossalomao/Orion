@@ -1,4 +1,4 @@
-"""Classes de risco por ferramenta (regra 1 do ORION_REGRAS.md).
+"""Classes de risco por ferramenta (REGRAS.md: classe de risco fixa por ferramenta).
 
 A classe é fixa por ferramenta e declarada aqui — não inferida por regex no
 texto da chamada. O argumento dá só o refinamento (comando de shell, caminho).
@@ -27,7 +27,8 @@ class ToolSpec:
     external: bool = False  # devolve conteúdo não confiável (web, e-mail, arquivos)
     read_path_arg: str | None = None  # argumento com caminho que a ferramenta LÊ (segredo confirma)
     # O modelo escolhe PARA ONDE a ferramenta fala na rede (URL, host): é um canal de exfiltração
-    # por GET. Depois de ler conteúdo externo, a sessão confirma antes de cada uso (regra 4).
+    # por GET. Depois de ler conteúdo externo, a sessão confirma antes de cada uso (REGRAS.md:
+    # conteúdo externo é dado, não instrução).
     egress: bool = False
 
     origin: str | None = None
@@ -66,7 +67,9 @@ DEFAULT_TOOLS: dict[str, ToolSpec] = dict(
         _t("checar_servicos_orion", Risk.READ),
         _t("analisar_imagem", Risk.READ, external=True, read_path_arg="path"),
         _t("ler_texto_imagem", Risk.READ, external=True, read_path_arg="path"),
-        _t("onde_vi", Risk.READ),  # rótulos com hora, sem imagem (regra 64)
+        # rótulos com hora, sem imagem (REGRAS.md: a câmera só liga por pedido seu, e cada uso fica
+        # registrado)
+        _t("onde_vi", Risk.READ),
         _t("consultar_clima", Risk.READ),
         _t("obter_topico_celular", Risk.READ),
         _t("status_enxame", Risk.READ),
@@ -105,7 +108,9 @@ DEFAULT_TOOLS: dict[str, ToolSpec] = dict(
         _t("iniciar_processo_bg", Risk.EXEC, cmd_arg="comando"),
         _t("controlar_janela", Risk.EXEC, external=True),  # título de aba é texto de terceiros
         _t("explicar_tela", Risk.EXEC, external=True),  # envia a tela inteira ao modelo: confirma
-        _t("ver_camera", Risk.EXEC, external=True),  # foto da webcam: confirma sempre (regra 64)
+        # foto da webcam: confirma sempre (REGRAS.md: a câmera só liga por pedido seu, e cada uso
+        # fica registrado)
+        _t("ver_camera", Risk.EXEC, external=True),
         _t("preparar_imagem_flow", Risk.EXEC),  # abre o navegador; não gera nem baixa (E11.8)
         _t("navegar_web", Risk.EXEC, external=True, egress=True),
         _t("consultar_especialista", Risk.EXEC),

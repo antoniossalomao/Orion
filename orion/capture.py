@@ -2,7 +2,8 @@
 
 Não é ferramenta do modelo: é um comando do **próprio Antônio** no canal (`/capturar` no Telegram),
 já autenticado pela lista de usuários. O modelo não decide o que gravar nem onde. Por isso não passa
-pela política de risco, e por isso o destino é fixo e estreito (regra 30 do ORION_REGRAS.md):
+pela política de risco, e por isso o destino é fixo e estreito (REGRAS.md: captura rápida e briefing
+não passam pelo modelo):
 
 - só dentro de `<vault>/<pasta de captura>` (padrão `00 Inbox`, a caixa de entrada do vault);
 - o nome do arquivo é gerado aqui (data, hora e um resumo em ASCII); nada do texto vira caminho;

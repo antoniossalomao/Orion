@@ -98,7 +98,8 @@ ESTADO: dict[str, Any] = {
     "tela": {"ligada": True, "pausada": False, "registros": 42},
     "projeto_de": {},  # sessao -> id do projeto
     "arquivadas": set(),  # PATCH {"arquivada": true}: sai da barra, a busca ainda acha
-    "modos": {"panico": False, "nao_perturbe_ate": None},  # regra 48
+    # REGRAS.md: pânico é corte; não perturbe só segura
+    "modos": {"panico": False, "nao_perturbe_ate": None},
     "rng": random.Random(7),
     "delay": 0.018,
 }
@@ -190,7 +191,7 @@ for arq in sorted(pasta.glob("*.json")):
 
 > Só apague qualquer coisa do PC **depois** de abrir os arquivos de export e ver os números.
 
-Detalhes em [ORION_NUCLEO.md](https://github.com/antoniossalomao/Orion) e [a documentação do SQLite](https://sqlite.org/fts5.html).
+Detalhes em [ORION.md](https://github.com/antoniossalomao/Orion) e [a documentação do SQLite](https://sqlite.org/fts5.html).
 Quer que eu monte o roteiro em formato de checklist?
 """
 

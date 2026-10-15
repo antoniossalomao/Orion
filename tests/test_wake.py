@@ -1,4 +1,4 @@
-"""Palavra de ativação (regra 38): o laço de escuta, com microfone e detector de mentira."""
+"""Palavra de ativação (REGRAS.md: palavra de ativação só abre o microfone; detecção local): o laço de escuta, com microfone e detector de mentira."""
 
 import array
 import io
@@ -336,7 +336,7 @@ def test_o_laco_roda_em_thread_e_para_quando_pedido():
     assert not t.is_alive()
 
 
-# ── duas palmas (regra 51) ────────────────────────────────────────────────
+# ── duas palmas (REGRAS.md: palmas só abrem; nunca aprovam nem executam) ────────────────────────────────────────────────
 
 
 class PalmasFalsas:

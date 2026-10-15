@@ -1,4 +1,5 @@
-"""Memória da tela (D3, regra 44): o texto que esteve na tela, lido por OCR LOCAL, retenção curta.
+"""Memória da tela (D3, REGRAS.md: memória da tela: só texto, local e com opt-in): o texto que
+esteve na tela, lido por OCR LOCAL, retenção curta.
 
 Opt-in (`ORION_SCREEN_MEMORY=true`), pensado para ser o oposto de gravar a tela:
 
@@ -197,7 +198,8 @@ def tela_bloqueada(
     environ: Mapping[str, str] | None = None,
 ) -> bool | None:
     """True se a tela está bloqueada, False se não, None se este sistema não consegue dizer.
-    Quem chama trata None como bloqueada (falha fechada, regra 44); a presença (E11.6) também."""
+    Quem chama trata None como bloqueada (falha fechada, REGRAS.md: memória da tela: só texto, local
+    e com opt-in); a presença (E11.6) também."""
     ambiente: Mapping[str, str] = os.environ if environ is None else environ
     if platform == "win32":
         exe = which("pwsh") or which("powershell")
@@ -281,7 +283,9 @@ class ScreenMemory:
         app: Callable[[], str | None] | None = None,
         exclude_apps: list[str] | None = None,
         locked: Callable[[], bool | None] | None = None,
-        on_capture: Callable[[str], None] | None = None,  # E10.10: escudo de foco (regra 62)
+        # E10.10: escudo de foco (REGRAS.md: o escudo de foco pergunta; nunca bloqueia, fecha nem
+        # segura nada)
+        on_capture: Callable[[str], None] | None = None,
     ) -> None:
         self.memory = memory
         self._capture, self._ocr, self._title = capture, ocr, title
@@ -372,7 +376,9 @@ class ScreenMemory:
         self._ultimo_hash = h
         self.memory.add_screen(texto, titulo, programa)
         self.stats["gravadas"] += 1
-        if self.on_capture is not None:  # escudo de foco: só pergunta, nunca fecha nada (regra 62)
+        # escudo de foco: só pergunta, nunca fecha nada (REGRAS.md: o escudo de foco pergunta; nunca
+        # bloqueia, fecha nem segura nada)
+        if self.on_capture is not None:
             self.on_capture(programa or titulo)
         audit_log.info("tela_gravada", extra={"audit": {"caracteres": len(texto)}})
         return "gravada"

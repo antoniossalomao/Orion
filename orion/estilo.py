@@ -5,7 +5,8 @@ leia cada repositório e descreva o jeito de o Antônio escrever: nomes, coment�
 commits. O resultado vira a skill `estilo-antonio`, mas **nasce desativada**: fica em
 `<skills>/.pendentes/estilo-antonio/SKILL.md` (o catálogo ignora pastas com ponto) até você ler e
 rodar `orion estilo --ativar`. O conteúdo é texto escrito por um modelo a partir de código: pode
-errar e pode ecoar o que leu, por isso a revisão é sua e a skill continua sendo só texto (regra 40).
+errar e pode ecoar o que leu, por isso a revisão é sua e a skill continua sendo só texto (REGRAS.md:
+skill é texto, não código).
 """
 
 from __future__ import annotations

@@ -9,7 +9,7 @@ Configuração em `mcp.json` (veja `mcp.example.json`):
         "tools": {"read_text_file": {"risk": "read", "read_path_arg": "path"},
                   "write_file":     {"risk": "write", "path_arg": "path"}}}}}
 
-Regras (ORION_REGRAS.md, regra 24):
+Regras (REGRAS.md: MCP: a classe de risco é do mcp.json, não do servidor):
 - A classe de risco **vem da configuração, nunca do servidor**. Ferramenta que o servidor anuncia
   e o `mcp.json` não classifica usa `default_risk` (padrão `exec`: pede confirmação sempre).
 - `allow` limita o que é exposto; o resto do que o servidor anuncia some para o modelo.
@@ -65,7 +65,7 @@ _INVALIDO = re.compile(r"[^A-Za-z0-9_-]")
 MAX_NOME = 64  # limite de nome de função na API compatível com a da OpenAI
 MAX_DESCRICAO = 600
 MAX_PAGINAS = 20
-MAX_RECURSO = 200 * 1024  # regra 55
+MAX_RECURSO = 200 * 1024  # REGRAS.md: recurso e prompt de MCP são dado, não comando
 MAX_PROMPT = 20 * 1024
 TOOL_RECURSO = "ler_recurso_mcp"
 SPEC_RECURSO = ToolSpec(TOOL_RECURSO, Risk.READ, external=True)
@@ -143,7 +143,8 @@ class ServerConfig(BaseModel):
     allow: list[str] | None = None  # só estas ferramentas são expostas
     tools: dict[str, ToolRule] = Field(default_factory=dict)
     timeout_s: float = Field(default=60.0, gt=0, le=600)
-    # URIs de recurso que o modelo pode ler (`fnmatch`); vazio: nenhum (regra 55)
+    # URIs de recurso que o modelo pode ler (`fnmatch`); vazio: nenhum (REGRAS.md: recurso e prompt
+    # de MCP são dado, não comando)
     resources: list[str] = Field(default_factory=list, max_length=50)
 
     @model_validator(mode="after")
@@ -504,7 +505,8 @@ class McpManager:
             loop.call_soon_threadsafe(parada.set)
         self._clients.pop(servidor, None)
 
-    # ── recursos e prompts (E7.5, regra 55) ───────────────────────────────────────
+    # ── recursos e prompts (E7.5, REGRAS.md: recurso e prompt de MCP são dado, não comando)
+    # ───────────────────────────────────────
     def _permitido(self, servidor: str, uri: str) -> bool:
         cfg = self._cfg.servers.get(servidor)
         return cfg is not None and any(fnmatch.fnmatchcase(uri, p) for p in cfg.resources)
@@ -739,7 +741,8 @@ class McpManager:
 
     def _medir(self, servidor: str, original: str, args: dict[str, Any]) -> Any:
         # servidor remoto (`url`) ou que fala com a rua (`external`): os argumentos saem do
-        # computador, então a chamada entra no registro de saída (regra 47), sem o conteúdo
+        # computador, então a chamada entra no registro de saída (REGRAS.md: toda saída de dado fica
+        # registrada, sem conteúdo), sem o conteúdo
         cfg = self._cfg.servers.get(servidor)
         if cfg is not None and (cfg.url or cfg.external):
             return saidas.medir(

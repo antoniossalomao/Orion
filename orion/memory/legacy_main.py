@@ -116,9 +116,12 @@ CREATE INDEX idx_artifacts_name ON artifacts(name, version);
 CREATE INDEX idx_artifacts_created ON artifacts(created_at);
 """
 
-# Registro de saída (regra 47): uma linha por chamada a provedor de fora, sem o conteúdo. Base da
-# cota gratuita (regra 46), da telemetria por provedor e do painel de privacidade. `urgent`: o não
-# perturbe (regra 48) segura na fila o aviso que não for urgente.
+# Registro de saída (REGRAS.md: toda saída de dado fica registrada, sem conteúdo): uma linha por
+# chamada a provedor de fora, sem o conteúdo. Base da
+# cota gratuita (REGRAS.md: custo zero (sem API paga)), da telemetria por provedor e do painel de
+# privacidade. `urgent`: o não
+# perturbe (REGRAS.md: pânico é corte; não perturbe só segura) segura na fila o aviso que não for
+# urgente.
 _DDL_V11 = """
 CREATE TABLE external_calls (
     id INTEGER PRIMARY KEY,

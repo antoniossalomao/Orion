@@ -693,7 +693,7 @@ def test_modo_foco_no_desktop_mantem_os_botoes_da_janela(abrir):
     assert ["minimize"] in page.evaluate("window.__chamadas")
 
 
-# ── segurança no navegador (ORION_REGRAS 10–12) ─────────────────────────────────
+# ── segurança no navegador (REGRAS.md: WebSocket confere Origin; upload com limite de tamanho e nome sanitizado; chat só renderiza imagem gerada pelo Orion) ─────────────────────────────────
 def test_markdown_malicioso_nao_executa_nem_vaza(abrir):
     page = abrir("#/chat")
     saidas: list[str] = []

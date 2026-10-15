@@ -3,7 +3,7 @@
 Fala o formato da API de transcrição da OpenAI (`POST /audio/transcriptions`, multipart), que
 o Groq e outros provedores aceitam. A chave vai só no cabeçalho `Authorization`; nenhuma
 mensagem de erro carrega a chave nem a URL. **Não validado contra a API real** (ver
-ORION_MELHORIAS): o formato segue a documentação do provedor.
+ORION_LEGADO.md): o formato segue a documentação do provedor.
 """
 
 from __future__ import annotations
@@ -38,7 +38,8 @@ class Transcriber:
             raise ValueError("chave de transcrição vazia")
         self._key = api_key
         self._url = f"{base_url.rstrip('/')}/audio/transcriptions"
-        self._provedor = saidas.provedor_da_url(base_url)  # registro de saída (regra 47)
+        # registro de saída (REGRAS.md: toda saída de dado fica registrada, sem conteúdo)
+        self._provedor = saidas.provedor_da_url(base_url)
         self._model, self._language = model, language
         self._timeout = timeout_s
         self._dono_do_cliente = client is None

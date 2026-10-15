@@ -2,7 +2,7 @@
 # Orion — dependências do LEGADO (Python 3.12 global, só Windows + GPU NVIDIA).
 # A reescrita usa o pyproject.toml na raiz (uv); este arquivo sai na fase 7.
 # Atualizado 02/07/2026 (conferido via pip freeze real — vários pacotes do
-# arquivo anterior estavam desatualizados/incorretos, ver ORION_TECNICO.md).
+# arquivo anterior estavam desatualizados/incorretos, ver ORION_LEGADO.md).
 #
 # venv_embed foi APOSENTADO em 01/07/2026: o embed_service.py (BGE-M3) agora
 # roda neste mesmo Python principal, que foi atualizado pra torch 2.6+cu124

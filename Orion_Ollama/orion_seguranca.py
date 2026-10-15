@@ -71,7 +71,7 @@ def checar_rate_limit(nome_tool: str) -> tuple[bool, str]:
 
 
 # ── Câmara de Eco Heurística (avaliação de risco pré-execução) ──────────────
-# Item do roadmap (ORION_TECNICO.md §3.4), implementado 02/07/2026. V1 é heurística
+# Item do roadmap (ORION_LEGADO.md §3.4), implementado 02/07/2026. V1 é heurística
 # por padrões (regex/substring), sem chamada de LLM — mesmo estilo do roteador de
 # intenção (_TOOL_KEYWORDS_RE). NÃO expor essas funções em TOOLS_MAP/TOOLS_SCHEMA
 # — é infraestrutura de segurança transparente.

@@ -2,7 +2,8 @@
 
 Opt-in e pesado (`ORION_SUBTITLES`, modelo Vosk em português em `ORION_SUBTITLE_MODEL`, que você
 coloca). O áudio do sistema (loopback do dispositivo `ORION_SUBTITLE_DEVICE`) é lido em blocos e
-passa direto pelo reconhecedor: nada é gravado e nada sai do computador (regra 64). Só o texto
+passa direto pelo reconhecedor: nada é gravado e nada sai do computador (REGRAS.md: a câmera só liga
+por pedido seu, e cada uso fica registrado). Só o texto
 das últimas falas fica em memória, e a página `/ui/legenda.html` lê esse texto.
 """
 

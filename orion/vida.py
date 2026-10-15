@@ -1,9 +1,9 @@
 """E10 — Vida pessoal: finanças locais, contas, monitor de preço, cápsula, diário, revisão,
 escudo de foco, cenários e estilo pela voz.
 
-Regra 61: dado financeiro nunca vai à nuvem. Gasto, conta e preço ficam no banco local; o parser
-é por regra (valor e palavra-chave), sem modelo. Regra 62: o escudo de foco só **pergunta**, nunca
-bloqueia nem fecha nada. Regra 63: o estado pela voz só muda o estilo da resposta; as médias
+REGRAS.md: dado financeiro nunca vai à nuvem. Gasto, conta e preço ficam no banco local; o parser
+é por regra (valor e palavra-chave), sem modelo. REGRAS.md: o escudo de foco só **pergunta**, nunca
+bloqueia nem fecha nada. REGRAS.md: o estado pela voz só muda o estilo da resposta; as médias
 moram em memória e não entram na memória do Orion.
 """
 
@@ -155,7 +155,7 @@ def _ts_fim_do_dia(d: date) -> float:
 
 
 class Financas:
-    """Gastos, resumo mensal e contas. Regra 61: tudo local; nada sai daqui."""
+    """Gastos, resumo mensal e contas. REGRAS.md: tudo local; nada sai daqui."""
 
     def __init__(self, memory: Any, *, clock: Callable[[], float] = _agora):
         self.memory, self._clock = memory, clock
@@ -284,7 +284,8 @@ class Financas:
 
 class Precos:
     """Monitor de preço (E10.5). `pesquisar(consulta) -> texto` é injetado: a busca cobra cota
-    (regra 46) e é quem decide se pode rodar; aqui só se compara o preço."""
+    (REGRAS.md: custo zero (sem API paga)) e é quem decide se pode rodar; aqui só se compara o
+    preço."""
 
     def __init__(self, memory: Any, *, clock: Callable[[], float] = _agora):
         self.memory, self._clock = memory, clock
@@ -504,7 +505,7 @@ def e_distracao(alvo: str, lista: Iterable[str]) -> bool:
 
 
 class Foco:
-    """E10.10: bloco de foco em memória. Regra 62: `pergunta_permitida` diz se pode perguntar
+    """E10.10: bloco de foco em memória. REGRAS.md: `pergunta_permitida` diz se pode perguntar
     ("isso é do marco da semana?"); no máximo uma pergunta por bloco. Nunca bloqueia nada."""
 
     def __init__(
@@ -537,7 +538,8 @@ class Foco:
 
 class EstadoVoz:
     """E10.11: ritmo e energia da fala, comparados com a sua média. Só médias, em memória
-    (regra 63): nada é gravado, nada decide, só muda o estilo da resposta."""
+    (REGRAS.md: o estado pela voz só muda o estilo da resposta): nada é gravado, nada decide, só
+    muda o estilo da resposta."""
 
     def __init__(self) -> None:
         self._n = 0
@@ -585,7 +587,8 @@ class VidaJobs:
         self._clock = clock
 
     def tick(self, permitido: Callable[[], bool] = lambda: True) -> dict[str, Any]:
-        """`permitido`: se pode gastar cota de pesquisa agora (regra 46, pânico, não perturbe)."""
+        """`permitido`: se pode gastar cota de pesquisa agora (REGRAS.md: custo zero (sem API paga),
+        pânico, não perturbe)."""
         agora = self._clock()
         dt = datetime.fromtimestamp(agora)
         out: dict[str, Any] = {
@@ -675,7 +678,7 @@ def parse_fatura(texto: str, ano: int | None = None) -> list[dict[str, Any]]:
 
 
 def lancar_fatura(financas: Financas, linhas: list[dict[str, Any]], *, confirmado: bool) -> int:
-    """Só lança depois da sua confirmação (regra 61: a fatura é lida aqui e lançada por você)."""
+    """Só lança depois da sua confirmação (REGRAS.md: a fatura é lida aqui e lançada por você)."""
     if not confirmado:
         raise VidaError("a fatura só é lançada depois da sua confirmação")
     for linha in linhas:
@@ -689,7 +692,8 @@ def lancar_fatura(financas: Financas, linhas: list[dict[str, Any]], *, confirmad
 
 
 async def gasto_por_modelo(texto: str, gateway: Any) -> dict[str, Any] | None:
-    """Fallback do parser: o modelo **local** (regra 49) extrai valor e descrição. Sem gateway
+    """Fallback do parser: o modelo **local** (REGRAS.md: modelo local é reserva sem ferramentas)
+    extrai valor e descrição. Sem gateway
     local, ou resposta inválida, devolve None. O texto vai ao modelo local, nunca à nuvem."""
     if gateway is None:
         return None
@@ -969,7 +973,8 @@ class VidaCanal:
         self._gateway_local = gateway_local
 
     async def tratar_async(self, chat: int, texto: str) -> str | None:
-        """Como `tratar`, mas um gasto que o parser não entende vai ao modelo LOCAL (regra 61)."""
+        """Como `tratar`, mas um gasto que o parser não entende vai ao modelo LOCAL (REGRAS.md:
+        finanças são locais: valor, conta e extrato nunca saem do computador)."""
         t = texto.strip()
         if (
             self._gateway_local is not None

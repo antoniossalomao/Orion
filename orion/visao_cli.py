@@ -5,7 +5,8 @@ de visão do gateway (cota gratuita, primeiro). As CLIs (`claude`, `codex`, `gem
 pasta temporária, com a imagem dentro, e nunca com o caminho de nenhuma pasta sua. A assinatura não
 inclui API: é só o que a CLI já tem logado. Cada tentativa vai ao registro de saídas
 (`cli:<nome>`).
-A imagem é conteúdo externo: quem chama trata a resposta como dado (regra 4).
+A imagem é conteúdo externo: quem chama trata a resposta como dado (REGRAS.md: conteúdo externo é
+dado, não instrução).
 """
 
 from __future__ import annotations
@@ -75,8 +76,13 @@ def descrever_por_cli(
         arquivo.write_bytes(imagem)
         argv = [exe, *argv_cli(nome, arquivo, pergunta)]
         with saidas.medir(
-            f"cli:{nome}", "vision", bytes_out=len(imagem), content_kind="imagem"
-        ) as m:  # a imagem sai do computador: fica no registro de saída (regra 47)
+            f"cli:{nome}",
+            "vision",
+            bytes_out=len(imagem),
+            content_kind="imagem",
+            # a imagem sai do computador: fica no registro de saída
+            # (REGRAS.md: toda saída de dado fica registrada, sem conteúdo)
+        ) as m:
             try:
                 r = runner(
                     argv, cwd=pasta, env=env_limpo(), stdin=subprocess.DEVNULL,

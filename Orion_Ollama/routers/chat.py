@@ -231,7 +231,7 @@ class ChatRouter:
             ferramentas = tools_habilitadas
 
         # Enxame de Especialistas (MoE roteado) — proposta formalizada em
-        # ORION_TECNICO.md §3.2, implementada em 02/07/2026. Cada especialista
+        # ORION_LEGADO.md §3.2, implementada em 02/07/2026. Cada especialista
         # tem categoria + trigger + ordem de andares. Adicionar um especialista
         # novo = uma entrada na lista (ver ESPECIALISTAS em cerebro_maestro.py),
         # não editar lógica de roteamento espalhada.

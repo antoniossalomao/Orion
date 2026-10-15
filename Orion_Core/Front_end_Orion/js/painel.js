@@ -118,7 +118,7 @@
         return { clique, aoVivo, escuta };
     }
 
-    /** Duas palmas (regra 51): estado e a força das últimas, para calibrar ORION_CLAP_RATIO. */
+    /** Duas palmas (REGRAS.md: palmas só abrem; nunca aprovam nem executam): estado e a força das últimas, para calibrar ORION_CLAP_RATIO. */
     function resumoPalmas(v) {
         const p = v?.palmas;
         if (!p?.pedida) return 'desligadas';
@@ -139,7 +139,7 @@
     }
 
     /**
-     * Cota gratuita contada pelo Orion (regra 46). `sev` casa com `.meter[data-sev]` do CSS.
+     * Cota gratuita contada pelo Orion (REGRAS.md: custo zero (sem API paga)). `sev` casa com `.meter[data-sev]` do CSS.
      * @returns {{pct: number, sev: 'normal'|'alto'|'critico'|'nd', texto: string, valor: string}}
      */
     function usoCota(c) {
@@ -166,7 +166,7 @@
         }));
     }
 
-    /** Pânico e não perturbe em texto (regra 48). `hora(ts)` formata o horário (injetado para testar). */
+    /** Pânico e não perturbe em texto (REGRAS.md: pânico é corte; não perturbe só segura). `hora(ts)` formata o horário (injetado para testar). */
     function resumoModos(m, hora = ts => new Date(ts * 1000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })) {
         const panico = m?.panico ? 'LIGADO: rede, execução, memória da tela e escuta cortadas' : 'desligado';
         const dnd = !m?.nao_perturbe ? 'desligado'

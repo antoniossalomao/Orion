@@ -41,7 +41,7 @@ class ToolCall:
 class Context:
     """Estado de uma sessão para a política. `tainted` vira True quando a
     sessão leu conteúdo externo (web, e-mail, documento): escrita e execução
-    seguintes passam a exigir confirmação (regra 4)."""
+    seguintes passam a exigir confirmação (REGRAS.md: conteúdo externo é dado, não instrução)."""
 
     session_id: str
     tainted: bool = False
@@ -216,7 +216,8 @@ class PolicyEngine:
             )
         if motivo is None and ctx.tainted and spec.egress:
             # leitura que escolhe o destino na rede: uma página injetada pode pedir
-            # `https://dono-da-pagina/?d=<dados>`. O cartão mostra a URL inteira (regra 23).
+            # `https://dono-da-pagina/?d=<dados>`. O cartão mostra a URL inteira (REGRAS.md: só se
+            # aprova o que se vê inteiro).
             motivo = (
                 "a sessão leu conteúdo externo e esta ferramenta fala com um endereço escolhido "
                 "pelo modelo: possível exfiltração de dados pela URL"

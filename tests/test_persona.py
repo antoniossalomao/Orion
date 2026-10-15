@@ -2,7 +2,7 @@ import re
 
 from orion.persona import PERSONA, PERSONA_VERSION
 
-# Fato que envelhece não entra na persona (regra 7 do ORION_REGRAS.md).
+# Fato que envelhece não entra na persona (REGRAS.md: persona sem fato que envelhece).
 PROIBIDOS = [
     r"\bRyzen\b",
     r"\bRTX\b",

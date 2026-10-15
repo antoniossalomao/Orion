@@ -3,7 +3,8 @@
 Texto determinístico, sem modelo: lembretes (atrasados e de hoje), agendamentos de hoje e tarefas
 em aberto. Por isso roda sem gateway, não gasta cota e não tem como ser desviado por conteúdo
 externo (nada de e-mail ou página entra aqui). A **agenda** do Google entra só se `orion.agenda`
-estiver ligada (regra 37): uma consulta de leitura direta ao servidor MCP, sem modelo, com o texto
+estiver ligada (REGRAS.md: agenda do briefing é leitura fixa, sem modelo): uma consulta de leitura
+direta ao servidor MCP, sem modelo, com o texto
 limpo de endereços e limitado. Sem ela o briefing não finge que consultou.
 
 Quem dispara é o job (`orion.jobs`, `ORION_BRIEFING_AT`), que põe o texto na fila de avisos; o

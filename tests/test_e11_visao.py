@@ -1,7 +1,7 @@
-"""E11 (visão e câmera): regras 64 (câmera), 65 (rosto) e 66 (presença).
+"""E11 (visão e câmera): REGRAS.md, seção Vida pessoal e visão.
 
 Nada aqui toca câmera, modelo ou Bluetooth de verdade: fotos, saídas do YOLO, vetores e CLIs são
-falsos. A prova com webcam real é do Antônio (ver ORION_MELHORIAS.md).
+falsos. A prova com webcam real é do Antônio (ver ORION_LEGADO.md).
 """
 
 import subprocess
@@ -40,7 +40,7 @@ def memoria(tmp_path):
     m.close()
 
 
-# ── Regra 64: câmera ───────────────────────────────────────────────────────
+# ── REGRAS.md: câmera ───────────────────────────────────────────────────────
 
 
 def test_foto_usa_a_fonte_e_recusa_vazio_e_grande_demais():
@@ -140,12 +140,14 @@ def test_preparar_imagem_flow_abre_site_e_devolve_prompt_sem_gerar():
 def test_todas_as_ferramentas_novas_estao_na_politica():
     for nome in ("ver_camera", "onde_vi", "ler_texto_imagem", "preparar_imagem_flow"):
         assert nome in DEFAULT_TOOLS, nome
-    assert DEFAULT_TOOLS["ver_camera"].risk is Risk.EXEC  # sempre confirma (regra 64)
+    assert (
+        DEFAULT_TOOLS["ver_camera"].risk is Risk.EXEC
+    )  # sempre confirma (REGRAS.md: a câmera só liga por pedido seu, e cada uso fica registrado)
     assert DEFAULT_TOOLS["ver_camera"].external is True
     assert DEFAULT_TOOLS["ler_texto_imagem"].read_path_arg == "path"
 
 
-# ── Regra 64: detecção local e avistamentos ────────────────────────────────
+# ── REGRAS.md: detecção local e avistamentos ────────────────────────────────
 
 
 def test_nome_em_portugues_vira_rotulo_coco():
@@ -243,7 +245,7 @@ def test_olhar_uma_vez_so_olha_com_presenca(memoria, monkeypatch):
     assert chamadas == [1]
 
 
-# ── Regra 65: rosto ─────────────────────────────────────────────────────────
+# ── REGRAS.md: rosto ─────────────────────────────────────────────────────────
 
 
 class _Cofre(dict):
@@ -297,7 +299,7 @@ def test_limiar_de_similaridade_e_razoavel():
     assert 0.3 < LIMIAR < 0.7
 
 
-# ── Regra 66: presença ──────────────────────────────────────────────────────
+# ── REGRAS.md: presença ──────────────────────────────────────────────────────
 
 
 def _presenca(relogio, away=600.0):
@@ -362,7 +364,9 @@ def test_vigia_pausa_a_tela_so_se_foi_a_presenca_e_nao_olha_sem_presenca():
     v.tick()
     assert tela.chamadas == [True, False]  # voltou: retoma
     sem_presenca = Vigia(presenca=None, sinais=lambda: sinais["s"], vigiar=lambda: 99)
-    assert sem_presenca.tick() == 0  # câmera nunca olha sem presença (regra 64)
+    assert (
+        sem_presenca.tick() == 0
+    )  # câmera nunca olha sem presença (REGRAS.md: a câmera só liga por pedido seu, e cada uso fica registrado)
 
 
 def test_bloqueio_de_tela_so_roda_quando_chamado_e_respeita_o_sistema():

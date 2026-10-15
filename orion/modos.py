@@ -1,4 +1,4 @@
-"""Modo pânico e não perturbe (regra 48).
+"""Modo pânico e não perturbe (REGRAS.md: pânico é corte; não perturbe só segura).
 
 O estado mora no `meta` do banco (`modo:panico`, `modo:nao_perturbe_ate`): vale para o servidor e
 para a CLI (`orion panico` grava aqui e o servidor lê a cada uso) e sobrevive a reinício.
@@ -109,12 +109,13 @@ class Modos:
         return True
 
     def sair_panico(self, origem: str) -> bool:
-        """Desliga o pânico (False se não estava). Sem o audit da saída, não sai (regra 8)."""
+        """Desliga o pânico (False se não estava). Sem o audit da saída, não sai (REGRAS.md: falha
+        de auditoria nega a ação)."""
         if not self.panico():
             return False
         try:
             self._registrar("sair", origem)
-        except Exception as e:  # noqa: BLE001 — qualquer falha do audit barra a saída (regra 8)
+        except Exception as e:  # noqa: BLE001 — qualquer falha do audit barra a saída (REGRAS.md: falha de auditoria nega a ação)
             raise ModoError(f"não saí do pânico: o audit falhou ({type(e).__name__})") from None
         self.memory.meta_set(CHAVE_PANICO, None)
         log.warning("modo pânico desligado (%s)", origem)

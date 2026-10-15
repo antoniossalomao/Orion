@@ -5,7 +5,7 @@
     const scope = () => O.projects.current()?.id || null;
     let active = false, generation = 0, filter, status, list, decisions, preferences;
     const button = (text, fn) => el('button', { class: 'btn btn-outline btn-sm', type: 'button', text, on: { click: fn } });
-    /** avisos do ciclo de sono com decisão do Antônio (regra 54): fatos repetidos e fatos que se contradizem */
+    /** avisos do ciclo de sono com decisão do Antônio (REGRAS.md: o Orion não decide sozinho qual fato vale): fatos repetidos e fatos que se contradizem */
     function decisoesDoSono(n, project, reload) {
         const dup = /^sono:dup:(\d+):(\d+)$/.exec(n.ref || ''), conf = /^sono:conflito:(\d+):(\d+)$/.exec(n.ref || '');
         if ((!dup && !conf) || n.delivered_at) return null;

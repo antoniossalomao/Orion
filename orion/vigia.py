@@ -1,9 +1,12 @@
-"""Vigia do E11: liga a presença (regra 66) e a vigília da câmera (regra 64) ao ciclo dos jobs.
+"""Vigia do E11: liga a presença (REGRAS.md: presença só pausa e retoma, cumpre e bloqueia só com
+sua confirmação) e a vigília da câmera (REGRAS.md: a câmera só liga por pedido seu, e cada uso fica
+registrado) ao ciclo dos jobs.
 
 A cada rodada: lê os sinais locais, atualiza a presença e, só se houver presença, faz um quadro da
 câmera e guarda os rótulos. Ao sair, pausa a memória da tela (se foi esta presença que a pausou);
 ao chegar, retoma. Ao sair, bloqueia a tela só se `ORION_PRESENCE_LOCK` estiver ligado e você tiver
-confirmado a configuração (regra 66).
+confirmado a configuração (REGRAS.md: presença só pausa e retoma, cumpre e bloqueia só com sua
+confirmação).
 """
 
 from __future__ import annotations
@@ -28,7 +31,8 @@ def acoes_de_presenca(
     hora: Callable[[], str],
     bloqueador: Callable[[], bool] = bloquear_tela,
 ) -> tuple[Callable[[], None], Callable[[], None]]:
-    """Ações da transição (regra 66): cumprimento ao chegar; ao sair, bloqueio só se você
+    """Ações da transição (REGRAS.md: presença só pausa e retoma, cumpre e bloqueia só com sua
+    confirmação): cumprimento ao chegar; ao sair, bloqueio só se você
     confirmou a configuração. Sem confirmação, avisa uma vez e não bloqueia."""
     avisou = {"sem_confirmacao": False}
 
@@ -92,7 +96,8 @@ class Vigia:
 def sinais_padrao(
     *, bt_endereco: str = "", rosto: Callable[[], bool | None] | None = None
 ) -> Callable[[], Sinais]:
-    """Sinais do sistema: tela (regra 44, sem como saber = bloqueada), Bluetooth e rosto."""
+    """Sinais do sistema: tela (REGRAS.md: memória da tela: só texto, local e com opt-in, sem como
+    saber = bloqueada), Bluetooth e rosto."""
 
     def coletar() -> Sinais:
         return sinais_do_sistema(
