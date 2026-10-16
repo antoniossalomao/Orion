@@ -56,6 +56,7 @@ pub fn router(st: Estado) -> Router {
         .route("/resultados/:id/arquivo", get(arquivo_do_resultado))
         .route("/resultados/:id/diff", get(diff_do_resultado))
         .route("/imagens/:nome", get(imagem))
+        .route("/painel", get(painel_unico))
         .route("/modo", get(modo_estado))
         .route("/modo/panico", post(modo_panico))
         .route("/modo/nao-perturbe", post(modo_nao_perturbe))

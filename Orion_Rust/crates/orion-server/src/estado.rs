@@ -43,6 +43,7 @@ pub struct AppState {
     pub delegator: Option<Arc<Delegator>>,
     pub processos: Option<Arc<ProcessManager>>,
     pub skills: Option<Arc<RwLock<SkillCatalog>>>,
+    pub painel: Arc<orion_core::painel::Painel>,
 }
 
 pub type Estado = Arc<AppState>;
@@ -338,8 +339,25 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
         *a.indice.write() = Some(indice);
         agent = Some(Arc::new(a));
     }
+    let started_at = orion_core::util::agora();
+    let painel = Arc::new(orion_core::painel::Painel {
+        started_at,
+        memory: memory.clone(),
+        ops: ops.clone(),
+        policy: policy.clone(),
+        agent: agent.clone(),
+        delegator: delegator.clone(),
+        modos: Some(modos.clone()),
+        custos: Some(custos.clone()),
+        jobs: None,
+        mcp: None,
+        telegram_ativo: None,
+        tela: None,
+        voz: None,
+    });
     Ok(Arc::new(AppState {
-        started_at: orion_core::util::agora(),
+        started_at,
+        painel,
         settings,
         memory,
         policy,

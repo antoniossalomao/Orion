@@ -418,3 +418,8 @@ pub async fn tela_limpar(_: Admin, State(st): State<Estado>) -> ApiResult<Json<V
     tracing::info!(target: "orion.audit", "tela_limpa registros={n}");
     Ok(Json(json!({"ok": true, "apagados": n})))
 }
+
+/// O estado do Orion numa resposta só (modelos, CLIs, aprovações, política, jobs...).
+pub async fn painel_unico(_: Admin, State(st): State<Estado>) -> Json<Value> {
+    Json(st.painel.montar())
+}
