@@ -75,7 +75,7 @@ const SESSAO_COM_READ_ONLY: &str =
     "SELECT s.*, EXISTS(SELECT 1 FROM imported WHERE kind='sessao' AND ref=s.id) AS read_only FROM sessions s";
 
 impl Store {
-    fn new_session_in(&self, c: &Connection, channel: &str, title: Option<&str>, project_id: Option<&str>) -> Result<Session> {
+    pub fn new_session_in(&self, c: &Connection, channel: &str, title: Option<&str>, project_id: Option<&str>) -> Result<Session> {
         if let Some(p) = project_id {
             let arq: Option<i64> =
                 c.query_row("SELECT archived FROM projects WHERE id=?", [p], |r| r.get(0)).optional()?;

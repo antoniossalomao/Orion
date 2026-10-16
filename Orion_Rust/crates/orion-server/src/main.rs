@@ -25,6 +25,9 @@ struct Cli {
 enum Cmd {
     /// Sobe o servidor (padrão).
     Serve,
+    /// Interno: extrai o texto de um documento num processo descartável.
+    #[command(hide = true)]
+    ExtrairDocumento { arquivo: String, tipo: String },
     /// Backup diário da memória (mantém os últimos N).
     Backup {
         #[arg(long)]
@@ -214,10 +217,14 @@ async fn serve(s: Settings) -> anyhow::Result<i32> {
 }
 
 fn rodar(cli: Cli) -> anyhow::Result<i32> {
+    if let Some(Cmd::ExtrairDocumento { arquivo, tipo }) = &cli.cmd {
+        return Ok(orion_core::document_extract::principal(arquivo, tipo));
+    }
     let s = Settings::load()?;
     log::setup(&s.log_level, s.log_json);
     let cmd = cli.cmd.unwrap_or(Cmd::Serve);
     match &cmd {
+        Cmd::ExtrairDocumento { .. } => Ok(0),
         Cmd::Serve => tokio::runtime::Builder::new_multi_thread().enable_all().build()?.block_on(serve(s)),
         Cmd::Backup { dir, keep } => {
             let store = Store::open(s.db_path())?;

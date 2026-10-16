@@ -9,6 +9,8 @@ pub mod capture;
 pub mod captura_rapida;
 pub mod config;
 pub mod desligar;
+pub mod document_extract;
+pub mod documents;
 pub mod downloads;
 pub mod extensions;
 pub mod grafo;

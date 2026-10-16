@@ -5,6 +5,7 @@ pub mod automacao;
 pub mod base;
 pub mod captura;
 pub mod conversa;
+pub mod documentos;
 pub mod geral;
 pub mod memoria;
 pub mod ponte;
@@ -27,11 +28,16 @@ async fn sem_python(req: Request, next: Next) -> Response {
     next.run(req).await
 }
 
+fn documents_limite() -> usize {
+    orion_core::documents::MAX_UPLOAD + 1024
+}
+
 pub fn router(st: Estado) -> Router {
     use automacao::*;
     use base::*;
     use captura::*;
     use conversa::*;
+    use documentos::*;
     use geral::*;
     use memoria::*;
     let mut r = Router::new()
@@ -115,7 +121,14 @@ pub fn router(st: Estado) -> Router {
         .route("/tarefas-bg", get(listar_tarefas_bg).post(criar_tarefa_bg))
         .route("/tarefas-bg/:id", get(ver_tarefa_bg))
         .route("/tarefas-bg/:id/cancelar", post(cancelar_tarefa_bg))
-        .route("/tarefas-bg/:id/propostas/:indice", post(decidir_proposta_bg));
+        .route("/tarefas-bg/:id/propostas/:indice", post(decidir_proposta_bg))
+        .route("/documents", get(listar_documentos).post(enviar_documento).layer(axum::extract::DefaultBodyLimit::max(documents_limite())))
+        .route("/documents/:id", get(detalhe_documento).patch(mover_documento))
+        .route("/documents/:id/retry", post(tentar_de_novo))
+        .route("/documents/:id/reindex", post(reindexar))
+        .route("/documents/:id/download", get(baixar_documento))
+        .route("/branches/:id", get(caminhos))
+        .route("/branches/messages/:id", post(ramificar));
     if st.settings.serve_ui && front_dir().is_dir() {
         // por último: as rotas da API têm prioridade sobre os arquivos
         let ui = tower_http::services::ServeDir::new(front_dir()).append_index_html_on_directories(true);

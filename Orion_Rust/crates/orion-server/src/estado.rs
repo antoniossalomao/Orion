@@ -237,6 +237,7 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
     // registro de saída (REGRAS.md: toda saída de dado fica registrada, sem conteúdo)
     orion_ai::saidas::definir_destino(Some(orion_ai::saidas::destino_store(memory.clone())));
     let ops = Arc::new(Operations::new(memory.clone()));
+    orion_core::documents::recuperar_interrompidos(&memory);
     let ops_audit = ops.clone();
     let modos = Arc::new(Modos::new(
         memory.clone(),
