@@ -127,6 +127,10 @@ pub fn router(st: Estado) -> Router {
         .route("/documents/:id/retry", post(tentar_de_novo))
         .route("/documents/:id/reindex", post(reindexar))
         .route("/documents/:id/download", get(baixar_documento))
+        .route("/artifacts", get(artefatos_listar).post(artefato_criar).layer(axum::extract::DefaultBodyLimit::max(orion_core::artifacts::MAX_REQUEST + 1024)))
+        .route("/artifacts/:id", get(artefato_detalhe))
+        .route("/artifacts/:id/versions", get(artefato_versoes).post(artefato_nova_versao).layer(axum::extract::DefaultBodyLimit::max(orion_core::artifacts::MAX_REQUEST + 1024)))
+        .route("/artifacts/:id/download", get(artefato_baixar))
         .route("/branches/:id", get(caminhos))
         .route("/branches/messages/:id", post(ramificar));
     if st.settings.serve_ui && front_dir().is_dir() {

@@ -241,3 +241,78 @@ pub async fn ramificar(_: Admin, State(st): State<Estado>, Path(mid): Path<i64>,
     }
     Ok(Json(json!({"session_id": alvo.id, "edited_text": c.text, "requires_send": true})))
 }
+
+// ── artefatos (resultados versionados) ───────────────────────────────────
+
+use orion_core::artifacts::{self, ArtifactError, Artifacts, Payload, MAX_REQUEST};
+
+fn art(e: ArtifactError) -> ApiError {
+    ApiError::new(if e.0.ends_with("not_found") { 404 } else { 409 }, e.0)
+}
+
+fn corpo_artefato(corpo: &Bytes) -> ApiResult<Payload> {
+    if corpo.len() > MAX_REQUEST {
+        return erro(413, "artifact_size_limit");
+    }
+    let mut p: Payload = serde_json::from_slice(corpo).map_err(|_| ApiError::new(422, "artifact_request_invalid"))?;
+    p.validar().map_err(|_| ApiError::new(422, "artifact_request_invalid"))?;
+    Ok(p)
+}
+
+#[derive(Deserialize)]
+pub struct ArtQ {
+    project_id: Option<String>,
+    #[serde(default)]
+    query: String,
+    version: Option<i64>,
+}
+
+pub async fn artefatos_listar(_: Admin, State(st): State<Estado>, Query(q): Query<ArtQ>) -> ApiResult<Json<Value>> {
+    let consulta: String = q.query.chars().take(200).collect();
+    Ok(Json(json!(Artifacts::new(st.memory.clone()).list(q.project_id.as_deref(), &consulta).map_err(art)?)))
+}
+
+pub async fn artefato_criar(_: Admin, State(st): State<Estado>, Query(q): Query<ArtQ>, corpo: Bytes) -> ApiResult<Json<Value>> {
+    let p = corpo_artefato(&corpo)?;
+    let a = Artifacts::new(st.memory.clone());
+    let r = tokio::task::spawn_blocking(move || a.save(&p, None, q.project_id.as_deref())).await.map_err(anyhow::Error::from)?.map_err(art)?;
+    Ok(Json(Value::Object(r)))
+}
+
+pub async fn artefato_nova_versao(_: Admin, State(st): State<Estado>, Path(id): Path<String>, Query(q): Query<ArtQ>, corpo: Bytes) -> ApiResult<Json<Value>> {
+    let p = corpo_artefato(&corpo)?;
+    let a = Artifacts::new(st.memory.clone());
+    let r = tokio::task::spawn_blocking(move || a.save(&p, Some(&id), q.project_id.as_deref())).await.map_err(anyhow::Error::from)?.map_err(art)?;
+    Ok(Json(Value::Object(r)))
+}
+
+pub async fn artefato_versoes(_: Admin, State(st): State<Estado>, Path(id): Path<String>, Query(q): Query<ArtQ>) -> ApiResult<Json<Value>> {
+    Ok(Json(json!(Artifacts::new(st.memory.clone()).versions(&id, q.project_id.as_deref()).map_err(art)?)))
+}
+
+pub async fn artefato_detalhe(_: Admin, State(st): State<Estado>, Path(id): Path<String>, Query(q): Query<ArtQ>) -> ApiResult<Json<Value>> {
+    let (mut row, v, conteudo) = Artifacts::new(st.memory.clone()).read(&id, q.project_id.as_deref(), q.version).map_err(art)?;
+    let prov = v["provenance"].as_str().and_then(|s| serde_json::from_str::<Value>(s).ok()).unwrap_or(Value::Null);
+    let texto = if row["kind"] == json!("image") { Value::Null } else { json!(String::from_utf8_lossy(&conteudo)) };
+    row.insert("version".into(), v["version"].clone());
+    row.insert("digest".into(), v["digest"].clone());
+    row.insert("message_id".into(), v["message_id"].clone());
+    row.insert("provenance".into(), prov);
+    row.insert("content".into(), texto);
+    Ok(Json(Value::Object(row)))
+}
+
+pub async fn artefato_baixar(_: Admin, State(st): State<Estado>, Path(id): Path<String>, Query(q): Query<ArtQ>) -> ApiResult<Response> {
+    let (row, _, conteudo) = Artifacts::new(st.memory.clone()).read(&id, q.project_id.as_deref(), q.version).map_err(art)?;
+    let (mime, ext) = artifacts::mime_de(row["kind"].as_str().unwrap_or(""));
+    let nome = format!("{}{ext}", row["title"].as_str().unwrap_or(""));
+    let cod: String = nome.bytes().map(|b| if b.is_ascii_alphanumeric() || b"-._~/".contains(&b) { (b as char).to_string() } else { format!("%{b:02X}") }).collect();
+    Ok(Response::builder()
+        .header("content-type", mime)
+        .header("content-disposition", format!("attachment; filename*=UTF-8''{cod}"))
+        .header("x-content-type-options", "nosniff")
+        .header("cache-control", "no-store")
+        .header("content-security-policy", "default-src 'none'; sandbox")
+        .body(axum::body::Body::from(conteudo))
+        .map_err(anyhow::Error::from)?)
+}

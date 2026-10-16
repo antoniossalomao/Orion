@@ -2,6 +2,7 @@
 
 pub mod agent;
 pub mod agenda;
+pub mod artifacts;
 pub mod auth;
 pub mod automacao;
 pub mod briefing;

@@ -18,7 +18,7 @@ fn escopo<T>(pid: &Option<String>, f: impl FnOnce() -> T) -> T {
 }
 
 fn erro_projeto(e: ProjectError) -> ApiError {
-    let status = if e.0 == "project_not_found" || e.0 == "session_not_found" { 404 } else { 409 };
+    let status = if e.0.ends_with("not_found") { 404 } else { 409 };
     ApiError::new(status, e.0)
 }
 
