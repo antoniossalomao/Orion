@@ -1,0 +1,249 @@
+//! Históricos locais, "posso desligar?", Downloads, rotinas e tarefas em segundo plano.
+
+use crate::estado::Estado;
+use crate::http::*;
+use axum::extract::{Path, Query, State};
+use axum::Json;
+use orion_core::{desligar, downloads};
+use serde::Deserialize;
+use serde_json::{json, Value};
+
+// ── históricos (REGRAS.md: históricos locais: opt-in, só texto, só neste computador) ──
+
+/// 404 quando o histórico está desligado (opt-in); 409 no pânico.
+fn historico_ligado(st: &Estado, area: bool) -> ApiResult<()> {
+    let ligado = if area { st.settings.clipboard_days > 0 } else { st.settings.command_history };
+    if !ligado {
+        return erro(404, "histórico desligado (ORION_CLIPBOARD_DAYS / ORION_COMMAND_HISTORY)");
+    }
+    if st.modos.panico() {
+        return erro(409, "modo pânico");
+    }
+    Ok(())
+}
+
+#[derive(Deserialize)]
+pub struct AreaTexto {
+    texto: String,
+}
+
+pub async fn guardar_area(_: Admin, State(st): State<Estado>, Json(c): Json<AreaTexto>) -> ApiResult<Json<Value>> {
+    if !(1..=20_000).contains(&c.texto.chars().count()) {
+        return erro(422, "texto: entre 1 e 20000 caracteres");
+    }
+    historico_ligado(&st, true)?;
+    Ok(Json(json!({"resultado": st.historicos.guardar_area(&c.texto)?})))
+}
+
+#[derive(Deserialize)]
+pub struct BuscaQ {
+    #[serde(default)]
+    q: String,
+    limite: Option<i64>,
+    dias: Option<i64>,
+}
+
+pub async fn ver_area(_: Admin, State(st): State<Estado>, Query(q): Query<BuscaQ>) -> ApiResult<Json<Value>> {
+    let limite = q.limite.unwrap_or(30);
+    if q.q.chars().count() > 200 || !(1..=100).contains(&limite) {
+        return erro(422, "parâmetros inválidos");
+    }
+    historico_ligado(&st, true)?;
+    let itens = if q.q.trim().is_empty() { st.historicos.recentes_area(limite)? } else { st.historicos.buscar_area(&q.q, limite, st.settings.clipboard_days as i64)? };
+    Ok(Json(json!({"dias": st.settings.clipboard_days, "itens": itens})))
+}
+
+pub async fn limpar_area(_: Admin, State(st): State<Estado>) -> ApiResult<Json<Value>> {
+    historico_ligado(&st, true)?;
+    Ok(Json(json!({"apagados": st.historicos.limpar_area()?})))
+}
+
+pub async fn ver_comandos(_: Admin, State(st): State<Estado>, Query(q): Query<BuscaQ>) -> ApiResult<Json<Value>> {
+    let (limite, dias) = (q.limite.unwrap_or(20), q.dias.unwrap_or(90));
+    if q.q.chars().count() > 200 || !(1..=50).contains(&limite) || !(1..=365).contains(&dias) {
+        return erro(422, "parâmetros inválidos");
+    }
+    historico_ligado(&st, false)?;
+    Ok(Json(json!({"itens": st.historicos.buscar_comandos(&q.q, limite, dias)?})))
+}
+
+pub async fn importar_comandos(_: Admin, State(st): State<Estado>) -> ApiResult<Json<Value>> {
+    historico_ligado(&st, false)?;
+    let h = st.historicos.clone();
+    let n = tokio::task::spawn_blocking(move || h.importar()).await.map_err(anyhow::Error::from)??;
+    Ok(Json(json!({"novos": n})))
+}
+
+pub async fn limpar_comandos(_: Admin, State(st): State<Estado>) -> ApiResult<Json<Value>> {
+    historico_ligado(&st, false)?;
+    Ok(Json(json!({"apagados": st.historicos.limpar_comandos()?})))
+}
+
+// ── posso desligar ───────────────────────────────────────────────────────
+
+pub async fn posso_desligar(_: Admin, State(st): State<Estado>) -> ApiResult<Json<Value>> {
+    let tarefas = st.tarefas_bg.as_ref().and_then(|t| t.listar(30).ok()).unwrap_or_default();
+    let pasta = std::path::PathBuf::from(st.downloads.estado()["pasta"].as_str().unwrap_or(""));
+    let backup = Some(st.settings.effective_backup_dir());
+    let repos = st.settings.repos.clone();
+    let r = tokio::task::spawn_blocking(move || desligar::posso_desligar(&repos, backup.as_deref(), &pasta, &tarefas)).await.map_err(anyhow::Error::from)?;
+    Ok(Json(r))
+}
+
+// ── downloads ────────────────────────────────────────────────────────────
+
+pub async fn ver_downloads(_: Admin, State(st): State<Estado>) -> Json<Value> {
+    let mut e = st.downloads.estado();
+    e["historico"] = json!(st.downloads.historico(20));
+    Json(e)
+}
+
+pub async fn conceder_downloads(_: Admin, State(st): State<Estado>) -> ApiResult<Json<Value>> {
+    let r = st.downloads.conceder().map_err(|e| ApiError::new(422, e))?;
+    tracing::info!(target: "orion.audit", "downloads_concedido");
+    Ok(Json(r))
+}
+
+pub async fn revogar_downloads(_: Admin, State(st): State<Estado>) -> Json<Value> {
+    Json(json!({"ok": st.downloads.revogar()}))
+}
+
+#[derive(Deserialize)]
+pub struct SimularQ {
+    #[serde(default)]
+    simular: bool,
+}
+
+pub async fn rodar_downloads(_: Admin, State(st): State<Estado>, Query(q): Query<SimularQ>) -> ApiResult<Json<Value>> {
+    if st.modos.panico() {
+        return erro(409, "modo pânico: o organizador está cortado");
+    }
+    let d = st.downloads.clone();
+    let r = tokio::task::spawn_blocking(move || d.rodar(q.simular)).await.map_err(anyhow::Error::from)?;
+    Ok(Json(json!({"status": r.status, "movidos": r.movidos, "ficaram": r.ficaram, "recusados": r.recusados, "simulado": q.simular})))
+}
+
+#[derive(Deserialize)]
+pub struct DesfazerDownloads {
+    #[serde(default = "ultimo")]
+    escopo: String,
+}
+
+fn ultimo() -> String {
+    "ultimo".into()
+}
+
+pub async fn desfazer_downloads(_: Admin, State(st): State<Estado>, Json(c): Json<DesfazerDownloads>) -> ApiResult<Json<Value>> {
+    conferir(&c.escopo, "^(ultimo|hoje)$", "escopo")?;
+    let _ = downloads::NOME;
+    Ok(Json(st.downloads.desfazer(&c.escopo).map_err(|e| ApiError::new(422, e))?))
+}
+
+// ── rotinas (REGRAS.md: automação sua vale pelo arquivo concedido) ───────
+
+pub fn rotina_json(c: &orion_core::rotinas::Carregada) -> Value {
+    let r = c.rotina.as_ref();
+    json!({
+        "nome": c.nome, "estado": c.estado, "erro": c.erro,
+        "descricao": r.map(|r| r.descricao.clone()).unwrap_or_default(),
+        "gatilhos": r.map(|r| r.gatilhos.iter().map(|g| match &g.valor { Some(v) => json!({"tipo": g.tipo, "valor": v}), None => json!({"tipo": g.tipo}) }).collect::<Vec<_>>()).unwrap_or_default(),
+        "passos": r.map(|r| r.passos.len()).unwrap_or(0),
+        "liberar": r.map(|r| r.liberar.clone()).unwrap_or_default(),
+    })
+}
+
+pub async fn listar_rotinas(_: Admin, State(st): State<Estado>) -> Json<Value> {
+    let itens: Vec<Value> = st.rotinas.listar().iter().map(rotina_json).collect();
+    Json(json!({"total": itens.len(), "rotinas": itens}))
+}
+
+#[derive(Deserialize)]
+pub struct FraseRotina {
+    texto: String,
+}
+
+/// Roda a rotina concedida cuja frase bate EXATAMENTE (sem acento nem pontuação).
+pub async fn rotina_por_frase(_: Admin, State(st): State<Estado>, Json(c): Json<FraseRotina>) -> ApiResult<Json<Value>> {
+    if !(1..=200).contains(&c.texto.chars().count()) {
+        return erro(422, "texto: entre 1 e 200 caracteres");
+    }
+    let (Some(r), Some(ex)) = (st.rotinas.por_frase(&c.texto), st.executor_rotinas.as_ref()) else { return erro(404, "nenhuma rotina concedida com essa frase") };
+    Ok(Json(ex.executar(&r.nome, "frase").await.publico()))
+}
+
+pub async fn conceder_rotina(_: Admin, State(st): State<Estado>, Path(nome): Path<String>) -> ApiResult<Json<Value>> {
+    match st.rotinas.conceder(&nome) {
+        Ok(Some(c)) => {
+            tracing::info!(target: "orion.audit", "rotina_concedida rotina={nome}");
+            Ok(Json(rotina_json(&c)))
+        }
+        Ok(None) => erro(404, "rotina não encontrada"),
+        Err(e) => erro(422, e),
+    }
+}
+
+pub async fn revogar_rotina(_: Admin, State(st): State<Estado>, Path(nome): Path<String>) -> Json<Value> {
+    Json(json!({"ok": st.rotinas.revogar(&nome)}))
+}
+
+#[derive(Deserialize)]
+pub struct OrigemQ {
+    origem: Option<String>,
+}
+
+pub async fn executar_rotina(_: Admin, State(st): State<Estado>, Path(nome): Path<String>, Query(q): Query<OrigemQ>) -> ApiResult<Json<Value>> {
+    let origem = q.origem.unwrap_or_else(|| "manual".into());
+    conferir(&origem, "^(manual|tecla|frase|telegram|palmas)$", "origem")?;
+    let (Some(ex), true) = (st.executor_rotinas.as_ref(), st.rotinas.obter(&nome).is_some()) else { return erro(404, "rotina não encontrada") };
+    Ok(Json(ex.executar(&nome, &origem).await.publico()))
+}
+
+// ── tarefa em segundo plano (REGRAS.md: tarefa em segundo plano só lê e propõe) ──
+
+fn tarefas(st: &Estado) -> ApiResult<&std::sync::Arc<orion_core::tarefas_bg::TarefasBg>> {
+    st.tarefas_bg.as_ref().ok_or_else(|| ApiError::new(503, "tarefa em segundo plano indisponível: falta o gateway"))
+}
+
+fn bg<T>(r: Result<T, orion_core::tarefas_bg::TarefaBgError>) -> ApiResult<T> {
+    r.map_err(|e| ApiError::new(e.status, e.mensagem))
+}
+
+#[derive(Deserialize)]
+pub struct TarefaBgPedido {
+    objetivo: String,
+    max_passos: Option<i64>,
+    max_min: Option<i64>,
+}
+
+pub async fn criar_tarefa_bg(_: Admin, State(st): State<Estado>, Json(c): Json<TarefaBgPedido>) -> ApiResult<(axum::http::StatusCode, Json<Value>)> {
+    let (passos, min) = (c.max_passos.unwrap_or(10), c.max_min.unwrap_or(10));
+    if !(1..=500).contains(&c.objetivo.chars().count()) || !(1..=30).contains(&passos) || !(1..=30).contains(&min) {
+        return erro(422, "objetivo (1 a 500), max_passos e max_min (1 a 30)");
+    }
+    let r = bg(tarefas(&st)?.criar(&c.objetivo, passos, min))?;
+    tracing::info!(target: "orion.audit", "tarefa_bg id={} passos={passos}", r["id"]);
+    Ok((axum::http::StatusCode::ACCEPTED, Json(r)))
+}
+
+pub async fn listar_tarefas_bg(_: Admin, State(st): State<Estado>) -> ApiResult<Json<Value>> {
+    let itens = bg(tarefas(&st)?.listar(30))?;
+    Ok(Json(json!({"total": itens.len(), "tarefas": itens})))
+}
+
+pub async fn ver_tarefa_bg(_: Admin, State(st): State<Estado>, Path(tid): Path<i64>) -> ApiResult<Json<Value>> {
+    Ok(Json(bg(tarefas(&st)?.obter(tid))?))
+}
+
+pub async fn cancelar_tarefa_bg(_: Admin, State(st): State<Estado>, Path(tid): Path<i64>) -> ApiResult<Json<Value>> {
+    Ok(Json(bg(tarefas(&st)?.cancelar(tid))?))
+}
+
+#[derive(Deserialize)]
+pub struct PropostaDecisao {
+    acao: String,
+}
+
+pub async fn decidir_proposta_bg(_: Admin, State(st): State<Estado>, Path((tid, indice)): Path<(i64, i64)>, Json(c): Json<PropostaDecisao>) -> ApiResult<Json<Value>> {
+    conferir(&c.acao, "^(aceitar|descartar)$", "acao")?;
+    Ok(Json(bg(tarefas(&st)?.decidir(tid, indice, &c.acao))?))
+}

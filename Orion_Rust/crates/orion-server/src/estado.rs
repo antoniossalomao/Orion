@@ -48,6 +48,11 @@ pub struct AppState {
     pub jobs: Option<Arc<orion_core::jobs::JobRunner>>,
     pub ler_depois: Arc<orion_core::ler_depois::LerDepois>,
     pub desfazer: orion_core::captura_rapida::Desfazer,
+    pub historicos: Arc<orion_core::historicos::Historicos>,
+    pub downloads: Arc<orion_core::downloads::Downloads>,
+    pub rotinas: Arc<orion_core::rotinas::RotinaStore>,
+    pub executor_rotinas: Option<Arc<orion_core::rotinas::Executor>>,
+    pub tarefas_bg: Option<Arc<orion_core::tarefas_bg::TarefasBg>>,
 }
 
 pub type Estado = Arc<AppState>;
@@ -344,6 +349,21 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
         agent = Some(Arc::new(a));
     }
     let started_at = orion_core::util::agora();
+    let historicos = Arc::new(orion_core::historicos::Historicos::new(memory.clone()));
+    let downloads = Arc::new(orion_core::downloads::Downloads::new(settings.data_dir.join("regras_downloads.yaml"), memory.clone(), policy.path_guard.clone()));
+    let rotinas = Arc::new(orion_core::rotinas::RotinaStore::new(settings.data_dir.join("rotinas"), memory.clone()));
+    let (executor_rotinas, tarefas_bg) = match &agent {
+        Some(a) => {
+            let mut ex = orion_core::rotinas::Executor::new(rotinas.clone(), a.tools.clone(), policy.clone(), memory.clone(), ops.clone());
+            ex.modos = Some(modos.clone());
+            let (o, b) = (ops.clone(), settings.briefing_calendar_email.clone());
+            let _ = b;
+            ex.briefing = Some(Arc::new(move || orion_core::briefing::build_briefing(&o, orion_core::util::agora(), "Antônio", None)));
+            let tb = orion_core::tarefas_bg::TarefasBg::new(memory.clone(), ops.clone(), a.clone(), Some(custos.clone()), Some(modos.clone()));
+            (Some(Arc::new(ex)), Some(Arc::new(tb)))
+        }
+        None => (None, None),
+    };
     let ler_depois = Arc::new(orion_core::ler_depois::LerDepois::new(
         memory.clone(),
         settings.vault_dir.clone(),
@@ -399,6 +419,11 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
         jobs,
         ler_depois,
         desfazer: Default::default(),
+        historicos,
+        downloads,
+        rotinas,
+        executor_rotinas,
+        tarefas_bg,
         settings,
         memory,
         policy,

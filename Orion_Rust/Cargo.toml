@@ -18,6 +18,7 @@ tokio = { version = "1", features = ["full"] }
 uuid = { version = "1", features = ["v4"] }
 chrono = "0.4"
 unicode-normalization = "0.1"
+serde_yaml = "0.9"
 dirs = "5"
 orion-ai = { path = "crates/orion-ai" }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream", "blocking", "multipart"] }

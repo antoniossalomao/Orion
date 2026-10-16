@@ -386,6 +386,10 @@ pub async fn chat(_: Admin, State(st): State<Estado>, Json(c): Json<Mensagem>) -
         conferir(sk, r"^[a-z0-9][a-z0-9-]{0,63}$", "skill")?;
     }
     let a = agente(&st)?;
+    if let (Some(r), Some(ex)) = (st.rotinas.por_frase(&c.texto), st.executor_rotinas.clone()) {
+        // frase EXATA de uma rotina concedida (REGRAS.md: automação sua vale pelo arquivo concedido)
+        return Ok(stream_sse(turno_de_rotina(st.clone(), ex, r.nome)));
+    }
     let s = st.memory.active_session(&c.canal)?;
     Ok(stream_sse(a.run(TurnRequest { channel: c.canal, text: c.texto, expected_session: Some(s.id), skill_forcada: c.skill, ..Default::default() })))
 }
@@ -451,5 +455,25 @@ pub async fn decidir(_: Admin, State(st): State<Estado>, Path(id): Path<String>,
         Ok(a) => Ok(Json(json!({"id": a.id, "status": a.status.as_str()}))),
         Err(orion_policy::approvals::DecideError::NotFound(_)) => erro(404, "aprovação inexistente"),
         Err(e) => erro(409, e.to_string()),
+    }
+}
+
+fn turno_de_rotina(st: Estado, ex: std::sync::Arc<orion_core::rotinas::Executor>, nome: String) -> impl futures::Stream<Item = orion_core::agent::AgentEvent> {
+    use orion_core::agent::AgentEvent;
+    async_stream::stream! {
+        let r = ex.executar(&nome, "frase").await;
+        let icone = match r.status.as_str() { "concluida" => "✅", "aguardando_aprovacao" => "⏸", "recusada" => "⛔", _ => "⚠️" };
+        let mut texto = format!("{icone} Rotina {nome}: {}", r.status.replace('_', " "));
+        if !r.motivo.is_empty() {
+            texto += &format!(" — {}", r.motivo);
+        }
+        yield AgentEvent::new("text", json!({"text": texto}));
+        if let Some(a) = r.aprovacao_id.as_ref().and_then(|id| st.policy.approvals.get(id)) {
+            yield AgentEvent::new("approval", json!({
+                "id": a.id, "tool": a.tool, "reason": a.reason,
+                "args": orion_policy::redact(&Value::Object(a.args.clone()), 2000), "args_truncated": false,
+            }));
+        }
+        yield AgentEvent::new("done", json!({"provenance": {"rotina": nome, "passos": r.passos}}));
     }
 }

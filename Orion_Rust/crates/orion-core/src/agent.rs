@@ -64,7 +64,7 @@ pub struct AgentEvent {
 }
 
 impl AgentEvent {
-    fn new(kind: &'static str, data: Value) -> Self {
+    pub fn new(kind: &'static str, data: Value) -> Self {
         AgentEvent { kind, data }
     }
 

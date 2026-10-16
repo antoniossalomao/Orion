@@ -1,6 +1,7 @@
 //! Rotas da API (as mesmas do `app.py`), com login em todas exceto descoberta e saúde
 //! (REGRAS.md: toda rota da API exige login). Sem `/docs` nem `/openapi.json`.
 
+pub mod automacao;
 pub mod base;
 pub mod captura;
 pub mod conversa;
@@ -27,6 +28,7 @@ async fn sem_python(req: Request, next: Next) -> Response {
 }
 
 pub fn router(st: Estado) -> Router {
+    use automacao::*;
     use base::*;
     use captura::*;
     use conversa::*;
@@ -95,7 +97,25 @@ pub fn router(st: Estado) -> Router {
         .route("/captura", post(capturar))
         .route("/captura/:id", delete(desfazer_captura))
         .route("/ler-depois", get(ler_depois_listar).post(ler_depois_adicionar))
-        .route("/ler-depois/:id", delete(ler_depois_descartar));
+        .route("/ler-depois/:id", delete(ler_depois_descartar))
+        .route("/area-transferencia", get(ver_area).post(guardar_area).delete(limpar_area))
+        .route("/comandos", get(ver_comandos).delete(limpar_comandos))
+        .route("/comandos/importar", post(importar_comandos))
+        .route("/posso-desligar", get(posso_desligar))
+        .route("/downloads", get(ver_downloads))
+        .route("/downloads/conceder", post(conceder_downloads))
+        .route("/downloads/revogar", post(revogar_downloads))
+        .route("/downloads/rodar", post(rodar_downloads))
+        .route("/downloads/desfazer", post(desfazer_downloads))
+        .route("/rotinas", get(listar_rotinas))
+        .route("/rotinas/por-frase", post(rotina_por_frase))
+        .route("/rotinas/:nome/conceder", post(conceder_rotina))
+        .route("/rotinas/:nome/revogar", post(revogar_rotina))
+        .route("/rotinas/:nome/executar", post(executar_rotina))
+        .route("/tarefas-bg", get(listar_tarefas_bg).post(criar_tarefa_bg))
+        .route("/tarefas-bg/:id", get(ver_tarefa_bg))
+        .route("/tarefas-bg/:id/cancelar", post(cancelar_tarefa_bg))
+        .route("/tarefas-bg/:id/propostas/:indice", post(decidir_proposta_bg));
     if st.settings.serve_ui && front_dir().is_dir() {
         // por último: as rotas da API têm prioridade sobre os arquivos
         let ui = tower_http::services::ServeDir::new(front_dir()).append_index_html_on_directories(true);
