@@ -44,6 +44,8 @@ pub struct AppState {
     pub processos: Option<Arc<ProcessManager>>,
     pub skills: Option<Arc<RwLock<SkillCatalog>>>,
     pub painel: Arc<orion_core::painel::Painel>,
+    /// `None` com `ORION_JOBS_ENABLED=false`.
+    pub jobs: Option<Arc<orion_core::jobs::JobRunner>>,
 }
 
 pub type Estado = Arc<AppState>;
@@ -340,6 +342,33 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
         agent = Some(Arc::new(a));
     }
     let started_at = orion_core::util::agora();
+    let jobs = if settings.jobs_enabled {
+        use orion_core::jobs::{JobRunner, JobsConfig};
+        let cfg = JobsConfig {
+            backup_dir: settings.backup_dir.clone(),
+            backup_keep: settings.backup_keep,
+            vault_dir: settings.vault_dir.clone(),
+            audit_days: settings.audit_retention_days,
+            briefing_at: settings.briefing_at.clone(),
+            gateway_down_min: settings.gateway_down_min,
+            ..Default::default()
+        };
+        let mut j = JobRunner::new(memory.clone(), ops.clone(), cfg).map_err(|e| anyhow::anyhow!(e))?.com_custos(custos.clone()).com_modos(modos.clone());
+        if let Some(gw) = &gateway {
+            if settings.consolidate {
+                j = j.com_consolidator(Arc::new(orion_core::memory::consolidate::Consolidator::new(memory.clone(), gw.clone())));
+            }
+            if settings.weekly_ai {
+                j = j.com_leitura_semanal(gw.clone());
+            }
+        }
+        if let Some(pm) = &processos {
+            j = j.com_processos(pm.clone());
+        }
+        Some(Arc::new(j))
+    } else {
+        None
+    };
     let painel = Arc::new(orion_core::painel::Painel {
         started_at,
         memory: memory.clone(),
@@ -349,7 +378,7 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
         delegator: delegator.clone(),
         modos: Some(modos.clone()),
         custos: Some(custos.clone()),
-        jobs: None,
+        jobs: jobs.clone().map(|j| Arc::new(move || j.estado()) as orion_core::painel::Fonte),
         mcp: None,
         telegram_ativo: None,
         tela: None,
@@ -358,6 +387,7 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
     Ok(Arc::new(AppState {
         started_at,
         painel,
+        jobs,
         settings,
         memory,
         policy,

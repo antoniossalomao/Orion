@@ -198,6 +198,9 @@ fn esquecer(s: &Settings, consulta: &str, sim: bool) -> anyhow::Result<i32> {
 async fn serve(s: Settings) -> anyhow::Result<i32> {
     let (host, porta) = (s.host.clone(), s.port);
     let st = estado::montar(s).await?;
+    if let Some(j) = st.jobs.clone() {
+        tokio::spawn(j.run_forever(st.settings.jobs_tick_s));
+    }
     let app = rotas::router(st.clone());
     let ouvinte = tokio::net::TcpListener::bind((host.as_str(), porta)).await?;
     tracing::info!("Orion em http://{host}:{porta}");

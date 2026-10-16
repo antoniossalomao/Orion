@@ -7,6 +7,7 @@ pub mod briefing;
 pub mod config;
 pub mod extensions;
 pub mod mcp_indice;
+pub mod jobs;
 pub mod memory;
 pub mod modos;
 pub mod painel;
