@@ -39,8 +39,8 @@ pub fn identity(connection: &Connection, remote: &ToolInfo) -> Entry {
 
 pub struct Catalog {
     pub host: Arc<MCPHost>,
-    registry: Arc<RwLock<ToolRegistry>>,
-    policy: Arc<PolicyEngine>,
+    pub registry: Arc<RwLock<ToolRegistry>>,
+    pub policy: Arc<PolicyEngine>,
     pub entries: Arc<RwLock<HashMap<String, Entry>>>,
     lock: tokio::sync::Mutex<()>,
 }
@@ -51,7 +51,7 @@ impl Catalog {
     }
 
     pub async fn reconnect(&self, connection_id: &str) -> Result<(), MCPError> {
-        let c = self.host.connections.get(connection_id).ok_or_else(|| MCPError::new("connection_not_found"))?.clone();
+        let c = self.host.get(connection_id).ok_or_else(|| MCPError::new("connection_not_found"))?;
         // revogar antes do reconnect; nunca retomar chamadas pendentes de execução
         c.close().await;
         c.start().await;
@@ -77,7 +77,7 @@ impl Catalog {
             let entry = identity(connection, remote);
             let esquema = if remote.input_schema.get("type") == Some(&json!("object")) { remote.input_schema.clone() } else { json!({"type": "object", "properties": {}}) };
             let (conn, nome, atual, entradas) = (connection.clone(), remote.name.clone(), entry.clone(), self.entries.clone());
-            let descricao = format!("[{}/{}] {}", connection.label, remote.name, remote.description.clone().unwrap_or_default().chars().take(1000).collect::<String>());
+            let descricao = format!("[{}/{}] {}", connection.label.read().clone(), remote.name, remote.description.clone().unwrap_or_default().chars().take(1000).collect::<String>());
             let tool = Tool::new(&entry.name, &descricao, esquema, move |args: Args| {
                 let (conn, nome, atual, entradas) = (conn.clone(), nome.clone(), atual.clone(), entradas.clone());
                 async move {
@@ -99,7 +99,7 @@ impl Catalog {
                 revision: Some(entry.revision.clone()),
                 require_confirmation: risk != Risk::Read,
                 display_name: Some(remote.name.clone()),
-                origin_label: Some(connection.label.clone()),
+                origin_label: Some(connection.label.read().clone()),
                 scope: Some(connection.config.scope().into()),
                 ..ToolSpec::new(entry.name.clone(), risk)
             };
@@ -110,11 +110,11 @@ impl Catalog {
 
     async fn refresh_locked(&self) -> Result<(), MCPError> {
         let mut pending: Vec<(Entry, Tool, ToolSpec)> = vec![];
-        for c in self.host.connections.values() {
+        for c in self.host.list() {
             if c.state() != "connected" {
                 continue;
             }
-            let r = async { self.prepare(c, c.list_tools().await?) }.await;
+            let r = async { self.prepare(&c, c.list_tools().await?) }.await;
             match r {
                 Ok(p) => pending.extend(p),
                 // revogar conexão cujo catálogo não é confiável

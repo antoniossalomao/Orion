@@ -40,6 +40,9 @@ pub struct AppState {
     pub calendar: Option<Arc<orion_core::calendar::Calendar>>,
     pub events: Option<Arc<orion_core::calendar_events::Events>>,
     pub file_plans: Option<Arc<orion_core::file_plans::FilePlans>>,
+    /// Skills de extensões (pacotes de plugins e fontes `ORION_SKILL_SOURCES`), com escopo por turno.
+    pub skill_runtime: Arc<orion_core::extensions::skill_runtime::SkillRuntime>,
+    pub extensions: Option<Arc<orion_core::extensions::manager::PluginManager>>,
     pub gateway: Option<Arc<ChatGateway>>,
     pub biblioteca: Arc<Library>,
     /// Pânico e não perturbe (REGRAS.md: pânico é corte; não perturbe só segura).
@@ -449,6 +452,21 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
     let calendar = orion_core::calendar::Calendar::new(memory.clone(), mcp_host.clone(), registro_ext, policy.clone());
     let events = orion_core::calendar_events::Events::new(calendar.clone());
     let file_plans = orion_core::file_plans::FilePlans::new(events.clone());
+    orion_core::development::Development::registrar(memory.clone(), &catalog.registry, policy.clone());
+    let fontes = settings.skill_sources.iter().map(orion_core::extensions::skill_runtime::SkillSource::parse).collect::<Result<Vec<_>, _>>().map_err(|e| anyhow::anyhow!("ORION_SKILL_SOURCES inválido: {e}"))?;
+    let skill_runtime = orion_core::extensions::skill_runtime::SkillRuntime::new(&fontes);
+    skill_runtime.attach_tools(&catalog.registry, &policy);
+    let extensions = match orion_core::extensions::manager::PluginManager::new(&settings.data_dir.join("extensions"), skill_runtime.clone(), mcp_host.clone(), catalog.clone(), policy.clone()) {
+        Ok(m) => {
+            let urls = orion_core::extensions::catalogo::urls_validas(&settings.plugin_catalogs).map_err(|e| anyhow::anyhow!("ORION_PLUGIN_CATALOGS: {e}"))?;
+            *m.catalogos.write() = Some(Arc::new(orion_core::extensions::catalogo::Catalogos::new(settings.effective_catalog_dir(), urls)));
+            Some(Arc::new(m))
+        }
+        Err(e) => {
+            tracing::warn!("extensões indisponíveis: {}", e.0);
+            None
+        }
+    };
     let export_credentials = Arc::new(orion_core::export_credentials::ExportCredentials::new(memory.clone()));
     orion_core::mcp_export::registrar_specs(&policy);
     let export = Arc::new(orion_core::mcp_export::Export { memory: memory.clone(), policy: policy.clone(), creds: export_credentials.clone() });
@@ -625,6 +643,8 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
         calendar: Some(calendar),
         events: Some(events),
         file_plans: Some(file_plans),
+        skill_runtime,
+        extensions,
         started_at,
         painel,
         jobs,

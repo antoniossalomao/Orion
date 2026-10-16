@@ -112,6 +112,36 @@ impl ConnectionConfig {
         }
     }
 
+    /// A configuração completa (gravada em `extension_connections`).
+    pub fn to_json(&self) -> Value {
+        let mut v = self.identidade_json();
+        let o = v.as_object_mut().unwrap();
+        match self {
+            Self::Stdio(c) => {
+                o.insert("enabled".into(), json!(c.enabled));
+                o.insert("trusted".into(), json!(c.trusted));
+            }
+            Self::Http(c) => {
+                o.insert("enabled".into(), json!(c.enabled));
+                o.insert("authorized".into(), json!(c.authorized));
+            }
+        }
+        v
+    }
+
+    pub fn desligada(&self) -> ConnectionConfig {
+        match self.clone() {
+            Self::Stdio(mut c) => {
+                c.enabled = false;
+                Self::Stdio(c)
+            }
+            Self::Http(mut c) => {
+                c.enabled = false;
+                Self::Http(c)
+            }
+        }
+    }
+
     /// A configuração sem `enabled`/`authorized`/`trusted`, como o Python serializa para a identidade.
     pub fn identidade_json(&self) -> Value {
         let cls: Map<String, Value> = self.classifications().iter().map(|(k, v)| (k.clone(), json!(v.as_str()))).collect();
@@ -222,8 +252,8 @@ pub type OAuthFactory = Arc<dyn Fn(&HttpConfig) -> R<Arc<dyn Auth>> + Send + Syn
 
 pub struct Connection {
     pub config: ConnectionConfig,
-    pub label: String,
-    timeout: Duration,
+    pub label: parking_lot::RwLock<String>,
+    pub timeout: Duration,
     oauth: Option<OAuthFactory>,
     /// Confere a conta (revogada derruba a chamada).
     pub account_check: Mutex<Option<Arc<dyn Fn() -> R<()> + Send + Sync>>>,
@@ -235,7 +265,7 @@ pub struct Connection {
 
 impl Connection {
     pub fn new(config: ConnectionConfig, timeout: Duration, oauth: Option<OAuthFactory>) -> Self {
-        Connection { label: config.id().to_string(), config, timeout, oauth, account_check: Mutex::new(None), authorized: Mutex::new(None), st: RwLock::new(Estado { state: "disabled".into(), ..Default::default() }), slots: tokio::sync::Semaphore::new(4) }
+        Connection { label: parking_lot::RwLock::new(config.id().to_string()), config, timeout, oauth, account_check: Mutex::new(None), authorized: Mutex::new(None), st: RwLock::new(Estado { state: "disabled".into(), ..Default::default() }), slots: tokio::sync::Semaphore::new(4) }
     }
 
     pub fn state(&self) -> String {
@@ -318,7 +348,7 @@ impl Connection {
         s.state = if s.error.is_some() { "failed".into() } else { "disconnected".into() };
     }
 
-    fn connected(&self) -> R<Arc<McpClient>> {
+    pub fn connected(&self) -> R<Arc<McpClient>> {
         if let Some(f) = self.account_check.lock().clone() {
             f()?;
         }
@@ -395,7 +425,9 @@ fn codigo_de_erro(e: &McpError, http: bool) -> String {
 }
 
 pub struct MCPHost {
-    pub connections: BTreeMap<String, Arc<Connection>>,
+    connections: RwLock<BTreeMap<String, Arc<Connection>>>,
+    timeout: Duration,
+    oauth: Option<OAuthFactory>,
 }
 
 impl MCPHost {
@@ -406,18 +438,55 @@ impl MCPHost {
         if configs.len() > 32 || ids.len() != configs.len() {
             return Err("conexões duplicadas ou acima do limite".into());
         }
-        Ok(MCPHost { connections: configs.into_iter().map(|c| (c.id().to_string(), Arc::new(Connection::new(c, timeout, oauth.clone())))).collect() })
+        let host = MCPHost { connections: RwLock::new(BTreeMap::new()), timeout, oauth };
+        for c in configs {
+            host.insert(host.connection(c));
+        }
+        Ok(host)
+    }
+
+    /// Conexão nova (ainda não registrada no host).
+    pub fn connection(&self, config: ConnectionConfig) -> Arc<Connection> {
+        Arc::new(Connection::new(config, self.timeout, self.oauth.clone()))
+    }
+
+    pub fn get(&self, id: &str) -> Option<Arc<Connection>> {
+        self.connections.read().get(id).cloned()
+    }
+
+    pub fn list(&self) -> Vec<Arc<Connection>> {
+        self.connections.read().values().cloned().collect()
+    }
+
+    pub fn len(&self) -> usize {
+        self.connections.read().len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    pub fn contains(&self, id: &str) -> bool {
+        self.connections.read().contains_key(id)
+    }
+
+    pub fn insert(&self, c: Arc<Connection>) {
+        self.connections.write().insert(c.config.id().to_string(), c);
+    }
+
+    pub fn remove(&self, id: &str) -> Option<Arc<Connection>> {
+        self.connections.write().remove(id)
     }
 
     pub async fn start(&self) {
-        futures::future::join_all(self.connections.values().map(|c| c.start())).await;
+        futures::future::join_all(self.list().iter().map(|c| c.start())).await;
     }
 
     pub async fn close(&self) {
-        futures::future::join_all(self.connections.values().map(|c| c.close())).await;
+        futures::future::join_all(self.list().iter().map(|c| c.close())).await;
     }
 
     pub fn statuses(&self) -> Vec<Value> {
-        self.connections.values().map(|c| c.status()).collect()
+        self.list().iter().map(|c| c.status()).collect()
     }
 }

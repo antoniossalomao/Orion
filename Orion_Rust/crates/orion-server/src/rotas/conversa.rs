@@ -6,6 +6,8 @@ use axum::extract::{Path, Query, State};
 use axum::response::Response;
 use axum::Json;
 use orion_core::agent::{Agent, TurnRequest};
+use orion_core::extensions::context::{ContextReader, ContextRequest};
+use orion_core::extensions::skill_runtime::SkillReference;
 use orion_store::sessions::{Message, Session};
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -374,7 +376,26 @@ pub struct Mensagem {
     texto: String,
     #[serde(default = "canal_padrao")]
     canal: String,
+    /// recursos e prompts de MCP escolhidos (dados externos com fonte, nunca privilégios)
+    #[serde(default)]
+    contexto: Vec<Value>,
+    /// skills de extensões escolhidas à mão (até 3)
+    #[serde(default)]
+    skills: Vec<String>,
+    #[serde(default)]
+    referencias: Vec<Value>,
     skill: Option<String>,
+}
+
+/// Skills de extensões visíveis no escopo da conversa selecionada.
+pub async fn listar_skills(_: Admin, State(st): State<Estado>, Query(q): Query<CanalQ>) -> ApiResult<Json<Value>> {
+    conferir(&q.canal, CANAL, "canal")?;
+    let escopo = match st.memory.selected_session(&q.canal)? {
+        Some(s) if s.project_id.is_some() => format!("project:{}", s.project_id.unwrap()),
+        _ => "personal".to_string(),
+    };
+    let itens: Vec<Value> = st.skill_runtime.summaries().into_iter().filter(|s| s["scope"] == json!(escopo)).collect();
+    Ok(Json(json!(itens)))
 }
 
 pub async fn chat(_: Admin, State(st): State<Estado>, Json(c): Json<Mensagem>) -> ApiResult<Response> {
@@ -390,8 +411,24 @@ pub async fn chat(_: Admin, State(st): State<Estado>, Json(c): Json<Mensagem>) -
         // frase EXATA de uma rotina concedida (REGRAS.md: automação sua vale pelo arquivo concedido)
         return Ok(stream_sse(turno_de_rotina(st.clone(), ex, r.nome)));
     }
+    if c.skills.len() > 3 || c.referencias.len() > 8 || c.contexto.len() > 8 {
+        return erro(422, "skills (até 3), referencias e contexto (até 8)");
+    }
     let s = st.memory.active_session(&c.canal)?;
-    Ok(stream_sse(a.run(TurnRequest { channel: c.canal, text: c.texto, expected_session: Some(s.id), skill_forcada: c.skill, ..Default::default() })))
+    let escopo = s.project_id.as_ref().map(|p| format!("project:{p}")).unwrap_or_else(|| "personal".into());
+    let referencias = c.referencias.iter().map(SkillReference::parse).collect::<Result<Vec<_>, _>>().map_err(|m| ApiError::new(422, m))?;
+    let selection = {
+        let (rt, texto, skills, escopo) = (st.skill_runtime.clone(), c.texto.clone(), c.skills.clone(), escopo.clone());
+        let r = tokio::task::spawn_blocking(move || rt.select(&texto, &skills, &referencias, 12000, &escopo)).await.map_err(|e| anyhow::anyhow!(e))?;
+        Some(r?)
+    };
+    let mut external = vec![];
+    if !c.contexto.is_empty() {
+        let host = st.mcp_host.clone().ok_or_else(|| ApiError::new(503, "mcp_unavailable"))?;
+        let pedidos = c.contexto.iter().map(ContextRequest::parse).collect::<Result<Vec<_>, _>>().map_err(|m| ApiError::new(422, m))?;
+        external = ContextReader::new(host).selected(&pedidos, &escopo).await?;
+    }
+    Ok(stream_sse(a.run(TurnRequest { channel: c.canal, text: c.texto, external, selection, expected_session: Some(s.id), skill_forcada: c.skill, ..Default::default() })))
 }
 
 /// As skills da sua pasta `skills/` (nome e descrição): para `/skill` e a paleta.

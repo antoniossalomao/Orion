@@ -110,7 +110,7 @@ impl Calendar {
         };
         let rows = self.memory.query("SELECT * FROM calendar_bindings WHERE scope=?", &[&scope]).map_err(|_| MCPError::new("calendar_not_configured"))?;
         let row = rows.into_iter().next().ok_or_else(|| MCPError::new("calendar_not_configured"))?;
-        let conn = self.host.connections.get(row["connection_id"].as_str().unwrap_or("")).cloned();
+        let conn = self.host.get(row["connection_id"].as_str().unwrap_or(""));
         let Some(conn) = conn.filter(|c| c.config.scope() == scope && c.state() == "connected") else { return Err(MCPError::new("calendar_connection_unavailable")) };
         if conn.authorized.lock().clone().is_some_and(|f| !f()) {
             return Err(MCPError::new("calendar_account_revoked"));
@@ -128,7 +128,7 @@ impl Calendar {
         if b.timezone.parse::<chrono_tz::Tz>().is_err() {
             return Err(MCPError::new("calendar_timezone_invalid"));
         }
-        let conn = self.host.connections.get(&b.connection_id).cloned();
+        let conn = self.host.get(&b.connection_id);
         let Some(conn) = conn.filter(|c| c.config.scope() == b.scope && c.state() == "connected") else { return Err(MCPError::new("calendar_connection_unavailable")) };
         if let ConnectionConfig::Http(h) = &conn.config {
             if h.secret_ref.is_none() && h.account_id.is_none() {

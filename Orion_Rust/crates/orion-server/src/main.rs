@@ -324,6 +324,10 @@ async fn serve(s: Settings) -> anyhow::Result<i32> {
     if let Some(m) = &st.mcp {
         m.stop().await;
     }
+    if let Some(e) = &st.extensions {
+        e.close().await;
+    }
+    st.skill_runtime.close();
     if let Some(a) = &st.accounts {
         a.close().await;
     }

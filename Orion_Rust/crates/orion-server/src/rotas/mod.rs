@@ -6,6 +6,7 @@ pub mod base;
 pub mod captura;
 pub mod conversa;
 pub mod documentos;
+pub mod extensoes;
 pub mod export;
 pub mod geral;
 pub mod integracoes;
@@ -42,6 +43,7 @@ pub fn router(st: Estado) -> Router {
     use conversa::*;
     use documentos::*;
     use export::*;
+    use extensoes::*;
     use geral::*;
     use integracoes::*;
     use memoria::*;
@@ -63,6 +65,7 @@ pub fn router(st: Estado) -> Router {
         .route("/historico/:id/editar", post(editar_pedido))
         .route("/exportar", get(exportar))
         .route("/chat", post(chat))
+        .route("/skills", get(listar_skills))
         .route("/skills/catalogo", get(catalogo_de_skills))
         .route("/approvals", get(pendentes))
         .route("/approvals/:id/resume", post(retomar))
@@ -129,6 +132,26 @@ pub fn router(st: Estado) -> Router {
         .route("/tarefas-bg/:id", get(ver_tarefa_bg))
         .route("/tarefas-bg/:id/cancelar", post(cancelar_tarefa_bg))
         .route("/tarefas-bg/:id/propostas/:indice", post(decidir_proposta_bg))
+        .route("/plugins", get(plugins_listar))
+        .route("/plugins/available", get(plugins_disponiveis))
+        .route("/plugins/builtin/:id", post(instalar_perfil))
+        .route("/plugins/install", post(instalar_pasta))
+        .route("/plugins/import", post(importar_zip).layer(axum::extract::DefaultBodyLimit::max(limite_zip())))
+        .route("/plugins/importar/previa", post(importar_previa).layer(axum::extract::DefaultBodyLimit::max(limite_zip())))
+        .route("/plugins/importar", post(importar_externo).layer(axum::extract::DefaultBodyLimit::max(limite_zip())))
+        .route("/plugins/catalogo", get(catalogo_listar))
+        .route("/plugins/catalogo/instalar", post(catalogo_instalar))
+        .route("/plugins/:id/versions", get(versoes))
+        .route("/plugins/:id/plan/:digest", get(plano))
+        .route("/plugins/:id/activate", post(ativar))
+        .route("/plugins/:id/deactivate", post(desativar))
+        .route("/plugins/:id/version", post(escolher_versao))
+        .route("/plugins/:id", delete(remover))
+        .route("/plugins/:id/diagnostics", get(diagnostico))
+        .route("/mcp/connections", get(conexoes).post(configurar))
+        .route("/mcp/connections/:id", axum::routing::put(reconfigurar).delete(desconectar))
+        .route("/mcp/connections/:id/disable", post(desligar_conexao))
+        .route("/mcp/connections/:id/test", post(testar_conexao))
         .route("/accounts", get(contas_listar).post(conta_criar))
         .route("/accounts/:id/authorize", post(conta_autorizar))
         .route("/accounts/:id/revoke", post(conta_revogar))

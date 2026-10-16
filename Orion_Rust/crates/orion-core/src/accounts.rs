@@ -223,7 +223,7 @@ impl Accounts {
         self.memory.tx(|c| Ok(c.execute("UPDATE oauth_accounts SET revision=?,state='revoked',error=NULL WHERE id=?", rusqlite::params![nova, id])?)).map_err(mcp)?;
         let host = self.host.read().clone();
         if let Some(h) = host {
-            for c in h.connections.values() {
+            for c in h.list() {
                 if matches!(&c.config, ConnectionConfig::Http(x) if x.account_id.as_deref() == Some(id)) {
                     c.close().await;
                 }

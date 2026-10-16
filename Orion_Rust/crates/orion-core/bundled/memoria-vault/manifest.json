@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "orion_api": 1,
+  "id": "orion-memoria-vault",
+  "version": "1.0.0",
+  "name": "Orion Memória e Vault",
+  "description": "Retome contexto e sintetize notas com fontes, sem alterar seu vault.",
+  "license": "LicenseRef-Orion-Proprietary",
+  "skills": [
+    "skills/retomar-contexto",
+    "skills/sintetizar-notas"
+  ],
+  "capabilities": [
+    "native:buscar_memoria",
+    "native:listar_fatos"
+  ]
+}

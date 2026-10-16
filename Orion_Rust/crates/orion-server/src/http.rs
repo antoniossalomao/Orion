@@ -249,3 +249,15 @@ impl From<orion_core::extensions::host::MCPError> for ApiError {
         ApiError::new(422, e.code)
     }
 }
+
+impl From<orion_core::extensions::plugins::PluginError> for ApiError {
+    fn from(e: orion_core::extensions::plugins::PluginError) -> Self {
+        ApiError::new(422, e.0)
+    }
+}
+
+impl From<orion_core::extensions::skills::SkillError> for ApiError {
+    fn from(e: orion_core::extensions::skills::SkillError) -> Self {
+        ApiError::new(422, e.0)
+    }
+}
