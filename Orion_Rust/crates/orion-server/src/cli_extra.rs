@@ -184,3 +184,72 @@ pub fn rotina(s: &Settings, acao: &str, nome: Option<&str>, sim: bool) -> anyhow
 
 #[allow(dead_code)]
 fn _usa(_: Option<PolicyEngine>) {}
+
+/// Converte um arquivo no computador e guarda a cópia na biblioteca de resultados (E9.9).
+pub fn converter(s: &Settings, arquivo: &str, formato: &str, saida: Option<&str>) -> anyhow::Result<i32> {
+    use orion_core::conversor::{converter_e_guardar, formatos_para};
+    let origem = std::path::PathBuf::from(arquivo);
+    if formato == "?" {
+        let lista = formatos_para(&origem.extension().map(|e| e.to_string_lossy().into_owned()).unwrap_or_default());
+        println!("{}", if lista.is_empty() { "não sei converter esse tipo de arquivo".to_string() } else { lista.join(", ") });
+        return Ok(if lista.is_empty() { 1 } else { 0 });
+    }
+    let store = Arc::new(Store::open(s.db_path())?);
+    let destino = saida.map(std::path::PathBuf::from).unwrap_or_else(|| s.data_dir.join("conversoes"));
+    let lib = orion_core::resultados::Library::new(store, s.data_dir.join("resultados"));
+    match converter_e_guardar(&origem, formato, &destino, Some(&lib)) {
+        Ok((arq, item)) => {
+            println!("pronto: {}", arq.display());
+            if let Some(i) = item {
+                println!("cópia na biblioteca de resultados (id {})", i["id"]);
+            }
+            Ok(0)
+        }
+        Err(e) => {
+            eprintln!("não converteu: {e}");
+            Ok(1)
+        }
+    }
+}
+
+/// Skill `estilo-antonio` a partir dos seus repositórios (E7.8). Nasce desativada.
+pub fn estilo(s: &Settings, repos: &[String], agente: &str, ativar: bool, sim: bool) -> anyhow::Result<i32> {
+    use orion_core::estilo;
+    let pasta = s.effective_skills_dir();
+    if ativar {
+        return Ok(match estilo::ativar(&pasta) {
+            Ok(p) => {
+                println!("skill ativada: {}", p.display());
+                0
+            }
+            Err(e) => {
+                eprintln!("{e}");
+                1
+            }
+        });
+    }
+    if repos.is_empty() {
+        eprintln!("informe as pastas dos repositórios (ou --ativar)");
+        return Ok(1);
+    }
+    if !sim && !perguntar(&format!("O código de {} repositório(s) será LIDO pela CLI da sua assinatura ({agente}) e o resumo volta para uma skill. Continuar? [s/N] ", repos.len())) {
+        println!("nada foi enviado");
+        return Ok(1);
+    }
+    let store = Arc::new(Store::open(s.db_path())?);
+    // o código sai do computador (REGRAS.md: toda saída de dado fica registrada, sem conteúdo)
+    orion_ai::saidas::definir_destino(Some(orion_ai::saidas::destino_store(store.clone())));
+    let d = orion_ai::delegate::Delegator::new(store, orion_ai::delegate::default_agents(), 600.0, 20_000);
+    let r = estilo::gerar(&repos.iter().map(std::path::PathBuf::from).collect::<Vec<_>>(), &d, &pasta, Some(agente));
+    orion_ai::saidas::definir_destino(None);
+    match r {
+        Ok(a) => {
+            println!("skill pendente gravada em {}\nleia e rode: orion estilo --ativar", a.display());
+            Ok(0)
+        }
+        Err(e) => {
+            eprintln!("{e}");
+            Ok(1)
+        }
+    }
+}

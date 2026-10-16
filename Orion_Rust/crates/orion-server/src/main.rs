@@ -90,6 +90,23 @@ enum Cmd {
         #[arg(long)]
         revogar: bool,
     },
+    /// Converte um arquivo no computador (use '?' de formato para ver as opções).
+    Converter {
+        arquivo: String,
+        formato: String,
+        #[arg(long)]
+        saida: Option<String>,
+    },
+    /// Gera a skill estilo-antonio lendo seus repositórios (nasce desativada).
+    Estilo {
+        repos: Vec<String>,
+        #[arg(long, default_value = "claude", value_parser = ["claude", "codex", "gemini"])]
+        agente: String,
+        #[arg(long)]
+        ativar: bool,
+        #[arg(long)]
+        sim: bool,
+    },
     /// O que ficaria pela metade se desligasse agora.
     #[command(name = "posso-desligar")]
     PossoDesligar,
@@ -266,6 +283,8 @@ fn rodar(cli: Cli) -> anyhow::Result<i32> {
     match &cmd {
         Cmd::ExtrairDocumento { .. } => Ok(0),
         Cmd::McpServidor { token, revogar } => cli_extra::mcp_servidor(&s, *token, *revogar),
+        Cmd::Converter { arquivo, formato, saida } => cli_extra::converter(&s, arquivo, formato, saida.as_deref()),
+        Cmd::Estilo { repos, agente, ativar, sim } => cli_extra::estilo(&s, repos, agente, *ativar, *sim),
         Cmd::PossoDesligar => cli_extra::posso_desligar(&s),
         Cmd::Downloads { acao, simular, hoje, sim } => cli_extra::downloads(&s, acao, *simular, *hoje, *sim),
         Cmd::Rotina { acao, nome, sim } => cli_extra::rotina(&s, acao, nome.as_deref(), *sim),
