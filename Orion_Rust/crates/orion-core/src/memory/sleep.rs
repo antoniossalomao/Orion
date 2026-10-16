@@ -75,6 +75,8 @@ pub struct SleepCycle {
     hm: (u32, u32),
     min_new: usize,
     max_chars: usize,
+    /// E10.9: o sono também sonha uma ideia (fica pendente até o 'boa').
+    pub sonhos: bool,
 }
 
 impl SleepCycle {
@@ -85,7 +87,7 @@ impl SleepCycle {
         if h >= 24 || m >= 60 {
             return Err(erro());
         }
-        Ok(SleepCycle { memory, ops, gateway, hm: (h, m), min_new: 6, max_chars: 8000 })
+        Ok(SleepCycle { memory, ops, gateway, hm: (h, m), min_new: 6, max_chars: 8000, sonhos: false })
     }
 
     pub fn devida(&self) -> bool {
@@ -105,6 +107,13 @@ impl SleepCycle {
         let conflitos = tokio::task::spawn_blocking(move || m2.conflitos()).await.unwrap_or(0);
         let base = SleepResult { duplicados: dups, conflitos, ok: true, ..Default::default() };
         let Some(gw) = &self.gateway else { return base };
+        if self.sonhos {
+            // falha do sonho não atrasa a revisão (E10.9)
+            let fatos: Vec<String> = self.memory.query("SELECT text FROM facts WHERE superseded_by IS NULL ORDER BY RANDOM() LIMIT 60", &[]).unwrap_or_default().iter().map(|r| r["text"].as_str().unwrap_or("").to_string()).collect();
+            if let Some(ideia) = crate::vida::sonho_do_dia(&fatos, Some(gw), None).await {
+                let _ = self.ops.notify("sonho", &format!("Sonho do dia: {ideia}"), Some(&format!("sonho:{hoje}")), false);
+            }
+        }
         let m3 = self.clone_parts();
         let novos = tokio::task::spawn_blocking(move || m3.fatos_novos()).await.unwrap_or_default();
         if novos.len() < self.min_new {

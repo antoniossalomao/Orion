@@ -56,6 +56,12 @@ pub struct AppState {
     pub pesquisa: Option<Arc<orion_core::research::NightResearch>>,
     /// Memória da tela (REGRAS.md: memória da tela: só texto, local e com opt-in).
     pub tela: Option<Arc<orion_core::screen_memory::ScreenMemory>>,
+    pub financas: Arc<orion_core::vida::Financas>,
+    pub precos: Arc<orion_core::vida::Precos>,
+    pub foco: Arc<orion_core::vida::Foco>,
+    pub vida_canal: Arc<orion_core::vida::VidaCanal>,
+    /// Só o modelo deste computador (REGRAS.md: modelo local é reserva sem ferramentas).
+    pub gateway_local: Option<Arc<dyn orion_core::memory::Completer>>,
     pub historicos: Arc<orion_core::historicos::Historicos>,
     pub downloads: Arc<orion_core::downloads::Downloads>,
     pub rotinas: Arc<orion_core::rotinas::RotinaStore>,
@@ -452,6 +458,25 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
             None
         }
     };
+    let financas = Arc::new(orion_core::vida::Financas::new(memory.clone()));
+    let precos = Arc::new(orion_core::vida::Precos::new(memory.clone()));
+    let foco = Arc::new(orion_core::vida::Foco::new(settings.focus_distractions.split(';').filter(|d| !d.trim().is_empty()).map(String::from).collect()));
+    let revisao = Arc::new(orion_core::vida::Revisao::new(settings.vault_dir.clone()));
+    if let Some(t) = &tela {
+        // escudo de foco: só pergunta, nunca fecha nada (REGRAS.md: o escudo de foco pergunta; nunca bloqueia, fecha nem segura nada)
+        let (f, o) = (foco.clone(), ops.clone());
+        *t.on_capture.lock() = Some(Arc::new(move |alvo: &str| {
+            if f.pergunta_permitida(alvo) {
+                let _ = o.notify("foco", &format!("isso é do marco da semana? ({})", alvo.chars().take(80).collect::<String>()), Some(&format!("foco:{}", orion_core::util::agora() as i64)), false);
+            }
+        }));
+    }
+    let gateway_local: Option<Arc<dyn orion_core::memory::Completer>> = if settings.local_model.is_empty() {
+        None
+    } else {
+        ChatGateway::new(vec![local(&settings, 60.0)]).ok().map(|g| Arc::new(g) as Arc<dyn orion_core::memory::Completer>)
+    };
+    let vida_canal = Arc::new(orion_core::vida::VidaCanal::new(memory.clone(), financas.clone(), precos.clone(), foco.clone(), revisao, ops.clone(), gateway_local.clone()));
     let jobs = if settings.jobs_enabled {
         use orion_core::jobs::{JobRunner, JobsConfig};
         let cfg = JobsConfig {
@@ -477,13 +502,33 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
         }
         if !settings.sleep_at.is_empty() {
             let gw_c = gateway.clone().map(|g| g as Arc<dyn orion_core::memory::Completer>);
-            j = j.com_sono(Arc::new(orion_core::memory::sleep::SleepCycle::new(memory.clone(), ops.clone(), gw_c, &settings.sleep_at).map_err(|e| anyhow::anyhow!(e))?));
+            let mut sono = orion_core::memory::sleep::SleepCycle::new(memory.clone(), ops.clone(), gw_c, &settings.sleep_at).map_err(|e| anyhow::anyhow!(e))?;
+            sono.sonhos = true; // E10.9: o sono também sonha uma ideia (fica pendente até o 'boa')
+            j = j.com_sono(Arc::new(sono));
         }
         if let Some(p) = &pesquisa {
             j = j.com_pesquisa(p.clone());
         }
         if let Some(t) = &tela {
             j = j.com_tela(t.clone());
+        }
+        {
+            let mut v = orion_core::vida::VidaJobs::new(memory.clone(), financas.clone(), ops.clone(), settings.vault_dir.clone(), settings.repos.clone(), &settings.diary_at, &settings.weekly_review_at);
+            if let Some(a) = &agent {
+                // E10.5: usa a pesquisa da web; a cota já foi checada no job
+                let (tools, h) = (a.tools.clone(), tokio::runtime::Handle::current());
+                v = v.com_precos(
+                    precos.clone(),
+                    Arc::new(move |consulta: &str| {
+                        let t = tools.read().get("pesquisar_internet").cloned()?;
+                        let mut args = serde_json::Map::new();
+                        args.insert("query".into(), serde_json::json!(consulta));
+                        args.insert("max_resultados".into(), serde_json::json!(5));
+                        Some(h.block_on(t.run(args)))
+                    }),
+                );
+            }
+            j = j.com_vida(Arc::new(v));
         }
         Some(Arc::new(j))
     } else {
@@ -515,6 +560,11 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
         export,
         pesquisa,
         tela,
+        financas,
+        precos,
+        foco,
+        vida_canal,
+        gateway_local,
         historicos,
         downloads,
         rotinas,

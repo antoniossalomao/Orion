@@ -101,6 +101,7 @@ pub struct JobRunner {
     sleep: Option<Arc<crate::memory::sleep::SleepCycle>>,
     research: Option<Arc<crate::research::NightResearch>>,
     screen: Option<Arc<crate::screen_memory::ScreenMemory>>,
+    vida: Option<Arc<crate::vida::VidaJobs>>,
     custos: Option<Arc<Custos>>,
     modos: Option<Arc<Modos>>,
     every: HashMap<&'static str, f64>,
@@ -119,6 +120,7 @@ impl JobRunner {
             ("consolidar", 6.0 * 3600.0),
             ("auditoria", 86400.0),
             ("saude_gateway", 60.0),
+            ("vida", 300.0),
         ]);
         Ok(Self {
             memory,
@@ -132,6 +134,7 @@ impl JobRunner {
             sleep: None,
             research: None,
             screen: None,
+            vida: None,
             custos: None,
             modos: None,
             every,
@@ -167,6 +170,10 @@ impl JobRunner {
     }
     pub fn com_tela(mut self, c: Arc<crate::screen_memory::ScreenMemory>) -> Self {
         self.screen = Some(c);
+        self
+    }
+    pub fn com_vida(mut self, v: Arc<crate::vida::VidaJobs>) -> Self {
+        self.vida = Some(v);
         self
     }
     pub fn com_custos(mut self, c: Arc<Custos>) -> Self {
@@ -331,6 +338,15 @@ impl JobRunner {
         if self.devido("auditoria") {
             if let Some(n) = Self::passo(rel, "auditoria", self.podar_trilhas()) {
                 rel.auditoria = Some(n);
+            }
+        }
+        if let Some(v) = self.vida.clone() {
+            if self.devido("vida") {
+                // pesquisa de preço gasta cota gratuita: sem pânico e dentro do limite
+                let permitido = !self.panico() && self.custos.as_ref().is_none_or(|c| c.pode_usar("brave", true, "o monitor de preço"));
+                if let Some(r) = Self::passo(rel, "vida", v.tick(&|| permitido).map_err(Into::into)) {
+                    let _ = r;
+                }
             }
         }
         if self.devido("saude_gateway") {

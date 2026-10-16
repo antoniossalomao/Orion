@@ -10,6 +10,7 @@ pub mod export;
 pub mod geral;
 pub mod memoria;
 pub mod ponte;
+pub mod vida;
 
 use crate::estado::{front_dir, Estado};
 use crate::http::{host_permitido, request_id};
@@ -42,6 +43,7 @@ pub fn router(st: Estado) -> Router {
     use export::*;
     use geral::*;
     use memoria::*;
+    use vida::*;
     let mut r = Router::new()
         .route("/capabilities", get(capabilities))
         .route("/capabilities/details", get(capability_details))
@@ -140,6 +142,19 @@ pub fn router(st: Estado) -> Router {
         .route("/pesquisa/assuntos", get(ver_assuntos_da_pesquisa).put(trocar_assuntos_da_pesquisa))
         .route("/pesquisa/relatorios", get(relatorios_da_pesquisa))
         .route("/pesquisa/rodar", post(rodar_pesquisa_agora))
+        .route("/financas/resumo", get(resumo))
+        .route("/financas/gastos", post(lancar_gasto))
+        .route("/financas/contas", get(contas).post(cadastrar_conta))
+        .route("/financas/contas/:id/pagar", post(pagar))
+        .route("/financas/fatura/previa", post(previa_fatura))
+        .route("/financas/fatura/confirmar", post(confirmar_fatura))
+        .route("/precos", get(precos).post(acompanhar))
+        .route("/vida/simular", post(simulacao))
+        .route("/linha-do-tempo", get(timeline))
+        .route("/sonhos/:id/boa", post(sonho_boa))
+        .route("/sonhos/:id/descartar", post(sonho_descartar))
+        .route("/foco", get(foco_estado))
+        .route("/foco/iniciar", post(foco_iniciar))
         .route("/mcp/servidores", get(servidores_mcp))
         .route("/mcp/servidores/:nome/testar", post(testar_servidor_mcp))
         .route("/mcp/prompts", get(prompts_mcp))

@@ -31,6 +31,7 @@ pub mod projects;
 pub mod research;
 pub mod resultados;
 pub mod tarefas_bg;
+pub mod vida;
 pub mod rotinas;
 pub mod screen_memory;
 pub mod skills;

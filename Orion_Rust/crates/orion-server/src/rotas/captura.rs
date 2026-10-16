@@ -8,6 +8,7 @@ use axum::Json;
 use orion_core::capture::Capturer;
 use orion_core::captura_rapida::{classificar, sem_acento, MAX_TEXTO};
 use orion_core::ler_depois::so_um_link;
+use orion_core::vida::{capsula, categoria_de, dias_da_capsula, gasto_por_modelo, parse_gasto, VERBO_GASTO};
 use serde::Deserialize;
 use serde_json::{json, Value};
 
@@ -49,14 +50,43 @@ pub async fn capturar(_: Admin, State(st): State<Estado>, Json(c): Json<PedidoCa
         gateway = None;
     }
     // REGRAS.md: texto de gasto não vai à nuvem; a regra decide
-    if sem_acento(&texto).split_whitespace().any(|p| ["gastei", "paguei", "comprei", "custou"].contains(&p)) {
+    if VERBO_GASTO.is_match(&sem_acento(&texto)) {
         gateway = None;
     }
-    let (c, origem) = classificar(gateway, &texto, chrono::Local::now()).await;
+    let (mut c, mut origem) = classificar(gateway, &texto, chrono::Local::now()).await;
+    if c.tipo == "gasto" && c.valor.is_none() && parse_gasto(&texto).is_none() {
+        if let Some(g) = gasto_por_modelo(&texto, st.gateway_local.as_ref()).await {
+            c = orion_core::captura_rapida::Classificacao { tipo: "gasto".into(), titulo: g["description"].as_str().unwrap_or("").into(), quando: None, valor: Some(g["cents"].as_f64().unwrap_or(0.0) / 100.0) };
+            origem = "modelo local";
+        }
+    }
     let mut tipo = c.tipo.clone();
     let mut aviso = Value::Null;
+    let dias = if regex::Regex::new(r"\bme (cobra|lembra|avisa)").unwrap().is_match(&sem_acento(&texto)) { dias_da_capsula(&texto) } else { None };
+    if let Some(d) = dias {
+        // E10.6: "daqui 6 meses me cobra isso"
+        let cap = capsula(&st.memory, &texto.chars().take(200).collect::<String>(), d, &texto).map_err(|e| ApiError::new(422, e.0))?;
+        return Ok(Json(json!({
+            "id": st.desfazer.registrar("capsula", cap["id"].clone()), "tipo": "capsula", "titulo": cap["titulo"], "quando": cap["quando"],
+            "valor": null, "origem": origem, "aviso": "cápsula guardada",
+        })));
+    }
+    let g = if tipo == "gasto" { parse_gasto(&texto) } else { None }; // "gastei 30 no mercado" sem R$
+    let cents = g.as_ref().and_then(|g| g["cents"].as_i64()).or(c.valor.map(|v| (v * 100.0).round() as i64));
+    if tipo == "gasto" && cents.is_some_and(|x| x > 0) {
+        // E10.3 (REGRAS.md: finanças são locais): o gasto vai ao banco local, nunca a provedor de fora
+        let cents = cents.unwrap_or(0);
+        let (cat, desc) = match &g {
+            Some(g) => (g["category"].as_str().unwrap_or("outros").to_string(), g["description"].as_str().unwrap_or("").to_string()),
+            None => (categoria_de(&c.titulo), c.titulo.clone()),
+        };
+        let l = st.financas.registrar_gasto(cents, &cat, &desc, "captura").map_err(|e| ApiError::new(422, e.0))?;
+        return Ok(Json(json!({
+            "id": st.desfazer.registrar("gasto", l["id"].clone()), "tipo": "gasto", "titulo": desc, "quando": null,
+            "valor": cents as f64 / 100.0, "origem": origem, "aviso": format!("gasto lançado em {cat}"),
+        })));
+    }
     if tipo == "gasto" {
-        // finanças locais (E10.3) ainda não existem neste lado: guarda como nota
         tipo = "nota".into();
         aviso = json!("diga o valor para lançar o gasto; guardei como nota");
     }
@@ -82,6 +112,10 @@ pub async fn desfazer_captura(_: Admin, State(st): State<Estado>, Path(id): Path
     match tipo.as_str() {
         "leitura" => {
             st.ler_depois.descartar(n).map_err(|e| ApiError::new(404, e.0))?;
+        }
+        "gasto" => st.financas.apagar_gasto(n).map_err(|e| ApiError::new(409, e.0))?,
+        "capsula" => {
+            st.memory.tx(|c| Ok(c.execute("DELETE FROM reminders WHERE id=? AND kind='capsula'", [n]).map(|_| ())?))?;
         }
         "tarefa" => {
             st.ops.remove_task(n)?;
