@@ -11,6 +11,14 @@ rust-version = "1.85"
 
 [workspace.dependencies]
 orion-policy = { path = "crates/orion-policy" }
+orion-store = { path = "crates/orion-store" }
+rusqlite = { version = "0.32", features = ["bundled", "backup"] }
+parking_lot = "0.12"
+tokio = { version = "1", features = ["full"] }
+uuid = { version = "1", features = ["v4"] }
+chrono = "0.4"
+unicode-normalization = "0.1"
+dirs = "5"
 anyhow = "1"
 thiserror = "2"
 serde = { version = "1", features = ["derive"] }
