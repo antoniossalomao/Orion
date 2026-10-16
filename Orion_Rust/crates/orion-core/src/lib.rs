@@ -6,6 +6,7 @@ pub mod auth;
 pub mod briefing;
 pub mod config;
 pub mod extensions;
+pub mod grafo;
 pub mod mcp_indice;
 pub mod jobs;
 pub mod memory;

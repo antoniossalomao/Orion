@@ -4,6 +4,7 @@
 pub mod base;
 pub mod conversa;
 pub mod geral;
+pub mod memoria;
 pub mod ponte;
 
 use crate::estado::{front_dir, Estado};
@@ -28,6 +29,7 @@ pub fn router(st: Estado) -> Router {
     use base::*;
     use conversa::*;
     use geral::*;
+    use memoria::*;
     let mut r = Router::new()
         .route("/capabilities", get(capabilities))
         .route("/capabilities/details", get(capability_details))
@@ -66,7 +68,28 @@ pub fn router(st: Estado) -> Router {
         .route("/notifications/:id/ack", post(confirmar_aviso))
         .route("/lembretes/:id/:acao", post(agir_no_lembrete))
         .route("/tela", delete(tela_limpar))
-        .route("/tela/busca", get(tela_busca));
+        .route("/tela/busca", get(tela_busca))
+        .route("/facts", get(fatos_listar))
+        .route("/facts/conflicts", get(fatos_conflitos))
+        .route("/facts/conflicts/resolve", post(fatos_resolver))
+        .route("/facts/pending", get(fatos_pendentes))
+        .route("/facts/:id", get(fato_detalhe).delete(fato_esquecer))
+        .route("/facts/:id/move", post(fato_mover))
+        .route("/facts/:id/validity", post(fato_validade))
+        .route("/facts/:id/supersede", post(fato_substituir))
+        .route("/facts/:id/review", post(fato_revisar))
+        .route("/facts/:id/resume", post(fato_retomar))
+        .route("/projects", get(projetos_listar).post(projeto_criar))
+        .route("/projects/activate", post(projeto_ativar))
+        .route("/projects/sessions/:id", axum::routing::put(projeto_associar))
+        .route("/projects/:id", get(projeto_detalhe).patch(projeto_editar))
+        .route("/activity", get(atividade_caixa))
+        .route("/activity/preferences", axum::routing::put(atividade_preferencias))
+        .route("/grafo/completo", get(grafo_completo))
+        .route("/grafo/no", get(grafo_no))
+        .route("/grafo/caminho", get(grafo_caminho))
+        .route("/memoria/relacoes", get(relacoes).delete(relacao_apagar))
+        .route("/busca", get(busca));
     if st.settings.serve_ui && front_dir().is_dir() {
         // por último: as rotas da API têm prioridade sobre os arquivos
         let ui = tower_http::services::ServeDir::new(front_dir()).append_index_html_on_directories(true);
