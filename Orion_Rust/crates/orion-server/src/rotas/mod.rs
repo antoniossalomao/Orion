@@ -8,6 +8,7 @@ pub mod conversa;
 pub mod documentos;
 pub mod export;
 pub mod geral;
+pub mod integracoes;
 pub mod memoria;
 pub mod ponte;
 pub mod vida;
@@ -42,6 +43,7 @@ pub fn router(st: Estado) -> Router {
     use documentos::*;
     use export::*;
     use geral::*;
+    use integracoes::*;
     use memoria::*;
     use vida::*;
     let mut r = Router::new()
@@ -127,6 +129,18 @@ pub fn router(st: Estado) -> Router {
         .route("/tarefas-bg/:id", get(ver_tarefa_bg))
         .route("/tarefas-bg/:id/cancelar", post(cancelar_tarefa_bg))
         .route("/tarefas-bg/:id/propostas/:indice", post(decidir_proposta_bg))
+        .route("/accounts", get(contas_listar).post(conta_criar))
+        .route("/accounts/:id/authorize", post(conta_autorizar))
+        .route("/accounts/:id/revoke", post(conta_revogar))
+        .route("/accounts/callback/:id", get(conta_callback))
+        .route("/calendar", get(agenda_vinculos))
+        .route("/calendar/bind", post(agenda_vincular))
+        .route("/calendar/proposals", get(eventos_listar).post(evento_criar))
+        .route("/calendar/proposals/:id/review", post(evento_revisar))
+        .route("/calendar/proposals/:id/resume", post(evento_retomar))
+        .route("/files/plans", get(planos_listar).post(plano_criar))
+        .route("/files/plans/:id/review", post(plano_revisar))
+        .route("/files/plans/:id/apply", post(plano_aplicar))
         .route("/documents", get(listar_documentos).post(enviar_documento).layer(axum::extract::DefaultBodyLimit::max(documents_limite())))
         .route("/documents/:id", get(detalhe_documento).patch(mover_documento))
         .route("/documents/:id/retry", post(tentar_de_novo))

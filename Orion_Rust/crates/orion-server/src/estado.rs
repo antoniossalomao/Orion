@@ -34,6 +34,12 @@ pub struct AppState {
     pub auth: Arc<AuthService>,
     /// `None` enquanto o gateway não está configurado.
     pub agent: Option<Arc<Agent>>,
+    pub accounts: Option<Arc<orion_core::accounts::Accounts>>,
+    pub mcp_host: Option<Arc<orion_core::extensions::host::MCPHost>>,
+    pub catalog: Option<Arc<orion_core::extensions::catalog::Catalog>>,
+    pub calendar: Option<Arc<orion_core::calendar::Calendar>>,
+    pub events: Option<Arc<orion_core::calendar_events::Events>>,
+    pub file_plans: Option<Arc<orion_core::file_plans::FilePlans>>,
     pub gateway: Option<Arc<ChatGateway>>,
     pub biblioteca: Arc<Library>,
     /// Pânico e não perturbe (REGRAS.md: pânico é corte; não perturbe só segura).
@@ -420,6 +426,29 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
         agent = Some(Arc::new(a));
     }
     let started_at = orion_core::util::agora();
+    // conexões MCP revisadas (host) + catálogo + agenda (leitura) + propostas + planos de arquivos
+    let accounts = orion_core::accounts::Accounts::new(memory.clone());
+    let configs = settings.mcp_connections.iter().map(orion_core::extensions::host::parse_config).collect::<Result<Vec<_>, _>>().map_err(|e| anyhow::anyhow!("ORION_MCP_CONNECTIONS inválido: {e}"))?;
+    let mcp_host = Arc::new(orion_core::extensions::host::MCPHost::new(configs, std::time::Duration::from_secs(5), Some(accounts.factory())).map_err(|e| anyhow::anyhow!(e))?);
+    *accounts.host.write() = Some(mcp_host.clone());
+    mcp_host.start().await;
+    let registro_ext = agent.as_ref().map(|a| a.tools.clone()).unwrap_or_default();
+    let catalog = Arc::new(orion_core::extensions::catalog::Catalog::new(mcp_host.clone(), registro_ext.clone(), policy.clone()));
+    if let Some(a) = &agent {
+        let c = catalog.clone();
+        *a.refresh_tools.write() = Some(Arc::new(move || {
+            let c = c.clone();
+            Box::pin(async move {
+                let _ = c.refresh().await;
+            })
+        }));
+    }
+    if catalog.refresh().await.is_err() {
+        tracing::warn!("mcp_catalog_unavailable");
+    }
+    let calendar = orion_core::calendar::Calendar::new(memory.clone(), mcp_host.clone(), registro_ext, policy.clone());
+    let events = orion_core::calendar_events::Events::new(calendar.clone());
+    let file_plans = orion_core::file_plans::FilePlans::new(events.clone());
     let export_credentials = Arc::new(orion_core::export_credentials::ExportCredentials::new(memory.clone()));
     orion_core::mcp_export::registrar_specs(&policy);
     let export = Arc::new(orion_core::mcp_export::Export { memory: memory.clone(), policy: policy.clone(), creds: export_credentials.clone() });
@@ -590,6 +619,12 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
         *t.painel.lock() = Some(Arc::new(move || orion_core::painel::texto_do_painel(&p.montar())));
     }
     Ok(Arc::new(AppState {
+        accounts: Some(accounts),
+        mcp_host: Some(mcp_host),
+        catalog: Some(catalog),
+        calendar: Some(calendar),
+        events: Some(events),
+        file_plans: Some(file_plans),
         started_at,
         painel,
         jobs,

@@ -324,6 +324,12 @@ async fn serve(s: Settings) -> anyhow::Result<i32> {
     if let Some(m) = &st.mcp {
         m.stop().await;
     }
+    if let Some(a) = &st.accounts {
+        a.close().await;
+    }
+    if let Some(h) = &st.mcp_host {
+        h.close().await;
+    }
     orion_ai::saidas::definir_destino(None);
     Ok(0)
 }

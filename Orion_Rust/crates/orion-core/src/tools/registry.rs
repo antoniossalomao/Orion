@@ -217,7 +217,7 @@ impl Tool {
         }})
     }
 
-    fn invalido(&self, args: &Map<String, Value>) -> Option<String> {
+    pub fn invalido(&self, args: &Map<String, Value>) -> Option<String> {
         let obrigatorios: Vec<&str> = self
             .parameters
             .get("required")

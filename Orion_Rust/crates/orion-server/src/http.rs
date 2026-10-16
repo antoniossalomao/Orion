@@ -243,3 +243,9 @@ pub fn iso(ts: f64) -> String {
         dt.format("%Y-%m-%dT%H:%M:%S%.6f+00:00").to_string()
     }
 }
+
+impl From<orion_core::extensions::host::MCPError> for ApiError {
+    fn from(e: orion_core::extensions::host::MCPError) -> Self {
+        ApiError::new(422, e.code)
+    }
+}
