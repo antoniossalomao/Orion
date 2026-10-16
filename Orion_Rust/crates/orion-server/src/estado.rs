@@ -254,7 +254,8 @@ pub fn mcp_from_settings(settings: &Settings) -> Option<Arc<orion_core::mcp_clie
     if !settings.mcp_enabled {
         return None;
     }
-    match orion_core::mcp_client::manager_from_file(&settings.effective_mcp_config(), vec![]) {
+    let extras = if settings.plugins_enabled { orion_core::plugins_locais::PluginStore::new(settings.effective_plugins_dir()).servidores_mcp() } else { vec![] };
+    match orion_core::mcp_client::manager_from_file(&settings.effective_mcp_config(), extras) {
         Ok(m) => m,
         Err(e) => {
             tracing::error!("MCP desligado: {e}");
@@ -356,7 +357,7 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
         }
         mcp_geral = mcp.clone();
         if settings.skills_enabled {
-            let cat = SkillCatalog::new(&settings.effective_skills_dir(), vec![]);
+            let cat = SkillCatalog::new(&settings.effective_skills_dir(), if settings.plugins_enabled { orion_core::plugins_locais::PluginStore::new(settings.effective_plugins_dir()).pastas_de_skills() } else { vec![] });
             if !cat.skills.is_empty() {
                 let _ = policy.register_tool(orion_core::skills::tool_spec(), None);
                 let arc = Arc::new(RwLock::new(cat));

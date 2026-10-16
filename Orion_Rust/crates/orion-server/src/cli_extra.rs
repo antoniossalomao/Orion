@@ -420,3 +420,58 @@ fn propor_da_nota(s: &Settings, nota: &std::path::Path, sim: bool, store: Arc<St
     println!("{} proposta(s) na caixa de atividade (Atividade → Aprovar ou Descartar)", ids.len());
     Ok(0)
 }
+
+/// `orion plugin ...`: plugins locais (a concessão vale pelo hash do pacote inteiro).
+pub fn plugin(s: &Settings, acao: &str, alvo: Option<&str>) -> i32 {
+    use orion_core::plugins_locais::{describe, PluginStore};
+    let loja = PluginStore::new(s.effective_plugins_dir());
+    if acao == "listar" {
+        let todos = loja.lista();
+        for p in &todos {
+            let d = describe(p);
+            println!("{} {} [{}] — {}", d["nome"].as_str().unwrap_or(""), d["versao"].as_str().unwrap_or(""), d["estado"].as_str().unwrap_or(""), d["descricao"].as_str().unwrap_or(""));
+            println!("   skills: {}", d["skills"]);
+            for sv in d["servidores"].as_array().into_iter().flatten() {
+                println!("   MCP {}: {} → {} (risco padrão {})", sv["nome"].as_str().unwrap_or(""), sv["transporte"].as_str().unwrap_or(""), sv["executa"].as_str().unwrap_or(""), sv["risco_padrao"].as_str().unwrap_or(""));
+            }
+        }
+        if todos.is_empty() {
+            println!("nenhum plugin em {}", loja.raiz.display());
+        }
+        return 0;
+    }
+    let Some(alvo) = alvo else {
+        eprintln!("faltou a pasta ou o nome do plugin");
+        return 1;
+    };
+    let r: Result<(), orion_core::plugins_locais::PluginError> = (|| {
+        match acao {
+            "instalar" | "atualizar" => {
+                let p = loja.instalar(std::path::Path::new(alvo), acao == "atualizar")?;
+                let d = describe(&p);
+                println!("{} {} instalado, SEM concessão. Isto é o que ele liberaria:", p.nome, p.versao);
+                println!("   skills: {}", d["skills"]);
+                for sv in d["servidores"].as_array().into_iter().flatten() {
+                    println!("   MCP {}: {} → {}", sv["nome"].as_str().unwrap_or(""), sv["transporte"].as_str().unwrap_or(""), sv["executa"].as_str().unwrap_or(""));
+                    let livres = sv["ferramentas"].as_object().filter(|o| !o.is_empty()).map(|o| serde_json::Value::Object(o.clone()).to_string()).unwrap_or_else(|| format!("(todas com risco {})", sv["risco_padrao"].as_str().unwrap_or("")));
+                    println!("      ferramentas: {livres}");
+                }
+                println!("Para liberar: orion plugin conceder {} (vale depois de reiniciar o Orion)", p.nome);
+            }
+            "conceder" => {
+                loja.conceder(alvo)?;
+                println!("{alvo}: concedido; reinicie o Orion para valer");
+            }
+            "revogar" => println!("{}", if loja.revogar(alvo)? { "revogado; reinicie o Orion" } else { "esse plugin não tinha concessão" }),
+            _ => println!("{}", if loja.remover(alvo)? { "removido" } else { "plugin não encontrado" }),
+        }
+        Ok(())
+    })();
+    match r {
+        Ok(()) => 0,
+        Err(e) => {
+            eprintln!("{e}");
+            1
+        }
+    }
+}

@@ -74,6 +74,13 @@ enum Cmd {
     },
     /// Lista as skills válidas e as rejeitadas, com o motivo.
     Skills,
+    /// Plugins locais: listar, instalar, atualizar, conceder, revogar, remover.
+    Plugin {
+        #[arg(value_parser = ["listar", "instalar", "atualizar", "conceder", "revogar", "remover"])]
+        acao: String,
+        /// Pasta do plugin (instalar/atualizar) ou o nome.
+        alvo: Option<String>,
+    },
     /// Apaga fatos da memória (texto, índice de busca e vetor); pede confirmação.
     Esquecer {
         consulta: String,
@@ -414,6 +421,7 @@ fn rodar(cli: Cli) -> anyhow::Result<i32> {
             Ok(0)
         }
         Cmd::Esquecer { consulta, sim } => esquecer(&s, consulta, *sim),
+        Cmd::Plugin { acao, alvo } => Ok(cli_extra::plugin(&s, acao, alvo.as_deref())),
         Cmd::Restore { arquivo, force } => {
             let contagens = match Store::verify_backup(arquivo) {
                 Ok(c) => c,
