@@ -8,6 +8,7 @@ pub mod automacao;
 pub mod briefing;
 pub mod capture;
 pub mod captura_rapida;
+pub mod channels;
 pub mod config;
 pub mod desligar;
 pub mod document_extract;

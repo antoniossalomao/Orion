@@ -237,6 +237,7 @@ async fn serve(s: Settings) -> anyhow::Result<i32> {
     if let Some(j) = st.jobs.clone() {
         tokio::spawn(j.run_forever(st.settings.jobs_tick_s));
     }
+    let tarefa_telegram = st.telegram.clone().map(|t| tokio::spawn(t.run()));
     let app = rotas::router(st.clone());
     let ouvinte = tokio::net::TcpListener::bind((host.as_str(), porta)).await?;
     tracing::info!("Orion em http://{host}:{porta}");
@@ -245,6 +246,9 @@ async fn serve(s: Settings) -> anyhow::Result<i32> {
             let _ = tokio::signal::ctrl_c().await;
         })
         .await?;
+    if let Some(t) = tarefa_telegram {
+        t.abort();
+    }
     if let Some(m) = &st.mcp {
         m.stop().await;
     }

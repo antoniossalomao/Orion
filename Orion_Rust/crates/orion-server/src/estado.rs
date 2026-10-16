@@ -56,6 +56,8 @@ pub struct AppState {
     pub pesquisa: Option<Arc<orion_core::research::NightResearch>>,
     /// Memória da tela (REGRAS.md: memória da tela: só texto, local e com opt-in).
     pub tela: Option<Arc<orion_core::screen_memory::ScreenMemory>>,
+    /// `None` sem token, sem usuários ou sem gateway.
+    pub telegram: Option<Arc<orion_core::channels::telegram::TelegramChannel>>,
     pub financas: Arc<orion_core::vida::Financas>,
     pub precos: Arc<orion_core::vida::Precos>,
     pub foco: Arc<orion_core::vida::Foco>,
@@ -477,6 +479,37 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
         ChatGateway::new(vec![local(&settings, 60.0)]).ok().map(|g| Arc::new(g) as Arc<dyn orion_core::memory::Completer>)
     };
     let vida_canal = Arc::new(orion_core::vida::VidaCanal::new(memory.clone(), financas.clone(), precos.clone(), foco.clone(), revisao, ops.clone(), gateway_local.clone()));
+    let telegram = match (&agent, Some(settings.telegram_token.clone()).filter(|t| !t.is_empty()).or_else(|| get_secret("ORION_TELEGRAM_TOKEN"))) {
+        (Some(a), Some(token)) if !settings.telegram_allowed_users.is_empty() => {
+            let cap = settings.vault_dir.as_ref().map(|v| Arc::new(orion_core::capture::Capturer::new(v.clone(), &settings.capture_folder)));
+            let tr = transcriber_from_settings(&settings).map(Arc::new);
+            match orion_core::channels::telegram::TelegramChannel::new(&token, &settings.telegram_allowed_users, a.clone(), memory.clone(), a.policy.approvals.clone(), ops.clone(), tr, cap) {
+                Ok(t) => {
+                    *t.modos.lock() = Some(modos.clone());
+                    let (tl, mem) = (tela.clone(), memory.clone());
+                    *t.tela.lock() = Some(Arc::new(move |acao: &str| orion_core::screen_memory::comando_tela(tl.as_deref(), &mem, acao)));
+                    *t.ler_depois.lock() = Some(ler_depois.clone());
+                    *t.vida.lock() = Some(vida_canal.clone());
+                    *t.rotinas.lock() = Some(rotinas.clone());
+                    *t.executor_rotinas.lock() = executor_rotinas.clone();
+                    Some(Arc::new(t))
+                }
+                Err(e) => {
+                    tracing::error!("telegram desligado: {e}");
+                    None
+                }
+            }
+        }
+        (None, Some(_)) => {
+            tracing::error!("telegram desligado: configure os modelos (ORION_PROVEDORES ou ORION_GATEWAY_URL/MODEL)");
+            None
+        }
+        (_, Some(_)) => {
+            tracing::error!("telegram desligado: defina ORION_TELEGRAM_ALLOWED_USERS (default-deny)");
+            None
+        }
+        _ => None,
+    };
     let jobs = if settings.jobs_enabled {
         use orion_core::jobs::{JobRunner, JobsConfig};
         let cfg = JobsConfig {
@@ -545,10 +578,17 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
         custos: Some(custos.clone()),
         jobs: jobs.clone().map(|j| Arc::new(move || j.estado()) as orion_core::painel::Fonte),
         mcp: mcp_geral.clone().map(|m| Arc::new(move || serde_json::json!(m.status())) as orion_core::painel::Fonte),
-        telegram_ativo: None,
+        telegram_ativo: Some({
+            let ativo = telegram.is_some();
+            Arc::new(move || ativo)
+        }),
         tela: tela.clone().map(|t| Arc::new(move || t.estado()) as orion_core::painel::Fonte),
         voz: None,
     });
+    if let Some(t) = &telegram {
+        let p = painel.clone();
+        *t.painel.lock() = Some(Arc::new(move || orion_core::painel::texto_do_painel(&p.montar())));
+    }
     Ok(Arc::new(AppState {
         started_at,
         painel,
@@ -560,6 +600,7 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
         export,
         pesquisa,
         tela,
+        telegram,
         financas,
         precos,
         foco,
