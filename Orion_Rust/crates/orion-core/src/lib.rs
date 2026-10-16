@@ -11,5 +11,6 @@ pub mod projects;
 pub mod resultados;
 pub mod skills;
 pub mod tools;
+pub mod util;
 
 pub use config::Settings;
