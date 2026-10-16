@@ -317,3 +317,31 @@ pub fn mcp_check(s: &Settings, config: Option<&str>) -> anyhow::Result<i32> {
         Ok(if ok { 0 } else { 1 })
     })
 }
+
+/// Importa o export do SurrealDB do legado.
+pub fn import_surreal(s: &Settings, pasta: &str, assistente: &[String]) -> anyhow::Result<i32> {
+    let store = Store::open(s.db_path())?;
+    let mut nomes = vec!["Orion".to_string()];
+    nomes.extend(assistente.iter().cloned());
+    match orion_core::importer::import_surreal_export(&store, std::path::Path::new(pasta), &nomes) {
+        Ok(r) => {
+            println!("{}", r.resumo());
+            Ok(0)
+        }
+        Err(e) => {
+            eprintln!("{e}");
+            Ok(1)
+        }
+    }
+}
+
+/// Fase 0: confere o export do legado (contagens, ensaio de importação e restauração).
+pub fn verify_export(pasta: &str, assistente: &[String], env: Option<&str>, google_auth: Option<&str>, vault: Option<&str>, sem_ensaio: bool) -> anyhow::Result<i32> {
+    let mut nomes = vec!["Orion".to_string()];
+    nomes.extend(assistente.iter().cloned());
+    let p = |x: Option<&str>| x.map(std::path::PathBuf::from);
+    let (env, ga, v) = (p(env), p(google_auth), p(vault));
+    let rel = orion_core::migration::verify_export(std::path::Path::new(pasta), &nomes, env.as_deref(), ga.as_deref(), v.as_deref(), !sem_ensaio);
+    println!("{}", rel.linhas().join("\n"));
+    Ok(if rel.ok() { 0 } else { 1 })
+}

@@ -128,6 +128,29 @@ enum Cmd {
         #[arg(long)]
         config: Option<String>,
     },
+    /// Importa o export do SurrealDB do legado.
+    #[command(name = "import-surreal")]
+    ImportSurreal {
+        /// Pasta com evento.json, sessao.json... (backup_memoria).
+        pasta: String,
+        #[arg(long)]
+        assistente: Vec<String>,
+    },
+    /// Fase 0: confere o export do legado (contagens, ensaio de importação e restauração).
+    #[command(name = "verify-export")]
+    VerifyExport {
+        pasta: String,
+        #[arg(long)]
+        assistente: Vec<String>,
+        #[arg(long)]
+        env: Option<String>,
+        #[arg(long = "google-auth")]
+        google_auth: Option<String>,
+        #[arg(long)]
+        vault: Option<String>,
+        #[arg(long = "sem-ensaio")]
+        sem_ensaio: bool,
+    },
     /// O que ficaria pela metade se desligasse agora.
     #[command(name = "posso-desligar")]
     PossoDesligar,
@@ -309,6 +332,8 @@ fn rodar(cli: Cli) -> anyhow::Result<i32> {
         Cmd::Doctor => cli_extra::doctor(&s),
         Cmd::Autostart { plataforma, install, dir, force, ponte } => cli_extra::autostart(&s, plataforma.as_deref(), *install, dir.as_deref(), *force, *ponte),
         Cmd::McpCheck { config } => cli_extra::mcp_check(&s, config.as_deref()),
+        Cmd::ImportSurreal { pasta, assistente } => cli_extra::import_surreal(&s, pasta, assistente),
+        Cmd::VerifyExport { pasta, assistente, env, google_auth, vault, sem_ensaio } => cli_extra::verify_export(pasta, assistente, env.as_deref(), google_auth.as_deref(), vault.as_deref(), *sem_ensaio),
         Cmd::PossoDesligar => cli_extra::posso_desligar(&s),
         Cmd::Downloads { acao, simular, hoje, sim } => cli_extra::downloads(&s, acao, *simular, *hoje, *sim),
         Cmd::Rotina { acao, nome, sim } => cli_extra::rotina(&s, acao, nome.as_deref(), *sim),
