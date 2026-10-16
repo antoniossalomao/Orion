@@ -47,10 +47,27 @@ impl McpError {
 
 pub type R<T> = Result<T, McpError>;
 
-#[derive(Debug, Clone)]
+/// Autorização OAuth de uma conexão HTTP: o token corrente e, num 401, o fluxo de autorização.
+pub trait Auth: Send + Sync {
+    /// Token de acesso válido agora (renova se preciso); `None`: ainda não autorizado.
+    fn bearer(&self) -> futures::future::BoxFuture<'_, R<Option<String>>>;
+    /// Chamado num 401 (com o `WWW-Authenticate`): roda o fluxo e devolve quando há token novo.
+    fn nao_autorizado<'a>(&'a self, www_authenticate: Option<&'a str>) -> futures::future::BoxFuture<'a, R<()>>;
+}
+
+#[derive(Clone)]
 pub enum Transport {
     Stdio { command: String, args: Vec<String>, env: HashMap<String, String>, cwd: Option<String> },
-    Http { url: String, headers: HashMap<String, String> },
+    Http { url: String, headers: HashMap<String, String>, auth: Option<Arc<dyn Auth>> },
+}
+
+impl std::fmt::Debug for Transport {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Transport::Stdio { command, .. } => write!(f, "Stdio({command})"),
+            Transport::Http { url, .. } => write!(f, "Http({url})"),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -112,7 +129,7 @@ type Pendentes = Arc<Mutex<HashMap<i64, oneshot::Sender<R<Value>>>>>;
 
 enum Conn {
     Stdio { stdin: Arc<AsyncMutex<ChildStdin>>, child: AsyncMutex<Child>, pendentes: Pendentes },
-    Http { http: reqwest::Client, url: String, headers: HashMap<String, String>, sessao: Mutex<Option<String>> },
+    Http { http: reqwest::Client, url: String, headers: HashMap<String, String>, sessao: Mutex<Option<String>>, auth: Option<Arc<dyn Auth>> },
 }
 
 pub struct McpClient {
@@ -191,9 +208,9 @@ impl McpClient {
                 });
                 Conn::Stdio { stdin, child: AsyncMutex::new(child), pendentes }
             }
-            Transport::Http { url, headers } => {
+            Transport::Http { url, headers, auth } => {
                 let http = reqwest::Client::builder().timeout(Duration::from_secs(300)).connect_timeout(Duration::from_secs(30)).redirect(reqwest::redirect::Policy::none()).build().map_err(|e| McpError::Outro(e.to_string()))?;
-                Conn::Http { http, url, headers, sessao: Mutex::new(None) }
+                Conn::Http { http, url, headers, sessao: Mutex::new(None), auth }
             }
         };
         let mut c = McpClient { conn, next: AtomicI64::new(1), vivo, timeout, protocol: String::new() };
@@ -236,7 +253,9 @@ impl McpClient {
 
     /// Faz o POST; para pedidos devolve o resultado da resposta com o `id` dado.
     async fn post_http(&self, msg: &Value, id: Option<i64>) -> R<Value> {
-        let Conn::Http { http, url, headers, sessao } = &self.conn else { return Err(McpError::Outro("não é HTTP".into())) };
+        let Conn::Http { http, url, headers, sessao, auth } = &self.conn else { return Err(McpError::Outro("não é HTTP".into())) };
+        let mut retentou = false;
+        let resp = loop {
         let mut rb = http.post(url).header("content-type", "application/json").header("accept", "application/json, text/event-stream").json(msg);
         for (k, v) in headers {
             rb = rb.header(k.as_str(), v.as_str());
@@ -247,7 +266,22 @@ impl McpClient {
         if !self.protocol.is_empty() {
             rb = rb.header("mcp-protocol-version", self.protocol.as_str());
         }
+        if let Some(a) = auth {
+            if let Some(t) = a.bearer().await? {
+                rb = rb.bearer_auth(t);
+            }
+        }
         let resp = rb.send().await.map_err(|e| McpError::Perdida(e.to_string()))?;
+        if resp.status().as_u16() == 401 && !retentou {
+            if let Some(a) = auth {
+                retentou = true;
+                let www = resp.headers().get("www-authenticate").and_then(|v| v.to_str().ok()).map(String::from);
+                a.nao_autorizado(www.as_deref()).await?;
+                continue;
+            }
+        }
+        break resp;
+        };
         let status = resp.status().as_u16();
         if let Some(s) = resp.headers().get("mcp-session-id").and_then(|v| v.to_str().ok()) {
             *sessao.lock() = Some(s.to_string());
@@ -428,7 +462,7 @@ impl McpClient {
                     let _ = tx.send(Err(McpError::Perdida("fechado".into())));
                 }
             }
-            Conn::Http { http, url, headers, sessao } => {
+            Conn::Http { http, url, headers, sessao, .. } => {
                 let s = sessao.lock().take();
                 if let Some(s) = s {
                     let mut rb = http.delete(url).header("mcp-session-id", s).timeout(Duration::from_secs(3));

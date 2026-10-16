@@ -327,7 +327,7 @@ impl McpManager {
         // com `url`, o dicionário resolvido são os cabeçalhos HTTP (segredos `${NOME}` do cofre)
         let env = resolve_env(if cfg.url.is_some() { &cfg.headers } else { &cfg.env }, &*self.lookup).map_err(|e| McpError::Outro(e.0))?;
         let transporte = match &cfg.url {
-            Some(u) => Transport::Http { url: u.clone(), headers: env },
+            Some(u) => Transport::Http { url: u.clone(), headers: env, auth: None },
             None => Transport::Stdio {
                 command: cfg.command.clone().unwrap_or_default(),
                 args: cfg.args.iter().map(|a| if let Some(r) = a.strip_prefix("~/") { format!("{}/{r}", crate::downloads::dirs_home().display()) } else { a.clone() }).collect(),
