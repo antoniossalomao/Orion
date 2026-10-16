@@ -131,6 +131,10 @@ pub fn router(st: Estado) -> Router {
         .route("/artifacts/:id", get(artefato_detalhe))
         .route("/artifacts/:id/versions", get(artefato_versoes).post(artefato_nova_versao).layer(axum::extract::DefaultBodyLimit::max(orion_core::artifacts::MAX_REQUEST + 1024)))
         .route("/artifacts/:id/download", get(artefato_baixar))
+        .route("/mcp/servidores", get(servidores_mcp))
+        .route("/mcp/servidores/:nome/testar", post(testar_servidor_mcp))
+        .route("/mcp/prompts", get(prompts_mcp))
+        .route("/mcp/prompts/:servidor/:nome", post(obter_prompt_mcp))
         .route("/branches/:id", get(caminhos))
         .route("/branches/messages/:id", post(ramificar));
     if st.settings.serve_ui && front_dir().is_dir() {

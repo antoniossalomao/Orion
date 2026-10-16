@@ -46,6 +46,8 @@ pub struct AppState {
     pub painel: Arc<orion_core::painel::Painel>,
     /// `None` com `ORION_JOBS_ENABLED=false`.
     pub jobs: Option<Arc<orion_core::jobs::JobRunner>>,
+    /// `None` sem mcp.json, sem servidor habilitado ou sem gateway.
+    pub mcp: Option<Arc<orion_core::mcp_client::McpManager>>,
     pub ler_depois: Arc<orion_core::ler_depois::LerDepois>,
     pub desfazer: orion_core::captura_rapida::Desfazer,
     pub historicos: Arc<orion_core::historicos::Historicos>,
@@ -224,6 +226,20 @@ fn chave_de(nomes_settings: Vec<String>, segredos: &'static [&'static str]) -> o
     })
 }
 
+/// Servidores MCP do `mcp.json`; configuração inválida desliga o MCP, não o Orion.
+pub fn mcp_from_settings(settings: &Settings) -> Option<Arc<orion_core::mcp_client::McpManager>> {
+    if !settings.mcp_enabled {
+        return None;
+    }
+    match orion_core::mcp_client::manager_from_file(&settings.effective_mcp_config(), vec![]) {
+        Ok(m) => m,
+        Err(e) => {
+            tracing::error!("MCP desligado: {e}");
+            None
+        }
+    }
+}
+
 fn alguma_cli() -> bool {
     ["claude", "codex", "gemini"].iter().any(|c| orion_ai::delegate::which(c).is_some())
 }
@@ -278,13 +294,32 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
     let mut delegator = None;
     let mut processos = None;
     let mut skills_cat = None;
+    let mut mcp_geral = None;
     if let Some(gw) = &gateway {
         // `delegar` só aparece se alguma CLI oficial estiver instalada
         if alguma_cli() {
             delegator = Some(Arc::new(Delegator::new(memory.clone(), orion_ai::delegate::default_agents(), 600.0, 20_000)));
         }
         let mut extra = vec![];
-        let indice = Indice::new(&[], settings.mcp_index_at);
+        let mcp = mcp_from_settings(&settings);
+        let mut mcp_tools = vec![];
+        if let Some(m) = &mcp {
+            mcp_tools = m.start().await;
+            for spec in m.specs().into_values() {
+                let _ = policy.register_tool(spec, None);
+            }
+        }
+        let indice = Indice::new(&mcp_tools, settings.mcp_index_at); // só as de servidor MCP (E7.4)
+        extra.extend(mcp_tools);
+        if indice.ativo() {
+            let _ = policy.register_tool(orion_core::mcp_indice::spec(), None);
+            extra.push(indice.tool());
+        }
+        if let Some(m) = mcp.as_ref().filter(|m| m.recursos_ativos()) {
+            let _ = policy.register_tool(orion_core::mcp_client::spec_recurso(), None);
+            extra.push(m.tool_recurso());
+        }
+        mcp_geral = mcp.clone();
         if settings.skills_enabled {
             let cat = SkillCatalog::new(&settings.effective_skills_dir(), vec![]);
             if !cat.skills.is_empty() {
@@ -342,6 +377,10 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
             AgentConfig { routing: roteamento_ligado(&settings), ..Default::default() },
         );
         a.ops = Some(ops.clone());
+        if let Some(m) = &mcp {
+            let m = m.clone();
+            a.servidor_mcp = Some(Arc::new(move |n: &str| m.servidor_de(n)));
+        }
         a.skills = skills_cat.clone();
         a.library = Some(biblioteca.clone());
         a.modos = Some(modos.clone());
@@ -409,7 +448,7 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
         modos: Some(modos.clone()),
         custos: Some(custos.clone()),
         jobs: jobs.clone().map(|j| Arc::new(move || j.estado()) as orion_core::painel::Fonte),
-        mcp: None,
+        mcp: mcp_geral.clone().map(|m| Arc::new(move || serde_json::json!(m.status())) as orion_core::painel::Fonte),
         telegram_ativo: None,
         tela: None,
         voz: None,
@@ -418,6 +457,7 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
         started_at,
         painel,
         jobs,
+        mcp: mcp_geral,
         ler_depois,
         desfazer: Default::default(),
         historicos,

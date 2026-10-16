@@ -19,6 +19,7 @@ pub mod historicos;
 pub mod mcp_indice;
 pub mod jobs;
 pub mod ler_depois;
+pub mod mcp_client;
 pub mod memory;
 pub mod modos;
 pub mod painel;

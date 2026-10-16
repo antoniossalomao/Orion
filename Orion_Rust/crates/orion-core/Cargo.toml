@@ -9,6 +9,7 @@ publish.workspace = true
 [dependencies]
 orion-policy.workspace = true
 orion-store.workspace = true
+orion-mcp.workspace = true
 orion-ai.workspace = true
 anyhow.workspace = true
 thiserror.workspace = true

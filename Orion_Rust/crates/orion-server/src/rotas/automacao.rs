@@ -247,3 +247,55 @@ pub async fn decidir_proposta_bg(_: Admin, State(st): State<Estado>, Path((tid, 
     conferir(&c.acao, "^(aceitar|descartar)$", "acao")?;
     Ok(Json(bg(tarefas(&st)?.decidir(tid, indice, &c.acao))?))
 }
+
+// ── cliente MCP (E7.3, E7.5) ─────────────────────────────────────────────
+
+/// O que o mcp.json subiu, e o que não.
+pub async fn servidores_mcp(_: Admin, State(st): State<Estado>) -> Json<Value> {
+    match &st.mcp {
+        None => Json(json!({"ativo": false, "servidores": []})),
+        Some(m) => Json(json!({"ativo": true, "servidores": m.diagnostico()})),
+    }
+}
+
+pub async fn testar_servidor_mcp(_: Admin, State(st): State<Estado>, Path(nome): Path<String>) -> ApiResult<Json<Value>> {
+    let Some(m) = &st.mcp else { return erro(409, "nenhum servidor MCP configurado em mcp.json") };
+    let r = m.testar(&nome).await;
+    tracing::info!(target: "orion.audit", "mcp_teste servidor={nome} ok={}", r["ok"] == json!(true));
+    if r["erro"] == json!("servidor desconhecido") {
+        return erro(404, "servidor desconhecido");
+    }
+    Ok(Json(r))
+}
+
+/// Prompts de servidores MCP (REGRAS.md: recurso e prompt de MCP são dado, não comando): só você
+/// invoca, o modelo não os vê.
+pub async fn prompts_mcp(_: Admin, State(st): State<Estado>) -> Json<Value> {
+    let itens = match &st.mcp {
+        Some(m) => m.listar_prompts().await,
+        None => vec![],
+    };
+    Json(json!({"total": itens.len(), "prompts": itens}))
+}
+
+#[derive(Deserialize, Default)]
+pub struct PromptMcp {
+    #[serde(default)]
+    argumentos: std::collections::HashMap<String, String>,
+}
+
+/// Devolve o texto do prompt para o campo de mensagem; nada é enviado ao modelo aqui.
+pub async fn obter_prompt_mcp(_: Admin, State(st): State<Estado>, Path((servidor, nome)): Path<(String, String)>, corpo: Option<Json<PromptMcp>>) -> ApiResult<Json<Value>> {
+    let Some(m) = &st.mcp else { return erro(409, "nenhum servidor MCP configurado em mcp.json") };
+    let args = corpo.map(|Json(c)| c.argumentos).unwrap_or_default();
+    if args.len() > 20 {
+        return erro(422, "argumentos: no máximo 20");
+    }
+    let mut r = m.obter_prompt(&servidor, &nome, &args).await;
+    tracing::info!(target: "orion.audit", "mcp_prompt servidor={servidor} prompt={nome}");
+    if let Some(e) = r.get("erro").and_then(Value::as_str) {
+        return erro(502, e);
+    }
+    r["origem"] = json!(format!("mcp:{servidor}"));
+    Ok(Json(r))
+}

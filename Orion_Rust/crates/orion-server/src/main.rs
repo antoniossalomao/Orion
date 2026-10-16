@@ -212,6 +212,9 @@ async fn serve(s: Settings) -> anyhow::Result<i32> {
             let _ = tokio::signal::ctrl_c().await;
         })
         .await?;
+    if let Some(m) = &st.mcp {
+        m.stop().await;
+    }
     orion_ai::saidas::definir_destino(None);
     Ok(0)
 }

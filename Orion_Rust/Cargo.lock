@@ -1807,6 +1807,7 @@ dependencies = [
  "image",
  "jsonschema",
  "orion-ai",
+ "orion-mcp",
  "orion-policy",
  "orion-store",
  "parking_lot",
@@ -1834,6 +1835,20 @@ dependencies = [
  "uuid",
  "wait-timeout",
  "zip",
+]
+
+[[package]]
+name = "orion-mcp"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "futures",
+ "parking_lot",
+ "reqwest",
+ "serde_json",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
