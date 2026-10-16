@@ -46,6 +46,8 @@ pub struct AppState {
     pub painel: Arc<orion_core::painel::Painel>,
     /// `None` com `ORION_JOBS_ENABLED=false`.
     pub jobs: Option<Arc<orion_core::jobs::JobRunner>>,
+    pub ler_depois: Arc<orion_core::ler_depois::LerDepois>,
+    pub desfazer: orion_core::captura_rapida::Desfazer,
 }
 
 pub type Estado = Arc<AppState>;
@@ -342,6 +344,13 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
         agent = Some(Arc::new(a));
     }
     let started_at = orion_core::util::agora();
+    let ler_depois = Arc::new(orion_core::ler_depois::LerDepois::new(
+        memory.clone(),
+        settings.vault_dir.clone(),
+        settings.web_tools,
+        gateway.clone().map(|g| g as Arc<dyn orion_core::memory::Completer>),
+        Some(modos.clone()),
+    ));
     let jobs = if settings.jobs_enabled {
         use orion_core::jobs::{JobRunner, JobsConfig};
         let cfg = JobsConfig {
@@ -388,6 +397,8 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
         started_at,
         painel,
         jobs,
+        ler_depois,
+        desfazer: Default::default(),
         settings,
         memory,
         policy,

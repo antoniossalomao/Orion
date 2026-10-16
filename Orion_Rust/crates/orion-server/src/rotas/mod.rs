@@ -2,6 +2,7 @@
 //! (REGRAS.md: toda rota da API exige login). Sem `/docs` nem `/openapi.json`.
 
 pub mod base;
+pub mod captura;
 pub mod conversa;
 pub mod geral;
 pub mod memoria;
@@ -27,6 +28,7 @@ async fn sem_python(req: Request, next: Next) -> Response {
 
 pub fn router(st: Estado) -> Router {
     use base::*;
+    use captura::*;
     use conversa::*;
     use geral::*;
     use memoria::*;
@@ -89,7 +91,11 @@ pub fn router(st: Estado) -> Router {
         .route("/grafo/no", get(grafo_no))
         .route("/grafo/caminho", get(grafo_caminho))
         .route("/memoria/relacoes", get(relacoes).delete(relacao_apagar))
-        .route("/busca", get(busca));
+        .route("/busca", get(busca))
+        .route("/captura", post(capturar))
+        .route("/captura/:id", delete(desfazer_captura))
+        .route("/ler-depois", get(ler_depois_listar).post(ler_depois_adicionar))
+        .route("/ler-depois/:id", delete(ler_depois_descartar));
     if st.settings.serve_ui && front_dir().is_dir() {
         // por último: as rotas da API têm prioridade sobre os arquivos
         let ui = tower_http::services::ServeDir::new(front_dir()).append_index_html_on_directories(true);
