@@ -19,6 +19,7 @@ pub mod documents;
 pub mod downloads;
 pub mod estilo;
 pub mod export_credentials;
+pub mod ponte;
 pub mod plugins_locais;
 pub mod development;
 pub mod accounts;

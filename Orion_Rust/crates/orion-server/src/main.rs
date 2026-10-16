@@ -74,6 +74,11 @@ enum Cmd {
     },
     /// Lista as skills válidas e as rejeitadas, com o motivo.
     Skills,
+    /// Ponte de desktop: `--parear` cria o token (escopo `ponte`) e o guarda no cofre do sistema.
+    Ponte {
+        #[arg(long)]
+        parear: bool,
+    },
     /// Plugins locais: listar, instalar, atualizar, conceder, revogar, remover.
     Plugin {
         #[arg(value_parser = ["listar", "instalar", "atualizar", "conceder", "revogar", "remover"])]
@@ -421,6 +426,7 @@ fn rodar(cli: Cli) -> anyhow::Result<i32> {
             Ok(0)
         }
         Cmd::Esquecer { consulta, sim } => esquecer(&s, consulta, *sim),
+        Cmd::Ponte { parear } => Ok(cli_extra::ponte(&s, *parear)),
         Cmd::Plugin { acao, alvo } => Ok(cli_extra::plugin(&s, acao, alvo.as_deref())),
         Cmd::Restore { arquivo, force } => {
             let contagens = match Store::verify_backup(arquivo) {

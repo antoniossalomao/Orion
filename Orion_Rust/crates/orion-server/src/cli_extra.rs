@@ -475,3 +475,39 @@ pub fn plugin(s: &Settings, acao: &str, alvo: Option<&str>) -> i32 {
         }
     }
 }
+
+/// `orion ponte --parear`: cria o token da ponte (escopo `ponte`, só o hash vai para o `auth.db`) e o
+/// guarda no cofre do sistema. Parear de novo desfaz o pareamento anterior. Rodar a ponte em si
+/// (teclas globais, bandeja, captura de tela) é o cliente de desktop.
+pub fn ponte(s: &Settings, parear: bool) -> i32 {
+    const SEGREDO: &str = "ORION_PONTE_TOKEN";
+    if !parear {
+        eprintln!("a ponte de desktop (teclas globais, bandeja e captura) é o cliente de desktop; aqui só há `orion ponte --parear`");
+        return 1;
+    }
+    let auth = match orion_core::auth::AuthService::open(&s.auth_db_path(), &s.auth_user, s.session_ttl_h as f64 * 3600.0) {
+        Ok(a) => a,
+        Err(e) => {
+            eprintln!("não abri o banco de login: {e}");
+            return 1;
+        }
+    };
+    let host = std::fs::read_to_string("/etc/hostname").map(|h| h.trim().to_string()).ok().or_else(|| std::env::var("COMPUTERNAME").ok()).unwrap_or_else(|| "ponte".into());
+    let token = match auth.create_device_token("ponte", &host) {
+        Ok(t) => t,
+        Err(e) => {
+            eprintln!("não consegui criar o token: {e}");
+            return 1;
+        }
+    };
+    match orion_ai::secrets::set_secret(SEGREDO, &token) {
+        Ok(()) => {
+            println!("ponte pareada: o token ficou no cofre do sistema como {SEGREDO} (escopo 'ponte').");
+            0
+        }
+        Err(e) => {
+            eprintln!("cofre indisponível ({e}): defina {SEGREDO} no ambiente da ponte com este valor (aparece só agora):\n{token}");
+            1
+        }
+    }
+}

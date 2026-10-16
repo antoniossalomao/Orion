@@ -35,6 +35,8 @@ pub struct AppState {
     /// `None` enquanto o gateway não está configurado.
     pub agent: Option<Arc<Agent>>,
     pub accounts: Option<Arc<orion_core::accounts::Accounts>>,
+    pub ponte: Arc<orion_core::ponte::PonteHub>,
+    pub imagens_ponte: Arc<orion_core::ponte::Imagens>,
     pub mcp_host: Option<Arc<orion_core::extensions::host::MCPHost>>,
     pub catalog: Option<Arc<orion_core::extensions::catalog::Catalog>>,
     pub calendar: Option<Arc<orion_core::calendar::Calendar>>,
@@ -639,6 +641,8 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
     }
     Ok(Arc::new(AppState {
         accounts: Some(accounts),
+        ponte: Default::default(),
+        imagens_ponte: Default::default(),
         mcp_host: Some(mcp_host),
         catalog: Some(catalog),
         calendar: Some(calendar),
