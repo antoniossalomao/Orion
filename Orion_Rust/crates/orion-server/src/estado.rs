@@ -52,6 +52,8 @@ pub struct AppState {
     pub desfazer: orion_core::captura_rapida::Desfazer,
     pub export_credentials: Arc<orion_core::export_credentials::ExportCredentials>,
     pub export: Arc<orion_core::mcp_export::Export>,
+    /// `None` sem agente, ORION_WEB_TOOLS ou vault.
+    pub pesquisa: Option<Arc<orion_core::research::NightResearch>>,
     pub historicos: Arc<orion_core::historicos::Historicos>,
     pub downloads: Arc<orion_core::downloads::Downloads>,
     pub rotinas: Arc<orion_core::rotinas::RotinaStore>,
@@ -416,6 +418,21 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
         gateway.clone().map(|g| g as Arc<dyn orion_core::memory::Completer>),
         Some(modos.clone()),
     ));
+    let pesquisa = match (&agent, &settings.vault_dir) {
+        (Some(a), Some(v)) if settings.web_tools => {
+            let cap = orion_core::capture::Capturer::new(v.clone(), &settings.capture_folder);
+            match orion_core::research::NightResearch::new(memory.clone(), a.clone(), cap, &settings.research_topics, &settings.research_at) {
+                Ok(p) => Some(Arc::new(p)),
+                Err(e) => anyhow::bail!(e),
+            }
+        }
+        _ => {
+            if !settings.research_at.is_empty() {
+                tracing::warn!("pesquisa noturna pedida, mas faltam gateway, ORION_WEB_TOOLS ou o vault");
+            }
+            None
+        }
+    };
     let jobs = if settings.jobs_enabled {
         use orion_core::jobs::{JobRunner, JobsConfig};
         let cfg = JobsConfig {
@@ -438,6 +455,13 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
         }
         if let Some(pm) = &processos {
             j = j.com_processos(pm.clone());
+        }
+        if !settings.sleep_at.is_empty() {
+            let gw_c = gateway.clone().map(|g| g as Arc<dyn orion_core::memory::Completer>);
+            j = j.com_sono(Arc::new(orion_core::memory::sleep::SleepCycle::new(memory.clone(), ops.clone(), gw_c, &settings.sleep_at).map_err(|e| anyhow::anyhow!(e))?));
+        }
+        if let Some(p) = &pesquisa {
+            j = j.com_pesquisa(p.clone());
         }
         Some(Arc::new(j))
     } else {
@@ -467,6 +491,7 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
         desfazer: Default::default(),
         export_credentials,
         export,
+        pesquisa,
         historicos,
         downloads,
         rotinas,

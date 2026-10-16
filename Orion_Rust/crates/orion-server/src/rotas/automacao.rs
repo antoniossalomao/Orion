@@ -299,3 +299,59 @@ pub async fn obter_prompt_mcp(_: Admin, State(st): State<Estado>, Path((servidor
     r["origem"] = json!(format!("mcp:{servidor}"));
     Ok(Json(r))
 }
+
+// ── pesquisa noturna (E6.5; REGRAS.md: pesquisa noturna só lê, sem aprovação) ──
+
+fn assuntos_da_pesquisa(st: &Estado) -> Value {
+    let (assuntos, origem) = orion_core::research::assuntos_salvos(&st.memory, &st.settings.research_topics);
+    json!({
+        "assuntos": assuntos, "origem": origem, "max": orion_core::research::MAX_ASSUNTOS, "max_tamanho": orion_core::research::MAX_ASSUNTO,
+        "hora": if st.settings.research_at.is_empty() { Value::Null } else { json!(st.settings.research_at) },
+        "disponivel": st.pesquisa.is_some(), "rodando": st.pesquisa.as_ref().is_some_and(|p| p.esta_rodando()),
+    })
+}
+
+pub async fn ver_assuntos_da_pesquisa(_: Admin, State(st): State<Estado>) -> Json<Value> {
+    Json(assuntos_da_pesquisa(&st))
+}
+
+#[derive(Deserialize)]
+pub struct AssuntosPesquisa {
+    assuntos: Vec<String>,
+}
+
+/// Quem escolhe os assuntos é você (nunca o modelo): até 5, 200 caracteres cada.
+pub async fn trocar_assuntos_da_pesquisa(_: Admin, State(st): State<Estado>, Json(c): Json<AssuntosPesquisa>) -> ApiResult<Json<Value>> {
+    orion_core::research::salvar_assuntos(&st.memory, &c.assuntos).map_err(|e| ApiError::new(422, e))?;
+    tracing::info!(target: "orion.audit", "pesquisa_assuntos total={}", c.assuntos.len());
+    Ok(Json(assuntos_da_pesquisa(&st)))
+}
+
+pub async fn relatorios_da_pesquisa(_: Admin, State(st): State<Estado>) -> Json<Value> {
+    let itens = st.pesquisa.as_ref().map(|p| p.relatorios(30)).unwrap_or_default();
+    Json(json!({"total": itens.len(), "relatorios": itens}))
+}
+
+/// Dispara a pesquisa em segundo plano. Respeita o pânico e a cota gratuita.
+pub async fn rodar_pesquisa_agora(_: Admin, State(st): State<Estado>) -> ApiResult<(axum::http::StatusCode, Json<Value>)> {
+    let Some(p) = st.pesquisa.clone() else { return erro(409, "pesquisa indisponível: falta ORION_WEB_TOOLS, gateway ou vault") };
+    if st.modos.panico() {
+        return erro(409, "modo pânico: a pesquisa está cortada");
+    }
+    if p.esta_rodando() {
+        return erro(409, "a pesquisa já está rodando");
+    }
+    if p.assuntos().is_empty() {
+        return erro(422, "nenhum assunto definido");
+    }
+    for prov in ["gateway", "gemini"] {
+        if !st.custos.pode_usar(prov, true, "a pesquisa noturna") {
+            return erro(429, "cota gratuita do dia quase no fim: tente amanhã");
+        }
+    }
+    tracing::info!(target: "orion.audit", "pesquisa_manual assuntos={}", p.assuntos().len());
+    tokio::spawn(async move {
+        let _ = p.run(false).await;
+    });
+    Ok((axum::http::StatusCode::ACCEPTED, Json(json!({"iniciada": true}))))
+}

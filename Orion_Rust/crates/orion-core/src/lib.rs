@@ -28,6 +28,7 @@ pub mod modos;
 pub mod painel;
 pub mod persona;
 pub mod projects;
+pub mod research;
 pub mod resultados;
 pub mod tarefas_bg;
 pub mod rotinas;

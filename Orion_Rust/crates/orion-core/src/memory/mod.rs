@@ -2,6 +2,7 @@
 
 pub mod compact;
 pub mod consolidate;
+pub mod sleep;
 
 use futures::future::BoxFuture;
 use serde_json::Value;

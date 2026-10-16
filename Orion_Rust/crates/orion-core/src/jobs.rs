@@ -40,6 +40,8 @@ pub struct TickReport {
     pub briefing: bool,
     pub consolidacao: Option<Value>,
     pub semanal_ia: bool,
+    pub pesquisa: Option<String>,
+    pub sono: Option<Value>,
     pub gateway: Option<String>,
     pub adiados: Vec<String>,
     pub erros: Vec<String>,
@@ -95,6 +97,8 @@ pub struct JobRunner {
     processes: Option<Arc<ProcessManager>>,
     agenda: Option<Arc<Agenda>>,
     weekly_ai: Option<Arc<dyn Completer>>,
+    sleep: Option<Arc<crate::memory::sleep::SleepCycle>>,
+    research: Option<Arc<crate::research::NightResearch>>,
     custos: Option<Arc<Custos>>,
     modos: Option<Arc<Modos>>,
     every: HashMap<&'static str, f64>,
@@ -123,6 +127,8 @@ impl JobRunner {
             processes: None,
             agenda: None,
             weekly_ai: None,
+            sleep: None,
+            research: None,
             custos: None,
             modos: None,
             every,
@@ -146,6 +152,14 @@ impl JobRunner {
     }
     pub fn com_leitura_semanal(mut self, c: Arc<dyn Completer>) -> Self {
         self.weekly_ai = Some(c);
+        self
+    }
+    pub fn com_sono(mut self, c: Arc<crate::memory::sleep::SleepCycle>) -> Self {
+        self.sleep = Some(c);
+        self
+    }
+    pub fn com_pesquisa(mut self, c: Arc<crate::research::NightResearch>) -> Self {
+        self.research = Some(c);
         self
     }
     pub fn com_custos(mut self, c: Arc<Custos>) -> Self {
@@ -227,6 +241,17 @@ impl JobRunner {
                     tracing::error!("job leitura semanal falhou: {e}");
                     rel.erros.push(format!("leitura semanal: {e}"));
                 }
+            }
+        }
+        if let Some(sono) = self.sleep.clone().filter(|s| s.devida()) {
+            if self.pode(&mut rel, "o ciclo de sono", &["gateway"]) {
+                let r = sono.run().await;
+                rel.sono = Some(json!({"duplicados": r.duplicados, "relacoes": r.relacoes, "padroes": r.padroes, "ok": r.ok}));
+            }
+        }
+        if let Some(p) = self.research.clone().filter(|p| p.devida()) {
+            if self.pode(&mut rel, "a pesquisa noturna", &["gateway", "gemini"]) {
+                rel.pesquisa = p.run(true).await;
             }
         }
         *self.ultima_rodada.lock() = Some(self.agora());
