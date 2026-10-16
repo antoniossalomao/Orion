@@ -423,3 +423,20 @@ pub async fn tela_limpar(_: Admin, State(st): State<Estado>) -> ApiResult<Json<V
 pub async fn painel_unico(_: Admin, State(st): State<Estado>) -> Json<Value> {
     Json(st.painel.montar())
 }
+
+/// Estado da memória da tela: ligada, pausada e contagens; nunca o texto.
+pub async fn tela_estado(_: Admin, State(st): State<Estado>) -> Json<Value> {
+    Json(orion_core::screen_memory::estado_da_tela(st.tela.as_deref()))
+}
+
+#[derive(Deserialize)]
+pub struct EscutaControle {
+    ativa: bool,
+}
+
+/// `ativa=false` pausa a captura; `ativa=true` retoma. 409 se a memória da tela está desligada.
+pub async fn tela_pausar(_: Admin, State(st): State<Estado>, Json(c): Json<EscutaControle>) -> ApiResult<Json<Value>> {
+    let Some(t) = &st.tela else { return erro(409, "a memória da tela está desligada") };
+    t.pausar(!c.ativa);
+    Ok(Json(json!({"pausada": t.pausada()})))
+}

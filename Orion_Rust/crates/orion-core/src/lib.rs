@@ -32,6 +32,7 @@ pub mod research;
 pub mod resultados;
 pub mod tarefas_bg;
 pub mod rotinas;
+pub mod screen_memory;
 pub mod skills;
 pub mod tools;
 pub mod util;

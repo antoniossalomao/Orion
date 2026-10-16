@@ -54,6 +54,8 @@ pub struct AppState {
     pub export: Arc<orion_core::mcp_export::Export>,
     /// `None` sem agente, ORION_WEB_TOOLS ou vault.
     pub pesquisa: Option<Arc<orion_core::research::NightResearch>>,
+    /// Memória da tela (REGRAS.md: memória da tela: só texto, local e com opt-in).
+    pub tela: Option<Arc<orion_core::screen_memory::ScreenMemory>>,
     pub historicos: Arc<orion_core::historicos::Historicos>,
     pub downloads: Arc<orion_core::downloads::Downloads>,
     pub rotinas: Arc<orion_core::rotinas::RotinaStore>,
@@ -294,6 +296,18 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
         *g.orcamento.lock() = Some(Arc::new(move |ep: &Endpoint| c.no_orcamento(&ep.provedor)));
     }
     let biblioteca = Arc::new(Library::new(memory.clone(), settings.data_dir.join("resultados")));
+    let tela = settings.screen_memory.then(|| {
+        use orion_core::screen_memory::*;
+        Arc::new(ScreenMemory::new(
+            memory.clone(),
+            settings.screen_interval_s,
+            settings.screen_retention_days,
+            parse_lista(&settings.screen_exclude),
+            parse_lista(&settings.screen_exclude_apps),
+            settings.screen_allow_unknown_title,
+            &settings.screen_ocr_langs,
+        ))
+    });
     let mut agent = None;
     let mut delegator = None;
     let mut processos = None;
@@ -332,6 +346,11 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
                 extra.push(skill_tool(arc.clone()));
                 skills_cat = Some(arc);
             }
+        }
+        if let Some(t) = &tela {
+            let _ = t;
+            let _ = policy.register_tool(orion_policy::ToolSpec { external: true, ..orion_policy::ToolSpec::new("buscar_tela", orion_policy::Risk::Read) }, None);
+            extra.push(orion_core::screen_memory::screen_tool(memory.clone()));
         }
         let mut o = Opcoes { ops: Some(ops.clone()), delegator: delegator.clone(), extra, ..Default::default() };
         if settings.desktop_tools {
@@ -463,6 +482,9 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
         if let Some(p) = &pesquisa {
             j = j.com_pesquisa(p.clone());
         }
+        if let Some(t) = &tela {
+            j = j.com_tela(t.clone());
+        }
         Some(Arc::new(j))
     } else {
         None
@@ -479,7 +501,7 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
         jobs: jobs.clone().map(|j| Arc::new(move || j.estado()) as orion_core::painel::Fonte),
         mcp: mcp_geral.clone().map(|m| Arc::new(move || serde_json::json!(m.status())) as orion_core::painel::Fonte),
         telegram_ativo: None,
-        tela: None,
+        tela: tela.clone().map(|t| Arc::new(move || t.estado()) as orion_core::painel::Fonte),
         voz: None,
     });
     Ok(Arc::new(AppState {
@@ -492,6 +514,7 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
         export_credentials,
         export,
         pesquisa,
+        tela,
         historicos,
         downloads,
         rotinas,

@@ -41,6 +41,7 @@ pub struct TickReport {
     pub consolidacao: Option<Value>,
     pub semanal_ia: bool,
     pub pesquisa: Option<String>,
+    pub tela: Option<String>,
     pub sono: Option<Value>,
     pub gateway: Option<String>,
     pub adiados: Vec<String>,
@@ -99,6 +100,7 @@ pub struct JobRunner {
     weekly_ai: Option<Arc<dyn Completer>>,
     sleep: Option<Arc<crate::memory::sleep::SleepCycle>>,
     research: Option<Arc<crate::research::NightResearch>>,
+    screen: Option<Arc<crate::screen_memory::ScreenMemory>>,
     custos: Option<Arc<Custos>>,
     modos: Option<Arc<Modos>>,
     every: HashMap<&'static str, f64>,
@@ -129,6 +131,7 @@ impl JobRunner {
             weekly_ai: None,
             sleep: None,
             research: None,
+            screen: None,
             custos: None,
             modos: None,
             every,
@@ -160,6 +163,10 @@ impl JobRunner {
     }
     pub fn com_pesquisa(mut self, c: Arc<crate::research::NightResearch>) -> Self {
         self.research = Some(c);
+        self
+    }
+    pub fn com_tela(mut self, c: Arc<crate::screen_memory::ScreenMemory>) -> Self {
+        self.screen = Some(c);
         self
     }
     pub fn com_custos(mut self, c: Arc<Custos>) -> Self {
@@ -242,6 +249,11 @@ impl JobRunner {
                     rel.erros.push(format!("leitura semanal: {e}"));
                 }
             }
+        }
+        // pânico corta e não perturbe pausa a memória da tela
+        let suspensa = self.modos.as_ref().is_some_and(|m| m.panico() || m.nao_perturbe());
+        if let Some(t) = self.screen.clone().filter(|t| !suspensa && t.devida()) {
+            rel.tela = tokio::task::spawn_blocking(move || t.run()).await.ok();
         }
         if let Some(sono) = self.sleep.clone().filter(|s| s.devida()) {
             if self.pode(&mut rel, "o ciclo de sono", &["gateway"]) {
