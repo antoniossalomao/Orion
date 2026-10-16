@@ -11,5 +11,7 @@ pub mod provedores;
 pub mod router;
 pub mod saidas;
 pub mod secrets;
+pub mod transcribe;
+pub mod vision;
 
 pub use gateway::{ChatGateway, Endpoint, Event, GatewayError};

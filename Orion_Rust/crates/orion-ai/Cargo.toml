@@ -26,3 +26,4 @@ html-escape.workspace = true
 chrono.workspace = true
 unicode-normalization.workspace = true
 parking_lot.workspace = true
+base64.workspace = true
