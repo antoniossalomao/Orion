@@ -6,6 +6,7 @@ pub mod base;
 pub mod captura;
 pub mod conversa;
 pub mod documentos;
+pub mod export;
 pub mod geral;
 pub mod memoria;
 pub mod ponte;
@@ -38,6 +39,7 @@ pub fn router(st: Estado) -> Router {
     use captura::*;
     use conversa::*;
     use documentos::*;
+    use export::*;
     use geral::*;
     use memoria::*;
     let mut r = Router::new()
@@ -131,6 +133,9 @@ pub fn router(st: Estado) -> Router {
         .route("/artifacts/:id", get(artefato_detalhe))
         .route("/artifacts/:id/versions", get(artefato_versoes).post(artefato_nova_versao).layer(axum::extract::DefaultBodyLimit::max(orion_core::artifacts::MAX_REQUEST + 1024)))
         .route("/artifacts/:id/download", get(artefato_baixar))
+        .route("/mcp-export/clients", get(clientes_listar).post(cliente_emitir))
+        .route("/mcp-export/clients/:id/revoke", post(cliente_revogar))
+        .route("/mcp-export/rpc", post(rpc))
         .route("/mcp/servidores", get(servidores_mcp))
         .route("/mcp/servidores/:nome/testar", post(testar_servidor_mcp))
         .route("/mcp/prompts", get(prompts_mcp))

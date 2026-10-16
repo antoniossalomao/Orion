@@ -1,5 +1,6 @@
 //! `orion`: sobe o servidor (padrão) e os comandos de manutenção.
 
+mod cli_extra;
 mod estado;
 mod http;
 mod log;
@@ -76,6 +77,38 @@ enum Cmd {
     /// Apaga fatos da memória (texto, índice de busca e vetor); pede confirmação.
     Esquecer {
         consulta: String,
+        #[arg(long)]
+        sim: bool,
+    },
+    /// O Orion como servidor MCP só de leitura (stdio) para o Claude Code ou o Codex.
+    #[command(name = "mcp-servidor")]
+    McpServidor {
+        /// Gera um token novo (revoga o anterior).
+        #[arg(long)]
+        token: bool,
+        /// Revoga o token: nada mais lê.
+        #[arg(long)]
+        revogar: bool,
+    },
+    /// O que ficaria pela metade se desligasse agora.
+    #[command(name = "posso-desligar")]
+    PossoDesligar,
+    /// Organizador de Downloads com as suas regras.
+    Downloads {
+        #[arg(value_parser = ["exemplo", "estado", "conceder", "revogar", "rodar", "desfazer"])]
+        acao: String,
+        #[arg(long)]
+        simular: bool,
+        #[arg(long)]
+        hoje: bool,
+        #[arg(long)]
+        sim: bool,
+    },
+    /// Suas rotinas: listar, exemplo, conceder, revogar.
+    Rotina {
+        #[arg(value_parser = ["listar", "exemplo", "conceder", "revogar"])]
+        acao: String,
+        nome: Option<String>,
         #[arg(long)]
         sim: bool,
     },
@@ -228,6 +261,10 @@ fn rodar(cli: Cli) -> anyhow::Result<i32> {
     let cmd = cli.cmd.unwrap_or(Cmd::Serve);
     match &cmd {
         Cmd::ExtrairDocumento { .. } => Ok(0),
+        Cmd::McpServidor { token, revogar } => cli_extra::mcp_servidor(&s, *token, *revogar),
+        Cmd::PossoDesligar => cli_extra::posso_desligar(&s),
+        Cmd::Downloads { acao, simular, hoje, sim } => cli_extra::downloads(&s, acao, *simular, *hoje, *sim),
+        Cmd::Rotina { acao, nome, sim } => cli_extra::rotina(&s, acao, nome.as_deref(), *sim),
         Cmd::Serve => tokio::runtime::Builder::new_multi_thread().enable_all().build()?.block_on(serve(s)),
         Cmd::Backup { dir, keep } => {
             let store = Store::open(s.db_path())?;

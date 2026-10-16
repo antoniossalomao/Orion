@@ -315,3 +315,11 @@ impl Downloads {
         Ok(json!({"desfeitos": desfeitos, "pulados": pulados}))
     }
 }
+
+pub const EXEMPLO: &str = "\
+# Regras de Downloads. Para valer: orion downloads conceder
+pasta: ~/Downloads
+regras:
+  - {extensoes: [pdf], padrao: \"fatura*\", destino: ~/Documents/Faturas}
+  - {extensoes: [jpg, jpeg, png, webp], destino: ~/Documents/Imagens baixadas}
+";

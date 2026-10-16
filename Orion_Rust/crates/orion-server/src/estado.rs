@@ -50,6 +50,8 @@ pub struct AppState {
     pub mcp: Option<Arc<orion_core::mcp_client::McpManager>>,
     pub ler_depois: Arc<orion_core::ler_depois::LerDepois>,
     pub desfazer: orion_core::captura_rapida::Desfazer,
+    pub export_credentials: Arc<orion_core::export_credentials::ExportCredentials>,
+    pub export: Arc<orion_core::mcp_export::Export>,
     pub historicos: Arc<orion_core::historicos::Historicos>,
     pub downloads: Arc<orion_core::downloads::Downloads>,
     pub rotinas: Arc<orion_core::rotinas::RotinaStore>,
@@ -389,6 +391,9 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
         agent = Some(Arc::new(a));
     }
     let started_at = orion_core::util::agora();
+    let export_credentials = Arc::new(orion_core::export_credentials::ExportCredentials::new(memory.clone()));
+    orion_core::mcp_export::registrar_specs(&policy);
+    let export = Arc::new(orion_core::mcp_export::Export { memory: memory.clone(), policy: policy.clone(), creds: export_credentials.clone() });
     let historicos = Arc::new(orion_core::historicos::Historicos::new(memory.clone()));
     let downloads = Arc::new(orion_core::downloads::Downloads::new(settings.data_dir.join("regras_downloads.yaml"), memory.clone(), policy.path_guard.clone()));
     let rotinas = Arc::new(orion_core::rotinas::RotinaStore::new(settings.data_dir.join("rotinas"), memory.clone()));
@@ -460,6 +465,8 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
         mcp: mcp_geral,
         ler_depois,
         desfazer: Default::default(),
+        export_credentials,
+        export,
         historicos,
         downloads,
         rotinas,

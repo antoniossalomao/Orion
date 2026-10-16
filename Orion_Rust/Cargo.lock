@@ -1878,6 +1878,7 @@ dependencies = [
  "futures",
  "orion-ai",
  "orion-core",
+ "orion-mcp",
  "orion-policy",
  "orion-store",
  "parking_lot",

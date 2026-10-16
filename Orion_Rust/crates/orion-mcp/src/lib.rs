@@ -3,6 +3,8 @@
 //! `resources/*` e `prompts/*`. Pedidos do servidor ao cliente (sampling, roots, elicitation)
 //! são recusados: o servidor MCP é fonte de dado, nunca de comando (REGRAS.md: MCP).
 
+pub mod server;
+
 use futures::StreamExt;
 use parking_lot::Mutex;
 use serde_json::{json, Map, Value};
