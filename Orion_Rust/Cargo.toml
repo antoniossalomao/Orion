@@ -39,6 +39,14 @@ quick-xml = "0.36"
 pdf-extract = "0.7"
 printpdf = "0.7"
 csv = "1"
+pbkdf2 = "0.12"
+hmac = "0.12"
+subtle = "2"
+axum = { version = "0.7", features = ["ws", "multipart", "macros"] }
+tower-http = { version = "0.6", features = ["fs"] }
+clap = { version = "4", features = ["derive"] }
+tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
+rpassword = "7"
 anyhow = "1"
 thiserror = "2"
 serde = { version = "1", features = ["derive"] }
@@ -54,3 +62,7 @@ tracing = "0.1"
 lto = "thin"
 codegen-units = 1
 strip = true
+
+# PBKDF2 com 600 mil iterações e SQLite ficam lentos demais sem otimização
+[profile.dev.package."*"]
+opt-level = 2

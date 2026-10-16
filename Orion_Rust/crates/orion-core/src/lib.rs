@@ -1,6 +1,7 @@
 //! Núcleo do Orion: configuração, persona, agente, ferramentas, extensões e rotinas.
 
 pub mod agent;
+pub mod auth;
 pub mod config;
 pub mod extensions;
 pub mod mcp_indice;

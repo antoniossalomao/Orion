@@ -1,0 +1,420 @@
+//! Biblioteca de resultados, imagens, modos, privacidade, atividade, avisos, lembretes e tela.
+
+use crate::estado::Estado;
+use crate::http::*;
+use axum::body::Body;
+use axum::extract::{ConnectInfo, Path, Query, State};
+use axum::response::Response;
+use axum::Json;
+use chrono::{Local, TimeZone};
+use orion_core::resultados::{extensao, previa_imagem, PREVIA_PDF, PREVIA_TEXTO};
+use orion_store::{with_scope, DataScope};
+use regex::Regex;
+use serde::Deserialize;
+use serde_json::{json, Map, Value};
+use std::collections::BTreeMap;
+use std::net::SocketAddr;
+use std::sync::LazyLock;
+
+static NOME_IMAGEM: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^img-\d{9,12}-[0-9a-f]{8}\.(png|jpg|webp)$").unwrap());
+
+fn previa(nome: &str) -> Value {
+    let ext = extensao(std::path::Path::new(nome));
+    if PREVIA_TEXTO.contains(&ext.as_str()) {
+        json!("texto")
+    } else if previa_imagem(&ext).is_some() {
+        json!("imagem")
+    } else if ext == PREVIA_PDF {
+        json!("pdf")
+    } else {
+        Value::Null
+    }
+}
+
+#[derive(Deserialize)]
+pub struct ProjetoQ {
+    projeto: Option<String>,
+}
+
+pub async fn listar_resultados(_: Admin, State(st): State<Estado>, Query(q): Query<ProjetoQ>) -> ApiResult<Json<Value>> {
+    let itens: Vec<Value> = st
+        .memory
+        .list_artifacts(q.projeto.as_deref(), 100)?
+        .iter()
+        .map(|a| {
+            json!({
+                "id": a["id"], "nome": a["name"], "tipo": a["kind"], "versao": a["version"], "anterior": a["parent_id"],
+                "bytes": a["bytes"], "ferramenta": a["tool"], "conversa": a["sessao_titulo"], "sessao_id": a["session_id"],
+                "projeto_id": a["project_id"], "criado": iso(a["created_at"].as_f64().unwrap_or(0.0)),
+                "previa": previa(a["name"].as_str().unwrap_or("")),
+            })
+        })
+        .collect();
+    Ok(Json(json!({"total": itens.len(), "resultados": itens})))
+}
+
+pub async fn previa_de_texto(_: Admin, State(st): State<Estado>, Path(rid): Path<i64>) -> ApiResult<Json<Value>> {
+    let Some(caminho) = st.biblioteca.caminho(rid) else { return erro(404, "resultado não encontrado") };
+    if !PREVIA_TEXTO.contains(&extensao(&caminho).as_str()) {
+        return erro(415, "sem prévia de texto para este tipo (baixe o arquivo)");
+    }
+    let texto = String::from_utf8_lossy(&std::fs::read(&caminho).map_err(anyhow::Error::from)?).into_owned();
+    let n = texto.chars().count();
+    Ok(Json(json!({"texto": texto.chars().take(20_000).collect::<String>(), "truncado": n > 20_000})))
+}
+
+fn arquivo(caminho: &std::path::Path, mime: &str, cabecalhos: &[(&str, String)]) -> ApiResult<Response> {
+    let dados = std::fs::read(caminho).map_err(anyhow::Error::from)?;
+    let mut r = Response::builder().header("content-type", mime);
+    for (k, v) in cabecalhos {
+        r = r.header(*k, v);
+    }
+    Ok(r.body(Body::from(dados)).map_err(anyhow::Error::from)?)
+}
+
+fn disposicao(tipo: &str, nome: &str) -> String {
+    let ascii: String = nome.chars().map(|c| if c.is_ascii() && c != '"' { c } else { '_' }).collect();
+    let codificado: String = nome.bytes().map(|b| if b.is_ascii_alphanumeric() || b"-._~".contains(&b) { (b as char).to_string() } else { format!("%{b:02X}") }).collect();
+    format!("{tipo}; filename=\"{ascii}\"; filename*=utf-8''{codificado}")
+}
+
+#[derive(Deserialize)]
+pub struct PreviaQ {
+    #[serde(default)]
+    previa: bool,
+}
+
+/// Download (sempre anexo); com `previa=true`, só imagem raster e PDF vão inline. HTML e SVG
+/// gerados pelo modelo nunca executam no navegador.
+pub async fn arquivo_do_resultado(_: Admin, State(st): State<Estado>, Path(rid): Path<i64>, Query(q): Query<PreviaQ>) -> ApiResult<Response> {
+    let (Some(caminho), Some(a)) = (st.biblioteca.caminho(rid), st.memory.get_artifact(rid)?) else {
+        return erro(404, "resultado não encontrado");
+    };
+    let nome = a["name"].as_str().unwrap_or("resultado").to_string();
+    let sufixo = extensao(std::path::Path::new(&nome));
+    let seguros = vec![("X-Content-Type-Options", "nosniff".to_string()), ("Content-Security-Policy", "sandbox".to_string())];
+    if q.previa {
+        if let Some(mime) = previa_imagem(&sufixo) {
+            return arquivo(&caminho, mime, &seguros);
+        }
+        if sufixo == PREVIA_PDF {
+            // o visualizador de PDF do navegador não abre sob `sandbox`: aqui vale a CSP vazia
+            return arquivo(
+                &caminho,
+                "application/pdf",
+                &[("X-Content-Type-Options", "nosniff".into()), ("Content-Security-Policy", "default-src 'none'".into()), ("Content-Disposition", disposicao("inline", &nome))],
+            );
+        }
+    }
+    let mut cab = seguros;
+    cab.push(("Content-Disposition", disposicao("attachment", &nome)));
+    arquivo(&caminho, "application/octet-stream", &cab)
+}
+
+#[derive(Deserialize)]
+pub struct DiffQ {
+    com: i64,
+}
+
+pub async fn diff_do_resultado(_: Admin, State(st): State<Estado>, Path(rid): Path<i64>, Query(q): Query<DiffQ>) -> ApiResult<Json<Value>> {
+    match st.biblioteca.diff(rid, q.com) {
+        Err(e) => erro(415, e),
+        Ok(None) => erro(404, "resultado não encontrado"),
+        Ok(Some(v)) => Ok(Json(v)),
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LimparResultados {
+    manter: i64,
+    nome: Option<String>,
+    #[serde(default)]
+    simular: bool,
+}
+
+pub async fn limpar_resultados(_: Admin, State(st): State<Estado>, Json(c): Json<LimparResultados>) -> ApiResult<Json<Value>> {
+    if !(1..=1000).contains(&c.manter) || c.nome.as_ref().is_some_and(|n| n.is_empty() || n.chars().count() > 120) {
+        return erro(422, "parâmetros inválidos");
+    }
+    let r = st.biblioteca.limpar(c.manter as usize, c.nome.as_deref(), c.simular);
+    if !c.simular && r["apagados"].as_u64().unwrap_or(0) > 0 {
+        tracing::info!(target: "orion.audit", "resultados_limpos manter={} apagados={}", c.manter, r["apagados"]);
+    }
+    Ok(Json(r))
+}
+
+pub async fn apagar_resultado(_: Admin, State(st): State<Estado>, Path(rid): Path<i64>) -> ApiResult<Json<Value>> {
+    if !st.biblioteca.apagar(rid) {
+        return erro(404, "resultado não encontrado");
+    }
+    tracing::info!(target: "orion.audit", "resultado_apagado resultado={rid}");
+    Ok(Json(json!({"ok": true})))
+}
+
+/// Imagem gerada por `gerar_imagem`: só com login, nome conferido, tipo pela extensão
+/// (REGRAS.md: imagem gerada com nome do código, tipo conferido e só com login).
+pub async fn imagem(_: Admin, State(st): State<Estado>, Path(nome): Path<String>) -> ApiResult<Response> {
+    let Some(c) = NOME_IMAGEM.captures(&nome) else { return erro(404, "imagem inexistente") };
+    let caminho = st.settings.data_dir.join("imagens").join(&nome);
+    if !caminho.is_file() {
+        return erro(404, "imagem inexistente");
+    }
+    let mime = match &c[1] {
+        "png" => "image/png",
+        "jpg" => "image/jpeg",
+        _ => "image/webp",
+    };
+    arquivo(
+        &caminho,
+        mime,
+        &[
+            ("Cache-Control", "private, max-age=3600".into()),
+            ("X-Content-Type-Options", "nosniff".into()),
+            ("Content-Security-Policy", "default-src 'none'; sandbox".into()),
+        ],
+    )
+}
+
+// ── modos (REGRAS.md: pânico é corte; não perturbe só segura) ──────────────
+pub async fn modo_estado(_: Admin, State(st): State<Estado>) -> Json<Value> {
+    Json(st.modos.estado())
+}
+
+#[derive(Deserialize)]
+pub struct PanicoControle {
+    ativo: bool,
+    #[serde(default)]
+    senha: String,
+}
+
+/// Sair do pânico pela interface pede a senha de novo, com a mesma trava do login.
+fn senha_de_novo(st: &Estado, senha: &str, cliente: &str) -> bool {
+    if !st.auth.has_password() {
+        let esperado = &st.settings.admin_token;
+        return !esperado.is_empty() && subtle::ConstantTimeEq::ct_eq(senha.as_bytes(), esperado.as_bytes()).into();
+    }
+    if st.auth.throttle.espera(cliente) > 0 {
+        return false;
+    }
+    if senha.chars().count() <= 1024 && st.auth.check_password(senha) {
+        st.auth.throttle.acertou(cliente);
+        return true;
+    }
+    st.auth.throttle.falhou(cliente);
+    false
+}
+
+/// Entrar é um clique; sair pede a senha de novo (o pânico nunca volta sozinho).
+pub async fn modo_panico(_: Admin, State(st): State<Estado>, ConnectInfo(addr): ConnectInfo<SocketAddr>, Json(c): Json<PanicoControle>) -> ApiResult<Json<Value>> {
+    if c.senha.chars().count() > 1024 {
+        return erro(422, "senha longa demais");
+    }
+    if c.ativo {
+        st.modos.entrar_panico("web")?;
+        return Ok(Json(st.modos.estado()));
+    }
+    let (st2, cliente) = (st.clone(), addr.ip().to_string());
+    let ok = tokio::task::spawn_blocking(move || senha_de_novo(&st2, &c.senha, &cliente)).await.unwrap_or(false);
+    if !ok {
+        return erro(403, "para sair do modo pânico, confirme a senha");
+    }
+    st.modos.sair_panico("web").map_err(|e| ApiError::new(503, e.to_string()))?;
+    Ok(Json(st.modos.estado()))
+}
+
+#[derive(Deserialize)]
+pub struct NaoPerturbe {
+    ate: Option<String>,
+}
+
+pub async fn modo_nao_perturbe(_: Admin, State(st): State<Estado>, Json(c): Json<NaoPerturbe>) -> ApiResult<Json<Value>> {
+    match c.ate {
+        None => st.modos.desligar_nao_perturbe()?,
+        Some(ate) => {
+            conferir(&ate, r"^([01]\d|2[0-3]):[0-5]\d$", "ate")?;
+            st.modos.ligar_nao_perturbe(&ate).map_err(|e| ApiError::new(422, e.to_string()))?;
+        }
+    }
+    Ok(Json(st.modos.estado()))
+}
+
+#[derive(Deserialize)]
+pub struct DiasQ {
+    dias: Option<i64>,
+}
+
+fn dia(ts: f64) -> String {
+    orion_core::util::local(ts).format("%Y-%m-%d").to_string()
+}
+
+/// O que saiu do computador (REGRAS.md: toda saída de dado fica registrada, sem conteúdo): por
+/// dia e provedor; nunca o conteúdo. O modelo local não conta como saída.
+pub fn privacidade_de(st: &Estado, dias: i64, agora: f64) -> ApiResult<Value> {
+    let hoje = Local
+        .from_local_datetime(&orion_core::util::local(agora).date_naive().and_hms_opt(0, 0, 0).unwrap())
+        .earliest()
+        .map(|d| d.timestamp() as f64)
+        .unwrap_or(agora);
+    let inicio = hoje - ((dias - 1) * 86400) as f64;
+    let linhas: Vec<Map<String, Value>> = st
+        .memory
+        .external_calls(inicio, None, 50_000)?
+        .into_iter()
+        .filter(|r| {
+            let p = r["provider"].as_str().unwrap_or("");
+            !orion_ai::saidas::LOCAIS.contains(&p) && !p.starts_with("local")
+        })
+        .collect();
+    let mut por_dia: BTreeMap<String, Map<String, Value>> = BTreeMap::new();
+    for r in &linhas {
+        let p = por_dia.entry(dia(r["ts"].as_f64().unwrap_or(0.0))).or_default();
+        let prov = r["provider"].as_str().unwrap_or("").to_string();
+        let e = p.entry(prov).or_insert_with(|| json!({"envios": 0, "bytes": 0, "tipos": {}}));
+        e["envios"] = json!(e["envios"].as_i64().unwrap_or(0) + 1);
+        e["bytes"] = json!(e["bytes"].as_i64().unwrap_or(0) + r["bytes_out"].as_i64().unwrap_or(0));
+        let tipo = r["content_kind"].as_str().filter(|t| !t.is_empty()).unwrap_or("texto").to_string();
+        let n = e["tipos"][&tipo].as_i64().unwrap_or(0) + 1;
+        e["tipos"][&tipo] = json!(n);
+    }
+    let serie: Vec<Value> = (0..dias)
+        .rev()
+        .map(|i| {
+            let d = dia(hoje - (i * 86400) as f64);
+            let provs = por_dia.get(&d).cloned().unwrap_or_default();
+            json!({
+                "dia": d,
+                "envios": provs.values().map(|p| p["envios"].as_i64().unwrap_or(0)).sum::<i64>(),
+                "bytes": provs.values().map(|p| p["bytes"].as_i64().unwrap_or(0)).sum::<i64>(),
+                "provedores": provs,
+            })
+        })
+        .collect();
+    let de_hoje: Vec<Value> = linhas
+        .iter()
+        .filter(|r| r["ts"].as_f64().unwrap_or(0.0) >= hoje)
+        .take(200)
+        .map(|r| {
+            json!({
+                "hora": orion_core::util::local(r["ts"].as_f64().unwrap_or(0.0)).format("%H:%M:%S").to_string(),
+                "provedor": r["provider"], "tipo": r["kind"],
+                "conteudo": r["content_kind"].as_str().filter(|t| !t.is_empty()).unwrap_or("texto"),
+                "bytes": r["bytes_out"], "ok": r["ok"].as_i64().unwrap_or(0) != 0,
+            })
+        })
+        .collect();
+    let mut provedores: Vec<String> = linhas.iter().filter_map(|r| r["provider"].as_str().map(String::from)).collect();
+    provedores.sort();
+    provedores.dedup();
+    Ok(json!({"dias": dias, "serie": serie, "provedores": provedores, "hoje": de_hoje}))
+}
+
+pub async fn privacidade(_: Admin, State(st): State<Estado>, Query(q): Query<DiasQ>) -> ApiResult<Json<Value>> {
+    let dias = q.dias.unwrap_or(7);
+    if !(1..=90).contains(&dias) {
+        return erro(422, "dias fora do intervalo");
+    }
+    Ok(Json(privacidade_de(&st, dias, orion_core::util::agora())?))
+}
+
+#[derive(Deserialize)]
+pub struct LimiteQ {
+    limite: Option<i64>,
+}
+
+/// A caixa de atividade: avisos, aprovações esperando e erros dos jobs. Só leitura.
+pub async fn atividade(_: Admin, State(st): State<Estado>, Query(q): Query<LimiteQ>) -> ApiResult<Json<Value>> {
+    let limite = q.limite.unwrap_or(30);
+    if !(1..=100).contains(&limite) {
+        return erro(422, "limite fora do intervalo");
+    }
+    let avisos: Vec<Value> = st
+        .ops
+        .recent_notifications(limite)?
+        .iter()
+        .map(|n| {
+            json!({
+                "id": n["id"], "tipo": n["kind"],
+                "texto": n["text"].as_str().unwrap_or("").chars().take(1500).collect::<String>(),
+                "criado": iso(n["created_at"].as_f64().unwrap_or(0.0)),
+                "entregue": !n["delivered_at"].is_null(),
+            })
+        })
+        .collect();
+    let nao_lidos = avisos.iter().filter(|a| a["entregue"] == json!(false)).count();
+    Ok(Json(json!({
+        "avisos": avisos, "nao_lidos": nao_lidos,
+        "aprovacoes": st.policy.approvals.pending(None, false).len(),
+        "erros_dos_jobs": [],
+    })))
+}
+
+#[derive(Deserialize)]
+pub struct ProjetoIdQ {
+    project_id: Option<String>,
+    minutos: Option<i64>,
+}
+
+/// Avisos ainda não entregues; o canal entrega e confirma em `/notifications/{id}/ack`.
+pub async fn avisos(_: Admin, State(st): State<Estado>, Query(q): Query<ProjetoIdQ>) -> ApiResult<Json<Value>> {
+    let v = with_scope(DataScope::project(q.project_id, false), || st.ops.pending_notifications(50, false))?;
+    Ok(Json(json!(v)))
+}
+
+pub async fn confirmar_aviso(_: Admin, State(st): State<Estado>, Path(id): Path<i64>, Query(q): Query<ProjetoIdQ>) -> ApiResult<Json<Value>> {
+    let ok = with_scope(DataScope::project(q.project_id, false), || st.ops.ack_notification(id))?;
+    if !ok {
+        return erro(404, "aviso inexistente ou já confirmado");
+    }
+    Ok(Json(json!({"ok": true})))
+}
+
+/// "Feito" conclui (e para de insistir); "adiar" volta a ser um lembrete novo (E9.3).
+pub async fn agir_no_lembrete(_: Admin, State(st): State<Estado>, Path((id, acao)): Path<(i64, String)>, Query(q): Query<ProjetoIdQ>) -> ApiResult<Json<Value>> {
+    if acao != "feito" && acao != "adiar" {
+        return erro(422, "ação inválida");
+    }
+    let minutos = q.minutos.unwrap_or(60);
+    if !(1..=1440).contains(&minutos) {
+        return erro(422, "minutos fora do intervalo");
+    }
+    let r = with_scope(DataScope::project(q.project_id, false), || {
+        if acao == "feito" {
+            st.ops.complete_reminder(id)
+        } else {
+            st.ops.snooze_reminder(id, minutos)
+        }
+    });
+    match r {
+        Ok(l) => Ok(Json(json!({"ok": true, "lembrete": l}))),
+        Err(orion_store::StoreError::NotFound(_)) => erro(404, "lembrete não encontrado"),
+        Err(e) => Err(e.into()),
+    }
+}
+
+#[derive(Deserialize)]
+pub struct TelaQ {
+    q: String,
+    dias: Option<i64>,
+    limite: Option<i64>,
+}
+
+/// Busca no texto que esteve na tela (E5.1), a pedido do próprio Antônio.
+pub async fn tela_busca(_: Admin, State(st): State<Estado>, Query(q): Query<TelaQ>) -> ApiResult<Json<Value>> {
+    let (dias, limite) = (q.dias.unwrap_or(7), q.limite.unwrap_or(10));
+    let n = q.q.chars().count();
+    if !(2..=200).contains(&n) || !(1..=90).contains(&dias) || !(1..=20).contains(&limite) {
+        return erro(422, "parâmetros inválidos");
+    }
+    let achados = st.memory.search_screen(&q.q, limite, dias)?;
+    Ok(Json(json!({"resultados": achados.iter().map(|a| json!({
+        "id": a["id"], "quando": a["ts"], "janela": a["titulo"], "app": a["app"], "trecho": a["trecho"],
+    })).collect::<Vec<_>>()})))
+}
+
+/// Apaga TODO o texto de tela guardado.
+pub async fn tela_limpar(_: Admin, State(st): State<Estado>) -> ApiResult<Json<Value>> {
+    let n = st.memory.clear_screen()?;
+    tracing::info!(target: "orion.audit", "tela_limpa registros={n}");
+    Ok(Json(json!({"ok": true, "apagados": n})))
+}
