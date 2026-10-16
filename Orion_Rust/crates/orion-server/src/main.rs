@@ -151,6 +151,17 @@ enum Cmd {
         #[arg(long = "sem-ensaio")]
         sem_ensaio: bool,
     },
+    /// Transcreve áudio ou vídeo para uma nota no 00 Inbox (o áudio vai ao provedor).
+    Transcrever {
+        /// Arquivo local, ou um link http(s) (precisa do yt-dlp).
+        arquivo: String,
+        #[arg(long, default_value = "")]
+        titulo: String,
+        #[arg(long)]
+        sim: bool,
+        #[arg(long)]
+        propor: bool,
+    },
     /// O que ficaria pela metade se desligasse agora.
     #[command(name = "posso-desligar")]
     PossoDesligar,
@@ -334,6 +345,7 @@ fn rodar(cli: Cli) -> anyhow::Result<i32> {
         Cmd::McpCheck { config } => cli_extra::mcp_check(&s, config.as_deref()),
         Cmd::ImportSurreal { pasta, assistente } => cli_extra::import_surreal(&s, pasta, assistente),
         Cmd::VerifyExport { pasta, assistente, env, google_auth, vault, sem_ensaio } => cli_extra::verify_export(pasta, assistente, env.as_deref(), google_auth.as_deref(), vault.as_deref(), *sem_ensaio),
+        Cmd::Transcrever { arquivo, titulo, sim, propor } => cli_extra::transcrever(&s, arquivo, titulo, *sim, *propor),
         Cmd::PossoDesligar => cli_extra::posso_desligar(&s),
         Cmd::Downloads { acao, simular, hoje, sim } => cli_extra::downloads(&s, acao, *simular, *hoje, *sim),
         Cmd::Rotina { acao, nome, sim } => cli_extra::rotina(&s, acao, nome.as_deref(), *sim),

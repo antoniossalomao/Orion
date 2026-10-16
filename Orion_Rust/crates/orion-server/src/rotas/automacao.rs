@@ -355,3 +355,16 @@ pub async fn rodar_pesquisa_agora(_: Admin, State(st): State<Estado>) -> ApiResu
     });
     Ok((axum::http::StatusCode::ACCEPTED, Json(json!({"iniciada": true}))))
 }
+
+// ── propostas da transcrição (E9.11) ─────────────────────────────────────
+
+pub async fn propostas_da_transcricao(_: Admin, State(st): State<Estado>) -> ApiResult<Json<Value>> {
+    let p = orion_core::propostas::Propostas::new(st.memory.clone(), st.ops.clone());
+    Ok(Json(json!({"itens": p.listar("pendente")?})))
+}
+
+pub async fn decidir_proposta(_: Admin, State(st): State<Estado>, Path((pid, acao)): Path<(i64, String)>) -> ApiResult<Json<Value>> {
+    conferir(&acao, "^(aprovar|descartar)$", "acao")?;
+    let p = orion_core::propostas::Propostas::new(st.memory.clone(), st.ops.clone());
+    p.decidir(pid, &acao).map(Json).map_err(|e| ApiError::new(e.status, e.mensagem))
+}

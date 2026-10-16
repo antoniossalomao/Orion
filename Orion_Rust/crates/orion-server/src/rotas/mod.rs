@@ -155,6 +155,8 @@ pub fn router(st: Estado) -> Router {
         .route("/sonhos/:id/descartar", post(sonho_descartar))
         .route("/foco", get(foco_estado))
         .route("/foco/iniciar", post(foco_iniciar))
+        .route("/transcricao/propostas", get(propostas_da_transcricao))
+        .route("/transcricao/propostas/:id/:acao", post(decidir_proposta))
         .route("/mcp/servidores", get(servidores_mcp))
         .route("/mcp/servidores/:nome/testar", post(testar_servidor_mcp))
         .route("/mcp/prompts", get(prompts_mcp))

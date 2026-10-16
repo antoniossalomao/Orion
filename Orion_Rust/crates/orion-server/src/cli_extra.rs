@@ -345,3 +345,78 @@ pub fn verify_export(pasta: &str, assistente: &[String], env: Option<&str>, goog
     println!("{}", rel.linhas().join("\n"));
     Ok(if rel.ok() { 0 } else { 1 })
 }
+
+/// Transcreve áudio ou vídeo para uma nota no 00 Inbox (o áudio vai ao provedor).
+pub fn transcrever(s: &Settings, alvo: &str, titulo: &str, sim: bool, propor: bool) -> anyhow::Result<i32> {
+    use orion_core::capture::Capturer;
+    use orion_core::media_transcribe::*;
+    let Some(tr) = crate::estado::transcriber_from_settings(s) else {
+        eprintln!("sem ORION_TRANSCRIBE_API_KEY: não há provedor de transcrição");
+        return Ok(1);
+    };
+    let Some(vault) = &s.vault_dir else {
+        eprintln!("defina ORION_VAULT_DIR: a nota vai para o 00 Inbox do vault");
+        return Ok(1);
+    };
+    let e_link = alvo.to_lowercase().starts_with("http://") || alvo.to_lowercase().starts_with("https://");
+    let origem = if e_link { "baixado do link".to_string() } else { format!("de '{}'", std::path::Path::new(alvo).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()) };
+    if !sim && !perguntar(&format!("O áudio {origem} será ENVIADO ao provedor de transcrição ({}). Continuar? [s/N] ", s.transcribe_url)) {
+        println!("nada foi enviado");
+        return Ok(1);
+    }
+    let cap = Capturer::new(vault.clone(), &s.capture_folder);
+    let store = Arc::new(Store::open(s.db_path())?);
+    // o áudio sai do computador (REGRAS.md: toda saída de dado fica registrada, sem conteúdo)
+    orion_ai::saidas::definir_destino(Some(orion_ai::saidas::destino_store(store.clone())));
+    let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
+    let progresso = |i: usize, n: usize| println!("transcrevendo parte {i}/{n}…");
+    let r = rt.block_on(async {
+        if e_link {
+            println!("baixando o áudio…");
+            transcrever_link(alvo, &tr, &cap, titulo, &progresso).await
+        } else {
+            transcrever_arquivo(std::path::Path::new(alvo), &tr, &cap, titulo, &progresso).await
+        }
+    });
+    orion_ai::saidas::definir_destino(None);
+    let nota = match r {
+        Ok(n) => n,
+        Err(e) => {
+            eprintln!("{e}");
+            return Ok(1);
+        }
+    };
+    println!("nota criada: {}", nota.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default());
+    if propor {
+        return propor_da_nota(s, &nota, sim, store, &rt);
+    }
+    Ok(0)
+}
+
+/// E9.11: o texto transcrito vai ao modelo, que propõe tarefas, lembretes e fatos. Cada item vira
+/// um aviso na caixa de atividade para aprovar ou descartar; nada é criado aqui.
+fn propor_da_nota(s: &Settings, nota: &std::path::Path, sim: bool, store: Arc<Store>, rt: &tokio::runtime::Runtime) -> anyhow::Result<i32> {
+    let Some(gw) = crate::estado::gateway_from_settings(s) else {
+        eprintln!("sem modelo configurado: a nota ficou, mas não há propostas");
+        return Ok(0);
+    };
+    if !sim && !perguntar("O TEXTO transcrito será enviado ao modelo de chat para extrair tarefas. Continuar? [s/N] ") {
+        println!("nenhuma proposta foi pedida");
+        return Ok(0);
+    }
+    orion_ai::saidas::definir_destino(Some(orion_ai::saidas::destino_store(store.clone())));
+    let texto = String::from_utf8_lossy(&std::fs::read(nota)?).into_owned();
+    let itens = rt.block_on(orion_core::propostas::extrair(&gw, &texto));
+    orion_ai::saidas::definir_destino(None);
+    let itens = match itens {
+        Ok(i) => i,
+        Err(e) => {
+            eprintln!("o modelo não respondeu: {e}");
+            return Ok(1);
+        }
+    };
+    let ops = Arc::new(orion_store::ops::Operations::new(store.clone()));
+    let ids = orion_core::propostas::Propostas::new(store, ops).guardar(&nota.file_stem().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default(), &itens)?;
+    println!("{} proposta(s) na caixa de atividade (Atividade → Aprovar ou Descartar)", ids.len());
+    Ok(0)
+}
