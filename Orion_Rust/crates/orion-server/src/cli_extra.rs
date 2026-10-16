@@ -253,3 +253,67 @@ pub fn estilo(s: &Settings, repos: &[String], agente: &str, ativar: bool, sim: b
         }
     }
 }
+
+/// Confere instalação, banco, login, chaves, MCP e backup (sem rede).
+pub fn doctor(s: &Settings) -> anyhow::Result<i32> {
+    let (txt, cod) = orion_core::doctor::relatorio(&orion_core::doctor::checar(s));
+    println!("{txt}");
+    Ok(cod)
+}
+
+/// Gera o arquivo de início automático do sistema (não ativa sozinho).
+pub fn autostart(s: &Settings, plataforma: Option<&str>, install: bool, dir: Option<&str>, force: bool, ponte: bool) -> anyhow::Result<i32> {
+    use orion_core::autostart::*;
+    let exe = std::env::current_exe()?;
+    let home = orion_core::downloads::dirs_home();
+    let a = match render(plataforma.unwrap_or_else(|| detectar()), &exe, &project_root(), &s.data_dir.join("logs"), &home, ponte) {
+        Ok(a) => a,
+        Err(e) => {
+            eprintln!("{e}");
+            return Ok(1);
+        }
+    };
+    if !(install || dir.is_some()) {
+        println!("# {}\n{}", a.arquivo.display(), a.conteudo);
+    } else {
+        match instalar(&a, dir.map(std::path::Path::new), force) {
+            Ok(alvo) => {
+                if a.plataforma == "macos" {
+                    std::fs::create_dir_all(s.data_dir.join("logs"))?;
+                }
+                println!("gravado: {}", alvo.display());
+            }
+            Err(e) => {
+                eprintln!("{e}");
+                return Ok(1);
+            }
+        }
+    }
+    println!("para ligar: {}\npara desligar: {}", a.ativar, a.desativar);
+    Ok(0)
+}
+
+/// Sobe os servidores do mcp.json e mostra o estado de cada um com suas ferramentas.
+pub fn mcp_check(s: &Settings, config: Option<&str>) -> anyhow::Result<i32> {
+    use orion_core::mcp_client::{describe, manager_from_file};
+    let caminho = config.map(std::path::PathBuf::from).unwrap_or_else(|| s.effective_mcp_config());
+    let g = match manager_from_file(&caminho, vec![]) {
+        Ok(g) => g,
+        Err(e) => {
+            eprintln!("{e}");
+            return Ok(1);
+        }
+    };
+    let Some(g) = g else {
+        println!("nenhum servidor habilitado em {}", caminho.display());
+        return Ok(0);
+    };
+    let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
+    rt.block_on(async {
+        g.start().await;
+        println!("{}", describe(&g).join("\n"));
+        let ok = g.status().values().all(|v| v.starts_with("ok"));
+        g.stop().await;
+        Ok(if ok { 0 } else { 1 })
+    })
+}

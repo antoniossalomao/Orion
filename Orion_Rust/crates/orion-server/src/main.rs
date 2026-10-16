@@ -107,6 +107,27 @@ enum Cmd {
         #[arg(long)]
         sim: bool,
     },
+    /// Confere instalação, banco, login, chaves, MCP e backup (sem rede).
+    Doctor,
+    /// Gera o arquivo de início automático do sistema (não ativa sozinho).
+    Autostart {
+        #[arg(long, value_parser = ["windows", "macos", "linux"])]
+        plataforma: Option<String>,
+        #[arg(long)]
+        install: bool,
+        #[arg(long)]
+        dir: Option<String>,
+        #[arg(long)]
+        force: bool,
+        #[arg(long)]
+        ponte: bool,
+    },
+    /// Sobe os servidores do mcp.json e mostra o estado e as ferramentas de cada um.
+    #[command(name = "mcp-check")]
+    McpCheck {
+        #[arg(long)]
+        config: Option<String>,
+    },
     /// O que ficaria pela metade se desligasse agora.
     #[command(name = "posso-desligar")]
     PossoDesligar,
@@ -285,6 +306,9 @@ fn rodar(cli: Cli) -> anyhow::Result<i32> {
         Cmd::McpServidor { token, revogar } => cli_extra::mcp_servidor(&s, *token, *revogar),
         Cmd::Converter { arquivo, formato, saida } => cli_extra::converter(&s, arquivo, formato, saida.as_deref()),
         Cmd::Estilo { repos, agente, ativar, sim } => cli_extra::estilo(&s, repos, agente, *ativar, *sim),
+        Cmd::Doctor => cli_extra::doctor(&s),
+        Cmd::Autostart { plataforma, install, dir, force, ponte } => cli_extra::autostart(&s, plataforma.as_deref(), *install, dir.as_deref(), *force, *ponte),
+        Cmd::McpCheck { config } => cli_extra::mcp_check(&s, config.as_deref()),
         Cmd::PossoDesligar => cli_extra::posso_desligar(&s),
         Cmd::Downloads { acao, simular, hoje, sim } => cli_extra::downloads(&s, acao, *simular, *hoje, *sim),
         Cmd::Rotina { acao, nome, sim } => cli_extra::rotina(&s, acao, nome.as_deref(), *sim),
