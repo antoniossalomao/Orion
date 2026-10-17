@@ -35,4 +35,7 @@ jobs:
           "VULKAN_SDK=$sdk" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           "$sdk\Bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
       - name: Conferir backend Vulkan
+        # Alvo curto: o MSBuild do whisper.cpp/Vulkan estoura 260 caracteres (FTK1011).
+        env:
+          CARGO_TARGET_DIR: C:\t
         run: cargo check --locked -p orion-server --features local-vulkan
