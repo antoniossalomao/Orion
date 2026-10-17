@@ -555,6 +555,28 @@ impl SetupApp {
         )
         .on_press(Message::DragTitlebar);
 
+        let sound_glyph = if self.sound.is_enabled() { "♪" } else { "×" };
+        let sound_btn = button(
+            container(
+                text(sound_glyph)
+                    .size(12)
+                    .color(if self.sound.is_enabled() {
+                        theme::BETEL
+                    } else {
+                        theme::FG3
+                    }),
+            )
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .align_x(Horizontal::Center)
+            .align_y(Vertical::Center),
+        )
+        .width(Length::Fixed(30.0))
+        .height(Length::Fixed(24.0))
+        .padding(0)
+        .on_press(Message::ToggleSound)
+        .style(titlebar_btn_style(false));
+
         let min_btn = button(
             container(text("—").size(12).color(theme::FG3))
                 .width(Length::Fill)
@@ -581,7 +603,9 @@ impl SetupApp {
         .on_press(Message::RequestCloseWindow)
         .style(titlebar_btn_style(true));
 
-        let controls = row![min_btn, hspace(2.0), close_btn, hspace(8.0)].align_y(Alignment::Center);
+        let controls =
+            row![sound_btn, hspace(2.0), min_btn, hspace(2.0), close_btn, hspace(8.0)]
+                .align_y(Alignment::Center);
 
         container(row![drag_zone, controls].align_y(Alignment::Center))
             .width(Length::Fixed(theme::WINDOW_W))

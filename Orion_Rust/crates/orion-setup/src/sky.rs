@@ -18,19 +18,19 @@ pub const SKY_W_U32: u32 = 468;
 pub const SKY_H_U32: u32 = 564;
 const SPRITE_SIZE: usize = 128;
 
-/// Tabela 128×128 pré-computada do gradiente radial dos sprites (`orion-instalador.html` linhas 148–151).
-static SPRITE_ALPHA_LUT: OnceLock<Box<[f32; SPRITE_SIZE * SPRITE_SIZE]>> = OnceLock::new();
+/// Tabela 128×128 pré-computada do gradiente radial dos sprites em ponto fixo `0..=256`.
+static SPRITE_ALPHA_LUT: OnceLock<Box<[u16; SPRITE_SIZE * SPRITE_SIZE]>> = OnceLock::new();
 
-fn sprite_lut() -> &'static [f32; SPRITE_SIZE * SPRITE_SIZE] {
+fn sprite_lut() -> &'static [u16; SPRITE_SIZE * SPRITE_SIZE] {
     SPRITE_ALPHA_LUT.get_or_init(|| {
-        let mut table = Box::new([0.0_f32; SPRITE_SIZE * SPRITE_SIZE]);
+        let mut table = Box::new([0u16; SPRITE_SIZE * SPRITE_SIZE]);
         let half = (SPRITE_SIZE as f32) * 0.5;
         for y in 0..SPRITE_SIZE {
             for x in 0..SPRITE_SIZE {
                 let dx = (x as f32 + 0.5) - half;
                 let dy = (y as f32 + 0.5) - half;
                 let norm = (dx * dx + dy * dy).sqrt() / half;
-                table[y * SPRITE_SIZE + x] = sprite_radial_alpha(norm);
+                table[y * SPRITE_SIZE + x] = (sprite_radial_alpha(norm) * 256.0).round() as u16;
             }
         }
         table
@@ -155,6 +155,45 @@ pub struct ShootingStar {
     pub x: f32,
     pub y: f32,
     pub born: f32,
+}
+
+/// Parâmetros de câmera pré-calculados uma única vez por quadro.
+#[derive(Clone, Copy)]
+struct CameraTransform {
+    cx: f32,
+    cy: f32,
+    zoom: f32,
+    rot: f32,
+    ox: f32,
+    oy: f32,
+}
+
+impl CameraTransform {
+    #[inline]
+    fn from_sky(sky: &OrionSky, w: f32, h: f32) -> Self {
+        Self {
+            cx: w * 0.47,
+            cy: h * 0.50,
+            zoom: 1.0 + 0.012 * (sky.sec * 0.11).sin() + 0.03 * sky.done,
+            rot: 0.012 * (sky.sec * 0.05).sin(),
+            ox: (sky.sec * 0.07).sin() * 5.0 - sky.px * 6.0,
+            oy: (sky.sec * 0.09).cos() * 4.0 - sky.py * 6.0,
+        }
+    }
+
+    #[inline]
+    fn project(self, x: f32, y: f32, z: f32, w: f32, h: f32) -> (f32, f32) {
+        let dx = (x * w - self.cx) * self.zoom;
+        let dy = (y * h - self.cy) * self.zoom;
+        // Para|rot * z| <= 0.012 rad, a aproximação de Taylor de 2ª ordem é exata em float32 (< 1e-7 erro)
+        let rz = self.rot * z;
+        let c = 1.0 - 0.5 * rz * rz;
+        let s = rz;
+        (
+            self.cx + dx * c - dy * s + self.ox * z,
+            self.cy + dx * s + dy * c + self.oy * z,
+        )
+    }
 }
 
 /// Estado completo do céu e da constelação de Orion.
@@ -361,20 +400,7 @@ impl OrionSky {
     /// Projeção com respiração lenta da câmera (`orion-instalador.html` linhas 190–192).
     #[inline]
     pub fn project(&self, x: f32, y: f32, z: f32, w: f32, h: f32) -> (f32, f32) {
-        let cx = w * 0.47;
-        let cy = h * 0.50;
-        let zoom = 1.0 + 0.012 * (self.sec * 0.11).sin() + 0.03 * self.done;
-        let rot = 0.012 * (self.sec * 0.05).sin();
-        let ox = (self.sec * 0.07).sin() * 5.0 - self.px * 6.0;
-        let oy = (self.sec * 0.09).cos() * 4.0 - self.py * 6.0;
-        let dx = (x * w - cx) * zoom;
-        let dy = (y * h - cy) * zoom;
-        let c = (rot * z).cos();
-        let s = (rot * z).sin();
-        (
-            cx + dx * c - dy * s + ox * z,
-            cy + dx * s + dy * c + oy * z,
-        )
+        CameraTransform::from_sky(self, w, h).project(x, y, z, w, h)
     }
 
     #[inline]
@@ -440,16 +466,23 @@ impl OrionSky {
         }
     }
 
-    /// Gera o `Handle` de imagem RGBA 468×564 para exibição direta via `iced::widget::image` (60 FPS).
+    /// Gera o `Handle` de imagem RGBA 468×564 para exibição direta via `iced::widget::image`.
     pub fn render_image_handle(&self) -> iced_image::Handle {
-        let img = self.render_rgba(SKY_W_U32, SKY_H_U32);
-        iced_image::Handle::from_rgba(SKY_W_U32, SKY_H_U32, img.into_raw())
+        let raw = self.render_raw_rgba(SKY_W_U32, SKY_H_U32);
+        iced_image::Handle::from_rgba(SKY_W_U32, SKY_H_U32, raw)
     }
 
     /// Renderiza o quadro atual em um `RgbaImage` usando os sprites 128×128 e composição `lighter`.
     pub fn render_rgba(&self, width: u32, height: u32) -> RgbaImage {
+        let buf = self.render_raw_rgba(width, height);
+        RgbaImage::from_raw(width, height, buf)
+            .unwrap_or_else(|| RgbaImage::from_pixel(width, height, Rgba([7, 8, 11, 255])))
+    }
+
+    fn render_raw_rgba(&self, width: u32, height: u32) -> Vec<u8> {
         let w = width as f32;
         let h = height as f32;
+        let cam = CameraTransform::from_sky(self, w, h);
 
         let mut buf = if width == SKY_W_U32 && height == SKY_H_U32 {
             self.base_backdrop.clone()
@@ -457,9 +490,9 @@ impl OrionSky {
             build_deep_sky_backdrop(width, height, &self.dust)
         };
 
-        // 1. Estrelas de fundo (260)
+        // 1. Estrelas de fundo (260) com câmera pré-calculada
         for s in &self.bg {
-            let (x, y) = self.project(s.x, s.y, 0.3 + s.z * 0.7, w, h);
+            let (x, y) = cam.project(s.x, s.y, 0.3 + s.z * 0.7, w, h);
             let tw = 0.75 + 0.25 * (self.sec * s.sp * 3.0 + s.ph).sin();
             draw_disc_buf(&mut buf, width, height, x, y, s.r, s.tint, s.a * tw, false);
             if s.z > 0.85 {
@@ -476,10 +509,16 @@ impl OrionSky {
             }
         }
 
+        // Posições projetadas das 7 estrelas principais (calculadas uma única vez por quadro)
+        let star_pos: [(f32, f32); 7] = std::array::from_fn(|i| {
+            let st = &self.stars[i];
+            cam.project(st.x, st.y, 1.0, w, h)
+        });
+
         // 2. Linhas da constelação (7)
         for l in &self.lines {
-            let (x1, y1) = self.pos(&self.stars[l.a], w, h);
-            let (x2, y2) = self.pos(&self.stars[l.b], w, h);
+            let (x1, y1) = star_pos[l.a];
+            let (x2, y2) = star_pos[l.b];
             // Trilha apagada (#8a90a8 com alpha 0.06)
             draw_aa_line_buf(
                 &mut buf,
@@ -552,8 +591,10 @@ impl OrionSky {
         }
 
         // 3. Estrelas principais da constelação (7)
-        for s in &self.stars {
-            let (x, y) = self.pos(s, w, h);
+        let ang = self.sec * 0.03;
+        let (sa, ca) = ang.sin_cos();
+        for (i, s) in self.stars.iter().enumerate() {
+            let (x, y) = star_pos[i];
             let tw = 1.0 + 0.06 * (self.sec * 1.3 + s.x * 20.0).sin();
 
             // Ponto discreto quando apagada
@@ -609,9 +650,6 @@ impl OrionSky {
 
             // Raios finos de difração com queda linear nas pontas
             let len = s.r * (5.0 + 4.0 * birth) * tw;
-            let ang = self.sec * 0.03;
-            let ca = ang.cos();
-            let sa = ang.sin();
             let spike_alpha = s.a * (0.28 + 0.25 * birth);
             draw_spike_buf(&mut buf, width, height, x, y, ca, sa, len, s.core, spike_alpha);
             draw_spike_buf(
@@ -667,24 +705,26 @@ impl OrionSky {
             }
         }
 
-        // 5. Degradê inferior `.skycap` (110 px até rgba(7, 8, 11, 0.85)) fiel a `orion-instalador.html` linha 32
+        // 5. Degradê inferior `.skycap` (110 px até rgba(7, 8, 11, 0.85)) em inteiros de ponto fixo
         let cap_h = 110u32.min(height);
         let start_y = height - cap_h;
         for py in start_y..height {
             let t = (py - start_y) as f32 / (cap_h.max(1) as f32);
             let a = (t * t) * 0.85;
-            let inv = 1.0 - a;
+            let inv_i = ((1.0 - a) * 256.0).round() as u32;
+            let add_r = (7.0 * a * 256.0).round() as u32;
+            let add_g = (8.0 * a * 256.0).round() as u32;
+            let add_b = (11.0 * a * 256.0).round() as u32;
             let row_offset = (py as usize) * (width as usize) * 4;
-            for px in 0..width {
-                let idx = row_offset + (px as usize) * 4;
-                buf[idx] = (buf[idx] as f32 * inv + 7.0 * a) as u8;
-                buf[idx + 1] = (buf[idx + 1] as f32 * inv + 8.0 * a) as u8;
-                buf[idx + 2] = (buf[idx + 2] as f32 * inv + 11.0 * a) as u8;
+            let row_slice = &mut buf[row_offset..row_offset + (width as usize) * 4];
+            for px_chunk in row_slice.chunks_exact_mut(4) {
+                px_chunk[0] = ((px_chunk[0] as u32 * inv_i + add_r) >> 8) as u8;
+                px_chunk[1] = ((px_chunk[1] as u32 * inv_i + add_g) >> 8) as u8;
+                px_chunk[2] = ((px_chunk[2] as u32 * inv_i + add_b) >> 8) as u8;
             }
         }
 
-        RgbaImage::from_raw(width, height, buf)
-            .unwrap_or_else(|| RgbaImage::from_pixel(width, height, Rgba([7, 8, 11, 255])))
+        buf
     }
 }
 
@@ -769,7 +809,7 @@ fn build_deep_sky_backdrop(width: u32, height: u32, dust: &[DustPatch]) -> Vec<u
     buf
 }
 
-/// Blit aditivo (`globalCompositeOperation = "lighter"`) usando a LUT radial 128×128.
+/// Blit aditivo (`globalCompositeOperation = "lighter"`) usando a LUT radial 128×128 em ponto fixo (zero float no loop interno).
 #[inline]
 fn blit_sprite_buf(
     buf: &mut [u8],
@@ -794,9 +834,9 @@ fn blit_sprite_buf(
     let y0 = ((cy - half).floor() as i32).max(0);
     let y1 = ((cy + half).ceil() as i32).min(h - 1);
 
-    let r_f = (rgb.0 as f32) * alpha;
-    let g_f = (rgb.1 as f32) * alpha;
-    let b_f = (rgb.2 as f32) * alpha;
+    let r_fixed = ((rgb.0 as f32) * alpha * 256.0).round() as u32;
+    let g_fixed = ((rgb.1 as f32) * alpha * 256.0).round() as u32;
+    let b_fixed = ((rgb.2 as f32) * alpha * 256.0).round() as u32;
     let left = cx - half;
     let top = cy - half;
 
@@ -812,12 +852,12 @@ fn blit_sprite_buf(
             if sx >= SPRITE_SIZE {
                 continue;
             }
-            let w_a = row_lut[sx];
-            if w_a > 0.001 {
+            let w_a = row_lut[sx] as u32;
+            if w_a > 0 {
                 let idx = row_offset + (px as usize) * 4;
-                buf[idx] = (buf[idx] as f32 + r_f * w_a).min(255.0) as u8;
-                buf[idx + 1] = (buf[idx + 1] as f32 + g_f * w_a).min(255.0) as u8;
-                buf[idx + 2] = (buf[idx + 2] as f32 + b_f * w_a).min(255.0) as u8;
+                buf[idx] = (buf[idx] as u32 + ((r_fixed * w_a) >> 16)).min(255) as u8;
+                buf[idx + 1] = (buf[idx + 1] as u32 + ((g_fixed * w_a) >> 16)).min(255) as u8;
+                buf[idx + 2] = (buf[idx + 2] as u32 + ((b_fixed * w_a) >> 16)).min(255) as u8;
             }
         }
     }
@@ -882,24 +922,45 @@ fn draw_aa_line_buf(
     if len_sq < 0.25 {
         return;
     }
+    let inv_len_sq = 1.0 / len_sq;
     let half_w = stroke_w * 0.5;
     let pad = half_w + 1.2;
+    let max_dist_sq = (half_w + 1.0) * (half_w + 1.0);
     let w = width as i32;
     let h = height as i32;
-    let x0 = ((ax.min(bx) - pad).floor() as i32).max(0);
-    let x1 = ((ax.max(bx) + pad).ceil() as i32).min(w - 1);
+    let bx_min = ((ax.min(bx) - pad).floor() as i32).max(0);
+    let bx_max = ((ax.max(bx) + pad).ceil() as i32).min(w - 1);
     let y0 = ((ay.min(by) - pad).floor() as i32).max(0);
     let y1 = ((ay.max(by) + pad).ceil() as i32).min(h - 1);
 
+    // Recorte horizontal por scanline quando a linha tem componente vertical relevante
+    let has_steep_y = dy.abs() > 2.0;
+    let slope_x_over_y = if has_steep_y { dx / dy } else { 0.0 };
+    let scan_pad = if has_steep_y {
+        pad * (1.0 + slope_x_over_y.abs()) + 1.5
+    } else {
+        0.0
+    };
+
     for py in y0..=y1 {
         let pyf = py as f32 + 0.5;
+        let (x0, x1) = if has_steep_y {
+            let cx_at_y = ax + (pyf - ay) * slope_x_over_y;
+            (
+                ((cx_at_y - scan_pad).floor() as i32).max(bx_min),
+                ((cx_at_y + scan_pad).ceil() as i32).min(bx_max),
+            )
+        } else {
+            (bx_min, bx_max)
+        };
         for px in x0..=x1 {
             let pxf = px as f32 + 0.5;
-            let t = (((pxf - ax) * dx + (pyf - ay) * dy) / len_sq).clamp(0.0, 1.0);
+            let t = (((pxf - ax) * dx + (pyf - ay) * dy) * inv_len_sq).clamp(0.0, 1.0);
             let proj_x = ax + dx * t;
             let proj_y = ay + dy * t;
-            let dist = ((pxf - proj_x).powi(2) + (pyf - proj_y).powi(2)).sqrt();
-            if dist <= half_w + 1.0 {
+            let dist_sq = (pxf - proj_x).powi(2) + (pyf - proj_y).powi(2);
+            if dist_sq <= max_dist_sq {
+                let dist = dist_sq.sqrt();
                 let cov = (half_w + 0.5 - dist).clamp(0.0, 1.0);
                 let a = (a0 + (a1 - a0) * t) * cov;
                 if a > 0.002 {

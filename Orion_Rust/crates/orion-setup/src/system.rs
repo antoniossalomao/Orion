@@ -48,6 +48,7 @@ impl PcInfo {
         sys.refresh_memory();
         let ram_bytes = sys.total_memory();
         let ram_gb = ((ram_bytes as f64 / (1024.0 * 1024.0 * 1024.0)).round() as u32).max(4);
+        drop(sys);
 
         let os_ver = System::os_version().unwrap_or_else(|| "11".into());
         let build: u32 = System::kernel_version()
@@ -67,7 +68,7 @@ impl PcInfo {
             format!("Windows 10 ({os_ver})")
         };
 
-        let mut disks_out = Vec::new();
+        let mut disks_out = Vec::with_capacity(4);
         let disks = Disks::new_with_refreshed_list();
         for d in disks.list() {
             let mount = d.mount_point().to_string_lossy().trim_end_matches('\\').to_string();
@@ -76,6 +77,7 @@ impl PcInfo {
                 disks_out.push(DiskSpace { mount, free_gb });
             }
         }
+        drop(disks);
         if disks_out.is_empty() {
             disks_out.push(DiskSpace { mount: "C:".into(), free_gb: 120 });
         }
