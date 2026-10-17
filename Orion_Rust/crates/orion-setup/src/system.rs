@@ -44,7 +44,7 @@ impl PcInfo {
     }
 
     pub fn detect() -> Self {
-        let mut sys = System::new_all();
+        let mut sys = System::new();
         sys.refresh_memory();
         let ram_bytes = sys.total_memory();
         let ram_gb = ((ram_bytes as f64 / (1024.0 * 1024.0 * 1024.0)).round() as u32).max(4);

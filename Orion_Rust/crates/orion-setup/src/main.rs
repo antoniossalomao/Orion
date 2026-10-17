@@ -12,6 +12,11 @@ use orion_setup::system::PcInfo;
 use orion_setup::theme;
 
 fn main() -> iced::Result {
+    // Usa o renderizador `tiny-skia` por padrão para abertura instantânea (< 50 ms) sem depender de inicialização DX12/Vulkan.
+    if std::env::var_os("ICED_BACKEND").is_none() {
+        std::env::set_var("ICED_BACKEND", "tiny-skia");
+    }
+
     let args: Vec<String> = std::env::args().collect();
     let real_install = args.iter().any(|a| a == "--real-install");
     let use_proto_hw = args.iter().any(|a| a == "--prototype-hw");
@@ -24,6 +29,8 @@ fn main() -> iced::Result {
         resizable: false,
         decorations: false,
         transparent: false,
+        visible: true,
+        level: window::Level::Normal,
         ..Default::default()
     };
 
@@ -34,7 +41,8 @@ fn main() -> iced::Result {
             } else {
                 PcInfo::detect()
             };
-            (SetupApp::new_with_sound(pc, !real_install), iced::Task::none())
+            let focus_task = window::latest().and_then(window::gain_focus);
+            (SetupApp::new_with_sound(pc, !real_install), focus_task)
         },
         SetupApp::update,
         SetupApp::view,
