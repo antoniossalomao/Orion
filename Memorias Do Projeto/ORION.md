@@ -1,6 +1,6 @@
 # Orion — estado, plano e decisões
 
-> Fonte única do estado do projeto. Atualizado em 14/10/2026. Princípios e regras: [REGRAS.md](REGRAS.md). Arquitetura, módulos e referências: [ARQUITETURA.md](ARQUITETURA.md). Como rodar: [README](../README.md). Material antigo e detalhado: [ORION_LEGADO.md](ORION_LEGADO.md).
+> Fonte única do estado do projeto. Atualizado em 17/10/2026. Princípios e regras: [REGRAS.md](REGRAS.md). Arquitetura, módulos e referências: [ARQUITETURA.md](ARQUITETURA.md). Como rodar: [README](../README.md). Material antigo e detalhado: [ORION_LEGADO.md](ORION_LEGADO.md).
 
 ## Visão
 
@@ -10,10 +10,10 @@ Assistente pessoal com identidade masculina, técnico, direto, não-servil. Não
 
 Antônio é o administrador: decide, aprova e pode desligar qualquer coisa. Nada que o modelo diga anula isso.
 
-## Estado (14/10/2026)
+## Estado (17/10/2026)
 
 - **Em uso:** o Python (`orion/`). O legado (`Orion_Ollama/`, `Orion_Core/`) segue no PC atual até a venda e sai na fase 7.
-- **Rust:** decidido e planejado (seção "Plano de migração"). Ainda não há código Rust.
+- **Rust (`Orion_Rust/`):** workspace Cargo em andamento na branch da PR #30 com 8 crates (`orion-policy`, `orion-store`, `orion-ai`, `orion-mcp`, `orion-core`, `orion-server`, `orion-setup`, `orion-sidecar`) e o pacote Python isolado do sidecar em `Orion_Rust/python/orion_sidecar`. Instalador nativo (`Orion Setup.exe` em `iced` + céu estrelado + áudio ambiente) e Fase 7 (`orion-sidecar`) concluídos.
 - **Python, por etapa da rodada 2:**
 
 | Etapa | Entrega | Estado |
