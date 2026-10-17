@@ -42,6 +42,7 @@ import random
 import re
 import shutil
 import socket
+import sqlite3
 import statistics
 import subprocess
 import sys
@@ -419,7 +420,15 @@ def main() -> int:
     try:
         if args.db:
             banco = trabalho / "orion.db"
-            shutil.copy(args.db, banco)
+            # cópia consistente (o banco real usa WAL: copiar só o .db perderia páginas do -wal)
+            origem = sqlite3.connect(f"file:{args.db}?mode=ro", uri=True)
+            destino_db = sqlite3.connect(banco)
+            origem.backup(destino_db)
+            destino_db.close()
+            origem.close()
+            dim_real = sqlite3.connect(banco).execute("SELECT value FROM meta WHERE key='embed_dim'").fetchone()
+            if dim_real:  # o embedder precisa ter a dimensão do índice do banco
+                args.dim = int(dim_real[0])
             descricao = f"cópia de {args.db}"
             if args.consultas:
                 consultas = json.loads(Path(args.consultas).read_text(encoding="utf-8"))

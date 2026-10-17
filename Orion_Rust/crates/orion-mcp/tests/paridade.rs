@@ -177,6 +177,7 @@ async fn cancelar_quem_espera_avisa_o_servidor() {
 }
 
 // ── queda e ambiente ────────────────────────────────────────────────────────
+#[cfg(unix)]
 #[tokio::test]
 async fn comando_que_nao_existe_e_servidor_que_fecha_a_saida() {
     match McpClient::connect(Transport::Stdio { command: "/nao/existe/binario".into(), args: vec![], env: HashMap::new(), cwd: None }, T).await {

@@ -28,8 +28,13 @@ fn fake() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/mcp_fake.py")
 }
 
+/// `python3` (Linux/macOS) ou `python` (Windows).
+fn python() -> Option<&'static str> {
+    ["python3", "python"].into_iter().find(|p| std::process::Command::new(p).arg("--version").output().is_ok())
+}
+
 fn tem_python() -> bool {
-    std::process::Command::new("python3").arg("--version").output().is_ok()
+    python().is_some()
 }
 
 macro_rules! precisa_python {
@@ -43,7 +48,7 @@ macro_rules! precisa_python {
 
 /// `ServerConfig` do fixture; `extra` sobrescreve/entra no objeto.
 fn cfg(extra: Value) -> ServerConfig {
-    let mut base = json!({"command": "python3", "args": [fake().to_string_lossy()], "timeout_s": 20});
+    let mut base = json!({"command": python().unwrap_or("python3"), "args": [fake().to_string_lossy()], "timeout_s": 20});
     for (k, v) in extra.as_object().cloned().unwrap_or_default() {
         base[k] = v;
     }
