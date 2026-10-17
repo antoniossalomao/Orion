@@ -76,6 +76,7 @@ pub struct SetupApp {
     pub step: usize,
     pub sky: OrionSky,
     pub sky_handle: iced_image::Handle,
+    pub belt_icon_handle: iced_image::Handle,
     pub pc: PcInfo,
     pub choices: SetupChoices,
     pub install_plan: InstallPlan,
@@ -113,6 +114,8 @@ impl SetupApp {
         // Avança suavemente o primeiro segundo para Betelgeuse já iniciar acendendo
         sky.step_dt(0.016, theme::SKY_W, theme::BODY_H);
         let sky_handle = sky.render_image_handle();
+        let belt_icon_rgba = crate::sky::generate_belt_icon_rgba(36);
+        let belt_icon_handle = iced_image::Handle::from_rgba(36, 36, belt_icon_rgba);
 
         let selected_disk_idx = pc
             .disks
@@ -126,6 +129,7 @@ impl SetupApp {
             step: 1,
             sky,
             sky_handle,
+            belt_icon_handle,
             pc,
             choices,
             install_plan,
@@ -517,7 +521,7 @@ impl SetupApp {
                 border: Border {
                     color: theme::LINE,
                     width: 1.0,
-                    radius: 0.0.into(),
+                    radius: 12.0.into(),
                 },
                 ..Default::default()
             })
@@ -526,22 +530,29 @@ impl SetupApp {
 
     /// Barra de título `.bar` (`orion-instalador.html` linhas 23–28, 113–116).
     fn view_titlebar(&self) -> Element<'_, Message> {
+        let icon_img = iced_image(self.belt_icon_handle.clone())
+            .width(Length::Fixed(18.0))
+            .height(Length::Fixed(18.0));
+
         let drag_zone = mouse_area(
             container(
                 row![
-                    hspace(14.0),
-                    text("✦ Orion Setup")
+                    hspace(16.0),
+                    icon_img,
+                    hspace(8.0),
+                    text("Orion Setup")
                         .size(12)
-                        .font(FONT_SANS)
+                        .font(FONT_SANS_SEMIBOLD)
                         .color(theme::FG2),
-                    hspace(4.0),
+                    hspace(5.0),
                     text("· v0.1.0").size(12).font(FONT_SANS).color(theme::FG3),
                     fill_hspace(),
                 ]
                 .align_y(Alignment::Center),
             )
             .width(Length::Fill)
-            .height(Length::Fixed(theme::TITLEBAR_H - 1.0)),
+            .height(Length::Fixed(theme::TITLEBAR_H - 1.0))
+            .align_y(Vertical::Center),
         )
         .on_press(Message::DragTitlebar);
 
@@ -552,8 +563,8 @@ impl SetupApp {
                 .align_x(Horizontal::Center)
                 .align_y(Vertical::Center),
         )
-        .width(Length::Fixed(40.0))
-        .height(Length::Fixed(30.0))
+        .width(Length::Fixed(36.0))
+        .height(Length::Fixed(26.0))
         .padding(0)
         .on_press(Message::MinimizeWindow)
         .style(titlebar_btn_style());
@@ -565,17 +576,18 @@ impl SetupApp {
                 .align_x(Horizontal::Center)
                 .align_y(Vertical::Center),
         )
-        .width(Length::Fixed(40.0))
-        .height(Length::Fixed(30.0))
+        .width(Length::Fixed(36.0))
+        .height(Length::Fixed(26.0))
         .padding(0)
         .on_press(Message::RequestCloseWindow)
         .style(titlebar_btn_style());
 
-        let controls = row![min_btn, close_btn, hspace(6.0)].align_y(Alignment::Center);
+        let controls = row![min_btn, hspace(2.0), close_btn, hspace(8.0)].align_y(Alignment::Center);
 
         container(row![drag_zone, controls].align_y(Alignment::Center))
             .width(Length::Fixed(theme::WINDOW_W))
             .height(Length::Fixed(theme::TITLEBAR_H - 1.0))
+            .align_y(Vertical::Center)
             .style(|_theme: &Theme| container::Style {
                 background: Some(Background::Color(theme::TITLEBAR)),
                 ..Default::default()
@@ -676,8 +688,8 @@ impl SetupApp {
                 .width(Length::Fill)
                 .padding(iced::Padding {
                     top: 0.0,
-                    right: 4.0,
-                    bottom: 0.0,
+                    right: 10.0,
+                    bottom: 4.0,
                     left: 0.0,
                 }),
         )
@@ -774,17 +786,17 @@ impl SetupApp {
         ];
 
         container(
-            column![stepbar, vspace(18.0), stage, vspace(10.0), footer]
+            column![stepbar, vspace(16.0), stage, vspace(8.0), footer]
                 .width(Length::Fill)
                 .height(Length::Fill),
         )
         .width(Length::Fixed(theme::PANEL_W - 1.0))
         .height(Length::Fixed(theme::BODY_H))
         .padding(iced::Padding {
-            top: 28.0,
-            right: 28.0,
-            bottom: 20.0,
-            left: 28.0,
+            top: 24.0,
+            right: 22.0,
+            bottom: 18.0,
+            left: 26.0,
         })
         .style(|_theme: &Theme| container::Style {
             background: Some(Background::Color(theme::SIDE)),
@@ -931,53 +943,53 @@ impl SetupApp {
 
     /// Etapa 3 (`orion-instalador.html` linhas 64–76, 295–302): Grade 2×4 `.models` + rodapé `.total`.
     fn view_step_3<'a>(&'a self, s: &'a Texts, alpha: f32) -> Element<'a, Message> {
-        let mut grid = Column::new().spacing(8);
+        let mut grid = Column::new().spacing(6);
 
         for pair in self.choices.models.chunks(2) {
             let mut r = row![].spacing(8);
             for m in pair {
-                let mut card_col = column![
+                let mut meta_row = row![
+                    text(format_gb(m.size_gb, self.choices.language))
+                        .size(10)
+                        .font(FONT_MONO)
+                        .color(with_alpha(theme::FG3, alpha)),
+                    hspace(8.0),
+                    text(format!("RAM ~{} GB", m.ram_gb))
+                        .size(10)
+                        .font(FONT_MONO)
+                        .color(with_alpha(theme::FG3, alpha)),
+                    fill_hspace(),
+                ]
+                .align_y(Alignment::Center);
+
+                if m.recommended {
+                    meta_row = meta_row.push(tag_pill(s.s3_rec_badge));
+                }
+
+                let card_col = column![
                     row![
                         text(m.name)
-                            .size(13)
+                            .size(12)
                             .font(FONT_SANS_SEMIBOLD)
                             .color(with_alpha(theme::FG, alpha)),
                         fill_hspace(),
                         check_dot(m.selected),
                     ]
-                    .align_y(Alignment::Start),
+                    .align_y(Alignment::Center),
+                    vspace(2.0),
+                    text(m.desc(self.choices.language))
+                        .size(11)
+                        .color(with_alpha(theme::FG2, alpha)),
+                    fill_vspace(),
+                    meta_row,
                 ]
-                .spacing(5)
-                .width(Length::Fill);
-
-                if m.recommended {
-                    card_col = card_col.push(tag_pill(s.s3_rec_badge));
-                }
-
-                card_col = card_col
-                    .push(
-                        text(m.desc(self.choices.language))
-                            .size(12)
-                            .color(with_alpha(theme::FG2, alpha)),
-                    )
-                    .push(
-                        row![
-                            text(format_gb(m.size_gb, self.choices.language))
-                                .size(11)
-                                .font(FONT_MONO)
-                                .color(with_alpha(theme::FG3, alpha)),
-                            hspace(10.0),
-                            text(format!("RAM ~{} GB", m.ram_gb))
-                                .size(11)
-                                .font(FONT_MONO)
-                                .color(with_alpha(theme::FG3, alpha)),
-                        ]
-                        .align_y(Alignment::Center),
-                    );
+                .width(Length::Fill)
+                .height(Length::Fill);
 
                 let card = button(card_col)
                     .width(Length::FillPortion(1))
-                    .padding([10, 12])
+                    .height(Length::Fixed(72.0))
+                    .padding([8, 10])
                     .on_press(Message::ToggleModel(m.id.to_string()))
                     .style(model_card_style(m.selected));
                 r = r.push(card);
@@ -993,15 +1005,15 @@ impl SetupApp {
 
         let summary = column![
             top_line,
-            vspace(10.0),
+            vspace(8.0),
             row![
                 text(self.choices.total_line_left())
-                    .size(12)
+                    .size(11)
                     .font(FONT_MONO)
                     .color(with_alpha(theme::FG2, alpha)),
                 fill_hspace(),
                 text(s.s3_bg_note)
-                    .size(12)
+                    .size(11)
                     .font(FONT_MONO)
                     .color(with_alpha(theme::FG2, alpha)),
             ]
@@ -1013,18 +1025,18 @@ impl SetupApp {
                 .size(11)
                 .font(FONT_MONO)
                 .color(with_alpha(theme::FG3, alpha)),
-            vspace(8.0),
+            vspace(4.0),
             text(s.s3_title)
-                .size(24)
+                .size(22)
                 .font(FONT_SANS_SEMIBOLD)
                 .color(with_alpha(theme::FG, alpha)),
-            vspace(8.0),
+            vspace(4.0),
             text(s.s3_lead)
-                .size(13)
+                .size(12)
                 .color(with_alpha(theme::FG2, alpha)),
-            vspace(12.0),
+            vspace(8.0),
             grid,
-            vspace(12.0),
+            vspace(8.0),
             summary,
         ]
         .into()
@@ -1260,11 +1272,11 @@ fn chk_card<'a>(label: &'a str, val: &str, warn: bool, alpha: f32) -> Element<'a
     container(
         column![
             text(label).size(11).color(with_alpha(theme::FG3, alpha)),
-            vspace(3.0),
+            vspace(4.0),
             row![
-                text("● ").size(12).color(with_alpha(dot_col, alpha)),
+                text("● ").size(11).color(with_alpha(dot_col, alpha)),
                 text(val.to_string())
-                    .size(13)
+                    .size(12)
                     .font(FONT_MONO)
                     .color(with_alpha(theme::FG, alpha)),
             ]
@@ -1272,6 +1284,8 @@ fn chk_card<'a>(label: &'a str, val: &str, warn: bool, alpha: f32) -> Element<'a
         ],
     )
     .width(Length::FillPortion(1))
+    .height(Length::Fixed(56.0))
+    .align_y(Vertical::Center)
     .padding([10, 12])
     .style(surface_card_style())
     .into()
@@ -1328,18 +1342,18 @@ fn folder_field<'a>(
 }
 
 /// Selo `.tag` da Etapa 3 (`orion-instalador.html` linha 75).
-fn tag_pill<'a>(label: &'a str) -> Element<'a, Message> {
+fn tag_pill<'a>(_label: &'a str) -> Element<'a, Message> {
     container(
-        text(label)
-            .size(10)
+        text("★ recomendado")
+            .size(9)
             .font(FONT_SANS_SEMIBOLD)
             .color(theme::BETEL),
     )
-    .padding([1, 7])
+    .padding([1, 6])
     .style(|_theme: &Theme| container::Style {
-        background: Some(Background::Color(Color::TRANSPARENT)),
+        background: Some(Background::Color(Color::from_rgba8(233, 180, 103, 0.08))),
         border: Border {
-            color: Color::from_rgba8(233, 180, 103, 0.40),
+            color: Color::from_rgba8(233, 180, 103, 0.42),
             width: 1.0,
             radius: 999.0.into(),
         },

@@ -1,15 +1,71 @@
 //! Ponto de entrada do executável `orion-setup` (`Orion Setup.exe`).
 //!
 //! Abre uma janela sem borda nativa de 960×600 px centralizada na tela,
-//! sem abrir console (`windows_subsystem = "windows"`).
+//! com cantos arredondados nativos do Windows 11 (`DWMWA_WINDOW_CORNER_PREFERENCE = 2`),
+//! ícone das 3 estrelas do Cinturão com blur e sem abrir console (`windows_subsystem = "windows"`).
 
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
 use iced::window;
-use iced::{Size, Theme};
+use iced::{Size, Task, Theme};
 use orion_setup::app::{SetupApp, FONT_SANS};
+use orion_setup::sky::generate_belt_icon_rgba;
 use orion_setup::system::PcInfo;
 use orion_setup::theme;
+
+#[cfg(windows)]
+fn apply_rounded_corners_to_process_windows() {
+    #[link(name = "user32")]
+    extern "system" {
+        fn GetActiveWindow() -> isize;
+        fn GetForegroundWindow() -> isize;
+        fn SetWindowRgn(hwnd: isize, hrgn: isize, b_redraw: i32) -> i32;
+    }
+
+    #[link(name = "gdi32")]
+    extern "system" {
+        fn CreateRoundRectRgn(
+            x1: i32,
+            y1: i32,
+            x2: i32,
+            y2: i32,
+            w: i32,
+            h: i32,
+        ) -> isize;
+    }
+
+    #[link(name = "dwmapi")]
+    extern "system" {
+        fn DwmSetWindowAttribute(
+            hwnd: isize,
+            dw_attribute: u32,
+            pv_attribute: *const std::ffi::c_void,
+            cb_attribute: u32,
+        ) -> i32;
+    }
+
+    unsafe {
+        let mut hwnd = GetActiveWindow();
+        if hwnd == 0 {
+            hwnd = GetForegroundWindow();
+        }
+        if hwnd != 0 {
+            // DWMWA_WINDOW_CORNER_PREFERENCE = 33, DWMWCP_ROUND = 2 (cantos arredondados Windows 11 + sombra DWM)
+            let round_pref: u32 = 2;
+            let _ = DwmSetWindowAttribute(
+                hwnd,
+                33,
+                &round_pref as *const u32 as *const std::ffi::c_void,
+                4,
+            );
+            // Também aplica região arredondada suave caso o compositor DWM esteja sem borda
+            let hrgn = CreateRoundRectRgn(0, 0, 961, 601, 24, 24);
+            if hrgn != 0 {
+                let _ = SetWindowRgn(hwnd, hrgn, 1);
+            }
+        }
+    }
+}
 
 fn main() -> iced::Result {
     // Usa o renderizador `tiny-skia` por padrão para abertura instantânea (< 50 ms).
@@ -21,6 +77,9 @@ fn main() -> iced::Result {
     let real_install = args.iter().any(|a| a == "--real-install");
     let use_proto_hw = args.iter().any(|a| a == "--prototype-hw");
 
+    let icon_rgba = generate_belt_icon_rgba(64);
+    let win_icon = window::icon::from_rgba(icon_rgba, 64, 64).ok();
+
     let window_settings = window::Settings {
         size: Size::new(theme::WINDOW_W, theme::WINDOW_H),
         position: window::Position::Centered,
@@ -28,9 +87,10 @@ fn main() -> iced::Result {
         max_size: Some(Size::new(theme::WINDOW_W, theme::WINDOW_H)),
         resizable: false,
         decorations: false,
-        transparent: false,
+        transparent: true,
         visible: true,
         level: window::Level::Normal,
+        icon: win_icon,
         ..Default::default()
     };
 
@@ -41,7 +101,16 @@ fn main() -> iced::Result {
             } else {
                 PcInfo::detect()
             };
-            let focus_task = window::latest().and_then(window::gain_focus);
+            let focus_task = window::latest().and_then(|id| {
+                Task::batch([
+                    window::gain_focus(id),
+                    window::run(id, |_w| {
+                        #[cfg(windows)]
+                        apply_rounded_corners_to_process_windows();
+                    })
+                    .discard(),
+                ])
+            });
             (SetupApp::new_with_sound(pc, !real_install), focus_task)
         },
         SetupApp::update,

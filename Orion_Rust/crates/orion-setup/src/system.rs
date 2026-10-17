@@ -197,7 +197,7 @@ impl LocalModel {
 
 /// Os 8 modelos da Etapa 3 com regras de recomendação e pré-marcação por RAM e VRAM (§6 Etapa 3).
 pub fn default_models(pc: &PcInfo) -> Vec<LocalModel> {
-    let has_32_12 = pc.ram_gb >= 24 && pc.vram_gb >= 8;
+    let has_32_12 = pc.ram_gb >= 16 && pc.vram_gb >= 6;
     let has_big_gpu = pc.ram_gb >= 32 && pc.vram_gb >= 16;
     vec![
         LocalModel {
@@ -221,7 +221,7 @@ pub fn default_models(pc: &PcInfo) -> Vec<LocalModel> {
             ram_gb: 6,
             min_ram_gb: 16,
             min_vram_gb: 6,
-            recommended: has_32_12,
+            recommended: pc.ram_gb >= 12,
             selected: has_32_12,
         },
         LocalModel {
@@ -233,8 +233,8 @@ pub fn default_models(pc: &PcInfo) -> Vec<LocalModel> {
             ram_gb: 5,
             min_ram_gb: 12,
             min_vram_gb: 4,
-            recommended: pc.ram_gb >= 12,
-            selected: !has_32_12 && pc.ram_gb >= 12,
+            recommended: pc.ram_gb >= 8,
+            selected: !has_32_12 && pc.ram_gb >= 8,
         },
         LocalModel {
             id: "granite-4.1-8b",

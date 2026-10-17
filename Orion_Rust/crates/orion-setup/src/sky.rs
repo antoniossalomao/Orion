@@ -951,6 +951,121 @@ fn blend_buf_pixel(
     }
 }
 
+/// Gera o ícone oficial do Orion (as 3 estrelas do Cinturão com linha sutil e blur radial suave
+/// sobre fundo `#05080f` com cantos arredondados), baseado em `orion.svg`.
+pub fn generate_belt_icon_rgba(size: u32) -> Vec<u8> {
+    let s = size as f32;
+    let scale = s / 64.0;
+    let mut buf = vec![0u8; (size * size * 4) as usize];
+
+    // 1. Fundo arredondado (#05080f, rx = 14 na escala 64x64)
+    let rx = 14.0 * scale;
+    for py in 0..size {
+        for px in 0..size {
+            let x = px as f32 + 0.5;
+            let y = py as f32 + 0.5;
+            let dx = if x < rx {
+                rx - x
+            } else if x > s - rx {
+                x - (s - rx)
+            } else {
+                0.0
+            };
+            let dy = if y < rx {
+                rx - y
+            } else if y > s - rx {
+                y - (s - rx)
+            } else {
+                0.0
+            };
+            let dist = (dx * dx + dy * dy).sqrt();
+            let cov = (rx + 0.5 - dist).clamp(0.0, 1.0);
+            if cov > 0.0 {
+                let idx = ((py * size + px) * 4) as usize;
+                buf[idx] = 5;
+                buf[idx + 1] = 8;
+                buf[idx + 2] = 15;
+                buf[idx + 3] = (cov * 255.0).round() as u8;
+            }
+        }
+    }
+
+    // Coordenadas das 3 estrelas na grade 64x64: (16, 40), (31, 31), (47, 22)
+    let p1 = (16.0 * scale, 40.0 * scale);
+    let p2 = (31.0 * scale, 31.0 * scale);
+    let p3 = (47.0 * scale, 22.0 * scale);
+
+    // 2. Halo central nebuloso suave (#8fabff)
+    blit_sprite_buf(
+        &mut buf,
+        size,
+        size,
+        p2.0,
+        p2.1,
+        36.0 * scale,
+        (143, 171, 255),
+        0.35,
+    );
+
+    // 3. Linha conectando as 3 estrelas (#8fabff)
+    draw_aa_line_buf(
+        &mut buf,
+        size,
+        size,
+        p1.0,
+        p1.1,
+        p3.0,
+        p3.1,
+        1.8 * scale,
+        (143, 171, 255),
+        (143, 171, 255),
+        0.55,
+        0.55,
+        true,
+    );
+
+    // 4. Blur radial (halo) + núcleo das 3 estrelas (#eef2ff)
+    for &(cx, cy, r_core, r_halo) in &[
+        (p1.0, p1.1, 3.6 * scale, 22.0 * scale),
+        (p2.0, p2.1, 4.2 * scale, 26.0 * scale),
+        (p3.0, p3.1, 3.6 * scale, 22.0 * scale),
+    ] {
+        blit_sprite_buf(
+            &mut buf,
+            size,
+            size,
+            cx,
+            cy,
+            r_halo,
+            (164, 185, 255),
+            0.75,
+        );
+        blit_sprite_buf(
+            &mut buf,
+            size,
+            size,
+            cx,
+            cy,
+            r_halo * 0.45,
+            (238, 242, 255),
+            0.85,
+        );
+        draw_disc_buf(
+            &mut buf,
+            size,
+            size,
+            cx,
+            cy,
+            r_core,
+            (238, 242, 255),
+            1.0,
+            false,
+        );
+    }
+
+    buf
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
