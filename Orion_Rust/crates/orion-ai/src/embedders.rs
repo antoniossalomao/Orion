@@ -36,8 +36,6 @@ impl GeminiEmbedder {
         })
     }
 
-    /// Aponta para outro servidor compatível (e ajusta tentativas e espera inicial). Usado
-    /// pelos testes de paridade, que falam com um servidor local de mentira.
     pub fn com_base(mut self, base: &str, retries: u32, backoff_s: f64) -> Self {
         self.base = base.into();
         self.retries = retries;

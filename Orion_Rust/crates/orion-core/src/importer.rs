@@ -250,8 +250,9 @@ fn numero(r: &Map<String, Value>, agora: f64) -> Result<Linha, String> {
         Value::String(t) if t.is_empty() => 0.0,
         Value::String(t) => t.trim().parse::<f64>().map_err(|_| format!("score inválido: {t:?}"))?,
         _ => return Err("score inválido".into()),
-    }
-    .clamp(0.0, 1.0);
+    };
+    // `max(0.0, min(1.0, float(x)))` do Python: NaN vira 1.0
+    let score = if score.is_nan() { 1.0 } else { score.clamp(0.0, 1.0) };
     let fonte = Some(texto(g(r, "fonte"))).filter(|f| !f.is_empty()).unwrap_or_else(|| "orion".into());
     let c = ts(g(r, "criado"));
     Ok(("INSERT INTO numbers(target, score, reason, source, notified, created_at) VALUES (?,?,?,?,?,?)", vec![sv(&alvo), fv(score), sv(&texto(g(r, "motivo"))), sv(&fonte), iv(g(r, "notificado").as_bool().unwrap_or(false) as i64), fv(if c > 0.0 { c } else { agora })]))
