@@ -29,8 +29,8 @@ jobs:
       - name: Instalar SDK para conferir o backend Vulkan
         shell: pwsh
         run: |
-          choco install vulkan-sdk --version=1.4.313.0 -y --no-progress
-          $sdk = 'C:\VulkanSDK\1.4.313.0'
+          choco install vulkan-sdk --version=1.4.341 -y --no-progress
+          $sdk = (Get-ChildItem 'C:\VulkanSDK' -Directory | Sort-Object Name -Descending | Select-Object -First 1).FullName
           if (!(Test-Path "$sdk\Bin\glslc.exe")) { throw 'SDK Vulkan sem glslc' }
           "VULKAN_SDK=$sdk" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           "$sdk\Bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
