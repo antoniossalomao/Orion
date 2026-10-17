@@ -109,3 +109,15 @@ mcp.example.json · .env.example
 - `.env`, chaves de API e credenciais OAuth nunca são versionados.
 
 **Reportar vulnerabilidade:** não abra Issue pública. Mande um e-mail para antonio.assuino.salomao@gmail.com com os passos para reproduzir, o impacto e o commit afetado. Sem SLA formal.
+
+### Controle Rust no Windows (PR #30)
+
+As opções específicas do Rust estão em `Orion_Rust/.env.example`; configure-as no `.env` lido pelo executável. Na pasta `Orion_Rust/`, use `cargo run -p orion-server -- desktop` (Rust 1.91 ou superior). O controle abre o login, mantém o servidor na bandeja e oferece mini barra (`Ctrl+Alt+Espaço`), pânico (`Ctrl+Alt+P`), orçamento e rotinas. Fechar a janela mantém a bandeja; **Sair do Orion** encerra. Início com Windows é opt-in no painel ou `orion autostart --install`; a retomada do pânico é sempre explícita.
+
+Para 2FA, configure o bot e seus IDs permitidos no cofre/ambiente e `ORION_TELEGRAM_2FA=true`. Após a senha, digite na janela o código recebido no Telegram. Sem Telegram disponível o login com 2FA fica bloqueado; a reserva por Windows Hello ainda não está implementada. `ORION_TELEGRAM_VOICE_REPLY=true` permite resposta falada aos pedidos por áudio.
+
+Voz começa desligada. Configure `ORION_LOCAL_STT_MODEL` com um modelo Whisper ggml e `ORION_VOICE_ENABLED=true`. Para Vulkan, instale o SDK no ambiente de compilação, compile com `cargo build -p orion-server --features local-vulkan` e use `ORION_LOCAL_STT_GPU=true`; CPU é o padrão. Fallback Groq exige `ORION_TRANSCRIBE_GROQ_FALLBACK=true` além da chave. Áudio comprimido do Telegram usa ffmpeg local. TTS requer edge-tts e um reprodutor compatível no PATH.
+
+Para escuta local, habilite `ORION_WAKE_ENABLED=true`, `ORION_WAKE_ENGINE=openwakeword` e `ORION_WAKE_MODEL` com o ONNX treinado para **Orion**. Para palmas, `ORION_CLAP_ENABLED=true`: mantenha silêncio nos primeiros dois segundos para a calibração. Palmas só abrem a janela. Respeitam pausa, pânico, não perturbe e teto por hora.
+
+O orçamento é uma **estimativa em chamadas**, com limites configurados por provedor no painel. Não representa o uso oficial das assinaturas. Configure a cota semanal, o reset UTC e, se necessário, a janela de cinco horas. Há reserva de 5% e teto de 20% por tarefa; reiniciar o app não zera o gasto. `ORION_WEEKLY_BUDGETS` também aceita um objeto por ID, por exemplo `{"cli:codex":{"weekly_calls":100,"reset_at":1792368000,"five_hour_calls":20}}`. Os IDs das APIs são `gateway:<id do provedor>`; os das CLIs são `cli:claude`, `cli:codex` e `cli:gemini`. Cotas sem configuração não têm saldo oficial presumido.

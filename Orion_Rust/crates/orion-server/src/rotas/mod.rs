@@ -6,8 +6,8 @@ pub mod base;
 pub mod captura;
 pub mod conversa;
 pub mod documentos;
-pub mod extensoes;
 pub mod export;
+pub mod extensoes;
 pub mod geral;
 pub mod integracoes;
 pub mod memoria;
@@ -55,6 +55,7 @@ pub fn router(st: Estado) -> Router {
         .route("/health", get(health))
         .route("/auth/status", get(auth_status))
         .route("/auth/login", post(login))
+        .route("/auth/2fa", post(second_factor))
         .route("/auth/logout", post(logout))
         .route("/auth/password", post(trocar_senha))
         .route("/sessoes", get(sessoes_listar).post(sessao_nova))
@@ -79,6 +80,8 @@ pub fn router(st: Estado) -> Router {
         .route("/resultados/:id/diff", get(diff_do_resultado))
         .route("/imagens/:nome", get(imagem))
         .route("/painel", get(painel_unico))
+        .route("/budget", get(budget_status).put(budget_configure))
+        .route("/budget/calibrate", post(budget_calibrate))
         .route("/modo", get(modo_estado))
         .route("/modo/panico", post(modo_panico))
         .route("/modo/nao-perturbe", post(modo_nao_perturbe))
@@ -183,7 +186,10 @@ pub fn router(st: Estado) -> Router {
         .route("/documents/:id/download", get(baixar_documento))
         .route("/artifacts", get(artefatos_listar).post(artefato_criar).layer(axum::extract::DefaultBodyLimit::max(orion_core::artifacts::MAX_REQUEST + 1024)))
         .route("/artifacts/:id", get(artefato_detalhe))
-        .route("/artifacts/:id/versions", get(artefato_versoes).post(artefato_nova_versao).layer(axum::extract::DefaultBodyLimit::max(orion_core::artifacts::MAX_REQUEST + 1024)))
+        .route(
+            "/artifacts/:id/versions",
+            get(artefato_versoes).post(artefato_nova_versao).layer(axum::extract::DefaultBodyLimit::max(orion_core::artifacts::MAX_REQUEST + 1024)),
+        )
         .route("/artifacts/:id/download", get(artefato_baixar))
         .route("/mcp-export/clients", get(clientes_listar).post(cliente_emitir))
         .route("/mcp-export/clients/:id/revoke", post(cliente_revogar))

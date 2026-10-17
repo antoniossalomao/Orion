@@ -765,6 +765,8 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 **Testes:** leitura com saídas gravadas (formatos antigos e novos), falha de leitura, projeção com histórico simulado.
 **Critério de aceite:** a projeção bate com o uso real dentro de uma margem registrada; formato inesperado nunca derruba o app.
 
+**Entrega parcial no PR #30 (17/10/2026):** painel nativo/API e reservas persistidas em chamadas estimadas, calibragem manual, reset por provedor, projeção e tetos de 95% semanal / 20% por tarefa (valor de 20% confirmado pelo pedido desta sessão), com janela de 5 h configurável. Não lê `/usage` nem `/status` oficiais e não implementa fila de automelhoria. A unidade de estimativa é explícita na interface.
+
 ---
 
 ## 7. Marco M3: Telegram
@@ -789,6 +791,8 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 **Testes:** API falsa do Telegram (default-deny, ID errado, grupo, replay), E2E de aprovação por botão, fila com PC ocupado, teste real em dois aparelhos.
 **Critério de aceite:** aprovar uma ação do PC pelo celular; ninguém além do seu ID consegue qualquer resposta.
 
+**Entrega parcial no PR #30 (17/10/2026):** aprovações remotas do PC com botões vinculados ao cartão, sessão e argumentos originais; 2FA opt-in antes da emissão de sessão (código de uso único, 5 min, 5 erros); áudio de entrada local/Groq opt-in e resposta em MP3 com edge-tts. PIN próprio, Hello, energia/WoL, fila de nuvem e teste com dois aparelhos ainda pendem.
+
 ---
 
 ## 8. Marco M4: Voz
@@ -796,6 +800,8 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 ### F15: Voz · tamanho **XL**
 **Objetivo:** falar com o Orion: palavra de ativação, palmas, voz ao vivo, mini barra, respostas faladas e legenda.
 **Dependências:** F00.22 (spike de áudio), F03, F04, F05.
+
+**Entrega parcial no PR #30 (17/10/2026):** `orion-voice` + listener do core, captura cpal, mono 16 kHz, VAD por energia, palmas calibradas 150–700 ms só para abrir, teto por hora e corte da captura por pausa/pânico. openWakeWord exige modelo Orion local; Whisper CPU/Vulkan exige modelo ggml; Groq exige opt-in separado; edge-tts pt-BR masculino já integrado. Controle nativo mostra a transcrição. Falta validação no hardware e o restante da F15 (Silero/AEC3, barge-in e legenda/visualização da constelação).
 
 #### F15.A Áudio base (`orion-voice`)
 - [ ] **F15.01** Captura com `cpal` (**microfone padrão do Windows**), reamostragem, **Silero VAD**, **cancelamento de eco `aec3`** (referência: áudio que o Orion toca).

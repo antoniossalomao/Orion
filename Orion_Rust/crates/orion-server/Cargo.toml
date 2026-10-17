@@ -34,3 +34,12 @@ tower-http.workspace = true
 clap.workspace = true
 subtle.workspace = true
 rpassword.workspace = true
+
+reqwest.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+iced.workspace = true
+orion-platform = { path = "../orion-platform" }
+
+[features]
+local-vulkan = ["orion-core/local-vulkan"]

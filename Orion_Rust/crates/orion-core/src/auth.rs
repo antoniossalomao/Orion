@@ -178,11 +178,7 @@ impl AuthService {
         let conn = Connection::open(path)?;
         conn.pragma_update(None, "journal_mode", "WAL")?;
         conn.execute_batch(DDL)?;
-        let tem_default: bool = conn
-            .prepare("PRAGMA table_info(credential)")?
-            .query_map([], |r| r.get::<_, String>(1))?
-            .flatten()
-            .any(|c| c == "is_default");
+        let tem_default: bool = conn.prepare("PRAGMA table_info(credential)")?.query_map([], |r| r.get::<_, String>(1))?.flatten().any(|c| c == "is_default");
         if !tem_default {
             // auth.db criado antes da senha de fábrica
             conn.execute("ALTER TABLE credential ADD COLUMN is_default INTEGER NOT NULL DEFAULT 0", [])?;
@@ -259,7 +255,7 @@ impl AuthService {
     }
 
     /// Token da sessão (vai no cookie). Usuário errado falha igual a senha errada.
-    pub fn login(&self, senha: &str, cliente: &str, usuario: Option<&str>) -> Result<String, AuthError> {
+    pub fn verify_credentials(&self, senha: &str, cliente: &str, usuario: Option<&str>) -> Result<(), AuthError> {
         if !self.has_password() {
             return Err(AuthError::NotConfigured("defina a senha com: orion set-password".into()));
         }
@@ -274,14 +270,21 @@ impl AuthService {
             return Err(AuthError::BadCredentials("usuário ou senha incorretos".into()));
         }
         self.throttle.acertou(cliente);
+        Ok(())
+    }
+
+    pub fn login(&self, senha: &str, cliente: &str, usuario: Option<&str>) -> Result<String, AuthError> {
+        self.verify_credentials(senha, cliente, usuario)?;
+        self.create_session()
+    }
+
+    /// Só chamar depois de conferir todos os fatores (REGRAS.md: login com senha e sessão revogável).
+    pub fn create_session(&self) -> Result<String, AuthError> {
         let token = token_urlsafe(32);
         let t = agora();
         let c = self.conn.lock();
         c.execute("DELETE FROM sessions WHERE expires_at < ?", [t])?;
-        c.execute(
-            "INSERT INTO sessions(token_hash, user, created_at, expires_at) VALUES (?,?,?,?)",
-            params![digest(&token), self.user, t, t + self.ttl],
-        )?;
+        c.execute("INSERT INTO sessions(token_hash, user, created_at, expires_at) VALUES (?,?,?,?)", params![digest(&token), self.user, t, t + self.ttl])?;
         Ok(token)
     }
 
@@ -336,5 +339,22 @@ impl AuthService {
 
     pub fn revoke_all(&self) -> usize {
         self.conn.lock().execute("DELETE FROM sessions", []).unwrap_or(0)
+    }
+}
+
+#[cfg(test)]
+mod factor_tests {
+    use super::*;
+    #[test]
+    fn conferir_senha_nao_cria_sessao() {
+        let dir = tempfile::tempdir().unwrap();
+        let auth = AuthService::open_with(&dir.path().join("auth.db"), "admin", 3600.0, 10).unwrap();
+        auth.set_password("senha-de-teste-comprida").unwrap();
+        auth.verify_credentials("senha-de-teste-comprida", "pc", None).unwrap();
+        assert_eq!(auth.active_sessions(), 0);
+        let token = auth.create_session().unwrap();
+        assert!(auth.validate(Some(&token)).is_some());
+        auth.logout(Some(&token));
+        assert!(auth.validate(Some(&token)).is_none());
     }
 }

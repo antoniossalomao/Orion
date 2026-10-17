@@ -104,6 +104,9 @@ pub struct TelegramChannel {
     /// RotinaStore (REGRAS.md: automação sua vale pelo arquivo concedido).
     pub rotinas: Mutex<Option<Arc<RotinaStore>>>,
     pub executor_rotinas: Mutex<Option<Arc<Executor>>>,
+    pub speaker: Mutex<Option<Arc<dyn crate::voice::Speaker>>>,
+    remote_cards: Mutex<HashMap<String, (i64, i64)>>,
+    approval_delivery: tokio::sync::Mutex<()>,
     armados: Mutex<HashMap<i64, Instant>>,
     offset: Mutex<i64>,
     recusados: Mutex<HashSet<i64>>,
@@ -111,12 +114,21 @@ pub struct TelegramChannel {
 
 impl TelegramChannel {
     #[allow(clippy::too_many_arguments)]
-    pub fn new(token: &str, allowed: &[i64], agent: Arc<Agent>, memory: Arc<Store>, approvals: Arc<ApprovalStore>, ops: Arc<Operations>, transcriber: Option<Arc<Transcriber>>, capture: Option<Arc<Capturer>>) -> Result<Self, String> {
+    pub fn new(
+        token: &str,
+        allowed: &[i64],
+        agent: Arc<Agent>,
+        memory: Arc<Store>,
+        approvals: Arc<ApprovalStore>,
+        ops: Arc<Operations>,
+        transcriber: Option<Arc<Transcriber>>,
+        capture: Option<Arc<Capturer>>,
+    ) -> Result<Self, String> {
         if token.is_empty() {
             return Err("token do bot vazio".into());
         }
-        if allowed.is_empty() {
-            return Err("lista de usuários vazia: o canal não sobe aberto (default-deny)".into());
+        if allowed.is_empty() || allowed.iter().any(|id| *id <= 0) {
+            return Err("use apenas IDs positivos de usuários em conversa privada (default-deny)".into());
         }
         Ok(TelegramChannel {
             token: token.into(),
@@ -142,6 +154,9 @@ impl TelegramChannel {
             vida: Mutex::new(None),
             rotinas: Mutex::new(None),
             executor_rotinas: Mutex::new(None),
+            speaker: Mutex::new(None),
+            remote_cards: Mutex::new(HashMap::new()),
+            approval_delivery: tokio::sync::Mutex::new(()),
             armados: Mutex::new(HashMap::new()),
             offset: Mutex::new(0),
             recusados: Mutex::new(HashSet::new()),
@@ -167,13 +182,77 @@ impl TelegramChannel {
         }
     }
 
+    /// REGRAS.md: login com senha e sessão revogável. Código entregue só ao dono configurado.
+    pub async fn send_login_code(&self, code: &str) -> Result<(), TelegramError> {
+        self.enviar(self.home, &format!("Código de entrada do Orion: {code}\nExpira em 5 minutos. Se não foi você, ignore."), None).await
+    }
+
+    async fn send_approval(&self, chat_id: i64, id: &str) -> R<()> {
+        let _guard = self.approval_delivery.lock().await;
+        if self.remote_cards.lock().contains_key(id) {
+            return Ok(());
+        }
+        let Some(a) = self.approvals.get(id) else { return Ok(()) };
+        let cartao = json!({"id": a.id, "tool": a.tool, "reason": a.reason, "args": orion_policy::redact(&Value::Object(a.args.clone()), 2000), "args_truncated": !revisavel(&a.args)});
+        let (text, review) = cartao_de(&cartao);
+        let result = self.api("sendMessage", json!({"chat_id": chat_id, "text": text, "reply_markup": {"inline_keyboard": teclado(id, review)}})).await?;
+        if let Some(mid) = result["message_id"].as_i64() {
+            self.remote_cards.lock().insert(id.into(), (chat_id, mid));
+        }
+        Ok(())
+    }
+
+    /// Aprovações do PC chegam ao dono e continuam vinculadas à sessão e argumentos originais.
+    pub async fn deliver_approvals(&self) -> R<()> {
+        let pending = self.approvals.pending(None, false);
+        self.remote_cards.lock().retain(|id, _| pending.iter().any(|a| a.id == *id));
+        for a in pending {
+            if !self.remote_cards.lock().contains_key(&a.id) {
+                self.send_approval(self.home, &a.id).await?;
+            }
+        }
+        Ok(())
+    }
+
+    async fn send_audio_reply(&self, chat_id: i64, text: &str) -> R<()> {
+        let speaker = self.speaker.lock().clone();
+        let Some(speaker) = speaker else { return Ok(()) };
+        if self.modos.lock().as_ref().is_some_and(|m| m.panico()) {
+            return Ok(());
+        }
+        let bytes = speaker.synthesize(text).await.map_err(|_| terr("síntese indisponível", None))?;
+        let mut measure = orion_ai::saidas::medir("telegram", "audio", "", bytes.len(), "audio");
+        let part = reqwest::multipart::Part::bytes(bytes).file_name("orion.mp3").mime_str("audio/mpeg").map_err(|_| terr("tipo inválido", None))?;
+        let response = self
+            .client
+            .post(format!("{}/bot{}/sendAudio", self.base, self.token))
+            .multipart(reqwest::multipart::Form::new().text("chat_id", chat_id.to_string()).part("audio", part))
+            .timeout(Duration::from_secs(60))
+            .send()
+            .await
+            .map_err(|_| terr("envio de áudio falhou", None))?;
+        measure.ok = response.status().is_success();
+        if !measure.ok {
+            return Err(terr("Telegram recusou o áudio", Some(response.status().as_u16())));
+        }
+        Ok(())
+    }
+
     // ── API do Telegram ───────────────────────────────────────────────────
     async fn api(&self, metodo: &str, payload: Value) -> R<Value> {
         let url = format!("{}/bot{}/{metodo}", self.base, self.token);
         // o que leva texto seu para fora entra no registro de saída (REGRAS.md: toda saída de dado
         // fica registrada, sem conteúdo); a escuta e o download não levam nada daqui
-        let mut medida = METODOS_DE_SAIDA.iter().any(|p| metodo.starts_with(p)).then(|| orion_ai::saidas::medir("telegram", "canal", "", payload.to_string().len(), ""));
-        let resp = self.client.post(&url).json(&payload).timeout(Duration::from_secs(self.poll_timeout + 15)).send().await.map_err(|e| terr(format!("{metodo}: {}", tipo_do_erro(&e)), None))?; // sem a URL
+        let mut medida =
+            METODOS_DE_SAIDA.iter().any(|p| metodo.starts_with(p)).then(|| orion_ai::saidas::medir("telegram", "canal", "", payload.to_string().len(), ""));
+        let resp = self
+            .client
+            .post(&url)
+            .json(&payload)
+            .timeout(Duration::from_secs(self.poll_timeout + 15))
+            .send()
+            .await
+            .map_err(|e| terr(format!("{metodo}: {}", tipo_do_erro(&e)), None))?; // sem a URL
         let status = resp.status().as_u16();
         let bytes = resp.bytes().await.map_err(|e| terr(format!("{metodo}: {}", tipo_do_erro(&e)), None))?;
         if let Some(m) = medida.as_mut() {
@@ -182,7 +261,7 @@ impl TelegramChannel {
         }
         let corpo: Value = serde_json::from_slice(&bytes).ok().filter(Value::is_object).unwrap_or(json!({}));
         if status >= 400 || corpo["ok"] != json!(true) {
-            return Err(terr(format!("{metodo}: HTTP {status} {}", corpo["description"].as_str().unwrap_or("").chars().take(120).collect::<String>()), Some(status)));
+            return Err(terr(format!("{metodo}: HTTP {status}"), Some(status)));
         }
         Ok(corpo["result"].clone())
     }
@@ -198,15 +277,29 @@ impl TelegramChannel {
         if info["file_size"].as_u64().unwrap_or(0) as usize > limite {
             return Err(terr("arquivo grande demais", None));
         }
-        let resp = self.client.get(format!("{}/file/bot{}/{caminho}", self.base, self.token)).timeout(Duration::from_secs(self.poll_timeout + 15)).send().await.map_err(|e| terr(format!("download: {}", tipo_do_erro(&e)), None))?;
+        let resp = self
+            .client
+            .get(format!("{}/file/bot{}/{caminho}", self.base, self.token))
+            .timeout(Duration::from_secs(self.poll_timeout + 15))
+            .send()
+            .await
+            .map_err(|e| terr(format!("download: {}", tipo_do_erro(&e)), None))?;
         if resp.status().as_u16() >= 400 {
             return Err(terr(format!("download: HTTP {}", resp.status().as_u16()), Some(resp.status().as_u16())));
         }
-        let b = resp.bytes().await.map_err(|e| terr(format!("download: {}", tipo_do_erro(&e)), None))?;
-        if b.len() > limite {
+        if resp.content_length().is_some_and(|n| n > limite as u64) {
             return Err(terr("arquivo grande demais", None));
         }
-        Ok((b.to_vec(), caminho))
+        let mut stream = resp.bytes_stream();
+        let mut data = Vec::new();
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk.map_err(|_| terr("download interrompido", None))?;
+            if data.len() + chunk.len() > limite {
+                return Err(terr("arquivo grande demais", None));
+            }
+            data.extend_from_slice(&chunk);
+        }
+        Ok((data, caminho))
     }
 
     /// Envia em pedaços de até 4000 caracteres; o teclado vai no último.
@@ -247,6 +340,9 @@ impl TelegramChannel {
         let avisos = tokio::spawn(async move {
             loop {
                 tokio::time::sleep(me.notify_every).await;
+                if let Err(e) = me.deliver_approvals().await {
+                    tracing::warn!("telegram: cartões não enviados: {e}");
+                }
                 if let Err(e) = me.deliver_notifications().await {
                     tracing::warn!("telegram: entrega de avisos falhou: {e}");
                 }
@@ -319,7 +415,7 @@ impl TelegramChannel {
     }
 
     fn permitido(&self, user_id: Option<i64>, chat: &Value) -> bool {
-        if chat["type"] == "private" && user_id.is_some_and(|u| self.allowed.contains(&u)) {
+        if chat["type"] == "private" && user_id.is_some_and(|u| self.allowed.contains(&u) && chat["id"].as_i64() == Some(u)) {
             return true;
         }
         if let Some(u) = user_id {
@@ -420,7 +516,9 @@ impl TelegramChannel {
             "/rotina" => self.on_rotina(chat_id, &arg()).await,
             "/briefing" => {
                 let (ops, ag) = (self.ops.clone(), self.agenda.lock().clone());
-                let r = tokio::task::spawn_blocking(move || crate::briefing::build_briefing(&ops, crate::util::agora(), "Antônio", ag.as_deref())).await.unwrap_or_default();
+                let r = tokio::task::spawn_blocking(move || crate::briefing::build_briefing(&ops, crate::util::agora(), "Antônio", ag.as_deref()))
+                    .await
+                    .unwrap_or_default();
                 self.dizer(chat_id, &r).await;
             }
             "/nova" => {
@@ -452,7 +550,11 @@ impl TelegramChannel {
         };
         if nome.is_empty() {
             let linhas: Vec<String> = rot.listar().iter().map(|c| format!("• {} — {}", c.nome, c.estado.replace('_', " "))).collect();
-            self.dizer(chat_id, &if linhas.is_empty() { "Nenhuma rotina em <dados>/rotinas.".to_string() } else { format!("Suas rotinas:\n{}", linhas.join("\n")) }).await;
+            self.dizer(
+                chat_id,
+                &if linhas.is_empty() { "Nenhuma rotina em <dados>/rotinas.".to_string() } else { format!("Suas rotinas:\n{}", linhas.join("\n")) },
+            )
+            .await;
             return;
         }
         let r = ex.executar(nome, "telegram").await;
@@ -462,12 +564,11 @@ impl TelegramChannel {
             "recusada" => "⛔",
             _ => "⚠️",
         };
-        let resumo = format!("{icone} Rotina {nome}: {}{}", r.status.replace('_', " "), if r.motivo.is_empty() { String::new() } else { format!(" — {}", r.motivo) });
+        let resumo =
+            format!("{icone} Rotina {nome}: {}{}", r.status.replace('_', " "), if r.motivo.is_empty() { String::new() } else { format!(" — {}", r.motivo) });
         self.dizer(chat_id, &resumo).await;
         if let Some(a) = r.aprovacao_id.as_ref().and_then(|id| self.approvals.get(id)) {
-            let cartao = json!({"id": a.id, "tool": a.tool, "reason": a.reason, "args": orion_policy::redact(&Value::Object(a.args.clone()), 2000)});
-            let (t, rev) = cartao_de(&cartao);
-            let _ = self.enviar(chat_id, &t, Some(teclado(&a.id, rev))).await;
+            let _ = self.send_approval(chat_id, &a.id).await;
         }
     }
 
@@ -478,7 +579,14 @@ impl TelegramChannel {
             if lista.is_empty() {
                 return "Nada na fila. Use /ler <link>.".into();
             }
-            return format!("Na fila para ler:\n{}", lista.iter().map(|i| format!("• {}", i["title"].as_str().filter(|t| !t.is_empty()).or(i["url"].as_str()).unwrap_or(""))).collect::<Vec<_>>().join("\n"));
+            return format!(
+                "Na fila para ler:\n{}",
+                lista
+                    .iter()
+                    .map(|i| format!("• {}", i["title"].as_str().filter(|t| !t.is_empty()).or(i["url"].as_str()).unwrap_or("")))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            );
         }
         let item = match ld.adicionar(link) {
             Ok(i) => i,
@@ -503,7 +611,14 @@ impl TelegramChannel {
             return;
         }
         self.armados.lock().insert(chat_id, Instant::now() + Duration::from_secs(CAPTURA_ESPERA_S));
-        self.dizer(chat_id, &format!("Pode mandar: texto, link, foto ou voz. A próxima mensagem vira nota no vault (vale por {} minutos; qualquer comando cancela).", CAPTURA_ESPERA_S / 60)).await;
+        self.dizer(
+            chat_id,
+            &format!(
+                "Pode mandar: texto, link, foto ou voz. A próxima mensagem vira nota no vault (vale por {} minutos; qualquer comando cancela).",
+                CAPTURA_ESPERA_S / 60
+            ),
+        )
+        .await;
     }
 
     async fn capturar_mensagem(&self, chat_id: i64, m: &Value, texto: &str) {
@@ -529,7 +644,13 @@ impl TelegramChannel {
     }
 
     async fn guardar_texto(&self, chat_id: i64, texto: &str, origem: &str) {
-        let origem = if !origem.is_empty() { origem } else if LINK.is_match(texto) { "link" } else { "texto" };
+        let origem = if !origem.is_empty() {
+            origem
+        } else if LINK.is_match(texto) {
+            "link"
+        } else {
+            "texto"
+        };
         let Some(cap) = self.capture.clone() else { return };
         let (t, o) = (texto.chars().take(LIMITE_ENTRADA * 2).collect::<String>(), origem.to_string());
         let r = tokio::task::spawn_blocking(move || cap.save_text(&t, &o, "telegram", crate::capture::MAX_TEXTO).map(|p| cap.relativo(&p))).await;
@@ -578,7 +699,12 @@ impl TelegramChannel {
         let Some(texto) = self.transcrever_voz(chat_id, m).await else { return };
         // mostra o que foi entendido: quem falou confere (e aprovação continua só por botão)
         self.dizer(chat_id, &format!("🎙️ Entendi: {texto}")).await;
-        self.consumir(chat_id, self.agent.run(TurnRequest { channel: CANAL.into(), text: texto, ..Default::default() })).await;
+        let resposta = self.consumir(chat_id, self.agent.run(TurnRequest { channel: CANAL.into(), text: texto, ..Default::default() })).await;
+        if !resposta.is_empty() {
+            if let Err(e) = self.send_audio_reply(chat_id, &resposta).await {
+                tracing::warn!("telegram: {e}");
+            }
+        }
     }
 
     /// O maior tamanho da foto que couber no limite; falha avisa e devolve `None`.
@@ -614,7 +740,16 @@ impl TelegramChannel {
         let url = format!("data:{mime};base64,{}", base64::engine::general_purpose::STANDARD.encode(&imagem));
         let legenda = m["caption"].as_str().unwrap_or("").trim();
         let legenda = if legenda.is_empty() { "O que você vê nesta imagem?" } else { legenda };
-        self.consumir(chat_id, self.agent.run(TurnRequest { channel: CANAL.into(), text: legenda.chars().take(LIMITE_ENTRADA).collect(), images: vec![url], ..Default::default() })).await;
+        self.consumir(
+            chat_id,
+            self.agent.run(TurnRequest {
+                channel: CANAL.into(),
+                text: legenda.chars().take(LIMITE_ENTRADA).collect(),
+                images: vec![url],
+                ..Default::default()
+            }),
+        )
+        .await;
     }
 
     /// Junta o turno do agente e responde: texto, depois um cartão por aprovação pedida.
@@ -633,8 +768,7 @@ impl TelegramChannel {
             self.dizer(chat_id, &resposta).await;
         }
         for c in &cartoes {
-            let (t, rev) = cartao_de(c);
-            let _ = self.enviar(chat_id, &t, Some(teclado(c["id"].as_str().unwrap_or(""), rev))).await;
+            let _ = self.send_approval(chat_id, c["id"].as_str().unwrap_or("")).await;
         }
         for e in &erros {
             self.dizer(chat_id, &format!("⚠️ {e}")).await;
@@ -669,13 +803,17 @@ impl TelegramChannel {
             return;
         };
         let (aprovacao_id, resposta) = (c[1].to_string(), &c[2] == "y");
+        // REGRAS.md: confirmação fora de banda (canal autenticado). Vincula o botão ao cartão enviado.
+        if self.remote_cards.lock().get(&aprovacao_id).copied() != msg["message_id"].as_i64().map(|mid| (chat_id, mid)) {
+            return;
+        }
         let a = self.approvals.get(&aprovacao_id);
         let sessao = a.as_ref().and_then(|a| self.memory.get_session(&a.session_id).ok().flatten());
-        let (Some(a), Some(sessao)) = (a, sessao.filter(|s| s.channel == CANAL)) else {
+        let (Some(a), Some(sessao)) = (a, sessao) else {
             self.fechar_botoes(cb, chat_id, msg, "Aprovação inexistente ou de outro canal.").await;
             return;
         };
-        let _ = sessao;
+        let original_channel = sessao.channel.clone();
         if resposta && !revisavel(&a.args) {
             // o cartão nem oferece o botão; confere de novo aqui
             self.fechar_botoes(cb, chat_id, msg, "Argumentos grandes demais: só dá para negar.").await;
@@ -687,7 +825,7 @@ impl TelegramChannel {
         }
         self.fechar_botoes(cb, chat_id, msg, if resposta { "Aprovado ✅" } else { "Negado ❌" }).await;
         if resposta {
-            self.consumir(chat_id, self.agent.resume(CANAL, &aprovacao_id)).await;
+            self.consumir(chat_id, self.agent.resume(&original_channel, &aprovacao_id)).await;
         } else {
             self.dizer(chat_id, &format!("Ação negada: {}. Não foi executada.", a.tool)).await;
         }
@@ -697,7 +835,9 @@ impl TelegramChannel {
     async fn fechar_botoes(&self, cb: &Value, chat_id: i64, msg: &Value, texto: &str) {
         let _ = self.api("answerCallbackQuery", json!({"callback_query_id": cb["id"], "text": texto})).await;
         if !msg["message_id"].is_null() {
-            if let Err(e) = self.api("editMessageReplyMarkup", json!({"chat_id": chat_id, "message_id": msg["message_id"], "reply_markup": {"inline_keyboard": []}})).await {
+            if let Err(e) =
+                self.api("editMessageReplyMarkup", json!({"chat_id": chat_id, "message_id": msg["message_id"], "reply_markup": {"inline_keyboard": []}})).await
+            {
                 tracing::info!("telegram: botões não removidos: {e}"); // mensagem antiga demais: o clique já valeu
             }
         }
@@ -732,7 +872,7 @@ fn teclado(aprovacao_id: &str, aprovar: bool) -> Value {
 fn revisavel(args: &serde_json::Map<String, Value>) -> bool {
     let v = Value::Object(args.clone());
     let mostrados = orion_policy::redact(&v, 2000);
-    mostrados == orion_policy::redact(&v, 1_000_000_000) && orion_policy::pyjson::dumps(&mostrados, false).chars().count() <= MAX_ARGS_REVISAVEL
+    mostrados == orion_policy::redact(&v, 1_000_000_000) && serde_json::to_string_pretty(&mostrados).is_ok_and(|s| s.chars().count() <= MAX_ARGS_REVISAVEL)
 }
 
 /// Texto do cartão e se dá para aprovar por aqui. Argumento cortado (ou grande demais para caber
@@ -743,8 +883,19 @@ fn cartao_de(c: &Value) -> (String, bool) {
     if !revisavel {
         args = format!("{}…", args.chars().take(MAX_ARGS_REVISAVEL).collect::<String>());
     }
-    let rodape = if revisavel { "Vale por 10 minutos e uma única execução." } else { "⛔ Os argumentos são grandes demais para revisar aqui, então só dá para negar. Se for legítimo, peça de novo em partes menores." };
-    (format!("⚠️ Aprovar esta ação?\n\nFerramenta: {}\nMotivo: {}\nArgumentos (segredos mascarados):\n{args}\n\n{rodape}", c["tool"].as_str().unwrap_or("None"), c["reason"].as_str().unwrap_or("None")), revisavel)
+    let rodape = if revisavel {
+        "Vale por 10 minutos e uma única execução."
+    } else {
+        "⛔ Os argumentos são grandes demais para revisar aqui, então só dá para negar. Se for legítimo, peça de novo em partes menores."
+    };
+    (
+        format!(
+            "⚠️ Aprovar esta ação?\n\nFerramenta: {}\nMotivo: {}\nArgumentos (segredos mascarados):\n{args}\n\n{rodape}",
+            c["tool"].as_str().unwrap_or("None"),
+            c["reason"].as_str().unwrap_or("None")
+        ),
+        revisavel,
+    )
 }
 
 /// Quebra em pedaços de até `limite`, preferindo fim de linha.
@@ -765,4 +916,66 @@ pub fn dividir(texto: &str, limite: usize) -> Vec<String> {
         pedacos.push(resto.into_iter().collect());
     }
     pedacos
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn channel() -> TelegramChannel {
+        let memory = Arc::new(Store::open(":memory:").unwrap());
+        let policy = Arc::new(orion_policy::PolicyEngine::new(orion_policy::PathGuard::default()));
+        let gateway = Arc::new(orion_ai::ChatGateway::new(vec![orion_ai::Endpoint::new("fake", "http://127.0.0.1:1", "fake")]).unwrap());
+        let tools = crate::tools::registry::ToolRegistry::new(vec![]).unwrap();
+        let agent = Arc::new(Agent::new(gateway, tools, policy.clone(), memory.clone(), crate::agent::AgentConfig::default()));
+        TelegramChannel::new("bot-falso", &[42], agent, memory.clone(), policy.approvals.clone(), Arc::new(Operations::new(memory)), None, None).unwrap()
+    }
+    #[test]
+    fn so_dono_em_conversa_privada_e_cartao_completo() {
+        let t = channel();
+        assert!(t.permitido(Some(42), &json!({"type":"private","id":42})));
+        assert!(!t.permitido(Some(42), &json!({"type":"group","id":42})));
+        assert!(!t.permitido(Some(7), &json!({"type":"private","id":7})));
+        assert!(!t.permitido(Some(42), &json!({"type":"private","id":7})));
+        let (_, allow) = cartao_de(&json!({"args":{"cmd":"x"},"args_truncated":true}));
+        assert!(!allow);
+    }
+    #[tokio::test]
+    async fn botao_remoto_exige_cartao_enviado_e_nao_repete() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            loop {
+                let Ok((mut socket, _)) = listener.accept().await else { break };
+                tokio::spawn(async move {
+                    let mut buf = vec![0u8; 16384];
+                    let _ = socket.read(&mut buf).await;
+                    let body = r#"{"ok":true,"result":{"message_id":7}}"#;
+                    let reply =
+                        format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len());
+                    let _ = socket.write_all(reply.as_bytes()).await;
+                });
+            }
+        });
+        let mut t = channel();
+        t.base = format!("http://{addr}");
+        t.client = reqwest::Client::builder().no_proxy().build().unwrap();
+        let t = Arc::new(t);
+        let session = t.memory.active_session("desktop").unwrap();
+        let a = t.approvals.request(&session.id, "executar_comando", &serde_json::Map::new(), "teste", "binding");
+        let mut cb = json!({"id":"cb","from":{"id":42},"data":format!("ap:{}:n",a.id),"message":{"message_id":7,"chat":{"id":42,"type":"private"}}});
+        t.on_callback(&cb).await;
+        assert_eq!(t.approvals.get(&a.id).unwrap().status, orion_policy::Status::Pending);
+        t.deliver_approvals().await.unwrap();
+        cb["message"]["message_id"] = json!(8);
+        t.on_callback(&cb).await;
+        assert_eq!(t.approvals.get(&a.id).unwrap().status, orion_policy::Status::Pending);
+        cb["message"]["message_id"] = json!(7);
+        t.on_callback(&cb).await;
+        assert_eq!(t.approvals.get(&a.id).unwrap().status, orion_policy::Status::Denied);
+        cb["data"] = json!(format!("ap:{}:y", a.id));
+        t.on_callback(&cb).await;
+        assert_eq!(t.approvals.get(&a.id).unwrap().status, orion_policy::Status::Denied);
+        server.abort();
+    }
 }

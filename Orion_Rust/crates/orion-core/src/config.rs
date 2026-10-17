@@ -14,8 +14,7 @@ const PUBLICOS: [&str; 3] = ["0.0.0.0", "::", ""];
 pub const LOCAIS: [&str; 3] = ["127.0.0.1", "localhost", "::1"];
 
 static HHMM: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^([01]\d|2[0-3]):[0-5]\d$").unwrap());
-static DND: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d$").unwrap());
+static DND: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d$").unwrap());
 static CLAP: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^(abrir|abrir_e_ouvir|rotina:[a-z0-9_-]{1,32})$").unwrap());
 
 #[derive(Debug, thiserror::Error)]
@@ -109,6 +108,10 @@ pub struct Settings {
     pub transcribe_url: String,
     pub transcribe_model: String,
     pub voice_enabled: bool,
+    pub local_stt_model: Option<PathBuf>,
+    pub local_stt_gpu: bool,
+    pub transcribe_groq_fallback: bool,
+    pub telegram_2fa: bool,
     pub voice_speak: bool,
     pub voice_tts_voice: String,
     pub wake_enabled: bool,
@@ -283,11 +286,9 @@ impl Settings {
         };
         let repos = match e.raw("repos").map(str::trim) {
             None | Some("") => vec![],
-            Some(t) if t.starts_with('[') => serde_json::from_str::<Vec<String>>(t)
-                .map_err(|e| ConfigError(format!("ORION_REPOS: {e}")))?
-                .into_iter()
-                .map(PathBuf::from)
-                .collect(),
+            Some(t) if t.starts_with('[') => {
+                serde_json::from_str::<Vec<String>>(t).map_err(|e| ConfigError(format!("ORION_REPOS: {e}")))?.into_iter().map(PathBuf::from).collect()
+            }
             Some(t) => t.replace('\n', ";").split(';').map(str::trim).filter(|x| !x.is_empty()).map(PathBuf::from).collect(),
         };
         let capture_folder = {
@@ -403,6 +404,10 @@ impl Settings {
             transcribe_url: e.s("transcribe_url", "https://api.groq.com/openai/v1"),
             transcribe_model: e.s("transcribe_model", "whisper-large-v3-turbo"),
             voice_enabled: e.b("voice_enabled", false)?,
+            local_stt_model: e.path_opt("local_stt_model"),
+            local_stt_gpu: e.b("local_stt_gpu", false)?,
+            transcribe_groq_fallback: e.b("transcribe_groq_fallback", false)?,
+            telegram_2fa: e.b("telegram_2fa", false)?,
             voice_speak: e.b("voice_speak", true)?,
             voice_tts_voice: e.s("voice_tts_voice", "pt-BR-AntonioNeural"),
             wake_enabled: e.b("wake_enabled", false)?,
@@ -440,10 +445,8 @@ impl Settings {
             screen_memory: e.b("screen_memory", false)?,
             screen_interval_s: e.num("screen_interval_s", 300u64, Some(60), Some(3600))?,
             screen_retention_days: e.num("screen_retention_days", 7i64, Some(1), Some(90))?,
-            screen_exclude: e.s(
-                "screen_exclude",
-                "senha;password;passwd;banco;bank;bitwarden;1password;keepass;lastpass;nubank;login;token;pix;cartão;cartao;cpf",
-            ),
+            screen_exclude: e
+                .s("screen_exclude", "senha;password;passwd;banco;bank;bitwarden;1password;keepass;lastpass;nubank;login;token;pix;cartão;cartao;cpf"),
             screen_allow_unknown_title: e.b("screen_allow_unknown_title", false)?,
             screen_ocr_langs: e.s("screen_ocr_langs", "por+eng"),
             sleep_at: e.s("sleep_at", ""),

@@ -42,7 +42,7 @@ Toda chamada a um destino de fora grava uma linha em `external_calls` (sem o con
 | Destino | Para quê | Condição |
 |---|---|---|
 | Provedores de modelo (Gemini, Groq, Cerebras, OpenRouter, Mistral, GitHub Models, NVIDIA, Z.ai ou endpoint com `url`) | Chat | Ordem em `ORION_PROVEDORES`; cota gratuita; chave com `orion chave <id>` |
-| Groq (Whisper) | Transcrição de voz e de mídia | `ORION_TRANSCRIBE_API_KEY` |
+| Groq (Whisper) | Transcrição de voz e de mídia | Python: `ORION_TRANSCRIBE_API_KEY`; Rust: exige também `ORION_TRANSCRIBE_GROQ_FALLBACK=true` |
 | Gemini | Embeddings (`gemini-embedding-001`), visão, voz ao vivo, pesquisa com Google Search | Chave do Google AI Studio; voz ao vivo é opt-in |
 | Brave Search | `pesquisar_internet` | Opt-in (`ORION_WEB_TOOLS`) |
 | Microsoft (edge-tts) | Fala das respostas | Corte com `ORION_VOICE_SPEAK=false`; só o texto da resposta sai |
@@ -95,6 +95,14 @@ Núcleo e UI em Rust. Python só para browser-use e crawl4ai, em processo separa
 | `orion-voice` | Captura (cpal), STT (whisper-rs), VAD, palavra de ativação, palmas, TTS |
 | `orion-platform` | Trait comum; implementações `win/` (primeiro marco) e `mac/` (fase 9) |
 | `orion-sidecar` | Ponte JSON (stdin e stdout) para o processo Python residual |
+
+**Implementado em `Orion_Rust/` (PR #30, 17/10/2026):** `orion-server::desktop` oferece um controle iced com login/2FA, mini barra, orçamento e execução das rotinas concedidas. `orion-platform` mantém bandeja e atalhos no laço de eventos da UI Windows. Fechar a janela oculta o controle; Sair encerra servidor e escuta. O autostart Windows passa a iniciar `orion desktop`, somente após ativação explícita.
+
+`orion-voice` fornece captura cpal, reamostragem para PCM mono 16 kHz, VAD por energia, teto por hora, openWakeWord (`oww-rs`, modelo ONNX treinado para Orion) e Whisper (`whisper-rs`/whisper.cpp). O adaptador `orion-core::native_audio` liga os backends ao listener e ao mesmo transcritor usado pelo canal Telegram; áudio comprimido é convertido localmente pelo ffmpeg em arquivos temporários removidos ao concluir. Pausa/pânico fecham a captura; durante transcrição/TTS o microfone é fechado. Os primeiros ~2 s calibram o ruído; palmas só abrem a interface. CPU é o padrão; Vulkan exige `cargo build -p orion-server --features local-vulkan` e SDK no build. Modelos são caminhos configurados, nunca baixados automaticamente.
+
+`orion-ai::budget` persiste reservas de chamadas no SQLite antes do envio, inclusive tentativas falhas. O gateway e as CLIs oficiais consultam os limites configurados (`ORION_WEEKLY_BUDGETS` ou painel): 95% por semana, 20% por tarefa, janela de 5 h opcional. Todos os modelos de um mesmo provedor compartilham a cota. A UI identifica a origem como estimativa local em chamadas; `GET/PUT /budget` e `POST /budget/calibrate` exigem login. Cotas não configuradas aparecem como pendentes de configuração, sem inventar saldo oficial.
+
+O código do 2FA é guardado só em hash, em memória, vinculado ao desafio e cliente, expira em 5 min e é descartado após cinco erros ou um acerto. `POST /auth/login` com `ORION_TELEGRAM_2FA=true` só envia o desafio ao primeiro ID permitido; `POST /auth/2fa` cria a sessão após validar o código. Falha de entrega não cria sessão. A janela nativa consome esse fluxo. O bot continua default-deny e só decide pelo botão do cartão que o próprio Orion enviou; o retorno usa o canal original do pedido. Áudio de resposta usa TTS e `sendAudio`, com registro de saída sem conteúdo, apenas se `ORION_TELEGRAM_VOICE_REPLY=true`.
 
 Equivalências de plataforma (Windows | macOS): início automático (registro ou Task Scheduler | LaunchAgent); bandeja (`tray-icon`); teclas globais (`global-hotkey`); área de transferência (`arboard`); notificação (toast | `notify-rust`); cofre (Credential Manager | Keychain); captura de tela (`windows-capture` ou `xcap` | `xcap` ou ScreenCaptureKit); OCR (`Windows.Media.Ocr` | Vision); microfone (`cpal`). Permissões do macOS (Acessibilidade, Gravação de Tela, Microfone) exigem onboarding próprio.
 

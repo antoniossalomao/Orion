@@ -54,3 +54,9 @@ pbkdf2.workspace = true
 hmac.workspace = true
 subtle.workspace = true
 rusqlite.workspace = true
+
+orion-voice.workspace = true
+hound = "3.5"
+
+[features]
+local-vulkan = ["orion-voice/vulkan"]

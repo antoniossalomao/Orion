@@ -16,9 +16,7 @@ use std::sync::{Arc, LazyLock};
 use std::time::{Duration, Instant};
 use wait_timeout::ChildExt;
 
-static COTA: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)quota|rate.?limit|usage limit|too many requests|limit reached|\b429\b|exceeded").unwrap()
-});
+static COTA: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)quota|rate.?limit|usage limit|too many requests|limit reached|\b429\b|exceeded").unwrap());
 
 #[derive(Debug, Clone)]
 pub struct CliAgent {
@@ -40,11 +38,7 @@ pub fn which(nome: &str) -> Option<PathBuf> {
         return p.is_file().then_some(p);
     }
     let exts: Vec<String> = if cfg!(windows) {
-        std::env::var("PATHEXT")
-            .unwrap_or(".COM;.EXE;.BAT;.CMD".into())
-            .split(';')
-            .map(|s| s.to_lowercase())
-            .collect()
+        std::env::var("PATHEXT").unwrap_or(".COM;.EXE;.BAT;.CMD".into()).split(';').map(|s| s.to_lowercase()).collect()
     } else {
         vec![String::new()]
     };
@@ -64,6 +58,7 @@ pub struct Delegator {
     agents: Vec<CliAgent>,
     timeout: Duration,
     max_output: usize,
+    pub weekly_budget: parking_lot::Mutex<Option<Arc<crate::budget::Budget>>>,
 }
 
 struct Saida {
@@ -74,14 +69,11 @@ struct Saida {
 
 impl Delegator {
     pub fn new(store: Arc<Store>, agents: Vec<CliAgent>, timeout_s: f64, max_output: usize) -> Self {
-        Delegator { store, agents, timeout: Duration::from_secs_f64(timeout_s), max_output }
+        Delegator { store, agents, timeout: Duration::from_secs_f64(timeout_s), max_output, weekly_budget: parking_lot::Mutex::new(None) }
     }
 
     fn chave(&self, nome: &str) -> String {
-        let dia = chrono::DateTime::from_timestamp(self.store.now() as i64, 0)
-            .unwrap_or_default()
-            .with_timezone(&chrono::Local)
-            .format("%Y%m%d");
+        let dia = chrono::DateTime::from_timestamp(self.store.now() as i64, 0).unwrap_or_default().with_timezone(&chrono::Local).format("%Y%m%d");
         format!("delegar:{nome}:{dia}")
     }
 
@@ -173,6 +165,12 @@ impl Delegator {
             if self.store.counter_get(&chave) >= ag.daily_limit {
                 tentativas.push(json!({"agente": nome, "motivo": "limite diário atingido"}));
                 continue;
+            }
+            if let Some(budget) = self.weekly_budget.lock().clone() {
+                if let Err(e) = budget.reserve(&format!("cli:{nome}"), &orion_store::uuid_hex()) {
+                    tentativas.push(json!({"agente": nome, "motivo": e.to_string()}));
+                    continue;
+                }
             }
             let _ = self.store.counter_incr(&chave, 1);
             // "Tarefa:" evita que um prompt iniciado por "-" vire opção da CLI.

@@ -10,6 +10,7 @@
 //! - modo pânico e não perturbe suspendem a escuta na hora, e há pausa própria (`POST /voz/escuta`).
 
 use crate::agent::{Agent, TurnRequest};
+use crate::modos::Modos;
 use crate::palmas::{acao_das_palmas, ClapDetector, PICO_MINIMO};
 use crate::util::{env_limpo, rodar, which};
 use crate::voice::{falavel, Speaker, VozStats};
@@ -86,13 +87,7 @@ pub fn pcm_para_wav(pcm: &[u8], rate: u32) -> Vec<u8> {
 }
 
 pub fn normalizar(texto: &str) -> String {
-    texto
-        .nfd()
-        .filter(|c| !unicode_normalization::char::is_combining_mark(*c))
-        .collect::<String>()
-        .to_lowercase()
-        .trim()
-        .to_string()
+    texto.nfd().filter(|c| !unicode_normalization::char::is_combining_mark(*c)).collect::<String>().to_lowercase().trim().to_string()
 }
 
 pub fn argv_player(caminho: &str) -> Option<Vec<String>> {
@@ -189,6 +184,10 @@ pub struct WakeConfig {
     pub speech_wait_s: f64,
     pub clap_enabled: bool,
     pub clap_peak: i32,
+    pub max_per_hour: usize,
+    pub clap_max_per_hour: usize,
+    pub calibrate_frames: usize,
+    pub clap_ratio: f64,
 }
 
 impl Default for WakeConfig {
@@ -202,6 +201,10 @@ impl Default for WakeConfig {
             speech_wait_s: 3.0,
             clap_enabled: false,
             clap_peak: PICO_MINIMO,
+            max_per_hour: 30,
+            clap_max_per_hour: 20,
+            calibrate_frames: 0,
+            clap_ratio: 6.0,
         }
     }
 }
@@ -235,6 +238,12 @@ pub struct WakeListener {
     pausa_mem: AtomicBool,
     parar: AtomicBool,
     tempo_s: Mutex<f64>,
+    pub modos: Mutex<Option<Arc<Modos>>>,
+    pub on_activate: Mutex<Option<OnClap>>,
+    pub transcript: Mutex<String>,
+    vad_threshold: Mutex<f64>,
+    wake_limit: Mutex<orion_voice::ActivationLimit>,
+    clap_limit: Mutex<orion_voice::ActivationLimit>,
 }
 
 impl WakeListener {
@@ -253,6 +262,12 @@ impl WakeListener {
             on_utterance: Mutex::new(on_utterance),
             on_clap,
             memory,
+            wake_limit: Mutex::new(orion_voice::ActivationLimit::new(config.max_per_hour)),
+            clap_limit: Mutex::new(orion_voice::ActivationLimit::new(config.clap_max_per_hour)),
+            modos: Mutex::new(None),
+            on_activate: Mutex::new(None),
+            transcript: Mutex::new(String::new()),
+            vad_threshold: Mutex::new(config.silence_rms),
             config,
             claps,
             stats: Mutex::new(WakeStats::default()),
@@ -290,19 +305,9 @@ impl WakeListener {
             config.clone(),
             config.clap_enabled.then(|| -> OnClap {
                 let m = modos.clone();
-                let sp_c = sp.clone();
-                let tc_c = tc.clone();
-                let h_c = handle.clone();
                 Arc::new(move || {
-                    // REGRAS.md: palmas só abrem; nunca aprovam nem executam
-                    if acao_das_palmas(m.as_deref()) != "abrir" {
-                        return;
-                    }
-                    tracing::info!(target: "orion.audit", "palmas_detectadas acao=abrir");
-                    if let (Some(s), Some(h)) = (&sp_c, &h_c) {
-                        if let Ok(mp3) = h.block_on(s.synthesize("Estou ouvindo.")) {
-                            tc_c(&mp3);
-                        }
+                    if acao_das_palmas(m.as_deref()) == "abrir" {
+                        tracing::info!(target: "orion.audit", "palmas_detectadas acao=abrir");
                     }
                 })
             }),
@@ -315,6 +320,9 @@ impl WakeListener {
             let wav_vec = wav.to_vec();
             let (ag, tr, sp, vs, tc) = (ag.clone(), tr.clone(), sp.clone(), vs.clone(), tc.clone());
             h.block_on(async move {
+                if me.pausada() || me.suspensa.load(Ordering::SeqCst) {
+                    return;
+                }
                 let texto = match tr.transcribe(wav_vec, "wake.wav", "audio/wav").await {
                     Ok(t) => t.trim().to_string(),
                     Err(e) => {
@@ -331,6 +339,10 @@ impl WakeListener {
                     me.stats.lock().ignorados += 1;
                     return;
                 }
+                if me.pausada() || me.suspensa.load(Ordering::SeqCst) {
+                    return;
+                }
+                *me.transcript.lock() = texto.clone();
                 me.stats.lock().turnos += 1;
                 if let Some(v) = &vs {
                     v.inc_turnos();
@@ -340,6 +352,9 @@ impl WakeListener {
                 let mut pediu_aprovacao = false;
                 let mut stream = ag.run(TurnRequest { channel: "voice".into(), text: texto, ..Default::default() });
                 while let Some(ev) = stream.next().await {
+                    if me.pausada() || me.suspensa.load(Ordering::SeqCst) {
+                        return;
+                    }
                     if ev.kind == "text" {
                         pedacos += ev.data["text"].as_str().unwrap_or("");
                     } else if ev.kind == "approval" {
@@ -350,6 +365,9 @@ impl WakeListener {
                 if pediu_aprovacao {
                     let aviso = "Essa ação precisa da sua aprovação na tela ou no Telegram.";
                     resposta = if resposta.is_empty() { aviso.into() } else { format!("{resposta} {aviso}") };
+                }
+                if me.pausada() || me.suspensa.load(Ordering::SeqCst) {
+                    return;
                 }
                 if let (false, Some(s)) = (resposta.is_empty(), &sp) {
                     match s.synthesize(&resposta).await {
@@ -369,10 +387,14 @@ impl WakeListener {
             });
         });
 
+        *listener.modos.lock() = modos;
         listener
     }
 
     pub fn pausada(&self) -> bool {
+        if self.modos.lock().as_ref().is_some_and(|m| m.panico() || m.nao_perturbe()) {
+            return true;
+        }
         match &self.memory {
             Some(m) => m.counter_get(PAUSA_CHAVE) > 0,
             None => self.pausa_mem.load(Ordering::SeqCst),
@@ -418,8 +440,11 @@ impl WakeListener {
         let mut pre_roll: VecDeque<Vec<u8>> = VecDeque::with_capacity(PRE_ROLL_FRAMES);
         while !self.parar.load(Ordering::SeqCst) {
             if self.pausada() || self.suspensa.load(Ordering::SeqCst) {
-                std::thread::sleep(Duration::from_millis(200));
-                continue;
+                self.detector.lock().reset();
+                if let Some(c) = &self.claps {
+                    c.lock().reset();
+                }
+                return false;
             }
             let Some(quadro) = src.read_frame() else { return false };
             if quadro.len() != FRAME_BYTES {
@@ -435,27 +460,31 @@ impl WakeListener {
                 *ts
             };
             if let Some(claps) = &self.claps {
-                if claps.lock().feed(&quadro, t) {
+                if claps.lock().feed(&quadro, t) && self.clap_limit.lock().allow(std::time::Instant::now()) {
                     self.stats.lock().palmas += 1;
                     self.detector.lock().reset();
+                    src.close();
                     if let Some(cb) = &self.on_clap {
                         cb();
                     }
-                    if let Some(wav) = self.gravar_pedido(src, VecDeque::new()) {
-                        (self.on_utterance.lock())(&wav);
-                    } else {
-                        self.stats.lock().ignorados += 1;
+                    // REGRAS.md: palmas só abrem; nunca aprovam nem executam.
+                    if let Some(cb) = self.on_activate.lock().clone() {
+                        cb();
                     }
                     return true;
                 }
             }
-            if self.detector.lock().feed(&quadro) {
+            if self.detector.lock().feed(&quadro) && self.wake_limit.lock().allow(std::time::Instant::now()) {
+                if let Some(cb) = self.on_activate.lock().clone() {
+                    cb();
+                }
                 self.stats.lock().ativacoes += 1;
                 self.detector.lock().reset();
                 if let Some(claps) = &self.claps {
                     claps.lock().reset();
                 }
                 if let Some(wav) = self.gravar_pedido(src, pre_roll) {
+                    src.close();
                     (self.on_utterance.lock())(&wav);
                 } else {
                     self.stats.lock().ignorados += 1;
@@ -484,7 +513,7 @@ impl WakeListener {
                 continue;
             }
             gravados.push(q.clone());
-            if rms(&q) >= self.config.silence_rms {
+            if rms(&q) >= *self.vad_threshold.lock() {
                 falou += 1;
                 silencio = 0;
             } else if falou > 0 {
@@ -518,27 +547,66 @@ impl WakeListener {
     }
 
     fn laco(&self) {
-        let mut src = match (self.source_factory)() {
-            Ok(s) => s,
-            Err(e) => {
-                let mut st = self.stats.lock();
-                st.erros += 1;
-                st.ultimo_erro = e.clone();
-                tracing::error!("escuta local desligada: {e}");
-                return;
-            }
-        };
         self.rodando.store(true, Ordering::SeqCst);
+        let mut source: Option<Box<dyn AudioSource>> = None;
         while !self.parar.load(Ordering::SeqCst) {
-            if !self.step(&mut *src) && !self.parar.load(Ordering::SeqCst) {
-                break;
+            if self.pausada() || self.suspensa.load(Ordering::SeqCst) {
+                if let Some(mut src) = source.take() {
+                    src.close();
+                }
+                std::thread::sleep(Duration::from_millis(100));
+                continue;
             }
-            if !self.parar.load(Ordering::SeqCst) {
-                std::thread::sleep(Duration::from_secs_f64(COOLDOWN_S));
+            if source.is_none() {
+                match (self.source_factory)() {
+                    Ok(mut src) => {
+                        let mut peaks = Vec::new();
+                        let mut energies = Vec::new();
+                        for _ in 0..self.config.calibrate_frames {
+                            if self.pausada() || self.parar.load(Ordering::SeqCst) {
+                                break;
+                            }
+                            if let Some(frame) = src.read_frame() {
+                                peaks.push(crate::palmas::pico(&frame));
+                                energies.push(rms(&frame));
+                            }
+                        }
+                        if let Some(c) = &self.claps {
+                            c.lock().calibrate(&mut peaks, self.config.clap_ratio);
+                        }
+                        energies.sort_by(f64::total_cmp);
+                        if !energies.is_empty() {
+                            *self.vad_threshold.lock() = (energies[(energies.len() - 1) * 95 / 100] * 3.0).max(self.config.silence_rms);
+                        }
+                        source = Some(src);
+                    }
+                    Err(e) => {
+                        let mut stats = self.stats.lock();
+                        stats.erros += 1;
+                        stats.ultimo_erro = e;
+                        break;
+                    }
+                }
+            }
+            if let Some(src) = source.as_mut() {
+                if !self.step(&mut **src) && !self.pausada() && !self.suspensa.load(Ordering::SeqCst) {
+                    break;
+                }
+            }
+            if let Some(mut src) = source.take() {
+                src.close()
+            }
+            for _ in 0..15 {
+                if self.parar.load(Ordering::SeqCst) || self.pausada() {
+                    break;
+                }
+                std::thread::sleep(Duration::from_millis(100));
             }
         }
+        if let Some(mut src) = source {
+            src.close()
+        }
         self.rodando.store(false, Ordering::SeqCst);
-        src.close();
     }
 }
 
@@ -657,7 +725,7 @@ mod tests {
     }
 
     #[test]
-    fn duas_palmas_acordam_e_entregam_fala_sem_wake_word() {
+    fn duas_palmas_so_abrem_sem_transcrever_nem_executar() {
         let recebidos = Arc::new(Mutex::new(vec![]));
         let r2 = recebidos.clone();
         let palmas = Arc::new(Mutex::new(0usize));
@@ -682,6 +750,6 @@ mod tests {
         assert_eq!(*palmas.lock(), 1);
         assert_eq!(w.stats.lock().palmas, 1);
         assert_eq!(w.stats.lock().ativacoes, 0);
-        assert_eq!(recebidos.lock().len(), 1);
+        assert!(recebidos.lock().is_empty());
     }
 }

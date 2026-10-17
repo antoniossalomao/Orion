@@ -39,7 +39,13 @@ fn escape_xml(t: &str) -> String {
 /// `ponte=true` gera o início da ponte de desktop (`orion ponte`), um arquivo à parte: ela precisa de
 /// sessão gráfica, o servidor não.
 pub fn render(plataforma: &str, exe: &Path, projeto: &Path, logs: &Path, home: &Path, ponte: bool) -> Result<Autostart, String> {
-    let comando = if ponte { "ponte" } else { "serve" };
+    let comando = if ponte {
+        "ponte"
+    } else if plataforma == "windows" {
+        "desktop --background"
+    } else {
+        "serve"
+    };
     let nome = if ponte { "orion-ponte" } else { "orion" };
     let rotulo = if ponte { ROTULO_PONTE } else { ROTULO };
     let exe_s = exe.to_string_lossy();
@@ -54,7 +60,13 @@ pub fn render(plataforma: &str, exe: &Path, projeto: &Path, logs: &Path, home: &
                 exe_s.replace('%', "%%")
             );
             let del = format!("del \"{}\"", arquivo.display());
-            Ok(Autostart { plataforma: plataforma.into(), arquivo, conteudo, ativar: "Sai da sessão e entra de novo, ou rode o arquivo uma vez para testar.".into(), desativar: del })
+            Ok(Autostart {
+                plataforma: plataforma.into(),
+                arquivo,
+                conteudo,
+                ativar: "Sai da sessão e entra de novo, ou rode o arquivo uma vez para testar.".into(),
+                desativar: del,
+            })
         }
         "macos" => {
             let arquivo = home.join("Library").join("LaunchAgents").join(format!("{rotulo}.plist"));
@@ -66,7 +78,10 @@ pub fn render(plataforma: &str, exe: &Path, projeto: &Path, logs: &Path, home: &
                 escape_xml(&logs.join(format!("{saida}.out.log")).to_string_lossy()),
                 escape_xml(&logs.join(format!("{saida}.err.log")).to_string_lossy())
             );
-            let (a, d) = (format!("launchctl bootstrap \"gui/$(id -u)\" \"{}\"", arquivo.display()), format!("launchctl bootout \"gui/$(id -u)\" \"{0}\" && rm \"{0}\"", arquivo.display()));
+            let (a, d) = (
+                format!("launchctl bootstrap \"gui/$(id -u)\" \"{}\"", arquivo.display()),
+                format!("launchctl bootout \"gui/$(id -u)\" \"{0}\" && rm \"{0}\"", arquivo.display()),
+            );
             Ok(Autostart { plataforma: plataforma.into(), arquivo, conteudo, ativar: a, desativar: d })
         }
         "linux" => {
@@ -79,7 +94,10 @@ pub fn render(plataforma: &str, exe: &Path, projeto: &Path, logs: &Path, home: &
                 exe_s.replace('%', "%%"),
                 if ponte { "graphical-session.target" } else { "default.target" }
             );
-            let (a, d) = (format!("systemctl --user daemon-reload && systemctl --user enable --now {nome}.service"), format!("systemctl --user disable --now {nome}.service && rm \"{}\"", arquivo.display()));
+            let (a, d) = (
+                format!("systemctl --user daemon-reload && systemctl --user enable --now {nome}.service"),
+                format!("systemctl --user disable --now {nome}.service && rm \"{}\"", arquivo.display()),
+            );
             Ok(Autostart { plataforma: plataforma.into(), arquivo, conteudo, ativar: a, desativar: d })
         }
         o => Err(format!("plataforma desconhecida: {o}. Use: {}", PLATAFORMAS.join(", "))),

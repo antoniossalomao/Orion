@@ -74,7 +74,8 @@ fn arquivo(caminho: &std::path::Path, mime: &str, cabecalhos: &[(&str, String)])
 
 fn disposicao(tipo: &str, nome: &str) -> String {
     let ascii: String = nome.chars().map(|c| if c.is_ascii() && c != '"' { c } else { '_' }).collect();
-    let codificado: String = nome.bytes().map(|b| if b.is_ascii_alphanumeric() || b"-._~".contains(&b) { (b as char).to_string() } else { format!("%{b:02X}") }).collect();
+    let codificado: String =
+        nome.bytes().map(|b| if b.is_ascii_alphanumeric() || b"-._~".contains(&b) { (b as char).to_string() } else { format!("%{b:02X}") }).collect();
     format!("{tipo}; filename=\"{ascii}\"; filename*=utf-8''{codificado}")
 }
 
@@ -102,7 +103,11 @@ pub async fn arquivo_do_resultado(_: Admin, State(st): State<Estado>, Path(rid):
             return arquivo(
                 &caminho,
                 "application/pdf",
-                &[("X-Content-Type-Options", "nosniff".into()), ("Content-Security-Policy", "default-src 'none'".into()), ("Content-Disposition", disposicao("inline", &nome))],
+                &[
+                    ("X-Content-Type-Options", "nosniff".into()),
+                    ("Content-Security-Policy", "default-src 'none'".into()),
+                    ("Content-Disposition", disposicao("inline", &nome)),
+                ],
             );
         }
     }
@@ -206,7 +211,12 @@ fn senha_de_novo(st: &Estado, senha: &str, cliente: &str) -> bool {
 }
 
 /// Entrar é um clique; sair pede a senha de novo (o pânico nunca volta sozinho).
-pub async fn modo_panico(_: Admin, State(st): State<Estado>, ConnectInfo(addr): ConnectInfo<SocketAddr>, Json(c): Json<PanicoControle>) -> ApiResult<Json<Value>> {
+pub async fn modo_panico(
+    _: Admin,
+    State(st): State<Estado>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    Json(c): Json<PanicoControle>,
+) -> ApiResult<Json<Value>> {
     if c.senha.chars().count() > 1024 {
         return erro(422, "senha longa demais");
     }
@@ -373,7 +383,12 @@ pub async fn confirmar_aviso(_: Admin, State(st): State<Estado>, Path(id): Path<
 }
 
 /// "Feito" conclui (e para de insistir); "adiar" volta a ser um lembrete novo (E9.3).
-pub async fn agir_no_lembrete(_: Admin, State(st): State<Estado>, Path((id, acao)): Path<(i64, String)>, Query(q): Query<ProjetoIdQ>) -> ApiResult<Json<Value>> {
+pub async fn agir_no_lembrete(
+    _: Admin,
+    State(st): State<Estado>,
+    Path((id, acao)): Path<(i64, String)>,
+    Query(q): Query<ProjetoIdQ>,
+) -> ApiResult<Json<Value>> {
     if acao != "feito" && acao != "adiar" {
         return erro(422, "ação inválida");
     }
@@ -381,13 +396,17 @@ pub async fn agir_no_lembrete(_: Admin, State(st): State<Estado>, Path((id, acao
     if !(1..=1440).contains(&minutos) {
         return erro(422, "minutos fora do intervalo");
     }
-    let r = with_scope(DataScope::project(q.project_id, false), || {
-        if acao == "feito" {
-            st.ops.complete_reminder(id)
-        } else {
-            st.ops.snooze_reminder(id, minutos)
-        }
-    });
+    let r =
+        with_scope(
+            DataScope::project(q.project_id, false),
+            || {
+                if acao == "feito" {
+                    st.ops.complete_reminder(id)
+                } else {
+                    st.ops.snooze_reminder(id, minutos)
+                }
+            },
+        );
     match r {
         Ok(l) => Ok(Json(json!({"ok": true, "lembrete": l}))),
         Err(orion_store::StoreError::NotFound(_)) => erro(404, "lembrete não encontrado"),
@@ -505,3 +524,24 @@ pub async fn escuta_pausar(_: Admin, State(st): State<Estado>, Json(c): Json<Esc
     Ok(Json(json!({"pausada": e.pausada()})))
 }
 
+/// REGRAS.md: painel só lê e nunca mostra segredo.
+pub async fn budget_status(_: Admin, State(st): State<Estado>) -> Json<Value> {
+    Json(json!({"quotas":st.budget.summary(),"source":"estimativa_local_em_chamadas"}))
+}
+pub async fn budget_configure(
+    _: Admin,
+    State(st): State<Estado>,
+    Json(q): Json<std::collections::BTreeMap<String, orion_ai::budget::Quota>>,
+) -> ApiResult<Json<Value>> {
+    st.budget.configure(q).map_err(|e| ApiError::new(422, e.to_string()))?;
+    Ok(Json(json!({"ok":true})))
+}
+#[derive(Deserialize)]
+pub struct BudgetCalibration {
+    provider: String,
+    used: i64,
+}
+pub async fn budget_calibrate(_: Admin, State(st): State<Estado>, Json(c): Json<BudgetCalibration>) -> ApiResult<Json<Value>> {
+    st.budget.calibrate(&c.provider, c.used).map_err(|e| ApiError::new(422, e.to_string()))?;
+    Ok(Json(json!({"ok":true})))
+}

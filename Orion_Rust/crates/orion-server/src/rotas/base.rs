@@ -170,9 +170,9 @@ pub async fn login(State(st): State<Estado>, ConnectInfo(addr): ConnectInfo<Sock
     let cliente = addr.ip().to_string();
     let st2 = st.clone();
     let (senha, usuario) = (corpo.senha, corpo.usuario);
-    let r = tokio::task::spawn_blocking(move || st2.auth.login(&senha, &cliente, usuario.as_deref())).await.map_err(|e| anyhow::anyhow!(e))?;
-    let token = match r {
-        Ok(t) => t,
+    let r = tokio::task::spawn_blocking(move || st2.auth.verify_credentials(&senha, &cliente, usuario.as_deref())).await.map_err(|e| anyhow::anyhow!(e))?;
+    match r {
+        Ok(()) => (),
         Err(AuthError::LockedOut(s)) => {
             let mut e = ApiError::new(429, format!("muitas tentativas; tente de novo em {s}s"));
             e.headers.push(("Retry-After", s.to_string()));
@@ -184,6 +184,19 @@ pub async fn login(State(st): State<Estado>, ConnectInfo(addr): ConnectInfo<Sock
             return erro(401, "usuário ou senha incorretos");
         }
     };
+    // REGRAS.md: login com senha e sessão revogável. Não há sessão antes do segundo fator.
+    if st.settings.telegram_2fa {
+        let Some(tg) = &st.telegram else {
+            return erro(503, "Telegram indisponível para o segundo fator");
+        };
+        let (id, code) = st.two_factor.issue(&addr.ip().to_string()).map_err(|m| ApiError::new(429, m))?;
+        if tg.send_login_code(&code).await.is_err() {
+            st.two_factor.cancel(&id);
+            return erro(503, "não foi possível entregar o código pelo Telegram");
+        }
+        return Ok((axum::http::StatusCode::ACCEPTED, Json(json!({"two_factor_required": true, "challenge": id, "expires_in": 300}))).into_response());
+    }
+    let token = st.auth.create_session().map_err(|e| anyhow::anyhow!(e))?;
     let mut r = Json(json!({"ok": true})).into_response();
     abrir_sessao(&mut r, &st, &headers, &token);
     Ok(r)
@@ -192,7 +205,8 @@ pub async fn login(State(st): State<Estado>, ConnectInfo(addr): ConnectInfo<Sock
 pub async fn logout(State(st): State<Estado>, headers: HeaderMap) -> Response {
     st.auth.logout(cookie(&headers, COOKIE_SESSAO).as_deref());
     let mut r = Json(json!({"ok": true})).into_response();
-    r.headers_mut().append("set-cookie", HeaderValue::from_static("orion_session=\"\"; Max-Age=0; Path=/; SameSite=lax; expires=Thu, 01 Jan 1970 00:00:00 GMT"));
+    r.headers_mut()
+        .append("set-cookie", HeaderValue::from_static("orion_session=\"\"; Max-Age=0; Path=/; SameSite=lax; expires=Thu, 01 Jan 1970 00:00:00 GMT"));
     r
 }
 
@@ -224,4 +238,27 @@ pub async fn trocar_senha(Admin(quem): Admin, State(st): State<Estado>, headers:
         abrir_sessao(&mut resp, &st, &headers, &t);
     }
     Ok(resp)
+}
+
+#[derive(Deserialize)]
+pub struct SecondFactor {
+    challenge: String,
+    code: String,
+}
+pub async fn second_factor(
+    State(st): State<Estado>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    Json(c): Json<SecondFactor>,
+) -> ApiResult<Response> {
+    if !mesma_origem(&headers) {
+        return erro(403, "origem não permitida");
+    }
+    if !st.two_factor.verify(&c.challenge, &c.code, &addr.ip().to_string()) {
+        return erro(401, "código inválido ou expirado");
+    }
+    let token = st.auth.create_session().map_err(|e| anyhow::anyhow!(e))?;
+    let mut r = Json(json!({"ok": true})).into_response();
+    abrir_sessao(&mut r, &st, &headers, &token);
+    Ok(r)
 }

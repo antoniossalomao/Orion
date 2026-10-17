@@ -13,7 +13,11 @@ Antônio é o administrador: decide, aprova e pode desligar qualquer coisa. Nada
 ## Estado (17/10/2026)
 
 - **Em uso:** o Python (`orion/`). O legado (`Orion_Ollama/`, `Orion_Core/`) segue no PC atual até a venda e sai na fase 7.
-- **Rust (`Orion_Rust/`):** workspace Cargo em andamento na branch da PR #30 com 8 crates (`orion-policy`, `orion-store`, `orion-ai`, `orion-mcp`, `orion-core`, `orion-server`, `orion-setup`, `orion-sidecar`) e o pacote Python isolado do sidecar em `Orion_Rust/python/orion_sidecar`. Instalador nativo (`Orion Setup.exe` em `iced` + céu estrelado + áudio ambiente) e Fase 7 (`orion-sidecar`) concluídos.
+- **Rust (`Orion_Rust/`):** workspace Cargo em andamento na branch da PR #30 com 10 crates (`orion-policy`, `orion-store`, `orion-ai`, `orion-mcp`, `orion-core`, `orion-server`, `orion-setup`, `orion-sidecar`, `orion-platform`, `orion-voice`) e o pacote Python isolado do sidecar em `Orion_Rust/python/orion_sidecar`. Instalador nativo (`Orion Setup.exe` em `iced` + céu estrelado + áudio ambiente) e Fase 7 (`orion-sidecar`) concluídos.
+- **M2/M3/M4 no PR #30 (17/10/2026):** controle Windows com `orion desktop` (iced), `orion-platform` (tray-icon e hotkeys), mini barra `Ctrl+Alt+Espaço`, pânico `Ctrl+Alt+P`, rotinas concedidas e início automático opt-in. Painel/API de orçamento com estimativa persistida em chamadas, reset semanal, calibragem, projeção, tetos de 95% semanal / 20% por tarefa e janela opcional de 5 h. Telegram recebe cartões do PC com vínculo ao cartão/sessão original, código 2FA de uso único (5 min, 5 tentativas) antes de criar sessão e resposta em áudio só para pedidos por voz. `orion-voice` captura com cpal, reamostra para mono 16 kHz, usa VAD por energia, palmas calibradas (150–700 ms), openWakeWord local com modelo Orion configurado e Whisper local (CPU ou build Vulkan); Groq só com opt-in. TTS existente: edge-tts masculino pt-BR.
+- **Validação desta sessão:** Python com 1.637 testes passando e 3 ignorados; Ruff, formatação, Pyright (ambiente virtual explícito) e 16 testes de front verdes. Checagem estática cruzada para Windows, CPU e Vulkan, inclui servidor/controle e testes de `orion-core`, `orion-ai`, `orion-voice` e `orion-platform`; a execução nativa fica no workflow Windows.
+- **Limites desta entrega:** controle nativo é uma janela auxiliar, não substitui a interface principal `orion-app` pendente. Não conclui todas as funcionalidades F11–F15. Ainda precisam de prova no notebook: bandeja/hotkeys/autostart, calibração com palmas e música reais, modelo treinado para Orion, Whisper/GPU e Telegram em dois aparelhos. Silero/AEC3, Windows Hello de reserva, PIN crítico próprio, leitura oficial de `/usage` e `/status`, fila de nuvem e controle de energia/Wake-on-LAN continuam pendentes. Nenhum recurso sensível é ligado pela instalação ou pelo agente.
+
 - **Python, por etapa da rodada 2:**
 
 | Etapa | Entrega | Estado |
@@ -122,6 +126,7 @@ Registro das decisões que valem para o projeto hoje. O histórico completo, des
 
 | Data | Decisão | Motivo |
 |---|---|---|
+| 17/10/2026 | Implementar o teto por tarefa de 20% da cota semanal no controle Rust, conforme pedido explícito do Antônio; medir em chamadas estimadas e informar essa origem | Não existe leitura oficial confiável das cotas nesta entrega |
 | 14/10/2026 | Migrar para Rust: Windows primeiro, depois macOS; Linux e mobile fora de escopo | Desempenho e leveza |
 | 14/10/2026 | UI em iced (plano B: Slint); egui descartado para a UI final | Rust puro, wgpu, licença MIT |
 | 14/10/2026 | Grafo 3D em wgpu | Desenho nativo |

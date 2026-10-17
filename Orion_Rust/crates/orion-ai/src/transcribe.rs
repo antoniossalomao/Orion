@@ -17,6 +17,7 @@ pub struct TranscribeError(pub String);
 
 #[derive(Clone)]
 pub struct Transcriber {
+    local: Option<std::sync::Arc<dyn Fn(Vec<u8>) -> Result<String, TranscribeError> + Send + Sync>>,
     key: String,
     url: String,
     provedor: String,
@@ -29,6 +30,7 @@ impl Transcriber {
     pub fn new(api_key: &str, base_url: &str, model: &str) -> anyhow::Result<Self> {
         anyhow::ensure!(!api_key.is_empty(), "chave de transcrição vazia");
         Ok(Transcriber {
+            local: None,
             key: api_key.into(),
             url: format!("{}/audio/transcriptions", base_url.trim_end_matches('/')),
             provedor: saidas::provedor_da_url(base_url, ""),
@@ -36,6 +38,20 @@ impl Transcriber {
             language: "pt".into(),
             timeout: Duration::from_secs(90),
         })
+    }
+
+    pub fn with_local(local: std::sync::Arc<dyn Fn(Vec<u8>) -> Result<String, TranscribeError> + Send + Sync>, fallback: Option<Self>) -> Self {
+        let mut t = fallback.unwrap_or_else(|| Self {
+            local: None,
+            key: String::new(),
+            url: String::new(),
+            provedor: String::new(),
+            model: String::new(),
+            language: "pt".into(),
+            timeout: Duration::from_secs(90),
+        });
+        t.local = Some(local);
+        t
     }
 
     fn checar(audio: &[u8]) -> Result<(), TranscribeError> {
@@ -62,8 +78,19 @@ impl Transcriber {
 
     pub async fn transcribe(&self, audio: Vec<u8>, filename: &str, mime: &str) -> Result<String, TranscribeError> {
         Self::checar(&audio)?;
+        if let Some(local) = self.local.clone() {
+            let input = audio.clone();
+            match tokio::task::spawn_blocking(move || local(input)).await.map_err(|_| TranscribeError("transcrição local interrompida".into()))? {
+                Ok(t) => return Ok(t),
+                Err(e) if self.key.is_empty() => return Err(e),
+                Err(_) => {}
+            }
+        }
         let mut m = saidas::medir(&self.provedor, "transcribe", &self.model, audio.len(), "audio");
-        let parte = reqwest::multipart::Part::bytes(audio).file_name(filename.to_string()).mime_str(mime).map_err(|_| TranscribeError("tipo de áudio inválido".into()))?;
+        let parte = reqwest::multipart::Part::bytes(audio)
+            .file_name(filename.to_string())
+            .mime_str(mime)
+            .map_err(|_| TranscribeError("tipo de áudio inválido".into()))?;
         let form = reqwest::multipart::Form::new()
             .text("model", self.model.clone())
             .text("language", self.language.clone())
@@ -89,8 +116,18 @@ impl Transcriber {
     /// Mesma coisa para ferramentas síncronas.
     pub fn transcribe_sync(&self, audio: Vec<u8>, filename: &str, mime: &str) -> Result<String, TranscribeError> {
         Self::checar(&audio)?;
+        if let Some(local) = &self.local {
+            match local(audio.clone()) {
+                Ok(t) => return Ok(t),
+                Err(e) if self.key.is_empty() => return Err(e),
+                Err(_) => {}
+            }
+        }
         let mut m = saidas::medir(&self.provedor, "transcribe", &self.model, audio.len(), "audio");
-        let parte = reqwest::blocking::multipart::Part::bytes(audio).file_name(filename.to_string()).mime_str(mime).map_err(|_| TranscribeError("tipo de áudio inválido".into()))?;
+        let parte = reqwest::blocking::multipart::Part::bytes(audio)
+            .file_name(filename.to_string())
+            .mime_str(mime)
+            .map_err(|_| TranscribeError("tipo de áudio inválido".into()))?;
         let form = reqwest::blocking::multipart::Form::new()
             .text("model", self.model.clone())
             .text("language", self.language.clone())
@@ -110,5 +147,18 @@ impl Transcriber {
         let t = Self::texto(status, &corpo)?;
         m.ok = true;
         Ok(t)
+    }
+}
+
+#[cfg(test)]
+mod local_tests {
+    use super::*;
+    #[tokio::test]
+    async fn local_sem_chave_e_sem_rede() {
+        let transcriber = Transcriber::with_local(std::sync::Arc::new(|_| Ok("Orion local".into())), None);
+        assert_eq!(transcriber.transcribe(vec![1], "a.wav", "audio/wav").await.unwrap(), "Orion local");
+        let transcriber = Transcriber::with_local(std::sync::Arc::new(|_| Err(TranscribeError("falha local".into()))), None);
+        assert_eq!(transcriber.transcribe(vec![1], "a.wav", "audio/wav").await.unwrap_err().0, "falha local");
+        assert_eq!(transcriber.transcribe_sync(vec![1], "a.wav", "audio/wav").unwrap_err().0, "falha local");
     }
 }
