@@ -15,7 +15,7 @@ from urllib.parse import urlparse
 
 
 def _is_public_http_url(raw_url: str) -> bool:
-    """Confere esquema http/https e recusa localhost/loopback (REGRAS.md: URL do modelo só para host público)."""
+    """Recusa rede local (REGRAS.md: URL do modelo só para host público)."""
     try:
         parsed = urlparse(raw_url.strip())
     except ValueError:
@@ -45,7 +45,10 @@ async def _run_crawl4ai(url: str, max_chars: int) -> dict[str, Any]:
         result = await crawler.arun(url=url)
         final_url = getattr(result, "url", None) or url
         if not _is_public_http_url(str(final_url)):
-            return {"ok": False, "error": f"redirecionamento bloqueado para host nao publico: {final_url}"}
+            return {
+                "ok": False,
+                "error": f"redirecionamento bloqueado para host nao publico: {final_url}",
+            }
         md = str(getattr(result, "markdown", "") or "")[: max(256, int(max_chars))]
         metadata = getattr(result, "metadata", None) or {}
         title = metadata.get("title") if isinstance(metadata, dict) else None

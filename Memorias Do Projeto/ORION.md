@@ -13,7 +13,11 @@ Antônio é o administrador: decide, aprova e pode desligar qualquer coisa. Nada
 ## Estado (17/10/2026)
 
 - **Em uso:** o Python (`orion/`). O legado (`Orion_Ollama/`, `Orion_Core/`) segue no PC atual até a venda e sai na fase 7.
-- **Rust (`Orion_Rust/`):** workspace Cargo em andamento na branch da PR #30 com 8 crates (`orion-policy`, `orion-store`, `orion-ai`, `orion-mcp`, `orion-core`, `orion-server`, `orion-setup`, `orion-sidecar`) e o pacote Python isolado do sidecar em `Orion_Rust/python/orion_sidecar`. Instalador nativo (`Orion Setup.exe` em `iced` + céu estrelado + áudio ambiente) e Fase 7 (`orion-sidecar`) concluídos.
+- **Rust (`Orion_Rust/`):** workspace Cargo em andamento na branch da PR #30 com 12 crates (`orion-policy`, `orion-store`, `orion-ai`, `orion-mcp`, `orion-core`, `orion-server`, `orion-setup`, `orion-sidecar`, `orion-platform`, `orion-voice`, `orion-vault`, `orion-testkit` — este último só para testes) e o pacote Python isolado do sidecar em `Orion_Rust/python/orion_sidecar`. Instalador nativo (`Orion Setup.exe` em `iced` + céu estrelado + áudio ambiente) e Fase 7 (`orion-sidecar`) concluídos.
+- **M2/M3/M4 no PR #30 (17/10/2026):** controle Windows com `orion desktop` (iced), `orion-platform` (tray-icon e hotkeys), mini barra `Ctrl+Alt+Espaço`, pânico `Ctrl+Alt+P`, rotinas concedidas e início automático opt-in. Painel/API de orçamento com estimativa persistida em chamadas, reset semanal, calibragem, projeção, tetos de 95% semanal / 20% por tarefa e janela opcional de 5 h. Telegram recebe cartões do PC com vínculo ao cartão/sessão original, código 2FA de uso único (5 min, 5 tentativas) antes de criar sessão e resposta em áudio só para pedidos por voz. `orion-voice` captura com cpal, reamostra para mono 16 kHz, usa VAD por energia, palmas calibradas (150–700 ms), openWakeWord local com modelo Orion configurado e Whisper local (CPU ou build Vulkan); Groq só com opt-in. TTS existente: edge-tts masculino pt-BR.
+- **Validação desta sessão:** Python com 1.637 testes passando e 3 ignorados; Ruff, formatação, Pyright (ambiente virtual explícito) e 16 testes de front verdes. Checagem estática cruzada para Windows, CPU e Vulkan, inclui servidor/controle e testes de `orion-core`, `orion-ai`, `orion-voice` e `orion-platform`; a execução nativa fica no workflow Windows.
+- **Limites desta entrega:** controle nativo é uma janela auxiliar, não substitui a interface principal `orion-app` pendente. Não conclui todas as funcionalidades F11–F15. Ainda precisam de prova no notebook: bandeja/hotkeys/autostart, calibração com palmas e música reais, modelo treinado para Orion, Whisper/GPU e Telegram em dois aparelhos. Silero/AEC3, Windows Hello de reserva, PIN crítico próprio, leitura oficial de `/usage` e `/status`, fila de nuvem e controle de energia/Wake-on-LAN continuam pendentes. Nenhum recurso sensível é ligado pela instalação ou pelo agente.
+
 - **Python, por etapa da rodada 2:**
 
 | Etapa | Entrega | Estado |
@@ -99,9 +103,11 @@ Antônio é o administrador: decide, aprova e pode desligar qualquer coisa. Nada
 ### Paridade de testes e linha de base (17/10/2026)
 
 - **Testes portados do Python** (`cargo test --workspace --exclude orion-setup`): `orion-store` 60, `orion-ai` 84, `orion-mcp` 23, `orion-core` 167 (memória, importação, MCP, login, jobs, modos, biblioteca, captura, autostart). O sidecar tem 4. **`orion-policy` ainda não tem nenhum teste** (a lista de 14 não existe nesta branch): portar `tests/policy/` exige tocar no crate do núcleo imutável, então espera sua aprovação.
-- **Ainda sem porte no `orion-core`:** agente, Telegram, ponte, voz, palavra de ativação, palmas, visão/câmera, vida (E10), rotinas, downloads, briefing, plugins/extensões, projetos (isolamento), pesquisa, tela. As rotas HTTP (`orion-server`) também.
+- **Ainda sem testes de paridade portados no `orion-core`:** agente, Telegram, ponte, voz, palavra de ativação, palmas, visão/câmera, vida (E10), rotinas, downloads, briefing, plugins/extensões, projetos (isolamento), pesquisa, tela. As rotas HTTP (`orion-server`) também.
 - **Divergências do Rust achadas e corrigidas pelos testes:** importador tratava registro sem `id` como `"null"` e aceitava `score` não numérico; captura criava a pasta fora do vault antes de recusar `..`; `JobRunner` ignorava o relógio do banco; cancelamentos de MCP nunca eram contados.
 - **Benchmark** (`scripts/benchmark_rust_python.py`, banco sintético pequeno, 4 CPUs Linux; **não** é o seu PC): busca FTS5 p50 2,5 ms (Python) × 1,9 ms (Rust); híbrida 3,1 × 2,9 ms; memória com a matriz vetorial 60 × 18 MB; servidor ocioso 128 × 34 MB, `/health` em 2,7 × 0,2 s, `/busca` HTTP p50 26 × 17 ms; resultados dos dois lados idênticos. Falta rodar no Windows com o banco real e em escala maior (o gerador sintético é lento acima de ~5 mil registros).
+
+**Integração do PR #33 (17/10/2026):** base do PR #30 atualizada até `8f4c783`, com dependências de teste e voz/Vulkan preservadas no manifesto e lockfile. Os testes de autostart passam a esperar `desktop --background` no Windows. Ruff dos scripts novos corrigido; benchmark usa token efêmero e só faz HTTP em loopback. Validação da integração: 1.637 testes Python passaram, 3 ignorados; 149 testes do front, Ruff, formatação, Pyright e checagem estática Windows/Vulkan verdes. O cliente HTTP do benchmark foi conferido com servidor local autenticado e recusa de destinos externos. A execução nativa dos novos testes de paridade depende do CI desta branch.
 
 ## Backlog Rust
 
@@ -129,6 +135,7 @@ Registro das decisões que valem para o projeto hoje. O histórico completo, des
 
 | Data | Decisão | Motivo |
 |---|---|---|
+| 17/10/2026 | Implementar o teto por tarefa de 20% da cota semanal no controle Rust, conforme pedido explícito do Antônio; medir em chamadas estimadas e informar essa origem | Não existe leitura oficial confiável das cotas nesta entrega |
 | 14/10/2026 | Migrar para Rust: Windows primeiro, depois macOS; Linux e mobile fora de escopo | Desempenho e leveza |
 | 14/10/2026 | UI em iced (plano B: Slint); egui descartado para a UI final | Rust puro, wgpu, licença MIT |
 | 14/10/2026 | Grafo 3D em wgpu | Desenho nativo |

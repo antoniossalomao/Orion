@@ -16,6 +16,7 @@ orion-store.workspace = true
 orion-ai.workspace = true
 orion-core.workspace = true
 orion-mcp.workspace = true
+orion-vault.workspace = true
 anyhow.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -34,3 +35,12 @@ tower-http.workspace = true
 clap.workspace = true
 subtle.workspace = true
 rpassword.workspace = true
+
+reqwest.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+iced.workspace = true
+orion-platform = { path = "../orion-platform" }
+
+[features]
+local-vulkan = ["orion-core/local-vulkan"]

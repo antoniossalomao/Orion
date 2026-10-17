@@ -90,7 +90,10 @@ def system_tools(
             "disco_livre_gb": round(disco.free / 1024**3, 1),
             "disco_percentual": disco.percent,
         }
-        bateria = psutil.sensors_battery() if hasattr(psutil, "sensors_battery") else None
+        try:
+            bateria = psutil.sensors_battery() if hasattr(psutil, "sensors_battery") else None
+        except (FileNotFoundError, NotImplementedError):
+            bateria = None
         if bateria is not None:
             saida["bateria_pct"] = round(bateria.percent)
             saida["carregando"] = bool(bateria.power_plugged)

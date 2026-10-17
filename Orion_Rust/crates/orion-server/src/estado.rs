@@ -32,6 +32,7 @@ pub struct AppState {
     pub started_at: f64,
     pub ops: Arc<Operations>,
     pub auth: Arc<AuthService>,
+    pub two_factor: orion_core::two_factor::TwoFactor,
     /// `None` enquanto o gateway não está configurado.
     pub agent: Option<Arc<Agent>>,
     pub accounts: Option<Arc<orion_core::accounts::Accounts>>,
@@ -51,6 +52,7 @@ pub struct AppState {
     pub modos: Arc<Modos>,
     /// Cota gratuita (REGRAS.md: custo zero (sem API paga)).
     pub custos: Arc<Custos>,
+    pub budget: Arc<orion_ai::budget::Budget>,
     pub delegator: Option<Arc<Delegator>>,
     pub processos: Option<Arc<ProcessManager>>,
     pub skills: Option<Arc<RwLock<SkillCatalog>>>,
@@ -88,6 +90,7 @@ pub struct AppState {
     pub voz: Arc<orion_core::voice::VozStats>,
     pub estado_voz: Arc<orion_core::vida::EstadoVoz>,
     pub escuta: Option<Arc<orion_core::wake::WakeListener>>,
+    pub desktop_wake: Arc<std::sync::atomic::AtomicBool>,
 }
 
 pub type CameraDescrever = Arc<dyn Fn(&str) -> serde_json::Value + Send + Sync>;
@@ -169,11 +172,9 @@ pub fn gateway_from_settings(settings: &Settings) -> Option<ChatGateway> {
         ep.api_key = chave.clone();
         eps.push(ep);
         // camadas do roteamento: só entram as que têm modelo próprio; o "gateway" fica de reserva
-        for (camada, modelo, t) in [
-            ("rapido", &settings.gateway_model_fast, 60.0),
-            ("pesado", &settings.gateway_model_heavy, 120.0),
-            ("visao", &settings.vision_model, 90.0),
-        ] {
+        for (camada, modelo, t) in
+            [("rapido", &settings.gateway_model_fast, 60.0), ("pesado", &settings.gateway_model_heavy, 120.0), ("visao", &settings.vision_model, 90.0)]
+        {
             if !modelo.is_empty() && *modelo != settings.gateway_model {
                 let mut ep = Endpoint::new(camada, url, modelo);
                 ep.api_key = chave.clone();
@@ -230,8 +231,22 @@ pub fn vision_from_settings(settings: &Settings) -> Option<orion_ai::vision::Vis
 }
 
 pub fn transcriber_from_settings(settings: &Settings) -> Option<orion_ai::transcribe::Transcriber> {
-    let chave = Some(settings.transcribe_api_key.clone()).filter(|k| !k.is_empty()).or_else(|| get_secret("ORION_TRANSCRIBE_API_KEY"))?;
-    orion_ai::transcribe::Transcriber::new(&chave, &settings.transcribe_url, &settings.transcribe_model).ok()
+    let fallback = if settings.transcribe_groq_fallback {
+        Some(settings.transcribe_api_key.clone())
+            .filter(|k| !k.is_empty())
+            .or_else(|| get_secret("ORION_TRANSCRIBE_API_KEY"))
+            .and_then(|k| orion_ai::transcribe::Transcriber::new(&k, &settings.transcribe_url, &settings.transcribe_model).ok())
+    } else {
+        None
+    };
+    #[cfg(windows)]
+    if let Some(model) = &settings.local_stt_model {
+        match orion_core::native_audio::transcriber(model, settings.local_stt_gpu, fallback.clone()) {
+            Ok(t) => return Some(t),
+            Err(_) => tracing::warn!("Whisper local indisponível; confira o modelo e a GPU"),
+        }
+    }
+    fallback
 }
 
 /// Sem chave de API, sem embeddings: a busca segue só por palavra-chave.
@@ -264,7 +279,7 @@ pub fn memory_from_settings(settings: &Settings) -> anyhow::Result<Store> {
 }
 
 pub fn speaker_from_settings(settings: &Settings) -> Option<Arc<dyn orion_core::voice::Speaker>> {
-    if !(settings.voice_enabled && settings.voice_speak) {
+    if !((settings.voice_enabled && settings.voice_speak) || settings.telegram_voice_reply) {
         return None;
     }
     Some(Arc::new(orion_core::voice::EdgeSpeaker::new(&settings.voice_tts_voice, 30.0)))
@@ -299,15 +314,7 @@ pub fn camera_from_settings(
     let ord = settings.vision_order.clone();
     let (det2, av2) = (detector.clone(), avistamentos.clone());
     let descrever: CameraDescrever = Arc::new(move |pergunta: &str| {
-        orion_core::tools::camera::descrever_camera(
-            dev,
-            pergunta,
-            &ord,
-            vision.as_deref(),
-            None,
-            det2.as_deref(),
-            av2.as_deref(),
-        )
+        orion_core::tools::camera::descrever_camera(dev, pergunta, &ord, vision.as_deref(), None, det2.as_deref(), av2.as_deref())
     });
     (tools, detector, avistamentos, Some(descrever))
 }
@@ -345,9 +352,7 @@ pub fn vigia_from_settings(
 }
 
 fn chave_de(nomes_settings: Vec<String>, segredos: &'static [&'static str]) -> orion_core::tools::web::Chave {
-    Arc::new(move || {
-        nomes_settings.iter().find(|v| !v.is_empty()).cloned().or_else(|| segredos.iter().find_map(|s| get_secret(s)))
-    })
+    Arc::new(move || nomes_settings.iter().find(|v| !v.is_empty()).cloned().or_else(|| segredos.iter().find_map(|s| get_secret(s))))
 }
 
 /// Servidores MCP do `mcp.json`; configuração inválida desliga o MCP, não o Orion.
@@ -355,7 +360,8 @@ pub fn mcp_from_settings(settings: &Settings) -> Option<Arc<orion_core::mcp_clie
     if !settings.mcp_enabled {
         return None;
     }
-    let extras = if settings.plugins_enabled { orion_core::plugins_locais::PluginStore::new(settings.effective_plugins_dir()).servidores_mcp() } else { vec![] };
+    let extras =
+        if settings.plugins_enabled { orion_core::plugins_locais::PluginStore::new(settings.effective_plugins_dir()).servidores_mcp() } else { vec![] };
     match orion_core::mcp_client::manager_from_file(&settings.effective_mcp_config(), extras) {
         Ok(m) => m,
         Err(e) => {
@@ -380,11 +386,7 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
     let ops = Arc::new(Operations::new(memory.clone()));
     orion_core::documents::recuperar_interrompidos(&memory);
     let ops_audit = ops.clone();
-    let modos = Arc::new(Modos::new(
-        memory.clone(),
-        &settings.dnd_at,
-        Some(Arc::new(move |e| ops_audit.audit_add(e).map(|_| ()).map_err(Into::into))),
-    ));
+    let modos = Arc::new(Modos::new(memory.clone(), &settings.dnd_at, Some(Arc::new(move |e| ops_audit.audit_add(e).map(|_| ()).map_err(Into::into)))));
     {
         let m = modos.clone();
         *ops.segurar.write() = Arc::new(move || m.nao_perturbe()); // não perturbe segura os avisos
@@ -463,7 +465,14 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
         }
         mcp_geral = mcp.clone();
         if settings.skills_enabled {
-            let cat = SkillCatalog::new(&settings.effective_skills_dir(), if settings.plugins_enabled { orion_core::plugins_locais::PluginStore::new(settings.effective_plugins_dir()).pastas_de_skills() } else { vec![] });
+            let cat = SkillCatalog::new(
+                &settings.effective_skills_dir(),
+                if settings.plugins_enabled {
+                    orion_core::plugins_locais::PluginStore::new(settings.effective_plugins_dir()).pastas_de_skills()
+                } else {
+                    vec![]
+                },
+            );
             if !cat.skills.is_empty() {
                 let _ = policy.register_tool(orion_core::skills::tool_spec(), None);
                 let arc = Arc::new(RwLock::new(cat));
@@ -473,15 +482,11 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
         }
         if let Some(t) = &tela {
             let _ = t;
-            let _ = policy.register_tool(orion_policy::ToolSpec { external: true, ..orion_policy::ToolSpec::new("buscar_tela", orion_policy::Risk::Read) }, None);
+            let _ =
+                policy.register_tool(orion_policy::ToolSpec { external: true, ..orion_policy::ToolSpec::new("buscar_tela", orion_policy::Risk::Read) }, None);
             extra.push(orion_core::screen_memory::screen_tool(memory.clone()));
         }
-        extra.extend(orion_core::historicos::ferramentas(
-            historicos.clone(),
-            &policy,
-            settings.clipboard_days > 0,
-            settings.command_history,
-        ));
+        extra.extend(orion_core::historicos::ferramentas(historicos.clone(), &policy, settings.clipboard_days > 0, settings.command_history));
         let mut o = Opcoes { ops: Some(ops.clone()), delegator: delegator.clone(), camera: camera_tools, extra, ..Default::default() };
         if settings.desktop_tools {
             // opt-in (ORION_DESKTOP_TOOLS): age no computador, sempre sob a política
@@ -522,13 +527,8 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
             o.extra.push(orion_core::tools::n8n::n8n_tool(webhooks));
         }
         let registro = default_registry(memory.clone(), o)?;
-        let mut a = Agent::new(
-            gw.clone(),
-            registro,
-            policy.clone(),
-            memory.clone(),
-            AgentConfig { routing: roteamento_ligado(&settings), ..Default::default() },
-        );
+        let mut a =
+            Agent::new(gw.clone(), registro, policy.clone(), memory.clone(), AgentConfig { routing: roteamento_ligado(&settings), ..Default::default() });
         a.ops = Some(ops.clone());
         if let Some(m) = &mcp {
             let m = m.clone();
@@ -544,8 +544,15 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
     let started_at = orion_core::util::agora();
     // conexões MCP revisadas (host) + catálogo + agenda (leitura) + propostas + planos de arquivos
     let accounts = orion_core::accounts::Accounts::new(memory.clone());
-    let configs = settings.mcp_connections.iter().map(orion_core::extensions::host::parse_config).collect::<Result<Vec<_>, _>>().map_err(|e| anyhow::anyhow!("ORION_MCP_CONNECTIONS inválido: {e}"))?;
-    let mcp_host = Arc::new(orion_core::extensions::host::MCPHost::new(configs, std::time::Duration::from_secs(5), Some(accounts.factory())).map_err(|e| anyhow::anyhow!(e))?);
+    let configs = settings
+        .mcp_connections
+        .iter()
+        .map(orion_core::extensions::host::parse_config)
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| anyhow::anyhow!("ORION_MCP_CONNECTIONS inválido: {e}"))?;
+    let mcp_host = Arc::new(
+        orion_core::extensions::host::MCPHost::new(configs, std::time::Duration::from_secs(5), Some(accounts.factory())).map_err(|e| anyhow::anyhow!(e))?,
+    );
     *accounts.host.write() = Some(mcp_host.clone());
     mcp_host.start().await;
     let registro_ext = agent.as_ref().map(|a| a.tools.clone()).unwrap_or_default();
@@ -566,10 +573,21 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
     let events = orion_core::calendar_events::Events::new(calendar.clone());
     let file_plans = orion_core::file_plans::FilePlans::new(events.clone());
     orion_core::development::Development::registrar(memory.clone(), &catalog.registry, policy.clone());
-    let fontes = settings.skill_sources.iter().map(orion_core::extensions::skill_runtime::SkillSource::parse).collect::<Result<Vec<_>, _>>().map_err(|e| anyhow::anyhow!("ORION_SKILL_SOURCES inválido: {e}"))?;
+    let fontes = settings
+        .skill_sources
+        .iter()
+        .map(orion_core::extensions::skill_runtime::SkillSource::parse)
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| anyhow::anyhow!("ORION_SKILL_SOURCES inválido: {e}"))?;
     let skill_runtime = orion_core::extensions::skill_runtime::SkillRuntime::new(&fontes);
     skill_runtime.attach_tools(&catalog.registry, &policy);
-    let extensions = match orion_core::extensions::manager::PluginManager::new(&settings.data_dir.join("extensions"), skill_runtime.clone(), mcp_host.clone(), catalog.clone(), policy.clone()) {
+    let extensions = match orion_core::extensions::manager::PluginManager::new(
+        &settings.data_dir.join("extensions"),
+        skill_runtime.clone(),
+        mcp_host.clone(),
+        catalog.clone(),
+        policy.clone(),
+    ) {
         Ok(m) => {
             let urls = orion_core::extensions::catalogo::urls_validas(&settings.plugin_catalogs).map_err(|e| anyhow::anyhow!("ORION_PLUGIN_CATALOGS: {e}"))?;
             *m.catalogos.write() = Some(Arc::new(orion_core::extensions::catalogo::Catalogos::new(settings.effective_catalog_dir(), urls)));
@@ -628,7 +646,12 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
         let (f, o) = (foco.clone(), ops.clone());
         *t.on_capture.lock() = Some(Arc::new(move |alvo: &str| {
             if f.pergunta_permitida(alvo) {
-                let _ = o.notify("foco", &format!("isso é do marco da semana? ({})", alvo.chars().take(80).collect::<String>()), Some(&format!("foco:{}", orion_core::util::agora() as i64)), false);
+                let _ = o.notify(
+                    "foco",
+                    &format!("isso é do marco da semana? ({})", alvo.chars().take(80).collect::<String>()),
+                    Some(&format!("foco:{}", orion_core::util::agora() as i64)),
+                    false,
+                );
             }
         }));
     }
@@ -637,20 +660,19 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
     } else {
         ChatGateway::new(vec![local(&settings, 60.0)]).ok().map(|g| Arc::new(g) as Arc<dyn orion_core::memory::Completer>)
     };
-    let vida_canal = Arc::new(orion_core::vida::VidaCanal::new(memory.clone(), financas.clone(), precos.clone(), foco.clone(), revisao, ops.clone(), gateway_local.clone()));
+    let vida_canal =
+        Arc::new(orion_core::vida::VidaCanal::new(memory.clone(), financas.clone(), precos.clone(), foco.clone(), revisao, ops.clone(), gateway_local.clone()));
     let vigia = vigia_from_settings(&settings, memory.clone(), tela.clone(), ops.clone(), detector.clone(), avistamentos.clone());
     let legenda = if settings.subtitles {
-        settings.subtitle_model.as_ref().and_then(|modelo| {
-            match orion_core::legenda::criar_transcritor(&modelo.to_string_lossy()) {
-                Ok(tr) => {
-                    let leg = Arc::new(orion_core::legenda::Legenda::new(tr, 200.0));
-                    let _ = orion_core::legenda::iniciar_thread(leg.clone(), &settings.subtitle_device);
-                    Some(leg)
-                }
-                Err(e) => {
-                    tracing::warn!("legenda desligada: {e}");
-                    None
-                }
+        settings.subtitle_model.as_ref().and_then(|modelo| match orion_core::legenda::criar_transcritor(&modelo.to_string_lossy()) {
+            Ok(tr) => {
+                let leg = Arc::new(orion_core::legenda::Legenda::new(tr, 200.0));
+                let _ = orion_core::legenda::iniciar_thread(leg.clone(), &settings.subtitle_device);
+                Some(leg)
+            }
+            Err(e) => {
+                tracing::warn!("legenda desligada: {e}");
+                None
             }
         })
     } else {
@@ -659,9 +681,21 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
     let telegram = match (&agent, Some(settings.telegram_token.clone()).filter(|t| !t.is_empty()).or_else(|| get_secret("ORION_TELEGRAM_TOKEN"))) {
         (Some(a), Some(token)) if !settings.telegram_allowed_users.is_empty() => {
             let cap = settings.vault_dir.as_ref().map(|v| Arc::new(orion_core::capture::Capturer::new(v.clone(), &settings.capture_folder)));
-            match orion_core::channels::telegram::TelegramChannel::new(&token, &settings.telegram_allowed_users, a.clone(), memory.clone(), a.policy.approvals.clone(), ops.clone(), transcriber.clone(), cap) {
+            match orion_core::channels::telegram::TelegramChannel::new(
+                &token,
+                &settings.telegram_allowed_users,
+                a.clone(),
+                memory.clone(),
+                a.policy.approvals.clone(),
+                ops.clone(),
+                transcriber.clone(),
+                cap,
+            ) {
                 Ok(t) => {
                     *t.modos.lock() = Some(modos.clone());
+                    if settings.telegram_voice_reply {
+                        *t.speaker.lock() = speaker.clone();
+                    }
                     let (tl, mem) = (tela.clone(), memory.clone());
                     *t.tela.lock() = Some(Arc::new(move |acao: &str| orion_core::screen_memory::comando_tela(tl.as_deref(), &mem, acao)));
                     *t.ler_depois.lock() = Some(ler_depois.clone());
@@ -682,7 +716,8 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
                     {
                         let (repos, bdir, tb, dl) = (settings.repos.clone(), settings.effective_backup_dir(), tarefas_bg.clone(), downloads.clone());
                         *t.desligar.lock() = Some(Arc::new(move || {
-                            let pasta = dl.estado()["pasta"].as_str().map(PathBuf::from).unwrap_or_else(|| orion_core::downloads::dirs_home().join("Downloads"));
+                            let pasta =
+                                dl.estado()["pasta"].as_str().map(PathBuf::from).unwrap_or_else(|| orion_core::downloads::dirs_home().join("Downloads"));
                             let tarefas = tb.as_ref().and_then(|x| x.listar(50).ok()).unwrap_or_default();
                             orion_core::desligar::texto(&orion_core::desligar::posso_desligar(&repos, Some(&bdir), &pasta, &tarefas))
                         }));
@@ -751,7 +786,15 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
             j = j.com_tela(t.clone());
         }
         {
-            let mut v = orion_core::vida::VidaJobs::new(memory.clone(), financas.clone(), ops.clone(), settings.vault_dir.clone(), settings.repos.clone(), &settings.diary_at, &settings.weekly_review_at);
+            let mut v = orion_core::vida::VidaJobs::new(
+                memory.clone(),
+                financas.clone(),
+                ops.clone(),
+                settings.vault_dir.clone(),
+                settings.repos.clone(),
+                &settings.diary_at,
+                &settings.weekly_review_at,
+            );
             if let Some(a) = &agent {
                 // E10.5: usa a pesquisa da web; a cota já foi checada no job
                 let (tools, h) = (a.tools.clone(), tokio::runtime::Handle::current());
@@ -772,9 +815,17 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
     } else {
         None
     };
+    let budget = Arc::new(orion_ai::budget::Budget::load(memory.clone())?);
+    if let Some(g) = &gateway {
+        *g.weekly_budget.lock() = Some(budget.clone());
+    }
+    if let Some(d) = &delegator {
+        *d.weekly_budget.lock() = Some(budget.clone());
+    }
     let voz = Arc::new(orion_core::voice::VozStats::default());
     let estado_voz = Arc::new(orion_core::vida::EstadoVoz::default());
-    let escuta: Option<Arc<orion_core::wake::WakeListener>> = None;
+    let desktop_wake = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let escuta = listen_from_settings(&settings, agent.clone(), transcriber.clone(), speaker.clone(), memory.clone(), modos.clone(), desktop_wake.clone());
     let voz_painel = {
         let vz = voz.clone();
         let esc = escuta.clone();
@@ -864,16 +915,19 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
         voz,
         estado_voz,
         escuta,
+        desktop_wake,
         settings,
         memory,
         policy,
         ops,
         auth,
+        two_factor: Default::default(),
         agent,
         gateway,
         biblioteca,
         modos,
         custos,
+        budget,
         delegator,
         processos,
         skills: skills_cat,
@@ -884,3 +938,71 @@ pub fn front_dir() -> PathBuf {
     project_root().join("Orion_Core").join("Front_end_Orion")
 }
 
+#[allow(clippy::too_many_arguments)]
+fn listen_from_settings(
+    settings: &Settings,
+    agent: Option<Arc<Agent>>,
+    transcriber: Option<Arc<orion_ai::transcribe::Transcriber>>,
+    speaker: Option<Arc<dyn orion_core::voice::Speaker>>,
+    memory: Arc<Store>,
+    modos: Arc<Modos>,
+    open: Arc<std::sync::atomic::AtomicBool>,
+) -> Option<Arc<orion_core::wake::WakeListener>> {
+    #[cfg(windows)]
+    {
+        use orion_core::wake::*;
+        if !settings.wake_enabled && !settings.clap_enabled {
+            return None;
+        }
+        let detector: Box<dyn Detector> = if settings.wake_enabled {
+            if settings.wake_engine != "openwakeword" {
+                tracing::warn!("escuta Rust exige ORION_WAKE_ENGINE=openwakeword");
+                return None;
+            }
+            let Some(model) = &settings.wake_model else {
+                tracing::warn!("escuta desligada: falta modelo ONNX treinado para Orion");
+                return None;
+            };
+            match orion_core::native_audio::OpenWakeWord::load(model, settings.wake_threshold as f32) {
+                Ok(d) => Box::new(d),
+                Err(_) => {
+                    tracing::warn!("escuta desligada: modelo openWakeWord inválido");
+                    return None;
+                }
+            }
+        } else {
+            Box::new(DetectorInerte)
+        };
+        let device = settings.wake_device.clone();
+        let source: SourceFactory = Arc::new(move || orion_core::native_audio::CpalSource::open(&device).map(|s| Box::new(s) as Box<dyn AudioSource>));
+        let config = WakeConfig {
+            clap_enabled: settings.clap_enabled,
+            silence_s: settings.wake_silence_s,
+            max_record_s: settings.wake_max_s,
+            max_per_hour: settings.wake_max_per_hour as usize,
+            clap_max_per_hour: settings.clap_max_per_hour as usize,
+            calibrate_frames: 64,
+            clap_ratio: settings.clap_ratio,
+            ..Default::default()
+        };
+        let listener = if settings.wake_enabled {
+            let (Some(agent), Some(transcriber)) = (agent, transcriber) else {
+                tracing::warn!("voz desligada: configure agente e transcrição local");
+                return None;
+            };
+            WakeListener::from_runtime(detector, source, agent, transcriber, speaker, memory, config, None, None, Some(modos.clone()))
+        } else {
+            Arc::new(WakeListener::new(detector, source, Arc::new(|_| {}), Some(memory), config, None))
+        };
+        *listener.modos.lock() = Some(modos);
+        *listener.on_activate.lock() = Some(Arc::new(move || {
+            open.store(true, std::sync::atomic::Ordering::SeqCst);
+        }));
+        Some(listener)
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = (settings, agent, transcriber, speaker, memory, modos, open);
+        None
+    }
+}

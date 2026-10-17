@@ -34,25 +34,43 @@ def esquema(props=None, obrigatorios=()):
 
 def ferramentas():
     base = [
-        ("somar", "Soma dois números.", esquema({"a": {"type": "integer"}, "b": {"type": "integer"}}, ["a", "b"])),
-        ("ler_texto", "Devolve o caminho recebido (o servidor de verdade leria o arquivo).", esquema({"path": {"type": "string"}}, ["path"])),
-        ("apagar", "Apaga (de mentira) um caminho.", esquema({"path": {"type": "string"}}, ["path"])),
+        (
+            "somar",
+            "Soma dois números.",
+            esquema({"a": {"type": "integer"}, "b": {"type": "integer"}}, ["a", "b"]),
+        ),
+        (
+            "ler_texto",
+            "Devolve o caminho recebido (o servidor de verdade leria o arquivo).",
+            esquema({"path": {"type": "string"}}, ["path"]),
+        ),
+        (
+            "apagar",
+            "Apaga (de mentira) um caminho.",
+            esquema({"path": {"type": "string"}}, ["path"]),
+        ),
         ("falha", "Sempre falha.", esquema()),
-        ("dormir", "Demora `segundos` para responder (30 s sem o argumento).", esquema({"segundos": {"type": "number"}})),
+        (
+            "dormir",
+            "Demora `segundos` para responder (30 s sem o argumento).",
+            esquema({"segundos": {"type": "number"}}),
+        ),
         ("sair", "Derruba o processo do servidor (para testar a reconexão).", esquema()),
         ("nome_estranho_com_espacos_e_acentos_ção", "Nome que precisa ser sanitizado.", esquema()),
         ("eco", "Devolve o texto.", esquema({"texto": {"type": "string"}})),
         ("ambiente", "Lista as variáveis ORION_* e de chaves que o processo enxerga.", esquema()),
     ]
     tools = [{"name": n, "description": d, "inputSchema": s} for n, d, s in base]
-    for i in range(EXTRAS):
-        tools.append(
-            {
-                "name": f"extra_{i:03d}",
-                "description": f"Ferramenta extra número {i} para {['clima', 'agenda', 'git', 'arquivo'][i % 4]}.",
-                "inputSchema": esquema(),
-            }
-        )
+    tools.extend(
+        {
+            "name": f"extra_{i:03d}",
+            "description": (
+                f"Ferramenta extra número {i} para {['clima', 'agenda', 'git', 'arquivo'][i % 4]}."
+            ),
+            "inputSchema": esquema(),
+        }
+        for i in range(EXTRAS)
+    )
     return tools
 
 
@@ -66,7 +84,13 @@ CONTEUDO = {
     "file:///segredo/chave.txt": "SEGREDO",
     "file:///docs/grande.txt": "x" * 300_000,
 }
-PROMPTS = [{"name": "revisar", "description": "Revisa um texto.", "arguments": [{"name": "texto", "required": True}]}]
+PROMPTS = [
+    {
+        "name": "revisar",
+        "description": "Revisa um texto.",
+        "arguments": [{"name": "texto", "required": True}],
+    }
+]
 
 
 def texto(id_, t, erro=False):
@@ -93,7 +117,12 @@ def chamar(id_, nome, a):
     elif nome == "eco":
         texto(id_, a.get("texto", "ok"))
     elif nome == "ambiente":
-        texto(id_, json.dumps(sorted(k for k in os.environ if k.startswith(("ORION_", "OPENAI", "CHAVE")))))
+        texto(
+            id_,
+            json.dumps(
+                sorted(k for k in os.environ if k.startswith(("ORION_", "OPENAI", "CHAVE")))
+            ),
+        )
     else:
         texto(id_, "ok")
 
@@ -111,7 +140,17 @@ def responder(req):
         caps = {"tools": {}}
         if os.environ.get("COM_RECURSOS"):
             caps.update({"resources": {}, "prompts": {}})
-        enviar({"jsonrpc": "2.0", "id": id_, "result": {"protocolVersion": PROTOCOLO, "capabilities": caps, "serverInfo": {"name": "fake", "version": "0"}}})
+        enviar(
+            {
+                "jsonrpc": "2.0",
+                "id": id_,
+                "result": {
+                    "protocolVersion": PROTOCOLO,
+                    "capabilities": caps,
+                    "serverInfo": {"name": "fake", "version": "0"},
+                },
+            }
+        )
     elif metodo == "tools/list":
         enviar({"jsonrpc": "2.0", "id": id_, "result": {"tools": ferramentas()}})
     elif metodo == "tools/call":
@@ -121,18 +160,45 @@ def responder(req):
     elif metodo == "resources/read":
         uri = p.get("uri")
         if uri not in CONTEUDO:
-            enviar({"jsonrpc": "2.0", "id": id_, "error": {"code": -32002, "message": "não existe"}})
+            enviar(
+                {"jsonrpc": "2.0", "id": id_, "error": {"code": -32002, "message": "não existe"}}
+            )
         else:
-            enviar({"jsonrpc": "2.0", "id": id_, "result": {"contents": [{"uri": uri, "mimeType": "text/plain", "text": CONTEUDO[uri]}]}})
+            enviar(
+                {
+                    "jsonrpc": "2.0",
+                    "id": id_,
+                    "result": {
+                        "contents": [{"uri": uri, "mimeType": "text/plain", "text": CONTEUDO[uri]}]
+                    },
+                }
+            )
     elif metodo == "prompts/list":
         enviar({"jsonrpc": "2.0", "id": id_, "result": {"prompts": PROMPTS}})
     elif metodo == "prompts/get":
         t = (p.get("arguments") or {}).get("texto", "")
-        enviar({"jsonrpc": "2.0", "id": id_, "result": {"description": "Revisa", "messages": [{"role": "user", "content": {"type": "text", "text": f"Revise: {t}"}}]}})
+        enviar(
+            {
+                "jsonrpc": "2.0",
+                "id": id_,
+                "result": {
+                    "description": "Revisa",
+                    "messages": [
+                        {"role": "user", "content": {"type": "text", "text": f"Revise: {t}"}}
+                    ],
+                },
+            }
+        )
     elif metodo == "ping":
         enviar({"jsonrpc": "2.0", "id": id_, "result": {}})
     else:
-        enviar({"jsonrpc": "2.0", "id": id_, "error": {"code": -32601, "message": "método desconhecido"}})
+        enviar(
+            {
+                "jsonrpc": "2.0",
+                "id": id_,
+                "error": {"code": -32601, "message": "método desconhecido"},
+            }
+        )
 
 
 for linha in sys.stdin:

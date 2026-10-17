@@ -60,15 +60,20 @@ pub struct Modos {
     pub memory: Arc<Store>,
     janela: String,
     audit: Option<AuditFn>,
+    emergency_cut: std::sync::atomic::AtomicBool,
 }
 
 impl Modos {
     pub fn new(memory: Arc<Store>, dnd_at: &str, audit: Option<AuditFn>) -> Self {
-        Modos { memory, janela: dnd_at.into(), audit }
+        Modos { memory, janela: dnd_at.into(), audit, emergency_cut: std::sync::atomic::AtomicBool::new(false) }
     }
 
     fn estado_panico(&self) -> Option<Value> {
-        let bruto = self.memory.meta_get(CHAVE_PANICO)?;
+        let bruto = match self.memory.meta_get(CHAVE_PANICO) {
+            Some(v) => v,
+            None if self.emergency_cut.load(std::sync::atomic::Ordering::SeqCst) => return Some(json!({"desde":null,"origem":"corte_local"})),
+            None => return None,
+        };
         if bruto.is_empty() {
             return None;
         }
@@ -89,6 +94,8 @@ impl Modos {
         if self.panico() {
             return Ok(false);
         }
+        // REGRAS.md: pânico é corte; não perturbe só segura. Nem falha do banco impede o corte local.
+        self.emergency_cut.store(true, std::sync::atomic::Ordering::SeqCst);
         let o: String = origem.chars().take(30).collect();
         let v = orion_policy::pyjson::dumps_ascii(&json!({"desde": self.memory.now(), "origem": o}), false);
         self.memory.meta_set(CHAVE_PANICO, Some(&v))?;
@@ -107,6 +114,7 @@ impl Modos {
         }
         self.registrar("sair", origem).map_err(|_| ModoError("não saí do pânico: o audit falhou".into()))?;
         self.memory.meta_set(CHAVE_PANICO, None).map_err(|e| ModoError(e.to_string()))?;
+        self.emergency_cut.store(false, std::sync::atomic::Ordering::SeqCst);
         tracing::warn!("modo pânico desligado ({origem})");
         Ok(true)
     }
@@ -155,5 +163,20 @@ impl Modos {
             "nao_perturbe_ate": self.nao_perturbe_ate(),
             "nao_perturbe_horario": if self.janela.is_empty() { None } else { Some(&self.janela) },
         })
+    }
+}
+
+#[cfg(test)]
+mod panic_tests {
+    use super::*;
+    #[test]
+    fn corte_local_continua_se_banco_falha() {
+        let memory = Arc::new(Store::open(":memory:").unwrap());
+        let modes = Modos::new(memory.clone(), "", None);
+        memory.conn().execute_batch("DROP TABLE meta").unwrap();
+        assert!(modes.entrar_panico("teste").is_err());
+        assert!(modes.panico());
+        assert!(modes.sair_panico("teste").is_err());
+        assert!(modes.panico());
     }
 }
