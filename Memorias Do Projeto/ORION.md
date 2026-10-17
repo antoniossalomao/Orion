@@ -88,8 +88,8 @@ Antônio é o administrador: decide, aprova e pode desligar qualquer coisa. Nada
 | 4, plataforma e rotinas (3 a 4 semanas) | Início automático, bandeja, teclas, cofre, rotinas, backup, captura e OCR nativos | Rotinas rodando com o app na bandeja |
 | 5, voz (3 a 5 semanas) | Captura, VAD, STT com whisper-rs, palavra de ativação e palmas, TTS | Comando por voz nos dois sistemas |
 | 6, integrações (3 a 4 semanas) | MCP (rmcp), plugins, Telegram (teloxide), Google | Integrações com as mesmas credenciais |
-| 7, residual Python (1 a 2 semanas) | Sidecar com browser-use e crawl4ai, JSON por stdin e stdout | Navegação com IA pelo sidecar |
-| 8, corte (2 a 3 semanas) | Migração de dados verificada, instalador assinado no Windows, comparação de desempenho | Versão 1.0 em Rust no Windows; Python como rollback por uma versão |
+| 7, residual Python (1 a 2 semanas) | Sidecar com browser-use e crawl4ai, JSON por stdin e stdout | Feita (`orion-sidecar` + `orion/sidecar.py`) |
+| 8, corte (2 a 3 semanas) | Migração de dados verificada, instalador assinado no Windows, comparação de desempenho | Instalador nativo `orion-setup` pronto; falta corte final |
 | 9, macOS (a definir) | Implementações de plataforma, permissões, `.dmg` assinado e notarizado | Começa depois do corte do Windows |
 
 **Métricas:** tempo até a janela pronta, memória ociosa, latência da primeira resposta, tamanho do pacote e paridade dos testes (100% no primeiro marco).
@@ -108,11 +108,11 @@ Os itens em aberto das etapas antigas foram reescritos aqui, com IDs novos.
 | B-04 | Spike de palmas e palavra de ativação no Windows, com calibração em microfone real (inclui a prova da E2 e da E9) | Você e Claude |
 | B-05 | Spike de busca: rusqlite com FTS5 lendo o banco real; BGE-M3 via `ort` ou `candle` comparado ao Python | Claude |
 | B-06 | Spike de áudio: captura com cpal e VAD mínimo; testar um STT candidato (ver [ARQUITETURA.md](ARQUITETURA.md), 8.3) | Claude |
-| B-07 | Portar `policy/` com os mesmos casos de teste (fase 2) | Claude |
+| B-07 | Portar `policy/` com os mesmos casos de teste (fase 2) — **Feito (`orion-policy`)** | Claude |
 | B-08 | Definir as telas do primeiro marco | Você |
-| B-09 | Fixar a versão do iced no `Cargo.lock` | Claude |
+| B-09 | Fixar a versão do iced no `Cargo.lock` — **Feito (`iced = "=0.14.0"`)** | Claude |
 | B-10 | Decidir a licença-alvo (ver Pendências, item 10) | Você |
-| B-11 | Sidecar Python com browser-use e crawl4ai (fase 7) | Claude |
+| B-11 | Sidecar Python com browser-use e crawl4ai (fase 7) — **Feito (`orion-sidecar` + `orion/sidecar.py`)** | Claude |
 
 **Fora do marco 1:** E10 a E13. E10 e E11 já têm código em Python (ver Estado), sem Rust; E12 e E13 não começaram. Cada um começa pelas regras em [REGRAS.md](REGRAS.md).
 

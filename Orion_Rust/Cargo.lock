@@ -4059,6 +4059,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "orion-sidecar"
+version = "0.1.0"
+dependencies = [
+ "orion-policy",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "tracing",
+ "url",
+ "uuid",
+ "wait-timeout",
+]
+
+[[package]]
 name = "orion-store"
 version = "0.1.0"
 dependencies = [

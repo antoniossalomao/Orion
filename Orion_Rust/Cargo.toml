@@ -67,6 +67,7 @@ tracing = "0.1"
 iced = { version = "=0.14.0", features = ["canvas", "tokio", "advanced", "image"] }
 cpal = "0.18"
 orion-setup = { path = "crates/orion-setup" }
+orion-sidecar = { path = "crates/orion-sidecar" }
 
 [profile.release]
 lto = "thin"
