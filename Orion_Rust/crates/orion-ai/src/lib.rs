@@ -15,3 +15,5 @@ pub mod transcribe;
 pub mod vision;
 
 pub use gateway::{ChatGateway, Endpoint, Event, GatewayError};
+
+pub mod budget;

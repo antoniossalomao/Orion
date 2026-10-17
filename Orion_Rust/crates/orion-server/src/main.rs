@@ -1,6 +1,8 @@
 //! `orion`: sobe o servidor (padrão) e os comandos de manutenção.
 
 mod cli_extra;
+#[cfg(windows)]
+mod desktop;
 mod estado;
 mod http;
 mod log;
@@ -26,6 +28,12 @@ struct Cli {
 enum Cmd {
     /// Sobe o servidor (padrão).
     Serve,
+    /// Abre o controle nativo com bandeja, mini barra e atalhos globais.
+    Desktop {
+        /// Inicia oculto na bandeja.
+        #[arg(long)]
+        background: bool,
+    },
     /// Interno: extrai o texto de um documento num processo descartável.
     #[command(hide = true)]
     ExtrairDocumento { arquivo: String, tipo: String },
@@ -345,18 +353,29 @@ fn esquecer(s: &Settings, consulta: &str, sim: bool) -> anyhow::Result<i32> {
 async fn serve(s: Settings) -> anyhow::Result<i32> {
     let (host, porta) = (s.host.clone(), s.port);
     let st = estado::montar(s).await?;
+    let ouvinte = tokio::net::TcpListener::bind((host.as_str(), porta)).await?;
+    serve_state(st, ouvinte, async {
+        let _ = tokio::signal::ctrl_c().await;
+    })
+    .await
+}
+
+async fn serve_state(
+    st: estado::Estado,
+    ouvinte: tokio::net::TcpListener,
+    shutdown: impl std::future::Future<Output = ()> + Send + 'static,
+) -> anyhow::Result<i32> {
+    let (host, porta) = (&st.settings.host, st.settings.port);
+    if let Some(e) = &st.escuta {
+        e.start();
+    }
     if let Some(j) = st.jobs.clone() {
         tokio::spawn(j.run_forever(st.settings.jobs_tick_s));
     }
     let tarefa_telegram = st.telegram.clone().map(|t| tokio::spawn(t.run()));
     let app = rotas::router(st.clone());
-    let ouvinte = tokio::net::TcpListener::bind((host.as_str(), porta)).await?;
     tracing::info!("Orion em http://{host}:{porta}");
-    axum::serve(ouvinte, app.into_make_service_with_connect_info::<std::net::SocketAddr>())
-        .with_graceful_shutdown(async {
-            let _ = tokio::signal::ctrl_c().await;
-        })
-        .await?;
+    axum::serve(ouvinte, app.into_make_service_with_connect_info::<std::net::SocketAddr>()).with_graceful_shutdown(shutdown).await?;
     if let Some(e) = &st.escuta {
         e.stop();
     }
@@ -399,7 +418,9 @@ fn rodar(cli: Cli) -> anyhow::Result<i32> {
         Cmd::Autostart { plataforma, install, dir, force, ponte } => cli_extra::autostart(&s, plataforma.as_deref(), *install, dir.as_deref(), *force, *ponte),
         Cmd::McpCheck { config } => cli_extra::mcp_check(&s, config.as_deref()),
         Cmd::ImportSurreal { pasta, assistente } => cli_extra::import_surreal(&s, pasta, assistente),
-        Cmd::VerifyExport { pasta, assistente, env, google_auth, vault, sem_ensaio } => cli_extra::verify_export(pasta, assistente, env.as_deref(), google_auth.as_deref(), vault.as_deref(), *sem_ensaio),
+        Cmd::VerifyExport { pasta, assistente, env, google_auth, vault, sem_ensaio } => {
+            cli_extra::verify_export(pasta, assistente, env.as_deref(), google_auth.as_deref(), vault.as_deref(), *sem_ensaio)
+        }
         Cmd::Transcrever { arquivo, titulo, sim, propor } => cli_extra::transcrever(&s, arquivo, titulo, *sim, *propor),
         Cmd::PossoDesligar => cli_extra::posso_desligar(&s),
         Cmd::Downloads { acao, simular, hoje, sim } => cli_extra::downloads(&s, acao, *simular, *hoje, *sim),
@@ -408,6 +429,17 @@ fn rodar(cli: Cli) -> anyhow::Result<i32> {
         Cmd::Rosto { acao, nome, fotos } => cli_extra::rosto(&s, acao, nome, *fotos),
         Cmd::Legenda { segundos } => cli_extra::legenda(&s, *segundos),
         Cmd::WakeTest { listar, segundos } => cli_extra::wake_test(&s, *listar, *segundos),
+        Cmd::Desktop { background } => {
+            #[cfg(windows)]
+            {
+                desktop::run(s, *background)
+            }
+            #[cfg(not(windows))]
+            {
+                let _ = s;
+                anyhow::bail!("bandeja disponível apenas no Windows")
+            }
+        }
         Cmd::Serve => tokio::runtime::Builder::new_multi_thread().enable_all().build()?.block_on(serve(s)),
         Cmd::Backup { dir, keep } => {
             let store = Store::open(s.db_path())?;
@@ -474,7 +506,10 @@ fn rodar(cli: Cli) -> anyhow::Result<i32> {
                 }
             };
             if s.db_path().exists() && !force {
-                eprintln!("{} já existe; pare o Orion e use --force para substituir (o banco atual é perdido: faça `orion backup` antes)", s.db_path().display());
+                eprintln!(
+                    "{} já existe; pare o Orion e use --force para substituir (o banco atual é perdido: faça `orion backup` antes)",
+                    s.db_path().display()
+                );
                 return Ok(1);
             }
             Store::restore(arquivo, &s.db_path())?;

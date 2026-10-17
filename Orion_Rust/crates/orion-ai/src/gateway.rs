@@ -137,6 +137,7 @@ pub struct ChatGateway {
     cooldown_s: f64,
     estado: Mutex<Estado>,
     pub orcamento: Mutex<Option<Orcamento>>,
+    pub weekly_budget: Mutex<Option<Arc<crate::budget::Budget>>>,
 }
 
 fn agora_epoch() -> f64 {
@@ -172,7 +173,7 @@ impl ChatGateway {
         for ep in &endpoints {
             estado.stats.insert(ep.name.clone(), EndpointStats::default());
         }
-        Ok(ChatGateway { endpoints, client, cooldown_s, estado: Mutex::new(estado), orcamento: Mutex::new(None) })
+        Ok(ChatGateway { endpoints, client, cooldown_s, estado: Mutex::new(estado), weekly_budget: Mutex::new(None), orcamento: Mutex::new(None) })
     }
 
     /// Um objeto por endpoint, na ordem de tentativa (para o painel). Nunca mostra segredo
@@ -184,11 +185,7 @@ impl ChatGateway {
             .iter()
             .map(|ep| {
                 let s = st.stats.get(&ep.name).cloned().unwrap_or_default();
-                let restante = st
-                    .quarentena
-                    .get(&ep.name)
-                    .map(|t| t.saturating_duration_since(agora).as_secs_f64())
-                    .unwrap_or(0.0);
+                let restante = st.quarentena.get(&ep.name).map(|t| t.saturating_duration_since(agora).as_secs_f64()).unwrap_or(0.0);
                 json!({
                     "nome": ep.name,
                     "modelo": ep.model,
@@ -216,8 +213,7 @@ impl ChatGateway {
         let locais: Vec<&Endpoint> = self.endpoints.iter().filter(|e| e.tier == CAMADA_LOCAL).collect();
         let remotos: Vec<&Endpoint> = self.endpoints.iter().filter(|e| e.tier != CAMADA_LOCAL).collect();
         let padrao: Vec<&Endpoint> = remotos.iter().copied().filter(|e| e.tier.is_empty()).collect();
-        let proprios: Vec<&Endpoint> =
-            remotos.iter().copied().filter(|e| tier.is_some_and(|t| !t.is_empty() && e.tier == t)).collect();
+        let proprios: Vec<&Endpoint> = remotos.iter().copied().filter(|e| tier.is_some_and(|t| !t.is_empty() && e.tier == t)).collect();
         let mut base: Vec<&Endpoint> = proprios.into_iter().chain(padrao).collect();
         if base.is_empty() {
             base = remotos;
@@ -247,6 +243,10 @@ impl ChatGateway {
 
     /// Resposta em streaming. Os eventos chegam na ordem: textos, chamadas de ferramenta e o fim.
     pub fn stream<'a>(&'a self, messages: Vec<Value>, tools: Option<Vec<Value>>, tier: Option<&'a str>) -> EventStream<'a> {
+        self.stream_for_task(messages, tools, tier, orion_store::uuid_hex())
+    }
+
+    pub fn stream_for_task<'a>(&'a self, messages: Vec<Value>, tools: Option<Vec<Value>>, tier: Option<&'a str>, task_id: String) -> EventStream<'a> {
         Box::pin(async_stream::stream! {
             let mut tentativas: Vec<(String, String)> = vec![];
             let mut ordem = vec![];
@@ -277,6 +277,13 @@ impl ChatGateway {
                         continue;
                     }
                     st.stats.entry(ep.name.clone()).or_default().chamadas += 1;
+                }
+                let budget = self.weekly_budget.lock().clone();
+                if let Some(budget) = budget.filter(|_| ep.tier != CAMADA_LOCAL) {
+                    if let Err(e) = budget.reserve(&ep.provider(), &task_id) {
+                        tentativas.push((ep.name.clone(), e.to_string()));
+                        continue;
+                    }
                 }
                 let inicio = Instant::now();
                 let mut bytes_out = 0usize;
@@ -486,12 +493,9 @@ fn tool_call(indice: i64, id: String, nome: String, args: &str) -> ToolCallReque
     let texto = if args.is_empty() { "{}" } else { args };
     match serde_json::from_str::<Value>(texto) {
         Ok(Value::Object(m)) => ToolCallRequest { id: ident, name: nome, arguments: m, error: None },
-        Ok(_) => ToolCallRequest {
-            id: ident,
-            name: nome,
-            arguments: Map::new(),
-            error: Some("argumentos inválidos: argumentos não são um objeto JSON".into()),
-        },
+        Ok(_) => {
+            ToolCallRequest { id: ident, name: nome, arguments: Map::new(), error: Some("argumentos inválidos: argumentos não são um objeto JSON".into()) }
+        }
         Err(e) => ToolCallRequest { id: ident, name: nome, arguments: Map::new(), error: Some(format!("argumentos inválidos: {e}")) },
     }
 }

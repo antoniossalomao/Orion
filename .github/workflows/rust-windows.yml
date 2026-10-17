@@ -1,0 +1,41 @@
+name: Rust Windows
+on:
+  pull_request:
+    paths: ["Orion_Rust/**", ".github/workflows/rust-windows.yml"]
+  workflow_dispatch:
+concurrency:
+  group: rust-windows-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  native:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: Orion_Rust
+    env:
+      LIBCLANG_PATH: C:\Program Files\LLVM\bin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: Orion_Rust
+      - name: Testar domínio, canais, orçamento e áudio
+        run: cargo test --locked -p orion-policy -p orion-store -p orion-ai -p orion-core -p orion-server -p orion-platform -p orion-voice -p orion-vault -p orion-testkit
+      - name: Compilar controle nativo
+        run: cargo build --locked -p orion-server
+      - name: Instalar SDK para conferir o backend Vulkan
+        shell: pwsh
+        run: |
+          choco install vulkan-sdk --version=1.4.341 -y --no-progress
+          $sdk = (Get-ChildItem 'C:\VulkanSDK' -Directory | Sort-Object Name -Descending | Select-Object -First 1).FullName
+          if (!(Test-Path "$sdk\Bin\glslc.exe")) { throw 'SDK Vulkan sem glslc' }
+          "VULKAN_SDK=$sdk" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "$sdk\Bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+      - name: Conferir backend Vulkan
+        # Alvo curto: o MSBuild do whisper.cpp/Vulkan estoura 260 caracteres (FTK1011).
+        env:
+          CARGO_TARGET_DIR: C:\t
+        run: cargo check --locked -p orion-server --features local-vulkan

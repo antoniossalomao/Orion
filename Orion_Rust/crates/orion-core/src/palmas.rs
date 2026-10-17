@@ -6,7 +6,7 @@
 //! - uma palma é um pico alto e curto: silêncio antes (2 quadros), subida acima de `limiar` por no
 //!   máximo 5 quadros (~160 ms) e queda rápida abaixo de `limiar * 0.25`. Fala contínua sustenta
 //!   energia por mais de 160 ms e é descartada;
-//! - duas palmas separadas por 80 ms a 700 ms disparam e entram em surdez por 2 s;
+//! - duas palmas separadas por 150 ms a 700 ms disparam e entram em surdez por 2 s;
 //! - o que as duas palmas podem fazer: acordar o Orion (`on_clap`), sempre em escuta — nunca aprovar
 //!   ferramenta, nunca executar rotina, nunca pular política. Em modo pânico ou não perturbe, as
 //!   palmas são ignoradas.
@@ -15,7 +15,7 @@ use crate::modos::Modos;
 
 pub const PICO_MINIMO: i32 = 4500;
 pub const QUEDA: f64 = 0.25;
-pub const ENTRE_MIN_S: f64 = 0.08;
+pub const ENTRE_MIN_S: f64 = 0.15;
 pub const ENTRE_MAX_S: f64 = 0.7;
 pub const SURDO_S: f64 = 2.0;
 pub const SILENCIO_ANTES: usize = 2;
@@ -27,11 +27,7 @@ pub fn pico(quadro: &[u8]) -> i32 {
     if quadro.len() < 2 {
         return 0;
     }
-    quadro
-        .chunks_exact(2)
-        .map(|b| (i16::from_le_bytes([b[0], b[1]]) as i32).abs())
-        .max()
-        .unwrap_or(0)
+    quadro.chunks_exact(2).map(|b| (i16::from_le_bytes([b[0], b[1]]) as i32).abs()).max().unwrap_or(0)
 }
 
 pub struct ClapDetector {
@@ -47,15 +43,19 @@ pub struct ClapDetector {
 impl ClapDetector {
     pub fn new(limiar: i32) -> Self {
         let lim = limiar.max(1500);
-        Self {
-            limiar: lim,
-            chao: (lim as f64 * QUEDA) as i32,
-            quietos: 0,
-            altos: 0,
-            pos_quietos: 0,
-            primeira_em: None,
-            surdo_ate: f64::NEG_INFINITY,
+        Self { limiar: lim, chao: (lim as f64 * QUEDA) as i32, quietos: 0, altos: 0, pos_quietos: 0, primeira_em: None, surdo_ate: f64::NEG_INFINITY }
+    }
+
+    /// REGRAS.md: palmas só abrem; nunca aprovam nem executam. Calibra no percentil 95 do ruído.
+    pub fn calibrate(&mut self, noise_peaks: &mut [i32], ratio: f64) {
+        if noise_peaks.is_empty() {
+            return;
         }
+        noise_peaks.sort_unstable();
+        let noise = noise_peaks[(noise_peaks.len() - 1) * 95 / 100];
+        self.limiar = ((noise as f64 * ratio).round() as i32).clamp(1500, 30000);
+        self.chao = (self.limiar as f64 * QUEDA) as i32;
+        self.reset();
     }
 
     pub fn reset(&mut self) {

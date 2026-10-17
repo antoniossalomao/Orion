@@ -2,7 +2,7 @@
 //! automático por sistema).
 //!
 //! Diferenças deliberadas do Rust: o serviço sobe o próprio executável (`orion serve`), sem
-//! `python -m orion`; o Windows usa `"<exe>" serve`. Fora daqui: a rota `/posso-desligar` e a CLI
+//! `python -m orion`; o Windows usa `"<exe>" desktop --background`. Fora daqui: a rota `/posso-desligar` e a CLI
 //! `orion autostart` (`orion-server`).
 
 use orion_core::autostart::{detectar, instalar, render};
@@ -157,7 +157,7 @@ fn windows_gera_cmd_na_pasta_inicializar_sem_expandir_variaveis() {
     let a = render("windows", Path::new("C:/py thon/orion.exe"), Path::new("C:/Orion %PATH%"), Path::new("/dados/logs"), Path::new("C:/Users/ana"), false).unwrap();
     assert!(a.arquivo.file_name().unwrap() == "orion.cmd" && a.arquivo.components().any(|c| c.as_os_str() == "Startup"));
     assert!(a.conteudo.contains("cd /d \"C:/Orion %%PATH%%\""), "{}", a.conteudo); // %PATH% literal, não expandido
-    assert!(a.conteudo.contains("start \"Orion\" /min \"C:/py thon/orion.exe\" serve"));
+    assert!(a.conteudo.contains("start \"Orion\" /min \"C:/py thon/orion.exe\" desktop --background"));
     assert_eq!(a.conteudo.matches("\r\n").count(), a.conteudo.matches('\n').count()); // fim de linha do Windows
 }
 
@@ -195,5 +195,5 @@ fn ponte_gera_arquivo_a_parte_e_nao_toca_no_do_servidor() {
     assert!(win.arquivo.file_name().unwrap() == "orion-ponte.cmd" && win.conteudo.contains("\" ponte"));
     // o do servidor continua igual
     assert_eq!(gerar("linux", false).arquivo.file_name().unwrap(), "orion.service");
-    assert!(gerar("windows", false).conteudo.contains("\" serve"));
+    assert!(gerar("windows", false).conteudo.contains("\" desktop --background"));
 }
