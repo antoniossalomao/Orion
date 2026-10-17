@@ -3,6 +3,7 @@
 //! O `httpx.MockTransport` dos testes Python vira [`http::servidor`]; o relógio injetável vira
 //! [`Relogio`]. Só entra como `dev-dependency`.
 
+pub mod embed;
 pub mod http;
 
 use std::sync::atomic::{AtomicU64, Ordering};

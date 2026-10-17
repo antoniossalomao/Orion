@@ -8,3 +8,7 @@ publish.workspace = true
 
 [dependencies]
 serde_json.workspace = true
+regex.workspace = true
+unicode-normalization.workspace = true
+anyhow.workspace = true
+orion-store.workspace = true
