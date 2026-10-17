@@ -1,18 +1,18 @@
 //! Ponto de entrada do executável `orion-setup` (`Orion Setup.exe`).
 //!
-//! Abre uma janela sem borda nativa de 960×600 px centralizada na tela.
-//! Suporta `--real-install` e `--prototype-hw`.
+//! Abre uma janela sem borda nativa de 960×600 px centralizada na tela,
+//! sem abrir console (`windows_subsystem = "windows"`).
 
-#![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
+#![cfg_attr(windows, windows_subsystem = "windows")]
 
 use iced::window;
 use iced::{Size, Theme};
-use orion_setup::app::SetupApp;
+use orion_setup::app::{SetupApp, FONT_SANS};
 use orion_setup::system::PcInfo;
 use orion_setup::theme;
 
 fn main() -> iced::Result {
-    // Usa o renderizador `tiny-skia` por padrão para abertura instantânea (< 50 ms) sem depender de inicialização DX12/Vulkan.
+    // Usa o renderizador `tiny-skia` por padrão para abertura instantânea (< 50 ms).
     if std::env::var_os("ICED_BACKEND").is_none() {
         std::env::set_var("ICED_BACKEND", "tiny-skia");
     }
@@ -51,7 +51,7 @@ fn main() -> iced::Result {
     .theme(SetupApp::theme)
     .subscription(SetupApp::subscription)
     .window(window_settings)
-    .default_font(iced::Font::with_name("Segoe UI"))
+    .default_font(FONT_SANS)
     .antialiasing(true)
     .run()
 }

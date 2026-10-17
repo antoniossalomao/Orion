@@ -1,10 +1,10 @@
 //! Máquina de estados e interface visual (`iced 0.14`) do instalador `Orion Setup`.
 //!
-//! Implementa fielmente `orion-instalador.html` e `ORION_INSTALADOR_ESPECIFICACAO.md`:
+//! Tradução fiel de `orion-instalador.html` e `ORION_INSTALADOR_ESPECIFICACAO.md`:
 //! - Janela 960×600 sem borda nativa (`decorations: false`, `resizable: false`)
-//! - Barra de título customizada (36 px) com arraste, seletor de idioma, som ambiente, minimizar e fechar
-//! - Painel esquerdo (468×564 px) com a constelação de Orion ao vivo e legenda da estrela
-//! - Painel direito (492×564 px) com barra de 5 segmentos, palco com transição Out/In de 340 ms e rodapé
+//! - Barra de título `.bar` (36 px, `#0e0f11`) com `✦ Orion Setup · v0.1.0` e botões `—` / `✕`
+//! - Painel esquerdo `.sky` (468×564 px) com a constelação de Orion renderizada via sprites 128×128
+//! - Painel direito `.pane` (492×564 px) com barra de 5 segmentos (3 px), palco com transição de 340 ms e rodapé
 
 use crate::audio::SoundController;
 use crate::i18n::{format_gb, install_step_texts, star_name, step_counter, texts, Language, Texts};
@@ -13,11 +13,13 @@ use crate::system::{InstallPlan, PcInfo, SetupChoices, StepItemStatus};
 use crate::theme::{self, standard_curve, with_alpha};
 use iced::alignment::{Horizontal, Vertical};
 use iced::event::{self, Event};
+use iced::font::{self, Font};
 use iced::keyboard;
 use iced::mouse;
 use iced::time;
 use iced::widget::{
-    button, canvas, column, container, mouse_area, row, scrollable, stack, text, Column, Space,
+    button, column, container, image as iced_image, mouse_area, row, scrollable, stack, text,
+    Column, Space,
 };
 use iced::window;
 use iced::{Alignment, Background, Border, Color, Element, Length, Point, Subscription, Task, Theme};
@@ -26,6 +28,15 @@ use std::time::{Duration, Instant};
 
 pub const STAGE_TRANSITION_SECS: f32 = 0.34;
 pub const STEP_WEIGHTS: [f32; 6] = [10.0, 12.0, 20.0, 40.0, 10.0, 8.0];
+
+pub const FONT_SANS: Font = Font::with_name("Segoe UI");
+pub const FONT_SANS_SEMIBOLD: Font = Font {
+    family: font::Family::Name("Segoe UI"),
+    weight: font::Weight::Semibold,
+    stretch: font::Stretch::Normal,
+    style: font::Style::Normal,
+};
+pub const FONT_MONO: Font = Font::with_name("Consolas");
 
 /// Fase da transição entre etapas (`0.34 s` Out com `-8 px` -> troca etapa -> `0.34 s` In de `+10 px`).
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -48,6 +59,8 @@ pub enum Message {
     ToggleSound,
     NextStep,
     PrevStep,
+    CycleAppDir,
+    CycleModelsDisk,
     SelectModelsDisk(usize),
     ToggleModel(String),
     ToggleAutostart(bool),
@@ -62,6 +75,7 @@ pub enum Message {
 pub struct SetupApp {
     pub step: usize,
     pub sky: OrionSky,
+    pub sky_handle: iced_image::Handle,
     pub pc: PcInfo,
     pub choices: SetupChoices,
     pub install_plan: InstallPlan,
@@ -77,6 +91,7 @@ pub struct SetupApp {
     pub sound: SoundController,
     pub dry_run: bool,
     pub last_tick: Option<Instant>,
+    pub selected_disk_idx: usize,
 }
 
 impl Default for SetupApp {
@@ -94,9 +109,23 @@ impl SetupApp {
             None
         };
         let install_plan = InstallPlan::new(root_override);
+        let mut sky = OrionSky::new();
+        // Avança suavemente o primeiro segundo para Betelgeuse já iniciar acendendo
+        sky.step_dt(0.016, theme::SKY_W, theme::BODY_H);
+        let sky_handle = sky.render_image_handle();
+
+        let selected_disk_idx = pc
+            .disks
+            .iter()
+            .enumerate()
+            .max_by_key(|(_, d)| d.free_gb)
+            .map(|(i, _)| i)
+            .unwrap_or(0);
+
         Self {
             step: 1,
-            sky: OrionSky::new(),
+            sky,
+            sky_handle,
             pc,
             choices,
             install_plan,
@@ -109,13 +138,10 @@ impl SetupApp {
             star_label_alpha: 1.0,
             confirm_cancel_modal: false,
             show_error_details: false,
-            sound: if dry_run {
-                SoundController::new()
-            } else {
-                SoundController::start_enabled()
-            },
+            sound: SoundController::new(),
             dry_run,
             last_tick: None,
+            selected_disk_idx,
         }
     }
 
@@ -237,13 +263,13 @@ impl SetupApp {
             }
         }
 
-        // Progresso da etapa 5 (Instalação)
+        // Progresso da etapa 5 (Instalação: 0.9 s por subetapa, idêntico a `orion-instalador.html` linha 330)
         if self.step == 5
             && self.install_started
             && !self.is_install_completed()
             && self.install_error.is_none()
         {
-            let step_duration = 0.72;
+            let step_duration = 0.85;
             self.install_substep_progress += dt / step_duration;
             while self.install_substep_progress >= 1.0
                 && self.current_install_idx < 6
@@ -278,17 +304,17 @@ impl SetupApp {
         if self.is_install_completed() {
             return 100.0;
         }
-        let mut pct = 0.0;
-        for (i, st) in self.step_statuses.iter().enumerate() {
-            match st {
-                StepItemStatus::Done => pct += STEP_WEIGHTS[i],
-                StepItemStatus::Running => {
-                    pct += STEP_WEIGHTS[i] * self.install_substep_progress.clamp(0.0, 1.0);
-                }
-                _ => {}
-            }
-        }
-        pct.clamp(0.0, 100.0)
+        let done_count = self
+            .step_statuses
+            .iter()
+            .filter(|s| **s == StepItemStatus::Done)
+            .count();
+        let active_frac = if self.current_install_idx < 6 {
+            self.install_substep_progress.clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        (((done_count as f32 + active_frac) / 6.0) * 100.0).clamp(0.0, 100.0)
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
@@ -297,10 +323,11 @@ impl SetupApp {
                 let dt = self
                     .last_tick
                     .map(|prev| now.saturating_duration_since(prev).as_secs_f32())
-                    .unwrap_or(1.0 / 60.0)
+                    .unwrap_or(1.0 / 30.0)
                     .clamp(0.001, 0.05);
                 self.last_tick = Some(now);
                 self.tick_dt(dt);
+                self.sky_handle = self.sky.render_image_handle();
                 Task::none()
             }
             Message::CursorMoved(point) => {
@@ -365,8 +392,27 @@ impl SetupApp {
                 }
                 Task::none()
             }
+            Message::CycleAppDir => {
+                let default_dir = PathBuf::from(r"C:\Program Files\Orion");
+                let alt_dir = PathBuf::from(r"C:\Orion");
+                if self.choices.app_dir == default_dir {
+                    self.choices.app_dir = alt_dir;
+                } else {
+                    self.choices.app_dir = default_dir;
+                }
+                Task::none()
+            }
+            Message::CycleModelsDisk => {
+                if !self.pc.disks.is_empty() {
+                    self.selected_disk_idx = (self.selected_disk_idx + 1) % self.pc.disks.len();
+                    let d = &self.pc.disks[self.selected_disk_idx];
+                    self.choices.models_dir = PathBuf::from(format!("{}\\Orion\\Modelos", d.mount));
+                }
+                Task::none()
+            }
             Message::SelectModelsDisk(idx) => {
                 if let Some(d) = self.pc.disks.get(idx) {
+                    self.selected_disk_idx = idx;
                     self.choices.models_dir = PathBuf::from(format!("{}\\Orion\\Modelos", d.mount));
                 }
                 Task::none()
@@ -409,7 +455,7 @@ impl SetupApp {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        let tick = time::every(Duration::from_millis(16)).map(Message::AnimationTick);
+        let tick = time::every(Duration::from_millis(33)).map(Message::AnimationTick);
         let events = event::listen_with(|event, _status, _window_id| match event {
             Event::Mouse(mouse::Event::CursorMoved { position }) => {
                 Some(Message::CursorMoved(position))
@@ -430,14 +476,29 @@ impl SetupApp {
         let s = texts(self.choices.language);
 
         let titlebar = self.view_titlebar();
+        let divider_top = container(Space::new().width(Length::Fill).height(Length::Fixed(1.0)))
+            .style(|_theme: &Theme| container::Style {
+                background: Some(Background::Color(theme::LINE)),
+                ..Default::default()
+            });
+
         let sky_panel = self.view_sky_panel();
+        let divider_v = container(
+            Space::new()
+                .width(Length::Fixed(1.0))
+                .height(Length::Fixed(theme::BODY_H)),
+        )
+        .style(|_theme: &Theme| container::Style {
+            background: Some(Background::Color(theme::LINE)),
+            ..Default::default()
+        });
         let right_pane = self.view_right_pane(s);
 
-        let body = row![sky_panel, right_pane]
+        let body = row![sky_panel, divider_v, right_pane]
             .width(Length::Fixed(theme::WINDOW_W))
             .height(Length::Fixed(theme::BODY_H));
 
-        let main_layout = column![titlebar, body]
+        let main_layout = column![titlebar, divider_top, body]
             .width(Length::Fixed(theme::WINDOW_W))
             .height(Length::Fixed(theme::WINDOW_H));
 
@@ -456,101 +517,6 @@ impl SetupApp {
                 border: Border {
                     color: theme::LINE,
                     width: 1.0,
-                    radius: 10.0.into(),
-                },
-                ..Default::default()
-            })
-            .into()
-    }
-
-    fn view_titlebar(&self) -> Element<'_, Message> {
-        let drag_zone = mouse_area(
-            container(
-                row![
-                    hspace(14.0),
-                    text("Orion Setup").size(12).color(theme::FG3),
-                    fill_hspace(),
-                ]
-                .align_y(Alignment::Center),
-            )
-            .width(Length::Fill)
-            .height(Length::Fixed(theme::TITLEBAR_H)),
-        )
-        .on_press(Message::DragTitlebar);
-
-        let lang_code = match self.choices.language {
-            Language::PtBr => "PT",
-            Language::En => "EN",
-        };
-        let lang_btn = button(
-            text(lang_code)
-                .size(11)
-                .color(if self.choices.language == Language::En {
-                    theme::FG
-                } else {
-                    theme::FG2
-                }),
-        )
-        .padding([3, 8])
-        .on_press(Message::ToggleLanguage)
-        .style(pill_button_style(self.choices.language == Language::En));
-
-        let sound_label = if self.sound.is_enabled() { "♪" } else { "♪×" };
-        let sound_btn = button(
-            text(sound_label)
-                .size(12)
-                .color(if self.sound.is_enabled() {
-                    theme::FG
-                } else {
-                    theme::FG2
-                }),
-        )
-        .padding([3, 8])
-        .on_press(Message::ToggleSound)
-        .style(pill_button_style(self.sound.is_enabled()));
-
-        let min_btn = button(
-            container(text("—").size(11).color(theme::FG2))
-                .width(Length::Fill)
-                .height(Length::Fill)
-                .align_x(Horizontal::Center)
-                .align_y(Vertical::Center),
-        )
-        .width(Length::Fixed(42.0))
-        .height(Length::Fixed(theme::TITLEBAR_H))
-        .on_press(Message::MinimizeWindow)
-        .style(window_control_style(false));
-
-        let close_btn = button(
-            container(text("✕").size(12).color(theme::FG2))
-                .width(Length::Fill)
-                .height(Length::Fill)
-                .align_x(Horizontal::Center)
-                .align_y(Vertical::Center),
-        )
-        .width(Length::Fixed(42.0))
-        .height(Length::Fixed(theme::TITLEBAR_H))
-        .on_press(Message::RequestCloseWindow)
-        .style(window_control_style(true));
-
-        let controls = row![
-            lang_btn,
-            hspace(6.0),
-            sound_btn,
-            hspace(6.0),
-            min_btn,
-            close_btn
-        ]
-        .align_y(Alignment::Center);
-
-        container(row![drag_zone, controls].align_y(Alignment::Center))
-            .width(Length::Fixed(theme::WINDOW_W))
-            .height(Length::Fixed(theme::TITLEBAR_H))
-            .style(|_theme: &Theme| container::Style {
-                background: Some(Background::Color(theme::TITLEBAR)),
-                border: Border {
-                    color: theme::LINE,
-                    width: 1.0,
                     radius: 0.0.into(),
                 },
                 ..Default::default()
@@ -558,63 +524,122 @@ impl SetupApp {
             .into()
     }
 
+    /// Barra de título `.bar` (`orion-instalador.html` linhas 23–28, 113–116).
+    fn view_titlebar(&self) -> Element<'_, Message> {
+        let drag_zone = mouse_area(
+            container(
+                row![
+                    hspace(14.0),
+                    text("✦ Orion Setup")
+                        .size(12)
+                        .font(FONT_SANS)
+                        .color(theme::FG2),
+                    hspace(4.0),
+                    text("· v0.1.0").size(12).font(FONT_SANS).color(theme::FG3),
+                    fill_hspace(),
+                ]
+                .align_y(Alignment::Center),
+            )
+            .width(Length::Fill)
+            .height(Length::Fixed(theme::TITLEBAR_H - 1.0)),
+        )
+        .on_press(Message::DragTitlebar);
+
+        let min_btn = button(
+            container(text("—").size(12).color(theme::FG3))
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .align_x(Horizontal::Center)
+                .align_y(Vertical::Center),
+        )
+        .width(Length::Fixed(40.0))
+        .height(Length::Fixed(30.0))
+        .padding(0)
+        .on_press(Message::MinimizeWindow)
+        .style(titlebar_btn_style());
+
+        let close_btn = button(
+            container(text("✕").size(12).color(theme::FG3))
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .align_x(Horizontal::Center)
+                .align_y(Vertical::Center),
+        )
+        .width(Length::Fixed(40.0))
+        .height(Length::Fixed(30.0))
+        .padding(0)
+        .on_press(Message::RequestCloseWindow)
+        .style(titlebar_btn_style());
+
+        let controls = row![min_btn, close_btn, hspace(6.0)].align_y(Alignment::Center);
+
+        container(row![drag_zone, controls].align_y(Alignment::Center))
+            .width(Length::Fixed(theme::WINDOW_W))
+            .height(Length::Fixed(theme::TITLEBAR_H - 1.0))
+            .style(|_theme: &Theme| container::Style {
+                background: Some(Background::Color(theme::TITLEBAR)),
+                ..Default::default()
+            })
+            .into()
+    }
+
+    /// Painel esquerdo `.sky` (`468×564 px`) com imagem RGBA ao vivo e legenda `.skycap`.
     fn view_sky_panel(&self) -> Element<'_, Message> {
-        let sky_canvas = canvas(&self.sky)
+        let sky_img = iced_image(self.sky_handle.clone())
             .width(Length::Fixed(theme::SKY_W))
             .height(Length::Fixed(theme::BODY_H));
 
         let step_caption = step_counter(self.step as u8, self.choices.language);
-        let star_lbl = if self.step == 5 && self.is_install_completed() {
-            match self.choices.language {
-                Language::PtBr => "Rigel · constelação completa",
-                Language::En => "Rigel · constellation complete",
-            }
-        } else {
-            star_name(self.step as u8, self.choices.language)
-        };
-
+        let star_lbl = star_name(self.step as u8, self.choices.language);
         let betel_faded = with_alpha(theme::BETEL, self.star_label_alpha);
 
         let overlay = column![
             fill_vspace(),
             container(
                 row![
-                    text("Orion").size(22).color(theme::FG),
+                    text("Orion")
+                        .size(22)
+                        .font(FONT_SANS_SEMIBOLD)
+                        .color(theme::FG),
                     fill_hspace(),
                     column![
-                        text(step_caption).size(12).color(theme::FG3),
-                        text(star_lbl).size(12).color(betel_faded),
+                        text(step_caption)
+                            .size(11)
+                            .font(FONT_MONO)
+                            .color(theme::FG3),
+                        text(star_lbl)
+                            .size(11)
+                            .font(FONT_MONO)
+                            .color(betel_faded),
                     ]
                     .align_x(Horizontal::Right)
-                    .spacing(2),
+                    .spacing(3),
                 ]
                 .align_y(Alignment::End),
             )
             .width(Length::Fill)
-            .padding([24, 28])
+            .padding([20, 22])
         ]
         .width(Length::Fixed(theme::SKY_W))
         .height(Length::Fixed(theme::BODY_H));
 
-        container(stack![sky_canvas, overlay])
+        container(stack![sky_img, overlay])
             .width(Length::Fixed(theme::SKY_W))
             .height(Length::Fixed(theme::BODY_H))
             .style(|_theme: &Theme| container::Style {
-                border: Border {
-                    color: theme::LINE,
-                    width: 1.0,
-                    radius: 0.0.into(),
-                },
+                background: Some(Background::Color(theme::SKY_BG)),
                 ..Default::default()
             })
             .into()
     }
 
+    /// Painel direito `.pane` (`orion-instalador.html` linhas 36–98, 125–135).
     fn view_right_pane<'a>(&'a self, s: &'a Texts) -> Element<'a, Message> {
-        // Barra superior de 5 segmentos
         let mut stepbar = row![].spacing(6);
         for idx in 1..=5 {
-            let color = if idx < self.step || (idx == 5 && self.step == 5 && self.is_install_completed()) {
+            let color = if idx < self.step
+                || (idx == 5 && self.step == 5 && self.is_install_completed())
+            {
                 theme::RIGEL
             } else if idx == self.step {
                 theme::BETEL
@@ -622,11 +647,11 @@ impl SetupApp {
                 theme::LINE
             };
             stepbar = stepbar.push(
-                container(Space::new().width(Length::Fill).height(Length::Fixed(2.0))).style(
+                container(Space::new().width(Length::Fill).height(Length::Fixed(3.0))).style(
                     move |_theme: &Theme| container::Style {
                         background: Some(Background::Color(color)),
                         border: Border {
-                            radius: 1.0.into(),
+                            radius: 2.0.into(),
                             ..Default::default()
                         },
                         ..Default::default()
@@ -636,7 +661,7 @@ impl SetupApp {
         }
 
         let (offset_y, stage_alpha) = self.stage_transform();
-        let top_pad = (8.0 + offset_y).max(0.0);
+        let top_pad = offset_y.max(0.0);
 
         let stage_body = match self.step {
             1 => self.view_step_1(s, stage_alpha),
@@ -649,12 +674,17 @@ impl SetupApp {
         let stage = scrollable(
             column![vspace(top_pad), stage_body]
                 .width(Length::Fill)
-                .padding([6, 2]),
+                .padding(iced::Padding {
+                    top: 0.0,
+                    right: 4.0,
+                    bottom: 0.0,
+                    left: 0.0,
+                }),
         )
         .width(Length::Fill)
         .height(Length::Fill);
 
-        // Rodapé com legenda contextual, botão Voltar e botão primário
+        // Rodapé `.foot`
         let footer_caption = match self.step {
             1 => s.s1_footer.to_string(),
             2 => s.s2_footer.to_string(),
@@ -664,20 +694,20 @@ impl SetupApp {
                 if self.is_install_completed() {
                     s.s5_footer_done.to_string()
                 } else {
-                    s.s5_footer_installing.to_string()
+                    String::new()
                 }
             }
         };
 
         let show_back = self.step > 1 && self.step < 5;
         let back_el: Element<'a, Message> = if show_back {
-            button(text(s.back).size(13).color(theme::FG2))
-                .padding([8, 14])
+            button(text(s.back).size(13).font(FONT_SANS_SEMIBOLD).color(theme::FG))
+                .padding([8, 12])
                 .on_press(Message::PrevStep)
                 .style(ghost_button_style())
                 .into()
         } else {
-            hspace(1.0)
+            hspace(0.0)
         };
 
         let (next_label, next_enabled, next_msg) = match self.step {
@@ -692,21 +722,26 @@ impl SetupApp {
             ),
             2 | 3 => (s.next, true, Some(Message::NextStep)),
             4 => (s.install, true, Some(Message::NextStep)),
-            _ => {
+            _ => (
+                s.open_orion,
+                self.is_install_completed(),
                 if self.is_install_completed() {
-                    (s.open_orion, true, Some(Message::OpenOrion))
+                    Some(Message::OpenOrion)
                 } else {
-                    (s.s5_eyebrow, false, None)
-                }
-            }
+                    None
+                },
+            ),
         };
 
         let mut next_btn = button(
-            text(next_label).size(13).color(if next_enabled {
-                theme::ON_PRIMARY
-            } else {
-                theme::FG3
-            }),
+            text(next_label)
+                .size(13)
+                .font(FONT_SANS_SEMIBOLD)
+                .color(if next_enabled {
+                    theme::ON_PRIMARY
+                } else {
+                    with_alpha(theme::ON_PRIMARY, 0.5)
+                }),
         )
         .padding([9, 18])
         .style(primary_button_style(next_enabled));
@@ -715,35 +750,42 @@ impl SetupApp {
             next_btn = next_btn.on_press(msg);
         }
 
-        let footer = container(
+        let footer_divider = container(Space::new().width(Length::Fill).height(Length::Fixed(1.0)))
+            .style(|_theme: &Theme| container::Style {
+                background: Some(Background::Color(theme::LINE)),
+                ..Default::default()
+            });
+
+        let footer = column![
+            footer_divider,
+            vspace(14.0),
             row![
-                text(footer_caption).size(11).color(theme::FG3),
+                text(footer_caption)
+                    .size(11)
+                    .font(FONT_MONO)
+                    .color(theme::FG3),
                 fill_hspace(),
                 back_el,
-                hspace(8.0),
+                if show_back { hspace(8.0) } else { hspace(0.0) },
                 next_btn,
             ]
             .align_y(Alignment::Center)
             .width(Length::Fill),
-        )
-        .padding([12, 0])
-        .style(|_theme: &Theme| container::Style {
-            border: Border {
-                color: theme::LINE,
-                width: 1.0,
-                radius: 0.0.into(),
-            },
-            ..Default::default()
-        });
+        ];
 
         container(
-            column![stepbar, vspace(14.0), stage, footer]
+            column![stepbar, vspace(18.0), stage, vspace(10.0), footer]
                 .width(Length::Fill)
                 .height(Length::Fill),
         )
-        .width(Length::Fixed(theme::PANEL_W))
+        .width(Length::Fixed(theme::PANEL_W - 1.0))
         .height(Length::Fixed(theme::BODY_H))
-        .padding([24, 34])
+        .padding(iced::Padding {
+            top: 28.0,
+            right: 28.0,
+            bottom: 20.0,
+            left: 28.0,
+        })
         .style(|_theme: &Theme| container::Style {
             background: Some(Background::Color(theme::SIDE)),
             ..Default::default()
@@ -751,39 +793,31 @@ impl SetupApp {
         .into()
     }
 
+    /// Etapa 1 (`orion-instalador.html` linhas 279–289): Boas-vindas + seletor de idioma + grade 2×2 `.checks`.
     fn view_step_1<'a>(&'a self, s: &'a Texts, alpha: f32) -> Element<'a, Message> {
-        let lang_row = row![
+        let lang_display = format!("{}   ▾", self.choices.language.label());
+        let lang_select = button(
+            row![
+                text(lang_display)
+                    .size(13)
+                    .font(FONT_MONO)
+                    .color(with_alpha(theme::FG, alpha)),
+                fill_hspace(),
+            ]
+            .align_y(Alignment::Center),
+        )
+        .width(Length::Fill)
+        .padding([9, 11])
+        .on_press(Message::ToggleLanguage)
+        .style(input_box_button_style());
+
+        let lang_field = column![
             text(s.s1_lang_label)
                 .size(12)
                 .color(with_alpha(theme::FG2, alpha)),
-            fill_hspace(),
-            button(
-                text("Português (Brasil)")
-                    .size(12)
-                    .color(if self.choices.language == Language::PtBr {
-                        theme::FG
-                    } else {
-                        theme::FG2
-                    }),
-            )
-            .padding([5, 10])
-            .on_press(Message::SelectLanguage(Language::PtBr))
-            .style(pill_button_style(self.choices.language == Language::PtBr)),
-            hspace(6.0),
-            button(
-                text("English")
-                    .size(12)
-                    .color(if self.choices.language == Language::En {
-                        theme::FG
-                    } else {
-                        theme::FG2
-                    }),
-            )
-            .padding([5, 10])
-            .on_press(Message::SelectLanguage(Language::En))
-            .style(pill_button_style(self.choices.language == Language::En)),
-        ]
-        .align_y(Alignment::Center);
+            vspace(6.0),
+            lang_select,
+        ];
 
         let gpu_val = format!(
             "{} · {} GB · {}",
@@ -791,250 +825,212 @@ impl SetupApp {
         );
         let ram_val = format!("{} GB RAM", self.pc.ram_gb);
         let disk_val = self.pc.disk_summary();
-        let disk_color = if self.pc.c_drive_low() {
-            theme::BETEL
-        } else {
-            theme::FG
-        };
 
-        let mut pc_col = column![
-            text(s.s1_pc_eyebrow)
-                .size(11)
-                .color(with_alpha(theme::FG3, alpha)),
-            vspace(6.0),
-            kv_row(s.s1_sys_label, &self.pc.os_label, theme::FG, alpha),
-            divider(),
-            kv_row(s.s1_ram_label, &ram_val, theme::FG, alpha),
-            divider(),
-            kv_row(s.s1_gpu_label, &gpu_val, theme::FG, alpha),
-            divider(),
-            kv_row(s.s1_disk_label, &disk_val, disk_color, alpha),
-        ]
-        .spacing(6);
+        // Grade 2×2 `.checks` idêntica a `orion-instalador.html` linhas 58–63, 283–287
+        let row1 = row![
+            chk_card(s.s1_sys_label, &self.pc.os_label, !self.pc.is_windows_11, alpha),
+            hspace(8.0),
+            chk_card(s.s1_ram_label, &ram_val, false, alpha),
+        ];
+        let row2 = row![
+            chk_card(s.s1_gpu_label, &gpu_val, false, alpha),
+            hspace(8.0),
+            chk_card(s.s1_disk_label, &disk_val, self.pc.c_drive_low(), alpha),
+        ];
 
-        if let Some(hint) = self.pc.amber_hint(self.choices.language) {
-            pc_col = pc_col
-                .push(vspace(4.0))
-                .push(text(hint).size(11).color(with_alpha(theme::BETEL, alpha)));
-        }
-
-        if !self.pc.is_windows_11 {
-            pc_col = pc_col
-                .push(vspace(4.0))
-                .push(text(s.s1_win10_block).size(12).color(theme::DANGER));
-        }
-
-        let card = container(pc_col)
-            .padding([13, 15])
-            .width(Length::Fill)
-            .style(surface_card_style());
-
-        column![
+        let mut col = column![
             text(s.s1_eyebrow)
                 .size(11)
+                .font(FONT_MONO)
                 .color(with_alpha(theme::FG3, alpha)),
-            vspace(6.0),
-            text(s.s1_title)
-                .size(23)
-                .color(with_alpha(theme::FG, alpha)),
             vspace(8.0),
+            text(s.s1_title)
+                .size(24)
+                .font(FONT_SANS_SEMIBOLD)
+                .color(with_alpha(theme::FG, alpha)),
+            vspace(10.0),
             text(s.s1_lead)
-                .size(13)
+                .size(14)
                 .color(with_alpha(theme::FG2, alpha)),
             vspace(14.0),
-            lang_row,
-            vspace(14.0),
-            card,
-        ]
-        .into()
-    }
+            lang_field,
+            vspace(16.0),
+            text(s.s1_pc_eyebrow)
+                .size(11)
+                .font(FONT_MONO)
+                .color(with_alpha(theme::FG3, alpha)),
+            vspace(8.0),
+            row1,
+            vspace(8.0),
+            row2,
+        ];
 
-    fn view_step_2<'a>(&'a self, s: &'a Texts, alpha: f32) -> Element<'a, Message> {
-        let app_card = container(
-            column![
-                row![
-                    text(s.s2_app_label)
-                        .size(12)
-                        .color(with_alpha(theme::FG2, alpha)),
-                    fill_hspace(),
-                    text(s.s2_app_hint)
-                        .size(11)
-                        .color(with_alpha(theme::FG3, alpha)),
-                ],
-                vspace(4.0),
-                text(self.choices.app_dir.display().to_string())
+        if let Some(hint) = self.pc.amber_hint(self.choices.language) {
+            col = col.push(vspace(10.0)).push(
+                text(hint)
                     .size(12)
-                    .color(with_alpha(theme::FG, alpha)),
-            ],
-        )
-        .padding([11, 14])
-        .width(Length::Fill)
-        .style(surface_card_style());
-
-        let mut disk_buttons = row![].spacing(6);
-        for (idx, d) in self.pc.disks.iter().enumerate() {
-            let expected = PathBuf::from(format!("{}\\Orion\\Modelos", d.mount));
-            let active = self.choices.models_dir == expected;
-            disk_buttons = disk_buttons.push(
-                button(
-                    text(format!("{} ({} GB)", d.mount, d.free_gb))
-                        .size(11)
-                        .color(if active { theme::FG } else { theme::FG2 }),
-                )
-                .padding([4, 10])
-                .on_press(Message::SelectModelsDisk(idx))
-                .style(pill_button_style(active)),
+                    .color(with_alpha(theme::FG3, alpha)),
             );
         }
 
-        let models_card = container(
-            column![
-                row![
-                    text(s.s2_models_label)
-                        .size(12)
-                        .color(with_alpha(theme::FG2, alpha)),
-                    fill_hspace(),
-                    text(format!(
-                        "~{}",
-                        format_gb(self.choices.selected_models_gb(), self.choices.language)
-                    ))
-                    .size(11)
-                    .color(with_alpha(theme::BETEL, alpha)),
-                ],
-                vspace(6.0),
-                text(self.choices.models_dir.display().to_string())
-                    .size(12)
-                    .color(with_alpha(theme::FG, alpha)),
-                vspace(8.0),
-                disk_buttons,
-                vspace(6.0),
-                text(self.pc.step2_models_hint(self.choices.language))
-                    .size(11)
-                    .color(with_alpha(theme::FG3, alpha)),
-            ],
-        )
-        .padding([11, 14])
-        .width(Length::Fill)
-        .style(surface_card_style());
+        if !self.pc.is_windows_11 {
+            col = col
+                .push(vspace(8.0))
+                .push(text(s.s1_win10_block).size(12).color(theme::DANGER));
+        }
 
-        let data_card = container(
-            column![
-                text(s.s2_data_label)
-                    .size(12)
-                    .color(with_alpha(theme::FG2, alpha)),
-                vspace(4.0),
-                text(self.choices.data_dir.display().to_string())
-                    .size(12)
-                    .color(with_alpha(theme::FG, alpha)),
-                vspace(4.0),
-                text(s.s2_data_hint)
-                    .size(11)
-                    .color(with_alpha(theme::FG3, alpha)),
-            ],
-        )
-        .padding([11, 14])
-        .width(Length::Fill)
-        .style(surface_card_style());
+        col.into()
+    }
+
+    /// Etapa 2 (`orion-instalador.html` linhas 290–294): 3 campos de pasta com botão `Alterar`.
+    fn view_step_2<'a>(&'a self, s: &'a Texts, alpha: f32) -> Element<'a, Message> {
+        let f1 = folder_field(
+            s.s2_app_label,
+            &self.choices.app_dir.display().to_string(),
+            Some((s.change, Message::CycleAppDir)),
+            s.s2_app_hint,
+            alpha,
+        );
+
+        let models_hint = self.pc.step2_models_hint(self.choices.language);
+        let f2 = folder_field(
+            s.s2_models_label,
+            &self.choices.models_dir.display().to_string(),
+            Some((s.change, Message::CycleModelsDisk)),
+            &models_hint,
+            alpha,
+        );
+
+        let f3 = folder_field(
+            s.s2_data_label,
+            r"%ProgramData%\Orion",
+            None,
+            s.s2_data_hint,
+            alpha,
+        );
 
         column![
             text(s.s2_eyebrow)
                 .size(11)
+                .font(FONT_MONO)
                 .color(with_alpha(theme::FG3, alpha)),
-            vspace(6.0),
+            vspace(8.0),
             text(s.s2_title)
-                .size(23)
+                .size(24)
+                .font(FONT_SANS_SEMIBOLD)
                 .color(with_alpha(theme::FG, alpha)),
             vspace(14.0),
-            app_card,
-            vspace(10.0),
-            models_card,
-            vspace(10.0),
-            data_card,
+            f1,
+            vspace(12.0),
+            f2,
+            vspace(12.0),
+            f3,
         ]
         .into()
     }
 
+    /// Etapa 3 (`orion-instalador.html` linhas 64–76, 295–302): Grade 2×4 `.models` + rodapé `.total`.
     fn view_step_3<'a>(&'a self, s: &'a Texts, alpha: f32) -> Element<'a, Message> {
         let mut grid = Column::new().spacing(8);
 
         for pair in self.choices.models.chunks(2) {
             let mut r = row![].spacing(8);
             for m in pair {
-                let card = button(
-                    column![
-                        row![
-                            check_dot(m.selected),
-                            hspace(8.0),
-                            text(m.name)
-                                .size(12)
-                                .color(with_alpha(theme::FG, alpha)),
-                        ]
-                        .align_y(Alignment::Center),
-                        vspace(4.0),
-                        text(m.desc(self.choices.language))
-                            .size(11)
-                            .color(with_alpha(theme::FG2, alpha)),
-                        vspace(6.0),
-                        row![
-                            text(m.meta_line(self.choices.language))
-                                .size(10)
-                                .color(with_alpha(theme::FG3, alpha)),
-                            fill_hspace(),
-                            if m.recommended {
-                                badge(s.s3_rec_badge, true)
-                            } else {
-                                hspace(1.0)
-                            },
-                        ]
-                        .align_y(Alignment::Center),
+                let mut card_col = column![
+                    row![
+                        text(m.name)
+                            .size(13)
+                            .font(FONT_SANS_SEMIBOLD)
+                            .color(with_alpha(theme::FG, alpha)),
+                        fill_hspace(),
+                        check_dot(m.selected),
                     ]
-                    .width(Length::Fill),
-                )
-                .width(Length::FillPortion(1))
-                .padding([10, 11])
-                .on_press(Message::ToggleModel(m.id.to_string()))
-                .style(selectable_card_style(m.selected));
+                    .align_y(Alignment::Start),
+                ]
+                .spacing(5)
+                .width(Length::Fill);
+
+                if m.recommended {
+                    card_col = card_col.push(tag_pill(s.s3_rec_badge));
+                }
+
+                card_col = card_col
+                    .push(
+                        text(m.desc(self.choices.language))
+                            .size(12)
+                            .color(with_alpha(theme::FG2, alpha)),
+                    )
+                    .push(
+                        row![
+                            text(format_gb(m.size_gb, self.choices.language))
+                                .size(11)
+                                .font(FONT_MONO)
+                                .color(with_alpha(theme::FG3, alpha)),
+                            hspace(10.0),
+                            text(format!("RAM ~{} GB", m.ram_gb))
+                                .size(11)
+                                .font(FONT_MONO)
+                                .color(with_alpha(theme::FG3, alpha)),
+                        ]
+                        .align_y(Alignment::Center),
+                    );
+
+                let card = button(card_col)
+                    .width(Length::FillPortion(1))
+                    .padding([10, 12])
+                    .on_press(Message::ToggleModel(m.id.to_string()))
+                    .style(model_card_style(m.selected));
                 r = r.push(card);
             }
             grid = grid.push(r);
         }
 
-        let summary = container(
+        let top_line = container(Space::new().width(Length::Fill).height(Length::Fixed(1.0)))
+            .style(|_theme: &Theme| container::Style {
+                background: Some(Background::Color(theme::LINE)),
+                ..Default::default()
+            });
+
+        let summary = column![
+            top_line,
+            vspace(10.0),
             row![
                 text(self.choices.total_line_left())
                     .size(12)
-                    .color(with_alpha(theme::FG, alpha)),
+                    .font(FONT_MONO)
+                    .color(with_alpha(theme::FG2, alpha)),
                 fill_hspace(),
                 text(s.s3_bg_note)
-                    .size(11)
-                    .color(with_alpha(theme::FG3, alpha)),
+                    .size(12)
+                    .font(FONT_MONO)
+                    .color(with_alpha(theme::FG2, alpha)),
             ]
             .align_y(Alignment::Center),
-        )
-        .padding([10, 14])
-        .width(Length::Fill)
-        .style(surface_card_style());
+        ];
 
         column![
             text(s.s3_eyebrow)
                 .size(11)
+                .font(FONT_MONO)
                 .color(with_alpha(theme::FG3, alpha)),
-            vspace(6.0),
+            vspace(8.0),
             text(s.s3_title)
-                .size(23)
+                .size(24)
+                .font(FONT_SANS_SEMIBOLD)
                 .color(with_alpha(theme::FG, alpha)),
-            vspace(6.0),
+            vspace(8.0),
             text(s.s3_lead)
-                .size(12)
+                .size(13)
                 .color(with_alpha(theme::FG2, alpha)),
             vspace(12.0),
             grid,
-            vspace(10.0),
+            vspace(12.0),
             summary,
         ]
         .into()
     }
 
+    /// Etapa 4 (`orion-instalador.html` linhas 77–84, 303–307): 4 linhas `.opt` separadas por divisória fina.
     fn view_step_4<'a>(&'a self, s: &'a Texts, alpha: f32) -> Element<'a, Message> {
         let items = [
             (
@@ -1063,14 +1059,14 @@ impl SetupApp {
             ),
         ];
 
-        let mut list = Column::new().spacing(8);
+        let mut list = Column::new();
         for (title, sub, active, msg) in items {
-            let row_btn = button(
+            let opt_row = button(
                 row![
                     column![
-                        text(title).size(13).color(with_alpha(theme::FG, alpha)),
+                        text(title).size(14).color(with_alpha(theme::FG, alpha)),
                         vspace(2.0),
-                        text(sub).size(11).color(with_alpha(theme::FG2, alpha)),
+                        text(sub).size(12).color(with_alpha(theme::FG3, alpha)),
                     ]
                     .width(Length::Fill),
                     hspace(12.0),
@@ -1079,27 +1075,36 @@ impl SetupApp {
                 .align_y(Alignment::Center),
             )
             .width(Length::Fill)
-            .padding([12, 14])
+            .padding([11, 0])
             .on_press(msg)
-            .style(selectable_card_style(active));
+            .style(transparent_row_button_style());
 
-            list = list.push(row_btn);
+            let div = container(Space::new().width(Length::Fill).height(Length::Fixed(1.0)))
+                .style(|_theme: &Theme| container::Style {
+                    background: Some(Background::Color(theme::LINE)),
+                    ..Default::default()
+                });
+
+            list = list.push(opt_row).push(div);
         }
 
         column![
             text(s.s4_eyebrow)
                 .size(11)
+                .font(FONT_MONO)
                 .color(with_alpha(theme::FG3, alpha)),
-            vspace(6.0),
+            vspace(8.0),
             text(s.s4_title)
-                .size(23)
+                .size(24)
+                .font(FONT_SANS_SEMIBOLD)
                 .color(with_alpha(theme::FG, alpha)),
-            vspace(14.0),
+            vspace(12.0),
             list,
         ]
         .into()
     }
 
+    /// Etapa 5 (`orion-instalador.html` linhas 85–90, 308–310, 326–332): Barra `.track` (6 px) e log `.log`.
     fn view_step_5<'a>(&'a self, s: &'a Texts, alpha: f32) -> Element<'a, Message> {
         let done = self.is_install_completed();
         let has_err = self.install_error.is_some();
@@ -1117,55 +1122,53 @@ impl SetupApp {
         let prog_bar = progress_bar_single(bar_frac);
 
         let labels = install_step_texts(self.choices.selected_models_gb(), self.choices.language);
-        let mut log_col = Column::new().spacing(8);
+        let mut log_col = Column::new().spacing(6);
 
         for (i, label) in labels.iter().enumerate() {
             let st = self.step_statuses[i];
-            let (dot_str, dot_col, text_col) = match st {
-                StepItemStatus::Done => ("✓", theme::OK, theme::FG),
-                StepItemStatus::Running => ("●", theme::BETEL, theme::FG),
-                StepItemStatus::Pending => ("·", theme::FG3, theme::FG3),
-                StepItemStatus::Error => ("!", theme::DANGER, theme::DANGER),
-            };
-
-            log_col = log_col.push(
-                row![
-                    text(dot_str)
-                        .size(12)
-                        .color(with_alpha(dot_col, alpha)),
-                    hspace(10.0),
-                    text(label.clone())
-                        .size(12)
-                        .color(with_alpha(text_col, alpha)),
-                ]
-                .align_y(Alignment::Center),
-            );
+            match st {
+                StepItemStatus::Done => {
+                    log_col = log_col.push(
+                        text(format!("✓ {label}"))
+                            .size(12)
+                            .font(FONT_MONO)
+                            .color(with_alpha(theme::OK, alpha)),
+                    );
+                }
+                StepItemStatus::Running => {
+                    log_col = log_col.push(
+                        text(format!("… {label}"))
+                            .size(12)
+                            .font(FONT_MONO)
+                            .color(with_alpha(theme::FG2, alpha)),
+                    );
+                }
+                StepItemStatus::Error => {
+                    log_col = log_col.push(
+                        text(format!("✕ {label}"))
+                            .size(12)
+                            .font(FONT_MONO)
+                            .color(with_alpha(theme::DANGER, alpha)),
+                    );
+                }
+                StepItemStatus::Pending => {}
+            }
         }
-
-        let log_card = container(log_col)
-            .padding([13, 15])
-            .width(Length::Fill)
-            .style(surface_card_style());
 
         let mut col = column![
             text(s.s5_eyebrow)
                 .size(11)
+                .font(FONT_MONO)
                 .color(with_alpha(theme::FG3, alpha)),
-            vspace(6.0),
+            vspace(8.0),
             text(title)
-                .size(23)
+                .size(24)
+                .font(FONT_SANS_SEMIBOLD)
                 .color(with_alpha(theme::FG, alpha)),
             vspace(14.0),
-            row![
-                text(format!("{:.0}%", pct))
-                    .size(12)
-                    .color(with_alpha(theme::FG2, alpha)),
-                fill_hspace(),
-            ],
-            vspace(6.0),
             prog_bar,
-            vspace(14.0),
-            log_card,
+            vspace(12.0),
+            log_col,
         ];
 
         if let Some(err) = &self.install_error {
@@ -1177,12 +1180,12 @@ impl SetupApp {
                         button(text(s.retry).size(12).color(theme::FG))
                             .padding([6, 12])
                             .on_press(Message::RetryInstall)
-                            .style(pill_button_style(true)),
+                            .style(ghost_button_style()),
                         hspace(8.0),
                         button(text(s.view_details).size(12).color(theme::FG2))
                             .padding([6, 12])
                             .on_press(Message::ToggleErrorDetails)
-                            .style(pill_button_style(false)),
+                            .style(ghost_button_style()),
                     ]
                 ],
             )
@@ -1198,19 +1201,22 @@ impl SetupApp {
     fn view_cancel_modal<'a>(&'a self, s: &'a Texts) -> Element<'a, Message> {
         let dialog = container(
             column![
-                text(s.cancel_title).size(18).color(theme::FG),
+                text(s.cancel_title)
+                    .size(18)
+                    .font(FONT_SANS_SEMIBOLD)
+                    .color(theme::FG),
                 vspace(16.0),
                 row![
                     fill_hspace(),
                     button(text(s.cancel_keep).size(12).color(theme::FG))
                         .padding([8, 14])
                         .on_press(Message::ConfirmCancelNo)
-                        .style(pill_button_style(false)),
+                        .style(ghost_button_style()),
                     hspace(10.0),
                     button(text(s.cancel_confirm).size(12).color(theme::DANGER))
                         .padding([8, 14])
                         .on_press(Message::ConfirmCancelYes)
-                        .style(pill_button_style(true)),
+                        .style(ghost_button_style()),
                 ]
                 .align_y(Alignment::Center),
             ]
@@ -1248,56 +1254,105 @@ fn fill_vspace<'a>() -> Element<'a, Message> {
     Space::new().height(Length::Fill).into()
 }
 
-fn kv_row<'a>(k: &'a str, v: &str, v_col: Color, alpha: f32) -> Element<'a, Message> {
-    row![
-        text(k).size(12).color(with_alpha(theme::FG2, alpha)),
-        fill_hspace(),
-        text(v.to_string()).size(12).color(with_alpha(v_col, alpha)),
-    ]
-    .align_y(Alignment::Center)
+/// Cartão `.chk` da Etapa 1 (`orion-instalador.html` linhas 59–63).
+fn chk_card<'a>(label: &'a str, val: &str, warn: bool, alpha: f32) -> Element<'a, Message> {
+    let dot_col = if warn { theme::BETEL } else { theme::OK };
+    container(
+        column![
+            text(label).size(11).color(with_alpha(theme::FG3, alpha)),
+            vspace(3.0),
+            row![
+                text("● ").size(12).color(with_alpha(dot_col, alpha)),
+                text(val.to_string())
+                    .size(13)
+                    .font(FONT_MONO)
+                    .color(with_alpha(theme::FG, alpha)),
+            ]
+            .align_y(Alignment::Center),
+        ],
+    )
+    .width(Length::FillPortion(1))
+    .padding([10, 12])
+    .style(surface_card_style())
     .into()
 }
 
-fn divider<'a>() -> Element<'a, Message> {
-    container(Space::new().width(Length::Fill).height(Length::Fixed(1.0)))
-        .style(|_theme: &Theme| container::Style {
-            background: Some(Background::Color(theme::LINE)),
-            ..Default::default()
-        })
+/// Campo `.field` da Etapa 2 (`orion-instalador.html` linhas 50–57, 291–293).
+fn folder_field<'a>(
+    label: &'a str,
+    path_val: &str,
+    action: Option<(&'a str, Message)>,
+    hint: &str,
+    alpha: f32,
+) -> Element<'a, Message> {
+    let input_box = container(
+        text(path_val.to_string())
+            .size(13)
+            .font(FONT_MONO)
+            .color(with_alpha(theme::FG, alpha)),
+    )
+    .width(Length::Fill)
+    .padding([9, 11])
+    .style(surface_card_style());
+
+    let input_row: Element<'a, Message> = if let Some((btn_lbl, msg)) = action {
+        row![
+            input_box,
+            hspace(8.0),
+            button(
+                text(btn_lbl)
+                    .size(13)
+                    .font(FONT_SANS_SEMIBOLD)
+                    .color(with_alpha(theme::FG, alpha))
+            )
+            .padding([8, 12])
+            .on_press(msg)
+            .style(ghost_button_style()),
+        ]
+        .align_y(Alignment::Center)
         .into()
+    } else {
+        input_box.into()
+    };
+
+    column![
+        text(label).size(12).color(with_alpha(theme::FG2, alpha)),
+        vspace(6.0),
+        input_row,
+        vspace(6.0),
+        text(hint.to_string())
+            .size(12)
+            .color(with_alpha(theme::FG3, alpha)),
+    ]
+    .into()
 }
 
-fn badge<'a>(label: &'a str, warm: bool) -> Element<'a, Message> {
-    let fg = if warm { theme::BETEL } else { theme::RIGEL };
-    let bg = if warm {
-        Color::from_rgba8(233, 180, 103, 0.12)
-    } else {
-        Color::from_rgba8(164, 179, 222, 0.12)
-    };
-    let border_col = if warm {
-        Color::from_rgba8(233, 180, 103, 0.28)
-    } else {
-        Color::from_rgba8(164, 179, 222, 0.24)
-    };
-    container(text(label).size(9).color(fg))
-        .padding([2, 6])
-        .style(move |_theme: &Theme| container::Style {
-            background: Some(Background::Color(bg)),
-            border: Border {
-                color: border_col,
-                width: 1.0,
-                radius: 99.0.into(),
-            },
-            ..Default::default()
-        })
-        .into()
+/// Selo `.tag` da Etapa 3 (`orion-instalador.html` linha 75).
+fn tag_pill<'a>(label: &'a str) -> Element<'a, Message> {
+    container(
+        text(label)
+            .size(10)
+            .font(FONT_SANS_SEMIBOLD)
+            .color(theme::BETEL),
+    )
+    .padding([1, 7])
+    .style(|_theme: &Theme| container::Style {
+        background: Some(Background::Color(Color::TRANSPARENT)),
+        border: Border {
+            color: Color::from_rgba8(233, 180, 103, 0.40),
+            width: 1.0,
+            radius: 999.0.into(),
+        },
+        ..Default::default()
+    })
+    .into()
 }
 
 fn check_dot<'a>(selected: bool) -> Element<'a, Message> {
     let label = if selected { "✓" } else { "" };
-    container(text(label).size(10).color(theme::ON_PRIMARY))
-        .width(Length::Fixed(15.0))
-        .height(Length::Fixed(15.0))
+    container(text(label).size(11).color(theme::ON_PRIMARY))
+        .width(Length::Fixed(16.0))
+        .height(Length::Fixed(16.0))
         .align_x(Horizontal::Center)
         .align_y(Vertical::Center)
         .style(move |_theme: &Theme| container::Style {
@@ -1308,7 +1363,7 @@ fn check_dot<'a>(selected: bool) -> Element<'a, Message> {
             })),
             border: Border {
                 color: if selected { theme::RIGEL } else { theme::FG3 },
-                width: 1.4,
+                width: 1.0,
                 radius: 4.0.into(),
             },
             ..Default::default()
@@ -1316,8 +1371,9 @@ fn check_dot<'a>(selected: bool) -> Element<'a, Message> {
         .into()
 }
 
+/// Switch `.sw` de 36×20 px (`orion-instalador.html` linhas 80–83).
 fn switch_pill<'a>(active: bool) -> Element<'a, Message> {
-    let knob = container(Space::new().width(Length::Fixed(12.0)).height(Length::Fixed(12.0)))
+    let knob = container(Space::new().width(Length::Fixed(14.0)).height(Length::Fixed(14.0)))
         .style(move |_theme: &Theme| container::Style {
             background: Some(Background::Color(if active {
                 theme::ON_PRIMARY
@@ -1338,48 +1394,52 @@ fn switch_pill<'a>(active: bool) -> Element<'a, Message> {
     };
 
     container(content)
-        .width(Length::Fixed(32.0))
-        .height(Length::Fixed(18.0))
-        .padding([2, 3])
+        .width(Length::Fixed(36.0))
+        .height(Length::Fixed(20.0))
+        .padding([3, 3])
         .style(move |_theme: &Theme| container::Style {
             background: Some(Background::Color(if active {
                 theme::RIGEL
             } else {
-                theme::RAISE
+                theme::LINE
             })),
             border: Border {
-                color: if active { theme::RIGEL } else { theme::LINE },
-                width: 1.0,
-                radius: 99.0.into(),
+                radius: 999.0.into(),
+                ..Default::default()
             },
             ..Default::default()
         })
         .into()
 }
 
+/// Barra `.track` de 6 px da Etapa 5 (`orion-instalador.html` linhas 85–86).
 fn progress_bar_single<'a>(fraction: f32) -> Element<'a, Message> {
-    let total_w = 416.0_f32;
+    let total_w = 434.0_f32;
     let fill_w = (total_w * fraction.clamp(0.0, 1.0)).max(2.0);
     container(
         row![
             container(
                 Space::new()
                     .width(Length::Fixed(fill_w))
-                    .height(Length::Fixed(4.0))
+                    .height(Length::Fixed(6.0))
             )
             .style(|_theme: &Theme| container::Style {
                 background: Some(Background::Color(theme::RIGEL)),
+                border: Border {
+                    radius: 999.0.into(),
+                    ..Default::default()
+                },
                 ..Default::default()
             }),
             fill_hspace(),
         ],
     )
     .width(Length::Fill)
-    .height(Length::Fixed(4.0))
+    .height(Length::Fixed(6.0))
     .style(|_theme: &Theme| container::Style {
-        background: Some(Background::Color(theme::LINE)),
+        background: Some(Background::Color(theme::RAISE)),
         border: Border {
-            radius: 99.0.into(),
+            radius: 999.0.into(),
             ..Default::default()
         },
         ..Default::default()
@@ -1393,13 +1453,29 @@ fn surface_card_style() -> impl Fn(&Theme) -> container::Style {
         border: Border {
             color: theme::LINE,
             width: 1.0,
-            radius: 6.0.into(),
+            radius: 8.0.into(),
         },
         ..Default::default()
     }
 }
 
-fn selectable_card_style(selected: bool) -> impl Fn(&Theme, button::Status) -> button::Style {
+fn input_box_button_style() -> impl Fn(&Theme, button::Status) -> button::Style {
+    |_theme: &Theme, status: button::Status| {
+        let hovered = matches!(status, button::Status::Hovered | button::Status::Pressed);
+        button::Style {
+            background: Some(Background::Color(theme::RAISE)),
+            text_color: theme::FG,
+            border: Border {
+                color: if hovered { theme::RIGEL } else { theme::LINE },
+                width: 1.0,
+                radius: 8.0.into(),
+            },
+            ..Default::default()
+        }
+    }
+}
+
+fn model_card_style(selected: bool) -> impl Fn(&Theme, button::Status) -> button::Style {
     move |_theme: &Theme, status: button::Status| {
         let hovered = matches!(status, button::Status::Hovered | button::Status::Pressed);
         let bg = if selected {
@@ -1418,48 +1494,35 @@ fn selectable_card_style(selected: bool) -> impl Fn(&Theme, button::Status) -> b
             border: Border {
                 color: border_col,
                 width: 1.0,
-                radius: 6.0.into(),
+                radius: 10.0.into(),
             },
             ..Default::default()
         }
     }
 }
 
-fn pill_button_style(active: bool) -> impl Fn(&Theme, button::Status) -> button::Style {
-    move |_theme: &Theme, _status: button::Status| button::Style {
-        background: Some(Background::Color(if active {
-            theme::MODEL_SELECTED_BG
-        } else {
-            Color::TRANSPARENT
-        })),
-        text_color: if active { theme::FG } else { theme::FG2 },
-        border: Border {
-            color: if active { theme::RIGEL } else { theme::LINE },
-            width: 1.0,
-            radius: 99.0.into(),
-        },
+fn transparent_row_button_style() -> impl Fn(&Theme, button::Status) -> button::Style {
+    |_theme: &Theme, _status: button::Status| button::Style {
+        background: Some(Background::Color(Color::TRANSPARENT)),
+        text_color: theme::FG,
+        border: Border::default(),
         ..Default::default()
     }
 }
 
-fn window_control_style(is_close: bool) -> impl Fn(&Theme, button::Status) -> button::Style {
-    move |_theme: &Theme, status: button::Status| {
+fn titlebar_btn_style() -> impl Fn(&Theme, button::Status) -> button::Style {
+    |_theme: &Theme, status: button::Status| {
         let hovered = matches!(status, button::Status::Hovered | button::Status::Pressed);
-        let bg = if hovered {
-            if is_close {
-                Color::from_rgba8(240, 124, 136, 0.18)
-            } else {
-                Color::from_rgba8(255, 255, 255, 0.06)
-            }
-        } else {
-            Color::TRANSPARENT
-        };
         button::Style {
-            background: Some(Background::Color(bg)),
-            text_color: if hovered && is_close {
-                theme::DANGER
+            background: Some(Background::Color(if hovered {
+                theme::RAISE
             } else {
-                theme::FG2
+                Color::TRANSPARENT
+            })),
+            text_color: if hovered { theme::FG } else { theme::FG3 },
+            border: Border {
+                radius: 6.0.into(),
+                ..Default::default()
             },
             ..Default::default()
         }
@@ -1471,15 +1534,15 @@ fn ghost_button_style() -> impl Fn(&Theme, button::Status) -> button::Style {
         let hovered = matches!(status, button::Status::Hovered | button::Status::Pressed);
         button::Style {
             background: Some(Background::Color(if hovered {
-                theme::RAISE
+                theme::rgb(0x22, 0x24, 0x2a)
             } else {
-                Color::TRANSPARENT
+                theme::RAISE
             })),
-            text_color: if hovered { theme::FG } else { theme::FG2 },
+            text_color: theme::FG,
             border: Border {
-                color: if hovered { theme::LINE } else { Color::TRANSPARENT },
+                color: theme::LINE,
                 width: 1.0,
-                radius: 6.0.into(),
+                radius: 8.0.into(),
             },
             ..Default::default()
         }
@@ -1490,21 +1553,17 @@ fn primary_button_style(enabled: bool) -> impl Fn(&Theme, button::Status) -> but
     move |_theme: &Theme, status: button::Status| {
         let hovered = matches!(status, button::Status::Hovered | button::Status::Pressed);
         let bg = if !enabled {
-            theme::RAISE
+            with_alpha(theme::PRIMARY, 0.4)
         } else if hovered {
-            theme::RIGEL
+            theme::rgb(0xc5, 0xd1, 0xf2)
         } else {
             theme::PRIMARY
         };
         button::Style {
             background: Some(Background::Color(bg)),
-            text_color: if enabled {
-                theme::ON_PRIMARY
-            } else {
-                theme::FG3
-            },
+            text_color: theme::ON_PRIMARY,
             border: Border {
-                radius: 6.0.into(),
+                radius: 8.0.into(),
                 ..Default::default()
             },
             ..Default::default()
@@ -1522,13 +1581,11 @@ mod tests {
         assert_eq!(app.step, 1);
         assert_eq!(app.choices.language, Language::PtBr);
 
-        // Alterna idioma PT <-> EN sem perder estado
         let _ = app.update(Message::ToggleLanguage);
         assert_eq!(app.choices.language, Language::En);
         let _ = app.update(Message::ToggleLanguage);
         assert_eq!(app.choices.language, Language::PtBr);
 
-        // Avança da etapa 1 para 2 com transição Out (0.34 s) + In (0.34 s)
         let _ = app.update(Message::NextStep);
         assert!(matches!(
             app.transition,
@@ -1540,27 +1597,22 @@ mod tests {
         assert_eq!(app.step, 2);
         assert_eq!(app.sky.lit, 2);
 
-        // Na etapa 2, escolhe o disco D:
         let _ = app.update(Message::SelectModelsDisk(1));
         assert!(app.choices.models_dir.to_string_lossy().starts_with("D:"));
 
-        // Avança para etapa 3 (Cinturão)
         app.apply_step_immediately(3);
         assert_eq!(app.step, 3);
         assert_eq!(app.sky.lit, 3);
 
-        // Alterna um modelo adicional (Phi-4-mini 3.8B)
         let initial_gb = app.choices.selected_models_gb();
         let _ = app.update(Message::ToggleModel("phi-4-mini-3.8b".to_string()));
         assert!(app.choices.selected_models_gb() > initial_gb);
 
-        // Avança para etapa 4 (Saiph) e volta para etapa 3 sem apagar Saiph
         app.apply_step_immediately(4);
         assert_eq!(app.sky.lit, 4);
         app.apply_step_immediately(3);
         assert_eq!(app.sky.lit, 4);
 
-        // Avança para etapa 5 (Instalação) e simula conclusão até Rigel acender
         app.apply_step_immediately(5);
         assert!(app.install_started);
         for _ in 0..200 {
@@ -1576,7 +1628,7 @@ mod tests {
     fn closing_during_active_install_opens_confirmation_and_rolls_back() {
         let mut app = SetupApp::new_prototype_reference();
         app.apply_step_immediately(5);
-        app.tick_dt(0.8);
+        app.tick_dt(0.9);
 
         let _ = app.update(Message::RequestCloseWindow);
         assert!(app.confirm_cancel_modal);

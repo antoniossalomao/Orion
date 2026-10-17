@@ -146,10 +146,14 @@ impl PcInfo {
 }
 
 fn detect_gpu() -> (String, u32, String) {
-    if let Ok(out) = std::process::Command::new("nvidia-smi")
-        .args(["--query-gpu=name,memory.total", "--format=csv,noheader,nounits"])
-        .output()
+    let mut cmd = std::process::Command::new("nvidia-smi");
+    cmd.args(["--query-gpu=name,memory.total", "--format=csv,noheader,nounits"]);
+    #[cfg(windows)]
     {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+    }
+    if let Ok(out) = cmd.output() {
         if out.status.success() {
             let s = String::from_utf8_lossy(&out.stdout);
             if let Some(line) = s.lines().next() {
@@ -157,7 +161,7 @@ fn detect_gpu() -> (String, u32, String) {
                 let name = parts.next().unwrap_or("NVIDIA GPU").trim().replace("NVIDIA GeForce ", "");
                 let mem_mb: u32 = parts.next().unwrap_or("8192").trim().parse().unwrap_or(8192);
                 let vram_gb = ((mem_mb as f32 / 1024.0).round() as u32).max(1);
-                return (name, vram_gb, "CUDA · Vulkan".into());
+                return (name, vram_gb, "Vulkan".into());
             }
         }
     }

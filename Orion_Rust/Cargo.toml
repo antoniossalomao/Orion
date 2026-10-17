@@ -76,3 +76,7 @@ strip = true
 # PBKDF2 com 600 mil iterações e SQLite ficam lentos demais sem otimização
 [profile.dev.package."*"]
 opt-level = 2
+
+[profile.dev.package.orion-setup]
+opt-level = 3
+

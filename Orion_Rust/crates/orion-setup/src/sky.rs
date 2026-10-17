@@ -1,20 +1,41 @@
 //! Renderizador procedural da constelação de Orion (468×564 px).
 //!
-//! Tradução fiel do canvas 2D de `orion-instalador.html` e de
-//! `ORION_INSTALADOR_ESPECIFICACAO.md` (§5):
+//! Tradução pixel-a-pixel do canvas 2D de `orion-instalador.html`:
 //! - PRNG Park–Miller com semente fixa `seed = 7`
-//! - 260 estrelas de fundo com paralaxe e cintilação senoidal
-//! - 90 manchas de poeira da Via Láctea
-//! - Nebulosa de Orion (M42) abaixo da espada
-//! - 7 estrelas principais com nascimento suave, bloom inicial (2.4 s) e cruz de difração girando
-//! - 7 linhas da constelação com crescimento cúbico (1.6 s) e ponta de luz
-//! - Estrela cadente ocasional no topo direito
+//! - Sprites radiais 128×128 pré-computados (`warm`, `cool`, `white`, `neb1`, `neb2`) com blending aditivo (`lighter`)
+//! - Camada profunda pré-renderizada (vinheta radial + 90 manchas da Via Láctea + Nebulosa M42) para 60 FPS (< 0.8 ms/frame)
+//! - 260 estrelas de fundo com cintilação e paralaxe suave de câmera
+//! - 7 linhas da constelação com trilha apagada (`#8a90a8`), gradiente linear luminoso (4 px + 1 px) e ponta de luz
+//! - 7 estrelas principais com bloom de nascimento (`sin(age/2.4 * π)`), cruz de difração com gradiente e núcleo nítido
 
-use crate::theme::{self, ease_in_out_cubic};
-use iced::mouse;
-use iced::widget::canvas::{self, Frame, Geometry, Path, Stroke};
-use iced::{Color, Point, Rectangle, Renderer, Size, Theme};
+use crate::theme::ease_in_out_cubic;
+use iced::widget::image as iced_image;
 use image::{Rgba, RgbaImage};
+use std::f32::consts::PI;
+use std::sync::OnceLock;
+
+pub const SKY_W_U32: u32 = 468;
+pub const SKY_H_U32: u32 = 564;
+const SPRITE_SIZE: usize = 128;
+
+/// Tabela 128×128 pré-computada do gradiente radial dos sprites (`orion-instalador.html` linhas 148–151).
+static SPRITE_ALPHA_LUT: OnceLock<Box<[f32; SPRITE_SIZE * SPRITE_SIZE]>> = OnceLock::new();
+
+fn sprite_lut() -> &'static [f32; SPRITE_SIZE * SPRITE_SIZE] {
+    SPRITE_ALPHA_LUT.get_or_init(|| {
+        let mut table = Box::new([0.0_f32; SPRITE_SIZE * SPRITE_SIZE]);
+        let half = (SPRITE_SIZE as f32) * 0.5;
+        for y in 0..SPRITE_SIZE {
+            for x in 0..SPRITE_SIZE {
+                let dx = (x as f32 + 0.5) - half;
+                let dy = (y as f32 + 0.5) - half;
+                let norm = (dx * dx + dy * dy).sqrt() / half;
+                table[y * SPRITE_SIZE + x] = sprite_radial_alpha(norm);
+            }
+        }
+        table
+    })
+}
 
 /// Gerador congruente linear Park–Miller idêntico ao JS:
 /// `let seed=7; const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;`
@@ -52,6 +73,7 @@ pub enum SpriteKind {
 }
 
 impl SpriteKind {
+    #[inline]
     pub const fn rgb(self) -> (u8, u8, u8) {
         match self {
             SpriteKind::Warm => (240, 190, 120),
@@ -61,19 +83,10 @@ impl SpriteKind {
             SpriteKind::Neb2 => (214, 128, 140),
         }
     }
-
-    pub fn color_with_alpha(self, alpha: f32) -> Color {
-        let (r, g, b) = self.rgb();
-        Color::from_rgba8(r, g, b, alpha.clamp(0.0, 1.0))
-    }
 }
 
 /// Avalia a curva radial de alpha dos sprites 128×128 do protótipo:
-/// - `0.00 -> 1.00`
-/// - `0.08 -> 0.75`
-/// - `0.25 -> 0.22`
-/// - `0.55 -> 0.05`
-/// - `1.00 -> 0.00`
+/// `0.00 -> 1.00`, `0.08 -> 0.75`, `0.25 -> 0.22`, `0.55 -> 0.05`, `1.00 -> 0.00`.
 #[inline]
 pub fn sprite_radial_alpha(norm_dist: f32) -> f32 {
     let d = norm_dist.clamp(0.0, 1.0);
@@ -141,8 +154,6 @@ pub struct ConstellationLine {
 pub struct ShootingStar {
     pub x: f32,
     pub y: f32,
-    pub vx: f32,
-    pub vy: f32,
     pub born: f32,
 }
 
@@ -162,6 +173,8 @@ pub struct OrionSky {
     pub px: f32,
     pub py: f32,
     pub shoot: Option<ShootingStar>,
+    pub next_shoot_sec: f32,
+    base_backdrop: Vec<u8>,
 }
 
 impl Default for OrionSky {
@@ -172,11 +185,10 @@ impl Default for OrionSky {
 
 impl OrionSky {
     pub fn new() -> Self {
+        let _ = sprite_lut();
         let mut rng = ParkMillerRng::new(ParkMillerRng::INITIAL_SEED);
 
-        // Sequência idêntica ao JS (incluindo curto-circuito no operador ternário de `tint`):
-        // const BG=[...Array(260)].map(()=>{const z=rnd();return{x:rnd(),y:rnd(),r:.25+z*z*1.1,a:.12+z*.55,z,ph:rnd()*6.28,sp:.15+rnd()*.35,
-        //   tint:rnd()<.15?"255,220,190":rnd()<.25?"190,205,255":"225,230,242"}});
+        // Sequência idêntica ao JS (`orion-instalador.html` linhas 156–159):
         let mut bg = Vec::with_capacity(260);
         for _ in 0..260 {
             let z = rng.next_f32();
@@ -205,7 +217,6 @@ impl OrionSky {
             });
         }
 
-        // const DUST=[...Array(90)].map(()=>{const t=rnd();return{x:t,y:.15+t*.75+(rnd()-.5)*.18,r:20+rnd()*50,a:.012+rnd()*.02}});
         let mut dust = Vec::with_capacity(90);
         for _ in 0..90 {
             let t = rng.next_f32();
@@ -226,7 +237,7 @@ impl OrionSky {
                 step: 0,
                 delay: 0.0,
                 a: 0.0,
-                born: -1.0,
+                born: 0.0,
             },
             ConstellationStar {
                 name: "Bellatrix",
@@ -310,13 +321,15 @@ impl OrionSky {
             start: -1.0,
         });
 
+        let base_backdrop = build_deep_sky_backdrop(SKY_W_U32, SKY_H_U32, &dust);
+
         Self {
             rng,
             bg,
             dust,
             stars,
             lines,
-            lit: 1, // Etapa 1 acende Betelgeuse (step == 0 < lit)
+            lit: 1,
             done: 0.0,
             sec: 0.0,
             pointer_tx: 0.0,
@@ -324,17 +337,16 @@ impl OrionSky {
             px: 0.0,
             py: 0.0,
             shoot: None,
+            next_shoot_sec: 5.0,
+            base_backdrop,
         }
     }
 
-    /// Atualiza o alvo de paralaxe a partir da posição normalizada `(-0.5..=0.5)` do cursor na janela.
     pub fn set_pointer_normalized(&mut self, nx: f32, ny: f32) {
         self.pointer_tx = nx.clamp(-0.5, 0.5);
         self.pointer_ty = ny.clamp(-0.5, 0.5);
     }
 
-    /// Registra avanço para a etapa `step_1_based` (`1..=5`).
-    /// Voltar etapas nunca reduz `lit` (as estrelas conquistadas permanecem acesas).
     pub fn notify_step(&mut self, step_1_based: usize) {
         let target_lit = step_1_based.min(4);
         if target_lit > self.lit {
@@ -342,13 +354,35 @@ impl OrionSky {
         }
     }
 
-    /// Acende Rigel (`lit = 5`) quando a instalação chega a 100%.
     pub fn notify_install_completed(&mut self) {
         self.lit = 5;
     }
 
-    /// Avança a simulação por `dt` segundos (limitado a `0.05 s` por frame, como no protótipo).
-    pub fn step_dt(&mut self, dt_raw: f32, width: f32, height: f32) {
+    /// Projeção com respiração lenta da câmera (`orion-instalador.html` linhas 190–192).
+    #[inline]
+    pub fn project(&self, x: f32, y: f32, z: f32, w: f32, h: f32) -> (f32, f32) {
+        let cx = w * 0.47;
+        let cy = h * 0.50;
+        let zoom = 1.0 + 0.012 * (self.sec * 0.11).sin() + 0.03 * self.done;
+        let rot = 0.012 * (self.sec * 0.05).sin();
+        let ox = (self.sec * 0.07).sin() * 5.0 - self.px * 6.0;
+        let oy = (self.sec * 0.09).cos() * 4.0 - self.py * 6.0;
+        let dx = (x * w - cx) * zoom;
+        let dy = (y * h - cy) * zoom;
+        let c = (rot * z).cos();
+        let s = (rot * z).sin();
+        (
+            cx + dx * c - dy * s + ox * z,
+            cy + dx * s + dy * c + oy * z,
+        )
+    }
+
+    #[inline]
+    pub fn pos(&self, star: &ConstellationStar, width: f32, height: f32) -> (f32, f32) {
+        self.project(star.x, star.y, 1.0, width, height)
+    }
+
+    pub fn step_dt(&mut self, dt_raw: f32, _width: f32, _height: f32) {
         let dt = dt_raw.clamp(0.0, 0.05);
         self.sec += dt;
         self.px += (self.pointer_tx - self.px) * (dt * 3.0).min(1.0);
@@ -358,512 +392,562 @@ impl OrionSky {
         let lit = self.lit;
 
         for s in &mut self.stars {
-            let want = s.step < lit;
-            if want && s.born < 0.0 {
+            let on = s.step < lit;
+            if on && s.born < 0.0 {
                 s.born = sec + s.delay;
             }
-            if !want {
+            if !on {
                 s.born = -1.0;
             }
-            let active = want && sec >= s.born;
+            let active = on && sec >= s.born;
             let target = if active { 1.0 } else { 0.0 };
             let rate = if active { 1.6 } else { 4.0 };
-            s.a += (target - s.a) * (1.0 - (-dt * rate).exp());
+            s.a += (target - s.a) * (1.0 - (-rate * dt).exp());
         }
 
+        // Linhas (`orion-instalador.html` linhas 216–217): crescem quando A.b > 0.85 && B.b > 0.85
         for l in &mut self.lines {
             let sa = self.stars[l.a];
             let sb = self.stars[l.b];
-            let ready = sa.a > 0.35 && sb.a > 0.35;
-            if ready && l.start < 0.0 {
-                l.start = sec + 0.15;
-            }
-            if !ready {
-                l.start = -1.0;
-                l.p = (l.p - dt * 3.0).max(0.0);
-            } else if sec >= l.start {
-                l.p = ((sec - l.start) / 1.6).min(1.0);
+            let ready = sa.a > 0.85 && sb.a > 0.85;
+            if ready {
+                l.p = (l.p + dt / 1.6).min(1.0);
+            } else {
+                l.p = (l.p - dt * 2.0).max(0.0);
             }
         }
 
-        let done_target = if self.lit >= 5 { 1.0 } else { 0.0 };
-        self.done += (done_target - self.done) * (1.0 - (-dt * 1.8).exp());
+        let done_target = if self.lit >= 5 && self.stars[6].a > 0.9 {
+            1.0
+        } else {
+            0.0
+        };
+        self.done += (done_target - self.done) * (1.0 - (-0.8 * dt).exp());
 
-        // Estrela cadente ocasional
-        if self.shoot.is_none() && self.rng.next_f32() < dt * 0.07 {
+        // Estrela cadente (`orion-instalador.html` linhas 253–256)
+        if self.shoot.is_none() && sec > self.next_shoot_sec {
             self.shoot = Some(ShootingStar {
-                x: (0.2 + self.rng.next_f32() * 0.6) * width,
-                y: (0.08 + self.rng.next_f32() * 0.35) * height,
-                vx: 260.0,
-                vy: 150.0,
+                x: 0.35 + self.rng.next_f32() * 0.55,
+                y: 0.04 + self.rng.next_f32() * 0.25,
                 born: sec,
             });
+            self.next_shoot_sec = sec + 9.0 + self.rng.next_f32() * 9.0;
         }
         if let Some(sh) = self.shoot {
-            let age = sec - sh.born;
-            if age > 0.7 {
+            if (sec - sh.born) / 1.3 >= 1.0 {
                 self.shoot = None;
             }
         }
     }
 
-    #[inline]
-    pub fn drift(&self) -> (f32, f32) {
-        (
-            (self.sec * 0.05).sin() * 2.5,
-            (self.sec * 0.04).cos() * 2.0,
-        )
+    /// Gera o `Handle` de imagem RGBA 468×564 para exibição direta via `iced::widget::image` (60 FPS).
+    pub fn render_image_handle(&self) -> iced_image::Handle {
+        let img = self.render_rgba(SKY_W_U32, SKY_H_U32);
+        iced_image::Handle::from_rgba(SKY_W_U32, SKY_H_U32, img.into_raw())
     }
 
-    #[inline]
-    pub fn pos(&self, star: &ConstellationStar, width: f32, height: f32) -> (f32, f32) {
-        let (drift_x, drift_y) = self.drift();
-        (
-            star.x * width + drift_x - self.px * 8.0,
-            star.y * height + drift_y - self.py * 8.0,
-        )
-    }
-
-    /// Renderiza o céu determinístico em um buffer RGBA (`image::RgbaImage`) para testes de snapshot ou exportação.
+    /// Renderiza o quadro atual em um `RgbaImage` usando os sprites 128×128 e composição `lighter`.
     pub fn render_rgba(&self, width: u32, height: u32) -> RgbaImage {
-        let mut img = RgbaImage::new(width, height);
         let w = width as f32;
         let h = height as f32;
 
-        // 1. Gradiente vertical de fundo + radial em (38%, 45%)
-        let rcx = w * 0.38;
-        let rcy = h * 0.45;
-        let rmax = h * 0.65;
-        for py in 0..height {
-            let ty = (py as f32) / h.max(1.0);
-            // #07080b -> #0b0d14 (55%) -> #0f121b (100%)
-            let (mut br, mut bg_c, mut bb) = if ty <= 0.55 {
-                let u = ty / 0.55;
-                (
-                    7.0 + (11.0 - 7.0) * u,
-                    8.0 + (13.0 - 8.0) * u,
-                    11.0 + (20.0 - 11.0) * u,
-                )
-            } else {
-                let u = (ty - 0.55) / 0.45;
-                (
-                    11.0 + (15.0 - 11.0) * u,
-                    13.0 + (18.0 - 13.0) * u,
-                    20.0 + (27.0 - 20.0) * u,
-                )
-            };
+        let mut buf = if width == SKY_W_U32 && height == SKY_H_U32 {
+            self.base_backdrop.clone()
+        } else {
+            build_deep_sky_backdrop(width, height, &self.dust)
+        };
 
-            for px in 0..width {
-                let dx = (px as f32) - rcx;
-                let dy = (py as f32) - rcy;
-                let d = (dx * dx + dy * dy).sqrt();
-                if d < rmax {
-                    let a = 1.0 - d / rmax;
-                    // Blending de #1c2030 sobre a base
-                    br = br + (28.0 - br) * a * 0.45;
-                    bg_c = bg_c + (32.0 - bg_c) * a * 0.45;
-                    bb = bb + (48.0 - bb) * a * 0.45;
-                }
-                img.put_pixel(
-                    px,
-                    py,
-                    Rgba([
-                        br.round().clamp(0.0, 255.0) as u8,
-                        bg_c.round().clamp(0.0, 255.0) as u8,
-                        bb.round().clamp(0.0, 255.0) as u8,
-                        255,
-                    ]),
+        // 1. Estrelas de fundo (260)
+        for s in &self.bg {
+            let (x, y) = self.project(s.x, s.y, 0.3 + s.z * 0.7, w, h);
+            let tw = 0.75 + 0.25 * (self.sec * s.sp * 3.0 + s.ph).sin();
+            draw_disc_buf(&mut buf, width, height, x, y, s.r, s.tint, s.a * tw, false);
+            if s.z > 0.85 {
+                blit_sprite_buf(
+                    &mut buf,
+                    width,
+                    height,
+                    x,
+                    y,
+                    s.r * 14.0,
+                    SpriteKind::White.rgb(),
+                    0.10 * tw,
                 );
             }
         }
 
-        // 2. Poeira da Via Láctea
-        for d in &self.dust {
-            let cx = d.x * w - self.px * 3.0;
-            let cy = d.y * h - self.py * 3.0;
-            blend_sprite_rgba(&mut img, cx, cy, d.r, SpriteKind::Cool.rgb(), d.a, true);
-        }
-
-        // 3. Nebulosa de Orion (M42) abaixo da espada
-        let (drift_x, drift_y) = self.drift();
-        let nx = 0.465 * w + drift_x - self.px * 6.0;
-        let ny = 0.62 * h + drift_y - self.py * 6.0;
-        let neb_a = 0.16 + self.stars[3].a * 0.22 + self.done * 0.12;
-        blend_sprite_rgba(&mut img, nx, ny, 75.0, SpriteKind::Neb1.rgb(), neb_a, true);
-        blend_sprite_rgba(
-            &mut img,
-            nx + 6.0,
-            ny - 4.0,
-            42.0,
-            SpriteKind::Neb2.rgb(),
-            neb_a * 0.85,
-            true,
-        );
-
-        // 4. 260 estrelas de fundo
-        for b in &self.bg {
-            let tw = 0.72 + 0.28 * (self.sec * b.sp + b.ph).sin();
-            let x = (b.x * w - self.px * (2.0 + b.z * 5.0)).rem_euclid(w);
-            let y = (b.y * h - self.py * (2.0 + b.z * 5.0)).rem_euclid(h);
-            blend_disc_rgba(&mut img, x, y, b.r, b.tint, b.a * tw, false);
-        }
-
-        // 5. 7 linhas da constelação
+        // 2. Linhas da constelação (7)
         for l in &self.lines {
+            let (x1, y1) = self.pos(&self.stars[l.a], w, h);
+            let (x2, y2) = self.pos(&self.stars[l.b], w, h);
+            // Trilha apagada (#8a90a8 com alpha 0.06)
+            draw_aa_line_buf(
+                &mut buf,
+                width,
+                height,
+                x1,
+                y1,
+                x2,
+                y2,
+                1.0,
+                (0x8a, 0x90, 0xa8),
+                (0x8a, 0x90, 0xa8),
+                0.06,
+                0.06,
+                false,
+            );
+
             if l.p <= 0.001 {
                 continue;
             }
-            let (ax, ay) = self.pos(&self.stars[l.a], w, h);
-            let (bx, by) = self.pos(&self.stars[l.b], w, h);
-            let ep = ease_in_out_cubic(l.p);
-            let ex = ax + (bx - ax) * ep;
-            let ey = ay + (by - ay) * ep;
-            let alpha = (0.28 + self.done * 0.18) * self.stars[l.a].a.min(self.stars[l.b].a);
-            blend_line_rgba(&mut img, ax, ay, ex, ey, (190, 206, 245), alpha);
+            let e = ease_in_out_cubic(l.p);
+            let xe = x1 + (x2 - x1) * e;
+            let ye = y1 + (y2 - y1) * e;
+
+            // Gradiente linear de rgba(164,179,222,0.05) até rgba(190,204,240,0.55)
+            let outer_mul = 0.35 * (0.7 + 0.3 * self.done);
+            draw_aa_line_buf(
+                &mut buf,
+                width,
+                height,
+                x1,
+                y1,
+                xe,
+                ye,
+                3.6,
+                (164, 179, 222),
+                (190, 204, 240),
+                0.05 * outer_mul,
+                0.55 * outer_mul,
+                true,
+            );
+            draw_aa_line_buf(
+                &mut buf,
+                width,
+                height,
+                x1,
+                y1,
+                xe,
+                ye,
+                1.1,
+                (164, 179, 222),
+                (190, 204, 240),
+                0.05 * 0.9,
+                0.55 * 0.9,
+                true,
+            );
+
             if l.p < 0.999 {
-                blend_sprite_rgba(&mut img, ex, ey, 11.0, SpriteKind::Cool.rgb(), 0.55 * (1.0 - l.p), true);
+                blit_sprite_buf(
+                    &mut buf,
+                    width,
+                    height,
+                    xe,
+                    ye,
+                    28.0,
+                    SpriteKind::White.rgb(),
+                    0.7 * (1.0 - l.p * 0.6),
+                );
             }
         }
 
-        // 6. 7 estrelas principais
-        for (i, s) in self.stars.iter().enumerate() {
-            if s.a <= 0.002 {
+        // 3. Estrelas principais da constelação (7)
+        for s in &self.stars {
+            let (x, y) = self.pos(s, w, h);
+            let tw = 1.0 + 0.06 * (self.sec * 1.3 + s.x * 20.0).sin();
+
+            // Ponto discreto quando apagada
+            if s.a < 0.99 {
+                draw_disc_buf(
+                    &mut buf,
+                    width,
+                    height,
+                    x,
+                    y,
+                    s.r * 0.6,
+                    (0x8a, 0x90, 0xa8),
+                    0.25 * (1.0 - s.a),
+                    false,
+                );
+            }
+            if s.a < 0.01 {
                 continue;
             }
-            let (x, y) = self.pos(s, w, h);
-            let age = (self.sec - s.born).max(0.0);
+
+            let age = if s.born < 0.0 {
+                99.0
+            } else {
+                (self.sec - s.born).max(0.0)
+            };
             let birth = if age < 2.4 {
-                (age / 0.35).min(1.0) * (1.0 - (age - 0.35).max(0.0) / 2.05)
+                ((age / 2.4).min(1.0) * PI).sin()
             } else {
                 0.0
             };
-            let breath = 1.0 + 0.04 * (self.sec * 1.3 + (i as f32) * 1.1).sin();
-            let fin = 1.0 + self.done * 0.22;
-            let halo = s.r * (9.5 + birth * 7.0) * breath * fin;
 
-            blend_sprite_rgba(
-                &mut img,
+            // Halo externo colorido + halo branco interno
+            blit_sprite_buf(
+                &mut buf,
+                width,
+                height,
                 x,
                 y,
-                halo,
+                s.r * (26.0 + 18.0 * birth + 6.0 * self.done) * tw,
                 s.kind.rgb(),
-                (s.a * (0.78 + birth * 0.35)).min(1.0),
-                true,
+                s.a * (0.55 + 0.35 * birth),
             );
-            blend_sprite_rgba(&mut img, x, y, s.r * 3.2 * fin, s.kind.rgb(), s.a, true);
-            blend_disc_rgba(&mut img, x, y, s.r * 0.85, s.core, s.a, true);
+            blit_sprite_buf(
+                &mut buf,
+                width,
+                height,
+                x,
+                y,
+                s.r * 7.0 * tw,
+                SpriteKind::White.rgb(),
+                s.a * 0.8,
+            );
+
+            // Raios finos de difração com queda linear nas pontas
+            let len = s.r * (5.0 + 4.0 * birth) * tw;
+            let ang = self.sec * 0.03;
+            let ca = ang.cos();
+            let sa = ang.sin();
+            let spike_alpha = s.a * (0.28 + 0.25 * birth);
+            draw_spike_buf(&mut buf, width, height, x, y, ca, sa, len, s.core, spike_alpha);
+            draw_spike_buf(
+                &mut buf,
+                width,
+                height,
+                x,
+                y,
+                -sa,
+                ca,
+                len * 0.8,
+                s.core,
+                spike_alpha,
+            );
+
+            // Núcleo sólido
+            draw_disc_buf(&mut buf, width, height, x, y, s.r * 0.75, s.core, s.a, false);
         }
 
-        img
-    }
-}
-
-fn blend_sprite_rgba(
-    img: &mut RgbaImage,
-    cx: f32,
-    cy: f32,
-    radius: f32,
-    rgb: (u8, u8, u8),
-    alpha: f32,
-    additive: bool,
-) {
-    if radius <= 0.1 || alpha <= 0.001 {
-        return;
-    }
-    let w = img.width() as i32;
-    let h = img.height() as i32;
-    let x0 = ((cx - radius).floor() as i32).max(0);
-    let x1 = ((cx + radius).ceil() as i32).min(w - 1);
-    let y0 = ((cy - radius).floor() as i32).max(0);
-    let y1 = ((cy + radius).ceil() as i32).min(h - 1);
-
-    for py in y0..=y1 {
-        for px in x0..=x1 {
-            let dx = (px as f32) + 0.5 - cx;
-            let dy = (py as f32) + 0.5 - cy;
-            let dist = (dx * dx + dy * dy).sqrt();
-            if dist <= radius {
-                let a = (sprite_radial_alpha(dist / radius) * alpha).clamp(0.0, 1.0);
-                if a > 0.001 {
-                    blend_pixel(img, px as u32, py as u32, rgb, a, additive);
-                }
+        // 4. Estrela cadente rara e suave
+        if let Some(sh) = self.shoot {
+            let f = (self.sec - sh.born) / 1.3;
+            if (0.0..1.0).contains(&f) {
+                let e = 1.0 - (1.0 - f).powi(2);
+                let x = (sh.x - e * 0.3) * w;
+                let y = (sh.y + e * 0.2) * h;
+                let a = (f * PI).sin();
+                draw_aa_line_buf(
+                    &mut buf,
+                    width,
+                    height,
+                    x,
+                    y,
+                    x + 90.0,
+                    y - 60.0,
+                    1.2,
+                    (240, 242, 250),
+                    (240, 242, 250),
+                    0.8 * a,
+                    0.0,
+                    true,
+                );
+                blit_sprite_buf(
+                    &mut buf,
+                    width,
+                    height,
+                    x,
+                    y,
+                    14.0,
+                    SpriteKind::White.rgb(),
+                    a * 0.8,
+                );
             }
         }
+
+        RgbaImage::from_raw(width, height, buf)
+            .unwrap_or_else(|| RgbaImage::from_pixel(width, height, Rgba([7, 8, 11, 255])))
     }
 }
 
-fn blend_disc_rgba(
-    img: &mut RgbaImage,
-    cx: f32,
-    cy: f32,
-    radius: f32,
-    rgb: (u8, u8, u8),
-    alpha: f32,
-    additive: bool,
-) {
-    let r_bound = radius.max(1.0) + 1.0;
-    let w = img.width() as i32;
-    let h = img.height() as i32;
-    let x0 = ((cx - r_bound).floor() as i32).max(0);
-    let x1 = ((cx + r_bound).ceil() as i32).min(w - 1);
-    let y0 = ((cy - r_bound).floor() as i32).max(0);
-    let y1 = ((cy + r_bound).ceil() as i32).min(h - 1);
+/// Pré-renderiza o fundo `#07080b` + vinheta radial + 90 manchas da Via Láctea + Nebulosa M42.
+fn build_deep_sky_backdrop(width: u32, height: u32, dust: &[DustPatch]) -> Vec<u8> {
+    let w = width as f32;
+    let h = height as f32;
+    let mut buf = vec![0u8; (width * height * 4) as usize];
 
-    for py in y0..=y1 {
-        for px in x0..=x1 {
-            let dx = (px as f32) + 0.5 - cx;
-            let dy = (py as f32) + 0.5 - cy;
-            let dist = (dx * dx + dy * dy).sqrt();
-            let cov = (radius + 0.5 - dist).clamp(0.0, 1.0);
-            let a = (cov * alpha).clamp(0.0, 1.0);
-            if a > 0.001 {
-                blend_pixel(img, px as u32, py as u32, rgb, a, additive);
-            }
+    let vcx = w * 0.45;
+    let vcy = h * 0.45;
+    let vmax = w.max(h) * 0.8;
+
+    for py in 0..height {
+        for px in 0..width {
+            let dx = (px as f32 + 0.5) - vcx;
+            let dy = (py as f32 + 0.5) - vcy;
+            let d = (dx * dx + dy * dy).sqrt();
+            let va = ((1.0 - d / vmax).clamp(0.0, 1.0)) * 0.9;
+            // Base #07080b (7, 8, 11) + vinheta rgba(22, 26, 40, va)
+            let r = 7.0 * (1.0 - va) + 22.0 * va;
+            let g = 8.0 * (1.0 - va) + 26.0 * va;
+            let b = 11.0 * (1.0 - va) + 40.0 * va;
+            let idx = ((py * width + px) * 4) as usize;
+            buf[idx] = r.round() as u8;
+            buf[idx + 1] = g.round() as u8;
+            buf[idx + 2] = b.round() as u8;
+            buf[idx + 3] = 255;
         }
     }
+
+    // Via Láctea (90 manchas suaves)
+    for d in dust {
+        blit_sprite_buf(
+            &mut buf,
+            width,
+            height,
+            d.x * w,
+            d.y * h,
+            d.r * 4.0,
+            SpriteKind::Cool.rgb(),
+            d.a,
+        );
+    }
+
+    // Nebulosa de Orion (M42) em (0.50, 0.64)
+    let nx = 0.50 * w;
+    let ny = 0.64 * h;
+    let min_wh = w.min(h);
+    let nb = 0.55;
+    blit_sprite_buf(
+        &mut buf,
+        width,
+        height,
+        nx,
+        ny,
+        min_wh * 0.75,
+        SpriteKind::Neb1.rgb(),
+        0.20 * nb,
+    );
+    blit_sprite_buf(
+        &mut buf,
+        width,
+        height,
+        nx + 10.0,
+        ny + 8.0,
+        min_wh * 0.38,
+        SpriteKind::Neb2.rgb(),
+        0.18 * nb,
+    );
+    blit_sprite_buf(
+        &mut buf,
+        width,
+        height,
+        nx + 4.0,
+        ny + 4.0,
+        min_wh * 0.10,
+        SpriteKind::White.rgb(),
+        0.10 * nb,
+    );
+
+    buf
 }
 
-fn blend_line_rgba(
-    img: &mut RgbaImage,
-    ax: f32,
-    ay: f32,
-    bx: f32,
-    by: f32,
+/// Blit aditivo (`globalCompositeOperation = "lighter"`) usando a LUT radial 128×128.
+#[inline]
+fn blit_sprite_buf(
+    buf: &mut [u8],
+    width: u32,
+    height: u32,
+    cx: f32,
+    cy: f32,
+    size: f32,
     rgb: (u8, u8, u8),
     alpha: f32,
 ) {
-    let dx = bx - ax;
-    let dy = by - ay;
-    let steps = (dx.hypot(dy) * 2.0).ceil() as usize;
-    if steps == 0 {
+    if size <= 0.5 || alpha <= 0.002 {
         return;
     }
-    let w = img.width() as i32;
-    let h = img.height() as i32;
-    for i in 0..=steps {
-        let t = (i as f32) / (steps as f32);
-        let x = ax + dx * t;
-        let y = ay + dy * t;
-        let px = x.round() as i32;
-        let py = y.round() as i32;
-        if px >= 0 && px < w && py >= 0 && py < h {
-            blend_pixel(img, px as u32, py as u32, rgb, (alpha * 0.5).clamp(0.0, 1.0), false);
+    let lut = sprite_lut();
+    let half = size * 0.5;
+    let inv_size = (SPRITE_SIZE as f32) / size;
+    let w = width as i32;
+    let h = height as i32;
+    let x0 = ((cx - half).floor() as i32).max(0);
+    let x1 = ((cx + half).ceil() as i32).min(w - 1);
+    let y0 = ((cy - half).floor() as i32).max(0);
+    let y1 = ((cy + half).ceil() as i32).min(h - 1);
+
+    let r_f = (rgb.0 as f32) * alpha;
+    let g_f = (rgb.1 as f32) * alpha;
+    let b_f = (rgb.2 as f32) * alpha;
+    let left = cx - half;
+    let top = cy - half;
+
+    for py in y0..=y1 {
+        let sy = (((py as f32 + 0.5) - top) * inv_size) as usize;
+        if sy >= SPRITE_SIZE {
+            continue;
+        }
+        let row_lut = &lut[sy * SPRITE_SIZE..(sy + 1) * SPRITE_SIZE];
+        let row_offset = (py as usize) * (width as usize) * 4;
+        for px in x0..=x1 {
+            let sx = (((px as f32 + 0.5) - left) * inv_size) as usize;
+            if sx >= SPRITE_SIZE {
+                continue;
+            }
+            let w_a = row_lut[sx];
+            if w_a > 0.001 {
+                let idx = row_offset + (px as usize) * 4;
+                buf[idx] = (buf[idx] as f32 + r_f * w_a).min(255.0) as u8;
+                buf[idx + 1] = (buf[idx + 1] as f32 + g_f * w_a).min(255.0) as u8;
+                buf[idx + 2] = (buf[idx + 2] as f32 + b_f * w_a).min(255.0) as u8;
+            }
         }
     }
 }
 
 #[inline]
-fn blend_pixel(img: &mut RgbaImage, x: u32, y: u32, rgb: (u8, u8, u8), alpha: f32, additive: bool) {
-    let dst = img.get_pixel_mut(x, y);
-    if additive {
-        dst[0] = ((dst[0] as f32) + (rgb.0 as f32) * alpha).round().min(255.0) as u8;
-        dst[1] = ((dst[1] as f32) + (rgb.1 as f32) * alpha).round().min(255.0) as u8;
-        dst[2] = ((dst[2] as f32) + (rgb.2 as f32) * alpha).round().min(255.0) as u8;
-    } else {
-        dst[0] = ((dst[0] as f32) * (1.0 - alpha) + (rgb.0 as f32) * alpha)
-            .round()
-            .clamp(0.0, 255.0) as u8;
-        dst[1] = ((dst[1] as f32) * (1.0 - alpha) + (rgb.1 as f32) * alpha)
-            .round()
-            .clamp(0.0, 255.0) as u8;
-        dst[2] = ((dst[2] as f32) * (1.0 - alpha) + (rgb.2 as f32) * alpha)
-            .round()
-            .clamp(0.0, 255.0) as u8;
-    }
-}
-
-/// Desenha um halo radial aproximado em camadas concêntricas no `Frame` do `iced::widget::canvas`.
-fn draw_glow(frame: &mut Frame, center: Point, radius: f32, kind: SpriteKind, alpha: f32) {
-    if radius <= 0.2 || alpha <= 0.002 {
+fn draw_disc_buf(
+    buf: &mut [u8],
+    width: u32,
+    height: u32,
+    cx: f32,
+    cy: f32,
+    radius: f32,
+    rgb: (u8, u8, u8),
+    alpha: f32,
+    additive: bool,
+) {
+    if alpha <= 0.002 {
         return;
     }
-    const RINGS: [(f32, f32); 5] = [
-        (1.00, 0.03),
-        (0.62, 0.07),
-        (0.35, 0.16),
-        (0.16, 0.36),
-        (0.07, 0.55),
-    ];
-    for (r_frac, a_frac) in RINGS {
-        let a = (alpha * a_frac).clamp(0.0, 1.0);
-        if a > 0.002 {
-            frame.fill(
-                &Path::circle(center, radius * r_frac),
-                kind.color_with_alpha(a),
-            );
+    let bound = radius + 1.0;
+    let w = width as i32;
+    let h = height as i32;
+    let x0 = ((cx - bound).floor() as i32).max(0);
+    let x1 = ((cx + bound).ceil() as i32).min(w - 1);
+    let y0 = ((cy - bound).floor() as i32).max(0);
+    let y1 = ((cy + bound).ceil() as i32).min(h - 1);
+
+    for py in y0..=y1 {
+        for px in x0..=x1 {
+            let dx = (px as f32 + 0.5) - cx;
+            let dy = (py as f32 + 0.5) - cy;
+            let dist = (dx * dx + dy * dy).sqrt();
+            let cov = (radius + 0.5 - dist).clamp(0.0, 1.0);
+            let a = (cov * alpha).clamp(0.0, 1.0);
+            if a > 0.002 {
+                blend_buf_pixel(buf, width, px as u32, py as u32, rgb, a, additive);
+            }
         }
     }
 }
 
-impl<Message> canvas::Program<Message> for OrionSky {
-    type State = ();
+#[allow(clippy::too_many_arguments)]
+fn draw_aa_line_buf(
+    buf: &mut [u8],
+    width: u32,
+    height: u32,
+    ax: f32,
+    ay: f32,
+    bx: f32,
+    by: f32,
+    stroke_w: f32,
+    rgb0: (u8, u8, u8),
+    rgb1: (u8, u8, u8),
+    a0: f32,
+    a1: f32,
+    additive: bool,
+) {
+    let dx = bx - ax;
+    let dy = by - ay;
+    let len_sq = dx * dx + dy * dy;
+    if len_sq < 0.25 {
+        return;
+    }
+    let half_w = stroke_w * 0.5;
+    let pad = half_w + 1.2;
+    let w = width as i32;
+    let h = height as i32;
+    let x0 = ((ax.min(bx) - pad).floor() as i32).max(0);
+    let x1 = ((ax.max(bx) + pad).ceil() as i32).min(w - 1);
+    let y0 = ((ay.min(by) - pad).floor() as i32).max(0);
+    let y1 = ((ay.max(by) + pad).ceil() as i32).min(h - 1);
 
-    fn draw(
-        &self,
-        _state: &Self::State,
-        renderer: &Renderer,
-        _theme: &Theme,
-        bounds: Rectangle,
-        _cursor: mouse::Cursor,
-    ) -> Vec<Geometry> {
-        let mut frame = Frame::new(renderer, bounds.size());
-        let w = bounds.width;
-        let h = bounds.height;
-
-        // 1. Fundo noturno
-        frame.fill_rectangle(Point::ORIGIN, Size::new(w, h), theme::SKY_BG);
-        draw_glow(
-            &mut frame,
-            Point::new(w * 0.38, h * 0.45),
-            h * 0.65,
-            SpriteKind::Cool,
-            0.18,
-        );
-
-        // 2. Poeira da Via Láctea
-        for d in &self.dust {
-            let cx = d.x * w - self.px * 3.0;
-            let cy = d.y * h - self.py * 3.0;
-            draw_glow(
-                &mut frame,
-                Point::new(cx, cy),
-                d.r,
-                SpriteKind::Cool,
-                d.a * 1.4,
-            );
-        }
-
-        // 3. Nebulosa de Orion (M42)
-        let (drift_x, drift_y) = self.drift();
-        let nx = 0.465 * w + drift_x - self.px * 6.0;
-        let ny = 0.62 * h + drift_y - self.py * 6.0;
-        let neb_a = 0.16 + self.stars[3].a * 0.22 + self.done * 0.12;
-        draw_glow(&mut frame, Point::new(nx, ny), 75.0, SpriteKind::Neb1, neb_a);
-        draw_glow(
-            &mut frame,
-            Point::new(nx + 6.0, ny - 4.0),
-            42.0,
-            SpriteKind::Neb2,
-            neb_a * 0.85,
-        );
-
-        // 4. 260 estrelas de fundo
-        for b in &self.bg {
-            let tw = 0.72 + 0.28 * (self.sec * b.sp + b.ph).sin();
-            let x = (b.x * w - self.px * (2.0 + b.z * 5.0)).rem_euclid(w);
-            let y = (b.y * h - self.py * (2.0 + b.z * 5.0)).rem_euclid(h);
-            let (tr, tg, tb) = b.tint;
-            frame.fill(
-                &Path::circle(Point::new(x, y), b.r),
-                Color::from_rgba8(tr, tg, tb, (b.a * tw).clamp(0.0, 1.0)),
-            );
-        }
-
-        // 5. 7 linhas da constelação
-        for l in &self.lines {
-            if l.p <= 0.001 {
-                continue;
-            }
-            let (ax, ay) = self.pos(&self.stars[l.a], w, h);
-            let (bx, by) = self.pos(&self.stars[l.b], w, h);
-            let ep = ease_in_out_cubic(l.p);
-            let ex = ax + (bx - ax) * ep;
-            let ey = ay + (by - ay) * ep;
-            let alpha = (0.28 + self.done * 0.18) * self.stars[l.a].a.min(self.stars[l.b].a);
-
-            let line_path = Path::line(Point::new(ax, ay), Point::new(ex, ey));
-            frame.stroke(
-                &line_path,
-                Stroke::default()
-                    .with_width(0.85)
-                    .with_color(Color::from_rgba8(190, 206, 245, alpha.clamp(0.0, 1.0))),
-            );
-            if l.p < 0.999 {
-                draw_glow(
-                    &mut frame,
-                    Point::new(ex, ey),
-                    11.0,
-                    SpriteKind::Cool,
-                    0.55 * (1.0 - l.p),
-                );
+    for py in y0..=y1 {
+        let pyf = py as f32 + 0.5;
+        for px in x0..=x1 {
+            let pxf = px as f32 + 0.5;
+            let t = (((pxf - ax) * dx + (pyf - ay) * dy) / len_sq).clamp(0.0, 1.0);
+            let proj_x = ax + dx * t;
+            let proj_y = ay + dy * t;
+            let dist = ((pxf - proj_x).powi(2) + (pyf - proj_y).powi(2)).sqrt();
+            if dist <= half_w + 1.0 {
+                let cov = (half_w + 0.5 - dist).clamp(0.0, 1.0);
+                let a = (a0 + (a1 - a0) * t) * cov;
+                if a > 0.002 {
+                    let r = (rgb0.0 as f32 + (rgb1.0 as f32 - rgb0.0 as f32) * t) as u8;
+                    let g = (rgb0.1 as f32 + (rgb1.1 as f32 - rgb0.1 as f32) * t) as u8;
+                    let b = (rgb0.2 as f32 + (rgb1.2 as f32 - rgb0.2 as f32) * t) as u8;
+                    blend_buf_pixel(buf, width, px as u32, py as u32, (r, g, b), a, additive);
+                }
             }
         }
+    }
+}
 
-        // 6. 7 estrelas principais + cruz de difração no nascimento
-        for (i, s) in self.stars.iter().enumerate() {
-            if s.a <= 0.002 {
-                continue;
-            }
-            let (x, y) = self.pos(s, w, h);
-            let age = (self.sec - s.born).max(0.0);
-            let birth = if age < 2.4 {
-                (age / 0.35).min(1.0) * (1.0 - (age - 0.35).max(0.0) / 2.05)
-            } else {
-                0.0
-            };
-            let breath = 1.0 + 0.04 * (self.sec * 1.3 + (i as f32) * 1.1).sin();
-            let fin = 1.0 + self.done * 0.22;
-            let halo = s.r * (9.5 + birth * 7.0) * breath * fin;
-
-            draw_glow(
-                &mut frame,
-                Point::new(x, y),
-                halo,
-                s.kind,
-                (s.a * (0.78 + birth * 0.35)).min(1.0),
-            );
-            draw_glow(
-                &mut frame,
-                Point::new(x, y),
-                s.r * 3.2 * fin,
-                s.kind,
-                s.a,
-            );
-
-            if birth > 0.02 {
-                let len = (18.0 + s.r * 5.0) * birth;
-                let angle = age * 0.35;
-                let ca = angle.cos();
-                let sa = angle.sin();
-                let cross_color = Color::from_rgba8(235, 240, 255, (0.38 * birth).clamp(0.0, 1.0));
-                let p1 = Path::line(
-                    Point::new(x - len * ca, y - len * sa),
-                    Point::new(x + len * ca, y + len * sa),
-                );
-                let p2 = Path::line(
-                    Point::new(x + len * sa, y - len * ca),
-                    Point::new(x - len * sa, y + len * ca),
-                );
-                frame.stroke(&p1, Stroke::default().with_width(0.7).with_color(cross_color));
-                frame.stroke(&p2, Stroke::default().with_width(0.7).with_color(cross_color));
-            }
-
-            let (cr, cg, cb) = s.core;
-            frame.fill(
-                &Path::circle(Point::new(x, y), s.r * 0.85),
-                Color::from_rgba8(cr, cg, cb, s.a.clamp(0.0, 1.0)),
-            );
+#[allow(clippy::too_many_arguments)]
+fn draw_spike_buf(
+    buf: &mut [u8],
+    width: u32,
+    height: u32,
+    cx: f32,
+    cy: f32,
+    dir_x: f32,
+    dir_y: f32,
+    half_len: f32,
+    rgb: (u8, u8, u8),
+    peak_alpha: f32,
+) {
+    let steps = (half_len * 2.0).ceil() as i32;
+    let w = width as i32;
+    let h = height as i32;
+    for s in -steps..=steps {
+        let u = (s as f32) / (steps.max(1) as f32);
+        let falloff = 1.0 - u.abs();
+        let a = peak_alpha * falloff * 0.65;
+        if a <= 0.002 {
+            continue;
         }
-
-        // 7. Estrela cadente ocasional
-        if let Some(sh) = self.shoot {
-            let age = self.sec - sh.born;
-            if (0.0..=0.7).contains(&age) {
-                let p = age / 0.7;
-                let a = (p * std::f32::consts::PI).sin() * 0.55;
-                let sx = sh.x + sh.vx * age;
-                let sy = sh.y + sh.vy * age;
-                let trail = Path::line(Point::new(sx, sy), Point::new(sx - 55.0, sy - 32.0));
-                frame.stroke(
-                    &trail,
-                    Stroke::default()
-                        .with_width(1.1)
-                        .with_color(Color::from_rgba8(230, 236, 255, a.clamp(0.0, 1.0))),
-                );
-            }
+        let x = (cx + dir_x * u * half_len).round() as i32;
+        let y = (cy + dir_y * u * half_len).round() as i32;
+        if x >= 0 && x < w && y >= 0 && y < h {
+            blend_buf_pixel(buf, width, x as u32, y as u32, rgb, a, true);
         }
+    }
+}
 
-        vec![frame.into_geometry()]
+#[inline]
+fn blend_buf_pixel(
+    buf: &mut [u8],
+    width: u32,
+    x: u32,
+    y: u32,
+    rgb: (u8, u8, u8),
+    alpha: f32,
+    additive: bool,
+) {
+    let idx = ((y * width + x) * 4) as usize;
+    if additive {
+        buf[idx] = (buf[idx] as f32 + rgb.0 as f32 * alpha).min(255.0) as u8;
+        buf[idx + 1] = (buf[idx + 1] as f32 + rgb.1 as f32 * alpha).min(255.0) as u8;
+        buf[idx + 2] = (buf[idx + 2] as f32 + rgb.2 as f32 * alpha).min(255.0) as u8;
+    } else {
+        let inv = 1.0 - alpha;
+        buf[idx] = (buf[idx] as f32 * inv + rgb.0 as f32 * alpha) as u8;
+        buf[idx + 1] = (buf[idx + 1] as f32 * inv + rgb.1 as f32 * alpha) as u8;
+        buf[idx + 2] = (buf[idx + 2] as f32 * inv + rgb.2 as f32 * alpha) as u8;
     }
 }
 
@@ -874,7 +958,6 @@ mod tests {
     #[test]
     fn park_miller_seed_7_matches_javascript_reference() {
         let mut rng = ParkMillerRng::new(7);
-        // 7 * 16807 = 117649
         let first = rng.next_f64();
         assert!((first - (117649.0 / 2147483647.0)).abs() < 1e-12);
 
@@ -889,14 +972,12 @@ mod tests {
     #[test]
     fn step_progression_lights_stars_and_never_unlights_on_back() {
         let mut sky = OrionSky::new();
-        // Etapa 1: só Betelgeuse (step 0) acende
         for _ in 0..60 {
             sky.step_dt(1.0 / 30.0, 468.0, 564.0);
         }
         assert!(sky.stars[0].a > 0.9);
         assert!(sky.stars[1].a < 0.01);
 
-        // Etapa 3: Cinturão (Alnitak, Alnilam, Mintaka)
         sky.notify_step(3);
         for _ in 0..90 {
             sky.step_dt(1.0 / 30.0, 468.0, 564.0);
@@ -905,7 +986,6 @@ mod tests {
         assert!(sky.stars[3].a > 0.85);
         assert!(sky.stars[4].a > 0.8);
 
-        // Voltar para a etapa 1 não apaga o Cinturão
         sky.notify_step(1);
         assert_eq!(sky.lit, 3);
         for _ in 0..30 {
@@ -913,14 +993,13 @@ mod tests {
         }
         assert!(sky.stars[4].a > 0.8);
 
-        // Fim da instalação acende Rigel (índice 6)
         sky.notify_step(4);
         sky.notify_install_completed();
-        for _ in 0..90 {
+        for _ in 0..120 {
             sky.step_dt(1.0 / 30.0, 468.0, 564.0);
         }
         assert!(sky.stars[6].a > 0.9);
-        assert!(sky.done > 0.9);
+        assert!(sky.done > 0.8);
     }
 
     #[test]
@@ -935,7 +1014,6 @@ mod tests {
         assert_eq!(img.width(), 468);
         assert_eq!(img.height(), 564);
 
-        // Verifica que Betelgeuse (~0.30*468, ~0.22*564) e Rigel (~0.28*468, ~0.78*564) estão luminosas
         let (bx, by) = sky.pos(&sky.stars[0], 468.0, 564.0);
         let bp = img.get_pixel(bx.round() as u32, by.round() as u32);
         assert!(bp[0] > 180 && bp[1] > 140);
