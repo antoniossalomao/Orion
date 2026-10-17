@@ -16,6 +16,7 @@ orion-store.workspace = true
 orion-ai.workspace = true
 orion-core.workspace = true
 orion-mcp.workspace = true
+orion-vault.workspace = true
 anyhow.workspace = true
 serde.workspace = true
 serde_json.workspace = true

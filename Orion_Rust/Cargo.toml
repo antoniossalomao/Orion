@@ -13,6 +13,7 @@ rust-version = "1.91"
 orion-policy = { path = "crates/orion-policy" }
 orion-store = { path = "crates/orion-store" }
 orion-mcp = { path = "crates/orion-mcp" }
+orion-vault = { path = "crates/orion-vault" }
 rusqlite = { version = "0.32", features = ["bundled", "backup"] }
 parking_lot = "0.12"
 tokio = { version = "1", features = ["full"] }
