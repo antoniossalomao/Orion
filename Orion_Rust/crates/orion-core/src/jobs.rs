@@ -213,7 +213,6 @@ impl JobRunner {
         self
     }
 
-    /// O relógio é o do banco (relógio de parede em produção; ajustável nos testes).
     fn agora(&self) -> f64 {
         self.memory.now()
     }

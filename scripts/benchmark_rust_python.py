@@ -290,6 +290,32 @@ def http(url: str, token: str, timeout: float = 5.0) -> tuple[int, float]:
         return e.code, (time.perf_counter() - t) * 1000
 
 
+def _medir(p: subprocess.Popen, t0: float, porta: int, consultas: list[str], n: int) -> dict:
+    base = f"http://127.0.0.1:{porta}"
+    pronto = None
+    while time.perf_counter() - t0 < 90:
+        if p.poll() is not None:
+            return {"erro": f"saiu com código {p.returncode}: {(p.stderr.read() if p.stderr else '')[-400:]}"}
+        try:
+            if http(f"{base}/health", TOKEN, 1.0)[0] < 500:
+                pronto = time.perf_counter() - t0
+                break
+        except OSError:
+            time.sleep(0.1)
+    if pronto is None:
+        return {"erro": "o servidor não respondeu ao /health em 90 s"}
+    time.sleep(3)  # assenta: a primeira alocação não é a memória ociosa
+    ocioso = rss_kb(p.pid)
+    ms, falhas = [], 0
+    for i in range(n):
+        q = urllib.request.quote(consultas[i % len(consultas)])
+        status, t = http(f"{base}/busca?q={q}", TOKEN)
+        falhas += status != 200
+        ms.append(t)
+    depois = rss_kb(p.pid)
+    return {"inicio_s": pronto, "rss_ocioso_kb": ocioso, "rss_depois_kb": depois, "busca_http": estatisticas(ms), "falhas_http": falhas}
+
+
 def medir_servidor(nome: str, cmd: list[str], banco: Path, consultas: list[str], n: int, cwd: Path | None) -> dict:
     dados = Path(tempfile.mkdtemp(prefix=f"orion-bench-{nome}-"))
     try:
@@ -297,38 +323,20 @@ def medir_servidor(nome: str, cmd: list[str], banco: Path, consultas: list[str],
         porta = porta_livre()
         env = {**os.environ, "ORION_DATA_DIR": str(dados), "ORION_PORT": str(porta), "ORION_HOST": "127.0.0.1",
                "ORION_ADMIN_TOKEN": TOKEN, "ORION_JOBS_ENABLED": "false", "ORION_LOG_JSON": "false",
-               "ORION_LOG_LEVEL": "WARNING", "ORION_SERVE_UI": "false"}  # fmt: skip
+               "ORION_LOG_LEVEL": "WARNING", "ORION_SERVE_UI": "false",
+               # sem canais reais: vazio vence o .env e, sem usuários permitidos, o Telegram nem sobe
+               "ORION_TELEGRAM_TOKEN": "", "ORION_TELEGRAM_ALLOWED_USERS": ""}  # fmt: skip
         t0 = time.perf_counter()
         p = subprocess.Popen(cmd, env=env, cwd=cwd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
-        base = f"http://127.0.0.1:{porta}"
-        pronto = None
-        while time.perf_counter() - t0 < 90:
-            if p.poll() is not None:
-                return {"erro": f"saiu com código {p.returncode}: {(p.stderr.read() if p.stderr else '')[-400:]}"}
-            try:
-                if http(f"{base}/health", TOKEN, 1.0)[0] < 500:
-                    pronto = time.perf_counter() - t0
-                    break
-            except OSError:
-                time.sleep(0.1)
-        if pronto is None:
-            p.kill()
-            return {"erro": "o servidor não respondeu ao /health em 90 s"}
-        time.sleep(3)  # assenta: a primeira alocação não é a memória ociosa
-        ocioso = rss_kb(p.pid)
-        ms, falhas = [], 0
-        for i in range(n):
-            q = urllib.request.quote(consultas[i % len(consultas)])
-            status, t = http(f"{base}/busca?q={q}", TOKEN)
-            falhas += status != 200
-            ms.append(t)
-        depois = rss_kb(p.pid)
-        p.terminate()
         try:
-            p.wait(timeout=10)
-        except subprocess.TimeoutExpired:
-            p.kill()
-        return {"inicio_s": pronto, "rss_ocioso_kb": ocioso, "rss_depois_kb": depois, "busca_http": estatisticas(ms), "falhas_http": falhas}
+            return _medir(p, t0, porta, consultas, n)
+        finally:
+            p.terminate()
+            try:
+                p.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                p.kill()
+                p.wait()
     finally:
         shutil.rmtree(dados, ignore_errors=True)
 
