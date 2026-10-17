@@ -124,6 +124,7 @@ async fn panico_para_embeddings() {
     let rel1 = jobs.tick().await;
     assert!(emb.chamadas() == 0 && rel1.embeddings == 0, "embeddings em pânico");
     modos.sair_panico("cli").unwrap();
+    rel.avanca(301.0); // a pausa de 5 min entre rodadas de embeddings já foi contada
     assert_eq!(jobs.tick().await.embeddings, 1);
 }
 

@@ -60,6 +60,19 @@ impl Capturer {
     /// A pasta de captura (criada se faltar), sempre dentro do vault.
     pub fn pasta(&self) -> R<PathBuf> {
         let vault = self.vault_real()?;
+        // confere o caminho ANTES de criar qualquer pasta: `..` não pode sair do vault
+        let mut fundo = 0i32;
+        for c in Path::new(&self.pasta).components() {
+            match c {
+                std::path::Component::Normal(_) => fundo += 1,
+                std::path::Component::ParentDir => fundo -= 1,
+                std::path::Component::CurDir => {}
+                _ => fundo = -1, // absoluto ou com prefixo
+            }
+            if fundo < 0 {
+                return err("a pasta de captura precisa ficar dentro do vault");
+            }
+        }
         let alvo = vault.join(&self.pasta);
         std::fs::create_dir_all(&alvo).map_err(|e| CaptureError(e.to_string()))?;
         let real = std::fs::canonicalize(&alvo).map_err(|e| CaptureError(e.to_string()))?;

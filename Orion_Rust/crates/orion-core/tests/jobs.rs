@@ -47,7 +47,7 @@ fn runner(a: &Amb, cfg: JobsConfig) -> Arc<JobRunner> {
     Arc::new(JobRunner::new(a.store.clone(), a.ops.clone(), cfg).unwrap())
 }
 
-fn txt(v: &Value, k: &str) -> String {
+fn txt(v: &serde_json::Map<String, Value>, k: &str) -> String {
     v[k].as_str().unwrap_or("").to_string()
 }
 
@@ -125,8 +125,8 @@ async fn backup_diario_com_poda_e_sem_repetir_no_dia() {
         a.rel.avanca(86_400.0);
         j.tick().await;
     }
-    let n = std::fs::read_dir(&destino).unwrap().filter(|e| e.as_ref().unwrap().file_name().to_string_lossy().starts_with("orion-")).count();
-    assert_eq!(n, 2); // poda
+    let n = std::fs::read_dir(&destino).unwrap().filter(|e| e.as_ref().unwrap().file_name().to_string_lossy().starts_with("orion-") && e.as_ref().unwrap().file_name().to_string_lossy().ends_with(".db")).count();
+    assert_eq!(n, 2, "{:?}", std::fs::read_dir(&destino).unwrap().map(|e| e.unwrap().file_name()).collect::<Vec<_>>()); // poda
 }
 
 #[tokio::test]

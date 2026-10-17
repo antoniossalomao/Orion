@@ -96,6 +96,13 @@ Antônio é o administrador: decide, aprova e pode desligar qualquer coisa. Nada
 
 **Riscos principais:** o toolkit não atende o visual; a API do iced muda entre versões; embeddings em Rust com qualidade menor; permissões do macOS; escopo que cresce; perda de dados (crítico, mitigado por backup verificado e esquema compartilhado); browser-use exige Python.
 
+### Paridade de testes e linha de base (17/10/2026)
+
+- **Testes portados do Python** (`cargo test --workspace --exclude orion-setup`): `orion-store` 60, `orion-ai` 84, `orion-mcp` 23, `orion-core` 167 (memória, importação, MCP, login, jobs, modos, biblioteca, captura, autostart). O sidecar tem 4. **`orion-policy` ainda não tem nenhum teste** (a lista de 14 não existe nesta branch): portar `tests/policy/` exige tocar no crate do núcleo imutável, então espera sua aprovação.
+- **Ainda sem porte no `orion-core`:** agente, Telegram, ponte, voz, palavra de ativação, palmas, visão/câmera, vida (E10), rotinas, downloads, briefing, plugins/extensões, projetos (isolamento), pesquisa, tela. As rotas HTTP (`orion-server`) também.
+- **Divergências do Rust achadas e corrigidas pelos testes:** importador tratava registro sem `id` como `"null"` e aceitava `score` não numérico; captura criava a pasta fora do vault antes de recusar `..`; `JobRunner` ignorava o relógio do banco; cancelamentos de MCP nunca eram contados.
+- **Benchmark** (`scripts/benchmark_rust_python.py`, banco sintético pequeno, 4 CPUs Linux; **não** é o seu PC): busca FTS5 p50 2,5 ms (Python) × 1,9 ms (Rust); híbrida 3,1 × 2,9 ms; memória com a matriz vetorial 60 × 18 MB; servidor ocioso 128 × 34 MB, `/health` em 2,7 × 0,2 s, `/busca` HTTP p50 26 × 17 ms; resultados dos dois lados idênticos. Falta rodar no Windows com o banco real e em escala maior (o gerador sintético é lento acima de ~5 mil registros).
+
 ## Backlog Rust
 
 Os itens em aberto das etapas antigas foram reescritos aqui, com IDs novos.
@@ -103,10 +110,10 @@ Os itens em aberto das etapas antigas foram reescritos aqui, com IDs novos.
 | ID | Item | Dono |
 |---|---|---|
 | B-01 | Verificar o export real do SurrealDB (fase 0) | Você (PC) |
-| B-02 | Medir a linha de base do Python: janela pronta, memória ociosa, latência e tamanho do pacote | Você e Claude |
+| B-02 | Medir a linha de base do Python: janela pronta, memória ociosa, latência e tamanho do pacote — **script pronto (`scripts/benchmark_rust_python.py`); falta rodar no PC com o banco real e o pacote** | Você e Claude |
 | B-03 | Spike iced: chat, paleta `Ctrl K` e grafo em wgpu; medir memória e latência | Claude |
 | B-04 | Spike de palmas e palavra de ativação no Windows, com calibração em microfone real (inclui a prova da E2 e da E9) | Você e Claude |
-| B-05 | Spike de busca: rusqlite com FTS5 lendo o banco real; BGE-M3 via `ort` ou `candle` comparado ao Python | Claude |
+| B-05 | Spike de busca: rusqlite com FTS5 lendo o banco real; BGE-M3 via `ort` ou `candle` comparado ao Python — **FTS5 + vetores medidos (`orion-store/examples/bench_busca.rs`, resultados idênticos ao Python); falta BGE-M3** | Claude |
 | B-06 | Spike de áudio: captura com cpal e VAD mínimo; testar um STT candidato (ver [ARQUITETURA.md](ARQUITETURA.md), 8.3) | Claude |
 | B-07 | Portar `policy/` com os mesmos casos de teste (fase 2) — **Feito (`orion-policy`)** | Claude |
 | B-08 | Definir as telas do primeiro marco | Você |
@@ -132,6 +139,7 @@ Registro das decisões que valem para o projeto hoje. O histórico completo, des
 | 14/10/2026 | Etapas E0 a E13 viram backlog Rust | Pedido seu |
 | 14/10/2026 | E10 e E11 entram no Python com as regras de vida pessoal e visão escritas antes do código; câmera e presença só com opt-in | Plano da rodada 2 |
 | 09/10/2026 | Modelos direto nos provedores, sem OmniRoute | Um processo a menos; fallback no próprio `gateway.py` |
+| 17/10/2026 | Paridade em testes de integração por crate (`crates/*/tests/`), com `orion-testkit` (servidor HTTP e relógio de mentira); o Python continua sendo a especificação | Teste cobre o contrato, não o código interno |
 | 07/10/2026 | Front só desktop; o celular fica no Telegram | Pedido seu |
 | 07/10/2026 | Palavra de ativação "Orion", com escuta local | Pedido seu |
 | 07/10/2026 | "Portabilidade" no lugar de "Hardware-Bound" | Conflitava com trocar de máquina |

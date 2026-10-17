@@ -4104,7 +4104,11 @@ dependencies = [
 name = "orion-testkit"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
+ "orion-store",
+ "regex",
  "serde_json",
+ "unicode-normalization",
 ]
 
 [[package]]
