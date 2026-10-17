@@ -55,7 +55,7 @@ pub fn render(plataforma: &str, exe: &Path, projeto: &Path, logs: &Path, home: &
             let appdata = std::env::var("APPDATA").map(PathBuf::from).unwrap_or_else(|_| home.join("AppData").join("Roaming"));
             let arquivo = appdata.join("Microsoft").join("Windows").join("Start Menu").join("Programs").join("Startup").join(format!("{nome}.cmd"));
             let conteudo = format!(
-                "@echo off\r\nrem Gerado por `orion autostart`. Apague este arquivo para desligar o inicio.\r\ncd /d \"{}\"\r\nstart \"Orion\" /min \"{}\" {comando}\r\n",
+                "@echo off\r\nchcp 65001 >nul\r\nrem Gerado por `orion autostart`. Apague este arquivo para desligar o inicio.\r\ncd /d \"{}\"\r\nstart \"Orion\" /min \"{}\" {comando}\r\n",
                 proj.replace('%', "%%"),
                 exe_s.replace('%', "%%")
             );

@@ -75,7 +75,14 @@ impl Desktop {
     }
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::Window(id) => self.window = id,
+            Message::Window(id) => {
+                self.window = id;
+                if self.shell_attempted && self.shell.is_none() {
+                    if let Some(id) = id {
+                        return window::set_mode(id, window::Mode::Windowed);
+                    }
+                }
+            }
             Message::Position(id, Some(size)) => return window::move_to(id, iced::Point::new(((size.width - 660.0) / 2.0).max(0.0), 16.0)),
             Message::Position(_, None) => {}
             Message::Tick => {
@@ -83,7 +90,12 @@ impl Desktop {
                     self.shell_attempted = true;
                     match NativeShell::new() {
                         Ok(s) => self.shell = Some(s),
-                        Err(e) => self.status = e.to_string(),
+                        Err(e) => {
+                            self.status = e.to_string();
+                            if let Some(id) = self.window {
+                                return window::set_mode(id, window::Mode::Windowed);
+                            }
+                        }
                     }
                 }
                 let mut actions = self.shell.as_ref().map(|s| s.poll()).unwrap_or_default();
@@ -132,7 +144,12 @@ impl Desktop {
                     ]);
                 }
             }
-            Message::Hide(id) => return window::set_mode(id, window::Mode::Hidden),
+            Message::Hide(id) => {
+                if self.shell.is_none() {
+                    return Task::done(Message::Open(DesktopAction::Exit));
+                }
+                return window::set_mode(id, window::Mode::Hidden);
+            }
             Message::User(v) => self.user = v,
             Message::Password(v) => self.password = v,
             Message::Code(v) => self.code = v,

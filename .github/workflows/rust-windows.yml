@@ -3,6 +3,9 @@ on:
   pull_request:
     paths: ["Orion_Rust/**", ".github/workflows/rust-windows.yml"]
   workflow_dispatch:
+concurrency:
+  group: rust-windows-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
