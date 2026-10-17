@@ -667,6 +667,22 @@ impl OrionSky {
             }
         }
 
+        // 5. Degradê inferior `.skycap` (110 px até rgba(7, 8, 11, 0.85)) fiel a `orion-instalador.html` linha 32
+        let cap_h = 110u32.min(height);
+        let start_y = height - cap_h;
+        for py in start_y..height {
+            let t = (py - start_y) as f32 / (cap_h.max(1) as f32);
+            let a = (t * t) * 0.85;
+            let inv = 1.0 - a;
+            let row_offset = (py as usize) * (width as usize) * 4;
+            for px in 0..width {
+                let idx = row_offset + (px as usize) * 4;
+                buf[idx] = (buf[idx] as f32 * inv + 7.0 * a) as u8;
+                buf[idx + 1] = (buf[idx + 1] as f32 * inv + 8.0 * a) as u8;
+                buf[idx + 2] = (buf[idx + 2] as f32 * inv + 11.0 * a) as u8;
+            }
+        }
+
         RgbaImage::from_raw(width, height, buf)
             .unwrap_or_else(|| RgbaImage::from_pixel(width, height, Rgba([7, 8, 11, 255])))
     }
@@ -910,22 +926,40 @@ fn draw_spike_buf(
     rgb: (u8, u8, u8),
     peak_alpha: f32,
 ) {
-    let steps = (half_len * 2.0).ceil() as i32;
-    let w = width as i32;
-    let h = height as i32;
-    for s in -steps..=steps {
-        let u = (s as f32) / (steps.max(1) as f32);
-        let falloff = 1.0 - u.abs();
-        let a = peak_alpha * falloff * 0.65;
-        if a <= 0.002 {
-            continue;
-        }
-        let x = (cx + dir_x * u * half_len).round() as i32;
-        let y = (cy + dir_y * u * half_len).round() as i32;
-        if x >= 0 && x < w && y >= 0 && y < h {
-            blend_buf_pixel(buf, width, x as u32, y as u32, rgb, a, true);
-        }
-    }
+    let tip1_x = cx + dir_x * half_len;
+    let tip1_y = cy + dir_y * half_len;
+    let tip2_x = cx - dir_x * half_len;
+    let tip2_y = cy - dir_y * half_len;
+    draw_aa_line_buf(
+        buf,
+        width,
+        height,
+        cx,
+        cy,
+        tip1_x,
+        tip1_y,
+        0.9,
+        rgb,
+        rgb,
+        peak_alpha,
+        0.0,
+        true,
+    );
+    draw_aa_line_buf(
+        buf,
+        width,
+        height,
+        cx,
+        cy,
+        tip2_x,
+        tip2_y,
+        0.9,
+        rgb,
+        rgb,
+        peak_alpha,
+        0.0,
+        true,
+    );
 }
 
 #[inline]

@@ -55,7 +55,14 @@ impl PcInfo {
             .unwrap_or(22631);
         let is_windows_11 = !cfg!(windows) || build >= 22000;
         let os_label = if is_windows_11 {
-            format!("Windows 11 ({os_ver})")
+            let release = if build >= 26100 {
+                "24H2"
+            } else if build >= 22631 {
+                "23H2"
+            } else {
+                "22H2"
+            };
+            format!("Windows 11 {release} ({build})")
         } else {
             format!("Windows 10 ({os_ver})")
         };
@@ -158,14 +165,18 @@ fn detect_gpu() -> (String, u32, String) {
             let s = String::from_utf8_lossy(&out.stdout);
             if let Some(line) = s.lines().next() {
                 let mut parts = line.split(',');
-                let name = parts.next().unwrap_or("NVIDIA GPU").trim().replace("NVIDIA GeForce ", "");
+                let name = parts
+                    .next()
+                    .unwrap_or("NVIDIA GPU")
+                    .trim()
+                    .replace("NVIDIA GeForce ", "");
                 let mem_mb: u32 = parts.next().unwrap_or("8192").trim().parse().unwrap_or(8192);
                 let vram_gb = ((mem_mb as f32 / 1024.0).round() as u32).max(1);
-                return (name, vram_gb, "Vulkan".into());
+                return (name, vram_gb, "CUDA".into());
             }
         }
     }
-    ("GPU DirectX 12".into(), 8, "Vulkan".into())
+    ("DirectX 12".into(), 8, "Vulkan".into())
 }
 
 #[derive(Debug, Clone, Serialize)]

@@ -18,8 +18,7 @@ use iced::keyboard;
 use iced::mouse;
 use iced::time;
 use iced::widget::{
-    button, column, container, image as iced_image, mouse_area, row, scrollable, stack, text,
-    Column, Space,
+    button, column, container, image as iced_image, mouse_area, row, stack, text, Column, Space,
 };
 use iced::window;
 use iced::{Alignment, Background, Border, Color, Element, Length, Point, Subscription, Task, Theme};
@@ -563,11 +562,11 @@ impl SetupApp {
                 .align_x(Horizontal::Center)
                 .align_y(Vertical::Center),
         )
-        .width(Length::Fixed(36.0))
-        .height(Length::Fixed(26.0))
+        .width(Length::Fixed(34.0))
+        .height(Length::Fixed(24.0))
         .padding(0)
         .on_press(Message::MinimizeWindow)
-        .style(titlebar_btn_style());
+        .style(titlebar_btn_style(false));
 
         let close_btn = button(
             container(text("✕").size(12).color(theme::FG3))
@@ -576,11 +575,11 @@ impl SetupApp {
                 .align_x(Horizontal::Center)
                 .align_y(Vertical::Center),
         )
-        .width(Length::Fixed(36.0))
-        .height(Length::Fixed(26.0))
+        .width(Length::Fixed(34.0))
+        .height(Length::Fixed(24.0))
         .padding(0)
         .on_press(Message::RequestCloseWindow)
-        .style(titlebar_btn_style());
+        .style(titlebar_btn_style(true));
 
         let controls = row![min_btn, hspace(2.0), close_btn, hspace(8.0)].align_y(Alignment::Center);
 
@@ -683,18 +682,9 @@ impl SetupApp {
             _ => self.view_step_5(s, stage_alpha),
         };
 
-        let stage = scrollable(
-            column![vspace(top_pad), stage_body]
-                .width(Length::Fill)
-                .padding(iced::Padding {
-                    top: 0.0,
-                    right: 10.0,
-                    bottom: 4.0,
-                    left: 0.0,
-                }),
-        )
-        .width(Length::Fill)
-        .height(Length::Fill);
+        let stage = container(column![vspace(top_pad), stage_body].width(Length::Fill))
+            .width(Length::Fill)
+            .height(Length::Fill);
 
         // Rodapé `.foot`
         let footer_caption = match self.step {
@@ -794,7 +784,7 @@ impl SetupApp {
         .height(Length::Fixed(theme::BODY_H))
         .padding(iced::Padding {
             top: 24.0,
-            right: 22.0,
+            right: 26.0,
             bottom: 18.0,
             left: 26.0,
         })
@@ -807,19 +797,21 @@ impl SetupApp {
 
     /// Etapa 1 (`orion-instalador.html` linhas 279–289): Boas-vindas + seletor de idioma + grade 2×2 `.checks`.
     fn view_step_1<'a>(&'a self, s: &'a Texts, alpha: f32) -> Element<'a, Message> {
-        let lang_display = format!("{}   ▾", self.choices.language.label());
         let lang_select = button(
             row![
-                text(lang_display)
+                text(self.choices.language.label())
                     .size(13)
                     .font(FONT_MONO)
                     .color(with_alpha(theme::FG, alpha)),
                 fill_hspace(),
+                text("▾")
+                    .size(12)
+                    .color(with_alpha(theme::FG3, alpha)),
             ]
             .align_y(Alignment::Center),
         )
         .width(Length::Fill)
-        .padding([9, 11])
+        .padding([10, 12])
         .on_press(Message::ToggleLanguage)
         .style(input_box_button_style());
 
@@ -864,9 +856,9 @@ impl SetupApp {
             text(s.s1_lead)
                 .size(14)
                 .color(with_alpha(theme::FG2, alpha)),
-            vspace(14.0),
-            lang_field,
             vspace(16.0),
+            lang_field,
+            vspace(18.0),
             text(s.s1_pc_eyebrow)
                 .size(11)
                 .font(FONT_MONO)
@@ -1268,23 +1260,34 @@ fn fill_vspace<'a>() -> Element<'a, Message> {
 
 /// Cartão `.chk` da Etapa 1 (`orion-instalador.html` linhas 59–63).
 fn chk_card<'a>(label: &'a str, val: &str, warn: bool, alpha: f32) -> Element<'a, Message> {
-    let dot_col = if warn { theme::BETEL } else { theme::OK };
+    let dot_col = with_alpha(if warn { theme::BETEL } else { theme::OK }, alpha);
+    let status_dot = container(Space::new().width(Length::Fixed(7.0)).height(Length::Fixed(7.0)))
+        .style(move |_theme: &Theme| container::Style {
+            background: Some(Background::Color(dot_col)),
+            border: Border {
+                radius: 99.0.into(),
+                ..Default::default()
+            },
+            ..Default::default()
+        });
+
     container(
         column![
             text(label).size(11).color(with_alpha(theme::FG3, alpha)),
             vspace(4.0),
             row![
-                text("● ").size(11).color(with_alpha(dot_col, alpha)),
+                status_dot,
+                hspace(7.0),
                 text(val.to_string())
                     .size(12)
                     .font(FONT_MONO)
                     .color(with_alpha(theme::FG, alpha)),
             ]
-            .align_y(Alignment::Start),
+            .align_y(Alignment::Center),
         ],
     )
     .width(Length::FillPortion(1))
-    .height(Length::Fixed(64.0))
+    .height(Length::Fixed(58.0))
     .align_y(Vertical::Center)
     .padding([10, 12])
     .style(surface_card_style())
@@ -1524,16 +1527,22 @@ fn transparent_row_button_style() -> impl Fn(&Theme, button::Status) -> button::
     }
 }
 
-fn titlebar_btn_style() -> impl Fn(&Theme, button::Status) -> button::Style {
-    |_theme: &Theme, status: button::Status| {
+fn titlebar_btn_style(is_close: bool) -> impl Fn(&Theme, button::Status) -> button::Style {
+    move |_theme: &Theme, status: button::Status| {
         let hovered = matches!(status, button::Status::Hovered | button::Status::Pressed);
+        let hover_bg = if is_close {
+            Color::from_rgba8(224, 107, 107, 0.22)
+        } else {
+            theme::RAISE
+        };
+        let hover_fg = if is_close { theme::DANGER } else { theme::FG };
         button::Style {
             background: Some(Background::Color(if hovered {
-                theme::RAISE
+                hover_bg
             } else {
                 Color::TRANSPARENT
             })),
-            text_color: if hovered { theme::FG } else { theme::FG3 },
+            text_color: if hovered { hover_fg } else { theme::FG3 },
             border: Border {
                 radius: 6.0.into(),
                 ..Default::default()
