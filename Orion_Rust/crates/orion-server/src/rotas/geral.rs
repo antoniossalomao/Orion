@@ -212,6 +212,9 @@ pub async fn modo_panico(_: Admin, State(st): State<Estado>, ConnectInfo(addr): 
     }
     if c.ativo {
         st.modos.entrar_panico("web")?;
+        if let Some(e) = &st.escuta {
+            e.set_suspended(true);
+        }
         return Ok(Json(st.modos.estado()));
     }
     let (st2, cliente) = (st.clone(), addr.ip().to_string());
@@ -440,3 +443,65 @@ pub async fn tela_pausar(_: Admin, State(st): State<Estado>, Json(c): Json<Escut
     t.pausar(!c.ativa);
     Ok(Json(json!({"pausada": t.pausada()})))
 }
+
+#[derive(Deserialize, Default)]
+pub struct CameraPedido {
+    #[serde(default)]
+    pub pergunta: String,
+}
+
+/// Uma foto da webcam, descrita (paleta e `/camera`). Só com `ORION_CAMERA=true`
+/// (REGRAS.md: a câmera só liga por pedido seu, e cada uso fica registrado).
+pub async fn camera_ver(_: Admin, State(st): State<Estado>, Json(c): Json<CameraPedido>) -> ApiResult<Json<Value>> {
+    if st.modos.panico() {
+        return erro(409, "modo pânico ativo: a câmera está cortada");
+    }
+    let Some(cd) = st.camera_descrever.clone() else {
+        return erro(409, "câmera desligada (ORION_CAMERA)");
+    };
+    let pergunta: String = c.pergunta.chars().take(1000).collect();
+    let r = tokio::task::spawn_blocking(move || cd(&pergunta)).await.map_err(|e| anyhow::anyhow!(e))?;
+    tracing::info!(target: "orion.audit", "câmera: foto pedida pela interface");
+    let descricao = if r["ok"] == json!(true) {
+        r["descricao"].as_str().unwrap_or("").to_string()
+    } else {
+        format!("Não consegui olhar: {}", r["erro"].as_str().unwrap_or("falha"))
+    };
+    Ok(Json(json!({
+        "ok": r["ok"],
+        "descricao": descricao,
+        "provedor": r["provedor"],
+        "objetos": r["objetos"],
+    })))
+}
+
+#[derive(Deserialize, Default)]
+pub struct LegendaQ {
+    #[serde(default)]
+    pub limpar: bool,
+}
+
+/// Últimas falas da legenda ao vivo (E11.7). Só texto em memória; nada gravado.
+pub async fn legenda_estado(_: Admin, State(st): State<Estado>, Query(q): Query<LegendaQ>) -> Json<Value> {
+    let Some(leg) = &st.legenda else {
+        return Json(json!({"ativa": false, "linhas": []}));
+    };
+    if q.limpar {
+        leg.limpar();
+    }
+    Json(leg.estado())
+}
+
+/// Pausa ou retoma a escuta da palavra de ativação (REGRAS.md: palavra de ativação só abre o
+/// microfone; detecção local).
+pub async fn escuta_pausar(_: Admin, State(st): State<Estado>, Json(c): Json<EscutaControle>) -> ApiResult<Json<Value>> {
+    let Some(e) = &st.escuta else {
+        return erro(409, "a escuta da palavra de ativação está desligada");
+    };
+    if c.ativa && st.modos.panico() {
+        return erro(409, "modo pânico ativo: saia dele antes de retomar a escuta");
+    }
+    e.pausar(!c.ativa);
+    Ok(Json(json!({"pausada": e.pausada()})))
+}
+

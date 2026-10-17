@@ -11,7 +11,7 @@ use orion_core::extensions::catalogo::{versao_maior, LOCAL};
 use orion_core::extensions::host::parse_config;
 use orion_core::extensions::importar::converter;
 use orion_core::extensions::manager::{public_plugin, Classificacoes, PluginManager};
-use orion_core::extensions::plugins::{perr, PluginError};
+use orion_core::extensions::plugins::perr;
 use orion_core::extensions::profiles::{profile, profiles};
 use orion_policy::Risk;
 use serde::Deserialize;

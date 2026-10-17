@@ -9,6 +9,7 @@ use serde_json::{json, Map, Value};
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::io::{Read, Write};
+#[cfg(unix)]
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
@@ -136,9 +137,17 @@ impl FilePlans {
     }
 
     fn ler(path: &Path) -> R<Vec<u8>> {
-        let mut f = fs::OpenOptions::new().read(true).custom_flags(libc::O_NONBLOCK | libc::O_NOFOLLOW).open(path).map_err(|_| MCPError::new("file_plan_read_failed"))?;
+        let mut opts = fs::OpenOptions::new();
+        opts.read(true);
+        #[cfg(unix)]
+        opts.custom_flags(libc::O_NONBLOCK | libc::O_NOFOLLOW);
+        let mut f = opts.open(path).map_err(|_| MCPError::new("file_plan_read_failed"))?;
         let m = f.metadata().map_err(|_| MCPError::new("file_plan_read_failed"))?;
-        if !m.is_file() || m.nlink() != 1 || m.len() > MAX_FILE {
+        #[cfg(unix)]
+        let links_ok = m.nlink() == 1;
+        #[cfg(not(unix))]
+        let links_ok = !fs::symlink_metadata(path).map_or(true, |sm| sm.file_type().is_symlink());
+        if !m.is_file() || !links_ok || m.len() > MAX_FILE {
             return Err(MCPError::new("file_plan_file_limit_or_link"));
         }
         let mut data = vec![];
@@ -312,7 +321,11 @@ impl FilePlans {
                 self.caminho(&root, &rel)?;
                 fs::create_dir_all(alvo.parent().unwrap_or(&root)).map_err(|_| MCPError::new("file_plan_partial_failure"))?;
                 self.caminho(&root, &rel)?;
-                let mut f = fs::OpenOptions::new().write(true).create_new(true).mode(0o600).custom_flags(libc::O_NOFOLLOW).open(alvo).map_err(|_| MCPError::new("file_plan_partial_failure"))?;
+                let mut opts = fs::OpenOptions::new();
+                opts.write(true).create_new(true);
+                #[cfg(unix)]
+                opts.mode(0o600).custom_flags(libc::O_NOFOLLOW);
+                let mut f = opts.open(alvo).map_err(|_| MCPError::new("file_plan_partial_failure"))?;
                 f.write_all(raw).map_err(|_| MCPError::new("file_plan_partial_failure"))?;
                 self.memory.tx(|c| Ok(c.execute("UPDATE file_plans SET completed=completed+1 WHERE id=?", [id])?)).map_err(mcp)?;
             }

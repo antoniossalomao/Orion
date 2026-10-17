@@ -12,7 +12,7 @@ use orion_policy::{PolicyEngine, Risk};
 use parking_lot::{Mutex, RwLock};
 use serde_json::{json, Map, Value};
 use sha2::{Digest, Sha256};
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 

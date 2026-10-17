@@ -196,6 +196,33 @@ enum Cmd {
         #[arg(long)]
         sim: bool,
     },
+    /// Presença (E11.6): confirmar ou desfazer o bloqueio ao sair.
+    Presenca {
+        #[arg(value_parser = ["confirmar", "desfazer", "estado"])]
+        acao: String,
+    },
+    /// Reconhecimento facial local (E11.5): cadastrar, apagar ou estado.
+    Rosto {
+        #[arg(value_parser = ["cadastrar", "apagar", "estado"])]
+        acao: String,
+        #[arg(default_value = "")]
+        nome: String,
+        #[arg(long, default_value_t = 5)]
+        fotos: usize,
+    },
+    /// Legenda ao vivo (E11.7): abre a janela flutuante ou imprime por N segundos.
+    Legenda {
+        #[arg(long, default_value_t = 0)]
+        segundos: u64,
+    },
+    /// Testa o microfone e a palavra de ativação (sem agente, sem rede, sem gravar nada).
+    #[command(name = "wake-test")]
+    WakeTest {
+        #[arg(long)]
+        listar: bool,
+        #[arg(long, default_value_t = 30)]
+        segundos: u64,
+    },
     /// Restaura um backup no lugar do banco (confere antes).
     Restore {
         arquivo: PathBuf,
@@ -330,6 +357,12 @@ async fn serve(s: Settings) -> anyhow::Result<i32> {
             let _ = tokio::signal::ctrl_c().await;
         })
         .await?;
+    if let Some(e) = &st.escuta {
+        e.stop();
+    }
+    if let Some(l) = &st.legenda {
+        l.rodando.store(false, std::sync::atomic::Ordering::SeqCst);
+    }
     if let Some(t) = tarefa_telegram {
         t.abort();
     }
@@ -371,6 +404,10 @@ fn rodar(cli: Cli) -> anyhow::Result<i32> {
         Cmd::PossoDesligar => cli_extra::posso_desligar(&s),
         Cmd::Downloads { acao, simular, hoje, sim } => cli_extra::downloads(&s, acao, *simular, *hoje, *sim),
         Cmd::Rotina { acao, nome, sim } => cli_extra::rotina(&s, acao, nome.as_deref(), *sim),
+        Cmd::Presenca { acao } => cli_extra::presenca(&s, acao),
+        Cmd::Rosto { acao, nome, fotos } => cli_extra::rosto(&s, acao, nome, *fotos),
+        Cmd::Legenda { segundos } => cli_extra::legenda(&s, *segundos),
+        Cmd::WakeTest { listar, segundos } => cli_extra::wake_test(&s, *listar, *segundos),
         Cmd::Serve => tokio::runtime::Builder::new_multi_thread().enable_all().build()?.block_on(serve(s)),
         Cmd::Backup { dir, keep } => {
             let store = Store::open(s.db_path())?;

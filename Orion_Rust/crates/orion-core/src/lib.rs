@@ -53,5 +53,15 @@ pub mod screen_memory;
 pub mod skills;
 pub mod tools;
 pub mod util;
+pub mod camera;
+pub mod visao_cli;
+pub mod visao_local;
+pub mod rosto;
+pub mod presenca;
+pub mod vigia;
+pub mod legenda;
+pub mod palmas;
+pub mod wake;
+pub mod voice;
 
 pub use config::Settings;

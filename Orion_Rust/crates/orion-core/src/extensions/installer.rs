@@ -8,10 +8,37 @@ use serde_json::{json, Map, Value};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, HashSet};
 use std::fs;
+#[cfg(unix)]
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, LazyLock};
 use unicode_normalization::UnicodeNormalization;
+
+#[cfg(unix)]
+fn nlink_unico(m: &fs::Metadata) -> bool {
+    m.nlink() == 1
+}
+
+#[cfg(not(unix))]
+fn nlink_unico(_: &fs::Metadata) -> bool {
+    true
+}
+
+#[cfg(unix)]
+fn definir_modo(p: &Path, modo: u32) {
+    let _ = fs::set_permissions(p, fs::Permissions::from_mode(modo));
+}
+
+#[cfg(not(unix))]
+fn definir_modo(p: &Path, modo: u32) {
+    if let Ok(m) = fs::symlink_metadata(p) {
+        if m.is_file() {
+            let mut perm = m.permissions();
+            perm.set_readonly(modo & 0o200 == 0);
+            let _ = fs::set_permissions(p, perm);
+        }
+    }
+}
 
 pub const MAX_FILES: usize = 512;
 pub const MAX_EXPANDED: usize = 16_000_000;
@@ -90,7 +117,7 @@ pub fn folder_snapshot(source: &Path) -> R<Package> {
         if m.is_dir() {
             continue;
         }
-        if !m.is_file() || m.nlink() != 1 {
+        if !m.is_file() || !nlink_unico(&m) {
             return Err(perr("bundle_special_file_forbidden"));
         }
         safe_file(source, &rel, MAX_FILE as u64).map_err(|_| perr("bundle_file_forbidden"))?;
@@ -132,7 +159,7 @@ pub fn remove_tree(root: &Path) {
         let _ = fs::remove_file(root);
         return;
     }
-    let _ = fs::set_permissions(root, fs::Permissions::from_mode(0o700));
+    definir_modo(root, 0o700);
     if let Ok(rd) = fs::read_dir(root) {
         for e in rd.flatten() {
             let p = e.path();
@@ -142,7 +169,7 @@ pub fn remove_tree(root: &Path) {
                 }
                 Ok(m) if m.is_dir() => remove_tree(&p),
                 Ok(_) => {
-                    let _ = fs::set_permissions(&p, fs::Permissions::from_mode(0o600));
+                    definir_modo(&p, 0o600);
                     let _ = fs::remove_file(&p);
                 }
                 Err(_) => {}
@@ -226,7 +253,7 @@ impl Installer {
             let destino_tmp = staged.clone();
             fs::rename(&destino_tmp, &target).map_err(|_| perr("bundle_source_invalid"))?;
             movido = true;
-            let _ = fs::set_permissions(&target, fs::Permissions::from_mode(0o555));
+            definir_modo(&target, 0o555);
             self.store.record(&package.manifest, &package.digest, origin, Some(&rel_bundle), update)?;
             Ok(())
         })();
@@ -324,9 +351,9 @@ fn proteger(dir: &Path) {
             let p = e.path();
             if p.is_dir() {
                 proteger(&p);
-                let _ = fs::set_permissions(&p, fs::Permissions::from_mode(0o555));
+                definir_modo(&p, 0o555);
             } else {
-                let _ = fs::set_permissions(&p, fs::Permissions::from_mode(0o444));
+                definir_modo(&p, 0o444);
             }
         }
     }

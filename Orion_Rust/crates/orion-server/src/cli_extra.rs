@@ -511,3 +511,147 @@ pub fn ponte(s: &Settings, parear: bool) -> i32 {
         }
     }
 }
+
+/// Confirma (ou desfaz) que a tela pode ser bloqueada ao sair
+/// (REGRAS.md: presença só pausa e retoma, cumpre e bloqueia só com sua confirmação).
+pub fn presenca(s: &Settings, acao: &str) -> anyhow::Result<i32> {
+    use orion_core::vigia::CHAVE_BLOQUEIO;
+    let store = Store::open(s.db_path())?;
+    match acao {
+        "confirmar" => {
+            store.counter_set(CHAVE_BLOQUEIO, 1)?;
+            let aviso = if s.presence_lock { "" } else { " (ligue ORION_PRESENCE_LOCK=true)" };
+            println!("bloqueio ao sair confirmado{aviso}");
+        }
+        "desfazer" => {
+            store.counter_set(CHAVE_BLOQUEIO, 0)?;
+            println!("bloqueio ao sair desfeito");
+        }
+        _ => {
+            let confirmado = store.counter_get(CHAVE_BLOQUEIO) == 1;
+            println!(
+                "presença {}: bloqueio ao sair {} e {}",
+                if s.presence_enabled { "ligada" } else { "desligada (ORION_PRESENCE_ENABLED)" },
+                if s.presence_lock { "pedido" } else { "desligado (ORION_PRESENCE_LOCK)" },
+                if confirmado { "confirmado" } else { "não confirmado (`orion presenca confirmar`)" },
+            );
+        }
+    }
+    Ok(0)
+}
+
+/// Cadastro e apagar do próprio rosto (E11.5; REGRAS.md: rosto é local, cadastrado só pelo dono,
+/// e nunca sai do computador). Nenhuma ferramenta do modelo.
+pub fn rosto(s: &Settings, acao: &str, nome: &str, fotos: usize) -> anyhow::Result<i32> {
+    use orion_core::rosto::{CofreSistema, Rostos, LIMIAR};
+    let store = Arc::new(Store::open(s.db_path())?);
+    let rostos = Rostos::new(store, s.face_model.clone(), LIMIAR, None).com_cofre(Arc::new(CofreSistema));
+    match acao {
+        "apagar" => {
+            println!("rosto apagado: {} vetor(es)", rostos.apagar(nome));
+            Ok(0)
+        }
+        "estado" => {
+            println!(
+                "cadastrado({nome}): {}, modelo: {}, câmera: {}",
+                rostos.cadastrado(nome),
+                if rostos.disponivel() { "ok" } else { "indisponível" },
+                if s.camera { "ligada" } else { "desligada (ORION_CAMERA)" },
+            );
+            Ok(0)
+        }
+        _ => {
+            if !s.camera {
+                eprintln!("defina ORION_CAMERA=true para capturar fotos do rosto");
+                return Ok(1);
+            }
+            if s.face_model.is_none() {
+                eprintln!("defina ORION_FACE_MODEL com o caminho do modelo de rosto (.onnx)");
+                return Ok(1);
+            }
+            let n = fotos.clamp(orion_core::rosto::MIN_AMOSTRAS, 10);
+            println!("olhe para a câmera: {n} fotos, uma por segundo");
+            let mut amostras = Vec::with_capacity(n);
+            for _ in 0..n {
+                match orion_core::camera::foto_jpeg(s.camera_device as i32, 10.0) {
+                    Ok(jpeg) => amostras.push(jpeg),
+                    Err(e) => {
+                        eprintln!("{e}");
+                        return Ok(1);
+                    }
+                }
+                std::thread::sleep(std::time::Duration::from_secs(1));
+            }
+            match rostos.cadastrar(&amostras, nome) {
+                Ok(total) => {
+                    println!("cadastrado: {total} amostra(s)");
+                    Ok(0)
+                }
+                Err(e) => {
+                    eprintln!("{e}");
+                    Ok(1)
+                }
+            }
+        }
+    }
+}
+
+/// Legenda ao vivo (E11.7): abre a URL da legenda no navegador ou imprime por N segundos.
+pub fn legenda(s: &Settings, segundos: u64) -> anyhow::Result<i32> {
+    if !(s.subtitles && s.subtitle_model.is_some()) {
+        eprintln!("legenda desligada: defina ORION_SUBTITLES=true e ORION_SUBTITLE_MODEL");
+        return Ok(1);
+    }
+    if segundos == 0 {
+        let url = format!("http://127.0.0.1:{}/ui/legenda.html", s.port);
+        let _ = orion_core::tools::camera::abrir_navegador(&url);
+        println!("janela da legenda aberta: {url}");
+        return Ok(0);
+    }
+    let Some(modelo) = &s.subtitle_model else { return Ok(1) };
+    let tr = match orion_core::legenda::criar_transcritor(&modelo.to_string_lossy()) {
+        Ok(t) => t,
+        Err(e) => {
+            eprintln!("{e}");
+            return Ok(1);
+        }
+    };
+    let leg = Arc::new(orion_core::legenda::Legenda::new(tr, 200.0));
+    let parar = orion_core::legenda::iniciar_thread(leg.clone(), &s.subtitle_device);
+    let inicio = std::time::Instant::now();
+    let mut vistas = 0usize;
+    while inicio.elapsed().as_secs() < segundos {
+        let est = leg.estado();
+        let linhas = est["linhas"].as_array().cloned().unwrap_or_default();
+        if linhas.len() > vistas {
+            for l in &linhas[vistas..] {
+                println!("[{}] {}", l["hora"].as_str().unwrap_or(""), l["texto"].as_str().unwrap_or(""));
+            }
+            vistas = linhas.len();
+        }
+        std::thread::sleep(std::time::Duration::from_millis(400));
+    }
+    parar();
+    Ok(0)
+}
+
+/// Diagnóstico da escuta: lista dispositivos ou informa estado (sem agente, sem rede, sem gravar).
+pub fn wake_test(s: &Settings, listar: bool, segundos: u64) -> anyhow::Result<i32> {
+    if listar {
+        let devs = orion_core::wake::listar_microfones();
+        if devs.is_empty() {
+            println!("nenhum microfone listado (instale ffmpeg ou pactl/arecord)");
+        } else {
+            for (idx, nome) in devs {
+                println!("[{idx}] {nome}");
+            }
+        }
+        return Ok(0);
+    }
+    println!(
+        "wake-test ({segundos}s, motor={}): o detector nativo de áudio em tempo real requer pareamento de dispositivo local.",
+        s.wake_engine
+    );
+    Ok(0)
+}
+

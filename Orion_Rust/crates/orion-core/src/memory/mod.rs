@@ -2,6 +2,8 @@
 
 pub mod compact;
 pub mod consolidate;
+pub mod eval;
+pub mod rerank;
 pub mod sleep;
 
 use futures::future::BoxFuture;

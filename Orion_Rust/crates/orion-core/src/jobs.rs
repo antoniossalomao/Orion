@@ -43,6 +43,9 @@ pub struct TickReport {
     pub pesquisa: Option<String>,
     pub tela: Option<String>,
     pub sono: Option<Value>,
+    pub downloads: usize,
+    pub comandos: usize,
+    pub vigia: Option<Value>,
     pub gateway: Option<String>,
     pub adiados: Vec<String>,
     pub erros: Vec<String>,
@@ -71,6 +74,8 @@ pub struct JobsConfig {
     pub briefing_at: String,
     pub briefing_window_h: f64,
     pub gateway_down_min: u32,
+    pub clipboard_days: i64,
+    pub command_history: bool,
     pub nome: String,
 }
 
@@ -84,6 +89,8 @@ impl Default for JobsConfig {
             briefing_at: String::new(),
             briefing_window_h: 6.0,
             gateway_down_min: 10,
+            clipboard_days: 0,
+            command_history: false,
             nome: "Antônio".into(),
         }
     }
@@ -102,6 +109,9 @@ pub struct JobRunner {
     research: Option<Arc<crate::research::NightResearch>>,
     screen: Option<Arc<crate::screen_memory::ScreenMemory>>,
     vida: Option<Arc<crate::vida::VidaJobs>>,
+    downloads: Option<Arc<crate::downloads::Downloads>>,
+    historicos: Option<Arc<crate::historicos::Historicos>>,
+    vigia: Option<Arc<crate::vigia::Vigia>>,
     custos: Option<Arc<Custos>>,
     modos: Option<Arc<Modos>>,
     every: HashMap<&'static str, f64>,
@@ -120,7 +130,10 @@ impl JobRunner {
             ("consolidar", 6.0 * 3600.0),
             ("auditoria", 86400.0),
             ("saude_gateway", 60.0),
+            ("downloads", 60.0),
+            ("historicos", 3600.0),
             ("vida", 300.0),
+            ("vigia", 60.0),
         ]);
         Ok(Self {
             memory,
@@ -135,6 +148,9 @@ impl JobRunner {
             research: None,
             screen: None,
             vida: None,
+            downloads: None,
+            historicos: None,
+            vigia: None,
             custos: None,
             modos: None,
             every,
@@ -174,6 +190,18 @@ impl JobRunner {
     }
     pub fn com_vida(mut self, v: Arc<crate::vida::VidaJobs>) -> Self {
         self.vida = Some(v);
+        self
+    }
+    pub fn com_downloads(mut self, d: Arc<crate::downloads::Downloads>) -> Self {
+        self.downloads = Some(d);
+        self
+    }
+    pub fn com_historicos(mut self, h: Arc<crate::historicos::Historicos>) -> Self {
+        self.historicos = Some(h);
+        self
+    }
+    pub fn com_vigia(mut self, v: Arc<crate::vigia::Vigia>) -> Self {
+        self.vigia = Some(v);
         self
     }
     pub fn com_custos(mut self, c: Arc<Custos>) -> Self {
@@ -340,6 +368,18 @@ impl JobRunner {
                 rel.auditoria = Some(n);
             }
         }
+        if let Some(h) = self.historicos.clone() {
+            if self.devido("historicos") {
+                if self.cfg.command_history {
+                    if let Some(n) = Self::passo(rel, "comandos", h.importar().map_err(Into::into)) {
+                        rel.comandos = n;
+                    }
+                }
+                if self.cfg.clipboard_days > 0 {
+                    let _ = Self::passo(rel, "area", Ok(h.podar_area(self.cfg.clipboard_days)));
+                }
+            }
+        }
         if let Some(v) = self.vida.clone() {
             if self.devido("vida") {
                 // pesquisa de preço gasta cota gratuita: sem pânico e dentro do limite
@@ -347,6 +387,16 @@ impl JobRunner {
                 if let Some(r) = Self::passo(rel, "vida", v.tick(&|| permitido).map_err(Into::into)) {
                     let _ = r;
                 }
+            }
+        }
+        if let Some(vg) = self.vigia.clone() {
+            if self.devido("vigia") && !self.panico() {
+                rel.vigia = Some(vg.tick(false));
+            }
+        }
+        if let Some(d) = self.downloads.clone() {
+            if !self.panico() && self.devido("downloads") {
+                rel.downloads = d.rodar(false).movidos.len();
             }
         }
         if self.devido("saude_gateway") {

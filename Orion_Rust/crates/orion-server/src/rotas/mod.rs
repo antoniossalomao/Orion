@@ -13,6 +13,7 @@ pub mod integracoes;
 pub mod memoria;
 pub mod ponte;
 pub mod vida;
+pub mod voz;
 
 use crate::estado::{front_dir, Estado};
 use crate::http::{host_permitido, request_id};
@@ -89,6 +90,11 @@ pub fn router(st: Estado) -> Router {
         .route("/tela", get(tela_estado).delete(tela_limpar))
         .route("/tela/pausa", post(tela_pausar))
         .route("/tela/busca", get(tela_busca))
+        .route("/camera/ver", post(camera_ver))
+        .route("/legenda", get(legenda_estado))
+        .route("/voz/escuta", post(escuta_pausar))
+        .route("/ws/voz", get(voz::ws_voz))
+        .route("/ws/voice", get(voz::ws_voice))
         .route("/facts", get(fatos_listar))
         .route("/facts/conflicts", get(fatos_conflitos))
         .route("/facts/conflicts/resolve", post(fatos_resolver))

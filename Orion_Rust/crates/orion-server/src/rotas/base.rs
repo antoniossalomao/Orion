@@ -92,7 +92,9 @@ pub fn describe(agent_ready: bool, admin: bool, voice: bool, tts: bool) -> Value
 }
 
 pub async fn capabilities(State(st): State<Estado>) -> Json<Value> {
-    Json(describe(st.agent.is_some(), !st.settings.admin_token.is_empty() || st.auth.has_password(), false, false))
+    let voice = st.settings.voice_enabled && st.agent.is_some() && st.transcriber.is_some();
+    let tts = st.speaker.is_some();
+    Json(describe(st.agent.is_some(), !st.settings.admin_token.is_empty() || st.auth.has_password(), voice, tts))
 }
 
 /// Informações da instalação nunca entram na descoberta anônima.
@@ -100,8 +102,8 @@ pub async fn capability_details(_: Admin, State(st): State<Estado>) -> Json<Valu
     Json(json!({
         "gateway_model": st.agent.as_ref().map(|_| st.settings.gateway_model.clone()),
         "components": {
-            "memory": st.memory.ping(), "vectors": st.memory.vectors_available, "jobs": false,
-            "telegram": false, "desktop_tools": st.agent.is_some() && st.settings.desktop_tools,
+            "memory": st.memory.ping(), "vectors": st.memory.vectors_available, "jobs": st.jobs.is_some(),
+            "telegram": st.telegram.is_some(), "desktop_tools": st.agent.is_some() && st.settings.desktop_tools,
         },
         "tools": st.agent.as_ref().map(|a| a.tools.read().names()).unwrap_or_default(),
     }))
@@ -117,8 +119,12 @@ pub async fn health(State(st): State<Estado>, headers: HeaderMap) -> Json<Value>
     basico["uptime_s"] = json!(((orion_core::util::agora() - st.started_at) * 10.0).round() / 10.0);
     basico["components"] = json!({
         "memory": memoria, "vectors": st.memory.vectors_available, "gateway": st.agent.is_some(),
-        "jobs": false, "telegram": false, "mcp": {},
-        "voice": {"click": false, "live": false},
+        "jobs": st.jobs.is_some(), "telegram": st.telegram.is_some(),
+        "mcp": st.mcp.as_ref().map(|m| json!(m.status())).unwrap_or_else(|| json!({})),
+        "voice": {
+            "click": st.settings.voice_enabled && st.agent.is_some() && st.transcriber.is_some(),
+            "live": false,
+        },
     });
     basico["pending_approvals"] = json!(st.policy.approvals.pending(None, false).len());
     basico["pending_notifications"] = json!(st.ops.pending_notifications(1000, true).map(|v| v.len()).unwrap_or(0));

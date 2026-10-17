@@ -81,12 +81,16 @@ pub struct ScriptRunner {
     closed: std::sync::atomic::AtomicBool,
 }
 
+#[cfg(unix)]
 fn matar_grupo(pid: u32) {
     // SAFETY: kill(2) com o grupo de um processo que nós mesmos criamos em nova sessão.
     unsafe {
         libc::kill(-(pid as i32), libc::SIGKILL);
     }
 }
+
+#[cfg(not(unix))]
+fn matar_grupo(_pid: u32) {}
 
 impl ScriptRunner {
     pub fn close(&self) {
@@ -129,6 +133,7 @@ impl ScriptRunner {
         let dir = tokio::task::spawn_blocking(move || preparar(&files)).await.map_err(|_| serr("script_not_found"))?.map_err(|_| serr("script_not_found"))?;
         let mut cmd = Command::new("python3");
         cmd.arg("-I").arg(Path::new(dir.path()).join(relative)).args(argv).current_dir(dir.path()).env_clear().env("PATH", "/usr/bin:/bin").env("PYTHONUNBUFFERED", "1").stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).kill_on_drop(true);
+        #[cfg(unix)]
         // SAFETY: setsid() não aloca nem toca estado do processo pai; roda entre fork e exec.
         unsafe {
             cmd.pre_exec(|| {

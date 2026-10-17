@@ -155,3 +155,153 @@ impl Imagens {
         g.get(id).map(|v| (v.1.clone(), v.2))
     }
 }
+
+// ── cliente da ponte: teclas, OCR e área (E2.1, E2.4, E2.5) ───────────────
+
+pub const MODIFICADORES: [&str; 4] = ["ctrl", "alt", "shift", "cmd"];
+static TECLA: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^([a-z0-9]|f([1-9]|1[0-2])|space|tab|enter|esc)$").unwrap());
+static LINHAS_VAZIAS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\n{3,}").unwrap());
+pub const MIN_LADO_PX: i32 = 8;
+
+#[derive(Debug, Clone, thiserror::Error)]
+#[error("{0}")]
+pub struct TeclasInvalidas(pub String);
+
+pub fn padrao_teclas() -> HashMap<String, String> {
+    HashMap::from([
+        ("captura".into(), "ctrl+alt+space".into()),
+        ("ocr".into(), "ctrl+alt+t".into()),
+        ("isso".into(), "ctrl+alt+e".into()),
+        ("panico".into(), "ctrl+alt+shift+p".into()),
+    ])
+}
+
+pub fn normalizar_tecla(comb: &str) -> Result<String, TeclasInvalidas> {
+    let mut partes: Vec<String> = vec![];
+    for p in comb.to_lowercase().split('+') {
+        let s = p.trim().to_string();
+        if !s.is_empty() && !partes.contains(&s) {
+            partes.push(s);
+        }
+    }
+    let mut ord: Vec<String> = MODIFICADORES.iter().filter(|&&m| partes.iter().any(|p| p == m)).map(|&m| m.to_string()).collect();
+    let resto: Vec<String> = partes.iter().filter(|p| !MODIFICADORES.contains(&p.as_str())).cloned().collect();
+    if ord.is_empty() {
+        return Err(TeclasInvalidas(format!("'{comb}' precisa de pelo menos um modificador (ctrl, alt, shift ou cmd)")));
+    }
+    if resto.len() != 1 || !TECLA.is_match(&resto[0]) {
+        return Err(TeclasInvalidas(format!("'{comb}' precisa terminar numa tecla (a–z, 0–9, f1–f12, space, tab, enter, esc)")));
+    }
+    ord.push(resto[0].clone());
+    Ok(ord.join("+"))
+}
+
+pub fn mapa_de_teclas(bruto: &str) -> Result<HashMap<String, String>, TeclasInvalidas> {
+    let mut saida = padrao_teclas();
+    if bruto.trim().is_empty() {
+        return Ok(saida);
+    }
+    let dado: Value = serde_json::from_str(bruto).map_err(|_| TeclasInvalidas("ORION_HOTKEYS precisa ser um JSON válido".into()))?;
+    let Some(obj) = dado.as_object() else {
+        return Err(TeclasInvalidas("ORION_HOTKEYS precisa ser um objeto JSON".into()));
+    };
+    for (acao, comb) in obj {
+        if !saida.contains_key(acao) {
+            let mut validas: Vec<_> = saida.keys().cloned().collect();
+            validas.sort();
+            return Err(TeclasInvalidas(format!("ação desconhecida em ORION_HOTKEYS: {acao:?} (válidas: {})", validas.join(", "))));
+        }
+        let Some(s) = comb.as_str() else {
+            return Err(TeclasInvalidas(format!("combinação de {acao:?} precisa ser texto")));
+        };
+        saida.insert(acao.clone(), normalizar_tecla(s)?);
+    }
+    let mut unicos = std::collections::HashSet::new();
+    for v in saida.values() {
+        if !unicos.insert(v) {
+            return Err(TeclasInvalidas("duas ações não podem ter a mesma combinação de teclas".into()));
+        }
+    }
+    Ok(saida)
+}
+
+pub fn para_pynput(comb: &str) -> String {
+    comb.split('+')
+        .map(|p| if p.len() == 1 { p.to_string() } else { format!("<{p}>") })
+        .collect::<Vec<_>>()
+        .join("+")
+}
+
+pub fn limpar_texto_ocr(bruto: &str) -> String {
+    let norm = bruto.replace("\r\n", "\n").replace('\r', "\n");
+    let linhas: Vec<&str> = norm.split('\n').map(str::trim_end).collect();
+    LINHAS_VAZIAS.replace_all(linhas.join("\n").trim(), "\n\n").into_owned()
+}
+
+pub fn normalizar_area(x1: i32, y1: i32, x2: i32, y2: i32) -> Option<(i32, i32, i32, i32)> {
+    let (x, y) = (x1.min(x2), y1.min(y2));
+    let (w, h) = ((x2 - x1).abs(), (y2 - y1).abs());
+    (w >= MIN_LADO_PX && h >= MIN_LADO_PX).then_some((x, y, w, h))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mapa_padrao_e_troca_por_json() {
+        let p = padrao_teclas();
+        assert_eq!(mapa_de_teclas("").unwrap(), p);
+        let troca = mapa_de_teclas(r#"{"captura": "Ctrl+Shift+K"}"#).unwrap();
+        assert_eq!(troca["captura"], "ctrl+shift+k");
+        assert_eq!(troca["ocr"], p["ocr"]);
+        assert_eq!(para_pynput("ctrl+alt+space"), "<ctrl>+<alt>+<space>");
+        assert_eq!(para_pynput("ctrl+shift+k"), "<ctrl>+<shift>+k");
+        assert_eq!(normalizar_tecla("ALT + ctrl + alt + F5").unwrap(), "ctrl+alt+f5");
+    }
+
+    #[test]
+    fn teclas_invalidas_sao_recusadas() {
+        for bruto in [
+            "não é json",
+            "[1]",
+            r#"{"voar": "ctrl+alt+v"}"#,
+            r#"{"captura": "k"}"#,
+            r#"{"captura": "ctrl+alt"}"#,
+            r#"{"captura": "ctrl+a+b"}"#,
+            r#"{"captura": 3}"#,
+            r#"{"captura": "ctrl+alt+t"}"#,
+        ] {
+            assert!(mapa_de_teclas(bruto).is_err(), "{bruto}");
+        }
+    }
+
+    #[test]
+    fn validar_aceita_so_abrir_e_colar() {
+        assert_eq!(validar(&json!({"cmd": "abrir", "rota": "#/chat"})).unwrap(), json!({"cmd": "abrir", "rota": "#/chat"}));
+        assert_eq!(validar(&json!({"cmd": "abrir"})).unwrap(), json!({"cmd": "abrir", "rota": "#/"}));
+        assert_eq!(validar(&json!({"cmd": "colar", "texto": "oi", "extra": 1})).unwrap(), json!({"cmd": "colar", "texto": "oi"}));
+        for ruim in [
+            json!({"cmd": "executar", "texto": "rm -rf /"}),
+            json!({"cmd": "abrir", "rota": "javascript:alert(1)"}),
+            json!({"cmd": "abrir", "rota": "#/../x y"}),
+            json!({"cmd": "colar", "texto": "   "}),
+            json!({"cmd": "colar", "texto": "x".repeat(8001)}),
+            json!({"cmd": "colar", "texto": 5}),
+            json!({}),
+        ] {
+            assert!(validar(&ruim).is_err());
+        }
+    }
+
+    #[test]
+    fn limpar_ocr_e_normalizar_area() {
+        assert_eq!(limpar_texto_ocr("  Olá  \r\n\r\n\r\n\r\nmundo \r\n"), "Olá\n\nmundo");
+        assert_eq!(limpar_texto_ocr("a-\nb"), "a-\nb");
+        assert_eq!(limpar_texto_ocr("   \n \n"), "");
+        assert_eq!(normalizar_area(10, 20, 110, 70), Some((10, 20, 100, 50)));
+        assert_eq!(normalizar_area(110, 70, 10, 20), Some((10, 20, 100, 50)));
+        assert_eq!(normalizar_area(5, 5, 5, 5), None);
+        assert_eq!(normalizar_area(0, 0, 300, 4), None);
+    }
+}

@@ -2,6 +2,7 @@
 
 pub mod audio;
 pub mod builtin;
+pub mod camera;
 pub mod desktop;
 pub mod documents;
 pub mod fs_tools;
