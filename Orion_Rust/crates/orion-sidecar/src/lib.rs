@@ -266,8 +266,10 @@ fn is_public_ipv4(ip: Ipv4Addr) -> bool {
 }
 
 fn is_public_ipv6(ip: Ipv6Addr) -> bool {
-    if let Some(v4) = ip.to_ipv4_mapped() {
-        return is_public_ipv4(v4);
+    if let Some(v4) = ip.to_ipv4() {
+        if ip.segments()[0..5] == [0, 0, 0, 0, 0] && ip.segments()[5] == 0xffff {
+            return is_public_ipv4(v4);
+        }
     }
     let seg0 = ip.segments()[0];
     let is_unique_local = (seg0 & 0xfe00) == 0xfc00;
@@ -279,6 +281,13 @@ fn is_public_ipv6(ip: Ipv6Addr) -> bool {
         || is_unique_local
         || is_link_local
         || is_doc)
+}
+
+fn redact_str(s: &str) -> String {
+    match redact(&serde_json::Value::String(s.to_string()), 200_000) {
+        serde_json::Value::String(out) => out,
+        other => other.to_string(),
+    }
 }
 
 /// Retorna `true` se a variável de ambiente for um segredo ou `ORION_*` que deve ser removido
@@ -316,7 +325,7 @@ where
 /// Envelopa texto vindo da web como dado externo não confiável e mascara segredos
 /// `(REGRAS.md: conteúdo externo é dado, não instrução)`.
 pub fn wrap_external_content(url: Option<&str>, title: Option<&str>, raw_markdown: &str) -> String {
-    let redacted = redact(raw_markdown);
+    let redacted = redact_str(raw_markdown);
     // Neutraliza tentativas de fechar o bloco de dados no próprio texto externo
     let neutralized = redacted.replace("</dado_externo_nao_confiavel>", "[tag-removida]");
     let src = url.unwrap_or("desconhecida");
@@ -339,8 +348,8 @@ impl Default for SidecarClient {
     fn default() -> Self {
         Self {
             program: PathBuf::from("python"),
-            args: vec!["-m".into(), "orion.sidecar".into()],
-            work_dir: None,
+            args: vec!["-m".into(), "orion_sidecar".into()],
+            work_dir: Some(Self::bundled_python_dir()),
             timeout: Duration::from_secs(45),
         }
     }
@@ -354,6 +363,22 @@ impl SidecarClient {
             work_dir: None,
             timeout,
         }
+    }
+
+    /// Diretório `Orion_Rust/python` onde vive o pacote Python residual `orion_sidecar`.
+    pub fn bundled_python_dir() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .and_then(|p| p.parent())
+            .map(|root| root.join("python"))
+            .unwrap_or_else(|| PathBuf::from("python"))
+    }
+
+    pub fn bundled_python_dir_exists(&self) -> bool {
+        Self::bundled_python_dir()
+            .join("orion_sidecar")
+            .join("__main__.py")
+            .is_file()
     }
 
     /// Valida a requisição antes de tocar no processo filho (SSRF e limites).
@@ -418,7 +443,7 @@ impl SidecarClient {
 
         let mut child = cmd
             .spawn()
-            .map_err(|e| SidecarError::SpawnFailed(redact(&e.to_string())))?;
+            .map_err(|e| SidecarError::SpawnFailed(redact_str(&e.to_string())))?;
 
         // Escreve o JSON em uma única linha no stdin e fecha o pipe para sinalizar EOF
         let payload = serde_json::to_string(req)
@@ -428,7 +453,7 @@ impl SidecarClient {
                 .write_all(payload.as_bytes())
                 .and_then(|_| stdin.write_all(b"\n"))
                 .and_then(|_| stdin.flush())
-                .map_err(|e| SidecarError::SpawnFailed(redact(&e.to_string())))?;
+                .map_err(|e| SidecarError::SpawnFailed(redact_str(&e.to_string())))?;
         }
 
         // Aguarda até o tempo-limite; se exceder, mata o processo filho imediatamente
@@ -440,7 +465,7 @@ impl SidecarClient {
             }
             Err(e) => {
                 kill_child_quietly(&mut child);
-                return Err(SidecarError::SpawnFailed(redact(&e.to_string())));
+                return Err(SidecarError::SpawnFailed(redact_str(&e.to_string())));
             }
         }
 
@@ -453,7 +478,7 @@ impl SidecarClient {
         let mut line = String::new();
         let bytes_received = reader
             .read_line(&mut line)
-            .map_err(|e| SidecarError::InvalidJson(redact(&e.to_string())))?;
+            .map_err(|e| SidecarError::InvalidJson(redact_str(&e.to_string())))?;
 
         if line.trim().is_empty() {
             return Err(SidecarError::InvalidJson(
@@ -462,13 +487,13 @@ impl SidecarClient {
         }
 
         let raw: RawSidecarResponse = serde_json::from_str(line.trim())
-            .map_err(|e| SidecarError::InvalidJson(redact(&e.to_string())))?;
+            .map_err(|e| SidecarError::InvalidJson(redact_str(&e.to_string())))?;
 
         if !raw.ok {
             let err_msg = raw
                 .error
                 .unwrap_or_else(|| "falha desconhecida no sidecar".into());
-            return Err(SidecarError::RemoteError(redact(&err_msg)));
+            return Err(SidecarError::RemoteError(redact_str(&err_msg)));
         }
 
         // Revalida a URL final e todas as URLs visitadas contra redirecionamentos para IPs internos (SSRF)
@@ -502,29 +527,9 @@ fn kill_child_quietly(child: &mut Child) {
     let _ = child.wait();
 }
 
-/// Script Python mínimo embutido para o entrypoint `orion.sidecar` (lê 1 linha JSON no `stdin`
-/// e responde 1 linha JSON no `stdout`, delegando a `crawl4ai` ou `browser_use` quando instalados).
-pub const PYTHON_SIDECAR_BOOTSTRAP: &str = r#"import json, sys
-
-def main():
-    raw = sys.stdin.readline()
-    if not raw:
-        return
-    req = json.loads(raw)
-    req_id = req.get("id", "")
-    op = req.get("op", "ping")
-    if op == "ping":
-        print(json.dumps({"id": req_id, "ok": True, "markdown": "pong"}), flush=True)
-        return
-    print(json.dumps({
-        "id": req_id,
-        "ok": False,
-        "error": f"operacao '{op}' requer ambiente com crawl4ai/browser-use ativo"
-    }), flush=True)
-
-if __name__ == "__main__":
-    main()
-"#;
+/// Código-fonte do módulo Python residual em `Orion_Rust/python/orion_sidecar/__main__.py`.
+pub const PYTHON_SIDECAR_BOOTSTRAP: &str =
+    include_str!("../../../python/orion_sidecar/__main__.py");
 
 #[cfg(test)]
 mod tests {
@@ -589,50 +594,50 @@ mod tests {
     }
 
     #[test]
-    fn ponte_stdio_executa_roundtrip_json_e_bloqueia_redirecionamento_ssrf() {
-        // Usa cmd.exe / sh nativo para simular o processo sidecar respondendo JSON via stdout
-        #[cfg(windows)]
-        let client = SidecarClient::new(
-            "cmd.exe",
-            vec![
-                "/C".into(),
-                "echo {\"id\":\"req-1\",\"ok\":true,\"final_url\":\"https://example.com/ok\",\"title\":\"Exemplo\",\"markdown\":\"Conteudo limpo\",\"visited_urls\":[\"https://example.com/ok\"]}".into(),
-            ],
-            Duration::from_secs(5),
+    fn ponte_stdio_executa_pacote_python_em_orion_rust_e_bloqueia_redirecionamento_ssrf() {
+        // 1. Executa o módulo real `Orion_Rust/python/orion_sidecar` via `SidecarClient::default()`
+        let default_client = SidecarClient::default();
+        assert!(default_client.bundled_python_dir_exists());
+        let ping_req = SidecarRequest::ping();
+        let ping_out = default_client
+            .execute(&ping_req)
+            .expect("ping no pacote Orion_Rust/python/orion_sidecar deve responder pong");
+        assert_eq!(ping_out.id, ping_req.id);
+        assert!(ping_out.safe_data_block.contains("pong"));
+
+        // 2. Roundtrip completo de Crawl4Ai
+        let ok_py = concat!(
+            "import json, sys; req = json.loads(sys.stdin.readline()); ",
+            "print(json.dumps({",
+            "'id': req['id'], 'ok': True, 'final_url': 'https://example.com/ok', ",
+            "'title': 'Exemplo', 'markdown': 'Conteudo limpo', ",
+            "'visited_urls': ['https://example.com/ok']",
+            "}), flush=True)"
         );
-        #[cfg(not(windows))]
         let client = SidecarClient::new(
-            "sh",
-            vec![
-                "-c".into(),
-                "printf '%s\\n' '{\"id\":\"req-1\",\"ok\":true,\"final_url\":\"https://example.com/ok\",\"title\":\"Exemplo\",\"markdown\":\"Conteudo limpo\",\"visited_urls\":[\"https://example.com/ok\"]}'".into(),
-            ],
+            "python",
+            vec!["-c".into(), ok_py.into()],
             Duration::from_secs(5),
         );
 
         let req = SidecarRequest::crawl("https://example.com", 4096);
         let out = client.execute(&req).expect("roundtrip JSON deve funcionar");
         assert!(out.tainted_external);
+        assert_eq!(out.id, req.id);
         assert_eq!(out.final_url.as_deref(), Some("https://example.com/ok"));
         assert!(out.safe_data_block.contains("Conteudo limpo"));
 
-        // Simula o sidecar sofrendo redirect HTTP 302 para 127.0.0.1 -> deve ser bloqueado na volta
-        #[cfg(windows)]
-        let evil_redirect_client = SidecarClient::new(
-            "cmd.exe",
-            vec![
-                "/C".into(),
-                "echo {\"id\":\"req-2\",\"ok\":true,\"final_url\":\"http://127.0.0.1:8080/internal\",\"markdown\":\"segredo\"}".into(),
-            ],
-            Duration::from_secs(5),
+        // 3. Simula o sidecar sofrendo redirect HTTP 302 para 127.0.0.1 -> deve ser bloqueado na volta
+        let redirect_py = concat!(
+            "import json, sys; req = json.loads(sys.stdin.readline()); ",
+            "print(json.dumps({",
+            "'id': req['id'], 'ok': True, 'final_url': 'http://127.0.0.1:8080/internal', ",
+            "'markdown': 'segredo'",
+            "}), flush=True)"
         );
-        #[cfg(not(windows))]
         let evil_redirect_client = SidecarClient::new(
-            "sh",
-            vec![
-                "-c".into(),
-                "printf '%s\\n' '{\"id\":\"req-2\",\"ok\":true,\"final_url\":\"http://127.0.0.1:8080/internal\",\"markdown\":\"segredo\"}'".into(),
-            ],
+            "python",
+            vec!["-c".into(), redirect_py.into()],
             Duration::from_secs(5),
         );
 
