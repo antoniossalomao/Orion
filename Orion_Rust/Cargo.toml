@@ -68,6 +68,7 @@ iced = { version = "=0.14.0", features = ["canvas", "tokio", "advanced", "image"
 cpal = "0.18"
 orion-setup = { path = "crates/orion-setup" }
 orion-sidecar = { path = "crates/orion-sidecar" }
+orion-testkit = { path = "crates/orion-testkit" }
 
 [profile.release]
 lto = "thin"

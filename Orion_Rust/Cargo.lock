@@ -3915,11 +3915,13 @@ dependencies = [
  "keyring",
  "orion-policy",
  "orion-store",
+ "orion-testkit",
  "parking_lot",
  "regex",
  "reqwest",
  "serde",
  "serde_json",
+ "tempfile",
  "thiserror 2.0.21",
  "tokio",
  "tracing",
@@ -4080,17 +4082,26 @@ dependencies = [
  "chrono",
  "hex",
  "orion-policy",
+ "orion-testkit",
  "parking_lot",
  "regex",
  "rusqlite",
  "serde",
  "serde_json",
  "sha2",
+ "tempfile",
  "thiserror 2.0.21",
  "tokio",
  "tracing",
  "unicode-normalization",
  "uuid",
+]
+
+[[package]]
+name = "orion-testkit"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
 ]
 
 [[package]]
