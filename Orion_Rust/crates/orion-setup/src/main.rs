@@ -19,19 +19,6 @@ fn apply_rounded_corners_to_process_windows() {
     extern "system" {
         fn GetActiveWindow() -> isize;
         fn GetForegroundWindow() -> isize;
-        fn SetWindowRgn(hwnd: isize, hrgn: isize, b_redraw: i32) -> i32;
-    }
-
-    #[link(name = "gdi32")]
-    extern "system" {
-        fn CreateRoundRectRgn(
-            x1: i32,
-            y1: i32,
-            x2: i32,
-            y2: i32,
-            w: i32,
-            h: i32,
-        ) -> isize;
     }
 
     #[link(name = "dwmapi")]
@@ -50,7 +37,7 @@ fn apply_rounded_corners_to_process_windows() {
             hwnd = GetForegroundWindow();
         }
         if hwnd != 0 {
-            // DWMWA_WINDOW_CORNER_PREFERENCE = 33, DWMWCP_ROUND = 2 (cantos arredondados Windows 11 + sombra DWM)
+            // DWMWA_WINDOW_CORNER_PREFERENCE = 33, DWMWCP_ROUND = 2 (cantos arredondados Windows 11 + sombra DWM, respeitando DPI/escala)
             let round_pref: u32 = 2;
             let _ = DwmSetWindowAttribute(
                 hwnd,
@@ -58,11 +45,6 @@ fn apply_rounded_corners_to_process_windows() {
                 &round_pref as *const u32 as *const std::ffi::c_void,
                 4,
             );
-            // Também aplica região arredondada suave caso o compositor DWM esteja sem borda
-            let hrgn = CreateRoundRectRgn(0, 0, 961, 601, 24, 24);
-            if hrgn != 0 {
-                let _ = SetWindowRgn(hwnd, hrgn, 1);
-            }
         }
     }
 }

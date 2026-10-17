@@ -1280,11 +1280,11 @@ fn chk_card<'a>(label: &'a str, val: &str, warn: bool, alpha: f32) -> Element<'a
                     .font(FONT_MONO)
                     .color(with_alpha(theme::FG, alpha)),
             ]
-            .align_y(Alignment::Center),
+            .align_y(Alignment::Start),
         ],
     )
     .width(Length::FillPortion(1))
-    .height(Length::Fixed(56.0))
+    .height(Length::Fixed(64.0))
     .align_y(Vertical::Center)
     .padding([10, 12])
     .style(surface_card_style())
