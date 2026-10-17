@@ -621,7 +621,18 @@ impl McpManager {
             return json!({"erro": format!("o servidor MCP '{servidor}' não está conectado")});
         };
         let mut m = self.medir(&servidor, &original, &Value::Object(args.clone()));
+        // soltar o future (turno cancelado) avisa o servidor e conta o cancelamento
+        struct Cancelamento<'a>(&'a std::sync::atomic::AtomicU64, bool);
+        impl Drop for Cancelamento<'_> {
+            fn drop(&mut self) {
+                if !self.1 {
+                    self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                }
+            }
+        }
+        let mut contagem = Cancelamento(&self.cancelamentos, false);
         let r = cliente.call_tool(&original, args, Duration::from_secs_f64(timeout_s)).await;
+        contagem.1 = true;
         let saida = match r {
             Ok(res) => {
                 let (texto, erro) = res.texto();

@@ -54,3 +54,6 @@ pbkdf2.workspace = true
 hmac.workspace = true
 subtle.workspace = true
 rusqlite.workspace = true
+
+[dev-dependencies]
+orion-testkit.workspace = true

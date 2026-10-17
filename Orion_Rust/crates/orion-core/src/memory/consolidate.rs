@@ -60,6 +60,17 @@ impl Consolidator {
         Consolidator { memory, gateway, batch: 60, max_chars: 12_000, max_facts: 10, min_new: 5, skip: vec!["legado".into()] }
     }
 
+    /// Ajusta os limites do lote (padrão: 60 falas, 12 000 caracteres, 10 fatos, mínimo de 5
+    /// novas, sem o canal `legado`). Usado pelos testes de paridade e pela configuração.
+    pub fn com_limites(mut self, batch: i64, max_chars: usize, max_facts: usize, min_new: usize, skip: Vec<String>) -> Self {
+        self.batch = batch;
+        self.max_chars = max_chars;
+        self.max_facts = max_facts;
+        self.min_new = min_new;
+        self.skip = skip;
+        self
+    }
+
     fn projetos_com_novidade(&self) -> Vec<String> {
         let mut achados = vec![];
         for r in self.memory.query("SELECT DISTINCT s.project_id FROM sessions s WHERE s.project_id IS NOT NULL", &[]).unwrap_or_default() {
