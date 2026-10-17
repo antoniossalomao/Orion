@@ -214,7 +214,7 @@ impl JobRunner {
     }
 
     fn agora(&self) -> f64 {
-        crate::util::agora()
+        self.memory.now()
     }
 
     fn devido(&self, passo: &'static str) -> bool {

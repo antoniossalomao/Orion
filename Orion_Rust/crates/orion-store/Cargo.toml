@@ -22,3 +22,7 @@ unicode-normalization.workspace = true
 thiserror.workspace = true
 anyhow.workspace = true
 tracing.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+orion-testkit.workspace = true

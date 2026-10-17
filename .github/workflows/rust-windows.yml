@@ -23,7 +23,7 @@ jobs:
         with:
           workspaces: Orion_Rust
       - name: Testar domínio, canais, orçamento e áudio
-        run: cargo test --locked -p orion-policy -p orion-store -p orion-ai -p orion-core -p orion-server -p orion-platform -p orion-voice
+        run: cargo test --locked -p orion-policy -p orion-store -p orion-ai -p orion-mcp -p orion-core -p orion-server -p orion-platform -p orion-voice -p orion-vault -p orion-testkit
       - name: Compilar controle nativo
         run: cargo build --locked -p orion-server
       - name: Instalar SDK para conferir o backend Vulkan
