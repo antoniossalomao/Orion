@@ -8,7 +8,7 @@ resumo: "Plano de implementação em etapas do Orion em Rust, cobrindo todas as 
 
 # ORION - PLANO DE IMPLEMENTAÇÃO
 
-> Projeto: [[Orion]] · Fonte das decisões: [[ORION - PLANEJAMENTO ARQUITETURA]] · Instalador: [[ORION - INSTALADOR (ESPECIFICAÇÃO)]] · Referências: [[ORION - REFERÊNCIAS DE PESQUISA]] · Regras do projeto: [[Orion - Regras]] · Estado do legado: [[Orion - Estado e plano]] · Conceito: [[Rust]]
+> Projeto: [[Orion]] · Fonte das decisões: [[ORION - PLANEJAMENTO ARQUITETURA]] · Instalador: [[ORION - INSTALADOR (ESPECIFICAÇÃO)]] · Interface: [[ORION - UI (ESPECIFICAÇÃO)]] · Referências: [[ORION - REFERÊNCIAS DE PESQUISA]] · Regras do projeto: [[Orion - Regras]] · Estado do legado: [[Orion - Estado e plano]] · Conceito: [[Rust]]
 > **Como usar:** cada fase tem objetivo, dependências, tamanho, checklist (`- [ ]`), testes e critério de aceite. Marque o item só quando o critério de aceite da fase correspondente passar. O repositório do código é `antoniossalomao/Orion` (PRs com revisão cruzada, ver F00).
 
 ---
@@ -267,12 +267,12 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 > **Escopo da v1:** chat completo + aprovações e modo autônomo + nota no vault com commit + Configurações completas + Projetos + login + instalador. O que não está nesta lista entra nos marcos seguintes.
 
 ### F01: Janela, tema e base da interface · tamanho **L**
-**Objetivo:** a casca do app, idêntica ao protótipo aprovado, com todos os elementos de janela, tokens, tipografia e navegação.
+**Objetivo:** a casca do app, idêntica ao protótipo aprovado, com todos os elementos de janela, tokens, tipografia e navegação. **Especificação exata de cada tela, medida e estado em [[ORION - UI (ESPECIFICAÇÃO)]] (protótipo: `Protótipos/orion-ui-mockup.html`); em divergência, vale o protótipo, exceto nos itens U1–U15 daquela nota.**
 **Dependências:** F00 (decisão iced × Slint).
 
 #### F01.A Tema e tipografia
 - [ ] **F01.01** Tokens Grafite no `orion-theme`: `bg #151618`, `side #111214`, `raise #1b1c1f`, `fg/fg-2/fg-3 #ececee/#a9aab0/#75767d`, `accent (Rigel) #a4b3de`, `signal (Betelgeuse) #e9b467`, `primary #b9c6ea` (texto `#0f1320`), `ok #74cfae`, `danger #f07c88`, `line #25272c`. **Só tema escuro, sem seletor.**
-- [ ] **F01.02** Fontes embutidas no binário: **Inter** (400/500/600), **JetBrains Mono** (400/500) e **Newsreader** (respostas do chat). Opção em Configurações: Newsreader, Inter ou fonte do sistema.
+- [ ] **F01.02** Fontes embutidas no binário: **Geist** (400/500/600), **Geist Mono** (400/500) e **Newsreader** (respostas do chat; 400/500/600 + itálico). Opção em Configurações: Newsreader, Geist ou fonte do sistema. *(Corrigido em 17/10: segue o protótipo de UI, [[ORION - UI (ESPECIFICAÇÃO)]] U2.)*
 - [ ] **F01.03** Escala de tipo: texto base **14 px**; h1 24; eyebrow mono 11 com espaçamento; rótulos 12; legenda 11.
 - [ ] **F01.04** Formas: cantos **médios (10 a 14 px)**, bordas **finas e sutis**, bolhas do usuário com **fundo sutil**, botões principais em **Rigel pálido**, destaque (foco, seleção, switches) em **azul de Rigel**.
 - [ ] **F01.05** Componentes base reutilizáveis: botão principal/secundário/fantasma, campo, seletor, switch, caixa, cartão, pílula, selo, toast, modal sobreposto com fundo escurecido, menu de contexto, tooltip, barra de progresso, lista virtualizada, ícones **Lucide** (SVG embutidos).
@@ -293,7 +293,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [ ] **F01.18** Abstração de plataforma em `orion-platform` (trait) e implementação Windows; nada de chamadas Win32 fora dela.
 
 #### F01.C Estrutura, navegação e atalhos
-- [ ] **F01.19** **Barra lateral de 272 px**, recolhível com **Ctrl+B** (recolhe para ícones): voltar/avançar, busca, **Nova conversa, Buscar, Projetos, Aprovações, Rotinas, Memória, Painel**, "Mais" (Resultados, Fontes, Conhecimento, Integrações, Arquivadas); rodapé com perfil e engrenagem.
+- [ ] **F01.19** **Barra lateral de 272 px**, recolhível com **Ctrl+B** (recolhe para ícones): voltar/avançar, busca, **Nova conversa, Projetos, Memória, Aprovações, Rotinas**, "Mais" (Resultados, Nuvem, Fontes, Conhecimento, Painel, Vida, Arquivadas; Integrações ficam em Configurações > Conectores), com a busca como campo no topo e Ctrl+K *(ordem e itens do protótipo de UI, U6)*; rodapé com perfil e engrenagem.
 - [ ] **F01.20** Lista de conversas: fixadas no topo, **Hoje, Ontem, 7 dias, Mais antigos**, mais recente primeiro; título com projeto embaixo; indicadores (âmbar aguardando aprovação, girando trabalhando, azul resposta nova); ícones de origem (relógio = rotina, avião = Telegram); **arquivar só manual**.
 - [ ] **F01.21** **Paleta única Ctrl+K**: busca em conversas e notas do vault + ações com prefixo `>`; navegação por teclado.
 - [ ] **F01.22** **Atalhos personalizáveis** (tela em Configurações) com **detecção de conflito**; tabela padrão: Ctrl+K, Ctrl+B, Ctrl+/− (escala), Win+Shift+Espaço, Ctrl+Alt+P, Ctrl+Alt+V (voz ao vivo), Ctrl+Alt+T (tradução de tela), Win+Shift+O (captura rápida), Win+Shift+I ("Isso?").
@@ -307,6 +307,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [ ] **F01.28** Painel de **"Mais"** vazio por padrão apenas com as telas que existem na versão (itens futuros aparecem quando a fase correspondente chegar).
 - [ ] **F01.29** **Motor do céu** compartilhado (widget `shader` do iced, pipeline wgpu com sprites aditivos, linhas com gradiente, câmera com respiração, gerador Park–Miller com semente 7): usado na **tela inicial**, no **login e bloqueio**, no **instalador** e na **mini tela de atualização**. Especificação exata (constantes, ordem de desenho, fórmulas) em [[ORION - INSTALADOR (ESPECIFICAÇÃO)]], §8. **Pausa fora de vista**, 20 fps parado, 60 fps na interação, versão simplificada na GPU integrada.
 - [ ] **F01.30** **Ícone do app: cinturão de Órion** (três pontos em diagonal) em todos os tamanhos (barra de tarefas, bandeja, atalho, instalador, desinstalador), mais a **marca ao lado do nome** na saudação; versão com **ponto de aviso** e **ponto vermelho** (câmera).
+- [ ] **F01.31** **Conformidade com o protótipo de UI:** snapshot PNG de cada tela e estado (dados de exemplo da §28 de [[ORION - UI (ESPECIFICAÇÃO)]]) comparado ao `Protótipos/orion-ui-mockup.html`; registrar toda divergência intencional na tabela U1–U15 daquela nota.
 
 **Testes:** snapshots de cada estado da casca (sidebar aberta/recolhida, escalas 90/100/150, densidades); E2E de Ctrl+K, Ctrl+B, bandeja e atalho global; medição de RAM e tempo da janela pronta contra o orçamento.
 **Critério de aceite:** casca idêntica ao protótipo aprovado; **< 1 s** até digitar; **< 300 MB** parado; todas as ações acessíveis pelo teclado.
@@ -544,6 +545,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 
 #### F07.A Estrutura e regras gerais
 - [ ] **F07.01** **Modal sobreposto** (fundo escurecido), **lista agrupada à esquerda** (App · IA · Memória · Entradas · Integrações · Sistema) e **busca no topo** que filtra opções de todas as seções; em janela estreita vira **lista → detalhe**.
+- [ ] **F07.08** **Navegação e conteúdo exatos do protótipo:** dois grupos (Configurações: Geral, Notificações e sons, Conta, Privacidade e autonomia, Uso, Modelos, Memória, Fontes, Conectores · Este computador: Sistema, Modelos locais, Voz, Câmera, Atalhos), cada linha, texto e comportamento da §18 de [[ORION - UI (ESPECIFICAÇÃO)]]; os grupos da F07.01 são reorganizados para esses dois (U12).
 - [ ] **F07.02** **Salva sozinha ao mudar**, com aviso "Salvo" e **desfazer**; espelho em `settings.toml` (sem segredos), com recarga ao editar à mão.
 - [ ] **F07.03** **Descrição curta embaixo de cada opção**; **restaurar padrão por opção e por seção** (opção alterada mostra **ponto azul**).
 - [ ] **F07.04** Opções avançadas e perigosas atrás de **"Mostrar avançado"** (logs de depuração, resetar o banco, etc.).
