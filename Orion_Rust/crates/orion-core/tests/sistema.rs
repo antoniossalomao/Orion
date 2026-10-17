@@ -136,7 +136,7 @@ fn macos_gera_plist_valido_com_escape_e_a_pasta_do_projeto() {
     assert!(a.conteudo.contains("<string>/opt/orion/orion</string>") && a.conteudo.contains("<string>serve</string>"));
     assert!(a.conteudo.contains("<key>WorkingDirectory</key><string>/home/ana &amp; co/Orion</string>")); // é de lá que o .env é lido
     assert!(a.conteudo.contains("<key>RunAtLoad</key><true/>") && a.conteudo.contains("<key>KeepAlive</key><true/>"));
-    assert!(a.conteudo.contains("/dados/logs/orion.out.log"));
+    assert!(a.conteudo.contains(&Path::new("/dados/logs").join("orion.out.log").to_string_lossy().to_string()));
     assert_eq!(a.arquivo, PathBuf::from("/home/ana/Library/LaunchAgents/com.orion.assistente.plist"));
     assert!(a.ativar.contains("launchctl bootstrap") && a.desativar.contains("launchctl bootout"));
 }
@@ -186,7 +186,7 @@ fn ponte_gera_arquivo_a_parte_e_nao_toca_no_do_servidor() {
     let mac = gerar("macos", true);
     assert!(mac.conteudo.contains("<string>com.orion.ponte</string>") && mac.conteudo.contains("<string>ponte</string>"));
     assert_eq!(mac.arquivo.file_name().unwrap(), "com.orion.ponte.plist");
-    assert!(mac.conteudo.contains("/dados/logs/orion-ponte.out.log"));
+    assert!(mac.conteudo.contains(&Path::new("/dados/logs").join("orion-ponte.out.log").to_string_lossy().to_string()));
     let linux = gerar("linux", true);
     assert_eq!(linux.arquivo.file_name().unwrap(), "orion-ponte.service");
     assert!(linux.conteudo.contains("\" ponte") && linux.conteudo.contains("graphical-session.target"));
