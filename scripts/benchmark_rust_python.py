@@ -380,14 +380,16 @@ def _medir(p: subprocess.Popen, t0: float, porta: int, consultas: list[str], n: 
     for i in range(n):
         q = quote(consultas[i % len(consultas)])
         status, t = http(f"{base}/busca?q={q}", TOKEN)
-        falhas += status != 200
-        ms.append(t)
+        if status == 200:
+            ms.append(t)  # erro HTTP não entra nos percentis: só mede o caminho feliz
+        else:
+            falhas += 1
     depois = rss_kb(p.pid)
     return {
         "inicio_s": pronto,
         "rss_ocioso_kb": ocioso,
         "rss_depois_kb": depois,
-        "busca_http": estatisticas(ms),
+        "busca_http": estatisticas(ms) if ms else {},
         "falhas_http": falhas,
     }
 
@@ -524,6 +526,15 @@ def relatorio_md(r: dict) -> str:
             f"| /busca HTTP p95 | {f'{a:.1f} ms' if a else '—'} | "
             f"{f'{c:.1f} ms' if c else '—'} | {razao(a, c)} |"
         )
+        fp, fr = py.get("falhas_http"), rs.get("falhas_http")
+        nz = lambda v: "—" if v is None else v  # noqa: E731
+        L.append(f"| /busca HTTP com erro | {nz(fp)} | {nz(fr)} | |")
+        if fp or fr:
+            L += [
+                "",
+                "> Atenção: houve respostas com erro em /busca. Elas ficaram fora dos percentis;"
+                " a comparação de latência não é confiável.",
+            ]
         L.append("")
     if r.get("pacote"):
         L += (
