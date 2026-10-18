@@ -1,0 +1,8 @@
+{
+  "source": "Microsoft edge-tts; frases sintéticas fixas, sem áudio do usuário",
+  "frontend": "oww-rs 0.3.3; modelos embutidos no crate com SHA-256 validado",
+  "classifier": "MLP 1536 -> 32 ReLU -> 1 sigmoid, seed 42",
+  "training": "scripts/treinar_orion_wake.py; corpus-sintetico.zip contém WAVs e hashes para reproduzir o treino",
+  "status": "candidate",
+  "limitations": "Avaliação apenas sintética com 3 clipes positivos e 34,36 s negativos; 1 falso disparo. Não pronto para escuta contínua. Precisa de áudio real separado (>=50 positivos, >=1 h negativos), recall >=95% e <=0,5 falso/h."
+}

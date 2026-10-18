@@ -1,5 +1,4 @@
 import json
-from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -52,19 +51,6 @@ def test_chat_em_streaming_no_formato_do_legado(tmp_path):
     assert ev[:2] == [{"text": "Olá, Antônio."}, {"tier": "omni/modelo-x"}]
     assert "provenance" in ev[2] and ev[-1] == "[DONE]"
     assert gw.chamadas[0][-1] == {"role": "user", "content": "oi"}
-
-
-def test_o_telegram_do_legado_le_o_novo_chat_sem_mudar(tmp_path, monkeypatch):
-    """O endpoint novo é um substituto direto: o bot de hoje extrai o texto certo."""
-    monkeypatch.syspath_prepend(str(Path(__file__).parents[1] / "Orion_Ollama"))
-    import orion_telegram
-
-    c, _ = cliente(
-        tmp_path,
-        fala("Resposta "),
-    )
-    with c, c.stream("POST", "/chat", json={"texto": "oi"}, headers=AUTH) as r:
-        assert orion_telegram._extrair_texto(r.iter_lines()) == "Resposta"
 
 
 def test_fluxo_de_aprovacao_ponta_a_ponta_pelo_http(tmp_path):

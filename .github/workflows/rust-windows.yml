@@ -1,0 +1,70 @@
+name: Rust Windows
+on:
+  pull_request:
+    paths:
+      - "Orion_Rust/**"
+      - "Orion_Core/Front_end_Orion/**"
+      - "scripts/smoke_local_windows.py"
+      - "tests/mcp_cliente/servidor_cru.py"
+      - ".github/workflows/rust-windows.yml"
+  workflow_dispatch:
+concurrency:
+  group: rust-windows-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  native:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: Orion_Rust
+    env:
+      LIBCLANG_PATH: C:\Program Files\LLVM\bin
+      # Mesmo alvo curto para CPU/Vulkan: evita duplicar iced e caminhos longos no MSBuild.
+      CARGO_TARGET_DIR: C:\t
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: Orion_Rust -> C:/t
+      - name: Testar domínio, canais, orçamento e áudio
+        run: cargo test --locked -p orion-policy -p orion-store -p orion-ai -p orion-core -p orion-server -p orion-platform -p orion-voice -p orion-local -p orion-llama -p orion-setup -p orion-mcp -p orion-vault -p orion-testkit
+      - name: Compilar controle nativo
+        run: cargo build --locked -p orion-server -p orion-llama
+      - name: Guardar runtime CPU sem dependência de driver Vulkan
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force pacote/cpu | Out-Null
+          Copy-Item C:\t\debug\orion.exe pacote/cpu/
+          Copy-Item C:\t\debug\orion-llama.exe pacote/cpu/
+      - uses: actions/cache@v4
+        with:
+          path: C:\orion-models
+          key: qwen3-06b-9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031
+      - name: Testar GGUF real no worker CPU
+        run: python ../scripts/smoke_local_windows.py C:\t\debug\orion.exe C:\orion-models
+      - name: Instalar SDK para conferir o backend Vulkan
+        shell: pwsh
+        run: |
+          choco install vulkan-sdk --version=1.4.341 -y --no-progress
+          $sdk = (Get-ChildItem 'C:\VulkanSDK' -Directory | Sort-Object Name -Descending | Select-Object -First 1).FullName
+          if (!(Test-Path "$sdk\Bin\glslc.exe")) { throw 'SDK Vulkan sem glslc' }
+          "VULKAN_SDK=$sdk" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "$sdk\Bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+      - name: Compilar pacote Windows com Whisper e llama.cpp Vulkan
+        run: cargo build --locked -p orion-server -p orion-setup -p orion-llama --features orion-server/local-vulkan,orion-llama/vulkan
+      - name: Montar pacote do instalador
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force pacote/vulkan | Out-Null
+          Copy-Item C:\t\debug\orion.exe pacote/vulkan/
+          Copy-Item C:\t\debug\orion-llama.exe pacote/vulkan/
+          Copy-Item C:\t\debug\orion-setup.exe 'pacote\Orion Setup.exe'
+          Copy-Item models\orion-wake-candidate pacote\wake-candidate -Recurse
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Orion-native-Windows-Vulkan
+          path: Orion_Rust/pacote
+          if-no-files-found: error

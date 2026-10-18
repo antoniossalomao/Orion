@@ -1,0 +1,25 @@
+{
+  "keyword": "Orion",
+  "status": "candidate",
+  "sha256": "3b25331ddf654533629432707e717524fee68f0c36c60c38088b4088712efffd",
+  "bytes": 209626,
+  "threshold": 0.5,
+  "input_shape": [
+    1,
+    16,
+    96
+  ],
+  "metrics": {
+    "recall": 1.0,
+    "false_alarms_per_hour": 104.7729918509895,
+    "positive_clips": 3,
+    "negative_seconds": 34.36000000000001,
+    "real_audio": false
+  },
+  "training_speakers": [
+    "pt-BR-AntonioNeural",
+    "pt-BR-FranciscaNeural"
+  ],
+  "synthetic_training": true,
+  "seed": 42
+}

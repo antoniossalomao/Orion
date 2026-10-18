@@ -1,7 +1,7 @@
 [project]
 name = "orion"
 version = "0.1.0"
-description = "Orion — assistente pessoal (reescrita; o legado está em Orion_Ollama/ e Orion_Core/)"
+description = "Orion — referência Python e testes para a migração Rust"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "Proprietary" }
@@ -28,9 +28,6 @@ dependencies = [
 ]
 
 [dependency-groups]
-build = [
-    "pyinstaller>=6.22.3",
-]
 dev = [
     "pytest>=8",
     "pytest-asyncio>=0.24",
@@ -96,7 +93,6 @@ packages = ["orion"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-extend-exclude = ["Orion_Ollama", "Orion_Core", "bin"]  # legado: só o check F (ver CI)
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "S", "BLE", "ASYNC", "PERF", "RUF"]

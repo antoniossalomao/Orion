@@ -1,0 +1,12 @@
+[project]
+name = "orion-sidecar-py"
+version = "0.1.0"
+description = "Sidecar Python residual do Orion (apenas browser-use e crawl4ai via stdin/stdout, sem servidor HTTP)"
+requires-python = ">=3.12"
+dependencies = []
+
+[project.optional-dependencies]
+web = [
+    "crawl4ai>=0.4.0",
+    "browser-use>=0.1.40",
+]

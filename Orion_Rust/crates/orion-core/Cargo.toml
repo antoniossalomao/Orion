@@ -1,0 +1,65 @@
+[package]
+name = "orion-core"
+description = "Núcleo do Orion: configuração, persona, agente, ferramentas, extensões e rotinas"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+orion-policy.workspace = true
+orion-store.workspace = true
+orion-mcp.workspace = true
+orion-ai.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+regex.workspace = true
+tracing.workspace = true
+tokio.workspace = true
+reqwest.workspace = true
+futures.workspace = true
+async-stream.workspace = true
+url.workspace = true
+chrono.workspace = true
+include_dir.workspace = true
+tempfile.workspace = true
+libc.workspace = true
+chrono-tz.workspace = true
+parking_lot.workspace = true
+sha2.workspace = true
+hex.workspace = true
+rand.workspace = true
+base64.workspace = true
+dirs.workspace = true
+dotenvy.workspace = true
+uuid.workspace = true
+unicode-normalization.workspace = true
+serde_yaml.workspace = true
+image.workspace = true
+html-escape.workspace = true
+jsonschema.workspace = true
+similar.workspace = true
+wait-timeout.workspace = true
+sysinfo.workspace = true
+arboard.workspace = true
+starship-battery.workspace = true
+zip.workspace = true
+quick-xml.workspace = true
+pdf-extract.workspace = true
+printpdf.workspace = true
+csv.workspace = true
+pbkdf2.workspace = true
+hmac.workspace = true
+subtle.workspace = true
+rusqlite.workspace = true
+
+orion-voice.workspace = true
+hound = "3.5"
+
+[features]
+local-vulkan = ["orion-voice/vulkan"]
+
+[dev-dependencies]
+orion-testkit.workspace = true

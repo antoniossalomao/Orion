@@ -4,7 +4,7 @@ O modelo monta URLs a partir de texto não confiável (páginas, e-mails, memór
 checagem, uma injeção de prompt aponta `buscar_url` para o próprio Orion (127.0.0.1), para a
 LAN, para a rede do Tailscale ou para o endpoint de metadados de uma nuvem.
 
-Portado de `Orion_Ollama/url_guard.py` (que fica até a fase 7) e **melhorado**: o legado
+Portado de `Orion_Ollama/url_guard.py` (removido do repositório) e **melhorado**: o legado
 resolvia o DNS, conferia e deixava a biblioteca resolver de novo na hora de conectar (janela
 de DNS rebinding). Aqui o IP conferido é o IP usado: a requisição vai para o IP, com o `Host`
 e o SNI do nome original (o certificado continua sendo conferido contra o nome).

@@ -1,0 +1,24 @@
+[package]
+name = "orion-vault"
+version = "0.1.0"
+edition = "2021"
+license = "LicenseRef-Proprietario"
+publish = false
+
+[dependencies]
+orion-policy = { workspace = true }
+orion-store = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+chrono = { workspace = true }
+dirs = { workspace = true }
+regex = { workspace = true }
+sha2 = { workspace = true }
+parking_lot = { workspace = true }
+tokio = { workspace = true, features = ["sync", "fs"] }
+
+[dev-dependencies]
+tempfile = { workspace = true }

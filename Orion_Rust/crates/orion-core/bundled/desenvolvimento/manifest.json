@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "orion_api": 1,
+  "id": "orion-desenvolvimento",
+  "version": "1.0.0",
+  "name": "Orion Desenvolvimento",
+  "description": "Revise alterações e explique repositórios com Git em leitura e delegação autorizada.",
+  "license": "LicenseRef-Orion-Proprietary",
+  "skills": [
+    "skills/revisar-alteracao",
+    "skills/explicar-repositorio"
+  ],
+  "capabilities": [
+    "native:consultar_git_projeto",
+    "native:buscar_memoria",
+    "native:delegar"
+  ]
+}
