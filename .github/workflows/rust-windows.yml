@@ -58,6 +58,10 @@ jobs:
           if (!(Test-Path "$sdk\Bin\glslc.exe")) { throw 'SDK Vulkan sem glslc' }
           "VULKAN_SDK=$sdk" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           "$sdk\Bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+      - name: Compilar llama.cpp Vulkan isolado
+        # O ExternalProject vulkan-shaders-gen falha no MSBuild paralelo ("Not a file: cmake_install.cmake"):
+        # compila o llama sozinho e em série antes do restante.
+        run: cargo build --locked -p orion-llama --features vulkan -j 1
       - name: Compilar pacote Windows com Whisper e llama.cpp Vulkan
         run: cargo build --locked -p orion-server -p orion-setup -p orion-llama --features orion-server/local-vulkan,orion-llama/vulkan
       - name: Montar pacote do instalador
