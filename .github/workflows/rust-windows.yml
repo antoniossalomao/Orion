@@ -48,7 +48,12 @@ jobs:
       - name: Instalar SDK para conferir o backend Vulkan
         shell: pwsh
         run: |
-          choco install vulkan-sdk --version=1.4.341 -y --no-progress
+          # O feed do Chocolatey devolve 503 de vez em quando: tenta de novo antes de falhar.
+          for ($i = 1; $i -le 4; $i++) {
+            choco install vulkan-sdk --version=1.4.341 -y --no-progress
+            if (Test-Path 'C:\VulkanSDK') { break }
+            if ($i -lt 4) { Start-Sleep -Seconds (30 * $i) }
+          }
           $sdk = (Get-ChildItem 'C:\VulkanSDK' -Directory | Sort-Object Name -Descending | Select-Object -First 1).FullName
           if (!(Test-Path "$sdk\Bin\glslc.exe")) { throw 'SDK Vulkan sem glslc' }
           "VULKAN_SDK=$sdk" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
