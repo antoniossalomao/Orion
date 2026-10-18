@@ -8,7 +8,9 @@ Assistente pessoal com identidade masculina: técnico, direto, não-servil. Não
 
 ## Estado
 
-O Orion roda em Python (`orion/`), num processo local. A migração para Rust (Windows primeiro, depois macOS) está em andamento em `Orion_Rust/`. O estado completo, o plano e as pendências estão em [ORION.md](Memorias%20Do%20Projeto/ORION.md).
+O PR #30 porta núcleo, API e CLI para `Orion_Rust/`, com controle auxiliar e instalador iced no Windows. O app principal nativo ainda falta: o servidor continua usando o front HTML compartilhado. `orion/` permanece como referência Python para a paridade incompleta. O estado auditado de todas as fases, implementações e bloqueios está em [ORION.md](Memorias%20Do%20Projeto/ORION.md), seção **Auditoria consolidada do PR #30**.
+
+O instalador é parcial; vault automático, segurança SQLCipher/Hello, grafo nativo e release ainda não estão concluídos. Voz/AEC3/llama.cpp têm código integrado, mas wake word final, hardware e build Vulkan seguem pendentes de validação. A auditoria distingue código implementado de aceite concluído.
 
 ## Documentação
 

@@ -15,6 +15,21 @@ resumo: "Especificação completa da interface do Orion em iced/wgpu para reprod
 
 ---
 
+## Estado da implementação — auditoria PR #30 (`2020015`, 17/10/2026)
+
+**Esta é a especificação da interface futura, não uma lista de telas nativas concluídas.** Estado canônico: [ORION.md](ORION.md), auditoria do PR #30; tarefas F01/F05/F07/F16 em [ORION_PLANO_IMPLEMENTACAO.md](ORION_PLANO_IMPLEMENTACAO.md).
+
+- [x] Protótipo HTML e especificação das telas presentes no repositório.
+- [x] Instalador iced com céu e controle auxiliar `orion desktop` (login/2FA, mini barra, orçamento e rotinas).
+- [x] APIs Rust para chat, memória, projetos, aprovações e outros portes, com front HTML compartilhado ainda servido em `/ui/`.
+- [ ] App principal `orion-app`/`orion-ui` conforme esta especificação: casca, chat completo, navegação e Configurações.
+- [ ] Editor/vault automático, painel de contexto/arquivos/diff/terminal e fluxos finais de projeto.
+- [ ] Grafo nativo wgpu/compute, bloom/blur, timeline, acessibilidade equivalente e metas de desempenho.
+- [ ] Fluent pt/en compartilhado, snapshots/headless/E2E iced e comparação de todos os estados com o protótipo.
+
+O controle auxiliar e o instalador não comprovam a conclusão das telas desta nota. O front web contém funções anteriores; sua existência não equivale ao porte visual para iced.
+
+
 ## 1. Escopo
 - Tudo que existe na janela principal do Orion depois do login: barra lateral, barra superior, Início, Chat, painel da direita (Contexto / Arquivos / Diff / Terminal), Projetos, Memória (grafo), Aprovações, Rotinas, Resultados, Nuvem, Fontes, Conhecimento, Painel, Vida, Arquivadas, Configurações, paleta Ctrl K, editor de nota, captura rápida, "Isso?", mini barra de voz, legenda ao vivo, popovers e toasts.
 - **Fora desta nota:** instalador (nota própria), onboarding do primeiro uso, tela de login final (ver §2, U1), mini tela de atualização.

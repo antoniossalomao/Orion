@@ -13,7 +13,7 @@ Antônio é o administrador: decide, aprova e pode desligar qualquer coisa. Nada
 ## Estado (17/10/2026)
 
 - **Referência Python:** `orion/` e seus testes permanecem até completar a paridade Rust. O backend pré-reescrita (`Orion_Ollama/`), os serviços em `bin/startup/`, a voz antiga e os launchers pywebview antigos foram removidos do repositório. `Orion_Core/Front_end_Orion/` preserva somente os assets do front compartilhado, ainda servido pelo Rust. Isso não altera instalações ou dados no PC.
-- **Rust (`Orion_Rust/`):** workspace Cargo em andamento na branch da PR #30 com 14 crates (`orion-policy`, `orion-store`, `orion-ai`, `orion-mcp`, `orion-core`, `orion-server`, `orion-setup`, `orion-sidecar`, `orion-platform`, `orion-voice`, `orion-vault`, `orion-local`, `orion-llama`, `orion-testkit` — este último só para testes) e o pacote Python isolado do sidecar em `Orion_Rust/python/orion_sidecar`. Instalador nativo (`Orion Setup.exe` em `iced` + céu estrelado + áudio ambiente) e Fase 7 (`orion-sidecar`) concluídos.
+- **Rust (`Orion_Rust/`):** workspace Cargo em andamento na branch da PR #30 com 14 crates (`orion-policy`, `orion-store`, `orion-ai`, `orion-mcp`, `orion-core`, `orion-server`, `orion-setup`, `orion-sidecar`, `orion-platform`, `orion-voice`, `orion-vault`, `orion-local`, `orion-llama`, `orion-testkit` — este último só para testes) e o pacote Python isolado do sidecar em `Orion_Rust/python/orion_sidecar`. Instalador nativo parcial (`Orion Setup.exe` em `iced` + céu e áudio); ponte `orion-sidecar` implementada e testada isoladamente, ainda sem chamada pelo agente. A conclusão de uma fase exige o aceite completo, além da existência do crate.
 - **M2/M3/M4 no PR #30 (17/10/2026):** controle Windows com `orion desktop` (iced), `orion-platform` (tray-icon e hotkeys), mini barra `Ctrl+Alt+Espaço`, pânico `Ctrl+Alt+P`, rotinas concedidas e início automático opt-in. Painel/API de orçamento com estimativa persistida em chamadas, reset semanal, calibragem, projeção, tetos de 95% semanal / 20% por tarefa e janela opcional de 5 h. Telegram recebe cartões do PC com vínculo ao cartão/sessão original, código 2FA de uso único (5 min, 5 tentativas) antes de criar sessão e resposta em áudio só para pedidos por voz. `orion-voice` captura com cpal, reamostra para mono 16 kHz, usa VAD por energia, palmas calibradas (150–700 ms), openWakeWord local com modelo Orion configurado e Whisper local (CPU ou build Vulkan); Groq só com opt-in. TTS existente: edge-tts masculino pt-BR.
 - **Validação anterior (M2/M3/M4):** Python com 1.637 testes passando e 3 ignorados; Ruff, formatação, Pyright (ambiente virtual explícito) e 16 testes de front verdes. Checagem estática cruzada para Windows, CPU e Vulkan, inclui servidor/controle e testes de `orion-core`, `orion-ai`, `orion-voice` e `orion-platform`; a execução nativa fica no workflow Windows.
 - **Áudio e modelos embarcados (17/10/2026):** `orion-local` fornece catálogo de oito artefatos com revisão/tamanho/SHA-256 fixados, download cancelável com retomada e validação de bundles de wake word. `orion-llama.exe` embarca llama-cpp-2 e só carrega depois de entrar num Job Object com limite real de 30% da RAM; uma inferência por vez, contexto de 2.048 tokens, encerramento por conclusão, cancelamento ou 180 s. O processo também separa o GGML do llama.cpp do GGML do Whisper. Gateway, resumos e classificação financeira local compartilham essa reserva sem ferramentas. O Ollama legado continua opcional quando não se configura GGUF embarcado.
@@ -31,7 +31,7 @@ Antônio é o administrador: decide, aprova e pode desligar qualquer coisa. Nada
 | E1 | Custo zero, registro de saídas, pânico e não perturbe, modelo local | Feita; PR #18 mergeado; provada com gateway falso |
 | E2 | Ponte de desktop, duas palmas, captura rápida, "O que é isso?" | Código feito; falta testar teclas globais e microfone no notebook e calibrar as palmas |
 | E3 | Conversas arquivadas, filtro por projeto, mover para projeto | Código feito; PR ainda não mergeado |
-| E4 | Isolamento por projeto, OCR de PDF, auto-compact, validade de fatos, reranker | Feita (PR #24); falta instalar o Ollama e `qwen3.5:4b` |
+| E4 | Isolamento por projeto, OCR de PDF, auto-compact, validade de fatos, reranker | Referência Python feita (PR #24); reserva Rust pode usar GGUF pelo setup. Reranker Rust ainda sem runtime ONNX |
 | E5 | Busca da tela, exclusão por programa, tela bloqueada, sono na interface, grafo 3D, busca global | Feita (PR #24) |
 | E6 | Biblioteca, comparar versões, pesquisa noturna pela interface | Código feito; falta CI nos três sistemas |
 | E7 | Cliente e servidor MCP, skills | Código feito; falta registrar o Orion no Claude Code |
@@ -41,9 +41,9 @@ Antônio é o administrador: decide, aprova e pode desligar qualquer coisa. Nada
 | E11 | Visão e câmera: ver e agir, visão pelas assinaturas, detecção local, "onde eu deixei", rosto, presença, tradutor, legenda ao vivo e Flow | Código feito (main); falta equipamento real (webcam, microfone e modelos) |
 | E12–E13 | Trabalho e carreira, segurança e continuidade | Não começaram |
 
-- **Fases gerais (plano de 2026-10, fases 0 a 7):**
+- **Fases gerais da referência Python (histórico do plano de 2026-10, fases 0 a 7; não são as F00–F27 do novo plano Rust):**
   - 0, exportar os dados da base antiga: pendente, é sua (PC).
-  - 1, fundação: feita, com CI nos três sistemas.
+  - 1, fundação Python: histórico de CI nos três sistemas; o workflow antigo foi removido. CI atual desta branch é Rust Windows.
   - 2, cérebro: feita com gateway e CLIs falsos; faltam as chaves reais.
   - 3, memória: feita no código; faltam a chave de embeddings e as suas perguntas reais.
   - 4, ferramentas: feita no código; faltam os servidores MCP que você escolhe e o que depende de modelo multimodal.
@@ -60,6 +60,84 @@ Antônio é o administrador: decide, aprova e pode desligar qualquer coisa. Nada
   - MCP: testado com o servidor do SDK; os servidores reais não foram escolhidos.
   - E10 e E11: navegador da tela Vida, webcam, microfone, loopback, modelos ONNX e Vosk, Bluetooth, tesseract, CLIs de assinatura e a URL do Flow.
 
+## Auditoria consolidada do PR #30 (17/10/2026)
+
+**Referência auditada:** `20200158ab1ac0b836c23d2efee8d9314c2fde02`, base `main` em `a6a27d6`; GitHub informa 70 commits e 369 arquivos alterados. Foram conferidos histórico/diff, inventário dos 14 crates, dependências, entradas CLI, rotas e ligações do servidor, fontes Python/front, testes e workflow. Esta é uma auditoria de escopo e conclusão, não a auditoria final de segurança F27. O PR está aberto, sem merge e sem conflitos na consulta; não havia comentários de revisão retornados pela API.
+
+**Legenda:** **Implementado** = comportamento localizado no código; **Parcial** = existe parte da entrega, mas faltam requisitos ou ligação; **Pendente** = entrega planejada não encontrada; **Validado** sempre informa teste/commit/plataforma. Nenhum marco M0–M9 nem fase F00–F27 tem o aceite completo demonstrado. Código portado, teste unitário, teste com provedor falso e teste físico são evidências diferentes.
+
+### Entregas implementadas no PR
+
+- [x] Workspace Cargo com 14 crates, lockfile, iced fixado em 0.14.0, perfil de release e workflow Windows. A divisão atual agrupa agente/ferramentas/canais no core; não corresponde a todos os crates propostos no plano.
+- [x] Política de ferramentas portada em `orion-policy`: classes, aprovações de uso único, caminhos, shell, redação e auditoria. **Implementação sem suíte própria de testes; não equivale a paridade aprovada.**
+- [x] SQLite v1–v23, FTS5, vetores, busca híbrida, sessões, fatos, documentos, backups e importação; 60 casos de integração em `orion-store`.
+- [x] Gateway compatível com OpenAI, provedores gratuitos, heurística Auto, delegação às CLIs oficiais, embeddings remotos, visão/transcrição e cotas em `orion-ai`; 84 casos de integração. ACP e embeddings locais não estão implementados.
+- [x] Agente, autenticação PBKDF2/sessões, ferramentas, jobs, projetos, artefatos, biblioteca, captura, ponte, rotinas e extensões portados em `orion-core`, com rotas Axum e CLI em `orion-server`. O porte é amplo, mas a paridade do conjunto está incompleta.
+- [x] MCP próprio via JSON-RPC (stdio/HTTP), host de conexões, OAuth, recursos/prompts/índice, skills e plugins por concessão. `rmcp`, plugins WASM e MCP Apps continuam planejados.
+- [x] Controle auxiliar iced Windows, bandeja/hotkeys, mini barra, pânico, autostart opt-in, execução de rotinas concedidas e orçamento persistido. Não substitui o app principal.
+- [x] Telegram com lista de IDs/conversa privada, texto/foto/áudio, aprovações remotas inline e 2FA por código. PIN crítico, Hello, WoL e fila de nuvem não entregues.
+- [x] Captura cpal, VAD por energia, detector de palmas calibrado, interface openWakeWord, Whisper local, edge-tts, AEC3 e barge-in opt-in ligados ao listener. Faltam Silero, modelo Orion final e prova acústica/GPU.
+- [x] `orion-local`/`orion-llama`: catálogo de oito artefatos, download com retomada/hash/cancelamento, worker llama.cpp CPU/Vulkan, carga sob demanda e teto Windows de 30% da RAM; instalação dos runtimes e configuração pelo setup.
+- [x] Visual do setup: céu procedural, etapas/transições, ícone PE, cantos DWM, pt/en e áudio instrumental cpal com mute. A especificação de som original ainda diverge; etapas técnicas do sistema seguem parciais.
+- [x] `orion-vault`: autodetecção, parser Markdown/YAML, marcadores de privacidade/arquivo, scanner de padrões de segredos, busca em cache e API explícita de gravação com git. **F06 não está concluída**: ver bloqueios abaixo.
+- [x] Porte parcial E10/E11: finanças/revisão/diário/cápsula/foco, visão/presença/legenda; câmera nativa `nokhwa` e extrator facial Haar heurístico + LBPH acrescentados em `975e635` (lock ajustado em `2020015`). Testes matemáticos não validam reconhecimento em pessoas reais.
+- [x] Ponte sidecar Rust/Python isolada por stdin/stdout, sanitização de ambiente e validação de URL; quatro testes no crate. Ainda não há consumidor no core/servidor.
+- [x] Testkit, 334 declarações de testes de integração de paridade (store 60, AI 84, MCP 23, core 167), benchmark comparativo e correções de importação/captura/relógio/MCP; remoção de 79 arquivos de legado/PyInstaller.
+
+### Situação de todas as fases do plano F00–F27
+
+Os caminhos abaixo são relativos a `Orion_Rust/crates/`, salvo indicação. O detalhamento e os critérios de aceite permanecem em [ORION_PLANO_IMPLEMENTACAO.md](ORION_PLANO_IMPLEMENTACAO.md).
+
+| Fase / marco | Estado | Evidência entregue | O que falta para concluir |
+|---|---|---|---|
+| F00 / M0 | Parcial | Workspace, lock, iced fixado, CI Windows, benchmark, spikes de áudio/local | SQLCipher/sqlite-vec/cr-sqlite, métricas no PC, export real, snapshots iced, evals, deny/audit, toolchain fixo, spikes restantes |
+| F01 / M1 | Parcial | `orion-server/src/desktop.rs`, `orion-platform`, céu do setup | Casca principal conforme UI, sidebar/paleta, Mica, fontes, Fluent, instância única, hotkeys completas, acessibilidade e medição |
+| F02 / M1 | Parcial | `orion-core/src/auth.rs`, `two_factor.rs`, `orion-policy`, cofre e saídas | SQLCipher/Argon2id/zeroização, Hello, recuperação, bloqueio Win+L, PII completo, logs cifrados/retidos e aceites de segurança |
+| F03 / M1 | Parcial | `orion-ai`, `orion-local`, `orion-llama`, `orion-server/src/embedded.rs` | ACP/stream-json completo, esforço/modelo por CLI, cache, catálogo/UI finais, modelos de visão, medição Vulkan e gestão completa de modelos |
+| F04 / M1 | Parcial | `orion-core/src/agent.rs`, ferramentas, aprovações, modos, compactação | Paridade de política/agente, autônomo conforme plano, classificador injection, confirmação destrutiva extra, checkpoints/retomada, paralelos/subagentes, toasts com botões |
+| F05 / M1 | Parcial | API de chat SSE, ramos/anexos/artefatos/exportação e front web compartilhado | Chat nativo iced completo, Markdown/LaTeX/Mermaid/WebView2, virtualização, fila e testes E2E/snapshots do novo app |
+| F06 / M1 | Parcial | `orion-vault`, rotas `/vault/*`, memória/store e importadores | Resumo/nota automática por turno, pull nos eventos, conflitos sem sobrescrever, índice local incremental/sqlite-vec, privacidade de ponta a ponta, editor e aceite Git real |
+| F07 / M1 | Parcial | Settings por ambiente/.env/JSON local; API e controle de orçamento | Modal completo da especificação, TOML com recarga, busca/desfazer/restaurar, todas as seções e strings pt/en |
+| F08 / M1 | Parcial | `orion-core/src/projects.rs`, documentos, ramos e rotas | UI iced, clonar/vincular GitHub, nota no vault, herança de configurações, arquivamento coordenado e suíte de isolamento completa |
+| F09 / M1 | Parcial | `painel.rs`, rotas, resultados/arquivadas no front atual | Telas iced finais, uso oficial de assinaturas, métricas completas, resumos diários e snapshots |
+| F10 / M1 | Parcial | `orion-setup`: visual, cópia real, modelos, rollback de arquivos e abertura do app | Registro real de pacote/certificado/atalhos/UAC, updater/minisign, desinstalador, onboarding/Hello, backup Drive, release assinado e instalação limpa |
+| F11 / M2 | Pendente como entrega | Ferramentas shell/Git/processos existem no core | Painel de arquivos/diff por bloco/terminal ConPTY, ACP no painel, fluxo GitHub/CI, revisão cruzada acionável e extensão VS Code |
+| F12 / M2 | Parcial | `jobs.rs`, `rotinas.rs`, `automacao.rs`, Downloads, pesquisa, briefing | Agendamento NL completo, recuperação/retentativas conforme plano, resultados no vault, nuvem Claude/Codex, monitores gerais e proatividade |
+| F13 / M2 | Parcial | `orion-ai/src/budget.rs`, painel/API: reset/calibragem/projeção e tetos 95%/20% | `/usage`/`/status`, precisão aferida, alertas/canais completos, fila de automelhoria e preempção de tarefas |
+| F14 / M3 | Parcial | `channels/telegram.rs`, 2FA e cartões remotos; áudio | PIN crítico, reserva Hello, comandos de nuvem, fila/ocupado, energia/WoL, ACL Tailscale e dois aparelhos reais; cliente é HTTP próprio, sem teloxide |
+| F15 / M4 | Parcial | `orion-voice`, `native_audio.rs`, `wake.rs`, `voice.rs` | Silero, wake word final, qualidade/latência/eco medidos, visualização de áudio, atalhos completos, overlay de legenda/tradução e briefing em podcast |
+| F16 / M5 | Parcial só nos dados | `grafo.rs`, endpoints e grafo WebGL do front; parser de wikilinks | Grafo nativo wgpu/compute, layout/fallback, aliases completos, clusters, timeline, navegação e desempenho 1k/5k/10k |
+| F17 / M5 | Pendente | Céu do setup já tem render próprio; não é a entrega F17 | Bloom/blur do grafo em WGSL, qualidade automática, bateria e controles |
+| F18 / M6 | Parcial | Câmera nokhwa, Haar/LBPH, presença, avistamentos/rotas | Runtime YOLO, prova facial real, indicadores de câmera, bloqueio/retorno conforme especificação, retenção/lugar dos objetos e UI final |
+| F19 / M7 | Parcial | Cliente/servidor MCP, OAuth, host, catálogo, skills/plugins/importação e export credentials | WASM/Wasmtime/WIT, MCP Apps isolados, revisão anti-rug-pull completa, UI Conectores, extensão de navegador e validação com servidores reais |
+| F20 / M8 | Parcial | Ponte/captura, `screen_memory.rs`, OCR externo e legenda | Spotlight/seleção nativos, UI Automation/OCR Windows, mascaramento visual, Click to Do, gravação/detecção de reuniões e banco cifrado |
+| F21 / M8 | Parcial | Busca/fetch web e `research.rs`; sidecar separado | Navegador visível/CDP/chromiumoxide ou integração explícita do sidecar, política por ação, pesquisa com relatório/progresso e monitores completos |
+| F22 / M8 | Pendente | Bind/login local não equivalem à integração de rede | Sync entre PCs, ACL/exit node, subnet/WoL, Home Assistant/Alexa, Siri/Atalhos, Phone Link e Saúde |
+| F23 / M8 | Parcial | `vida.rs`, OAuth/agenda/MCP, captura de gastos e reserva LLM local | Integrações Google reais, OFX/CSV bancário completo, telas novas, origem SMS, tempo de uso/bem-estar, export pessoal e uma semana de validação |
+| F24 / M8 | Pendente | Leitura de documentos/busca genéricas não concluem estudo | FSRS, tutor, progresso, conexões de notas e fluxo de estudo/PDF/TTS |
+| F25 / M8 | Parcial | Histórico local, Downloads, ferramentas de apps/mídia/documentos, conversor e planos | UI/hotkeys finais, desfazer/Lixeira, Spotify oficial, modo jogo/economia, PowerPoint e conversões ainda ausentes (inclui comprimir PDF) |
+| F26 / M9 | Pendente | Há contadores e tarefas de fundo restritas; não são automelhoria | Fila/termos, agendamento 90%/12h, PRs/testes/evals, interrupção por pedido, auditoria e dependências automáticas |
+| F27 / M9 | Parcial documental | Memórias/README/vault, inventário e limpeza do código obsoleto | Auditorias finais, offline ponta a ponta, performance, export/migração/restauração, descarte no PC, release 1.0 e plano macOS |
+
+### Bloqueios concretos encontrados na leitura do código
+
+1. **F06 não pode ser marcada pronta.** `orion-vault/src/sync.rs::save_conversation` é chamado apenas por `orion-server/src/rotas/memoria.rs::vault_save`, sem gancho automático no chat. A escrita substitui conteúdo existente, não preserva duas versões; `GitSync::commit_file` usa `git commit -m` sem isolar outros arquivos já staged, nem garante que HEAD é `main`. `pull` é ação explícita, o cache é reconstruído nas rotas e o parser tolera YAML inválido. Faltam bloqueio de frontmatter/links inválidos, credencial comprovada e teste de conflito/privacidade. Scanner cobre padrões de chaves, não toda a PII prometida.
+2. **YOLO sem inferência:** `orion-core/src/visao_local.rs::Detector::detectar_jpeg` sempre retorna `vec![]`, mesmo com arquivo de modelo válido. Decodificador/NMS/armazenamento de rótulos existem; detecção e "onde deixei" com novas imagens não estão entregues de ponta a ponta.
+3. **Reranker sem backend:** `orion-core/src/memory/rerank.rs::LocalReranker::score` falha com "runtime ONNX não vinculado neste binário" para trechos não vazios. Embeddings e5/BGE locais e sqlite-vec também não constam no runtime atual.
+4. **Sidecar isolado:** nenhum crate de produção declara dependência `orion-sidecar` e não há chamada a ele pelo agente. O alvo "sem Python" do plano C11 e a ponte residual existente ainda precisam ser conciliados; manter a ponte não significa que navegador/crawler estejam integrados.
+5. **Instalação incompleta:** `orion-setup/src/system.rs::execute_step` escreve manifesto esparso mínimo, bytes de certificado de exemplo e JSON de atalhos/serviço; não registra esses recursos no Windows. O pacote precisa conter as pastas CPU/Vulkan ao lado do setup, além de dependências externas quando usadas (edge-tts/ffmpeg/git/CLIs). O workflow/instalador não copia o front HTML: `front_dir()` depende de `project_root()`, cujo padrão é o caminho do repositório na máquina de build (`CARGO_MANIFEST_DIR`). Fora do checkout, `/ui/` não está resolvido pela instalação; precisa de assets e caminho de runtime próprios.
+6. **Segurança do novo plano não substituída pela autenticação antiga:** `Cargo.toml` usa rusqlite bundled sem SQLCipher e `auth.rs` usa PBKDF2, sem Argon2id/Hello/recuperação. Não declarar banco/logs cifrados nem proteção completa de PII. O detector facial novo usa contrastes Haar heurísticos + LBPH; não há conjunto real/ROC que demonstre taxa segura de reconhecimento.
+7. **Falta o app principal nativo:** não existem crates `orion-ui`/`orion-app` nem `orion-graph`; `desktop.rs` é controle auxiliar e ainda há servidor HTTP/front HTML. O céu usa imagem RGBA renderizada na CPU via `orion-setup/src/sky.rs`, não um motor wgpu compartilhado por todas as telas.
+8. **CI não cobre o aceite inteiro:** não há snapshots/headless iced, cargo deny/audit, evals YAML, auditoria final ou fluxo de release assinado. `orion-policy`, `orion-server` e `orion-platform` têm zero testes próprios; testes de outros crates não provam todos os contratos dessas áreas.
+
+### Evidência de validação e próximos passos
+
+- **Windows CPU em `d069b17`:** [run 39084684949](https://github.com/antoniossalomao/Orion/actions/runs/39084684949) registra 388 testes aprovados nos alvos executados, build dos executáveis CPU e smoke com GGUF real aprovados. O workflow não seleciona `orion-sidecar`; testes condicionais podem retornar sem exercer hardware. Não é prova de paridade de 100%.
+- **Vulkan no mesmo run:** o job terminou cancelado, mas o log já mostra erro CMake/MSB8066 do `llama-cpp-sys-2` por `vulkan-shaders-gen-build/cmake_install.cmake` ausente. Build Vulkan, empacotamento e upload não foram concluídos. Não registrar o pacote como validado.
+- **Último código auditado `2020015`:** [run 39086573378](https://github.com/antoniossalomao/Orion/actions/runs/39086573378), em andamento no build Vulkan na última consulta; testes de domínio, build CPU e smoke GGUF CPU já passaram também nesse commit. Isso inclui compilação do porte de câmera/Haar/LBPH; reconhecimento real continua sem prova física.
+- **Referência após limpeza, `d069b17`, e repetição nesta auditoria documental sobre `2020015`:** 1.564 testes Python passaram, três ignorados; 16 arquivos Node passaram; Ruff/formatação/Pyright com venv explícito e sync locked passaram. Na auditoria também foram conferidos os links locais, blocos de código, as 28 fases e 458 IDs únicos do plano. Contagens históricas maiores incluem testes removidos do legado; não são a contagem atual.
+- **Prioridade técnica:** corrigir build Vulkan e obter artefato; portar testes de política/API/agente; fechar integração segura do vault; implementar app iced e segurança F02; completar modelos/voz/câmera; depois medir no notebook, migrar dados e executar os aceites de release. Nenhum desses bloqueios é resolvido apenas por atualizar o checklist.
+
 ## Pendências suas (só você faz)
 
 1. Fase 0: rodar `orion verify-export` no PC até dar `PRONTO` (plano de corte no legado).
@@ -69,7 +147,7 @@ Antônio é o administrador: decide, aprova e pode desligar qualquer coisa. Nada
 5. Telegram: criar o bot, preencher token e IDs, parar o bot do legado e testar. Instalar o Tailscale e rodar `orion autostart`.
 6. MCP: escolher os servidores (e-mail, agenda, navegador), copiar `mcp.example.json` para `mcp.json` e rodar `orion mcp-check`. Registrar o Orion no Claude Code com `claude mcp add orion -- orion mcp-servidor`.
 7. E2: testar teclas globais e microfone; calibrar as palmas.
-8. E4: `ollama pull qwen3.5:4b`.
+8. Reserva local: selecionar GGUF/Whisper no `orion-setup` e validar no notebook. Ollama é alternativa opcional da referência antiga, não requisito do modo local embarcado.
 9. E9: a prova com palmas e música reais.
 10. Decidir a licença-alvo: uso pessoal ou distribuição. Isso muda a escolha de modelos (ver [ARQUITETURA.md](ARQUITETURA.md), seção 8.3).
 11. Decidir a lista de telas do primeiro marco em Rust.
@@ -97,8 +175,8 @@ Antônio é o administrador: decide, aprova e pode desligar qualquer coisa. Nada
 | 4, plataforma e rotinas (3 a 4 semanas) | Início automático, bandeja, teclas, cofre, rotinas, backup, captura e OCR nativos | Rotinas rodando com o app na bandeja |
 | 5, voz (3 a 5 semanas) | Captura, VAD, STT com whisper-rs, palavra de ativação e palmas, TTS | Comando por voz nos dois sistemas |
 | 6, integrações (3 a 4 semanas) | MCP (rmcp), plugins, Telegram (teloxide), Google | Integrações com as mesmas credenciais |
-| 7, residual Python (1 a 2 semanas) | Sidecar com browser-use e crawl4ai, JSON por stdin e stdout | Feita (`orion-sidecar` + `Orion_Rust/python/orion_sidecar`) |
-| 8, corte (2 a 3 semanas) | Migração de dados verificada, instalador assinado no Windows, comparação de desempenho | Instalador nativo `orion-setup` pronto; falta corte final |
+| 7, residual Python (1 a 2 semanas) | Sidecar com browser-use e crawl4ai, JSON por stdin e stdout | Ponte e pacote implementados; integração ao agente, dependências na instalação e navegação real pendentes |
+| 8, corte (2 a 3 semanas) | Migração de dados verificada, instalador assinado no Windows, comparação de desempenho | Instalador parcial: cópia de runtimes/modelos real; identidade, certificado, atalhos, serviço, assinatura, desinstalador e corte ainda pendentes |
 | 9, macOS (a definir) | Implementações de plataforma, permissões, `.dmg` assinado e notarizado | Começa depois do corte do Windows |
 
 **Métricas:** tempo até a janela pronta, memória ociosa, latência da primeira resposta, tamanho do pacote e paridade dos testes (100% no primeiro marco).
@@ -107,10 +185,10 @@ Antônio é o administrador: decide, aprova e pode desligar qualquer coisa. Nada
 
 ### Paridade de testes e linha de base (17/10/2026)
 
-- **Testes portados do Python** (`cargo test --workspace --exclude orion-setup`): `orion-store` 60, `orion-ai` 84, `orion-mcp` 23, `orion-core` 167 (memória, importação, MCP, login, jobs, modos, biblioteca, captura, autostart). O sidecar tem 4. **`orion-policy` ainda não tem nenhum teste** (a lista de 14 não existe nesta branch): portar `tests/policy/` exige tocar no crate do núcleo imutável, então espera sua aprovação.
+- **Testes portados do Python** (`cargo test --workspace --exclude orion-setup`): `orion-store` 60, `orion-ai` 84, `orion-mcp` 23, `orion-core` 167 (memória, importação, MCP, login, jobs, modos, biblioteca, captura, autostart). O sidecar tem 4. **`orion-policy` ainda não tem nenhum teste** (a lista de 14 não existe nesta branch): a paridade de `tests/policy/` continua pendente. Mudanças na implementação protegida continuam exigindo aprovação explícita; o porte de código não comprova a paridade dos testes.
 - **Ainda sem testes de paridade portados no `orion-core`:** agente, Telegram, ponte, voz, palavra de ativação, palmas, visão/câmera, vida (E10), rotinas, downloads, briefing, plugins/extensões, projetos (isolamento), pesquisa, tela. As rotas HTTP (`orion-server`) também.
 - **Divergências do Rust achadas e corrigidas pelos testes:** importador tratava registro sem `id` como `"null"` e aceitava `score` não numérico; captura criava a pasta fora do vault antes de recusar `..`; `JobRunner` ignorava o relógio do banco; cancelamentos de MCP nunca eram contados.
-- **Benchmark** (`scripts/benchmark_rust_python.py`, banco sintético pequeno, 4 CPUs Linux; **não** é o seu PC): busca FTS5 p50 2,5 ms (Python) × 1,9 ms (Rust); híbrida 3,1 × 2,9 ms; memória com a matriz vetorial 60 × 18 MB; servidor ocioso 128 × 34 MB, `/health` em 2,7 × 0,2 s, `/busca` HTTP p50 26 × 17 ms; resultados dos dois lados idênticos. Falta rodar no Windows com o banco real e em escala maior (o gerador sintético é lento acima de ~5 mil registros).
+- **Benchmark histórico informado na integração do PR #33** (`scripts/benchmark_rust_python.py`, banco sintético pequeno, 4 CPUs Linux; **não** é o seu PC e não foi reexecutado nesta auditoria; alvo Rust atual continua Windows): busca FTS5 p50 2,5 ms (Python) × 1,9 ms (Rust); híbrida 3,1 × 2,9 ms; memória com a matriz vetorial 60 × 18 MB; servidor ocioso 128 × 34 MB, `/health` em 2,7 × 0,2 s, `/busca` HTTP p50 26 × 17 ms; resultados dos dois lados idênticos. Falta rodar no Windows com o banco real e em escala maior (o gerador sintético é lento acima de ~5 mil registros).
 
 **Integração do PR #33 (17/10/2026):** base do PR #30 atualizada até `8f4c783`, com dependências de teste e voz/Vulkan preservadas no manifesto e lockfile. Os testes de autostart passam a esperar `desktop --background` no Windows. Ruff dos scripts novos corrigido; benchmark usa token efêmero e só faz HTTP em loopback. Validação da integração: 1.637 testes Python passaram, 3 ignorados; 149 testes do front, Ruff, formatação, Pyright e checagem estática Windows/Vulkan verdes. O cliente HTTP do benchmark foi conferido com servidor local autenticado e recusa de destinos externos. A execução nativa dos novos testes de paridade depende do CI desta branch.
 
@@ -123,16 +201,16 @@ Os itens em aberto das etapas antigas foram reescritos aqui, com IDs novos.
 | B-01 | Verificar o export real do SurrealDB (fase 0) | Você (PC) |
 | B-02 | Medir a linha de base do Python: janela pronta, memória ociosa, latência e tamanho do pacote — **script pronto (`scripts/benchmark_rust_python.py`); falta rodar no PC com o banco real e o pacote** | Você e Claude |
 | B-03 | Spike iced: chat, paleta `Ctrl K` e grafo em wgpu; medir memória e latência | Claude |
-| B-04 | Spike de palmas e palavra de ativação no Windows, com calibração em microfone real (inclui a prova da E2 e da E9) | Você e Claude |
+| B-04 | **Parcial:** detector/calibração e engine local implementados; candidato Orion sintético existe, mas não é final. Faltam corpus real, ruído/música e aceite no microfone (E2/E9) | Você e Claude |
 | B-05 | Spike de busca: rusqlite com FTS5 lendo o banco real; BGE-M3 via `ort` ou `candle` comparado ao Python — **FTS5 + vetores medidos (`orion-store/examples/bench_busca.rs`, resultados idênticos ao Python); falta BGE-M3** | Claude |
-| B-06 | Spike de áudio: captura com cpal e VAD mínimo; testar um STT candidato (ver [ARQUITETURA.md](ARQUITETURA.md), 8.3) | Claude |
-| B-07 | Portar `policy/` com os mesmos casos de teste (fase 2) — **Feito (`orion-policy`)** | Claude |
+| B-06 | **Parcial:** cpal/VAD energia/Whisper/AEC3/barge-in integrados. Faltam Silero, corrigir build Vulkan, medir latência/eco/qualidade no notebook (ver [ARQUITETURA.md](ARQUITETURA.md), 8.3) | Claude |
+| B-07 | Portar `policy/` com os mesmos casos de teste (fase 2) — **Parcial: código portado; zero testes no crate, paridade pendente** | Claude |
 | B-08 | Definir as telas do primeiro marco | Você |
 | B-09 | Fixar a versão do iced no `Cargo.lock` — **Feito (`iced = "=0.14.0"`)** | Claude |
 | B-10 | Decidir a licença-alvo (ver Pendências, item 10) | Você |
-| B-11 | Sidecar Python com browser-use e crawl4ai (fase 7) — **Feito (`orion-sidecar` + `Orion_Rust/python/orion_sidecar`)** | Claude |
+| B-11 | Sidecar Python com browser-use e crawl4ai (fase 7) — **Ponte e pacote feitos; ligação ao agente/instalação e teste real pendentes** | Claude |
 
-**Fora do marco 1:** E10 a E13. E10 e E11 já têm código em Python (ver Estado), sem Rust; E12 e E13 não começaram. Cada um começa pelas regras em [REGRAS.md](REGRAS.md).
+**Fora do marco 1:** E10 a E13. E10 e E11 já têm portes parciais em Rust (`vida.rs`, câmera, presença, rosto e legenda), além da referência Python. A inferência YOLO e o aceite de hardware ainda faltam; E12 e E13 não começaram como entregas completas. Cada um começa pelas regras em [REGRAS.md](REGRAS.md).
 
 ### Limpeza do legado (17/10/2026)
 

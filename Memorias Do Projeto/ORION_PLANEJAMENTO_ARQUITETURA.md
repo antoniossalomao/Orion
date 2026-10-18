@@ -11,6 +11,15 @@ resumo: "Planejamento do front do Orion em Rust (iced): decisões, identidade vi
 > Projeto: [[Orion]] · Conceito: [[Rust]] · Conversa de origem: [[2026-10-15 - Orion - redesign do protótipo no estilo do app Claude]] · Protótipo anterior: [[2026-10-14 - Orion - prototipo do front desktop nativo]]
 > Protótipo navegável: https://claude.ai/artifact/S4fmhxJ35UztifhKCyzqt9 (versão de 15/10/2026 já reflete as decisões desta nota: tema único Grafite, barra lateral com Aprovações e Rotinas, seletor Auto/Claude/Codex/Gemini/Orion, painel da direita em abas, nota do vault + commit, editor de notas, `/` e `@`, rotinas, nuvem, conectores, câmera, modelos locais e grafo real com linha do tempo)
 
+## Estado auditado do planejamento — PR #30 (`2020015`, 17/10/2026)
+
+As decisões desta nota são o **alvo do produto**. A fonte única do estado é [ORION.md](ORION.md), seção Auditoria consolidada do PR #30. [ORION_PLANO_IMPLEMENTACAO.md](ORION_PLANO_IMPLEMENTACAO.md) registra a situação das 28 fases e as subentregas já implementadas; nenhum marco foi aceito integralmente.
+
+**Já há código:** domínio/API/CLI Rust, SQLite/FTS5, gateway/CLIs/router, MCP/skills/plugins, projetos/rotinas/jobs, Telegram/2FA/áudio, bandeja/hotkeys/orçamento, voz local/AEC3/barge-in, worker llama.cpp instalável, setup visual, vault por API explícita e câmera/Haar/LBPH. Legado/PyInstaller removidos. **Ainda falta:** app iced principal, segurança SQLCipher/Hello/PII completa, vault automático e conflitos seguros, runtime YOLO/reranker/e5, ACP, grafo wgpu, updater/desinstalador/release, nuvem/multi-PC/estudo/automelhoria, paridade e aceites físicos.
+
+**Divergências conhecidas:** há HTTP/front HTML e Python residual/de referência; o alvo sem Python/WebView/servidor ainda não foi atingido. MCP/Telegram são clientes próprios, não rmcp/teloxide; CLIs ainda sem ACP. Céu do setup é RGBA na CPU, não motor shader compartilhado. A existência de um módulo não demonstra o comportamento final: F06 continua parcial, YOLO retorna vazio, wake word é candidato e o build Vulkan não está validado.
+
+
 ## Objetivo
 Um app de desktop nativo em Rust, sem WebView nem servidor local para a interface. A referência visual é o app desktop do Claude (barra lateral e configurações), mantendo a identidade do Orion: céu, cinturão e as cores de Rigel e Betelgeuse.
 
