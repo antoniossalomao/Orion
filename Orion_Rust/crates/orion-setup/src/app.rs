@@ -11,6 +11,12 @@ use crate::i18n::{format_gb, install_step_texts, star_name, step_counter, texts,
 use crate::sky::OrionSky;
 use crate::system::{InstallPlan, PcInfo, SetupChoices, StepItemStatus};
 use crate::theme::{self, standard_curve, with_alpha};
+
+fn preview_root() -> PathBuf {
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let id = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    std::env::temp_dir().join(format!("orion-setup-preview-{}-{id}", std::process::id()))
+}
 use iced::alignment::{Horizontal, Vertical};
 use iced::event::{self, Event};
 use iced::font::{self, Font};
@@ -110,7 +116,7 @@ impl SetupApp {
     pub fn new(pc: PcInfo, dry_run: bool) -> Self {
         let choices = SetupChoices::new(&pc);
         let root_override = if dry_run {
-            Some(std::env::temp_dir().join("orion-setup-preview"))
+            Some(preview_root())
         } else {
             None
         };
@@ -223,7 +229,7 @@ impl SetupApp {
         self.download_cancel.store(false, std::sync::atomic::Ordering::SeqCst);
         self.download_progress.store(0, std::sync::atomic::Ordering::SeqCst);
         let root_override = if self.dry_run {
-            Some(std::env::temp_dir().join("orion-setup-preview"))
+            self.install_plan.root_override.clone().or_else(|| Some(preview_root()))
         } else {
             None
         };
@@ -1788,5 +1794,19 @@ mod tests {
         let _ = app.update(Message::ConfirmCancelYes);
         assert!(!app.confirm_cancel_modal);
         assert!(app.install_plan.created_paths.is_empty());
+    }
+
+    #[test]
+    fn duas_previas_nao_sobrescrevem_nem_desfazem_a_instalacao_uma_da_outra() {
+        let mut a = SetupApp::new_prototype_reference();
+        let mut b = SetupApp::new_prototype_reference();
+        a.apply_step_immediately(5);
+        b.apply_step_immediately(5);
+        for _ in 0..200 { a.tick_dt(0.05); b.tick_dt(0.05); }
+        assert!(a.is_install_completed() && b.is_install_completed());
+        let files = b.install_plan.created_paths.clone();
+        a.install_plan.rollback();
+        assert!(files.iter().all(|p| p.exists()));
+        b.install_plan.rollback();
     }
 }
