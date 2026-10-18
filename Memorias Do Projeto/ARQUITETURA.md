@@ -65,13 +65,11 @@ Não saem do computador: finanças, rosto, rótulos de objetos, presença, detec
 - **Conteúdo externo.** Marcado como dado. Depois de lido, a sessão pede confirmação para escrita, execução e rede com destino escolhido pelo modelo.
 - **Câmera.** Só com pedido seu (`ver_camera`, `/camera`, a paleta ou o botão da voz ao vivo). A foto vai ao modelo de visão, é descartada logo depois e cada uso fica registrado. Vigília e presença são locais: só rótulo, sem imagem, e a tela só é bloqueada com a sua confirmação.
 
-## 5. Legado (sai na fase 7)
+## 5. Código preservado durante a migração
 
-- `Orion_Ollama/`: backend FastAPI antigo (`cerebro_maestro.py`, `routers/`), com Qdrant e SurrealDB.
-- `Orion_Core/`: front v1 (pywebview, Three.js, hub WebSocket na porta 8765), voz e sentidos antigos.
-- `bin/`: `.bat` dos serviços antigos.
+O backend `Orion_Ollama/`, os serviços em `bin/startup/`, os motores de voz antigos e a distribuição PyInstaller foram removidos. O histórico e as instruções antigas continuam no Git e em [ORION_LEGADO.md](ORION_LEGADO.md).
 
-Continuam no repositório como referência e rodando no PC atual até a venda. O conteúdo deles está em [ORION_LEGADO.md](ORION_LEGADO.md).
+`Orion_Core/Front_end_Orion/` contém somente o front HTML/CSS/JS e assets: `orion-server::estado::front_dir` e `orion.app` ainda servem essa pasta. `orion/` e `tests/` permanecem como referência executável para a paridade incompleta. O runtime residual de navegador fica isolado em `Orion_Rust/python/orion_sidecar/`; scripts de treino/avaliação de voz, smoke nativo e benchmark, fixtures MCP e edge-tts continuam usando Python.
 
 ## 6. Interface
 

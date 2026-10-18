@@ -12,7 +12,7 @@ Antônio é o administrador: decide, aprova e pode desligar qualquer coisa. Nada
 
 ## Estado (17/10/2026)
 
-- **Em uso:** o Python (`orion/`). O legado (`Orion_Ollama/`, `Orion_Core/`) segue no PC atual até a venda e sai na fase 7.
+- **Referência Python:** `orion/` e seus testes permanecem até completar a paridade Rust. O backend pré-reescrita (`Orion_Ollama/`), os serviços em `bin/startup/`, a voz antiga e os launchers pywebview antigos foram removidos do repositório. `Orion_Core/Front_end_Orion/` preserva somente os assets do front compartilhado, ainda servido pelo Rust. Isso não altera instalações ou dados no PC.
 - **Rust (`Orion_Rust/`):** workspace Cargo em andamento na branch da PR #30 com 14 crates (`orion-policy`, `orion-store`, `orion-ai`, `orion-mcp`, `orion-core`, `orion-server`, `orion-setup`, `orion-sidecar`, `orion-platform`, `orion-voice`, `orion-vault`, `orion-local`, `orion-llama`, `orion-testkit` — este último só para testes) e o pacote Python isolado do sidecar em `Orion_Rust/python/orion_sidecar`. Instalador nativo (`Orion Setup.exe` em `iced` + céu estrelado + áudio ambiente) e Fase 7 (`orion-sidecar`) concluídos.
 - **M2/M3/M4 no PR #30 (17/10/2026):** controle Windows com `orion desktop` (iced), `orion-platform` (tray-icon e hotkeys), mini barra `Ctrl+Alt+Espaço`, pânico `Ctrl+Alt+P`, rotinas concedidas e início automático opt-in. Painel/API de orçamento com estimativa persistida em chamadas, reset semanal, calibragem, projeção, tetos de 95% semanal / 20% por tarefa e janela opcional de 5 h. Telegram recebe cartões do PC com vínculo ao cartão/sessão original, código 2FA de uso único (5 min, 5 tentativas) antes de criar sessão e resposta em áudio só para pedidos por voz. `orion-voice` captura com cpal, reamostra para mono 16 kHz, usa VAD por energia, palmas calibradas (150–700 ms), openWakeWord local com modelo Orion configurado e Whisper local (CPU ou build Vulkan); Groq só com opt-in. TTS existente: edge-tts masculino pt-BR.
 - **Validação anterior (M2/M3/M4):** Python com 1.637 testes passando e 3 ignorados; Ruff, formatação, Pyright (ambiente virtual explícito) e 16 testes de front verdes. Checagem estática cruzada para Windows, CPU e Vulkan, inclui servidor/controle e testes de `orion-core`, `orion-ai`, `orion-voice` e `orion-platform`; a execução nativa fica no workflow Windows.
@@ -49,7 +49,7 @@ Antônio é o administrador: decide, aprova e pode desligar qualquer coisa. Nada
   - 4, ferramentas: feita no código; faltam os servidores MCP que você escolhe e o que depende de modelo multimodal.
   - 5, canais: feita no código (Telegram só com API falsa); faltam o Tailscale e o autostart no notebook.
   - 6, interface e voz: front só desktop; voz por clique, voz ao vivo e palavra de ativação no código; falta testar a palavra com seu microfone.
-  - 7, limpeza: não começou.
+  - 7, limpeza: backend pré-reescrita, launchers antigos, dependências Qdrant/SurrealDB e empacotamento PyInstaller removidos. Python de referência, testes de paridade, sidecar e utilitários ativos preservados.
 
 - **Não verificado** (detalhes em [ORION_LEGADO.md](ORION_LEGADO.md), documento ORION_MELHORIAS):
   - Telegram, voz e foto no Telegram: só contra API falsa.
@@ -134,12 +134,21 @@ Os itens em aberto das etapas antigas foram reescritos aqui, com IDs novos.
 
 **Fora do marco 1:** E10 a E13. E10 e E11 já têm código em Python (ver Estado), sem Rust; E12 e E13 não começaram. Cada um começa pelas regras em [REGRAS.md](REGRAS.md).
 
+### Limpeza do legado (17/10/2026)
+
+Removidos 79 arquivos obsoletos: `Orion_Ollama/`, `bin/startup/`, motores de voz antigos em `Orion_Core/`, launchers Python antigos do front, `requirements.txt` do legado e cadeia PyInstaller (workflow, spec, entrada, smoke e instruções do pacote). Saíram também os testes exclusivos desses componentes e três verificações de compatibilidade com os arquivos removidos. O front HTML/CSS/JS e seus assets continuam no mesmo caminho usado por Rust/Python e pelos testes Node. O grupo `build` e as dependências exclusivas do PyInstaller saem de `pyproject.toml`/`uv.lock`.
+
+`orion/` continua como especificação executável: vários contratos ainda não têm testes Rust, e o benchmark compara as duas implementações. Python também permanece para o sidecar, edge-tts, treino/avaliação de wake word e fixtures MCP. As proteções de caminhos antigos nos testes de política continuam válidas para dados de instalações anteriores. `ORION_LEGADO.md` e `REGRAS.md` preservam referências históricas; os fontes removidos podem ser consultados no histórico Git.
+
+Validação da limpeza: `uv sync --python 3.12 --locked`, Ruff, formatação e Pyright (com o venv explicitado) passaram; 1.564 testes Python passaram, 3 ignorados; os 16 arquivos de testes Node passaram. O workflow Windows também passa a observar o front, o smoke de modelos e a fixture MCP compartilhados. A compilação nativa continua no CI Windows.
+
 ## Decisões
 
 Registro das decisões que valem para o projeto hoje. O histórico completo, desde 25/06/2026, está em [ORION_LEGADO.md](ORION_LEGADO.md) (plano antigo, seção 8).
 
 | Data | Decisão | Motivo |
 |---|---|---|
+| 17/10/2026 | Remover backend pré-reescrita e distribuição PyInstaller; preservar front compartilhado e Python necessário para paridade, sidecar e utilitários | Pedido explícito do Antônio para limpar o repositório voltado ao Rust; paridade ainda incompleta |
 | 17/10/2026 | Instalar modelos pelo orion-setup; embarcar llama.cpp em worker nativo descartável, limitado a 30% da RAM pelo Windows; separar seus símbolos GGML do Whisper | Pedido explícito do Antônio (F03.14/F15); dispensa Ollama e limita memória de verdade |
 | 17/10/2026 | Tratar o wake word sintético como candidato até passar por avaliação real separada; bundle leva hash, limiar e métricas | Não há gravações do usuário e o candidato ainda dispara falsos positivos |
 | 17/10/2026 | Implementar o teto por tarefa de 20% da cota semanal no controle Rust, conforme pedido explícito do Antônio; medir em chamadas estimadas e informar essa origem | Não existe leitura oficial confiável das cotas nesta entrega |

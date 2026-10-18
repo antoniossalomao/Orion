@@ -54,11 +54,6 @@ def test_risco_e_conteudo_externo_batem_com_a_politica(linhas):
         assert bool(externo) is spec.external, nome
 
 
-def test_modulo_citado_existe_no_legado(linhas):
-    for nome, (_, modulo, *_) in linhas.items():
-        assert (PROJECT_ROOT / "Orion_Ollama" / "tools" / f"{modulo}.py").is_file(), nome
-
-
 def test_situacao_portada_so_para_o_que_o_registro_realmente_tem(linhas, tmp_path):
     store = MemoryStore(tmp_path / "t.db")
     try:

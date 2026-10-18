@@ -33,7 +33,7 @@ uv run orion                       # sobe em 127.0.0.1:8000
 
 Extras opcionais, cada um opt-in: `uv sync --extra camera` (câmera e visão, E11), `--extra wake` (palavra de ativação), `--extra ponte` (ponte de desktop), `--extra rerank` (reranker local) e `--extra pdf`.
 
-Windows sem instalar nada: na aba Actions, o workflow "Orion.exe (Windows)" gera o `orion.exe` (ver a seção de operação em [ORION_LEGADO.md](Memorias%20Do%20Projeto/ORION_LEGADO.md)).
+A distribuição Windows usa o workflow **Rust Windows** e o `Orion Setup.exe`; veja as instruções de compilação e instalação abaixo. O empacotamento Python por PyInstaller foi removido.
 
 Comandos úteis:
 
@@ -45,6 +45,8 @@ Comandos úteis:
 | `uv run orion panico` | Corta captura, palavra de ativação, jobs de rede e ferramentas de rede e execução |
 | `uv run orion transcrever <arquivo ou link>` | Transcreve áudio ou vídeo, com aviso antes de enviar ao provedor |
 | `uv run orion verify-export <pasta>` | Prova o export da base antiga, sem tocar no banco real |
+
+O pacote `orion/` e seus testes continuam como referência executável: a paridade Rust ainda está incompleta. O sidecar de navegador, as fixtures MCP, o treino da palavra de ativação, o benchmark e o smoke de modelos Windows também usam Python e permanecem necessários. O front em `Orion_Core/Front_end_Orion/` é compartilhado com o servidor Rust.
 
 ## Configuração
 
@@ -83,7 +85,7 @@ uv run playwright install chromium
 uv run pytest tests/front_e2e -q
 ```
 
-O CI (`.github/workflows/ci.yml`) roda isso no GitHub Actions. Para mergear, precisa estar verde em Windows e macOS.
+O workflow `.github/workflows/rust-windows.yml` compila e testa o Rust no Windows. Os comandos Python acima validam a implementação de referência e os testes ainda usados na migração.
 
 ## Layout
 
@@ -91,10 +93,9 @@ O CI (`.github/workflows/ci.yml`) roda isso no GitHub Actions. Para mergear, pre
 orion/                     # o app em Python (ver ARQUITETURA.md, seção 1)
 tests/                     # pytest, Node (front) e navegador (front_e2e)
 Memorias Do Projeto/       # documentação: ORION, REGRAS, ARQUITETURA e ORION_LEGADO
-Orion_Ollama/              # legado: backend FastAPI antigo (sai na fase 7)
-Orion_Core/                # legado: front v1 e voz antiga (sai na fase 7)
-bin/                       # legado: .bat dos serviços antigos
-.github/workflows/         # CI e build do executável
+Orion_Rust/                # workspace Rust, instalador e sidecar Python isolado
+Orion_Core/Front_end_Orion/ # front compartilhado, servido também pelo Rust
+.github/workflows/         # CI e build nativo Windows
 pyproject.toml · uv.lock   # dependências do app
 mcp.example.json · .env.example
 ```
@@ -105,7 +106,7 @@ mcp.example.json · .env.example
 - Toda rota da API exige login: senha, ou o token de admin para máquinas.
 - As ferramentas seguem a política de risco. Leitura roda direto; escrita fica no audit; execução e ação destrutiva pedem aprovação no próprio canal, com botão. Voz e frase nunca aprovam.
 - Os princípios e o teste que prova cada um estão em [REGRAS.md](Memorias%20Do%20Projeto/REGRAS.md).
-- O legado (`Orion_Ollama/`) não tem login e não deve ser exposto na rede. Ele sai na fase 7.
+- O backend antigo, seus scripts de inicialização e dependências de Qdrant/SurrealDB foram removidos. O histórico continua no Git e em `ORION_LEGADO.md`.
 - `.env`, chaves de API e credenciais OAuth nunca são versionados.
 
 **Reportar vulnerabilidade:** não abra Issue pública. Mande um e-mail para antonio.assuino.salomao@gmail.com com os passos para reproduzir, o impacto e o commit afetado. Sem SLA formal.

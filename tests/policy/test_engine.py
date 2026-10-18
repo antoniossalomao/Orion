@@ -1,12 +1,8 @@
 """Critério da fase 4 do NUCLEO: nenhuma ação destrutiva roda sem confirmação."""
 
-import re
-from pathlib import Path
-
 import pytest
 
 from orion.policy import (
-    DEFAULT_TOOLS,
     Action,
     ApprovalStore,
     Context,
@@ -182,15 +178,6 @@ def test_rate_limiter_janela():
     t[0] = 11
     assert rl.check("f") is None
     assert rl.check("outra") is None
-
-
-def test_registro_cobre_todas_as_ferramentas_do_legado():
-    """Ferramenta nova no legado sem classe de risco seria negada: falha cedo."""
-    nomes: set[str] = set()
-    for arq in Path(__file__).parents[2].glob("Orion_Ollama/tools/*.py"):
-        nomes |= set(re.findall(r'"name":\s*"([a-z_]+)"', arq.read_text(encoding="utf-8")))
-    assert len(nomes) == 55
-    assert nomes <= set(DEFAULT_TOOLS)  # a reescrita pode ter ferramentas a mais
 
 
 # ── leitura de caminho sensível ───────────────────────────────────────────

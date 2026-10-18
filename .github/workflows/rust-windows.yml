@@ -1,7 +1,12 @@
 name: Rust Windows
 on:
   pull_request:
-    paths: ["Orion_Rust/**", ".github/workflows/rust-windows.yml"]
+    paths:
+      - "Orion_Rust/**"
+      - "Orion_Core/Front_end_Orion/**"
+      - "scripts/smoke_local_windows.py"
+      - "tests/mcp_cliente/servidor_cru.py"
+      - ".github/workflows/rust-windows.yml"
   workflow_dispatch:
 concurrency:
   group: rust-windows-${{ github.event.pull_request.number || github.ref }}
