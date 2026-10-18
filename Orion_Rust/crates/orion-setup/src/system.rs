@@ -338,6 +338,7 @@ impl InstallPlan {
             "ORION_WAKE_ENABLED": false,
             "ORION_LOCAL_MODEL_GPU": choices.use_vulkan,
             "ORION_LOCAL_STT_GPU": choices.use_vulkan,
+            "installed_models": [],
         });
         let mut llm = false;
         let mut stt = false;
@@ -351,6 +352,10 @@ impl InstallPlan {
                 if created { self.created_paths.push(path.clone()); }
                 path
             };
+            config["installed_models"].as_array_mut().unwrap().push(serde_json::json!({
+                "id": artifact.id, "repository": artifact.repository, "revision": artifact.revision,
+                "sha256": artifact.sha256, "bytes": artifact.bytes, "filename": artifact.filename,
+            }));
             if artifact.kind == "llm" && !llm {
                 config["ORION_LOCAL_MODEL_PATH"] = serde_json::json!(path);
                 llm = true;
@@ -362,7 +367,7 @@ impl InstallPlan {
         if cancel.load(std::sync::atomic::Ordering::SeqCst) { return Err("instalação cancelada".into()); }
         if choices.enable_voice && !choices.wake_bundle.trim().is_empty() && self.root_override.is_none() {
             let source_dir = Path::new(choices.wake_bundle.trim());
-            let (source, _) = orion_local::wake::load(source_dir, false).map_err(|e| e.to_string())?;
+            let (source, manifest) = orion_local::wake::load(source_dir, false).map_err(|e| e.to_string())?;
             let target_dir = models_dir.join("orion-wake");
             let existed = target_dir.exists();
             std::fs::create_dir_all(&target_dir).map_err(|e| e.to_string())?;
@@ -376,6 +381,7 @@ impl InstallPlan {
             orion_local::wake::load(&target_dir, false).map_err(|e| e.to_string())?;
             if !stt { return Err("Escuta Orion exige selecionar também um modelo Whisper".into()); }
             config["ORION_WAKE_MODEL"] = serde_json::json!(target_dir.join("orion.onnx"));
+            config["ORION_WAKE_THRESHOLD"] = serde_json::json!(manifest.threshold);
             config["ORION_WAKE_ENABLED"] = serde_json::json!(true);
         }
         let target = data_dir.join("orion-local.json");
@@ -406,7 +412,7 @@ impl InstallPlan {
                 self.created_paths.push(manifest);
                 if self.root_override.is_none() {
                     let executable = std::env::current_exe().map_err(|e| e.to_string())?;
-                    let bundle = executable.parent().ok_or("pasta do instalador ausente")?;
+                    let bundle = executable.parent().ok_or("pasta do instalador ausente")?.join(if choices.use_vulkan { "vulkan" } else { "cpu" });
                     for name in ["orion.exe", "orion-llama.exe"] {
                         let mut source = std::fs::File::open(bundle.join(name)).map_err(|_| format!("O pacote precisa incluir {name}"))?;
                         let destination = app_dir.join(name);

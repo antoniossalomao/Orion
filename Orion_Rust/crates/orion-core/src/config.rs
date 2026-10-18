@@ -213,7 +213,7 @@ impl Env {
                 let mut bytes = Vec::new();
                 if file.take(65537).read_to_end(&mut bytes).is_ok() && bytes.len() <= 65536 {
                     if let Ok(Value::Object(values)) = serde_json::from_slice::<Value>(&bytes) {
-                        for key in ["ORION_DATA_DIR", "ORION_LOCAL_MODEL_PATH", "ORION_LOCAL_MODEL_GPU", "ORION_LOCAL_STT_MODEL", "ORION_LOCAL_STT_GPU", "ORION_VOICE_ENABLED", "ORION_VOICE_BARGE_IN", "ORION_WAKE_ENABLED", "ORION_WAKE_MODEL"] {
+                        for key in ["ORION_DATA_DIR", "ORION_LOCAL_MODEL_PATH", "ORION_LOCAL_MODEL_GPU", "ORION_LOCAL_STT_MODEL", "ORION_LOCAL_STT_GPU", "ORION_VOICE_ENABLED", "ORION_VOICE_BARGE_IN", "ORION_WAKE_ENABLED", "ORION_WAKE_MODEL", "ORION_WAKE_THRESHOLD"] {
                             if let Some(value) = values.get(key) {
                                 let value = value.as_str().map(String::from).unwrap_or_else(|| value.to_string());
                                 m.entry(key.into()).or_insert(value);

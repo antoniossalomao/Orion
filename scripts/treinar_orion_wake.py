@@ -36,6 +36,10 @@ from collections import deque
 from pathlib import Path
 
 FRONTEND_SHA = "d2a492188104214331630dee9125e20b13b7d54cc375f28e01163d1490884ac7"
+FRONTEND_FILES = {
+    "melspectrogram.onnx": "ba2b0e0f8b7b875369a2c89cb13360ff53bac436f2895cced9f479fa65eb176f",
+    "embedding_model.onnx": "70d164290c1d095d1d4ee149bc5e00543250a7316b59f31d056cff7bd3075c1f",
+}
 RATE = 16000
 HOP = 1280
 
@@ -60,6 +64,10 @@ def read_corpus(path: Path) -> dict:
         if not resolved.is_relative_to(path.parent.resolve()):
             raise ValueError("Áudio precisa ficar dentro da pasta do corpus")
         clip["file"] = resolved
+        if "sha256" in clip:
+            with resolved.open("rb") as audio:
+                if hashlib.file_digest(audio, "sha256").hexdigest() != clip["sha256"]:
+                    raise ValueError("Hash do áudio do corpus não confere")
     return corpus
 
 
@@ -79,8 +87,12 @@ def frontend(directory: Path):
     import onnxruntime as ort
 
     directory.mkdir(parents=True, exist_ok=True)
-    names = ["melspectrogram.onnx", "embedding_model.onnx"]
-    if not all((directory / n).exists() for n in names):
+    names = list(FRONTEND_FILES)
+    if not all(
+        (directory / n).is_file()
+        and hashlib.sha256((directory / n).read_bytes()).hexdigest() == FRONTEND_FILES[n]
+        for n in names
+    ):
         # URL fixa; valida o pacote inteiro antes de ler só os dois membros esperados.
         with urllib.request.urlopen(
             "https://crates.io/api/v1/crates/oww-rs/0.3.3/download", timeout=60
@@ -93,7 +105,10 @@ def frontend(directory: Path):
                 member = archive.extractfile(f"oww-rs-0.3.3/models/{name}")
                 if member is None:
                     raise ValueError("Frontend incompleto")
-                (directory / name).write_bytes(member.read())
+                content = member.read()
+                if hashlib.sha256(content).hexdigest() != FRONTEND_FILES[name]:
+                    raise ValueError("Hash do arquivo de frontend não confere")
+                (directory / name).write_bytes(content)
     options = ort.SessionOptions()
     options.intra_op_num_threads = 1
     sessions = [

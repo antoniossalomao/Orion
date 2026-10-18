@@ -1066,7 +1066,7 @@ impl SetupApp {
                         .font(FONT_MONO)
                         .color(with_alpha(theme::FG3, alpha)),
                     hspace(8.0),
-                    text(format!("RAM ~{} GB", m.ram_gb))
+                    text(if m.min_ram_gb > self.pc.ram_gb { format!("RAM ≥{} GB", m.min_ram_gb) } else { format!("RAM ~{} GB", m.ram_gb) })
                         .size(10)
                         .font(FONT_MONO)
                         .color(with_alpha(theme::FG3, alpha)),
@@ -1102,7 +1102,7 @@ impl SetupApp {
                     .width(Length::FillPortion(1))
                     .height(Length::Fixed(72.0))
                     .padding([8, 10])
-                    .on_press(Message::ToggleModel(m.id.to_string()))
+                    .on_press_maybe((m.min_ram_gb <= self.pc.ram_gb).then(|| Message::ToggleModel(m.id.to_string())))
                     .style(model_card_style(m.selected));
                 r = r.push(card);
             }
@@ -1158,8 +1158,8 @@ impl SetupApp {
     fn view_step_4<'a>(&'a self, s: &'a Texts, alpha: f32) -> Element<'a, Message> {
         let items = [
             (
-                "Aceleração Vulkan / Vulkan acceleration",
-                "Requer driver Vulkan compatível. Desligado usa CPU.",
+                s.s4_opt_vulkan.0,
+                s.s4_opt_vulkan.1,
                 self.choices.use_vulkan,
                 Message::ToggleVulkan(!self.choices.use_vulkan),
             ),
@@ -1230,9 +1230,9 @@ impl SetupApp {
                 .color(with_alpha(theme::FG, alpha)),
             vspace(12.0),
             list,
-            text_input("Pasta do modelo Orion validado (opcional)", &self.choices.wake_bundle)
+            text_input(s.s4_wake_bundle, &self.choices.wake_bundle)
                 .on_input(Message::WakeBundleChanged).size(11),
-            text("Sem modelo validado, a palavra de ativação permanece desligada.").size(10),
+            text(s.s4_wake_hint).size(10),
         ]
         .into()
     }

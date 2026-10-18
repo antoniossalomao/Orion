@@ -383,7 +383,8 @@ impl WakeListener {
                             let player = me.interruptible_player.lock().clone();
                             if let Some(player) = player {
                                 let abort = || me.parar.load(Ordering::SeqCst) || me.pausada() || me.suspensa.load(Ordering::SeqCst);
-                                match player(&mp3, *me.vad_threshold.lock(), &abort) {
+                                let noise_threshold = *me.vad_threshold.lock();
+                                match player(&mp3, noise_threshold, &abort) {
                                     Ok(Some(pcm)) if !abort() && me.wake_limit.lock().allow(std::time::Instant::now()) => {
                                         // REGRAS.md: voz nunca aprova; interrupção cria outro turno comum.
                                         *me.pending_utterance.lock() = Some(pcm_para_wav(&pcm, SAMPLE_RATE));

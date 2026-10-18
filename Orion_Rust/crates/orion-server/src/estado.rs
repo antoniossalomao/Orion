@@ -217,7 +217,7 @@ pub fn compactor_from_settings(settings: &Settings, memory: Arc<Store>) -> Optio
         return None;
     }
     let gw = local_gateway(settings, 300.0)?;
-    Some(Compactor::new(memory, Arc::new(gw), settings.compact_at, 30, &format!("local:{}", settings.local_model)))
+    Some(Compactor::new(memory, Arc::new(gw), settings.compact_at, 30, &format!("local:{}", local(settings, 300.0).model)))
 }
 
 /// O roteamento só liga se alguma camada tem modelo próprio.
