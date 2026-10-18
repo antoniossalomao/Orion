@@ -62,6 +62,10 @@ impl ImportReport {
 
 /// "sessao:⟨uuid⟩" / "sessao:`uuid`" / "uuid" → "uuid".
 fn id_limpo(rid: &Value) -> String {
+    if rid.is_null() {
+        // registro sem `id`: o Python lê `r.get("id", "")` e descarta como inválido
+        return String::new();
+    }
     let s = rid.as_str().map(String::from).unwrap_or_else(|| rid.to_string());
     let fim = s.rsplit_once(':').map(|x| x.1).unwrap_or(&s);
     fim.trim_matches(|c: char| "⟨⟩`'\" ".contains(c)).to_string()
@@ -238,7 +242,17 @@ fn numero(r: &Map<String, Value>, agora: f64) -> Result<Linha, String> {
     if alvo.is_empty() {
         return Err("número sem alvo".into());
     }
-    let score = g(r, "score").as_f64().unwrap_or(0.0).clamp(0.0, 1.0);
+    // `float(r.get("score") or 0.0)`: texto que não é número invalida o registro
+    let score = match g(r, "score") {
+        Value::Null | Value::Bool(false) => 0.0,
+        Value::Bool(true) => 1.0,
+        Value::Number(n) => n.as_f64().unwrap_or(0.0),
+        Value::String(t) if t.is_empty() => 0.0,
+        Value::String(t) => t.trim().parse::<f64>().map_err(|_| format!("score inválido: {t:?}"))?,
+        _ => return Err("score inválido".into()),
+    };
+    // `max(0.0, min(1.0, float(x)))` do Python: NaN vira 1.0
+    let score = if score.is_nan() { 1.0 } else { score.clamp(0.0, 1.0) };
     let fonte = Some(texto(g(r, "fonte"))).filter(|f| !f.is_empty()).unwrap_or_else(|| "orion".into());
     let c = ts(g(r, "criado"));
     Ok(("INSERT INTO numbers(target, score, reason, source, notified, created_at) VALUES (?,?,?,?,?,?)", vec![sv(&alvo), fv(score), sv(&texto(g(r, "motivo"))), sv(&fonte), iv(g(r, "notificado").as_bool().unwrap_or(false) as i64), fv(if c > 0.0 { c } else { agora })]))

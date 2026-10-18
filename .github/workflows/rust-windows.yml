@@ -23,7 +23,7 @@ jobs:
         with:
           workspaces: Orion_Rust
       - name: Testar domínio, canais, orçamento e áudio
-        run: cargo test --locked -p orion-policy -p orion-store -p orion-ai -p orion-core -p orion-server -p orion-platform -p orion-voice -p orion-local -p orion-llama -p orion-setup
+        run: cargo test --locked -p orion-policy -p orion-store -p orion-ai -p orion-core -p orion-server -p orion-platform -p orion-voice -p orion-local -p orion-llama -p orion-setup -p orion-mcp -p orion-vault -p orion-testkit
       - name: Compilar controle nativo
         run: cargo build --locked -p orion-server -p orion-llama
       - uses: actions/cache@v4

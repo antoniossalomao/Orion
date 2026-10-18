@@ -60,3 +60,6 @@ hound = "3.5"
 
 [features]
 local-vulkan = ["orion-voice/vulkan"]
+
+[dev-dependencies]
+orion-testkit.workspace = true
