@@ -76,6 +76,23 @@ impl ActivationLimit {
 mod native;
 #[cfg(windows)]
 pub use native::*;
+#[cfg(windows)]
+mod duplex;
+#[cfg(windows)]
+pub use duplex::play_interruptible;
+
+/// Interrupção exige fala sustentada após o AEC, nunca um pico isolado ou palmas.
+pub struct BargeInGate {
+    consecutive: usize,
+    threshold: f64,
+}
+impl BargeInGate {
+    pub fn new(threshold: f64) -> Self { Self { consecutive: 0, threshold: threshold.max(600.0) } }
+    pub fn feed(&mut self, pcm: &[i16]) -> bool {
+        self.consecutive = if energy(pcm) >= self.threshold { self.consecutive + 1 } else { 0 };
+        self.consecutive >= 6 // 192 ms de fala em quadros de 32 ms.
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -97,5 +114,13 @@ mod tests {
         assert!(limit.allow(now));
         assert!(!limit.allow(now));
         assert!(limit.allow(now + Duration::from_secs(3600)));
+    }
+    #[test]
+    fn interrupcao_exige_fala_continua_depois_do_eco() {
+        let mut gate = BargeInGate::new(900.0);
+        assert!(!gate.feed(&[5000; FRAME])); // uma palma não interrompe
+        assert!(!gate.feed(&[50; FRAME]));
+        for _ in 0..5 { assert!(!gate.feed(&[2000; FRAME])); }
+        assert!(gate.feed(&[2000; FRAME]));
     }
 }

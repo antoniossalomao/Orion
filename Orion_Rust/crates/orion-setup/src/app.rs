@@ -18,7 +18,7 @@ use iced::keyboard;
 use iced::mouse;
 use iced::time;
 use iced::widget::{
-    button, column, container, image as iced_image, mouse_area, row, stack, text, Column, Space,
+    button, column, container, image as iced_image, mouse_area, row, stack, text, text_input, Column, Space,
 };
 use iced::window;
 use iced::{Alignment, Background, Border, Color, Element, Length, Point, Subscription, Task, Theme};
@@ -64,6 +64,8 @@ pub enum Message {
     ToggleModel(String),
     ToggleAutostart(bool),
     ToggleVoice(bool),
+    ToggleVulkan(bool),
+    WakeBundleChanged(String),
     ToggleTaskbar(bool),
     ToggleCrashReports(bool),
     ToggleErrorDetails,
@@ -92,6 +94,10 @@ pub struct SetupApp {
     pub dry_run: bool,
     pub last_tick: Option<Instant>,
     pub selected_disk_idx: usize,
+    download_worker: Option<std::sync::mpsc::Receiver<(InstallPlan, Result<String, String>)>>,
+    download_cancel: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    download_progress: std::sync::Arc<std::sync::atomic::AtomicU64>,
+    cancel_after_download: bool,
 }
 
 impl Default for SetupApp {
@@ -145,6 +151,10 @@ impl SetupApp {
             dry_run,
             last_tick: None,
             selected_disk_idx,
+            download_worker: None,
+            download_cancel: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            download_progress: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0)),
+            cancel_after_download: false,
         }
     }
 
@@ -210,6 +220,8 @@ impl SetupApp {
     }
 
     pub fn start_installation(&mut self) {
+        self.download_cancel.store(false, std::sync::atomic::Ordering::SeqCst);
+        self.download_progress.store(0, std::sync::atomic::Ordering::SeqCst);
         let root_override = if self.dry_run {
             Some(std::env::temp_dir().join("orion-setup-preview"))
         } else {
@@ -266,7 +278,26 @@ impl SetupApp {
             }
         }
 
-        // Progresso da etapa 5 (Instalação: 0.9 s por subetapa, idêntico a `orion-instalador.html` linha 330)
+        if let Some(worker) = &self.download_worker {
+            if let Ok((plan, result)) = worker.try_recv() {
+                self.download_worker = None;
+                self.install_plan = plan;
+                match result {
+                    Ok(_) if !self.cancel_after_download => {
+                        self.step_statuses[5] = StepItemStatus::Done;
+                        self.current_install_idx = 6;
+                        self.install_substep_progress = 0.0;
+                        self.sky.notify_install_completed();
+                    }
+                    _ => {
+                        self.step_statuses[5] = StepItemStatus::Error;
+                        self.install_error = Some(result.err().unwrap_or_else(|| "Instalação cancelada".into()));
+                        self.install_plan.rollback();
+                    }
+                }
+            }
+        }
+        // Downloads reais rodam fora do laço da UI, sem progresso temporal fictício.
         if self.step == 5
             && self.install_started
             && !self.is_install_completed()
@@ -280,6 +311,24 @@ impl SetupApp {
             {
                 self.install_substep_progress -= 1.0;
                 let idx = self.current_install_idx;
+                if idx == 5 && !self.dry_run {
+                    self.install_substep_progress = 0.0;
+                    if self.download_worker.is_none() {
+                        let mut plan = self.install_plan.clone();
+                        let choices = self.choices.clone();
+                        let cancel = self.download_cancel.clone();
+                        let progress = self.download_progress.clone();
+                        let (send, receive) = std::sync::mpsc::channel();
+                        self.download_worker = Some(receive);
+                        std::thread::spawn(move || {
+                            let result = plan.install_models(&choices, &cancel, &|n, total| {
+                                progress.store(n.saturating_mul(1000) / total.max(1), std::sync::atomic::Ordering::SeqCst);
+                            });
+                            let _ = send.send((plan, result));
+                        });
+                    }
+                    break;
+                }
                 match self.install_plan.execute_step(idx, &self.choices) {
                     Ok(_) => {
                         self.step_statuses[idx] = StepItemStatus::Done;
@@ -312,7 +361,9 @@ impl SetupApp {
             .iter()
             .filter(|s| **s == StepItemStatus::Done)
             .count();
-        let active_frac = if self.current_install_idx < 6 {
+        let active_frac = if self.download_worker.is_some() {
+            self.download_progress.load(std::sync::atomic::Ordering::SeqCst) as f32 / 1000.0
+        } else if self.current_install_idx < 6 {
             self.install_substep_progress.clamp(0.0, 1.0)
         } else {
             0.0
@@ -331,6 +382,9 @@ impl SetupApp {
                 self.last_tick = Some(now);
                 self.tick_dt(dt);
                 self.sky_handle = self.sky.render_image_handle();
+                if self.cancel_after_download && self.download_worker.is_none() {
+                    return window::latest().and_then(window::close);
+                }
                 Task::none()
             }
             Message::CursorMoved(point) => {
@@ -354,6 +408,11 @@ impl SetupApp {
             }
             Message::ConfirmCancelYes => {
                 self.confirm_cancel_modal = false;
+                if self.download_worker.is_some() {
+                    self.download_cancel.store(true, std::sync::atomic::Ordering::SeqCst);
+                    self.cancel_after_download = true;
+                    return Task::none();
+                }
                 self.install_plan.rollback();
                 self.sound.fade_out();
                 window::latest().and_then(window::close)
@@ -421,6 +480,18 @@ impl SetupApp {
                 Task::none()
             }
             Message::ToggleModel(id) => {
+                let selected = self.choices.models.iter().find(|m| m.id == id).is_some_and(|m| m.selected);
+                let artifact = orion_local::catalog::find(&id);
+                // Um LLM e um STT ativos por vez; rejeita escolhas que excedem o teto.
+                if !selected {
+                    if let Some(a) = &artifact {
+                        let total = self.pc.ram_gb as u64 * 1024 * 1024 * 1024;
+                        if a.kind == "llm" && !orion_local::admitted(a.bytes, total, total) { return Task::none(); }
+                        for m in &mut self.choices.models {
+                            if orion_local::catalog::find(&m.id).is_some_and(|other| other.kind == a.kind) { m.selected = false; }
+                        }
+                    }
+                }
                 if let Some(m) = self.choices.models.iter_mut().find(|m| m.id == id) {
                     m.selected = !m.selected;
                 }
@@ -432,6 +503,14 @@ impl SetupApp {
             }
             Message::ToggleVoice(val) => {
                 self.choices.enable_voice = val;
+                Task::none()
+            }
+            Message::ToggleVulkan(val) => {
+                self.choices.use_vulkan = val;
+                Task::none()
+            }
+            Message::WakeBundleChanged(path) => {
+                self.choices.wake_bundle = path;
                 Task::none()
             }
             Message::ToggleTaskbar(val) => {
@@ -451,6 +530,23 @@ impl SetupApp {
                 Task::none()
             }
             Message::OpenOrion => {
+                if !self.dry_run {
+                    let executable = self.choices.app_dir.join("orion.exe");
+                    let mut command = std::process::Command::new(executable);
+                    command.arg("desktop").current_dir(&self.choices.app_dir).env_clear();
+                    for key in ["SystemRoot", "WINDIR", "PATH", "TEMP", "TMP", "USERPROFILE", "APPDATA", "LOCALAPPDATA"] {
+                        if let Some(value) = std::env::var_os(key) { command.env(key, value); }
+                    }
+                    #[cfg(windows)]
+                    {
+                        use std::os::windows::process::CommandExt;
+                        command.creation_flags(0x0800_0000);
+                    }
+                    if command.spawn().is_err() {
+                        self.install_error = Some("Não foi possível abrir o Orion instalado. Confira as permissões da pasta.".into());
+                        return Task::none();
+                    }
+                }
                 self.sound.fade_out();
                 window::latest().and_then(window::close)
             }
@@ -984,7 +1080,7 @@ impl SetupApp {
 
                 let card_col = column![
                     row![
-                        text(m.name)
+                        text(&m.name)
                             .size(12)
                             .font(FONT_SANS_SEMIBOLD)
                             .color(with_alpha(theme::FG, alpha)),
@@ -1062,6 +1158,12 @@ impl SetupApp {
     fn view_step_4<'a>(&'a self, s: &'a Texts, alpha: f32) -> Element<'a, Message> {
         let items = [
             (
+                "Aceleração Vulkan / Vulkan acceleration",
+                "Requer driver Vulkan compatível. Desligado usa CPU.",
+                self.choices.use_vulkan,
+                Message::ToggleVulkan(!self.choices.use_vulkan),
+            ),
+            (
                 s.s4_opt_autostart.0,
                 s.s4_opt_autostart.1,
                 self.choices.start_with_windows,
@@ -1128,6 +1230,9 @@ impl SetupApp {
                 .color(with_alpha(theme::FG, alpha)),
             vspace(12.0),
             list,
+            text_input("Pasta do modelo Orion validado (opcional)", &self.choices.wake_bundle)
+                .on_input(Message::WakeBundleChanged).size(11),
+            text("Sem modelo validado, a palavra de ativação permanece desligada.").size(10),
         ]
         .into()
     }

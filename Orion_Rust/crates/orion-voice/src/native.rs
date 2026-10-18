@@ -88,9 +88,20 @@ pub struct OrionWake {
 }
 impl OrionWake {
     pub fn load(path: &Path, threshold: f32) -> anyhow::Result<Self> {
+        Self::load_checked(path, threshold, false)
+    }
+    /// Só para o comando explícito de calibração; não liga agente, rede nem ferramentas.
+    pub fn load_for_calibration(path: &Path) -> anyhow::Result<Self> {
+        Self::load_checked(path, 0.5, true)
+    }
+    fn load_checked(path: &Path, threshold: f32, calibration: bool) -> anyhow::Result<Self> {
+        let (_, manifest) = orion_local::wake::load(path.parent().context("pasta do modelo ausente")?, calibration)?;
+        anyhow::ensure!(path.file_name().is_some_and(|n| n == "orion.onnx"), "use o bundle orion.onnx/orion.json");
         anyhow::ensure!(path.is_file(), "configure o modelo ONNX treinado para Orion");
         // A biblioteca usa assert internamente ao validar ONNX. Um modelo inválido desliga a escuta.
-        let model = std::panic::catch_unwind(|| oww_rs::oww::OwwModel::from_file(path, "Orion".into(), threshold))
+        anyhow::ensure!(calibration || (manifest.threshold - threshold).abs() < 0.0001, "limiar configurado difere do limiar avaliado no bundle Orion");
+        let calibrated_threshold = manifest.threshold;
+        let model = std::panic::catch_unwind(|| oww_rs::oww::OwwModel::from_file(path, "Orion".into(), calibrated_threshold))
             .map_err(|_| anyhow!("modelo openWakeWord inválido"))??;
         Ok(Self { model, buffered: Vec::new() })
     }
@@ -114,6 +125,7 @@ pub struct LocalWhisper {
 }
 impl LocalWhisper {
     pub fn load(path: &Path, gpu: bool) -> anyhow::Result<Self> {
+        anyhow::ensure!(!gpu || cfg!(feature = "vulkan"), "esta compilação não inclui Whisper Vulkan; desative GPU ou instale o pacote Vulkan");
         let mut params = WhisperContextParameters::default();
         params.use_gpu(gpu);
         let context = WhisperContext::new_with_params(path.to_str().context("caminho do modelo inválido")?, params)

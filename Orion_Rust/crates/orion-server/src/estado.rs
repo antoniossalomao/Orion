@@ -153,14 +153,30 @@ pub fn endpoints_dos_provedores(settings: &Settings, camadas: Option<&[&str]>) -
 fn local(settings: &Settings, timeout: f64) -> Endpoint {
     Endpoint {
         name: "local".into(),
-        base_url: settings.local_url.clone(),
-        model: settings.local_model.clone(),
+        base_url: if settings.local_model_path.is_some() { "embedded://llama.cpp".into() } else { settings.local_url.clone() },
+        model: settings.local_model_path.as_ref().map(|p| p.file_name().unwrap_or_default().to_string_lossy().into_owned()).unwrap_or_else(|| settings.local_model.clone()),
         api_key: None,
         timeout_s: timeout,
         tier: CAMADA_LOCAL.into(),
         tools: false,
         provedor: String::new(),
     }
+}
+
+fn has_local(settings: &Settings) -> bool {
+    settings.local_model_path.is_some() || !settings.local_model.is_empty()
+}
+
+fn install_local_backend(gateway: ChatGateway, settings: &Settings) -> ChatGateway {
+    if let Some(path) = &settings.local_model_path {
+        *gateway.embedded_local.lock() = Some(crate::embedded::generator(path.clone(), settings.local_model_gpu));
+    }
+    gateway
+}
+
+fn local_gateway(settings: &Settings, timeout: f64) -> Option<ChatGateway> {
+    if !has_local(settings) { return None; }
+    ChatGateway::new(vec![local(settings, timeout)]).ok().map(|g| install_local_backend(g, settings))
 }
 
 pub fn gateway_from_settings(settings: &Settings) -> Option<ChatGateway> {
@@ -184,23 +200,23 @@ pub fn gateway_from_settings(settings: &Settings) -> Option<ChatGateway> {
             }
         }
     }
-    if !settings.local_model.is_empty() {
+    if has_local(settings) {
         // REGRAS.md: o modelo deste computador entra por último e nunca recebe ferramentas
         eps.push(local(settings, 180.0));
     }
     if eps.is_empty() {
         return None;
     }
-    ChatGateway::new(eps).ok()
+    ChatGateway::new(eps).ok().map(|g| install_local_backend(g, settings))
 }
 
 /// Auto-compact só com o modelo local, num gateway próprio: o texto da conversa nunca sai do
 /// computador para ser resumido (REGRAS.md: resumo da conversa nunca substitui o registro).
 pub fn compactor_from_settings(settings: &Settings, memory: Arc<Store>) -> Option<Arc<Compactor>> {
-    if settings.compact_at == 0 || settings.local_model.is_empty() {
+    if settings.compact_at == 0 || !has_local(settings) {
         return None;
     }
-    let gw = ChatGateway::new(vec![local(settings, 300.0)]).ok()?;
+    let gw = local_gateway(settings, 300.0)?;
     Some(Compactor::new(memory, Arc::new(gw), settings.compact_at, 30, &format!("local:{}", settings.local_model)))
 }
 
@@ -655,11 +671,7 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
             }
         }));
     }
-    let gateway_local: Option<Arc<dyn orion_core::memory::Completer>> = if settings.local_model.is_empty() {
-        None
-    } else {
-        ChatGateway::new(vec![local(&settings, 60.0)]).ok().map(|g| Arc::new(g) as Arc<dyn orion_core::memory::Completer>)
-    };
+    let gateway_local: Option<Arc<dyn orion_core::memory::Completer>> = local_gateway(&settings, 60.0).map(|g| Arc::new(g) as Arc<dyn orion_core::memory::Completer>);
     let vida_canal =
         Arc::new(orion_core::vida::VidaCanal::new(memory.clone(), financas.clone(), precos.clone(), foco.clone(), revisao, ops.clone(), gateway_local.clone()));
     let vigia = vigia_from_settings(&settings, memory.clone(), tela.clone(), ops.clone(), detector.clone(), avistamentos.clone());
@@ -994,6 +1006,13 @@ fn listen_from_settings(
         } else {
             Arc::new(WakeListener::new(detector, source, Arc::new(|_| {}), Some(memory), config, None))
         };
+        if settings.wake_enabled && settings.voice_barge_in {
+            let device = settings.wake_device.clone();
+            let delay = settings.voice_aec_delay_ms;
+            *listener.interruptible_player.lock() = Some(Arc::new(move |mp3, noise_threshold, abort| {
+                orion_voice::play_interruptible(mp3, &device, delay, noise_threshold, abort).map_err(|_| "reprodução com AEC3 indisponível".into())
+            }));
+        }
         *listener.modos.lock() = Some(modos);
         *listener.on_activate.lock() = Some(Arc::new(move || {
             open.store(true, std::sync::atomic::Ordering::SeqCst);

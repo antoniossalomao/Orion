@@ -33,11 +33,16 @@ impl Detector for OpenWakeWord {
 }
 
 pub fn transcriber(model: &Path, gpu: bool, fallback: Option<orion_ai::transcribe::Transcriber>) -> anyhow::Result<orion_ai::transcribe::Transcriber> {
-    let context = Arc::new(Mutex::new(orion_voice::LocalWhisper::load(model, gpu)?));
+    anyhow::ensure!(model.is_file(), "modelo Whisper ausente");
+    let model = model.to_path_buf();
+    // Carrega só ao transcrever e libera os pesos antes de responder com o LLM.
+    let serialization = Arc::new(Mutex::new(()));
     Ok(orion_ai::transcribe::Transcriber::with_local(
         Arc::new(move |audio| {
             let decoded = decode(audio).map_err(|_| orion_ai::transcribe::TranscribeError("não foi possível decodificar o áudio local".into()))?;
-            let text = context.lock().transcribe(decoded).map_err(|_| orion_ai::transcribe::TranscribeError("transcrição local falhou".into()))?;
+            let _serial = serialization.lock();
+            let context = orion_voice::LocalWhisper::load(&model, gpu).map_err(|_| orion_ai::transcribe::TranscribeError("modelo Whisper local indisponível".into()))?;
+            let text = context.transcribe(decoded).map_err(|_| orion_ai::transcribe::TranscribeError("transcrição local falhou".into()))?;
             if text.is_empty() {
                 return Err(orion_ai::transcribe::TranscribeError("áudio sem fala".into()));
             }

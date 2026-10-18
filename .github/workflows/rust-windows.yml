@@ -23,9 +23,15 @@ jobs:
         with:
           workspaces: Orion_Rust
       - name: Testar domínio, canais, orçamento e áudio
-        run: cargo test --locked -p orion-policy -p orion-store -p orion-ai -p orion-core -p orion-server -p orion-platform -p orion-voice
+        run: cargo test --locked -p orion-policy -p orion-store -p orion-ai -p orion-core -p orion-server -p orion-platform -p orion-voice -p orion-local -p orion-llama -p orion-setup
       - name: Compilar controle nativo
-        run: cargo build --locked -p orion-server
+        run: cargo build --locked -p orion-server -p orion-llama
+      - uses: actions/cache@v4
+        with:
+          path: C:\orion-models
+          key: qwen3-06b-9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031
+      - name: Testar GGUF real no worker CPU
+        run: python ../scripts/smoke_local_windows.py target/debug/orion.exe C:\orion-models
       - name: Instalar SDK para conferir o backend Vulkan
         shell: pwsh
         run: |
@@ -34,8 +40,21 @@ jobs:
           if (!(Test-Path "$sdk\Bin\glslc.exe")) { throw 'SDK Vulkan sem glslc' }
           "VULKAN_SDK=$sdk" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           "$sdk\Bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
-      - name: Conferir backend Vulkan
+      - name: Compilar pacote Windows com Whisper e llama.cpp Vulkan
         # Alvo curto: o MSBuild do whisper.cpp/Vulkan estoura 260 caracteres (FTK1011).
         env:
           CARGO_TARGET_DIR: C:\t
-        run: cargo check --locked -p orion-server --features local-vulkan
+        run: cargo build --locked -p orion-server -p orion-setup -p orion-llama --features orion-server/local-vulkan,orion-llama/vulkan
+      - name: Montar pacote do instalador
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force pacote | Out-Null
+          Copy-Item C:\t\debug\orion.exe pacote\
+          Copy-Item C:\t\debug\orion-llama.exe pacote\
+          Copy-Item C:\t\debug\orion-setup.exe 'pacote\Orion Setup.exe'
+          Copy-Item models\orion-wake-candidate pacote\wake-candidate -Recurse
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Orion-native-Windows-Vulkan
+          path: Orion_Rust/pacote
+          if-no-files-found: error

@@ -61,7 +61,7 @@ impl Endpoint {
     /// Nome no registro de saída: `gateway:<provedor>`, `gateway:<camada>` ou `ollama`.
     pub fn provider(&self) -> String {
         if self.tier == CAMADA_LOCAL {
-            return "ollama".into();
+            return if self.base_url == "embedded://llama.cpp" { "local" } else { "ollama" }.into();
         }
         let n = if !self.provedor.is_empty() {
             &self.provedor
@@ -120,6 +120,7 @@ impl GatewayError {
 }
 
 pub type EventStream<'a> = Pin<Box<dyn Stream<Item = Result<Event, GatewayError>> + Send + 'a>>;
+pub type LocalGenerator = Arc<dyn Fn(Vec<Value>) -> EventStream<'static> + Send + Sync>;
 
 /// Orçamento diário por provedor: `false` = já gastou o de hoje.
 pub type Orcamento = Arc<dyn Fn(&Endpoint) -> bool + Send + Sync>;
@@ -138,6 +139,7 @@ pub struct ChatGateway {
     estado: Mutex<Estado>,
     pub orcamento: Mutex<Option<Orcamento>>,
     pub weekly_budget: Mutex<Option<Arc<crate::budget::Budget>>>,
+    pub embedded_local: Mutex<Option<LocalGenerator>>,
 }
 
 fn agora_epoch() -> f64 {
@@ -173,7 +175,7 @@ impl ChatGateway {
         for ep in &endpoints {
             estado.stats.insert(ep.name.clone(), EndpointStats::default());
         }
-        Ok(ChatGateway { endpoints, client, cooldown_s, estado: Mutex::new(estado), weekly_budget: Mutex::new(None), orcamento: Mutex::new(None) })
+        Ok(ChatGateway { endpoints, client, cooldown_s, estado: Mutex::new(estado), weekly_budget: Mutex::new(None), orcamento: Mutex::new(None), embedded_local: Mutex::new(None) })
     }
 
     /// Um objeto por endpoint, na ordem de tentativa (para o painel). Nunca mostra segredo
@@ -371,6 +373,26 @@ impl ChatGateway {
                 msgs.push(json!({"role": "system", "content": AVISO_RESERVA}));
             }
             msgs.extend(messages.iter().cloned());
+            if ep.tier == CAMADA_LOCAL && ep.base_url == "embedded://llama.cpp" {
+                let generator = self.embedded_local.lock().clone();
+                let Some(generator) = generator else {
+                    yield Err(Falha::Antes("backend embarcado não disponível nesta compilação".into()));
+                    return;
+                };
+                // REGRAS.md: modelo local é reserva sem ferramentas. O callback só recebe mensagens.
+                let mut local = generator(msgs);
+                while let Some(result) = local.next().await {
+                    match result {
+                        Ok(Event::ToolCall(_)) => {
+                            yield Err(Falha::Antes("backend local tentou usar ferramentas".into()));
+                            return;
+                        }
+                        Ok(event) => yield Ok(event),
+                        Err(error) => { yield Err(Falha::Transporte(error.mensagem)); return; }
+                    }
+                }
+                return;
+            }
             let mut corpo = json!({"model": ep.model, "messages": msgs, "stream": true});
             if let Some(t) = tools.filter(|t| !t.is_empty() && ep.tools) {
                 corpo["tools"] = Value::Array(t.to_vec());
@@ -504,5 +526,41 @@ fn retry_after(valor: Option<&str>, padrao: f64) -> f64 {
     match valor.and_then(|v| v.trim().parse::<f64>().ok()) {
         Some(v) => v.max(1.0),
         None => padrao,
+    }
+}
+
+#[cfg(test)]
+mod embedded_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn reserva_embarcada_nao_recebe_ferramentas_nem_abre_http() {
+        let mut ep = Endpoint::new("local", "embedded://llama.cpp", "modelo.gguf");
+        ep.tier = CAMADA_LOCAL.into();
+        ep.tools = false;
+        let gateway = ChatGateway::new(vec![ep]).unwrap();
+        *gateway.embedded_local.lock() = Some(Arc::new(|messages| {
+            assert_eq!(messages[0]["content"], AVISO_RESERVA);
+            assert!(messages.iter().all(|m| m.get("tools").is_none()));
+            Box::pin(futures::stream::iter([
+                Ok(Event::TextDelta("local".into())),
+                Ok(Event::Finish { reason: "stop".into(), endpoint: "local".into(), model: "modelo.gguf".into() }),
+            ]))
+        }));
+        let events: Vec<_> = gateway.stream(vec![json!({"role":"user","content":"olá"})], Some(vec![json!({"type":"function"})]), None).collect().await;
+        assert_eq!(events[0].as_ref().unwrap(), &Event::TextDelta("local".into()));
+        assert!(events.iter().all(Result::is_ok));
+    }
+
+    #[tokio::test]
+    async fn chamada_de_ferramenta_do_backend_local_e_recusada() {
+        let mut ep = Endpoint::new("local", "embedded://llama.cpp", "modelo.gguf");
+        ep.tier = CAMADA_LOCAL.into();
+        ep.tools = false;
+        let gateway = ChatGateway::new(vec![ep]).unwrap();
+        *gateway.embedded_local.lock() = Some(Arc::new(|_| {
+            Box::pin(futures::stream::iter([Ok(Event::ToolCall(ToolCallRequest { id: "x".into(), name: "executar".into(), arguments: Map::new(), error: None }))]))
+        }));
+        assert!(gateway.complete(vec![json!({"role":"user","content":"teste"})]).await.is_err());
     }
 }

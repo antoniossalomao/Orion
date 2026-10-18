@@ -222,6 +222,7 @@ pub struct WakeStats {
 pub type OnVoiceTurn = Arc<dyn Fn(&[u8]) + Send + Sync>;
 pub type OnClap = Arc<dyn Fn() + Send + Sync>;
 pub type PlayFn = Arc<dyn Fn(&[u8]) -> bool + Send + Sync>;
+pub type InterruptiblePlayFn = Arc<dyn Fn(&[u8], f64, &(dyn Fn() -> bool + Sync)) -> Result<Option<Vec<u8>>, String> + Send + Sync>;
 pub type SourceFactory = Arc<dyn Fn() -> Result<Box<dyn AudioSource>, String> + Send + Sync>;
 
 pub struct WakeListener {
@@ -244,6 +245,8 @@ pub struct WakeListener {
     vad_threshold: Mutex<f64>,
     wake_limit: Mutex<orion_voice::ActivationLimit>,
     clap_limit: Mutex<orion_voice::ActivationLimit>,
+    pub interruptible_player: Mutex<Option<InterruptiblePlayFn>>,
+    pending_utterance: Mutex<Option<Vec<u8>>>,
 }
 
 impl WakeListener {
@@ -275,6 +278,8 @@ impl WakeListener {
             suspensa: AtomicBool::new(false),
             pausa_mem: AtomicBool::new(false),
             parar: AtomicBool::new(false),
+            interruptible_player: Mutex::new(None),
+            pending_utterance: Mutex::new(None),
             tempo_s: Mutex::new(0.0),
         }
     }
@@ -375,7 +380,20 @@ impl WakeListener {
                             if let Some(v) = &vs {
                                 v.inc_sintetizados();
                             }
-                            tc(&mp3);
+                            let player = me.interruptible_player.lock().clone();
+                            if let Some(player) = player {
+                                let abort = || me.parar.load(Ordering::SeqCst) || me.pausada() || me.suspensa.load(Ordering::SeqCst);
+                                match player(&mp3, *me.vad_threshold.lock(), &abort) {
+                                    Ok(Some(pcm)) if !abort() && me.wake_limit.lock().allow(std::time::Instant::now()) => {
+                                        // REGRAS.md: voz nunca aprova; interrupção cria outro turno comum.
+                                        *me.pending_utterance.lock() = Some(pcm_para_wav(&pcm, SAMPLE_RATE));
+                                    }
+                                    Err(_) => { me.stats.lock().erros += 1; }
+                                    _ => {}
+                                }
+                            } else {
+                                tc(&mp3);
+                            }
                         }
                         Err(_) => {
                             if let Some(v) = &vs {
@@ -413,6 +431,7 @@ impl WakeListener {
     /// Chamada pelo modo pânico / não perturbe para cortar a escuta na hora.
     pub fn set_suspended(&self, ativa: bool) {
         self.suspensa.store(ativa, Ordering::SeqCst);
+        if ativa { self.pending_utterance.lock().take(); }
     }
 
     pub fn estado(&self) -> Value {
@@ -543,6 +562,7 @@ impl WakeListener {
 
     pub fn stop(&self) {
         self.parar.store(true, Ordering::SeqCst);
+        self.pending_utterance.lock().take();
         self.rodando.store(false, Ordering::SeqCst);
     }
 
@@ -555,6 +575,12 @@ impl WakeListener {
                     src.close();
                 }
                 std::thread::sleep(Duration::from_millis(100));
+                self.pending_utterance.lock().take();
+                continue;
+            }
+            let pending = self.pending_utterance.lock().take();
+            if let Some(wav) = pending {
+                (self.on_utterance.lock())(&wav);
                 continue;
             }
             if source.is_none() {
@@ -596,6 +622,7 @@ impl WakeListener {
             if let Some(mut src) = source.take() {
                 src.close()
             }
+            if self.pending_utterance.lock().is_some() { continue; }
             for _ in 0..15 {
                 if self.parar.load(Ordering::SeqCst) || self.pausada() {
                     break;

@@ -114,7 +114,7 @@ pub const PT_BR: Texts = Texts {
     cancel_keep: "Continuar instalando",
     s1_eyebrow: "BOAS-VINDAS",
     s1_title: "Vamos instalar o Orion",
-    s1_lead: "Seu assistente de desktop. Leva uns 2 minutos. Os modelos locais baixam depois, em segundo plano, e o Orion já abre usando as APIs enquanto isso.",
+    s1_lead: "Seu assistente de desktop. Você escolhe se quer baixar modelos locais. O instalador confere cada arquivo antes de ativar o modo local.",
     s1_lang_label: "Idioma",
     s1_pc_eyebrow: "SEU PC",
     s1_sys_label: "Sistema",
@@ -135,11 +135,11 @@ pub const PT_BR: Texts = Texts {
     s3_title: "O que roda no seu PC",
     s3_lead: "Todos ficam descarregados e só ocupam RAM quando são chamados. Dá para mudar depois em Configurações › Modelos locais.",
     s3_rec_badge: "recomendado p/ seu PC",
-    s3_bg_note: "baixa depois, em segundo plano",
+    s3_bg_note: "download e verificação nesta instalação",
     s4_eyebrow: "OPÇÕES",
     s4_title: "Últimos ajustes",
     s4_opt_autostart: ("Iniciar com o Windows", "Abre minimizado na bandeja"),
-    s4_opt_voice: ("Ativar voz", "Palavra \"Orion\" e duas palmas"),
+    s4_opt_voice: ("Ativar voz", "Voz por clique; escuta exige o modelo Orion validado"),
     s4_opt_taskbar: ("Fixar na barra de tarefas", "O atalho no Menu Iniciar é sempre criado"),
     s4_opt_crash: ("Enviar relatório de falhas", "Só para a automelhoria do Orion"),
     s4_footer: "Tudo pode ser mudado depois",
@@ -148,7 +148,7 @@ pub const PT_BR: Texts = Texts {
     s5_title_done: "Pronto. O Orion está no céu.",
     s5_title_error: "Algo deu errado",
     s5_footer_installing: "Instalando componentes do sistema…",
-    s5_footer_done: "Os modelos continuam baixando no app",
+    s5_footer_done: "Modelos selecionados verificados e configurados",
 };
 
 pub const EN: Texts = Texts {
@@ -164,7 +164,7 @@ pub const EN: Texts = Texts {
     cancel_keep: "Keep installing",
     s1_eyebrow: "WELCOME",
     s1_title: "Let's install Orion",
-    s1_lead: "Your desktop assistant. Takes about 2 minutes. Local models download later in the background, and Orion opens right away using APIs in the meantime.",
+    s1_lead: "Your desktop assistant. You choose whether to download local models. Setup verifies each file before enabling local inference.",
     s1_lang_label: "Language",
     s1_pc_eyebrow: "YOUR PC",
     s1_sys_label: "System",
@@ -185,11 +185,11 @@ pub const EN: Texts = Texts {
     s3_title: "What runs on your PC",
     s3_lead: "All models stay unloaded and only use RAM when called. You can change them later in Settings › Local models.",
     s3_rec_badge: "recommended for your PC",
-    s3_bg_note: "downloads later in background",
+    s3_bg_note: "download and verification during setup",
     s4_eyebrow: "OPTIONS",
     s4_title: "Final adjustments",
     s4_opt_autostart: ("Start with Windows", "Opens minimized to the system tray"),
-    s4_opt_voice: ("Enable voice", "Wake word \"Orion\" and double clap"),
+    s4_opt_voice: ("Enable voice", "Push-to-talk; listening requires a validated Orion model"),
     s4_opt_taskbar: ("Pin to taskbar", "Start Menu shortcut is always created"),
     s4_opt_crash: ("Send crash reports", "Only for Orion self-improvement"),
     s4_footer: "Everything can be changed later",
@@ -198,7 +198,7 @@ pub const EN: Texts = Texts {
     s5_title_done: "Ready. Orion is in the sky.",
     s5_title_error: "Something went wrong",
     s5_footer_installing: "Installing system components…",
-    s5_footer_done: "Models continue downloading in the app",
+    s5_footer_done: "Selected models verified and configured",
 };
 
 pub fn texts(lang: Language) -> &'static Texts {
@@ -217,7 +217,7 @@ pub fn install_step_texts(total_gb: f32, lang: Language) -> [String; 6] {
             "Instalando o certificado do Orion".into(),
             "Criando atalhos no Menu Iniciar e na barra".into(),
             "Configurando o serviço de atualização".into(),
-            format!("Agendando o download dos modelos ({gb_str})"),
+            format!("Baixando e verificando os modelos ({gb_str})"),
         ],
         Language::En => [
             "Copying Orion to Program Files".into(),
@@ -225,7 +225,7 @@ pub fn install_step_texts(total_gb: f32, lang: Language) -> [String; 6] {
             "Installing Orion certificate".into(),
             "Creating Start Menu and taskbar shortcuts".into(),
             "Configuring update service".into(),
-            format!("Scheduling model downloads ({gb_str})"),
+            format!("Downloading and verifying models ({gb_str})"),
         ],
     }
 }

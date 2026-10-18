@@ -648,10 +648,25 @@ pub fn wake_test(s: &Settings, listar: bool, segundos: u64) -> anyhow::Result<i3
         }
         return Ok(0);
     }
-    println!(
-        "wake-test ({segundos}s, motor={}): o detector nativo de áudio em tempo real requer pareamento de dispositivo local.",
-        s.wake_engine
-    );
+    #[cfg(windows)]
+    {
+        let model = s.wake_model.as_ref().ok_or_else(|| anyhow::anyhow!("Defina ORION_WAKE_MODEL para o orion.onnx candidato ou validado"))?;
+        let mut detector = orion_voice::OrionWake::load_for_calibration(model)?;
+        let microphone = orion_voice::Microphone::open(&s.wake_device)?;
+        let start = std::time::Instant::now();
+        let duration = std::time::Duration::from_secs(segundos.clamp(1, 600));
+        let mut activations = 0;
+        println!("Teste local de Orion: sem transcrição, agente, gravação ou rede.");
+        while start.elapsed() < duration {
+            if let Some(frame) = microphone.read_frame() {
+                if detector.feed(&frame) { activations += 1; println!("ativação {activations}"); }
+            } else { anyhow::bail!("microfone desconectado"); }
+        }
+        println!("Ativações: {activations}");
+    }
+    #[cfg(not(windows))]
+    anyhow::bail!("calibração nativa disponível no Windows (tempo solicitado: {segundos}s)");
+
     Ok(0)
 }
 

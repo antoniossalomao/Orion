@@ -4,6 +4,7 @@ mod cli_extra;
 #[cfg(windows)]
 mod desktop;
 mod estado;
+mod embedded;
 mod http;
 mod log;
 mod rotas;
@@ -26,6 +27,14 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Cmd {
+    /// Confere a inferência embarcada com um modelo GGUF já instalado, sem rede.
+    #[command(name = "local-test")]
+    LocalTest {
+        #[arg(long)]
+        model: PathBuf,
+        #[arg(long)]
+        gpu: bool,
+    },
     /// Sobe o servidor (padrão).
     Serve,
     /// Abre o controle nativo com bandeja, mini barra e atalhos globais.
@@ -403,6 +412,26 @@ async fn serve_state(
 }
 
 fn rodar(cli: Cli) -> anyhow::Result<i32> {
+    if let Some(Cmd::LocalTest { model, gpu }) = &cli.cmd {
+        use futures::StreamExt;
+        return tokio::runtime::Runtime::new()?.block_on(async {
+            let path = std::fs::canonicalize(model)?;
+            let generator = embedded::generator(path, *gpu);
+            let mut stream = generator(vec![serde_json::json!({"role": "system", "content": orion_ai::gateway::AVISO_RESERVA}), serde_json::json!({"role": "user", "content": "Responda apenas o resultado: 2 + 2. /no_think"})]);
+            let mut text = String::new();
+            let mut finished = false;
+            while let Some(event) = stream.next().await {
+                match event? {
+                    orion_ai::gateway::Event::TextDelta(delta) => text.push_str(&delta),
+                    orion_ai::gateway::Event::Finish { .. } => finished = true,
+                    _ => anyhow::bail!("modelo local tentou usar ferramentas"),
+                }
+            }
+            anyhow::ensure!(finished && !text.trim().is_empty(), "modelo não completou a resposta");
+            println!("Teste local concluído; worker encerrado e pesos liberados.");
+            Ok(0)
+        });
+    }
     if let Some(Cmd::ExtrairDocumento { arquivo, tipo }) = &cli.cmd {
         return Ok(orion_core::document_extract::principal(arquivo, tipo));
     }
@@ -410,6 +439,7 @@ fn rodar(cli: Cli) -> anyhow::Result<i32> {
     log::setup(&s.log_level, s.log_json);
     let cmd = cli.cmd.unwrap_or(Cmd::Serve);
     match &cmd {
+        Cmd::LocalTest { .. } => Ok(0),
         Cmd::ExtrairDocumento { .. } => Ok(0),
         Cmd::McpServidor { token, revogar } => cli_extra::mcp_servidor(&s, *token, *revogar),
         Cmd::Converter { arquivo, formato, saida } => cli_extra::converter(&s, arquivo, formato, saida.as_deref()),

@@ -110,6 +110,8 @@ pub struct Settings {
     pub voice_enabled: bool,
     pub local_stt_model: Option<PathBuf>,
     pub local_stt_gpu: bool,
+    pub voice_barge_in: bool,
+    pub voice_aec_delay_ms: i32,
     pub transcribe_groq_fallback: bool,
     pub telegram_2fa: bool,
     pub voice_speak: bool,
@@ -169,6 +171,8 @@ pub struct Settings {
     pub focus_distractions: String,
     pub hotkeys: String,
     pub local_model: String,
+    pub local_model_path: Option<PathBuf>,
+    pub local_model_gpu: bool,
     pub local_url: String,
     pub compact_at: usize,
     pub ocr_max_pages: u32,
@@ -195,6 +199,29 @@ impl Env {
         }
         for (k, v) in std::env::vars() {
             m.insert(k.to_uppercase(), v);
+        }
+        // REGRAS.md: opt-in não liga sozinho. Só escolhas concluídas do orion-setup viram padrões.
+        let installed = m.get("ORION_LOCAL_CONFIG").map(PathBuf::from).or_else(|| {
+            let manifest = std::env::current_exe().ok()?.parent()?.join("orion-install.json");
+            let raw = std::fs::read(manifest).ok()?;
+            let value: Value = serde_json::from_slice(&raw).ok()?;
+            Some(PathBuf::from(value["data_dir"].as_str()?).join("orion-local.json"))
+        });
+        if let Some(path) = installed {
+            if let Ok(file) = std::fs::File::open(path) {
+                use std::io::Read;
+                let mut bytes = Vec::new();
+                if file.take(65537).read_to_end(&mut bytes).is_ok() && bytes.len() <= 65536 {
+                    if let Ok(Value::Object(values)) = serde_json::from_slice::<Value>(&bytes) {
+                        for key in ["ORION_DATA_DIR", "ORION_LOCAL_MODEL_PATH", "ORION_LOCAL_MODEL_GPU", "ORION_LOCAL_STT_MODEL", "ORION_LOCAL_STT_GPU", "ORION_VOICE_ENABLED", "ORION_VOICE_BARGE_IN", "ORION_WAKE_ENABLED", "ORION_WAKE_MODEL"] {
+                            if let Some(value) = values.get(key) {
+                                let value = value.as_str().map(String::from).unwrap_or_else(|| value.to_string());
+                                m.entry(key.into()).or_insert(value);
+                            }
+                        }
+                    }
+                }
+            }
         }
         Env(m)
     }
@@ -406,6 +433,8 @@ impl Settings {
             voice_enabled: e.b("voice_enabled", false)?,
             local_stt_model: e.path_opt("local_stt_model"),
             local_stt_gpu: e.b("local_stt_gpu", false)?,
+            voice_barge_in: e.b("voice_barge_in", false)?,
+            voice_aec_delay_ms: e.num("voice_aec_delay_ms", 40i32, Some(0), Some(500))?,
             transcribe_groq_fallback: e.b("transcribe_groq_fallback", false)?,
             telegram_2fa: e.b("telegram_2fa", false)?,
             voice_speak: e.b("voice_speak", true)?,
@@ -469,6 +498,8 @@ impl Settings {
             focus_distractions: e.s("focus_distractions", ""),
             hotkeys: e.s("hotkeys", "").trim().to_string(),
             local_model: e.s("local_model", ""),
+            local_model_path: e.path_opt("local_model_path"),
+            local_model_gpu: e.b("local_model_gpu", false)?,
             local_url,
             compact_at: e.num("compact_at", 40usize, Some(0), Some(1000))?,
             ocr_max_pages: e.num("ocr_max_pages", 50u32, Some(0), Some(200))?,

@@ -56,7 +56,7 @@ fn main() -> iced::Result {
     }
 
     let args: Vec<String> = std::env::args().collect();
-    let real_install = args.iter().any(|a| a == "--real-install");
+    let real_install = !args.iter().any(|a| a == "--preview" || a == "--prototype-hw");
     let use_proto_hw = args.iter().any(|a| a == "--prototype-hw");
 
     let icon_rgba = generate_belt_icon_rgba(64);
