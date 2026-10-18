@@ -4065,7 +4065,7 @@ version = "0.1.160"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "912d8a0522acec022ae07d099366234067c8af6a18570a603f0749b7bb927e9a"
 dependencies = [
- "bindgen",
+ "bindgen 0.72.1",
  "cc",
  "cmake",
  "find_cuda_helper",
