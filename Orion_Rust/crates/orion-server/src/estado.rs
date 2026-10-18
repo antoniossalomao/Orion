@@ -350,7 +350,11 @@ pub fn vigia_from_settings(
     use orion_core::rosto::{Rostos, LIMIAR};
     use orion_core::vigia::Vigia;
     let presenca = settings.presence_enabled.then(|| Arc::new(Presenca::new(settings.presence_away_min)));
-    let rostos = settings.face_model.as_ref().map(|p| Arc::new(Rostos::new(memory.clone(), Some(p.clone()), LIMIAR, None)));
+    let rostos = if settings.face_model.is_some() || (settings.presence_enabled && settings.camera) {
+        Some(Arc::new(Rostos::new(memory.clone(), settings.face_model.clone(), LIMIAR, None)))
+    } else {
+        None
+    };
     let watch_s = if settings.camera && settings.camera_watch { 60 } else { 0 };
     Some(Arc::new(Vigia::new(
         memory,

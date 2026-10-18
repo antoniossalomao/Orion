@@ -148,6 +148,7 @@ Registro das decisões que valem para o projeto hoje. O histórico completo, des
 
 | Data | Decisão | Motivo |
 |---|---|---|
+| 17/10/2026 | Câmera nativa com nokhwa (Media Foundation) e reconhecimento facial clássico local Haar+LBPH (F18; C21) sem dependência externa de ffmpeg nem ONNX | Captura 100% nativa em Rust no Windows e biometria local determinística, leve e sem IA pesada |
 | 17/10/2026 | Remover backend pré-reescrita e distribuição PyInstaller; preservar front compartilhado e Python necessário para paridade, sidecar e utilitários | Pedido explícito do Antônio para limpar o repositório voltado ao Rust; paridade ainda incompleta |
 | 17/10/2026 | Instalar modelos pelo orion-setup; embarcar llama.cpp em worker nativo descartável, limitado a 30% da RAM pelo Windows; separar seus símbolos GGML do Whisper | Pedido explícito do Antônio (F03.14/F15); dispensa Ollama e limita memória de verdade |
 | 17/10/2026 | Tratar o wake word sintético como candidato até passar por avaliação real separada; bundle leva hash, limiar e métricas | Não há gravações do usuário e o candidato ainda dispara falsos positivos |

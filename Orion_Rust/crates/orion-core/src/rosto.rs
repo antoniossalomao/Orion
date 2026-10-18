@@ -183,6 +183,11 @@ pub fn decifrar_com(cofre: &dyn CofreRosto, blob: &[u8]) -> Result<Vec<f64>, Ros
     Ok(dados)
 }
 
+pub use crate::rosto_lbph::{
+    detectar_face_haar, equalizar_histograma, extrair_lbph_grid, extrator_haar_lbph, ImagemIntegral,
+    RetanguloFace,
+};
+
 pub type ExtratorRosto = Arc<dyn Fn(&[u8]) -> Option<Vec<f64>> + Send + Sync>;
 
 pub struct Rostos {
@@ -195,6 +200,13 @@ pub struct Rostos {
 
 impl Rostos {
     pub fn new(memory: Arc<Store>, modelo_path: Option<PathBuf>, limiar: f64, extrator: Option<ExtratorRosto>) -> Self {
+        let extrator = extrator.or_else(|| {
+            if modelo_path.is_none() {
+                Some(Arc::new(extrator_haar_lbph) as ExtratorRosto)
+            } else {
+                None
+            }
+        });
         Self {
             memory,
             modelo_path,
@@ -202,6 +214,11 @@ impl Rostos {
             extrator,
             cofre: Arc::new(CofreSistema),
         }
+    }
+
+    /// Cria uma instância usando o extrator nativo clássico Haar + LBPH (F18.05; C21; sem IA e sem nuvem).
+    pub fn com_lbph(memory: Arc<Store>, limiar: f64) -> Self {
+        Self::new(memory, None, limiar, Some(Arc::new(extrator_haar_lbph)))
     }
 
     pub fn com_cofre(mut self, cofre: Arc<dyn CofreRosto>) -> Self {
@@ -324,5 +341,61 @@ mod tests {
         let cofre = Arc::new(CofreMemoria::default());
         let r = Rostos::new(store, None, LIMIAR, Some(Arc::new(|_| Some(vec![1.0, 0.0, 0.0])))).com_cofre(cofre);
         assert!(r.cadastrar(&[b"1".to_vec(), b"2".to_vec()], "antonio").is_err());
+    }
+
+    #[test]
+    fn haar_lbph_reconhecimento_end_to_end() {
+        let store = Arc::new(Store::open(":memory:").unwrap());
+        let cofre = Arc::new(CofreMemoria::default());
+
+        fn gerar_jpeg_face(variacao: u8) -> Vec<u8> {
+            let mut img = image::GrayImage::new(64, 64);
+            for y in 0..64 {
+                for x in 0..64 {
+                    let base = if y < 16 {
+                        180 // testa clara
+                    } else if y < 32 {
+                        if (x >= 12 && x <= 24) || (x >= 40 && x <= 52) {
+                            50 + variacao // órbitas/olhos escuros
+                        } else {
+                            160 // centro/nariz alto
+                        }
+                    } else if y < 48 {
+                        if x >= 26 && x <= 38 {
+                            200 // ponte nasal clara
+                        } else {
+                            140 // bochechas
+                        }
+                    } else {
+                        120 // boca/queixo
+                    };
+                    img.put_pixel(x, y, image::Luma([base]));
+                }
+            }
+            let mut buf = Vec::new();
+            let mut enc = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut buf, 90);
+            enc.encode(img.as_raw(), 64, 64, image::ExtendedColorType::L8).unwrap();
+            buf
+        }
+
+        let f1 = gerar_jpeg_face(0);
+        let f2 = gerar_jpeg_face(5);
+        let f3 = gerar_jpeg_face(10);
+        let f4 = gerar_jpeg_face(2);
+        let f5 = gerar_jpeg_face(7);
+
+        let r = Rostos::com_lbph(store, LIMIAR).com_cofre(cofre);
+        assert!(r.disponivel());
+
+        let cadastradas = r.cadastrar(&[f1.clone(), f2.clone(), f3.clone(), f4.clone(), f5.clone()], "antonio").unwrap();
+        assert_eq!(cadastradas, 5);
+        assert!(r.cadastrado("antonio"));
+
+        // Foto da mesma pessoa deve ser reconhecida (e_voce = Some(true))
+        let teste_mesma_pessoa = gerar_jpeg_face(3);
+        assert_eq!(r.e_voce(&teste_mesma_pessoa, "antonio"), Some(true));
+
+        // Bytes vazios ou sem rosto não são reconhecidos
+        assert_eq!(r.e_voce(b"invalido", "antonio"), Some(false));
     }
 }

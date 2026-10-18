@@ -565,8 +565,8 @@ pub fn rosto(s: &Settings, acao: &str, nome: &str, fotos: usize) -> anyhow::Resu
                 eprintln!("defina ORION_CAMERA=true para capturar fotos do rosto");
                 return Ok(1);
             }
-            if s.face_model.is_none() {
-                eprintln!("defina ORION_FACE_MODEL com o caminho do modelo de rosto (.onnx)");
+            if !rostos.disponivel() {
+                eprintln!("reconhecimento facial indisponível");
                 return Ok(1);
             }
             let n = fotos.clamp(orion_core::rosto::MIN_AMOSTRAS, 10);

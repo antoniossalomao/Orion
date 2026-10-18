@@ -57,6 +57,7 @@ rusqlite.workspace = true
 
 orion-voice.workspace = true
 hound = "3.5"
+nokhwa = { version = "0.10.11", default-features = false, features = ["input-native"] }
 
 [features]
 local-vulkan = ["orion-voice/vulkan"]
