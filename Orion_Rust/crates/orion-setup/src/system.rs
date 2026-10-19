@@ -17,7 +17,7 @@ pub fn feed_url(vulkan: bool) -> String {
     format!("https://github.com/{REPO_RELEASES}/releases/latest/download/latest-{}.json", if vulkan { "vulkan" } else { "cpu" })
 }
 
-/// Onde estão `orion.exe`, `orion-llama.exe` e `orion-updater.exe`: na pasta `cpu`/`vulkan` ao lado
+/// Onde estão `orion.exe` e o `orion-llama.exe` (sidecar dos modelos locais): na pasta `cpu`/`vulkan` ao lado
 /// do instalador (instalação offline) ou, não havendo, baixados do GitHub Releases com assinatura
 /// minisign e SHA-256 conferidos. O segundo valor é a pasta temporária a apagar depois da cópia.
 pub fn obter_pacote(ao_lado: &Path, vulkan: bool, fetch: &dyn orion_updater::Fetch) -> Result<(PathBuf, Option<PathBuf>), String> {
@@ -485,7 +485,6 @@ impl InstallPlan {
                     for (name, source) in [
                         ("orion.exe", bundle.join("orion.exe")),
                         ("orion-llama.exe", bundle.join("orion-llama.exe")),
-                        ("orion-updater.exe", bundle.join("orion-updater.exe")),
                         // o próprio instalador vira o desinstalador (Apps instalados chama `--uninstall`)
                         (register::UNINSTALLER, executable.clone()),
                     ] {
@@ -549,12 +548,12 @@ impl InstallPlan {
                 let lnk = if self.real() { register::start_menu_shortcut() } else { app_dir.join("Orion.lnk") };
                 let orion = choices.app_dir.join("orion.exe");
                 if lnk.exists() { return Err(format!("já existe um atalho em {}", lnk.display())); }
-                self.registrar.create_shortcut(&lnk, &orion, "app", &choices.app_dir).map_err(|e| format!("falha ao criar o atalho: {e}"))?;
+                self.registrar.create_shortcut(&lnk, &orion, "", &choices.app_dir).map_err(|e| format!("falha ao criar o atalho: {e}"))?;
                 if lnk.exists() { self.created_paths.push(lnk.clone()); }
                 let mut autostart = false;
                 if choices.start_with_windows {
                     // opt-in (REGRAS.md): só com a caixa marcada
-                    self.registrar.set_autostart(&format!("\"{}\" desktop --background", orion.display())).map_err(|e| format!("falha ao ativar o início automático: {e}"))?;
+                    self.registrar.set_autostart(&format!("\"{}\" --background", orion.display())).map_err(|e| format!("falha ao ativar o início automático: {e}"))?;
                     self.undo.push(Undo::Autostart);
                     autostart = true;
                 }
@@ -579,7 +578,7 @@ impl InstallPlan {
                 self.write_new(&updater, &serde_json::to_vec_pretty(&payload).unwrap_or_default())
                     .map_err(|e| format!("falha ao gravar preferências de atualização: {e}"))?;
                 self.created_paths.push(updater);
-                let tarefa = match self.registrar.install_update_task(&choices.app_dir.join("orion-updater.exe")) {
+                let tarefa = match self.registrar.install_update_task(&choices.app_dir.join("orion.exe")) {
                     Ok(()) => {
                         self.undo.push(Undo::UpdateTask);
                         self.update_manifest(&app_dir, |m| m.update_task = true)?;
@@ -669,7 +668,7 @@ mod tests {
         }
         let calls = rec.calls();
         assert!(calls.iter().any(|c| c.starts_with("register_uninstall \"") && c.contains("--uninstall")));
-        assert!(calls.iter().any(|c| c.starts_with("set_autostart") && c.contains("desktop --background")));
+        assert!(calls.iter().any(|c| c.starts_with("set_autostart") && c.contains("--background") && !c.contains("desktop")));
         assert!(calls.iter().any(|c| c.starts_with("register_identity")) && calls.iter().any(|c| c.starts_with("install_update_task")));
         let app = plan.map_path(&choices.app_dir);
         let m = InstallManifest::load(&app).unwrap();

@@ -1,10 +1,8 @@
-//! `orion`: sobe o servidor (padrão) e os comandos de manutenção.
+//! `orion`: abre o app (padrão) e traz os comandos de manutenção.
 
 mod appmode;
 mod cli_db;
 mod cli_extra;
-#[cfg(windows)]
-mod desktop;
 mod estado;
 mod embedded;
 mod http;
@@ -23,6 +21,9 @@ use std::sync::Arc;
 #[derive(Parser)]
 #[command(name = "orion", about = "Orion — assistente pessoal")]
 struct Cli {
+    /// Abre escondido na bandeja (é o que o início com o Windows usa).
+    #[arg(long, global = true)]
+    background: bool,
     #[command(subcommand)]
     cmd: Option<Cmd>,
 }
@@ -37,15 +38,19 @@ enum Cmd {
         #[arg(long)]
         gpu: bool,
     },
-    /// Sobe o servidor (padrão).
+    /// Servidor HTTP local (só para desenvolvimento e acesso remoto; o produto não abre porta).
+    #[cfg(feature = "http")]
     Serve,
-    /// Abre o aplicativo (janela nativa com o servidor dentro do mesmo processo).
+    /// Abre o aplicativo: janela nativa com o núcleo no mesmo processo, sem rede (é o padrão).
     App,
-    /// Abre o controle nativo com bandeja, mini barra e atalhos globais.
-    Desktop {
-        /// Inicia oculto na bandeja.
+    /// Atualiza o Orion: `--check [--apply]` confere o feed assinado; `--rollback` devolve a versão anterior.
+    Update {
         #[arg(long)]
-        background: bool,
+        check: bool,
+        #[arg(long)]
+        apply: bool,
+        #[arg(long)]
+        rollback: bool,
     },
     /// Interno: extrai o texto de um documento num processo descartável.
     #[command(hide = true)]
@@ -395,6 +400,7 @@ fn esquecer(s: &Settings, consulta: &str, sim: bool) -> anyhow::Result<i32> {
     Ok(0)
 }
 
+#[cfg(feature = "http")]
 async fn serve(s: Settings) -> anyhow::Result<i32> {
     let (host, porta) = (s.host.clone(), s.port);
     #[cfg(windows)]
@@ -446,6 +452,7 @@ async fn encerrar_fundo(st: &estado::Estado, tarefa_telegram: Option<tokio::task
     orion_ai::saidas::definir_destino(None);
 }
 
+#[cfg(feature = "http")]
 async fn serve_state(
     st: estado::Estado,
     ouvinte: tokio::net::TcpListener,
@@ -484,8 +491,19 @@ fn rodar(cli: Cli) -> anyhow::Result<i32> {
     if let Some(Cmd::ExtrairDocumento { arquivo, tipo }) = &cli.cmd {
         return Ok(orion_core::document_extract::principal(arquivo, tipo));
     }
+    if let Some(Cmd::Update { check, apply, rollback }) = &cli.cmd {
+        // roda na tarefa diária (SYSTEM), sem banco nem senha: antes de carregar configuração
+        let mut args = Vec::new();
+        for (on, flag) in [(*check, "--check"), (*apply, "--apply"), (*rollback, "--rollback")] {
+            if on {
+                args.push(flag.to_string());
+            }
+        }
+        let pasta = std::env::current_exe()?.parent().map(PathBuf::from).unwrap_or_default();
+        return Ok(orion_updater::executar(&args, &pasta));
+    }
     let s = Settings::load()?;
-    let cmd = cli.cmd.unwrap_or(Cmd::Serve);
+    let cmd = cli.cmd.unwrap_or(Cmd::App);
     // comandos que cuidam da própria senha não passam pelo prompt automático
     let cuida_da_senha = matches!(cmd, Cmd::DbCifrar { .. } | Cmd::DbSenha { .. } | Cmd::DbRecuperar { .. } | Cmd::DbNovaRecuperacao { .. } | Cmd::DbApagarClaro);
     if !cuida_da_senha {
@@ -519,18 +537,9 @@ fn rodar(cli: Cli) -> anyhow::Result<i32> {
         Cmd::Rosto { acao, nome, fotos } => cli_extra::rosto(&s, acao, nome, *fotos),
         Cmd::Legenda { segundos } => cli_extra::legenda(&s, *segundos),
         Cmd::WakeTest { listar, segundos } => cli_extra::wake_test(&s, *listar, *segundos),
-        Cmd::App => appmode::run(s),
-        Cmd::Desktop { background } => {
-            #[cfg(windows)]
-            {
-                desktop::run(s, *background)
-            }
-            #[cfg(not(windows))]
-            {
-                let _ = s;
-                anyhow::bail!("bandeja disponível apenas no Windows")
-            }
-        }
+        Cmd::App => appmode::run(s, cli.background),
+        Cmd::Update { .. } => unreachable!("tratado antes da configuração"),
+        #[cfg(feature = "http")]
         Cmd::Serve => tokio::runtime::Builder::new_multi_thread().enable_all().build()?.block_on(serve(s)),
         Cmd::Backup { dir, keep } => {
             let store = orion_core::dbopen::open_store(&s.db_path())?;

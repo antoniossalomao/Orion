@@ -10,10 +10,6 @@ publish.workspace = true
 name = "orion_updater"
 path = "src/lib.rs"
 
-[[bin]]
-name = "orion-updater"
-path = "src/main.rs"
-
 [dependencies]
 anyhow.workspace = true
 hex.workspace = true

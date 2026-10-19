@@ -306,6 +306,10 @@ pub struct App {
     pub challenge: Option<String>,
     pub pending_send: Option<String>,
     pub abort: Option<iced::task::Handle>,
+    pub win_id: Option<window::Id>,
+    pub fundo: bool,
+    pub bandeja: Option<crate::tray::Bandeja>,
+    pub bandeja_tentou: bool,
     pub painel: Option<serde_json::Value>,
     pub budget: Option<serde_json::Value>,
     pub resume_pw: String,
@@ -318,6 +322,12 @@ pub struct App {
 
 #[derive(Debug, Clone)]
 pub enum Msg {
+    /// Id da janela principal (primeira tarefa do boot).
+    Win(Option<window::Id>),
+    /// Pulso do segundo plano: bandeja, atalhos, palavra de ativação, outra instância.
+    Bandeja,
+    Acao(crate::tray::Acao),
+    CloseReq(window::Id),
     // entrada
     PwChanged(String),
     Login,
@@ -524,6 +534,10 @@ impl App {
             challenge: None,
             pending_send: None,
             abort: None,
+            win_id: None,
+            fundo: false,
+            bandeja: None,
+            bandeja_tentou: false,
             painel: None,
             budget: None,
             resume_pw: String::new(),
@@ -564,7 +578,9 @@ impl App {
         let poll = if self.api.is_some() && self.logged && self.streaming.is_none() { iced::time::every(Duration::from_secs(6)).map(|_| Msg::Poll) } else { Subscription::none() };
         let resize = window::resize_events().map(|(_, s)| Msg::Resized(s));
         let keys = iced::keyboard::listen().filter_map(crate::keys::map);
-        Subscription::batch([tick, resize, keys, poll])
+        let fundo = iced::time::every(Duration::from_millis(250)).map(|_| Msg::Bandeja);
+        let fechar = window::close_requests().map(Msg::CloseReq);
+        Subscription::batch([tick, resize, keys, poll, fundo, fechar])
     }
 
     pub fn pend_list(&self) -> Vec<(usize, usize)> {
@@ -1132,10 +1148,53 @@ impl App {
                 self.editor = None;
                 self.toast("Nota salva; commit e push na main do vault");
             }
+            Msg::Win(id) => {
+                self.win_id = id;
+            }
+            Msg::Bandeja => {
+                let mut acoes = vec![];
+                if !self.bandeja_tentou {
+                    self.bandeja_tentou = true;
+                    self.bandeja = crate::tray::Bandeja::nova();
+                    // sem bandeja não há como reabrir uma janela escondida: abre mesmo em segundo plano
+                    if self.bandeja.is_none() && self.fundo {
+                        acoes.push(crate::tray::Acao::MiniBar);
+                    }
+                }
+                if let Some(b) = &self.bandeja {
+                    acoes.extend(b.consultar());
+                }
+                if self.api.as_ref().is_some_and(|a| a.acordar()) {
+                    acoes.push(crate::tray::Acao::MiniBar);
+                }
+                return Task::batch(acoes.into_iter().map(|x| Task::done(Msg::Acao(x))));
+            }
+            Msg::Acao(acao) => {
+                use crate::tray::Acao;
+                match acao {
+                    Acao::Exit => return iced::exit(),
+                    Acao::Panic => {
+                        let r = self.api.as_ref().map(|a| a.panico()).unwrap_or_else(|| Err("pânico indisponível".into()));
+                        self.toast(r.unwrap_or_else(|e| e));
+                    }
+                    Acao::MiniBar | Acao::Budget => {
+                        if acao == Acao::Budget {
+                            let _ = self.update_inner(Msg::OpenSettings(None));
+                        }
+                        if let Some(id) = self.win_id {
+                            return Task::batch([window::set_mode(id, window::Mode::Windowed), window::minimize(id, false), window::gain_focus(id)]);
+                        }
+                    }
+                }
+            }
+            Msg::CloseReq(id) => {
+                // com bandeja o app segue vivo, só esconde a janela; sem bandeja, fechar encerra
+                return if self.bandeja.is_some() { window::set_mode(id, window::Mode::Hidden) } else { iced::exit() };
+            }
             Msg::DragWindow => return window::oldest().and_then(window::drag),
             Msg::Minimize => return window::oldest().and_then(|id| window::minimize(id, true)),
             Msg::Fullscreen => return window::oldest().and_then(window::toggle_maximize),
-            Msg::CloseWindow => return window::oldest().and_then(|id| window::minimize(id, true)),
+            Msg::CloseWindow => return window::oldest().and_then(|id| Task::done(Msg::CloseReq(id))),
             Msg::Esc => {
                 if self.pop.is_some() {
                     self.pop = None;

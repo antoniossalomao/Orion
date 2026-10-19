@@ -35,8 +35,8 @@ pub trait Registrar: Send + Sync {
     /// Identidade de pacote esparso com certificado autoassinado (ver `identity`).
     fn register_identity(&self, app_dir: &Path, version: &str) -> Result<IdentityOutcome, String>;
     fn unregister_identity(&self, thumbprint: &str) -> Result<(), String>;
-    /// Tarefa diária (SYSTEM) que roda o atualizador sem pedir UAC a cada versão.
-    fn install_update_task(&self, updater: &Path) -> Result<(), String>;
+    /// Tarefa diária (SYSTEM) que roda `orion.exe update --check` sem pedir UAC a cada versão.
+    fn install_update_task(&self, orion: &Path) -> Result<(), String>;
     fn remove_update_task(&self) -> Result<(), String>;
 }
 
@@ -194,8 +194,8 @@ impl Registrar for WindowsRegistrar {
     }
 
     #[cfg(windows)]
-    fn install_update_task(&self, updater: &Path) -> Result<(), String> {
-        let tr = format!("\"{}\" --check", updater.display());
+    fn install_update_task(&self, orion: &Path) -> Result<(), String> {
+        let tr = format!("\"{}\" update --check", orion.display());
         run(std::process::Command::new("schtasks").args(["/Create", "/TN", UPDATE_TASK, "/SC", "DAILY", "/ST", "12:30", "/RU", "SYSTEM", "/RL", "HIGHEST", "/TR", &tr, "/F"]))
     }
     #[cfg(not(windows))]
@@ -254,8 +254,8 @@ impl Registrar for RecordingRegistrar {
         self.calls.lock().push(format!("unregister_identity {thumbprint}"));
         Ok(())
     }
-    fn install_update_task(&self, updater: &Path) -> Result<(), String> {
-        self.calls.lock().push(format!("install_update_task {}", updater.display()));
+    fn install_update_task(&self, orion: &Path) -> Result<(), String> {
+        self.calls.lock().push(format!("install_update_task {}", orion.display()));
         Ok(())
     }
     fn remove_update_task(&self) -> Result<(), String> {

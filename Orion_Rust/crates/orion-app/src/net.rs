@@ -20,6 +20,14 @@ pub struct Resposta {
 /// socket, porta ou rede (é o que o `orion app` usa). Quem implementa fica no servidor.
 pub trait Local: Send + Sync + 'static {
     fn chamar(&self, metodo: &str, caminho: &str, corpo: Option<Vec<u8>>, bearer: Option<String>) -> futures::future::BoxFuture<'static, Result<Resposta, String>>;
+    /// Pedidos de "mostre a janela" vindos de fora da interface (palavra de ativação, outra instância).
+    fn acordar(&self) -> bool {
+        false
+    }
+    /// Atalho de pânico da bandeja (corta tudo, sem pedir senha; retomar exige a senha).
+    fn panico(&self) -> Result<String, String> {
+        Err("pânico indisponível".into())
+    }
 }
 
 #[derive(Clone)]
@@ -86,6 +94,14 @@ impl Api {
         let mut a = Self::new("orion://local", Some(token));
         a.local = Some(ligacao);
         a
+    }
+
+    pub fn acordar(&self) -> bool {
+        self.local.as_ref().is_some_and(|l| l.acordar())
+    }
+
+    pub fn panico(&self) -> Result<String, String> {
+        self.local.as_ref().ok_or_else(|| "pânico só no app com o núcleo dentro".to_string())?.panico()
     }
 
     fn indisponivel(&self) -> String {

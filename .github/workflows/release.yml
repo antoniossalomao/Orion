@@ -59,7 +59,7 @@ jobs:
         shell: pwsh
         run: |
           $f = if ('${{ matrix.variante }}' -eq 'vulkan') { 'orion-server/local-vulkan,orion-server/sqlcipher,orion-llama/vulkan' } else { 'orion-server/sqlcipher' }
-          cargo build --release --locked -p orion-server -p orion-llama -p orion-updater -p orion-setup --features $f
+          cargo build --release --locked -p orion-server -p orion-llama -p orion-setup --features $f
       - name: Montar arquivos do release e feed
         shell: pwsh
         run: |
@@ -68,7 +68,7 @@ jobs:
           $base = "https://github.com/${{ github.repository }}/releases/download/$env:TAG"
           New-Item -ItemType Directory -Force ../saida | Out-Null
           $arquivos = @()
-          foreach ($n in 'orion','orion-llama','orion-updater') {
+          foreach ($n in 'orion','orion-llama') {
             $asset = "$n-$v.exe"
             Copy-Item "C:\t\release\$n.exe" "../saida/$asset"
             $h = (Get-FileHash "../saida/$asset" -Algorithm SHA256).Hash.ToLower()

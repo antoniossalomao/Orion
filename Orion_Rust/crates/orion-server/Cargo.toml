@@ -20,6 +20,7 @@ orion-vault.workspace = true
 orion-local.workspace = true
 orion-voice.workspace = true
 orion-app.workspace = true
+orion-updater.workspace = true
 sysinfo.workspace = true
 anyhow.workspace = true
 serde.workspace = true
@@ -48,5 +49,7 @@ iced.workspace = true
 orion-platform = { path = "../orion-platform" }
 
 [features]
+# Servidor HTTP local (`orion serve`): desenvolvimento e acesso remoto. O produto não o inclui.
+http = []
 local-vulkan = ["orion-core/local-vulkan"]
 sqlcipher = ["orion-core/sqlcipher"]

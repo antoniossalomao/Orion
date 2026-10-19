@@ -14,7 +14,7 @@ pub const MANIFEST: &str = "orion-install.json";
 pub const MAX_FEED_BYTES: u64 = 256 * 1024;
 pub const MAX_FILE_BYTES: u64 = 400 * 1024 * 1024;
 /// Únicos arquivos que o feed pode trocar na pasta do app.
-pub const ALLOWED_FILES: [&str; 3] = ["orion.exe", "orion-llama.exe", "orion-updater.exe"];
+pub const ALLOWED_FILES: [&str; 2] = ["orion.exe", "orion-llama.exe"];
 
 #[derive(Debug, thiserror::Error)]
 pub enum UpdateError {
@@ -294,6 +294,50 @@ pub fn rollback(app_dir: &Path) -> Result<usize> {
         io(std::fs::write(&path, serde_json::to_vec_pretty(&m).map_err(|e| UpdateError::Io(e.to_string()))?))?;
     }
     Ok(n)
+}
+
+/// `orion update --check [--apply]` e `--rollback` (a tarefa diária e a mão). `app_dir` é a pasta do
+/// `orion.exe`; lê `update.json` da pasta de dados que o manifesto indica. Devolve o código de saída.
+pub fn executar(args: &[String], app_dir: &Path) -> i32 {
+    let data_dir = || -> Option<PathBuf> {
+        let m: serde_json::Value = serde_json::from_slice(&std::fs::read(app_dir.join(MANIFEST)).ok()?).ok()?;
+        Some(PathBuf::from(m["data_dir"].as_str()?))
+    };
+    if args.iter().any(|a| a == "--rollback") {
+        return match rollback(app_dir) {
+            Ok(n) => {
+                println!("{n} arquivo(s) devolvido(s)");
+                0
+            }
+            Err(e) => {
+                eprintln!("{e}");
+                1
+            }
+        };
+    }
+    if args.iter().any(|a| a == "--check") {
+        let config: UpdateConfig = data_dir().and_then(|d| std::fs::read(d.join("update.json")).ok()).and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default();
+        return match check(&config, app_dir, &HttpFetch, args.iter().any(|a| a == "--apply")) {
+            Ok(Outcome::UpToDate) => {
+                println!("em dia");
+                0
+            }
+            Ok(Outcome::Available(v)) => {
+                println!("versão {v} disponível (auto_update desligado)");
+                0
+            }
+            Ok(Outcome::Updated(v)) => {
+                println!("atualizado para {v}; reinicie o Orion");
+                0
+            }
+            Err(e) => {
+                eprintln!("{e}");
+                1
+            }
+        };
+    }
+    eprintln!("uso: orion update --check [--apply] | --rollback");
+    2
 }
 
 #[cfg(test)]

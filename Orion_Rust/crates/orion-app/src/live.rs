@@ -325,25 +325,7 @@ impl App {
         a.term_out.clear();
         a.p.proj = 99;
         a.mem = crate::graph::Graph::empty();
-        let t = { let api2 = api.clone(); let tries = if crate::host::ativo() { 90 } else { 1 };
-            Task::perform(
-                async move {
-                    for i in 0..tries {
-                        match api2.health().await {
-                            Ok(_) => return Ok(api2.auth_ok().await),
-                            Err(e) if i + 1 == tries => return Err(crate::host::morreu().unwrap_or(e)),
-                            Err(_) => {
-                                if let Some(m) = crate::host::morreu() {
-                                    return Err(m);
-                                }
-                                tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-                            }
-                        }
-                    }
-                    unreachable!()
-                },
-                |r| Msg::L(Lm::Boot(r)),
-            ) };
+        let t = { let api2 = api.clone(); Task::perform(async move { api2.health().await?; Ok(api2.auth_ok().await) }, |r| Msg::L(Lm::Boot(r))) };
         a.api = Some(api);
         a.gate_err = "Conectando ao servidor…".into();
         (a, t)

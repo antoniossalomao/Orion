@@ -6,7 +6,6 @@ pub mod app;
 pub mod chart;
 pub mod data;
 pub mod graph;
-pub mod host;
 pub mod run;
 pub mod icons;
 pub mod keys;
@@ -16,6 +15,7 @@ pub mod net;
 pub mod popover;
 pub mod sky;
 pub mod theme;
+pub mod tray;
 pub mod ui;
 pub mod views;
 

@@ -539,7 +539,7 @@ impl SetupApp {
                 if !self.dry_run {
                     let executable = self.choices.app_dir.join("orion.exe");
                     let mut command = std::process::Command::new(executable);
-                    command.arg("app").current_dir(&self.choices.app_dir).env_clear();
+                    command.current_dir(&self.choices.app_dir).env_clear();
                     for key in ["SystemRoot", "WINDIR", "PATH", "TEMP", "TMP", "USERPROFILE", "APPDATA", "LOCALAPPDATA"] {
                         if let Some(value) = std::env::var_os(key) { command.env(key, value); }
                     }

@@ -42,14 +42,13 @@ jobs:
       - name: Testar banco cifrado (SQLCipher), chaves e logs cifrados
         run: cargo test --locked -p orion-store -p orion-core --features orion-store/sqlcipher,orion-core/sqlcipher
       - name: Compilar controle nativo
-        run: cargo build --locked -p orion-server -p orion-llama -p orion-updater
+        run: cargo build --locked -p orion-server -p orion-llama
       - name: Guardar runtime CPU sem dependência de driver Vulkan
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force pacote/cpu | Out-Null
           Copy-Item C:\t\debug\orion.exe pacote/cpu/
           Copy-Item C:\t\debug\orion-llama.exe pacote/cpu/
-          Copy-Item C:\t\debug\orion-updater.exe pacote/cpu/
       - uses: actions/cache@v4
         with:
           path: C:\orion-models
@@ -75,14 +74,13 @@ jobs:
         # antes do configure terminar ("Not a file: cmake_install.cmake"); o Ninja respeita a ordem.
         env:
           CMAKE_GENERATOR: Ninja
-        run: cargo build --locked -p orion-server -p orion-setup -p orion-llama -p orion-updater --features orion-server/local-vulkan,orion-server/sqlcipher,orion-llama/vulkan
+        run: cargo build --locked -p orion-server -p orion-setup -p orion-llama --features orion-server/local-vulkan,orion-server/sqlcipher,orion-llama/vulkan
       - name: Montar pacote do instalador
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force pacote/vulkan | Out-Null
           Copy-Item C:\t\debug\orion.exe pacote/vulkan/
           Copy-Item C:\t\debug\orion-llama.exe pacote/vulkan/
-          Copy-Item C:\t\debug\orion-updater.exe pacote/vulkan/
           Copy-Item C:\t\debug\orion-setup.exe 'pacote\Orion Setup.exe'
           Copy-Item models\orion-wake-candidate pacote\wake-candidate -Recurse
       - uses: actions/upload-artifact@v4
