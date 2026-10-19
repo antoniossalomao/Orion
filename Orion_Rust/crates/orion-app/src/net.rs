@@ -24,6 +24,13 @@ pub trait Local: Send + Sync + 'static {
     fn acordar(&self) -> bool {
         false
     }
+    /// Banco cifrado ainda trancado: o núcleo só abre depois de `desbloquear`.
+    fn bloqueado(&self) -> bool {
+        false
+    }
+    fn desbloquear(&self, _senha: String) -> futures::future::BoxFuture<'static, Result<(), String>> {
+        Box::pin(async { Err("banco não está bloqueado".to_string()) })
+    }
     /// Atalho de pânico da bandeja (corta tudo, sem pedir senha; retomar exige a senha).
     fn panico(&self) -> Result<String, String> {
         Err("pânico indisponível".into())
@@ -94,6 +101,17 @@ impl Api {
         let mut a = Self::new("orion://local", Some(token));
         a.local = Some(ligacao);
         a
+    }
+
+    pub fn bloqueado(&self) -> bool {
+        self.local.as_ref().is_some_and(|l| l.bloqueado())
+    }
+
+    pub async fn desbloquear(&self, senha: String) -> Result<(), String> {
+        match &self.local {
+            Some(l) => l.desbloquear(senha).await,
+            None => Err("só no app com o núcleo dentro".into()),
+        }
     }
 
     pub fn acordar(&self) -> bool {

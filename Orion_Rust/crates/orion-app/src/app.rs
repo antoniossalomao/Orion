@@ -307,6 +307,8 @@ pub struct App {
     pub pending_send: Option<String>,
     pub abort: Option<iced::task::Handle>,
     pub win_id: Option<window::Id>,
+    /// Banco cifrado trancado: a tela de entrada pede a senha do banco antes de abrir o núcleo.
+    pub db_locked: bool,
     pub fundo: bool,
     pub bandeja: Option<crate::tray::Bandeja>,
     pub bandeja_tentou: bool,
@@ -535,6 +537,7 @@ impl App {
             pending_send: None,
             abort: None,
             win_id: None,
+            db_locked: false,
             fundo: false,
             bandeja: None,
             bandeja_tentou: false,

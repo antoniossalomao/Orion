@@ -10,17 +10,45 @@ use orion_core::config::Settings;
 use std::time::Duration;
 use tower::ServiceExt;
 
-struct Interno {
+/// O núcleo montado (estado + rotas). Fica vazio enquanto o banco cifrado está trancado.
+struct Nucleo {
     router: axum::Router,
     st: crate::estado::Estado,
+    telegram: parking_lot::Mutex<Option<tokio::task::JoinHandle<()>>>,
+}
+
+type Slot = std::sync::Arc<parking_lot::Mutex<Option<std::sync::Arc<Nucleo>>>>;
+
+/// Monta o núcleo e liga os trabalhos de fundo. Roda dentro do runtime do núcleo.
+async fn montar_nucleo(s: Settings) -> anyhow::Result<std::sync::Arc<Nucleo>> {
+    #[cfg(windows)]
+    let vigiar = s.clone();
+    let st = crate::estado::montar(s).await?;
+    #[cfg(windows)]
+    crate::cli_db::watch_screen_lock(&vigiar, st.auth.clone());
+    let telegram = crate::iniciar_fundo(&st);
+    Ok(std::sync::Arc::new(Nucleo { router: crate::rotas::router(st.clone()), st, telegram: parking_lot::Mutex::new(telegram) }))
+}
+
+struct Interno {
+    nucleo: Slot,
+    settings: Settings,
+    rt: tokio::runtime::Handle,
     mostrar: std::path::PathBuf,
+}
+
+impl Interno {
+    fn atual(&self) -> Option<std::sync::Arc<Nucleo>> {
+        self.nucleo.lock().clone()
+    }
 }
 
 impl Local for Interno {
     fn chamar(&self, metodo: &str, caminho: &str, corpo: Option<Vec<u8>>, bearer: Option<String>) -> BoxFuture<'static, Result<Resposta, String>> {
-        let router = self.router.clone();
+        let n = self.atual();
         let (metodo, caminho) = (metodo.to_string(), caminho.to_string());
         Box::pin(async move {
+            let router = n.ok_or("O banco cifrado ainda está trancado.")?.router.clone();
             let mut req = Request::builder().method(Method::from_bytes(metodo.as_bytes()).map_err(|e| e.to_string())?).uri(&caminho).header(header::HOST, "127.0.0.1").header(header::ORIGIN, "http://127.0.0.1");
             if let Some(b) = bearer {
                 req = req.header(header::AUTHORIZATION, format!("Bearer {b}"));
@@ -40,17 +68,44 @@ impl Local for Interno {
     }
 
     fn acordar(&self) -> bool {
-        let voz = self.st.desktop_wake.swap(false, std::sync::atomic::Ordering::SeqCst);
+        let voz = self.atual().is_some_and(|n| n.st.desktop_wake.swap(false, std::sync::atomic::Ordering::SeqCst));
         // outra instância pediu para mostrar a janela: deixa um arquivo, sem socket nem porta
         let outra = self.mostrar.exists() && std::fs::remove_file(&self.mostrar).is_ok();
         voz || outra
     }
 
     fn panico(&self) -> Result<String, String> {
-        match self.st.modos.entrar_panico("atalho_desktop") {
+        let n = self.atual().ok_or("O banco cifrado ainda está trancado.")?;
+        match n.st.modos.entrar_panico("atalho_desktop") {
             Ok(_) => Ok("Pânico ligado. Entre na conta e retome nas configurações.".into()),
             Err(e) => Err(e.to_string()),
         }
+    }
+
+    fn bloqueado(&self) -> bool {
+        self.atual().is_none()
+    }
+
+    fn desbloquear(&self, senha: String) -> BoxFuture<'static, Result<(), String>> {
+        let (cfg, slot, rt) = (self.settings.clone(), self.nucleo.clone(), self.rt.clone());
+        Box::pin(async move {
+            if slot.lock().is_some() {
+                return Ok(());
+            }
+            rt.spawn(async move {
+                let db = cfg.db_path();
+                let aberto = tokio::task::spawn_blocking(move || orion_core::dbopen::unlock_with_password(&db, &senha)).await.map_err(|e| e.to_string())?;
+                aberto.map_err(|e| match e {
+                    orion_core::dbkey::KeyError::Wrong => "Senha do banco incorreta.".to_string(),
+                    e => e.to_string(),
+                })?;
+                let n = montar_nucleo(cfg).await.map_err(|e| e.to_string())?;
+                *slot.lock() = Some(n);
+                Ok(())
+            })
+            .await
+            .map_err(|e| e.to_string())?
+        })
     }
 }
 
@@ -72,19 +127,6 @@ fn instancia_unica(dados: &std::path::Path) -> anyhow::Result<Option<Trava>> {
     }
 }
 
-/// O `orion.exe` é de console (a CLI precisa); ao abrir a janela solta o console para não ficar
-/// uma tela preta junto do app.
-#[cfg(windows)]
-fn soltar_console() {
-    #[link(name = "kernel32")]
-    extern "system" {
-        fn FreeConsole() -> i32;
-    }
-    unsafe {
-        FreeConsole();
-    }
-}
-
 /// Modo único do Orion: janela nativa + núcleo no mesmo processo, sem rede. `fundo` abre escondido
 /// na bandeja (início com o Windows); clicar na bandeja ou abrir de novo mostra a janela.
 pub fn run(mut s: Settings, fundo: bool) -> anyhow::Result<i32> {
@@ -94,30 +136,35 @@ pub fn run(mut s: Settings, fundo: bool) -> anyhow::Result<i32> {
         let _ = std::fs::write(&mostrar, b"1");
         return Ok(0);
     };
-    #[cfg(windows)]
-    soltar_console();
     if s.admin_token.is_empty() {
         s.admin_token = token_aleatorio();
     }
     let token = s.admin_token.clone();
-    #[cfg(windows)]
-    let vigiar = s.clone();
-    let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
-    let state = runtime.block_on(crate::estado::montar(s))?;
-    #[cfg(windows)]
-    crate::cli_db::watch_screen_lock(&vigiar, state.auth.clone());
-    let telegram = {
-        let _g = runtime.enter();
-        crate::iniciar_fundo(&state)
+    // banco cifrado sem senha em variável nem terminal: a janela pede a senha antes de abrir o núcleo
+    let trancado = match crate::cli_db::unlock_if_needed(&s) {
+        Ok(()) => false,
+        Err(e) if orion_core::dbopen::is_encrypted(&s.db_path()) && !orion_core::dbopen::is_unlocked() => {
+            tracing::info!("banco cifrado: {e}");
+            true
+        }
+        Err(e) => return Err(e),
     };
-    let api = orion_app::net::Api::local(std::sync::Arc::new(Interno { router: crate::rotas::router(state.clone()), st: state.clone(), mostrar: mostrar.clone() }), token);
+    let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
+    let slot: Slot = Default::default();
+    if !trancado {
+        *slot.lock() = Some(runtime.block_on(montar_nucleo(s.clone()))?);
+    }
+    let api = orion_app::net::Api::local(std::sync::Arc::new(Interno { nucleo: slot.clone(), settings: s, rt: runtime.handle().clone(), mostrar: mostrar.clone() }), token);
     let _ = std::fs::remove_file(&mostrar);
     let r = orion_app::run::run_ui(Some(api), None, fundo);
-    runtime.block_on(async {
-        if tokio::time::timeout(Duration::from_secs(10), crate::encerrar_fundo(&state, telegram)).await.is_err() {
-            tracing::warn!("encerramento do núcleo passou de 10 s");
-        }
-    });
+    if let Some(n) = slot.lock().take() {
+        let tel = n.telegram.lock().take();
+        runtime.block_on(async {
+            if tokio::time::timeout(Duration::from_secs(10), crate::encerrar_fundo(&n.st, tel)).await.is_err() {
+                tracing::warn!("encerramento do núcleo passou de 10 s");
+            }
+        });
+    }
     r?;
     Ok(0)
 }
@@ -128,6 +175,11 @@ mod tests {
     use futures::StreamExt;
     use orion_app::net::{Api, Chat};
     use serde_json::json;
+
+    fn interno_de_teste(st: crate::estado::Estado, dir: &std::path::Path) -> std::sync::Arc<Interno> {
+        let n = std::sync::Arc::new(Nucleo { router: crate::rotas::router(st.clone()), st, telegram: Default::default() });
+        std::sync::Arc::new(Interno { nucleo: std::sync::Arc::new(parking_lot::Mutex::new(Some(n))), settings: Settings::load().unwrap(), rt: tokio::runtime::Handle::current(), mostrar: dir.join("mostrar") })
+    }
 
     /// Os testes mexem em variáveis de ambiente do processo: um de cada vez.
     static VEZ: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
@@ -146,7 +198,7 @@ mod tests {
         s.admin_token = token_aleatorio();
         let token = s.admin_token.clone();
         let st = crate::estado::montar(s).await.expect("estado");
-        let api = Api::local(std::sync::Arc::new(Interno { router: crate::rotas::router(st.clone()), st, mostrar: dir.join("mostrar") }), token);
+        let api = Api::local(interno_de_teste(st, &dir), token);
         api.health().await.expect("health");
         assert!(api.auth_ok().await, "o token vale como login");
         let sessao = api.post("/sessoes", json!({})).await.unwrap();
@@ -162,7 +214,7 @@ mod tests {
             }
         }
         assert!(fim && texto.contains("modelo de teste"), "texto: {texto:?}");
-        let sem_token = Api::local({ let st2 = crate::estado::montar(Settings::load().unwrap()).await.unwrap(); std::sync::Arc::new(Interno { router: crate::rotas::router(st2.clone()), st: st2, mostrar: dir.join("mostrar2") }) }, "token-errado-0123456789".into());
+        let sem_token = Api::local(interno_de_teste(crate::estado::montar(Settings::load().unwrap()).await.unwrap(), &dir), "token-errado-0123456789".into());
         assert!(!sem_token.auth_ok().await, "token errado não autentica");
         let _ = std::fs::remove_dir_all(dir);
     }
@@ -185,7 +237,7 @@ mod tests {
         s.admin_token = token_aleatorio();
         let token = s.admin_token.clone();
         let st = crate::estado::montar(s).await.expect("estado");
-        let api = Api::local(std::sync::Arc::new(Interno { router: crate::rotas::router(st.clone()), st, mostrar: dir.join("mostrar") }), token);
+        let api = Api::local(interno_de_teste(st, &dir), token);
         api.post("/sessoes", json!({})).await.unwrap();
         let mut id = String::new();
         let mut ev = Box::pin(api.stream("/chat", json!({"texto": "ESCREVER", "canal": "web"})));
@@ -213,6 +265,40 @@ mod tests {
         assert!(!texto.is_empty(), "o modelo relatou o resultado");
         assert!(alvo.exists(), "o arquivo foi escrito depois de aprovar");
         let _ = std::fs::remove_file(alvo);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// Banco cifrado: o núcleo só abre depois da senha digitada na janela (senha errada recusa).
+    #[cfg(feature = "sqlcipher")]
+    #[tokio::test(flavor = "multi_thread")]
+    async fn banco_cifrado_abre_pela_janela() {
+        use orion_core::dbkey::Kdf;
+        let _vez = VEZ.lock().await;
+        let dir = std::env::temp_dir().join(format!("orion-appmode-db-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::env::set_var("ORION_DATA_DIR", &dir);
+        let s = Settings::load().expect("config");
+        // cria o banco em claro e cifra
+        drop(crate::estado::montar(s.clone()).await.expect("estado"));
+        let db = s.db_path();
+        orion_core::dbopen::encrypt_database(&db, "senha-do-banco-123", Kdf::TESTE).expect("cifra");
+        orion_core::dbopen::lock();
+        assert!(orion_core::dbopen::is_encrypted(&db) && !orion_core::dbopen::is_unlocked());
+
+        let slot: Slot = Default::default();
+        let interno = std::sync::Arc::new(Interno { nucleo: slot, settings: s, rt: tokio::runtime::Handle::current(), mostrar: dir.join("mostrar") });
+        let mut cfg_token = Settings::load().unwrap();
+        cfg_token.admin_token = token_aleatorio();
+        let api = Api::local(interno.clone(), "qualquer-token-0123456789".into());
+        let _ = &interno;
+        assert!(api.bloqueado());
+        assert!(api.health().await.is_err(), "trancado não responde");
+        assert_eq!(api.desbloquear("senha-errada".into()).await.unwrap_err(), "Senha do banco incorreta.");
+        assert!(api.bloqueado());
+        let _ = cfg_token;
+        api.desbloquear("senha-do-banco-123".into()).await.expect("senha certa abre");
+        assert!(!api.bloqueado());
+        assert!(api.health().await.is_ok(), "depois de abrir, o núcleo responde");
         let _ = std::fs::remove_dir_all(dir);
     }
 }

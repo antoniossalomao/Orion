@@ -11,6 +11,8 @@ use serde_json::{json, Value};
 pub enum Lm {
     Boot(Result<bool, String>),
     Login(Result<LoginResult, String>),
+    /// Resultado de abrir o banco cifrado com a senha digitada.
+    Desbloqueado(Result<(), String>),
     TwoFactor(Result<(), String>),
     Sessions(Result<Value, String>),
     Opened(String, Result<Value, String>),
@@ -326,6 +328,12 @@ impl App {
         a.p.proj = 99;
         a.mem = crate::graph::Graph::empty();
         let t = { let api2 = api.clone(); Task::perform(async move { api2.health().await?; Ok(api2.auth_ok().await) }, |r| Msg::L(Lm::Boot(r))) };
+        if api.bloqueado() {
+            a.db_locked = true;
+            a.gate_err = "Banco cifrado: digite a senha do banco para abrir.".into();
+            a.api = Some(api);
+            return (a, Task::none());
+        }
         a.api = Some(api);
         a.gate_err = "Conectando ao servidor…".into();
         (a, t)
@@ -344,6 +352,10 @@ impl App {
                     return None;
                 }
                 let pw = std::mem::take(&mut self.pw);
+                if self.db_locked {
+                    self.gate_err = "Abrindo o banco…".into();
+                    return Some((Task::perform(async move { api.desbloquear(pw).await }, |r| Msg::L(Lm::Desbloqueado(r))), false));
+                }
                 self.gate_err = "Entrando…".into();
                 if let Some(ch) = self.challenge.clone() {
                     return Some((Task::perform(async move { api.second_factor(&ch, &pw).await }, |r| Msg::L(Lm::TwoFactor(r))), false));
@@ -535,6 +547,16 @@ impl App {
                     }
                 }
                 Ok(false) => self.gate_err.clear(),
+                Err(e) => self.gate_err = e,
+            },
+            Lm::Desbloqueado(r) => match r {
+                Ok(()) => {
+                    self.db_locked = false;
+                    self.gate_err = "Conectando ao núcleo…".into();
+                    if let Some(api) = self.api.clone() {
+                        return Task::perform(async move { api.health().await?; Ok(api.auth_ok().await) }, |r| Msg::L(Lm::Boot(r)));
+                    }
+                }
                 Err(e) => self.gate_err = e,
             },
             Lm::Login(r) => match r {

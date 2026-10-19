@@ -3,7 +3,7 @@
 use crate::app::Msg;
 use crate::icons::{icon, icon_box};
 use crate::theme as t;
-use iced::alignment::{Horizontal, Vertical};
+use iced::alignment::Vertical;
 use iced::widget::{button, column, container, mouse_area, row, text, Space};
 use iced::{Background, Border, Color, Element, Length, Padding, Shadow, Theme};
 

@@ -1,4 +1,8 @@
 //! `orion`: abre o app (padrão) e traz os comandos de manutenção.
+//!
+//! No Windows o executável é de janela (sem console piscando ao abrir o app); a CLI anexa o console de
+//! quem a chamou, a menos que a saída já esteja redirecionada (pipe ou arquivo).
+#![cfg_attr(windows, windows_subsystem = "windows")]
 
 mod appmode;
 mod cli_db;
@@ -505,7 +509,7 @@ fn rodar(cli: Cli) -> anyhow::Result<i32> {
     let s = Settings::load()?;
     let cmd = cli.cmd.unwrap_or(Cmd::App);
     // comandos que cuidam da própria senha não passam pelo prompt automático
-    let cuida_da_senha = matches!(cmd, Cmd::DbCifrar { .. } | Cmd::DbSenha { .. } | Cmd::DbRecuperar { .. } | Cmd::DbNovaRecuperacao { .. } | Cmd::DbApagarClaro);
+    let cuida_da_senha = matches!(cmd, Cmd::App | Cmd::DbCifrar { .. } | Cmd::DbSenha { .. } | Cmd::DbRecuperar { .. } | Cmd::DbNovaRecuperacao { .. } | Cmd::DbApagarClaro);
     if !cuida_da_senha {
         cli_db::unlock_if_needed(&s)?;
     }
@@ -620,11 +624,70 @@ fn rodar(cli: Cli) -> anyhow::Result<i32> {
     }
 }
 
+/// Executável de janela não tem console: para a CLI, anexa o do terminal que a chamou e liga a ele
+/// só os fluxos que estiverem sem destino (saída redirecionada continua redirecionada).
+#[cfg(windows)]
+fn anexar_console() {
+    use std::ffi::c_void;
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn GetStdHandle(n: u32) -> *mut c_void;
+        fn SetStdHandle(n: u32, h: *mut c_void) -> i32;
+        fn AttachConsole(pid: u32) -> i32;
+        fn CreateFileW(nome: *const u16, acesso: u32, comp: u32, sa: *mut c_void, disp: u32, flags: u32, modelo: *mut c_void) -> *mut c_void;
+    }
+    const ENTRADA: u32 = -10i32 as u32;
+    const SAIDA: u32 = -11i32 as u32;
+    const ERRO: u32 = -12i32 as u32;
+    const ANEXAR_PAI: u32 = u32::MAX;
+    fn sem_destino(h: *mut c_void) -> bool {
+        h.is_null() || h as isize == -1
+    }
+    unsafe {
+        let faltando: Vec<u32> = [ENTRADA, SAIDA, ERRO].into_iter().filter(|n| sem_destino(GetStdHandle(*n))).collect();
+        // tudo já tem destino (pipe, arquivo, console próprio), ou não há terminal pai (duplo clique)
+        if faltando.is_empty() || AttachConsole(ANEXAR_PAI) == 0 {
+            return;
+        }
+        let abrir = |nome: &str, acesso: u32| -> *mut c_void {
+            let w: Vec<u16> = nome.encode_utf16().chain(std::iter::once(0)).collect();
+            // GENERIC_READ/WRITE, FILE_SHARE_READ|WRITE, OPEN_EXISTING
+            CreateFileW(w.as_ptr(), acesso, 3, std::ptr::null_mut(), 3, 0, std::ptr::null_mut())
+        };
+        for n in faltando {
+            let h = if n == ENTRADA { abrir("CONIN$", 0x8000_0000) } else { abrir("CONOUT$", 0x4000_0000) };
+            if !sem_destino(h) {
+                SetStdHandle(n, h);
+            }
+        }
+    }
+}
+
+#[cfg(windows)]
+fn caixa_de_erro(texto: &str) {
+    use std::ffi::c_void;
+    #[link(name = "user32")]
+    extern "system" {
+        fn MessageBoxW(janela: *mut c_void, texto: *const u16, titulo: *const u16, tipo: u32) -> i32;
+    }
+    let w = |s: &str| -> Vec<u16> { s.encode_utf16().chain(std::iter::once(0)).collect() };
+    unsafe {
+        MessageBoxW(std::ptr::null_mut(), w(texto).as_ptr(), w("Orion não abriu").as_ptr(), 0x10); // MB_ICONERROR
+    }
+}
+
 fn main() {
+    #[cfg(windows)]
+    anexar_console();
     let codigo = match rodar(Cli::parse()) {
         Ok(c) => c,
         Err(e) => {
             eprintln!("erro: {e:#}");
+            // sem console (duplo clique ou início com o Windows) ninguém leria o erro: mostra numa caixa
+            #[cfg(windows)]
+            if std::env::args().skip(1).all(|a| a == "--background" || a == "app") {
+                caixa_de_erro(&format!("{e:#}"));
+            }
             1
         }
     };
