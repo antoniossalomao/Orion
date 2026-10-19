@@ -7,12 +7,28 @@ use std::sync::{Arc, Mutex};
 
 pub const COOKIE: &str = "orion_session";
 
+/// Corpo da resposta em pedaços (o chat por SSE chega aos poucos).
+pub type Corpo = futures::stream::BoxStream<'static, Result<Vec<u8>, String>>;
+
+pub struct Resposta {
+    pub status: u16,
+    pub set_cookie: Option<String>,
+    pub corpo: Corpo,
+}
+
+/// Ligação direta ao núcleo, dentro do mesmo processo: o pedido vai para as rotas sem passar por
+/// socket, porta ou rede (é o que o `orion app` usa). Quem implementa fica no servidor.
+pub trait Local: Send + Sync + 'static {
+    fn chamar(&self, metodo: &str, caminho: &str, corpo: Option<Vec<u8>>, bearer: Option<String>) -> futures::future::BoxFuture<'static, Result<Resposta, String>>;
+}
+
 #[derive(Clone)]
 pub struct Api {
     pub base: String,
     http: reqwest::Client,
     cookie: Arc<Mutex<Option<String>>>,
     bearer: Option<String>,
+    local: Option<Arc<dyn Local>>,
 }
 
 #[derive(Debug, Clone)]
@@ -62,23 +78,56 @@ impl Api {
 
     pub fn new(base: &str, bearer: Option<String>) -> Self {
         let http = reqwest::Client::builder().timeout(std::time::Duration::from_secs(30)).connect_timeout(std::time::Duration::from_secs(3)).build().expect("cliente http");
-        Api { base: base.trim_end_matches('/').to_string(), http, cookie: Arc::new(Mutex::new(None)), bearer }
+        Api { base: base.trim_end_matches('/').to_string(), http, cookie: Arc::new(Mutex::new(None)), bearer, local: None }
     }
 
-    fn req(&self, m: reqwest::Method, path: &str) -> reqwest::RequestBuilder {
-        let mut r = self.http.request(m, format!("{}{}", self.base, path)).header("Origin", &self.base);
+    /// Núcleo no mesmo processo: sem rede nenhuma.
+    pub fn local(ligacao: Arc<dyn Local>, token: String) -> Self {
+        let mut a = Self::new("orion://local", Some(token));
+        a.local = Some(ligacao);
+        a
+    }
+
+    fn indisponivel(&self) -> String {
+        if self.local.is_some() { "O núcleo do Orion não respondeu.".into() } else { format!("Servidor do Orion indisponível em {}.", self.base) }
+    }
+
+    /// Único ponto que fala com o núcleo: pela ligação direta ou por HTTP.
+    async fn raw(&self, metodo: reqwest::Method, path: &str, body: Option<Value>, longo: bool) -> Result<Resposta, String> {
+        if let Some(l) = &self.local {
+            return l.chamar(metodo.as_str(), path, body.map(|b| b.to_string().into_bytes()), self.bearer.clone()).await;
+        }
+        let mut r = self.http.request(metodo, format!("{}{}", self.base, path)).header("Origin", &self.base);
         if let Some(b) = &self.bearer {
             r = r.bearer_auth(b);
         } else if let Some(c) = self.cookie.lock().ok().and_then(|c| c.clone()) {
             r = r.header("Cookie", format!("{COOKIE}={c}"));
         }
-        r
+        if let Some(b) = &body {
+            r = r.json(b);
+        }
+        if longo {
+            r = r.timeout(std::time::Duration::from_secs(600));
+        }
+        let resp = r.send().await.map_err(|e| if e.is_connect() || e.is_timeout() { self.indisponivel() } else { e.to_string() })?;
+        let status = resp.status().as_u16();
+        let set_cookie = resp.headers().get_all("set-cookie").iter().filter_map(|v| v.to_str().ok()).find(|c| c.starts_with(COOKIE)).map(String::from);
+        Ok(Resposta { status, set_cookie, corpo: resp.bytes_stream().map(|c| c.map(|b| b.to_vec()).map_err(|e| e.to_string())).boxed() })
     }
 
-    async fn send(&self, r: reqwest::RequestBuilder, path: &str) -> Result<Value, String> {
-        let resp = r.send().await.map_err(|e| if e.is_connect() || e.is_timeout() { format!("Servidor do Orion indisponível em {}.", self.base) } else { e.to_string() })?;
-        let status = resp.status().as_u16();
-        let text = resp.text().await.map_err(|e| e.to_string())?;
+    async fn texto(r: Resposta) -> String {
+        let mut corpo = r.corpo;
+        let mut out = Vec::new();
+        while let Some(Ok(c)) = corpo.next().await {
+            out.extend_from_slice(&c);
+        }
+        String::from_utf8_lossy(&out).into_owned()
+    }
+
+    async fn send(&self, metodo: reqwest::Method, path: &str, body: Option<Value>) -> Result<Value, String> {
+        let r = self.raw(metodo, path, body, false).await?;
+        let status = r.status;
+        let text = Self::texto(r).await;
         if !(200..300).contains(&status) {
             return Err(mensagem_http(status, &text, path));
         }
@@ -86,28 +135,28 @@ impl Api {
     }
 
     pub async fn get(&self, path: &str) -> Result<Value, String> {
-        self.send(self.req(reqwest::Method::GET, path), path).await
+        self.send(reqwest::Method::GET, path, None).await
     }
     pub async fn post(&self, path: &str, body: Value) -> Result<Value, String> {
-        self.send(self.req(reqwest::Method::POST, path).json(&body), path).await
+        self.send(reqwest::Method::POST, path, Some(body)).await
     }
     pub async fn patch(&self, path: &str, body: Value) -> Result<Value, String> {
-        self.send(self.req(reqwest::Method::PATCH, path).json(&body), path).await
+        self.send(reqwest::Method::PATCH, path, Some(body)).await
     }
     pub async fn put(&self, path: &str, body: Value) -> Result<Value, String> {
-        self.send(self.req(reqwest::Method::PUT, path).json(&body), path).await
+        self.send(reqwest::Method::PUT, path, Some(body)).await
     }
     pub async fn delete(&self, path: &str) -> Result<Value, String> {
-        self.send(self.req(reqwest::Method::DELETE, path), path).await
+        self.send(reqwest::Method::DELETE, path, None).await
     }
 
-    /// Servidor no ar? (`/health` não exige login). Com token de máquina já vale como entrada.
+    /// Núcleo no ar? (`/health` não exige login). Com token de máquina já vale como entrada.
     pub async fn health(&self) -> Result<(), String> {
-        let r = self.http.get(format!("{}/health", self.base)).send().await.map_err(|_| format!("Servidor do Orion indisponível em {}.", self.base))?;
-        if r.status().is_success() {
+        let r = self.raw(reqwest::Method::GET, "/health", None, false).await.map_err(|_| self.indisponivel())?;
+        if (200..300).contains(&r.status) {
             Ok(())
         } else {
-            Err(format!("O servidor respondeu {}.", r.status().as_u16()))
+            Err(format!("O servidor respondeu {}.", r.status))
         }
     }
 
@@ -115,17 +164,20 @@ impl Api {
         self.get("/auth/status").await.map(|v| v.get("authenticated").and_then(Value::as_bool).unwrap_or(false)).unwrap_or(false)
     }
 
+    fn guardar_cookie(&self, set: Option<String>) {
+        let valor = set.map(|c| c.split(';').next().unwrap_or("").trim_start_matches(&format!("{COOKIE}=")).trim_matches('"').to_string());
+        if let (Some(c), Ok(mut slot)) = (valor, self.cookie.lock()) {
+            *slot = Some(c);
+        }
+    }
+
     pub async fn login(&self, senha: &str) -> Result<LoginResult, String> {
-        let r = self.req(reqwest::Method::POST, "/auth/login").json(&json!({"senha": senha}));
-        let resp = r.send().await.map_err(|_| format!("Servidor do Orion indisponível em {}.", self.base))?;
-        let status = resp.status().as_u16();
-        let set = resp.headers().get_all("set-cookie").iter().filter_map(|v| v.to_str().ok()).find(|c| c.starts_with(COOKIE)).map(|c| c.split(';').next().unwrap_or("").trim_start_matches(&format!("{COOKIE}=")).trim_matches('"').to_string());
-        let text = resp.text().await.map_err(|e| e.to_string())?;
+        let resp = self.raw(reqwest::Method::POST, "/auth/login", Some(json!({"senha": senha})), false).await.map_err(|_| self.indisponivel())?;
+        let (status, set) = (resp.status, resp.set_cookie.clone());
+        let text = Self::texto(resp).await;
         match status {
             200 => {
-                if let (Some(c), Ok(mut slot)) = (set, self.cookie.lock()) {
-                    *slot = Some(c);
-                }
+                self.guardar_cookie(set);
                 Ok(LoginResult::Ok)
             }
             202 => Ok(LoginResult::TwoFactor(serde_json::from_str::<Value>(&text).ok().and_then(|v| v.get("challenge").and_then(Value::as_str).map(String::from)).unwrap_or_default())),
@@ -134,15 +186,11 @@ impl Api {
     }
 
     pub async fn second_factor(&self, challenge: &str, code: &str) -> Result<(), String> {
-        let r = self.req(reqwest::Method::POST, "/auth/2fa").json(&json!({"challenge": challenge, "code": code}));
-        let resp = r.send().await.map_err(|_| format!("Servidor do Orion indisponível em {}.", self.base))?;
-        let status = resp.status().as_u16();
-        let set = resp.headers().get_all("set-cookie").iter().filter_map(|v| v.to_str().ok()).find(|c| c.starts_with(COOKIE)).map(|c| c.split(';').next().unwrap_or("").trim_start_matches(&format!("{COOKIE}=")).trim_matches('"').to_string());
-        let text = resp.text().await.map_err(|e| e.to_string())?;
+        let resp = self.raw(reqwest::Method::POST, "/auth/2fa", Some(json!({"challenge": challenge, "code": code})), false).await.map_err(|_| self.indisponivel())?;
+        let (status, set) = (resp.status, resp.set_cookie.clone());
+        let text = Self::texto(resp).await;
         if status == 200 {
-            if let (Some(c), Ok(mut slot)) = (set, self.cookie.lock()) {
-                *slot = Some(c);
-            }
+            self.guardar_cookie(set);
             Ok(())
         } else {
             Err(mensagem_http(status, &text, "/auth/2fa"))
@@ -158,22 +206,21 @@ impl Api {
 
     /// POST em rota SSE (`/chat`, `/approvals/:id/resume`): devolve os eventos já normalizados.
     pub fn stream(&self, path: &str, body: Value) -> impl Stream<Item = Chat> + Send + 'static {
-        let r = self.req(reqwest::Method::POST, path).json(&body).timeout(std::time::Duration::from_secs(600));
-        let (base, path) = (self.base.clone(), path.to_string());
+        let (api, path) = (self.clone(), path.to_string());
         async_stream::stream! {
-            let resp = match r.send().await {
+            let resp = match api.raw(reqwest::Method::POST, &path, Some(body), true).await {
                 Ok(r) => r,
-                Err(_) => { yield Chat::Error(format!("Servidor do Orion indisponível em {base}.")); yield Chat::Done { message_id: None, session_id: None }; return; }
+                Err(e) => { yield Chat::Error(e); yield Chat::Done { message_id: None, session_id: None }; return; }
             };
-            let status = resp.status().as_u16();
-            if !(200..300).contains(&status) {
-                let t = resp.text().await.unwrap_or_default();
+            if !(200..300).contains(&resp.status) {
+                let status = resp.status;
+                let t = Self::texto(resp).await;
                 yield Chat::Error(mensagem_http(status, &t, &path));
                 yield Chat::Done { message_id: None, session_id: None };
                 return;
             }
             let mut buf = String::new();
-            let mut bytes = resp.bytes_stream();
+            let mut bytes = resp.corpo;
             let mut fim = false;
             while let Some(chunk) = bytes.next().await {
                 let Ok(chunk) = chunk else { break };

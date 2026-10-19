@@ -5738,6 +5738,7 @@ dependencies = [
  "subtle",
  "sysinfo",
  "tokio",
+ "tower",
  "tower-http",
  "tracing",
  "tracing-subscriber",

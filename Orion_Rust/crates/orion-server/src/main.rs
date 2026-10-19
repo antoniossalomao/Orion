@@ -409,22 +409,18 @@ async fn serve(s: Settings) -> anyhow::Result<i32> {
     .await
 }
 
-async fn serve_state(
-    st: estado::Estado,
-    ouvinte: tokio::net::TcpListener,
-    shutdown: impl std::future::Future<Output = ()> + Send + 'static,
-) -> anyhow::Result<i32> {
-    let (host, porta) = (&st.settings.host, st.settings.port);
+/// Liga os trabalhos de fundo (escuta, rotinas, Telegram). Devolve a tarefa do Telegram.
+fn iniciar_fundo(st: &estado::Estado) -> Option<tokio::task::JoinHandle<()>> {
     if let Some(e) = &st.escuta {
         e.start();
     }
     if let Some(j) = st.jobs.clone() {
         tokio::spawn(j.run_forever(st.settings.jobs_tick_s));
     }
-    let tarefa_telegram = st.telegram.clone().map(|t| tokio::spawn(t.run()));
-    let app = rotas::router(st.clone());
-    tracing::info!("Orion em http://{host}:{porta}");
-    axum::serve(ouvinte, app.into_make_service_with_connect_info::<std::net::SocketAddr>()).with_graceful_shutdown(shutdown).await?;
+    st.telegram.clone().map(|t| tokio::spawn(t.run()))
+}
+
+async fn encerrar_fundo(st: &estado::Estado, tarefa_telegram: Option<tokio::task::JoinHandle<()>>) {
     if let Some(e) = &st.escuta {
         e.stop();
     }
@@ -448,6 +444,19 @@ async fn serve_state(
         h.close().await;
     }
     orion_ai::saidas::definir_destino(None);
+}
+
+async fn serve_state(
+    st: estado::Estado,
+    ouvinte: tokio::net::TcpListener,
+    shutdown: impl std::future::Future<Output = ()> + Send + 'static,
+) -> anyhow::Result<i32> {
+    let (host, porta) = (&st.settings.host, st.settings.port);
+    let tarefa_telegram = iniciar_fundo(&st);
+    let app = rotas::router(st.clone());
+    tracing::info!("Orion em http://{host}:{porta}");
+    axum::serve(ouvinte, app.into_make_service_with_connect_info::<std::net::SocketAddr>()).with_graceful_shutdown(shutdown).await?;
+    encerrar_fundo(&st, tarefa_telegram).await;
     Ok(0)
 }
 
