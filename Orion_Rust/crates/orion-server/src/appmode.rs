@@ -61,3 +61,45 @@ pub fn run(mut s: Settings) -> anyhow::Result<i32> {
     r?;
     Ok(0)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futures::StreamExt;
+    use orion_app::net::{Api, Chat};
+    use serde_json::json;
+
+    /// Chat de ponta a ponta pelo caminho sem rede. Só roda com um LLM de teste em `ORION_TEST_GATEWAY`
+    /// (ex.: http://127.0.0.1:9099/v1, modelo `mock`).
+    #[tokio::test(flavor = "multi_thread")]
+    async fn chat_sem_rede_passa_pelas_rotas() {
+        let Ok(gw) = std::env::var("ORION_TEST_GATEWAY") else { return };
+        let dir = std::env::temp_dir().join(format!("orion-appmode-{}", std::process::id()));
+        std::env::set_var("ORION_DATA_DIR", &dir);
+        std::env::set_var("ORION_GATEWAY_URL", gw);
+        std::env::set_var("ORION_GATEWAY_MODEL", "mock");
+        let mut s = Settings::load().expect("config");
+        s.admin_token = token_aleatorio();
+        let token = s.admin_token.clone();
+        let st = crate::estado::montar(s).await.expect("estado");
+        let api = Api::local(std::sync::Arc::new(Interno(crate::rotas::router(st))), token);
+        api.health().await.expect("health");
+        assert!(api.auth_ok().await, "o token vale como login");
+        let sessao = api.post("/sessoes", json!({})).await.unwrap();
+        assert!(sessao["sessao_id"].as_str().is_some());
+        let (mut texto, mut fim) = (String::new(), false);
+        let mut ev = Box::pin(api.stream("/chat", json!({"texto": "oi, Orion", "canal": "web"})));
+        while let Some(e) = ev.next().await {
+            match e {
+                Chat::Text(t) => texto.push_str(&t),
+                Chat::Done { .. } => fim = true,
+                Chat::Error(e) => panic!("erro no chat: {e}"),
+                _ => {}
+            }
+        }
+        assert!(fim && texto.contains("modelo de teste"), "texto: {texto:?}");
+        let sem_token = Api::local(std::sync::Arc::new(Interno(crate::rotas::router(crate::estado::montar(Settings::load().unwrap()).await.unwrap()))), "token-errado-0123456789".into());
+        assert!(!sem_token.auth_ok().await, "token errado não autentica");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+}
