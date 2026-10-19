@@ -297,6 +297,8 @@ pub enum StepItemStatus {
 enum Undo {
     Uninstall,
     Autostart,
+    Identity,
+    UpdateTask,
 }
 
 #[derive(Clone)]
@@ -305,6 +307,8 @@ pub struct InstallPlan {
     pub created_paths: Vec<PathBuf>,
     registrar: Arc<dyn Registrar>,
     undo: Vec<Undo>,
+    /// Thumbprint do certificado criado neste plano, para o `rollback` retirá-lo.
+    identity_thumbprint: Option<String>,
 }
 
 impl std::fmt::Debug for InstallPlan {
@@ -321,7 +325,7 @@ impl InstallPlan {
     }
 
     pub fn with_registrar(root_override: Option<PathBuf>, registrar: Arc<dyn Registrar>) -> Self {
-        Self { root_override, created_paths: Vec::new(), registrar, undo: Vec::new() }
+        Self { root_override, created_paths: Vec::new(), registrar, undo: Vec::new(), identity_thumbprint: None }
     }
 
     fn real(&self) -> bool {
@@ -455,6 +459,7 @@ impl InstallPlan {
                     for (name, source) in [
                         ("orion.exe", bundle.join("orion.exe")),
                         ("orion-llama.exe", bundle.join("orion-llama.exe")),
+                        ("orion-updater.exe", bundle.join("orion-updater.exe")),
                         // o próprio instalador vira o desinstalador (Apps instalados chama `--uninstall`)
                         (register::UNINSTALLER, executable.clone()),
                     ] {
@@ -491,14 +496,25 @@ impl InstallPlan {
                 Ok("App registrado em Apps instalados".into())
             }
             2 => {
-                // Sem certificado: assinatura de release exige certificado real (pendente). Aqui
-                // fica só a lista de SHA-256 dos arquivos copiados, para conferência.
+                // Identidade de pacote esparso com certificado autoassinado. Sem SDK do Windows ou
+                // sem administrador o passo é pulado e dito, nunca fingido.
+                let identidade = match self.registrar.register_identity(&choices.app_dir, env!("CARGO_PKG_VERSION")) {
+                    Ok(crate::identity::IdentityOutcome::Registered { thumbprint }) => {
+                        self.identity_thumbprint = Some(thumbprint.clone());
+                        self.undo.push(Undo::Identity);
+                        self.update_manifest(&app_dir, |m| m.identity_thumbprint = Some(thumbprint))?;
+                        "identidade de pacote registrada".to_string()
+                    }
+                    Ok(crate::identity::IdentityOutcome::Skipped(motivo)) => format!("identidade de pacote não registrada ({motivo})"),
+                    Err(e) => format!("identidade de pacote não registrada ({e})"),
+                };
+                // Lista de SHA-256 dos arquivos copiados, para conferência.
                 let m = InstallManifest::load(&app_dir)?;
                 let lista: String = m.files.iter().map(|f| format!("{}  {}\n", f.sha256, f.name)).collect();
                 let sums = app_dir.join("orion-files.sha256");
                 self.write_new(&sums, lista.as_bytes()).map_err(|e| format!("falha ao gravar a lista de integridade: {e}"))?;
                 self.created_paths.push(sums);
-                Ok(format!("Integridade registrada para {} arquivos", m.files.len()))
+                Ok(format!("{identidade}; integridade registrada para {} arquivos", m.files.len()))
             }
             3 => {
                 let lnk = if self.real() { register::start_menu_shortcut() } else { app_dir.join("Orion.lnk") };
@@ -520,18 +536,29 @@ impl InstallPlan {
                 Ok(if choices.pin_to_taskbar { "Atalho no Menu Iniciar criado; fixar na barra exige sua confirmação no Windows" } else { "Atalho no Menu Iniciar criado" }.into())
             }
             4 => {
-                // Ainda não há atualizador: grava só as preferências. Nenhum serviço é instalado.
+                // Preferências de atualização e tarefa diária. Sem chave pública nem feed o
+                // atualizador não faz nada (fail-closed): quem publica releases preenche os dois.
                 let updater = data_dir.join("update.json");
                 let payload = serde_json::json!({
                     "channel": "stable",
                     "auto_update": false,
                     "crash_reports": choices.send_crash_reports,
+                    "feed_url": null,
+                    "public_key": null,
                 });
                 std::fs::create_dir_all(&data_dir).map_err(|e| format!("falha ao criar {}: {e}", data_dir.display()))?;
                 self.write_new(&updater, &serde_json::to_vec_pretty(&payload).unwrap_or_default())
                     .map_err(|e| format!("falha ao gravar preferências de atualização: {e}"))?;
                 self.created_paths.push(updater);
-                Ok("Preferências de atualização gravadas (sem serviço; atualizador pendente)".into())
+                let tarefa = match self.registrar.install_update_task(&choices.app_dir.join("orion-updater.exe")) {
+                    Ok(()) => {
+                        self.undo.push(Undo::UpdateTask);
+                        self.update_manifest(&app_dir, |m| m.update_task = true)?;
+                        "tarefa diária de atualização criada".to_string()
+                    }
+                    Err(e) => format!("tarefa diária não criada ({e})"),
+                };
+                Ok(format!("Preferências gravadas; {tarefa}"))
             }
             5 => self.install_models(choices, &std::sync::atomic::AtomicBool::new(false), &|_, _| {}),
             _ => Ok("Concluído".into()),
@@ -544,6 +571,8 @@ impl InstallPlan {
             let _ = match undo {
                 Undo::Autostart => self.registrar.remove_autostart(),
                 Undo::Uninstall => self.registrar.unregister_uninstall(),
+                Undo::Identity => self.identity_thumbprint.take().map_or(Ok(()), |t| self.registrar.unregister_identity(&t)),
+                Undo::UpdateTask => self.registrar.remove_update_task(),
             };
         }
         while let Some(path) = self.created_paths.pop() {
@@ -588,6 +617,7 @@ mod tests {
         let calls = rec.calls();
         assert!(calls.iter().any(|c| c.starts_with("register_uninstall \"") && c.contains("--uninstall")));
         assert!(calls.iter().any(|c| c.starts_with("set_autostart") && c.contains("desktop --background")));
+        assert!(calls.iter().any(|c| c.starts_with("register_identity")) && calls.iter().any(|c| c.starts_with("install_update_task")));
         let app = plan.map_path(&choices.app_dir);
         let m = InstallManifest::load(&app).unwrap();
         assert!(m.registered && m.autostart && m.shortcut.is_some());
@@ -596,7 +626,7 @@ mod tests {
         plan.rollback();
         assert!(plan.created_paths.is_empty());
         let calls = rec.calls();
-        assert_eq!(&calls[calls.len() - 2..], ["remove_autostart", "unregister_uninstall"]);
+        assert_eq!(&calls[calls.len() - 4..], ["remove_update_task", "remove_autostart", format!("unregister_identity {}", "A".repeat(40)).as_str(), "unregister_uninstall"]);
         assert!(!app.join(register::MANIFEST).exists());
     }
 
@@ -623,7 +653,7 @@ mod tests {
         let app = plan.map_path(&choices.app_dir);
         let data = plan.map_path(&choices.data_dir);
         std::fs::write(data.join("orion.db"), b"dados do dono").unwrap();
-        register::uninstall(&app, rec.as_ref(), false).unwrap();
+        register::uninstall(&app, rec.as_ref(), register::UninstallOptions::default()).unwrap();
         assert!(!app.join(register::MANIFEST).exists());
         assert_eq!(std::fs::read(data.join("orion.db")).unwrap(), b"dados do dono");
     }
@@ -636,12 +666,14 @@ mod tests {
         let data = plan.map_path(&choices.data_dir);
         std::fs::create_dir_all(&data).unwrap();
         std::fs::write(data.join("orion.db"), b"dados do dono").unwrap();
+        plan.execute_step(0, &choices).unwrap();
         plan.execute_step(4, &choices).unwrap();
         assert!(data.join("update.json").exists());
         plan.rollback();
         assert_eq!(std::fs::read(data.join("orion.db")).unwrap(), b"dados do dono");
         assert!(!data.join("update.json").exists());
         std::fs::write(data.join("update.json"), b"config antiga").unwrap();
+        plan.execute_step(0, &choices).unwrap();
         assert!(plan.execute_step(4, &choices).is_err());
         plan.rollback();
         assert_eq!(std::fs::read(data.join("update.json")).unwrap(), b"config antiga");

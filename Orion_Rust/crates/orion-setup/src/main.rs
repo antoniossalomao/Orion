@@ -56,8 +56,10 @@ fn main() -> iced::Result {
     }
 
     let args: Vec<String> = std::env::args().collect();
-    if let Some(code) = orion_setup::register::handle_uninstall_args(&args) {
-        std::process::exit(code);
+    match orion_setup::register::handle_uninstall_args(&args) {
+        Some(orion_setup::register::UninstallAction::Exit(code)) => std::process::exit(code),
+        Some(orion_setup::register::UninstallAction::Ui(dir)) => return orion_setup::uninstall_ui::run(dir),
+        None => {}
     }
     let real_install = !args.iter().any(|a| a == "--preview" || a == "--prototype-hw");
     let use_proto_hw = args.iter().any(|a| a == "--prototype-hw");

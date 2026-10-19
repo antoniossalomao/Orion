@@ -4,6 +4,8 @@
 //! argumentos separados ou variáveis de ambiente, nunca montando comando em texto. Em prévia e em
 //! teste entra o [`RecordingRegistrar`], que só anota o que faria.
 
+#[cfg_attr(not(windows), allow(unused_imports))]
+use crate::identity::{self, IdentityOutcome};
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -30,7 +32,15 @@ pub trait Registrar: Send + Sync {
     fn create_shortcut(&self, lnk: &Path, target: &Path, args: &str, workdir: &Path) -> Result<(), String>;
     fn set_autostart(&self, command: &str) -> Result<(), String>;
     fn remove_autostart(&self) -> Result<(), String>;
+    /// Identidade de pacote esparso com certificado autoassinado (ver `identity`).
+    fn register_identity(&self, app_dir: &Path, version: &str) -> Result<IdentityOutcome, String>;
+    fn unregister_identity(&self, thumbprint: &str) -> Result<(), String>;
+    /// Tarefa diária (SYSTEM) que roda o atualizador sem pedir UAC a cada versão.
+    fn install_update_task(&self, updater: &Path) -> Result<(), String>;
+    fn remove_update_task(&self) -> Result<(), String>;
 }
+
+pub const UPDATE_TASK: &str = "OrionUpdater";
 
 /// Registrar real: só funciona no Windows; nos outros sistemas recusa em vez de fingir.
 pub struct WindowsRegistrar;
@@ -42,6 +52,18 @@ fn run(cmd: &mut std::process::Command) -> Result<(), String> {
     let out = cmd.output().map_err(|e| e.to_string())?;
     if out.status.success() {
         Ok(())
+    } else {
+        Err(String::from_utf8_lossy(&[out.stderr, out.stdout].concat()).trim().to_string())
+    }
+}
+
+#[cfg(windows)]
+fn run_output(cmd: &mut std::process::Command) -> Result<String, String> {
+    use std::os::windows::process::CommandExt;
+    cmd.creation_flags(0x0800_0000);
+    let out = cmd.output().map_err(|e| e.to_string())?;
+    if out.status.success() {
+        Ok(String::from_utf8_lossy(&out.stdout).into_owned())
     } else {
         Err(String::from_utf8_lossy(&[out.stderr, out.stdout].concat()).trim().to_string())
     }
@@ -131,6 +153,64 @@ impl Registrar for WindowsRegistrar {
     fn remove_autostart(&self) -> Result<(), String> {
         Err("início automático só existe no Windows".into())
     }
+
+    #[cfg(windows)]
+    fn register_identity(&self, app_dir: &Path, version: &str) -> Result<IdentityOutcome, String> {
+        use rand::RngCore;
+        let work = std::env::temp_dir().join(format!("orion-identity-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&work);
+        identity::write_package_dir(&work.join("pkg"), version).map_err(|e| e.to_string())?;
+        let mut pw = [0u8; 24];
+        rand::thread_rng().fill_bytes(&mut pw);
+        let out = run_output(
+            std::process::Command::new("powershell")
+                .args(["-NoProfile", "-NonInteractive", "-Command", identity::REGISTER_SCRIPT])
+                .env("ORION_PKGDIR", work.join("pkg"))
+                .env("ORION_MSIX", work.join("Orion.msix"))
+                .env("ORION_PFX", work.join("orion.pfx"))
+                .env("ORION_CER", work.join("orion.cer"))
+                .env("ORION_PFX_PASSWORD", hex::encode(pw))
+                .env("ORION_APPDIR", app_dir),
+        );
+        // a chave privada do certificado não fica em disco em nenhum caso
+        let _ = std::fs::remove_dir_all(&work);
+        identity::parse_script_output(&out?)
+    }
+    #[cfg(not(windows))]
+    fn register_identity(&self, _: &Path, _: &str) -> Result<IdentityOutcome, String> {
+        Err("identidade de pacote só existe no Windows".into())
+    }
+
+    #[cfg(windows)]
+    fn unregister_identity(&self, thumbprint: &str) -> Result<(), String> {
+        if !identity::valid_thumbprint(thumbprint) {
+            return Err(format!("thumbprint inválido: {thumbprint}"));
+        }
+        run_output(std::process::Command::new("powershell").args(["-NoProfile", "-NonInteractive", "-Command", identity::UNREGISTER_SCRIPT]).env("ORION_THUMBPRINT", thumbprint)).map(|_| ())
+    }
+    #[cfg(not(windows))]
+    fn unregister_identity(&self, _: &str) -> Result<(), String> {
+        Err("identidade de pacote só existe no Windows".into())
+    }
+
+    #[cfg(windows)]
+    fn install_update_task(&self, updater: &Path) -> Result<(), String> {
+        let tr = format!("\"{}\" --check", updater.display());
+        run(std::process::Command::new("schtasks").args(["/Create", "/TN", UPDATE_TASK, "/SC", "DAILY", "/ST", "12:30", "/RU", "SYSTEM", "/RL", "HIGHEST", "/TR", &tr, "/F"]))
+    }
+    #[cfg(not(windows))]
+    fn install_update_task(&self, _: &Path) -> Result<(), String> {
+        Err("tarefa agendada só existe no Windows".into())
+    }
+
+    #[cfg(windows)]
+    fn remove_update_task(&self) -> Result<(), String> {
+        run(std::process::Command::new("schtasks").args(["/Delete", "/TN", UPDATE_TASK, "/F"]))
+    }
+    #[cfg(not(windows))]
+    fn remove_update_task(&self) -> Result<(), String> {
+        Err("tarefa agendada só existe no Windows".into())
+    }
 }
 
 /// Registrar de prévia e de teste: guarda as chamadas e não toca no sistema.
@@ -166,6 +246,22 @@ impl Registrar for RecordingRegistrar {
         self.calls.lock().push("remove_autostart".into());
         Ok(())
     }
+    fn register_identity(&self, _: &Path, version: &str) -> Result<IdentityOutcome, String> {
+        self.calls.lock().push(format!("register_identity {version}"));
+        Ok(IdentityOutcome::Registered { thumbprint: "A".repeat(40) })
+    }
+    fn unregister_identity(&self, thumbprint: &str) -> Result<(), String> {
+        self.calls.lock().push(format!("unregister_identity {thumbprint}"));
+        Ok(())
+    }
+    fn install_update_task(&self, updater: &Path) -> Result<(), String> {
+        self.calls.lock().push(format!("install_update_task {}", updater.display()));
+        Ok(())
+    }
+    fn remove_update_task(&self) -> Result<(), String> {
+        self.calls.lock().push("remove_update_task".into());
+        Ok(())
+    }
 }
 
 /// Atalho do Menu Iniciar do usuário (`%APPDATA%\Microsoft\Windows\Start Menu\Programs\Orion.lnk`).
@@ -194,6 +290,11 @@ pub struct InstallManifest {
     pub autostart: bool,
     #[serde(default)]
     pub registered: bool,
+    /// Thumbprint do certificado autoassinado da identidade de pacote, se foi registrada.
+    #[serde(default)]
+    pub identity_thumbprint: Option<String>,
+    #[serde(default)]
+    pub update_task: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -221,17 +322,55 @@ pub fn sha256_file(path: &Path) -> std::io::Result<String> {
     Ok(hex::encode(hasher.finalize()))
 }
 
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct UninstallOptions {
+    /// Modelos baixados pelo instalador (só os arquivos registrados em `orion-local.json`).
+    pub remove_models: bool,
+    /// Pasta de dados do Orion (banco, configurações). O vault nunca está aqui nem é tocado.
+    pub remove_data: bool,
+}
+
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct UninstallReport {
     pub removed_files: usize,
     /// Arquivos que mudaram depois da instalação e foram mantidos.
     pub kept_modified: Vec<String>,
+    pub removed_models: usize,
     pub removed_data: bool,
 }
 
-/// Remove o que a instalação registrou. Dados e modelos só saem com `remove_data`; arquivo do app
-/// alterado depois da instalação fica no lugar.
-pub fn uninstall(app_dir: &Path, registrar: &dyn Registrar, remove_data: bool) -> Result<UninstallReport, String> {
+/// Só apaga pasta com cara de pasta do Orion e com profundidade mínima, para um caminho digitado
+/// errado (`C:\`, `C:\Users`) nunca virar `remove_dir_all`.
+fn pasta_do_orion(p: &Path) -> bool {
+    let normais = p.components().filter(|c| matches!(c, std::path::Component::Normal(_))).count();
+    normais >= 2 && p.file_name().is_some_and(|n| n.to_string_lossy().to_lowercase().contains("orion"))
+}
+
+/// Remove os modelos que o instalador registrou. Arquivos que não estão em `orion-local.json`
+/// (por exemplo outros GGUF na mesma pasta) ficam.
+fn remover_modelos(manifest: &InstallManifest) -> usize {
+    let Ok(bytes) = std::fs::read(manifest.data_dir.join("orion-local.json")) else { return 0 };
+    let Ok(cfg) = serde_json::from_slice::<serde_json::Value>(&bytes) else { return 0 };
+    let mut removidos = 0;
+    let nomes = cfg["installed_models"].as_array().into_iter().flatten().filter_map(|m| m["filename"].as_str());
+    for nome in nomes {
+        if Path::new(nome).components().count() == 1 && std::fs::remove_file(manifest.models_dir.join(nome)).is_ok() {
+            removidos += 1;
+        }
+    }
+    for extra in ["orion-wake/orion.onnx", "orion-wake/orion.json"] {
+        if std::fs::remove_file(manifest.models_dir.join(extra)).is_ok() {
+            removidos += 1;
+        }
+    }
+    let _ = std::fs::remove_dir(manifest.models_dir.join("orion-wake"));
+    let _ = std::fs::remove_dir(&manifest.models_dir); // só some se ficou vazia
+    removidos
+}
+
+/// Remove o que a instalação registrou. Arquivo do app alterado depois da instalação fica no lugar;
+/// modelos e dados só saem se pedidos.
+pub fn uninstall(app_dir: &Path, registrar: &dyn Registrar, options: UninstallOptions) -> Result<UninstallReport, String> {
     let manifest = InstallManifest::load(app_dir)?;
     let mut report = UninstallReport::default();
     if manifest.autostart {
@@ -239,6 +378,12 @@ pub fn uninstall(app_dir: &Path, registrar: &dyn Registrar, remove_data: bool) -
     }
     if let Some(lnk) = &manifest.shortcut {
         let _ = std::fs::remove_file(lnk);
+    }
+    if let Some(t) = &manifest.identity_thumbprint {
+        let _ = registrar.unregister_identity(t);
+    }
+    if manifest.update_task {
+        let _ = registrar.remove_update_task();
     }
     if manifest.registered {
         registrar.unregister_uninstall().map_err(|e| format!("falha ao tirar o Orion de Apps instalados: {e}"))?;
@@ -264,58 +409,71 @@ pub fn uninstall(app_dir: &Path, registrar: &dyn Registrar, remove_data: bool) -
     let _ = std::fs::remove_file(app_dir.join(MANIFEST));
     let _ = std::fs::remove_file(app_dir.join("orion-files.sha256"));
     let _ = std::fs::remove_dir(app_dir); // só some se ficou vazia
-    if remove_data && manifest.data_dir.is_dir() {
+    if options.remove_models {
+        report.removed_models = remover_modelos(&manifest);
+    }
+    if options.remove_data && manifest.data_dir.is_dir() && pasta_do_orion(&manifest.data_dir) {
         report.removed_data = std::fs::remove_dir_all(&manifest.data_dir).is_ok();
     }
     Ok(report)
 }
 
-/// Trata `--uninstall <pasta> [--remove-data]` (chamado por Apps instalados). Devolve o código de
-/// saída, ou `None` se os argumentos não pedem desinstalação.
+/// O que o processo deve fazer depois de ler `--uninstall`.
+#[derive(Debug, PartialEq, Eq)]
+pub enum UninstallAction {
+    /// Terminou (ou falhou): sai com este código.
+    Exit(i32),
+    /// Abrir a janela com as três caixas para esta pasta.
+    Ui(PathBuf),
+}
+
+/// Trata `--uninstall <pasta> [--silent] [--remove-models] [--remove-data]` (chamado por Apps
+/// instalados). Devolve `None` se os argumentos não pedem desinstalação. Sem `--silent`, mostra a
+/// janela com as caixas; com `--silent`, remove só o app, mais o que os `--remove-*` pedirem.
 ///
 /// Um .exe em execução não se apaga: se estamos dentro da pasta do app, o desinstalador copia a si
 /// mesmo para %TEMP%, reabre dali com `--relocated` e sai.
-pub fn handle_uninstall_args(args: &[String]) -> Option<i32> {
+pub fn handle_uninstall_args(args: &[String]) -> Option<UninstallAction> {
     let pos = args.iter().position(|a| a == "--uninstall")?;
     let dir = PathBuf::from(args.get(pos + 1)?);
-    let remove_data = args.iter().any(|a| a == "--remove-data");
-    let relocated = args.iter().any(|a| a == "--relocated");
+    let has = |flag: &str| args.iter().any(|a| a == flag);
+    let options = UninstallOptions { remove_models: has("--remove-models"), remove_data: has("--remove-data") };
     let log = |msg: &str| {
         let _ = std::fs::write(std::env::temp_dir().join("orion-uninstall.log"), msg);
     };
-    if !relocated {
+    if !has("--relocated") {
         let me = std::env::current_exe().ok()?;
         let inside = me.parent().and_then(|p| p.canonicalize().ok()) == dir.canonicalize().ok();
         if inside {
             let copy = std::env::temp_dir().join(format!("orion-uninstall-{}.exe", std::process::id()));
             if let Err(e) = std::fs::copy(&me, &copy) {
                 log(&format!("não consegui copiar o desinstalador: {e}"));
-                return Some(1);
+                return Some(UninstallAction::Exit(1));
             }
             let mut cmd = std::process::Command::new(&copy);
-            cmd.arg("--uninstall").arg(&dir).arg("--relocated");
-            if remove_data {
-                cmd.arg("--remove-data");
-            }
-            return Some(match cmd.spawn() {
+            cmd.args(&args[pos..]).arg("--relocated");
+            return Some(UninstallAction::Exit(match cmd.spawn() {
                 Ok(_) => 0,
                 Err(e) => {
                     log(&format!("não consegui reabrir o desinstalador: {e}"));
                     1
                 }
-            });
+            }));
         }
     }
-    Some(match uninstall(&dir, &WindowsRegistrar, remove_data) {
+    if !has("--silent") && !options.remove_models && !options.remove_data {
+        return Some(UninstallAction::Ui(dir));
+    }
+    Some(UninstallAction::Exit(match uninstall(&dir, &WindowsRegistrar, options) {
         Ok(r) => {
-            log(&format!("removidos {} arquivos; mantidos por alteração: {:?}; dados removidos: {}", r.removed_files, r.kept_modified, r.removed_data));
+            log(&format!("{r:?}"));
             0
         }
         Err(e) => {
             log(&e);
             1
         }
-    })
+    }))
 }
 
 #[cfg(test)]
@@ -324,7 +482,7 @@ mod tests {
 
     fn instalado(dir: &Path, autostart: bool) -> InstallManifest {
         let app = dir.join("app");
-        let data = dir.join("data");
+        let data = dir.join("ProgramData").join("Orion");
         std::fs::create_dir_all(&app).unwrap();
         std::fs::create_dir_all(&data).unwrap();
         std::fs::write(app.join("orion.exe"), b"exe").unwrap();
@@ -351,7 +509,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let m = instalado(tmp.path(), true);
         let reg = RecordingRegistrar::default();
-        let r = uninstall(&m.app_dir, &reg, false).unwrap();
+        let r = uninstall(&m.app_dir, &reg, UninstallOptions::default()).unwrap();
         assert_eq!(r.removed_files, 2);
         assert!(!m.app_dir.exists(), "pasta vazia some");
         assert!(m.data_dir.join("orion.db").exists());
@@ -363,7 +521,7 @@ mod tests {
     fn desinstalar_pode_apagar_os_dados_quando_pedido() {
         let tmp = tempfile::tempdir().unwrap();
         let m = instalado(tmp.path(), false);
-        let r = uninstall(&m.app_dir, &RecordingRegistrar::default(), true).unwrap();
+        let r = uninstall(&m.app_dir, &RecordingRegistrar::default(), UninstallOptions { remove_data: true, ..Default::default() }).unwrap();
         assert!(r.removed_data && !m.data_dir.exists());
     }
 
@@ -372,7 +530,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let m = instalado(tmp.path(), false);
         std::fs::write(m.app_dir.join("orion.exe"), b"outra versao").unwrap();
-        let r = uninstall(&m.app_dir, &RecordingRegistrar::default(), false).unwrap();
+        let r = uninstall(&m.app_dir, &RecordingRegistrar::default(), UninstallOptions::default()).unwrap();
         assert_eq!(r.kept_modified, ["orion.exe"]);
         assert!(m.app_dir.join("orion.exe").exists());
     }
@@ -385,7 +543,7 @@ mod tests {
         std::fs::write(&fora, b"x").unwrap();
         m.files.push(InstalledFile { name: "../fora.txt".into(), sha256: sha256_file(&fora).unwrap() });
         m.save(&m.app_dir).unwrap();
-        uninstall(&m.app_dir, &RecordingRegistrar::default(), false).unwrap();
+        uninstall(&m.app_dir, &RecordingRegistrar::default(), UninstallOptions::default()).unwrap();
         assert!(fora.exists());
     }
 
@@ -393,8 +551,40 @@ mod tests {
     fn sem_manifesto_nao_remove_nada() {
         let tmp = tempfile::tempdir().unwrap();
         std::fs::write(tmp.path().join("importante.txt"), b"x").unwrap();
-        assert!(uninstall(tmp.path(), &RecordingRegistrar::default(), true).is_err());
+        assert!(uninstall(tmp.path(), &RecordingRegistrar::default(), UninstallOptions { remove_data: true, remove_models: true }).is_err());
         assert!(tmp.path().join("importante.txt").exists());
+    }
+
+    #[test]
+    fn modelos_registrados_saem_e_arquivo_alheio_fica() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut m = instalado(tmp.path(), false);
+        m.models_dir = tmp.path().join("Modelos");
+        m.save(&m.app_dir).unwrap();
+        std::fs::create_dir_all(&m.models_dir).unwrap();
+        std::fs::write(m.models_dir.join("meu.gguf"), b"registrado").unwrap();
+        std::fs::write(m.models_dir.join("outro.gguf"), b"de outra coisa").unwrap();
+        std::fs::write(m.data_dir.join("orion-local.json"), br#"{"installed_models":[{"filename":"meu.gguf"},{"filename":"../orion.db"}]}"#).unwrap();
+        let r = uninstall(&m.app_dir, &RecordingRegistrar::default(), UninstallOptions { remove_models: true, remove_data: false }).unwrap();
+        assert_eq!(r.removed_models, 1);
+        assert!(!m.models_dir.join("meu.gguf").exists());
+        assert!(m.models_dir.join("outro.gguf").exists());
+        assert!(m.data_dir.join("orion.db").exists());
+    }
+
+    #[test]
+    fn dados_so_saem_de_pasta_com_cara_de_orion() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut m = instalado(tmp.path(), false);
+        let generica = tmp.path().join("Documentos");
+        std::fs::create_dir_all(&generica).unwrap();
+        std::fs::write(generica.join("minha-tese.docx"), b"x").unwrap();
+        m.data_dir = generica.clone();
+        m.save(&m.app_dir).unwrap();
+        let r = uninstall(&m.app_dir, &RecordingRegistrar::default(), UninstallOptions { remove_data: true, remove_models: false }).unwrap();
+        assert!(!r.removed_data);
+        assert!(generica.join("minha-tese.docx").exists());
+        assert!(!pasta_do_orion(Path::new("/")) && !pasta_do_orion(Path::new("/orion")));
     }
 
     #[cfg(not(windows))]

@@ -30,15 +30,16 @@ jobs:
         with:
           workspaces: Orion_Rust -> C:/t
       - name: Testar domínio, canais, orçamento e áudio
-        run: cargo test --locked -p orion-policy -p orion-store -p orion-ai -p orion-core -p orion-server -p orion-platform -p orion-voice -p orion-local -p orion-llama -p orion-setup -p orion-mcp -p orion-vault -p orion-testkit
+        run: cargo test --locked -p orion-policy -p orion-store -p orion-ai -p orion-core -p orion-server -p orion-platform -p orion-voice -p orion-local -p orion-llama -p orion-setup -p orion-mcp -p orion-vault -p orion-updater -p orion-testkit
       - name: Compilar controle nativo
-        run: cargo build --locked -p orion-server -p orion-llama
+        run: cargo build --locked -p orion-server -p orion-llama -p orion-updater
       - name: Guardar runtime CPU sem dependência de driver Vulkan
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force pacote/cpu | Out-Null
           Copy-Item C:\t\debug\orion.exe pacote/cpu/
           Copy-Item C:\t\debug\orion-llama.exe pacote/cpu/
+          Copy-Item C:\t\debug\orion-updater.exe pacote/cpu/
       - uses: actions/cache@v4
         with:
           path: C:\orion-models
@@ -64,13 +65,14 @@ jobs:
         # antes do configure terminar ("Not a file: cmake_install.cmake"); o Ninja respeita a ordem.
         env:
           CMAKE_GENERATOR: Ninja
-        run: cargo build --locked -p orion-server -p orion-setup -p orion-llama --features orion-server/local-vulkan,orion-llama/vulkan
+        run: cargo build --locked -p orion-server -p orion-setup -p orion-llama -p orion-updater --features orion-server/local-vulkan,orion-llama/vulkan
       - name: Montar pacote do instalador
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force pacote/vulkan | Out-Null
           Copy-Item C:\t\debug\orion.exe pacote/vulkan/
           Copy-Item C:\t\debug\orion-llama.exe pacote/vulkan/
+          Copy-Item C:\t\debug\orion-updater.exe pacote/vulkan/
           Copy-Item C:\t\debug\orion-setup.exe 'pacote\Orion Setup.exe'
           Copy-Item models\orion-wake-candidate pacote\wake-candidate -Recurse
       - uses: actions/upload-artifact@v4

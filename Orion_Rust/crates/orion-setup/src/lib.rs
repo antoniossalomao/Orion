@@ -12,9 +12,11 @@
 pub mod app;
 pub mod audio;
 pub mod i18n;
+pub mod identity;
 pub mod register;
 pub mod sky;
 pub mod system;
 pub mod theme;
+pub mod uninstall_ui;
 
 pub use app::{Message, SetupApp};

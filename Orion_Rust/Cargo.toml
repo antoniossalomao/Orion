@@ -74,6 +74,9 @@ cpal = "0.18"
 orion-setup = { path = "crates/orion-setup" }
 orion-sidecar = { path = "crates/orion-sidecar" }
 orion-testkit = { path = "crates/orion-testkit" }
+orion-updater = { path = "crates/orion-updater" }
+minisign-verify = "0.2"
+minisign = "0.7"
 
 [profile.release]
 lto = "thin"
