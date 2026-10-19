@@ -50,12 +50,7 @@ pub fn view(app: &App) -> El<'_> {
     } else {
         let mut col = column![].spacing(30).width(Length::Fixed(content_w));
         if let Some(p) = c.pin {
-            col = col.push(
-                container(row![icon("pin", 16.0, t::FG3), tx(format!("Fixado: {p}"), 12.5, t::FG2)].spacing(8).align_y(Vertical::Center))
-                    .width(Length::Fill)
-                    .padding(pad(8.0, 12.0, 8.0, 12.0))
-                    .style(surface(None, Some(t::LINE2), 10.0)),
-            );
+            col = col.push(dashed(container(row![icon("pin", 16.0, t::FG3), tx(format!("Fixado: {p}"), 12.5, t::FG2)].spacing(8).align_y(Vertical::Center)).width(Length::Fill).padding(pad(8.0, 12.0, 8.0, 12.0)), 10.0, t::LINE2));
         }
         let last_orion = c.msgs.iter().rposition(|m| matches!(m, ChatMsg::Orion(_)));
         for (mi, m) in c.msgs.iter().enumerate() {
@@ -86,7 +81,7 @@ fn user_msg<'a>(app: &'a App, mi: usize, s: &'static str, content_w: f32) -> El<
     let bubble = container(txf(s, 15.0, t::FG, t::UI)).padding(pad(10.0, 15.0, 10.0, 15.0)).max_width(content_w * 0.8).style(surface(Some(t::RAISE2), None, 16.0));
     let show = app.hover == Some((2, mi));
     let acts: El = if show {
-        row![ib_sz("edit", 26.0, 16.0, Some(Msg::Toast("Editar e reenviar cria um ramo da conversa".into())), false), ib_sz("copy", 26.0, 16.0, Some(Msg::Toast("Copiado".into())), false), ib_sz("pin", 26.0, 16.0, Some(Msg::Toast("Fixada como contexto permanente".into())), false)].into()
+        row![tip(ib_sz("edit", 26.0, 16.0, Some(Msg::Toast("Editar e reenviar cria um ramo da conversa".into())), false), "Editar e reenviar"), tip(ib_sz("copy", 26.0, 16.0, Some(Msg::Toast("Copiado".into())), false), "Copiar"), tip(ib_sz("pin", 26.0, 16.0, Some(Msg::Toast("Fixada como contexto permanente".into())), false), "Fixar como contexto")].into()
     } else {
         container(sp_w(0.0)).height(Length::Fixed(26.0)).into()
     };
@@ -101,7 +96,7 @@ fn orion_msg<'a>(app: &'a App, ci: usize, mi: usize, o: &'a OrionMsg, is_last: b
     if !o.tools.is_empty() && streaming.is_none() {
         let open = app.tools_open.contains(&(ci, mi));
         col = col.push(
-            button(row![tx(o.tools_label, 13.0, t::FG3), icon(if open { "chevD" } else { "chevR" }, 16.0, t::FG3)].spacing(6).align_y(Vertical::Center))
+            button(row![tx(o.tools_label, 13.0, t::FG3), crate::icons::icon_rot("chevR", 16.0, t::FG3, { let p = if app.at.tools.is_some() { crate::anim::TOOLS.get() } else { 1.0 }; 90.0 * if open { p } else { 1.0 - p } })].spacing(6).align_y(Vertical::Center))
                 .padding(0)
                 .on_press(Msg::ToggleTools(ci, mi))
                 .style(|_, _| button::Style { text_color: t::FG3, ..Default::default() }),
@@ -129,7 +124,7 @@ fn orion_msg<'a>(app: &'a App, ci: usize, mi: usize, o: &'a OrionMsg, is_last: b
     if let Some(s) = streaming {
         let words: Vec<&str> = o.body.split_whitespace().take(s.words).collect();
         text = words.join(" ");
-        text.push_str(" █");
+        text.push_str(if (app.now.saturating_duration_since(app.t0).as_millis() / 500) % 2 == 0 { " █" } else { "  " });
     }
     let blocks = md::parse(&text);
     col = col.push(md::render(&blocks, md::Style::chat(f, fb, app.p.chat_fs())));
@@ -138,9 +133,9 @@ fn orion_msg<'a>(app: &'a App, ci: usize, mi: usize, o: &'a OrionMsg, is_last: b
         col = col.push(approval(a, ci, mi));
     }
     if streaming.is_none() {
-        let mut acts = row![ib_sz("copy", 28.0, 16.0, Some(Msg::Toast("Copiado".into())), false), ib_sz("speaker", 28.0, 16.0, Some(Msg::Toast("Lendo em voz alta (simulado)".into())), false)].spacing(0).align_y(Vertical::Center);
+        let mut acts = row![tip(ib_sz("copy", 28.0, 16.0, Some(Msg::Toast("Copiado".into())), false), "Copiar"), tip(ib_sz("speaker", 28.0, 16.0, Some(Msg::Toast("Lendo em voz alta (simulado)".into())), false), "Ouvir")].spacing(0).align_y(Vertical::Center);
         if is_last {
-            acts = acts.push(ib_sz("retry", 28.0, 16.0, Some(Msg::Toast("Gerar de novo…".into())), false));
+            acts = acts.push(tip(ib_sz("retry", 28.0, 16.0, Some(Msg::Toast("Gerar de novo…".into())), false), "Gerar de novo"));
         }
         acts = acts.push(container(tx(o.time, 11.5, t::FG3)).padding(pad(0.0, 0.0, 0.0, 6.0)));
         let via_txt = if o.via.is_empty() { None } else { Some(o.via) };

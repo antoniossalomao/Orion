@@ -9,7 +9,7 @@ use crate::theme as t;
 use crate::ui::*;
 use crate::views::login::field_style;
 use crate::views::menus;
-use crate::views::pages::{hbar, src_rows};
+use crate::views::pages::{hbar, hbar_sz, src_rows};
 use iced::alignment::Vertical;
 use iced::widget::{button, canvas, column, container, mouse_area, opaque, row, scrollable, stack, text_input};
 use iced::{Background, Border, Length};
@@ -163,7 +163,7 @@ fn section<'a>(app: &'a App) -> El<'a> {
         Sec::Uso => {
             c = c.push(sh("Cotas das APIs gratuitas · hoje"));
             for (l, v, s) in [("Gemini (API)", 62.0, "930 de 1.500"), ("Groq", 100.0, "esgotada até 00:00"), ("Cerebras", 18.0, "180 de 1.000"), ("OpenRouter (free)", 40.0, "20 de 50"), ("Mistral", 9.0, "90 de 1.000")] {
-                c = c.push(hbar(l, v, s, if v >= 100.0 { t::DANGER } else { t::FG2 }));
+                c = c.push(hbar_sz(l, v, s, if v >= 100.0 { t::DANGER } else { t::FG2 }, 11.5));
             }
             c = c.push(sh("Assinaturas"));
             for (l, v, s) in [("Claude (assinatura)", 41.0, "41%"), ("Codex (assinatura)", 23.0, "23%"), ("Gemini CLI", 12.0, "12%")] {
@@ -372,7 +372,7 @@ pub fn modal(app: &App) -> El<'_> {
     if mobile {
         main = main.push(container(btn("Configurações", Kind::Ghost, false, Some("back"), Some(Msg::SetBack))).padding(pad(10.0, 0.0, 0.0, 0.0)));
     }
-    main = main.push(container(txf(label, 26.0, t::FG, t::SERIF).line_height(iced::widget::text::LineHeight::Relative(1.15))).padding(pad(if mobile { 10.0 } else { 30.0 }, 0.0, 4.0, 0.0)));
+    main = main.push(container(txf(label, 26.0, t::FG, t::SERIF).line_height(iced::widget::text::LineHeight::Relative(1.15))).padding(pad(if mobile { 10.0 } else { 30.0 }, 0.0, 2.0, 0.0)));
     main = main.push(section(app));
     let main_panel = scrollable(container(main).padding(pad(0.0, 44.0, 48.0, 44.0)).width(Length::Fill)).direction(scrollable::Direction::Vertical(thin_bar())).style(thin_scroll).width(Length::Fill).height(Length::Fill);
     let body: El = if mobile {
@@ -380,14 +380,16 @@ pub fn modal(app: &App) -> El<'_> {
     } else {
         row![nav_panel, vline_full(), main_panel].into()
     };
-    let close = container(ib("close", Some(Msg::CloseSettings), false)).padding(pad(10.0, 12.0, 0.0, 0.0)).width(Length::Fill).align_x(iced::alignment::Horizontal::Right);
+    let close = container(tip(ib("close", Some(Msg::CloseSettings), false), "Fechar configurações")).padding(pad(10.0, 12.0, 0.0, 0.0)).width(Length::Fill).align_x(iced::alignment::Horizontal::Right);
     let (w, h) = (1060.0f32.min(app.win.width - 48.0), 740.0f32.min(app.win.height - 48.0));
     let dialog = container(stack![body, close])
         .width(if mobile { Length::Fill } else { Length::Fixed(w) })
         .height(if mobile { Length::Fill } else { Length::Fixed(h) })
         .clip(true)
         .style(move |_| container::Style { background: Some(t::BG.into()), border: Border { color: if mobile { iced::Color::TRANSPARENT } else { t::LINE2 }, width: if mobile { 0.0 } else { 1.0 }, radius: if mobile { 0.0 } else { 18.0 }.into() }, shadow: shadow(), ..Default::default() });
-    let scrim = mouse_area(container(opaque(mouse_area(dialog).on_press(Msg::Noop))).width(Length::Fill).height(Length::Fill).center_x(Length::Fill).center_y(Length::Fill).style(|_| container::Style { background: Some(t::SCRIM.into()), ..Default::default() })).on_press(Msg::CloseSettings);
+    let (mp, sp) = (crate::anim::MODAL.get(), crate::anim::SCRIM.get());
+    let dialog = rise(fade(dialog, mp, t::BG), mp, 6.0);
+    let scrim = mouse_area(container(opaque(mouse_area(dialog).on_press(Msg::Noop))).width(Length::Fill).height(Length::Fill).center_x(Length::Fill).center_y(Length::Fill).style(move |_| container::Style { background: Some(t::alpha(t::SCRIM, sp).into()), ..Default::default() })).on_press(Msg::CloseSettings);
     opaque(scrim)
 }
 

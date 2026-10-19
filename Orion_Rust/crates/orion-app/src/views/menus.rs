@@ -10,7 +10,9 @@ use iced::widget::{button, column, container, row};
 use iced::{Background, Border, Color, Length};
 
 pub fn menu_box<'a>(items: Vec<El<'a>>, width: f32) -> El<'a> {
-    container(column(items).spacing(0)).width(Length::Fixed(width)).padding(4).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: 12.0.into() }, shadow: shadow(), ..Default::default() }).into()
+    let p = crate::anim::POP.get();
+    let b = container(column(items).spacing(0)).width(Length::Fixed(width)).padding(4).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: 12.0.into() }, shadow: shadow(), ..Default::default() });
+    rise(fade(b, p, t::RAISE), p, 6.0)
 }
 
 pub fn item<'a>(ic: Option<&str>, label: &str, desc: Option<&str>, checked: bool, danger: bool, msg: Msg) -> El<'a> {

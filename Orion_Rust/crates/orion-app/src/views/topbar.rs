@@ -14,11 +14,11 @@ pub fn view(app: &App) -> El<'_> {
     let drawer = app.is_drawer_mode();
     let mut r = row![].spacing(4).align_y(Vertical::Center).height(Length::Fixed(46.0)).padding(pad(0.0, 6.0, 0.0, 12.0));
     if drawer {
-        r = r.push(ib("menu", Some(Msg::Drawer(true)), false));
+        r = r.push(tip(ib("menu", Some(Msg::Drawer(true)), false), "Abrir menu"));
     }
     if app.collapsed && !drawer {
-        r = r.push(ib("panelL", Some(Msg::Collapse), false));
-        r = r.push(ib("plus", Some(Msg::NewChat), false));
+        r = r.push(tip(ib("panelL", Some(Msg::Collapse), false), "Abrir barra lateral"));
+        r = r.push(tip(ib("plus", Some(Msg::NewChat), false), "Nova conversa"));
     }
     // título
     if app.view == View::Chat {
@@ -52,8 +52,8 @@ pub fn view(app: &App) -> El<'_> {
         r = r.push(pill(t::SIGNAL, &format!("Aguardando você · {pend}"), t::mix(t::SIGNAL, 0.4), true, Some(Msg::Go(View::Aprovacoes))));
     }
     if !drawer {
-        r = r.push(ib("inbox", Some(Msg::QcapOpen), false));
-        r = r.push(ib("scan", Some(Msg::IssoOpen), false));
+        r = r.push(tip(ib("inbox", Some(Msg::QcapOpen), false), "Captura rápida (Win + Shift + O)"));
+        r = r.push(tip(ib("scan", Some(Msg::IssoOpen), false), "Isso? Captura a tela e pergunta (Win + Shift + I)"));
         let cmd = button(container(row![icon("search", 14.0, t::FG3), tx("Buscar", 12.5, t::FG3), kbd("Ctrl K")].spacing(8).align_y(Vertical::Center)).center_y(Length::Fill))
             .height(Length::Fixed(30.0))
             .padding(pad(0.0, 8.0, 0.0, 10.0))
@@ -62,13 +62,13 @@ pub fn view(app: &App) -> El<'_> {
         r = r.push(cmd);
     }
     if app.view == View::Chat && app.win.width > t::CTX_MIN_W {
-        r = r.push(ib("panelR", Some(Msg::CtxToggle), app.show_ctx()));
+        r = r.push(tip(ib("panelR", Some(Msg::CtxToggle), app.show_ctx()), "Painel da direita"));
     }
     if !drawer {
         r = r.push(container(vline(18.0)).padding(pad(0.0, 6.0, 0.0, 6.0)));
-        r = r.push(ib_wh("min", 34.0, 30.0, 16.0, Some(Msg::Minimize), t::HOVER, t::FG));
-        r = r.push(ib_wh("max", 34.0, 30.0, 14.0, Some(Msg::Fullscreen), t::HOVER, t::FG));
-        r = r.push(ib_wh("close", 34.0, 30.0, 16.0, Some(Msg::CloseWindow), t::DANGER, iced::Color::WHITE));
+        r = r.push(tip(ib_wh("min", 34.0, 30.0, 16.0, Some(Msg::Minimize), t::HOVER, t::FG), "Minimizar"));
+        r = r.push(tip(ib_wh("max", 34.0, 30.0, 14.0, Some(Msg::Fullscreen), t::HOVER, t::FG), "Tela cheia"));
+        r = r.push(tip(ib_wh("close", 34.0, 30.0, 16.0, Some(Msg::CloseWindow), t::DANGER, iced::Color::WHITE), "Fechar"));
     }
     let _ = Side::Left;
     r.into()

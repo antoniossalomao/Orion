@@ -42,7 +42,9 @@ pub fn modal(app: &App) -> El<'_> {
         .height(if mobile { Length::Fill } else { Length::Fixed(h) })
         .clip(true)
         .style(move |_| container::Style { background: Some(t::BG.into()), border: Border { color: if mobile { iced::Color::TRANSPARENT } else { t::LINE2 }, width: if mobile { 0.0 } else { 1.0 }, radius: if mobile { 0.0 } else { 18.0 }.into() }, shadow: shadow(), ..Default::default() });
-    opaque(mouse_area(container(opaque(mouse_area(dialog).on_press(Msg::Noop))).width(Length::Fill).height(Length::Fill).center_x(Length::Fill).center_y(Length::Fill).style(|_| container::Style { background: Some(t::SCRIM.into()), ..Default::default() })).on_press(Msg::EditorClose))
+    let (mp, sp) = (crate::anim::MODAL.get(), crate::anim::SCRIM.get());
+    let dialog = rise(fade(dialog, mp, t::BG), mp, 6.0);
+    opaque(mouse_area(container(opaque(mouse_area(dialog).on_press(Msg::Noop))).width(Length::Fill).height(Length::Fill).center_x(Length::Fill).center_y(Length::Fill).style(move |_| container::Style { background: Some(t::alpha(t::SCRIM, sp).into()), ..Default::default() })).on_press(Msg::EditorClose))
 }
 
 fn vline_f<'a>() -> El<'a> {

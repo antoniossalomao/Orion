@@ -226,6 +226,21 @@ pub struct Isso {
     pub answered: bool,
 }
 
+/// Marcas de tempo das transições (§26.1).
+#[derive(Default, Clone)]
+pub struct Marks {
+    pub page: Option<Instant>,
+    pub pop: Option<Instant>,
+    pub modal: Option<Instant>,
+    pub scrim: Option<Instant>,
+    pub over: Option<Instant>,
+    pub drawer: Option<Instant>,
+    pub toast: Option<Instant>,
+    pub more: Option<Instant>,
+    pub tools: Option<Instant>,
+    pub switch: Option<(String, Instant)>,
+}
+
 pub struct App {
     pub p: Prefs,
     pub logged: bool,
@@ -283,6 +298,8 @@ pub struct App {
     pub mem_tween: Option<(Instant, (f32, f32, f32), (f32, f32, f32))>,
     pub mem_tip: (f32, f32),
     pub hover: Option<(u8, usize)>,
+    pub at: Marks,
+    pub t0: Instant,
     pub hour: Option<u32>,
     pub toast_pinned: bool,
 }
@@ -484,6 +501,8 @@ impl App {
             mem_tween: None,
             mem_tip: (0.0, 0.0),
             hover: None,
+            at: Marks::default(),
+            t0: Instant::now(),
             hour: None,
             toast_pinned: false,
         }
@@ -512,7 +531,9 @@ impl App {
     }
 
     pub fn subscription(&self) -> Subscription<Msg> {
-        let tick = iced::time::every(Duration::from_millis(60)).map(Msg::Tick);
+        let a = &self.at;
+        let busy = [a.page, a.pop, a.modal, a.scrim, a.over, a.drawer, a.toast, a.more, a.tools].iter().any(|m| crate::anim::active(*m, self.now, 450)) || a.switch.as_ref().map(|s| crate::anim::active(Some(s.1), self.now, 300)).unwrap_or(false) || self.mem_tween.is_some();
+        let tick = iced::time::every(Duration::from_millis(if busy { 16 } else { 60 })).map(Msg::Tick);
         let resize = window::resize_events().map(|(_, s)| Msg::Resized(s));
         let keys = iced::keyboard::listen().filter_map(crate::keys::map);
         Subscription::batch([tick, resize, keys])
@@ -583,6 +604,44 @@ impl App {
     }
 
     pub fn update(&mut self, msg: Msg) -> Task<Msg> {
+        let before = (self.view, self.conv, self.pop, self.set_open, self.pal.open, self.qcap.is_some(), self.isso.is_some(), self.editor.is_some(), self.drawer, self.more, self.tools_open.len(), self.toast.as_ref().map(|t| t.1));
+        let key = matches!(msg, Msg::Toggle(_) | Msg::TogA(..) | Msg::RotToggle(_)).then(|| format!("{msg:?}"));
+        let task = self.update_inner(msg);
+        let now = Instant::now();
+        let a = &mut self.at;
+        if (self.view, self.conv) != (before.0, before.1) {
+            a.page = Some(now);
+        }
+        if self.pop != before.2 && self.pop.is_some() {
+            a.pop = Some(now);
+        }
+        if (self.set_open && !before.3) || (self.editor.is_some() && !before.7) {
+            a.modal = Some(now);
+            a.scrim = Some(now);
+        }
+        if (self.pal.open && !before.4) || (self.qcap.is_some() && !before.5) || (self.isso.is_some() && !before.6) {
+            a.over = Some(now);
+            a.scrim = Some(now);
+        }
+        if self.drawer != before.8 {
+            a.drawer = Some(now);
+        }
+        if self.more != before.9 {
+            a.more = Some(now);
+        }
+        if self.tools_open.len() != before.10 {
+            a.tools = Some(now);
+        }
+        if self.toast.as_ref().map(|t| t.1) != before.11 && self.toast.is_some() {
+            a.toast = Some(now);
+        }
+        if let Some(k) = key {
+            a.switch = Some((k, now));
+        }
+        task
+    }
+
+    fn update_inner(&mut self, msg: Msg) -> Task<Msg> {
         match msg {
             Msg::Tick(now) => {
                 self.now = now;
@@ -973,7 +1032,7 @@ impl App {
                 self.pal.sel = ((self.pal.sel as i32 + d).rem_euclid(n)) as usize;
             }
             Msg::PalRun(i) => return crate::views::overlays::pal_run(self, i),
-            Msg::QcapOpen => self.qcap = Some(QCap { text: String::new(), kind: CapKind::Nota, manual: false }),
+            Msg::QcapOpen => self.qcap = Some(QCap { text: String::new(), kind: CapKind::Tarefa, manual: false }),
             Msg::QcapClose => self.qcap = None,
             Msg::QcapText(s) => {
                 if let Some(q) = &mut self.qcap {
@@ -1177,6 +1236,7 @@ impl App {
     }
 
     pub fn view(&self) -> Element<'_, Msg> {
+        crate::views::sync_anim(self);
         views::root(self)
     }
 }

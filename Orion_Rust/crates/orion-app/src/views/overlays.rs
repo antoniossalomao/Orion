@@ -73,8 +73,10 @@ pub fn pal_run(app: &mut App, i: usize) -> Task<Msg> {
 }
 
 fn scrim_box<'a>(inner: El<'a>, top: f32, bg: Color, close: Msg) -> El<'a> {
+    let (op, sp) = (crate::anim::OVER.get(), crate::anim::SCRIM.get());
+    let inner = rise(fade(inner, op, t::RAISE), op, 6.0);
     let col = column![sp_h(top), container(opaque(mouse_area(inner).on_press(Msg::Noop))).width(Length::Fill).center_x(Length::Fill)];
-    opaque(mouse_area(container(col).width(Length::Fill).height(Length::Fill).style(move |_| container::Style { background: Some(bg.into()), ..Default::default() })).on_press(close))
+    opaque(mouse_area(container(col).width(Length::Fill).height(Length::Fill).style(move |_| container::Style { background: Some(t::alpha(bg, sp).into()), ..Default::default() })).on_press(close))
 }
 
 pub fn palette(app: &App) -> El<'_> {
@@ -175,7 +177,7 @@ impl canvas::Program<Msg> for IslandSky {
 
 pub fn island(app: &App) -> El<'_> {
     let _ = app;
-    let pill = container(row![cv(IslandSky).width(72).height(32), tx("Ouvindo… diga “Orion” ou bata duas palmas", 13.0, t::FG2), ib("close", Some(Msg::Live), false)].spacing(12).align_y(Vertical::Center))
+    let pill = container(row![cv(IslandSky).width(72).height(32), tx("Ouvindo… diga “Orion” ou bata duas palmas", 13.0, t::FG2), tip(ib("close", Some(Msg::Live), false), "Parar de ouvir")].spacing(12).align_y(Vertical::Center))
         .height(Length::Fixed(44.0))
         .padding(pad(0.0, 8.0, 0.0, 10.0))
         .style(|_| container::Style { background: Some(t::ISLAND_BG.into()), border: Border { color: t::LINE2, width: 1.0, radius: 999.0.into() }, shadow: shadow(), ..Default::default() });
@@ -188,8 +190,9 @@ pub fn caption<'a>() -> El<'a> {
 }
 
 pub fn toast<'a>(msg: String) -> El<'a> {
-    let c = container(tx(msg, 13.0, t::PRIMARY_INK)).padding(pad(8.0, 14.0, 8.0, 14.0)).style(|_| container::Style { background: Some(t::PRIMARY.into()), border: Border { radius: 10.0.into(), ..Default::default() }, shadow: shadow(), ..Default::default() });
-    container(c).width(Length::Fill).height(Length::Fill).center_x(Length::Fill).align_y(Vertical::Bottom).padding(pad(0.0, 0.0, 20.0, 0.0)).into()
+    let p = crate::anim::TOAST.get();
+    let c = container(tx(msg, 13.0, t::alpha(t::PRIMARY_INK, p))).padding(pad(8.0, 14.0, 8.0, 14.0)).style(move |_| container::Style { background: Some(t::alpha(t::PRIMARY, p).into()), border: Border { radius: 10.0.into(), ..Default::default() }, shadow: shadow(), ..Default::default() });
+    container(c).width(Length::Fill).height(Length::Fill).center_x(Length::Fill).align_y(Vertical::Bottom).padding(pad(0.0, 0.0, 20.0 - 6.0 * (1.0 - p), 0.0)).into()
 }
 
 pub fn _h() -> Horizontal {

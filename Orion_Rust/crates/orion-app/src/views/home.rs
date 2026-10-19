@@ -62,7 +62,7 @@ pub fn view(app: &App) -> El<'_> {
     .width(Length::Fill)
     .align_x(Horizontal::Center)
     .line_height(iced::widget::text::LineHeight::Relative(1.08));
-    let eyebrow = row![grow(), belt_fg(false), txf("SEU ESPAÇO COM ORION", 11.0, t::FG3, t::UI_MED), grow()].spacing(10).align_y(Vertical::Center);
+    let eyebrow = row![grow(), belt_fg(false), txf(spaced("SEU ESPAÇO COM ORION", 1), 11.0, t::FG3, t::UI_MED), grow()].spacing(10).align_y(Vertical::Center);
 
     let status = row![
         grow(),

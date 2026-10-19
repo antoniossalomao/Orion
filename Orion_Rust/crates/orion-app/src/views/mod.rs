@@ -20,13 +20,35 @@ use crate::ui::*;
 use iced::widget::{column, container, mouse_area, opaque, row, stack};
 use iced::Length;
 
+/// Atualiza os progressos das animações a partir das marcas de tempo (lidos pelo `view`).
+pub fn sync_anim(app: &App) {
+    use crate::anim::{self as an, progress};
+    let (n, r) = (app.now, app.p.reduced);
+    let a = &app.at;
+    an::PAGE.set(progress(a.page, n, 220, r));
+    an::POP.set(progress(a.pop, n, 160, r));
+    an::MODAL.set(progress(a.modal, n, 240, r));
+    an::SCRIM.set(progress(a.scrim, n, 180, r));
+    an::OVER.set(progress(a.over, n, 200, r));
+    an::DRAWER.set(progress(a.drawer, n, 250, r));
+    an::TOAST.set(progress(a.toast, n, 200, r));
+    an::MORE.set(progress(a.more, n, 200, r));
+    an::TOOLS.set(progress(a.tools, n, 200, r));
+    an::SWITCH.set(progress(a.switch.as_ref().map(|s| s.1), n, 200, r));
+    if let Ok(mut k) = an::SWITCH_KEY.lock() {
+        *k = a.switch.as_ref().map(|s| s.0.clone()).unwrap_or_default();
+    }
+}
+
 pub fn root(app: &App) -> El<'_> {
     let base: El = if !app.logged { login::view(app) } else { shell(app) };
     let mut layers: Vec<El> = vec![base];
     if app.logged {
         if app.drawer && app.is_drawer_mode() {
-            layers.push(opaque(mouse_area(container(sp_w(0.0)).width(Length::Fill).height(Length::Fill).style(|_| container::Style { background: Some(t::SCRIM.into()), ..Default::default() })).on_press(Msg::Drawer(false))));
-            layers.push(container(sidebar::view(app)).width(Length::Fixed(300.0f32.min(app.win.width * 0.86))).height(Length::Fill).style(|_| container::Style { shadow: shadow(), ..Default::default() }).into());
+            let dp = crate::anim::DRAWER.get();
+            layers.push(opaque(mouse_area(container(sp_w(0.0)).width(Length::Fill).height(Length::Fill).style(move |_| container::Style { background: Some(t::alpha(t::SCRIM, dp).into()), ..Default::default() })).on_press(Msg::Drawer(false))));
+            let w = 300.0f32.min(app.win.width * 0.86);
+            layers.push(iced::widget::float(container(sidebar::view(app)).width(Length::Fixed(w)).height(Length::Fill).style(|_| container::Style { shadow: shadow(), ..Default::default() })).translate(move |_, _| iced::Vector::new(-(1.0 - dp) * w, 0.0)).into());
         }
         if app.set_open {
             layers.push(settings::modal(app));
@@ -80,5 +102,7 @@ fn stage(app: &App) -> El<'_> {
         View::Memoria => memory::view(app),
         v => pages::view(app, v),
     };
+    let p = crate::anim::PAGE.get();
+    let inner: El = if matches!(app.view, View::Chat) { inner } else { rise(fade(inner, p, t::BG), p, 3.0) };
     container(inner).width(Length::Fill).height(Length::Fill).into()
 }

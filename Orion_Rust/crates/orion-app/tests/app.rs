@@ -270,3 +270,45 @@ fn sugestoes_de_barra_e_arroba() {
     assert!(!s.is_empty() && s.len() <= 8);
     assert!(s[0].0.starts_with("@[["));
 }
+
+#[test]
+fn curva_ease_vai_de_zero_a_um_e_sai_rapido() {
+    use orion_app::anim::{ease, progress};
+    use std::time::{Duration, Instant};
+    assert_eq!(ease(0.0), 0.0);
+    assert_eq!(ease(1.0), 1.0);
+    assert!(ease(0.25) > 0.6, "cubic-bezier(.16,1,.3,1) arranca rápido");
+    let t0 = Instant::now();
+    assert_eq!(progress(None, t0, 220, false), 1.0);
+    assert_eq!(progress(Some(t0), t0, 220, true), 1.0, "movimento reduzido não anima");
+    assert!(progress(Some(t0), t0 + Duration::from_millis(110), 220, false) > 0.5);
+    assert_eq!(progress(Some(t0), t0 + Duration::from_millis(300), 220, false), 1.0);
+}
+
+#[test]
+fn transicoes_marcam_o_tempo_so_quando_algo_muda() {
+    let mut a = logged();
+    assert!(a.at.page.is_some());
+    a.at.page = None;
+    a.update(Msg::Go(View::Projetos));
+    assert!(a.at.page.is_some());
+    a.update(Msg::OpenSettings(None));
+    assert!(a.at.modal.is_some() && a.at.scrim.is_some());
+    a.update(Msg::Toggle("auto"));
+    assert!(a.at.switch.as_ref().unwrap().0.contains("auto"));
+    a.update(Msg::ToggleMore);
+    assert!(a.at.more.is_some());
+}
+
+#[test]
+fn tracejado_tooltips_e_hover_nao_quebram_a_renderizacao() {
+    // monta a árvore de várias telas (os widgets novos entram em todas)
+    let mut a = logged();
+    a.update(Msg::Go(View::Memoria));
+    let _ = a.view();
+    a.update(Msg::Go(View::Vida));
+    let _ = a.view();
+    a.update(Msg::OpenConv(0));
+    a.update(Msg::Pop(orion_app::app::Pop::Model));
+    let _ = a.view();
+}

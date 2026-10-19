@@ -1,6 +1,7 @@
 //! Orion — aplicativo principal em iced, reproduzindo o protótipo `orion-ui-mockup.html`
 //! (ORION - UI (ESPECIFICAÇÃO)).
 
+pub mod anim;
 pub mod app;
 pub mod chart;
 pub mod data;

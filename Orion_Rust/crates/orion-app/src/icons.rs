@@ -102,3 +102,40 @@ pub fn stop_square<'a>(size: f32, color: Color) -> Svg<'a> {
         .height(Length::Fixed(size))
         .style(move |_, _| svg::Style { color: Some(color) })
 }
+
+thread_local! {
+    static BOXED: std::cell::RefCell<HashMap<String, Handle>> = std::cell::RefCell::new(HashMap::new());
+}
+
+/// Ícone `glyph` px centrado numa caixa `boxsz` px: o SVG ocupa a caixa toda, então o hover vale na caixa inteira.
+pub fn icon_box<'a>(name: &str, boxsz: f32, glyph: f32, idle: Color, hover: Color) -> Svg<'a> {
+    let key = format!("{name}:{boxsz}:{glyph}");
+    let h = BOXED.with(|m| {
+        m.borrow_mut()
+            .entry(key)
+            .or_insert_with(|| {
+                let d = PATHS.iter().find(|p| p.0 == name).map(|p| p.1).unwrap_or("");
+                let pad = (boxsz - glyph) / 2.0 * (24.0 / glyph);
+                let vb = 24.0 + 2.0 * pad;
+                let s = format!(
+                    r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="{:.3} {:.3} {:.3} {:.3}" fill="none" stroke="#000" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round"><path d="{d}"/></svg>"##,
+                    -pad, -pad, vb, vb
+                );
+                Handle::from_memory(s.into_bytes())
+            })
+            .clone()
+    });
+    svg::Svg::new(h).width(Length::Fixed(boxsz)).height(Length::Fixed(boxsz)).style(move |_, st| svg::Style { color: Some(if matches!(st, svg::Status::Hovered) { hover } else { idle }) })
+}
+
+/// Ícone girando (`rotate`), para a seta de "Mais" e das ferramentas.
+pub fn icon_rot<'a>(name: &str, size: f32, color: Color, degrees: f32) -> Svg<'a> {
+    // parado em 0° ou 90° usa o ícone certo; só gira durante a transição
+    if degrees <= 0.5 {
+        icon(name, size, color)
+    } else if degrees >= 89.5 && name == "chevR" {
+        icon("chevD", size, color)
+    } else {
+        icon(name, size, color).rotation(iced::Radians(degrees.to_radians()))
+    }
+}

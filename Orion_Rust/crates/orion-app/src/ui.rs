@@ -1,7 +1,7 @@
 //! Componentes base (§6): botões, chips, pílulas, selos, segmentado, switch, cartão, linhas de configuração.
 
 use crate::app::Msg;
-use crate::icons::icon;
+use crate::icons::{icon, icon_box};
 use crate::theme as t;
 use iced::alignment::{Horizontal, Vertical};
 use iced::widget::{button, column, container, mouse_area, row, text, Space};
@@ -16,6 +16,10 @@ pub fn txf<'a>(s: impl text::IntoFragment<'a>, size: f32, color: Color, font: ic
     text(s).size(size).color(color).font(font).line_height(text::LineHeight::Relative(1.5))
 }
 /// Corta com reticências conforme a largura disponível (estimativa de 0,53 em por caractere).
+/// Texto sem cor própria: herda a cor do botão (muda no hover).
+pub fn txi<'a>(s: impl text::IntoFragment<'a>, size: f32, font: iced::Font) -> text::Text<'a, Theme> {
+    text(s).size(size).font(font).line_height(text::LineHeight::Relative(1.5))
+}
 pub fn ell(s: &str, max_px: f32, size: f32) -> String {
     let max = (max_px / (size * 0.53)).floor() as usize;
     if s.chars().count() <= max {
@@ -99,28 +103,78 @@ impl WithAlpha for button::Style {
     }
 }
 
-/// Botão de ícone `.ib` (30×30, raio 8).
+/// Botão de ícone `.ib` (30×30, raio 8). A cor do ícone acompanha o hover.
 pub fn ib<'a>(name: &str, msg: Option<Msg>, pressed: bool) -> El<'a> {
     ib_sz(name, 30.0, 16.0, msg, pressed)
 }
 pub fn ib_sz<'a>(name: &str, size: f32, glyph: f32, msg: Option<Msg>, pressed: bool) -> El<'a> {
-    let fg = if pressed { t::FG } else if msg.is_none() { t::alpha(t::FG3, 0.3) } else { t::FG3 };
-    let inner = container(icon(name, glyph, fg)).width(Length::Fill).height(Length::Fill).center_x(Length::Fill).center_y(Length::Fill);
-    let mut b = button(inner).width(Length::Fixed(size)).height(Length::Fixed(30.0f32.min(size).max(26.0).min(size))).padding(0);
+    let (idle, hover) = if pressed { (t::FG, t::FG) } else if msg.is_none() { (t::alpha(t::FG3, 0.3), t::alpha(t::FG3, 0.3)) } else { (t::FG3, t::FG) };
+    let mut b = button(icon_box(name, size, glyph, idle, hover)).width(Length::Fixed(size)).height(Length::Fixed(size)).padding(0);
     if let Some(m) = msg {
         b = b.on_press(m);
     }
     let bg = if pressed { Some(t::SEL) } else { None };
-    b.style(btn_style(bg, Some(if pressed { t::SEL } else { t::HOVER }), fg, t::FG, Color::TRANSPARENT, Color::TRANSPARENT, 8.0)).into()
+    b.style(btn_style(bg, Some(if pressed { t::SEL } else { t::HOVER }), t::FG3, t::FG, Color::TRANSPARENT, Color::TRANSPARENT, 8.0)).into()
 }
-/// Botão de ícone com largura e altura próprias.
+/// Botão de ícone com largura e altura próprias (controles da janela).
 pub fn ib_wh<'a>(name: &str, w: f32, h: f32, glyph: f32, msg: Option<Msg>, hover_bg: Color, hover_fg: Color) -> El<'a> {
-    let inner = container(icon(name, glyph, t::FG3)).width(Length::Fill).height(Length::Fill).center_x(Length::Fill).center_y(Length::Fill);
-    let mut b = button(inner).width(Length::Fixed(w)).height(Length::Fixed(h)).padding(0);
+    let _ = h;
+    let inner = container(icon_box(name, w, glyph, t::FG3, hover_fg)).height(Length::Fixed(30.0)).center_y(Length::Fixed(30.0));
+    let mut b = button(inner).width(Length::Fixed(w)).height(Length::Fixed(30.0)).padding(0);
     if let Some(m) = msg {
         b = b.on_press(m);
     }
     b.style(btn_style(None, Some(hover_bg), t::FG3, hover_fg, Color::TRANSPARENT, Color::TRANSPARENT, 8.0)).into()
+}
+
+/// Dica ao passar o mouse (`title` do protótipo).
+pub fn tip<'a>(el: impl Into<El<'a>>, label: &str) -> El<'a> {
+    iced::widget::tooltip(el, container(tx(label.to_string(), 11.5, t::FG)).padding(pad(4.0, 8.0, 4.0, 8.0)).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: 8.0.into() }, shadow: Shadow { color: Color::from_rgba(0.0, 0.0, 0.0, 0.4), offset: iced::Vector::new(0.0, 4.0), blur_radius: 12.0 }, ..Default::default() }), iced::widget::tooltip::Position::Bottom)
+        .gap(6)
+        .delay(std::time::Duration::from_millis(500))
+        .into()
+}
+
+/// Entrada com opacidade (`fadein`): véu da cor do fundo que some com `p` de 0 a 1.
+pub fn fade<'a>(el: impl Into<El<'a>>, p: f32, bg: Color) -> El<'a> {
+    if p >= 0.999 {
+        return el.into();
+    }
+    let veil = container(Space::new()).width(Length::Fill).height(Length::Fill).style(move |_| container::Style { background: Some(t::alpha(bg, 1.0 - p).into()), ..Default::default() });
+    iced::widget::stack![el.into(), veil].into()
+}
+/// Deslocamento de entrada (`translate: 0 Npx`): começa `dy` px abaixo e sobe até a posição.
+pub fn rise<'a>(el: impl Into<El<'a>>, p: f32, dy: f32) -> El<'a> {
+    if p >= 0.999 {
+        return el.into();
+    }
+    container(el).padding(pad(dy * (1.0 - p), 0.0, 0.0, 0.0)).into()
+}
+
+/// Borda tracejada (`border: 1px dashed`), desenhada por cima do conteúdo.
+pub fn dashed<'a>(el: impl Into<El<'a>>, radius: f32, color: Color) -> El<'a> {
+    let c = iced::widget::canvas(Dashed { radius, color }).width(Length::Fill).height(Length::Fill);
+    iced::widget::stack![el.into(), c].into()
+}
+struct Dashed {
+    radius: f32,
+    color: Color,
+}
+impl iced::widget::canvas::Program<Msg> for Dashed {
+    type State = ();
+    fn draw(&self, _s: &(), r: &iced::Renderer, _t: &Theme, b: iced::Rectangle, _c: iced::mouse::Cursor) -> Vec<iced::widget::canvas::Geometry> {
+        use iced::widget::canvas::{path::Path, LineDash, Stroke};
+        let mut f = iced::widget::canvas::Frame::new(r, b.size());
+        let p = Path::rounded_rectangle(iced::Point::new(0.5, 0.5), iced::Size::new(b.width - 1.0, b.height - 1.0), self.radius.into());
+        f.stroke(&p, Stroke { width: 1.0, style: self.color.into(), line_dash: LineDash { segments: &[4.0, 3.0], offset: 0 }, ..Stroke::default() });
+        vec![f.into_geometry()]
+    }
+}
+
+/// `letter-spacing`: intercala espaços finos entre as letras.
+pub fn spaced(s: &str, hair: usize) -> String {
+    let sep: String = std::iter::repeat('\u{200A}').take(hair).collect();
+    s.chars().map(|c| c.to_string()).collect::<Vec<_>>().join(&sep)
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -145,7 +199,7 @@ pub fn btn<'a>(label: &str, kind: Kind, small: bool, ic: Option<&str>, msg: Opti
     if let Some(i) = ic {
         r = r.push(icon(i, if small { 14.0 } else { 16.0 }, fg));
     }
-    r = r.push(txf(label.to_string(), size, fg, t::UI_MED));
+    r = r.push(if matches!(kind, Kind::Normal | Kind::Ghost) { txi(label.to_string(), size, t::UI_MED) } else { txf(label.to_string(), size, fg, t::UI_MED) });
     let h = if small { 28.0 } else { 32.0 };
     let mut b = button(container(r).center_y(Length::Fill)).height(Length::Fixed(h)).padding(pad(0.0, if small { 10.0 } else { 12.0 }, 0.0, if small { 10.0 } else { 12.0 }));
     if let Some(m) = msg {
@@ -160,7 +214,7 @@ pub fn chip<'a>(label: String, soft: Option<String>, lead: Option<&str>, chev: b
     if let Some(i) = lead {
         r = r.push(icon(i, 14.0, t::FG2));
     }
-    r = r.push(tx(label, 12.5, t::FG2));
+    r = r.push(txi(label, 12.5, t::UI));
     if let Some(s) = soft {
         r = r.push(tx(s, 12.5, t::FG3));
     }
@@ -235,7 +289,7 @@ pub fn seg<'a>(opts: &[&str], sel: usize, f: impl Fn(usize) -> Msg) -> El<'a> {
     let mut r = row![].spacing(2);
     for (i, o) in opts.iter().enumerate() {
         let on = i == sel;
-        let b = button(container(tx(o.to_string(), 12.5, if on { t::FG } else { t::FG3 })).center_y(Length::Fill))
+        let b = button(container(txi(o.to_string(), 12.5, t::UI)).center_y(Length::Fill))
             .height(Length::Fixed(28.0))
             .padding(pad(0.0, 12.0, 0.0, 12.0))
             .on_press(f(i))
@@ -247,6 +301,10 @@ pub fn seg<'a>(opts: &[&str], sel: usize, f: impl Fn(usize) -> Msg) -> El<'a> {
 
 /// Switch `.sw` (34×20).
 pub fn switch<'a>(on: bool, msg: Msg) -> El<'a> {
+    // a bolinha desliza 14 px em 200 ms; só o último switch tocado anima
+    let moving = crate::anim::SWITCH_KEY.lock().map(|k| *k == format!("{msg:?}")).unwrap_or(false);
+    let p = if moving { crate::anim::SWITCH.get() } else { 1.0 };
+    let off = 14.0 * if on { p } else { 1.0 - p };
     let thumb = container(Space::new()).width(Length::Fixed(16.0)).height(Length::Fixed(16.0)).style(|_| container::Style {
         background: Some(Color::WHITE.into()),
         border: Border { radius: 8.0.into(), ..Default::default() },
@@ -256,8 +314,7 @@ pub fn switch<'a>(on: bool, msg: Msg) -> El<'a> {
     let track = container(thumb)
         .width(Length::Fixed(34.0))
         .height(Length::Fixed(20.0))
-        .padding(2)
-        .align_x(if on { Horizontal::Right } else { Horizontal::Left })
+        .padding(pad(2.0, 2.0, 2.0, 2.0 + off))
         .style(move |_| container::Style { background: Some(if on { t::ACCENT } else { t::LINE3 }.into()), border: Border { radius: 999.0.into(), ..Default::default() }, ..Default::default() });
     mouse_area(track).on_press(msg).into()
 }

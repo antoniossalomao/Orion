@@ -21,6 +21,7 @@ pub fn logged() -> App {
 fn cena(f: impl FnOnce(&mut App)) -> App {
     let mut a = logged();
     f(&mut a);
+    a.now = std::time::Instant::now() + std::time::Duration::from_secs(5); // animações já terminadas
     a
 }
 
@@ -134,6 +135,28 @@ pub fn scenarios() -> Vec<(&'static str, Size, App)> {
         a.update(Msg::OpenConv(0));
         a.drawer = true;
     })));
+    // transições no meio do caminho (marcas de tempo + 100 ms)
+    for (n, f) in [("70-anim-configuracoes", 0usize), ("71-anim-gaveta", 1), ("72-anim-pagina", 2)] {
+        let mut a = logged();
+        let size = if f == 1 { Size::new(700.0, 900.0) } else { SIZE };
+        match f {
+            0 => {
+                a.update(Msg::OpenConv(0));
+                a.update(Msg::OpenSettings(None));
+            }
+            1 => {
+                a.win = size;
+                a.update(Msg::OpenConv(0));
+                a.update(Msg::Drawer(true));
+            }
+            _ => {
+                a.update(Msg::Go(View::Projetos));
+            }
+        }
+        let m = [a.at.modal, a.at.drawer, a.at.page][f].unwrap();
+        a.now = m + std::time::Duration::from_millis(90);
+        v.push((n, size, a));
+    }
     v.push(("61-barra-recolhida", SIZE, cena(|a| {
         a.update(Msg::OpenConv(0));
         a.collapsed = true;

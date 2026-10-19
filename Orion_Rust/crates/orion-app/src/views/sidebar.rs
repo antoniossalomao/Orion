@@ -30,9 +30,8 @@ fn nav_style(cur: bool) -> impl Fn(&iced::Theme, button::Status) -> button::Styl
 }
 
 fn nav_item<'a>(app: &'a App, v: View, ic: &str, label: &str, idx: usize) -> El<'a> {
-    let cur = app.view == v && !(v == View::Home && app.view == View::Home && false);
-    let cur = cur && (v != View::Home);
-    let fg = if cur { t::FG } else { t::FG2 };
+    let cur = app.view == v && v != View::Home;
+    let fg = if cur || app.hover == Some((1, idx)) { t::FG } else { t::FG2 };
     let mut r = row![icon(ic, 16.0, fg), tx(label.to_string(), 13.5, fg)].spacing(11).align_y(Vertical::Center);
     r = r.push(grow());
     match v {
@@ -66,11 +65,11 @@ impl<T> Rot for T {
 pub fn view(app: &App) -> El<'_> {
     let drawer = app.is_drawer_mode();
     let top = row![
-        if drawer { ib("close", Some(Msg::Drawer(false)), false) } else { ib("panelL", Some(Msg::Collapse), false) },
+        if drawer { tip(ib("close", Some(Msg::Drawer(false)), false), "Fechar menu") } else { tip(ib("panelL", Some(Msg::Collapse), false), "Recolher (Ctrl B)") },
         container(row![belt_fg(false), txf("Orion", 15.0, t::FG, t::UI_MED)].spacing(10).align_y(Vertical::Center)).padding(pad(0.0, 8.0, 0.0, 8.0)),
         grow(),
-        if drawer { sp_w(0.0) } else { ib("back", if app.hist.is_empty() { None } else { Some(Msg::Back) }, false) },
-        if drawer { sp_w(0.0) } else { ib("fwd", if app.fwd.is_empty() { None } else { Some(Msg::Fwd) }, false) },
+        if drawer { sp_w(0.0) } else { tip(ib("back", if app.hist.is_empty() { None } else { Some(Msg::Back) }, false), "Voltar") },
+        if drawer { sp_w(0.0) } else { tip(ib("fwd", if app.fwd.is_empty() { None } else { Some(Msg::Fwd) }, false), "Avançar") },
     ]
     .spacing(2)
     .align_y(Vertical::Center)
@@ -97,13 +96,16 @@ pub fn view(app: &App) -> El<'_> {
         nav = nav.push(nav_item(app, *v, ic, l, i));
     }
     // "Mais" com a seta girando: no iced a seta troca entre chevR e chevD (90°)
-    let more_btn = button(container(row![icon(if app.more { "chevD" } else { "chevR" }, 16.0, t::FG2), tx("Mais", 13.5, t::FG2)].spacing(11).align_y(Vertical::Center)).center_y(Length::Fill))
+    let ang = { let p = crate::anim::MORE.get(); 90.0 * if app.more { p } else { 1.0 - p } };
+    let mh = app.hover == Some((1, 99));
+    let more_fg = if mh { t::FG } else { t::FG2 };
+    let more_btn = button(container(row![crate::icons::icon_rot("chevR", 16.0, more_fg, ang), tx("Mais", 13.5, more_fg)].spacing(11).align_y(Vertical::Center)).center_y(Length::Fill))
         .width(Length::Fill)
         .height(Length::Fixed(if app.p.compact { 26.0 } else { 32.0 }))
         .padding(pad(0.0, 10.0, 0.0, 10.0))
         .on_press(Msg::ToggleMore)
         .style(nav_style(false));
-    nav = nav.push(more_btn);
+    nav = nav.push(mouse_area(more_btn).on_enter(Msg::Hover(Some((1, 99)))).on_exit(Msg::Hover(None)));
     if app.more {
         for (i, (v, ic, l)) in MORE.iter().enumerate() {
             nav = nav.push(nav_item(app, *v, ic, l, 10 + i));
@@ -154,7 +156,7 @@ pub fn view(app: &App) -> El<'_> {
     .on_press(Msg::Pop(Pop::Account))
     .style(|_, st| button::Style { background: if matches!(st, button::Status::Hovered) { Some(Background::Color(t::HOVER)) } else { None }, text_color: t::FG, border: Border { radius: 8.0.into(), ..Default::default() }, shadow: Default::default(), snap: true });
     let me: El = Popover::new(me_btn, menus::account_menu(app), app.pop == Some(Pop::Account)).above(true).on_dismiss(Msg::ClosePop).into();
-    let foot = column![hline(), sp_h(8.0), row![container(me).width(Length::Fill), ib("gear", Some(Msg::OpenSettings(None)), false)].spacing(4).align_y(Vertical::Center)];
+    let foot = column![hline(), sp_h(8.0), row![container(me).width(Length::Fill), tip(ib("gear", Some(Msg::OpenSettings(None)), false), "Configurações (Ctrl ,)")].spacing(4).align_y(Vertical::Center)];
 
     container(column![top, search_wrap(search), container(nav).padding(pad(0.0, 8.0, 0.0, 8.0)), scroll, container(foot).padding(pad(0.0, 8.0, 8.0, 8.0))].spacing(0))
         .width(Length::Fixed(if app.is_drawer_mode() { 300.0f32.min(app.win.width * 0.86) } else { t::SIDE_W }))

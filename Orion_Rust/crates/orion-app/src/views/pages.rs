@@ -105,7 +105,7 @@ fn projetos(app: &App) -> El<'_> {
 
 fn aprovacoes(app: &App) -> El<'_> {
     let pend = app.pend_list();
-    let mut col = column![h3(&format!("Aguardando você · {}", app.pend_count()), true)];
+    let mut col = column![h3(&format!("Aguardando você · {}", app.pend_count()), true)].spacing(10);
     for (ci, mi) in pend {
         let c = &app.convs[ci];
         if let data::ChatMsg::Orion(o) = &c.msgs[mi] {
@@ -272,15 +272,20 @@ fn arquivadas(app: &App) -> El<'_> {
 }
 
 fn vida<'a>() -> El<'a> {
-    let soon = container(row![icon("clock", 14.0, t::FG2), column![tx("Entra depois da v1, numa fase própria. Mesmo conteúdo da tela Vida do front original: colar a fatura, revisar e lançar; preços acompanhados; linha do tempo; escudo de foco que só pergunta.", 13.5, t::FG2)].width(Length::Fill)].spacing(8))
-        .width(Length::Fill)
-        .padding(18)
-        .style(|_| container::Style { border: Border { color: t::LINE2, width: 1.0, radius: 14.0.into() }, ..Default::default() });
-    page("Vida", "Finanças locais, monitor de preços, linha do tempo e foco. Nada sai do computador.", None, container(soon).padding(pad(18.0, 0.0, 0.0, 0.0)).into())
+    let t_: Vec<iced::widget::text::Span<'a, (), iced::Font>> = vec![
+        iced::widget::span("Entra ").font(t::UI).size(13.5).color(t::FG2),
+        iced::widget::span("depois da v1").font(t::UI_SEMI).size(13.5).color(t::FG),
+        iced::widget::span(", numa fase própria. Mesmo conteúdo da tela Vida do front original: colar a fatura, revisar e lançar; preços acompanhados; linha do tempo; escudo de foco que só pergunta.").font(t::UI).size(13.5).color(t::FG2),
+    ];
+    let soon = container(row![icon("clock", 14.0, t::FG2), iced::widget::rich_text(t_).width(Length::Fill).line_height(iced::widget::text::LineHeight::Relative(1.5))].spacing(8)).width(Length::Fill).padding(18);
+    page("Vida", "Finanças locais, monitor de preços, linha do tempo e foco. Nada sai do computador.", None, dashed(soon, 14.0, t::LINE2))
 }
 
 pub fn hbar<'a>(label: &str, pct: f32, value: &str, color: iced::Color) -> El<'a> {
-    row![container(tx(label.to_string(), 13.0, t::FG2)).width(Length::Fixed(140.0)), container(meter(pct, 5.0, color)).width(Length::Fill), container(tx(value.to_string(), 13.0, t::FG3)).width(Length::Fixed(70.0)).align_x(Horizontal::Right)].spacing(12).align_y(Vertical::Center).padding(pad(7.0, 4.0, 7.0, 4.0)).into()
+    hbar_sz(label, pct, value, color, 13.0)
+}
+pub fn hbar_sz<'a>(label: &str, pct: f32, value: &str, color: iced::Color, vsize: f32) -> El<'a> {
+    row![container(tx(label.to_string(), 13.0, t::FG2)).width(Length::Fixed(140.0)), container(meter(pct, 5.0, color)).width(Length::Fill), container(tx(value.to_string(), vsize, t::FG3)).width(Length::Fixed(70.0)).align_x(Horizontal::Right)].spacing(12).align_y(Vertical::Center).padding(pad(7.0, 4.0, 7.0, 4.0)).into()
 }
 
 pub fn stats<'a>(items: [(&str, &str); 4]) -> El<'a> {

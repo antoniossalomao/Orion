@@ -315,21 +315,21 @@ impl canvas::Program<Msg> for Mem<'_> {
 }
 
 fn fchip<'a>(label: &str, dot: Option<Color>, ic: Option<&str>, on: bool, msg: Msg) -> El<'a> {
-    let fg = if on { t::FG } else { t::FG3 };
+    let fg = if on { t::FG } else { t::alpha(t::FG3, 0.5) };
     let mut r = row![].spacing(7).align_y(Vertical::Center);
     if let Some(d) = dot {
-        r = r.push(dot_el(d, 7.0));
+        r = r.push(dot_el(if on { d } else { t::alpha(d, 0.5) }, 7.0));
     }
     if let Some(i) = ic {
         r = r.push(icon(i, 14.0, fg));
     }
     r = r.push(tx(label.to_string(), 12.5, fg));
-    button(container(r).center_y(Length::Fill))
+    let b = button(container(r).center_y(Length::Fill))
         .height(Length::Fixed(30.0))
         .padding(pad(0.0, 10.0, 0.0, 10.0))
         .on_press(msg)
-        .style(move |_, _| button::Style { background: None, text_color: fg, border: Border { color: if on { t::LINE2 } else { t::alpha(t::LINE2, 0.5) }, width: 1.0, radius: 999.0.into() }, shadow: Default::default(), snap: true })
-        .into()
+        .style(move |_, _| button::Style { background: None, text_color: fg, border: Border { color: if on { t::LINE2 } else { Color::TRANSPARENT }, width: 1.0, radius: 999.0.into() }, shadow: Default::default(), snap: true });
+    if on { b.into() } else { dashed(b, 15.0, t::alpha(t::LINE2, 0.5)) }
 }
 
 fn fmt_n(n: usize) -> String {
@@ -361,7 +361,14 @@ pub fn view(app: &App) -> El<'_> {
     }
     chips = chips.push(fchip("Lidas agora", None, Some("eye"), g.read_on, Msg::MemRead));
     let (n, l) = g.stats();
-    let bar = row![container(search).width(Length::Fixed(260.0)), chips, grow(), tx(format!("{} notas · {} links · git pull às 09:41", fmt_n(n), fmt_n(l)), 12.0, t::FG3).wrapping(iced::widget::text::Wrapping::None)].spacing(8).align_y(Vertical::Center).padding(pad(6.0, 16.0, 10.0, 16.0));
+    let stats = tx(format!("{} notas · {} links · git pull às 09:41", fmt_n(n), fmt_n(l)), 12.0, t::FG3).wrapping(iced::widget::text::Wrapping::None);
+    let avail = app.win.width - if app.collapsed || app.is_drawer_mode() { 0.0 } else { t::SIDE_W + 1.0 };
+    let bar: El = if avail < 1280.0 {
+        // a estatística quebra para a linha de baixo, à direita (flex-wrap do protótipo)
+        column![row![container(search).width(Length::Fixed(260.0)), chips].spacing(8).align_y(Vertical::Center), row![grow(), stats]].spacing(4).padding(pad(6.0, 16.0, 10.0, 16.0)).into()
+    } else {
+        row![container(search).width(Length::Fixed(260.0)), chips, grow(), stats].spacing(8).align_y(Vertical::Center).padding(pad(6.0, 16.0, 10.0, 16.0)).into()
+    };
 
     // palco
     let canvas = cv(Mem { g }).width(Length::Fill).height(Length::Fill);
@@ -373,7 +380,7 @@ pub fn view(app: &App) -> El<'_> {
         }
         layers.push(container(leg).width(Length::Fill).height(Length::Fill).align_y(Vertical::Bottom).padding(pad(0.0, 0.0, 12.0, 14.0)).into());
     }
-    let zoom = container(column![ib("plus", Some(Msg::MemZoom(1.25)), false), ib("minus", Some(Msg::MemZoom(0.8)), false), ib_sz("fit", 30.0, 14.0, Some(Msg::MemFit), false)].spacing(2)).padding(3).style(|_| container::Style { background: Some(t::mix(t::RAISE, 0.85).into()), border: Border { color: t::LINE, width: 1.0, radius: 10.0.into() }, ..Default::default() });
+    let zoom = container(column![tip(ib("plus", Some(Msg::MemZoom(1.25)), false), "Aproximar"), tip(ib("minus", Some(Msg::MemZoom(0.8)), false), "Afastar"), tip(ib_sz("fit", 30.0, 14.0, Some(Msg::MemFit), false), "Enquadrar")].spacing(2)).padding(3).style(|_| container::Style { background: Some(t::mix(t::RAISE, 0.85).into()), border: Border { color: t::LINE, width: 1.0, radius: 10.0.into() }, ..Default::default() });
     layers.push(container(zoom).width(Length::Fill).height(Length::Fill).align_x(iced::alignment::Horizontal::Right).align_y(Vertical::Bottom).padding(pad(0.0, 12.0, 12.0, 0.0)).into());
     if let Some(i) = g.hov.filter(|i| g.sel != Some(*i)) {
         let n = &g.nodes[i];
@@ -432,7 +439,7 @@ fn detail(app: &App, i: usize) -> El<'_> {
     if !n.status.is_empty() {
         head = head.push(badge(&n.status, Tone::Plain));
     }
-    head = head.push(grow()).push(ib("close", Some(Msg::MemSelect(None)), false));
+    head = head.push(grow()).push(tip(ib("close", Some(Msg::MemSelect(None)), false), "Fechar detalhes"));
     let mut body = column![txf(n.label.clone(), 20.0, t::FG, t::SERIF), tx(g.meta(i), 12.0, t::FG3), txf(file, 11.5, t::FG3, t::MONO)].spacing(10);
     if !n.tags.is_empty() {
         let mut tg = row![].spacing(4);
