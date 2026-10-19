@@ -5569,8 +5569,12 @@ dependencies = [
 name = "orion-app"
 version = "0.1.0"
 dependencies = [
+ "async-stream",
+ "futures",
  "iced",
+ "iced_runtime",
  "iced_test",
+ "reqwest",
  "serde",
  "serde_json",
  "tokio",
