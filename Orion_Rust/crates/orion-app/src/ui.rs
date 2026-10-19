@@ -61,8 +61,10 @@ pub fn surface(bg: Option<Color>, line: Option<Color>, radius: f32) -> impl Fn(&
     }
 }
 
+/// Sombra dos popovers e modais. O renderizador `tiny-skia` (padrão, abre em < 50 ms) desenha sombra com desfoque como
+/// retângulos pretos quando só parte da janela é redesenhada, então aqui não há sombra: a borda e o véu fazem o papel.
 pub fn shadow() -> Shadow {
-    Shadow { color: Color::from_rgba(0.0, 0.0, 0.0, 0.5), offset: iced::Vector::new(0.0, 24.0), blur_radius: 60.0 }
+    Shadow::default()
 }
 
 pub fn hline<'a>() -> El<'a> {
@@ -129,7 +131,7 @@ pub fn ib_wh<'a>(name: &str, w: f32, h: f32, glyph: f32, msg: Option<Msg>, hover
 
 /// Dica ao passar o mouse (`title` do protótipo).
 pub fn tip<'a>(el: impl Into<El<'a>>, label: &str) -> El<'a> {
-    iced::widget::tooltip(el, container(tx(label.to_string(), 11.5, t::FG)).padding(pad(4.0, 8.0, 4.0, 8.0)).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: 8.0.into() }, shadow: Shadow { color: Color::from_rgba(0.0, 0.0, 0.0, 0.4), offset: iced::Vector::new(0.0, 4.0), blur_radius: 12.0 }, ..Default::default() }), iced::widget::tooltip::Position::Bottom)
+    iced::widget::tooltip(el, container(tx(label.to_string(), 11.5, t::FG)).padding(pad(4.0, 8.0, 4.0, 8.0)).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: 8.0.into() }, ..Default::default() }), iced::widget::tooltip::Position::Bottom)
         .gap(6)
         .delay(std::time::Duration::from_millis(500))
         .into()
@@ -308,7 +310,6 @@ pub fn switch<'a>(on: bool, msg: Msg) -> El<'a> {
     let thumb = container(Space::new()).width(Length::Fixed(16.0)).height(Length::Fixed(16.0)).style(|_| container::Style {
         background: Some(Color::WHITE.into()),
         border: Border { radius: 8.0.into(), ..Default::default() },
-        shadow: Shadow { color: Color::from_rgba(0.0, 0.0, 0.0, 0.3), offset: iced::Vector::new(0.0, 1.0), blur_radius: 2.0 },
         ..Default::default()
     });
     let track = container(thumb)

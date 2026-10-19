@@ -39,7 +39,7 @@ fn nav_item<'a>(app: &'a App, v: View, ic: &str, label: &str, idx: usize) -> El<
             r = r.push(container(tx(app.pend_count().to_string(), 11.0, t::SIGNAL)).width(Length::Fixed(18.0)).height(Length::Fixed(18.0)).center_x(Length::Fixed(18.0)).center_y(Length::Fixed(18.0)).style(surface(Some(t::SIGNAL_SOFT), None, 9.0)));
         }
         View::Rotinas if app.rots.iter().any(|x| x.news) => r = r.push(dot_el(t::ACCENT, 6.0)),
-        View::Nuvem if crate::data::CLOUD.iter().any(|c| c.running) => r = r.push(spinner(app.spin, 12.0)),
+        View::Nuvem if app.cloud.iter().any(|c| c.running) => r = r.push(spinner(app.spin, 12.0)),
         View::Home if app.hover == Some((1, 0)) => r = r.push(kbd("Ctrl ⇧ O")),
         _ => {}
     }
@@ -179,7 +179,7 @@ fn conv_item(app: &App, i: usize) -> El<'_> {
         Some(Origin::Telegram) => title = title.push(icon("send2", 12.0, t::FG3)),
         None => {}
     }
-    title = title.push(tx(ell(c.title, 190.0, 13.5), 13.5, t::FG));
+    title = title.push(tx(ell(&c.title, 190.0, 13.5), 13.5, t::FG));
     let suffix = match c.origin {
         Some(Origin::Rotina) => " · Rotina",
         Some(Origin::Telegram) => " · via Telegram",

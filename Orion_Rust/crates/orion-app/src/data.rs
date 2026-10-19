@@ -16,16 +16,16 @@ pub enum Origin {
 
 #[derive(Clone, Debug)]
 pub struct Note {
-    pub path: &'static str,
-    pub at: &'static str,
-    pub commit: &'static str,
+    pub path: String,
+    pub at: String,
+    pub commit: String,
 }
 
 #[derive(Clone, Debug)]
 pub struct Tool {
-    pub kind: &'static str,
-    pub value: &'static str,
-    pub time: &'static str,
+    pub kind: String,
+    pub value: String,
+    pub time: String,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -37,45 +37,47 @@ pub enum ApprState {
 
 #[derive(Clone, Debug)]
 pub struct Approval {
+    /// Id da aprovação no servidor (vazio nos dados de exemplo).
+    pub id: String,
     /// Marcação mínima: `código` entre crases vira mono.
-    pub text: &'static str,
+    pub text: String,
     pub state: ApprState,
     pub diff_button: bool,
 }
 
 #[derive(Clone, Debug)]
 pub struct OrionMsg {
-    pub time: &'static str,
-    pub via: &'static str,
-    pub out: &'static str,
-    pub tools_label: &'static str,
+    pub time: String,
+    pub via: String,
+    pub out: String,
+    pub tools_label: String,
     pub tools: Vec<Tool>,
     /// Corpo em marcação mínima (ver `md.rs`).
-    pub body: &'static str,
+    pub body: String,
     pub saved: bool,
     pub approval: Option<Approval>,
 }
 
 #[derive(Clone, Debug)]
 pub enum ChatMsg {
-    User(&'static str),
+    User(String),
     Orion(OrionMsg),
 }
 
 #[derive(Clone, Debug)]
 pub struct Conv {
-    pub id: &'static str,
-    pub title: &'static str,
-    pub proj: &'static str,
+    pub id: String,
+    pub title: String,
+    pub proj: String,
     pub origin: Option<Origin>,
-    pub day: &'static str,
+    pub day: String,
     pub state: ConvState,
     pub ctx: u32,
-    pub branch: Option<&'static str>,
+    pub branch: Option<String>,
     pub pinned: bool,
     pub note: Option<Note>,
-    pub pin: Option<&'static str>,
-    pub banner: Option<&'static str>,
+    pub pin: Option<String>,
+    pub banner: Option<String>,
     pub msgs: Vec<ChatMsg>,
 }
 
@@ -83,39 +85,40 @@ pub const RAM_BODY: &str = "Medi com o Orion parado por 10 minutos. O pico vem d
 
 pub fn convs() -> Vec<Conv> {
     use ChatMsg::*;
-    let tool = |kind, value, time| Tool { kind, value, time };
+    let tool = |kind: &str, value: &str, time: &str| Tool { kind: kind.into(), value: value.into(), time: time.into() };
     vec![
         Conv {
-            id: "ram",
-            title: "Orion RAM otimização",
-            proj: "Orion",
+            id: "ram".into(),
+            title: "Orion RAM otimização".into(),
+            proj: "Orion".into(),
             origin: None,
-            day: "Hoje",
+            day: "Hoje".into(),
             state: ConvState::Normal,
             ctx: 30,
-            branch: Some("claude/funny-hamilton-jb1svh"),
+            branch: Some("claude/funny-hamilton-jb1svh".into()),
             pinned: true,
-            note: Some(Note { path: "03 Recursos/Orion/Memória/2026-10-15 - Orion RAM otimização.md", at: "09:13", commit: "a3f9c12" }),
-            pin: Some("Meta do projeto: RAM parada abaixo de 300 MB"),
+            note: Some(Note { path: "03 Recursos/Orion/Memória/2026-10-15 - Orion RAM otimização.md".into(), at: "09:13".into(), commit: "a3f9c12".into() }),
+            pin: Some("Meta do projeto: RAM parada abaixo de 300 MB".into()),
             banner: None,
             msgs: vec![
-                User("O Orion está usando 1,2 GB parado. Dá pra baixar sem perder velocidade?"),
+                User("O Orion está usando 1,2 GB parado. Dá pra baixar sem perder velocidade?".into()),
                 Orion(OrionMsg {
-                    time: "09:12",
-                    via: "Claude Sonnet",
-                    out: "Anthropic (Claude Code CLI): pergunta + trechos de 3 arquivos .rs",
-                    tools_label: "Leu 4 arquivos, executou 1 comando",
+                    time: "09:12".into(),
+                    via: "Claude Sonnet".into(),
+                    out: "Anthropic (Claude Code CLI): pergunta + trechos de 3 arquivos .rs".into(),
+                    tools_label: "Leu 4 arquivos, executou 1 comando".into(),
                     tools: vec![
-                        tool("Comando", "cargo bloat --release --crates", "2,1 s"),
-                        tool("Leu", "src/memory/index.rs", "0,1 s"),
-                        tool("Leu", "src/voice/wake.rs", "0,1 s"),
-                        tool("Leu", "src/embed/cache.rs", "0,1 s"),
-                        tool("Vault", "Orion · Orion - Arquitetura · Rust", "0,2 s"),
+                        tool("Comando".into(), "cargo bloat --release --crates".into(), "2,1 s".into()),
+                        tool("Leu".into(), "src/memory/index.rs".into(), "0,1 s".into()),
+                        tool("Leu".into(), "src/voice/wake.rs".into(), "0,1 s".into()),
+                        tool("Leu".into(), "src/embed/cache.rs".into(), "0,1 s".into()),
+                        tool("Vault".into(), "Orion · Orion - Arquitetura · Rust".into(), "0,2 s".into()),
                     ],
-                    body: RAM_BODY,
+                    body: RAM_BODY.into(),
                     saved: true,
                     approval: Some(Approval {
-                        text: "Aplicar as três mudanças na branch `claude/funny-hamilton-jb1svh` e rodar `cargo test`. Escreve 3 arquivos no projeto Orion.",
+                        id: String::new(),
+                        text: "Aplicar as três mudanças na branch `claude/funny-hamilton-jb1svh` e rodar `cargo test`. Escreve 3 arquivos no projeto Orion.".into(),
                         state: ApprState::Open,
                         diff_button: true,
                     }),
@@ -123,57 +126,58 @@ pub fn convs() -> Vec<Conv> {
             ],
         },
         Conv {
-            id: "rust",
-            title: "Orion para Rust",
-            proj: "Orion",
+            id: "rust".into(),
+            title: "Orion para Rust".into(),
+            proj: "Orion".into(),
             origin: None,
-            day: "Hoje",
+            day: "Hoje".into(),
             state: ConvState::Running,
             ctx: 54,
-            branch: Some("claude/rust-port"),
+            branch: Some("claude/rust-port".into()),
             pinned: false,
-            note: Some(Note { path: "03 Recursos/Orion/Memória/2026-10-15 - Orion para Rust.md", at: "08:41", commit: "77be0d4" }),
+            note: Some(Note { path: "03 Recursos/Orion/Memória/2026-10-15 - Orion para Rust.md".into(), at: "08:41".into(), commit: "77be0d4".into() }),
             pin: None,
-            banner: Some("Groq sem cota; usando Gemini."),
+            banner: Some("Groq sem cota; usando Gemini.".into()),
             msgs: vec![
-                User("Qual biblioteca de interface faz mais sentido para o front em Rust?"),
+                User("Qual biblioteca de interface faz mais sentido para o front em Rust?".into()),
                 Orion(OrionMsg {
-                    time: "08:40",
-                    via: "Orion · Groq",
-                    out: "Groq: pergunta, sem dados pessoais",
-                    tools_label: "",
+                    time: "08:40".into(),
+                    via: "Orion · Groq".into(),
+                    out: "Groq: pergunta, sem dados pessoais".into(),
+                    tools_label: "".into(),
                     tools: vec![],
-                    body: "Para um app de desktop com barra de título própria, atalhos e lista longa de conversas, o **iced** é o mais próximo do que o front atual faz: arquitetura Elm, estilo por tema e boa renderização de texto.\n\nO grafo da memória vira um widget `shader` (wgpu) em 3D, com o céu do `sky.js` ao fundo.",
+                    body: "Para um app de desktop com barra de título própria, atalhos e lista longa de conversas, o **iced** é o mais próximo do que o front atual faz: arquitetura Elm, estilo por tema e boa renderização de texto.\n\nO grafo da memória vira um widget `shader` (wgpu) em 3D, com o céu do `sky.js` ao fundo.".into(),
                     saved: true,
                     approval: None,
                 }),
             ],
         },
         Conv {
-            id: "plano",
-            title: "Plano rodada 2",
-            proj: "Orion",
+            id: "plano".into(),
+            title: "Plano rodada 2".into(),
+            proj: "Orion".into(),
             origin: None,
-            day: "Hoje",
+            day: "Hoje".into(),
             state: ConvState::Pending,
             ctx: 41,
-            branch: Some("claude/quirky-dijkstra-65d6gq"),
+            branch: Some("claude/quirky-dijkstra-65d6gq".into()),
             pinned: false,
-            note: Some(Note { path: "03 Recursos/Orion/Memória/2026-10-15 - Plano rodada 2.md", at: "07:59", commit: "c41d2aa" }),
+            note: Some(Note { path: "03 Recursos/Orion/Memória/2026-10-15 - Plano rodada 2.md".into(), at: "07:59".into(), commit: "c41d2aa".into() }),
             pin: None,
             banner: None,
             msgs: vec![
-                User("Qual o status da reescrita e o que falta para a fase 6?"),
+                User("Qual o status da reescrita e o que falta para a fase 6?".into()),
                 Orion(OrionMsg {
-                    time: "07:58",
-                    via: "Gemini Flash",
-                    out: "Google (Gemini CLI): pergunta + Orion - Estado e plano.md",
-                    tools_label: "",
+                    time: "07:58".into(),
+                    via: "Gemini Flash".into(),
+                    out: "Google (Gemini CLI): pergunta + Orion - Estado e plano.md".into(),
+                    tools_label: "".into(),
                     tools: vec![],
-                    body: "A fase 6 tem o front redesenhado e a voz por clique. Falta validar a palavra de ativação com microfone real.\n\n- Voz por clique: pronta no código.\n- Voz ao vivo: pronta, sem teste de áudio.\n- Palavra “Orion”: falta testar com o seu microfone.\n\nQuer que eu envie a branch para revisão?",
+                    body: "A fase 6 tem o front redesenhado e a voz por clique. Falta validar a palavra de ativação com microfone real.\n\n- Voz por clique: pronta no código.\n- Voz ao vivo: pronta, sem teste de áudio.\n- Palavra “Orion”: falta testar com o seu microfone.\n\nQuer que eu envie a branch para revisão?".into(),
                     saved: true,
                     approval: Some(Approval {
-                        text: "Enviar `claude/quirky-dijkstra-65d6gq` para o origin e abrir o PR. É uma escrita fora deste computador.",
+                        id: String::new(),
+                        text: "Enviar `claude/quirky-dijkstra-65d6gq` para o origin e abrir o PR. É uma escrita fora deste computador.".into(),
                         state: ApprState::Open,
                         diff_button: false,
                     }),
@@ -181,11 +185,11 @@ pub fn convs() -> Vec<Conv> {
             ],
         },
         Conv {
-            id: "brief",
-            title: "Briefing da manhã",
-            proj: "Rotina",
+            id: "brief".into(),
+            title: "Briefing da manhã".into(),
+            proj: "Rotina".into(),
             origin: Some(Origin::Rotina),
-            day: "Hoje",
+            day: "Hoje".into(),
             state: ConvState::Unread,
             ctx: 0,
             branch: None,
@@ -194,22 +198,22 @@ pub fn convs() -> Vec<Conv> {
             pin: None,
             banner: None,
             msgs: vec![Orion(OrionMsg {
-                time: "08:45",
-                via: "Orion · Gemini",
-                out: "",
-                tools_label: "",
+                time: "08:45".into(),
+                via: "Orion · Gemini".into(),
+                out: "".into(),
+                tools_label: "".into(),
                 tools: vec![],
-                body: "Bom dia. Três eventos hoje, o primeiro às 10:00. Um PR esperando sua revisão no vault. Backup de ontem concluído sem erros.",
+                body: "Bom dia. Três eventos hoje, o primeiro às 10:00. Um PR esperando sua revisão no vault. Backup de ontem concluído sem erros.".into(),
                 saved: false,
                 approval: None,
             })],
         },
         Conv {
-            id: "merc",
-            title: "Lista do mercado",
-            proj: "Sem projeto",
+            id: "merc".into(),
+            title: "Lista do mercado".into(),
+            proj: "Sem projeto".into(),
             origin: Some(Origin::Telegram),
-            day: "Ontem",
+            day: "Ontem".into(),
             state: ConvState::Normal,
             ctx: 0,
             branch: None,
@@ -218,25 +222,25 @@ pub fn convs() -> Vec<Conv> {
             pin: None,
             banner: None,
             msgs: vec![
-                User("(áudio, 0:12) põe café, leite e pão na lista"),
+                User("(áudio, 0:12) põe café, leite e pão na lista".into()),
                 Orion(OrionMsg {
-                    time: "ontem, 19:02",
-                    via: "Local · Qwen 7B",
-                    out: "",
-                    tools_label: "",
+                    time: "ontem, 19:02".into(),
+                    via: "Local · Qwen 7B".into(),
+                    out: "".into(),
+                    tools_label: "".into(),
                     tools: vec![],
-                    body: "Anotei na lista do mercado: café, leite e pão. Mandei a lista atualizada no Telegram.",
+                    body: "Anotei na lista do mercado: café, leite e pão. Mandei a lista atualizada no Telegram.".into(),
                     saved: false,
                     approval: None,
                 }),
             ],
         },
         Conv {
-            id: "vaultpr",
-            title: "Revisão da PR do vault",
-            proj: "Vault",
+            id: "vaultpr".into(),
+            title: "Revisão da PR do vault".into(),
+            proj: "Vault".into(),
             origin: None,
-            day: "Ontem",
+            day: "Ontem".into(),
             state: ConvState::Normal,
             ctx: 0,
             branch: None,
@@ -245,72 +249,78 @@ pub fn convs() -> Vec<Conv> {
             pin: None,
             banner: None,
             msgs: vec![
-                User("Revisa a PR do vault e me diz se pode fazer merge."),
+                User("Revisa a PR do vault e me diz se pode fazer merge.".into()),
                 Orion(OrionMsg {
-                    time: "ontem, 18:20",
-                    via: "Claude Sonnet",
-                    out: "Anthropic (Claude Code CLI): pergunta + diff da PR",
-                    tools_label: "",
+                    time: "ontem, 18:20".into(),
+                    via: "Claude Sonnet".into(),
+                    out: "Anthropic (Claude Code CLI): pergunta + diff da PR".into(),
+                    tools_label: "".into(),
                     tools: vec![],
-                    body: "Duas checagens verdes e nenhum conflito. Um ponto: a nota nova não tem link para nenhum Projeto, o que quebra a regra de “não criar ilhas” do `claude.md`.",
+                    body: "Duas checagens verdes e nenhum conflito. Um ponto: a nota nova não tem link para nenhum Projeto, o que quebra a regra de “não criar ilhas” do `claude.md`.".into(),
                     saved: false,
                     approval: None,
                 }),
             ],
         },
-        empty("front", "Análise do frontend Orion", "Orion", "7 dias"),
-        empty("org", "Organização do vault", "Vault", "7 dias"),
-        empty("nortis", "Backup e restauração", "Nortis", "Mais antigos"),
-        empty("lyra", "Avaliação de RAG", "Lyra", "Mais antigos"),
+        empty("front".into(), "Análise do frontend Orion".into(), "Orion".into(), "7 dias".into()),
+        empty("org".into(), "Organização do vault".into(), "Vault".into(), "7 dias".into()),
+        empty("nortis".into(), "Backup e restauração".into(), "Nortis".into(), "Mais antigos".into()),
+        empty("lyra".into(), "Avaliação de RAG".into(), "Lyra".into(), "Mais antigos".into()),
     ]
 }
 
-fn empty(id: &'static str, title: &'static str, proj: &'static str, day: &'static str) -> Conv {
-    Conv { id, title, proj, origin: None, day, state: ConvState::Normal, ctx: 0, branch: None, pinned: false, note: None, pin: None, banner: None, msgs: vec![] }
+fn empty(id: &str, title: &str, proj: &str, day: &str) -> Conv {
+    Conv { id: id.into(), title: title.into(), proj: proj.into(), origin: None, day: day.into(), state: ConvState::Normal, ctx: 0, branch: None, pinned: false, note: None, pin: None, banner: None, msgs: vec![] }
 }
 
 pub struct Project {
-    pub n: &'static str,
-    pub d: &'static str,
-    pub pend: &'static str,
-    pub up: &'static str,
-    pub repo: &'static str,
+    pub id: String,
+    pub n: String,
+    pub d: String,
+    pub pend: String,
+    pub up: String,
+    pub repo: String,
     pub ci: bool,
-    pub model: &'static str,
-    pub pastas: &'static str,
+    pub model: String,
+    pub pastas: String,
     pub rot: u32,
 }
 
-pub const PROJ: &[Project] = &[
-    Project { n: "Orion", d: "Assistente local em Rust. Fase 6: front e voz.", pend: "3 pendências", up: "há 2 h", repo: "antoniossalomao/Orion", ci: true, model: "Claude Sonnet", pastas: "C:\\Projetos\\Orion", rot: 1 },
-    Project { n: "Vault", d: "Segundo cérebro em Obsidian, estrutura PARA.", pend: "1 PR aberto", up: "ontem", repo: "antoniossalomao/vault", ci: true, model: "Gemini Flash", pastas: "C:\\Users\\Antonio\\Vault", rot: 2 },
-    Project { n: "Lyra", d: "Avaliação de RAG com o vault como base.", pend: "pausado", up: "set.", repo: "", ci: false, model: "Auto", pastas: "", rot: 0 },
-    Project { n: "Nortis", d: "Backup e restauração antes de trocar de PC.", pend: "concluído", up: "ago.", repo: "", ci: false, model: "Auto", pastas: "D:\\Backup", rot: 0 },
-];
+pub fn projects() -> Vec<Project> {
+    vec![
+    Project { id: String::new(), n: "Orion".into(), d: "Assistente local em Rust. Fase 6: front e voz.".into(), pend: "3 pendências".into(), up: "há 2 h".into(), repo: "antoniossalomao/Orion".into(), ci: true, model: "Claude Sonnet".into(), pastas: "C:\\Projetos\\Orion".into(), rot: 1 },
+    Project { id: String::new(), n: "Vault".into(), d: "Segundo cérebro em Obsidian, estrutura PARA.".into(), pend: "1 PR aberto".into(), up: "ontem".into(), repo: "antoniossalomao/vault".into(), ci: true, model: "Gemini Flash".into(), pastas: "C:\\Users\\Antonio\\Vault".into(), rot: 2 },
+    Project { id: String::new(), n: "Lyra".into(), d: "Avaliação de RAG com o vault como base.".into(), pend: "pausado".into(), up: "set.".into(), repo: "".into(), ci: false, model: "Auto".into(), pastas: "".into(), rot: 0 },
+    Project { id: String::new(), n: "Nortis".into(), d: "Backup e restauração antes de trocar de PC.".into(), pend: "concluído".into(), up: "ago.".into(), repo: "".into(), ci: false, model: "Auto".into(), pastas: "D:\\Backup".into(), rot: 0 },
+]
+}
 
-pub const RES: &[(&str, &str, &str, &str, &str)] = &[
-    ("Pesquisa: memória RAM desnecessária", "Índice vetorial, voz residente e cache sem limite.", "15/10", "Pesquisa", "v2"),
-    ("Diagnóstico do PR do vault", "Duas checagens verdes, sem conflito.", "14/10", "Revisão", "v1"),
-    ("Revisão da fase 5 de voz", "Pendente: calibrar palmas no notebook.", "12/10", "Revisão", "v3"),
-];
+pub fn results() -> Vec<(String, String, String, String, String)> {
+    let t = |a: &str, b: &str, c: &str, d: &str, e: &str| (a.to_string(), b.to_string(), c.to_string(), d.to_string(), e.to_string());
+    vec![
+    t("Pesquisa: memória RAM desnecessária", "Índice vetorial, voz residente e cache sem limite.", "15/10", "Pesquisa", "v2"),
+    t("Diagnóstico do PR do vault", "Duas checagens verdes, sem conflito.", "14/10", "Revisão", "v1"),
+    t("Revisão da fase 5 de voz", "Pendente: calibrar palmas no notebook.", "12/10", "Revisão", "v3"),
+]
+}
 
 #[derive(Clone)]
 pub struct Rot {
-    pub id: &'static str,
-    pub t: &'static str,
-    pub d: &'static str,
-    pub next: &'static str,
-    pub last: &'static str,
-    pub st: &'static str,
+    pub id: String,
+    pub t: String,
+    pub d: String,
+    pub next: String,
+    pub last: String,
+    pub st: String,
     pub on: bool,
     pub news: bool,
     pub crit: bool,
-    pub out: &'static str,
-    pub runs: &'static str,
+    pub out: String,
+    pub runs: String,
 }
 
 pub fn rots() -> Vec<Rot> {
-    let r = |id, t, d, next, last, st, on, news, crit, out, runs| Rot { id, t, d, next, last, st, on, news, crit, out, runs };
+    let r = |id: &str, t: &str, d: &str, next: &str, last: &str, st: &str, on: bool, news: bool, crit: bool, out: &str, runs: &str| Rot { id: id.into(), t: t.into(), d: d.into(), next: next.into(), last: last.into(), st: st.into(), on, news, crit, out: out.into(), runs: runs.into() };
     vec![
         r("r1", "Briefing da manhã", "Dias úteis, 08:45", "amanhã, 08:45", "hoje, 08:45", "ok", true, true, true, "Conversa · Telegram", "oooooso"),
         r("r2", "Backup do vault", "Todo dia, 14:00", "hoje, 14:00", "ontem, 14:00", "ok", true, false, true, "Conversa · nota no vault", "ooooooo"),
@@ -322,16 +332,16 @@ pub fn rots() -> Vec<Rot> {
 
 #[derive(Clone)]
 pub struct Act {
-    pub when: &'static str,
+    pub when: String,
     pub text: String,
-    pub kind: &'static str, // ok | warn | err
+    pub kind: String, // ok | warn | err
     pub label: String,
     pub undone: bool,
     pub undoable: bool,
 }
 
 pub fn acts() -> Vec<Act> {
-    let a = |when, text: &str, kind, label: &str| Act { when, text: text.to_string(), kind, label: label.to_string(), undone: false, undoable: false };
+    let a = |when: &str, text: &str, kind: &str, label: &str| Act { when: when.into(), text: text.to_string(), kind: kind.into(), label: label.to_string(), undone: false, undoable: false };
     let mut v = vec![
         a("09:13", "Nota gravada no vault + commit a3f9c12", "ok", "automático"),
         a("09:12", "Leitura de src/memory/index.rs", "ok", "concluído"),
@@ -349,31 +359,36 @@ pub fn acts() -> Vec<Act> {
 }
 
 pub struct CloudTask {
-    pub svc: &'static str,
-    pub t: &'static str,
-    pub proj: &'static str,
+    pub svc: String,
+    pub t: String,
+    pub proj: String,
     pub running: bool,
-    pub at: &'static str,
-    pub link: &'static str,
+    pub at: String,
+    pub link: String,
 }
-pub const CLOUD: &[CloudTask] = &[
-    CloudTask { svc: "Claude", t: "Portar o gateway de provedores para Rust", proj: "Orion", running: true, at: "há 12 min", link: "claude.ai/code · sessão" },
-    CloudTask { svc: "Codex", t: "Testes do crate orion-ai", proj: "Orion", running: false, at: "há 1 h", link: "PR #31" },
-    CloudTask { svc: "Claude", t: "Briefing (PC desligado no sábado)", proj: "Rotina", running: false, at: "sábado, 08:45", link: "rotina na nuvem" },
-];
+pub fn cloud() -> Vec<CloudTask> {
+    vec![
+    CloudTask { svc: "Claude".into(), t: "Portar o gateway de provedores para Rust".into(), proj: "Orion".into(), running: true, at: "há 12 min".into(), link: "claude.ai/code · sessão".into() },
+    CloudTask { svc: "Codex".into(), t: "Testes do crate orion-ai".into(), proj: "Orion".into(), running: false, at: "há 1 h".into(), link: "PR #31".into() },
+    CloudTask { svc: "Claude".into(), t: "Briefing (PC desligado no sábado)".into(), proj: "Rotina".into(), running: false, at: "sábado, 08:45".into(), link: "rotina na nuvem".into() },
+]
+}
 
 pub struct Fact {
-    pub g: &'static str,
-    pub t: &'static str,
-    pub src: &'static str,
+    pub id: i64,
+    pub g: String,
+    pub t: String,
+    pub src: String,
 }
-pub const FACTS: &[Fact] = &[
-    Fact { g: "Preferências", t: "Respostas diretas, sem preâmbulo", src: "conversa · 12/09" },
-    Fact { g: "Preferências", t: "Português, tom técnico", src: "conversa · 12/09" },
-    Fact { g: "Projetos", t: "Orion: reescrita em Rust, fase 6", src: "conversa · 14/10" },
-    Fact { g: "Projetos", t: "Vault: segundo cérebro em Obsidian", src: "fato · 03/10" },
-    Fact { g: "Rotina", t: "Briefing da manhã às 08:45 nos dias úteis", src: "rotina · 01/10" },
-];
+pub fn facts() -> Vec<Fact> {
+    vec![
+    Fact { id: 0, g: "Preferências".into(), t: "Respostas diretas, sem preâmbulo".into(), src: "conversa · 12/09".into() },
+    Fact { id: 0, g: "Preferências".into(), t: "Português, tom técnico".into(), src: "conversa · 12/09".into() },
+    Fact { id: 0, g: "Projetos".into(), t: "Orion: reescrita em Rust, fase 6".into(), src: "conversa · 14/10".into() },
+    Fact { id: 0, g: "Projetos".into(), t: "Vault: segundo cérebro em Obsidian".into(), src: "fato · 03/10".into() },
+    Fact { id: 0, g: "Rotina".into(), t: "Briefing da manhã às 08:45 nos dias úteis".into(), src: "rotina · 01/10".into() },
+]
+}
 
 pub const SRC: &[(&str, &str, &str)] = &[
     ("vault", "Vault do Obsidian", "Lê as notas; grava em 03 Recursos/Orion/Memória."),
@@ -384,18 +399,20 @@ pub const SRC: &[(&str, &str, &str)] = &[
 ];
 
 pub struct Mcp {
-    pub t: &'static str,
-    pub k: &'static str,
-    pub st: &'static str,
+    pub t: String,
+    pub k: String,
+    pub st: String,
     pub ok: bool,
     pub tools: u32,
 }
-pub const MCP: &[Mcp] = &[
-    Mcp { t: "GitHub", k: "MCP · HTTP", st: "Conectado", ok: true, tools: 41 },
-    Mcp { t: "Google Workspace", k: "MCP · HTTP", st: "Conectado", ok: true, tools: 18 },
-    Mcp { t: "Arquivos locais", k: "MCP · stdio", st: "Token expirado", ok: false, tools: 9 },
-    Mcp { t: "Telegram", k: "Canal · depois da v1", st: "Conectado · ID permitido", ok: true, tools: 6 },
-];
+pub fn mcp() -> Vec<Mcp> {
+    vec![
+    Mcp { t: "GitHub".into(), k: "MCP · HTTP".into(), st: "Conectado".into(), ok: true, tools: 41 },
+    Mcp { t: "Google Workspace".into(), k: "MCP · HTTP".into(), st: "Conectado".into(), ok: true, tools: 18 },
+    Mcp { t: "Arquivos locais".into(), k: "MCP · stdio".into(), st: "Token expirado".into(), ok: false, tools: 9 },
+    Mcp { t: "Telegram".into(), k: "Canal · depois da v1".into(), st: "Conectado · ID permitido".into(), ok: true, tools: 6 },
+]
+}
 pub const SKILLS: &[(&str, &str)] = &[("segundo-cerebro-obsidian", "Importada do Claude"), ("code-review", "Importada do Claude"), ("release-windows", "Própria")];
 pub const LOCAL: &[(&str, &str, &str)] = &[
     ("Qwen 2.5 7B Instruct (Q4_K_M)", "4,7 GB", "fallback"),
@@ -438,6 +455,8 @@ pub const TERM: &[&str] = &[
     "",
 ];
 
-pub const ARCH: &[(&str, &str, &str)] = &[("Configurar Tailscale no notebook", "Orion", "agosto"), ("Exportar tabelas antes de vender o PC", "Nortis", "julho")];
+pub fn arch() -> Vec<(String, String, String)> {
+    vec![("Configurar Tailscale no notebook".into(), "Orion".into(), "agosto".into()), ("Exportar tabelas antes de vender o PC".into(), "Nortis".into(), "julho".into())]
+}
 
 pub const NOTE_SAMPLE: &str = "---\ntype: conversa\ndate: 2026-10-15\nfonte: orion\nprojeto: \"[[Orion]]\"\ntags: [conversa, orion, rust, memoria]\nresumo: \"RAM parada de 1,2 GB; três causas e plano para ~300 MB.\"\n---\n\n# Orion RAM otimização\n\n> Projeto: [[Orion]] · Conceito: [[Rust]]\n\n## Pergunta\nO Orion está usando 1,2 GB parado. Dá pra baixar sem perder velocidade?\n\n## Achados\n- Índice vetorial carregado inteiro: 610 MB\n- Modelo de voz residente: 280 MB\n- Cache de embeddings sem limite\n\n## Decisão\nAbrir o índice com `mmap`, carregar a voz sob demanda e limitar o cache a **64 MB** com LRU.\n";

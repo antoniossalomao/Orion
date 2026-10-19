@@ -153,7 +153,14 @@ fn section<'a>(app: &'a App) -> El<'a> {
             let ctl: El = match app.panic {
                 Panic::Idle => btn("Pausar", Kind::Normal, true, None, Some(Msg::PanicArm)),
                 Panic::Armed => row_c(vec![btn("Cancelar", Kind::Normal, true, None, Some(Msg::PanicCancel)), btn("Confirmar pausa", Kind::Danger, true, None, Some(Msg::PanicConfirm))]),
-                Panic::Paused => row_c(vec![badge("Pausado", Tone::Err), btn("Retomar", Kind::Normal, true, None, Some(Msg::PanicResume))]),
+                Panic::Paused => {
+                    let mut v: Vec<El> = vec![badge("Pausado", Tone::Err)];
+                    if app.api.is_some() {
+                        v.push(container(text_input("Senha para retomar", &app.resume_pw).on_input(Msg::ResumePw).on_submit(Msg::PanicResume).secure(true).size(13).font(t::UI).padding(pad(6.0, 10.0, 6.0, 10.0)).style(field_style(t::RAISE, t::LINE2, t::LINE3, 8.0))).width(Length::Fixed(170.0)).into());
+                    }
+                    v.push(btn("Retomar", Kind::Normal, true, None, Some(Msg::PanicResume)));
+                    row_c(v)
+                }
             };
             c = c.push(setting("Pausar tudo", "Corta ferramentas de escrita, rede e execução até você retomar.", ctl));
             c = c.push(sh("Dados"));
@@ -161,6 +168,18 @@ fn section<'a>(app: &'a App) -> El<'a> {
             c = c.push(setting("Apagar histórico de conversas", "Remove as conversas deste computador. As notas no vault continuam.", ctl));
         }
         Sec::Uso => {
+            if app.api.is_some() {
+                c = c.push(sh("Cotas das chamadas · semana"));
+                let qs: Vec<serde_json::Value> = app.budget.as_ref().and_then(|b| b.get("quotas")).and_then(|q| q.as_array()).cloned().unwrap_or_default();
+                if qs.is_empty() {
+                    c = c.push(lede("Nenhuma cota configurada."));
+                }
+                for q in &qs {
+                    let pct = q.get("percent").and_then(|x| x.as_f64()).unwrap_or(0.0) as f32;
+                    let (u, cap) = (q.get("used").and_then(|x| x.as_i64()).unwrap_or(0), q.get("weekly_calls").and_then(|x| x.as_i64()).unwrap_or(0));
+                    c = c.push(hbar_sz(q.get("provider").and_then(|x| x.as_str()).unwrap_or("?"), pct, &format!("{u} de {cap}"), if pct >= 100.0 { t::DANGER } else { t::FG2 }, 11.5));
+                }
+            } else {
             c = c.push(sh("Cotas das APIs gratuitas · hoje"));
             for (l, v, s) in [("Gemini (API)", 62.0, "930 de 1.500"), ("Groq", 100.0, "esgotada até 00:00"), ("Cerebras", 18.0, "180 de 1.000"), ("OpenRouter (free)", 40.0, "20 de 50"), ("Mistral", 9.0, "90 de 1.000")] {
                 c = c.push(hbar_sz(l, v, s, if v >= 100.0 { t::DANGER } else { t::FG2 }, 11.5));
@@ -169,6 +188,7 @@ fn section<'a>(app: &'a App) -> El<'a> {
             for (l, v, s) in [("Claude (assinatura)", 41.0, "41%"), ("Codex (assinatura)", 23.0, "23%"), ("Gemini CLI", 12.0, "12%")] {
                 c = c.push(hbar(l, v, s, t::FG2));
             }
+                    }
         }
         Sec::Modelos => {
             c = c.push(sh("Seletor do chat"));
@@ -205,10 +225,10 @@ fn section<'a>(app: &'a App) -> El<'a> {
         Sec::Conectores => {
             c = c.push(sh("Servidores MCP"));
             c = c.push(lede("Por comando local (stdio) ou URL (HTTP). As ferramentas aparecem no chat com o nome do servidor."));
-            for m in data::MCP {
+            for m in &app.mcp {
                 let tone = if m.ok { Tone::Ok } else { Tone::Err };
                 let lab = if m.ok { "Gerenciar" } else { "Reconectar" };
-                c = c.push(setting_el(t_badge(m.t, badge(m.st, tone)), &format!("{} · {} ferramentas · permissão por ferramenta: perguntar", m.k, m.tools), btn(lab, Kind::Normal, true, None, Some(toast(&format!("{lab} (simulado)"))))));
+                c = c.push(setting_el(t_badge(&m.t, badge(&m.st, tone)), &format!("{} · {} ferramentas · permissão por ferramenta: perguntar", m.k, m.tools), btn(lab, Kind::Normal, true, None, Some(toast(&format!("{lab} (simulado)"))))));
             }
             c = c.push(setting("Adicionar servidor", "", btn("Adicionar", Kind::Normal, true, Some("plus"), Some(toast("Comando ou URL do servidor (simulado)")))));
             c = c.push(sh("Skills"));

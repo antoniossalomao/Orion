@@ -2,7 +2,7 @@
 
 use crate::app::{App, Msg, View};
 use crate::chart::Line;
-use crate::data::{self, PROJ};
+use crate::data;
 use crate::icons::icon;
 use crate::theme as t;
 use crate::ui::*;
@@ -17,7 +17,7 @@ pub fn view(app: &App, v: View) -> El<'_> {
         View::Projetos => projetos(app),
         View::Aprovacoes => aprovacoes(app),
         View::Rotinas => rotinas(app),
-        View::Resultados => resultados(),
+        View::Resultados => resultados(app),
         View::Nuvem => nuvem(app),
         View::Fontes => fontes(app),
         View::Conhecimento => conhecimento(app),
@@ -68,20 +68,20 @@ fn search_box<'a>(placeholder: &str, value: &str, on: impl Fn(String) -> Msg + '
 
 fn projetos(app: &App) -> El<'_> {
     let q = app.proj_q.trim().to_lowercase();
-    let items: Vec<(usize, &data::Project)> = PROJ.iter().enumerate().filter(|(_, p)| q.is_empty() || format!("{}{}", p.n, p.d).to_lowercase().contains(&q)).collect();
-    let card = |(i, p): (usize, &'static data::Project)| -> El<'static> {
+    let items: Vec<(usize, &data::Project)> = app.projects.iter().enumerate().filter(|(_, p)| q.is_empty() || format!("{}{}", p.n, p.d).to_lowercase().contains(&q)).collect();
+    let card = |(i, p): (usize, &data::Project)| -> El<'static> {
         let mut tags = row![].spacing(4);
         if !p.repo.is_empty() {
             tags = tags.push(badge_ic(p.repo.split('/').nth(1).unwrap_or(""), if p.ci { Tone::Ok } else { Tone::Plain }, "branch"));
         }
-        tags = tags.push(badge_ic(p.model, Tone::Plain, "cpu"));
+        tags = tags.push(badge_ic(&p.model, Tone::Plain, "cpu"));
         if p.rot > 0 {
             tags = tags.push(badge_ic(&format!("{} rotina{}", p.rot, if p.rot > 1 { "s" } else { "" }), Tone::Plain, "clock"));
         }
         if !p.pastas.is_empty() {
-            tags = tags.push(badge_ic(&ell(p.pastas, 150.0, 11.0), Tone::Plain, "folder"));
+            tags = tags.push(badge_ic(&ell(&p.pastas, 150.0, 11.0), Tone::Plain, "folder"));
         }
-        let body = column![txf(p.n, 20.0, t::FG, t::SERIF), tx(p.d, 13.0, t::FG2), container(tags).padding(pad(2.0, 0.0, 0.0, 0.0)), container(sp_h(0.0)).height(Length::Fill), row![tx(p.pend, 12.0, t::FG3), grow(), tx(format!("Atualizado {}", p.up), 12.0, t::FG3)]].spacing(6);
+        let body = column![txf(p.n.clone(), 20.0, t::FG, t::SERIF), tx(p.d.clone(), 13.0, t::FG2), container(tags).padding(pad(2.0, 0.0, 0.0, 0.0)), container(sp_h(0.0)).height(Length::Fill), row![tx(p.pend.clone(), 12.0, t::FG3), grow(), tx(format!("Atualizado {}", p.up), 12.0, t::FG3)]].spacing(6);
         button(container(body).height(Length::Fill))
             .width(Length::Fill)
             .height(Length::Fixed(150.0))
@@ -110,9 +110,9 @@ fn aprovacoes(app: &App) -> El<'_> {
         let c = &app.convs[ci];
         if let data::ChatMsg::Orion(o) = &c.msgs[mi] {
             let a = o.approval.as_ref().unwrap();
-            let txt = crate::md::render(&crate::md::parse(a.text), crate::md::Style { font: t::UI, bold: t::UI_SEMI, size: 14.0, line: 1.5, h_font: t::UI_MED, h1: 16.0, h2: 15.0, h3: 14.0, gap: 4.0 });
+            let txt = crate::md::render(&crate::md::parse(&a.text), crate::md::Style { font: t::UI, bold: t::UI_SEMI, size: 14.0, line: 1.5, h_font: t::UI_MED, h1: 16.0, h2: 15.0, h3: 14.0, gap: 4.0 });
             col = col.push(qcard(
-                row![dot_halo(t::SIGNAL, t::SIGNAL_SOFT), tx(format!("{} · {}", c.title, c.proj), 12.5, t::FG3), grow(), tx(o.time, 12.5, t::FG3)].spacing(8).align_y(Vertical::Center).into(),
+                row![dot_halo(t::SIGNAL, t::SIGNAL_SOFT), tx(format!("{} · {}", c.title, c.proj), 12.5, t::FG3), grow(), tx(o.time.clone(), 12.5, t::FG3)].spacing(8).align_y(Vertical::Center).into(),
                 txt,
                 row![btn("Aprovar", Kind::Primary, true, None, Some(Msg::Approve(ci, mi))), btn("Negar", Kind::Normal, true, None, Some(Msg::Deny(ci, mi))), btn("Abrir conversa", Kind::Ghost, true, None, Some(Msg::OpenConv(ci)))].spacing(8).into(),
             ));
@@ -145,7 +145,7 @@ fn aprovacoes(app: &App) -> El<'_> {
         if a.undone && a.label == "desfeito" {
             title.push(badge("desfeito", Tone::Plain));
         }
-        let tone = match a.kind {
+        let tone = match a.kind.as_str() {
             "ok" => Tone::Ok,
             "warn" => Tone::Warn,
             _ => Tone::Err,
@@ -154,7 +154,7 @@ fn aprovacoes(app: &App) -> El<'_> {
         if a.undoable && !a.undone {
             right.push(btn("Desfazer", Kind::Ghost, true, Some("undo"), Some(Msg::Undo(i))));
         }
-        rows.push(li(column![li_title(title), li_desc(a.when)].into(), li_right(right)));
+        rows.push(li(column![li_title(title), li_desc(a.when.clone())].into(), li_right(right)));
     }
     if rows.is_empty() {
         col = col.push(container(tx("Nada neste filtro.", 14.0, t::FG3)).padding(pad(16.0, 4.0, 16.0, 4.0)));
@@ -185,40 +185,50 @@ fn runs<'a>(r: &str) -> El<'a> {
 fn rotinas(app: &App) -> El<'_> {
     let mut rows = vec![];
     for (i, r) in app.rots.iter().enumerate() {
-        let mut title: Vec<El> = vec![tx(r.t, 14.0, t::FG).into()];
+        let mut title: Vec<El> = vec![tx(r.t.clone(), 14.0, t::FG).into()];
         if r.news {
             title.push(badge("resultado novo", Tone::Ok));
         }
         if r.crit {
             title.push(badge_ic("nuvem se desligado", Tone::Info, "cloud"));
         }
-        let st_tone = match r.st {
-            "ok" => Tone::Ok,
+        let st_tone = match r.st.as_str() {
+            "ok" | "concedida" => Tone::Ok,
             "falhou" => Tone::Err,
             _ => Tone::Plain,
         };
-        let when = if r.on { format!("próxima {}", r.next) } else { "pausada".into() };
-        let d: El = row![tx(format!("{} · {} · última {} ", r.d, when, r.last), 12.5, t::FG3), badge(r.st, st_tone)].spacing(4).align_y(Vertical::Center).into();
-        let left = column![li_title(title), container(d).padding(pad(1.0, 0.0, 0.0, 0.0)), li_desc(format!("Saída: {}", r.out))].into();
-        rows.push(li(left, li_right(vec![runs(r.runs), btn("Rodar agora", Kind::Normal, true, Some("play"), Some(Msg::RotRun(i))), switch(r.on, Msg::RotToggle(i))])));
+        let when = if !r.on { "pausada".to_string() } else if r.next.is_empty() { String::new() } else { format!("próxima {}", r.next) };
+        let mut linha = r.d.clone();
+        for p in [when, if r.last.is_empty() { String::new() } else { format!("última {}", r.last) }] {
+            if !p.is_empty() {
+                linha = if linha.is_empty() { p } else { format!("{linha} · {p}") };
+            }
+        }
+        let d: El = row![tx(format!("{linha} "), 12.5, t::FG3), badge(&r.st, st_tone)].spacing(4).align_y(Vertical::Center).into();
+        let mut lc = column![li_title(title), container(d).padding(pad(1.0, 0.0, 0.0, 0.0))];
+        if !r.out.is_empty() {
+            lc = lc.push(li_desc(format!("Saída: {}", r.out)));
+        }
+        let left = lc.into();
+        rows.push(li(left, li_right(vec![runs(&r.runs), btn("Rodar agora", Kind::Normal, true, Some("play"), Some(Msg::RotRun(i))), switch(r.on, Msg::RotToggle(i))])));
     }
     page("Rotinas", "Crie pelo chat (“todo dia às 8h me manda o briefing”), por /rotina ou aqui. As críticas rodam na nuvem do Claude se o PC estiver desligado.", Some(btn("Nova rotina", Kind::Primary, false, None, Some(Msg::Toast("Formulário: nome, horário, prompt, projeto, modelo, saída".into())))), list(rows))
 }
 
-fn resultados<'a>() -> El<'a> {
-    let rows = data::RES.iter().map(|r| li(column![tx(r.0, 14.0, t::FG), li_desc(r.1)].into(), li_right(vec![badge(r.3, Tone::Plain), txf(r.4, 12.0, t::FG3, t::MONO).into(), rt(r.2)]))).collect();
+fn resultados(app: &App) -> El<'_> {
+    let rows = app.results.iter().map(|r| li(column![tx(r.0.clone(), 14.0, t::FG), li_desc(r.1.clone())].into(), li_right(vec![badge(&r.3, Tone::Plain), txf(r.4.clone(), 12.0, t::FG3, t::MONO).into(), rt(r.2.clone())]))).collect();
     page("Seus resultados", "Conteúdo que vale guardar, com versões e fontes.", None, list(rows))
 }
 
 fn nuvem(app: &App) -> El<'_> {
     let mut rows = vec![];
-    for (i, c) in data::CLOUD.iter().enumerate() {
+    for (i, c) in app.cloud.iter().enumerate() {
         let right: Vec<El> = if c.running {
             vec![container(row![spinner(app.spin, 10.0), txf("rodando", 11.0, t::SIGNAL, t::UI_MED)].spacing(5).align_y(Vertical::Center)).padding(pad(1.0, 8.0, 1.0, 8.0)).style(surface(Some(t::SIGNAL_SOFT), None, 999.0)).into()]
         } else {
             vec![badge("pronto", Tone::Ok), btn("Trazer resultado", Kind::Normal, true, None, Some(Msg::CloudBring(i)))]
         };
-        rows.push(li(column![li_title(vec![badge(c.svc, Tone::Info), tx(c.t, 14.0, t::FG).into()]), li_desc(format!("{} · {} · {}", c.proj, c.at, c.link))].into(), li_right(right)));
+        rows.push(li(column![li_title(vec![badge(&c.svc, Tone::Info), tx(c.t.clone(), 14.0, t::FG).into()]), li_desc(format!("{} · {} · {}", c.proj, c.at, c.link))].into(), li_right(right)));
     }
     for (svc, t_) in &app.cloud_extra {
         rows.push(li(column![li_title(vec![badge(svc, Tone::Info), tx(t_.clone(), 14.0, t::FG).into()]), li_desc("Orion · agora · enviada")].into(), li_right(vec![container(row![spinner(app.spin, 10.0), txf("rodando", 11.0, t::SIGNAL, t::UI_MED)].spacing(5).align_y(Vertical::Center)).padding(pad(1.0, 8.0, 1.0, 8.0)).style(surface(Some(t::SIGNAL_SOFT), None, 999.0)).into()])));
@@ -238,21 +248,21 @@ fn conhecimento(app: &App) -> El<'_> {
     let mut col = column![];
     let mut groups: Vec<&str> = vec![];
     for f in &app.facts {
-        if !groups.contains(&f.0) {
-            groups.push(f.0);
+        if !groups.contains(&f.g.as_str()) {
+            groups.push(&f.g);
         }
     }
     if app.facts.is_empty() {
         col = col.push(tx("Memória vazia.", 14.0, t::FG3));
     }
     for g in groups {
-        col = col.push(h3(g, g == app.facts[0].0));
+        col = col.push(h3(g, g == app.facts[0].g));
         let mut rows = vec![];
-        for (i, f) in app.facts.iter().enumerate().filter(|(_, f)| f.0 == g) {
+        for (i, f) in app.facts.iter().enumerate().filter(|(_, f)| f.g == g) {
             let editing = app.edit_fact.as_ref().filter(|e| e.0 == i);
             let left: El = match editing {
-                Some(e) => column![text_input("", &e.1).on_input(Msg::FactText).on_submit(Msg::FactSave).size(14).font(t::UI).padding(pad(5.0, 8.0, 5.0, 8.0)).style(field_style(t::RAISE, t::LINE3, t::LINE3, 7.0)), li_desc(f.2.clone())].spacing(4).into(),
-                None => column![tx(f.1.clone(), 14.0, t::FG), li_desc(f.2.clone())].into(),
+                Some(e) => column![text_input("", &e.1).on_input(Msg::FactText).on_submit(Msg::FactSave).size(14).font(t::UI).padding(pad(5.0, 8.0, 5.0, 8.0)).style(field_style(t::RAISE, t::LINE3, t::LINE3, 7.0)), li_desc(f.src.clone())].spacing(4).into(),
+                None => column![tx(f.t.clone(), 14.0, t::FG), li_desc(f.src.clone())].into(),
             };
             let right: El = if editing.is_some() { btn("Salvar", Kind::Primary, true, None, Some(Msg::FactSave)) } else { row![ib("edit", Some(Msg::FactEdit(i)), false), ib("trash", Some(Msg::FactForget(i)), false)].into() };
             rows.push(li(left, right));
@@ -265,7 +275,7 @@ fn conhecimento(app: &App) -> El<'_> {
 fn arquivadas(app: &App) -> El<'_> {
     let mut rows = vec![];
     for (i, a) in app.archived.iter().enumerate() {
-        rows.push(li(column![tx(a.0, 14.0, t::FG), li_desc(format!("{} · {}", a.1, a.2))].into(), li_right(vec![btn("Desarquivar", Kind::Normal, true, None, Some(Msg::Unarchive(i))), ib("trash", Some(Msg::DeleteArchived(i)), false)])));
+        rows.push(li(column![tx(a.0.clone(), 14.0, t::FG), li_desc(format!("{} · {}", a.1, a.2))].into(), li_right(vec![btn("Desarquivar", Kind::Normal, true, None, Some(Msg::Unarchive(i))), ib("trash", Some(Msg::DeleteArchived(i)), false)])));
     }
     let body: El = if rows.is_empty() { container(tx("Nenhuma conversa arquivada.", 14.0, t::FG3)).padding(pad(16.0, 4.0, 16.0, 4.0)).into() } else { list(rows) };
     page("Conversas arquivadas", "Só arquivam quando você pede. Desarquive para continuar ou apague de vez.", None, body)
@@ -301,6 +311,9 @@ pub fn stats<'a>(items: [(&str, &str); 4]) -> El<'a> {
 }
 
 fn painel(app: &App) -> El<'_> {
+    if app.api.is_some() {
+        return painel_live(app);
+    }
     let quota = [("Gemini (API)", 62.0, "62%"), ("Groq", 100.0, "esgotada"), ("Cerebras", 18.0, "18%"), ("OpenRouter (free)", 40.0, "40%"), ("Mistral", 9.0, "9%")];
     let subs = [("Claude (assinatura)", 41.0), ("Codex (assinatura)", 23.0), ("Gemini CLI", 12.0)];
     let mut col = column![h3("Cotas das APIs gratuitas · hoje", true)];
@@ -320,4 +333,42 @@ fn painel(app: &App) -> El<'_> {
     let ch = Line { vals: data::LAT.to_vec(), min: 1.0, max: 2.5, ticks: vec![1.0, 1.5, 2.0, 2.5], fmt: |v| format!("{v:.1} s").replace('.', ","), start: "2 out.", end: "hoje", color: t::FG2, mark: None };
     col = col.push(canvas(ch).width(Length::Fill).height(Length::Fixed(150.0)));
     page("Painel", "Cotas, assinaturas, saúde do sistema e a semana. Dados de exemplo.", Some(btn("Atualizar", Kind::Normal, true, Some("refresh"), Some(Msg::Refresh))), col.into())
+}
+
+/// Painel com os números do servidor (`/painel` e `/budget`).
+fn painel_live(app: &App) -> El<'_> {
+    use serde_json::Value;
+    let mut col = column![h3("Cotas das chamadas · semana", true)];
+    let quotas: Vec<Value> = app.budget.as_ref().and_then(|b| b.get("quotas")).and_then(|q| q.as_array()).cloned().unwrap_or_default();
+    if quotas.is_empty() {
+        col = col.push(container(tx("Nenhuma cota configurada. Defina em ORION_BUDGET ou em Configurações › Modelos.", 13.0, t::FG3)).padding(pad(4.0, 4.0, 4.0, 4.0)));
+    }
+    for q in &quotas {
+        let pct = q.get("percent").and_then(|x| x.as_f64()).unwrap_or(0.0) as f32;
+        let (used, cap) = (q.get("used").and_then(|x| x.as_i64()).unwrap_or(0), q.get("weekly_calls").and_then(|x| x.as_i64()).unwrap_or(0));
+        col = col.push(hbar(q.get("provider").and_then(|x| x.as_str()).unwrap_or("?"), pct, &if pct >= 100.0 { "esgotada".to_string() } else { format!("{used}/{cap}") }, if pct >= 100.0 { t::DANGER } else { t::FG2 }));
+    }
+    let p = app.painel.clone().unwrap_or(Value::Null);
+    col = col.push(h3("Modelos", false));
+    let eps = p["modelos"]["endpoints"].as_array().cloned().unwrap_or_default();
+    if eps.is_empty() {
+        col = col.push(container(tx(if p["modelos"]["configurado"].as_bool().unwrap_or(false) { "Modelos configurados." } else { "Nenhum modelo configurado (ORION_PROVEDORES ou ORION_GATEWAY_URL/MODEL)." }, 13.0, t::FG3)).padding(pad(4.0, 4.0, 4.0, 4.0)));
+    }
+    for e in &eps {
+        let nome = e["nome"].as_str().or(e["name"].as_str()).unwrap_or("modelo");
+        col = col.push(li(tx(nome.to_string(), 14.0, t::FG).into(), li_right(vec![badge(e["estado"].as_str().unwrap_or("ativo"), Tone::Ok)])));
+    }
+    let semana: Vec<f32> = p["semana"].as_array().map(|a| a.iter().map(|d| d["total"].as_f64().unwrap_or(0.0) as f32).collect()).unwrap_or_default();
+    let (total, erros): (f32, f32) = (semana.iter().sum(), p["semana"].as_array().map(|a| a.iter().map(|d| d["erros"].as_f64().unwrap_or(0.0) as f32).sum()).unwrap_or(0.0));
+    col = col.push(h3("A semana", false));
+    let up = p["uptime_s"].as_f64().unwrap_or(0.0);
+    let upt = if up >= 3600.0 { format!("{} h", (up / 3600.0) as i64) } else { format!("{} min", (up / 60.0) as i64) };
+    col = col.push(container(stats([(&format!("{total:.0}"), "chamadas de modelo"), (&format!("{erros:.0}"), "com erro"), (&app.pend_count().to_string(), "aguardando você"), (&upt, "servidor no ar")])).padding(pad(0.0, 0.0, 28.0, 0.0)));
+    if semana.len() >= 2 {
+        col = col.push(h3("Chamadas por dia · 7 dias", false));
+        let mx = semana.iter().cloned().fold(1.0f32, f32::max);
+        let ch = Line { vals: semana, min: 0.0, max: mx.max(1.0), ticks: vec![0.0, mx / 2.0, mx], fmt: |v| format!("{v:.0}"), start: "7 dias atrás", end: "hoje", color: t::FG2, mark: None };
+        col = col.push(canvas(ch).width(Length::Fill).height(Length::Fixed(150.0)));
+    }
+    page("Painel", "Cotas, modelos e a semana, direto do servidor.", Some(btn("Atualizar", Kind::Normal, true, Some("refresh"), Some(Msg::Refresh))), col.into())
 }

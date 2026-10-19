@@ -277,3 +277,5 @@ Registro das decisões que valem para o projeto hoje. O histórico completo, des
 ## Referências
 
 Pesquisas de Rust e de modelos do Hugging Face, com links e licenças: [ARQUITETURA.md](ARQUITETURA.md), seção 8.
+
+- App iced ligado ao núcleo: cliente HTTP do `orion serve` (login/2FA, sessões, chat SSE, aprovações, rotinas, projetos, fatos, resultados, painel, orçamento, modo/pânico, grafo). Rodar: `orion serve` + `orion-app` (ORION_URL padrão http://127.0.0.1:8000, ORION_ADMIN_TOKEN opcional); `--demo` usa dados de exemplo. Testes live: ORION_TEST_URL + ORION_TEST_SENHA. Nuvem/MCP/Skills/modelos locais/atalhos seguem de exemplo.

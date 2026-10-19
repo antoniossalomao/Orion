@@ -57,6 +57,62 @@ pub struct Graph {
 }
 
 impl Graph {
+    /// Grafo vazio (modo real, antes de carregar do servidor).
+    pub fn empty() -> Self {
+        Self::build(vec![], vec![])
+    }
+
+    /// Converte `/grafo/completo` (`nodes`/`links`) e calcula posições por força (Fruchterman–Reingold).
+    pub fn from_server(v: &serde_json::Value) -> Self {
+        let nodes_raw = v.get("nodes").and_then(|n| n.as_array()).cloned().unwrap_or_default();
+        let mut ids: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+        let mut nodes: Vec<Node> = vec![];
+        for n in &nodes_raw {
+            let id = n.get("id").and_then(|x| x.as_str()).unwrap_or("").to_string();
+            let tipo_raw = n.get("tipo").and_then(|x| x.as_str()).unwrap_or("");
+            let pasta = n.get("pasta").and_then(|x| x.as_str()).unwrap_or("").to_string();
+            let tipo = tipo_de_servidor(tipo_raw, &pasta);
+            let base = match tipo {
+                0 | 1 => 4.6,
+                2 => 3.1,
+                _ => 2.2,
+            };
+            let ts = n.get("ts").and_then(|x| x.as_f64()).unwrap_or(0.0) / 1000.0;
+            let date = if ts > 0.0 { crate::live::iso_date(ts) } else { String::new() };
+            ids.insert(id, nodes.len());
+            nodes.push(Node { label: n.get("label").and_then(|x| x.as_str()).unwrap_or("").to_string(), tipo, folder: pasta, date, status: String::new(), tags: String::new(), x: 0.0, y: 0.0, r: base, deg: 0, hub: false, read: false });
+        }
+        let mut links = vec![];
+        for l in v.get("links").and_then(|n| n.as_array()).cloned().unwrap_or_default() {
+            let (a, b) = (l.get("source").and_then(|x| x.as_str()).and_then(|k| ids.get(k)), l.get("target").and_then(|x| x.as_str()).and_then(|k| ids.get(k)));
+            if let (Some(a), Some(b)) = (a, b) {
+                if a != b {
+                    links.push((*a, *b));
+                }
+            }
+        }
+        layout_forca(&mut nodes, &links);
+        Self::build(nodes, links)
+    }
+
+    fn build(mut nodes: Vec<Node>, links: Vec<(usize, usize)>) -> Self {
+        let mut adj = vec![vec![]; nodes.len()];
+        for (a, b) in &links {
+            adj[*a].push(*b);
+            adj[*b].push(*a);
+        }
+        for (i, n) in nodes.iter_mut().enumerate() {
+            n.deg = adj[i].len();
+            n.hub = n.deg >= 45;
+        }
+        let mut dates: Vec<String> = nodes.iter().filter(|n| !n.date.is_empty()).map(|n| n.date.clone()).collect();
+        dates.sort();
+        dates.dedup();
+        let cut = dates.last().cloned().unwrap_or_default();
+        let cut_idx = dates.len().saturating_sub(1);
+        Graph { nodes, links, adj, dates, filt: [true, true, true, true, true, true, false], q: String::new(), sel: None, hov: None, cam: (1.0, 0.0, 0.0), cut, cut_idx, read_on: false, rot: 0.0, spinning: true, fitted: false, size: (0.0, 0.0), cache: iced::widget::canvas::Cache::new() }
+    }
+
     pub fn load() -> Self {
         let raw: Raw = serde_json::from_str(include_str!("../assets/vault.json")).expect("vault.json");
         let tipo_idx = |s: &str| TIPOS.iter().position(|t| t.0 == s).unwrap_or(4);
@@ -206,5 +262,96 @@ impl Graph {
         let n = (0..self.nodes.len()).filter(|&i| self.visible(i)).count();
         let l = self.links.iter().filter(|(a, b)| self.visible(*a) && self.visible(*b)).count();
         (n, l)
+    }
+}
+
+/// Tipos do servidor (`nota`, `fato`, `topico`, `evento`) → tipos do protótipo, pela pasta da nota.
+fn tipo_de_servidor(tipo: &str, pasta: &str) -> usize {
+    match tipo {
+        "fato" => 2,
+        "topico" => 3,
+        "evento" => 5,
+        _ => {
+            let p = pasta.to_lowercase();
+            if p.starts_with("01") || p.contains("projeto") {
+                0
+            } else if p.starts_with("02") || p.contains("area") {
+                1
+            } else if p.contains("conceito") {
+                2
+            } else if p.contains("pesquisa") || p.contains("radar") {
+                3
+            } else if p.contains("conversas") {
+                5
+            } else if p.contains("relat") {
+                6
+            } else {
+                4
+            }
+        }
+    }
+}
+
+/// Posições iniciais em espiral + 200 passos de repulsão/atração (grafo pequeno ou médio).
+fn layout_forca(nodes: &mut [Node], links: &[(usize, usize)]) {
+    let n = nodes.len();
+    if n == 0 {
+        return;
+    }
+    for (i, nd) in nodes.iter_mut().enumerate() {
+        let a = i as f32 * 2.399963;
+        let r = 12.0 * (i as f32 + 1.0).sqrt() * 3.0;
+        nd.x = r * a.cos();
+        nd.y = r * a.sin();
+    }
+    let k = 38.0f32;
+    let steps = if n > 1500 { 60 } else { 200 };
+    for it in 0..steps {
+        let t = 40.0 * (1.0 - it as f32 / steps as f32) + 1.0;
+        let mut dx = vec![0.0f32; n];
+        let mut dy = vec![0.0f32; n];
+        // repulsão só entre vizinhos próximos (grade) para escalar
+        let cell = k * 3.0;
+        let mut grid: std::collections::HashMap<(i32, i32), Vec<usize>> = std::collections::HashMap::new();
+        for (i, nd) in nodes.iter().enumerate() {
+            grid.entry(((nd.x / cell).floor() as i32, (nd.y / cell).floor() as i32)).or_default().push(i);
+        }
+        for (i, nd) in nodes.iter().enumerate() {
+            let (cx, cy) = ((nd.x / cell).floor() as i32, (nd.y / cell).floor() as i32);
+            for gx in cx - 1..=cx + 1 {
+                for gy in cy - 1..=cy + 1 {
+                    if let Some(v) = grid.get(&(gx, gy)) {
+                        for &j in v {
+                            if i == j {
+                                continue;
+                            }
+                            let (ex, ey) = (nd.x - nodes[j].x, nd.y - nodes[j].y);
+                            let d2 = (ex * ex + ey * ey).max(0.01);
+                            let f = k * k / d2;
+                            dx[i] += ex * f;
+                            dy[i] += ey * f;
+                        }
+                    }
+                }
+            }
+        }
+        for (a, b) in links {
+            let (ex, ey) = (nodes[*a].x - nodes[*b].x, nodes[*a].y - nodes[*b].y);
+            let d = (ex * ex + ey * ey).sqrt().max(0.01);
+            let f = d / k;
+            dx[*a] -= ex / d * d * f * 0.05;
+            dy[*a] -= ey / d * d * f * 0.05;
+            dx[*b] += ex / d * d * f * 0.05;
+            dy[*b] += ey / d * d * f * 0.05;
+        }
+        for i in 0..n {
+            // gravidade leve para o centro
+            dx[i] -= nodes[i].x * 0.01;
+            dy[i] -= nodes[i].y * 0.01;
+            let m = (dx[i] * dx[i] + dy[i] * dy[i]).sqrt().max(0.01);
+            let s = m.min(t) / m;
+            nodes[i].x += dx[i] * s;
+            nodes[i].y += dy[i] * s;
+        }
     }
 }

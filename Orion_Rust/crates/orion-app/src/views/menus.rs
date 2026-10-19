@@ -1,7 +1,6 @@
 //! Popovers: itens, grupos e os menus do modelo, projeto, conta e conversa (§6, §9.6, §13.5, §24).
 
 use crate::app::{App, Msg, Sec, View, EFFORTS, PROV_MODELS, PROV_NAMES};
-use crate::data::PROJ;
 use crate::icons::icon;
 use crate::theme as t;
 use crate::ui::*;
@@ -65,7 +64,7 @@ pub fn model_menu(app: &App) -> El<'_> {
 }
 
 pub fn project_menu(app: &App) -> El<'_> {
-    let mut v: Vec<El> = PROJ.iter().enumerate().map(|(i, p)| item(Some("folder"), p.n, None, app.p.proj == i, false, Msg::SetProj(i))).collect();
+    let mut v: Vec<El> = app.projects.iter().enumerate().map(|(i, p)| item(Some("folder"), &p.n, None, app.p.proj == i, false, Msg::SetProj(i))).collect();
     v.push(item(Some("folder"), "Sem projeto", None, app.p.proj == 99, false, Msg::SetProj(99)));
     menu_box(v, 240.0)
 }

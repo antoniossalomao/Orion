@@ -1,7 +1,7 @@
 //! Campo de mensagem (§12): caixa, rodapé, metadados, sugestões `/` e `@`, comandos.
 
 use crate::app::{App, Msg, Pop, View, EFFORTS};
-use crate::data::{self, PROJ};
+use crate::data;
 use crate::icons::{icon, stop_square};
 use crate::popover::{Popover, Side};
 use crate::theme as t;
@@ -99,7 +99,7 @@ pub fn view(app: &App, home: bool) -> El<'_> {
 
     let boxed = container(column![editor, container(foot).padding(pad(6.0, 8.0, 8.0, 8.0))])
         .width(Length::Fill)
-        .style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: 18.0.into() }, shadow: iced::Shadow { color: iced::Color::from_rgba(0.0, 0.0, 0.0, 0.18), offset: iced::Vector::new(0.0, 10.0), blur_radius: 30.0 }, ..Default::default() });
+        .style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: 18.0.into() }, ..Default::default() });
 
     // sugestões
     let sug_el: El = if sug_open {
@@ -125,7 +125,7 @@ pub fn view(app: &App, home: bool) -> El<'_> {
     // metadados
     let mut meta = row![].spacing(2).align_y(Vertical::Center).padding(pad(0.0, 6.0, 0.0, 6.0));
     if home {
-        let chip_proj = chip(PROJ.get(app.p.proj).map(|p| p.n).unwrap_or("Sem projeto").to_string(), None, Some("folder"), true, Msg::Pop(Pop::Project));
+        let chip_proj = chip(app.projects.get(app.p.proj).map(|p| p.n.clone()).unwrap_or_else(|| "Sem projeto".into()), None, Some("folder"), true, Msg::Pop(Pop::Project));
         let pr: El = Popover::new(chip_proj, menus::project_menu(app), app.pop == Some(Pop::Project)).on_dismiss(Msg::ClosePop).into();
         meta = meta.push(pr);
     }

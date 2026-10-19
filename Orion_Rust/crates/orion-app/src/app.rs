@@ -267,9 +267,13 @@ pub struct App {
     pub acts: Vec<Act>,
     pub act_filter: usize,
     pub proj_q: String,
-    pub facts: Vec<(&'static str, String, String)>,
+    pub facts: Vec<data::Fact>,
     pub edit_fact: Option<(usize, String)>,
-    pub archived: Vec<(&'static str, &'static str, &'static str)>,
+    pub archived: Vec<(String, String, String)>,
+    pub projects: Vec<data::Project>,
+    pub cloud: Vec<data::CloudTask>,
+    pub mcp: Vec<data::Mcp>,
+    pub results: Vec<(String, String, String, String, String)>,
     pub cloud_extra: Vec<(String, String)>,
     pub set_open: bool,
     pub sec: Sec,
@@ -298,6 +302,14 @@ pub struct App {
     pub mem_tween: Option<(Instant, (f32, f32, f32), (f32, f32, f32))>,
     pub mem_tip: (f32, f32),
     pub hover: Option<(u8, usize)>,
+    pub api: Option<crate::net::Api>,
+    pub challenge: Option<String>,
+    pub pending_send: Option<String>,
+    pub abort: Option<iced::task::Handle>,
+    pub painel: Option<serde_json::Value>,
+    pub budget: Option<serde_json::Value>,
+    pub resume_pw: String,
+    pub cur_sid: Option<String>,
     pub at: Marks,
     pub t0: Instant,
     pub hour: Option<u32>,
@@ -439,6 +451,9 @@ pub enum Msg {
     Bg,
     Esc,
     Hover(Option<(u8, usize)>),
+    L(crate::live::Lm),
+    Poll,
+    ResumePw(String),
     Noop,
 }
 
@@ -470,9 +485,13 @@ impl App {
             acts: data::acts(),
             act_filter: 0,
             proj_q: String::new(),
-            facts: data::FACTS.iter().map(|f| (f.g, f.t.to_string(), f.src.to_string())).collect(),
+            facts: data::facts(),
             edit_fact: None,
-            archived: data::ARCH.to_vec(),
+            archived: data::arch(),
+            projects: data::projects(),
+            cloud: data::cloud(),
+            mcp: data::mcp(),
+            results: data::results(),
             cloud_extra: vec![],
             set_open: false,
             sec: Sec::Geral,
@@ -501,6 +520,14 @@ impl App {
             mem_tween: None,
             mem_tip: (0.0, 0.0),
             hover: None,
+            api: None,
+            challenge: None,
+            pending_send: None,
+            abort: None,
+            painel: None,
+            budget: None,
+            resume_pw: String::new(),
+            cur_sid: None,
             at: Marks::default(),
             t0: Instant::now(),
             hour: None,
@@ -534,9 +561,10 @@ impl App {
         let a = &self.at;
         let busy = [a.page, a.pop, a.modal, a.scrim, a.over, a.drawer, a.toast, a.more, a.tools].iter().any(|m| crate::anim::active(*m, self.now, 450)) || a.switch.as_ref().map(|s| crate::anim::active(Some(s.1), self.now, 300)).unwrap_or(false) || self.mem_tween.is_some();
         let tick = iced::time::every(Duration::from_millis(if busy { 16 } else { 60 })).map(Msg::Tick);
+        let poll = if self.api.is_some() && self.logged && self.streaming.is_none() { iced::time::every(Duration::from_secs(6)).map(|_| Msg::Poll) } else { Subscription::none() };
         let resize = window::resize_events().map(|(_, s)| Msg::Resized(s));
         let keys = iced::keyboard::listen().filter_map(crate::keys::map);
-        Subscription::batch([tick, resize, keys])
+        Subscription::batch([tick, resize, keys, poll])
     }
 
     pub fn pend_list(&self) -> Vec<(usize, usize)> {
@@ -604,6 +632,21 @@ impl App {
     }
 
     pub fn update(&mut self, msg: Msg) -> Task<Msg> {
+        if let Msg::L(m) = msg {
+            return self.lm(m);
+        }
+        let extra = self.live_before(&msg);
+        if let Some((t, false)) = extra {
+            return t;
+        }
+        let task = self.update_local(msg);
+        match extra {
+            Some((t, true)) => Task::batch([task, t]),
+            _ => task,
+        }
+    }
+
+    fn update_local(&mut self, msg: Msg) -> Task<Msg> {
         let before = (self.view, self.conv, self.pop, self.set_open, self.pal.open, self.qcap.is_some(), self.isso.is_some(), self.editor.is_some(), self.drawer, self.more, self.tools_open.len(), self.toast.as_ref().map(|t| t.1));
         let key = matches!(msg, Msg::Toggle(_) | Msg::TogA(..) | Msg::RotToggle(_)).then(|| format!("{msg:?}"));
         let task = self.update_inner(msg);
@@ -652,7 +695,7 @@ impl App {
                         self.toast = None;
                     }
                 }
-                if let Some(s) = &mut self.streaming {
+                if let Some(s) = self.streaming.as_mut().filter(|s| s.total != usize::MAX) {
                     if s.words < s.total {
                         s.words += 1;
                     } else {
@@ -845,7 +888,7 @@ impl App {
                 if let Some(i) = self.conv {
                     let c = self.convs.remove(i);
                     if matches!(msg, Msg::ArchiveConv) {
-                        self.archived.push((c.title, c.proj, "outubro"));
+                        self.archived.push((c.title, c.proj, "outubro".into()));
                         self.toast("Conversa arquivada");
                     } else {
                         self.toast("Conversa apagada");
@@ -855,7 +898,7 @@ impl App {
             }
             Msg::ProjQ(s) => self.proj_q = s,
             Msg::OpenProject(i) => {
-                let name = data::PROJ[i].n;
+                let name = self.projects[i].n.clone();
                 if let Some(ci) = self.convs.iter().position(|c| c.proj == name && !c.msgs.is_empty()) {
                     self.navigate(View::Chat, Some(ci));
                 } else {
@@ -870,7 +913,7 @@ impl App {
                     a.label = "desfeito".into();
                     let has_commit = a.text.contains("commit");
                     let text = format!("Desfeito: {}", a.text);
-                    self.acts.insert(0, Act { when: "agora", text, kind: "ok", label: "revert".into(), undone: true, undoable: false });
+                    self.acts.insert(0, Act { when: "agora".into(), text, kind: "ok".into(), label: "revert".into(), undone: true, undoable: false });
                     self.toast(if has_commit { "git revert feito e push na main do vault" } else { "Ação revertida" });
                 }
             }
@@ -891,7 +934,7 @@ impl App {
                 let m = format!("{}: rodou agora. Saída: {}", self.rots[i].t, self.rots[i].out);
                 self.toast(m);
             }
-            Msg::FactEdit(i) => self.edit_fact = Some((i, self.facts[i].1.clone())),
+            Msg::FactEdit(i) => self.edit_fact = Some((i, self.facts[i].t.clone())),
             Msg::FactText(s) => {
                 if let Some(e) = &mut self.edit_fact {
                     e.1 = s;
@@ -900,8 +943,8 @@ impl App {
             Msg::FactSave => {
                 if let Some((i, s)) = self.edit_fact.take() {
                     if !s.trim().is_empty() {
-                        self.facts[i].1 = s;
-                        self.facts[i].2 = "corrigido por você · hoje".into();
+                        self.facts[i].t = s;
+                        self.facts[i].src = "corrigido por você · hoje".into();
                         self.toast("Fato corrigido; commit na main");
                     }
                 }
@@ -923,7 +966,7 @@ impl App {
                 self.navigate(View::Home, None);
             }
             Msg::CloudBring(i) => {
-                let m = if data::CLOUD[i].svc == "Codex" { "codex apply: diff trazido para C:\\Projetos\\Orion" } else { "claude --teleport: sessão trazida para o PC" };
+                let m = if self.cloud[i].svc == "Codex" { "codex apply: diff trazido para C:\\Projetos\\Orion" } else { "claude --teleport: sessão trazida para o PC" };
                 self.toast(m);
             }
             Msg::Refresh => self.toast("Painel atualizado"),
@@ -1057,7 +1100,7 @@ impl App {
                             CapKind::Gasto => "Gasto",
                             CapKind::Nota => "Nota",
                         };
-                        self.acts.insert(0, Act { when: "agora", text: format!("Captura rápida ({}): {}", name.to_lowercase(), q.text), kind: "ok", label: "Inbox".into(), undone: false, undoable: true });
+                        self.acts.insert(0, Act { when: "agora".into(), text: format!("Captura rápida ({}): {}", name.to_lowercase(), q.text), kind: "ok".into(), label: "Inbox".into(), undone: false, undoable: true });
                         self.toast(format!("{name} salva em 00 Inbox · commit na main"));
                     }
                 }
@@ -1112,6 +1155,8 @@ impl App {
                     self.mem.sel = None;
                 }
             }
+            Msg::ResumePw(s) => self.resume_pw = s,
+            Msg::Poll => {}
             Msg::Noop => {}
             m => crate::views::memory::update(self, m),
         }
@@ -1199,11 +1244,14 @@ impl App {
             self.composer = text_editor::Content::new();
             return crate::views::composer::run_command(self, word, cmd);
         }
+        if self.api.is_some() {
+            return self.live_send(text);
+        }
         let ci = match self.conv {
             Some(i) if self.view == View::Chat => i,
             _ => {
-                let proj = data::PROJ[self.p.proj].n;
-                self.convs.insert(0, Conv { id: "novo", title: "Nova conversa", proj, origin: None, day: "Hoje", state: ConvState::Running, ctx: 2, branch: None, pinned: false, note: None, pin: None, banner: None, msgs: vec![] });
+                let proj = self.projects.get(self.p.proj).map(|p| p.n.clone()).unwrap_or_else(|| "Sem projeto".into());
+                self.convs.insert(0, Conv { id: "novo".into(), title: "Nova conversa".into(), proj, origin: None, day: "Hoje".into(), state: ConvState::Running, ctx: 2, branch: None, pinned: false, note: None, pin: None, banner: None, msgs: vec![] });
                 for h in self.hist.iter_mut().chain(self.fwd.iter_mut()) {
                     if let Some(c) = &mut h.1 {
                         *c += 1;
@@ -1217,16 +1265,15 @@ impl App {
             shown.push_str("\n\nAnexos: ");
             shown.push_str(&self.attach.iter().map(|a| a.0.clone()).collect::<Vec<_>>().join(", "));
         }
-        let leaked: &'static str = Box::leak(shown.into_boxed_str());
-        self.convs[ci].msgs.push(ChatMsg::User(leaked));
+        self.convs[ci].msgs.push(ChatMsg::User(shown));
         if self.convs[ci].title == "Nova conversa" {
             let t: String = text.chars().take(40).collect();
-            self.convs[ci].title = Box::leak(t.into_boxed_str());
+            self.convs[ci].title = t;
         }
         let body = "Posso ajudar com isso. No app final a resposta vem do modelo escolhido; aqui é o texto de exemplo do protótipo, que aparece palavra por palavra.";
         let total = body.split_whitespace().count();
         let via = crate::views::chat::via_label(&self.p);
-        self.convs[ci].msgs.push(ChatMsg::Orion(data::OrionMsg { time: "agora", via: Box::leak(via.into_boxed_str()), out: "", tools_label: "", tools: vec![], body, saved: true, approval: None }));
+        self.convs[ci].msgs.push(ChatMsg::Orion(data::OrionMsg { time: "agora".into(), via, out: String::new(), tools_label: String::new(), tools: vec![], body: body.into(), saved: true, approval: None }));
         self.convs[ci].state = ConvState::Running;
         self.streaming = Some(Stream { conv: ci, words: 0, total });
         self.composer = text_editor::Content::new();

@@ -49,13 +49,13 @@ pub fn view(app: &App) -> El<'_> {
         .into()
     } else {
         let mut col = column![].spacing(30).width(Length::Fixed(content_w));
-        if let Some(p) = c.pin {
+        if let Some(p) = c.pin.clone() {
             col = col.push(dashed(container(row![icon("pin", 16.0, t::FG3), tx(format!("Fixado: {p}"), 12.5, t::FG2)].spacing(8).align_y(Vertical::Center)).width(Length::Fill).padding(pad(8.0, 12.0, 8.0, 12.0)), 10.0, t::LINE2));
         }
         let last_orion = c.msgs.iter().rposition(|m| matches!(m, ChatMsg::Orion(_)));
         for (mi, m) in c.msgs.iter().enumerate() {
             match m {
-                ChatMsg::User(s) => col = col.push(user_msg(app, mi, s, content_w)),
+                ChatMsg::User(s) => col = col.push(user_msg(app, mi, s.clone(), content_w)),
                 ChatMsg::Orion(o) => col = col.push(orion_msg(app, ci, mi, o, Some(mi) == last_orion, content_w)),
             }
         }
@@ -64,9 +64,9 @@ pub fn view(app: &App) -> El<'_> {
     };
 
     let mut tail = column![].spacing(6).width(Length::Fixed((width - 32.0).min(app.win.width - 64.0))).align_x(Horizontal::Center);
-    if let Some(b) = c.banner {
+    if let Some(b) = c.banner.clone() {
         tail = tail.push(
-            container(row![dot_el(t::SIGNAL, 6.0), tx(b, 12.5, t::FG2), grow(), icon("close", 14.0, t::FG3)].spacing(8).align_y(Vertical::Center))
+            container(row![dot_el(t::SIGNAL, 6.0), tx(b.clone(), 12.5, t::FG2), grow(), icon("close", 14.0, t::FG3)].spacing(8).align_y(Vertical::Center))
                 .width(Length::Fill)
                 .padding(pad(6.0, 12.0, 6.0, 12.0))
                 .style(surface(Some(t::RAISE), Some(t::LINE), 9.0)),
@@ -77,7 +77,7 @@ pub fn view(app: &App) -> El<'_> {
     column![thread, tail].height(Length::Fill).into()
 }
 
-fn user_msg<'a>(app: &'a App, mi: usize, s: &'static str, content_w: f32) -> El<'a> {
+fn user_msg<'a>(app: &'a App, mi: usize, s: String, content_w: f32) -> El<'a> {
     let bubble = container(txf(s, 15.0, t::FG, t::UI)).padding(pad(10.0, 15.0, 10.0, 15.0)).max_width(content_w * 0.8).style(surface(Some(t::RAISE2), None, 16.0));
     let show = app.hover == Some((2, mi));
     let acts: El = if show {
@@ -96,7 +96,7 @@ fn orion_msg<'a>(app: &'a App, ci: usize, mi: usize, o: &'a OrionMsg, is_last: b
     if !o.tools.is_empty() && streaming.is_none() {
         let open = app.tools_open.contains(&(ci, mi));
         col = col.push(
-            button(row![tx(o.tools_label, 13.0, t::FG3), crate::icons::icon_rot("chevR", 16.0, t::FG3, { let p = if app.at.tools.is_some() { crate::anim::TOOLS.get() } else { 1.0 }; 90.0 * if open { p } else { 1.0 - p } })].spacing(6).align_y(Vertical::Center))
+            button(row![tx(o.tools_label.clone(), 13.0, t::FG3), crate::icons::icon_rot("chevR", 16.0, t::FG3, { let p = if app.at.tools.is_some() { crate::anim::TOOLS.get() } else { 1.0 }; 90.0 * if open { p } else { 1.0 - p } })].spacing(6).align_y(Vertical::Center))
                 .padding(0)
                 .on_press(Msg::ToggleTools(ci, mi))
                 .style(|_, _| button::Style { text_color: t::FG3, ..Default::default() }),
@@ -106,9 +106,9 @@ fn orion_msg<'a>(app: &'a App, ci: usize, mi: usize, o: &'a OrionMsg, is_last: b
             for tl in &o.tools {
                 list = list.push(
                     row![
-                        container(tx(tl.kind, 12.5, t::FG3)).width(Length::Fixed(70.0)),
-                        container(txf(ell(tl.value, content_w - 190.0, 12.0), 12.0, t::FG2, t::MONO)).width(Length::Fill),
-                        tx(tl.time, 11.5, t::FG3)
+                        container(tx(tl.kind.clone(), 12.5, t::FG3)).width(Length::Fixed(70.0)),
+                        container(txf(ell(&tl.value, content_w - 190.0, 12.0), 12.0, t::FG2, t::MONO)).width(Length::Fill),
+                        tx(tl.time.clone(), 11.5, t::FG3)
                     ]
                     .spacing(10)
                     .align_y(Vertical::Center)
@@ -122,8 +122,10 @@ fn orion_msg<'a>(app: &'a App, ci: usize, mi: usize, o: &'a OrionMsg, is_last: b
     let (f, fb) = chat_fonts(&app.p);
     let mut text = o.body.to_string();
     if let Some(s) = streaming {
-        let words: Vec<&str> = o.body.split_whitespace().take(s.words).collect();
-        text = words.join(" ");
+        if s.total != usize::MAX {
+            let words: Vec<&str> = o.body.split_whitespace().take(s.words).collect();
+            text = words.join(" ");
+        }
         text.push_str(if (app.now.saturating_duration_since(app.t0).as_millis() / 500) % 2 == 0 { " █" } else { "  " });
     }
     let blocks = md::parse(&text);
@@ -132,15 +134,15 @@ fn orion_msg<'a>(app: &'a App, ci: usize, mi: usize, o: &'a OrionMsg, is_last: b
     if let Some(a) = &o.approval {
         col = col.push(approval(a, ci, mi));
     }
-    if streaming.is_none() {
+    if streaming.is_none() && o.time != "pendente" {
         let mut acts = row![tip(ib_sz("copy", 28.0, 16.0, Some(Msg::Toast("Copiado".into())), false), "Copiar"), tip(ib_sz("speaker", 28.0, 16.0, Some(Msg::Toast("Lendo em voz alta (simulado)".into())), false), "Ouvir")].spacing(0).align_y(Vertical::Center);
         if is_last {
             acts = acts.push(tip(ib_sz("retry", 28.0, 16.0, Some(Msg::Toast("Gerar de novo…".into())), false), "Gerar de novo"));
         }
-        acts = acts.push(container(tx(o.time, 11.5, t::FG3)).padding(pad(0.0, 0.0, 0.0, 6.0)));
-        let via_txt = if o.via.is_empty() { None } else { Some(o.via) };
+        acts = acts.push(container(tx(o.time.clone(), 11.5, t::FG3)).padding(pad(0.0, 0.0, 0.0, 6.0)));
+        let via_txt = if o.via.is_empty() { None } else { Some(o.via.clone()) };
         if let Some(v) = via_txt {
-            let mut vr = row![tx(v, 11.5, t::FG4)].spacing(4).align_y(Vertical::Center);
+            let mut vr = row![tx(v.clone(), 11.5, t::FG4)].spacing(4).align_y(Vertical::Center);
             if !o.out.is_empty() {
                 vr = vr.push(icon("out", 12.0, t::FG4));
             }
@@ -161,7 +163,7 @@ fn list_h(n: usize) -> f32 {
 }
 
 fn approval<'a>(a: &'a crate::data::Approval, ci: usize, mi: usize) -> El<'a> {
-    let txt = md::render(&md::parse(a.text), md::Style { font: t::UI, bold: t::UI_SEMI, size: 13.5, line: 1.5, h_font: t::UI_MED, h1: 16.0, h2: 15.0, h3: 14.0, gap: 4.0 });
+    let txt = md::render(&md::parse(&a.text), md::Style { font: t::UI, bold: t::UI_SEMI, size: 13.5, line: 1.5, h_font: t::UI_MED, h1: 16.0, h2: 15.0, h3: 14.0, gap: 4.0 });
     match &a.state {
         ApprState::Open => {
             let mut btns = row![btn("Aprovar", Kind::Primary, true, None, Some(Msg::Approve(ci, mi))), btn("Negar", Kind::Normal, true, None, Some(Msg::Deny(ci, mi)))].spacing(8);

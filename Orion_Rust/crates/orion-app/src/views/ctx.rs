@@ -31,22 +31,22 @@ pub fn view(app: &App) -> El<'_> {
         CtxTab::Contexto => {
             let pct = if c.ctx == 0 { 8 } else { c.ctx };
             let mut v = column![].spacing(8);
-            let mut amb = column![kv("folder", tx(c.proj, 12.5, t::FG2).into())].spacing(7);
-            if let Some(b) = c.branch {
+            let mut amb = column![kv("folder", tx(c.proj.clone(), 12.5, t::FG2).into())].spacing(7);
+            if let Some(b) = c.branch.clone() {
                 amb = amb.push(kv("branch", txf(b, 12.0, t::FG2, t::MONO).into()));
             }
             amb = amb.push(kv("cpu", tx(app.p.model_label(), 12.5, t::FG2).into()));
             v = v.push(card("Ambiente", sp_w(0.0), amb.into()));
             match &c.note {
                 Some(n) => {
-                    let name = n.path.rsplit('/').next().unwrap_or(n.path);
+                    let name = n.path.rsplit('/').next().unwrap_or(&n.path);
                     let inner = column![
                         kv("file", tx(ell(name, 220.0, 12.5), 12.5, t::FG2).into()),
                         row![icon("branch", 14.0, t::FG3), txf(format!("main · {}", n.commit), 12.0, t::FG2, t::MONO), tx(format!("· {}", n.at), 12.5, t::FG3)].spacing(8).align_y(Vertical::Center),
                         row![btn("Abrir nota", Kind::Normal, true, Some("edit"), Some(Msg::EditorOpen(n.path.to_string()))), btn("Obsidian", Kind::Ghost, true, None, Some(Msg::Toast("Abriria no Obsidian".into())))].spacing(6),
                     ]
                     .spacing(7);
-                    v = v.push(card("Vault", tx(n.at, 12.5, t::FG3).into(), inner.into()));
+                    v = v.push(card("Vault", tx(n.at.clone(), 12.5, t::FG3).into(), inner.into()));
                 }
                 None => v = v.push(card("Vault", sp_w(0.0), tx("A nota desta conversa é gravada no fim de cada rodada.", 12.5, t::FG3).into())),
             }

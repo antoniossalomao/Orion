@@ -19,10 +19,11 @@ pub fn field_style(bg: iced::Color, line: iced::Color, focus: iced::Color, radiu
 
 pub fn view(app: &App) -> El<'_> {
     let sky = canvas(Sky { alpha: 1.0, constellation: true, belt: 0.0 }).width(Length::Fill).height(Length::Fill);
-    let field = text_input("Senha", &app.pw)
+    let code = app.challenge.is_some();
+    let field = text_input(if code { "Código do Telegram" } else { "Senha" }, &app.pw)
         .on_input(Msg::PwChanged)
         .on_submit(Msg::Login)
-        .secure(true)
+        .secure(!code)
         .size(14)
         .font(t::UI)
         .padding(iced::Padding { top: 11.0, bottom: 11.0, left: 14.0, right: 14.0 })
@@ -32,9 +33,9 @@ pub fn view(app: &App) -> El<'_> {
         column![belt_fg(true), txf("Orion", 40.0, t::FG, t::SERIF).line_height(iced::widget::text::LineHeight::Relative(1.0))].spacing(4),
         tx("Entre com a senha deste computador. Nada sai daqui sem a sua aprovação.", 13.5, t::FG2),
         field,
-        container(tx(app.gate_err.clone(), 12.0, t::DANGER)).height(Length::Fixed(18.0)),
+        container(tx(app.gate_err.clone(), 12.0, if app.gate_err.starts_with("Conectando") || app.gate_err.starts_with("Entrando") { t::FG3 } else { t::DANGER })).height(Length::Fixed(18.0)),
         btn,
-        tx("Protótipo com dados de exemplo. Qualquer senha entra. A senha volta a ser pedida quando o Windows é bloqueado.", 12.0, t::FG3),
+        tx(match &app.api { Some(a) => format!("Servidor: {}. A senha volta a ser pedida quando o Windows é bloqueado.", a.base), None => "Protótipo com dados de exemplo. Qualquer senha entra. A senha volta a ser pedida quando o Windows é bloqueado.".into() }, 12.0, t::FG3),
     ]
     .spacing(14)
     .width(Length::Fixed(340.0));
