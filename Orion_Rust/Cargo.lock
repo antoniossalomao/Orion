@@ -5720,6 +5720,7 @@ dependencies = [
  "futures",
  "iced",
  "orion-ai",
+ "orion-app",
  "orion-core",
  "orion-local",
  "orion-mcp",

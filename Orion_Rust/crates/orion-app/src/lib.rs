@@ -7,6 +7,7 @@ pub mod chart;
 pub mod data;
 pub mod graph;
 pub mod host;
+pub mod run;
 pub mod icons;
 pub mod keys;
 pub mod live;

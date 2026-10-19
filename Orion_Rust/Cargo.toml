@@ -73,6 +73,7 @@ tracing = "0.1"
 iced = { version = "=0.14.0", features = ["canvas", "tokio", "advanced", "image", "svg"] }
 cpal = "0.18"
 orion-setup = { path = "crates/orion-setup" }
+orion-app = { path = "crates/orion-app" }
 orion-sidecar = { path = "crates/orion-sidecar" }
 orion-testkit = { path = "crates/orion-testkit" }
 orion-updater = { path = "crates/orion-updater" }

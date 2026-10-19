@@ -42,7 +42,7 @@ jobs:
       - name: Testar banco cifrado (SQLCipher), chaves e logs cifrados
         run: cargo test --locked -p orion-store -p orion-core --features orion-store/sqlcipher,orion-core/sqlcipher
       - name: Compilar controle nativo
-        run: cargo build --locked -p orion-server -p orion-llama -p orion-updater -p orion-app
+        run: cargo build --locked -p orion-server -p orion-llama -p orion-updater
       - name: Guardar runtime CPU sem dependência de driver Vulkan
         shell: pwsh
         run: |
@@ -50,7 +50,6 @@ jobs:
           Copy-Item C:\t\debug\orion.exe pacote/cpu/
           Copy-Item C:\t\debug\orion-llama.exe pacote/cpu/
           Copy-Item C:\t\debug\orion-updater.exe pacote/cpu/
-          Copy-Item C:\t\debug\orion-app.exe pacote/cpu/
       - uses: actions/cache@v4
         with:
           path: C:\orion-models

@@ -1,5 +1,6 @@
 //! `orion`: sobe o servidor (padrão) e os comandos de manutenção.
 
+mod appmode;
 mod cli_db;
 mod cli_extra;
 #[cfg(windows)]
@@ -38,6 +39,8 @@ enum Cmd {
     },
     /// Sobe o servidor (padrão).
     Serve,
+    /// Abre o aplicativo (janela nativa com o servidor dentro do mesmo processo).
+    App,
     /// Abre o controle nativo com bandeja, mini barra e atalhos globais.
     Desktop {
         /// Inicia oculto na bandeja.
@@ -507,6 +510,7 @@ fn rodar(cli: Cli) -> anyhow::Result<i32> {
         Cmd::Rosto { acao, nome, fotos } => cli_extra::rosto(&s, acao, nome, *fotos),
         Cmd::Legenda { segundos } => cli_extra::legenda(&s, *segundos),
         Cmd::WakeTest { listar, segundos } => cli_extra::wake_test(&s, *listar, *segundos),
+        Cmd::App => appmode::run(s),
         Cmd::Desktop { background } => {
             #[cfg(windows)]
             {

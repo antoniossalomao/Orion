@@ -19,6 +19,7 @@ orion-mcp.workspace = true
 orion-vault.workspace = true
 orion-local.workspace = true
 orion-voice.workspace = true
+orion-app.workspace = true
 sysinfo.workspace = true
 anyhow.workspace = true
 serde.workspace = true

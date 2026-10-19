@@ -520,7 +520,7 @@ impl InstallPlan {
                 let lnk = if self.real() { register::start_menu_shortcut() } else { app_dir.join("Orion.lnk") };
                 let orion = choices.app_dir.join("orion.exe");
                 if lnk.exists() { return Err(format!("já existe um atalho em {}", lnk.display())); }
-                self.registrar.create_shortcut(&lnk, &orion, "desktop", &choices.app_dir).map_err(|e| format!("falha ao criar o atalho: {e}"))?;
+                self.registrar.create_shortcut(&lnk, &orion, "app", &choices.app_dir).map_err(|e| format!("falha ao criar o atalho: {e}"))?;
                 if lnk.exists() { self.created_paths.push(lnk.clone()); }
                 let mut autostart = false;
                 if choices.start_with_windows {
