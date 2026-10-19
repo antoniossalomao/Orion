@@ -70,7 +70,7 @@ hex = "0.4"
 rand = "0.8"
 base64 = "0.22"
 tracing = "0.1"
-iced = { version = "=0.14.0", features = ["canvas", "tokio", "advanced", "image"] }
+iced = { version = "=0.14.0", features = ["canvas", "tokio", "advanced", "image", "svg"] }
 cpal = "0.18"
 orion-setup = { path = "crates/orion-setup" }
 orion-sidecar = { path = "crates/orion-sidecar" }
