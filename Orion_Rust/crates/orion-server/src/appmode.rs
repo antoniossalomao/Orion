@@ -129,11 +129,15 @@ mod tests {
     use orion_app::net::{Api, Chat};
     use serde_json::json;
 
+    /// Os testes mexem em variáveis de ambiente do processo: um de cada vez.
+    static VEZ: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
     /// Chat de ponta a ponta pelo caminho sem rede. Só roda com um LLM de teste em `ORION_TEST_GATEWAY`
     /// (ex.: http://127.0.0.1:9099/v1, modelo `mock`).
     #[tokio::test(flavor = "multi_thread")]
     async fn chat_sem_rede_passa_pelas_rotas() {
         let Ok(gw) = std::env::var("ORION_TEST_GATEWAY") else { return };
+        let _vez = VEZ.lock().await;
         let dir = std::env::temp_dir().join(format!("orion-appmode-{}", std::process::id()));
         std::env::set_var("ORION_DATA_DIR", &dir);
         std::env::set_var("ORION_GATEWAY_URL", gw);
@@ -160,6 +164,55 @@ mod tests {
         assert!(fim && texto.contains("modelo de teste"), "texto: {texto:?}");
         let sem_token = Api::local({ let st2 = crate::estado::montar(Settings::load().unwrap()).await.unwrap(); std::sync::Arc::new(Interno { router: crate::rotas::router(st2.clone()), st: st2, mostrar: dir.join("mostrar2") }) }, "token-errado-0123456789".into());
         assert!(!sem_token.auth_ok().await, "token errado não autentica");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// Aprovação ponta a ponta sem rede: o modelo pede `escrever_arquivo`, o app aprova, o turno retoma
+    /// e o arquivo existe. Precisa do mock com `MOCK_PATH=/tmp/orion-teste-aprovado.txt`.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn aprovar_escrita_sem_rede() {
+        let Ok(gw) = std::env::var("ORION_TEST_GATEWAY") else { return };
+        let _vez = VEZ.lock().await;
+        let alvo = std::path::Path::new("/tmp/orion-teste-aprovado.txt");
+        let _ = std::fs::remove_file(alvo);
+        let dir = std::env::temp_dir().join(format!("orion-appmode-ap-{}", std::process::id()));
+        std::env::set_var("ORION_DATA_DIR", &dir);
+        // `escrever_arquivo` só existe com as ferramentas de desktop ligadas (opt-in)
+        std::env::set_var("ORION_DESKTOP_TOOLS", "1");
+        std::env::set_var("ORION_GATEWAY_URL", gw);
+        std::env::set_var("ORION_GATEWAY_MODEL", "mock");
+        let mut s = Settings::load().expect("config");
+        s.admin_token = token_aleatorio();
+        let token = s.admin_token.clone();
+        let st = crate::estado::montar(s).await.expect("estado");
+        let api = Api::local(std::sync::Arc::new(Interno { router: crate::rotas::router(st.clone()), st, mostrar: dir.join("mostrar") }), token);
+        api.post("/sessoes", json!({})).await.unwrap();
+        let mut id = String::new();
+        let mut ev = Box::pin(api.stream("/chat", json!({"texto": "ESCREVER", "canal": "web"})));
+        while let Some(e) = ev.next().await {
+            if let Chat::Approval { id: i, .. } = e {
+                id = i;
+            }
+        }
+        assert!(!id.is_empty(), "o modelo pediu aprovação");
+        assert!(!alvo.exists(), "nada escrito antes de aprovar");
+        let r = api.post(&format!("/approvals/{id}/decide"), json!({"approved": true})).await.unwrap();
+        assert_eq!(r["status"], "approved");
+        let mut texto = String::new();
+        let mut tools = vec![];
+        let mut ev = Box::pin(api.stream(&format!("/approvals/{id}/resume"), json!({"canal": "web"})));
+        while let Some(e) = ev.next().await {
+            match e {
+                Chat::Text(t) => texto.push_str(&t),
+                Chat::Tool(t) => tools.push(t),
+                Chat::Error(e) => panic!("erro: {e}"),
+                _ => {}
+            }
+        }
+        assert!(tools.iter().any(|t| t["state"] == "completed"), "ferramenta concluída: {tools:?}");
+        assert!(!texto.is_empty(), "o modelo relatou o resultado");
+        assert!(alvo.exists(), "o arquivo foi escrito depois de aprovar");
+        let _ = std::fs::remove_file(alvo);
         let _ = std::fs::remove_dir_all(dir);
     }
 }
