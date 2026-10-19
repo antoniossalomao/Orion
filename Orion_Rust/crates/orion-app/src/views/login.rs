@@ -29,9 +29,7 @@ pub fn view(app: &App) -> El<'_> {
         .style(field_style(t::mix(t::RAISE, 0.85), t::LINE2, t::LINE3, 10.0));
     let btn = btn_wide("Entrar", Msg::Login);
     let card = column![
-        belt_fg(true),
-        sp_h(6.0),
-        txf("Orion", 40.0, t::FG, t::SERIF),
+        column![belt_fg(true), txf("Orion", 40.0, t::FG, t::SERIF).line_height(iced::widget::text::LineHeight::Relative(1.0))].spacing(4),
         tx("Entre com a senha deste computador. Nada sai daqui sem a sua aprovação.", 13.5, t::FG2),
         field,
         container(tx(app.gate_err.clone(), 12.0, t::DANGER)).height(Length::Fixed(18.0)),

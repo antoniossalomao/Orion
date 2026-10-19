@@ -27,9 +27,10 @@ pub fn ell(s: &str, max_px: f32, size: f32) -> String {
     }
 }
 /// Barra de rolagem fina (`scrollbar-width: thin`).
-pub fn thin_scroll(_: &Theme, _s: iced::widget::scrollable::Status) -> iced::widget::scrollable::Style {
-    use iced::widget::scrollable::{AutoScroll, Rail, Scroller, Style};
-    let rail = Rail { background: None, border: Border::default(), scroller: Scroller { background: Background::Color(t::LINE2), border: Border { radius: 2.0.into(), ..Default::default() } } };
+pub fn thin_scroll(_: &Theme, s: iced::widget::scrollable::Status) -> iced::widget::scrollable::Style {
+    use iced::widget::scrollable::{AutoScroll, Rail, Scroller, Status, Style};
+    let shown = matches!(s, Status::Hovered { .. } | Status::Dragged { .. });
+    let rail = Rail { background: None, border: Border::default(), scroller: Scroller { background: Background::Color(if shown { t::LINE2 } else { Color::TRANSPARENT }), border: Border { radius: 2.0.into(), ..Default::default() } } };
     Style { container: container::Style::default(), vertical_rail: rail, horizontal_rail: rail, gap: None, auto_scroll: AutoScroll { background: Background::Color(t::RAISE), border: Border::default(), shadow: Shadow::default(), icon: t::FG2 } }
 }
 pub fn thin_bar() -> iced::widget::scrollable::Scrollbar {
@@ -289,7 +290,7 @@ pub fn setting<'a>(title: &str, desc: &str, ctl: El<'a>) -> El<'a> {
 pub fn setting_el<'a>(title: El<'a>, desc: &str, ctl: El<'a>) -> El<'a> {
     let mut left = column![title].spacing(2).width(Length::Fill);
     if !desc.is_empty() {
-        left = left.push(container(tx(desc.to_string(), 12.5, t::FG3)).max_width(54.0 * 6.6));
+        left = left.push(container(tx(desc.to_string(), 12.5, t::FG3)).max_width(430.0));
     }
     let r = row![left, ctl].spacing(24).align_y(Vertical::Center).padding(pad(15.0, 0.0, 15.0, 0.0));
     column![r, hline()].into()
@@ -308,7 +309,7 @@ pub fn belt<'a>(large: bool, colors: [Color; 3]) -> El<'a> {
     let (d, gap, off) = if large { (7.0, 6.0, 6.0) } else { (4.0, 3.0, 3.0) };
     let h = d + off * 2.0;
     let dot = |c: Color, dy: f32| -> El<'a> { container(dot_el(c, d)).padding(pad(dy, 0.0, 0.0, 0.0)).into() };
-    container(container(row![dot(colors[0], 0.0), dot(colors[1], off), dot(colors[2], off * 2.0)].spacing(gap)).height(Length::Fixed(h))).height(Length::Fixed(d)).center_y(Length::Fixed(d)).into()
+    container(row![dot(colors[0], 0.0), dot(colors[1], off), dot(colors[2], off * 2.0)].spacing(gap)).height(Length::Fixed(h)).into()
 }
 pub fn belt_fg<'a>(large: bool) -> El<'a> {
     belt(large, [t::FG, t::FG, t::FG])

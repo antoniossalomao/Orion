@@ -116,7 +116,7 @@ pub fn view(app: &App, home: bool) -> El<'_> {
                     .style(move |_, st| button::Style { background: if hl || matches!(st, button::Status::Hovered) { Some(Background::Color(t::HOVER)) } else { None }, text_color: t::FG, border: Border { radius: 8.0.into(), ..Default::default() }, shadow: Default::default(), snap: true }),
             );
         }
-        container(c).width(Length::Fixed(width - 16.0)).padding(4).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: 12.0.into() }, shadow: shadow(), ..Default::default() }).into()
+        container(iced::widget::scrollable(c).direction(iced::widget::scrollable::Direction::Vertical(thin_bar())).style(thin_scroll)).max_height(260.0).width(Length::Fixed(width - 16.0)).padding(4).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: 12.0.into() }, shadow: shadow(), ..Default::default() }).into()
     } else {
         sp_w(0.0)
     };

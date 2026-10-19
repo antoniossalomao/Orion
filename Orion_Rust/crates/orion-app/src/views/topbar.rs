@@ -23,7 +23,7 @@ pub fn view(app: &App) -> El<'_> {
     // título
     if app.view == View::Chat {
         if let Some(i) = app.conv {
-            let base = button(row![tx(ell(app.convs[i].title, 420.0, 13.5), 13.5, t::FG), icon("chevD", 14.0, t::FG3)].spacing(6).align_y(Vertical::Center))
+            let base = button(container(row![tx(ell(app.convs[i].title, 420.0, 13.5), 13.5, t::FG), icon("chevD", 14.0, t::FG3)].spacing(6).align_y(Vertical::Center)).center_y(Length::Fill))
                 .height(Length::Fixed(30.0))
                 .padding(pad(0.0, 8.0, 0.0, 8.0))
                 .on_press(Msg::Pop(Pop::ConvMenu))
@@ -54,7 +54,7 @@ pub fn view(app: &App) -> El<'_> {
     if !drawer {
         r = r.push(ib("inbox", Some(Msg::QcapOpen), false));
         r = r.push(ib("scan", Some(Msg::IssoOpen), false));
-        let cmd = button(row![icon("search", 14.0, t::FG3), tx("Buscar", 12.5, t::FG3), kbd("Ctrl K")].spacing(8).align_y(Vertical::Center))
+        let cmd = button(container(row![icon("search", 14.0, t::FG3), tx("Buscar", 12.5, t::FG3), kbd("Ctrl K")].spacing(8).align_y(Vertical::Center)).center_y(Length::Fill))
             .height(Length::Fixed(30.0))
             .padding(pad(0.0, 8.0, 0.0, 10.0))
             .on_press(Msg::PalOpen)

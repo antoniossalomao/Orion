@@ -68,7 +68,7 @@ pub fn view(app: &App) -> El<'_> {
         scrollable(body).direction(scrollable::Direction::Vertical(thin_bar())).style(thin_scroll).anchor_bottom().height(Length::Fill).into()
     };
 
-    let mut tail = column![].spacing(6).width(Length::Fixed(width.min(app.win.width - 32.0))).align_x(Horizontal::Center);
+    let mut tail = column![].spacing(6).width(Length::Fixed((width - 32.0).min(app.win.width - 64.0))).align_x(Horizontal::Center);
     if let Some(b) = c.banner {
         tail = tail.push(
             container(row![dot_el(t::SIGNAL, 6.0), tx(b, 12.5, t::FG2), grow(), icon("close", 14.0, t::FG3)].spacing(8).align_y(Vertical::Center))

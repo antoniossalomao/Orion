@@ -372,7 +372,7 @@ pub fn modal(app: &App) -> El<'_> {
     if mobile {
         main = main.push(container(btn("Configurações", Kind::Ghost, false, Some("back"), Some(Msg::SetBack))).padding(pad(10.0, 0.0, 0.0, 0.0)));
     }
-    main = main.push(container(txf(label, 26.0, t::FG, t::SERIF)).padding(pad(if mobile { 10.0 } else { 30.0 }, 0.0, 4.0, 0.0)));
+    main = main.push(container(txf(label, 26.0, t::FG, t::SERIF).line_height(iced::widget::text::LineHeight::Relative(1.15))).padding(pad(if mobile { 10.0 } else { 30.0 }, 0.0, 4.0, 0.0)));
     main = main.push(section(app));
     let main_panel = scrollable(container(main).padding(pad(0.0, 44.0, 48.0, 44.0)).width(Length::Fill)).direction(scrollable::Direction::Vertical(thin_bar())).style(thin_scroll).width(Length::Fill).height(Length::Fill);
     let body: El = if mobile {

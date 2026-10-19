@@ -94,8 +94,8 @@ pub fn view(app: &App) -> El<'_> {
             column![tree, gh].spacing(8).into()
         }
         CtxTab::Diff => {
-            let hd = |s: &str| -> El<'static> { container(txf(s.to_string(), 12.0, t::FG3, t::MONO)).width(Length::Fill).padding(pad(4.0, 10.0, 4.0, 10.0)).style(surface(Some(t::RAISE), None, 0.0)).into() };
-            let ln = |s: &str, fg: iced::Color, bg: iced::Color| -> El<'static> { container(txf(s.to_string(), 12.0, fg, t::MONO)).width(Length::Fill).padding(pad(0.0, 10.0, 0.0, 10.0)).style(surface(Some(bg), None, 0.0)).into() };
+            let hd = |s: &str| -> El<'static> { container(txf(s.to_string(), 12.0, t::FG3, t::MONO).wrapping(iced::widget::text::Wrapping::None)).width(Length::Fill).padding(pad(4.0, 10.0, 4.0, 10.0)).style(surface(Some(t::RAISE), None, 0.0)).into() };
+            let ln = |s: &str, fg: iced::Color, bg: iced::Color| -> El<'static> { container(txf(s.to_string(), 12.0, fg, t::MONO).wrapping(iced::widget::text::Wrapping::None)).width(Length::Fill).padding(pad(0.0, 10.0, 0.0, 10.0)).style(surface(Some(bg), None, 0.0)).into() };
             let del = t::mix(t::DANGER, 0.10);
             let add = t::mix(t::OK, 0.10);
             let diff = container(column![
@@ -136,7 +136,7 @@ pub fn view(app: &App) -> El<'_> {
                 container(row![txf("PS>", 12.0, t::ACCENT, t::MONO), inp].spacing(6).align_y(Vertical::Center)).padding(pad(6.0, 10.0, 6.0, 10.0)),
             ])
             .width(Length::Fill)
-            .height(Length::Fixed(300.0))
+            .height(Length::Fixed(720.0))
             .style(|_| container::Style { background: Some(t::TERM_BG.into()), border: Border { color: t::LINE, width: 1.0, radius: 10.0.into() }, ..Default::default() })
             .into()
         }
