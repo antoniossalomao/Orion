@@ -146,3 +146,23 @@ fn comparacao_de_versao() {
     assert!(is_newer("0.2.0", "0.1.9") && is_newer("1.0", "0.9.9.9") && is_newer("0.1.0.1", "0.1.0"));
     assert!(!is_newer("0.1.0", "0.1") && !is_newer("x", "0.1") && !is_newer("0.2", "x"));
 }
+
+#[test]
+fn baixar_release_confere_assinatura_e_hash_e_so_grava_no_destino() {
+    let c = cenario("0.1.0", "0.2.0", b"v-novo");
+    let destino = tempfile::tempdir().unwrap();
+    let chave = c.config.public_key.clone().unwrap();
+    let feed = baixar_release(FEED_URL, &chave, &c.fetch, destino.path(), &|_, _| {}).unwrap();
+    assert_eq!(feed.version, "0.2.0");
+    assert_eq!(std::fs::read(destino.path().join("orion.exe")).unwrap(), b"v-novo");
+    // a pasta do app (instalada) não foi tocada
+    assert_eq!(std::fs::read(c.dir.path().join("orion.exe")).unwrap(), b"v-antigo");
+    // sem chave: recusa
+    assert!(matches!(baixar_release(FEED_URL, " ", &c.fetch, destino.path(), &|_, _| {}), Err(UpdateError::NotConfigured(_))));
+    // hash errado: recusa
+    let mut web = c.fetch.0.clone();
+    web.insert("https://exemplo.test/orion.exe".into(), b"adulterado".to_vec());
+    let d2 = tempfile::tempdir().unwrap();
+    assert!(matches!(baixar_release(FEED_URL, &chave, &Fake(web), d2.path(), &|_, _| {}), Err(UpdateError::BadHash(_))));
+    assert!(!d2.path().join("orion.exe").exists());
+}

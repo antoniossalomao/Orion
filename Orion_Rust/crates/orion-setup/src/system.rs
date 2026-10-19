@@ -8,6 +8,32 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use sysinfo::{Disks, System};
 
+/// Repositório dos releases e chave pública minisign (`release/minisign.pub`, gerada pelo dono do
+/// projeto; o segredo fica só no GitHub Actions). Sem chave o instalador não baixa nada.
+pub const REPO_RELEASES: &str = "antoniossalomao/Orion";
+pub const CHAVE_PUBLICA: &str = include_str!("../release/minisign.pub");
+
+pub fn feed_url(vulkan: bool) -> String {
+    format!("https://github.com/{REPO_RELEASES}/releases/latest/download/latest-{}.json", if vulkan { "vulkan" } else { "cpu" })
+}
+
+/// Onde estão `orion.exe`, `orion-llama.exe` e `orion-updater.exe`: na pasta `cpu`/`vulkan` ao lado
+/// do instalador (instalação offline) ou, não havendo, baixados do GitHub Releases com assinatura
+/// minisign e SHA-256 conferidos. O segundo valor é a pasta temporária a apagar depois da cópia.
+pub fn obter_pacote(ao_lado: &Path, vulkan: bool, fetch: &dyn orion_updater::Fetch) -> Result<(PathBuf, Option<PathBuf>), String> {
+    let local = ao_lado.join(if vulkan { "vulkan" } else { "cpu" });
+    if local.join("orion.exe").is_file() {
+        return Ok((local, None));
+    }
+    let tmp = std::env::temp_dir().join(format!("orion-instalacao-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&tmp);
+    orion_updater::baixar_release(&feed_url(vulkan), CHAVE_PUBLICA, fetch, &tmp, &|_, _| {}).map_err(|e| {
+        let _ = std::fs::remove_dir_all(&tmp);
+        format!("Não consegui baixar o Orion: {e}")
+    })?;
+    Ok((tmp.clone(), Some(tmp)))
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DiskSpace {
     pub mount: String,
@@ -454,7 +480,7 @@ impl InstallPlan {
                 self.created_paths.push(manifest);
                 if self.real() {
                     let executable = std::env::current_exe().map_err(|e| e.to_string())?;
-                    let bundle = executable.parent().ok_or("pasta do instalador ausente")?.join(if choices.use_vulkan { "vulkan" } else { "cpu" });
+                    let (bundle, temporaria) = obter_pacote(executable.parent().ok_or("pasta do instalador ausente")?, choices.use_vulkan, &orion_updater::HttpFetch)?;
                     let mut copied = Vec::new();
                     for (name, source) in [
                         ("orion.exe", bundle.join("orion.exe")),
@@ -475,6 +501,9 @@ impl InstallPlan {
                         .into_iter()
                         .map(|n| register::sha256_file(&app_dir.join(n)).map(|sha256| InstalledFile { name: n.into(), sha256 }).map_err(|e| e.to_string()))
                         .collect::<Result<_, _>>()?;
+                    if let Some(t) = temporaria {
+                        let _ = std::fs::remove_dir_all(t);
+                    }
                     self.update_manifest(&app_dir, |m| m.files = files)?;
                 }
                 Ok(format!("App preparado em {}", app_dir.display()))
@@ -543,8 +572,8 @@ impl InstallPlan {
                     "channel": "stable",
                     "auto_update": false,
                     "crash_reports": choices.send_crash_reports,
-                    "feed_url": null,
-                    "public_key": null,
+                    "feed_url": if CHAVE_PUBLICA.trim().is_empty() { serde_json::Value::Null } else { serde_json::json!(feed_url(choices.use_vulkan)) },
+                    "public_key": if CHAVE_PUBLICA.trim().is_empty() { serde_json::Value::Null } else { serde_json::json!(CHAVE_PUBLICA.trim()) },
                 });
                 std::fs::create_dir_all(&data_dir).map_err(|e| format!("falha ao criar {}: {e}", data_dir.display()))?;
                 self.write_new(&updater, &serde_json::to_vec_pretty(&payload).unwrap_or_default())
@@ -588,6 +617,30 @@ impl InstallPlan {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    struct Falso(std::collections::HashMap<String, Vec<u8>>);
+    impl orion_updater::Fetch for Falso {
+        fn get(&self, url: &str, _max: u64) -> Result<Vec<u8>, orion_updater::UpdateError> {
+            self.0.get(url).cloned().ok_or_else(|| orion_updater::UpdateError::Fetch(format!("404 {url}")))
+        }
+    }
+
+    #[test]
+    fn pacote_ao_lado_do_instalador_vale_e_nao_baixa() {
+        let d = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(d.path().join("cpu")).unwrap();
+        std::fs::write(d.path().join("cpu").join("orion.exe"), b"x").unwrap();
+        let (pasta, tmp) = obter_pacote(d.path(), false, &Falso(Default::default())).unwrap();
+        assert_eq!(pasta, d.path().join("cpu"));
+        assert!(tmp.is_none());
+    }
+
+    #[test]
+    fn sem_pacote_e_sem_chave_publica_nao_baixa_e_explica() {
+        let d = tempfile::tempdir().unwrap();
+        let erro = obter_pacote(d.path(), true, &Falso(Default::default())).unwrap_err();
+        assert!(erro.contains("Não consegui baixar o Orion"), "{erro}");
+    }
 
     #[test]
     fn modelos_so_baixam_apos_escolha_e_respeitam_o_teto() {

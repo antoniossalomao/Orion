@@ -152,12 +152,37 @@ fn installed_version(app_dir: &Path) -> Result<String> {
     Ok(m["version"].as_str().unwrap_or("0").to_string())
 }
 
+/// Baixa o feed assinado e confere a assinatura. Só depois disso qualquer campo dele vale.
+fn buscar_feed(url: &str, key: &str, fetch: &dyn Fetch) -> Result<Feed> {
+    let feed_bytes = fetch.get(url, MAX_FEED_BYTES)?;
+    let sig = String::from_utf8(fetch.get(&format!("{url}.minisig"), 8 * 1024)?).map_err(|e| UpdateError::BadSignature(e.to_string()))?;
+    verify_feed(&feed_bytes, &sig, key)
+}
+
+/// Instalação nova: baixa os arquivos do release (feed assinado, SHA-256 de cada um) para `destino`,
+/// sem tocar em mais nada. Quem chama copia de lá. `progresso(feitos, total)` conta arquivos.
+pub fn baixar_release(feed_url: &str, public_key: &str, fetch: &dyn Fetch, destino: &Path, progresso: &dyn Fn(usize, usize)) -> Result<Feed> {
+    if public_key.trim().is_empty() {
+        return Err(UpdateError::NotConfigured("sem chave pública do release (recusa baixar sem verificar)"));
+    }
+    let feed = buscar_feed(feed_url, public_key, fetch)?;
+    io(std::fs::create_dir_all(destino))?;
+    progresso(0, feed.files.len());
+    for (i, f) in feed.files.iter().enumerate() {
+        let bytes = fetch.get(&f.url, f.bytes.min(MAX_FILE_BYTES))?;
+        if bytes.len() as u64 != f.bytes || hex::encode(Sha256::digest(&bytes)).to_lowercase() != f.sha256.to_lowercase() {
+            return Err(UpdateError::BadHash(f.name.clone()));
+        }
+        io(std::fs::write(destino.join(&f.name), &bytes))?;
+        progresso(i + 1, feed.files.len());
+    }
+    Ok(feed)
+}
+
 pub fn check(config: &UpdateConfig, app_dir: &Path, fetch: &dyn Fetch, apply: bool) -> Result<Outcome> {
     let url = config.feed_url.as_deref().ok_or(UpdateError::NotConfigured("sem feed_url"))?;
     let key = config.public_key.as_deref().ok_or(UpdateError::NotConfigured("sem chave pública (recusa atualizar sem verificar)"))?;
-    let feed_bytes = fetch.get(url, MAX_FEED_BYTES)?;
-    let sig = String::from_utf8(fetch.get(&format!("{url}.minisig"), 8 * 1024)?).map_err(|e| UpdateError::BadSignature(e.to_string()))?;
-    let feed = verify_feed(&feed_bytes, &sig, key)?;
+    let feed = buscar_feed(url, key, fetch)?;
     if !is_newer(&feed.version, &installed_version(app_dir)?) {
         return Ok(Outcome::UpToDate);
     }

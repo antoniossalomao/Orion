@@ -5756,6 +5756,7 @@ dependencies = [
  "iced",
  "image",
  "orion-local",
+ "orion-updater",
  "parking_lot",
  "rand 0.8.8",
  "serde",

@@ -16,6 +16,7 @@ path = "src/main.rs"
 [dependencies]
 anyhow.workspace = true
 orion-local.workspace = true
+orion-updater = { path = "../orion-updater" }
 cpal.workspace = true
 iced.workspace = true
 image.workspace = true
