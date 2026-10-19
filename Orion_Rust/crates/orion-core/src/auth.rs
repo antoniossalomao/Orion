@@ -207,7 +207,6 @@ impl LoginThrottle {
 pub struct AuthService {
     pub user: String,
     ttl: f64,
-    it: u32,
     pleno: bool,
     pub throttle: LoginThrottle,
     conn: Mutex<Connection>,
@@ -239,7 +238,7 @@ impl AuthService {
         // hash falso para igualar o tempo de "usuário sem senha" ao de "senha errada"
         let pleno = it >= ITERACOES;
         let falso = hash_password_argon2id(&token_urlsafe(16), pleno);
-        Ok(AuthService { user: user.into(), ttl: ttl_s, it, pleno, throttle: LoginThrottle::default(), conn: Mutex::new(conn), falso })
+        Ok(AuthService { user: user.into(), ttl: ttl_s, pleno, throttle: LoginThrottle::default(), conn: Mutex::new(conn), falso })
     }
 
     pub fn has_password(&self) -> bool {

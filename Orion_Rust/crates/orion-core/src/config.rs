@@ -50,6 +50,12 @@ pub struct Settings {
     pub data_dir: PathBuf,
     pub log_level: String,
     pub log_json: bool,
+    /// Dias que o log cifrado fica em disco (ORION_LOG_RETENTION_DAYS).
+    pub log_retention_days: u32,
+    /// Bloqueio do Windows (Win+L) encerra as sessões e apaga a chave da memória (banco cifrado).
+    pub lock_on_screen_lock: bool,
+    /// Além disso, encerra o processo: o único jeito de o SQLCipher soltar a chave.
+    pub lock_exit: bool,
     pub approval_ttl_s: u64,
     pub extra_safe_roots: Vec<PathBuf>,
     pub serve_ui: bool,
@@ -373,6 +379,9 @@ impl Settings {
             data_dir: e.path_opt("data_dir").unwrap_or_else(user_data_dir),
             log_level,
             log_json: e.b("log_json", true)?,
+            log_retention_days: e.num("log_retention_days", 30u32, Some(1), Some(3650))?,
+            lock_on_screen_lock: e.b("lock_on_screen_lock", true)?,
+            lock_exit: e.b("lock_exit", false)?,
             approval_ttl_s: e.num("approval_ttl_s", 600u64, Some(30), None)?,
             extra_safe_roots: e.str_list("extra_safe_roots", vec![], ',')?.into_iter().map(PathBuf::from).collect(),
             serve_ui: e.b("serve_ui", true)?,
@@ -517,6 +526,11 @@ impl Settings {
     /// (REGRAS.md: acesso de fora só com login).
     pub fn hosts_de_fora(&self) -> Vec<String> {
         self.allowed_hosts.iter().filter(|h| !LOCAIS.contains(&h.as_str())).cloned().collect()
+    }
+
+    /// Logs cifrados (só existem com o banco cifrado).
+    pub fn logs_dir(&self) -> PathBuf {
+        self.data_dir.join("logs")
     }
 
     pub fn db_path(&self) -> PathBuf {

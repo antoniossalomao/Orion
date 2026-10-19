@@ -17,7 +17,7 @@ fn perguntar(p: &str) -> bool {
 /// O Orion como servidor MCP só de leitura (E7.7). Em modo servidor, stdout é do protocolo: tudo o
 /// que for mensagem humana sai em stderr.
 pub fn mcp_servidor(s: &Settings, token: bool, revogar: bool) -> anyhow::Result<i32> {
-    let store = Arc::new(Store::open(s.db_path())?);
+    let store = Arc::new(orion_core::dbopen::open_store(&s.db_path())?);
     if token {
         let t = mcp_servidor::gerar_token(&store)?;
         let e = mcp_servidor::ENV_TOKEN;
@@ -36,7 +36,7 @@ pub fn mcp_servidor(s: &Settings, token: bool, revogar: bool) -> anyhow::Result<
 
 /// O que ficaria pela metade se o computador desligasse agora (só lê).
 pub fn posso_desligar(s: &Settings) -> anyhow::Result<i32> {
-    let store = Store::open(s.db_path())?;
+    let store = orion_core::dbopen::open_store(&s.db_path())?;
     let rodando: Vec<serde_json::Value> = store
         .query("SELECT objective FROM background_tasks WHERE status='rodando'", &[])?
         .iter()
@@ -55,7 +55,7 @@ fn guarda(s: &Settings) -> PathGuard {
 
 /// Organizador de Downloads com regras suas (E9.4).
 pub fn downloads(s: &Settings, acao: &str, simular: bool, hoje: bool, sim: bool) -> anyhow::Result<i32> {
-    let store = Arc::new(Store::open(s.db_path())?);
+    let store = Arc::new(orion_core::dbopen::open_store(&s.db_path())?);
     let d = downloads::Downloads::new(s.data_dir.join("regras_downloads.yaml"), store, guarda(s));
     match acao {
         "exemplo" => {
@@ -120,7 +120,7 @@ pub fn downloads(s: &Settings, acao: &str, simular: bool, hoje: bool, sim: bool)
 
 /// Rotinas suas (E9.1): listar, exemplo, conceder, revogar.
 pub fn rotina(s: &Settings, acao: &str, nome: Option<&str>, sim: bool) -> anyhow::Result<i32> {
-    let store = Arc::new(Store::open(s.db_path())?);
+    let store = Arc::new(orion_core::dbopen::open_store(&s.db_path())?);
     let pasta = s.data_dir.join("rotinas");
     let r = rotinas::RotinaStore::new(pasta.clone(), store);
     match acao {
@@ -194,7 +194,7 @@ pub fn converter(s: &Settings, arquivo: &str, formato: &str, saida: Option<&str>
         println!("{}", if lista.is_empty() { "não sei converter esse tipo de arquivo".to_string() } else { lista.join(", ") });
         return Ok(if lista.is_empty() { 1 } else { 0 });
     }
-    let store = Arc::new(Store::open(s.db_path())?);
+    let store = Arc::new(orion_core::dbopen::open_store(&s.db_path())?);
     let destino = saida.map(std::path::PathBuf::from).unwrap_or_else(|| s.data_dir.join("conversoes"));
     let lib = orion_core::resultados::Library::new(store, s.data_dir.join("resultados"));
     match converter_e_guardar(&origem, formato, &destino, Some(&lib)) {
@@ -236,7 +236,7 @@ pub fn estilo(s: &Settings, repos: &[String], agente: &str, ativar: bool, sim: b
         println!("nada foi enviado");
         return Ok(1);
     }
-    let store = Arc::new(Store::open(s.db_path())?);
+    let store = Arc::new(orion_core::dbopen::open_store(&s.db_path())?);
     // o código sai do computador (REGRAS.md: toda saída de dado fica registrada, sem conteúdo)
     orion_ai::saidas::definir_destino(Some(orion_ai::saidas::destino_store(store.clone())));
     let d = orion_ai::delegate::Delegator::new(store, orion_ai::delegate::default_agents(), 600.0, 20_000);
@@ -320,7 +320,7 @@ pub fn mcp_check(s: &Settings, config: Option<&str>) -> anyhow::Result<i32> {
 
 /// Importa o export do SurrealDB do legado.
 pub fn import_surreal(s: &Settings, pasta: &str, assistente: &[String]) -> anyhow::Result<i32> {
-    let store = Store::open(s.db_path())?;
+    let store = orion_core::dbopen::open_store(&s.db_path())?;
     let mut nomes = vec!["Orion".to_string()];
     nomes.extend(assistente.iter().cloned());
     match orion_core::importer::import_surreal_export(&store, std::path::Path::new(pasta), &nomes) {
@@ -365,7 +365,7 @@ pub fn transcrever(s: &Settings, alvo: &str, titulo: &str, sim: bool, propor: bo
         return Ok(1);
     }
     let cap = Capturer::new(vault.clone(), &s.capture_folder);
-    let store = Arc::new(Store::open(s.db_path())?);
+    let store = Arc::new(orion_core::dbopen::open_store(&s.db_path())?);
     // o áudio sai do computador (REGRAS.md: toda saída de dado fica registrada, sem conteúdo)
     orion_ai::saidas::definir_destino(Some(orion_ai::saidas::destino_store(store.clone())));
     let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
@@ -516,7 +516,7 @@ pub fn ponte(s: &Settings, parear: bool) -> i32 {
 /// (REGRAS.md: presença só pausa e retoma, cumpre e bloqueia só com sua confirmação).
 pub fn presenca(s: &Settings, acao: &str) -> anyhow::Result<i32> {
     use orion_core::vigia::CHAVE_BLOQUEIO;
-    let store = Store::open(s.db_path())?;
+    let store = orion_core::dbopen::open_store(&s.db_path())?;
     match acao {
         "confirmar" => {
             store.counter_set(CHAVE_BLOQUEIO, 1)?;
@@ -544,7 +544,7 @@ pub fn presenca(s: &Settings, acao: &str) -> anyhow::Result<i32> {
 /// e nunca sai do computador). Nenhuma ferramenta do modelo.
 pub fn rosto(s: &Settings, acao: &str, nome: &str, fotos: usize) -> anyhow::Result<i32> {
     use orion_core::rosto::{CofreSistema, Rostos, LIMIAR};
-    let store = Arc::new(Store::open(s.db_path())?);
+    let store = Arc::new(orion_core::dbopen::open_store(&s.db_path())?);
     let rostos = Rostos::new(store, s.face_model.clone(), LIMIAR, None).com_cofre(Arc::new(CofreSistema));
     match acao {
         "apagar" => {

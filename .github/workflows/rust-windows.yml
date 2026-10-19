@@ -29,8 +29,18 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: Orion_Rust -> C:/t
+      - name: Instalar NASM para o OpenSSL embutido do SQLCipher
+        shell: pwsh
+        run: |
+          if (!(Get-Command nasm -ErrorAction SilentlyContinue)) {
+            choco install nasm -y --no-progress
+            "C:\Program Files\NASM" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+          }
+          perl -v | Select-Object -First 2
       - name: Testar domínio, canais, orçamento e áudio
         run: cargo test --locked -p orion-policy -p orion-store -p orion-ai -p orion-core -p orion-server -p orion-platform -p orion-voice -p orion-local -p orion-llama -p orion-setup -p orion-mcp -p orion-vault -p orion-updater -p orion-testkit
+      - name: Testar banco cifrado (SQLCipher), chaves e logs cifrados
+        run: cargo test --locked -p orion-store -p orion-core --features orion-store/sqlcipher,orion-core/sqlcipher
       - name: Compilar controle nativo
         run: cargo build --locked -p orion-server -p orion-llama -p orion-updater
       - name: Guardar runtime CPU sem dependência de driver Vulkan
@@ -65,7 +75,7 @@ jobs:
         # antes do configure terminar ("Not a file: cmake_install.cmake"); o Ninja respeita a ordem.
         env:
           CMAKE_GENERATOR: Ninja
-        run: cargo build --locked -p orion-server -p orion-setup -p orion-llama -p orion-updater --features orion-server/local-vulkan,orion-llama/vulkan
+        run: cargo build --locked -p orion-server -p orion-setup -p orion-llama -p orion-updater --features orion-server/local-vulkan,orion-server/sqlcipher,orion-llama/vulkan
       - name: Montar pacote do instalador
         shell: pwsh
         run: |

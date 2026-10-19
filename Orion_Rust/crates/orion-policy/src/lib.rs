@@ -12,7 +12,7 @@ pub mod pyjson;
 pub mod shell;
 
 pub use approvals::{hash_call, Approval, ApprovalStore, Status};
-pub use audit::{redact, RateLimiter, MASCARA};
+pub use audit::{mask_pii, redact, redact_pii, RateLimiter, MASCARA};
 pub use classes::{default_rate_limits, default_tools, Risk, ToolSpec};
 pub use engine::{Action, AuditSink, Context, Decision, PolicyEngine, ToolCall};
 pub use paths::PathGuard;

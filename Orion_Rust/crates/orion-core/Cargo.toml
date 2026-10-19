@@ -53,6 +53,7 @@ csv.workspace = true
 pbkdf2.workspace = true
 argon2.workspace = true
 zeroize.workspace = true
+chacha20poly1305.workspace = true
 hmac.workspace = true
 subtle.workspace = true
 rusqlite.workspace = true
@@ -63,6 +64,7 @@ nokhwa = { version = "0.10.11", default-features = false, features = ["input-nat
 
 [features]
 local-vulkan = ["orion-voice/vulkan"]
+sqlcipher = ["orion-store/sqlcipher"]
 
 [dev-dependencies]
 orion-testkit.workspace = true

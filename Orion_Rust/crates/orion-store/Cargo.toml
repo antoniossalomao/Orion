@@ -27,6 +27,7 @@ unicode-normalization.workspace = true
 thiserror.workspace = true
 anyhow.workspace = true
 tracing.workspace = true
+zeroize.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

@@ -51,6 +51,22 @@ mod tests {
     }
 
     #[test]
+    fn backup_de_banco_cifrado_sai_cifrado_com_a_mesma_chave() {
+        let dir = tempfile::tempdir().unwrap();
+        let s = Store::open_encrypted(dir.path().join("orion.db"), &KEY, None, orion_policy::wall_clock()).unwrap();
+        s.conn().execute("CREATE TABLE t (v TEXT)", []).unwrap();
+        s.conn().execute("INSERT INTO t VALUES ('so-no-backup-cifrado')", []).unwrap();
+        let bak = s.backup_to(&dir.path().join("b").join("orion-x.db")).unwrap();
+        let bytes = std::fs::read(&bak).unwrap();
+        assert!(!bytes.starts_with(b"SQLite format 3"), "backup não pode ser SQLite em claro");
+        assert!(!bytes.windows(10).any(|w| w == b"so-no-back"));
+        assert!(Store::verify_backup(&bak).is_err(), "conferir backup cifrado ainda não é suportado, e diz isso");
+        let r = Store::open_encrypted(&bak, &KEY, None, orion_policy::wall_clock()).unwrap();
+        let v: String = r.conn().query_row("SELECT v FROM t", [], |r| r.get(0)).unwrap();
+        assert_eq!(v, "so-no-backup-cifrado");
+    }
+
+    #[test]
     fn migra_banco_em_claro_para_cifrado_sem_perder_dados() {
         let dir = tempfile::tempdir().unwrap();
         let (plain, enc) = (dir.path().join("claro.db"), dir.path().join("cifrado.db"));

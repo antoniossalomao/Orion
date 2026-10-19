@@ -1,5 +1,6 @@
 //! `orion`: sobe o servidor (padrão) e os comandos de manutenção.
 
+mod cli_db;
 mod cli_extra;
 #[cfg(windows)]
 mod desktop;
@@ -58,6 +59,38 @@ enum Cmd {
     SetPassword {
         #[arg(long)]
         stdin: bool,
+    },
+    /// Cifra o banco (SQLCipher) com uma senha e gera a chave de recuperação.
+    #[command(name = "db-cifrar")]
+    DbCifrar {
+        #[arg(long)]
+        stdin: bool,
+    },
+    /// Troca a senha do banco cifrado (o banco não é recifrado).
+    #[command(name = "db-senha")]
+    DbSenha {
+        #[arg(long)]
+        stdin: bool,
+    },
+    /// Esqueci a senha do banco: redefine com a chave de recuperação.
+    #[command(name = "db-recuperar")]
+    DbRecuperar {
+        #[arg(long)]
+        stdin: bool,
+    },
+    /// Gera outra chave de recuperação; a anterior deixa de valer.
+    #[command(name = "db-nova-recuperacao")]
+    DbNovaRecuperacao {
+        #[arg(long)]
+        stdin: bool,
+    },
+    /// Apaga o backup em claro que sobra depois de cifrar.
+    #[command(name = "db-apagar-claro")]
+    DbApagarClaro,
+    /// Lê o log cifrado de um dia (padrão: o mais recente).
+    Logs {
+        #[arg(long)]
+        dia: Option<String>,
     },
     /// Guarda a chave de API de um provedor no cofre do sistema.
     Chave {
@@ -296,7 +329,7 @@ fn set_password(s: &Settings, stdin: bool) -> anyhow::Result<i32> {
 }
 
 fn modos(s: &Settings, cmd: &Cmd) -> anyhow::Result<i32> {
-    let store = Arc::new(Store::open(s.db_path())?);
+    let store = Arc::new(orion_core::dbopen::open_store(&s.db_path())?);
     let ops = Arc::new(Operations::new(store.clone()));
     let m = Modos::new(store, &s.dnd_at, Some(Arc::new(move |e| ops.audit_add(e).map(|_| ()).map_err(Into::into))));
     match cmd {
@@ -329,7 +362,7 @@ fn modos(s: &Settings, cmd: &Cmd) -> anyhow::Result<i32> {
 }
 
 fn esquecer(s: &Settings, consulta: &str, sim: bool) -> anyhow::Result<i32> {
-    let store = Store::open(s.db_path())?;
+    let store = orion_core::dbopen::open_store(&s.db_path())?;
     let achados = match consulta.trim().parse::<i64>() {
         Ok(id) => store.get_fact(id)?.into_iter().collect(),
         Err(_) => store.search_facts(consulta, 20)?,
@@ -361,7 +394,11 @@ fn esquecer(s: &Settings, consulta: &str, sim: bool) -> anyhow::Result<i32> {
 
 async fn serve(s: Settings) -> anyhow::Result<i32> {
     let (host, porta) = (s.host.clone(), s.port);
+    #[cfg(windows)]
+    let vigiar = s.clone();
     let st = estado::montar(s).await?;
+    #[cfg(windows)]
+    cli_db::watch_screen_lock(&vigiar, st.auth.clone());
     let ouvinte = tokio::net::TcpListener::bind((host.as_str(), porta)).await?;
     serve_state(st, ouvinte, async {
         let _ = tokio::signal::ctrl_c().await;
@@ -436,9 +473,20 @@ fn rodar(cli: Cli) -> anyhow::Result<i32> {
         return Ok(orion_core::document_extract::principal(arquivo, tipo));
     }
     let s = Settings::load()?;
-    log::setup(&s.log_level, s.log_json);
     let cmd = cli.cmd.unwrap_or(Cmd::Serve);
+    // comandos que cuidam da própria senha não passam pelo prompt automático
+    let cuida_da_senha = matches!(cmd, Cmd::DbCifrar { .. } | Cmd::DbSenha { .. } | Cmd::DbRecuperar { .. } | Cmd::DbNovaRecuperacao { .. } | Cmd::DbApagarClaro);
+    if !cuida_da_senha {
+        cli_db::unlock_if_needed(&s)?;
+    }
+    log::setup(&s.log_level, s.log_json, cli_db::encrypted_log(&s));
     match &cmd {
+        Cmd::DbCifrar { stdin } => cli_db::cifrar(&s, *stdin),
+        Cmd::DbSenha { stdin } => cli_db::trocar_senha(&s, *stdin),
+        Cmd::DbRecuperar { stdin } => cli_db::recuperar(&s, *stdin),
+        Cmd::DbNovaRecuperacao { stdin } => cli_db::nova_recuperacao(&s, *stdin),
+        Cmd::DbApagarClaro => cli_db::apagar_claro(&s),
+        Cmd::Logs { dia } => cli_db::ler_logs(&s, dia.as_deref()),
         Cmd::LocalTest { .. } => Ok(0),
         Cmd::ExtrairDocumento { .. } => Ok(0),
         Cmd::McpServidor { token, revogar } => cli_extra::mcp_servidor(&s, *token, *revogar),
@@ -472,7 +520,7 @@ fn rodar(cli: Cli) -> anyhow::Result<i32> {
         }
         Cmd::Serve => tokio::runtime::Builder::new_multi_thread().enable_all().build()?.block_on(serve(s)),
         Cmd::Backup { dir, keep } => {
-            let store = Store::open(s.db_path())?;
+            let store = orion_core::dbopen::open_store(&s.db_path())?;
             let feito = store.daily_backup(&dir.clone().unwrap_or_else(|| s.data_dir.join("backups")), *keep)?;
             match feito {
                 Some(p) => println!("backup: {}", p.display()),
@@ -484,7 +532,7 @@ fn rodar(cli: Cli) -> anyhow::Result<i32> {
         Cmd::Chave { provedor, stdin } => Ok(guardar_chave(provedor, *stdin)),
         Cmd::Panico { .. } | Cmd::NaoPerturbe { .. } => modos(&s, &cmd),
         Cmd::Tela { limpar } => {
-            let store = Store::open(s.db_path())?;
+            let store = orion_core::dbopen::open_store(&s.db_path())?;
             if *limpar {
                 println!("{} registro(s) de tela apagado(s)", store.clear_screen()?);
             } else {
@@ -495,7 +543,7 @@ fn rodar(cli: Cli) -> anyhow::Result<i32> {
             Ok(0)
         }
         Cmd::Fatos { duplicados } => {
-            let store = Store::open(s.db_path())?;
+            let store = orion_core::dbopen::open_store(&s.db_path())?;
             if *duplicados {
                 let pares = store.duplicate_facts(0.75)?;
                 for (a, b, j) in &pares {

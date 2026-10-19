@@ -47,3 +47,4 @@ orion-platform = { path = "../orion-platform" }
 
 [features]
 local-vulkan = ["orion-core/local-vulkan"]
+sqlcipher = ["orion-core/sqlcipher"]

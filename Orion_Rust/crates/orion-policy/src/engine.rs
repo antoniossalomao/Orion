@@ -6,7 +6,7 @@
 //! ação (REGRAS.md: falha de auditoria nega a ação).
 
 use crate::approvals::ApprovalStore;
-use crate::audit::{redact, RateLimiter, MASCARA};
+use crate::audit::{redact_pii, RateLimiter, MASCARA};
 use crate::classes::{default_rate_limits, default_tools, Risk, ToolSpec};
 use crate::paths::{realpath, PathGuard};
 use crate::pyjson;
@@ -331,7 +331,7 @@ impl PolicyEngine {
             "tool": call.name,
             "origin": spec.as_ref().and_then(|s| s.origin.clone()),
             "revision": spec.as_ref().and_then(|s| s.revision.clone()),
-            "args": redact(&Value::Object(args), 500),
+            "args": redact_pii(&Value::Object(args), 500),
             "action": d.action.as_str(),
             "risk": d.risk.map(Risk::as_str),
             "reason": d.reason,

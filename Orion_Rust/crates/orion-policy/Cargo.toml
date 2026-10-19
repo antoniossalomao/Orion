@@ -17,3 +17,6 @@ base64.workspace = true
 tracing.workspace = true
 dirs = "5"
 
+
+[dev-dependencies]
+tempfile.workspace = true

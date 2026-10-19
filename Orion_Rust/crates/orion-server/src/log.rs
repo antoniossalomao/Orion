@@ -1,8 +1,13 @@
 //! Logs em JSON por linha, com segredos mascarados (REGRAS.md: segredos nunca em log, audit ou
 //! processo filho).
 
+use orion_core::logcrypt::EncryptedLog;
 use std::io::Write;
+use std::sync::OnceLock;
 use tracing_subscriber::fmt::MakeWriter;
+
+/// Destino cifrado em arquivo, quando o banco é cifrado.
+static CIFRADO: OnceLock<EncryptedLog> = OnceLock::new();
 
 /// Escreve no stderr mascarando padrões de token conhecidos em cada linha.
 pub struct Mascarado;
@@ -22,7 +27,13 @@ impl Write for Escritor {
 impl Drop for Escritor {
     fn drop(&mut self) {
         let texto = String::from_utf8_lossy(&self.0);
-        let _ = std::io::stderr().write_all(orion_policy::audit::mask_tokens(&texto).as_bytes());
+        // segredos e dados pessoais mascarados antes de qualquer destino
+        let limpo = orion_policy::audit::mask_pii(&orion_policy::audit::mask_tokens(&texto));
+        let _ = std::io::stderr().write_all(limpo.as_bytes());
+        if let Some(c) = CIFRADO.get() {
+            let agora = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs_f64()).unwrap_or(0.0);
+            let _ = c.write_line(limpo.trim_end_matches('\n'), agora);
+        }
     }
 }
 
@@ -33,7 +44,10 @@ impl<'a> MakeWriter<'a> for Mascarado {
     }
 }
 
-pub fn setup(nivel: &str, json: bool) {
+pub fn setup(nivel: &str, json: bool, cifrado: Option<EncryptedLog>) {
+    if let Some(c) = cifrado {
+        let _ = CIFRADO.set(c);
+    }
     let nivel = match nivel {
         "DEBUG" => "debug",
         "WARNING" => "warn",

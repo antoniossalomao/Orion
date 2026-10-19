@@ -274,12 +274,12 @@ pub fn embedder_from_settings(settings: &Settings) -> Option<Arc<dyn orion_store
 pub fn memory_from_settings(settings: &Settings) -> anyhow::Result<Store> {
     let embedder = embedder_from_settings(settings);
     let tem = embedder.is_some();
-    let s = match Store::open_with(settings.db_path(), embedder, orion_policy::wall_clock()) {
+    let s = match orion_core::dbopen::open_store_with(&settings.db_path(), embedder, orion_policy::wall_clock()) {
         Ok(s) => s,
         Err(e) if tem => {
             // trocou o modelo/dimensão sem `reset_vectors()`: sobe sem vetores em vez de não subir
             tracing::error!("embeddings desligados: {e}");
-            Store::open(settings.db_path())?
+            orion_core::dbopen::open_store(&settings.db_path())?
         }
         Err(e) => return Err(e.into()),
     };

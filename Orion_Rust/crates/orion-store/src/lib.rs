@@ -76,6 +76,9 @@ pub struct Store {
     pub reranker: Mutex<Option<Arc<dyn Reranker>>>,
     /// Há embedder: a busca vetorial está ligada.
     pub vectors_available: bool,
+    /// Chave do banco cifrado: os backups saem cifrados com a mesma chave, nunca em claro.
+    #[cfg(feature = "sqlcipher")]
+    key: Option<zeroize::Zeroizing<[u8; 32]>>,
 }
 
 impl Store {
@@ -108,6 +111,8 @@ impl Store {
             clock,
             index: Mutex::new(vectors::VectorIndex::default()),
             reranker: Mutex::new(None),
+            #[cfg(feature = "sqlcipher")]
+            key: None,
         };
         store.init_schema()?;
         if let Some(e) = &store.embedder {
@@ -127,7 +132,9 @@ impl Store {
         }
         let conn = Connection::open(&path)?;
         crypto::apply_key(&conn, key)?;
-        Self::finish_open(path, conn, embedder, clock)
+        let mut store = Self::finish_open(path, conn, embedder, clock)?;
+        store.key = Some(zeroize::Zeroizing::new(*key));
+        Ok(store)
     }
 
     pub fn now(&self) -> f64 {
@@ -336,6 +343,10 @@ impl Store {
         let _ = std::fs::remove_file(&tmp);
         {
             let mut copia = Connection::open(&tmp)?;
+            #[cfg(feature = "sqlcipher")]
+            if let Some(k) = &self.key {
+                crypto::apply_key(&copia, k)?;
+            }
             let c = self.conn();
             let b = rusqlite::backup::Backup::new(&c, &mut copia)?;
             b.run_to_completion(256, std::time::Duration::from_millis(0), None)?;
@@ -376,6 +387,9 @@ impl Store {
 
     /// Abre o backup só para leitura, confere integridade e devolve as contagens.
     pub fn verify_backup(arquivo: &Path) -> Result<Vec<(String, i64)>> {
+        if !std::fs::read(arquivo).is_ok_and(|b| b.starts_with(b"SQLite format 3\0")) {
+            return invalid("backup cifrado ou que não é SQLite: conferir e restaurar backup cifrado ainda não é suportado");
+        }
         let conn = Connection::open_with_flags(arquivo, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)?;
         let ok: String = conn.query_row("PRAGMA integrity_check", [], |r| r.get(0))?;
         if ok != "ok" {
