@@ -2,8 +2,10 @@
 //! (`ORION_INSTALADOR_ESPECIFICACAO.md`, §§ 6 e 10).
 
 use crate::i18n::{format_gb, Language};
+use crate::register::{self, InstallManifest, InstalledFile, RecordingRegistrar, Registrar, UninstallEntry, WindowsRegistrar};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use sysinfo::{Disks, System};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -290,15 +292,47 @@ pub enum StepItemStatus {
     Error,
 }
 
-#[derive(Debug, Clone)]
+/// Registro feito fora de arquivos, desfeito pelo `rollback`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Undo {
+    Uninstall,
+    Autostart,
+}
+
+#[derive(Clone)]
 pub struct InstallPlan {
     pub root_override: Option<PathBuf>,
     pub created_paths: Vec<PathBuf>,
+    registrar: Arc<dyn Registrar>,
+    undo: Vec<Undo>,
+}
+
+impl std::fmt::Debug for InstallPlan {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("InstallPlan").field("root_override", &self.root_override).field("created_paths", &self.created_paths).finish()
+    }
 }
 
 impl InstallPlan {
+    /// Com `root_override` (prévia e testes) nada é registrado no Windows.
     pub fn new(root_override: Option<PathBuf>) -> Self {
-        Self { root_override, created_paths: Vec::new() }
+        let registrar: Arc<dyn Registrar> = if root_override.is_some() { Arc::new(RecordingRegistrar::default()) } else { Arc::new(WindowsRegistrar) };
+        Self::with_registrar(root_override, registrar)
+    }
+
+    pub fn with_registrar(root_override: Option<PathBuf>, registrar: Arc<dyn Registrar>) -> Self {
+        Self { root_override, created_paths: Vec::new(), registrar, undo: Vec::new() }
+    }
+
+    fn real(&self) -> bool {
+        self.root_override.is_none()
+    }
+
+    /// Relê o manifesto do app, aplica a mudança e grava de volta.
+    fn update_manifest(&self, app_dir: &Path, change: impl FnOnce(&mut InstallManifest)) -> Result<(), String> {
+        let mut m = InstallManifest::load(app_dir)?;
+        change(&mut m);
+        m.save(app_dir)
     }
 
     fn map_path(&self, original: &Path) -> PathBuf {
@@ -330,6 +364,9 @@ impl InstallPlan {
         let existed = models_dir.exists();
         std::fs::create_dir_all(&models_dir).map_err(|e| e.to_string())?;
         if !existed { self.created_paths.push(models_dir.clone()); }
+        let data_existed = data_dir.exists();
+        std::fs::create_dir_all(&data_dir).map_err(|e| e.to_string())?;
+        if !data_existed { self.created_paths.push(data_dir.clone()); }
         let selected: Vec<_> = choices.models.iter().filter(|m| m.selected).collect();
         let mut config = serde_json::json!({
             "ORION_DATA_DIR": choices.data_dir,
@@ -399,73 +436,102 @@ impl InstallPlan {
             0 => {
                 std::fs::create_dir_all(&app_dir).map_err(|e| format!("falha ao criar {}: {e}", app_dir.display()))?;
                 if std::fs::read_dir(&app_dir).is_ok_and(|mut entries| entries.next().is_none()) { self.created_paths.push(app_dir.clone()); }
-                let manifest = app_dir.join("orion-install.json");
+                let manifest = app_dir.join(register::MANIFEST);
                 if manifest.exists() { return Err("Orion já instalado nesta pasta; escolha uma pasta nova para preservar a instalação existente".into()); }
-                let info = serde_json::json!({
-                    "version": "0.1.0",
-                    "app_dir": choices.app_dir,
-                    "data_dir": choices.data_dir,
-                    "models_dir": choices.models_dir,
-                });
+                let info = InstallManifest {
+                    version: env!("CARGO_PKG_VERSION").into(),
+                    app_dir: choices.app_dir.clone(),
+                    data_dir: choices.data_dir.clone(),
+                    models_dir: choices.models_dir.clone(),
+                    ..Default::default()
+                };
                 self.write_new(&manifest, &serde_json::to_vec_pretty(&info).unwrap_or_default())
                     .map_err(|e| format!("falha ao gravar manifesto: {e}"))?;
                 self.created_paths.push(manifest);
-                if self.root_override.is_none() {
+                if self.real() {
                     let executable = std::env::current_exe().map_err(|e| e.to_string())?;
                     let bundle = executable.parent().ok_or("pasta do instalador ausente")?.join(if choices.use_vulkan { "vulkan" } else { "cpu" });
-                    for name in ["orion.exe", "orion-llama.exe"] {
-                        let mut source = std::fs::File::open(bundle.join(name)).map_err(|_| format!("O pacote precisa incluir {name}"))?;
+                    let mut copied = Vec::new();
+                    for (name, source) in [
+                        ("orion.exe", bundle.join("orion.exe")),
+                        ("orion-llama.exe", bundle.join("orion-llama.exe")),
+                        // o próprio instalador vira o desinstalador (Apps instalados chama `--uninstall`)
+                        (register::UNINSTALLER, executable.clone()),
+                    ] {
+                        let mut input = std::fs::File::open(&source).map_err(|_| format!("O pacote precisa incluir {name}"))?;
                         let destination = app_dir.join(name);
                         let mut output = std::fs::OpenOptions::new().write(true).create_new(true).open(&destination).map_err(|e| e.to_string())?;
-                        self.created_paths.push(destination);
-                        std::io::copy(&mut source, &mut output).map_err(|e| e.to_string())?;
+                        self.created_paths.push(destination.clone());
+                        std::io::copy(&mut input, &mut output).map_err(|e| e.to_string())?;
+                        output.sync_all().map_err(|e| e.to_string())?;
+                        copied.push(name);
                     }
+                    let files: Vec<InstalledFile> = copied
+                        .into_iter()
+                        .map(|n| register::sha256_file(&app_dir.join(n)).map(|sha256| InstalledFile { name: n.into(), sha256 }).map_err(|e| e.to_string()))
+                        .collect::<Result<_, _>>()?;
+                    self.update_manifest(&app_dir, |m| m.files = files)?;
                 }
                 Ok(format!("App preparado em {}", app_dir.display()))
             }
             1 => {
-                let data_existed = data_dir.exists();
-                std::fs::create_dir_all(&data_dir).map_err(|e| format!("falha ao criar {}: {e}", data_dir.display()))?;
-                if !data_existed { self.created_paths.push(data_dir.clone()); }
-                let sparse = data_dir.join("AppxManifest.xml");
-                self.write_new(
-                    &sparse,
-                    r#"<?xml version="1.0" encoding="utf-8"?><Package><Identity Name="Orion.Desktop" Version="0.1.0.0" /></Package>"#.as_bytes(),
-                )
-                .map_err(|e| format!("falha ao registrar identidade: {e}"))?;
-                self.created_paths.push(sparse);
-                Ok("Identidade de pacote esparso registrada".into())
+                // Registro em Apps instalados: é o que habilita "Desinstalar" no Windows.
+                let uninstaller = choices.app_dir.join(register::UNINSTALLER);
+                let entry = UninstallEntry {
+                    display_name: "Orion".into(),
+                    version: env!("CARGO_PKG_VERSION").into(),
+                    publisher: "Antônio".into(),
+                    install_location: choices.app_dir.clone(),
+                    uninstall_command: format!("\"{}\" --uninstall \"{}\"", uninstaller.display(), choices.app_dir.display()),
+                    icon: choices.app_dir.join("orion.exe"),
+                };
+                self.registrar.register_uninstall(&entry).map_err(|e| format!("falha ao registrar o app no Windows: {e}"))?;
+                self.undo.push(Undo::Uninstall);
+                self.update_manifest(&app_dir, |m| m.registered = true)?;
+                Ok("App registrado em Apps instalados".into())
             }
             2 => {
-                let cert = data_dir.join("orion-selfsigned.cer");
-                self.write_new(&cert, b"ORION-SELFSIGNED-CERT-V1")
-                    .map_err(|e| format!("falha ao instalar certificado: {e}"))?;
-                self.created_paths.push(cert);
-                Ok("Certificado autoassinado registrado".into())
+                // Sem certificado: assinatura de release exige certificado real (pendente). Aqui
+                // fica só a lista de SHA-256 dos arquivos copiados, para conferência.
+                let m = InstallManifest::load(&app_dir)?;
+                let lista: String = m.files.iter().map(|f| format!("{}  {}\n", f.sha256, f.name)).collect();
+                let sums = app_dir.join("orion-files.sha256");
+                self.write_new(&sums, lista.as_bytes()).map_err(|e| format!("falha ao gravar a lista de integridade: {e}"))?;
+                self.created_paths.push(sums);
+                Ok(format!("Integridade registrada para {} arquivos", m.files.len()))
             }
             3 => {
-                let shortcuts = data_dir.join("shortcuts.json");
-                let payload = serde_json::json!({
-                    "start_menu": true,
-                    "pin_to_taskbar": choices.pin_to_taskbar,
-                    "start_with_windows": choices.start_with_windows,
-                });
-                self.write_new(&shortcuts, &serde_json::to_vec_pretty(&payload).unwrap_or_default())
-                    .map_err(|e| format!("falha ao criar atalhos: {e}"))?;
-                self.created_paths.push(shortcuts);
-                Ok("Atalhos no Menu Iniciar e barra configurados".into())
+                let lnk = if self.real() { register::start_menu_shortcut() } else { app_dir.join("Orion.lnk") };
+                let orion = choices.app_dir.join("orion.exe");
+                if lnk.exists() { return Err(format!("já existe um atalho em {}", lnk.display())); }
+                self.registrar.create_shortcut(&lnk, &orion, "desktop", &choices.app_dir).map_err(|e| format!("falha ao criar o atalho: {e}"))?;
+                if lnk.exists() { self.created_paths.push(lnk.clone()); }
+                let mut autostart = false;
+                if choices.start_with_windows {
+                    // opt-in (REGRAS.md): só com a caixa marcada
+                    self.registrar.set_autostart(&format!("\"{}\" desktop --background", orion.display())).map_err(|e| format!("falha ao ativar o início automático: {e}"))?;
+                    self.undo.push(Undo::Autostart);
+                    autostart = true;
+                }
+                self.update_manifest(&app_dir, |m| {
+                    m.shortcut = Some(lnk);
+                    m.autostart = autostart;
+                })?;
+                Ok(if choices.pin_to_taskbar { "Atalho no Menu Iniciar criado; fixar na barra exige sua confirmação no Windows" } else { "Atalho no Menu Iniciar criado" }.into())
             }
             4 => {
-                let updater = data_dir.join("updater-service.json");
+                // Ainda não há atualizador: grava só as preferências. Nenhum serviço é instalado.
+                let updater = data_dir.join("update.json");
                 let payload = serde_json::json!({
-                    "service": "OrionUpdater",
                     "channel": "stable",
+                    "auto_update": false,
                     "crash_reports": choices.send_crash_reports,
                 });
+                std::fs::create_dir_all(&data_dir).map_err(|e| format!("falha ao criar {}: {e}", data_dir.display()))?;
                 self.write_new(&updater, &serde_json::to_vec_pretty(&payload).unwrap_or_default())
-                    .map_err(|e| format!("falha ao configurar serviço de atualização: {e}"))?;
+                    .map_err(|e| format!("falha ao gravar preferências de atualização: {e}"))?;
                 self.created_paths.push(updater);
-                Ok("Serviço de atualização configurado".into())
+                Ok("Preferências de atualização gravadas (sem serviço; atualizador pendente)".into())
             }
             5 => self.install_models(choices, &std::sync::atomic::AtomicBool::new(false), &|_, _| {}),
             _ => Ok("Concluído".into()),
@@ -474,6 +540,12 @@ impl InstallPlan {
 
     /// Desfaz em ordem inversa tudo o que foi criado até aqui (§2.1, §6 Etapa 5 e §10.9).
     pub fn rollback(&mut self) {
+        while let Some(undo) = self.undo.pop() {
+            let _ = match undo {
+                Undo::Autostart => self.registrar.remove_autostart(),
+                Undo::Uninstall => self.registrar.unregister_uninstall(),
+            };
+        }
         while let Some(path) = self.created_paths.pop() {
             if path.is_file() {
                 let _ = std::fs::remove_file(&path);
@@ -499,36 +571,80 @@ mod tests {
         assert!(!choices.enable_voice && !choices.start_with_windows && !choices.use_vulkan);
     }
 
+    fn plan_de_teste(root: &Path) -> (InstallPlan, Arc<RecordingRegistrar>) {
+        let rec = Arc::new(RecordingRegistrar::default());
+        (InstallPlan::with_registrar(Some(root.to_path_buf()), rec.clone()), rec)
+    }
+
     #[test]
     fn instalacao_e_rollback_desfazem_em_ordem_inversa() {
         let tmp = tempfile::tempdir().unwrap();
-        let pc = PcInfo::prototype_reference();
-        let choices = SetupChoices::new(&pc);
-        let mut plan = InstallPlan::new(Some(tmp.path().to_path_buf()));
-        for step in 0..4 {
-            assert!(plan.execute_step(step, &choices).is_ok());
+        let mut choices = SetupChoices::new(&PcInfo::prototype_reference());
+        choices.start_with_windows = true;
+        let (mut plan, rec) = plan_de_teste(tmp.path());
+        for step in 0..5 {
+            plan.execute_step(step, &choices).unwrap_or_else(|e| panic!("passo {step}: {e}"));
         }
+        let calls = rec.calls();
+        assert!(calls.iter().any(|c| c.starts_with("register_uninstall \"") && c.contains("--uninstall")));
+        assert!(calls.iter().any(|c| c.starts_with("set_autostart") && c.contains("desktop --background")));
+        let app = plan.map_path(&choices.app_dir);
+        let m = InstallManifest::load(&app).unwrap();
+        assert!(m.registered && m.autostart && m.shortcut.is_some());
+        assert!(app.join("orion-files.sha256").exists());
         assert!(!plan.created_paths.is_empty());
         plan.rollback();
         assert!(plan.created_paths.is_empty());
+        let calls = rec.calls();
+        assert_eq!(&calls[calls.len() - 2..], ["remove_autostart", "unregister_uninstall"]);
+        assert!(!app.join(register::MANIFEST).exists());
+    }
+
+    #[test]
+    fn inicio_automatico_so_com_a_caixa_marcada() {
+        let tmp = tempfile::tempdir().unwrap();
+        let choices = SetupChoices::new(&PcInfo::prototype_reference());
+        assert!(!choices.start_with_windows);
+        let (mut plan, rec) = plan_de_teste(tmp.path());
+        for step in 0..4 {
+            plan.execute_step(step, &choices).unwrap();
+        }
+        assert!(rec.calls().iter().all(|c| !c.contains("autostart")));
+    }
+
+    #[test]
+    fn instalacao_completa_pode_ser_desinstalada() {
+        let tmp = tempfile::tempdir().unwrap();
+        let choices = SetupChoices::new(&PcInfo::prototype_reference());
+        let (mut plan, rec) = plan_de_teste(tmp.path());
+        for step in 0..5 {
+            plan.execute_step(step, &choices).unwrap();
+        }
+        let app = plan.map_path(&choices.app_dir);
+        let data = plan.map_path(&choices.data_dir);
+        std::fs::write(data.join("orion.db"), b"dados do dono").unwrap();
+        register::uninstall(&app, rec.as_ref(), false).unwrap();
+        assert!(!app.join(register::MANIFEST).exists());
+        assert_eq!(std::fs::read(data.join("orion.db")).unwrap(), b"dados do dono");
     }
 
     #[test]
     fn rollback_preserva_dados_e_arquivos_preexistentes() {
         let tmp = tempfile::tempdir().unwrap();
         let choices = SetupChoices::new(&PcInfo::prototype_reference());
-        let mut plan = InstallPlan::new(Some(tmp.path().to_path_buf()));
+        let (mut plan, _) = plan_de_teste(tmp.path());
         let data = plan.map_path(&choices.data_dir);
         std::fs::create_dir_all(&data).unwrap();
         std::fs::write(data.join("orion.db"), b"dados do dono").unwrap();
-        plan.execute_step(1, &choices).unwrap();
+        plan.execute_step(4, &choices).unwrap();
+        assert!(data.join("update.json").exists());
         plan.rollback();
         assert_eq!(std::fs::read(data.join("orion.db")).unwrap(), b"dados do dono");
-        assert!(!data.join("AppxManifest.xml").exists());
-        std::fs::write(data.join("shortcuts.json"), b"config antiga").unwrap();
-        assert!(plan.execute_step(3, &choices).is_err());
+        assert!(!data.join("update.json").exists());
+        std::fs::write(data.join("update.json"), b"config antiga").unwrap();
+        assert!(plan.execute_step(4, &choices).is_err());
         plan.rollback();
-        assert_eq!(std::fs::read(data.join("shortcuts.json")).unwrap(), b"config antiga");
+        assert_eq!(std::fs::read(data.join("update.json")).unwrap(), b"config antiga");
     }
 
     #[test]
@@ -537,7 +653,6 @@ mod tests {
         let mut choices = SetupChoices::new(&PcInfo::prototype_reference());
         choices.models.iter_mut().find(|m| m.id == "qwen3-0.6b").unwrap().selected = true;
         let mut plan = InstallPlan::new(Some(tmp.path().to_path_buf()));
-        plan.execute_step(1, &choices).unwrap();
         plan.execute_step(5, &choices).unwrap();
         let config: serde_json::Value = serde_json::from_slice(&std::fs::read(plan.map_path(&choices.data_dir).join("orion-local.json")).unwrap()).unwrap();
         assert!(config.get("ORION_LOCAL_MODEL_PATH").is_none());

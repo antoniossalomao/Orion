@@ -56,6 +56,9 @@ fn main() -> iced::Result {
     }
 
     let args: Vec<String> = std::env::args().collect();
+    if let Some(code) = orion_setup::register::handle_uninstall_args(&args) {
+        std::process::exit(code);
+    }
     let real_install = !args.iter().any(|a| a == "--preview" || a == "--prototype-hw");
     let use_proto_hw = args.iter().any(|a| a == "--prototype-hw");
 

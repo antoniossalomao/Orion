@@ -5,6 +5,8 @@
 //! palavra-chave e os vetores faltantes entram depois em `embed_pending()`. O esquema é o mesmo
 //! do Python durante a transição: os dois lados abrem o mesmo `orion.db`.
 
+#[cfg(feature = "sqlcipher")]
+pub mod crypto;
 pub mod documents;
 pub mod facts;
 pub mod library;
@@ -90,6 +92,11 @@ impl Store {
             }
         }
         let conn = if memoria { Connection::open_in_memory()? } else { Connection::open(&path)? };
+        Self::finish_open(path, conn, embedder, clock)
+    }
+
+    /// Resto da abertura, igual para banco em claro e cifrado (a chave já foi aplicada).
+    fn finish_open(path: PathBuf, conn: Connection, embedder: Option<Arc<dyn Embedder>>, clock: Clock) -> Result<Self> {
         conn.busy_timeout(std::time::Duration::from_secs(5))?;
         conn.pragma_update(None, "journal_mode", "WAL")?;
         conn.pragma_update(None, "foreign_keys", "ON")?;
@@ -107,6 +114,20 @@ impl Store {
             store.ensure_vector_dim(e.dim())?;
         }
         Ok(store)
+    }
+
+    /// Abre (ou cria) um banco cifrado com SQLCipher. A chave de 256 bits vai direto, sem derivação
+    /// do SQLCipher; quem chama deriva a chave da senha (Argon2id). Chave errada ou arquivo em claro
+    /// dá erro na primeira leitura, nunca dado lixo.
+    #[cfg(feature = "sqlcipher")]
+    pub fn open_encrypted(path: impl AsRef<Path>, key: &[u8; 32], embedder: Option<Arc<dyn Embedder>>, clock: Clock) -> Result<Self> {
+        let path = path.as_ref().to_path_buf();
+        if let Some(pai) = path.parent() {
+            std::fs::create_dir_all(pai).map_err(|e| StoreError::Other(e.to_string()))?;
+        }
+        let conn = Connection::open(&path)?;
+        crypto::apply_key(&conn, key)?;
+        Self::finish_open(path, conn, embedder, clock)
     }
 
     pub fn now(&self) -> f64 {

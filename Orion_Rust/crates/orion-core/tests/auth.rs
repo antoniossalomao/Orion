@@ -218,3 +218,50 @@ fn tokens_de_dispositivo_sao_revogados_ao_trocar_a_senha_e_ao_parear_de_novo() {
     a.set_password("outra-senha-ainda-maior").unwrap(); // trocar a senha desfaz o pareamento
     assert!(a.device_scope(Some(&t2)).is_none());
 }
+
+#[test]
+fn senha_nova_e_gravada_em_argon2id_e_confere() {
+    let d = tmp();
+    let a = auth(d.path());
+    a.set_password("senha-correta-123").unwrap();
+    let hash: String = rusqlite::Connection::open(d.path().join("auth.db"))
+        .unwrap()
+        .query_row("SELECT pw_hash FROM credential", [], |r| r.get(0))
+        .unwrap();
+    assert!(hash.starts_with("$argon2id$"), "{hash}");
+    assert!(a.check_password("senha-correta-123") && !a.check_password("outra-senha-123"));
+}
+
+#[test]
+fn hash_pbkdf2_legado_confere_e_vira_argon2id_no_primeiro_login() {
+    let d = tmp();
+    let a = auth(d.path());
+    let legado = hash_password("senha-correta-123", IT);
+    let c = rusqlite::Connection::open(d.path().join("auth.db")).unwrap();
+    c.execute("INSERT INTO credential(user, pw_hash, updated_at, is_default) VALUES ('admin', ?, 0, 0)", [&legado]).unwrap();
+    assert!(!a.check_password("senha-errada-123"));
+    let ainda: String = c.query_row("SELECT pw_hash FROM credential", [], |r| r.get(0)).unwrap();
+    assert_eq!(ainda, legado, "senha errada não regrava o hash");
+    assert!(a.check_password("senha-correta-123"));
+    let novo: String = c.query_row("SELECT pw_hash FROM credential", [], |r| r.get(0)).unwrap();
+    assert!(novo.starts_with("$argon2id$"));
+    assert!(a.check_password("senha-correta-123") && !a.check_password("senha-errada-123"));
+}
+
+#[test]
+fn argon2id_corrompido_nunca_confere() {
+    for lixo in ["$argon2id$", "$argon2id$v=19$m=8,t=1,p=1$x$y", "$argon2i$v=19$m=8,t=1,p=1$c2Fs$aGFzaA"] {
+        assert!(!verify_password("qualquer", lixo), "{lixo:?}");
+    }
+}
+
+#[test]
+fn chave_do_banco_depende_da_senha_e_do_sal() {
+    use orion_core::auth::derive_db_key;
+    let sal = [1u8; 16];
+    let a = derive_db_key("senha-correta-123", &sal).unwrap();
+    assert_eq!(*a, *derive_db_key("senha-correta-123", &sal).unwrap());
+    assert_ne!(*a, *derive_db_key("outra-senha-123", &sal).unwrap());
+    assert_ne!(*a, *derive_db_key("senha-correta-123", &[2u8; 16]).unwrap());
+    assert!(derive_db_key("senha-correta-123", &[1u8; 8]).is_err());
+}

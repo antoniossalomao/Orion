@@ -1,10 +1,14 @@
-//! Login do Orion: senha com PBKDF2 e sessão por cookie opaco e revogável
+//! Login do Orion: senha com Argon2id e sessão por cookie opaco e revogável
 //! (REGRAS.md: login com senha e sessão revogável).
 //!
 //! O token da sessão é aleatório (256 bits); o banco guarda só o SHA-256 dele. Os dados ficam em
 //! `auth.db`, fora do banco da memória: o backup não leva o hash da senha. O formato do hash é o
-//! mesmo do Python (`pbkdf2_sha256$iter$sal$hash`, base64 padrão).
+//! mesmo do Python (`pbkdf2_sha256$iter$sal$hash`, base64 padrão) só para ler hashes antigos: toda
+//! senha nova é gravada em Argon2id (PHC) e um hash PBKDF2 correto é regravado em Argon2id no
+//! primeiro login. Depois disso o Python de referência deixa de ler o `auth.db`.
 
+use argon2::password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString};
+use argon2::{Algorithm, Argon2, Params, Version};
 use base64::Engine as _;
 use orion_policy::approvals::token_urlsafe;
 use parking_lot::Mutex;
@@ -15,8 +19,14 @@ use std::collections::{HashMap, VecDeque};
 use std::path::Path;
 use std::time::Instant;
 use subtle::ConstantTimeEq;
+use zeroize::Zeroizing;
 
 pub const ALGORITMO: &str = "pbkdf2_sha256";
+/// Prefixo do hash PHC do Argon2id.
+pub const ALGORITMO_ARGON2: &str = "$argon2id$";
+/// OWASP 2023 para Argon2id: 19 MiB, 2 passes, 1 faixa.
+const ARGON2_MEM_KIB: u32 = 19 * 1024;
+const ARGON2_PASSES: u32 = 2;
 /// OWASP 2023 para PBKDF2-HMAC-SHA256.
 pub const ITERACOES: u32 = 600_000;
 pub const SENHA_MIN: usize = 12;
@@ -66,7 +76,26 @@ pub fn hash_password(senha: &str, it: u32) -> String {
     format!("{ALGORITMO}${it}${}${}", b64(&sal), b64(&pbkdf2(senha, &sal, it)))
 }
 
+/// `custo_pleno` falso só nos testes, para não gastar 19 MiB por hash.
+fn argon2(custo_pleno: bool) -> Argon2<'static> {
+    let (m, t) = if custo_pleno { (ARGON2_MEM_KIB, ARGON2_PASSES) } else { (8, 1) };
+    Argon2::new(Algorithm::Argon2id, Version::V0x13, Params::new(m, t, 1, None).expect("parâmetros fixos válidos"))
+}
+
+/// Hash Argon2id (PHC) com sal aleatório de 128 bits.
+pub fn hash_password_argon2id(senha: &str, custo_pleno: bool) -> String {
+    let mut sal = [0u8; 16];
+    rand::thread_rng().fill_bytes(&mut sal);
+    let sal = SaltString::encode_b64(&sal).expect("sal de 16 bytes");
+    argon2(custo_pleno).hash_password(senha.as_bytes(), &sal).expect("Argon2id com parâmetros fixos").to_string()
+}
+
+/// Confere a senha contra Argon2id (PHC) ou PBKDF2 legado.
 pub fn verify_password(senha: &str, armazenado: &str) -> bool {
+    if armazenado.starts_with(ALGORITMO_ARGON2) {
+        let Ok(h) = PasswordHash::new(armazenado) else { return false };
+        return Argon2::default().verify_password(senha.as_bytes(), &h).is_ok();
+    }
     let p: Vec<&str> = armazenado.split('$').collect();
     if p.len() != 4 || p[0] != ALGORITMO {
         return false;
@@ -74,6 +103,24 @@ pub fn verify_password(senha: &str, armazenado: &str) -> bool {
     let (Ok(it), Some(sal), Some(esperado)) = (p[1].parse::<u32>(), unb64(p[2]), unb64(p[3])) else { return false };
     let h = pbkdf2(senha, &sal, it);
     h.ct_eq(esperado.as_slice()).into()
+}
+
+/// Chave de 256 bits do banco a partir da senha e de um sal próprio (16 bytes ou mais), por
+/// Argon2id com o custo pleno. Não é o hash de login: sal e uso são outros, e a chave não é gravada.
+pub fn derive_db_key(senha: &str, sal: &[u8]) -> Result<Zeroizing<[u8; 32]>, AuthError> {
+    if sal.len() < 16 {
+        return Err(AuthError::WeakPassword("sal da chave do banco com menos de 16 bytes".into()));
+    }
+    let mut key = Zeroizing::new([0u8; 32]);
+    argon2(true)
+        .hash_password_into(senha.as_bytes(), sal, key.as_mut())
+        .map_err(|e| AuthError::WeakPassword(format!("não consegui derivar a chave do banco: {e}")))?;
+    Ok(key)
+}
+
+/// O hash guardado é o legado (PBKDF2) e deve virar Argon2id no próximo login certo?
+pub fn precisa_rehash(armazenado: &str) -> bool {
+    !armazenado.starts_with(ALGORITMO_ARGON2)
 }
 
 fn digest(token: &str) -> String {
@@ -161,6 +208,7 @@ pub struct AuthService {
     pub user: String,
     ttl: f64,
     it: u32,
+    pleno: bool,
     pub throttle: LoginThrottle,
     conn: Mutex<Connection>,
     falso: String,
@@ -189,8 +237,9 @@ impl AuthService {
             let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600));
         }
         // hash falso para igualar o tempo de "usuário sem senha" ao de "senha errada"
-        let falso = hash_password(&token_urlsafe(16), it);
-        Ok(AuthService { user: user.into(), ttl: ttl_s, it, throttle: LoginThrottle::default(), conn: Mutex::new(conn), falso })
+        let pleno = it >= ITERACOES;
+        let falso = hash_password_argon2id(&token_urlsafe(16), pleno);
+        Ok(AuthService { user: user.into(), ttl: ttl_s, it, pleno, throttle: LoginThrottle::default(), conn: Mutex::new(conn), falso })
     }
 
     pub fn has_password(&self) -> bool {
@@ -216,7 +265,7 @@ impl AuthService {
         }
         self.conn.lock().execute(
             "INSERT INTO credential(user, pw_hash, updated_at, is_default) VALUES (?,?,?,1)",
-            params![self.user, hash_password(SENHA_PADRAO, self.it), agora()],
+            params![self.user, hash_password_argon2id(SENHA_PADRAO, self.pleno), agora()],
         )?;
         Ok(true)
     }
@@ -233,7 +282,7 @@ impl AuthService {
         if senha.to_lowercase() == self.user.to_lowercase() {
             return Err(AuthError::WeakPassword("a senha não pode ser o nome de usuário".into()));
         }
-        let novo = hash_password(senha, self.it);
+        let novo = hash_password_argon2id(senha, self.pleno);
         let mut c = self.conn.lock();
         let tx = c.transaction()?;
         tx.execute(
@@ -249,9 +298,16 @@ impl AuthService {
 
     /// Confere a senha sem criar sessão nem contar tentativa (use `login`).
     pub fn check_password(&self, senha: &str) -> bool {
+        // cópia da senha apagada da memória ao sair
+        let senha = Zeroizing::new(senha.to_string());
         let r: Option<String> = self.conn.lock().query_row("SELECT pw_hash FROM credential WHERE user=?", [&self.user], |r| r.get(0)).optional().ok().flatten();
-        let ok = verify_password(senha, r.as_deref().unwrap_or(&self.falso));
-        ok && r.is_some()
+        let ok = verify_password(&senha, r.as_deref().unwrap_or(&self.falso)) && r.is_some();
+        if ok && r.as_deref().is_some_and(precisa_rehash) {
+            // hash PBKDF2 antigo: regrava em Argon2id agora que a senha em claro está à mão
+            let novo = hash_password_argon2id(&senha, self.pleno);
+            let _ = self.conn.lock().execute("UPDATE credential SET pw_hash=? WHERE user=?", params![novo, self.user]);
+        }
+        ok
     }
 
     /// Token da sessão (vai no cookie). Usuário errado falha igual a senha errada.

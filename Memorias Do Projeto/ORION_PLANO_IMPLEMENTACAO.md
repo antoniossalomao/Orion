@@ -387,7 +387,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 **Dependências:** F00 (spikes de banco e Hello), F01.
 
 #### F02.A Banco de dados (`orion-store`)
-- [ ] **F02.01** SQLite com **SQLCipher**; chave derivada da senha com **Argon2id**; chave só em memória, **zeroizada** ao bloquear. **Estado PR #30: Não implementado: o banco atual é SQLite bundled, sem SQLCipher.**
+- [ ] **F02.01** SQLite com **SQLCipher**; chave derivada da senha com **Argon2id**; chave só em memória, **zeroizada** ao bloquear. **Estado PR #30: Parcial (19/10/2026): Argon2id no login com migração e zeroização da senha, `derive_db_key` e feature opcional `sqlcipher` em `orion-store` com testes; o `orion.db` do servidor continua SQLite em claro, sem pedir a senha na subida e sem zeroizar a chave ao bloquear.**
 - [ ] **F02.02** Esquema v1 com migrações: `conversas`, `mensagens`, `ramos`, `anexos`, `aprovacoes`, `atividade`, `auditoria`, `fatos` (com validade/temporal), `chunks_notas` (FTS5), `vetores` (sqlite-vec), `rotinas`, `execucoes`, `cotas`, `chamadas` (saídas sem conteúdo), `tarefas_estado`, `configuracoes`, `eventos_sync` (se o log de eventos for escolhido).
 - [ ] **F02.03** **Transcrição bruta** das conversas guardada para sempre (histórico "para sempre"); histórico de atividade **1 ano**, depois resumo mensal; desfazer por **7 dias**.
 - [ ] **F02.04** Banco **sem limite prático**; compactação (`VACUUM`) agendada; **recuperação do índice** a partir do vault se o banco se perder.
@@ -724,10 +724,10 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [ ] **F10.06** **Etapa 2 Pastas:** app (Arquivos de Programas), **modelos no disco com mais espaço** (sugerido), dados em `%ProgramData%\Orion`.
 - [ ] **F10.07** **Etapa 3 Modelos:** **cartões** com tamanho, RAM, uso e selo **"recomendado para o seu PC"**, pré-marcação por RAM/VRAM, total em GB.
 - [ ] **F10.08** **Etapa 4 Opções:** iniciar com o Windows, voz, fixar na barra de tarefas, relatório de falhas; **UAC** ao instalar.
-- [ ] **F10.09** **Etapa 5 Instalando:** copiar o app, **registrar o pacote esparso**, instalar o **certificado autoassinado**, criar atalhos (**Menu Iniciar** e **barra de tarefas**, sem Área de Trabalho), **serviço de atualização**, agendar o **download dos modelos**, com **desfazer em ordem inversa** em erro ou cancelamento; **fechar pede confirmação**. **Estado PR #30: Cópia/modelos reais; registro Windows/certificado/atalhos/serviço ainda simulados.**
+- [ ] **F10.09** **Etapa 5 Instalando:** copiar o app, **registrar o pacote esparso**, instalar o **certificado autoassinado**, criar atalhos (**Menu Iniciar** e **barra de tarefas**, sem Área de Trabalho), **serviço de atualização**, agendar o **download dos modelos**, com **desfazer em ordem inversa** em erro ou cancelamento; **fechar pede confirmação**. **Estado PR #30 (19/10/2026): cópia, modelos, registro em Apps instalados, atalho do Menu Iniciar, início automático opt-in, lista SHA-256 e rollback do registro implementados no código e testados só por registrador falso e em Linux; pacote esparso, certificado e serviço de atualização continuam não implementados (o certificado de exemplo e o JSON de serviço foram removidos). Sem prova num Windows real.**
 - [ ] **F10.10** **Final:** "Pronto. O Orion está no céu." + **Abrir Orion** (abre o onboarding).
 - [ ] **F10.11** **Download dos modelos em segundo plano:** o app já abre e usa as APIs enquanto baixa; pausar/retomar; **verificação de hash**; avisa antes de atualizar modelo.
-- [ ] **F10.12** **Desinstalador** (Configurações › Aplicativos): **pergunta separadamente** app / modelos / dados; **o vault nunca é tocado**.
+- [ ] **F10.12** **Desinstalador** (Configurações › Aplicativos): **pergunta separadamente** app / modelos / dados; **o vault nunca é tocado**. **Estado PR #30 (19/10/2026): Parcial: `Orion Setup.exe --uninstall <pasta> [--remove-data]` remove o app, o atalho, o início automático e o registro, preserva dados e modelos (dados só com `--remove-data`); sem perguntas separadas e nunca executado no Windows.**
 - [ ] **F10.13** Teste de **snapshot por etapa** comparado ao protótipo (mesmo quadro, mesma semente) e checklist de aceite da especificação §13.
 
 #### F10.B Atualizador (`orion-updater`)

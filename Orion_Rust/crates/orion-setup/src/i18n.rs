@@ -222,18 +222,18 @@ pub fn install_step_texts(total_gb: f32, lang: Language) -> [String; 6] {
     match lang {
         Language::PtBr => [
             "Copiando o Orion para Arquivos de Programas".into(),
-            "Registrando a identidade do app (OCR e avisos)".into(),
-            "Instalando o certificado do Orion".into(),
-            "Criando atalhos no Menu Iniciar e na barra".into(),
-            "Configurando o serviço de atualização".into(),
+            "Registrando o Orion em Apps instalados".into(),
+            "Conferindo a integridade dos arquivos".into(),
+            "Criando o atalho no Menu Iniciar".into(),
+            "Gravando preferências de atualização".into(),
             format!("Baixando e verificando os modelos ({gb_str})"),
         ],
         Language::En => [
             "Copying Orion to Program Files".into(),
-            "Registering package identity (OCR and notifications)".into(),
-            "Installing Orion certificate".into(),
-            "Creating Start Menu and taskbar shortcuts".into(),
-            "Configuring update service".into(),
+            "Registering Orion in Installed apps".into(),
+            "Verifying file integrity".into(),
+            "Creating the Start Menu shortcut".into(),
+            "Saving update preferences".into(),
             format!("Downloading and verifying models ({gb_str})"),
         ],
     }
