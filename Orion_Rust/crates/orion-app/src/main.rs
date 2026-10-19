@@ -3,7 +3,8 @@ use orion_app::app::{App, Msg};
 use orion_app::net::Api;
 use orion_app::theme;
 
-/// `orion-app` fala com o servidor local (`ORION_URL`, padrão http://127.0.0.1:8000).
+/// `orion-app` sobe o `orion serve` sozinho (só em 127.0.0.1) e o encerra ao sair; com `ORION_URL`
+/// usa o servidor indicado.
 /// `orion-app --demo` abre com os dados de exemplo do protótipo, sem servidor.
 fn main() -> iced::Result {
     if std::env::var_os("ICED_BACKEND").is_none() {
@@ -23,6 +24,16 @@ fn main() -> iced::Result {
     let cena = std::env::args().skip_while(|a| a != "--cena").nth(1);
     let boot = move || {
         if !demo {
+            if std::env::var_os("ORION_URL").is_none() && std::env::var_os("ORION_ADMIN_TOKEN").is_none() {
+                match orion_app::host::iniciar() {
+                    Ok((url, tk)) => return App::live(Api::new(&url, Some(tk))),
+                    Err(e) => {
+                        let (mut a, t) = App::live(Api::from_env());
+                        a.gate_err = e;
+                        return (a, t);
+                    }
+                }
+            }
             return App::live(Api::from_env());
         }
         let (mut a, t) = App::boot();
@@ -47,5 +58,7 @@ fn main() -> iced::Result {
     for f in theme::fonts() {
         app = app.font(f);
     }
-    app.run()
+    let r = app.run();
+    orion_app::host::encerrar();
+    r
 }
