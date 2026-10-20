@@ -10,6 +10,7 @@ use serde_json::{json, Value};
 use std::sync::Arc;
 
 pub const CHAVE_PANICO: &str = "modo:panico";
+pub const CHAVE_AUTONOMO: &str = "modo:autonomo";
 pub const CHAVE_DND: &str = "modo:nao_perturbe_ate";
 
 #[derive(Debug, Clone, thiserror::Error)]
@@ -153,12 +154,27 @@ impl Modos {
         Ok(self.memory.meta_set(CHAVE_DND, None)?)
     }
 
+    /// Modo autônomo: o agente segue sozinho em tarefas longas (mais passos de ferramenta por pedido).
+    /// Não muda a política: o que pede aprovação continua pedindo.
+    pub fn autonomo(&self) -> bool {
+        self.memory.meta_get(CHAVE_AUTONOMO).is_some_and(|v| v == "1")
+    }
+
+    pub fn set_autonomo(&self, ativo: bool) -> Result<(), ModoError> {
+        self.memory.meta_set(CHAVE_AUTONOMO, ativo.then_some("1")).map_err(|e| ModoError(e.to_string()))?;
+        if let Some(a) = &self.audit {
+            a(&format!("modo_autonomo ativo={ativo}").into());
+        }
+        Ok(())
+    }
+
     pub fn estado(&self) -> Value {
         let p = self.estado_panico();
         json!({
             "panico": p.is_some(),
             "panico_desde": p.as_ref().and_then(|p| p.get("desde").cloned()),
             "panico_origem": p.as_ref().and_then(|p| p.get("origem").cloned()),
+            "autonomo": self.autonomo(),
             "nao_perturbe": self.nao_perturbe(),
             "nao_perturbe_ate": self.nao_perturbe_ate(),
             "nao_perturbe_horario": if self.janela.is_empty() { None } else { Some(&self.janela) },

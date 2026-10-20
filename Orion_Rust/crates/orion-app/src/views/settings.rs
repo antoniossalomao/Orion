@@ -121,7 +121,7 @@ fn section<'a>(app: &'a App) -> El<'a> {
         }
         Sec::Notificacoes => {
             c = c.push(sh("Notificações do Windows"));
-            for (i, l) in ["Aprovação pendente", "Rotina concluída", "Tarefa na nuvem terminou", "Resposta pronta com a janela em segundo plano"].iter().enumerate() {
+            for (i, l) in ["Aprovação pendente", "Rotina concluída", "Tarefa em segundo plano terminou", "Resposta pronta com a janela em segundo plano"].iter().enumerate() {
                 c = c.push(setting(l, "", swa("notif", i, p.notif[i])));
             }
             c = c.push(sh("Sons sutis"));
@@ -223,23 +223,42 @@ fn section<'a>(app: &'a App) -> El<'a> {
             }
         }
         Sec::Conectores => {
+            let live = app.api.is_some();
             c = c.push(sh("Servidores MCP"));
-            c = c.push(lede("Por comando local (stdio) ou URL (HTTP). As ferramentas aparecem no chat com o nome do servidor."));
-            for m in &app.mcp {
-                let tone = if m.ok { Tone::Ok } else { Tone::Err };
-                let lab = if m.ok { "Gerenciar" } else { "Reconectar" };
-                c = c.push(setting_el(t_badge(&m.t, badge(&m.st, tone)), &format!("{} · {} ferramentas · permissão por ferramenta: perguntar", m.k, m.tools), btn(lab, Kind::Normal, true, None, Some(toast(&format!("{lab} (simulado)"))))));
+            c = c.push(lede("Por comando local (stdio) ou URL (HTTP), definidos no mcp.json da pasta do Orion. As ferramentas aparecem no chat com o nome do servidor."));
+            if live && app.mcp.is_empty() {
+                c = c.push(setting("Nenhum servidor configurado", "Crie o mcp.json na pasta do Orion e reinicie.", badge("vazio", Tone::Plain)));
             }
-            c = c.push(setting("Adicionar servidor", "", btn("Adicionar", Kind::Normal, true, Some("plus"), Some(toast("Comando ou URL do servidor (simulado)")))));
+            for (i, m) in app.mcp.iter().enumerate() {
+                let tone = if m.ok { Tone::Ok } else { Tone::Err };
+                if live {
+                    c = c.push(setting_el(t_badge(&m.t, badge(&m.st, tone)), &format!("{} · {} ferramentas", m.k, m.tools), btn("Testar", Kind::Normal, true, None, Some(Msg::McpTest(i)))));
+                } else {
+                    let lab = if m.ok { "Gerenciar" } else { "Reconectar" };
+                    c = c.push(setting_el(t_badge(&m.t, badge(&m.st, tone)), &format!("{} · {} ferramentas · permissão por ferramenta: perguntar", m.k, m.tools), btn(lab, Kind::Normal, true, None, Some(toast(&format!("{lab} (simulado)"))))));
+                }
+            }
+            if !live {
+                c = c.push(setting("Adicionar servidor", "", btn("Adicionar", Kind::Normal, true, Some("plus"), Some(toast("Comando ou URL do servidor (simulado)")))));
+            }
             c = c.push(sh("Skills"));
             c = c.push(lede("Pastas com SKILL.md, no formato das skills do Claude."));
-            for (i, (n, d)) in data::SKILLS.iter().enumerate() {
-                c = c.push(setting_el(txf(n.to_string(), 12.0, t::FG, t::MONO).into(), d, swa("skill", i, p.skills[i])));
+            if live && app.skills.is_empty() {
+                c = c.push(setting("Nenhuma skill instalada", "", badge("vazio", Tone::Plain)));
             }
-            c = c.push(sh("Plugins"));
-            c = c.push(setting("Plugins em Rust/WASM", "Código isolado em sandbox, com permissões declaradas.", btn("Instalar", Kind::Normal, true, None, Some(toast("Instalar plugin .wasm (simulado)")))));
-            c = c.push(sh("Importar"));
-            c = c.push(setting("Do Claude e do Codex", "Lê mcp.json, configs e skills já instaladas neste PC.", btn("Procurar", Kind::Normal, true, None, Some(toast("Encontrados 3 servidores e 5 skills (simulado)")))));
+            for (i, sk) in app.skills.iter().enumerate() {
+                if live {
+                    c = c.push(setting_el(txf(sk.name.clone(), 12.0, t::FG, t::MONO).into(), &sk.desc, badge(if sk.on { "ativa" } else { "desligada" }, if sk.on { Tone::Ok } else { Tone::Plain })));
+                } else {
+                    c = c.push(setting_el(txf(sk.name.clone(), 12.0, t::FG, t::MONO).into(), &sk.desc, swa("skill", i, p.skills.get(i).copied().unwrap_or(true))));
+                }
+            }
+            if !live {
+                c = c.push(sh("Plugins"));
+                c = c.push(setting("Plugins em Rust/WASM", "Código isolado em sandbox, com permissões declaradas.", btn("Instalar", Kind::Normal, true, None, Some(toast("Instalar plugin .wasm (simulado)")))));
+                c = c.push(sh("Importar"));
+                c = c.push(setting("Do Claude e do Codex", "Lê mcp.json, configs e skills já instaladas neste PC.", btn("Procurar", Kind::Normal, true, None, Some(toast("Encontrados 3 servidores e 5 skills (simulado)")))));
+            }
         }
         Sec::Sistema => {
             c = c.push(sh("Memória RAM"));
@@ -278,13 +297,27 @@ fn section<'a>(app: &'a App) -> El<'a> {
             c = c.push(setting("Exportar ou importar", "Para trocar de PC.", row_c(vec![btn("Exportar", Kind::Normal, true, None, Some(toast("Exportar (simulado)"))), btn("Importar", Kind::Normal, true, None, Some(toast("Importar (simulado)")))])));
         }
         Sec::Locais => {
+            let live = app.api.is_some();
             c = c.push(sh("Modelos locais"));
-            c = c.push(lede("llama.cpp embutido no Orion, sem processo extra. Carregam só quando usados."));
-            for (n, s, tag) in data::LOCAL {
-                let title: El = if tag.is_empty() { tx(n.to_string(), 13.5, t::FG).into() } else { t_badge(n, badge(tag, Tone::Info)) };
-                c = c.push(setting_el(title, &format!("{s} no disco · baixado"), btn("Remover", Kind::Normal, true, None, Some(toast("Remover (simulado)")))));
+            c = c.push(lede("llama.cpp roda num processo separado que devolve a memória ao terminar. Os modelos só carregam quando usados."));
+            for (i, m) in app.locais.iter().enumerate() {
+                let gb = format!("{:.1} GB", m.bytes as f64 / 1e9).replace('.', ",");
+                let title: El = if m.ativo { t_badge(&m.nome, badge("em uso", Tone::Info)) } else if m.tipo.is_empty() || live { tx(m.nome.clone(), 13.5, t::FG).into() } else { t_badge(&m.nome, badge(&m.tipo, Tone::Info)) };
+                let pct = if m.bytes > 0 { (m.baixados * 100 / m.bytes).min(100) } else { 0 };
+                let (desc, right): (String, El) = if m.baixando {
+                    (format!("{gb} · baixando {pct}%"), badge(&format!("{pct}%"), Tone::Plain).into())
+                } else if !m.erro.is_empty() {
+                    (format!("{gb} · falhou: {}", m.erro), btn("Tentar de novo", Kind::Normal, true, None, Some(Msg::ModelGet(i))))
+                } else if m.instalado {
+                    (format!("{gb} no disco · baixado"), btn("Remover", Kind::Normal, !m.ativo, None, if m.ativo { None } else { Some(Msg::ModelDel(i)) }))
+                } else {
+                    (format!("{gb} · não baixado"), btn("Baixar", Kind::Normal, true, Some("plus"), Some(Msg::ModelGet(i))))
+                };
+                c = c.push(setting_el(title, &desc, right));
             }
-            c = c.push(setting("Baixar modelo", "Do Hugging Face, formato GGUF.", btn("Baixar", Kind::Normal, true, Some("plus"), Some(toast("Procurar no Hugging Face (simulado)")))));
+            if !live {
+                c = c.push(setting("Baixar modelo", "Do Hugging Face, formato GGUF.", btn("Baixar", Kind::Normal, true, Some("plus"), Some(toast("Procurar no Hugging Face (simulado)")))));
+            }
         }
         Sec::Voz => {
             c = c.push(sh("Ativação"));
@@ -316,7 +349,7 @@ fn section<'a>(app: &'a App) -> El<'a> {
         }
         Sec::Atalhos => {
             c = c.push(sh("Atalhos"));
-            for (l, k) in [("Abrir o Orion de qualquer lugar", "Win + Shift + Espaço"), ("Captura rápida para o Inbox", "Win + Shift + O"), ("“Isso?”: capturar a tela e perguntar", "Win + Shift + I"), ("Buscar conversas e notas", "Ctrl K"), ("Nova conversa", "Ctrl Shift O"), ("Recolher barra lateral", "Ctrl B"), ("Configurações", "Ctrl ,"), ("Escala da interface", "Ctrl + / Ctrl −"), ("Enviar", "Enter"), ("Nova linha", "Shift Enter"), ("Repetir a última mensagem", "↑"), ("Comandos", "/"), ("Citar nota do vault", "@"), ("Fechar painel", "Esc")] {
+            for (l, k) in [("Trazer a janela de qualquer lugar (mini barra)", "Ctrl Alt Espaço"), ("Pânico: corta tudo", "Ctrl Alt P"), ("Buscar conversas e notas", "Ctrl K"), ("Nova conversa", "Ctrl Shift O"), ("Recolher barra lateral", "Ctrl B"), ("Configurações", "Ctrl ,"), ("Enviar", "Enter"), ("Nova linha", "Shift Enter"), ("Comandos", "/"), ("Citar nota do vault", "@"), ("Fechar painel", "Esc")] {
                 c = c.push(setting(l, "", kbd(k)));
             }
         }

@@ -224,16 +224,25 @@ fn nuvem(app: &App) -> El<'_> {
     let mut rows = vec![];
     for (i, c) in app.cloud.iter().enumerate() {
         let right: Vec<El> = if c.running {
-            vec![container(row![spinner(app.spin, 10.0), txf("rodando", 11.0, t::SIGNAL, t::UI_MED)].spacing(5).align_y(Vertical::Center)).padding(pad(1.0, 8.0, 1.0, 8.0)).style(surface(Some(t::SIGNAL_SOFT), None, 999.0)).into()]
+            vec![container(row![spinner(app.spin, 10.0), txf("rodando", 11.0, t::SIGNAL, t::UI_MED)].spacing(5).align_y(Vertical::Center)).padding(pad(1.0, 8.0, 1.0, 8.0)).style(surface(Some(t::SIGNAL_SOFT), None, 999.0)).into(), btn("Cancelar", Kind::Normal, true, None, Some(Msg::CloudCancel(i)))]
         } else {
-            vec![badge("pronto", Tone::Ok), btn("Trazer resultado", Kind::Normal, true, None, Some(Msg::CloudBring(i)))]
+            let tone = match c.proj.as_str() {
+                "concluída" | "concluida" => Tone::Ok,
+                "falhou" | "erro" => Tone::Err,
+                _ => Tone::Plain,
+            };
+            vec![badge(&c.proj, tone)]
         };
-        rows.push(li(column![li_title(vec![badge(&c.svc, Tone::Info), tx(c.t.clone(), 14.0, t::FG).into()]), li_desc(format!("{} · {} · {}", c.proj, c.at, c.link))].into(), li_right(right)));
+        let desc = if c.link.is_empty() { c.at.clone() } else { format!("{} · {}", c.at, c.link) };
+        rows.push(li(column![li_title(vec![badge(&c.svc, Tone::Info), tx(c.t.clone(), 14.0, t::FG).into()]), li_desc(desc)].into(), li_right(right)));
     }
     for (svc, t_) in &app.cloud_extra {
         rows.push(li(column![li_title(vec![badge(svc, Tone::Info), tx(t_.clone(), 14.0, t::FG).into()]), li_desc("Orion · agora · enviada")].into(), li_right(vec![container(row![spinner(app.spin, 10.0), txf("rodando", 11.0, t::SIGNAL, t::UI_MED)].spacing(5).align_y(Vertical::Center)).padding(pad(1.0, 8.0, 1.0, 8.0)).style(surface(Some(t::SIGNAL_SOFT), None, 999.0)).into()])));
     }
-    page("Nuvem", "Tarefas que você mandou para Claude ou Codex na nuvem, com /nuvem. Ao terminar, o Orion avisa e espera você.", Some(btn("Nova tarefa", Kind::Normal, true, Some("cloud"), Some(Msg::CloudNew))), list(rows))
+    if rows.is_empty() {
+        rows.push(li(column![li_title(vec![tx("Nenhuma tarefa ainda.", 14.0, t::FG3).into()]), li_desc("Peça com /tarefa: o Orion segue sozinho, só lê e propõe, e avisa quando terminar.")].into(), li_right(vec![])));
+    }
+    page("Segundo plano", "Tarefas longas que o Orion faz sozinho: só lê e propõe, dentro do tempo e dos passos que você deu. Crie com /tarefa.", Some(btn("Nova tarefa", Kind::Normal, true, Some("cloud"), Some(Msg::CloudNew))), list(rows))
 }
 
 pub fn src_rows(app: &App) -> Vec<El<'_>> {

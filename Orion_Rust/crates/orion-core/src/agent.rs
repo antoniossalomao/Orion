@@ -500,7 +500,9 @@ impl Agent {
             let rota = me.rotear(&session.id, consulta.as_deref(), images.len());
             let tier = rota.as_ref().map(|r| r.camada.clone());
 
-            for _ in 0..me.cfg.max_iterations {
+            // modo autônomo: mais passos por pedido (as aprovações continuam valendo)
+            let limite = if me.modos.as_ref().is_some_and(|m| m.autonomo()) { me.cfg.max_iterations * 4 } else { me.cfg.max_iterations };
+            for _ in 0..limite {
                 let mut texto = String::new();
                 let mut chamadas = vec![];
                 let mut falhou: Option<String> = None;
@@ -586,7 +588,7 @@ impl Agent {
                     mensagens.push(json!({"role": "tool", "tool_call_id": c.id, "content": conteudo}));
                 }
             }
-            yield AgentEvent::erro(format!("limite de {} iterações de ferramenta", me.cfg.max_iterations));
+            yield AgentEvent::erro(format!("limite de {limite} iterações de ferramenta"));
         })
     }
 

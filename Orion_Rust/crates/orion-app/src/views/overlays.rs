@@ -48,7 +48,7 @@ pub fn pal_items(app: &App) -> Vec<PalItem> {
         (View::Aprovacoes, "shield", "Aprovações"),
         (View::Rotinas, "clock", "Rotinas"),
         (View::Resultados, "result", "Resultados"),
-        (View::Nuvem, "cloud", "Nuvem"),
+        (View::Nuvem, "cloud", "Segundo plano"),
         (View::Fontes, "db", "Fontes"),
         (View::Conhecimento, "book", "Conhecimento"),
         (View::Painel, "gauge", "Painel"),

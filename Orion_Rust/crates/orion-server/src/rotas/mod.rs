@@ -11,6 +11,7 @@ pub mod extensoes;
 pub mod geral;
 pub mod integracoes;
 pub mod memoria;
+pub mod modelos;
 pub mod ponte;
 pub mod vida;
 pub mod voz;
@@ -83,6 +84,7 @@ pub fn router(st: Estado) -> Router {
         .route("/budget", get(budget_status).put(budget_configure))
         .route("/budget/calibrate", post(budget_calibrate))
         .route("/modo", get(modo_estado))
+        .route("/modo/autonomo", post(modo_autonomo))
         .route("/modo/panico", post(modo_panico))
         .route("/modo/nao-perturbe", post(modo_nao_perturbe))
         .route("/privacidade", get(privacidade))
@@ -102,7 +104,7 @@ pub fn router(st: Estado) -> Router {
         .route("/facts/conflicts", get(fatos_conflitos))
         .route("/facts/conflicts/resolve", post(fatos_resolver))
         .route("/facts/pending", get(fatos_pendentes))
-        .route("/facts/:id", get(fato_detalhe).delete(fato_esquecer))
+        .route("/facts/:id", get(fato_detalhe).delete(fato_esquecer).patch(fato_editar))
         .route("/facts/:id/move", post(fato_mover))
         .route("/facts/:id/validity", post(fato_validade))
         .route("/facts/:id/supersede", post(fato_substituir))
@@ -167,6 +169,9 @@ pub fn router(st: Estado) -> Router {
         .route("/plugins/:id/version", post(escolher_versao))
         .route("/plugins/:id", delete(remover))
         .route("/plugins/:id/diagnostics", get(diagnostico))
+        .route("/modelos-locais", get(modelos::listar))
+        .route("/modelos-locais/:id", delete(modelos::remover))
+        .route("/modelos-locais/:id/baixar", post(modelos::baixar))
         .route("/mcp/connections", get(conexoes).post(configurar))
         .route("/mcp/connections/:id", axum::routing::put(reconfigurar).delete(desconectar))
         .route("/mcp/connections/:id/disable", post(desligar_conexao))

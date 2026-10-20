@@ -174,15 +174,22 @@ pub fn run_command(app: &mut App, word: &str, full: &str) -> Task<Msg> {
             app.mem_q = rest;
             app.view = View::Memoria;
         }
-        "nuvem" => {
-            app.cloud_extra.push(("Claude".into(), rest));
+        "tarefa" => {
             app.view = View::Nuvem;
-            app.toast("Tarefa enviada para a nuvem");
+            if let Some(api) = app.api.clone() {
+                if rest.trim().is_empty() {
+                    app.toast("Diga o que fazer: /tarefa resumir o que mudou no vault esta semana");
+                    return Task::none();
+                }
+                return Task::perform(async move { api.post("/tarefas-bg", serde_json::json!({"objetivo": rest})).await }, |r| Msg::L(crate::live::Lm::Acao(r.map(|_| "Tarefa em segundo plano iniciada".to_string()), true)));
+            }
+            app.cloud_extra.push(("Orion".into(), rest));
+            app.toast("Tarefa em segundo plano iniciada");
         }
         "imagem" => app.toast("Gerando imagem com Gemini (simulado). Fica na conversa e em 03 Recursos/Orion/Imagens."),
         "mcp" | "skill" => return app.update(Msg::OpenSettings(Some(crate::app::Sec::Conectores))),
         "resumo" => app.toast("Resumo gerado na nota desta conversa"),
-        "ajuda" => app.toast("Comandos: /nota /vault /rotina /modelo /projeto /autonomo /nuvem /imagem /limpar /resumo /aprovar /voz /mcp /skill"),
+        "ajuda" => app.toast("Comandos: /nota /vault /rotina /modelo /projeto /autonomo /tarefa /imagem /limpar /resumo /aprovar /voz /mcp /skill"),
         "projeto" => app.pop = Some(Pop::Project),
         _ => {}
     }

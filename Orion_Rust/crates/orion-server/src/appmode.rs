@@ -67,11 +67,13 @@ impl Local for Interno {
         })
     }
 
-    fn acordar(&self) -> bool {
-        let voz = self.atual().is_some_and(|n| n.st.desktop_wake.swap(false, std::sync::atomic::Ordering::SeqCst));
+    fn acordar(&self) -> Option<orion_app::net::Acordar> {
+        use orion_app::net::Acordar;
         // outra instância pediu para mostrar a janela: deixa um arquivo, sem socket nem porta
-        let outra = self.mostrar.exists() && std::fs::remove_file(&self.mostrar).is_ok();
-        voz || outra
+        if self.mostrar.exists() && std::fs::remove_file(&self.mostrar).is_ok() {
+            return Some(Acordar::Janela);
+        }
+        self.atual().is_some_and(|n| n.st.desktop_wake.swap(false, std::sync::atomic::Ordering::SeqCst)).then_some(Acordar::Voz)
     }
 
     fn panico(&self) -> Result<String, String> {

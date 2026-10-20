@@ -14,7 +14,7 @@ use iced::widget::{button, column, container, mouse_area, row, scrollable, stack
 use iced::{Background, Border, Length};
 
 const NAV: [(View, &str, &str); 5] = [(View::Home, "plus", "Nova conversa"), (View::Projetos, "folder", "Projetos"), (View::Memoria, "graph", "Memória"), (View::Aprovacoes, "shield", "Aprovações"), (View::Rotinas, "clock", "Rotinas")];
-const MORE: [(View, &str, &str); 7] = [(View::Resultados, "result", "Resultados"), (View::Nuvem, "cloud", "Nuvem"), (View::Fontes, "db", "Fontes"), (View::Conhecimento, "book", "Conhecimento"), (View::Painel, "gauge", "Painel"), (View::Vida, "heart", "Vida"), (View::Arquivadas, "archive", "Arquivadas")];
+const MORE: [(View, &str, &str); 7] = [(View::Resultados, "result", "Resultados"), (View::Nuvem, "cloud", "Segundo plano"), (View::Fontes, "db", "Fontes"), (View::Conhecimento, "book", "Conhecimento"), (View::Painel, "gauge", "Painel"), (View::Vida, "heart", "Vida"), (View::Arquivadas, "archive", "Arquivadas")];
 
 fn nav_style(cur: bool) -> impl Fn(&iced::Theme, button::Status) -> button::Style {
     move |_, st| {

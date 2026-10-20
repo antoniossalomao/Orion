@@ -33,7 +33,7 @@ impl View {
             View::Aprovacoes => "Aprovações",
             View::Rotinas => "Rotinas",
             View::Resultados => "Resultados",
-            View::Nuvem => "Nuvem",
+            View::Nuvem => "Segundo plano",
             View::Fontes => "Fontes",
             View::Conhecimento => "Conhecimento",
             View::Painel => "Painel",
@@ -275,6 +275,8 @@ pub struct App {
     pub mcp: Vec<data::Mcp>,
     pub results: Vec<(String, String, String, String, String)>,
     pub cloud_extra: Vec<(String, String)>,
+    pub skills: Vec<data::SkillRow>,
+    pub locais: Vec<data::LocalModel>,
     pub set_open: bool,
     pub sec: Sec,
     pub set_q: String,
@@ -307,6 +309,9 @@ pub struct App {
     pub pending_send: Option<String>,
     pub abort: Option<iced::task::Handle>,
     pub win_id: Option<window::Id>,
+    /// Mini barra: a janela está encolhida no topo da tela.
+    pub mini: bool,
+    pub mini_prev: Size,
     /// Banco cifrado trancado: a tela de entrada pede a senha do banco antes de abrir o núcleo.
     pub db_locked: bool,
     pub fundo: bool,
@@ -330,6 +335,10 @@ pub enum Msg {
     Bandeja,
     Acao(crate::tray::Acao),
     CloseReq(window::Id),
+    /// Liga ou desliga a mini barra.
+    Mini(bool),
+    Mostrar,
+    MiniPos(window::Id, Option<Size>),
     // entrada
     PwChanged(String),
     Login,
@@ -394,7 +403,10 @@ pub enum Msg {
     Unarchive(usize),
     DeleteArchived(usize),
     CloudNew,
-    CloudBring(usize),
+    CloudCancel(usize),
+    McpTest(usize),
+    ModelGet(usize),
+    ModelDel(usize),
     Refresh,
     // configurações
     OpenSettings(Option<Sec>),
@@ -505,6 +517,8 @@ impl App {
             mcp: data::mcp(),
             results: data::results(),
             cloud_extra: vec![],
+            skills: data::skills_demo(),
+            locais: data::locais_demo(),
             set_open: false,
             sec: Sec::Geral,
             set_q: String::new(),
@@ -537,6 +551,8 @@ impl App {
             pending_send: None,
             abort: None,
             win_id: None,
+            mini: false,
+            mini_prev: Size::new(1440.0, 900.0),
             db_locked: false,
             fundo: false,
             bandeja: None,
@@ -981,13 +997,19 @@ impl App {
                 self.toast("Conversa apagada");
             }
             Msg::CloudNew => {
-                self.composer = text_editor::Content::with_text("/nuvem codex ");
+                self.composer = text_editor::Content::with_text("/tarefa ");
                 self.navigate(View::Home, None);
             }
-            Msg::CloudBring(i) => {
-                let m = if self.cloud[i].svc == "Codex" { "codex apply: diff trazido para C:\\Projetos\\Orion" } else { "claude --teleport: sessão trazida para o PC" };
-                self.toast(m);
+            Msg::CloudCancel(i) => {
+                if let Some(c) = self.cloud.get_mut(i) {
+                    c.running = false;
+                    c.proj = "cancelada".into();
+                }
+                self.toast("Tarefa cancelada");
             }
+            Msg::McpTest(_) => self.toast("Teste do servidor (exemplo)"),
+            Msg::ModelGet(_) => self.toast("Baixar modelo (exemplo)"),
+            Msg::ModelDel(_) => self.toast("Remover modelo (exemplo)"),
             Msg::Refresh => self.toast("Painel atualizado"),
             Msg::OpenSettings(sec) => {
                 self.set_open = true;
@@ -1167,10 +1189,14 @@ impl App {
                 if let Some(b) = &self.bandeja {
                     acoes.extend(b.consultar());
                 }
-                if self.api.as_ref().is_some_and(|a| a.acordar()) {
-                    acoes.push(crate::tray::Acao::MiniBar);
+                let mut tarefas: Vec<Task<Msg>> = vec![];
+                match self.api.as_ref().and_then(|a| a.acordar()) {
+                    Some(crate::net::Acordar::Voz) => acoes.push(crate::tray::Acao::MiniBar),
+                    Some(crate::net::Acordar::Janela) => tarefas.push(Task::done(Msg::Mostrar)),
+                    None => {}
                 }
-                return Task::batch(acoes.into_iter().map(|x| Task::done(Msg::Acao(x))));
+                tarefas.extend(acoes.into_iter().map(|x| Task::done(Msg::Acao(x))));
+                return Task::batch(tarefas);
             }
             Msg::Acao(acao) => {
                 use crate::tray::Acao;
@@ -1180,25 +1206,72 @@ impl App {
                         let r = self.api.as_ref().map(|a| a.panico()).unwrap_or_else(|| Err("pânico indisponível".into()));
                         self.toast(r.unwrap_or_else(|e| e));
                     }
-                    Acao::MiniBar | Acao::Budget => {
-                        if acao == Acao::Budget {
-                            let _ = self.update_inner(Msg::OpenSettings(None));
-                        }
-                        if let Some(id) = self.win_id {
-                            return Task::batch([window::set_mode(id, window::Mode::Windowed), window::minimize(id, false), window::gain_focus(id)]);
-                        }
+                    Acao::MiniBar => return self.update_inner(Msg::Mini(true)),
+                    Acao::Budget => {
+                        let mut ts = vec![self.update_inner(Msg::Mostrar)];
+                        let _ = self.update_inner(Msg::OpenSettings(Some(Sec::Uso)));
+                        ts.push(Task::none());
+                        return Task::batch(ts);
                     }
                 }
             }
             Msg::CloseReq(id) => {
                 // com bandeja o app segue vivo, só esconde a janela; sem bandeja, fechar encerra
-                return if self.bandeja.is_some() { window::set_mode(id, window::Mode::Hidden) } else { iced::exit() };
+                if self.bandeja.is_none() {
+                    return iced::exit();
+                }
+                let mut ts = vec![window::set_mode(id, window::Mode::Hidden)];
+                if self.mini {
+                    self.mini = false;
+                    ts.push(window::resize(id, self.mini_prev));
+                    ts.push(window::set_level(id, window::Level::Normal));
+                }
+                return Task::batch(ts);
+            }
+            Msg::Mostrar => {
+                let Some(id) = self.win_id else { return Task::none() };
+                let mut ts = vec![window::set_mode(id, window::Mode::Windowed), window::minimize(id, false), window::gain_focus(id)];
+                if self.mini {
+                    self.mini = false;
+                    ts.push(window::resize(id, self.mini_prev));
+                    ts.push(window::set_level(id, window::Level::Normal));
+                }
+                return Task::batch(ts);
+            }
+            Msg::Mini(on) => {
+                let Some(id) = self.win_id else { return Task::none() };
+                if on == self.mini {
+                    return window::gain_focus(id);
+                }
+                self.mini = on;
+                self.pop = None;
+                return if on {
+                    self.mini_prev = self.win;
+                    Task::batch([
+                        window::set_mode(id, window::Mode::Windowed),
+                        window::minimize(id, false),
+                        window::resize(id, Size::new(660.0, 340.0)),
+                        window::set_level(id, window::Level::AlwaysOnTop),
+                        window::gain_focus(id),
+                        window::monitor_size(id).map(move |s| Msg::MiniPos(id, s)),
+                    ])
+                } else {
+                    Task::batch([window::resize(id, self.mini_prev), window::set_level(id, window::Level::Normal)])
+                };
+            }
+            Msg::MiniPos(id, size) => {
+                if let Some(s) = size {
+                    return window::move_to(id, iced::Point::new(((s.width - 660.0) / 2.0).max(0.0), 16.0));
+                }
             }
             Msg::DragWindow => return window::oldest().and_then(window::drag),
             Msg::Minimize => return window::oldest().and_then(|id| window::minimize(id, true)),
             Msg::Fullscreen => return window::oldest().and_then(window::toggle_maximize),
             Msg::CloseWindow => return window::oldest().and_then(|id| Task::done(Msg::CloseReq(id))),
             Msg::Esc => {
+                if self.mini {
+                    return self.update_inner(Msg::CloseWindow);
+                }
                 if self.pop.is_some() {
                     self.pop = None;
                 } else if self.isso.is_some() {

@@ -359,6 +359,7 @@ pub fn acts() -> Vec<Act> {
 }
 
 pub struct CloudTask {
+    pub id: i64,
     pub svc: String,
     pub t: String,
     pub proj: String,
@@ -368,9 +369,9 @@ pub struct CloudTask {
 }
 pub fn cloud() -> Vec<CloudTask> {
     vec![
-    CloudTask { svc: "Claude".into(), t: "Portar o gateway de provedores para Rust".into(), proj: "Orion".into(), running: true, at: "há 12 min".into(), link: "claude.ai/code · sessão".into() },
-    CloudTask { svc: "Codex".into(), t: "Testes do crate orion-ai".into(), proj: "Orion".into(), running: false, at: "há 1 h".into(), link: "PR #31".into() },
-    CloudTask { svc: "Claude".into(), t: "Briefing (PC desligado no sábado)".into(), proj: "Rotina".into(), running: false, at: "sábado, 08:45".into(), link: "rotina na nuvem".into() },
+    CloudTask { id: 0, svc: "Claude".into(), t: "Portar o gateway de provedores para Rust".into(), proj: "Orion".into(), running: true, at: "há 12 min".into(), link: "claude.ai/code · sessão".into() },
+    CloudTask { id: 0, svc: "Codex".into(), t: "Testes do crate orion-ai".into(), proj: "Orion".into(), running: false, at: "há 1 h".into(), link: "PR #31".into() },
+    CloudTask { id: 0, svc: "Claude".into(), t: "Briefing (PC desligado no sábado)".into(), proj: "Rotina".into(), running: false, at: "sábado, 08:45".into(), link: "rotina na nuvem".into() },
 ]
 }
 
@@ -399,6 +400,7 @@ pub const SRC: &[(&str, &str, &str)] = &[
 ];
 
 pub struct Mcp {
+    pub nome: String,
     pub t: String,
     pub k: String,
     pub st: String,
@@ -407,10 +409,10 @@ pub struct Mcp {
 }
 pub fn mcp() -> Vec<Mcp> {
     vec![
-    Mcp { t: "GitHub".into(), k: "MCP · HTTP".into(), st: "Conectado".into(), ok: true, tools: 41 },
-    Mcp { t: "Google Workspace".into(), k: "MCP · HTTP".into(), st: "Conectado".into(), ok: true, tools: 18 },
-    Mcp { t: "Arquivos locais".into(), k: "MCP · stdio".into(), st: "Token expirado".into(), ok: false, tools: 9 },
-    Mcp { t: "Telegram".into(), k: "Canal · depois da v1".into(), st: "Conectado · ID permitido".into(), ok: true, tools: 6 },
+    Mcp { nome: String::new(), t: "GitHub".into(), k: "MCP · HTTP".into(), st: "Conectado".into(), ok: true, tools: 41 },
+    Mcp { nome: String::new(), t: "Google Workspace".into(), k: "MCP · HTTP".into(), st: "Conectado".into(), ok: true, tools: 18 },
+    Mcp { nome: String::new(), t: "Arquivos locais".into(), k: "MCP · stdio".into(), st: "Token expirado".into(), ok: false, tools: 9 },
+    Mcp { nome: String::new(), t: "Telegram".into(), k: "Canal · depois da v1".into(), st: "Conectado · ID permitido".into(), ok: true, tools: 6 },
 ]
 }
 pub const SKILLS: &[(&str, &str)] = &[("segundo-cerebro-obsidian", "Importada do Claude"), ("code-review", "Importada do Claude"), ("release-windows", "Própria")];
@@ -433,7 +435,7 @@ pub const CMDS: &[(&str, &str)] = &[
     ("/modelo", "Trocar modelo e esforço"),
     ("/projeto", "Trocar o projeto da conversa"),
     ("/autonomo", "Ligar ou desligar o modo autônomo"),
-    ("/nuvem", "Mandar tarefa para Claude ou Codex na nuvem"),
+    ("/tarefa", "Pedir uma tarefa longa em segundo plano"),
     ("/imagem", "Gerar imagem (Gemini)"),
     ("/limpar", "Conversa nova no mesmo projeto"),
     ("/resumo", "Resumir a conversa até aqui"),
@@ -460,3 +462,34 @@ pub fn arch() -> Vec<(String, String, String)> {
 }
 
 pub const NOTE_SAMPLE: &str = "---\ntype: conversa\ndate: 2026-10-15\nfonte: orion\nprojeto: \"[[Orion]]\"\ntags: [conversa, orion, rust, memoria]\nresumo: \"RAM parada de 1,2 GB; três causas e plano para ~300 MB.\"\n---\n\n# Orion RAM otimização\n\n> Projeto: [[Orion]] · Conceito: [[Rust]]\n\n## Pergunta\nO Orion está usando 1,2 GB parado. Dá pra baixar sem perder velocidade?\n\n## Achados\n- Índice vetorial carregado inteiro: 610 MB\n- Modelo de voz residente: 280 MB\n- Cache de embeddings sem limite\n\n## Decisão\nAbrir o índice com `mmap`, carregar a voz sob demanda e limitar o cache a **64 MB** com LRU.\n";
+
+/// Skill vista pelo núcleo (no modo de exemplo vem de `SKILLS`).
+#[derive(Clone)]
+pub struct SkillRow {
+    pub id: String,
+    pub name: String,
+    pub desc: String,
+    pub on: bool,
+}
+
+/// Modelo do catálogo local e o que já está no disco.
+#[derive(Clone)]
+pub struct LocalModel {
+    pub id: String,
+    pub nome: String,
+    pub tipo: String,
+    pub bytes: u64,
+    pub instalado: bool,
+    pub ativo: bool,
+    pub baixando: bool,
+    pub baixados: u64,
+    pub erro: String,
+}
+
+pub fn skills_demo() -> Vec<SkillRow> {
+    SKILLS.iter().map(|(n, d)| SkillRow { id: n.to_string(), name: n.to_string(), desc: d.to_string(), on: true }).collect()
+}
+
+pub fn locais_demo() -> Vec<LocalModel> {
+    LOCAL.iter().map(|(n, s, tag)| LocalModel { id: n.to_string(), nome: n.to_string(), tipo: tag.to_string(), bytes: (s.split(' ').next().unwrap_or("0").replace(',', ".").parse::<f64>().unwrap_or(0.0) * 1e9) as u64, instalado: true, ativo: false, baixando: false, baixados: 0, erro: String::new() }).collect()
+}

@@ -16,13 +16,20 @@ pub struct Resposta {
     pub corpo: Corpo,
 }
 
+/// Quem pediu a janela: a palavra de ativação (mini barra) ou outra cópia do Orion aberta (janela inteira).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Acordar {
+    Voz,
+    Janela,
+}
+
 /// Ligação direta ao núcleo, dentro do mesmo processo: o pedido vai para as rotas sem passar por
 /// socket, porta ou rede (é o que o `orion app` usa). Quem implementa fica no servidor.
 pub trait Local: Send + Sync + 'static {
     fn chamar(&self, metodo: &str, caminho: &str, corpo: Option<Vec<u8>>, bearer: Option<String>) -> futures::future::BoxFuture<'static, Result<Resposta, String>>;
     /// Pedidos de "mostre a janela" vindos de fora da interface (palavra de ativação, outra instância).
-    fn acordar(&self) -> bool {
-        false
+    fn acordar(&self) -> Option<Acordar> {
+        None
     }
     /// Banco cifrado ainda trancado: o núcleo só abre depois de `desbloquear`.
     fn bloqueado(&self) -> bool {
@@ -114,8 +121,8 @@ impl Api {
         }
     }
 
-    pub fn acordar(&self) -> bool {
-        self.local.as_ref().is_some_and(|l| l.acordar())
+    pub fn acordar(&self) -> Option<Acordar> {
+        self.local.as_ref().and_then(|l| l.acordar())
     }
 
     pub fn panico(&self) -> Result<String, String> {

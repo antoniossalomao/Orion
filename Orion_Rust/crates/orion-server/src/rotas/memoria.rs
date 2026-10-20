@@ -116,6 +116,23 @@ pub async fn fato_esquecer(_: Admin, State(st): State<Estado>, Path(id): Path<i6
 }
 
 #[derive(Deserialize)]
+pub struct FatoEdicao {
+    texto: String,
+    fonte: Option<String>,
+}
+
+/// Corrige o texto do fato por um clique do próprio Antônio (o que o modelo pede passa por `/review`).
+pub async fn fato_editar(_: Admin, State(st): State<Estado>, Path(id): Path<i64>, Query(q): Query<ProjQ>, Json(b): Json<FatoEdicao>) -> ApiResult<Json<Value>> {
+    if !(1..=16000).contains(&b.texto.chars().count()) {
+        return erro(422, "texto: entre 1 e 16000 caracteres");
+    }
+    fato(&st, id, &q.project_id)?;
+    st.policy.approvals.invalidate_fact(id);
+    let f = escopo(&q.project_id, || st.memory.update_fact(id, &b.texto, b.fonte.as_deref()))?;
+    Ok(Json(json!({"ok": true, "id": f.id, "texto": f.text, "fonte": f.source})))
+}
+
+#[derive(Deserialize)]
 pub struct Mover {
     project_id: Option<String>,
 }

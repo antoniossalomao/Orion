@@ -1,7 +1,7 @@
 //! Liga o app ao servidor local (`orion serve`): converte o JSON da API nos dados das telas e dispara as chamadas.
 //! Sem `Api`, o app roda com os dados de exemplo do protótipo (testes e fotos).
 
-use crate::app::{App, Msg, Panic, View};
+use crate::app::{App, Msg, Panic, Sec, View};
 use crate::data::{self, Act, ApprState, Approval, ChatMsg, Conv, ConvState, Fact, Origin, OrionMsg, Project, Rot, Tool};
 use crate::net::{self, arr, s, Api, Chat, LoginResult};
 use iced::Task;
@@ -26,6 +26,10 @@ pub enum Lm {
     Budget(Result<Value, String>),
     Modo(Result<Value, String>),
     Grafo(Result<Value, String>),
+    Mcp(Result<Value, String>),
+    Skills(Result<Value, String>),
+    Tarefas(Result<Value, String>),
+    Modelos(Result<Value, String>),
     Chat(Chat),
     /// Resultado de uma ação simples: mensagem de sucesso ou de erro (vira toast) e, se `true`, recarrega as listas.
     Acao(Result<String, String>, bool),
@@ -244,6 +248,70 @@ pub fn map_results(v: &Value) -> Vec<(String, String, String, String, String)> {
         .collect()
 }
 
+pub fn map_mcp(v: &Value) -> Vec<data::Mcp> {
+    arr(v, "servidores")
+        .iter()
+        .map(|m| {
+            let nome = s(m, "nome").to_string();
+            let estado = s(m, "estado").to_lowercase();
+            data::Mcp {
+                t: nome.clone(),
+                nome,
+                k: format!("MCP · {}", if s(m, "transporte") == "remoto" { "HTTP" } else { "stdio" }),
+                st: { let st = s(m, "status"); if st.is_empty() { s(m, "estado").to_string() } else { st.chars().take(60).collect() } },
+                ok: estado.starts_with("conect") || estado == "ok",
+                tools: arr(m, "ferramentas").len() as u32,
+            }
+        })
+        .collect()
+}
+
+pub fn map_skills(v: &Value) -> Vec<data::SkillRow> {
+    v.as_array().map(|a| a.as_slice()).unwrap_or(&[]).iter().map(|k| data::SkillRow { id: s(k, "id").to_string(), name: if s(k, "name").is_empty() { s(k, "id").to_string() } else { s(k, "name").to_string() }, desc: { let o = s(k, "origin"); let d = s(k, "description"); if d.is_empty() { o.to_string() } else { format!("{d} · {o}") } }, on: k.get("enabled").and_then(Value::as_bool).unwrap_or(false) }).collect()
+}
+
+pub fn map_tarefas(v: &Value) -> Vec<data::CloudTask> {
+    arr(v, "tarefas")
+        .iter()
+        .map(|t| {
+            let status = s(t, "status").to_string();
+            let criado = t.get("created_at").and_then(Value::as_f64).unwrap_or(0.0);
+            let relatorio: String = s(t, "report").split_whitespace().collect::<Vec<_>>().join(" ").chars().take(160).collect();
+            data::CloudTask { id: t.get("id").and_then(Value::as_i64).unwrap_or(0), svc: "Orion".into(), t: s(t, "objective").to_string(), running: status == "rodando", proj: status, at: if criado > 0.0 { format!("{} · {}", day_label(criado), hm(criado)) } else { String::new() }, link: relatorio }
+        })
+        .collect()
+}
+
+pub fn map_modelos(v: &Value) -> Vec<data::LocalModel> {
+    arr(v, "modelos")
+        .iter()
+        .map(|m| data::LocalModel {
+            id: s(m, "id").to_string(),
+            nome: s(m, "nome").to_string(),
+            tipo: s(m, "tipo").to_string(),
+            bytes: m.get("bytes").and_then(Value::as_u64).unwrap_or(0),
+            instalado: m.get("instalado").and_then(Value::as_bool).unwrap_or(false),
+            ativo: m.get("ativo").and_then(Value::as_bool).unwrap_or(false),
+            baixando: m.get("baixando").and_then(Value::as_bool).unwrap_or(false),
+            baixados: m.get("baixados").and_then(Value::as_u64).unwrap_or(0),
+            erro: m.get("erro").and_then(Value::as_str).unwrap_or("").to_string(),
+        })
+        .collect()
+}
+
+/// O que cada seção das configurações precisa buscar no núcleo.
+pub fn pull_sec(api: &Api, sec: Sec) -> Task<Msg> {
+    let get = |path: &'static str, f: fn(Result<Value, String>) -> Lm| {
+        let a = api.clone();
+        Task::perform(async move { a.get(path).await }, move |r| Msg::L(f(r)))
+    };
+    match sec {
+        Sec::Conectores => Task::batch([get("/mcp/servidores", Lm::Mcp), get("/skills", Lm::Skills)]),
+        Sec::Locais => get("/modelos-locais", Lm::Modelos),
+        _ => Task::none(),
+    }
+}
+
 fn day_label(secs: f64) -> String {
     let d = ((secs - 3.0 * 3600.0) / 86400.0).floor() as i64 + 719468;
     let era = d.div_euclid(146097);
@@ -296,6 +364,7 @@ pub fn pull_page(api: &Api, v: View) -> Task<Msg> {
         View::Memoria => get("/grafo/completo", Lm::Grafo),
         View::Projetos => get("/projects", Lm::Projects),
         View::Painel => Task::batch([get("/painel", Lm::Painel), get("/budget", Lm::Budget)]),
+        View::Nuvem => get("/tarefas-bg", Lm::Tarefas),
         View::Aprovacoes => Task::batch([get("/painel", Lm::Painel), get("/approvals", Lm::Approvals)]),
         _ => Task::none(),
     }
@@ -318,6 +387,8 @@ impl App {
         a.projects.clear();
         a.cloud.clear();
         a.mcp.clear();
+        a.skills.clear();
+        a.locais.clear();
         a.results.clear();
         a.facts.clear();
         a.rots.clear();
@@ -382,7 +453,55 @@ impl App {
                 Some((t, true))
             }
             Msg::Go(v) => Some((pull_page(&api, *v), true)),
-            Msg::Poll => Some((Task::batch([pull_basic(&api)]), false)),
+            Msg::Poll => {
+                let extra = if self.view == View::Nuvem { pull_page(&api, View::Nuvem) } else if self.set_open && self.sec == Sec::Locais { pull_sec(&api, Sec::Locais) } else { Task::none() };
+                Some((Task::batch([pull_basic(&api), extra]), false))
+            }
+            Msg::OpenSettings(Some(sec)) | Msg::SetSec(sec) => Some((pull_sec(&api, *sec), true)),
+            Msg::CloudCancel(i) => {
+                let id = self.cloud.get(*i)?.id;
+                let a2 = api.clone();
+                Some((acao(&api, async move { a2.post(&format!("/tarefas-bg/{id}/cancelar"), json!({})).await }, "Tarefa cancelada", true), false))
+            }
+            Msg::McpTest(i) => {
+                let nome = self.mcp.get(*i)?.nome.clone();
+                let a2 = api.clone();
+                let rotulo = nome.clone();
+                Some((Task::perform(async move { a2.post(&format!("/mcp/servidores/{nome}/testar"), json!({})).await }, move |r| {
+                    Msg::L(Lm::Acao(r.and_then(|v| if v.get("ok").and_then(Value::as_bool).unwrap_or(false) { Ok(format!("{rotulo}: respondeu ({} ferramentas)", v.get("ferramentas").and_then(Value::as_u64).unwrap_or(0))) } else { Err(format!("{rotulo}: {}", v.get("erro").and_then(Value::as_str).unwrap_or("não respondeu"))) }), true))
+                }), false))
+            }
+            Msg::ModelGet(i) => {
+                let id = self.locais.get(*i)?.id.clone();
+                let a2 = api.clone();
+                Some((acao(&api, async move { a2.post(&format!("/modelos-locais/{id}/baixar"), json!({})).await }, "Download iniciado", false), false))
+            }
+            Msg::ModelDel(i) => {
+                let m = self.locais.get(*i)?;
+                if m.ativo {
+                    return None;
+                }
+                let id = m.id.clone();
+                let a2 = api.clone();
+                Some((Task::batch([acao(&api, async move { a2.delete(&format!("/modelos-locais/{id}")).await }, "Modelo removido", false), pull_sec(&api, Sec::Locais)]), false))
+            }
+            Msg::Toggle("auto") => {
+                let novo = !self.p.auto;
+                let a2 = api.clone();
+                Some((Task::perform(async move { a2.post("/modo/autonomo", json!({"ativo": novo})).await }, |r| Msg::L(Lm::Modo(r))), true))
+            }
+            Msg::FactSave => {
+                let (i, texto) = self.edit_fact.clone()?;
+                let f = self.facts.get(i)?;
+                if f.id == 0 || texto.trim().is_empty() {
+                    return None;
+                }
+                let (id, a2) = (f.id, api.clone());
+                self.edit_fact = None;
+                self.facts[i].t = texto.clone();
+                self.facts[i].src = "corrigido por você · hoje".into();
+                Some((acao(&api, async move { a2.patch(&format!("/facts/{id}"), json!({"texto": texto})).await }, "Fato corrigido", true), false))
+            }
             Msg::Refresh => Some((pull_page(&api, View::Painel), true)),
             Msg::Approve(ci, mi) | Msg::Deny(ci, mi) => {
                 let ok = matches!(msg, Msg::Approve(..));
@@ -676,7 +795,26 @@ impl App {
                     let panico = v.get("panico").and_then(Value::as_bool).unwrap_or(false);
                     self.panic = if panico { Panic::Paused } else if self.panic == Panic::Paused { Panic::Idle } else { self.panic };
                     self.p.dnd = v.get("nao_perturbe").and_then(Value::as_bool).unwrap_or(false);
+                    if let Some(b) = v.get("autonomo").and_then(Value::as_bool) {
+                        self.p.auto = b;
+                    }
                 }
+                Err(e) => self.net_fail(e),
+            },
+            Lm::Mcp(r) => match r {
+                Ok(v) => self.mcp = map_mcp(&v),
+                Err(e) => self.net_fail(e),
+            },
+            Lm::Skills(r) => match r {
+                Ok(v) => self.skills = map_skills(&v),
+                Err(e) => self.net_fail(e),
+            },
+            Lm::Tarefas(r) => match r {
+                Ok(v) => self.cloud = map_tarefas(&v),
+                Err(e) => self.net_fail(e),
+            },
+            Lm::Modelos(r) => match r {
+                Ok(v) => self.locais = map_modelos(&v),
                 Err(e) => self.net_fail(e),
             },
             Lm::Grafo(r) => match r {

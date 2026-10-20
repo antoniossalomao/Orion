@@ -253,6 +253,16 @@ pub async fn modo_nao_perturbe(_: Admin, State(st): State<Estado>, Json(c): Json
 }
 
 #[derive(Deserialize)]
+pub struct AutonomoControle {
+    ativo: bool,
+}
+
+pub async fn modo_autonomo(_: Admin, State(st): State<Estado>, Json(c): Json<AutonomoControle>) -> ApiResult<Json<Value>> {
+    st.modos.set_autonomo(c.ativo).map_err(|e| ApiError::new(500, e.to_string()))?;
+    Ok(Json(st.modos.estado()))
+}
+
+#[derive(Deserialize)]
 pub struct DiasQ {
     dias: Option<i64>,
 }
