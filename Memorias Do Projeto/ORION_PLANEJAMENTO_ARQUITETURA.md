@@ -11,13 +11,13 @@ resumo: "Planejamento do front do Orion em Rust (iced): decisões, identidade vi
 > Projeto: [[Orion]] · Conceito: [[Rust]] · Conversa de origem: [[2026-10-15 - Orion - redesign do protótipo no estilo do app Claude]] · Protótipo anterior: [[2026-10-14 - Orion - prototipo do front desktop nativo]]
 > Protótipo navegável: https://claude.ai/artifact/S4fmhxJ35UztifhKCyzqt9 (versão de 15/10/2026 já reflete as decisões desta nota: tema único Grafite, barra lateral com Aprovações e Rotinas, seletor Auto/Claude/Codex/Gemini/Orion, painel da direita em abas, nota do vault + commit, editor de notas, `/` e `@`, rotinas, nuvem, conectores, câmera, modelos locais e grafo real com linha do tempo)
 
-## Estado auditado do planejamento — PR #30 (`2020015`, 17/10/2026)
+## Estado auditado do planejamento — PR #30 (atualizado em 20/10/2026)
 
-As decisões desta nota são o **alvo do produto**. A fonte única do estado é [ORION.md](ORION.md), seção Auditoria consolidada do PR #30. [ORION_PLANO_IMPLEMENTACAO.md](ORION_PLANO_IMPLEMENTACAO.md) registra a situação das 28 fases e as subentregas já implementadas; nenhum marco foi aceito integralmente.
+As decisões desta nota são o **alvo do produto**. A fonte única do estado é [ORION.md](ORION.md). [ORION_PLANO_IMPLEMENTACAO.md](ORION_PLANO_IMPLEMENTACAO.md) registra a situação das fases; nenhum marco foi aceito integralmente.
 
-**Já há código:** domínio/API/CLI Rust, SQLite/FTS5, gateway/CLIs/router, MCP/skills/plugins, projetos/rotinas/jobs, Telegram/2FA/áudio, bandeja/hotkeys/orçamento, voz local/AEC3/barge-in, worker llama.cpp instalável, setup visual, vault por API explícita e câmera/Haar/LBPH. Legado/PyInstaller removidos. **Ainda falta:** app iced principal, segurança SQLCipher/Hello/PII completa, vault automático e conflitos seguros, runtime YOLO/reranker/e5, ACP, grafo wgpu, updater/desinstalador/release, nuvem/multi-PC/estudo/automelhoria, paridade e aceites físicos.
+**Já há código:** domínio/API/CLI Rust, SQLite/FTS5 + SQLCipher opt-in, gateway/CLIs/router, MCP/skills/plugins, projetos/rotinas/jobs, Telegram/2FA/áudio, **app iced `orion-app` ligado ao núcleo (um só `orion.exe`, sem porta, sem Python)**, bandeja/mini barra/hotkeys, orçamento, voz local/AEC3/barge-in, worker llama.cpp, instalador que baixa de GitHub Releases + atualizador `orion update` + desinstalador, leitura de páginas (Readability) e navegador guiado por CDP, vault por API explícita e câmera/Haar/LBPH. **Ainda falta:** F08 Projetos, onboarding, Windows Hello/PIN, vault automático e conflitos seguros, runtime YOLO/reranker/e5, ACP, grafo wgpu, release assinado (chave sua), nuvem/multi-PC/estudo/automelhoria e as provas num Windows real.
 
-**Divergências conhecidas:** há HTTP/front HTML e Python residual/de referência; o alvo sem Python/WebView/servidor ainda não foi atingido. MCP/Telegram são clientes próprios, não rmcp/teloxide; CLIs ainda sem ACP. Céu do setup é RGBA na CPU, não motor shader compartilhado. A existência de um módulo não demonstra o comportamento final: F06 continua parcial, YOLO retorna vazio, wake word é candidato e o build Vulkan não está validado.
+**Divergências conhecidas:** MCP/Telegram são clientes próprios, não rmcp/teloxide (decisão mantida); CLIs ainda sem ACP; céu do setup é RGBA na CPU, sem shader compartilhado; WebView2 não é usado (navegador externo guiado). A existência de um módulo não demonstra o comportamento final: YOLO retorna vazio, wake word é candidato.
 
 
 ## Objetivo
@@ -670,7 +670,7 @@ Modal no estilo do Claude, com lista à esquerda e busca. No celular ou janela e
 - Qualidade automática no notebook: sem bloom e blur se a GPU não aguentar.
 - Meta de RAM com a interface aberta e parada: abaixo de 300 MB, quanto menos melhor (ver [[2026-10-15 - Orion - redesign do protótipo no estilo do app Claude]]).
 
-## Fases
+## Fases (lista antiga, **substituída por F00–F27 em ORION_PLANO_IMPLEMENTACAO.md**; mantida só como histórico)
 > **Substituídas** pelo plano detalhado em etapas: [[ORION - PLANO DE IMPLEMENTAÇÃO]] (F00 a F27, com checklist). A lista abaixo fica como histórico.
 
 - [ ] **F1 — Janela e tema:** barra de título própria, Mica/Acrylic, bandeja, atalho global, barra lateral, tokens Grafite, tipografia (Geist), escala 90–150% com Ctrl +/-, português e inglês.

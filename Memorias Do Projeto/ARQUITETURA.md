@@ -1,10 +1,10 @@
 # Orion — arquitetura
 
-> Implementação Python de referência e migração Rust em andamento (auditoria do PR #30 em `2020015`, 17/10/2026). Princípios e onde cada um é imposto: [REGRAS.md](REGRAS.md). Estado e plano: [ORION.md](ORION.md). Como rodar: [README](../README.md). Detalhes do legado: [ORION_LEGADO.md](ORION_LEGADO.md).
+> Produto: app nativo Rust de um só executável (`orion.exe`, núcleo e interface iced no mesmo processo, sem porta e sem Python). O pacote Python `orion/` fica só como referência executável até a paridade e a venda do PC (auditoria do PR #30, atualizada em 20/10/2026). Princípios e onde cada um é imposto: [REGRAS.md](REGRAS.md). Estado e plano: [ORION.md](ORION.md). Como rodar: [README](../README.md). Detalhes do legado: [ORION_LEGADO.md](ORION_LEGADO.md).
 
 ## 1. Referência executável: pacote `orion/` (Python)
 
-Um processo FastAPI em `127.0.0.1`, com política de ferramentas, memória em SQLite e canais (navegador, Telegram, ponte de desktop).
+**Referência histórica (o produto é Rust).** Um processo FastAPI em `127.0.0.1`, com política de ferramentas, memória em SQLite e canais (navegador, Telegram, ponte de desktop).
 
 | Área | Módulos | O que faz |
 |---|---|---|
@@ -69,11 +69,11 @@ Não saem do computador: finanças, rosto, rótulos de objetos, presença, detec
 
 O backend `Orion_Ollama/`, os serviços em `bin/startup/`, os motores de voz antigos e a distribuição PyInstaller foram removidos. O histórico e as instruções antigas continuam no Git e em [ORION_LEGADO.md](ORION_LEGADO.md).
 
-`Orion_Core/Front_end_Orion/` contém somente o front HTML/CSS/JS e assets: `orion-server::estado::front_dir` e `orion.app` ainda servem essa pasta. `orion/` e `tests/` permanecem como referência executável para a paridade incompleta. O runtime residual de navegador fica isolado em `Orion_Rust/python/orion_sidecar/`; scripts de treino/avaliação de voz, smoke nativo e benchmark, fixtures MCP e edge-tts continuam usando Python.
+`Orion_Core/Front_end_Orion/` guarda o front HTML/CSS/JS antigo e seus assets; **o app Rust não o serve mais** (a interface é o `orion-app` em iced) e a pasta só serve de protótipo/referência. `orion/` e `tests/` permanecem como referência executável para a paridade incompleta. O sidecar (`orion-sidecar`, `Orion_Rust/python/`) foi removido em 20/10/2026: leitura de páginas e navegador guiado são Rust. Scripts de treino/avaliação de voz, benchmark, fixtures MCP e edge-tts ainda usam Python, fora do produto.
 
 ## 6. Interface
 
-- **Nesta branch:** front HTML/CSS/JS compartilhado servido em `/ui/` por `orion-server` (Rust) ou `orion.app` (referência Python). Os launchers pywebview antigos foram removidos. O controle auxiliar `orion desktop` usa iced; o app principal nativo ainda não existe.
+- **Agora:** a interface é o `orion-app` (iced), rodando dentro de `orion.exe` com o núcleo no mesmo processo; a UI chama as rotas por `Api::local`, sem socket. O front HTML (`/ui/`) só existe em `orion serve` (`--features http`) para desenvolvimento. Mini barra, bandeja e atalhos globais (Ctrl+Alt+Espaço, Ctrl+Alt+P) vêm de `orion-platform`. Os launchers pywebview antigos foram removidos.
 - **Decisão:** só desktop, sem versão para celular. O celular fica no Telegram.
 - **Destino:** iced (Rust), tema único Grafite escuro, conforme [ORION_UI_ESPECIFICACAO.md](ORION_UI_ESPECIFICACAO.md). As três opções antigas de tema estão superadas; o grafo nativo wgpu ainda está pendente.
 
@@ -81,28 +81,29 @@ A tela Vida (E10) e a legenda ao vivo (`/ui/legenda.html`, E11) fazem parte do f
 
 ## 7. Destino em Rust
 
-O alvo é núcleo e UI em Rust. A branch atual tem núcleo/API Rust, controle auxiliar iced, front HTML compartilhado e Python de referência preservado. O sidecar é biblioteca isolada sem consumidor no agente. O plano posterior prevê navegador sem Python; essa divergência ainda não foi resolvida pela implementação.
+O alvo está atingido na estrutura: núcleo, API e UI em Rust, um executável, sem servidor HTTP no uso normal e sem Python no produto. Falta prova no Windows real e as fases F08–F27 do plano.
 
 | Crate existente | Papel real no PR | Limite atual |
 |---|---|---|
-| `orion-policy` | Classes, aprovações, audit, shell e caminhos | Zero testes próprios; não declarar paridade completa |
+| `orion-policy` | Classes, aprovações, audit, shell, caminhos e PII | 25 testes portados; `engine` e `injecao_invariantes` ainda sem teste Rust |
 | `orion-store` | SQLite v23, FTS5, vetores e backup | Sem SQLCipher/sqlite-vec; 60 testes de integração |
 | `orion-ai` | Gateway, APIs, CLIs diretas, router, embeddings remotos, cotas | Sem ACP/e5/BGE local; 84 testes de integração |
 | `orion-core` | Agente, ferramentas, auth, jobs, projetos, canais, visão, extensões e rotinas | Portes agrupados; 167 testes de integração, muitos contratos ainda sem paridade |
-| `orion-server` | CLI/API Axum, montagem dos serviços, controle iced | Ainda serve HTTP/front web; zero testes próprios de rotas |
+| `orion-server` | CLI/API Axum, montagem dos serviços e `appmode` (núcleo no processo do app) | HTTP só com `--features http`; rotas sem testes próprios (há `appmode::tests`) |
 | `orion-mcp` | JSON-RPC stdio/HTTP próprio, cliente/servidor | Sem rmcp; 23 declarações de testes de integração |
 | `orion-platform` | Bandeja e hotkeys Windows | Sem trait de plataforma completo, nem backend macOS; outras chamadas de SO ainda no core/setup |
 | `orion-voice` | cpal, energia, palmas, oww-rs, Whisper, AEC3/playback | Sem Silero; wake word final/hardware pendentes |
 | `orion-local` | Catálogo, downloads, protocolo, bundle wake e Job Object | Modelos de visão e gerenciador completo ainda pendentes |
 | `orion-llama` | Worker llama-cpp-2 CPU/Vulkan separado | Vulkan ainda sem build final validado; CPU real comprovada no CI |
-| `orion-setup` | UI, áudio cpal, cópia dos runtimes/modelos e rollback | Pacote esparso/certificado/atalhos/serviço ainda placeholders; sem updater/desinstalador |
+
 | `orion-vault` | Detecção/parser/scanner/busca em cache/Git e API explícita | Sem gravação automática, conflito seguro ou índice incremental local completo |
-| `orion-sidecar` | Processo Python JSON stdin/stdout, sanitização e URL guard | Sem chamada pelo core/servidor; dependências Python ainda precisam de instalação |
+| `orion-app` | Interface iced (47 cenas, `orion-snap`), bandeja/mini barra, cliente `Api` (HTTP ou local) | Grafo 2D (3D wgpu pendente); sem Fluent; nunca rodou no Windows real |
+| `orion-updater` | Feed minisign + SHA-256, `baixar_release`, `.bak`, rollback (`orion update`) | Falta chave, feed publicado e rollback automático |
 | `orion-testkit` | HTTP/embedder/relógio de teste | Somente dev-dependency |
 
-**Ainda não existem como crates:** app/UI principal (`orion-app`/`orion-ui`), tema/i18n compartilhados, grafo, updater, evals, sync e WASM. Telegram usa cliente HTTP próprio no core, sem teloxide. Fases e bloqueios completos estão em [ORION.md](ORION.md), seção Auditoria consolidada do PR #30.
+**Ainda não existem como crates:** tema/i18n compartilhados (Fluent), grafo wgpu, evals, sync e WASM. Telegram usa cliente HTTP próprio no core, sem teloxide, e o MCP também é próprio (sem rmcp), por decisão. Fases e bloqueios completos estão em [ORION.md](ORION.md), seção Auditoria consolidada do PR #30.
 
-**Implementado em `Orion_Rust/` (PR #30, 17/10/2026):** `orion-server::desktop` oferece um controle iced com login/2FA, mini barra, orçamento e execução das rotinas concedidas. `orion-platform` mantém bandeja e atalhos no laço de eventos da UI Windows. Fechar a janela oculta o controle; Sair encerra servidor e escuta. O autostart Windows passa a iniciar `orion desktop`, somente após ativação explícita.
+**Implementado em `Orion_Rust/` (PR #30, atualizado em 20/10/2026):** `orion.exe` abre o app iced com o núcleo no processo (`orion-server/src/appmode.rs`, `Router::oneshot`); `--background` fica escondido na bandeja (autostart opt-in) e a instância é única (`orion.lock` + `orion.mostrar`). `orion-platform` mantém bandeja e atalhos no laço de eventos da UI Windows. Fechar a janela esconde; Sair encerra núcleo e escuta. O atualizador é o subcomando `orion update`.
 
 `orion-voice` fornece captura cpal, reamostragem para PCM mono 16 kHz, VAD por energia, teto por hora, openWakeWord (`oww-rs`, modelo ONNX treinado para Orion) e Whisper (`whisper-rs`/whisper.cpp). O adaptador `orion-core::native_audio` liga os backends ao listener e ao mesmo transcritor usado pelo canal Telegram; áudio comprimido é convertido localmente pelo ffmpeg em arquivos temporários removidos ao concluir. Pausa/pânico fecham a captura. Durante transcrição o microfone é fechado; durante TTS, com barge-in opt-in, cpal reproduz a fala e reabre o microfone para o AEC3 cancelar o eco usando a própria saída como referência. A fala residual sustentada interrompe o TTS e volta como turno comum; nunca aprova. Os primeiros ~2 s calibram o ruído; palmas só abrem a interface. CPU é o padrão; Vulkan exige `cargo build -p orion-server --features local-vulkan` e SDK no build. Modelos são caminhos configurados ou instalados após seleção explícita no orion-setup, nunca baixados na inicialização do servidor. O runtime exige bundle Orion validado (`orion.onnx`/`orion.json`, hash, limiar e métricas reais); o candidato sintético fica só para calibração explícita por `orion wake-test`.
 
@@ -118,7 +119,7 @@ O código do 2FA é guardado só em hash, em memória, vinculado ao desafio e cl
 
 **Visão/E11 parcial:** captura pontual via nokhwa e fallback ffmpeg; extrator facial local por contrastes Haar heurísticos + LBPH, sem validação biométrica real. YOLO tem pós-processamento/avistamentos, mas `Detector::detectar_jpeg` sempre retorna vazio; o reranker também não tem runtime ONNX vinculado. A legenda depende de ffmpeg/whisper-cli externos, não é ainda o overlay/loopback/tradução nativo completo.
 
-**Distribuição/validação:** setup precisa das pastas CPU/Vulkan externas. O front HTML não é copiado pelo pacote atual e o caminho padrão ainda deriva do checkout da máquina de build; `/ui/` fora do repositório exige resolver empacotamento/caminho dos assets. CPU e GGUF passaram no run `39084684949`; Vulkan mostrou erro CMake/MSB8066 antes do cancelamento. A UI do céu produz RGBA na CPU (`sky.rs`), com exibição pelo iced, sem renderer shader compartilhado. Não confundir essas entregas com assinatura de release, instalação limpa ou metas de desempenho do app completo.
+**Distribuição/validação:** o instalador (`orion-setup`) baixa `latest-<variante>.json` (+ `.minisig`) e `orion.exe`/`orion-llama.exe` do GitHub Releases, conferindo minisign e SHA-256 (`orion_updater::baixar_release`); sem rede, usa as pastas `cpu`/`vulkan` ao lado do setup. Release por tag `v*` em `.github/workflows/release.yml`. Falta o par de chaves e o primeiro release (você). CPU e GGUF passaram no CI; o build Vulkan passou no run `39097948560`, sem prova de GPU. A UI do céu produz RGBA na CPU (`sky.rs`), sem renderer shader compartilhado. Nada disso foi provado num Windows real nem contra as metas de desempenho.
 
 Equivalências de plataforma (Windows | macOS): início automático (registro ou Task Scheduler | LaunchAgent); bandeja (`tray-icon`); teclas globais (`global-hotkey`); área de transferência (`arboard`); notificação (toast | `notify-rust`); cofre (Credential Manager | Keychain); captura de tela (`windows-capture` ou `xcap` | `xcap` ou ScreenCaptureKit); OCR (`Windows.Media.Ocr` | Vision); microfone (`cpal`). Permissões do macOS (Acessibilidade, Gravação de Tela, Microfone) exigem onboarding próprio.
 

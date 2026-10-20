@@ -3,6 +3,7 @@ type: recurso
 projeto: "[[Orion]]"
 tags: [orion, auditoria, pendencias, checklist]
 date: 2026-10-20
+revisao: 2026-10-20 (documentos corrigidos)
 resumo: "Auditoria dos 7 documentos de Memorias Do Projeto contra o código da branch do PR #30: o que falta, checklists errados, ideias que não batem entre documentos."
 ---
 
@@ -21,7 +22,11 @@ resumo: "Auditoria dos 7 documentos de Memorias Do Projeto contra o código da b
 
 ---
 
-## 2. Documentos desatualizados ou contraditórios (corrigir)
+## 2. Documentos desatualizados ou contraditórios — status da correção
+
+> **Corrigidos em 20/10/2026:** 1, 2, 3, 4, 5 (nota de equivalência Rust em REGRAS.md; as colunas por princípio seguem citando Python e devem ser reapontadas ao tocar cada princípio), 6, 7, 8, 9, 10, 13, 14, 15, 17, 19, 20. **Em aberto, esperando decisão sua:** 11 (atalhos), 12 (autônomo pede senha?), 16 (som), 18 (leitura oficial de uso). Os textos dos itens 17 e 19 foram escritos como "decisão 20/10" e valem se você confirmar as perguntas de alinhamento.
+> Também notado ao corrigir: o CI (`rust-windows.yml`) roda só `cargo test`, **sem `fmt` nem `clippy`**; o plano tem 40 itens agora marcados `[~]` (todos que já traziam "Estado PR #30").
+
 
 | # | Onde | Problema | Correção |
 |---|---|---|---|
@@ -156,14 +161,13 @@ F08.xx completo (Projetos: cartões, GitHub clonar, isolamento R20, arquivar) �
 
 ### 5.4 Limpezas pequenas **[C]**
 - Remover do repo `Orion_Core/Front_end_Orion/`, `orion/`, `tests/`, `pyproject.toml`, `uv.lock`, `scripts/` Python quando decidir (N).
-- Registrar a tabela de decisões datada (sidecar removido, 1 exe, sem porta, navegador CDP, segundo plano).
-- CI: confirmar que `rust-windows.yml` roda `clippy -D warnings` agora que os avisos zeraram.
-- Espelhar estes documentos no vault (AGENTS.md).
+- CI: `rust-windows.yml` só roda `cargo test`; avisos de compilação já zerados — acrescentar `cargo fmt --check` e `clippy -D warnings` se quiser.
+- Espelhar os documentos corrigidos no vault (`01 Projetos/Orion/`), conforme AGENTS.md (pendente: requer anexar o repo `vault`).
 
 ---
 
 ## 6. Ordem sugerida
-1. Corrigir os 20 documentos desatualizados (seção 2) — baixo custo, evita decisões em cima de fato errado. **[C]**
+1. ~~Corrigir os 20 documentos desatualizados~~ — feito em 20/10/2026; falta alinhar as ideias em conflito (seção 4) com as suas respostas.
 2. Você: chave + release + teste Windows. **[V][W]**
 3. F08 Projetos → F09 Painel → onboarding F10.C → backup.
 4. F12 completa (rotinas) → F14/F15 pendências.

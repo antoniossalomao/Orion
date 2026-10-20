@@ -15,20 +15,18 @@ resumo: "Especificação completa da interface do Orion em iced/wgpu para reprod
 
 ---
 
-## Estado da implementação — auditoria PR #30 (`2020015`, 17/10/2026)
+## Estado da implementação — atualizado em 20/10/2026 (PR #30)
 
-**Esta é a especificação da interface futura, não uma lista de telas nativas concluídas.** Estado canônico: [ORION.md](ORION.md), auditoria do PR #30; tarefas F01/F05/F07/F16 em [ORION_PLANO_IMPLEMENTACAO.md](ORION_PLANO_IMPLEMENTACAO.md).
+Estado canônico: [ORION.md](ORION.md); tarefas F01/F05/F07/F16 em [ORION_PLANO_IMPLEMENTACAO.md](ORION_PLANO_IMPLEMENTACAO.md).
 
 - [x] Protótipo HTML e especificação das telas presentes no repositório.
-- [x] Instalador iced com céu e controle auxiliar `orion desktop` (login/2FA, mini barra, orçamento e rotinas).
-- [x] APIs Rust para chat, memória, projetos, aprovações e outros portes, com front HTML compartilhado ainda servido em `/ui/`.
-- [ ] App principal `orion-app`/`orion-ui` conforme esta especificação: casca, chat completo, navegação e Configurações.
-- [ ] Editor/vault automático, painel de contexto/arquivos/diff/terminal e fluxos finais de projeto.
-- [ ] Grafo nativo wgpu/compute, bloom/blur, timeline, acessibilidade equivalente e metas de desempenho.
-- [ ] Fluent pt/en compartilhado, snapshots/headless/E2E iced e comparação de todos os estados com o protótipo.
-
-O controle auxiliar e o instalador não comprovam a conclusão das telas desta nota. O front web contém funções anteriores; sua existência não equivale ao porte visual para iced.
-
+- [x] Instalador iced com céu.
+- [x] **App principal `orion-app` (iced) existe:** casca, barra lateral, barra superior, Início, chat com aprovação, painel da direita (4 abas), 10 telas de página, Configurações (14 seções), editor, paleta Ctrl K, captura rápida, "Isso?", mini barra, legenda, popovers e toasts; 47 cenas em `orion-snap`. Ligado ao núcleo no mesmo processo (`orion.exe`, sem porta); painéis MCP, Skills, Modelos locais e Segundo plano ligados; bandeja, mini barra e atalhos (Ctrl+Alt+Espaço, Ctrl+Alt+P).
+- [~] Telas com dados de exemplo ou parciais: Vida, Painel (métricas), Resultados, Integrações, Conhecimento/Fontes e partes de Configurações.
+- [ ] Editor/vault automático, painel de Arquivos/Diff por bloco/Terminal ConPTY e fluxos finais de projeto.
+- [ ] Grafo nativo wgpu/compute (hoje 2D), bloom/blur, timeline 3D, acessibilidade equivalente e metas de desempenho.
+- [ ] Fluent pt/en compartilhado, snapshots/E2E iced comparados ao protótipo.
+- [ ] Prova num Windows real de tudo acima.
 
 ## 1. Escopo
 - Tudo que existe na janela principal do Orion depois do login: barra lateral, barra superior, Início, Chat, painel da direita (Contexto / Arquivos / Diff / Terminal), Projetos, Memória (grafo), Aprovações, Rotinas, Resultados, Nuvem, Fontes, Conhecimento, Painel, Vida, Arquivadas, Configurações, paleta Ctrl K, editor de nota, captura rápida, "Isso?", mini barra de voz, legenda ao vivo, popovers e toasts.
@@ -42,8 +40,8 @@ O controle auxiliar e o instalador não comprovam a conclusão das telas desta n
 |---|---|---|---|
 | U1 | **Entrada:** cartão simples (cinturão grande, "Orion", texto, campo Senha, Entrar), qualquer senha entra | **Login com avatar, perfil local, céu animado, 2FA pelo Telegram só ao reentrar após sair da conta, Windows Hello de reserva** (rodada 8) | Implementar o login da decisão (F02.B). O cartão do mockup (§8 desta nota) fica só como **fundo/medidas de referência** do céu e do campo de senha |
 | U2 | Fontes **Geist / Geist Mono / Newsreader** | O plano F01.02 diz Inter + JetBrains Mono; a nota de arquitetura (seção de design) diz Geist | **Vale o mockup: Geist (400/500/600), Geist Mono (400/500), Newsreader (400/500/600 + itálico 400).** Corrigir F01.02 no plano. Todas embutidas no binário |
-| U3 | Atalho global "**Win + O**" (Configurações > Sistema, atalhos, tooltip) | **Win + Shift + Espaço** (Win+O é do Windows) | Trocar o texto e a ação. Tudo que o mockup chama de "Win + O" vira "Win + Shift + Espaço" |
-| U4 | Captura rápida e "Isso?" rotulados "Win + Shift + O/I" mas o código escuta **Alt+Shift+O/I** (limitação do navegador) | **Win + Shift + O** e **Win + Shift + I** globais | Implementar Win+Shift+O/I via `global-hotkey` |
+| U3 | **(Atualização 20/10/2026: o código usa Ctrl+Alt+Espaço para a mini barra e Ctrl+Alt+P para o pânico; Win+combinações são reservadas pelo Windows.)** Atalho global "**Win + O**" (Configurações > Sistema, atalhos, tooltip) | **Win + Shift + Espaço** (Win+O é do Windows) | Trocar o texto e a ação. Tudo que o mockup chama de "Win + O" vira "Win + Shift + Espaço" |
+| U4 | **(Atualização 20/10/2026: Win+Shift+O/I ainda não implementados; atalhos a confirmar.)** Captura rápida e "Isso?" rotulados "Win + Shift + O/I" mas o código escuta **Alt+Shift+O/I** (limitação do navegador) | **Win + Shift + O** e **Win + Shift + I** globais | Implementar Win+Shift+O/I via `global-hotkey` |
 | U5 | "Nova conversa" = **Ctrl Shift O** | Mantém | Igual |
 | U6 | "Painel" e "Vida" dentro de **Mais**; "Buscar" não é item da barra lateral | F01.19 lista Nova conversa, Buscar, Projetos, Aprovações, Rotinas, Memória, **Painel** na lista principal | **Vale o mockup** (Painel em Mais; busca é o campo no topo + Ctrl K). Ajustar F01.19. "Vida" aparece como "entra depois da v1" |
 | U7 | Hex dos tokens `line` etc. em **alfa branco** (`rgb(255 255 255 / .065)`) | Plano F01.01 usa `line #25272c` | Usar os valores do mockup (§4). `#25272c` ≈ alfa .065 sobre `#151618`; no instalador continua `#25272c` |

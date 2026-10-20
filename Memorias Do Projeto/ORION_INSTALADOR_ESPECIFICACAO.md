@@ -15,23 +15,22 @@ resumo: "Especificação completa do Orion Setup.exe para reproduzir em iced/wgp
 
 ---
 
-## Estado da implementação — auditoria PR #30 (`2020015`, 17/10/2026)
+## Estado da implementação — atualizado em 20/10/2026 (PR #30)
 
-Esta nota descreve o alvo; **o instalador ainda é parcial**. Estado canônico e evidências: [ORION.md](ORION.md), auditoria do PR #30; checklist por fase em [ORION_PLANO_IMPLEMENTACAO.md](ORION_PLANO_IMPLEMENTACAO.md), F10.
+Esta nota descreve o alvo. Estado canônico: [ORION.md](ORION.md); checklist por fase: [ORION_PLANO_IMPLEMENTACAO.md](ORION_PLANO_IMPLEMENTACAO.md), F10.
 
-| Parte | Estado comprovado | O que falta |
+| Parte | Estado | O que falta |
 |---|---|---|
-| Janela/etapas/céu/transições/ícone/DWM | Implementados em iced; céu RGBA calculado na CPU | Comparação visual quadro a quadro, DPI/hardware e snapshots no CI; shader wgpu compartilhado não existe |
-| Som | Trilha instrumental cpal, fade e mute implementados | Diverge de "sempre ligado sem botão"/quatro osciladores; não marcar esse critério original como aceito |
-| Hardware/pastas/modelos | Detecção de SO/RAM/discos e tentativa NVIDIA; seleção explícita e catálogo de oito artefatos | Detecção universal de GPU/Vulkan, todos os modelos multimodais e aceite no notebook |
-| Instalar modo local | Cópia real de `cpu/` ou `vulkan/`, download com hash/retomada/cancelamento, configuração e abrir app | Front HTML ainda não é distribuído/resolvido fora do checkout; dependências externas não vêm resolvidas por esse fluxo; download ocorre antes de concluir, sem onboarding paralelo |
-| Rollback/prévia | Arquivos novos rastreados; preservação de dados preexistentes e prévias isoladas com testes | Aceite completo de instalação/cancelamento no Windows limpo |
-| Pacote/certificado/atalhos/serviço | Apenas arquivos/JSON de protótipo | Registro real de pacote esparso, certificado/assinatura/UAC, atalhos e updater |
-| Desinstalador/onboarding/release | Pendentes | Desinstalação seletiva, perfil/Hello/recuperação, assinatura minisign/autoassinada, canais e release |
-| Build/aceite | Testes Windows e smoke GGUF CPU em `d069b17` passaram | Vulkan falhou no CMake antes do cancelamento; pacote final e critérios da §13 ainda sem aceite |
+| Janela/etapas/céu/transições/ícone/DWM | Implementados em iced; céu RGBA calculado na CPU | Comparação visual quadro a quadro, DPI/hardware, snapshots no CI; shader wgpu compartilhado não existe |
+| Som | Trilha instrumental cpal, fade e mute | Diverge de "sempre ligado sem botão" (decisão pendente; ver §9) |
+| Hardware/pastas/modelos | Detecção de SO/RAM/discos e NVIDIA; catálogo de oito artefatos | Detecção universal de GPU/Vulkan, modelos multimodais, aceite no notebook |
+| Obter o app | **Baixa `latest-<variante>.json` (+ `.minisig`) e `orion.exe`/`orion-llama.exe` do GitHub Releases** (minisign + SHA-256); sem rede usa as pastas `cpu`/`vulkan` ao lado do setup | Chave pública vazia até você gerar o par; nenhum release publicado |
+| Instalar | Cópia, registro em Apps instalados, atalho do Menu Iniciar, autostart opt-in (`--background`), identidade MSIX autoassinada (pulada e dita sem SDK/administrador), lista SHA-256, tarefa diária `orion update --check`, rollback | **Nada disso rodou num Windows real**; fixar na barra exige confirmação do Windows |
+| Desinstalador | `Orion Setup.exe --uninstall <pasta>`: janela com três caixas (app; modelos; dados), vault intocado | Prova no Windows |
+| Onboarding / mini tela "O que mudou" / canais beta e stable | Pendentes | Perfil, Hello, vault, chaves; atualização com céu |
+| Build/aceite | CPU e Vulkan compilam no CI | Critérios da §13 sem aceite |
 
-O pacote atual exige `Orion Setup.exe` **junto das pastas** CPU/Vulkan. Voz, autostart, Vulkan e modelos começam desmarcados, conforme os pedidos recentes; não interpretar a pré-marcação descrita no protótipo como comportamento entregue. Não há validação de que o setup isolado contenha todos os binários.
-
+Voz, autostart, Vulkan e modelos começam desmarcados, conforme pedidos recentes; não interpretar a pré-marcação do protótipo como comportamento entregue.
 
 ## 1. Objetivo e escopo
 - Programa: **`Orion Setup.exe`**, feito em **Rust + iced 0.14**, céu desenhado em **wgpu** (widget `shader` do iced).
@@ -303,7 +302,7 @@ Desenhar = textura centrada em (x,y) com lado `size` e opacidade `alpha` (pular 
 
 ---
 
-## 9. Som ambiente (sempre ligado, sem botão)
+## 9. Som ambiente (alvo original: sempre ligado, sem botão — **implementação atual tem botão de mudo; decisão pendente**)
 - Começa **ao abrir o instalador** (no app nativo não há a trava de primeiro clique do navegador).
 - Volume sobe de 0 a **0,028** (ganho linear) em **4 s**.
 - Síntese em tempo real (sem arquivo de áudio): 4 osciladores → filtro **passa-baixas 900 Hz** → saída.
@@ -321,11 +320,11 @@ Desenhar = textura centrada em (x,y) com lado `size` e opacidade `alpha` (pular 
 ## 10. Fluxo técnico da instalação
 1. **Checagens** (etapa 1): versão do Windows, RAM (`GlobalMemoryStatusEx`), GPU/VRAM (DXGI) e suporte a Vulkan, espaço por disco.
 2. **UAC** ao clicar em Instalar (etapa 4): o Setup se reinicia elevado e mantém as escolhas.
-3. Copiar o app para a pasta escolhida.
+3. Obter o pacote (baixado do GitHub Releases com minisign + SHA-256, ou das pastas `cpu`/`vulkan` ao lado do setup) e copiar o app para a pasta escolhida.
 4. Registrar o **pacote esparso** (identidade de pacote: OCR do Windows, avisos com botões).
 5. Instalar o **certificado autoassinado** do Orion (repositório de máquina "Pessoas Confiáveis").
 6. Criar o atalho no Menu Iniciar e fixar na barra de tarefas (se marcado); registrar "Iniciar com o Windows" (se marcado); registrar o desinstalador em Configurações › Aplicativos.
-7. Instalar o **serviço de atualização** (atualiza sem UAC depois).
+7. Criar a **tarefa agendada diária** (SYSTEM, sem UAC) que chama `orion update --check` (o atualizador é um subcomando de `orion.exe`; não há serviço nem `orion-updater.exe`).
 8. Gravar a lista de modelos escolhidos e a pasta; o **download acontece no app**, em segundo plano, com pausa, retomada e verificação de hash.
 9. Cada passo tem **desfazer** registrado; erro ou cancelamento desfaz em ordem inversa.
 
