@@ -739,6 +739,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [ ] **F10.17** **CLIs (Claude, Codex, Gemini) atualizam sozinhas** e o Orion mostra a versão.
 
 #### F10.C Onboarding no app (primeira abertura)
+> **Decisões de 20/10/2026 (respostas do Antônio):** uma tela só, rolável, com o céu ao fundo (F10.18). Entra: usuário e senha, chave de recuperação (mostrada uma vez), pasta do vault, chaves das APIs (com link e teste de conexão), Telegram + 2FA, backup (Drive + local, cifrado com a senha, 7 cópias, exportar/importar) e importar do Claude/Codex (MCPs, skills e histórico antigo). Banco cifrado: caixa **marcada por padrão**, com opção de desmarcar. Windows Hello **nos dois papéis**: atalho de login e reserva do 2FA; a senha continua existindo e abre o banco. Ficam em Configurações: pastas confiáveis/bloqueadas, rotinas padrão e início com o Windows. Windows só no notebook, depois: o código do Hello compila e tem teste de lógica, mas o item fica `[~]` até a prova lá.
 - [ ] **F10.18** **Tela de boas-vindas em uma tela só** (perfil, senha, 2FA, vault, chaves, importar), com o céu ao fundo.
 - [~] **F10.19** **Perfil local** (nome, avatar, senha forte, chave de recuperação mostrada uma vez), **Windows Hello** quando disponível.
 - [~] **F10.20** **Vault:** detectar o do Obsidian, confirmar o caminho, remoto e credencial do push.
