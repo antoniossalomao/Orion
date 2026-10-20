@@ -32,9 +32,9 @@ impl canvas::Program<Msg> for Brilho {
         let mut f = canvas::Frame::new(renderer, b.size());
         let (w, h) = (b.width, b.height);
         let blobs: [(f32, f32, f32, iced::Color, f32); 3] = if self.lado == 0 {
-            [(0.28, 0.24, 0.50, t::SIGNAL, 0.075), (0.62, 0.80, 0.62, t::ACCENT, 0.17), (0.45, 0.52, 0.48, iced::Color::from_rgb(0.55, 0.45, 0.85), 0.11)]
+            [(0.28, 0.24, 0.50, t::SIGNAL, 0.055), (0.62, 0.80, 0.62, t::ACCENT, 0.12), (0.45, 0.52, 0.48, iced::Color::from_rgb(0.55, 0.45, 0.85), 0.07)]
         } else {
-            [(0.92, 0.08, 0.70, t::ACCENT, 0.10), (0.10, 0.95, 0.55, t::SIGNAL, 0.05), (0.55, 0.45, 0.50, iced::Color::from_rgb(0.55, 0.45, 0.85), 0.05)]
+            [(0.92, 0.08, 0.70, t::ACCENT, 0.08), (0.10, 0.95, 0.55, t::SIGNAL, 0.04), (0.55, 0.45, 0.50, iced::Color::from_rgb(0.55, 0.45, 0.85), 0.03)]
         };
         for (n, (x, y, r, c, a)) in blobs.into_iter().enumerate() {
             let k = n as f32 * 1.7;
@@ -60,7 +60,6 @@ pub fn view(app: &App) -> El<'_> {
     let seg = |ms: u64| crate::anim::progress(Some(app.login_at + std::time::Duration::from_millis(ms)), app.now, 900, app.p.reduced);
     let tempo = app.now.saturating_duration_since(app.login_at).as_secs_f32();
     let (p_ceu, p_card, p_user, p_senha, p_btn) = (seg(0), seg(150), seg(300), seg(420), seg(540));
-    let pulso = if app.p.reduced { 0.5 } else { 0.5 + 0.5 * (tempo * 1.6).sin() };
 
     let campo = |ph: &'static str, v: &str, f: fn(String) -> Msg, secure: bool| {
         text_input(ph, v)
@@ -75,10 +74,7 @@ pub fn view(app: &App) -> El<'_> {
     let neutro = app.gate_err.is_empty() || app.gate_err.starts_with("Conectando") || app.gate_err.starts_with("Entrando") || app.gate_err.starts_with("Abrindo") || app.gate_err.starts_with("Digite a senha");
     let aviso = container(tx(if app.gate_err.starts_with("Digite a senha") { String::new() } else { app.gate_err.clone() }, 12.0, if neutro { t::FG3 } else { t::DANGER })).height(Length::Fixed(16.0));
 
-    let inicial = app.user.chars().next().map(|c| c.to_uppercase().to_string()).unwrap_or_default();
-    let miolo = container(txf(inicial, 21.0, t::FG, t::SERIF)).width(Length::Fixed(54.0)).height(Length::Fixed(54.0)).center_x(Length::Fixed(54.0)).center_y(Length::Fixed(54.0)).style(|_| container::Style { background: Some(t::SIDE.into()), border: Border { radius: 27.0.into(), ..Default::default() }, ..Default::default() });
-    let anel = container(miolo).padding(2).style(move |_| container::Style { background: Some(degrade(t::alpha(t::ACCENT, 0.55 + 0.4 * pulso), t::alpha(t::SIGNAL, 0.35 + 0.5 * pulso), 135.0)), border: Border { radius: 30.0.into(), ..Default::default() }, shadow: iced::Shadow { color: t::alpha(t::ACCENT, 0.10 + 0.14 * pulso), offset: iced::Vector::new(0.0, 0.0), blur_radius: 22.0 }, ..Default::default() });
-    let cab = column![anel, txf(app.user.clone(), 13.0, t::FG2, t::MONO), txf(if code { "Confirme sua identidade" } else { "Bem-vindo de volta" }, 22.0, t::FG, t::SERIF)].spacing(8).align_x(Horizontal::Center);
+    let cab = column![belt_fg(false), txf(if code { "Confirme sua identidade" } else { "Bem-vindo de volta" }, 26.0, t::FG, t::SERIF)].spacing(10).align_x(Horizontal::Center);
 
     let mut campos = column![].spacing(10).width(Length::Fill);
     let bg = t::SIDE;
@@ -100,18 +96,18 @@ pub fn view(app: &App) -> El<'_> {
                 background: Some(degrade(a, t::mix(t::ACCENT, 0.9), 100.0)),
                 text_color: t::PRIMARY_INK,
                 border: Border { radius: 10.0.into(), ..Default::default() },
-                shadow: iced::Shadow { color: t::alpha(t::ACCENT, if hov { 0.34 } else { 0.20 }), offset: iced::Vector::new(0.0, 6.0), blur_radius: 22.0 },
+                shadow: iced::Shadow { color: t::alpha(t::ACCENT, if hov { 0.22 } else { 0.10 }), offset: iced::Vector::new(0.0, 4.0), blur_radius: 16.0 },
                 snap: true,
             }
         });
 
-    let cartao = container(column![cab, sp_h(10.0), campos, aviso, rise(fade(entrar, p_btn, bg), p_btn, 10.0)].spacing(8).align_x(Horizontal::Center).width(Length::Fill))
+    let cartao = container(column![cab, sp_h(14.0), campos, aviso, rise(fade(entrar, p_btn, bg), p_btn, 10.0)].spacing(8).align_x(Horizontal::Center).width(Length::Fill))
         .padding(pad(30.0, 28.0, 26.0, 28.0))
         .width(Length::Fixed(380.0))
         .style(|_| container::Style {
-            background: Some(degrade(t::alpha(iced::Color::WHITE, 0.055), t::alpha(iced::Color::WHITE, 0.02), 160.0)),
-            border: Border { color: t::alpha(iced::Color::WHITE, 0.08), width: 1.0, radius: 20.0.into() },
-            shadow: iced::Shadow { color: t::alpha(iced::Color::BLACK, 0.45), offset: iced::Vector::new(0.0, 24.0), blur_radius: 56.0 },
+            background: Some(degrade(t::alpha(iced::Color::WHITE, 0.035), t::alpha(iced::Color::WHITE, 0.012), 160.0)),
+            border: Border { color: t::alpha(iced::Color::WHITE, 0.05), width: 1.0, radius: 18.0.into() },
+            shadow: iced::Shadow { color: t::alpha(iced::Color::BLACK, 0.25), offset: iced::Vector::new(0.0, 16.0), blur_radius: 40.0 },
             ..Default::default()
         });
     let rodape = txf(if app.db_locked { "A mesma senha abre o banco cifrado" } else { "Tudo fica neste computador" }, 11.0, t::FG3, t::MONO);
