@@ -2,7 +2,7 @@
 
 > Produto: app nativo Rust de um só executável (`orion.exe`, núcleo e interface iced no mesmo processo, sem porta e sem Python). O pacote Python `orion/` fica só como referência executável até a paridade e a venda do PC (auditoria do PR #30, atualizada em 20/10/2026). Princípios e onde cada um é imposto: [REGRAS.md](REGRAS.md). Estado e plano: [ORION.md](ORION.md). Como rodar: [README](../README.md). Detalhes do legado: [ORION_LEGADO.md](ORION_LEGADO.md).
 
-## 1. Referência executável: pacote `orion/` (Python)
+## 1. Referência histórica: pacote `orion/` (Python, removido do repositório em 20/10/2026; consulte o Git)
 
 **Referência histórica (o produto é Rust).** Um processo FastAPI em `127.0.0.1`, com política de ferramentas, memória em SQLite e canais (navegador, Telegram, ponte de desktop).
 
@@ -69,7 +69,7 @@ Não saem do computador: finanças, rosto, rótulos de objetos, presença, detec
 
 O backend `Orion_Ollama/`, os serviços em `bin/startup/`, os motores de voz antigos e a distribuição PyInstaller foram removidos. O histórico e as instruções antigas continuam no Git e em [ORION_LEGADO.md](ORION_LEGADO.md).
 
-`Orion_Core/Front_end_Orion/` guarda o front HTML/CSS/JS antigo e seus assets; **o app Rust não o serve mais** (a interface é o `orion-app` em iced) e a pasta só serve de protótipo/referência. `orion/` e `tests/` permanecem como referência executável para a paridade incompleta. O sidecar (`orion-sidecar`, `Orion_Rust/python/`) foi removido em 20/10/2026: leitura de páginas e navegador guiado são Rust. Scripts de treino/avaliação de voz, benchmark, fixtures MCP e edge-tts ainda usam Python, fora do produto.
+`Orion_Core/Front_end_Orion/` guarda o front HTML/CSS/JS antigo e seus assets; **o app Rust não o serve mais** (a interface é o `orion-app` em iced) e a pasta só serve de protótipo/referência. O Python de referência (`orion/`, `tests/`, `pyproject.toml`, `uv.lock`) foi removido em 20/10/2026 e fica no histórico do Git. O sidecar (`orion-sidecar`, `Orion_Rust/python/`) foi removido em 20/10/2026: leitura de páginas e navegador guiado são Rust. Scripts de treino/avaliação de voz, benchmark, fixtures MCP e edge-tts ainda usam Python, fora do produto.
 
 ## 6. Interface
 

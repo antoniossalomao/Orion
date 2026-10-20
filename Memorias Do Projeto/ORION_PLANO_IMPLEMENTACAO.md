@@ -173,7 +173,7 @@ O planejamento acumulou decisões ao longo de várias rodadas de perguntas. Onde
 | C30 | Automelhoria | "Ligada na v1" (rodada 2) × "termos dos provedores ainda precisam ser confirmados antes de ligar" (15/10) × depende de F11, F12 e F13 | O **interruptor, a fila e a tela** existem na v1 (F07.15); a **execução** entra no M9 e **pode antecipar para o M2** logo após F13 se a D03 liberar. **Confirmar.** | F13, F26 |
 | C26 | Marca do instalador "menor possível" | Instalador mínimo × ~100 a 200 MB estimados | Mantém o corte: **só o essencial** no Setup; modelos sob demanda. | F10 |
 | C27 | Documentos Word, Excel e PowerPoint | "Na v1" (15/10) × escopo da v1 sem documentos (15/10, posterior) | **Fora da v1**, em **F25** (confirmar se quer subir para a v1). | F25 |
-| C28 | Navegador agente | Chrome headless via CDP (rodada 3) × "visível numa aba do painel" (rodada 9) | **Aba visível com WebView2 controlado por CDP**, e Chrome headless só em segundo plano. | F21 | **Revisto em 20/10/2026:** navegador externo (Edge/Chrome) guiado por CDP, sem WebView2 e sem aba no painel; ver D-nota no ORION.md.
+| C28 | Navegador agente | Chrome headless via CDP (rodada 3) × "visível numa aba do painel" (rodada 9) | **Aba visível com WebView2 controlado por CDP**, e Chrome headless só em segundo plano. | F21 | **Decidido em 20/10/2026:** navegador externo (Edge/Chrome) guiado por CDP, sem WebView2 e sem aba no painel; MCP Apps só em texto, pós-1.0.
 | C29 | OCR | "Via API" (15/10) × "nada pessoal sai" (R19, rodada 4) | **OCR local primeiro**; API só se você ligar, com máscara de dados antes do envio. | F20 |
 
 > **Pedido de confirmação:** C1, C3, C6, C9, C10, C16, C25, C27, C28, C29 e C30 mudam o comportamento visível. C18/D02 já foi confirmado em 17/10/2026 (20% por tarefa). Os demais são consequência direta de uma decisão posterior.
@@ -509,7 +509,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [~] **F04.16** **Confirmação fora de banda** (R04): vale 10 min, uso único, para a sessão, a ferramenta e os argumentos exatos. **Estado PR #30: Aprovação de sessão/ferramenta/argumentos e uso único portados; paridade da política pendente.**
 
 #### F04.C Modo autônomo
-- [ ] **F04.17** Interruptor em **Configurações › Agente** e na **pílula de estado**; **desligado ao instalar**; ligar pede a senha de novo. **Estado 20/10/2026: o código liga o modo autônomo (`POST /modo/autonomo`, 4× passos) sem pedir a senha de novo; divergência a decidir.**
+- [ ] **F04.17** Interruptor em **Configurações › Agente** e na **pílula de estado**; **desligado ao instalar**; ligar pede a senha de novo. **Estado 20/10/2026: o código liga o modo autônomo (`POST /modo/autonomo`, 4× passos) sem pedir a senha de novo. Decisão 20/10/2026: pedir a senha, como no plano; implementação pendente.**
 - [ ] **F04.18** Ligado: age sem pedir aprovação, **exceto a linha "sempre pedir"**; **para só quando precisa de uma decisão sua**.
 - [ ] **F04.19** **Resumo ao fim do dia** (no Painel e na notificação das 23:59), não a cada ação.
 - [ ] **F04.20** **Retomar do ponto salvo** se o PC cair no meio da tarefa (progresso salvo a cada passo).
@@ -720,7 +720,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 #### F10.A `Orion Setup.exe` (`orion-setup`)
 - [ ] **F10.01** Janela **960×600 fixa**, sem moldura, barra de título de 36 px, cantos de 12 px, **idêntica ao protótipo** (tokens, fontes, espaçamentos da especificação §2 a §5).
 - [ ] **F10.02** **Céu animado** (motor da F01.29) com a constelação acendendo **uma estrela por etapa** (Betelgeuse, Bellatrix, **Cinturão em sequência 0/0,35/0,70 s**, Saiph, Rigel), nebulosa M42, estrelas de fundo com a **semente 7**, linhas que crescem em 1,6 s, conclusão com brilho que respira, estrela cadente rara.
-- [ ] **F10.03** **Som ambiente sempre ligado**, sem botão (4 osciladores + passa-baixas 900 Hz, volume 0,028 em 4 s, fade-out ao fechar). **Decisão 20/10/2026 (em confirmação): manter o botão de mudo por acessibilidade; a especificação do instalador será editada.**
+- [ ] **F10.03** **Som ambiente sempre ligado**, sem botão (4 osciladores + passa-baixas 900 Hz, volume 0,028 em 4 s, fade-out ao fechar). **Decisão 20/10/2026: remover o botão de mudo e deixar o som sempre ligado, como na spec; o código atual (com mudo) precisa ser ajustado.**
 - [ ] **F10.04** **Transição entre etapas** (saída 0,34 s subindo 8 px; entrada 0,34 s vindo de 10 px; barra de etapas 0,7 s; troca do nome da estrela com fade) e **janela que nunca muda de tamanho** (palco rola por dentro).
 - [ ] **F10.05** **Etapa 1 Boas-vindas:** idioma + **checagem do PC** (Windows 11, RAM, GPU/VRAM/Vulkan, espaço por disco); bloqueia no Windows 10.
 - [ ] **F10.06** **Etapa 2 Pastas:** app (Arquivos de Programas), **modelos no disco com mais espaço** (sugerido), dados em `%ProgramData%\Orion`.
@@ -828,11 +828,11 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [ ] **F12.14** **Aprovação:** ações leves (abrir app, tocar música) **sem pedir**; escrever arquivo e comandos que alteram algo **pedem OK**; apagar, formatar e force-push **pedem confirmação extra**.
 
 #### F12.C Nuvem: Claude e Codex
-- [ ] **F12.15** **`/nuvem claude <tarefa>`:** `claude --remote "<tarefa>"` cria sessão do Claude Code na nuvem, na assinatura; `claude --teleport` traz para o PC; só quando você pedir; só pelas CLIs oficiais. *(Adiado em 20/10/2026: a "Nuvem" virou Segundo plano, tarefas do próprio Orion em `/tarefas-bg`; as CLIs em nuvem seguem bloqueadas pela D03.)*
-- [ ] **F12.16** **`/nuvem codex <tarefa>`:** `codex cloud exec`, `codex cloud list` (JSON) para acompanhar, `codex apply` para trazer o diff (flags a confirmar na doc oficial). *(Adiado em 20/10/2026: a "Nuvem" virou Segundo plano, tarefas do próprio Orion em `/tarefas-bg`; as CLIs em nuvem seguem bloqueadas pela D03.)*
-- [ ] **F12.17** **Tela Nuvem:** tarefas em andamento nos dois serviços (estado, link, **log ao vivo**, **mandar mensagem para a sessão**, **cancelar**, **abrir no navegador**, botão **Trazer resultado**). *(Adiado em 20/10/2026: a "Nuvem" virou Segundo plano, tarefas do próprio Orion em `/tarefas-bg`; as CLIs em nuvem seguem bloqueadas pela D03.)*
-- [ ] **F12.18** **Ao terminar:** **avisa e espera** (notificação e Telegram) com o link da sessão ou do PR; trazer o diff é decisão sua. *(Adiado em 20/10/2026: a "Nuvem" virou Segundo plano, tarefas do próprio Orion em `/tarefas-bg`; as CLIs em nuvem seguem bloqueadas pela D03.)*
-- [ ] **F12.19** **Codex que falha:** avisa o erro e **pergunta** (tentar de novo, mandar para o Claude ou desistir); **não troca de serviço sozinho**. *(Adiado em 20/10/2026: a "Nuvem" virou Segundo plano, tarefas do próprio Orion em `/tarefas-bg`; as CLIs em nuvem seguem bloqueadas pela D03.)*
+- [ ] **F12.15** **`/nuvem claude <tarefa>`:** `claude --remote "<tarefa>"` cria sessão do Claude Code na nuvem, na assinatura; `claude --teleport` traz para o PC; só quando você pedir; só pelas CLIs oficiais. *(20/10/2026: decidido implementar já, pelas CLIs oficiais; "Segundo plano" do próprio Orion (`/tarefas-bg`) fica ao lado.)*
+- [ ] **F12.16** **`/nuvem codex <tarefa>`:** `codex cloud exec`, `codex cloud list` (JSON) para acompanhar, `codex apply` para trazer o diff (flags a confirmar na doc oficial). *(20/10/2026: decidido implementar já, pelas CLIs oficiais; "Segundo plano" do próprio Orion (`/tarefas-bg`) fica ao lado.)*
+- [ ] **F12.17** **Tela Nuvem:** tarefas em andamento nos dois serviços (estado, link, **log ao vivo**, **mandar mensagem para a sessão**, **cancelar**, **abrir no navegador**, botão **Trazer resultado**). *(20/10/2026: decidido implementar já, pelas CLIs oficiais; "Segundo plano" do próprio Orion (`/tarefas-bg`) fica ao lado.)*
+- [ ] **F12.18** **Ao terminar:** **avisa e espera** (notificação e Telegram) com o link da sessão ou do PR; trazer o diff é decisão sua. *(20/10/2026: decidido implementar já, pelas CLIs oficiais; "Segundo plano" do próprio Orion (`/tarefas-bg`) fica ao lado.)*
+- [ ] **F12.19** **Codex que falha:** avisa o erro e **pergunta** (tentar de novo, mandar para o Claude ou desistir); **não troca de serviço sozinho**. *(20/10/2026: decidido implementar já, pelas CLIs oficiais; "Segundo plano" do próprio Orion (`/tarefas-bg`) fica ao lado.)*
 
 #### F12.D Monitores
 - [ ] **F12.20** **Monitor de página/site que mudou**, **releases das libs e ferramentas que você usa** (iced, rmcp, Claude Code) e **notícias de temas**; avisa pelo canal escolhido; guarda histórico no vault.
@@ -880,7 +880,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 **Objetivo:** o celular pelo Telegram, com segurança estrita e o 2FA.
 **Dependências:** F04 (aprovações), F12 (rotinas), F02 (gancho do 2FA).
 
-- [~] **F14.01** Cliente com `teloxide`; **só o seu ID** responde, **conversa privada**; o resto é **ignorado em silêncio**; token no cofre; **troca do token só quando você pedir**. **Estado PR #30: Bot HTTP próprio com default-deny e cofre; não usa teloxide.** *(Decisão 20/10/2026: manter o cliente próprio; `teloxide` descartado.)*
+- [~] **F14.01** Cliente com `teloxide`; **só o seu ID** responde, **conversa privada**; o resto é **ignorado em silêncio**; token no cofre; **troca do token só quando você pedir**. **Estado PR #30: Bot HTTP próprio com default-deny e cofre; não usa teloxide.** *(Decisão confirmada 20/10/2026: manter o cliente próprio; `teloxide` descartado.)*
 - [ ] **F14.02** **PIN próprio** além do ID para ações críticas (ligar, desligar, aprovar); **login novo ou IP desconhecido avisa e bloqueia** a ação.
 - [ ] **F14.03** **Conversar com o Orion:** as conversas aparecem no app do PC com a marca **"via Telegram"** (ícone do avião); a **resposta completa aparece no chat do PC**; no Telegram, resposta longa vira **resumo + botão "ver completo"** (abre a conversa no PC ou envia `.md`).
 - [ ] **F14.04** **PC ocupado:** mensagens vão para uma **fila** e são respondidas quando terminar.
@@ -1029,7 +1029,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 **Dependências:** F04, F05, F07.
 
 #### F19.A MCP
-- [~] **F19.01** **Cliente MCP** com `rmcp`: servidores **stdio** (comando local) e **HTTP/SSE** (URL), com OAuth quando exigido; ferramentas aparecem no chat **com o nome do servidor**. **Estado PR #30: Cliente próprio stdio/HTTP e OAuth implementados; sem rmcp, UI/servidores reais pendentes.** *(Decisão 20/10/2026: manter o cliente próprio; `rmcp` descartado.)*
+- [~] **F19.01** **Cliente MCP** com `rmcp`: servidores **stdio** (comando local) e **HTTP/SSE** (URL), com OAuth quando exigido; ferramentas aparecem no chat **com o nome do servidor**. **Estado PR #30: Cliente próprio stdio/HTTP e OAuth implementados; sem rmcp, UI/servidores reais pendentes.** *(Decisão confirmada 20/10/2026: manter o cliente próprio; `rmcp` descartado.)*
 - [ ] **F19.02** **Classe de risco vem da configuração do Orion**, nunca do servidor; sem classe = **execução** (R12); o servidor sobe **sem variáveis `ORION_*` nem segredos**.
 - [ ] **F19.03** **Permissão por ferramenta** (sempre, perguntar, nunca; padrão **perguntar**); **leitura permitida, escrita pede aprovação** para plugins e MCPs de terceiros.
 - [ ] **F19.04** **Proteção contra tool poisoning e rug pull:** **hash** das ferramentas e das descrições na aprovação; **se mudar, desativa até você reaprovar**; **classificador de injection lê as descrições**; o que o servidor anuncia é **tratado como texto não confiável**.
@@ -1046,7 +1046,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [ ] **F19.11** Interface WIT estável, SDK e **plugin de exemplo**; atualização e remoção.
 
 #### F19.D MCP Apps
-- [ ] **F19.12** **MCP Apps** (telas interativas de servidores): **WebView2 isolado**, `ui://`, **sem acesso a arquivos, rede bloqueada**, comunicação por JSON-RPC (postMessage), **fallback em texto**; carregado só quando precisa. *(20/10/2026: sem WebView2 no produto; fica sem data, depende de decisão.)*
+- [ ] **F19.12** **MCP Apps** (telas interativas de servidores): **WebView2 isolado**, `ui://`, **sem acesso a arquivos, rede bloqueada**, comunicação por JSON-RPC (postMessage), **fallback em texto**; carregado só quando precisa. *(Decisão 20/10/2026: sem WebView2 no produto; MCP Apps ficam só em texto e vão para depois da 1.0.)*
 
 #### F19.E Clientes externos
 - [ ] **F19.13** **Orion como servidor MCP** para outros programas (ex.: **Claude Code**): tela que gera **credenciais de leitura** com **nome, contexto, validade e permissões por leitura**; **não permite administrar o Orion**; revogáveis.
@@ -1098,7 +1098,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 **Objetivo:** o Orion navega e pesquisa por você, com aprovação nas ações de risco.
 **Dependências:** F04, F05, F12.
 
-- [~] **F21.01** **Navegador agente visível numa aba do painel** (WebView2 controlado por CDP, a mesma exceção de WebView) com **Chrome headless via `chromiumoxide`** para tarefas em segundo plano; você **vê e pode assumir** a qualquer momento (decisão a confirmar, C28). *(20/10/2026: feito em parte como navegador externo guiado por CDP — `navegador_ler`/`navegador_agir`, Edge/Chrome, `netguard` por requisição, sem downloads, recusa senha/cartão; sem aba no painel e sem WebView2.)*
+- [~] **F21.01** **Navegador agente visível numa aba do painel** (WebView2 controlado por CDP, a mesma exceção de WebView) com **Chrome headless via `chromiumoxide`** para tarefas em segundo plano; você **vê e pode assumir** a qualquer momento (decisão a confirmar, C28). *(20/10/2026: feito em parte como navegador externo guiado por CDP — `navegador_ler`/`navegador_agir`, Edge/Chrome, `netguard` por requisição, sem downloads, recusa senha/cartão; sem aba no painel e sem WebView2, por decisão.)*
 - [ ] **F21.02** **Cada ação** (clicar, digitar, enviar) passa pela política; **pagamento sempre pede aprovação**; **conteúdo da página é dado** (R05); URL inteira no cartão.
 - [ ] **F21.03** **Pesquisa profunda (`/pesquisa`):** várias buscas em paralelo, leitura de fontes (`reqwest` + extração própria, `netguard`), **relatório com citações** salvo como **nota no vault**, com progresso e tempo limite.
 - [x] **F21.04** **Busca na web** (ver F03.25) integrada ao agente, **pergunta com contexto** filtrada. *(Feito em 20/10/2026: `buscar_url` com Readability + Markdown, `links=true`, `netguard`.)*

@@ -22,7 +22,7 @@ Esta nota descreve o alvo. Estado canônico: [ORION.md](ORION.md); checklist por
 | Parte | Estado | O que falta |
 |---|---|---|
 | Janela/etapas/céu/transições/ícone/DWM | Implementados em iced; céu RGBA calculado na CPU | Comparação visual quadro a quadro, DPI/hardware, snapshots no CI; shader wgpu compartilhado não existe |
-| Som | Trilha instrumental cpal, fade e mute | Diverge de "sempre ligado sem botão" (decisão pendente; ver §9) |
+| Som | Trilha instrumental cpal, fade e mute | **Decidido 20/10/2026: remover o mute** (sempre ligado, §9); ajuste pendente no código |
 | Hardware/pastas/modelos | Detecção de SO/RAM/discos e NVIDIA; catálogo de oito artefatos | Detecção universal de GPU/Vulkan, modelos multimodais, aceite no notebook |
 | Obter o app | **Baixa `latest-<variante>.json` (+ `.minisig`) e `orion.exe`/`orion-llama.exe` do GitHub Releases** (minisign + SHA-256); sem rede usa as pastas `cpu`/`vulkan` ao lado do setup | Chave pública vazia até você gerar o par; nenhum release publicado |
 | Instalar | Cópia, registro em Apps instalados, atalho do Menu Iniciar, autostart opt-in (`--background`), identidade MSIX autoassinada (pulada e dita sem SDK/administrador), lista SHA-256, tarefa diária `orion update --check`, rollback | **Nada disso rodou num Windows real**; fixar na barra exige confirmação do Windows |
@@ -302,7 +302,7 @@ Desenhar = textura centrada em (x,y) com lado `size` e opacidade `alpha` (pular 
 
 ---
 
-## 9. Som ambiente (alvo original: sempre ligado, sem botão — **implementação atual tem botão de mudo; decisão pendente**)
+## 9. Som ambiente (decidido em 20/10/2026: sempre ligado, sem botão; o código atual ainda tem mudo e precisa ser ajustado)
 - Começa **ao abrir o instalador** (no app nativo não há a trava de primeiro clique do navegador).
 - Volume sobe de 0 a **0,028** (ganho linear) em **4 s**.
 - Síntese em tempo real (sem arquivo de áudio): 4 osciladores → filtro **passa-baixas 900 Hz** → saída.

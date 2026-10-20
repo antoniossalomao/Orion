@@ -24,7 +24,7 @@ resumo: "Auditoria dos 7 documentos de Memorias Do Projeto contra o código da b
 
 ## 2. Documentos desatualizados ou contraditórios — status da correção
 
-> **Corrigidos em 20/10/2026:** 1, 2, 3, 4, 5 (nota de equivalência Rust em REGRAS.md; as colunas por princípio seguem citando Python e devem ser reapontadas ao tocar cada princípio), 6, 7, 8, 9, 10, 13, 14, 15, 17, 19, 20. **Em aberto, esperando decisão sua:** 11 (atalhos), 12 (autônomo pede senha?), 16 (som), 18 (leitura oficial de uso). Os textos dos itens 17 e 19 foram escritos como "decisão 20/10" e valem se você confirmar as perguntas de alinhamento.
+> **Corrigidos em 20/10/2026:** 1, 2, 3, 4, 5 (nota de equivalência Rust em REGRAS.md; as colunas por princípio seguem citando Python e devem ser reapontadas ao tocar cada princípio), 6, 7, 8, 9, 10, 13, 14, 15, 17, 19, 20. **Decididos por você em 20/10/2026 (docs já refletem; código a ajustar):** 11 (Ctrl+Alt+Espaço/P/O/I), 12 (autônomo pede senha), 16 (remover mudo). **Ainda aberto:** 18 (leitura oficial de uso, bloqueada pela D03). Os textos dos itens 17 e 19 foram escritos como "decisão 20/10" e valem se você confirmar as perguntas de alinhamento.
 > Também notado ao corrigir: o CI (`rust-windows.yml`) roda só `cargo test`, **sem `fmt` nem `clippy`**; o plano tem 40 itens agora marcados `[~]` (todos que já traziam "Estado PR #30").
 
 
@@ -172,3 +172,21 @@ F08.xx completo (Projetos: cartões, GitHub clonar, isolamento R20, arquivar) �
 3. F08 Projetos → F09 Painel → onboarding F10.C → backup.
 4. F12 completa (rotinas) → F14/F15 pendências.
 5. Só então F11, F16–F17 e M8.
+
+---
+
+## 7. Alinhamento das ideias em conflito (respostas de 20/10/2026)
+
+| Tema (seção 4) | Decisão | Efeito |
+|---|---|---|
+| A. Atalhos | Manter Ctrl+Alt: Espaço = mini barra, P = pânico, **O = captura rápida, I = "Isso?"** | Docs corrigidos; **[C]** implementar Ctrl+Alt+O/I (F20) |
+| B. Som do instalador | **Remover o botão de mudo** (sempre ligado) | **[C]** tirar o mute do `orion-setup` |
+| Modo autônomo | **Pedir a senha** ao ligar (F04.17) | **[C]** pedir senha em `POST /modo/autonomo` e na UI |
+| E. Nuvem Claude/Codex | **Implementar já** (`/nuvem claude\|codex`, F12.15–19), além do Segundo plano | **[C]** `claude --remote`/`--teleport`, `codex cloud exec/list`, `codex apply`, tela Nuvem real; só pelas CLIs oficiais |
+| D. WebView2 / MCP Apps | **Sem WebView2**; navegador invisível guiado por CDP; MCP Apps só em texto, pós-1.0 | F19.12 e a aba do navegador (F21.01) saem da v1 |
+| J. teloxide / rmcp | **Manter clientes próprios** | Plano editado |
+| N. Python de referência | **Apagar agora** | Feito: `orion/`, `tests/` (menos `servidor_cru.py`), `pyproject.toml`, `uv.lock`, `scripts/benchmark_rust_python.py` e `gerar_icone.py` removidos; ficam no Git. Restam `scripts/{smoke_local_windows,treinar_orion_wake,wake_eval}.py` (CI e treino da palavra) e `Orion_Core/Front_end_Orion` (usado por `orion serve --features http`) |
+| K. Autostart + banco cifrado | **Abrir a tela de senha** no início com o Windows | **[C]** `--background` com banco cifrado mostra a janela de senha |
+| C, F, G, H, I, L, M | Resolvidos nos docs (fontes, instalador, updater, variantes, licença, legado) | — |
+
+**Novas tarefas de código geradas por este alinhamento:** (1) tirar o mute do instalador; (2) senha ao ligar o autônomo; (3) tela de senha no autostart; (4) Ctrl+Alt+O / Ctrl+Alt+I; (5) F12.15–F12.19 (nuvem pelas CLIs oficiais). Ainda aberto: 18, leitura oficial de uso (D03).
