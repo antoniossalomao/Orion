@@ -62,7 +62,7 @@ F10 ─► F19 (Extensões) ; F12 ─► F20..F25 ; F13 + F19 ─► F26 (Autome
 | F10 | Instalador, atualizador, onboarding e release v1 | M1 | XL | F01 a F09 |
 | F11 | Ferramentas de código | M2 | L | F05, F08 |
 | F12 | Rotinas, automações, nuvem e monitores | M2 | XL | F04 a F08 |
-| F13 | Orçamento de uso | M2 | L | F03, F09, D03 |
+| F13 | Orçamento de uso | M2 | L | F03, F09 (D03 decidido) |
 | F14 | Telegram | M3 | L | F04, F12 |
 | F15 | Voz | M4 | XL | F03 a F05 |
 | F16 | Grafo 3D da memória | M5 | XL | F06, F01.29 |
@@ -334,7 +334,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 
 #### F00.D Pendências que só você faz (bloqueiam o descarte do legado)
 - [~] **F00.28** **Exportar as tabelas pessoais do SurrealDB** (eventos, lembretes, tarefas, contatos) conforme `ORION_LEGADO.md` e rodar `orion verify-export` até dar `PRONTO` — **antes da venda do PC (fim do ano)**.
-- [ ] **F00.29** Confirmar os **termos de uso** dos provedores para automação em segundo plano e leitura de `/usage` (D03).
+- [ ] **F00.29** Confirmar os **termos de uso** dos provedores para automação em segundo plano e leitura de `/usage` (D03). *(20/10/2026: o Antônio decidiu ler `/usage` e `/status`; conferir os termos oficiais segue como cautela.)*
 - [ ] **F00.30** Decidir os itens D05, D06, D09 e D10 da §3.
 
 **Critério de aceite F00:** repositório com CI verde; um relatório por spike com número medido e decisão; a decisão iced × Slint registrada; export do SurrealDB verificado; lista de riscos atualizada.
@@ -485,7 +485,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [~] **F03.23** **Painel de cotas** atualizado a cada **5 min**.
 - [~] **F03.24** **Imagens (`/imagem`):** Gemini por padrão e outros gratuitos como reserva; salvas em `03 Recursos/Orion/Imagens/` e linkadas na nota da conversa; nome gerado pelo código, tipo conferido (R16); **sem marca de IA** nos metadados.
 - [~] **F03.25** **Busca na web:** Gemini com Google Search primeiro, **Brave** quando a cota acabar; a consulta é "pergunta com contexto" que **passa pela filtragem**; pastas bloqueadas ficam de fora.
-- [ ] **F03.26** **Verificação de termos** (D03) registrada antes de ligar qualquer uso automático de assinatura.
+- [ ] **F03.26** **Verificação de termos** (D03) registrada antes de ligar qualquer uso automático de assinatura. *(20/10/2026: D03 decidido; falta registrar a verificação dos termos.)*
 
 **Testes:** provedores falsos e gravados (cassetes), erro/timeout/cota, troca no meio da conversa, roteador contra o conjunto da F00.21, descarga de modelo, medição de RAM.
 **Critério de aceite:** uma pergunta simples e uma difícil chegam ao provedor certo; queda de provedor troca sozinha; modelo local carrega e descarrega medidos; nenhuma chamada paga possível.
@@ -752,7 +752,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 #### F10.B Atualizador (`orion-updater`)
 - [~] **F10.14** **Serviço de atualização com permissão** (sem UAC a cada update), checando **uma vez por dia** em segundo plano. **Estado PR #30 (19/10/2026): Parcial: tarefa agendada diária (SYSTEM, sem UAC) chama `orion-updater --check`; sem `feed_url` e chave pública ele não faz nada. Nunca rodou no Windows.** **Atualização 20/10/2026: o atualizador agora é o subcomando `orion update --check [--apply]|--rollback` de `orion.exe` (a tarefa diária chama esse comando); não existe mais `orion-updater.exe` e `ALLOWED_FILES` é só `orion.exe` e `orion-llama.exe`.**
 - [~] **F10.15** Verificação: **assinatura minisign + SHA-256** do release (C7); recusa binário não assinado; **rollback** para a versão anterior. **Estado PR #30 (19/10/2026): Parcial: feed e SHA-256 conferidos, só versão maior, `.bak` e `--rollback`, testado com chaves minisign geradas no teste. Falta o par de chaves de release, a publicação do feed assinado e o rollback automático se o app novo não subir.** **Atualização 20/10/2026: o instalador também baixa o pacote com a mesma verificação (`latest-<variante>.json` + `.minisig`, variantes `cpu`/`vulkan`); `release.yml` existe e nunca rodou, pois falta a chave.**
-- [ ] **F10.16** **Instala ao fechar** o app; **mini tela de atualização** (céu + **"O que mudou"**); canais **beta** e **stable**.
+- [ ] **F10.16** **Instala ao fechar** o app; **mini tela de atualização** (céu + **"O que mudou"**); canais **beta** e **stable**. *(Decisão de 20/10/2026: só o canal **stable** no começo; o **beta** nasce quando o notebook entrar.)*
 - [ ] **F10.17** **CLIs (Claude, Codex, Gemini) atualizam sozinhas** e o Orion mostra a versão.
 
 #### F10.C Onboarding no app (primeira abertura)
@@ -873,10 +873,10 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 > **Auditoria PR #30 (`2020015`): Parcial.** Registro/calibragem/reset/projeção e tetos 95%/20% feitos em chamadas estimadas; leitura oficial, precisão, fila e preempção pendentes.
 
 **Objetivo:** economizar com qualidade e usar a cota semanal quase toda, medindo com honestidade.
-**Dependências:** F03, F09; **bloqueada pela D03** (termos dos provedores).
+**Dependências:** F03, F09. **D03 decidido em 20/10/2026:** a leitura de `/usage` e `/status` pelas CLIs está liberada, com queda para a estimativa local e aviso se o formato mudar; deixou de estar bloqueada.
 
-- [ ] **F13.01** **Leitura de uso do Claude:** rodar `/usage` na CLI do Claude Code e ler a janela de 5 h e a da semana; se o formato mudar, **cai para a estimativa local e avisa**.
-- [ ] **F13.02** **Leitura do Codex:** `/status` da CLI (só depois de a sessão receber uma mensagem; pode estar desatualizado; divergências conhecidas); **Gemini:** só estimativa local.
+- [ ] **F13.01** **Leitura de uso do Claude:** rodar `/usage` na CLI do Claude Code e ler a janela de 5 h e a da semana; se o formato mudar, **cai para a estimativa local e avisa**. *(20/10/2026: liberado pela D03; ainda não implementado.)*
+- [ ] **F13.02** **Leitura do Codex:** `/status` da CLI (só depois de a sessão receber uma mensagem; pode estar desatualizado; divergências conhecidas); **Gemini:** só estimativa local. *(20/10/2026: liberado pela D03; ainda não implementado.)*
 - [~] **F13.03** **Registro local de cada chamada** por provedor como base; **calibragem manual** quando a estimativa desviar; **dia e hora do reset** por provedor. **Estado PR #30: Registro/reset/calibragem feitos em chamadas estimadas; precisão real pendente.**
 - [~] **F13.04** **Teto de 95%** da cota semanal com **5% de reserva**; **projeção diária** do que sobra no reset pelo ritmo de uso. **Estado PR #30: Tetos/projeção implementados e testados; aceite de precisão da fase pendente.**
 - [ ] **F13.05** **Alerta em 80%** usado; aviso quando a cota está no limite.
@@ -938,7 +938,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 
 #### F15.B Entrada de voz
 - [~] **F15.04** **STT local:** **Whisper large-v3-turbo** via `whisper-rs` com **Vulkan**; **só português**; **silêncio de 1 s** para parar; **Groq Whisper opcional** para PC sem GPU, desligado por padrão (C2).
-- [~] **F15.05** **Palavra "Orion"** com `oww-rs` (openWakeWord, modelo treinado, local), **sensibilidade média**, ajustável; **só abre o microfone**; **traz a janela para o foco**. **Estado PR #30: Engine/treino candidato feitos; candidato reprovado para escuta contínua, modelo final pendente.**
+- [~] **F15.05** **Palavra "Orion"** com `oww-rs` (openWakeWord, modelo treinado, local), **sensibilidade média**, ajustável; **só abre o microfone**; **traz a janela para o foco**. **Estado PR #30: Engine/treino candidato feitos; candidato reprovado para escuta contínua, modelo final pendente.** *(Decisão de 20/10/2026: a palavra "Orion" fica **desligada na v1**, sem gravações para validar o modelo; ficam as palmas e o atalho. Reativar quando houver amostras reais.)*
 - [~] **F15.06** **Duas palmas** (150 a 700 ms entre elas), **só abrem** (nunca aprovam), calibração, teto por hora; **traz a janela para o foco**. **Estado PR #30: Detector/calibração/foco implementados; ruído/música reais pendentes.**
 - [~] **F15.07** **A fala transcrita aparece antes da resposta**; comandos de voz passam pela **política normal** (**aprovar nunca é por voz**).
 - [~] **F15.08** **`/voz`** liga e desliga; **Ctrl+Alt+V** para a voz ao vivo.
@@ -1073,7 +1073,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [~] **F19.14** Registro do uso por cliente e limites de taxa.
 
 #### F19.F Extensão de navegador (decisão D11)
-- [ ] **F19.15** **Extensão para Chrome/Edge** para controlar apps web, com canal local autenticado; **aprovação por ação**; **decidir se fica na 1.0 ou aqui** (aumenta o escopo da v1).
+- [ ] **F19.15** **Extensão para Chrome/Edge** para controlar apps web, com canal local autenticado; **aprovação por ação**; **Decidido em 20/10/2026: só depois da 1.0**; o navegador guiado por CDP basta por ora.
 
 **Testes:** servidor MCP falso malicioso (descrição envenenada, mudança depois da aprovação, tentativa de ler segredos), plugin WASM tentando sair da sandbox, cliente externo tentando escrever, E2E de instalação com as 4 informações.
 **Critério de aceite:** instalar um MCP real com aprovação informada; alterar a descrição dele desativa a ferramenta; um plugin sem a capacidade de rede **não consegue** abrir conexão.
@@ -1123,7 +1123,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [~] **F21.03** **Pesquisa profunda (`/pesquisa`):** várias buscas em paralelo, leitura de fontes (`reqwest` + extração própria, `netguard`), **relatório com citações** salvo como **nota no vault**, com progresso e tempo limite.
 - [x] **F21.04** **Busca na web** (ver F03.25) integrada ao agente, **pergunta com contexto** filtrada. *(Feito em 20/10/2026: `buscar_url` com Readability + Markdown, `links=true`, `netguard`.)*
 - [ ] **F21.05** **Monitores** (F12.20) usando o mesmo navegador quando precisar renderizar.
-- [ ] **F21.06** **Extensão de navegador** (F19.15), se mantida.
+- [ ] **F21.06** **Extensão de navegador** (F19.15), se mantida. *(Decidido em 20/10/2026: pós-1.0, junto de F19.15.)*
 
 **Critério de aceite:** uma pesquisa profunda real gera nota com fontes; o navegador faz uma compra de teste parando para aprovar no pagamento.
 
@@ -1219,7 +1219,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [~] **F25.03** **Mídia:** controles de mídia do Windows (SMTC) + **API do Spotify** (exige Premium, OAuth, escopos de leitura e controle de reprodução; tocar, pular, playlists por humor); **YouTube e Netflix só por link**.
 - [~] **F25.04** **Sistema:** abrir apps e pastas, **controlar volume e mídia**, **controle de janelas** (UI Automation, com a regra R15).
 - [ ] **F25.05** **Modo jogo automático** em tela cheia: **descarrega os modelos** (libera RAM e GPU), **silencia as sugestões**; a voz continua.
-- [~] **F25.06** **Documentos:** gerar **Word, Excel e PowerPoint** (pelas skills de documento); **decisão "na v1" (15/10) não coube no escopo da v1** (ver C27).
+- [~] **F25.06** **Documentos:** gerar **Word, Excel e PowerPoint** (pelas skills de documento); **decisão "na v1" (15/10) não coube no escopo da v1** (ver C27). **Decidido em 20/10/2026: entra logo depois da v1, antes de F20.**
 - [~] **F25.07** **Calculadora e conversões**, **tradução de texto**, **resumo de PDF**.
 - [~] **F25.08** **Planos de arquivos** (tela do front antigo, "depois da v1"): definir o escopo (D08) e implementar.
 - [ ] **F25.09** **Bateria do notebook:** **modo economia automático** (desliga animações e efeitos; a wake word continua).
@@ -1324,7 +1324,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 | 1 | iced não atender o visual ou mudar de API | alto | spike F00.14, versão fixada, plano B Slint | F00, F01 |
 | 2 | cr-sqlite incompatível com SQLCipher | médio | log de eventos próprio | F00, F22 |
 | 3 | Identidade de pacote inviável | médio | OCR por ONNX; toast sem botões | F00, F10 |
-| 4 | Termos dos provedores proíbem automação com assinatura | alto | D03 antes de F13/F26; só CLIs oficiais | F13, F26 |
+| 4 | Termos dos provedores proíbem automação com assinatura | alto | D03 decidido em 20/10/2026 (ler `/usage`/`/status`, só CLIs oficiais); conferir os termos oficiais como cautela | F13, F26 |
 | 5 | Controle de PC livre no autônomo + sem sandbox + injection | alto | R05, classificador, linha "sempre pedir", auditoria | F04 |
 | 6 | Alexa sem API oficial estável | médio | caminho oficial primeiro; reserva Telegram | F22 |
 | 7 | Escopo gigante (28 fases) | alto | marcos, definição de pronto, cortes por fase, v1 enxuta | todas |

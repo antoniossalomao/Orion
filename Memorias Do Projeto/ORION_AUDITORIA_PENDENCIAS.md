@@ -258,4 +258,4 @@ Detalhe e texto completo em [ORION_PLANO_IMPLEMENTACAO.md](ORION_PLANO_IMPLEMENT
 | Busca do vault | BM25 + LSA |
 | Onboarding | Tela única com usuário/senha, nome e idioma, recuperação em arquivo, vault, APIs, Telegram + 2FA, backup local + Drive, projetos + GitHub, importar histórico e Hello |
 
-**Efeitos em itens do plano que ainda precisam de ajuste de texto:** F13 (deixou de estar bloqueada pela D03), F15.05 (palavra desligada), F19.15 e F21.06 (pós-1.0), F25.06 (logo após a v1), F10.16 (só stable no começo).
+**Ajustados no plano em 20/10/2026:** F13 (D03 decidido, F13.01/02 liberados), F00.29 e F03.26, F15.05 (palavra desligada), F19.15 e F21.06 (pós-1.0), F25.06 (logo após a v1), F10.16 (só stable no começo) e o risco 4.
