@@ -229,3 +229,33 @@ Achados da conferência:
 - **Palpites conservadores** (revisar ao tocar): F12.13, F13.08, F15.02, F15.03, F15.17, F16.09, F16.10, F16.13, F19.13, F19.14, F20.02 e F25.07 (há `traduzir_texto` e conversor, mas não achei calculadora nem resumo de PDF).
 - **Documentos ausentes:** não existe `docs/` (F27.05 fica `[~]`).
 - **Backlog B-01..B-11:** é tabela, não checklist; o estado de cada linha está no texto da linha.
+
+---
+
+## 10. Rodada de perguntas de 20/10/2026 (decisões registradas no plano)
+
+Detalhe e texto completo em [ORION_PLANO_IMPLEMENTACAO.md](ORION_PLANO_IMPLEMENTACAO.md), seção "Decisões da rodada de perguntas" e itens D01, D03, D04, D05, D11.
+
+| Tema | Decisão |
+|---|---|
+| Ordem pós-v1 (D01) | F20 primeiro; documentos Word/Excel/PowerPoint logo após a v1 |
+| Escopo da v1 | F01–F10; F11–F27 são pós-v1 |
+| Uso das assinaturas (D03) | Ler `/usage` e `/status`, com queda para estimativa; desbloqueia F13.01/02 |
+| Projeto (D05) | Arquivos de referência, modelo/passos próprios e rotinas do projeto |
+| Extensão do navegador (D11) | Depois da 1.0 |
+| Grafo | wgpu puro; Bevy/three-d só plano B |
+| Casa/Alexa | Mantidos, adiados, sem data (D10 aberto) |
+| Estudo (F24) | Mantido, depois da v1 e de F20–F23 |
+| Palavra "Orion" | Desligada na v1; ficam palmas e atalho |
+| TTS (D04) | edge-tts agora; ElevenLabs e outros serão testados por você |
+| Rosto | Mantido, com confirmação |
+| Automelhoria | Depois de F11 e F13 |
+| Assinatura | Autoassinado + minisign |
+| Crash | Só local e mascarado |
+| macOS | Depois da 1.0 estável |
+| Canais | Só stable no começo |
+| Sync entre PCs | Log de eventos próprio |
+| Busca do vault | BM25 + LSA |
+| Onboarding | Tela única com usuário/senha, nome e idioma, recuperação em arquivo, vault, APIs, Telegram + 2FA, backup local + Drive, projetos + GitHub, importar histórico e Hello |
+
+**Efeitos em itens do plano que ainda precisam de ajuste de texto:** F13 (deixou de estar bloqueada pela D03), F15.05 (palavra desligada), F19.15 e F21.06 (pós-1.0), F25.06 (logo após a v1), F10.16 (só stable no começo).

@@ -260,6 +260,10 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 
 ### Decisões da rodada de perguntas (20/10/2026)
 <!-- rodada-20-10 -->
+- **Canais de release:** só **stable** no começo (um feed); o beta nasce quando o notebook entrar (F10.16, F22.01).
+- **Sync entre PCs (F22.01):** log de eventos próprio (não `cr-sqlite`).
+- **Busca do vault:** mantém BM25 + LSA; embeddings locais só se a busca falhar.
+- **Documentos Word/Excel/PowerPoint (F25.06):** logo depois da v1 (antes de F20).
 - **Palavra de ativação "Orion" (F15.05):** desligada na v1 (sem gravações para validar o modelo); ficam as duas palmas e o atalho (Ctrl+Alt+Espaço). O modelo candidato fica no repositório, sem escuta contínua.
 - **Reconhecimento facial (F18.05):** mantido, com confirmação (falso positivo não age).
 - **Automelhoria (F26):** depois de F11 (ferramentas de código) e F13 (orçamento confiável).
