@@ -286,7 +286,7 @@ fn section<'a>(app: &'a App) -> El<'a> {
                 row![container(lg(t::SIGNAL, "Cache de embeddings", "24 MB", false)).width(Length::FillPortion(1)), container(lg(t::LINE3, "Voz e grafo (descarregados)", "0 MB", true)).width(Length::FillPortion(1))].spacing(24)
             ].spacing(8));
             c = c.push(sh("Janela"));
-            c = c.push(setting("Atalho global Win + Shift + Espaço", "Abre a janela focada no campo de mensagem.", sw(p.shortcut, "shortcut")));
+            c = c.push(setting("Atalho global Ctrl + Alt + Espaço", "Abre a mini barra de qualquer app. Ctrl + Alt + O: captura rápida · Ctrl + Alt + I: Isso? · Ctrl + Alt + P: pânico.", sw(p.shortcut, "shortcut")));
             c = c.push(setting("Fundo Mica", "Transparência do Windows 11 na barra lateral.", sw(p.mica, "mica")));
             c = c.push(setting("Iniciar com o Windows", "Ao ligar o PC, abre minimizado na bandeja, sem janela até ser chamado. Fechar a janela também vai para a bandeja.", sw(p.boot, "boot")));
             c = c.push(setting("Pastas confiáveis", "O Orion pode ler e escrever nessas pastas e nas de dentro.", btn("Gerenciar", Kind::Normal, true, None, Some(toast("C:\\Projetos e C:\\Users\\Antonio\\Vault")))));

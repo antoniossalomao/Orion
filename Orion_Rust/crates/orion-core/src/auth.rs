@@ -230,6 +230,10 @@ impl AuthService {
             // auth.db criado antes da senha de fábrica
             conn.execute("ALTER TABLE credential ADD COLUMN is_default INTEGER NOT NULL DEFAULT 0", [])?;
         }
+        // o usuário padrão deixou de ser "admin": a credencial antiga passa para o usuário atual
+        if !user.eq_ignore_ascii_case("admin") {
+            let _ = conn.execute("UPDATE credential SET user=?1 WHERE user='admin' AND NOT EXISTS (SELECT 1 FROM credential WHERE user=?1)", [user]);
+        }
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;

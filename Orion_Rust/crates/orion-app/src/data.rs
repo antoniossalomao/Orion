@@ -367,6 +367,15 @@ pub struct CloudTask {
     pub at: String,
     pub link: String,
 }
+/// Tarefa na nuvem (Claude/Codex) devolvida por `/nuvem`.
+#[derive(Clone, Debug)]
+pub struct NuvemItem {
+    pub id: String,
+    pub svc: String,
+    pub t: String,
+    pub estado: String,
+    pub url: String,
+}
 pub fn cloud() -> Vec<CloudTask> {
     vec![
     CloudTask { id: 0, svc: "Claude".into(), t: "Portar o gateway de provedores para Rust".into(), proj: "Orion".into(), running: true, at: "há 12 min".into(), link: "claude.ai/code · sessão".into() },
@@ -436,6 +445,7 @@ pub const CMDS: &[(&str, &str)] = &[
     ("/projeto", "Trocar o projeto da conversa"),
     ("/autonomo", "Ligar ou desligar o modo autônomo"),
     ("/tarefa", "Pedir uma tarefa longa em segundo plano"),
+    ("/nuvem", "Mandar uma tarefa para o Claude ou o Codex na nuvem"),
     ("/imagem", "Gerar imagem (Gemini)"),
     ("/limpar", "Conversa nova no mesmo projeto"),
     ("/resumo", "Resumir a conversa até aqui"),

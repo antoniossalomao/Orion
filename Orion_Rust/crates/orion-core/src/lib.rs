@@ -58,6 +58,7 @@ pub mod rosto_lbph;
 pub mod rotinas;
 pub mod screen_memory;
 pub mod skills;
+pub mod nuvem;
 pub mod tarefas_bg;
 pub mod tools;
 pub mod util;

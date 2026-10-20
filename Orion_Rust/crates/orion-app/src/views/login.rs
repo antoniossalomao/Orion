@@ -3,7 +3,7 @@ use crate::sky::Sky;
 use crate::theme as t;
 use crate::ui::*;
 use iced::alignment::Horizontal;
-use iced::widget::{canvas, column, container, stack, text_input};
+use iced::widget::{canvas, column, container, row, stack, text_input};
 use iced::{Border, Length};
 
 pub fn field_style(bg: iced::Color, line: iced::Color, focus: iced::Color, radius: f32) -> impl Fn(&iced::Theme, text_input::Status) -> text_input::Style {
@@ -17,46 +17,43 @@ pub fn field_style(bg: iced::Color, line: iced::Color, focus: iced::Color, radiu
     }
 }
 
+/// Entrada no estilo do instalador: céu à esquerda, painel com campos à direita.
 pub fn view(app: &App) -> El<'_> {
-    let sky = canvas(Sky { alpha: 1.0, constellation: true, belt: 0.0 }).width(Length::Fill).height(Length::Fill);
     let code = app.challenge.is_some();
-    let field = text_input(if code { "Código do Telegram" } else if app.db_locked { "Senha do banco" } else { "Senha" }, &app.pw)
-        .on_input(Msg::PwChanged)
-        .on_submit(Msg::Login)
-        .secure(!code)
-        .size(14)
-        .font(t::UI)
-        .padding(iced::Padding { top: 11.0, bottom: 11.0, left: 14.0, right: 14.0 })
-        .style(field_style(t::mix(t::RAISE, 0.85), t::LINE2, t::LINE3, 10.0));
-    let btn = btn_wide("Entrar", Msg::Login);
-    let card = column![
-        column![belt_fg(true), txf("Orion", 40.0, t::FG, t::SERIF).line_height(iced::widget::text::LineHeight::Relative(1.0))].spacing(4),
-        tx(if app.db_locked { "Seus dados estão cifrados. A senha do banco abre o Orion e não é guardada." } else { "Entre com a senha deste computador. Nada sai daqui sem a sua aprovação." }, 13.5, t::FG2),
-        field,
-        container(tx(app.gate_err.clone(), 12.0, if app.gate_err.starts_with("Conectando") || app.gate_err.starts_with("Entrando") || app.gate_err.starts_with("Abrindo") || app.gate_err.starts_with("Banco cifrado:") { t::FG3 } else { t::DANGER })).height(Length::Fixed(18.0)),
-        btn,
-        tx(match &app.api { Some(a) if a.base.starts_with("orion://") => "Tudo roda neste computador, sem servidor nem rede local. A senha volta a ser pedida quando o Windows é bloqueado.".to_string(),
-            Some(a) => format!("Servidor: {}. A senha volta a ser pedida quando o Windows é bloqueado.", a.base), None => "Protótipo com dados de exemplo. Qualquer senha entra. A senha volta a ser pedida quando o Windows é bloqueado.".into() }, 12.0, t::FG3),
+    let estilo = field_style(t::RAISE, t::LINE, t::ACCENT, 8.0);
+    let usuario = text_input("usuário", &app.user).on_input(Msg::UserChanged).on_submit(Msg::Login).size(13).font(t::MONO).padding(pad(9.0, 11.0, 9.0, 11.0)).style(estilo);
+    let senha = text_input(if code { "código do Telegram" } else { "senha" }, &app.pw).on_input(Msg::PwChanged).on_submit(Msg::Login).secure(!code).size(13).font(t::MONO).padding(pad(9.0, 11.0, 9.0, 11.0)).style(field_style(t::RAISE, t::LINE, t::ACCENT, 8.0));
+    let neutro = app.gate_err.is_empty() || app.gate_err.starts_with("Conectando") || app.gate_err.starts_with("Entrando") || app.gate_err.starts_with("Abrindo") || app.gate_err.starts_with("Digite a senha");
+    let aviso = container(tx(if app.gate_err.starts_with("Digite a senha") { String::new() } else { app.gate_err.clone() }, 12.0, if neutro { t::FG3 } else { t::DANGER })).height(Length::Fixed(16.0));
+    let rotulo = |s: &'static str| txf(s, 12.0, t::FG2, t::UI);
+    let mut campos = column![].spacing(14);
+    if !code {
+        campos = campos.push(column![rotulo("Usuário"), usuario].spacing(6));
+    }
+    campos = campos.push(column![rotulo(if code { "Código" } else { "Senha" }), senha].spacing(6));
+    let corpo = column![
+        txf(spaced("entrar", 1).to_uppercase(), 11.0, t::FG3, t::MONO),
+        txf(if code { "Confirme sua identidade" } else { "Bem-vindo de volta" }, 24.0, t::FG, t::UI_MED),
+        tx(if code { "Digite o código de uso único que o Orion mandou ao seu Telegram." } else { "Seu assistente de desktop. Tudo fica neste computador." }, 14.0, t::FG2),
+        sp_h(4.0),
+        campos,
+        aviso,
     ]
-    .spacing(14)
-    .width(Length::Fixed(340.0));
-    let c = container(card).width(Length::Fill).height(Length::Fill).center_x(Length::Fill).center_y(Length::Fill);
-    container(stack![sky, c]).width(Length::Fill).height(Length::Fill).style(|_| container::Style { background: Some(t::BG.into()), ..Default::default() }).into()
-}
-
-fn btn_wide<'a>(label: &str, msg: Msg) -> El<'a> {
-    let _ = Horizontal::Left;
-    iced::widget::button(container(txf(label.to_string(), 14.0, t::PRIMARY_INK, t::UI_MED)).width(Length::Fill).center_x(Length::Fill).center_y(Length::Fill))
-        .width(Length::Fill)
-        .height(Length::Fixed(42.0))
-        .padding(0)
-        .on_press(msg)
-        .style(|_, st| iced::widget::button::Style {
-            background: Some(if matches!(st, iced::widget::button::Status::Hovered) { iced::Color { r: t::PRIMARY.r * 1.06, g: t::PRIMARY.g * 1.06, b: t::PRIMARY.b * 1.06, a: 1.0 } } else { t::PRIMARY }.into()),
-            text_color: t::PRIMARY_INK,
-            border: Border { radius: 8.0.into(), ..Default::default() },
-            shadow: Default::default(),
-            snap: true,
-        })
-        .into()
+    .spacing(10)
+    .width(Length::Fill);
+    let rodape = column![
+        hline(),
+        row![txf(if app.db_locked { "A mesma senha abre o banco cifrado" } else { "A senha volta quando o Windows bloqueia" }, 11.0, t::FG3, t::MONO), grow(), btn("Entrar", Kind::Primary, false, None, Some(Msg::Login))].spacing(8).align_y(iced::alignment::Vertical::Center),
+    ]
+    .spacing(14);
+    let painel = container(column![container(container(corpo).max_width(380.0)).height(Length::Fill).center_y(Length::Fill), rodape].width(Length::Fill)).padding(pad(28.0, 28.0, 20.0, 28.0)).width(Length::FillPortion(105)).height(Length::Fill).style(|_| container::Style { background: Some(t::SIDE.into()), ..Default::default() });
+    let sky = canvas(Sky { alpha: 1.0, constellation: true, belt: 0.0 }).width(Length::Fill).height(Length::Fill);
+    let legenda = container(row![txf("Orion", 22.0, t::FG, t::UI_MED), grow(), column![txf("Betelgeuse", 11.0, t::SIGNAL, t::MONO), txf(concat!("v", env!("CARGO_PKG_VERSION")), 11.0, t::FG3, t::MONO)].align_x(Horizontal::Right)].align_y(iced::alignment::Vertical::Bottom)).width(Length::Fill).height(Length::Fill).align_bottom(Length::Fill).padding(pad(0.0, 22.0, 20.0, 22.0));
+    let esq = container(stack![sky, legenda]).width(Length::FillPortion(100)).height(Length::Fill).style(|_| container::Style { background: Some(t::BG.into()), ..Default::default() });
+    let largo = app.win.width >= 760.0;
+    let mut r = row![].width(Length::Fill).height(Length::Fill);
+    if largo {
+        r = r.push(esq).push(container(sp_w(1.0)).width(Length::Fixed(1.0)).height(Length::Fill).style(|_| container::Style { background: Some(t::LINE.into()), ..Default::default() }));
+    }
+    r.push(painel).into()
 }

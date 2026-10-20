@@ -368,3 +368,46 @@ pub async fn decidir_proposta(_: Admin, State(st): State<Estado>, Path((pid, aca
     let p = orion_core::propostas::Propostas::new(st.memory.clone(), st.ops.clone());
     p.decidir(pid, &acao).map(Json).map_err(|e| ApiError::new(e.status, e.mensagem))
 }
+
+fn nuvem(st: &Estado) -> ApiResult<&std::sync::Arc<orion_core::nuvem::Nuvem>> {
+    st.nuvem.as_ref().ok_or_else(|| ApiError::new(403, "nuvem desligada: ligue ORION_NUVEM=true (e ORION_CODEX_ENV para o Codex)"))
+}
+
+fn nv<T>(r: Result<T, orion_core::nuvem::NuvemError>) -> ApiResult<T> {
+    r.map_err(|e| ApiError::new(e.status, e.mensagem))
+}
+
+pub async fn listar_nuvem(_: Admin, State(st): State<Estado>) -> ApiResult<Json<Value>> {
+    let itens = nuvem(&st)?.listar().await;
+    Ok(Json(json!({"total": itens.len(), "tarefas": itens})))
+}
+
+#[derive(Deserialize)]
+pub struct NuvemPedido {
+    servico: String,
+    tarefa: String,
+    env: Option<String>,
+}
+
+/// Só por pedido seu (tela ou `/nuvem`); nunca é ferramenta do modelo.
+pub async fn criar_nuvem(_: Admin, State(st): State<Estado>, Json(p): Json<NuvemPedido>) -> ApiResult<Json<Value>> {
+    let t = nv(nuvem(&st)?.criar(&p.servico, &p.tarefa, p.env.as_deref()).await)?;
+    Ok(Json(json!(t)))
+}
+
+#[derive(Deserialize)]
+pub struct NuvemMsg {
+    texto: String,
+}
+
+pub async fn mensagem_nuvem(_: Admin, State(st): State<Estado>, Path(id): Path<String>, Json(m): Json<NuvemMsg>) -> ApiResult<Json<Value>> {
+    Ok(Json(nv(nuvem(&st)?.mensagem(&id, &m.texto).await)?))
+}
+
+pub async fn trazer_nuvem(_: Admin, State(st): State<Estado>, Path(id): Path<String>) -> ApiResult<Json<Value>> {
+    Ok(Json(nv(nuvem(&st)?.trazer(&id).await)?))
+}
+
+pub async fn descartar_nuvem(_: Admin, State(st): State<Estado>, Path(id): Path<String>) -> ApiResult<Json<Value>> {
+    Ok(Json(nv(nuvem(&st)?.descartar(&id))?))
+}

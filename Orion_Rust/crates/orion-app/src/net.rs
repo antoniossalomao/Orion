@@ -212,8 +212,9 @@ impl Api {
         }
     }
 
-    pub async fn login(&self, senha: &str) -> Result<LoginResult, String> {
-        let resp = self.raw(reqwest::Method::POST, "/auth/login", Some(json!({"senha": senha})), false).await.map_err(|_| self.indisponivel())?;
+    pub async fn login(&self, usuario: &str, senha: &str) -> Result<LoginResult, String> {
+        let corpo = if usuario.trim().is_empty() { json!({"senha": senha}) } else { json!({"usuario": usuario.trim(), "senha": senha}) };
+        let resp = self.raw(reqwest::Method::POST, "/auth/login", Some(corpo), false).await.map_err(|_| self.indisponivel())?;
         let (status, set) = (resp.status, resp.set_cookie.clone());
         let text = Self::texto(resp).await;
         match status {

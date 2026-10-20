@@ -333,9 +333,8 @@ impl AmbientPlayer {
     }
 }
 
-/// Controlador de música ambiente com suporte a ativar/silenciar na barra de título.
+/// Controlador da música ambiente: sempre ligada, sem botão de mudo (ORION_INSTALADOR_ESPECIFICACAO §9).
 pub struct SoundController {
-    enabled: bool,
     player: Option<AmbientPlayer>,
 }
 
@@ -348,32 +347,13 @@ impl Default for SoundController {
 impl SoundController {
     pub fn new() -> Self {
         Self {
-            enabled: false,
             player: None,
         }
     }
 
     pub fn start_enabled() -> Self {
         Self {
-            enabled: true,
             player: Some(AmbientPlayer::start()),
-        }
-    }
-
-    pub fn is_enabled(&self) -> bool {
-        self.enabled
-    }
-
-    pub fn toggle(&mut self) {
-        if self.enabled {
-            if let Some(p) = &self.player {
-                p.fade_out();
-            }
-            self.player = None;
-            self.enabled = false;
-        } else {
-            self.player = Some(AmbientPlayer::start());
-            self.enabled = true;
         }
     }
 

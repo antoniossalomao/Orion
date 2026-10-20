@@ -245,6 +245,8 @@ pub struct App {
     pub p: Prefs,
     pub logged: bool,
     pub pw: String,
+    /// Usuário da entrada (`ORION_USER`; padrão `antoniosalomao`).
+    pub user: String,
     pub gate_err: String,
     pub view: View,
     pub conv: Option<usize>,
@@ -272,6 +274,8 @@ pub struct App {
     pub archived: Vec<(String, String, String)>,
     pub projects: Vec<data::Project>,
     pub cloud: Vec<data::CloudTask>,
+    /// Tarefas na nuvem pelas CLIs oficiais (`/nuvem`); vazio com a nuvem desligada.
+    pub nuvem: Vec<data::NuvemItem>,
     pub mcp: Vec<data::Mcp>,
     pub results: Vec<(String, String, String, String, String)>,
     pub cloud_extra: Vec<(String, String)>,
@@ -286,6 +290,8 @@ pub struct App {
     pub pal: PalState,
     pub editor: Option<EditorState>,
     pub qcap: Option<QCap>,
+    /// Senha digitada para ligar o modo autônomo (None = pedido fechado).
+    pub auto_senha: Option<String>,
     pub isso: Option<Isso>,
     pub voice: bool,
     pub mic_rec: bool,
@@ -341,6 +347,7 @@ pub enum Msg {
     MiniPos(window::Id, Option<Size>),
     // entrada
     PwChanged(String),
+    UserChanged(String),
     Login,
     Logout,
     // navegação
@@ -440,6 +447,11 @@ pub enum Msg {
     PalRun(usize),
     QcapOpen,
     QcapClose,
+    AutoSenhaText(String),
+    AutoSenhaOk,
+    AutoSenhaClose,
+    NuvemTrazer(usize),
+    NuvemDescartar(usize),
     QcapText(String),
     QcapKind(usize),
     QcapSave,
@@ -488,6 +500,7 @@ impl App {
             p: Prefs::default(),
             logged: false,
             pw: String::new(),
+            user: std::env::var("ORION_USER").ok().filter(|s| !s.trim().is_empty()).unwrap_or_else(|| "antoniosalomao".into()),
             gate_err: String::new(),
             view: View::Home,
             conv: None,
@@ -515,6 +528,7 @@ impl App {
             archived: data::arch(),
             projects: data::projects(),
             cloud: data::cloud(),
+            nuvem: vec![],
             mcp: data::mcp(),
             results: data::results(),
             cloud_extra: vec![],
@@ -529,6 +543,7 @@ impl App {
             pal: PalState { open: false, q: String::new(), sel: 0 },
             editor: None,
             qcap: None,
+            auto_senha: None,
             isso: None,
             voice: false,
             mic_rec: false,
@@ -671,6 +686,35 @@ impl App {
         if let Msg::L(m) = msg {
             return self.lm(m);
         }
+        match &msg {
+            // ligar o autônomo pede a senha de novo; desligar é direto
+            Msg::Toggle("auto") if !self.p.auto => {
+                self.auto_senha = Some(String::new());
+                return Task::none();
+            }
+            Msg::AutoSenhaText(s) => {
+                self.auto_senha = Some(s.clone());
+                return Task::none();
+            }
+            Msg::AutoSenhaClose => {
+                self.auto_senha = None;
+                return Task::none();
+            }
+            Msg::AutoSenhaOk => {
+                let Some(senha) = self.auto_senha.take() else { return Task::none() };
+                if senha.is_empty() {
+                    self.auto_senha = Some(senha);
+                    return Task::none();
+                }
+                if let Some(api) = self.api.clone() {
+                    return Task::perform(async move { api.post("/modo/autonomo", serde_json::json!({"ativo": true, "senha": senha})).await }, |r| Msg::L(crate::live::Lm::Modo(r)));
+                }
+                self.p.auto = true;
+                self.toast("Modo autônomo ligado. Ações que podem quebrar o PC ou o projeto continuam pedindo confirmação.");
+                return Task::none();
+            }
+            _ => {}
+        }
         let extra = self.live_before(&msg);
         if let Some((t, false)) = extra {
             return t;
@@ -746,6 +790,7 @@ impl App {
             Msg::Resized(s) => self.win = s,
             Msg::Hover(h) => self.hover = h,
             Msg::PwChanged(s) => self.pw = s,
+            Msg::UserChanged(s) => self.user = s,
             Msg::Login => {
                 if self.pw.trim().is_empty() {
                     self.gate_err = "Digite a senha para entrar.".into();
@@ -1213,6 +1258,16 @@ impl App {
                         self.toast(r.unwrap_or_else(|e| e));
                     }
                     Acao::MiniBar => return self.update_inner(Msg::Mini(true)),
+                    Acao::QuickCapture => {
+                        let t = self.update_inner(Msg::Mostrar);
+                        let _ = self.update_inner(Msg::QcapOpen);
+                        return t;
+                    }
+                    Acao::Isso => {
+                        let t = self.update_inner(Msg::Mostrar);
+                        let _ = self.update_inner(Msg::IssoOpen);
+                        return t;
+                    }
                     Acao::Budget => {
                         let mut ts = vec![self.update_inner(Msg::Mostrar)];
                         let _ = self.update_inner(Msg::OpenSettings(Some(Sec::Uso)));

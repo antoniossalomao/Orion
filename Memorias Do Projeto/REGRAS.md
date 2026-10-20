@@ -122,6 +122,13 @@
 | **rosto é local, cadastrado só pelo dono, e nunca sai do computador.** Os vetores faciais ficam cifrados no banco local, com a chave no cofre do sistema. Não existe ferramenta do modelo para rosto: só o comando `orion rosto` cadastra, compara e apaga. Rosto nunca vai a provedor, nem dentro de foto. A comparação só roda com a tela desbloqueada e a câmera ligada. | `orion/rosto.py` | `tests/test_e11_visao.py` |
 | **presença só pausa e retoma, cumprimenta, e bloqueia só com a sua confirmação; nunca envia nada para fora.** Os sinais são locais (tela, teclado e mouse, Bluetooth, rosto). Ausente, a memória da tela é pausada e a vigília para; ao voltar, retoma. O bloqueio da tela ao sair só existe com `ORION_PRESENCE_LOCK` e depois de `orion presenca confirmar`, e cada bloqueio vai à auditoria. | `orion/presenca.py`, `orion/vigia.py` | `tests/test_e11_visao.py`, `tests/test_e11_pendentes.py` |
 
+## Nuvem e modo autônomo (20/10/2026)
+
+| Princípio | Imposto em | Prova |
+|---|---|---|
+| **tarefa na nuvem só por pedido seu, pelas CLIs oficiais, e nunca é ferramenta do modelo.** `claude --cloud` e `codex cloud exec` só rodam por clique ou `/nuvem` seu, com `ORION_NUVEM=true` (opt-in); sem shell, sem `ORION_*` no processo filho, shim `.cmd/.bat` recusado, serviço só `claude` ou `codex`. Trazer o resultado muda a pasta local: só por clique; o Codex falho nunca troca de serviço sozinho. | `orion-core/src/nuvem.rs`, rotas `/nuvem*` em `orion-server/src/rotas/automacao.rs` | `orion-core/src/nuvem.rs` (testes de extração, serviço válido e estado) |
+| **ligar o modo autônomo pede a senha de novo.** `POST /modo/autonomo` com `ativo=true` exige `senha` e confere com a senha de login; desligar não pede. A política de aprovação não muda com o modo. | `orion-server/src/rotas/geral.rs::modo_autonomo`, tela de senha em `orion-app/src/views/overlays.rs` | pendente: teste de rota |
+
 ## Decidido
 
 - **Portabilidade** (antigo "Hardware-Bound Logic Gates", da Lyra): decidido em 07/10/2026, porque conflitava com trocar de máquina. Está no princípio de base 4.

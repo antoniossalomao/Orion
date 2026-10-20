@@ -77,6 +77,12 @@ pub struct Settings {
     pub research: Value,
     pub desktop_tools: bool,
     pub web_tools: bool,
+    /// ORION_NUVEM: tarefas na nuvem pelas CLIs oficiais (`/nuvem`). Opt-in.
+    pub nuvem: bool,
+    /// ORION_CODEX_ENV: ambiente do Codex na nuvem (`codex cloud`).
+    pub codex_env: String,
+    /// ORION_NUVEM_DIR: pasta (clone do repositório) de onde as tarefas na nuvem partem; vazio = pasta atual.
+    pub nuvem_dir: String,
     pub vision_tools: bool,
     pub vision_model: String,
     pub camera: bool,
@@ -386,7 +392,7 @@ impl Settings {
             extra_safe_roots: e.str_list("extra_safe_roots", vec![], ',')?.into_iter().map(PathBuf::from).collect(),
             serve_ui: e.b("serve_ui", true)?,
             admin_token,
-            auth_user: e.s("auth_user", "admin"),
+            auth_user: e.s("auth_user", "antoniosalomao"),
             seed_default_password: e.b("seed_default_password", false)?,
             session_ttl_h: e.num("session_ttl_h", 168u64, Some(1), Some(24 * 90))?,
             cookie_secure: e.b("cookie_secure", false)?,
@@ -403,6 +409,9 @@ impl Settings {
             research,
             desktop_tools: e.b("desktop_tools", false)?,
             web_tools: e.b("web_tools", false)?,
+            nuvem: e.b("nuvem", false)?,
+            codex_env: e.s("codex_env", ""),
+            nuvem_dir: e.s("nuvem_dir", ""),
             vision_tools: e.b("vision_tools", false)?,
             vision_model: e.s("vision_model", ""),
             camera: e.b("camera", false)?,

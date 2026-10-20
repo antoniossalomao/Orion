@@ -255,9 +255,14 @@ pub async fn modo_nao_perturbe(_: Admin, State(st): State<Estado>, Json(c): Json
 #[derive(Deserialize)]
 pub struct AutonomoControle {
     ativo: bool,
+    /// Ligar o modo autônomo pede a senha de novo (PLANO F04.17); desligar não pede.
+    senha: Option<String>,
 }
 
 pub async fn modo_autonomo(_: Admin, State(st): State<Estado>, Json(c): Json<AutonomoControle>) -> ApiResult<Json<Value>> {
+    if c.ativo && !c.senha.as_deref().is_some_and(|s| st.auth.check_password(s)) {
+        return Err(ApiError::new(403, "Senha incorreta: o modo autônomo só liga com a sua senha"));
+    }
     st.modos.set_autonomo(c.ativo).map_err(|e| ApiError::new(500, e.to_string()))?;
     Ok(Json(st.modos.estado()))
 }

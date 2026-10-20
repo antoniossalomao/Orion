@@ -239,6 +239,16 @@ fn nuvem(app: &App) -> El<'_> {
     for (svc, t_) in &app.cloud_extra {
         rows.push(li(column![li_title(vec![badge(svc, Tone::Info), tx(t_.clone(), 14.0, t::FG).into()]), li_desc("Orion · agora · enviada")].into(), li_right(vec![container(row![spinner(app.spin, 10.0), txf("rodando", 11.0, t::SIGNAL, t::UI_MED)].spacing(5).align_y(Vertical::Center)).padding(pad(1.0, 8.0, 1.0, 8.0)).style(surface(Some(t::SIGNAL_SOFT), None, 999.0)).into()])));
     }
+    for (i, n) in app.nuvem.iter().enumerate() {
+        let tone = match n.estado.as_str() {
+            "ready" | "concluída" | "concluida" => Tone::Ok,
+            "error" | "failed" | "erro" => Tone::Err,
+            _ => Tone::Plain,
+        };
+        let desc = if n.url.is_empty() { "nuvem".to_string() } else { format!("nuvem · {}", n.url) };
+        let acoes = vec![badge(&n.estado, tone), btn("Trazer", Kind::Normal, true, None, Some(Msg::NuvemTrazer(i))), btn("Descartar", Kind::Normal, true, None, Some(Msg::NuvemDescartar(i)))];
+        rows.push(li(column![li_title(vec![badge(&n.svc, Tone::Info), tx(n.t.clone(), 14.0, t::FG).into()]), li_desc(desc)].into(), li_right(acoes)));
+    }
     if rows.is_empty() {
         rows.push(li(column![li_title(vec![tx("Nenhuma tarefa ainda.", 14.0, t::FG3).into()]), li_desc("Peça com /tarefa: o Orion segue sozinho, só lê e propõe, e avisa quando terminar.")].into(), li_right(vec![])));
     }

@@ -82,6 +82,8 @@ pub struct AppState {
     pub rotinas: Arc<orion_core::rotinas::RotinaStore>,
     pub executor_rotinas: Option<Arc<orion_core::rotinas::Executor>>,
     pub tarefas_bg: Option<Arc<orion_core::tarefas_bg::TarefasBg>>,
+    /// `None` sem `ORION_NUVEM=true` (opt-in).
+    pub nuvem: Option<Arc<orion_core::nuvem::Nuvem>>,
     pub camera_descrever: Option<CameraDescrever>,
     pub vigia: Option<Arc<orion_core::vigia::Vigia>>,
     pub legenda: Option<Arc<orion_core::legenda::Legenda>>,
@@ -928,6 +930,10 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
         rotinas,
         executor_rotinas,
         tarefas_bg,
+        nuvem: settings.nuvem.then(|| {
+            let pasta = if settings.nuvem_dir.trim().is_empty() { std::env::current_dir().unwrap_or_default() } else { std::path::PathBuf::from(settings.nuvem_dir.trim()) };
+            Arc::new(orion_core::nuvem::Nuvem::new(memory.clone(), pasta, settings.codex_env.clone(), 180.0))
+        }),
         camera_descrever,
         vigia,
         legenda,

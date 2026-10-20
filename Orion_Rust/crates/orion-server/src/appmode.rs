@@ -130,7 +130,7 @@ fn instancia_unica(dados: &std::path::Path) -> anyhow::Result<Option<Trava>> {
 }
 
 /// Modo único do Orion: janela nativa + núcleo no mesmo processo, sem rede. `fundo` abre escondido
-/// na bandeja (início com o Windows); clicar na bandeja ou abrir de novo mostra a janela.
+/// na bandeja (início com o Windows), salvo se o banco cifrado ainda pede a senha; clicar na bandeja ou abrir de novo mostra a janela.
 pub fn run(mut s: Settings, fundo: bool) -> anyhow::Result<i32> {
     let dados = s.data_dir.clone();
     let mostrar = dados.join("orion.mostrar");
@@ -158,6 +158,8 @@ pub fn run(mut s: Settings, fundo: bool) -> anyhow::Result<i32> {
     }
     let api = orion_app::net::Api::local(std::sync::Arc::new(Interno { nucleo: slot.clone(), settings: s, rt: runtime.handle().clone(), mostrar: mostrar.clone() }), token);
     let _ = std::fs::remove_file(&mostrar);
+    // banco cifrado e trancado: mesmo no início com o Windows a janela abre já na tela de senha
+    let fundo = fundo && !trancado;
     let r = orion_app::run::run_ui(Some(api), None, fundo);
     if let Some(n) = slot.lock().take() {
         let tel = n.telegram.lock().take();

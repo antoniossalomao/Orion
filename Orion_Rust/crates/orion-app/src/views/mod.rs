@@ -63,6 +63,9 @@ pub fn root(app: &App) -> El<'_> {
         if app.qcap.is_some() {
             layers.push(overlays::quick_capture(app));
         }
+        if app.auto_senha.is_some() {
+            layers.push(overlays::auto_senha(app));
+        }
         if app.isso.is_some() {
             layers.push(overlays::isso(app));
         }

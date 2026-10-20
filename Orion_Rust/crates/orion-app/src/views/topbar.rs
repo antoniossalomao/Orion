@@ -52,8 +52,8 @@ pub fn view(app: &App) -> El<'_> {
         r = r.push(pill(t::SIGNAL, &format!("Aguardando você · {pend}"), t::mix(t::SIGNAL, 0.4), true, Some(Msg::Go(View::Aprovacoes))));
     }
     if !drawer {
-        r = r.push(tip(ib("inbox", Some(Msg::QcapOpen), false), "Captura rápida (Win + Shift + O)"));
-        r = r.push(tip(ib("scan", Some(Msg::IssoOpen), false), "Isso? Captura a tela e pergunta (Win + Shift + I)"));
+        r = r.push(tip(ib("inbox", Some(Msg::QcapOpen), false), "Captura rápida (Ctrl + Alt + O)"));
+        r = r.push(tip(ib("scan", Some(Msg::IssoOpen), false), "Isso? Captura a tela e pergunta (Ctrl + Alt + I)"));
         let cmd = button(container(row![icon("search", 14.0, t::FG3), tx("Buscar", 12.5, t::FG3), kbd("Ctrl K")].spacing(8).align_y(Vertical::Center)).center_y(Length::Fill))
             .height(Length::Fixed(30.0))
             .padding(pad(0.0, 8.0, 0.0, 10.0))

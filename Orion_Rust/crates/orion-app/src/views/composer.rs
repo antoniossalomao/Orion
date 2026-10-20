@@ -186,10 +186,34 @@ pub fn run_command(app: &mut App, word: &str, full: &str) -> Task<Msg> {
             app.cloud_extra.push(("Orion".into(), rest));
             app.toast("Tarefa em segundo plano iniciada");
         }
+        "nuvem" => {
+            app.view = View::Nuvem;
+            let Some(api) = app.api.clone() else {
+                app.toast("A nuvem precisa do núcleo (Claude/Codex pelas CLIs oficiais)");
+                return Task::none();
+            };
+            let mut it = rest.trim().splitn(2, ' ');
+            let (a, b) = (it.next().unwrap_or("").to_lowercase(), it.next().unwrap_or("").trim().to_string());
+            if a == "msg" {
+                // /nuvem msg <n> <texto>: mensagem para a sessão n da lista (só Claude)
+                let mut m = b.splitn(2, ' ');
+                let (n, texto) = (m.next().and_then(|x| x.parse::<usize>().ok()), m.next().unwrap_or("").trim().to_string());
+                let Some(id) = n.and_then(|n| n.checked_sub(1)).and_then(|i| app.nuvem.get(i)).map(|t| t.id.clone()).filter(|_| !texto.is_empty()) else {
+                    app.toast("Use: /nuvem msg <número na lista> <mensagem>");
+                    return Task::none();
+                };
+                return Task::perform(async move { api.post(&format!("/nuvem/{id}/mensagem"), serde_json::json!({"texto": texto})).await }, |r| Msg::L(crate::live::Lm::Acao(r.map(|_| "Mensagem enviada à sessão".to_string()), true)));
+            }
+            if (a != "claude" && a != "codex") || b.is_empty() {
+                app.toast("Use: /nuvem claude <tarefa> ou /nuvem codex <tarefa>");
+                return Task::none();
+            }
+            return Task::perform(async move { api.post("/nuvem", serde_json::json!({"servico": a, "tarefa": b})).await }, |r| Msg::L(crate::live::Lm::Acao(r.map(|_| "Tarefa enviada à nuvem".to_string()), true)));
+        }
         "imagem" => app.toast("Gerando imagem com Gemini (simulado). Fica na conversa e em 03 Recursos/Orion/Imagens."),
         "mcp" | "skill" => return app.update(Msg::OpenSettings(Some(crate::app::Sec::Conectores))),
         "resumo" => app.toast("Resumo gerado na nota desta conversa"),
-        "ajuda" => app.toast("Comandos: /nota /vault /rotina /modelo /projeto /autonomo /tarefa /imagem /limpar /resumo /aprovar /voz /mcp /skill"),
+        "ajuda" => app.toast("Comandos: /nota /vault /rotina /modelo /projeto /autonomo /tarefa /nuvem /imagem /limpar /resumo /aprovar /voz /mcp /skill"),
         "projeto" => app.pop = Some(Pop::Project),
         _ => {}
     }

@@ -4,6 +4,10 @@ pub enum DesktopAction {
     MiniBar,
     Budget,
     Panic,
+    /// Ctrl+Alt+O: captura rápida.
+    QuickCapture,
+    /// Ctrl+Alt+I: "Isso?".
+    Isso,
     Exit,
 }
 #[cfg(windows)]

@@ -29,6 +29,8 @@ pub enum Lm {
     Mcp(Result<Value, String>),
     Skills(Result<Value, String>),
     Tarefas(Result<Value, String>),
+    /// Lista da nuvem; com a nuvem desligada (403) fica vazia, sem erro na tela.
+    Nuvem(Result<Value, String>),
     Modelos(Result<Value, String>),
     Chat(Chat),
     /// Resultado de uma ação simples: mensagem de sucesso ou de erro (vira toast) e, se `true`, recarrega as listas.
@@ -364,7 +366,7 @@ pub fn pull_page(api: &Api, v: View) -> Task<Msg> {
         View::Memoria => get("/grafo/completo", Lm::Grafo),
         View::Projetos => get("/projects", Lm::Projects),
         View::Painel => Task::batch([get("/painel", Lm::Painel), get("/budget", Lm::Budget)]),
-        View::Nuvem => get("/tarefas-bg", Lm::Tarefas),
+        View::Nuvem => Task::batch([get("/tarefas-bg", Lm::Tarefas), get("/nuvem", Lm::Nuvem)]),
         View::Aprovacoes => Task::batch([get("/painel", Lm::Painel), get("/approvals", Lm::Approvals)]),
         _ => Task::none(),
     }
@@ -401,7 +403,7 @@ impl App {
         let t = { let api2 = api.clone(); Task::perform(async move { api2.health().await?; Ok(api2.auth_ok().await) }, |r| Msg::L(Lm::Boot(r))) };
         if api.bloqueado() {
             a.db_locked = true;
-            a.gate_err = "Banco cifrado: digite a senha do banco para abrir.".into();
+            a.gate_err = "Digite a senha do Orion para abrir.".into();
             a.api = Some(api);
             return (a, Task::none());
         }
@@ -424,14 +426,15 @@ impl App {
                 }
                 let pw = std::mem::take(&mut self.pw);
                 if self.db_locked {
-                    self.gate_err = "Abrindo o banco…".into();
+                    self.gate_err = "Abrindo…".into();
                     return Some((Task::perform(async move { api.desbloquear(pw).await }, |r| Msg::L(Lm::Desbloqueado(r))), false));
                 }
                 self.gate_err = "Entrando…".into();
                 if let Some(ch) = self.challenge.clone() {
                     return Some((Task::perform(async move { api.second_factor(&ch, &pw).await }, |r| Msg::L(Lm::TwoFactor(r))), false));
                 }
-                Some((Task::perform(async move { api.login(&pw).await }, |r| Msg::L(Lm::Login(r))), false))
+                let usuario = self.user.clone();
+                Some((Task::perform(async move { api.login(&usuario, &pw).await }, |r| Msg::L(Lm::Login(r))), false))
             }
             Msg::Logout => {
                 Some((Task::perform(async move { api.logout().await }, |_| Msg::Noop), true))
@@ -458,6 +461,23 @@ impl App {
                 Some((Task::batch([pull_basic(&api), extra]), false))
             }
             Msg::OpenSettings(Some(sec)) | Msg::SetSec(sec) => Some((pull_sec(&api, *sec), true)),
+            Msg::NuvemTrazer(i) => {
+                let id = self.nuvem.get(*i)?.id.clone();
+                let a2 = api.clone();
+                Some((Task::perform(async move { a2.post(&format!("/nuvem/{id}/trazer"), json!({})).await }, |r| {
+                    let msg = r.map(|v| match v.get("comando").and_then(Value::as_str) {
+                        Some(c) => format!("Rode no terminal, num clone do repositório: {c}"),
+                        None => "Diff do Codex aplicado na pasta do projeto".to_string(),
+                    });
+                    Msg::L(Lm::Acao(msg, false))
+                }), false))
+            }
+            Msg::NuvemDescartar(i) => {
+                let id = self.nuvem.get(*i)?.id.clone();
+                let a2 = api.clone();
+                self.nuvem.remove(*i);
+                Some((acao(&api, async move { a2.delete(&format!("/nuvem/{id}")).await }, "Saiu da lista; para parar a execução use o link da tarefa", false), false))
+            }
             Msg::CloudCancel(i) => {
                 let id = self.cloud.get(*i)?.id;
                 let a2 = api.clone();
@@ -817,6 +837,15 @@ impl App {
                 Ok(v) => self.skills = map_skills(&v),
                 Err(e) => self.net_fail(e),
             },
+            Lm::Nuvem(r) => {
+                self.nuvem = match r {
+                    Ok(v) => arr(&v, "tarefas")
+                        .iter()
+                        .map(|t| data::NuvemItem { id: s(t, "id").into(), svc: if s(t, "servico") == "codex" { "Codex".into() } else { "Claude".into() }, t: s(t, "titulo").into(), estado: s(t, "estado").into(), url: s(t, "url").into() })
+                        .collect(),
+                    Err(_) => vec![],
+                };
+            }
             Lm::Tarefas(r) => match r {
                 Ok(v) => self.cloud = map_tarefas(&v),
                 Err(e) => self.net_fail(e),

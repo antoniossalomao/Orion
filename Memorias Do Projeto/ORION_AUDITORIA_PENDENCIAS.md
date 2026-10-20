@@ -189,4 +189,4 @@ F08.xx completo (Projetos: cartões, GitHub clonar, isolamento R20, arquivar) �
 | K. Autostart + banco cifrado | **Abrir a tela de senha** no início com o Windows | **[C]** `--background` com banco cifrado mostra a janela de senha |
 | C, F, G, H, I, L, M | Resolvidos nos docs (fontes, instalador, updater, variantes, licença, legado) | — |
 
-**Novas tarefas de código geradas por este alinhamento:** (1) tirar o mute do instalador; (2) senha ao ligar o autônomo; (3) tela de senha no autostart; (4) Ctrl+Alt+O / Ctrl+Alt+I; (5) F12.15–F12.19 (nuvem pelas CLIs oficiais). Ainda aberto: 18, leitura oficial de uso (D03).
+**As cinco tarefas de código geradas por este alinhamento foram feitas em 20/10/2026** (mute removido; senha ao ligar o autônomo; autostart abre a tela de senha; Ctrl+Alt+O/I; nuvem pelas CLIs oficiais, F12.15–19 agora `[~]`), além do novo login no estilo do instalador (usuário padrão `antoniosalomao`). **Compiladas, mas sem testes rodados e sem prova no Windows.** Limites da nuvem: sem cancelamento remoto, sem log ao vivo, sem aviso no Telegram, Codex sem mensagem. Ainda aberto: 18, leitura oficial de uso (D03).

@@ -38,8 +38,8 @@ pub fn pal_items(app: &App) -> Vec<PalItem> {
     let mut acts: Vec<PalItem> = vec![
         PalItem { icon: "plus", title: "Nova conversa".into(), group: "Ação".into(), msg: Msg::NewChat },
         PalItem { icon: "gear", title: "Configurações".into(), group: "Ação".into(), msg: Msg::OpenSettings(None) },
-        PalItem { icon: "inbox", title: "Captura rápida".into(), group: "Ação · Win + Shift + O".into(), msg: Msg::QcapOpen },
-        PalItem { icon: "scan", title: "Isso? (capturar a tela)".into(), group: "Ação · Win + Shift + I".into(), msg: Msg::IssoOpen },
+        PalItem { icon: "inbox", title: "Captura rápida".into(), group: "Ação · Ctrl + Alt + O".into(), msg: Msg::QcapOpen },
+        PalItem { icon: "scan", title: "Isso? (capturar a tela)".into(), group: "Ação · Ctrl + Alt + I".into(), msg: Msg::IssoOpen },
         PalItem { icon: "bolt", title: if app.p.auto { "Desligar modo autônomo".into() } else { "Ligar modo autônomo".into() }, group: "Ação".into(), msg: Msg::Toggle("auto") },
     ];
     let nav: [(View, &str, &str); 12] = [
@@ -134,9 +134,29 @@ pub fn quick_capture(app: &App) -> El<'_> {
         CapKind::Gasto => 2,
         CapKind::Nota => 3,
     };
-    let foot = container(row![seg(&kinds, cur, Msg::QcapKind), grow(), tx("Vai para ", 12.0, t::FG3), txf("00 Inbox", 12.0, t::FG3, t::MONO), tx(" · Win + Shift + O", 12.0, t::FG3)].spacing(6).align_y(Vertical::Center)).padding(pad(8.0, 12.0, 8.0, 12.0));
+    let foot = container(row![seg(&kinds, cur, Msg::QcapKind), grow(), tx("Vai para ", 12.0, t::FG3), txf("00 Inbox", 12.0, t::FG3, t::MONO), tx(" · Ctrl + Alt + O", 12.0, t::FG3)].spacing(6).align_y(Vertical::Center)).padding(pad(8.0, 12.0, 8.0, 12.0));
     let boxed = container(column![head, hline(), foot]).width(Length::Fixed(620.0f32.min(app.win.width - 32.0))).clip(true).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: 16.0.into() }, shadow: shadow(), ..Default::default() });
     scrim_box(boxed.into(), app.win.height * 0.22, Color::from_rgba(0.0, 0.0, 0.0, 0.25), Msg::QcapClose)
+}
+
+pub fn auto_senha(app: &App) -> El<'_> {
+    let v = app.auto_senha.as_deref().unwrap_or("");
+    let input = text_input("Sua senha", v)
+        .on_input(Msg::AutoSenhaText)
+        .on_submit(Msg::AutoSenhaOk)
+        .secure(true)
+        .size(15)
+        .font(t::UI)
+        .padding(pad(12.0, 12.0, 12.0, 12.0));
+    let corpo = column![
+        tx("Ligar o modo autônomo", 15.0, t::FG),
+        tx("Digite a senha de novo. Com o modo ligado o Orion segue sozinho em tarefas longas; ações que podem quebrar o PC ou o projeto continuam pedindo confirmação.", 12.0, t::FG3),
+        input,
+        row![grow(), btn("Cancelar", Kind::Normal, true, None, Some(Msg::AutoSenhaClose)), btn("Ligar", Kind::Primary, !v.is_empty(), None, Some(Msg::AutoSenhaOk))].spacing(8),
+    ]
+    .spacing(12);
+    let boxed = container(corpo).padding(pad(18.0, 18.0, 18.0, 18.0)).width(Length::Fixed(440.0f32.min(app.win.width - 32.0))).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: 16.0.into() }, shadow: shadow(), ..Default::default() });
+    scrim_box(boxed.into(), app.win.height * 0.22, Color::from_rgba(0.0, 0.0, 0.0, 0.35), Msg::AutoSenhaClose)
 }
 
 pub fn isso(app: &App) -> El<'_> {
@@ -148,7 +168,7 @@ pub fn isso(app: &App) -> El<'_> {
     let around: El = column![dim(w, y), row![dim(x, sh), sp_w(sw), dim(w - x - sw, sh)], dim(w, h - y - sh)].into();
     let sel = container(sp_w(0.0)).width(Length::Fixed(sw)).height(Length::Fixed(sh)).style(|_| container::Style { background: Some(t::alpha(t::PRIMARY, 0.08).into()), border: Border { color: t::PRIMARY, width: 1.5, radius: 4.0.into() }, ..Default::default() });
     let sel_pos = container(sel).padding(pad(y, 0.0, 0.0, x));
-    let hint = container(container(tx("Arraste para escolher a área · Esc cancela · Win + Shift + I", 12.5, t::FG2)).padding(pad(6.0, 12.0, 6.0, 12.0)).style(surface(Some(t::RAISE), Some(t::LINE2), 999.0))).width(Length::Fill).center_x(Length::Fill).padding(pad(18.0, 0.0, 0.0, 0.0));
+    let hint = container(container(tx("Arraste para escolher a área · Esc cancela · Ctrl + Alt + I", 12.5, t::FG2)).padding(pad(6.0, 12.0, 6.0, 12.0)).style(surface(Some(t::RAISE), Some(t::LINE2), 999.0))).width(Length::Fill).center_x(Length::Fill).padding(pad(18.0, 0.0, 0.0, 0.0));
     let input = text_input("O que é isso? (Enter pergunta)", &i.q).on_input(Msg::IssoQ).on_submit(Msg::IssoAsk).size(13.5).font(t::UI).padding(pad(8.0, 10.0, 8.0, 10.0)).style(field_style(t::BG, t::LINE2, t::LINE3, 9.0));
     let mut ask = column![input].spacing(8);
     if i.answered {

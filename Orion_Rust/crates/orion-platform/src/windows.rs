@@ -14,6 +14,8 @@ pub struct NativeShell {
     keys: GlobalHotKeyManager,
     mini: HotKey,
     panic: HotKey,
+    captura: HotKey,
+    isso: HotKey,
     menu_ids: Vec<(MenuId, DesktopAction)>,
 }
 impl NativeShell {
@@ -26,10 +28,17 @@ impl NativeShell {
             let _ = keys.unregister(mini);
             anyhow::bail!("Ctrl+Alt+P já está em uso")
         }
+        let ca = Some(Modifiers::CONTROL | Modifiers::ALT);
+        let (captura, isso) = (HotKey::new(ca, Code::KeyO), HotKey::new(ca, Code::KeyI));
+        // captura rápida e "Isso?" são extras: se a combinação estiver ocupada, o resto segue funcionando
+        let _ = keys.register(captura);
+        let _ = keys.register(isso);
         let menu = Menu::new();
         let mut menu_ids = Vec::new();
         for (label, action) in [
             ("Abrir mini barra", DesktopAction::MiniBar),
+            ("Captura rápida (Ctrl+Alt+O)", DesktopAction::QuickCapture),
+            ("Isso? (Ctrl+Alt+I)", DesktopAction::Isso),
             ("Orçamento e rotinas", DesktopAction::Budget),
             ("Pânico — cortar tudo", DesktopAction::Panic),
             ("Sair do Orion", DesktopAction::Exit),
@@ -50,11 +59,11 @@ impl NativeShell {
             }
         }
         let tray = TrayIconBuilder::new()
-            .with_tooltip("Orion — Ctrl+Alt+Espaço · Ctrl+Alt+P")
+            .with_tooltip("Orion — Ctrl+Alt+Espaço · Ctrl+Alt+O · Ctrl+Alt+I · Ctrl+Alt+P")
             .with_icon(Icon::from_rgba(rgba, 32, 32)?)
             .with_menu(Box::new(menu))
             .build()?;
-        Ok(Self { _tray: tray, keys, mini, panic, menu_ids })
+        Ok(Self { _tray: tray, keys, mini, panic, captura, isso, menu_ids })
     }
     pub fn poll(&self) -> Vec<DesktopAction> {
         let mut actions = Vec::new();
@@ -67,6 +76,12 @@ impl NativeShell {
             }
             if event.id == self.panic.id() {
                 actions.push(DesktopAction::Panic)
+            }
+            if event.id == self.captura.id() {
+                actions.push(DesktopAction::QuickCapture)
+            }
+            if event.id == self.isso.id() {
+                actions.push(DesktopAction::Isso)
             }
         }
         while let Ok(event) = tray_icon::TrayIconEvent::receiver().try_recv() {
@@ -86,5 +101,7 @@ impl Drop for NativeShell {
     fn drop(&mut self) {
         let _ = self.keys.unregister(self.mini);
         let _ = self.keys.unregister(self.panic);
+        let _ = self.keys.unregister(self.captura);
+        let _ = self.keys.unregister(self.isso);
     }
 }
