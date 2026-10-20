@@ -124,6 +124,12 @@ fn podar_imagens(pasta: &Path) {
 }
 
 pub fn web_tools(o: WebOpcoes) -> Vec<Tool> {
+    let mut todas = web_tools_basicas(o);
+    todas.extend(super::navegador::navegador_tools(Arc::new(super::navegador::Navegador::default())));
+    todas
+}
+
+fn web_tools_basicas(o: WebOpcoes) -> Vec<Tool> {
     let cliente = |t: u64| reqwest::Client::builder().timeout(Duration::from_secs(t)).build().unwrap_or_default();
     let o1 = o.clone();
     let (o2, o3, o4) = (o.clone(), o.clone(), o);

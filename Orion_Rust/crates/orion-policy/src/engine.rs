@@ -118,7 +118,7 @@ const ISOLADAS: &[&str] = &[
     "mcp_export_search", "mcp_export_facts", "mcp_export_sources", "mcp_export_artifacts",
     "aplicar_organizacao", "propor_evento_agenda", "consultar_agenda", "consultar_disponibilidade",
     "buscar_memoria", "salvar_memoria", "listar_fatos", "esquecer_fato", "editar_fato",
-    "pesquisar_internet", "buscar_url",
+    "pesquisar_internet", "buscar_url", "navegador_ler", "navegador_agir",
 ];
 
 impl PolicyEngine {

@@ -46,6 +46,7 @@ sysinfo.workspace = true
 arboard.workspace = true
 starship-battery.workspace = true
 zip.workspace = true
+chromiumoxide.workspace = true
 quick-xml.workspace = true
 pdf-extract.workspace = true
 printpdf.workspace = true

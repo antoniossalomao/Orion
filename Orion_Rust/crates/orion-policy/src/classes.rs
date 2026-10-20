@@ -150,6 +150,9 @@ pub fn default_tools() -> HashMap<String, ToolSpec> {
         t("pesquisar_internet", Read).external(),
         t("pesquisar_com_ia", Read).external(),
         t("buscar_url", Read).external().egress(),
+        // navegador guiado (Edge/Chrome local): ler é navegação; agir muda a página e sempre confirma
+        t("navegador_ler", Read).external().egress(),
+        t("navegador_agir", Write).external().egress().confirm(),
         t("ler_emails", Read).external(),
         t("ler_email", Read).external(),
         // escrita (com log)
@@ -203,6 +206,8 @@ pub fn default_rate_limits() -> HashMap<String, (u32, u64)> {
         ("organizar_pasta", (3, 300)),
         ("consultar_especialista", (3, 600)),
         ("navegar_web", (10, 300)),
+        ("navegador_ler", (60, 300)),
+        ("navegador_agir", (30, 300)),
         ("gerar_imagem", (5, 600)), // protege a cota gratuita do provedor
         ("pesquisar_internet", (20, 300)),
     ]

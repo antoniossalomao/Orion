@@ -8,6 +8,7 @@ pub mod documents;
 pub mod fs_tools;
 pub mod media;
 pub mod n8n;
+pub mod navegador;
 pub mod ooxml;
 pub mod ops_tools;
 pub mod processes;
