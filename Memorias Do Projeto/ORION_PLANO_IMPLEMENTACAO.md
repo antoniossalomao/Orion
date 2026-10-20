@@ -247,7 +247,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [x] **D01** Ordem entre as funções novas do M8 (F20 a F25) e, dentro delas, quais sobem primeiro. **Decidido em 20/10/2026: F20 (tela, captura e reuniões) vem primeiro depois da v1.**
 - [x] **D02** Teto de **20% por tarefa**, limitado por 95% semanal e janela opcional de 5 h, confirmado pelo pedido explícito de 17/10/2026. A automelhoria ainda não foi implementada (C18/D03).
 - [x] **D03** Confirmar os termos de Claude, Codex e Gemini para tarefas automáticas em segundo plano com a assinatura e para a leitura de `/usage` e `/status` por automação (bloqueia F13 e F26). **Decidido em 20/10/2026: ler `/usage` (Claude) e `/status` (Codex) pelas CLIs, com queda para a estimativa local e aviso se o formato mudar; Gemini só estimativa. Desbloqueia F13.01/F13.02.**
-- [ ] **D04** Provedor de TTS definitivo (testar na F15).
+- [x] **D04** Provedor de TTS definitivo (testar na F15). **Decidido em 20/10/2026: edge-tts pt-BR por enquanto, atrás de interface trocável; o Antônio vai testar ElevenLabs e outras vozes depois.**
 - [x] **D05** O que mais um Projeto deve ter além de nota, repositório, conversas, instruções, pastas e arquivos de referência. **Decidido em 20/10/2026: o Projeto também tem arquivos de referência fixos, modelo e passos próprios (com marca "herdado") e rotinas do projeto; tarefas e prazos ficam na nota do vault (F08.08).**
 - [ ] **D06** Escopo do token do GitHub e do acesso ao Drive inteiro (reavaliar para o mínimo).
 - [x] **D07** Licença-alvo: **uso pessoal** (decidido); revisar se virar distribuição.
@@ -260,6 +260,12 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 
 ### Decisões da rodada de perguntas (20/10/2026)
 <!-- rodada-20-10 -->
+- **Palavra de ativação "Orion" (F15.05):** desligada na v1 (sem gravações para validar o modelo); ficam as duas palmas e o atalho (Ctrl+Alt+Espaço). O modelo candidato fica no repositório, sem escuta contínua.
+- **Reconhecimento facial (F18.05):** mantido, com confirmação (falso positivo não age).
+- **Automelhoria (F26):** depois de F11 (ferramentas de código) e F13 (orçamento confiável).
+- **Assinatura:** certificado autoassinado + minisign; explicar o aviso do SmartScreen no instalador.
+- **Relatório de falhas:** só local, com dados mascarados; nada sai do computador.
+- **macOS:** depois da 1.0 estável (F27.08).
 - **Grafo (F16):** wgpu puro; Bevy/`three-d` fica só como plano B registrado (F17.05).
 - **Escopo da v1:** F01–F10. Os critérios de saída da F10.F valem para F01–F10; F11–F27 são pós-v1.
 - **Casa e Alexa (F22.04–F22.07):** ficam no plano, adiados, sem data (D10 segue em aberto).
