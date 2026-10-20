@@ -600,6 +600,11 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| anyhow::anyhow!("ORION_SKILL_SOURCES inválido: {e}"))?;
     let skill_runtime = orion_core::extensions::skill_runtime::SkillRuntime::new(&fontes);
+    if let Some(ids) = memory.meta_get("skills:pausadas").and_then(|j| serde_json::from_str::<Vec<String>>(&j).ok()) {
+        for id in ids {
+            skill_runtime.pausar(&id);
+        }
+    }
     skill_runtime.attach_tools(&catalog.registry, &policy);
     let extensions = match orion_core::extensions::manager::PluginManager::new(
         &settings.data_dir.join("extensions"),

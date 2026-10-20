@@ -398,6 +398,27 @@ pub async fn listar_skills(_: Admin, State(st): State<Estado>, Query(q): Query<C
     Ok(Json(json!(itens)))
 }
 
+#[derive(Deserialize)]
+pub struct SkillLigar {
+    id: String,
+    ativo: bool,
+}
+
+/// Liga ou desliga uma skill pela tela. Só mexe no que a fonte já deixou ligado; a escolha fica salva.
+pub async fn ligar_skill(_: Admin, State(st): State<Estado>, Json(c): Json<SkillLigar>) -> ApiResult<Json<Value>> {
+    if c.id.is_empty() || c.id.chars().count() > 160 {
+        return erro(422, "id: entre 1 e 160 caracteres");
+    }
+    let ok = if c.ativo { st.skill_runtime.retomar(&c.id) } else { st.skill_runtime.pausar(&c.id) };
+    if !ok {
+        return erro(409, "skill desconhecida, ou de uma fonte desligada, ou já nesse estado");
+    }
+    let ids = serde_json::to_string(&st.skill_runtime.ids_pausadas()).unwrap_or_else(|_| "[]".into());
+    st.memory.meta_set("skills:pausadas", Some(&ids))?;
+    tracing::info!(target: "orion.audit", "skill_ligar ativo={}", c.ativo);
+    Ok(Json(json!({"ok": true, "id": c.id, "ativa": c.ativo})))
+}
+
 pub async fn chat(_: Admin, State(st): State<Estado>, Json(c): Json<Mensagem>) -> ApiResult<Response> {
     if c.texto.is_empty() || c.texto.chars().count() > 8000 {
         return erro(422, "texto: entre 1 e 8000 caracteres");

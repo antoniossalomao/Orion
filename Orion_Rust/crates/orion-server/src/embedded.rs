@@ -1,7 +1,11 @@
 //! REGRAS.md: modelo local é reserva sem ferramentas; segredos nunca em processo filho.
-use orion_ai::gateway::{Event, EventStream, GatewayError, LocalGenerator};
+use orion_ai::gateway::{EventStream, GatewayError, LocalGenerator};
+#[cfg(windows)]
+use orion_ai::gateway::Event;
 use std::path::PathBuf;
-use std::sync::{Arc, LazyLock};
+use std::sync::Arc;
+#[cfg(windows)]
+use std::sync::LazyLock;
 
 #[cfg(windows)]
 static ONE_MODEL: LazyLock<Arc<tokio::sync::Semaphore>> = LazyLock::new(|| Arc::new(tokio::sync::Semaphore::new(1)));

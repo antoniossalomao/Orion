@@ -69,6 +69,7 @@ pub fn router(st: Estado) -> Router {
         .route("/exportar", get(exportar))
         .route("/chat", post(chat))
         .route("/skills", get(listar_skills))
+        .route("/skills/ligar", post(ligar_skill))
         .route("/skills/catalogo", get(catalogo_de_skills))
         .route("/approvals", get(pendentes))
         .route("/approvals/:id/resume", post(retomar))

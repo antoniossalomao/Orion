@@ -111,11 +111,6 @@ pub async fn reindexar(_: Admin, State(st): State<Estado>, Path(id): Path<String
     linha_de(&st, &q.project_id, &id)
 }
 
-#[derive(Deserialize)]
-pub struct DocumentoMover {
-    project_id: Option<String>,
-}
-
 /// "Disponível em": muda o escopo do documento. O texto indexado é refeito a partir do original no
 /// escopo novo; o do escopo antigo sai da busca antes (nunca fica nos dois).
 pub async fn mover_documento(_: Admin, State(st): State<Estado>, Path(id): Path<String>, Query(q): Query<ProjQ>, Json(c): Json<Value>) -> ApiResult<Json<Value>> {
@@ -124,7 +119,6 @@ pub async fn mover_documento(_: Admin, State(st): State<Estado>, Path(id): Path<
     if let Some(p) = &alvo {
         conferir(p, ID32, "project_id")?;
     }
-    let _ = DocumentoMover { project_id: None };
     validar(&st, &alvo)?;
     if alvo == q.project_id {
         return linha_de(&st, &q.project_id, &id);

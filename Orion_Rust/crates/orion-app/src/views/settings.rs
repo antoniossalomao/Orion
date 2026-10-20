@@ -248,7 +248,8 @@ fn section<'a>(app: &'a App) -> El<'a> {
             }
             for (i, sk) in app.skills.iter().enumerate() {
                 if live {
-                    c = c.push(setting_el(txf(sk.name.clone(), 12.0, t::FG, t::MONO).into(), &sk.desc, badge(if sk.on { "ativa" } else { "desligada" }, if sk.on { Tone::Ok } else { Tone::Plain })));
+                    let ctl: El = if sk.ligavel { switch(sk.on, Msg::SkillToggle(i)) } else { badge("fonte desligada", Tone::Plain) };
+                    c = c.push(setting_el(txf(sk.name.clone(), 12.0, t::FG, t::MONO).into(), &sk.desc, ctl));
                 } else {
                     c = c.push(setting_el(txf(sk.name.clone(), 12.0, t::FG, t::MONO).into(), &sk.desc, swa("skill", i, p.skills.get(i).copied().unwrap_or(true))));
                 }

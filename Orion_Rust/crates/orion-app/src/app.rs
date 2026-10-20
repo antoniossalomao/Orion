@@ -405,6 +405,7 @@ pub enum Msg {
     CloudNew,
     CloudCancel(usize),
     McpTest(usize),
+    SkillToggle(usize),
     ModelGet(usize),
     ModelDel(usize),
     Refresh,
@@ -1008,6 +1009,11 @@ impl App {
                 self.toast("Tarefa cancelada");
             }
             Msg::McpTest(_) => self.toast("Teste do servidor (exemplo)"),
+            Msg::SkillToggle(i) => {
+                if let Some(k) = self.skills.get_mut(i) {
+                    k.on = !k.on;
+                }
+            }
             Msg::ModelGet(_) => self.toast("Baixar modelo (exemplo)"),
             Msg::ModelDel(_) => self.toast("Remover modelo (exemplo)"),
             Msg::Refresh => self.toast("Painel atualizado"),

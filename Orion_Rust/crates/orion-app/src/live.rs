@@ -267,7 +267,7 @@ pub fn map_mcp(v: &Value) -> Vec<data::Mcp> {
 }
 
 pub fn map_skills(v: &Value) -> Vec<data::SkillRow> {
-    v.as_array().map(|a| a.as_slice()).unwrap_or(&[]).iter().map(|k| data::SkillRow { id: s(k, "id").to_string(), name: if s(k, "name").is_empty() { s(k, "id").to_string() } else { s(k, "name").to_string() }, desc: { let o = s(k, "origin"); let d = s(k, "description"); if d.is_empty() { o.to_string() } else { format!("{d} · {o}") } }, on: k.get("enabled").and_then(Value::as_bool).unwrap_or(false) }).collect()
+    v.as_array().map(|a| a.as_slice()).unwrap_or(&[]).iter().map(|k| data::SkillRow { id: s(k, "id").to_string(), name: if s(k, "name").is_empty() { s(k, "id").to_string() } else { s(k, "name").to_string() }, desc: { let o = s(k, "origin"); let d = s(k, "description"); if d.is_empty() { o.to_string() } else { format!("{d} · {o}") } }, on: k.get("enabled").and_then(Value::as_bool).unwrap_or(false), ligavel: k.get("ligavel").and_then(Value::as_bool).unwrap_or(false) }).collect()
 }
 
 pub fn map_tarefas(v: &Value) -> Vec<data::CloudTask> {
@@ -470,6 +470,14 @@ impl App {
                 Some((Task::perform(async move { a2.post(&format!("/mcp/servidores/{nome}/testar"), json!({})).await }, move |r| {
                     Msg::L(Lm::Acao(r.and_then(|v| if v.get("ok").and_then(Value::as_bool).unwrap_or(false) { Ok(format!("{rotulo}: respondeu ({} ferramentas)", v.get("ferramentas").and_then(Value::as_u64).unwrap_or(0))) } else { Err(format!("{rotulo}: {}", v.get("erro").and_then(Value::as_str).unwrap_or("não respondeu"))) }), true))
                 }), false))
+            }
+            Msg::SkillToggle(i) => {
+                let k = self.skills.get(*i)?;
+                if !k.ligavel {
+                    return None;
+                }
+                let (id, ativo, a2) = (k.id.clone(), !k.on, api.clone());
+                Some((Task::batch([acao(&api, async move { a2.post("/skills/ligar", json!({"id": id, "ativo": ativo})).await }, if ativo { "Skill ligada" } else { "Skill desligada" }, false), pull_sec(&api, Sec::Conectores)]), false))
             }
             Msg::ModelGet(i) => {
                 let id = self.locais.get(*i)?.id.clone();

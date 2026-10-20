@@ -163,7 +163,7 @@ impl Modos {
     pub fn set_autonomo(&self, ativo: bool) -> Result<(), ModoError> {
         self.memory.meta_set(CHAVE_AUTONOMO, ativo.then_some("1")).map_err(|e| ModoError(e.to_string()))?;
         if let Some(a) = &self.audit {
-            a(&format!("modo_autonomo ativo={ativo}").into());
+            let _ = a(&format!("modo_autonomo ativo={ativo}").into());
         }
         Ok(())
     }

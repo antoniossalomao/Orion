@@ -636,7 +636,7 @@ pub fn legenda(s: &Settings, segundos: u64) -> anyhow::Result<i32> {
 }
 
 /// Diagnóstico da escuta: lista dispositivos ou informa estado (sem agente, sem rede, sem gravar).
-pub fn wake_test(s: &Settings, listar: bool, segundos: u64) -> anyhow::Result<i32> {
+pub fn wake_test(#[allow(unused_variables)] s: &Settings, listar: bool, segundos: u64) -> anyhow::Result<i32> {
     if listar {
         let devs = orion_core::wake::listar_microfones();
         if devs.is_empty() {
@@ -663,10 +663,9 @@ pub fn wake_test(s: &Settings, listar: bool, segundos: u64) -> anyhow::Result<i3
             } else { anyhow::bail!("microfone desconectado"); }
         }
         println!("Ativações: {activations}");
+        Ok(0)
     }
     #[cfg(not(windows))]
-    anyhow::bail!("calibração nativa disponível no Windows (tempo solicitado: {segundos}s)");
-
-    Ok(0)
+    anyhow::bail!("calibração nativa disponível no Windows (tempo solicitado: {segundos}s)")
 }
 

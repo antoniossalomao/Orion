@@ -132,11 +132,6 @@ pub async fn fato_editar(_: Admin, State(st): State<Estado>, Path(id): Path<i64>
     Ok(Json(json!({"ok": true, "id": f.id, "texto": f.text, "fonte": f.source})))
 }
 
-#[derive(Deserialize)]
-pub struct Mover {
-    project_id: Option<String>,
-}
-
 /// Muda onde o fato vale (None = pessoal). Fato de projeto nunca aparece em outro projeto nem sem
 /// projeto (REGRAS.md: o que é de um projeto fica no projeto).
 pub async fn fato_mover(_: Admin, State(st): State<Estado>, Path(id): Path<i64>, Query(q): Query<ProjQ>, Json(b): Json<Value>) -> ApiResult<Json<Value>> {

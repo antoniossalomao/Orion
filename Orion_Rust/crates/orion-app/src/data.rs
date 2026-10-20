@@ -470,6 +470,7 @@ pub struct SkillRow {
     pub name: String,
     pub desc: String,
     pub on: bool,
+    pub ligavel: bool,
 }
 
 /// Modelo do catálogo local e o que já está no disco.
@@ -487,7 +488,7 @@ pub struct LocalModel {
 }
 
 pub fn skills_demo() -> Vec<SkillRow> {
-    SKILLS.iter().map(|(n, d)| SkillRow { id: n.to_string(), name: n.to_string(), desc: d.to_string(), on: true }).collect()
+    SKILLS.iter().map(|(n, d)| SkillRow { id: n.to_string(), name: n.to_string(), desc: d.to_string(), on: true, ligavel: true }).collect()
 }
 
 pub fn locais_demo() -> Vec<LocalModel> {

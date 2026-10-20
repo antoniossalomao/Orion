@@ -81,6 +81,8 @@ pub struct Inner {
     pub contexts: HashMap<String, String>,
     pub script_reviews: BTreeMap<String, (String, f64)>,
     pub diagnostics: Vec<Value>,
+    /// Skills que você desligou na tela: id → (contexto, revisão de scripts). Voltam sem nova revisão.
+    pub pausadas: HashMap<String, (String, Option<(String, f64)>)>,
 }
 
 pub struct SkillRuntime {
@@ -127,6 +129,36 @@ impl SkillRuntime {
             }
         }
         Arc::new(SkillRuntime { runner: ScriptRunner::default(), inner: RwLock::new(inner) })
+    }
+
+    /// Desliga a skill sem mexer na fonte (some do chat e dos pedidos). `false` se não está ligada.
+    pub fn pausar(&self, id: &str) -> bool {
+        let mut g = self.inner.write();
+        if !g.enabled.remove(id) {
+            return false;
+        }
+        let ctx = g.contexts.get(id).cloned().unwrap_or_else(|| "personal".into());
+        let rev = g.script_reviews.remove(id);
+        g.pausadas.insert(id.to_string(), (ctx, rev));
+        true
+    }
+
+    /// Liga de volta uma skill que você pausou. Skill de fonte desligada nunca entra aqui.
+    pub fn retomar(&self, id: &str) -> bool {
+        let mut g = self.inner.write();
+        let Some((ctx, rev)) = g.pausadas.remove(id) else { return false };
+        g.enabled.insert(id.to_string());
+        g.contexts.insert(id.to_string(), ctx);
+        if let Some(r) = rev {
+            g.script_reviews.insert(id.to_string(), r);
+        }
+        true
+    }
+
+    pub fn ids_pausadas(&self) -> Vec<String> {
+        let mut v: Vec<String> = self.inner.read().pausadas.keys().cloned().collect();
+        v.sort();
+        v
     }
 
     pub fn close(&self) {
@@ -176,7 +208,10 @@ impl SkillRuntime {
             .into_iter()
             .map(|mut s| {
                 let id = s["id"].as_str().unwrap_or("").to_string();
+                let pausada = g.pausadas.contains_key(&id);
                 s["enabled"] = json!(g.enabled.contains(&id));
+                // só dá para ligar e desligar o que a fonte (mcp/skills) já deixou ligado
+                s["ligavel"] = json!(pausada || g.enabled.contains(&id));
                 s["scope"] = json!(g.contexts.get(&id).cloned().unwrap_or_else(|| "personal".into()));
                 s
             })
