@@ -3,7 +3,7 @@ type: recurso
 projeto: "[[Orion]]"
 tags: [orion, auditoria, pendencias, checklist]
 date: 2026-10-20
-revisao: 2026-10-20 (documentos corrigidos)
+revisao: 2026-10-20 (documentos corrigidos, tarefas de código feitas, vault fechado)
 resumo: "Auditoria dos 7 documentos de Memorias Do Projeto contra o código da branch do PR #30: o que falta, checklists errados, ideias que não batem entre documentos."
 ---
 
@@ -190,3 +190,20 @@ F08.xx completo (Projetos: cartões, GitHub clonar, isolamento R20, arquivar) �
 | C, F, G, H, I, L, M | Resolvidos nos docs (fontes, instalador, updater, variantes, licença, legado) | — |
 
 **As cinco tarefas de código geradas por este alinhamento foram feitas em 20/10/2026** (mute removido; senha ao ligar o autônomo; autostart abre a tela de senha; Ctrl+Alt+O/I; nuvem pelas CLIs oficiais, F12.15–19 agora `[~]`), além do novo login no estilo do instalador (usuário padrão `antoniosalomao`). **Compiladas, mas sem testes rodados e sem prova no Windows.** Limites da nuvem: sem cancelamento remoto, sem log ao vivo, sem aviso no Telegram, Codex sem mensagem. Ainda aberto: 18, leitura oficial de uso (D03).
+
+---
+
+## 8. Situação final de 20/10/2026
+
+**Feito nesta rodada**
+- 20 documentos desatualizados corrigidos, incluindo `README.md` e `AGENTS.md` (comandos Rust no lugar de `uv`/`pytest`) e `REGRAS.md` (nota de equivalência Rust e dois princípios novos: nuvem e autônomo).
+- Python de referência removido do repositório (`orion/`, `tests/` exceto `servidor_cru.py`, `pyproject.toml`, `uv.lock`, dois scripts); histórico no Git.
+- Código: mudo do instalador removido; senha ao ligar o autônomo; tela de senha no autostart com banco cifrado; atalhos Ctrl+Alt+O e Ctrl+Alt+I; nuvem Claude/Codex pelas CLIs oficiais (opt-in `ORION_NUVEM`, `ORION_CODEX_ENV`, `ORION_NUVEM_DIR`); login redesenhado (céu + painel com Usuário e Senha, usuário padrão `antoniosalomao`, migração do `admin`).
+- Vault: espelhos, hub, índices, relatório e nota da conversa atualizados; protótipo do instalador e referências copiados para o repositório.
+
+**Ainda aberto, por tipo**
+- **[V] Você:** chave minisign + segredos do GitHub + primeiro release; exportar o SurrealDB antes da venda do PC; amostras da palavra "Orion"; D01–D11; leitura oficial de uso (D03).
+- **[W] Windows real:** instalar/desinstalar, bandeja, mini barra, atalhos, autostart, tela de senha, navegador com Edge, nuvem com contas reais, Vulkan/Whisper, metas de RAM e tempo.
+- **[C] Código:** F08 Projetos; onboarding; Windows Hello e PIN; vault automático; grafo wgpu; F11; F16–F27; limites da nuvem (cancelamento remoto, log ao vivo, aviso no Telegram, Codex sem mensagem); teste de rota para `senha` do autônomo; `fmt` e `clippy` no CI.
+- **Verificação:** o código novo foi só compilado (`cargo check`) e conferido por captura de tela; os testes de `orion-core` (nuvem), `orion-app` e `appmode` ainda não foram rodados.
+- **Documentos:** as colunas "Imposto em" e "Prova" de cada princípio em `REGRAS.md` ainda citam Python; reapontar ao tocar em cada princípio.
