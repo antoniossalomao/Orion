@@ -26,9 +26,9 @@ fn cena(f: impl FnOnce(&mut App)) -> App {
 }
 
 pub fn scenarios() -> Vec<(&'static str, Size, App)> {
-    let mut v: Vec<(&'static str, Size, App)> = vec![("01-login", SIZE, App::new())];
+    let mut v: Vec<(&'static str, Size, App)> = vec![("01-login", SIZE, { let mut a = App::new(); a.now = std::time::Instant::now(); a.login_at = a.now - std::time::Duration::from_secs(8); a })];
     let mut push = |n: &'static str, a: App| v.push((n, SIZE, a));
-    push("01b-login-cifrado", { let mut a = App::new(); a.db_locked = true; a });
+    push("01b-login-cifrado", { let mut a = App::new(); a.db_locked = true; a.now = std::time::Instant::now(); a.login_at = a.now - std::time::Duration::from_secs(8); a });
     push("02-inicio", cena(|a| {
         a.update(Msg::NewChat);
     }));

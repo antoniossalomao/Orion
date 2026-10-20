@@ -299,6 +299,8 @@ pub struct App {
     pub toast: Option<(String, Instant)>,
     pub win: Size,
     pub now: Instant,
+    /// Início da tela de entrada (animação de entrada e respiração do brilho).
+    pub login_at: Instant,
     pub spin: f32,
     pub term_out: Vec<String>,
     pub term_in: String,
@@ -551,6 +553,7 @@ impl App {
             toast: None,
             win: Size::new(1440.0, 900.0),
             now: Instant::now(),
+            login_at: Instant::now(),
             spin: 0.0,
             term_out: data::TERM.iter().map(|s| s.to_string()).collect(),
             term_in: String::new(),
@@ -608,7 +611,8 @@ impl App {
 
     pub fn subscription(&self) -> Subscription<Msg> {
         let a = &self.at;
-        let busy = [a.page, a.pop, a.modal, a.scrim, a.over, a.drawer, a.toast, a.more, a.tools].iter().any(|m| crate::anim::active(*m, self.now, 450)) || a.switch.as_ref().map(|s| crate::anim::active(Some(s.1), self.now, 300)).unwrap_or(false) || self.mem_tween.is_some();
+        let entrada = !self.logged && crate::anim::active(Some(self.login_at), self.now, 1500);
+        let busy = entrada || [a.page, a.pop, a.modal, a.scrim, a.over, a.drawer, a.toast, a.more, a.tools].iter().any(|m| crate::anim::active(*m, self.now, 450)) || a.switch.as_ref().map(|s| crate::anim::active(Some(s.1), self.now, 300)).unwrap_or(false) || self.mem_tween.is_some();
         let tick = iced::time::every(Duration::from_millis(if busy { 16 } else { 60 })).map(Msg::Tick);
         let poll = if self.api.is_some() && self.logged && self.streaming.is_none() { iced::time::every(Duration::from_secs(6)).map(|_| Msg::Poll) } else { Subscription::none() };
         let resize = window::resize_events().map(|(_, s)| Msg::Resized(s));
