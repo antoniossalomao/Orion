@@ -32,7 +32,7 @@ impl canvas::Program<Msg> for Brilho {
         let mut f = canvas::Frame::new(renderer, b.size());
         let (w, h) = (b.width, b.height);
         let blobs: [(f32, f32, f32, iced::Color, f32); 3] = if self.lado == 0 {
-            [(0.28, 0.24, 0.50, t::SIGNAL, 0.055), (0.30, 0.98, 0.55, t::ACCENT, 0.05), (0.45, 0.52, 0.48, iced::Color::from_rgb(0.55, 0.45, 0.85), 0.04)]
+            [(0.28, 0.24, 0.50, t::SIGNAL, 0.055), (0.55, 0.88, 0.58, t::ACCENT, 0.07), (0.45, 0.52, 0.48, iced::Color::from_rgb(0.55, 0.45, 0.85), 0.05)]
         } else {
             [(0.92, 0.08, 0.70, t::ACCENT, 0.08), (0.10, 0.95, 0.55, t::SIGNAL, 0.04), (0.55, 0.45, 0.50, iced::Color::from_rgb(0.55, 0.45, 0.85), 0.03)]
         };
