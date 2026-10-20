@@ -8,9 +8,7 @@ Assistente pessoal com identidade masculina: técnico, direto, não-servil. Não
 
 ## Estado
 
-O PR #30 porta núcleo, API e CLI para `Orion_Rust/`, com controle auxiliar e instalador iced no Windows. O app principal nativo ainda falta: o servidor continua usando o front HTML compartilhado. `orion/` permanece como referência Python para a paridade incompleta. O estado auditado de todas as fases, implementações e bloqueios está em [ORION.md](Memorias%20Do%20Projeto/ORION.md), seção **Auditoria consolidada do PR #30**.
-
-O instalador é parcial; vault automático, segurança SQLCipher/Hello, grafo nativo e release ainda não estão concluídos. Voz/AEC3/llama.cpp têm código integrado, mas wake word final, hardware e build Vulkan seguem pendentes de validação. A auditoria distingue código implementado de aceite concluído.
+App nativo para Windows em Rust: um só executável, `orion.exe` (interface iced e núcleo no mesmo processo, sem porta e sem Python), mais `orion-llama.exe` para modelos locais. O `Orion Setup.exe` baixa o pacote do GitHub Releases (assinatura minisign + SHA-256) e o `orion update` atualiza. Nada disso rodou ainda num Windows real, e ainda faltam a chave de assinatura/primeiro release, a gravação automática no vault, o Windows Hello, o grafo nativo e várias fases do plano. O estado completo está em [ORION.md](Memorias%20Do%20Projeto/ORION.md) e a lista do que falta em [ORION_AUDITORIA_PENDENCIAS.md](Memorias%20Do%20Projeto/ORION_AUDITORIA_PENDENCIAS.md). O pacote Python antigo foi removido do repositório (20/10/2026); o histórico está no Git.
 
 ## Documentação
 
@@ -19,36 +17,24 @@ O instalador é parcial; vault automático, segurança SQLCipher/Hello, grafo na
 | [ORION.md](Memorias%20Do%20Projeto/ORION.md) | Visão, estado por etapa, pendências suas, plano Rust, backlog e decisões |
 | [REGRAS.md](Memorias%20Do%20Projeto/REGRAS.md) | Princípios do projeto, onde o código os impõe e o teste que os prova |
 | [ARQUITETURA.md](Memorias%20Do%20Projeto/ARQUITETURA.md) | Módulos, dados, saídas para fora, fluxos e referências |
-| [ORION_LEGADO.md](Memorias%20Do%20Projeto/ORION_LEGADO.md) | Operação do Python (ligar, variáveis, opt-ins), o legado e o histórico, num arquivo só |
+| [ORION_AUDITORIA_PENDENCIAS.md](Memorias%20Do%20Projeto/ORION_AUDITORIA_PENDENCIAS.md) | O que falta, checklists conferidos e decisões de alinhamento |
+| [ORION_LEGADO.md](Memorias%20Do%20Projeto/ORION_LEGADO.md) | Operação do Python antigo (referência histórica), o legado e a tabela de opt-ins |
 | [AGENTS.md](AGENTS.md) | Instruções para agentes de IA que trabalham no repositório |
 
 ## Como rodar
 
-Requisitos: Python 3.12 gerenciado pelo [uv](https://docs.astral.sh/uv/), e Windows 10/11 ou macOS.
+Requisitos: Windows 11 e Rust 1.91 ou superior para compilar. Instalado pelo `Orion Setup.exe`, basta abrir o Orion: ele pede a senha (a mesma abre o banco cifrado, quando ligado).
 
 ```
-uv sync
-uv run orion chave gemini          # guarda a chave do provedor no cofre do SO (ver ORION_PROVEDORES)
-uv run orion set-password          # senha do login; toda rota da API exige login
-uv run orion                       # sobe em 127.0.0.1:8000
+cd Orion_Rust
+cargo run -p orion-server             # abre o app (janela + núcleo no mesmo processo)
+cargo run -p orion-server -- --background   # abre escondido na bandeja
+orion chave gemini                    # guarda a chave do provedor no cofre do SO
+orion set-password                    # senha do login
+orion update --check [--apply]        # atualizador (feed assinado); --rollback volta a versão
 ```
 
-Extras opcionais, cada um opt-in: `uv sync --extra camera` (câmera e visão, E11), `--extra wake` (palavra de ativação), `--extra ponte` (ponte de desktop), `--extra rerank` (reranker local) e `--extra pdf`.
-
-A distribuição Windows usa o workflow **Rust Windows** e o `Orion Setup.exe`; veja as instruções de compilação e instalação abaixo. O empacotamento Python por PyInstaller foi removido.
-
-Comandos úteis:
-
-| Comando | Para quê |
-|---|---|
-| `uv run orion mcp-check` | Sobe os servidores do `mcp.json` e lista as ferramentas e as classes de risco |
-| `uv run orion backup` / `restore <arquivo>` | Backup diário da memória (mantém 7) e restauração, com confirmação |
-| `uv run orion autostart [--install]` | Mostra (ou grava) o arquivo de início automático do seu sistema |
-| `uv run orion panico` | Corta captura, palavra de ativação, jobs de rede e ferramentas de rede e execução |
-| `uv run orion transcrever <arquivo ou link>` | Transcreve áudio ou vídeo, com aviso antes de enviar ao provedor |
-| `uv run orion verify-export <pasta>` | Prova o export da base antiga, sem tocar no banco real |
-
-O pacote `orion/` e seus testes continuam como referência executável: a paridade Rust ainda está incompleta. O sidecar de navegador, as fixtures MCP, o treino da palavra de ativação, o benchmark e o smoke de modelos Windows também usam Python e permanecem necessários. O front em `Orion_Core/Front_end_Orion/` é compartilhado com o servidor Rust.
+Comandos úteis: `orion mcp-check` (servidores do `mcp.json`), `orion backup` / `restore <arquivo>`, `orion autostart [--install]`, `orion panico`, `orion transcrever <arquivo ou link>`, `orion verify-export <pasta>`, `orion db-cifrar` (banco cifrado por SQLCipher) e `orion serve --features http` (só desenvolvimento). Atalhos globais: Ctrl+Alt+Espaço (mini barra), Ctrl+Alt+O (captura rápida), Ctrl+Alt+I ("Isso?"), Ctrl+Alt+P (pânico).
 
 ## Configuração
 
@@ -74,38 +60,29 @@ A lista completa de opt-ins, com o que sai do computador em cada um, está na ta
 ## Testes
 
 ```
-uv sync
-uv run ruff check .
-uv run ruff format --check orion tests
-uv run pyright
-uv run pytest -q
-node --test "tests/front/*.test.js"          # markdown, XSS e lógica do front
-
-# testes de navegador (Playwright + axe-core; backend de mentira incluso)
-uv sync --group e2e && (cd tests/front_e2e && npm ci)
-uv run playwright install chromium
-uv run pytest tests/front_e2e -q
+cd Orion_Rust
+cargo test --locked -p orion-policy -p orion-store -p orion-ai -p orion-core -p orion-server -p orion-platform -p orion-voice -p orion-local -p orion-llama -p orion-setup -p orion-mcp -p orion-vault -p orion-updater -p orion-app -p orion-testkit
+cargo run -p orion-app --features snap --bin orion-snap -- snaps    # fotos das telas, sem janela
 ```
 
-O workflow `.github/workflows/rust-windows.yml` compila e testa o Rust no Windows. Os comandos Python acima validam a implementação de referência e os testes ainda usados na migração.
+O workflow `.github/workflows/rust-windows.yml` compila e testa o Rust no Windows (hoje sem `fmt` nem `clippy`) e `release.yml` publica o pacote por tag `v*`.
 
 ## Layout
 
 ```
-orion/                     # o app em Python (ver ARQUITETURA.md, seção 1)
-tests/                     # pytest, Node (front) e navegador (front_e2e)
-Memorias Do Projeto/       # documentação: ORION, REGRAS, ARQUITETURA e ORION_LEGADO
-Orion_Rust/                # workspace Rust, instalador e sidecar Python isolado
-Orion_Core/Front_end_Orion/ # front compartilhado, servido também pelo Rust
-.github/workflows/         # CI e build nativo Windows
-pyproject.toml · uv.lock   # dependências do app
+Orion_Rust/                # workspace Rust (15 crates): app, núcleo, servidor, instalador, atualizador, voz, llama
+Memorias Do Projeto/       # documentação: ORION, REGRAS, ARQUITETURA, planos e especificações
+Orion_Core/Front_end_Orion/ # front HTML antigo, só servido por `orion serve --features http`
+tests/mcp_cliente/         # servidor MCP cru usado no teste de paridade
+scripts/                   # smoke dos modelos no Windows e treino/avaliação da palavra de ativação (Python, fora do produto)
+.github/workflows/         # CI e release do Windows
 mcp.example.json · .env.example
 ```
 
 ## Segurança
 
-- Tudo escuta em `127.0.0.1`. Acesso de fora só com login, pela rede privada do Tailscale.
-- Toda rota da API exige login: senha, ou o token de admin para máquinas.
+- O app não abre porta: a interface chama o núcleo no mesmo processo. Só `orion serve --features http` escuta, em `127.0.0.1`, com login obrigatório.
+- Entrada com usuário e senha (Argon2id); ligar o modo autônomo pede a senha de novo.
 - As ferramentas seguem a política de risco. Leitura roda direto; escrita fica no audit; execução e ação destrutiva pedem aprovação no próprio canal, com botão. Voz e frase nunca aprovam.
 - Os princípios e o teste que prova cada um estão em [REGRAS.md](Memorias%20Do%20Projeto/REGRAS.md).
 - O backend antigo, seus scripts de inicialização e dependências de Qdrant/SurrealDB foram removidos. O histórico continua no Git e em `ORION_LEGADO.md`.
@@ -115,7 +92,7 @@ mcp.example.json · .env.example
 
 ### Controle Rust no Windows (PR #30)
 
-As opções específicas do Rust estão em `Orion_Rust/.env.example`; configure-as no `.env` lido pelo executável. Na pasta `Orion_Rust/`, use `cargo run -p orion-server -- desktop` (Rust 1.91 ou superior). O controle abre o login, mantém o servidor na bandeja e oferece mini barra (`Ctrl+Alt+Espaço`), pânico (`Ctrl+Alt+P`), orçamento e rotinas. Fechar a janela mantém a bandeja; **Sair do Orion** encerra. Início com Windows é opt-in no painel ou `orion autostart --install`; a retomada do pânico é sempre explícita.
+As opções específicas do Rust estão em `Orion_Rust/.env.example`; configure-as no `.env` lido pelo executável. Na pasta `Orion_Rust/`, use `cargo run -p orion-server` (Rust 1.91 ou superior). O app abre o login, mantém o núcleo na bandeja e oferece mini barra (`Ctrl+Alt+Espaço`), pânico (`Ctrl+Alt+P`), orçamento e rotinas. Fechar a janela mantém a bandeja; **Sair do Orion** encerra. Início com Windows é opt-in no painel ou `orion autostart --install`; a retomada do pânico é sempre explícita.
 
 Para 2FA, configure o bot e seus IDs permitidos no cofre/ambiente e `ORION_TELEGRAM_2FA=true`. Após a senha, digite na janela o código recebido no Telegram. Sem Telegram disponível o login com 2FA fica bloqueado; a reserva por Windows Hello ainda não está implementada. `ORION_TELEGRAM_VOICE_REPLY=true` permite resposta falada aos pedidos por áudio.
 
