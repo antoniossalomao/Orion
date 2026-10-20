@@ -749,21 +749,21 @@ F01 (casca, tema, barra lateral/superior, Início, paleta, motor do céu) · F02
 ---
 
 ## 32. Critérios de aceite
-- [ ] Lado a lado com o protótipo (mesma janela, mesmos dados da §28), **cada tela e estado** é visualmente igual: posições, cores, fontes, espaçamentos, raios, sombras.
-- [ ] Tokens e fontes exatamente como §4 e §5 (Geist, Geist Mono, Newsreader embutidas).
-- [ ] Barra lateral: 272 px, recolhe com Ctrl+B, grupos de conversas, indicadores e "Mais" persistido.
-- [ ] Barra superior: pílulas (Câmera, Autônomo, Pensando/Ouvindo/Aguardando), captura rápida, "Isso?", Ctrl K, painel, controles de janela.
-- [ ] Composer: cresce até 220 px, `/` e `@` com navegação por teclado, anexos, parar resposta, repetir última com ↑.
-- [ ] Resposta: ferramentas recolhíveis, aprovação (3 estados), ações e "via" corretos; streaming com cursor.
-- [ ] Painel da direita: 4 abas, abre sozinho com aprovação pendente, some < 1120 px.
-- [ ] Todas as 13 telas de página/grafo conforme §15–16; filtro e desfazer do histórico; rotinas com `runs`.
-- [ ] Grafo: cores, raios, brilho, opacidade por foco, rótulos sem colisão, busca, filtros, "Lidas agora", linha do tempo, detalhes e grafo local — idêntico em comportamento ao protótipo, em 3D.
-- [ ] Editor com prévia ao vivo e frontmatter; "Salvar e commit".
-- [ ] Configurações: 14 seções, busca por palavra-chave, **todas** as linhas da §18 com seus textos e comportamentos (Pausar tudo e Apagar com confirmação em 2 passos).
-- [ ] Paleta Ctrl K com a ordem de resultados da §19; captura rápida com detecção do tipo; "Isso?" com seleção e resposta.
-- [ ] Mini barra de voz, Cinturão verde com voz ao vivo, legenda ao vivo.
-- [ ] Escala 90–150%, densidade, movimento reduzido, largura/tamanho/fonte do chat funcionam como no protótipo.
-- [ ] Responsivo: gaveta ≤ 760, painel da direita some ≤ 1120.
-- [ ] Atalhos corrigidos (U3, U4) e login conforme decisão (U1).
+- [~] Lado a lado com o protótipo (mesma janela, mesmos dados da §28), **cada tela e estado** é visualmente igual: posições, cores, fontes, espaçamentos, raios, sombras.
+- [~] Tokens e fontes exatamente como §4 e §5 (Geist, Geist Mono, Newsreader embutidas).
+- [~] Barra lateral: 272 px, recolhe com Ctrl+B, grupos de conversas, indicadores e "Mais" persistido.
+- [~] Barra superior: pílulas (Câmera, Autônomo, Pensando/Ouvindo/Aguardando), captura rápida, "Isso?", Ctrl K, painel, controles de janela.
+- [~] Composer: cresce até 220 px, `/` e `@` com navegação por teclado, anexos, parar resposta, repetir última com ↑.
+- [~] Resposta: ferramentas recolhíveis, aprovação (3 estados), ações e "via" corretos; streaming com cursor.
+- [~] Painel da direita: 4 abas, abre sozinho com aprovação pendente, some < 1120 px.
+- [~] Todas as 13 telas de página/grafo conforme §15–16; filtro e desfazer do histórico; rotinas com `runs`.
+- [~] Grafo: cores, raios, brilho, opacidade por foco, rótulos sem colisão, busca, filtros, "Lidas agora", linha do tempo, detalhes e grafo local — idêntico em comportamento ao protótipo, em 3D.
+- [~] Editor com prévia ao vivo e frontmatter; "Salvar e commit".
+- [~] Configurações: 14 seções, busca por palavra-chave, **todas** as linhas da §18 com seus textos e comportamentos (Pausar tudo e Apagar com confirmação em 2 passos).
+- [~] Paleta Ctrl K com a ordem de resultados da §19; captura rápida com detecção do tipo; "Isso?" com seleção e resposta.
+- [~] Mini barra de voz, Cinturão verde com voz ao vivo, legenda ao vivo.
+- [~] Escala 90–150%, densidade, movimento reduzido, largura/tamanho/fonte do chat funcionam como no protótipo.
+- [~] Responsivo: gaveta ≤ 760, painel da direita some ≤ 1120.
+- [~] Atalhos corrigidos (U3, U4) e login conforme decisão (U1).
 - [ ] 60 fps na interação, 20 fps parado no Início; RAM parada < 300 MB; janela pronta < 1 s.
 - [ ] Nenhum item da §2 permanece divergente sem registro.

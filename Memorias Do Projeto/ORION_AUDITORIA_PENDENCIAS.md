@@ -207,3 +207,25 @@ F08.xx completo (Projetos: cartões, GitHub clonar, isolamento R20, arquivar) �
 - **[C] Código:** F08 Projetos; onboarding; Windows Hello e PIN; vault automático; grafo wgpu; F11; F16–F27; limites da nuvem (cancelamento remoto, log ao vivo, aviso no Telegram, Codex sem mensagem); teste de rota para `senha` do autônomo; `fmt` e `clippy` no CI.
 - **Verificação:** o código novo foi só compilado (`cargo check`) e conferido por captura de tela; os testes de `orion-core` (nuvem), `orion-app` e `appmode` ainda não foram rodados.
 - **Documentos:** as colunas "Imposto em" e "Prova" de cada princípio em `REGRAS.md` ainda citam Python; reapontar ao tocar em cada princípio.
+
+---
+
+## 9. Checklists conferidos item a item (20/10/2026)
+
+Seis conferências em paralelo, cada uma contra o código, com evidência de arquivo por item. Regra: `[x]` feito sem depender de prova em hardware/Windows; `[~]` parcial ou só compilado/testado no Linux; `[ ]` não iniciado.
+
+| Onde | `[x]` | `[~]` | `[ ]` |
+|---|---|---|---|
+| Plano F00–F27 (458 itens) | 20 | 280 | 158 |
+| Plano F10.F (checklist de saída da v1) | conferido (inclui os 7 critérios) | | |
+| `ORION.md` auditoria consolidada (15 linhas) | atualizado | | |
+| UI §32, instalador §13, planejamento F1–F9 | critérios de aceite e fases marcados | | |
+
+Achados da conferência:
+- **Nada de hardware está `[x]`:** todo aceite visual, de voz, de câmera e de instalação fica no máximo `[~]` até rodar num Windows real.
+- **`[x]` mais relevantes:** tokens e fontes Grafite (F01.01/02), barra lateral de 272 px (F01.19), política de ferramentas e caminhos (F04.01/03/04/05), aprovações de uso único (F04.16), modo autônomo com senha (F04.17), substituir fato sem apagar (F06.20), isolamento por projeto (F08.10), risco do MCP vem do `mcp.json` (F19.02), skills sob demanda (F19.07), leitura de páginas (F21.04).
+- **Rebaixado:** F06.14 (conflito com o Obsidian) voltou a `[ ]`: `save_conversation` sobrescreve.
+- **Corrigido no `ORION.md`** (achados da conferência): "autenticação PBKDF2" (agora Argon2id), "falta o app principal" (`orion-app` existe), "zero testes" na política (há 54), `scripts/benchmark_rust_python.py` (removido).
+- **Palpites conservadores** (revisar ao tocar): F12.13, F13.08, F15.02, F15.03, F15.17, F16.09, F16.10, F16.13, F19.13, F19.14, F20.02 e F25.07 (há `traduzir_texto` e conversor, mas não achei calculadora nem resumo de PDF).
+- **Documentos ausentes:** não existe `docs/` (F27.05 fica `[~]`).
+- **Backlog B-01..B-11:** é tabela, não checklist; o estado de cada linha está no texto da linha.

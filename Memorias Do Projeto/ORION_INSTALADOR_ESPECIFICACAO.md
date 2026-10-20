@@ -352,13 +352,13 @@ Desenhar = textura centrada em (x,y) com lado `size` e opacidade `alpha` (pular 
 ---
 
 ## 13. Critérios de aceite
-- [ ] Lado a lado com o protótipo (mesmo tamanho, mesmo quadro), as 5 etapas são visualmente iguais: posições, cores, fontes, espaçamentos.
-- [ ] O céu de fundo (estrelas, Via Láctea, nebulosa) é idêntico ao do protótipo com a seed 7.
-- [ ] A janela nunca muda de tamanho em nenhuma etapa nem com escala do Windows.
-- [ ] Transição entre etapas: 0,34 s de saída + 0,34 s de entrada, deslocamentos de 8 e 10 px.
-- [ ] Estrelas acendem com bloom suave de 2,4 s, sem clarão duro; o Cinturão acende em sequência (0 / 0,35 / 0,70 s).
-- [ ] Linhas crescem em 1,6 s com ease-in-out, com ponto de luz na ponta.
-- [ ] Ao concluir, o céu se ilumina aos poucos e continua respirando.
-- [ ] Som ambiente começa ao abrir, sobe em 4 s, sem botão.
-- [ ] 60 fps estáveis; "reduzir movimento" desliga as animações.
-- [ ] Voltar não apaga estrelas; fechar durante a instalação pede confirmação e desfaz.
+- [~] Lado a lado com o protótipo (mesmo tamanho, mesmo quadro), as 5 etapas são visualmente iguais: posições, cores, fontes, espaçamentos.
+- [~] O céu de fundo (estrelas, Via Láctea, nebulosa) é idêntico ao do protótipo com a seed 7.
+- [~] A janela nunca muda de tamanho em nenhuma etapa nem com escala do Windows.
+- [~] Transição entre etapas: 0,34 s de saída + 0,34 s de entrada, deslocamentos de 8 e 10 px.
+- [~] Estrelas acendem com bloom suave de 2,4 s, sem clarão duro; o Cinturão acende em sequência (0 / 0,35 / 0,70 s).
+- [~] Linhas crescem em 1,6 s com ease-in-out, com ponto de luz na ponta.
+- [~] Ao concluir, o céu se ilumina aos poucos e continua respirando.
+- [~] Som ambiente começa ao abrir, sobe em 4 s, sem botão.
+- [~] 60 fps estáveis; "reduzir movimento" desliga as animações.
+- [~] Voltar não apaga estrelas; fechar durante a instalação pede confirmação e desfaz.

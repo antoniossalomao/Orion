@@ -673,16 +673,16 @@ Modal no estilo do Claude, com lista à esquerda e busca. No celular ou janela e
 ## Fases (lista antiga, **substituída por F00–F27 em ORION_PLANO_IMPLEMENTACAO.md**; mantida só como histórico)
 > **Substituídas** pelo plano detalhado em etapas: [[ORION - PLANO DE IMPLEMENTAÇÃO]] (F00 a F27, com checklist). A lista abaixo fica como histórico.
 
-- [ ] **F1 — Janela e tema:** barra de título própria, Mica/Acrylic, bandeja, atalho global, barra lateral, tokens Grafite, tipografia (Geist), escala 90–150% com Ctrl +/-, português e inglês.
-- [ ] **F2 — Chat (primeira versão):** campo de mensagem com anexos (20 MB), `/` e `@`, Markdown completo (Mermaid, LaTeX, prévia de HTML), editar e reenviar, seletor de modelo (Auto, Claude, Codex, Gemini, Orion), streaming com parar, linha de ferramentas, cartão de aprovação, painel de contexto, constelação na tela inicial.
-- [ ] **F2.5 — Aprovações e avisos (aprovações e modo autônomo entram na v1):** fila única com histórico, aprovação pelo Telegram (ID + botões), notificação do Windows, modo autônomo.
-- [ ] **F3 — Configurações (completas na v1):** modal com lista e busca, persistência das preferências.
-- [ ] **F4 — Memória no vault (próxima prioridade depois do chat):** leitor do vault, índice SQLite (texto + embeddings), gravação automática das conversas, resumo diário às 23:59, commit na `main`, aviso de conflito com o Obsidian, telas Conhecimento e Fontes.
-- [ ] **F5 — Grafo 3D (junto com a F4):** widget `shader`, layout em segundo plano, céu do `sky.js`, interação completa.
+- [~] **F1 — Janela e tema:** barra de título própria, Mica/Acrylic, bandeja, atalho global, barra lateral, tokens Grafite, tipografia (Geist), escala 90–150% com Ctrl +/-, português e inglês.
+- [~] **F2 — Chat (primeira versão):** campo de mensagem com anexos (20 MB), `/` e `@`, Markdown completo (Mermaid, LaTeX, prévia de HTML), editar e reenviar, seletor de modelo (Auto, Claude, Codex, Gemini, Orion), streaming com parar, linha de ferramentas, cartão de aprovação, painel de contexto, constelação na tela inicial.
+- [~] **F2.5 — Aprovações e avisos (aprovações e modo autônomo entram na v1):** fila única com histórico, aprovação pelo Telegram (ID + botões), notificação do Windows, modo autônomo.
+- [~] **F3 — Configurações (completas na v1):** modal com lista e busca, persistência das preferências.
+- [~] **F4 — Memória no vault (próxima prioridade depois do chat):** leitor do vault, índice SQLite (texto + embeddings), gravação automática das conversas, resumo diário às 23:59, commit na `main`, aviso de conflito com o Obsidian, telas Conhecimento e Fontes.
+- [~] **F5 — Grafo 3D (junto com a F4):** widget `shader`, layout em segundo plano, céu do `sky.js`, interação completa.
 - [ ] **F6 — Efeitos:** bloom e blur de vidro.
-- [ ] **F7 — Voz e sensores:** palavra "Orion", voz ao vivo, pílula de estado ligada ao áudio.
-- [ ] **F9 — Orçamento de uso:** roteador por complexidade, estimativa de cota, gasto semanal e automelhoria com PR.
-- [ ] **F8 — Extensões e nuvem:** Conectores (MCP), skills, plugins WASM, importação do Claude/Codex, `/nuvem` com Claude e Codex.
+- [~] **F7 — Voz e sensores:** palavra "Orion", voz ao vivo, pílula de estado ligada ao áudio.
+- [~] **F9 — Orçamento de uso:** roteador por complexidade, estimativa de cota, gasto semanal e automelhoria com PR.
+- [~] **F8 — Extensões e nuvem:** Conectores (MCP), skills, plugins WASM, importação do Claude/Codex, `/nuvem` com Claude e Codex.
 
 ## Respostas da rodada interativa (15/10/2026)
 | Tema | Decisão |
