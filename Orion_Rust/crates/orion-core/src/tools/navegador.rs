@@ -34,21 +34,32 @@ const SCRIPT_ITENS: &str = r#"(() => {
   const sel = 'a[href],button,input:not([type=hidden]),select,textarea,summary,[role=button],[role=link],[role=textbox],[role=checkbox],[role=tab],[role=menuitem],[onclick]';
   const visivel = e => { const r = e.getBoundingClientRect(); const s = getComputedStyle(e); return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none'; };
   const lim = (t, n) => (t || '').replace(/\s+/g, ' ').trim().slice(0, n);
+  const tipoDe = e => {
+    const tag = e.tagName.toLowerCase(); const tipo = (e.getAttribute('type') || '').toLowerCase();
+    if (tag === 'a') return 'link';
+    if (tag === 'select') return 'lista';
+    if (tag === 'textarea') return 'campo';
+    if (tag === 'input') return tipo === 'password' ? 'senha' : tipo === 'checkbox' ? 'caixa' : tipo === 'radio' ? 'opcao' : ['submit', 'button', 'image', 'reset'].includes(tipo) ? 'botao' : 'campo';
+    if (tag === 'button' || e.getAttribute('role') === 'button' || tag === 'summary') return 'botao';
+    if (e.getAttribute('role') === 'link') return 'link';
+    return 'elemento';
+  };
   document.querySelectorAll('[data-orion-i]').forEach(e => e.removeAttribute('data-orion-i'));
-  const itens = []; let i = 0; let extras = 0;
-  for (const e of document.querySelectorAll(sel)) {
-    if (!visivel(e)) continue;
-    if (i >= MAX) { extras++; continue; }
+  let cand = [...document.querySelectorAll(sel)].filter(visivel).map(e => ({ e, kind: tipoDe(e) }));
+  const total = cand.length;
+  if (total > MAX) {
+    // página cheia de links: os campos de formulário sempre entram (até 30); o resto preenche na ordem da página
+    const controle = k => ['campo', 'senha', 'caixa', 'opcao', 'lista'].includes(k);
+    let ctrl = 0; const marcados = new Set();
+    for (const c of cand) if (controle(c.kind) && ctrl < 30) { marcados.add(c); ctrl++; }
+    let livres = MAX - marcados.size;
+    for (const c of cand) if (!marcados.has(c) && livres > 0) { marcados.add(c); livres--; }
+    cand = cand.filter(c => marcados.has(c));
+  }
+  const itens = []; let i = 0;
+  for (const { e, kind } of cand) {
     i++; e.setAttribute('data-orion-i', String(i));
     const tag = e.tagName.toLowerCase(); const tipo = (e.getAttribute('type') || '').toLowerCase();
-    let kind = 'elemento';
-    if (tag === 'a') kind = 'link';
-    else if (tag === 'select') kind = 'lista';
-    else if (tag === 'textarea') kind = 'campo';
-    else if (tag === 'input') kind = tipo === 'password' ? 'senha' : ['checkbox'].includes(tipo) ? 'caixa' : ['radio'].includes(tipo) ? 'opcao' : ['submit', 'button', 'image', 'reset'].includes(tipo) ? 'botao' : 'campo';
-    else if (tag === 'button' || e.getAttribute('role') === 'button') kind = 'botao';
-    else if (e.getAttribute('role') === 'link') kind = 'link';
-    else if (tag === 'summary') kind = 'botao';
     const rotulo = lim(e.getAttribute('aria-label') || (tag === 'input' && ['submit', 'button', 'reset'].includes(tipo) ? e.value : '') || e.innerText || e.placeholder || e.getAttribute('name') || e.title || e.alt, 80);
     let linha = i + ' ' + kind + ' «' + rotulo + '»';
     if (tag === 'a' && e.href) linha += ' → ' + e.href.slice(0, 200);
@@ -59,7 +70,7 @@ const SCRIPT_ITENS: &str = r#"(() => {
     if (e.disabled) linha += ' [desativado]';
     itens.push(linha);
   }
-  return JSON.stringify({ url: location.href, titulo: document.title, itens, extras, y: Math.round(scrollY), alt: document.documentElement.scrollHeight, vh: innerHeight });
+  return JSON.stringify({ url: location.href, titulo: document.title, itens, extras: total - cand.length, y: Math.round(scrollY), alt: document.documentElement.scrollHeight, vh: innerHeight });
 })()"#;
 
 pub struct Navegador {
@@ -269,6 +280,16 @@ impl Navegador {
         page.find_element(format!("[data-orion-i=\"{indice}\"]")).await.map_err(|_| format!("não existe o item {indice} na página atual (veja a página de novo: os números mudam)"))
     }
 
+    /// Clique de verdade (mouse no centro do item); se o item não tem ponto visível (links de pular
+    /// para o conteúdo, menus recolhidos), cai no clique do próprio elemento.
+    async fn clicar_item(el: &chromiumoxide::Element) -> Result<(), String> {
+        let _ = el.scroll_into_view().await;
+        if el.click().await.is_ok() {
+            return Ok(());
+        }
+        el.call_js_fn("function(){this.click();}", false).await.map(|_| ()).map_err(|e| e.to_string())
+    }
+
     async fn tipo_do_item(el: &chromiumoxide::Element) -> String {
         let r = el.call_js_fn("function(){const t=(this.getAttribute('type')||'').toLowerCase();const a=(this.getAttribute('autocomplete')||'').toLowerCase();if(t==='password'||a.startsWith('cc-')||a==='one-time-code'||a==='current-password'||a==='new-password')return 'sensivel';return this.tagName.toLowerCase()==='a'?'link':'outro';}", false).await;
         r.ok().and_then(|r| r.result.value).and_then(|v| v.as_str().map(String::from)).unwrap_or_default()
@@ -301,8 +322,7 @@ impl Navegador {
                     return Err("esse item não é um link: use navegador_agir para clicar em botões e campos".into());
                 }
                 let _ = p.evaluate("window.__orionMarca = 1").await;
-                el.scroll_into_view().await.map_err(|e| e.to_string())?;
-                el.click().await.map_err(|e| e.to_string())?;
+                Self::clicar_item(&el).await?;
                 Self::esperar_apos_acao(&p).await;
                 Self::instantaneo(&p).await
             }
@@ -320,18 +340,22 @@ impl Navegador {
         match acao {
             "clicar" => {
                 let el = Self::elemento(&p, indice.ok_or("informe o número do item")?).await?;
-                el.scroll_into_view().await.map_err(|e| e.to_string())?;
-                el.click().await.map_err(|e| e.to_string())?;
+                Self::clicar_item(&el).await?;
             }
             "digitar" => {
                 let el = Self::elemento(&p, indice.ok_or("informe o número do campo")?).await?;
                 if Self::tipo_do_item(&el).await == "sensivel" {
                     return Err("não digito senha nem dados de cartão: peça para o Antônio preencher esse campo".into());
                 }
+                let texto = texto.ok_or("informe o texto")?;
                 el.scroll_into_view().await.map_err(|e| e.to_string())?;
-                el.click().await.map_err(|e| e.to_string())?;
-                let _ = el.call_js_fn("function(){this.value='';this.dispatchEvent(new Event('input',{bubbles:true}));}", false).await;
-                el.type_str(texto.ok_or("informe o texto")?).await.map_err(|e| e.to_string())?;
+                let _ = el.click().await;
+                let _ = el.call_js_fn("function(){this.focus();this.value='';this.dispatchEvent(new Event('input',{bubbles:true}));}", false).await;
+                el.type_str(texto).await.map_err(|e| e.to_string())?;
+                // se algo cobriu o campo e a digitação não entrou, grava o valor direto (e avisa a página)
+                let lit = serde_json::to_string(texto).unwrap_or_default();
+                let js = format!("function(){{const v={lit};if(this.value===v)return 'ok';const d=Object.getOwnPropertyDescriptor(Object.getPrototypeOf(this),'value');if(d&&d.set)d.set.call(this,v);else this.value=v;this.dispatchEvent(new Event('input',{{bubbles:true}}));this.dispatchEvent(new Event('change',{{bubbles:true}}));return 'forcado';}}");
+                let _ = el.call_js_fn(js, false).await;
                 if enviar {
                     // enviar o formulário do campo (como o Enter faria); sem formulário, aperta Enter
                     let via_form = el.call_js_fn("function(){if(this.form){this.form.requestSubmit();return 'form';}return 'sem';}", false).await.ok().and_then(|r| r.result.value).and_then(|v| v.as_str().map(String::from));
