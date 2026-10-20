@@ -244,19 +244,26 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 ---
 
 ## 3. Itens a decidir (carregados do planejamento)
-- [ ] **D01** Ordem entre as funções novas do M8 (F20 a F25) e, dentro delas, quais sobem primeiro.
+- [x] **D01** Ordem entre as funções novas do M8 (F20 a F25) e, dentro delas, quais sobem primeiro. **Decidido em 20/10/2026: F20 (tela, captura e reuniões) vem primeiro depois da v1.**
 - [x] **D02** Teto de **20% por tarefa**, limitado por 95% semanal e janela opcional de 5 h, confirmado pelo pedido explícito de 17/10/2026. A automelhoria ainda não foi implementada (C18/D03).
-- [ ] **D03** Confirmar os termos de Claude, Codex e Gemini para tarefas automáticas em segundo plano com a assinatura e para a leitura de `/usage` e `/status` por automação (bloqueia F13 e F26).
+- [x] **D03** Confirmar os termos de Claude, Codex e Gemini para tarefas automáticas em segundo plano com a assinatura e para a leitura de `/usage` e `/status` por automação (bloqueia F13 e F26). **Decidido em 20/10/2026: ler `/usage` (Claude) e `/status` (Codex) pelas CLIs, com queda para a estimativa local e aviso se o formato mudar; Gemini só estimativa. Desbloqueia F13.01/F13.02.**
 - [ ] **D04** Provedor de TTS definitivo (testar na F15).
-- [ ] **D05** O que mais um Projeto deve ter além de nota, repositório, conversas, instruções, pastas e arquivos de referência.
+- [x] **D05** O que mais um Projeto deve ter além de nota, repositório, conversas, instruções, pastas e arquivos de referência. **Decidido em 20/10/2026: o Projeto também tem arquivos de referência fixos, modelo e passos próprios (com marca "herdado") e rotinas do projeto; tarefas e prazos ficam na nota do vault (F08.08).**
 - [ ] **D06** Escopo do token do GitHub e do acesso ao Drive inteiro (reavaliar para o mínimo).
 - [x] **D07** Licença-alvo: **uso pessoal** (decidido); revisar se virar distribuição.
 - [ ] **D08** Telas do front antigo que ainda faltam decidir: Planos de arquivos (depois da v1) e detalhes de Vida (F23).
 - [ ] **D09** Modelos locais do instalador: confirmar a lista final e os requisitos por modelo (RAM/VRAM).
 - [ ] **D10** Alexa: quais aparelhos e quais caminhos oficiais (skill, interruptores virtuais) × não oficiais.
-- [ ] **D11** Confirmar se a **extensão de navegador** (Chrome/Edge, decidida "na v1") fica na 1.0 ou vira M7 (ela aumenta muito o escopo da v1).
+- [x] **D11** Confirmar se a **extensão de navegador** (Chrome/Edge, decidida "na v1") fica na 1.0 ou vira M7 (ela aumenta muito o escopo da v1). **Decidido em 20/10/2026: extensão de navegador só depois da 1.0 (F19.15 e F21.06 saem da v1); o navegador guiado por CDP basta por ora.**
 
 ---
+
+### Decisões da rodada de perguntas (20/10/2026)
+<!-- rodada-20-10 -->
+- **Grafo (F16):** wgpu puro; Bevy/`three-d` fica só como plano B registrado (F17.05).
+- **Escopo da v1:** F01–F10. Os critérios de saída da F10.F valem para F01–F10; F11–F27 são pós-v1.
+- **Casa e Alexa (F22.04–F22.07):** ficam no plano, adiados, sem data (D10 segue em aberto).
+- **Estudo (F24):** mantido, depois da v1 e de F20–F23.
 
 ## 4. Marco M0: Fundação
 
