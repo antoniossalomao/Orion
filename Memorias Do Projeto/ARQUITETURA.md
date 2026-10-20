@@ -1,6 +1,6 @@
 # Orion — arquitetura
 
-> Produto: app nativo Rust de um só executável (`orion.exe`, núcleo e interface iced no mesmo processo, sem porta e sem Python). O pacote Python `orion/` fica só como referência executável até a paridade e a venda do PC (auditoria do PR #30, atualizada em 20/10/2026). Princípios e onde cada um é imposto: [REGRAS.md](REGRAS.md). Estado e plano: [ORION.md](ORION.md). Como rodar: [README](../README.md). Detalhes do legado: [ORION_LEGADO.md](ORION_LEGADO.md).
+> Produto: app nativo Rust de um só executável (`orion.exe`, núcleo e interface iced no mesmo processo, sem porta e sem Python). O pacote Python `orion/` e seus testes foram removidos em 20/10/2026 e permanecem no histórico do Git. Os dados pessoais do legado ainda precisam de exportação e verificação antes do descarte do PC. O worker `orion-llama.exe` fica separado; o navegador usa CDP em loopback efêmero, sem servidor HTTP do app. Princípios e onde cada um é imposto: [REGRAS.md](REGRAS.md). Estado e plano: [ORION.md](ORION.md). Como rodar: [README](../README.md). Detalhes do legado: [ORION_LEGADO.md](ORION_LEGADO.md).
 
 ## 1. Referência histórica: pacote `orion/` (Python, removido do repositório em 20/10/2026; consulte o Git)
 
@@ -183,3 +183,4 @@ Esta tabela é uma pesquisa de candidatos, não uma lista de modelos instalados.
 | NER | `urchade/gliner_multi-v2.1` | Apache-2.0 | Sem ONNX oficial na página |
 
 **Licença-alvo ainda não decidida.** Se o Orion for só pessoal, os itens não comerciais não bloqueiam. Se for vendido ou distribuído, saem: openWakeWord oficial, ESC-50, Jina v3, OmniParser com o detector padrão e modelos de pesquisa, como o Sabiá-7B.
+

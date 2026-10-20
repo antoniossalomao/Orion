@@ -3,259 +3,138 @@ type: recurso
 projeto: "[[Orion]]"
 tags: [orion, auditoria, pendencias, checklist]
 date: 2026-10-20
-revisao: 2026-10-20 (documentos corrigidos, tarefas de código feitas, vault fechado)
-resumo: "Auditoria dos 7 documentos de Memorias Do Projeto contra o código da branch do PR #30: o que falta, checklists errados, ideias que não batem entre documentos."
+revisao: 2026-10-20 (estado consolidado após decisões e conferência dos checklists)
+resumo: "Pendências e decisões vigentes do Orion, com implementação, testes e aceite Windows separados; substitui os diagnósticos intermediários desta auditoria."
 ---
 
 # ORION - AUDITORIA DE PENDÊNCIAS (20/10/2026)
 
-> Base: código da branch `claude/wizardly-bell-ynlfwv` (PR #30) em 20/10/2026. Lidos: ORION, REGRAS, ARQUITETURA, PLANO_IMPLEMENTACAO, PLANEJAMENTO_ARQUITETURA, UI_ESPECIFICACAO, INSTALADOR_ESPECIFICACAO. `ORION_LEGADO.md` não entra (referência).
-> Legenda: **[V]** só você pode fazer · **[W]** precisa de Windows/hardware real · **[C]** código que eu posso fazer · **[D]** decisão sua.
+> Base: branch `claude/wizardly-bell-ynlfwv` (PR #30). Esta consolidação substitui as conclusões intermediárias da auditoria; o histórico permanece no Git. A fonte do estado é [ORION.md](ORION.md); os IDs e critérios ficam no [plano](ORION_PLANO_IMPLEMENTACAO.md). `ORION_LEGADO.md` é referência histórica.
+> Legenda: **[V]** depende do Antônio · **[W]** exige Windows/hardware real · **[C]** implementação · **[D]** decisão.
 
----
+## 1. Estado vigente
 
-## 1. Resumo
+**A v1 ainda não está pronta.** Além da validação Windows e da distribuição assinada, faltam funcionalidades relevantes de F01–F10: Projetos, onboarding, integração segura do vault, backup/restauração e partes do chat, configurações e segurança.
 
-- **Arquitetura-alvo foi atingida e os documentos ainda descrevem a anterior.** Hoje: 1 exe (`orion.exe`), núcleo no processo, sem porta, sem Python, `orion-llama.exe` separado, updater como subcomando. Os docs ainda falam em `orion serve`, front HTML em `/ui/`, `orion-sidecar`, Python de referência e `Orion Setup.exe` com certificado/serviço.
-- **Os checklists do PLANO (F00–F27) estão todos `[ ]`**, inclusive itens concluídos. Só os blocos "Estado PR #30" dizem a verdade, e vários estão velhos.
-- **O que impede o 1.0 não é mais código base:** é (a) prova em Windows real, (b) chave minisign + 1º release, (c) ~15 fases de funcionalidade (F11–F27) que nem começaram.
+- **Arquitetura:** `orion.exe` reúne interface iced e núcleo no mesmo processo, sem servidor HTTP do app. `orion-llama.exe` é um worker separado; o instalador é outro executável de distribuição. O navegador CDP usa porta de depuração efêmera em loopback; portanto, "sem porta" descreve a ligação UI–núcleo, não todos os processos auxiliares.
+- **Produto sem Python:** pacote de referência e sidecar removidos em 20/10. Restam scripts de treino/smoke, fixture MCP e front HTML de desenvolvimento, servido apenas no modo HTTP opcional. Código removido permanece no Git; dados pessoais e instalações no PC não foram descartados.
+- **Escopo:** v1 = M1, F01–F10, com saída em F10. F11–F27 são posteriores. F27 é fechamento do roadmap; a expressão histórica "release 1.0" nessa fase não amplia o escopo da v1 nem define a tag do primeiro release. A numeração semver deve ser alinhada ao publicar.
+- **Checklists já conferidos:** 458 itens F00–F27: **20 `[x]`, 280 `[~]`, 158 `[ ]`**. Em F01–F10: **13 `[x]`, 167 `[~]`, 57 `[ ]`** (237 itens). Não é percentual de conclusão: os itens têm tamanhos diferentes e `[~]` mistura trabalho parcial com aceite pendente.
 
----
+## 2. Como interpretar a evidência
 
-## 2. Documentos desatualizados ou contraditórios — status da correção
+Mantida a legenda do plano: `[x]` subentrega feita sem depender de hardware; `[~]` parcial ou sem aceite Windows; `[ ]` não iniciado. Item explicitamente adiado/cancelado não bloqueia o marco de que foi retirado. Nenhuma marca isolada aceita uma fase inteira.
 
-> **Corrigidos em 20/10/2026:** 1, 2, 3, 4, 5 (nota de equivalência Rust em REGRAS.md; as colunas por princípio seguem citando Python e devem ser reapontadas ao tocar cada princípio), 6, 7, 8, 9, 10, 13, 14, 15, 17, 19, 20. **Decididos por você em 20/10/2026 (docs já refletem; código a ajustar):** 11 (Ctrl+Alt+Espaço/P/O/I), 12 (autônomo pede senha), 16 (remover mudo). **Ainda aberto:** 18 (leitura oficial de uso, bloqueada pela D03). Os textos dos itens 17 e 19 foram escritos como "decisão 20/10" e valem se você confirmar as perguntas de alinhamento.
-> Também notado ao corrigir: o CI (`rust-windows.yml`) roda só `cargo test`, **sem `fmt` nem `clippy`**; o plano tem 40 itens agora marcados `[~]` (todos que já traziam "Estado PR #30").
+Ao atualizar cada item, registrar:
 
-
-| # | Onde | Problema | Correção |
-|---|---|---|---|
-| 1 | ORION.md, "Estado (17/10)" e lista de crates | "14 crates" incluindo `orion-sidecar`. Hoje são **15**: ai, app, core, llama, local, mcp, platform, policy, server, setup, store, testkit, updater, vault, voice. Sidecar não existe | Atualizar contagem e lista |
-| 2 | ORION.md, últimos bullets (linhas ~281–292) | Bullets cronológicos se contradizem: "app sobe `orion serve` como processo filho 127.0.0.1" → "servidor dentro do processo" → "sem socket". Só o último vale | Fundir em **uma** descrição: `orion.exe` = app+núcleo, `Api::local`, sem porta; `orion serve` só para testes/CI |
-| 3 | ORION.md / ARQUITETURA §7 | Tabela de crates ainda lista `orion-sidecar`, "Python residual", "ainda não existem como crates: app/UI, updater" (ambos existem) | Reescrever §7 |
-| 4 | ARQUITETURA §1 e §8 | "Python só onde não há equivalente (browser-use e crawl4ai)". Resolvido em Rust (`buscar_url` com Readability, `navegador_*` CDP) | Trocar por "sem Python no produto" |
-| 5 | REGRAS.md ("Imposto em"/"Prova") | Quase todos os princípios apontam para `orion/*.py` e `tests/*.py`; CI "Linux/Windows/macOS" | Reapontar para `crates/orion-policy`, `orion-core`, testes Rust. Enquanto o Python existir no repo, manter só como "referência" |
-| 6 | AGENTS.md (raiz) | Manda rodar `uv`, `ruff`, `pyright`, `pytest`, `node --test`; diz que sidecar e fixtures MCP continuam necessários e que `Orion_Core/Front_end_Orion/` é servido pelo Rust | Trocar por `cargo fmt/clippy/test` do `Orion_Rust`; remover menção ao sidecar |
-| 7 | INSTALADOR §"Estado" e F10.09 | Diz "setup exige pastas CPU/Vulkan ao lado" e que certificado/atalhos/serviço são placeholders. Hoje o instalador **baixa do GitHub Releases** (minisign + SHA-256) com fallback offline; atalho, autostart, identidade MSIX e tarefa do updater estão no código | Atualizar tabela do instalador |
-| 8 | PLANO F10.14/F10.15 | "Updater serviço/tarefa SYSTEM chama `orion-updater --check`" — o updater virou **subcomando `orion update`** e `ALLOWED_FILES` já é só `orion.exe`+`orion-llama.exe` | Atualizar texto |
-| 9 | PLANO F21 + auditoria | "Sidecar tem testes isolados, sem consumidor"; navegador visível/CDP pendente. Agora: leitura (F21.04) e navegador guiado via Edge/Chrome com CDP (F21.01 parcial) **feitos**; ainda não é "aba do painel" nem WebView2 | Marcar F21.01 parcial, F21.04 feito |
-| 10 | PLANO F01 ("app principal iced pendente") e UI_ESPECIFICACAO "Estado" | Diz que `orion-app` principal **não existe** e que o front é HTML. Existe: 47 cenas, ligado ao núcleo, bandeja, mini barra, atalhos | Reescrever bloco "Estado" da UI e da F01 |
-| 11 | UI_ESPECIFICACAO U3/U4 e F01 (atalhos) | Docs divergem: Win+Shift+Espaço, Win+Shift+O/I, Alt+Shift+O/I. **Código usa Ctrl+Alt+Espaço (janela) e Ctrl+Alt+P (pânico)** | Escolher e registrar (ver D-A) |
-| 12 | PLANO F04.17 (modo autônomo exige senha para ligar) × código | Implementado como meta `modo:autonomo` (`max_iterations*4`) sem pedir senha na UI | Alinhar: ou pedir senha, ou mudar o plano |
-| 13 | PLANO D07 (licença) × ORION pendência 10 | D07 diz "uso pessoal"; pendência 10 ainda trata licença como aberta; `Cargo.toml` usa `LicenseRef-Proprietario` | Fechar a pendência |
-| 14 | PLANEJAMENTO "Decisões" (tabela) | Fontes Geist/Newsreader (UI) × Inter/JetBrains Mono (INSTALADOR, F01.02). UI_ESPECIFICACAO U2 já diz "vale o mockup" mas F01.02 não foi corrigido | Corrigir F01.02 (e dizer que o instalador usa Inter) |
-| 15 | PLANEJAMENTO "Fases" (F1–F9) | Lista antiga ainda com `[ ]`; PLANO diz que foi substituída | Apagar ou marcar "substituída por F00–F27" |
-| 16 | PLANO F10.03 × INSTALADOR §9 × código | Spec: som "sempre ligado, sem botão, 4 osciladores". Código: trilha instrumental com mute. A própria nota já avisa | Decidir (D-B) e fechar |
-| 17 | PLANO conflitos C11/C28 (WebView2) × código | Spec prevê WebView2 para navegador visível e MCP Apps; implementado com Edge/Chrome externo via CDP | Registrar decisão: externo guiado vence |
-| 18 | PLANO F13 (`/usage`, `/status`) × D03 | F13 "bloqueada pela D03" (termos dos provedores) mas há código estimado em produção | Registrar que leitura oficial segue bloqueada |
-| 19 | PLANO F14.01 / F19.01 | Cliente próprio (Telegram HTTP, MCP) em vez de `teloxide`/`rmcp` | Decidir: manter próprio e **editar o plano** (mais honesto que deixar `[ ]`) |
-| 20 | ORION.md "Validação" | Cita 1.637/1.639 testes **Python** e 149 do front; esse código não está mais no produto | Trocar pelos testes Rust atuais |
-
----
-
-## 3. Checklists que estão errados
-
-### 3.1 Itens que já estão feitos (ou quase) e continuam `[ ]`
-| Item | Estado real |
+| Campo | Evidência esperada |
 |---|---|
-| F01.xx casca iced (barra lateral, superior, Início, chat, composer, painel, Configurações 14 seções, paleta, popovers, toasts) | Feito (parcial: sem grafo wgpu, sem snapshots comparados) |
-| F01 bandeja + atalho global | Feito no código; **[W]** nunca rodou no Windows |
-| F02 login Argon2id + SQLCipher + `dbkey` + tela de senha do banco | Feito; falta Hello, PIN crítico |
-| F02/F10 instância única | Feito (`orion.lock` + `orion.mostrar`) |
-| F03 gateway, CLIs, roteador | Feito parcial; ACP ausente |
-| F05 chat SSE, aprovações, painel direita | Feito (diff por bloco e terminal ConPTY não) |
-| F10.09 cópia/registro/atalho/autostart/identidade/rollback | Feito no código; **[W]** |
-| F10.11 download de modelos com hash/pausa | Feito parcial (`/modelos-locais`) |
-| F10.12 desinstalador 3 caixas | Feito no código; **[W]** |
-| F10.15 minisign + SHA-256 + `.bak` + `--rollback` | Feito; falta chave + feed publicado + rollback automático |
-| F10.28 `release.yml` (build, assina, publica) | Existe; **[V]** nunca rodou sem a chave/segredos |
-| F12 rotinas, jobs, Downloads, briefing, pesquisa | Parcial: faltam linguagem natural, tela completa, nuvem, monitores, proatividade |
-| F12 "segundo plano" (tela Nuvem → `/tarefas-bg`) | Feito (decisão: sem CLI remota; tarefas em segundo plano do Orion) |
-| F15 voz: cpal, VAD por energia, palmas, Whisper, TTS, AEC3, barge-in | Feito parcial; faltam Silero, wake word final, UI de voz |
-| F18.01 nokhwa | Feito; indicadores faltam |
-| F19 MCP próprio, OAuth, skills, plugins, importação, servidor MCP com credenciais | Feito; falta WASM/WIT, MCP Apps, rug-pull completo |
-| F19.06 / skills ligar-desligar | Feito (`/skills/ligar`) |
-| F21.03/F21.04 busca + leitura + pesquisa | Feito (Readability+Markdown, netguard) |
-| F21.01 navegador guiado (CDP, Fetch.enable, recusa senha/cartão) | Parcial: sem aba no painel |
-| F26/F13 "modo autônomo", "corrigir fato" | Feito |
-| F27.06 "código obsoleto retirado" | Feito inclusive sidecar/python |
+| Implementação | Ausente, parcial ou completa; arquivo e comportamento entregue |
+| Testes | Não executados ou comando, commit e resultado; compilação sozinha não prova comportamento |
+| Windows | Não aplicável, pendente ou cenário e resultado do aceite real |
+| Próximo passo | Falta concreta, dependência e responsável |
 
-### 3.2 Itens `[ ]` corretos (nada feito)
-F08.xx completo (Projetos: cartões, GitHub clonar, isolamento R20, arquivar) — só APIs existem; F09 telas iced de Painel/Resultados/Integrações com métricas; F11 inteiro; F16 grafo wgpu; F17; F20 (captura/OCR/reuniões); F22; F23; F24; F25 (parcial); F26; F27.01–05, 07, 08.
+Esta revisão corrige documentação; não reexecuta testes nem promove funcionalidades a prontas.
 
-### 3.3 Itens com marcação ambígua
-- Blocos "Entrega parcial" vivem **fora** da lista `- [ ]`. Padronizar: `[x]` feito, `[~]` parcial (com 1 linha do que falta), `[ ]` não iniciado.
-- F10.F "Checklist de saída da v1" mistura critérios de fase (F01–F10) com os de F11–F27. Se a v1 = M1 (F01–F10), tirar F11–F27 dos critérios.
-- INSTALADOR §13 e UI §32: todos `[ ]` por serem de aceite visual — corretos, mas dependem de snapshot comparado (não existe CI para isso hoje).
+## 3. Decisões consolidadas
 
----
-
-## 4. Ideias que não batem entre documentos
-
-| # | Tema | Conflito | Sugestão |
-|---|---|---|---|
-| A | Atalho global | 3 combinações diferentes (Win+O, Win+Shift+Espaço, Ctrl+Alt+Espaço) | Fechar com **Ctrl+Alt+Espaço** (já no código; Win+ combinações são reservadas pelo Windows) e atualizar docs |
-| B | Som do instalador | "Sempre ligado, sem botão" × código com mute | Manter mute (acessibilidade) e **editar a spec** |
-| C | Fonte | Geist (UI) × Inter (instalador/plano) | Declarar: app = Geist/Newsreader; instalador = Inter. Corrigir F01.02 |
-| D | WebView2 | Plano prevê WebView2 (navegador, MCP Apps) × "app nativo sem WebView" (PLANEJAMENTO objetivo) × Edge/Chrome via CDP | Registrar: **sem WebView2 no produto**; MCP Apps (F19.12) passa a pós-1.0 ou fica com a decisão pendente |
-| E | Nuvem Claude/Codex (F12.15–F12.19) | Plano exige `claude --remote` / `codex cloud` × você escolheu "tarefas em segundo plano do Orion" | Reescrever F12.C, ou marcar F12.15–19 como "adiadas por D03" |
-| F | Instalador | "Orion Setup.exe com pastas cpu/vulkan ao lado" × "instalador baixa do GitHub Releases" | Atualizar INSTALADOR §10 e F10 |
-| G | Updater | "Serviço com permissão" × `orion update` subcomando + tarefa agendada | Atualizar F10.B |
-| H | Duas variantes | `cpu`/`vulkan` no release × spec do instalador que não menciona variantes | Documentar o feed `latest-<variante>.json` |
-| I | Licença | D07 "uso pessoal" × pendência 10 aberta | Fechar |
-| J | Telegram/MCP | Plano "teloxide/rmcp" × cliente próprio | Manter próprio e atualizar plano |
-| K | Autostart | Plano "janela de senha ao iniciar com o Windows" × `--background` sem senha do banco | Banco cifrado + `--background`: o app precisa esperar a senha ao primeiro abrir (hoje a tela de senha existe, mas confirmar o fluxo no Windows) |
-| L | Modo foco/jogo F25.05 | Depende de F15/F18 presença | OK, só registrar a dependência |
-| M | Legado | PLANEJAMENTO: "descartar Qdrant/SurrealDB, 3,09 mi vetores não migram" × ORION.md "paridade e migração verificada" | Já decidido (PLANEJAMENTO vence). Atualizar ORION.md |
-| N | Python de referência | AGENTS.md manda preservar `orion/` e `tests/` | Decidir quando apagar (F27.06 só depois de F00.28/F23.13) — manter até exportar SurrealDB e vender o PC |
-
----
-
-## 5. O que falta fazer
-
-### 5.1 Depende de você **[V]** / **[D]**
-1. **Chave minisign + segredos GitHub + 1º release** (`release.yml` pronto). Sem isso updater/instalador não rodam fim a fim.
-2. **Testar no Windows real** tudo da seção 5.2.
-3. **Exportar tabelas pessoais do SurrealDB** (F00.28/F23.13) **antes** de vender o PC (fim do ano).
-4. **Gravar amostras da palavra "Orion"** (≥50 positivos, ≥1 h negativos) — hoje só existe candidato sintético reprovado.
-5. **D01–D11** abertos no PLANO (ordem F20–F25, D03 termos dos provedores, D05 o que mais um Projeto tem, D06 escopo Drive/GitHub, D08 itens do legado, D10 aparelhos Alexa, D11 extensão de navegador).
-6. Decisões desta auditoria: atalhos (A), som (B), nuvem (E), MCP Apps/WebView (D), `rmcp`/`teloxide` (J).
-7. Certificado de assinatura de código real, se quiser evitar SmartScreen (risco 15).
-
-### 5.2 Prova em Windows real **[W]** (nada disso rodou fora de Linux/CI)
-- Instalar do zero e desinstalar limpo (máquina limpa + notebook); instalador baixando de Releases.
-- Bandeja, mini barra, atalhos (Ctrl+Alt+Espaço/P), autostart `--background`, instância única, console sem piscar.
-- Tela de senha do banco cifrado; Win+L; Hello (ainda sem código).
-- Navegador guiado com Edge; leitura Readability em sites reais.
-- Vulkan/Whisper na GPU; AEC3/barge-in; palmas com música; Telegram em 2 aparelhos.
-- Metas: RAM parada < 300 MB, janela < 1 s, primeira resposta < 100 ms; 1 semana de uso com backup restaurado.
-
-### 5.3 Código **[C]**, por fase (o que ainda não existe)
-**M1 / v1 (F01–F10)**
-- F01: motor de céu compartilhado (shader) para UI e instalador; Fluent pt/en; snapshots/headless comparados ao protótipo; acessibilidade (leitor de tela, foco).
-- F02: Windows Hello (login + reserva do 2FA); PIN próprio para ações críticas; chave de recuperação no onboarding.
-- F03: ACP (eventos das CLIs); catálogo de modelos/cotas atualizável completo.
-- F04: classificador de injeção completo; revisão R01–R23 com teste; testes de `engine` e `injecao_invariantes` (hoje sem teste Rust).
-- F05: diff por bloco, editar/reenviar, Mermaid/LaTeX, anexos 20 MB, `/` e `@` completos.
-- F06: gravação automática no vault + resumo 23:59, conflito com Obsidian, índice e5/BM25+LSA, reranker ONNX.
-- F07: Configurações — todas as 14 seções ligadas (algumas só leitura).
-- **F08 Projetos (inteira):** cartões, clonar GitHub, pastas vinculadas, modelo por projeto, herança, arquivar, mover conversa.
-- F09: Painel com gráficos e métricas, Resultados, Integrações, "Você fez", estados vazios.
-- F10: onboarding de primeira abertura (perfil, vault, APIs, importações, pastas confiáveis, rotinas padrão), backup Google Drive (7 cópias, cifrado), mini tela "O que mudou", canais beta/stable, rollback automático se o app novo não sobe, CLIs atualizando sozinhas, lista de modelos "recomendado para o seu PC" por RAM/VRAM, checagem de GPU/Vulkan completa.
-
-**M2 (F11–F13)**
-- F11 inteira: abas Arquivos/Diff/Terminal (ConPTY), terminal compartilhado com agente, GitHub PRs/CI, revisão cruzada, extensão VS Code.
-- F12: agendador em linguagem natural + prévia de 3 execuções, histórico, 3 tentativas/backoff, acordar o PC, nuvem (se mantida), monitores (página, releases, preço), proatividade (≤3/dia), retrospectiva semanal.
-- F13: leitura oficial de `/usage` e `/status` (bloqueada por D03), fila de automelhoria, preempção.
-
-**M3–M4 (F14, F15)**
-- F14: PIN, fila com PC ocupado, Wake-on-LAN, botão "ver completo", `/nuvem`.
-- F15: Silero VAD, modelo "Orion" final, Ctrl+Alt+V voz ao vivo, mini barra reagindo ao áudio, legenda/tradução ao vivo, botão "ouvir", Configurações › Voz completa.
-
-**M5–M6 (F16–F18)**
-- F16 grafo 3D wgpu (compute + fallback CPU), F17 bloom/blur, F18 indicadores da câmera, YOLO (hoje retorna lista vazia), "onde eu deixei", rosto validado, presença/bloqueio.
-
-**M7–M9 (F19–F27)**
-- F19: WASM/WIT, MCP Apps, rug-pull completo, UI Conectores/Descobrir, extensão de navegador (D11).
-- F20 captura rápida/"Isso?"/Click to Do/OCR/memória de tela/reuniões; F21 aba de navegador no painel + pesquisa profunda `/pesquisa` com relatório em nota; F22 multi-PC/Tailscale/Alexa/iPhone; F23 Google/finanças/Vida; F24 FSRS/tutor; F25 clipboard, organizador, Spotify, modo jogo, geração de docx/pptx; F26 automelhoria; F27 auditorias OWASP/Trail of Bits, offline, desempenho, docs, release 1.0.
-
-### 5.4 Limpezas pequenas **[C]**
-- Remover do repo `Orion_Core/Front_end_Orion/`, `orion/`, `tests/`, `pyproject.toml`, `uv.lock`, `scripts/` Python quando decidir (N).
-- CI: `rust-windows.yml` só roda `cargo test`; avisos de compilação já zerados — acrescentar `cargo fmt --check` e `clippy -D warnings` se quiser.
-- Espelhar os documentos corrigidos no vault (`01 Projetos/Orion/`), conforme AGENTS.md (pendente: requer anexar o repo `vault`).
-
----
-
-## 6. Ordem sugerida
-1. ~~Corrigir os 20 documentos desatualizados~~ — feito em 20/10/2026; falta alinhar as ideias em conflito (seção 4) com as suas respostas.
-2. Você: chave + release + teste Windows. **[V][W]**
-3. F08 Projetos → F09 Painel → onboarding F10.C → backup.
-4. F12 completa (rotinas) → F14/F15 pendências.
-5. Só então F11, F16–F17 e M8.
-
----
-
-## 7. Alinhamento das ideias em conflito (respostas de 20/10/2026)
-
-| Tema (seção 4) | Decisão | Efeito |
+| Tema | Decisão vigente | Pendência |
 |---|---|---|
-| A. Atalhos | Manter Ctrl+Alt: Espaço = mini barra, P = pânico, **O = captura rápida, I = "Isso?"** | Docs corrigidos; **[C]** implementar Ctrl+Alt+O/I (F20) |
-| B. Som do instalador | **Remover o botão de mudo** (sempre ligado) | **[C]** tirar o mute do `orion-setup` |
-| Modo autônomo | **Pedir a senha** ao ligar (F04.17) | **[C]** pedir senha em `POST /modo/autonomo` e na UI |
-| E. Nuvem Claude/Codex | **Implementar já** (`/nuvem claude\|codex`, F12.15–19), além do Segundo plano | **[C]** `claude --remote`/`--teleport`, `codex cloud exec/list`, `codex apply`, tela Nuvem real; só pelas CLIs oficiais |
-| D. WebView2 / MCP Apps | **Sem WebView2**; navegador invisível guiado por CDP; MCP Apps só em texto, pós-1.0 | F19.12 e a aba do navegador (F21.01) saem da v1 |
-| J. teloxide / rmcp | **Manter clientes próprios** | Plano editado |
-| N. Python de referência | **Apagar agora** | Feito: `orion/`, `tests/` (menos `servidor_cru.py`), `pyproject.toml`, `uv.lock`, `scripts/benchmark_rust_python.py` e `gerar_icone.py` removidos; ficam no Git. Restam `scripts/{smoke_local_windows,treinar_orion_wake,wake_eval}.py` (CI e treino da palavra) e `Orion_Core/Front_end_Orion` (usado por `orion serve --features http`) |
-| K. Autostart + banco cifrado | **Abrir a tela de senha** no início com o Windows | **[C]** `--background` com banco cifrado mostra a janela de senha |
-| C, F, G, H, I, L, M | Resolvidos nos docs (fontes, instalador, updater, variantes, licença, legado) | — |
+| Atalhos | Ctrl+Alt+Espaço mini barra; P pânico; O captura rápida; I "Isso?" | Implementados; aceite Windows e fluxos completos F20 pendentes |
+| Som do instalador | Sempre ligado, sem botão de mudo | Botão removido; aceite Windows pendente |
+| Modo autônomo | Exige senha ao ligar; política de aprovação permanece | Código aplicado; teste da rota com senha e aceite pendentes |
+| Autostart | Com banco cifrado, abre a tela de senha | Implementado; aceite Windows pendente |
+| Nuvem | Segundo plano local **e** nuvem Claude/Codex pelas CLIs oficiais | Implementação parcial; testes e contas reais pendentes |
+| Navegador | Edge/Chrome headless guiado por CDP; sem WebView2 e sem aba no painel | Teste real com Edge pendente; aba não é requisito faltante |
+| MCP Apps | Só texto, pós-1.0 | Fora do aceite da v1 |
+| Telegram/MCP | Clientes próprios; sem obrigação de teloxide/rmcp | Aceite das integrações conforme fases |
+| Fontes | App Geist/Geist Mono/Newsreader; instalador Inter | Aceite visual |
+| Busca do vault | BM25 + LSA; embeddings locais só se a busca falhar | Índice e integração completos pendentes |
+| Sync | Log de eventos próprio | Aceite multi-PC pendente |
+| Canais | Stable no começo; beta quando o notebook entrar | Publicar primeiro release |
+| Ordem pós-v1 | F25.06 (Word/Excel/PowerPoint), depois F20 | Respeitar dependências das demais fases |
+| Palavra "Orion" | Desligada na v1; ficam palmas e atalho | Modelo final e corpus real são trabalho futuro |
+| TTS | edge-tts por ora; alternativas atrás de interface trocável | Antônio testa alternativas |
+| Grafo | wgpu puro; Bevy/three-d só plano B | F16 |
+| Licença | Uso pessoal | Revisar se mudar a distribuição |
+| Legado | Código Python removido; vetores Qdrant/SurrealDB não migram | Exportar e verificar tabelas pessoais antes do descarte do PC |
+| Casa/Alexa | Mantidos, adiados sem data | D10 |
+| Automelhoria | Depois de F11 e F13 | F26; interruptor não comprova execução |
+| macOS/extensão | Depois da 1.0; macOS após versão estável | Fora do primeiro lançamento |
 
-**As cinco tarefas de código geradas por este alinhamento foram feitas em 20/10/2026** (mute removido; senha ao ligar o autônomo; autostart abre a tela de senha; Ctrl+Alt+O/I; nuvem pelas CLIs oficiais, F12.15–19 agora `[~]`), além do novo login no estilo do instalador (usuário padrão `antoniosalomao`). **Compiladas, mas sem testes rodados e sem prova no Windows.** Limites da nuvem: sem cancelamento remoto, sem log ao vivo, sem aviso no Telegram, Codex sem mensagem. Ainda aberto: 18, leitura oficial de uso (D03).
+**D03 está decidida quanto ao produto:** implementar `/usage` e `/status` pelas CLIs, com queda para estimativa e aviso se o formato mudar; Gemini usa estimativa. **F13.01/F13.02 seguem não implementados.** A decisão não comprova verificação dos termos: F00.29/F03.26 continuam abertos. Não descrever toda F13 como bloqueada por decisão pendente.
 
----
+**Decisões ainda abertas no grupo D01–D11:** D06 (escopos GitHub/Drive), D08 (Planos de arquivos e detalhes de Vida), D09 (lista/requisitos dos modelos) e D10 (Alexa). D01–D05, D07 e D11 já têm decisão registrada. Outros pedidos de confirmação específicos estão na seção de conflitos do plano.
 
-## 8. Situação final de 20/10/2026
+## 4. Implementações recentes e seus limites
 
-**Feito nesta rodada**
-- 20 documentos desatualizados corrigidos, incluindo `README.md` e `AGENTS.md` (comandos Rust no lugar de `uv`/`pytest`) e `REGRAS.md` (nota de equivalência Rust e dois princípios novos: nuvem e autônomo).
-- Python de referência removido do repositório (`orion/`, `tests/` exceto `servidor_cru.py`, `pyproject.toml`, `uv.lock`, dois scripts); histórico no Git.
-- Código: mudo do instalador removido; senha ao ligar o autônomo; tela de senha no autostart com banco cifrado; atalhos Ctrl+Alt+O e Ctrl+Alt+I; nuvem Claude/Codex pelas CLIs oficiais (opt-in `ORION_NUVEM`, `ORION_CODEX_ENV`, `ORION_NUVEM_DIR`); login redesenhado (céu + painel com Usuário e Senha, usuário padrão `antoniosalomao`, migração do `admin`).
-- Vault: espelhos, hub, índices, relatório e nota da conversa atualizados; protótipo do instalador e referências copiados para o repositório.
+O alinhamento de 20/10 registra: remoção do mudo, senha do autônomo, senha no autostart cifrado, Ctrl+Alt+O/I, nuvem pelas CLIs e novo login com usuário padrão `antoniosalomao` e migração de `admin`.
 
-**Ainda aberto, por tipo**
-- **[V] Você:** chave minisign + segredos do GitHub + primeiro release; exportar o SurrealDB antes da venda do PC; amostras da palavra "Orion"; D01–D11; leitura oficial de uso (D03).
-- **[W] Windows real:** instalar/desinstalar, bandeja, mini barra, atalhos, autostart, tela de senha, navegador com Edge, nuvem com contas reais, Vulkan/Whisper, metas de RAM e tempo.
-- **[C] Código:** F08 Projetos; onboarding; Windows Hello e PIN; vault automático; grafo wgpu; F11; F16–F27; limites da nuvem (cancelamento remoto, log ao vivo, aviso no Telegram, Codex sem mensagem); teste de rota para `senha` do autônomo; `fmt` e `clippy` no CI.
-- **Verificação:** o código novo foi só compilado (`cargo check`) e conferido por captura de tela; os testes de `orion-core` (nuvem), `orion-app` e `appmode` ainda não foram rodados.
-- **Documentos:** as colunas "Imposto em" e "Prova" de cada princípio em `REGRAS.md` ainda citam Python; reapontar ao tocar em cada princípio.
+**Verificação dessa rodada:** compilação (`cargo check`) e captura de tela; testes recentes de `orion-core` (nuvem), `orion-app` e `appmode` ainda não executados no registro consultado. Sem aceite Windows/contas reais.
 
----
+**Nuvem parcial:** descartar remove da lista local, sem cancelar remotamente; faltam log ao vivo e aviso de término no Telegram; Codex não recebe mensagem. Não confundir com `/tarefas-bg`, que continua existindo.
 
-## 9. Checklists conferidos item a item (20/10/2026)
+**Entregas parciais não são fases completas:**
 
-Seis conferências em paralelo, cada uma contra o código, com evidência de arquivo por item. Regra: `[x]` feito sem depender de prova em hardware/Windows; `[~]` parcial ou só compilado/testado no Linux; `[ ]` não iniciado.
+- F08 tem APIs e isolamento F08.10 marcado `[x]`; telas e fluxo de Projetos continuam pendentes. Não é uma fase "sem nada feito".
+- F06 tem gravação explícita por API; falta gravação automática por turno. **F06.14 está `[ ]`: `save_conversation` sobrescreve conteúdo existente**, sem preservar as duas versões editadas no Obsidian.
+- F21.04 entrega leitura/busca; F21.03, pesquisa profunda com relatório em nota, continua parcial.
+- Modo autônomo (F04.17) e corrigir fato (F06.20) não comprovam automelhoria F26 nem leitura de uso F13.
+- F27.06 é parcial: remoção de código feita; exportação, verificação e descarte de dados/PC pendentes.
 
-| Onde | `[x]` | `[~]` | `[ ]` |
-|---|---|---|---|
-| Plano F00–F27 (458 itens) | 20 | 280 | 158 |
-| Plano F10.F (checklist de saída da v1) | conferido (inclui os 7 critérios) | | |
-| `ORION.md` auditoria consolidada (15 linhas) | atualizado | | |
-| UI §32, instalador §13, planejamento F1–F9 | critérios de aceite e fases marcados | | |
+## 5. Pendências para a v1 (F01–F10)
 
-Achados da conferência:
-- **Nada de hardware está `[x]`:** todo aceite visual, de voz, de câmera e de instalação fica no máximo `[~]` até rodar num Windows real.
-- **`[x]` mais relevantes:** tokens e fontes Grafite (F01.01/02), barra lateral de 272 px (F01.19), política de ferramentas e caminhos (F04.01/03/04/05), aprovações de uso único (F04.16), modo autônomo com senha (F04.17), substituir fato sem apagar (F06.20), isolamento por projeto (F08.10), risco do MCP vem do `mcp.json` (F19.02), skills sob demanda (F19.07), leitura de páginas (F21.04).
-- **Rebaixado:** F06.14 (conflito com o Obsidian) voltou a `[ ]`: `save_conversation` sobrescreve.
-- **Corrigido no `ORION.md`** (achados da conferência): "autenticação PBKDF2" (agora Argon2id), "falta o app principal" (`orion-app` existe), "zero testes" na política (há 54), `scripts/benchmark_rust_python.py` (removido).
-- **Palpites conservadores** (revisar ao tocar): F12.13, F13.08, F15.02, F15.03, F15.17, F16.09, F16.10, F16.13, F19.13, F19.14, F20.02 e F25.07 (há `traduzir_texto` e conversor, mas não achei calculadora nem resumo de PDF).
-- **Documentos ausentes:** não existe `docs/` (F27.05 fica `[~]`).
-- **Backlog B-01..B-11:** é tabela, não checklist; o estado de cada linha está no texto da linha.
-
----
-
-## 10. Rodada de perguntas de 20/10/2026 (decisões registradas no plano)
-
-Detalhe e texto completo em [ORION_PLANO_IMPLEMENTACAO.md](ORION_PLANO_IMPLEMENTACAO.md), seção "Decisões da rodada de perguntas" e itens D01, D03, D04, D05, D11.
-
-| Tema | Decisão |
+| Fase | Trabalho restante relevante |
 |---|---|
-| Ordem pós-v1 (D01) | F20 primeiro; documentos Word/Excel/PowerPoint logo após a v1 |
-| Escopo da v1 | F01–F10; F11–F27 são pós-v1 |
-| Uso das assinaturas (D03) | Ler `/usage` e `/status`, com queda para estimativa; desbloqueia F13.01/02 |
-| Projeto (D05) | Arquivos de referência, modelo/passos próprios e rotinas do projeto |
-| Extensão do navegador (D11) | Depois da 1.0 |
-| Grafo | wgpu puro; Bevy/three-d só plano B |
-| Casa/Alexa | Mantidos, adiados, sem data (D10 aberto) |
-| Estudo (F24) | Mantido, depois da v1 e de F20–F23 |
-| Palavra "Orion" | Desligada na v1; ficam palmas e atalho |
-| TTS (D04) | edge-tts agora; ElevenLabs e outros serão testados por você |
-| Rosto | Mantido, com confirmação |
-| Automelhoria | Depois de F11 e F13 |
-| Assinatura | Autoassinado + minisign |
-| Crash | Só local e mascarado |
-| macOS | Depois da 1.0 estável |
-| Canais | Só stable no começo |
-| Sync entre PCs | Log de eventos próprio |
-| Busca do vault | BM25 + LSA |
-| Onboarding | Tela única com usuário/senha, nome e idioma, recuperação em arquivo, vault, APIs, Telegram + 2FA, backup local + Drive, projetos + GitHub, importar histórico e Hello |
+| F01 | Motor de céu compartilhado, Fluent pt/en, comparação de snapshots, teclado/foco/contraste; Narrador fica fora da v1 |
+| F02 | Windows Hello, PIN crítico e recuperação integrada ao onboarding; aceite de login, bloqueio e banco cifrado |
+| F03 | ACP, catálogo de modelos/cotas completo e requisitos de RAM/VRAM |
+| F04 | Classificador de injeção e cobertura de engine/invariantes; testar senha ao ligar autônomo |
+| F05 | Diff por bloco, editar/reenviar, LaTeX/Mermaid, anexos e comandos `/`/`@`; solução sem WebView2 |
+| F06 | Gravação automática, resumo diário, conflito sem sobrescrever e índice BM25 + LSA completo |
+| F07 | Ligar todas as seções exigidas para a v1; separar controles futuros de funções operacionais |
+| F08 | Cartões, clonar GitHub, pastas/referências, modelo/passos/herança, arquivar e mover conversa |
+| F09 | Painel, métricas, Resultados, Integrações, "Você fez" e estados vazios |
+| F10 | Onboarding, recuperação, backup local/Drive cifrado com 7 cópias e restauração verificada, atualização, rollback automático, modelos/GPU e primeiro release |
 
-**Ajustados no plano em 20/10/2026:** F13 (D03 decidido, F13.01/02 liberados), F00.29 e F03.26, F15.05 (palavra desligada), F19.15 e F21.06 (pós-1.0), F25.06 (logo após a v1), F10.16 (só stable no começo) e o risco 4.
+O onboarding decidido reúne usuário/senha, nome/idioma, recuperação em arquivo, vault, APIs, Telegram/2FA quando configurado, backup, projetos/GitHub, importação e Hello. Essa configuração não torna concluídas as fases posteriores correspondentes.
+
+**Prioridade de dados:** preservar edições do vault e verificar backup/restauração antes de ampliar gravações automáticas. Exportar tabelas pessoais do SurrealDB e verificar F00.28/F23.13 antes de vender/formatar o PC.
+
+## 6. Windows e distribuição
+
+**[W] Aceite real pendente:** instalação/desinstalação em máquina limpa e notebook; bandeja, mini barra, Ctrl+Alt+Espaço/P/O/I, instância única, console, autostart e senha; Win+L e Hello quando implementado; Edge/CDP; nuvem com contas reais; Vulkan/Whisper, AEC3/barge-in, palmas com música e Telegram em dois aparelhos, conforme o escopo de cada marco.
+
+**Metas da v1:** RAM parada <300 MB, janela <1 s, primeira resposta visível <100 ms; uma semana de uso sem perda de dados e backup restaurado. É necessário definir cenário e medir, sem confundir resposta visual com geração completa do modelo.
+
+**[V] Distribuição:** gerar minisign, cadastrar segredos, incorporar a chave pública e publicar o primeiro release. Instalador usa feeds `latest-<variante>.json` CPU/Vulkan e fallback offline; updater é `orion update`, sem `orion-updater.exe`.
+
+**Assinaturas distintas:** minisign autentica o feed; SHA-256 verifica os arquivos referenciados. A identidade MSIX autoassinada não equivale a Authenticode dos executáveis nem elimina SmartScreen. O `release.yml` atual assina feeds com minisign; não tem etapa Authenticode. Certificado comercial não é requisito decidido para o primeiro lançamento.
+
+## 7. CI e documentação
+
+O `rust-windows.yml` configura testes dos crates, testes SQLCipher, builds CPU/Vulkan e smoke CPU com GGUF real. **Não executa fmt/clippy**, nem prova hardware, aceite visual ou uso integrado. Workflow configurado e runs antigos não comprovam sucesso do commit atual.
+
+Pendências: executar testes das mudanças recentes; adicionar fmt/clippy; comparar snapshots; vincular resultados ao commit e aos cenários executados.
+
+As referências Python em "Imposto em"/"Prova" de `REGRAS.md` são históricas, conforme a nota de equivalência Rust. Ainda precisam ser reapontadas; esta correção documental não altera princípios protegidos nem inventa evidência Rust.
+
+Repositório é origem; documentos alterados devem ser espelhados no vault na mesma sessão. Espelho atualizado não equivale a aceite do produto.
+
+## 8. Pós-v1
+
+- F11–F13: ferramentas de código/ConPTY/GitHub, rotinas completas, monitores/proatividade, limites da nuvem e leitura real de cotas.
+- F14–F15: PIN/fila/Wake-on-LAN, UI de voz, Silero e modelo "Orion" final. Corpus real (≥50 positivos e ≥1 h negativos) fica para a futura ativação da palavra, sem bloquear a v1.
+- F16–F19: grafo/efeitos, câmera e visão reais, WASM/WIT, conectores e proteção MCP completa. MCP Apps em texto ficam pós-1.0.
+- F20–F25: captura/OCR/reuniões, pesquisa profunda, multi-PC/casa/iPhone, Google/finanças, estudo e utilidades. **F25.06 vem antes de F20**, logo após a v1.
+- F26–F27: automelhoria por PR, auditorias do roadmap completo, offline/desempenho/documentação e fechamento posterior. Extensão de navegador e macOS permanecem fora do primeiro lançamento.
+
+## 9. Ordem de trabalho recomendada
+
+1. Verificar testes das mudanças recentes e registrar resultados por commit.
+2. Proteger edições do vault; implementar e verificar backup/restauração; preservar/exportar dados do legado.
+3. Gerar chave/feed e validar instalação, senha, atualização e rollback no Windows.
+4. Fechar Projetos, onboarding e os demais fluxos F01–F10; executar o aceite F10.F limitado à v1.
+5. Após a v1: F25.06, depois F20; demais fases conforme dependências.
+
+A consolidação documental não conclui nenhuma dessas etapas.

@@ -23,7 +23,7 @@ Antes de considerar uma mudança pronta, rode em `Orion_Rust/`:
 cargo test --locked -p orion-policy -p orion-store -p orion-ai -p orion-core -p orion-server -p orion-platform -p orion-voice -p orion-local -p orion-llama -p orion-setup -p orion-mcp -p orion-vault -p orion-updater -p orion-app -p orion-testkit
 ```
 
-O CI é `.github/workflows/rust-windows.yml` (Windows; hoje sem `fmt`/`clippy`).
+O CI é `.github/workflows/rust-windows.yml`: testes dos crates e SQLCipher, builds CPU/Vulkan e smoke CPU com GGUF real. Hoje não executa `fmt`/`clippy`. A configuração do workflow não comprova execução verde no commit atual. Em alterações exclusivamente documentais, confira o diff, os links e a coerência dos estados; a suíte Rust é necessária quando houver mudança de código.
 
 ## Regras que não se negociam
 
@@ -49,3 +49,4 @@ O repositório é a origem da documentação. O vault do Obsidian (`01 Projetos/
 ## Idioma
 
 Português do Brasil em código de texto, documentação, mensagens de commit e comentários.
+

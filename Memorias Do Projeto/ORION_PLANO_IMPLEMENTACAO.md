@@ -15,6 +15,8 @@ resumo: "Plano de implementação em etapas do Orion em Rust, cobrindo todas as 
 
 > **Legenda dos itens (20/10/2026):** `[x]` feito no código, sem depender de prova em hardware ou Windows real; `[~]` parcial, ou feito mas só compilado/testado no Linux, sem prova num Windows real; `[ ]` não iniciado. Conferido item a item contra o código em 20/10/2026, com evidência de arquivo por item.
 
+> **Evidência de status:** `[~]` não distingue código incompleto de código aguardando aceite. Ao atualizar um item, informe **Implementação**, **Testes** (com comando/commit/resultado) e **Windows** (aceite ou pendência), além do próximo passo. Não reclassifique itens por esta revisão documental.
+
 ## 0. Visão geral
 
 ### 0.1 Marcos
@@ -31,7 +33,9 @@ resumo: "Plano de implementação em etapas do Orion em Rust, cobrindo todas as 
 | **M8** | Funções novas e integrações | F20 a F25 | Memória de tela, reuniões, Click to Do, Alexa e casa, iPhone, finanças, estudo, utilidades, documentos |
 | **M9** | Automelhoria e fechamento | F26, F27 | Automelhoria, auditorias finais, release 1.0 |
 
-> A ordem após a v1 segue a decisão de 16/10 (**Telegram → Voz → Grafo → Câmera**). As funções novas da rodada 9 entram depois, e a ordem entre elas está **a definir** (ver §3).
+> A ordem vigente após a v1 é F25.06 (documentos), depois F20, conforme a rodada de 20/10/2026. Os demais marcos respeitam as dependências; a sequência antiga Telegram → Voz → Grafo → Câmera não é mais a ordem global.
+
+> **Terminologia:** "v1" é a entrega M1 (F01–F10), com saída em F10. F27 é o fechamento posterior do roadmap; a expressão histórica "release 1.0" em F27 não amplia o escopo da v1 nem define a tag do primeiro release. Itens explicitamente pós-1.0 ficam fora desse primeiro lançamento.
 
 ### 0.2 Tamanhos (referência, sem datas: "prazo do primeiro marco: sem data")
 **S** = até 3 dias · **M** = ~1 semana · **L** = 2 a 3 semanas · **XL** = 1 mês ou mais. Um desenvolvedor, com Claude e Codex ajudando.
@@ -145,38 +149,38 @@ O planejamento acumulou decisões ao longo de várias rodadas de perguntas. Onde
 
 | # | Tema | Decisões em conflito | **Resolução usada neste plano** | Fase |
 |---|---|---|---|---|
-| C1 | Fonte da interface | Geist + Geist Mono (15/10) × Inter + JetBrains Mono (16/10, rodada 3) | **Inter** (interface) e **JetBrains Mono** (código), embutidas. Respostas do chat em **Newsreader** (15/10, não revogada), com opção Inter/sistema. | F01 |
+| C1 | Fonte da interface | Inter/JetBrains Mono × protótipo Grafite | App: **Geist, Geist Mono e Newsreader** (F01.02). Instalador: **Inter**. | F01, F10 |
 | C2 | Transcrição de voz | Whisper na Groq, envia áudio (15/10) × Whisper local (16/10, rodadas 2 e 10) | **Whisper large-v3-turbo local** (Vulkan). Groq Whisper vira **opção** para PC sem GPU, desligada por padrão. | F15 |
 | C3 | Voz ao vivo | Gemini Live (15/10) × pipeline STT → LLM → TTS, sem full-duplex local (rodada 10) | **Pipeline** é o padrão; **Gemini Live** entra como modo opcional no atalho Ctrl+Alt+V quando houver internet. | F15 |
 | C4 | TTS | edge-tts voz masculina pt-BR (15/10) × "testar depois" (rodada 2) | **edge-tts masculina** por padrão, atrás de uma interface trocável; teste de alternativas na F15. Sem voz offline. | F15 |
-| C5 | Busca do vault | BM25 + LSA, sem rede neural (15/10) × FTS5 + sqlite-vec com rank fusion (rodada 8) | **FTS5 + sqlite-vec** (a LSA sai). | F06 |
-| C6 | Embeddings | API gratuita, exceto notas `#privado` (rodada 8) × e5-small local na lista do instalador (rodada 10) | **multilingual-e5-small local** como padrão. API só se você ligar, e **nunca** para `#privado` nem pastas bloqueadas. | F06 |
-| C7 | Verificação de atualização | Hash SHA-256 no GitHub (15/10) × minisign (rodada 3) × certificado autoassinado (rodada 11) | Atualização com **assinatura minisign + SHA-256**; o Setup.exe usa **certificado autoassinado** (SmartScreen avisa na 1ª vez). Sem certificado comercial. | F10 |
+| C5 | Busca do vault | BM25 + LSA × FTS5 + sqlite-vec | **BM25 + LSA**, por decisão de 20/10/2026. Embeddings locais só se a busca falhar. | F06 |
+| C6 | Embeddings | API gratuita × modelo local | **Opcionais e locais**, se BM25 + LSA não atender. Não são requisito padrão da v1; eventual API exige opt-in e nunca recebe notas privadas ou pastas bloqueadas. | F06 |
+| C7 | Verificação de atualização | SHA-256 × minisign × certificado | Feed com **minisign + SHA-256**. Certificado autoassinado é decisão de distribuição separada; não elimina o aviso do SmartScreen. O workflow atual assina o feed, não demonstra assinatura Authenticode dos executáveis. | F10 |
 | C8 | Tentativas de senha | Bloqueio de 5 min após 5 erros (15/10) × atraso crescente 1, 5 e 15 min + aviso no Telegram (rodada 3) | **Atraso crescente** + aviso no Telegram quando configurado. | F02 |
 | C9 | 2FA pelo Telegram × Telegram só depois da v1 | O 2FA exige o bot | Na v1: **senha + Windows Hello**. O **2FA por Telegram liga quando o Telegram for configurado** (F14). Hello continua como reserva. | F02, F14 |
 | C10 | Ordem pós-v1 | "Marco 1 além do Chat: Memória com grafo" e F4+F5 juntas (15/10) × Telegram → Voz → Grafo → Câmera (16/10) | **Memória (vault + índice) na v1; grafo 3D só no M5**, depois de Telegram e Voz. | F06, F16 |
-| C11 | Python no projeto | Sidecar Python com browser-use e crawl4ai (14/10) × "reescrever tudo em Rust" (16/10) | **Sem Python.** Navegador agente com `chromiumoxide` + LLM; crawl com `reqwest` + extração própria. | F12, F20 | **Resolvido em 20/10/2026:** sidecar e `python/` removidos; leitura (Readability) e navegador (CDP) em Rust.
+| C11 | Python no projeto | Sidecar × Rust | **Sem Python no produto**. Readability e CDP em Rust; sidecar removido em 20/10/2026. Scripts de treino/smoke e fixture MCP permanecem fora do runtime do produto. | F12, F21 |
 | C12 | Modo foco | "Não entra" (15/10) × "só lembrete gentil" (rodada 9) | **Lembrete gentil**, sem bloquear nada. | F25 |
 | C13 | Gravação de reunião | "Não na v1" (15/10) × detecta a chamada e grava (rodada 9) | Consistente: **depois da v1** (F20). | F20 |
 | C14 | Bateria do notebook | "Sem mudança" (15/10) × modo economia automático (rodada 3) | **Modo economia automático.** | F01, F17 |
 | C15 | Controle do PC | Aprovação a cada ação (15/10) × livre no modo autônomo (rodada 3) | Fora do autônomo: **aprovação por ação** (leve dispensada, ver F04); no autônomo: livre, **menos a linha "sempre pedir"**. | F04 |
-| C16 | Sync PC↔notebook | Log de eventos próprio (rodada 2) × cr-sqlite (rodada 10) | **cr-sqlite**, condicionado ao teste com SQLCipher no spike F00; se falhar, **log de eventos próprio**. | F00, F22 |
+| C16 | Sync PC↔notebook | cr-sqlite × log de eventos | **Log de eventos próprio**, decidido em 20/10/2026. | F00, F22 |
 | C17 | Auditoria diária do vault | Corrige links e frontmatter óbvios (15/10) × `AGENTS.md` do vault diz "só lista" | Ajustar o `AGENTS.md` do vault **antes** de ligar a correção. | F26 |
-| C18 | Teto de gasto por tarefa | 20% da cota semanal (15/10) × janela de 5 h impede (observação sua) × teto de 95% semanal | **Dois tetos distintos**: 95% semanal global e 20% por tarefa limitado pela janela de 5 h; **20% confirmado pelo pedido explícito de 17/10/2026**; execução de automelhoria ainda depende da D03. | F13, F26 |
+| C18 | Teto de gasto por tarefa | 20% por tarefa × 95% semanal | **Dois tetos:** 95% semanal global e 20% por tarefa, limitado pela janela opcional de 5 h. D03 decidiu a leitura; a execução de automelhoria depende de F11/F13 e da verificação F00.29/F03.26. | F13, F26 |
 | C19 | Memória da tela | Retenção de 7 dias, opt-in (REGRAS.md) × ~1 GB/mês, só texto (rodada 9) | **Só texto, opt-in, retenção de 7 dias por padrão**, configurável. | F20 |
 | C20 | Modo "voz ao vivo" e ferramentas | REGRAS.md: voz ao vivo só conversa, sem ferramentas × função de comandos por voz | **Voz ao vivo (Gemini Live) só conversa.** Comandos por voz passam pelo pipeline normal, com política. | F15 |
 | C21 | Reconhecimento facial | Haar + LBPH, sem IA (15/10) × ArcFace via ONNX (pesquisa rodada 10, não decidida) | **Haar + LBPH** como decidido; ArcFace só se o spike da F18 mostrar falso positivo alto. | F18 |
-| C22 | WebView | "Sem WebView" (objetivo) × WebView isolado sob demanda (rodada 10) | **Exceção única**: WebView2 isolado, só para MCP Apps, Mermaid e prévia de HTML. | F05, F19 |
+| C22 | WebView | Exceção para conteúdo interativo × app nativo | **Sem WebView2 no produto**, decisão de 20/10/2026. Mermaid/HTML exigem solução compatível; MCP Apps só em texto, pós-1.0. | F05, F19 |
 | C23 | macOS | Depois do corte do Windows (14/10) × "macOS fica para o futuro" (15/10) | **Fora deste plano.** Abstração de plataforma desde a F00; porte só depois da 1.0. | F00 |
 | C24 | Notificação com botões × instalador | MSIX puro (rodada 10) × Setup.exe com pacote esparso (rodada 11) | **Setup.exe + pacote esparso** (identidade de pacote). | F10 |
 | C25 | Backup no Drive | "Só banco e configurações", diário, 7 cópias × "Drive inteiro" como acesso | Backup **só de banco e configurações**; a integração com o Drive tem **escopo de leitura do Drive inteiro**, **separado** do backup. Reavaliar o escopo. | F10, F23 |
-| C30 | Automelhoria | "Ligada na v1" (rodada 2) × "termos dos provedores ainda precisam ser confirmados antes de ligar" (15/10) × depende de F11, F12 e F13 | O **interruptor, a fila e a tela** existem na v1 (F07.15); a **execução** entra no M9 e **pode antecipar para o M2** logo após F13 se a D03 liberar. **Confirmar.** | F13, F26 |
+| C30 | Automelhoria | Ligada na v1 × dependências posteriores | **Execução pós-v1**, depois de F11 e F13, conforme decisão de 20/10/2026. Interruptor/tela não comprovam fila nem execução. | F13, F26 |
 | C26 | Marca do instalador "menor possível" | Instalador mínimo × ~100 a 200 MB estimados | Mantém o corte: **só o essencial** no Setup; modelos sob demanda. | F10 |
-| C27 | Documentos Word, Excel e PowerPoint | "Na v1" (15/10) × escopo da v1 sem documentos (15/10, posterior) | **Fora da v1**, em **F25** (confirmar se quer subir para a v1). | F25 |
-| C28 | Navegador agente | Chrome headless via CDP (rodada 3) × "visível numa aba do painel" (rodada 9) | **Aba visível com WebView2 controlado por CDP**, e Chrome headless só em segundo plano. | F21 | **Decidido em 20/10/2026:** navegador externo (Edge/Chrome) guiado por CDP, sem WebView2 e sem aba no painel; MCP Apps só em texto, pós-1.0.
+| C27 | Documentos Word, Excel e PowerPoint | Na v1 × pós-v1 | **F25.06 logo depois da v1, antes de F20**, decidido em 20/10/2026. | F25 |
+| C28 | Navegador agente | Aba WebView2 × CDP externo | **Edge/Chrome headless guiado por CDP**, sem WebView2 e sem aba no painel. Decidido em 20/10/2026; falta aceite com Edge no Windows real. | F21 |
 | C29 | OCR | "Via API" (15/10) × "nada pessoal sai" (R19, rodada 4) | **OCR local primeiro**; API só se você ligar, com máscara de dados antes do envio. | F20 |
 
-> **Pedido de confirmação:** C1, C3, C6, C9, C10, C16, C25, C27, C28, C29 e C30 mudam o comportamento visível. C18/D02 já foi confirmado em 17/10/2026 (20% por tarefa). Os demais são consequência direta de uma decisão posterior.
+> **Confirmações ainda necessárias:** C3, C9, C10 (ordem relativa dos marcos restantes), C25 e C29, onde não houver decisão posterior explícita. C1, C5/C6, C16, C27, C28 e C30 seguem as decisões de 20/10/2026; C18/D02 foi confirmado em 17/10/2026.
 
 ---
 
@@ -223,7 +227,7 @@ Todas continuam valendo na versão em Rust. Cada regra vira **teste** (princípi
 ### 2.3 Fluxo de trabalho e CI
 - [ ] **W01** Branch por fase, **PR obrigatório** no repositório do Orion, **revisão cruzada** (Claude Code Review + Codex) e a sua; nada de merge automático.
 - [ ] **W02** CI obrigatório no PR: build Windows, testes, **testes headless/E2E do iced 0.14**, **snapshots PNG só das telas alteradas**, `cargo deny`/`cargo audit`.
-- [ ] **W03** Releases: `main` + tags semver; canais **beta** (PC principal) e **stable** (notebook).
+- [ ] **W03** Releases: `main` + tags semver; **stable no começo**, beta quando o notebook entrar (decisão de 20/10/2026).
 - [ ] **W04** Evals do agente rodam no CI (harness próprio em Rust + casos YAML com respostas gravadas).
 - [ ] **W05** Cada PR de fase atualiza: este plano (checklist), o planejamento (se mudou decisão), `docs/` e as strings pt/en.
 
@@ -244,9 +248,9 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 ---
 
 ## 3. Itens a decidir (carregados do planejamento)
-- [x] **D01** Ordem entre as funções novas do M8 (F20 a F25) e, dentro delas, quais sobem primeiro. **Decidido em 20/10/2026: F20 (tela, captura e reuniões) vem primeiro depois da v1.**
+- [x] **D01** Ordem pós-v1 decidida em 20/10/2026: **F25.06 (Word/Excel/PowerPoint), depois F20**. As demais funções seguem suas dependências.
 - [x] **D02** Teto de **20% por tarefa**, limitado por 95% semanal e janela opcional de 5 h, confirmado pelo pedido explícito de 17/10/2026. A automelhoria ainda não foi implementada (C18/D03).
-- [x] **D03** Confirmar os termos de Claude, Codex e Gemini para tarefas automáticas em segundo plano com a assinatura e para a leitura de `/usage` e `/status` por automação (bloqueia F13 e F26). **Decidido em 20/10/2026: ler `/usage` (Claude) e `/status` (Codex) pelas CLIs, com queda para a estimativa local e aviso se o formato mudar; Gemini só estimativa. Desbloqueia F13.01/F13.02.**
+- [x] **D03** Decisão de produto em 20/10/2026: ler `/usage` (Claude) e `/status` (Codex) pelas CLIs, com queda para estimativa local e aviso se o formato mudar; Gemini só estimativa. **Libera implementar F13.01/F13.02; não comprova verificação dos termos**, ainda registrada como pendente em F00.29/F03.26.
 - [x] **D04** Provedor de TTS definitivo (testar na F15). **Decidido em 20/10/2026: edge-tts pt-BR por enquanto, atrás de interface trocável; o Antônio vai testar ElevenLabs e outras vozes depois.**
 - [x] **D05** O que mais um Projeto deve ter além de nota, repositório, conversas, instruções, pastas e arquivos de referência. **Decidido em 20/10/2026: o Projeto também tem arquivos de referência fixos, modelo e passos próprios (com marca "herdado") e rotinas do projeto; tarefas e prazos ficam na nota do vault (F08.08).**
 - [ ] **D06** Escopo do token do GitHub e do acesso ao Drive inteiro (reavaliar para o mínimo).
@@ -319,9 +323,9 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [~] **F00.14** **Spike iced:** janela sem moldura, barra de título própria, Mica, barra lateral, lista virtualizada de 1000 mensagens, streaming de texto, campo de mensagem. Medir RAM, tempo até a janela pronta, fps. **Decisão:** iced × plano B **Slint**.
 - [~] **F00.15** **Spike wgpu no iced:** widget `shader` desenhando o céu do instalador (sprites aditivos, linhas com gradiente) a 60 fps. Medir CPU e GPU.
 - [ ] **F00.16** **Spike do grafo:** layout de forças 3D em **compute shader** com 1000, 5000 e 10000 nós; comparar com Barnes-Hut na CPU; **fallback na CPU** para GPU integrada. Referências: GraphWaGu, graphpu.
-- [~] **F00.17** **Spike de banco:** `rusqlite` + **SQLCipher** + **FTS5** + **sqlite-vec** + **cr-sqlite** no mesmo arquivo. **Decisão:** cr-sqlite sobre SQLCipher funciona? Se não, **log de eventos próprio** (C16).
+- [~] **F00.17** **Spike de banco:** `rusqlite` + **SQLCipher** + **FTS5** + **sqlite-vec** + **log de eventos próprio** no mesmo arquivo. **Decisão de 20/10/2026:** cr-sqlite saiu da solução escolhida (C16); sua compatibilidade não bloqueia mais o sync.
 - [ ] **F00.18** **Spike de identidade de pacote:** pacote esparso registrado por um executável comum; testar **toast com botões Aprovar/Negar**, **OCR do Windows** (`Windows.Media.Ocr`) e nome/ícone do app. **Decisão:** viabilidade do Setup.exe (C24).
-- [ ] **F00.19** **Spike WebView2 sob demanda:** abrir, renderizar Mermaid e HTML, descarregar; medir RAM antes e depois. Isolamento (sem acesso a arquivos, rede bloqueada).
+- [ ] **F00.19** **Spike WebView2 cancelado por decisão de 20/10/2026** (C22). Fora dos critérios da v1; Mermaid/HTML precisam de solução sem WebView2 (F05.08).
 - [~] **F00.20** **Spike ACP e CLIs:** conversar com Claude Code, Codex e Gemini/Antigravity por **ACP** (adaptadores) e por `stream-json`; medir latência e confiabilidade; levantar o que cada um expõe (aprovações, ferramentas, sessão).
 - [~] **F00.21** **Spike de roteador:** regras + heurística, medidas contra um conjunto de 100 pedidos reais (simples, médio, difícil).
 - [~] **F00.22** **Spike de áudio:** `cpal` + `aec3` + Silero VAD + `oww-rs` + `whisper-rs` (Vulkan); latência fim a fim; **teste de eco** com alto-falante. **Estado PR #30: cpal/AEC3/oww/Whisper integrados; Silero e medições faltam.**
@@ -568,7 +572,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 
 #### F05.B Mensagens e respostas
 - [~] **F05.07** **Streaming** token a token com cursor piscando, botão **Parar** e **Esc** (mantém o texto parcial); **"Pensando"** com ponto pulsante em **< 100 ms**; raciocínio do modelo **recolhido**, expande ao clicar.
-- [~] **F05.08** **Markdown** com `pulldown-cmark`: texto, listas, tabelas, citações, links, **código com realce (cores de Rigel e Betelgeuse) e botão copiar**, **LaTeX** (MathML via katex-rs), **Mermaid** e **prévia de HTML** (WebView2 isolado, sob demanda; a interface continua iced).
+- [~] **F05.08** **Markdown** com `pulldown-cmark`: texto, listas, tabelas, citações, links, código com realce e copiar; **LaTeX, Mermaid e prévia HTML pendentes de solução sem WebView2** (C22). A interface permanece iced.
 - [~] **F05.09** **Linha de progresso** resumida ("Leu 4 arquivos, executou 1 comando") que **expande** passo a passo.
 - [~] **F05.10** **Cartão de aprovação** inline e **cartão de erro de API** no chat.
 - [~] **F05.11** **Ações da resposta** (aparecem ao passar o mouse): copiar (toast), gerar de novo, **gerar com outro modelo**, 👍/👎, salvar no vault; **ouvir** entra na F15.
@@ -602,7 +606,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [~] **F06.01** **Detectar o vault** (config do Obsidian) e confirmar o caminho; repositório do vault **privado**; credencial do push no **Credential Manager**.
 - [~] **F06.02** **`git pull`** ao abrir o app, a cada conversa nova, antes de gravar uma nota e ao abrir a tela Memória; tratar falha de rede sem travar.
 - [~] **F06.03** **Leitor do vault:** parser de frontmatter YAML, wikilinks, tags, `type`, pastas; respeita o [[claude.md]] do vault. **Estado PR #30: Parser existe; conformidade completa com regras/links do vault ainda não validada.**
-- [~] **F06.04** **Índice incremental por hash** a cada commit/pull: texto em **FTS5** e **embeddings locais (multilingual-e5-small int8)** em **sqlite-vec**; **rank fusion**; **indexação inicial em segundo plano**, sem travar o app; **reindexar** e **exclusões** nas configurações.
+- [~] **F06.04** **Índice incremental por hash** a cada commit/pull: **BM25 + LSA**, conforme decisão de 20/10/2026; indexação inicial em segundo plano, reindexar e exclusões nas configurações. Embeddings locais só se a busca falhar. **Aceite do índice completo pendente; infraestrutura existente não comprova a busca decidida.**
 - [~] **F06.05** **Privacidade do índice:** notas com `#privado` e pastas bloqueadas **nunca** viram embedding por API nem saem do PC; API de embeddings só se você ligar (C6).
 - [~] **F06.06** **Busca na paleta (Ctrl+K)** e na tela Memória; notas do **Arquivo (04)** aparecem **esmaecidas**.
 - [~] **F06.07** **Tela Fontes:** o que o Orion pode ler, com switch por fonte.
@@ -773,17 +777,17 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [~] **F10.27** **Autenticação do push do vault** pelo Credential Manager; token do GitHub no cofre.
 
 #### F10.E Pipeline de release
-- [~] **F10.28** CI gera `Orion Setup.exe`, app, serviço de atualização, **assina** (autoassinado + minisign), publica **GitHub Releases** com SHA-256, canais beta e stable.
+- [~] **F10.28** CI gera `Orion-Setup.exe`, `orion.exe` e `orion-llama.exe`, publica GitHub Releases CPU/Vulkan e assina os feeds com **minisign + SHA-256**. Updater é `orion update`, sem serviço/executável próprio. **Stable no começo**. Pendentes chave/segredos, primeiro release e prova fim a fim; certificado autoassinado não equivale à assinatura minisign, e Authenticode não é etapa do workflow atual.
 - [ ] **F10.29** **Pacote de aceite da v1:** checklist abaixo.
 
 #### F10.F Checklist de saída da v1
-- [ ] Todas as fases F01 a F10 com critério de aceite cumprido e testes verdes no CI.
+- [ ] Todas as fases F01 a F10 com critério de aceite cumprido e testes verdes no CI. F11–F27 não são pré-requisitos da v1.
 - [ ] RAM parada **< 300 MB**; janela pronta **< 1 s**; primeira resposta visível **< 100 ms**.
 - [~] Nenhum caminho de teste executa ação de risco sem aprovação; auditoria fail-closed verificada.
-- [ ] Auditoria de segurança (OWASP LLM + Agentic, Trail of Bits) sem achado alto aberto; revisão de design e acessibilidade feita.
+- [ ] Auditoria de segurança do **escopo F01–F10** sem achado alto aberto; revisão de design e acessibilidade desse escopo feita. A auditoria de todas as funções fica em F27.
 - [ ] Instalar do zero e desinstalar limpo numa máquina limpa (Windows 11) e no notebook.
 - [ ] **Uma semana de uso real** sem perda de dados, com backup restaurado com sucesso.
-- [ ] Documentação em `docs/` completa e este plano atualizado.
+- [ ] Documentação suficiente para instalar, recuperar, atualizar e usar **F01–F10**, com este plano atualizado. A documentação final de todo o roadmap fica em F27.05.
 
 ---
 
@@ -1066,7 +1070,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [ ] **F19.11** Interface WIT estável, SDK e **plugin de exemplo**; atualização e remoção.
 
 #### F19.D MCP Apps
-- [ ] **F19.12** **MCP Apps** (telas interativas de servidores): **WebView2 isolado**, `ui://`, **sem acesso a arquivos, rede bloqueada**, comunicação por JSON-RPC (postMessage), **fallback em texto**; carregado só quando precisa. *(Decisão 20/10/2026: sem WebView2 no produto; MCP Apps ficam só em texto e vão para depois da 1.0.)*
+- [ ] **F19.12** **MCP Apps só em texto, pós-1.0**, decisão de 20/10/2026. Sem WebView2 nem telas interativas embutidas; fora do aceite da v1.
 
 #### F19.E Clientes externos
 - [~] **F19.13** **Orion como servidor MCP** para outros programas (ex.: **Claude Code**): tela que gera **credenciais de leitura** com **nome, contexto, validade e permissões por leitura**; **não permite administrar o Orion**; revogáveis.
@@ -1081,7 +1085,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 ---
 
 ## 12. Marco M8: funções novas e integrações
-> A ordem entre F20 e F25 está **a definir (D01)**. Todas dependem da v1 e do agendador (F12). Cada fase pode subir sozinha.
+> Ordem decidida em 20/10/2026: F25.06 primeiro após a v1, depois F20. As demais funções respeitam suas dependências; casa/Alexa seguem adiados sem data.
 
 ### F20: Tela, captura e reuniões · tamanho **XL**
 
@@ -1113,12 +1117,12 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 
 ### F21: Web e pesquisa · tamanho **L**
 
-> **Auditoria PR #30 (`2020015`), atualizada em 20/10/2026: Parcial.** Busca, leitura de páginas (Readability) e navegador guiado por CDP em Rust feitos; o sidecar Python foi removido. Faltam aba de navegador no painel, pesquisa profunda `/pesquisa` com relatório em nota e monitores.
+> **Auditoria PR #30 (`2020015`), atualizada em 20/10/2026: Parcial.** Busca, leitura de páginas (Readability) e navegador guiado por CDP em Rust feitos; o sidecar Python foi removido. A aba de navegador no painel foi retirada por decisão; faltam pesquisa profunda `/pesquisa` com relatório em nota e monitores.
 
 **Objetivo:** o Orion navega e pesquisa por você, com aprovação nas ações de risco.
 **Dependências:** F04, F05, F12.
 
-- [~] **F21.01** **Navegador agente visível numa aba do painel** (WebView2 controlado por CDP, a mesma exceção de WebView) com **Chrome headless via `chromiumoxide`** para tarefas em segundo plano; você **vê e pode assumir** a qualquer momento (decisão a confirmar, C28). *(20/10/2026: feito em parte como navegador externo guiado por CDP — `navegador_ler`/`navegador_agir`, Edge/Chrome, `netguard` por requisição, sem downloads, recusa senha/cartão; sem aba no painel e sem WebView2, por decisão.)*
+- [~] **F21.01** **Edge/Chrome headless guiado por CDP** (`chromiumoxide`), com `navegador_ler`/`navegador_agir`, `netguard` por requisição, sem downloads e recusa de senha/cartão. **Sem aba no painel e sem WebView2 por decisão**, não por implementação faltante. Falta validação com Edge no Windows real.
 - [~] **F21.02** **Cada ação** (clicar, digitar, enviar) passa pela política; **pagamento sempre pede aprovação**; **conteúdo da página é dado** (R05); URL inteira no cartão.
 - [~] **F21.03** **Pesquisa profunda (`/pesquisa`):** várias buscas em paralelo, leitura de fontes (`reqwest` + extração própria, `netguard`), **relatório com citações** salvo como **nota no vault**, com progresso e tempo limite.
 - [x] **F21.04** **Busca na web** (ver F03.25) integrada ao agente, **pergunta com contexto** filtrada. *(Feito em 20/10/2026: `buscar_url` com Readability + Markdown, `links=true`, `netguard`.)*
@@ -1137,7 +1141,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 **Dependências:** F02, F10, F12, F14, F15.
 
 #### F22.A Vários PCs e rede
-- [~] **F22.01** **PC principal manda; notebook replica pela Tailscale**: sync do banco com **cr-sqlite** (ou log de eventos, conforme F00.17), **merge** quando os dois estão ligados, **notebook editando offline** reconcilia ao reconectar; **vault comum pelo git**; **canais beta (PC) e stable (notebook)**.
+- [~] **F22.01** **PC principal e notebook pela Tailscale**: sync por **log de eventos próprio**, reconciliação de edições offline e vault pelo git. Stable no começo; beta quando o notebook entrar. Aceite multi-PC ainda pendente.
 - [ ] **F22.02** **Tailscale só com dispositivos da sua conta** (ACL); **exit node automático em rede não confiável** (sai pelo PC de casa; só funciona com o PC ligado); **Atalhos da Tailscale** no iPhone.
 - [ ] **F22.03** **Roteador/Raspberry** como subnet router para o Wake-on-LAN (já usado na F14.07); guia de configuração em `docs/`.
 
@@ -1254,7 +1258,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 
 > **Auditoria PR #30 (`2020015`): Parcial documental.** Memórias/vault e remoção do código obsoleto feitos; auditorias finais, migração/restauração, descarte no PC e release 1.0 não realizados.
 
-**Objetivo:** fechar todos os itens e declarar a 1.0.
+**Objetivo:** fechar o roadmap posterior ao M1, com itens concluídos ou explicitamente adiados. A numeração da versão desse fechamento será alinhada ao primeiro release; o aceite da v1 fica em F10.
 **Dependências:** todas as anteriores.
 
 - [~] **F27.01** **Auditoria de segurança completa:** OWASP LLM Top 10 2026 + Agentic Top 10, Trail of Bits (Semgrep, CodeQL, cadeia de dependências), MCP (tool poisoning), **revisão de todas as regras R01–R23 com teste**.
@@ -1262,8 +1266,8 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [ ] **F27.03** **Testes offline:** sem internet funcionam **memória e vault, chat com modelo local, rotinas locais e voz**.
 - [ ] **F27.04** **Desempenho final:** RAM, janela pronta, primeira resposta, grafo, voz, bateria; comparação com o legado Python.
 - [~] **F27.05** **Documentação final** em `docs/` (guia do usuário, arquitetura, regras, runbooks, ADRs) e **espelho no vault**.
-- [~] **F27.06** **Descarte do legado:** só depois de F00.28 e F23.13 verificados e da venda do PC: apagar Qdrant e SurrealDB (3,09 mi de vetores e memória **não migram**, decisão registrada), remover o Python em uso; **formatar o PC ao descartá-lo**. **Estado PR #30: Código obsoleto retirado; dados/export/Python de referência/PC ainda preservados.**
-- [ ] **F27.07** **Release 1.0** nos canais beta e stable; tag semver; nota de versão ("O que mudou").
+- [~] **F27.06** **Descarte do legado:** código Python de referência e sidecar removidos em 20/10/2026, preservados no Git. **Dados pessoais e instalações no PC são separados dessa limpeza:** exportar/verificar F00.28/F23.13 antes de apagar Qdrant/SurrealDB e formatar o PC ao descartá-lo; 3,09 milhões de vetores não migram.
+- [ ] **F27.07** **Fechamento posterior ao M1**, chamado de "release 1.0" no plano antigo. Não bloqueia a saída da v1 em F10. A numeração semver desse fechamento precisa ser alinhada com a primeira versão publicada; stable no começo, beta só quando adotado.
 - [ ] **F27.08** **Plano pós-1.0:** macOS (abstração de plataforma já pronta), leitor de tela (Narrador), compartilhar nota/conversa, perfis, exportação em PDF.
 
 **Critério de aceite:** todos os itens deste plano marcados ou explicitamente adiados com motivo; auditorias sem achado alto aberto.
@@ -1336,4 +1340,5 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 | 13 | Terminal compartilhado com o agente | médio | indicador de quem digita; entrada travada; máscara de senhas | F11 |
 | 14 | Automelhoria gerando PRs ruins | médio | gate de evals; PR sempre; teste que reproduz o crash | F26 |
 | 15 | Certificado autoassinado gera aviso do SmartScreen | baixo | explicar no instalador; reavaliar certificado comercial | F10 |
+
 
