@@ -20,8 +20,8 @@ pub enum Lm {
     Approvals(Result<Value, String>),
     Rotinas(Result<Value, String>),
     Projects(Result<Value, String>),
-    ProjectCreated(Result<Value, String>),
-    Renamed(String, Result<Value, String>),
+    ProjectCreated(u64, Result<Value, String>),
+    Renamed(u64, String, Result<Value, String>),
     Facts(Result<Value, String>),
     Results(Result<Value, String>),
     Painel(Result<Value, String>),
@@ -832,8 +832,8 @@ impl App {
                 Ok(v) => self.rots = map_rotinas(&v),
                 Err(e) => self.net_fail(e),
             },
-            Lm::ProjectCreated(r) => {
-                if self.project_form.as_ref().is_none_or(|f| !f.busy) { return Task::none(); }
+            Lm::ProjectCreated(request_id, r) => {
+                if self.project_form.as_ref().is_none_or(|f| !f.busy || f.request_id != request_id) { return Task::none(); }
                 match r {
                     Ok(v) if !s(&v, "id").is_empty() => {
                         for project in map_projects(&json!([v]), now_secs()) {
@@ -851,8 +851,8 @@ impl App {
                     }
                 }
             }
-            Lm::Renamed(sid, r) => {
-                if !self.rename_form.as_ref().is_some_and(|f| f.session_id == sid && f.busy) { return Task::none(); }
+            Lm::Renamed(request_id, sid, r) => {
+                if !self.rename_form.as_ref().is_some_and(|f| f.session_id == sid && f.busy && f.request_id == request_id) { return Task::none(); }
                 match r {
                     Ok(v) if !s(&v, "titulo").trim().is_empty() => {
                         if let Some(c) = self.convs.iter_mut().find(|c| c.id == sid) { c.title = s(&v, "titulo").to_string(); }

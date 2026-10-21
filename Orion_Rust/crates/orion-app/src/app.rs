@@ -206,6 +206,7 @@ pub struct ProjectForm {
     pub root: String,
     pub busy: bool,
     pub error: String,
+    pub request_id: u64,
 }
 
 pub struct RenameForm {
@@ -213,6 +214,7 @@ pub struct RenameForm {
     pub title: String,
     pub busy: bool,
     pub error: String,
+    pub request_id: u64,
 }
 
 pub struct EditorState {
@@ -285,6 +287,7 @@ pub struct App {
     pub proj_q: String,
     pub project_form: Option<ProjectForm>,
     pub rename_form: Option<RenameForm>,
+    pub request_id: u64,
     pub facts: Vec<data::Fact>,
     pub edit_fact: Option<(usize, String)>,
     pub archived: Vec<(String, String, String)>,
@@ -558,6 +561,7 @@ impl App {
             proj_q: String::new(),
             project_form: None,
             rename_form: None,
+            request_id: 0,
             facts: data::facts(),
             edit_fact: None,
             archived: data::arch(),
@@ -923,7 +927,7 @@ impl App {
                 self.pop = None;
                 if self.rename_form.as_ref().is_some_and(|f| f.busy) { return Task::none(); }
                 if let Some(c) = self.conv.and_then(|i| self.convs.get(i)) {
-                    self.rename_form = Some(RenameForm { session_id: c.id.clone(), title: c.title.clone(), busy: false, error: String::new() });
+                    self.rename_form = Some(RenameForm { session_id: c.id.clone(), title: c.title.clone(), busy: false, error: String::new(), request_id: 0 });
                     return iced::widget::operation::focus("conversation-title");
                 }
             }
@@ -944,13 +948,16 @@ impl App {
                     form.error = "Renomear exige conexão com o núcleo.".into();
                     return Task::none();
                 };
+                self.request_id = self.request_id.wrapping_add(1);
+                let request_id = self.request_id;
+                form.request_id = request_id;
                 form.busy = true;
                 form.error.clear();
                 let sid = form.session_id.clone();
                 return Task::perform(async move {
                     let result = api.patch(&format!("/sessoes/{sid}"), serde_json::json!({"titulo": title})).await;
                     (sid, result)
-                }, |(sid, result)| Msg::L(crate::live::Lm::Renamed(sid, result)));
+                }, move |(sid, result)| Msg::L(crate::live::Lm::Renamed(request_id, sid, result)));
             }
             Msg::ProjectStart => {
                 if self.project_form.is_none() {
@@ -983,9 +990,12 @@ impl App {
                 };
                 let root = form.root.trim();
                 let body = serde_json::json!({"name": name, "instructions": form.instructions, "root": if root.is_empty() { None } else { Some(root) }, "share_personal": false});
+                self.request_id = self.request_id.wrapping_add(1);
+                let request_id = self.request_id;
+                form.request_id = request_id;
                 form.busy = true;
                 form.error.clear();
-                return Task::perform(async move { api.post("/projects", body).await }, |r| Msg::L(crate::live::Lm::ProjectCreated(r)));
+                return Task::perform(async move { api.post("/projects", body).await }, move |r| Msg::L(crate::live::Lm::ProjectCreated(request_id, r)));
             }
             Msg::Edit(a) => {
                 self.composer.perform(a);
