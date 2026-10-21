@@ -253,10 +253,10 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [x] **D03** Decisão de produto em 20/10/2026: ler `/usage` (Claude) e `/status` (Codex) pelas CLIs, com queda para estimativa local e aviso se o formato mudar; Gemini só estimativa. **Libera implementar F13.01/F13.02; não comprova verificação dos termos**, ainda registrada como pendente em F00.29/F03.26.
 - [x] **D04** Provedor de TTS definitivo (testar na F15). **Decidido em 20/10/2026: edge-tts pt-BR por enquanto, atrás de interface trocável; o Antônio vai testar ElevenLabs e outras vozes depois.**
 - [x] **D05** O que mais um Projeto deve ter além de nota, repositório, conversas, instruções, pastas e arquivos de referência. **Decidido em 20/10/2026: o Projeto também tem arquivos de referência fixos, modelo e passos próprios (com marca "herdado") e rotinas do projeto; tarefas e prazos ficam na nota do vault (F08.08).**
-- [ ] **D06** Escopo do token do GitHub e do acesso ao Drive inteiro (reavaliar para o mínimo).
+- [x] **D06** Escopo do token do GitHub e do acesso ao Drive. **Decidido em 21/10/2026: token do GitHub com acesso total (clássico, `repo`), escolha do Antônio mesmo com o risco de um vazamento dar acesso a todos os repositórios privados da conta; o Drive continua só com `drive.file` (arquivos criados pelo Orion), que é o que o código usa.**
 - [x] **D07** Licença-alvo: **uso pessoal** (decidido); revisar se virar distribuição.
 - [ ] **D08** Telas do front antigo (removido em 21/10/2026) que ainda faltam decidir no app iced: Planos de arquivos (depois da v1, sem tela) e detalhes de Vida (F23; hoje a tela Vida é só um aviso "depois da v1").
-- [ ] **D09** Modelos locais do instalador: confirmar a lista final e os requisitos por modelo (RAM/VRAM).
+- [x] **D09** Modelos locais do instalador. **Decidido em 21/10/2026: manter os 8 modelos (Whisper large-v3-turbo, Qwen 3 8B, Gemma 4 E4B, Granite 4.1 8B, Phi-4-mini 3.8B, Moondream 2, MiniCPM-V 4.5 e Mistral Small 3.2 24B), com as marcações atuais de recomendado e pré-selecionado.** Os requisitos de RAM/VRAM da especificação (`~2`, `~6`, `~5`, `~6`, `~3`, `~2`, `~6` e `~16 GB`) são estimativas e continuam sem medição no PC (F00.22/F00.25).
 - [ ] **D10** Alexa: quais aparelhos e quais caminhos oficiais (skill, interruptores virtuais) × não oficiais.
 - [x] **D11** Confirmar se a **extensão de navegador** (Chrome/Edge, decidida "na v1") fica na 1.0 ou vira M7 (ela aumenta muito o escopo da v1). **Decidido em 20/10/2026: extensão de navegador só depois da 1.0 (F19.15 e F21.06 saem da v1); o navegador guiado por CDP basta por ora.**
 
@@ -276,14 +276,14 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - **macOS:** depois da 1.0 estável (F27.08).
 - **Grafo (F16):** wgpu puro; Bevy/`three-d` fica só como plano B registrado (F17.05).
 - **Escopo da v1:** F01–F10. Os critérios de saída da F10.F valem para F01–F10; F11–F27 são pós-v1.
-- **Casa e Alexa (F22.04–F22.07):** ficam no plano, adiados, sem data (D10 segue em aberto).
+- **Casa e Alexa (F22.04–F22.07):** ficam no plano, adiados, sem data (D10 segue em aberto; explicação pendente para o Antônio decidir).
 - **Estudo (F24):** mantido, depois da v1 e de F20–F23.
 
 ## 4. Marco M0: Fundação
 
 ### F00: Preparação, repositório e spikes · tamanho **L**
 
-> **Auditoria PR #30 (`2020015`), atualizada em 21/10/2026: Parcial.** Workspace, lock, iced, toolchain fixo, `deny.toml`, `docs/`, README do Rust, templates, Dependabot, skills de auditoria e ferramentas de desenvolvimento existem. Itens de testes e CI (F00.07, F00.08, F00.09, F00.12) foram cancelados por ora. Faltam os spikes/medidas, o export real do SurrealDB (você), os termos dos provedores e as decisões D05/D06/D09/D10 (você), e a branch protegida na `main` (GitHub).
+> **Auditoria PR #30 (`2020015`), atualizada em 21/10/2026: Parcial.** Workspace, lock, iced, toolchain fixo, `deny.toml`, `docs/`, README do Rust, templates, Dependabot, skills de auditoria e ferramentas de desenvolvimento existem. Itens de testes e CI (F00.07, F00.08, F00.09, F00.12) foram cancelados por ora. Faltam os spikes/medidas, o export real do SurrealDB (você), os termos dos provedores e as decisões D08 e D10 (você; D05, D06 e D09 já decididas), e a branch protegida na `main` (GitHub).
 
 **Objetivo:** ter a base do projeto e **medir os riscos** antes de construir. Cada spike termina com uma decisão escrita (ir, não ir, plano B).
 **Dependências:** nenhuma.
@@ -340,7 +340,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 #### F00.D Pendências que só você faz (bloqueiam o descarte do legado)
 - [~] **F00.28** **Exportar as tabelas pessoais do SurrealDB** (eventos, lembretes, tarefas, contatos) conforme `ORION_LEGADO.md` e rodar `orion verify-export` até dar `PRONTO` — **antes da venda do PC (fim do ano)**.
 - [ ] **F00.29** Confirmar os **termos de uso** dos provedores para automação em segundo plano e leitura de `/usage` (D03). *(20/10/2026: o Antônio decidiu ler `/usage` e `/status`; conferir os termos oficiais segue como cautela.)*
-- [ ] **F00.30** Decidir os itens D05, D06, D09 e D10 da §3.
+- [~] **F00.30** Decidir os itens D05, D06, D09 e D10 da §3. **Estado 21/10/2026:** D05, D06 e D09 decididos; **D10 (Alexa) segue em aberto** (o Antônio pediu uma explicação melhor antes de decidir). D08 (telas Planos de arquivos e detalhes de Vida) também está em aberto.
 
 **Critério de aceite F00:** repositório com CI verde; um relatório por spike com número medido e decisão; a decisão iced × Slint registrada; export do SurrealDB verificado; lista de riscos atualizada.
 **Riscos:** o iced não atender o visual (plano B Slint); cr-sqlite incompatível com SQLCipher (log de eventos); identidade de pacote inviável (OCR por ONNX e toast sem botões).
