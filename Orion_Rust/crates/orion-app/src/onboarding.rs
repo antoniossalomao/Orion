@@ -44,6 +44,7 @@ pub enum Event {
     Input(Field, String),
     Encrypt(bool),
     Hello(bool),
+    Autostart(bool),
     Telegram2fa(bool),
     Save,
     Next,
@@ -96,6 +97,8 @@ pub struct Form {
     pub detected: Vec<Value>,
     pub encrypted: bool,
     pub hello: bool,
+    pub autostart: bool,
+    pub autostart0: bool,
     pub hello_available: bool,
     pub cipher_available: bool,
     pub telegram_2fa: bool,
@@ -153,6 +156,8 @@ impl Form {
             detected: v["detected"].as_array().cloned().unwrap_or_default(),
             encrypted: true,
             hello: false,
+            autostart: v["autostart"] == true,
+            autostart0: v["autostart"] == true,
             hello_available: v["hello_available"] == true,
             cipher_available: v["encrypted_available"] == true,
             telegram_2fa: false,
@@ -314,6 +319,7 @@ impl crate::app::App {
             }
             Event::Input(field, text) if !form.busy && form.testing.is_none() => form.input(field, text),
             Event::Encrypt(value) if !form.busy => form.encrypted = value,
+            Event::Autostart(value) if !form.busy => form.autostart = value,
             Event::Hello(value) if !form.busy && form.hello_available => form.hello = value,
             Event::Telegram2fa(value) if !form.busy => form.telegram_2fa = value,
             Event::UseFound(i) if !form.busy && form.testing.is_none() => {
@@ -374,6 +380,10 @@ impl crate::app::App {
             }
             Event::Finish if form.step == STEPS => {
                 let avisos = form.warnings;
+                if form.autostart != form.autostart0 {
+                    set_autostart(form.autostart);
+                    self.p.boot = form.autostart;
+                }
                 self.onboarding = None;
                 self.logged = true;
                 self.gate_err.clear();
@@ -476,6 +486,26 @@ pub fn system_command(program: &str) -> std::process::Command {
         }
     }
     c
+}
+
+/// Liga ou desliga o início com o Windows (mesma chave Run do instalador); só age se a pessoa mudou a opção.
+fn set_autostart(on: bool) {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        let key = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run";
+        let mut c = system_command("reg.exe");
+        c.creation_flags(0x08000000);
+        if on {
+            let Ok(exe) = std::env::current_exe() else { return };
+            c.args(["add", key, "/v", "Orion", "/t", "REG_SZ", "/d", &format!("\"{}\" --background", exe.display()), "/f"]);
+        } else {
+            c.args(["delete", key, "/v", "Orion", "/f"]);
+        }
+        let _ = c.status();
+    }
+    #[cfg(not(windows))]
+    let _ = on;
 }
 
 fn open_link(url: &str) {

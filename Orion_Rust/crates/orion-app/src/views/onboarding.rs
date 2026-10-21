@@ -79,6 +79,7 @@ fn step_account<'a>(f: &'a Form) -> El<'a> {
         sp_h(8.0),
         field(f, Field::User, tr(f, "Usuário", "Username"), "antoniosalomao", false),
         field(f, Field::Name, tr(f, "Como devo chamar você?", "What should I call you?"), tr(f, "Seu nome", "Your name"), false),
+        check(f, tr(f, "Iniciar com o Windows (minimizado na bandeja)", "Start with Windows (minimized to tray)"), f.autostart, Event::Autostart),
         column![
             tx(tr(f, "Idioma", "Language"), 12.0, t::FG2),
             row![
@@ -454,17 +455,10 @@ pub fn view(app: &App) -> El<'_> {
         ]
         .height(Length::Fill),
     )
-    .padding(pad(24.0, 28.0, 20.0, 28.0))
-    .width(Length::Fill)
+    .padding(pad(32.0, 40.0, 26.0, 40.0))
+    .width(Length::Fixed(620.0))
     .height(Length::Fill)
-    .style(|_| container::Style {
-        background: Some(t::SIDE.into()),
-        border: iced::Border {
-            radius: iced::border::Radius { top_left: 0.0, top_right: 14.0, bottom_right: 14.0, bottom_left: 0.0 },
-            ..Default::default()
-        },
-        ..Default::default()
-    });
+    .style(|_| container::Style { background: Some(t::SIDE.into()), ..Default::default() });
 
     let counter = if done { "PRONTO".to_string() } else { format!("PASSO {} DE {}", f.step + 1, STEPS) };
     let star = STARS[f.step.min(STEPS - 1)];
@@ -474,7 +468,7 @@ pub fn view(app: &App) -> El<'_> {
             row![belt_fg(false), grow()],
             grow(),
             row![
-                txf("Orion", 22.0, t::FG, t::UI_MED),
+                txf("Orion", 24.0, t::FG, t::UI_MED),
                 grow(),
                 column![txf(counter, 11.0, t::FG3, t::MONO), txf(star.to_uppercase(), 11.0, t::SIGNAL, t::MONO)]
                     .spacing(3)
@@ -484,31 +478,16 @@ pub fn view(app: &App) -> El<'_> {
         ]
         .height(Length::Fill),
     )
-    .padding(pad(24.0, 24.0, 22.0, 24.0))
+    .padding(pad(28.0, 32.0, 26.0, 32.0))
     .width(Length::Fill)
     .height(Length::Fill);
     let side = container(stack![sky_side, side_text])
-        .width(Length::Fixed(330.0))
-        .height(Length::Fill)
-        .style(|_| container::Style {
-            background: Some(t::alpha(t::BG, 0.9).into()),
-            border: iced::Border { radius: iced::border::Radius { top_left: 14.0, top_right: 0.0, bottom_right: 0.0, bottom_left: 14.0 }, ..Default::default() },
-            ..Default::default()
-        });
-
-    let window = container(row![side, vline_fill(), pane])
         .width(Length::Fill)
         .height(Length::Fill)
-        .max_width(1040)
-        .max_height(660)
-        .style(|_| container::Style {
-            background: None,
-            border: iced::Border { color: t::LINE, width: 1.0, radius: 14.0.into() },
-            ..Default::default()
-        });
+        .style(surface(Some(t::alpha(t::BG, 0.9)), None, 0.0));
 
-    let sky = canvas(Sky { alpha: 0.85, constellation: true, belt: 0.0 }).width(Length::Fill).height(Length::Fill);
-    container(stack![sky, container(window).padding(24).center_x(Length::Fill).center_y(Length::Fill)])
+    // Janela inteira, como o instalador, sem moldura nem tela dentro de tela.
+    container(row![side, vline_fill(), pane])
         .width(Length::Fill)
         .height(Length::Fill)
         .style(surface(Some(t::BG), None, 0.0))

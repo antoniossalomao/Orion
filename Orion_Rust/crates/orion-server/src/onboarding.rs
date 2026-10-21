@@ -31,7 +31,22 @@ pub fn needed(s: &Settings) -> anyhow::Result<bool> {
 
 pub fn defaults(s: &Settings) -> Value {
     let vault = s.vault_dir.clone().or_else(orion_vault::detector::detect_vault_path);
-    json!({"user":s.auth_user,"vault":vault,"encrypted_available":cfg!(feature="sqlcipher"),"hello_available":crate::onboarding_hello::available(),"backup":s.data_dir.join("backups"),"recovery":"","detected":crate::onboarding_imports::detected(),"google_client_id":std::env::var("ORION_GOOGLE_CLIENT_ID").unwrap_or_default()})
+    json!({"user":s.auth_user,"vault":vault,"encrypted_available":cfg!(feature="sqlcipher"),"hello_available":crate::onboarding_hello::available(),"backup":s.data_dir.join("backups"),"recovery":"","autostart":autostart_on(),"detected":crate::onboarding_imports::detected(),"google_client_id":std::env::var("ORION_GOOGLE_CLIENT_ID").unwrap_or_default()})
+}
+
+/// O instalador já pode ter ligado o início automático; o onboarding só mostra o estado atual.
+fn autostart_on() -> bool {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        return orion_app::onboarding::system_command("reg.exe")
+            .creation_flags(0x08000000)
+            .args(["query", r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run", "/v", "Orion"])
+            .output()
+            .is_ok_and(|o| o.status.success());
+    }
+    #[cfg(not(windows))]
+    false
 }
 
 #[derive(Deserialize)]
