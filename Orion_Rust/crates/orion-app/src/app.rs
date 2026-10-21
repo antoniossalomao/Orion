@@ -617,7 +617,7 @@ impl App {
     pub fn subscription(&self) -> Subscription<Msg> {
         let a = &self.at;
         let entrada = (!self.logged && crate::anim::active(Some(self.login_at), self.now, 1500)) || self.onboarding.as_ref().is_some_and(|f| crate::anim::active(Some(f.step_at), self.now, 450));
-        let busy = entrada || [a.page, a.pop, a.modal, a.scrim, a.over, a.drawer, a.toast, a.more, a.tools].iter().any(|m| crate::anim::active(*m, self.now, 450)) || a.switch.as_ref().map(|s| crate::anim::active(Some(s.1), self.now, 300)).unwrap_or(false) || self.mem_tween.is_some();
+        let busy = entrada || self.onboarding.is_some() || [a.page, a.pop, a.modal, a.scrim, a.over, a.drawer, a.toast, a.more, a.tools].iter().any(|m| crate::anim::active(*m, self.now, 450)) || a.switch.as_ref().map(|s| crate::anim::active(Some(s.1), self.now, 300)).unwrap_or(false) || self.mem_tween.is_some();
         let tick = iced::time::every(Duration::from_millis(if busy { 16 } else { 60 })).map(Msg::Tick);
         let poll = if self.api.is_some() && self.logged && self.streaming.is_none() { iced::time::every(Duration::from_secs(6)).map(|_| Msg::Poll) } else { Subscription::none() };
         let resize = window::resize_events().map(|(_, s)| Msg::Resized(s));
@@ -779,6 +779,9 @@ impl App {
         match msg {
             Msg::Tick(now) => {
                 self.now = now;
+                if let Some(f) = self.onboarding.as_mut() {
+                    f.tick_sky(now, self.win);
+                }
                 crate::views::memory::tick(self, now);
                 self.spin = (self.spin + 0.35) % std::f32::consts::TAU;
                 if let Some((_, at)) = &self.toast {

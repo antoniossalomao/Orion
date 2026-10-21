@@ -3,17 +3,16 @@
 use crate::{
     app::{App, Msg},
     onboarding::{Event, Field, Form, PROVIDERS, STEPS},
-    sky::Sky,
     theme as t,
     ui::*,
 };
 use iced::{
     alignment::Vertical,
-    widget::{canvas, checkbox, column, container, row, scrollable, stack, text_input},
+    widget::{checkbox, column, container, row, scrollable, stack, text_input},
     Length,
 };
 
-const STARS: [&str; STEPS] = ["Betelgeuse", "Bellatrix", "Alnitak", "Alnilam", "Mintaka", "Rigel"];
+const STARS: [&str; STEPS + 1] = ["Betelgeuse", "Bellatrix", "Alnitak", "Alnilam", "Mintaka", "Saiph", "Rigel"];
 const OK_TEXT: &str = "Conexão verificada";
 
 fn event(e: Event) -> Msg {
@@ -461,8 +460,8 @@ pub fn view(app: &App) -> El<'_> {
     .style(|_| container::Style { background: Some(t::SIDE.into()), ..Default::default() });
 
     let counter = if done { "PRONTO".to_string() } else { format!("PASSO {} DE {}", f.step + 1, STEPS) };
-    let star = STARS[f.step.min(STEPS - 1)];
-    let sky_side = canvas(Sky { alpha: 1.0, constellation: true, belt: 0.0, zoom: 0.5 }).width(Length::Fill).height(Length::Fill);
+    let star = STARS[f.step.min(STEPS)];
+    let sky_side = iced::widget::image(f.sky_img.clone()).content_fit(iced::ContentFit::Fill).width(Length::Fill).height(Length::Fill);
     let side_text = container(
         column![
             row![belt_fg(false), grow()],

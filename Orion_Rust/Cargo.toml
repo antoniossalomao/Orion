@@ -77,6 +77,7 @@ tracing = "0.1"
 iced = { version = "=0.14.0", features = ["canvas", "tokio", "advanced", "image", "svg"] }
 cpal = "0.18"
 orion-setup = { path = "crates/orion-setup" }
+orion-sky = { path = "crates/orion-sky" }
 orion-app = { path = "crates/orion-app" }
 orion-testkit = { path = "crates/orion-testkit" }
 orion-updater = { path = "crates/orion-updater" }
@@ -91,6 +92,9 @@ strip = true
 # PBKDF2 com 600 mil iterações e SQLite ficam lentos demais sem otimização
 [profile.dev.package."*"]
 opt-level = 2
+
+[profile.dev.package.orion-sky]
+opt-level = 3
 
 [profile.dev.package.orion-setup]
 opt-level = 3

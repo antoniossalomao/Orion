@@ -5848,6 +5848,7 @@ dependencies = [
  "iced_runtime",
  "iced_test",
  "orion-platform",
+ "orion-sky",
  "reqwest 0.12.28",
  "serde",
  "serde_json",
@@ -6039,6 +6040,7 @@ dependencies = [
  "iced",
  "image",
  "orion-local",
+ "orion-sky",
  "orion-updater",
  "parking_lot",
  "rand 0.8.8",
@@ -6051,6 +6053,14 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "orion-sky"
+version = "0.1.0"
+dependencies = [
+ "iced",
+ "image",
 ]
 
 [[package]]

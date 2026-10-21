@@ -69,9 +69,20 @@ impl std::fmt::Debug for Event {
     }
 }
 
+/// Quadro do céu na proporção do painel esquerdo, em ~60% da resolução (o céu é macio).
+fn sky_px(win: iced::Size) -> (u32, u32) {
+    let (w, h) = ((win.width - 761.0).max(200.0) / 1.6, win.height.max(300.0) / 1.6);
+    let k = (800.0 / w.max(h)).min(1.0);
+    ((w * k) as u32, (h * k) as u32)
+}
+
 pub struct Form {
     pub step: usize,
     pub step_at: std::time::Instant,
+    /// Céu do instalador: uma estrela acende por tela (7 telas, 7 estrelas).
+    pub sky: orion_sky::OrionSky,
+    pub sky_img: iced::widget::image::Handle,
+    pub sky_at: std::time::Instant,
     pub drive_abort: Option<iced::task::Handle>,
     /// Código de recuperação mostrado uma vez, depois do envio; vive só em memória.
     pub code: Option<String>,
@@ -127,11 +138,47 @@ impl Drop for Form {
     }
 }
 impl Form {
+    /// Avança o céu até `now` (no máximo 30 quadros por segundo) e acende a estrela da tela atual.
+    pub fn tick_sky(&mut self, now: std::time::Instant, win: iced::Size) {
+        let dt = now.saturating_duration_since(self.sky_at).as_secs_f32();
+        if dt < 0.03 {
+            return;
+        }
+        self.sky_at = now;
+        let (w, h) = sky_px(win);
+        self.sky.set_size(w, h);
+        self.sky.light_to(self.step + 1);
+        self.sky.step_dt(dt, 0.0, 0.0);
+        self.sky_img = self.sky.render_image_handle();
+    }
+
+    /// Para as capturas: deixa o céu já assentado na etapa `step`.
+    pub fn settle_sky(&mut self, step: usize, win: iced::Size) {
+        let (w, h) = sky_px(win);
+        self.sky.set_size(w, h);
+        self.sky.light_to(step + 1);
+        for _ in 0..160 {
+            self.sky.step_dt(0.05, 0.0, 0.0);
+        }
+        self.sky_img = self.sky.render_image_handle();
+    }
+
     pub fn new(v: Value) -> Self {
         let text = |k: &str| v[k].as_str().unwrap_or("").to_string();
+        let mut sky = orion_sky::OrionSky::new();
+        let (sw, sh) = sky_px(iced::Size::new(1440.0, 900.0));
+        sky.set_size(sw, sh);
+        sky.one_star_per_step();
+        sky.compact_constellation(0.62);
+        sky.light_to(1);
+        sky.step_dt(0.016, 0.0, 0.0);
+        let sky_img = sky.render_image_handle();
         Self {
             step: 0,
             step_at: std::time::Instant::now(),
+            sky,
+            sky_img,
+            sky_at: std::time::Instant::now(),
             drive_abort: None,
             code: None,
             warnings: 0,

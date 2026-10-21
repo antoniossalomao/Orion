@@ -33,6 +33,7 @@ pub fn scenarios() -> Vec<(&'static str, Size, App)> {
         f.step = i;
         f.step_at = std::time::Instant::now() - std::time::Duration::from_secs(5);
         f.name = "Antônio".into();
+        f.settle_sky(i, SIZE);
         if i == 6 {
             f.code = Some("K7QM-4XNA-9PD2-HW8T-R3VC-5ZEB".into());
         }

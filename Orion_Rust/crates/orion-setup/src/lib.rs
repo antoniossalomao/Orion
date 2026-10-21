@@ -14,7 +14,7 @@ pub mod audio;
 pub mod i18n;
 pub mod identity;
 pub mod register;
-pub mod sky;
+pub use orion_sky as sky;
 pub mod system;
 pub mod theme;
 pub mod uninstall_ui;

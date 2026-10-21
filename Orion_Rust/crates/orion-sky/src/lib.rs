@@ -8,7 +8,17 @@
 //! - 7 linhas da constelação com trilha apagada (`#8a90a8`), gradiente linear luminoso (4 px + 1 px) e ponta de luz
 //! - 7 estrelas principais com bloom de nascimento (`sin(age/2.4 * π)`), cruz de difração com gradiente e núcleo nítido
 
-use crate::theme::ease_in_out_cubic;
+
+#[inline]
+fn ease_in_out_cubic(p: f32) -> f32 {
+    let p = p.clamp(0.0, 1.0);
+    if p < 0.5 {
+        4.0 * p * p * p
+    } else {
+        let u = -2.0 * p + 2.0;
+        1.0 - (u * u * u) * 0.5
+    }
+}
 use iced::widget::image as iced_image;
 use image::{Rgba, RgbaImage};
 use std::f32::consts::PI;
@@ -214,6 +224,7 @@ pub struct OrionSky {
     pub shoot: Option<ShootingStar>,
     pub next_shoot_sec: f32,
     base_backdrop: Vec<u8>,
+    size: (u32, u32),
 }
 
 impl Default for OrionSky {
@@ -378,6 +389,7 @@ impl OrionSky {
             shoot: None,
             next_shoot_sec: 5.0,
             base_backdrop,
+            size: (SKY_W_U32, SKY_H_U32),
         }
     }
 
@@ -390,6 +402,35 @@ impl OrionSky {
         let target_lit = step_1_based.min(4);
         if target_lit > self.lit {
             self.lit = target_lit;
+        }
+    }
+
+    /// Tamanho do quadro de `render_image_handle`; refaz o fundo profundo só quando muda.
+    pub fn set_size(&mut self, width: u32, height: u32) {
+        if self.size != (width, height) {
+            self.size = (width, height);
+            self.base_backdrop = build_deep_sky_backdrop(width, height, &self.dust);
+        }
+    }
+
+    /// Uma estrela por tela, na ordem da tabela (7 telas, 7 estrelas), sem atraso entre elas.
+    pub fn one_star_per_step(&mut self) {
+        for (i, s) in self.stars.iter_mut().enumerate() {
+            s.step = i;
+            s.delay = 0.0;
+        }
+    }
+
+    /// Acende as `n` primeiras etapas (nunca apaga, como o instalador).
+    pub fn light_to(&mut self, n: usize) {
+        self.lit = self.lit.max(n.min(self.stars.len()));
+    }
+
+    /// Aproxima as estrelas e linhas do centro da câmera (1 = posições do protótipo).
+    pub fn compact_constellation(&mut self, k: f32) {
+        for s in &mut self.stars {
+            s.x = 0.47 + (s.x - 0.47) * k;
+            s.y = 0.50 + (s.y - 0.50) * k;
         }
     }
 
@@ -468,8 +509,8 @@ impl OrionSky {
 
     /// Gera o `Handle` de imagem RGBA 468×564 para exibição direta via `iced::widget::image`.
     pub fn render_image_handle(&self) -> iced_image::Handle {
-        let raw = self.render_raw_rgba(SKY_W_U32, SKY_H_U32);
-        iced_image::Handle::from_rgba(SKY_W_U32, SKY_H_U32, raw)
+        let (w, h) = self.size;
+        iced_image::Handle::from_rgba(w, h, self.render_raw_rgba(w, h))
     }
 
     /// Renderiza o quadro atual em um `RgbaImage` usando os sprites 128×128 e composição `lighter`.
@@ -484,7 +525,7 @@ impl OrionSky {
         let h = height as f32;
         let cam = CameraTransform::from_sky(self, w, h);
 
-        let mut buf = if width == SKY_W_U32 && height == SKY_H_U32 {
+        let mut buf = if (width, height) == self.size {
             self.base_backdrop.clone()
         } else {
             build_deep_sky_backdrop(width, height, &self.dust)

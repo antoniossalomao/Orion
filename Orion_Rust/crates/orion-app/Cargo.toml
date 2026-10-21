@@ -33,6 +33,7 @@ reqwest.workspace = true
 futures.workspace = true
 async-stream.workspace = true
 orion-platform = { path = "../orion-platform" }
+orion-sky = { path = "../orion-sky" }
 
 [dev-dependencies]
 iced_runtime = "0.14"
