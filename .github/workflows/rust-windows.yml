@@ -2,7 +2,7 @@ name: Rust Windows
 # Desativado por enquanto: roda ~30 min e falha. Só manualmente (workflow_dispatch).
 # Para reativar, restaure o gatilho:
 #   pull_request:
-#     paths: ["Orion_Rust/**", "Orion_Core/Front_end_Orion/**", "scripts/smoke_local_windows.py",
+#     paths: ["Orion_Rust/**", "scripts/smoke_local_windows.py",
 #             "tests/mcp_cliente/servidor_cru.py", ".github/workflows/rust-windows.yml"]
 on:
   workflow_dispatch:

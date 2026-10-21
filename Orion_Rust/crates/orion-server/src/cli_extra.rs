@@ -603,10 +603,8 @@ pub fn legenda(s: &Settings, segundos: u64) -> anyhow::Result<i32> {
         return Ok(1);
     }
     if segundos == 0 {
-        let url = format!("http://127.0.0.1:{}/ui/legenda.html", s.port);
-        let _ = orion_core::tools::camera::abrir_navegador(&url);
-        println!("janela da legenda aberta: {url}");
-        return Ok(0);
+        eprintln!("a janela da legenda fica no app; no terminal use `orion legenda <segundos>`");
+        return Ok(1);
     }
     let Some(modelo) = &s.subtitle_model else { return Ok(1) };
     let tr = match orion_core::legenda::criar_transcritor(&modelo.to_string_lossy()) {

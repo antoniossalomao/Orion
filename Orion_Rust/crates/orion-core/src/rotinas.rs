@@ -399,6 +399,6 @@ passos:
   - ferramenta: controlar_midia
     argumentos: {acao: tocar_pausar}
   - ferramenta: abrir_app
-    argumentos: {nome: \"http://127.0.0.1:8000/ui/\"}   # Windows/macOS abrem a página; ajuste a porta
+    argumentos: {nome: \"https://calendar.google.com\"}   # Windows/macOS abrem a página; troque pelo que você abre de manhã
   - falar: \"Bom dia! O briefing está nos avisos.\"
 ";

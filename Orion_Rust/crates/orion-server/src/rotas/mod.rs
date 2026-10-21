@@ -16,23 +16,11 @@ pub mod ponte;
 pub mod vida;
 pub mod voz;
 
-use crate::estado::{front_dir, Estado};
+use crate::estado::Estado;
 use crate::http::{host_permitido, request_id};
-use axum::extract::Request;
-use axum::http::StatusCode;
-use axum::middleware::{self, Next};
-use axum::response::{IntoResponse, Response};
+use axum::middleware;
 use axum::routing::{delete, get, patch, post};
 use axum::Router;
-
-/// Serve só o que o navegador precisa da pasta do front: nada de código Python.
-async fn sem_python(req: Request, next: Next) -> Response {
-    let p = req.uri().path();
-    if p.ends_with(".py") || p.ends_with(".pyc") || p.contains("__pycache__") {
-        return StatusCode::NOT_FOUND.into_response();
-    }
-    next.run(req).await
-}
 
 fn documents_limite() -> usize {
     orion_core::documents::MAX_UPLOAD + 1024
@@ -50,7 +38,7 @@ pub fn router(st: Estado) -> Router {
     use integracoes::*;
     use memoria::*;
     use vida::*;
-    let mut r = Router::new()
+    let r = Router::new()
         .route("/capabilities", get(capabilities))
         .route("/capabilities/details", get(capability_details))
         .route("/health", get(health))
@@ -232,10 +220,5 @@ pub fn router(st: Estado) -> Router {
         .route("/mcp/prompts/:servidor/:nome", post(obter_prompt_mcp))
         .route("/branches/:id", get(caminhos))
         .route("/branches/messages/:id", post(ramificar));
-    if st.settings.serve_ui && front_dir().is_dir() {
-        // por último: as rotas da API têm prioridade sobre os arquivos
-        let ui = tower_http::services::ServeDir::new(front_dir()).append_index_html_on_directories(true);
-        r = r.nest_service("/ui", Router::new().fallback_service(ui).layer(middleware::from_fn(sem_python)));
-    }
     r.layer(middleware::from_fn(request_id)).layer(middleware::from_fn_with_state(st.clone(), host_permitido)).with_state(st)
 }

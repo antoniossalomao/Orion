@@ -69,15 +69,15 @@ Não saem do computador: finanças, rosto, rótulos de objetos, presença, detec
 
 O backend `Orion_Ollama/`, os serviços em `bin/startup/`, os motores de voz antigos e a distribuição PyInstaller foram removidos. O histórico e as instruções antigas continuam no Git e em [ORION_LEGADO.md](ORION_LEGADO.md).
 
-`Orion_Core/Front_end_Orion/` guarda o front HTML/CSS/JS antigo e seus assets; **o app Rust não o serve mais** (a interface é o `orion-app` em iced) e a pasta só serve de protótipo/referência. O Python de referência (`orion/`, `tests/`, `pyproject.toml`, `uv.lock`) foi removido em 20/10/2026 e fica no histórico do Git. O sidecar (`orion-sidecar`, `Orion_Rust/python/`) foi removido em 20/10/2026: leitura de páginas e navegador guiado são Rust. Scripts de treino/avaliação de voz, benchmark, fixtures MCP e edge-tts ainda usam Python, fora do produto.
+O front HTML/CSS/JS antigo (`Orion_Core/Front_end_Orion/`) e a rota `/ui` foram **removidos em 21/10/2026** (a interface é o `orion-app` em iced); o histórico fica no Git. O Python de referência (`orion/`, `tests/`, `pyproject.toml`, `uv.lock`) foi removido em 20/10/2026 e fica no histórico do Git. O sidecar (`orion-sidecar`, `Orion_Rust/python/`) foi removido em 20/10/2026: leitura de páginas e navegador guiado são Rust. Scripts de treino/avaliação de voz, benchmark, fixtures MCP e edge-tts ainda usam Python, fora do produto.
 
 ## 6. Interface
 
-- **Agora:** a interface é o `orion-app` (iced), rodando dentro de `orion.exe` com o núcleo no mesmo processo; a UI chama as rotas por `Api::local`, sem socket. O front HTML (`/ui/`) só existe em `orion serve` (`--features http`) para desenvolvimento. Mini barra, bandeja e atalhos globais (Ctrl+Alt+Espaço, Ctrl+Alt+P) vêm de `orion-platform`. Os launchers pywebview antigos foram removidos.
+- **Agora:** a interface é o `orion-app` (iced), rodando dentro de `orion.exe` com o núcleo no mesmo processo; a UI chama as rotas por `Api::local`, sem socket. Mini barra, bandeja e atalhos globais (Ctrl+Alt+Espaço, Ctrl+Alt+P) vêm de `orion-platform`. Os launchers pywebview antigos foram removidos.
 - **Decisão:** só desktop, sem versão para celular. O celular fica no Telegram.
 - **Destino:** iced (Rust), tema único Grafite escuro, conforme [ORION_UI_ESPECIFICACAO.md](ORION_UI_ESPECIFICACAO.md). As três opções antigas de tema estão superadas; o grafo nativo wgpu ainda está pendente.
 
-A tela Vida (E10) e a legenda ao vivo (`/ui/legenda.html`, E11) fazem parte do front de desktop.
+A tela Vida (E10) e a legenda ao vivo (E11) fazem parte do app iced; a página `/ui/legenda.html` do front antigo deixou de existir.
 
 ## 7. Destino em Rust
 

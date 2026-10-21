@@ -59,7 +59,6 @@ chacha20poly1305 = "0.10"
 hmac = "0.12"
 subtle = "2"
 axum = { version = "0.7", features = ["ws", "multipart", "macros"] }
-tower-http = { version = "0.6", features = ["fs"] }
 tower = { version = "0.5", features = ["util"] }
 clap = { version = "4", features = ["derive"] }
 tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }

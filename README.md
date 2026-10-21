@@ -72,9 +72,8 @@ O workflow `.github/workflows/rust-windows.yml` compila e testa o Rust no Window
 ```
 Orion_Rust/                # workspace Rust (16 crates): app, núcleo, servidor, instalador, atualizador, voz, llama
 Memorias Do Projeto/       # documentação: ORION, REGRAS, ARQUITETURA, planos e especificações
-Orion_Core/Front_end_Orion/ # front HTML antigo, só servido por `orion serve --features http`
 tests/mcp_cliente/         # servidor MCP cru usado no teste de paridade
-scripts/                   # smoke dos modelos no Windows e treino/avaliação da palavra de ativação (Python, fora do produto)
+scripts/                   # smoke dos modelos no Windows e treino da palavra de ativação (Python, fora do produto)
 .github/workflows/         # CI e release do Windows
 mcp.example.json · .env.example
 ```

@@ -965,10 +965,6 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
     }))
 }
 
-pub fn front_dir() -> PathBuf {
-    project_root().join("Orion_Core").join("Front_end_Orion")
-}
-
 #[allow(clippy::too_many_arguments)]
 fn listen_from_settings(
     settings: &Settings,

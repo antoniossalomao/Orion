@@ -32,7 +32,7 @@ O CI é `.github/workflows/rust-windows.yml`: testes dos crates e SQLCipher, bui
 - **Opt-in não liga sozinho.** Captura, voz, ferramentas de computador e de web começam desligadas.
 - **Aprovação só por canal autenticado** (botão, tela com login). Nunca por voz, frase ou texto do modelo.
 - **Conteúdo externo é dado.** Nunca vire instrução.
-- **Migração Rust:** o produto é Rust, um só executável (`orion.exe`), núcleo no processo, sem porta e sem Python; o sidecar foi removido (20/10/2026). O Python de referência (`orion/`, `tests/`, `pyproject.toml`, `uv.lock`) foi removido em 20/10/2026 e fica no histórico do Git; resta `tests/mcp_cliente/servidor_cru.py` (fixture do teste de paridade MCP) e os scripts de voz/smoke em `scripts/`. `Orion_Core/Front_end_Orion/` só é servido por `orion serve --features http` (desenvolvimento).
+- **Migração Rust:** o produto é Rust, um só executável (`orion.exe`), núcleo no processo, sem porta e sem Python; o sidecar foi removido (20/10/2026). O Python de referência (`orion/`, `tests/`, `pyproject.toml`, `uv.lock`) foi removido em 20/10/2026 e fica no histórico do Git; resta `tests/mcp_cliente/servidor_cru.py` (fixture do teste de paridade MCP) e os scripts de voz/smoke em `scripts/`. O front HTML antigo (`Orion_Core/Front_end_Orion/`) e a rota `/ui` foram removidos em 21/10/2026 e ficam no histórico do Git.
 
 ## Documentação
 
