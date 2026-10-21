@@ -199,6 +199,22 @@ pub struct PalState {
     pub sel: usize,
 }
 
+#[derive(Default)]
+pub struct ProjectForm {
+    pub name: String,
+    pub instructions: String,
+    pub root: String,
+    pub busy: bool,
+    pub error: String,
+}
+
+pub struct RenameForm {
+    pub session_id: String,
+    pub title: String,
+    pub busy: bool,
+    pub error: String,
+}
+
 pub struct EditorState {
     pub path: String,
     pub name: String,
@@ -267,6 +283,8 @@ pub struct App {
     pub acts: Vec<Act>,
     pub act_filter: usize,
     pub proj_q: String,
+    pub project_form: Option<ProjectForm>,
+    pub rename_form: Option<RenameForm>,
     pub facts: Vec<data::Fact>,
     pub edit_fact: Option<(usize, String)>,
     pub archived: Vec<(String, String, String)>,
@@ -397,10 +415,21 @@ pub enum Msg {
     PinToggle,
     ArchiveConv,
     DeleteConv,
+    CopyText(String),
+    RenameStart,
+    RenameText(String),
+    RenameSave,
+    RenameClose,
     Toast(String),
     // páginas
     ProjQ(String),
     OpenProject(usize),
+    ProjectStart,
+    ProjectName(String),
+    ProjectInstructions(String),
+    ProjectRoot(String),
+    ProjectSave,
+    ProjectClose,
     ActFilter(usize),
     Undo(usize),
     ApproveRot,
@@ -527,6 +556,8 @@ impl App {
             acts: data::acts(),
             act_filter: 0,
             proj_q: String::new(),
+            project_form: None,
+            rename_form: None,
             facts: data::facts(),
             edit_fact: None,
             archived: data::arch(),
@@ -886,6 +917,75 @@ impl App {
             Msg::Toast(s) => {
                 self.pop = None;
                 self.toast(s);
+            }
+            Msg::CopyText(text) => return iced::clipboard::write(text),
+            Msg::RenameStart => {
+                self.pop = None;
+                if self.rename_form.as_ref().is_some_and(|f| f.busy) { return Task::none(); }
+                if let Some(c) = self.conv.and_then(|i| self.convs.get(i)) {
+                    self.rename_form = Some(RenameForm { session_id: c.id.clone(), title: c.title.clone(), busy: false, error: String::new() });
+                    return iced::widget::operation::focus("conversation-title");
+                }
+            }
+            Msg::RenameText(value) => {
+                if let Some(form) = self.rename_form.as_mut().filter(|f| !f.busy) { form.title = value; form.error.clear(); }
+            }
+            Msg::RenameClose => {
+                if self.rename_form.as_ref().is_some_and(|f| !f.busy) { self.rename_form = None; }
+            }
+            Msg::RenameSave => {
+                let Some(form) = self.rename_form.as_mut().filter(|f| !f.busy) else { return Task::none() };
+                let title = form.title.trim().to_string();
+                if !(1..=120).contains(&title.chars().count()) {
+                    form.error = "Use um título entre 1 e 120 caracteres.".into();
+                    return Task::none();
+                }
+                let Some(api) = self.api.clone() else {
+                    form.error = "Renomear exige conexão com o núcleo.".into();
+                    return Task::none();
+                };
+                form.busy = true;
+                form.error.clear();
+                let sid = form.session_id.clone();
+                return Task::perform(async move {
+                    let result = api.patch(&format!("/sessoes/{sid}"), serde_json::json!({"titulo": title})).await;
+                    (sid, result)
+                }, |(sid, result)| Msg::L(crate::live::Lm::Renamed(sid, result)));
+            }
+            Msg::ProjectStart => {
+                if self.project_form.is_none() {
+                    self.project_form = Some(ProjectForm::default());
+                    return iced::widget::operation::focus("project-name");
+                }
+            }
+            Msg::ProjectName(value) => {
+                if let Some(form) = self.project_form.as_mut().filter(|f| !f.busy) { form.name = value; form.error.clear(); }
+            }
+            Msg::ProjectInstructions(value) => {
+                if let Some(form) = self.project_form.as_mut().filter(|f| !f.busy) { form.instructions = value; form.error.clear(); }
+            }
+            Msg::ProjectRoot(value) => {
+                if let Some(form) = self.project_form.as_mut().filter(|f| !f.busy) { form.root = value; form.error.clear(); }
+            }
+            Msg::ProjectClose => {
+                if self.project_form.as_ref().is_some_and(|f| !f.busy) { self.project_form = None; }
+            }
+            Msg::ProjectSave => {
+                let Some(form) = self.project_form.as_mut().filter(|f| !f.busy) else { return Task::none() };
+                let name = form.name.trim().to_string();
+                if !(1..=120).contains(&name.chars().count()) || form.instructions.chars().count() > 16000 || form.root.chars().count() > 4096 {
+                    form.error = "Use nome de 1 a 120 caracteres, instruções de até 16000 e caminho de até 4096.".into();
+                    return Task::none();
+                }
+                let Some(api) = self.api.clone() else {
+                    form.error = "Criar projeto exige conexão com o núcleo.".into();
+                    return Task::none();
+                };
+                let root = form.root.trim();
+                let body = serde_json::json!({"name": name, "instructions": form.instructions, "root": if root.is_empty() { None } else { Some(root) }, "share_personal": false});
+                form.busy = true;
+                form.error.clear();
+                return Task::perform(async move { api.post("/projects", body).await }, |r| Msg::L(crate::live::Lm::ProjectCreated(r)));
             }
             Msg::Edit(a) => {
                 self.composer.perform(a);
