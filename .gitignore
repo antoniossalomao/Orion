@@ -1,62 +1,31 @@
-# repos de referência, não são código nosso
-TESTE/
-
-# deps
-node_modules/
+# build e ambiente
+target/
+dist/
+build/
+.venv/
 venv*/
 __pycache__/
 *.pyc
+.pytest_cache/
+.ruff_cache/
 
-# dados/binários grandes
-qdrant_data/
-bm25s_index*/
-*.pkl
+# dados e binários locais
 *.bak
-snapshots/
-Orion_Core/Memoria_Orion/db_cortex/
-Orion_Core/Memoria_Orion/backups/
+*.db
+*.db-wal
+*.db-shm
+snaps/
 
 # logs e segredos
 *.log
 *.err
+*.out
 .env
 !.env.example
-
-# credenciais OAuth do Google (geradas em runtime)
-Orion_Core/google_auth/credentials.json
-Orion_Core/google_auth/token.json
-
-# ide/build
-dist/
-build/
-target/
-
-# session logs
-*.out
-
-# binário grande, baixa de novo se precisar (qdrant.exe)
-bin/qdrant.exe
-
-# estado de runtime (gerado pelos serviços, não é código)
-Orion_Core/Sons/cache/
-Orion_Ollama/telemetria.json
-Orion_Ollama/telemetria_historico.jsonl
-.qdrant-initialized
-bin/backup_pip_freeze_*.txt
 
 # config local do Claude Code (permissões/PIDs da máquina)
 .claude/settings.local.json
 .claude/*.lock
 
-# ambiente e caches de desenvolvimento (reescrita: uv, ruff, pyright, pytest)
-.venv/
-.pytest_cache/
-.ruff_cache/
-.pyright/
-*.egg-info/
-
 # conjunto de avaliação com perguntas reais sobre o Antônio (dados pessoais)
 tests/eval_pessoal.local.json
-
-# capturas de tela do front (tests/front_e2e/capturas.py)
-capturas/

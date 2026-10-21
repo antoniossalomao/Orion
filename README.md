@@ -61,7 +61,7 @@ A lista completa de opt-ins, com o que sai do computador em cada um, está na ta
 
 ```
 cd Orion_Rust
-cargo test --locked -p orion-policy -p orion-store -p orion-ai -p orion-core -p orion-server -p orion-platform -p orion-voice -p orion-local -p orion-llama -p orion-setup -p orion-mcp -p orion-vault -p orion-updater -p orion-app -p orion-testkit
+cargo test --locked -p orion-policy -p orion-store -p orion-ai -p orion-core -p orion-server -p orion-platform -p orion-voice -p orion-local -p orion-llama -p orion-setup -p orion-sky -p orion-mcp -p orion-vault -p orion-updater -p orion-app -p orion-testkit
 cargo run -p orion-app --features snap --bin orion-snap -- snaps    # fotos das telas, sem janela
 ```
 

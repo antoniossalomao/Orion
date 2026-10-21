@@ -3,11 +3,11 @@ type: recurso
 projeto: "[[Orion]]"
 tags: [orion, auditoria, pendencias, checklist]
 date: 2026-10-20
-revisao: 2026-10-20 (estado consolidado após decisões e conferência dos checklists)
+revisao: 2026-10-21 (onboarding em tela cheia, céu compartilhado, CI Windows desativado e limpeza do repositório; contagens de checklist não refeitas)
 resumo: "Pendências e decisões vigentes do Orion, com implementação, testes e aceite Windows separados; substitui os diagnósticos intermediários desta auditoria."
 ---
 
-# ORION - AUDITORIA DE PENDÊNCIAS (20/10/2026)
+# ORION - AUDITORIA DE PENDÊNCIAS (21/10/2026)
 
 > Base: branch `claude/wizardly-bell-ynlfwv` (PR #30). Esta consolidação substitui as conclusões intermediárias da auditoria; o histórico permanece no Git. A fonte do estado é [ORION.md](ORION.md); os IDs e critérios ficam no [plano](ORION_PLANO_IMPLEMENTACAO.md). `ORION_LEGADO.md` é referência histórica.
 > Legenda: **[V]** depende do Antônio · **[W]** exige Windows/hardware real · **[C]** implementação · **[D]** decisão.
@@ -19,7 +19,7 @@ resumo: "Pendências e decisões vigentes do Orion, com implementação, testes 
 - **Arquitetura:** `orion.exe` reúne interface iced e núcleo no mesmo processo, sem servidor HTTP do app. `orion-llama.exe` é um worker separado; o instalador é outro executável de distribuição. O navegador CDP usa porta de depuração efêmera em loopback; portanto, "sem porta" descreve a ligação UI–núcleo, não todos os processos auxiliares.
 - **Produto sem Python:** pacote de referência e sidecar removidos em 20/10. Restam scripts de treino/smoke, fixture MCP e front HTML de desenvolvimento, servido apenas no modo HTTP opcional. Código removido permanece no Git; dados pessoais e instalações no PC não foram descartados.
 - **Escopo:** v1 = M1, F01–F10, com saída em F10. F11–F27 são posteriores. F27 é fechamento do roadmap; a expressão histórica "release 1.0" nessa fase não amplia o escopo da v1 nem define a tag do primeiro release. A numeração semver deve ser alinhada ao publicar.
-- **Checklists já conferidos:** 458 itens F00–F27: **20 `[x]`, 286 `[~]`, 152 `[ ]`**. Em F01–F10: **13 `[x]`, 173 `[~]`, 51 `[ ]`** (237 itens). Não é percentual de conclusão: os itens têm tamanhos diferentes e `[~]` mistura trabalho parcial com aceite pendente.
+- **Checklists conferidos em 20/10 (não refeitos em 21/10):** 458 itens F00–F27: **20 `[x]`, 286 `[~]`, 152 `[ ]`**. Em F01–F10: **13 `[x]`, 173 `[~]`, 51 `[ ]`** (237 itens). Não é percentual de conclusão: os itens têm tamanhos diferentes e `[~]` mistura trabalho parcial com aceite pendente.
 
 ## 2. Como interpretar a evidência
 
@@ -68,6 +68,10 @@ Esta revisão corrige documentação; não reexecuta testes nem promove funciona
 
 ## 4. Implementações recentes e seus limites
 
+**Onboarding em tela cheia e céu compartilhado (21/10):** o onboarding ocupa a janela inteira como o instalador (seis etapas e tela final, 7 telas), com fontes, campos e grade de chaves maiores e "Iniciar com o Windows" na etapa Conta. O renderizador do céu do instalador virou o crate `orion-sky`, usado pelo instalador e pelo onboarding; no onboarding uma estrela acende por tela (7 telas, 7 estrelas) e o instalador renderiza no mesmo quadro ampliado (60% da resolução). Testes de `orion-app`, `orion-sky` e `orion-setup` passaram no Linux; capturas das 7 telas conferidas. **Pendentes:** custo de CPU do céu num PC real, janela real do instalador, "reduzir movimento" do Windows no onboarding e leitura/escrita real da chave de início do Windows (não rodou no Linux). As demais telas do app ainda usam o céu estático de `orion-app/src/sky.rs`.
+
+**Limpeza do repositório (21/10):** removidos `.vscode/settings.json` (ajuste de Python de uma máquina) e `Orion_Rust/.gitignore` (redundante); `.gitignore` da raiz reduzido ao que existe hoje; cabeçalho do `.env.example` corrigido (apontava para o pacote Python removido). Todas as 131 variáveis do `.env.example` continuam lidas pelo código. Nenhum arquivo de código foi apagado: não há módulos Rust órfãos, e `Orion_Core/Front_end_Orion`, `scripts/` e `tests/mcp_cliente/` seguem em uso.
+
 O alinhamento de 20/10 registra: remoção do mudo, senha do autônomo, senha no autostart cifrado, Ctrl+Alt+O/I, nuvem pelas CLIs e novo login com usuário padrão `antoniosalomao` e migração de `admin`.
 
 **Verificação dessa rodada:** compilação (`cargo check`) e captura de tela; testes recentes de `orion-core` (nuvem), `orion-app` e `appmode` ainda não executados no registro consultado. Sem aceite Windows/contas reais.
@@ -88,7 +92,7 @@ O alinhamento de 20/10 registra: remoção do mudo, senha do autônomo, senha no
 
 | Fase | Trabalho restante relevante |
 |---|---|
-| F01 | Motor de céu compartilhado, Fluent pt/en, comparação de snapshots, teclado/foco/contraste; Narrador fica fora da v1 |
+| F01 | Céu: o motor CPU já é compartilhado entre instalador e onboarding (`orion-sky`); falta usá-lo nas demais telas do app e, se necessário, o shader wgpu. Fluent pt/en, comparação de snapshots, teclado/foco/contraste; Narrador fica fora da v1 |
 | F02 | PIN crítico; aceite de Hello, recuperação, login, bloqueio e banco cifrado no Windows |
 | F03 | ACP, catálogo de modelos/cotas completo e requisitos de RAM/VRAM |
 | F04 | Classificador de injeção e cobertura de engine/invariantes; testar senha ao ligar autônomo |
@@ -97,7 +101,7 @@ O alinhamento de 20/10 registra: remoção do mudo, senha do autônomo, senha no
 | F07 | Ligar todas as seções exigidas para a v1; separar controles futuros de funções operacionais |
 | F08 | Cartões, clonar GitHub, pastas/referências, modelo/passos/herança, arquivar e mover conversa |
 | F09 | Painel, métricas, Resultados, Integrações, "Você fez" e estados vazios |
-| F10 | Onboarding e backup local/Drive implementados nesta rodada, com importação/exportação e recuperação; faltam aceite Windows/contas reais, integração Git completa do vault, atualização, rollback automático, modelos/GPU e primeiro release |
+| F10 | Onboarding (7 telas, céu com uma estrela por tela) e backup local/Drive implementados, com importação/exportação e recuperação; faltam aceite Windows/contas reais, integração Git completa do vault, atualização, rollback automático, modelos/GPU e primeiro release |
 
 O onboarding decidido reúne usuário/senha, nome/idioma, recuperação em arquivo, vault, APIs, Telegram/2FA quando configurado, backup, projetos/GitHub, importação e Hello. Essa configuração não torna concluídas as fases posteriores correspondentes.
 
@@ -115,9 +119,9 @@ O onboarding decidido reúne usuário/senha, nome/idioma, recuperação em arqui
 
 ## 7. CI e documentação
 
-O `rust-windows.yml` configura testes dos crates, testes SQLCipher, builds CPU/Vulkan e smoke CPU com GGUF real. **Não executa fmt/clippy**, nem prova hardware, aceite visual ou uso integrado. Workflow configurado e runs antigos não comprovam sucesso do commit atual.
+**O `rust-windows.yml` está desativado nos PRs desde 21/10/2026** (roda ~30 min e falha; só `workflow_dispatch`; o gatilho está comentado no arquivo). Nenhum CI valida os PRs por ora. Quando reativado, ele configura testes dos crates (agora incluindo `orion-sky`), testes SQLCipher, builds CPU/Vulkan e smoke CPU com GGUF real; **não executa fmt/clippy**, nem prova hardware, aceite visual ou uso integrado. Runs antigos não comprovam sucesso do commit atual.
 
-Pendências: executar testes das mudanças recentes; adicionar fmt/clippy; comparar snapshots; vincular resultados ao commit e aos cenários executados.
+Pendências: descobrir por que o run Windows falha e reativar o gatilho; executar testes das mudanças recentes; adicionar fmt/clippy; comparar snapshots; vincular resultados ao commit e aos cenários executados.
 
 As referências Python em "Imposto em"/"Prova" de `REGRAS.md` são históricas, conforme a nota de equivalência Rust. Ainda precisam ser reapontadas; esta correção documental não altera princípios protegidos nem inventa evidência Rust.
 
@@ -135,7 +139,7 @@ Repositório é origem; documentos alterados devem ser espelhados no vault na me
 
 ## 9. Ordem de trabalho recomendada
 
-1. Verificar testes das mudanças recentes e registrar resultados por commit.
+1. Reativar o CI Windows (hoje desativado), verificar testes das mudanças recentes e registrar resultados por commit.
 2. Validar no Obsidian/Windows a preservação do vault e backup/restauração; fechar comparação de conflitos no chat; preservar/exportar dados do legado.
 3. Gerar chave/feed e validar instalação, senha, atualização e rollback no Windows.
 4. Fechar Projetos, onboarding e os demais fluxos F01–F10; executar o aceite F10.F limitado à v1.
