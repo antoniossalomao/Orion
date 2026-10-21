@@ -632,9 +632,9 @@ pub struct VaultSaveReq {
     pub decisions: Vec<String>,
 }
 
-pub async fn vault_status(_: Admin, State(_): State<Estado>) -> ApiResult<Json<Value>> {
+pub async fn vault_status(_: Admin, State(st): State<Estado>) -> ApiResult<Json<Value>> {
     tokio::task::spawn_blocking(move || -> ApiResult<Json<Value>> {
-        let mgr = orion_vault::VaultManager::new(None)
+        let mgr = orion_vault::VaultManager::new(st.settings.vault_dir.clone())
             .map_err(|e| ApiError::new(500, format!("Erro ao carregar Vault: {}", e)))?;
         let stats = mgr.index_all()
             .map_err(|e| ApiError::new(500, format!("Erro ao indexar Vault: {}", e)))?;
@@ -648,9 +648,9 @@ pub async fn vault_status(_: Admin, State(_): State<Estado>) -> ApiResult<Json<V
     .map_err(anyhow::Error::from)?
 }
 
-pub async fn vault_pull(_: Admin, State(_): State<Estado>) -> ApiResult<Json<Value>> {
+pub async fn vault_pull(_: Admin, State(st): State<Estado>) -> ApiResult<Json<Value>> {
     tokio::task::spawn_blocking(move || -> ApiResult<Json<Value>> {
-        let mgr = orion_vault::VaultManager::new(None)
+        let mgr = orion_vault::VaultManager::new(st.settings.vault_dir.clone())
             .map_err(|e| ApiError::new(500, format!("Erro ao carregar Vault: {}", e)))?;
         let res = mgr.pull()
             .map_err(|e| ApiError::new(500, format!("Erro no git pull: {}", e)))?;
@@ -663,9 +663,9 @@ pub async fn vault_pull(_: Admin, State(_): State<Estado>) -> ApiResult<Json<Val
     .map_err(anyhow::Error::from)?
 }
 
-pub async fn vault_search(_: Admin, State(_): State<Estado>, Query(q): Query<VaultSearchQ>) -> ApiResult<Json<Value>> {
+pub async fn vault_search(_: Admin, State(st): State<Estado>, Query(q): Query<VaultSearchQ>) -> ApiResult<Json<Value>> {
     tokio::task::spawn_blocking(move || -> ApiResult<Json<Value>> {
-        let mgr = orion_vault::VaultManager::new(None)
+        let mgr = orion_vault::VaultManager::new(st.settings.vault_dir.clone())
             .map_err(|e| ApiError::new(500, format!("Erro ao carregar Vault: {}", e)))?;
         let _ = mgr.index_all();
         let results = mgr.search(&q.q);
@@ -685,9 +685,9 @@ pub async fn vault_search(_: Admin, State(_): State<Estado>, Query(q): Query<Vau
     .map_err(anyhow::Error::from)?
 }
 
-pub async fn vault_save(_: Admin, State(_): State<Estado>, Json(req): Json<VaultSaveReq>) -> ApiResult<Json<Value>> {
+pub async fn vault_save(_: Admin, State(st): State<Estado>, Json(req): Json<VaultSaveReq>) -> ApiResult<Json<Value>> {
     tokio::task::spawn_blocking(move || -> ApiResult<Json<Value>> {
-        let mgr = orion_vault::VaultManager::new(None)
+        let mgr = orion_vault::VaultManager::new(st.settings.vault_dir.clone())
             .map_err(|e| ApiError::new(500, format!("Erro ao carregar Vault: {}", e)))?;
         let note = orion_vault::ConversationNote {
             date_str: req.date,

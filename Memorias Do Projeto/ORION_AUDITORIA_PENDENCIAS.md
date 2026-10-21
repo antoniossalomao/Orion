@@ -19,7 +19,7 @@ resumo: "Pendências e decisões vigentes do Orion, com implementação, testes 
 - **Arquitetura:** `orion.exe` reúne interface iced e núcleo no mesmo processo, sem servidor HTTP do app. `orion-llama.exe` é um worker separado; o instalador é outro executável de distribuição. O navegador CDP usa porta de depuração efêmera em loopback; portanto, "sem porta" descreve a ligação UI–núcleo, não todos os processos auxiliares.
 - **Produto sem Python:** pacote de referência e sidecar removidos em 20/10. Restam scripts de treino/smoke, fixture MCP e front HTML de desenvolvimento, servido apenas no modo HTTP opcional. Código removido permanece no Git; dados pessoais e instalações no PC não foram descartados.
 - **Escopo:** v1 = M1, F01–F10, com saída em F10. F11–F27 são posteriores. F27 é fechamento do roadmap; a expressão histórica "release 1.0" nessa fase não amplia o escopo da v1 nem define a tag do primeiro release. A numeração semver deve ser alinhada ao publicar.
-- **Checklists já conferidos:** 458 itens F00–F27: **20 `[x]`, 285 `[~]`, 153 `[ ]`**. Em F01–F10: **13 `[x]`, 172 `[~]`, 52 `[ ]`** (237 itens). Não é percentual de conclusão: os itens têm tamanhos diferentes e `[~]` mistura trabalho parcial com aceite pendente.
+- **Checklists já conferidos:** 458 itens F00–F27: **20 `[x]`, 286 `[~]`, 152 `[ ]`**. Em F01–F10: **13 `[x]`, 173 `[~]`, 51 `[ ]`** (237 itens). Não é percentual de conclusão: os itens têm tamanhos diferentes e `[~]` mistura trabalho parcial com aceite pendente.
 
 ## 2. Como interpretar a evidência
 
@@ -72,12 +72,14 @@ O alinhamento de 20/10 registra: remoção do mudo, senha do autônomo, senha no
 
 **Verificação dessa rodada:** compilação (`cargo check`) e captura de tela; testes recentes de `orion-core` (nuvem), `orion-app` e `appmode` ainda não executados no registro consultado. Sem aceite Windows/contas reais.
 
+**Proteção do vault (20/10):** preservação sem sobrescrita, propostas de conflito e isolamento dos commits implementados; a suíte exigida pelo AGENTS.md passou com 550 testes no Linux. Comparação no chat e aceite Windows/Obsidian permanecem pendentes. Detalhes e limites em ORION.md.
+
 **Nuvem parcial:** descartar remove da lista local, sem cancelar remotamente; faltam log ao vivo e aviso de término no Telegram; Codex não recebe mensagem. Não confundir com `/tarefas-bg`, que continua existindo.
 
 **Entregas parciais não são fases completas:**
 
 - F08 tem APIs e isolamento F08.10 marcado `[x]`; telas e fluxo de Projetos continuam pendentes. Não é uma fase "sem nada feito".
-- F06 tem gravação explícita por API; falta gravação automática por turno. **F06.14 está `[ ]`: `save_conversation` sobrescreve conteúdo existente**, sem preservar as duas versões editadas no Obsidian.
+- F06 tem gravação explícita por API; falta gravação automática por turno. **F06.14 está `[~]`: `save_conversation` preserva a original e salva proposta marcada como conflito**, com ambos os caminhos na API e sem commit/push do conflito. Comparação/escolha no chat e aceite Obsidian/Windows ainda pendentes.
 - F21.04 entrega leitura/busca; F21.03, pesquisa profunda com relatório em nota, continua parcial.
 - Modo autônomo (F04.17) e corrigir fato (F06.20) não comprovam automelhoria F26 nem leitura de uso F13.
 - F27.06 é parcial: remoção de código feita; exportação, verificação e descarte de dados/PC pendentes.
@@ -91,7 +93,7 @@ O alinhamento de 20/10 registra: remoção do mudo, senha do autônomo, senha no
 | F03 | ACP, catálogo de modelos/cotas completo e requisitos de RAM/VRAM |
 | F04 | Classificador de injeção e cobertura de engine/invariantes; testar senha ao ligar autônomo |
 | F05 | Diff por bloco, editar/reenviar, LaTeX/Mermaid, anexos e comandos `/`/`@`; solução sem WebView2 |
-| F06 | Gravação automática, resumo diário, conflito sem sobrescrever e índice BM25 + LSA completo |
+| F06 | Gravação automática, resumo diário, comparação/escolha de conflitos no chat e índice BM25 + LSA completo; preservação das versões e isolamento do commit implementados |
 | F07 | Ligar todas as seções exigidas para a v1; separar controles futuros de funções operacionais |
 | F08 | Cartões, clonar GitHub, pastas/referências, modelo/passos/herança, arquivar e mover conversa |
 | F09 | Painel, métricas, Resultados, Integrações, "Você fez" e estados vazios |
@@ -134,7 +136,7 @@ Repositório é origem; documentos alterados devem ser espelhados no vault na me
 ## 9. Ordem de trabalho recomendada
 
 1. Verificar testes das mudanças recentes e registrar resultados por commit.
-2. Proteger edições do vault; implementar e verificar backup/restauração; preservar/exportar dados do legado.
+2. Validar no Obsidian/Windows a preservação do vault e backup/restauração; fechar comparação de conflitos no chat; preservar/exportar dados do legado.
 3. Gerar chave/feed e validar instalação, senha, atualização e rollback no Windows.
 4. Fechar Projetos, onboarding e os demais fluxos F01–F10; executar o aceite F10.F limitado à v1.
 5. Após a v1: F25.06, depois F20; demais fases conforme dependências.

@@ -6,10 +6,11 @@ use crate::scanner::SecretScanner;
 use crate::VaultError;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use tracing::{info, warn};
 
 /// Estatísticas de notas do Vault.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -24,11 +25,19 @@ pub struct VaultStats {
 
 /// Resultado de gravação de nota de conversa.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NoteConflict {
+    pub original_path: String,
+    pub proposed_path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SyncResult {
     pub file_path: String,
     pub commit_hash: Option<String>,
     pub pushed: bool,
     pub warning: Option<String>,
+    pub conflict: Option<NoteConflict>,
+    pub unchanged: bool,
 }
 
 /// Gerenciador central de sincronização e memória do Vault (F06).
@@ -41,15 +50,20 @@ pub struct VaultManager {
 impl VaultManager {
     /// Inicializa o VaultManager com auto-detecção ou caminho configurado.
     pub fn new(custom_path: Option<PathBuf>) -> Result<Self, VaultError> {
-        let path = custom_path
-            .or_else(detect_vault_path)
-            .ok_or_else(|| VaultError::NotFound("Nenhum caminho de Vault encontrado".to_string()))?;
+        let path = custom_path.or_else(detect_vault_path).ok_or_else(|| {
+            VaultError::NotFound("Nenhum caminho de Vault encontrado".to_string())
+        })?;
 
         if !path.is_dir() {
             return Err(VaultError::NotFound(path.display().to_string()));
         }
 
-        let git = GitSync::new(&path).ok();
+        let path = path.canonicalize()?;
+        let git = match GitSync::new(&path) {
+            Ok(git) => Some(git),
+            Err(crate::GitError::NotAGitRepo) => None,
+            Err(e) => return Err(e.into()),
+        };
         let config = VaultConfig {
             path,
             remote_url: None,
@@ -69,91 +83,97 @@ impl VaultManager {
         &self.config
     }
 
-    /// Executa pull inicial no repositório do Vault se o Git estiver disponível.
+    /// Pull só por fast-forward, sem rebase, stash ou descarte de edições locais.
     pub fn pull(&self) -> Result<Option<String>, VaultError> {
-        if let Some(git) = &self.git {
-            if self.config.auto_pull {
-                match git.pull(&self.config.branch) {
-                    Ok(out) => return Ok(Some(out)),
-                    Err(e) => {
-                        warn!("Pull falhou (continuando com cópia local): {}", e);
-                        return Ok(None);
-                    }
-                }
-            }
+        match &self.git {
+            Some(git) if self.config.auto_pull => Ok(Some(git.pull(&self.config.branch)?)),
+            _ => Ok(None),
         }
-        Ok(None)
     }
 
-    /// Salva uma conversa do Orion em `03 Recursos/Orion/Memória/` e faz commit/push na main (F06.09, F06.13).
+    /// Nunca substitui um arquivo existente com conteúdo diferente (REGRAS.md: você é o administrador).
+    /// Diferenças viram uma proposta separada, marcada como conflito, sem commit/push automático.
     pub fn save_conversation(&self, note: &ConversationNote) -> Result<SyncResult, VaultError> {
-        // 1. Validar e escanear segredos antes de qualquer operação (R06)
         let md = note.to_markdown();
-        if let Err(e) = SecretScanner::scan(&md) {
-            return Err(VaultError::SecretDetected(e.to_string()));
-        }
-
-        // 2. Garantir diretório `03 Recursos/Orion/Memória/`
-        let memoria_dir = self.config.path
-            .join("03 Recursos")
-            .join("Orion")
-            .join("Memória");
-
-        std::fs::create_dir_all(&memoria_dir)?;
-
-        let filename = note.file_name();
-        let target_file = memoria_dir.join(&filename);
-        let rel_path = PathBuf::from("03 Recursos")
+        SecretScanner::scan(&md).map_err(|e| VaultError::SecretDetected(e.to_string()))?;
+        let rel = Path::new("03 Recursos")
             .join("Orion")
             .join("Memória")
-            .join(&filename);
-
-        // 3. Checar conflito com arquivo existente (F06.14)
-        let mut warning = None;
-        if target_file.exists() {
-            let existing = std::fs::read_to_string(&target_file)?;
-            if existing != md {
-                info!("Atualizando nota de conversa existente com nova rodada: {:?}", target_file);
+            .join(note.file_name());
+        crate::validate::note(&self.config.path, note, &md, &rel)?;
+        let target = crate::safe_path::checked(&self.config.path, &rel, true)?;
+        let unchanged = match publish_new(&target, &md) {
+            Ok(()) => false,
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+                let existing = crate::safe_path::read_note(&crate::safe_path::checked(
+                    &self.config.path,
+                    &rel,
+                    false,
+                )?)?;
+                if existing != md {
+                    let proposal = format!("{md}\n> Conflito de edição. A versão anterior foi preservada. Revise as duas versões antes de publicar.\n");
+                    let digest = format!("{:x}", Sha256::digest(proposal.as_bytes()));
+                    let stem = rel
+                        .file_stem()
+                        .and_then(|s| s.to_str())
+                        .ok_or_else(|| VaultError::InvalidFormat("nome de nota inválido".into()))?;
+                    let proposed_rel =
+                        rel.with_file_name(format!("{stem} - conflito Orion {}.md", &digest[..20]));
+                    let proposed =
+                        crate::safe_path::checked(&self.config.path, &proposed_rel, false)?;
+                    match publish_new(&proposed, &proposal) {
+                        Ok(()) => {}
+                        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+                            if crate::safe_path::read_note(&proposed)? != proposal {
+                                return Err(VaultError::InvalidFormat("a proposta de conflito também foi editada; nenhum arquivo foi substituído".into()));
+                            }
+                        }
+                        Err(e) => return Err(e.into()),
+                    }
+                    let original_path = rel.to_string_lossy().replace('\\', "/");
+                    let proposed_path = proposed_rel.to_string_lossy().replace('\\', "/");
+                    return Ok(SyncResult {
+                        file_path: original_path.clone(), commit_hash: None, pushed: false, unchanged: false,
+                        warning: Some("Conflito de edição: as duas versões foram preservadas. Revise a original e a proposta; nenhuma foi enviada ao Git.".into()),
+                        conflict: Some(NoteConflict { original_path, proposed_path }),
+                    });
+                }
+                true
             }
-        }
-
-        // 4. Gravar arquivo no disco
-        std::fs::write(&target_file, &md)?;
-
-        // 5. Atualizar cache em memória
-        let parsed = VaultParser::parse(&rel_path.to_string_lossy(), &md);
-        self.notes_cache.write().insert(rel_path.to_string_lossy().to_string(), parsed);
-
-        // 6. Commit e Push na main (F06.13)
-        let mut commit_hash = None;
-        let mut pushed = false;
-
+            Err(e) => return Err(e.into()),
+        };
+        let path = rel.to_string_lossy().replace('\\', "/");
+        let parsed = VaultParser::parse(&path, &md);
+        self.notes_cache.write().insert(path.clone(), parsed);
+        let mut result = SyncResult {
+            file_path: path,
+            commit_hash: None,
+            pushed: false,
+            warning: None,
+            conflict: None,
+            unchanged,
+        };
         if let Some(git) = &self.git {
-            let commit_msg = format!("Orion: {}", note.summary);
-            match git.commit_file(&rel_path, &commit_msg) {
-                Ok(_) => {
-                    commit_hash = git.head_commit_hash().ok();
-                    if self.config.auto_push {
-                        match git.push(&self.config.branch) {
-                            Ok(_) => pushed = true,
+            match git.commit_note(&rel, &md, &note.summary) {
+                Ok(commit) => {
+                    result.commit_hash = Some(commit.hash.clone());
+                    if commit.created && self.config.auto_push {
+                        match git.push_note(&commit) {
+                            Ok(_) => result.pushed = true,
                             Err(e) => {
-                                warning = Some(format!("Commit realizado com sucesso, mas push falhou: {}", e));
+                                result.warning =
+                                    Some(format!("Nota commitada localmente; push pendente: {e}"))
                             }
                         }
                     }
                 }
                 Err(e) => {
-                    warning = Some(format!("Aviso: falha no git commit: {}", e));
+                    result.warning =
+                        Some(format!("Nota preservada localmente; commit pendente: {e}"))
                 }
             }
         }
-
-        Ok(SyncResult {
-            file_path: rel_path.to_string_lossy().to_string(),
-            commit_hash,
-            pushed,
-            warning,
-        })
+        Ok(result)
     }
 
     /// Faz uma indexação rápida de todas as notas `.md` do Vault.
@@ -203,8 +223,16 @@ impl VaultManager {
         let mut matches = Vec::new();
         for note in cache.values() {
             if note.metadata.title.to_lowercase().contains(&q)
-                || note.metadata.tags.iter().any(|t| t.to_lowercase().contains(&q))
-                || note.metadata.wikilinks.iter().any(|l| l.to_lowercase().contains(&q))
+                || note
+                    .metadata
+                    .tags
+                    .iter()
+                    .any(|t| t.to_lowercase().contains(&q))
+                || note
+                    .metadata
+                    .wikilinks
+                    .iter()
+                    .any(|l| l.to_lowercase().contains(&q))
                 || note.body_content.to_lowercase().contains(&q)
             {
                 matches.push(note.clone());
@@ -213,7 +241,9 @@ impl VaultManager {
 
         // Ordena: primeiro não-arquivados, depois por tamanho
         matches.sort_by(|a, b| {
-            a.metadata.is_archive.cmp(&b.metadata.is_archive)
+            a.metadata
+                .is_archive
+                .cmp(&b.metadata.is_archive)
                 .then(b.metadata.char_count.cmp(&a.metadata.char_count))
         });
 
@@ -231,7 +261,7 @@ impl VaultManager {
                 if rel_str.starts_with(".git") || rel_str.starts_with(".obsidian") {
                     continue;
                 }
-                if let Ok(content) = std::fs::read_to_string(&entry) {
+                if let Ok(content) = crate::safe_path::read_note(&entry) {
                     callback(rel_str, content);
                 }
             }
@@ -240,13 +270,36 @@ impl VaultManager {
     }
 }
 
+// Publicação atômica sem substituir destino: até uma edição concorrente fica preservada.
+fn publish_new(path: &Path, content: &str) -> Result<(), std::io::Error> {
+    let mut file = tempfile::NamedTempFile::new_in(
+        path.parent()
+            .ok_or_else(|| std::io::Error::other("pasta inválida"))?,
+    )?;
+    file.write_all(content.as_bytes())?;
+    file.as_file().sync_all()?;
+    file.persist_noclobber(path).map_err(|e| e.error)?;
+    Ok(())
+}
+
 fn walk_md_files(dir: &Path) -> Result<Vec<PathBuf>, std::io::Error> {
     let mut files = Vec::new();
     if dir.is_dir() {
         for entry in std::fs::read_dir(dir)? {
             let entry = entry?;
             let p = entry.path();
-            if p.is_dir() {
+            let meta = std::fs::symlink_metadata(&p)?;
+            if meta.file_type().is_symlink() {
+                continue;
+            }
+            #[cfg(windows)]
+            {
+                use std::os::windows::fs::MetadataExt;
+                if meta.file_attributes() & 0x400 != 0 {
+                    continue;
+                }
+            }
+            if meta.is_dir() {
                 let name = p.file_name().and_then(|n| n.to_str()).unwrap_or("");
                 if !name.starts_with('.') {
                     files.extend(walk_md_files(&p)?);
@@ -269,6 +322,12 @@ mod tests {
         let dir = tempdir().unwrap();
         let vault_path = dir.path().to_path_buf();
 
+        std::fs::create_dir_all(vault_path.join("01 Projetos/Orion")).unwrap();
+        std::fs::write(
+            vault_path.join("01 Projetos/Orion/Orion.md"),
+            "---\ntype: projeto\n---\n# Orion",
+        )
+        .unwrap();
         let mgr = VaultManager::new(Some(vault_path.clone())).unwrap();
 
         let note = ConversationNote {
@@ -286,7 +345,7 @@ mod tests {
         assert!(vault_path.join(&res.file_path).exists());
 
         let stats = mgr.index_all().unwrap();
-        assert_eq!(stats.total_notes, 1);
+        assert_eq!(stats.total_notes, 2);
 
         let results = mgr.search("sincronização");
         assert_eq!(results.len(), 1);

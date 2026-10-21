@@ -16,6 +16,12 @@ static PATTERNS: LazyLock<Vec<(&'static str, Regex)>> = LazyLock::new(|| {
         ("Google API Key", Regex::new(r"\bAIzaSy[a-zA-Z0-9_-]{20,}\b").unwrap()),
         // GitHub Tokens (ghp_, gho_, ghu_, ghs_, ghr_)
         ("GitHub Personal Access Token", Regex::new(r"\bgh[pousr]_[a-zA-Z0-9]{36,}\b").unwrap()),
+        ("GitHub fine-grained token", Regex::new(r"\bgithub_pat_[a-zA-Z0-9_]{20,}\b").unwrap()),
+        ("Groq API Key", Regex::new(r"\bgsk_[a-zA-Z0-9]{20,}\b").unwrap()),
+        ("NVIDIA API Key", Regex::new(r"\bnvapi-[a-zA-Z0-9_-]{20,}\b").unwrap()),
+        ("Google OAuth secret", Regex::new(r"\bGOCSPX-[a-zA-Z0-9_-]{16,}\b").unwrap()),
+        ("Google refresh token", Regex::new(r"\b1//[a-zA-Z0-9_-]{20,}").unwrap()),
+        ("Credencial atribuída", Regex::new(r#"(?im)\b(?:[a-z0-9_]*(?:api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret)|password|senha|authorization)\s*[=:]\s*["']?[^\s"'<>`]{8,}"#).unwrap()),
         // Tokens de Bot do Telegram (123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ)
         ("Telegram Bot Token", Regex::new(r"\b[0-9]{8,10}:[a-zA-Z0-9_-]{35}\b").unwrap()),
         // Anthropic API Keys (sk-ant-...)
@@ -61,7 +67,10 @@ mod tests {
     #[test]
     fn test_secret_scanner_detects_keys() {
         assert!(SecretScanner::scan("Minha chave é AIzaSyB2test12345678901234567890123").is_err());
-        assert!(SecretScanner::scan("Token do bot: 123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ123456789").is_err());
+        assert!(
+            SecretScanner::scan("Token do bot: 123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ123456789")
+                .is_err()
+        );
         assert!(SecretScanner::scan("Texto normal de documentação sobre Rust e Orion").is_ok());
     }
 

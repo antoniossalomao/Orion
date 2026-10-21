@@ -78,6 +78,12 @@ impl ConversationNote {
     /// Gera o nome do arquivo sanitizado: `AAAA-MM-DD - orion - <titulo>.md`
     pub fn file_name(&self) -> String {
         let clean_title = sanitize_filename(&self.title);
+        // Reserva espaço para o marcador de conflito e mantém compatibilidade com NTFS.
+        let mut end = clean_title.len().min(120);
+        while !clean_title.is_char_boundary(end) {
+            end -= 1;
+        }
+        let clean_title = clean_title[..end].trim_end_matches([' ', '.']);
         format!("{} - orion - {}.md", self.date_str, clean_title)
     }
 
@@ -155,9 +161,16 @@ mod tests {
         println!("GERADO:\n{}", md);
         assert!(md.starts_with("---\n"));
         assert!(md.contains("fonte: orion"));
-        assert!(md.contains("projeto: '[[Orion]]'") || md.contains("projeto: \"[[Orion]]\"") || md.contains("projeto: '[[Orion]]'"));
+        assert!(
+            md.contains("projeto: '[[Orion]]'")
+                || md.contains("projeto: \"[[Orion]]\"")
+                || md.contains("projeto: '[[Orion]]'")
+        );
         assert!(md.contains("## Resumo Executivo"));
         assert!(md.contains("## Decisões Registradas"));
-        assert_eq!(note.file_name(), "2026-10-17 - orion - Implementação da F06- Vault Nativo.md");
+        assert_eq!(
+            note.file_name(),
+            "2026-10-17 - orion - Implementação da F06- Vault Nativo.md"
+        );
     }
 }

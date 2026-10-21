@@ -1,14 +1,9 @@
-//! Crate `orion-vault`: Sincronização nativa, parser e memória no Vault do Obsidian (Fase F06).
+//! Vault do Obsidian: parser, gravação explícita validada e sincronização Git isolada.
 //!
-//! Este crate implementa todas as exigências do marco F06:
-//! - Detecção automática do caminho do Vault via `obsidian.json` ou caminho explícito.
-//! - Parser completo de notas Markdown (YAML frontmatter, `#tags`, `[[wikilinks]]`, `type`, `projeto`).
-//! - Verificação de segurança (segredos e PII) antes de gravar/commitar notas (R06/R07).
-//! - Gravação estruturada de conversas em `03 Recursos/Orion/Memória/` com frontmatter canônico (`claude.md`).
-//! - Detecção e tratamento de notas privadas (`#privado`).
-//! - Sincronização Git (`git pull`, `git add`, `git commit`, `git push`) direto na branch `main`.
-//! - Resolução de conflitos de edição externa (mantém ambas as versões para decisão no chat).
-//! - Geração de relatórios de mudanças em `03 Recursos/Relatórios de Mudanças/`.
+//! Notas diferentes nunca são substituídas: a proposta fica separada e sinalizada como conflito.
+//! A F06 continua parcial: gravação automática, comparação no chat, relatórios e índice incremental
+//! completo ainda não estão implementados aqui. REGRAS.md: você é o administrador;
+//! segredos nunca em log, audit ou processo filho.
 
 pub mod detector;
 pub mod git;
@@ -16,13 +11,15 @@ pub mod note;
 pub mod parser;
 pub mod scanner;
 pub mod sync;
+mod safe_path;
+mod validate;
 
 pub use detector::{detect_vault_path, VaultConfig};
 pub use git::{GitError, GitSync};
 pub use note::{ConversationNote, NoteFrontmatter, NoteMetadata};
 pub use parser::{ParsedNote, VaultParser};
 pub use scanner::{ScanError, SecretScanner};
-pub use sync::{SyncResult, VaultManager, VaultStats};
+pub use sync::{NoteConflict, SyncResult, VaultManager, VaultStats};
 
 #[derive(Debug, thiserror::Error)]
 pub enum VaultError {

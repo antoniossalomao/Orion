@@ -418,6 +418,43 @@ mod tests {
     /// Os testes mexem em variáveis de ambiente do processo: um de cada vez.
     static VEZ: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
+    /// O caminho nativo usa o vault configurado, exige login e informa ambas as versões em conflito.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn vault_nativo_preserva_edicao_e_bloqueia_segredo_sem_login() {
+        let _vez = VEZ.lock().await;
+        let dir = tempfile::tempdir().unwrap();
+        let vault = dir.path().join("vault-escolhido");
+        std::fs::create_dir_all(vault.join("01 Projetos/Orion")).unwrap();
+        std::fs::write(vault.join("01 Projetos/Orion/Orion.md"), "---\ntype: projeto\n---\n# Orion\n").unwrap();
+        let mut s = Settings::load().unwrap();
+        s.data_dir = dir.path().join("dados");
+        s.vault_dir = Some(vault.clone());
+        s.admin_token = token_aleatorio();
+        s.jobs_enabled = false;
+        s.gateway_url.clear();
+        s.gateway_model.clear();
+        s.provedores.clear();
+        s.telegram_token.clear();
+        let token = s.admin_token.clone();
+        let st = crate::estado::montar(s).await.unwrap();
+        let interno = interno_de_teste(st, dir.path());
+        let api = Api::local(interno.clone(), token);
+        let invalid = Api::local(interno, "token-invalido-0123456789".into());
+        let form = json!({"date":"2026-10-20","hora":"22:00","project_name":"Orion","title":"Teste nativo","summary":"Preserve a nota","tags":["orion"],"dialogue":"Conteúdo local"});
+        assert!(invalid.post("/vault/save", form.clone()).await.is_err());
+        assert!(!vault.join("03 Recursos").exists());
+        let saved = api.post("/vault/save", form.clone()).await.unwrap();
+        let original = vault.join(saved["file_path"].as_str().unwrap());
+        assert!(original.is_file());
+        std::fs::write(&original, "Alteração feita no Obsidian").unwrap();
+        let conflict = api.post("/vault/save", form.clone()).await.unwrap();
+        assert!(conflict["conflict"]["proposed_path"].as_str().is_some());
+        assert_eq!(std::fs::read_to_string(original).unwrap(), "Alteração feita no Obsidian");
+        let mut secret = form;
+        secret["dialogue"] = json!(format!("github_pat_{}", "x".repeat(40)));
+        assert!(api.post("/vault/save", secret).await.is_err());
+    }
+
     /// Chat de ponta a ponta pelo caminho sem rede. Só roda com um LLM de teste em `ORION_TEST_GATEWAY`
     /// (ex.: http://127.0.0.1:9099/v1, modelo `mock`).
     #[tokio::test(flavor = "multi_thread")]

@@ -31,6 +31,18 @@ Implementado o primeiro uso em **uma tela rolável com céu**, usando Geist/News
 
 **Limites:** remotos e credenciais de push do vault continuam usando a configuração Git existente; resumos importados são determinísticos, não resumos por LLM; ativação posterior de MCP/skills exige revisão. Hello/seletores e contas reais de Google/Telegram exigem aceite no Windows. Esta entrega não conclui todas as fases F02/F06/F08/F10. **Validação local (Linux):** suíte exigida pelo AGENTS.md com 536 testes passando; core/servidor com SQLCipher, 249 testes passando. Checagem do módulo real de Hello para `x86_64-pc-windows-gnu` passou; isso comprova compilação, não uso do hardware. Quatro capturas headless geradas pelo app (conta, APIs, backup e importações). Os testes antigos da UI foram ajustados à assinatura atual do login e à confirmação por senha do modo autônomo, mantendo as verificações de bloqueio e pânico.
 
+### Proteção da gravação no vault (20/10/2026)
+
+- `save_conversation` publica arquivos novos atomicamente, sem substituir destinos. Conteúdo idêntico é idempotente. Se a nota existente for diferente, preserva a original e cria uma proposta `- conflito Orion <hash>.md`; a resposta inclui os dois caminhos e aviso, sem commit/push do conflito. Também preserva gravações concorrentes.
+- Antes de gravar, valida data/hora, campos e frontmatter de conversa, tags, Projeto/Área existente e wikilinks de notas (destinos ausentes ou ambíguos bloqueiam). Scanner ampliado para padrões de credenciais, inclusive tokens GitHub refinados, Groq, NVIDIA e OAuth. Isso não é prova de detecção de todo segredo possível nem de conformidade com regras particulares de qualquer vault.
+- Git monta a árvore com `HEAD` mais o blob exato validado, usando índices temporários e lock do índice real. Não leva outros staged, não substitui uma versão staged da própria nota, não usa filtros/hooks/fsmonitor e não passa resumo/conteúdo na linha de comando. O ambiente do subprocesso é restrito; erros não devolvem stderr potencialmente sensível.
+- Commit só na `main`, sem trocar branch e sem operar durante merge/rebase. Push usa o hash exato do commit e exige que seu pai já esteja na `main` remota: commits locais pendentes do usuário não são publicados junto. Pull exige árvore limpa, recusa filtros Git configurados e só faz fast-forward, sem stash/rebase automático. Falhas de commit/push deixam a nota local e aviso explícito.
+- Rotas autenticadas do vault agora respeitam `settings.vault_dir` (incluindo onboarding); caminhos de notas/indexação recusam symlinks e junctions existentes.
+
+**Limites:** a política é conservadora: toda diferença numa nota existente vira proposta, sem mesclar automaticamente. A comparação/escolha das versões no chat ainda não foi implementada; F06.14 permanece parcial. Retentativa de publicação depois de falha de rede exige sincronização explícita. Aceite no Obsidian/Windows real permanece pendente.
+
+**Validação local (Linux):** suíte exigida pelo AGENTS.md com **550 testes passando**, sem falhas. Inclui 14 testes novos em repositórios temporários (preservação/concorrência, staged, branch, locks, filtros/hooks/fsmonitor, segredos, validação e remoto local) e um teste de ponta a ponta pela ligação nativa (login, vault configurado, conflito e bloqueio de segredo). Esse resultado não comprova Obsidian/Windows real.
+
 ### Histórico de implementação (17–20/10/2026)
 
 Os registros datados abaixo preservam a evolução. Para o estado atual, valem o resumo acima, o plano e os blocos consolidados de 20/10 em Referências.
