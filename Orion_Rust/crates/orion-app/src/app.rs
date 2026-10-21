@@ -20,7 +20,6 @@ pub enum View {
     Fontes,
     Conhecimento,
     Painel,
-    Vida,
     Arquivadas,
 }
 
@@ -37,7 +36,6 @@ impl View {
             View::Fontes => "Fontes",
             View::Conhecimento => "Conhecimento",
             View::Painel => "Painel",
-            View::Vida => "Vida",
             View::Arquivadas => "Arquivadas",
         }
     }

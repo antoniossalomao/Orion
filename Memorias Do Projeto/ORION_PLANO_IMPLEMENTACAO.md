@@ -130,7 +130,7 @@ Referência: `2020015`, base `main` em `a6a27d6`. Inventário, evidências e blo
 | F20 | **Parcial** | Ponte/captura, memória de tela, OCR externo e legenda portados; seleção/overlays nativos, PII visual, UI Automation e reuniões pendentes. |
 | F21 | **Parcial** | Busca/fetch e pesquisa noturna portados; sidecar tem testes isolados, sem consumidor no agente. Navegador visível/CDP e pesquisa completa pendentes. |
 | F22 | **Pendente** | Sync multi-PC, ACL Tailscale/exit node, WoL, casa/Alexa, Siri, Phone Link e Saúde não entregues. |
-| F23 | **Parcial** | Vida/finanças, OAuth/agenda/MCP e captura de gastos portados; integrações reais, importadores bancários completos, telas e semana de uso pendentes. |
+| F23 | **Parcial** | Vida/finanças, OAuth/agenda/MCP e captura de gastos portados; integrações reais, importadores bancários completos e semana de uso pendentes. A tela Vida foi cortada em 21/10/2026. |
 | F24 | **Pendente** | FSRS, tutor, progresso, conexões e fluxo de estudo ainda não implementados como entrega. |
 | F25 | **Parcial** | Históricos, Downloads, apps/mídia/documentos/conversor/planos portados; UI, Lixeira/desfazer completo, Spotify, jogo/economia e PowerPoint pendentes. |
 | F26 | **Pendente** | Orçamento e tarefas restritas não são automelhoria: faltam fila, termos, execução por PR/evals e fluxo de interrupção. |
@@ -255,9 +255,9 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [x] **D05** O que mais um Projeto deve ter além de nota, repositório, conversas, instruções, pastas e arquivos de referência. **Decidido em 20/10/2026: o Projeto também tem arquivos de referência fixos, modelo e passos próprios (com marca "herdado") e rotinas do projeto; tarefas e prazos ficam na nota do vault (F08.08).**
 - [x] **D06** Escopo do token do GitHub e do acesso ao Drive. **Decidido em 21/10/2026: token do GitHub com acesso total (clássico, `repo`), escolha do Antônio mesmo com o risco de um vazamento dar acesso a todos os repositórios privados da conta; o Drive continua só com `drive.file` (arquivos criados pelo Orion), que é o que o código usa.**
 - [x] **D07** Licença-alvo: **uso pessoal** (decidido); revisar se virar distribuição.
-- [ ] **D08** Telas do front antigo (removido em 21/10/2026) que ainda faltam decidir no app iced: Planos de arquivos (depois da v1, sem tela) e detalhes de Vida (F23; hoje a tela Vida é só um aviso "depois da v1").
+- [ ] **D08** Telas do front antigo (removido em 21/10/2026) sem versão no app iced. **Decidido em 21/10/2026: a tela Vida foi cortada** (sai do app, da barra lateral, da paleta e das capturas; as rotas do núcleo ficam). **Planos de arquivos: em aberto**; proposta para o Antônio confirmar: sem tela própria, o plano aparece como cartão de aprovação no chat (origem → destino e tamanho) e fica listado em Aprovações, depois da v1 (F25.08).
 - [x] **D09** Modelos locais do instalador. **Decidido em 21/10/2026: manter os 8 modelos (Whisper large-v3-turbo, Qwen 3 8B, Gemma 4 E4B, Granite 4.1 8B, Phi-4-mini 3.8B, Moondream 2, MiniCPM-V 4.5 e Mistral Small 3.2 24B), com as marcações atuais de recomendado e pré-selecionado.** Os requisitos de RAM/VRAM da especificação (`~2`, `~6`, `~5`, `~6`, `~3`, `~2`, `~6` e `~16 GB`) são estimativas e continuam sem medição no PC (F00.22/F00.25).
-- [ ] **D10** Alexa: quais aparelhos e quais caminhos oficiais (skill, interruptores virtuais) × não oficiais.
+- [x] **D10** Alexa. **Decidido em 21/10/2026: adiada para depois da v1**; aparelhos e caminhos (oficial × não oficial) serão decididos então.
 - [x] **D11** Confirmar se a **extensão de navegador** (Chrome/Edge, decidida "na v1") fica na 1.0 ou vira M7 (ela aumenta muito o escopo da v1). **Decidido em 20/10/2026: extensão de navegador só depois da 1.0 (F19.15 e F21.06 saem da v1); o navegador guiado por CDP basta por ora.**
 
 ---
@@ -276,14 +276,14 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - **macOS:** depois da 1.0 estável (F27.08).
 - **Grafo (F16):** wgpu puro; Bevy/`three-d` fica só como plano B registrado (F17.05).
 - **Escopo da v1:** F01–F10. Os critérios de saída da F10.F valem para F01–F10; F11–F27 são pós-v1.
-- **Casa e Alexa (F22.04–F22.07):** ficam no plano, adiados, sem data (D10 segue em aberto; explicação pendente para o Antônio decidir).
+- **Casa e Alexa (F22.04–F22.07):** ficam no plano e vão para depois da v1 (D10 adiada em 21/10/2026; aparelhos e caminhos são decididos então).
 - **Estudo (F24):** mantido, depois da v1 e de F20–F23.
 
 ## 4. Marco M0: Fundação
 
 ### F00: Preparação, repositório e spikes · tamanho **L**
 
-> **Auditoria PR #30 (`2020015`), atualizada em 21/10/2026: Parcial.** Workspace, lock, iced, toolchain fixo, `deny.toml`, `docs/`, README do Rust, templates, Dependabot, skills de auditoria e ferramentas de desenvolvimento existem. Itens de testes e CI (F00.07, F00.08, F00.09, F00.12) foram cancelados por ora. Faltam os spikes/medidas, o export real do SurrealDB (você), os termos dos provedores e as decisões D08 e D10 (você; D05, D06 e D09 já decididas), e a branch protegida na `main` (GitHub).
+> **Auditoria PR #30 (`2020015`), atualizada em 21/10/2026: Parcial.** Workspace, lock, iced, toolchain fixo, `deny.toml`, `docs/`, README do Rust, templates, Dependabot, skills de auditoria e ferramentas de desenvolvimento existem. Itens de testes e CI (F00.07, F00.08, F00.09, F00.12) foram cancelados por ora. Faltam os spikes/medidas, o export real do SurrealDB (você), os termos dos provedores e a branch protegida na `main` (GitHub).
 
 **Objetivo:** ter a base do projeto e **medir os riscos** antes de construir. Cada spike termina com uma decisão escrita (ir, não ir, plano B).
 **Dependências:** nenhuma.
@@ -340,7 +340,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 #### F00.D Pendências que só você faz (bloqueiam o descarte do legado)
 - [~] **F00.28** **Exportar as tabelas pessoais do SurrealDB** (eventos, lembretes, tarefas, contatos) conforme `ORION_LEGADO.md` e rodar `orion verify-export` até dar `PRONTO` — **antes da venda do PC (fim do ano)**.
 - [ ] **F00.29** Confirmar os **termos de uso** dos provedores para automação em segundo plano e leitura de `/usage` (D03). *(20/10/2026: o Antônio decidiu ler `/usage` e `/status`; conferir os termos oficiais segue como cautela.)*
-- [~] **F00.30** Decidir os itens D05, D06, D09 e D10 da §3. **Estado 21/10/2026:** D05, D06 e D09 decididos; **D10 (Alexa) segue em aberto** (o Antônio pediu uma explicação melhor antes de decidir). D08 (telas Planos de arquivos e detalhes de Vida) também está em aberto.
+- [x] **F00.30** Decidir os itens D05, D06, D09 e D10 da §3. **Feito em 21/10/2026:** D05, D06 e D09 decididos; **D10 (Alexa) adiada por decisão para depois da v1.**
 
 **Critério de aceite F00:** repositório com CI verde; um relatório por spike com número medido e decisão; a decisão iced × Slint registrada; export do SurrealDB verificado; lista de riscos atualizada.
 **Riscos:** o iced não atender o visual (plano B Slint); cr-sqlite incompatível com SQLCipher (log de eventos); identidade de pacote inviável (OCR por ONNX e toast sem botões).
@@ -381,7 +381,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [~] **F01.18** Abstração de plataforma em `orion-platform` (trait) e implementação Windows; nada de chamadas Win32 fora dela.
 
 #### F01.C Estrutura, navegação e atalhos
-- [x] **F01.19** **Barra lateral de 272 px**, recolhível com **Ctrl+B** (recolhe para ícones): voltar/avançar, busca, **Nova conversa, Projetos, Memória, Aprovações, Rotinas**, "Mais" (Resultados, Nuvem, Fontes, Conhecimento, Painel, Vida, Arquivadas; Integrações ficam em Configurações > Conectores), com a busca como campo no topo e Ctrl+K *(ordem e itens do protótipo de UI, U6)*; rodapé com perfil e engrenagem.
+- [x] **F01.19** **Barra lateral de 272 px**, recolhível com **Ctrl+B** (recolhe para ícones): voltar/avançar, busca, **Nova conversa, Projetos, Memória, Aprovações, Rotinas**, "Mais" (Resultados, Nuvem, Fontes, Conhecimento, Painel, Arquivadas; Integrações ficam em Configurações > Conectores), com a busca como campo no topo e Ctrl+K *(ordem e itens do protótipo de UI, U6)*; rodapé com perfil e engrenagem.
 - [~] **F01.20** Lista de conversas: fixadas no topo, **Hoje, Ontem, 7 dias, Mais antigos**, mais recente primeiro; título com projeto embaixo; indicadores (âmbar aguardando aprovação, girando trabalhando, azul resposta nova); ícones de origem (relógio = rotina, avião = Telegram); **arquivar só manual**.
 - [~] **F01.21** **Paleta única Ctrl+K**: busca em conversas e notas do vault + ações com prefixo `>`; navegação por teclado.
 - [~] **F01.22** **Atalhos personalizáveis** (tela em Configurações) com **detecção de conflito**; tabela padrão: Ctrl+K, Ctrl+B, Ctrl+/− (escala), Win+Shift+Espaço, Ctrl+Alt+P, Ctrl+Alt+V (voz ao vivo), Ctrl+Alt+T (tradução de tela), Win+Shift+O (captura rápida), Win+Shift+I ("Isso?").
@@ -861,7 +861,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 
 #### F12.D Monitores
 - [ ] **F12.20** **Monitor de página/site que mudou**, **releases das libs e ferramentas que você usa** (iced, rmcp, Claude Code) e **notícias de temas**; avisa pelo canal escolhido; guarda histórico no vault.
-- [ ] **F12.21** Monitor de **preço de produto** (a tela Vida é na F23, usa o mesmo motor).
+- [ ] **F12.21** Monitor de **preço de produto** (usa o mesmo motor da F23.08; a tela Vida foi cortada em 21/10/2026).
 
 #### F12.E Proatividade
 - [ ] **F12.22** **Motor de sugestões proativas:** avisos importantes **e** sugestões, **no máximo 3 por dia**, agrupadas, **nunca em modo foco/jogo ou com o "não perturbe"**; aparecem como chips na tela inicial e no canal escolhido (matriz de notificações).
@@ -1166,9 +1166,9 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 
 ### F23: Vida, Google e finanças · tamanho **XL**
 
-> **Auditoria PR #30 (`2020015`): Parcial.** Vida/finanças, OAuth/agenda/MCP e captura de gastos portados; integrações reais, importadores bancários completos, telas e semana de uso pendentes. **21/10/2026:** no app iced a tela Vida é só um aviso "depois da v1" (`orion-app/src/views/pages.rs`); as rotas (`/vida/simular`, `/foco`) existem no núcleo e a tela do front antigo foi removida.
+> **Auditoria PR #30 (`2020015`): Parcial.** Vida/finanças, OAuth/agenda/MCP e captura de gastos portados; integrações reais, importadores bancários completos, telas e semana de uso pendentes. **21/10/2026:** a tela Vida foi cortada (removida do app iced, da barra lateral e da paleta); as rotas (`/vida/simular`, `/foco`) e os dados existem no núcleo.
 
-**Objetivo:** a tela Vida e as integrações do Google, sempre locais e sob regras de dados pessoais.
+**Objetivo:** as integrações do Google e a vida pessoal (finanças, preços, linha do tempo, foco) sempre locais e sob regras de dados pessoais. A tela Vida foi cortada em 21/10/2026; os dados e rotas do núcleo ficam.
 **Dependências:** F12, F22.10, F06.
 
 #### F23.A Google
@@ -1181,10 +1181,10 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 #### F23.B Finanças (tudo local)
 - [~] **F23.05** **Importar OFX/CSV** do banco (`ofx-rs`, mapeadores para Nubank e outros), **notificações/SMS de compra** (Phone Link/iPhone) e **captura rápida** ("gastei 30 no almoço").
 - [~] **F23.06** **Categorização:** **regras + LLM local** para o resto; **dados bancários nunca saem**.
-- [~] **F23.07** **Telas:** gastos por categoria e mês, **orçamento com alerta**, **assinaturas recorrentes detectadas**, **previsão do saldo**.
+- [ ] **F23.07** **Telas:** gastos por categoria e mês, orçamento com alerta, assinaturas recorrentes detectadas, previsão do saldo. **Tela Vida cortada por decisão de 21/10/2026.** Os dados continuam no núcleo (`/vida/*`); sem tela por ora.
 
 #### F23.C Outras áreas da Vida
-- [~] **F23.08** **Monitor de preços** (motor da F12.21) com tela própria e alertas.
+- [~] **F23.08** **Monitor de preços** (motor da F12.21) e alertas; **Tela Vida cortada por decisão de 21/10/2026.** Sem tela própria.
 - [ ] **F23.09** **Rastreio de tempo** (estilo ActivityWatch): apps e projetos por dia, **só totais, sem títulos de janela**, alimenta o Painel e as notas diárias.
 - [~] **F23.10** **Linha do tempo** da vida (eventos, tarefas, gastos, conversas) e **modo foco como lembrete gentil**.
 - [ ] **F23.11** **Bem-estar:** lembretes de **água** e **hora de dormir** (usa a presença da câmera quando ligada).
@@ -1226,7 +1226,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [ ] **F25.05** **Modo jogo automático** em tela cheia: **descarrega os modelos** (libera RAM e GPU), **silencia as sugestões**; a voz continua.
 - [~] **F25.06** **Documentos:** gerar **Word, Excel e PowerPoint** (pelas skills de documento); **decisão "na v1" (15/10) não coube no escopo da v1** (ver C27). **Decidido em 20/10/2026: entra logo depois da v1, antes de F20.**
 - [~] **F25.07** **Calculadora e conversões**, **tradução de texto**, **resumo de PDF**.
-- [~] **F25.08** **Planos de arquivos** (tela que existia no front antigo, removido em 21/10/2026; "depois da v1"): definir o escopo (D08) e implementar.
+- [~] **F25.08** **Planos de arquivos** (existia no front antigo, removido em 21/10/2026; "depois da v1"): proposta em D08 (cartão de aprovação no chat, sem tela própria); aguardando confirmação do Antônio.
 - [ ] **F25.09** **Bateria do notebook:** **modo economia automático** (desliga animações e efeitos; a wake word continua).
 
 **Critério de aceite:** organizar uma pasta de Downloads real com desfazer funcionando; gerar um `.docx` e um `.pptx` a partir de uma conversa; modo jogo libera RAM medida.

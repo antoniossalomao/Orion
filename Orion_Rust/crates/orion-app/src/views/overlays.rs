@@ -42,7 +42,7 @@ pub fn pal_items(app: &App) -> Vec<PalItem> {
         PalItem { icon: "scan", title: "Isso? (capturar a tela)".into(), group: "Ação · Ctrl + Alt + I".into(), msg: Msg::IssoOpen },
         PalItem { icon: "bolt", title: if app.p.auto { "Desligar modo autônomo".into() } else { "Ligar modo autônomo".into() }, group: "Ação".into(), msg: Msg::Toggle("auto") },
     ];
-    let nav: [(View, &str, &str); 12] = [
+    let nav: [(View, &str, &str); 11] = [
         (View::Projetos, "folder", "Projetos"),
         (View::Memoria, "graph", "Memória"),
         (View::Aprovacoes, "shield", "Aprovações"),
@@ -52,11 +52,10 @@ pub fn pal_items(app: &App) -> Vec<PalItem> {
         (View::Fontes, "db", "Fontes"),
         (View::Conhecimento, "book", "Conhecimento"),
         (View::Painel, "gauge", "Painel"),
-        (View::Vida, "heart", "Vida"),
         (View::Arquivadas, "archive", "Arquivadas"),
         (View::Home, "plus", "Início"),
     ];
-    for (v, i, l) in nav.iter().take(11) {
+    for (v, i, l) in nav.iter().take(10) {
         acts.push(PalItem { icon: i, title: format!("Ir para {l}"), group: "Ir para".into(), msg: Msg::Go(*v) });
     }
     out.extend(acts.into_iter().filter(|c| q.is_empty() || format!("{} {}", c.title, c.group).to_lowercase().contains(&q)));

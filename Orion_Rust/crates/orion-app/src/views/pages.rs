@@ -1,4 +1,4 @@
-//! Telas de página (§15): Projetos, Aprovações, Rotinas, Resultados, Nuvem, Fontes, Conhecimento, Arquivadas, Vida, Painel.
+//! Telas de página (§15): Projetos, Aprovações, Rotinas, Resultados, Nuvem, Fontes, Conhecimento, Arquivadas, Painel.
 
 use crate::app::{App, Msg, View};
 use crate::chart::Line;
@@ -22,7 +22,6 @@ pub fn view(app: &App, v: View) -> El<'_> {
         View::Fontes => fontes(app),
         View::Conhecimento => conhecimento(app),
         View::Arquivadas => arquivadas(app),
-        View::Vida => vida(),
         View::Painel => painel(app),
         _ => sp_w(0.0),
     }
@@ -298,16 +297,6 @@ fn arquivadas(app: &App) -> El<'_> {
     }
     let body: El = if rows.is_empty() { container(tx("Nenhuma conversa arquivada.", 14.0, t::FG3)).padding(pad(16.0, 4.0, 16.0, 4.0)).into() } else { list(rows) };
     page("Conversas arquivadas", "Só arquivam quando você pede. Desarquive para continuar ou apague de vez.", None, body)
-}
-
-fn vida<'a>() -> El<'a> {
-    let t_: Vec<iced::widget::text::Span<'a, (), iced::Font>> = vec![
-        iced::widget::span("Entra ").font(t::UI).size(13.5).color(t::FG2),
-        iced::widget::span("depois da v1").font(t::UI_SEMI).size(13.5).color(t::FG),
-        iced::widget::span(", numa fase própria. Conteúdo previsto: colar a fatura, revisar e lançar; preços acompanhados; linha do tempo; escudo de foco que só pergunta.").font(t::UI).size(13.5).color(t::FG2),
-    ];
-    let soon = container(row![icon("clock", 14.0, t::FG2), iced::widget::rich_text(t_).width(Length::Fill).line_height(iced::widget::text::LineHeight::Relative(1.5))].spacing(8)).width(Length::Fill).padding(18);
-    page("Vida", "Finanças locais, monitor de preços, linha do tempo e foco. Nada sai do computador.", None, dashed(soon, 14.0, t::LINE2))
 }
 
 pub fn hbar<'a>(label: &str, pct: f32, value: &str, color: iced::Color) -> El<'a> {

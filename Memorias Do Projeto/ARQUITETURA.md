@@ -77,7 +77,7 @@ O front HTML/CSS/JS antigo (`Orion_Core/Front_end_Orion/`) e a rota `/ui` foram 
 - **Decisão:** só desktop, sem versão para celular. O celular fica no Telegram.
 - **Destino:** iced (Rust), tema único Grafite escuro, conforme [ORION_UI_ESPECIFICACAO.md](ORION_UI_ESPECIFICACAO.md). As três opções antigas de tema estão superadas; o grafo nativo wgpu ainda está pendente.
 
-A tela Vida (E10) e a legenda ao vivo (E11) existiam no front antigo, removido em 21/10/2026. No app iced a tela Vida é só um aviso "depois da v1" e a legenda é uma faixa estática de demonstração; os backends (`/vida/*`, `/foco`, `/legenda`) funcionam.
+A tela Vida (E10) e a legenda ao vivo (E11) existiam no front antigo, removido em 21/10/2026. No app iced a tela Vida foi cortada (21/10/2026) e a legenda é uma faixa estática de demonstração; os backends (`/vida/*`, `/foco`, `/legenda`) funcionam.
 
 ## 7. Destino em Rust
 
@@ -97,7 +97,7 @@ O alvo está atingido na estrutura: núcleo, API e UI em Rust, um executável, s
 | `orion-llama` | Worker llama-cpp-2 CPU/Vulkan separado | Vulkan ainda sem build final validado; CPU real comprovada no CI |
 
 | `orion-vault` | Detecção/parser/scanner/busca em cache/Git e API explícita | Sem gravação automática, comparação de conflitos no chat ou índice incremental local completo |
-| `orion-app` | Interface iced (47 cenas, `orion-snap`), bandeja/mini barra, cliente `Api` (HTTP ou local) | Grafo 2D (3D wgpu pendente); sem Fluent; nunca rodou no Windows real |
+| `orion-app` | Interface iced (46 cenas, `orion-snap`), bandeja/mini barra, cliente `Api` (HTTP ou local) | Grafo 2D (3D wgpu pendente); sem Fluent; nunca rodou no Windows real |
 | `orion-updater` | Feed minisign + SHA-256, `baixar_release`, `.bak`, rollback (`orion update`) | Falta chave, feed publicado e rollback automático |
 | `orion-testkit` | HTTP/embedder/relógio de teste | Somente dev-dependency |
 

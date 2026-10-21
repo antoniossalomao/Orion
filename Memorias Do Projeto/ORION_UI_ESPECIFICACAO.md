@@ -22,7 +22,7 @@ Estado canônico: [ORION.md](ORION.md); tarefas F01/F05/F07/F16 em [ORION_PLANO_
 - [x] Protótipo HTML e especificação das telas presentes no repositório.
 - [x] Instalador iced com céu.
 - [x] **App principal `orion-app` (iced) existe:** casca, barra lateral, barra superior, Início, chat com aprovação, painel da direita (4 abas), 10 telas de página, Configurações (14 seções), editor, paleta Ctrl K, captura rápida, "Isso?", mini barra, legenda, popovers e toasts; 47 cenas em `orion-snap`. Ligado ao núcleo no mesmo processo (`orion.exe`, sem porta); painéis MCP, Skills, Modelos locais e Segundo plano ligados; bandeja, mini barra e atalhos (Ctrl+Alt+Espaço, Ctrl+Alt+P).
-- [~] Telas com dados de exemplo ou parciais: Vida, Painel (métricas), Resultados, Integrações, Conhecimento/Fontes e partes de Configurações.
+- [~] Telas com dados de exemplo ou parciais: Painel (métricas), Resultados, Integrações, Conhecimento/Fontes e partes de Configurações.
 - [ ] Editor/vault automático, painel de Arquivos/Diff por bloco/Terminal ConPTY e fluxos finais de projeto.
 - [ ] Grafo nativo wgpu/compute (hoje 2D), bloom/blur, timeline 3D, acessibilidade equivalente e metas de desempenho.
 - [ ] Fluent pt/en compartilhado, snapshots/E2E iced comparados ao protótipo.
@@ -43,7 +43,7 @@ Estado canônico: [ORION.md](ORION.md); tarefas F01/F05/F07/F16 em [ORION_PLANO_
 | U3 | **(Decidido 20/10/2026: Ctrl+Alt+Espaço para a mini barra e Ctrl+Alt+P para o pânico; Win+combinações são reservadas pelo Windows.)** Atalho global "**Win + O**" (Configurações > Sistema, atalhos, tooltip) | **Win + Shift + Espaço** (Win+O é do Windows) | Trocar o texto e a ação. Tudo que o mockup chama de "Win + O" vira "Win + Shift + Espaço" |
 | U4 | **(Feito em 20/10/2026: captura rápida Ctrl+Alt+O e "Isso?" Ctrl+Alt+I, junto de Ctrl+Alt+Espaço e Ctrl+Alt+P.)** Captura rápida e "Isso?" rotulados "Win + Shift + O/I" mas o código escuta **Alt+Shift+O/I** (limitação do navegador) | **Win + Shift + O** e **Win + Shift + I** globais | Implementar Win+Shift+O/I via `global-hotkey` |
 | U5 | "Nova conversa" = **Ctrl Shift O** | Mantém | Igual |
-| U6 | "Painel" e "Vida" dentro de **Mais**; "Buscar" não é item da barra lateral | F01.19 lista Nova conversa, Buscar, Projetos, Aprovações, Rotinas, Memória, **Painel** na lista principal | **Vale o mockup** (Painel em Mais; busca é o campo no topo + Ctrl K). Ajustar F01.19. "Vida" aparece como "entra depois da v1" |
+| U6 | "Painel" dentro de **Mais** (a "Vida" foi cortada em 21/10/2026); "Buscar" não é item da barra lateral | F01.19 lista Nova conversa, Buscar, Projetos, Aprovações, Rotinas, Memória, **Painel** na lista principal | **Vale o mockup** (Painel em Mais; busca é o campo no topo + Ctrl K). Ajustar F01.19. a "Vida" não aparece mais (cortada em 21/10/2026) |
 | U7 | Hex dos tokens `line` etc. em **alfa branco** (`rgb(255 255 255 / .065)`) | Plano F01.01 usa `line #25272c` | Usar os valores do mockup (§4). `#25272c` ≈ alfa .065 sobre `#151618`; no instalador continua `#25272c` |
 | U8 | Seletor de provedor: Auto, Claude, Codex, Gemini, Orion | Mantém (rodadas 2–6) | Igual |
 | U9 | Aprovação "Aprovar / Negar / Ver o diff" | Mantém; sem contagem regressiva (removida) | Igual |
@@ -251,7 +251,6 @@ Campo "Procurar nas conversas" (altura 32, raio 8, fundo `hover`, sem borda; foc
 | ↳ Fontes | `db` | |
 | ↳ Conhecimento | `book` | |
 | ↳ Painel | `gauge` | |
-| ↳ Vida | `heart` | |
 | ↳ Arquivadas | `archive` | |
 - Item: padding 0×10, `gap 11`, raio 8, 13.5 px `fg-2`; hover `hover`/`fg`; atual: fundo `sel`/`fg`, `aria-current="page"`.
 
@@ -435,7 +434,9 @@ Caixa mono 12/1.6, fundo `#0b0c0d`, borda `line`, raio 10, altura mínima 240. S
 ### 15.8 Arquivadas
 "Conversas arquivadas": "Só arquivam quando você pede. Desarquive para continuar ou apague de vez." Linhas: título + "{projeto} · {mês}" · **Desarquivar** (toast "Conversa desarquivada") + `trash`. Vazio: "Nenhuma conversa arquivada."
 
-### 15.9 Vida
+### 15.9 Vida (cortada em 21/10/2026)
+> Esta tela saiu do app: não há item na barra lateral, na paleta nem captura. O texto abaixo fica só como referência histórica do protótipo.
+
 "Vida": "Finanças locais, monitor de preços, linha do tempo e foco. Nada sai do computador." Caixa tracejada `soon` (padding 18, raio 14, borda tracejada `line-2`, 13.5 `fg-2`): `clock` "Entra **depois da v1**, numa fase própria. Mesmo conteúdo da tela Vida do front original: colar a fatura, revisar e lançar; preços acompanhados; linha do tempo; escudo de foco que só pergunta."
 
 ### 15.10 Painel
