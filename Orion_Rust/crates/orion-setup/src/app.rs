@@ -121,6 +121,8 @@ impl SetupApp {
         };
         let install_plan = InstallPlan::new(root_override);
         let mut sky = OrionSky::new();
+        // Mesmo quadro do onboarding: ~60% da resolução, ampliado para o painel (nebulosa e Via Láctea mais macias).
+        sky.set_size((theme::SKY_W * 0.6) as u32, (theme::BODY_H * 0.6) as u32);
         // Avança suavemente o primeiro segundo para Betelgeuse já iniciar acendendo
         sky.step_dt(0.016, theme::SKY_W, theme::BODY_H);
         let sky_handle = sky.render_image_handle();
