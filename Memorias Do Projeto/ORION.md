@@ -14,7 +14,7 @@ Antônio é o administrador: decide, aprova e pode desligar qualquer coisa. Nada
 
 **A v1 (M1, F01–F10) ainda não está pronta.** Há código funcional, implementação parcial e aceite Windows pendente. Projetos, onboarding, integração segura do vault e backup/restauração continuam entre os bloqueios. F11–F27 são posteriores; F27 não amplia o escopo da v1.
 
-**Decisões vigentes:** BM25 + LSA para o vault (embeddings locais só se necessário); sync por log de eventos próprio; stable no começo; F25.06 antes de F20 após a v1; palavra "Orion" desligada na v1. D03 libera implementar leitura de uso pelas CLIs, mas F13.01/F13.02 e a verificação dos termos F00.29/F03.26 continuam pendentes.
+**Decisões vigentes:** BM25 + LSA para o vault (embeddings locais só se necessário); sync por log de eventos próprio; stable no começo; F25.06 antes de F20 após a v1; palavra "Orion" desligada na v1. D03 libera implementar leitura de uso pelas CLIs, mas F13.01/F13.02 continuam não implementados; a verificação dos termos (F00.29/F03.26) foi feita em 21/10/2026 e está em `docs/termos-provedores.md`. Decididos em 21/10/2026: D06 (token do GitHub com acesso total; Drive só `drive.file`), D09 (manter os 8 modelos locais), tela Vida cortada e Alexa (D10) adiada para depois da v1; testes novos e CI pausados.
 
 **Verificação:** o workflow `rust-windows.yml` foi **desativado nos PRs em 21/10/2026** (roda ~30 min e falha; só `workflow_dispatch`; o gatilho está comentado no arquivo para reativar), então nenhum CI valida os PRs por ora. Antes disso, o CI configurava testes Rust/SQLCipher, builds CPU/Vulkan e smoke GGUF CPU; não tem fmt/clippy. Execuções antigas citadas abaixo não comprovam o commit atual. As mudanças de alinhamento de 20/10 foram compiladas, sem testes dessa rodada nem aceite físico no Windows.
 
@@ -201,7 +201,7 @@ Os caminhos abaixo são relativos a `Orion_Rust/crates/`, salvo indicação. O d
 
 ## Pendências suas (só você faz)
 
-1. Fase 0: rodar `orion verify-export` no PC até dar `PRONTO` (plano de corte no legado).
+1. Fase 0: rodar `orion verify-export` no PC até dar `PRONTO` (plano de corte no legado). Ainda em aberto da F00 para você: branch protegida na `main` (Settings › Branches) e confirmar a proposta de Planos de arquivos (D08).
 2. ~~No notebook: `uv sync` e `uv run pytest`~~ (obsoleto: o produto é Rust). No notebook: instalar o release e rodar `cargo test` só se for desenvolver.
 3. Chaves dos provedores (`orion chave <id>`) e teste de `POST /chat`.
 4. Chave de embeddings (`ORION_EMBED_API_KEY`) e de 15 a 30 perguntas reais em `tests/eval_pessoal.local.json`.
@@ -297,6 +297,9 @@ Registro cronológico: vale a decisão mais recente de cada tema; as anteriores 
 | 20/10/2026 | App nativo de um só executável, núcleo no processo, **sem porta**, sem HTTP; um só modo (`--background` na bandeja); atualizador como subcomando; `orion-llama.exe` separado; instalador baixa do GitHub Releases | Pedido do Antônio: instalação nativa leve, como o Claude desktop |
 | 20/10/2026 | Sem Python no produto: leitura de páginas (Readability) e navegador guiado por CDP em Rust; `orion-sidecar` e `Orion_Rust/python/` removidos. Sem WebView2; navegador headless guiado por CDP, sem aba no painel. MCP Apps só em texto, pós-1.0 | Substitui C11/C28 e F21.01 (aba no painel) |
 | 20/10/2026 | Segundo plano (`/tarefas-bg`) e nuvem Claude/Codex pelas CLIs oficiais coexistem; nuvem implementada parcialmente | D03 decidiu implementar leitura de uso com estimativa de reserva; F13.01/F13.02 e verificação dos termos ainda pendentes |
+| 21/10/2026 | Testes novos e CI pausados; F00.07, F00.08, F00.09 e F00.12 cancelados; workflow Windows só manual | Pedido do Antônio: o CI levava ~30 min e falhava |
+| 21/10/2026 | Tela Vida cortada do app (rotas e dados do núcleo ficam); Alexa (D10) adiada para depois da v1; D06: token do GitHub com acesso total, Drive só `drive.file`; D09: manter os 8 modelos locais | Decisões do Antônio na rodada da F00 |
+| 21/10/2026 | 21 skills de auditoria (temas da Trail of Bits, textos originais) no Orion (`orion-auditoria`) e no Claude Code (`.claude/skills`); termos dos provedores verificados | Pedido do Antônio; ver `docs/skills.md` e `docs/termos-provedores.md` |
 | 20/10/2026 | Atalhos globais: **Ctrl+Alt+Espaço** (mini barra), **Ctrl+Alt+P** (pânico), **Ctrl+Alt+O** (captura rápida) e **Ctrl+Alt+I** ("Isso?"); Win+combinações são reservadas pelo Windows | Substitui U3/U4 |
 | 20/10/2026 | Instalador: som ambiente sempre ligado, **sem botão de mudo** (spec original); ligar o modo autônomo **pede a senha de novo** (F04.17); com banco cifrado, o início com o Windows abre a tela de senha; Telegram e MCP ficam com cliente próprio; Python de referência apagado do repositório (fica no Git) | Escolhas do Antônio; implementação pendente onde indicado no plano |
 | 20/10/2026 | Telegram e MCP usam cliente próprio (não `teloxide`/`rmcp`) | Menos dependências; plano editado |
