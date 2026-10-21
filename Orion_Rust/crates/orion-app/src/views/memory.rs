@@ -223,7 +223,7 @@ impl canvas::Program<Msg> for Mem<'_> {
                 f.fill(&Path::circle(Point::ORIGIN, 1.0), col);
             });
         }
-        draw_sky(&mut f, w, h, Sky { alpha: 0.5, constellation: false, belt: 0.0 });
+        draw_sky(&mut f, w, h, Sky { alpha: 0.5, constellation: false, belt: 0.0, zoom: 1.0 });
 
         let focus = g.sel.or(g.hov);
         let nb: Vec<usize> = focus.map(|i| g.adj[i].clone()).unwrap_or_default();

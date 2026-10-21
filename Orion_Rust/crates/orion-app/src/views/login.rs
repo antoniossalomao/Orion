@@ -119,7 +119,7 @@ pub fn view(app: &App) -> El<'_> {
     let conteudo = container(column![rise(fade(cartao, p_card, bg), p_card, 18.0), sp_h(18.0), fade(rodape, p_card, bg)].align_x(Horizontal::Center)).width(Length::Fill).height(Length::Fill).center_x(Length::Fill).center_y(Length::Fill);
     let painel = container(stack![glow_dir, conteudo]).width(Length::FillPortion(105)).height(Length::Fill).clip(true).style(|_| container::Style { background: Some(degrade(t::mix(t::SIDE, 1.0), iced::Color::from_rgb(0.075, 0.078, 0.095), 160.0)), ..Default::default() });
 
-    let sky = canvas(Sky { alpha: 1.0, constellation: true, belt: 0.0 }).width(Length::Fill).height(Length::Fill);
+    let sky = canvas(Sky { alpha: 1.0, constellation: true, belt: 0.0, zoom: 1.0 }).width(Length::Fill).height(Length::Fill);
     let glow_esq = canvas(Brilho { t: tempo, lado: 0, p: p_ceu }).width(Length::Fill).height(Length::Fill);
     let marca = container(row![column![belt_fg(false), txf("Orion", 24.0, t::FG, t::SERIF)].spacing(4), grow(), txf(concat!("v", env!("CARGO_PKG_VERSION")), 11.0, t::FG3, t::MONO)].align_y(iced::alignment::Vertical::Bottom)).width(Length::Fill).height(Length::Fill).align_bottom(Length::Fill).padding(pad(0.0, 26.0, 24.0, 28.0));
     let esq = container(fade(stack![sky, glow_esq, marca], p_ceu, t::BG)).width(Length::FillPortion(100)).height(Length::Fill).clip(true).style(|_| container::Style { background: Some(t::BG.into()), ..Default::default() });

@@ -13,6 +13,8 @@ pub struct Sky {
     pub constellation: bool,
     /// 0 = Cinturão branco; 1 = verde (voz ao vivo ligada).
     pub belt: f32,
+    /// Escala da constelação (1 = ocupa 92% do menor lado).
+    pub zoom: f32,
 }
 
 struct Rnd(u64);
@@ -53,7 +55,7 @@ pub fn draw_sky(f: &mut Frame, w: f32, h: f32, sky: Sky) {
             f.fill(&Path::circle(Point::new(x, y), r), t::alpha(t::STAR, a));
         }
         if this.constellation {
-            let s = w.min(h) * 0.92;
+            let s = w.min(h) * 0.92 * this.zoom;
             let (ox, oy) = (w / 2.0 - s / 2.0, h / 2.0 - s / 2.0);
             let pts: Vec<Point> = [(0.28, 0.12), (0.72, 0.18), (0.42, 0.50), (0.50, 0.53), (0.58, 0.56), (0.32, 0.88), (0.71, 0.86)].iter().map(|(x, y)| Point::new(ox + x * s, oy + y * s)).collect();
             for (a, b) in [(0, 2), (1, 4), (2, 3), (3, 4), (2, 5), (4, 6)] {

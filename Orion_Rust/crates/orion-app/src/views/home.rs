@@ -50,7 +50,7 @@ fn sugg<'a>(ic: Option<&str>, dot: bool, label: String, warn: bool, msg: Msg) ->
 }
 
 pub fn view(app: &App) -> El<'_> {
-    let sky = canvas(Sky { alpha: 0.55, constellation: true, belt: if app.voice { 1.0 } else { 0.0 } }).width(Length::Fill).height(Length::Fill);
+    let sky = canvas(Sky { alpha: 0.55, constellation: true, belt: if app.voice { 1.0 } else { 0.0 }, zoom: 1.0 }).width(Length::Fill).height(Length::Fill);
     let hour = app.hour.unwrap_or_else(local_hour);
     let size = (app.win.width * 0.05).clamp(34.0, 46.0);
     let hello_spans: Vec<iced::widget::text::Span<'_, (), iced::Font>> = vec![

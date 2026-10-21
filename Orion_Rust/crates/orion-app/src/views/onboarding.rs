@@ -35,28 +35,28 @@ fn idle(f: &Form) -> bool {
 }
 fn field<'a>(f: &'a Form, key: Field, label: &'a str, hint: &'a str, secret: bool) -> El<'a> {
     let mut input = text_input(hint, f.get(key))
-        .size(14)
+        .size(16)
         .font(t::UI)
-        .padding(pad(11.0, 14.0, 11.0, 14.0))
+        .padding(pad(13.0, 16.0, 13.0, 16.0))
         .secure(secret)
         .style(super::login::field_style(t::alpha(t::BG, 0.55), t::LINE, t::ACCENT, 10.0));
     if idle(f) {
         input = input.on_input(move |s| event(Event::Input(key, s)));
     }
-    column![tx(label, 12.0, t::FG2), input].spacing(6).width(Length::Fill).into()
+    column![tx(label, 13.5, t::FG2), input].spacing(7).width(Length::Fill).into()
 }
 fn folder<'a>(f: &'a Form, key: Field, label: &'a str, hint: &'a str) -> El<'a> {
     row![
         field(f, key, label, hint, false),
         container(btn(tr(f, "Escolher", "Choose"), Kind::Normal, false, Some("folder"), idle(f).then_some(event(Event::Choose(key)))))
-            .padding(pad(24.0, 0.0, 0.0, 0.0))
+            .padding(pad(27.0, 0.0, 0.0, 0.0))
     ]
     .spacing(10)
     .align_y(Vertical::Bottom)
     .into()
 }
 fn check<'a>(f: &'a Form, label: &'a str, value: bool, make: fn(bool) -> Event) -> El<'a> {
-    let c = checkbox(value).label(label).size(16).text_size(13);
+    let c = checkbox(value).label(label).size(18).text_size(15);
     if idle(f) {
         c.on_toggle(move |b| event(make(b))).into()
     } else {
@@ -64,13 +64,13 @@ fn check<'a>(f: &'a Form, label: &'a str, value: bool, make: fn(bool) -> Event) 
     }
 }
 fn note<'a>(s: impl iced::widget::text::IntoFragment<'a>) -> El<'a> {
-    tx(s, 12.0, t::FG3).into()
+    tx(s, 13.5, t::FG3).into()
 }
 fn chip<'a>(label: &str, on: bool, msg: Option<Msg>) -> El<'a> {
     btn(label, if on { Kind::Primary } else { Kind::Normal }, true, None, msg)
 }
 fn head<'a>(title: &'a str, sub: &'a str) -> El<'a> {
-    column![txf(title, 26.0, t::FG, t::SERIF), tx(sub, 13.0, t::FG2)].spacing(6).into()
+    column![txf(title, 32.0, t::FG, t::SERIF), tx(sub, 15.0, t::FG2)].spacing(6).into()
 }
 
 fn step_account<'a>(f: &'a Form) -> El<'a> {
@@ -158,14 +158,14 @@ fn step_notes<'a>(f: &'a Form) -> El<'a> {
 }
 
 fn step_keys<'a>(f: &'a Form) -> El<'a> {
-    let mut list = column![].spacing(10);
+    let mut list = column![].spacing(16);
     for &(id, name, key, url) in PROVIDERS {
         let status = f.tests.get(key);
         let color = if status.is_some_and(|s| s == OK_TEXT) { t::OK } else { t::SIGNAL };
         let mut input = text_input(tr(f, "Chave de API", "API key"), f.get(Field::Secret(key)))
-            .size(13)
+            .size(15)
             .font(t::UI)
-            .padding(pad(8.0, 12.0, 8.0, 12.0))
+            .padding(pad(11.0, 14.0, 11.0, 14.0))
             .secure(true)
             .style(super::login::field_style(t::alpha(t::BG, 0.55), t::LINE, t::ACCENT, 9.0));
         if idle(f) {
@@ -174,13 +174,13 @@ fn step_keys<'a>(f: &'a Form) -> El<'a> {
         list = list.push(
             column![
                 row![
-                    container(tx(name, 13.0, t::FG)).width(Length::Fixed(124.0)),
+                    container(tx(name, 15.0, t::FG)).width(Length::Fixed(150.0)),
                     input,
-                    btn(tr(f, "Obter ↗", "Get ↗"), Kind::Ghost, true, None, Some(event(Event::Link(url)))),
+                    btn(tr(f, "Obter ↗", "Get ↗"), Kind::Ghost, false, None, Some(event(Event::Link(url)))),
                     btn(
                         if f.testing == Some(key) { tr(f, "Testando…", "Testing…") } else { tr(f, "Testar", "Test") },
                         Kind::Normal,
-                        true,
+                        false,
                         None,
                         (idle(f) && !f.get(Field::Secret(key)).is_empty()).then_some(event(Event::Test(id, key)))
                     )
@@ -188,7 +188,7 @@ fn step_keys<'a>(f: &'a Form) -> El<'a> {
                 .spacing(8)
                 .align_y(Vertical::Center),
                 match status {
-                    Some(s) => container(tx(s.as_str(), 11.0, color)).padding(pad(0.0, 0.0, 0.0, 132.0)),
+                    Some(s) => container(tx(s.as_str(), 12.5, color)).padding(pad(0.0, 0.0, 0.0, 158.0)),
                     None => container(sp_h(0.0)),
                 }
             ]
@@ -272,7 +272,7 @@ fn step_links<'a>(f: &'a Form) -> El<'a> {
                 None,
                 (idle(f) && !f.get(Field::Secret(telegram_key)).is_empty()).then_some(event(Event::Test("telegram", telegram_key)))
             ))
-            .padding(pad(24.0, 0.0, 0.0, 0.0))
+            .padding(pad(27.0, 0.0, 0.0, 0.0))
         ]
         .spacing(10)
         .align_y(Vertical::Bottom),
@@ -455,22 +455,22 @@ pub fn view(app: &App) -> El<'_> {
         ]
         .height(Length::Fill),
     )
-    .padding(pad(32.0, 40.0, 26.0, 40.0))
-    .width(Length::Fixed(620.0))
+    .padding(pad(36.0, 56.0, 28.0, 56.0))
+    .width(Length::Fixed(760.0))
     .height(Length::Fill)
     .style(|_| container::Style { background: Some(t::SIDE.into()), ..Default::default() });
 
     let counter = if done { "PRONTO".to_string() } else { format!("PASSO {} DE {}", f.step + 1, STEPS) };
     let star = STARS[f.step.min(STEPS - 1)];
-    let sky_side = canvas(Sky { alpha: 1.0, constellation: true, belt: 0.0 }).width(Length::Fill).height(Length::Fill);
+    let sky_side = canvas(Sky { alpha: 1.0, constellation: true, belt: 0.0, zoom: 0.5 }).width(Length::Fill).height(Length::Fill);
     let side_text = container(
         column![
             row![belt_fg(false), grow()],
             grow(),
             row![
-                txf("Orion", 24.0, t::FG, t::UI_MED),
+                txf("Orion", 28.0, t::FG, t::UI_MED),
                 grow(),
-                column![txf(counter, 11.0, t::FG3, t::MONO), txf(star.to_uppercase(), 11.0, t::SIGNAL, t::MONO)]
+                column![txf(counter, 12.0, t::FG3, t::MONO), txf(star.to_uppercase(), 12.0, t::SIGNAL, t::MONO)]
                     .spacing(3)
                     .align_x(iced::alignment::Horizontal::Right)
             ]
