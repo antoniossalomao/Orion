@@ -21,13 +21,13 @@ Esta nota descreve o alvo. Estado canônico: [ORION.md](ORION.md); checklist por
 
 | Parte | Estado | O que falta |
 |---|---|---|
-| Janela/etapas/céu/transições/ícone/DWM | Implementados em iced; céu RGBA calculado na CPU | Comparação visual quadro a quadro, DPI/hardware, snapshots no CI; shader wgpu compartilhado não existe |
+| Janela/etapas/céu/transições/ícone/DWM | Implementados em iced; céu RGBA calculado na CPU (crate `orion-sky`, compartilhado com o onboarding do app; quadro a 60% da resolução, ampliado para o painel) | Comparação visual quadro a quadro, DPI/hardware, snapshots no CI; shader wgpu compartilhado não existe |
 | Som | Trilha instrumental cpal, fade e mute | **Decidido 20/10/2026: remover o mute** (sempre ligado, §9); ajuste pendente no código |
 | Hardware/pastas/modelos | Detecção de SO/RAM/discos e NVIDIA; catálogo de oito artefatos | Detecção universal de GPU/Vulkan, modelos multimodais, aceite no notebook |
 | Obter o app | **Baixa `latest-<variante>.json` (+ `.minisig`) e `orion.exe`/`orion-llama.exe` do GitHub Releases** (minisign + SHA-256); sem rede usa as pastas `cpu`/`vulkan` ao lado do setup | Chave pública vazia até você gerar o par; nenhum release publicado |
 | Instalar | Cópia, registro em Apps instalados, atalho do Menu Iniciar, autostart opt-in (`--background`), identidade MSIX autoassinada (pulada e dita sem SDK/administrador), lista SHA-256, tarefa diária `orion update --check`, rollback | **Nada disso rodou num Windows real**; fixar na barra exige confirmação do Windows |
 | Desinstalador | `Orion Setup.exe --uninstall <pasta>`: janela com três caixas (app; modelos; dados), vault intocado | Prova no Windows |
-| Onboarding / mini tela "O que mudou" / canais beta e stable | Pendentes | Perfil, Hello, vault, chaves; atualização com céu |
+| Onboarding / mini tela "O que mudou" / canais beta e stable | Onboarding implementado no app (20–21/10/2026, 7 telas, 7 estrelas, mesmo céu); mini tela e canais pendentes | Aceite no Windows; atualização com céu |
 | Build/aceite | CPU e Vulkan compilam no CI | Critérios da §13 sem aceite |
 
 Voz, autostart, Vulkan e modelos começam desmarcados, conforme pedidos recentes; não interpretar a pré-marcação do protótipo como comportamento entregue.
