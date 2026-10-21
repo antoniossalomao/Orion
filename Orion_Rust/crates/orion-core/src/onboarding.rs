@@ -62,7 +62,8 @@ impl Profile {
     }
 
     pub fn apply(&self, s: &mut crate::config::Settings) {
-        if s.data_dir.join("mcp-importado.json").is_file() {
+        // Nunca troca um mcp.json que a pessoa já configurou.
+        if s.mcp_config.is_none() && s.data_dir.join("mcp-importado.json").is_file() {
             s.mcp_config = Some(s.data_dir.join("mcp-importado.json"));
         }
         s.auth_user = self.user.clone();
@@ -87,9 +88,45 @@ impl Profile {
     }
 }
 
+/// Troca a senha que embrulha a chave mestra junto com a do login, para as duas nunca divergirem
+/// (REGRAS.md: a senha de acesso é a que abre os dados). Sem arquivo de chave, não há o que reembrulhar.
+pub fn rewrap_key(data: &Path, current: &str, new: &str) -> anyhow::Result<()> {
+    anyhow::ensure!(
+        (crate::auth::SENHA_MIN..=crate::auth::SENHA_MAX).contains(&new.chars().count()),
+        "a senha precisa ter entre {} e {} caracteres",
+        crate::auth::SENHA_MIN,
+        crate::auth::SENHA_MAX
+    );
+    for name in [crate::dbkey::KEY_FILE, "orion-recovery.key"] {
+        let path = data.join(name);
+        if !path.is_file() {
+            continue;
+        }
+        let mut file = crate::dbkey::KeyFile::load(&path)?;
+        let master = file
+            .unlock_password(current)
+            .map_err(|_| anyhow::anyhow!("a senha atual não abre a chave dos dados; use o código de recuperação (orion db-recuperar)"))?;
+        file.change_password(&master, new)?;
+        file.save(&path)?;
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn trocar_senha_reembrulha_a_chave_e_a_antiga_deixa_de_abrir() {
+        let d = tempfile::tempdir().unwrap();
+        let k = crate::dbkey::create("senha-antiga-123", crate::dbkey::Kdf::TESTE).unwrap();
+        k.file.save(&d.path().join("orion-recovery.key")).unwrap();
+        assert!(rewrap_key(d.path(), "errada-errada-1", "senha-nova-4567").is_err());
+        rewrap_key(d.path(), "senha-antiga-123", "senha-nova-4567").unwrap();
+        let f = crate::dbkey::KeyFile::load(&d.path().join("orion-recovery.key")).unwrap();
+        assert!(f.unlock_password("senha-antiga-123").is_err());
+        assert!(f.unlock_password("senha-nova-4567").is_ok());
+        assert!(f.unlock_recovery(&k.recovery_code).is_ok());
+    }
     fn profile() -> Profile {
         Profile {
             version: 1,

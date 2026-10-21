@@ -31,7 +31,7 @@ pub fn needed(s: &Settings) -> anyhow::Result<bool> {
 
 pub fn defaults(s: &Settings) -> Value {
     let vault = s.vault_dir.clone().or_else(orion_vault::detector::detect_vault_path);
-    json!({"user":s.auth_user,"vault":vault,"encrypted_available":cfg!(feature="sqlcipher"),"hello_available":crate::onboarding_hello::available(),"backup":s.data_dir.join("backups"),"recovery":s.data_dir.join("Orion-recuperacao.txt"),"detected":crate::onboarding_imports::detected(),"google_client_id":std::env::var("ORION_GOOGLE_CLIENT_ID").unwrap_or_default()})
+    json!({"user":s.auth_user,"vault":vault,"encrypted_available":cfg!(feature="sqlcipher"),"hello_available":crate::onboarding_hello::available(),"backup":s.data_dir.join("backups"),"recovery":"","detected":crate::onboarding_imports::detected(),"google_client_id":std::env::var("ORION_GOOGLE_CLIENT_ID").unwrap_or_default()})
 }
 
 #[derive(Deserialize)]
@@ -42,7 +42,8 @@ pub struct Setup {
     pub password: String,
     pub confirmation: String,
     pub encrypted: bool,
-    pub recovery: PathBuf,
+    #[serde(default)]
+    pub recovery: String,
     pub vault: String,
     pub projects: String,
     pub backup: String,
@@ -93,7 +94,10 @@ fn optional(s: &str) -> Option<PathBuf> {
 }
 
 impl Setup {
-    fn profile(&self) -> anyhow::Result<Profile> {
+    fn recovery_file(&self) -> Option<PathBuf> {
+        optional(&self.recovery)
+    }
+    fn profile(&self, data: &Path) -> anyhow::Result<Profile> {
         anyhow::ensure!(self.password == self.confirmation, "as senhas não coincidem");
         anyhow::ensure!(
             (SENHA_MIN..=SENHA_MAX).contains(&self.password.chars().count()),
@@ -103,12 +107,15 @@ impl Setup {
             !self.encrypted || cfg!(feature = "sqlcipher"),
             "esta versão não tem SQLCipher; instale o pacote com cifra ou desmarque a opção explicitamente"
         );
-        anyhow::ensure!(
-            self.recovery.is_absolute() && self.recovery.file_name().is_some(),
-            "escolha um arquivo de recuperação com caminho completo"
-        );
-        anyhow::ensure!(!self.recovery.exists(), "o arquivo de recuperação já existe; escolha outro nome para preservar o anterior");
-        anyhow::ensure!(self.recovery.parent().is_some_and(Path::is_dir), "a pasta do arquivo de recuperação não existe");
+        // O arquivo é opcional: o código sempre aparece na tela ao final.
+        if let Some(file) = self.recovery_file() {
+            anyhow::ensure!(
+                file.is_absolute() && file.file_name().is_some(),
+                "escolha um arquivo de recuperação com caminho completo"
+            );
+            anyhow::ensure!(!file.exists(), "o arquivo de recuperação já existe; escolha outro nome para preservar o anterior");
+            anyhow::ensure!(file.parent().is_some_and(Path::is_dir), "a pasta do arquivo de recuperação não existe");
+        }
         for (name, value) in &self.secrets {
             anyhow::ensure!(
                 SECRET_NAMES.contains(&name.as_str()) && value.len() <= 16384 && !value.contains(['\r', '\n']),
@@ -130,12 +137,17 @@ impl Setup {
             hello: self.hello,
         };
         p.validate()?;
-        let recovery_parent = self.recovery.parent().ok_or_else(|| anyhow::anyhow!("pasta de recuperação inválida"))?.canonicalize()?;
-        for folder in [&p.vault, &p.projects].into_iter().flatten() {
-            anyhow::ensure!(
-                !recovery_parent.starts_with(folder.canonicalize()?),
-                "salve a recuperação fora do vault e dos projetos para não indexar o código secreto"
-            );
+        // A recuperação nunca fica ao lado do que ela protege (dados, chave, backups, vault e projetos).
+        if let Some(file) = self.recovery_file() {
+            let parent = file.parent().ok_or_else(|| anyhow::anyhow!("pasta de recuperação inválida"))?.canonicalize()?;
+            let mut protegidas = vec![data.to_path_buf()];
+            protegidas.extend([p.backup.clone(), p.vault.clone(), p.projects.clone()].into_iter().flatten());
+            for folder in protegidas.iter().filter_map(|f| f.canonicalize().ok()) {
+                anyhow::ensure!(
+                    !parent.starts_with(&folder),
+                    "guarde o código de recuperação fora da pasta de dados, dos backups, do vault e dos projetos (num pen drive ou outro disco)"
+                );
+            }
         }
         anyhow::ensure!(
             !self.drive_backup || orion_ai::secrets::get_secret("ORION_DRIVE_OAUTH").is_some(),
@@ -149,7 +161,7 @@ impl Setup {
     }
 }
 
-fn create_file(path: &Path, bytes: &[u8]) -> anyhow::Result<()> {
+pub(crate) fn create_file(path: &Path, bytes: &[u8]) -> anyhow::Result<()> {
     let mut options = std::fs::OpenOptions::new();
     options.write(true).create_new(true);
     #[cfg(unix)]
@@ -171,7 +183,7 @@ pub fn finish(s: &Settings, request: Value) -> anyhow::Result<Value> {
         return resume(s);
     }
     let form: Setup = serde_json::from_value(request).map_err(|_| anyhow::anyhow!("formulário de primeiro uso inválido"))?;
-    let profile = form.profile()?;
+    let profile = form.profile(&s.data_dir)?;
     anyhow::ensure!(form.imports.len() <= 32, "importe no máximo 32 arquivos nesta abertura");
     for import in &form.imports {
         let preview = crate::onboarding_imports::preview(import)?;
@@ -214,16 +226,6 @@ pub fn finish(s: &Settings, request: Value) -> anyhow::Result<Value> {
         store.conn().execute_batch("PRAGMA wal_checkpoint(TRUNCATE)")?;
     }
     create_file(&stage.path().join(FILE), &serde_json::to_vec_pretty(&profile)?)?;
-    // Cofre nativo: se falhar, não existe perfil concluído nem senha substituída.
-    for (key, value) in &form.secrets {
-        if !value.is_empty() {
-            orion_ai::secrets::set_secret(key, value).map_err(|_| anyhow::anyhow!("não foi possível salvar a chave no cofre do sistema; tente novamente"))?;
-        }
-    }
-    if form.hello {
-        let secret = zeroize::Zeroizing::new(json!({"user":profile.user,"password":form.password}).to_string());
-        orion_ai::secrets::set_secret("ORION_HELLO_LOGIN", &secret).map_err(|_| anyhow::anyhow!("não foi possível guardar a credencial Hello no cofre"))?;
-    }
     let mut extra = vec![];
     for import in &form.imports {
         extra.extend(crate::onboarding_imports::prepare(import, stage.path(), profile.vault.as_deref())?);
@@ -237,12 +239,33 @@ pub fn finish(s: &Settings, request: Value) -> anyhow::Result<Value> {
         "ORION — RECUPERAÇÃO\nUsuário: {}\nCódigo: {}\n\nGuarde este arquivo fora do computador. Nunca envie o código a outra pessoa.\n",
         profile.user, &*keys.recovery_code
     ));
-    create_file(&form.recovery, recovery.as_bytes())?;
+    if let Some(file) = form.recovery_file() {
+        create_file(&file, recovery.as_bytes())?;
+    }
     let journal = json!({"stage":stage.path(),"files":files});
     create_file(&s.data_dir.join(PENDING), &serde_json::to_vec(&journal)?)?;
     // A pasta passa a pertencer ao diário; uma interrupção não apaga a preparação.
     let _path = stage.keep();
-    resume(s)
+    let done = resume(s)?;
+    // Segredos entram no cofre só depois do commit e nunca sobrescrevem um que já exista.
+    let mut avisos: Vec<String> = vec![];
+    for (key, value) in &form.secrets {
+        if value.is_empty() {
+            continue;
+        }
+        if orion_ai::secrets::get_secret(key).is_some() {
+            avisos.push(format!("{key}: já havia uma chave no cofre; mantida"));
+        } else if orion_ai::secrets::set_secret(key, value).is_err() {
+            avisos.push(format!("{key}: não foi possível salvar no cofre; cadastre depois em Configurações"));
+        }
+    }
+    if form.hello {
+        let secret = zeroize::Zeroizing::new(json!({"user":profile.user,"password":form.password}).to_string());
+        if orion_ai::secrets::set_secret("ORION_HELLO_LOGIN", &secret).is_err() {
+            avisos.push("Windows Hello: não foi possível guardar a credencial; entre com a senha".into());
+        }
+    }
+    Ok(json!({"configured":done["configured"],"warnings":avisos,"recovery_code":&*keys.recovery_code}))
 }
 
 fn resume(s: &Settings) -> anyhow::Result<Value> {
@@ -346,7 +369,7 @@ mod tests {
         s.data_dir = dir.path().join("dados");
         std::fs::create_dir(&s.data_dir).unwrap();
         let recovery = dir.path().join("recuperacao.txt");
-        let form = json!({"user":"novo_usuario","name":"Antônio","language":"pt-BR","password":"senha-de-teste-123","confirmation":"senha-de-teste-123","encrypted":false,"recovery":recovery,"vault":"","projects":"","backup":"","telegram_users":"","telegram_2fa":false,"secrets":{},"imports":[]});
+        let form = json!({"user":"novo_usuario","name":"Antônio","language":"pt-BR","password":"senha-de-teste-123","confirmation":"senha-de-teste-123","encrypted":false,"recovery":recovery.to_string_lossy(),"vault":"","projects":"","backup":"","telegram_users":"","telegram_2fa":false,"secrets":{},"imports":[]});
         finish(&s, form.clone()).unwrap();
         assert!(!needed(&s).unwrap());
         assert!(recovery.is_file());
@@ -365,7 +388,7 @@ mod tests {
         s.data_dir = dir.path().join("dados");
         std::fs::create_dir(&s.data_dir).unwrap();
         let recovery = dir.path().join("recuperacao.txt");
-        let form = json!({"user":"novo","name":"Antônio","language":"pt-BR","password":"senha-de-teste-123","confirmation":"diferente","encrypted":false,"recovery":recovery,"vault":"","projects":"","backup":"","telegram_users":"","telegram_2fa":false,"secrets":{},"imports":[]});
+        let form = json!({"user":"novo","name":"Antônio","language":"pt-BR","password":"senha-de-teste-123","confirmation":"diferente","encrypted":false,"recovery":recovery.to_string_lossy(),"vault":"","projects":"","backup":"","telegram_users":"","telegram_2fa":false,"secrets":{},"imports":[]});
         assert!(finish(&s, form).is_err());
         assert!(!s.db_path().exists());
         assert!(!s.auth_db_path().exists());
@@ -401,6 +424,7 @@ pub fn start_backup(s: &Settings, store: std::sync::Arc<orion_store::Store>, mod
         return None;
     }
     let data = s.data_dir.clone();
+    let keep = s.backup_keep.max(1);
     Some(tokio::spawn(async move {
         loop {
             if modos.panico() {
@@ -409,7 +433,7 @@ pub fn start_backup(s: &Settings, store: std::sync::Arc<orion_store::Store>, mod
             }
             let Some(key) = BACKUP_KEY.lock().clone() else { break };
             let (db, data, folder) = (store.clone(), data.clone(), folder.clone());
-            match tokio::task::spawn_blocking(move || orion_core::onboarding_backup::save(&db, &data, &folder, &key)).await {
+            match tokio::task::spawn_blocking(move || orion_core::onboarding_backup::save(&db, &data, &folder, &key, keep)).await {
                 Ok(Ok(path)) if profile.drive_backup && !modos.panico() => {
                     if crate::onboarding_drive::upload(&path).await.is_err() {
                         tracing::warn!("backup local preservado; conexão com Google Drive precisa ser verificada");

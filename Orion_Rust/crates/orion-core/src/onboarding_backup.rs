@@ -18,8 +18,9 @@ fn decode(v: &Value) -> anyhow::Result<Vec<u8>> {
     Ok(base64::engine::general_purpose::STANDARD.decode(v.as_str().context("backup inválido")?)?)
 }
 
-pub fn save(store: &orion_store::Store, data: &Path, folder: &Path, key: &MasterKey) -> anyhow::Result<PathBuf> {
-    snapshot(store, data, folder, key, format!("orion-{}.orion-backup", chrono::Local::now().format("%Y-%m-%d")))
+/// Cópia diária; só ela poda cópias antigas do próprio padrão `orion-AAAA-MM-DD.orion-backup`.
+pub fn save(store: &orion_store::Store, data: &Path, folder: &Path, key: &MasterKey, keep: usize) -> anyhow::Result<PathBuf> {
+    snapshot(store, data, folder, key, format!("orion-{}.orion-backup", chrono::Local::now().format("%Y-%m-%d")), Some(keep))
 }
 
 /// Exportação manual sempre captura o estado atual, sem reutilizar a cópia diária.
@@ -30,9 +31,10 @@ pub fn export(store: &orion_store::Store, data: &Path, folder: &Path, key: &Mast
         folder,
         key,
         format!("orion-{}-{}.orion-backup", chrono::Local::now().format("%Y-%m-%d-%H%M%S"), uuid::Uuid::new_v4().simple()),
+        None,
     )
 }
-fn snapshot(store: &orion_store::Store, data: &Path, folder: &Path, key: &MasterKey, name: String) -> anyhow::Result<PathBuf> {
+fn snapshot(store: &orion_store::Store, data: &Path, folder: &Path, key: &MasterKey, name: String, prune: Option<usize>) -> anyhow::Result<PathBuf> {
     std::fs::create_dir_all(folder)?;
     let destination = folder.join(name);
     if destination.exists() {
@@ -63,20 +65,21 @@ fn snapshot(store: &orion_store::Store, data: &Path, folder: &Path, key: &Master
     // Confere o conteúdo antes de podar cópias anteriores.
     let restored = decrypt_with_key(&std::fs::read(&destination)?, key)?;
     ensure!(restored["profile"].as_str().is_some(), "a verificação do backup falhou");
-    let mut files = std::fs::read_dir(folder)?
-        .filter_map(Result::ok)
-        .map(|e| e.path())
-        .filter(|p| {
-            p.file_name().is_some_and(|n| {
-                let n = n.to_string_lossy();
-                n.starts_with("orion-") && n.ends_with(".orion-backup")
-            })
-        })
-        .collect::<Vec<_>>();
-    files.sort();
-    let remove = files.len().saturating_sub(7);
-    for file in files.into_iter().take(remove) {
-        std::fs::remove_file(file)?;
+    if let Some(keep) = prune {
+        let daily = |n: &str| {
+            let b = n.as_bytes();
+            n.len() == 29 && n.starts_with("orion-") && n.ends_with(".orion-backup") && b[10] == b'-' && b[13] == b'-' && b[6..10].iter().all(u8::is_ascii_digit)
+        };
+        let mut files = std::fs::read_dir(folder)?
+            .filter_map(Result::ok)
+            .map(|e| e.path())
+            .filter(|p| p.file_name().is_some_and(|n| daily(&n.to_string_lossy())))
+            .collect::<Vec<_>>();
+        files.sort();
+        let remove = files.len().saturating_sub(keep.max(1));
+        for file in files.into_iter().take(remove) {
+            let _ = std::fs::remove_file(file);
+        }
     }
     Ok(destination)
 }
@@ -171,7 +174,7 @@ mod tests {
             .conn()
             .execute_batch("CREATE TABLE prova(v TEXT);INSERT INTO prova VALUES('dado-pessoal-de-teste')")
             .unwrap();
-        let archive = save(&store, &data, &dir.path().join("backups"), &keys.master).unwrap();
+        let archive = save(&store, &data, &dir.path().join("backups"), &keys.master, 7).unwrap();
         assert!(!String::from_utf8_lossy(&std::fs::read(&archive).unwrap()).contains("dado-pessoal-de-teste"));
         assert!(restore(&archive, &dir.path().join("errado"), "senha-errada", false, "nova-senha-do-teste").is_err());
         let target = dir.path().join("restaurado");

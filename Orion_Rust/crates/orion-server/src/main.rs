@@ -345,6 +345,15 @@ fn set_password(s: &Settings, stdin: bool) -> anyhow::Result<i32> {
         a
     };
     let auth = orion_core::auth::AuthService::open(&s.auth_db_path(), &s.auth_user, s.session_ttl_h as f64 * 3600.0)?;
+    // A chave dos dados é embrulhada pela mesma senha do login: troca as duas juntas.
+    let tem_chave = ["orion.key", "orion-recovery.key"].iter().any(|n| s.data_dir.join(n).is_file());
+    if tem_chave {
+        let atual = if stdin { ler_linha() } else { rpassword::prompt_password("Senha atual do Orion: ")? };
+        if let Err(e) = orion_core::onboarding::rewrap_key(&s.data_dir, &atual, &senha) {
+            eprintln!("{e}");
+            return Ok(1);
+        }
+    }
     if let Err(e) = auth.set_password(&senha) {
         eprintln!("{e}");
         return Ok(1);

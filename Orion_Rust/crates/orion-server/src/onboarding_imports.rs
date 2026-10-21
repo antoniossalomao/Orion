@@ -157,6 +157,36 @@ pub fn preview(body: &Value) -> anyhow::Result<Value> {
     Ok(json!({"digest":digest(&bytes),"count":count,"description":description}))
 }
 
+const SENSIVEL: &[&str] = &["key", "token", "secret", "password", "passwd", "auth", "bearer", "credential"];
+fn sensivel(nome: &str) -> bool {
+    let n = nome.to_ascii_lowercase();
+    SENSIVEL.iter().any(|s| n.contains(s))
+}
+/// Argumentos e URLs de MCP costumam carregar tokens (`--api-key=…`, `?key=…`): o valor é removido
+/// e a pessoa recadastra no cofre (REGRAS.md: segredos nunca em arquivo de configuração).
+fn limpar_arg(arg: &str, anterior_sensivel: bool) -> (String, bool) {
+    if anterior_sensivel {
+        return (String::new(), false);
+    }
+    if let Some((nome, _)) = arg.split_once('=') {
+        if sensivel(nome) {
+            return (format!("{nome}="), false);
+        }
+    }
+    (arg.to_string(), arg.starts_with('-') && !arg.contains('=') && sensivel(arg))
+}
+fn limpar_url(url: &str) -> String {
+    let Some((base, query)) = url.split_once('?') else { return url.to_string() };
+    let kept: Vec<String> = query
+        .split('&')
+        .map(|p| match p.split_once('=') {
+            Some((k, _)) if sensivel(k) => format!("{k}="),
+            _ => p.to_string(),
+        })
+        .collect();
+    format!("{base}?{}", kept.join("&"))
+}
+
 pub fn prepare(body: &Value, stage: &Path, vault: Option<&Path>) -> anyhow::Result<Vec<String>> {
     if body.is_null() {
         return Ok(vec![]);
@@ -201,10 +231,25 @@ pub fn prepare(body: &Value, stage: &Path, vault: Option<&Path>) -> anyhow::Resu
             for (name, value) in servers {
                 ensure!(!name.is_empty() && name.len() <= 80, "nome de servidor inválido");
                 let mut config = serde_json::Map::new();
-                for key in ["command", "args", "url", "cwd"] {
+                for key in ["command", "cwd"] {
                     if let Some(v) = value.get(key) {
                         config.insert(key.into(), v.clone());
                     }
+                }
+                if let Some(args) = value.get("args").and_then(Value::as_array) {
+                    let mut anterior = false;
+                    let limpos: Vec<Value> = args
+                        .iter()
+                        .map(|a| {
+                            let (texto, proximo) = limpar_arg(a.as_str().unwrap_or(""), anterior);
+                            anterior = proximo;
+                            Value::String(texto)
+                        })
+                        .collect();
+                    config.insert("args".into(), Value::Array(limpos));
+                }
+                if let Some(url) = value.get("url").and_then(Value::as_str) {
+                    config.insert("url".into(), Value::String(limpar_url(url)));
                 }
                 // Env/headers podem conter tokens. Não são copiados para JSON; reconfigure no cofre.
                 config.insert("enabled".into(), json!(false));
@@ -212,7 +257,9 @@ pub fn prepare(body: &Value, stage: &Path, vault: Option<&Path>) -> anyhow::Resu
                 ensure!(!imported.contains_key(name), "servidor MCP repetido entre os arquivos selecionados");
                 imported.insert(name.clone(), Value::Object(config));
             }
-            std::fs::write(stage.join("mcp-importado.json"), serde_json::to_vec_pretty(&json!({"servers":imported}))?)?;
+            let destino = stage.join("mcp-importado.json");
+            let _ = std::fs::remove_file(&destino);
+            crate::onboarding::create_file(&destino, &serde_json::to_vec_pretty(&json!({"servers":imported}))?)?;
             Ok(vec!["mcp-importado.json".into()])
         }
         "history" => {
@@ -299,6 +346,15 @@ mod tests {
         assert!(imported["servers"]["exemplo"].get("env").is_none());
         std::fs::write(&file, "[mcp_servers.outro]\ncommand='outro'\n").unwrap();
         assert!(prepare(&body, &stage, None).is_err());
+    }
+    #[test]
+    fn mcp_importado_remove_tokens_de_args_e_url() {
+        assert_eq!(limpar_arg("--api-key=abc123", false).0, "--api-key=");
+        let (_, proximo) = limpar_arg("--token", false);
+        assert!(proximo);
+        assert_eq!(limpar_arg("abc123", true).0, "");
+        assert_eq!(limpar_arg("--stdio", false).0, "--stdio");
+        assert_eq!(limpar_url("https://x.dev/mcp?key=abc&modo=a"), "https://x.dev/mcp?key=&modo=a");
     }
     #[test]
     fn resumo_de_historico_nao_sobrescreve_nota_existente() {

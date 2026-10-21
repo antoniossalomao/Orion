@@ -27,9 +27,23 @@ fn cena(f: impl FnOnce(&mut App)) -> App {
 
 pub fn scenarios() -> Vec<(&'static str, Size, App)> {
     let mut v: Vec<(&'static str, Size, App)> = vec![("01-login", SIZE, { let mut a = App::new(); a.now = std::time::Instant::now(); a.login_at = a.now - std::time::Duration::from_secs(8); a })];
-    v.push(("00-onboarding",SIZE,{
-        let mut a=App::new();a.onboarding=Some(crate::onboarding::Form::new(serde_json::json!({"user":"antoniosalomao","encrypted_available":true,"hello_available":true,"recovery":"E:\\Orion-recuperacao.txt","vault":"C:\\Vault","backup":"D:\\Backups"})));a
-    }));
+    for (i, name) in ["00-onboarding-1-conta", "00-onboarding-2-seguranca", "00-onboarding-3-notas", "00-onboarding-4-chaves", "00-onboarding-5-telegram-backup", "00-onboarding-6-importar", "00-onboarding-7-pronto"].into_iter().enumerate() {
+        let mut a = App::new();
+        let mut f = crate::onboarding::Form::new(serde_json::json!({"user":"antoniosalomao","encrypted_available":true,"hello_available":true,"vault":"C:\\Vault","backup":"D:\\Backups","detected":[{"source":"Claude","kind":"mcp","path":"C:\\Users\\a\\.claude.json"}]}));
+        f.step = i;
+        f.step_at = std::time::Instant::now() - std::time::Duration::from_secs(5);
+        f.name = "Antônio".into();
+        if i == 6 {
+            f.code = Some("K7QM-4XNA-9PD2-HW8T-R3VC-5ZEB".into());
+        }
+        if i == 3 {
+            f.tests.insert("ORION_KEY_GEMINI".into(), "Conexão verificada".into());
+            f.secrets.insert("ORION_KEY_GEMINI".into(), "chave".into());
+        }
+        a.onboarding = Some(f);
+        a.now = std::time::Instant::now();
+        v.push((name, SIZE, a));
+    }
     let mut push = |n: &'static str, a: App| v.push((n, SIZE, a));
     push("01b-login-cifrado", { let mut a = App::new(); a.db_locked = true; a.now = std::time::Instant::now(); a.login_at = a.now - std::time::Duration::from_secs(8); a });
     push("02-inicio", cena(|a| {

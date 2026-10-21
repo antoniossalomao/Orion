@@ -36,6 +36,9 @@ pub enum Field {
     ImportProject,
     Secret(&'static str),
 }
+
+/// Etapas do assistente: conta, segurança, notas, chaves, Telegram e backup, importações.
+pub const STEPS: usize = 6;
 #[derive(Clone)]
 pub enum Event {
     Input(Field, String),
@@ -43,7 +46,11 @@ pub enum Event {
     Hello(bool),
     Telegram2fa(bool),
     Save,
+    Next,
+    Back,
+    Finish,
     ConnectDrive,
+    CancelDrive,
     PreviewImport,
     UseFound(usize),
     RemoveImport(usize),
@@ -62,6 +69,12 @@ impl std::fmt::Debug for Event {
 }
 
 pub struct Form {
+    pub step: usize,
+    pub step_at: std::time::Instant,
+    pub drive_abort: Option<iced::task::Handle>,
+    /// Código de recuperação mostrado uma vez, depois do envio; vive só em memória.
+    pub code: Option<String>,
+    pub warnings: usize,
     pub user: String,
     pub name: String,
     pub language: String,
@@ -100,6 +113,9 @@ impl std::fmt::Debug for Form {
 impl Drop for Form {
     fn drop(&mut self) {
         self.drive_secret.zeroize();
+        if let Some(c) = self.code.as_mut() {
+            c.zeroize();
+        }
         self.password.zeroize();
         self.confirmation.zeroize();
         for s in self.secrets.values_mut() {
@@ -111,6 +127,11 @@ impl Form {
     pub fn new(v: Value) -> Self {
         let text = |k: &str| v[k].as_str().unwrap_or("").to_string();
         Self {
+            step: 0,
+            step_at: std::time::Instant::now(),
+            drive_abort: None,
+            code: None,
+            warnings: 0,
             user: text("user"),
             name: String::new(),
             language: "pt-BR".into(),
@@ -190,26 +211,27 @@ impl Form {
         slot.zeroize();
         *slot = s;
     }
+    /// Valida só a etapa pedida; o envio final confere todas.
+    pub fn validate_step(&self, step: usize) -> Result<(), String> {
+        match step {
+            0 if self.user.trim().is_empty() || self.name.trim().is_empty() => {
+                Err("Preencha o usuário e como o Orion deve chamar você.".into())
+            }
+            1 if !(12..=256).contains(&self.password.chars().count()) => Err("Use uma senha de 12 a 256 caracteres.".into()),
+            1 if self.password != self.confirmation => Err("As senhas não coincidem.".into()),
+            1 if self.encrypted && !self.cipher_available => {
+                Err("Esta versão não inclui cifra do banco. Instale o pacote completo ou desmarque a opção explicitamente.".into())
+            }
+            4 if self.telegram_2fa
+                && (self.telegram_users.trim().is_empty() || self.get(Field::Secret("ORION_TELEGRAM_TOKEN")).is_empty()) =>
+            {
+                Err("Para usar 2FA, preencha o token do bot e seu ID do Telegram.".into())
+            }
+            _ => Ok(()),
+        }
+    }
     pub fn validate(&self) -> Result<(), String> {
-        if self.user.trim().is_empty() || self.name.trim().is_empty() {
-            return Err("Preencha o usuário e como o Orion deve chamar você.".into());
-        }
-        if !(12..=256).contains(&self.password.chars().count()) {
-            return Err("Use uma senha de 12 a 256 caracteres.".into());
-        }
-        if self.password != self.confirmation {
-            return Err("As senhas não coincidem.".into());
-        }
-        if self.encrypted && !self.cipher_available {
-            return Err("Esta versão não inclui cifra do banco. Instale o pacote completo ou desmarque a opção explicitamente.".into());
-        }
-        if self.recovery.trim().is_empty() {
-            return Err("Escolha onde salvar o arquivo de recuperação.".into());
-        }
-        if self.telegram_2fa && (self.telegram_users.trim().is_empty() || self.get(Field::Secret("ORION_TELEGRAM_TOKEN")).is_empty()) {
-            return Err("Para usar 2FA, preencha o token do bot e seu ID do Telegram.".into());
-        }
-        Ok(())
+        (0..STEPS).try_for_each(|s| self.validate_step(s))
     }
     pub fn take_request(&mut self) -> Value {
         // Preserva o rascunho em memória se a gravação falhar. Drop limpa os segredos após concluir/cancelar.
@@ -242,6 +264,21 @@ mod tests {
         assert_eq!(v["name"], "Antônio");
     }
     #[test]
+    fn etapas_validam_na_ordem_e_o_envio_confere_tudo() {
+        let mut f = Form::new(json!({"encrypted_available":true}));
+        assert!(f.validate_step(0).is_err());
+        f.user = "antonio".into();
+        f.name = "Antônio".into();
+        assert!(f.validate_step(0).is_ok());
+        f.password = "senha-forte-de-teste".into();
+        f.confirmation = "outra-senha-de-teste".into();
+        assert!(f.validate_step(1).is_err());
+        f.confirmation = f.password.clone();
+        assert!(f.validate().is_ok());
+        f.telegram_2fa = true;
+        assert!(f.validate_step(4).is_err());
+    }
+    #[test]
     fn debug_nunca_mostra_chave() {
         let e = Event::Input(Field::Password, "segredo-teste".into());
         assert!(!format!("{e:?}").contains("segredo-teste"));
@@ -254,6 +291,27 @@ impl crate::app::App {
         use iced::Task;
         let Some(form) = self.onboarding.as_mut() else { return Task::none() };
         match event {
+            Event::Next if !form.busy && form.testing.is_none() => match form.validate_step(form.step) {
+                Ok(()) if form.step + 1 < STEPS => {
+                    form.error.clear();
+                    form.step += 1;
+                    form.step_at = std::time::Instant::now();
+                }
+                Ok(()) => {}
+                Err(e) => form.error = e,
+            },
+            Event::Back if !form.busy && form.testing.is_none() && form.step > 0 => {
+                form.error.clear();
+                form.step -= 1;
+                form.step_at = std::time::Instant::now();
+            }
+            Event::CancelDrive => {
+                if let Some(h) = form.drive_abort.take() {
+                    h.abort();
+                }
+                form.testing = None;
+                form.tests.remove("drive");
+            }
             Event::Input(field, text) if !form.busy && form.testing.is_none() => form.input(field, text),
             Event::Encrypt(value) if !form.busy => form.encrypted = value,
             Event::Hello(value) if !form.busy && form.hello_available => form.hello = value,
@@ -280,12 +338,14 @@ impl crate::app::App {
                 let Some(api) = self.api.clone() else { return Task::none() };
                 let body = json!({"provider":"drive","client_id":form.drive_client,"client_secret":form.drive_secret});
                 form.testing = Some("drive");
-                form.tests
-                    .insert("drive".into(), "Conclua a autorização no navegador. Você pode cancelar fechando a aba.".into());
-                return Task::perform(async move { api.testar_config(body).await }, |r| Msg::Onboarding(Event::Tested("drive", r)));
+                form.tests.remove("drive");
+                let (task, handle) = Task::perform(async move { api.testar_config(body).await }, |r| Msg::Onboarding(Event::Tested("drive", r))).abortable();
+                form.drive_abort = Some(handle);
+                return task;
             }
             Event::DisconnectDrive => form.drive_connected = false,
-            Event::Save if !form.busy => {
+            Event::Save if !form.busy && form.step + 1 == STEPS => {
+                form.error.clear();
                 if let Err(e) = form.validate() {
                     form.error = e;
                     return Task::none();
@@ -299,15 +359,25 @@ impl crate::app::App {
                 let body = form.take_request();
                 return Task::perform(async move { api.configurar(body).await }, |r| Msg::Onboarding(Event::Saved(r)));
             }
-            Event::Saved(Ok(_)) => {
+            Event::Saved(Ok(done)) => {
+                form.busy = false;
+                form.password.zeroize();
+                form.confirmation.zeroize();
+                form.code = done["recovery_code"].as_str().map(str::to_string);
+                form.warnings = done["warnings"].as_array().map_or(0, Vec::len);
+                form.step_at = std::time::Instant::now();
+                form.step = STEPS;
                 self.p.name = form.name.clone();
                 self.p.call = form.name.clone();
                 self.p.english = form.language == "en";
                 self.user = form.user.clone();
+            }
+            Event::Finish if form.step == STEPS => {
+                let avisos = form.warnings;
                 self.onboarding = None;
                 self.logged = true;
                 self.gate_err.clear();
-                self.toast("Tudo pronto. Seu Orion está configurado.");
+                self.toast(if avisos == 0 { "Tudo pronto. Seu Orion está configurado." } else { "Orion pronto, mas algumas chaves precisam ser cadastradas em Configurações." });
                 if let Some(api) = self.api.clone() {
                     return crate::live::pull_basic(&api);
                 }
@@ -334,6 +404,7 @@ impl crate::app::App {
                     }
                 }
                 if key == "drive" {
+                    form.drive_abort = None;
                     form.drive_connected = result.is_ok();
                     if form.drive_connected {
                         form.drive_secret.zeroize();

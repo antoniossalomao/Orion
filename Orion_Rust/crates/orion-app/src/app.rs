@@ -616,7 +616,7 @@ impl App {
 
     pub fn subscription(&self) -> Subscription<Msg> {
         let a = &self.at;
-        let entrada = !self.logged && crate::anim::active(Some(self.login_at), self.now, 1500);
+        let entrada = (!self.logged && crate::anim::active(Some(self.login_at), self.now, 1500)) || self.onboarding.as_ref().is_some_and(|f| crate::anim::active(Some(f.step_at), self.now, 450));
         let busy = entrada || [a.page, a.pop, a.modal, a.scrim, a.over, a.drawer, a.toast, a.more, a.tools].iter().any(|m| crate::anim::active(*m, self.now, 450)) || a.switch.as_ref().map(|s| crate::anim::active(Some(s.1), self.now, 300)).unwrap_or(false) || self.mem_tween.is_some();
         let tick = iced::time::every(Duration::from_millis(if busy { 16 } else { 60 })).map(Msg::Tick);
         let poll = if self.api.is_some() && self.logged && self.streaming.is_none() { iced::time::every(Duration::from_secs(6)).map(|_| Msg::Poll) } else { Subscription::none() };
