@@ -317,7 +317,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [x] **F00.10** Workflow semanal de **atualização de dependências** (PR automático): `.github/dependabot.yml` (cargo em `/Orion_Rust` e GitHub Actions, toda segunda, agrupando minor/patch).
 - [~] **F00.11** Configurar a **revisão cruzada**: Claude Code Review e Codex no PR; modelos de PR e de issue; regra de branch protegida na `main`. **Estado 21/10/2026:** Claude Code Review e Codex já comentam nos PRs; criados `.github/pull_request_template.md` e `ISSUE_TEMPLATE/` (defeito e tarefa). **Falta:** a branch protegida na `main` é configuração do GitHub (Settings › Branches) e só o dono do repositório faz.
 - [ ] **F00.12** Harness de evals (`orion-evals`). **Cancelado por decisão de 21/10/2026** (testes novos e CI pausados; ver `docs/decisoes/0007-testes-e-ci-pausados.md`).
-- [~] **F00.13** Skills de auditoria preparadas para as revisões: OWASP LLM + Agentic Top 10, Trail of Bits (Semgrep, cadeia de dependências), design critique e acessibilidade (ver [[ORION - REFERÊNCIAS DE PESQUISA]]). **Estado 21/10/2026:** `.claude/skills/auditoria-seguranca/` (OWASP LLM 2025, riscos de agente e específicos do Orion) e `.claude/skills/auditoria-interface/` (crítica de design e acessibilidade). **Falta:** as skills da Trail of Bits só estão referenciadas (instalação e uso não foram feitos) e a lista oficial do OWASP Agentic Top 10 não foi copiada.
+- [~] **F00.13** Skills de auditoria preparadas para as revisões: OWASP LLM + Agentic Top 10, Trail of Bits (Semgrep, cadeia de dependências), design critique e acessibilidade (ver [[ORION - REFERÊNCIAS DE PESQUISA]]). **Estado 21/10/2026:** `.claude/skills/auditoria-seguranca/` (OWASP LLM 2025, **OWASP Agentic ASI01–ASI10 com os nomes oficiais**, riscos específicos do Orion) e `.claude/skills/auditoria-interface/` (crítica de design e acessibilidade). **Falta:** escolher e instalar as skills da Trail of Bits (46 plugins, licença CC-BY-SA-4.0; lista levantada em 21/10/2026, aguardando a escolha do Antônio).
 
 #### F00.C Spikes (cada um: protótipo mínimo, medição, decisão escrita em `docs/spikes/`)
 > **21/10/2026:** `docs/spikes/README.md` lista o que falta de cada um; nenhum foi concluído porque todos exigem hardware, GPU, modelos baixados, contas externas ou um Windows real.
@@ -339,7 +339,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 
 #### F00.D Pendências que só você faz (bloqueiam o descarte do legado)
 - [~] **F00.28** **Exportar as tabelas pessoais do SurrealDB** (eventos, lembretes, tarefas, contatos) conforme `ORION_LEGADO.md` e rodar `orion verify-export` até dar `PRONTO` — **antes da venda do PC (fim do ano)**.
-- [ ] **F00.29** Confirmar os **termos de uso** dos provedores para automação em segundo plano e leitura de `/usage` (D03). *(20/10/2026: o Antônio decidiu ler `/usage` e `/status`; conferir os termos oficiais segue como cautela.)*
+- [x] **F00.29** Confirmar os **termos de uso** dos provedores para automação em segundo plano e leitura de `/usage` (D03). **Feito em 21/10/2026** a partir de páginas oficiais da Anthropic, OpenAI e Google, registrado em `docs/termos-provedores.md` (não é parecer jurídico). Conclusões: usar as CLIs oficiais sem modificá-las e nunca ler, copiar ou guardar tokens OAuth; `/usage` e `/status` pela CLI estão no caminho documentado; automação contínua pede chave de API; o OAuth do Gemini CLI não pode ser usado por software de terceiros (Gemini fica só com chave de API e estimativa).
 - [x] **F00.30** Decidir os itens D05, D06, D09 e D10 da §3. **Feito em 21/10/2026:** D05, D06 e D09 decididos; **D10 (Alexa) adiada por decisão para depois da v1.**
 
 **Critério de aceite F00:** repositório com CI verde; um relatório por spike com número medido e decisão; a decisão iced × Slint registrada; export do SurrealDB verificado; lista de riscos atualizada.
@@ -490,7 +490,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [~] **F03.23** **Painel de cotas** atualizado a cada **5 min**.
 - [~] **F03.24** **Imagens (`/imagem`):** Gemini por padrão e outros gratuitos como reserva; salvas em `03 Recursos/Orion/Imagens/` e linkadas na nota da conversa; nome gerado pelo código, tipo conferido (R16); **sem marca de IA** nos metadados.
 - [~] **F03.25** **Busca na web:** Gemini com Google Search primeiro, **Brave** quando a cota acabar; a consulta é "pergunta com contexto" que **passa pela filtragem**; pastas bloqueadas ficam de fora.
-- [ ] **F03.26** **Verificação de termos** (D03) registrada antes de ligar qualquer uso automático de assinatura. *(20/10/2026: D03 decidido; falta registrar a verificação dos termos.)*
+- [x] **F03.26** **Verificação de termos** (D03) registrada antes de ligar qualquer uso automático de assinatura. **Registrada em 21/10/2026** em `docs/termos-provedores.md`; refazer se os termos mudarem ou antes de ligar um uso automático novo.
 
 **Testes:** provedores falsos e gravados (cassetes), erro/timeout/cota, troca no meio da conversa, roteador contra o conjunto da F00.21, descarga de modelo, medição de RAM.
 **Critério de aceite:** uma pergunta simples e uma difícil chegam ao provedor certo; queda de provedor troca sozinha; modelo local carrega e descarrega medidos; nenhuma chamada paga possível.

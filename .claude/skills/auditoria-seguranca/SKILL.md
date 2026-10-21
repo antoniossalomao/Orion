@@ -20,8 +20,18 @@ Para cada item, procure no diff:
 - **LLM09 Desinformação:** resposta factual sem fonte onde a regra exige citação.
 - **LLM10 Consumo ilimitado:** laço de agente, download ou chamada de provedor sem teto de tempo, tokens, cota ou orçamento.
 
-## 2. Riscos de agentes (OWASP Agentic Top 10 — ver [[ORION - REFERÊNCIAS DE PESQUISA]])
-Não há lista oficial copiada aqui; verifique estas categorias genéricas: sequestro de objetivo, mau uso de ferramenta, abuso de identidade/credencial, memória envenenada, cascata entre agentes, execução de código inesperada, comunicação entre agentes sem autenticação, confiança humana indevida (cartão de aprovação enganoso).
+## 2. OWASP Top 10 para aplicações agênticas (edição 2026, ASI01–ASI10)
+Fonte: [OWASP GenAI Security Project](https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/) (nomes conferidos em resumo de terceiros, [Giskard](https://www.giskard.ai/knowledge/owasp-top-10-for-agentic-application-2026)). Para cada item, procure no diff:
+- **ASI01 Agent Goal Hijack:** objetivo do agente redirecionado por documento, e-mail, página ou dado externo.
+- **ASI02 Tool Misuse and Exploitation:** ferramenta legítima usada de forma indevida por instrução ambígua ou privilégio excessivo.
+- **ASI03 Identity and Privilege Abuse:** agente sem identidade própria; permissões herdadas ou delegadas usadas além do devido (tokens, cofre).
+- **ASI04 Agentic Supply Chain Vulnerabilities:** ferramentas, plugins, skills, MCPs ou dados carregados em tempo de execução, comprometidos.
+- **ASI05 Unexpected Code Execution:** código gerado e executado (shell, scripts, skills) que um atacante consegue explorar.
+- **ASI06 Memory & Context Poisoning:** memória de longo prazo, vault ou RAG corrompidos que enviesam decisões futuras.
+- **ASI07 Insecure Inter-Agent Communication:** mensagens entre agentes, subagentes, Telegram ou MCP forjadas, repetidas ou interceptadas.
+- **ASI08 Cascading Failures:** falha em um agente ou rotina se propagando (laços, filas, rotinas em cadeia).
+- **ASI09 Human-Agent Trust Exploitation:** cartão de aprovação enganoso que leva o usuário a aprovar um erro.
+- **ASI10 Rogue Agents:** agente fora da função prevista (modo autônomo, automelhoria) agindo como ameaça interna.
 
 ## 3. Específicos do Orion
 - Caminhos: `PathGuard`, symlinks e junctions; nada sai das pastas seguras.
