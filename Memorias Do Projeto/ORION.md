@@ -151,7 +151,7 @@ Os caminhos abaixo são relativos a `Orion_Rust/crates/`, salvo indicação. O d
 
 | Fase / marco | Estado | Evidência entregue | O que falta para concluir |
 |---|---|---|---|
-| F00 / M0 | Parcial | Workspace, lock, iced fixado, CI Windows, benchmark, spikes de áudio/local | SQLCipher/sqlite-vec/cr-sqlite, métricas no PC, export real, snapshots iced, evals, deny/audit, toolchain fixo, spikes restantes |
+| F00 / M0 | Parcial | Workspace, lock, iced fixado, toolchain 1.97.0, `deny.toml`, `docs/`, README do Rust, Dependabot, templates, skills de auditoria, `cargo dev`, benchmark, spikes de áudio/local | sqlite-vec, métricas no PC, export real, spikes restantes (`docs/spikes/`), branch protegida; testes/CI/snapshots/evals cancelados por ora (21/10/2026) |
 | F01 / M1 | Parcial | `orion-server/src/desktop.rs`, `orion-platform`, céu do setup | Casca principal conforme UI, sidebar/paleta, Mica, fontes, Fluent, instância única, hotkeys completas, acessibilidade e medição |
 | F02 / M1 | Parcial | `orion-core/src/{auth,dbkey,dbopen,logcrypt}.rs`, `orion-store/src/crypto.rs`, `orion-policy` (máscara de PII, 25 testes), `two_factor.rs`, cofre e saídas | Rodar `db-cifrar` no banco real, Hello, janela de senha no autostart, restaurar backup cifrado, `auth.db`, PII fora de log e audit, Win+L provado no Windows e aceites de segurança |
 | F03 / M1 | Parcial | `orion-ai`, `orion-local`, `orion-llama`, `orion-server/src/embedded.rs` | ACP/stream-json completo, esforço/modelo por CLI, cache, catálogo/UI finais, modelos de visão, medição Vulkan e gestão completa de modelos |

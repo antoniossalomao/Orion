@@ -59,6 +59,8 @@ A lista completa de opt-ins, com o que sai do computador em cada um, está na ta
 
 ## Testes
 
+> Testes novos e CI estão pausados desde 21/10/2026 ([ADR 0007](docs/decisoes/0007-testes-e-ci-pausados.md)); a suíte existente pode ser rodada à mão.
+
 ```
 cd Orion_Rust
 cargo test --locked -p orion-policy -p orion-store -p orion-ai -p orion-core -p orion-server -p orion-platform -p orion-voice -p orion-local -p orion-llama -p orion-setup -p orion-sky -p orion-mcp -p orion-vault -p orion-updater -p orion-app -p orion-testkit
@@ -70,7 +72,8 @@ O workflow `.github/workflows/rust-windows.yml` compila e testa o Rust no Window
 ## Layout
 
 ```
-Orion_Rust/                # workspace Rust (16 crates): app, núcleo, servidor, instalador, atualizador, voz, llama
+Orion_Rust/                # workspace Rust (16 crates): app, núcleo, servidor, instalador, atualizador, voz, llama (README próprio)
+docs/                      # índice, arquitetura, decisões (ADR), contribuição, glossário, spikes
 Memorias Do Projeto/       # documentação: ORION, REGRAS, ARQUITETURA, planos e especificações
 tests/mcp_cliente/         # servidor MCP cru usado no teste de paridade
 scripts/                   # smoke dos modelos no Windows e treino da palavra de ativação (Python, fora do produto)

@@ -21,6 +21,9 @@ required-features = ["snap"]
 [features]
 # Gera os PNG de cada tela sem janela (renderizador tiny-skia), para comparar com o protótipo.
 snap = ["dep:iced_test"]
+# Ferramentas de desenvolvimento do iced 0.14: painel de depuração (F12), viagem no tempo e hot reload.
+# Uso: `cargo dev` (ver docs/FERRAMENTAS-DEV.md). Nunca entra no pacote de release.
+dev = ["iced/debug", "iced/hot", "iced/time-travel"]
 
 [dependencies]
 iced.workspace = true

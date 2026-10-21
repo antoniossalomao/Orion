@@ -283,14 +283,14 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 
 ### F00: Preparação, repositório e spikes · tamanho **L**
 
-> **Auditoria PR #30 (`2020015`): Parcial.** Workspace, lock, iced e CI Windows existem; faltam spikes/medidas, export real, toolchain/deny/audit/evals/snapshots.
+> **Auditoria PR #30 (`2020015`), atualizada em 21/10/2026: Parcial.** Workspace, lock, iced, toolchain fixo, `deny.toml`, `docs/`, README do Rust, templates, Dependabot, skills de auditoria e ferramentas de desenvolvimento existem. Itens de testes e CI (F00.07, F00.08, F00.09, F00.12) foram cancelados por ora. Faltam os spikes/medidas, o export real do SurrealDB (você), os termos dos provedores e as decisões D05/D06/D09/D10 (você), e a branch protegida na `main` (GitHub).
 
 **Objetivo:** ter a base do projeto e **medir os riscos** antes de construir. Cada spike termina com uma decisão escrita (ir, não ir, plano B).
 **Dependências:** nenhuma.
 
 #### F00.A Repositório e organização
 - [x] **F00.01** Criar a árvore do código no repositório `antoniossalomao/Orion` (**privado**, licença de uso pessoal): pasta `rust/` (workspace) ao lado do legado Python, sem mexer no Python em uso.
-- [~] **F00.02** Criar o workspace Cargo com os crates (vazios, com `lib.rs` e testes de fumaça):
+- [~] **F00.02** Criar o workspace Cargo com os crates (testes de fumaça pausados por decisão de 21/10/2026):
   - [ ] `orion-core` (tipos, eventos, erros, configuração TOML)
   - [ ] `orion-policy` (núcleo imutável: classes de risco, aprovação, shell, caminhos, rede)
   - [ ] `orion-store` (SQLite, SQLCipher, migrações, FTS5, vetores)
@@ -305,21 +305,22 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
   - [ ] `orion-voice`, `orion-vision`, `orion-graph`, `orion-telegram`, `orion-sync`, `orion-routines`, `orion-integrations` (esqueletos)
   - [ ] `orion-platform` (abstração de Windows: bandeja, atalhos, notificações, janela, autostart, cofre) com a implementação Windows e um *trait* para macOS futuro
   - [ ] `orion-setup` (instalador), `orion-updater` (serviço de atualização), `orion-evals` (harness), `orion-wasm` (plugins, depois)
-- [~] **F00.03** `rust-toolchain.toml` fixo, `Cargo.lock` versionado, **versão do iced fixada** (0.14.x), `deny.toml`, `.cargo/config.toml` (alvo `x86_64-pc-windows-msvc`). **Estado PR #30: Lock e iced fixado feitos; toolchain/deny/config de alvo ainda faltam.**
-- [ ] **F00.04** Pasta `docs/` com índice, arquitetura, decisões (ADR curtos), guia de contribuição, glossário e um `docs/regras/` espelhando [[Orion - Regras]]; **o repositório é a origem e o vault espelha**.
+- [x] **F00.03** `rust-toolchain.toml` fixo (1.97.0, com rustfmt, clippy e alvo `x86_64-pc-windows-msvc`), `Cargo.lock` versionado, **versão do iced fixada** (0.14.x), `deny.toml` (licenças tiradas do `Cargo.lock`) e `.cargo/config.toml` (atalhos `cargo app/snap/dev/verificar`; o alvo Windows não é o padrão, para não quebrar Linux). **Estado 21/10/2026:** arquivos criados; `cargo deny` não foi rodado (instalação pendente e testes/CI pausados).
+- [x] **F00.04** Pasta `docs/` com índice, arquitetura, decisões (ADR curtos), guia de contribuição, glossário e um `docs/regras/` espelhando [[Orion - Regras]]; **o repositório é a origem e o vault espelha**. **Feito em 21/10/2026:** `docs/regras/` só aponta para `Memorias Do Projeto/REGRAS.md` (sem segunda cópia, para não divergir); também `docs/FERRAMENTAS-DEV.md` e `docs/spikes/`.
 - [x] **F00.05** Arquivo de regras e persona (núcleo imutável) com **trava**: o `orion-policy` recusa escrita em `REGRAS.md`, persona e no próprio crate.
-- [~] **F00.06** `README` do Rust: como compilar, rodar e testar no Windows.
+- [x] **F00.06** `README` do Rust: como compilar, rodar e testar no Windows. **Feito em 21/10/2026:** `Orion_Rust/README.md` (requisitos, comandos, pacote Vulkan); a parte "testar" registra que testes e CI estão pausados.
 
 #### F00.B CI, qualidade e revisão
-- [~] **F00.07** GitHub Actions: build Windows (runner `windows-latest`), cache de dependências, testes, `cargo deny`, `cargo audit`. **Estado PR #30: Build/testes Windows existem; deny/audit ainda não.**
-- [~] **F00.08** Harness de **testes headless e E2E do iced 0.14** com um teste de exemplo (abre a janela, clica, confere o estado).
-- [~] **F00.09** Pipeline de **snapshots PNG**: renderiza em quadro fixo (relógio e semente fixos), compara com a referência, **só das telas alteradas no PR**; saída do diff como artefato.
-- [ ] **F00.10** Workflow semanal de **atualização de dependências** (PR automático).
-- [ ] **F00.11** Configurar a **revisão cruzada**: Claude Code Review e Codex no PR; modelos de PR e de issue; regra de branch protegida na `main`.
-- [ ] **F00.12** Harness de **evals** (`orion-evals`): lê casos YAML (entrada, resposta gravada do provedor, ferramenta esperada, classe de risco, saída esperada) e roda no CI sem rede.
-- [ ] **F00.13** Skills de auditoria preparadas para as revisões: OWASP LLM + Agentic Top 10, Trail of Bits (Semgrep, cadeia de dependências), design critique e acessibilidade (ver [[ORION - REFERÊNCIAS DE PESQUISA]]).
+- [ ] **F00.07** GitHub Actions: build Windows, cache, testes, `cargo deny`, `cargo audit`. **Cancelado por decisão de 21/10/2026** (testes novos e CI pausados; ver `docs/decisoes/0007-testes-e-ci-pausados.md`). O workflow `rust-windows.yml` fica só com `workflow_dispatch`.
+- [ ] **F00.08** Harness de testes headless e E2E do iced 0.14. **Cancelado por decisão de 21/10/2026** (testes novos e CI pausados; ver `docs/decisoes/0007-testes-e-ci-pausados.md`).
+- [ ] **F00.09** Pipeline de snapshots PNG com comparação automática. **Cancelado por decisão de 21/10/2026** (testes novos e CI pausados; ver `docs/decisoes/0007-testes-e-ci-pausados.md`). As fotos manuais (`cargo snap`) continuam.
+- [x] **F00.10** Workflow semanal de **atualização de dependências** (PR automático): `.github/dependabot.yml` (cargo em `/Orion_Rust` e GitHub Actions, toda segunda, agrupando minor/patch).
+- [~] **F00.11** Configurar a **revisão cruzada**: Claude Code Review e Codex no PR; modelos de PR e de issue; regra de branch protegida na `main`. **Estado 21/10/2026:** Claude Code Review e Codex já comentam nos PRs; criados `.github/pull_request_template.md` e `ISSUE_TEMPLATE/` (defeito e tarefa). **Falta:** a branch protegida na `main` é configuração do GitHub (Settings › Branches) e só o dono do repositório faz.
+- [ ] **F00.12** Harness de evals (`orion-evals`). **Cancelado por decisão de 21/10/2026** (testes novos e CI pausados; ver `docs/decisoes/0007-testes-e-ci-pausados.md`).
+- [~] **F00.13** Skills de auditoria preparadas para as revisões: OWASP LLM + Agentic Top 10, Trail of Bits (Semgrep, cadeia de dependências), design critique e acessibilidade (ver [[ORION - REFERÊNCIAS DE PESQUISA]]). **Estado 21/10/2026:** `.claude/skills/auditoria-seguranca/` (OWASP LLM 2025, riscos de agente e específicos do Orion) e `.claude/skills/auditoria-interface/` (crítica de design e acessibilidade). **Falta:** as skills da Trail of Bits só estão referenciadas (instalação e uso não foram feitos) e a lista oficial do OWASP Agentic Top 10 não foi copiada.
 
 #### F00.C Spikes (cada um: protótipo mínimo, medição, decisão escrita em `docs/spikes/`)
+> **21/10/2026:** `docs/spikes/README.md` lista o que falta de cada um; nenhum foi concluído porque todos exigem hardware, GPU, modelos baixados, contas externas ou um Windows real.
 - [~] **F00.14** **Spike iced:** janela sem moldura, barra de título própria, Mica, barra lateral, lista virtualizada de 1000 mensagens, streaming de texto, campo de mensagem. Medir RAM, tempo até a janela pronta, fps. **Decisão:** iced × plano B **Slint**.
 - [~] **F00.15** **Spike wgpu no iced:** widget `shader` desenhando o céu do instalador (sprites aditivos, linhas com gradiente) a 60 fps. Medir CPU e GPU.
 - [ ] **F00.16** **Spike do grafo:** layout de forças 3D em **compute shader** com 1000, 5000 e 10000 nós; comparar com Barnes-Hut na CPU; **fallback na CPU** para GPU integrada. Referências: GraphWaGu, graphpu.
@@ -333,7 +334,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [ ] **F00.24** **Spike de embeddings:** multilingual-e5-small int8 em português; qualidade de busca no vault real (895 notas) contra FTS5 puro.
 - [~] **F00.25** **Spike do `llama-cpp-2`:** carga, descarga, uso de RAM, Vulkan; troca de modelo em tempo de execução. **Estado PR #30: Worker CPU executou GGUF no CI; Vulkan/medições finais pendentes.**
 - [ ] **F00.26** **Spike de gravação no vault:** `gix`/`git2` fazendo commit e push com credencial do Credential Manager; tratar conflito com edição no Obsidian.
-- [ ] **F00.31** **Ferramentas de desenvolvimento do iced 0.14:** habilitar **time-travel debugging** e **hot reload** no perfil de desenvolvimento, documentar em `docs/` e usar nos testes de interface.
+- [~] **F00.31** **Ferramentas de desenvolvimento do iced 0.14:** feature `dev` em `orion-app` (`iced/debug`, `iced/time-travel`, `iced/hot`) e `docs/FERRAMENTAS-DEV.md`; `cargo dev` roda o app com elas. **Estado 21/10/2026:** compila; não foi provado numa janela real, e o hot reload exige o `cargo-hot` instalado à parte.
 - [ ] **F00.27** **Spike do escaneamento de segredos e PII:** `cloakrs` + regras próprias (RG, banco, PIX); medir falso positivo em notas reais.
 
 #### F00.D Pendências que só você faz (bloqueiam o descarte do legado)

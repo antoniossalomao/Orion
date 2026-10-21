@@ -1,0 +1,11 @@
+# Atalhos do dia a dia (rodar dentro de Orion_Rust/).
+# O alvo de release é x86_64-pc-windows-msvc (fixado em rust-toolchain.toml); não é o alvo padrão
+# aqui para não quebrar a compilação em Linux/macOS.
+[alias]
+verificar = "check --locked --workspace"
+app = "run -p orion-app"
+snap = "run -p orion-app --features snap --bin orion-snap --"
+dev = "run -p orion-app --features dev"
+
+[net]
+retry = 3

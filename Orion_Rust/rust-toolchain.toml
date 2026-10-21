@@ -1,0 +1,7 @@
+# Toolchain fixo: todos (CI, instalador, desenvolvimento) compilam com a mesma versão.
+# Para atualizar, troque o número e rode `cargo check --locked`.
+[toolchain]
+channel = "1.97.0"
+profile = "minimal"
+components = ["rustfmt", "clippy"]
+targets = ["x86_64-pc-windows-msvc"]
