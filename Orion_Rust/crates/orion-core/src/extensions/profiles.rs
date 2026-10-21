@@ -8,7 +8,7 @@ use std::collections::BTreeMap;
 
 static EMBUTIDOS: Dir = include_dir!("$CARGO_MANIFEST_DIR/bundled");
 
-pub const IDS: [&str; 5] = ["orion-pesquisa", "orion-agenda", "orion-memoria-vault", "orion-arquivos", "orion-desenvolvimento"];
+pub const IDS: [&str; 6] = ["orion-pesquisa", "orion-agenda", "orion-memoria-vault", "orion-arquivos", "orion-desenvolvimento", "orion-auditoria"];
 
 fn coletar(dir: &Dir, base: &str, out: &mut BTreeMap<String, Vec<u8>>) -> Result<(), PluginError> {
     for f in dir.files() {
