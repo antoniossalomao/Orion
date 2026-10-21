@@ -15,9 +15,10 @@ async fn login_chat_historico_e_listas() {
     let Some((api, senha)) = api() else { return };
     api.health().await.expect("servidor no ar");
     assert!(!api.auth_ok().await, "sem login não autentica");
-    let err = api.login("senha-errada").await.unwrap_err();
+    let usuario = std::env::var("ORION_TEST_USER").unwrap_or_default();
+    let err = api.login(&usuario, "senha-errada").await.unwrap_err();
     assert_eq!(err, "Usuário ou senha incorretos.");
-    assert!(matches!(api.login(&senha).await, Ok(LoginResult::Ok)));
+    assert!(matches!(api.login(&usuario, &senha).await, Ok(LoginResult::Ok)));
     assert!(api.auth_ok().await);
 
     // nova conversa + chat por SSE
