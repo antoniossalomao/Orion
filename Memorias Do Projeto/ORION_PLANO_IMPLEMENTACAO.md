@@ -112,7 +112,7 @@ Referência: `2020015`, base `main` em `a6a27d6`. Inventário, evidências e blo
 | F02 | **Parcial** | PBKDF2, sessão revogável, cofre, 2FA Telegram e auditoria portados; SQLCipher/Argon2id/Hello/recuperação/PII/log cifrado não entregues. |
 | F03 | **Parcial** | Gateway/CLIs diretas/router e worker llama.cpp instalável feitos; ACP, UX completa, embeddings/visão locais e build/medição Vulkan pendentes. |
 | F04 | **Parcial** | Agente, ferramentas e aprovações portados; paridade de política/agente, autônomo do plano, checkpoints, subagentes e notificações Windows com botões pendentes. |
-| F05 | **Parcial** | Chat SSE, ramos, artefatos e front HTML existem; a tela principal iced e seus E2E/snapshots não existem. |
+| F05 | **Parcial** | Chat SSE, ramos e artefatos existem no núcleo; o chat do app iced (`orion-app`) está ligado a ele. O front HTML antigo foi removido em 21/10/2026. Faltam os itens F05 listados, E2E e snapshots comparados ao protótipo. |
 | F06 | **Parcial** | Crate vault e rotas explícitas existem; não há gravação automática por turno, resolução de conflito sem sobrescrever ou índice local completo. Não marcar F06 inteira concluída. |
 | F07 | **Parcial** | Há configuração por ambiente/.env/JSON e painel de orçamento; não há modal completo, TOML com recarga ou todas as seções nativas. |
 | F08 | **Parcial** | Projetos/documentos/ramos e APIs portados; telas iced, GitHub, nota do projeto e herança/arquivamento coordenados pendentes. |
@@ -255,7 +255,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [x] **D05** O que mais um Projeto deve ter além de nota, repositório, conversas, instruções, pastas e arquivos de referência. **Decidido em 20/10/2026: o Projeto também tem arquivos de referência fixos, modelo e passos próprios (com marca "herdado") e rotinas do projeto; tarefas e prazos ficam na nota do vault (F08.08).**
 - [ ] **D06** Escopo do token do GitHub e do acesso ao Drive inteiro (reavaliar para o mínimo).
 - [x] **D07** Licença-alvo: **uso pessoal** (decidido); revisar se virar distribuição.
-- [ ] **D08** Telas do front antigo que ainda faltam decidir: Planos de arquivos (depois da v1) e detalhes de Vida (F23).
+- [ ] **D08** Telas do front antigo (removido em 21/10/2026) que ainda faltam decidir no app iced: Planos de arquivos (depois da v1, sem tela) e detalhes de Vida (F23; hoje a tela Vida é só um aviso "depois da v1").
 - [ ] **D09** Modelos locais do instalador: confirmar a lista final e os requisitos por modelo (RAM/VRAM).
 - [ ] **D10** Alexa: quais aparelhos e quais caminhos oficiais (skill, interruptores virtuais) × não oficiais.
 - [x] **D11** Confirmar se a **extensão de navegador** (Chrome/Edge, decidida "na v1") fica na 1.0 ou vira M7 (ela aumenta muito o escopo da v1). **Decidido em 20/10/2026: extensão de navegador só depois da 1.0 (F19.15 e F21.06 saem da v1); o navegador guiado por CDP basta por ora.**
@@ -392,7 +392,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [ ] **F01.26** **Aviso de novidades** discreto na primeira abertura após atualizar.
 - [ ] **F01.27** Acessibilidade: navegação completa por teclado, foco visível, ordem de tab lógica, rótulos para leitor de tela nos controles (Narrador **fora da v1**), contraste AA.
 - [~] **F01.28** Painel de **"Mais"** vazio por padrão apenas com as telas que existem na versão (itens futuros aparecem quando a fase correspondente chegar).
-- [~] **F01.29** **Motor do céu** compartilhado (widget `shader` do iced, pipeline wgpu com sprites aditivos, linhas com gradiente, câmera com respiração, gerador Park–Miller com semente 7): usado na **tela inicial**, no **login e bloqueio**, no **instalador** e na **mini tela de atualização**. Especificação exata (constantes, ordem de desenho, fórmulas) em [[ORION - INSTALADOR (ESPECIFICAÇÃO)]], §8. **Pausa fora de vista**, 20 fps parado, 60 fps na interação, versão simplificada na GPU integrada.
+- [~] **F01.29** **Motor do céu** compartilhado (widget `shader` do iced, pipeline wgpu com sprites aditivos, linhas com gradiente, câmera com respiração, gerador Park–Miller com semente 7): usado na **tela inicial**, no **login e bloqueio**, no **instalador**, no **onboarding** e na **mini tela de atualização**. **Estado 21/10/2026:** o motor CPU (imagem RGBA) virou o crate `orion-sky`, compartilhado por instalador e onboarding; login e tela inicial ainda usam o céu estático de `orion-app/src/sky.rs`; o widget `shader` wgpu não existe. Especificação exata (constantes, ordem de desenho, fórmulas) em [[ORION - INSTALADOR (ESPECIFICAÇÃO)]], §8. **Pausa fora de vista**, 20 fps parado, 60 fps na interação, versão simplificada na GPU integrada.
 - [~] **F01.30** **Ícone do app: cinturão de Órion** (três pontos em diagonal) em todos os tamanhos (barra de tarefas, bandeja, atalho, instalador, desinstalador), mais a **marca ao lado do nome** na saudação; versão com **ponto de aviso** e **ponto vermelho** (câmera).
 - [~] **F01.31** **Conformidade com o protótipo de UI:** snapshot PNG de cada tela e estado (dados de exemplo da §28 de [[ORION - UI (ESPECIFICAÇÃO)]]) comparado ao `Protótipos/orion-ui-mockup.html`; registrar toda divergência intencional na tabela U1–U15 daquela nota.
 
@@ -557,7 +557,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 
 ### F05: Chat completo · tamanho **XL**
 
-> **Auditoria PR #30 (`2020015`): Parcial.** Chat SSE, ramos, artefatos e front HTML existem; a tela principal iced e seus E2E/snapshots não existem.
+> **Auditoria PR #30 (`2020015`), atualizada em 21/10/2026: Parcial.** Chat SSE, ramos e artefatos existem no núcleo e o chat do app iced (`orion-app`) está ligado a ele; o front HTML antigo foi removido em 21/10/2026. Faltam os itens abaixo, E2E e snapshots comparados ao protótipo.
 
 **Objetivo:** a tela principal, idêntica ao protótipo, com tudo que foi decidido para o chat.
 **Dependências:** F01, F03, F04.
@@ -760,10 +760,10 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [ ] **F10.17** **CLIs (Claude, Codex, Gemini) atualizam sozinhas** e o Orion mostra a versão.
 
 #### F10.C Onboarding no app (primeira abertura)
-> **Decisões de 20/10/2026 (respostas do Antônio):** uma tela só, rolável, com o céu ao fundo (F10.18). Entra: usuário e senha, chave de recuperação (mostrada uma vez), pasta do vault, chaves das APIs (com link e teste de conexão), Telegram + 2FA, backup (Drive + local, cifrado com a senha, 7 cópias, exportar/importar) e importar do Claude/Codex (MCPs, skills e histórico antigo). Banco cifrado: caixa **marcada por padrão**, com opção de desmarcar. Windows Hello **nos dois papéis**: atalho de login e reserva do 2FA; a senha continua existindo e abre o banco. Ficam em Configurações: pastas confiáveis/bloqueadas, rotinas padrão e início com o Windows. Windows só no notebook, depois: o código do Hello compila e tem teste de lógica, mas o item fica `[~]` até a prova lá.
+> **Decisões de 20/10/2026 (respostas do Antônio):** uma tela só, rolável, com o céu ao fundo (F10.18); **substituída em 21/10/2026 por seis etapas e uma tela final em tela cheia, com uma estrela acesa por tela.** Entra: usuário e senha, chave de recuperação (mostrada uma vez), pasta do vault, chaves das APIs (com link e teste de conexão), Telegram + 2FA, backup (Drive + local, cifrado com a senha, 7 cópias, exportar/importar) e importar do Claude/Codex (MCPs, skills e histórico antigo). Banco cifrado: caixa **marcada por padrão**, com opção de desmarcar. Windows Hello **nos dois papéis**: atalho de login e reserva do 2FA; a senha continua existindo e abre o banco. Ficam em Configurações: pastas confiáveis/bloqueadas, rotinas padrão e início com o Windows. Windows só no notebook, depois: o código do Hello compila e tem teste de lógica, mas o item fica `[~]` até a prova lá.
 > **Mais decisões (20/10/2026):** a chave de recuperação é **salva num arquivo escolhido** (ex.: pen drive), não só mostrada; o histórico antigo importado vira resumos em `03 Recursos/<fonte>/Conversas/AAAA-MM/` do vault, seguindo o `claude.md`; o backup no **Google Drive já entra no onboarding** (login Google/OAuth na própria tela, token no cofre), além da cópia local cifrada.
 > **Fechamento da lista (20/10/2026):** o onboarding também pergunta **como o Orion deve chamar você + idioma** (vai para a persona) e **pasta dos projetos + token do GitHub no cofre** (para a F08 já nascer ligada). Ficam de fora, por ora: resumo do que sai do PC, modelo/provedores, permissões opt-in explicadas, não perturbar, teste final de saúde e acessibilidade/escala (seguem em Configurações).
-- [~] **F10.18** **Tela de boas-vindas única, rolável e com céu** implementada em `orion-app/src/views/onboarding.rs`, com componentes/fontes Grafite, pt/en e fluxo nativo antes do núcleo. Captura headless adicionada; aceite visual/Windows pendente.
+- [~] **F10.18** **Onboarding em seis etapas e tela final, em tela cheia, com o céu do instalador (uma estrela por tela, 7 telas; antes: tela única rolável)** implementado em `orion-app/src/views/onboarding.rs`, com componentes/fontes Grafite, pt/en e fluxo nativo antes do núcleo. Captura headless adicionada; aceite visual/Windows pendente.
 - [~] **F10.19** **Perfil local:** usuário, senha forte/Argon2id, nome/idioma, recuperação em arquivo sem sobrescrever e cifra SQLCipher opt-out. Windows Hello opt-in com UserConsentVerifier + Credential Manager, entrada e reserva do 2FA. Avatar e aceite Windows permanecem pendentes.
 - [~] **F10.20** **Vault:** detecta o Obsidian e permite confirmar/escolher a pasta; projetos e token GitHub no cofre. Remoto e autenticação de push seguem a configuração Git existente; configuração completa/revalidação do push ainda pendentes.
 - [~] **F10.21** **APIs no onboarding:** chaves opcionais dos provedores e Brave no cofre, links oficiais, teste por consulta sem geração e aviso de políticas de treino. Aceite com contas/cotas reais e equivalência com todas as configurações ainda pendentes.
@@ -957,7 +957,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [ ] **F15.13** **Constelação da tela inicial reage à voz** (pílula de estado + cinturão acendendo com o áudio).
 
 #### F15.E Legenda e áudio do sistema
-- [~] **F15.14** **Legenda ao vivo:** faixa flutuante na base da tela, **sobre qualquer janela**, com a transcrição do **áudio do PC** (loopback).
+- [~] **F15.14** **Legenda ao vivo:** faixa flutuante na base da tela, **sobre qualquer janela**, com a transcrição do **áudio do PC** (loopback). **Estado 21/10/2026:** o backend existe (`GET /legenda` e `orion legenda <segundos>` imprimem as linhas); o app iced só tem uma faixa estática de demonstração ligada ao interruptor em Configurações › Câmera (`overlays::caption`), sem ler `/legenda`. A única janela real era a página HTML do front antigo, removida; falta a faixa nativa sobre qualquer janela.
 - [ ] **F15.15** **Tradução ao vivo:** áudio em inglês → **legenda em português**.
 - [ ] **F15.17** **Configurações › Voz** funcionando: sensibilidade da palavra e das palmas, microfone e alto-falante, voz e velocidade do TTS, teste de gravação, opção Groq (C2), duração máxima da voz ao vivo.
 - [~] **F15.16** **Briefing em áudio** (podcast de 2 a 5 min) e **respostas por voz no Telegram** (F14).
@@ -1165,7 +1165,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 
 ### F23: Vida, Google e finanças · tamanho **XL**
 
-> **Auditoria PR #30 (`2020015`): Parcial.** Vida/finanças, OAuth/agenda/MCP e captura de gastos portados; integrações reais, importadores bancários completos, telas e semana de uso pendentes.
+> **Auditoria PR #30 (`2020015`): Parcial.** Vida/finanças, OAuth/agenda/MCP e captura de gastos portados; integrações reais, importadores bancários completos, telas e semana de uso pendentes. **21/10/2026:** no app iced a tela Vida é só um aviso "depois da v1" (`orion-app/src/views/pages.rs`); as rotas (`/vida/simular`, `/foco`) existem no núcleo e a tela do front antigo foi removida.
 
 **Objetivo:** a tela Vida e as integrações do Google, sempre locais e sob regras de dados pessoais.
 **Dependências:** F12, F22.10, F06.
@@ -1225,7 +1225,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [ ] **F25.05** **Modo jogo automático** em tela cheia: **descarrega os modelos** (libera RAM e GPU), **silencia as sugestões**; a voz continua.
 - [~] **F25.06** **Documentos:** gerar **Word, Excel e PowerPoint** (pelas skills de documento); **decisão "na v1" (15/10) não coube no escopo da v1** (ver C27). **Decidido em 20/10/2026: entra logo depois da v1, antes de F20.**
 - [~] **F25.07** **Calculadora e conversões**, **tradução de texto**, **resumo de PDF**.
-- [~] **F25.08** **Planos de arquivos** (tela do front antigo, "depois da v1"): definir o escopo (D08) e implementar.
+- [~] **F25.08** **Planos de arquivos** (tela que existia no front antigo, removido em 21/10/2026; "depois da v1"): definir o escopo (D08) e implementar.
 - [ ] **F25.09** **Bateria do notebook:** **modo economia automático** (desliga animações e efeitos; a wake word continua).
 
 **Critério de aceite:** organizar uma pasta de Downloads real com desfazer funcionando; gerar um `.docx` e um `.pptx` a partir de uma conversa; modo jogo libera RAM medida.

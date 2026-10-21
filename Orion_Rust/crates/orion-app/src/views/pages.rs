@@ -304,7 +304,7 @@ fn vida<'a>() -> El<'a> {
     let t_: Vec<iced::widget::text::Span<'a, (), iced::Font>> = vec![
         iced::widget::span("Entra ").font(t::UI).size(13.5).color(t::FG2),
         iced::widget::span("depois da v1").font(t::UI_SEMI).size(13.5).color(t::FG),
-        iced::widget::span(", numa fase própria. Mesmo conteúdo da tela Vida do front original: colar a fatura, revisar e lançar; preços acompanhados; linha do tempo; escudo de foco que só pergunta.").font(t::UI).size(13.5).color(t::FG2),
+        iced::widget::span(", numa fase própria. Conteúdo previsto: colar a fatura, revisar e lançar; preços acompanhados; linha do tempo; escudo de foco que só pergunta.").font(t::UI).size(13.5).color(t::FG2),
     ];
     let soon = container(row![icon("clock", 14.0, t::FG2), iced::widget::rich_text(t_).width(Length::Fill).line_height(iced::widget::text::LineHeight::Relative(1.5))].spacing(8)).width(Length::Fill).padding(18);
     page("Vida", "Finanças locais, monitor de preços, linha do tempo e foco. Nada sai do computador.", None, dashed(soon, 14.0, t::LINE2))

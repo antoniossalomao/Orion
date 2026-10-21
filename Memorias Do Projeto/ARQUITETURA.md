@@ -77,7 +77,7 @@ O front HTML/CSS/JS antigo (`Orion_Core/Front_end_Orion/`) e a rota `/ui` foram 
 - **Decisão:** só desktop, sem versão para celular. O celular fica no Telegram.
 - **Destino:** iced (Rust), tema único Grafite escuro, conforme [ORION_UI_ESPECIFICACAO.md](ORION_UI_ESPECIFICACAO.md). As três opções antigas de tema estão superadas; o grafo nativo wgpu ainda está pendente.
 
-A tela Vida (E10) e a legenda ao vivo (E11) fazem parte do app iced; a página `/ui/legenda.html` do front antigo deixou de existir.
+A tela Vida (E10) e a legenda ao vivo (E11) existiam no front antigo, removido em 21/10/2026. No app iced a tela Vida é só um aviso "depois da v1" e a legenda é uma faixa estática de demonstração; os backends (`/vida/*`, `/foco`, `/legenda`) funcionam.
 
 ## 7. Destino em Rust
 
