@@ -18,6 +18,19 @@ Antônio é o administrador: decide, aprova e pode desligar qualquer coisa. Nada
 
 **Verificação:** o CI configura testes Rust/SQLCipher, builds CPU/Vulkan e smoke GGUF CPU; não tem fmt/clippy. Execuções antigas citadas abaixo não comprovam o commit atual. As mudanças de alinhamento de 20/10 foram compiladas, sem testes dessa rodada nem aceite físico no Windows.
 
+### Onboarding nativo (20/10/2026)
+
+Implementado o primeiro uso em **uma tela rolável com céu**, usando Geist/Newsreader, tokens Grafite e componentes do app. Em instalação nova, o núcleo e os trabalhos de fundo só abrem depois da conclusão. Instalações existentes não são sobrescritas.
+
+- Conta e senha Argon2id, nome/idioma como preferências delimitadas no contexto (persona protegida não alterada), SQLCipher marcado por padrão e recuperação salva em arquivo novo escolhido. Build sem SQLCipher exige desmarcar a cifra explicitamente.
+- Vault detectado, pasta de projetos, chaves de API e GitHub no Credential Manager, links oficiais e testes de conexão sem geração; Telegram/2FA e Windows Hello opt-in. A entrada nativa pede senha; com 2FA aguarda código antes de abrir o núcleo. Hello verifica o usuário do Windows e libera a credencial no cofre.
+- Backup autenticado de banco/perfil, sem auth.db/tokens, mesmo com banco em claro; retenção local/Drive de 7 cópias. Drive usa OAuth de aplicativo desktop, PKCE, navegador externo e callback temporário em loopback; requer client ID/segredo do Google Cloud. Só acesso `drive.file`, tokens no cofre.
+- Importação com prévia e hash: exports JSON/JSONL de Claude/Codex/ChatGPT em resumo local com trechos limitados no vault; configs MCP JSON/TOML desligadas, sem copiar env/headers; plugins ZIP e pastas de skills inativos. Configs/pastas encontradas no PC são sugestões; só são lidas após seleção explícita. Históricos exigem uma nota de projeto existente para não criar ilhas.
+- Comandos: `conta-recuperar` (código e nova senha por prompt), `backup-exportar <pasta>`, `backup-importar <arquivo> <pasta-nova> [--recuperacao]`. Restauração confere a cifra e cria credenciais novas, sem substituir uma instalação; integrações/Hello precisam ser reconectados.
+- Preferências sem segredo em `onboarding.json`; gravação preparada em pasta temporária, diário de promoção e marcador final. Falhas não são apresentadas como sucesso.
+
+**Limites:** remotos e credenciais de push do vault continuam usando a configuração Git existente; resumos importados são determinísticos, não resumos por LLM; ativação posterior de MCP/skills exige revisão. Hello/seletores e contas reais de Google/Telegram exigem aceite no Windows. Esta entrega não conclui todas as fases F02/F06/F08/F10. **Validação local (Linux):** suíte exigida pelo AGENTS.md com 536 testes passando; core/servidor com SQLCipher, 249 testes passando. Checagem do módulo real de Hello para `x86_64-pc-windows-gnu` passou; isso comprova compilação, não uso do hardware. Quatro capturas headless geradas pelo app (conta, APIs, backup e importações). Os testes antigos da UI foram ajustados à assinatura atual do login e à confirmação por senha do modo autônomo, mantendo as verificações de bloqueio e pânico.
+
 ### Histórico de implementação (17–20/10/2026)
 
 Os registros datados abaixo preservam a evolução. Para o estado atual, valem o resumo acima, o plano e os blocos consolidados de 20/10 em Referências.

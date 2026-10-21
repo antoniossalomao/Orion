@@ -6,6 +6,7 @@ pub mod ctx;
 pub mod editor;
 pub mod home;
 pub mod login;
+pub mod onboarding;
 pub mod memory;
 pub mod menus;
 pub mod mini;
@@ -42,7 +43,7 @@ pub fn sync_anim(app: &App) {
 }
 
 pub fn root(app: &App) -> El<'_> {
-    let base: El = if !app.logged { login::view(app) } else if app.mini { mini::view(app) } else { shell(app) };
+    let base: El = if app.onboarding.is_some() { onboarding::view(app) } else if !app.logged { login::view(app) } else if app.mini { mini::view(app) } else { shell(app) };
     let mut layers: Vec<El> = vec![base];
     if app.logged {
         if app.drawer && app.is_drawer_mode() {

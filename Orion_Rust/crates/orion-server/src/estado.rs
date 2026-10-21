@@ -550,7 +550,11 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
         }
         let registro = default_registry(memory.clone(), o)?;
         let mut a =
-            Agent::new(gw.clone(), registro, policy.clone(), memory.clone(), AgentConfig { routing: roteamento_ligado(&settings), ..Default::default() });
+            Agent::new(gw.clone(), registro, policy.clone(), memory.clone(), AgentConfig { routing: roteamento_ligado(&settings), persona: {
+                let mut persona = orion_core::agent::AgentConfig::default().persona;
+                if let Some(p) = orion_core::onboarding::Profile::load(&settings.data_dir)? { persona.push_str(&p.context()); }
+                persona
+            }, ..Default::default() });
         a.ops = Some(ops.clone());
         if let Some(m) = &mcp {
             let m = m.clone();

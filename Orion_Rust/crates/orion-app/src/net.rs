@@ -38,6 +38,34 @@ pub trait Local: Send + Sync + 'static {
     fn desbloquear(&self, _senha: String) -> futures::future::BoxFuture<'static, Result<(), String>> {
         Box::pin(async { Err("banco não está bloqueado".to_string()) })
     }
+    /// Primeiro uso só existe na ligação nativa; nunca exposto por HTTP sem login.
+    fn entrar(&self, senha: String) -> futures::future::BoxFuture<'static, Result<LoginResult, String>> {
+        let f = self.desbloquear(senha);
+        Box::pin(async move {
+            f.await?;
+            Ok(LoginResult::Ok)
+        })
+    }
+    fn confirmar_entrada(&self, _challenge: String, _code: String) -> futures::future::BoxFuture<'static, Result<(), String>> {
+        Box::pin(async { Err("segundo fator indisponível".into()) })
+    }
+    fn perfil(&self)->Option<Value>{None}
+    fn cancelar_entrada(&self, _challenge: &str) {}
+    fn hello_ativo(&self) -> bool {
+        false
+    }
+    fn hello(&self) -> futures::future::BoxFuture<'static, Result<(), String>> {
+        Box::pin(async { Err("Windows Hello indisponível".into()) })
+    }
+    fn primeiro_uso(&self) -> Option<Value> {
+        None
+    }
+    fn configurar(&self, _form: Value) -> futures::future::BoxFuture<'static, Result<Value, String>> {
+        Box::pin(async { Err("primeiro uso indisponível".into()) })
+    }
+    fn testar_config(&self, _form: Value) -> futures::future::BoxFuture<'static, Result<Value, String>> {
+        Box::pin(async { Err("teste indisponível".into()) })
+    }
     /// Atalho de pânico da bandeja (corta tudo, sem pedir senha; retomar exige a senha).
     fn panico(&self) -> Result<String, String> {
         Err("pânico indisponível".into())
@@ -47,6 +75,7 @@ pub trait Local: Send + Sync + 'static {
 #[derive(Clone)]
 pub struct Api {
     pub base: String,
+    hello_enabled: bool,
     http: reqwest::Client,
     cookie: Arc<Mutex<Option<String>>>,
     bearer: Option<String>,
@@ -72,7 +101,15 @@ pub enum Chat {
 
 /// Mensagem em português para cada falha de HTTP (mesmas do front HTML).
 pub fn mensagem_http(status: u16, corpo: &str, caminho: &str) -> String {
-    let detalhe = serde_json::from_str::<Value>(corpo).ok().and_then(|j| j.get("detail").or(j.get("erro")).or(j.get("error")).map(|d| d.as_str().map(String::from).unwrap_or_else(|| d.to_string()))).unwrap_or_else(|| corpo.chars().take(160).collect());
+    let detalhe = serde_json::from_str::<Value>(corpo)
+        .ok()
+        .and_then(|j| {
+            j.get("detail")
+                .or(j.get("erro"))
+                .or(j.get("error"))
+                .map(|d| d.as_str().map(String::from).unwrap_or_else(|| d.to_string()))
+        })
+        .unwrap_or_else(|| corpo.chars().take(160).collect());
     if caminho == "/auth/login" {
         match status {
             401 => return "Usuário ou senha incorretos.".into(),
@@ -83,29 +120,62 @@ pub fn mensagem_http(status: u16, corpo: &str, caminho: &str) -> String {
     }
     match status {
         401 | 403 => "Acesso negado: entre com a senha.".into(),
-        404 => if detalhe.is_empty() { "Recurso não encontrado neste servidor.".into() } else { detalhe },
-        409 => if detalhe.is_empty() { "Essa ação já foi tratada.".into() } else { detalhe },
+        404 => {
+            if detalhe.is_empty() {
+                "Recurso não encontrado neste servidor.".into()
+            } else {
+                detalhe
+            }
+        }
+        409 => {
+            if detalhe.is_empty() {
+                "Essa ação já foi tratada.".into()
+            } else {
+                detalhe
+            }
+        }
         s if s >= 500 => format!("O servidor falhou ({s}){}.", if detalhe.is_empty() { String::new() } else { format!(": {detalhe}") }),
-        _ => if detalhe.is_empty() { format!("Erro {status}.") } else { detalhe },
+        _ => {
+            if detalhe.is_empty() {
+                format!("Erro {status}.")
+            } else {
+                detalhe
+            }
+        }
     }
 }
 
 impl Api {
     /// `ORION_URL` (padrão `http://127.0.0.1:8000`) e, opcionalmente, `ORION_ADMIN_TOKEN`.
     pub fn from_env() -> Self {
-        let base = std::env::var("ORION_URL").unwrap_or_else(|_| "http://127.0.0.1:8000".into()).trim_end_matches('/').to_string();
+        let base = std::env::var("ORION_URL")
+            .unwrap_or_else(|_| "http://127.0.0.1:8000".into())
+            .trim_end_matches('/')
+            .to_string();
         let bearer = std::env::var("ORION_ADMIN_TOKEN").ok().filter(|t| !t.is_empty());
         Self::new(&base, bearer)
     }
 
     pub fn new(base: &str, bearer: Option<String>) -> Self {
-        let http = reqwest::Client::builder().timeout(std::time::Duration::from_secs(30)).connect_timeout(std::time::Duration::from_secs(3)).build().expect("cliente http");
-        Api { base: base.trim_end_matches('/').to_string(), http, cookie: Arc::new(Mutex::new(None)), bearer, local: None }
+        let http = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .connect_timeout(std::time::Duration::from_secs(3))
+            .build()
+            .expect("cliente http");
+        Api {
+            hello_enabled: false,
+            base: base.trim_end_matches('/').to_string(),
+            http,
+            cookie: Arc::new(Mutex::new(None)),
+            bearer,
+            local: None,
+        }
     }
 
     /// Núcleo no mesmo processo: sem rede nenhuma.
     pub fn local(ligacao: Arc<dyn Local>, token: String) -> Self {
         let mut a = Self::new("orion://local", Some(token));
+        a.hello_enabled = ligacao.hello_ativo();
         a.local = Some(ligacao);
         a
     }
@@ -121,6 +191,30 @@ impl Api {
         }
     }
 
+    pub async fn entrar(&self, senha: String) -> Result<LoginResult, String> {
+        self.local.as_ref().ok_or("entrada nativa indisponível")?.entrar(senha).await
+    }
+    pub fn perfil(&self)->Option<Value>{self.local.as_ref().and_then(|l|l.perfil())}
+    pub fn cancelar_entrada(&self, challenge: &str) {
+        if let Some(l) = &self.local {
+            l.cancelar_entrada(challenge)
+        }
+    }
+    pub fn hello_ativo(&self) -> bool {
+        self.hello_enabled
+    }
+    pub async fn hello(&self) -> Result<(), String> {
+        self.local.as_ref().ok_or("Windows Hello só no app nativo")?.hello().await
+    }
+    pub fn primeiro_uso(&self) -> Option<Value> {
+        self.local.as_ref().and_then(|l| l.primeiro_uso())
+    }
+    pub async fn configurar(&self, form: Value) -> Result<Value, String> {
+        self.local.as_ref().ok_or("primeiro uso só no aplicativo nativo")?.configurar(form).await
+    }
+    pub async fn testar_config(&self, form: Value) -> Result<Value, String> {
+        self.local.as_ref().ok_or("teste só no aplicativo nativo")?.testar_config(form).await
+    }
     pub fn acordar(&self) -> Option<Acordar> {
         self.local.as_ref().and_then(|l| l.acordar())
     }
@@ -130,7 +224,11 @@ impl Api {
     }
 
     fn indisponivel(&self) -> String {
-        if self.local.is_some() { "O núcleo do Orion não respondeu.".into() } else { format!("Servidor do Orion indisponível em {}.", self.base) }
+        if self.local.is_some() {
+            "O núcleo do Orion não respondeu.".into()
+        } else {
+            format!("Servidor do Orion indisponível em {}.", self.base)
+        }
     }
 
     /// Único ponto que fala com o núcleo: pela ligação direta ou por HTTP.
@@ -150,10 +248,23 @@ impl Api {
         if longo {
             r = r.timeout(std::time::Duration::from_secs(600));
         }
-        let resp = r.send().await.map_err(|e| if e.is_connect() || e.is_timeout() { self.indisponivel() } else { e.to_string() })?;
+        let resp = r
+            .send()
+            .await
+            .map_err(|e| if e.is_connect() || e.is_timeout() { self.indisponivel() } else { e.to_string() })?;
         let status = resp.status().as_u16();
-        let set_cookie = resp.headers().get_all("set-cookie").iter().filter_map(|v| v.to_str().ok()).find(|c| c.starts_with(COOKIE)).map(String::from);
-        Ok(Resposta { status, set_cookie, corpo: resp.bytes_stream().map(|c| c.map(|b| b.to_vec()).map_err(|e| e.to_string())).boxed() })
+        let set_cookie = resp
+            .headers()
+            .get_all("set-cookie")
+            .iter()
+            .filter_map(|v| v.to_str().ok())
+            .find(|c| c.starts_with(COOKIE))
+            .map(String::from);
+        Ok(Resposta {
+            status,
+            set_cookie,
+            corpo: resp.bytes_stream().map(|c| c.map(|b| b.to_vec()).map_err(|e| e.to_string())).boxed(),
+        })
     }
 
     async fn texto(r: Resposta) -> String {
@@ -202,7 +313,10 @@ impl Api {
     }
 
     pub async fn auth_ok(&self) -> bool {
-        self.get("/auth/status").await.map(|v| v.get("authenticated").and_then(Value::as_bool).unwrap_or(false)).unwrap_or(false)
+        self.get("/auth/status")
+            .await
+            .map(|v| v.get("authenticated").and_then(Value::as_bool).unwrap_or(false))
+            .unwrap_or(false)
     }
 
     fn guardar_cookie(&self, set: Option<String>) {
@@ -213,7 +327,11 @@ impl Api {
     }
 
     pub async fn login(&self, usuario: &str, senha: &str) -> Result<LoginResult, String> {
-        let corpo = if usuario.trim().is_empty() { json!({"senha": senha}) } else { json!({"usuario": usuario.trim(), "senha": senha}) };
+        let corpo = if usuario.trim().is_empty() {
+            json!({"senha": senha})
+        } else {
+            json!({"usuario": usuario.trim(), "senha": senha})
+        };
         let resp = self.raw(reqwest::Method::POST, "/auth/login", Some(corpo), false).await.map_err(|_| self.indisponivel())?;
         let (status, set) = (resp.status, resp.set_cookie.clone());
         let text = Self::texto(resp).await;
@@ -222,13 +340,26 @@ impl Api {
                 self.guardar_cookie(set);
                 Ok(LoginResult::Ok)
             }
-            202 => Ok(LoginResult::TwoFactor(serde_json::from_str::<Value>(&text).ok().and_then(|v| v.get("challenge").and_then(Value::as_str).map(String::from)).unwrap_or_default())),
+            202 => Ok(LoginResult::TwoFactor(
+                serde_json::from_str::<Value>(&text)
+                    .ok()
+                    .and_then(|v| v.get("challenge").and_then(Value::as_str).map(String::from))
+                    .unwrap_or_default(),
+            )),
             s => Err(mensagem_http(s, &text, "/auth/login")),
         }
     }
 
     pub async fn second_factor(&self, challenge: &str, code: &str) -> Result<(), String> {
-        let resp = self.raw(reqwest::Method::POST, "/auth/2fa", Some(json!({"challenge": challenge, "code": code})), false).await.map_err(|_| self.indisponivel())?;
+        if self.bloqueado() {
+            if let Some(local) = &self.local {
+                return local.confirmar_entrada(challenge.to_string(), code.to_string()).await;
+            }
+        }
+        let resp = self
+            .raw(reqwest::Method::POST, "/auth/2fa", Some(json!({"challenge": challenge, "code": code})), false)
+            .await
+            .map_err(|_| self.indisponivel())?;
         let (status, set) = (resp.status, resp.set_cookie.clone());
         let text = Self::texto(resp).await;
         if status == 200 {
@@ -288,7 +419,10 @@ pub fn parse_bloco(bloco: &str) -> Vec<Chat> {
     }
     let bruto = dados.join("\n");
     if bruto == "[DONE]" {
-        return vec![Chat::Done { message_id: None, session_id: None }];
+        return vec![Chat::Done {
+            message_id: None,
+            session_id: None,
+        }];
     }
     let Ok(v) = serde_json::from_str::<Value>(&bruto) else { return vec![] };
     if let Some(t) = v.get("text").and_then(Value::as_str) {
@@ -298,14 +432,22 @@ pub fn parse_bloco(bloco: &str) -> Vec<Chat> {
         return vec![Chat::Model(t.to_string())];
     }
     if v.get("provenance").is_some() {
-        return vec![Chat::Done { message_id: v.get("message_id").and_then(Value::as_i64), session_id: v.get("session_id").and_then(Value::as_str).map(String::from) }];
+        return vec![Chat::Done {
+            message_id: v.get("message_id").and_then(Value::as_i64),
+            session_id: v.get("session_id").and_then(Value::as_str).map(String::from),
+        }];
     }
     if let Some(t) = v.get("tool") {
         return vec![Chat::Tool(t.clone())];
     }
     if let Some(a) = v.get("approval") {
         let s = |k: &str| a.get(k).and_then(Value::as_str).unwrap_or("").to_string();
-        return vec![Chat::Approval { id: s("id"), tool: s("tool"), reason: s("reason"), args: a.get("args").cloned().unwrap_or(Value::Null) }];
+        return vec![Chat::Approval {
+            id: s("id"),
+            tool: s("tool"),
+            reason: s("reason"),
+            args: a.get("args").cloned().unwrap_or(Value::Null),
+        }];
     }
     if let Some(e) = v.get("error").and_then(Value::as_str) {
         return vec![Chat::Error(e.to_string())];

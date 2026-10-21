@@ -5,6 +5,10 @@
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
 mod appmode;
+mod onboarding;
+mod onboarding_drive;
+mod onboarding_hello;
+mod onboarding_imports;
 mod cli_db;
 mod cli_extra;
 mod estado;
@@ -285,6 +289,15 @@ enum Cmd {
         #[arg(long, default_value_t = 30)]
         segundos: u64,
     },
+    /// Recupera a conta com o código salvo no primeiro uso, sem alterar os dados.
+    #[command(name="conta-recuperar")]
+    ContaRecuperar,
+    /// Exporta banco e perfil para um arquivo autenticado, sem tokens ou auth.db.
+    #[command(name="backup-exportar")]
+    BackupExportar { destino:PathBuf },
+    /// Importa um arquivo autenticado para uma pasta NOVA, com nova senha de login.
+    #[command(name="backup-importar")]
+    BackupImportar { arquivo:PathBuf, pasta:PathBuf, #[arg(long)] recuperacao:bool },
     /// Restaura um backup no lugar do banco (confere antes).
     Restore {
         arquivo: PathBuf,
@@ -509,7 +522,7 @@ fn rodar(cli: Cli) -> anyhow::Result<i32> {
     let s = Settings::load()?;
     let cmd = cli.cmd.unwrap_or(Cmd::App);
     // comandos que cuidam da própria senha não passam pelo prompt automático
-    let cuida_da_senha = matches!(cmd, Cmd::App | Cmd::DbCifrar { .. } | Cmd::DbSenha { .. } | Cmd::DbRecuperar { .. } | Cmd::DbNovaRecuperacao { .. } | Cmd::DbApagarClaro);
+    let cuida_da_senha = matches!(cmd, Cmd::App | Cmd::ContaRecuperar | Cmd::BackupImportar { .. } | Cmd::BackupExportar { .. } | Cmd::DbCifrar { .. } | Cmd::DbSenha { .. } | Cmd::DbRecuperar { .. } | Cmd::DbNovaRecuperacao { .. } | Cmd::DbApagarClaro);
     if !cuida_da_senha {
         cli_db::unlock_if_needed(&s)?;
     }
@@ -545,6 +558,34 @@ fn rodar(cli: Cli) -> anyhow::Result<i32> {
         Cmd::Update { .. } => unreachable!("tratado antes da configuração"),
         #[cfg(feature = "http")]
         Cmd::Serve => tokio::runtime::Builder::new_multi_thread().enable_all().build()?.block_on(serve(s)),
+        Cmd::ContaRecuperar => {
+            let profile=orion_core::onboarding::Profile::load(&s.data_dir)?.ok_or_else(||anyhow::anyhow!("perfil de primeiro uso não encontrado"))?;
+            let code=zeroize::Zeroizing::new(rpassword::prompt_password("Código do arquivo de recuperação: ")?);
+            let password=zeroize::Zeroizing::new(rpassword::prompt_password("Nova senha do Orion: ")?);
+            let confirmation=zeroize::Zeroizing::new(rpassword::prompt_password("Confirme a nova senha: ")?);
+            anyhow::ensure!(*password==*confirmation && (12..=256).contains(&password.chars().count()),"use senhas iguais com 12 a 256 caracteres");
+            let keypath=s.data_dir.join(if orion_core::dbopen::is_encrypted(&s.db_path()) {orion_core::dbkey::KEY_FILE}else{"orion-recovery.key"});
+            let mut file=orion_core::dbkey::KeyFile::load(&keypath)?;let master=file.unlock_recovery(&code)?;file.change_password(&master,&password)?;file.save(&keypath)?;
+            orion_core::auth::AuthService::open(&s.auth_db_path(),&profile.user,s.session_ttl_h as f64*3600.0)?.set_password(&password)?;
+            let _=orion_ai::secrets::delete_secret("ORION_HELLO_LOGIN");
+            println!("Senha recuperada. Entre com a nova senha; configure o Hello novamente se o utilizava.");Ok(0)
+        },
+        Cmd::BackupExportar { destino } => {
+            let senha=zeroize::Zeroizing::new(rpassword::prompt_password("Senha do Orion: ")?);
+            onboarding::unlock(&s,&senha)?;
+            let key=onboarding::BACKUP_KEY.lock().clone().ok_or_else(||anyhow::anyhow!("este perfil não foi criado no primeiro uso"))?;
+            let store=orion_core::dbopen::open_store(&s.db_path())?;
+            let file=orion_core::onboarding_backup::export(&store,&s.data_dir,destino,&key)?;
+            println!("Backup cifrado exportado: {}",file.display());Ok(0)
+        },
+        Cmd::BackupImportar { arquivo,pasta,recuperacao } => {
+            let credential=zeroize::Zeroizing::new(rpassword::prompt_password(if *recuperacao {"Código de recuperação: "}else{"Senha do backup: "})?);
+            let password=zeroize::Zeroizing::new(rpassword::prompt_password("Nova senha do Orion: ")?);
+            let confirmation=zeroize::Zeroizing::new(rpassword::prompt_password("Confirme a nova senha: ")?);
+            anyhow::ensure!(*password==*confirmation,"as senhas não coincidem");
+            orion_core::onboarding_backup::restore(arquivo,pasta,&credential,*recuperacao,&password)?;
+            println!("Backup conferido e restaurado em {}. Tokens e integrações precisam ser conectados novamente.",pasta.display());Ok(0)
+        },
         Cmd::Backup { dir, keep } => {
             let store = orion_core::dbopen::open_store(&s.db_path())?;
             let feito = store.daily_backup(&dir.clone().unwrap_or_else(|| s.data_dir.join("backups")), *keep)?;

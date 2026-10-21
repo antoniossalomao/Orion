@@ -21,3 +21,5 @@ pub mod views;
 
 #[cfg(feature = "snap")]
 pub mod snap;
+
+pub mod onboarding;

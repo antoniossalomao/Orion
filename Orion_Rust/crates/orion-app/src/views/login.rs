@@ -101,7 +101,10 @@ pub fn view(app: &App) -> El<'_> {
             }
         });
 
-    let cartao = container(column![cab, sp_h(14.0), campos, aviso, rise(fade(entrar, p_btn, bg), p_btn, 10.0)].spacing(8).align_x(Horizontal::Center).width(Length::Fill))
+    let hello=if app.api.as_ref().is_some_and(|api|api.hello_ativo()) {
+        btn("Entrar com Windows Hello",Kind::Normal,false,None,Some(Msg::Hello))
+    }else{sp_h(0.0)};
+    let cartao = container(column![cab, sp_h(14.0), campos, aviso, rise(fade(entrar, p_btn, bg), p_btn, 10.0),hello,if code{btn("Voltar à senha",Kind::Ghost,true,None,Some(Msg::LoginCancel))}else{sp_h(0.0)}].spacing(8).align_x(Horizontal::Center).width(Length::Fill))
         .padding(pad(30.0, 28.0, 26.0, 28.0))
         .width(Length::Fixed(380.0))
         .style(|_| container::Style {
@@ -110,7 +113,7 @@ pub fn view(app: &App) -> El<'_> {
             shadow: iced::Shadow { color: t::alpha(iced::Color::BLACK, 0.25), offset: iced::Vector::new(0.0, 16.0), blur_radius: 40.0 },
             ..Default::default()
         });
-    let rodape = txf(if app.db_locked { "A mesma senha abre o banco cifrado" } else { "Tudo fica neste computador" }, 11.0, t::FG3, t::MONO);
+    let rodape = txf(if app.db_locked { "Sua senha protege o Orion e suas cópias de segurança" } else { "Tudo fica neste computador" }, 11.0, t::FG3, t::MONO);
 
     let glow_dir = canvas(Brilho { t: tempo, lado: 1, p: p_ceu }).width(Length::Fill).height(Length::Fill);
     let conteudo = container(column![rise(fade(cartao, p_card, bg), p_card, 18.0), sp_h(18.0), fade(rodape, p_card, bg)].align_x(Horizontal::Center)).width(Length::Fill).height(Length::Fill).center_x(Length::Fill).center_y(Length::Fill);

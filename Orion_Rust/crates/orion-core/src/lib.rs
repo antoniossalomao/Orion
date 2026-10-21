@@ -75,3 +75,7 @@ pub mod two_factor;
 
 #[cfg(windows)]
 pub mod native_audio;
+
+pub mod onboarding;
+
+pub mod onboarding_backup;

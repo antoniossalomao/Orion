@@ -27,6 +27,9 @@ fn cena(f: impl FnOnce(&mut App)) -> App {
 
 pub fn scenarios() -> Vec<(&'static str, Size, App)> {
     let mut v: Vec<(&'static str, Size, App)> = vec![("01-login", SIZE, { let mut a = App::new(); a.now = std::time::Instant::now(); a.login_at = a.now - std::time::Duration::from_secs(8); a })];
+    v.push(("00-onboarding",SIZE,{
+        let mut a=App::new();a.onboarding=Some(crate::onboarding::Form::new(serde_json::json!({"user":"antoniosalomao","encrypted_available":true,"hello_available":true,"recovery":"E:\\Orion-recuperacao.txt","vault":"C:\\Vault","backup":"D:\\Backups"})));a
+    }));
     let mut push = |n: &'static str, a: App| v.push((n, SIZE, a));
     push("01b-login-cifrado", { let mut a = App::new(); a.db_locked = true; a.now = std::time::Instant::now(); a.login_at = a.now - std::time::Duration::from_secs(8); a });
     push("02-inicio", cena(|a| {
@@ -166,9 +169,18 @@ pub fn scenarios() -> Vec<(&'static str, Size, App)> {
 }
 
 pub fn render(app: &App, size: Size, out: &Path) {
+    render_scrolled(app, size, out, 0.0);
+}
+
+/// Captura também os trechos abaixo da dobra de uma tela rolável.
+pub fn render_scrolled(app: &App, size: Size, out: &Path, offset: f32) {
     std::env::set_var("ICED_TEST_BACKEND", "tiny-skia");
     let settings = Settings { fonts: crate::theme::fonts(), default_font: crate::theme::UI, ..Settings::default() };
     let mut sim = Simulator::with_size(settings, size, app.view());
+    sim.point_at(iced::Point::new(size.width / 2.0, size.height / 2.0));
+    sim.simulate([iced::Event::Mouse(iced::mouse::Event::WheelScrolled {
+        delta: iced::mouse::ScrollDelta::Pixels { x: 0.0, y: -offset },
+    })]);
     let snap = sim.snapshot(&app.theme()).expect("snapshot");
     let _ = std::fs::remove_file(out);
     let _ = snap.matches_image(out);

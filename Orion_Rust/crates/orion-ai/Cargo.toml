@@ -33,3 +33,6 @@ base64.workspace = true
 [dev-dependencies]
 tempfile.workspace = true
 orion-testkit.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+keyring = { version = "3", features = ["windows-native"] }

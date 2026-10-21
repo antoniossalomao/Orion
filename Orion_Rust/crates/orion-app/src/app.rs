@@ -322,6 +322,7 @@ pub struct App {
     pub mini_prev: Size,
     /// Banco cifrado trancado: a tela de entrada pede a senha do banco antes de abrir o núcleo.
     pub db_locked: bool,
+    pub onboarding: Option<crate::onboarding::Form>,
     pub fundo: bool,
     pub bandeja: Option<crate::tray::Bandeja>,
     pub bandeja_tentou: bool,
@@ -351,6 +352,9 @@ pub enum Msg {
     PwChanged(String),
     UserChanged(String),
     Login,
+    Hello,
+    LoginCancel,
+    Onboarding(crate::onboarding::Event),
     Logout,
     // navegação
     Go(View),
@@ -573,6 +577,7 @@ impl App {
             mini: false,
             mini_prev: Size::new(1440.0, 900.0),
             db_locked: false,
+            onboarding: None,
             fundo: false,
             bandeja: None,
             bandeja_tentou: false,
@@ -687,6 +692,8 @@ impl App {
     }
 
     pub fn update(&mut self, msg: Msg) -> Task<Msg> {
+        if let Msg::Onboarding(event) = msg { return self.update_onboarding(event); }
+
         if let Msg::L(m) = msg {
             return self.lm(m);
         }
@@ -795,6 +802,7 @@ impl App {
             Msg::Hover(h) => self.hover = h,
             Msg::PwChanged(s) => self.pw = s,
             Msg::UserChanged(s) => self.user = s,
+            Msg::Onboarding(_) | Msg::Hello | Msg::LoginCancel => {},
             Msg::Login => {
                 if self.pw.trim().is_empty() {
                     self.gate_err = "Digite a senha para entrar.".into();

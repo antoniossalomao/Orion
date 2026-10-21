@@ -14,12 +14,12 @@ resumo: "Pendências e decisões vigentes do Orion, com implementação, testes 
 
 ## 1. Estado vigente
 
-**A v1 ainda não está pronta.** Além da validação Windows e da distribuição assinada, faltam funcionalidades relevantes de F01–F10: Projetos, onboarding, integração segura do vault, backup/restauração e partes do chat, configurações e segurança.
+**A v1 ainda não está pronta.** Além da validação Windows e da distribuição assinada, faltam funcionalidades relevantes de F01–F10: Projetos, aceite do onboarding e dos backups, integração segura do vault e partes do chat, configurações e segurança.
 
 - **Arquitetura:** `orion.exe` reúne interface iced e núcleo no mesmo processo, sem servidor HTTP do app. `orion-llama.exe` é um worker separado; o instalador é outro executável de distribuição. O navegador CDP usa porta de depuração efêmera em loopback; portanto, "sem porta" descreve a ligação UI–núcleo, não todos os processos auxiliares.
 - **Produto sem Python:** pacote de referência e sidecar removidos em 20/10. Restam scripts de treino/smoke, fixture MCP e front HTML de desenvolvimento, servido apenas no modo HTTP opcional. Código removido permanece no Git; dados pessoais e instalações no PC não foram descartados.
 - **Escopo:** v1 = M1, F01–F10, com saída em F10. F11–F27 são posteriores. F27 é fechamento do roadmap; a expressão histórica "release 1.0" nessa fase não amplia o escopo da v1 nem define a tag do primeiro release. A numeração semver deve ser alinhada ao publicar.
-- **Checklists já conferidos:** 458 itens F00–F27: **20 `[x]`, 280 `[~]`, 158 `[ ]`**. Em F01–F10: **13 `[x]`, 167 `[~]`, 57 `[ ]`** (237 itens). Não é percentual de conclusão: os itens têm tamanhos diferentes e `[~]` mistura trabalho parcial com aceite pendente.
+- **Checklists já conferidos:** 458 itens F00–F27: **20 `[x]`, 285 `[~]`, 153 `[ ]`**. Em F01–F10: **13 `[x]`, 172 `[~]`, 52 `[ ]`** (237 itens). Não é percentual de conclusão: os itens têm tamanhos diferentes e `[~]` mistura trabalho parcial com aceite pendente.
 
 ## 2. Como interpretar a evidência
 
@@ -87,7 +87,7 @@ O alinhamento de 20/10 registra: remoção do mudo, senha do autônomo, senha no
 | Fase | Trabalho restante relevante |
 |---|---|
 | F01 | Motor de céu compartilhado, Fluent pt/en, comparação de snapshots, teclado/foco/contraste; Narrador fica fora da v1 |
-| F02 | Windows Hello, PIN crítico e recuperação integrada ao onboarding; aceite de login, bloqueio e banco cifrado |
+| F02 | PIN crítico; aceite de Hello, recuperação, login, bloqueio e banco cifrado no Windows |
 | F03 | ACP, catálogo de modelos/cotas completo e requisitos de RAM/VRAM |
 | F04 | Classificador de injeção e cobertura de engine/invariantes; testar senha ao ligar autônomo |
 | F05 | Diff por bloco, editar/reenviar, LaTeX/Mermaid, anexos e comandos `/`/`@`; solução sem WebView2 |
@@ -95,7 +95,7 @@ O alinhamento de 20/10 registra: remoção do mudo, senha do autônomo, senha no
 | F07 | Ligar todas as seções exigidas para a v1; separar controles futuros de funções operacionais |
 | F08 | Cartões, clonar GitHub, pastas/referências, modelo/passos/herança, arquivar e mover conversa |
 | F09 | Painel, métricas, Resultados, Integrações, "Você fez" e estados vazios |
-| F10 | Onboarding, recuperação, backup local/Drive cifrado com 7 cópias e restauração verificada, atualização, rollback automático, modelos/GPU e primeiro release |
+| F10 | Onboarding e backup local/Drive implementados nesta rodada, com importação/exportação e recuperação; faltam aceite Windows/contas reais, integração Git completa do vault, atualização, rollback automático, modelos/GPU e primeiro release |
 
 O onboarding decidido reúne usuário/senha, nome/idioma, recuperação em arquivo, vault, APIs, Telegram/2FA quando configurado, backup, projetos/GitHub, importação e Hello. Essa configuração não torna concluídas as fases posteriores correspondentes.
 
@@ -120,6 +120,8 @@ Pendências: executar testes das mudanças recentes; adicionar fmt/clippy; compa
 As referências Python em "Imposto em"/"Prova" de `REGRAS.md` são históricas, conforme a nota de equivalência Rust. Ainda precisam ser reapontadas; esta correção documental não altera princípios protegidos nem inventa evidência Rust.
 
 Repositório é origem; documentos alterados devem ser espelhados no vault na mesma sessão. Espelho atualizado não equivale a aceite do produto.
+
+> **Atualização de código (20/10/2026):** onboarding nativo, cofre, recuperação em arquivo, Hello/Telegram, importações com prévia e backup autenticado local/Drive receberam implementação. Detalhes e limites em ORION.md, seção Onboarding nativo; todos os aceites Windows/contas reais continuam pendentes.
 
 ## 8. Pós-v1
 

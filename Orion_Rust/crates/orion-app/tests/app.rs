@@ -138,6 +138,12 @@ fn desfazer_marca_o_original_e_registra_a_reversao() {
 fn pausar_tudo_confirma_em_dois_passos_e_desliga_o_autonomo() {
     let mut a = logged();
     a.update(Msg::Toggle("auto"));
+    assert!(!a.p.auto);
+    assert!(a.auto_senha.is_some());
+    a.update(Msg::AutoSenhaOk);
+    assert!(!a.p.auto, "senha vazia não confirma o modo autônomo");
+    a.update(Msg::AutoSenhaText("senha-da-simulacao".into()));
+    a.update(Msg::AutoSenhaOk);
     assert!(a.p.auto);
     a.update(Msg::PanicArm);
     assert_eq!(a.panic, Panic::Armed);
@@ -294,8 +300,8 @@ fn transicoes_marcam_o_tempo_so_quando_algo_muda() {
     assert!(a.at.page.is_some());
     a.update(Msg::OpenSettings(None));
     assert!(a.at.modal.is_some() && a.at.scrim.is_some());
-    a.update(Msg::Toggle("auto"));
-    assert!(a.at.switch.as_ref().unwrap().0.contains("auto"));
+    a.update(Msg::Toggle("dnd"));
+    assert!(a.at.switch.as_ref().unwrap().0.contains("dnd"));
     a.update(Msg::ToggleMore);
     assert!(a.at.more.is_some());
 }

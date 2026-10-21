@@ -123,6 +123,16 @@ O código do 2FA é guardado só em hash, em memória, vinculado ao desafio e cl
 
 Equivalências de plataforma (Windows | macOS): início automático (registro ou Task Scheduler | LaunchAgent); bandeja (`tray-icon`); teclas globais (`global-hotkey`); área de transferência (`arboard`); notificação (toast | `notify-rust`); cofre (Credential Manager | Keychain); captura de tela (`windows-capture` ou `xcap` | `xcap` ou ScreenCaptureKit); OCR (`Windows.Media.Ocr` | Vision); microfone (`cpal`). Permissões do macOS (Acessibilidade, Gravação de Tela, Microfone) exigem onboarding próprio.
 
+### Primeiro uso nativo
+
+`orion-app::onboarding` mantém o rascunho em memória, com segredos ocultos no Debug e campos secretos limpos ao concluir ou fechar o formulário. A ligação `Local` oferece bootstrap/configuração/testes exclusivamente no processo; nenhuma rota HTTP pública de criação de conta foi adicionada. `orion-server::onboarding` prepara banco/login/chaves/perfil antes de montar o núcleo e publica o marcador por último. `orion-core::onboarding::Profile` contém apenas preferências; nome e idioma entram como dados delimitados no contexto.
+
+Segredos usam o backend `windows-native` do keyring (Credential Manager). Hello usa UserConsentVerifier e a credencial local no cofre, com consentimento explícito no onboarding. A entrada por senha pode exigir Telegram antes de montar o núcleo, sem depender de um gateway configurado.
+
+Backup `*.orion-backup`: envelope ChaCha20-Poly1305 com chave mestra embrulhada por senha/recuperação; conteúdo é banco e perfil, sem auth.db/tokens. Serviço local mantém 7 cópias e, se autorizado, envia ao Drive; restauração autenticada cria uma pasta nova e uma nova credencial. A autorização Google é uma **exceção temporária de loopback**: callback OAuth com PKCE/state, navegador do sistema, escopo `drive.file`; o app continua sem servidor HTTP permanente. Testes de APIs/Telegram usam apenas os endpoints oficiais escolhidos na UI.
+
+Importadores trabalham sobre arquivos selecionados e hashes conferidos; MCPs ficam desligados, skills/plugins inativos. Históricos geram trechos/resumos locais e nunca são enviados automaticamente a modelos.
+
 ## 8. Referências
 
 ### 8.1 Onde estão as pesquisas (no vault, `03 Recursos/Pesquisa Técnica/`)

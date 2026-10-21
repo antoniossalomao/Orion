@@ -10,6 +10,13 @@ fn main() {
             let out = dir.join(format!("{name}.png"));
             orion_app::snap::render(&app, size, &out);
             println!("{}", out.display());
+            if name == "00-onboarding" {
+                for (section, offset) in [("apis", 1000.0), ("backup", 1900.0), ("importacoes", 3000.0)] {
+                    let out = dir.join(format!("{name}-{section}.png"));
+                    orion_app::snap::render_scrolled(&app, size, &out, offset);
+                    println!("{}", out.display());
+                }
+            }
         }
     }
 }

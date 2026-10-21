@@ -235,6 +235,15 @@ impl Env {
                 }
             }
         }
+        let dados = m.get("ORION_DATA_DIR").map(PathBuf::from).unwrap_or_else(user_data_dir);
+        if let Some(p) = crate::onboarding::Profile::load(&dados).unwrap_or(None) {
+            let mut values = vec![("ORION_AUTH_USER", p.user), ("ORION_SEED_DEFAULT_PASSWORD", "false".into()), ("ORION_BACKUP_KEEP", "7".into()), ("ORION_TELEGRAM_2FA", p.telegram_2fa.to_string()), ("ORION_TELEGRAM_ALLOWED_USERS", p.telegram_users.iter().map(i64::to_string).collect::<Vec<_>>().join(","))];
+            for (key, path) in [("ORION_VAULT_DIR", p.vault), ("ORION_BACKUP_DIR", None::<PathBuf>)] {
+                if let Some(path) = path { values.push((key, path.to_string_lossy().into_owned())); }
+            }
+            if let Some(path) = p.projects { values.push(("ORION_REPOS", serde_json::to_string(&vec![path]).unwrap())); }
+            for (key, value) in values { m.entry(key.into()).or_insert(value); }
+        }
         Env(m)
     }
 

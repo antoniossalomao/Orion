@@ -174,7 +174,7 @@ pub fn ler_logs(s: &Settings, dia: Option<&str>) -> anyhow::Result<i32> {
 /// `lock_exit`, encerra o processo (o SQLCipher só solta a chave ao fechar as conexões).
 #[cfg(windows)]
 pub fn watch_screen_lock(s: &Settings, auth: std::sync::Arc<orion_core::auth::AuthService>) {
-    if !s.lock_on_screen_lock || !dbopen::is_encrypted(&s.db_path()) {
+    if !s.lock_on_screen_lock || (!dbopen::is_encrypted(&s.db_path()) && orion_core::onboarding::Profile::load(&s.data_dir).ok().flatten().is_none()) {
         return;
     }
     let sair = s.lock_exit;
@@ -186,6 +186,7 @@ pub fn watch_screen_lock(s: &Settings, auth: std::sync::Arc<orion_core::auth::Au
             if agora && !travado {
                 let n = auth.revoke_all();
                 dbopen::lock();
+                *crate::onboarding::BACKUP_KEY.lock()=None;
                 tracing::warn!("Windows bloqueado: {n} sessão(ões) encerrada(s) e chave apagada da memória");
                 if sair {
                     std::process::exit(0);

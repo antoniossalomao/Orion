@@ -400,6 +400,11 @@ impl App {
         a.term_out.clear();
         a.p.proj = 99;
         a.mem = crate::graph::Graph::empty();
+        if let Some(defaults) = api.primeiro_uso() {
+            a.onboarding = Some(crate::onboarding::Form::new(defaults));
+            a.api = Some(api);
+            return (a, Task::none());
+        }
         let t = { let api2 = api.clone(); Task::perform(async move { api2.health().await?; Ok(api2.auth_ok().await) }, |r| Msg::L(Lm::Boot(r))) };
         if api.bloqueado() {
             a.db_locked = true;
@@ -420,14 +425,23 @@ impl App {
     pub fn live_before(&mut self, msg: &Msg) -> Option<(Task<Msg>, bool)> {
         let api = self.api.clone()?;
         match msg {
+            Msg::LoginCancel => {
+                if let Some(ch)=self.challenge.take(){api.cancelar_entrada(&ch);}
+                self.pw.clear();self.gate_err.clear();
+                Some((Task::none(),false))
+            }
+            Msg::Hello => {
+                self.gate_err="Confirme no Windows Hello…".into();
+                Some((Task::perform(async move{api.hello().await},|r|Msg::L(Lm::Desbloqueado(r))),false))
+            }
             Msg::Login => {
                 if self.pw.trim().is_empty() {
                     return None;
                 }
                 let pw = std::mem::take(&mut self.pw);
-                if self.db_locked {
+                if self.db_locked && self.challenge.is_none() {
                     self.gate_err = "Abrindo…".into();
-                    return Some((Task::perform(async move { api.desbloquear(pw).await }, |r| Msg::L(Lm::Desbloqueado(r))), false));
+                    return Some((Task::perform(async move { api.entrar(pw).await }, |r| Msg::L(Lm::Login(r))), false));
                 }
                 self.gate_err = "Entrando…".into();
                 if let Some(ch) = self.challenge.clone() {
@@ -688,6 +702,7 @@ impl App {
             Lm::Boot(r) => match r {
                 Ok(true) => {
                     self.logged = true;
+                    self.sync_profile();
                     self.gate_err.clear();
                     if let Some(api) = self.api.clone() {
                         return pull_basic(&api);
@@ -708,7 +723,9 @@ impl App {
             },
             Lm::Login(r) => match r {
                 Ok(LoginResult::Ok) => {
+                    self.db_locked=false;
                     self.logged = true;
+                    self.sync_profile();
                     self.gate_err.clear();
                     self.challenge = None;
                     self.view = View::Home;
@@ -724,7 +741,9 @@ impl App {
             },
             Lm::TwoFactor(r) => match r {
                 Ok(()) => {
+                    self.db_locked=false;
                     self.logged = true;
+                    self.sync_profile();
                     self.challenge = None;
                     self.gate_err.clear();
                     self.view = View::Home;
