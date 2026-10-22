@@ -62,7 +62,7 @@ Esta revisão corrige documentação; não reexecuta testes nem promove funciona
 | Automelhoria | Depois de F11 e F13 | F26; interruptor não comprova execução |
 | macOS/extensão | Depois da 1.0; macOS após versão estável | Fora do primeiro lançamento |
 
-**D03 está decidida quanto ao produto:** implementar `/usage` e `/status` pelas CLIs, com queda para estimativa e aviso se o formato mudar; Gemini usa estimativa. **F13.01/F13.02 seguem não implementados.** A decisão não comprova verificação dos termos: F00.29/F03.26 continuam abertos. Não descrever toda F13 como bloqueada por decisão pendente.
+**D03 está decidida quanto ao produto:** implementar `/usage` e `/status` pelas CLIs, com queda para estimativa e aviso se o formato mudar; Gemini usa estimativa. **F13.01/F13.02 seguem não implementados.** A verificação dos termos (F00.29/F03.26) foi feita em 21/10/2026 e está em `docs/termos-provedores.md`; ela não implementa a leitura de uso, que continua pendente. Não descrever toda F13 como bloqueada por decisão pendente.
 
 **Decisões ainda abertas no grupo D01–D11:** só D08, na parte de Planos de arquivos (proposta: sem tela própria, cartão de aprovação no chat, depois da v1; aguarda confirmação). A tela Vida foi cortada e a D10 (Alexa) foi adiada para depois da v1, ambas em 21/10/2026. D06 (token do GitHub com acesso total; Drive só `drive.file`) e D09 (manter os 8 modelos) foram decididas em 21/10/2026; D01–D05, D07 e D11 já tinham decisão. Outros pedidos de confirmação específicos estão na seção de conflitos do plano.
 
@@ -115,7 +115,7 @@ O onboarding decidido reúne usuário/senha, nome/idioma, recuperação em arqui
 
 **Metas da v1:** RAM parada <300 MB, janela <1 s, primeira resposta visível <100 ms; uma semana de uso sem perda de dados e backup restaurado. É necessário definir cenário e medir, sem confundir resposta visual com geração completa do modelo.
 
-**[V] Distribuição:** gerar minisign, cadastrar segredos, incorporar a chave pública e publicar o primeiro release. Instalador usa feeds `latest-<variante>.json` CPU/Vulkan e fallback offline; updater é `orion update`, sem `orion-updater.exe`.
+**[V] Distribuição:** confirmar a posse da chave privada correspondente à pública minisign já preenchida em `crates/orion-setup/release/minisign.pub` (não gerar outra por rotina), cadastrar/verificar os segredos `MINISIGN_SECRET_KEY` e `MINISIGN_PASSWORD` e publicar o primeiro release. Instalador usa feeds `latest-<variante>.json` CPU/Vulkan e fallback offline; updater é `orion update`, sem `orion-updater.exe`.
 
 **Assinaturas distintas:** minisign autentica o feed; SHA-256 verifica os arquivos referenciados. A identidade MSIX autoassinada não equivale a Authenticode dos executáveis nem elimina SmartScreen. O `release.yml` atual assina feeds com minisign; não tem etapa Authenticode. Certificado comercial não é requisito decidido para o primeiro lançamento.
 

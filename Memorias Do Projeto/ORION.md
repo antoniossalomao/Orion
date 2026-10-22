@@ -12,6 +12,8 @@ Antônio é o administrador: decide, aprova e pode desligar qualquer coisa. Nada
 
 ## Estado vigente (20/10/2026)
 
+> **PR da migração:** o PR #30 (branch `claude/wizardly-bell-ynlfwv`) foi mergeado na `main` em 22/10/2026. As correções de documentação posteriores seguem no PR #38. O PR #37 foi fechado por engano de nome de branch. Os 4 achados do Codex no código do #30 (login sem perfil, navegador por sessão, SSE UTF-8, validação de senha) foram corrigidos no PR #48; o Dependabot passou a rodar mensal, agrupado e sem versões maiores.
+
 **A v1 (M1, F01–F10) ainda não está pronta.** Há código funcional, implementação parcial e aceite Windows pendente. Projetos, onboarding, integração segura do vault e backup/restauração continuam entre os bloqueios. F11–F27 são posteriores; F27 não amplia o escopo da v1.
 
 **Decisões vigentes:** BM25 + LSA para o vault (embeddings locais só se necessário); sync por log de eventos próprio; stable no começo; F25.06 antes de F20 após a v1; palavra "Orion" desligada na v1. D03 libera implementar leitura de uso pelas CLIs, mas F13.01/F13.02 continuam não implementados; a verificação dos termos (F00.29/F03.26) foi feita em 21/10/2026 e está em `docs/termos-provedores.md`. Decididos em 21/10/2026: D06 (token do GitHub com acesso total; Drive só `drive.file`), D09 (manter os 8 modelos locais), tela Vida cortada e Alexa (D10) adiada para depois da v1; testes novos e CI pausados.
