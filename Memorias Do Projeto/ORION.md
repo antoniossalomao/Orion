@@ -12,7 +12,7 @@ Antônio é o administrador: decide, aprova e pode desligar qualquer coisa. Nada
 
 ## Estado vigente (20/10/2026)
 
-> **PR da migração:** o PR #30 (branch `claude/wizardly-bell-ynlfwv`) foi mergeado na `main` em 22/10/2026. As correções de documentação posteriores seguem no PR #38. O PR #37 foi fechado por engano de nome de branch.
+> **PR da migração:** o PR #30 (branch `claude/wizardly-bell-ynlfwv`) foi mergeado na `main` em 22/10/2026. As correções de documentação posteriores seguem no PR #38. O PR #37 foi fechado por engano de nome de branch. Os 4 achados do Codex no código do #30 (login sem perfil, navegador por sessão, SSE UTF-8, validação de senha) foram corrigidos no PR #48; o Dependabot passou a rodar mensal, agrupado e sem versões maiores.
 
 **A v1 (M1, F01–F10) ainda não está pronta.** Há código funcional, implementação parcial e aceite Windows pendente. Projetos, onboarding, integração segura do vault e backup/restauração continuam entre os bloqueios. F11–F27 são posteriores; F27 não amplia o escopo da v1.
 
