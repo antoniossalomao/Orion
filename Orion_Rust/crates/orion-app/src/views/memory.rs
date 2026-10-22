@@ -361,7 +361,11 @@ pub fn view(app: &App) -> El<'_> {
     }
     chips = chips.push(fchip("Lidas agora", None, Some("eye"), g.read_on, Msg::MemRead));
     let (n, l) = g.stats();
-    let stats = tx(format!("{} notas · {} links · git pull às 09:41", fmt_n(n), fmt_n(l)), 12.0, t::FG3).wrapping(iced::widget::text::Wrapping::None);
+    let total = g.nodes.len();
+    let notas = if n < total { format!("{} de {} notas", fmt_n(n), fmt_n(total)) } else { format!("{} notas", fmt_n(n)) };
+    // a hora do último pull só existe nos dados de exemplo; no uso real não se inventa
+    let pull = if app.api.is_none() { " · git pull às 09:41" } else { "" };
+    let stats = tx(format!("{notas} · {} links{pull}", fmt_n(l)), 12.0, t::FG3).wrapping(iced::widget::text::Wrapping::None);
     let avail = app.win.width - if app.collapsed || app.is_drawer_mode() { 0.0 } else { t::SIDE_W + 1.0 };
     let bar: El = if avail < 1280.0 {
         // a estatística quebra para a linha de baixo, à direita (flex-wrap do protótipo)

@@ -372,3 +372,56 @@ pub fn belt<'a>(large: bool, colors: [Color; 3]) -> El<'a> {
 pub fn belt_fg<'a>(large: bool) -> El<'a> {
     belt(large, [t::FG, t::FG, t::FG])
 }
+
+/// Selo da classe de risco da ação aprovada; `None` se o servidor não informou.
+fn risk_badge<'a>(risk: &str) -> Option<El<'a>> {
+    Some(match risk {
+        "destructive" => badge("Ação destrutiva", Tone::Err),
+        "exec" => badge("Executa no computador", Tone::Warn),
+        "write" => badge("Escreve", Tone::Warn),
+        "read" => badge("Leitura", Tone::Plain),
+        _ => return None,
+    })
+}
+
+/// Corpo do cartão de aprovação: classe de risco, ferramenta e TODOS os argumentos
+/// (REGRAS.md: só se aprova o que se vê inteiro).
+pub fn approval_detail<'a>(a: &crate::data::Approval) -> El<'a> {
+    let mut col = column![].spacing(8);
+    let mut head = row![].spacing(8).align_y(Vertical::Center);
+    let mut tem_cabeca = false;
+    if let Some(b) = risk_badge(&a.risk) {
+        head = head.push(b);
+        tem_cabeca = true;
+    }
+    if !a.tool.is_empty() {
+        head = head.push(txf(a.tool.clone(), 12.0, t::FG2, t::MONO));
+        tem_cabeca = true;
+    }
+    if tem_cabeca {
+        col = col.push(head);
+    }
+    if !a.args.is_empty() {
+        let mut linhas = column![].spacing(3);
+        for (k, v) in &a.args {
+            linhas = linhas.push(row![txf(format!("{k}:"), 12.0, t::FG3, t::MONO), txf(v.clone(), 12.0, t::FG, t::MONO)].spacing(6));
+        }
+        col = col.push(container(linhas).width(Length::Fill).padding(pad(8.0, 10.0, 8.0, 10.0)).style(surface(Some(t::RAISE), Some(t::LINE2), 8.0)));
+    }
+    if a.truncated {
+        col = col.push(tx("Argumentos grandes demais para mostrar inteiros: só dá para negar.", 12.5, t::DANGER));
+    }
+    col.into()
+}
+
+/// Botões do cartão. Nenhum dos dois ganha destaque de "caminho feliz": só a ação destrutiva
+/// pende para o lado de negar. Argumentos cortados só podem ser negados.
+pub fn approval_actions<'a>(a: &crate::data::Approval, approve: Msg, deny: Msg) -> Vec<El<'a>> {
+    let (k_ok, k_no) = if a.risk == "destructive" { (Kind::Danger, Kind::Primary) } else { (Kind::Normal, Kind::Normal) };
+    let mut v = vec![];
+    if !a.truncated {
+        v.push(btn("Aprovar", k_ok, true, None, Some(approve)));
+    }
+    v.push(btn("Negar", k_no, true, None, Some(deny)));
+    v
+}

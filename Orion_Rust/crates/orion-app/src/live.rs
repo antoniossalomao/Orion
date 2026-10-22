@@ -161,20 +161,23 @@ pub fn map_history(v: &Value) -> Vec<ChatMsg> {
 }
 
 pub fn map_approval(a: &Value) -> Approval {
-    let args = a.get("args").cloned().unwrap_or(Value::Null);
-    let resumo = match &args {
-        Value::Object(o) if !o.is_empty() => o.iter().take(4).map(|(k, v)| format!("{k}: {}", v.as_str().map(String::from).unwrap_or_else(|| v.to_string()))).collect::<Vec<_>>().join(" · "),
-        _ => String::new(),
+    let args: Vec<(String, String)> = match a.get("args") {
+        Some(Value::Object(o)) => o.iter().map(|(k, v)| (k.clone(), v.as_str().map(String::from).unwrap_or_else(|| v.to_string()))).collect(),
+        _ => vec![],
     };
-    let reason = s(a, "reason");
-    let mut text = format!("`{}`", s(a, "tool"));
-    if !reason.is_empty() {
-        text = format!("{reason} {text}");
+    let (tool, reason) = (s(a, "tool"), s(a, "reason"));
+    // os argumentos vão inteiros no corpo do cartão: aqui só o motivo e a ferramenta
+    let text = if reason.is_empty() { format!("`{tool}`") } else { format!("{reason} `{tool}`") };
+    Approval {
+        id: s(a, "id").to_string(),
+        text,
+        state: ApprState::Open,
+        diff_button: false,
+        tool: tool.to_string(),
+        risk: s(a, "risk").to_string(),
+        args,
+        truncated: a.get("args_truncated").and_then(Value::as_bool).unwrap_or(false),
     }
-    if !resumo.is_empty() {
-        text = format!("{text}. {resumo}");
-    }
-    Approval { id: s(a, "id").to_string(), text, state: ApprState::Open, diff_button: false }
 }
 
 pub fn map_rotinas(v: &Value) -> Vec<Rot> {
@@ -1027,8 +1030,8 @@ impl App {
                 }
                 o.tools_label = if o.tools.len() == 1 { "Usou 1 ferramenta".into() } else { format!("Usou {} ferramentas", o.tools.len()) };
             }
-            Chat::Approval { id, tool, reason, args } => {
-                let a = json!({"id": id, "tool": tool, "reason": reason, "args": args});
+            Chat::Approval { id, tool, risk, reason, args, truncated } => {
+                let a = json!({"id": id, "tool": tool, "risk": risk, "reason": reason, "args": args, "args_truncated": truncated});
                 o.approval = Some(map_approval(&a));
                 conv.state = ConvState::Pending;
             }
