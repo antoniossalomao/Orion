@@ -296,10 +296,14 @@ fn section<'a>(app: &'a App) -> El<'a> {
             c = c.push(setting("Atualizações", "Baixa do GitHub Releases em segundo plano, avisa e instala ao fechar.", badge("0.6.0 · em dia", Tone::Plain)));
             c = c.push(setting("Backup no Google Drive", "Banco e configurações, criptografados.", badge("ontem, 03:00", Tone::Ok)));
             c = c.push(setting("Exportar ou importar", "Para trocar de PC.", row_c(vec![btn("Exportar", Kind::Normal, true, None, Some(toast("Exportar (simulado)"))), btn("Importar", Kind::Normal, true, None, Some(toast("Importar (simulado)")))])));
-            c = c.push(sh("Sobre"));
-            c = c.push(setting("Orion", &format!("Versão {}. Um só executável, sem Python e sem porta aberta.", env!("CARGO_PKG_VERSION")), badge(env!("CARGO_PKG_VERSION"), Tone::Plain)));
-            c = c.push(setting("O que mudou", "Notas desta versão ainda não foram escritas.", btn("Em breve", Kind::Normal, true, None, None)));
-            c = c.push(setting("Licença", "Todos os direitos reservados. Código-fonte privado; veja o arquivo LICENSE do repositório.", badge("proprietária", Tone::Plain)));
+            let en = p.english;
+            c = c.push(sh(if en { "About" } else { "Sobre" }));
+            let desc = if en { "Version {v}. One executable, no Python, no open port." } else { "Versão {v}. Um só executável, sem Python e sem porta aberta." };
+            c = c.push(setting("Orion", &desc.replace("{v}", env!("CARGO_PKG_VERSION")), badge(env!("CARGO_PKG_VERSION"), Tone::Plain)));
+            let (notes, soon) = if en { ("Release notes for this version have not been written yet.", "Soon") } else { ("Notas desta versão ainda não foram escritas.", "Em breve") };
+            c = c.push(setting(if en { "What's new" } else { "O que mudou" }, notes, btn(soon, Kind::Normal, true, None, None)));
+            let lic = if en { "All rights reserved. Private source code; see the LICENSE file in the repository." } else { "Todos os direitos reservados. Código-fonte privado; veja o arquivo LICENSE do repositório." };
+            c = c.push(setting(if en { "License" } else { "Licença" }, lic, badge(if en { "proprietary" } else { "proprietária" }, Tone::Plain)));
         }
         Sec::Locais => {
             let live = app.api.is_some();
