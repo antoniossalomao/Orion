@@ -273,8 +273,8 @@ impl AuthService {
         Ok(true)
     }
 
-    /// Define ou troca a senha e **revoga todas as sessões** e os pareamentos de dispositivo.
-    pub fn set_password(&self, senha: &str) -> Result<(), AuthError> {
+    /// Regras da senha nova; roda antes de qualquer mudança (ex.: reembrulhar a chave do banco).
+    pub fn validar_senha_nova(&self, senha: &str) -> Result<(), AuthError> {
         let n = senha.chars().count();
         if n < SENHA_MIN {
             return Err(AuthError::WeakPassword(format!("a senha precisa de pelo menos {SENHA_MIN} caracteres")));
@@ -285,6 +285,12 @@ impl AuthService {
         if senha.to_lowercase() == self.user.to_lowercase() {
             return Err(AuthError::WeakPassword("a senha não pode ser o nome de usuário".into()));
         }
+        Ok(())
+    }
+
+    /// Define ou troca a senha e **revoga todas as sessões** e os pareamentos de dispositivo.
+    pub fn set_password(&self, senha: &str) -> Result<(), AuthError> {
+        self.validar_senha_nova(senha)?;
         let novo = hash_password_argon2id(senha, self.pleno);
         let mut c = self.conn.lock();
         let tx = c.transaction()?;

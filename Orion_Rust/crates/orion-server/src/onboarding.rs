@@ -428,8 +428,17 @@ pub fn unlock(s: &Settings, password: &str) -> anyhow::Result<()> {
     }
     if orion_core::dbopen::is_encrypted(&s.db_path()) {
         orion_core::dbopen::unlock_with_password(&s.db_path(), password)?;
+    } else if login_protegido(s) {
+        // banco em claro: a senha de login é a única barreira, então precisa conferir
+        let auth = AuthService::open(&s.auth_db_path(), &s.auth_user, 3600.0)?;
+        anyhow::ensure!(auth.check_password(password), "senha incorreta");
     }
     Ok(())
+}
+
+/// Existe senha de login gravada? Mesmo sem `onboarding.json`, o app nunca abre o núcleo sem pedi-la.
+pub fn login_protegido(s: &Settings) -> bool {
+    s.auth_db_path().exists() && AuthService::open(&s.auth_db_path(), &s.auth_user, 3600.0).is_ok_and(|a| a.has_password())
 }
 
 pub fn start_backup(s: &Settings, store: std::sync::Arc<orion_store::Store>, modos: std::sync::Arc<orion_core::modos::Modos>) -> Option<tokio::task::JoinHandle<()>> {

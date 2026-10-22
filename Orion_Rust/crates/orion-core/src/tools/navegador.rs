@@ -73,14 +73,20 @@ const SCRIPT_ITENS: &str = r#"(() => {
   return JSON.stringify({ url: location.href, titulo: document.title, itens, extras: total - cand.length, y: Math.round(scrollY), alt: document.documentElement.scrollHeight, vh: innerHeight });
 })()"#;
 
+/// Um navegador (com perfil próprio) por projeto e sessão: cookies, logins e abas nunca passam de uma conversa para outra.
 pub struct Navegador {
-    estado: Mutex<Option<Aberto>>,
-    ultimo_uso: std::sync::Mutex<Instant>,
+    estado: Mutex<HashMap<String, Aberto>>,
+}
+
+fn chave_do_escopo() -> String {
+    let s = orion_store::scope::current();
+    format!("{}|{}", s.project_id.unwrap_or_default(), s.session_id.unwrap_or_default())
 }
 
 struct Aberto {
     browser: Browser,
     page: Page,
+    ultimo_uso: Arc<std::sync::Mutex<Instant>>,
     tarefas: Vec<tokio::task::JoinHandle<()>>,
     perfil: PathBuf,
 }
@@ -96,7 +102,7 @@ impl Drop for Aberto {
 
 impl Default for Navegador {
     fn default() -> Self {
-        Navegador { estado: Mutex::new(None), ultimo_uso: std::sync::Mutex::new(Instant::now()) }
+        Navegador { estado: Mutex::new(HashMap::new()) }
     }
 }
 
@@ -142,13 +148,7 @@ async fn requisicao_permitida(url: &str, cache: &mut HashMap<String, (bool, Inst
 }
 
 impl Navegador {
-    fn tocar(&self) {
-        if let Ok(mut t) = self.ultimo_uso.lock() {
-            *t = Instant::now();
-        }
-    }
-
-    async fn lancar(self: &Arc<Self>) -> Result<Aberto, String> {
+    async fn lancar(self: &Arc<Self>, chave: String) -> Result<Aberto, String> {
         let exe = achar_navegador().ok_or("Não achei o Edge nem o Chrome neste computador. Instale um deles ou defina ORION_BROWSER com o caminho do executável.")?;
         let perfil = std::env::temp_dir().join(format!("orion-navegador-{}-{}", std::process::id(), orion_store::uuid_hex().chars().take(8).collect::<String>()));
         let mut cfg = BrowserConfig::builder()
@@ -187,21 +187,23 @@ impl Navegador {
         }));
         // fecha sozinho depois de um tempo parado
         let me = self.clone();
+        let ultimo_uso = Arc::new(std::sync::Mutex::new(Instant::now()));
+        let visto = ultimo_uso.clone();
         tarefas.push(tokio::spawn(async move {
             loop {
                 tokio::time::sleep(Duration::from_secs(20)).await;
-                let parado = me.ultimo_uso.lock().map(|t| t.elapsed()).unwrap_or_default();
+                let parado = visto.lock().map(|t| t.elapsed()).unwrap_or_default();
                 if parado >= OCIOSO {
-                    *me.estado.lock().await = None;
+                    me.estado.lock().await.remove(&chave);
                     break;
                 }
             }
         }));
-        Ok(Aberto { browser, page, tarefas, perfil })
+        Ok(Aberto { browser, page, ultimo_uso, tarefas, perfil })
     }
 
     pub async fn fechar(&self) {
-        let aberto = self.estado.lock().await.take();
+        let aberto = self.estado.lock().await.remove(&chave_do_escopo());
         if let Some(mut a) = aberto {
             let _ = a.browser.close().await;
             let _ = a.browser.wait().await;
@@ -210,12 +212,17 @@ impl Navegador {
 
     /// Página atual (abre o navegador se preciso).
     async fn pagina(self: &Arc<Self>) -> Result<Page, String> {
-        self.tocar();
+        let chave = chave_do_escopo();
         let mut g = self.estado.lock().await;
-        if g.is_none() {
-            *g = Some(self.lancar().await?);
+        if !g.contains_key(&chave) {
+            let aberto = self.lancar(chave.clone()).await?;
+            g.insert(chave.clone(), aberto);
         }
-        Ok(g.as_ref().map(|a| a.page.clone()).ok_or("navegador fechado")?)
+        let a = g.get(&chave).ok_or("navegador fechado")?;
+        if let Ok(mut t) = a.ultimo_uso.lock() {
+            *t = Instant::now();
+        }
+        Ok(a.page.clone())
     }
 
     async fn esperar_carga(page: &Page) {

@@ -358,7 +358,7 @@ pub fn run(mut s: Settings, fundo: bool) -> anyhow::Result<i32> {
         }
         Err(e) => return Err(e),
     };
-    let trancado = trancado || (!primeiro_uso && orion_core::onboarding::Profile::load(&s.data_dir)?.is_some());
+    let trancado = trancado || (!primeiro_uso && (orion_core::onboarding::Profile::load(&s.data_dir)?.is_some() || crate::onboarding::login_protegido(&s)));
     let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
     let slot: Slot = Default::default();
     if !trancado && !primeiro_uso {
