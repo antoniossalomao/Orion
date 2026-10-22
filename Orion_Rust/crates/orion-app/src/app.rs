@@ -186,7 +186,8 @@ impl Prefs {
         [15.0, 16.5, 18.5][self.size]
     }
     pub fn thread_w(&self) -> f32 {
-        [40.0, 46.0, 58.0][self.width] * 16.0
+        // Médio é o padrão: 760 px de transcrição (F07.10).
+        [40.0, 47.5, 58.0][self.width] * 16.0
     }
 }
 
