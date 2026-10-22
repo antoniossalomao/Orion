@@ -392,14 +392,16 @@ impl Api {
                 yield Chat::Done { message_id: None, session_id: None };
                 return;
             }
-            let mut buf = String::new();
+            // bytes, não texto: um caractere UTF-8 pode vir partido entre dois chunks
+            let mut buf: Vec<u8> = Vec::new();
             let mut bytes = resp.corpo;
             let mut fim = false;
             while let Some(chunk) = bytes.next().await {
                 let Ok(chunk) = chunk else { break };
-                buf.push_str(&String::from_utf8_lossy(&chunk));
-                while let Some(i) = buf.find("\n\n") {
-                    let bloco: String = buf.drain(..i + 2).collect();
+                buf.extend_from_slice(&chunk);
+                while let Some(i) = buf.windows(2).position(|w| w == b"\n\n") {
+                    let bloco = String::from_utf8_lossy(&buf[..i + 2]).into_owned();
+                    buf.drain(..i + 2);
                     for ev in parse_bloco(&bloco) {
                         fim = fim || matches!(ev, Chat::Done { .. });
                         yield ev;

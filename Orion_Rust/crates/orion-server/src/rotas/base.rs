@@ -224,6 +224,12 @@ pub async fn trocar_senha(Admin(quem): Admin, State(st): State<Estado>, headers:
         if st2.auth.has_password() && !st2.auth.check_password(&c.senha_atual) {
             return erro(401, "senha atual incorreta");
         }
+        // valida antes de reembrulhar a chave do banco: senha fraca não pode deixar chave e login dessincronizados
+        match st2.auth.validar_senha_nova(&c.nova) {
+            Ok(()) => {}
+            Err(AuthError::WeakPassword(m)) => return erro(422, m),
+            Err(e) => return Err(anyhow::anyhow!(e).into()),
+        }
         if st2.auth.has_password() {
             if let Err(e) = orion_core::onboarding::rewrap_key(&st2.settings.data_dir, &c.senha_atual, &c.nova) {
                 return erro(422, e.to_string());
