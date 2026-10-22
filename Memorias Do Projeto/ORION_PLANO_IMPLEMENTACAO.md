@@ -13,7 +13,7 @@ resumo: "Plano de implementação em etapas do Orion em Rust, cobrindo todas as 
 
 ---
 
-> **Legenda dos itens (20/10/2026):** `[x]` feito no código, sem depender de prova em hardware ou Windows real; `[~]` parcial, ou feito mas só compilado/testado no Linux, sem prova num Windows real; `[ ]` não iniciado. Conferido item a item contra o código em 20/10/2026, com evidência de arquivo por item.
+> **Legenda dos itens (20/10/2026):** `[x]` feito no código, sem depender de prova em hardware ou Windows real; `[~]` parcial, ou feito mas só compilado/testado no Linux, sem prova num Windows real; `[ ]` não iniciado; `[-]` cancelado por decisão (o motivo está no próprio item). Conferido item a item contra o código em 20/10/2026, com evidência de arquivo por item.
 
 > **Evidência de status:** `[~]` não distingue código incompleto de código aguardando aceite. Ao atualizar um item, informe **Implementação**, **Testes** (com comando/commit/resultado) e **Windows** (aceite ou pendência), além do próximo passo. Não reclassifique itens por esta revisão documental.
 
@@ -311,12 +311,12 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [x] **F00.06** `README` do Rust: como compilar, rodar e testar no Windows. **Feito em 21/10/2026:** `Orion_Rust/README.md` (requisitos, comandos, pacote Vulkan); a parte "testar" registra que testes e CI estão pausados.
 
 #### F00.B CI, qualidade e revisão
-- [ ] **F00.07** GitHub Actions: build Windows, cache, testes, `cargo deny`, `cargo audit`. **Cancelado por decisão de 21/10/2026** (testes novos e CI pausados; ver `docs/decisoes/0007-testes-e-ci-pausados.md`). O workflow `rust-windows.yml` fica só com `workflow_dispatch`.
-- [ ] **F00.08** Harness de testes headless e E2E do iced 0.14. **Cancelado por decisão de 21/10/2026** (testes novos e CI pausados; ver `docs/decisoes/0007-testes-e-ci-pausados.md`).
-- [ ] **F00.09** Pipeline de snapshots PNG com comparação automática. **Cancelado por decisão de 21/10/2026** (testes novos e CI pausados; ver `docs/decisoes/0007-testes-e-ci-pausados.md`). As fotos manuais (`cargo snap`) continuam.
+- [-] **F00.07** GitHub Actions: build Windows, cache, testes, `cargo deny`, `cargo audit`. **Cancelado por decisão de 21/10/2026** (testes novos e CI pausados; ver `docs/decisoes/0007-testes-e-ci-pausados.md`). O workflow `rust-windows.yml` fica só com `workflow_dispatch`.
+- [-] **F00.08** Harness de testes headless e E2E do iced 0.14. **Cancelado por decisão de 21/10/2026** (testes novos e CI pausados; ver `docs/decisoes/0007-testes-e-ci-pausados.md`).
+- [-] **F00.09** Pipeline de snapshots PNG com comparação automática. **Cancelado por decisão de 21/10/2026** (testes novos e CI pausados; ver `docs/decisoes/0007-testes-e-ci-pausados.md`). As fotos manuais (`cargo snap`) continuam.
 - [x] **F00.10** Workflow semanal de **atualização de dependências** (PR automático): `.github/dependabot.yml` (cargo em `/Orion_Rust` e GitHub Actions, toda segunda, agrupando minor/patch).
 - [~] **F00.11** Configurar a **revisão cruzada**: Claude Code Review e Codex no PR; modelos de PR e de issue; regra de branch protegida na `main`. **Estado 21/10/2026:** Claude Code Review e Codex já comentam nos PRs; criados `.github/pull_request_template.md` e `ISSUE_TEMPLATE/` (defeito e tarefa). **Falta:** a branch protegida na `main` é configuração do GitHub (Settings › Branches) e só o dono do repositório faz.
-- [ ] **F00.12** Harness de evals (`orion-evals`). **Cancelado por decisão de 21/10/2026** (testes novos e CI pausados; ver `docs/decisoes/0007-testes-e-ci-pausados.md`).
+- [-] **F00.12** Harness de evals (`orion-evals`). **Cancelado por decisão de 21/10/2026** (testes novos e CI pausados; ver `docs/decisoes/0007-testes-e-ci-pausados.md`).
 - [x] **F00.13** Skills de auditoria preparadas para as revisões: OWASP LLM + Agentic Top 10, Trail of Bits (Semgrep, cadeia de dependências), design critique e acessibilidade (ver [[ORION - REFERÊNCIAS DE PESQUISA]]). **Feito em 21/10/2026:** `.claude/skills/auditoria-seguranca/` (OWASP LLM 2025 e Agentic ASI01–ASI10) e `.claude/skills/auditoria-interface/`; **21 skills escolhidas pelo Antônio** a partir dos temas da Trail of Bits, em textos originais, disponíveis no Orion (extensão embutida `orion-auditoria`) e no Claude Code (`.claude/skills`). Lista, origem e limites em `docs/skills.md`. A extensão compila; instalação e uso no Orion não foram exercitados.
 
 #### F00.C Spikes (cada um: protótipo mínimo, medição, decisão escrita em `docs/spikes/`)
@@ -326,7 +326,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [ ] **F00.16** **Spike do grafo:** layout de forças 3D em **compute shader** com 1000, 5000 e 10000 nós; comparar com Barnes-Hut na CPU; **fallback na CPU** para GPU integrada. Referências: GraphWaGu, graphpu.
 - [~] **F00.17** **Spike de banco:** `rusqlite` + **SQLCipher** + **FTS5** + **sqlite-vec** + **log de eventos próprio** no mesmo arquivo. **Decisão de 20/10/2026:** cr-sqlite saiu da solução escolhida (C16); sua compatibilidade não bloqueia mais o sync.
 - [ ] **F00.18** **Spike de identidade de pacote:** pacote esparso registrado por um executável comum; testar **toast com botões Aprovar/Negar**, **OCR do Windows** (`Windows.Media.Ocr`) e nome/ícone do app. **Decisão:** viabilidade do Setup.exe (C24).
-- [ ] **F00.19** **Spike WebView2 cancelado por decisão de 20/10/2026** (C22). Fora dos critérios da v1; Mermaid/HTML precisam de solução sem WebView2 (F05.08).
+- [-] **F00.19** **Spike WebView2 cancelado por decisão de 20/10/2026** (C22). Fora dos critérios da v1; Mermaid/HTML precisam de solução sem WebView2 (F05.08).
 - [~] **F00.20** **Spike ACP e CLIs:** conversar com Claude Code, Codex e Gemini/Antigravity por **ACP** (adaptadores) e por `stream-json`; medir latência e confiabilidade; levantar o que cada um expõe (aprovações, ferramentas, sessão).
 - [~] **F00.21** **Spike de roteador:** regras + heurística, medidas contra um conjunto de 100 pedidos reais (simples, médio, difícil).
 - [~] **F00.22** **Spike de áudio:** `cpal` + `aec3` + Silero VAD + `oww-rs` + `whisper-rs` (Vulkan); latência fim a fim; **teste de eco** com alto-falante. **Estado PR #30: cpal/AEC3/oww/Whisper integrados; Silero e medições faltam.**
@@ -1181,7 +1181,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 #### F23.B Finanças (tudo local)
 - [~] **F23.05** **Importar OFX/CSV** do banco (`ofx-rs`, mapeadores para Nubank e outros), **notificações/SMS de compra** (Phone Link/iPhone) e **captura rápida** ("gastei 30 no almoço").
 - [~] **F23.06** **Categorização:** **regras + LLM local** para o resto; **dados bancários nunca saem**.
-- [ ] **F23.07** **Telas:** gastos por categoria e mês, orçamento com alerta, assinaturas recorrentes detectadas, previsão do saldo. **Tela Vida cortada por decisão de 21/10/2026.** Os dados continuam no núcleo (`/vida/*`); sem tela por ora.
+- [-] **F23.07** **Telas:** gastos por categoria e mês, orçamento com alerta, assinaturas recorrentes detectadas, previsão do saldo. **Tela Vida cortada por decisão de 21/10/2026.** Os dados continuam no núcleo (`/vida/*`); sem tela por ora.
 
 #### F23.C Outras áreas da Vida
 - [~] **F23.08** **Monitor de preços** (motor da F12.21) e alertas; **Tela Vida cortada por decisão de 21/10/2026.** Sem tela própria.
