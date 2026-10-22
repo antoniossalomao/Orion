@@ -68,7 +68,7 @@ thiserror = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 regex = "1"
-sha2 = "0.10"
+sha2 = "0.11"
 hex = "0.4"
 rand = "0.8"
 base64 = "0.22"
