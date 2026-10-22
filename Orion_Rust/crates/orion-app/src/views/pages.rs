@@ -29,7 +29,7 @@ pub fn view(app: &App, v: View) -> El<'_> {
 
 /// `.page`: largura 800, título Newsreader 32 + descrição, botão à direita.
 pub fn page<'a>(title: &str, desc: &str, action: Option<El<'a>>, body: El<'a>) -> El<'a> {
-    let mut head = row![column![txf(title.to_string(), 32.0, t::FG, t::SERIF).line_height(text::LineHeight::Relative(1.1)), tx(desc.to_string(), 13.0, t::FG3)].spacing(4).width(Length::Fill)].spacing(12).align_y(Vertical::Bottom);
+    let mut head = row![column![txf(title.to_string(), t::TEXT_H1, t::FG, t::SERIF).line_height(text::LineHeight::Relative(1.1)), tx(desc.to_string(), t::TEXT_BASE, t::FG3)].spacing(4).width(Length::Fill)].spacing(12).align_y(Vertical::Bottom);
     if let Some(a) = action {
         head = head.push(a);
     }
@@ -58,7 +58,7 @@ fn list<'a>(rows: Vec<El<'a>>) -> El<'a> {
     column![hline(), column(rows)].into()
 }
 fn h3<'a>(s: &str, first: bool) -> El<'a> {
-    container(txf(s.to_string(), 11.5, t::FG3, t::UI_MED)).padding(pad(if first { 0.0 } else { 26.0 }, 4.0, 8.0, 4.0)).into()
+    container(txf(s.to_string(), t::TEXT_EYEBROW, t::FG3, t::UI_MED)).padding(pad(if first { 0.0 } else { 26.0 }, 4.0, 8.0, 4.0)).into()
 }
 fn search_box<'a>(placeholder: &str, value: &str, on: impl Fn(String) -> Msg + 'a) -> El<'a> {
     let input = text_input(placeholder, value).on_input(on).size(13).font(t::UI).padding(pad(8.0, 12.0, 8.0, 34.0)).style(field_style(t::RAISE, t::LINE2, t::LINE3, 9.0));
@@ -345,25 +345,12 @@ fn painel(app: &App) -> El<'_> {
     if app.api.is_some() {
         return painel_live(app);
     }
-    let quota = [("Gemini (API)", 62.0, "62%"), ("Groq", 100.0, "esgotada"), ("Cerebras", 18.0, "18%"), ("OpenRouter (free)", 40.0, "40%"), ("Mistral", 9.0, "9%")];
-    let subs = [("Claude (assinatura)", 41.0), ("Codex (assinatura)", 23.0), ("Gemini CLI", 12.0)];
-    let mut col = column![h3("Cotas das APIs gratuitas · hoje", true)];
-    for (l, v, s) in quota {
-        col = col.push(hbar(l, v, s, if v >= 100.0 { t::DANGER } else { t::FG2 }));
-    }
-    col = col.push(h3("Assinaturas", false));
-    for (l, v) in subs {
-        col = col.push(hbar(l, v, &format!("{v}%"), t::FG2));
-    }
-    col = col.push(h3("Saúde do sistema", false));
-    col = col.push(container(stats([("296 MB", "RAM do Orion"), ("0,4%", "CPU parado"), ("12%", "GPU"), ("41 GB", "livres no disco")])).padding(pad(0.0, 0.0, 28.0, 0.0)));
-    col = col.push(h3("A semana", false));
-    let pend = app.pend_count().to_string();
-    col = col.push(container(stats([("38", "conversas"), ("12", "ações aprovadas"), (&pend, "aguardando você"), ("45", "notas gravadas no vault")])).padding(pad(0.0, 0.0, 28.0, 0.0)));
-    col = col.push(h3("Primeira resposta · últimos 14 dias", false));
-    let ch = Line { vals: data::LAT.to_vec(), min: 1.0, max: 2.5, ticks: vec![1.0, 1.5, 2.0, 2.5], fmt: |v| format!("{v:.1} s").replace('.', ","), start: "2 out.", end: "hoje", color: t::FG2, mark: None };
-    col = col.push(canvas(ch).width(Length::Fill).height(Length::Fixed(150.0)));
-    page("Painel", "Cotas, assinaturas, saúde do sistema e a semana. Dados de exemplo.", Some(btn("Atualizar", Kind::Normal, true, Some("refresh"), Some(Msg::Refresh))), col.into())
+    // Sem servidor não há números reais: o painel fica vazio em vez de mostrar dados de exemplo (F01.28).
+    let en = app.p.english;
+    let aviso = if en { "No data yet. Connect Orion to see quotas, models and the week." } else { "Sem dados ainda. Conecte o Orion para ver cotas, modelos e a semana." };
+    let col = column![container(tx(aviso, t::TEXT_BASE, t::FG3)).padding(pad(4.0, 4.0, 4.0, 4.0))];
+    let (titulo, desc) = if en { ("Panel", "Quotas, models and the week, straight from the server.") } else { ("Painel", "Cotas, modelos e a semana, direto do servidor.") };
+    page(titulo, desc, Some(btn(if en { "Refresh" } else { "Atualizar" }, Kind::Normal, true, Some("refresh"), Some(Msg::Refresh))), col.into())
 }
 
 /// Painel com os números do servidor (`/painel` e `/budget`).

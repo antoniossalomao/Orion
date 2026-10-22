@@ -64,6 +64,16 @@ pub const BAR_H: f32 = 46.0;
 pub const DRAWER_MAX: f32 = 760.0;
 pub const CTX_MIN_W: f32 = 1120.0;
 
+// Escala de tipo (F01.03): texto base 14, h1 24, eyebrow 11, rótulos 12, legenda 11.
+pub const TEXT_BASE: f32 = 14.0;
+pub const TEXT_H1: f32 = 24.0;
+pub const TEXT_EYEBROW: f32 = 11.0;
+pub const TEXT_LABEL: f32 = 12.0;
+pub const TEXT_CAPTION: f32 = 11.0;
+
+// Formas (F01.04): cantos entre 10 e 14 px.
+pub const RADIUS_MAX: f32 = 14.0;
+
 // Fontes (§5). Os arquivos estão em `assets/fonts` e vão dentro do binário.
 const fn font(name: &'static str, weight: Weight, style: Style) -> Font {
     Font {

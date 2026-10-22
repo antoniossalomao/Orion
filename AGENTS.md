@@ -52,5 +52,5 @@ O andamento operacional fica no board "Orion — Board" (https://app.notion.com/
 
 ## Idioma
 
-Português do Brasil em código de texto, documentação, mensagens de commit e comentários.
+Nomes de código (variáveis, funções, tipos, módulos, arquivos) em inglês. Comentários, docstrings, documentação e mensagens de commit em português do Brasil. Textos da interface ao usuário em pt-BR e en, via Fluent.
 
