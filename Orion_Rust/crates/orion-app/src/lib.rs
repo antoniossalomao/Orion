@@ -12,6 +12,7 @@ pub mod keys;
 pub mod live;
 pub mod md;
 pub mod net;
+pub mod novidades;
 pub mod popover;
 pub mod sky;
 pub mod theme;

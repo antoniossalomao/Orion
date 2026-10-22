@@ -252,7 +252,8 @@ pub fn default_models(pc: &PcInfo) -> Vec<LocalModel> {
             size_gb: m.bytes as f32 / 1_000_000_000.0,
             ram_gb: (m.bytes.saturating_add(orion_local::RUNTIME_RESERVE) / (1024 * 1024 * 1024) + 1) as u32,
             min_ram_gb: if llm { ((m.bytes + orion_local::RUNTIME_RESERVE) * 100 / 30 / (1024 * 1024 * 1024) + 1) as u32 } else { 4 },
-            min_vram_gb: 0,
+            // Estimativa: pesos do GGUF com folga de 20% para o cache de contexto. STT roda em CPU ou Vulkan, sem VRAM mínima.
+            min_vram_gb: if llm { ((m.bytes as f64 * 1.2) / 1_000_000_000.0).ceil() as u32 } else { 0 },
             recommended: if llm { recommendation.as_deref() == Some(&m.id) } else { m.id == "whisper-small" },
             selected: false, // REGRAS.md: opt-in não liga sozinho; recomendações não iniciam download.
         }

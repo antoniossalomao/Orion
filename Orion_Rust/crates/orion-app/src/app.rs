@@ -532,7 +532,7 @@ pub enum Msg {
 
 impl App {
     pub fn new() -> Self {
-        App {
+        let mut app = App {
             p: Prefs::default(),
             logged: false,
             pw: String::new(),
@@ -622,7 +622,11 @@ impl App {
             t0: Instant::now(),
             hour: None,
             toast_pinned: false,
+        };
+        if let Some(m) = crate::novidades::aviso() {
+            app.toast(m);
         }
+        app
     }
 
     pub fn boot() -> (Self, Task<Msg>) {
