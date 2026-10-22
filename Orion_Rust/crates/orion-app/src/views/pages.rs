@@ -346,8 +346,11 @@ fn painel(app: &App) -> El<'_> {
         return painel_live(app);
     }
     // Sem servidor não há números reais: o painel fica vazio em vez de mostrar dados de exemplo (F01.28).
-    let col = column![container(tx("Sem dados ainda. Conecte o Orion para ver cotas, modelos e a semana.", t::TEXT_BASE, t::FG3)).padding(pad(4.0, 4.0, 4.0, 4.0))];
-    page("Painel", "Cotas, modelos e a semana, direto do servidor.", Some(btn("Atualizar", Kind::Normal, true, Some("refresh"), Some(Msg::Refresh))), col.into())
+    let en = app.p.english;
+    let aviso = if en { "No data yet. Connect Orion to see quotas, models and the week." } else { "Sem dados ainda. Conecte o Orion para ver cotas, modelos e a semana." };
+    let col = column![container(tx(aviso, t::TEXT_BASE, t::FG3)).padding(pad(4.0, 4.0, 4.0, 4.0))];
+    let (titulo, desc) = if en { ("Panel", "Quotas, models and the week, straight from the server.") } else { ("Painel", "Cotas, modelos e a semana, direto do servidor.") };
+    page(titulo, desc, Some(btn(if en { "Refresh" } else { "Atualizar" }, Kind::Normal, true, Some("refresh"), Some(Msg::Refresh))), col.into())
 }
 
 /// Painel com os números do servidor (`/painel` e `/budget`).
