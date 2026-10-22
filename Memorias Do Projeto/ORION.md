@@ -20,14 +20,20 @@ Antônio é o administrador: decide, aprova e pode desligar qualquer coisa. Nada
 
 ### Fluxos reais da v1 — rodada Codex (21/10/2026)
 
-Branch `codex/v1-fluxos-reais`, implementação no commit `a96baca`, baseada no commit `9fde189` do PR #30. Entrega parcial; não conclui F05/F06/F08 nem o aceite da v1.
+Branch `codex/v1-fluxos-reais`, código validado em `ce2c1c7` (implementação `a96baca`/`6444e92`), baseada em `9fde189` do PR #30. Código no [PR #34](https://github.com/antoniossalomao/Orion/pull/34); espelho no [vault #89](https://github.com/antoniossalomao/vault/pull/89). Entrega parcial; não conclui F05/F06/F08 nem o aceite da v1.
 
 - [x] **Implementação — F08.01/F08.02:** formulário de criação básica de projeto (nome, instruções e pasta local existente opcional), ligado ao `POST /projects` autenticado. Memória pessoal não compartilhada. Valida limites, bloqueia envio duplicado, mantém os campos em caso de erro e só informa sucesso após resposta do núcleo. Não cria nota/repositório nem clona GitHub.
 - [x] **Implementação — F05.18:** renomear conversa pelo menu, com título de 1–120 caracteres, foco no campo, Enter para salvar, erro visível e persistência por `PATCH /sessoes/:id`. Resposta vinculada ao ID da conversa; título não muda otimisticamente.
 - [x] **Implementação — F05.11/F05.14:** copiar texto das mensagens do usuário e do Orion pela área de transferência do iced; o clique leva o texto original da mensagem (Markdown na resposta), sem depender do índice da conversa durante o polling.
 - [x] **Correção de recibos falsos:** no modo real, anexos de exemplo, editor de nota e desfazer do protótipo não simulam execução. `/nota`, `/resumo` e `/imagem` avisam indisponibilidade sem declarar gravação. Editar/reenviar, fixar contexto, regenerar e ouvir ficam desabilitados até a ligação real. O demo preserva essas simulações. Isso não é um inventário completo de todos os controles da UI.
-- [x] **Compilação desta rodada:** `cargo +1.97.0 check --locked -p orion-app` passou no Linux; código registrado em `a96baca`.
-- [ ] **Testes desta rodada:** suíte existente exigida pelo AGENTS.md em andamento. Nenhum teste novo ou gatilho de CI criado. `rustfmt --check` encontra diferenças de formatação também no código anterior; não houve reformatação ampla.
+- [x] **Compilação desta rodada:** `cargo +1.97.0 check --locked -p orion-app` passou no Linux, inclusive após a proteção contra respostas antigas (`6444e92`).
+- [x] **Testes desta rodada (21/10/2026, código `ce2c1c7`):** suíte existente exigida pelo AGENTS.md passou no Linux com **550 testes, 0 falhas**. O teste de renderização existente foi compatibilizado com a remoção da tela Vida (`View::Vida` → `View::Projetos`); nenhum teste novo ou gatilho de CI criado. Inicialmente faltava o pacote de desenvolvimento ALSA; extraído em `/tmp/orion-native`, com `PKG_CONFIG_PATH` só para o comando, sem mudar o sistema/repositório. Casos condicionais de HTTP/rede/contas/hardware não foram exercitados com serviços reais. `rustfmt --check` encontra diferenças também no código anterior; não houve reformatação ampla. `git diff --check` passou.
+**Comando da suíte existente** (em `Orion_Rust/`, Rust 1.97.0; no ambiente desta rodada, com `PKG_CONFIG_PATH=/tmp/orion-native/usr/lib/x86_64-linux-gnu/pkgconfig`):
+
+```sh
+cargo +1.97.0 test --locked -p orion-policy -p orion-store -p orion-ai -p orion-core -p orion-server -p orion-platform -p orion-voice -p orion-local -p orion-llama -p orion-setup -p orion-mcp -p orion-vault -p orion-updater -p orion-app -p orion-testkit
+```
+
 **Aceite manual pendente (app real, sobretudo Windows):**
 - [ ] Criar projeto sem pasta e com pasta absoluta existente; reabrir o app e confirmar nome/instruções/pasta no núcleo.
 - [ ] Nome vazio, nome acima de 120 caracteres e pasta inválida: manter campos, mostrar erro e não anunciar criação.
