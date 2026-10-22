@@ -92,7 +92,7 @@ jobs:
           if ($env:MINISIGN_PASSWORD) { $env:MINISIGN_PASSWORD | & $exe -S -s chave.key -m $feed -x "$feed.minisig" } else { '' | & $exe -S -W -s chave.key -m $feed -x "$feed.minisig" }
           Remove-Item chave.key
           if (-not (Test-Path "$feed.minisig")) { throw 'assinatura não gerada' }
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: release-${{ matrix.variante }}
           path: saida
