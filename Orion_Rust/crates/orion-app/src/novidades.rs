@@ -1,27 +1,46 @@
-//! Aviso discreto de novidades (F01.26 e F10.25 do board): uma vez por versão, na primeira abertura depois de atualizar.
+//! Aviso discreto de novidades (F01.26 e F10.25 do board): uma vez por versão, na primeira abertura visível depois de atualizar.
 //! Usa o toast já existente; não abre janela nem interrompe a conversa.
 
 use std::path::PathBuf;
 
-const VERSAO: &str = env!("CARGO_PKG_VERSION");
+const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// Arquivo que guarda a última versão aberta, ao lado dos dados do app.
-fn arquivo() -> Option<PathBuf> {
+/// Arquivo que guarda a última versão vista, ao lado dos dados do app.
+fn state_file() -> Option<PathBuf> {
     let base = std::env::var_os("APPDATA").or_else(|| std::env::var_os("HOME"))?;
     Some(PathBuf::from(base).join("Orion").join("ultima_versao.txt"))
 }
 
-/// Devolve o texto do aviso quando a versão mudou desde a última abertura.
-/// Na primeira execução grava a versão e não avisa, para não anunciar a própria instalação.
-pub fn aviso() -> Option<String> {
-    let caminho = arquivo()?;
-    let visto = std::fs::read_to_string(&caminho).ok();
-    if visto.as_deref().map(str::trim) == Some(VERSAO) {
-        return None;
+/// Há novidade a mostrar? Na primeira instalação grava a versão e não avisa, para não anunciar a própria instalação.
+pub fn pending() -> bool {
+    let Some(path) = state_file() else { return false };
+    match std::fs::read_to_string(&path) {
+        Ok(seen) => seen.trim() != VERSION,
+        Err(_) => {
+            mark_seen();
+            false
+        }
     }
-    if let Some(pasta) = caminho.parent() {
-        let _ = std::fs::create_dir_all(pasta);
+}
+
+/// Registra a versão atual como vista.
+pub fn mark_seen() {
+    let Some(path) = state_file() else { return };
+    if let Some(dir) = path.parent() {
+        let _ = std::fs::create_dir_all(dir);
     }
-    let _ = std::fs::write(&caminho, VERSAO);
-    visto.map(|_| format!("Orion atualizado para {VERSAO}. Veja em Configurações › Sistema › Sobre."))
+    let _ = std::fs::write(&path, VERSION);
+}
+
+/// Inicialização em segundo plano (atalho de login): a janela fica escondida, então o aviso espera a próxima abertura visível.
+pub fn started_in_background() -> bool {
+    std::env::args().any(|a| a == "--background")
+}
+
+pub fn text(english: bool) -> String {
+    if english {
+        format!("Orion updated to {VERSION}. See Settings › System › About.")
+    } else {
+        format!("Orion atualizado para {VERSION}. Veja em Configurações › Sistema › Sobre.")
+    }
 }

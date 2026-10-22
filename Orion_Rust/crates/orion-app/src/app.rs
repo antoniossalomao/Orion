@@ -353,6 +353,8 @@ pub struct App {
     pub t0: Instant,
     pub hour: Option<u32>,
     pub toast_pinned: bool,
+    /// Aviso de novidades ainda não mostrado nesta versão (novidades.rs).
+    pub news_pending: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -532,7 +534,7 @@ pub enum Msg {
 
 impl App {
     pub fn new() -> Self {
-        let mut app = App {
+        App {
             p: Prefs::default(),
             logged: false,
             pw: String::new(),
@@ -622,11 +624,8 @@ impl App {
             t0: Instant::now(),
             hour: None,
             toast_pinned: false,
-        };
-        if let Some(m) = crate::novidades::aviso() {
-            app.toast(m);
+            news_pending: crate::novidades::pending(),
         }
-        app
     }
 
     pub fn boot() -> (Self, Task<Msg>) {
@@ -821,6 +820,11 @@ impl App {
                 }
                 crate::views::memory::tick(self, now);
                 self.spin = (self.spin + 0.35) % std::f32::consts::TAU;
+                if self.news_pending && !crate::novidades::started_in_background() {
+                    self.news_pending = false;
+                    crate::novidades::mark_seen();
+                    self.toast(crate::novidades::text(self.p.english));
+                }
                 if let Some((_, at)) = &self.toast {
                     if now.duration_since(*at) > Duration::from_millis(2600) {
                         self.toast = None;
