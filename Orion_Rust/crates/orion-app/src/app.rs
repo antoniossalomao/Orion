@@ -425,6 +425,7 @@ pub enum Msg {
     ArchiveConv,
     DeleteConv,
     CopyText(String),
+    OpenUrl(String),
     RenameStart,
     RenameText(String),
     RenameSave,
@@ -933,6 +934,13 @@ impl App {
             Msg::Toast(s) => {
                 self.pop = None;
                 self.toast(s);
+            }
+            Msg::OpenUrl(url) => {
+                // só http(s): link vindo de resposta do modelo nunca abre arquivo nem programa
+                if crate::md::is_web(&url) {
+                    return Task::perform(async move { tokio::task::spawn_blocking(move || crate::onboarding::open_link(&url)).await.ok(); }, |_| Msg::Noop);
+                }
+                self.toast(if self.p.english { "Only web links can be opened" } else { "Só links da web podem ser abertos" });
             }
             Msg::CopyText(text) => {
                 self.toast(if self.p.english { "Copied" } else { "Copiado" });
@@ -1624,7 +1632,7 @@ impl App {
 }
 
 pub fn chrono_hm() -> String {
-    "09:41".to_string()
+    crate::live::hm(std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs_f64()).unwrap_or(0.0))
 }
 
 pub fn detect_kind(s: &str) -> CapKind {

@@ -1,5 +1,5 @@
-//! Marcação mínima das respostas e da prévia do editor: `**negrito**`, `` `código` ``, `[[wikilink]]`, títulos, citação,
-//! listas, bloco de código e frontmatter (§13.3, §17).
+//! Marcação das respostas e da prévia do editor: `**negrito**`, `*itálico*`, `` `código` ``, `[[wikilink]]`, `[texto](url)`,
+//! links soltos, títulos, citação, listas, tabelas, régua, bloco de código e frontmatter (§13.3, §17).
 
 use crate::theme as t;
 use iced::widget::{column, container, rich_text, row, scrollable, span, text, Column};
@@ -9,8 +9,10 @@ use iced::{Border, Color, Element, Font, Length, Padding};
 pub enum Inline {
     Text(String),
     Bold(String),
+    Italic(String),
     Code(String),
     Wiki(String),
+    Link(String, String),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -22,6 +24,8 @@ pub enum Block {
     Ol(Vec<Vec<Inline>>),
     Code(Vec<String>),
     Front(Vec<String>),
+    Table(Vec<Vec<Inline>>, Vec<Vec<Vec<Inline>>>),
+    Rule,
 }
 
 pub fn inline(src: &str) -> Vec<Inline> {
@@ -50,6 +54,49 @@ pub fn inline(src: &str) -> Vec<Inline> {
                 i += rest[..1 + end + 1].chars().count();
                 continue;
             }
+        } else if rest.starts_with('*') && !rest.starts_with("**") {
+            if let Some(end) = rest[1..].find('*') {
+                let inner = &rest[1..1 + end];
+                if !inner.is_empty() && !inner.starts_with(' ') && !inner.ends_with(' ') {
+                    flush(&mut buf, &mut out);
+                    out.push(Inline::Italic(inner.to_string()));
+                    i += rest[..1 + end + 1].chars().count();
+                    continue;
+                }
+            }
+        } else if rest.starts_with('_') && (i == 0 || !chars[i - 1].is_alphanumeric()) {
+            if let Some(end) = rest[1..].find('_') {
+                let inner = &rest[1..1 + end];
+                let after = rest[1 + end + 1..].chars().next();
+                if !inner.is_empty() && !inner.starts_with(' ') && !inner.ends_with(' ') && !after.is_some_and(|c| c.is_alphanumeric()) {
+                    flush(&mut buf, &mut out);
+                    out.push(Inline::Italic(inner.to_string()));
+                    i += rest[..1 + end + 1].chars().count();
+                    continue;
+                }
+            }
+        } else if rest.starts_with('[') && !rest.starts_with("[[") {
+            if let Some(mid) = rest.find("](") {
+                if let Some(close) = rest[mid + 2..].find(')') {
+                    let label = &rest[1..mid];
+                    let url = rest[mid + 2..mid + 2 + close].trim();
+                    if !label.contains('\n') && is_web(url) {
+                        flush(&mut buf, &mut out);
+                        out.push(Inline::Link(label.to_string(), url.to_string()));
+                        i += rest[..mid + 2 + close + 1].chars().count();
+                        continue;
+                    }
+                }
+            }
+        } else if (rest.starts_with("http://") || rest.starts_with("https://")) && (i == 0 || !chars[i - 1].is_alphanumeric()) {
+            let raw: String = rest.chars().take_while(|c| !c.is_whitespace() && !matches!(c, '<' | '>' | '"' | '`')).collect();
+            let url = raw.trim_end_matches(['.', ',', ';', ':', '!', '?', ')', ']']).to_string();
+            if url.len() > 8 {
+                flush(&mut buf, &mut out);
+                i += url.chars().count();
+                out.push(Inline::Link(url.clone(), url));
+                continue;
+            }
         } else if rest.starts_with("[[") {
             if let Some(end) = rest[2..].find("]]") {
                 flush(&mut buf, &mut out);
@@ -65,6 +112,26 @@ pub fn inline(src: &str) -> Vec<Inline> {
     }
     flush(&mut buf, &mut out);
     out
+}
+
+/// Só web: um link da resposta nunca abre arquivo, programa ou esquema do sistema (REGRAS.md: conteúdo externo é dado).
+pub fn is_web(url: &str) -> bool {
+    let u = url.to_ascii_lowercase();
+    (u.starts_with("https://") || u.starts_with("http://")) && !u.contains(char::is_whitespace)
+}
+
+fn split_row(l: &str) -> Vec<String> {
+    l.trim().trim_matches('|').split('|').map(|c| c.trim().to_string()).collect()
+}
+
+fn is_sep_row(l: &str) -> bool {
+    let c = split_row(l);
+    !c.is_empty() && l.contains('-') && c.iter().all(|x| !x.is_empty() && x.chars().all(|ch| matches!(ch, '-' | ':' | ' ')) && x.contains('-'))
+}
+
+fn is_rule(l: &str) -> bool {
+    let t = l.trim();
+    t.len() >= 3 && (t.chars().all(|c| c == '-') || t.chars().all(|c| c == '*') || t.chars().all(|c| c == '_'))
 }
 
 pub fn parse(src: &str) -> Vec<Block> {
@@ -99,9 +166,29 @@ pub fn parse(src: &str) -> Vec<Block> {
         } else if let Some(h) = l.strip_prefix("# ") {
             blocks.push(Block::H(1, inline(h)));
             i += 1;
-        } else if let Some(q) = l.strip_prefix("> ") {
-            blocks.push(Block::Quote(inline(q)));
+        } else if is_rule(l) && !l.starts_with("- ") {
+            blocks.push(Block::Rule);
             i += 1;
+        } else if l.trim_start().starts_with('|') && i + 1 < lines.len() && is_sep_row(lines[i + 1]) {
+            let head: Vec<Vec<Inline>> = split_row(l).iter().map(|c| inline(c)).collect();
+            i += 2;
+            let mut rows = Vec::new();
+            while i < lines.len() && lines[i].trim_start().starts_with('|') {
+                rows.push(split_row(lines[i]).iter().map(|c| inline(c)).collect());
+                i += 1;
+            }
+            blocks.push(Block::Table(head, rows));
+        } else if l.starts_with('>') {
+            let mut q = String::new();
+            while i < lines.len() && lines[i].starts_with('>') {
+                let t = lines[i].trim_start_matches('>').trim_start();
+                if !q.is_empty() {
+                    q.push(' ');
+                }
+                q.push_str(t);
+                i += 1;
+            }
+            blocks.push(Block::Quote(inline(&q)));
         } else if l.starts_with("- ") {
             let mut items = Vec::new();
             while i < lines.len() && lines[i].starts_with("- ") {
@@ -136,7 +223,7 @@ fn is_ol(l: &str) -> bool {
     d > 0 && l[d..].starts_with(". ")
 }
 fn is_block_start(l: &str) -> bool {
-    l.starts_with("```") || l.starts_with('#') || l.starts_with("> ") || l.starts_with("- ") || is_ol(l)
+    l.starts_with("```") || l.starts_with('#') || l.starts_with('>') || l.starts_with("- ") || l.trim_start().starts_with('|') || is_rule(l) || is_ol(l)
 }
 
 /// Parâmetros de aparência (chat usa Newsreader; a prévia do editor também).
@@ -162,11 +249,13 @@ impl Style {
     }
 }
 
-fn spans<'a>(inl: &[Inline], st: &Style, base: Color) -> Vec<iced::widget::text::Span<'a, (), Font>> {
+fn spans<'a>(inl: &[Inline], st: &Style, base: Color) -> Vec<iced::widget::text::Span<'a, String, Font>> {
     inl.iter()
         .map(|i| match i {
             Inline::Text(s) => span(s.clone()).font(st.font).size(st.size).color(base),
             Inline::Bold(s) => span(s.clone()).font(st.bold).size(st.size).color(base),
+            Inline::Italic(s) => span(s.clone()).font(Font { style: iced::font::Style::Italic, ..st.font }).size(st.size).color(base),
+            Inline::Link(label, url) => span(label.clone()).font(st.font).size(st.size).color(t::ACCENT).underline(true).link(url.clone()),
             Inline::Code(s) => span(s.clone())
                 .font(t::MONO)
                 .size(st.size * 0.78)
@@ -215,13 +304,25 @@ fn code_line<'a, M: 'a>(l: &str) -> Element<'a, M> {
 }
 
 pub fn render<'a, M: Clone + 'a>(blocks: &[Block], st: Style) -> Element<'a, M> {
+    render_with(blocks, st, None)
+}
+
+/// Como `render`, mas os links (`[texto](url)` e URLs soltas) mandam a mensagem de `on_link` ao serem clicados.
+pub fn render_with<'a, M: Clone + 'a>(blocks: &[Block], st: Style, on_link: Option<fn(String) -> M>) -> Element<'a, M> {
+    let para = move |inl: &[Inline], color: Color, st: &Style| -> Element<'a, M> {
+        let r = rich_text(spans(inl, st, color)).line_height(iced::widget::text::LineHeight::Relative(st.line));
+        match on_link {
+            Some(f) => r.on_link_click(f).into(),
+            None => r.into(),
+        }
+    };
     let mut col: Column<'a, M> = column![].spacing(0);
     let n = blocks.len();
     for (idx, b) in blocks.iter().enumerate() {
         let last = idx + 1 == n;
         let below = if last { 0.0 } else { st.gap };
         let el: Element<'a, M> = match b {
-            Block::P(inl) => rich_text(spans(inl, &st, t::FG)).line_height(iced::widget::text::LineHeight::Relative(st.line)).into(),
+            Block::P(inl) => para(inl, t::FG, &st),
             Block::H(lv, inl) => {
                 let (sz, top) = match lv {
                     1 => (st.h1, 0.0),
@@ -229,14 +330,53 @@ pub fn render<'a, M: Clone + 'a>(blocks: &[Block], st: Style) -> Element<'a, M> 
                     _ => (st.h3, 6.0),
                 };
                 let sp: Vec<iced::widget::text::Span<'a, (), Font>> = inl.iter().map(|i| match i {
-                    Inline::Text(s) | Inline::Bold(s) | Inline::Code(s) | Inline::Wiki(s) => span(s.clone()).font(st.h_font).size(sz).color(t::FG),
+                    Inline::Text(s) | Inline::Bold(s) | Inline::Italic(s) | Inline::Code(s) | Inline::Wiki(s) | Inline::Link(s, _) => span(s.clone()).font(st.h_font).size(sz).color(t::FG),
                 }).collect();
                 container(rich_text(sp)).padding(Padding { top, bottom: 2.0, ..Default::default() }).into()
             }
-            Block::Quote(inl) => container(rich_text(spans(inl, &st, t::FG2)).line_height(iced::widget::text::LineHeight::Relative(st.line)))
-                .padding(Padding { top: 6.0, bottom: 6.0, left: 12.0, right: 0.0 })
-                .style(|_| container::Style { border: Border { color: t::LINE3, width: 0.0, radius: 0.0.into() }, ..Default::default() })
+            Block::Quote(inl) => {
+                let bar = container(iced::widget::Space::new().width(Length::Fixed(2.0)).height(Length::Fill))
+                    .width(Length::Fixed(2.0))
+                    .style(|_| container::Style { background: Some(t::LINE3.into()), border: Border { radius: 1.0.into(), ..Default::default() }, ..Default::default() });
+                row![bar, container(para(inl, t::FG2, &st)).padding(Padding { top: 2.0, bottom: 2.0, left: 12.0, right: 0.0 }).width(Length::Fill)]
+                    .height(Length::Shrink)
+                    .into()
+            }
+            Block::Rule => container(iced::widget::Space::new().height(Length::Fixed(1.0)))
+                .width(Length::Fill)
+                .height(Length::Fixed(1.0))
+                .style(|_| container::Style { background: Some(t::LINE.into()), ..Default::default() })
                 .into(),
+            Block::Table(head, rows) => {
+                let cell = |inl: &[Inline], bold: bool| -> Element<'a, M> {
+                    let mut stc = st;
+                    if bold {
+                        stc.font = st.bold;
+                    }
+                    container(para(inl, t::FG, &stc)).padding(Padding { top: 6.0, bottom: 6.0, left: 10.0, right: 10.0 }).width(Length::Fill).into()
+                };
+                let line = || container(iced::widget::Space::new().height(Length::Fixed(1.0))).width(Length::Fill).height(Length::Fixed(1.0)).style(|_| container::Style { background: Some(t::LINE.into()), ..Default::default() });
+                let mut c = column![].spacing(0);
+                let mut hr = row![].spacing(0);
+                for h in head {
+                    hr = hr.push(cell(h, true));
+                }
+                c = c.push(hr).push(line());
+                for r in rows {
+                    let mut rr = row![].spacing(0);
+                    for k in 0..head.len() {
+                        rr = rr.push(match r.get(k) {
+                            Some(x) => cell(x, false),
+                            None => cell(&[], false),
+                        });
+                    }
+                    c = c.push(rr).push(line());
+                }
+                container(c)
+                    .width(Length::Fill)
+                    .style(|_| container::Style { border: Border { color: t::LINE, width: 1.0, radius: 10.0.into() }, ..Default::default() })
+                    .into()
+            }
             Block::Ul(items) | Block::Ol(items) => {
                 let ordered = matches!(b, Block::Ol(_));
                 let mut c = column![].spacing(st.size * 0.3);
@@ -244,7 +384,7 @@ pub fn render<'a, M: Clone + 'a>(blocks: &[Block], st: Style) -> Element<'a, M> 
                     let mark = if ordered { format!("{}.", k + 1) } else { "•".into() };
                     c = c.push(row![
                         container(text(mark).font(st.font).size(st.size).color(t::FG3)).width(Length::Fixed(st.size * 1.3)),
-                        rich_text(spans(it, &st, t::FG)).line_height(iced::widget::text::LineHeight::Relative(st.line)).width(Length::Fill)
+                        container(para(it, t::FG, &st)).width(Length::Fill)
                     ]);
                 }
                 c.into()

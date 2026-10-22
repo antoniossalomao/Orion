@@ -134,6 +134,9 @@ pub fn mensagem_http(status: u16, corpo: &str, caminho: &str) -> String {
                 detalhe
             }
         }
+        503 if detalhe.contains("modelos não configurados") => {
+            "Nenhum modelo configurado. Abra Configurações › Modelos e adicione uma chave de API, ou entre com uma CLI (Claude, Codex ou Gemini).".into()
+        }
         s if s >= 500 => format!("O servidor falhou ({s}){}.", if detalhe.is_empty() { String::new() } else { format!(": {detalhe}") }),
         _ => {
             if detalhe.is_empty() {

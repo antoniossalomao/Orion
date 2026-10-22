@@ -10,8 +10,8 @@ use iced::widget::{button, canvas, column, container, rich_text, row, span, stac
 use iced::{Background, Border, Length};
 
 pub fn local_hour() -> u32 {
-    let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
-    (((secs / 3600) + 24 - 3) % 24) as u32
+    use chrono::Timelike;
+    chrono::Local::now().hour()
 }
 
 pub fn greet(h: u32) -> &'static str {
@@ -64,16 +64,17 @@ pub fn view(app: &App) -> El<'_> {
     .line_height(iced::widget::text::LineHeight::Relative(1.08));
     let eyebrow = row![grow(), belt_fg(false), txf(spaced("SEU ESPAÇO COM ORION", 1), 11.0, t::FG3, t::UI_MED), grow()].spacing(10).align_y(Vertical::Center);
 
-    let status = row![
+    let mut status = row![
         grow(),
         row![dot_el(t::OK, 6.0), tx("Conectado", 12.0, t::FG3)].spacing(6).align_y(Vertical::Center),
         row![icon("cpu", 14.0, t::FG3), tx(app.p.model_label(), 12.0, t::FG3)].spacing(6).align_y(Vertical::Center),
-        row![icon("graph", 14.0, t::FG3), tx(format!("{} notas no vault", app.mem.nodes.len()), 12.0, t::FG3)].spacing(6).align_y(Vertical::Center),
-        row![icon("clock", 14.0, t::FG3), tx("Backup do vault às 14:00", 12.0, t::FG3)].spacing(6).align_y(Vertical::Center),
-        grow(),
-    ]
-    .spacing(16)
-    .align_y(Vertical::Center);
+        row![icon("graph", 14.0, t::FG3), tx(match app.mem.nodes.len() { 1 => "1 nota no vault".to_string(), n => format!("{n} notas no vault") }, 12.0, t::FG3)].spacing(6).align_y(Vertical::Center),
+    ];
+    // O horário do backup só aparece nos dados de exemplo: ainda não vem do núcleo.
+    if !app.is_live() {
+        status = status.push(row![icon("clock", 14.0, t::FG3), tx("Backup do vault às 14:00", 12.0, t::FG3)].spacing(6).align_y(Vertical::Center));
+    }
+    let status = status.push(grow()).spacing(16).align_y(Vertical::Center);
 
     let est = |label: &str, lead: f32| 28.0 + lead + label.chars().count() as f32 * 13.0 * 0.5 + 2.0;
     let mut items: Vec<(f32, El)> = vec![];

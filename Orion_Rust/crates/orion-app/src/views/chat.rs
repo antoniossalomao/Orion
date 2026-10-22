@@ -116,8 +116,8 @@ fn orion_msg<'a>(app: &'a App, ci: usize, mi: usize, o: &'a OrionMsg, is_last: b
             for tl in &o.tools {
                 list = list.push(
                     row![
-                        container(tx(tl.kind.clone(), 12.5, t::FG3)).width(Length::Fixed(70.0)),
-                        container(txf(ell(&tl.value, content_w - 190.0, 12.0), 12.0, t::FG2, t::MONO)).width(Length::Fill),
+                        container(tx(tl.kind.clone(), 12.5, t::FG3)).width(Length::Fixed(130.0)),
+                        container(txf(ell(&tl.value, content_w - 250.0, 12.0), 12.0, t::FG2, t::MONO)).width(Length::Fill),
                         tx(tl.time.clone(), 11.5, t::FG3)
                     ]
                     .spacing(10)
@@ -139,7 +139,7 @@ fn orion_msg<'a>(app: &'a App, ci: usize, mi: usize, o: &'a OrionMsg, is_last: b
         text.push_str(if (app.now.saturating_duration_since(app.t0).as_millis() / 500) % 2 == 0 { " █" } else { "  " });
     }
     let blocks = md::parse(&text);
-    col = col.push(md::render(&blocks, md::Style::chat(f, fb, app.p.chat_fs())));
+    col = col.push(md::render_with(&blocks, md::Style::chat(f, fb, app.p.chat_fs()), Some(Msg::OpenUrl)));
 
     if let Some(a) = &o.approval {
         col = col.push(approval(a, ci, mi));

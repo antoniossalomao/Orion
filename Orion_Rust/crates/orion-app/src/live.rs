@@ -40,6 +40,21 @@ pub enum Lm {
 }
 
 // ── relógio sem dependências ──
+/// Deslocamento do fuso do Windows em segundos (o horário local do PC, com horário de verão se houver).
+pub fn tz_offset() -> f64 {
+    chrono::Local::now().offset().local_minus_utc() as f64
+}
+
+/// `escrever_arquivo` → `Escrever arquivo` (o rótulo curto da linha de ferramenta).
+fn humanizar(nome: &str) -> String {
+    let t = nome.replace('_', " ");
+    let mut c = t.chars();
+    match c.next() {
+        Some(p) => p.to_uppercase().collect::<String>() + c.as_str(),
+        None => String::new(),
+    }
+}
+
 fn now_secs() -> f64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs_f64()).unwrap_or(0.0)
 }
@@ -64,9 +79,9 @@ pub fn iso_to_secs(iso: &str) -> Option<f64> {
     Some(days as f64 * 86400.0 + h * 3600.0 + mi * 60.0 + sec)
 }
 
-/// "Hoje", "Ontem", "7 dias" ou "Mais antigos", pelo dia local (UTC−3).
+/// "Hoje", "Ontem", "7 dias" ou "Mais antigos", pelo dia local.
 pub fn day_group(secs: f64, now: f64) -> &'static str {
-    let day = |t: f64| ((t - 3.0 * 3600.0) / 86400.0).floor();
+    let day = |t: f64| ((t + tz_offset()) / 86400.0).floor();
     let d = day(now) - day(secs);
     if d <= 0.0 {
         "Hoje"
@@ -79,9 +94,9 @@ pub fn day_group(secs: f64, now: f64) -> &'static str {
     }
 }
 
-/// HH:MM (UTC−3) de um instante em segundos.
+/// HH:MM no fuso local de um instante em segundos.
 pub fn hm(secs: f64) -> String {
-    let s = (secs - 3.0 * 3600.0).rem_euclid(86400.0) as i64;
+    let s = (secs + tz_offset()).rem_euclid(86400.0) as i64;
     format!("{:02}:{:02}", s / 3600, (s % 3600) / 60)
 }
 
@@ -320,7 +335,7 @@ pub fn pull_sec(api: &Api, sec: Sec) -> Task<Msg> {
 }
 
 fn day_label(secs: f64) -> String {
-    let d = ((secs - 3.0 * 3600.0) / 86400.0).floor() as i64 + 719468;
+    let d = ((secs + tz_offset()) / 86400.0).floor() as i64 + 719468;
     let era = d.div_euclid(146097);
     let doe = d - era * 146097;
     let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
@@ -1019,14 +1034,25 @@ impl App {
             Chat::Text(t) => o.body.push_str(&t),
             Chat::Model(m) => o.via = m,
             Chat::Tool(v) => {
-                let name = ["label", "name"].iter().find_map(|k| v.get(*k).and_then(Value::as_str)).unwrap_or("ferramenta");
+                let name = ["name", "label"].iter().find_map(|k| v.get(*k).and_then(Value::as_str)).unwrap_or("ferramenta");
+                let label = v.get("label").and_then(Value::as_str).unwrap_or(name);
                 let summary = v.get("summary").and_then(Value::as_str).unwrap_or("");
-                let estado = v.get("state").and_then(Value::as_str).unwrap_or("");
+                let estado = match v.get("state").and_then(Value::as_str).unwrap_or("") {
+                    "completed" | "ok" | "done" => "ok",
+                    "failed" | "error" => "falhou",
+                    "running" => "rodando",
+                    outro => outro,
+                };
                 let call = v.get("call_id").and_then(Value::as_str).unwrap_or("");
-                if let Some(t) = o.tools.iter_mut().find(|t| !call.is_empty() && t.kind == format!("#{call}")) {
+                if let Some(t) = o.tools.iter_mut().find(|t| !call.is_empty() && t.id == call) {
                     t.time = estado.to_string();
+                    if !summary.is_empty() {
+                        t.value = summary.to_string();
+                    }
                 } else {
-                    o.tools.push(Tool { kind: if call.is_empty() { name.to_string() } else { format!("#{call}") }, value: if summary.is_empty() { name.to_string() } else { format!("{name} · {summary}") }, time: estado.to_string() });
+                    let kind = humanizar(label);
+                    let value = if summary.is_empty() { name.to_string() } else { summary.to_string() };
+                    o.tools.push(Tool { id: call.to_string(), kind, value, time: estado.to_string() });
                 }
                 o.tools_label = if o.tools.len() == 1 { "Usou 1 ferramenta".into() } else { format!("Usou {} ferramentas", o.tools.len()) };
             }
@@ -1036,7 +1062,9 @@ impl App {
                 conv.state = ConvState::Pending;
             }
             Chat::Error(e) => {
-                if !o.body.is_empty() {
+                if o.body.is_empty() {
+                    o.via.clear(); // ninguém respondeu: não atribui a resposta a um provedor
+                } else {
                     o.body.push_str("\n\n");
                 }
                 o.body.push_str(&format!("**Erro:** {e}"));
@@ -1066,7 +1094,7 @@ fn _use(_: &net::Chat) {
 
 /// `AAAA-MM-DD` (UTC−3) de um instante em segundos.
 pub fn iso_date(secs: f64) -> String {
-    let d = ((secs - 3.0 * 3600.0) / 86400.0).floor() as i64 + 719468;
+    let d = ((secs + tz_offset()) / 86400.0).floor() as i64 + 719468;
     let era = d.div_euclid(146097);
     let doe = d - era * 146097;
     let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;

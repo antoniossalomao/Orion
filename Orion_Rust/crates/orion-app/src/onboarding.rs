@@ -555,7 +555,7 @@ fn set_autostart(on: bool) {
     let _ = on;
 }
 
-fn open_link(url: &str) {
+pub fn open_link(url: &str) {
     #[cfg(windows)]
     let _ = system_command("rundll32.exe").args(["url.dll,FileProtocolHandler", url]).spawn();
     #[cfg(target_os = "linux")]

@@ -135,7 +135,12 @@ pub fn view(app: &App) -> El<'_> {
         }
     }
     if !any {
-        list = list.push(container(tx(format!("Nenhuma conversa com “{}”.", app.side_q), 13.0, t::FG3)).padding(10));
+        let vazio = if app.side_q.trim().is_empty() {
+            if app.p.english { "No conversations yet. Start a new one.".to_string() } else { "Nenhuma conversa ainda. Comece uma nova.".to_string() }
+        } else {
+            format!("Nenhuma conversa com “{}”.", app.side_q)
+        };
+        list = list.push(container(tx(vazio, 13.0, t::FG3)).padding(10));
     }
     let scroll = scrollable(list.padding(pad(0.0, 8.0, 8.0, 8.0))).direction(scrollable::Direction::Vertical(thin_bar())).style(thin_scroll).height(Length::Fill);
     let scroll = container(scroll).padding(pad(0.0, 0.0, 0.0, 0.0)).width(Length::Fill).height(Length::Fill);
