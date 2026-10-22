@@ -46,6 +46,10 @@ O CI é `.github/workflows/rust-windows.yml`: testes dos crates e SQLCipher, bui
 
 O repositório é a origem da documentação. O vault do Obsidian (`01 Projetos/Orion/`) recebe cópia desses arquivos. Ao mudar um deles, espelhe a mudança no vault na mesma sessão.
 
+## Board no Notion
+
+O andamento operacional fica no board "Orion — Board" (https://app.notion.com/p/fc60f86c8e384c19ae9696a73ccdb186, data source `collection://bf031bb2-98be-4f3d-b27c-32635df32a9a`). Ao terminar qualquer tarefa, consulte o board e atualize-o: mova o card da tarefa concluída para `Concluído` (ou `Em revisão`, se depender de aceite), crie cards para pendências novas que surgirem e ajuste o `Executor` quando a tarefa exigir outro agente ou o Antônio. O board é visão operacional; `ORION.md` continua a única fonte do estado.
+
 ## Idioma
 
 Português do Brasil em código de texto, documentação, mensagens de commit e comentários.
