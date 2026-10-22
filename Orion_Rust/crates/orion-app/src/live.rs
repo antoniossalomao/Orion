@@ -661,6 +661,10 @@ impl App {
                     Err(e) => Msg::L(Lm::Acao(Err(e), true)),
                 }), true))
             }
+            Msg::VaultPull => {
+                let a2 = api.clone();
+                Some((acao(&api, async move { a2.post("/vault/pull", json!({})).await }, "Vault atualizado (git pull)", true), true))
+            }
             Msg::QcapSave => {
                 let q = self.qcap.as_ref()?;
                 let texto = q.text.trim().to_string();
@@ -1041,6 +1045,8 @@ impl App {
                     "completed" | "ok" | "done" => "ok",
                     "failed" | "error" => "falhou",
                     "running" => "rodando",
+                    "waiting_approval" | "pending_approval" => "aguardando aprovação",
+                    "denied" => "negada",
                     outro => outro,
                 };
                 let call = v.get("call_id").and_then(Value::as_str).unwrap_or("");

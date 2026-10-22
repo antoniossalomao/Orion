@@ -197,9 +197,29 @@ fn section<'a>(app: &'a App) -> El<'a> {
             c = c.push(setting("Mostrar quem respondeu", "Discreto, na linha da hora de cada resposta.", badge("sempre", Tone::Ok)));
             c = c.push(sh("Orion · ordem das APIs gratuitas"));
             c = c.push(lede("Quando uma cota acaba, passa para a próxima. Se todas acabarem ou não houver internet, usa o modelo local."));
+            if app.api.is_some() {
+                // uso real: só o que o núcleo informa (nada de cotas de exemplo)
+                let pn = app.painel.clone().unwrap_or(serde_json::Value::Null);
+                let eps = pn["modelos"]["endpoints"].as_array().cloned().unwrap_or_default();
+                if eps.is_empty() {
+                    let dica = if pn["modelos"]["configurado"].as_bool().unwrap_or(false) { "Modelos configurados." } else { "Nenhum modelo configurado. Adicione a chave de um provedor com `orion chave <provedor>` no terminal e reabra o Orion, ou entre com uma CLI (Claude, Codex ou Gemini)." };
+                    c = c.push(setting("Provedores", dica, badge("vazio", Tone::Plain)));
+                }
+                for (i, e) in eps.iter().enumerate() {
+                    let nome = e["nome"].as_str().or(e["name"].as_str()).unwrap_or("modelo").to_string();
+                    c = c.push(setting_el(row![mono_muted(&(i + 1).to_string()), tx(nome, 13.5, t::FG)].spacing(8).into(), "", badge(e["estado"].as_str().unwrap_or("ativo"), Tone::Ok)));
+                }
+                let quotas: Vec<serde_json::Value> = app.budget.as_ref().and_then(|b| b.get("quotas")).and_then(|q| q.as_array()).cloned().unwrap_or_default();
+                for q in &quotas {
+                    let pct = q.get("percent").and_then(|x| x.as_f64()).unwrap_or(0.0);
+                    let nome = q.get("provider").and_then(|x| x.as_str()).unwrap_or("?").to_string();
+                    c = c.push(setting(&nome, &if pct >= 100.0 { "Cota da semana esgotada".to_string() } else { format!("{:.0}% da cota da semana usada", pct) }, badge(if pct >= 100.0 { "esgotada" } else { "ok" }, if pct >= 100.0 { Tone::Err } else { Tone::Ok })));
+                }
+            } else {
             for (i, (l, v)) in [("Gemini (API)", 62), ("Groq", 100), ("Cerebras", 18), ("OpenRouter (free)", 40), ("Mistral", 9)].iter().enumerate() {
-                let d = if *v >= 100 { "Sem cota até 00:00".to_string() } else { format!("{}% da cota disponível", 100 - v) };
-                c = c.push(setting_el(row![mono_muted(&(i + 1).to_string()), tx(l.to_string(), 13.5, t::FG)].spacing(8).into(), &d, row_c(vec![ib("up", Some(toast("Reordenar (simulado)")), false), btn("Chave", Kind::Normal, true, None, Some(toast("Colar a chave (simulado)")))])));
+                    let d = if *v >= 100 { "Sem cota até 00:00".to_string() } else { format!("{}% da cota disponível", 100 - v) };
+                    c = c.push(setting_el(row![mono_muted(&(i + 1).to_string()), tx(l.to_string(), 13.5, t::FG)].spacing(8).into(), &d, row_c(vec![ib("up", Some(toast("Reordenar (simulado)")), false), btn("Chave", Kind::Normal, true, None, Some(toast("Colar a chave (simulado)")))])));
+                }
             }
             c = c.push(setting_el(row![mono_muted("∞"), tx("Local · Qwen 2.5 7B", 13.5, t::FG)].spacing(8).into(), "Fallback sem internet. Gerenciado em Modelos locais.", badge("fallback", Tone::Plain)));
         }
@@ -211,7 +231,7 @@ fn section<'a>(app: &'a App) -> El<'a> {
             c = c.push(setting("Pasta das notas do Orion", "Todas as conversas viram resumo aqui, sem perguntar.", txf("03 Recursos/Orion/Memória/", 12.0, t::FG, t::MONO).into()));
             c = c.push(setting("Resumo diário das conversas triviais", "Uma nota por dia em Memória/Diário, gerada às 23:59.", badge("23:59", Tone::Ok)));
             c = c.push(setting("Commit e push", "Direto na main do vault, um commit por nota gravada. Sem PR.", badge("automático", Tone::Ok)));
-            c = c.push(setting("git pull do vault", "Ao abrir o app, a cada conversa nova, antes de gravar uma nota e ao abrir a Memória.", btn("Agora", Kind::Normal, true, None, Some(toast("git pull: já atualizado")))));
+            c = c.push(setting("git pull do vault", "Ao abrir o app, a cada conversa nova, antes de gravar uma nota e ao abrir a Memória.", btn("Agora", Kind::Normal, true, None, Some(Msg::VaultPull))));
             c = c.push(setting("Se você editou a mesma nota no Obsidian", "O Orion pergunta no chat e mostra as duas versões.", badge("perguntar", Tone::Plain)));
             c = c.push(setting("Grafo", "3D no app final, como o Obsidian, sobre o céu do front original.", btn("Abrir", Kind::Normal, true, None, Some(Msg::SetGo(crate::app::View::Memoria)))));
         }

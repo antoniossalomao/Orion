@@ -426,6 +426,8 @@ pub enum Msg {
     DeleteConv,
     CopyText(String),
     OpenUrl(String),
+    /// `git pull` do vault (uso real; nos dados de exemplo é só um aviso).
+    VaultPull,
     RenameStart,
     RenameText(String),
     RenameSave,
@@ -935,6 +937,7 @@ impl App {
                 self.pop = None;
                 self.toast(s);
             }
+            Msg::VaultPull => self.toast("git pull: já atualizado"),
             Msg::OpenUrl(url) => {
                 // só http(s): link vindo de resposta do modelo nunca abre arquivo nem programa
                 if crate::md::is_web(&url) {

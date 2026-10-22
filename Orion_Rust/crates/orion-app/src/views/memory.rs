@@ -350,6 +350,18 @@ fn dmy(d: &str) -> String {
 
 pub fn view(app: &App) -> El<'_> {
     let g = &app.mem;
+    if g.nodes.is_empty() && app.api.is_some() {
+        // sem vault ou sem notas: um aviso claro no lugar de um grafo vazio
+        let card = column![
+            tx("Sua memória ainda está vazia", 20.0, t::FG),
+            tx("As notas do seu vault do Obsidian aparecem aqui como um mapa. Escolha a pasta do vault em Configurações › Memória.", 13.5, t::FG3),
+            btn("Abrir configurações de memória", Kind::Normal, false, None, Some(Msg::OpenSettings(Some(crate::app::Sec::Memoria)))),
+        ]
+        .spacing(12)
+        .align_x(iced::alignment::Horizontal::Center)
+        .max_width(420.0);
+        return container(card).width(Length::Fill).height(Length::Fill).center_x(Length::Fill).center_y(Length::Fill).into();
+    }
     // barra
     let search = stack![
         text_input("Buscar notas, tags ou pastas", &g.q).on_input(Msg::MemQ).size(13).font(t::UI).padding(pad(8.0, 12.0, 8.0, 34.0)).style(field_style(t::RAISE, t::LINE2, t::LINE3, 9.0)),
