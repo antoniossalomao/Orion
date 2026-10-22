@@ -99,7 +99,7 @@ pub fn view(app: &App, home: bool) -> El<'_> {
 
     let boxed = container(column![editor, container(foot).padding(pad(6.0, 8.0, 8.0, 8.0))])
         .width(Length::Fill)
-        .style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: 18.0.into() }, ..Default::default() });
+        .style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: t::RADIUS_MAX.into() }, ..Default::default() });
 
     // sugestões
     let sug_el: El = if sug_open {

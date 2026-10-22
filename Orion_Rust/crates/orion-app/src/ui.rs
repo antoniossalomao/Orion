@@ -343,7 +343,7 @@ pub fn meter<'a>(pct: f32, h: f32, color: Color) -> El<'a> {
 
 /// Linha de configuração `.row`: título, descrição e controles à direita.
 pub fn setting<'a>(title: &str, desc: &str, ctl: El<'a>) -> El<'a> {
-    setting_el(tx(title.to_string(), 13.5, t::FG).into(), desc, ctl)
+    setting_el(tx(title.to_string(), t::TEXT_BASE, t::FG).into(), desc, ctl)
 }
 pub fn setting_el<'a>(title: El<'a>, desc: &str, ctl: El<'a>) -> El<'a> {
     let mut left = column![title].spacing(2).width(Length::Fill);

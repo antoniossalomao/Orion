@@ -88,7 +88,7 @@ pub fn view(app: &App) -> El<'_> {
 }
 
 fn user_msg<'a>(app: &'a App, mi: usize, s: String, content_w: f32) -> El<'a> {
-    let bubble = container(txf(s.clone(), 15.0, t::FG, t::UI)).padding(pad(10.0, 15.0, 10.0, 15.0)).max_width(content_w * 0.8).style(surface(Some(t::RAISE2), None, 16.0));
+    let bubble = container(txf(s.clone(), 15.0, t::FG, t::UI)).padding(pad(10.0, 15.0, 10.0, 15.0)).max_width(content_w * 0.8).style(surface(Some(t::RAISE2), None, t::RADIUS_MAX));
     let show = app.hover == Some((2, mi));
     let acts: El = if show {
         row![tip(ib_sz("edit", 26.0, 16.0, (!app.is_live()).then(|| Msg::Toast("Editar e reenviar cria um ramo da conversa".into())), false), "Editar e reenviar (em breve)"), tip(ib_sz("copy", 26.0, 16.0, Some(Msg::CopyText(s)), false), "Copiar"), tip(ib_sz("pin", 26.0, 16.0, (!app.is_live()).then(|| Msg::Toast("Fixada como contexto permanente".into())), false), "Fixar como contexto (em breve)")].into()
