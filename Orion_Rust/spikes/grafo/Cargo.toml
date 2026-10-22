@@ -1,0 +1,11 @@
+[package]
+name = "spike-grafo"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+# Crate isolado do workspace de propósito: spike descartável (F00.16, parte CPU), não entra no build do Orion.
+[workspace]
+
+[dependencies]
+rayon = "1"

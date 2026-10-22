@@ -29,3 +29,6 @@ snaps/
 
 # conjunto de avaliação com perguntas reais sobre o Antônio (dados pessoais)
 tests/eval_pessoal.local.json
+
+# spikes
+Orion_Rust/spikes/*/target/

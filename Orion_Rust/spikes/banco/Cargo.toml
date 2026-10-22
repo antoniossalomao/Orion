@@ -1,0 +1,16 @@
+[package]
+name = "spike-banco"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+# Crate isolado do workspace de propósito: spike descartável (F00.17), não entra no build do Orion.
+[workspace]
+
+[dependencies]
+rusqlite = { version = "0.32", features = ["bundled-sqlcipher-vendored-openssl"] }
+sqlite-vec = "=0.1.9"
+sha2 = "0.10"
+hex = "0.4"
+anyhow = "1"
+zerocopy = "0.7"

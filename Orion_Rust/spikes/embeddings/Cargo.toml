@@ -1,0 +1,18 @@
+[package]
+name = "spike-embeddings"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+# Crate isolado do workspace de propósito: spike descartável (F00.24), não entra no build do Orion.
+[workspace]
+
+[dependencies]
+ort = "=2.0.0-rc.15"
+tokenizers = { version = "0.21", default-features = false, features = ["onig"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
+ndarray = "0.16"
+anyhow = "1"
+
+[profile.release]
+debug = false
