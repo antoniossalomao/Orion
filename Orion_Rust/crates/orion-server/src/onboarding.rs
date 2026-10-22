@@ -86,7 +86,7 @@ impl Drop for Setup {
     }
 }
 
-const SECRET_NAMES: &[&str] = &[
+pub(crate) const SECRET_NAMES: &[&str] = &[
     "ORION_KEY_GEMINI",
     "ORION_KEY_GROQ",
     "ORION_KEY_CEREBRAS",

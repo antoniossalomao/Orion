@@ -213,6 +213,22 @@ pub struct ProjectForm {
     pub request_id: u64,
 }
 
+/// Cadastro de uma chave de provedor nas Configurações (o valor só vive em memória até salvar).
+pub struct KeyForm {
+    pub nome: String,
+    pub label: String,
+    pub value: String,
+    pub busy: bool,
+    pub error: String,
+}
+
+impl Drop for KeyForm {
+    fn drop(&mut self) {
+        use zeroize::Zeroize;
+        self.value.zeroize();
+    }
+}
+
 pub struct RenameForm {
     pub session_id: String,
     pub title: String,
@@ -291,6 +307,13 @@ pub struct App {
     pub proj_q: String,
     pub project_form: Option<ProjectForm>,
     pub rename_form: Option<RenameForm>,
+    pub key_form: Option<KeyForm>,
+    /// A conversa está colada no fim? (esconde o botão "ir ao fim")
+    pub chat_end: bool,
+    /// Conversas em que o usuário pediu para ver todas as mensagens (por padrão só as mais recentes são montadas).
+    pub show_all: std::collections::HashSet<usize>,
+    /// Quais chaves de provedor já estão no cofre (só sim/não).
+    pub keys: std::collections::BTreeMap<String, bool>,
     pub request_id: u64,
     pub facts: Vec<data::Fact>,
     pub edit_fact: Option<(usize, String)>,
@@ -431,6 +454,13 @@ pub enum Msg {
     RenameStart,
     RenameText(String),
     RenameSave,
+    ChatScrolled(iced::widget::scrollable::Viewport),
+    ChatEnd,
+    ShowAll(usize),
+    KeyOpen(String),
+    KeyInput(String),
+    KeyCancel,
+    KeySave,
     RenameClose,
     Toast(String),
     // páginas
@@ -570,6 +600,10 @@ impl App {
             proj_q: String::new(),
             project_form: None,
             rename_form: None,
+            key_form: None,
+            chat_end: true,
+            show_all: std::collections::HashSet::new(),
+            keys: std::collections::BTreeMap::new(),
             request_id: 0,
             facts: data::facts(),
             edit_fact: None,
@@ -937,7 +971,41 @@ impl App {
                 self.pop = None;
                 self.toast(s);
             }
+            Msg::ChatScrolled(vp) => {
+                self.chat_end = vp.absolute_offset_reversed().y < 48.0;
+            }
+            Msg::ChatEnd => {
+                self.chat_end = true;
+                return iced::widget::operation::snap_to("chat-scroll", iced::widget::scrollable::RelativeOffset::START);
+            }
+            Msg::ShowAll(i) => {
+                self.show_all.insert(i);
+            }
+            Msg::KeyOpen(nome) => {
+                if self.key_form.as_ref().is_some_and(|f| f.busy) { return Task::none(); }
+                let label = crate::onboarding::PROVIDERS.iter().find(|p| p.2 == nome).map(|p| p.1.to_string()).unwrap_or_else(|| nome.clone());
+                self.key_form = Some(KeyForm { nome, label, value: String::new(), busy: false, error: String::new() });
+                return iced::widget::operation::focus("api-key");
+            }
+            Msg::KeyInput(v) => {
+                if let Some(f) = self.key_form.as_mut().filter(|f| !f.busy) { f.value = v; f.error.clear(); }
+            }
+            Msg::KeyCancel => {
+                if self.key_form.as_ref().is_some_and(|f| !f.busy) { self.key_form = None; }
+            }
+            Msg::KeySave => self.toast("Guardar chave: só no uso real"),
             Msg::VaultPull => self.toast("git pull: já atualizado"),
+            Msg::OpenUrl(url) if url.starts_with("orion-file:") => {
+                let alvo = url.trim_start_matches("orion-file:").to_string();
+                match crate::md::file_ref(&alvo) {
+                    Some((path, line)) if std::path::Path::new(&path).is_absolute() && std::path::Path::new(&path).is_file() => {
+                        let target = match line { Some(l) => format!("{path}:{l}"), None => path };
+                        return Task::perform(async move { tokio::task::spawn_blocking(move || crate::onboarding::open_in_editor(&target)).await.ok(); }, |_| Msg::Noop);
+                    }
+                    Some((path, _)) if std::path::Path::new(&path).is_absolute() => self.toast(if self.p.english { "File not found" } else { "Arquivo não encontrado" }),
+                    _ => self.toast(if self.p.english { "Relative path: open it from the project folder" } else { "Caminho relativo: abra pela pasta do projeto" }),
+                }
+            }
             Msg::OpenUrl(url) => {
                 // só http(s): link vindo de resposta do modelo nunca abre arquivo nem programa
                 if crate::md::is_web(&url) {

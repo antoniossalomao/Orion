@@ -22,7 +22,8 @@ pub enum Block {
     Quote(Vec<Inline>),
     Ul(Vec<Vec<Inline>>),
     Ol(Vec<Vec<Inline>>),
-    Code(Vec<String>),
+    /// (linguagem do bloco, linhas)
+    Code(String, Vec<String>),
     Front(Vec<String>),
     Table(Vec<Vec<Inline>>, Vec<Vec<Vec<Inline>>>),
     Rule,
@@ -120,6 +121,23 @@ pub fn is_web(url: &str) -> bool {
     (u.starts_with("https://") || u.starts_with("http://")) && !u.contains(char::is_whitespace)
 }
 
+/// `src/main.rs`, `C:\\Projetos\\a.rs:12` ou `/home/x/a.py`: um caminho de arquivo (com extensão) e a linha opcional.
+/// O texto do modelo é só dado: aqui só se reconhece a forma; quem abre confere se o arquivo existe de verdade.
+pub fn file_ref(s: &str) -> Option<(String, Option<u32>)> {
+    let t = s.trim();
+    if t.is_empty() || t.len() > 260 || t.starts_with('-') || t.contains("://") || t.contains(char::is_whitespace) {
+        return None;
+    }
+    let (path, line) = match t.rsplit_once(':') {
+        Some((p, l)) if !l.is_empty() && l.chars().all(|c| c.is_ascii_digit()) && !(p.len() == 1) => (p, l.parse().ok()),
+        _ => (t, None),
+    };
+    let ok_chars = path.chars().all(|c| c.is_alphanumeric() || matches!(c, '_' | '-' | '.' | '/' | '\\' | ':' | '~'));
+    let name = path.rsplit(['/', '\\']).next().unwrap_or("");
+    let ext_ok = name.rsplit_once('.').is_some_and(|(stem, ext)| !stem.is_empty() && (1..=8).contains(&ext.len()) && ext.chars().all(|c| c.is_ascii_alphanumeric()));
+    (ok_chars && ext_ok && !path.contains("..")).then(|| (path.to_string(), line))
+}
+
 fn split_row(l: &str) -> Vec<String> {
     l.trim().trim_matches('|').split('|').map(|c| c.trim().to_string()).collect()
 }
@@ -148,7 +166,22 @@ pub fn parse(src: &str) -> Vec<Block> {
         let l = lines[i];
         if l.trim().is_empty() {
             i += 1;
+        } else if l.trim() == "$$" || (l.trim().starts_with("$$") && l.trim().len() > 2 && !l.trim()[2..].contains("$$")) {
+            // fórmula em bloco (`$$ ... $$`): sem typesetting ainda, aparece como código "latex"
+            let mut code = Vec::new();
+            let primeira = l.trim()[2..].trim();
+            if !primeira.is_empty() {
+                code.push(primeira.to_string());
+            }
+            i += 1;
+            while i < lines.len() && lines[i].trim() != "$$" {
+                code.push(lines[i].to_string());
+                i += 1;
+            }
+            i += 1;
+            blocks.push(Block::Code("latex".into(), code));
         } else if l.starts_with("```") {
+            let lang = l.trim_start_matches('`').trim().to_lowercase();
             let mut code = Vec::new();
             i += 1;
             while i < lines.len() && !lines[i].starts_with("```") {
@@ -156,7 +189,7 @@ pub fn parse(src: &str) -> Vec<Block> {
                 i += 1;
             }
             i += 1;
-            blocks.push(Block::Code(code));
+            blocks.push(Block::Code(lang, code));
         } else if let Some(h) = l.strip_prefix("### ") {
             blocks.push(Block::H(3, inline(h)));
             i += 1;
@@ -256,13 +289,18 @@ fn spans<'a>(inl: &[Inline], st: &Style, base: Color) -> Vec<iced::widget::text:
             Inline::Bold(s) => span(s.clone()).font(st.bold).size(st.size).color(base),
             Inline::Italic(s) => span(s.clone()).font(Font { style: iced::font::Style::Italic, ..st.font }).size(st.size).color(base),
             Inline::Link(label, url) => span(label.clone()).font(st.font).size(st.size).color(t::ACCENT).underline(true).link(url.clone()),
-            Inline::Code(s) => span(s.clone())
-                .font(t::MONO)
-                .size(st.size * 0.78)
-                .color(base)
-                .background(iced::Background::Color(t::RAISE2))
-                .border(Border { radius: 5.0.into(), ..Default::default() })
-                .padding(Padding { top: 1.0, bottom: 1.0, left: 4.0, right: 4.0 }),
+            Inline::Code(s) => {
+                let arquivo = file_ref(s).is_some();
+                let sp = span(s.clone())
+                    .font(t::MONO)
+                    .size(st.size * 0.78)
+                    .color(if arquivo { t::ACCENT } else { base })
+                    .underline(arquivo)
+                    .background(iced::Background::Color(t::RAISE2))
+                    .border(Border { radius: 5.0.into(), ..Default::default() })
+                    .padding(Padding { top: 1.0, bottom: 1.0, left: 4.0, right: 4.0 });
+                if arquivo { sp.link(format!("orion-file:{s}")) } else { sp }
+            }
             Inline::Wiki(s) => span(s.clone()).font(st.font).size(st.size).color(t::ACCENT).underline(true),
         })
         .collect()
@@ -389,8 +427,17 @@ pub fn render_with<'a, M: Clone + 'a>(blocks: &[Block], st: Style, on_link: Opti
                 }
                 c.into()
             }
-            Block::Code(lines) => {
+            Block::Code(lang, lines) => {
                 let mut c = column![].spacing(0);
+                if !lang.is_empty() {
+                    // sem WebView2 (ADR 0004) não há prévia de diagrama nem de fórmula: o código fica visível e o aviso diz isso
+                    let aviso = match lang.as_str() {
+                        "mermaid" => format!("{lang} · diagrama (prévia visual ainda não disponível)"),
+                        "latex" | "tex" | "math" => format!("{lang} · fórmula (sem renderização ainda)"),
+                        _ => lang.clone(),
+                    };
+                    c = c.push(container(text(aviso).font(t::MONO).size(11.0).color(t::FG3)).padding(Padding { bottom: 8.0, ..Default::default() }));
+                }
                 for l in lines {
                     c = c.push(code_line(l));
                 }

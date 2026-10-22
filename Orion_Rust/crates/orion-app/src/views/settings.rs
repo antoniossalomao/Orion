@@ -204,12 +204,40 @@ fn section<'a>(app: &'a App) -> El<'a> {
                 if app.painel.is_none() {
                     c = c.push(setting("Provedores", "Carregando o estado dos modelos…", badge("…", Tone::Plain)));
                 } else if eps.is_empty() {
-                    let dica = if pn["modelos"]["configurado"].as_bool().unwrap_or(false) { "Modelos configurados." } else { "Nenhum modelo configurado. Adicione a chave de um provedor com `orion chave <provedor>` no terminal e reabra o Orion, ou entre com uma CLI (Claude, Codex ou Gemini)." };
+                    let dica = if pn["modelos"]["configurado"].as_bool().unwrap_or(false) { "Modelos configurados." } else { "Nenhum modelo configurado. Guarde a chave de um provedor abaixo e reabra o Orion, ou entre com uma CLI (Claude, Codex ou Gemini)." };
                     c = c.push(setting("Provedores", dica, badge("vazio", Tone::Plain)));
                 }
                 for (i, e) in eps.iter().enumerate() {
                     let nome = e["nome"].as_str().or(e["name"].as_str()).unwrap_or("modelo").to_string();
                     c = c.push(setting_el(row![mono_muted(&(i + 1).to_string()), tx(nome, 13.5, t::FG)].spacing(8).into(), "", badge(e["estado"].as_str().unwrap_or("ativo"), Tone::Ok)));
+                }
+                c = c.push(sh("Chaves de API"));
+                c = c.push(lede("Guardadas no cofre do sistema (Credential Manager). Uma chave nova vale na próxima abertura do Orion."));
+                for (_, label, nome, url) in crate::onboarding::PROVIDERS {
+                    if let Some(f) = app.key_form.as_ref().filter(|f| f.nome == *nome) {
+                        let mut input = text_input("Cole a chave de API", &f.value).id("api-key").secure(true).size(13).font(t::UI).padding(pad(7.0, 10.0, 7.0, 10.0)).style(field_style(t::RAISE, t::LINE2, t::LINE3, 8.0));
+                        if !f.busy {
+                            input = input.on_input(Msg::KeyInput).on_submit(Msg::KeySave);
+                        }
+                        let desc = if f.error.is_empty() { format!("Chave de {label}. Não aparece na tela nem em log.") } else { f.error.clone() };
+                        c = c.push(setting_el(
+                            tx(label.to_string(), 13.5, t::FG).into(),
+                            &desc,
+                            row_c(vec![
+                                container(input).width(Length::Fixed(260.0)).into(),
+                                btn(if f.busy { "Guardando…" } else { "Guardar" }, Kind::Primary, true, None, (!f.busy).then_some(Msg::KeySave)),
+                                btn("Cancelar", Kind::Ghost, true, None, (!f.busy).then_some(Msg::KeyCancel)),
+                            ]),
+                        ));
+                    } else {
+                        let tem = app.keys.get(*nome).copied().unwrap_or(false);
+                        let desc = if tem { "Chave guardada no cofre do sistema.".to_string() } else { format!("Sem chave. Obtenha em {url}") };
+                        c = c.push(setting_el(
+                            tx(label.to_string(), 13.5, t::FG).into(),
+                            &desc,
+                            btn(if tem { "Trocar" } else { "Chave" }, Kind::Normal, true, None, Some(Msg::KeyOpen(nome.to_string()))),
+                        ));
+                    }
                 }
                 let quotas: Vec<serde_json::Value> = app.budget.as_ref().and_then(|b| b.get("quotas")).and_then(|q| q.as_array()).cloned().unwrap_or_default();
                 for q in &quotas {

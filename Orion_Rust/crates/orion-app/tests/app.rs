@@ -212,7 +212,7 @@ fn markdown_reconhece_blocos_e_trechos() {
     assert!(matches!(b[2], Block::Quote(_)));
     assert!(matches!(&b[3], Block::Ul(v) if v.len() == 2));
     assert!(matches!(&b[4], Block::Ol(v) if v.len() == 2));
-    assert!(matches!(&b[5], Block::Code(v) if v.len() == 1));
+    assert!(matches!(&b[5], Block::Code(_, v) if v.len() == 1));
     let Block::P(p) = &b[6] else { panic!() };
     assert!(p.contains(&Inline::Bold("forte".into())) && p.contains(&Inline::Code("código".into())));
     let Block::Quote(q) = &b[2] else { panic!() };

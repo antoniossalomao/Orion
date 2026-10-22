@@ -53,14 +53,28 @@ pub fn view(app: &App) -> El<'_> {
             col = col.push(dashed(container(row![icon("pin", 16.0, t::FG3), tx(format!("Fixado: {p}"), 12.5, t::FG2)].spacing(8).align_y(Vertical::Center)).width(Length::Fill).padding(pad(8.0, 12.0, 8.0, 12.0)), 10.0, t::LINE2));
         }
         let last_orion = c.msgs.iter().rposition(|m| matches!(m, ChatMsg::Orion(_)));
-        for (mi, m) in c.msgs.iter().enumerate() {
+        // Só as mensagens mais recentes são montadas (lista longa pesa no layout); o resto abre sob demanda.
+        const JANELA: usize = 60;
+        let primeira = if c.msgs.len() > JANELA && !app.show_all.contains(&ci) { c.msgs.len() - JANELA } else { 0 };
+        if primeira > 0 {
+            col = col.push(
+                container(btn(&format!("Mostrar {primeira} mensagens anteriores"), Kind::Ghost, true, None, Some(Msg::ShowAll(ci)))).width(Length::Fill).center_x(Length::Fill),
+            );
+        }
+        for (mi, m) in c.msgs.iter().enumerate().skip(primeira) {
             match m {
                 ChatMsg::User(s) => col = col.push(user_msg(app, mi, s.clone(), content_w)),
                 ChatMsg::Orion(o) => col = col.push(orion_msg(app, ci, mi, o, Some(mi) == last_orion, content_w)),
             }
         }
         let body = container(col).width(Length::Fill).center_x(Length::Fill).padding(pad(28.0, 0.0, 36.0, 0.0));
-        scrollable(body).direction(scrollable::Direction::Vertical(thin_bar())).style(thin_scroll).anchor_bottom().height(Length::Fill).into()
+        let lista = scrollable(body).id("chat-scroll").on_scroll(Msg::ChatScrolled).direction(scrollable::Direction::Vertical(thin_bar())).style(thin_scroll).anchor_bottom().height(Length::Fill);
+        if app.chat_end {
+            lista.into()
+        } else {
+            let fim = container(btn("Ir ao fim", Kind::Normal, true, Some("chevD"), Some(Msg::ChatEnd))).width(Length::Fill).height(Length::Fill).center_x(Length::Fill).align_y(Vertical::Bottom).padding(pad(0.0, 0.0, 14.0, 0.0));
+            iced::widget::stack![lista, fim].into()
+        }
     };
 
     let mut tail = column![].spacing(6).width(Length::Fixed((width - 32.0).min(app.win.width - 64.0))).align_x(Horizontal::Center);

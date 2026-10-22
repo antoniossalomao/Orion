@@ -22,6 +22,8 @@ pub enum Lm {
     Projects(Result<Value, String>),
     ProjectCreated(u64, Result<Value, String>),
     Renamed(u64, String, Result<Value, String>),
+    Keys(Result<Value, String>),
+    KeySaved(Result<Value, String>),
     Facts(Result<Value, String>),
     Results(Result<Value, String>),
     Painel(Result<Value, String>),
@@ -330,7 +332,7 @@ pub fn pull_sec(api: &Api, sec: Sec) -> Task<Msg> {
     match sec {
         Sec::Conectores => Task::batch([get("/mcp/servidores", Lm::Mcp), get("/skills", Lm::Skills)]),
         Sec::Locais => get("/modelos-locais", Lm::Modelos),
-        Sec::Modelos => Task::batch([get("/painel", Lm::Painel), get("/budget", Lm::Budget)]),
+        Sec::Modelos => Task::batch([get("/painel", Lm::Painel), get("/budget", Lm::Budget), get("/config/chaves", Lm::Keys)]),
         _ => Task::none(),
     }
 }
@@ -662,6 +664,17 @@ impl App {
                     Err(e) => Msg::L(Lm::Acao(Err(e), true)),
                 }), true))
             }
+            Msg::KeySave => {
+                let Some(f) = self.key_form.as_mut().filter(|f| !f.busy) else { return Some((Task::none(), false)) };
+                if f.value.trim().is_empty() {
+                    f.error = "Cole a chave de API.".into();
+                    return Some((Task::none(), false));
+                }
+                f.busy = true;
+                let (nome, valor) = (f.nome.clone(), f.value.trim().to_string());
+                let a2 = api.clone();
+                Some((Task::perform(async move { a2.post("/config/chave", json!({"nome": nome, "valor": valor})).await }, |r| Msg::L(Lm::KeySaved(r))), false))
+            }
             Msg::VaultPull => {
                 let a2 = api.clone();
                 Some((acao(&api, async move { a2.post("/vault/pull", json!({})).await }, "Vault atualizado (git pull)", true), true))
@@ -874,6 +887,27 @@ impl App {
                     }
                 }
             }
+            Lm::Keys(r) => {
+                if let Ok(v) = r {
+                    if let Some(o) = v.as_object() {
+                        self.keys = o.iter().map(|(k, x)| (k.clone(), x.as_bool().unwrap_or(false))).collect();
+                    }
+                }
+            }
+            Lm::KeySaved(r) => match r {
+                Ok(_) => {
+                    if let Some(f) = self.key_form.take() {
+                        self.keys.insert(f.nome.clone(), true);
+                        self.toast(format!("Chave de {} guardada no cofre. Reabra o Orion para usar.", f.label));
+                    }
+                }
+                Err(e) => {
+                    if let Some(f) = self.key_form.as_mut() {
+                        f.busy = false;
+                        f.error = e;
+                    }
+                }
+            },
             Lm::Renamed(request_id, sid, r) => {
                 if !self.rename_form.as_ref().is_some_and(|f| f.session_id == sid && f.busy && f.request_id == request_id) { return Task::none(); }
                 match r {
