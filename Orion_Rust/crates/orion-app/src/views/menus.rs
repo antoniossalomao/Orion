@@ -92,8 +92,8 @@ pub fn conv_menu(app: &App) -> El<'_> {
     menu_box(
         vec![
             item(Some("pin"), if pinned { "Desafixar conversa" } else { "Fixar conversa" }, None, false, false, Msg::PinToggle),
-            item(Some("edit"), "Renomear", Some("Título gerado sozinho, editável"), false, false, Msg::Toast("Renomear: título editável (simulado)".into())),
-            item(Some("file"), "Abrir nota no vault", None, false, false, if has_note { Msg::EditorOpen(path) } else { Msg::Toast("A nota é gravada no fim da primeira rodada".into()) }),
+            item(Some("edit"), "Renomear", Some("Título gerado sozinho, editável"), false, false, Msg::RenameStart),
+            item(Some("file"), "Abrir nota no vault", None, false, false, if has_note { Msg::EditorOpen(path) } else { Msg::Toast("Nenhuma nota vinculada. A gravação automática ainda não está disponível.".into()) }),
             item(Some("archive"), "Arquivar", None, false, false, Msg::ArchiveConv),
             hr(),
             item(Some("trash"), "Apagar conversa", None, false, true, Msg::DeleteConv),

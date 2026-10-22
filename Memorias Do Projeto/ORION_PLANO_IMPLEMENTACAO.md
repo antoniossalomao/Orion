@@ -250,7 +250,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 ## 3. Itens a decidir (carregados do planejamento)
 - [x] **D01** Ordem pós-v1 decidida em 20/10/2026: **F25.06 (Word/Excel/PowerPoint), depois F20**. As demais funções seguem suas dependências.
 - [x] **D02** Teto de **20% por tarefa**, limitado por 95% semanal e janela opcional de 5 h, confirmado pelo pedido explícito de 17/10/2026. A automelhoria ainda não foi implementada (C18/D03).
-- [x] **D03** Decisão de produto em 20/10/2026: ler `/usage` (Claude) e `/status` (Codex) pelas CLIs, com queda para estimativa local e aviso se o formato mudar; Gemini só estimativa. **Libera implementar F13.01/F13.02; não comprova verificação dos termos**, ainda registrada como pendente em F00.29/F03.26.
+- [x] **D03** Decisão de produto em 20/10/2026: ler `/usage` (Claude) e `/status` (Codex) pelas CLIs, com queda para estimativa local e aviso se o formato mudar; Gemini só estimativa. **Libera implementar F13.01/F13.02. Termos verificados em 21/10/2026**, registrados em `docs/termos-provedores.md` (F00.29/F03.26); a implementação da leitura de uso permanece pendente.
 - [x] **D04** Provedor de TTS definitivo (testar na F15). **Decidido em 20/10/2026: edge-tts pt-BR por enquanto, atrás de interface trocável; o Antônio vai testar ElevenLabs e outras vozes depois.**
 - [x] **D05** O que mais um Projeto deve ter além de nota, repositório, conversas, instruções, pastas e arquivos de referência. **Decidido em 20/10/2026: o Projeto também tem arquivos de referência fixos, modelo e passos próprios (com marca "herdado") e rotinas do projeto; tarefas e prazos ficam na nota do vault (F08.08).**
 - [x] **D06** Escopo do token do GitHub e do acesso ao Drive. **Decidido em 21/10/2026: token do GitHub com acesso total (clássico, `repo`), escolha do Antônio mesmo com o risco de um vazamento dar acesso a todos os repositórios privados da conta; o Drive continua só com `drive.file` (arquivos criados pelo Orion), que é o que o código usa.**
@@ -568,7 +568,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [~] **F05.02** **`/` comandos** (menu com busca): `/nota`, `/vault <busca>`, `/rotina`, `/modelo`, `/projeto`, `/autonomo`, `/limpar`, `/resumo`, `/aprovar`, `/voz`, `/imagem`, `/ajuda`, `/config <seção>`; os de fases futuras entram ao serem implementados (`/nuvem`, `/mcp`, `/skill`, `/pesquisa`, `/aprendizado`, `/gravar`, `/rotina rodar`).
 - [ ] **F05.03** **Comandos `/` personalizados** (prompt salvo, opcionalmente ligado a um projeto).
 - [~] **F05.04** **`@` cita uma nota do vault** como contexto (autocompletar por título e caminho).
-- [~] **F05.05** **Anexos:** imagens e prints (colar ou arrastar), texto e código, **PDF** (`pdf_oxide` → Markdown; **OCR** se escaneado), **áudio** (transcreve antes); **limite de 20 MB**, acima disso **oferece referenciar o caminho** (pasta confiável); **miniatura pequena** ao lado do campo; metadados limpos.
+- [~] **F05.05** **Anexos:** imagens e prints (colar ou arrastar), texto e código, **PDF** (`pdf_oxide` → Markdown; **OCR** se escaneado), **áudio** (transcreve antes); **limite de 20 MB**, acima disso **oferece referenciar o caminho** (pasta confiável); **miniatura pequena** ao lado do campo; metadados limpos. **Rodada Codex 21/10:** anexos continuam pendentes; no modo real o botão avisa indisponibilidade e não insere arquivos de exemplo.
 - [~] **F05.06** Seletor de **projeto**, **modelo** (5 opções + modelo/esforço) e **linha de estado** sob o campo.
 
 #### F05.B Mensagens e respostas
@@ -576,16 +576,16 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [~] **F05.08** **Markdown** com `pulldown-cmark`: texto, listas, tabelas, citações, links, código com realce e copiar; **LaTeX, Mermaid e prévia HTML pendentes de solução sem WebView2** (C22). A interface permanece iced.
 - [~] **F05.09** **Linha de progresso** resumida ("Leu 4 arquivos, executou 1 comando") que **expande** passo a passo.
 - [~] **F05.10** **Cartão de aprovação** inline e **cartão de erro de API** no chat.
-- [~] **F05.11** **Ações da resposta** (aparecem ao passar o mouse): copiar (toast), gerar de novo, **gerar com outro modelo**, 👍/👎, salvar no vault; **ouvir** entra na F15.
+- [~] **F05.11** **Ações da resposta** (aparecem ao passar o mouse): copiar (toast), gerar de novo, **gerar com outro modelo**, 👍/👎, salvar no vault; **ouvir** entra na F15. **Rodada Codex 21/10:** cópia de mensagens ligada à área de transferência; regeneração e ouvir desabilitados no modo real até implementação. Testes desta rodada registrados em ORION.md; aceite Windows pendente.
 - [~] **F05.12** **Hover da hora:** provedor que respondeu, tokens e % da cota usada; **ícone de dados externos** (clique mostra o que saiu).
 - [ ] **F05.13** **Links e caminhos clicáveis:** arquivo abre no **VS Code** (`code -g arquivo:linha`), URL no navegador.
-- [~] **F05.14** **Suas mensagens:** **editar e reenviar cria um ramo**, navegação **< 2/3 >** na mensagem; copiar; **fixar** (contexto permanente, **até ~2k tokens**, avisa se passar).
+- [~] **F05.14** **Suas mensagens:** **editar e reenviar cria um ramo**, navegação **< 2/3 >** na mensagem; copiar; **fixar** (contexto permanente, **até ~2k tokens**, avisa se passar). **Rodada Codex 21/10:** cópia real da mensagem do usuário; editar/reenviar e fixar contexto continuam pendentes e desabilitados no modo real.
 - [ ] **F05.15** **Navegação em respostas longas:** botão **"ir ao fim"** e **minimapa** de mensagens na barra de rolagem.
 - [ ] **F05.16** **Artefatos** (código, HTML, documento longo): **aba no painel da direita**, com versões, copiar e salvar em arquivo.
 - [ ] **F05.17** **Lista virtualizada + cache de layout** para conversas de 1000+ mensagens; **imagens antigas descarregadas** e recarregadas ao abrir; **cache de imagens 1 GB** (WebP, 1600 px, sem duplicatas).
 
 #### F05.C Histórico, projeto e exportação
-- [~] **F05.18** **Busca no histórico em texto completo**; **títulos automáticos em português, editáveis**; mover a conversa para outro projeto (a nota do vault é religada); arquivar manual; excluir pede aprovação.
+- [~] **F05.18** **Busca no histórico em texto completo**; **títulos automáticos em português, editáveis**; mover a conversa para outro projeto (a nota do vault é religada); arquivar manual; excluir pede aprovação. **Rodada Codex 21/10:** renomear por formulário ligado ao PATCH autenticado da sessão, com validação, foco, envio único e confirmação do núcleo. Não conclui busca/movimentação nem aceite Windows.
 - [~] **F05.19** **Exportar a conversa em Markdown**; compartilhar nota ou conversa **fora da v1**.
 - [~] **F05.20** **Painel de contexto** (direita, **fechado por padrão**, abre sozinho com alteração de arquivos ou aprovação, **empurra** a conversa): aba **Contexto** (ambiente: projeto, branch, modelo; contexto usado; fontes ligadas; memória usada; alterações) — abas **Arquivos/Diff/Terminal** na F11.
 - [~] **F05.21** **Bloco "nota do vault"** no painel: nome da nota da conversa, última atualização, **abrir no Obsidian** (`obsidian://`), último **commit** (hash e hora) — ligado na F06.
@@ -623,7 +623,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [ ] **F06.15** **Relatório de sessão** no vault ao fim do dia e, quando o Orion alterar arquivos do vault, **um relatório em `03 Recursos/Relatórios de Mudanças/`** (regra do `claude.md`).
 - [ ] **F06.16** **Agentes externos (Codex, Gemini) no vault:** leitura e escrita, com **registro no log do Orion**.
 - [ ] **F06.17** **Backup manual do vault em zip**; imagens geradas em `03 Recursos/Orion/Imagens/` linkadas na nota.
-- [~] **F06.18** **Comandos:** `/nota` (grava ou atualiza agora) e `/vault <busca>`.
+- [~] **F06.18** **Comandos:** `/nota` (grava ou atualiza agora) e `/vault <busca>`. **Rodada Codex 21/10:** `/nota` deixa de anunciar gravação fictícia no app real; informa que ainda não está ligado. A rota explícita do núcleo não equivale a integração pelo comando.
 
 #### F06.C Conhecimento (fatos)
 - [~] **F06.19** **Fatos e preferências aprendidos são salvos sozinhos** no banco **e** numa nota do vault; o Orion usa o banco; em divergência **o vault vence** (reimporta no `git pull`).
@@ -632,7 +632,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [ ] **F06.22** **"Sobre você"** em Configurações: lista de fatos com editar e apagar, espelhando a nota.
 
 #### F06.D Editor e tela Memória
-- [~] **F06.23** **Abrir nota no Orion:** editor e prévia **lado a lado** (Markdown à esquerda, renderizado à direita), wikilinks clicáveis, **fontes mono para código e serifa para texto**, **autocompletar `[[wikilinks]]` e `#tags`**, **pedir ao Orion para reescrever um trecho**, botão **abrir no Obsidian** (`obsidian://`).
+- [~] **F06.23** **Abrir nota no Orion:** editor e prévia **lado a lado** (Markdown à esquerda, renderizado à direita), wikilinks clicáveis, **fontes mono para código e serifa para texto**, **autocompletar `[[wikilinks]]` e `#tags`**, **pedir ao Orion para reescrever um trecho**, botão **abrir no Obsidian** (`obsidian://`). **Rodada Codex 21/10:** editor permanece demonstração; abertura/salvamento bloqueados no modo real para não mostrar NOTE_SAMPLE nem anunciar commit inexistente. Leitura, edição segura e conflitos ainda pendentes.
 - [~] **F06.24** **Tela Memória (v1):** busca, **notas recentes do Orion**, **propostas de reorganização** (mover, renomear, mesclar) com **lista em lote para aprovar**; o **grafo** entra no M5.
 - [ ] **F06.25** **Reorganizar o vault** só com proposta e aprovação (seguindo o `claude.md`).
 - [~] **F06.26** **Importadores de histórico no onboarding:** JSON/JSONL de Claude Code, Codex e ChatGPT; prévia/hash e resumo determinístico com trechos limitados no vault. Resumos por LLM, exports reais variados e conformidade completa com regras específicas de cada vault ainda pendentes.
@@ -693,8 +693,8 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 **Objetivo:** a tela e o modelo de projeto, com isolamento, arquivos de referência e painel próprio.
 **Dependências:** F06, F07.
 
-- [~] **F08.01** **Tela Projetos:** **cartões com estado** (CI, pendências, última atividade).
-- [~] **F08.02** **Criar projeto** a partir de **repositório GitHub** (clona e vincula), **pasta local** ou **do zero** (cria nota + repositório); **conversa nova abre com o último projeto usado**.
+- [~] **F08.01** **Tela Projetos:** **cartões com estado** (CI, pendências, última atividade). **Rodada Codex 21/10:** botão Novo projeto abre formulário real; cartões refletem a resposta do núcleo. Estados CI/pendências e aceite Windows continuam pendentes.
+- [~] **F08.02** **Criar projeto** a partir de **repositório GitHub** (clona e vincula), **pasta local** ou **do zero** (cria nota + repositório); **conversa nova abre com o último projeto usado**. **Rodada Codex 21/10:** criação básica por POST /projects com nome, instruções e pasta existente opcional; memória pessoal isolada. Falha mantém formulário; sucesso exige resposta com ID. Clonar GitHub, criar nota/repositório e último projeto persistente continuam pendentes.
 - [~] **F08.03** **Nota do projeto no vault** (`01 Projetos/<Nome>/<Nome>.md`), de onde o Orion lê estado e instruções; **instruções próprias** (prompt do projeto).
 - [~] **F08.04** **Repositório vinculado** (PRs, CI, branch) e **pastas do disco vinculadas** (dentro do projeto o Orion só mexe nelas).
 - [ ] **F08.05** **Modelo padrão** por projeto (ex.: Orion usa Claude, Vault usa Gemini).

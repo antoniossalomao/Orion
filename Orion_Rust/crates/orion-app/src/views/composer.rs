@@ -152,6 +152,10 @@ pub fn run_command(app: &mut App, word: &str, full: &str) -> Task<Msg> {
         app.toast(format!("Comando /{word} não existe. /ajuda lista todos."));
         return Task::none();
     }
+    if app.is_live() && matches!(word, "nota" | "resumo" | "imagem") {
+        app.toast(format!("/{word} ainda não está ligado ao núcleo nesta interface. Nenhum conteúdo foi gravado ou gerado."));
+        return Task::none();
+    }
     match word {
         "aprovar" => app.view = View::Aprovacoes,
         "rotina" => app.view = View::Rotinas,

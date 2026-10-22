@@ -20,6 +20,8 @@ pub enum Lm {
     Approvals(Result<Value, String>),
     Rotinas(Result<Value, String>),
     Projects(Result<Value, String>),
+    ProjectCreated(u64, Result<Value, String>),
+    Renamed(u64, String, Result<Value, String>),
     Facts(Result<Value, String>),
     Results(Result<Value, String>),
     Painel(Result<Value, String>),
@@ -454,7 +456,23 @@ impl App {
                 Some((Task::perform(async move { api.login(&usuario, &pw).await }, |r| Msg::L(Lm::Login(r))), false))
             }
             Msg::Logout => {
+                self.project_form = None;
+                self.rename_form = None;
                 Some((Task::perform(async move { api.logout().await }, |_| Msg::Noop), true))
+            }
+            // O modo real nunca usa amostras nem recibos de gravação do protótipo
+            // (REGRAS.md: você é o administrador).
+            Msg::Attach => {
+                self.toast("Anexos ainda não estão disponíveis nesta versão. Nenhum arquivo foi anexado.");
+                Some((Task::none(), false))
+            }
+            Msg::EditorOpen(_) | Msg::EditorSave => {
+                self.toast("O editor do vault ainda não está ligado ao núcleo. Nenhuma nota foi alterada.");
+                Some((Task::none(), false))
+            }
+            Msg::Undo(_) => {
+                self.toast("Desfazer ainda não está disponível nesta tela. Nenhuma ação foi revertida.");
+                Some((Task::none(), false))
             }
             Msg::OpenConv(i) => {
                 let c = self.convs.get(*i)?;
@@ -817,6 +835,41 @@ impl App {
                 Ok(v) => self.rots = map_rotinas(&v),
                 Err(e) => self.net_fail(e),
             },
+            Lm::ProjectCreated(request_id, r) => {
+                if self.project_form.as_ref().is_none_or(|f| !f.busy || f.request_id != request_id) { return Task::none(); }
+                match r {
+                    Ok(v) if !s(&v, "id").is_empty() => {
+                        for project in map_projects(&json!([v]), now_secs()) {
+                            if !self.projects.iter().any(|p| p.id == project.id) { self.projects.push(project); }
+                        }
+                        self.proj_q.clear();
+                        self.project_form = None;
+                        self.toast("Projeto criado. Nota no vault e vínculo GitHub ainda não foram configurados.");
+                    }
+                    result => {
+                        if let Some(form) = self.project_form.as_mut() {
+                            form.busy = false;
+                            form.error = result.err().unwrap_or_else(|| "Resposta inesperada. Confira a lista de projetos antes de tentar de novo.".into());
+                        }
+                    }
+                }
+            }
+            Lm::Renamed(request_id, sid, r) => {
+                if !self.rename_form.as_ref().is_some_and(|f| f.session_id == sid && f.busy && f.request_id == request_id) { return Task::none(); }
+                match r {
+                    Ok(v) if !s(&v, "titulo").trim().is_empty() => {
+                        if let Some(c) = self.convs.iter_mut().find(|c| c.id == sid) { c.title = s(&v, "titulo").to_string(); }
+                        self.rename_form = None;
+                        self.toast("Conversa renomeada.");
+                    }
+                    result => {
+                        if let Some(form) = self.rename_form.as_mut() {
+                            form.busy = false;
+                            form.error = result.err().unwrap_or_else(|| "O núcleo não confirmou o novo título.".into());
+                        }
+                    }
+                }
+            }
             Lm::Projects(r) => match r {
                 Ok(v) => self.projects = map_projects(&v, now),
                 Err(e) => self.net_fail(e),

@@ -312,7 +312,8 @@ fn tracejado_tooltips_e_hover_nao_quebram_a_renderizacao() {
     let mut a = logged();
     a.update(Msg::Go(View::Memoria));
     let _ = a.view();
-    a.update(Msg::Go(View::Vida));
+    // Vida saiu do app; mantém a verificação numa página operacional da v1.
+    a.update(Msg::Go(View::Projetos));
     let _ = a.view();
     a.update(Msg::OpenConv(0));
     a.update(Msg::Pop(orion_app::app::Pop::Model));

@@ -99,7 +99,26 @@ fn projetos(app: &App) -> El<'_> {
         let b = it.next().unwrap_or_else(|| sp_w(0.0));
         grid = grid.push(row![container(a).width(Length::FillPortion(1)), container(b).width(Length::FillPortion(1))].spacing(12));
     }
-    page("Projetos", "Nota no vault, instruções, repositório, pastas, modelo padrão e rotinas de cada projeto.", Some(btn("Novo projeto", Kind::Primary, false, None, Some(Msg::Toast("Criar projeto não faz parte do protótipo".into())))), column![container(search_box("Buscar projetos", &app.proj_q, Msg::ProjQ)).padding(pad(0.0, 0.0, 14.0, 0.0)), grid].into())
+    let mut body = column![].spacing(14);
+    if let Some(form) = &app.project_form {
+        let mut name = text_input("Nome do projeto", &form.name).id("project-name").padding(10).size(14);
+        let mut instructions = text_input("Instruções (opcional)", &form.instructions).padding(10).size(14);
+        let mut root = text_input("Pasta local existente (opcional)", &form.root).padding(10).size(14);
+        if !form.busy {
+            name = name.on_input(Msg::ProjectName);
+            instructions = instructions.on_input(Msg::ProjectInstructions);
+            root = root.on_input(Msg::ProjectRoot).on_submit(Msg::ProjectSave);
+        }
+        let mut fields = column![
+            tx("Novo projeto", 16.0, t::FG), name, instructions, root,
+            tx("Cria o projeto com memória pessoal isolada. A pasta precisa existir. Nota no vault e vínculo GitHub ainda não estão disponíveis aqui.", 12.0, t::FG3),
+            row![btn(if form.busy { "Criando…" } else { "Criar projeto" }, Kind::Primary, true, None, (!form.busy).then_some(Msg::ProjectSave)), btn("Cancelar", Kind::Ghost, true, None, (!form.busy).then_some(Msg::ProjectClose))].spacing(8),
+        ].spacing(10);
+        if !form.error.is_empty() { fields = fields.push(tx(form.error.clone(), 12.0, t::DANGER)); }
+        body = body.push(container(fields).padding(16).width(Length::Fill).style(surface(Some(t::RAISE), Some(t::LINE2), 12.0)));
+    }
+    body = body.push(search_box("Buscar projetos", &app.proj_q, Msg::ProjQ)).push(grid);
+    page("Projetos", "Conversas, instruções e pasta local de cada projeto.", Some(btn("Novo projeto", Kind::Primary, false, None, app.project_form.is_none().then_some(Msg::ProjectStart))), body.into())
 }
 
 fn aprovacoes(app: &App) -> El<'_> {
