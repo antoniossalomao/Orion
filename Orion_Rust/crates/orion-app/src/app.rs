@@ -122,6 +122,8 @@ pub struct Prefs {
     pub objs: Vec<String>,
     pub skills: [bool; 3],
     pub sync: bool,
+    /// Opções avançadas de Sistema (F07.04): logs de depuração e reset do banco.
+    pub advanced: bool,
 }
 
 impl Default for Prefs {
@@ -160,6 +162,7 @@ impl Default for Prefs {
             objs: data::OBJ.iter().map(|s| s.to_string()).collect(),
             skills: [true; 3],
             sync: true,
+            advanced: false,
         }
     }
 }
@@ -930,7 +933,10 @@ impl App {
                 self.pop = None;
                 self.toast(s);
             }
-            Msg::CopyText(text) => return iced::clipboard::write(text),
+            Msg::CopyText(text) => {
+                self.toast(if self.p.english { "Copied" } else { "Copiado" });
+                return iced::clipboard::write(text);
+            }
             Msg::RenameStart => {
                 self.pop = None;
                 if self.rename_form.as_ref().is_some_and(|f| f.busy) { return Task::none(); }
@@ -1505,6 +1511,7 @@ impl App {
             "boot" => p.boot = !p.boot,
             "shortcut" => p.shortcut = !p.shortcut,
             "mica" => p.mica = !p.mica,
+            "advanced" => p.advanced = !p.advanced,
             "sync" => p.sync = !p.sync,
             "reduced" => p.reduced = !p.reduced,
             _ => {

@@ -296,6 +296,12 @@ fn section<'a>(app: &'a App) -> El<'a> {
             c = c.push(setting("Atualizações", "Baixa do GitHub Releases em segundo plano, avisa e instala ao fechar.", badge("0.6.0 · em dia", Tone::Plain)));
             c = c.push(setting("Backup no Google Drive", "Banco e configurações, criptografados.", badge("ontem, 03:00", Tone::Ok)));
             c = c.push(setting("Exportar ou importar", "Para trocar de PC.", row_c(vec![btn("Exportar", Kind::Normal, true, None, Some(toast("Exportar (simulado)"))), btn("Importar", Kind::Normal, true, None, Some(toast("Importar (simulado)")))])));
+            c = c.push(sh("Avançado"));
+            c = c.push(setting("Mostrar avançado", "Opções perigosas ou de suporte. Ficam escondidas por padrão.", sw(p.advanced, "advanced")));
+            if p.advanced {
+                c = c.push(setting("Logs de depuração", "Gera arquivos de log detalhados para suporte.", btn("Em breve", Kind::Normal, true, None, None)));
+                c = c.push(setting("Resetar banco", "Apaga o histórico local. Não tem como desfazer.", btn("Em breve", Kind::Normal, true, None, None)));
+            }
             let en = p.english;
             c = c.push(sh(if en { "About" } else { "Sobre" }));
             let desc = if en { "Version {v}. One executable, no Python, no open port." } else { "Versão {v}. Um só executável, sem Python e sem porta aberta." };
@@ -329,6 +335,7 @@ fn section<'a>(app: &'a App) -> El<'a> {
             }
         }
         Sec::Voz => {
+            c = c.push(lede("Em breve: a voz chega com a fase F15. Os ajustes abaixo já ficam salvos para quando ela existir."));
             c = c.push(sh("Ativação"));
             c = c.push(setting("Palavra “Orion”", "Escuta localmente. Traz a janela para o foco.", sw(p.wake, "wake")));
             c = c.push(setting("Duas palmas", "Também traz a janela para o foco. Em calibração no notebook.", sw(p.clap, "clap")));
@@ -340,6 +347,7 @@ fn section<'a>(app: &'a App) -> El<'a> {
             c = c.push(setting("Velocidade", "", pick_seg(&["Normal", "Rápido"], p.voice_speed, "vspeed")));
         }
         Sec::Camera => {
+            c = c.push(lede("Em breve: a câmera chega com a fase F18. Nada é capturado até lá."));
             c = c.push(sh("Modos"));
             c = c.push(setting("Foto sob pedido", "“Olha isso”: tira uma foto e responde.", swa("cam", 0, p.cam[0])));
             c = c.push(setting("Presença contínua", "Local, sem guardar imagem. Ao sair: pausa a voz e bloqueia o Orion. Na volta: cumprimenta com o que aconteceu.", swa("cam", 1, p.cam[1])));
