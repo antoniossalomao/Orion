@@ -296,6 +296,10 @@ fn section<'a>(app: &'a App) -> El<'a> {
             c = c.push(setting("Atualizações", "Baixa do GitHub Releases em segundo plano, avisa e instala ao fechar.", badge("0.6.0 · em dia", Tone::Plain)));
             c = c.push(setting("Backup no Google Drive", "Banco e configurações, criptografados.", badge("ontem, 03:00", Tone::Ok)));
             c = c.push(setting("Exportar ou importar", "Para trocar de PC.", row_c(vec![btn("Exportar", Kind::Normal, true, None, Some(toast("Exportar (simulado)"))), btn("Importar", Kind::Normal, true, None, Some(toast("Importar (simulado)")))])));
+            c = c.push(sh("Sobre"));
+            c = c.push(setting("Orion", &format!("Versão {}. Um só executável, sem Python e sem porta aberta.", env!("CARGO_PKG_VERSION")), badge(env!("CARGO_PKG_VERSION"), Tone::Plain)));
+            c = c.push(setting("O que mudou", "Notas desta versão ainda não foram escritas.", btn("Em breve", Kind::Normal, true, None, None)));
+            c = c.push(setting("Licença", "Todos os direitos reservados. Código-fonte privado; veja o arquivo LICENSE do repositório.", badge("proprietária", Tone::Plain)));
         }
         Sec::Locais => {
             let live = app.api.is_some();
