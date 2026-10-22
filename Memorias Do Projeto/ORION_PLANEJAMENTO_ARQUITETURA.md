@@ -11,7 +11,7 @@ resumo: "Planejamento do front do Orion em Rust (iced): decisões, identidade vi
 > Projeto: [[Orion]] · Conceito: [[Rust]] · Conversa de origem: [[2026-10-15 - Orion - redesign do protótipo no estilo do app Claude]] · Protótipo anterior: [[2026-10-14 - Orion - prototipo do front desktop nativo]]
 > Protótipo navegável: https://claude.ai/artifact/S4fmhxJ35UztifhKCyzqt9 (versão de 15/10/2026 já reflete as decisões desta nota: tema único Grafite, barra lateral com Aprovações e Rotinas, seletor Auto/Claude/Codex/Gemini/Orion, painel da direita em abas, nota do vault + commit, editor de notas, `/` e `@`, rotinas, nuvem, conectores, câmera, modelos locais e grafo real com linha do tempo)
 
-## Estado auditado do planejamento — PR #30 (atualizado em 20/10/2026)
+## Estado auditado do planejamento — PR #38 (atualizado em 20/10/2026)
 
 As decisões desta nota são o **alvo do produto**. A fonte única do estado é [ORION.md](ORION.md). [ORION_PLANO_IMPLEMENTACAO.md](ORION_PLANO_IMPLEMENTACAO.md) registra a situação das fases; nenhum marco foi aceito integralmente.
 

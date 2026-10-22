@@ -15,7 +15,7 @@ resumo: "Especificação completa do Orion Setup.exe para reproduzir em iced/wgp
 
 ---
 
-## Estado da implementação — atualizado em 20/10/2026 (PR #30)
+## Estado da implementação — atualizado em 20/10/2026 (PR #38)
 
 Esta nota descreve o alvo. Estado canônico: [ORION.md](ORION.md); checklist por fase: [ORION_PLANO_IMPLEMENTACAO.md](ORION_PLANO_IMPLEMENTACAO.md), F10.
 

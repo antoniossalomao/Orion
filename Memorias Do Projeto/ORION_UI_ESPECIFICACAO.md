@@ -15,7 +15,7 @@ resumo: "Especificação completa da interface do Orion em iced/wgpu para reprod
 
 ---
 
-## Estado da implementação — atualizado em 20/10/2026 (PR #30)
+## Estado da implementação — atualizado em 20/10/2026 (PR #38)
 
 Estado canônico: [ORION.md](ORION.md); tarefas F01/F05/F07/F16 em [ORION_PLANO_IMPLEMENTACAO.md](ORION_PLANO_IMPLEMENTACAO.md).
 

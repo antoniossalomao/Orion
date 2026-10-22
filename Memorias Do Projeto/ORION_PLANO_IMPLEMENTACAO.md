@@ -88,7 +88,7 @@ F10 ─► F19 (Extensões) ; F12 ─► F20..F25 ; F13 + F19 ─► F26 (Autome
 
 ### 0.5 Auditoria de implementação do PR #30 — 17/10/2026
 
-Referência: `2020015`, base `main` em `a6a27d6`. Inventário, evidências e bloqueios detalhados estão na seção **Auditoria consolidada do PR #30** de [ORION.md](ORION.md), fonte única do estado. Esta seção distingue o plano desejado do código existente; não muda as decisões de produto por inferência.
+Referência: `2020015`, base `main` em `a6a27d6`. Inventário, evidências e bloqueios detalhados estão na seção **Auditoria consolidada do PR #38** de [ORION.md](ORION.md), fonte única do estado. Esta seção distingue o plano desejado do código existente; não muda as decisões de produto por inferência.
 
 **Como ler as marcações:** os checkboxes originais F/R/K/W continuam sendo **aceite completo**, incluindo testes e integrações exigidos. Item aberto com anotação **Parcial** já tem trabalho implementado. Os checkboxes abaixo registram somente subentregas comprovadas; não significam que a fase ou o marco inteiro foi aceito. Nenhuma das 28 fases demonstrou todo o seu aceite. A v1 não está pronta.
 
@@ -283,7 +283,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 
 ### F00: Preparação, repositório e spikes · tamanho **L**
 
-> **Auditoria PR #30 (`2020015`), atualizada em 21/10/2026: Parcial.** Workspace, lock, iced, toolchain fixo, `deny.toml`, `docs/`, README do Rust, templates, Dependabot, skills de auditoria e ferramentas de desenvolvimento existem. Itens de testes e CI (F00.07, F00.08, F00.09, F00.12) foram cancelados por ora. Faltam os spikes/medidas, o export real do SurrealDB (você), os termos dos provedores e a branch protegida na `main` (GitHub).
+> **Auditoria PR #38 (`2020015`), atualizada em 21/10/2026: Parcial.** Workspace, lock, iced, toolchain fixo, `deny.toml`, `docs/`, README do Rust, templates, Dependabot, skills de auditoria e ferramentas de desenvolvimento existem. Itens de testes e CI (F00.07, F00.08, F00.09, F00.12) foram cancelados por ora. Faltam os spikes/medidas, o export real do SurrealDB (você), os termos dos provedores e a branch protegida na `main` (GitHub).
 
 **Objetivo:** ter a base do projeto e **medir os riscos** antes de construir. Cada spike termina com uma decisão escrita (ir, não ir, plano B).
 **Dependências:** nenhuma.
@@ -329,10 +329,10 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [ ] **F00.19** **Spike WebView2 cancelado por decisão de 20/10/2026** (C22). Fora dos critérios da v1; Mermaid/HTML precisam de solução sem WebView2 (F05.08).
 - [~] **F00.20** **Spike ACP e CLIs:** conversar com Claude Code, Codex e Gemini/Antigravity por **ACP** (adaptadores) e por `stream-json`; medir latência e confiabilidade; levantar o que cada um expõe (aprovações, ferramentas, sessão).
 - [~] **F00.21** **Spike de roteador:** regras + heurística, medidas contra um conjunto de 100 pedidos reais (simples, médio, difícil).
-- [~] **F00.22** **Spike de áudio:** `cpal` + `aec3` + Silero VAD + `oww-rs` + `whisper-rs` (Vulkan); latência fim a fim; **teste de eco** com alto-falante. **Estado PR #30: cpal/AEC3/oww/Whisper integrados; Silero e medições faltam.**
+- [~] **F00.22** **Spike de áudio:** `cpal` + `aec3` + Silero VAD + `oww-rs` + `whisper-rs` (Vulkan); latência fim a fim; **teste de eco** com alto-falante. **Estado PR #38: cpal/AEC3/oww/Whisper integrados; Silero e medições faltam.**
 - [ ] **F00.23** **Spike do modelo de injection:** rodar Shield Small, ProtectAI DeBERTa e ModernBERT (ONNX, CPU) em **português** com 200 exemplos; medir falso positivo e negativo.
 - [ ] **F00.24** **Spike de embeddings:** multilingual-e5-small int8 em português; qualidade de busca no vault real (895 notas) contra FTS5 puro.
-- [~] **F00.25** **Spike do `llama-cpp-2`:** carga, descarga, uso de RAM, Vulkan; troca de modelo em tempo de execução. **Estado PR #30: Worker CPU executou GGUF no CI; Vulkan/medições finais pendentes.**
+- [~] **F00.25** **Spike do `llama-cpp-2`:** carga, descarga, uso de RAM, Vulkan; troca de modelo em tempo de execução. **Estado PR #38: Worker CPU executou GGUF no CI; Vulkan/medições finais pendentes.**
 - [ ] **F00.26** **Spike de gravação no vault:** `gix`/`git2` fazendo commit e push com credencial do Credential Manager; tratar conflito com edição no Obsidian.
 - [~] **F00.31** **Ferramentas de desenvolvimento do iced 0.14:** feature `dev` em `orion-app` (`iced/debug`, `iced/time-travel`, `iced/hot`) e `docs/FERRAMENTAS-DEV.md`; `cargo dev` roda o app com elas. **Estado 21/10/2026:** compila; não foi provado numa janela real, e o hot reload exige o `cargo-hot` instalado à parte.
 - [ ] **F00.27** **Spike do escaneamento de segredos e PII:** `cloakrs` + regras próprias (RG, banco, PIX); medir falso positivo em notas reais.
@@ -353,7 +353,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 
 ### F01: Janela, tema e base da interface · tamanho **L**
 
-> **Auditoria PR #30 (`2020015`), atualizada em 20/10/2026: Parcial.** O app principal `orion-app` (iced, 47 cenas) existe e roda dentro de `orion.exe` com o núcleo no processo, com bandeja, mini barra e atalhos (Ctrl+Alt+Espaço, Ctrl+Alt+P); nunca rodou num Windows real. Faltam Fluent pt/en, motor de céu compartilhado (shader), Mica, snapshots comparados ao protótipo e aceite visual.
+> **Auditoria PR #38 (`2020015`), atualizada em 20/10/2026: Parcial.** O app principal `orion-app` (iced, 47 cenas) existe e roda dentro de `orion.exe` com o núcleo no processo, com bandeja, mini barra e atalhos (Ctrl+Alt+Espaço, Ctrl+Alt+P); nunca rodou num Windows real. Faltam Fluent pt/en, motor de céu compartilhado (shader), Mica, snapshots comparados ao protótipo e aceite visual.
 
 **Objetivo:** a casca do app, idêntica ao protótipo aprovado, com todos os elementos de janela, tokens, tipografia e navegação. **Especificação exata de cada tela, medida e estado em [[ORION - UI (ESPECIFICAÇÃO)]] (protótipo: `Protótipos/orion-ui-mockup.html`); em divergência, vale o protótipo, exceto nos itens U1–U15 daquela nota.**
 **Dependências:** F00 (decisão iced × Slint).
@@ -372,12 +372,12 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [~] **F01.09** Janela sem moldura com **barra de título própria**: título da conversa (com o nome do projeto), **pílula de estado** (Pensando, Ouvindo, Aguardando você, ponto colorido âmbar/girando/verde), **"Buscar ou comandar" (Ctrl+K)**, botão do painel de contexto, minimizar, tela cheia, fechar.
 - [ ] **F01.10** **Mica/Acrylic** com `window-vibrancy` (só Windows 11), com fundo sólido como reserva; evitar blur ao arrastar/redimensionar.
 - [ ] **F01.11** Lembrar **tamanho, posição e monitor** (onde estava da última vez); janela pronta em **< 1 s**.
-- [~] **F01.12** **Fechar vai para a bandeja** (`tray-icon`): se há tarefa rodando, **pergunta** e pode seguir na bandeja; destruir a interface e manter o **núcleo vivo** para rotinas e Telegram. **Estado PR #30: Fechar mantém o controle na bandeja; não existe ainda a casca principal.**
+- [~] **F01.12** **Fechar vai para a bandeja** (`tray-icon`): se há tarefa rodando, **pergunta** e pode seguir na bandeja; destruir a interface e manter o **núcleo vivo** para rotinas e Telegram. **Estado PR #38: Fechar mantém o controle na bandeja; não existe ainda a casca principal.**
 - [~] **F01.13** Menu da bandeja: **Nova conversa / captura**, **Pausar voz / câmera**, **Modo autônomo on/off**, status de cotas, sair. **Ponto no ícone** para aviso pendente e **ponto vermelho** quando a câmera estiver ativa.
-- [~] **F01.14** **Atalho global Win+Shift+Espaço** (`global-hotkey`) abre a janela com o campo de mensagem focado; **instância única** (segunda execução foca a primeira). **Estado PR #30: Atalho entregue é Ctrl+Alt+Espaço, conforme pedido posterior; instância única pendente.**
-- [~] **F01.15** **Inicialização ao ligar o PC:** abre **minimizado na bandeja**, só o núcleo; interface, voz e grafo carregam sob demanda. **Estado PR #30: Autostart desktop --background implementado; prova no notebook pendente.**
+- [~] **F01.14** **Atalho global Win+Shift+Espaço** (`global-hotkey`) abre a janela com o campo de mensagem focado; **instância única** (segunda execução foca a primeira). **Estado PR #38: Atalho entregue é Ctrl+Alt+Espaço, conforme pedido posterior; instância única pendente.**
+- [~] **F01.15** **Inicialização ao ligar o PC:** abre **minimizado na bandeja**, só o núcleo; interface, voz e grafo carregam sob demanda. **Estado PR #38: Autostart desktop --background implementado; prova no notebook pendente.**
 - [ ] **F01.16** **Splash com o cinturão** curto (sem atrasar a janela).
-- [~] **F01.17** **Pausar o Orion inteiro** (Ctrl+Alt+P): pausa voz, rotinas e automações; indicador visível. **Estado PR #30: Ctrl+Alt+P aciona pânico; falta aceite global de rotinas/automação.**
+- [~] **F01.17** **Pausar o Orion inteiro** (Ctrl+Alt+P): pausa voz, rotinas e automações; indicador visível. **Estado PR #38: Ctrl+Alt+P aciona pânico; falta aceite global de rotinas/automação.**
 - [~] **F01.18** Abstração de plataforma em `orion-platform` (trait) e implementação Windows; nada de chamadas Win32 fora dela.
 
 #### F01.C Estrutura, navegação e atalhos
@@ -405,13 +405,13 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 
 ### F02: Dados, segurança e login · tamanho **L**
 
-> **Auditoria PR #30 (`2020015`): Parcial.** PBKDF2, sessão revogável, cofre, 2FA Telegram e auditoria portados; SQLCipher/Argon2id/Hello/recuperação/PII/log cifrado não entregues.
+> **Auditoria PR #38 (`2020015`): Parcial.** PBKDF2, sessão revogável, cofre, 2FA Telegram e auditoria portados; SQLCipher/Argon2id/Hello/recuperação/PII/log cifrado não entregues.
 
 **Objetivo:** banco cifrado, cofre, login com avatar, recuperação, filtros de segredo e dados pessoais, e a trilha de auditoria.
 **Dependências:** F00 (spikes de banco e Hello), F01.
 
 #### F02.A Banco de dados (`orion-store`)
-- [~] **F02.01** SQLite com **SQLCipher**; chave derivada da senha com **Argon2id**; chave só em memória, **zeroizada** ao bloquear. **Estado PR #30: Parcial (19/10/2026): SQLCipher com chave mestra aleatória embrulhada pela senha (Argon2id) e pela chave de recuperação, senha pedida na subida, migração `orion db-cifrar` com cópia conferida, backups cifrados e chave zeroizada ao bloquear; feature `sqlcipher` fora do build padrão e o `orion.db` atual segue em claro até a migração.**
+- [~] **F02.01** SQLite com **SQLCipher**; chave derivada da senha com **Argon2id**; chave só em memória, **zeroizada** ao bloquear. **Estado PR #38: Parcial (19/10/2026): SQLCipher com chave mestra aleatória embrulhada pela senha (Argon2id) e pela chave de recuperação, senha pedida na subida, migração `orion db-cifrar` com cópia conferida, backups cifrados e chave zeroizada ao bloquear; feature `sqlcipher` fora do build padrão e o `orion.db` atual segue em claro até a migração.**
 - [~] **F02.02** Esquema v1 com migrações: `conversas`, `mensagens`, `ramos`, `anexos`, `aprovacoes`, `atividade`, `auditoria`, `fatos` (com validade/temporal), `chunks_notas` (FTS5), `vetores` (sqlite-vec), `rotinas`, `execucoes`, `cotas`, `chamadas` (saídas sem conteúdo), `tarefas_estado`, `configuracoes`, `eventos_sync` (se o log de eventos for escolhido).
 - [~] **F02.03** **Transcrição bruta** das conversas guardada para sempre (histórico "para sempre"); histórico de atividade **1 ano**, depois resumo mensal; desfazer por **7 dias**.
 - [ ] **F02.04** Banco **sem limite prático**; compactação (`VACUUM`) agendada; **recuperação do índice** a partir do vault se o banco se perder.
@@ -425,7 +425,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [~] **F02.10** **Recuperação:** código gerado uma vez e salvo em arquivo novo escolhido no onboarding, sem sobrescrever; CLI `conta-recuperar`, restauração de backup autenticado e reembrulho da chave mestra. Impressão e experiência completa de recuperação pela janela, além do aceite Windows, ainda pendentes.
 - [~] **F02.11** **Tela de login** (céu animado + Orion surgindo + avatar no centro): campo de senha, entrar com Hello, mensagem de erro, contagem de tentativas.
 - [~] **F02.12** **Tentativas erradas:** atraso crescente (**1, 5 e 15 min** após 5 erros), registrado na auditoria, aviso no Telegram quando houver (C8).
-- [~] **F02.13** **Bloqueio:** a senha é pedida ao abrir e **quando o Windows é bloqueado (Win+L)**; **sem timer próprio**; tela de bloqueio mostra só a **contagem de pendências**, sem conteúdo. **Estado PR #30 (19/10/2026): Parcial: no Windows, Win+L encerra as sessões e apaga a chave da memória (`ORION_LOCK_EXIT=true` encerra o processo); sem tela de bloqueio com contagem de pendências e nunca testado num Windows real.**
+- [~] **F02.13** **Bloqueio:** a senha é pedida ao abrir e **quando o Windows é bloqueado (Win+L)**; **sem timer próprio**; tela de bloqueio mostra só a **contagem de pendências**, sem conteúdo. **Estado PR #38 (19/10/2026): Parcial: no Windows, Win+L encerra as sessões e apaga a chave da memória (`ORION_LOCK_EXIT=true` encerra o processo); sem tela de bloqueio com contagem de pendências e nunca testado num Windows real.**
 - [~] **F02.14** **Segundo fator:** senha e Telegram na entrada nativa, com desafio de uso único e prazo; Windows Hello opt-in como atalho de login e reserva do 2FA, via UserConsentVerifier e credencial no cofre. Teste com hardware/contas reais no Windows pendente.
 - [~] **F02.15** **Sair da conta** (logout): apaga a chave da memória, fecha sessões e exige senha + 2FA para voltar.
 - [~] **F02.16** **Sessões em outros PCs/apps:** lista, **notifica** quando uma nova abre e permite **encerrar**.
@@ -450,7 +450,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 
 ### F03: Provedores, roteador e modelos locais · tamanho **XL**
 
-> **Auditoria PR #30 (`2020015`): Parcial.** Gateway/CLIs diretas/router e worker llama.cpp instalável feitos; ACP, UX completa, embeddings/visão locais e build/medição Vulkan pendentes.
+> **Auditoria PR #38 (`2020015`): Parcial.** Gateway/CLIs diretas/router e worker llama.cpp instalável feitos; ACP, UX completa, embeddings/visão locais e build/medição Vulkan pendentes.
 
 **Objetivo:** falar com qualquer provedor (gratuito, CLI oficial ou local), com fallback, cotas e roteamento automático.
 **Dependências:** F00 (spikes ACP, roteador, llama.cpp), F02.
@@ -467,14 +467,14 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [~] **F03.09** **Nunca API paga** (R23): bloqueio por padrão; nada pago sem aprovação.
 
 #### F03.B CLIs oficiais e ACP
-- [~] **F03.10** Integração com **Claude Code, Codex e Google (Gemini CLI/Antigravity)** por **ACP** como padrão e **CLI direta (`stream-json`)** como reserva; provedor "Google" abstrato que troca de CLI (a gratuita do Gemini CLI será substituída). **Estado PR #30: Somente CLIs diretas; sem ACP.**
+- [~] **F03.10** Integração com **Claude Code, Codex e Google (Gemini CLI/Antigravity)** por **ACP** como padrão e **CLI direta (`stream-json`)** como reserva; provedor "Google" abstrato que troca de CLI (a gratuita do Gemini CLI será substituída). **Estado PR #38: Somente CLIs diretas; sem ACP.**
 - [~] **F03.11** Seleção de **modelo + esforço** (padrão **Sonnet**, esforço **médio**) por CLI; CLIs **atualizam sozinhas**; processo filho **sem variáveis `ORION_*`** (R06).
 - [~] **F03.12** Ciclo de vida do subprocesso: iniciar, ler eventos, cancelar, retomar sessão, matar órfãos ao sair.
 - [~] **F03.13** **Seletor de modelo na interface** com 5 opções: **Auto, Claude, Codex, Gemini e Orion** ("Orion" = APIs gratuitas, ordem e cotas nas configurações).
 
 #### F03.C Modelos locais (`llama-cpp-2`)
-- [~] **F03.14** llama.cpp embutido, **Vulkan** quando houver GPU; **descarregado por padrão**, carrega ao usar e **descarrega após X min** sem uso; **teto de 30% da RAM**; GPU ou CPU por configuração. **Estado PR #30: Código CPU/Vulkan e limite real feitos; descarrega ao terminar cada inferência, em vez de reter por X min. Build Vulkan ainda bloqueado.**
-- [~] **F03.15** **Gerenciador de modelos:** download com **verificação de hash**, **pausa e retomada**, **avisa antes de baixar atualização**, quantização **Q4** (escolha Q5/Q8 opcional), **teste rápido** (prompt + tokens/s), remover. **Estado PR #30: Hash/retomada/cancelamento e local-test existem; gestão completa ainda falta.**
+- [~] **F03.14** llama.cpp embutido, **Vulkan** quando houver GPU; **descarregado por padrão**, carrega ao usar e **descarrega após X min** sem uso; **teto de 30% da RAM**; GPU ou CPU por configuração. **Estado PR #38: Código CPU/Vulkan e limite real feitos; descarrega ao terminar cada inferência, em vez de reter por X min. Build Vulkan ainda bloqueado.**
+- [~] **F03.15** **Gerenciador de modelos:** download com **verificação de hash**, **pausa e retomada**, **avisa antes de baixar atualização**, quantização **Q4** (escolha Q5/Q8 opcional), **teste rápido** (prompt + tokens/s), remover. **Estado PR #38: Hash/retomada/cancelamento e local-test existem; gestão completa ainda falta.**
 - [~] **F03.16** **Fallback offline:** sem internet cai para o modelo local e avisa; modelo escolhido **pela GPU detectada**; **família Qwen** como padrão.
 - [~] **F03.17** Lista de modelos do instalador e seus **requisitos por modelo** (RAM/VRAM): Whisper large-v3-turbo, Qwen 3 8B, Gemma 4 E4B, Granite 4.1 8B, Phi-4-mini, Moondream 2, MiniCPM-V 4.5, Mistral Small 3.2 24B.
 
@@ -499,7 +499,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 
 ### F04: Agente, ferramentas, permissões e aprovações · tamanho **XL**
 
-> **Auditoria PR #30 (`2020015`): Parcial.** Agente, ferramentas e aprovações portados; paridade de política/agente, autônomo do plano, checkpoints, subagentes e notificações Windows com botões pendentes.
+> **Auditoria PR #38 (`2020015`): Parcial.** Agente, ferramentas e aprovações portados; paridade de política/agente, autônomo do plano, checkpoints, subagentes e notificações Windows com botões pendentes.
 
 **Objetivo:** o cérebro que age, com política que o modelo não consegue contornar.
 **Dependências:** F02, F03.
@@ -528,7 +528,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [~] **F04.13** **Recibo de ação** (o que mudou + desfazer) em cada item; **desfazer por 7 dias** (commit no vault, arquivo editado).
 - [ ] **F04.14** **Checkpoints nomeados** antes de tarefas longas (restaurar arquivos).
 - [ ] **F04.15** **Confirmação extra** de comando destrutivo: digitar o texto do comando.
-- [x] **F04.16** **Confirmação fora de banda** (R04): vale 10 min, uso único, para a sessão, a ferramenta e os argumentos exatos. **Estado PR #30: Aprovação de sessão/ferramenta/argumentos e uso único portados; paridade da política pendente.**
+- [x] **F04.16** **Confirmação fora de banda** (R04): vale 10 min, uso único, para a sessão, a ferramenta e os argumentos exatos. **Estado PR #38: Aprovação de sessão/ferramenta/argumentos e uso único portados; paridade da política pendente.**
 
 #### F04.C Modo autônomo
 - [x] **F04.17** Interruptor em **Configurações › Agente** e na **pílula de estado**; **desligado ao instalar**; ligar pede a senha de novo. **Estado 20/10/2026: o código liga o modo autônomo (`POST /modo/autonomo`, 4× passos) sem pedir a senha de novo. Feito em 20/10/2026: ligar pede a senha (`/modo/autonomo` exige `senha`; janela de senha na UI).**
@@ -558,7 +558,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 
 ### F05: Chat completo · tamanho **XL**
 
-> **Auditoria PR #30 (`2020015`), atualizada em 21/10/2026: Parcial.** Chat SSE, ramos e artefatos existem no núcleo e o chat do app iced (`orion-app`) está ligado a ele; o front HTML antigo foi removido em 21/10/2026. Faltam os itens abaixo, E2E e snapshots comparados ao protótipo.
+> **Auditoria PR #38 (`2020015`), atualizada em 21/10/2026: Parcial.** Chat SSE, ramos e artefatos existem no núcleo e o chat do app iced (`orion-app`) está ligado a ele; o front HTML antigo foi removido em 21/10/2026. Faltam os itens abaixo, E2E e snapshots comparados ao protótipo.
 
 **Objetivo:** a tela principal, idêntica ao protótipo, com tudo que foi decidido para o chat.
 **Dependências:** F01, F03, F04.
@@ -598,7 +598,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 
 ### F06: Vault e memória (v1) · tamanho **XL**
 
-> **Auditoria PR #30 (`2020015`): Parcial.** Crate vault e rotas explícitas existem; não há gravação automática por turno, resolução de conflito sem sobrescrever ou índice local completo. Não marcar F06 inteira concluída.
+> **Auditoria PR #38 (`2020015`): Parcial.** Crate vault e rotas explícitas existem; não há gravação automática por turno, resolução de conflito sem sobrescrever ou índice local completo. Não marcar F06 inteira concluída.
 
 **Objetivo:** o vault é a memória. O Orion lê, busca, grava notas de cada conversa com commit na `main`, aprende fatos e mostra tudo no app.
 **Dependências:** F02, F03, F04, F05.
@@ -606,7 +606,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 #### F06.A Leitura, índice e busca
 - [~] **F06.01** **Detectar o vault** (config do Obsidian) e confirmar o caminho; repositório do vault **privado**; credencial do push no **Credential Manager**.
 - [~] **F06.02** **`git pull`** ao abrir o app, a cada conversa nova, antes de gravar uma nota e ao abrir a tela Memória; tratar falha de rede sem travar.
-- [~] **F06.03** **Leitor do vault:** parser de frontmatter YAML, wikilinks, tags, `type`, pastas; respeita o [[claude.md]] do vault. **Estado PR #30: Parser existe; conformidade completa com regras/links do vault ainda não validada.**
+- [~] **F06.03** **Leitor do vault:** parser de frontmatter YAML, wikilinks, tags, `type`, pastas; respeita o [[claude.md]] do vault. **Estado PR #38: Parser existe; conformidade completa com regras/links do vault ainda não validada.**
 - [~] **F06.04** **Índice incremental por hash** a cada commit/pull: **BM25 + LSA**, conforme decisão de 20/10/2026; indexação inicial em segundo plano, reindexar e exclusões nas configurações. Embeddings locais só se a busca falhar. **Aceite do índice completo pendente; infraestrutura existente não comprova a busca decidida.**
 - [~] **F06.05** **Privacidade do índice:** notas com `#privado` e pastas bloqueadas **nunca** viram embedding por API nem saem do PC; API de embeddings só se você ligar (C6).
 - [~] **F06.06** **Busca na paleta (Ctrl+K)** e na tela Memória; notas do **Arquivo (04)** aparecem **esmaecidas**.
@@ -614,7 +614,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [~] **F06.08** Ao responder, **memória de longo prazo busca no histórico automaticamente**; mostra "memória usada" no painel de contexto.
 
 #### F06.B Gravação das conversas
-- [~] **F06.09** **Uma nota por conversa** em `03 Recursos/Orion/Memória/`, nome **`AAAA-MM-DD - agente - título`**, **atualizada a cada rodada** com seções novas (como as notas de conversa do Claude). **Estado PR #30: Gravação por API explícita existe; atualização automática por turno ausente.**
+- [~] **F06.09** **Uma nota por conversa** em `03 Recursos/Orion/Memória/`, nome **`AAAA-MM-DD - agente - título`**, **atualizada a cada rodada** com seções novas (como as notas de conversa do Claude). **Estado PR #38: Gravação por API explícita existe; atualização automática por turno ausente.**
 - [~] **F06.10** Frontmatter conforme o `claude.md`: `type: conversa`, `date`, `hora`, `fonte` (nova origem **orion**, a registrar nas regras do vault), `projeto: "[[Nome exato]]"`, `tags` (criadas direto pelo Orion), `resumo`; **link a um Projeto/Área existente** (regra "não criar ilhas"); conteúdo técnico linka/cria hub em `03 Recursos/Conceitos/`.
 - [ ] **F06.11** **Todas as conversas** viram resumo, automático e sem perguntar; **resumo escrito por API gratuita** (não gasta assinatura); conteúdo forte (decisão, debug resolvido, fato novo, pesquisa com fontes) é **destacado e linkado ao Projeto/Área**.
 - [ ] **F06.12** **Conversas triviais** ("que horas são") entram no **resumo diário único das 23:59**, em `03 Recursos/Orion/Memória/Diário/AAAA-MM-DD.md`, linkando as conversas do dia; **com o PC desligado, gerar na nuvem** (mesma filtragem de segredos e dados pessoais).
@@ -644,7 +644,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 
 ### F07: Configurações completas · tamanho **L**
 
-> **Auditoria PR #30 (`2020015`): Parcial.** Há configuração por ambiente/.env/JSON e painel de orçamento; não há modal completo, TOML com recarga ou todas as seções nativas.
+> **Auditoria PR #38 (`2020015`): Parcial.** Há configuração por ambiente/.env/JSON e painel de orçamento; não há modal completo, TOML com recarga ou todas as seções nativas.
 
 **Objetivo:** a tela de Configurações inteira, com a estrutura e as regras decididas.
 **Dependências:** F01 a F06 (cada seção liga ao que já existe).
@@ -688,7 +688,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 
 ### F08: Projetos · tamanho **L**
 
-> **Auditoria PR #30 (`2020015`): Parcial.** Projetos/documentos/ramos e APIs portados; telas iced, GitHub, nota do projeto e herança/arquivamento coordenados pendentes.
+> **Auditoria PR #38 (`2020015`): Parcial.** Projetos/documentos/ramos e APIs portados; telas iced, GitHub, nota do projeto e herança/arquivamento coordenados pendentes.
 
 **Objetivo:** a tela e o modelo de projeto, com isolamento, arquivos de referência e painel próprio.
 **Dependências:** F06, F07.
@@ -714,7 +714,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 
 ### F09: Painel e telas auxiliares · tamanho **M**
 
-> **Auditoria PR #30 (`2020015`): Parcial.** Dados do painel e telas web de resultados/arquivadas existem; telas iced, métricas e resumo diário do plano pendentes.
+> **Auditoria PR #38 (`2020015`): Parcial.** Dados do painel e telas web de resultados/arquivadas existem; telas iced, métricas e resumo diário do plano pendentes.
 
 **Objetivo:** as telas de acompanhamento da v1.
 **Dependências:** F03, F04, F06.
@@ -734,7 +734,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 
 ### F10: Instalador, atualizador, onboarding e release da v1 · tamanho **XL**
 
-> **Auditoria PR #30 (`2020015`), atualizada em 20/10/2026: Parcial.** Setup visual, cópia real CPU/Vulkan, download do pacote de Releases (minisign + SHA-256), modelos, rollback, registro/atalho/autostart, identidade MSIX, desinstalador e atualizador (`orion update`) existem no código; `release.yml` pronto. Faltam chave de assinatura e primeiro release (você), onboarding no app, prova num Windows real, mini tela "O que mudou" e canais.
+> **Auditoria PR #38 (`2020015`), atualizada em 20/10/2026: Parcial.** Setup visual, cópia real CPU/Vulkan, download do pacote de Releases (minisign + SHA-256), modelos, rollback, registro/atalho/autostart, identidade MSIX, desinstalador e atualizador (`orion update`) existem no código; `release.yml` pronto. Faltam chave de assinatura e primeiro release (você), onboarding no app, prova num Windows real, mini tela "O que mudou" e canais.
 
 **Objetivo:** entregar o Orion instalado, atualizável e configurado no primeiro uso. Especificação visual e técnica completa do instalador em [[ORION - INSTALADOR (ESPECIFICAÇÃO)]]; o protótipo aprovado é a fonte da verdade.
 **Dependências:** F01 a F09, F00 (spike de identidade de pacote).
@@ -748,15 +748,15 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [~] **F10.06** **Etapa 2 Pastas:** app (Arquivos de Programas), **modelos no disco com mais espaço** (sugerido), dados em `%ProgramData%\Orion`.
 - [~] **F10.07** **Etapa 3 Modelos:** **cartões** com tamanho, RAM, uso e selo **"recomendado para o seu PC"**, pré-marcação por RAM/VRAM, total em GB.
 - [~] **F10.08** **Etapa 4 Opções:** iniciar com o Windows, voz, fixar na barra de tarefas, relatório de falhas; **UAC** ao instalar.
-- [~] **F10.09** **Etapa 5 Instalando:** copiar o app, **registrar o pacote esparso**, instalar o **certificado autoassinado**, criar atalhos (**Menu Iniciar** e **barra de tarefas**, sem Área de Trabalho), **serviço de atualização**, agendar o **download dos modelos**, com **desfazer em ordem inversa** em erro ou cancelamento; **fechar pede confirmação**. **Estado PR #30 (19/10/2026): cópia, modelos, registro em Apps instalados, atalho do Menu Iniciar, início automático opt-in, identidade MSIX com certificado autoassinado (pulada e dita sem SDK ou administrador), lista SHA-256, tarefa diária do atualizador e rollback de tudo isso implementados no código e testados só por registrador falso e em Linux. Sem prova num Windows real.**
+- [~] **F10.09** **Etapa 5 Instalando:** copiar o app, **registrar o pacote esparso**, instalar o **certificado autoassinado**, criar atalhos (**Menu Iniciar** e **barra de tarefas**, sem Área de Trabalho), **serviço de atualização**, agendar o **download dos modelos**, com **desfazer em ordem inversa** em erro ou cancelamento; **fechar pede confirmação**. **Estado PR #38 (19/10/2026): cópia, modelos, registro em Apps instalados, atalho do Menu Iniciar, início automático opt-in, identidade MSIX com certificado autoassinado (pulada e dita sem SDK ou administrador), lista SHA-256, tarefa diária do atualizador e rollback de tudo isso implementados no código e testados só por registrador falso e em Linux. Sem prova num Windows real.**
 - [~] **F10.10** **Final:** "Pronto. O Orion está no céu." + **Abrir Orion** (abre o onboarding).
 - [~] **F10.11** **Download dos modelos em segundo plano:** o app já abre e usa as APIs enquanto baixa; pausar/retomar; **verificação de hash**; avisa antes de atualizar modelo.
-- [~] **F10.12** **Desinstalador** (Configurações › Aplicativos): **pergunta separadamente** app / modelos / dados; **o vault nunca é tocado**. **Estado PR #30 (19/10/2026): Implementado no código, sem prova no Windows: `Orion Setup.exe --uninstall <pasta>` abre a janela com três caixas (app; modelos; dados, desmarcados), remove o app, o atalho, o início automático, a identidade, a tarefa e o registro; só apaga modelos registrados e dados de pasta com nome Orion; o vault nunca é tocado.**
+- [~] **F10.12** **Desinstalador** (Configurações › Aplicativos): **pergunta separadamente** app / modelos / dados; **o vault nunca é tocado**. **Estado PR #38 (19/10/2026): Implementado no código, sem prova no Windows: `Orion Setup.exe --uninstall <pasta>` abre a janela com três caixas (app; modelos; dados, desmarcados), remove o app, o atalho, o início automático, a identidade, a tarefa e o registro; só apaga modelos registrados e dados de pasta com nome Orion; o vault nunca é tocado.**
 - [~] **F10.13** Teste de **snapshot por etapa** comparado ao protótipo (mesmo quadro, mesma semente) e checklist de aceite da especificação §13.
 
 #### F10.B Atualizador (`orion-updater`)
-- [~] **F10.14** **Serviço de atualização com permissão** (sem UAC a cada update), checando **uma vez por dia** em segundo plano. **Estado PR #30 (19/10/2026): Parcial: tarefa agendada diária (SYSTEM, sem UAC) chama `orion-updater --check`; sem `feed_url` e chave pública ele não faz nada. Nunca rodou no Windows.** **Atualização 20/10/2026: o atualizador agora é o subcomando `orion update --check [--apply]|--rollback` de `orion.exe` (a tarefa diária chama esse comando); não existe mais `orion-updater.exe` e `ALLOWED_FILES` é só `orion.exe` e `orion-llama.exe`.**
-- [~] **F10.15** Verificação: **assinatura minisign + SHA-256** do release (C7); recusa binário não assinado; **rollback** para a versão anterior. **Estado PR #30 (19/10/2026): Parcial: feed e SHA-256 conferidos, só versão maior, `.bak` e `--rollback`, testado com chaves minisign geradas no teste. Falta o par de chaves de release, a publicação do feed assinado e o rollback automático se o app novo não subir.** **Atualização 20/10/2026: o instalador também baixa o pacote com a mesma verificação (`latest-<variante>.json` + `.minisig`, variantes `cpu`/`vulkan`); `release.yml` existe e nunca rodou, pois falta a chave.**
+- [~] **F10.14** **Serviço de atualização com permissão** (sem UAC a cada update), checando **uma vez por dia** em segundo plano. **Estado PR #38 (19/10/2026): Parcial: tarefa agendada diária (SYSTEM, sem UAC) chama `orion-updater --check`; sem `feed_url` e chave pública ele não faz nada. Nunca rodou no Windows.** **Atualização 20/10/2026: o atualizador agora é o subcomando `orion update --check [--apply]|--rollback` de `orion.exe` (a tarefa diária chama esse comando); não existe mais `orion-updater.exe` e `ALLOWED_FILES` é só `orion.exe` e `orion-llama.exe`.**
+- [~] **F10.15** Verificação: **assinatura minisign + SHA-256** do release (C7); recusa binário não assinado; **rollback** para a versão anterior. **Estado PR #38 (19/10/2026): Parcial: feed e SHA-256 conferidos, só versão maior, `.bak` e `--rollback`, testado com chaves minisign geradas no teste. Falta o par de chaves de release, a publicação do feed assinado e o rollback automático se o app novo não subir.** **Atualização 20/10/2026: o instalador também baixa o pacote com a mesma verificação (`latest-<variante>.json` + `.minisig`, variantes `cpu`/`vulkan`); `release.yml` existe e nunca rodou, pois falta a chave.**
 - [ ] **F10.16** **Instala ao fechar** o app; **mini tela de atualização** (céu + **"O que mudou"**); canais **beta** e **stable**. *(Decisão de 20/10/2026: só o canal **stable** no começo; o **beta** nasce quando o notebook entrar.)*
 - [ ] **F10.17** **CLIs (Claude, Codex, Gemini) atualizam sozinhas** e o Orion mostra a versão.
 
@@ -796,7 +796,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 
 ### F11: Ferramentas de código · tamanho **L**
 
-> **Auditoria PR #30 (`2020015`): Pendente como entrega.** Shell/Git/processos genéricos não concluem esta fase: diff por bloco, ConPTY, GitHub/CI, ACP e extensão VS Code ainda faltam.
+> **Auditoria PR #38 (`2020015`): Pendente como entrega.** Shell/Git/processos genéricos não concluem esta fase: diff por bloco, ConPTY, GitHub/CI, ACP e extensão VS Code ainda faltam.
 
 **Objetivo:** o painel da direita completo (Contexto, Arquivos, Diff, Terminal), GitHub e a extensão do VS Code.
 **Dependências:** F05, F08, F04 (aprovações), F03 (ACP).
@@ -829,7 +829,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 
 ### F12: Rotinas, automações, nuvem e monitores · tamanho **XL**
 
-> **Auditoria PR #30 (`2020015`): Parcial.** Jobs, rotinas concedidas, Downloads, briefing e pesquisa portados; agendador completo, nuvem, monitores e proatividade ainda faltam.
+> **Auditoria PR #38 (`2020015`): Parcial.** Jobs, rotinas concedidas, Downloads, briefing e pesquisa portados; agendador completo, nuvem, monitores e proatividade ainda faltam.
 
 **Objetivo:** o Orion trabalhando sozinho, no horário certo ou por gatilho, e delegando à nuvem quando o PC está desligado.
 **Dependências:** F04, F05, F06, F08.
@@ -875,24 +875,24 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 
 ### F13: Orçamento de uso (assinaturas e APIs) · tamanho **L**
 
-> **Auditoria PR #30 (`2020015`): Parcial.** Registro/calibragem/reset/projeção e tetos 95%/20% feitos em chamadas estimadas; leitura oficial, precisão, fila e preempção pendentes.
+> **Auditoria PR #38 (`2020015`): Parcial.** Registro/calibragem/reset/projeção e tetos 95%/20% feitos em chamadas estimadas; leitura oficial, precisão, fila e preempção pendentes.
 
 **Objetivo:** economizar com qualidade e usar a cota semanal quase toda, medindo com honestidade.
 **Dependências:** F03, F09. **D03 decidido em 20/10/2026:** a leitura de `/usage` e `/status` pelas CLIs está liberada, com queda para a estimativa local e aviso se o formato mudar; deixou de estar bloqueada.
 
 - [ ] **F13.01** **Leitura de uso do Claude:** rodar `/usage` na CLI do Claude Code e ler a janela de 5 h e a da semana; se o formato mudar, **cai para a estimativa local e avisa**. *(20/10/2026: liberado pela D03; ainda não implementado.)*
 - [ ] **F13.02** **Leitura do Codex:** `/status` da CLI (só depois de a sessão receber uma mensagem; pode estar desatualizado; divergências conhecidas); **Gemini:** só estimativa local. *(20/10/2026: liberado pela D03; ainda não implementado.)*
-- [~] **F13.03** **Registro local de cada chamada** por provedor como base; **calibragem manual** quando a estimativa desviar; **dia e hora do reset** por provedor. **Estado PR #30: Registro/reset/calibragem feitos em chamadas estimadas; precisão real pendente.**
-- [~] **F13.04** **Teto de 95%** da cota semanal com **5% de reserva**; **projeção diária** do que sobra no reset pelo ritmo de uso. **Estado PR #30: Tetos/projeção implementados e testados; aceite de precisão da fase pendente.**
+- [~] **F13.03** **Registro local de cada chamada** por provedor como base; **calibragem manual** quando a estimativa desviar; **dia e hora do reset** por provedor. **Estado PR #38: Registro/reset/calibragem feitos em chamadas estimadas; precisão real pendente.**
+- [~] **F13.04** **Teto de 95%** da cota semanal com **5% de reserva**; **projeção diária** do que sobra no reset pelo ritmo de uso. **Estado PR #38: Tetos/projeção implementados e testados; aceite de precisão da fase pendente.**
 - [ ] **F13.05** **Alerta em 80%** usado; aviso quando a cota está no limite.
-- [~] **F13.06** **Teto por tarefa** (20% da cota semanal, respeitando a janela de 5 h; **20% confirmado em 17/10/2026**, C18/D02). **Estado PR #30: Teto confirmado e implementado; aceite completo da fase pendente.**
+- [~] **F13.06** **Teto por tarefa** (20% da cota semanal, respeitando a janela de 5 h; **20% confirmado em 17/10/2026**, C18/D02). **Estado PR #38: Teto confirmado e implementado; aceite completo da fase pendente.**
 - [ ] **F13.07** **Tela Orçamento** (Configurações): fila de automelhoria escolhida por você (ferramentas, código, lógica, performance, segurança, auditoria e manutenção do vault, testes e cobertura, refatoração, pesquisa), gasto e projeção.
 - [~] **F13.08** **Regra:** pedido seu **sempre tem prioridade**; tarefa de fundo **para** se você pedir algo.
 
 **Testes:** leitura com saídas gravadas (formatos antigos e novos), falha de leitura, projeção com histórico simulado.
 **Critério de aceite:** a projeção bate com o uso real dentro de uma margem registrada; formato inesperado nunca derruba o app.
 
-**Entrega parcial no PR #30 (17/10/2026):** painel nativo/API e reservas persistidas em chamadas estimadas, calibragem manual, reset por provedor, projeção e tetos de 95% semanal / 20% por tarefa (valor de 20% confirmado pelo pedido desta sessão), com janela de 5 h configurável. Não lê `/usage` nem `/status` oficiais e não implementa fila de automelhoria. A unidade de estimativa é explícita na interface.
+**Entrega parcial no PR #38 (17/10/2026):** painel nativo/API e reservas persistidas em chamadas estimadas, calibragem manual, reset por provedor, projeção e tetos de 95% semanal / 20% por tarefa (valor de 20% confirmado pelo pedido desta sessão), com janela de 5 h configurável. Não lê `/usage` nem `/status` oficiais e não implementa fila de automelhoria. A unidade de estimativa é explícita na interface.
 
 ---
 
@@ -900,28 +900,28 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 
 ### F14: Telegram · tamanho **L**
 
-> **Auditoria PR #30 (`2020015`): Parcial.** Bot HTTP próprio, default-deny, cartões inline, 2FA e áudio feitos; não usa teloxide. PIN/Hello, nuvem, fila, energia/WoL e dois aparelhos reais pendentes.
+> **Auditoria PR #38 (`2020015`): Parcial.** Bot HTTP próprio, default-deny, cartões inline, 2FA e áudio feitos; não usa teloxide. PIN/Hello, nuvem, fila, energia/WoL e dois aparelhos reais pendentes.
 
 **Objetivo:** o celular pelo Telegram, com segurança estrita e o 2FA.
 **Dependências:** F04 (aprovações), F12 (rotinas), F02 (gancho do 2FA).
 
-- [~] **F14.01** Cliente com `teloxide`; **só o seu ID** responde, **conversa privada**; o resto é **ignorado em silêncio**; token no cofre; **troca do token só quando você pedir**. **Estado PR #30: Bot HTTP próprio com default-deny e cofre; não usa teloxide.** *(Decisão confirmada 20/10/2026: manter o cliente próprio; `teloxide` descartado.)*
+- [~] **F14.01** Cliente com `teloxide`; **só o seu ID** responde, **conversa privada**; o resto é **ignorado em silêncio**; token no cofre; **troca do token só quando você pedir**. **Estado PR #38: Bot HTTP próprio com default-deny e cofre; não usa teloxide.** *(Decisão confirmada 20/10/2026: manter o cliente próprio; `teloxide` descartado.)*
 - [ ] **F14.02** **PIN próprio** além do ID para ações críticas (ligar, desligar, aprovar); **login novo ou IP desconhecido avisa e bloqueia** a ação.
 - [~] **F14.03** **Conversar com o Orion:** as conversas aparecem no app do PC com a marca **"via Telegram"** (ícone do avião); a **resposta completa aparece no chat do PC**; no Telegram, resposta longa vira **resumo + botão "ver completo"** (abre a conversa no PC ou envia `.md`).
 - [ ] **F14.04** **PC ocupado:** mensagens vão para uma **fila** e são respondidas quando terminar.
-- [~] **F14.05** **Aprovar ou negar** com botões **Aprovar/Negar** (R22), só pelo clique do ID autorizado; **frase nunca decide**; cartão mostra o que se vê inteiro (R11). **Estado PR #30: Cartões remotos vinculados ao ID/cartão/sessão implementados; E2E real pendente.**
+- [~] **F14.05** **Aprovar ou negar** com botões **Aprovar/Negar** (R22), só pelo clique do ID autorizado; **frase nunca decide**; cartão mostra o que se vê inteiro (R11). **Estado PR #38: Cartões remotos vinculados ao ID/cartão/sessão implementados; E2E real pendente.**
 - [~] **F14.06** **Comandos do PC:** `/status` (ligado, RAM), `/rotina rodar`, `/nuvem codex <tarefa>`, `/nuvem claude <tarefa>`.
 - [ ] **F14.07** **Ligar e desligar o PC:** desligar pede **confirmação por botão**; **ligar** por **Wake-on-LAN** enviado por um **roteador ou Raspberry** ligado na mesma rede (subnet router da Tailscale); BIOS e adaptador de rede configurados.
-- [~] **F14.08** **Áudio:** mandar áudio (transcrição pelo Whisper; só o texto é guardado, o áudio é descartado) e **receber resposta em áudio** (F15); **arquivos grandes** pelo Bot API local (opcional). **Estado PR #30: Entrada e resposta em áudio implementadas; dois aparelhos/Bot API local pendentes.**
+- [~] **F14.08** **Áudio:** mandar áudio (transcrição pelo Whisper; só o texto é guardado, o áudio é descartado) e **receber resposta em áudio** (F15); **arquivos grandes** pelo Bot API local (opcional). **Estado PR #38: Entrada e resposta em áudio implementadas; dois aparelhos/Bot API local pendentes.**
 - [~] **F14.09** **Rotinas e avisos** (resultado de rotina, aprovação, cota, tarefa na nuvem) chegam pelo Telegram conforme a **matriz evento × canal**.
-- [~] **F14.10** **2FA por código no Telegram**: ao entrar de novo depois de sair da conta, o código vai para o seu ID; Windows Hello como reserva (C9). **Estado PR #30: Código Telegram entregue; Hello de reserva ausente.**
+- [~] **F14.10** **2FA por código no Telegram**: ao entrar de novo depois de sair da conta, o código vai para o seu ID; Windows Hello como reserva (C9). **Estado PR #38: Código Telegram entregue; Hello de reserva ausente.**
 - [ ] **F14.11** **Aviso** de login no Telegram a cada tentativa errada de senha (F02.12).
 - [ ] **F14.12** **Segurança de rede:** Tailscale **só com dispositivos da sua conta** (ACL).
 
 **Testes:** API falsa do Telegram (default-deny, ID errado, grupo, replay), E2E de aprovação por botão, fila com PC ocupado, teste real em dois aparelhos.
 **Critério de aceite:** aprovar uma ação do PC pelo celular; ninguém além do seu ID consegue qualquer resposta.
 
-**Entrega parcial no PR #30 (17/10/2026):** aprovações remotas do PC com botões vinculados ao cartão, sessão e argumentos originais; 2FA opt-in antes da emissão de sessão (código de uso único, 5 min, 5 erros); áudio de entrada local/Groq opt-in e resposta em MP3 com edge-tts. PIN próprio, Hello, energia/WoL, fila de nuvem e teste com dois aparelhos ainda pendem.
+**Entrega parcial no PR #38 (17/10/2026):** aprovações remotas do PC com botões vinculados ao cartão, sessão e argumentos originais; 2FA opt-in antes da emissão de sessão (código de uso único, 5 min, 5 erros); áudio de entrada local/Groq opt-in e resposta em MP3 com edge-tts. PIN próprio, Hello, energia/WoL, fila de nuvem e teste com dois aparelhos ainda pendem.
 
 ---
 
@@ -929,22 +929,22 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 
 ### F15: Voz · tamanho **XL**
 
-> **Auditoria PR #30 (`2020015`): Parcial.** cpal, VAD por energia, palmas, Whisper, TTS, AEC3 e barge-in integrados; Silero, wake word final, testes acústicos/GPU e UI completa pendentes.
+> **Auditoria PR #38 (`2020015`): Parcial.** cpal, VAD por energia, palmas, Whisper, TTS, AEC3 e barge-in integrados; Silero, wake word final, testes acústicos/GPU e UI completa pendentes.
 
 **Objetivo:** falar com o Orion: palavra de ativação, palmas, voz ao vivo, mini barra, respostas faladas e legenda.
 **Dependências:** F00.22 (spike de áudio), F03, F04, F05.
 
-**Entrega parcial no PR #30 (17/10/2026):** `orion-voice` + listener do core, captura cpal, mono 16 kHz, VAD por energia, palmas calibradas 150–700 ms só para abrir, teto por hora e corte da captura por pausa/pânico. openWakeWord exige modelo Orion local; Whisper CPU/Vulkan exige modelo ggml; Groq exige opt-in separado; edge-tts pt-BR masculino já integrado. Controle nativo mostra a transcrição. AEC3 e barge-in já estão integrados; faltam Silero, modelo Orion final, prova acústica/GPU e a UI completa de voz/legenda/constelação.
+**Entrega parcial no PR #38 (17/10/2026):** `orion-voice` + listener do core, captura cpal, mono 16 kHz, VAD por energia, palmas calibradas 150–700 ms só para abrir, teto por hora e corte da captura por pausa/pânico. openWakeWord exige modelo Orion local; Whisper CPU/Vulkan exige modelo ggml; Groq exige opt-in separado; edge-tts pt-BR masculino já integrado. Controle nativo mostra a transcrição. AEC3 e barge-in já estão integrados; faltam Silero, modelo Orion final, prova acústica/GPU e a UI completa de voz/legenda/constelação.
 
 #### F15.A Áudio base (`orion-voice`)
-- [~] **F15.01** Captura com `cpal` (**microfone padrão do Windows**), reamostragem, **Silero VAD**, **cancelamento de eco `aec3`** (referência: áudio que o Orion toca). **Estado PR #30: cpal/reamostragem/AEC3 feitos; Silero ausente.**
+- [~] **F15.01** Captura com `cpal` (**microfone padrão do Windows**), reamostragem, **Silero VAD**, **cancelamento de eco `aec3`** (referência: áudio que o Orion toca). **Estado PR #38: cpal/reamostragem/AEC3 feitos; Silero ausente.**
 - [~] **F15.02** **Sob demanda:** só carrega quando a voz está ligada; **pílula de estado** (Ouvindo, Pensando, Falando) e **indicador de microfone**; **modo "não escutar" só pelo app**, sem atalho.
 - [~] **F15.03** **Privacidade (R18):** só a **transcrição** é guardada, o **áudio é descartado**; teto de ativações por hora; pausa; registro sem áudio nem texto.
 
 #### F15.B Entrada de voz
 - [~] **F15.04** **STT local:** **Whisper large-v3-turbo** via `whisper-rs` com **Vulkan**; **só português**; **silêncio de 1 s** para parar; **Groq Whisper opcional** para PC sem GPU, desligado por padrão (C2).
-- [~] **F15.05** **Palavra "Orion"** com `oww-rs` (openWakeWord, modelo treinado, local), **sensibilidade média**, ajustável; **só abre o microfone**; **traz a janela para o foco**. **Estado PR #30: Engine/treino candidato feitos; candidato reprovado para escuta contínua, modelo final pendente.** *(Decisão de 20/10/2026: a palavra "Orion" fica **desligada na v1**, sem gravações para validar o modelo; ficam as palmas e o atalho. Reativar quando houver amostras reais.)*
-- [~] **F15.06** **Duas palmas** (150 a 700 ms entre elas), **só abrem** (nunca aprovam), calibração, teto por hora; **traz a janela para o foco**. **Estado PR #30: Detector/calibração/foco implementados; ruído/música reais pendentes.**
+- [~] **F15.05** **Palavra "Orion"** com `oww-rs` (openWakeWord, modelo treinado, local), **sensibilidade média**, ajustável; **só abre o microfone**; **traz a janela para o foco**. **Estado PR #38: Engine/treino candidato feitos; candidato reprovado para escuta contínua, modelo final pendente.** *(Decisão de 20/10/2026: a palavra "Orion" fica **desligada na v1**, sem gravações para validar o modelo; ficam as palmas e o atalho. Reativar quando houver amostras reais.)*
+- [~] **F15.06** **Duas palmas** (150 a 700 ms entre elas), **só abrem** (nunca aprovam), calibração, teto por hora; **traz a janela para o foco**. **Estado PR #38: Detector/calibração/foco implementados; ruído/música reais pendentes.**
 - [~] **F15.07** **A fala transcrita aparece antes da resposta**; comandos de voz passam pela **política normal** (**aprovar nunca é por voz**).
 - [~] **F15.08** **`/voz`** liga e desliga; **Ctrl+Alt+V** para a voz ao vivo.
 
@@ -953,7 +953,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [ ] **F15.10** **Botão "ouvir"** nas respostas e **leitura em voz alta** de documentos.
 
 #### F15.D Voz ao vivo e mini barra
-- [~] **F15.11** **Voz ao vivo (Ctrl+Alt+V):** pipeline STT → LLM → TTS com **interrupção falando por cima** (barge-in via aec3); **Gemini Live** como modo opcional quando houver internet (C3); **só conversa, sem ferramentas nem memória** (R18), com **duração máxima** e registro de início e fim. **Estado PR #30: Barge-in do listener feito; não equivale ao modo completo sem ferramentas e seus atalhos.**
+- [~] **F15.11** **Voz ao vivo (Ctrl+Alt+V):** pipeline STT → LLM → TTS com **interrupção falando por cima** (barge-in via aec3); **Gemini Live** como modo opcional quando houver internet (C3); **só conversa, sem ferramentas nem memória** (R18), com **duração máxima** e registro de início e fim. **Estado PR #38: Barge-in do listener feito; não equivale ao modo completo sem ferramentas e seus atalhos.**
 - [~] **F15.12** **Mini barra flutuante no topo, centralizada**: **constelação reagindo ao áudio** (o cinturão acende com o som), **transcrição ao vivo + resposta curta**; resposta longa abre a janela.
 - [ ] **F15.13** **Constelação da tela inicial reage à voz** (pílula de estado + cinturão acendendo com o áudio).
 
@@ -972,7 +972,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 
 ### F16: Grafo 3D da memória · tamanho **XL**
 
-> **Auditoria PR #30 (`2020015`): Parcial só nos dados.** Backend de grafo/parser e grafo WebGL existem; nenhum renderer/layout/compute nativo wgpu ou aceite de desempenho entregue.
+> **Auditoria PR #38 (`2020015`): Parcial só nos dados.** Backend de grafo/parser e grafo WebGL existem; nenhum renderer/layout/compute nativo wgpu ou aceite de desempenho entregue.
 
 **Objetivo:** a visualização do vault em 3D, como a do Obsidian, sobre o céu do Orion, com **wgpu puro**.
 **Dependências:** F00.15/F00.16 (spikes), F06 (vault e índice), F01.29 (motor do céu).
@@ -1005,7 +1005,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 
 ### F17: Efeitos visuais (bloom e blur de vidro) · tamanho **M**
 
-> **Auditoria PR #30 (`2020015`): Pendente.** Céu do instalador não implementa bloom/blur do grafo nem qualidade/bateria automáticas desta fase.
+> **Auditoria PR #38 (`2020015`): Pendente.** Céu do instalador não implementa bloom/blur do grafo nem qualidade/bateria automáticas desta fase.
 
 **Objetivo:** o acabamento do grafo e dos painéis, com qualidade automática.
 **Dependências:** F16.
@@ -1024,16 +1024,16 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 
 ### F18: Câmera e visão · tamanho **XL**
 
-> **Auditoria PR #30 (`2020015`): Parcial.** Câmera nokhwa e extrator Haar heurístico/LBPH adicionados em 975e635; detector YOLO ainda retorna vazio. Indicadores, reconhecimento real, UI e aceite pendentes.
+> **Auditoria PR #38 (`2020015`): Parcial.** Câmera nokhwa e extrator Haar heurístico/LBPH adicionados em 975e635; detector YOLO ainda retorna vazio. Indicadores, reconhecimento real, UI e aceite pendentes.
 
 **Objetivo:** o Orion enxerga, com os dois modos, tudo local e com indicador sempre visível.
 **Dependências:** F04, F15 (presença e voz), F06.
 
-- [~] **F18.01** **Câmera com `nokhwa`** (Media Foundation), **dois modos com interruptores separados**: foto **sob pedido** ("olha isso") e **presença contínua local**; **ponto vermelho** na barra de título e no ícone da bandeja sempre que ativa; nada de imagem guardada na presença. **Estado PR #30: Captura nokhwa implementada; indicadores e aceite dos dois modos pendentes.**
+- [~] **F18.01** **Câmera com `nokhwa`** (Media Foundation), **dois modos com interruptores separados**: foto **sob pedido** ("olha isso") e **presença contínua local**; **ponto vermelho** na barra de título e no ícone da bandeja sempre que ativa; nada de imagem guardada na presença. **Estado PR #38: Captura nokhwa implementada; indicadores e aceite dos dois modos pendentes.**
 - [~] **F18.02** **Ver e responder sobre uma foto** (modelo de visão: local — Moondream/MiniCPM-V — ou provedor com visão); a foto vale **só para o turno em que chegou**.
-- [~] **F18.03** **Detecção de objetos local** (modelo pequeno **ONNX em CPU**, YOLO). **Estado PR #30: Não entregue: detectar_jpeg retorna sempre lista vazia.**
+- [~] **F18.03** **Detecção de objetos local** (modelo pequeno **ONNX em CPU**, YOLO). **Estado PR #38: Não entregue: detectar_jpeg retorna sempre lista vazia.**
 - [~] **F18.04** **"Onde eu deixei?":** lembra onde viu objetos; guarda **só rótulos, sem imagem** (`objeto, lugar, hora`), **retenção sem prazo**, último lugar + histórico compactado (uma linha por mudança); **lista inicial editável**: chaves, carteira, celular, fone de ouvido, óculos, controle remoto, carregador, notebook, mochila, documentos (RG/CNH), cartões, remédios, garrafa/copo, mouse e teclado sem fio, pendrive, relógio, guarda-chuva, caneta.
-- [~] **F18.05** **Reconhecer o Antonio** (rosto): **clássico e local (Haar + LBPH)**, sem IA e sem nuvem; **falso positivo não age, pede confirmação**; cadastro guiado; ArcFace só se o spike mostrar necessidade (C21). **Estado PR #30: Extrator Haar heurístico/LBPH implementado; falta validação facial real e cadastro guiado.**
+- [~] **F18.05** **Reconhecer o Antonio** (rosto): **clássico e local (Haar + LBPH)**, sem IA e sem nuvem; **falso positivo não age, pede confirmação**; cadastro guiado; ArcFace só se o spike mostrar necessidade (C21). **Estado PR #38: Extrator Haar heurístico/LBPH implementado; falta validação facial real e cadastro guiado.**
 - [~] **F18.06** **Presença contínua:** ao **sair do PC** pausa a voz que estiver falando e **bloqueia o Orion** (pede senha na volta); **na volta** cumprimenta com o que aconteceu ("Voltou. A rotina das 14h terminou."); alimenta a **presença** do modo jogo e do bem-estar.
 - [~] **F18.07** **Legenda ao vivo** com áudio (F15.14 e F15.15) integrada ao painel de câmera quando aplicável.
 - [~] **F18.08** **Captura de tela "Isso?"** com **detecção e blur** de dados sensíveis antes do envio (ver F20).
@@ -1048,13 +1048,13 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 
 ### F19: Extensões (MCP, skills, plugins WASM, MCP Apps, importações, clientes externos) · tamanho **XL**
 
-> **Auditoria PR #30 (`2020015`): Parcial.** MCP próprio, OAuth, skills/plugins/importação e credenciais de leitura existem; rmcp não é usado. WASM/WIT, MCP Apps, proteção completa contra rug pull e UI final pendentes.
+> **Auditoria PR #38 (`2020015`): Parcial.** MCP próprio, OAuth, skills/plugins/importação e credenciais de leitura existem; rmcp não é usado. WASM/WIT, MCP Apps, proteção completa contra rug pull e UI final pendentes.
 
 **Objetivo:** suportar **tudo o que Claude e Codex têm e for possível no Orion**.
 **Dependências:** F04, F05, F07.
 
 #### F19.A MCP
-- [~] **F19.01** **Cliente MCP** com `rmcp`: servidores **stdio** (comando local) e **HTTP/SSE** (URL), com OAuth quando exigido; ferramentas aparecem no chat **com o nome do servidor**. **Estado PR #30: Cliente próprio stdio/HTTP e OAuth implementados; sem rmcp, UI/servidores reais pendentes.** *(Decisão confirmada 20/10/2026: manter o cliente próprio; `rmcp` descartado.)*
+- [~] **F19.01** **Cliente MCP** com `rmcp`: servidores **stdio** (comando local) e **HTTP/SSE** (URL), com OAuth quando exigido; ferramentas aparecem no chat **com o nome do servidor**. **Estado PR #38: Cliente próprio stdio/HTTP e OAuth implementados; sem rmcp, UI/servidores reais pendentes.** *(Decisão confirmada 20/10/2026: manter o cliente próprio; `rmcp` descartado.)*
 - [x] **F19.02** **Classe de risco vem da configuração do Orion**, nunca do servidor; sem classe = **execução** (R12); o servidor sobe **sem variáveis `ORION_*` nem segredos**.
 - [~] **F19.03** **Permissão por ferramenta** (sempre, perguntar, nunca; padrão **perguntar**); **leitura permitida, escrita pede aprovação** para plugins e MCPs de terceiros.
 - [~] **F19.04** **Proteção contra tool poisoning e rug pull:** **hash** das ferramentas e das descrições na aprovação; **se mudar, desativa até você reaprovar**; **classificador de injection lê as descrições**; o que o servidor anuncia é **tratado como texto não confiável**.
@@ -1090,7 +1090,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 
 ### F20: Tela, captura e reuniões · tamanho **XL**
 
-> **Auditoria PR #30 (`2020015`): Parcial.** Ponte/captura, memória de tela, OCR externo e legenda portados; seleção/overlays nativos, PII visual, UI Automation e reuniões pendentes.
+> **Auditoria PR #38 (`2020015`): Parcial.** Ponte/captura, memória de tela, OCR externo e legenda portados; seleção/overlays nativos, PII visual, UI Automation e reuniões pendentes.
 
 **Objetivo:** o Orion entende o que está na tela e nas chamadas, sempre local e com consentimento.
 **Dependências:** F04, F06, F15, F18.08.
@@ -1118,7 +1118,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 
 ### F21: Web e pesquisa · tamanho **L**
 
-> **Auditoria PR #30 (`2020015`), atualizada em 20/10/2026: Parcial.** Busca, leitura de páginas (Readability) e navegador guiado por CDP em Rust feitos; o sidecar Python foi removido. A aba de navegador no painel foi retirada por decisão; faltam pesquisa profunda `/pesquisa` com relatório em nota e monitores.
+> **Auditoria PR #38 (`2020015`), atualizada em 20/10/2026: Parcial.** Busca, leitura de páginas (Readability) e navegador guiado por CDP em Rust feitos; o sidecar Python foi removido. A aba de navegador no painel foi retirada por decisão; faltam pesquisa profunda `/pesquisa` com relatório em nota e monitores.
 
 **Objetivo:** o Orion navega e pesquisa por você, com aprovação nas ações de risco.
 **Dependências:** F04, F05, F12.
@@ -1136,7 +1136,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 
 ### F22: Vários PCs, rede, casa e celular · tamanho **XL**
 
-> **Auditoria PR #30 (`2020015`): Pendente.** Sync multi-PC, ACL Tailscale/exit node, WoL, casa/Alexa, Siri, Phone Link e Saúde não entregues.
+> **Auditoria PR #38 (`2020015`): Pendente.** Sync multi-PC, ACL Tailscale/exit node, WoL, casa/Alexa, Siri, Phone Link e Saúde não entregues.
 
 **Objetivo:** notebook em sincronia, casa inteligente, Alexa e iPhone.
 **Dependências:** F02, F10, F12, F14, F15.
@@ -1166,7 +1166,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 
 ### F23: Vida, Google e finanças · tamanho **XL**
 
-> **Auditoria PR #30 (`2020015`): Parcial.** Vida/finanças, OAuth/agenda/MCP e captura de gastos portados; integrações reais, importadores bancários completos, telas e semana de uso pendentes. **21/10/2026:** a tela Vida foi cortada (removida do app iced, da barra lateral e da paleta); as rotas (`/vida/simular`, `/foco`) e os dados existem no núcleo.
+> **Auditoria PR #38 (`2020015`): Parcial.** Vida/finanças, OAuth/agenda/MCP e captura de gastos portados; integrações reais, importadores bancários completos, telas e semana de uso pendentes. **21/10/2026:** a tela Vida foi cortada (removida do app iced, da barra lateral e da paleta); as rotas (`/vida/simular`, `/foco`) e os dados existem no núcleo.
 
 **Objetivo:** as integrações do Google e a vida pessoal (finanças, preços, linha do tempo, foco) sempre locais e sob regras de dados pessoais. A tela Vida foi cortada em 21/10/2026; os dados e rotas do núcleo ficam.
 **Dependências:** F12, F22.10, F06.
@@ -1197,7 +1197,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 
 ### F24: Estudo e conhecimento · tamanho **L**
 
-> **Auditoria PR #30 (`2020015`): Pendente.** FSRS, tutor, progresso, conexões e fluxo de estudo ainda não implementados como entrega.
+> **Auditoria PR #38 (`2020015`): Pendente.** FSRS, tutor, progresso, conexões e fluxo de estudo ainda não implementados como entrega.
 
 **Objetivo:** o Orion ajuda a aprender e a conectar o que você sabe, sem fazer por você.
 **Dependências:** F06, F12.
@@ -1214,7 +1214,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 
 ### F25: Sistema, utilidades e documentos · tamanho **L**
 
-> **Auditoria PR #30 (`2020015`): Parcial.** Históricos, Downloads, apps/mídia/documentos/conversor/planos portados; UI, Lixeira/desfazer completo, Spotify, jogo/economia e PowerPoint pendentes.
+> **Auditoria PR #38 (`2020015`): Parcial.** Históricos, Downloads, apps/mídia/documentos/conversor/planos portados; UI, Lixeira/desfazer completo, Spotify, jogo/economia e PowerPoint pendentes.
 
 **Objetivo:** utilidades do dia a dia, controle do sistema e geração de documentos.
 **Dependências:** F04, F12, F15.
@@ -1237,7 +1237,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 
 ### F26: Automelhoria · tamanho **XL**
 
-> **Auditoria PR #30 (`2020015`): Pendente.** Orçamento e tarefas restritas não são automelhoria: faltam fila, termos, execução por PR/evals e fluxo de interrupção.
+> **Auditoria PR #38 (`2020015`): Pendente.** Orçamento e tarefas restritas não são automelhoria: faltam fila, termos, execução por PR/evals e fluxo de interrupção.
 
 **Objetivo:** o Orion melhora o próprio código com a cota que sobra, **sempre por PR**.
 **Dependências:** F13, F11, F12, **D03 resolvido**, C17.
@@ -1257,7 +1257,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 
 ### F27: Auditoria final, documentação e release 1.0 · tamanho **L**
 
-> **Auditoria PR #30 (`2020015`): Parcial documental.** Memórias/vault e remoção do código obsoleto feitos; auditorias finais, migração/restauração, descarte no PC e release 1.0 não realizados.
+> **Auditoria PR #38 (`2020015`): Parcial documental.** Memórias/vault e remoção do código obsoleto feitos; auditorias finais, migração/restauração, descarte no PC e release 1.0 não realizados.
 
 **Objetivo:** fechar o roadmap posterior ao M1, com itens concluídos ou explicitamente adiados. A numeração da versão desse fechamento será alinhada ao primeiro release; o aceite da v1 fica em F10.
 **Dependências:** todas as anteriores.
