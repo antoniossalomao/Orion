@@ -485,6 +485,7 @@ pub async fn pendentes(_: Admin, State(st): State<Estado>) -> Json<Value> {
                 // redigido: quem aprova precisa ver O QUÊ, sem vazar segredo
                 json!({
                     "id": a.id, "session_id": a.session_id, "tool": a.tool, "reason": a.reason,
+                    "risk": st.policy.spec(&a.tool).and_then(|s| s.risk).map(|r| r.as_str()),
                     "args": orion_policy::redact(&Value::Object(a.args.clone()), 2000),
                     "args_truncated": orion_core::agent::truncado(&a.args),
                     "expires_at": a.expires_at,
@@ -529,7 +530,8 @@ fn turno_de_rotina(st: Estado, ex: std::sync::Arc<orion_core::rotinas::Executor>
         if let Some(a) = r.aprovacao_id.as_ref().and_then(|id| st.policy.approvals.get(id)) {
             yield AgentEvent::new("approval", json!({
                 "id": a.id, "tool": a.tool, "reason": a.reason,
-                "args": orion_policy::redact(&Value::Object(a.args.clone()), 2000), "args_truncated": false,
+                "risk": st.policy.spec(&a.tool).and_then(|s| s.risk).map(|r| r.as_str()),
+                "args": orion_policy::redact(&Value::Object(a.args.clone()), 2000), "args_truncated": orion_core::agent::truncado(&a.args),
             }));
         }
         yield AgentEvent::new("done", json!({"provenance": {"rotina": nome, "passos": r.passos}}));

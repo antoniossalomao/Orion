@@ -767,6 +767,7 @@ impl Agent {
                     json!({
                         "id": d.approval_id,
                         "tool": c.name,
+                        "risk": d.risk.map(|r| r.as_str()),
                         "reason": d.reason,
                         "args": redact(&Value::Object(c.arguments.clone()), 2000),
                         "args_truncated": truncado(&c.arguments),

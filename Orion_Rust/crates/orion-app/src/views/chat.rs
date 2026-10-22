@@ -166,11 +166,11 @@ fn approval<'a>(a: &'a crate::data::Approval, ci: usize, mi: usize) -> El<'a> {
     let txt = md::render(&md::parse(&a.text), md::Style { font: t::UI, bold: t::UI_SEMI, size: 13.5, line: 1.5, h_font: t::UI_MED, h1: 16.0, h2: 15.0, h3: 14.0, gap: 4.0 });
     match &a.state {
         ApprState::Open => {
-            let mut btns = row![btn("Aprovar", Kind::Primary, true, None, Some(Msg::Approve(ci, mi))), btn("Negar", Kind::Normal, true, None, Some(Msg::Deny(ci, mi)))].spacing(8);
+            let mut btns = iced::widget::Row::with_children(approval_actions(a, Msg::Approve(ci, mi), Msg::Deny(ci, mi))).spacing(8);
             if a.diff_button {
                 btns = btns.push(btn("Ver o diff", Kind::Ghost, true, None, Some(Msg::ShowDiff)));
             }
-            container(column![row![dot_halo(t::SIGNAL, t::SIGNAL_SOFT), txf("Aguardando sua aprovação", 13.0, t::SIGNAL, t::UI_MED)].spacing(8).align_y(Vertical::Center), container(txt).padding(pad(0.0, 0.0, 0.0, 0.0)), container(btns).padding(pad(2.0, 0.0, 0.0, 0.0))].spacing(8))
+            container(column![row![dot_halo(t::SIGNAL, t::SIGNAL_SOFT), txf("Aguardando sua aprovação", 13.0, t::SIGNAL, t::UI_MED)].spacing(8).align_y(Vertical::Center), container(txt).padding(pad(0.0, 0.0, 0.0, 0.0)), approval_detail(a), container(btns).padding(pad(2.0, 0.0, 0.0, 0.0))].spacing(8))
                 .width(Length::Fill)
                 .max_width(640.0)
                 .padding(pad(14.0, 16.0, 14.0, 16.0))

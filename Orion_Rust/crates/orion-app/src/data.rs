@@ -43,6 +43,13 @@ pub struct Approval {
     pub text: String,
     pub state: ApprState,
     pub diff_button: bool,
+    /// Ferramenta e classe de risco (`read`, `write`, `exec`, `destructive`); vazias se o servidor não disser.
+    pub tool: String,
+    pub risk: String,
+    /// Argumentos inteiros, na ordem do servidor (já sem segredos).
+    pub args: Vec<(String, String)>,
+    /// O servidor cortou os argumentos: só se aprova o que se vê inteiro, então só dá para negar.
+    pub truncated: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -121,6 +128,10 @@ pub fn convs() -> Vec<Conv> {
                         text: "Aplicar as três mudanças na branch `claude/funny-hamilton-jb1svh` e rodar `cargo test`. Escreve 3 arquivos no projeto Orion.".into(),
                         state: ApprState::Open,
                         diff_button: true,
+                        tool: "executar_comando".into(),
+                        risk: "exec".into(),
+                        args: vec![("cmd".into(), "cargo test".into()), ("pasta".into(), "~/Projetos/Orion".into())],
+                        truncated: false,
                     }),
                 }),
             ],
@@ -180,6 +191,10 @@ pub fn convs() -> Vec<Conv> {
                         text: "Enviar `claude/quirky-dijkstra-65d6gq` para o origin e abrir o PR. É uma escrita fora deste computador.".into(),
                         state: ApprState::Open,
                         diff_button: false,
+                        tool: "executar_comando".into(),
+                        risk: "exec".into(),
+                        args: vec![("cmd".into(), "git push origin claude/quirky-dijkstra-65d6gq".into()), ("pasta".into(), "~/Projetos/Orion".into())],
+                        truncated: false,
                     }),
                 }),
             ],

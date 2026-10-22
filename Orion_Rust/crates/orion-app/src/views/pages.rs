@@ -110,10 +110,12 @@ fn aprovacoes(app: &App) -> El<'_> {
         if let data::ChatMsg::Orion(o) = &c.msgs[mi] {
             let a = o.approval.as_ref().unwrap();
             let txt = crate::md::render(&crate::md::parse(&a.text), crate::md::Style { font: t::UI, bold: t::UI_SEMI, size: 14.0, line: 1.5, h_font: t::UI_MED, h1: 16.0, h2: 15.0, h3: 14.0, gap: 4.0 });
+            let mut acoes = approval_actions(a, Msg::Approve(ci, mi), Msg::Deny(ci, mi));
+            acoes.push(btn("Abrir conversa", Kind::Ghost, true, None, Some(Msg::OpenConv(ci))));
             col = col.push(qcard(
                 row![dot_halo(t::SIGNAL, t::SIGNAL_SOFT), tx(format!("{} · {}", c.title, c.proj), 12.5, t::FG3), grow(), tx(o.time.clone(), 12.5, t::FG3)].spacing(8).align_y(Vertical::Center).into(),
-                txt,
-                row![btn("Aprovar", Kind::Primary, true, None, Some(Msg::Approve(ci, mi))), btn("Negar", Kind::Normal, true, None, Some(Msg::Deny(ci, mi))), btn("Abrir conversa", Kind::Ghost, true, None, Some(Msg::OpenConv(ci)))].spacing(8).into(),
+                column![txt, approval_detail(a)].spacing(8).into(),
+                iced::widget::Row::with_children(acoes).spacing(8).into(),
             ));
         }
     }
@@ -122,7 +124,7 @@ fn aprovacoes(app: &App) -> El<'_> {
         col = col.push(qcard(
             row![dot_halo(t::SIGNAL, t::SIGNAL_SOFT), tx("Rotina “Organizar Downloads” · proposta", 12.5, t::FG3), grow(), tx("sábado", 12.5, t::FG3)].spacing(8).align_y(Vertical::Center).into(),
             txt,
-            row![btn("Aprovar", Kind::Primary, true, None, Some(Msg::ApproveRot)), btn("Negar", Kind::Normal, true, None, Some(Msg::DenyRot))].spacing(8).into(),
+            row![btn("Aprovar", Kind::Normal, true, None, Some(Msg::ApproveRot)), btn("Negar", Kind::Normal, true, None, Some(Msg::DenyRot))].spacing(8).into(),
         ));
     }
     col = col.push(container(row![icon("send2", 14.0, t::FG3), tx("As mesmas pendências chegam no Telegram, com botões, só para o seu ID.", 12.0, t::FG3)].spacing(6).align_y(Vertical::Center)).padding(pad(4.0, 4.0, 0.0, 4.0)));
@@ -160,8 +162,10 @@ fn aprovacoes(app: &App) -> El<'_> {
     } else {
         col = col.push(list(rows));
     }
-    let auto = btn(if app.p.auto { "Desligar modo autônomo" } else { "Ligar modo autônomo" }, Kind::Normal, true, Some("bolt"), Some(Msg::Toggle("auto")));
-    page("Aprovações", "Pendências de todas as conversas e rotinas, e o histórico de tudo o que o Orion fez fora do chat.", Some(auto), col.into())
+    // ligar o modo autônomo não é convite desta página: fica em Configurações › Privacidade e autonomia
+    // (e pede a senha). Aqui só o atalho para desligar, quando já está ligado.
+    let auto = app.p.auto.then(|| btn("Desligar modo autônomo", Kind::Normal, true, Some("bolt"), Some(Msg::Toggle("auto"))));
+    page("Aprovações", "Pendências de todas as conversas e rotinas, e o histórico de tudo o que o Orion fez fora do chat.", auto, col.into())
 }
 
 fn qcard<'a>(head: El<'a>, body: El<'a>, actions: El<'a>) -> El<'a> {

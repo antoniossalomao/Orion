@@ -94,7 +94,7 @@ pub enum Chat {
     Text(String),
     Model(String),
     Tool(Value),
-    Approval { id: String, tool: String, reason: String, args: Value },
+    Approval { id: String, tool: String, risk: String, reason: String, args: Value, truncated: bool },
     Error(String),
     Done { message_id: Option<i64>, session_id: Option<String> },
 }
@@ -445,8 +445,10 @@ pub fn parse_bloco(bloco: &str) -> Vec<Chat> {
         return vec![Chat::Approval {
             id: s("id"),
             tool: s("tool"),
+            risk: s("risk"),
             reason: s("reason"),
             args: a.get("args").cloned().unwrap_or(Value::Null),
+            truncated: a.get("args_truncated").and_then(Value::as_bool).unwrap_or(false),
         }];
     }
     if let Some(e) = v.get("error").and_then(Value::as_str) {
