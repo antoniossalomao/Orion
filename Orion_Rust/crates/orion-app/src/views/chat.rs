@@ -7,7 +7,7 @@ use crate::md;
 use crate::theme as t;
 use crate::ui::*;
 use iced::alignment::{Horizontal, Vertical};
-use iced::widget::{button, column, container, mouse_area, row, scrollable};
+use iced::widget::{button, column, container, mouse_area, row, scrollable, text_input};
 use iced::{Border, Font, Length};
 
 pub fn via_label(p: &Prefs) -> String {
@@ -64,6 +64,16 @@ pub fn view(app: &App) -> El<'_> {
     };
 
     let mut tail = column![].spacing(6).width(Length::Fixed((width - 32.0).min(app.win.width - 64.0))).align_x(Horizontal::Center);
+    if let Some(form) = app.rename_form.as_ref().filter(|f| f.session_id == c.id) {
+        let mut input = text_input("Título da conversa", &form.title).id("conversation-title").padding(10).size(14);
+        if !form.busy { input = input.on_input(Msg::RenameText).on_submit(Msg::RenameSave); }
+        let mut rename = column![
+            tx("Renomear conversa", 13.0, t::FG2),
+            row![input, btn(if form.busy { "Salvando…" } else { "Salvar" }, Kind::Primary, true, None, (!form.busy).then_some(Msg::RenameSave)), btn("Cancelar", Kind::Ghost, true, None, (!form.busy).then_some(Msg::RenameClose))].spacing(8),
+        ].spacing(6);
+        if !form.error.is_empty() { rename = rename.push(tx(form.error.clone(), 12.0, t::DANGER)); }
+        tail = tail.push(rename);
+    }
     if let Some(b) = c.banner.clone() {
         tail = tail.push(
             container(row![dot_el(t::SIGNAL, 6.0), tx(b.clone(), 12.5, t::FG2), grow(), icon("close", 14.0, t::FG3)].spacing(8).align_y(Vertical::Center))
@@ -78,10 +88,10 @@ pub fn view(app: &App) -> El<'_> {
 }
 
 fn user_msg<'a>(app: &'a App, mi: usize, s: String, content_w: f32) -> El<'a> {
-    let bubble = container(txf(s, 15.0, t::FG, t::UI)).padding(pad(10.0, 15.0, 10.0, 15.0)).max_width(content_w * 0.8).style(surface(Some(t::RAISE2), None, 16.0));
+    let bubble = container(txf(s.clone(), 15.0, t::FG, t::UI)).padding(pad(10.0, 15.0, 10.0, 15.0)).max_width(content_w * 0.8).style(surface(Some(t::RAISE2), None, 16.0));
     let show = app.hover == Some((2, mi));
     let acts: El = if show {
-        row![tip(ib_sz("edit", 26.0, 16.0, Some(Msg::Toast("Editar e reenviar cria um ramo da conversa".into())), false), "Editar e reenviar"), tip(ib_sz("copy", 26.0, 16.0, Some(Msg::Toast("Copiado".into())), false), "Copiar"), tip(ib_sz("pin", 26.0, 16.0, Some(Msg::Toast("Fixada como contexto permanente".into())), false), "Fixar como contexto")].into()
+        row![tip(ib_sz("edit", 26.0, 16.0, (!app.is_live()).then(|| Msg::Toast("Editar e reenviar cria um ramo da conversa".into())), false), "Editar e reenviar (em breve)"), tip(ib_sz("copy", 26.0, 16.0, Some(Msg::CopyText(s)), false), "Copiar"), tip(ib_sz("pin", 26.0, 16.0, (!app.is_live()).then(|| Msg::Toast("Fixada como contexto permanente".into())), false), "Fixar como contexto (em breve)")].into()
     } else {
         container(sp_w(0.0)).height(Length::Fixed(26.0)).into()
     };
@@ -135,9 +145,9 @@ fn orion_msg<'a>(app: &'a App, ci: usize, mi: usize, o: &'a OrionMsg, is_last: b
         col = col.push(approval(a, ci, mi));
     }
     if streaming.is_none() && o.time != "pendente" {
-        let mut acts = row![tip(ib_sz("copy", 28.0, 16.0, Some(Msg::Toast("Copiado".into())), false), "Copiar"), tip(ib_sz("speaker", 28.0, 16.0, Some(Msg::Toast("Lendo em voz alta (simulado)".into())), false), "Ouvir")].spacing(0).align_y(Vertical::Center);
+        let mut acts = row![tip(ib_sz("copy", 28.0, 16.0, Some(Msg::CopyText(o.body.clone())), false), "Copiar"), tip(ib_sz("speaker", 28.0, 16.0, (!app.is_live()).then(|| Msg::Toast("Lendo em voz alta (simulado)".into())), false), "Ouvir (em breve)")].spacing(0).align_y(Vertical::Center);
         if is_last {
-            acts = acts.push(tip(ib_sz("retry", 28.0, 16.0, Some(Msg::Toast("Gerar de novo…".into())), false), "Gerar de novo"));
+            acts = acts.push(tip(ib_sz("retry", 28.0, 16.0, (!app.is_live()).then(|| Msg::Toast("Gerar de novo…".into())), false), "Gerar de novo (em breve)"));
         }
         acts = acts.push(container(tx(o.time.clone(), 11.5, t::FG3)).padding(pad(0.0, 0.0, 0.0, 6.0)));
         let via_txt = if o.via.is_empty() { None } else { Some(o.via.clone()) };

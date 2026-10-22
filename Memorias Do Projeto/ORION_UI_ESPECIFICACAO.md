@@ -53,6 +53,7 @@ Estado canônico: [ORION.md](ORION.md); tarefas F01/F05/F07/F16 em [ORION_PLANO_
 | U13 | Zoom da interface por CSS `zoom` (90–150%) | Escala nativa do iced | Aplicar `scale_factor` do iced; mesmos 5 degraus |
 | U14 | Grafo em **Canvas 2D** (protótipo) | **3D em wgpu** com layout por compute shader | O 3D substitui o 2D; **toda a interação, filtros, busca, detalhes e linha do tempo da §17 permanecem** |
 | U15 | Navegador integrado em `sys.browser` (existe no estado, sem controle na tela) | WebView2 isolado sob demanda | Sem controle visível na v1 |
+| U16 | Criar projeto e renomear são avisos do protótipo, sem formulário funcional | Ligação ao núcleo da v1 (F08.02/F05.18), rodada Codex de 21/10/2026 | Formulário inline em Projetos (nome, instruções e pasta existente opcional) e no rodapé do Chat (título). Foco no campo inicial, espera/erro/cancelamento. Ações ainda desconectadas ficam desabilitadas ou avisam indisponibilidade no app real; o demo mantém simulações. **Implementação parcial; comparação visual e aceite Windows pendentes**, sem afirmar aprovação de um novo desenho final |
 
 ---
 
