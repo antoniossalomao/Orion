@@ -36,7 +36,7 @@ Indexar 1.064 notas: FTS5 0,6 s; embeddings 70 s (15 notas/s, 4 vCPU). Consulta:
 
 **F00.17 banco** (`spikes/banco`): SQLCipher 4.5.7 + FTS5 + sqlite-vec 0.1.9 + log de eventos no mesmo arquivo, funcionando (arquivo cifrado, senha errada recusada, UPDATE/DELETE do log bloqueados por trigger, cadeia de hash detecta adulteração). 10.000 itens × 384 dim: inserir tudo em 0,6 s; KNN k=10 em 52 ms (varredura exata); FTS5 1,6 ms; híbrido FTS5 como filtro do `vec0` 54 ms. `sqlite-vec` 0.1.10-alpha.4 não compila (falta arquivo no pacote): fixar `=0.1.9`. Falta validar no Windows.
 
-**F00.26 vault Git** (`spikes/vault-git`): `git2` faz commit só dos caminhos pedidos, push, e pull só por fast-forward com checkout seguro. Edição não commitada do Obsidian na mesma nota bloqueia o pull ("1 conflict prevents checkout") sem sobrescrever; em outra nota o pull avança e preserva a edição; push divergente é rejeitado e o pull detecta divergência (sem merge automático). Push por HTTP com `credential_helper` funcionou contra servidor com Basic Auth; credencial errada é recusada. `status` do vault real: 6 ms. Falta provar com o Git Credential Manager no Windows. `gix` não testado.
+**F00.26 vault Git** (`spikes/vault-git`): `git2` faz commit só dos caminhos pedidos (árvore montada do HEAD num índice em memória: nota staged por outro programa fica fora do commit e continua staged), push, e pull só por fast-forward com checkout seguro. Edição não commitada do Obsidian na mesma nota bloqueia o pull ("1 conflict prevents checkout") sem sobrescrever; em outra nota o pull avança e preserva a edição; push divergente é rejeitado e o pull detecta divergência (sem merge automático). Push por HTTP com `credential_helper` funcionou contra servidor com Basic Auth; credencial errada é recusada. `status` do vault real: 6 ms. Falta provar com o Git Credential Manager no Windows. `gix` não testado.
 
 **F00.23 injection** (`spikes/injection`, `dataset.tsv` com 195 exemplos pt-BR escritos à mão: 97 injeções, 98 normais; limiar 0,5):
 
@@ -46,7 +46,7 @@ Indexar 1.064 notas: FTS5 0,6 s; embeddings 70 s (15 notas/s, 4 vCPU). Consulta:
 | ZeroLeaks/shield-small (int8) | 90,7% | 3,1% | 9 ms | 139 MB | 118 MB | CC-BY-NC-4.0 |
 | protectai/deberta-v3-base-prompt-injection-v2 | 100% | 50% | 49 ms | 1.043 MB | 738 MB | Apache-2.0 |
 
-DeBERTa é só inglês: inutilizável em pt-BR (confirmado em inglês, onde acerta). Melhor: ModernBERT; com limiar 0,09 chega a 99% de recall e 1% de falso positivo (limiar ajustado no mesmo conjunto, então otimista). Shield Small tem licença não comercial. Limites: exemplos curtos e escritos por mim; falta injeção indireta em documentos longos e dados reais.
+DeBERTa é só inglês: inutilizável em pt-BR (confirmado em inglês, onde acerta). Melhor: ModernBERT; com limiar 0,09 chega a 99% de recall e 1% de falso positivo (limiar ajustado no mesmo conjunto, então otimista; o DeBERTa não atinge FP ≤ 2% em nenhum limiar). Shield Small tem licença não comercial. Limites: exemplos curtos e escritos por mim; falta injeção indireta em documentos longos e dados reais.
 
 **F00.16 grafo, parte CPU** (`spikes/grafo`, layout de forças 3D, arestas ≈ 3n, 4 threads):
 
@@ -60,7 +60,7 @@ Fallback na CPU é viável: 10.000 nós a ~35 iterações/s com 4 threads. O com
 
 ## Peso do Orion e do instalador (medido em 22/10/2026)
 
-Build release da CPU no Linux (`cargo build --release -p orion-server -p orion-llama -p orion-setup --features orion-server/sqlcipher`, ~25 min em 4 vCPU). O `.exe` do Windows costuma sair parecido (±15%); confirmar no release do CI. Não inclui Vulkan nem GGML do Whisper/llama.cpp com GPU, que somam mais.
+Build release no Linux (`cargo build --release -p orion-server -p orion-llama -p orion-setup --features orion-server/sqlcipher`, ~25 min em 4 vCPU). **São artefatos Linux incompletos, não o produto:** `orion-llama` só compila inferência em Windows (no Linux é um stub que sai), e `orion-voice` exclui Whisper, openWakeWord e AEC3 fora do Windows. Logo o `orion` abaixo não tem os componentes nativos de voz e IA locais, e o Windows será maior. Não há estimativa válida do tamanho final; medir os `.exe` do release do CI.
 
 | Arquivo | Bruto | gzip -9 | xz -6 |
 |---|---|---|---|
@@ -69,7 +69,7 @@ Build release da CPU no Linux (`cargo build --release -p orion-server -p orion-l
 | `orion-setup` (instalador: janela, céu, fontes) | 22,4 MB | 9,3 MB | 6,5 MB |
 | `wake-candidate` (palavra de ativação, `models/`) | 1,5 MB | — | — |
 
-- **Instalador baixado pelo usuário:** ~22 MB (o app é baixado depois, do feed do release). Bate com a meta de instalador leve.
-- **Orion instalado (sem modelos):** ~60 MB, abaixo da dica "~150 MB" da especificação do instalador; sobra folga para Vulkan e Whisper.
-- **Download do app pelo instalador:** ~23 MB com gzip (o feed hoje serve o `.exe` cru, ~57 MB).
+- **Instalador (`orion-setup`):** ~22 MB no Linux; é a janela, o céu e as fontes, sem dependência de voz/IA, então o do Windows deve ser da mesma ordem (confirmar).
+- **Orion instalado:** o 57 MB do Linux é piso, não estimativa; a dica "~150 MB" da especificação do instalador continua a referência até medir o Windows.
+- **Download do app pelo instalador:** o feed serve o `.exe` cru; gzip reduziria a ~40% do tamanho (23 de 57 MB no Linux).
 - **Modelos (fora do pacote, baixados pelo instalador):** os do spike de injection somam 268 MB (ModernBERT) e os de embeddings 118 MB (e5-small); os 8 modelos locais da ADR 0009 vão de 0,8 a 14 GB cada.

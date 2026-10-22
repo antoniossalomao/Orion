@@ -6,15 +6,28 @@ use std::time::Instant;
 
 fn sig() -> Signature<'static> { Signature::now("Orion", "orion@localhost").unwrap() }
 
-/// Commita só os caminhos pedidos (nunca `git add -A`: não pega o que o Obsidian está editando).
+/// Commita só os caminhos pedidos: a árvore nasce do HEAD num índice em memória, então o que já estava
+/// staged por outro programa não entra no commit. O índice real só ganha as entradas dos caminhos commitados.
 fn commit_paths(repo: &Repository, paths: &[&str], msg: &str) -> Result<git2::Oid> {
-    let mut idx = repo.index()?;
-    for p in paths { idx.add_path(Path::new(p))?; }
-    idx.write()?;
-    let tree = repo.find_tree(idx.write_tree()?)?;
     let parent = repo.head().ok().and_then(|h| h.peel_to_commit().ok());
+    let mut idx = git2::Index::new()?;
+    if let Some(p) = &parent { idx.read_tree(&p.tree()?)?; }
+    let workdir = repo.workdir().ok_or_else(|| anyhow::anyhow!("repositório sem working tree"))?;
+    for p in paths {
+        let data = std::fs::read(workdir.join(p))?;
+        let entry = git2::IndexEntry {
+            ctime: git2::IndexTime::new(0, 0), mtime: git2::IndexTime::new(0, 0), dev: 0, ino: 0, mode: 0o100644, uid: 0, gid: 0,
+            file_size: data.len() as u32, id: repo.blob(&data)?, flags: 0, flags_extended: 0, path: p.as_bytes().to_vec(),
+        };
+        idx.add(&entry)?;
+    }
+    let tree = repo.find_tree(idx.write_tree_to(repo)?)?;
     let parents: Vec<&git2::Commit> = parent.iter().collect();
-    Ok(repo.commit(Some("HEAD"), &sig(), &sig(), msg, &tree, &parents)?)
+    let oid = repo.commit(Some("HEAD"), &sig(), &sig(), msg, &tree, &parents)?;
+    let mut real = repo.index()?;
+    for p in paths { real.add_path(Path::new(p))?; }
+    real.write()?;
+    Ok(oid)
 }
 
 fn callbacks<'a>(repo_cfg: git2::Config, use_helper: bool) -> RemoteCallbacks<'a> {
@@ -80,6 +93,18 @@ fn main() -> Result<()> {
     commit_paths(&a, &["nota1.md", "nota2.md"], "Orion: cria notas")?;
     push(&a, &url, cfg(), true)?;
     println!("1. commit + push (file://): ok em {:?}", t.elapsed());
+
+    // Outro programa deixou uma nota staged: ela não pode entrar no commit das notas pedidas.
+    std::fs::write(a_dir.join("rascunho.md"), "# Rascunho\nnão commitar\n")?;
+    { let mut i = a.index()?; i.add_path(Path::new("rascunho.md"))?; i.write()?; }
+    std::fs::write(a_dir.join("nota2.md"), "# Nota 2\nconteúdo revisado\n")?;
+    let oid = commit_paths(&a, &["nota2.md"], "Orion: revisa nota2")?;
+    let tree = a.find_commit(oid)?.tree()?;
+    ensure!(tree.get_name("rascunho.md").is_none(), "nota staged alheia entrou no commit");
+    ensure!(a.index()?.get_path(Path::new("rascunho.md"), 0).is_some(), "índice do usuário foi perdido");
+    println!("1b. commit isolado: rascunho staged por outro programa ficou fora do commit e continua staged");
+    commit_paths(&a, &["rascunho.md"], "Orion: rascunho")?; // limpa para os próximos cenários
+    push(&a, &url, cfg(), true)?;
 
     let b = Repository::clone(&url, &b_dir)?;
     // Outro dispositivo muda nota1 e empurra.

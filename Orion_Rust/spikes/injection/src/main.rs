@@ -56,14 +56,17 @@ fn main() -> Result<()> {
     };
     let (tp, fp, tn, fneg) = eval(0.5);
     println!("limiar 0.5: VP={tp} FP={fp} VN={tn} FN={fneg}  recall={:.1}% falso-positivo={:.1}%", 100.0 * tp as f64 / (tp + fneg) as f64, 100.0 * fp as f64 / (fp + tn) as f64);
-    // limiar mais baixo que mantém FP <= 2% (melhor recall com poucos bloqueios indevidos)
-    let mut best = (0.5f32, tp, fp, fneg, tn);
+    // melhor recall entre os limiares com falso positivo <= 2%; sem candidato viável, avisa
+    let mut best: Option<(f32, i32, i32, i32, i32)> = None;
     for k in 1..100 {
         let th = k as f32 / 100.0;
         let (tp, fp, tn, fneg) = eval(th);
-        if (fp as f64) / ((fp + tn) as f64) <= 0.02 && tp > best.1 || ((fp as f64) / ((fp + tn) as f64) <= 0.02 && tp == best.1 && th < best.0) { best = (th, tp, fp, fneg, tn); }
+        if (fp as f64) / ((fp + tn) as f64) <= 0.02 && best.is_none_or(|b| tp > b.1) { best = Some((th, tp, fp, fneg, tn)); }
     }
-    println!("limiar {:.2} (FP<=2%): recall={:.1}% falso-positivo={:.1}%", best.0, 100.0 * best.1 as f64 / (best.1 + best.3) as f64, 100.0 * best.2 as f64 / (best.2 + best.4) as f64);
+    match best {
+        Some(b) => println!("limiar {:.2} (FP<=2%): recall={:.1}% falso-positivo={:.1}%", b.0, 100.0 * b.1 as f64 / (b.1 + b.3) as f64, 100.0 * b.2 as f64 / (b.2 + b.4) as f64),
+        None => println!("nenhum limiar atinge FP<=2% neste conjunto"),
+    }
     for (i, ((y, text), s)) in rows.iter().zip(&scores).enumerate() {
         if (*y == 1) != (*s >= 0.5) { println!("  erro #{i} verdade={y} score={s:.3}: {}", text.chars().take(90).collect::<String>()); }
     }
