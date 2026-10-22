@@ -16,7 +16,7 @@ Cada spike mede um risco e termina com uma decisão escrita neste diretório. Os
 | embeddings | F00.24 | Rodado; decidir se vale o híbrido |
 | `llama-cpp-2` | F00.25 | Vulkan e medições de RAM e troca de modelo |
 | vault Git | F00.26 | `git2` rodado em Linux; falta Credential Manager no Windows |
-| PII | F00.27 | Rodado; aplicar as regras no `SecretScanner` |
+| PII | F00.27 | Rodado; regras aplicadas no `SecretScanner` (CPF, RG, agência/conta, chave PIX e cartão rotulados; CNPJ fora por ser dado público) |
 
 Cancelado: WebView2 (F00.19, decisão de 20/10/2026).
 

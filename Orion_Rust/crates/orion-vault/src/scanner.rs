@@ -35,6 +35,103 @@ static PATTERNS: LazyLock<Vec<(&'static str, Regex)>> = LazyLock::new(|| {
     ]
 });
 
+/// PII brasileira (spike F00.27): só com dígito verificador ou rótulo, para não marcar IDs de PDF, UUIDs de conversa etc.
+struct PiiRule {
+    name: &'static str,
+    re: LazyLock<Regex>,
+    check: Option<fn(&str) -> bool>,
+}
+
+fn digits(s: &str) -> Vec<u32> {
+    s.chars().filter_map(|c| c.to_digit(10)).collect()
+}
+
+fn cpf_valid(s: &str) -> bool {
+    let d = digits(s);
+    if d.len() != 11 || d.iter().all(|x| *x == d[0]) {
+        return false;
+    }
+    (9..11).all(|n| {
+        let sum: u32 = d[..n]
+            .iter()
+            .enumerate()
+            .map(|(i, x)| x * (n as u32 + 1 - i as u32))
+            .sum();
+        (sum * 10 % 11) % 10 == d[n]
+    })
+}
+
+fn luhn_valid(s: &str) -> bool {
+    let d = digits(s);
+    if !(13..=19).contains(&d.len()) {
+        return false;
+    }
+    let sum: u32 = d
+        .iter()
+        .rev()
+        .enumerate()
+        .map(|(i, x)| {
+            if i % 2 == 1 {
+                let y = x * 2;
+                if y > 9 {
+                    y - 9
+                } else {
+                    y
+                }
+            } else {
+                *x
+            }
+        })
+        .sum();
+    sum % 10 == 0
+}
+
+// CNPJ fica de fora de propósito: é dado público de empresa (o vault real só o tinha como exemplo em nota técnica).
+static PII_RULES: [PiiRule; 5] = [
+    PiiRule {
+        name: "CPF",
+        re: LazyLock::new(|| Regex::new(r"\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b").unwrap()),
+        check: Some(cpf_valid),
+    },
+    PiiRule {
+        name: "RG",
+        re: LazyLock::new(|| {
+            Regex::new(r"(?i)\brg\b[^\n\d]{0,12}\d{1,2}\.?\d{3}\.?\d{3}(?:-?[0-9xX])?").unwrap()
+        }),
+        check: None,
+    },
+    PiiRule {
+        name: "Agência/conta bancária",
+        re: LazyLock::new(|| {
+            Regex::new(
+                r"(?i)\b(?:ag(?:[eê]ncia)?\.?|conta(?: corrente)?|c/c)\s*:?\s*\d{3,6}(?:-?\d)?\b",
+            )
+            .unwrap()
+        }),
+        check: None,
+    },
+    PiiRule {
+        name: "Chave PIX",
+        re: LazyLock::new(|| Regex::new(r"(?i)\bchave\s+pix\b[^\n]{0,20}[:=]\s*\S{5,}").unwrap()),
+        check: None,
+    },
+    PiiRule {
+        name: "Cartão de crédito",
+        re: LazyLock::new(|| {
+            Regex::new(r"(?i)\b(?:cart[aã]o|card)\b[^\n\d]{0,20}((?:\d[ -]?){13,19})\b").unwrap()
+        }),
+        check: Some(luhn_valid),
+    },
+];
+
+fn pii_match(text: &str) -> Option<&'static str> {
+    PII_RULES.iter().find_map(|r| {
+        r.re.find_iter(text)
+            .any(|m| r.check.is_none_or(|c| c(m.as_str())))
+            .then_some(r.name)
+    })
+}
+
 /// Scanner de segredos e credenciais para o Vault (F06.13 / R06).
 pub struct SecretScanner;
 
@@ -47,6 +144,9 @@ impl SecretScanner {
                 return Err(ScanError::SecretFound(name.to_string()));
             }
         }
+        if let Some(name) = pii_match(text) {
+            return Err(ScanError::SecretFound(name.to_string()));
+        }
         Ok(())
     }
 
@@ -55,6 +155,17 @@ impl SecretScanner {
         let mut result = text.to_string();
         for (_, re) in PATTERNS.iter() {
             result = re.replace_all(&result, "[REDACTED_SECRET]").to_string();
+        }
+        for r in PII_RULES.iter() {
+            result =
+                r.re.replace_all(&result, |c: &regex::Captures| {
+                    if r.check.is_none_or(|f| f(&c[0])) {
+                        "[REDACTED_PII]".to_string()
+                    } else {
+                        c[0].to_string()
+                    }
+                })
+                .to_string();
         }
         result
     }
