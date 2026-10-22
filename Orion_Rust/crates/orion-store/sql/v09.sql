@@ -1,0 +1,4 @@
+ALTER TABLE reminders ADD COLUMN project_id TEXT REFERENCES projects(id);CREATE INDEX idx_reminders_project ON reminders(project_id);ALTER TABLE schedules ADD COLUMN project_id TEXT REFERENCES projects(id);CREATE INDEX idx_schedules_project ON schedules(project_id);ALTER TABLE tasks ADD COLUMN project_id TEXT REFERENCES projects(id);CREATE INDEX idx_tasks_project ON tasks(project_id);ALTER TABLE numbers ADD COLUMN project_id TEXT REFERENCES projects(id);CREATE INDEX idx_numbers_project ON numbers(project_id);ALTER TABLE prompts ADD COLUMN project_id TEXT REFERENCES projects(id);CREATE INDEX idx_prompts_project ON prompts(project_id);ALTER TABLE notifications ADD COLUMN project_id TEXT REFERENCES projects(id);CREATE INDEX idx_notifications_project ON notifications(project_id);
+CREATE TABLE activity_preferences (
+    scope TEXT PRIMARY KEY, completion INTEGER NOT NULL DEFAULT 1,
+    question INTEGER NOT NULL DEFAULT 1, approval INTEGER NOT NULL DEFAULT 1);

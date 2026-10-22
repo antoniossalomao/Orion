@@ -1,0 +1,112 @@
+name: Release Windows
+# Publica o instalador e os arquivos do app no GitHub Releases. O instalador pequeno baixa o app daqui:
+# cada variante (cpu/vulkan) tem um feed `latest-<variante>.json` assinado com minisign
+# (Orion_Rust/crates/orion-setup/release/minisign.pub é a chave pública; o segredo é MINISIGN_SECRET_KEY).
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag do release (ex.: v0.1.0)"
+        required: true
+permissions:
+  contents: write
+env:
+  TAG: ${{ github.event.inputs.tag || github.ref_name }}
+jobs:
+  build:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        variante: [cpu, vulkan]
+    defaults:
+      run:
+        working-directory: Orion_Rust
+    env:
+      LIBCLANG_PATH: C:\Program Files\LLVM\bin
+      CARGO_TARGET_DIR: C:\t
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: Orion_Rust -> C:/t
+          key: release-${{ matrix.variante }}
+      - name: Instalar NASM para o OpenSSL embutido do SQLCipher
+        shell: pwsh
+        run: |
+          if (!(Get-Command nasm -ErrorAction SilentlyContinue)) {
+            choco install nasm -y --no-progress
+            "C:\Program Files\NASM" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+          }
+      - name: Instalar SDK Vulkan
+        if: matrix.variante == 'vulkan'
+        shell: pwsh
+        run: |
+          for ($i = 1; $i -le 4; $i++) {
+            choco install vulkan-sdk --version=1.4.341 -y --no-progress
+            if (Test-Path 'C:\VulkanSDK') { break }
+            if ($i -lt 4) { Start-Sleep -Seconds (30 * $i) }
+          }
+          $sdk = (Get-ChildItem 'C:\VulkanSDK' -Directory | Sort-Object Name -Descending | Select-Object -First 1).FullName
+          "VULKAN_SDK=$sdk" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "$sdk\Bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+          if (!(Get-Command ninja -ErrorAction SilentlyContinue)) { choco install ninja -y --no-progress }
+      - name: Compilar (release)
+        env:
+          CMAKE_GENERATOR: ${{ matrix.variante == 'vulkan' && 'Ninja' || '' }}
+        shell: pwsh
+        run: |
+          $f = if ('${{ matrix.variante }}' -eq 'vulkan') { 'orion-server/local-vulkan,orion-server/sqlcipher,orion-llama/vulkan' } else { 'orion-server/sqlcipher' }
+          cargo build --release --locked -p orion-server -p orion-llama -p orion-setup --features $f
+      - name: Montar arquivos do release e feed
+        shell: pwsh
+        run: |
+          $v = '${{ matrix.variante }}'
+          $versao = $env:TAG.TrimStart('v')
+          $base = "https://github.com/${{ github.repository }}/releases/download/$env:TAG"
+          New-Item -ItemType Directory -Force ../saida | Out-Null
+          $arquivos = @()
+          foreach ($n in 'orion','orion-llama') {
+            $asset = "$n-$v.exe"
+            Copy-Item "C:\t\release\$n.exe" "../saida/$asset"
+            $h = (Get-FileHash "../saida/$asset" -Algorithm SHA256).Hash.ToLower()
+            $arquivos += @{ name = "$n.exe"; url = "$base/$asset"; sha256 = $h; bytes = (Get-Item "../saida/$asset").Length }
+          }
+          $feed = @{ version = $versao; channel = 'stable'; notes = ''; files = $arquivos } | ConvertTo-Json -Depth 5 -Compress
+          [IO.File]::WriteAllText((Resolve-Path ../saida).Path + "\latest-$v.json", $feed, (New-Object Text.UTF8Encoding $false))
+          if ($v -eq 'cpu') { Copy-Item C:\t\release\orion-setup.exe '../saida/Orion-Setup.exe' }
+      - name: Assinar o feed (minisign)
+        shell: pwsh
+        env:
+          MINISIGN_SECRET_KEY: ${{ secrets.MINISIGN_SECRET_KEY }}
+          MINISIGN_PASSWORD: ${{ secrets.MINISIGN_PASSWORD }}
+        run: |
+          if (-not $env:MINISIGN_SECRET_KEY) { throw 'defina o segredo MINISIGN_SECRET_KEY (veja crates/orion-setup/release/LEIAME.md)' }
+          Invoke-WebRequest https://github.com/jedisct1/minisign/releases/download/0.11/minisign-0.11-win64.zip -OutFile ms.zip
+          Expand-Archive ms.zip -DestinationPath ms
+          $exe = (Get-ChildItem ms -Recurse -Filter minisign.exe | Select-Object -First 1).FullName
+          Set-Content -Path chave.key -Value $env:MINISIGN_SECRET_KEY -Encoding ascii
+          $feed = "../saida/latest-${{ matrix.variante }}.json"
+          if ($env:MINISIGN_PASSWORD) { $env:MINISIGN_PASSWORD | & $exe -S -s chave.key -m $feed -x "$feed.minisig" } else { '' | & $exe -S -W -s chave.key -m $feed -x "$feed.minisig" }
+          Remove-Item chave.key
+          if (-not (Test-Path "$feed.minisig")) { throw 'assinatura não gerada' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.variante }}
+          path: saida
+          if-no-files-found: error
+  publicar:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          merge-multiple: true
+          path: saida
+      - name: Criar release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$TAG" saida/* --repo "${{ github.repository }}" --title "Orion $TAG" --generate-notes

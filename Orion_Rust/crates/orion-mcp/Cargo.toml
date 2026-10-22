@@ -1,0 +1,22 @@
+[package]
+name = "orion-mcp"
+description = "Cliente MCP (stdio e Streamable HTTP) sem dependência do resto do Orion"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+thiserror.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+tokio.workspace = true
+reqwest.workspace = true
+futures.workspace = true
+parking_lot.workspace = true
+
+[dev-dependencies]
+orion-testkit.workspace = true
+tempfile.workspace = true
+serde_json.workspace = true

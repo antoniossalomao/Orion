@@ -1,0 +1,346 @@
+<title>Instalador do Orion</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: janela de tamanho fixo; céu vivo à esquerda, etapas à direita com transição suave entre telas */
+:root{
+  --bg:#0a0b0e; --side:#111214; --raise:#1b1c1f; --line:#25272c;
+  --fg:#ececee; --fg2:#a9aab0; --fg3:#75767d;
+  --rigel:#a4b3de; --betel:#e9b467; --primary:#b9c6ea; --onprimary:#0f1320; --ok:#74cfae;
+  --sans:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
+  --ease:cubic-bezier(.22,.61,.36,1);
+  color-scheme:dark;
+}
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:14px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:24px;
+  display:flex;flex-direction:column;align-items:center;gap:14px;box-sizing:border-box;min-height:100%}
+.note{color:var(--fg3);font-size:12px;max-width:960px;width:100%}
+.win{width:100%;max-width:960px;height:600px;background:var(--side);border:1px solid var(--line);border-radius:12px;overflow:hidden;
+  box-shadow:0 40px 100px rgba(0,0,0,.6),0 0 0 1px rgba(164,179,222,.04);display:flex;flex-direction:column}
+.bar{height:36px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 6px 0 14px;border-bottom:1px solid var(--line);background:#0e0f11}
+.bar .t{font-size:12px;color:var(--fg2)}
+.bar .t span{color:var(--fg3)}
+.bar .ctl{display:flex}
+.bar button{background:none;border:0;color:var(--fg3);width:40px;height:30px;font:inherit;cursor:pointer;border-radius:6px}
+.bar button:hover,.bar button:focus-visible{background:var(--raise);color:var(--fg);outline:none}
+.body{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr)}
+.sky{position:relative;background:#07080b;border-right:1px solid var(--line);overflow:hidden}
+canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.skycap{position:absolute;left:22px;bottom:20px;right:22px;display:flex;justify-content:space-between;align-items:end;gap:10px;pointer-events:none}
+.skycap .name{font-size:22px;font-weight:600;letter-spacing:.04em}
+.skycap .star{font-family:var(--mono);font-size:11px;color:var(--fg3);text-align:right;line-height:1.6}
+.skycap .star b{color:var(--betel);font-weight:500;display:inline-block;transition:opacity .5s var(--ease)}
+.pane{padding:28px 28px 20px;display:flex;flex-direction:column;gap:18px;min-width:0;min-height:0}
+.steps{display:flex;gap:6px;list-style:none;margin:0;padding:0;flex:none}
+.steps li{flex:1;height:3px;border-radius:2px;background:var(--line);position:relative;overflow:hidden}
+.steps li::after{content:"";position:absolute;inset:0;transform:scaleX(0);transform-origin:left;transition:transform .7s var(--ease),background .4s;background:var(--rigel)}
+.steps li.done::after{transform:scaleX(1)}
+.steps li.cur::after{transform:scaleX(1);background:var(--betel)}
+.stage{flex:1;min-height:0;position:relative}
+.content{position:absolute;inset:0;display:flex;flex-direction:column;gap:12px;overflow:auto;padding-right:4px;
+  transition:opacity .34s var(--ease),transform .34s var(--ease)}
+.content.out{opacity:0;transform:translateY(-8px)}
+.content.in{opacity:0;transform:translateY(10px)}
+.eyebrow{font-family:var(--mono);font-size:11px;color:var(--fg3);letter-spacing:.08em;text-transform:uppercase}
+h1{font-size:24px;font-weight:600;margin:0;text-wrap:balance}
+.lead{color:var(--fg2);margin:0;line-height:1.55;max-width:52ch}
+.field{display:flex;flex-direction:column;gap:6px}
+.field label{font-size:12px;color:var(--fg2)}
+.input{display:flex;gap:8px}
+.input input,select{flex:1;min-width:0;background:var(--raise);border:1px solid var(--line);color:var(--fg);border-radius:8px;padding:9px 11px;font:13px var(--mono)}
+.input input:focus,select:focus{outline:2px solid var(--rigel);outline-offset:-1px}
+.ghost{background:var(--raise);border:1px solid var(--line);color:var(--fg);border-radius:8px;padding:8px 12px;font:500 13px var(--sans);cursor:pointer;transition:background .2s,opacity .3s}
+.ghost:hover{background:#22242a}
+.hint{font-size:12px;color:var(--fg3)}
+.checks{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.chk{background:var(--raise);border:1px solid var(--line);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.chk .k{font-size:11px;color:var(--fg3)}
+.chk .v{font-family:var(--mono);font-size:13px}
+.chk .v.ok::before{content:"● ";color:var(--ok)}
+.chk .v.warn::before{content:"● ";color:var(--betel)}
+.models{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.model{background:var(--raise);border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;cursor:pointer;text-align:left;color:var(--fg);font:inherit;min-width:0;
+  transition:border-color .25s var(--ease),background .25s var(--ease)}
+.model[aria-pressed="true"]{border-color:var(--rigel);background:#1c2030}
+.model:focus-visible{outline:2px solid var(--rigel);outline-offset:1px}
+.model .top{display:flex;justify-content:space-between;gap:6px;align-items:start}
+.model .n{font-weight:600;font-size:13px}
+.model .box{width:16px;height:16px;border-radius:4px;border:1px solid var(--fg3);flex:none;display:grid;place-items:center;font-size:11px;transition:background .2s,border-color .2s}
+.model[aria-pressed="true"] .box{background:var(--rigel);border-color:var(--rigel);color:var(--onprimary)}
+.model .d{font-size:12px;color:var(--fg2);line-height:1.4}
+.model .meta{display:flex;gap:10px;font-family:var(--mono);font-size:11px;color:var(--fg3);flex-wrap:wrap}
+.tag{font-size:10px;font-weight:600;color:var(--betel);border:1px solid rgba(233,180,103,.4);border-radius:999px;padding:1px 7px;align-self:flex-start}
+.total{display:flex;justify-content:space-between;font-family:var(--mono);font-size:12px;color:var(--fg2);border-top:1px solid var(--line);padding-top:10px;flex-wrap:wrap;gap:6px}
+.opt{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--line)}
+.opt .l{display:flex;flex-direction:column;gap:2px;min-width:0}
+.opt .l span{font-size:12px;color:var(--fg3)}
+.sw{width:36px;height:20px;border-radius:999px;background:var(--line);border:0;position:relative;cursor:pointer;flex:none;transition:background .25s var(--ease)}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:14px;height:14px;border-radius:50%;background:var(--fg2);transition:left .25s var(--ease),background .25s}
+.sw[aria-checked="true"]{background:var(--rigel)}
+.sw[aria-checked="true"]::after{left:19px;background:var(--onprimary)}
+.sw:focus-visible{outline:2px solid var(--rigel);outline-offset:2px}
+.track{height:6px;background:var(--raise);border-radius:999px;overflow:hidden}
+.track i{display:block;height:100%;background:linear-gradient(90deg,var(--rigel),var(--primary));width:0;transition:width .9s var(--ease)}
+.log{font-family:var(--mono);font-size:12px;color:var(--fg3);display:flex;flex-direction:column;gap:6px;margin-top:6px}
+.log div{transition:color .4s,opacity .4s;opacity:1}
+.log .on{color:var(--fg2)}
+.log .ok{color:var(--ok)}
+.foot{flex:none;display:flex;justify-content:space-between;align-items:center;gap:10px;border-top:1px solid var(--line);padding-top:16px}
+.foot .meta{font-family:var(--mono);font-size:11px;color:var(--fg3);transition:opacity .3s}
+.btns{display:flex;gap:8px}
+.primary{background:var(--primary);color:var(--onprimary);border:0;border-radius:8px;padding:9px 18px;font:600 13px var(--sans);cursor:pointer;transition:opacity .3s,filter .2s}
+.primary:hover{filter:brightness(1.06)}
+.primary:focus-visible,.ghost:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
+.primary[disabled]{opacity:.4;cursor:default;filter:none}
+.ghost.hide{opacity:0;pointer-events:none}
+@media (max-width:760px){
+  .win{height:auto}
+  .body{grid-template-columns:1fr}
+  .sky{height:240px;border-right:0;border-bottom:1px solid var(--line)}
+  .stage{min-height:460px}
+  .models,.checks{grid-template-columns:1fr}
+  .pane{padding:20px 18px}
+}
+@media (prefers-reduced-motion:reduce){*{transition-duration:.01ms!important}}
+</style>
+
+<p class="note">Prévia do <b>Orion Setup.exe</b>, feita em HTML para visualizar. O app real será feito em iced. Clique em <b>Continuar</b> para passar pelas etapas; o som ambiente começa no primeiro clique.</p>
+
+<div class="win" role="application" aria-label="Instalador do Orion">
+  <div class="bar">
+    <div class="t">✦ Orion Setup <span>· v0.1.0</span></div>
+    <div class="ctl"><button aria-label="Minimizar">—</button><button aria-label="Fechar">✕</button></div>
+  </div>
+  <div class="body">
+    <div class="sky">
+      <canvas id="sky"></canvas>
+      <div class="skycap">
+        <div class="name">Orion</div>
+        <div class="star">Etapa <span id="stepn">1</span> de 5<br><b id="sname">Betelgeuse</b></div>
+      </div>
+    </div>
+    <div class="pane">
+      <ul class="steps" id="steps"><li></li><li></li><li></li><li></li><li></li></ul>
+      <div class="stage" id="stage"><div class="content" id="content"></div></div>
+      <div class="foot">
+        <div class="meta" id="footmeta"></div>
+        <div class="btns">
+          <button class="ghost" id="back">Voltar</button>
+          <button class="primary" id="next">Continuar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ---------- Céu ---------- */
+const reduce=matchMedia("(prefers-reduced-motion: reduce)").matches;
+const cv=document.getElementById("sky"),ctx=cv.getContext("2d");
+let W=0,H=0,DPR=1;
+function size(){const r=cv.getBoundingClientRect();DPR=Math.min(devicePixelRatio||1,2);W=r.width;H=r.height;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0)}
+new ResizeObserver(size).observe(cv);size();
+
+// sprite de brilho pré-renderizado (suave e barato)
+function sprite(rgb){const s=document.createElement("canvas"),n=128;s.width=s.height=n;const c=s.getContext("2d");
+  const g=c.createRadialGradient(n/2,n/2,0,n/2,n/2,n/2);
+  g.addColorStop(0,`rgba(${rgb},1)`);g.addColorStop(.08,`rgba(${rgb},.75)`);g.addColorStop(.25,`rgba(${rgb},.22)`);g.addColorStop(.55,`rgba(${rgb},.05)`);g.addColorStop(1,`rgba(${rgb},0)`);
+  c.fillStyle=g;c.fillRect(0,0,n,n);return s}
+const SPR={warm:sprite("240,190,120"),cool:sprite("176,192,236"),white:sprite("232,236,248"),neb1:sprite("110,96,180"),neb2:sprite("214,128,140")};
+
+// fundo: estrelas fixas com cor e profundidade
+let seed=7;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
+const BG=[...Array(260)].map(()=>{const z=rnd();return{x:rnd(),y:rnd(),r:.25+z*z*1.1,a:.12+z*.55,z,ph:rnd()*6.28,sp:.15+rnd()*.35,
+  tint:rnd()<.15?"255,220,190":rnd()<.25?"190,205,255":"225,230,242"}});
+// faixa tênue (Via Láctea)
+const DUST=[...Array(90)].map(()=>{const t=rnd();return{x:t,y:.15+t*.75+(rnd()-.5)*.18,r:20+rnd()*50,a:.012+rnd()*.02}});
+
+// constelação: [x,y,raio,sprite,cor do núcleo, etapa]
+const NAMES=["Betelgeuse","Bellatrix","Cinturão","Saiph","Rigel"];
+const S=[
+ {n:"Betelgeuse",x:.30,y:.22,r:3.2,spr:"warm",core:"#ffd9a0",step:0},
+ {n:"Bellatrix", x:.66,y:.26,r:2.2,spr:"cool",core:"#e6ecff",step:1},
+ {n:"Alnitak",   x:.40,y:.52,r:2.4,spr:"white",core:"#f2f4ff",step:2,delay:0},
+ {n:"Alnilam",   x:.475,y:.50,r:2.6,spr:"white",core:"#f2f4ff",step:2,delay:.35},
+ {n:"Mintaka",   x:.55,y:.48,r:2.3,spr:"white",core:"#f2f4ff",step:2,delay:.7},
+ {n:"Saiph",     x:.64,y:.80,r:2.2,spr:"cool",core:"#e6ecff",step:3},
+ {n:"Rigel",     x:.28,y:.78,r:3.4,spr:"cool",core:"#eef2ff",step:4}];
+const L=[[0,2],[2,3],[3,4],[1,4],[0,1],[4,5],[2,6]];
+S.forEach(s=>{s.b=0;s.t0=null});
+const lines=L.map(()=>({p:0}));
+let lit=1;           // quantas etapas acesas
+let done=0;          // brilho final 0..1
+let shoot=null,nextShoot=5000,last=0;
+const smooth=(cur,target,rate,dt)=>cur+(target-cur)*(1-Math.exp(-rate*dt));
+const easeIO=x=>x<.5?4*x*x*x:1-Math.pow(-2*x+2,3)/2;
+
+function blit(img,x,y,size,alpha){if(alpha<=.002)return;ctx.globalAlpha=alpha;ctx.drawImage(img,x-size/2,y-size/2,size,size)}
+
+function frame(t){
+  const dt=Math.min((t-last)/1000||0,.05);last=t;
+  ctx.globalCompositeOperation="source-over";ctx.globalAlpha=1;ctx.fillStyle="#07080b";ctx.fillRect(0,0,W,H);
+  // vinheta azulada
+  const vg=ctx.createRadialGradient(W*.45,H*.45,0,W*.45,H*.45,Math.max(W,H)*.8);vg.addColorStop(0,"rgba(22,26,40,.9)");vg.addColorStop(1,"rgba(7,8,11,0)");ctx.fillStyle=vg;ctx.fillRect(0,0,W,H);
+
+  // deriva lenta da câmera (respiração)
+  const k=reduce?0:1, sec=t/1000;
+  const cx=W*.47,cy=H*.5, zoom=1+k*(.012*Math.sin(sec*.11)+.03*done), rot=k*.012*Math.sin(sec*.05);
+  const ox=k*Math.sin(sec*.07)*5, oy=k*Math.cos(sec*.09)*4;
+  const P=(x,y,z=1)=>{const dx=(x*W-cx)*zoom,dy=(y*H-cy)*zoom,c=Math.cos(rot*z),s=Math.sin(rot*z);return[cx+dx*c-dy*s+ox*z,cy+dx*s+dy*c+oy*z]};
+
+  ctx.globalCompositeOperation="lighter";
+  DUST.forEach(d=>{const[x,y]=P(d.x,d.y,.2);blit(SPR.cool,x,y,d.r*4,d.a)});
+  // nebulosa de Órion (M42), viva e lenta
+  const[nx,ny]=P(.50,.64,.6);
+  const nb=.55+.15*done;
+  blit(SPR.neb1,nx+6*Math.sin(sec*.13*k),ny,Math.min(W,H)*.75,.20*nb);
+  blit(SPR.neb2,nx+10,ny+8+5*Math.cos(sec*.1*k),Math.min(W,H)*.38,.18*nb);
+  blit(SPR.white,nx+4,ny+4,Math.min(W,H)*.10,.10*nb);
+
+  // estrelas de fundo
+  BG.forEach(s=>{const[x,y]=P(s.x,s.y,.3+s.z*.7);const tw=k?.75+.25*Math.sin(sec*s.sp*3+s.ph):1;
+    ctx.globalAlpha=s.a*tw;ctx.fillStyle=`rgb(${s.tint})`;ctx.beginPath();ctx.arc(x,y,s.r,0,6.283);ctx.fill();
+    if(s.z>.85)blit(SPR.white,x,y,s.r*14,.10*tw)});
+
+  // atualizar brilho das estrelas
+  S.forEach(s=>{const on=s.step<lit;
+    if(on&&s.t0==null)s.t0=sec+(s.delay||0);if(!on)s.t0=null;
+    const target=on&&sec>=s.t0?1:0;
+    s.b=reduce?target:smooth(s.b,target,target?1.6:4,dt);
+    s.age=s.t0==null?99:sec-s.t0});
+
+  // linhas: crescem com easing quando as duas pontas estão acesas
+  L.forEach(([a,b],i)=>{const A=S[a],B=S[b],ready=A.b>.85&&B.b>.85,ln=lines[i];
+    ln.p=reduce?(ready?1:0):(ready?Math.min(1,ln.p+dt/1.6):Math.max(0,ln.p-dt*2));
+    const[x1,y1]=P(A.x,A.y),[x2,y2]=P(B.x,B.y);
+    // trilha apagada
+    ctx.globalCompositeOperation="source-over";ctx.globalAlpha=.06;ctx.strokeStyle="#8a90a8";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+    if(ln.p<=0)return;
+    const e=easeIO(ln.p),xe=x1+(x2-x1)*e,ye=y1+(y2-y1)*e;
+    ctx.globalCompositeOperation="lighter";
+    const g=ctx.createLinearGradient(x1,y1,xe,ye);g.addColorStop(0,"rgba(164,179,222,.05)");g.addColorStop(1,"rgba(190,204,240,.55)");
+    ctx.strokeStyle=g;ctx.lineCap="round";
+    ctx.globalAlpha=.35*(.7+.3*done);ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(xe,ye);ctx.stroke();
+    ctx.globalAlpha=.9;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(xe,ye);ctx.stroke();
+    if(ln.p<1)blit(SPR.white,xe,ye,28,.7*(1-ln.p*.6))});
+
+  // estrelas da constelação
+  ctx.globalCompositeOperation="lighter";
+  S.forEach(s=>{const[x,y]=P(s.x,s.y);const tw=k?1+.06*Math.sin(sec*1.3+s.x*20):1;
+    // estado apagado: ponto discreto
+    ctx.globalAlpha=.25*(1-s.b);ctx.fillStyle="#8a90a8";ctx.beginPath();ctx.arc(x,y,s.r*.6,0,6.283);ctx.fill();
+    if(s.b<.01)return;
+    // nascimento: bloom suave que se abre e assenta (sem flash duro)
+    const birth=k&&s.age<2.4?Math.sin(Math.min(s.age/2.4,1)*Math.PI):0;
+    blit(SPR[s.spr],x,y,s.r*(26+18*birth+6*done)*tw,s.b*(.55+.35*birth));
+    blit(SPR.white,x,y,s.r*7*tw,s.b*.8);
+    // raios de difração finos, giram muito devagar
+    const len=s.r*(5+4*birth)*tw,ang=k?sec*.03:0;
+    ctx.save();ctx.translate(x,y);ctx.rotate(ang);ctx.globalAlpha=s.b*(.28+.25*birth);
+    const sg=ctx.createLinearGradient(-len,0,len,0);sg.addColorStop(0,"rgba(255,255,255,0)");sg.addColorStop(.5,s.core);sg.addColorStop(1,"rgba(255,255,255,0)");
+    ctx.strokeStyle=sg;ctx.lineWidth=.8;ctx.beginPath();ctx.moveTo(-len,0);ctx.lineTo(len,0);ctx.stroke();
+    ctx.rotate(Math.PI/2);ctx.beginPath();ctx.moveTo(-len*.8,0);ctx.lineTo(len*.8,0);ctx.stroke();ctx.restore();
+    ctx.globalAlpha=s.b;ctx.fillStyle=s.core;ctx.beginPath();ctx.arc(x,y,s.r*.75,0,6.283);ctx.fill()});
+
+  // conclusão: brilho geral sobe devagar e respira
+  done=reduce?(lit>=5?1:0):smooth(done,lit>=5&&S[6].b>.9?1:0,.8,dt);
+  if(done>.01){const[gx,gy]=P(.47,.5);blit(SPR.cool,gx,gy,Math.max(W,H)*1.1,.10*done*(.85+.15*Math.sin(sec*.8)))}
+
+  // estrela cadente rara e suave
+  if(k){if(!shoot&&t>nextShoot){shoot={x:.35+rnd()*.55,y:.04+rnd()*.25,t:sec};nextShoot=t+9000+rnd()*9000}
+    if(shoot){const f=(sec-shoot.t)/1.3;if(f>=1)shoot=null;else{const e=1-Math.pow(1-f,2),x=(shoot.x-e*.3)*W,y=(shoot.y+e*.2)*H,a=Math.sin(f*Math.PI);
+      const g=ctx.createLinearGradient(x,y,x+90,y-60);g.addColorStop(0,`rgba(240,242,250,${.8*a})`);g.addColorStop(1,"rgba(240,242,250,0)");
+      ctx.globalAlpha=1;ctx.strokeStyle=g;ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+90,y-60);ctx.stroke();blit(SPR.white,x,y,14,a*.8)}}}
+  ctx.globalCompositeOperation="source-over";ctx.globalAlpha=1;
+  requestAnimationFrame(frame)}
+requestAnimationFrame(frame);
+
+/* ---------- Etapas ---------- */
+const MODELS=[
+ {n:"Whisper large-v3-turbo",d:"Reconhecimento de voz em português.",gb:.8,ram:"~2 GB",rec:true,on:true},
+ {n:"Qwen 3 8B",d:"Geral e ferramentas. Bom em pt-BR.",gb:5,ram:"~6 GB",rec:true,on:true},
+ {n:"Gemma 4 E4B",d:"Leve, ideal para o notebook.",gb:4,ram:"~5 GB",rec:true,on:false},
+ {n:"Granite 4.1 8B",d:"Melhor tool calling medido.",gb:5,ram:"~6 GB",on:false},
+ {n:"Phi-4-mini 3.8B",d:"Rápido, respostas curtas.",gb:2.4,ram:"~3 GB",on:false},
+ {n:"Moondream 2",d:"Visão leve. \"Isso?\" sem internet.",gb:1.8,ram:"~2 GB",rec:true,on:true},
+ {n:"MiniCPM-V 4.5",d:"Visão e OCR de documentos.",gb:5.5,ram:"~6 GB",on:false},
+ {n:"Mistral Small 3.2 24B",d:"Mais forte. Só no PC com GPU grande.",gb:14,ram:"~16 GB",on:false}];
+const OPTS=[["Iniciar com o Windows","Abre minimizado na bandeja",true],["Ativar voz","Palavra \"Orion\" e duas palmas",true],["Fixar na barra de tarefas","O atalho no Menu Iniciar é sempre criado",true],["Enviar relatório de falhas","Só para a automelhoria do Orion",false]];
+let step=0,busy=false;
+const $=id=>document.getElementById(id);
+const gb=n=>n.toLocaleString("pt-BR",{maximumFractionDigits:1});
+const total=()=>MODELS.filter(m=>m.on).reduce((a,m)=>a+m.gb,0);
+
+function view(){
+  const c=$("content");
+  if(step===0){c.innerHTML=`<div class="eyebrow">Boas-vindas</div><h1>Vamos instalar o Orion</h1>
+   <p class="lead">Seu assistente de desktop. Leva uns 2 minutos. Os modelos locais baixam depois, em segundo plano, e o Orion já abre usando as APIs enquanto isso.</p>
+   <div class="field"><label for="lang">Idioma</label><select id="lang"><option>Português (Brasil)</option><option>English</option></select></div>
+   <div class="eyebrow" style="margin-top:6px">Seu PC</div>
+   <div class="checks">
+    <div class="chk"><span class="k">Sistema</span><span class="v ok">Windows 11 24H2</span></div>
+    <div class="chk"><span class="k">Memória</span><span class="v ok">32 GB RAM</span></div>
+    <div class="chk"><span class="k">GPU</span><span class="v ok">RTX 4070 · 12 GB · Vulkan</span></div>
+    <div class="chk"><span class="k">Espaço livre</span><span class="v warn">C: 48 GB · D: 610 GB</span></div></div>
+   <p class="hint">Exemplo de PC detectado. Como C: tem pouco espaço, os modelos vão para D:.</p>`;
+   return["Instalação para todos os usuários","Continuar"]}
+  if(step===1){c.innerHTML=`<div class="eyebrow">Onde instalar</div><h1>Escolha as pastas</h1>
+   <div class="field"><label for="p1">App</label><div class="input"><input id="p1" value="C:\\Program Files\\Orion"><button class="ghost">Alterar</button></div><span class="hint">~150 MB</span></div>
+   <div class="field"><label for="p2">Modelos locais</label><div class="input"><input id="p2" value="D:\\Orion\\Modelos"><button class="ghost">Alterar</button></div><span class="hint">Sugerido: D: tem mais espaço livre (610 GB).</span></div>
+   <div class="field"><label for="p3">Dados (banco cifrado e configurações)</label><div class="input"><input id="p3" value="%ProgramData%\\Orion" readonly></div><span class="hint">O vault do Obsidian é escolhido no primeiro uso.</span></div>`;
+   return["Pede permissão de administrador uma vez","Continuar"]}
+  if(step===2){c.innerHTML=`<div class="eyebrow">Modelos locais</div><h1>O que roda no seu PC</h1>
+   <p class="lead">Todos ficam descarregados e só ocupam RAM quando são chamados. Dá para mudar depois em Configurações › Modelos locais.</p>
+   <div class="models" id="models"></div><div class="total"><span id="tot"></span><span>baixa depois, em segundo plano</span></div>`;
+   const g=$("models");MODELS.forEach(m=>{const b=document.createElement("button");b.className="model";
+    const paint=()=>{b.setAttribute("aria-pressed",m.on);b.querySelector(".box").textContent=m.on?"✓":"";$("tot").textContent=`${MODELS.filter(x=>x.on).length} selecionados · ${gb(total())} GB`};
+    b.innerHTML=`<div class="top"><span class="n">${m.n}</span><span class="box"></span></div>${m.rec?'<span class="tag">recomendado p/ seu PC</span>':""}<span class="d">${m.d}</span><div class="meta"><span>${gb(m.gb)} GB</span><span>RAM ${m.ram}</span></div>`;
+    b.onclick=()=>{m.on=!m.on;paint()};g.appendChild(b);paint()});
+   return["Detectado: 32 GB RAM, GPU 12 GB","Continuar"]}
+  if(step===3){c.innerHTML=`<div class="eyebrow">Opções</div><h1>Últimos ajustes</h1><div id="opts"></div>`;
+   OPTS.forEach(op=>{const d=document.createElement("div");d.className="opt";d.innerHTML=`<div class="l">${op[0]}<span>${op[1]}</span></div>`;
+    const s=document.createElement("button");s.className="sw";s.setAttribute("role","switch");s.setAttribute("aria-checked",op[2]);s.setAttribute("aria-label",op[0]);
+    s.onclick=()=>{op[2]=!op[2];s.setAttribute("aria-checked",op[2])};d.appendChild(s);$("opts").appendChild(d)});
+   return["Tudo pode ser mudado depois","Instalar"]}
+  c.innerHTML=`<div class="eyebrow">Instalando</div><h1 id="h">Formando a constelação…</h1>
+   <div class="track"><i id="bar"></i></div><div class="log" id="log"></div>`;
+  return["","Abrir Orion"]}
+
+function chrome(){
+  [...$("steps").children].forEach((li,i)=>li.className=i<step?"done":i===step?"cur":"");
+  $("stepn").textContent=step+1;
+  const sn=$("sname");sn.style.opacity=0;setTimeout(()=>{sn.textContent=NAMES[step];sn.style.opacity=1},250);
+  $("back").classList.toggle("hide",step===0||step===4)}
+
+function go(to){
+  if(busy||to===step)return;busy=true;
+  const c=$("content");c.classList.add("out");
+  setTimeout(()=>{step=to;lit=Math.max(lit,Math.min(step+1,4));
+    const[meta,label]=view();$("footmeta").textContent=meta;$("next").textContent=label;$("next").disabled=step===4;
+    c.scrollTop=0;c.classList.remove("out");c.classList.add("in");chrome();
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{c.classList.remove("in");busy=false;if(step===4)install()}))},reduce?0:340)}
+
+function install(){
+  const items=["Copiando o Orion para Arquivos de Programas","Registrando a identidade do app (OCR e avisos)","Instalando o certificado do Orion","Criando atalhos no Menu Iniciar e na barra","Configurando o serviço de atualização",`Agendando o download dos modelos (${gb(total())} GB)`];
+  let i=0;const log=$("log");
+  const tick=()=>{if(i>0){const p=log.children[i-1];p.className="ok";p.textContent="✓ "+items[i-1]}
+    if(i<items.length){const d=document.createElement("div");d.className="on";d.textContent="… "+items[i];log.appendChild(d);$("bar").style.width=((i+1)/items.length*100)+"%";i++;setTimeout(tick,reduce?150:900)}
+    else{lit=5;$("h").textContent="Pronto. O Orion está no céu.";$("next").disabled=false;$("footmeta").textContent="Os modelos continuam baixando no app"}};
+  tick()}
+
+$("next").onclick=()=>{if(step<4)go(step+1);else{$("content").insertAdjacentHTML("beforeend",'<p class="hint">Aqui o Orion abriria no onboarding: perfil, senha, 2FA e vault.</p>');$("next").disabled=true}};
+$("back").onclick=()=>{if(step>0&&step<4)go(step-1)};
+{const[meta,label]=view();$("footmeta").textContent=meta;$("next").textContent=label;chrome()}
+
+/* ---------- Som ambiente: sempre ligado (navegador exige um primeiro clique; no app nativo toca ao abrir) ---------- */
+let actx=null;
+function ambient(){if(actx)return;try{actx=new AudioContext();const out=actx.createGain();out.gain.setValueAtTime(0,actx.currentTime);out.gain.linearRampToValueAtTime(.028,actx.currentTime+4);
+  const lp=actx.createBiquadFilter();lp.type="lowpass";lp.frequency.value=900;lp.connect(out);out.connect(actx.destination);
+  [110,164.8,220,329.6].forEach((f,i)=>{const o=actx.createOscillator();o.type=i%2?"triangle":"sine";o.frequency.value=f;o.detune.value=(i-1.5)*4;
+    const g=actx.createGain();g.gain.value=i===3?.25:.8;const lfo=actx.createOscillator(),la=actx.createGain();lfo.frequency.value=.04+i*.025;la.gain.value=.35;lfo.connect(la);la.connect(g.gain);lfo.start();
+    o.connect(g);g.connect(lp);o.start()})}catch(e){}}
+["pointerdown","keydown"].forEach(ev=>addEventListener(ev,ambient,{once:true}));
+</script>

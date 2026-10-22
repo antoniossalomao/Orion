@@ -1,0 +1,26 @@
+[package]
+name = "orion-voice"
+description = "Áudio local: cpal, energia, openWakeWord e whisper.cpp"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[features]
+default = []
+vulkan = ["whisper-rs/vulkan"]
+
+[dependencies]
+anyhow.workspace = true
+orion-local.workspace = true
+hound = "3.5"
+tempfile.workspace = true
+wait-timeout.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+cpal.workspace = true
+oww-rs = "=0.3.3"
+whisper-rs = "=0.16.0"
+aec3 = "=0.4.0"
+symphonia = { version = "0.5.5", default-features = false, features = ["mp3"] }
+parking_lot.workspace = true

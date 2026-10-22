@@ -1,10 +1,10 @@
 # Orion — arquitetura
 
-> Como o sistema é organizado hoje (Python) e para onde vai (Rust). Princípios e onde cada um é imposto: [REGRAS.md](REGRAS.md). Estado e plano: [ORION.md](ORION.md). Como rodar: [README](../README.md). Detalhes do legado: [ORION_LEGADO.md](ORION_LEGADO.md).
+> Produto: app nativo Rust de um só executável (`orion.exe`, núcleo e interface iced no mesmo processo, sem porta e sem Python). O pacote Python `orion/` e seus testes foram removidos em 20/10/2026 e permanecem no histórico do Git. Os dados pessoais do legado ainda precisam de exportação e verificação antes do descarte do PC. O worker `orion-llama.exe` fica separado; o navegador usa CDP em loopback efêmero, sem servidor HTTP do app. Princípios e onde cada um é imposto: [REGRAS.md](REGRAS.md). Estado e plano: [ORION.md](ORION.md). Como rodar: [README](../README.md). Detalhes do legado: [ORION_LEGADO.md](ORION_LEGADO.md).
 
-## 1. Hoje: pacote `orion/` (Python)
+## 1. Referência histórica: pacote `orion/` (Python, removido do repositório em 20/10/2026; consulte o Git)
 
-Um processo FastAPI em `127.0.0.1`, com política de ferramentas, memória em SQLite e canais (navegador, Telegram, ponte de desktop).
+**Referência histórica (o produto é Rust).** Um processo FastAPI em `127.0.0.1`, com política de ferramentas, memória em SQLite e canais (navegador, Telegram, ponte de desktop).
 
 | Área | Módulos | O que faz |
 |---|---|---|
@@ -42,7 +42,7 @@ Toda chamada a um destino de fora grava uma linha em `external_calls` (sem o con
 | Destino | Para quê | Condição |
 |---|---|---|
 | Provedores de modelo (Gemini, Groq, Cerebras, OpenRouter, Mistral, GitHub Models, NVIDIA, Z.ai ou endpoint com `url`) | Chat | Ordem em `ORION_PROVEDORES`; cota gratuita; chave com `orion chave <id>` |
-| Groq (Whisper) | Transcrição de voz e de mídia | `ORION_TRANSCRIBE_API_KEY` |
+| Groq (Whisper) | Transcrição de voz e de mídia | Python: `ORION_TRANSCRIBE_API_KEY`; Rust: exige também `ORION_TRANSCRIBE_GROQ_FALLBACK=true` |
 | Gemini | Embeddings (`gemini-embedding-001`), visão, voz ao vivo, pesquisa com Google Search | Chave do Google AI Studio; voz ao vivo é opt-in |
 | Brave Search | `pesquisar_internet` | Opt-in (`ORION_WEB_TOOLS`) |
 | Microsoft (edge-tts) | Fala das respostas | Corte com `ORION_VOICE_SPEAK=false`; só o texto da resposta sai |
@@ -50,7 +50,8 @@ Toda chamada a um destino de fora grava uma linha em `external_calls` (sem o con
 | Servidores MCP (Google Workspace, navegador, outros) | Ferramentas externas | Conforme `mcp.json`; classe de risco do arquivo |
 | n8n | Webhooks que você cadastra | `ORION_N8N_WEBHOOKS`; acionar sempre confirma |
 | CLIs delegadas (`claude -p`, `codex exec`, `gemini -p`) | Tarefa pesada, com as assinaturas oficiais | Tempo-limite, pasta de trabalho definida, contador diário |
-| Modelo local (Ollama em `127.0.0.1`) | Reserva, sem ferramentas | `ORION_LOCAL_MODEL`; só loopback |
+| Modelo local embarcado (`orion-llama.exe`) ou Ollama opcional | Reserva, sem ferramentas e sem saída de dados | `ORION_LOCAL_MODEL_PATH` para GGUF instalado; legado `ORION_LOCAL_MODEL`/loopback |
+| Hugging Face (pesos) | Instalar GGUF e Whisper | Só seleção explícita no orion-setup; catálogo com revisão, tamanho e SHA-256 fixados |
 | Gateway de visão e CLIs de assinatura (`ORION_VISION_ORDER`) | Foto da câmera (`ver_camera`, `/camera`) e quadros da voz ao vivo, quando ligados | `ORION_CAMERA=true`; `ver_camera` sempre confirma; cada uso vai ao registro de saídas |
 | Pesquisa na web (Brave ou Google, conforme o provedor) | Só o nome do produto cadastrado no monitor de preço | Opt-in (`ORION_WEB_TOOLS`) e cota gratuita; o preço que volta é guardado |
 
@@ -64,39 +65,75 @@ Não saem do computador: finanças, rosto, rótulos de objetos, presença, detec
 - **Conteúdo externo.** Marcado como dado. Depois de lido, a sessão pede confirmação para escrita, execução e rede com destino escolhido pelo modelo.
 - **Câmera.** Só com pedido seu (`ver_camera`, `/camera`, a paleta ou o botão da voz ao vivo). A foto vai ao modelo de visão, é descartada logo depois e cada uso fica registrado. Vigília e presença são locais: só rótulo, sem imagem, e a tela só é bloqueada com a sua confirmação.
 
-## 5. Legado (sai na fase 7)
+## 5. Código preservado durante a migração
 
-- `Orion_Ollama/`: backend FastAPI antigo (`cerebro_maestro.py`, `routers/`), com Qdrant e SurrealDB.
-- `Orion_Core/`: front v1 (pywebview, Three.js, hub WebSocket na porta 8765), voz e sentidos antigos.
-- `bin/`: `.bat` dos serviços antigos.
+O backend `Orion_Ollama/`, os serviços em `bin/startup/`, os motores de voz antigos e a distribuição PyInstaller foram removidos. O histórico e as instruções antigas continuam no Git e em [ORION_LEGADO.md](ORION_LEGADO.md).
 
-Continuam no repositório como referência e rodando no PC atual até a venda. O conteúdo deles está em [ORION_LEGADO.md](ORION_LEGADO.md).
+O front HTML/CSS/JS antigo (`Orion_Core/Front_end_Orion/`) e a rota `/ui` foram **removidos em 21/10/2026** (a interface é o `orion-app` em iced); o histórico fica no Git. O Python de referência (`orion/`, `tests/`, `pyproject.toml`, `uv.lock`) foi removido em 20/10/2026 e fica no histórico do Git. O sidecar (`orion-sidecar`, `Orion_Rust/python/`) foi removido em 20/10/2026: leitura de páginas e navegador guiado são Rust. Scripts de treino/avaliação de voz, benchmark, fixtures MCP e edge-tts ainda usam Python, fora do produto.
 
 ## 6. Interface
 
-- **Hoje:** navegador local, servido em `/ui/` pelo `orion.app`, com tela de entrada. O front v1 do legado usa pywebview.
+- **Agora:** a interface é o `orion-app` (iced), rodando dentro de `orion.exe` com o núcleo no mesmo processo; a UI chama as rotas por `Api::local`, sem socket. Mini barra, bandeja e atalhos globais (Ctrl+Alt+Espaço, Ctrl+Alt+P) vêm de `orion-platform`. Os launchers pywebview antigos foram removidos.
 - **Decisão:** só desktop, sem versão para celular. O celular fica no Telegram.
-- **Destino:** iced (Rust), com o tema "Observatório noturno": paleta noturna, constelação de Órion, três temas. O design e a engenharia do front atual estão em [ORION_LEGADO.md](ORION_LEGADO.md) (documento ORION_FRONT).
+- **Destino:** iced (Rust), tema único Grafite escuro, conforme [ORION_UI_ESPECIFICACAO.md](ORION_UI_ESPECIFICACAO.md). As três opções antigas de tema estão superadas; o grafo nativo wgpu ainda está pendente.
 
-A tela Vida (E10) e a legenda ao vivo (`/ui/legenda.html`, E11) fazem parte do front de desktop.
+A tela Vida (E10) e a legenda ao vivo (E11) existiam no front antigo, removido em 21/10/2026. No app iced a tela Vida foi cortada (21/10/2026) e a legenda é uma faixa estática de demonstração; os backends (`/vida/*`, `/foco`, `/legenda`) funcionam.
 
 ## 7. Destino em Rust
 
-Núcleo e UI em Rust. Python só para browser-use e crawl4ai, em processo separado, sem porta aberta. Crates previstos:
+O alvo está atingido na estrutura: núcleo, API e UI em Rust, um executável, sem servidor HTTP no uso normal e sem Python no produto. Falta prova no Windows real e as fases F08–F27 do plano.
 
-| Crate | Papel |
-|---|---|
-| `orion-ui` | Telas em iced (render com wgpu); grafo nativo |
-| `orion-core` | Agente, persona, política de risco, rotinas, projetos |
-| `orion-store` | rusqlite com FTS5, mesmo esquema do Python durante a transição |
-| `orion-ai` | Provedores (reqwest com SSE), embeddings, rerank, router |
-| `orion-mcp` | Cliente e servidor MCP (rmcp) |
-| `orion-channels` | Telegram (teloxide) |
-| `orion-voice` | Captura (cpal), STT (whisper-rs), VAD, palavra de ativação, palmas, TTS |
-| `orion-platform` | Trait comum; implementações `win/` (primeiro marco) e `mac/` (fase 9) |
-| `orion-sidecar` | Ponte JSON (stdin e stdout) para o processo Python residual |
+| Crate existente | Papel real no PR | Limite atual |
+|---|---|---|
+| `orion-policy` | Classes, aprovações, audit, shell, caminhos e PII | 25 testes portados; `engine` e `injecao_invariantes` ainda sem teste Rust |
+| `orion-store` | SQLite v23, FTS5, vetores e backup | Sem SQLCipher/sqlite-vec; 60 testes de integração |
+| `orion-ai` | Gateway, APIs, CLIs diretas, router, embeddings remotos, cotas | Sem ACP/e5/BGE local; 84 testes de integração |
+| `orion-core` | Agente, ferramentas, auth, jobs, projetos, canais, visão, extensões e rotinas | Portes agrupados; 167 testes de integração, muitos contratos ainda sem paridade |
+| `orion-server` | CLI/API Axum, montagem dos serviços e `appmode` (núcleo no processo do app) | HTTP só com `--features http`; rotas sem testes próprios (há `appmode::tests`) |
+| `orion-mcp` | JSON-RPC stdio/HTTP próprio, cliente/servidor | Sem rmcp; 23 declarações de testes de integração |
+| `orion-platform` | Bandeja e hotkeys Windows | Sem trait de plataforma completo, nem backend macOS; outras chamadas de SO ainda no core/setup |
+| `orion-voice` | cpal, energia, palmas, oww-rs, Whisper, AEC3/playback | Sem Silero; wake word final/hardware pendentes |
+| `orion-local` | Catálogo, downloads, protocolo, bundle wake e Job Object | Modelos de visão e gerenciador completo ainda pendentes |
+| `orion-llama` | Worker llama-cpp-2 CPU/Vulkan separado | Vulkan ainda sem build final validado; CPU real comprovada no CI |
+
+| `orion-vault` | Detecção/parser/scanner/busca em cache/Git e API explícita | Sem gravação automática, comparação de conflitos no chat ou índice incremental local completo |
+| `orion-app` | Interface iced (46 cenas, `orion-snap`), bandeja/mini barra, cliente `Api` (HTTP ou local) | Grafo 2D (3D wgpu pendente); sem Fluent; nunca rodou no Windows real |
+| `orion-updater` | Feed minisign + SHA-256, `baixar_release`, `.bak`, rollback (`orion update`) | Falta chave, feed publicado e rollback automático |
+| `orion-testkit` | HTTP/embedder/relógio de teste | Somente dev-dependency |
+
+**Ainda não existem como crates:** tema/i18n compartilhados (Fluent), grafo wgpu, evals, sync e WASM. Telegram usa cliente HTTP próprio no core, sem teloxide, e o MCP também é próprio (sem rmcp), por decisão. Fases e bloqueios completos estão em [ORION.md](ORION.md), seção Auditoria consolidada do PR #30.
+
+**Implementado em `Orion_Rust/` (PR #30, atualizado em 20/10/2026):** `orion.exe` abre o app iced com o núcleo no processo (`orion-server/src/appmode.rs`, `Router::oneshot`); `--background` fica escondido na bandeja (autostart opt-in) e a instância é única (`orion.lock` + `orion.mostrar`). `orion-platform` mantém bandeja e atalhos no laço de eventos da UI Windows. Fechar a janela esconde; Sair encerra núcleo e escuta. O atualizador é o subcomando `orion update`.
+
+`orion-voice` fornece captura cpal, reamostragem para PCM mono 16 kHz, VAD por energia, teto por hora, openWakeWord (`oww-rs`, modelo ONNX treinado para Orion) e Whisper (`whisper-rs`/whisper.cpp). O adaptador `orion-core::native_audio` liga os backends ao listener e ao mesmo transcritor usado pelo canal Telegram; áudio comprimido é convertido localmente pelo ffmpeg em arquivos temporários removidos ao concluir. Pausa/pânico fecham a captura. Durante transcrição o microfone é fechado; durante TTS, com barge-in opt-in, cpal reproduz a fala e reabre o microfone para o AEC3 cancelar o eco usando a própria saída como referência. A fala residual sustentada interrompe o TTS e volta como turno comum; nunca aprova. Os primeiros ~2 s calibram o ruído; palmas só abrem a interface. CPU é o padrão; Vulkan exige `cargo build -p orion-server --features local-vulkan` e SDK no build. Modelos são caminhos configurados ou instalados após seleção explícita no orion-setup, nunca baixados na inicialização do servidor. O runtime exige bundle Orion validado (`orion.onnx`/`orion.json`, hash, limiar e métricas reais); o candidato sintético fica só para calibração explícita por `orion wake-test`.
+
+`orion-local` mantém catálogo fixado e downloads com retomada, SHA-256 e cancelamento. `orion-setup` executa downloads fora da thread da UI, instala os executáveis do subdiretório cpu/ ou vulkan/ escolhido (CPU não depende do loader Vulkan) e grava `orion-local.json` no diretório de dados. O runtime descobre esse arquivo pelo manifesto ao lado do executável; ambiente e .env têm precedência. Voz e modelos não vêm selecionados. Um LLM e um STT ficam ativos por instalação. O instalador recebe opcionalmente a pasta do bundle Orion validado; sem ela, não liga escuta da palavra.
+
+`orion-llama` embarca llama-cpp-2, com Vulkan opcional. É worker nativo separado para não ligar duas versões de GGML no mesmo executável e para impor o teto real pelo Job Object do Windows. O servidor serializa inferências, confere tamanho dos pesos + margem de contexto e RAM disponível, inicia o worker sem segredos, aplica limite de 30% da RAM e só então envia mensagens por stdin. Saída JSON por stdout, sem HTTP; 2.048 tokens de contexto, até 512 de resposta, timeout de 180 s e encerramento ao concluir/cancelar. mmap fica desligado para que os pesos entrem no limite de memória comprometida. Não há cache residente do LLM. O gateway injeta o aviso de reserva e recusa ferramentas; jobs locais e finanças usam o mesmo backend sem nuvem. O Whisper carrega e descarrega por transcrição. No pacote Windows, compilar ambos com `--features orion-server/local-vulkan,orion-llama/vulkan`; GPU requer driver Vulkan compatível e seleção explícita no instalador.
+
+`orion-ai::budget` persiste reservas de chamadas no SQLite antes do envio, inclusive tentativas falhas. O gateway e as CLIs oficiais consultam os limites configurados (`ORION_WEEKLY_BUDGETS` ou painel): 95% por semana, 20% por tarefa, janela de 5 h opcional. Todos os modelos de um mesmo provedor compartilham a cota. A UI identifica a origem como estimativa local em chamadas; `GET/PUT /budget` e `POST /budget/calibrate` exigem login. Cotas não configuradas aparecem como pendentes de configuração, sem inventar saldo oficial.
+
+O código do 2FA é guardado só em hash, em memória, vinculado ao desafio e cliente, expira em 5 min e é descartado após cinco erros ou um acerto. `POST /auth/login` com `ORION_TELEGRAM_2FA=true` só envia o desafio ao primeiro ID permitido; `POST /auth/2fa` cria a sessão após validar o código. Falha de entrega não cria sessão. A janela nativa consome esse fluxo. O bot continua default-deny e só decide pelo botão do cartão que o próprio Orion enviou; o retorno usa o canal original do pedido. Áudio de resposta usa TTS e `sendAudio`, com registro de saída sem conteúdo, apenas se `ORION_TELEGRAM_VOICE_REPLY=true`.
+
+**Vault (F06 parcial):** as rotas autenticadas `/vault/status`, `/vault/pull`, `/vault/search` e `/vault/save` criam `VaultManager` com `settings.vault_dir`. A gravação recebe o resumo do cliente; não é disparada automaticamente no turno. `validate` confere campos/frontmatter, Projeto/Área e wikilinks de notas; `safe_path` recusa caminhos inválidos e links existentes. Scanner bloqueia padrões de credenciais antes de gravar. A publicação é atômica e nunca substitui destino: diferenças geram arquivo de proposta marcado como conflito e resposta com os dois caminhos, sem escolher uma versão nem enviar o conflito ao Git. A tela de comparação no chat continua pendente.
+
+O Git usa índices temporários e plumbing (`hash-object --no-filters`, `update-index --index-info`, `write-tree`, `commit-tree`, `update-ref` com base esperada), preservando os blobs staged alheios e o conteúdo exato validado. Lock impede concorrer com outro escritor do índice; hooks/fsmonitor ficam desligados e o ambiente não inclui chaves do Orion. Só commita na main sem operação Git pendente; push envia o hash preparado, apenas se seu pai já estiver na main remota. A preparação do índice usa também uma árvore de trabalho temporária vazia, evitando revalidação com filtros sobre arquivos reais. Pull só por fast-forward com árvore limpa e sem filtros Git configurados; nenhum stash/rebase ou troca de branch automática. Falhas são retornadas como aviso/erro, mantendo a cópia local. Ainda faltam privacidade em todo envio, integração completa com regras particulares do vault, comparação/resolução no chat e pull nos eventos previstos. O cache de `orion-vault` não é o índice incremental BM25 + LSA completo.
+
+**Visão/E11 parcial:** captura pontual via nokhwa e fallback ffmpeg; extrator facial local por contrastes Haar heurísticos + LBPH, sem validação biométrica real. YOLO tem pós-processamento/avistamentos, mas `Detector::detectar_jpeg` sempre retorna vazio; o reranker também não tem runtime ONNX vinculado. A legenda depende de ffmpeg/whisper-cli externos, não é ainda o overlay/loopback/tradução nativo completo.
+
+**Distribuição/validação:** o instalador (`orion-setup`) baixa `latest-<variante>.json` (+ `.minisig`) e `orion.exe`/`orion-llama.exe` do GitHub Releases, conferindo minisign e SHA-256 (`orion_updater::baixar_release`); sem rede, usa as pastas `cpu`/`vulkan` ao lado do setup. Release por tag `v*` em `.github/workflows/release.yml`. Falta o par de chaves e o primeiro release (você). CPU e GGUF passaram no CI; o build Vulkan passou no run `39097948560`, sem prova de GPU. A UI do céu produz RGBA na CPU (`sky.rs`), sem renderer shader compartilhado. Nada disso foi provado num Windows real nem contra as metas de desempenho.
 
 Equivalências de plataforma (Windows | macOS): início automático (registro ou Task Scheduler | LaunchAgent); bandeja (`tray-icon`); teclas globais (`global-hotkey`); área de transferência (`arboard`); notificação (toast | `notify-rust`); cofre (Credential Manager | Keychain); captura de tela (`windows-capture` ou `xcap` | `xcap` ou ScreenCaptureKit); OCR (`Windows.Media.Ocr` | Vision); microfone (`cpal`). Permissões do macOS (Acessibilidade, Gravação de Tela, Microfone) exigem onboarding próprio.
+
+### Primeiro uso nativo
+
+`orion-app::onboarding` mantém o rascunho em memória, com segredos ocultos no Debug e campos secretos limpos ao concluir ou fechar o formulário. A ligação `Local` oferece bootstrap/configuração/testes exclusivamente no processo; nenhuma rota HTTP pública de criação de conta foi adicionada. `orion-server::onboarding` prepara banco/login/chaves/perfil antes de montar o núcleo e publica o marcador por último. `orion-core::onboarding::Profile` contém apenas preferências; nome e idioma entram como dados delimitados no contexto.
+
+Segredos usam o backend `windows-native` do keyring (Credential Manager). Hello usa UserConsentVerifier e a credencial local no cofre, com consentimento explícito no onboarding. A entrada por senha pode exigir Telegram antes de montar o núcleo, sem depender de um gateway configurado.
+
+Backup `*.orion-backup`: envelope ChaCha20-Poly1305 com chave mestra embrulhada por senha/recuperação; conteúdo é banco e perfil, sem auth.db/tokens. Serviço local mantém 7 cópias e, se autorizado, envia ao Drive; restauração autenticada cria uma pasta nova e uma nova credencial. A autorização Google é uma **exceção temporária de loopback**: callback OAuth com PKCE/state, navegador do sistema, escopo `drive.file`; o app continua sem servidor HTTP permanente. Testes de APIs/Telegram usam apenas os endpoints oficiais escolhidos na UI.
+
+Importadores trabalham sobre arquivos selecionados e hashes conferidos; MCPs ficam desligados, skills/plugins inativos. Históricos geram trechos/resumos locais e nunca são enviados automaticamente a modelos.
 
 ## 8. Referências
 
@@ -130,7 +167,7 @@ Equivalências de plataforma (Windows | macOS): início automático (registro ou
 
 ### 8.3 Modelos no Hugging Face (verificados quanto à licença, salvo indicação)
 
-Nada foi baixado nem medido. Os números de WER e velocidade são dos autores.
+Esta tabela é uma pesquisa de candidatos, não uma lista de modelos instalados. O catálogo distribuído está em `orion-local/src/catalog.json`; o candidato Orion sintético e um smoke GGUF CPU já existem. WER e velocidade dos demais modelos continuam sendo números dos autores, sem validação no notebook.
 
 | Área | Modelo | Licença | Nota |
 |---|---|---|---|
@@ -158,3 +195,4 @@ Nada foi baixado nem medido. Os números de WER e velocidade são dos autores.
 | NER | `urchade/gliner_multi-v2.1` | Apache-2.0 | Sem ONNX oficial na página |
 
 **Licença-alvo ainda não decidida.** Se o Orion for só pessoal, os itens não comerciais não bloqueiam. Se for vendido ou distribuído, saem: openWakeWord oficial, ESC-50, Jina v3, OmniParser com o detector padrão e modelos de pesquisa, como o Sabiá-7B.
+

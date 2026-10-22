@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "orion_api": 1,
+  "id": "orion-auditoria",
+  "version": "1.0.0",
+  "name": "Orion Auditoria",
+  "description": "Revise código, alterações e workflows com segurança; confira especificações e planeje correções.",
+  "license": "LicenseRef-Orion-Proprietary",
+  "skills": [
+    "skills/revisar-rust",
+    "skills/auditar-zeroize",
+    "skills/revisar-diferenca",
+    "skills/checar-falso-positivo",
+    "skills/achar-padroes-inseguros",
+    "skills/achar-apis-perigosas",
+    "skills/conferir-especificacao",
+    "skills/entender-codigo-antes-de-auditar",
+    "skills/buscar-variantes",
+    "skills/cacar-regressao",
+    "skills/corrigir-bug-com-patch-pequeno",
+    "skills/validar-patch",
+    "skills/analise-estatica",
+    "skills/criar-regra-semgrep",
+    "skills/portar-regra-semgrep",
+    "skills/auditar-github-actions",
+    "skills/segunda-opiniao",
+    "skills/passo-a-passo-da-mudanca",
+    "skills/melhorar-codigo",
+    "skills/triar-issues-e-prs",
+    "skills/escrever-goal"
+  ],
+  "capabilities": [
+    "native:buscar_memoria",
+    "native:consultar_git_projeto",
+    "native:delegar",
+    "native:ler_arquivo",
+    "native:listar_arquivos"
+  ]
+}

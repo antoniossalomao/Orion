@@ -1,0 +1,60 @@
+[package]
+name = "orion-server"
+description = "Servidor local do Orion (API com login, SSE e WebSocket) e a CLI `orion`"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "orion"
+path = "src/main.rs"
+
+[dependencies]
+orion-policy.workspace = true
+orion-store.workspace = true
+orion-ai.workspace = true
+orion-core.workspace = true
+orion-mcp.workspace = true
+orion-vault.workspace = true
+orion-local.workspace = true
+orion-voice.workspace = true
+orion-app.workspace = true
+orion-updater.workspace = true
+sysinfo.workspace = true
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+regex.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+tokio.workspace = true
+futures.workspace = true
+async-stream.workspace = true
+chrono.workspace = true
+parking_lot.workspace = true
+url.workspace = true
+uuid.workspace = true
+axum.workspace = true
+tower.workspace = true
+clap.workspace = true
+subtle.workspace = true
+rpassword.workspace = true
+
+reqwest.workspace = true
+zeroize.workspace = true
+base64.workspace = true
+sha2.workspace = true
+tempfile.workspace = true
+toml = "0.8"
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.61", features = ["Security_Credentials_UI"] }
+iced.workspace = true
+orion-platform = { path = "../orion-platform" }
+
+[features]
+# Servidor HTTP local (`orion serve`): desenvolvimento e acesso remoto. O produto não o inclui.
+http = []
+local-vulkan = ["orion-core/local-vulkan"]
+sqlcipher = ["orion-core/sqlcipher"]

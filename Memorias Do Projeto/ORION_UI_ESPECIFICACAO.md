@@ -15,6 +15,19 @@ resumo: "Especificação completa da interface do Orion em iced/wgpu para reprod
 
 ---
 
+## Estado da implementação — atualizado em 20/10/2026 (PR #30)
+
+Estado canônico: [ORION.md](ORION.md); tarefas F01/F05/F07/F16 em [ORION_PLANO_IMPLEMENTACAO.md](ORION_PLANO_IMPLEMENTACAO.md).
+
+- [x] Protótipo HTML e especificação das telas presentes no repositório.
+- [x] Instalador iced com céu.
+- [x] **App principal `orion-app` (iced) existe:** casca, barra lateral, barra superior, Início, chat com aprovação, painel da direita (4 abas), 10 telas de página, Configurações (14 seções), editor, paleta Ctrl K, captura rápida, "Isso?", mini barra, legenda, popovers e toasts; 47 cenas em `orion-snap`. Ligado ao núcleo no mesmo processo (`orion.exe`, sem porta); painéis MCP, Skills, Modelos locais e Segundo plano ligados; bandeja, mini barra e atalhos (Ctrl+Alt+Espaço, Ctrl+Alt+P).
+- [~] Telas com dados de exemplo ou parciais: Painel (métricas), Resultados, Integrações, Conhecimento/Fontes e partes de Configurações.
+- [ ] Editor/vault automático, painel de Arquivos/Diff por bloco/Terminal ConPTY e fluxos finais de projeto.
+- [ ] Grafo nativo wgpu/compute (hoje 2D), bloom/blur, timeline 3D, acessibilidade equivalente e metas de desempenho.
+- [ ] Fluent pt/en compartilhado, snapshots/E2E iced comparados ao protótipo.
+- [ ] Prova num Windows real de tudo acima.
+
 ## 1. Escopo
 - Tudo que existe na janela principal do Orion depois do login: barra lateral, barra superior, Início, Chat, painel da direita (Contexto / Arquivos / Diff / Terminal), Projetos, Memória (grafo), Aprovações, Rotinas, Resultados, Nuvem, Fontes, Conhecimento, Painel, Vida, Arquivadas, Configurações, paleta Ctrl K, editor de nota, captura rápida, "Isso?", mini barra de voz, legenda ao vivo, popovers e toasts.
 - **Fora desta nota:** instalador (nota própria), onboarding do primeiro uso, tela de login final (ver §2, U1), mini tela de atualização.
@@ -25,12 +38,12 @@ resumo: "Especificação completa da interface do Orion em iced/wgpu para reprod
 ## 2. Conflitos entre o mockup e as decisões posteriores (as decisões vencem)
 | # | O mockup faz | Decisão em vigor | Resolução na implementação |
 |---|---|---|---|
-| U1 | **Entrada:** cartão simples (cinturão grande, "Orion", texto, campo Senha, Entrar), qualquer senha entra | **Login com avatar, perfil local, céu animado, 2FA pelo Telegram só ao reentrar após sair da conta, Windows Hello de reserva** (rodada 8) | Implementar o login da decisão (F02.B). O cartão do mockup (§8 desta nota) fica só como **fundo/medidas de referência** do céu e do campo de senha |
+| U1 | **(Atualização 20/10/2026: a entrada segue o instalador: céu à esquerda, painel à direita com Usuário e Senha, "Bem-vindo de volta"; com banco cifrado a mesma senha abre o banco. Falta avatar, Hello e o fluxo 2FA final.)** **Entrada:** cartão simples (cinturão grande, "Orion", texto, campo Senha, Entrar), qualquer senha entra | **Login com avatar, perfil local, céu animado, 2FA pelo Telegram só ao reentrar após sair da conta, Windows Hello de reserva** (rodada 8) | Implementar o login da decisão (F02.B). O cartão do mockup (§8 desta nota) fica só como **fundo/medidas de referência** do céu e do campo de senha |
 | U2 | Fontes **Geist / Geist Mono / Newsreader** | O plano F01.02 diz Inter + JetBrains Mono; a nota de arquitetura (seção de design) diz Geist | **Vale o mockup: Geist (400/500/600), Geist Mono (400/500), Newsreader (400/500/600 + itálico 400).** Corrigir F01.02 no plano. Todas embutidas no binário |
-| U3 | Atalho global "**Win + O**" (Configurações > Sistema, atalhos, tooltip) | **Win + Shift + Espaço** (Win+O é do Windows) | Trocar o texto e a ação. Tudo que o mockup chama de "Win + O" vira "Win + Shift + Espaço" |
-| U4 | Captura rápida e "Isso?" rotulados "Win + Shift + O/I" mas o código escuta **Alt+Shift+O/I** (limitação do navegador) | **Win + Shift + O** e **Win + Shift + I** globais | Implementar Win+Shift+O/I via `global-hotkey` |
+| U3 | **(Decidido 20/10/2026: Ctrl+Alt+Espaço para a mini barra e Ctrl+Alt+P para o pânico; Win+combinações são reservadas pelo Windows.)** Atalho global "**Win + O**" (Configurações > Sistema, atalhos, tooltip) | **Win + Shift + Espaço** (Win+O é do Windows) | Trocar o texto e a ação. Tudo que o mockup chama de "Win + O" vira "Win + Shift + Espaço" |
+| U4 | **(Feito em 20/10/2026: captura rápida Ctrl+Alt+O e "Isso?" Ctrl+Alt+I, junto de Ctrl+Alt+Espaço e Ctrl+Alt+P.)** Captura rápida e "Isso?" rotulados "Win + Shift + O/I" mas o código escuta **Alt+Shift+O/I** (limitação do navegador) | **Win + Shift + O** e **Win + Shift + I** globais | Implementar Win+Shift+O/I via `global-hotkey` |
 | U5 | "Nova conversa" = **Ctrl Shift O** | Mantém | Igual |
-| U6 | "Painel" e "Vida" dentro de **Mais**; "Buscar" não é item da barra lateral | F01.19 lista Nova conversa, Buscar, Projetos, Aprovações, Rotinas, Memória, **Painel** na lista principal | **Vale o mockup** (Painel em Mais; busca é o campo no topo + Ctrl K). Ajustar F01.19. "Vida" aparece como "entra depois da v1" |
+| U6 | "Painel" dentro de **Mais** (a "Vida" foi cortada em 21/10/2026); "Buscar" não é item da barra lateral | F01.19 lista Nova conversa, Buscar, Projetos, Aprovações, Rotinas, Memória, **Painel** na lista principal | **Vale o mockup** (Painel em Mais; busca é o campo no topo + Ctrl K). Ajustar F01.19. a "Vida" não aparece mais (cortada em 21/10/2026) |
 | U7 | Hex dos tokens `line` etc. em **alfa branco** (`rgb(255 255 255 / .065)`) | Plano F01.01 usa `line #25272c` | Usar os valores do mockup (§4). `#25272c` ≈ alfa .065 sobre `#151618`; no instalador continua `#25272c` |
 | U8 | Seletor de provedor: Auto, Claude, Codex, Gemini, Orion | Mantém (rodadas 2–6) | Igual |
 | U9 | Aprovação "Aprovar / Negar / Ver o diff" | Mantém; sem contagem regressiva (removida) | Igual |
@@ -40,6 +53,7 @@ resumo: "Especificação completa da interface do Orion em iced/wgpu para reprod
 | U13 | Zoom da interface por CSS `zoom` (90–150%) | Escala nativa do iced | Aplicar `scale_factor` do iced; mesmos 5 degraus |
 | U14 | Grafo em **Canvas 2D** (protótipo) | **3D em wgpu** com layout por compute shader | O 3D substitui o 2D; **toda a interação, filtros, busca, detalhes e linha do tempo da §17 permanecem** |
 | U15 | Navegador integrado em `sys.browser` (existe no estado, sem controle na tela) | WebView2 isolado sob demanda | Sem controle visível na v1 |
+| U16 | Criar projeto e renomear são avisos do protótipo, sem formulário funcional | Ligação ao núcleo da v1 (F08.02/F05.18), rodada Codex de 21/10/2026 | Formulário inline em Projetos (nome, instruções e pasta existente opcional) e no rodapé do Chat (título). Foco no campo inicial, espera/erro/cancelamento. Ações ainda desconectadas ficam desabilitadas ou avisam indisponibilidade no app real; o demo mantém simulações. **Implementação parcial; comparação visual e aceite Windows pendentes**, sem afirmar aprovação de um novo desenho final |
 
 ---
 
@@ -238,7 +252,6 @@ Campo "Procurar nas conversas" (altura 32, raio 8, fundo `hover`, sem borda; foc
 | ↳ Fontes | `db` | |
 | ↳ Conhecimento | `book` | |
 | ↳ Painel | `gauge` | |
-| ↳ Vida | `heart` | |
 | ↳ Arquivadas | `archive` | |
 - Item: padding 0×10, `gap 11`, raio 8, 13.5 px `fg-2`; hover `hover`/`fg`; atual: fundo `sel`/`fg`, `aria-current="page"`.
 
@@ -422,7 +435,9 @@ Caixa mono 12/1.6, fundo `#0b0c0d`, borda `line`, raio 10, altura mínima 240. S
 ### 15.8 Arquivadas
 "Conversas arquivadas": "Só arquivam quando você pede. Desarquive para continuar ou apague de vez." Linhas: título + "{projeto} · {mês}" · **Desarquivar** (toast "Conversa desarquivada") + `trash`. Vazio: "Nenhuma conversa arquivada."
 
-### 15.9 Vida
+### 15.9 Vida (cortada em 21/10/2026)
+> Esta tela saiu do app: não há item na barra lateral, na paleta nem captura. O texto abaixo fica só como referência histórica do protótipo.
+
 "Vida": "Finanças locais, monitor de preços, linha do tempo e foco. Nada sai do computador." Caixa tracejada `soon` (padding 18, raio 14, borda tracejada `line-2`, 13.5 `fg-2`): `clock` "Entra **depois da v1**, numa fase própria. Mesmo conteúdo da tela Vida do front original: colar a fatura, revisar e lançar; preços acompanhados; linha do tempo; escudo de foco que só pergunta."
 
 ### 15.10 Painel
@@ -736,21 +751,21 @@ F01 (casca, tema, barra lateral/superior, Início, paleta, motor do céu) · F02
 ---
 
 ## 32. Critérios de aceite
-- [ ] Lado a lado com o protótipo (mesma janela, mesmos dados da §28), **cada tela e estado** é visualmente igual: posições, cores, fontes, espaçamentos, raios, sombras.
-- [ ] Tokens e fontes exatamente como §4 e §5 (Geist, Geist Mono, Newsreader embutidas).
-- [ ] Barra lateral: 272 px, recolhe com Ctrl+B, grupos de conversas, indicadores e "Mais" persistido.
-- [ ] Barra superior: pílulas (Câmera, Autônomo, Pensando/Ouvindo/Aguardando), captura rápida, "Isso?", Ctrl K, painel, controles de janela.
-- [ ] Composer: cresce até 220 px, `/` e `@` com navegação por teclado, anexos, parar resposta, repetir última com ↑.
-- [ ] Resposta: ferramentas recolhíveis, aprovação (3 estados), ações e "via" corretos; streaming com cursor.
-- [ ] Painel da direita: 4 abas, abre sozinho com aprovação pendente, some < 1120 px.
-- [ ] Todas as 13 telas de página/grafo conforme §15–16; filtro e desfazer do histórico; rotinas com `runs`.
-- [ ] Grafo: cores, raios, brilho, opacidade por foco, rótulos sem colisão, busca, filtros, "Lidas agora", linha do tempo, detalhes e grafo local — idêntico em comportamento ao protótipo, em 3D.
-- [ ] Editor com prévia ao vivo e frontmatter; "Salvar e commit".
-- [ ] Configurações: 14 seções, busca por palavra-chave, **todas** as linhas da §18 com seus textos e comportamentos (Pausar tudo e Apagar com confirmação em 2 passos).
-- [ ] Paleta Ctrl K com a ordem de resultados da §19; captura rápida com detecção do tipo; "Isso?" com seleção e resposta.
-- [ ] Mini barra de voz, Cinturão verde com voz ao vivo, legenda ao vivo.
-- [ ] Escala 90–150%, densidade, movimento reduzido, largura/tamanho/fonte do chat funcionam como no protótipo.
-- [ ] Responsivo: gaveta ≤ 760, painel da direita some ≤ 1120.
-- [ ] Atalhos corrigidos (U3, U4) e login conforme decisão (U1).
+- [~] Lado a lado com o protótipo (mesma janela, mesmos dados da §28), **cada tela e estado** é visualmente igual: posições, cores, fontes, espaçamentos, raios, sombras.
+- [~] Tokens e fontes exatamente como §4 e §5 (Geist, Geist Mono, Newsreader embutidas).
+- [~] Barra lateral: 272 px, recolhe com Ctrl+B, grupos de conversas, indicadores e "Mais" persistido.
+- [~] Barra superior: pílulas (Câmera, Autônomo, Pensando/Ouvindo/Aguardando), captura rápida, "Isso?", Ctrl K, painel, controles de janela.
+- [~] Composer: cresce até 220 px, `/` e `@` com navegação por teclado, anexos, parar resposta, repetir última com ↑.
+- [~] Resposta: ferramentas recolhíveis, aprovação (3 estados), ações e "via" corretos; streaming com cursor.
+- [~] Painel da direita: 4 abas, abre sozinho com aprovação pendente, some < 1120 px.
+- [~] Todas as 13 telas de página/grafo conforme §15–16; filtro e desfazer do histórico; rotinas com `runs`.
+- [~] Grafo: cores, raios, brilho, opacidade por foco, rótulos sem colisão, busca, filtros, "Lidas agora", linha do tempo, detalhes e grafo local — idêntico em comportamento ao protótipo, em 3D.
+- [~] Editor com prévia ao vivo e frontmatter; "Salvar e commit".
+- [~] Configurações: 14 seções, busca por palavra-chave, **todas** as linhas da §18 com seus textos e comportamentos (Pausar tudo e Apagar com confirmação em 2 passos).
+- [~] Paleta Ctrl K com a ordem de resultados da §19; captura rápida com detecção do tipo; "Isso?" com seleção e resposta.
+- [~] Mini barra de voz, Cinturão verde com voz ao vivo, legenda ao vivo.
+- [~] Escala 90–150%, densidade, movimento reduzido, largura/tamanho/fonte do chat funcionam como no protótipo.
+- [~] Responsivo: gaveta ≤ 760, painel da direita some ≤ 1120.
+- [~] Atalhos corrigidos (U3, U4) e login conforme decisão (U1).
 - [ ] 60 fps na interação, 20 fps parado no Início; RAM parada < 300 MB; janela pronta < 1 s.
 - [ ] Nenhum item da §2 permanece divergente sem registro.

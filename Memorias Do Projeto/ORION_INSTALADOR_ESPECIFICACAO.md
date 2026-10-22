@@ -15,6 +15,23 @@ resumo: "Especificação completa do Orion Setup.exe para reproduzir em iced/wgp
 
 ---
 
+## Estado da implementação — atualizado em 20/10/2026 (PR #30)
+
+Esta nota descreve o alvo. Estado canônico: [ORION.md](ORION.md); checklist por fase: [ORION_PLANO_IMPLEMENTACAO.md](ORION_PLANO_IMPLEMENTACAO.md), F10.
+
+| Parte | Estado | O que falta |
+|---|---|---|
+| Janela/etapas/céu/transições/ícone/DWM | Implementados em iced; céu RGBA calculado na CPU (crate `orion-sky`, compartilhado com o onboarding do app; quadro a 60% da resolução, ampliado para o painel) | Comparação visual quadro a quadro, DPI/hardware, snapshots no CI; shader wgpu compartilhado não existe |
+| Som | Trilha instrumental cpal, fade e mute | **Decidido 20/10/2026: remover o mute** (sempre ligado, §9); ajuste pendente no código |
+| Hardware/pastas/modelos | Detecção de SO/RAM/discos e NVIDIA; catálogo de oito artefatos | Detecção universal de GPU/Vulkan, modelos multimodais, aceite no notebook |
+| Obter o app | **Baixa `latest-<variante>.json` (+ `.minisig`) e `orion.exe`/`orion-llama.exe` do GitHub Releases** (minisign + SHA-256); sem rede usa as pastas `cpu`/`vulkan` ao lado do setup | Chave pública vazia até você gerar o par; nenhum release publicado |
+| Instalar | Cópia, registro em Apps instalados, atalho do Menu Iniciar, autostart opt-in (`--background`), identidade MSIX autoassinada (pulada e dita sem SDK/administrador), lista SHA-256, tarefa diária `orion update --check`, rollback | **Nada disso rodou num Windows real**; fixar na barra exige confirmação do Windows |
+| Desinstalador | `Orion Setup.exe --uninstall <pasta>`: janela com três caixas (app; modelos; dados), vault intocado | Prova no Windows |
+| Onboarding / mini tela "O que mudou" / canais beta e stable | Onboarding implementado no app (20–21/10/2026, 7 telas, 7 estrelas, mesmo céu); mini tela e canais pendentes | Aceite no Windows; atualização com céu |
+| Build/aceite | CPU e Vulkan compilam no CI | Critérios da §13 sem aceite |
+
+Voz, autostart, Vulkan e modelos começam desmarcados, conforme pedidos recentes; não interpretar a pré-marcação do protótipo como comportamento entregue.
+
 ## 1. Objetivo e escopo
 - Programa: **`Orion Setup.exe`**, feito em **Rust + iced 0.14**, céu desenhado em **wgpu** (widget `shader` do iced).
 - Faz: checagem do PC, escolha de pastas, escolha de modelos locais, opções, instalação (cópia, identidade de pacote, certificado, atalhos, serviço de atualização), agendamento do download dos modelos e botão **Abrir Orion**.
@@ -285,7 +302,7 @@ Desenhar = textura centrada em (x,y) com lado `size` e opacidade `alpha` (pular 
 
 ---
 
-## 9. Som ambiente (sempre ligado, sem botão)
+## 9. Som ambiente (decidido em 20/10/2026: sempre ligado, sem botão; o código atual ainda tem mudo e precisa ser ajustado)
 - Começa **ao abrir o instalador** (no app nativo não há a trava de primeiro clique do navegador).
 - Volume sobe de 0 a **0,028** (ganho linear) em **4 s**.
 - Síntese em tempo real (sem arquivo de áudio): 4 osciladores → filtro **passa-baixas 900 Hz** → saída.
@@ -303,11 +320,11 @@ Desenhar = textura centrada em (x,y) com lado `size` e opacidade `alpha` (pular 
 ## 10. Fluxo técnico da instalação
 1. **Checagens** (etapa 1): versão do Windows, RAM (`GlobalMemoryStatusEx`), GPU/VRAM (DXGI) e suporte a Vulkan, espaço por disco.
 2. **UAC** ao clicar em Instalar (etapa 4): o Setup se reinicia elevado e mantém as escolhas.
-3. Copiar o app para a pasta escolhida.
+3. Obter o pacote (baixado do GitHub Releases com minisign + SHA-256, ou das pastas `cpu`/`vulkan` ao lado do setup) e copiar o app para a pasta escolhida.
 4. Registrar o **pacote esparso** (identidade de pacote: OCR do Windows, avisos com botões).
 5. Instalar o **certificado autoassinado** do Orion (repositório de máquina "Pessoas Confiáveis").
 6. Criar o atalho no Menu Iniciar e fixar na barra de tarefas (se marcado); registrar "Iniciar com o Windows" (se marcado); registrar o desinstalador em Configurações › Aplicativos.
-7. Instalar o **serviço de atualização** (atualiza sem UAC depois).
+7. Criar a **tarefa agendada diária** (SYSTEM, sem UAC) que chama `orion update --check` (o atualizador é um subcomando de `orion.exe`; não há serviço nem `orion-updater.exe`).
 8. Gravar a lista de modelos escolhidos e a pasta; o **download acontece no app**, em segundo plano, com pausa, retomada e verificação de hash.
 9. Cada passo tem **desfazer** registrado; erro ou cancelamento desfaz em ordem inversa.
 
@@ -335,13 +352,13 @@ Desenhar = textura centrada em (x,y) com lado `size` e opacidade `alpha` (pular 
 ---
 
 ## 13. Critérios de aceite
-- [ ] Lado a lado com o protótipo (mesmo tamanho, mesmo quadro), as 5 etapas são visualmente iguais: posições, cores, fontes, espaçamentos.
-- [ ] O céu de fundo (estrelas, Via Láctea, nebulosa) é idêntico ao do protótipo com a seed 7.
-- [ ] A janela nunca muda de tamanho em nenhuma etapa nem com escala do Windows.
-- [ ] Transição entre etapas: 0,34 s de saída + 0,34 s de entrada, deslocamentos de 8 e 10 px.
-- [ ] Estrelas acendem com bloom suave de 2,4 s, sem clarão duro; o Cinturão acende em sequência (0 / 0,35 / 0,70 s).
-- [ ] Linhas crescem em 1,6 s com ease-in-out, com ponto de luz na ponta.
-- [ ] Ao concluir, o céu se ilumina aos poucos e continua respirando.
-- [ ] Som ambiente começa ao abrir, sobe em 4 s, sem botão.
-- [ ] 60 fps estáveis; "reduzir movimento" desliga as animações.
-- [ ] Voltar não apaga estrelas; fechar durante a instalação pede confirmação e desfaz.
+- [~] Lado a lado com o protótipo (mesmo tamanho, mesmo quadro), as 5 etapas são visualmente iguais: posições, cores, fontes, espaçamentos.
+- [~] O céu de fundo (estrelas, Via Láctea, nebulosa) é idêntico ao do protótipo com a seed 7.
+- [~] A janela nunca muda de tamanho em nenhuma etapa nem com escala do Windows.
+- [~] Transição entre etapas: 0,34 s de saída + 0,34 s de entrada, deslocamentos de 8 e 10 px.
+- [~] Estrelas acendem com bloom suave de 2,4 s, sem clarão duro; o Cinturão acende em sequência (0 / 0,35 / 0,70 s).
+- [~] Linhas crescem em 1,6 s com ease-in-out, com ponto de luz na ponta.
+- [~] Ao concluir, o céu se ilumina aos poucos e continua respirando.
+- [~] Som ambiente começa ao abrir, sobe em 4 s, sem botão.
+- [~] 60 fps estáveis; "reduzir movimento" desliga as animações.
+- [~] Voltar não apaga estrelas; fechar durante a instalação pede confirmação e desfaz.
