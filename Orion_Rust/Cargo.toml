@@ -81,7 +81,7 @@ orion-app = { path = "crates/orion-app" }
 orion-testkit = { path = "crates/orion-testkit" }
 orion-updater = { path = "crates/orion-updater" }
 minisign-verify = "0.2"
-minisign = "0.7"
+minisign = "0.10"
 
 [profile.release]
 lto = "thin"
