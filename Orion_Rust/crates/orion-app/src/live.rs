@@ -330,6 +330,7 @@ pub fn pull_sec(api: &Api, sec: Sec) -> Task<Msg> {
     match sec {
         Sec::Conectores => Task::batch([get("/mcp/servidores", Lm::Mcp), get("/skills", Lm::Skills)]),
         Sec::Locais => get("/modelos-locais", Lm::Modelos),
+        Sec::Modelos => Task::batch([get("/painel", Lm::Painel), get("/budget", Lm::Budget)]),
         _ => Task::none(),
     }
 }
