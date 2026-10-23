@@ -312,7 +312,10 @@ pub struct App {
     /// A conversa está colada no fim? (esconde o botão "ir ao fim")
     pub chat_end: bool,
     /// Conversas em que o usuário pediu para ver todas as mensagens (por padrão só as mais recentes são montadas).
-    pub show_all: std::collections::HashSet<usize>,
+    /// Mensagens montadas por conversa (janela que cresce ao rolar para o topo).
+    pub chat_win: std::collections::HashMap<usize, usize>,
+    /// Trecho visível da conversa (início, tamanho), de 0 a 1, para o minimapa.
+    pub chat_vp: (f32, f32),
     /// Quais chaves de provedor já estão no cofre (só sim/não).
     pub keys: std::collections::BTreeMap<String, bool>,
     pub request_id: u64,
@@ -460,6 +463,7 @@ pub enum Msg {
     /// Grava o artefato `n` (bloco de código da conversa aberta) em Documentos/Orion/Artefatos.
     ArtifactSave(usize),
     ShowAll(usize),
+    ChatJump(f32),
     KeyOpen(String),
     KeyInput(String),
     KeyCancel,
@@ -605,7 +609,8 @@ impl App {
             rename_form: None,
             key_form: None,
             chat_end: true,
-            show_all: std::collections::HashSet::new(),
+            chat_win: std::collections::HashMap::new(),
+            chat_vp: (0.0, 1.0),
             keys: std::collections::BTreeMap::new(),
             request_id: 0,
             facts: data::facts(),
@@ -975,7 +980,18 @@ impl App {
                 self.toast(s);
             }
             Msg::ChatScrolled(vp) => {
-                self.chat_end = vp.absolute_offset_reversed().y < 48.0;
+                // a lista é ancorada no fim: absolute_offset conta a distância até o fim; o _reversed, até o topo
+                self.chat_end = vp.absolute_offset().y < 48.0;
+                let (h, vh) = (vp.content_bounds().height.max(1.0), vp.bounds().height);
+                self.chat_vp = ((vp.absolute_offset_reversed().y / h).clamp(0.0, 1.0), (vh / h).clamp(0.0, 1.0));
+                // perto do topo, monta mais mensagens antigas (a âncora no fim mantém a posição)
+                if vp.absolute_offset_reversed().y < 240.0 {
+                    if let Some(ci) = self.conv {
+                        let total = self.convs.get(ci).map_or(0, |c| c.msgs.len());
+                        let w = self.chat_win.entry(ci).or_insert(crate::views::chat::JANELA);
+                        if *w < total { *w = (*w + crate::views::chat::JANELA).min(total); }
+                    }
+                }
             }
             Msg::ArtifactSave(n) => {
                 let Some(c) = self.conv.and_then(|i| self.convs.get(i)) else { return Task::none() };
@@ -1017,7 +1033,13 @@ impl App {
                 return iced::widget::operation::snap_to("chat-scroll", iced::widget::scrollable::RelativeOffset::START);
             }
             Msg::ShowAll(i) => {
-                self.show_all.insert(i);
+                let total = self.convs.get(i).map_or(0, |c| c.msgs.len());
+                self.chat_win.insert(i, total);
+            }
+            Msg::ChatJump(f) => {
+                // a lista é ancorada no fim: o deslocamento relativo é contado de baixo para cima
+                let y = (1.0 - f).clamp(0.0, 1.0);
+                return iced::widget::operation::snap_to("chat-scroll", iced::widget::scrollable::RelativeOffset { x: 0.0, y });
             }
             Msg::KeyOpen(nome) => {
                 if self.key_form.as_ref().is_some_and(|f| f.busy) { return Task::none(); }

@@ -32,6 +32,30 @@ fn avail_width(app: &App) -> f32 {
     app.win.width - side - ctx
 }
 
+pub const JANELA: usize = 60;
+
+/// Minimapa: uma faixa fina com um bloco por mensagem (altura ~ tamanho do texto); o trecho visível fica claro.
+fn minimapa<'a>(app: &'a App, c: &'a crate::data::Conv) -> El<'a> {
+    let peso = |m: &ChatMsg| -> u16 { let n = match m { ChatMsg::User(s) => s.len(), ChatMsg::Orion(o) => o.body.len() }; ((n / 80) + 2).min(400) as u16 };
+    let total: f32 = c.msgs.iter().map(|m| peso(m) as f32).sum::<f32>().max(1.0);
+    let (ini, tam) = app.chat_vp;
+    let mut col = column![].spacing(1).width(Length::Fixed(6.0)).height(Length::Fill);
+    let mut acc = 0.0f32;
+    for m in &c.msgs {
+        let w = peso(m);
+        let (a, b) = (acc / total, (acc + w as f32) / total);
+        acc += w as f32;
+        let visivel = b > ini && a < ini + tam;
+        let user = matches!(m, ChatMsg::User(_));
+        let cor = if visivel { t::FG2 } else if user { t::LINE2 } else { t::LINE };
+        let alvo = (a + b) / 2.0;
+        col = col.push(
+            button(sp_w(0.0)).padding(0).width(Length::Fill).height(Length::FillPortion(w)).on_press(Msg::ChatJump(alvo)).style(move |_, _| button::Style { background: Some(cor.into()), border: Border { radius: 2.0.into(), ..Default::default() }, ..Default::default() }),
+        );
+    }
+    container(col).height(Length::Fill).padding(pad(10.0, 4.0, 14.0, 4.0)).into()
+}
+
 pub fn view(app: &App) -> El<'_> {
     let Some(ci) = app.conv else { return sp_w(0.0) };
     let c = &app.convs[ci];
@@ -54,8 +78,8 @@ pub fn view(app: &App) -> El<'_> {
         }
         let last_orion = c.msgs.iter().rposition(|m| matches!(m, ChatMsg::Orion(_)));
         // Só as mensagens mais recentes são montadas (lista longa pesa no layout); o resto abre sob demanda.
-        const JANELA: usize = 60;
-        let primeira = if c.msgs.len() > JANELA && !app.show_all.contains(&ci) { c.msgs.len() - JANELA } else { 0 };
+        let mostradas = app.chat_win.get(&ci).copied().unwrap_or(JANELA).max(JANELA);
+        let primeira = c.msgs.len().saturating_sub(mostradas);
         if primeira > 0 {
             col = col.push(
                 container(btn(&format!("Mostrar {primeira} mensagens anteriores"), Kind::Ghost, true, None, Some(Msg::ShowAll(ci)))).width(Length::Fill).center_x(Length::Fill),
@@ -76,7 +100,8 @@ pub fn view(app: &App) -> El<'_> {
         } else {
             container(btn("Ir ao fim", Kind::Normal, true, Some("chevD"), Some(Msg::ChatEnd))).width(Length::Fill).height(Length::Fill).center_x(Length::Fill).align_y(Vertical::Bottom).padding(pad(0.0, 0.0, 14.0, 0.0)).into()
         };
-        iced::widget::stack![lista, fim].into()
+        let mapa: El = if c.msgs.len() >= 8 { container(minimapa(app, c)).width(Length::Fill).height(Length::Fill).align_x(Horizontal::Right).into() } else { sp_w(0.0) };
+        iced::widget::stack![lista, fim, mapa].into()
     };
 
     let mut tail = column![].spacing(6).width(Length::Fixed((width - 32.0).min(app.win.width - 64.0))).align_x(Horizontal::Center);
