@@ -984,12 +984,17 @@ impl App {
                 self.chat_end = vp.absolute_offset().y < 48.0;
                 let (h, vh) = (vp.content_bounds().height.max(1.0), vp.bounds().height);
                 self.chat_vp = ((vp.absolute_offset_reversed().y / h).clamp(0.0, 1.0), (vh / h).clamp(0.0, 1.0));
-                // perto do topo, monta mais mensagens antigas (a âncora no fim mantém a posição)
-                if vp.absolute_offset_reversed().y < 240.0 {
-                    if let Some(ci) = self.conv {
-                        let total = self.convs.get(ci).map_or(0, |c| c.msgs.len());
-                        let w = self.chat_win.entry(ci).or_insert(crate::views::chat::JANELA);
-                        if *w < total { *w = (*w + crate::views::chat::JANELA).min(total); }
+                // Janela virtual: só monta as mensagens que cobrem (distância até o fim + tela + 2400 px de folga).
+                // A lista é ancorada no fim, então tirar mensagens do topo não move o que está na tela, e
+                // incluir mais ao chegar perto do topo também não. Altura média = conteúdo / mensagens montadas.
+                if let Some(ci) = self.conv {
+                    let total = self.convs.get(ci).map_or(0, |c| c.msgs.len());
+                    let atual = self.chat_win.get(&ci).copied().unwrap_or(crate::views::chat::JANELA).clamp(1, total.max(1));
+                    let media = (h / atual.min(total).max(1) as f32).max(40.0);
+                    let alvo = (((vp.absolute_offset().y + vh + 2400.0) / media).ceil() as usize).clamp(crate::views::chat::JANELA, total.max(crate::views::chat::JANELA));
+                    // histerese: cresce já, encolhe só quando sobram mais de 20 mensagens (evita vaivém)
+                    if alvo > atual || alvo + 20 < atual {
+                        self.chat_win.insert(ci, alvo);
                     }
                 }
             }
@@ -1033,8 +1038,8 @@ impl App {
                 return iced::widget::operation::snap_to("chat-scroll", iced::widget::scrollable::RelativeOffset::START);
             }
             Msg::ShowAll(i) => {
-                let total = self.convs.get(i).map_or(0, |c| c.msgs.len());
-                self.chat_win.insert(i, total);
+                let atual = self.chat_win.get(&i).copied().unwrap_or(crate::views::chat::JANELA);
+                self.chat_win.insert(i, atual + crate::views::chat::JANELA * 2);
             }
             Msg::ChatJump(f) => {
                 // a lista é ancorada no fim: o deslocamento relativo é contado de baixo para cima

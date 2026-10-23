@@ -138,15 +138,22 @@ pub fn parse(lines: &[String]) -> Option<Diagram> {
         }
         for stmt in line.split(';') {
             let mut rest = stmt.trim();
-            let Some((id, label, shape, r)) = node_ref(rest) else { continue };
+            if rest.is_empty() {
+                continue;
+            }
+            // sintaxe que não entendemos (`A & B --> C`, estilos inline...): o código aparece inteiro em vez de um diagrama incompleto
+            let Some((id, label, shape, r)) = node_ref(rest) else { return None };
             let mut prev = ensure(&mut nodes, id, label, shape);
             rest = r;
             while let Some((lab, dashed, r)) = arrow(rest) {
-                let Some((id, label, shape, r)) = node_ref(r) else { break };
+                let Some((id, label, shape, r)) = node_ref(r) else { return None };
                 let cur = ensure(&mut nodes, id, label, shape);
                 edges.push((prev, cur, lab, dashed));
                 prev = cur;
                 rest = r;
+            }
+            if !rest.trim().is_empty() {
+                return None;
             }
         }
     }

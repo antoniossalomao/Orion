@@ -78,12 +78,12 @@ pub fn view(app: &App) -> El<'_> {
             col = col.push(dashed(container(row![icon("pin", 16.0, t::FG3), tx(format!("Fixado: {p}"), 12.5, t::FG2)].spacing(8).align_y(Vertical::Center)).width(Length::Fill).padding(pad(8.0, 12.0, 8.0, 12.0)), 10.0, t::LINE2));
         }
         let last_orion = c.msgs.iter().rposition(|m| matches!(m, ChatMsg::Orion(_)));
-        // Só as mensagens mais recentes são montadas (lista longa pesa no layout); o resto abre sob demanda.
+        // Janela virtual: só as mensagens perto da tela são montadas (ver ChatScrolled); as mais antigas voltam ao rolar para cima.
         let mostradas = app.chat_win.get(&ci).copied().unwrap_or(JANELA).max(JANELA);
         let primeira = c.msgs.len().saturating_sub(mostradas);
         if primeira > 0 {
             col = col.push(
-                container(btn(&format!("Mostrar {primeira} mensagens anteriores"), Kind::Ghost, true, None, Some(Msg::ShowAll(ci)))).width(Length::Fill).center_x(Length::Fill),
+                container(btn(&format!("Carregar mais ({primeira} anteriores)"), Kind::Ghost, true, None, Some(Msg::ShowAll(ci)))).width(Length::Fill).center_x(Length::Fill),
             );
         }
         for (mi, m) in c.msgs.iter().enumerate().skip(primeira) {
