@@ -120,7 +120,12 @@ pub fn parse(lines: &[String]) -> Option<Diagram> {
     if !matches!(w.next()?, "graph" | "flowchart") {
         return None;
     }
-    let horizontal = matches!(w.next().unwrap_or("TD"), "LR" | "RL");
+    // o cabeçalho é só `graph|flowchart [direção]`: qualquer coisa a mais (`TD; A --> B`) volta ao código
+    let dir = w.next().unwrap_or("TD");
+    if !matches!(dir, "TD" | "TB" | "BT" | "LR" | "RL") || w.next().is_some() {
+        return None;
+    }
+    let horizontal = matches!(dir, "LR" | "RL");
     let mut nodes: Vec<Node> = Vec::new();
     let mut edges: Vec<(usize, usize, String, bool)> = Vec::new();
     let mut heads: Vec<bool> = Vec::new();
