@@ -159,6 +159,7 @@ Tamanho: **P** = até meio dia, **M** = 1 dia, **G** = mais de 1 dia. Executor: 
 - **Aceite:** nunca fica janela em branco ou parada; o progresso muda conforme as etapas.
 
 #### R1.08 · P1 · M · Qualidade visual
+- **Atualização (teste em casa, wgpu):** a qualidade no notebook com GPU foi **muito superior**; o borrado e a fonte estranha vieram do desenho por CPU no PC sem GPU. Fonte e nitidez deixam de ser urgentes e só voltam se o problema aparecer com GPU. Fica o pedido do Antônio: **animação da constelação ainda melhor** (com GPU, mais fluida e bonita, sem custo em repouso, ver R1.15).
 - **O que fazer:** constelação nítida na resolução da janela; revisar fonte e alinhamento. **Depende dos prints** do Antônio.
 
 #### R1.09 · P2 · P · Faixa branca no topo
