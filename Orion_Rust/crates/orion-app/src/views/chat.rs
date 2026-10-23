@@ -69,12 +69,14 @@ pub fn view(app: &App) -> El<'_> {
         }
         let body = container(col).width(Length::Fill).center_x(Length::Fill).padding(pad(28.0, 0.0, 36.0, 0.0));
         let lista = scrollable(body).id("chat-scroll").on_scroll(Msg::ChatScrolled).direction(scrollable::Direction::Vertical(thin_bar())).style(thin_scroll).anchor_bottom().height(Length::Fill);
-        if app.chat_end {
-            lista.into()
+        // O Scrollable fica sempre na mesma posição da árvore (dentro do stack): trocar de tipo recriaria o widget e
+        // perderia a posição de rolagem. Só a camada do botão aparece e some.
+        let fim: El = if app.chat_end {
+            sp_w(0.0)
         } else {
-            let fim = container(btn("Ir ao fim", Kind::Normal, true, Some("chevD"), Some(Msg::ChatEnd))).width(Length::Fill).height(Length::Fill).center_x(Length::Fill).align_y(Vertical::Bottom).padding(pad(0.0, 0.0, 14.0, 0.0));
-            iced::widget::stack![lista, fim].into()
-        }
+            container(btn("Ir ao fim", Kind::Normal, true, Some("chevD"), Some(Msg::ChatEnd))).width(Length::Fill).height(Length::Fill).center_x(Length::Fill).align_y(Vertical::Bottom).padding(pad(0.0, 0.0, 14.0, 0.0)).into()
+        };
+        iced::widget::stack![lista, fim].into()
     };
 
     let mut tail = column![].spacing(6).width(Length::Fixed((width - 32.0).min(app.win.width - 64.0))).align_x(Horizontal::Center);

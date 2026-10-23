@@ -209,7 +209,16 @@ fn section<'a>(app: &'a App) -> El<'a> {
                 }
                 for (i, e) in eps.iter().enumerate() {
                     let nome = e["nome"].as_str().or(e["name"].as_str()).unwrap_or("modelo").to_string();
-                    c = c.push(setting_el(row![mono_muted(&(i + 1).to_string()), tx(nome, 13.5, t::FG)].spacing(8).into(), "", badge(e["estado"].as_str().unwrap_or("ativo"), Tone::Ok)));
+                    c = c.push(setting_el(row![mono_muted(&(i + 1).to_string()), tx(nome, 13.5, t::FG)].spacing(8).into(), "", {
+                        // mesmo critério do painel do núcleo: em quarentena (limite ou falhas seguidas) o provedor não está ativo
+                        let seg = e["quarentena_s"].as_i64().unwrap_or(0);
+                        if seg > 0 {
+                            let motivo = if e["motivo"].as_str() == Some("falhas") { "pausa por falhas" } else { "quarentena" };
+                            badge(&format!("{motivo} · {}", if seg >= 60 { format!("{} min", seg / 60) } else { format!("{seg} s") }), Tone::Err)
+                        } else {
+                            badge("ativo", Tone::Ok)
+                        }
+                    }));
                 }
                 c = c.push(sh("Chaves de API"));
                 c = c.push(lede("Guardadas no cofre do sistema (Credential Manager). Uma chave nova vale na próxima abertura do Orion."));

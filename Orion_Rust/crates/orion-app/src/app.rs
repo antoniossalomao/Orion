@@ -982,16 +982,29 @@ impl App {
                 let Some((lang, body)) = crate::views::ctx::artifacts(c).into_iter().nth(n) else { return Task::none() };
                 let ext = crate::views::ctx::ext_of(&lang);
                 let ts = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
-                let nome = format!("artefato-{}-{ts}.{ext}", n + 1);
+                let conv_id = self.conv.and_then(|i| self.convs.get(i)).map(|c| c.id.chars().take(8).collect::<String>()).unwrap_or_default();
+                let base = format!("artefato-{conv_id}-{}-{ts}", n + 1);
                 return Task::perform(
                     async move {
                         tokio::task::spawn_blocking(move || -> Result<String, String> {
                             let home = std::env::var_os("USERPROFILE").or_else(|| std::env::var_os("HOME")).ok_or("pasta do usuário desconhecida")?;
                             let dir = std::path::PathBuf::from(home).join("Documents").join("Orion").join("Artefatos");
                             std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-                            let alvo = dir.join(&nome);
-                            std::fs::write(&alvo, body).map_err(|e| e.to_string())?;
-                            Ok(alvo.display().to_string())
+                            // criação exclusiva: salvar de novo nunca sobrescreve um export anterior (tenta -2, -3, ...)
+                            use std::io::Write;
+                            for k in 1..=99 {
+                                let nome = if k == 1 { format!("{base}.{ext}") } else { format!("{base}-{k}.{ext}") };
+                                let alvo = dir.join(nome);
+                                match std::fs::OpenOptions::new().write(true).create_new(true).open(&alvo) {
+                                    Ok(mut f) => {
+                                        f.write_all(body.as_bytes()).map_err(|e| e.to_string())?;
+                                        return Ok(alvo.display().to_string());
+                                    }
+                                    Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                                    Err(e) => return Err(e.to_string()),
+                                }
+                            }
+                            Err("nomes de arquivo esgotados".to_string())
                         })
                         .await
                         .map_err(|e| e.to_string())?

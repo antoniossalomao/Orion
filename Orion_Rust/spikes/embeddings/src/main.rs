@@ -17,9 +17,9 @@ fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
-struct Doc { title: String, body: String, resumo: String }
+struct Doc { key: String, title: String, body: String, resumo: String }
 
-fn parse(path: &Path) -> Option<Doc> {
+fn parse(root: &Path, path: &Path) -> Option<Doc> {
     let t = std::fs::read_to_string(path).ok()?;
     let rest = t.strip_prefix("---\n")?;
     let end = rest.find("\n---")?;
@@ -27,7 +27,9 @@ fn parse(path: &Path) -> Option<Doc> {
     let resumo = fm.lines().find_map(|l| l.strip_prefix("resumo:"))?.trim().trim_matches('"').trim_matches('\'').to_string();
     if resumo.chars().count() < 40 || body.chars().count() < 300 { return None; }
     let title = path.file_stem()?.to_string_lossy().to_string();
-    Some(Doc { title, body: body.to_string(), resumo })
+    // a chave é o caminho relativo: dois `README.md` em pastas diferentes não podem colidir
+    let key = path.strip_prefix(root).unwrap_or(path).to_string_lossy().to_string();
+    Some(Doc { key, title, body: body.to_string(), resumo })
 }
 
 fn embed(sess: &mut Session, tok: &Tokenizer, texts: &[String]) -> Result<Vec<Vec<f32>>> {
@@ -73,14 +75,16 @@ fn main() -> Result<()> {
     let mut files = Vec::new();
     walk(Path::new(&a[1]), &mut files);
     files.sort();
-    let docs: Vec<Doc> = files.iter().filter_map(|p| parse(p)).collect();
+    let root = Path::new(&a[1]);
+    let docs: Vec<Doc> = files.iter().filter_map(|p| parse(root, p)).collect();
     // Corpus: todas as notas do vault (as sem `resumo` entram como distratores).
-    let corpus: Vec<(String, String)> = files.iter().filter_map(|p| {
+    let corpus: Vec<(String, String, String)> = files.iter().filter_map(|p| {
         let t = std::fs::read_to_string(p).ok()?;
         let body = match t.strip_prefix("---\n").and_then(|r| r.find("\n---").map(|e| r[e + 4..].to_string())) { Some(b) => b, None => t };
-        Some((p.file_stem()?.to_string_lossy().to_string(), body))
+        let key = p.strip_prefix(root).unwrap_or(p).to_string_lossy().to_string();
+        Some((key, p.file_stem()?.to_string_lossy().to_string(), body))
     }).collect();
-    let idx_of: HashMap<&str, usize> = corpus.iter().enumerate().map(|(i, (t, _))| (t.as_str(), i)).collect();
+    let idx_of: HashMap<&str, usize> = corpus.iter().enumerate().map(|(i, (k, _, _))| (k.as_str(), i)).collect();
     let step = (docs.len() / maxq).max(1);
     let queries: Vec<&Doc> = docs.iter().step_by(step).take(maxq).collect();
     println!("corpus={} notas, consultas={} (resumo -> nota)", corpus.len(), queries.len());
@@ -89,7 +93,7 @@ fn main() -> Result<()> {
     let db = rusqlite::Connection::open_in_memory()?;
     db.execute_batch("CREATE VIRTUAL TABLE f USING fts5(title, body, tokenize='unicode61 remove_diacritics 2');")?;
     let t0 = Instant::now();
-    for (i, (t, b)) in corpus.iter().enumerate() {
+    for (i, (_, t, b)) in corpus.iter().enumerate() {
         db.execute("INSERT INTO f(rowid,title,body) VALUES (?,?,?)", rusqlite::params![i as i64, t, b])?;
     }
     let fts_index = t0.elapsed();
@@ -111,7 +115,7 @@ fn main() -> Result<()> {
     let t0 = Instant::now();
     let mut emb: Vec<Vec<f32>> = Vec::with_capacity(corpus.len());
     for chunk in corpus.chunks(8) {
-        let texts: Vec<String> = chunk.iter().map(|(t, b)| format!("passage: {t}. {}", b.chars().take(1500).collect::<String>())).collect();
+        let texts: Vec<String> = chunk.iter().map(|(_, t, b)| format!("passage: {t}. {}", b.chars().take(1500).collect::<String>())).collect();
         emb.extend(embed(&mut sess, &tok, &texts)?);
     }
     let emb_index = t0.elapsed();
@@ -120,7 +124,7 @@ fn main() -> Result<()> {
     let (mut r_f, mut r_e, mut r_h) = (vec![], vec![], vec![]);
     let mut qlat = vec![];
     for d in &queries {
-        let target = idx_of[d.title.as_str()];
+        let target = idx_of[d.key.as_str()];
         let order_f = fts(&d.resumo);
         let t = Instant::now();
         let q = embed(&mut sess, &tok, &[format!("query: {}", d.resumo)])?.remove(0);

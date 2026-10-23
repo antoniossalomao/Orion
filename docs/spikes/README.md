@@ -32,7 +32,7 @@ Cancelado: WebView2 (F00.19, decisão de 20/10/2026).
 | e5-small | 0,680 | 0,887 | 0,772 |
 | híbrido (RRF) | 0,787 | 0,940 | 0,858 |
 
-Indexar 1.064 notas: FTS5 0,6 s; embeddings 70 s (15 notas/s, 4 vCPU). Consulta: 10 ms. RAM: +146 MB com o modelo (pico ~640 MB em lote). Modelo: 118 MB, baixado pelo instalador. Ganho do híbrido: +6,4 pontos em R@1; FTS5 já acerta 93% no top 5. Consistente com a decisão BM25 + LSA; embeddings só se o ganho de R@1 compensar 118 MB e 70 s de indexação. Limite: consultas vêm do `resumo`, que tem sobreposição lexical alta.
+Indexar 1.064 notas: FTS5 0,6 s; embeddings 70 s (15 notas/s, 4 vCPU). Consulta: 10 ms. RAM: +146 MB com o modelo (pico ~640 MB em lote). Modelo: 118 MB, baixado pelo instalador. Ganho do híbrido: +6,4 pontos em R@1; FTS5 já acerta 93% no top 5. Consistente com a decisão BM25 + LSA; embeddings só se o ganho de R@1 compensar 118 MB e 70 s de indexação. Limite: consultas vêm do `resumo`, que tem sobreposição lexical alta. A chave de cada nota passou a ser o caminho relativo (antes era só o nome do arquivo); no vault real havia 3 nomes repetidos (dois relatórios e um README), o que afetaria no máximo 2 das 300 consultas, e os números não foram refeitos.
 
 **F00.17 banco** (`spikes/banco`): SQLCipher 4.5.7 + FTS5 + sqlite-vec 0.1.9 + log de eventos no mesmo arquivo, funcionando (arquivo cifrado, senha errada recusada, UPDATE/DELETE do log bloqueados por trigger, cadeia de hash detecta adulteração). 10.000 itens × 384 dim: inserir tudo em 0,6 s; KNN k=10 em 52 ms (varredura exata); FTS5 1,6 ms; híbrido FTS5 como filtro do `vec0` 54 ms. `sqlite-vec` 0.1.10-alpha.4 não compila (falta arquivo no pacote): fixar `=0.1.9`. Falta validar no Windows.
 

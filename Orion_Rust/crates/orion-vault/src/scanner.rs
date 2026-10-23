@@ -61,11 +61,7 @@ fn cpf_valid(s: &str) -> bool {
     })
 }
 
-fn luhn_valid(s: &str) -> bool {
-    let d = digits(s);
-    if !(13..=19).contains(&d.len()) {
-        return false;
-    }
+fn luhn_ok(d: &[u32]) -> bool {
     let sum: u32 = d
         .iter()
         .rev()
@@ -86,6 +82,13 @@ fn luhn_valid(s: &str) -> bool {
     sum % 10 == 0
 }
 
+/// O número do cartão é o começo da sequência de dígitos que passa no Luhn (13 a 19 dígitos): o que vem depois
+/// (validade, CVV) cola nos dígitos do número e não pode impedir a detecção.
+fn card_valid(s: &str) -> bool {
+    let d = digits(s);
+    (13..=19).any(|n| n <= d.len() && luhn_ok(&d[..n]))
+}
+
 // CNPJ fica de fora de propósito: é dado público de empresa (o vault real só o tinha como exemplo em nota técnica).
 static PII_RULES: [PiiRule; 5] = [
     PiiRule {
@@ -104,7 +107,7 @@ static PII_RULES: [PiiRule; 5] = [
         name: "Agência/conta bancária",
         re: LazyLock::new(|| {
             Regex::new(
-                r"(?i)\b(?:ag(?:[eê]ncia)?\.?|conta(?: corrente)?|c/c)\s*:?\s*\d{3,6}(?:-?\d)?\b",
+                r"(?i)\b(?:ag(?:[eê]ncia)?\.?\s*:?\s*\d{3,5}(?:-?[0-9x])?|(?:conta(?: corrente)?|c/c)\s*:?\s*\d{4,12}(?:-?[0-9x])?)\b",
             )
             .unwrap()
         }),
@@ -120,7 +123,7 @@ static PII_RULES: [PiiRule; 5] = [
         re: LazyLock::new(|| {
             Regex::new(r"(?i)\b(?:cart[aã]o|card)\b[^\n\d]{0,20}((?:\d[ -]?){13,19})\b").unwrap()
         }),
-        check: Some(luhn_valid),
+        check: Some(card_valid),
     },
 ];
 
