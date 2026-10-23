@@ -31,6 +31,8 @@ pub struct Diagram {
     edges: Vec<(usize, usize, String, bool)>, // de, para, rótulo, tracejada
     /// por aresta: coordenada transversal do desvio, quando a reta passaria por cima de outro nó
     via: Vec<Option<f32>>,
+    /// por aresta: tem ponta de seta (`-->`) ou é sem direção (`---`)
+    heads: Vec<bool>,
     pub width: f32,
     pub height: f32,
 }
@@ -73,11 +75,12 @@ fn node_ref(s: &str) -> Option<(String, Option<String>, Shape, &str)> {
     Some((id, None, Shape::Rect, rest))
 }
 
-/// Lê uma seta e o rótulo opcional; devolve (rótulo, tracejada, resto).
-fn arrow(s: &str) -> Option<(String, bool, &str)> {
+/// Lê uma seta e o rótulo opcional; devolve (rótulo, tracejada, com ponta, resto).
+fn arrow(s: &str) -> Option<(String, bool, bool, &str)> {
     let s = s.trim_start();
     let mut rest;
     let mut dashed = false;
+    let mut head = true;
     let mut label = String::new();
     if let Some(r) = s.strip_prefix("-.->") {
         dashed = true;
@@ -87,6 +90,7 @@ fn arrow(s: &str) -> Option<(String, bool, &str)> {
     } else if let Some(r) = s.strip_prefix("-->") {
         rest = r;
     } else if let Some(r) = s.strip_prefix("---") {
+        head = false;
         rest = r;
     } else if let Some(r) = s.strip_prefix("--") {
         // `-- texto -->`
@@ -102,7 +106,7 @@ fn arrow(s: &str) -> Option<(String, bool, &str)> {
         label = r[..fim].trim().trim_matches('"').to_string();
         rest = &r[fim + 1..];
     }
-    Some((label, dashed, rest))
+    Some((label, dashed, head, rest))
 }
 
 fn split_label(s: &str) -> Vec<String> {
@@ -119,6 +123,7 @@ pub fn parse(lines: &[String]) -> Option<Diagram> {
     let horizontal = matches!(w.next().unwrap_or("TD"), "LR" | "RL");
     let mut nodes: Vec<Node> = Vec::new();
     let mut edges: Vec<(usize, usize, String, bool)> = Vec::new();
+    let mut heads: Vec<bool> = Vec::new();
     let ensure = |nodes: &mut Vec<Node>, id: String, label: Option<String>, shape: Shape| -> usize {
         if let Some(i) = nodes.iter().position(|n| n.id == id) {
             if let Some(l) = label {
@@ -145,10 +150,11 @@ pub fn parse(lines: &[String]) -> Option<Diagram> {
             let Some((id, label, shape, r)) = node_ref(rest) else { return None };
             let mut prev = ensure(&mut nodes, id, label, shape);
             rest = r;
-            while let Some((lab, dashed, r)) = arrow(rest) {
+            while let Some((lab, dashed, head, r)) = arrow(rest) {
                 let Some((id, label, shape, r)) = node_ref(r) else { return None };
                 let cur = ensure(&mut nodes, id, label, shape);
                 edges.push((prev, cur, lab, dashed));
+                heads.push(head);
                 prev = cur;
                 rest = r;
             }
@@ -162,7 +168,7 @@ pub fn parse(lines: &[String]) -> Option<Diagram> {
         return None;
     }
     let via = vec![None; edges.len()];
-    let mut d = Diagram { horizontal, nodes, edges, via, width: 0.0, height: 0.0 };
+    let mut d = Diagram { horizontal, nodes, edges, via, heads, width: 0.0, height: 0.0 };
     d.layout();
     Some(d)
 }
@@ -324,7 +330,9 @@ impl<M> canvas::Program<M> for Diagram {
                 bd.line_to(Point::new(pb.x - tam * (ang + 0.45).cos(), pb.y - tam * (ang + 0.45).sin()));
                 bd.close();
             });
-            f.fill(&ponta, t::FG3);
+            if self.heads[k] {
+                f.fill(&ponta, t::FG3);
+            }
             if !lab.is_empty() {
                 // com desvio, o rótulo fica no trecho do meio; sem desvio, no meio da reta
                 let (m1, m2) = if pts.len() == 4 { (pts[1], pts[2]) } else { (pts[0], pts[1]) };
