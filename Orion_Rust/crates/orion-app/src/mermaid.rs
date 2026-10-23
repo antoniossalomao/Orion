@@ -150,7 +150,8 @@ pub fn parse(lines: &[String]) -> Option<Diagram> {
             }
         }
     }
-    if nodes.is_empty() || nodes.len() > 60 {
+    // laço em si mesmo não é desenhado: devolve None para o código aparecer inteiro
+    if nodes.is_empty() || nodes.len() > 60 || edges.iter().any(|e| e.0 == e.1) {
         return None;
     }
     let via = vec![None; edges.len()];

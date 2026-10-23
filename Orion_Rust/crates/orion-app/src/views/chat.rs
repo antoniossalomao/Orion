@@ -35,13 +35,14 @@ fn avail_width(app: &App) -> f32 {
 pub const JANELA: usize = 60;
 
 /// Minimapa: uma faixa fina com um bloco por mensagem (altura ~ tamanho do texto); o trecho visível fica claro.
-fn minimapa<'a>(app: &'a App, c: &'a crate::data::Conv) -> El<'a> {
+fn minimapa<'a>(app: &'a App, c: &'a crate::data::Conv, primeira: usize) -> El<'a> {
     let peso = |m: &ChatMsg| -> u16 { let n = match m { ChatMsg::User(s) => s.len(), ChatMsg::Orion(o) => o.body.len() }; ((n / 80) + 2).min(400) as u16 };
-    let total: f32 = c.msgs.iter().map(|m| peso(m) as f32).sum::<f32>().max(1.0);
+    // só as mensagens montadas: o deslocamento da rolagem é relativo a elas, não à conversa inteira
+    let total: f32 = c.msgs.iter().skip(primeira).map(|m| peso(m) as f32).sum::<f32>().max(1.0);
     let (ini, tam) = app.chat_vp;
     let mut col = column![].spacing(1).width(Length::Fixed(6.0)).height(Length::Fill);
     let mut acc = 0.0f32;
-    for m in &c.msgs {
+    for m in c.msgs.iter().skip(primeira) {
         let w = peso(m);
         let (a, b) = (acc / total, (acc + w as f32) / total);
         acc += w as f32;
@@ -100,7 +101,7 @@ pub fn view(app: &App) -> El<'_> {
         } else {
             container(btn("Ir ao fim", Kind::Normal, true, Some("chevD"), Some(Msg::ChatEnd))).width(Length::Fill).height(Length::Fill).center_x(Length::Fill).align_y(Vertical::Bottom).padding(pad(0.0, 0.0, 14.0, 0.0)).into()
         };
-        let mapa: El = if c.msgs.len() >= 8 { container(minimapa(app, c)).width(Length::Fill).height(Length::Fill).align_x(Horizontal::Right).into() } else { sp_w(0.0) };
+        let mapa: El = if c.msgs.len() - primeira >= 8 { container(minimapa(app, c, primeira)).width(Length::Fill).height(Length::Fill).align_x(Horizontal::Right).into() } else { sp_w(0.0) };
         iced::widget::stack![lista, fim, mapa].into()
     };
 
