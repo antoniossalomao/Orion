@@ -115,7 +115,7 @@ static PII_RULES: [PiiRule; 5] = [
     },
     PiiRule {
         name: "Chave PIX",
-        re: LazyLock::new(|| Regex::new(r"(?i)\bchave\s+pix\b[^\n]{0,20}[:=]\s*\S{5,}").unwrap()),
+        re: LazyLock::new(|| Regex::new(r"(?i)\bchave\s+pix\b[^\n]{0,20}[:=]\s*(?:\+?\(?\d[\d()\s.-]{6,}\d|\S{5,})").unwrap()),
         check: None,
     },
     PiiRule {
