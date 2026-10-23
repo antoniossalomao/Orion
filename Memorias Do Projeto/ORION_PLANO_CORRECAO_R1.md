@@ -71,6 +71,7 @@
 - **wgpu é o caminho certo com GPU real.** O tiny-skia só deve entrar quando o adaptador for de CPU (WARP). Confirma o plano da R1.02, item 1.
 - **Mesmo no wgpu, 22% de CPU e 33% de GPU numa tela parada** (grafo de 475 notas e 3.632 links): há redesenho contínuo. Reforça a R1.15 (cache da geometria do grafo, parar de redesenhar sem movimento).
 - **RAM do notebook: 7,4 de 7,7 GB em uso (96%)**, 324 MB livres, com Brave, Notion, VS Code, Spotify e outros abertos. Em memória cheia o Windows usa o disco como RAM, e isso trava tudo. Falta medir quanto é do `orion.exe` (Gerenciador de Tarefas, aba Detalhes) e repetir com os outros apps fechados.
+- **Minimizado ainda gasta ~18% de GPU** (relato do Antônio). Causa no código: `app.rs` mantém um `time::every` de 60 ms (16 ms quando ocupado) que dispara `Msg::Tick` sempre, e nada pausa com a janela minimizada ou sem foco. Corrigir na R1.15: ouvir eventos de janela (minimizar, foco) e parar o tick e o redesenho enquanto a janela não está visível; o tick de 250 ms da bandeja (`Msg::Bandeja`) pode continuar.
 - **Barra de título duplicada e faixa branca no topo:** o Windows 11 desenha a barra nativa branca ("Orion" com minimizar, maximizar e fechar) por cima, e o app desenha os seus botões logo abaixo. Entra na R1.03 e na R1.09.
 
 ---
@@ -146,8 +147,9 @@ Tamanho: **P** = até meio dia, **M** = 1 dia, **G** = mais de 1 dia. Executor: 
   3. **Chat e Memória:** cache de `md::parse`, Mermaid, LaTeX e imagens por mensagem (junto da R1.02, item 3); não refazer a lista inteira ao digitar; stream atualizando só a última mensagem.
   4. **Constelação de fundo:** só anima quando a tela precisa; parada por padrão fora do login.
   5. **Limite de quadros:** redesenhar só com evento ou animação ativa.
+  6. **Janela minimizada ou sem foco:** pausar `Msg::Tick` e o redesenho (hoje o tick de 60 ms roda sempre, e minimizado ainda gasta ~18% de GPU).
 - **Arquivos prováveis:** `orion-app/src/views/chat.rs`, `views/memory*.rs`, `views/graph*.rs`, `md.rs`, `app.rs` (subscrições de tempo), `run.rs`.
-- **Aceite:** no notebook de casa, entrar em Chat, Memória e grafo sem o cursor travar; CPU em repouso abaixo de ~3%; stream de resposta fluido; sem regressão visual.
+- **Aceite:** no notebook de casa, entrar em Chat, Memória e grafo sem o cursor travar; CPU em repouso abaixo de ~3%; GPU perto de 0% com a janela minimizada; stream de resposta fluido; sem regressão visual.
 - **Depende de:** diagnóstico do Antônio (seção 2.1); no Linux dá para medir CPU em repouso e tempo de quadro com o harness.
 
 ### Onda 2: acabamento e fluxo
