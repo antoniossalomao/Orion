@@ -209,14 +209,24 @@ fn section<'a>(app: &'a App) -> El<'a> {
                 }
                 for (i, e) in eps.iter().enumerate() {
                     let nome = e["nome"].as_str().or(e["name"].as_str()).unwrap_or("modelo").to_string();
-                    c = c.push(setting_el(row![mono_muted(&(i + 1).to_string()), tx(nome, 13.5, t::FG)].spacing(8).into(), "", {
+                    let model = e["modelo"].as_str().unwrap_or("?");
+                    let error = e["ultimo_erro"].as_str().filter(|error| !error.is_empty());
+                    let detail = match error {
+                        Some(error) => crate::i18n::formatted("Modelo: {model} · Último erro: {error}", format!("Modelo: {model} · Último erro: {error}")),
+                        None => crate::i18n::formatted("Modelo: {model}", format!("Modelo: {model}")),
+                    };
+                    c = c.push(setting_el(row![mono_muted(&(i + 1).to_string()), tx(nome, 13.5, t::FG)].spacing(8).into(), &detail, {
                         // mesmo critério do painel do núcleo: em quarentena (limite ou falhas seguidas) o provedor não está ativo
                         let seg = e["quarentena_s"].as_i64().unwrap_or(0);
                         if seg > 0 {
                             let motivo = if e["motivo"].as_str() == Some("falhas") { crate::i18n::text("pausa por falhas") } else { crate::i18n::text("quarentena") };
                             badge(&crate::i18n::formatted("{motivo} · {}", format!("{motivo} · {}", if seg >= 60 { format!("{} min", seg / 60) } else { format!("{seg} s") })), Tone::Err)
-                        } else {
+                        } else if error.is_some() {
+                            badge(crate::i18n::text("falha na última chamada"), Tone::Err)
+                        } else if e["ok"].as_u64().unwrap_or(0) > 0 {
                             badge(crate::i18n::text("ativo"), Tone::Ok)
+                        } else {
+                            badge(crate::i18n::text("configurado"), Tone::Plain)
                         }
                     }));
                 }

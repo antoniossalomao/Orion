@@ -848,5 +848,10 @@
   " · via Telegram": "ui-0846",
   "Resposta de upload inválida.": "ui-0847",
   "Não foi possível extrair o documento.": "ui-0848",
-  "O documento ainda está sendo processado. Tente anexá-lo novamente em instantes.": "ui-0849"
+  "O documento ainda está sendo processado. Tente anexá-lo novamente em instantes.": "ui-0849",
+  "Modelo: {model} · Último erro: {error}": "ui-0850",
+  "Modelo: {model}": "ui-0851",
+  "falha na última chamada": "ui-0852",
+  "configurado": "ui-0853",
+  "nenhum modelo respondeu: {details}": "ui-0854"
 }

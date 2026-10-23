@@ -1265,7 +1265,7 @@ impl App {
                 } else {
                     o.body.push_str("\n\n");
                 }
-                o.body.push_str(&format!("**Erro:** {e}"));
+                o.body.push_str(&format!("**{}:** {}", crate::i18n::text("Erro"), crate::i18n::status(&e)));
                 self.toast(e);
             }
             Chat::Done { .. } => {

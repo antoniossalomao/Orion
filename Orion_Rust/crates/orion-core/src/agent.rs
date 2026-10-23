@@ -522,7 +522,7 @@ impl Agent {
                                     yield AgentEvent::new("tier", json!({"endpoint": endpoint, "model": model}));
                                 }
                             }
-                            Err(e) => { falhou = Some(e.to_string()); break; }
+                            Err(e) => { falhou = Some(e.diagnostic()); break; }
                         }
                     }
                 }
@@ -558,10 +558,7 @@ impl Agent {
                 mensagens.push(json!({
                     "role": "assistant",
                     "content": if texto.is_empty() { Value::Null } else { Value::String(texto.clone()) },
-                    "tool_calls": chamadas.iter().map(|c| json!({
-                        "id": c.id, "type": "function",
-                        "function": {"name": c.name, "arguments": orion_policy::pyjson::dumps_ascii(&Value::Object(c.arguments.clone()), false)},
-                    })).collect::<Vec<_>>(),
+                    "tool_calls": chamadas.iter().map(|call| call.assistant_call()).collect::<Vec<_>>(),
                 }));
                 for c in &chamadas {
                     usadas.push(c.name.clone());

@@ -64,5 +64,8 @@
   "{lang} · diagrama (este tipo ainda não tem prévia; o código está abaixo)",
   "{lang} · fórmula",
   "{lang} · fórmula (não consegui diagramar; o código está abaixo)",
-  "{} · Assinatura, pela CLI oficial"
+  "{} · Assinatura, pela CLI oficial",
+  "Modelo: {model} · Último erro: {error}",
+  "Modelo: {model}",
+  "nenhum modelo respondeu: {details}"
 ]

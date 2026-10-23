@@ -90,13 +90,28 @@ pub struct EndpointStats {
     pub orcamento: u64,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct ToolCallRequest {
     pub id: String,
     pub name: String,
     pub arguments: Map<String, Value>,
     /// Argumentos que não são JSON válido.
     pub error: Option<String>,
+    /// Metadado opaco do Gemini, devolvido só ao mesmo provedor; não autoriza ferramentas.
+    pub thought_signature: Option<String>,
+}
+impl std::fmt::Debug for ToolCallRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ToolCallRequest").field("id", &self.id).field("name", &self.name).field("arguments", &self.arguments).field("error", &self.error).field("thought_signature", &self.thought_signature.as_ref().map(|_| "[oculta]")).finish()
+    }
+}
+impl ToolCallRequest {
+    /// Só o transporte preserva a assinatura (REGRAS.md: conteúdo externo é dado).
+    pub fn assistant_call(&self) -> Value {
+        let mut call = json!({"id":self.id,"type":"function","function":{"name":self.name,"arguments":orion_policy::pyjson::dumps_ascii(&Value::Object(self.arguments.clone()),false)}});
+        if let Some(signature) = &self.thought_signature { call["extra_content"] = json!({"google":{"thought_signature":signature}}); }
+        call
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -116,6 +131,22 @@ pub struct GatewayError {
 impl GatewayError {
     fn new(m: impl Into<String>) -> Self {
         GatewayError { mensagem: m.into(), tentativas: vec![] }
+    }
+
+    /// Códigos úteis ao administrador, sem corpo HTTP, URL, chave ou texto enviado
+    /// (REGRAS.md: segredos nunca em log, audit ou processo filho).
+    pub fn diagnostic(&self) -> String {
+        if self.tentativas.is_empty() { return self.mensagem.clone(); }
+        self.tentativas.iter().take(8).map(|(name, error)| {
+            let name: String = name.chars().filter(|c| c.is_ascii_alphanumeric() || "_.:-".contains(*c)).take(48).collect();
+            let code = error.split(':').next().unwrap_or("");
+            let safe = if code.strip_prefix("HTTP ").is_some_and(|status| status.len() == 3 && status.bytes().all(|c| c.is_ascii_digit())) {
+                code
+            } else if ["ReadTimeout", "ConnectError", "RemoteProtocolError", "HTTPError", "resposta vazia"].contains(&code) {
+                code
+            } else if error.starts_with("em ") { "Cooldown" } else { "BudgetOrEndpointError" };
+            format!("{name}: {safe}")
+        }).collect::<Vec<_>>().join("; ")
     }
 }
 
@@ -196,7 +227,9 @@ impl ChatGateway {
         let mut current = self.endpoints.write();
         let mut state = self.estado.lock();
         for endpoint in &endpoints {
-            state.stats.entry(endpoint.name.clone()).or_default();
+            let stats = state.stats.entry(endpoint.name.clone()).or_default();
+            stats.ultimo_erro = None;
+            stats.seguidas = 0;
             state.quarentena.remove(&endpoint.name);
             state.motivo.remove(&endpoint.name);
         }
@@ -346,6 +379,7 @@ impl ChatGateway {
                         s.ok += 1;
                         s.seguidas = 0;
                         s.ultimo_ok = Some(agora_epoch());
+                        s.ultimo_erro = None;
                         return;
                     }
                     Some(Falha::Antes(e)) => {
@@ -421,6 +455,16 @@ impl ChatGateway {
                 return;
             }
             let mut corpo = json!({"model": ep.model, "messages": msgs, "stream": true});
+            let google = ep.provedor == "gemini" || reqwest::Url::parse(&ep.base_url).ok().and_then(|url| url.host_str().map(str::to_owned)).as_deref() == Some("generativelanguage.googleapis.com");
+            if !google {
+                for message in corpo["messages"].as_array_mut().into_iter().flatten() {
+                    for call in message.get_mut("tool_calls").and_then(Value::as_array_mut).into_iter().flatten() {
+                        if call.pointer("/extra_content/google/thought_signature").is_some() {
+                            if let Some(object) = call.as_object_mut() { object.remove("extra_content"); }
+                        }
+                    }
+                }
+            }
             if let Some(t) = tools.filter(|t| !t.is_empty() && ep.tools) {
                 corpo["tools"] = Value::Array(t.to_vec());
             }
@@ -459,7 +503,7 @@ impl ChatGateway {
                 yield Err(Falha::Antes(format!("HTTP {status}: {curto}")));
                 return;
             }
-            let mut chamadas: BTreeMap<i64, (String, String, String)> = BTreeMap::new();
+            let mut chamadas: BTreeMap<i64, (String, String, String, Option<String>)> = BTreeMap::new();
             let mut razao = "stop".to_string();
             let mut houve_saida = false;
             let mut bytes = resp.bytes_stream();
@@ -503,6 +547,9 @@ impl ChatGateway {
                             if let Some(id) = tc.get("id").and_then(Value::as_str).filter(|s| !s.is_empty()) {
                                 slot.0 = id.to_string();
                             }
+                            if let Some(signature) = tc.pointer("/extra_content/google/thought_signature").and_then(Value::as_str) {
+                                slot.3 = Some(signature.to_string());
+                            }
                             let f = tc.get("function").cloned().unwrap_or(Value::Null);
                             slot.1.push_str(f.get("name").and_then(Value::as_str).unwrap_or(""));
                             slot.2.push_str(f.get("arguments").and_then(Value::as_str).unwrap_or(""));
@@ -517,8 +564,10 @@ impl ChatGateway {
                 yield Err(Falha::Antes("resposta vazia".into()));
                 return;
             }
-            for (i, (id, nome, args)) in chamadas {
-                yield Ok(Event::ToolCall(tool_call(i, id, nome, &args)));
+            for (i, (id, nome, args, signature)) in chamadas {
+                let mut call = tool_call(i, id, nome, &args);
+                call.thought_signature = signature;
+                yield Ok(Event::ToolCall(call));
             }
             yield Ok(Event::Finish { reason: razao, endpoint: ep.name.clone(), model: ep.model.clone() });
         })
@@ -541,11 +590,11 @@ fn tool_call(indice: i64, id: String, nome: String, args: &str) -> ToolCallReque
     let ident = if id.is_empty() { format!("call_{indice}") } else { id };
     let texto = if args.is_empty() { "{}" } else { args };
     match serde_json::from_str::<Value>(texto) {
-        Ok(Value::Object(m)) => ToolCallRequest { id: ident, name: nome, arguments: m, error: None },
+        Ok(Value::Object(m)) => ToolCallRequest { id: ident, name: nome, arguments: m, error: None, thought_signature: None },
         Ok(_) => {
-            ToolCallRequest { id: ident, name: nome, arguments: Map::new(), error: Some("argumentos inválidos: argumentos não são um objeto JSON".into()) }
+            ToolCallRequest { id: ident, name: nome, arguments: Map::new(), error: Some("argumentos inválidos: argumentos não são um objeto JSON".into()), thought_signature: None }
         }
-        Err(e) => ToolCallRequest { id: ident, name: nome, arguments: Map::new(), error: Some(format!("argumentos inválidos: {e}")) },
+        Err(e) => ToolCallRequest { id: ident, name: nome, arguments: Map::new(), error: Some(format!("argumentos inválidos: {e}")), thought_signature: None },
     }
 }
 
@@ -586,7 +635,7 @@ mod embedded_tests {
         ep.tools = false;
         let gateway = ChatGateway::new(vec![ep]).unwrap();
         *gateway.embedded_local.lock() = Some(Arc::new(|_| {
-            Box::pin(futures::stream::iter([Ok(Event::ToolCall(ToolCallRequest { id: "x".into(), name: "executar".into(), arguments: Map::new(), error: None }))]))
+            Box::pin(futures::stream::iter([Ok(Event::ToolCall(ToolCallRequest { id: "x".into(), name: "executar".into(), arguments: Map::new(), error: None, thought_signature: None }))]))
         }));
         assert!(gateway.complete(vec![json!({"role":"user","content":"teste"})]).await.is_err());
     }
