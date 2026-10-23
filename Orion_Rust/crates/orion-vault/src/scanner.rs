@@ -10,12 +10,18 @@ pub enum ScanError {
 
 const CRED: &str = "Credencial atribuída";
 
-/// Valor de exemplo, não segredo: nome de variável de ambiente (`API_KEY`, `MEU_TOKEN_SECRETO`), repetição do próprio
-/// nome (`password=password`), modelo (`${TOKEN}`, `<chave>`, `{{ chave }}`) ou marcador óbvio (`YOUR_API_KEY`,
-/// `change_me`, `xxxxxxxx`, `exemplo`). Conservador: um valor misturado de letras e números nunca é tratado como exemplo.
+/// Palavras que, sozinhas, formam um valor de exemplo (`YOUR_API_KEY`, `change_me`, `seu-token-aqui`).
+const PALAVRAS_EXEMPLO: &[&str] = &[
+    "your", "seu", "sua", "my", "meu", "minha", "api", "key", "chave", "token", "secret", "segredo", "password", "senha", "pass", "example", "exemplo",
+    "changeme", "change", "me", "placeholder", "redacted", "dummy", "insira", "coloque", "aqui", "here", "value", "valor", "access", "refresh", "client", "id", "bearer",
+];
+
+/// Valor de exemplo, não segredo. Vale só o valor INTEIRO: nome de variável de ambiente (`API_KEY`), repetição do próprio
+/// nome (`password=password`), modelo completo (`${TOKEN}`, `{{ chave }}`) ou um valor feito só de palavras de exemplo
+/// (`YOUR_API_KEY`, `change_me`, `exemplo123`) ou de marcadores (`xxxxxxxx`). Uma palavra de exemplo no meio de um
+/// valor com cara de credencial (`A9-your-B7-strong`) não o isenta.
 fn placeholder(chave: &str, valor: &str) -> bool {
     let v = valor.trim_matches(|c| c == '"' || c == '\'' || c == ',' || c == ';');
-    let baixo = v.to_lowercase();
     let norm = |t: &str| t.to_lowercase().replace('-', "_");
     if norm(v) == norm(chave) {
         return true;
@@ -23,11 +29,18 @@ fn placeholder(chave: &str, valor: &str) -> bool {
     if v.contains("${") || v.contains("$(") || v.contains("{{") || v.contains("%s") || v.starts_with('$') {
         return true;
     }
-    if ["your", "seu_", "sua_", "example", "exemplo", "changeme", "change_me", "change-me", "placeholder", "redacted", "dummy", "insira", "coloque"].iter().any(|m| baixo.contains(m)) {
+    if !v.is_empty() && v.chars().all(|c| matches!(c, 'x' | 'X' | '*' | '.' | '-' | '_' | '#')) {
         return true;
     }
-    let tudo_igual = v.chars().all(|c| matches!(c, 'x' | 'X' | '*' | '.' | '-' | '_' | '#'));
-    tudo_igual || (v.contains('_') && v.chars().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_') && v.chars().filter(|c| c.is_ascii_digit()).count() <= 2)
+    let palavras: Vec<&str> = v.split(['_', '-', '.', ' ']).filter(|p| !p.is_empty()).collect();
+    let so_exemplo = !palavras.is_empty()
+        && palavras.iter().all(|p| {
+            let base = p.trim_end_matches(|c: char| c.is_ascii_digit());
+            p.len() - base.len() <= 3 && PALAVRAS_EXEMPLO.contains(&base.to_lowercase().as_str())
+        });
+    // nome de variável de ambiente: só maiúsculas, dígitos e `_`, com pelo menos um `_` e poucos dígitos
+    let env = v.contains('_') && v.chars().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_') && v.chars().filter(|c| c.is_ascii_digit()).count() <= 2;
+    so_exemplo || env
 }
 
 static PATTERNS: LazyLock<Vec<(&'static str, Regex)>> = LazyLock::new(|| {
