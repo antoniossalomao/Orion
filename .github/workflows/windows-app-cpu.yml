@@ -1,0 +1,88 @@
+name: Windows App (CPU, sem testes)
+# Só compila e empacota o app para testar a interface no Windows: sem testes, sem Vulkan e sem modelo de IA.
+# O modelo pesado baixa pelo instalador; as chaves de API (Gemini, Cerebras...) valem sem modelo local.
+# Rápido de propósito: o `rust-windows.yml` roda a suíte inteira, compila a versão Vulkan e baixa um modelo.
+on:
+  workflow_dispatch:
+    inputs:
+      perfil:
+        description: "release é mais rápido de usar; debug compila mais depressa"
+        type: choice
+        options: [release, debug]
+        default: release
+      cifra:
+        description: "Banco cifrado (SQLCipher): compila o OpenSSL junto e demora mais"
+        type: boolean
+        default: false
+      llama:
+        description: "Incluir o orion-llama.exe (modelos locais; compila o llama.cpp e demora mais)"
+        type: boolean
+        default: false
+  # Enquanto este arquivo não está na branch principal o botão "Run workflow" não aparece; por isso ele também roda
+  # sozinho quando ELE MESMO muda nesta branch (com os padrões acima). Apague este gatilho depois do merge.
+  push:
+    branches: [claude/admiring-goldberg-mmwc5o]
+    paths: [".github/workflows/windows-app-cpu.yml"]
+concurrency:
+  group: windows-app-cpu-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  app:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: Orion_Rust
+    env:
+      LIBCLANG_PATH: C:\Program Files\LLVM\bin
+      # Alvo curto: evita caminhos longos no MSBuild.
+      CARGO_TARGET_DIR: C:\t
+      PERFIL: ${{ inputs.perfil || 'release' }}
+      CIFRA: ${{ inputs.cifra && 'true' || 'false' }}
+      LLAMA: ${{ inputs.llama && 'true' || 'false' }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: Orion_Rust -> C:/t
+          key: app-cpu-${{ inputs.perfil || 'release' }}
+      - name: Instalar NASM para o OpenSSL embutido do SQLCipher
+        if: env.CIFRA == 'true'
+        shell: pwsh
+        run: |
+          if (!(Get-Command nasm -ErrorAction SilentlyContinue)) {
+            choco install nasm -y --no-progress
+            "C:\Program Files\NASM" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+          }
+      - name: Compilar
+        shell: pwsh
+        run: |
+          $a = @('build', '--locked', '-p', 'orion-server')
+          if ($env:LLAMA -eq 'true') { $a += @('-p', 'orion-llama') }
+          if ($env:CIFRA -eq 'true') { $a += @('--features', 'orion-server/sqlcipher') }
+          if ($env:PERFIL -eq 'release') { $a += '--release' }
+          cargo @a
+          if ($LASTEXITCODE -ne 0) { throw "cargo build falhou ($LASTEXITCODE)" }
+      - name: Montar a pasta do app
+        shell: pwsh
+        run: |
+          $bin = "C:\t\$env:PERFIL"
+          New-Item -ItemType Directory -Force pacote | Out-Null
+          Copy-Item "$bin\orion.exe" pacote\
+          if ($env:LLAMA -eq 'true') { Copy-Item "$bin\orion-llama.exe" pacote\ }
+          @(
+            "Orion (teste da interface no Windows)",
+            "Perfil: $env:PERFIL | Banco cifrado: $env:CIFRA | orion-llama: $env:LLAMA",
+            "",
+            "Rode orion.exe. O Windows pode avisar 'app não reconhecido' (SmartScreen) porque o executável não é assinado:",
+            "clique em Mais informações e depois em Executar assim mesmo.",
+            "Sem banco cifrado, desmarque 'Cifrar meu banco' no passo de segurança do primeiro uso.",
+            "Para conversar, cole uma chave de API em Configurações (Gemini e Cerebras têm cota grátis)."
+          ) | Set-Content -Encoding utf8 pacote\LEIA-ME.txt
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Orion-Windows-CPU
+          path: Orion_Rust/pacote
+          if-no-files-found: error
