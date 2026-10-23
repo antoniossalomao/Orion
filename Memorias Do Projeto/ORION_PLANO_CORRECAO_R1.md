@@ -55,10 +55,23 @@
 
 **Diagnóstico pedido ao Antônio (antes de mexer em código):**
 
-1. Rodar `$env:ICED_BACKEND="tiny-skia"; .\orion.exe` e depois `$env:ICED_BACKEND="wgpu"; .\orion.exe`, e dizer qual fica menos lento.
+1. (feito, ver 2.2) Rodar `$env:ICED_BACKEND="tiny-skia"; .\orion.exe` e depois `$env:ICED_BACKEND="wgpu"; .\orion.exe`, e dizer qual fica menos lento.
 2. Com `$env:RUST_LOG="info"`, mandar a linha `Selected:` (adaptador) e `antialiasing`.
 3. Dizer se parar de mexer o mouse no Chat reduz a lentidão, e se com a janela minimizada a CPU cai.
 4. Gerenciador de Tarefas, aba Detalhes: CPU do `orion.exe` e, na aba Desempenho, uso da GPU.
+
+## 2.2 Diagnóstico no notebook (23/10/2026, tela Memória com o grafo)
+
+| | tiny-skia (software) | wgpu (GPU) |
+|---|---|---|
+| CPU | 12% | 22% |
+| GPU (Intel UHD) | 0% | 33% |
+| Sensação do Antônio | pior | **muito melhor** |
+
+- **wgpu é o caminho certo com GPU real.** O tiny-skia só deve entrar quando o adaptador for de CPU (WARP). Confirma o plano da R1.02, item 1.
+- **Mesmo no wgpu, 22% de CPU e 33% de GPU numa tela parada** (grafo de 475 notas e 3.632 links): há redesenho contínuo. Reforça a R1.15 (cache da geometria do grafo, parar de redesenhar sem movimento).
+- **RAM do notebook: 7,4 de 7,7 GB em uso (96%)**, 324 MB livres, com Brave, Notion, VS Code, Spotify e outros abertos. Em memória cheia o Windows usa o disco como RAM, e isso trava tudo. Falta medir quanto é do `orion.exe` (Gerenciador de Tarefas, aba Detalhes) e repetir com os outros apps fechados.
+- **Barra de título duplicada e faixa branca no topo:** o Windows 11 desenha a barra nativa branca ("Orion" com minimizar, maximizar e fechar) por cima, e o app desenha os seus botões logo abaixo. Entra na R1.03 e na R1.09.
 
 ---
 
