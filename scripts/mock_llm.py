@@ -54,6 +54,53 @@ flowchart TD
 
 Pronto."""
 
+MATRIZ = """Fórmulas em bloco:
+
+$$
+x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}
+$$
+
+$$
+\\int_{0}^{\\infty} e^{-x^2}\\,dx = \\frac{\\sqrt{\\pi}}{2}, \\qquad \\sum_{k=1}^{n} \\frac{1}{k^2} \\to \\frac{\\pi^2}{6}
+$$
+
+$$
+A = \\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}, \\quad f(x) = \\begin{cases} x^2 & x \\geq 0 \\\\ -x & x < 0 \\end{cases}
+$$
+
+$$
+\\left( \\frac{a+b}{c} \\right)^{2} = \\lim_{n \\to \\infty} \\hat{y}_n
+$$
+
+Fim."""
+
+HTML = """Página de teste:
+
+```html
+<!doctype html>
+<html><head><title>x</title><style>h1{color:red}</style><script>alert(1)</script></head>
+<body>
+<h1>Painel do <em>Orion</em></h1>
+<p>Texto com <strong>negrito</strong>, <a href="https://example.com">um link</a> e <code>codigo</code>.</p>
+<ul><li>Primeiro</li><li>Segundo <b>item</b></li></ul>
+<table><tr><th>Item</th><th>Valor</th></tr><tr><td>RAM</td><td>1,2 GB</td></tr></table>
+<blockquote>Uma citação.</blockquote>
+<button>Enviar</button>
+</body></html>
+```
+
+Pronto."""
+
+IMAGEM = """Aqui está a imagem:
+
+![gradiente de teste](/tmp/claude-0/imgs/big.png)
+
+E uma que não existe:
+
+![arquivo ausente](/tmp/claude-0/imgs/nao-existe.png)
+
+Fim."""
+
 FORMULA = """A energia é $E = mc^2$ e a taxa $\\alpha_1 \\leq \\frac{a}{b}$ fica abaixo de 5. Custa $5 e $6 reais.
 
 $$
@@ -91,7 +138,7 @@ class H(BaseHTTPRequestHandler):
             ev(chunk(tool={"index": 0, "id": "call_1", "type": "function", "function": {"name": "escrever_arquivo", "arguments": args}}))
             ev(chunk(finish="tool_calls"))
         else:
-            out = "Arquivo escrito, tudo certo." if tools_back else (LONGO if "CODIGO" in (txt or "") else FORMULA if "FORMULA" in (txt or "") else DIAGRAMA if "DIAGRAMA" in (txt or "") else MD)
+            out = "Arquivo escrito, tudo certo." if tools_back else (LONGO if "CODIGO" in (txt or "") else FORMULA if "FORMULA" in (txt or "") else DIAGRAMA if "DIAGRAMA" in (txt or "") else MATRIZ if "MATRIZ" in (txt or "") else HTML if "HTMLX" in (txt or "") else IMAGEM if "IMAGEM" in (txt or "") else MD)
             for i in range(0, len(out), 6):
                 ev(chunk(content=out[i:i + 6])); time.sleep(0.02)
             ev(chunk(finish="stop"))

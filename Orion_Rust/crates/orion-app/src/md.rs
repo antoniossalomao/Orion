@@ -29,8 +29,10 @@ pub enum Block {
     Front(Vec<String>),
     Table(Vec<Vec<Inline>>, Vec<Vec<Vec<Inline>>>),
     Rule,
-    /// Fórmula em bloco (`$$...$$`) já convertida em texto Unicode.
-    Math(String),
+    /// Fórmula em bloco (`$$...$$`): (LaTeX cru, versão em texto Unicode). O cru é diagramado; o texto é o plano B.
+    Math(String, String),
+    /// Imagem numa linha só: `![texto alternativo](caminho)`. Só arquivo local de imagem que exista; o resto vira o texto alternativo.
+    Image(String, String),
 }
 
 pub fn inline(src: &str) -> Vec<Inline> {
@@ -224,6 +226,15 @@ pub fn latex_to_text(src: &str) -> String {
     out
 }
 
+/// `![alt](caminho)` sozinho numa linha.
+fn image_line(l: &str) -> Option<(String, String)> {
+    let t = l.trim();
+    let r = t.strip_prefix("![")?;
+    let mid = r.find("](")?;
+    let src = r[mid + 2..].strip_suffix(')')?.trim();
+    (!src.is_empty() && !src.contains(char::is_whitespace)).then(|| (r[..mid].to_string(), src.to_string()))
+}
+
 /// Só web: um link da resposta nunca abre arquivo, programa ou esquema do sistema (REGRAS.md: conteúdo externo é dado).
 pub fn is_web(url: &str) -> bool {
     let u = url.to_ascii_lowercase();
@@ -275,6 +286,14 @@ pub fn parse(src: &str) -> Vec<Block> {
         let l = lines[i];
         if l.trim().is_empty() {
             i += 1;
+        } else if l.trim().len() > 4 && l.trim().starts_with("$$") && l.trim().ends_with("$$") {
+            // fórmula em bloco numa linha só: `$$ x^2 $$`
+            let raw = l.trim()[2..l.trim().len() - 2].trim().to_string();
+            blocks.push(Block::Math(raw.clone(), latex_to_text(&raw)));
+            i += 1;
+        } else if let Some((alt, src)) = image_line(l) {
+            blocks.push(Block::Image(alt, src));
+            i += 1;
         } else if l.trim() == "$$" || (l.trim().starts_with("$$") && l.trim().len() > 2 && !l.trim()[2..].contains("$$")) {
             // fórmula em bloco (`$$ ... $$`): sem typesetting ainda, aparece como código "latex"
             let mut code = Vec::new();
@@ -288,7 +307,8 @@ pub fn parse(src: &str) -> Vec<Block> {
                 i += 1;
             }
             i += 1;
-            blocks.push(Block::Math(latex_to_text(&code.join(" "))));
+            let raw = code.join(" ");
+            blocks.push(Block::Math(raw.clone(), latex_to_text(&raw)));
         } else if l.starts_with("```") {
             let lang = l.trim_start_matches('`').trim().to_lowercase();
             let mut code = Vec::new();
@@ -491,11 +511,27 @@ pub fn render_with<'a, M: Clone + 'a>(blocks: &[Block], st: Style, on_link: Opti
                     .height(Length::Shrink)
                     .into()
             }
-            Block::Math(m) => container(text(m.clone()).font(Font { style: iced::font::Style::Italic, ..st.font }).size(st.size * 1.1).color(t::FG))
-                .width(Length::Fill)
-                .center_x(Length::Fill)
-                .padding(Padding { top: 6.0, bottom: 6.0, ..Default::default() })
-                .into(),
+            Block::Math(raw, plain) => match crate::math::typeset(raw, st.size * 1.15) {
+                Some(f) => {
+                    let h = f.height();
+                    container(iced::widget::canvas(f).width(Length::Fill).height(Length::Fixed(h))).width(Length::Fill).padding(Padding { top: 4.0, bottom: 4.0, ..Default::default() }).into()
+                }
+                None => container(text(plain.clone()).font(Font { style: iced::font::Style::Italic, ..st.font }).size(st.size * 1.1).color(t::FG))
+                    .width(Length::Fill)
+                    .center_x(Length::Fill)
+                    .padding(Padding { top: 6.0, bottom: 6.0, ..Default::default() })
+                    .into(),
+            },
+            Block::Image(alt, src) => {
+                let p = std::path::Path::new(src);
+                match p.is_absolute().then(|| crate::imgcache::preparar(p)).flatten() {
+                    Some(cache) => container(iced::widget::image(iced::widget::image::Handle::from_path(cache)).content_fit(iced::ContentFit::ScaleDown))
+                        .max_width(520.0)
+                        .padding(Padding { top: 4.0, bottom: 4.0, ..Default::default() })
+                        .into(),
+                    None => text(if alt.is_empty() { "[imagem]".to_string() } else { format!("[imagem: {alt}]") }).font(st.font).size(st.size).color(t::FG3).into(),
+                }
+            }
             Block::Rule => container(iced::widget::Space::new().height(Length::Fixed(1.0)))
                 .width(Length::Fill)
                 .height(Length::Fixed(1.0))
@@ -545,6 +581,7 @@ pub fn render_with<'a, M: Clone + 'a>(blocks: &[Block], st: Style, on_link: Opti
             }
             Block::Code(lang, lines) => {
                 let diagrama = if lang == "mermaid" { crate::mermaid::parse(lines) } else { None };
+                let formula_ok = matches!(lang.as_str(), "latex" | "tex" | "math") && crate::math::typeset(&lines.join(" "), st.size).is_some();
                 let mut corpo = column![].spacing(0);
                 for l in lines {
                     corpo = corpo.push(code_line(l));
@@ -555,7 +592,8 @@ pub fn render_with<'a, M: Clone + 'a>(blocks: &[Block], st: Style, on_link: Opti
                     let aviso = match lang.as_str() {
                         "mermaid" if diagrama.is_some() => "mermaid · diagrama".to_string(),
                         "mermaid" => format!("{lang} · diagrama (este tipo ainda não tem prévia; o código está abaixo)"),
-                        "latex" | "tex" | "math" => format!("{lang} · fórmula (sem renderização ainda)"),
+                        "latex" | "tex" | "math" if formula_ok => format!("{lang} · fórmula"),
+                        "latex" | "tex" | "math" => format!("{lang} · fórmula (não consegui diagramar; o código está abaixo)"),
                         _ => lang.clone(),
                     };
                     let mut topo = row![container(text(aviso).font(t::MONO).size(11.0).color(t::FG3)).width(Length::Fill)].align_y(iced::alignment::Vertical::Center);
@@ -569,7 +607,11 @@ pub fn render_with<'a, M: Clone + 'a>(blocks: &[Block], st: Style, on_link: Opti
                     }
                     c = c.push(container(topo).width(Length::Fill).padding(Padding { bottom: 8.0, ..Default::default() }));
                 }
-                if let Some(d) = diagrama {
+                let formula = if matches!(lang.as_str(), "latex" | "tex" | "math") { crate::math::typeset(&lines.join(" "), st.size * 1.15) } else { None };
+                if let Some(f) = formula {
+                    let h = f.height();
+                    c = c.push(iced::widget::canvas(f).width(Length::Fill).height(Length::Fixed(h)));
+                } else if let Some(d) = diagrama {
                     let h = d.height;
                     c = c.push(iced::widget::canvas(d).width(Length::Fill).height(Length::Fixed(h)));
                 } else {

@@ -316,6 +316,8 @@ pub struct App {
     pub chat_win: std::collections::HashMap<usize, usize>,
     /// Trecho visível da conversa (início, tamanho), de 0 a 1, para o minimapa.
     pub chat_vp: (f32, f32),
+    /// Artefato HTML com a prévia aberta, no painel direito.
+    pub art_preview: Option<usize>,
     /// Quais chaves de provedor já estão no cofre (só sim/não).
     pub keys: std::collections::BTreeMap<String, bool>,
     pub request_id: u64,
@@ -462,6 +464,7 @@ pub enum Msg {
     ChatEnd,
     /// Grava o artefato `n` (bloco de código da conversa aberta) em Documentos/Orion/Artefatos.
     ArtifactSave(usize),
+    ArtifactPreview(usize),
     ShowAll(usize),
     ChatJump(f32),
     KeyOpen(String),
@@ -611,6 +614,7 @@ impl App {
             chat_end: true,
             chat_win: std::collections::HashMap::new(),
             chat_vp: (0.0, 1.0),
+            art_preview: None,
             keys: std::collections::BTreeMap::new(),
             request_id: 0,
             facts: data::facts(),
@@ -997,6 +1001,9 @@ impl App {
                         self.chat_win.insert(ci, alvo);
                     }
                 }
+            }
+            Msg::ArtifactPreview(n) => {
+                self.art_preview = if self.art_preview == Some(n) { None } else { Some(n) };
             }
             Msg::ArtifactSave(n) => {
                 let Some(c) = self.conv.and_then(|i| self.convs.get(i)) else { return Task::none() };

@@ -5924,6 +5924,7 @@ dependencies = [
  "iced",
  "iced_runtime",
  "iced_test",
+ "image",
  "orion-platform",
  "orion-sky",
  "reqwest 0.12.28",

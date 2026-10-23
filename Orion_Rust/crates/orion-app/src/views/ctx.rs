@@ -129,11 +129,19 @@ pub fn view(app: &App) -> El<'_> {
                 let linhas = body.lines().count();
                 let titulo = if lang.is_empty() { "texto".to_string() } else { lang.clone() };
                 let previa = body.lines().find(|l| !l.trim().is_empty()).unwrap_or("").to_string();
-                let inner = column![
-                    txf(ell(&previa, 250.0, 12.0), 12.0, t::FG2, t::MONO),
-                    row![btn("Copiar", Kind::Normal, true, None, Some(Msg::CopyText(body.clone()))), btn("Salvar", Kind::Ghost, true, None, Some(Msg::ArtifactSave(n)))].spacing(6),
-                ]
-                .spacing(8);
+                let mut botoes = row![btn("Copiar", Kind::Normal, true, None, Some(Msg::CopyText(body.clone()))), btn("Salvar", Kind::Ghost, true, None, Some(Msg::ArtifactSave(n)))].spacing(6);
+                let aberta = app.art_preview == Some(n);
+                if lang == "html" {
+                    botoes = botoes.push(btn(if aberta { "Fechar prévia" } else { "Prévia" }, Kind::Ghost, true, None, Some(Msg::ArtifactPreview(n))));
+                }
+                let mut inner = column![txf(ell(&previa, 250.0, 12.0), 12.0, t::FG2, t::MONO), botoes].spacing(8);
+                if aberta && lang == "html" {
+                    // prévia estática: sem CSS, sem JavaScript e sem rede; o HTML nunca é executado nem aberto sozinho
+                    let blocos = crate::html::to_blocks(body);
+                    let est = crate::md::Style { font: t::UI, bold: t::UI_SEMI, size: 13.0, line: 1.5, h_font: t::UI_MED, h1: 17.0, h2: 15.0, h3: 14.0, gap: 6.0 };
+                    inner = inner.push(tx("Prévia estática: sem CSS, JavaScript nem imagens. O arquivo salvo mostra o original.", 11.5, t::FG3));
+                    inner = inner.push(container(crate::md::render_with(&blocos, est, Some(Msg::OpenUrl), None)).padding(pad(10.0, 10.0, 10.0, 10.0)).width(Length::Fill).style(surface(Some(t::BG), Some(t::LINE), 8.0)));
+                }
                 v = v.push(card(&format!("{titulo} · {linhas} linhas"), tx(format!("#{}", n + 1), 12.0, t::FG3).into(), inner.into()));
             }
             v.into()
