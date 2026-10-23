@@ -99,6 +99,10 @@ E uma que não existe:
 
 ![arquivo ausente](/tmp/claude-0/imgs/nao-existe.png)
 
+Gerada pelo núcleo:
+
+![gerada](/imagens/img-1761230000-aabbccdd.png)
+
 Fim."""
 
 FORMULA = """A energia é $E = mc^2$ e a taxa $\\alpha_1 \\leq \\frac{a}{b}$ fica abaixo de 5. Custa $5 e $6 reais.

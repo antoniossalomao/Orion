@@ -24,6 +24,8 @@ pub enum Lm {
     Renamed(u64, String, Result<Value, String>),
     Keys(Result<Value, String>),
     KeySaved(Result<Value, String>),
+    /// Imagem gerada baixada do núcleo: (URL `/imagens/…`, bytes).
+    Imagem(String, Result<Vec<u8>, String>),
     Facts(Result<Value, String>),
     Results(Result<Value, String>),
     Painel(Result<Value, String>),
@@ -835,6 +837,7 @@ impl App {
                         self.cur_sid = Some(sid);
                         self.conv = Some(i);
                     }
+                    return self.buscar_imagens();
                 }
                 Err(e) => self.net_fail(e),
             },
@@ -1011,8 +1014,48 @@ impl App {
                 }
             },
             Lm::Chat(ev) => return self.on_chat(ev),
+            Lm::Imagem(url, r) => {
+                match r {
+                    Ok(bytes) => {
+                        if crate::imgcache::guardar_url(&url, &bytes).is_none() {
+                            self.imgs_pedidas.remove(&url);
+                        }
+                    }
+                    Err(_) => {
+                        self.imgs_pedidas.remove(&url); // tenta de novo na próxima abertura da conversa
+                    }
+                }
+            }
         }
         Task::none()
+    }
+
+    /// Baixa do núcleo as imagens geradas (`![alt](/imagens/img-….png)`) citadas na conversa aberta, uma vez cada.
+    fn buscar_imagens(&mut self) -> Task<Msg> {
+        let Some(api) = self.api.clone() else { return Task::none() };
+        let Some(c) = self.conv.and_then(|i| self.convs.get(i)) else { return Task::none() };
+        let mut urls: Vec<String> = vec![];
+        for m in &c.msgs {
+            if let ChatMsg::Orion(o) = m {
+                for b in crate::md::parse(&o.body) {
+                    if let crate::md::Block::Image(_, src) = b {
+                        if crate::imgcache::url_do_nucleo(&src) && crate::imgcache::da_url(&src).is_none() && !urls.contains(&src) {
+                            urls.push(src);
+                        }
+                    }
+                }
+            }
+        }
+        let tarefas: Vec<Task<Msg>> = urls
+            .into_iter()
+            .filter(|u| self.imgs_pedidas.insert(u.clone()))
+            .map(|u| {
+                let a = api.clone();
+                let u2 = u.clone();
+                Task::perform(async move { a.bytes(&u2).await }, move |r| Msg::L(Lm::Imagem(u.clone(), r)))
+            })
+            .collect();
+        Task::batch(tarefas)
     }
 
     fn reload_all(&mut self) -> Task<Msg> {
@@ -1121,7 +1164,7 @@ impl App {
                 if o.body.is_empty() && o.approval.is_none() && o.tools.is_empty() {
                     conv.msgs.pop();
                 }
-                return self.reload_all();
+                return Task::batch([self.reload_all(), self.buscar_imagens()]);
             }
         }
         Task::none()

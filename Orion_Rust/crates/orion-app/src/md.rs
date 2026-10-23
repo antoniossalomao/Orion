@@ -524,7 +524,9 @@ pub fn render_with<'a, M: Clone + 'a>(blocks: &[Block], st: Style, on_link: Opti
             },
             Block::Image(alt, src) => {
                 let p = std::path::Path::new(src);
-                match p.is_absolute().then(|| crate::imgcache::preparar(p)).flatten() {
+                // `/imagens/<nome>` é imagem gerada pelo núcleo (baixada para o cache pelo app); o resto, arquivo absoluto do disco
+                let achada = if crate::imgcache::url_do_nucleo(src) { crate::imgcache::da_url(src) } else { p.is_absolute().then(|| crate::imgcache::preparar(p)).flatten() };
+                match achada {
                     Some(cache) => container(iced::widget::image(iced::widget::image::Handle::from_path(cache)).content_fit(iced::ContentFit::ScaleDown))
                         .max_width(520.0)
                         .padding(Padding { top: 4.0, bottom: 4.0, ..Default::default() })

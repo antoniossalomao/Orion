@@ -289,6 +289,24 @@ impl Api {
         Ok(serde_json::from_str(&text).unwrap_or(Value::Null))
     }
 
+    /// Corpo cru de um GET (imagens geradas): até 25 MB, só com resposta 2xx.
+    pub async fn bytes(&self, path: &str) -> Result<Vec<u8>, String> {
+        let r = self.raw(reqwest::Method::GET, path, None, false).await?;
+        let status = r.status;
+        if !(200..300).contains(&status) {
+            return Err(mensagem_http(status, "", path));
+        }
+        let mut corpo = r.corpo;
+        let mut out = Vec::new();
+        while let Some(c) = corpo.next().await {
+            out.extend_from_slice(&c?);
+            if out.len() > 25 * 1024 * 1024 {
+                return Err("imagem grande demais".into());
+            }
+        }
+        Ok(out)
+    }
+
     pub async fn get(&self, path: &str) -> Result<Value, String> {
         self.send(reqwest::Method::GET, path, None).await
     }

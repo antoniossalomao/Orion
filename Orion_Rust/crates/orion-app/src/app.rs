@@ -318,6 +318,8 @@ pub struct App {
     pub chat_vp: (f32, f32),
     /// Artefato HTML com a prévia aberta, no painel direito.
     pub art_preview: Option<usize>,
+    /// Imagens geradas (`/imagens/…`) que já foram pedidas ao núcleo.
+    pub imgs_pedidas: std::collections::HashSet<String>,
     /// Quais chaves de provedor já estão no cofre (só sim/não).
     pub keys: std::collections::BTreeMap<String, bool>,
     pub request_id: u64,
@@ -615,6 +617,7 @@ impl App {
             chat_win: std::collections::HashMap::new(),
             chat_vp: (0.0, 1.0),
             art_preview: None,
+            imgs_pedidas: std::collections::HashSet::new(),
             keys: std::collections::BTreeMap::new(),
             request_id: 0,
             facts: data::facts(),
