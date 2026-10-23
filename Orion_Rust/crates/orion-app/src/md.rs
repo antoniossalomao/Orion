@@ -295,18 +295,28 @@ pub fn parse(src: &str) -> Vec<Block> {
             blocks.push(Block::Image(alt, src));
             i += 1;
         } else if l.trim() == "$$" || (l.trim().starts_with("$$") && l.trim().len() > 2 && !l.trim()[2..].contains("$$")) {
-            // fórmula em bloco (`$$ ... $$`): sem typesetting ainda, aparece como código "latex"
+            // fórmula em bloco com `$$` em linha própria (a de uma linha só é tratada acima)
             let mut code = Vec::new();
             let primeira = l.trim()[2..].trim();
             if !primeira.is_empty() {
                 code.push(primeira.to_string());
             }
             i += 1;
-            while i < lines.len() && lines[i].trim() != "$$" {
+            // o fecho `$$` pode vir sozinho numa linha ou colado no fim da última linha da fórmula
+            while i < lines.len() {
+                let t = lines[i].trim();
+                if t == "$$" {
+                    i += 1;
+                    break;
+                }
+                if let Some(antes) = t.strip_suffix("$$") {
+                    code.push(antes.to_string());
+                    i += 1;
+                    break;
+                }
                 code.push(lines[i].to_string());
                 i += 1;
             }
-            i += 1;
             let raw = code.join(" ");
             blocks.push(Block::Math(raw.clone(), latex_to_text(&raw)));
         } else if l.starts_with("```") {
