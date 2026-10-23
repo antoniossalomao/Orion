@@ -385,7 +385,7 @@ fn is_ol(l: &str) -> bool {
     d > 0 && l[d..].starts_with(". ")
 }
 fn is_block_start(l: &str) -> bool {
-    l.starts_with("```") || l.starts_with('#') || l.starts_with('>') || l.starts_with("- ") || l.trim_start().starts_with('|') || is_rule(l) || is_ol(l)
+    l.starts_with("```") || l.starts_with('#') || l.starts_with('>') || l.starts_with("- ") || l.trim_start().starts_with('|') || is_rule(l) || is_ol(l) || l.trim_start().starts_with("$$") || image_line(l).is_some()
 }
 
 /// Parâmetros de aparência (chat usa Newsreader; a prévia do editor também).

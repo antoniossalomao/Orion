@@ -37,6 +37,7 @@ enum Acc {
     Bar,
     Vec,
     Dot,
+    DDot,
     Tilde,
     Under,
 }
@@ -393,7 +394,8 @@ impl P {
             "hat" | "widehat" => items.push(Node::Accent(Acc::Hat, Box::new(self.arg()?))),
             "bar" | "overline" => items.push(Node::Accent(Acc::Bar, Box::new(self.arg()?))),
             "vec" | "overrightarrow" => items.push(Node::Accent(Acc::Vec, Box::new(self.arg()?))),
-            "dot" | "ddot" => items.push(Node::Accent(Acc::Dot, Box::new(self.arg()?))),
+            "dot" => items.push(Node::Accent(Acc::Dot, Box::new(self.arg()?))),
+            "ddot" => items.push(Node::Accent(Acc::DDot, Box::new(self.arg()?))),
             "tilde" | "widetilde" => items.push(Node::Accent(Acc::Tilde, Box::new(self.arg()?))),
             "underline" => items.push(Node::Accent(Acc::Under, Box::new(self.arg()?))),
             "quad" => items.push(Node::Gap(1.0)),
@@ -776,6 +778,11 @@ fn lay(n: &Node, s: f32) -> Lay {
                     out.cmds.push(Cmd::Poly { pts: vec![(w - 0.14 * s, top - 0.02 * s), (w, top + 0.06 * s), (w - 0.14 * s, top + 0.14 * s)], w: 1.0 });
                 }
                 Acc::Dot => out.cmds.push(Cmd::Line { a: (cx - 0.01 * s, top + 0.05 * s), b: (cx + 0.01 * s, top + 0.05 * s), w: 2.2 }),
+                Acc::DDot => {
+                    for dx in [-0.09, 0.09] {
+                        out.cmds.push(Cmd::Line { a: (cx + dx * s - 0.01 * s, top + 0.05 * s), b: (cx + dx * s + 0.01 * s, top + 0.05 * s), w: 2.2 });
+                    }
+                }
                 Acc::Tilde => out.cmds.push(Cmd::Poly {
                     pts: (0..=8).map(|k| { let u = k as f32 / 8.0; (cx - 0.22 * s + u * 0.44 * s, top + 0.06 * s - (u * std::f32::consts::TAU).sin() * 0.04 * s) }).collect(),
                     w: 1.0,
