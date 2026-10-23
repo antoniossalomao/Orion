@@ -47,6 +47,7 @@ pub enum CtxTab {
     Arquivos,
     Diff,
     Terminal,
+    Artefatos,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -213,6 +214,22 @@ pub struct ProjectForm {
     pub request_id: u64,
 }
 
+/// Cadastro de uma chave de provedor nas Configurações (o valor só vive em memória até salvar).
+pub struct KeyForm {
+    pub nome: String,
+    pub label: String,
+    pub value: String,
+    pub busy: bool,
+    pub error: String,
+}
+
+impl Drop for KeyForm {
+    fn drop(&mut self) {
+        use zeroize::Zeroize;
+        self.value.zeroize();
+    }
+}
+
 pub struct RenameForm {
     pub session_id: String,
     pub title: String,
@@ -291,6 +308,20 @@ pub struct App {
     pub proj_q: String,
     pub project_form: Option<ProjectForm>,
     pub rename_form: Option<RenameForm>,
+    pub key_form: Option<KeyForm>,
+    /// A conversa está colada no fim? (esconde o botão "ir ao fim")
+    pub chat_end: bool,
+    /// Conversas em que o usuário pediu para ver todas as mensagens (por padrão só as mais recentes são montadas).
+    /// Mensagens montadas por conversa (janela que cresce ao rolar para o topo).
+    pub chat_win: std::collections::HashMap<usize, usize>,
+    /// Trecho visível da conversa (início, tamanho), de 0 a 1, para o minimapa.
+    pub chat_vp: (f32, f32),
+    /// Artefato HTML com a prévia aberta, no painel direito.
+    pub art_preview: Option<usize>,
+    /// Imagens geradas (`/imagens/…`) pedidas ao núcleo e ainda a caminho.
+    pub imgs_pedidas: std::collections::HashSet<String>,
+    /// Quais chaves de provedor já estão no cofre (só sim/não).
+    pub keys: std::collections::BTreeMap<String, bool>,
     pub request_id: u64,
     pub facts: Vec<data::Fact>,
     pub edit_fact: Option<(usize, String)>,
@@ -425,9 +456,23 @@ pub enum Msg {
     ArchiveConv,
     DeleteConv,
     CopyText(String),
+    OpenUrl(String),
+    /// `git pull` do vault (uso real; nos dados de exemplo é só um aviso).
+    VaultPull,
     RenameStart,
     RenameText(String),
     RenameSave,
+    ChatScrolled(iced::widget::scrollable::Viewport),
+    ChatEnd,
+    /// Grava o artefato `n` (bloco de código da conversa aberta) em Documentos/Orion/Artefatos.
+    ArtifactSave(usize),
+    ArtifactPreview(usize),
+    ShowAll(usize),
+    ChatJump(f32),
+    KeyOpen(String),
+    KeyInput(String),
+    KeyCancel,
+    KeySave,
     RenameClose,
     Toast(String),
     // páginas
@@ -567,6 +612,13 @@ impl App {
             proj_q: String::new(),
             project_form: None,
             rename_form: None,
+            key_form: None,
+            chat_end: true,
+            chat_win: std::collections::HashMap::new(),
+            chat_vp: (0.0, 1.0),
+            art_preview: None,
+            imgs_pedidas: std::collections::HashSet::new(),
+            keys: std::collections::BTreeMap::new(),
             request_id: 0,
             facts: data::facts(),
             edit_fact: None,
@@ -933,6 +985,108 @@ impl App {
             Msg::Toast(s) => {
                 self.pop = None;
                 self.toast(s);
+            }
+            Msg::ChatScrolled(vp) => {
+                // a lista é ancorada no fim: absolute_offset conta a distância até o fim; o _reversed, até o topo
+                self.chat_end = vp.absolute_offset().y < 48.0;
+                let (h, vh) = (vp.content_bounds().height.max(1.0), vp.bounds().height);
+                self.chat_vp = ((vp.absolute_offset_reversed().y / h).clamp(0.0, 1.0), (vh / h).clamp(0.0, 1.0));
+                // Janela virtual: só monta as mensagens que cobrem (distância até o fim + tela + 2400 px de folga).
+                // A lista é ancorada no fim, então tirar mensagens do topo não move o que está na tela, e
+                // incluir mais ao chegar perto do topo também não. Altura média = conteúdo / mensagens montadas.
+                if let Some(ci) = self.conv {
+                    let total = self.convs.get(ci).map_or(0, |c| c.msgs.len());
+                    let atual = self.chat_win.get(&ci).copied().unwrap_or(crate::views::chat::JANELA).clamp(1, total.max(1));
+                    let media = (h / atual.min(total).max(1) as f32).max(40.0);
+                    let alvo = (((vp.absolute_offset().y + vh + 2400.0) / media).ceil() as usize).clamp(crate::views::chat::JANELA, total.max(crate::views::chat::JANELA));
+                    // histerese: cresce já, encolhe só quando sobram mais de 20 mensagens (evita vaivém)
+                    if alvo > atual || alvo + 20 < atual {
+                        self.chat_win.insert(ci, alvo);
+                    }
+                }
+            }
+            Msg::ArtifactPreview(n) => {
+                self.art_preview = if self.art_preview == Some(n) { None } else { Some(n) };
+            }
+            Msg::ArtifactSave(n) => {
+                let Some(c) = self.conv.and_then(|i| self.convs.get(i)) else { return Task::none() };
+                let Some((lang, body)) = crate::views::ctx::artifacts(c).into_iter().nth(n) else { return Task::none() };
+                let ext = crate::views::ctx::ext_of(&lang);
+                let ts = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+                let conv_id = self.conv.and_then(|i| self.convs.get(i)).map(|c| c.id.chars().take(8).collect::<String>()).unwrap_or_default();
+                let base = format!("artefato-{conv_id}-{}-{ts}", n + 1);
+                return Task::perform(
+                    async move {
+                        tokio::task::spawn_blocking(move || -> Result<String, String> {
+                            let home = std::env::var_os("USERPROFILE").or_else(|| std::env::var_os("HOME")).ok_or("pasta do usuário desconhecida")?;
+                            let dir = std::path::PathBuf::from(home).join("Documents").join("Orion").join("Artefatos");
+                            std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+                            // criação exclusiva: salvar de novo nunca sobrescreve um export anterior (tenta -2, -3, ...)
+                            use std::io::Write;
+                            for k in 1..=99 {
+                                let nome = if k == 1 { format!("{base}.{ext}") } else { format!("{base}-{k}.{ext}") };
+                                let alvo = dir.join(nome);
+                                match std::fs::OpenOptions::new().write(true).create_new(true).open(&alvo) {
+                                    Ok(mut f) => {
+                                        f.write_all(body.as_bytes()).map_err(|e| e.to_string())?;
+                                        return Ok(alvo.display().to_string());
+                                    }
+                                    Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                                    Err(e) => return Err(e.to_string()),
+                                }
+                            }
+                            Err("nomes de arquivo esgotados".to_string())
+                        })
+                        .await
+                        .map_err(|e| e.to_string())?
+                    },
+                    |r| Msg::Toast(match r { Ok(p) => format!("Salvo em {p}"), Err(e) => format!("Não foi possível salvar: {e}") }),
+                );
+            }
+            Msg::ChatEnd => {
+                self.chat_end = true;
+                return iced::widget::operation::snap_to("chat-scroll", iced::widget::scrollable::RelativeOffset::START);
+            }
+            Msg::ShowAll(i) => {
+                let atual = self.chat_win.get(&i).copied().unwrap_or(crate::views::chat::JANELA);
+                self.chat_win.insert(i, atual + crate::views::chat::JANELA * 2);
+            }
+            Msg::ChatJump(f) => {
+                // a lista é ancorada no fim: o deslocamento relativo é contado de baixo para cima
+                let y = (1.0 - f).clamp(0.0, 1.0);
+                return iced::widget::operation::snap_to("chat-scroll", iced::widget::scrollable::RelativeOffset { x: 0.0, y });
+            }
+            Msg::KeyOpen(nome) => {
+                if self.key_form.as_ref().is_some_and(|f| f.busy) { return Task::none(); }
+                let label = crate::onboarding::PROVIDERS.iter().find(|p| p.2 == nome).map(|p| p.1.to_string()).unwrap_or_else(|| nome.clone());
+                self.key_form = Some(KeyForm { nome, label, value: String::new(), busy: false, error: String::new() });
+                return iced::widget::operation::focus("api-key");
+            }
+            Msg::KeyInput(v) => {
+                if let Some(f) = self.key_form.as_mut().filter(|f| !f.busy) { f.value = v; f.error.clear(); }
+            }
+            Msg::KeyCancel => {
+                if self.key_form.as_ref().is_some_and(|f| !f.busy) { self.key_form = None; }
+            }
+            Msg::KeySave => self.toast("Guardar chave: só no uso real"),
+            Msg::VaultPull => self.toast("git pull: já atualizado"),
+            Msg::OpenUrl(url) if url.starts_with("orion-file:") => {
+                let alvo = url.trim_start_matches("orion-file:").to_string();
+                match crate::md::file_ref(&alvo) {
+                    Some((path, line)) if std::path::Path::new(&path).is_absolute() && std::path::Path::new(&path).is_file() => {
+                        let target = match line { Some(l) => format!("{path}:{l}"), None => path };
+                        return Task::perform(async move { tokio::task::spawn_blocking(move || crate::onboarding::open_in_editor(&target)).await.ok(); }, |_| Msg::Noop);
+                    }
+                    Some((path, _)) if std::path::Path::new(&path).is_absolute() => self.toast(if self.p.english { "File not found" } else { "Arquivo não encontrado" }),
+                    _ => self.toast(if self.p.english { "Relative path: open it from the project folder" } else { "Caminho relativo: abra pela pasta do projeto" }),
+                }
+            }
+            Msg::OpenUrl(url) => {
+                // só http(s): link vindo de resposta do modelo nunca abre arquivo nem programa
+                if crate::md::is_web(&url) {
+                    return Task::perform(async move { tokio::task::spawn_blocking(move || crate::onboarding::open_link(&url)).await.ok(); }, |_| Msg::Noop);
+                }
+                self.toast(if self.p.english { "Only web links can be opened" } else { "Só links da web podem ser abertos" });
             }
             Msg::CopyText(text) => {
                 self.toast(if self.p.english { "Copied" } else { "Copiado" });
@@ -1624,7 +1778,7 @@ impl App {
 }
 
 pub fn chrono_hm() -> String {
-    "09:41".to_string()
+    crate::live::hm(std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs_f64()).unwrap_or(0.0))
 }
 
 pub fn detect_kind(s: &str) -> CapKind {

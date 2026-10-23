@@ -5919,15 +5919,18 @@ name = "orion-app"
 version = "0.1.0"
 dependencies = [
  "async-stream",
+ "chrono",
  "futures",
  "iced",
  "iced_runtime",
  "iced_test",
+ "image",
  "orion-platform",
  "orion-sky",
  "reqwest 0.12.28",
  "serde",
  "serde_json",
+ "sysinfo",
  "tokio",
  "zeroize",
 ]

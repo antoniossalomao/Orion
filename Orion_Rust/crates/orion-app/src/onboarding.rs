@@ -555,7 +555,19 @@ fn set_autostart(on: bool) {
     let _ = on;
 }
 
-fn open_link(url: &str) {
+/// Abre `arquivo[:linha]` no VS Code. O alvo já foi conferido (caminho absoluto de um arquivo que existe) e só tem
+/// caracteres seguros de caminho, então não há o que injetar no `cmd`.
+pub fn open_in_editor(target: &str) {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        let _ = system_command("cmd.exe").creation_flags(0x08000000).args(["/C", "code", "-g", target]).spawn();
+    }
+    #[cfg(not(windows))]
+    let _ = system_command("code").args(["-g", target]).spawn();
+}
+
+pub fn open_link(url: &str) {
     #[cfg(windows)]
     let _ = system_command("rundll32.exe").args(["url.dll,FileProtocolHandler", url]).spawn();
     #[cfg(target_os = "linux")]

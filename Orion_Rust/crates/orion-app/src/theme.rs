@@ -59,7 +59,7 @@ pub const N_RELATORIO: Color = rgb(0x6a, 0x6e, 0x78);
 
 // Medidas (§3, §4.3)
 pub const SIDE_W: f32 = 272.0;
-pub const CTX_W: f32 = 320.0;
+pub const CTX_W: f32 = 344.0;
 pub const BAR_H: f32 = 46.0;
 pub const DRAWER_MAX: f32 = 760.0;
 pub const CTX_MIN_W: f32 = 1120.0;

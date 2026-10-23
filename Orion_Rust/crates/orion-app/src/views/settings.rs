@@ -197,9 +197,68 @@ fn section<'a>(app: &'a App) -> El<'a> {
             c = c.push(setting("Mostrar quem respondeu", "Discreto, na linha da hora de cada resposta.", badge("sempre", Tone::Ok)));
             c = c.push(sh("Orion · ordem das APIs gratuitas"));
             c = c.push(lede("Quando uma cota acaba, passa para a próxima. Se todas acabarem ou não houver internet, usa o modelo local."));
+            if app.api.is_some() {
+                // uso real: só o que o núcleo informa (nada de cotas de exemplo)
+                let pn = app.painel.clone().unwrap_or(serde_json::Value::Null);
+                let eps = pn["modelos"]["endpoints"].as_array().cloned().unwrap_or_default();
+                if app.painel.is_none() {
+                    c = c.push(setting("Provedores", "Carregando o estado dos modelos…", badge("…", Tone::Plain)));
+                } else if eps.is_empty() {
+                    let dica = if pn["modelos"]["configurado"].as_bool().unwrap_or(false) { "Modelos configurados." } else { "Nenhum modelo configurado. Guarde a chave de um provedor abaixo e reabra o Orion, ou entre com uma CLI (Claude, Codex ou Gemini)." };
+                    c = c.push(setting("Provedores", dica, badge("vazio", Tone::Plain)));
+                }
+                for (i, e) in eps.iter().enumerate() {
+                    let nome = e["nome"].as_str().or(e["name"].as_str()).unwrap_or("modelo").to_string();
+                    c = c.push(setting_el(row![mono_muted(&(i + 1).to_string()), tx(nome, 13.5, t::FG)].spacing(8).into(), "", {
+                        // mesmo critério do painel do núcleo: em quarentena (limite ou falhas seguidas) o provedor não está ativo
+                        let seg = e["quarentena_s"].as_i64().unwrap_or(0);
+                        if seg > 0 {
+                            let motivo = if e["motivo"].as_str() == Some("falhas") { "pausa por falhas" } else { "quarentena" };
+                            badge(&format!("{motivo} · {}", if seg >= 60 { format!("{} min", seg / 60) } else { format!("{seg} s") }), Tone::Err)
+                        } else {
+                            badge("ativo", Tone::Ok)
+                        }
+                    }));
+                }
+                c = c.push(sh("Chaves de API"));
+                c = c.push(lede("Guardadas no cofre do sistema (Credential Manager). Uma chave nova vale na próxima abertura do Orion."));
+                for (_, label, nome, url) in crate::onboarding::PROVIDERS {
+                    if let Some(f) = app.key_form.as_ref().filter(|f| f.nome == *nome) {
+                        let mut input = text_input("Cole a chave de API", &f.value).id("api-key").secure(true).size(13).font(t::UI).padding(pad(7.0, 10.0, 7.0, 10.0)).style(field_style(t::RAISE, t::LINE2, t::LINE3, 8.0));
+                        if !f.busy {
+                            input = input.on_input(Msg::KeyInput).on_submit(Msg::KeySave);
+                        }
+                        let desc = if f.error.is_empty() { format!("Chave de {label}. Não aparece na tela nem em log.") } else { f.error.clone() };
+                        c = c.push(setting_el(
+                            tx(label.to_string(), 13.5, t::FG).into(),
+                            &desc,
+                            row_c(vec![
+                                container(input).width(Length::Fixed(260.0)).into(),
+                                btn(if f.busy { "Guardando…" } else { "Guardar" }, Kind::Primary, true, None, (!f.busy).then_some(Msg::KeySave)),
+                                btn("Cancelar", Kind::Ghost, true, None, (!f.busy).then_some(Msg::KeyCancel)),
+                            ]),
+                        ));
+                    } else {
+                        let tem = app.keys.get(*nome).copied().unwrap_or(false);
+                        let desc = if tem { "Chave guardada no cofre do sistema.".to_string() } else { format!("Sem chave. Obtenha em {url}") };
+                        c = c.push(setting_el(
+                            tx(label.to_string(), 13.5, t::FG).into(),
+                            &desc,
+                            btn(if tem { "Trocar" } else { "Chave" }, Kind::Normal, true, None, Some(Msg::KeyOpen(nome.to_string()))),
+                        ));
+                    }
+                }
+                let quotas: Vec<serde_json::Value> = app.budget.as_ref().and_then(|b| b.get("quotas")).and_then(|q| q.as_array()).cloned().unwrap_or_default();
+                for q in &quotas {
+                    let pct = q.get("percent").and_then(|x| x.as_f64()).unwrap_or(0.0);
+                    let nome = q.get("provider").and_then(|x| x.as_str()).unwrap_or("?").to_string();
+                    c = c.push(setting(&nome, &if pct >= 100.0 { "Cota da semana esgotada".to_string() } else { format!("{:.0}% da cota da semana usada", pct) }, badge(if pct >= 100.0 { "esgotada" } else { "ok" }, if pct >= 100.0 { Tone::Err } else { Tone::Ok })));
+                }
+            } else {
             for (i, (l, v)) in [("Gemini (API)", 62), ("Groq", 100), ("Cerebras", 18), ("OpenRouter (free)", 40), ("Mistral", 9)].iter().enumerate() {
-                let d = if *v >= 100 { "Sem cota até 00:00".to_string() } else { format!("{}% da cota disponível", 100 - v) };
-                c = c.push(setting_el(row![mono_muted(&(i + 1).to_string()), tx(l.to_string(), 13.5, t::FG)].spacing(8).into(), &d, row_c(vec![ib("up", Some(toast("Reordenar (simulado)")), false), btn("Chave", Kind::Normal, true, None, Some(toast("Colar a chave (simulado)")))])));
+                    let d = if *v >= 100 { "Sem cota até 00:00".to_string() } else { format!("{}% da cota disponível", 100 - v) };
+                    c = c.push(setting_el(row![mono_muted(&(i + 1).to_string()), tx(l.to_string(), 13.5, t::FG)].spacing(8).into(), &d, row_c(vec![ib("up", Some(toast("Reordenar (simulado)")), false), btn("Chave", Kind::Normal, true, None, Some(toast("Colar a chave (simulado)")))])));
+                }
             }
             c = c.push(setting_el(row![mono_muted("∞"), tx("Local · Qwen 2.5 7B", 13.5, t::FG)].spacing(8).into(), "Fallback sem internet. Gerenciado em Modelos locais.", badge("fallback", Tone::Plain)));
         }
@@ -211,7 +270,7 @@ fn section<'a>(app: &'a App) -> El<'a> {
             c = c.push(setting("Pasta das notas do Orion", "Todas as conversas viram resumo aqui, sem perguntar.", txf("03 Recursos/Orion/Memória/", 12.0, t::FG, t::MONO).into()));
             c = c.push(setting("Resumo diário das conversas triviais", "Uma nota por dia em Memória/Diário, gerada às 23:59.", badge("23:59", Tone::Ok)));
             c = c.push(setting("Commit e push", "Direto na main do vault, um commit por nota gravada. Sem PR.", badge("automático", Tone::Ok)));
-            c = c.push(setting("git pull do vault", "Ao abrir o app, a cada conversa nova, antes de gravar uma nota e ao abrir a Memória.", btn("Agora", Kind::Normal, true, None, Some(toast("git pull: já atualizado")))));
+            c = c.push(setting("git pull do vault", "Ao abrir o app, a cada conversa nova, antes de gravar uma nota e ao abrir a Memória.", btn("Agora", Kind::Normal, true, None, Some(Msg::VaultPull))));
             c = c.push(setting("Se você editou a mesma nota no Obsidian", "O Orion pergunta no chat e mostra as duas versões.", badge("perguntar", Tone::Plain)));
             c = c.push(setting("Grafo", "3D no app final, como o Obsidian, sobre o céu do front original.", btn("Abrir", Kind::Normal, true, None, Some(Msg::SetGo(crate::app::View::Memoria)))));
         }
@@ -262,33 +321,41 @@ fn section<'a>(app: &'a App) -> El<'a> {
             }
         }
         Sec::Sistema => {
+            let live = app.api.is_some();
+            if live {
+                // uso real: só o que dá para medir agora (sem gráfico de exemplo)
+                c = c.push(sh("Memória RAM"));
+                c = c.push(container(row![txf(format!("{} MB", proc_mem_mb()), 36.0, t::FG, t::SERIF), container(tx("deste processo agora · quanto menos, melhor", 12.5, t::FG3)).padding(pad(14.0, 0.0, 0.0, 8.0))].align_y(Vertical::Bottom)).padding(pad(6.0, 0.0, 0.0, 0.0)));
+            } else {
             c = c.push(sh("Memória RAM"));
-            c = c.push(container(row![txf("296 MB", 36.0, t::FG, t::SERIF), container(tx("em uso agora · quanto menos, melhor", 12.5, t::FG3)).padding(pad(14.0, 0.0, 0.0, 8.0))].align_y(Vertical::Bottom)).padding(pad(10.0, 0.0, 0.0, 0.0)));
-            let leg = |col: iced::Color, s: &str| -> El<'a> { row![container(sp_w(0.0)).width(Length::Fixed(10.0)).height(Length::Fixed(2.0)).style(surface(Some(col), None, 1.0)), tx(s.to_string(), 12.0, t::FG3)].spacing(6).align_y(Vertical::Center).into() };
-            c = c.push(container(row![leg(t::FG2, "Uso nas últimas 18 h"), leg(t::SIGNAL, "Otimização aplicada")].spacing(14)).padding(pad(16.0, 0.0, 4.0, 0.0)));
-            let ch = Line { vals: data::RAMS.to_vec(), min: 0.0, max: 1400.0, ticks: vec![0.0, 400.0, 800.0, 1200.0], fmt: |v| if v == 0.0 { "0".into() } else if v >= 1000.0 { format!("{:.1} GB", v / 1000.0).replace('.', ",") } else { format!("{v} MB") }, start: "ontem, 16:00", end: "agora", color: t::FG2, mark: Some((10, "mmap e voz sob demanda")) };
-            c = c.push(canvas(ch).width(Length::Fill).height(Length::Fixed(150.0)));
-            let seg_bar = row![
-                container(sp_w(0.0)).width(Length::FillPortion(28)).height(Length::Fill).style(surface(Some(t::FG2), None, 0.0)),
-                container(sp_w(0.0)).width(Length::FillPortion(63)).height(Length::Fill).style(surface(Some(t::mix(t::FG2, 0.45)), None, 0.0)),
-                container(sp_w(0.0)).width(Length::FillPortion(8)).height(Length::Fill).style(surface(Some(t::SIGNAL), None, 0.0)),
-                sp_w(0.0).into_filler(1)
-            ]
-            .spacing(2)
-            .height(Length::Fixed(8.0));
-            c = c.push(container(seg_bar).padding(pad(18.0, 0.0, 12.0, 0.0)));
-            let lg = |col: iced::Color, s: &str, v: &str, outline: bool| -> El<'a> {
-                let sq = container(sp_w(0.0)).width(Length::Fixed(8.0)).height(Length::Fixed(8.0)).style(move |_| container::Style { background: if outline { None } else { Some(col.into()) }, border: Border { color: t::LINE3, width: if outline { 1.0 } else { 0.0 }, radius: 2.0.into() }, ..Default::default() });
-                row![sq, tx(s.to_string(), 12.5, t::FG2), grow(), tx(v.to_string(), 12.5, t::FG)].spacing(8).align_y(Vertical::Center).into()
-            };
-            c = c.push(column![
-                row![container(lg(t::FG2, "Núcleo e interface", "84 MB", false)).width(Length::FillPortion(1)), container(lg(t::mix(t::FG2, 0.45), "Índice vetorial (mmap)", "188 MB", false)).width(Length::FillPortion(1))].spacing(24),
-                row![container(lg(t::SIGNAL, "Cache de embeddings", "24 MB", false)).width(Length::FillPortion(1)), container(lg(t::LINE3, "Voz e grafo (descarregados)", "0 MB", true)).width(Length::FillPortion(1))].spacing(24)
-            ].spacing(8));
+                c = c.push(container(row![txf("296 MB", 36.0, t::FG, t::SERIF), container(tx("em uso agora · quanto menos, melhor", 12.5, t::FG3)).padding(pad(14.0, 0.0, 0.0, 8.0))].align_y(Vertical::Bottom)).padding(pad(10.0, 0.0, 0.0, 0.0)));
+                let leg = |col: iced::Color, s: &str| -> El<'a> { row![container(sp_w(0.0)).width(Length::Fixed(10.0)).height(Length::Fixed(2.0)).style(surface(Some(col), None, 1.0)), tx(s.to_string(), 12.0, t::FG3)].spacing(6).align_y(Vertical::Center).into() };
+                c = c.push(container(row![leg(t::FG2, "Uso nas últimas 18 h"), leg(t::SIGNAL, "Otimização aplicada")].spacing(14)).padding(pad(16.0, 0.0, 4.0, 0.0)));
+                let ch = Line { vals: data::RAMS.to_vec(), min: 0.0, max: 1400.0, ticks: vec![0.0, 400.0, 800.0, 1200.0], fmt: |v| if v == 0.0 { "0".into() } else if v >= 1000.0 { format!("{:.1} GB", v / 1000.0).replace('.', ",") } else { format!("{v} MB") }, start: "ontem, 16:00", end: "agora", color: t::FG2, mark: Some((10, "mmap e voz sob demanda")) };
+                c = c.push(canvas(ch).width(Length::Fill).height(Length::Fixed(150.0)));
+                let seg_bar = row![
+                    container(sp_w(0.0)).width(Length::FillPortion(28)).height(Length::Fill).style(surface(Some(t::FG2), None, 0.0)),
+                    container(sp_w(0.0)).width(Length::FillPortion(63)).height(Length::Fill).style(surface(Some(t::mix(t::FG2, 0.45)), None, 0.0)),
+                    container(sp_w(0.0)).width(Length::FillPortion(8)).height(Length::Fill).style(surface(Some(t::SIGNAL), None, 0.0)),
+                    sp_w(0.0).into_filler(1)
+                ]
+                .spacing(2)
+                .height(Length::Fixed(8.0));
+                c = c.push(container(seg_bar).padding(pad(18.0, 0.0, 12.0, 0.0)));
+                let lg = |col: iced::Color, s: &str, v: &str, outline: bool| -> El<'a> {
+                    let sq = container(sp_w(0.0)).width(Length::Fixed(8.0)).height(Length::Fixed(8.0)).style(move |_| container::Style { background: if outline { None } else { Some(col.into()) }, border: Border { color: t::LINE3, width: if outline { 1.0 } else { 0.0 }, radius: 2.0.into() }, ..Default::default() });
+                    row![sq, tx(s.to_string(), 12.5, t::FG2), grow(), tx(v.to_string(), 12.5, t::FG)].spacing(8).align_y(Vertical::Center).into()
+                };
+                c = c.push(column![
+                    row![container(lg(t::FG2, "Núcleo e interface", "84 MB", false)).width(Length::FillPortion(1)), container(lg(t::mix(t::FG2, 0.45), "Índice vetorial (mmap)", "188 MB", false)).width(Length::FillPortion(1))].spacing(24),
+                    row![container(lg(t::SIGNAL, "Cache de embeddings", "24 MB", false)).width(Length::FillPortion(1)), container(lg(t::LINE3, "Voz e grafo (descarregados)", "0 MB", true)).width(Length::FillPortion(1))].spacing(24)
+                ].spacing(8));
+            }
             c = c.push(sh("Janela"));
             c = c.push(setting("Atalho global Ctrl + Alt + Espaço", "Abre a mini barra de qualquer app. Ctrl + Alt + O: captura rápida · Ctrl + Alt + I: Isso? · Ctrl + Alt + P: pânico.", sw(p.shortcut, "shortcut")));
             c = c.push(setting("Fundo Mica", "Transparência do Windows 11 na barra lateral.", sw(p.mica, "mica")));
             c = c.push(setting("Iniciar com o Windows", "Ao ligar o PC, abre minimizado na bandeja, sem janela até ser chamado. Fechar a janela também vai para a bandeja.", sw(p.boot, "boot")));
+            if !live {
             c = c.push(setting("Pastas confiáveis", "O Orion pode ler e escrever nessas pastas e nas de dentro.", btn("Gerenciar", Kind::Normal, true, None, Some(toast("C:\\Projetos e C:\\Users\\Antonio\\Vault")))));
             c = c.push(sh("Este PC e o notebook"));
             c = c.push(setting("Sincronia do banco", "PC principal manda; o notebook replica pela Tailscale quando os dois estão ligados.", badge("notebook em dia · 09:10", Tone::Ok)));
@@ -296,6 +363,9 @@ fn section<'a>(app: &'a App) -> El<'a> {
             c = c.push(setting("Atualizações", "Baixa do GitHub Releases em segundo plano, avisa e instala ao fechar.", badge("0.6.0 · em dia", Tone::Plain)));
             c = c.push(setting("Backup no Google Drive", "Banco e configurações, criptografados.", badge("ontem, 03:00", Tone::Ok)));
             c = c.push(setting("Exportar ou importar", "Para trocar de PC.", row_c(vec![btn("Exportar", Kind::Normal, true, None, Some(toast("Exportar (simulado)"))), btn("Importar", Kind::Normal, true, None, Some(toast("Importar (simulado)")))])));
+            } else {
+                c = c.push(setting("Atualizações", "O instalador atualiza o app com o feed assinado (minisign). Manualmente: `orion update`.", badge(env!("CARGO_PKG_VERSION"), Tone::Plain)));
+            }
             let en = p.english;
             c = c.push(sh(if en { "Advanced" } else { "Avançado" }));
             c = c.push(setting(if en { "Show advanced" } else { "Mostrar avançado" }, if en { "Dangerous or support options. Hidden by default." } else { "Opções perigosas ou de suporte. Ficam escondidas por padrão." }, sw(p.advanced, "advanced")));
@@ -466,4 +536,22 @@ pub fn modal(app: &App) -> El<'_> {
 
 fn vline_full<'a>() -> El<'a> {
     container(sp_w(0.0)).width(Length::Fixed(1.0)).height(Length::Fill).style(|_| container::Style { background: Some(t::LINE.into()), ..Default::default() }).into()
+}
+
+/// Memória residente do próprio processo, em MB, atualizada no máximo a cada 2 s (a tela redesenha com frequência).
+fn proc_mem_mb() -> u64 {
+    use std::sync::Mutex;
+    static CACHE: Mutex<Option<(std::time::Instant, u64)>> = Mutex::new(None);
+    let mut g = CACHE.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some((t0, v)) = *g {
+        if t0.elapsed().as_secs() < 2 {
+            return v;
+        }
+    }
+    let mut sys = sysinfo::System::new();
+    let pid = sysinfo::Pid::from_u32(std::process::id());
+    sys.refresh_processes_specifics(sysinfo::ProcessesToUpdate::Some(&[pid]), true, sysinfo::ProcessRefreshKind::new().with_memory());
+    let mb = sys.process(pid).map(|p| p.memory() / (1024 * 1024)).unwrap_or(0);
+    *g = Some((std::time::Instant::now(), mb));
+    mb
 }

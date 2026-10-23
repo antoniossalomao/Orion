@@ -23,6 +23,8 @@ pub struct Note {
 
 #[derive(Clone, Debug)]
 pub struct Tool {
+    /// Identifica a chamada (para atualizar o estado quando ela termina); vazio nos dados de exemplo.
+    pub id: String,
     pub kind: String,
     pub value: String,
     pub time: String,
@@ -92,7 +94,7 @@ pub const RAM_BODY: &str = "Medi com o Orion parado por 10 minutos. O pico vem d
 
 pub fn convs() -> Vec<Conv> {
     use ChatMsg::*;
-    let tool = |kind: &str, value: &str, time: &str| Tool { kind: kind.into(), value: value.into(), time: time.into() };
+    let tool = |kind: &str, value: &str, time: &str| Tool { id: String::new(), kind: kind.into(), value: value.into(), time: time.into() };
     vec![
         Conv {
             id: "ram".into(),

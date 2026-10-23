@@ -32,6 +32,31 @@ fn avail_width(app: &App) -> f32 {
     app.win.width - side - ctx
 }
 
+pub const JANELA: usize = 60;
+
+/// Minimapa: uma faixa fina com um bloco por mensagem (altura ~ tamanho do texto); o trecho visível fica claro.
+fn minimapa<'a>(app: &'a App, c: &'a crate::data::Conv, primeira: usize) -> El<'a> {
+    let peso = |m: &ChatMsg| -> u16 { let n = match m { ChatMsg::User(s) => s.len(), ChatMsg::Orion(o) => o.body.len() }; ((n / 80) + 2).min(400) as u16 };
+    // só as mensagens montadas: o deslocamento da rolagem é relativo a elas, não à conversa inteira
+    let total: f32 = c.msgs.iter().skip(primeira).map(|m| peso(m) as f32).sum::<f32>().max(1.0);
+    let (ini, tam) = app.chat_vp;
+    let mut col = column![].spacing(1).width(Length::Fixed(6.0)).height(Length::Fill);
+    let mut acc = 0.0f32;
+    for m in c.msgs.iter().skip(primeira) {
+        let w = peso(m);
+        let (a, b) = (acc / total, (acc + w as f32) / total);
+        acc += w as f32;
+        let visivel = b > ini && a < ini + tam;
+        let user = matches!(m, ChatMsg::User(_));
+        let cor = if visivel { t::FG2 } else if user { t::LINE2 } else { t::LINE };
+        let alvo = (a + b) / 2.0;
+        col = col.push(
+            button(sp_w(0.0)).padding(0).width(Length::Fill).height(Length::FillPortion(w)).on_press(Msg::ChatJump(alvo)).style(move |_, _| button::Style { background: Some(cor.into()), border: Border { radius: 2.0.into(), ..Default::default() }, ..Default::default() }),
+        );
+    }
+    container(col).height(Length::Fill).padding(pad(10.0, 4.0, 14.0, 4.0)).into()
+}
+
 pub fn view(app: &App) -> El<'_> {
     let Some(ci) = app.conv else { return sp_w(0.0) };
     let c = &app.convs[ci];
@@ -53,14 +78,31 @@ pub fn view(app: &App) -> El<'_> {
             col = col.push(dashed(container(row![icon("pin", 16.0, t::FG3), tx(format!("Fixado: {p}"), 12.5, t::FG2)].spacing(8).align_y(Vertical::Center)).width(Length::Fill).padding(pad(8.0, 12.0, 8.0, 12.0)), 10.0, t::LINE2));
         }
         let last_orion = c.msgs.iter().rposition(|m| matches!(m, ChatMsg::Orion(_)));
-        for (mi, m) in c.msgs.iter().enumerate() {
+        // Janela virtual: só as mensagens perto da tela são montadas (ver ChatScrolled); as mais antigas voltam ao rolar para cima.
+        let mostradas = app.chat_win.get(&ci).copied().unwrap_or(JANELA).max(JANELA);
+        let primeira = c.msgs.len().saturating_sub(mostradas);
+        if primeira > 0 {
+            col = col.push(
+                container(btn(&format!("Carregar mais ({primeira} anteriores)"), Kind::Ghost, true, None, Some(Msg::ShowAll(ci)))).width(Length::Fill).center_x(Length::Fill),
+            );
+        }
+        for (mi, m) in c.msgs.iter().enumerate().skip(primeira) {
             match m {
                 ChatMsg::User(s) => col = col.push(user_msg(app, mi, s.clone(), content_w)),
                 ChatMsg::Orion(o) => col = col.push(orion_msg(app, ci, mi, o, Some(mi) == last_orion, content_w)),
             }
         }
         let body = container(col).width(Length::Fill).center_x(Length::Fill).padding(pad(28.0, 0.0, 36.0, 0.0));
-        scrollable(body).direction(scrollable::Direction::Vertical(thin_bar())).style(thin_scroll).anchor_bottom().height(Length::Fill).into()
+        let lista = scrollable(body).id("chat-scroll").on_scroll(Msg::ChatScrolled).direction(scrollable::Direction::Vertical(thin_bar())).style(thin_scroll).anchor_bottom().height(Length::Fill);
+        // O Scrollable fica sempre na mesma posição da árvore (dentro do stack): trocar de tipo recriaria o widget e
+        // perderia a posição de rolagem. Só a camada do botão aparece e some.
+        let fim: El = if app.chat_end {
+            sp_w(0.0)
+        } else {
+            container(btn("Ir ao fim", Kind::Normal, true, Some("chevD"), Some(Msg::ChatEnd))).width(Length::Fill).height(Length::Fill).center_x(Length::Fill).align_y(Vertical::Bottom).padding(pad(0.0, 0.0, 14.0, 0.0)).into()
+        };
+        let mapa: El = if c.msgs.len() - primeira >= 8 { container(minimapa(app, c, primeira)).width(Length::Fill).height(Length::Fill).align_x(Horizontal::Right).into() } else { sp_w(0.0) };
+        iced::widget::stack![lista, fim, mapa].into()
     };
 
     let mut tail = column![].spacing(6).width(Length::Fixed((width - 32.0).min(app.win.width - 64.0))).align_x(Horizontal::Center);
@@ -116,8 +158,8 @@ fn orion_msg<'a>(app: &'a App, ci: usize, mi: usize, o: &'a OrionMsg, is_last: b
             for tl in &o.tools {
                 list = list.push(
                     row![
-                        container(tx(tl.kind.clone(), 12.5, t::FG3)).width(Length::Fixed(70.0)),
-                        container(txf(ell(&tl.value, content_w - 190.0, 12.0), 12.0, t::FG2, t::MONO)).width(Length::Fill),
+                        container(tx(tl.kind.clone(), 12.5, t::FG3)).width(Length::Fixed(130.0)),
+                        container(txf(ell(&tl.value, content_w - 250.0, 12.0), 12.0, t::FG2, t::MONO)).width(Length::Fill),
                         tx(tl.time.clone(), 11.5, t::FG3)
                     ]
                     .spacing(10)
@@ -139,7 +181,7 @@ fn orion_msg<'a>(app: &'a App, ci: usize, mi: usize, o: &'a OrionMsg, is_last: b
         text.push_str(if (app.now.saturating_duration_since(app.t0).as_millis() / 500) % 2 == 0 { " █" } else { "  " });
     }
     let blocks = md::parse(&text);
-    col = col.push(md::render(&blocks, md::Style::chat(f, fb, app.p.chat_fs())));
+    col = col.push(md::render_with(&blocks, md::Style::chat(f, fb, app.p.chat_fs()), Some(Msg::OpenUrl), Some(Msg::CopyText)));
 
     if let Some(a) = &o.approval {
         col = col.push(approval(a, ci, mi));

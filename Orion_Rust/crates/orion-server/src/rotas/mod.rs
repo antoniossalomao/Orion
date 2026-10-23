@@ -73,6 +73,8 @@ pub fn router(st: Estado) -> Router {
         .route("/budget", get(budget_status).put(budget_configure))
         .route("/budget/calibrate", post(budget_calibrate))
         .route("/modo", get(modo_estado))
+        .route("/config/chaves", get(chaves_estado))
+        .route("/config/chave", post(chave_guardar))
         .route("/modo/autonomo", post(modo_autonomo))
         .route("/modo/panico", post(modo_panico))
         .route("/modo/nao-perturbe", post(modo_nao_perturbe))

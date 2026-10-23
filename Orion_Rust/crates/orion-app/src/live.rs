@@ -22,6 +22,10 @@ pub enum Lm {
     Projects(Result<Value, String>),
     ProjectCreated(u64, Result<Value, String>),
     Renamed(u64, String, Result<Value, String>),
+    Keys(Result<Value, String>),
+    KeySaved(Result<Value, String>),
+    /// Imagem gerada baixada do núcleo: (URL `/imagens/…`, bytes).
+    Imagem(String, Result<Vec<u8>, String>),
     Facts(Result<Value, String>),
     Results(Result<Value, String>),
     Painel(Result<Value, String>),
@@ -40,6 +44,21 @@ pub enum Lm {
 }
 
 // ── relógio sem dependências ──
+/// Deslocamento do fuso do Windows em segundos (o horário local do PC, com horário de verão se houver).
+pub fn tz_offset() -> f64 {
+    chrono::Local::now().offset().local_minus_utc() as f64
+}
+
+/// `escrever_arquivo` → `Escrever arquivo` (o rótulo curto da linha de ferramenta).
+fn humanizar(nome: &str) -> String {
+    let t = nome.replace('_', " ");
+    let mut c = t.chars();
+    match c.next() {
+        Some(p) => p.to_uppercase().collect::<String>() + c.as_str(),
+        None => String::new(),
+    }
+}
+
 fn now_secs() -> f64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs_f64()).unwrap_or(0.0)
 }
@@ -64,9 +83,9 @@ pub fn iso_to_secs(iso: &str) -> Option<f64> {
     Some(days as f64 * 86400.0 + h * 3600.0 + mi * 60.0 + sec)
 }
 
-/// "Hoje", "Ontem", "7 dias" ou "Mais antigos", pelo dia local (UTC−3).
+/// "Hoje", "Ontem", "7 dias" ou "Mais antigos", pelo dia local.
 pub fn day_group(secs: f64, now: f64) -> &'static str {
-    let day = |t: f64| ((t - 3.0 * 3600.0) / 86400.0).floor();
+    let day = |t: f64| ((t + tz_offset()) / 86400.0).floor();
     let d = day(now) - day(secs);
     if d <= 0.0 {
         "Hoje"
@@ -79,9 +98,9 @@ pub fn day_group(secs: f64, now: f64) -> &'static str {
     }
 }
 
-/// HH:MM (UTC−3) de um instante em segundos.
+/// HH:MM no fuso local de um instante em segundos.
 pub fn hm(secs: f64) -> String {
-    let s = (secs - 3.0 * 3600.0).rem_euclid(86400.0) as i64;
+    let s = (secs + tz_offset()).rem_euclid(86400.0) as i64;
     format!("{:02}:{:02}", s / 3600, (s % 3600) / 60)
 }
 
@@ -315,12 +334,13 @@ pub fn pull_sec(api: &Api, sec: Sec) -> Task<Msg> {
     match sec {
         Sec::Conectores => Task::batch([get("/mcp/servidores", Lm::Mcp), get("/skills", Lm::Skills)]),
         Sec::Locais => get("/modelos-locais", Lm::Modelos),
+        Sec::Modelos => Task::batch([get("/painel", Lm::Painel), get("/budget", Lm::Budget), get("/config/chaves", Lm::Keys)]),
         _ => Task::none(),
     }
 }
 
 fn day_label(secs: f64) -> String {
-    let d = ((secs - 3.0 * 3600.0) / 86400.0).floor() as i64 + 719468;
+    let d = ((secs + tz_offset()) / 86400.0).floor() as i64 + 719468;
     let era = d.div_euclid(146097);
     let doe = d - era * 146097;
     let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
@@ -646,6 +666,21 @@ impl App {
                     Err(e) => Msg::L(Lm::Acao(Err(e), true)),
                 }), true))
             }
+            Msg::KeySave => {
+                let Some(f) = self.key_form.as_mut().filter(|f| !f.busy) else { return Some((Task::none(), false)) };
+                if f.value.trim().is_empty() {
+                    f.error = "Cole a chave de API.".into();
+                    return Some((Task::none(), false));
+                }
+                f.busy = true;
+                let (nome, valor) = (f.nome.clone(), f.value.trim().to_string());
+                let a2 = api.clone();
+                Some((Task::perform(async move { a2.post("/config/chave", json!({"nome": nome, "valor": valor})).await }, |r| Msg::L(Lm::KeySaved(r))), false))
+            }
+            Msg::VaultPull => {
+                let a2 = api.clone();
+                Some((acao(&api, async move { a2.post("/vault/pull", json!({})).await }, "Vault atualizado (git pull)", true), true))
+            }
             Msg::QcapSave => {
                 let q = self.qcap.as_ref()?;
                 let texto = q.text.trim().to_string();
@@ -802,6 +837,7 @@ impl App {
                         self.cur_sid = Some(sid);
                         self.conv = Some(i);
                     }
+                    return self.buscar_imagens();
                 }
                 Err(e) => self.net_fail(e),
             },
@@ -854,6 +890,27 @@ impl App {
                     }
                 }
             }
+            Lm::Keys(r) => {
+                if let Ok(v) = r {
+                    if let Some(o) = v.as_object() {
+                        self.keys = o.iter().map(|(k, x)| (k.clone(), x.as_bool().unwrap_or(false))).collect();
+                    }
+                }
+            }
+            Lm::KeySaved(r) => match r {
+                Ok(_) => {
+                    if let Some(f) = self.key_form.take() {
+                        self.keys.insert(f.nome.clone(), true);
+                        self.toast(format!("Chave de {} guardada no cofre. Reabra o Orion para usar.", f.label));
+                    }
+                }
+                Err(e) => {
+                    if let Some(f) = self.key_form.as_mut() {
+                        f.busy = false;
+                        f.error = e;
+                    }
+                }
+            },
             Lm::Renamed(request_id, sid, r) => {
                 if !self.rename_form.as_ref().is_some_and(|f| f.session_id == sid && f.busy && f.request_id == request_id) { return Task::none(); }
                 match r {
@@ -957,8 +1014,44 @@ impl App {
                 }
             },
             Lm::Chat(ev) => return self.on_chat(ev),
+            Lm::Imagem(url, r) => {
+                // `imgs_pedidas` guarda só o que está a caminho: ao terminar (bem ou mal) a URL sai, e uma imagem
+                // que o cache apagou depois pode ser baixada de novo
+                self.imgs_pedidas.remove(&url);
+                if let Ok(bytes) = r {
+                    let _ = crate::imgcache::guardar_url(&url, &bytes);
+                }
+            }
         }
         Task::none()
+    }
+
+    /// Baixa do núcleo as imagens geradas (`![alt](/imagens/img-….png)`) citadas na conversa aberta, uma vez cada.
+    fn buscar_imagens(&mut self) -> Task<Msg> {
+        let Some(api) = self.api.clone() else { return Task::none() };
+        let Some(c) = self.conv.and_then(|i| self.convs.get(i)) else { return Task::none() };
+        let mut urls: Vec<String> = vec![];
+        for m in &c.msgs {
+            if let ChatMsg::Orion(o) = m {
+                for b in crate::md::parse(&o.body) {
+                    if let crate::md::Block::Image(_, src) = b {
+                        if crate::imgcache::url_do_nucleo(&src) && crate::imgcache::da_url(&src).is_none() && !urls.contains(&src) {
+                            urls.push(src);
+                        }
+                    }
+                }
+            }
+        }
+        let tarefas: Vec<Task<Msg>> = urls
+            .into_iter()
+            .filter(|u| self.imgs_pedidas.insert(u.clone()))
+            .map(|u| {
+                let a = api.clone();
+                let u2 = u.clone();
+                Task::perform(async move { a.bytes(&u2).await }, move |r| Msg::L(Lm::Imagem(u.clone(), r)))
+            })
+            .collect();
+        Task::batch(tarefas)
     }
 
     fn reload_all(&mut self) -> Task<Msg> {
@@ -1019,14 +1112,27 @@ impl App {
             Chat::Text(t) => o.body.push_str(&t),
             Chat::Model(m) => o.via = m,
             Chat::Tool(v) => {
-                let name = ["label", "name"].iter().find_map(|k| v.get(*k).and_then(Value::as_str)).unwrap_or("ferramenta");
+                let name = ["name", "label"].iter().find_map(|k| v.get(*k).and_then(Value::as_str)).unwrap_or("ferramenta");
+                let label = v.get("label").and_then(Value::as_str).unwrap_or(name);
                 let summary = v.get("summary").and_then(Value::as_str).unwrap_or("");
-                let estado = v.get("state").and_then(Value::as_str).unwrap_or("");
+                let estado = match v.get("state").and_then(Value::as_str).unwrap_or("") {
+                    "completed" | "ok" | "done" => "ok",
+                    "failed" | "error" => "falhou",
+                    "running" => "rodando",
+                    "waiting_approval" | "pending_approval" => "aguardando aprovação",
+                    "denied" => "negada",
+                    outro => outro,
+                };
                 let call = v.get("call_id").and_then(Value::as_str).unwrap_or("");
-                if let Some(t) = o.tools.iter_mut().find(|t| !call.is_empty() && t.kind == format!("#{call}")) {
+                if let Some(t) = o.tools.iter_mut().find(|t| !call.is_empty() && t.id == call) {
                     t.time = estado.to_string();
+                    if !summary.is_empty() {
+                        t.value = summary.to_string();
+                    }
                 } else {
-                    o.tools.push(Tool { kind: if call.is_empty() { name.to_string() } else { format!("#{call}") }, value: if summary.is_empty() { name.to_string() } else { format!("{name} · {summary}") }, time: estado.to_string() });
+                    let kind = humanizar(label);
+                    let value = if summary.is_empty() { name.to_string() } else { summary.to_string() };
+                    o.tools.push(Tool { id: call.to_string(), kind, value, time: estado.to_string() });
                 }
                 o.tools_label = if o.tools.len() == 1 { "Usou 1 ferramenta".into() } else { format!("Usou {} ferramentas", o.tools.len()) };
             }
@@ -1036,7 +1142,9 @@ impl App {
                 conv.state = ConvState::Pending;
             }
             Chat::Error(e) => {
-                if !o.body.is_empty() {
+                if o.body.is_empty() {
+                    o.via.clear(); // ninguém respondeu: não atribui a resposta a um provedor
+                } else {
                     o.body.push_str("\n\n");
                 }
                 o.body.push_str(&format!("**Erro:** {e}"));
@@ -1052,7 +1160,7 @@ impl App {
                 if o.body.is_empty() && o.approval.is_none() && o.tools.is_empty() {
                     conv.msgs.pop();
                 }
-                return self.reload_all();
+                return Task::batch([self.reload_all(), self.buscar_imagens()]);
             }
         }
         Task::none()
@@ -1066,7 +1174,7 @@ fn _use(_: &net::Chat) {
 
 /// `AAAA-MM-DD` (UTC−3) de um instante em segundos.
 pub fn iso_date(secs: f64) -> String {
-    let d = ((secs - 3.0 * 3600.0) / 86400.0).floor() as i64 + 719468;
+    let d = ((secs + tz_offset()) / 86400.0).floor() as i64 + 719468;
     let era = d.div_euclid(146097);
     let doe = d - era * 146097;
     let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;

@@ -560,3 +560,40 @@ pub async fn budget_calibrate(_: Admin, State(st): State<Estado>, Json(c): Json<
     st.budget.calibrate(&c.provider, c.used).map_err(|e| ApiError::new(422, e.to_string()))?;
     Ok(Json(json!({"ok":true})))
 }
+
+/// Quais chaves de provedor já estão no cofre do sistema (só sim/não: o valor nunca sai do cofre).
+pub async fn chaves_estado(_: Admin, State(_st): State<Estado>) -> ApiResult<Json<Value>> {
+    let estado = tokio::task::spawn_blocking(|| {
+        let mut m = Map::new();
+        for nome in crate::onboarding::SECRET_NAMES {
+            m.insert((*nome).into(), json!(orion_ai::secrets::get_secret(nome).is_some_and(|v| !v.is_empty())));
+        }
+        Value::Object(m)
+    })
+    .await
+    .map_err(anyhow::Error::from)?;
+    Ok(Json(estado))
+}
+
+#[derive(Deserialize)]
+pub struct ChaveEntrada {
+    nome: String,
+    valor: String,
+}
+
+/// Guarda a chave de um provedor no cofre do sistema (Credential Manager). Vale na próxima abertura do Orion.
+pub async fn chave_guardar(_: Admin, State(_st): State<Estado>, Json(c): Json<ChaveEntrada>) -> ApiResult<Json<Value>> {
+    let valor = c.valor.trim().to_string();
+    if !crate::onboarding::SECRET_NAMES.contains(&c.nome.as_str()) {
+        return Err(ApiError::new(422, "chave de integração desconhecida"));
+    }
+    if valor.is_empty() || valor.len() > 16384 || valor.contains(['\r', '\n']) {
+        return Err(ApiError::new(422, "a chave está vazia ou tem caracteres inválidos"));
+    }
+    let nome = c.nome.clone();
+    tokio::task::spawn_blocking(move || orion_ai::secrets::set_secret(&nome, &valor))
+        .await
+        .map_err(anyhow::Error::from)?
+        .map_err(|_| ApiError::new(500, "não foi possível guardar no cofre do sistema"))?;
+    Ok(Json(json!({"ok": true, "reiniciar": true})))
+}

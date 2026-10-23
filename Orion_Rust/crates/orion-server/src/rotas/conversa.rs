@@ -419,6 +419,17 @@ pub async fn ligar_skill(_: Admin, State(st): State<Estado>, Json(c): Json<Skill
     Ok(Json(json!({"ok": true, "id": c.id, "ativa": c.ativo})))
 }
 
+/// Primeira linha do pedido, em até 48 caracteres, para nomear a conversa nova.
+fn titulo_de(texto: &str) -> String {
+    let linha = texto.lines().map(str::trim).find(|l| !l.is_empty()).unwrap_or("Conversa");
+    let mut t: String = linha.chars().take(48).collect();
+    if linha.chars().count() > 48 {
+        t = t.trim_end().to_string();
+        t.push('…');
+    }
+    t
+}
+
 pub async fn chat(_: Admin, State(st): State<Estado>, Json(c): Json<Mensagem>) -> ApiResult<Response> {
     if c.texto.is_empty() || c.texto.chars().count() > 8000 {
         return erro(422, "texto: entre 1 e 8000 caracteres");
@@ -436,6 +447,10 @@ pub async fn chat(_: Admin, State(st): State<Estado>, Json(c): Json<Mensagem>) -
         return erro(422, "skills (até 3), referencias e contexto (até 8)");
     }
     let s = st.memory.active_session(&c.canal)?;
+    if s.title.is_none() {
+        // título automático e barato: a primeira linha do primeiro pedido (sem chamar modelo; o usuário pode renomear)
+        let _ = st.memory.edit_session(&c.canal, &s.id, Some(&titulo_de(&c.texto)), None, None);
+    }
     let escopo = s.project_id.as_ref().map(|p| format!("project:{p}")).unwrap_or_else(|| "personal".into());
     let referencias = c.referencias.iter().map(SkillReference::parse).collect::<Result<Vec<_>, _>>().map_err(|m| ApiError::new(422, m))?;
     let selection = {
