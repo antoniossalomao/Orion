@@ -18,6 +18,9 @@ struct Nucleo {
     backup: Option<tokio::task::JoinHandle<()>>,
 }
 
+static BOOT_PROGRESS: parking_lot::Mutex<Option<String>> = parking_lot::Mutex::new(None);
+pub(crate) fn progress(message: &str) { *BOOT_PROGRESS.lock() = Some(message.into()); }
+
 static BOOT_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 static NATIVE_THROTTLE: std::sync::LazyLock<orion_core::auth::LoginThrottle> = std::sync::LazyLock::new(Default::default);
 static NATIVE_2FA: std::sync::LazyLock<orion_core::two_factor::TwoFactor> = std::sync::LazyLock::new(Default::default);
@@ -61,6 +64,7 @@ struct Interno {
     settings: Settings,
     rt: tokio::runtime::Handle,
     mostrar: std::path::PathBuf,
+    requires_login: bool,
 }
 
 impl Interno {
@@ -206,9 +210,26 @@ impl Local for Interno {
             .map_err(|_| "falha ao abrir o Orion".to_string())?
         })
     }
+    fn initialize(&self) -> BoxFuture<'static, Result<(), String>> {
+        let (slot, cfg, rt) = (self.nucleo.clone(), self.settings.clone(), self.rt.clone());
+        let open = !self.requires_login && self.primeiro_uso().is_none();
+        Box::pin(async move {
+            if open { rt.spawn(abrir_slot(slot, cfg)).await.map_err(|e| e.to_string())??; }
+            Ok(())
+        })
+    }
+    fn progress(&self) -> Option<String> { BOOT_PROGRESS.lock().clone() }
+    fn entrar_usuario(&self, usuario: String, senha: String) -> BoxFuture<'static, Result<orion_app::net::LoginResult, String>> {
+        let expected = orion_core::onboarding::Profile::load(&self.settings.data_dir).ok().flatten().map(|p| p.user).unwrap_or_else(|| self.settings.auth_user.clone());
+        if usuario != expected { return Box::pin(async { Err("Usuário ou senha incorretos.".into()) }); }
+        self.entrar(senha)
+    }
+    fn logs_dir(&self) -> Option<std::path::PathBuf> { Some(self.settings.data_dir.join("logs")) }
     fn perfil(&self)->Option<serde_json::Value>{
-        self.atual()?;
-        let p=orion_core::onboarding::Profile::load(&self.settings.data_dir).ok().flatten()?;
+        let p = match orion_core::onboarding::Profile::load(&self.settings.data_dir).ok().flatten() { Some(profile) => profile, None => {
+            let language = std::fs::read(self.settings.data_dir.join("interface.json")).ok().filter(|bytes| bytes.len() <= 1024).and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok()).and_then(|value| value["language"].as_str().filter(|language| ["pt-BR", "en"].contains(language)).map(str::to_owned)).unwrap_or_else(|| "pt-BR".into());
+            return Some(serde_json::json!({"user": self.settings.auth_user,"language":language}));
+        } };
         Some(serde_json::json!({"user":p.user,"name":p.name,"language":p.language}))
     }
     fn cancelar_entrada(&self, challenge: &str) {
@@ -293,7 +314,7 @@ impl Local for Interno {
     }
 
     fn bloqueado(&self) -> bool {
-        self.primeiro_uso().is_none() && self.atual().is_none()
+        self.requires_login && self.primeiro_uso().is_none() && self.atual().is_none()
     }
 
     fn desbloquear(&self, senha: String) -> BoxFuture<'static, Result<(), String>> {
@@ -361,15 +382,13 @@ pub fn run(mut s: Settings, fundo: bool) -> anyhow::Result<i32> {
     let trancado = trancado || (!primeiro_uso && (orion_core::onboarding::Profile::load(&s.data_dir)?.is_some() || crate::onboarding::login_protegido(&s)));
     let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
     let slot: Slot = Default::default();
-    if !trancado && !primeiro_uso {
-        *slot.lock() = Some(runtime.block_on(montar_nucleo(s.clone()))?);
-    }
     let api = orion_app::net::Api::local(
         std::sync::Arc::new(Interno {
             nucleo: slot.clone(),
             settings: s,
             rt: runtime.handle().clone(),
             mostrar: mostrar.clone(),
+            requires_login: trancado,
         }),
         token,
     );
@@ -412,6 +431,7 @@ mod tests {
             settings: Settings::load().unwrap(),
             rt: tokio::runtime::Handle::current(),
             mostrar: dir.join("mostrar"),
+            requires_login: true,
         })
     }
 
@@ -563,6 +583,7 @@ mod tests {
             settings: s.clone(),
             rt: tokio::runtime::Handle::current(),
             mostrar: dir.path().join("mostrar"),
+            requires_login: true,
         });
         let api = Api::local(interno.clone(), s.admin_token.clone());
         assert!(api.primeiro_uso().is_some());
@@ -578,6 +599,7 @@ mod tests {
             settings: s.clone(),
             rt: tokio::runtime::Handle::current(),
             mostrar: dir.path().join("mostrar"),
+            requires_login: true,
         });
         let next = Api::local(next, s.admin_token.clone());
         assert!(next.bloqueado());
@@ -608,6 +630,7 @@ mod tests {
             settings: s,
             rt: tokio::runtime::Handle::current(),
             mostrar: dir.join("mostrar"),
+            requires_login: true,
         });
         let mut cfg_token = Settings::load().unwrap();
         cfg_token.admin_token = token_aleatorio();

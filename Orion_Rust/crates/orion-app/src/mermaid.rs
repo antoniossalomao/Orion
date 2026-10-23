@@ -16,6 +16,7 @@ enum Shape {
     Circle,
 }
 
+#[derive(Clone)]
 struct Node {
     id: String,
     label: Vec<String>,
@@ -25,6 +26,7 @@ struct Node {
     size: (f32, f32),
 }
 
+#[derive(Clone)]
 pub struct Diagram {
     horizontal: bool,
     nodes: Vec<Node>,
@@ -113,7 +115,25 @@ fn split_label(s: &str) -> Vec<String> {
     s.replace("<br/>", "\n").replace("<br>", "\n").replace("<br />", "\n").split('\n').map(|l| l.trim().to_string()).collect()
 }
 
+thread_local! {
+    static CACHE: std::cell::RefCell<std::collections::VecDeque<(Vec<String>, Option<Diagram>)>> = const { std::cell::RefCell::new(std::collections::VecDeque::new()) };
+}
 pub fn parse(lines: &[String]) -> Option<Diagram> {
+    if lines.len() > 1000 || lines.iter().map(String::len).sum::<usize>() > 65536 { return None; }
+    CACHE.with(|cache| {
+        let key = lines.to_vec();
+        let mut cache = cache.borrow_mut();
+        if let Some(index) = cache.iter().position(|(k, _)| *k == key) {
+            let item = cache.remove(index).unwrap();
+            let result = item.1.clone(); cache.push_back(item); return result;
+        }
+        let result = parse_uncached(lines);
+        if cache.len() >= 64 { cache.pop_front(); }
+        cache.push_back((key, result.clone()));
+        result
+    })
+}
+fn parse_uncached(lines: &[String]) -> Option<Diagram> {
     let mut it = lines.iter().map(|l| l.trim()).filter(|l| !l.is_empty() && !l.starts_with("%%"));
     let head = it.next()?;
     let mut w = head.split_whitespace();

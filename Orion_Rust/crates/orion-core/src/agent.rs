@@ -423,6 +423,7 @@ impl Agent {
         let me = self.clone();
         let budget_task = budget_task.unwrap_or_else(orion_store::uuid_hex);
         Box::pin(async_stream::stream! {
+            let _configuration = me.gateway.configuration.read().await;
             me.refresh().await;
             let ctx_arc = me.context(&session.id);
             let escopo = Self::escopo(&ctx_arc.lock());

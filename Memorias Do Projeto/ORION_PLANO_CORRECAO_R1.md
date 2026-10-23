@@ -1,7 +1,33 @@
 # ORION - PLANO DE CORREÇÃO R1
 
-> **Origem:** primeiro teste do Orion num Windows real, em 23/10/2026. **Estado:** planejamento. Nenhum item abaixo foi iniciado; o Antônio pediu para esperar os prints da fonte e o teste em casa, com GPU.
-> **Onde acompanhar:** os 14 itens (R1.01 a R1.14) são cards no board "Orion — Board" do Notion, todos com prioridade **P0 Crítica**, e estão listados como caixas de marcar na seção "Rodada R1" de [ORION_PLANO_IMPLEMENTACAO.md](ORION_PLANO_IMPLEMENTACAO.md). Este arquivo guarda o detalhe: evidência, causa, o que fazer e como aceitar.
+> **Origem:** primeiro teste do Orion num Windows real, em 23/10/2026. **Estado:** correções em implementação e validação em 23/10/2026, após o pedido do Antônio nesta sessão para aplicar o planejamento. A espera anterior pelos prints não bloqueia este trabalho; aceite de hardware continua separado.
+> **Onde acompanhar:** os 15 itens (R1.01 a R1.15) são cards no board "Orion — Board" do Notion, com prioridades ajustadas no board conforme o diagnóstico, e estão listados como caixas de marcar na seção "Rodada R1" de [ORION_PLANO_IMPLEMENTACAO.md](ORION_PLANO_IMPLEMENTACAO.md). Este arquivo guarda o detalhe: evidência, causa, o que fazer e como aceitar.
+
+## Execução de 23/10/2026
+
+O estado vigente fica em [ORION.md](ORION.md). Nenhum aceite Windows é inferido de compilação Linux ou do código do workflow. Testes novos e CI automático continuam pausados.
+
+| Item | Alteração nesta entrega | Limite / aceite restante |
+|---|---|---|
+| R1.01 | Provedores sem segredo em `meta.providers:configuration`, descoberta das chaves salvas em ordem do catálogo e defaults gratuitos; `ORION_PROVEDORES` explícito, inclusive no `.env` e `[]`, tem precedência. Gateway recarrega entre turnos e mantém orçamento, auditoria, política e agente. Erro do chat oferece Adicionar chave. | Credential Manager e primeira chamada Gemini reais no Windows |
+| R1.02 / R1.15 | GPU real usa wgpu; adaptador de CPU usa tiny-skia sem MSAA. Tick só durante atividade, até 24 fps, pausado sem foco/oculto. Bandeja consulta em segundo plano e só acorda a UI quando há evento. Grafo estático, cache de geometria, layout fora da UI. Markdown, Mermaid, LaTeX e widgets de resposta reutilizados. Tempos de `view`/`update` em `orion.performance`, nível debug. | Medir CPU/GPU e latência no notebook; sem prometer os limites antes da medição |
+| R1.03 / R1.04 | Barra de controles compartilhada nas telas iniciais. Login usa o perfil, continua editável, confere o usuário digitado e preserva contas antigas sem perfil. | Controles e login no pacote Windows |
+| R1.05 | Padrão warn, arquivo mascarado com rotação em `logs/` quando o banco é em claro; logs cifrados continuam no destino existente. Botão abre a pasta real da instalação. | Abrir pasta e conferir Credential Manager no Windows |
+| R1.06 | Saída fecha a janela antes de encerrar o runtime, permitindo descarte dos recursos. | Ausência de avisos DX12/Vulkan só pode ser aceita com renderizador real |
+| R1.07 | Splash com logo, derivação/verificação da senha, abertura do banco, preparação dos modelos e ferramentas. Núcleo sem bloqueio passa a abrir depois da janela. | Capturas e fluxo visual; perfil e dados continuam protegidos antes da senha |
+| R1.08 | Céu estático/cacheado, bitmap na resolução do painel com GPU e reduzido em software; entrada vetorial finita de estrelas/linhas no login com GPU, transições limitadas e sem animação contínua no repouso. | Acabamento da animação e fonte continuam dependendo do aceite visual |
+| R1.09 | Conferido `decorations: false` e `undecorated_shadow: false` (padrão do iced). | Não reproduzido em Windows; não há correção de causa comprovada da faixa branca |
+| R1.10 | Nova conversa já era local até o envio; adicionado bloqueio de envios duplicados enquanto a criação está pendente. Listar/abrir a tela não cria sessão. | Não apaga conversas vazias antigas nem altera histórico |
+| R1.11 | LEIA-ME do pacote esclarece portátil × primeiro uso e mantém Setup/Vulkan/SQLCipher para o teste seguinte. | Nenhum release publicado; workflow continua somente manual |
+| R1.12 | Sem mudança de estado por inferência. | Antônio: Mica, bandeja, atalhos, Hello, autostart, GPU |
+| R1.13 | Antônio decidiu incluir localização completa nesta sessão. Catálogos Fluent pt-BR/en, rótulos da interface/bandeja, estados e idioma persistido no perfil autenticado; conteúdo do usuário preservado. | Revisão visual nos dois idiomas; 847 traduções e 66 interpolações Unicode validadas |
+| R1.14 | Anexos txt/md/pdf (6 MB, até 8), extraídos pelo fluxo existente e resolvidos por ID no escopo da conversa; texto externo limitado a 32 mil caracteres por turno. Alturas do chat vêm do layout. Documentos longos aparecem como artefatos; guardar/atualizar e navegar versões usa o SQLite, com controle de concorrência. | Imagem/áudio no chat não fazem parte do upload de documentos atual; interface diz os formatos suportados |
+
+**Validação Linux (23/10/2026, Rust 1.97.0):** suíte existente exigida pelo AGENTS.md: **550 testes, 0 falhas**. Os crates alterados de UI/servidor passaram novamente (47 testes); após o último ajuste de rótulos, 4 testes de biblioteca da UI passaram. Os 4 testes nativos `appmode::tests` também passaram com `scripts/mock_llm.py` em loopback, exercitando chat, aprovação de escrita e proteção do vault. Nenhum teste novo foi criado. `orion-platform` passou em `cargo check --locked -p orion-platform --target x86_64-pc-windows-msvc`; isso não é execução Windows. `git diff --check` passou.
+
+**Medição Linux/Xvfb (1440×900, tiny-skia, app de demonstração):** amostras de 10 s por tela, CPU como percentual de **um núcleo**: login 0,1%; chat 0,0%; Memória/grafo 0,1%; minimizado 0,3%. O grafo mostrou 802 de 895 notas e 3.394 links. Capturas pt-BR/en foram inspecionadas; conteúdo das conversas e nomes do grafo permaneceram originais. São medidas de repouso nesta máquina, não prova de latência de clique, uso de GPU ou aceite do notebook Windows.
+
+**Ambiente:** a primeira suíte encontrou falta de ALSA/udev de desenvolvimento e restrição de sockets. Pacotes de validação foram extraídos fora do repositório; a suíte foi executada com acesso aos sockets locais e passou. Sem mudanças no sistema, em segredos ou nos gatilhos de CI. A compilação e medição locais não usam API paga nem chave real.
 
 ---
 
@@ -86,8 +112,9 @@
 | Janela (R1.03) | **Os mesmos botões do app** (minimizar, maximizar, fechar e faixa de arrastar) no onboarding e no login |
 | Login (R1.04) | Campo **preenchido com o usuário do onboarding, editável** |
 | Carregamento (R1.07) | **Splash ao abrir**: logo e mensagem de progresso, antes do login e depois de entrar |
-| Próximo pacote para testar em casa | **Só o `orion.exe` portátil (CPU)**; instalador, versão Vulkan e banco cifrado ficam para depois |
-| Início | **Ainda não começar** a Onda 1: esperar os prints e o teste em casa |
+| Próximo pacote para testar em casa | **Só o `orion.exe` portátil**, build release manual solicitado ao terminar; GPU automática na interface. Instalador, Vulkan para IA e banco cifrado ficam para depois |
+| Localização (R1.13) | Incluir tradução completa pt-BR/en agora (resposta explícita nesta sessão) |
+| Início | Espera histórica, superada pelo pedido explícito de implementar em 23/10/2026 |
 
 ---
 
@@ -177,8 +204,8 @@ Tamanho: **P** = até meio dia, **M** = 1 dia, **G** = mais de 1 dia. Executor: 
 #### R1.12 · P1 · Antônio · Provar em Windows real com GPU
 - Mica (só Windows 11), bandeja, atalhos globais, Windows Hello e autostart. Teste em casa, com o pacote novo.
 
-#### R1.13 · decisão · Antônio · Localização pt-BR/en
-- O app não tem Fluent: todo o texto da interface nativa está em pt-BR. Decidir quando fazer a localização da interface inteira. Uma revisão do Codex (formulário de chave de API só em pt-BR) ficou aberta esperando essa decisão.
+#### R1.13 · Codex · Localização pt-BR/en
+- **Decisão nesta sessão:** incluir localização completa agora. O app passou a usar catálogos Fluent pt-BR/en para os textos do produto; Configurações muda o idioma e salva a preferência no perfil. A revisão visual nos dois idiomas continua no aceite. O estado anterior sem Fluent fica registrado no diagnóstico histórico.
 
 #### R1.14 · P2 · G · Herdados do chat
 - Anexos do usuário chegarem ao chat; medição real da altura das mensagens (hoje estimada pela média); versões de artefato e documento longo como artefato.
@@ -191,7 +218,7 @@ Tamanho: **P** = até meio dia, **M** = 1 dia, **G** = mais de 1 dia. Executor: 
 2. **R1.02 e R1.15** em seguida: são o que mais pesa (o teste em casa mostrou lentidão também com GPU).
 3. **R1.05 e R1.06** junto da R1.02.
 4. **Onda 2** depois dos prints e das respostas do Antônio.
-5. **Onda 3:** R1.12 acontece no teste em casa; R1.13 e R1.14 entram quando houver decisão e espaço.
+5. **Onda 3:** R1.12 acontece no teste em casa; R1.13 foi autorizado e R1.14 entrou nesta entrega.
 
 Cada entrega vai num commit, com o card do Notion e este plano atualizados, como nas rodadas anteriores.
 

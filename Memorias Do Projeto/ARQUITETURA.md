@@ -125,6 +125,16 @@ O Git usa índices temporários e plumbing (`hash-object --no-filters`, `update-
 
 Equivalências de plataforma (Windows | macOS): início automático (registro ou Task Scheduler | LaunchAgent); bandeja (`tray-icon`); teclas globais (`global-hotkey`); área de transferência (`arboard`); notificação (toast | `notify-rust`); cofre (Credential Manager | Keychain); captura de tela (`windows-capture` ou `xcap` | `xcap` ou ScreenCaptureKit); OCR (`Windows.Media.Ocr` | Vision); microfone (`cpal`). Permissões do macOS (Acessibilidade, Gravação de Tela, Microfone) exigem onboarding próprio.
 
+### Correções R1 da interface e do chat (23/10/2026)
+
+`orion-app::i18n` resolve rótulos do produto em catálogos Fluent pt-BR/en. Mensagens dinâmicas usam argumentos; nomes e conteúdo de arquivos, projetos e conversas permanecem originais. A preferência vem do perfil antes do login; `POST /config/language` exige autenticação e grava apenas o idioma por troca atômica do arquivo de perfil. Contas legadas sem perfil usam `interface.json`, sem recriar o primeiro uso.
+
+O app escolhe wgpu para GPU real e tiny-skia sem MSAA para adaptador de CPU. Assinaturas de animação só rodam durante transições/stream e param sem foco; a consulta da bandeja só emite eventos úteis. Geometrias e blocos de Markdown/LaTeX/Mermaid têm caches limitados, o layout do grafo roda fora da thread da UI e sensores medem as alturas das mensagens.
+
+`estado::load_providers` descobre chaves no cofre e persiste somente a lista/modelos no SQLite (`providers:configuration`). `ORION_PROVEDORES` explícito tem precedência. Salvar chave reconstrói os endpoints e espera o turno em andamento, preservando agente, auditoria e orçamento. Nenhuma chave entra na lista persistida.
+
+Documentos selecionados no chat usam a API de upload existente, com IDs validados no escopo do projeto e limite de texto por turno. Trechos são `ExternalData`, nunca instruções. A seleção é descartada ao trocar de conversa; resultado atrasado do upload não é anexado a outro chat. Artefatos do chat reutilizam a API SQLite de versões com `expected_version` para detectar conflito.
+
 ### Primeiro uso nativo
 
 `orion-app::onboarding` mantém o rascunho em memória, com segredos ocultos no Debug e campos secretos limpos ao concluir ou fechar o formulário. A ligação `Local` oferece bootstrap/configuração/testes exclusivamente no processo; nenhuma rota HTTP pública de criação de conta foi adicionada. `orion-server::onboarding` prepara banco/login/chaves/perfil antes de montar o núcleo e publica o marcador por último. `orion-core::onboarding::Profile` contém apenas preferências; nome e idioma entram como dados delimitados no contexto.

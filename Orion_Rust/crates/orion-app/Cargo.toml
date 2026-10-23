@@ -26,13 +26,16 @@ snap = ["dep:iced_test"]
 dev = ["iced/debug", "iced/hot", "iced/time-travel"]
 
 [dependencies]
-iced.workspace = true
+iced = { workspace = true, features = ["lazy"] }
 zeroize.workspace = true
 iced_test = { version = "0.14.0", optional = true }
 serde.workspace = true
 serde_json.workspace = true
 chrono.workspace = true
 sysinfo.workspace = true
+tracing.workspace = true
+regex.workspace = true
+fluent-bundle = "0.15.3"
 # Reduz e guarda em WebP as imagens do chat (cache de 1 GB); só os formatos que o app abre.
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif"] }
 tokio.workspace = true

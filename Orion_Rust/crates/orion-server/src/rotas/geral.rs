@@ -581,8 +581,8 @@ pub struct ChaveEntrada {
     valor: String,
 }
 
-/// Guarda a chave de um provedor no cofre do sistema (Credential Manager). Vale na próxima abertura do Orion.
-pub async fn chave_guardar(_: Admin, State(_st): State<Estado>, Json(c): Json<ChaveEntrada>) -> ApiResult<Json<Value>> {
+/// Guarda no cofre e atualiza os endpoints entre turnos (REGRAS.md: segredos nunca em log).
+pub async fn chave_guardar(_: Admin, State(st): State<Estado>, Json(c): Json<ChaveEntrada>) -> ApiResult<Json<Value>> {
     let valor = c.valor.trim().to_string();
     if !crate::onboarding::SECRET_NAMES.contains(&c.nome.as_str()) {
         return Err(ApiError::new(422, "chave de integração desconhecida"));
@@ -595,5 +595,40 @@ pub async fn chave_guardar(_: Admin, State(_st): State<Estado>, Json(c): Json<Ch
         .await
         .map_err(anyhow::Error::from)?
         .map_err(|_| ApiError::new(500, "não foi possível guardar no cofre do sistema"))?;
-    Ok(Json(json!({"ok": true, "reiniciar": true})))
+    if c.nome.starts_with("ORION_KEY_") {
+        let mut settings = st.settings.clone();
+        if !settings.providers_explicit { settings.provedores.clear(); }
+        crate::estado::load_providers(&mut settings, &st.memory)?;
+        if let Some(gateway) = &st.gateway {
+            let mut endpoints = crate::estado::endpoints_dos_provedores(&settings, None);
+            // Preserva também gateway explícito e reserva local, com seus opt-ins.
+            if let Some(configured) = crate::estado::gateway_from_settings(&settings) {
+                endpoints = configured.endpoint_snapshot();
+            }
+            gateway.configure(endpoints).await;
+        }
+    }
+    Ok(Json(json!({"ok": true, "reiniciar": !c.nome.starts_with("ORION_KEY_")})))
+}
+
+#[derive(Deserialize)]
+pub struct LanguageChoice { language: String }
+
+/// Preferência local autenticada; só altera o idioma (REGRAS.md: toda rota da API exige login).
+pub async fn language_save(_: Admin, State(st): State<Estado>, Json(choice): Json<LanguageChoice>) -> ApiResult<Json<Value>> {
+    if !["pt-BR", "en"].contains(&choice.language.as_str()) { return Err(ApiError::new(422, "idioma inválido")); }
+    let (path, value) = match orion_core::onboarding::Profile::load(&st.settings.data_dir)? {
+        Some(mut profile) => {
+            profile.language = choice.language;
+            (st.settings.data_dir.join(orion_core::onboarding::FILE), serde_json::to_value(profile).map_err(anyhow::Error::from)?)
+        }
+        // Instalações legadas podem ter conta sem perfil. Não inventa um perfil de primeiro uso.
+        None => (st.settings.data_dir.join("interface.json"), json!({"language":choice.language})),
+    };
+    let mut staged = tempfile::NamedTempFile::new_in(&st.settings.data_dir).map_err(anyhow::Error::from)?;
+    use std::io::Write;
+    staged.write_all(&serde_json::to_vec_pretty(&value).map_err(anyhow::Error::from)?).map_err(anyhow::Error::from)?;
+    staged.as_file().sync_all().map_err(anyhow::Error::from)?;
+    staged.persist(path).map_err(|e| anyhow::anyhow!(e.error))?;
+    Ok(Json(json!({"ok":true})))
 }

@@ -535,7 +535,7 @@ fn rodar(cli: Cli) -> anyhow::Result<i32> {
     if !cuida_da_senha {
         cli_db::unlock_if_needed(&s)?;
     }
-    log::setup(&s.log_level, s.log_json, cli_db::encrypted_log(&s));
+    log::setup(&s.log_level, s.log_json, cli_db::encrypted_log(&s), &s.data_dir, orion_core::dbopen::is_encrypted(&s.db_path()));
     match &cmd {
         Cmd::DbCifrar { stdin } => cli_db::cifrar(&s, *stdin),
         Cmd::DbSenha { stdin } => cli_db::trocar_senha(&s, *stdin),

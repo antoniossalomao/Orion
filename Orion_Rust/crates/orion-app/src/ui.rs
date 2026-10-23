@@ -343,7 +343,7 @@ pub fn meter<'a>(pct: f32, h: f32, color: Color) -> El<'a> {
 
 /// Linha de configuração `.row`: título, descrição e controles à direita.
 pub fn setting<'a>(title: &str, desc: &str, ctl: El<'a>) -> El<'a> {
-    setting_el(tx(title.to_string(), t::TEXT_BASE, t::FG).into(), desc, ctl)
+    setting_el(tx(crate::i18n::status(title), t::TEXT_BASE, t::FG).into(), desc, ctl)
 }
 pub fn setting_el<'a>(title: El<'a>, desc: &str, ctl: El<'a>) -> El<'a> {
     let mut left = column![title].spacing(2).width(Length::Fill);
@@ -376,10 +376,10 @@ pub fn belt_fg<'a>(large: bool) -> El<'a> {
 /// Selo da classe de risco da ação aprovada; `None` se o servidor não informou.
 fn risk_badge<'a>(risk: &str) -> Option<El<'a>> {
     Some(match risk {
-        "destructive" => badge("Ação destrutiva", Tone::Err),
-        "exec" => badge("Executa no computador", Tone::Warn),
-        "write" => badge("Escreve", Tone::Warn),
-        "read" => badge("Leitura", Tone::Plain),
+        "destructive" => badge(crate::i18n::text("Ação destrutiva"), Tone::Err),
+        "exec" => badge(crate::i18n::text("Executa no computador"), Tone::Warn),
+        "write" => badge(crate::i18n::text("Escreve"), Tone::Warn),
+        "read" => badge(crate::i18n::text("Leitura"), Tone::Plain),
         _ => return None,
     })
 }
@@ -409,7 +409,7 @@ pub fn approval_detail<'a>(a: &crate::data::Approval) -> El<'a> {
         col = col.push(container(linhas).width(Length::Fill).padding(pad(8.0, 10.0, 8.0, 10.0)).style(surface(Some(t::RAISE), Some(t::LINE2), 8.0)));
     }
     if a.truncated {
-        col = col.push(tx("Argumentos grandes demais para mostrar inteiros: só dá para negar.", 12.5, t::DANGER));
+        col = col.push(tx(crate::i18n::text("Argumentos grandes demais para mostrar inteiros: só dá para negar."), 12.5, t::DANGER));
     }
     col.into()
 }
@@ -420,8 +420,8 @@ pub fn approval_actions<'a>(a: &crate::data::Approval, approve: Msg, deny: Msg) 
     let (k_ok, k_no) = if a.risk == "destructive" { (Kind::Danger, Kind::Primary) } else { (Kind::Normal, Kind::Normal) };
     let mut v = vec![];
     if !a.truncated {
-        v.push(btn("Aprovar", k_ok, true, None, Some(approve)));
+        v.push(btn(crate::i18n::text("Aprovar"), k_ok, true, None, Some(approve)));
     }
-    v.push(btn("Negar", k_no, true, None, Some(deny)));
+    v.push(btn(crate::i18n::text("Negar"), k_no, true, None, Some(deny)));
     v
 }

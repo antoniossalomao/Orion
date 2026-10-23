@@ -16,8 +16,8 @@ pub fn modal(app: &App) -> El<'_> {
             icon("file", 16.0, t::FG2),
             txf(e.name.clone(), 18.0, t::FG, t::SERIF),
             container(txf(ell(&e.path, 420.0, 12.0), 12.0, t::FG3, t::MONO)).width(Length::Fill),
-            btn("Obsidian", Kind::Ghost, true, None, Some(Msg::Toast("Abriria no Obsidian".into()))),
-            btn("Salvar e commit", Kind::Primary, true, None, Some(Msg::EditorSave)),
+            btn("Obsidian", Kind::Ghost, true, None, Some(Msg::Toast(crate::i18n::text("Abriria no Obsidian").into()))),
+            btn(crate::i18n::text("Salvar e commit"), Kind::Primary, true, None, Some(Msg::EditorSave)),
             ib("close", Some(Msg::EditorClose), false)
         ]
         .spacing(8)

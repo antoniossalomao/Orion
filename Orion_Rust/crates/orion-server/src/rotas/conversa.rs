@@ -20,7 +20,7 @@ fn canal_padrao() -> String {
 }
 
 fn agente(st: &Estado) -> ApiResult<Arc<Agent>> {
-    st.agent.clone().ok_or_else(|| ApiError::new(503, "modelos não configurados (ORION_PROVEDORES ou ORION_GATEWAY_URL/MODEL)"))
+    st.agent.clone().filter(|a| a.gateway.configured()).ok_or_else(|| ApiError::new(503, "modelos não configurados (ORION_PROVEDORES ou ORION_GATEWAY_URL/MODEL)"))
 }
 
 fn projeto_arquivado(st: &Estado, s: &Session) -> bool {
@@ -374,6 +374,8 @@ pub async fn exportar(_: Admin, State(st): State<Estado>, Query(q): Query<Sessao
 #[derive(Deserialize)]
 pub struct Mensagem {
     texto: String,
+    #[serde(default)]
+    anexos: Vec<String>,
     #[serde(default = "canal_padrao")]
     canal: String,
     /// recursos e prompts de MCP escolhidos (dados externos com fonte, nunca privilégios)
@@ -443,7 +445,7 @@ pub async fn chat(_: Admin, State(st): State<Estado>, Json(c): Json<Mensagem>) -
         // frase EXATA de uma rotina concedida (REGRAS.md: automação sua vale pelo arquivo concedido)
         return Ok(stream_sse(turno_de_rotina(st.clone(), ex, r.nome)));
     }
-    if c.skills.len() > 3 || c.referencias.len() > 8 || c.contexto.len() > 8 {
+    if c.skills.len() > 3 || c.referencias.len() > 8 || c.contexto.len() > 8 || c.anexos.len() > 8 {
         return erro(422, "skills (até 3), referencias e contexto (até 8)");
     }
     let s = st.memory.active_session(&c.canal)?;
@@ -463,6 +465,21 @@ pub async fn chat(_: Admin, State(st): State<Estado>, Json(c): Json<Mensagem>) -
         let host = st.mcp_host.clone().ok_or_else(|| ApiError::new(503, "mcp_unavailable"))?;
         let pedidos = c.contexto.iter().map(ContextRequest::parse).collect::<Result<Vec<_>, _>>().map_err(|m| ApiError::new(422, m))?;
         external = ContextReader::new(host).selected(&pedidos, &escopo).await?;
+    }
+    let mut remaining_attachment_chars = 32000usize;
+    for id in &c.anexos {
+        conferir(id, SESSAO_ID, "anexo")?;
+        let rows = st.memory.query("SELECT name,status FROM uploads WHERE id=? AND project_id IS ?", &[id, &s.project_id])?;
+        let row = rows.first().ok_or_else(|| ApiError::new(404, "document_not_found"))?;
+        if row["status"] != json!("ready") { return erro(409, "O documento ainda está sendo processado ou falhou. Tente novamente após a extração."); }
+        let name = row["name"].as_str().unwrap_or("");
+        let source = match &s.project_id { Some(project) => format!("project:{project}/upload:{id}/{name}"), None => format!("upload:{id}/{name}") };
+        let chunks = st.memory.query("SELECT c.text FROM chunks c JOIN documents d ON d.id=c.document_id WHERE d.source=? AND d.project_id IS ? ORDER BY c.ord LIMIT 80", &[&source, &s.project_id])?;
+        let full = chunks.iter().filter_map(|chunk| chunk["text"].as_str()).collect::<Vec<_>>().join("\n\n");
+        let text: String = full.chars().take(remaining_attachment_chars.min(24000)).collect();
+        remaining_attachment_chars = remaining_attachment_chars.saturating_sub(text.chars().count());
+        use sha2::{Digest, Sha256};
+        external.push(orion_core::extensions::context::ExternalData { connection: "user-upload".into(), kind: "document".into(), key: id.clone(), digest: format!("{:x}", Sha256::digest(full.as_bytes())), truncated: text.len() < full.len() || chunks.len() == 80, text });
     }
     Ok(stream_sse(a.run(TurnRequest { channel: c.canal, text: c.texto, external, selection, expected_session: Some(s.id), skill_forcada: c.skill, ..Default::default() })))
 }

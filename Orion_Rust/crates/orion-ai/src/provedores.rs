@@ -111,3 +111,20 @@ pub fn parse_provedores(json: &str) -> Result<Vec<ProvedorConf>, String> {
 pub fn chave_env(provedor_id: &str) -> String {
     format!("ORION_KEY_{}", provedor_id.to_uppercase().replace('-', "_"))
 }
+
+/// Modelos iniciais das cotas gratuitas; escolhas explícitas do ambiente têm precedência
+/// (REGRAS.md: nuvem por padrão, custo zero; portabilidade).
+pub fn defaults(id: &str) -> Option<ProvedorConf> {
+    let model = match id {
+        "gemini" => "gemini-2.5-flash",
+        "groq" => "llama-3.3-70b-versatile",
+        "cerebras" => "gpt-oss-120b",
+        "openrouter" => "openrouter/free",
+        "mistral" => "mistral-small-latest",
+        "github" => "openai/gpt-4.1-mini",
+        "nvidia" => "meta/llama-3.1-8b-instruct",
+        "zai" => "glm-4.5-flash",
+        _ => return None,
+    };
+    Some(ProvedorConf { id: id.into(), padrao: model.into(), ..Default::default() })
+}

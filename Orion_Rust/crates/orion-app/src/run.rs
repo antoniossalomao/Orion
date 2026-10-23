@@ -6,9 +6,18 @@ use iced::{window, Size, Task};
 
 /// `fundo`: começa com a janela escondida (início com o Windows); a bandeja a reabre.
 pub fn run_ui(api: Option<Api>, cena: Option<String>, fundo: bool) -> iced::Result {
-    if std::env::var_os("ICED_BACKEND").is_none() {
-        std::env::set_var("ICED_BACKEND", "tiny-skia");
-    }
+    let hardware = if let Ok(backend) = std::env::var("ICED_BACKEND") {
+        backend != "tiny-skia"
+    } else {
+        let instance = iced::wgpu::Instance::new(&iced::wgpu::InstanceDescriptor::from_env_or_default());
+        let hardware = instance.enumerate_adapters(iced::wgpu::Backends::all()).iter().any(|adapter| {
+            let info = adapter.get_info();
+            matches!(info.device_type, iced::wgpu::DeviceType::DiscreteGpu | iced::wgpu::DeviceType::IntegratedGpu | iced::wgpu::DeviceType::VirtualGpu)
+                && !info.name.contains("Microsoft Basic Render Driver")
+        });
+        std::env::set_var("ICED_BACKEND", if hardware { "wgpu" } else { "tiny-skia" });
+        hardware
+    };
     let mut win = window::Settings {
         size: Size::new(1440.0, 900.0),
         min_size: Some(Size::new(760.0, 520.0)),
@@ -24,10 +33,12 @@ pub fn run_ui(api: Option<Api>, cena: Option<String>, fundo: bool) -> iced::Resu
         if let Some(api) = api.clone() {
             let (mut a, t) = App::live(api);
             a.fundo = fundo;
+            a.window_active = !fundo;
             return (a, Task::batch([t, id]));
         }
         let (mut a, t) = App::boot();
         a.fundo = fundo;
+        a.window_active = !fundo;
         if cena.is_some() {
             a.logged = true;
             a.hour = Some(9);
@@ -45,7 +56,7 @@ pub fn run_ui(api: Option<Api>, cena: Option<String>, fundo: bool) -> iced::Resu
         }
         (a, Task::batch([t, id]))
     };
-    let mut app = iced::application(boot, App::update, App::view).title(App::title).theme(App::theme).subscription(App::subscription).scale_factor(App::scale_factor).window(win).default_font(theme::UI).antialiasing(true).exit_on_close_request(false);
+    let mut app = iced::application(boot, App::update, App::view).title(App::title).theme(App::theme).subscription(App::subscription).scale_factor(App::scale_factor).window(win).default_font(theme::UI).antialiasing(hardware).exit_on_close_request(false);
     for f in theme::fonts() {
         app = app.font(f);
     }

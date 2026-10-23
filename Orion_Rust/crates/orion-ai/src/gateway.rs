@@ -133,7 +133,9 @@ struct Estado {
 }
 
 pub struct ChatGateway {
-    pub endpoints: Vec<Endpoint>,
+    endpoints: parking_lot::RwLock<Vec<Endpoint>>,
+    /// A troca de configuração espera o término do turno atual (REGRAS.md: portabilidade).
+    pub configuration: tokio::sync::RwLock<()>,
     client: reqwest::Client,
     cooldown_s: f64,
     estado: Mutex<Estado>,
@@ -175,15 +177,39 @@ impl ChatGateway {
         for ep in &endpoints {
             estado.stats.insert(ep.name.clone(), EndpointStats::default());
         }
-        Ok(ChatGateway { endpoints, client, cooldown_s, estado: Mutex::new(estado), weekly_budget: Mutex::new(None), orcamento: Mutex::new(None), embedded_local: Mutex::new(None) })
+        Ok(ChatGateway { endpoints: parking_lot::RwLock::new(endpoints), configuration: tokio::sync::RwLock::new(()), client, cooldown_s, estado: Mutex::new(estado), weekly_budget: Mutex::new(None), orcamento: Mutex::new(None), embedded_local: Mutex::new(None) })
+    }
+
+    pub fn unconfigured() -> anyhow::Result<Self> {
+        let gateway = Self::new(vec![Endpoint::new("unconfigured", "", "")])?;
+        gateway.endpoints.write().clear();
+        gateway.estado.lock().stats.clear();
+        Ok(gateway)
+    }
+
+    pub fn endpoint_snapshot(&self) -> Vec<Endpoint> { self.endpoints.read().clone() }
+
+    pub fn configured(&self) -> bool { !self.endpoints.read().is_empty() }
+
+    pub async fn configure(&self, endpoints: Vec<Endpoint>) {
+        let _turn = self.configuration.write().await;
+        let mut current = self.endpoints.write();
+        let mut state = self.estado.lock();
+        for endpoint in &endpoints {
+            state.stats.entry(endpoint.name.clone()).or_default();
+            state.quarentena.remove(&endpoint.name);
+            state.motivo.remove(&endpoint.name);
+        }
+        *current = endpoints;
     }
 
     /// Um objeto por endpoint, na ordem de tentativa (para o painel). Nunca mostra segredo
     /// (REGRAS.md: painel só lê e nunca mostra segredo).
     pub fn stats(&self) -> Vec<Value> {
+        let endpoints = self.endpoints.read();
         let st = self.estado.lock();
         let agora = Instant::now();
-        self.endpoints
+        endpoints
             .iter()
             .map(|ep| {
                 let s = st.stats.get(&ep.name).cloned().unwrap_or_default();
@@ -212,8 +238,9 @@ impl ChatGateway {
     /// Quem tentar, em ordem: os da camada pedida, depois os padrão (reserva). Sem camada, só os
     /// padrão; se não houver padrão, todos. O local sempre por último.
     fn ordem(&self, tier: Option<&str>) -> Vec<Endpoint> {
-        let locais: Vec<&Endpoint> = self.endpoints.iter().filter(|e| e.tier == CAMADA_LOCAL).collect();
-        let remotos: Vec<&Endpoint> = self.endpoints.iter().filter(|e| e.tier != CAMADA_LOCAL).collect();
+        let endpoints = self.endpoints.read();
+        let locais: Vec<&Endpoint> = endpoints.iter().filter(|e| e.tier == CAMADA_LOCAL).collect();
+        let remotos: Vec<&Endpoint> = endpoints.iter().filter(|e| e.tier != CAMADA_LOCAL).collect();
         let padrao: Vec<&Endpoint> = remotos.iter().copied().filter(|e| e.tier.is_empty()).collect();
         let proprios: Vec<&Endpoint> = remotos.iter().copied().filter(|e| tier.is_some_and(|t| !t.is_empty() && e.tier == t)).collect();
         let mut base: Vec<&Endpoint> = proprios.into_iter().chain(padrao).collect();

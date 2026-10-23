@@ -21,6 +21,7 @@ struct Raw {
     e: Vec<usize>,
 }
 
+#[derive(Debug, Clone)]
 pub struct Node {
     pub label: String,
     pub tipo: usize,
@@ -56,6 +57,10 @@ pub struct Graph {
     pub cache: iced::widget::canvas::Cache,
 }
 
+/// Só os dados de layout atravessam a thread; o cache de vídeo nasce na UI.
+#[derive(Debug, Clone)]
+pub struct Prepared { nodes: Vec<Node>, links: Vec<(usize, usize)> }
+
 impl Graph {
     /// Grafo vazio (modo real, antes de carregar do servidor).
     pub fn empty() -> Self {
@@ -63,7 +68,11 @@ impl Graph {
     }
 
     /// Converte `/grafo/completo` (`nodes`/`links`) e calcula posições por força (Fruchterman–Reingold).
-    pub fn from_server(v: &serde_json::Value) -> Self {
+    pub fn from_server(v: &serde_json::Value) -> Self { Self::from_prepared(Self::prepare(v)) }
+
+    pub fn from_prepared(prepared: Prepared) -> Self { Self::build(prepared.nodes, prepared.links) }
+
+    pub fn prepare(v: &serde_json::Value) -> Prepared {
         let nodes_raw = v.get("nodes").and_then(|n| n.as_array()).cloned().unwrap_or_default();
         let mut ids: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
         let mut nodes: Vec<Node> = vec![];
@@ -92,7 +101,7 @@ impl Graph {
             }
         }
         layout_forca(&mut nodes, &links);
-        Self::build(nodes, links)
+        Prepared { nodes, links }
     }
 
     fn build(mut nodes: Vec<Node>, links: Vec<(usize, usize)>) -> Self {
@@ -110,7 +119,7 @@ impl Graph {
         dates.dedup();
         let cut = dates.last().cloned().unwrap_or_default();
         let cut_idx = dates.len().saturating_sub(1);
-        Graph { nodes, links, adj, dates, filt: [true, true, true, true, true, true, false], q: String::new(), sel: None, hov: None, cam: (1.0, 0.0, 0.0), cut, cut_idx, read_on: false, rot: 0.0, spinning: true, fitted: false, size: (0.0, 0.0), cache: iced::widget::canvas::Cache::new() }
+        Graph { nodes, links, adj, dates, filt: [true, true, true, true, true, true, false], q: String::new(), sel: None, hov: None, cam: (1.0, 0.0, 0.0), cut, cut_idx, read_on: false, rot: 0.0, spinning: false, fitted: false, size: (0.0, 0.0), cache: iced::widget::canvas::Cache::new() }
     }
 
     pub fn load() -> Self {
@@ -176,7 +185,7 @@ impl Graph {
             cut_idx,
             read_on: false,
             rot: 0.0,
-            spinning: true,
+            spinning: false,
             fitted: false,
             size: (0.0, 0.0),
             cache: iced::widget::canvas::Cache::new(),
@@ -215,6 +224,7 @@ impl Graph {
         (x * c - y * s, x * s + y * c)
     }
     pub fn fit(&mut self, w: f32, h: f32) {
+        self.cache.clear();
         let vis: Vec<usize> = (0..self.nodes.len()).filter(|&i| self.visible(i) && self.nodes[i].deg > 0).collect();
         if vis.is_empty() || w <= 0.0 {
             return;

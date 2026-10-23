@@ -27,16 +27,16 @@ impl View {
     pub fn title(self) -> &'static str {
         match self {
             View::Home | View::Chat => "",
-            View::Projetos => "Projetos",
-            View::Memoria => "Memória",
-            View::Aprovacoes => "Aprovações",
-            View::Rotinas => "Rotinas",
-            View::Resultados => "Resultados",
-            View::Nuvem => "Segundo plano",
-            View::Fontes => "Fontes",
-            View::Conhecimento => "Conhecimento",
-            View::Painel => "Painel",
-            View::Arquivadas => "Arquivadas",
+            View::Projetos => crate::i18n::text("Projetos"),
+            View::Memoria => crate::i18n::text("Memória"),
+            View::Aprovacoes => crate::i18n::text("Aprovações"),
+            View::Rotinas => crate::i18n::text("Rotinas"),
+            View::Resultados => crate::i18n::text("Resultados"),
+            View::Nuvem => crate::i18n::text("Segundo plano"),
+            View::Fontes => crate::i18n::text("Fontes"),
+            View::Conhecimento => crate::i18n::text("Conhecimento"),
+            View::Painel => crate::i18n::text("Painel"),
+            View::Arquivadas => crate::i18n::text("Arquivadas"),
         }
     }
 }
@@ -176,7 +176,7 @@ impl Prefs {
     pub fn model_label(&self) -> String {
         let p = PROV_NAMES[self.prov];
         match PROV_MODELS[self.prov].get(self.model) {
-            Some(m) => format!("{p} {m}"),
+            Some(m) => format!("{p} {}", crate::i18n::status(m)),
             None => p.to_string(),
         }
     }
@@ -284,6 +284,9 @@ pub struct App {
     pub pw: String,
     /// Usuário da entrada (`ORION_USER`; padrão `antoniosalomao`).
     pub user: String,
+    pub window_active: bool,
+    pub loading: Option<String>,
+    pub message_heights: std::collections::HashMap<(String, usize), f32>,
     pub gate_err: String,
     pub view: View,
     pub conv: Option<usize>,
@@ -294,6 +297,9 @@ pub struct App {
     pub drawer: bool,
     pub composer: text_editor::Content,
     pub attach: Vec<(String, String)>,
+    pub attachment_ids: Vec<String>,
+    pub attachment_generation: u64,
+    pub attaching: bool,
     pub attach_n: usize,
     pub streaming: Option<Stream>,
     pub ctx_override: Option<bool>,
@@ -318,6 +324,9 @@ pub struct App {
     pub chat_vp: (f32, f32),
     /// Artefato HTML com a prévia aberta, no painel direito.
     pub art_preview: Option<usize>,
+    pub artifact_records: Vec<serde_json::Value>,
+    pub artifact_detail: Option<serde_json::Value>,
+    pub artifact_busy: bool,
     /// Imagens geradas (`/imagens/…`) pedidas ao núcleo e ainda a caminho.
     pub imgs_pedidas: std::collections::HashSet<String>,
     /// Quais chaves de provedor já estão no cofre (só sim/não).
@@ -379,6 +388,7 @@ pub struct App {
     pub onboarding: Option<crate::onboarding::Form>,
     pub fundo: bool,
     pub bandeja: Option<crate::tray::Bandeja>,
+    pub monitor: Option<crate::tray::Monitor>,
     pub bandeja_tentou: bool,
     pub painel: Option<serde_json::Value>,
     pub budget: Option<serde_json::Value>,
@@ -467,6 +477,9 @@ pub enum Msg {
     /// Grava o artefato `n` (bloco de código da conversa aberta) em Documentos/Orion/Artefatos.
     ArtifactSave(usize),
     ArtifactPreview(usize),
+    ArtifactRecord(usize),
+    ArtifactUpdate(usize, String),
+    ArtifactRead(String, i64),
     ShowAll(usize),
     ChatJump(f32),
     KeyOpen(String),
@@ -506,6 +519,7 @@ pub enum Msg {
     // configurações
     OpenSettings(Option<Sec>),
     CloseSettings,
+    OpenLogs,
     SetSec(Sec),
     SetQ(String),
     SetBack,
@@ -567,6 +581,9 @@ pub enum Msg {
     MemLocal(usize),
     // janela
     Tick(Instant),
+    WindowActive(bool),
+    BootProgress,
+    MessageSize(String, usize, f32),
     Resized(Size),
     DragWindow,
     Minimize,
@@ -587,7 +604,10 @@ impl App {
             p: Prefs::default(),
             logged: false,
             pw: String::new(),
-            user: std::env::var("ORION_USER").ok().filter(|s| !s.trim().is_empty()).unwrap_or_else(|| "antoniosalomao".into()),
+            user: std::env::var("ORION_USER").ok().filter(|s| !s.trim().is_empty()).unwrap_or_default(),
+            window_active: true,
+            loading: None,
+            message_heights: Default::default(),
             gate_err: String::new(),
             view: View::Home,
             conv: None,
@@ -598,6 +618,9 @@ impl App {
             drawer: false,
             composer: text_editor::Content::new(),
             attach: vec![],
+            attachment_ids: vec![],
+            attachment_generation: 0,
+            attaching: false,
             attach_n: 0,
             streaming: None,
             ctx_override: None,
@@ -617,6 +640,9 @@ impl App {
             chat_win: std::collections::HashMap::new(),
             chat_vp: (0.0, 1.0),
             art_preview: None,
+            artifact_records: vec![],
+            artifact_detail: None,
+            artifact_busy: false,
             imgs_pedidas: std::collections::HashSet::new(),
             keys: std::collections::BTreeMap::new(),
             request_id: 0,
@@ -671,6 +697,7 @@ impl App {
             onboarding: None,
             fundo: false,
             bandeja: None,
+            monitor: None,
             bandeja_tentou: false,
             painel: None,
             budget: None,
@@ -709,14 +736,24 @@ impl App {
     pub fn subscription(&self) -> Subscription<Msg> {
         let a = &self.at;
         let entrada = (!self.logged && crate::anim::active(Some(self.login_at), self.now, 1500)) || self.onboarding.as_ref().is_some_and(|f| crate::anim::active(Some(f.step_at), self.now, 450));
-        let busy = entrada || self.onboarding.is_some() || [a.page, a.pop, a.modal, a.scrim, a.over, a.drawer, a.toast, a.more, a.tools].iter().any(|m| crate::anim::active(*m, self.now, 450)) || a.switch.as_ref().map(|s| crate::anim::active(Some(s.1), self.now, 300)).unwrap_or(false) || self.mem_tween.is_some();
-        let tick = iced::time::every(Duration::from_millis(if busy { 16 } else { 60 })).map(Msg::Tick);
-        let poll = if self.api.is_some() && self.logged && self.streaming.is_none() { iced::time::every(Duration::from_secs(6)).map(|_| Msg::Poll) } else { Subscription::none() };
+        let busy = entrada || [a.page, a.pop, a.modal, a.scrim, a.over, a.drawer, a.toast, a.more, a.tools].iter().any(|m| crate::anim::active(*m, self.now, 450)) || a.switch.as_ref().map(|s| crate::anim::active(Some(s.1), self.now, 300)).unwrap_or(false) || self.mem_tween.is_some();
+        let moving = busy || self.streaming.is_some() || self.toast.is_some() || self.news_pending;
+        let tick = if self.window_active && moving { iced::time::every(Duration::from_millis(42)).map(Msg::Tick) } else { Subscription::none() };
+        let progress = if self.loading.is_some() { iced::time::every(Duration::from_millis(150)).map(|_| Msg::BootProgress) } else { Subscription::none() };
+        let focus = iced::event::listen_with(|event, _, _| match event {
+            iced::Event::Window(window::Event::Focused) => Some(Msg::WindowActive(true)),
+            iced::Event::Window(window::Event::Unfocused) => Some(Msg::WindowActive(false)),
+            _ => None,
+        });
+        let poll = if self.window_active && self.api.is_some() && self.logged && self.streaming.is_none() { iced::time::every(Duration::from_secs(6)).map(|_| Msg::Poll) } else { Subscription::none() };
         let resize = window::resize_events().map(|(_, s)| Msg::Resized(s));
         let keys = iced::keyboard::listen().filter_map(crate::keys::map);
-        let fundo = iced::time::every(Duration::from_millis(250)).map(|_| Msg::Bandeja);
+        let fundo = match &self.monitor {
+            Some(monitor) => monitor.subscription(),
+            None => Subscription::run(|| futures::stream::once(async { Msg::Bandeja })),
+        };
         let fechar = window::close_requests().map(Msg::CloseReq);
-        Subscription::batch([tick, resize, keys, poll, fundo, fechar])
+        Subscription::batch([tick, resize, keys, poll, fundo, fechar, focus, progress])
     }
 
     pub fn pend_list(&self) -> Vec<(usize, usize)> {
@@ -768,10 +805,14 @@ impl App {
         self.ctx_tab = CtxTab::Contexto;
         self.ctx_override = None;
         self.edit_fact = None;
+        self.artifact_records.clear();
+        self.artifact_detail = None;
         self.drawer = false;
         self.pop = None;
         self.composer = text_editor::Content::new();
         self.attach.clear();
+        self.attachment_ids.clear();
+        self.attachment_generation = self.attachment_generation.wrapping_add(1);
         if v == View::Rotinas {
             for r in self.rots.iter_mut() {
                 r.news = false;
@@ -784,6 +825,8 @@ impl App {
     }
 
     pub fn update(&mut self, msg: Msg) -> Task<Msg> {
+        let _timing = Timing::new("update", self.view);
+        if !matches!(&msg, Msg::Tick(_) | Msg::Bandeja | Msg::BootProgress) { self.now = Instant::now(); }
         if let Msg::Onboarding(event) = msg { return self.update_onboarding(event); }
 
         if let Msg::L(m) = msg {
@@ -871,9 +914,7 @@ impl App {
         match msg {
             Msg::Tick(now) => {
                 self.now = now;
-                if let Some(f) = self.onboarding.as_mut() {
-                    f.tick_sky(now, self.win);
-                }
+
                 crate::views::memory::tick(self, now);
                 self.spin = (self.spin + 0.35) % std::f32::consts::TAU;
                 if self.news_pending && !crate::novidades::started_in_background() {
@@ -898,7 +939,10 @@ impl App {
                     }
                 }
             }
-            Msg::Resized(s) => self.win = s,
+            Msg::MessageSize(session, index, height) => { if self.message_heights.len() > 10000 { self.message_heights.clear(); } self.message_heights.insert((session, index), height); }
+            Msg::BootProgress => { if let Some(message) = self.api.as_ref().and_then(|api| api.progress()) { self.loading = Some(message); } }
+            Msg::WindowActive(active) => { self.window_active = active; self.now = Instant::now(); }
+            Msg::Resized(s) => { self.win = s; if let Some(f) = self.onboarding.as_mut() { f.settle_sky(f.step, s); } },
             Msg::Hover(h) => self.hover = h,
             Msg::PwChanged(s) => self.pw = s,
             Msg::UserChanged(s) => self.user = s,
@@ -993,18 +1037,26 @@ impl App {
                 self.chat_vp = ((vp.absolute_offset_reversed().y / h).clamp(0.0, 1.0), (vh / h).clamp(0.0, 1.0));
                 // Janela virtual: só monta as mensagens que cobrem (distância até o fim + tela + 2400 px de folga).
                 // A lista é ancorada no fim, então tirar mensagens do topo não move o que está na tela, e
-                // incluir mais ao chegar perto do topo também não. Altura média = conteúdo / mensagens montadas.
+                // incluir mais ao chegar perto do topo também não. Alturas vêm dos sensores de layout.
                 if let Some(ci) = self.conv {
                     let total = self.convs.get(ci).map_or(0, |c| c.msgs.len());
                     let atual = self.chat_win.get(&ci).copied().unwrap_or(crate::views::chat::JANELA).clamp(1, total.max(1));
-                    let media = (h / atual.min(total).max(1) as f32).max(40.0);
-                    let alvo = (((vp.absolute_offset().y + vh + 2400.0) / media).ceil() as usize).clamp(crate::views::chat::JANELA, total.max(crate::views::chat::JANELA));
+                    let session = &self.convs[ci].id;
+                    let mut pixels = 0.0;
+                    let needed = vp.absolute_offset().y + vh + 2400.0;
+                    let count = (0..total).rev().take_while(|index| {
+                        if pixels >= needed { return false; }
+                        pixels += self.message_heights.get(&(session.clone(), *index)).copied().unwrap_or(80.0) + 30.0;
+                        true
+                    }).count();
+                    let alvo = count.clamp(crate::views::chat::JANELA, total.max(crate::views::chat::JANELA));
                     // histerese: cresce já, encolhe só quando sobram mais de 20 mensagens (evita vaivém)
                     if alvo > atual || alvo + 20 < atual {
                         self.chat_win.insert(ci, alvo);
                     }
                 }
             }
+            Msg::ArtifactRecord(_) | Msg::ArtifactUpdate(..) | Msg::ArtifactRead(..) => {},
             Msg::ArtifactPreview(n) => {
                 self.art_preview = if self.art_preview == Some(n) { None } else { Some(n) };
             }
@@ -1067,6 +1119,17 @@ impl App {
             }
             Msg::KeyCancel => {
                 if self.key_form.as_ref().is_some_and(|f| !f.busy) { self.key_form = None; }
+            }
+            Msg::OpenLogs => {
+                if let Some(path) = self.api.as_ref().and_then(|a| a.logs_dir()) {
+                    return Task::perform(async move { tokio::task::spawn_blocking(move || {
+                        std::fs::create_dir_all(&path).map_err(|e| e.to_string())?;
+                        #[cfg(windows)] let mut cmd = crate::onboarding::system_command("explorer.exe");
+                        #[cfg(target_os = "macos")] let mut cmd = crate::onboarding::system_command("open");
+                        #[cfg(all(not(windows), not(target_os = "macos")))] let mut cmd = crate::onboarding::system_command("xdg-open");
+                        cmd.arg(path).spawn().map(|_| ()).map_err(|e| e.to_string())
+                    }).await.map_err(|e| e.to_string()).and_then(|r| r) }, |result| match result { Ok(()) => Msg::Noop, Err(e) => Msg::Toast(e) });
+                }
             }
             Msg::KeySave => self.toast("Guardar chave: só no uso real"),
             Msg::VaultPull => self.toast("git pull: já atualizado"),
@@ -1204,6 +1267,7 @@ impl App {
             Msg::Unattach(i) => {
                 if i < self.attach.len() {
                     self.attach.remove(i);
+                    if i < self.attachment_ids.len() { self.attachment_ids.remove(i); }
                 }
             }
             Msg::Mic => {
@@ -1524,6 +1588,7 @@ impl App {
                 if !self.bandeja_tentou {
                     self.bandeja_tentou = true;
                     self.bandeja = crate::tray::Bandeja::nova();
+                    self.monitor = Some(crate::tray::Monitor::new(self.bandeja.as_ref(), self.api.clone()));
                     // sem bandeja não há como reabrir uma janela escondida: abre mesmo em segundo plano
                     if self.bandeja.is_none() && self.fundo {
                         acoes.push(crate::tray::Acao::MiniBar);
@@ -1544,7 +1609,7 @@ impl App {
             Msg::Acao(acao) => {
                 use crate::tray::Acao;
                 match acao {
-                    Acao::Exit => return iced::exit(),
+                    Acao::Exit => return window::oldest().and_then(|id| window::close(id).chain(iced::exit())),
                     Acao::Panic => {
                         let r = self.api.as_ref().map(|a| a.panico()).unwrap_or_else(|| Err("pânico indisponível".into()));
                         self.toast(r.unwrap_or_else(|e| e));
@@ -1569,9 +1634,10 @@ impl App {
                 }
             }
             Msg::CloseReq(id) => {
+                self.window_active = false;
                 // com bandeja o app segue vivo, só esconde a janela; sem bandeja, fechar encerra
                 if self.bandeja.is_none() {
-                    return iced::exit();
+                    return window::close(id).chain(iced::exit());
                 }
                 let mut ts = vec![window::set_mode(id, window::Mode::Hidden)];
                 if self.mini {
@@ -1582,6 +1648,8 @@ impl App {
                 return Task::batch(ts);
             }
             Msg::Mostrar => {
+                self.window_active = true;
+                self.now = Instant::now();
                 let Some(id) = self.win_id else { return Task::none() };
                 let mut ts = vec![window::set_mode(id, window::Mode::Windowed), window::minimize(id, false), window::gain_focus(id)];
                 if self.mini {
@@ -1618,7 +1686,7 @@ impl App {
                 }
             }
             Msg::DragWindow => return window::oldest().and_then(window::drag),
-            Msg::Minimize => return window::oldest().and_then(|id| window::minimize(id, true)),
+            Msg::Minimize => { self.window_active = false; return window::oldest().and_then(|id| window::minimize(id, true)); },
             Msg::Fullscreen => return window::oldest().and_then(window::toggle_maximize),
             Msg::CloseWindow => return window::oldest().and_then(|id| Task::done(Msg::CloseReq(id))),
             Msg::Esc => {
@@ -1689,8 +1757,13 @@ impl App {
         match k {
             "lang" => {
                 self.p.english = v == 1;
+                crate::i18n::set_english(self.p.english);
+                self.bandeja = None;
+                self.monitor = None;
+                self.bandeja_tentou = false;
+                self.mem.cache.clear();
                 if v == 1 {
-                    self.toast("English: strings come from Fluent files…");
+                    self.toast("Language updated.");
                 }
             }
             "scale" => self.p.scale = [90, 100, 115, 130, 150][v],
@@ -1767,11 +1840,15 @@ impl App {
         self.streaming = Some(Stream { conv: ci, words: 0, total });
         self.composer = text_editor::Content::new();
         self.attach.clear();
+        self.attachment_ids.clear();
+        self.attachment_generation = self.attachment_generation.wrapping_add(1);
         self.navigate(View::Chat, Some(ci));
         Task::none()
     }
 
     pub fn view(&self) -> Element<'_, Msg> {
+        let _timing = Timing::new("view", self.view);
+        crate::i18n::set_english(self.onboarding.as_ref().map(|f| f.language == "en").unwrap_or(self.p.english));
         crate::views::sync_anim(self);
         views::root(self)
     }
@@ -1793,4 +1870,12 @@ pub fn detect_kind(s: &str) -> CapKind {
     } else {
         CapKind::Nota
     }
+}
+
+struct Timing { stage: &'static str, view: View, started: Option<Instant> }
+impl Timing {
+    fn new(stage: &'static str, view: View) -> Self { Self { stage, view, started: tracing::enabled!(target: "orion.performance", tracing::Level::DEBUG).then(Instant::now) } }
+}
+impl Drop for Timing {
+    fn drop(&mut self) { if let Some(started) = self.started { tracing::debug!(target: "orion.performance", stage = self.stage, screen = ?self.view, elapsed_us = started.elapsed().as_micros() as u64); } }
 }

@@ -10,7 +10,7 @@ use crate::ui::*;
 use crate::views::login::field_style;
 use iced::alignment::Vertical;
 use iced::mouse;
-use iced::widget::canvas::{self, Action, Frame, Geometry, Path, Stroke, Text};
+use iced::widget::canvas::{self, Action, Geometry, Path, Stroke, Text};
 use iced::widget::{button, canvas as cv, column, container, row, scrollable, slider, stack, text_input};
 use iced::{Background, Border, Color, Event, Length, Point, Rectangle, Renderer, Theme};
 use std::time::Instant;
@@ -25,6 +25,7 @@ pub fn stage_size(app: &App) -> (f32, f32) {
 
 pub fn update(app: &mut App, m: Msg) {
     let (w, h) = stage_size(app);
+    if !matches!(&m, Msg::MemHover(..)) { app.mem.cache.clear(); }
     match m {
         Msg::MemQ(s) => {
             app.mem.q = s.clone();
@@ -50,6 +51,7 @@ pub fn update(app: &mut App, m: Msg) {
             }
         }
         Msg::MemHover(n, x, y) => {
+            if app.mem.hov != n { app.mem.cache.clear(); }
             app.mem.hov = n;
             app.mem_tip = (x, y);
         }
@@ -120,6 +122,7 @@ pub fn tick(app: &mut App, now: Instant) {
         app.mem.rot += 60.0 * 0.00003;
     }
     if let Some((t0, from, to)) = app.mem_tween {
+        app.mem.cache.clear();
         let p = (now.duration_since(t0).as_secs_f32() / 0.45).min(1.0);
         let e = 1.0 - (1.0 - p).powi(3);
         app.mem.cam = (from.0 + (to.0 - from.0) * e, from.1 + (to.1 - from.1) * e, from.2 + (to.2 - from.2) * e);
@@ -208,7 +211,7 @@ impl canvas::Program<Msg> for Mem<'_> {
     fn draw(&self, _s: &Interaction, r: &Renderer, _th: &Theme, b: Rectangle, _c: mouse::Cursor) -> Vec<Geometry> {
         let g = self.g;
         let (w, h) = (b.width, b.height);
-        let mut f = Frame::new(r, b.size());
+        let geometry = g.cache.draw(r, b.size(), |f| {
         // fundo: radial-gradient(ellipse at 50% 45%, #15192a 0%, #0b0c10 72%)
         f.fill_rectangle(Point::ORIGIN, b.size(), Color::from_rgb8(0x0b, 0x0c, 0x10));
         let (c0, c1) = ((0x15 as f32, 0x19 as f32, 0x2a as f32), (0x0b as f32, 0x0c as f32, 0x10 as f32));
@@ -223,7 +226,7 @@ impl canvas::Program<Msg> for Mem<'_> {
                 f.fill(&Path::circle(Point::ORIGIN, 1.0), col);
             });
         }
-        draw_sky(&mut f, w, h, Sky { alpha: 0.5, constellation: false, belt: 0.0 });
+        draw_sky(f, w, h, Sky { alpha: 0.5, constellation: false, intro: 1.0, belt: 0.0 });
 
         let focus = g.sel.or(g.hov);
         let nb: Vec<usize> = focus.map(|i| g.adj[i].clone()).unwrap_or_default();
@@ -310,7 +313,8 @@ impl canvas::Program<Msg> for Mem<'_> {
             placed.push(bx);
             f.fill_text(Text { content: txt, position: Point::new(x, y), color: t::alpha(if big { t::FG } else { t::FG2 }, 0.94), size: size.into(), font: if big { t::UI_MED } else { t::UI }, align_x: iced::alignment::Horizontal::Center.into(), align_y: Vertical::Top, ..Text::default() });
         }
-        vec![f.into_geometry()]
+        });
+        vec![geometry]
     }
 }
 
@@ -353,9 +357,9 @@ pub fn view(app: &App) -> El<'_> {
     if g.nodes.is_empty() && app.api.is_some() {
         // sem vault ou sem notas: um aviso claro no lugar de um grafo vazio
         let card = column![
-            tx("Sua memória ainda está vazia", 20.0, t::FG),
-            tx("As notas do seu vault do Obsidian aparecem aqui como um mapa. Escolha a pasta do vault em Configurações › Memória.", 13.5, t::FG3),
-            btn("Abrir configurações de memória", Kind::Normal, false, None, Some(Msg::OpenSettings(Some(crate::app::Sec::Memoria)))),
+            tx(crate::i18n::text("Sua memória ainda está vazia"), 20.0, t::FG),
+            tx(crate::i18n::text("As notas do seu vault do Obsidian aparecem aqui como um mapa. Escolha a pasta do vault em Configurações › Memória."), 13.5, t::FG3),
+            btn(crate::i18n::text("Abrir configurações de memória"), Kind::Normal, false, None, Some(Msg::OpenSettings(Some(crate::app::Sec::Memoria)))),
         ]
         .spacing(12)
         .align_x(iced::alignment::Horizontal::Center)
@@ -364,20 +368,20 @@ pub fn view(app: &App) -> El<'_> {
     }
     // barra
     let search = stack![
-        text_input("Buscar notas, tags ou pastas", &g.q).on_input(Msg::MemQ).size(13).font(t::UI).padding(pad(8.0, 12.0, 8.0, 34.0)).style(field_style(t::RAISE, t::LINE2, t::LINE3, 9.0)),
+        text_input(crate::i18n::text("Buscar notas, tags ou pastas"), &g.q).on_input(Msg::MemQ).size(13).font(t::UI).padding(pad(8.0, 12.0, 8.0, 34.0)).style(field_style(t::RAISE, t::LINE2, t::LINE3, 9.0)),
         container(icon("search", 14.0, t::FG3)).padding(pad(10.0, 0.0, 0.0, 11.0))
     ];
     let mut chips = row![].spacing(4).align_y(Vertical::Center);
     for (i, (_, l, _)) in TIPOS.iter().enumerate() {
-        chips = chips.push(fchip(l, Some(TYPE_COLORS[i]), None, g.filt[i], Msg::MemFilter(i)));
+        chips = chips.push(fchip(crate::i18n::text(l), Some(TYPE_COLORS[i]), None, g.filt[i], Msg::MemFilter(i)));
     }
-    chips = chips.push(fchip("Lidas agora", None, Some("eye"), g.read_on, Msg::MemRead));
+    chips = chips.push(fchip(crate::i18n::text("Lidas agora"), None, Some("eye"), g.read_on, Msg::MemRead));
     let (n, l) = g.stats();
     let total = g.nodes.len();
-    let notas = if n < total { format!("{} de {} notas", fmt_n(n), fmt_n(total)) } else { format!("{} notas", fmt_n(n)) };
+    let notas = if n < total { crate::i18n::formatted("{} de {} notas", format!("{} de {} notas", fmt_n(n), fmt_n(total))) } else { crate::i18n::formatted("{} notas", format!("{} notas", fmt_n(n))) };
     // a hora do último pull só existe nos dados de exemplo; no uso real não se inventa
-    let pull = if app.api.is_none() { " · git pull às 09:41" } else { "" };
-    let stats = tx(format!("{notas} · {} links{pull}", fmt_n(l)), 12.0, t::FG3).wrapping(iced::widget::text::Wrapping::None);
+    let pull = if app.api.is_none() { crate::i18n::text(" · git pull às 09:41") } else { "" };
+    let stats = tx(crate::i18n::formatted("{notas} · {} links{pull}", format!("{notas} · {} links{pull}", fmt_n(l))), 12.0, t::FG3).wrapping(iced::widget::text::Wrapping::None);
     let avail = app.win.width - if app.collapsed || app.is_drawer_mode() { 0.0 } else { t::SIDE_W + 1.0 };
     let bar: El = if avail < 1280.0 {
         // a estatística quebra para a linha de baixo, à direita (flex-wrap do protótipo)
@@ -392,11 +396,11 @@ pub fn view(app: &App) -> El<'_> {
     if !app.is_drawer_mode() {
         let mut leg = row![].spacing(14);
         for (i, (_, _, s)) in TIPOS.iter().enumerate() {
-            leg = leg.push(row![dot_el(TYPE_COLORS[i], 7.0), tx(s.to_string(), 11.5, t::FG3)].spacing(6).align_y(Vertical::Center));
+            leg = leg.push(row![dot_el(TYPE_COLORS[i], 7.0), tx(crate::i18n::text(s), 11.5, t::FG3)].spacing(6).align_y(Vertical::Center));
         }
         layers.push(container(leg).width(Length::Fill).height(Length::Fill).align_y(Vertical::Bottom).padding(pad(0.0, 0.0, 12.0, 14.0)).into());
     }
-    let zoom = container(column![tip(ib("plus", Some(Msg::MemZoom(1.25)), false), "Aproximar"), tip(ib("minus", Some(Msg::MemZoom(0.8)), false), "Afastar"), tip(ib_sz("fit", 30.0, 14.0, Some(Msg::MemFit), false), "Enquadrar")].spacing(2)).padding(3).style(|_| container::Style { background: Some(t::mix(t::RAISE, 0.85).into()), border: Border { color: t::LINE, width: 1.0, radius: 10.0.into() }, ..Default::default() });
+    let zoom = container(column![tip(ib("plus", Some(Msg::MemZoom(1.25)), false), crate::i18n::text("Aproximar")), tip(ib("minus", Some(Msg::MemZoom(0.8)), false), crate::i18n::text("Afastar")), tip(ib_sz("fit", 30.0, 14.0, Some(Msg::MemFit), false), crate::i18n::text("Enquadrar"))].spacing(2)).padding(3).style(|_| container::Style { background: Some(t::mix(t::RAISE, 0.85).into()), border: Border { color: t::LINE, width: 1.0, radius: 10.0.into() }, ..Default::default() });
     layers.push(container(zoom).width(Length::Fill).height(Length::Fill).align_x(iced::alignment::Horizontal::Right).align_y(Vertical::Bottom).padding(pad(0.0, 12.0, 12.0, 0.0)).into());
     if let Some(i) = g.hov.filter(|i| g.sel != Some(*i)) {
         let n = &g.nodes[i];
@@ -417,7 +421,7 @@ pub fn view(app: &App) -> El<'_> {
         let _ = st;
         slider::Style { rail: slider::Rail { backgrounds: (Background::Color(t::ACCENT), Background::Color(t::LINE3)), width: 4.0, border: Border { radius: 2.0.into(), ..Default::default() } }, handle: slider::Handle { shape: slider::HandleShape::Circle { radius: 7.0 }, background: Background::Color(t::ACCENT), border_width: 0.0, border_color: Color::TRANSPARENT } }
     });
-    let time = row![tx(dmy(&d0), 12.0, t::FG3), container(sl).width(Length::Fill), tx(format!("até {}", dmy(&g.cut)), 12.0, t::FG3)].spacing(12).align_y(Vertical::Center).padding(pad(10.0, 16.0, 12.0, 16.0));
+    let time = row![tx(dmy(&d0), 12.0, t::FG3), container(sl).width(Length::Fill), tx(crate::i18n::formatted("até {}", format!("até {}", dmy(&g.cut))), 12.0, t::FG3)].spacing(12).align_y(Vertical::Center).padding(pad(10.0, 16.0, 12.0, 16.0));
 
     let mut root: Vec<El> = vec![column![bar, container(stage).height(Length::Fill).padding(pad(0.0, 12.0, 0.0, 12.0)), time].into()];
     // resultados da busca
@@ -428,11 +432,11 @@ pub fn view(app: &App) -> El<'_> {
         hits.truncate(8);
         let mut list = column![].spacing(0);
         if hits.is_empty() {
-            list = list.push(container(tx(format!("Nada com “{}”.", g.q), 13.0, t::FG3)).padding(pad(8.0, 10.0, 8.0, 10.0)));
+            list = list.push(container(tx(crate::i18n::formatted("Nada com “{}”.", format!("Nada com “{}”.", g.q)), 13.0, t::FG3)).padding(pad(8.0, 10.0, 8.0, 10.0)));
         }
         for (k, i) in hits.iter().enumerate() {
             list = list.push(
-                button(row![dot_el(TYPE_COLORS[g.nodes[*i].tipo], 7.0), container(tx(ell(&g.nodes[*i].label, 200.0, 13.0), 13.0, t::FG)).width(Length::Fill), tx(TIPOS[g.nodes[*i].tipo].2.to_string(), 11.5, t::FG3)].spacing(10).align_y(Vertical::Center))
+                button(row![dot_el(TYPE_COLORS[g.nodes[*i].tipo], 7.0), container(tx(ell(&g.nodes[*i].label, 200.0, 13.0), 13.0, t::FG)).width(Length::Fill), tx(crate::i18n::text(TIPOS[g.nodes[*i].tipo].2), 11.5, t::FG3)].spacing(10).align_y(Vertical::Center))
                     .width(Length::Fill)
                     .padding(pad(7.0, 10.0, 7.0, 10.0))
                     .on_press(Msg::MemSelect(Some(*i)))
@@ -451,11 +455,11 @@ fn detail(app: &App, i: usize) -> El<'_> {
     let mut all: Vec<usize> = g.adj[i].iter().copied().filter(|&x| g.visible(x)).collect();
     all.sort_by_key(|&x| std::cmp::Reverse(g.nodes[x].deg));
     let file = format!("{}/{}.md", n.folder, n.label);
-    let mut head = row![container(row![dot_el(TYPE_COLORS[n.tipo], 7.0), txf(TIPOS[n.tipo].2.to_string(), 11.0, t::FG2, t::UI_MED)].spacing(5).align_y(Vertical::Center)).padding(pad(1.0, 8.0, 1.0, 8.0)).style(surface(None, Some(t::LINE2), 999.0))].spacing(8).align_y(Vertical::Center);
+    let mut head = row![container(row![dot_el(TYPE_COLORS[n.tipo], 7.0), txf(crate::i18n::text(TIPOS[n.tipo].2), 11.0, t::FG2, t::UI_MED)].spacing(5).align_y(Vertical::Center)).padding(pad(1.0, 8.0, 1.0, 8.0)).style(surface(None, Some(t::LINE2), 999.0))].spacing(8).align_y(Vertical::Center);
     if !n.status.is_empty() {
         head = head.push(badge(&n.status, Tone::Plain));
     }
-    head = head.push(grow()).push(tip(ib("close", Some(Msg::MemSelect(None)), false), "Fechar detalhes"));
+    head = head.push(grow()).push(tip(ib("close", Some(Msg::MemSelect(None)), false), crate::i18n::text("Fechar detalhes")));
     let mut body = column![txf(n.label.clone(), 20.0, t::FG, t::SERIF), tx(g.meta(i), 12.0, t::FG3), txf(file, 11.5, t::FG3, t::MONO)].spacing(10);
     if !n.tags.is_empty() {
         let mut tg = row![].spacing(4);
@@ -464,8 +468,8 @@ fn detail(app: &App, i: usize) -> El<'_> {
         }
         body = body.push(tg.wrap().vertical_spacing(4));
     }
-    body = body.push(row![btn("Abrir e editar", Kind::Normal, true, Some("edit"), Some(Msg::MemOpenNote(i))), btn("Grafo local", Kind::Normal, true, Some("graph"), Some(Msg::MemLocal(i)))].spacing(6));
-    body = body.push(container(txf(format!("Ligada a · {}", all.len()), 11.5, t::FG3, t::UI_MED)).padding(pad(6.0, 0.0, 2.0, 0.0)));
+    body = body.push(row![btn(crate::i18n::text("Abrir e editar"), Kind::Normal, true, Some("edit"), Some(Msg::MemOpenNote(i))), btn(crate::i18n::text("Grafo local"), Kind::Normal, true, Some("graph"), Some(Msg::MemLocal(i)))].spacing(6));
+    body = body.push(container(txf(crate::i18n::formatted("Ligada a · {}", format!("Ligada a · {}", all.len())), 11.5, t::FG3, t::UI_MED)).padding(pad(6.0, 0.0, 2.0, 0.0)));
     let mut nl = column![].spacing(1);
     for x in all.iter().take(60) {
         nl = nl.push(
@@ -477,7 +481,7 @@ fn detail(app: &App, i: usize) -> El<'_> {
         );
     }
     if all.len() > 60 {
-        nl = nl.push(container(tx(format!("e mais {}", all.len() - 60), 12.0, t::FG3)).padding(pad(6.0, 8.0, 0.0, 8.0)));
+        nl = nl.push(container(tx(crate::i18n::formatted("e mais {}", format!("e mais {}", all.len() - 60)), 12.0, t::FG3)).padding(pad(6.0, 8.0, 0.0, 8.0)));
     }
     body = body.push(nl);
     let panel = container(column![container(head).padding(pad(10.0, 10.0, 0.0, 14.0)), scrollable(container(body).padding(pad(8.0, 16.0, 16.0, 16.0))).direction(scrollable::Direction::Vertical(thin_bar())).style(thin_scroll).height(Length::Fill)])

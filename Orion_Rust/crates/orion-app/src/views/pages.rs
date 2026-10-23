@@ -58,7 +58,7 @@ fn list<'a>(rows: Vec<El<'a>>) -> El<'a> {
     column![hline(), column(rows)].into()
 }
 fn h3<'a>(s: &str, first: bool) -> El<'a> {
-    container(txf(s.to_string(), t::TEXT_EYEBROW, t::FG3, t::UI_MED)).padding(pad(if first { 0.0 } else { 26.0 }, 4.0, 8.0, 4.0)).into()
+    container(txf(crate::i18n::status(s), t::TEXT_EYEBROW, t::FG3, t::UI_MED)).padding(pad(if first { 0.0 } else { 26.0 }, 4.0, 8.0, 4.0)).into()
 }
 fn search_box<'a>(placeholder: &str, value: &str, on: impl Fn(String) -> Msg + 'a) -> El<'a> {
     let input = text_input(placeholder, value).on_input(on).size(13).font(t::UI).padding(pad(8.0, 12.0, 8.0, 34.0)).style(field_style(t::RAISE, t::LINE2, t::LINE3, 9.0));
@@ -75,12 +75,12 @@ fn projetos(app: &App) -> El<'_> {
         }
         tags = tags.push(badge_ic(&p.model, Tone::Plain, "cpu"));
         if p.rot > 0 {
-            tags = tags.push(badge_ic(&format!("{} rotina{}", p.rot, if p.rot > 1 { "s" } else { "" }), Tone::Plain, "clock"));
+            tags = tags.push(badge_ic(&crate::i18n::formatted("{} rotina{}", format!("{} rotina{}", p.rot, if p.rot > 1 { "s" } else { "" })), Tone::Plain, "clock"));
         }
         if !p.pastas.is_empty() {
             tags = tags.push(badge_ic(&ell(&p.pastas, 150.0, 11.0), Tone::Plain, "folder"));
         }
-        let body = column![txf(p.n.clone(), 20.0, t::FG, t::SERIF), tx(p.d.clone(), 13.0, t::FG2), container(tags).padding(pad(2.0, 0.0, 0.0, 0.0)), container(sp_h(0.0)).height(Length::Fill), row![tx(p.pend.clone(), 12.0, t::FG3), grow(), tx(format!("Atualizado {}", p.up), 12.0, t::FG3)]].spacing(6);
+        let body = column![txf(p.n.clone(), 20.0, t::FG, t::SERIF), tx(p.d.clone(), 13.0, t::FG2), container(tags).padding(pad(2.0, 0.0, 0.0, 0.0)), container(sp_h(0.0)).height(Length::Fill), row![tx(p.pend.clone(), 12.0, t::FG3), grow(), tx(crate::i18n::formatted("Atualizado {}", format!("Atualizado {}", crate::i18n::status(&p.up))), 12.0, t::FG3)]].spacing(6);
         button(container(body).height(Length::Fill))
             .width(Length::Fill)
             .height(Length::Fixed(150.0))
@@ -92,7 +92,7 @@ fn projetos(app: &App) -> El<'_> {
     let mut grid = column![].spacing(12);
     let cards: Vec<El> = items.into_iter().map(card).collect();
     if cards.is_empty() {
-        grid = grid.push(tx("Nenhum projeto encontrado.", 14.0, t::FG3));
+        grid = grid.push(tx(crate::i18n::text("Nenhum projeto encontrado."), 14.0, t::FG3));
     }
     let mut it = cards.into_iter();
     while let Some(a) = it.next() {
@@ -101,24 +101,24 @@ fn projetos(app: &App) -> El<'_> {
     }
     let mut body = column![].spacing(14);
     if let Some(form) = &app.project_form {
-        let mut name = text_input("Nome do projeto", &form.name).id("project-name").padding(10).size(14);
-        let mut instructions = text_input("Instruções (opcional)", &form.instructions).padding(10).size(14);
-        let mut root = text_input("Pasta local existente (opcional)", &form.root).padding(10).size(14);
+        let mut name = text_input(crate::i18n::text("Nome do projeto"), &form.name).id("project-name").padding(10).size(14);
+        let mut instructions = text_input(crate::i18n::text("Instruções (opcional)"), &form.instructions).padding(10).size(14);
+        let mut root = text_input(crate::i18n::text("Pasta local existente (opcional)"), &form.root).padding(10).size(14);
         if !form.busy {
             name = name.on_input(Msg::ProjectName);
             instructions = instructions.on_input(Msg::ProjectInstructions);
             root = root.on_input(Msg::ProjectRoot).on_submit(Msg::ProjectSave);
         }
         let mut fields = column![
-            tx("Novo projeto", 16.0, t::FG), name, instructions, root,
-            tx("Cria o projeto com memória pessoal isolada. A pasta precisa existir. Nota no vault e vínculo GitHub ainda não estão disponíveis aqui.", 12.0, t::FG3),
-            row![btn(if form.busy { "Criando…" } else { "Criar projeto" }, Kind::Primary, true, None, (!form.busy).then_some(Msg::ProjectSave)), btn("Cancelar", Kind::Ghost, true, None, (!form.busy).then_some(Msg::ProjectClose))].spacing(8),
+            tx(crate::i18n::text("Novo projeto"), 16.0, t::FG), name, instructions, root,
+            tx(crate::i18n::text("Cria o projeto com memória pessoal isolada. A pasta precisa existir. Nota no vault e vínculo GitHub ainda não estão disponíveis aqui."), 12.0, t::FG3),
+            row![btn(if form.busy { crate::i18n::text("Criando…") } else { crate::i18n::text("Criar projeto") }, Kind::Primary, true, None, (!form.busy).then_some(Msg::ProjectSave)), btn(crate::i18n::text("Cancelar"), Kind::Ghost, true, None, (!form.busy).then_some(Msg::ProjectClose))].spacing(8),
         ].spacing(10);
-        if !form.error.is_empty() { fields = fields.push(tx(form.error.clone(), 12.0, t::DANGER)); }
+        if !form.error.is_empty() { fields = fields.push(tx(crate::i18n::status(&form.error), 12.0, t::DANGER)); }
         body = body.push(container(fields).padding(16).width(Length::Fill).style(surface(Some(t::RAISE), Some(t::LINE2), 12.0)));
     }
     body = body.push(search_box("Buscar projetos", &app.proj_q, Msg::ProjQ)).push(grid);
-    page("Projetos", "Conversas, instruções e pasta local de cada projeto.", Some(btn("Novo projeto", Kind::Primary, false, None, app.project_form.is_none().then_some(Msg::ProjectStart))), body.into())
+    page(crate::i18n::text("Projetos"), crate::i18n::text("Conversas, instruções e pasta local de cada projeto."), Some(btn(crate::i18n::text("Novo projeto"), Kind::Primary, false, None, app.project_form.is_none().then_some(Msg::ProjectStart))), body.into())
 }
 
 fn aprovacoes(app: &App) -> El<'_> {
@@ -130,7 +130,7 @@ fn aprovacoes(app: &App) -> El<'_> {
             let a = o.approval.as_ref().unwrap();
             let txt = crate::md::render(&crate::md::parse(&a.text), crate::md::Style { font: t::UI, bold: t::UI_SEMI, size: 14.0, line: 1.5, h_font: t::UI_MED, h1: 16.0, h2: 15.0, h3: 14.0, gap: 4.0 });
             let mut acoes = approval_actions(a, Msg::Approve(ci, mi), Msg::Deny(ci, mi));
-            acoes.push(btn("Abrir conversa", Kind::Ghost, true, None, Some(Msg::OpenConv(ci))));
+            acoes.push(btn(crate::i18n::text("Abrir conversa"), Kind::Ghost, true, None, Some(Msg::OpenConv(ci))));
             col = col.push(qcard(
                 row![dot_halo(t::SIGNAL, t::SIGNAL_SOFT), tx(format!("{} · {}", c.title, c.proj), 12.5, t::FG3), grow(), tx(o.time.clone(), 12.5, t::FG3)].spacing(8).align_y(Vertical::Center).into(),
                 column![txt, approval_detail(a)].spacing(8).into(),
@@ -139,16 +139,16 @@ fn aprovacoes(app: &App) -> El<'_> {
         }
     }
     if app.rot_pend {
-        let txt: El = row![tx("Mover 38 arquivos de ", 14.0, t::FG), txf("Downloads", 12.0, t::FG, t::MONO), tx(" para ", 14.0, t::FG), txf("Downloads\\2026-10", 12.0, t::FG, t::MONO), tx(". Nada é apagado.", 14.0, t::FG)].align_y(Vertical::Center).into();
+        let txt: El = row![tx(crate::i18n::text("Mover 38 arquivos de "), 14.0, t::FG), txf("Downloads", 12.0, t::FG, t::MONO), tx(crate::i18n::text(" para "), 14.0, t::FG), txf("Downloads\\2026-10", 12.0, t::FG, t::MONO), tx(crate::i18n::text(". Nada é apagado."), 14.0, t::FG)].align_y(Vertical::Center).into();
         col = col.push(qcard(
-            row![dot_halo(t::SIGNAL, t::SIGNAL_SOFT), tx("Rotina “Organizar Downloads” · proposta", 12.5, t::FG3), grow(), tx("sábado", 12.5, t::FG3)].spacing(8).align_y(Vertical::Center).into(),
+            row![dot_halo(t::SIGNAL, t::SIGNAL_SOFT), tx(crate::i18n::text("Rotina “Organizar Downloads” · proposta"), 12.5, t::FG3), grow(), tx(crate::i18n::text("sábado"), 12.5, t::FG3)].spacing(8).align_y(Vertical::Center).into(),
             txt,
-            row![btn("Aprovar", Kind::Normal, true, None, Some(Msg::ApproveRot)), btn("Negar", Kind::Normal, true, None, Some(Msg::DenyRot))].spacing(8).into(),
+            row![btn(crate::i18n::text("Aprovar"), Kind::Normal, true, None, Some(Msg::ApproveRot)), btn(crate::i18n::text("Negar"), Kind::Normal, true, None, Some(Msg::DenyRot))].spacing(8).into(),
         ));
     }
-    col = col.push(container(row![icon("send2", 14.0, t::FG3), tx("As mesmas pendências chegam no Telegram, com botões, só para o seu ID.", 12.0, t::FG3)].spacing(6).align_y(Vertical::Center)).padding(pad(4.0, 4.0, 0.0, 4.0)));
-    col = col.push(h3("Histórico de atividade", false));
-    let opts = ["Todas", "Aguardando", "Negadas ou com falha", "Concluídas"];
+    col = col.push(container(row![icon("send2", 14.0, t::FG3), tx(crate::i18n::text("As mesmas pendências chegam no Telegram, com botões, só para o seu ID."), 12.0, t::FG3)].spacing(6).align_y(Vertical::Center)).padding(pad(4.0, 4.0, 0.0, 4.0)));
+    col = col.push(h3(crate::i18n::text("Histórico de atividade"), false));
+    let opts = [crate::i18n::text("Todas"), crate::i18n::text("Aguardando"), crate::i18n::text("Negadas ou com falha"), crate::i18n::text("Concluídas")];
     col = col.push(container(seg(&opts, app.act_filter, Msg::ActFilter)).padding(pad(0.0, 0.0, 14.0, 0.0)));
     let mut rows = vec![];
     for (i, a) in app.acts.iter().enumerate() {
@@ -163,7 +163,7 @@ fn aprovacoes(app: &App) -> El<'_> {
         }
         let mut title = vec![tx(a.text.clone(), 14.0, t::FG).into()];
         if a.undone && a.label == "desfeito" {
-            title.push(badge("desfeito", Tone::Plain));
+            title.push(badge(crate::i18n::text("desfeito"), Tone::Plain));
         }
         let tone = match a.kind.as_str() {
             "ok" => Tone::Ok,
@@ -172,19 +172,19 @@ fn aprovacoes(app: &App) -> El<'_> {
         };
         let mut right = vec![badge(&a.label, if a.label == "revert" { Tone::Plain } else { tone })];
         if a.undoable && !a.undone {
-            right.push(btn("Desfazer", Kind::Ghost, true, Some("undo"), Some(Msg::Undo(i))));
+            right.push(btn(crate::i18n::text("Desfazer"), Kind::Ghost, true, Some("undo"), Some(Msg::Undo(i))));
         }
         rows.push(li(column![li_title(title), li_desc(a.when.clone())].into(), li_right(right)));
     }
     if rows.is_empty() {
-        col = col.push(container(tx("Nada neste filtro.", 14.0, t::FG3)).padding(pad(16.0, 4.0, 16.0, 4.0)));
+        col = col.push(container(tx(crate::i18n::text("Nada neste filtro."), 14.0, t::FG3)).padding(pad(16.0, 4.0, 16.0, 4.0)));
     } else {
         col = col.push(list(rows));
     }
     // ligar o modo autônomo não é convite desta página: fica em Configurações › Privacidade e autonomia
     // (e pede a senha). Aqui só o atalho para desligar, quando já está ligado.
-    let auto = app.p.auto.then(|| btn("Desligar modo autônomo", Kind::Normal, true, Some("bolt"), Some(Msg::Toggle("auto"))));
-    page("Aprovações", "Pendências de todas as conversas e rotinas, e o histórico de tudo o que o Orion fez fora do chat.", auto, col.into())
+    let auto = app.p.auto.then(|| btn(crate::i18n::text("Desligar modo autônomo"), Kind::Normal, true, Some("bolt"), Some(Msg::Toggle("auto"))));
+    page(crate::i18n::text("Aprovações"), crate::i18n::text("Pendências de todas as conversas e rotinas, e o histórico de tudo o que o Orion fez fora do chat."), auto, col.into())
 }
 
 fn qcard<'a>(head: El<'a>, body: El<'a>, actions: El<'a>) -> El<'a> {
@@ -209,17 +209,17 @@ fn rotinas(app: &App) -> El<'_> {
     for (i, r) in app.rots.iter().enumerate() {
         let mut title: Vec<El> = vec![tx(r.t.clone(), 14.0, t::FG).into()];
         if r.news {
-            title.push(badge("resultado novo", Tone::Ok));
+            title.push(badge(crate::i18n::text("resultado novo"), Tone::Ok));
         }
         if r.crit {
-            title.push(badge_ic("nuvem se desligado", Tone::Info, "cloud"));
+            title.push(badge_ic(crate::i18n::text("nuvem se desligado"), Tone::Info, "cloud"));
         }
         let st_tone = match r.st.as_str() {
             "ok" | "concedida" => Tone::Ok,
             "falhou" => Tone::Err,
             _ => Tone::Plain,
         };
-        let when = if !r.on { "pausada".to_string() } else if r.next.is_empty() { String::new() } else { format!("próxima {}", r.next) };
+        let when = if !r.on { crate::i18n::text("pausada").to_string() } else if r.next.is_empty() { String::new() } else { crate::i18n::formatted("próxima {}", format!("próxima {}", r.next)) };
         let mut linha = r.d.clone();
         for p in [when, if r.last.is_empty() { String::new() } else { format!("última {}", r.last) }] {
             if !p.is_empty() {
@@ -232,21 +232,21 @@ fn rotinas(app: &App) -> El<'_> {
             lc = lc.push(li_desc(format!("Saída: {}", r.out)));
         }
         let left = lc.into();
-        rows.push(li(left, li_right(vec![runs(&r.runs), btn("Rodar agora", Kind::Normal, true, Some("play"), Some(Msg::RotRun(i))), switch(r.on, Msg::RotToggle(i))])));
+        rows.push(li(left, li_right(vec![runs(&r.runs), btn(crate::i18n::text("Rodar agora"), Kind::Normal, true, Some("play"), Some(Msg::RotRun(i))), switch(r.on, Msg::RotToggle(i))])));
     }
-    page("Rotinas", "Crie pelo chat (“todo dia às 8h me manda o briefing”), por /rotina ou aqui. As críticas rodam na nuvem do Claude se o PC estiver desligado.", Some(btn("Nova rotina", Kind::Primary, false, None, Some(Msg::Toast("Formulário: nome, horário, prompt, projeto, modelo, saída".into())))), list(rows))
+    page(crate::i18n::text("Rotinas"), crate::i18n::text("Crie pelo chat (“todo dia às 8h me manda o briefing”), por /rotina ou aqui. As críticas rodam na nuvem do Claude se o PC estiver desligado."), Some(btn(crate::i18n::text("Nova rotina"), Kind::Primary, false, None, Some(Msg::Toast("Formulário: nome, horário, prompt, projeto, modelo, saída".into())))), list(rows))
 }
 
 fn resultados(app: &App) -> El<'_> {
     let rows = app.results.iter().map(|r| li(column![tx(r.0.clone(), 14.0, t::FG), li_desc(r.1.clone())].into(), li_right(vec![badge(&r.3, Tone::Plain), txf(r.4.clone(), 12.0, t::FG3, t::MONO).into(), rt(r.2.clone())]))).collect();
-    page("Seus resultados", "Conteúdo que vale guardar, com versões e fontes.", None, list(rows))
+    page(crate::i18n::text("Seus resultados"), crate::i18n::text("Conteúdo que vale guardar, com versões e fontes."), None, list(rows))
 }
 
 fn nuvem(app: &App) -> El<'_> {
     let mut rows = vec![];
     for (i, c) in app.cloud.iter().enumerate() {
         let right: Vec<El> = if c.running {
-            vec![container(row![spinner(app.spin, 10.0), txf("rodando", 11.0, t::SIGNAL, t::UI_MED)].spacing(5).align_y(Vertical::Center)).padding(pad(1.0, 8.0, 1.0, 8.0)).style(surface(Some(t::SIGNAL_SOFT), None, 999.0)).into(), btn("Cancelar", Kind::Normal, true, None, Some(Msg::CloudCancel(i)))]
+            vec![container(row![spinner(app.spin, 10.0), txf(crate::i18n::text("rodando"), 11.0, t::SIGNAL, t::UI_MED)].spacing(5).align_y(Vertical::Center)).padding(pad(1.0, 8.0, 1.0, 8.0)).style(surface(Some(t::SIGNAL_SOFT), None, 999.0)).into(), btn(crate::i18n::text("Cancelar"), Kind::Normal, true, None, Some(Msg::CloudCancel(i)))]
         } else {
             let tone = match c.proj.as_str() {
                 "concluída" | "concluida" => Tone::Ok,
@@ -259,7 +259,7 @@ fn nuvem(app: &App) -> El<'_> {
         rows.push(li(column![li_title(vec![badge(&c.svc, Tone::Info), tx(c.t.clone(), 14.0, t::FG).into()]), li_desc(desc)].into(), li_right(right)));
     }
     for (svc, t_) in &app.cloud_extra {
-        rows.push(li(column![li_title(vec![badge(svc, Tone::Info), tx(t_.clone(), 14.0, t::FG).into()]), li_desc("Orion · agora · enviada")].into(), li_right(vec![container(row![spinner(app.spin, 10.0), txf("rodando", 11.0, t::SIGNAL, t::UI_MED)].spacing(5).align_y(Vertical::Center)).padding(pad(1.0, 8.0, 1.0, 8.0)).style(surface(Some(t::SIGNAL_SOFT), None, 999.0)).into()])));
+        rows.push(li(column![li_title(vec![badge(svc, Tone::Info), tx(t_.clone(), 14.0, t::FG).into()]), li_desc("Orion · agora · enviada")].into(), li_right(vec![container(row![spinner(app.spin, 10.0), txf(crate::i18n::text("rodando"), 11.0, t::SIGNAL, t::UI_MED)].spacing(5).align_y(Vertical::Center)).padding(pad(1.0, 8.0, 1.0, 8.0)).style(surface(Some(t::SIGNAL_SOFT), None, 999.0)).into()])));
     }
     for (i, n) in app.nuvem.iter().enumerate() {
         let tone = match n.estado.as_str() {
@@ -267,14 +267,14 @@ fn nuvem(app: &App) -> El<'_> {
             "error" | "failed" | "erro" => Tone::Err,
             _ => Tone::Plain,
         };
-        let desc = if n.url.is_empty() { "nuvem".to_string() } else { format!("nuvem · {}", n.url) };
-        let acoes = vec![badge(&n.estado, tone), btn("Trazer", Kind::Normal, true, None, Some(Msg::NuvemTrazer(i))), btn("Descartar", Kind::Normal, true, None, Some(Msg::NuvemDescartar(i)))];
+        let desc = if n.url.is_empty() { "nuvem".to_string() } else { crate::i18n::formatted("nuvem · {}", format!("nuvem · {}", n.url)) };
+        let acoes = vec![badge(&n.estado, tone), btn(crate::i18n::text("Trazer"), Kind::Normal, true, None, Some(Msg::NuvemTrazer(i))), btn(crate::i18n::text("Descartar"), Kind::Normal, true, None, Some(Msg::NuvemDescartar(i)))];
         rows.push(li(column![li_title(vec![badge(&n.svc, Tone::Info), tx(n.t.clone(), 14.0, t::FG).into()]), li_desc(desc)].into(), li_right(acoes)));
     }
     if rows.is_empty() {
-        rows.push(li(column![li_title(vec![tx("Nenhuma tarefa ainda.", 14.0, t::FG3).into()]), li_desc("Peça com /tarefa: o Orion segue sozinho, só lê e propõe, e avisa quando terminar.")].into(), li_right(vec![])));
+        rows.push(li(column![li_title(vec![tx(crate::i18n::text("Nenhuma tarefa ainda."), 14.0, t::FG3).into()]), li_desc("Peça com /tarefa: o Orion segue sozinho, só lê e propõe, e avisa quando terminar.")].into(), li_right(vec![])));
     }
-    page("Segundo plano", "Tarefas longas que o Orion faz sozinho: só lê e propõe, dentro do tempo e dos passos que você deu. Crie com /tarefa.", Some(btn("Nova tarefa", Kind::Normal, true, Some("cloud"), Some(Msg::CloudNew))), list(rows))
+    page(crate::i18n::text("Segundo plano"), crate::i18n::text("Tarefas longas que o Orion faz sozinho: só lê e propõe, dentro do tempo e dos passos que você deu. Crie com /tarefa."), Some(btn(crate::i18n::text("Nova tarefa"), Kind::Normal, true, Some("cloud"), Some(Msg::CloudNew))), list(rows))
 }
 
 pub fn src_rows(app: &App) -> Vec<El<'_>> {
@@ -282,7 +282,7 @@ pub fn src_rows(app: &App) -> Vec<El<'_>> {
 }
 
 fn fontes(app: &App) -> El<'_> {
-    page("Fontes", "Só o que está ligado é lido. O desligado não é consultado.", None, list(src_rows(app)))
+    page(crate::i18n::text("Fontes"), crate::i18n::text("Só o que está ligado é lido. O desligado não é consultado."), None, list(src_rows(app)))
 }
 
 fn conhecimento(app: &App) -> El<'_> {
@@ -294,7 +294,7 @@ fn conhecimento(app: &App) -> El<'_> {
         }
     }
     if app.facts.is_empty() {
-        col = col.push(tx("Memória vazia.", 14.0, t::FG3));
+        col = col.push(tx(crate::i18n::text("Memória vazia."), 14.0, t::FG3));
     }
     for g in groups {
         col = col.push(h3(g, g == app.facts[0].g));
@@ -305,21 +305,21 @@ fn conhecimento(app: &App) -> El<'_> {
                 Some(e) => column![text_input("", &e.1).on_input(Msg::FactText).on_submit(Msg::FactSave).size(14).font(t::UI).padding(pad(5.0, 8.0, 5.0, 8.0)).style(field_style(t::RAISE, t::LINE3, t::LINE3, 7.0)), li_desc(f.src.clone())].spacing(4).into(),
                 None => column![tx(f.t.clone(), 14.0, t::FG), li_desc(f.src.clone())].into(),
             };
-            let right: El = if editing.is_some() { btn("Salvar", Kind::Primary, true, None, Some(Msg::FactSave)) } else { row![ib("edit", Some(Msg::FactEdit(i)), false), ib("trash", Some(Msg::FactForget(i)), false)].into() };
+            let right: El = if editing.is_some() { btn(crate::i18n::text("Salvar"), Kind::Primary, true, None, Some(Msg::FactSave)) } else { row![ib("edit", Some(Msg::FactEdit(i)), false), ib("trash", Some(Msg::FactForget(i)), false)].into() };
             rows.push(li(left, right));
         }
         col = col.push(list(rows));
     }
-    page("Conhecimento", "Fatos que o Orion aprendeu, cada um com a fonte. Corrigir ou esquecer muda a nota no vault.", Some(btn("Ver no grafo", Kind::Normal, true, Some("graph"), Some(Msg::Go(View::Memoria)))), col.into())
+    page(crate::i18n::text("Conhecimento"), crate::i18n::text("Fatos que o Orion aprendeu, cada um com a fonte. Corrigir ou esquecer muda a nota no vault."), Some(btn(crate::i18n::text("Ver no grafo"), Kind::Normal, true, Some("graph"), Some(Msg::Go(View::Memoria)))), col.into())
 }
 
 fn arquivadas(app: &App) -> El<'_> {
     let mut rows = vec![];
     for (i, a) in app.archived.iter().enumerate() {
-        rows.push(li(column![tx(a.0.clone(), 14.0, t::FG), li_desc(format!("{} · {}", a.1, a.2))].into(), li_right(vec![btn("Desarquivar", Kind::Normal, true, None, Some(Msg::Unarchive(i))), ib("trash", Some(Msg::DeleteArchived(i)), false)])));
+        rows.push(li(column![tx(a.0.clone(), 14.0, t::FG), li_desc(format!("{} · {}", a.1, a.2))].into(), li_right(vec![btn(crate::i18n::text("Desarquivar"), Kind::Normal, true, None, Some(Msg::Unarchive(i))), ib("trash", Some(Msg::DeleteArchived(i)), false)])));
     }
-    let body: El = if rows.is_empty() { container(tx("Nenhuma conversa arquivada.", 14.0, t::FG3)).padding(pad(16.0, 4.0, 16.0, 4.0)).into() } else { list(rows) };
-    page("Conversas arquivadas", "Só arquivam quando você pede. Desarquive para continuar ou apague de vez.", None, body)
+    let body: El = if rows.is_empty() { container(tx(crate::i18n::text("Nenhuma conversa arquivada."), 14.0, t::FG3)).padding(pad(16.0, 4.0, 16.0, 4.0)).into() } else { list(rows) };
+    page(crate::i18n::text("Conversas arquivadas"), crate::i18n::text("Só arquivam quando você pede. Desarquive para continuar ou apague de vez."), None, body)
 }
 
 pub fn hbar<'a>(label: &str, pct: f32, value: &str, color: iced::Color) -> El<'a> {
@@ -347,34 +347,34 @@ fn painel(app: &App) -> El<'_> {
     }
     // Sem servidor não há números reais: o painel fica vazio em vez de mostrar dados de exemplo (F01.28).
     let en = app.p.english;
-    let aviso = if en { "No data yet. Connect Orion to see quotas, models and the week." } else { "Sem dados ainda. Conecte o Orion para ver cotas, modelos e a semana." };
+    let aviso = if en { "No data yet. Connect Orion to see quotas, models and the week." } else { crate::i18n::text("Sem dados ainda. Conecte o Orion para ver cotas, modelos e a semana.") };
     let col = column![container(tx(aviso, t::TEXT_BASE, t::FG3)).padding(pad(4.0, 4.0, 4.0, 4.0))];
-    let (titulo, desc) = if en { ("Panel", "Quotas, models and the week, straight from the server.") } else { ("Painel", "Cotas, modelos e a semana, direto do servidor.") };
-    page(titulo, desc, Some(btn(if en { "Refresh" } else { "Atualizar" }, Kind::Normal, true, Some("refresh"), Some(Msg::Refresh))), col.into())
+    let (titulo, desc) = if en { ("Panel", "Quotas, models and the week, straight from the server.") } else { (crate::i18n::text("Painel"), crate::i18n::text("Cotas, modelos e a semana, direto do servidor.")) };
+    page(titulo, desc, Some(btn(if en { "Refresh" } else { crate::i18n::text("Atualizar") }, Kind::Normal, true, Some("refresh"), Some(Msg::Refresh))), col.into())
 }
 
 /// Painel com os números do servidor (`/painel` e `/budget`).
 fn painel_live(app: &App) -> El<'_> {
     use serde_json::Value;
-    let mut col = column![h3("Cotas das chamadas · semana", true)];
+    let mut col = column![h3(crate::i18n::text("Cotas das chamadas · semana"), true)];
     let quotas: Vec<Value> = app.budget.as_ref().and_then(|b| b.get("quotas")).and_then(|q| q.as_array()).cloned().unwrap_or_default();
     if quotas.is_empty() {
-        col = col.push(container(tx("Nenhuma cota configurada. Defina em ORION_BUDGET ou em Configurações › Modelos.", 13.0, t::FG3)).padding(pad(4.0, 4.0, 4.0, 4.0)));
+        col = col.push(container(tx(crate::i18n::text("Nenhuma cota configurada. Defina em ORION_BUDGET ou em Configurações › Modelos."), 13.0, t::FG3)).padding(pad(4.0, 4.0, 4.0, 4.0)));
     }
     for q in &quotas {
         let pct = q.get("percent").and_then(|x| x.as_f64()).unwrap_or(0.0) as f32;
         let (used, cap) = (q.get("used").and_then(|x| x.as_i64()).unwrap_or(0), q.get("weekly_calls").and_then(|x| x.as_i64()).unwrap_or(0));
-        col = col.push(hbar(q.get("provider").and_then(|x| x.as_str()).unwrap_or("?"), pct, &if pct >= 100.0 { "esgotada".to_string() } else { format!("{used}/{cap}") }, if pct >= 100.0 { t::DANGER } else { t::FG2 }));
+        col = col.push(hbar(q.get("provider").and_then(|x| x.as_str()).unwrap_or("?"), pct, &if pct >= 100.0 { crate::i18n::text("esgotada").to_string() } else { format!("{used}/{cap}") }, if pct >= 100.0 { t::DANGER } else { t::FG2 }));
     }
     let p = app.painel.clone().unwrap_or(Value::Null);
-    col = col.push(h3("Modelos", false));
+    col = col.push(h3(crate::i18n::text("Modelos"), false));
     let eps = p["modelos"]["endpoints"].as_array().cloned().unwrap_or_default();
     if eps.is_empty() {
-        col = col.push(container(tx(if p["modelos"]["configurado"].as_bool().unwrap_or(false) { "Modelos configurados." } else { "Nenhum modelo configurado (ORION_PROVEDORES ou ORION_GATEWAY_URL/MODEL)." }, 13.0, t::FG3)).padding(pad(4.0, 4.0, 4.0, 4.0)));
+        col = col.push(container(tx(if p["modelos"]["configurado"].as_bool().unwrap_or(false) { crate::i18n::text("Modelos configurados.") } else { crate::i18n::text("Nenhum modelo configurado (ORION_PROVEDORES ou ORION_GATEWAY_URL/MODEL).") }, 13.0, t::FG3)).padding(pad(4.0, 4.0, 4.0, 4.0)));
     }
     for e in &eps {
         let nome = e["nome"].as_str().or(e["name"].as_str()).unwrap_or("modelo");
-        col = col.push(li(tx(nome.to_string(), 14.0, t::FG).into(), li_right(vec![badge(e["estado"].as_str().unwrap_or("ativo"), Tone::Ok)])));
+        col = col.push(li(tx(nome.to_string(), 14.0, t::FG).into(), li_right(vec![badge(e[crate::i18n::text("estado")].as_str().unwrap_or(crate::i18n::text("ativo")), Tone::Ok)])));
     }
     let semana: Vec<f32> = p["semana"].as_array().map(|a| a.iter().map(|d| d["total"].as_f64().unwrap_or(0.0) as f32).collect()).unwrap_or_default();
     let (total, erros): (f32, f32) = (semana.iter().sum(), p["semana"].as_array().map(|a| a.iter().map(|d| d["erros"].as_f64().unwrap_or(0.0) as f32).sum()).unwrap_or(0.0));
@@ -383,10 +383,10 @@ fn painel_live(app: &App) -> El<'_> {
     let upt = if up >= 3600.0 { format!("{} h", (up / 3600.0) as i64) } else { format!("{} min", (up / 60.0) as i64) };
     col = col.push(container(stats([(&format!("{total:.0}"), "chamadas de modelo"), (&format!("{erros:.0}"), "com erro"), (&app.pend_count().to_string(), "aguardando você"), (&upt, "servidor no ar")])).padding(pad(0.0, 0.0, 28.0, 0.0)));
     if semana.len() >= 2 {
-        col = col.push(h3("Chamadas por dia · 7 dias", false));
+        col = col.push(h3(crate::i18n::text("Chamadas por dia · 7 dias"), false));
         let mx = semana.iter().cloned().fold(1.0f32, f32::max);
-        let ch = Line { vals: semana, min: 0.0, max: mx.max(1.0), ticks: vec![0.0, mx / 2.0, mx], fmt: |v| format!("{v:.0}"), start: "7 dias atrás", end: "hoje", color: t::FG2, mark: None };
+        let ch = Line { vals: semana, min: 0.0, max: mx.max(1.0), ticks: vec![0.0, mx / 2.0, mx], fmt: |v| format!("{v:.0}"), start: crate::i18n::text("7 dias atrás"), end: crate::i18n::text("hoje"), color: t::FG2, mark: None };
         col = col.push(canvas(ch).width(Length::Fill).height(Length::Fixed(150.0)));
     }
-    page("Painel", "Cotas, modelos e a semana, direto do servidor.", Some(btn("Atualizar", Kind::Normal, true, Some("refresh"), Some(Msg::Refresh))), col.into())
+    page(crate::i18n::text("Painel"), crate::i18n::text("Cotas, modelos e a semana, direto do servidor."), Some(btn(crate::i18n::text("Atualizar"), Kind::Normal, true, Some("refresh"), Some(Msg::Refresh))), col.into())
 }

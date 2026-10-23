@@ -50,6 +50,10 @@ pub trait Local: Send + Sync + 'static {
         Box::pin(async { Err("segundo fator indisponível".into()) })
     }
     fn perfil(&self)->Option<Value>{None}
+    fn initialize(&self) -> futures::future::BoxFuture<'static, Result<(), String>> { Box::pin(async { Ok(()) }) }
+    fn progress(&self) -> Option<String> { None }
+    fn entrar_usuario(&self, _usuario: String, senha: String) -> futures::future::BoxFuture<'static, Result<LoginResult, String>> { self.entrar(senha) }
+    fn logs_dir(&self) -> Option<std::path::PathBuf> { None }
     fn cancelar_entrada(&self, _challenge: &str) {}
     fn hello_ativo(&self) -> bool {
         false
@@ -198,6 +202,10 @@ impl Api {
         self.local.as_ref().ok_or("entrada nativa indisponível")?.entrar(senha).await
     }
     pub fn perfil(&self)->Option<Value>{self.local.as_ref().and_then(|l|l.perfil())}
+    pub async fn initialize(&self) -> Result<(), String> { match &self.local { Some(local) => local.initialize().await, None => Ok(()) } }
+    pub fn progress(&self) -> Option<String> { self.local.as_ref().and_then(|local| local.progress()) }
+    pub async fn entrar_usuario(&self, usuario: String, senha: String) -> Result<LoginResult, String> { self.local.as_ref().ok_or("entrada nativa indisponível")?.entrar_usuario(usuario, senha).await }
+    pub fn logs_dir(&self) -> Option<std::path::PathBuf> { self.local.as_ref().and_then(|l| l.logs_dir()) }
     pub fn cancelar_entrada(&self, challenge: &str) {
         if let Some(l) = &self.local {
             l.cancelar_entrada(challenge)
@@ -268,6 +276,26 @@ impl Api {
             set_cookie,
             corpo: resp.bytes_stream().map(|c| c.map(|b| b.to_vec()).map_err(|e| e.to_string())).boxed(),
         })
+    }
+
+    pub async fn upload_document(&self, name: String, project: Option<String>, bytes: Vec<u8>) -> Result<Value, String> {
+        let mut url = reqwest::Url::parse("http://127.0.0.1/documents").map_err(|e| e.to_string())?;
+        url.query_pairs_mut().append_pair("name", &name);
+        if let Some(project) = project { url.query_pairs_mut().append_pair("project_id", &project); }
+        let path = format!("{}?{}", url.path(), url.query().unwrap_or(""));
+        let response = if let Some(local) = &self.local {
+            local.chamar("POST", &path, Some(bytes), self.bearer.clone()).await?
+        } else {
+            let mut request = self.http.post(format!("{}{}", self.base, path)).header("Origin", &self.base).header("Content-Type", "application/octet-stream").body(bytes);
+            if let Some(token) = &self.bearer { request = request.bearer_auth(token); }
+            else if let Some(cookie) = self.cookie.lock().ok().and_then(|c| c.clone()) { request = request.header("Cookie", format!("{COOKIE}={cookie}")); }
+            let response = request.send().await.map_err(|e| e.to_string())?;
+            Resposta { status: response.status().as_u16(), set_cookie: None, corpo: response.bytes_stream().map(|chunk| chunk.map(|b| b.to_vec()).map_err(|e| e.to_string())).boxed() }
+        };
+        let status = response.status;
+        let text = Self::texto(response).await;
+        if !(200..300).contains(&status) { return Err(mensagem_http(status, &text, &path)); }
+        serde_json::from_str(&text).map_err(|e| e.to_string())
     }
 
     async fn texto(r: Resposta) -> String {

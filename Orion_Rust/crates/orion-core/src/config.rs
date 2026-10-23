@@ -65,6 +65,7 @@ pub struct Settings {
     pub cookie_secure: bool,
     pub audit_retention_days: i64,
     pub provedores: Vec<ProvedorConf>,
+    pub providers_explicit: bool,
     pub gateway_url: String,
     pub gateway_model: String,
     pub gateway_model_fast: String,
@@ -363,8 +364,8 @@ impl Settings {
                 return erro("ORION_LOCAL_URL só aceita 127.0.0.1, localhost ou ::1 (o modelo local é deste computador)");
             }
         }
-        let log_level = e.s("log_level", "INFO").to_uppercase();
-        if !["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"].contains(&log_level.as_str()) {
+        let log_level = e.s("log_level", "WARNING").to_uppercase();
+        if !["DEBUG", "INFO", "WARN", "WARNING", "ERROR", "CRITICAL"].contains(&log_level.as_str()) {
             return erro(format!("log_level inválido: {log_level}"));
         }
         let host = e.s("host", "127.0.0.1");
@@ -386,11 +387,19 @@ impl Settings {
             None => serde_json::json!({"enabled": false, "secret_ref": "ORION_RESEARCH_BRAVE_KEY"}),
             Some(t) => serde_json::from_str(t).map_err(|e| ConfigError(format!("ORION_RESEARCH: {e}")))?,
         };
+        let data_dir = e.path_opt("data_dir").unwrap_or_else(user_data_dir);
+        let auth_user = e.raw("auth_user").map(str::to_owned).or_else(|| {
+            // Instalações anteriores preservam a conta existente (REGRAS.md: portabilidade).
+            let conn = orion_store::rusqlite::Connection::open_with_flags(data_dir.join("auth.db"), orion_store::rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).ok()?;
+            let mut statement = conn.prepare("SELECT user FROM credential LIMIT 2").ok()?;
+            let users = statement.query_map([], |row| row.get::<_, String>(0)).ok()?.collect::<Result<Vec<_>, _>>().ok()?;
+            (users.len() == 1).then(|| users[0].clone())
+        }).unwrap_or_else(|| "admin".into());
         Ok(Settings {
             host,
             port: e.num("port", 8000u16, Some(1), None)?,
             allow_public_bind,
-            data_dir: e.path_opt("data_dir").unwrap_or_else(user_data_dir),
+            data_dir,
             log_level,
             log_json: e.b("log_json", true)?,
             log_retention_days: e.num("log_retention_days", 30u32, Some(1), Some(3650))?,
@@ -399,11 +408,12 @@ impl Settings {
             approval_ttl_s: e.num("approval_ttl_s", 600u64, Some(30), None)?,
             extra_safe_roots: e.str_list("extra_safe_roots", vec![], ',')?.into_iter().map(PathBuf::from).collect(),
             admin_token,
-            auth_user: e.s("auth_user", "antoniosalomao"),
+            auth_user,
             seed_default_password: e.b("seed_default_password", false)?,
             session_ttl_h: e.num("session_ttl_h", 168u64, Some(1), Some(24 * 90))?,
             cookie_secure: e.b("cookie_secure", false)?,
             audit_retention_days: e.num("audit_retention_days", 90i64, Some(1), None)?,
+            providers_explicit: e.raw("provedores").is_some(),
             provedores,
             gateway_url: e.s("gateway_url", ""),
             gateway_model: e.s("gateway_model", ""),

@@ -20,6 +20,9 @@ pub struct NativeShell {
 }
 impl NativeShell {
     pub fn new() -> anyhow::Result<Self> {
+        Self::new_with_labels(["Abrir mini barra", "Captura rápida (Ctrl+Alt+O)", "Isso? (Ctrl+Alt+I)", "Orçamento e rotinas", "Pânico — cortar tudo", "Sair do Orion"])
+    }
+    pub fn new_with_labels(labels: [&str; 6]) -> anyhow::Result<Self> {
         let keys = GlobalHotKeyManager::new()?;
         let mini = HotKey::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::Space);
         let panic = HotKey::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::KeyP);
@@ -36,12 +39,12 @@ impl NativeShell {
         let menu = Menu::new();
         let mut menu_ids = Vec::new();
         for (label, action) in [
-            ("Abrir mini barra", DesktopAction::MiniBar),
-            ("Captura rápida (Ctrl+Alt+O)", DesktopAction::QuickCapture),
-            ("Isso? (Ctrl+Alt+I)", DesktopAction::Isso),
-            ("Orçamento e rotinas", DesktopAction::Budget),
-            ("Pânico — cortar tudo", DesktopAction::Panic),
-            ("Sair do Orion", DesktopAction::Exit),
+            (labels[0], DesktopAction::MiniBar),
+            (labels[1], DesktopAction::QuickCapture),
+            (labels[2], DesktopAction::Isso),
+            (labels[3], DesktopAction::Budget),
+            (labels[4], DesktopAction::Panic),
+            (labels[5], DesktopAction::Exit),
         ] {
             let item = MenuItem::new(label, true, None);
             menu.append(&item)?;
@@ -59,28 +62,31 @@ impl NativeShell {
             }
         }
         let tray = TrayIconBuilder::new()
-            .with_tooltip("Orion — Ctrl+Alt+Espaço · Ctrl+Alt+O · Ctrl+Alt+I · Ctrl+Alt+P")
+            .with_tooltip(format!("Orion — {}", labels[0]))
             .with_icon(Icon::from_rgba(rgba, 32, 32)?)
             .with_menu(Box::new(menu))
             .build()?;
         Ok(Self { _tray: tray, keys, mini, panic, captura, isso, menu_ids })
     }
-    pub fn poll(&self) -> Vec<DesktopAction> {
+    pub fn poller(&self) -> std::sync::Arc<dyn Fn() -> Vec<DesktopAction> + Send + Sync> {
+        let (mini, panic, captura, isso) = (self.mini.id(), self.panic.id(), self.captura.id(), self.isso.id());
+        let menu_ids = self.menu_ids.clone();
+        std::sync::Arc::new(move || {
         let mut actions = Vec::new();
         while let Ok(event) = GlobalHotKeyEvent::receiver().try_recv() {
             if event.state != HotKeyState::Pressed {
                 continue;
             }
-            if event.id == self.mini.id() {
+            if event.id == mini {
                 actions.push(DesktopAction::MiniBar)
             }
-            if event.id == self.panic.id() {
+            if event.id == panic {
                 actions.push(DesktopAction::Panic)
             }
-            if event.id == self.captura.id() {
+            if event.id == captura {
                 actions.push(DesktopAction::QuickCapture)
             }
-            if event.id == self.isso.id() {
+            if event.id == isso {
                 actions.push(DesktopAction::Isso)
             }
         }
@@ -90,12 +96,14 @@ impl NativeShell {
             }
         }
         while let Ok(event) = MenuEvent::receiver().try_recv() {
-            if let Some((_, a)) = self.menu_ids.iter().find(|(id, _)| *id == event.id) {
+            if let Some((_, a)) = menu_ids.iter().find(|(id, _)| *id == event.id) {
                 actions.push(*a)
             }
         }
         actions
+        })
     }
+    pub fn poll(&self) -> Vec<DesktopAction> { self.poller()() }
 }
 impl Drop for NativeShell {
     fn drop(&mut self) {
