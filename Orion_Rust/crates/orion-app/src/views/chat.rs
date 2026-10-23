@@ -153,7 +153,7 @@ fn orion_msg<'a>(app: &'a App, ci: usize, mi: usize, o: &'a OrionMsg, is_last: b
         text.push_str(if (app.now.saturating_duration_since(app.t0).as_millis() / 500) % 2 == 0 { " █" } else { "  " });
     }
     let blocks = md::parse(&text);
-    col = col.push(md::render_with(&blocks, md::Style::chat(f, fb, app.p.chat_fs()), Some(Msg::OpenUrl)));
+    col = col.push(md::render_with(&blocks, md::Style::chat(f, fb, app.p.chat_fs()), Some(Msg::OpenUrl), Some(Msg::CopyText)));
 
     if let Some(a) = &o.approval {
         col = col.push(approval(a, ci, mi));

@@ -342,11 +342,11 @@ fn code_line<'a, M: 'a>(l: &str) -> Element<'a, M> {
 }
 
 pub fn render<'a, M: Clone + 'a>(blocks: &[Block], st: Style) -> Element<'a, M> {
-    render_with(blocks, st, None)
+    render_with(blocks, st, None, None)
 }
 
 /// Como `render`, mas os links (`[texto](url)` e URLs soltas) mandam a mensagem de `on_link` ao serem clicados.
-pub fn render_with<'a, M: Clone + 'a>(blocks: &[Block], st: Style, on_link: Option<fn(String) -> M>) -> Element<'a, M> {
+pub fn render_with<'a, M: Clone + 'a>(blocks: &[Block], st: Style, on_link: Option<fn(String) -> M>, on_copy: Option<fn(String) -> M>) -> Element<'a, M> {
     let para = move |inl: &[Inline], color: Color, st: &Style| -> Element<'a, M> {
         let r = rich_text(spans(inl, st, color)).line_height(iced::widget::text::LineHeight::Relative(st.line));
         match on_link {
@@ -428,21 +428,32 @@ pub fn render_with<'a, M: Clone + 'a>(blocks: &[Block], st: Style, on_link: Opti
                 c.into()
             }
             Block::Code(lang, lines) => {
+                let mut corpo = column![].spacing(0);
+                for l in lines {
+                    corpo = corpo.push(code_line(l));
+                }
                 let mut c = column![].spacing(0);
-                if !lang.is_empty() {
+                if !lang.is_empty() || on_copy.is_some() {
                     // sem WebView2 (ADR 0004) não há prévia de diagrama nem de fórmula: o código fica visível e o aviso diz isso
                     let aviso = match lang.as_str() {
                         "mermaid" => format!("{lang} · diagrama (prévia visual ainda não disponível)"),
                         "latex" | "tex" | "math" => format!("{lang} · fórmula (sem renderização ainda)"),
                         _ => lang.clone(),
                     };
-                    c = c.push(container(text(aviso).font(t::MONO).size(11.0).color(t::FG3)).padding(Padding { bottom: 8.0, ..Default::default() }));
+                    let mut topo = row![container(text(aviso).font(t::MONO).size(11.0).color(t::FG3)).width(Length::Fill)].align_y(iced::alignment::Vertical::Center);
+                    if let Some(f) = on_copy {
+                        topo = topo.push(
+                            iced::widget::button(text("Copiar").font(t::UI).size(11.5).color(t::FG3))
+                                .padding(Padding { top: 1.0, bottom: 1.0, left: 6.0, right: 6.0 })
+                                .on_press(f(lines.join("\n")))
+                                .style(|_, st| iced::widget::button::Style { background: if matches!(st, iced::widget::button::Status::Hovered) { Some(iced::Background::Color(t::HOVER)) } else { None }, text_color: t::FG3, border: Border { radius: 6.0.into(), ..Default::default() }, ..Default::default() }),
+                        );
+                    }
+                    c = c.push(container(topo).width(Length::Fill).padding(Padding { bottom: 8.0, ..Default::default() }));
                 }
-                for l in lines {
-                    c = c.push(code_line(l));
-                }
-                container(scrollable(c).direction(scrollable::Direction::Horizontal(scrollable::Scrollbar::new().width(0).scroller_width(0))))
-                    .padding(Padding { top: 14.0, bottom: 14.0, left: 16.0, right: 16.0 })
+                c = c.push(scrollable(corpo).direction(scrollable::Direction::Horizontal(scrollable::Scrollbar::new().width(0).scroller_width(0))));
+                container(c)
+                    .padding(Padding { top: 12.0, bottom: 14.0, left: 16.0, right: 12.0 })
                     .width(Length::Fill)
                     .style(|_| container::Style {
                         background: Some(t::SIDE.into()),

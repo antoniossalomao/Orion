@@ -573,19 +573,19 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 
 #### F05.B Mensagens e respostas
 - [~] **F05.07** **Streaming** token a token com cursor piscando, botão **Parar** e **Esc** (mantém o texto parcial); **"Pensando"** com ponto pulsante em **< 100 ms**; raciocínio do modelo **recolhido**, expande ao clicar.
-- [~] **F05.08** **Markdown** com `pulldown-cmark`: texto, listas, tabelas, citações, links, código com realce e copiar; **LaTeX, Mermaid e prévia HTML pendentes de solução sem WebView2** (C22). A interface permanece iced.
+- [~] **F05.08** **Markdown** com `pulldown-cmark`: texto, listas, tabelas, citações, links, código com realce e copiar; **LaTeX, Mermaid e prévia HTML pendentes de solução sem WebView2** (C22). A interface permanece iced. **Estado 22/10/2026:** itálico, links http(s) clicáveis, tabelas, régua, citação com barra e botão Copiar nos blocos de código; LaTeX e Mermaid aparecem como código com aviso de que não há prévia.
 - [~] **F05.09** **Linha de progresso** resumida ("Leu 4 arquivos, executou 1 comando") que **expande** passo a passo.
 - [~] **F05.10** **Cartão de aprovação** inline e **cartão de erro de API** no chat.
 - [~] **F05.11** **Ações da resposta** (aparecem ao passar o mouse): copiar (toast), gerar de novo, **gerar com outro modelo**, 👍/👎, salvar no vault; **ouvir** entra na F15. **Rodada Codex 21/10:** cópia de mensagens ligada à área de transferência; regeneração e ouvir desabilitados no modo real até implementação. Testes desta rodada registrados em ORION.md; aceite Windows pendente.
 - [~] **F05.12** **Hover da hora:** provedor que respondeu, tokens e % da cota usada; **ícone de dados externos** (clique mostra o que saiu).
-- [ ] **F05.13** **Links e caminhos clicáveis:** arquivo abre no **VS Code** (`code -g arquivo:linha`), URL no navegador.
+- [~] **F05.13** **Links e caminhos clicáveis:** arquivo abre no **VS Code** (`code -g arquivo:linha`), URL no navegador. **Estado 22/10/2026 (Linux, sob Xvfb):** URL abre no navegador só se for http/https; caminho absoluto de arquivo que existe abre no VS Code; caminho relativo só avisa. Falta resolver caminho relativo pela pasta do projeto e provar no Windows.
 - [~] **F05.14** **Suas mensagens:** **editar e reenviar cria um ramo**, navegação **< 2/3 >** na mensagem; copiar; **fixar** (contexto permanente, **até ~2k tokens**, avisa se passar). **Rodada Codex 21/10:** cópia real da mensagem do usuário; editar/reenviar e fixar contexto continuam pendentes e desabilitados no modo real.
-- [ ] **F05.15** **Navegação em respostas longas:** botão **"ir ao fim"** e **minimapa** de mensagens na barra de rolagem.
+- [~] **F05.15** **Navegação em respostas longas:** botão **"ir ao fim"** e **minimapa** de mensagens na barra de rolagem. **Estado 22/10/2026:** botão "Ir ao fim" entregue (aparece ao rolar para cima); o minimapa não existe.
 - [ ] **F05.16** **Artefatos** (código, HTML, documento longo): **aba no painel da direita**, com versões, copiar e salvar em arquivo.
-- [ ] **F05.17** **Lista virtualizada + cache de layout** para conversas de 1000+ mensagens; **imagens antigas descarregadas** e recarregadas ao abrir; **cache de imagens 1 GB** (WebP, 1600 px, sem duplicatas).
+- [~] **F05.17** **Lista virtualizada + cache de layout** para conversas de 1000+ mensagens; **imagens antigas descarregadas** e recarregadas ao abrir; **cache de imagens 1 GB** (WebP, 1600 px, sem duplicatas). **Estado 22/10/2026:** só as 60 mensagens mais recentes são montadas, com botão para ver as anteriores; virtualização de verdade, descarte de imagens antigas e cache de 1 GB não existem.
 
 #### F05.C Histórico, projeto e exportação
-- [~] **F05.18** **Busca no histórico em texto completo**; **títulos automáticos em português, editáveis**; mover a conversa para outro projeto (a nota do vault é religada); arquivar manual; excluir pede aprovação. **Rodada Codex 21/10:** renomear por formulário ligado ao PATCH autenticado da sessão, com validação, foco, envio único e confirmação do núcleo. Não conclui busca/movimentação nem aceite Windows.
+- [~] **F05.18** **Busca no histórico em texto completo**; **títulos automáticos em português, editáveis**; mover a conversa para outro projeto (a nota do vault é religada); arquivar manual; excluir pede aprovação. **Rodada Codex 21/10:** renomear por formulário ligado ao PATCH autenticado da sessão, com validação, foco, envio único e confirmação do núcleo. Não conclui busca/movimentação nem aceite Windows. **Estado 22/10/2026:** o título automático é a primeira linha do primeiro pedido (até 48 caracteres, sem chamar modelo).
 - [~] **F05.19** **Exportar a conversa em Markdown**; compartilhar nota ou conversa **fora da v1**.
 - [~] **F05.20** **Painel de contexto** (direita, **fechado por padrão**, abre sozinho com alteração de arquivos ou aprovação, **empurra** a conversa): aba **Contexto** (ambiente: projeto, branch, modelo; contexto usado; fontes ligadas; memória usada; alterações) — abas **Arquivos/Diff/Terminal** na F11.
 - [~] **F05.21** **Bloco "nota do vault"** no painel: nome da nota da conversa, última atualização, **abrir no Obsidian** (`obsidian://`), último **commit** (hash e hora) — ligado na F06.
@@ -668,7 +668,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 
 #### F07.C Seções do grupo **IA**
 - [~] **F07.13** **Modelos:** regras do Auto (editáveis), modelo + esforço padrão por tipo (chat, código, resumo, visão, imagem), modelo do resumo do vault e da compactação, **ordem de fallback global**.
-- [~] **F07.14** **Provedores:** catálogo + "Personalizado", estado e latência, cota e reset, modelos, prioridade (arrastar), **uma conta por provedor**, campo "usa dados para treino".
+- [~] **F07.14** **Provedores:** catálogo + "Personalizado", estado e latência, cota e reset, modelos, prioridade (arrastar), **uma conta por provedor**, campo "usa dados para treino". **Estado 22/10/2026:** cadastro de chave por provedor em Configurações › Modelos (cofre do sistema, vale na próxima abertura, `POST /config/chave`); cotas de exemplo removidas do uso real.
 - [~] **F07.15** **Orçamento:** teto de 95%, dia e hora do reset semanal por provedor, calibrar uso real, **fila da automelhoria** (a lógica entra na F13/F26; a tela já existe).
 - [~] **F07.16** **Agente:** modo autônomo, **limite de passos**, agentes em paralelo e subagentes, **proatividade** (sugestões por dia, o que observa), **pastas confiáveis**.
 - [~] **F07.17** **Modelos locais:** adicionar e remover, teste rápido, quantização, **descarregar da RAM após X min**, GPU/CPU, pasta dos modelos.
