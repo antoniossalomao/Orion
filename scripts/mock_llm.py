@@ -40,6 +40,20 @@ if __name__ == "__main__":
 Salve em `soma.py` e rode com dois números."""
 
 
+DIAGRAMA = """Fluxo do pedido:
+
+```mermaid
+flowchart TD
+    A[Usuário pede] --> B{Precisa de ferramenta?}
+    B -->|sim| C[Pedir aprovação]
+    B -->|não| D(Responder)
+    C --> E[Executar]
+    E --> D
+    D -.-> F((Fim))
+```
+
+Pronto."""
+
 FORMULA = """A energia é $E = mc^2$ e a taxa $\\alpha_1 \\leq \\frac{a}{b}$ fica abaixo de 5. Custa $5 e $6 reais.
 
 $$
@@ -77,7 +91,7 @@ class H(BaseHTTPRequestHandler):
             ev(chunk(tool={"index": 0, "id": "call_1", "type": "function", "function": {"name": "escrever_arquivo", "arguments": args}}))
             ev(chunk(finish="tool_calls"))
         else:
-            out = "Arquivo escrito, tudo certo." if tools_back else (LONGO if "CODIGO" in (txt or "") else FORMULA if "FORMULA" in (txt or "") else MD)
+            out = "Arquivo escrito, tudo certo." if tools_back else (LONGO if "CODIGO" in (txt or "") else FORMULA if "FORMULA" in (txt or "") else DIAGRAMA if "DIAGRAMA" in (txt or "") else MD)
             for i in range(0, len(out), 6):
                 ev(chunk(content=out[i:i + 6])); time.sleep(0.02)
             ev(chunk(finish="stop"))

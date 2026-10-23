@@ -11,6 +11,7 @@ pub mod icons;
 pub mod keys;
 pub mod live;
 pub mod md;
+pub mod mermaid;
 pub mod net;
 pub mod novidades;
 pub mod popover;

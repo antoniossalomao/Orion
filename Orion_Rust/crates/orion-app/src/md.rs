@@ -544,6 +544,7 @@ pub fn render_with<'a, M: Clone + 'a>(blocks: &[Block], st: Style, on_link: Opti
                 c.into()
             }
             Block::Code(lang, lines) => {
+                let diagrama = if lang == "mermaid" { crate::mermaid::parse(lines) } else { None };
                 let mut corpo = column![].spacing(0);
                 for l in lines {
                     corpo = corpo.push(code_line(l));
@@ -552,7 +553,8 @@ pub fn render_with<'a, M: Clone + 'a>(blocks: &[Block], st: Style, on_link: Opti
                 if !lang.is_empty() || on_copy.is_some() {
                     // sem WebView2 (ADR 0004) não há prévia de diagrama nem de fórmula: o código fica visível e o aviso diz isso
                     let aviso = match lang.as_str() {
-                        "mermaid" => format!("{lang} · diagrama (prévia visual ainda não disponível)"),
+                        "mermaid" if diagrama.is_some() => "mermaid · diagrama".to_string(),
+                        "mermaid" => format!("{lang} · diagrama (este tipo ainda não tem prévia; o código está abaixo)"),
                         "latex" | "tex" | "math" => format!("{lang} · fórmula (sem renderização ainda)"),
                         _ => lang.clone(),
                     };
@@ -567,7 +569,12 @@ pub fn render_with<'a, M: Clone + 'a>(blocks: &[Block], st: Style, on_link: Opti
                     }
                     c = c.push(container(topo).width(Length::Fill).padding(Padding { bottom: 8.0, ..Default::default() }));
                 }
-                c = c.push(scrollable(corpo).direction(scrollable::Direction::Horizontal(scrollable::Scrollbar::new().width(0).scroller_width(0))));
+                if let Some(d) = diagrama {
+                    let h = d.height;
+                    c = c.push(iced::widget::canvas(d).width(Length::Fill).height(Length::Fixed(h)));
+                } else {
+                    c = c.push(scrollable(corpo).direction(scrollable::Direction::Horizontal(scrollable::Scrollbar::new().width(0).scroller_width(0))));
+                }
                 container(c)
                     .padding(Padding { top: 12.0, bottom: 14.0, left: 16.0, right: 12.0 })
                     .width(Length::Fill)
