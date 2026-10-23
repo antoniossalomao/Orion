@@ -318,7 +318,7 @@ pub struct App {
     pub chat_vp: (f32, f32),
     /// Artefato HTML com a prévia aberta, no painel direito.
     pub art_preview: Option<usize>,
-    /// Imagens geradas (`/imagens/…`) que já foram pedidas ao núcleo.
+    /// Imagens geradas (`/imagens/…`) pedidas ao núcleo e ainda a caminho.
     pub imgs_pedidas: std::collections::HashSet<String>,
     /// Quais chaves de provedor já estão no cofre (só sim/não).
     pub keys: std::collections::BTreeMap<String, bool>,

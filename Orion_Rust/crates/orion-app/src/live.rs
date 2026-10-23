@@ -1015,15 +1015,11 @@ impl App {
             },
             Lm::Chat(ev) => return self.on_chat(ev),
             Lm::Imagem(url, r) => {
-                match r {
-                    Ok(bytes) => {
-                        if crate::imgcache::guardar_url(&url, &bytes).is_none() {
-                            self.imgs_pedidas.remove(&url);
-                        }
-                    }
-                    Err(_) => {
-                        self.imgs_pedidas.remove(&url); // tenta de novo na próxima abertura da conversa
-                    }
+                // `imgs_pedidas` guarda só o que está a caminho: ao terminar (bem ou mal) a URL sai, e uma imagem
+                // que o cache apagou depois pode ser baixada de novo
+                self.imgs_pedidas.remove(&url);
+                if let Ok(bytes) = r {
+                    let _ = crate::imgcache::guardar_url(&url, &bytes);
                 }
             }
         }
