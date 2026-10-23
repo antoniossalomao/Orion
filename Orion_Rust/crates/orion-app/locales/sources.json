@@ -845,5 +845,8 @@
   "Codex (assinatura)": "ui-0843",
   "Buscar conversas e notas": "ui-0844",
   " · Rotina": "ui-0845",
-  " · via Telegram": "ui-0846"
+  " · via Telegram": "ui-0846",
+  "Resposta de upload inválida.": "ui-0847",
+  "Não foi possível extrair o documento.": "ui-0848",
+  "O documento ainda está sendo processado. Tente anexá-lo novamente em instantes.": "ui-0849"
 }

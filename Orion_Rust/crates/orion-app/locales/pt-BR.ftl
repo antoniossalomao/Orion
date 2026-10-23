@@ -845,3 +845,6 @@ ui-0843 = { "Codex (assinatura)" }
 ui-0844 = { "Buscar conversas e notas" }
 ui-0845 = { " · Rotina" }
 ui-0846 = { " · via Telegram" }
+ui-0847 = { "Resposta de upload inválida." }
+ui-0848 = { "Não foi possível extrair o documento." }
+ui-0849 = { "O documento ainda está sendo processado. Tente anexá-lo novamente em instantes." }

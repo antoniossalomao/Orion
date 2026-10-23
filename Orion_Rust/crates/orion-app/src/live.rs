@@ -523,8 +523,24 @@ impl App {
                         Ok(Some((name, bytes)))
                     }).await.map_err(|e| e.to_string())??;
                     let Some((name, bytes)) = selected else { return Ok(None) };
-                    let value = api.upload_document(name, project, bytes).await?;
-                    Ok(Some(value))
+                    let mut value = api.upload_document(name, project.clone(), bytes).await?;
+                    let id = s(&value, "id").to_string();
+                    if id.is_empty() { return Err("Resposta de upload inválida.".into()); }
+                    let mut detail = reqwest::Url::parse(&format!("http://127.0.0.1/documents/{id}")).map_err(|error| error.to_string())?;
+                    if let Some(project) = project { detail.query_pairs_mut().append_pair("project_id", &project); }
+                    let detail = format!("{}{}", detail.path(), detail.query().map(|query| format!("?{query}")).unwrap_or_default());
+                    // Confirma a extração antes do recibo (REGRAS.md: conteúdo externo é dado).
+                    for attempt in 0..=120 {
+                        match s(&value, "status") {
+                            "ready" => return Ok(Some(value)),
+                            "failed" => return Err("Não foi possível extrair o documento.".into()),
+                            _ => {},
+                        }
+                        if attempt == 120 { break; }
+                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                        value = api.get(&detail).await?;
+                    }
+                    Err("O documento ainda está sendo processado. Tente anexá-lo novamente em instantes.".into())
                 }, move |r| Msg::L(Lm::Attached(generation, r))), false))
             }
             Msg::EditorOpen(_) | Msg::EditorSave => {

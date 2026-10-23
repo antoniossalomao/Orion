@@ -133,7 +133,7 @@ O app escolhe wgpu para GPU real e tiny-skia sem MSAA para adaptador de CPU. Ass
 
 `estado::load_providers` descobre chaves no cofre e persiste somente a lista/modelos no SQLite (`providers:configuration`). `ORION_PROVEDORES` explícito tem precedência. Salvar chave reconstrói os endpoints e espera o turno em andamento, preservando agente, auditoria e orçamento. Nenhuma chave entra na lista persistida.
 
-Documentos selecionados no chat usam a API de upload existente, com IDs validados no escopo do projeto e limite de texto por turno. Trechos são `ExternalData`, nunca instruções. A seleção é descartada ao trocar de conversa; resultado atrasado do upload não é anexado a outro chat. Artefatos do chat reutilizam a API SQLite de versões com `expected_version` para detectar conflito.
+Documentos selecionados no chat esperam a extração assíncrona (até 120 s) antes de confirmar o anexo; falha ou limite de espera deixa erro visível. Usam a API de upload existente, com IDs validados no escopo do projeto e limite de texto por turno. Trechos são `ExternalData`, nunca instruções. A seleção é descartada ao trocar de conversa; resultado atrasado do upload não é anexado a outro chat. Artefatos do chat reutilizam a API SQLite de versões com `expected_version` para detectar conflito.
 
 ### Primeiro uso nativo
 

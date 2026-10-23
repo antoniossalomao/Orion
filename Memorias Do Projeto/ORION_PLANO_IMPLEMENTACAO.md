@@ -799,7 +799,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 
 > **Decisões do Antônio (23/10/2026, perguntas interativas):** R1.01: **automática**, cada chave salva liga o provedor dela numa ordem fixa do catálogo (reordenar depois em Configurações) e vale na hora; sem modelo, a mensagem de erro ganha um botão **Adicionar chave** que abre Configurações › Modelos. R1.02: sem GPU a constelação fica **parada** (além do desenho por software e sem MSAA). R1.03: os **mesmos botões do app** (minimizar, maximizar, fechar e faixa de arrastar) no onboarding e no login. R1.04: o campo de usuário vem **preenchido com o usuário do onboarding, editável**. R1.07: **splash ao abrir** (logo e mensagem de progresso, antes do login e depois de entrar). Próximo pacote para testar em casa: **só o `orion.exe` portátil, com GPU automática na interface**; o instalador (R1.11), a versão Vulkan e o banco cifrado ficam para depois. **Execução autorizada em 23/10/2026 nesta sessão.** Implementação e evidências em [ORION_PLANO_CORRECAO_R1.md](ORION_PLANO_CORRECAO_R1.md); estado vigente em [ORION.md](ORION.md). A espera anterior está superada.
 
-> **Validação R1 (23/10/2026):** 550 testes existentes passaram no Linux, 47 dos crates afetados novamente e 4 testes nativos com LLM falso em loopback. Catálogos Fluent: 847 mensagens e 66 interpolações Unicode. CPU de um núcleo em repouso, demo/Xvfb/tiny-skia, 10 s por tela: login 0,1%, chat 0,0%, grafo 0,1%, minimizado 0,3%. Aceite Windows/GPU e causa da faixa branca permanecem pendentes. Build manual Windows solicitado com GPU automática e somente orion.exe.
+> **Validação R1 (23/10/2026):** 550 testes existentes passaram no Linux, 47 dos crates afetados novamente e 4 testes nativos com LLM falso em loopback. Catálogos Fluent: 850 mensagens e 66 interpolações Unicode. CPU de um núcleo em repouso, demo/Xvfb/tiny-skia, 10 s por tela: login 0,1%, chat 0,0%, grafo 0,1%, minimizado 0,3%. Aceite Windows/GPU e causa da faixa branca permanecem pendentes. Build manual Windows solicitado com GPU automática e somente orion.exe.
 
 **Onda 1: destravar o próximo teste**
 
@@ -821,7 +821,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 **Onda 3: ainda sem prova e pendências herdadas**
 
 - [ ] **R1.12** (P1, Antônio) **Provar em Windows real com GPU:** Mica (só existe no Windows 11), bandeja, atalhos globais, Windows Hello e autostart. O teste desta rodada foi num Windows 10 sem GPU e não prova nada disso.
-- [~] **R1.13** **Localização pt-BR/en da interface inteira:** Antônio escolheu incluir agora. **Implementação:** catálogos Fluent (847 mensagens), rótulos/menus/estados/bandeja e preferência no perfil autenticado. **Validação:** catálogos e 66 interpolações Unicode; revisão visual Windows pendente.
+- [~] **R1.13** **Localização pt-BR/en da interface inteira:** Antônio escolheu incluir agora. **Implementação:** catálogos Fluent (850 mensagens), rótulos/menus/estados/bandeja e preferência no perfil autenticado. **Validação:** catálogos e 66 interpolações Unicode; revisão visual Windows pendente.
 - [~] **R1.14** (P2, G) **Herdados do chat:** anexos do usuário chegarem ao chat, medição real da altura das mensagens (hoje estimada pela média), versões de artefato e documento longo como artefato.
 - [ ] **R1.15** (P0, G) **Chat, Memória e grafo lentos em qualquer máquina** (teste em casa, GPU integrada): medir tempo de quadro, cachear grafo e parse, parar redesenho contínuo. Ver o plano de correção R1.
 

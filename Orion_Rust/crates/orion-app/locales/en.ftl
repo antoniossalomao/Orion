@@ -845,3 +845,6 @@ ui-0843 = { "Codex (subscription)" }
 ui-0844 = { "Search conversations and notes" }
 ui-0845 = { " · Routine" }
 ui-0846 = { " · via Telegram" }
+ui-0847 = { "Invalid upload response." }
+ui-0848 = { "Could not extract the document." }
+ui-0849 = { "The document is still being processed. Try attaching it again shortly." }
