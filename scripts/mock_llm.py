@@ -40,6 +40,15 @@ if __name__ == "__main__":
 Salve em `soma.py` e rode com dois números."""
 
 
+FORMULA = """A energia é $E = mc^2$ e a taxa $\\alpha_1 \\leq \\frac{a}{b}$ fica abaixo de 5. Custa $5 e $6 reais.
+
+$$
+\\sum_{i=1}^{n} x_i \\times \\sqrt{2} \\approx \\infty
+$$
+
+Fim."""
+
+
 def chunk(content=None, tool=None, finish=None):
     d = {}
     if content is not None: d["content"] = content
@@ -68,7 +77,7 @@ class H(BaseHTTPRequestHandler):
             ev(chunk(tool={"index": 0, "id": "call_1", "type": "function", "function": {"name": "escrever_arquivo", "arguments": args}}))
             ev(chunk(finish="tool_calls"))
         else:
-            out = "Arquivo escrito, tudo certo." if tools_back else (LONGO if "CODIGO" in (txt or "") else MD)
+            out = "Arquivo escrito, tudo certo." if tools_back else (LONGO if "CODIGO" in (txt or "") else FORMULA if "FORMULA" in (txt or "") else MD)
             for i in range(0, len(out), 6):
                 ev(chunk(content=out[i:i + 6])); time.sleep(0.02)
             ev(chunk(finish="stop"))

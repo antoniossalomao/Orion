@@ -10,6 +10,8 @@ pub enum Inline {
     Text(String),
     Bold(String),
     Italic(String),
+    /// Fórmula `$...$` já convertida em texto Unicode.
+    Math(String),
     Code(String),
     Wiki(String),
     Link(String, String),
@@ -27,6 +29,8 @@ pub enum Block {
     Front(Vec<String>),
     Table(Vec<Vec<Inline>>, Vec<Vec<Vec<Inline>>>),
     Rule,
+    /// Fórmula em bloco (`$$...$$`) já convertida em texto Unicode.
+    Math(String),
 }
 
 pub fn inline(src: &str) -> Vec<Inline> {
@@ -76,6 +80,17 @@ pub fn inline(src: &str) -> Vec<Inline> {
                     continue;
                 }
             }
+        } else if rest.starts_with('$') && !rest.starts_with("$$") {
+            if let Some(end) = rest[1..].find('$') {
+                let inner = &rest[1..1 + end];
+                // dinheiro ("$5 e $6") não é fórmula: exige comando, expoente ou índice e nada colado nas bordas
+                if !inner.is_empty() && !inner.starts_with(' ') && !inner.ends_with(' ') && (inner.contains('\\') || inner.contains('^') || inner.contains('_')) {
+                    flush(&mut buf, &mut out);
+                    out.push(Inline::Math(latex_to_text(inner)));
+                    i += rest[..1 + end + 1].chars().count();
+                    continue;
+                }
+            }
         } else if rest.starts_with('[') && !rest.starts_with("[[") {
             if let Some(mid) = rest.find("](") {
                 if let Some(close) = rest[mid + 2..].find(')') {
@@ -112,6 +127,100 @@ pub fn inline(src: &str) -> Vec<Inline> {
         i += 1;
     }
     flush(&mut buf, &mut out);
+    out
+}
+
+/// LaTeX simples em texto Unicode: letras gregas, operadores, frações, raízes, expoentes e índices.
+/// Não é um typesetter: o que não reconhece fica como veio (a fórmula nunca some).
+pub fn latex_to_text(src: &str) -> String {
+    const SIMB: &[(&str, &str)] = &[
+        ("\\alpha", "α"), ("\\beta", "β"), ("\\gamma", "γ"), ("\\delta", "δ"), ("\\epsilon", "ε"), ("\\theta", "θ"),
+        ("\\lambda", "λ"), ("\\mu", "μ"), ("\\pi", "π"), ("\\rho", "ρ"), ("\\sigma", "σ"), ("\\tau", "τ"), ("\\phi", "φ"),
+        ("\\omega", "ω"), ("\\Delta", "Δ"), ("\\Sigma", "Σ"), ("\\Omega", "Ω"), ("\\Pi", "Π"),
+        ("\\times", "×"), ("\\cdot", "·"), ("\\pm", "±"), ("\\leq", "≤"), ("\\le", "≤"), ("\\geq", "≥"), ("\\ge", "≥"),
+        ("\\neq", "≠"), ("\\ne", "≠"), ("\\approx", "≈"), ("\\infty", "∞"), ("\\sum", "∑"), ("\\prod", "∏"), ("\\int", "∫"),
+        ("\\rightarrow", "→"), ("\\to", "→"), ("\\leftarrow", "←"), ("\\Rightarrow", "⇒"), ("\\in", "∈"), ("\\partial", "∂"),
+        ("\\ldots", "…"), ("\\cdots", "⋯"), ("\\quad", "  "), ("\\,", " "), ("\\left", ""), ("\\right", ""),
+    ];
+    fn grupo(s: &str, de: usize) -> Option<(String, usize)> {
+        let rest = &s[de..];
+        if !rest.starts_with('{') {
+            return None;
+        }
+        let mut prof = 0;
+        for (i, c) in rest.char_indices() {
+            match c {
+                '{' => prof += 1,
+                '}' => {
+                    prof -= 1;
+                    if prof == 0 {
+                        return Some((rest[1..i].to_string(), de + i + 1));
+                    }
+                }
+                _ => {}
+            }
+        }
+        None
+    }
+    fn sup(t: &str) -> Option<String> {
+        t.chars().map(|c| match c { '0' => Some('⁰'), '1' => Some('¹'), '2' => Some('²'), '3' => Some('³'), '4' => Some('⁴'), '5' => Some('⁵'), '6' => Some('⁶'), '7' => Some('⁷'), '8' => Some('⁸'), '9' => Some('⁹'), '+' => Some('⁺'), '-' => Some('⁻'), 'n' => Some('ⁿ'), _ => None }).collect()
+    }
+    fn sub(t: &str) -> Option<String> {
+        t.chars().map(|c| match c { '0' => Some('₀'), '1' => Some('₁'), '2' => Some('₂'), '3' => Some('₃'), '4' => Some('₄'), '5' => Some('₅'), '6' => Some('₆'), '7' => Some('₇'), '8' => Some('₈'), '9' => Some('₉'), '+' => Some('₊'), '-' => Some('₋'), _ => None }).collect()
+    }
+    let mut out = String::new();
+    let mut i = 0;
+    while i < src.len() {
+        let rest = &src[i..];
+        if let Some(r) = rest.strip_prefix("\\frac") {
+            let base = i + 5;
+            if let Some((a, f1)) = grupo(src, base) {
+                if let Some((b, f2)) = grupo(src, f1) {
+                    out.push_str(&format!("({})/({})", latex_to_text(&a), latex_to_text(&b)));
+                    i = f2;
+                    continue;
+                }
+            }
+            let _ = r;
+        }
+        if rest.starts_with("\\sqrt") {
+            if let Some((a, f)) = grupo(src, i + 5) {
+                out.push_str(&format!("√({})", latex_to_text(&a)));
+                i = f;
+                continue;
+            }
+        }
+        if rest.starts_with('^') || rest.starts_with('_') {
+            let eh_sup = rest.starts_with('^');
+            let (conteudo, fim) = match grupo(src, i + 1) {
+                Some((g, f)) => (g, f),
+                None => match src[i + 1..].chars().next() {
+                    Some(c) => (c.to_string(), i + 1 + c.len_utf8()),
+                    None => (String::new(), i + 1),
+                },
+            };
+            let conv = if eh_sup { sup(&conteudo) } else { sub(&conteudo) };
+            match conv {
+                Some(c) if !conteudo.is_empty() => out.push_str(&c),
+                _ => out.push_str(&format!("{}{}", if eh_sup { "^" } else { "_" }, if conteudo.chars().count() > 1 { format!("({})", latex_to_text(&conteudo)) } else { conteudo })),
+            }
+            i = fim;
+            continue;
+        }
+        if let Some((nome, simb)) = SIMB.iter().filter(|(n, _)| rest.starts_with(n)).max_by_key(|(n, _)| n.len()) {
+            let depois = rest[nome.len()..].chars().next();
+            if !nome.ends_with(|c: char| c.is_ascii_alphabetic()) || !depois.is_some_and(|c| c.is_ascii_alphabetic()) {
+                out.push_str(simb);
+                i += nome.len();
+                continue;
+            }
+        }
+        let c = rest.chars().next().unwrap();
+        if c != '{' && c != '}' {
+            out.push(c);
+        }
+        i += c.len_utf8();
+    }
     out
 }
 
@@ -179,7 +288,7 @@ pub fn parse(src: &str) -> Vec<Block> {
                 i += 1;
             }
             i += 1;
-            blocks.push(Block::Code("latex".into(), code));
+            blocks.push(Block::Math(latex_to_text(&code.join(" "))));
         } else if l.starts_with("```") {
             let lang = l.trim_start_matches('`').trim().to_lowercase();
             let mut code = Vec::new();
@@ -288,6 +397,7 @@ fn spans<'a>(inl: &[Inline], st: &Style, base: Color) -> Vec<iced::widget::text:
             Inline::Text(s) => span(s.clone()).font(st.font).size(st.size).color(base),
             Inline::Bold(s) => span(s.clone()).font(st.bold).size(st.size).color(base),
             Inline::Italic(s) => span(s.clone()).font(Font { style: iced::font::Style::Italic, ..st.font }).size(st.size).color(base),
+            Inline::Math(s) => span(s.clone()).font(Font { style: iced::font::Style::Italic, ..st.font }).size(st.size).color(base),
             Inline::Link(label, url) => span(label.clone()).font(st.font).size(st.size).color(t::ACCENT).underline(true).link(url.clone()),
             Inline::Code(s) => {
                 // só caminho absoluto vira link: o relativo não tem como ser resolvido e ficaria um link morto
@@ -369,7 +479,7 @@ pub fn render_with<'a, M: Clone + 'a>(blocks: &[Block], st: Style, on_link: Opti
                     _ => (st.h3, 6.0),
                 };
                 let sp: Vec<iced::widget::text::Span<'a, (), Font>> = inl.iter().map(|i| match i {
-                    Inline::Text(s) | Inline::Bold(s) | Inline::Italic(s) | Inline::Code(s) | Inline::Wiki(s) | Inline::Link(s, _) => span(s.clone()).font(st.h_font).size(sz).color(t::FG),
+                    Inline::Text(s) | Inline::Bold(s) | Inline::Italic(s) | Inline::Math(s) | Inline::Code(s) | Inline::Wiki(s) | Inline::Link(s, _) => span(s.clone()).font(st.h_font).size(sz).color(t::FG),
                 }).collect();
                 container(rich_text(sp)).padding(Padding { top, bottom: 2.0, ..Default::default() }).into()
             }
@@ -381,6 +491,11 @@ pub fn render_with<'a, M: Clone + 'a>(blocks: &[Block], st: Style, on_link: Opti
                     .height(Length::Shrink)
                     .into()
             }
+            Block::Math(m) => container(text(m.clone()).font(Font { style: iced::font::Style::Italic, ..st.font }).size(st.size * 1.1).color(t::FG))
+                .width(Length::Fill)
+                .center_x(Length::Fill)
+                .padding(Padding { top: 6.0, bottom: 6.0, ..Default::default() })
+                .into(),
             Block::Rule => container(iced::widget::Space::new().height(Length::Fixed(1.0)))
                 .width(Length::Fill)
                 .height(Length::Fixed(1.0))

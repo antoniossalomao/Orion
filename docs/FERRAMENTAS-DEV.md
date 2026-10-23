@@ -27,7 +27,7 @@ DISPLAY=:99 HOME=$(mktemp -d) ORION_GATEWAY_URL=http://127.0.0.1:9099/v1 ORION_G
 ```
 
 - Use `xdotool` (`mousemove`, `click`, `type`) para dirigir a janela e `import -window root arquivo.png` (ImageMagick) para capturar. Sem `openbox` a janela não recebe teclado.
-- O mock responde com Markdown (lista, tabela, código, citação); a frase `ESCREVER` faz o modelo pedir `escrever_arquivo` e exercita o cartão de aprovação; a palavra `CODIGO` devolve um bloco de código longo (aba Artefatos).
+- O mock responde com Markdown (lista, tabela, código, citação); a frase `ESCREVER` faz o modelo pedir `escrever_arquivo` e exercita o cartão de aprovação; a palavra `CODIGO` devolve um bloco de código longo (aba Artefatos) e `FORMULA` devolve fórmulas LaTeX.
 - O renderizador por software deste ambiente deixa resíduo de pixels (por exemplo uma barra depois de um parágrafo): some ao redesenhar e não acontece com a GPU.
 - Os PNG das telas com dados de exemplo continuam saindo de `cargo run -p orion-app --features snap --bin orion-snap -- <pasta>`.
 
