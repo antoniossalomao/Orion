@@ -8,6 +8,28 @@ pub enum ScanError {
     SecretFound(String),
 }
 
+const CRED: &str = "Credencial atribuída";
+
+/// Valor de exemplo, não segredo: nome de variável de ambiente (`API_KEY`, `MEU_TOKEN_SECRETO`), repetição do próprio
+/// nome (`password=password`), modelo (`${TOKEN}`, `<chave>`, `{{ chave }}`) ou marcador óbvio (`YOUR_API_KEY`,
+/// `change_me`, `xxxxxxxx`, `exemplo`). Conservador: um valor misturado de letras e números nunca é tratado como exemplo.
+fn placeholder(chave: &str, valor: &str) -> bool {
+    let v = valor.trim_matches(|c| c == '"' || c == '\'' || c == ',' || c == ';');
+    let baixo = v.to_lowercase();
+    let norm = |t: &str| t.to_lowercase().replace('-', "_");
+    if norm(v) == norm(chave) {
+        return true;
+    }
+    if v.contains("${") || v.contains("$(") || v.contains("{{") || v.contains("%s") || v.starts_with('$') {
+        return true;
+    }
+    if ["your", "seu_", "sua_", "example", "exemplo", "changeme", "change_me", "change-me", "placeholder", "redacted", "dummy", "insira", "coloque"].iter().any(|m| baixo.contains(m)) {
+        return true;
+    }
+    let tudo_igual = v.chars().all(|c| matches!(c, 'x' | 'X' | '*' | '.' | '-' | '_' | '#'));
+    tudo_igual || (v.contains('_') && v.chars().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_') && v.chars().filter(|c| c.is_ascii_digit()).count() <= 2)
+}
+
 static PATTERNS: LazyLock<Vec<(&'static str, Regex)>> = LazyLock::new(|| {
     vec![
         // Chaves OpenAI / Generic AI
@@ -21,7 +43,7 @@ static PATTERNS: LazyLock<Vec<(&'static str, Regex)>> = LazyLock::new(|| {
         ("NVIDIA API Key", Regex::new(r"\bnvapi-[a-zA-Z0-9_-]{20,}\b").unwrap()),
         ("Google OAuth secret", Regex::new(r"\bGOCSPX-[a-zA-Z0-9_-]{16,}\b").unwrap()),
         ("Google refresh token", Regex::new(r"\b1//[a-zA-Z0-9_-]{20,}").unwrap()),
-        ("Credencial atribuída", Regex::new(r#"(?im)\b(?:[a-z0-9_]*(?:api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret)|password|senha|authorization)\s*[=:]\s*["']?[^\s"'<>`]{8,}"#).unwrap()),
+        (CRED, Regex::new(r#"(?im)\b(?P<k>[a-z0-9_]*(?:api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret)|password|senha|authorization)\s*[=:]\s*["']?(?P<v>[^\s"'<>`]{8,})"#).unwrap()),
         // Tokens de Bot do Telegram (123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ)
         ("Telegram Bot Token", Regex::new(r"\b[0-9]{8,10}:[a-zA-Z0-9_-]{35}\b").unwrap()),
         // Anthropic API Keys (sk-ant-...)
@@ -143,7 +165,8 @@ impl SecretScanner {
     /// Retorna `Err(ScanError)` se encontrar, ou `Ok(())` se limpo.
     pub fn scan(text: &str) -> Result<(), ScanError> {
         for (name, re) in PATTERNS.iter() {
-            if re.is_match(text) {
+            let achou = if *name == CRED { re.captures_iter(text).any(|c| !placeholder(&c["k"], &c["v"])) } else { re.is_match(text) };
+            if achou {
                 return Err(ScanError::SecretFound(name.to_string()));
             }
         }
@@ -156,8 +179,12 @@ impl SecretScanner {
     /// Redige tokens conhecidos caso seja necessário sanitizar antes de salvar.
     pub fn redact(text: &str) -> String {
         let mut result = text.to_string();
-        for (_, re) in PATTERNS.iter() {
-            result = re.replace_all(&result, "[REDACTED_SECRET]").to_string();
+        for (name, re) in PATTERNS.iter() {
+            result = if *name == CRED {
+                re.replace_all(&result, |c: &regex::Captures| if placeholder(&c["k"], &c["v"]) { c[0].to_string() } else { "[REDACTED_SECRET]".to_string() }).to_string()
+            } else {
+                re.replace_all(&result, "[REDACTED_SECRET]").to_string()
+            };
         }
         for r in PII_RULES.iter() {
             result =
