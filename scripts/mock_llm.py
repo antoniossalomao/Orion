@@ -93,7 +93,11 @@ Pronto."""
 
 IMAGEM = """Aqui está a imagem:
 
-![gradiente de teste](/tmp/claude-0/imgs/big.png)
+![dentro da pasta do Orion](/tmp/claude-0/orionhome30/Documents/Orion/permitida.png)
+
+![fora da pasta](/tmp/claude-0/imgs/big.png)
+
+![rede](\\\\atacante.example\\share\\x.png)
 
 E uma que não existe:
 

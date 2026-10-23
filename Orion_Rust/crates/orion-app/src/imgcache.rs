@@ -27,6 +27,34 @@ static MEMO: OnceLock<Mutex<HashMap<PathBuf, Entrada>>> = OnceLock::new();
 /// Imagens que vêm do núcleo (`/imagens/<nome>`), já baixadas e guardadas no cache.
 static URLS: OnceLock<Mutex<HashMap<String, PathBuf>>> = OnceLock::new();
 
+/// Pasta onde o Orion guarda o que gera para o usuário (`Documentos/Orion`): única origem local aceita sem pedir.
+fn raiz_confiavel() -> Option<PathBuf> {
+    let home = std::env::var_os("USERPROFILE").or_else(|| std::env::var_os("HOME"))?;
+    Some(PathBuf::from(home).join("Documents").join("Orion"))
+}
+
+/// Um caminho de imagem escrito pelo modelo só vale dentro de `Documentos/Orion`. Antes de tocar no disco recusa
+/// caminhos de rede e de dispositivo (`\\servidor\pasta`, `//servidor/x`, `\\?\`, `\\.\`) e `..`: abrir um
+/// compartilhamento SMB só por mostrar a resposta vazaria credencial e travaria a tela (REGRAS.md: conteúdo externo é dado).
+pub fn origem_confiavel(p: &Path) -> bool {
+    let txt = p.to_string_lossy();
+    if txt.starts_with("\\\\") || txt.starts_with("//") || txt.starts_with("\\\\?\\") || txt.starts_with("\\\\.\\") {
+        return false;
+    }
+    if p.components().any(|c| matches!(c, std::path::Component::ParentDir)) {
+        return false;
+    }
+    let Some(raiz) = raiz_confiavel() else { return false };
+    if !p.starts_with(&raiz) {
+        return false;
+    }
+    // links simbólicos dentro da pasta não podem levar para fora dela
+    match (std::fs::canonicalize(p), std::fs::canonicalize(&raiz)) {
+        (Ok(real), Ok(r)) => real.starts_with(r),
+        _ => false,
+    }
+}
+
 pub fn eh_imagem(p: &Path) -> bool {
     matches!(p.extension().and_then(|e| e.to_str()).map(|e| e.to_ascii_lowercase()).as_deref(), Some("png" | "jpg" | "jpeg" | "gif" | "webp"))
 }
@@ -59,6 +87,9 @@ pub fn preparar(origem: &Path) -> Option<PathBuf> {
         limitar(LIMITE); // na primeira vez do processo, a pasta volta ao limite
         Mutex::new(HashMap::new())
     });
+    if !origem_confiavel(origem) {
+        return None;
+    }
     let meta = std::fs::metadata(origem).ok();
     let (mtime, len) = (meta.as_ref().and_then(|m| m.modified().ok()), meta.as_ref().map_or(0, |m| m.len()));
     if let Some(e) = memo.lock().ok()?.get(origem) {
