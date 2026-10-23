@@ -10,7 +10,7 @@ use iced::alignment::Vertical;
 use iced::widget::{button, column, container, row, scrollable, text_input};
 use iced::{Border, Length};
 
-const TABS: [(CtxTab, &str); 4] = [(CtxTab::Contexto, "Contexto"), (CtxTab::Arquivos, "Arquivos"), (CtxTab::Diff, "Diff"), (CtxTab::Terminal, "Terminal")];
+const TABS: [(CtxTab, &str); 5] = [(CtxTab::Contexto, "Contexto"), (CtxTab::Arquivos, "Arquivos"), (CtxTab::Diff, "Diff"), (CtxTab::Terminal, "Terminal"), (CtxTab::Artefatos, "Artefatos")];
 
 fn kv<'a>(ic: &str, s: El<'a>) -> El<'a> {
     row![icon(ic, 14.0, t::FG3), s].spacing(8).align_y(Vertical::Center).into()
@@ -22,7 +22,7 @@ pub fn view(app: &App) -> El<'_> {
     let mut tabs = row![].spacing(2);
     for (tb, l) in TABS {
         let sel = app.ctx_tab == tb;
-        let b = button(container(tx(l, 12.5, if sel { t::FG } else { t::FG3 })).center_y(Length::Fill)).height(Length::Fixed(32.0)).padding(pad(0.0, 10.0, 0.0, 10.0)).on_press(Msg::CtxTab(tb)).style(|_, _| button::Style::default());
+        let b = button(container(tx(l, 12.5, if sel { t::FG } else { t::FG3 })).center_y(Length::Fill)).height(Length::Fixed(32.0)).padding(pad(0.0, 7.0, 0.0, 7.0)).on_press(Msg::CtxTab(tb)).style(|_, _| button::Style::default());
         tabs = tabs.push(column![b, container(sp_w(0.0)).width(Length::Fill).height(Length::Fixed(1.5)).style(move |_| container::Style { background: if sel { Some(t::FG.into()) } else { None }, ..Default::default() })].width(Length::Shrink));
     }
     let tabs = column![container(tabs).padding(pad(8.0, 8.0, 0.0, 8.0)), hline()];
@@ -119,6 +119,25 @@ pub fn view(app: &App) -> El<'_> {
             }
             v.into()
         }
+        CtxTab::Artefatos => {
+            let lista = artifacts(c);
+            let mut v = column![].spacing(8);
+            if lista.is_empty() {
+                v = v.push(container(tx("Nenhum artefato ainda. Blocos de código longos e documentos que o Orion escrever aparecem aqui, com copiar e salvar.", 12.5, t::FG3)).padding(pad(4.0, 4.0, 4.0, 4.0)));
+            }
+            for (n, (lang, body)) in lista.iter().enumerate() {
+                let linhas = body.lines().count();
+                let titulo = if lang.is_empty() { "texto".to_string() } else { lang.clone() };
+                let previa = body.lines().find(|l| !l.trim().is_empty()).unwrap_or("").to_string();
+                let inner = column![
+                    txf(ell(&previa, 250.0, 12.0), 12.0, t::FG2, t::MONO),
+                    row![btn("Copiar", Kind::Normal, true, None, Some(Msg::CopyText(body.clone()))), btn("Salvar", Kind::Ghost, true, None, Some(Msg::ArtifactSave(n)))].spacing(6),
+                ]
+                .spacing(8);
+                v = v.push(card(&format!("{titulo} · {linhas} linhas"), tx(format!("#{}", n + 1), 12.0, t::FG3).into(), inner.into()));
+            }
+            v.into()
+        }
         CtxTab::Terminal => {
             let mut out = column![].spacing(0);
             for l in &app.term_out {
@@ -146,6 +165,45 @@ pub fn view(app: &App) -> El<'_> {
         .width(Length::Fixed(t::CTX_W))
         .height(Length::Fill)
         .into()
+}
+
+/// Blocos de código e fórmulas das respostas da conversa (de 5 linhas ou mais, ou de linguagens de documento): os artefatos.
+pub fn artifacts(c: &crate::data::Conv) -> Vec<(String, String)> {
+    let mut out = vec![];
+    for m in &c.msgs {
+        if let ChatMsg::Orion(o) = m {
+            for b in crate::md::parse(&o.body) {
+                if let crate::md::Block::Code(lang, lines) = b {
+                    if lines.len() >= 5 || matches!(lang.as_str(), "html" | "md" | "markdown" | "json" | "mermaid" | "latex" | "tex") {
+                        out.push((lang, lines.join("\n")));
+                    }
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Extensão do arquivo salvo, pela linguagem do bloco.
+pub fn ext_of(lang: &str) -> &'static str {
+    match lang {
+        "rust" | "rs" => "rs",
+        "python" | "py" => "py",
+        "javascript" | "js" => "js",
+        "typescript" | "ts" => "ts",
+        "html" => "html",
+        "json" => "json",
+        "md" | "markdown" => "md",
+        "mermaid" => "mmd",
+        "latex" | "tex" => "tex",
+        "sh" | "bash" | "shell" => "sh",
+        "powershell" | "ps1" => "ps1",
+        "toml" => "toml",
+        "yaml" | "yml" => "yaml",
+        "sql" => "sql",
+        "css" => "css",
+        _ => "txt",
+    }
 }
 
 fn vline_full<'a>() -> El<'a> {

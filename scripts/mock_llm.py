@@ -23,6 +23,23 @@ fn main() {
 
 Fim da resposta."""
 
+LONGO = """Aqui vai o script completo:
+
+```python
+import sys
+
+
+def somar(a, b):
+    return a + b
+
+
+if __name__ == "__main__":
+    print(somar(int(sys.argv[1]), int(sys.argv[2])))
+```
+
+Salve em `soma.py` e rode com dois números."""
+
+
 def chunk(content=None, tool=None, finish=None):
     d = {}
     if content is not None: d["content"] = content
@@ -51,7 +68,7 @@ class H(BaseHTTPRequestHandler):
             ev(chunk(tool={"index": 0, "id": "call_1", "type": "function", "function": {"name": "escrever_arquivo", "arguments": args}}))
             ev(chunk(finish="tool_calls"))
         else:
-            out = "Arquivo escrito, tudo certo." if tools_back else MD
+            out = "Arquivo escrito, tudo certo." if tools_back else (LONGO if "CODIGO" in (txt or "") else MD)
             for i in range(0, len(out), 6):
                 ev(chunk(content=out[i:i + 6])); time.sleep(0.02)
             ev(chunk(finish="stop"))

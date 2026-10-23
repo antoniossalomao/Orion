@@ -290,7 +290,8 @@ fn spans<'a>(inl: &[Inline], st: &Style, base: Color) -> Vec<iced::widget::text:
             Inline::Italic(s) => span(s.clone()).font(Font { style: iced::font::Style::Italic, ..st.font }).size(st.size).color(base),
             Inline::Link(label, url) => span(label.clone()).font(st.font).size(st.size).color(t::ACCENT).underline(true).link(url.clone()),
             Inline::Code(s) => {
-                let arquivo = file_ref(s).is_some();
+                // só caminho absoluto vira link: o relativo não tem como ser resolvido e ficaria um link morto
+                let arquivo = file_ref(s).is_some_and(|(p, _)| std::path::Path::new(&p).is_absolute());
                 let sp = span(s.clone())
                     .font(t::MONO)
                     .size(st.size * 0.78)

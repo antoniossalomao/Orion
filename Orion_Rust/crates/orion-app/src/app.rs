@@ -47,6 +47,7 @@ pub enum CtxTab {
     Arquivos,
     Diff,
     Terminal,
+    Artefatos,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -456,6 +457,8 @@ pub enum Msg {
     RenameSave,
     ChatScrolled(iced::widget::scrollable::Viewport),
     ChatEnd,
+    /// Grava o artefato `n` (bloco de código da conversa aberta) em Documentos/Orion/Artefatos.
+    ArtifactSave(usize),
     ShowAll(usize),
     KeyOpen(String),
     KeyInput(String),
@@ -973,6 +976,28 @@ impl App {
             }
             Msg::ChatScrolled(vp) => {
                 self.chat_end = vp.absolute_offset_reversed().y < 48.0;
+            }
+            Msg::ArtifactSave(n) => {
+                let Some(c) = self.conv.and_then(|i| self.convs.get(i)) else { return Task::none() };
+                let Some((lang, body)) = crate::views::ctx::artifacts(c).into_iter().nth(n) else { return Task::none() };
+                let ext = crate::views::ctx::ext_of(&lang);
+                let ts = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+                let nome = format!("artefato-{}-{ts}.{ext}", n + 1);
+                return Task::perform(
+                    async move {
+                        tokio::task::spawn_blocking(move || -> Result<String, String> {
+                            let home = std::env::var_os("USERPROFILE").or_else(|| std::env::var_os("HOME")).ok_or("pasta do usuário desconhecida")?;
+                            let dir = std::path::PathBuf::from(home).join("Documents").join("Orion").join("Artefatos");
+                            std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+                            let alvo = dir.join(&nome);
+                            std::fs::write(&alvo, body).map_err(|e| e.to_string())?;
+                            Ok(alvo.display().to_string())
+                        })
+                        .await
+                        .map_err(|e| e.to_string())?
+                    },
+                    |r| Msg::Toast(match r { Ok(p) => format!("Salvo em {p}"), Err(e) => format!("Não foi possível salvar: {e}") }),
+                );
             }
             Msg::ChatEnd => {
                 self.chat_end = true;
