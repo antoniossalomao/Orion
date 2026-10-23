@@ -35,6 +35,31 @@
 
 **O que o teste não prova:** Mica só existe no Windows 11 (esta máquina é Windows 10), então bandeja, atalhos globais, Windows Hello, autostart e Mica seguem sem prova (R1.12).
 
+## 2.1 Segundo teste: notebook de casa (23/10/2026)
+
+| | |
+|---|---|
+| **Máquina** | Notebook com **GPU integrada**, Windows 11 |
+| **Resultado** | Antes (Windows 10 sem GPU): 100% de CPU. Agora: pico de ~30% de CPU, RAM normal, **mas tudo lento**. O resto do app roda de boa |
+| **Chat** | Trava **só de entrar na tela**, até o cursor engasga; também ao digitar, ao rolar e durante resposta em stream |
+| **Memória** | Mesmo comportamento do chat ao entrar na tela |
+| **Grafo** | Trava ao abrir, ao arrastar, ao dar zoom e **parado**, sem mexer |
+| **Não medido ainda** | Adaptador/backend usado (wgpu ou tiny-skia), tempo de quadro, volume de nós e de mensagens |
+
+**O que isso muda no plano:**
+
+- A lentidão **não é só falta de GPU**: com GPU integrada e RAM sobrando, o app continua lento. Isso aponta para trabalho por quadro no próprio app (desenho em canvas e redesenho contínuo), não para o driver.
+- Trava **parado** no grafo e **ao entrar** em Chat e Memória sugere redesenho contínuo ou trabalho caro repetido a cada quadro (parse de Markdown, layout, constelação de fundo). CPU em 30% com cursor travando é típico de **uma thread só saturada**, enquanto o total do processador parece folgado.
+- A R1.02 deixa de ser "só sem GPU": passa a valer para **qualquer máquina**. A constelação parada e o cache de parse deixam de depender de detectar o adaptador.
+- **Novo item R1.15** (abaixo) para chat, Memória e grafo.
+
+**Diagnóstico pedido ao Antônio (antes de mexer em código):**
+
+1. Rodar `$env:ICED_BACKEND="tiny-skia"; .\orion.exe` e depois `$env:ICED_BACKEND="wgpu"; .\orion.exe`, e dizer qual fica menos lento.
+2. Com `$env:RUST_LOG="info"`, mandar a linha `Selected:` (adaptador) e `antialiasing`.
+3. Dizer se parar de mexer o mouse no Chat reduz a lentidão, e se com a janela minimizada a CPU cai.
+4. Gerenciador de Tarefas, aba Detalhes: CPU do `orion.exe` e, na aba Desempenho, uso da GPU.
+
 ---
 
 ## 3. Decisões do Antônio (23/10/2026)
@@ -100,6 +125,18 @@ Tamanho: **P** = até meio dia, **M** = 1 dia, **G** = mais de 1 dia. Executor: 
 - **O que fazer:** liberar os recursos de vídeo antes de sair, para eliminar os avisos "leak detected".
 - **Aceite:** fechar o app sem aviso de vazamento no log.
 
+#### R1.15 · P0 · G · Chat, Memória e grafo lentos em qualquer máquina
+- **Problema:** em notebook com GPU integrada, entrar em Chat ou Memória já trava o cursor; o grafo trava até parado.
+- **O que fazer:**
+  1. **Medir primeiro:** tempo por quadro (`view`/`update`/desenho) por tela, com log em `debug`; achar o que domina antes de otimizar.
+  2. **Grafo:** parar de redesenhar quando nada se move; cachear a geometria (`canvas::Cache`) e invalidar só ao mudar nós, zoom ou posição; simular o layout em passos limitados, não por quadro; limitar rótulos ao zoom suficiente.
+  3. **Chat e Memória:** cache de `md::parse`, Mermaid, LaTeX e imagens por mensagem (junto da R1.02, item 3); não refazer a lista inteira ao digitar; stream atualizando só a última mensagem.
+  4. **Constelação de fundo:** só anima quando a tela precisa; parada por padrão fora do login.
+  5. **Limite de quadros:** redesenhar só com evento ou animação ativa.
+- **Arquivos prováveis:** `orion-app/src/views/chat.rs`, `views/memory*.rs`, `views/graph*.rs`, `md.rs`, `app.rs` (subscrições de tempo), `run.rs`.
+- **Aceite:** no notebook de casa, entrar em Chat, Memória e grafo sem o cursor travar; CPU em repouso abaixo de ~3%; stream de resposta fluido; sem regressão visual.
+- **Depende de:** diagnóstico do Antônio (seção 2.1); no Linux dá para medir CPU em repouso e tempo de quadro com o harness.
+
 ### Onda 2: acabamento e fluxo
 
 #### R1.07 · P1 · M · Splash ao abrir
@@ -135,7 +172,7 @@ Tamanho: **P** = até meio dia, **M** = 1 dia, **G** = mais de 1 dia. Executor: 
 ## 5. Ordem
 
 1. **R1.01, R1.03 e R1.04** primeiro: destravam o uso.
-2. **R1.02** em seguida: é o que mais pesa.
+2. **R1.02 e R1.15** em seguida: são o que mais pesa (o teste em casa mostrou lentidão também com GPU).
 3. **R1.05 e R1.06** junto da R1.02.
 4. **Onda 2** depois dos prints e das respostas do Antônio.
 5. **Onda 3:** R1.12 acontece no teste em casa; R1.13 e R1.14 entram quando houver decisão e espaço.

@@ -821,6 +821,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [ ] **R1.12** (P1, Antônio) **Provar em Windows real com GPU:** Mica (só existe no Windows 11), bandeja, atalhos globais, Windows Hello e autostart. O teste desta rodada foi num Windows 10 sem GPU e não prova nada disso.
 - [ ] **R1.13** (decisão) **Localização pt-BR/en da interface inteira** (o app não tem Fluent): decisão do Antônio sobre quando.
 - [ ] **R1.14** (P2, G) **Herdados do chat:** anexos do usuário chegarem ao chat, medição real da altura das mensagens (hoje estimada pela média), versões de artefato e documento longo como artefato.
+- [ ] **R1.15** (P0, G) **Chat, Memória e grafo lentos em qualquer máquina** (teste em casa, GPU integrada): medir tempo de quadro, cachear grafo e parse, parar redesenho contínuo. Ver o plano de correção R1.
 
 **Ordem:** R1.01, R1.03 e R1.04 primeiro (destravam o uso); R1.02 em seguida (o que mais pesa); R1.05 e R1.06 junto; Onda 2 depois dos prints e da resposta do Antônio. **Validação:** harness do Linux (Xvfb, LLM falso, medição de CPU em repouso) e testes existentes; testes novos seguem pausados (ADR 0007); aceite em Windows real é do Antônio.
 
