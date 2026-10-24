@@ -242,3 +242,5 @@ Cada entrega vai num commit, com o card do Notion e este plano atualizados, como
 | Fonte "estranha" sem print | Aguarda os prints do Antônio |
 | O que ele pediu de "tela de carregamento" | Resolvido: splash ao abrir (R1.07) |
 | Localização pt-BR/en | Decisão do Antônio (R1.13) |
+
+Reteste R1.01 em 23/10, 21h36 BRT: `6628248` falhou com `ReadTimeout` em “Oi”. Ajustados prazos por fase/inatividade e esforço baixo no Gemini rápido. A primeira resposta real no Windows segue pendente; não marcar R1.01 como concluído somente por compilar.

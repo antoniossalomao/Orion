@@ -206,3 +206,5 @@ Esta tabela é uma pesquisa de candidatos, não uma lista de modelos instalados.
 
 **Licença-alvo ainda não decidida.** Se o Orion for só pessoal, os itens não comerciais não bloqueiam. Se for vendido ou distribuído, saem: openWakeWord oficial, ESC-50, Jina v3, OmniParser com o detector padrão e modelos de pesquisa, como o Sabiá-7B.
 
+
+Atualização R1 (23/10/2026): o gateway limita conexão, primeira saída e inatividade separadamente, sem abortar streams ativos por duração total. Diagnósticos distinguem cabeçalhos, primeira saída e interrupção; logs incluem somente contagens e duração. Gemini rápido usa esforço baixo; a camada pesada mantém o padrão do modelo.

@@ -35,6 +35,7 @@ pub struct Endpoint {
     pub base_url: String,
     pub model: String,
     pub api_key: Option<String>,
+    /// Espera pela primeira saída e limite de inatividade entre partes do stream.
     pub timeout_s: f64,
     /// Camada de roteamento: "rapido", "pesado", "visao", "local" ou vazio (padrão).
     pub tier: String,
@@ -142,7 +143,7 @@ impl GatewayError {
             let code = error.split(':').next().unwrap_or("");
             let safe = if code.strip_prefix("HTTP ").is_some_and(|status| status.len() == 3 && status.bytes().all(|c| c.is_ascii_digit())) {
                 code
-            } else if ["ReadTimeout", "ConnectError", "RemoteProtocolError", "HTTPError", "resposta vazia"].contains(&code) {
+            } else if ["ReadTimeout", "ConnectTimeout", "HeadersTimeout", "FirstTokenTimeout", "StreamIdleTimeout", "ConnectError", "RemoteProtocolError", "HTTPError", "resposta vazia"].contains(&code) {
                 code
             } else if error.starts_with("em ") { "Cooldown" } else { "BudgetOrEndpointError" };
             format!("{name}: {safe}")
@@ -199,7 +200,7 @@ enum Falha {
 
 impl ChatGateway {
     pub fn new(endpoints: Vec<Endpoint>) -> anyhow::Result<Self> {
-        Self::with_client(endpoints, reqwest::Client::builder().build()?, 60.0)
+        Self::with_client(endpoints, reqwest::Client::builder().connect_timeout(Duration::from_secs(15)).build()?, 60.0)
     }
 
     pub fn with_client(endpoints: Vec<Endpoint>, client: reqwest::Client, cooldown_s: f64) -> anyhow::Result<Self> {
@@ -385,7 +386,7 @@ impl ChatGateway {
                     Some(Falha::Antes(e)) => {
                         let tipo = e.split(':').next().unwrap_or("").to_string();
                         self.falhou(&ep, &tipo, e.starts_with("HTTP 429"));
-                        tracing::warn!("endpoint {} falhou, tentando o próximo: {}", ep.name, tipo);
+                        tracing::warn!(elapsed_ms = inicio.elapsed().as_millis() as u64, bytes_in, "endpoint {} falhou, tentando o próximo: {}", ep.name, tipo);
                         tentativas.push((ep.name.clone(), e));
                     }
                     Some(Falha::Transporte(e)) => {
@@ -395,7 +396,7 @@ impl ChatGateway {
                             yield Err(GatewayError::new(format!("{} interrompeu no meio da resposta: {e}", ep.name)));
                             return;
                         }
-                        tracing::warn!("endpoint {} falhou, tentando o próximo: {}", ep.name, tipo);
+                        tracing::warn!(elapsed_ms = inicio.elapsed().as_millis() as u64, bytes_in, "endpoint {} falhou, tentando o próximo: {}", ep.name, tipo);
                         tentativas.push((ep.name.clone(), e));
                     }
                 }
@@ -456,6 +457,10 @@ impl ChatGateway {
             }
             let mut corpo = json!({"model": ep.model, "messages": msgs, "stream": true});
             let google = ep.provedor == "gemini" || reqwest::Url::parse(&ep.base_url).ok().and_then(|url| url.host_str().map(str::to_owned)).as_deref() == Some("generativelanguage.googleapis.com");
+            // O chat rápido usa raciocínio baixo; a camada pesada mantém o padrão do modelo.
+            if google && ep.tier != "pesado" && (ep.model.starts_with("gemini-3") || ep.model.starts_with("gemini-2.5")) {
+                corpo["reasoning_effort"] = json!("low");
+            }
             if !google {
                 for message in corpo["messages"].as_array_mut().into_iter().flatten() {
                     for call in message.get_mut("tool_calls").and_then(Value::as_array_mut).into_iter().flatten() {
@@ -471,18 +476,25 @@ impl ChatGateway {
             let corpo_txt = corpo.to_string();
             *bytes_out = corpo_txt.len();
             let url = format!("{}/chat/completions", ep.base_url.trim_end_matches('/'));
+            // Um prazo total abortava até respostas que continuavam chegando. Limite a
+            // primeira saída e cada intervalo sem dados, preservando streams ativos.
+            let wait = Duration::from_secs_f64(ep.timeout_s);
+            let first_deadline = tokio::time::Instant::now() + wait;
             let mut req = self
                 .client
                 .post(&url)
                 .header("content-type", "application/json")
-                .timeout(Duration::from_secs_f64(ep.timeout_s))
                 .body(corpo_txt);
             if let Some(k) = &ep.api_key {
                 req = req.bearer_auth(k);
             }
-            let resp = match req.send().await {
-                Ok(r) => r,
-                Err(e) => {
+            let resp = match tokio::time::timeout_at(first_deadline, req.send()).await {
+                Err(_) => {
+                    yield Err(Falha::Transporte("HeadersTimeout".into()));
+                    return;
+                }
+                Ok(Ok(r)) => r,
+                Ok(Err(e)) => {
                     yield Err(Falha::Transporte(format!("{}: {}", tipo_erro(&e), e.without_url())));
                     return;
                 }
@@ -490,7 +502,7 @@ impl ChatGateway {
             let status = resp.status().as_u16();
             if status >= 400 {
                 let retry = resp.headers().get("retry-after").and_then(|v| v.to_str().ok()).map(String::from);
-                let corpo = resp.text().await.unwrap_or_default();
+                let corpo = tokio::time::timeout(wait, resp.text()).await.ok().and_then(Result::ok).unwrap_or_default();
                 *bytes_in = corpo.len();
                 if status == 429 {
                     let espera = retry_after(retry.as_deref(), self.cooldown_s);
@@ -510,10 +522,16 @@ impl ChatGateway {
             let mut buffer: Vec<u8> = vec![];
             let mut fim = false;
             while !fim {
-                let pedaco = match bytes.next().await {
-                    None => break,
-                    Some(Ok(b)) => b,
-                    Some(Err(e)) => {
+                let started = houve_saida || !chamadas.is_empty();
+                let deadline = if started { tokio::time::Instant::now() + wait } else { first_deadline };
+                let pedaco = match tokio::time::timeout_at(deadline, bytes.next()).await {
+                    Err(_) => {
+                        yield Err(Falha::Transporte(if started { "StreamIdleTimeout" } else { "FirstTokenTimeout" }.into()));
+                        return;
+                    }
+                    Ok(None) => break,
+                    Ok(Some(Ok(b))) => b,
+                    Ok(Some(Err(e))) => {
                         yield Err(Falha::Transporte(format!("{}: {}", tipo_erro(&e), e.without_url())));
                         return;
                     }
@@ -575,7 +593,9 @@ impl ChatGateway {
 }
 
 fn tipo_erro(e: &reqwest::Error) -> &'static str {
-    if e.is_timeout() {
+    if e.is_timeout() && e.is_connect() {
+        "ConnectTimeout"
+    } else if e.is_timeout() {
         "ReadTimeout"
     } else if e.is_connect() {
         "ConnectError"
