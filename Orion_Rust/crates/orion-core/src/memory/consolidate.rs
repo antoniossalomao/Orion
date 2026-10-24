@@ -95,7 +95,10 @@ impl Consolidator {
         // o canal "legado" fica de fora: seriam milhares de falas de uma vez na cota gratuita
         let nao = if self.skip.is_empty() { String::new() } else { format!(" AND s.channel NOT IN ({})", vec!["?"; self.skip.len()].join(",")) };
         let sql = format!(
-            "SELECT m.id, m.text FROM messages m JOIN sessions s ON s.id=m.session_id WHERE m.id>? AND m.role='user' AND s.project_id IS ?{nao} ORDER BY m.id LIMIT ?"
+            "SELECT m.id, m.text FROM messages m JOIN sessions s ON s.id=m.session_id WHERE m.id>? AND m.role='user' AND m.superseded=0 AND m.provenance IS NULL
+             AND m.text NOT LIKE '[CONTEXTO EXTERNO%' AND m.text NOT LIKE '[CONTEÚDO EXTERNO%'
+             AND NOT EXISTS(SELECT 1 FROM meta WHERE key='counter:taint:'||s.id AND CAST(value AS INTEGER)>0)
+             AND s.project_id IS ?{nao} ORDER BY m.id LIMIT ?"
         );
         let mut p: Vec<&dyn orion_store::rusqlite::ToSql> = vec![&marca, &project_id];
         for s in &self.skip {
@@ -150,6 +153,12 @@ impl Consolidator {
                 return ConsolidationResult { ran: true, messages: novas.len(), facts_added: 0, ok: false };
             }
         };
+        // A conversa pode ter recebido conteúdo externo ou mudado de projeto durante a
+        // chamada (REGRAS.md: fato consolidado só vem de fala do Antônio).
+        let current: std::collections::HashSet<i64> = self.novas(project_id).into_iter().map(|(id,_)|id).collect();
+        if novas.iter().take(falas.len()).any(|(id,_)|!current.contains(id)) {
+            return ConsolidationResult { ran:true,messages:falas.len(),facts_added:0,ok:false };
+        }
         let hoje = chrono::DateTime::from_timestamp(self.memory.now() as i64, 0)
             .unwrap_or_default()
             .with_timezone(&chrono::Local)

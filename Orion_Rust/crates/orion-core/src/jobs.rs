@@ -12,7 +12,7 @@ use crate::memory::consolidate::Consolidator;
 use crate::memory::Completer;
 use crate::modos::Modos;
 use crate::tools::processes::ProcessManager;
-use chrono::{Datelike, Local, TimeZone};
+use chrono::{Datelike, Local, TimeZone, Timelike};
 use orion_ai::costs::Custos;
 use orion_store::ops::Operations;
 use orion_store::scope::{with_scope, DataScope};
@@ -38,6 +38,8 @@ pub struct TickReport {
     pub vigilancias: usize,
     pub processos: usize,
     pub briefing: bool,
+    pub daily_summary: bool,
+    pub vacuum: bool,
     pub consolidacao: Option<Value>,
     pub semanal_ia: bool,
     pub pesquisa: Option<String>,
@@ -313,6 +315,9 @@ impl JobRunner {
         }
         for projeto in escopos {
             with_scope(DataScope::project(projeto, false), || {
+                if let Some(generated) = Self::passo(rel, "resumo diário", self.daily_summary()) {
+                    rel.daily_summary |= generated;
+                }
                 match self.lembretes() {
                     Ok(n) => rel.lembretes += n,
                     Err(e) => {
@@ -328,6 +333,9 @@ impl JobRunner {
                     }
                 }
             });
+        }
+        if let Some(done) = Self::passo(rel, "manutenção", self.weekly_vacuum()) {
+            rel.vacuum = done;
         }
         if let Some(n) = Self::passo(rel, "vigilancias", self.ops.watch_poll().map_err(Into::into)) {
             rel.vigilancias = n;
@@ -404,6 +412,51 @@ impl JobRunner {
                 rel.gateway = g;
             }
         }
+    }
+
+    /// Contagens locais, sem modelo, uma por escopo/dia. Recupera no máximo o dia anterior
+    /// ao voltar a ligar o PC (REGRAS.md: pendência velha não vira rajada de aviso).
+    fn daily_summary(&self) -> anyhow::Result<bool> {
+        let now = crate::util::local(self.agora());
+        let date = if now.hour()==23 && now.minute()==59 { now.date_naive() }
+            else { now.date_naive().pred_opt().ok_or_else(||anyhow::anyhow!("data inválida"))? };
+        let next = date.succ_opt().ok_or_else(||anyhow::anyhow!("data inválida"))?;
+        let midnight = |day:chrono::NaiveDate| -> anyhow::Result<f64> {
+            let time=day.and_hms_opt(0,0,0).ok_or_else(||anyhow::anyhow!("data inválida"))?;
+            Ok(Local.from_local_datetime(&time).earliest().ok_or_else(||anyhow::anyhow!("data inválida"))?.timestamp() as f64)
+        };
+        let pid=orion_store::current_scope().project_id;
+        let marker=format!("daily_summary:{}:{date}",pid.as_deref().unwrap_or("personal"));
+        if self.memory.meta_get(&marker).is_some() { return Ok(false); }
+        let activity=self.memory.daily_activity(pid.as_deref(),midnight(date)?,midnight(next)?)?;
+        let conversations=activity["conversations"].as_i64().unwrap_or(0);
+        let actions=activity["actions"].as_i64().unwrap_or(0);
+        let tasks=activity["completed_tasks"].as_i64().unwrap_or(0);
+        let approvals=activity["approval_requests"].as_i64().unwrap_or(0);
+        let text=format!("Resumo de {date}: {conversations} conversa(s), {actions} ação(ões) autorizada(s), {tasks} tarefa(s) concluída(s), {approvals} pedido(s) de aprovação.");
+        self.memory.tx(|_| {
+            if self.memory.meta_get(&marker).is_some() { return Ok(false); }
+            if conversations+actions+tasks+approvals>0 { self.ops.notify("resumo_diario",&text,Some(&marker),false)?; }
+            self.memory.meta_set(&marker,Some("1"))?;
+            Ok(conversations+actions+tasks+approvals>0)
+        }).map_err(Into::into)
+    }
+
+    /// Sem expurgo de dados: compacta semanalmente em repouso. A primeira abertura só agenda
+    /// (REGRAS.md: resumo da conversa nunca substitui o registro).
+    fn weekly_vacuum(&self) -> anyhow::Result<bool> {
+        let now=self.agora();
+        let key="maintenance:last_vacuum";
+        let Some(last)=self.memory.meta_get(key).and_then(|t|t.parse::<f64>().ok()) else {
+            self.memory.meta_set(key,Some(&now.to_string()))?;
+            return Ok(false);
+        };
+        if now-last<7.0*86400.0 { return Ok(false); }
+        let active=self.memory.query("SELECT 1 FROM sessions WHERE last_active_at>? LIMIT 1",&[&(now-600.0)])?;
+        if !active.is_empty() { return Ok(false); }
+        self.memory.vacuum()?;
+        self.memory.meta_set(key,Some(&now.to_string()))?;
+        Ok(true)
     }
 
     /// Modelos fora do ar, só pelo registro de saída: sem chamada extra ao provedor. Fora = as

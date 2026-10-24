@@ -10,6 +10,19 @@ Assistente pessoal com identidade masculina, técnico, direto, não-servil. Não
 
 Antônio é o administrador: decide, aprova e pode desligar qualquer coisa. Nada que o modelo diga anula isso.
 
+## Backend e reconciliação do board — 24/10/2026
+
+Rodada `codex/orion-backend-notion`, sobre a main `efb2cbc` (PR #54 mergeado). Foram tratados os componentes de backend de 20 cards: F02.04, F03.21, F04.07/F04.09/F04.19/F04.24, F05.03/F05.14/F05.18/F05.19/F05.20/F05.22, F08.05/F08.06/F08.07/F08.11/F08.12, F09.05 e F19.13/F19.14. Isso não equivale a 20 funcionalidades completas na interface. A matriz de implementação e pendências está na auditoria; cards com tela ou aceite pendente permanecem em revisão.
+
+- SQLite v24 adiciona preferências/referências por projeto, avaliações locais, mensagens fixadas, prompts salvos e registro das conversas arquivadas pelo projeto. A migração preserva dados existentes.
+- Comandos salvos expandem somente no escopo selecionado; referências e mensagens fixadas entram como `ExternalData`, com limites e taint, inclusive ao retomar uma aprovação. O padrão de endpoint do projeto e o limite de passos não mudam a política; visão e escolha explícita continuam prioritárias.
+- Consolidação exclui mensagens substituídas, de origem externa e de sessões contaminadas, revalidando a fonte após a chamada. A API e a retomada negam argumentos truncados; o agente encerra essa tentativa sem gastar outras rodadas. MCP ganha janela de 60 leituras/min por cliente, além do teto global e do registro sem conteúdo.
+- Arquivamento esconde as conversas e restaura somente as que ele próprio arquivou. Mudança de projeto recusa conversas com artefatos/ramos/propostas vinculados; nomes vazios são recusados também no domínio. Resumo diário local tem deduplicação; contagens de auditoria representam autorizações, não comprovantes de execução. VACUUM semanal espera repouso e não remove mensagens; reconstrução FTS é explícita.
+
+**Verificação Linux desta rodada:** 550 testes existentes passaram após a implementação, sem testes novos no repositório. Verificação temporária da API: 61 checagens com banco descartável/modelo simulado, incluindo persistência, isolamento, rollback de referências inválidas, arquivamento/restauração, aprovação truncada e MCP. Verificação temporária do domínio confirmou deduplicação do resumo, manutenção semanal sem perda e rejeição de fonte contaminada durante a consolidação. Nenhuma API real ou paga foi usada; aceite Windows permanece pendente.
+
+**Build autorizado pelo pedido novo:** quando backend e visual do Antigravity terminarem, gerar app e instalador sem modelos locais. O workflow manual `windows-app-cpu.yml` recebeu a opção `instalador`; o pacote offline sem worker é aceito somente com modelos/voz desmarcados. Planejado: `perfil=release`, `cifra=true`, `llama=false`, `instalador=true`, sem pesos e sem publicar release/tag. O disparo aguarda a identificação/integração das mudanças visuais. A pausa de CI automático e testes novos continua vigente.
+
 ## Rodada R1 — execução em 23/10/2026
 
 Antônio autorizou implementar o [plano de correção R1](ORION_PLANO_CORRECAO_R1.md), após consultar os 15 cards do Notion. Correções de provedores em uso imediato, janelas iniciais/login, logs, splash, desempenho e pendências de chat estão implementadas e em validação. Provedores automáticos ficam no SQLite sem segredos; chaves continuam no cofre. A troca do gateway espera o turno atual, preservando agente/política/orçamento. Opt-ins de captura e ferramentas não mudaram.

@@ -414,7 +414,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [~] **F02.01** SQLite com **SQLCipher**; chave derivada da senha com **Argon2id**; chave só em memória, **zeroizada** ao bloquear. **Estado PR #30: Parcial (19/10/2026): SQLCipher com chave mestra aleatória embrulhada pela senha (Argon2id) e pela chave de recuperação, senha pedida na subida, migração `orion db-cifrar` com cópia conferida, backups cifrados e chave zeroizada ao bloquear; feature `sqlcipher` fora do build padrão e o `orion.db` atual segue em claro até a migração.**
 - [~] **F02.02** Esquema v1 com migrações: `conversas`, `mensagens`, `ramos`, `anexos`, `aprovacoes`, `atividade`, `auditoria`, `fatos` (com validade/temporal), `chunks_notas` (FTS5), `vetores` (sqlite-vec), `rotinas`, `execucoes`, `cotas`, `chamadas` (saídas sem conteúdo), `tarefas_estado`, `configuracoes`, `eventos_sync` (se o log de eventos for escolhido).
 - [~] **F02.03** **Transcrição bruta** das conversas guardada para sempre (histórico "para sempre"); histórico de atividade **1 ano**, depois resumo mensal; desfazer por **7 dias**.
-- [ ] **F02.04** Banco **sem limite prático**; compactação (`VACUUM`) agendada; **recuperação do índice** a partir do vault se o banco se perder.
+- [~] **F02.04** Banco **sem limite prático**; compactação (`VACUUM`) agendada; **recuperação do índice** a partir do vault se o banco se perder. **Backend 24/10/2026:** VACUUM semanal em repouso, manutenção explícita e reconstrução de FTS sem expurgo. Restante: recuperação integral a partir do vault e aceite operacional.
 - [ ] **F02.05** Configurações em **TOML** (`settings.toml`) com botão "Abrir arquivo" e **recarga automática** ao mudar o arquivo (resolve edição manual × salvar sozinho); **segredos nunca no TOML**.
 - [~] **F02.06** **Backup local:** cópia criptografada do banco e das configurações na pasta do Orion (a cópia no Drive é F10).
 
@@ -483,7 +483,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [ ] **F03.19** **Escala de nível** quando a resposta falha em checagens (formato, testes, confiança baixa); pergunta simples vai para o mais barato que atenda (gratuitas, depois local); difícil/código vai para Claude ou Codex pela assinatura quando há cota.
 - [~] **F03.27** **Anexo de imagem para modelo sem visão:** o roteador **envia para um provedor com visão** (ex.: Gemini gratuito) em vez de falhar; o modelo local de visão (Moondream/MiniCPM-V) é a alternativa offline.
 - [~] **F03.20** **Botão "Por quê?"** nas decisões do Auto; registro local das decisões.
-- [ ] **F03.21** **👍/👎** das respostas guardados **só local**; depois da v1, treino de um classificador com esses dados (estilo RouteLLM) — gancho previsto.
+- [~] **F03.21** **👍/👎** das respostas guardados **só local**; depois da v1, treino de um classificador com esses dados (estilo RouteLLM) — gancho previsto. **Backend 24/10/2026:** Avaliação -1/+1 removível, SQLite local e sem treino. Restante: ligar os controles reais da ui.
 
 #### F03.E Cotas e extras
 - [~] **F03.22** **Registro local de cada chamada** por provedor (tokens, janela, reset), base de todas as estimativas; **calibragem manual**; dia e hora do **reset semanal** por provedor; **alerta em 80%**.
@@ -517,9 +517,9 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [x] **F04.04** **Arquivos:** resolver caminho antes (R07); leitura de segredo pede confirmação; escrita fora das pastas confiáveis pede aprovação.
 - [x] **F04.05** **Rede:** `netguard` (R09/R14), **qualquer site**, sem lista de domínios; URL inteira no cartão após conteúdo externo.
 - [~] **F04.06** **Conteúdo externo é dado** (R05): marcação de origem em tudo que vem de web, e-mail, documento, área de transferência e MCP; instrução vinda dele **nunca executa**, pede aprovação; **classificador local de prompt injection** (Shield Small / ProtectAI / ModernBERT conforme o spike em português) como **camada extra** (não substitui a aprovação).
-- [~] **F04.07** **Fatos aprendidos** só se gravam por fonte confiável: conteúdo externo não grava fatos.
+- [x] **F04.07** **Fatos aprendidos** só se gravam por fonte confiável: conteúdo externo não grava fatos. **Backend 24/10/2026:** Só falas elegíveis entram na consolidação; origem revalidada após a chamada. Restante: sem dependência de hardware para esta regra.
 - [~] **F04.08** **Controle de apps do PC** na ordem: **1** API/MCP/extensão do app; **2** controle de mídia do sistema; **3** **UI Automation**; **4** teclado/mouse simulados (último recurso). **Qualquer app, aprovação por ação** (clique, digitação, tecla), com sugestão de apps pelo Orion e OK por app; **ações leves** (abrir app, tocar música) sem pedir; apps elevados e jogos só se você autorizar, com confirmação; título de janela nunca vira comando (R15).
-- [~] **F04.09** Falha de auditoria nega (R10); cartão só aprova o que se vê inteiro (R11).
+- [x] **F04.09** Falha de auditoria nega (R10); cartão só aprova o que se vê inteiro (R11). **Backend 24/10/2026:** Auditoria fail-closed existente; API/retomada recusam argumentos truncados; encerra tentativa sem repetição. Restante: sem dependência de hardware para esta regra.
 
 #### F04.B Aprovações
 - [~] **F04.10** **Cartão de aprovação** no chat (âmbar): ação, argumentos completos, risco, botões **Aprovar/Negar**, "sempre permitir isto **neste projeto**" (vira regra editável em Privacidade).
@@ -533,14 +533,14 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 #### F04.C Modo autônomo
 - [x] **F04.17** Interruptor em **Configurações › Agente** e na **pílula de estado**; **desligado ao instalar**; ligar pede a senha de novo. **Estado 20/10/2026: o código liga o modo autônomo (`POST /modo/autonomo`, 4× passos) sem pedir a senha de novo. Feito em 20/10/2026: ligar pede a senha (`/modo/autonomo` exige `senha`; janela de senha na UI).**
 - [ ] **F04.18** Ligado: age sem pedir aprovação, **exceto a linha "sempre pedir"**; **para só quando precisa de uma decisão sua**.
-- [~] **F04.19** **Resumo ao fim do dia** (no Painel e na notificação das 23:59), não a cada ação.
+- [~] **F04.19** **Resumo ao fim do dia** (no Painel e na notificação das 23:59), não a cada ação. **Backend 24/10/2026:** Resumo local por dia/escopo, deduplicado, aviso das 23:59 e recuperação de no máximo um dia. Restante: exibição nativa e recibos reais de notas.
 - [ ] **F04.20** **Retomar do ponto salvo** se o PC cair no meio da tarefa (progresso salvo a cada passo).
 - [ ] **F04.21** **Tarefas em paralelo até 3**, fila para o resto; **limite de passos configurável por projeto** (padrão 25, depois pergunta).
 
 #### F04.D Loop do agente
 - [~] **F04.22** **Híbrido:** loop próprio para APIs gratuitas; código pesado delega à CLI (ACP), que usa as ferramentas dela; ferramentas nativas na v1: **arquivos + shell + git, web (busca + fetch), vault, sistema** (apps, janelas, volume, área de transferência).
 - [~] **F04.23** **Subagentes** dentro do limite de paralelos.
-- [~] **F04.24** **Compactação automática** de conversa longa (resume o início, mantém fixadas e a nota do vault) e **avisa**; **dez conversas** na memória de trabalho; imagens antigas descarregadas.
+- [~] **F04.24** **Compactação automática** de conversa longa (resume o início, mantém fixadas e a nota do vault) e **avisa**; **dez conversas** na memória de trabalho; imagens antigas descarregadas. **Backend 24/10/2026:** Fixadas sobrevivem à janela do histórico e ao resumo, inclusive na retomada. Restante: cache de dez conversas e experiência completa de compactação.
 - [ ] **F04.25** **Conflito entre pedido, vault e banco: perguntar sempre.**
 - [ ] **F04.26** **Correção de erro de sintaxe** em código gerado: corrige e **mostra o que mudou**, passando pela política.
 - [~] **F04.27** **Personalidade:** informal e direto, **sem emojis**, diz quando **não tem certeza** (com nível de confiança e fonte), respostas longas geradas direto, código com **nomes em inglês e comentários em português**; seletor **Conciso/Normal/Detalhado** + campo livre; sem avatar.
@@ -566,7 +566,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 #### F05.A Campo de mensagem
 - [~] **F05.01** Enter envia, Shift+Enter quebra linha, **↑ repete a última mensagem**; **digitar enquanto o Orion responde enfileira** e entra no próximo passo.
 - [~] **F05.02** **`/` comandos** (menu com busca): `/nota`, `/vault <busca>`, `/rotina`, `/modelo`, `/projeto`, `/autonomo`, `/limpar`, `/resumo`, `/aprovar`, `/voz`, `/imagem`, `/ajuda`, `/config <seção>`; os de fases futuras entram ao serem implementados (`/nuvem`, `/mcp`, `/skill`, `/pesquisa`, `/aprendizado`, `/gravar`, `/rotina rodar`).
-- [ ] **F05.03** **Comandos `/` personalizados** (prompt salvo, opcionalmente ligado a um projeto).
+- [~] **F05.03** **Comandos `/` personalizados** (prompt salvo, opcionalmente ligado a um projeto). **Backend 24/10/2026:** CRUD de prompts por escopo e expansão `{{args}}` no chat. Restante: editor/autocomplete da ui.
 - [~] **F05.04** **`@` cita uma nota do vault** como contexto (autocompletar por título e caminho).
 - [~] **F05.05** **Anexos:** imagens e prints (colar ou arrastar), texto e código, **PDF** (`pdf_oxide` → Markdown; **OCR** se escaneado), **áudio** (transcreve antes); **limite de 20 MB**, acima disso **oferece referenciar o caminho** (pasta confiável); **miniatura pequena** ao lado do campo; metadados limpos. **R1 (23/10):** upload real de txt/md/pdf, até 6 MB/8 arquivos, com espera da extração, escopo do projeto e texto como ExternalData. Ainda faltam imagens/prints/áudio, OCR, arrastar/colar e a UX de 20 MB/caminho deste requisito.
 - [~] **F05.06** Seletor de **projeto**, **modelo** (5 opções + modelo/esforço) e **linha de estado** sob o campo.
@@ -579,17 +579,17 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [~] **F05.11** **Ações da resposta** (aparecem ao passar o mouse): copiar (toast), gerar de novo, **gerar com outro modelo**, 👍/👎, salvar no vault; **ouvir** entra na F15. **Rodada Codex 21/10:** cópia de mensagens ligada à área de transferência; regeneração e ouvir desabilitados no modo real até implementação. Testes desta rodada registrados em ORION.md; aceite Windows pendente.
 - [~] **F05.12** **Hover da hora:** provedor que respondeu, tokens e % da cota usada; **ícone de dados externos** (clique mostra o que saiu).
 - [~] **F05.13** **Links e caminhos clicáveis:** arquivo abre no **VS Code** (`code -g arquivo:linha`), URL no navegador. **Estado 22/10/2026 (Linux, sob Xvfb):** URL abre no navegador só se for http/https; caminho absoluto de arquivo que existe abre no VS Code; caminho relativo só avisa. Falta resolver caminho relativo pela pasta do projeto e provar no Windows.
-- [~] **F05.14** **Suas mensagens:** **editar e reenviar cria um ramo**, navegação **< 2/3 >** na mensagem; copiar; **fixar** (contexto permanente, **até ~2k tokens**, avisa se passar). **Rodada Codex 21/10:** cópia real da mensagem do usuário; editar/reenviar e fixar contexto continuam pendentes e desabilitados no modo real.
+- [~] **F05.14** **Suas mensagens:** **editar e reenviar cria um ramo**, navegação **< 2/3 >** na mensagem; copiar; **fixar** (contexto permanente, **até ~2k tokens**, avisa se passar). **Rodada Codex 21/10:** cópia real da mensagem do usuário; editar/reenviar e fixar contexto continuam pendentes e desabilitados no modo real. **Backend 24/10/2026:** API de fixar/desafixar, teto de contexto e isolamento. Restante: edição/ramos/fixação ligados aos controles nativos.
 - [~] **F05.15** **Navegação em respostas longas:** botão **"ir ao fim"** e **minimapa** de mensagens na barra de rolagem. **Estado 22/10/2026:** botão "Ir ao fim" entregue (aparece ao rolar para cima); **Estado 23/10/2026:** minimapa entregue (faixa fina à direita com um bloco por mensagem, trecho visível realçado, clique salta para o ponto; aparece com 8+ mensagens; validado em Linux). Corrigido também o botão "Ir ao fim", que usava o deslocamento invertido.
 - [~] **F05.16** **Artefatos** (código, HTML, documento longo): **aba no painel da direita**, com versões, copiar e salvar em arquivo. **Estado 22/10/2026:** aba "Artefatos" no painel direito lista os blocos de código de 5 linhas ou mais (e html/md/json/mermaid/latex) da conversa, com Copiar e Salvar em Documentos/Orion/Artefatos; **23/10/2026:** artefatos HTML ganharam botão Prévia: o HTML vira blocos (títulos, parágrafos, listas, tabelas, citações, código, links http(s); `html.rs`), sem CSS, JavaScript, imagens nem rede, e nada é executado ou aberto sozinho; **R1:** documentos Markdown longos e guardar/atualizar/navegar versões SQLite ligados, com expected_version; falta provar o fluxo completo no Windows.
 - [~] **F05.17** **Lista virtualizada + cache de layout** para conversas de 1000+ mensagens; **imagens antigas descarregadas** e recarregadas ao abrir; **cache de imagens 1 GB** (WebP, 1600 px, sem duplicatas). **Estado 22/10/2026:** só as 60 mensagens mais recentes são montadas; **23/10/2026:** janela virtual no topo da lista: monta só as mensagens que cobrem a distância até o fim + a tela + 2400 px de folga (mínimo 60), cresce ao rolar para cima e encolhe ao voltar (histerese de 20; a âncora no fim mantém a posição); mensagens abaixo da tela seguem montadas; **R1:** alturas vêm dos sensores do layout por mensagem, com fallback inicial antes da primeira medição; **cache de imagens 23/10/2026** (`imgcache.rs`): imagem numa linha `![alt](caminho)` é reduzida a 1600 px (caminho local só vale dentro de `Documentos/Orion`; caminho de rede/UNC, de dispositivo, com `..` ou fora dela vira o texto alternativo, sem tocar no disco; imagens geradas vêm do núcleo por `/imagens/<nome>`, baixadas com login), guardada em WebP sem perdas com nome pelo conteúdo (sem duplicatas) em `%LOCALAPPDATA%\Orion\imagens`, e a pasta é aparada a 1 GB tirando os menos usados (provado: de 5 arquivos de 1 MB com limite de 2,5 MB, saem os 3 mais antigos); a tela só segura a imagem enquanto a mensagem está montada (ao sair da janela virtual o renderizador a descarta e ela volta do WebP); faltam imagens anexadas pelo usuário e geradas (`/imagem`) chegarem ao chat, e o aceite Windows da medição real de altura por mensagem (implementada na R1).
 
 #### F05.C Histórico, projeto e exportação
-- [~] **F05.18** **Busca no histórico em texto completo**; **títulos automáticos em português, editáveis**; mover a conversa para outro projeto (a nota do vault é religada); arquivar manual; excluir pede aprovação. **Rodada Codex 21/10:** renomear por formulário ligado ao PATCH autenticado da sessão, com validação, foco, envio único e confirmação do núcleo. Não conclui busca/movimentação nem aceite Windows. **Estado 22/10/2026:** o título automático é a primeira linha do primeiro pedido (até 48 caracteres, sem chamar modelo).
-- [~] **F05.19** **Exportar a conversa em Markdown**; compartilhar nota ou conversa **fora da v1**.
-- [~] **F05.20** **Painel de contexto** (direita, **fechado por padrão**, abre sozinho com alteração de arquivos ou aprovação, **empurra** a conversa): aba **Contexto** (ambiente: projeto, branch, modelo; contexto usado; fontes ligadas; memória usada; alterações) — abas **Arquivos/Diff/Terminal** na F11.
+- [~] **F05.18** **Busca no histórico em texto completo**; **títulos automáticos em português, editáveis**; mover a conversa para outro projeto (a nota do vault é religada); arquivar manual; excluir pede aprovação. **Rodada Codex 21/10:** renomear por formulário ligado ao PATCH autenticado da sessão, com validação, foco, envio único e confirmação do núcleo. Não conclui busca/movimentação nem aceite Windows. **Estado 22/10/2026:** o título automático é a primeira linha do primeiro pedido (até 48 caracteres, sem chamar modelo). **Backend 24/10/2026:** Metadados do projeto, validação do nome e mudança segura de escopo. Restante: fluxo nativo completo, título automático conforme critério e exclusão com confirmação.
+- [~] **F05.19** **Exportar a conversa em Markdown**; compartilhar nota ou conversa **fora da v1**. **Backend 24/10/2026:** Exportação existente preservada, com título correto e histórico consistente. Restante: ação nativa de salvar/exportar e aceite.
+- [~] **F05.20** **Painel de contexto** (direita, **fechado por padrão**, abre sozinho com alteração de arquivos ou aprovação, **empurra** a conversa): aba **Contexto** (ambiente: projeto, branch, modelo; contexto usado; fontes ligadas; memória usada; alterações) — abas **Arquivos/Diff/Terminal** na F11. **Backend 24/10/2026:** Retrato autenticado de contexto, fontes fixas, anotações e resumo. Restante: painel nativo consumindo o contrato.
 - [~] **F05.21** **Bloco "nota do vault"** no painel: nome da nota da conversa, última atualização, **abrir no Obsidian** (`obsidian://`), último **commit** (hash e hora) — ligado na F06.
-- [ ] **F05.22** **Aviso de conversa longa** (compactação feita) e de **conversa pesada** (imagens descarregadas).
+- [~] **F05.22** **Aviso de conversa longa** (compactação feita) e de **conversa pesada** (imagens descarregadas). **Backend 24/10/2026:** `compacted`/resumo disponíveis na API de contexto. Restante: avisos na ui e estado de descarregamento de imagens.
 
 **Testes:** E2E de todo o fluxo (enviar, parar, editar, ramo, anexar, aprovar), snapshots de cada tipo de mensagem, medição de scroll com 1000 mensagens, cobertura de acessibilidade.
 **Critério de aceite:** o chat completo roda com um provedor gratuito e com o modelo local; 1000 mensagens rolam sem travar; nenhuma ação de risco sem cartão.
@@ -697,14 +697,14 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [~] **F08.02** **Criar projeto** a partir de **repositório GitHub** (clona e vincula), **pasta local** ou **do zero** (cria nota + repositório); **conversa nova abre com o último projeto usado**. **Rodada Codex 21/10:** criação básica por POST /projects com nome, instruções e pasta existente opcional; memória pessoal isolada. Falha mantém formulário; sucesso exige resposta com ID. Clonar GitHub, criar nota/repositório e último projeto persistente continuam pendentes.
 - [~] **F08.03** **Nota do projeto no vault** (`01 Projetos/<Nome>/<Nome>.md`), de onde o Orion lê estado e instruções; **instruções próprias** (prompt do projeto).
 - [~] **F08.04** **Repositório vinculado** (PRs, CI, branch) e **pastas do disco vinculadas** (dentro do projeto o Orion só mexe nelas).
-- [ ] **F08.05** **Modelo padrão** por projeto (ex.: Orion usa Claude, Vault usa Gemini).
-- [~] **F08.06** **Arquivos de referência** (documentos que o Orion sempre lê).
-- [~] **F08.07** **Configuração por projeto sobrepõe a global** (modelo, passos, autônomo, pastas, instruções), com a marca **"herdado"**.
+- [~] **F08.05** **Modelo padrão** por projeto (ex.: Orion usa Claude, Vault usa Gemini). **Backend 24/10/2026:** Endpoint remoto padrão persistido por projeto, com fallback/cotas preservados. Restante: seletores nativos e integração com preferências de clis.
+- [~] **F08.06** **Arquivos de referência** (documentos que o Orion sempre lê). **Backend 24/10/2026:** Até 8 referências do projeto relidas como dados externos. Restante: seleção e gestão nativas.
+- [~] **F08.07** **Configuração por projeto sobrepõe a global** (modelo, passos, autônomo, pastas, instruções), com a marca **"herdado"**. **Backend 24/10/2026:** Modelo/passos sobrepõem o padrão; `null` herda; revisão invalida aprovações. Restante: demais preferências e marca visual de herança.
 - [~] **F08.08** **Painel do projeto:** pendências e tarefas, **PRs e CI**, conversas e notas recentes; **listas de tarefas em notas do vault, uma por projeto**.
 - [~] **F08.09** **Rotinas do projeto** (ex.: revisar PRs do Orion a cada 4 h) — gancho para F12.
 - [x] **F08.10** **Isolamento (R20):** fatos, documentos, conversas e avisos ficam no projeto; a memória pessoal não enxerga o projeto; um projeto não enxerga o outro.
-- [~] **F08.11** **Arquivar:** move a nota para `04 Arquivo`, esconde as conversas, **pausa as rotinas**; ficam **para sempre** na aba **Arquivadas** (desarquivar ou apagar).
-- [~] **F08.12** **Mover conversa** entre projetos e **nome do projeto no título** da conversa.
+- [~] **F08.11** **Arquivar:** move a nota para `04 Arquivo`, esconde as conversas, **pausa as rotinas**; ficam **para sempre** na aba **Arquivadas** (desarquivar ou apagar). **Backend 24/10/2026:** Arquiva conversas e restaura só as automaticamente arquivadas; jobs já ignoram projetos arquivados. Restante: mover nota no vault, rotinas concedidas e fluxo completo de arquivadas.
+- [~] **F08.12** **Mover conversa** entre projetos e **nome do projeto no título** da conversa. **Backend 24/10/2026:** Mudança simples de projeto validada; recusa ramos/artefatos/propostas; nome do projeto nos metadados. Restante: ui e tratamento explícito dos vínculos complexos.
 - [ ] **F08.13** Decisão D05 (o que mais um Projeto deve ter) registrada e implementada.
 
 **Testes:** isolamento (um projeto não vê dados do outro), clonar repositório, arquivar/desarquivar sem perder nada.
@@ -723,7 +723,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [~] **F09.02** **Métricas de desempenho locais**, **custo estimado** por conversa e **transparência de saídas** (resumo).
 - [~] **F09.03** **Tela Resultados:** saídas guardadas com tipo, versão e data.
 - [ ] **F09.04** **Tela Integrações** (lista de serviços com estado: conectado, token expirado) — preenchida conforme as integrações chegarem.
-- [ ] **F09.05** **Resumo do dia ("Você fez"):** conversas e tarefas, notas gravadas e aprovações; aparece no Painel e no aviso das 23:59.
+- [~] **F09.05** **Resumo do dia ("Você fez"):** conversas e tarefas, notas gravadas e aprovações; aparece no Painel e no aviso das 23:59. **Backend 24/10/2026:** API diária de conversas/tarefas/autorizações por escopo. Restante: painel, recibos reais de notas e aceite visual.
 - [~] **F09.06** **Tela Arquivadas** (conversas e projetos).
 - [~] **F09.07** **Estados vazios** de todas as telas com a ilustração do cinturão e uma ação sugerida.
 
@@ -1113,8 +1113,8 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [ ] **F19.12** **MCP Apps só em texto, pós-1.0**, decisão de 20/10/2026. Sem WebView2 nem telas interativas embutidas; fora do aceite da v1.
 
 #### F19.E Clientes externos
-- [~] **F19.13** **Orion como servidor MCP** para outros programas (ex.: **Claude Code**): tela que gera **credenciais de leitura** com **nome, contexto, validade e permissões por leitura**; **não permite administrar o Orion**; revogáveis.
-- [~] **F19.14** Registro do uso por cliente e limites de taxa.
+- [~] **F19.13** **Orion como servidor MCP** para outros programas (ex.: **Claude Code**): tela que gera **credenciais de leitura** com **nome, contexto, validade e permissões por leitura**; **não permite administrar o Orion**; revogáveis. **Backend 24/10/2026:** Credenciais de leitura com hash, validade, permissões, revogação e escopo já existiam. Restante: tela de emissão nativa.
+- [x] **F19.14** Registro do uso por cliente e limites de taxa. **Backend 24/10/2026:** Janela de 60 leituras/min por cliente, além do teto global; registro sem conteúdo. Restante: sem dependência de hardware para esta regra.
 
 #### F19.F Extensão de navegador (decisão D11)
 - [ ] **F19.15** **Extensão para Chrome/Edge** para controlar apps web, com canal local autenticado; **aprovação por ação**; **Decidido em 20/10/2026: só depois da 1.0**; o navegador guiado por CDP basta por ora.

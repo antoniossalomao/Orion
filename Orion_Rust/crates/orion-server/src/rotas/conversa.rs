@@ -30,11 +30,13 @@ fn projeto_arquivado(st: &Estado, s: &Session) -> bool {
 }
 
 pub fn sessao_json(st: &Estado, s: &Session, ativa: Option<&str>) -> Value {
+    let project_name = s.project_id.as_deref().and_then(|pid| orion_core::projects::Projects::new(st.memory.clone()).get(pid).ok()).and_then(|p|p["name"].as_str().map(str::to_owned));
     json!({
         "sessao_id": s.id,
         "titulo": s.title.clone().unwrap_or_else(|| "Conversa sem título".into()),
         "canal": s.channel,
         "project_id": s.project_id,
+        "project_name": project_name,
         "criada": iso(s.created_at),
         "ultima_atividade": iso(s.last_active_at),
         "ativa": Some(s.id.as_str()) == ativa,
@@ -338,6 +340,7 @@ pub async fn exportar(_: Admin, State(st): State<Estado>, Query(q): Query<Sessao
     let mut linhas = vec!["# Conversa com o Orion".to_string(), String::new()];
     let mut total = 0;
     if let Some(s) = &s {
+        linhas[0] = format!("# {}",s.title.as_deref().unwrap_or("Conversa com o Orion").replace(['\r','\n']," "));
         // a exportação lê um retrato consistente (mesma transação)
         let paginas = st.memory.tx(|_| {
             let mut antes = None;
@@ -432,7 +435,7 @@ fn titulo_de(texto: &str) -> String {
     t
 }
 
-pub async fn chat(_: Admin, State(st): State<Estado>, Json(c): Json<Mensagem>) -> ApiResult<Response> {
+pub async fn chat(_: Admin, State(st): State<Estado>, Json(mut c): Json<Mensagem>) -> ApiResult<Response> {
     if c.texto.is_empty() || c.texto.chars().count() > 8000 {
         return erro(422, "texto: entre 1 e 8000 caracteres");
     }
@@ -449,6 +452,9 @@ pub async fn chat(_: Admin, State(st): State<Estado>, Json(c): Json<Mensagem>) -
         return erro(422, "skills (até 3), referencias e contexto (até 8)");
     }
     let s = st.memory.active_session(&c.canal)?;
+    // O prompt só é expandido no escopo selecionado e continua um pedido normal,
+    // sujeito à política (REGRAS.md: skill é texto, não código).
+    c.texto = st.memory.expand_prompt_command(s.project_id.as_deref(),&c.texto)?;
     if s.title.is_none() {
         // título automático e barato: a primeira linha do primeiro pedido (sem chamar modelo; o usuário pode renomear)
         let _ = st.memory.edit_session(&c.canal, &s.id, Some(&titulo_de(&c.texto)), None, None);
@@ -542,6 +548,14 @@ fn ator() -> String {
 
 /// Decisão por canal autenticado (REGRAS.md: confirmação fora de banda (canal autenticado)).
 pub async fn decidir(_: Admin, State(st): State<Estado>, Path(id): Path<String>, Json(c): Json<Decisao>) -> ApiResult<Json<Value>> {
+    if c.approved {
+        let approval=st.policy.approvals.get(&id).ok_or_else(||ApiError::new(404,"aprovação inexistente"))?;
+        // O servidor não depende de um botão desabilitado na UI
+        // (REGRAS.md: só se aprova o que se vê inteiro).
+        if orion_core::agent::truncado(&approval.args) {
+            return erro(409,"approval_arguments_truncated");
+        }
+    }
     match st.policy.approvals.decide(&id, c.approved, &c.channel, &c.actor) {
         Ok(a) => Ok(Json(json!({"id": a.id, "status": a.status.as_str()}))),
         Err(orion_policy::approvals::DecideError::NotFound(_)) => erro(404, "aprovação inexistente"),

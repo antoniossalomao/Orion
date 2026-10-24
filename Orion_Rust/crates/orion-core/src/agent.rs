@@ -317,6 +317,10 @@ impl Agent {
                 }
             }
             let mut external = req.external.clone();
+            match me.fixed_context(&session) {
+                Ok(context) => external.extend(context),
+                Err(_) => { yield AgentEvent::erro("fixed_context_unavailable"); return; }
+            }
             if let Some(sel) = &req.selection {
                 external.extend(sel.data.iter().cloned());
             }
@@ -371,10 +375,22 @@ impl Agent {
                 yield AgentEvent::erro(format!("aprovação não está aprovada ({})", a.status.as_str()));
                 return;
             }
+            if truncado(&a.args) {
+                yield AgentEvent::erro("approval_arguments_truncated");
+                return;
+            }
             let lock = me.lock(&sessao.id);
             let _guarda = lock.lock().await;
             me.refresh().await;
             let ctx_arc = me.context(&sessao.id);
+            let fixed = match me.fixed_context(&sessao) {
+                Ok(context) => context,
+                Err(_) => { yield AgentEvent::erro("fixed_context_unavailable"); return; }
+            };
+            if !fixed.is_empty() {
+                ctx_arc.lock().tainted = true;
+                me.marcar_taint(&sessao.id);
+            }
             let chamada = ToolCall { name: a.tool.clone(), args: a.args.clone() };
             let decisao = {
                 let ctx = ctx_arc.lock().clone();
@@ -398,7 +414,7 @@ impl Agent {
             );
             let nota: String = nota.chars().take(me.cfg.max_tool_chars).collect();
             let _ = me.memory.add_message(&sessao.id, "system", &nota, None, None);
-            let mut turno = me.turn(sessao, None, vec![a.tool.clone()], vec![], None, vec![atividade], vec![], false, None, me.memory.meta_get(&format!("budget:approval:{approval_id}")));
+            let mut turno = me.turn(sessao, None, vec![a.tool.clone()], fixed, None, vec![atividade], vec![], false, None, me.memory.meta_get(&format!("budget:approval:{approval_id}")));
             while let Some(ev) = turno.next().await {
                 yield ev;
             }
@@ -500,15 +516,28 @@ impl Agent {
             let selected: HashSet<String> = esquemas.iter().flatten().map(nome_de).collect();
             let rota = me.rotear(&session.id, consulta.as_deref(), images.len());
             let tier = rota.as_ref().map(|r| r.camada.clone());
+            let preferences = match session.project_id.as_deref() {
+                Some(pid) => me.memory.project_preferences(pid),
+                None => Ok(Default::default()),
+            };
+            let preferences = match preferences {
+                Ok(p) => p,
+                Err(_) => { yield AgentEvent::erro("project_preferences_unavailable"); return; }
+            };
+            // Escolha explícita no pedido e visão têm prioridade sobre o padrão do projeto
+            // (REGRAS.md: você é o administrador).
+            let forced = consulta.as_deref().is_some_and(|q| ["#rapido", "#pesado", "#visao"].iter().any(|prefix|q.trim_start().starts_with(prefix)));
+            let preferred = preferences.model.as_deref().filter(|_| images.is_empty() && !forced);
 
             // modo autônomo: mais passos por pedido (as aprovações continuam valendo)
-            let limite = if me.modos.as_ref().is_some_and(|m| m.autonomo()) { me.cfg.max_iterations * 4 } else { me.cfg.max_iterations };
+            let steps = preferences.max_steps.unwrap_or(me.cfg.max_iterations);
+            let limite = if me.modos.as_ref().is_some_and(|m| m.autonomo()) { steps * 4 } else { steps };
             for _ in 0..limite {
                 let mut texto = String::new();
                 let mut chamadas = vec![];
                 let mut falhou: Option<String> = None;
                 {
-                    let mut s = me.gateway.stream_for_task(mensagens.clone(), esquemas.clone(), tier.as_deref(), budget_task.clone());
+                    let mut s = me.gateway.stream_for_task_preferred(mensagens.clone(), esquemas.clone(), tier.as_deref(), budget_task.clone(), preferred);
                     while let Some(ev) = s.next().await {
                         match ev {
                             Ok(GwEvent::TextDelta(t)) => {
@@ -569,6 +598,7 @@ impl Agent {
                         yield AgentEvent::new("activity", Value::Object(d));
                     }
                     let (conteudo, eventos) = me.processar_chamada(c, &ctx_arc, Some(&selected), read_only).await;
+                    let unreviewable = eventos.iter().any(|e|e.kind=="approval" && e.data["args_truncated"]==json!(true));
                     activity.extend(eventos.iter().filter(|e| e.kind == "tool").map(|e| e.data.clone()));
                     me.anotar_uso(c, &conteudo, &eventos, &mut usou, &mut fontes);
                     if me.revelar(c, &eventos, &session.id) {
@@ -584,6 +614,12 @@ impl Agent {
                         yield e;
                     }
                     mensagens.push(json!({"role": "tool", "tool_call_id": c.id, "content": conteudo}));
+                    if unreviewable {
+                        // Uma ação que só pode ser negada não consome mais rodadas do modelo
+                        // (REGRAS.md: só se aprova o que se vê inteiro).
+                        yield AgentEvent::erro("approval_arguments_truncated");
+                        return;
+                    }
                 }
             }
             yield AgentEvent::erro(format!("limite de {limite} iterações de ferramenta"));
@@ -873,6 +909,34 @@ impl Agent {
         *self.rotas.lock().entry(rota.camada.clone()).or_insert(0) += 1;
         tracing::debug!("roteamento: {} ({})", rota.camada, rota.motivo);
         Some(rota)
+    }
+
+    /// Reutilizado na entrada e na retomada autenticada; fixar não transforma texto em
+    /// autorização (REGRAS.md: conteúdo externo é dado, não instrução).
+    fn fixed_context(&self, session: &Session) -> orion_store::Result<Vec<ExternalData>> {
+        use sha2::{Digest, Sha256};
+        let mut external = vec![];
+        if let Some(pid) = &session.project_id {
+            let mut remaining = 24000usize;
+            for reference in self.memory.project_references(pid)? {
+                let source = reference["source"].as_str().unwrap_or("");
+                if self.policy.path_guard.check_read(source).is_some() {
+                    return orion_store::invalid("project_reference_blocked");
+                }
+                if remaining == 0 { break; }
+                let id = reference["id"].as_i64().unwrap_or(0);
+                let text = self.memory.reference_text(pid, id)?;
+                let limited: String = text.chars().take(remaining).collect();
+                remaining = remaining.saturating_sub(limited.chars().count());
+                external.push(ExternalData { connection:"project-reference".into(),kind:"document".into(),key:id.to_string(),digest:format!("{:x}",Sha256::digest(text.as_bytes())),truncated:limited.len()<text.len(),text:limited });
+            }
+        }
+        for pin in self.memory.pinned_context(&session.id)? {
+            let original=pin["text"].as_str().unwrap_or("");
+            let text: String = original.chars().take(8000).collect();
+            external.push(ExternalData { connection:"pinned-message".into(),kind:"message".into(),key:pin["id"].to_string(),digest:format!("{:x}",Sha256::digest(original.as_bytes())),truncated:text.len()<original.len(),text });
+        }
+        Ok(external)
     }
 
     fn mensagens(&self, session: &Session, hits: &[Hit]) -> Vec<Value> {

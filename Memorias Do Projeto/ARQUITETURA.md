@@ -135,6 +135,28 @@ O app escolhe wgpu para GPU real e tiny-skia sem MSAA para adaptador de CPU. Ass
 
 Documentos selecionados no chat esperam a extração assíncrona (até 120 s) antes de confirmar o anexo; falha ou limite de espera deixa erro visível. Usam a API de upload existente, com IDs validados no escopo do projeto e limite de texto por turno. Trechos são `ExternalData`, nunca instruções. A seleção é descartada ao trocar de conversa; resultado atrasado do upload não é anexado a outro chat. Artefatos do chat reutilizam a API SQLite de versões com `expected_version` para detectar conflito.
 
+### Contexto e preferências por projeto (24/10/2026)
+
+`orion-store::workspace` concentra a persistência nova do esquema v24. Preferências só guardam o nome de um endpoint já configurado e até 100 passos; não guardam chaves nem autorizações. `PUT` substitui as preferências; `null` restaura a herança (Auto e 25 passos). A prioridade explícita do pedido e a visão prevalecem sobre o padrão do projeto; local continua reserva.
+
+Contrato autenticado para a UI e para o modo HTTP opcional:
+
+| Rota | Contrato |
+|---|---|
+| `GET/PUT /projects/:id/settings` | `{model: string ou null, max_steps: 1..100 ou null}`; `inherited` distingue herança; modelo é o `nome` do endpoint no gateway, não uma credencial nem uma CLI |
+| `GET/PUT /projects/:id/references` | `{document_ids: [id]}`, até 8 documentos indexados do próprio projeto; substituição atômica |
+| `GET /prompt-commands?project_id=...` | Prompts do escopo; sem parâmetro, somente pessoais |
+| `PUT/DELETE /prompt-commands/:name?project_id=...` | `{prompt: string}`, até 6 mil caracteres; `{{args}}` recebe o argumento; nomes nativos reservados; não executa scripts |
+| `PUT /sessoes/:sid/mensagens/:mid/feedback` | `{rating: -1, 1 ou null}`; somente resposta do próprio canal/conversa, sem texto ou treino |
+| `PUT /sessoes/:sid/mensagens/:mid/pin` | `{pinned: bool}`; até 20 mensagens e 8 mil caracteres no total; bloqueado durante turno/aprovação |
+| `GET /sessoes/:id/contexto` | Fixadas, anotações, resumo, referências e preferências; `compacted` informa resumo existente; não busca arquivos arbitrários |
+| `GET /painel/resumo-diario?date=AAAA-MM-DD&project_id=...` | Dia no fuso local do app; contagens por projeto/pessoal. `actions` e `note_write_authorizations` contam decisões de autorização, sem afirmar execução/gravação |
+| `POST /db/maintenance` | `{operation: "vacuum" ou "rebuild_search"}`; trabalho fora da UI, sem apagar mensagens; não substitui backup ou restauração do vault |
+
+`Agent::fixed_context` relê referências/fixadas na entrada e na retomada. O texto segue delimitado como `ExternalData`; referências têm teto de 24 mil caracteres por turno, e nenhuma seleção concede ferramentas. A revisão do projeto invalida aprovações antigas. A consolidação confere novamente a origem após a espera pelo modelo. O resumo diário usa somente SQL, é deduplicado por escopo/data e recupera no máximo o dia anterior; VACUUM é semanal e espera dez minutos sem atividade registrada.
+
+O instalador aceita pacote CPU sem `orion-llama.exe` quando não há modelo/voz selecionados. O workflow manual pode empacotar `Orion Setup.exe`, app portátil e `cpu/orion.exe`, com hashes SHA-256, sem baixar pesos. O runtime do produto continua no processo, sem porta permanente; o modo HTTP foi usado somente na verificação descartável desta rodada.
+
 ### Primeiro uso nativo
 
 `orion-app::onboarding` mantém o rascunho em memória, com segredos ocultos no Debug e campos secretos limpos ao concluir ou fechar o formulário. A ligação `Local` oferece bootstrap/configuração/testes exclusivamente no processo; nenhuma rota HTTP pública de criação de conta foi adicionada. `orion-server::onboarding` prepara banco/login/chaves/perfil antes de montar o núcleo e publica o marcador por último. `orion-core::onboarding::Profile` contém apenas preferências; nome e idioma entram como dados delimitados no contexto.

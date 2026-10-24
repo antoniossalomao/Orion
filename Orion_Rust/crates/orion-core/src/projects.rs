@@ -61,6 +61,7 @@ impl Projects {
     }
 
     pub fn create(&self, name: &str, instructions: &str, share_personal: bool, root: Option<&str>) -> R<Map<String, Value>> {
+        Self::validate_text(name, instructions)?;
         let (id, now) = (orion_store::uuid_hex(), self.memory.now());
         let root = Self::validate_root(root)?;
         self.memory.tx(|c| {
@@ -89,10 +90,19 @@ impl Projects {
         let b = |k: &str| old[k] == Value::Bool(true);
         let nome = name.map(|n| n.trim().to_string()).unwrap_or_else(|| old["name"].as_str().unwrap_or("").into());
         let instr = instructions.map(String::from).unwrap_or_else(|| old["instructions"].as_str().unwrap_or("").into());
+        Self::validate_text(&nome, &instr)?;
         let share = share_personal.unwrap_or(b("share_personal")) as i64;
         let arq = archived.unwrap_or(b("archived")) as i64;
         let now = self.memory.now();
         self.memory.tx(|c| {
+            if archived == Some(true) && !b("archived") {
+                c.execute("INSERT OR IGNORE INTO project_session_archives SELECT id,project_id FROM sessions WHERE project_id=? AND archived=0", [id])?;
+                c.execute("UPDATE sessions SET archived=1 WHERE project_id=?", [id])?;
+                c.execute("UPDATE active_sessions SET session_id=NULL WHERE session_id IN (SELECT id FROM sessions WHERE project_id=?)", [id])?;
+            } else if archived == Some(false) && b("archived") {
+                c.execute("UPDATE sessions SET archived=0 WHERE id IN (SELECT session_id FROM project_session_archives WHERE project_id=?)", [id])?;
+                c.execute("DELETE FROM project_session_archives WHERE project_id=?", [id])?;
+            }
             c.execute(
                 "UPDATE projects SET name=?,instructions=?,share_personal=?,archived=?,updated_at=?,root=? WHERE id=?",
                 rusqlite_params(&[&nome, &instr, &share, &arq, &now, &root, &id]),
@@ -102,18 +112,37 @@ impl Projects {
         self.get(id)
     }
 
-    pub fn associate(&self, channel: &str, session_id: &str, project_id: Option<&str>) -> R<Session> {
-        let s = self.memory.get_session(session_id)?;
-        if s.as_ref().is_none_or(|s| s.channel != channel) {
-            return Err(ProjectError("session_not_found".into()));
+    fn validate_text(name: &str, instructions: &str) -> R<()> {
+        if name.trim().is_empty() || name.chars().count() > 120 || name.chars().any(char::is_control) || instructions.chars().count() > 16000 {
+            return Err(ProjectError("project_text_invalid".into()));
         }
+        Ok(())
+    }
+
+    pub fn associate(&self, channel: &str, session_id: &str, project_id: Option<&str>) -> R<Session> {
+        let s = self.memory.get_session(session_id)?.filter(|s|s.channel==channel)
+            .ok_or_else(||ProjectError("session_not_found".into()))?;
+        if s.archived || s.read_only { return Err(ProjectError("session_read_only".into())); }
         if let Some(p) = project_id {
             if self.get(p)?["archived"] == Value::Bool(true) {
                 return Err(ProjectError("project_archived".into()));
             }
         }
         self.memory.tx(|c| {
+            // Mover só a conversa não pode deixar dados no escopo antigo
+            // (REGRAS.md: o que é de um projeto fica no projeto).
+            if s.project_id.as_deref() != project_id {
+                for table in ["artifacts", "file_plans", "event_proposals", "message_branches"] {
+                    let count: i64 = c.query_row(&format!("SELECT count(*) FROM {table} WHERE session_id=?"), [session_id], |r| r.get(0))?;
+                    if count > 0 { return orion_store::invalid("session_has_scoped_data"); }
+                }
+                let linked: i64 = c.query_row("SELECT count(*) FROM message_branches WHERE root_session=? OR parent_session=?", [session_id,session_id], |r|r.get(0))?;
+                if linked>0 { return orion_store::invalid("session_has_scoped_data"); }
+                c.execute("DELETE FROM session_summaries WHERE session_id=?",[session_id])?;
+                c.execute("DELETE FROM project_session_archives WHERE session_id=?",[session_id])?;
+            }
             c.execute("UPDATE sessions SET project_id=? WHERE id=?", rusqlite_params(&[&project_id, &session_id]))?;
+            c.execute("UPDATE sessions SET last_active_at=? WHERE id=?", rusqlite_params(&[&self.memory.now(), &session_id]))?;
             Ok(())
         })?;
         Ok(self.memory.get_session(session_id)?.ok_or_else(|| ProjectError("session_not_found".into()))?)

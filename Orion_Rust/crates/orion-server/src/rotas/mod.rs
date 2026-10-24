@@ -15,6 +15,7 @@ pub mod modelos;
 pub mod ponte;
 pub mod vida;
 pub mod voz;
+pub mod workspace;
 
 use crate::estado::Estado;
 use crate::http::{host_permitido, request_id};
@@ -38,6 +39,7 @@ pub fn router(st: Estado) -> Router {
     use integracoes::*;
     use memoria::*;
     use vida::*;
+    use workspace::*;
     let r = Router::new()
         .route("/capabilities", get(capabilities))
         .route("/capabilities/details", get(capability_details))
@@ -52,6 +54,15 @@ pub fn router(st: Estado) -> Router {
         .route("/sessoes/ativar", post(sessao_ativar))
         .route("/sessoes/:id", patch(sessao_editar).delete(sessao_apagar))
         .route("/sessoes/:id/resumo", get(sessao_resumo).delete(sessao_resumo_descartar))
+        .route("/sessoes/:id/contexto", get(conversation_context))
+        .route("/sessoes/:sid/mensagens/:mid/feedback", axum::routing::put(message_feedback))
+        .route("/sessoes/:sid/mensagens/:mid/pin", axum::routing::put(message_pin))
+        .route("/prompt-commands", get(prompt_commands))
+        .route("/prompt-commands/:name", axum::routing::put(prompt_command_save).delete(prompt_command_delete))
+        .route("/projects/:id/settings", get(project_settings).put(project_settings_save))
+        .route("/projects/:id/references", get(project_references).put(project_references_save))
+        .route("/painel/resumo-diario", get(daily_summary))
+        .route("/db/maintenance", post(maintain_database))
         .route("/historico", get(historico).delete(limpar_historico))
         .route("/historico/:id/editar", post(editar_pedido))
         .route("/exportar", get(exportar))

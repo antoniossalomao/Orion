@@ -12,6 +12,37 @@ resumo: "Pendências e decisões vigentes do Orion, com implementação, testes 
 > Base: branch `claude/wizardly-bell-ynlfwv` (PR #30). Esta consolidação substitui as conclusões intermediárias da auditoria; o histórico permanece no Git. A fonte do estado é [ORION.md](ORION.md); os IDs e critérios ficam no [plano](ORION_PLANO_IMPLEMENTACAO.md). `ORION_LEGADO.md` é referência histórica.
 > Legenda: **[V]** depende do Antônio · **[W]** exige Windows/hardware real · **[C]** implementação · **[D]** decisão.
 
+## Rodada de backend — 24/10/2026
+
+Base `efb2cbc`, branch `codex/orion-backend-notion`. O backend foi separado do refinamento visual do Antigravity. Código de F19.13 foi reaproveitado e validado; sua tela de credenciais continua pendente, portanto o card não representa uma entrega completa. A revisão detalhada reabriu F04.09 ao encontrar aprovação truncada aceita pela API; a falha recebeu correção no servidor e na retomada, sem editar o núcleo imutável.
+
+| Card | Backend entregue ou comprovado | Restante do critério completo |
+|---|---|---|
+| F02.04 | VACUUM semanal em repouso, manutenção explícita e reconstrução de FTS sem expurgo | Recuperação integral a partir do vault e aceite operacional |
+| F03.21 | Avaliação -1/+1 removível, SQLite local e sem treino | Ligar os controles reais da UI |
+| F04.07 | Só falas elegíveis entram na consolidação; origem revalidada após a chamada | Sem dependência de hardware para esta regra |
+| F04.09 | Auditoria fail-closed existente; API/retomada recusam argumentos truncados; encerra tentativa sem repetição | Sem dependência de hardware para esta regra |
+| F04.19 | Resumo local por dia/escopo, deduplicado, aviso das 23:59 e recuperação de no máximo um dia | Exibição nativa e recibos reais de notas |
+| F04.24 | Fixadas sobrevivem à janela do histórico e ao resumo, inclusive na retomada | Cache de dez conversas e experiência completa de compactação |
+| F05.03 | CRUD de prompts por escopo e expansão `{{args}}` no chat | Editor/autocomplete da UI |
+| F05.14 | API de fixar/desafixar, teto de contexto e isolamento | Edição/ramos/fixação ligados aos controles nativos |
+| F05.18 | Metadados do projeto, validação do nome e mudança segura de escopo | Fluxo nativo completo, título automático conforme critério e exclusão com confirmação |
+| F05.19 | Exportação existente preservada, com título correto e histórico consistente | Ação nativa de salvar/exportar e aceite |
+| F05.20 | Retrato autenticado de contexto, fontes fixas, anotações e resumo | Painel nativo consumindo o contrato |
+| F05.22 | `compacted`/resumo disponíveis na API de contexto | Avisos na UI e estado de descarregamento de imagens |
+| F08.05 | Endpoint remoto padrão persistido por projeto, com fallback/cotas preservados | Seletores nativos e integração com preferências de CLIs |
+| F08.06 | Até 8 referências do projeto relidas como dados externos | Seleção e gestão nativas |
+| F08.07 | Modelo/passos sobrepõem o padrão; `null` herda; revisão invalida aprovações | Demais preferências e marca visual de herança |
+| F08.11 | Arquiva conversas e restaura só as automaticamente arquivadas; jobs já ignoram projetos arquivados | Mover nota no vault, rotinas concedidas e fluxo completo de Arquivadas |
+| F08.12 | Mudança simples de projeto validada; recusa ramos/artefatos/propostas; nome do projeto nos metadados | UI e tratamento explícito dos vínculos complexos |
+| F09.05 | API diária de conversas/tarefas/autorizações por escopo | Painel, recibos reais de notas e aceite visual |
+| F19.13 | Credenciais de leitura com hash, validade, permissões, revogação e escopo já existiam | Tela de emissão nativa |
+| F19.14 | Janela de 60 leituras/min por cliente, além do teto global; registro sem conteúdo | Sem dependência de hardware para esta regra |
+
+**Validação:** 550 testes existentes passaram; 61 checagens temporárias da API com banco descartável e provedor simulado; verificação temporária do domínio cobriu relógio/deduplicação, VACUUM sem perda e contaminação durante consolidação. Não foram criados testes no repositório nem reativado o CI automático. A janela/API de produção não foi aberta para fora, nenhum segredo real foi usado e o aceite Windows não foi declarado.
+
+**Distribuição:** Antônio autorizou app + instalador sem modelos após as duas frentes terminarem. Workflow manual preparado; integração visual ainda precisa de branch/PR identificável. Isso substitui a pausa de builds para este pedido específico, sem autorizar publicação de release/tag ou novos testes.
+
 ## 1. Estado vigente
 
 **A v1 ainda não está pronta.** Além da validação Windows e da distribuição assinada, faltam funcionalidades relevantes de F01–F10: Projetos, aceite do onboarding e dos backups, integração segura do vault e partes do chat, configurações e segurança.

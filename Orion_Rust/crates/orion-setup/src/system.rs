@@ -489,6 +489,12 @@ impl InstallPlan {
                         // o próprio instalador vira o desinstalador (Apps instalados chama `--uninstall`)
                         (register::UNINSTALLER, executable.clone()),
                     ] {
+                        // Pacote só com APIs instala sem worker/sem download de pesos;
+                        // selecionar um modelo local continua exigindo pacote completo
+                        // (REGRAS.md: opt-in não liga sozinho).
+                        if name == "orion-llama.exe" && !source.exists() && choices.selected_models_count() == 0 && !choices.enable_voice && choices.wake_bundle.trim().is_empty() {
+                            continue;
+                        }
                         let mut input = std::fs::File::open(&source).map_err(|_| format!("O pacote precisa incluir {name}"))?;
                         let destination = app_dir.join(name);
                         let mut output = std::fs::OpenOptions::new().write(true).create_new(true).open(&destination).map_err(|e| e.to_string())?;
