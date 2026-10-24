@@ -1053,11 +1053,11 @@ pub fn load_providers(settings: &mut Settings, memory: &Store) -> anyhow::Result
         Some(value) => orion_ai::provedores::parse_provedores(&value).map_err(anyhow::Error::msg)?,
         None => vec![],
     };
-    // Só o antigo valor automático exato migra; ambiente e personalizações prevalecem
+    // Só os antigos valores automáticos exatos migram; ambiente e personalizações prevalecem
     // (REGRAS.md: portabilidade; nuvem por padrão, custo zero).
     for provider in &mut providers {
-        let legacy = orion_ai::provedores::ProvedorConf { id: "gemini".into(), padrao: "gemini-2.5-flash".into(), ..Default::default() };
-        if *provider == legacy {
+        let legacy = orion_ai::provedores::ProvedorConf { id: "gemini".into(), padrao: provider.padrao.clone(), ..Default::default() };
+        if matches!(provider.padrao.as_str(), "gemini-2.5-flash" | "gemini-3.8-flash") && *provider == legacy {
             *provider = orion_ai::provedores::defaults("gemini").expect("Gemini no catálogo");
         }
     }

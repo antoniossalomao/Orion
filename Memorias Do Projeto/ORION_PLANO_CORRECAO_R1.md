@@ -244,3 +244,5 @@ Cada entrega vai num commit, com o card do Notion e este plano atualizados, como
 | Localização pt-BR/en | Decisão do Antônio (R1.13) |
 
 Reteste R1.01 em 23/10, 21h36 BRT: `6628248` falhou com `ReadTimeout` em “Oi”. Ajustados prazos por fase/inatividade e esforço baixo no Gemini rápido. A primeira resposta real no Windows segue pendente; não marcar R1.01 como concluído somente por compilar.
+
+Atualização R1.01 (24/10/2026): comparação direta do Antônio com `gemini-3.5-flash-lite` retornou HTTP 200 nas três rotas: nativa 1.661 ms, compatível sem streaming 779 ms e com streaming 822 ms (primeiro texto 781 ms). Padrão automático ajustado para esse modelo da cota gratuita; migração só dos antigos defaults exatos 2.5/3.8. Ambiente, campos personalizados e chaves preservados. Primeiro turno real pelo novo aplicativo continua pendente.

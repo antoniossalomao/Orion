@@ -116,7 +116,7 @@ pub fn chave_env(provedor_id: &str) -> String {
 /// (REGRAS.md: nuvem por padrão, custo zero; portabilidade).
 pub fn defaults(id: &str) -> Option<ProvedorConf> {
     let model = match id {
-        "gemini" => "gemini-3.8-flash",
+        "gemini" => "gemini-3.5-flash-lite",
         "groq" => "llama-3.3-70b-versatile",
         "cerebras" => "gpt-oss-120b",
         "openrouter" => "openrouter/free",
