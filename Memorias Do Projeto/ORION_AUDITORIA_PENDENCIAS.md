@@ -3,7 +3,7 @@ type: recurso
 projeto: "[[Orion]]"
 tags: [orion, auditoria, pendencias, checklist]
 date: 2026-10-20
-revisao: 2026-10-21 (onboarding em tela cheia, céu compartilhado, CI Windows desativado, limpeza do repositório, front antigo removido, F00 avançada e testes/CI cancelados)
+revisao: 2026-10-24 (backend no PR 55, visual 7ae8efd da main e evidências FE-VIS conciliadas)
 resumo: "Pendências e decisões vigentes do Orion, com implementação, testes e aceite Windows separados; substitui os diagnósticos intermediários desta auditoria."
 ---
 
@@ -51,12 +51,13 @@ Fonte: [commit direto `7ae8efd` do Antigravity](https://github.com/antoniossalom
 |---|---|---|
 | FE-VIS 02/03 — grafo | Forças multiescala, cache de coordenadas, colisões, rótulos, arestas por grau, vizinhança de 1/2 saltos e enquadramento com painel | Canvas 2D; renderer/layout 3D, persistência incremental e desempenho com 10 mil notas não entregues por esse commit |
 | FE-VIS 04/05 — casca | Badges sem quebra interna, divisória da gaveta, busca e controles de janela na topbar estreita | Tokens e controles iniciais do R1 reaproveitados; faixa branca/DWM e DPI Windows pendentes |
-| FE-VIS 06/07 — Home/chat | Selo de mensagem salva ganha texto/check visíveis | Home, editor, Markdown/LaTeX/Mermaid e minimapa não foram alterados nesse commit; revisão de trabalho anterior |
-| FE-VIS 08 — painéis | Terminal ocupa altura disponível sem rolagem externa duplicada; Projetos quebra a linha de badges | Não liga os novos contratos de preferências/referências de projetos à UI |
+| FE-VIS 06 — chat | Selo de mensagem salva ganha texto/check visíveis | Markdown/LaTeX/Mermaid e minimapa não foram alterados nesse commit; revisão de trabalho anterior |
+| FE-VIS 07 — editor/painel | Terminal ocupa altura disponível sem rolagem externa duplicada | Editor e preview não foram alterados nesse commit; revisão de trabalho anterior |
+| FE-VIS 08 — gestão | Projetos quebra a linha de badges e aumenta a altura dos cards | Não liga os novos contratos de preferências/referências de projetos à UI |
 | FE-VIS 09 — repouso | Tick suspenso em segundo plano; hover vazio evita invalidar o grafo | Cache de geometria e animação finita do login já existiam; CPU/GPU no notebook ainda sem medição desta rodada |
 | FE-VIS 01/10/11 — revisão | Antigravity registrou 48 capturas tiny-skia e 33 testes de orion-app | Capturas não incluídas no commit; resultados atribuídos ao executor, sem alegar reprodução ou aceite Windows pelo Codex |
 
-Notion: 9 cards FE-VIS concluídos, 05 e 11 em revisão; planejamento em revisão. Estados do executor preservados, com links para o commit e ressalvas de evidência. Os 17 cards de backend ainda em revisão não foram concluídos pelo polimento. R1.09 continua bloqueado por reprodução no Windows; R1.08/R1.15 continuam dependentes de aceite/medição.
+Notion: 9 cards FE-VIS concluídos, 05 e 11 em revisão; planejamento em revisão. Estados do executor preservados, com links para o commit e ressalvas de evidência. Notas de FE-VIS 06/07 citavam telas de outro escopo; a conciliação registra chat em 06, editor/painel em 07 e gestão em 08, preservando o histórico. Os 17 cards de backend ainda em revisão não foram concluídos pelo polimento. R1.09 continua bloqueado por reprodução no Windows; R1.08/R1.15 continuam dependentes de aceite/medição.
 
 ## 1. Estado vigente
 

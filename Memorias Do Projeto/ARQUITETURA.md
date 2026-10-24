@@ -86,7 +86,7 @@ O alvo está atingido na estrutura: núcleo, API e UI em Rust, um executável, s
 | Crate existente | Papel real no PR | Limite atual |
 |---|---|---|
 | `orion-policy` | Classes, aprovações, audit, shell, caminhos e PII | 25 testes portados; `engine` e `injecao_invariantes` ainda sem teste Rust |
-| `orion-store` | SQLite v23, FTS5, vetores e backup | Sem SQLCipher/sqlite-vec; 60 testes de integração |
+| `orion-store` | SQLite, FTS5, vetores e backup; schema v24 no PR #55 (preferências/referências, feedback, fixadas, prompts e arquivamento seletivo) | SQLCipher por feature; restauração e dados reais ainda exigem aceite |
 | `orion-ai` | Gateway, APIs, CLIs diretas, router, embeddings remotos, cotas | Sem ACP/e5/BGE local; 84 testes de integração |
 | `orion-core` | Agente, ferramentas, auth, jobs, projetos, canais, visão, extensões e rotinas | Portes agrupados; 167 testes de integração, muitos contratos ainda sem paridade |
 | `orion-server` | CLI/API Axum, montagem dos serviços e `appmode` (núcleo no processo do app) | HTTP só com `--features http`; rotas sem testes próprios (há `appmode::tests`) |

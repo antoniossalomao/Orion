@@ -125,7 +125,7 @@ Referência: `2020015`, base `main` em `a6a27d6`. Inventário, evidências e blo
 | F13 | **Parcial** | Registro/calibragem/reset/projeção e tetos 95%/20% feitos em chamadas estimadas; leitura oficial, precisão, fila e preempção pendentes. |
 | F14 | **Parcial** | Bot HTTP próprio, default-deny, cartões inline, 2FA e áudio feitos; não usa teloxide. PIN/Hello, nuvem, fila, energia/WoL e dois aparelhos reais pendentes. |
 | F15 | **Parcial** | cpal, VAD por energia, palmas, Whisper, TTS, AEC3 e barge-in integrados; Silero, wake word final, testes acústicos/GPU e UI completa pendentes. |
-| F16 | **Parcial só nos dados** | Backend de grafo/parser e grafo WebGL existem; nenhum renderer/layout/compute nativo wgpu ou aceite de desempenho entregue. |
+| F16 | **Parcial** | Canvas nativo 2D e parser existem; `7ae8efd` refina forças multiescala, colisões, rótulos e grafo local 1/2 saltos. Renderer/layout/compute 3D wgpu e aceite de desempenho continuam pendentes. |
 | F17 | **Pendente** | Céu do instalador não implementa bloom/blur do grafo nem qualidade/bateria automáticas desta fase. |
 | F18 | **Parcial** | Câmera nokhwa e extrator Haar heurístico/LBPH adicionados em 975e635; detector YOLO ainda retorna vazio. Indicadores, reconhecimento real, UI e aceite pendentes. |
 | F19 | **Parcial** | MCP próprio, OAuth, skills/plugins/importação e credenciais de leitura existem; rmcp não é usado. WASM/WIT, MCP Apps, proteção completa contra rug pull e UI final pendentes. |
@@ -355,7 +355,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 
 ### F01: Janela, tema e base da interface · tamanho **L**
 
-> **Auditoria PR #30 (`2020015`), atualizada em 20/10/2026: Parcial.** O app principal `orion-app` (iced, 47 cenas) existe e roda dentro de `orion.exe` com o núcleo no processo, com bandeja, mini barra e atalhos (Ctrl+Alt+Espaço, Ctrl+Alt+P); nunca rodou num Windows real. Fluent pt/en foi integrado na R1 (23/10). Faltam motor de céu compartilhado (shader), Mica, snapshots comparados ao protótipo e aceite visual.
+> **Auditoria PR #30 (`2020015`), atualizada em 20/10/2026: Parcial.** O app principal `orion-app` (iced, 47 cenas) existe e roda dentro de `orion.exe` com o núcleo no processo, com bandeja, mini barra e atalhos (Ctrl+Alt+Espaço, Ctrl+Alt+P). Após esse diagnóstico, os testes do Antônio no Windows em 23/10 originaram o R1; aceite final ainda pendente. Fluent pt/en foi integrado na R1 (23/10). Faltam motor de céu compartilhado (shader), Mica, snapshots comparados ao protótipo e aceite visual.
 
 **Objetivo:** a casca do app, idêntica ao protótipo aprovado, com todos os elementos de janela, tokens, tipografia e navegação. **Especificação exata de cada tela, medida e estado em [[ORION - UI (ESPECIFICAÇÃO)]] (protótipo: `Protótipos/orion-ui-mockup.html`); em divergência, vale o protótipo, exceto nos itens U1–U15 daquela nota.**
 **Dependências:** F00 (decisão iced × Slint).
