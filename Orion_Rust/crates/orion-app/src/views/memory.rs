@@ -1,4 +1,4 @@
-//! Memória (§16): grafo do vault com filtros, busca, "Lidas agora", zoom, detalhes e linha do tempo.
+//! Memória (§16): grafo do vault com filtros, busca, "Lidas agora", zoom, grafo local, detalhes e linha do tempo.
 //! No protótipo o grafo é 2D em Canvas; o 3D em wgpu substitui esta camada mantendo a mesma interação.
 
 use crate::app::{App, Msg, View};
@@ -25,7 +25,9 @@ pub fn stage_size(app: &App) -> (f32, f32) {
 
 pub fn update(app: &mut App, m: Msg) {
     let (w, h) = stage_size(app);
-    if !matches!(&m, Msg::MemHover(..)) { app.mem.cache.clear(); }
+    if !matches!(&m, Msg::MemHover(..)) {
+        app.mem.cache.clear();
+    }
     match m {
         Msg::MemQ(s) => {
             app.mem.q = s.clone();
@@ -46,12 +48,17 @@ pub fn update(app: &mut App, m: Msg) {
         Msg::MemHalt => app.mem.spinning = false,
         Msg::MemSelect(n) => {
             app.mem.sel = n;
+            if n.is_none() {
+                app.mem.local = None;
+            }
             if let Some(i) = n {
                 center(app, i);
             }
         }
         Msg::MemHover(n, x, y) => {
-            if app.mem.hov != n { app.mem.cache.clear(); }
+            if app.mem.hov != n {
+                app.mem.cache.clear();
+            }
             app.mem.hov = n;
             app.mem_tip = (x, y);
         }
@@ -84,6 +91,7 @@ pub fn update(app: &mut App, m: Msg) {
             if let Some(s) = g.sel {
                 if !g.visible(s) {
                     g.sel = None;
+                    g.local = None;
                 }
             }
         }
@@ -93,20 +101,31 @@ pub fn update(app: &mut App, m: Msg) {
             let _ = app.update(Msg::EditorOpen(path));
         }
         Msg::MemLocal(i) => {
-            center(app, i);
-            app.toast("Grafo local: só a nota e os vizinhos (profundidade 1)");
+            let next = match app.mem.local {
+                Some((c, 1)) if c == i => Some((i, 2)),
+                Some((c, _)) if c == i => None,
+                _ => Some((i, 1)),
+            };
+            app.mem.local = next;
+            app.mem.fit(w, h);
+            match next {
+                Some((_, 1)) => app.toast("Grafo local: vizinhança em 1 salto (clique de novo para 2 saltos)"),
+                Some((_, 2)) => app.toast("Grafo local: vizinhança em 2 saltos (clique de novo para mostrar tudo)"),
+                _ => app.toast("Grafo completo restaurado"),
+            }
         }
         _ => {}
     }
 }
 
 fn center(app: &mut App, i: usize) {
-    let (w, h) = stage_size(app);
-    let _ = (w, h);
+    let (w, _h) = stage_size(app);
     let g = &mut app.mem;
     g.spinning = false;
     let (rx, ry) = g.rotp(i);
-    let to = (g.cam.0.max(1.1), -rx, -ry);
+    let k = g.cam.0.max(1.12);
+    let panel_shift = if w > 640.0 { -160.0 / k } else { 0.0 };
+    let to = (k, -rx + panel_shift, -ry);
     if app.p.reduced {
         g.cam = to;
     } else {
@@ -120,6 +139,7 @@ pub fn tick(app: &mut App, now: Instant) {
     }
     if app.mem.spinning && !app.p.reduced {
         app.mem.rot += 60.0 * 0.00003;
+        app.mem.cache.clear();
     }
     if let Some((t0, from, to)) = app.mem_tween {
         app.mem.cache.clear();
@@ -173,9 +193,19 @@ impl canvas::Program<Msg> for Mem<'_> {
                 match pos {
                     Some(p) => {
                         let n = self.g.hit(p.x, p.y, w, h);
-                        Some(Action::publish(Msg::MemHover(n, p.x, p.y)))
+                        if self.g.hov == n && n.is_none() {
+                            None
+                        } else {
+                            Some(Action::publish(Msg::MemHover(n, p.x, p.y)))
+                        }
                     }
-                    None => Some(Action::publish(Msg::MemHover(None, 0.0, 0.0))),
+                    None => {
+                        if self.g.hov.is_some() {
+                            Some(Action::publish(Msg::MemHover(None, 0.0, 0.0)))
+                        } else {
+                            None
+                        }
+                    }
                 }
             }
             Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) => {
@@ -211,110 +241,182 @@ impl canvas::Program<Msg> for Mem<'_> {
     fn draw(&self, _s: &Interaction, r: &Renderer, _th: &Theme, b: Rectangle, _c: mouse::Cursor) -> Vec<Geometry> {
         let g = self.g;
         let (w, h) = (b.width, b.height);
-        let geometry = g.cache.draw(r, b.size(), |f| {
-        // fundo: radial-gradient(ellipse at 50% 45%, #15192a 0%, #0b0c10 72%)
-        f.fill_rectangle(Point::ORIGIN, b.size(), Color::from_rgb8(0x0b, 0x0c, 0x10));
-        let (c0, c1) = ((0x15 as f32, 0x19 as f32, 0x2a as f32), (0x0b as f32, 0x0c as f32, 0x10 as f32));
-        const STEPS: usize = 22;
-        for k in 0..STEPS {
-            let u = k as f32 / (STEPS - 1) as f32; // 0 = borda do gradiente, 1 = centro
-            let col = Color::from_rgb8((c1.0 + (c0.0 - c1.0) * u) as u8, (c1.1 + (c0.1 - c1.1) * u) as u8, (c1.2 + (c0.2 - c1.2) * u) as u8);
-            let (rx, ry) = (w * 0.5 * 1.1 * (1.0 - u) * 0.72 * 1.4 + 1.0, h * 0.5 * 1.1 * (1.0 - u) * 0.72 * 1.4 + 1.0);
-            f.with_save(|f| {
-                f.translate(iced::Vector::new(w * 0.5, h * 0.45));
-                f.scale_nonuniform(iced::Vector::new(rx, ry));
-                f.fill(&Path::circle(Point::ORIGIN, 1.0), col);
-            });
-        }
-        draw_sky(f, w, h, Sky { alpha: 0.5, constellation: false, intro: 1.0, belt: 0.0 });
-
-        let focus = g.sel.or(g.hov);
-        let nb: Vec<usize> = focus.map(|i| g.adj[i].clone()).unwrap_or_default();
-        let q = g.q.trim();
-        let rd = g.read_on;
-        let lit = |i: usize| (focus.is_none() || Some(i) == focus || nb.contains(&i)) && (q.is_empty() || g.matches(i) || Some(i) == focus) && (!rd || g.nodes[i].read || Some(i) == focus);
-        let scr: Vec<Option<(f32, f32)>> = (0..g.nodes.len()).map(|i| if g.visible(i) { Some(g.to_screen(i, w, h)) } else { None }).collect();
-        // arestas
-        let edge_a = if focus.is_some() || !q.is_empty() || rd { 0.03 } else { 0.08 };
-        let edges = Path::new(|p| {
-            for (a, bb) in &g.links {
-                if focus == Some(*a) || focus == Some(*bb) {
-                    continue;
-                }
-                if let (Some(x), Some(y)) = (scr[*a], scr[*bb]) {
-                    p.move_to(Point::new(x.0, x.1));
-                    p.line_to(Point::new(y.0, y.1));
-                }
+        let geom = g.cache.draw(r, b.size(), |f| {
+            // Fundo: radial-gradient(ellipse at 50% 45%, #15192a 0%, #0b0c10 72%)
+            f.fill_rectangle(Point::ORIGIN, b.size(), Color::from_rgb8(0x0b, 0x0c, 0x10));
+            let (c0, c1) = ((0x15 as f32, 0x19 as f32, 0x2a as f32), (0x0b as f32, 0x0c as f32, 0x10 as f32));
+            const STEPS: usize = 18;
+            for k in 0..STEPS {
+                let u = k as f32 / (STEPS - 1) as f32;
+                let col = Color::from_rgb8((c1.0 + (c0.0 - c1.0) * u) as u8, (c1.1 + (c0.1 - c1.1) * u) as u8, (c1.2 + (c0.2 - c1.2) * u) as u8);
+                let (rx, ry) = (w * 0.5 * 1.1 * (1.0 - u) * 0.72 * 1.4 + 1.0, h * 0.5 * 1.1 * (1.0 - u) * 0.72 * 1.4 + 1.0);
+                f.with_save(|f| {
+                    f.translate(iced::Vector::new(w * 0.5, h * 0.45));
+                    f.scale_nonuniform(iced::Vector::new(rx, ry));
+                    f.fill(&Path::circle(Point::ORIGIN, 1.0), col);
+                });
             }
-        });
-        f.stroke(&edges, Stroke::default().with_width(0.6).with_color(t::alpha(t::GRAPH_ARESTA, edge_a)));
-        if let Some(fi) = focus {
-            let fe = Path::new(|p| {
-                for (a, bb) in &g.links {
-                    if *a != fi && *bb != fi {
+            draw_sky(f, w, h, Sky { alpha: 0.45, constellation: false, intro: 1.0, belt: 0.0 });
+
+            let focus = g.sel.or(g.hov);
+            let nb: Vec<usize> = focus.map(|i| g.adj[i].clone()).unwrap_or_default();
+            let q = g.q.trim();
+            let rd = g.read_on;
+            let is_nb = |i: usize| nb.binary_search(&i).is_ok();
+            let lit = |i: usize| (focus.is_none() || Some(i) == focus || is_nb(i)) && (q.is_empty() || g.matches(i) || Some(i) == focus) && (!rd || g.nodes[i].read || Some(i) == focus);
+            let scr: Vec<Option<(f32, f32)>> = (0..g.nodes.len()).map(|i| if g.visible(i) { Some(g.to_screen(i, w, h)) } else { None }).collect();
+
+            // Arestas de fundo discretas e contidas
+            let edge_a = if focus.is_some() || !q.is_empty() || rd { 0.024 } else { 0.068 };
+            let edges = Path::new(|p| {
+                for &(a, bb) in &g.links {
+                    if focus == Some(a) || focus == Some(bb) {
                         continue;
                     }
-                    if let (Some(x), Some(y)) = (scr[*a], scr[*bb]) {
+                    if let (Some(x), Some(y)) = (scr[a], scr[bb]) {
                         p.move_to(Point::new(x.0, x.1));
                         p.line_to(Point::new(y.0, y.1));
                     }
                 }
             });
-            f.stroke(&fe, Stroke::default().with_width(1.0).with_color(t::alpha(TYPE_COLORS[g.nodes[fi].tipo], 0.5)));
-        }
-        // nós
-        let kk = g.cam.0.sqrt();
-        let few_nb = focus.is_some() && nb.len() <= 40;
-        let mut q_top: Vec<usize> = vec![];
-        if !q.is_empty() {
-            let mut v: Vec<usize> = (0..g.nodes.len()).filter(|&i| g.visible(i) && g.matches(i)).collect();
-            v.sort_by_key(|&i| std::cmp::Reverse(g.nodes[i].deg));
-            v.truncate(12);
-            q_top = v;
-        }
-        let mut labels: Vec<(usize, f32, f32, f32)> = vec![];
-        for (i, n) in g.nodes.iter().enumerate() {
-            let Some((x, y)) = scr[i] else { continue };
-            if x < -40.0 || y < -40.0 || x > w + 40.0 || y > h + 40.0 {
-                continue;
+            f.stroke(&edges, Stroke::default().with_width(0.65).with_color(t::alpha(t::GRAPH_ARESTA, edge_a)));
+
+            // Arestas incidentes ao nó focado: opacidade graduada pelo grau para evitar mancha opaca em hubs de >200 conexões
+            if let Some(fi) = focus {
+                let deg_f = (nb.len().max(1) as f32).sqrt();
+                let focus_alpha = (1.05 / deg_f).clamp(0.15, 0.46);
+                let focus_w = if nb.len() > 80 { 0.78 } else { 1.05 };
+                let fe = Path::new(|p| {
+                    for &(a, bb) in &g.links {
+                        if a != fi && bb != fi {
+                            continue;
+                        }
+                        if let (Some(x), Some(y)) = (scr[a], scr[bb]) {
+                            p.move_to(Point::new(x.0, x.1));
+                            p.line_to(Point::new(y.0, y.1));
+                        }
+                    }
+                });
+                f.stroke(&fe, Stroke::default().with_width(focus_w).with_color(t::alpha(TYPE_COLORS[g.nodes[fi].tipo], focus_alpha)));
             }
-            let on = lit(i);
-            let col = TYPE_COLORS[n.tipo];
-            let rr = g.radius(i) * kk;
-            let is_focus = Some(i) == focus;
-            if on && (n.hub || n.tipo == 0 || is_focus || (rd && n.read)) {
-                for s in 0..6 {
-                    let k = 1.0 - s as f32 / 6.0;
-                    f.fill(&Path::circle(Point::new(x, y), rr * 4.5 * k), t::alpha(col, 0.22 / 6.0 * 1.1));
+
+            // Nós circulares nítidos com halo suave nos projetos/hubs e anel de foco
+            let kk = g.cam.0.sqrt().clamp(0.72, 2.2);
+            let mut q_top: Vec<usize> = vec![];
+            if !q.is_empty() {
+                let mut v: Vec<usize> = (0..g.nodes.len()).filter(|&i| g.visible(i) && g.matches(i)).collect();
+                v.sort_by_key(|&i| std::cmp::Reverse(g.nodes[i].deg));
+                v.truncate(14);
+                q_top = v;
+            }
+            let mut focus_nb_top: Vec<usize> = vec![];
+            if focus.is_some() {
+                let mut v: Vec<usize> = nb.iter().copied().filter(|&i| g.visible(i)).collect();
+                v.sort_by_key(|&i| std::cmp::Reverse(g.nodes[i].deg));
+                v.truncate(22);
+                focus_nb_top = v;
+            }
+
+            let mut labels: Vec<(usize, f32, f32, f32)> = vec![];
+            for (i, n) in g.nodes.iter().enumerate() {
+                let Some((x, y)) = scr[i] else { continue };
+                if x < -40.0 || y < -40.0 || x > w + 40.0 || y > h + 40.0 {
+                    continue;
+                }
+                let on = lit(i);
+                let col = TYPE_COLORS[n.tipo];
+                let rr = g.radius(i) * kk;
+                let is_focus = Some(i) == focus;
+
+                if on && (n.tipo == 0 || n.tipo == 1 || n.hub || is_focus || (rd && n.read)) {
+                    let halo_r = rr * if is_focus { 3.1 } else { 2.35 };
+                    let halo_a = if is_focus { 0.20 } else { 0.11 };
+                    f.fill(&Path::circle(Point::new(x, y), halo_r), t::alpha(col, halo_a));
+                }
+
+                let node_r = rr * if is_focus { 1.28 } else { 1.0 };
+                let fill_a = if on { 0.96 } else { 0.14 };
+                f.fill(&Path::circle(Point::new(x, y), node_r), t::alpha(col, fill_a));
+                if on {
+                    f.stroke(
+                        &Path::circle(Point::new(x, y), node_r),
+                        Stroke::default().with_width(0.8).with_color(t::alpha(Color::BLACK, 0.45)),
+                    );
+                }
+                if Some(i) == g.sel || (rd && n.read) {
+                    f.stroke(
+                        &Path::circle(Point::new(x, y), node_r + 3.2),
+                        Stroke::default().with_width(1.35).with_color(t::alpha(t::FG, 0.92)),
+                    );
+                }
+
+                let show = on
+                    && (is_focus
+                        || n.tipo == 0
+                        || n.tipo == 1
+                        || (n.hub && g.cam.0 >= 0.72)
+                        || (focus.is_some() && focus_nb_top.contains(&i))
+                        || (!q.is_empty() && q_top.contains(&i))
+                        || (rd && n.read)
+                        || (g.cam.0 > 1.45 && n.deg >= 8)
+                        || g.cam.0 > 2.15);
+                if show {
+                    let pri = (if is_focus { 1e6 } else { 0.0 })
+                        + (if g.hov == Some(i) { 5e5 } else { 0.0 })
+                        + (if (!q.is_empty() && q_top.contains(&i)) || (rd && n.read) { 1e5 } else { 0.0 })
+                        + (if n.tipo == 0 { 2e4 } else if n.tipo == 1 { 1e4 } else { 0.0 })
+                        + n.deg as f32;
+                    labels.push((i, x, y + node_r + 4.5, pri));
                 }
             }
-            f.fill(&Path::circle(Point::new(x, y), rr * if is_focus { 1.3 } else { 1.0 }), t::alpha(col, if on { 1.0 } else { 0.1 }));
-            if Some(i) == g.sel || (rd && n.read) {
-                f.stroke(&Path::circle(Point::new(x, y), rr * 1.3 + 4.0), Stroke::default().with_width(1.2).with_color(t::alpha(t::FG, 0.9)));
+
+            labels.sort_by(|a, b| b.3.partial_cmp(&a.3).unwrap_or(std::cmp::Ordering::Equal));
+            let mut placed: Vec<[f32; 4]> = vec![];
+            for (i, x, y, _) in labels {
+                let n = &g.nodes[i];
+                let is_focus = Some(i) == focus;
+                let big = is_focus || n.tipo == 0 || n.tipo == 1 || n.hub;
+                let max_chars = if is_focus { 42 } else { 28 };
+                let txt = if n.label.chars().count() > max_chars {
+                    format!("{}…", n.label.chars().take(max_chars - 1).collect::<String>())
+                } else {
+                    n.label.clone()
+                };
+                let size = if is_focus { 12.5 } else if big { 11.5 } else { 10.8 };
+                let tw = txt.chars().count() as f32 * size * 0.53;
+                let pad_x = 5.5;
+                let pill_h = size + 5.0;
+                let bx = [x - tw / 2.0 - pad_x, y - 1.5, x + tw / 2.0 + pad_x, y + pill_h];
+                if bx[0] < 6.0 || bx[2] > w - 6.0 || bx[1] < 6.0 || bx[3] > h - 28.0 {
+                    continue;
+                }
+                if placed.iter().any(|p| bx[0] < p[2] + 4.0 && bx[2] > p[0] - 4.0 && bx[1] < p[3] + 2.0 && bx[3] > p[1] - 2.0) {
+                    continue;
+                }
+                placed.push(bx);
+
+                let pill_rect = Path::rounded_rectangle(
+                    Point::new(bx[0], bx[1]),
+                    iced::Size::new(bx[2] - bx[0], bx[3] - bx[1]),
+                    5.0.into(),
+                );
+                f.fill(&pill_rect, Color::from_rgba8(0x0c, 0x0e, 0x13, if is_focus { 0.92 } else { 0.76 }));
+                if is_focus {
+                    f.stroke(&pill_rect, Stroke::default().with_width(1.0).with_color(t::alpha(TYPE_COLORS[n.tipo], 0.55)));
+                }
+                f.fill_text(Text {
+                    content: txt,
+                    position: Point::new(x, y + 1.0),
+                    color: t::alpha(if big { t::FG } else { t::FG2 }, 0.96),
+                    size: size.into(),
+                    font: if big { t::UI_MED } else { t::UI },
+                    align_x: iced::alignment::Horizontal::Center.into(),
+                    align_y: Vertical::Top,
+                    ..Text::default()
+                });
             }
-            let show = on && (is_focus || n.tipo == 0 || n.tipo == 1 || n.hub || (few_nb && nb.contains(&i)) || (!q.is_empty() && q_top.contains(&i)) || (rd && n.read) || g.cam.0 > 2.2);
-            if show {
-                let pri = (if is_focus { 1e6 } else { 0.0 }) + (if g.hov == Some(i) { 5e5 } else { 0.0 }) + (if (!q.is_empty() && q_top.contains(&i)) || (rd && n.read) { 1e5 } else { 0.0 }) + (if n.tipo == 0 { 1e4 } else { 0.0 }) + n.deg as f32;
-                labels.push((i, x, y + rr + 4.0, pri));
-            }
-        }
-        labels.sort_by(|a, b| b.3.partial_cmp(&a.3).unwrap());
-        let mut placed: Vec<[f32; 4]> = vec![];
-        for (i, x, y, _) in labels {
-            let n = &g.nodes[i];
-            let big = Some(i) == focus || n.tipo == 0 || n.hub;
-            let txt = if n.label.chars().count() > 36 { format!("{}…", n.label.chars().take(34).collect::<String>()) } else { n.label.clone() };
-            let size = if big { 12.0 } else { 11.0 };
-            let tw = txt.chars().count() as f32 * size * 0.52;
-            let bx = [x - tw / 2.0 - 3.0, y - 1.0, x + tw / 2.0 + 3.0, y + 15.0];
-            if placed.iter().any(|p| bx[0] < p[2] && bx[2] > p[0] && bx[1] < p[3] && bx[3] > p[1]) {
-                continue;
-            }
-            placed.push(bx);
-            f.fill_text(Text { content: txt, position: Point::new(x, y), color: t::alpha(if big { t::FG } else { t::FG2 }, 0.94), size: size.into(), font: if big { t::UI_MED } else { t::UI }, align_x: iced::alignment::Horizontal::Center.into(), align_y: Vertical::Top, ..Text::default() });
-        }
         });
-        vec![geometry]
+        vec![geom]
     }
 }
 
@@ -355,7 +457,6 @@ fn dmy(d: &str) -> String {
 pub fn view(app: &App) -> El<'_> {
     let g = &app.mem;
     if g.nodes.is_empty() && app.api.is_some() {
-        // sem vault ou sem notas: um aviso claro no lugar de um grafo vazio
         let card = column![
             tx(crate::i18n::text("Sua memória ainda está vazia"), 20.0, t::FG),
             tx(crate::i18n::text("As notas do seu vault do Obsidian aparecem aqui como um mapa. Escolha a pasta do vault em Configurações › Memória."), 13.5, t::FG3),
@@ -376,15 +477,16 @@ pub fn view(app: &App) -> El<'_> {
         chips = chips.push(fchip(crate::i18n::text(l), Some(TYPE_COLORS[i]), None, g.filt[i], Msg::MemFilter(i)));
     }
     chips = chips.push(fchip(crate::i18n::text("Lidas agora"), None, Some("eye"), g.read_on, Msg::MemRead));
+    if let Some((loc_i, depth)) = g.local {
+        chips = chips.push(fchip(&format!("Local ({depth}×) ×"), Some(t::ACCENT), Some("graph"), true, Msg::MemLocal(loc_i)));
+    }
     let (n, l) = g.stats();
     let total = g.nodes.len();
     let notas = if n < total { crate::i18n::formatted("{} de {} notas", format!("{} de {} notas", fmt_n(n), fmt_n(total))) } else { crate::i18n::formatted("{} notas", format!("{} notas", fmt_n(n))) };
-    // a hora do último pull só existe nos dados de exemplo; no uso real não se inventa
     let pull = if app.api.is_none() { crate::i18n::text(" · git pull às 09:41") } else { "" };
     let stats = tx(crate::i18n::formatted("{notas} · {} links{pull}", format!("{notas} · {} links{pull}", fmt_n(l))), 12.0, t::FG3).wrapping(iced::widget::text::Wrapping::None);
     let avail = app.win.width - if app.collapsed || app.is_drawer_mode() { 0.0 } else { t::SIDE_W + 1.0 };
     let bar: El = if avail < 1280.0 {
-        // a estatística quebra para a linha de baixo, à direita (flex-wrap do protótipo)
         column![row![container(search).width(Length::Fixed(260.0)), chips].spacing(8).align_y(Vertical::Center), row![grow(), stats]].spacing(4).padding(pad(6.0, 16.0, 10.0, 16.0)).into()
     } else {
         row![container(search).width(Length::Fixed(260.0)), chips, grow(), stats].spacing(8).align_y(Vertical::Center).padding(pad(6.0, 16.0, 10.0, 16.0)).into()
@@ -400,8 +502,9 @@ pub fn view(app: &App) -> El<'_> {
         }
         layers.push(container(leg).width(Length::Fill).height(Length::Fill).align_y(Vertical::Bottom).padding(pad(0.0, 0.0, 12.0, 14.0)).into());
     }
-    let zoom = container(column![tip(ib("plus", Some(Msg::MemZoom(1.25)), false), crate::i18n::text("Aproximar")), tip(ib("minus", Some(Msg::MemZoom(0.8)), false), crate::i18n::text("Afastar")), tip(ib_sz("fit", 30.0, 14.0, Some(Msg::MemFit), false), crate::i18n::text("Enquadrar"))].spacing(2)).padding(3).style(|_| container::Style { background: Some(t::mix(t::RAISE, 0.85).into()), border: Border { color: t::LINE, width: 1.0, radius: 10.0.into() }, ..Default::default() });
-    layers.push(container(zoom).width(Length::Fill).height(Length::Fill).align_x(iced::alignment::Horizontal::Right).align_y(Vertical::Bottom).padding(pad(0.0, 12.0, 12.0, 0.0)).into());
+    let zoom_right = if g.sel.is_some() { 344.0 } else { 12.0 };
+    let zoom = container(column![tip(ib("plus", Some(Msg::MemZoom(1.25)), false), crate::i18n::text("Aproximar")), tip(ib("minus", Some(Msg::MemZoom(0.8)), false), crate::i18n::text("Afastar")), tip(ib_sz("fit", 30.0, 14.0, Some(Msg::MemFit), false), crate::i18n::text("Enquadrar"))].spacing(2)).padding(3).style(|_| container::Style { background: Some(t::mix(t::RAISE, 0.88).into()), border: Border { color: t::LINE2, width: 1.0, radius: 10.0.into() }, ..Default::default() });
+    layers.push(container(zoom).width(Length::Fill).height(Length::Fill).align_x(iced::alignment::Horizontal::Right).align_y(Vertical::Bottom).padding(pad(0.0, zoom_right, 12.0, 0.0)).into());
     if let Some(i) = g.hov.filter(|i| g.sel != Some(*i)) {
         let n = &g.nodes[i];
         let tip = container(column![tx(ell(&n.label, 260.0, 12.5), 12.5, t::FG), tx(g.meta(i), 11.0, t::FG3)]).padding(pad(6.0, 10.0, 6.0, 10.0)).max_width(280.0).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: 8.0.into() }, shadow: shadow(), ..Default::default() });
@@ -468,7 +571,13 @@ fn detail(app: &App, i: usize) -> El<'_> {
         }
         body = body.push(tg.wrap().vertical_spacing(4));
     }
-    body = body.push(row![btn(crate::i18n::text("Abrir e editar"), Kind::Normal, true, Some("edit"), Some(Msg::MemOpenNote(i))), btn(crate::i18n::text("Grafo local"), Kind::Normal, true, Some("graph"), Some(Msg::MemLocal(i)))].spacing(6));
+    let local_lbl = match g.local {
+        Some((c, 1)) if c == i => "Grafo local (1×)",
+        Some((c, 2)) if c == i => "Grafo local (2×)",
+        _ => crate::i18n::text("Grafo local"),
+    };
+    let local_kind = if g.local.is_some_and(|(c, _)| c == i) { Kind::Primary } else { Kind::Normal };
+    body = body.push(row![btn(crate::i18n::text("Abrir e editar"), Kind::Normal, true, Some("edit"), Some(Msg::MemOpenNote(i))), btn(local_lbl, local_kind, true, Some("graph"), Some(Msg::MemLocal(i)))].spacing(6));
     body = body.push(container(txf(crate::i18n::formatted("Ligada a · {}", format!("Ligada a · {}", all.len())), 11.5, t::FG3, t::UI_MED)).padding(pad(6.0, 0.0, 2.0, 0.0)));
     let mut nl = column![].spacing(1);
     for x in all.iter().take(60) {
@@ -490,4 +599,3 @@ fn detail(app: &App, i: usize) -> El<'_> {
         .style(|_| container::Style { background: Some(t::mix(t::RAISE, 0.92).into()), border: Border { color: t::LINE2, width: 1.0, radius: 14.0.into() }, shadow: shadow(), ..Default::default() });
     container(panel).width(Length::Fill).height(Length::Fill).align_x(iced::alignment::Horizontal::Right).padding(12).into()
 }
-

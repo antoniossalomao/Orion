@@ -60,16 +60,16 @@ pub fn view(app: &App) -> El<'_> {
             .on_press(Msg::PalOpen)
             .style(|_, st| button::Style { background: if matches!(st, button::Status::Hovered) { Some(Background::Color(t::HOVER)) } else { None }, text_color: t::FG3, border: Border { radius: 8.0.into(), ..Default::default() }, shadow: Default::default(), snap: true });
         r = r.push(cmd);
+    } else {
+        r = r.push(tip(ib("search", Some(Msg::PalOpen), false), crate::i18n::text("Buscar")));
     }
     if app.view == View::Chat && app.win.width > t::CTX_MIN_W {
         r = r.push(tip(ib("panelR", Some(Msg::CtxToggle), app.show_ctx()), crate::i18n::text("Painel da direita")));
     }
-    if !drawer {
-        r = r.push(container(vline(18.0)).padding(pad(0.0, 6.0, 0.0, 6.0)));
-        r = r.push(tip(ib_wh("min", 34.0, 30.0, 16.0, Some(Msg::Minimize), t::HOVER, t::FG), crate::i18n::text("Minimizar")));
-        r = r.push(tip(ib_wh("max", 34.0, 30.0, 14.0, Some(Msg::Fullscreen), t::HOVER, t::FG), crate::i18n::text("Tela cheia")));
-        r = r.push(tip(ib_wh("close", 34.0, 30.0, 16.0, Some(Msg::CloseWindow), t::DANGER, iced::Color::WHITE), crate::i18n::text("Fechar")));
-    }
+    r = r.push(container(vline(18.0)).padding(pad(0.0, 6.0, 0.0, 6.0)));
+    r = r.push(tip(ib_wh("min", 34.0, 30.0, 16.0, Some(Msg::Minimize), t::HOVER, t::FG), crate::i18n::text("Minimizar")));
+    r = r.push(tip(ib_wh("max", 34.0, 30.0, 14.0, Some(Msg::Fullscreen), t::HOVER, t::FG), crate::i18n::text("Tela cheia")));
+    r = r.push(tip(ib_wh("close", 34.0, 30.0, 16.0, Some(Msg::CloseWindow), t::DANGER, iced::Color::WHITE), crate::i18n::text("Fechar")));
     let _ = Side::Left;
     r.into()
 }
