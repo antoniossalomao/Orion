@@ -272,6 +272,28 @@ fn is_rule(l: &str) -> bool {
     t.len() >= 3 && (t.chars().all(|c| c == '-') || t.chars().all(|c| c == '*') || t.chars().all(|c| c == '_'))
 }
 
+thread_local! {
+    static PARSED: std::cell::RefCell<std::collections::VecDeque<(String, std::sync::Arc<Vec<Block>>)>> = const { std::cell::RefCell::new(std::collections::VecDeque::new()) };
+}
+
+pub fn cached_parse(src: &str) -> std::sync::Arc<Vec<Block>> {
+    PARSED.with(|cache| {
+        let mut cache = cache.borrow_mut();
+        if let Some(i) = cache.iter().position(|(text, _)| text == src) {
+            let item = cache.remove(i).unwrap();
+            let blocks = item.1.clone();
+            cache.push_back(item);
+            return blocks;
+        }
+        let blocks = std::sync::Arc::new(parse(src));
+        if src.len() <= 262144 {
+            while cache.len() >= 128 || cache.iter().map(|(text, _)| text.len()).sum::<usize>() + src.len() > 2 * 1024 * 1024 { cache.pop_front(); }
+            cache.push_back((src.to_owned(), blocks.clone()));
+        }
+        blocks
+    })
+}
+
 pub fn parse(src: &str) -> Vec<Block> {
     let lines: Vec<&str> = src.lines().collect();
     let mut blocks = Vec::new();
@@ -541,7 +563,7 @@ pub fn render_with<'a, M: Clone + 'a>(blocks: &[Block], st: Style, on_link: Opti
                         .max_width(520.0)
                         .padding(Padding { top: 4.0, bottom: 4.0, ..Default::default() })
                         .into(),
-                    None => text(if alt.is_empty() { "[imagem]".to_string() } else { format!("[imagem: {alt}]") }).font(st.font).size(st.size).color(t::FG3).into(),
+                    None => text(if alt.is_empty() { crate::i18n::text("[imagem]").to_string() } else { crate::i18n::formatted("[imagem: {alt}]", format!("[imagem: {alt}]")) }).font(st.font).size(st.size).color(t::FG3).into(),
                 }
             }
             Block::Rule => container(iced::widget::Space::new().height(Length::Fixed(1.0)))
@@ -603,15 +625,15 @@ pub fn render_with<'a, M: Clone + 'a>(blocks: &[Block], st: Style, on_link: Opti
                     // sem WebView2 (ADR 0004) não há prévia de diagrama nem de fórmula: o código fica visível e o aviso diz isso
                     let aviso = match lang.as_str() {
                         "mermaid" if diagrama.is_some() => "mermaid · diagrama".to_string(),
-                        "mermaid" => format!("{lang} · diagrama (este tipo ainda não tem prévia; o código está abaixo)"),
-                        "latex" | "tex" | "math" if formula_ok => format!("{lang} · fórmula"),
-                        "latex" | "tex" | "math" => format!("{lang} · fórmula (não consegui diagramar; o código está abaixo)"),
+                        "mermaid" => crate::i18n::formatted("{lang} · diagrama (este tipo ainda não tem prévia; o código está abaixo)", format!("{lang} · diagrama (este tipo ainda não tem prévia; o código está abaixo)")),
+                        "latex" | "tex" | "math" if formula_ok => crate::i18n::formatted("{lang} · fórmula", format!("{lang} · fórmula")),
+                        "latex" | "tex" | "math" => crate::i18n::formatted("{lang} · fórmula (não consegui diagramar; o código está abaixo)", format!("{lang} · fórmula (não consegui diagramar; o código está abaixo)")),
                         _ => lang.clone(),
                     };
                     let mut topo = row![container(text(aviso).font(t::MONO).size(11.0).color(t::FG3)).width(Length::Fill)].align_y(iced::alignment::Vertical::Center);
                     if let Some(f) = on_copy {
                         topo = topo.push(
-                            iced::widget::button(text("Copiar").font(t::UI).size(11.5).color(t::FG3))
+                            iced::widget::button(text(crate::i18n::text("Copiar")).font(t::UI).size(11.5).color(t::FG3))
                                 .padding(Padding { top: 1.0, bottom: 1.0, left: 6.0, right: 6.0 })
                                 .on_press(f(lines.join("\n")))
                                 .style(|_, st| iced::widget::button::Style { background: if matches!(st, iced::widget::button::Status::Hovered) { Some(iced::Background::Color(t::HOVER)) } else { None }, text_color: t::FG3, border: Border { radius: 6.0.into(), ..Default::default() }, ..Default::default() }),

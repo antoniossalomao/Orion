@@ -4,9 +4,12 @@
 use orion_core::logcrypt::EncryptedLog;
 use std::io::Write;
 use std::sync::OnceLock;
+use parking_lot::Mutex;
 use tracing_subscriber::fmt::MakeWriter;
 
 /// Destino cifrado em arquivo, quando o banco é cifrado.
+static PLAIN: OnceLock<Mutex<std::fs::File>> = OnceLock::new();
+
 static CIFRADO: OnceLock<EncryptedLog> = OnceLock::new();
 
 /// Escreve no stderr mascarando padrões de token conhecidos em cada linha.
@@ -30,6 +33,7 @@ impl Drop for Escritor {
         // segredos e dados pessoais mascarados antes de qualquer destino
         let limpo = orion_policy::audit::mask_pii(&orion_policy::audit::mask_tokens(&texto));
         let _ = std::io::stderr().write_all(limpo.as_bytes());
+        if let Some(file) = PLAIN.get() { let _ = file.lock().write_all(limpo.as_bytes()); }
         if let Some(c) = CIFRADO.get() {
             let agora = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs_f64()).unwrap_or(0.0);
             let _ = c.write_line(limpo.trim_end_matches('\n'), agora);
@@ -44,18 +48,24 @@ impl<'a> MakeWriter<'a> for Mascarado {
     }
 }
 
-pub fn setup(nivel: &str, json: bool, cifrado: Option<EncryptedLog>) {
+pub fn setup(nivel: &str, json: bool, cifrado: Option<EncryptedLog>, data: &std::path::Path, encrypted: bool) {
+    let logs = data.join("logs");
+    if std::fs::create_dir_all(&logs).is_ok() && !encrypted {
+        let path = logs.join("orion.log");
+        if path.metadata().is_ok_and(|m| m.len() >= 5 * 1024 * 1024) { let _ = std::fs::rename(&path, logs.join("orion.previous.log")); }
+        if let Ok(file) = std::fs::OpenOptions::new().create(true).append(true).open(path) { let _ = PLAIN.set(Mutex::new(file)); }
+    }
     if let Some(c) = cifrado {
         let _ = CIFRADO.set(c);
     }
     let nivel = match nivel {
         "DEBUG" => "debug",
-        "WARNING" => "warn",
+        "WARNING" | "WARN" => "warn",
         "ERROR" | "CRITICAL" => "error",
         _ => "info",
     };
     // o cliente HTTP nunca loga a URL com token (o do Telegram vai na URL)
-    let filtro = tracing_subscriber::EnvFilter::new(format!("{nivel},hyper=warn,reqwest=warn,h2=warn"));
+    let filtro = tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(format!("{nivel},hyper=warn,reqwest=warn,h2=warn,naga=warn,wgpu=warn")));
     let b = tracing_subscriber::fmt().with_env_filter(filtro).with_writer(Mascarado);
     if json {
         b.json().init();

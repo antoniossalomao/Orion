@@ -494,12 +494,14 @@ impl P {
 
 // ---------------------------------------------------------------- diagramação
 
+#[derive(Clone)]
 enum Cmd {
     Text { x: f32, y: f32, s: String, size: f32, font: Font },
     Line { a: (f32, f32), b: (f32, f32), w: f32 },
     Poly { pts: Vec<(f32, f32)>, w: f32 },
 }
 
+#[derive(Clone)]
 struct Lay {
     w: f32,
     asc: f32,
@@ -837,6 +839,7 @@ fn delim(cmds: &mut Vec<Cmd>, c: char, x: f32, top: f32, bottom: f32, left: bool
     }
 }
 
+#[derive(Clone)]
 pub struct Formula {
     lay: Lay,
     pad: f32,
@@ -848,8 +851,25 @@ impl Formula {
     }
 }
 
-/// Diagrama a fórmula (sem os `$$`). `None` se ela não fechar: o chamador mostra o texto.
+thread_local! {
+    static CACHE: std::cell::RefCell<std::collections::VecDeque<((String, u32), Option<Formula>)>> = const { std::cell::RefCell::new(std::collections::VecDeque::new()) };
+}
+/// Diagrama a fórmula com cache limitado (REGRAS.md: portabilidade).
 pub fn typeset(src: &str, size: f32) -> Option<Formula> {
+    CACHE.with(|cache| {
+        let key = (src.to_string(), size.to_bits());
+        let mut cache = cache.borrow_mut();
+        if let Some(index) = cache.iter().position(|(k, _)| *k == key) {
+            let item = cache.remove(index).unwrap();
+            let result = item.1.clone(); cache.push_back(item); return result;
+        }
+        let result = typeset_uncached(src, size);
+        if cache.len() >= 64 { cache.pop_front(); }
+        cache.push_back((key, result.clone()));
+        result
+    })
+}
+fn typeset_uncached(src: &str, size: f32) -> Option<Formula> {
     let mut s = src.trim();
     for (a, b) in [("$$", "$$"), ("\\[", "\\]"), ("\\(", "\\)"), ("$", "$")] {
         if let Some(r) = s.strip_prefix(a).and_then(|r| r.strip_suffix(b)) {

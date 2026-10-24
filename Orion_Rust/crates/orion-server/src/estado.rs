@@ -399,10 +399,13 @@ fn alguma_cli() -> bool {
 
 /// Sobe tudo. Recusa subir exposto na rede sem login ou com a senha de fábrica
 /// (REGRAS.md: acesso de fora só com login).
-pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
+pub async fn montar(mut settings: Settings) -> anyhow::Result<Estado> {
+    crate::appmode::progress("Abrindo o banco…");
     std::fs::create_dir_all(&settings.data_dir)?;
     let s2 = settings.clone();
     let memory = Arc::new(tokio::task::spawn_blocking(move || memory_from_settings(&s2)).await??);
+    crate::appmode::progress("Preparando modelos…");
+    load_providers(&mut settings, &memory)?;
     // registro de saída (REGRAS.md: toda saída de dado fica registrada, sem conteúdo)
     orion_ai::saidas::definir_destino(Some(orion_ai::saidas::destino_store(memory.clone())));
     let ops = Arc::new(Operations::new(memory.clone()));
@@ -432,12 +435,13 @@ pub async fn montar(settings: Settings) -> anyhow::Result<Estado> {
             fora.join(", ")
         );
     }
-    let gateway = gateway_from_settings(&settings).map(Arc::new);
+    let gateway = Some(Arc::new(match gateway_from_settings(&settings) { Some(g) => g, None => ChatGateway::unconfigured()? }));
     if let Some(g) = &gateway {
         // orçamento diário por provedor (`limite_dia`): fim da fila
         let c = custos.clone();
         *g.orcamento.lock() = Some(Arc::new(move |ep: &Endpoint| c.no_orcamento(&ep.provedor)));
     }
+    crate::appmode::progress("Carregando o vault e as ferramentas…");
     let biblioteca = Arc::new(Library::new(memory.clone(), settings.data_dir.join("resultados")));
     let historicos = Arc::new(orion_core::historicos::Historicos::new(memory.clone()));
     let transcriber = transcriber_from_settings(&settings).map(Arc::new);
@@ -1039,4 +1043,31 @@ fn listen_from_settings(
         let _ = (settings, agent, transcriber, speaker, memory, modos, open);
         None
     }
+}
+
+/// Persiste só a lista/modelos: as chaves continuam no cofre do SO
+/// (REGRAS.md: segredos nunca em log, audit ou processo filho).
+pub fn load_providers(settings: &mut Settings, memory: &Store) -> anyhow::Result<()> {
+    if settings.providers_explicit { return Ok(()); }
+    let mut providers = match memory.meta_get("providers:configuration") {
+        Some(value) => orion_ai::provedores::parse_provedores(&value).map_err(anyhow::Error::msg)?,
+        None => vec![],
+    };
+    // Só os antigos valores automáticos exatos migram; ambiente e personalizações prevalecem
+    // (REGRAS.md: portabilidade; nuvem por padrão, custo zero).
+    for provider in &mut providers {
+        let legacy = orion_ai::provedores::ProvedorConf { id: "gemini".into(), padrao: provider.padrao.clone(), ..Default::default() };
+        if matches!(provider.padrao.as_str(), "gemini-2.5-flash" | "gemini-3.8-flash") && *provider == legacy {
+            *provider = orion_ai::provedores::defaults("gemini").expect("Gemini no catálogo");
+        }
+    }
+    for (id, _) in orion_ai::provedores::CATALOGO {
+        if !providers.iter().any(|p| p.id == *id) && get_secret(&orion_ai::provedores::chave_env(id)).is_some_and(|key| !key.trim().is_empty()) {
+            if let Some(provider) = orion_ai::provedores::defaults(id) { providers.push(provider); }
+        }
+    }
+    providers.sort_by_key(|p| orion_ai::provedores::CATALOGO.iter().position(|(id, _)| *id == p.id).unwrap_or(usize::MAX));
+    memory.meta_set("providers:configuration", Some(&serde_json::to_string(&providers)?))?;
+    settings.provedores = providers;
+    Ok(())
 }

@@ -50,7 +50,7 @@ pub fn view(app: &App, home: bool) -> El<'_> {
     let h = (20.0 + est_lines(app, width) as f32 * 23.25).clamp(54.0, 220.0);
     let sugs = suggestions(app);
     let sug_open = !sugs.is_empty();
-    let placeholder = if home { "Pergunte ou peça algo ao Orion. / para comandos, @ para citar uma nota" } else { "Responder ao Orion" };
+    let placeholder = if home { crate::i18n::text("Pergunte ou peça algo ao Orion. / para comandos, @ para citar uma nota") } else { crate::i18n::text("Responder ao Orion") };
     let editor = text_editor(&app.composer)
         .placeholder(placeholder)
         .on_action(Msg::Edit)
@@ -76,7 +76,7 @@ pub fn view(app: &App, home: bool) -> El<'_> {
         })
         .style(|_, _| text_editor::Style { background: Background::Color(iced::Color::TRANSPARENT), border: Border::default(), placeholder: t::FG3, value: t::FG, selection: t::ACCENT_SOFT });
 
-    let mut foot = row![tip(ib("plus", Some(Msg::Attach), false), "Anexar imagem, texto, PDF ou áudio (até 20 MB)")].spacing(2).align_y(Vertical::Center);
+    let mut foot = row![tip(ib("plus", Some(Msg::Attach), false), crate::i18n::text("Anexar texto, Markdown ou PDF (até 6 MB)"))].spacing(2).align_y(Vertical::Center);
     for (i, a) in app.attach.iter().enumerate() {
         foot = foot.push(
             container(row![icon("file", 14.0, t::FG2), tx(a.0.clone(), 12.0, t::FG2), tx(a.1.clone(), 12.0, t::FG3), button(icon("close", 14.0, t::FG3)).padding(0).on_press(Msg::Unattach(i)).style(|_, _| button::Style::default())].spacing(6).align_y(Vertical::Center))
@@ -87,8 +87,8 @@ pub fn view(app: &App, home: bool) -> El<'_> {
         );
     }
     foot = foot.push(grow());
-    foot = foot.push(tip(ib("mic", Some(Msg::Mic), false), "Falar (clique para gravar)"));
-    foot = foot.push(tip(ib("wave", Some(Msg::Live), app.voice), "Voz ao vivo"));
+    foot = foot.push(tip(ib("mic", Some(Msg::Mic), false), crate::i18n::text("Falar (clique para gravar)")));
+    foot = foot.push(tip(ib("wave", Some(Msg::Live), app.voice), crate::i18n::text("Voz ao vivo")));
     let has_text = !app.draft().trim().is_empty();
     let send: El = if busy {
         send_btn(stop_square(14.0, t::PRIMARY_INK).into(), Some(Msg::Stop), true)

@@ -35,6 +35,7 @@ pub struct Endpoint {
     pub base_url: String,
     pub model: String,
     pub api_key: Option<String>,
+    /// Espera pela primeira saída e limite de inatividade entre partes do stream.
     pub timeout_s: f64,
     /// Camada de roteamento: "rapido", "pesado", "visao", "local" ou vazio (padrão).
     pub tier: String,
@@ -90,13 +91,28 @@ pub struct EndpointStats {
     pub orcamento: u64,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct ToolCallRequest {
     pub id: String,
     pub name: String,
     pub arguments: Map<String, Value>,
     /// Argumentos que não são JSON válido.
     pub error: Option<String>,
+    /// Metadado opaco do Gemini, devolvido só ao mesmo provedor; não autoriza ferramentas.
+    pub thought_signature: Option<String>,
+}
+impl std::fmt::Debug for ToolCallRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ToolCallRequest").field("id", &self.id).field("name", &self.name).field("arguments", &self.arguments).field("error", &self.error).field("thought_signature", &self.thought_signature.as_ref().map(|_| "[oculta]")).finish()
+    }
+}
+impl ToolCallRequest {
+    /// Só o transporte preserva a assinatura (REGRAS.md: conteúdo externo é dado).
+    pub fn assistant_call(&self) -> Value {
+        let mut call = json!({"id":self.id,"type":"function","function":{"name":self.name,"arguments":orion_policy::pyjson::dumps_ascii(&Value::Object(self.arguments.clone()),false)}});
+        if let Some(signature) = &self.thought_signature { call["extra_content"] = json!({"google":{"thought_signature":signature}}); }
+        call
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -117,6 +133,22 @@ impl GatewayError {
     fn new(m: impl Into<String>) -> Self {
         GatewayError { mensagem: m.into(), tentativas: vec![] }
     }
+
+    /// Códigos úteis ao administrador, sem corpo HTTP, URL, chave ou texto enviado
+    /// (REGRAS.md: segredos nunca em log, audit ou processo filho).
+    pub fn diagnostic(&self) -> String {
+        if self.tentativas.is_empty() { return self.mensagem.clone(); }
+        self.tentativas.iter().take(8).map(|(name, error)| {
+            let name: String = name.chars().filter(|c| c.is_ascii_alphanumeric() || "_.:-".contains(*c)).take(48).collect();
+            let code = error.split(':').next().unwrap_or("");
+            let safe = if code.strip_prefix("HTTP ").is_some_and(|status| status.len() == 3 && status.bytes().all(|c| c.is_ascii_digit())) {
+                code
+            } else if ["ReadTimeout", "ConnectTimeout", "HeadersTimeout", "FirstTokenTimeout", "StreamIdleTimeout", "ConnectError", "RemoteProtocolError", "HTTPError", "resposta vazia"].contains(&code) {
+                code
+            } else if error.starts_with("em ") { "Cooldown" } else { "BudgetOrEndpointError" };
+            format!("{name}: {safe}")
+        }).collect::<Vec<_>>().join("; ")
+    }
 }
 
 pub type EventStream<'a> = Pin<Box<dyn Stream<Item = Result<Event, GatewayError>> + Send + 'a>>;
@@ -133,7 +165,9 @@ struct Estado {
 }
 
 pub struct ChatGateway {
-    pub endpoints: Vec<Endpoint>,
+    endpoints: parking_lot::RwLock<Vec<Endpoint>>,
+    /// A troca de configuração espera o término do turno atual (REGRAS.md: portabilidade).
+    pub configuration: tokio::sync::RwLock<()>,
     client: reqwest::Client,
     cooldown_s: f64,
     estado: Mutex<Estado>,
@@ -166,7 +200,7 @@ enum Falha {
 
 impl ChatGateway {
     pub fn new(endpoints: Vec<Endpoint>) -> anyhow::Result<Self> {
-        Self::with_client(endpoints, reqwest::Client::builder().build()?, 60.0)
+        Self::with_client(endpoints, reqwest::Client::builder().connect_timeout(Duration::from_secs(15)).build()?, 60.0)
     }
 
     pub fn with_client(endpoints: Vec<Endpoint>, client: reqwest::Client, cooldown_s: f64) -> anyhow::Result<Self> {
@@ -175,15 +209,41 @@ impl ChatGateway {
         for ep in &endpoints {
             estado.stats.insert(ep.name.clone(), EndpointStats::default());
         }
-        Ok(ChatGateway { endpoints, client, cooldown_s, estado: Mutex::new(estado), weekly_budget: Mutex::new(None), orcamento: Mutex::new(None), embedded_local: Mutex::new(None) })
+        Ok(ChatGateway { endpoints: parking_lot::RwLock::new(endpoints), configuration: tokio::sync::RwLock::new(()), client, cooldown_s, estado: Mutex::new(estado), weekly_budget: Mutex::new(None), orcamento: Mutex::new(None), embedded_local: Mutex::new(None) })
+    }
+
+    pub fn unconfigured() -> anyhow::Result<Self> {
+        let gateway = Self::new(vec![Endpoint::new("unconfigured", "", "")])?;
+        gateway.endpoints.write().clear();
+        gateway.estado.lock().stats.clear();
+        Ok(gateway)
+    }
+
+    pub fn endpoint_snapshot(&self) -> Vec<Endpoint> { self.endpoints.read().clone() }
+
+    pub fn configured(&self) -> bool { !self.endpoints.read().is_empty() }
+
+    pub async fn configure(&self, endpoints: Vec<Endpoint>) {
+        let _turn = self.configuration.write().await;
+        let mut current = self.endpoints.write();
+        let mut state = self.estado.lock();
+        for endpoint in &endpoints {
+            let stats = state.stats.entry(endpoint.name.clone()).or_default();
+            stats.ultimo_erro = None;
+            stats.seguidas = 0;
+            state.quarentena.remove(&endpoint.name);
+            state.motivo.remove(&endpoint.name);
+        }
+        *current = endpoints;
     }
 
     /// Um objeto por endpoint, na ordem de tentativa (para o painel). Nunca mostra segredo
     /// (REGRAS.md: painel só lê e nunca mostra segredo).
     pub fn stats(&self) -> Vec<Value> {
+        let endpoints = self.endpoints.read();
         let st = self.estado.lock();
         let agora = Instant::now();
-        self.endpoints
+        endpoints
             .iter()
             .map(|ep| {
                 let s = st.stats.get(&ep.name).cloned().unwrap_or_default();
@@ -212,8 +272,9 @@ impl ChatGateway {
     /// Quem tentar, em ordem: os da camada pedida, depois os padrão (reserva). Sem camada, só os
     /// padrão; se não houver padrão, todos. O local sempre por último.
     fn ordem(&self, tier: Option<&str>) -> Vec<Endpoint> {
-        let locais: Vec<&Endpoint> = self.endpoints.iter().filter(|e| e.tier == CAMADA_LOCAL).collect();
-        let remotos: Vec<&Endpoint> = self.endpoints.iter().filter(|e| e.tier != CAMADA_LOCAL).collect();
+        let endpoints = self.endpoints.read();
+        let locais: Vec<&Endpoint> = endpoints.iter().filter(|e| e.tier == CAMADA_LOCAL).collect();
+        let remotos: Vec<&Endpoint> = endpoints.iter().filter(|e| e.tier != CAMADA_LOCAL).collect();
         let padrao: Vec<&Endpoint> = remotos.iter().copied().filter(|e| e.tier.is_empty()).collect();
         let proprios: Vec<&Endpoint> = remotos.iter().copied().filter(|e| tier.is_some_and(|t| !t.is_empty() && e.tier == t)).collect();
         let mut base: Vec<&Endpoint> = proprios.into_iter().chain(padrao).collect();
@@ -319,12 +380,13 @@ impl ChatGateway {
                         s.ok += 1;
                         s.seguidas = 0;
                         s.ultimo_ok = Some(agora_epoch());
+                        s.ultimo_erro = None;
                         return;
                     }
                     Some(Falha::Antes(e)) => {
                         let tipo = e.split(':').next().unwrap_or("").to_string();
                         self.falhou(&ep, &tipo, e.starts_with("HTTP 429"));
-                        tracing::warn!("endpoint {} falhou, tentando o próximo: {}", ep.name, tipo);
+                        tracing::warn!(elapsed_ms = inicio.elapsed().as_millis() as u64, bytes_in, "endpoint {} falhou, tentando o próximo: {}", ep.name, tipo);
                         tentativas.push((ep.name.clone(), e));
                     }
                     Some(Falha::Transporte(e)) => {
@@ -334,7 +396,7 @@ impl ChatGateway {
                             yield Err(GatewayError::new(format!("{} interrompeu no meio da resposta: {e}", ep.name)));
                             return;
                         }
-                        tracing::warn!("endpoint {} falhou, tentando o próximo: {}", ep.name, tipo);
+                        tracing::warn!(elapsed_ms = inicio.elapsed().as_millis() as u64, bytes_in, "endpoint {} falhou, tentando o próximo: {}", ep.name, tipo);
                         tentativas.push((ep.name.clone(), e));
                     }
                 }
@@ -394,24 +456,45 @@ impl ChatGateway {
                 return;
             }
             let mut corpo = json!({"model": ep.model, "messages": msgs, "stream": true});
+            let google = ep.provedor == "gemini" || reqwest::Url::parse(&ep.base_url).ok().and_then(|url| url.host_str().map(str::to_owned)).as_deref() == Some("generativelanguage.googleapis.com");
+            // O chat rápido usa raciocínio baixo; a camada pesada mantém o padrão do modelo.
+            if google && ep.tier != "pesado" && (ep.model.starts_with("gemini-3") || ep.model.starts_with("gemini-2.5")) {
+                corpo["reasoning_effort"] = json!("low");
+            }
+            if !google {
+                for message in corpo["messages"].as_array_mut().into_iter().flatten() {
+                    for call in message.get_mut("tool_calls").and_then(Value::as_array_mut).into_iter().flatten() {
+                        if call.pointer("/extra_content/google/thought_signature").is_some() {
+                            if let Some(object) = call.as_object_mut() { object.remove("extra_content"); }
+                        }
+                    }
+                }
+            }
             if let Some(t) = tools.filter(|t| !t.is_empty() && ep.tools) {
                 corpo["tools"] = Value::Array(t.to_vec());
             }
             let corpo_txt = corpo.to_string();
             *bytes_out = corpo_txt.len();
             let url = format!("{}/chat/completions", ep.base_url.trim_end_matches('/'));
+            // Um prazo total abortava até respostas que continuavam chegando. Limite a
+            // primeira saída e cada intervalo sem dados, preservando streams ativos.
+            let wait = Duration::from_secs_f64(ep.timeout_s);
+            let first_deadline = tokio::time::Instant::now() + wait;
             let mut req = self
                 .client
                 .post(&url)
                 .header("content-type", "application/json")
-                .timeout(Duration::from_secs_f64(ep.timeout_s))
                 .body(corpo_txt);
             if let Some(k) = &ep.api_key {
                 req = req.bearer_auth(k);
             }
-            let resp = match req.send().await {
-                Ok(r) => r,
-                Err(e) => {
+            let resp = match tokio::time::timeout_at(first_deadline, req.send()).await {
+                Err(_) => {
+                    yield Err(Falha::Transporte("HeadersTimeout".into()));
+                    return;
+                }
+                Ok(Ok(r)) => r,
+                Ok(Err(e)) => {
                     yield Err(Falha::Transporte(format!("{}: {}", tipo_erro(&e), e.without_url())));
                     return;
                 }
@@ -419,7 +502,7 @@ impl ChatGateway {
             let status = resp.status().as_u16();
             if status >= 400 {
                 let retry = resp.headers().get("retry-after").and_then(|v| v.to_str().ok()).map(String::from);
-                let corpo = resp.text().await.unwrap_or_default();
+                let corpo = tokio::time::timeout(wait, resp.text()).await.ok().and_then(Result::ok).unwrap_or_default();
                 *bytes_in = corpo.len();
                 if status == 429 {
                     let espera = retry_after(retry.as_deref(), self.cooldown_s);
@@ -432,17 +515,23 @@ impl ChatGateway {
                 yield Err(Falha::Antes(format!("HTTP {status}: {curto}")));
                 return;
             }
-            let mut chamadas: BTreeMap<i64, (String, String, String)> = BTreeMap::new();
+            let mut chamadas: BTreeMap<i64, (String, String, String, Option<String>)> = BTreeMap::new();
             let mut razao = "stop".to_string();
             let mut houve_saida = false;
             let mut bytes = resp.bytes_stream();
             let mut buffer: Vec<u8> = vec![];
             let mut fim = false;
             while !fim {
-                let pedaco = match bytes.next().await {
-                    None => break,
-                    Some(Ok(b)) => b,
-                    Some(Err(e)) => {
+                let started = houve_saida || !chamadas.is_empty();
+                let deadline = if started { tokio::time::Instant::now() + wait } else { first_deadline };
+                let pedaco = match tokio::time::timeout_at(deadline, bytes.next()).await {
+                    Err(_) => {
+                        yield Err(Falha::Transporte(if started { "StreamIdleTimeout" } else { "FirstTokenTimeout" }.into()));
+                        return;
+                    }
+                    Ok(None) => break,
+                    Ok(Some(Ok(b))) => b,
+                    Ok(Some(Err(e))) => {
                         yield Err(Falha::Transporte(format!("{}: {}", tipo_erro(&e), e.without_url())));
                         return;
                     }
@@ -476,6 +565,9 @@ impl ChatGateway {
                             if let Some(id) = tc.get("id").and_then(Value::as_str).filter(|s| !s.is_empty()) {
                                 slot.0 = id.to_string();
                             }
+                            if let Some(signature) = tc.pointer("/extra_content/google/thought_signature").and_then(Value::as_str) {
+                                slot.3 = Some(signature.to_string());
+                            }
                             let f = tc.get("function").cloned().unwrap_or(Value::Null);
                             slot.1.push_str(f.get("name").and_then(Value::as_str).unwrap_or(""));
                             slot.2.push_str(f.get("arguments").and_then(Value::as_str).unwrap_or(""));
@@ -490,8 +582,10 @@ impl ChatGateway {
                 yield Err(Falha::Antes("resposta vazia".into()));
                 return;
             }
-            for (i, (id, nome, args)) in chamadas {
-                yield Ok(Event::ToolCall(tool_call(i, id, nome, &args)));
+            for (i, (id, nome, args, signature)) in chamadas {
+                let mut call = tool_call(i, id, nome, &args);
+                call.thought_signature = signature;
+                yield Ok(Event::ToolCall(call));
             }
             yield Ok(Event::Finish { reason: razao, endpoint: ep.name.clone(), model: ep.model.clone() });
         })
@@ -499,7 +593,9 @@ impl ChatGateway {
 }
 
 fn tipo_erro(e: &reqwest::Error) -> &'static str {
-    if e.is_timeout() {
+    if e.is_timeout() && e.is_connect() {
+        "ConnectTimeout"
+    } else if e.is_timeout() {
         "ReadTimeout"
     } else if e.is_connect() {
         "ConnectError"
@@ -514,11 +610,11 @@ fn tool_call(indice: i64, id: String, nome: String, args: &str) -> ToolCallReque
     let ident = if id.is_empty() { format!("call_{indice}") } else { id };
     let texto = if args.is_empty() { "{}" } else { args };
     match serde_json::from_str::<Value>(texto) {
-        Ok(Value::Object(m)) => ToolCallRequest { id: ident, name: nome, arguments: m, error: None },
+        Ok(Value::Object(m)) => ToolCallRequest { id: ident, name: nome, arguments: m, error: None, thought_signature: None },
         Ok(_) => {
-            ToolCallRequest { id: ident, name: nome, arguments: Map::new(), error: Some("argumentos inválidos: argumentos não são um objeto JSON".into()) }
+            ToolCallRequest { id: ident, name: nome, arguments: Map::new(), error: Some("argumentos inválidos: argumentos não são um objeto JSON".into()), thought_signature: None }
         }
-        Err(e) => ToolCallRequest { id: ident, name: nome, arguments: Map::new(), error: Some(format!("argumentos inválidos: {e}")) },
+        Err(e) => ToolCallRequest { id: ident, name: nome, arguments: Map::new(), error: Some(format!("argumentos inválidos: {e}")), thought_signature: None },
     }
 }
 
@@ -559,7 +655,7 @@ mod embedded_tests {
         ep.tools = false;
         let gateway = ChatGateway::new(vec![ep]).unwrap();
         *gateway.embedded_local.lock() = Some(Arc::new(|_| {
-            Box::pin(futures::stream::iter([Ok(Event::ToolCall(ToolCallRequest { id: "x".into(), name: "executar".into(), arguments: Map::new(), error: None }))]))
+            Box::pin(futures::stream::iter([Ok(Event::ToolCall(ToolCallRequest { id: "x".into(), name: "executar".into(), arguments: Map::new(), error: None, thought_signature: None }))]))
         }));
         assert!(gateway.complete(vec![json!({"role":"user","content":"teste"})]).await.is_err());
     }

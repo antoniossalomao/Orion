@@ -1,5 +1,6 @@
-name: Windows App (CPU, sem testes)
-# Só compila e empacota o app para testar a interface no Windows: sem testes, sem Vulkan e sem modelo de IA.
+name: Windows App (orion.exe, GPU automática)
+# Só compila e empacota o app: wgpu com GPU real, tiny-skia para adaptador de CPU.
+# Sem testes, sem Vulkan para IA local e sem modelo de IA.
 # O modelo pesado baixa pelo instalador; as chaves de API (Gemini, Cerebras...) valem sem modelo local.
 # Só manual (workflow_dispatch), como manda o ADR 0007: o CI automático segue pausado.
 # O botão "Run workflow" só aparece depois que este arquivo estiver na branch principal.
@@ -70,16 +71,20 @@ jobs:
           Copy-Item "$bin\orion.exe" pacote\
           if ($env:LLAMA -eq 'true') { Copy-Item "$bin\orion-llama.exe" pacote\ }
           @(
-            "Orion (teste da interface no Windows)",
+            "Orion portátil (teste da interface no Windows)",
+            "Este pacote não instala o Orion. O assistente dentro do app configura o primeiro uso.",
+            "Orion Setup.exe, Vulkan e SQLCipher ficam para um teste posterior.",
             "Perfil: $env:PERFIL | Banco cifrado: $env:CIFRA | orion-llama: $env:LLAMA",
+            "Interface: GPU automática (wgpu); tiny-skia se só houver adaptador de CPU.",
             "",
             "Rode orion.exe. O Windows pode avisar 'app não reconhecido' (SmartScreen) porque o executável não é assinado:",
             "clique em Mais informações e depois em Executar assim mesmo.",
             "Sem banco cifrado, desmarque 'Cifrar meu banco' no passo de segurança do primeiro uso.",
-            "Para conversar, cole uma chave de API em Configurações (Gemini e Cerebras têm cota grátis)."
+            "Para conversar, cole uma chave de API no primeiro uso ou em Configurações > Modelos; a chave vale sem reabrir.",
+            "Logs: %APPDATA%\orion\logs (Configurações > Sistema > Mostrar avançado > Abrir pasta de logs)."
           ) | Set-Content -Encoding utf8 pacote\LEIA-ME.txt
       - uses: actions/upload-artifact@v7
         with:
-          name: Orion-Windows-CPU
+          name: Orion-Windows-App
           path: Orion_Rust/pacote
           if-no-files-found: error

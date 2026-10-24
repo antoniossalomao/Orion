@@ -28,3 +28,5 @@ pub mod views;
 pub mod snap;
 
 pub mod onboarding;
+
+pub mod i18n;

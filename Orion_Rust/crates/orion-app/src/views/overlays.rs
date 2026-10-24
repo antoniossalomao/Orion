@@ -36,24 +36,24 @@ pub fn pal_items(app: &App) -> Vec<PalItem> {
         }
     }
     let mut acts: Vec<PalItem> = vec![
-        PalItem { icon: "plus", title: "Nova conversa".into(), group: "Ação".into(), msg: Msg::NewChat },
-        PalItem { icon: "gear", title: "Configurações".into(), group: "Ação".into(), msg: Msg::OpenSettings(None) },
-        PalItem { icon: "inbox", title: "Captura rápida".into(), group: "Ação · Ctrl + Alt + O".into(), msg: Msg::QcapOpen },
-        PalItem { icon: "scan", title: "Isso? (capturar a tela)".into(), group: "Ação · Ctrl + Alt + I".into(), msg: Msg::IssoOpen },
-        PalItem { icon: "bolt", title: if app.p.auto { "Desligar modo autônomo".into() } else { "Ligar modo autônomo".into() }, group: "Ação".into(), msg: Msg::Toggle("auto") },
+        PalItem { icon: "plus", title: crate::i18n::text("Nova conversa").into(), group: crate::i18n::text("Ação").into(), msg: Msg::NewChat },
+        PalItem { icon: "gear", title: crate::i18n::text("Configurações").into(), group: crate::i18n::text("Ação").into(), msg: Msg::OpenSettings(None) },
+        PalItem { icon: "inbox", title: crate::i18n::text("Captura rápida").into(), group: crate::i18n::text("Ação · Ctrl + Alt + O").into(), msg: Msg::QcapOpen },
+        PalItem { icon: "scan", title: crate::i18n::text("Isso? (capturar a tela)").into(), group: crate::i18n::text("Ação · Ctrl + Alt + I").into(), msg: Msg::IssoOpen },
+        PalItem { icon: "bolt", title: if app.p.auto { crate::i18n::text("Desligar modo autônomo").into() } else { crate::i18n::text("Ligar modo autônomo").into() }, group: crate::i18n::text("Ação").into(), msg: Msg::Toggle("auto") },
     ];
     let nav: [(View, &str, &str); 11] = [
-        (View::Projetos, "folder", "Projetos"),
-        (View::Memoria, "graph", "Memória"),
-        (View::Aprovacoes, "shield", "Aprovações"),
-        (View::Rotinas, "clock", "Rotinas"),
-        (View::Resultados, "result", "Resultados"),
-        (View::Nuvem, "cloud", "Segundo plano"),
-        (View::Fontes, "db", "Fontes"),
-        (View::Conhecimento, "book", "Conhecimento"),
-        (View::Painel, "gauge", "Painel"),
-        (View::Arquivadas, "archive", "Arquivadas"),
-        (View::Home, "plus", "Início"),
+        (View::Projetos, "folder", crate::i18n::text("Projetos")),
+        (View::Memoria, "graph", crate::i18n::text("Memória")),
+        (View::Aprovacoes, "shield", crate::i18n::text("Aprovações")),
+        (View::Rotinas, "clock", crate::i18n::text("Rotinas")),
+        (View::Resultados, "result", crate::i18n::text("Resultados")),
+        (View::Nuvem, "cloud", crate::i18n::text("Segundo plano")),
+        (View::Fontes, "db", crate::i18n::text("Fontes")),
+        (View::Conhecimento, "book", crate::i18n::text("Conhecimento")),
+        (View::Painel, "gauge", crate::i18n::text("Painel")),
+        (View::Arquivadas, "archive", crate::i18n::text("Arquivadas")),
+        (View::Home, "plus", crate::i18n::text("Início")),
     ];
     for (v, i, l) in nav.iter().take(10) {
         acts.push(PalItem { icon: i, title: format!("Ir para {l}"), group: "Ir para".into(), msg: Msg::Go(*v) });
@@ -81,7 +81,7 @@ fn scrim_box<'a>(inner: El<'a>, top: f32, bg: Color, close: Msg) -> El<'a> {
 pub fn palette(app: &App) -> El<'_> {
     let items = pal_items(app);
     let sel = app.pal.sel.min(items.len().saturating_sub(1));
-    let input = text_input("Buscar conversas e notas do vault", &app.pal.q)
+    let input = text_input(crate::i18n::text("Buscar conversas e notas do vault"), &app.pal.q)
         .on_input(Msg::PalQ)
         .on_submit(Msg::PalRun(sel))
         .size(15)
@@ -95,7 +95,7 @@ pub fn palette(app: &App) -> El<'_> {
     let head = container(row![icon("search", 16.0, t::FG3), input, kbd("Esc")].spacing(10).align_y(Vertical::Center)).padding(pad(0.0, 16.0, 0.0, 16.0));
     let mut list = column![].spacing(0);
     if items.is_empty() {
-        list = list.push(container(tx("Nada encontrado", 13.5, t::FG2)).padding(pad(8.0, 10.0, 8.0, 10.0)));
+        list = list.push(container(tx(crate::i18n::text("Nada encontrado"), 13.5, t::FG2)).padding(pad(8.0, 10.0, 8.0, 10.0)));
     }
     for (i, it) in items.iter().enumerate() {
         let on = i == sel;
@@ -114,7 +114,7 @@ pub fn palette(app: &App) -> El<'_> {
 
 pub fn quick_capture(app: &App) -> El<'_> {
     let q = app.qcap.as_ref().unwrap();
-    let input = text_input("Uma linha: tarefa, lembrete, gasto ou nota", &q.text)
+    let input = text_input(crate::i18n::text("Uma linha: tarefa, lembrete, gasto ou nota"), &q.text)
         .on_input(Msg::QcapText)
         .on_submit(Msg::QcapSave)
         .size(16)
@@ -126,21 +126,21 @@ pub fn quick_capture(app: &App) -> El<'_> {
             s
         });
     let head = container(row![icon("inbox", 16.0, t::FG3), input, kbd("Enter")].spacing(10).align_y(Vertical::Center)).padding(pad(0.0, 14.0, 0.0, 14.0));
-    let kinds = ["Tarefa", "Lembrete", "Gasto", "Nota"];
+    let kinds = [crate::i18n::text("Tarefa"), crate::i18n::text("Lembrete"), crate::i18n::text("Gasto"), crate::i18n::text("Nota")];
     let cur = match q.kind {
         CapKind::Tarefa => 0,
         CapKind::Lembrete => 1,
         CapKind::Gasto => 2,
         CapKind::Nota => 3,
     };
-    let foot = container(row![seg(&kinds, cur, Msg::QcapKind), grow(), tx("Vai para ", 12.0, t::FG3), txf("00 Inbox", 12.0, t::FG3, t::MONO), tx(" · Ctrl + Alt + O", 12.0, t::FG3)].spacing(6).align_y(Vertical::Center)).padding(pad(8.0, 12.0, 8.0, 12.0));
+    let foot = container(row![seg(&kinds, cur, Msg::QcapKind), grow(), tx(crate::i18n::text("Vai para "), 12.0, t::FG3), txf("00 Inbox", 12.0, t::FG3, t::MONO), tx(" · Ctrl + Alt + O", 12.0, t::FG3)].spacing(6).align_y(Vertical::Center)).padding(pad(8.0, 12.0, 8.0, 12.0));
     let boxed = container(column![head, hline(), foot]).width(Length::Fixed(620.0f32.min(app.win.width - 32.0))).clip(true).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: 16.0.into() }, shadow: shadow(), ..Default::default() });
     scrim_box(boxed.into(), app.win.height * 0.22, Color::from_rgba(0.0, 0.0, 0.0, 0.25), Msg::QcapClose)
 }
 
 pub fn auto_senha(app: &App) -> El<'_> {
     let v = app.auto_senha.as_deref().unwrap_or("");
-    let input = text_input("Sua senha", v)
+    let input = text_input(crate::i18n::text("Sua senha"), v)
         .on_input(Msg::AutoSenhaText)
         .on_submit(Msg::AutoSenhaOk)
         .secure(true)
@@ -148,10 +148,10 @@ pub fn auto_senha(app: &App) -> El<'_> {
         .font(t::UI)
         .padding(pad(12.0, 12.0, 12.0, 12.0));
     let corpo = column![
-        tx("Ligar o modo autônomo", 15.0, t::FG),
-        tx("Digite a senha de novo. Com o modo ligado o Orion segue sozinho em tarefas longas; ações que podem quebrar o PC ou o projeto continuam pedindo confirmação.", 12.0, t::FG3),
+        tx(crate::i18n::text("Ligar o modo autônomo"), 15.0, t::FG),
+        tx(crate::i18n::text("Digite a senha de novo. Com o modo ligado o Orion segue sozinho em tarefas longas; ações que podem quebrar o PC ou o projeto continuam pedindo confirmação."), 12.0, t::FG3),
         input,
-        row![grow(), btn("Cancelar", Kind::Normal, true, None, Some(Msg::AutoSenhaClose)), btn("Ligar", Kind::Primary, !v.is_empty(), None, Some(Msg::AutoSenhaOk))].spacing(8),
+        row![grow(), btn(crate::i18n::text("Cancelar"), Kind::Normal, true, None, Some(Msg::AutoSenhaClose)), btn(crate::i18n::text("Ligar"), Kind::Primary, !v.is_empty(), None, Some(Msg::AutoSenhaOk))].spacing(8),
     ]
     .spacing(12);
     let boxed = container(corpo).padding(pad(18.0, 18.0, 18.0, 18.0)).width(Length::Fixed(440.0f32.min(app.win.width - 32.0))).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: 16.0.into() }, shadow: shadow(), ..Default::default() });
@@ -167,13 +167,13 @@ pub fn isso(app: &App) -> El<'_> {
     let around: El = column![dim(w, y), row![dim(x, sh), sp_w(sw), dim(w - x - sw, sh)], dim(w, h - y - sh)].into();
     let sel = container(sp_w(0.0)).width(Length::Fixed(sw)).height(Length::Fixed(sh)).style(|_| container::Style { background: Some(t::alpha(t::PRIMARY, 0.08).into()), border: Border { color: t::PRIMARY, width: 1.5, radius: 4.0.into() }, ..Default::default() });
     let sel_pos = container(sel).padding(pad(y, 0.0, 0.0, x));
-    let hint = container(container(tx("Arraste para escolher a área · Esc cancela · Ctrl + Alt + I", 12.5, t::FG2)).padding(pad(6.0, 12.0, 6.0, 12.0)).style(surface(Some(t::RAISE), Some(t::LINE2), 999.0))).width(Length::Fill).center_x(Length::Fill).padding(pad(18.0, 0.0, 0.0, 0.0));
-    let input = text_input("O que é isso? (Enter pergunta)", &i.q).on_input(Msg::IssoQ).on_submit(Msg::IssoAsk).size(13.5).font(t::UI).padding(pad(8.0, 10.0, 8.0, 10.0)).style(field_style(t::BG, t::LINE2, t::LINE3, 9.0));
+    let hint = container(container(tx(crate::i18n::text("Arraste para escolher a área · Esc cancela · Ctrl + Alt + I"), 12.5, t::FG2)).padding(pad(6.0, 12.0, 6.0, 12.0)).style(surface(Some(t::RAISE), Some(t::LINE2), 999.0))).width(Length::Fill).center_x(Length::Fill).padding(pad(18.0, 0.0, 0.0, 0.0));
+    let input = text_input(crate::i18n::text("O que é isso? (Enter pergunta)"), &i.q).on_input(Msg::IssoQ).on_submit(Msg::IssoAsk).size(13.5).font(t::UI).padding(pad(8.0, 10.0, 8.0, 10.0)).style(field_style(t::BG, t::LINE2, t::LINE3, 9.0));
     let mut ask = column![input].spacing(8);
     if i.answered {
-        ask = ask.push(txf("É o painel de RAM do Orion: 296 MB em uso, com o índice vetorial em mmap ocupando a maior parte. Nada fora do normal.", 15.0, t::FG, t::SERIF).line_height(iced::widget::text::LineHeight::Relative(1.55)));
+        ask = ask.push(txf(crate::i18n::text("É o painel de RAM do Orion: 296 MB em uso, com o índice vetorial em mmap ocupando a maior parte. Nada fora do normal."), 15.0, t::FG, t::SERIF).line_height(iced::widget::text::LineHeight::Relative(1.55)));
     }
-    ask = ask.push(row![grow(), btn("Fechar", Kind::Ghost, true, None, Some(Msg::IssoClose)), btn("Levar para o chat", Kind::Normal, true, None, Some(Msg::Toast("Captura anexada a uma conversa nova (simulado)".into())))].spacing(6));
+    ask = ask.push(row![grow(), btn(crate::i18n::text("Fechar"), Kind::Ghost, true, None, Some(Msg::IssoClose)), btn(crate::i18n::text("Levar para o chat"), Kind::Normal, true, None, Some(Msg::Toast(crate::i18n::text("Captura anexada a uma conversa nova (simulado)").into())))].spacing(6));
     let ask_box = container(ask).width(Length::Fixed(420.0f32.min(w - 32.0))).padding(10).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: 14.0.into() }, shadow: shadow(), ..Default::default() });
     let ask_pos = container(ask_box).padding(pad((y + sh + 10.0).min(h - 170.0), 0.0, 0.0, x.min(w - 436.0)));
     let base = container(sp_w(0.0)).width(Length::Fill).height(Length::Fill).style(|_| container::Style { background: Some(Color::from_rgba(0.0, 0.0, 0.0, 0.45).into()), ..Default::default() });
@@ -196,7 +196,7 @@ impl canvas::Program<Msg> for IslandSky {
 
 pub fn island(app: &App) -> El<'_> {
     let _ = app;
-    let pill = container(row![cv(IslandSky).width(72).height(32), tx("Ouvindo… diga “Orion” ou bata duas palmas", 13.0, t::FG2), tip(ib("close", Some(Msg::Live), false), "Parar de ouvir")].spacing(12).align_y(Vertical::Center))
+    let pill = container(row![cv(IslandSky).width(72).height(32), tx(crate::i18n::text("Ouvindo… diga “Orion” ou bata duas palmas"), 13.0, t::FG2), tip(ib("close", Some(Msg::Live), false), crate::i18n::text("Parar de ouvir"))].spacing(12).align_y(Vertical::Center))
         .height(Length::Fixed(44.0))
         .padding(pad(0.0, 8.0, 0.0, 10.0))
         .style(|_| container::Style { background: Some(t::ISLAND_BG.into()), border: Border { color: t::LINE2, width: 1.0, radius: 999.0.into() }, shadow: shadow(), ..Default::default() });
@@ -204,11 +204,12 @@ pub fn island(app: &App) -> El<'_> {
 }
 
 pub fn caption<'a>() -> El<'a> {
-    let c = container(tx("— Orion, quanto de RAM o app está usando agora?", 16.0, Color::WHITE)).padding(pad(8.0, 16.0, 8.0, 16.0)).style(|_| container::Style { background: Some(Color::from_rgba(0.0, 0.0, 0.0, 0.78).into()), border: Border { radius: 10.0.into(), ..Default::default() }, ..Default::default() });
+    let c = container(tx(crate::i18n::text("— Orion, quanto de RAM o app está usando agora?"), 16.0, Color::WHITE)).padding(pad(8.0, 16.0, 8.0, 16.0)).style(|_| container::Style { background: Some(Color::from_rgba(0.0, 0.0, 0.0, 0.78).into()), border: Border { radius: 10.0.into(), ..Default::default() }, ..Default::default() });
     container(c).width(Length::Fill).height(Length::Fill).center_x(Length::Fill).align_y(Vertical::Bottom).padding(pad(0.0, 0.0, 28.0, 0.0)).into()
 }
 
 pub fn toast<'a>(msg: String) -> El<'a> {
+    let msg = crate::i18n::status(&msg);
     let p = crate::anim::TOAST.get();
     let c = container(tx(msg, 13.0, t::alpha(t::PRIMARY_INK, p))).padding(pad(8.0, 14.0, 8.0, 14.0)).style(move |_| container::Style { background: Some(t::alpha(t::PRIMARY, p).into()), border: Border { radius: 10.0.into(), ..Default::default() }, shadow: shadow(), ..Default::default() });
     container(c).width(Length::Fill).height(Length::Fill).center_x(Length::Fill).align_y(Vertical::Bottom).padding(pad(0.0, 0.0, 20.0 - 6.0 * (1.0 - p), 0.0)).into()

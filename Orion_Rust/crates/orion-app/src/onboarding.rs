@@ -31,6 +31,7 @@ pub enum Field {
     DriveClient,
     DriveSecret,
     ImportPath,
+    Attachment,
     ImportKind,
     ImportSource,
     ImportProject,
@@ -69,10 +70,13 @@ impl std::fmt::Debug for Event {
     }
 }
 
-/// Quadro do céu na proporção do painel esquerdo, em ~60% da resolução (o céu é macio).
+/// Quadro estático na resolução do painel com GPU; software usa resolução reduzida
+/// (REGRAS.md: portabilidade). Só muda ao redimensionar ou trocar de etapa.
 fn sky_px(win: iced::Size) -> (u32, u32) {
-    let (w, h) = ((win.width - 761.0).max(200.0) / 1.6, win.height.max(300.0) / 1.6);
-    let k = (800.0 / w.max(h)).min(1.0);
+    let hardware = std::env::var("ICED_BACKEND").is_ok_and(|backend| backend == "wgpu");
+    let scale = if hardware { 1.0 } else { 1.6 };
+    let (w, h) = ((win.width - 761.0).max(200.0) / scale, win.height.max(300.0) / scale);
+    let k = ((if hardware { 1600.0 } else { 800.0 }) / w.max(h)).min(1.0);
     ((w * k) as u32, (h * k) as u32)
 }
 
@@ -229,6 +233,7 @@ impl Form {
             Field::TelegramUsers => &self.telegram_users,
             Field::DriveClient => &self.drive_client,
             Field::DriveSecret => &self.drive_secret,
+            Field::Attachment => "",
             Field::ImportPath => &self.import_path,
             Field::ImportKind => &self.import_kind,
             Field::ImportSource => &self.import_source,
@@ -251,6 +256,7 @@ impl Form {
             Field::TelegramUsers => &mut self.telegram_users,
             Field::DriveClient => &mut self.drive_client,
             Field::DriveSecret => &mut self.drive_secret,
+            Field::Attachment => return,
             Field::ImportPath => &mut self.import_path,
             Field::ImportKind => &mut self.import_kind,
             Field::ImportSource => &mut self.import_source,
@@ -347,6 +353,7 @@ impl crate::app::App {
                 Ok(()) if form.step + 1 < STEPS => {
                     form.error.clear();
                     form.step += 1;
+                    form.settle_sky(form.step, self.win);
                     form.step_at = std::time::Instant::now();
                 }
                 Ok(()) => {}
@@ -355,6 +362,7 @@ impl crate::app::App {
             Event::Back if !form.busy && form.testing.is_none() && form.step > 0 => {
                 form.error.clear();
                 form.step -= 1;
+                form.settle_sky(form.step, self.win);
                 form.step_at = std::time::Instant::now();
             }
             Event::CancelDrive => {
@@ -408,11 +416,13 @@ impl crate::app::App {
                     return Task::none();
                 };
                 form.busy = true;
+                self.loading = Some("Criando sua conta…".into());
                 form.error.clear();
                 let body = form.take_request();
                 return Task::perform(async move { api.configurar(body).await }, |r| Msg::Onboarding(Event::Saved(r)));
             }
             Event::Saved(Ok(done)) => {
+                self.loading = None;
                 form.busy = false;
                 form.password.zeroize();
                 form.confirmation.zeroize();
@@ -440,6 +450,7 @@ impl crate::app::App {
                 }
             }
             Event::Saved(Err(e)) => {
+                self.loading = None;
                 form.busy = false;
                 form.error = e;
             }
@@ -576,20 +587,23 @@ pub fn open_link(url: &str) {
     let _ = system_command("open").arg(url).spawn();
 }
 
-fn choose(field: Field) -> Result<Option<String>, String> {
+pub fn choose(field: Field) -> Result<Option<String>, String> {
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
-        let script = if field == Field::ImportPath {
+        let script = if field == Field::Attachment {
+            "Add-Type -AssemblyName System.Windows.Forms; $d=New-Object System.Windows.Forms.OpenFileDialog; $d.Title='Anexar documento ao chat'; $d.Filter='Documentos (*.txt;*.md;*.pdf)|*.txt;*.md;*.pdf'; if($d.ShowDialog() -eq 'OK'){[Console]::OutputEncoding=[Text.Encoding]::UTF8; [Console]::Write($d.FileName)}"
+        } else if field == Field::ImportPath {
             "Add-Type -AssemblyName System.Windows.Forms; $d=New-Object System.Windows.Forms.OpenFileDialog; $d.Filter='Exports e plugins (*.json;*.jsonl;*.zip;*.toml)|*.json;*.jsonl;*.zip;*.toml'; if($d.ShowDialog() -eq 'OK'){[Console]::OutputEncoding=[Text.Encoding]::UTF8; [Console]::Write($d.FileName)}"
         } else if field == Field::Recovery {
             "Add-Type -AssemblyName System.Windows.Forms; $d=New-Object System.Windows.Forms.SaveFileDialog; $d.Title='Salvar recuperação do Orion'; $d.Filter='Arquivo de texto (*.txt)|*.txt'; $d.FileName='Orion-recuperacao.txt'; if($d.ShowDialog() -eq 'OK'){[Console]::OutputEncoding=[Text.Encoding]::UTF8; [Console]::Write($d.FileName)}"
         } else {
             "Add-Type -AssemblyName System.Windows.Forms; $d=New-Object System.Windows.Forms.FolderBrowserDialog; $d.Description='Escolha uma pasta para o Orion'; if($d.ShowDialog() -eq 'OK'){[Console]::OutputEncoding=[Text.Encoding]::UTF8; [Console]::Write($d.SelectedPath)}"
         };
+        let script = ["Anexar documento ao chat", "Documentos", "Salvar recuperação do Orion", "Arquivo de texto", "Escolha uma pasta para o Orion", "Exports e plugins"].iter().fold(script.to_string(), |script, label| script.replace(label, crate::i18n::text(label)));
         let output = system_command("powershell.exe")
             .creation_flags(0x08000000)
-            .args(["-NoProfile", "-STA", "-Command", script])
+            .args(["-NoProfile", "-STA", "-Command", &script])
             .output()
             .map_err(|_| "Não foi possível abrir o seletor; digite o caminho completo.".to_string())?;
         if !output.status.success() {

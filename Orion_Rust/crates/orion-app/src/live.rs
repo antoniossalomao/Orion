@@ -10,6 +10,12 @@ use serde_json::{json, Value};
 #[derive(Debug, Clone)]
 pub enum Lm {
     Boot(Result<bool, String>),
+    Initialized(Result<(), String>),
+    LanguageSaved(Result<(), String>),
+    Attached(u64, Result<Option<Value>, String>),
+    ArtifactList(String, Result<Value, String>),
+    ArtifactSaved(Result<Value, String>),
+    ArtifactDetail(String, Result<Value, String>),
     Login(Result<LoginResult, String>),
     /// Resultado de abrir o banco cifrado com a senha digitada.
     Desbloqueado(Result<(), String>),
@@ -32,6 +38,7 @@ pub enum Lm {
     Budget(Result<Value, String>),
     Modo(Result<Value, String>),
     Grafo(Result<Value, String>),
+    GraphReady(Result<crate::graph::Prepared, String>),
     Mcp(Result<Value, String>),
     Skills(Result<Value, String>),
     Tarefas(Result<Value, String>),
@@ -425,23 +432,31 @@ impl App {
         a.term_out.clear();
         a.p.proj = 99;
         a.mem = crate::graph::Graph::empty();
+        if let Some(profile) = api.perfil() { a.user = s(&profile, "user").to_string(); a.p.english = s(&profile, "language") == "en"; }
         if let Some(defaults) = api.primeiro_uso() {
             a.onboarding = Some(crate::onboarding::Form::new(defaults));
             a.api = Some(api);
             return (a, Task::none());
         }
-        let t = { let api2 = api.clone(); Task::perform(async move { api2.health().await?; Ok(api2.auth_ok().await) }, |r| Msg::L(Lm::Boot(r))) };
+        a.loading = Some("Preparando o Orion…".into());
+        let t = { let api2 = api.clone(); Task::perform(async move { api2.initialize().await }, |r| Msg::L(Lm::Initialized(r))) };
         if api.bloqueado() {
             a.db_locked = true;
             a.gate_err = "Digite a senha do Orion para abrir.".into();
             a.api = Some(api);
-            return (a, Task::none());
+            return (a, t);
         }
         a.api = Some(api);
         a.gate_err = "Conectando ao servidor…".into();
         (a, t)
     }
 
+    fn artifact_query(&self) -> String {
+        let Some(project) = self.conv.and_then(|i| self.convs.get(i)).and_then(|c| self.projects.iter().find(|p| p.n == c.proj)) else { return String::new() };
+        let mut url = reqwest::Url::parse("http://127.0.0.1").unwrap();
+        url.query_pairs_mut().append_pair("project_id", &project.id);
+        format!("?{}", url.query().unwrap_or(""))
+    }
     pub fn session_id(&self) -> Option<String> {
         self.conv.and_then(|i| self.convs.get(i)).map(|c| c.id.clone())
     }
@@ -450,12 +465,17 @@ impl App {
     pub fn live_before(&mut self, msg: &Msg) -> Option<(Task<Msg>, bool)> {
         let api = self.api.clone()?;
         match msg {
+            Msg::Pick("lang", value) => {
+                let language = if *value == 1 { "en" } else { "pt-BR" };
+                Some((Task::perform(async move { api.post("/config/language", json!({"language":language})).await.map(|_| ()) }, |result| Msg::L(Lm::LanguageSaved(result))), true))
+            }
             Msg::LoginCancel => {
                 if let Some(ch)=self.challenge.take(){api.cancelar_entrada(&ch);}
                 self.pw.clear();self.gate_err.clear();
                 Some((Task::none(),false))
             }
             Msg::Hello => {
+                self.loading = Some("Confirmando Windows Hello…".into());
                 self.gate_err="Confirme no Windows Hello…".into();
                 Some((Task::perform(async move{api.hello().await},|r|Msg::L(Lm::Desbloqueado(r))),false))
             }
@@ -465,8 +485,10 @@ impl App {
                 }
                 let pw = std::mem::take(&mut self.pw);
                 if self.db_locked && self.challenge.is_none() {
+                    self.loading = Some("Verificando senha e abrindo os dados…".into());
                     self.gate_err = "Abrindo…".into();
-                    return Some((Task::perform(async move { api.entrar(pw).await }, |r| Msg::L(Lm::Login(r))), false));
+                    let usuario = self.user.clone();
+                    return Some((Task::perform(async move { api.entrar_usuario(usuario, pw).await }, |r| Msg::L(Lm::Login(r))), false));
                 }
                 self.gate_err = "Entrando…".into();
                 if let Some(ch) = self.challenge.clone() {
@@ -483,8 +505,43 @@ impl App {
             // O modo real nunca usa amostras nem recibos de gravação do protótipo
             // (REGRAS.md: você é o administrador).
             Msg::Attach => {
-                self.toast("Anexos ainda não estão disponíveis nesta versão. Nenhum arquivo foi anexado.");
-                Some((Task::none(), false))
+                if self.attaching || self.streaming.is_some() || self.attachment_ids.len() >= 8 { return Some((Task::none(), false)); }
+                self.attaching = true;
+                let generation = self.attachment_generation;
+                let project = self.conv.and_then(|index| self.convs.get(index)).and_then(|conversation| self.projects.iter().find(|project| project.n == conversation.proj)).or_else(|| self.conv.is_none().then(|| self.projects.get(self.p.proj)).flatten()).map(|project| project.id.clone()).filter(|id| !id.is_empty());
+                Some((Task::perform(async move {
+                    let selected = tokio::task::spawn_blocking(move || {
+                        use std::io::Read;
+                        let Some(path) = crate::onboarding::choose(crate::onboarding::Field::Attachment)? else { return Ok(None) };
+                        let path = std::path::PathBuf::from(path);
+                        let name = path.file_name().ok_or("Nome de arquivo inválido")?.to_string_lossy().to_string();
+                        let file = std::fs::File::open(&path).map_err(|e| e.to_string())?;
+                        if !file.metadata().map_err(|e| e.to_string())?.is_file() { return Err("Escolha um arquivo.".to_string()); }
+                        let mut bytes = vec![];
+                        file.take(6 * 1024 * 1024 + 1).read_to_end(&mut bytes).map_err(|e| e.to_string())?;
+                        if bytes.is_empty() || bytes.len() > 6 * 1024 * 1024 { return Err("Documento vazio ou maior que 6 MB.".into()); }
+                        Ok(Some((name, bytes)))
+                    }).await.map_err(|e| e.to_string())??;
+                    let Some((name, bytes)) = selected else { return Ok(None) };
+                    let mut value = api.upload_document(name, project.clone(), bytes).await?;
+                    let id = s(&value, "id").to_string();
+                    if id.is_empty() { return Err("Resposta de upload inválida.".into()); }
+                    let mut detail = reqwest::Url::parse(&format!("http://127.0.0.1/documents/{id}")).map_err(|error| error.to_string())?;
+                    if let Some(project) = project { detail.query_pairs_mut().append_pair("project_id", &project); }
+                    let detail = format!("{}{}", detail.path(), detail.query().map(|query| format!("?{query}")).unwrap_or_default());
+                    // Confirma a extração antes do recibo (REGRAS.md: conteúdo externo é dado).
+                    for attempt in 0..=120 {
+                        match s(&value, "status") {
+                            "ready" => return Ok(Some(value)),
+                            "failed" => return Err("Não foi possível extrair o documento.".into()),
+                            _ => {},
+                        }
+                        if attempt == 120 { break; }
+                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                        value = api.get(&detail).await?;
+                    }
+                    Err("O documento ainda está sendo processado. Tente anexá-lo novamente em instantes.".into())
+                }, move |r| Msg::L(Lm::Attached(generation, r))), false))
             }
             Msg::EditorOpen(_) | Msg::EditorSave => {
                 self.toast("O editor do vault ainda não está ligado ao núcleo. Nenhuma nota foi alterada.");
@@ -509,6 +566,32 @@ impl App {
                 );
                 let _ = loaded;
                 Some((t, true))
+            }
+            Msg::CtxTab(crate::app::CtxTab::Artefatos) => {
+                let sid = self.session_id()?;
+                self.artifact_detail = None;
+                let query = self.artifact_query();
+                Some((Task::perform(async move { api.get(&format!("/artifacts{query}")).await }, move |r| Msg::L(Lm::ArtifactList(sid.clone(), r))), true))
+            }
+            Msg::ArtifactRead(id, version) => {
+                let session = self.session_id()?;
+                let query = self.artifact_query();
+                let path = format!("/artifacts/{id}{query}{}version={version}", if query.is_empty() { "?" } else { "&" });
+                Some((Task::perform(async move { api.get(&path).await }, move |r| Msg::L(Lm::ArtifactDetail(session.clone(), r))), false))
+            }
+            Msg::ArtifactRecord(index) | Msg::ArtifactUpdate(index, _) => {
+                if self.artifact_busy { return Some((Task::none(), false)); }
+                let c = self.conv.and_then(|i| self.convs.get(i))?;
+                let (lang, body) = crate::views::ctx::artifacts(c).into_iter().nth(*index)?;
+                let title = format!("Artefato {}", index + 1);
+                let existing = self.artifact_records.iter().find(|a| a["session_id"] == c.id && match msg { Msg::ArtifactUpdate(_, id) => a["id"] == *id, _ => a["title"] == title });
+                let title = existing.and_then(|a| a["title"].as_str()).unwrap_or(&title).to_string();
+                let (path, expected) = match existing { Some(a) => (format!("/artifacts/{}/versions", s(a,"id")), a["version"].as_i64()), None => ("/artifacts".into(), None) };
+                let kind = if matches!(lang.as_str(), "md" | "markdown" | "") { "markdown" } else { "code" };
+                let payload = json!({"title":title,"kind":kind,"content":body,"session_id":c.id,"language":lang,"expected_version":expected});
+                let path = format!("{path}{}", self.artifact_query());
+                self.artifact_busy = true;
+                Some((Task::perform(async move { api.post(&path, payload).await }, |r| Msg::L(Lm::ArtifactSaved(r))), false))
             }
             Msg::Go(v) => Some((pull_page(&api, *v), true)),
             Msg::Poll => {
@@ -702,6 +785,8 @@ impl App {
 
     /// Envia o texto para o servidor (cria a conversa se preciso) e abre o fluxo SSE.
     pub fn live_send(&mut self, text: String) -> Task<Msg> {
+        if self.pending_send.is_some() { return Task::none(); }
+        if self.attaching { self.toast("Espere o documento terminar de anexar."); return Task::none(); }
         let Some(api) = self.api.clone() else { return Task::none() };
         match self.conv.filter(|_| self.view == View::Chat) {
             Some(ci) => self.start_chat(ci, text),
@@ -728,7 +813,8 @@ impl App {
         self.streaming = Some(crate::app::Stream { conv: ci, words: 0, total: usize::MAX });
         self.composer = iced::widget::text_editor::Content::new();
         self.attach.clear();
-        let (task, handle) = Task::run(api.stream("/chat", json!({"texto": text, "canal": "web"})), |e| Msg::L(Lm::Chat(e))).abortable();
+        let attachments = std::mem::take(&mut self.attachment_ids);
+        let (task, handle) = Task::run(api.stream("/chat", json!({"texto": text, "canal": "web", "anexos": attachments})), |e| Msg::L(Lm::Chat(e))).abortable();
         self.abort = Some(handle);
         task
     }
@@ -754,7 +840,38 @@ impl App {
 
     pub fn lm(&mut self, m: Lm) -> Task<Msg> {
         let now = now_secs();
+        if matches!(&m, Lm::Login(_) | Lm::Desbloqueado(_) | Lm::TwoFactor(_)) { self.loading = None; }
         match m {
+            Lm::LanguageSaved(result) => { if let Err(error) = result { self.toast(error); } },
+            Lm::ArtifactList(session, result) => {
+                if self.session_id().as_deref() != Some(session.as_str()) { return Task::none(); }
+                match result { Ok(value) => self.artifact_records = value.as_array().cloned().unwrap_or_default(), Err(error) => self.toast(error) }
+            }
+            Lm::ArtifactSaved(result) => {
+                self.artifact_busy = false;
+                match result {
+                    Ok(value) => { self.artifact_records.retain(|a| a["id"] != value["id"]); self.artifact_records.push(value); self.toast("Versão do artefato guardada."); },
+                    Err(error) => self.toast(error),
+                }
+            }
+            Lm::ArtifactDetail(session, result) => {
+                if self.session_id().as_deref() != Some(session.as_str()) { return Task::none(); }
+                match result { Ok(value) => self.artifact_detail = Some(value), Err(error) => self.toast(error) }
+            },
+            Lm::Attached(generation, result) => {
+                self.attaching = false;
+                if generation != self.attachment_generation { return Task::none(); }
+                match result {
+                    Ok(Some(value)) => { self.attachment_ids.push(s(&value, "id").into()); self.attach.push((s(&value, "name").into(), s(&value, "kind").into())); self.toast("Documento anexado. O texto será enviado com sua próxima mensagem."); }
+                    Ok(None) => {}, Err(error) => self.toast(error),
+                }
+            }
+            Lm::Initialized(result) => {
+                self.loading = None;
+                if let Err(error) = result { self.gate_err = error; return Task::none(); }
+                if self.db_locked { return Task::none(); }
+                if let Some(api) = self.api.clone() { return Task::perform(async move { api.health().await?; Ok(api.auth_ok().await) }, |r| Msg::L(Lm::Boot(r))); }
+            }
             Lm::Boot(r) => match r {
                 Ok(true) => {
                     self.logged = true;
@@ -898,10 +1015,10 @@ impl App {
                 }
             }
             Lm::KeySaved(r) => match r {
-                Ok(_) => {
+                Ok(value) => {
                     if let Some(f) = self.key_form.take() {
                         self.keys.insert(f.nome.clone(), true);
-                        self.toast(format!("Chave de {} guardada no cofre. Reabra o Orion para usar.", f.label));
+                        self.toast(if value["reiniciar"] == true { format!("Chave de {} guardada no cofre. Reabra o Orion para usar esta integração.", f.label) } else { format!("Chave de {} guardada no cofre e disponível para uso.", f.label) });
                     }
                 }
                 Err(e) => {
@@ -986,8 +1103,9 @@ impl App {
                 Ok(v) => self.locais = map_modelos(&v),
                 Err(e) => self.net_fail(e),
             },
+            Lm::GraphReady(result) => match result { Ok(graph) => self.mem = crate::graph::Graph::from_prepared(graph), Err(error) => self.toast(error) },
             Lm::Grafo(r) => match r {
-                Ok(v) => self.mem = crate::graph::Graph::from_server(&v),
+                Ok(v) => return Task::perform(async move { tokio::task::spawn_blocking(move || crate::graph::Graph::prepare(&v)).await.map_err(|e| e.to_string()) }, |result| Msg::L(Lm::GraphReady(result))),
                 Err(e) => self.net_fail(e),
             },
             Lm::Acao(r, reload) => match r {
@@ -1147,7 +1265,7 @@ impl App {
                 } else {
                     o.body.push_str("\n\n");
                 }
-                o.body.push_str(&format!("**Erro:** {e}"));
+                o.body.push_str(&format!("**{}:** {}", crate::i18n::text("Erro"), crate::i18n::status(&e)));
                 self.toast(e);
             }
             Chat::Done { .. } => {

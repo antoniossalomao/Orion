@@ -14,7 +14,7 @@ pub fn view(app: &App) -> El<'_> {
         belt_fg(false),
         txf("Orion".to_string(), 15.0, t::FG, t::SERIF),
         Space::new().width(Length::Fill),
-        btn("Abrir o Orion", Kind::Normal, true, None, Some(Msg::Mini(false))),
+        btn(crate::i18n::text("Abrir o Orion"), Kind::Normal, true, None, Some(Msg::Mini(false))),
         ib_wh("close", 34.0, 30.0, 16.0, Some(Msg::CloseWindow), t::DANGER, Color::WHITE),
     ]
     .spacing(10)
@@ -31,9 +31,9 @@ pub fn view(app: &App) -> El<'_> {
         Some(q) => {
             let pct = q.get("percent").and_then(|x| x.as_f64()).unwrap_or(0.0) as f32;
             let (u, cap) = (q.get("used").and_then(|x| x.as_i64()).unwrap_or(0), q.get("weekly_calls").and_then(|x| x.as_i64()).unwrap_or(0));
-            row![tx(format!("{} · {u} de {cap}", q.get("provider").and_then(|x| x.as_str()).unwrap_or("uso")), 11.5, t::FG3), container(meter(pct, 3.0, if pct >= 100.0 { t::DANGER } else { t::FG2 })).width(Length::Fixed(120.0))].spacing(10).align_y(iced::alignment::Vertical::Center).into()
+            row![tx(crate::i18n::formatted("{} · {u} de {cap}", format!("{} · {u} de {cap}", q.get("provider").and_then(|x| x.as_str()).unwrap_or("uso"))), 11.5, t::FG3), container(meter(pct, 3.0, if pct >= 100.0 { t::DANGER } else { t::FG2 })).width(Length::Fixed(120.0))].spacing(10).align_y(iced::alignment::Vertical::Center).into()
         }
-        None => tx("Uso: sem cotas configuradas", 11.5, t::FG3).into(),
+        None => tx(crate::i18n::text("Uso: sem cotas configuradas"), 11.5, t::FG3).into(),
     };
 
     let mut col = column![topo, composer::view(app, false)].spacing(10);

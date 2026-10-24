@@ -43,7 +43,10 @@ pub fn sync_anim(app: &App) {
 }
 
 pub fn root(app: &App) -> El<'_> {
-    let base: El = if app.onboarding.is_some() { onboarding::view(app) } else if !app.logged { login::view(app) } else if app.mini { mini::view(app) } else { shell(app) };
+    let base: El = if let Some(message) = &app.loading {
+        container(column![belt_fg(false), txf("Orion", 34.0, t::FG, t::SERIF), tx(crate::i18n::status(message), 14.0, t::FG2)].spacing(18).align_x(iced::alignment::Horizontal::Center)).width(Length::Fill).height(Length::Fill).center_x(Length::Fill).center_y(Length::Fill).into()
+    } else if app.onboarding.is_some() { onboarding::view(app) } else if !app.logged { login::view(app) } else if app.mini { mini::view(app) } else { shell(app) };
+    let base = if !app.logged || app.onboarding.is_some() { column![topbar::gate(), base].height(Length::Fill).into() } else { base };
     let mut layers: Vec<El> = vec![base];
     if app.logged {
         if app.drawer && app.is_drawer_mode() {
