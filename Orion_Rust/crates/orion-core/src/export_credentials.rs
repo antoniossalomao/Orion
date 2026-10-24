@@ -5,6 +5,9 @@ use orion_store::Store;
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::sync::Arc;
+use std::collections::{HashMap, VecDeque};
+use std::time::{Duration, Instant};
+use parking_lot::Mutex;
 
 pub const PERMISSOES: [&str; 4] = ["search", "facts", "sources", "artifacts"];
 
@@ -14,11 +17,12 @@ pub struct ExportError(pub String);
 
 pub struct ExportCredentials {
     memory: Arc<Store>,
+    requests: Mutex<HashMap<String, VecDeque<Instant>>>,
 }
 
 impl ExportCredentials {
     pub fn new(memory: Arc<Store>) -> Self {
-        ExportCredentials { memory }
+        ExportCredentials { memory, requests: Mutex::new(HashMap::new()) }
     }
 
     pub fn emitir(&self, name: &str, project_id: Option<&str>, permissions: &[String], lifetime_hours: i64) -> Result<Value, (u16, String)> {
@@ -73,6 +77,19 @@ impl ExportCredentials {
 
     pub fn revogar(&self, id: &str) -> Result<bool, orion_store::StoreError> {
         self.memory.tx(|c| Ok(c.execute("UPDATE export_clients SET revoked=1 WHERE id=?", [id])? == 1))
+    }
+
+    /// Cada cliente tem sua própria janela, além do teto global da política;
+    /// só IDs internos entram em memória (REGRAS.md: segredos nunca em log, audit ou processo filho).
+    pub fn allow_request(&self, client_id: &str) -> bool {
+        let now = Instant::now();
+        let mut requests = self.requests.lock();
+        requests.retain(|_, times| times.back().is_some_and(|last| now.duration_since(*last) < Duration::from_secs(60)));
+        let times = requests.entry(client_id.to_owned()).or_default();
+        while times.front().is_some_and(|first| now.duration_since(*first) >= Duration::from_secs(60)) { times.pop_front(); }
+        if times.len() >= 60 { return false; }
+        times.push_back(now);
+        true
     }
 
     /// A linha do cliente (`id`, `project_id`, `permissions`...) ou `PermissionError` (como texto).

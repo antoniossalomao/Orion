@@ -1,4 +1,4 @@
-name: Windows App (orion.exe, GPU automática)
+name: Windows App e instalador (GPU automática)
 # Só compila e empacota o app: wgpu com GPU real, tiny-skia para adaptador de CPU.
 # Sem testes, sem Vulkan para IA local e sem modelo de IA.
 # O modelo pesado baixa pelo instalador; as chaves de API (Gemini, Cerebras...) valem sem modelo local.
@@ -21,6 +21,10 @@ on:
         description: "Incluir o orion-llama.exe (modelos locais; compila o llama.cpp e demora mais)"
         type: boolean
         default: false
+      instalador:
+        description: "Incluir Orion Setup.exe e pacote offline do app (sem baixar modelos)"
+        type: boolean
+        default: false
 concurrency:
   group: windows-app-cpu-${{ github.ref }}
   cancel-in-progress: true
@@ -39,6 +43,7 @@ jobs:
       PERFIL: ${{ inputs.perfil || 'release' }}
       CIFRA: ${{ inputs.cifra && 'true' || 'false' }}
       LLAMA: ${{ inputs.llama && 'true' || 'false' }}
+      INSTALADOR: ${{ inputs.instalador && 'true' || 'false' }}
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -58,6 +63,7 @@ jobs:
         shell: pwsh
         run: |
           $a = @('build', '--locked', '-p', 'orion-server')
+          if ($env:INSTALADOR -eq 'true') { $a += @('-p', 'orion-setup') }
           if ($env:LLAMA -eq 'true') { $a += @('-p', 'orion-llama') }
           if ($env:CIFRA -eq 'true') { $a += @('--features', 'orion-server/sqlcipher') }
           if ($env:PERFIL -eq 'release') { $a += '--release' }
@@ -70,19 +76,36 @@ jobs:
           New-Item -ItemType Directory -Force pacote | Out-Null
           Copy-Item "$bin\orion.exe" pacote\
           if ($env:LLAMA -eq 'true') { Copy-Item "$bin\orion-llama.exe" pacote\ }
+          if ($env:INSTALADOR -eq 'true') {
+            New-Item -ItemType Directory -Force pacote\cpu | Out-Null
+            Copy-Item "$bin\orion-setup.exe" 'pacote\Orion Setup.exe'
+            Copy-Item "$bin\orion.exe" pacote\cpu\
+            if ($env:LLAMA -eq 'true') { Copy-Item "$bin\orion-llama.exe" pacote\cpu\ }
+          }
           @(
-            "Orion portátil (teste da interface no Windows)",
-            "Este pacote não instala o Orion. O assistente dentro do app configura o primeiro uso.",
-            "Orion Setup.exe, Vulkan e SQLCipher ficam para um teste posterior.",
-            "Perfil: $env:PERFIL | Banco cifrado: $env:CIFRA | orion-llama: $env:LLAMA",
+            "Orion para Windows: app com GPU automática",
+            "Perfil: $env:PERFIL | Banco cifrado: $env:CIFRA | Instalador: $env:INSTALADOR | orion-llama: $env:LLAMA",
             "Interface: GPU automática (wgpu); tiny-skia se só houver adaptador de CPU.",
+            "Nenhum peso de modelo local vem neste pacote e nenhum modelo é baixado pelo build.",
             "",
+            $(if ($env:INSTALADOR -eq 'true') { 'Para instalar, extraia TODO o pacote, mantenha a pasta cpu junto e execute Orion Setup.exe. Para usar somente APIs, deixe todos os modelos locais, voz e Vulkan desmarcados.' } else { 'Pacote portátil: execute orion.exe; o assistente dentro do app configura o primeiro uso.' }),
             "Rode orion.exe. O Windows pode avisar 'app não reconhecido' (SmartScreen) porque o executável não é assinado:",
             "clique em Mais informações e depois em Executar assim mesmo.",
             "Sem banco cifrado, desmarque 'Cifrar meu banco' no passo de segurança do primeiro uso.",
             "Para conversar, cole uma chave de API no primeiro uso ou em Configurações > Modelos; a chave vale sem reabrir.",
             "Logs: %APPDATA%\orion\logs (Configurações > Sistema > Mostrar avançado > Abrir pasta de logs)."
           ) | Set-Content -Encoding utf8 pacote\LEIA-ME.txt
+          if ($env:INSTALADOR -eq 'true' -and (!(Test-Path 'pacote\Orion Setup.exe') -or !(Test-Path pacote\cpu\orion.exe))) {
+            throw 'Pacote do instalador incompleto'
+          }
+          if ($env:LLAMA -ne 'true' -and (Get-ChildItem pacote -Recurse -Filter orion-llama.exe)) {
+            throw 'Worker local incluído sem seleção'
+          }
+          Get-ChildItem pacote -Recurse -File | Where-Object Name -ne 'SHA256SUMS.txt' | ForEach-Object {
+            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            $relative = [IO.Path]::GetRelativePath((Resolve-Path pacote), $_.FullName)
+            "$hash  $relative"
+          } | Set-Content -Encoding utf8 pacote\SHA256SUMS.txt
       - uses: actions/upload-artifact@v7
         with:
           name: Orion-Windows-App

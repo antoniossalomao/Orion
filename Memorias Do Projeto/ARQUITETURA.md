@@ -75,7 +75,7 @@ O front HTML/CSS/JS antigo (`Orion_Core/Front_end_Orion/`) e a rota `/ui` foram 
 
 - **Agora:** a interface é o `orion-app` (iced), rodando dentro de `orion.exe` com o núcleo no mesmo processo; a UI chama as rotas por `Api::local`, sem socket. Mini barra, bandeja e atalhos globais (Ctrl+Alt+Espaço, Ctrl+Alt+P) vêm de `orion-platform`. Os launchers pywebview antigos foram removidos.
 - **Decisão:** só desktop, sem versão para celular. O celular fica no Telegram.
-- **Destino:** iced (Rust), tema único Grafite escuro, conforme [ORION_UI_ESPECIFICACAO.md](ORION_UI_ESPECIFICACAO.md). As três opções antigas de tema estão superadas; o grafo nativo wgpu ainda está pendente.
+- **Destino:** iced (Rust), tema único Grafite escuro, conforme [ORION_UI_ESPECIFICACAO.md](ORION_UI_ESPECIFICACAO.md). As três opções antigas de tema estão superadas; o renderer de grafo 3D wgpu ainda está pendente. A experiência atual usa canvas 2D do iced.
 
 A tela Vida (E10) e a legenda ao vivo (E11) existiam no front antigo, removido em 21/10/2026. No app iced a tela Vida foi cortada (21/10/2026) e a legenda é uma faixa estática de demonstração; os backends (`/vida/*`, `/foco`, `/legenda`) funcionam.
 
@@ -86,7 +86,7 @@ O alvo está atingido na estrutura: núcleo, API e UI em Rust, um executável, s
 | Crate existente | Papel real no PR | Limite atual |
 |---|---|---|
 | `orion-policy` | Classes, aprovações, audit, shell, caminhos e PII | 25 testes portados; `engine` e `injecao_invariantes` ainda sem teste Rust |
-| `orion-store` | SQLite v23, FTS5, vetores e backup | Sem SQLCipher/sqlite-vec; 60 testes de integração |
+| `orion-store` | SQLite, FTS5, vetores e backup; schema v24 no PR #55 (preferências/referências, feedback, fixadas, prompts e arquivamento seletivo) | SQLCipher por feature; restauração e dados reais ainda exigem aceite |
 | `orion-ai` | Gateway, APIs, CLIs diretas, router, embeddings remotos, cotas | Sem ACP/e5/BGE local; 84 testes de integração |
 | `orion-core` | Agente, ferramentas, auth, jobs, projetos, canais, visão, extensões e rotinas | Portes agrupados; 167 testes de integração, muitos contratos ainda sem paridade |
 | `orion-server` | CLI/API Axum, montagem dos serviços e `appmode` (núcleo no processo do app) | HTTP só com `--features http`; rotas sem testes próprios (há `appmode::tests`) |
@@ -97,7 +97,7 @@ O alvo está atingido na estrutura: núcleo, API e UI em Rust, um executável, s
 | `orion-llama` | Worker llama-cpp-2 CPU/Vulkan separado | Vulkan ainda sem build final validado; CPU real comprovada no CI |
 
 | `orion-vault` | Detecção/parser/scanner/busca em cache/Git e API explícita | Sem gravação automática, comparação de conflitos no chat ou índice incremental local completo |
-| `orion-app` | Interface iced (46 cenas, `orion-snap`), bandeja/mini barra, cliente `Api` (HTTP ou local) | Grafo 2D (3D wgpu pendente); sem Fluent; nunca rodou no Windows real |
+| `orion-app` | Interface iced, `orion-snap`, bandeja/mini barra, cliente `Api` (HTTP ou local), i18n Fluent pt-BR/en | Grafo 2D (3D wgpu pendente); testes de uso no Windows relataram problemas no R1, sem aceite final |
 | `orion-updater` | Feed minisign + SHA-256, `baixar_release`, `.bak`, rollback (`orion update`) | Falta chave, feed publicado e rollback automático |
 | `orion-testkit` | HTTP/embedder/relógio de teste | Somente dev-dependency |
 
@@ -131,9 +131,33 @@ Equivalências de plataforma (Windows | macOS): início automático (registro ou
 
 O app escolhe wgpu para GPU real e tiny-skia sem MSAA para adaptador de CPU. Assinaturas de animação só rodam durante transições/stream e param sem foco; a consulta da bandeja só emite eventos úteis. Geometrias e blocos de Markdown/LaTeX/Mermaid têm caches limitados, o layout do grafo roda fora da thread da UI e sensores medem as alturas das mensagens.
 
+**Grafo e casca FE-VIS (main `7ae8efd`, 24/10/2026):** `graph.rs` calcula na CPU um layout orgânico 2D com semeadura topológica, repulsão multiescala, molas por grau, gravidade e resolução de colisões; `OnceLock` reutiliza as coordenadas do vault. `views/memory.rs` mantém o cache de geometria já existente, filtra a vizinhança em 1/2 saltos e enquadra o desenho considerando o painel lateral. O canvas não passa a ser um renderer 3D e as posições não passam a ser persistidas por hash do commit. `app.rs` também suspende ticks em segundo plano; desempenho Windows ainda depende de medição. O commit altera a topbar estreita, badges, Terminal e selo de mensagem salva sem criar novas saídas de rede.
+
 `estado::load_providers` descobre chaves no cofre e persiste somente a lista/modelos no SQLite (`providers:configuration`). `ORION_PROVEDORES` explícito tem precedência. Salvar chave reconstrói os endpoints e espera o turno em andamento, preservando agente, auditoria e orçamento. Nenhuma chave entra na lista persistida. Gemini automático usa 3.8 Flash (cota gratuita documentada em 23/10); o antigo default exato 2.5 Flash migra ao abrir, sem tocar nas escolhas explícitas. O transporte retém `extra_content.google.thought_signature` de chamadas de ferramenta Gemini e a devolve somente ao provedor Google; o metadado é oculto em Debug e não altera autorização/política. Falhas no chat mostram códigos HTTP/transportes, sem corpo da resposta, URL ou chave; o painel mostra modelo e último erro e só marca ativo após sucesso.
 
 Documentos selecionados no chat esperam a extração assíncrona (até 120 s) antes de confirmar o anexo; falha ou limite de espera deixa erro visível. Usam a API de upload existente, com IDs validados no escopo do projeto e limite de texto por turno. Trechos são `ExternalData`, nunca instruções. A seleção é descartada ao trocar de conversa; resultado atrasado do upload não é anexado a outro chat. Artefatos do chat reutilizam a API SQLite de versões com `expected_version` para detectar conflito.
+
+### Contexto e preferências por projeto (24/10/2026)
+
+`orion-store::workspace` concentra a persistência nova do esquema v24. Preferências só guardam o nome de um endpoint já configurado e até 100 passos; não guardam chaves nem autorizações. `PUT` substitui as preferências; `null` restaura a herança (Auto e 25 passos). A prioridade explícita do pedido e a visão prevalecem sobre o padrão do projeto; local continua reserva.
+
+Contrato autenticado para a UI e para o modo HTTP opcional:
+
+| Rota | Contrato |
+|---|---|
+| `GET/PUT /projects/:id/settings` | `{model: string ou null, max_steps: 1..100 ou null}`; `inherited` distingue herança; modelo é o `nome` do endpoint no gateway, não uma credencial nem uma CLI |
+| `GET/PUT /projects/:id/references` | `{document_ids: [id]}`, até 8 documentos indexados do próprio projeto; substituição atômica |
+| `GET /prompt-commands?project_id=...` | Prompts do escopo; sem parâmetro, somente pessoais |
+| `PUT/DELETE /prompt-commands/:name?project_id=...` | `{prompt: string}`, até 6 mil caracteres; `{{args}}` recebe o argumento; nomes nativos reservados; não executa scripts |
+| `PUT /sessoes/:sid/mensagens/:mid/feedback` | `{rating: -1, 1 ou null}`; somente resposta do próprio canal/conversa, sem texto ou treino |
+| `PUT /sessoes/:sid/mensagens/:mid/pin` | `{pinned: bool}`; até 20 mensagens e 8 mil caracteres no total; bloqueado durante turno/aprovação |
+| `GET /sessoes/:id/contexto` | Fixadas, anotações, resumo, referências e preferências; `compacted` informa resumo existente; não busca arquivos arbitrários |
+| `GET /painel/resumo-diario?date=AAAA-MM-DD&project_id=...` | Dia no fuso local do app; contagens por projeto/pessoal. `actions` e `note_write_authorizations` contam decisões de autorização, sem afirmar execução/gravação |
+| `POST /db/maintenance` | `{operation: "vacuum" ou "rebuild_search"}`; trabalho fora da UI, sem apagar mensagens; não substitui backup ou restauração do vault |
+
+`Agent::fixed_context` relê referências/fixadas na entrada e na retomada. O texto segue delimitado como `ExternalData`; referências têm teto de 24 mil caracteres por turno, e nenhuma seleção concede ferramentas. A revisão do projeto invalida aprovações antigas. A consolidação confere novamente a origem após a espera pelo modelo. O resumo diário usa somente SQL, é deduplicado por escopo/data e recupera no máximo o dia anterior; VACUUM é semanal e espera dez minutos sem atividade registrada.
+
+O instalador aceita pacote CPU sem `orion-llama.exe` quando não há modelo/voz selecionados. O workflow manual pode empacotar `Orion Setup.exe`, app portátil e `cpu/orion.exe`, com hashes SHA-256, sem baixar pesos. O runtime do produto continua no processo, sem porta permanente; o modo HTTP foi usado somente na verificação descartável desta rodada.
 
 ### Primeiro uso nativo
 

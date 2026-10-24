@@ -3,7 +3,7 @@ type: recurso
 projeto: "[[Orion]]"
 tags: [orion, auditoria, pendencias, checklist]
 date: 2026-10-20
-revisao: 2026-10-21 (onboarding em tela cheia, céu compartilhado, CI Windows desativado, limpeza do repositório, front antigo removido, F00 avançada e testes/CI cancelados)
+revisao: 2026-10-24 (backend no PR 55, visual 7ae8efd da main e evidências FE-VIS conciliadas)
 resumo: "Pendências e decisões vigentes do Orion, com implementação, testes e aceite Windows separados; substitui os diagnósticos intermediários desta auditoria."
 ---
 
@@ -11,6 +11,55 @@ resumo: "Pendências e decisões vigentes do Orion, com implementação, testes 
 
 > Base: branch `claude/wizardly-bell-ynlfwv` (PR #30). Esta consolidação substitui as conclusões intermediárias da auditoria; o histórico permanece no Git. A fonte do estado é [ORION.md](ORION.md); os IDs e critérios ficam no [plano](ORION_PLANO_IMPLEMENTACAO.md). `ORION_LEGADO.md` é referência histórica.
 > Legenda: **[V]** depende do Antônio · **[W]** exige Windows/hardware real · **[C]** implementação · **[D]** decisão.
+
+## Rodada de backend — 24/10/2026
+
+Base `efb2cbc`, branch `codex/orion-backend-notion`. O backend foi separado do refinamento visual do Antigravity. Código de F19.13 foi reaproveitado e validado; sua tela de credenciais continua pendente, portanto o card não representa uma entrega completa. A revisão detalhada reabriu F04.09 ao encontrar aprovação truncada aceita pela API; a falha recebeu correção no servidor e na retomada, sem editar o núcleo imutável.
+
+| Card | Backend entregue ou comprovado | Restante do critério completo |
+|---|---|---|
+| F02.04 | VACUUM semanal em repouso, manutenção explícita e reconstrução de FTS sem expurgo | Recuperação integral a partir do vault e aceite operacional |
+| F03.21 | Avaliação -1/+1 removível, SQLite local e sem treino | Ligar os controles reais da UI |
+| F04.07 | Só falas elegíveis entram na consolidação; origem revalidada após a chamada | Sem dependência de hardware para esta regra |
+| F04.09 | Auditoria fail-closed existente; API/retomada recusam argumentos truncados; encerra tentativa sem repetição | Sem dependência de hardware para esta regra |
+| F04.19 | Resumo local por dia/escopo, deduplicado, aviso das 23:59 e recuperação de no máximo um dia | Exibição nativa e recibos reais de notas |
+| F04.24 | Fixadas sobrevivem à janela do histórico e ao resumo, inclusive na retomada | Cache de dez conversas e experiência completa de compactação |
+| F05.03 | CRUD de prompts por escopo e expansão `{{args}}` no chat | Editor/autocomplete da UI |
+| F05.14 | API de fixar/desafixar, teto de contexto e isolamento | Edição/ramos/fixação ligados aos controles nativos |
+| F05.18 | Metadados do projeto, validação do nome e mudança segura de escopo | Fluxo nativo completo, título automático conforme critério e exclusão com confirmação |
+| F05.19 | Exportação existente preservada, com título correto e histórico consistente | Ação nativa de salvar/exportar e aceite |
+| F05.20 | Retrato autenticado de contexto, fontes fixas, anotações e resumo | Painel nativo consumindo o contrato |
+| F05.22 | `compacted`/resumo disponíveis na API de contexto | Avisos na UI e estado de descarregamento de imagens |
+| F08.05 | Endpoint remoto padrão persistido por projeto, com fallback/cotas preservados | Seletores nativos e integração com preferências de CLIs |
+| F08.06 | Até 8 referências do projeto relidas como dados externos | Seleção e gestão nativas |
+| F08.07 | Modelo/passos sobrepõem o padrão; `null` herda; revisão invalida aprovações | Demais preferências e marca visual de herança |
+| F08.11 | Arquiva conversas e restaura só as automaticamente arquivadas; jobs já ignoram projetos arquivados | Mover nota no vault, rotinas concedidas e fluxo completo de Arquivadas |
+| F08.12 | Mudança simples de projeto validada; recusa ramos/artefatos/propostas; nome do projeto nos metadados | UI e tratamento explícito dos vínculos complexos |
+| F09.05 | API diária de conversas/tarefas/autorizações por escopo | Painel, recibos reais de notas e aceite visual |
+| F19.13 | Credenciais de leitura com hash, validade, permissões, revogação e escopo já existiam | Tela de emissão nativa |
+| F19.14 | Janela de 60 leituras/min por cliente, além do teto global; registro sem conteúdo | Sem dependência de hardware para esta regra |
+
+**Validação:** 550 testes existentes passaram; 61 checagens temporárias da API com banco descartável e provedor simulado; verificação temporária do domínio cobriu relógio/deduplicação, VACUUM sem perda e contaminação durante consolidação. Não foram criados testes no repositório nem reativado o CI automático. A janela/API de produção não foi aberta para fora, nenhum segredo real foi usado e o aceite Windows não foi declarado.
+
+**Distribuição:** Antônio autorizou app + instalador sem modelos após as duas frentes terminarem. Visual `7ae8efd` da main integrado sem conflitos ao [PR #55](https://github.com/antoniossalomao/Orion/pull/55), ainda aberto. Workflow manual preparado com `perfil=release`, `cifra=true`, `llama=false`, `instalador=true`; suíte conjunta em `f0082f1` aprovada (550 testes, 0 falhas, Rust 1.97.0/Linux) antes do disparo. Isso substitui a pausa de builds para este pedido específico, sem autorizar publicação de release/tag ou novos testes.
+
+**Resultado do pacote combinado:** Build manual [40128437375](https://github.com/antoniossalomao/Orion/actions/runs/40128437375) concluído com sucesso (35 min 50 s), fonte `222531ae26c0fe7d79ca1d07313d26eaf9f52bf7`. [Artefato Orion-Windows-App](https://github.com/antoniossalomao/Orion/actions/runs/40128437375/artifacts/12575110465), ZIP de 80.061.946 bytes, release/SQLCipher: `orion.exe`, `Orion Setup.exe`, `cpu/orion.exe`, `LEIA-ME.txt` e `SHA256SUMS.txt`. Download e conferência local: ZIP SHA-256 `9771977e03faaab8620a649c8d518c22881efa61c09c060f7b3435c2bb5b1442`, quatro hashes do manifesto correspondem aos arquivos, executáveis PE válidos e as duas cópias do app são idênticas. Sem worker ou pesos de modelos locais. Isso comprova compilação/estrutura do pacote, sem substituir instalação e uso no Windows.
+
+## Conciliação visual da main — 24/10/2026
+
+Fonte: [commit direto `7ae8efd` do Antigravity](https://github.com/antoniossalomao/Orion/commit/7ae8efd43bafa691711447e504ed80e79a9105de), 10 arquivos, integrado na branch do backend em `f0082f1`. A main contém o visual; o backend aguarda revisão do PR #55.
+
+| Frente | Alteração confirmada no diff | Limite da evidência |
+|---|---|---|
+| FE-VIS 02/03 — grafo | Forças multiescala, cache de coordenadas, colisões, rótulos, arestas por grau, vizinhança de 1/2 saltos e enquadramento com painel | Canvas 2D; renderer/layout 3D, persistência incremental e desempenho com 10 mil notas não entregues por esse commit |
+| FE-VIS 04/05 — casca | Badges sem quebra interna, divisória da gaveta, busca e controles de janela na topbar estreita | Tokens e controles iniciais do R1 reaproveitados; faixa branca/DWM e DPI Windows pendentes |
+| FE-VIS 06 — chat | Selo de mensagem salva ganha texto/check visíveis | Markdown/LaTeX/Mermaid e minimapa não foram alterados nesse commit; revisão de trabalho anterior |
+| FE-VIS 07 — editor/painel | Terminal ocupa altura disponível sem rolagem externa duplicada | Editor e preview não foram alterados nesse commit; revisão de trabalho anterior |
+| FE-VIS 08 — gestão | Projetos quebra a linha de badges e aumenta a altura dos cards | Não liga os novos contratos de preferências/referências de projetos à UI |
+| FE-VIS 09 — repouso | Tick suspenso em segundo plano; hover vazio evita invalidar o grafo | Cache de geometria e animação finita do login já existiam; CPU/GPU no notebook ainda sem medição desta rodada |
+| FE-VIS 01/10/11 — revisão | Antigravity registrou 48 capturas tiny-skia e 33 testes de orion-app | Capturas não incluídas no commit; resultados atribuídos ao executor, sem alegar reprodução ou aceite Windows pelo Codex |
+
+Notion: 9 cards FE-VIS concluídos, 05 e 11 em revisão; planejamento em revisão. Estados do executor preservados, com links para o commit e ressalvas de evidência. Notas de FE-VIS 06/07 citavam telas de outro escopo; a conciliação registra chat em 06, editor/painel em 07 e gestão em 08, preservando o histórico. Os 17 cards de backend ainda em revisão não foram concluídos pelo polimento. R1.09 continua bloqueado por reprodução no Windows; R1.08/R1.15 continuam dependentes de aceite/medição.
 
 ## 1. Estado vigente
 

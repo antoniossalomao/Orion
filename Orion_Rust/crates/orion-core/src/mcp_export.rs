@@ -49,6 +49,14 @@ impl Export {
 
     fn permitido(&self, ctx: &Ctx, permissao: &str, operacao: &str) -> Result<serde_json::Map<String, Value>, &'static str> {
         let row = self.identidade(ctx, Some(permissao))?;
+        if !self.creds.allow_request(row["id"].as_str().unwrap_or("")) {
+            let _ = orion_store::ops::Operations::new(self.memory.clone()).audit_add(&json!({
+                "session_id":format!("mcp-client:{}",row["id"].as_str().unwrap_or("")),
+                "tool":format!("mcp_export_{permissao}"),"action":"deny","risk":"read",
+                "reason":"export_client_rate_limited","args":{}
+            }));
+            return Err("export_client_rate_limited");
+        }
         let nome = format!("mcp_export_{permissao}");
         let mut c = Context::new(format!("mcp-client:{}", row["id"].as_str().unwrap_or("")));
         c.project_id = row["project_id"].as_str().map(String::from);

@@ -17,6 +17,7 @@ pub mod search;
 pub mod sessions;
 pub mod text;
 pub mod vectors;
+pub mod workspace;
 
 use parking_lot::{Mutex, ReentrantMutex, ReentrantMutexGuard};
 use rusqlite::{Connection, OptionalExtension};

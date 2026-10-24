@@ -310,12 +310,26 @@ impl ChatGateway {
     }
 
     pub fn stream_for_task<'a>(&'a self, messages: Vec<Value>, tools: Option<Vec<Value>>, tier: Option<&'a str>, task_id: String) -> EventStream<'a> {
+        self.stream_for_task_preferred(messages, tools, tier, task_id, None)
+    }
+
+    /// Preferência explícita de endpoint configurado; cotas, quarentena e fallback continuam
+    /// obrigatórios (REGRAS.md: custo zero (sem API paga)).
+    pub fn stream_for_task_preferred<'a>(&'a self, messages: Vec<Value>, tools: Option<Vec<Value>>, tier: Option<&'a str>, task_id: String, preferred: Option<&'a str>) -> EventStream<'a> {
         Box::pin(async_stream::stream! {
             let mut tentativas: Vec<(String, String)> = vec![];
             let mut ordem = vec![];
             let mut adiados = vec![];
             let orc = self.orcamento.lock().clone();
-            for ep in self.ordem(tier) {
+            let preferred_tier = if tier != Some("visao") {
+                self.endpoints.read().iter().find(|ep| Some(ep.name.as_str())==preferred && ep.tier != CAMADA_LOCAL).map(|ep|ep.tier.clone())
+            } else { None };
+            let mut candidates = self.ordem(preferred_tier.as_deref().or(tier));
+            if let Some(name) = preferred {
+                // Modelo local continua sendo apenas reserva, nunca promovido para nuvem.
+                candidates.sort_by_key(|ep| !(ep.name == name && ep.tier != CAMADA_LOCAL));
+            }
+            for ep in candidates {
                 if let Some(o) = &orc {
                     if !ep.provedor.is_empty() && !o(&ep) {
                         self.estado.lock().stats.entry(ep.name.clone()).or_default().orcamento += 1;
