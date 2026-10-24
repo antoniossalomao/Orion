@@ -17,6 +17,8 @@ resumo: "Plano de implementação em etapas do Orion em Rust, cobrindo todas as 
 
 > **Evidência de status:** `[~]` não distingue código incompleto de código aguardando aceite. Ao atualizar um item, informe **Implementação**, **Testes** (com comando/commit/resultado) e **Windows** (aceite ou pendência), além do próximo passo. Não reclassifique itens por esta revisão documental.
 
+> **Conciliação de 24/10/2026:** o visual FE-VIS entrou diretamente na main em [`7ae8efd`](https://github.com/antoniossalomao/Orion/commit/7ae8efd43bafa691711447e504ed80e79a9105de); backend e visual estão reunidos no [PR #55](https://github.com/antoniossalomao/Orion/pull/55), ainda aberto. No board: 9 FE-VIS concluídos, 05/11 e planejamento em revisão; backend com 3 critérios concluídos e 17 em revisão. Ver a matriz e os limites na [auditoria](ORION_AUDITORIA_PENDENCIAS.md). Build manual de app + instalador sem modelos autorizado pelo pedido posterior; aceite Windows permanece pendente.
+
 ## 0. Visão geral
 
 ### 0.1 Marcos
@@ -1011,7 +1013,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 
 ### F16: Grafo 3D da memória · tamanho **XL**
 
-> **Auditoria PR #30 (`2020015`): Parcial só nos dados.** Backend de grafo/parser e grafo WebGL existem; nenhum renderer/layout/compute nativo wgpu ou aceite de desempenho entregue.
+> **Histórico da auditoria PR #30 (`2020015`):** a entrega 3D estava parcial só nos dados. **Atualização FE-VIS de 24/10 (`7ae8efd`):** existe grafo nativo 2D em canvas iced, com layout de forças multiescala na CPU, cache de coordenadas, colisões, rótulos e grafo local real de 1/2 saltos. Isso avança a experiência atual sem cancelar o requisito 3D. Renderer/layout/compute 3D wgpu e aceite de desempenho continuam pendentes.
 
 **Objetivo:** a visualização do vault em 3D, como a do Obsidian, sobre o céu do Orion, com **wgpu puro**.
 **Dependências:** F00.15/F00.16 (spikes), F06 (vault e índice), F01.29 (motor do céu).
@@ -1026,13 +1028,13 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [ ] **F16.05** **Layout 3D em compute shader (wgpu)** em segundo plano, com mola de força 1/min(grau), repulsão de longo alcance, gravidade leve e **casca esférica**; **fallback na CPU** (Barnes-Hut em octree) para GPU integrada; escala a **10 mil notas**.
 - [ ] **F16.06** **Widget `shader` do iced** com **instancing**: um draw para os nós (sprites billboard, **blending aditivo**, núcleo branco + halo da cor do tipo), um para as arestas (linhas finas e quase transparentes) e um para o céu.
 - [~] **F16.07** **Fundo espacial** do `sky.js`: estrelas com posição real (ascensão reta e declinação), profundidade proporcional à distância, **constelação de Órion ao fundo**, Betelgeuse âmbar e Rigel azul; atrás do grafo no modo "fundo" (≤ 20 fps, sem paralaxe).
-- [ ] **F16.08** **Rótulos com `glyphon`:** só projetos, áreas, hubs e a nota em foco; os outros no hover ou com zoom; **sem sobreposição** (prioridade).
+- [~] **F16.08** **Rótulos com `glyphon`:** só projetos, áreas, hubs e a nota em foco; os outros no hover ou com zoom; **sem sobreposição** (prioridade). **FE-VIS 03 (`7ae8efd`):** canvas 2D usa pílulas translúcidas com prevenção de colisão; a implementação `glyphon`/3D e o aceite permanecem pendentes.
 - [~] **F16.09** **Movimento:** rotação lenta quando parado (**abre com o vault inteiro girando devagar**); desligada com "movimento reduzido"; **60 fps só na interação, 20 parado**, **pausa fora de vista**.
 
 #### F16.C Interação
 - [~] **F16.10** **Girar (orbit), zoom, arrastar a câmera**; **arrastar um nó** o reposiciona.
 - [~] **F16.11** **Clique:** a câmera **voa até a nota em ~900 ms** e abre no **painel do Orion** (tipo, caminho, tags, data, status, notas ligadas) com **vizinhos em destaque**; **duplo clique abre o editor**; ações secundárias: abrir no Obsidian, abrir no GitHub, copiar caminho; nota selecionada com **anel branco**.
-- [~] **F16.12** **Grafo local** a partir de uma nota (profundidade 1 ou 2); **filtros** por tipo, pasta, tag e projeto; **grupos de cor configuráveis**.
+- [~] **F16.12** **Grafo local** a partir de uma nota (profundidade 1 ou 2); **filtros** por tipo, pasta, tag e projeto; **grupos de cor configuráveis**. **FE-VIS 03 (`7ae8efd`):** vizinhança real de 1/2 saltos implementada em `graph.rs`/`views/memory.rs`; demais filtros, grupos e aceite completo continuam sujeitos ao critério original.
 - [~] **F16.13** **Busca** por título, tag ou pasta com lista navegável pelo teclado; **Enter voa até a nota**.
 - [~] **F16.14** **Linha do tempo** (slider de data para ver o vault crescer) e **destaque das notas que o Orion leu** na última resposta (**anel branco pulsante**).
 - [~] **F16.15** **Acessibilidade:** busca + lista + painel de detalhes como caminho equivalente ao canvas (WCAG 2.1.1).

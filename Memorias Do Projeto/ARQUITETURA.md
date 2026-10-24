@@ -75,7 +75,7 @@ O front HTML/CSS/JS antigo (`Orion_Core/Front_end_Orion/`) e a rota `/ui` foram 
 
 - **Agora:** a interface é o `orion-app` (iced), rodando dentro de `orion.exe` com o núcleo no mesmo processo; a UI chama as rotas por `Api::local`, sem socket. Mini barra, bandeja e atalhos globais (Ctrl+Alt+Espaço, Ctrl+Alt+P) vêm de `orion-platform`. Os launchers pywebview antigos foram removidos.
 - **Decisão:** só desktop, sem versão para celular. O celular fica no Telegram.
-- **Destino:** iced (Rust), tema único Grafite escuro, conforme [ORION_UI_ESPECIFICACAO.md](ORION_UI_ESPECIFICACAO.md). As três opções antigas de tema estão superadas; o grafo nativo wgpu ainda está pendente.
+- **Destino:** iced (Rust), tema único Grafite escuro, conforme [ORION_UI_ESPECIFICACAO.md](ORION_UI_ESPECIFICACAO.md). As três opções antigas de tema estão superadas; o renderer de grafo 3D wgpu ainda está pendente. A experiência atual usa canvas 2D do iced.
 
 A tela Vida (E10) e a legenda ao vivo (E11) existiam no front antigo, removido em 21/10/2026. No app iced a tela Vida foi cortada (21/10/2026) e a legenda é uma faixa estática de demonstração; os backends (`/vida/*`, `/foco`, `/legenda`) funcionam.
 
@@ -97,7 +97,7 @@ O alvo está atingido na estrutura: núcleo, API e UI em Rust, um executável, s
 | `orion-llama` | Worker llama-cpp-2 CPU/Vulkan separado | Vulkan ainda sem build final validado; CPU real comprovada no CI |
 
 | `orion-vault` | Detecção/parser/scanner/busca em cache/Git e API explícita | Sem gravação automática, comparação de conflitos no chat ou índice incremental local completo |
-| `orion-app` | Interface iced (46 cenas, `orion-snap`), bandeja/mini barra, cliente `Api` (HTTP ou local) | Grafo 2D (3D wgpu pendente); sem Fluent; nunca rodou no Windows real |
+| `orion-app` | Interface iced, `orion-snap`, bandeja/mini barra, cliente `Api` (HTTP ou local), i18n Fluent pt-BR/en | Grafo 2D (3D wgpu pendente); testes de uso no Windows relataram problemas no R1, sem aceite final |
 | `orion-updater` | Feed minisign + SHA-256, `baixar_release`, `.bak`, rollback (`orion update`) | Falta chave, feed publicado e rollback automático |
 | `orion-testkit` | HTTP/embedder/relógio de teste | Somente dev-dependency |
 
@@ -130,6 +130,8 @@ Equivalências de plataforma (Windows | macOS): início automático (registro ou
 `orion-app::i18n` resolve rótulos do produto em catálogos Fluent pt-BR/en. Mensagens dinâmicas usam argumentos; nomes e conteúdo de arquivos, projetos e conversas permanecem originais. A preferência vem do perfil antes do login; `POST /config/language` exige autenticação e grava apenas o idioma por troca atômica do arquivo de perfil. Contas legadas sem perfil usam `interface.json`, sem recriar o primeiro uso.
 
 O app escolhe wgpu para GPU real e tiny-skia sem MSAA para adaptador de CPU. Assinaturas de animação só rodam durante transições/stream e param sem foco; a consulta da bandeja só emite eventos úteis. Geometrias e blocos de Markdown/LaTeX/Mermaid têm caches limitados, o layout do grafo roda fora da thread da UI e sensores medem as alturas das mensagens.
+
+**Grafo e casca FE-VIS (main `7ae8efd`, 24/10/2026):** `graph.rs` calcula na CPU um layout orgânico 2D com semeadura topológica, repulsão multiescala, molas por grau, gravidade e resolução de colisões; `OnceLock` reutiliza as coordenadas do vault. `views/memory.rs` mantém o cache de geometria já existente, filtra a vizinhança em 1/2 saltos e enquadra o desenho considerando o painel lateral. O canvas não passa a ser um renderer 3D e as posições não passam a ser persistidas por hash do commit. `app.rs` também suspende ticks em segundo plano; desempenho Windows ainda depende de medição. O commit altera a topbar estreita, badges, Terminal e selo de mensagem salva sem criar novas saídas de rede.
 
 `estado::load_providers` descobre chaves no cofre e persiste somente a lista/modelos no SQLite (`providers:configuration`). `ORION_PROVEDORES` explícito tem precedência. Salvar chave reconstrói os endpoints e espera o turno em andamento, preservando agente, auditoria e orçamento. Nenhuma chave entra na lista persistida. Gemini automático usa 3.8 Flash (cota gratuita documentada em 23/10); o antigo default exato 2.5 Flash migra ao abrir, sem tocar nas escolhas explícitas. O transporte retém `extra_content.google.thought_signature` de chamadas de ferramenta Gemini e a devolve somente ao provedor Google; o metadado é oculto em Debug e não altera autorização/política. Falhas no chat mostram códigos HTTP/transportes, sem corpo da resposta, URL ou chave; o painel mostra modelo e último erro e só marca ativo após sucesso.
 

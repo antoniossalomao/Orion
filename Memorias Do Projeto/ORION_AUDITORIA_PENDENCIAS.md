@@ -41,7 +41,22 @@ Base `efb2cbc`, branch `codex/orion-backend-notion`. O backend foi separado do r
 
 **Validação:** 550 testes existentes passaram; 61 checagens temporárias da API com banco descartável e provedor simulado; verificação temporária do domínio cobriu relógio/deduplicação, VACUUM sem perda e contaminação durante consolidação. Não foram criados testes no repositório nem reativado o CI automático. A janela/API de produção não foi aberta para fora, nenhum segredo real foi usado e o aceite Windows não foi declarado.
 
-**Distribuição:** Antônio autorizou app + instalador sem modelos após as duas frentes terminarem. Workflow manual preparado; integração visual ainda precisa de branch/PR identificável. Isso substitui a pausa de builds para este pedido específico, sem autorizar publicação de release/tag ou novos testes.
+**Distribuição:** Antônio autorizou app + instalador sem modelos após as duas frentes terminarem. Visual `7ae8efd` da main integrado sem conflitos ao [PR #55](https://github.com/antoniossalomao/Orion/pull/55), ainda aberto. Workflow manual preparado com `perfil=release`, `cifra=true`, `llama=false`, `instalador=true`; suíte conjunta em `f0082f1` aprovada (550 testes, 0 falhas, Rust 1.97.0/Linux) antes do disparo. Isso substitui a pausa de builds para este pedido específico, sem autorizar publicação de release/tag ou novos testes.
+
+## Conciliação visual da main — 24/10/2026
+
+Fonte: [commit direto `7ae8efd` do Antigravity](https://github.com/antoniossalomao/Orion/commit/7ae8efd43bafa691711447e504ed80e79a9105de), 10 arquivos, integrado na branch do backend em `f0082f1`. A main contém o visual; o backend aguarda revisão do PR #55.
+
+| Frente | Alteração confirmada no diff | Limite da evidência |
+|---|---|---|
+| FE-VIS 02/03 — grafo | Forças multiescala, cache de coordenadas, colisões, rótulos, arestas por grau, vizinhança de 1/2 saltos e enquadramento com painel | Canvas 2D; renderer/layout 3D, persistência incremental e desempenho com 10 mil notas não entregues por esse commit |
+| FE-VIS 04/05 — casca | Badges sem quebra interna, divisória da gaveta, busca e controles de janela na topbar estreita | Tokens e controles iniciais do R1 reaproveitados; faixa branca/DWM e DPI Windows pendentes |
+| FE-VIS 06/07 — Home/chat | Selo de mensagem salva ganha texto/check visíveis | Home, editor, Markdown/LaTeX/Mermaid e minimapa não foram alterados nesse commit; revisão de trabalho anterior |
+| FE-VIS 08 — painéis | Terminal ocupa altura disponível sem rolagem externa duplicada; Projetos quebra a linha de badges | Não liga os novos contratos de preferências/referências de projetos à UI |
+| FE-VIS 09 — repouso | Tick suspenso em segundo plano; hover vazio evita invalidar o grafo | Cache de geometria e animação finita do login já existiam; CPU/GPU no notebook ainda sem medição desta rodada |
+| FE-VIS 01/10/11 — revisão | Antigravity registrou 48 capturas tiny-skia e 33 testes de orion-app | Capturas não incluídas no commit; resultados atribuídos ao executor, sem alegar reprodução ou aceite Windows pelo Codex |
+
+Notion: 9 cards FE-VIS concluídos, 05 e 11 em revisão; planejamento em revisão. Estados do executor preservados, com links para o commit e ressalvas de evidência. Os 17 cards de backend ainda em revisão não foram concluídos pelo polimento. R1.09 continua bloqueado por reprodução no Windows; R1.08/R1.15 continuam dependentes de aceite/medição.
 
 ## 1. Estado vigente
 
