@@ -1,6 +1,6 @@
 # Orion — estado, plano e decisões
 
-> Fonte única do estado do projeto. Atualizado em 23/10/2026. Princípios e regras: [REGRAS.md](REGRAS.md). Arquitetura, módulos e referências: [ARQUITETURA.md](ARQUITETURA.md). Como rodar: [README](../README.md). Material antigo e detalhado: [ORION_LEGADO.md](ORION_LEGADO.md).
+> Fonte única do estado do projeto. Atualizado em 24/10/2026. Princípios e regras: [REGRAS.md](REGRAS.md). Arquitetura, módulos e referências: [ARQUITETURA.md](ARQUITETURA.md). Como rodar: [README](../README.md). Material antigo e detalhado: [ORION_LEGADO.md](ORION_LEGADO.md).
 
 ## Visão
 
@@ -22,6 +22,8 @@ A UI pausa ticks sem foco/oculta, não redesenha pelo polling vazio da bandeja, 
 
 **Segundo reteste Gemini (23/10, 21h36 BRT):** o pacote `6628248` retornou `ReadTimeout` ao enviar “Oi”; a resposta real continua pendente. O gateway passou a separar espera por cabeçalhos (`HeadersTimeout`), primeira saída (`FirstTokenTimeout`) e inatividade após saída (`StreamIdleTimeout`), com tempo decorrido e bytes recebidos em log, sem conteúdo ou segredos. Streams ativos deixam de ter o prazo total de 60 s; a conexão tem limite de 15 s e a espera inicial/inatividade mantém o limite da camada. Gemini no chat rápido usa `reasoning_effort: low`, documentado pelo Google; a camada pesada preserva o padrão. Validação: os 550 testes existentes passaram; verificação manual externa confirmou stream ativo além do prazo inicial, timeout dos cabeçalhos, primeira saída (inclusive com heartbeats) e inatividade. Essa correção não comprova disponibilidade da API na máquina do Antônio.
 
+
+**Diagnóstico direto fora do Orion (24/10/2026):** Antônio executou o script manual com apenas “Oi”, sem histórico, persona ou ferramentas, no modelo padrão `gemini-3.8-flash`. A API nativa retornou HTTP 503 em 4.617 ms (cabeçalhos em 4.599 ms); os endpoints compatíveis sem/com streaming não retornaram cabeçalhos e atingiram 45.088 / 45.013 ms, sem texto. A falha existe independentemente da GUI/contexto do Orion. O [Google documenta 503](https://ai.google.dev/gemini-api/docs/api-errors) como indisponibilidade/sobrecarga temporária; esses dados não comprovam pane global, validade da chave ou ausência de outros defeitos no gateway. Comparação solicitada: mesma chave/máquina/script com `-Model gemini-3.5-flash-lite`, também listado na cota gratuita. A disponibilidade real e a escolha de eventual alternativa continuam em investigação.
 
 **Pacote solicitado:** executar manualmente o workflow Windows App no fim da entrega, com só `orion.exe` release, sem llama/SQLCipher/instalador. A UI usa wgpu com GPU real e tiny-skia quando só existe adaptador de CPU; isso independe do backend Vulkan de IA local.
 
