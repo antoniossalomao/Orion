@@ -70,7 +70,7 @@ pub fn project_menu(app: &App) -> El<'_> {
 }
 
 pub fn account_menu(app: &App) -> El<'_> {
-    let head = container(column![tx(app.p.name.clone(), 13.0, t::FG), tx(crate::i18n::text("PC principal · notebook sincronizado"), 11.5, t::FG3)]).padding(crate::ui::pad(8.0, 10.0, 6.0, 10.0));
+    let head = container(column![tx(app.p.name.clone(), 13.0, t::FG), tx(crate::i18n::text(" · PC principal").trim_start_matches([' ', '·']), 11.5, t::FG3)]).padding(crate::ui::pad(8.0, 10.0, 6.0, 10.0));
     menu_box(
         vec![
             head.into(),

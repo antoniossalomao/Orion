@@ -145,26 +145,36 @@ pub fn view(app: &App) -> El<'_> {
     let scroll = scrollable(list.padding(pad(0.0, 8.0, 8.0, 8.0))).direction(scrollable::Direction::Vertical(thin_bar())).style(thin_scroll).height(Length::Fill);
     let scroll = container(scroll).padding(pad(0.0, 0.0, 0.0, 0.0)).width(Length::Fill).height(Length::Fill);
 
-    let me_btn = button(
+    let sidebar_width = if drawer { 300.0f32.min(app.win.width * 0.86) } else { t::SIDE_W };
+    let label_width = (sidebar_width - 144.0).max(24.0);
+    let profile_name = if app.p.name.trim().is_empty() { app.p.call.trim() } else { app.p.name.trim() };
+    let display_name = if app.p.call.trim().is_empty() { if profile_name.is_empty() { crate::i18n::text("Conta") } else { profile_name } } else { app.p.call.trim() };
+    let mut initials: String = profile_name.split_whitespace().filter_map(|part| part.chars().next()).flat_map(char::to_uppercase).take(2).collect();
+    if initials.is_empty() { initials.push('?'); }
+    let account_open = app.pop == Some(Pop::Account);
+    let identity = container(column![
+        txf(ell(display_name, label_width, 13.5), 13.5, t::FG, t::UI_MED).line_height(iced::widget::text::LineHeight::Relative(1.2)),
+        tx(crate::i18n::text(" · PC principal").trim_start_matches([' ', '·']), 11.5, t::FG3).line_height(iced::widget::text::LineHeight::Relative(1.2)),
+    ].spacing(2)).width(Length::Fill).clip(true);
+    let me_btn = button(container(
         row![
-            container(txf("AS", 10.5, t::FG, t::UI_SEMI)).width(Length::Fixed(26.0)).height(Length::Fixed(26.0)).center_x(Length::Fixed(26.0)).center_y(Length::Fixed(26.0)).style(surface(Some(t::RAISE2), Some(t::LINE2), 13.0)),
-            row![tx(app.p.call.clone(), 13.5, t::FG), tx(crate::i18n::text(" · PC principal"), 12.0, t::FG3)],
-            grow(),
-            icon("chevD", 14.0, t::FG3)
+            container(txf(initials, 11.5, t::FG, t::UI_SEMI)).width(Length::Fixed(32.0)).height(Length::Fixed(32.0)).center_x(Length::Fixed(32.0)).center_y(Length::Fixed(32.0)).style(surface(Some(t::RAISE2), Some(t::LINE2), 16.0)),
+            identity,
+            crate::icons::icon_rot("chevD", 14.0, t::FG3, if account_open { 180.0 } else { 0.0 })
         ]
         .spacing(10)
         .align_y(Vertical::Center),
-    )
+    ).center_y(Length::Fill))
     .width(Length::Fill)
-    .height(Length::Fixed(40.0))
+    .height(Length::Fixed(48.0))
     .padding(pad(0.0, 8.0, 0.0, 8.0))
     .on_press(Msg::Pop(Pop::Account))
-    .style(|_, st| button::Style { background: if matches!(st, button::Status::Hovered) { Some(Background::Color(t::HOVER)) } else { None }, text_color: t::FG, border: Border { radius: 8.0.into(), ..Default::default() }, shadow: Default::default(), snap: true });
-    let me: El = Popover::new(me_btn, menus::account_menu(app), app.pop == Some(Pop::Account)).above(true).on_dismiss(Msg::ClosePop).into();
-    let foot = column![hline(), sp_h(8.0), row![container(me).width(Length::Fill), tip(ib("gear", Some(Msg::OpenSettings(None)), false), crate::i18n::text("Configurações (Ctrl ,)"))].spacing(4).align_y(Vertical::Center)];
+    .style(move |_, st| button::Style { background: if account_open { Some(Background::Color(t::SEL)) } else if matches!(st, button::Status::Hovered | button::Status::Pressed) { Some(Background::Color(t::HOVER)) } else { None }, text_color: t::FG, border: Border { radius: 8.0.into(), ..Default::default() }, shadow: Default::default(), snap: true });
+    let me: El = Popover::new(tip(me_btn, profile_name), menus::account_menu(app), account_open).above(true).on_dismiss(Msg::ClosePop).into();
+    let foot = column![hline(), sp_h(8.0), row![container(me).width(Length::Fill), tip(ib_sz("gear", 40.0, 18.0, Some(Msg::OpenSettings(None)), false), crate::i18n::text("Configurações (Ctrl ,)"))].spacing(6).align_y(Vertical::Center)];
 
     container(column![top, search_wrap(search), container(nav).padding(pad(0.0, 8.0, 0.0, 8.0)), scroll, container(foot).padding(pad(0.0, 8.0, 8.0, 8.0))].spacing(0))
-        .width(Length::Fixed(if app.is_drawer_mode() { 300.0f32.min(app.win.width * 0.86) } else { t::SIDE_W }))
+        .width(Length::Fixed(sidebar_width))
         .height(Length::Fill)
         .padding(pad(0.0, 0.0, 0.0, 0.0))
         .style(|_| container::Style { background: Some(t::SIDE.into()), ..Default::default() })
