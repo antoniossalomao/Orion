@@ -23,6 +23,8 @@ Rodada `codex/orion-backend-notion`, sobre a main `efb2cbc` (PR #54 mergeado). F
 
 **Build autorizado pelo pedido novo:** quando backend e visual do Antigravity terminarem, gerar app e instalador sem modelos locais. O workflow manual `windows-app-cpu.yml` recebeu a opção `instalador`; o pacote offline sem worker é aceito somente com modelos/voz desmarcados. Planejado: `perfil=release`, `cifra=true`, `llama=false`, `instalador=true`, sem pesos e sem publicar release/tag. O disparo aguarda a identificação/integração das mudanças visuais. A pausa de CI automático e testes novos continua vigente.
 
+**Publicação da rodada:** implementação e documentação no commit local `59bd476`; o push para `antoniossalomao/Orion` foi recusado pela revisão automática de aprovação antes da execução, por falta de autorização explícita para enviar esse código/documentação ao destino remoto. Nenhuma branch remota, PR, workflow, tag ou release foi criado nesta rodada. Os 20 cards receberam evidências (3 concluídos e 17 em revisão). O envio da branch e do espelho do vault depende dessa autorização; o build também aguarda identificar/integrar o visual do Antigravity.
+
 ## Rodada R1 — execução em 23/10/2026
 
 Antônio autorizou implementar o [plano de correção R1](ORION_PLANO_CORRECAO_R1.md), após consultar os 15 cards do Notion. Correções de provedores em uso imediato, janelas iniciais/login, logs, splash, desempenho e pendências de chat estão implementadas e em validação. Provedores automáticos ficam no SQLite sem segredos; chaves continuam no cofre. A troca do gateway espera o turno atual, preservando agente/política/orçamento. Opt-ins de captura e ferramentas não mudaram.
