@@ -17,7 +17,7 @@ resumo: "Plano de implementação em etapas do Orion em Rust, cobrindo todas as 
 
 > **Evidência de status:** `[~]` não distingue código incompleto de código aguardando aceite. Ao atualizar um item, informe **Implementação**, **Testes** (com comando/commit/resultado) e **Windows** (aceite ou pendência), além do próximo passo. Não reclassifique itens por esta revisão documental.
 
-> **Conciliação de 24/10/2026:** o visual FE-VIS entrou diretamente na main em [`7ae8efd`](https://github.com/antoniossalomao/Orion/commit/7ae8efd43bafa691711447e504ed80e79a9105de); backend e visual estão reunidos no [PR #55](https://github.com/antoniossalomao/Orion/pull/55), ainda aberto. No board: 9 FE-VIS concluídos, 05/11 e planejamento em revisão; backend com 3 critérios concluídos e 17 em revisão. Ver a matriz e os limites na [auditoria](ORION_AUDITORIA_PENDENCIAS.md). Build manual de app + instalador sem modelos autorizado pelo pedido posterior; aceite Windows permanece pendente.
+> **Conciliação de 24/10/2026:** o visual FE-VIS entrou diretamente na main em [`7ae8efd`](https://github.com/antoniossalomao/Orion/commit/7ae8efd43bafa691711447e504ed80e79a9105de); backend e visual estão reunidos no [PR #55](https://github.com/antoniossalomao/Orion/pull/55), ainda aberto. No board: 9 FE-VIS concluídos, 05/11 e planejamento em revisão; backend com 3 critérios concluídos e 17 em revisão. Ver a matriz e os limites na [auditoria](ORION_AUDITORIA_PENDENCIAS.md). Build manual de app + instalador sem modelos [40128437375](https://github.com/antoniossalomao/Orion/actions/runs/40128437375) concluído com sucesso; conteúdo e hashes conferidos. Aceite Windows permanece pendente.
 
 ## 0. Visão geral
 

@@ -43,6 +43,8 @@ Base `efb2cbc`, branch `codex/orion-backend-notion`. O backend foi separado do r
 
 **Distribuição:** Antônio autorizou app + instalador sem modelos após as duas frentes terminarem. Visual `7ae8efd` da main integrado sem conflitos ao [PR #55](https://github.com/antoniossalomao/Orion/pull/55), ainda aberto. Workflow manual preparado com `perfil=release`, `cifra=true`, `llama=false`, `instalador=true`; suíte conjunta em `f0082f1` aprovada (550 testes, 0 falhas, Rust 1.97.0/Linux) antes do disparo. Isso substitui a pausa de builds para este pedido específico, sem autorizar publicação de release/tag ou novos testes.
 
+**Resultado do pacote combinado:** Build manual [40128437375](https://github.com/antoniossalomao/Orion/actions/runs/40128437375) concluído com sucesso (35 min 50 s), fonte `222531ae26c0fe7d79ca1d07313d26eaf9f52bf7`. [Artefato Orion-Windows-App](https://github.com/antoniossalomao/Orion/actions/runs/40128437375/artifacts/12575110465), ZIP de 80.061.946 bytes, release/SQLCipher: `orion.exe`, `Orion Setup.exe`, `cpu/orion.exe`, `LEIA-ME.txt` e `SHA256SUMS.txt`. Download e conferência local: ZIP SHA-256 `9771977e03faaab8620a649c8d518c22881efa61c09c060f7b3435c2bb5b1442`, quatro hashes do manifesto correspondem aos arquivos, executáveis PE válidos e as duas cópias do app são idênticas. Sem worker ou pesos de modelos locais. Isso comprova compilação/estrutura do pacote, sem substituir instalação e uso no Windows.
+
 ## Conciliação visual da main — 24/10/2026
 
 Fonte: [commit direto `7ae8efd` do Antigravity](https://github.com/antoniossalomao/Orion/commit/7ae8efd43bafa691711447e504ed80e79a9105de), 10 arquivos, integrado na branch do backend em `f0082f1`. A main contém o visual; o backend aguarda revisão do PR #55.
