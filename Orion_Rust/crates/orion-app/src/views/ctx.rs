@@ -186,12 +186,16 @@ pub fn view(app: &App) -> El<'_> {
                 container(row![txf("PS>", 12.0, t::ACCENT, t::MONO), inp].spacing(6).align_y(Vertical::Center)).padding(pad(6.0, 10.0, 6.0, 10.0)),
             ])
             .width(Length::Fill)
-            .height(Length::Fixed(720.0))
+            .height(Length::Fill)
             .style(|_| container::Style { background: Some(t::TERM_BG.into()), border: Border { color: t::LINE, width: 1.0, radius: 10.0.into() }, ..Default::default() })
             .into()
         }
     };
-    let body = scrollable(container(body).padding(10)).direction(scrollable::Direction::Vertical(thin_bar())).style(thin_scroll).height(Length::Fill);
+    let body: El = if app.ctx_tab == CtxTab::Terminal {
+        container(body).padding(10).width(Length::Fill).height(Length::Fill).into()
+    } else {
+        scrollable(container(body).padding(10)).direction(scrollable::Direction::Vertical(thin_bar())).style(thin_scroll).height(Length::Fill).into()
+    };
     row![vline_full(), container(column![tabs, body]).width(Length::Fill).height(Length::Fill).style(|_| container::Style { background: Some(t::SIDE.into()), ..Default::default() })]
         .width(Length::Fixed(t::CTX_W))
         .height(Length::Fill)

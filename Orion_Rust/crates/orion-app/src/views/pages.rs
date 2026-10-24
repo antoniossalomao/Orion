@@ -80,10 +80,10 @@ fn projetos(app: &App) -> El<'_> {
         if !p.pastas.is_empty() {
             tags = tags.push(badge_ic(&ell(&p.pastas, 150.0, 11.0), Tone::Plain, "folder"));
         }
-        let body = column![txf(p.n.clone(), 20.0, t::FG, t::SERIF), tx(p.d.clone(), 13.0, t::FG2), container(tags).padding(pad(2.0, 0.0, 0.0, 0.0)), container(sp_h(0.0)).height(Length::Fill), row![tx(p.pend.clone(), 12.0, t::FG3), grow(), tx(crate::i18n::formatted("Atualizado {}", format!("Atualizado {}", crate::i18n::status(&p.up))), 12.0, t::FG3)]].spacing(6);
+        let body = column![txf(p.n.clone(), 20.0, t::FG, t::SERIF), tx(p.d.clone(), 13.0, t::FG2), container(tags.wrap().vertical_spacing(4)).padding(pad(2.0, 0.0, 0.0, 0.0)), container(sp_h(0.0)).height(Length::Fill), row![tx(p.pend.clone(), 12.0, t::FG3), grow(), tx(crate::i18n::formatted("Atualizado {}", format!("Atualizado {}", crate::i18n::status(&p.up))), 12.0, t::FG3)]].spacing(6);
         button(container(body).height(Length::Fill))
             .width(Length::Fill)
-            .height(Length::Fixed(150.0))
+            .height(Length::Fixed(164.0))
             .padding(pad(16.0, 18.0, 16.0, 18.0))
             .on_press(Msg::OpenProject(i))
             .style(|_, st| button::Style { background: if matches!(st, button::Status::Hovered) { Some(t::RAISE.into()) } else { None }, text_color: t::FG, border: Border { color: if matches!(st, button::Status::Hovered) { t::LINE3 } else { t::LINE2 }, width: 1.0, radius: 14.0.into() }, shadow: Default::default(), snap: true })

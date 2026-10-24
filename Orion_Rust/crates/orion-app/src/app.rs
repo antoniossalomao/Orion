@@ -738,7 +738,7 @@ impl App {
         let entrada = (!self.logged && crate::anim::active(Some(self.login_at), self.now, 1500)) || self.onboarding.as_ref().is_some_and(|f| crate::anim::active(Some(f.step_at), self.now, 450));
         let busy = entrada || [a.page, a.pop, a.modal, a.scrim, a.over, a.drawer, a.toast, a.more, a.tools].iter().any(|m| crate::anim::active(*m, self.now, 450)) || a.switch.as_ref().map(|s| crate::anim::active(Some(s.1), self.now, 300)).unwrap_or(false) || self.mem_tween.is_some();
         let moving = busy || self.streaming.is_some() || self.toast.is_some() || self.news_pending;
-        let tick = if self.window_active && moving { iced::time::every(Duration::from_millis(42)).map(Msg::Tick) } else { Subscription::none() };
+        let tick = if self.window_active && !self.fundo && moving { iced::time::every(Duration::from_millis(42)).map(Msg::Tick) } else { Subscription::none() };
         let progress = if self.loading.is_some() { iced::time::every(Duration::from_millis(150)).map(|_| Msg::BootProgress) } else { Subscription::none() };
         let focus = iced::event::listen_with(|event, _, _| match event {
             iced::Event::Window(window::Event::Focused) => Some(Msg::WindowActive(true)),

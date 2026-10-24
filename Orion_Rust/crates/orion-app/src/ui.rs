@@ -261,7 +261,7 @@ pub fn badge<'a>(label: &str, tone: Tone) -> El<'a> {
         Tone::Err => (t::DANGER, Some(t::DANGER_SOFT), None),
         Tone::Info => (t::ACCENT, Some(t::ACCENT_SOFT), None),
     };
-    container(txf(label.to_string(), 11.0, fg, t::UI_MED)).padding(pad(1.0, 8.0, 1.0, 8.0)).style(surface(bg, line, 999.0)).into()
+    container(txf(label.to_string(), 11.0, fg, t::UI_MED).wrapping(text::Wrapping::None)).padding(pad(1.0, 8.0, 1.0, 8.0)).style(surface(bg, line, 999.0)).into()
 }
 pub fn badge_ic<'a>(label: &str, tone: Tone, ic: &str) -> El<'a> {
     let fg = match tone {
@@ -279,7 +279,7 @@ pub fn badge_ic<'a>(label: &str, tone: Tone, ic: &str) -> El<'a> {
         Tone::Plain => None,
     };
     let line = if tone == Tone::Plain { Some(t::LINE2) } else { None };
-    container(row![icon(ic, 12.0, fg), txf(label.to_string(), 11.0, fg, t::UI_MED)].spacing(5).align_y(Vertical::Center)).padding(pad(1.0, 8.0, 1.0, 8.0)).style(surface(bg, line, 999.0)).into()
+    container(row![icon(ic, 12.0, fg), txf(label.to_string(), 11.0, fg, t::UI_MED).wrapping(text::Wrapping::None)].spacing(5).align_y(Vertical::Center)).padding(pad(1.0, 8.0, 1.0, 8.0)).style(surface(bg, line, 999.0)).into()
 }
 
 pub fn kbd<'a>(s: &str) -> El<'a> {

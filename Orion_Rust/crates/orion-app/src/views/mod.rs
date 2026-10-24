@@ -53,7 +53,7 @@ pub fn root(app: &App) -> El<'_> {
             let dp = crate::anim::DRAWER.get();
             layers.push(opaque(mouse_area(container(sp_w(0.0)).width(Length::Fill).height(Length::Fill).style(move |_| container::Style { background: Some(t::alpha(t::SCRIM, dp).into()), ..Default::default() })).on_press(Msg::Drawer(false))));
             let w = 300.0f32.min(app.win.width * 0.86);
-            layers.push(iced::widget::float(container(sidebar::view(app)).width(Length::Fixed(w)).height(Length::Fill).style(|_| container::Style { shadow: shadow(), ..Default::default() })).translate(move |_, _| iced::Vector::new(-(1.0 - dp) * w, 0.0)).into());
+            layers.push(iced::widget::float(row![container(sidebar::view(app)).width(Length::Fixed(w)).height(Length::Fill), vline_full()]).translate(move |_, _| iced::Vector::new(-(1.0 - dp) * w, 0.0)).into());
         }
         if app.set_open {
             layers.push(settings::modal(app));

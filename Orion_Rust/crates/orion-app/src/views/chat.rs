@@ -214,7 +214,7 @@ fn orion_msg<'a>(app: &'a App, ci: usize, mi: usize, o: &'a OrionMsg, is_last: b
             acts = acts.push(container(button(vr).padding(pad(2.0, 6.0, 2.0, 6.0)).on_press(Msg::Toast(msg)).style(|_, st| button::Style { background: if matches!(st, button::Status::Hovered) { Some(t::HOVER.into()) } else { None }, text_color: t::FG4, border: Border { radius: 6.0.into(), ..Default::default() }, ..Default::default() })).padding(pad(0.0, 0.0, 0.0, 8.0)));
         }
         if o.saved {
-            col = col.push(container(acts).padding(pad(0.0, 0.0, 0.0, 0.0)));
+            col = col.push(container(acts.push(container(row![icon("check", 12.0, t::FG3), tx("Salvo no vault", 11.5, t::FG3)].spacing(4).align_y(Vertical::Center)).padding(pad(0.0, 0.0, 0.0, 8.0)))).padding(pad(0.0, 0.0, 0.0, 0.0)));
         } else {
             col = col.push(acts);
         }
