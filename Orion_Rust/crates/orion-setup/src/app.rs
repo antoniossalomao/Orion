@@ -98,6 +98,10 @@ pub struct SetupApp {
     pub sound: SoundController,
     pub dry_run: bool,
     pub last_tick: Option<Instant>,
+    /// Escala do quadro do céu (1.0 = nítido); cai para 0.75 se o PC não acompanha.
+    sky_scale: f32,
+    slow_frames: u32,
+    frame_skip: u32,
     pub selected_disk_idx: usize,
     download_worker: Option<std::sync::mpsc::Receiver<(InstallPlan, Result<String, String>)>>,
     download_cancel: std::sync::Arc<std::sync::atomic::AtomicBool>,
@@ -121,8 +125,8 @@ impl SetupApp {
         };
         let install_plan = InstallPlan::new(root_override);
         let mut sky = OrionSky::new();
-        // Mesmo quadro do onboarding: ~60% da resolução, ampliado para o painel (nebulosa e Via Láctea mais macias).
-        sky.set_size((theme::SKY_W * 0.6) as u32, (theme::BODY_H * 0.6) as u32);
+        // Resolução cheia do painel: nítido, sem ampliar. `AnimationTick` reduz só se o PC não acompanhar.
+        sky.set_size(theme::SKY_W as u32, theme::BODY_H as u32);
         // Avança suavemente o primeiro segundo para Betelgeuse já iniciar acendendo
         sky.step_dt(0.016, theme::SKY_W, theme::BODY_H);
         let sky_handle = sky.render_image_handle();
@@ -157,6 +161,9 @@ impl SetupApp {
             sound: SoundController::new(),
             dry_run,
             last_tick: None,
+            sky_scale: 1.0,
+            slow_frames: 0,
+            frame_skip: 0,
             selected_disk_idx,
             download_worker: None,
             download_cancel: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
@@ -242,6 +249,22 @@ impl SetupApp {
         self.install_started = true;
         self.install_error = None;
         self.show_error_details = false;
+    }
+
+    /// Se o quadro leva mais de 14 ms por 30 quadros seguidos, passa a 75% da resolução (uma vez).
+    fn adapt_sky_quality(&mut self, spent: Duration) {
+        if self.sky_scale < 1.0 {
+            return;
+        }
+        if spent > Duration::from_millis(14) {
+            self.slow_frames += 1;
+        } else {
+            self.slow_frames = 0;
+        }
+        if self.slow_frames >= 30 {
+            self.sky_scale = 0.75;
+            self.sky.set_size((theme::SKY_W * 0.75) as u32, (theme::BODY_H * 0.75) as u32);
+        }
     }
 
     /// Avança a simulação temporal em `dt` segundos (constelação, transição de etapa e progresso de instalação).
@@ -388,7 +411,13 @@ impl SetupApp {
                     .clamp(0.001, 0.05);
                 self.last_tick = Some(now);
                 self.tick_dt(dt);
-                self.sky_handle = self.sky.render_image_handle();
+                // "Reduzir movimento" do Windows: o céu continua vivo, mas a 4 quadros por segundo.
+                self.frame_skip = (self.frame_skip + 1) % 15;
+                if !self.pc.reduce_motion || self.frame_skip == 0 {
+                    let started = Instant::now();
+                    self.sky_handle = self.sky.render_image_handle();
+                    self.adapt_sky_quality(started.elapsed());
+                }
                 if self.cancel_after_download && self.download_worker.is_none() {
                     return window::latest().and_then(window::close);
                 }
@@ -557,7 +586,7 @@ impl SetupApp {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        let tick = time::every(Duration::from_millis(33)).map(Message::AnimationTick);
+        let tick = time::every(Duration::from_millis(16)).map(Message::AnimationTick);
         let events = event::listen_with(|event, _status, _window_id| match event {
             Event::Mouse(mouse::Event::CursorMoved { position }) => {
                 Some(Message::CursorMoved(position))
@@ -924,10 +953,11 @@ impl SetupApp {
             lang_select,
         ];
 
-        let gpu_val = format!(
-            "{} · {} GB · {}",
-            self.pc.gpu_name, self.pc.vram_gb, self.pc.gpu_api
-        );
+        let gpu_val = if self.pc.vram_gb == 0 {
+            format!("{} · {}", self.pc.gpu_name, self.pc.gpu_api)
+        } else {
+            format!("{} · {} GB · {}", self.pc.gpu_name, self.pc.vram_gb, self.pc.gpu_api)
+        };
         let ram_val = format!("{} GB RAM", self.pc.ram_gb);
         let disk_val = self.pc.disk_summary();
 

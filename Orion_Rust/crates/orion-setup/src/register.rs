@@ -41,6 +41,8 @@ pub trait Registrar: Send + Sync {
 }
 
 pub const UPDATE_TASK: &str = "OrionUpdater";
+/// Segunda tarefa (SYSTEM, ao entrar no Windows): instala a atualização guardada quando o Orion está fechado.
+pub const UPDATE_TASK_LOGON: &str = "OrionUpdaterLogon";
 
 /// Registrar real: só funciona no Windows; nos outros sistemas recusa em vez de fingir.
 pub struct WindowsRegistrar;
@@ -195,8 +197,11 @@ impl Registrar for WindowsRegistrar {
 
     #[cfg(windows)]
     fn install_update_task(&self, orion: &Path) -> Result<(), String> {
-        let tr = format!("\"{}\" update --check", orion.display());
-        run(std::process::Command::new("schtasks").args(["/Create", "/TN", UPDATE_TASK, "/SC", "DAILY", "/ST", "12:30", "/RU", "SYSTEM", "/RL", "HIGHEST", "/TR", &tr, "/F"]))
+        // Pasta do app costuma exigir administrador: só estas tarefas (SYSTEM) trocam os arquivos guardados (F10.16).
+        let tr = format!("\"{}\" update --apply-staged --check", orion.display());
+        run(std::process::Command::new("schtasks").args(["/Create", "/TN", UPDATE_TASK, "/SC", "DAILY", "/ST", "12:30", "/RU", "SYSTEM", "/RL", "HIGHEST", "/TR", &tr, "/F"]))?;
+        let tr = format!("\"{}\" update --apply-staged", orion.display());
+        run(std::process::Command::new("schtasks").args(["/Create", "/TN", UPDATE_TASK_LOGON, "/SC", "ONLOGON", "/RU", "SYSTEM", "/RL", "HIGHEST", "/TR", &tr, "/F"]))
     }
     #[cfg(not(windows))]
     fn install_update_task(&self, _: &Path) -> Result<(), String> {
@@ -205,7 +210,9 @@ impl Registrar for WindowsRegistrar {
 
     #[cfg(windows)]
     fn remove_update_task(&self) -> Result<(), String> {
-        run(std::process::Command::new("schtasks").args(["/Delete", "/TN", UPDATE_TASK, "/F"]))
+        let daily = run(std::process::Command::new("schtasks").args(["/Delete", "/TN", UPDATE_TASK, "/F"]));
+        let logon = run(std::process::Command::new("schtasks").args(["/Delete", "/TN", UPDATE_TASK_LOGON, "/F"]));
+        daily.and(logon)
     }
     #[cfg(not(windows))]
     fn remove_update_task(&self) -> Result<(), String> {
@@ -281,6 +288,9 @@ pub struct InstallManifest {
     pub data_dir: PathBuf,
     #[serde(default)]
     pub models_dir: PathBuf,
+    /// Este `Orion Setup.exe` entende `--whats-new`; instalações antigas não têm a marca e o app não o chama.
+    #[serde(default)]
+    pub whats_new: bool,
     /// Arquivos do app com o SHA-256 de quando foram copiados.
     #[serde(default)]
     pub files: Vec<InstalledFile>,

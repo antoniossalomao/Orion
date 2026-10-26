@@ -18,5 +18,6 @@ pub use orion_sky as sky;
 pub mod system;
 pub mod theme;
 pub mod uninstall_ui;
+pub mod whats_new_ui;
 
 pub use app::{Message, SetupApp};

@@ -121,7 +121,7 @@ impl PcInfo {
             vram_gb,
             gpu_api,
             disks: disks_out,
-            reduce_motion: false,
+            reduce_motion: windows_reduce_motion(),
         }
     }
 
@@ -205,6 +205,22 @@ fn detect_gpu() -> (String, u32, String) {
                 return (name, vram_gb, "CUDA".into());
             }
         }
+    }
+    // Sem NVIDIA: pergunta aos adaptadores Vulkan (AMD, Intel, etc.). A VRAM não é informada pelo wgpu: fica 0.
+    let instance = iced::wgpu::Instance::new(&iced::wgpu::InstanceDescriptor {
+        backends: iced::wgpu::Backends::VULKAN,
+        ..Default::default()
+    });
+    let best = instance
+        .enumerate_adapters(iced::wgpu::Backends::VULKAN)
+        .into_iter()
+        .map(|a| a.get_info())
+        .filter(|i| {
+            matches!(i.device_type, iced::wgpu::DeviceType::DiscreteGpu | iced::wgpu::DeviceType::IntegratedGpu)
+        })
+        .min_by_key(|i| i.device_type != iced::wgpu::DeviceType::DiscreteGpu);
+    if let Some(info) = best {
+        return (info.name, 0, "Vulkan".into());
     }
     ("Não identificada".into(), 0, "Verificar driver Vulkan".into())
 }
@@ -474,6 +490,7 @@ impl InstallPlan {
                     app_dir: choices.app_dir.clone(),
                     data_dir: choices.data_dir.clone(),
                     models_dir: choices.models_dir.clone(),
+                    whats_new: true,
                     ..Default::default()
                 };
                 self.write_new(&manifest, &serde_json::to_vec_pretty(&info).unwrap_or_default())
@@ -576,7 +593,9 @@ impl InstallPlan {
                 let updater = data_dir.join("update.json");
                 let payload = serde_json::json!({
                     "channel": "stable",
-                    "auto_update": false,
+                    "auto_update": true,
+                    // baixa e confere na tarefa diária, mas só troca os arquivos quando o Orion fecha (F10.16)
+                    "install_on_close": true,
                     "crash_reports": choices.send_crash_reports,
                     "feed_url": if CHAVE_PUBLICA.trim().is_empty() { serde_json::Value::Null } else { serde_json::json!(feed_url(choices.use_vulkan)) },
                     "public_key": if CHAVE_PUBLICA.trim().is_empty() { serde_json::Value::Null } else { serde_json::json!(CHAVE_PUBLICA.trim()) },
@@ -750,4 +769,22 @@ mod tests {
         assert_eq!(config["ORION_WAKE_ENABLED"], false);
         plan.rollback();
     }
+}
+
+/// "Mostrar animações" desligado no Windows (`SPI_GETCLIENTAREAANIMATION`); fora do Windows, falso.
+#[cfg(windows)]
+fn windows_reduce_motion() -> bool {
+    #[link(name = "user32")]
+    extern "system" {
+        fn SystemParametersInfoW(action: u32, param: u32, pv_param: *mut std::ffi::c_void, win_ini: u32) -> i32;
+    }
+    let mut enabled: i32 = 1;
+    // SAFETY: `enabled` é um BOOL válido durante a chamada; SPI_GETCLIENTAREAANIMATION (0x1042) só escreve nele.
+    let ok = unsafe { SystemParametersInfoW(0x1042, 0, &mut enabled as *mut i32 as *mut std::ffi::c_void, 0) };
+    ok != 0 && enabled == 0
+}
+
+#[cfg(not(windows))]
+fn windows_reduce_motion() -> bool {
+    false
 }

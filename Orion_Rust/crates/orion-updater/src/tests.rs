@@ -45,7 +45,7 @@ fn cenario(instalada: &str, nova: &str, exe_novo: &[u8]) -> Cenario {
     web.insert(format!("{FEED_URL}.minisig"), assinar(&sk, &pk, &feed));
     web.insert(FEED_URL.to_string(), feed);
     web.insert("https://exemplo.test/orion.exe".into(), exe_novo.to_vec());
-    let config = UpdateConfig { channel: "stable".into(), auto_update: true, feed_url: Some(FEED_URL.into()), public_key: Some(pk.to_box().unwrap().to_string()) };
+    let config = UpdateConfig { channel: "stable".into(), auto_update: true, feed_url: Some(FEED_URL.into()), public_key: Some(pk.to_box().unwrap().to_string()), ..Default::default() };
     Cenario { dir, config, fetch: Fake(web), sk, pk }
 }
 
@@ -57,6 +57,10 @@ fn atualiza_quando_assinatura_e_hash_conferem_e_guarda_o_antigo() {
     assert_eq!(std::fs::read(c.dir.path().join("orion.exe.bak")).unwrap(), b"v-antigo");
     let m: serde_json::Value = serde_json::from_slice(&std::fs::read(c.dir.path().join(MANIFEST)).unwrap()).unwrap();
     assert_eq!(m["version"], "0.2.0");
+    let novidade = pending_whats_new(c.dir.path()).unwrap();
+    assert_eq!((novidade.version.as_str(), novidade.previous_version.as_str()), ("0.2.0", "0.1.0"));
+    dismiss_whats_new(c.dir.path());
+    assert!(pending_whats_new(c.dir.path()).is_none());
     assert_eq!(m["files"][0]["sha256"], hex::encode(Sha256::digest(b"v-novo")));
     assert!(!c.dir.path().join(".update-0.2.0").exists(), "staging limpo");
 }

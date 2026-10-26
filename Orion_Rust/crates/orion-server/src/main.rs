@@ -59,6 +59,9 @@ enum Cmd {
         apply: bool,
         #[arg(long)]
         rollback: bool,
+        /// Instala a atualização já baixada (a que espera o Orion fechar).
+        #[arg(long)]
+        apply_staged: bool,
     },
     /// Interno: extrai o texto de um documento num processo descartável.
     #[command(hide = true)]
@@ -517,10 +520,10 @@ fn rodar(cli: Cli) -> anyhow::Result<i32> {
     if let Some(Cmd::ExtrairDocumento { arquivo, tipo }) = &cli.cmd {
         return Ok(orion_core::document_extract::principal(arquivo, tipo));
     }
-    if let Some(Cmd::Update { check, apply, rollback }) = &cli.cmd {
+    if let Some(Cmd::Update { check, apply, rollback, apply_staged }) = &cli.cmd {
         // roda na tarefa diária (SYSTEM), sem banco nem senha: antes de carregar configuração
         let mut args = Vec::new();
-        for (on, flag) in [(*check, "--check"), (*apply, "--apply"), (*rollback, "--rollback")] {
+        for (on, flag) in [(*check, "--check"), (*apply, "--apply"), (*rollback, "--rollback"), (*apply_staged, "--apply-staged")] {
             if on {
                 args.push(flag.to_string());
             }
