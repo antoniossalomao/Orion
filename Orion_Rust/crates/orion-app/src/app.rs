@@ -360,6 +360,9 @@ pub struct App {
     /// Início da tela de entrada (animação de entrada e respiração do brilho).
     pub login_at: Instant,
     pub spin: f32,
+    /// Ação cujo atalho está sendo capturado e a última recusa por conflito (F01.22).
+    pub short_edit: Option<&'static str>,
+    pub short_err: String,
     pub term_out: Vec<String>,
     pub term_in: String,
     pub new_obj: String,
@@ -540,6 +543,10 @@ pub enum Msg {
     PalClose,
     PalQ(String),
     PalMove(i32),
+    ShortcutEdit(&'static str),
+    ShortcutCaptured(String),
+    ShortcutCancel,
+    ShortcutReset(&'static str),
     PalRun(usize),
     QcapOpen,
     QcapClose,
@@ -595,6 +602,7 @@ pub enum Msg {
 
 impl App {
     pub fn new() -> Self {
+        crate::keys::load();
         App {
             p: Prefs::default(),
             logged: false,
@@ -670,6 +678,8 @@ impl App {
             now: Instant::now(),
             login_at: Instant::now(),
             spin: 0.0,
+            short_edit: None,
+            short_err: String::new(),
             term_out: data::TERM.iter().map(|s| s.to_string()).collect(),
             term_in: String::new(),
             new_obj: String::new(),
@@ -1683,6 +1693,27 @@ impl App {
             Msg::Minimize => { self.window_active = false; return window::oldest().and_then(|id| window::minimize(id, true)); },
             Msg::Fullscreen => return window::oldest().and_then(window::toggle_maximize),
             Msg::CloseWindow => return window::oldest().and_then(|id| Task::done(Msg::CloseReq(id))),
+            Msg::ShortcutEdit(id) => {
+                self.short_edit = Some(id);
+                self.short_err.clear();
+                crate::keys::set_capturing(true);
+            }
+            Msg::ShortcutCancel => {
+                self.short_edit = None;
+                crate::keys::set_capturing(false);
+            }
+            Msg::ShortcutCaptured(combo) => {
+                crate::keys::set_capturing(false);
+                if let Some(id) = self.short_edit.take() {
+                    match crate::keys::set(id, &combo) {
+                        Ok(()) => self.short_err.clear(),
+                        Err(who) => self.short_err = format!("{} já é usado por: {who}", crate::keys::display(&combo)),
+                    }
+                }
+            }
+            Msg::ShortcutReset(id) => {
+                self.short_err = crate::keys::reset(id).err().map(|who| format!("O atalho padrão já é usado por: {who}")).unwrap_or_default();
+            }
             Msg::Esc => {
                 if self.mini {
                     return self.update_inner(Msg::CloseWindow);

@@ -447,8 +447,25 @@ fn section<'a>(app: &'a App) -> El<'a> {
         }
         Sec::Atalhos => {
             c = c.push(sh(crate::i18n::text("Atalhos")));
-            for (l, k) in [("Trazer a janela de qualquer lugar (mini barra)", "Ctrl Alt Espaço"), ("Pânico: corta tudo", "Ctrl Alt P"), ("Buscar conversas e notas", "Ctrl K"), ("Nova conversa", "Ctrl Shift O"), ("Recolher barra lateral", "Ctrl B"), ("Configurações", "Ctrl ,"), ("Enviar", "Enter"), ("Nova linha", "Shift Enter"), ("Comandos", "/"), ("Citar nota do vault", "@"), ("Fechar painel", "Esc")] {
-                c = c.push(setting(l, "", kbd(k)));
+            if !app.short_err.is_empty() {
+                c = c.push(tx(app.short_err.clone(), 12.5, t::DANGER));
+            }
+            for a in crate::keys::ACTIONS.iter() {
+                let editing = app.short_edit == Some(a.id);
+                let shown = if editing { crate::i18n::text("Pressione o novo atalho…").to_string() } else { crate::keys::display(&crate::keys::effective(a.id)) };
+                let mut ctl = row![kbd(&shown)].spacing(8).align_y(Vertical::Center);
+                if editing {
+                    ctl = ctl.push(btn(crate::i18n::text("Cancelar"), Kind::Ghost, true, None, Some(Msg::ShortcutCancel)));
+                } else {
+                    ctl = ctl.push(btn(crate::i18n::text("Alterar"), Kind::Normal, true, None, Some(Msg::ShortcutEdit(a.id))));
+                    if crate::keys::custom(a.id) {
+                        ctl = ctl.push(btn(crate::i18n::text("Restaurar"), Kind::Ghost, true, None, Some(Msg::ShortcutReset(a.id))));
+                    }
+                }
+                c = c.push(setting(a.label, "", ctl.into()));
+            }
+            for (l, k) in [("Trazer a janela de qualquer lugar (mini barra)", "Ctrl Alt Espaço"), ("Pânico: corta tudo", "Ctrl Alt P"), ("Captura rápida", "Ctrl Alt O"), ("Isso? (capturar a tela)", "Ctrl Alt I"), ("Enviar", "Enter"), ("Nova linha", "Shift Enter"), ("Comandos", "/"), ("Citar nota do vault", "@"), ("Fechar painel", "Esc")] {
+                c = c.push(setting(l, crate::i18n::text("Fixo"), kbd(k)));
             }
         }
     }
