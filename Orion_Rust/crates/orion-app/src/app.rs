@@ -567,6 +567,7 @@ pub enum Msg {
     PalClose,
     PalQ(String),
     PalMove(i32),
+    ZoomStep(i32),
     ShortcutEdit(&'static str),
     ShortcutCaptured(String),
     ShortcutCancel,
@@ -1722,6 +1723,12 @@ impl App {
             Msg::Minimize => { self.window_active = false; return window::oldest().and_then(|id| window::minimize(id, true)); },
             Msg::Fullscreen => return window::oldest().and_then(window::toggle_maximize),
             Msg::CloseWindow => return window::oldest().and_then(|id| Task::done(Msg::CloseReq(id))),
+            Msg::ZoomStep(d) => {
+                const STEPS: [u32; 5] = [90, 100, 115, 130, 150];
+                let at = STEPS.iter().position(|s| *s == self.p.scale).unwrap_or(1) as i32;
+                self.p.scale = STEPS[(at + d).clamp(0, 4) as usize];
+                self.toast(crate::i18n::formatted("Escala {}%", format!("Escala {}%", self.p.scale)));
+            }
             Msg::ShortcutEdit(id) => {
                 self.short_edit = Some(id);
                 self.short_err.clear();

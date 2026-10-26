@@ -865,5 +865,6 @@
   "{} precisa de Ctrl ou Alt junto com a tecla": "ui-0863",
   "{} já é usado por: {}": "ui-0864",
   "O atalho padrão ({}) já é usado por: {}": "ui-0865",
-  "Seção desconhecida. Use: /config geral, notificações, conta, privacidade, uso, modelos, memória, fontes, conectores, sistema, locais, voz, câmera ou atalhos": "ui-0866"
+  "Seção desconhecida. Use: /config geral, notificações, conta, privacidade, uso, modelos, memória, fontes, conectores, sistema, locais, voz, câmera ou atalhos": "ui-0866",
+  "Escala {}%": "ui-0867"
 }

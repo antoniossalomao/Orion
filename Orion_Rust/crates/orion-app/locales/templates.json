@@ -70,5 +70,6 @@
   "nenhum modelo respondeu: {details}",
   "{} precisa de Ctrl ou Alt junto com a tecla",
   "{} já é usado por: {}",
-  "O atalho padrão ({}) já é usado por: {}"
+  "O atalho padrão ({}) já é usado por: {}",
+  "Escala {}%"
 ]

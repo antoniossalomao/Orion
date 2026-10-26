@@ -865,3 +865,4 @@ ui-0863 = { $v0 } needs Ctrl or Alt together with the key
 ui-0864 = { $v0 } is already used by: { $v1 }
 ui-0865 = The default shortcut ({ $v0 }) is already used by: { $v1 }
 ui-0866 = { "Unknown section. Use: /config general, notifications, account, privacy, usage, models, memory, sources, connectors, system, local, voice, camera or shortcuts" }
+ui-0867 = Scale { $v0 }%

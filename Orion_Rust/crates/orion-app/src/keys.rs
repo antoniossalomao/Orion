@@ -24,7 +24,7 @@ pub const ACTIONS: [Action; 4] = [
 ];
 
 /// Atalhos que nenhuma ação pode tomar: sistema e teclas fixas.
-pub const RESERVED: [(&str, &str); 8] = [
+pub const RESERVED: [(&str, &str); 11] = [
     ("Ctrl+Alt+Space", "Trazer a janela de qualquer lugar (mini barra)"),
     ("Ctrl+Alt+P", "Pânico: corta tudo"),
     ("Ctrl+Alt+O", "Captura rápida"),
@@ -33,6 +33,9 @@ pub const RESERVED: [(&str, &str); 8] = [
     ("Enter", "Enviar"),
     ("ArrowUp", "Navegar na lista"),
     ("ArrowDown", "Navegar na lista"),
+    ("Ctrl+=", "Escala da interface"),
+    ("Ctrl++", "Escala da interface"),
+    ("Ctrl+-", "Escala da interface"),
 ];
 
 static OVERRIDES: RwLock<Option<HashMap<String, String>>> = RwLock::new(None);
@@ -239,6 +242,12 @@ pub fn map(ev: Event) -> Option<Msg> {
         if let Some(a) = ACTIONS.iter().find(|a| effective(a.id).eq_ignore_ascii_case(c)) {
             return msg_of(a.id);
         }
+    }
+    // Ctrl + e Ctrl − andam um degrau na escala (§3); `=` é o `+` sem Shift.
+    match combo.as_deref() {
+        Some("Ctrl+=" | "Ctrl++" | "Ctrl+Shift++" | "Ctrl+Shift+=") => return Some(Msg::ZoomStep(1)),
+        Some("Ctrl+-" | "Ctrl+Shift+-" | "Ctrl+Shift+_") => return Some(Msg::ZoomStep(-1)),
+        _ => {}
     }
     match key.as_ref() {
         Key::Named(Named::Escape) => Some(Msg::Esc),

@@ -865,3 +865,4 @@ ui-0863 = { $v0 } precisa de Ctrl ou Alt junto com a tecla
 ui-0864 = { $v0 } já é usado por: { $v1 }
 ui-0865 = O atalho padrão ({ $v0 }) já é usado por: { $v1 }
 ui-0866 = { "Seção desconhecida. Use: /config geral, notificações, conta, privacidade, uso, modelos, memória, fontes, conectores, sistema, locais, voz, câmera ou atalhos" }
+ui-0867 = Escala { $v0 }%
