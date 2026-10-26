@@ -1705,14 +1705,11 @@ impl App {
             Msg::ShortcutCaptured(combo) => {
                 crate::keys::set_capturing(false);
                 if let Some(id) = self.short_edit.take() {
-                    match crate::keys::set(id, &combo) {
-                        Ok(()) => self.short_err.clear(),
-                        Err(who) => self.short_err = format!("{} já é usado por: {who}", crate::keys::display(&combo)),
-                    }
+                    self.short_err = crate::keys::set(id, &combo).err().map(|e| e.message()).unwrap_or_default();
                 }
             }
             Msg::ShortcutReset(id) => {
-                self.short_err = crate::keys::reset(id).err().map(|who| format!("O atalho padrão já é usado por: {who}")).unwrap_or_default();
+                self.short_err = crate::keys::reset(id).err().map(|e| e.message()).unwrap_or_default();
             }
             Msg::Esc => {
                 if self.mini {

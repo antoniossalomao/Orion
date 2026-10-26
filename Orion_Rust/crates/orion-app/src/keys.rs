@@ -50,7 +50,35 @@ pub fn effective(id: &str) -> String {
 
 /// Texto para exibir (`Ctrl+Shift+O` vira `Ctrl Shift O`).
 pub fn display(combo: &str) -> String {
-    combo.replace("Space", "Espaço").replace('+', " ")
+    let combo = if crate::i18n::english() { combo.to_string() } else { combo.replace("Space", "Espaço") };
+    combo.replace('+', " ")
+}
+
+/// Motivo de uma recusa ao trocar ou restaurar um atalho.
+#[derive(Debug, PartialEq, Eq)]
+pub enum ShortcutError {
+    Unknown,
+    NeedsModifier(String),
+    Taken(String, String),
+    DefaultTaken(String, String),
+}
+
+impl ShortcutError {
+    /// Frase para a interface, traduzida pelo catálogo Fluent.
+    pub fn message(&self) -> String {
+        use crate::i18n::{formatted, status};
+        match self {
+            Self::Unknown => String::new(),
+            Self::NeedsModifier(c) => formatted("{} precisa de Ctrl ou Alt junto com a tecla", format!("{} precisa de Ctrl ou Alt junto com a tecla", display(c))),
+            Self::Taken(c, who) => formatted("{} já é usado por: {}", format!("{} já é usado por: {}", display(c), status(who))),
+            Self::DefaultTaken(c, who) => formatted("O atalho padrão ({}) já é usado por: {}", format!("O atalho padrão ({}) já é usado por: {}", display(c), status(who))),
+        }
+    }
+}
+
+/// Atalho aceito: precisa de Ctrl ou Alt (ou ser tecla de função) para não roubar a digitação.
+fn typable(combo: &str) -> bool {
+    combo.contains("Ctrl+") || combo.contains("Alt+") || (combo.starts_with('F') && combo[1..].chars().all(|c| c.is_ascii_digit()) && combo.len() > 1)
 }
 
 /// Quem já usa o atalho, se houver, excluindo a própria ação.
@@ -61,13 +89,16 @@ pub fn conflict(id: &str, combo: &str) -> Option<String> {
     ACTIONS.iter().filter(|a| a.id != id).find(|a| effective(a.id).eq_ignore_ascii_case(combo)).map(|a| a.label.to_string())
 }
 
-/// Troca o atalho de uma ação. Recusa conflito; devolve o nome de quem já usa.
-pub fn set(id: &str, combo: &str) -> Result<(), String> {
+/// Troca o atalho de uma ação. Recusa tecla sem Ctrl/Alt e conflito.
+pub fn set(id: &str, combo: &str) -> Result<(), ShortcutError> {
     if action(id).is_none() {
-        return Err("Ação desconhecida".into());
+        return Err(ShortcutError::Unknown);
+    }
+    if !typable(combo) {
+        return Err(ShortcutError::NeedsModifier(combo.to_string()));
     }
     if let Some(who) = conflict(id, combo) {
-        return Err(who);
+        return Err(ShortcutError::Taken(combo.to_string(), who));
     }
     if let Ok(mut g) = OVERRIDES.write() {
         g.get_or_insert_with(HashMap::new).insert(id.to_string(), combo.to_string());
@@ -77,10 +108,10 @@ pub fn set(id: &str, combo: &str) -> Result<(), String> {
 }
 
 /// Volta ao atalho padrão. Se o padrão estiver tomado por outra ação, a restauração é recusada.
-pub fn reset(id: &str) -> Result<(), String> {
-    let Some(a) = action(id) else { return Err("Ação desconhecida".into()) };
+pub fn reset(id: &str) -> Result<(), ShortcutError> {
+    let Some(a) = action(id) else { return Err(ShortcutError::Unknown) };
     if let Some(who) = conflict(id, a.default) {
-        return Err(who);
+        return Err(ShortcutError::DefaultTaken(a.default.to_string(), who));
     }
     if let Ok(mut g) = OVERRIDES.write() {
         if let Some(m) = g.as_mut() {
@@ -121,31 +152,33 @@ fn save() {
     let _ = std::fs::write(path, body);
 }
 
-/// Lê os atalhos personalizados do disco; linhas inválidas ou em conflito são ignoradas.
+/// Lê os atalhos personalizados do disco. Carrega todos e só depois descarta os inválidos ou duplicados,
+/// para que trocas de atalho entre ações sobrevivam à reabertura, qualquer que seja a ordem do arquivo.
 pub fn load() {
     let Some(path) = file() else { return };
     let Ok(text) = std::fs::read_to_string(path) else { return };
-    if let Ok(mut g) = OVERRIDES.write() {
-        *g = None;
-    }
+    let mut loaded: HashMap<String, String> = HashMap::new();
     for line in text.lines() {
         if let Some((id, combo)) = line.split_once('=') {
-            let _ = set_quiet(id.trim(), combo.trim());
+            let (id, combo) = (id.trim(), combo.trim());
+            let reserved = RESERVED.iter().any(|(k, _)| k.eq_ignore_ascii_case(combo));
+            if action(id).is_some() && typable(combo) && !reserved {
+                loaded.insert(id.to_string(), combo.to_string());
+            }
         }
     }
-}
-
-fn set_quiet(id: &str, combo: &str) -> Result<(), String> {
-    if action(id).is_none() || combo.is_empty() {
-        return Err(String::new());
-    }
-    if let Some(who) = conflict(id, combo) {
-        return Err(who);
-    }
     if let Ok(mut g) = OVERRIDES.write() {
-        g.get_or_insert_with(HashMap::new).insert(id.to_string(), combo.to_string());
+        *g = Some(loaded);
     }
-    Ok(())
+    for a in ACTIONS.iter() {
+        if custom(a.id) && ACTIONS.iter().any(|o| o.id != a.id && effective(o.id).eq_ignore_ascii_case(&effective(a.id))) {
+            if let Ok(mut g) = OVERRIDES.write() {
+                if let Some(m) = g.as_mut() {
+                    m.remove(a.id);
+                }
+            }
+        }
+    }
 }
 
 /// Combinação no formato `Ctrl+Shift+O`; `None` para teclas soltas de modificador ou sem Ctrl/Alt (evita roubar a digitação).

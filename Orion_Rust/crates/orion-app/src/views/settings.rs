@@ -464,7 +464,7 @@ fn section<'a>(app: &'a App) -> El<'a> {
                 }
                 c = c.push(setting(a.label, "", ctl.into()));
             }
-            for (l, k) in [("Trazer a janela de qualquer lugar (mini barra)", "Ctrl Alt Espaço"), ("Pânico: corta tudo", "Ctrl Alt P"), ("Captura rápida", "Ctrl Alt O"), ("Isso? (capturar a tela)", "Ctrl Alt I"), ("Enviar", "Enter"), ("Nova linha", "Shift Enter"), ("Comandos", "/"), ("Citar nota do vault", "@"), ("Fechar painel", "Esc")] {
+            for (l, k) in [("Trazer a janela de qualquer lugar (mini barra)", crate::keys::display("Ctrl+Alt+Space").as_str()), ("Pânico: corta tudo", "Ctrl Alt P"), ("Captura rápida", "Ctrl Alt O"), ("Isso? (capturar a tela)", "Ctrl Alt I"), ("Enviar", "Enter"), ("Nova linha", "Shift Enter"), ("Comandos", "/"), ("Citar nota do vault", "@"), ("Fechar painel", "Esc")] {
                 c = c.push(setting(l, crate::i18n::text("Fixo"), kbd(k)));
             }
         }

@@ -853,5 +853,16 @@
   "Modelo: {model}": "ui-0851",
   "falha na última chamada": "ui-0852",
   "configurado": "ui-0853",
-  "nenhum modelo respondeu: {details}": "ui-0854"
+  "nenhum modelo respondeu: {details}": "ui-0854",
+  "Alterar": "ui-0855",
+  "Restaurar": "ui-0856",
+  "Pressione o novo atalho…": "ui-0857",
+  "Fixo": "ui-0858",
+  "Enviar": "ui-0859",
+  "Comandos": "ui-0860",
+  "Fechar painel": "ui-0861",
+  "Recolher barra lateral": "ui-0862",
+  "{} precisa de Ctrl ou Alt junto com a tecla": "ui-0863",
+  "{} já é usado por: {}": "ui-0864",
+  "O atalho padrão ({}) já é usado por: {}": "ui-0865"
 }
