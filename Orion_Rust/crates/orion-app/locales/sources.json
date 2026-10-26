@@ -866,5 +866,22 @@
   "{} já é usado por: {}": "ui-0864",
   "O atalho padrão ({}) já é usado por: {}": "ui-0865",
   "Seção desconhecida. Use: /config geral, notificações, conta, privacidade, uso, modelos, memória, fontes, conectores, sistema, locais, voz, câmera ou atalhos": "ui-0866",
-  "Escala {}%": "ui-0867"
+  "Escala {}%": "ui-0867",
+  "Gravar ou atualizar a nota desta conversa": "ui-0868",
+  "Procurar no vault": "ui-0869",
+  "Criar ou listar rotinas": "ui-0870",
+  "Trocar modelo e esforço": "ui-0871",
+  "Trocar o projeto da conversa": "ui-0872",
+  "Ligar ou desligar o modo autônomo": "ui-0873",
+  "Pedir uma tarefa longa em segundo plano": "ui-0874",
+  "Mandar uma tarefa para o Claude ou o Codex na nuvem": "ui-0875",
+  "Gerar imagem (Gemini)": "ui-0876",
+  "Conversa nova no mesmo projeto": "ui-0877",
+  "Resumir a conversa até aqui": "ui-0878",
+  "Abrir a fila de aprovações": "ui-0879",
+  "Ligar ou desligar a voz ao vivo": "ui-0880",
+  "Listar e ativar servidores MCP": "ui-0881",
+  "Listar e ativar skills": "ui-0882",
+  "Abrir uma seção das Configurações": "ui-0883",
+  "Todos os comandos": "ui-0884"
 }

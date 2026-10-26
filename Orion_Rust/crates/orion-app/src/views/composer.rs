@@ -15,7 +15,7 @@ use iced::{Background, Border, Length, Task};
 pub fn suggestions(app: &App) -> Vec<(String, String, String)> {
     let d = app.draft();
     if d.starts_with('/') && !d.contains(char::is_whitespace) {
-        return data::CMDS.iter().filter(|(c, _)| c.starts_with(d.as_str())).map(|(c, desc)| (format!("{c} "), c.to_string(), desc.to_string())).collect();
+        return data::CMDS.iter().filter(|(c, _)| c.starts_with(d.as_str())).map(|(c, desc)| (format!("{c} "), c.to_string(), crate::i18n::text(desc).to_string())).collect();
     }
     if let Some(tok) = d.split(char::is_whitespace).next_back() {
         if let Some(q) = tok.strip_prefix('@') {
