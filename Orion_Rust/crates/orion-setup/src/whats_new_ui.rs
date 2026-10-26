@@ -109,11 +109,15 @@ pub fn run(app_dir: PathBuf, english: bool) -> iced::Result {
     if std::env::var_os("ICED_BACKEND").is_none() {
         std::env::set_var("ICED_BACKEND", "tiny-skia");
     }
-    iced::application(move || (State::new(app_dir.clone(), news.clone(), english), Task::none()), State::update, State::view)
+    let dir = app_dir.clone();
+    let result = iced::application(move || (State::new(app_dir.clone(), news.clone(), english), Task::none()), State::update, State::view)
         .title(|s: &State| texts(s.english).title.to_string())
         .theme(|_: &State| Theme::Dark)
         .subscription(State::subscription)
         .window_size(Size::new(640.0, 300.0))
         .resizable(false)
-        .run()
+        .run();
+    // Fechar pelo X ou Alt+F4 também conta como visto: o aviso não volta na próxima abertura.
+    orion_updater::dismiss_whats_new(&dir);
+    result
 }
