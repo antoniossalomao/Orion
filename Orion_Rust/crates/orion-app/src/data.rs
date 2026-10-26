@@ -312,15 +312,6 @@ pub fn projects() -> Vec<Project> {
 ]
 }
 
-pub fn results() -> Vec<(String, String, String, String, String)> {
-    let t = |a: &str, b: &str, c: &str, d: &str, e: &str| (a.to_string(), b.to_string(), c.to_string(), d.to_string(), e.to_string());
-    vec![
-    t("Pesquisa: memória RAM desnecessária", "Índice vetorial, voz residente e cache sem limite.", "15/10", "Pesquisa", "v2"),
-    t("Diagnóstico do PR do vault", "Duas checagens verdes, sem conflito.", "14/10", "Revisão", "v1"),
-    t("Revisão da fase 5 de voz", "Pendente: calibrar palmas no notebook.", "12/10", "Revisão", "v3"),
-]
-}
-
 #[derive(Clone)]
 pub struct Rot {
     pub id: String,

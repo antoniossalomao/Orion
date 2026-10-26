@@ -48,7 +48,7 @@ Estado canônico: [ORION.md](ORION.md); tarefas F01/F05/F07/F16 em [ORION_PLANO_
 | U8 | Seletor de provedor: Auto, Claude, Codex, Gemini, Orion | Mantém (rodadas 2–6) | Igual |
 | U9 | Aprovação "Aprovar / Negar / Ver o diff" | Mantém; sem contagem regressiva (removida) | Igual |
 | U10 | Cotas de exemplo (Gemini, Groq, Cerebras, OpenRouter, Mistral) | Ordem real configurável (F03.E) | Dados reais no lugar dos de exemplo; layout igual |
-| U11 | "Fontes" e "Conhecimento" são telas de **Mais** e também seções de Configurações (Fontes) | Mantém | Igual |
+| U11 | "Fontes" e "Conhecimento" são telas de **Mais** e também seções de Configurações (Fontes) | Mantém | **Alterado em 26/10/2026:** Fontes só em Configurações; Conhecimento continua em Mais; Resultados cortada |
 | U12 | Configurações com **2 grupos** (Configurações / Este computador) e 14 seções | Plano F07 prevê grupos App/IA/etc. | **Vale o mockup** para a navegação; conteúdo detalhado das seções vem da F07. Ajustar F07.A |
 | U13 | Zoom da interface por CSS `zoom` (90–150%) | Escala nativa do iced | Aplicar `scale_factor` do iced; mesmos 5 degraus |
 | U14 | Grafo em **Canvas 2D** (protótipo) | **3D em wgpu** com layout por compute shader | O 3D substitui o 2D; **toda a interação, filtros, busca, detalhes e linha do tempo da §17 permanecem** |
@@ -247,9 +247,7 @@ Campo "Procurar nas conversas" (altura 32, raio 8, fundo `hover`, sem borda; foc
 | Aprovações | `shield` | contador âmbar (`signal`, mín. 18×18, raio 9) com o total de pendências (conversas + proposta de rotina) |
 | Rotinas | `clock` | ponto Rigel de 6 px quando há "resultado novo" |
 | **Mais** (expansível) | `chevR` (gira 90° em 200 ms) | `aria-expanded`; estado persistido |
-| ↳ Resultados | `result` | |
 | ↳ Nuvem | `cloud` | `spin` quando há tarefa rodando |
-| ↳ Fontes | `db` | |
 | ↳ Conhecimento | `book` | |
 | ↳ Painel | `gauge` | |
 | ↳ Arquivadas | `archive` | |
@@ -420,13 +418,17 @@ Caixa mono 12/1.6, fundo `#0b0c0d`, borda `line`, raio 10, altura mínima 240. S
 - Linha: título + selo verde "resultado novo" + selo Rigel `cloud` "nuvem se desligado" (rotinas críticas) · descrição "{quando} · próxima {…}|pausada · última {…} [selo ok/falhou/pulada]" · "Saída: {…}" · à direita: `runs` (7 quadrados), **Rodar agora** (`play`), switch Ativar. Abrir Rotinas apaga "resultado novo".
 - Toasts: "{nome} ativada/pausada"; "{nome}: rodou agora. Saída: {saída}".
 
-### 15.4 Resultados
+### 15.4 Resultados (cortada em 26/10/2026)
+> Esta tela saiu do app: não há item em Mais, na paleta nem captura. O núcleo mantém os dados. O texto abaixo fica só como referência histórica do protótipo.
+
 "Seus resultados": "Conteúdo que vale guardar, com versões e fontes." Linhas: título + descrição · selo de tipo (Pesquisa/Revisão) · versão em mono (v1, v2, v3) · data.
 
 ### 15.5 Nuvem
 "Nuvem": "Tarefas que você mandou para Claude ou Codex na nuvem, com /nuvem. Ao terminar, o Orion avisa e espera você." Botão `cloud` "Nova tarefa" (preenche `/nuvem codex ` no Início). Linha: selo do serviço + título · "{projeto} · {quando} · {link}" · à direita: selo âmbar `spin` "rodando" **ou** selo verde "pronto" + **Trazer resultado** (toast `codex apply: diff trazido para C:\Projetos\Orion` ou `claude --teleport: sessão trazida para o PC`).
 
-### 15.6 Fontes
+### 15.6 Fontes (movida em 26/10/2026)
+> Deixou de ser tela: não há item em Mais nem na paleta. Os cinco switches ficam só em Configurações > Fontes (§18.8).
+
 "Fontes": "Só o que está ligado é lido. O desligado não é consultado." Cinco linhas com switch: Vault do Obsidian · Repositórios dos projetos · Calendário · E-mail · Busca na web (descrições em §28).
 
 ### 15.7 Conhecimento

@@ -383,11 +383,11 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [~] **F01.18** Abstração de plataforma em `orion-platform` (trait) e implementação Windows; nada de chamadas Win32 fora dela.
 
 #### F01.C Estrutura, navegação e atalhos
-- [x] **F01.19** **Barra lateral de 272 px**, recolhível com **Ctrl+B** (recolhe para ícones): voltar/avançar, busca, **Nova conversa, Projetos, Memória, Aprovações, Rotinas**, "Mais" (Resultados, Nuvem, Fontes, Conhecimento, Painel, Arquivadas; Integrações ficam em Configurações > Conectores), com a busca como campo no topo e Ctrl+K *(ordem e itens do protótipo de UI, U6)*; rodapé com perfil e engrenagem.
+- [x] **F01.19** **Barra lateral de 272 px**, recolhível com **Ctrl+B** (recolhe para ícones): voltar/avançar, busca, **Nova conversa, Projetos, Memória, Aprovações, Rotinas**, "Mais" (Nuvem, Conhecimento, Painel, Arquivadas; Resultados cortada e Fontes só em Configurações, 26/10/2026; Integrações ficam em Configurações > Conectores), com a busca como campo no topo e Ctrl+K *(ordem e itens do protótipo de UI, U6)*; rodapé com perfil e engrenagem.
 - [~] **F01.20** Lista de conversas: fixadas no topo, **Hoje, Ontem, 7 dias, Mais antigos**, mais recente primeiro; título com projeto embaixo; indicadores (âmbar aguardando aprovação, girando trabalhando, azul resposta nova); ícones de origem (relógio = rotina, avião = Telegram); **arquivar só manual**.
 - [~] **F01.21** **Paleta única Ctrl+K**: busca em conversas e notas do vault + ações com prefixo `>`; navegação por teclado.
 - [~] **F01.22** **Atalhos personalizáveis** (tela em Configurações) com **detecção de conflito**; tabela padrão: Ctrl+K, Ctrl+B, Ctrl+/− (escala), Win+Shift+Espaço, Ctrl+Alt+P, Ctrl+Alt+V (voz ao vivo), Ctrl+Alt+T (tradução de tela), Win+Shift+O (captura rápida), Win+Shift+I ("Isso?").
-- [~] **F01.23** Roteamento de telas (Início, Chat, Projetos, Memória, Aprovações, Rotinas, Painel, Resultados, Fontes, Conhecimento, Integrações, Arquivadas, Configurações) com **links profundos** (`/config <seção>`).
+- [~] **F01.23** Roteamento de telas (Início, Chat, Projetos, Memória, Aprovações, Rotinas, Painel, Conhecimento, Integrações, Arquivadas, Configurações; Resultados e Fontes deixaram de ser telas em 26/10/2026) com **links profundos** (`/config <seção>`).
 
 #### F01.D Tela inicial, idioma e acessibilidade
 - [~] **F01.24** **Tela inicial:** constelação de Órion ao fundo (animada, sutil, usando o motor do céu da F01.29), saudação por **hora do dia + nome**, campo de mensagem central, projeto, seletor de modelo, linha de estado, **sugestões (poucas e relevantes: pendências, cotas, falhas)**, **projetos recentes** e **pendências**. **Ao abrir: conversa nova** (com o último projeto usado).
@@ -723,7 +723,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 
 - [~] **F09.01** **Tela Painel**, em ordem: **cotas das APIs gratuitas** (quanto resta hoje, atualizadas a cada 5 min), **uso das assinaturas** (Claude, Codex, Gemini), **saúde do sistema** (RAM, CPU, GPU, disco, serviços), **atividade da semana** (conversas, ações por tipo), **tempo da primeira resposta**, modelos e CLIs, política; gráficos de **barras e linhas simples** com abas **Hoje / Semana / Mês**.
 - [~] **F09.02** **Métricas de desempenho locais**, **custo estimado** por conversa e **transparência de saídas** (resumo).
-- [~] **F09.03** **Tela Resultados:** saídas guardadas com tipo, versão e data.
+- [ ] ~~**F09.03** **Tela Resultados:** saídas guardadas com tipo, versão e data.~~ **Cortada em 26/10/2026** (decisão do Antônio).
 - [ ] **F09.04** **Tela Integrações** (lista de serviços com estado: conectado, token expirado) — preenchida conforme as integrações chegarem.
 - [~] **F09.05** **Resumo do dia ("Você fez"):** conversas e tarefas, notas gravadas e aprovações; aparece no Painel e no aviso das 23:59. **Backend 24/10/2026:** API diária de conversas/tarefas/autorizações por escopo. Restante: painel, recibos reais de notas e aceite visual.
 - [~] **F09.06** **Tela Arquivadas** (conversas e projetos).

@@ -1,4 +1,4 @@
-//! Telas de página (§15): Projetos, Aprovações, Rotinas, Resultados, Nuvem, Fontes, Conhecimento, Arquivadas, Painel.
+//! Telas de página (§15): Projetos, Aprovações, Rotinas, Nuvem, Conhecimento, Arquivadas, Painel.
 
 use crate::app::{App, Msg, View};
 use crate::chart::Line;
@@ -17,9 +17,7 @@ pub fn view(app: &App, v: View) -> El<'_> {
         View::Projetos => projetos(app),
         View::Aprovacoes => aprovacoes(app),
         View::Rotinas => rotinas(app),
-        View::Resultados => resultados(app),
         View::Nuvem => nuvem(app),
-        View::Fontes => fontes(app),
         View::Conhecimento => conhecimento(app),
         View::Arquivadas => arquivadas(app),
         View::Painel => painel(app),
@@ -237,11 +235,6 @@ fn rotinas(app: &App) -> El<'_> {
     page(crate::i18n::text("Rotinas"), crate::i18n::text("Crie pelo chat (“todo dia às 8h me manda o briefing”), por /rotina ou aqui. As críticas rodam na nuvem do Claude se o PC estiver desligado."), Some(btn(crate::i18n::text("Nova rotina"), Kind::Primary, false, None, Some(Msg::Toast("Formulário: nome, horário, prompt, projeto, modelo, saída".into())))), list(rows))
 }
 
-fn resultados(app: &App) -> El<'_> {
-    let rows = app.results.iter().map(|r| li(column![tx(r.0.clone(), 14.0, t::FG), li_desc(r.1.clone())].into(), li_right(vec![badge(&r.3, Tone::Plain), txf(r.4.clone(), 12.0, t::FG3, t::MONO).into(), rt(r.2.clone())]))).collect();
-    page(crate::i18n::text("Seus resultados"), crate::i18n::text("Conteúdo que vale guardar, com versões e fontes."), None, list(rows))
-}
-
 fn nuvem(app: &App) -> El<'_> {
     let mut rows = vec![];
     for (i, c) in app.cloud.iter().enumerate() {
@@ -279,10 +272,6 @@ fn nuvem(app: &App) -> El<'_> {
 
 pub fn src_rows(app: &App) -> Vec<El<'_>> {
     data::SRC.iter().enumerate().map(|(i, (_, tt, d))| setting(tt, d, switch(app.p.src[i], Msg::TogA("src", i)))).collect()
-}
-
-fn fontes(app: &App) -> El<'_> {
-    page(crate::i18n::text("Fontes"), crate::i18n::text("Só o que está ligado é lido. O desligado não é consultado."), None, list(src_rows(app)))
 }
 
 fn conhecimento(app: &App) -> El<'_> {
