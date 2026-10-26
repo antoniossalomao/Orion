@@ -461,6 +461,7 @@ pub const CMDS: &[(&str, &str)] = &[
     ("/voz", "Ligar ou desligar a voz ao vivo"),
     ("/mcp", "Listar e ativar servidores MCP"),
     ("/skill", "Listar e ativar skills"),
+    ("/config", "Abrir uma seção das Configurações"),
     ("/ajuda", "Todos os comandos"),
 ];
 

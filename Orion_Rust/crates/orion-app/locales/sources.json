@@ -834,7 +834,7 @@
   "{lang} · fórmula (não consegui diagramar; o código está abaixo)": "ui-0832",
   "Use: /nuvem claude <tarefa> ou /nuvem codex <tarefa>": "ui-0833",
   "Resumo gerado na nota desta conversa": "ui-0834",
-  "Comandos: /nota /vault /rotina /modelo /projeto /autonomo /tarefa /nuvem /imagem /limpar /resumo /aprovar /voz /mcp /skill": "ui-0835",
+  "Comandos: /nota /vault /rotina /modelo /projeto /autonomo /tarefa /nuvem /imagem /limpar /resumo /aprovar /voz /mcp /skill /config": "ui-0835",
   "{} · Assinatura, pela CLI oficial": "ui-0836",
   "idioma fonte texto largura escala densidade movimento tom respostas": "ui-0837",
   "limite tokens cotas": "ui-0838",
@@ -864,5 +864,6 @@
   "Recolher barra lateral": "ui-0862",
   "{} precisa de Ctrl ou Alt junto com a tecla": "ui-0863",
   "{} já é usado por: {}": "ui-0864",
-  "O atalho padrão ({}) já é usado por: {}": "ui-0865"
+  "O atalho padrão ({}) já é usado por: {}": "ui-0865",
+  "Seção desconhecida. Use: /config geral, notificações, conta, privacidade, uso, modelos, memória, fontes, conectores, sistema, locais, voz, câmera ou atalhos": "ui-0866"
 }

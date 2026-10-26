@@ -77,6 +77,30 @@ pub enum Sec {
     Atalhos,
 }
 
+impl Sec {
+    /// Seção pelo nome digitado em `/config <seção>` (sem acento e sem diferença de maiúsculas).
+    pub fn from_name(name: &str) -> Option<Sec> {
+        let n: String = name.trim().to_lowercase().chars().map(|c| match c { 'á' | 'à' | 'ã' | 'â' => 'a', 'é' | 'ê' => 'e', 'í' => 'i', 'ó' | 'õ' | 'ô' => 'o', 'ú' => 'u', 'ç' => 'c', c => c }).collect();
+        Some(match n.as_str() {
+            "geral" | "general" => Sec::Geral,
+            "notificacoes" | "sons" | "notifications" => Sec::Notificacoes,
+            "conta" | "account" => Sec::Conta,
+            "privacidade" | "autonomia" | "privacy" => Sec::Privacidade,
+            "uso" | "cotas" | "usage" => Sec::Uso,
+            "modelos" | "models" => Sec::Modelos,
+            "memoria" | "memory" => Sec::Memoria,
+            "fontes" | "sources" => Sec::Fontes,
+            "conectores" | "mcp" | "skills" | "connectors" => Sec::Conectores,
+            "sistema" | "system" => Sec::Sistema,
+            "locais" | "modelos locais" | "local" => Sec::Locais,
+            "voz" | "voice" => Sec::Voz,
+            "camera" => Sec::Camera,
+            "atalhos" | "teclado" | "shortcuts" => Sec::Atalhos,
+            _ => return None,
+        })
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Panic {
     Idle,

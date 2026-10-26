@@ -215,9 +215,19 @@ pub fn run_command(app: &mut App, word: &str, full: &str) -> Task<Msg> {
             return Task::perform(async move { api.post("/nuvem", serde_json::json!({"servico": a, "tarefa": b})).await }, |r| Msg::L(crate::live::Lm::Acao(r.map(|_| "Tarefa enviada à nuvem".to_string()), true)));
         }
         "imagem" => app.toast("Gerando imagem com Gemini (simulado). Fica na conversa e em 03 Recursos/Orion/Imagens."),
+        "config" => {
+            let name = rest.trim();
+            if name.is_empty() {
+                return app.update(Msg::OpenSettings(None));
+            }
+            match crate::app::Sec::from_name(name) {
+                Some(sec) => return app.update(Msg::OpenSettings(Some(sec))),
+                None => app.toast("Seção desconhecida. Use: /config geral, notificações, conta, privacidade, uso, modelos, memória, fontes, conectores, sistema, locais, voz, câmera ou atalhos"),
+            }
+        }
         "mcp" | "skill" => return app.update(Msg::OpenSettings(Some(crate::app::Sec::Conectores))),
         "resumo" => app.toast("Resumo gerado na nota desta conversa"),
-        "ajuda" => app.toast("Comandos: /nota /vault /rotina /modelo /projeto /autonomo /tarefa /nuvem /imagem /limpar /resumo /aprovar /voz /mcp /skill"),
+        "ajuda" => app.toast("Comandos: /nota /vault /rotina /modelo /projeto /autonomo /tarefa /nuvem /imagem /limpar /resumo /aprovar /voz /mcp /skill /config"),
         "projeto" => app.pop = Some(Pop::Project),
         _ => {}
     }
