@@ -920,7 +920,7 @@ impl App {
                 if self.news_pending && !crate::novidades::started_in_background() {
                     self.news_pending = false;
                     crate::novidades::mark_seen();
-                    crate::novidades::open_whats_new();
+                    crate::novidades::open_whats_new(self.p.english);
                     self.toast(crate::novidades::text(self.p.english));
                 }
                 if let Some((_, at)) = &self.toast {

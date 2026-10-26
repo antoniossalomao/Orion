@@ -13,6 +13,10 @@ fn state_file() -> Option<PathBuf> {
 
 /// Há novidade a mostrar? Na primeira instalação grava a versão e não avisa, para não anunciar a própria instalação.
 pub fn pending() -> bool {
+    // O atualizador deixou notas: vale mesmo que a versão do pacote não tenha mudado.
+    if whats_new_dir().is_some() {
+        return true;
+    }
     let Some(path) = state_file() else { return false };
     match std::fs::read_to_string(&path) {
         Ok(seen) => seen.trim() != VERSION,
@@ -46,10 +50,20 @@ pub fn text(english: bool) -> String {
 }
 
 /// Abre a mini tela "O que mudou" (do `Orion Setup.exe`, ao lado do app) se o atualizador deixou notas; sem elas, não faz nada.
-pub fn open_whats_new() {
-    let Some(dir) = std::env::current_exe().ok().and_then(|e| e.parent().map(PathBuf::from)) else { return };
-    let setup = dir.join("Orion Setup.exe");
-    if dir.join("whats-new.json").exists() && setup.exists() {
-        let _ = std::process::Command::new(setup).arg("--whats-new").arg(&dir).spawn();
+pub fn open_whats_new(english: bool) {
+    if let Some(dir) = whats_new_dir() {
+        let lang = if english { "--lang=en" } else { "--lang=pt" };
+        let _ = std::process::Command::new(dir.join("Orion Setup.exe")).arg("--whats-new").arg(&dir).arg(lang).spawn();
     }
+}
+
+/// Pasta do app, se houver notas pendentes e um `Orion Setup.exe` que as entenda (o manifesto da instalação diz;
+/// instalador antigo abriria o assistente de instalação).
+fn whats_new_dir() -> Option<PathBuf> {
+    let dir = std::env::current_exe().ok()?.parent()?.to_path_buf();
+    if !dir.join("whats-new.json").exists() || !dir.join("Orion Setup.exe").exists() {
+        return None;
+    }
+    let manifest: serde_json::Value = serde_json::from_slice(&std::fs::read(dir.join("orion-install.json")).ok()?).ok()?;
+    manifest["whats_new"].as_bool().unwrap_or(false).then_some(dir)
 }

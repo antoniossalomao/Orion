@@ -490,6 +490,7 @@ impl InstallPlan {
                     app_dir: choices.app_dir.clone(),
                     data_dir: choices.data_dir.clone(),
                     models_dir: choices.models_dir.clone(),
+                    whats_new: true,
                     ..Default::default()
                 };
                 self.write_new(&manifest, &serde_json::to_vec_pretty(&info).unwrap_or_default())

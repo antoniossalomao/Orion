@@ -281,6 +281,9 @@ pub struct InstallManifest {
     pub data_dir: PathBuf,
     #[serde(default)]
     pub models_dir: PathBuf,
+    /// Este `Orion Setup.exe` entende `--whats-new`; instalações antigas não têm a marca e o app não o chama.
+    #[serde(default)]
+    pub whats_new: bool,
     /// Arquivos do app com o SHA-256 de quando foram copiados.
     #[serde(default)]
     pub files: Vec<InstalledFile>,

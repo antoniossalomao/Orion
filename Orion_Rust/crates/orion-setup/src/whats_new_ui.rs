@@ -18,7 +18,25 @@ enum Message {
     Close,
 }
 
+/// Textos da janela (pt-BR e en), como no resto do instalador.
+struct Texts {
+    title: &'static str,
+    heading: &'static str,
+    version: &'static str,
+    fallback: &'static str,
+    cont: &'static str,
+}
+
+fn texts(english: bool) -> Texts {
+    if english {
+        Texts { title: "What's new in Orion", heading: "What's new", version: "Version", fallback: "Fixes and improvements.", cont: "Continue" }
+    } else {
+        Texts { title: "O que mudou no Orion", heading: "O que mudou", version: "Versão", fallback: "Correções e melhorias.", cont: "Continuar" }
+    }
+}
+
 struct State {
+    english: bool,
     app_dir: PathBuf,
     news: WhatsNew,
     sky: OrionSky,
@@ -27,7 +45,7 @@ struct State {
 }
 
 impl State {
-    fn new(app_dir: PathBuf, news: WhatsNew) -> Self {
+    fn new(app_dir: PathBuf, news: WhatsNew, english: bool) -> Self {
         let mut sky = OrionSky::new();
         sky.set_size(SKY_W, SKY_H);
         sky.one_star_per_step();
@@ -35,7 +53,7 @@ impl State {
         sky.light_to(7);
         sky.step_dt(0.016, 0.0, 0.0);
         let handle = sky.render_image_handle();
-        Self { app_dir, news, sky, handle, last: None }
+        Self { english, app_dir, news, sky, handle, last: None }
     }
 
     fn update(&mut self, message: Message) -> Task<Message> {
@@ -55,19 +73,20 @@ impl State {
     }
 
     fn view(&self) -> Element<'_, Message> {
-        let notes = if self.news.notes.trim().is_empty() { "Correções e melhorias." } else { self.news.notes.trim() };
+        let t = texts(self.english);
+        let notes = if self.news.notes.trim().is_empty() { t.fallback } else { self.news.notes.trim() };
         let subtitle = if self.news.previous_version.is_empty() {
-            format!("Versão {}", self.news.version)
+            format!("{} {}", t.version, self.news.version)
         } else {
             format!("{} → {}", self.news.previous_version, self.news.version)
         };
         let sky = iced_image(self.handle.clone()).width(Length::Fixed(SKY_W as f32)).height(Length::Fixed(SKY_H as f32));
         let right = column![
-            text("O que mudou").size(22).color(theme::FG),
+            text(t.heading).size(22).color(theme::FG),
             text(subtitle).size(13).color(theme::BETEL),
             Space::new().height(Length::Fixed(6.0)),
             scrollable(text(notes).size(14).color(theme::FG2)).height(Length::Fill),
-            button("Continuar").on_press(Message::Close),
+            button(t.cont).on_press(Message::Close),
         ]
         .spacing(8)
         .width(Length::Fill);
@@ -85,13 +104,13 @@ impl State {
 }
 
 /// Abre a janela se houver novidade ainda não vista em `app_dir`; volta quando ela fecha.
-pub fn run(app_dir: PathBuf) -> iced::Result {
+pub fn run(app_dir: PathBuf, english: bool) -> iced::Result {
     let Some(news) = orion_updater::pending_whats_new(&app_dir) else { return Ok(()) };
     if std::env::var_os("ICED_BACKEND").is_none() {
         std::env::set_var("ICED_BACKEND", "tiny-skia");
     }
-    iced::application(move || (State::new(app_dir.clone(), news.clone()), Task::none()), State::update, State::view)
-        .title(|_: &State| "O que mudou no Orion".to_string())
+    iced::application(move || (State::new(app_dir.clone(), news.clone(), english), Task::none()), State::update, State::view)
+        .title(|s: &State| texts(s.english).title.to_string())
         .theme(|_: &State| Theme::Dark)
         .subscription(State::subscription)
         .window_size(Size::new(640.0, 300.0))
