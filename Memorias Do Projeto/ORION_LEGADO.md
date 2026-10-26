@@ -2,7 +2,7 @@
 
 > Reúne, sem reescrever, os 24 documentos antigos de `Memorias Do Projeto/` e o README anterior, como estavam antes da consolidação de 14/10/2026. É a referência do que o **Python** faz hoje: operação, variáveis, ferramentas, rodadas e decisões antigas.
 >
-> Estado atual: [ORION.md](ORION.md). Regras: [REGRAS.md](REGRAS.md). Arquitetura: [ARQUITETURA.md](ARQUITETURA.md). Como rodar: [README.md](../README.md).
+> Estado atual: [ORION.md](ORION.md). Regras: [REGRAS.md](REGRAS.md). Arquitetura: [ARQUITETURA.md](ARQUITETURA.md). Melhorias v1: [ORION_MELHORIAS_PRE_V1.md](ORION_MELHORIAS_PRE_V1.md). Roadmap pós-v1: [ORION_MELHORIAS_POS_V1.md](ORION_MELHORIAS_POS_V1.md). Como rodar: [README.md](../README.md).
 >
 > Este arquivo não é atualizado por rotina. Os números de seção originais foram mantidos onde código ou testes os citam (ex.: §16 da operação, lida por `tests/test_operacao_doc.py`). Os títulos internos foram rebaixados um nível para caber num arquivo só.
 
