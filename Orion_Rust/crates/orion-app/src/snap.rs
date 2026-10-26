@@ -75,7 +75,7 @@ pub fn scenarios() -> Vec<(&'static str, Size, App)> {
         a.update(Msg::OpenConv(0));
         a.update(Msg::CtxTab(CtxTab::Terminal));
     }));
-    for (n, vw) in [("10-projetos", View::Projetos), ("11-aprovacoes", View::Aprovacoes), ("12-rotinas", View::Rotinas), ("14-nuvem", View::Nuvem), ("16-conhecimento", View::Conhecimento), ("17-painel", View::Painel), ("19-arquivadas", View::Arquivadas), ("20-memoria", View::Memoria)] {
+    for (n, vw) in [("10-projetos", View::Projetos), ("11-aprovacoes", View::Aprovacoes), ("12-rotinas", View::Rotinas), ("14-nuvem", View::Nuvem), ("16-conhecimento", View::Conhecimento), ("19-arquivadas", View::Arquivadas), ("20-memoria", View::Memoria)] {
         push(n, cena(|a| {
             a.more = !matches!(vw, View::Projetos | View::Aprovacoes | View::Rotinas | View::Memoria);
             a.update(Msg::Go(vw));
@@ -93,6 +93,7 @@ pub fn scenarios() -> Vec<(&'static str, Size, App)> {
         ("32-cfg-conta", Sec::Conta),
         ("33-cfg-privacidade", Sec::Privacidade),
         ("34-cfg-uso", Sec::Uso),
+        ("17-cfg-painel", Sec::Painel),
         ("35-cfg-modelos", Sec::Modelos),
         ("36-cfg-memoria", Sec::Memoria),
         ("37-cfg-fontes", Sec::Fontes),

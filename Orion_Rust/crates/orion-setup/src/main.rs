@@ -6,6 +6,8 @@
 
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
+mod elevation;
+
 use iced::window;
 use iced::{Size, Task, Theme};
 use orion_setup::app::{SetupApp, FONT_SANS};
@@ -50,6 +52,10 @@ fn apply_rounded_corners_to_process_windows() {
 }
 
 fn main() -> iced::Result {
+    if elevation::relaunch_if_needed() {
+        return Ok(());
+    }
+
     // Usa o renderizador `tiny-skia` por padrão para abertura instantânea (< 50 ms).
     if std::env::var_os("ICED_BACKEND").is_none() {
         std::env::set_var("ICED_BACKEND", "tiny-skia");

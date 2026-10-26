@@ -329,6 +329,7 @@ pub fn pull_sec(api: &Api, sec: Sec) -> Task<Msg> {
     match sec {
         Sec::Conectores => Task::batch([get("/mcp/servidores", Lm::Mcp), get("/skills", Lm::Skills)]),
         Sec::Locais => get("/modelos-locais", Lm::Modelos),
+        Sec::Painel => Task::batch([get("/painel", Lm::Painel), get("/budget", Lm::Budget)]),
         Sec::Modelos => Task::batch([get("/painel", Lm::Painel), get("/budget", Lm::Budget), get("/config/chaves", Lm::Keys)]),
         _ => Task::none(),
     }
@@ -384,7 +385,6 @@ pub fn pull_page(api: &Api, v: View) -> Task<Msg> {
         View::Conhecimento => get("/facts", Lm::Facts),
         View::Memoria => get("/grafo/completo", Lm::Grafo),
         View::Projetos => get("/projects", Lm::Projects),
-        View::Painel => Task::batch([get("/painel", Lm::Painel), get("/budget", Lm::Budget)]),
         View::Nuvem => Task::batch([get("/tarefas-bg", Lm::Tarefas), get("/nuvem", Lm::Nuvem)]),
         View::Aprovacoes => Task::batch([get("/painel", Lm::Painel), get("/approvals", Lm::Approvals)]),
         _ => Task::none(),
@@ -663,7 +663,7 @@ impl App {
                 self.facts[i].src = "corrigido por você · hoje".into();
                 Some((acao(&api, async move { a2.patch(&format!("/facts/{id}"), json!({"texto": texto})).await }, "Fato corrigido", true), false))
             }
-            Msg::Refresh => Some((pull_page(&api, View::Painel), true)),
+            Msg::Refresh => Some((pull_sec(&api, Sec::Painel), true)),
             Msg::Approve(ci, mi) | Msg::Deny(ci, mi) => {
                 let ok = matches!(msg, Msg::Approve(..));
                 let ChatMsg::Orion(o) = self.convs.get(*ci)?.msgs.get(*mi)? else { return None };
