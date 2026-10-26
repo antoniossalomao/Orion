@@ -1,6 +1,6 @@
 # Orion — arquitetura
 
-> Produto: app nativo Rust de um só executável (`orion.exe`, núcleo e interface iced no mesmo processo, sem porta e sem Python). O pacote Python `orion/` e seus testes foram removidos em 20/10/2026 e permanecem no histórico do Git. Os dados pessoais do legado ainda precisam de exportação e verificação antes do descarte do PC. O worker `orion-llama.exe` fica separado; o navegador usa CDP em loopback efêmero, sem servidor HTTP do app. Princípios e onde cada um é imposto: [REGRAS.md](REGRAS.md). Estado e plano: [ORION.md](ORION.md). Como rodar: [README](../README.md). Detalhes do legado: [ORION_LEGADO.md](ORION_LEGADO.md).
+> Produto: app nativo Rust de um só executável (`orion.exe`, núcleo e interface iced no mesmo processo, sem porta e sem Python). O pacote Python `orion/` e seus testes foram removidos em 20/10/2026 e permanecem no histórico do Git. Os dados pessoais do legado ainda precisam de exportação e verificação antes do descarte do PC. O worker `orion-llama.exe` fica separado; o navegador usa CDP em loopback efêmero, sem servidor HTTP do app. Princípios e onde cada um é imposto: [REGRAS.md](REGRAS.md). Estado e plano canônico: [ORION.md](ORION.md). Melhorias pré-lançamento v1: [ORION_MELHORIAS_PRE_V1.md](ORION_MELHORIAS_PRE_V1.md). Roadmap pós-v1: [ORION_MELHORIAS_POS_V1.md](ORION_MELHORIAS_POS_V1.md). Como rodar: [README](../README.md). Detalhes do legado: [ORION_LEGADO.md](ORION_LEGADO.md).
 
 ## 1. Referência histórica: pacote `orion/` (Python, removido do repositório em 20/10/2026; consulte o Git)
 
@@ -75,7 +75,7 @@ O front HTML/CSS/JS antigo (`Orion_Core/Front_end_Orion/`) e a rota `/ui` foram 
 
 - **Agora:** a interface é o `orion-app` (iced), rodando dentro de `orion.exe` com o núcleo no mesmo processo; a UI chama as rotas por `Api::local`, sem socket. Mini barra, bandeja e atalhos globais (Ctrl+Alt+Espaço, Ctrl+Alt+P) vêm de `orion-platform`. Os launchers pywebview antigos foram removidos.
 - **Decisão:** só desktop, sem versão para celular. O celular fica no Telegram.
-- **Destino:** iced (Rust), tema único Grafite escuro, conforme [ORION_UI_ESPECIFICACAO.md](ORION_UI_ESPECIFICACAO.md). As três opções antigas de tema estão superadas; o renderer de grafo 3D wgpu ainda está pendente. A experiência atual usa canvas 2D do iced.
+- **Destino:** iced (Rust), tema único Grafite escuro, consolidado em [ORION_MELHORIAS_PRE_V1.md](ORION_MELHORIAS_PRE_V1.md). As três opções antigas de tema estão superadas; Painel e Fontes ficam exclusivamente em Configurações, Resultados foi cortado da navegação (acesso via `/resultados`) e o renderer de grafo 3D wgpu é meta pós-v1 ([ORION_MELHORIAS_POS_V1.md](ORION_MELHORIAS_POS_V1.md)). A experiência atual da v1 usa canvas 2D do iced com layout orgânico multiescala.
 
 A tela Vida (E10) e a legenda ao vivo (E11) existiam no front antigo, removido em 21/10/2026. No app iced a tela Vida foi cortada (21/10/2026) e a legenda é uma faixa estática de demonstração; os backends (`/vida/*`, `/foco`, `/legenda`) funcionam.
 
@@ -228,7 +228,7 @@ Esta tabela é uma pesquisa de candidatos, não uma lista de modelos instalados.
 | Tela (GUI) | `microsoft/OmniParser-v2.0` | AGPL-3.0 no detector padrão; MIT em `icon_detect_v3` e `icon_caption` | Para evitar AGPL, usar o caminho v3 |
 | NER | `urchade/gliner_multi-v2.1` | Apache-2.0 | Sem ONNX oficial na página |
 
-**Licença-alvo ainda não decidida.** Se o Orion for só pessoal, os itens não comerciais não bloqueiam. Se for vendido ou distribuído, saem: openWakeWord oficial, ESC-50, Jina v3, OmniParser com o detector padrão e modelos de pesquisa, como o Sabiá-7B.
+**Licença-alvo decidida (D07): uso pessoal (`LicenseRef-Proprietario`).** Sendo de uso pessoal estrito, os itens não comerciais de pesquisa não bloqueiam a operação local. Em caso de eventual distribuição pública futura, saem: openWakeWord oficial, ESC-50, Jina v3, OmniParser com o detector padrão e modelos de pesquisa acadêmica.
 
 
 Atualização R1 (23/10/2026): o gateway limita conexão, primeira saída e inatividade separadamente, sem abortar streams ativos por duração total. Diagnósticos distinguem cabeçalhos, primeira saída e interrupção; logs incluem somente contagens e duração. Gemini rápido usa esforço baixo; a camada pesada mantém o padrão do modelo.
