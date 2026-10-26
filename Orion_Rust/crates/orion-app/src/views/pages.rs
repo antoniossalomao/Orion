@@ -49,9 +49,6 @@ use iced::widget::text;
 fn li_right<'a>(parts: Vec<El<'a>>) -> El<'a> {
     row(parts).spacing(8).align_y(Vertical::Center).into()
 }
-fn rt<'a>(s: impl text::IntoFragment<'a>) -> El<'a> {
-    tx(s, 12.0, t::FG3).into()
-}
 fn list<'a>(rows: Vec<El<'a>>) -> El<'a> {
     column![hline(), column(rows)].into()
 }
