@@ -19,9 +19,12 @@ pub struct PalItem {
 }
 
 pub fn pal_items(app: &App) -> Vec<PalItem> {
-    let q = app.pal.q.trim().to_lowercase();
+    // `>` no começo restringe a paleta às ações (F01.21).
+    let raw = app.pal.q.trim().to_lowercase();
+    let only_actions = raw.starts_with('>');
+    let q = raw.trim_start_matches('>').trim().to_string();
     let mut out: Vec<PalItem> = vec![];
-    for (i, c) in app.convs.iter().enumerate() {
+    for (i, c) in app.convs.iter().enumerate().filter(|_| !only_actions) {
         let hay = format!("{} {} {}", c.title, c.proj, c.msgs.iter().map(|m| match m { crate::data::ChatMsg::User(s) => s.to_string(), crate::data::ChatMsg::Orion(o) => o.body.to_string() }).collect::<Vec<_>>().join(" ")).to_lowercase();
         if q.is_empty() || hay.contains(&q) {
             out.push(PalItem { icon: "chat", title: c.title.to_string(), group: format!("Conversa · {}", c.proj), msg: Msg::OpenConv(i) });
@@ -30,7 +33,7 @@ pub fn pal_items(app: &App) -> Vec<PalItem> {
             break;
         }
     }
-    if !q.is_empty() {
+    if !q.is_empty() && !only_actions {
         for n in app.mem.nodes.iter().filter(|n| n.label.to_lowercase().contains(&q)).take(6) {
             out.push(PalItem { icon: "file", title: n.label.clone(), group: format!("Nota · {}", n.folder.split('/').next().unwrap_or("")), msg: Msg::EditorOpen(format!("{}/{}.md", n.folder, n.label)) });
         }
