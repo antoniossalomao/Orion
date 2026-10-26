@@ -883,3 +883,4 @@ ui-0881 = { "List and enable MCP servers" }
 ui-0882 = { "List and enable skills" }
 ui-0883 = { "Open a Settings section" }
 ui-0884 = { "All commands" }
+ui-0885 = { "Recent projects" }

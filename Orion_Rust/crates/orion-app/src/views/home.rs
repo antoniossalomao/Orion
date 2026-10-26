@@ -106,9 +106,19 @@ pub fn view(app: &App) -> El<'_> {
         sg = sg.push(r.push(grow()));
     }
 
-    let content = column![eyebrow, container(hello).padding(pad(4.0, 0.0, 22.0, 0.0)), crate::views::composer::view(app, true), container(status).padding(pad(6.0, 0.0, 0.0, 0.0)), container(sg).padding(pad(18.0, 0.0, 0.0, 0.0))]
+    // Projetos recentes (F01.24): até três, na ordem da lista; o clique abre a conversa do projeto ou um chat novo nele.
+    let mut recent = row![grow(), tx(crate::i18n::text("Projetos recentes"), 12.0, t::FG3)].spacing(10).align_y(Vertical::Center);
+    for (i, p) in app.projects.iter().enumerate().take(3) {
+        recent = recent.push(sugg(Some("folder"), false, p.n.clone(), false, Msg::OpenProject(i)));
+    }
+    let recent = recent.push(grow());
+
+    let mut content = column![eyebrow, container(hello).padding(pad(4.0, 0.0, 22.0, 0.0)), crate::views::composer::view(app, true), container(status).padding(pad(6.0, 0.0, 0.0, 0.0)), container(sg).padding(pad(18.0, 0.0, 0.0, 0.0))]
         .spacing(12)
         .width(Length::Fixed(660.0));
+    if !app.projects.is_empty() {
+        content = content.push(container(recent).padding(pad(8.0, 0.0, 0.0, 0.0)));
+    }
     let c = container(content).width(Length::Fill).height(Length::Fill).center_x(Length::Fill).center_y(Length::Fill).padding(pad(40.0, 16.0, 56.0, 16.0));
     stack![sky, c].width(Length::Fill).height(Length::Fill).into()
 }

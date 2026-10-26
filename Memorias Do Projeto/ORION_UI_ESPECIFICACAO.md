@@ -574,7 +574,7 @@ Lede: "llama.cpp embutido no Orion, sem processo extra. Carregam só quando usad
 **Objetos lembrados:** etiquetas removíveis (padrão: chaves, carteira, celular, fone de ouvido, óculos, controle remoto, carregador, notebook, mochila, documentos (RG/CNH), cartões, remédios, garrafa/copo, mouse sem fio, teclado sem fio, pendrive, relógio, guarda-chuva, caneta) + campo "Adicionar objeto" (Enter ou **Adicionar**).
 
 ### 18.14 Atalhos
-Linhas (rótulo | `kbd`): Abrir o Orion de qualquer lugar | **Win + Shift + Espaço** (U3) · Captura rápida para o Inbox | Win + Shift + O · “Isso?”: capturar a tela e perguntar | Win + Shift + I · Buscar conversas e notas | Ctrl K · Nova conversa | Ctrl Shift O · Recolher barra lateral | Ctrl B · Configurações | Ctrl , · Escala da interface | Ctrl + / Ctrl − · Enviar | Enter · Nova linha | Shift Enter · Repetir a última mensagem | ↑ · Comandos | / · Citar nota do vault | @ · Fechar painel | Esc. **No app real:** editáveis, com detecção de conflito (F01.22).
+Linhas (rótulo | `kbd`): Abrir o Orion de qualquer lugar | **Win + Shift + Espaço** (U3) · Captura rápida para o Inbox | Win + Shift + O · “Isso?”: capturar a tela e perguntar | Win + Shift + I · Buscar conversas e notas | Ctrl K · Nova conversa | Ctrl Shift O · Recolher barra lateral | Ctrl B · Configurações | Ctrl , · Escala da interface | Ctrl + / Ctrl − · Enviar | Enter · Nova linha | Shift Enter · Repetir a última mensagem | ↑ · Comandos | / · Citar nota do vault | @ · Fechar painel | Esc. **No app real (26/10/2026):** Ctrl K, Ctrl Shift O, Ctrl B e Ctrl , são editáveis em Configurações > Atalhos (captura da próxima tecla, recusa de conflito e de tecla sem Ctrl/Alt, restaurar padrão); atalhos do sistema, Enter, Esc, setas e a escala são fixos (F01.22).
 
 ---
 
@@ -584,7 +584,7 @@ Linhas (rótulo | `kbd`): Abrir o Orion de qualquer lugar | **Win + Shift + Espa
 - Lista (padding 6, máx. 360): ícone 14 + título + grupo à direita (11.5, `fg-3`); selecionado fundo `sel`/`fg`.
 - **Resultados, nesta ordem:** até **6 conversas** (título; grupo "Conversa · {projeto}") · até **6 notas** do vault (só com texto digitado; grupo "Nota · {pasta raiz}"; abre o editor) · **ações**: Nova conversa · Configurações · Captura rápida (grupo "Ação · Win + Shift + O") · Isso? (capturar a tela) ("Ação · Win + Shift + I") · Ligar/Desligar modo autônomo · "Ir para {tela}" para todas as telas. Filtra por título + grupo. Vazio: "Nada encontrado".
 - ↑↓ movem (circular), Enter executa, Esc fecha, Ctrl K de novo fecha. Nada abre sobre Configurações.
-- **No app real:** prefixo `>` para comandos (decisão F01.21).
+- **No app real:** prefixo `>` lista só ações (F01.21, feito em 26/10/2026). Comando `/config <seção>` abre Configurações direto (F01.23).
 
 ---
 
