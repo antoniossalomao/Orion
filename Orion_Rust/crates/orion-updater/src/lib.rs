@@ -242,7 +242,41 @@ fn install(feed: &Feed, app_dir: &Path, fetch: &dyn Fetch) -> Result<()> {
     })();
     let _ = std::fs::remove_dir_all(&staging);
     resultado?;
-    registrar_versao(app_dir, feed)
+    registrar_versao(app_dir, feed)?;
+    anotar_novidades(app_dir, feed)
+}
+
+/// Arquivo que a mini tela "O que mudou" lê; fica na pasta do app até ser vista.
+pub const WHATS_NEW: &str = "whats-new.json";
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct WhatsNew {
+    pub version: String,
+    #[serde(default)]
+    pub previous_version: String,
+    #[serde(default)]
+    pub notes: String,
+}
+
+/// Guarda as notas da versão instalada para a próxima abertura visível (a tarefa diária roda sem janela).
+fn anotar_novidades(app_dir: &Path, feed: &Feed) -> Result<()> {
+    let anterior = std::fs::read(app_dir.join(MANIFEST))
+        .ok()
+        .and_then(|b| serde_json::from_slice::<serde_json::Value>(&b).ok())
+        .and_then(|m| m["previous_version"].as_str().map(str::to_string))
+        .unwrap_or_default();
+    let novo = WhatsNew { version: feed.version.clone(), previous_version: anterior, notes: feed.notes.clone() };
+    io(std::fs::write(app_dir.join(WHATS_NEW), serde_json::to_vec_pretty(&novo).map_err(|e| UpdateError::Io(e.to_string()))?))
+}
+
+/// Novidade ainda não vista, se houver.
+pub fn pending_whats_new(app_dir: &Path) -> Option<WhatsNew> {
+    serde_json::from_slice(&std::fs::read(app_dir.join(WHATS_NEW)).ok()?).ok()
+}
+
+/// Marca como vista (remove o arquivo).
+pub fn dismiss_whats_new(app_dir: &Path) {
+    let _ = std::fs::remove_file(app_dir.join(WHATS_NEW));
 }
 
 /// Põe a nova versão e os novos hashes no manifesto, para a desinstalação continuar certa.

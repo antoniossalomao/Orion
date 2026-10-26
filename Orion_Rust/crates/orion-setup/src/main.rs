@@ -61,6 +61,10 @@ fn main() -> iced::Result {
         Some(orion_setup::register::UninstallAction::Ui(dir)) => return orion_setup::uninstall_ui::run(dir),
         None => {}
     }
+    if let Some(i) = args.iter().position(|a| a == "--whats-new") {
+        let dir = args.get(i + 1).map(std::path::PathBuf::from).unwrap_or_default();
+        return orion_setup::whats_new_ui::run(dir);
+    }
     let real_install = !args.iter().any(|a| a == "--preview" || a == "--prototype-hw");
     let use_proto_hw = args.iter().any(|a| a == "--prototype-hw");
 

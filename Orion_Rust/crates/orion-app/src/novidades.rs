@@ -44,3 +44,12 @@ pub fn text(english: bool) -> String {
         format!("Orion atualizado para {VERSION}. Veja em Configurações › Sistema › Sobre.")
     }
 }
+
+/// Abre a mini tela "O que mudou" (do `Orion Setup.exe`, ao lado do app) se o atualizador deixou notas; sem elas, não faz nada.
+pub fn open_whats_new() {
+    let Some(dir) = std::env::current_exe().ok().and_then(|e| e.parent().map(PathBuf::from)) else { return };
+    let setup = dir.join("Orion Setup.exe");
+    if dir.join("whats-new.json").exists() && setup.exists() {
+        let _ = std::process::Command::new(setup).arg("--whats-new").arg(&dir).spawn();
+    }
+}

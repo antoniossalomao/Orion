@@ -57,6 +57,10 @@ fn atualiza_quando_assinatura_e_hash_conferem_e_guarda_o_antigo() {
     assert_eq!(std::fs::read(c.dir.path().join("orion.exe.bak")).unwrap(), b"v-antigo");
     let m: serde_json::Value = serde_json::from_slice(&std::fs::read(c.dir.path().join(MANIFEST)).unwrap()).unwrap();
     assert_eq!(m["version"], "0.2.0");
+    let novidade = pending_whats_new(c.dir.path()).unwrap();
+    assert_eq!((novidade.version.as_str(), novidade.previous_version.as_str()), ("0.2.0", "0.1.0"));
+    dismiss_whats_new(c.dir.path());
+    assert!(pending_whats_new(c.dir.path()).is_none());
     assert_eq!(m["files"][0]["sha256"], hex::encode(Sha256::digest(b"v-novo")));
     assert!(!c.dir.path().join(".update-0.2.0").exists(), "staging limpo");
 }
