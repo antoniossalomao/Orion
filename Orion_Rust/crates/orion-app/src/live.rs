@@ -33,7 +33,6 @@ pub enum Lm {
     /// Imagem gerada baixada do núcleo: (URL `/imagens/…`, bytes).
     Imagem(String, Result<Vec<u8>, String>),
     Facts(Result<Value, String>),
-    Results(Result<Value, String>),
     Painel(Result<Value, String>),
     Budget(Result<Value, String>),
     Modo(Result<Value, String>),
@@ -270,17 +269,6 @@ pub fn map_facts(v: &Value) -> Vec<Fact> {
         .collect()
 }
 
-pub fn map_results(v: &Value) -> Vec<(String, String, String, String, String)> {
-    arr(v, "resultados")
-        .iter()
-        .map(|r| {
-            let criado = iso_to_secs(s(r, "criado")).map(|t| format!("{}", day_label(t))).unwrap_or_default();
-            let previa = r.get("previa").and_then(Value::as_str).or_else(|| r.get("conversa").and_then(Value::as_str)).unwrap_or("").to_string();
-            (s(r, "nome").to_string(), previa, criado, s(r, "tipo").to_string(), format!("v{}", r.get("versao").and_then(Value::as_i64).unwrap_or(1)))
-        })
-        .collect()
-}
-
 pub fn map_mcp(v: &Value) -> Vec<data::Mcp> {
     arr(v, "servidores")
         .iter()
@@ -394,7 +382,6 @@ pub fn pull_page(api: &Api, v: View) -> Task<Msg> {
     match v {
         View::Rotinas => get("/rotinas", Lm::Rotinas),
         View::Conhecimento => get("/facts", Lm::Facts),
-        View::Resultados => get("/resultados", Lm::Results),
         View::Memoria => get("/grafo/completo", Lm::Grafo),
         View::Projetos => get("/projects", Lm::Projects),
         View::Painel => Task::batch([get("/painel", Lm::Painel), get("/budget", Lm::Budget)]),
@@ -417,13 +404,21 @@ impl App {
     /// Entra no modo real: nada de dados de exemplo, tudo vem do servidor.
     pub fn live(api: Api) -> (Self, Task<Msg>) {
         let mut a = App::new();
+        a.persist_ui = true;
+        crate::keys::enable_persistence();
+        let (scale, compact) = crate::uiprefs::load();
+        if let Some(s) = scale {
+            a.p.scale = s;
+        }
+        if let Some(c) = compact {
+            a.p.compact = c;
+        }
         a.convs.clear();
         a.projects.clear();
         a.cloud.clear();
         a.mcp.clear();
         a.skills.clear();
         a.locais.clear();
-        a.results.clear();
         a.facts.clear();
         a.rots.clear();
         a.acts.clear();
@@ -1050,10 +1045,6 @@ impl App {
             },
             Lm::Facts(r) => match r {
                 Ok(v) => self.facts = map_facts(&v),
-                Err(e) => self.net_fail(e),
-            },
-            Lm::Results(r) => match r {
-                Ok(v) => self.results = map_results(&v),
                 Err(e) => self.net_fail(e),
             },
             Lm::Painel(r) => match r {

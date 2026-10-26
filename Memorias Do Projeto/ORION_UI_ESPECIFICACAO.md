@@ -48,7 +48,7 @@ Estado canônico: [ORION.md](ORION.md); tarefas F01/F05/F07/F16 em [ORION_PLANO_
 | U8 | Seletor de provedor: Auto, Claude, Codex, Gemini, Orion | Mantém (rodadas 2–6) | Igual |
 | U9 | Aprovação "Aprovar / Negar / Ver o diff" | Mantém; sem contagem regressiva (removida) | Igual |
 | U10 | Cotas de exemplo (Gemini, Groq, Cerebras, OpenRouter, Mistral) | Ordem real configurável (F03.E) | Dados reais no lugar dos de exemplo; layout igual |
-| U11 | "Fontes" e "Conhecimento" são telas de **Mais** e também seções de Configurações (Fontes) | Mantém | Igual |
+| U11 | "Fontes" e "Conhecimento" são telas de **Mais** e também seções de Configurações (Fontes) | Mantém | **Alterado em 26/10/2026:** Fontes só em Configurações; Conhecimento continua em Mais; Resultados cortada |
 | U12 | Configurações com **2 grupos** (Configurações / Este computador) e 14 seções | Plano F07 prevê grupos App/IA/etc. | **Vale o mockup** para a navegação; conteúdo detalhado das seções vem da F07. Ajustar F07.A |
 | U13 | Zoom da interface por CSS `zoom` (90–150%) | Escala nativa do iced | Aplicar `scale_factor` do iced; mesmos 5 degraus |
 | U14 | Grafo em **Canvas 2D** (protótipo) | **3D em wgpu** com layout por compute shader | O 3D substitui o 2D; **toda a interação, filtros, busca, detalhes e linha do tempo da §17 permanecem** |
@@ -247,9 +247,7 @@ Campo "Procurar nas conversas" (altura 32, raio 8, fundo `hover`, sem borda; foc
 | Aprovações | `shield` | contador âmbar (`signal`, mín. 18×18, raio 9) com o total de pendências (conversas + proposta de rotina) |
 | Rotinas | `clock` | ponto Rigel de 6 px quando há "resultado novo" |
 | **Mais** (expansível) | `chevR` (gira 90° em 200 ms) | `aria-expanded`; estado persistido |
-| ↳ Resultados | `result` | |
 | ↳ Nuvem | `cloud` | `spin` quando há tarefa rodando |
-| ↳ Fontes | `db` | |
 | ↳ Conhecimento | `book` | |
 | ↳ Painel | `gauge` | |
 | ↳ Arquivadas | `archive` | |
@@ -420,13 +418,17 @@ Caixa mono 12/1.6, fundo `#0b0c0d`, borda `line`, raio 10, altura mínima 240. S
 - Linha: título + selo verde "resultado novo" + selo Rigel `cloud` "nuvem se desligado" (rotinas críticas) · descrição "{quando} · próxima {…}|pausada · última {…} [selo ok/falhou/pulada]" · "Saída: {…}" · à direita: `runs` (7 quadrados), **Rodar agora** (`play`), switch Ativar. Abrir Rotinas apaga "resultado novo".
 - Toasts: "{nome} ativada/pausada"; "{nome}: rodou agora. Saída: {saída}".
 
-### 15.4 Resultados
+### 15.4 Resultados (cortada em 26/10/2026)
+> Esta tela saiu do app: não há item em Mais, na paleta nem captura. O núcleo mantém os dados. O texto abaixo fica só como referência histórica do protótipo.
+
 "Seus resultados": "Conteúdo que vale guardar, com versões e fontes." Linhas: título + descrição · selo de tipo (Pesquisa/Revisão) · versão em mono (v1, v2, v3) · data.
 
 ### 15.5 Nuvem
 "Nuvem": "Tarefas que você mandou para Claude ou Codex na nuvem, com /nuvem. Ao terminar, o Orion avisa e espera você." Botão `cloud` "Nova tarefa" (preenche `/nuvem codex ` no Início). Linha: selo do serviço + título · "{projeto} · {quando} · {link}" · à direita: selo âmbar `spin` "rodando" **ou** selo verde "pronto" + **Trazer resultado** (toast `codex apply: diff trazido para C:\Projetos\Orion` ou `claude --teleport: sessão trazida para o PC`).
 
-### 15.6 Fontes
+### 15.6 Fontes (movida em 26/10/2026)
+> Deixou de ser tela: não há item em Mais nem na paleta. Os cinco switches ficam só em Configurações > Fontes (§18.8).
+
 "Fontes": "Só o que está ligado é lido. O desligado não é consultado." Cinco linhas com switch: Vault do Obsidian · Repositórios dos projetos · Calendário · E-mail · Busca na web (descrições em §28).
 
 ### 15.7 Conhecimento
@@ -572,7 +574,7 @@ Lede: "llama.cpp embutido no Orion, sem processo extra. Carregam só quando usad
 **Objetos lembrados:** etiquetas removíveis (padrão: chaves, carteira, celular, fone de ouvido, óculos, controle remoto, carregador, notebook, mochila, documentos (RG/CNH), cartões, remédios, garrafa/copo, mouse sem fio, teclado sem fio, pendrive, relógio, guarda-chuva, caneta) + campo "Adicionar objeto" (Enter ou **Adicionar**).
 
 ### 18.14 Atalhos
-Linhas (rótulo | `kbd`): Abrir o Orion de qualquer lugar | **Win + Shift + Espaço** (U3) · Captura rápida para o Inbox | Win + Shift + O · “Isso?”: capturar a tela e perguntar | Win + Shift + I · Buscar conversas e notas | Ctrl K · Nova conversa | Ctrl Shift O · Recolher barra lateral | Ctrl B · Configurações | Ctrl , · Escala da interface | Ctrl + / Ctrl − · Enviar | Enter · Nova linha | Shift Enter · Repetir a última mensagem | ↑ · Comandos | / · Citar nota do vault | @ · Fechar painel | Esc. **No app real:** editáveis, com detecção de conflito (F01.22).
+Linhas (rótulo | `kbd`): Abrir o Orion de qualquer lugar | **Win + Shift + Espaço** (U3) · Captura rápida para o Inbox | Win + Shift + O · “Isso?”: capturar a tela e perguntar | Win + Shift + I · Buscar conversas e notas | Ctrl K · Nova conversa | Ctrl Shift O · Recolher barra lateral | Ctrl B · Configurações | Ctrl , · Escala da interface | Ctrl + / Ctrl − · Enviar | Enter · Nova linha | Shift Enter · Repetir a última mensagem | ↑ · Comandos | / · Citar nota do vault | @ · Fechar painel | Esc. **No app real (26/10/2026):** Ctrl K, Ctrl Shift O, Ctrl B e Ctrl , são editáveis em Configurações > Atalhos (captura da próxima tecla, recusa de conflito e de tecla sem Ctrl/Alt, restaurar padrão); atalhos do sistema, Enter, Esc, setas e a escala são fixos (F01.22).
 
 ---
 
@@ -582,7 +584,7 @@ Linhas (rótulo | `kbd`): Abrir o Orion de qualquer lugar | **Win + Shift + Espa
 - Lista (padding 6, máx. 360): ícone 14 + título + grupo à direita (11.5, `fg-3`); selecionado fundo `sel`/`fg`.
 - **Resultados, nesta ordem:** até **6 conversas** (título; grupo "Conversa · {projeto}") · até **6 notas** do vault (só com texto digitado; grupo "Nota · {pasta raiz}"; abre o editor) · **ações**: Nova conversa · Configurações · Captura rápida (grupo "Ação · Win + Shift + O") · Isso? (capturar a tela) ("Ação · Win + Shift + I") · Ligar/Desligar modo autônomo · "Ir para {tela}" para todas as telas. Filtra por título + grupo. Vazio: "Nada encontrado".
 - ↑↓ movem (circular), Enter executa, Esc fecha, Ctrl K de novo fecha. Nada abre sobre Configurações.
-- **No app real:** prefixo `>` para comandos (decisão F01.21).
+- **No app real:** prefixo `>` lista só ações (F01.21, feito em 26/10/2026). Comando `/config <seção>` abre Configurações direto (F01.23).
 
 ---
 

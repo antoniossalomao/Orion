@@ -15,9 +15,7 @@ pub enum View {
     Memoria,
     Aprovacoes,
     Rotinas,
-    Resultados,
     Nuvem,
-    Fontes,
     Conhecimento,
     Painel,
     Arquivadas,
@@ -31,9 +29,7 @@ impl View {
             View::Memoria => crate::i18n::text("Memória"),
             View::Aprovacoes => crate::i18n::text("Aprovações"),
             View::Rotinas => crate::i18n::text("Rotinas"),
-            View::Resultados => crate::i18n::text("Resultados"),
             View::Nuvem => crate::i18n::text("Segundo plano"),
-            View::Fontes => crate::i18n::text("Fontes"),
             View::Conhecimento => crate::i18n::text("Conhecimento"),
             View::Painel => crate::i18n::text("Painel"),
             View::Arquivadas => crate::i18n::text("Arquivadas"),
@@ -79,6 +75,30 @@ pub enum Sec {
     Voz,
     Camera,
     Atalhos,
+}
+
+impl Sec {
+    /// Seção pelo nome digitado em `/config <seção>` (sem acento e sem diferença de maiúsculas).
+    pub fn from_name(name: &str) -> Option<Sec> {
+        let n: String = name.trim().to_lowercase().chars().map(|c| match c { 'á' | 'à' | 'ã' | 'â' => 'a', 'é' | 'ê' => 'e', 'í' => 'i', 'ó' | 'õ' | 'ô' => 'o', 'ú' => 'u', 'ç' => 'c', c => c }).collect();
+        Some(match n.as_str() {
+            "geral" | "general" => Sec::Geral,
+            "notificacoes" | "sons" | "notifications" => Sec::Notificacoes,
+            "conta" | "account" => Sec::Conta,
+            "privacidade" | "autonomia" | "privacy" => Sec::Privacidade,
+            "uso" | "cotas" | "usage" => Sec::Uso,
+            "modelos" | "models" => Sec::Modelos,
+            "memoria" | "memory" => Sec::Memoria,
+            "fontes" | "sources" => Sec::Fontes,
+            "conectores" | "mcp" | "skills" | "connectors" => Sec::Conectores,
+            "sistema" | "system" => Sec::Sistema,
+            "locais" | "modelos locais" | "local" => Sec::Locais,
+            "voz" | "voice" => Sec::Voz,
+            "camera" => Sec::Camera,
+            "atalhos" | "teclado" | "shortcuts" => Sec::Atalhos,
+            _ => return None,
+        })
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -340,7 +360,6 @@ pub struct App {
     /// Tarefas na nuvem pelas CLIs oficiais (`/nuvem`); vazio com a nuvem desligada.
     pub nuvem: Vec<data::NuvemItem>,
     pub mcp: Vec<data::Mcp>,
-    pub results: Vec<(String, String, String, String, String)>,
     pub cloud_extra: Vec<(String, String)>,
     pub skills: Vec<data::SkillRow>,
     pub locais: Vec<data::LocalModel>,
@@ -365,6 +384,11 @@ pub struct App {
     /// Início da tela de entrada (animação de entrada e respiração do brilho).
     pub login_at: Instant,
     pub spin: f32,
+    /// Ação cujo atalho está sendo capturado e a última recusa por conflito (F01.22).
+    /// Só o app real grava escala e densidade; testes e capturas não tocam nos arquivos do usuário.
+    pub persist_ui: bool,
+    pub short_edit: Option<&'static str>,
+    pub short_err: String,
     pub term_out: Vec<String>,
     pub term_in: String,
     pub new_obj: String,
@@ -545,6 +569,11 @@ pub enum Msg {
     PalClose,
     PalQ(String),
     PalMove(i32),
+    ZoomStep(i32),
+    ShortcutEdit(&'static str),
+    ShortcutCaptured(String),
+    ShortcutCancel,
+    ShortcutReset(&'static str),
     PalRun(usize),
     QcapOpen,
     QcapClose,
@@ -599,6 +628,16 @@ pub enum Msg {
 }
 
 impl App {
+    /// Grava escala e densidade (só no app real); avisa se não conseguir.
+    fn save_ui(&mut self) {
+        if !self.persist_ui {
+            return;
+        }
+        if let Err(e) = crate::uiprefs::save(self.p.scale, self.p.compact) {
+            self.toast(crate::i18n::formatted("Não foi possível salvar: {e}", format!("Não foi possível salvar: {e}")));
+        }
+    }
+
     pub fn new() -> Self {
         App {
             p: Prefs::default(),
@@ -653,7 +692,6 @@ impl App {
             cloud: data::cloud(),
             nuvem: vec![],
             mcp: data::mcp(),
-            results: data::results(),
             cloud_extra: vec![],
             skills: data::skills_demo(),
             locais: data::locais_demo(),
@@ -676,6 +714,9 @@ impl App {
             now: Instant::now(),
             login_at: Instant::now(),
             spin: 0.0,
+            persist_ui: false,
+            short_edit: None,
+            short_err: String::new(),
             term_out: data::TERM.iter().map(|s| s.to_string()).collect(),
             term_in: String::new(),
             new_obj: String::new(),
@@ -747,7 +788,8 @@ impl App {
         });
         let poll = if self.window_active && self.api.is_some() && self.logged && self.streaming.is_none() { iced::time::every(Duration::from_secs(6)).map(|_| Msg::Poll) } else { Subscription::none() };
         let resize = window::resize_events().map(|(_, s)| Msg::Resized(s));
-        let keys = iced::keyboard::listen().filter_map(crate::keys::map);
+        // Enquanto um atalho é capturado, a assinatura é outra: o estado vem só de `short_edit`.
+        let keys = if self.short_edit.is_some() { iced::keyboard::listen().filter_map(crate::keys::map_capture) } else { iced::keyboard::listen().filter_map(crate::keys::map) };
         let fundo = match &self.monitor {
             Some(monitor) => monitor.subscription(),
             None => Subscription::run(|| futures::stream::once(async { Msg::Bandeja })),
@@ -911,6 +953,10 @@ impl App {
     }
 
     fn update_inner(&mut self, msg: Msg) -> Task<Msg> {
+        // A captura de atalho só vale com a seção Atalhos aberta; qualquer outra saída a cancela (F01.22).
+        if self.short_edit.is_some() && !(self.set_open && self.sec == Sec::Atalhos) && !matches!(msg, Msg::ShortcutCaptured(_) | Msg::ShortcutEdit(_)) {
+            self.short_edit = None;
+        }
         match msg {
             Msg::Tick(now) => {
                 self.now = now;
@@ -1690,6 +1736,26 @@ impl App {
             Msg::Minimize => { self.window_active = false; return window::oldest().and_then(|id| window::minimize(id, true)); },
             Msg::Fullscreen => return window::oldest().and_then(window::toggle_maximize),
             Msg::CloseWindow => return window::oldest().and_then(|id| Task::done(Msg::CloseReq(id))),
+            Msg::ZoomStep(d) => {
+                let steps = crate::uiprefs::SCALES;
+                let at = steps.iter().position(|s| *s == self.p.scale).unwrap_or(1) as i32;
+                self.p.scale = steps[(at + d).clamp(0, 4) as usize];
+                self.save_ui();
+                self.toast(crate::i18n::formatted("Escala {}%", format!("Escala {}%", self.p.scale)));
+            }
+            Msg::ShortcutEdit(id) => {
+                self.short_edit = Some(id);
+                self.short_err.clear();
+            }
+            Msg::ShortcutCancel => self.short_edit = None,
+            Msg::ShortcutCaptured(combo) => {
+                if let Some(id) = self.short_edit.take() {
+                    self.short_err = crate::keys::set(id, &combo).err().map(|e| e.message()).unwrap_or_default();
+                }
+            }
+            Msg::ShortcutReset(id) => {
+                self.short_err = crate::keys::reset(id).err().map(|e| e.message()).unwrap_or_default();
+            }
             Msg::Esc => {
                 if self.mini {
                     return self.update_inner(Msg::CloseWindow);
@@ -1767,8 +1833,14 @@ impl App {
                     self.toast("Language updated.");
                 }
             }
-            "scale" => self.p.scale = [90, 100, 115, 130, 150][v],
-            "density" => self.p.compact = v == 1,
+            "scale" => {
+                self.p.scale = crate::uiprefs::SCALES[v];
+                self.save_ui();
+            }
+            "density" => {
+                self.p.compact = v == 1;
+                self.save_ui();
+            }
             "motion" => self.p.reduced = v == 1,
             "font" => self.p.font = v,
             "size" => self.p.size = v,

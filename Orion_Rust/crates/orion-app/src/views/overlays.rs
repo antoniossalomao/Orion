@@ -19,20 +19,25 @@ pub struct PalItem {
 }
 
 pub fn pal_items(app: &App) -> Vec<PalItem> {
-    let q = app.pal.q.trim().to_lowercase();
+    // `>` no começo restringe a paleta às ações (F01.21).
+    let raw = app.pal.q.trim().to_lowercase();
+    let only_actions = raw.starts_with('>');
+    let q = raw.trim_start_matches('>').trim().to_string();
     let mut out: Vec<PalItem> = vec![];
-    for (i, c) in app.convs.iter().enumerate() {
-        let hay = format!("{} {} {}", c.title, c.proj, c.msgs.iter().map(|m| match m { crate::data::ChatMsg::User(s) => s.to_string(), crate::data::ChatMsg::Orion(o) => o.body.to_string() }).collect::<Vec<_>>().join(" ")).to_lowercase();
-        if q.is_empty() || hay.contains(&q) {
-            out.push(PalItem { icon: "chat", title: c.title.to_string(), group: format!("Conversa · {}", c.proj), msg: Msg::OpenConv(i) });
+    if !only_actions {
+        for (i, c) in app.convs.iter().enumerate() {
+            let hay = format!("{} {} {}", c.title, c.proj, c.msgs.iter().map(|m| match m { crate::data::ChatMsg::User(s) => s.to_string(), crate::data::ChatMsg::Orion(o) => o.body.to_string() }).collect::<Vec<_>>().join(" ")).to_lowercase();
+            if q.is_empty() || hay.contains(&q) {
+                out.push(PalItem { icon: "chat", title: c.title.to_string(), group: format!("Conversa · {}", c.proj), msg: Msg::OpenConv(i) });
+            }
+            if out.len() >= 6 {
+                break;
+            }
         }
-        if out.len() >= 6 {
-            break;
-        }
-    }
-    if !q.is_empty() {
-        for n in app.mem.nodes.iter().filter(|n| n.label.to_lowercase().contains(&q)).take(6) {
-            out.push(PalItem { icon: "file", title: n.label.clone(), group: format!("Nota · {}", n.folder.split('/').next().unwrap_or("")), msg: Msg::EditorOpen(format!("{}/{}.md", n.folder, n.label)) });
+        if !q.is_empty() {
+            for n in app.mem.nodes.iter().filter(|n| n.label.to_lowercase().contains(&q)).take(6) {
+                out.push(PalItem { icon: "file", title: n.label.clone(), group: format!("Nota · {}", n.folder.split('/').next().unwrap_or("")), msg: Msg::EditorOpen(format!("{}/{}.md", n.folder, n.label)) });
+            }
         }
     }
     let mut acts: Vec<PalItem> = vec![
@@ -42,20 +47,18 @@ pub fn pal_items(app: &App) -> Vec<PalItem> {
         PalItem { icon: "scan", title: crate::i18n::text("Isso? (capturar a tela)").into(), group: crate::i18n::text("Ação · Ctrl + Alt + I").into(), msg: Msg::IssoOpen },
         PalItem { icon: "bolt", title: if app.p.auto { crate::i18n::text("Desligar modo autônomo").into() } else { crate::i18n::text("Ligar modo autônomo").into() }, group: crate::i18n::text("Ação").into(), msg: Msg::Toggle("auto") },
     ];
-    let nav: [(View, &str, &str); 11] = [
+    let nav: [(View, &str, &str); 9] = [
         (View::Projetos, "folder", crate::i18n::text("Projetos")),
         (View::Memoria, "graph", crate::i18n::text("Memória")),
         (View::Aprovacoes, "shield", crate::i18n::text("Aprovações")),
         (View::Rotinas, "clock", crate::i18n::text("Rotinas")),
-        (View::Resultados, "result", crate::i18n::text("Resultados")),
         (View::Nuvem, "cloud", crate::i18n::text("Segundo plano")),
-        (View::Fontes, "db", crate::i18n::text("Fontes")),
         (View::Conhecimento, "book", crate::i18n::text("Conhecimento")),
         (View::Painel, "gauge", crate::i18n::text("Painel")),
         (View::Arquivadas, "archive", crate::i18n::text("Arquivadas")),
         (View::Home, "plus", crate::i18n::text("Início")),
     ];
-    for (v, i, l) in nav.iter().take(10) {
+    for (v, i, l) in nav.iter().take(8) {
         acts.push(PalItem { icon: i, title: format!("Ir para {l}"), group: "Ir para".into(), msg: Msg::Go(*v) });
     }
     out.extend(acts.into_iter().filter(|c| q.is_empty() || format!("{} {}", c.title, c.group).to_lowercase().contains(&q)));

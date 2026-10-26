@@ -143,7 +143,7 @@ O alinhamento de 20/10 registra: remoção do mudo, senha do autônomo, senha no
 
 | Fase | Trabalho restante relevante |
 |---|---|
-| F01 | Céu: o motor CPU já é compartilhado entre instalador e onboarding (`orion-sky`); falta usá-lo nas demais telas do app e, se necessário, o shader wgpu. Fluent pt/en, comparação de snapshots, teclado/foco/contraste; Narrador fica fora da v1 |
+| F01 | Em 26/10/2026 (PR #56): atalhos personalizáveis, `/config`, prefixo `>`, Ctrl +/−, escala/densidade persistentes e projetos recentes entraram sem aceite Windows; Resultados e Fontes deixaram de ser telas. Céu: o motor CPU já é compartilhado entre instalador e onboarding (`orion-sky`); falta usá-lo nas demais telas do app e, se necessário, o shader wgpu. Fluent pt/en, comparação de snapshots, teclado/foco/contraste; Narrador fica fora da v1 |
 | F02 | PIN crítico; aceite de Hello, recuperação, login, bloqueio e banco cifrado no Windows |
 | F03 | ACP, catálogo de modelos/cotas completo e requisitos de RAM/VRAM |
 | F04 | Classificador de injeção e cobertura de engine/invariantes; testar senha ao ligar autônomo |

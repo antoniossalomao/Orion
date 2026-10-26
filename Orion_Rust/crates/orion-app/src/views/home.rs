@@ -49,6 +49,25 @@ fn sugg<'a>(ic: Option<&str>, dot: bool, label: String, warn: bool, msg: Msg) ->
         .into()
 }
 
+/// Até três projetos, do que tem conversa mais recente (as conversas vêm da mais nova para a mais antiga) ao resto da lista.
+fn recent_projects(app: &App) -> Vec<usize> {
+    let mut out: Vec<usize> = vec![];
+    for c in &app.convs {
+        if let Some(i) = app.projects.iter().position(|p| p.n == c.proj) {
+            if !out.contains(&i) {
+                out.push(i);
+            }
+        }
+    }
+    for i in 0..app.projects.len() {
+        if !out.contains(&i) {
+            out.push(i);
+        }
+    }
+    out.truncate(3);
+    out
+}
+
 pub fn view(app: &App) -> El<'_> {
     let sky = canvas(Sky { alpha: 0.55, constellation: true, intro: 1.0, belt: if app.voice { 1.0 } else { 0.0 } }).width(Length::Fill).height(Length::Fill);
     let hour = app.hour.unwrap_or_else(local_hour);
@@ -106,9 +125,19 @@ pub fn view(app: &App) -> El<'_> {
         sg = sg.push(r.push(grow()));
     }
 
-    let content = column![eyebrow, container(hello).padding(pad(4.0, 0.0, 22.0, 0.0)), crate::views::composer::view(app, true), container(status).padding(pad(6.0, 0.0, 0.0, 0.0)), container(sg).padding(pad(18.0, 0.0, 0.0, 0.0))]
+    // Projetos recentes (F01.24): até três, na ordem da lista; o clique abre a conversa do projeto ou um chat novo nele.
+    let mut recent = row![grow(), tx(crate::i18n::text("Projetos recentes"), 12.0, t::FG3)].spacing(10).align_y(Vertical::Center);
+    for i in recent_projects(app) {
+        recent = recent.push(sugg(Some("folder"), false, ell(&app.projects[i].n, 100.0, 13.0), false, Msg::OpenProject(i)));
+    }
+    let recent = recent.push(grow());
+
+    let mut content = column![eyebrow, container(hello).padding(pad(4.0, 0.0, 22.0, 0.0)), crate::views::composer::view(app, true), container(status).padding(pad(6.0, 0.0, 0.0, 0.0)), container(sg).padding(pad(18.0, 0.0, 0.0, 0.0))]
         .spacing(12)
         .width(Length::Fixed(660.0));
+    if !app.projects.is_empty() {
+        content = content.push(container(recent).padding(pad(8.0, 0.0, 0.0, 0.0)));
+    }
     let c = container(content).width(Length::Fill).height(Length::Fill).center_x(Length::Fill).center_y(Length::Fill).padding(pad(40.0, 16.0, 56.0, 16.0));
     stack![sky, c].width(Length::Fill).height(Length::Fill).into()
 }

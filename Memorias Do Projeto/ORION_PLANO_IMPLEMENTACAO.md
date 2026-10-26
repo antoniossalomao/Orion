@@ -367,7 +367,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [~] **F01.04** Formas: cantos **médios (10 a 14 px)**, bordas **finas e sutis**, bolhas do usuário com **fundo sutil**, botões principais em **Rigel pálido**, destaque (foco, seleção, switches) em **azul de Rigel**.
 - [~] **F01.05** Componentes base reutilizáveis: botão principal/secundário/fantasma, campo, seletor, switch, caixa, cartão, pílula, selo, toast, modal sobreposto com fundo escurecido, menu de contexto, tooltip, barra de progresso, lista virtualizada, ícones **Lucide** (SVG embutidos).
 - [~] **F01.06** Movimento: transições entre telas **fade de 150 ms**; painéis e abas **suaves de 200 ms**; indicador "Pensando" com ponto pulsante; **reduzir movimento** (sistema ou configuração) desliga tudo; **redução automática** com pouca RAM e **modo economia** na bateria.
-- [~] **F01.07** Densidade **Confortável** (~32 px, padrão) e **Compacta** (~26 px); escala **90–150%** (padrão **100%**) com Ctrl +/−.
+- [~] **F01.07** Densidade **Confortável** (~32 px, padrão) e **Compacta** (~26 px); escala **90–150%** (padrão **100%**) com Ctrl +/−. *(26/10/2026: Ctrl + e Ctrl − andam um degrau na escala, com toast; escala e densidade ficam em `interface.txt` e voltam ao reabrir o app; sem aceite Windows.)*
 - [~] **F01.08** Espaçamento entre mensagens **médio**; **cursor piscando** na digitação; **toast curto** ao copiar; ilustração de estado vazio: **cinturão de Órion, pequeno**.
 
 #### F01.B Janela e sistema
@@ -383,11 +383,11 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [~] **F01.18** Abstração de plataforma em `orion-platform` (trait) e implementação Windows; nada de chamadas Win32 fora dela.
 
 #### F01.C Estrutura, navegação e atalhos
-- [x] **F01.19** **Barra lateral de 272 px**, recolhível com **Ctrl+B** (recolhe para ícones): voltar/avançar, busca, **Nova conversa, Projetos, Memória, Aprovações, Rotinas**, "Mais" (Resultados, Nuvem, Fontes, Conhecimento, Painel, Arquivadas; Integrações ficam em Configurações > Conectores), com a busca como campo no topo e Ctrl+K *(ordem e itens do protótipo de UI, U6)*; rodapé com perfil e engrenagem.
+- [x] **F01.19** **Barra lateral de 272 px**, recolhível com **Ctrl+B** (recolhe para ícones): voltar/avançar, busca, **Nova conversa, Projetos, Memória, Aprovações, Rotinas**, "Mais" (Nuvem, Conhecimento, Painel, Arquivadas; Resultados cortada e Fontes só em Configurações, 26/10/2026; Integrações ficam em Configurações > Conectores), com a busca como campo no topo e Ctrl+K *(ordem e itens do protótipo de UI, U6)*; rodapé com perfil e engrenagem.
 - [~] **F01.20** Lista de conversas: fixadas no topo, **Hoje, Ontem, 7 dias, Mais antigos**, mais recente primeiro; título com projeto embaixo; indicadores (âmbar aguardando aprovação, girando trabalhando, azul resposta nova); ícones de origem (relógio = rotina, avião = Telegram); **arquivar só manual**.
-- [~] **F01.21** **Paleta única Ctrl+K**: busca em conversas e notas do vault + ações com prefixo `>`; navegação por teclado.
-- [~] **F01.22** **Atalhos personalizáveis** (tela em Configurações) com **detecção de conflito**; tabela padrão: Ctrl+K, Ctrl+B, Ctrl+/− (escala), Win+Shift+Espaço, Ctrl+Alt+P, Ctrl+Alt+V (voz ao vivo), Ctrl+Alt+T (tradução de tela), Win+Shift+O (captura rápida), Win+Shift+I ("Isso?").
-- [~] **F01.23** Roteamento de telas (Início, Chat, Projetos, Memória, Aprovações, Rotinas, Painel, Resultados, Fontes, Conhecimento, Integrações, Arquivadas, Configurações) com **links profundos** (`/config <seção>`).
+- [~] **F01.21** **Paleta única Ctrl+K**: busca em conversas e notas do vault + ações com prefixo `>`; navegação por teclado. *(26/10/2026: prefixo `>` lista só ações; aceite visual pendente.)*
+- [~] **F01.22** **Atalhos personalizáveis** (tela em Configurações) com **detecção de conflito**; tabela padrão: Ctrl+K, Ctrl+B, Ctrl+/− (escala), Win+Shift+Espaço, Ctrl+Alt+P, Ctrl+Alt+V (voz ao vivo), Ctrl+Alt+T (tradução de tela), Win+Shift+O (captura rápida), Win+Shift+I ("Isso?"). *(26/10/2026: Ctrl+K, Ctrl+Shift+O, Ctrl+B e Ctrl+, são editáveis em Configurações > Atalhos, com conflito, restauração e arquivo `atalhos.txt`; Enter, Esc, setas e a escala ficam reservados; os atalhos globais do Windows seguem fixos; sem aceite Windows.)*
+- [~] **F01.23** Roteamento de telas (Início, Chat, Projetos, Memória, Aprovações, Rotinas, Painel, Conhecimento, Integrações, Arquivadas, Configurações; Resultados e Fontes deixaram de ser telas em 26/10/2026) com **links profundos** (`/config <seção>`). *(26/10/2026: `/config <seção>` abre a seção de Configurações; as demais telas abrem por menu, paleta e comandos.)*
 
 #### F01.D Tela inicial, idioma e acessibilidade
 - [~] **F01.24** **Tela inicial:** constelação de Órion ao fundo (animada, sutil, usando o motor do céu da F01.29), saudação por **hora do dia + nome**, campo de mensagem central, projeto, seletor de modelo, linha de estado, **sugestões (poucas e relevantes: pendências, cotas, falhas)**, **projetos recentes** e **pendências**. **Ao abrir: conversa nova** (com o último projeto usado).
@@ -723,7 +723,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 
 - [~] **F09.01** **Tela Painel**, em ordem: **cotas das APIs gratuitas** (quanto resta hoje, atualizadas a cada 5 min), **uso das assinaturas** (Claude, Codex, Gemini), **saúde do sistema** (RAM, CPU, GPU, disco, serviços), **atividade da semana** (conversas, ações por tipo), **tempo da primeira resposta**, modelos e CLIs, política; gráficos de **barras e linhas simples** com abas **Hoje / Semana / Mês**.
 - [~] **F09.02** **Métricas de desempenho locais**, **custo estimado** por conversa e **transparência de saídas** (resumo).
-- [~] **F09.03** **Tela Resultados:** saídas guardadas com tipo, versão e data.
+- [ ] ~~**F09.03** **Tela Resultados:** saídas guardadas com tipo, versão e data.~~ **Cortada em 26/10/2026** (decisão do Antônio).
 - [ ] **F09.04** **Tela Integrações** (lista de serviços com estado: conectado, token expirado) — preenchida conforme as integrações chegarem.
 - [~] **F09.05** **Resumo do dia ("Você fez"):** conversas e tarefas, notas gravadas e aprovações; aparece no Painel e no aviso das 23:59. **Backend 24/10/2026:** API diária de conversas/tarefas/autorizações por escopo. Restante: painel, recibos reais de notas e aceite visual.
 - [~] **F09.06** **Tela Arquivadas** (conversas e projetos).

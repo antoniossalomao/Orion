@@ -15,7 +15,7 @@ use iced::{Background, Border, Length, Task};
 pub fn suggestions(app: &App) -> Vec<(String, String, String)> {
     let d = app.draft();
     if d.starts_with('/') && !d.contains(char::is_whitespace) {
-        return data::CMDS.iter().filter(|(c, _)| c.starts_with(d.as_str())).map(|(c, desc)| (format!("{c} "), c.to_string(), desc.to_string())).collect();
+        return data::CMDS.iter().filter(|(c, _)| c.starts_with(d.as_str())).map(|(c, desc)| (format!("{c} "), c.to_string(), crate::i18n::text(desc).to_string())).collect();
     }
     if let Some(tok) = d.split(char::is_whitespace).next_back() {
         if let Some(q) = tok.strip_prefix('@') {
@@ -215,9 +215,19 @@ pub fn run_command(app: &mut App, word: &str, full: &str) -> Task<Msg> {
             return Task::perform(async move { api.post("/nuvem", serde_json::json!({"servico": a, "tarefa": b})).await }, |r| Msg::L(crate::live::Lm::Acao(r.map(|_| "Tarefa enviada à nuvem".to_string()), true)));
         }
         "imagem" => app.toast("Gerando imagem com Gemini (simulado). Fica na conversa e em 03 Recursos/Orion/Imagens."),
+        "config" => {
+            let name = rest.trim();
+            if name.is_empty() {
+                return app.update(Msg::OpenSettings(None));
+            }
+            match crate::app::Sec::from_name(name) {
+                Some(sec) => return app.update(Msg::OpenSettings(Some(sec))),
+                None => app.toast("Seção desconhecida. Use: /config geral, notificações, conta, privacidade, uso, modelos, memória, fontes, conectores, sistema, locais, voz, câmera ou atalhos"),
+            }
+        }
         "mcp" | "skill" => return app.update(Msg::OpenSettings(Some(crate::app::Sec::Conectores))),
         "resumo" => app.toast("Resumo gerado na nota desta conversa"),
-        "ajuda" => app.toast("Comandos: /nota /vault /rotina /modelo /projeto /autonomo /tarefa /nuvem /imagem /limpar /resumo /aprovar /voz /mcp /skill"),
+        "ajuda" => app.toast("Comandos: /nota /vault /rotina /modelo /projeto /autonomo /tarefa /nuvem /imagem /limpar /resumo /aprovar /voz /mcp /skill /config"),
         "projeto" => app.pop = Some(Pop::Project),
         _ => {}
     }

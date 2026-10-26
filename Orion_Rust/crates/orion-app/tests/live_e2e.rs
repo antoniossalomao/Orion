@@ -80,7 +80,7 @@ async fn entrar_conversar_fixar_arquivar_e_sair() {
     assert!(app.convs.iter().find(|c| c.id == sid).unwrap().pinned);
 
     // as páginas carregam do servidor sem erro
-    for v in [View::Rotinas, View::Conhecimento, View::Resultados, View::Painel, View::Aprovacoes, View::Memoria, View::Projetos] {
+    for v in [View::Rotinas, View::Conhecimento, View::Painel, View::Aprovacoes, View::Memoria, View::Projetos] {
         app.toast = None;
         drive(&mut app, Msg::Go(v)).await;
         assert!(app.toast.is_none(), "{v:?}: {:?}", app.toast);
