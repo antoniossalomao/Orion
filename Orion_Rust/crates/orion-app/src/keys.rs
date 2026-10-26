@@ -24,7 +24,11 @@ pub const ACTIONS: [Action; 4] = [
 ];
 
 /// Atalhos que nenhuma ação pode tomar: sistema e teclas fixas.
-pub const RESERVED: [(&str, &str); 11] = [
+/// Todas as grafias dos atalhos de escala (`+` pode vir com ou sem Shift); `map` e `RESERVED` usam esta lista.
+const ZOOM_IN: [&str; 4] = ["Ctrl+=", "Ctrl++", "Ctrl+Shift++", "Ctrl+Shift+="];
+const ZOOM_OUT: [&str; 3] = ["Ctrl+-", "Ctrl+Shift+-", "Ctrl+Shift+_"];
+
+pub const RESERVED: [(&str, &str); 15] = [
     ("Ctrl+Alt+Space", "Trazer a janela de qualquer lugar (mini barra)"),
     ("Ctrl+Alt+P", "Pânico: corta tudo"),
     ("Ctrl+Alt+O", "Captura rápida"),
@@ -33,9 +37,13 @@ pub const RESERVED: [(&str, &str); 11] = [
     ("Enter", "Enviar"),
     ("ArrowUp", "Navegar na lista"),
     ("ArrowDown", "Navegar na lista"),
-    ("Ctrl+=", "Escala da interface"),
-    ("Ctrl++", "Escala da interface"),
-    ("Ctrl+-", "Escala da interface"),
+    (ZOOM_IN[0], "Escala da interface"),
+    (ZOOM_IN[1], "Escala da interface"),
+    (ZOOM_IN[2], "Escala da interface"),
+    (ZOOM_IN[3], "Escala da interface"),
+    (ZOOM_OUT[0], "Escala da interface"),
+    (ZOOM_OUT[1], "Escala da interface"),
+    (ZOOM_OUT[2], "Escala da interface"),
 ];
 
 static OVERRIDES: RwLock<Option<HashMap<String, String>>> = RwLock::new(None);
@@ -244,10 +252,13 @@ pub fn map(ev: Event) -> Option<Msg> {
         }
     }
     // Ctrl + e Ctrl − andam um degrau na escala (§3); `=` é o `+` sem Shift.
-    match combo.as_deref() {
-        Some("Ctrl+=" | "Ctrl++" | "Ctrl+Shift++" | "Ctrl+Shift+=") => return Some(Msg::ZoomStep(1)),
-        Some("Ctrl+-" | "Ctrl+Shift+-" | "Ctrl+Shift+_") => return Some(Msg::ZoomStep(-1)),
-        _ => {}
+    if let Some(c) = combo.as_deref() {
+        if ZOOM_IN.contains(&c) {
+            return Some(Msg::ZoomStep(1));
+        }
+        if ZOOM_OUT.contains(&c) {
+            return Some(Msg::ZoomStep(-1));
+        }
     }
     match key.as_ref() {
         Key::Named(Named::Escape) => Some(Msg::Esc),
