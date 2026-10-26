@@ -22,7 +22,7 @@ fn ease_in_out_cubic(p: f32) -> f32 {
 use iced::widget::image as iced_image;
 use image::{Rgba, RgbaImage};
 use std::f32::consts::PI;
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 
 pub const SKY_W_U32: u32 = 468;
 pub const SKY_H_U32: u32 = 564;
@@ -223,7 +223,7 @@ pub struct OrionSky {
     pub py: f32,
     pub shoot: Option<ShootingStar>,
     pub next_shoot_sec: f32,
-    base_backdrop: Vec<u8>,
+    base_backdrop: Arc<Vec<u8>>,
     size: (u32, u32),
 }
 
@@ -388,7 +388,7 @@ impl OrionSky {
             py: 0.0,
             shoot: None,
             next_shoot_sec: 5.0,
-            base_backdrop,
+            base_backdrop: Arc::new(base_backdrop),
             size: (SKY_W_U32, SKY_H_U32),
         }
     }
@@ -409,7 +409,7 @@ impl OrionSky {
     pub fn set_size(&mut self, width: u32, height: u32) {
         if self.size != (width, height) {
             self.size = (width, height);
-            self.base_backdrop = build_deep_sky_backdrop(width, height, &self.dust);
+            self.base_backdrop = Arc::new(build_deep_sky_backdrop(width, height, &self.dust));
         }
     }
 
@@ -526,7 +526,7 @@ impl OrionSky {
         let cam = CameraTransform::from_sky(self, w, h);
 
         let mut buf = if (width, height) == self.size {
-            self.base_backdrop.clone()
+            self.base_backdrop.as_ref().clone()
         } else {
             build_deep_sky_backdrop(width, height, &self.dust)
         };

@@ -24,7 +24,7 @@ use iced::keyboard;
 use iced::mouse;
 use iced::time;
 use iced::widget::{
-    button, column, container, image as iced_image, mouse_area, row, stack, text, text_input, Column, Space,
+    button, column, container, image as iced_image, mouse_area, row, scrollable, stack, text, text_input, Column, Space,
 };
 use iced::window;
 use iced::{Alignment, Background, Border, Color, Element, Length, Point, Subscription, Task, Theme};
@@ -53,6 +53,7 @@ pub enum TransitionPhase {
 #[derive(Debug, Clone)]
 pub enum Message {
     AnimationTick(Instant),
+    WindowActive(bool),
     CursorMoved(Point),
     DragTitlebar,
     MinimizeWindow,
@@ -102,6 +103,8 @@ pub struct SetupApp {
     sky_scale: f32,
     slow_frames: u32,
     frame_skip: u32,
+    window_active: bool,
+    sky_renderer: crate::sky_renderer::SkyRenderer,
     pub selected_disk_idx: usize,
     download_worker: Option<std::sync::mpsc::Receiver<(InstallPlan, Result<String, String>)>>,
     download_cancel: std::sync::Arc<std::sync::atomic::AtomicBool>,
@@ -164,6 +167,8 @@ impl SetupApp {
             sky_scale: 1.0,
             slow_frames: 0,
             frame_skip: 0,
+            window_active: true,
+            sky_renderer: crate::sky_renderer::SkyRenderer::new(),
             selected_disk_idx,
             download_worker: None,
             download_cancel: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
@@ -269,7 +274,9 @@ impl SetupApp {
 
     /// Avança a simulação temporal em `dt` segundos (constelação, transição de etapa e progresso de instalação).
     pub fn tick_dt(&mut self, dt: f32) {
-        self.sky.step_dt(dt, theme::SKY_W, theme::BODY_H);
+        if self.window_active {
+            self.sky.step_dt(dt, theme::SKY_W, theme::BODY_H);
+        }
 
         if self.star_label_alpha < 1.0
             && !matches!(self.transition, Some(TransitionPhase::Out { .. }))
@@ -413,14 +420,21 @@ impl SetupApp {
                 self.tick_dt(dt);
                 // "Reduzir movimento" do Windows: o céu continua vivo, mas a 4 quadros por segundo.
                 self.frame_skip = (self.frame_skip + 1) % 15;
-                if !self.pc.reduce_motion || self.frame_skip == 0 {
-                    let started = Instant::now();
-                    self.sky_handle = self.sky.render_image_handle();
-                    self.adapt_sky_quality(started.elapsed());
+                if let Some((frame, spent)) = self.sky_renderer.take_frame() {
+                    self.sky_handle = frame;
+                    self.adapt_sky_quality(spent);
+                }
+                if self.window_active && (!self.pc.reduce_motion || self.frame_skip == 0) {
+                    self.sky_renderer.request(&self.sky);
                 }
                 if self.cancel_after_download && self.download_worker.is_none() {
                     return window::latest().and_then(window::close);
                 }
+                Task::none()
+            }
+            Message::WindowActive(active) => {
+                self.window_active = active;
+                self.last_tick = None;
                 Task::none()
             }
             Message::CursorMoved(point) => {
@@ -431,6 +445,7 @@ impl SetupApp {
             }
             Message::DragTitlebar => window::latest().and_then(window::drag),
             Message::MinimizeWindow => {
+                self.window_active = false;
                 window::latest().and_then(|id| window::minimize(id, true))
             }
             Message::RequestCloseWindow => {
@@ -586,8 +601,10 @@ impl SetupApp {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        let tick = time::every(Duration::from_millis(16)).map(Message::AnimationTick);
+        let tick = time::every(Duration::from_millis(if self.window_active { 16 } else { 250 })).map(Message::AnimationTick);
         let events = event::listen_with(|event, _status, _window_id| match event {
+            Event::Window(window::Event::Focused) => Some(Message::WindowActive(true)),
+            Event::Window(window::Event::Unfocused) => Some(Message::WindowActive(false)),
             Event::Mouse(mouse::Event::CursorMoved { position }) => {
                 Some(Message::CursorMoved(position))
             }
@@ -812,7 +829,8 @@ impl SetupApp {
             _ => self.view_step_5(s, stage_alpha),
         };
 
-        let stage = container(column![vspace(top_pad), stage_body].width(Length::Fill))
+        let stage = container(scrollable(column![vspace(top_pad), stage_body].width(Length::Fill))
+            .direction(scrollable::Direction::Vertical(scrollable::Scrollbar::new().width(4).scroller_width(4).margin(2))))
             .width(Length::Fill)
             .height(Length::Fill);
 
@@ -895,8 +913,8 @@ impl SetupApp {
                 text(footer_caption)
                     .size(11)
                     .font(FONT_MONO)
+                    .width(Length::Fill)
                     .color(theme::FG3),
-                fill_hspace(),
                 back_el,
                 if show_back { hspace(8.0) } else { hspace(0.0) },
                 next_btn,
@@ -1073,13 +1091,15 @@ impl SetupApp {
             for m in pair {
                 let mut meta_row = row![
                     text(format_gb(m.size_gb, self.choices.language))
-                        .size(10)
+                        .size(9.5)
                         .font(FONT_MONO)
+                        .wrapping(text::Wrapping::None)
                         .color(with_alpha(theme::FG3, alpha)),
-                    hspace(8.0),
+                    hspace(6.0),
                     text(if m.min_ram_gb > self.pc.ram_gb { format!("RAM ≥{} GB", m.min_ram_gb) } else { format!("RAM ~{} GB", m.ram_gb) })
-                        .size(10)
+                        .size(9.5)
                         .font(FONT_MONO)
+                        .wrapping(text::Wrapping::None)
                         .color(with_alpha(theme::FG3, alpha)),
                     fill_hspace(),
                 ]
@@ -1094,25 +1114,29 @@ impl SetupApp {
                         text(&m.name)
                             .size(12)
                             .font(FONT_SANS_SEMIBOLD)
+                            .width(Length::Fill)
+                            .line_height(text::LineHeight::Relative(1.15))
                             .color(with_alpha(theme::FG, alpha)),
-                        fill_hspace(),
                         check_dot(m.selected),
                     ]
+                    .spacing(6)
                     .align_y(Alignment::Center),
-                    vspace(2.0),
-                    text(m.desc(self.choices.language))
+                    container(text(m.desc(self.choices.language))
                         .size(11)
-                        .color(with_alpha(theme::FG2, alpha)),
-                    fill_vspace(),
+                        .width(Length::Fill)
+                        .line_height(text::LineHeight::Relative(1.2))
+                        .color(with_alpha(theme::FG2, alpha)))
+                        .height(Length::Fill),
                     meta_row,
                 ]
+                .spacing(3)
                 .width(Length::Fill)
                 .height(Length::Fill);
 
                 let card = button(card_col)
                     .width(Length::FillPortion(1))
-                    .height(Length::Fixed(72.0))
-                    .padding([8, 10])
+                    .height(Length::Fixed(76.0))
+                    .padding([6, 9])
                     .on_press_maybe((m.min_ram_gb <= self.pc.ram_gb).then(|| Message::ToggleModel(m.id.to_string())))
                     .style(model_card_style(m.selected));
                 r = r.push(card);
@@ -1205,9 +1229,9 @@ impl SetupApp {
             let opt_row = button(
                 row![
                     column![
-                        text(title).size(14).color(with_alpha(theme::FG, alpha)),
+                        text(title).size(14).width(Length::Fill).color(with_alpha(theme::FG, alpha)),
                         vspace(2.0),
-                        text(sub).size(12).color(with_alpha(theme::FG3, alpha)),
+                        text(sub).size(12).width(Length::Fill).line_height(text::LineHeight::Relative(1.3)).color(with_alpha(theme::FG3, alpha)),
                     ]
                     .width(Length::Fill),
                     hspace(12.0),
@@ -1421,13 +1445,15 @@ fn chk_card<'a>(label: &'a str, val: &str, warn: bool, alpha: f32) -> Element<'a
                 text(val.to_string())
                     .size(12)
                     .font(FONT_MONO)
+                    .width(Length::Fill)
+                    .line_height(text::LineHeight::Relative(1.2))
                     .color(with_alpha(theme::FG, alpha)),
             ]
             .align_y(Alignment::Center),
         ],
     )
     .width(Length::FillPortion(1))
-    .height(Length::Fixed(58.0))
+    .height(70.0)
     .align_y(Vertical::Center)
     .padding([10, 12])
     .style(surface_card_style())
@@ -1485,14 +1511,17 @@ fn folder_field<'a>(
 }
 
 /// Selo `.tag` da Etapa 3 (`orion-instalador.html` linha 75).
-fn tag_pill<'a>(_label: &'a str) -> Element<'a, Message> {
+fn tag_pill<'a>(label: &'a str) -> Element<'a, Message> {
     container(
-        text("★ recomendado")
+        text(label)
             .size(9)
             .font(FONT_SANS_SEMIBOLD)
+            .wrapping(text::Wrapping::None)
             .color(theme::BETEL),
     )
-    .padding([1, 6])
+    .height(16)
+    .center_y(16)
+    .padding([0, 6])
     .style(|_theme: &Theme| container::Style {
         background: Some(Background::Color(Color::from_rgba8(233, 180, 103, 0.08))),
         border: Border {
