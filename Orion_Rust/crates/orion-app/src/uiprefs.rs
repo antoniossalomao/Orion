@@ -25,10 +25,17 @@ pub fn load() -> (Option<u32>, Option<bool>) {
     (scale, compact)
 }
 
-pub fn save(scale: u32, compact: bool) {
-    let Some(path) = file() else { return };
+/// Grava em arquivo temporário e renomeia, para que uma falha no meio não deixe o arquivo truncado.
+pub fn write_atomic(path: &std::path::Path, body: &str) -> std::io::Result<()> {
     if let Some(dir) = path.parent() {
-        let _ = std::fs::create_dir_all(dir);
+        std::fs::create_dir_all(dir)?;
     }
-    let _ = std::fs::write(path, format!("scale={scale}\ncompact={compact}\n"));
+    let tmp = path.with_extension("tmp");
+    std::fs::write(&tmp, body)?;
+    std::fs::rename(&tmp, path)
+}
+
+pub fn save(scale: u32, compact: bool) -> std::io::Result<()> {
+    let Some(path) = file() else { return Ok(()) };
+    write_atomic(&path, &format!("scale={scale}\ncompact={compact}\n"))
 }

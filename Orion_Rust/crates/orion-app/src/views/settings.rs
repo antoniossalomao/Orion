@@ -464,7 +464,13 @@ fn section<'a>(app: &'a App) -> El<'a> {
                 }
                 c = c.push(setting(a.label, "", ctl.into()));
             }
-            for (l, k) in [("Trazer a janela de qualquer lugar (mini barra)", crate::keys::display("Ctrl+Alt+Space").as_str()), ("Pânico: corta tudo", "Ctrl Alt P"), ("Captura rápida", "Ctrl Alt O"), ("Isso? (capturar a tela)", "Ctrl Alt I"), ("Enviar", "Enter"), ("Nova linha", "Shift Enter"), ("Comandos", "/"), ("Citar nota do vault", "@"), ("Fechar painel", "Esc")] {
+            // Linhas fixas geradas da lista de reservados, para a tela nunca divergir das regras de conflito.
+            for (_, label, shown) in crate::keys::RESERVED.iter().filter(|(_, _, s)| !s.is_empty()) {
+                let shown = if *shown == "Ctrl Alt Espaço" { crate::keys::display("Ctrl+Alt+Space") } else { shown.to_string() };
+                c = c.push(setting(label, crate::i18n::text("Fixo"), kbd(&shown)));
+            }
+            c = c.push(setting(crate::keys::EDITING_LABEL, crate::i18n::text("Fixo"), kbd(crate::keys::EDITING_SHOWN)));
+            for (l, k) in [("Nova linha", "Shift Enter"), ("Comandos", "/"), ("Citar nota do vault", "@")] {
                 c = c.push(setting(l, crate::i18n::text("Fixo"), kbd(k)));
             }
         }

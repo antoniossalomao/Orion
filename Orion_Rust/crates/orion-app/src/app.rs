@@ -628,8 +628,17 @@ pub enum Msg {
 }
 
 impl App {
+    /// Grava escala e densidade (só no app real); avisa se não conseguir.
+    fn save_ui(&mut self) {
+        if !self.persist_ui {
+            return;
+        }
+        if let Err(e) = crate::uiprefs::save(self.p.scale, self.p.compact) {
+            self.toast(crate::i18n::formatted("Não foi possível salvar: {e}", format!("Não foi possível salvar: {e}")));
+        }
+    }
+
     pub fn new() -> Self {
-        crate::keys::load();
         App {
             p: Prefs::default(),
             logged: false,
@@ -779,7 +788,8 @@ impl App {
         });
         let poll = if self.window_active && self.api.is_some() && self.logged && self.streaming.is_none() { iced::time::every(Duration::from_secs(6)).map(|_| Msg::Poll) } else { Subscription::none() };
         let resize = window::resize_events().map(|(_, s)| Msg::Resized(s));
-        let keys = iced::keyboard::listen().filter_map(crate::keys::map);
+        // Enquanto um atalho é capturado, a assinatura é outra: o estado vem só de `short_edit`.
+        let keys = if self.short_edit.is_some() { iced::keyboard::listen().filter_map(crate::keys::map_capture) } else { iced::keyboard::listen().filter_map(crate::keys::map) };
         let fundo = match &self.monitor {
             Some(monitor) => monitor.subscription(),
             None => Subscription::run(|| futures::stream::once(async { Msg::Bandeja })),
@@ -946,7 +956,6 @@ impl App {
         // A captura de atalho só vale com a seção Atalhos aberta; qualquer outra saída a cancela (F01.22).
         if self.short_edit.is_some() && !(self.set_open && self.sec == Sec::Atalhos) && !matches!(msg, Msg::ShortcutCaptured(_) | Msg::ShortcutEdit(_)) {
             self.short_edit = None;
-            crate::keys::set_capturing(false);
         }
         match msg {
             Msg::Tick(now) => {
@@ -1730,22 +1739,15 @@ impl App {
                 let steps = crate::uiprefs::SCALES;
                 let at = steps.iter().position(|s| *s == self.p.scale).unwrap_or(1) as i32;
                 self.p.scale = steps[(at + d).clamp(0, 4) as usize];
-                if self.persist_ui {
-                    crate::uiprefs::save(self.p.scale, self.p.compact);
-                }
+                self.save_ui();
                 self.toast(crate::i18n::formatted("Escala {}%", format!("Escala {}%", self.p.scale)));
             }
             Msg::ShortcutEdit(id) => {
                 self.short_edit = Some(id);
                 self.short_err.clear();
-                crate::keys::set_capturing(true);
             }
-            Msg::ShortcutCancel => {
-                self.short_edit = None;
-                crate::keys::set_capturing(false);
-            }
+            Msg::ShortcutCancel => self.short_edit = None,
             Msg::ShortcutCaptured(combo) => {
-                crate::keys::set_capturing(false);
                 if let Some(id) = self.short_edit.take() {
                     self.short_err = crate::keys::set(id, &combo).err().map(|e| e.message()).unwrap_or_default();
                 }
@@ -1832,15 +1834,11 @@ impl App {
             }
             "scale" => {
                 self.p.scale = crate::uiprefs::SCALES[v];
-                if self.persist_ui {
-                    crate::uiprefs::save(self.p.scale, self.p.compact);
-                }
+                self.save_ui();
             }
             "density" => {
                 self.p.compact = v == 1;
-                if self.persist_ui {
-                    crate::uiprefs::save(self.p.scale, self.p.compact);
-                }
+                self.save_ui();
             }
             "motion" => self.p.reduced = v == 1,
             "font" => self.p.font = v,

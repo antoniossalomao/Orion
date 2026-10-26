@@ -885,3 +885,4 @@ ui-0883 = { "Open a Settings section" }
 ui-0884 = { "All commands" }
 ui-0885 = { "Recent projects" }
 ui-0886 = { "Text editing" }
+ui-0887 = { "Navigate the list" }

@@ -405,6 +405,7 @@ impl App {
     pub fn live(api: Api) -> (Self, Task<Msg>) {
         let mut a = App::new();
         a.persist_ui = true;
+        crate::keys::enable_persistence();
         let (scale, compact) = crate::uiprefs::load();
         if let Some(s) = scale {
             a.p.scale = s;
