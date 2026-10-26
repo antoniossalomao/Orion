@@ -46,6 +46,9 @@ pub struct UpdateConfig {
     /// Falso: só avisa que há versão nova. Verdadeiro: baixa, confere e troca.
     #[serde(default)]
     pub auto_update: bool,
+    /// Verdadeiro: baixa e confere agora, mas só troca os arquivos quando o Orion fecha (ou na próxima abertura).
+    #[serde(default)]
+    pub install_on_close: bool,
     #[serde(default)]
     pub feed_url: Option<String>,
     /// Chave pública minisign (texto do `.pub` ou só a linha base64).
@@ -144,6 +147,8 @@ pub enum Outcome {
     /// Há versão nova, mas `auto_update` está desligado.
     Available(String),
     Updated(String),
+    /// Baixada e conferida; a troca acontece ao fechar o Orion (`apply_staged`).
+    Staged(String),
 }
 
 /// Versão instalada, lida do manifesto do instalador.
@@ -189,8 +194,88 @@ pub fn check(config: &UpdateConfig, app_dir: &Path, fetch: &dyn Fetch, apply: bo
     if !(apply || config.auto_update) {
         return Ok(Outcome::Available(feed.version));
     }
+    if config.install_on_close {
+        stage(&feed, app_dir, fetch)?;
+        return Ok(Outcome::Staged(feed.version));
+    }
     install(&feed, app_dir, fetch)?;
     Ok(Outcome::Updated(feed.version))
+}
+
+/// Pasta com a atualização já baixada e conferida, à espera do fechamento do app.
+pub const STAGED_DIR: &str = ".staged";
+const STAGED_FEED: &str = "staged.json";
+
+fn staged_dir(app_dir: &Path) -> PathBuf {
+    app_dir.join(STAGED_DIR)
+}
+
+/// Baixa e confere cada arquivo (SHA-256 do feed assinado) para `.staged/`, sem tocar no app.
+fn stage(feed: &Feed, app_dir: &Path, fetch: &dyn Fetch) -> Result<()> {
+    let dir = staged_dir(app_dir);
+    let _ = std::fs::remove_dir_all(&dir);
+    io(std::fs::create_dir_all(&dir))?;
+    let r = (|| {
+        for f in &feed.files {
+            let bytes = fetch.get(&f.url, f.bytes.min(MAX_FILE_BYTES))?;
+            if bytes.len() as u64 != f.bytes || hex::encode(Sha256::digest(&bytes)).to_lowercase() != f.sha256.to_lowercase() {
+                return Err(UpdateError::BadHash(f.name.clone()));
+            }
+            io(std::fs::write(dir.join(&f.name), &bytes))?;
+        }
+        // o feed só é gravado depois dos arquivos: sem ele a pasta é lixo e `apply_staged` a ignora
+        io(std::fs::write(dir.join(STAGED_FEED), serde_json::to_vec_pretty(feed).map_err(|e| UpdateError::Io(e.to_string()))?))
+    })();
+    if r.is_err() {
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+    r
+}
+
+/// Há atualização pronta para trocar? Devolve a versão.
+pub fn staged_version(app_dir: &Path) -> Option<String> {
+    let feed: Feed = serde_json::from_slice(&std::fs::read(staged_dir(app_dir).join(STAGED_FEED)).ok()?).ok()?;
+    Some(feed.version)
+}
+
+/// Troca os arquivos pela atualização guardada em `.staged/`. Chamada ao fechar o Orion e na abertura
+/// seguinte (se o fechamento não chegou a rodar). Reconfere nome, versão maior e SHA-256 de cada arquivo
+/// antes de trocar; o que não passar é descartado. Devolve a versão instalada, ou `None` se não havia nada.
+pub fn apply_staged(app_dir: &Path) -> Result<Option<String>> {
+    let dir = staged_dir(app_dir);
+    let Ok(raw) = std::fs::read(dir.join(STAGED_FEED)) else {
+        let _ = std::fs::remove_dir_all(&dir);
+        return Ok(None);
+    };
+    let valido = (|| -> Result<Feed> {
+        let feed: Feed = serde_json::from_slice(&raw).map_err(|e| UpdateError::BadFeed(e.to_string()))?;
+        if !is_newer(&feed.version, &installed_version(app_dir)?) {
+            return Err(UpdateError::BadFeed("versão guardada não é maior que a instalada".into()));
+        }
+        for f in &feed.files {
+            if !ALLOWED_FILES.contains(&f.name.as_str()) {
+                return Err(UpdateError::BadFeed(format!("arquivo não permitido: {}", f.name)));
+            }
+            let bytes = io(std::fs::read(dir.join(&f.name)))?;
+            if bytes.len() as u64 != f.bytes || hex::encode(Sha256::digest(&bytes)).to_lowercase() != f.sha256.to_lowercase() {
+                return Err(UpdateError::BadHash(f.name.clone()));
+            }
+        }
+        Ok(feed)
+    })();
+    let feed = match valido {
+        Ok(f) => f,
+        Err(e) => {
+            let _ = std::fs::remove_dir_all(&dir);
+            return Err(e);
+        }
+    };
+    let r = swap(&feed, app_dir, &dir);
+    let _ = std::fs::remove_dir_all(&dir);
+    r?;
+    registrar_versao(app_dir, &feed)?;
+    anotar_novidades(app_dir, &feed)?;
+    Ok(Some(feed.version))
 }
 
 fn bak(p: &Path) -> PathBuf {
@@ -205,45 +290,47 @@ fn install(feed: &Feed, app_dir: &Path, fetch: &dyn Fetch) -> Result<()> {
     let _ = std::fs::remove_dir_all(&staging);
     io(std::fs::create_dir_all(&staging))?;
     let resultado = (|| {
-        let mut staged = Vec::new();
         for f in &feed.files {
             let bytes = fetch.get(&f.url, f.bytes.min(MAX_FILE_BYTES))?;
             if bytes.len() as u64 != f.bytes || hex::encode(Sha256::digest(&bytes)).to_lowercase() != f.sha256.to_lowercase() {
                 return Err(UpdateError::BadHash(f.name.clone()));
             }
-            let path = staging.join(&f.name);
-            io(std::fs::write(&path, &bytes))?;
-            staged.push((f, path));
+            io(std::fs::write(staging.join(&f.name), &bytes))?;
         }
-        // troca: antigo -> .bak, novo -> lugar; qualquer falha devolve o que já foi trocado
-        let mut trocados: Vec<PathBuf> = Vec::new();
-        for (f, novo) in &staged {
-            let alvo = app_dir.join(&f.name);
-            let r = (|| -> Result<()> {
-                if alvo.exists() {
-                    let _ = std::fs::remove_file(bak(&alvo));
-                    io(std::fs::rename(&alvo, bak(&alvo)))?;
-                }
-                io(std::fs::rename(novo, &alvo))
-            })();
-            if let Err(e) = r {
-                if bak(&alvo).exists() && !alvo.exists() {
-                    let _ = std::fs::rename(bak(&alvo), &alvo);
-                }
-                for t in trocados.iter().rev() {
-                    let _ = std::fs::remove_file(t);
-                    let _ = std::fs::rename(bak(t), t);
-                }
-                return Err(e);
-            }
-            trocados.push(alvo);
-        }
-        Ok(())
+        swap(feed, app_dir, &staging)
     })();
     let _ = std::fs::remove_dir_all(&staging);
     resultado?;
     registrar_versao(app_dir, feed)?;
     anotar_novidades(app_dir, feed)
+}
+
+/// Troca: antigo -> `.bak`, novo (de `staging`) -> lugar; qualquer falha devolve o que já foi trocado.
+fn swap(feed: &Feed, app_dir: &Path, staging: &Path) -> Result<()> {
+    let mut trocados: Vec<PathBuf> = Vec::new();
+    for f in &feed.files {
+        let novo = staging.join(&f.name);
+        let alvo = app_dir.join(&f.name);
+        let r = (|| -> Result<()> {
+            if alvo.exists() {
+                let _ = std::fs::remove_file(bak(&alvo));
+                io(std::fs::rename(&alvo, bak(&alvo)))?;
+            }
+            io(std::fs::rename(&novo, &alvo))
+        })();
+        if let Err(e) = r {
+            if bak(&alvo).exists() && !alvo.exists() {
+                let _ = std::fs::rename(bak(&alvo), &alvo);
+            }
+            for t in trocados.iter().rev() {
+                let _ = std::fs::remove_file(t);
+                let _ = std::fs::rename(bak(t), t);
+            }
+            return Err(e);
+        }
+        trocados.push(alvo);
+    }
+    Ok(())
 }
 
 /// Arquivo que a mini tela "O que mudou" lê; fica na pasta do app até ser vista.
@@ -349,6 +436,22 @@ pub fn executar(args: &[String], app_dir: &Path) -> i32 {
             }
         };
     }
+    if args.iter().any(|a| a == "--apply-staged") {
+        return match apply_staged(app_dir) {
+            Ok(Some(v)) => {
+                println!("atualizado para {v}");
+                0
+            }
+            Ok(None) => {
+                println!("nada guardado para instalar");
+                0
+            }
+            Err(e) => {
+                eprintln!("{e}");
+                1
+            }
+        };
+    }
     if args.iter().any(|a| a == "--check") {
         let config: UpdateConfig = data_dir().and_then(|d| std::fs::read(d.join("update.json")).ok()).and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default();
         return match check(&config, app_dir, &HttpFetch, args.iter().any(|a| a == "--apply")) {
@@ -364,13 +467,17 @@ pub fn executar(args: &[String], app_dir: &Path) -> i32 {
                 println!("atualizado para {v}; reinicie o Orion");
                 0
             }
+            Ok(Outcome::Staged(v)) => {
+                println!("versão {v} baixada e conferida; será instalada quando o Orion fechar");
+                0
+            }
             Err(e) => {
                 eprintln!("{e}");
                 1
             }
         };
     }
-    eprintln!("uso: orion update --check [--apply] | --rollback");
+    eprintln!("uso: orion update --check [--apply] | --apply-staged | --rollback");
     2
 }
 

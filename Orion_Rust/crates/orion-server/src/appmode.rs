@@ -395,6 +395,8 @@ pub fn run(mut s: Settings, fundo: bool) -> anyhow::Result<i32> {
     let _ = std::fs::remove_file(&mostrar);
     // banco cifrado e trancado: mesmo no início com o Windows a janela abre já na tela de senha
     let fundo = fundo && !trancado && !primeiro_uso;
+    // Atualização que ficou guardada (o fechamento anterior não chegou a trocar): troca já; vale na próxima abertura.
+    instalar_atualizacao_guardada("na abertura");
     let r = orion_app::run::run_ui(Some(api), None, fundo);
     if let Some(n) = slot.lock().take() {
         if let Some(backup) = &n.backup {
@@ -408,8 +410,21 @@ pub fn run(mut s: Settings, fundo: bool) -> anyhow::Result<i32> {
         });
     }
     *crate::onboarding::BACKUP_KEY.lock() = None;
+    // "Instala ao fechar": o núcleo já encerrou, então é seguro trocar os arquivos.
+    instalar_atualizacao_guardada("ao fechar");
     r?;
     Ok(0)
+}
+
+/// Troca os arquivos pela atualização baixada e conferida pelo atualizador, se houver. Falha só é registrada:
+/// o app antigo continua valendo (os `.bak` e o rollback cobrem o resto).
+fn instalar_atualizacao_guardada(quando: &str) {
+    let Some(pasta) = std::env::current_exe().ok().and_then(|e| e.parent().map(std::path::PathBuf::from)) else { return };
+    match orion_updater::apply_staged(&pasta) {
+        Ok(Some(v)) => tracing::info!("atualização para {v} instalada {quando}"),
+        Ok(None) => {}
+        Err(e) => tracing::warn!("atualização guardada não instalada {quando}: {e}"),
+    }
 }
 
 #[cfg(test)]

@@ -45,7 +45,7 @@ fn cenario(instalada: &str, nova: &str, exe_novo: &[u8]) -> Cenario {
     web.insert(format!("{FEED_URL}.minisig"), assinar(&sk, &pk, &feed));
     web.insert(FEED_URL.to_string(), feed);
     web.insert("https://exemplo.test/orion.exe".into(), exe_novo.to_vec());
-    let config = UpdateConfig { channel: "stable".into(), auto_update: true, feed_url: Some(FEED_URL.into()), public_key: Some(pk.to_box().unwrap().to_string()) };
+    let config = UpdateConfig { channel: "stable".into(), auto_update: true, feed_url: Some(FEED_URL.into()), public_key: Some(pk.to_box().unwrap().to_string()), ..Default::default() };
     Cenario { dir, config, fetch: Fake(web), sk, pk }
 }
 

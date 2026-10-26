@@ -593,7 +593,9 @@ impl InstallPlan {
                 let updater = data_dir.join("update.json");
                 let payload = serde_json::json!({
                     "channel": "stable",
-                    "auto_update": false,
+                    "auto_update": true,
+                    // baixa e confere na tarefa diária, mas só troca os arquivos quando o Orion fecha (F10.16)
+                    "install_on_close": true,
                     "crash_reports": choices.send_crash_reports,
                     "feed_url": if CHAVE_PUBLICA.trim().is_empty() { serde_json::Value::Null } else { serde_json::json!(feed_url(choices.use_vulkan)) },
                     "public_key": if CHAVE_PUBLICA.trim().is_empty() { serde_json::Value::Null } else { serde_json::json!(CHAVE_PUBLICA.trim()) },
