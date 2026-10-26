@@ -385,6 +385,8 @@ pub struct App {
     pub login_at: Instant,
     pub spin: f32,
     /// Ação cujo atalho está sendo capturado e a última recusa por conflito (F01.22).
+    /// Só o app real grava escala e densidade; testes e capturas não tocam nos arquivos do usuário.
+    pub persist_ui: bool,
     pub short_edit: Option<&'static str>,
     pub short_err: String,
     pub term_out: Vec<String>,
@@ -703,6 +705,7 @@ impl App {
             now: Instant::now(),
             login_at: Instant::now(),
             spin: 0.0,
+            persist_ui: false,
             short_edit: None,
             short_err: String::new(),
             term_out: data::TERM.iter().map(|s| s.to_string()).collect(),
@@ -1724,9 +1727,12 @@ impl App {
             Msg::Fullscreen => return window::oldest().and_then(window::toggle_maximize),
             Msg::CloseWindow => return window::oldest().and_then(|id| Task::done(Msg::CloseReq(id))),
             Msg::ZoomStep(d) => {
-                const STEPS: [u32; 5] = [90, 100, 115, 130, 150];
-                let at = STEPS.iter().position(|s| *s == self.p.scale).unwrap_or(1) as i32;
-                self.p.scale = STEPS[(at + d).clamp(0, 4) as usize];
+                let steps = crate::uiprefs::SCALES;
+                let at = steps.iter().position(|s| *s == self.p.scale).unwrap_or(1) as i32;
+                self.p.scale = steps[(at + d).clamp(0, 4) as usize];
+                if self.persist_ui {
+                    crate::uiprefs::save(self.p.scale, self.p.compact);
+                }
                 self.toast(crate::i18n::formatted("Escala {}%", format!("Escala {}%", self.p.scale)));
             }
             Msg::ShortcutEdit(id) => {
@@ -1824,8 +1830,18 @@ impl App {
                     self.toast("Language updated.");
                 }
             }
-            "scale" => self.p.scale = [90, 100, 115, 130, 150][v],
-            "density" => self.p.compact = v == 1,
+            "scale" => {
+                self.p.scale = crate::uiprefs::SCALES[v];
+                if self.persist_ui {
+                    crate::uiprefs::save(self.p.scale, self.p.compact);
+                }
+            }
+            "density" => {
+                self.p.compact = v == 1;
+                if self.persist_ui {
+                    crate::uiprefs::save(self.p.scale, self.p.compact);
+                }
+            }
             "motion" => self.p.reduced = v == 1,
             "font" => self.p.font = v,
             "size" => self.p.size = v,

@@ -17,6 +17,7 @@ pub mod md;
 pub mod mermaid;
 pub mod net;
 pub mod novidades;
+pub mod uiprefs;
 pub mod popover;
 pub mod sky;
 pub mod theme;

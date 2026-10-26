@@ -367,7 +367,7 @@ Uma tarefa só está pronta quando: **(1)** funciona de ponta a ponta, **(2)** t
 - [~] **F01.04** Formas: cantos **médios (10 a 14 px)**, bordas **finas e sutis**, bolhas do usuário com **fundo sutil**, botões principais em **Rigel pálido**, destaque (foco, seleção, switches) em **azul de Rigel**.
 - [~] **F01.05** Componentes base reutilizáveis: botão principal/secundário/fantasma, campo, seletor, switch, caixa, cartão, pílula, selo, toast, modal sobreposto com fundo escurecido, menu de contexto, tooltip, barra de progresso, lista virtualizada, ícones **Lucide** (SVG embutidos).
 - [~] **F01.06** Movimento: transições entre telas **fade de 150 ms**; painéis e abas **suaves de 200 ms**; indicador "Pensando" com ponto pulsante; **reduzir movimento** (sistema ou configuração) desliga tudo; **redução automática** com pouca RAM e **modo economia** na bateria.
-- [~] **F01.07** Densidade **Confortável** (~32 px, padrão) e **Compacta** (~26 px); escala **90–150%** (padrão **100%**) com Ctrl +/−. *(26/10/2026: Ctrl + e Ctrl − andam um degrau na escala, com toast; falta persistir escala e densidade ao reabrir; sem aceite Windows.)*
+- [~] **F01.07** Densidade **Confortável** (~32 px, padrão) e **Compacta** (~26 px); escala **90–150%** (padrão **100%**) com Ctrl +/−. *(26/10/2026: Ctrl + e Ctrl − andam um degrau na escala, com toast; escala e densidade ficam em `interface.txt` e voltam ao reabrir o app; sem aceite Windows.)*
 - [~] **F01.08** Espaçamento entre mensagens **médio**; **cursor piscando** na digitação; **toast curto** ao copiar; ilustração de estado vazio: **cinturão de Órion, pequeno**.
 
 #### F01.B Janela e sistema

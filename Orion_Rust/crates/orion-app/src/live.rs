@@ -404,6 +404,14 @@ impl App {
     /// Entra no modo real: nada de dados de exemplo, tudo vem do servidor.
     pub fn live(api: Api) -> (Self, Task<Msg>) {
         let mut a = App::new();
+        a.persist_ui = true;
+        let (scale, compact) = crate::uiprefs::load();
+        if let Some(s) = scale {
+            a.p.scale = s;
+        }
+        if let Some(c) = compact {
+            a.p.compact = c;
+        }
         a.convs.clear();
         a.projects.clear();
         a.cloud.clear();
