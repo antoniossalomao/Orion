@@ -14,6 +14,7 @@ pub mod audio;
 pub mod i18n;
 pub mod identity;
 pub mod register;
+mod sky_renderer;
 pub use orion_sky as sky;
 pub mod system;
 pub mod theme;

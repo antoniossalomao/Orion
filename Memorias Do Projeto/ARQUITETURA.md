@@ -157,6 +157,8 @@ Contrato autenticado para a UI e para o modo HTTP opcional:
 
 `Agent::fixed_context` relê referências/fixadas na entrada e na retomada. O texto segue delimitado como `ExternalData`; referências têm teto de 24 mil caracteres por turno, e nenhuma seleção concede ferramentas. A revisão do projeto invalida aprovações antigas. A consolidação confere novamente a origem após a espera pelo modelo. O resumo diário usa somente SQL, é deduplicado por escopo/data e recupera no máximo o dia anterior; VACUUM é semanal e espera dez minutos sem atividade registrada.
 
+No Setup (26/10/2026), a composição da janela prefere wgpu com GPU real e permite fallback para tiny-skia, independentemente da opção Vulkan para IA local. `sky_renderer` usa uma thread persistente e canais limitados a um quadro para compor RGBA na CPU, sem bloquear cliques; `OrionSky` compartilha seu fundo imutável por `Arc`. Ao perder foco, o instalador deixa de solicitar quadros; o polling da instalação continua a 250 ms. Shader de céu na GPU e comprovação de FPS/hardware Windows seguem pendentes.
+
 O instalador aceita pacote CPU sem `orion-llama.exe` quando não há modelo/voz selecionados. O workflow manual pode empacotar `Orion Setup.exe`, app portátil e `cpu/orion.exe`, com hashes SHA-256, sem baixar pesos. O runtime do produto continua no processo, sem porta permanente; o modo HTTP foi usado somente na verificação descartável desta rodada.
 
 ### Primeiro uso nativo

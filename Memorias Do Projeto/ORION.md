@@ -10,6 +10,14 @@ Assistente pessoal com identidade masculina, técnico, direto, não-servil. Não
 
 Antônio é o administrador: decide, aprova e pode desligar qualquer coisa. Nada que o modelo diga anula isso.
 
+## Polimento e desempenho do Setup — 26/10/2026
+
+[PR #59](https://github.com/antoniossalomao/Orion/pull/59). Após os novos prints do Antônio, o diagnóstico do pacote anterior confirmou que `orion-setup` forçava `tiny-skia` e calculava cada quadro do céu na thread da interface. O rótulo Vulkan indicava suporte detectado, não uso da GPU pela janela. O Setup passa a preferir wgpu quando encontra GPU real, com fallback para tiny-skia se a superfície falhar e respeitando `ICED_BACKEND` explícito. Isso independe da opção Vulkan de IA local. O céu continua sendo composto na CPU, agora em uma thread persistente, com somente um quadro pendente e fundo imutável compartilhado; sem foco, para de pedir quadros e reduz o polling. Não é um shader de céu na GPU.
+
+Os cartões ganham altura/espaçamento para duas linhas, selo Recomendado localizado com altura própria e texto de hardware sem corte; o rodapé deixa de afirmar “GPU 0 GB” quando a VRAM não é informada. A descrição de Vulkan esclarece que só afeta modelos locais e exige driver/pacote compatíveis. O conteúdo das etapas pode rolar sem deslocar Voltar/Continuar. O total vazio deixa de mostrar −0 GB. Modelos, voz e Vulkan continuam desmarcados.
+
+Validação final: **550 testes existentes da suíte e três testes de `orion-sky` passaram**, sem testes novos/CI automático. Seis capturas Linux/tiny-skia das etapas 1/3/4 em pt-BR/en, com fontes substitutas para a prévia, inspecionadas. Nas amostras temporárias de 120 atualizações por cena, p95 entre 0,010 e 0,509 ms; são medições da lógica nesta máquina, sem comprovar FPS nem uso da GPU no Windows. [Build manual somente do instalador 40420877580](https://github.com/antoniossalomao/Orion/actions/runs/40420877580), fonte `2ba52ad05de8ed92093b5f89873c9d34db50ad78`; o resultado e artefato ficam na execução. Aceite no Intel UHD do Antônio permanece pendente.
+
 ## Configurações e instalador — 26/10/2026
 
 [PR #58](https://github.com/antoniossalomao/Orion/pull/58). Pedido do Antônio: Fontes e Painel somente nas configurações, Resultados fora da navegação e correção do acesso negado ao criar `C:\Program Files\Orion`. Fontes/Resultados já estavam ajustados na base; Painel agora é seção do modal (inclusive `/config painel`, carregamento autenticado e Atualizar), removido de Mais, da paleta e das capturas de páginas. Nenhum dado de artefatos foi removido.

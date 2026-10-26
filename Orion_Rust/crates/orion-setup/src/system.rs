@@ -175,6 +175,12 @@ impl PcInfo {
     }
 
     pub fn step3_footer(&self, lang: Language) -> String {
+        if self.vram_gb == 0 {
+            return match lang {
+                Language::PtBr => format!("{} GB RAM · VRAM não informada", self.ram_gb),
+                Language::En => format!("{} GB RAM · VRAM not reported", self.ram_gb),
+            };
+        }
         match lang {
             Language::PtBr => format!("Detectado: {} GB RAM, GPU {} GB", self.ram_gb, self.vram_gb),
             Language::En => format!("Detected: {} GB RAM, GPU {} GB", self.ram_gb, self.vram_gb),
@@ -313,7 +319,7 @@ impl SetupChoices {
     }
 
     pub fn selected_models_gb(&self) -> f32 {
-        self.models.iter().filter(|m| m.selected).map(|m| m.size_gb).sum()
+        self.models.iter().filter(|m| m.selected).fold(0.0, |total, model| total + model.size_gb)
     }
 
     pub fn total_line_left(&self) -> String {

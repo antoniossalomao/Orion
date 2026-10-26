@@ -56,9 +56,16 @@ fn main() -> iced::Result {
         return Ok(());
     }
 
-    // Usa o renderizador `tiny-skia` por padrão para abertura instantânea (< 50 ms).
+    // Prefere GPU real; se a criação da superfície falhar, o iced tenta o renderizador de CPU.
+    // A escolha da interface independe do opt-in Vulkan para IA local (REGRAS.md: portabilidade).
     if std::env::var_os("ICED_BACKEND").is_none() {
-        std::env::set_var("ICED_BACKEND", "tiny-skia");
+        let instance = iced::wgpu::Instance::new(&iced::wgpu::InstanceDescriptor::from_env_or_default());
+        let hardware = instance.enumerate_adapters(iced::wgpu::Backends::all()).iter().any(|adapter| {
+            let info = adapter.get_info();
+            matches!(info.device_type, iced::wgpu::DeviceType::DiscreteGpu | iced::wgpu::DeviceType::IntegratedGpu | iced::wgpu::DeviceType::VirtualGpu)
+                && !info.name.contains("Microsoft Basic Render Driver")
+        });
+        std::env::set_var("ICED_BACKEND", if hardware { "wgpu,tiny-skia" } else { "tiny-skia" });
     }
 
     let args: Vec<String> = std::env::args().collect();
@@ -119,7 +126,7 @@ fn main() -> iced::Result {
     .subscription(SetupApp::subscription)
     .window(window_settings)
     .default_font(FONT_SANS)
-    .antialiasing(true)
+    .antialiasing(false)
     .run()
 }
 
