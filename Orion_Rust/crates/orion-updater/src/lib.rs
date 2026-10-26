@@ -324,7 +324,10 @@ fn swap(feed: &Feed, app_dir: &Path, staging: &Path) -> Result<()> {
                 let _ = std::fs::rename(bak(&alvo), &alvo);
             }
             for t in trocados.iter().rev() {
-                let _ = std::fs::remove_file(t);
+                // devolve o novo à pasta de origem: uma falha passageira deixa a atualização completa para tentar de novo
+                if let Some(nome) = t.file_name() {
+                    let _ = std::fs::rename(t, staging.join(nome));
+                }
                 let _ = std::fs::rename(bak(t), t);
             }
             return Err(e);
@@ -357,13 +360,30 @@ fn anotar_novidades(app_dir: &Path, feed: &Feed) -> Result<()> {
     io(std::fs::write(app_dir.join(WHATS_NEW), serde_json::to_vec_pretty(&novo).map_err(|e| UpdateError::Io(e.to_string()))?))
 }
 
-/// Novidade ainda não vista, se houver.
-pub fn pending_whats_new(app_dir: &Path) -> Option<WhatsNew> {
-    serde_json::from_slice(&std::fs::read(app_dir.join(WHATS_NEW)).ok()?).ok()
+/// Versão cujas notas o usuário já viu, guardada na pasta do usuário: a pasta do app (Program Files, criada pelo
+/// SYSTEM) pode não deixar o usuário apagar `whats-new.json`.
+pub fn seen_marker() -> Option<PathBuf> {
+    let base = std::env::var_os("APPDATA").or_else(|| std::env::var_os("HOME"))?;
+    Some(PathBuf::from(base).join("Orion").join("whats-new-seen.txt"))
 }
 
-/// Marca como vista (remove o arquivo).
+/// Novidade ainda não vista, se houver.
+pub fn pending_whats_new(app_dir: &Path) -> Option<WhatsNew> {
+    let news: WhatsNew = serde_json::from_slice(&std::fs::read(app_dir.join(WHATS_NEW)).ok()?).ok()?;
+    let seen = seen_marker().and_then(|p| std::fs::read_to_string(p).ok()).unwrap_or_default();
+    (seen.trim() != news.version).then_some(news)
+}
+
+/// Marca como vista: grava a versão na pasta do usuário e, se der, apaga o arquivo da pasta do app.
 pub fn dismiss_whats_new(app_dir: &Path) {
+    if let Some(news) = std::fs::read(app_dir.join(WHATS_NEW)).ok().and_then(|b| serde_json::from_slice::<WhatsNew>(&b).ok()) {
+        if let Some(path) = seen_marker() {
+            if let Some(dir) = path.parent() {
+                let _ = std::fs::create_dir_all(dir);
+            }
+            let _ = std::fs::write(path, news.version);
+        }
+    }
     let _ = std::fs::remove_file(app_dir.join(WHATS_NEW));
 }
 

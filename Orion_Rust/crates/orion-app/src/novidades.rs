@@ -61,7 +61,14 @@ pub fn open_whats_new(english: bool) {
 /// instalador antigo abriria o assistente de instalação).
 fn whats_new_dir() -> Option<PathBuf> {
     let dir = std::env::current_exe().ok()?.parent()?.to_path_buf();
-    if !dir.join("whats-new.json").exists() || !dir.join("Orion Setup.exe").exists() {
+    if !dir.join("Orion Setup.exe").exists() {
+        return None;
+    }
+    // notas ainda não vistas: a versão delas difere da guardada na pasta do usuário (o app não consegue apagar o arquivo)
+    let news: serde_json::Value = serde_json::from_slice(&std::fs::read(dir.join("whats-new.json")).ok()?).ok()?;
+    let base = std::env::var_os("APPDATA").or_else(|| std::env::var_os("HOME"))?;
+    let seen = std::fs::read_to_string(PathBuf::from(base).join("Orion").join("whats-new-seen.txt")).unwrap_or_default();
+    if news["version"].as_str().is_none_or(|v| v == seen.trim()) {
         return None;
     }
     let manifest: serde_json::Value = serde_json::from_slice(&std::fs::read(dir.join("orion-install.json")).ok()?).ok()?;
