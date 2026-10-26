@@ -46,6 +46,11 @@ pub const RESERVED: [(&str, &str); 15] = [
     (ZOOM_OUT[2], "Escala da interface"),
 ];
 
+/// O campo de texto trata estes atalhos antes da assinatura global; uma ação neles nunca rodaria com o campo focado.
+const EDITING_COMBOS: [&str; 7] = ["Ctrl+A", "Ctrl+C", "Ctrl+V", "Ctrl+X", "Ctrl+Z", "Ctrl+Y", "Ctrl+Shift+Z"];
+const EDITING_KEYS: [&str; 8] = ["ArrowLeft", "ArrowRight", "Home", "End", "Backspace", "Delete", "PageUp", "PageDown"];
+const EDITING_LABEL: &str = "Edição de texto";
+
 static OVERRIDES: RwLock<Option<HashMap<String, String>>> = RwLock::new(None);
 static CAPTURING: AtomicBool = AtomicBool::new(false);
 
@@ -96,6 +101,9 @@ fn typable(combo: &str) -> bool {
 pub fn conflict(id: &str, combo: &str) -> Option<String> {
     if let Some((_, what)) = RESERVED.iter().find(|(k, _)| k.eq_ignore_ascii_case(combo)) {
         return Some((*what).to_string());
+    }
+    if EDITING_COMBOS.iter().any(|c| c.eq_ignore_ascii_case(combo)) || EDITING_KEYS.contains(&combo.rsplit('+').next().unwrap_or("")) {
+        return Some(EDITING_LABEL.to_string());
     }
     // Enter, Esc e setas valem em qualquer combinação: o campo de mensagem e as listas ignoram os modificadores.
     let key = combo.rsplit('+').next().unwrap_or("");
@@ -177,7 +185,7 @@ pub fn load() {
     for line in text.lines() {
         if let Some((id, combo)) = line.split_once('=') {
             let (id, combo) = (id.trim(), combo.trim());
-            let reserved = RESERVED.iter().any(|(k, _)| k.eq_ignore_ascii_case(combo));
+            let reserved = RESERVED.iter().any(|(k, _)| k.eq_ignore_ascii_case(combo)) || EDITING_COMBOS.iter().any(|c| c.eq_ignore_ascii_case(combo)) || EDITING_KEYS.contains(&combo.rsplit('+').next().unwrap_or(""));
             if action(id).is_some() && typable(combo) && !reserved {
                 loaded.insert(id.to_string(), combo.to_string());
             }
