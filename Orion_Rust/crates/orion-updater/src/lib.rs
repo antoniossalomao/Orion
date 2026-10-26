@@ -210,24 +210,27 @@ fn staged_dir(app_dir: &Path) -> PathBuf {
     app_dir.join(STAGED_DIR)
 }
 
-/// Baixa e confere cada arquivo (SHA-256 do feed assinado) para `.staged/`, sem tocar no app.
+/// Baixa e confere cada arquivo (SHA-256 do feed assinado) para uma pasta temporária e só então a publica como
+/// `.staged/` por renomeação: quem lê `.staged/` nunca vê download pela metade, e `apply_staged` não mexe na temporária.
 fn stage(feed: &Feed, app_dir: &Path, fetch: &dyn Fetch) -> Result<()> {
-    let dir = staged_dir(app_dir);
-    let _ = std::fs::remove_dir_all(&dir);
-    io(std::fs::create_dir_all(&dir))?;
+    let tmp = app_dir.join(".staged-tmp");
+    let _ = std::fs::remove_dir_all(&tmp);
+    io(std::fs::create_dir_all(&tmp))?;
     let r = (|| {
         for f in &feed.files {
             let bytes = fetch.get(&f.url, f.bytes.min(MAX_FILE_BYTES))?;
             if bytes.len() as u64 != f.bytes || hex::encode(Sha256::digest(&bytes)).to_lowercase() != f.sha256.to_lowercase() {
                 return Err(UpdateError::BadHash(f.name.clone()));
             }
-            io(std::fs::write(dir.join(&f.name), &bytes))?;
+            io(std::fs::write(tmp.join(&f.name), &bytes))?;
         }
-        // o feed só é gravado depois dos arquivos: sem ele a pasta é lixo e `apply_staged` a ignora
-        io(std::fs::write(dir.join(STAGED_FEED), serde_json::to_vec_pretty(feed).map_err(|e| UpdateError::Io(e.to_string()))?))
+        io(std::fs::write(tmp.join(STAGED_FEED), serde_json::to_vec_pretty(feed).map_err(|e| UpdateError::Io(e.to_string()))?))?;
+        let dir = staged_dir(app_dir);
+        let _ = std::fs::remove_dir_all(&dir);
+        io(std::fs::rename(&tmp, &dir))
     })();
     if r.is_err() {
-        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::remove_dir_all(&tmp);
     }
     r
 }
@@ -243,10 +246,8 @@ pub fn staged_version(app_dir: &Path) -> Option<String> {
 /// antes de trocar; o que não passar é descartado. Devolve a versão instalada, ou `None` se não havia nada.
 pub fn apply_staged(app_dir: &Path) -> Result<Option<String>> {
     let dir = staged_dir(app_dir);
-    let Ok(raw) = std::fs::read(dir.join(STAGED_FEED)) else {
-        let _ = std::fs::remove_dir_all(&dir);
-        return Ok(None);
-    };
+    // `.staged/` só existe completa (publicada por renomeação); sem ela não há nada a fazer e nada a apagar.
+    let Ok(raw) = std::fs::read(dir.join(STAGED_FEED)) else { return Ok(None) };
     let valido = (|| -> Result<Feed> {
         let feed: Feed = serde_json::from_slice(&raw).map_err(|e| UpdateError::BadFeed(e.to_string()))?;
         if !is_newer(&feed.version, &installed_version(app_dir)?) {
@@ -270,9 +271,9 @@ pub fn apply_staged(app_dir: &Path) -> Result<Option<String>> {
             return Err(e);
         }
     };
-    let r = swap(&feed, app_dir, &dir);
+    // Falha na troca (sem permissão na pasta, por exemplo) mantém `.staged/` para a tarefa privilegiada tentar.
+    swap(&feed, app_dir, &dir)?;
     let _ = std::fs::remove_dir_all(&dir);
-    r?;
     registrar_versao(app_dir, &feed)?;
     anotar_novidades(app_dir, &feed)?;
     Ok(Some(feed.version))
@@ -437,7 +438,7 @@ pub fn executar(args: &[String], app_dir: &Path) -> i32 {
         };
     }
     if args.iter().any(|a| a == "--apply-staged") {
-        return match apply_staged(app_dir) {
+        let code = match apply_staged(app_dir) {
             Ok(Some(v)) => {
                 println!("atualizado para {v}");
                 0
@@ -451,6 +452,10 @@ pub fn executar(args: &[String], app_dir: &Path) -> i32 {
                 1
             }
         };
+        // a tarefa diária faz as duas coisas: instala o que ficou guardado e depois confere o feed
+        if !args.iter().any(|a| a == "--check") {
+            return code;
+        }
     }
     if args.iter().any(|a| a == "--check") {
         let config: UpdateConfig = data_dir().and_then(|d| std::fs::read(d.join("update.json")).ok()).and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default();

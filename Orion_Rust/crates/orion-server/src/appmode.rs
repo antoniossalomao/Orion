@@ -423,7 +423,7 @@ fn instalar_atualizacao_guardada(quando: &str) {
     match orion_updater::apply_staged(&pasta) {
         Ok(Some(v)) => tracing::info!("atualização para {v} instalada {quando}"),
         Ok(None) => {}
-        Err(e) => tracing::warn!("atualização guardada não instalada {quando}: {e}"),
+        Err(e) => tracing::warn!("atualização guardada não instalada {quando} (a tarefa do Windows tenta de novo): {e}"),
     }
 }
 
