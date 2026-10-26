@@ -142,10 +142,12 @@ impl Drop for Form {
     }
 }
 impl Form {
-    /// Avança o céu até `now` (no máximo 30 quadros por segundo) e acende a estrela da tela atual.
+    /// Avança o céu até `now` (60 quadros por segundo com GPU, 30 na CPU) e acende a estrela da tela atual.
     pub fn tick_sky(&mut self, now: std::time::Instant, win: iced::Size) {
         let dt = now.saturating_duration_since(self.sky_at).as_secs_f32();
-        if dt < 0.03 {
+        // Com GPU o céu acompanha a tela (60 quadros); no renderizador por CPU fica em 30.
+        let hardware = std::env::var("ICED_BACKEND").is_ok_and(|backend| backend == "wgpu");
+        if dt < if hardware { 0.015 } else { 0.03 } {
             return;
         }
         self.sky_at = now;
