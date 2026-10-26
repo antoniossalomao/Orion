@@ -939,6 +939,11 @@ impl App {
     }
 
     fn update_inner(&mut self, msg: Msg) -> Task<Msg> {
+        // A captura de atalho só vale com a seção Atalhos aberta; qualquer outra saída a cancela (F01.22).
+        if self.short_edit.is_some() && !(self.set_open && self.sec == Sec::Atalhos) && !matches!(msg, Msg::ShortcutCaptured(_) | Msg::ShortcutEdit(_)) {
+            self.short_edit = None;
+            crate::keys::set_capturing(false);
+        }
         match msg {
             Msg::Tick(now) => {
                 self.now = now;

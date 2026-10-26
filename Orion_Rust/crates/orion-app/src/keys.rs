@@ -86,6 +86,11 @@ pub fn conflict(id: &str, combo: &str) -> Option<String> {
     if let Some((_, what)) = RESERVED.iter().find(|(k, _)| k.eq_ignore_ascii_case(combo)) {
         return Some((*what).to_string());
     }
+    // Enter, Esc e setas valem em qualquer combinação: o campo de mensagem e as listas ignoram os modificadores.
+    let key = combo.rsplit('+').next().unwrap_or("");
+    if let Some((_, what)) = RESERVED.iter().find(|(k, _)| !k.contains('+') && k.eq_ignore_ascii_case(key)) {
+        return Some((*what).to_string());
+    }
     ACTIONS.iter().filter(|a| a.id != id).find(|a| effective(a.id).eq_ignore_ascii_case(combo)).map(|a| a.label.to_string())
 }
 
