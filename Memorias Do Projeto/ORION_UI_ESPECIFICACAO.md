@@ -3,7 +3,7 @@ type: recurso
 projeto: "[[Orion]]"
 tags: [orion, ui, design, iced, wgpu, especificacao, prototipo]
 date: 2026-10-17
-resumo: "Especificação completa da interface do Orion em iced/wgpu para reproduzir exatamente o protótipo 'Orion iced Mockup': janela, tokens, tipografia, componentes, barra lateral, barra superior, início, chat, painel da direita, todas as telas, grafo da Memória, editor, Configurações (14 seções), paleta, captura rápida, 'Isso?', mini barra de voz, atalhos, estado, animações, responsivo, mapeamento para crates e fases, conflitos com decisões posteriores e critérios de aceite."
+resumo: "Especificação completa da interface do Orion em iced/wgpu para reproduzir exatamente o protótipo 'Orion iced Mockup': janela, tokens, tipografia, componentes, barra lateral, barra superior, início, chat, painel da direita, todas as telas, grafo da Memória, editor, Configurações (15 seções), paleta, captura rápida, 'Isso?', mini barra de voz, atalhos, estado, animações, responsivo, mapeamento para crates e fases, conflitos com decisões posteriores e critérios de aceite."
 ---
 
 # ORION - UI (ESPECIFICAÇÃO)
@@ -21,8 +21,8 @@ Estado canônico: [ORION.md](ORION.md); tarefas F01/F05/F07/F16 em [ORION_PLANO_
 
 - [x] Protótipo HTML e especificação das telas presentes no repositório.
 - [x] Instalador iced com céu.
-- [x] **App principal `orion-app` (iced) existe:** casca, barra lateral, barra superior, Início, chat com aprovação, painel da direita (4 abas), 10 telas de página, Configurações (14 seções), editor, paleta Ctrl K, captura rápida, "Isso?", mini barra, legenda, popovers e toasts; 47 cenas em `orion-snap`. Ligado ao núcleo no mesmo processo (`orion.exe`, sem porta); painéis MCP, Skills, Modelos locais e Segundo plano ligados; bandeja, mini barra e atalhos (Ctrl+Alt+Espaço, Ctrl+Alt+P).
-- [~] Telas com dados de exemplo ou parciais: Painel (métricas), Resultados, Integrações, Conhecimento/Fontes e partes de Configurações.
+- [x] **App principal `orion-app` (iced) existe:** casca, barra lateral, barra superior, Início, chat com aprovação, painel da direita (4 abas), 10 telas de página, Configurações (15 seções), editor, paleta Ctrl K, captura rápida, "Isso?", mini barra, legenda, popovers e toasts; 47 cenas em `orion-snap`. Ligado ao núcleo no mesmo processo (`orion.exe`, sem porta); painéis MCP, Skills, Modelos locais e Segundo plano ligados; bandeja, mini barra e atalhos (Ctrl+Alt+Espaço, Ctrl+Alt+P).
+- [~] Telas/seções parciais: Painel (métricas, em Configurações), Integrações, Conhecimento e partes de Configurações. Fontes fica só nas configurações; Resultados foi cortado.
 - [ ] Editor/vault automático, painel de Arquivos/Diff por bloco/Terminal ConPTY e fluxos finais de projeto.
 - [ ] Grafo nativo wgpu/compute (hoje 2D), bloom/blur, timeline 3D, acessibilidade equivalente e metas de desempenho.
 - [ ] Fluent pt/en compartilhado, snapshots/E2E iced comparados ao protótipo.
@@ -48,8 +48,8 @@ Estado canônico: [ORION.md](ORION.md); tarefas F01/F05/F07/F16 em [ORION_PLANO_
 | U8 | Seletor de provedor: Auto, Claude, Codex, Gemini, Orion | Mantém (rodadas 2–6) | Igual |
 | U9 | Aprovação "Aprovar / Negar / Ver o diff" | Mantém; sem contagem regressiva (removida) | Igual |
 | U10 | Cotas de exemplo (Gemini, Groq, Cerebras, OpenRouter, Mistral) | Ordem real configurável (F03.E) | Dados reais no lugar dos de exemplo; layout igual |
-| U11 | "Fontes" e "Conhecimento" são telas de **Mais** e também seções de Configurações (Fontes) | Mantém | **Alterado em 26/10/2026:** Fontes só em Configurações; Conhecimento continua em Mais; Resultados cortada |
-| U12 | Configurações com **2 grupos** (Configurações / Este computador) e 14 seções | Plano F07 prevê grupos App/IA/etc. | **Vale o mockup** para a navegação; conteúdo detalhado das seções vem da F07. Ajustar F07.A |
+| U11 | "Fontes" e "Conhecimento" são telas de **Mais** e também seções de Configurações (Fontes) | Mantém | **Alterado em 26/10/2026:** Fontes e Painel só em Configurações; Conhecimento continua em Mais; Resultados cortada |
+| U12 | Configurações com **2 grupos** (Configurações / Este computador) e 15 seções | Plano F07 prevê grupos App/IA/etc. | **Vale o mockup** para a navegação; conteúdo detalhado das seções vem da F07. Ajustar F07.A |
 | U13 | Zoom da interface por CSS `zoom` (90–150%) | Escala nativa do iced | Aplicar `scale_factor` do iced; mesmos 5 degraus |
 | U14 | Grafo em **Canvas 2D** (protótipo) | **3D em wgpu** com layout por compute shader | O 3D substitui o 2D; **toda a interação, filtros, busca, detalhes e linha do tempo da §17 permanecem** |
 | U15 | Navegador integrado em `sys.browser` (existe no estado, sem controle na tela) | WebView2 isolado sob demanda | Sem controle visível na v1 |
@@ -249,7 +249,6 @@ Campo "Procurar nas conversas" (altura 32, raio 8, fundo `hover`, sem borda; foc
 | **Mais** (expansível) | `chevR` (gira 90° em 200 ms) | `aria-expanded`; estado persistido |
 | ↳ Nuvem | `cloud` | `spin` quando há tarefa rodando |
 | ↳ Conhecimento | `book` | |
-| ↳ Painel | `gauge` | |
 | ↳ Arquivadas | `archive` | |
 - Item: padding 0×10, `gap 11`, raio 8, 13.5 px `fg-2`; hover `hover`/`fg`; atual: fundo `sel`/`fg`, `aria-current="page"`.
 
@@ -442,7 +441,9 @@ Caixa mono 12/1.6, fundo `#0b0c0d`, borda `line`, raio 10, altura mínima 240. S
 
 "Vida": "Finanças locais, monitor de preços, linha do tempo e foco. Nada sai do computador." Caixa tracejada `soon` (padding 18, raio 14, borda tracejada `line-2`, 13.5 `fg-2`): `clock` "Entra **depois da v1**, numa fase própria. Mesmo conteúdo da tela Vida do front original: colar a fatura, revisar e lançar; preços acompanhados; linha do tempo; escudo de foco que só pergunta."
 
-### 15.10 Painel
+### 15.10 Painel (movido em 26/10/2026)
+> Fica somente em Configurações > Painel (§18.15), sem página própria, item de Mais ou ação na paleta. O conteúdo abaixo é referência histórica do protótipo; o app real mostra somente cotas, modelos e atividade retornados pelo núcleo, sem estatísticas fictícias.
+
 "Painel": "Cotas, assinaturas, saúde do sistema e a semana. Dados de exemplo." Botão `refresh` "Atualizar" (toast "Painel atualizado").
 - **Cotas das APIs gratuitas · hoje:** 5 barras (`hbar`): rótulo · medidor · valor (% ou "esgotada" quando 100%, barra vermelha).
 - **Assinaturas:** 3 barras com %.
@@ -509,9 +510,9 @@ Rodapé (padding 10×16×12, 12 `fg-3` tabular): data inicial · **slider** (acc
 ## 18. Configurações (modal)
 - Modal **1060 × 740 (máx.)**, grade `236px 1fr`, raio 18, fundo `bg`, borda `line-2`, sombra, `rise` 240 ms; × fixo no canto (top 10, right 12). Abre com **Ctrl ,**; Esc ou clique fora fecha. Abrir fecha a gaveta e cancela "Pausar" armado; reabrir limpa "Apagar".
 - **Navegação (236):** fundo `side`, borda direita `line`, padding 12×8. Campo "Procurar" no topo (filtra seções por nome **e palavras-chave**; ao digitar, abre a primeira que casar; "Nada encontrado." se nenhuma). Dois grupos:
-  - **Configurações:** Geral · Notificações e sons · Conta · Privacidade e autonomia · Uso · Modelos · Memória · Fontes · Conectores
+  - **Configurações:** Geral · Notificações e sons · Conta · Privacidade e autonomia · Uso · Painel · Modelos · Memória · Fontes · Conectores
   - **Este computador:** Sistema · Modelos locais · Voz · Câmera · Atalhos
-  - Ícones: gear, bell, user, shield, gauge, cpu, graph, db, puzzle / cpu, db, wave, camera, keys.
+  - Ícones: gear, bell, user, shield, gauge, gauge, cpu, graph, db, puzzle / cpu, db, wave, camera, keys.
 - **Conteúdo:** padding 0×44×48. Título da seção (Newsreader 26, margem-topo 30). Seções internas `.set-h` (13/600, margem 30×0×2). Lede 12.5 `fg-3`. Rolagem preservada ao alterar uma opção; abrir outra seção volta ao topo.
 - **Celular (≤760):** lista de seções em tela cheia; ao escolher, entra o detalhe com botão "← Configurações".
 
@@ -575,6 +576,9 @@ Lede: "llama.cpp embutido no Orion, sem processo extra. Carregam só quando usad
 
 ### 18.14 Atalhos
 Linhas (rótulo | `kbd`): Abrir o Orion de qualquer lugar | **Win + Shift + Espaço** (U3) · Captura rápida para o Inbox | Win + Shift + O · “Isso?”: capturar a tela e perguntar | Win + Shift + I · Buscar conversas e notas | Ctrl K · Nova conversa | Ctrl Shift O · Recolher barra lateral | Ctrl B · Configurações | Ctrl , · Escala da interface | Ctrl + / Ctrl − · Enviar | Enter · Nova linha | Shift Enter · Repetir a última mensagem | ↑ · Comandos | / · Citar nota do vault | @ · Fechar painel | Esc. **No app real (26/10/2026):** Ctrl K, Ctrl Shift O, Ctrl B e Ctrl , são editáveis em Configurações > Atalhos (captura da próxima tecla, recusa de conflito e de tecla sem Ctrl/Alt, restaurar padrão); atalhos do sistema, Enter, Esc, setas e a escala são fixos (F01.22).
+
+### 18.15 Painel
+Seção com cotas das chamadas na semana, modelos e atividade dos últimos sete dias. Abrir a seção ou clicar em **Atualizar** consulta `/painel` e `/budget` pelo canal autenticado; sem núcleo conectado, informa ausência de dados. O conteúdo usa a rolagem do modal, sem outra página aninhada. Também abre por `/config painel` (ou `panel`/`dashboard`). Fontes continua em §18.8 e Resultados continua cortado.
 
 ---
 
@@ -763,7 +767,7 @@ F01 (casca, tema, barra lateral/superior, Início, paleta, motor do céu) · F02
 - [~] Todas as 13 telas de página/grafo conforme §15–16; filtro e desfazer do histórico; rotinas com `runs`.
 - [~] Grafo: cores, raios, brilho, opacidade por foco, rótulos sem colisão, busca, filtros, "Lidas agora", linha do tempo, detalhes e grafo local — idêntico em comportamento ao protótipo, em 3D.
 - [~] Editor com prévia ao vivo e frontmatter; "Salvar e commit".
-- [~] Configurações: 14 seções, busca por palavra-chave, **todas** as linhas da §18 com seus textos e comportamentos (Pausar tudo e Apagar com confirmação em 2 passos).
+- [~] Configurações: 15 seções, busca por palavra-chave, **todas** as linhas da §18 com seus textos e comportamentos (Pausar tudo e Apagar com confirmação em 2 passos).
 - [~] Paleta Ctrl K com a ordem de resultados da §19; captura rápida com detecção do tipo; "Isso?" com seleção e resposta.
 - [~] Mini barra de voz, Cinturão verde com voz ao vivo, legenda ao vivo.
 - [~] Escala 90–150%, densidade, movimento reduzido, largura/tamanho/fonte do chat funcionam como no protótipo.

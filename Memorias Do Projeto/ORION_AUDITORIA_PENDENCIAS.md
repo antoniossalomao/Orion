@@ -12,6 +12,12 @@ resumo: "Pendências e decisões vigentes do Orion, com implementação, testes 
 > Base: branch `claude/wizardly-bell-ynlfwv` (PR #30). Esta consolidação substitui as conclusões intermediárias da auditoria; o histórico permanece no Git. A fonte do estado é [ORION.md](ORION.md); os IDs e critérios ficam no [plano](ORION_PLANO_IMPLEMENTACAO.md). `ORION_LEGADO.md` é referência histórica.
 > Legenda: **[V]** depende do Antônio · **[W]** exige Windows/hardware real · **[C]** implementação · **[D]** decisão.
 
+## Configurações e instalador — 26/10/2026
+
+[PR #58](https://github.com/antoniossalomao/Orion/pull/58): Painel movido para Configurações, sem item de Mais/paleta e com consulta autenticada e Atualizar; Fontes permanece só nas configurações e Resultados permanece cortado, sem apagar artefatos. Setup solicita UAC antes de instalar/desinstalar; prévia e notas de versão não solicitam elevação. Módulo checado para Windows MSVC; execução real do UAC ainda depende do PC do Antônio. Os 550 testes existentes passaram no Linux (Rust 1.97.0), sem testes novos/CI automático.
+
+Pedido posterior: [build manual somente do instalador](https://github.com/antoniossalomao/Orion/actions/runs/40416699527), sem recompilar app/worker nem baixar modelos. O artefato substitui Setup no pacote já baixado e requer a pasta `cpu` ao lado. Fonte do build: `03d0b5fac93b943ee1ec9981f8ff6008627223ed`; resultado e artefato podem ser acompanhados na execução. Aceite Windows continua pendente.
+
 ## Rodada de backend — 24/10/2026
 
 Base `efb2cbc`, branch `codex/orion-backend-notion`. O backend foi separado do refinamento visual do Antigravity. Código de F19.13 foi reaproveitado e validado; sua tela de credenciais continua pendente, portanto o card não representa uma entrega completa. A revisão detalhada reabriu F04.09 ao encontrar aprovação truncada aceita pela API; a falha recebeu correção no servidor e na retomada, sem editar o núcleo imutável.
@@ -143,7 +149,7 @@ O alinhamento de 20/10 registra: remoção do mudo, senha do autônomo, senha no
 
 | Fase | Trabalho restante relevante |
 |---|---|
-| F01 | Em 26/10/2026 (PR #56): atalhos personalizáveis, `/config`, prefixo `>`, Ctrl +/−, escala/densidade persistentes e projetos recentes entraram sem aceite Windows; Resultados e Fontes deixaram de ser telas. Céu: o motor CPU já é compartilhado entre instalador e onboarding (`orion-sky`); falta usá-lo nas demais telas do app e, se necessário, o shader wgpu. Fluent pt/en, comparação de snapshots, teclado/foco/contraste; Narrador fica fora da v1 |
+| F01 | Em 26/10/2026 (PR #56): atalhos personalizáveis, `/config`, prefixo `>`, Ctrl +/−, escala/densidade persistentes e projetos recentes entraram sem aceite Windows; Resultados e Fontes deixaram de ser telas; Painel fica só em Configurações (PR #58). Céu: o motor CPU já é compartilhado entre instalador e onboarding (`orion-sky`); falta usá-lo nas demais telas do app e, se necessário, o shader wgpu. Fluent pt/en, comparação de snapshots, teclado/foco/contraste; Narrador fica fora da v1 |
 | F02 | PIN crítico; aceite de Hello, recuperação, login, bloqueio e banco cifrado no Windows |
 | F03 | ACP, catálogo de modelos/cotas completo e requisitos de RAM/VRAM |
 | F04 | Classificador de injeção e cobertura de engine/invariantes; testar senha ao ligar autônomo |
@@ -151,7 +157,7 @@ O alinhamento de 20/10 registra: remoção do mudo, senha do autônomo, senha no
 | F06 | Gravação automática, resumo diário, comparação/escolha de conflitos no chat e índice BM25 + LSA completo; preservação das versões e isolamento do commit implementados |
 | F07 | Ligar todas as seções exigidas para a v1; separar controles futuros de funções operacionais |
 | F08 | Cartões, clonar GitHub, pastas/referências, modelo/passos/herança, arquivar e mover conversa |
-| F09 | Painel, métricas, Resultados, Integrações, "Você fez" e estados vazios |
+| F09 | Métricas reais do Painel (agora em Configurações), Integrações, "Você fez" e estados vazios; Resultados foi cortado |
 | F10 | Onboarding (7 telas, céu com uma estrela por tela) e backup local/Drive implementados, com importação/exportação e recuperação; faltam aceite Windows/contas reais, integração Git completa do vault, atualização, rollback automático, modelos/GPU e primeiro release |
 
 O onboarding decidido reúne usuário/senha, nome/idioma, recuperação em arquivo, vault, APIs, Telegram/2FA quando configurado, backup, projetos/GitHub, importação e Hello. Essa configuração não torna concluídas as fases posteriores correspondentes.
