@@ -2,7 +2,7 @@
 //! Só roda com `ORION_TEST_URL` e `ORION_TEST_SENHA` (o servidor precisa de um modelo; o teste usa um modelo falso).
 use futures::StreamExt;
 use iced_runtime::Action;
-use orion_app::app::{App, Msg, View};
+use orion_app::app::{App, Msg, Sec, View};
 use orion_app::data::{ChatMsg, ConvState};
 use orion_app::net::Api;
 
@@ -80,12 +80,18 @@ async fn entrar_conversar_fixar_arquivar_e_sair() {
     assert!(app.convs.iter().find(|c| c.id == sid).unwrap().pinned);
 
     // as páginas carregam do servidor sem erro
-    for v in [View::Rotinas, View::Conhecimento, View::Painel, View::Aprovacoes, View::Memoria, View::Projetos] {
+    for v in [View::Rotinas, View::Conhecimento, View::Aprovacoes, View::Memoria, View::Projetos] {
         app.toast = None;
         drive(&mut app, Msg::Go(v)).await;
         assert!(app.toast.is_none(), "{v:?}: {:?}", app.toast);
         assert!(app.logged);
     }
+
+    // O painel agora carrega pela seção das configurações.
+    drive(&mut app, Msg::OpenSettings(Some(Sec::Painel))).await;
+    assert!(app.painel.is_some());
+    assert!(app.budget.is_some());
+    drive(&mut app, Msg::CloseSettings).await;
 
     // arquivar tira da lista; apagar a arquivada também funciona no servidor
     let i = app.convs.iter().position(|c| c.id == sid).unwrap();

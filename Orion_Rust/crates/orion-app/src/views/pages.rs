@@ -1,4 +1,4 @@
-//! Telas de página (§15): Projetos, Aprovações, Rotinas, Nuvem, Conhecimento, Arquivadas, Painel.
+//! Telas de página (§15): Projetos, Aprovações, Rotinas, Nuvem, Conhecimento, Arquivadas.
 
 use crate::app::{App, Msg, View};
 use crate::chart::Line;
@@ -20,7 +20,6 @@ pub fn view(app: &App, v: View) -> El<'_> {
         View::Nuvem => nuvem(app),
         View::Conhecimento => conhecimento(app),
         View::Arquivadas => arquivadas(app),
-        View::Painel => painel(app),
         _ => sp_w(0.0),
     }
 }
@@ -327,7 +326,7 @@ pub fn stats<'a>(items: [(&str, &str); 4]) -> El<'a> {
     column![hline(), r, hline()].into()
 }
 
-fn painel(app: &App) -> El<'_> {
+pub fn painel(app: &App) -> El<'_> {
     if app.api.is_some() {
         return painel_live(app);
     }
@@ -335,8 +334,7 @@ fn painel(app: &App) -> El<'_> {
     let en = app.p.english;
     let aviso = if en { "No data yet. Connect Orion to see quotas, models and the week." } else { crate::i18n::text("Sem dados ainda. Conecte o Orion para ver cotas, modelos e a semana.") };
     let col = column![container(tx(aviso, t::TEXT_BASE, t::FG3)).padding(pad(4.0, 4.0, 4.0, 4.0))];
-    let (titulo, desc) = if en { ("Panel", "Quotas, models and the week, straight from the server.") } else { (crate::i18n::text("Painel"), crate::i18n::text("Cotas, modelos e a semana, direto do servidor.")) };
-    page(titulo, desc, Some(btn(if en { "Refresh" } else { crate::i18n::text("Atualizar") }, Kind::Normal, true, Some("refresh"), Some(Msg::Refresh))), col.into())
+    painel_section(col.into())
 }
 
 /// Painel com os números do servidor (`/painel` e `/budget`).
@@ -374,5 +372,13 @@ fn painel_live(app: &App) -> El<'_> {
         let ch = Line { vals: semana, min: 0.0, max: mx.max(1.0), ticks: vec![0.0, mx / 2.0, mx], fmt: |v| format!("{v:.0}"), start: crate::i18n::text("7 dias atrás"), end: crate::i18n::text("hoje"), color: t::FG2, mark: None };
         col = col.push(canvas(ch).width(Length::Fill).height(Length::Fixed(150.0)));
     }
-    page(crate::i18n::text("Painel"), crate::i18n::text("Cotas, modelos e a semana, direto do servidor."), Some(btn(crate::i18n::text("Atualizar"), Kind::Normal, true, Some("refresh"), Some(Msg::Refresh))), col.into())
+    painel_section(col.into())
+}
+
+/// Conteúdo do painel dentro da rolagem das configurações, sem outra página aninhada.
+fn painel_section(body: El<'_>) -> El<'_> {
+    column![
+        container(row![tx(crate::i18n::text("Cotas, modelos e a semana, direto do servidor."), 12.5, t::FG3).width(Length::Fill), btn(crate::i18n::text("Atualizar"), Kind::Normal, true, Some("refresh"), Some(Msg::Refresh))].spacing(12).align_y(Vertical::Center)).padding(pad(12.0, 0.0, 22.0, 0.0)),
+        body,
+    ].into()
 }

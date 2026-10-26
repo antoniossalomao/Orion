@@ -1,4 +1,4 @@
-//! Configurações (§18): modal 1060×740, navegação com busca por palavra-chave e as 14 seções.
+//! Configurações (§18): modal 1060×740, navegação com busca por palavra-chave e as 15 seções.
 
 use crate::app::{App, Msg, Panic, Pop, Sec};
 use crate::chart::Line;
@@ -24,6 +24,7 @@ const GROUPS: [(&str, &[Entry]); 2] = [
             (Sec::Conta, "user", "Conta", "nome apelido senha sair"),
             (Sec::Privacidade, "shield", "Privacidade e autonomia", "modo autônomo permissões nunca sai pausar apagar histórico"),
             (Sec::Uso, "gauge", "Uso", "limite tokens cotas"),
+            (Sec::Painel, "gauge", "Painel", "Cotas, modelos e a semana, direto do servidor."),
             (Sec::Modelos, "cpu", "Modelos", "auto claude codex gemini orion provedores ordem cotas chaves"),
             (Sec::Memoria, "graph", "Memória", "vault fatos grafo pasta commit diário"),
             (Sec::Fontes, "db", "Fontes", "vault calendário email web repositório"),
@@ -167,6 +168,7 @@ fn section<'a>(app: &'a App) -> El<'a> {
             let ctl: El = if app.wipe { row_c(vec![btn(crate::i18n::text("Cancelar"), Kind::Normal, true, None, Some(Msg::WipeCancel)), btn(&crate::i18n::formatted("Apagar {} conversas", format!("Apagar {} conversas", app.convs.len())), Kind::Danger, true, None, Some(Msg::WipeConfirm))]) } else { btn(crate::i18n::text("Apagar…"), Kind::Danger, true, None, Some(Msg::WipeArm)) };
             c = c.push(setting(crate::i18n::text("Apagar histórico de conversas"), crate::i18n::text("Remove as conversas deste computador. As notas no vault continuam."), ctl));
         }
+        Sec::Painel => return crate::views::pages::painel(app),
         Sec::Uso => {
             if app.api.is_some() {
                 c = c.push(sh(crate::i18n::text("Cotas das chamadas · semana")));

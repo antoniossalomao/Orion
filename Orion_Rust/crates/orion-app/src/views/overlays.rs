@@ -47,18 +47,17 @@ pub fn pal_items(app: &App) -> Vec<PalItem> {
         PalItem { icon: "scan", title: crate::i18n::text("Isso? (capturar a tela)").into(), group: crate::i18n::text("Ação · Ctrl + Alt + I").into(), msg: Msg::IssoOpen },
         PalItem { icon: "bolt", title: if app.p.auto { crate::i18n::text("Desligar modo autônomo").into() } else { crate::i18n::text("Ligar modo autônomo").into() }, group: crate::i18n::text("Ação").into(), msg: Msg::Toggle("auto") },
     ];
-    let nav: [(View, &str, &str); 9] = [
+    let nav: [(View, &str, &str); 8] = [
         (View::Projetos, "folder", crate::i18n::text("Projetos")),
         (View::Memoria, "graph", crate::i18n::text("Memória")),
         (View::Aprovacoes, "shield", crate::i18n::text("Aprovações")),
         (View::Rotinas, "clock", crate::i18n::text("Rotinas")),
         (View::Nuvem, "cloud", crate::i18n::text("Segundo plano")),
         (View::Conhecimento, "book", crate::i18n::text("Conhecimento")),
-        (View::Painel, "gauge", crate::i18n::text("Painel")),
         (View::Arquivadas, "archive", crate::i18n::text("Arquivadas")),
         (View::Home, "plus", crate::i18n::text("Início")),
     ];
-    for (v, i, l) in nav.iter().take(8) {
+    for (v, i, l) in nav.iter().take(7) {
         acts.push(PalItem { icon: i, title: format!("Ir para {l}"), group: "Ir para".into(), msg: Msg::Go(*v) });
     }
     out.extend(acts.into_iter().filter(|c| q.is_empty() || format!("{} {}", c.title, c.group).to_lowercase().contains(&q)));

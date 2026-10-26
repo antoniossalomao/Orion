@@ -25,6 +25,10 @@ on:
         description: "Incluir Orion Setup.exe e pacote offline do app (sem baixar modelos)"
         type: boolean
         default: false
+      somente_instalador:
+        description: "Compilar somente Orion Setup.exe para substituir no pacote existente (ignora cifra, llama e instalador)"
+        type: boolean
+        default: false
 concurrency:
   group: windows-app-cpu-${{ github.ref }}
   cancel-in-progress: true
@@ -44,6 +48,7 @@ jobs:
       CIFRA: ${{ inputs.cifra && 'true' || 'false' }}
       LLAMA: ${{ inputs.llama && 'true' || 'false' }}
       INSTALADOR: ${{ inputs.instalador && 'true' || 'false' }}
+      SOMENTE_INSTALADOR: ${{ inputs.somente_instalador && 'true' || 'false' }}
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -52,7 +57,7 @@ jobs:
           workspaces: Orion_Rust -> C:/t
           key: app-cpu-${{ inputs.perfil || 'release' }}
       - name: Instalar NASM para o OpenSSL embutido do SQLCipher
-        if: env.CIFRA == 'true'
+        if: env.CIFRA == 'true' && env.SOMENTE_INSTALADOR != 'true'
         shell: pwsh
         run: |
           if (!(Get-Command nasm -ErrorAction SilentlyContinue)) {
@@ -62,14 +67,20 @@ jobs:
       - name: Compilar
         shell: pwsh
         run: |
-          $a = @('build', '--locked', '-p', 'orion-server')
-          if ($env:INSTALADOR -eq 'true') { $a += @('-p', 'orion-setup') }
-          if ($env:LLAMA -eq 'true') { $a += @('-p', 'orion-llama') }
-          if ($env:CIFRA -eq 'true') { $a += @('--features', 'orion-server/sqlcipher') }
+          $a = @('build', '--locked')
+          if ($env:SOMENTE_INSTALADOR -eq 'true') {
+            $a += @('-p', 'orion-setup', '--bin', 'orion-setup')
+          } else {
+            $a += @('-p', 'orion-server')
+            if ($env:INSTALADOR -eq 'true') { $a += @('-p', 'orion-setup') }
+            if ($env:LLAMA -eq 'true') { $a += @('-p', 'orion-llama') }
+            if ($env:CIFRA -eq 'true') { $a += @('--features', 'orion-server/sqlcipher') }
+          }
           if ($env:PERFIL -eq 'release') { $a += '--release' }
           cargo @a
           if ($LASTEXITCODE -ne 0) { throw "cargo build falhou ($LASTEXITCODE)" }
       - name: Montar a pasta do app
+        if: env.SOMENTE_INSTALADOR != 'true'
         shell: pwsh
         run: |
           $bin = "C:\t\$env:PERFIL"
@@ -106,8 +117,26 @@ jobs:
             $relative = [IO.Path]::GetRelativePath((Resolve-Path pacote), $_.FullName)
             "$hash  $relative"
           } | Set-Content -Encoding utf8 pacote\SHA256SUMS.txt
+      - name: Montar somente o instalador
+        if: env.SOMENTE_INSTALADOR == 'true'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force pacote | Out-Null
+          Copy-Item "C:\t\$env:PERFIL\orion-setup.exe" 'pacote\Orion Setup.exe'
+          @(
+            'Orion Setup para Windows — somente o instalador',
+            "Perfil: $env:PERFIL",
+            'Substitua Orion Setup.exe no pacote que você já baixou e mantenha a pasta cpu ao lado dele.',
+            'Este artefato não inclui o app, o worker local ou pesos de modelos.',
+            'O Windows solicitará permissão de administrador para instalar ou desinstalar.',
+            'Para usar somente APIs, deixe modelos locais, voz e Vulkan desmarcados.'
+          ) | Set-Content -Encoding utf8 pacote\LEIA-ME.txt
+          Get-ChildItem pacote -File | Where-Object Name -ne 'SHA256SUMS.txt' | ForEach-Object {
+            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $($_.Name)"
+          } | Set-Content -Encoding utf8 pacote\SHA256SUMS.txt
       - uses: actions/upload-artifact@v7
         with:
-          name: Orion-Windows-App
+          name: ${{ inputs.somente_instalador && 'Orion-Windows-Instalador' || 'Orion-Windows-App' }}
           path: Orion_Rust/pacote
           if-no-files-found: error

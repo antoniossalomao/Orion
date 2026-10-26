@@ -1,6 +1,6 @@
 # Orion — estado, plano e decisões
 
-> Fonte única do estado do projeto. Atualizado em 24/10/2026. Princípios e regras: [REGRAS.md](REGRAS.md). Arquitetura, módulos e referências: [ARQUITETURA.md](ARQUITETURA.md). Como rodar: [README](../README.md). Material antigo e detalhado: [ORION_LEGADO.md](ORION_LEGADO.md).
+> Fonte única do estado do projeto. Atualizado em 26/10/2026. Princípios e regras: [REGRAS.md](REGRAS.md). Arquitetura, módulos e referências: [ARQUITETURA.md](ARQUITETURA.md). Como rodar: [README](../README.md). Material antigo e detalhado: [ORION_LEGADO.md](ORION_LEGADO.md).
 
 ## Visão
 
@@ -9,6 +9,14 @@ Assistente pessoal com identidade masculina, técnico, direto, não-servil. Não
 *"Não é uma IA. É uma extensão do sistema nervoso."*
 
 Antônio é o administrador: decide, aprova e pode desligar qualquer coisa. Nada que o modelo diga anula isso.
+
+## Configurações e instalador — 26/10/2026
+
+[PR #58](https://github.com/antoniossalomao/Orion/pull/58). Pedido do Antônio: Fontes e Painel somente nas configurações, Resultados fora da navegação e correção do acesso negado ao criar `C:\Program Files\Orion`. Fontes/Resultados já estavam ajustados na base; Painel agora é seção do modal (inclusive `/config painel`, carregamento autenticado e Atualizar), removido de Mais, da paleta e das capturas de páginas. Nenhum dado de artefatos foi removido.
+
+O Setup solicita UAC pelo Windows antes de instalar ou desinstalar, preservando caminho, argumentos Unicode e pasta de trabalho; cancelar encerra antes de gravar arquivos. Prévia, hardware de protótipo e `--whats-new` abrem sem essa solicitação. O módulo de elevação passou na checagem de tipos para `x86_64-pc-windows-msvc`; isso não comprova instalação real no Windows. Os **550 testes existentes passaram** no Linux com Rust 1.97.0 (dependências sem otimização/debug para a validação neste ambiente); nenhum teste novo nem CI automático foi criado.
+
+O pedido posterior autoriza build **somente do instalador**, manual no GitHub. `windows-app-cpu.yml` ganhou `somente_instalador`: compila apenas `orion-setup --bin orion-setup`, sem app, worker ou modelos, e publica `Orion-Windows-Instalador` com Setup, instruções e SHA-256. Esse artefato substitui o Setup do pacote existente e precisa manter a pasta `cpu` ao lado; sozinho não é pacote offline completo. [Execução manual 40416699527](https://github.com/antoniossalomao/Orion/actions/runs/40416699527), fonte `03d0b5fac93b943ee1ec9981f8ff6008627223ed`, iniciada para produzir esse artefato. O resultado pode ser acompanhado na execução; instalação real no Windows ainda depende de reteste.
 
 ## Backend e reconciliação do board — 24/10/2026
 
@@ -366,6 +374,7 @@ Validação da limpeza (histórica; Python e Node saíram do CI): `uv sync --pyt
 
 | Data | Consolidação | Efeito |
 |---|---|---|
+| 26/10/2026 | Fontes/Painel somente nas configurações; Resultados fora da navegação. Setup solicita UAC antes de instalar/desinstalar, mantendo prévia e notas de versão sem solicitação. Build manual pode compilar somente o instalador | Pedido explícito do Antônio nesta sessão; aceite Windows e resultado do build registrados na seção desta rodada |
 | 24/10/2026 | Revisão crítica visual e grafo orgânico da Memória (`FE-VIS 01..11`, `ORI-533..544`): `layout_forca` orgânico multiescala com viés de grau estilo d3-force/Obsidian, gravidade progressiva, equalização isotrópica e colisão circular em `graph.rs`; `canvas::Cache`, arestas graduadas por grau na seleção, rótulos em pílulas translúcidas sem colisão, filtro de Grafo local (1 e 2 saltos) e controles de zoom deslocados do card lateral em `views/memory.rs`; controles de janela na topbar estreita, selo `✓ Salvo no vault`, Terminal em `Length::Fill`, wrap de badges em Projetos e pausa de `Msg::Tick` em segundo plano | Pedido do Antônio (`/goal`) para elevar a qualidade visual do Orion e a legibilidade orgânica do grafo da Memória; telemetria física no Windows permanece pendente de aceite no hardware |
 | 26/10/2026 | "Instala ao fechar" (F10.16): com `install_on_close` em `update.json` (o instalador novo grava `auto_update` e `install_on_close` verdadeiros), `orion update --check` baixa e confere (feed assinado + SHA-256) para `.staged/` sem tocar no app; ao fechar o Orion (e na abertura seguinte, se o fechamento não rodou) `apply_staged` rechecou versão maior, nome permitido e SHA-256, troca por renomeação com `.bak` e deixa as notas para a mini tela. `orion update --apply-staged` faz a troca à mão. Pasta de Program Files exige administrador: as tarefas SYSTEM (`OrionUpdater` diária com `--apply-staged --check` e `OrionUpdaterLogon` ao entrar no Windows) também aplicam o que ficou guardado; falha de permissão ao fechar mantém `.staged/`. Download vai para `.staged-tmp` e é publicado por renomeação, então nada apaga download em andamento | Pedido do Antônio. Teste temporário do fluxo (guardar, trocar, adulteração) passou no Linux e foi removido por causa da pausa de testes; sem prova no Windows (renomear o `orion.exe` em uso é o comportamento esperado do NTFS, não verificado) |
 | 26/10/2026 | Mini tela "O que mudou" (F10.16): o atualizador grava `whats-new.json` (versão, anterior, notas do feed) ao instalar; na primeira abertura visível o app chama `Orion Setup.exe --whats-new <pasta>` (céu com 7 estrelas + notas) e fechar a tela remove o arquivo | Pedido do Antônio. Testes de orion-updater/setup/app passam no Linux; janela nunca aberta num Windows real. Canal beta fica para quando o notebook entrar; "instala ao fechar" segue pendente |

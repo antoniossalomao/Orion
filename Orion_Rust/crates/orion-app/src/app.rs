@@ -17,7 +17,6 @@ pub enum View {
     Rotinas,
     Nuvem,
     Conhecimento,
-    Painel,
     Arquivadas,
 }
 
@@ -31,7 +30,6 @@ impl View {
             View::Rotinas => crate::i18n::text("Rotinas"),
             View::Nuvem => crate::i18n::text("Segundo plano"),
             View::Conhecimento => crate::i18n::text("Conhecimento"),
-            View::Painel => crate::i18n::text("Painel"),
             View::Arquivadas => crate::i18n::text("Arquivadas"),
         }
     }
@@ -66,6 +64,7 @@ pub enum Sec {
     Conta,
     Privacidade,
     Uso,
+    Painel,
     Modelos,
     Memoria,
     Fontes,
@@ -87,6 +86,7 @@ impl Sec {
             "conta" | "account" => Sec::Conta,
             "privacidade" | "autonomia" | "privacy" => Sec::Privacidade,
             "uso" | "cotas" | "usage" => Sec::Uso,
+            "painel" | "panel" | "dashboard" => Sec::Painel,
             "modelos" | "models" => Sec::Modelos,
             "memoria" | "memory" => Sec::Memoria,
             "fontes" | "sources" => Sec::Fontes,

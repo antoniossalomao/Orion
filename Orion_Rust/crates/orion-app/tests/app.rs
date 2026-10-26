@@ -66,7 +66,7 @@ fn navegacao_empilha_voltar_e_avancar() {
     a.update(Msg::Fwd);
     assert_eq!(a.view, View::Rotinas);
     a.update(Msg::Back);
-    a.update(Msg::Go(View::Painel));
+    a.update(Msg::Go(View::Conhecimento));
     assert!(a.fwd.is_empty());
 }
 
@@ -170,7 +170,7 @@ fn busca_das_configuracoes_olha_nome_e_palavras_chave() {
     assert_eq!(settings::search("palmas"), vec![Sec::Voz]);
     assert!(settings::search("mcp").contains(&Sec::Conectores));
     assert!(settings::search("xyzxyz").is_empty());
-    assert_eq!(settings::search("").len(), 14);
+    assert_eq!(settings::search("").len(), 15);
 }
 
 #[test]
