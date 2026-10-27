@@ -87,7 +87,9 @@ pub async fn enviar_audio(_: Admin, State(st): State<Estado>, Query(q): Query<Au
         return erro(413, "audio_size_limit");
     }
     let Some((kind, mime)) = tipo(&corpo) else { return erro(422, "audio_type_invalid") };
-    let Some(transcriber) = st.transcriber.clone() else { return erro(503, "transcricao_nao_configurada") };
+    if st.transcriber.is_none() {
+        return erro(503, "transcricao_nao_configurada");
+    }
     if st.modos.panico() {
         return erro(409, "modo pânico: transcrição bloqueada");
     }
@@ -106,9 +108,22 @@ pub async fn enviar_audio(_: Admin, State(st): State<Estado>, Query(q): Query<Au
     })?;
     r?;
 
-    let (memory, id2, pid, bytes) = (st.memory.clone(), id.clone(), q.project_id.clone(), corpo.to_vec());
+    transcrever_em_segundo_plano(&st, id.clone(), q.project_id.clone(), nome, corpo.to_vec(), mime)?;
+    linha_de(&st, &q.project_id, &id)
+}
+
+/// Formatos de áudio que o upload aceita (o `kind` guardado em `uploads`).
+pub fn e_audio(kind: &str) -> bool {
+    [".wav", ".mp3", ".ogg", ".flac", ".m4a", ".webm"].contains(&kind)
+}
+
+/// Transcreve em tarefa própria e indexa o texto como documento. Serve ao envio e às operações de
+/// manutenção (tentar de novo, reindexar, mover): áudio nunca passa pelo extrator de texto.
+pub(super) fn transcrever_em_segundo_plano(st: &Estado, id: String, pid: Option<String>, nome: String, bytes: Vec<u8>, mime: &'static str) -> ApiResult<()> {
+    let Some(transcriber) = st.transcriber.clone() else { return erro(503, "transcricao_nao_configurada") };
+    let memory = st.memory.clone();
     tokio::spawn(async move {
-        let nome2 = nome.clone();
+        let (id2, nome2) = (id, nome);
         // O Whisper local só lê WAV mono 16 kHz: converte antes, quando houver ffmpeg.
         let entrada = tokio::task::spawn_blocking(move || if wav_16k_mono(&bytes) { bytes } else { para_wav(&bytes).unwrap_or(bytes) }).await.unwrap_or_default();
         let resultado = transcriber.transcribe(entrada, &nome2, mime).await;
@@ -138,5 +153,5 @@ pub async fn enviar_audio(_: Admin, State(st): State<Estado>, Query(q): Query<Au
             tracing::error!("tarefa de transcrição interrompida");
         }
     });
-    linha_de(&st, &q.project_id, &id)
+    Ok(())
 }

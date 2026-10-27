@@ -671,7 +671,9 @@ pub async fn config_recarregar(_: Admin, State(st): State<Estado>) -> ApiResult<
         .await
         .map_err(anyhow::Error::from)?
         .map_err(|e| ApiError::new(422, format!("configuração inválida: {e}")))?;
-    let (antes, depois) = (campos_das_configuracoes(&st.settings), campos_das_configuracoes(&novo));
+    // Compara com o que está rodando agora; na primeira recarga, é o que valia na inicialização.
+    let antes = st.viva.aplicada.lock().clone().unwrap_or_else(|| campos_das_configuracoes(&st.settings));
+    let depois = campos_das_configuracoes(&novo);
     let mudados: Vec<String> = depois.iter().filter(|(n, v)| !DEFINIDOS_NA_INICIALIZACAO.contains(&n.as_str()) && antes.get(*n) != Some(*v)).map(|(n, _)| n.clone()).collect();
     let (mut aplicados, mut reinicio) = (vec![], vec![]);
     let mut refazer_gateway = false;
@@ -689,5 +691,14 @@ pub async fn config_recarregar(_: Admin, State(st): State<Estado>) -> ApiResult<
         s.vault_dir = st.settings.vault_dir.clone();
         recarregar_gateway(&st, s).await?;
     }
+    // A base passa a valer só para o que foi aplicado; o que exige reinício continua com o valor que roda
+    // agora e volta a aparecer até você reiniciar (ou desfazer a mudança).
+    let mut base = antes;
+    for n in &aplicados {
+        if let Some(v) = depois.get(n) {
+            base.insert(n.clone(), v.clone());
+        }
+    }
+    *st.viva.aplicada.lock() = Some(base);
     Ok(Json(json!({"ok": true, "aplicados": aplicados, "exigem_reinicio": reinicio})))
 }

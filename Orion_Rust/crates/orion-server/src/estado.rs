@@ -101,11 +101,14 @@ pub struct AppState {
 pub struct ConfigViva {
     pub injecao: Arc<std::sync::atomic::AtomicBool>,
     pub diario: Arc<std::sync::atomic::AtomicBool>,
+    /// Campos como estão rodando agora (só nomes e textos para comparar): a recarga compara com isto, não com
+    /// o que valia na inicialização, para que voltar a um valor antigo também seja uma mudança.
+    pub aplicada: parking_lot::Mutex<Option<std::collections::BTreeMap<String, String>>>,
 }
 
 impl ConfigViva {
     pub fn de(s: &Settings) -> Self {
-        ConfigViva { injecao: Arc::new(s.injection_guard.into()), diario: Arc::new(s.vault_diario.into()) }
+        ConfigViva { injecao: Arc::new(s.injection_guard.into()), diario: Arc::new(s.vault_diario.into()), aplicada: parking_lot::Mutex::new(None) }
     }
 }
 

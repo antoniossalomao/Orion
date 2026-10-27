@@ -907,5 +907,17 @@
   "Exportar o Você fez de hoje": "ui-0905",
   "Recarregar configurações": "ui-0906",
   "Relê o .env e aplica o que dá sem reiniciar: modelos, chaves, guarda de injeção e diário. O resto avisa que precisa reiniciar.": "ui-0907",
-  "Recarregar": "ui-0908"
+  "Recarregar": "ui-0908",
+  "Configurações recarregadas: {} aplicada(s) na hora, {} exigem reiniciar o Orion.": "ui-0909",
+  "O relatório de hoje já estava no vault; nada foi sobrescrito.": "ui-0910",
+  "Relatório gravado no vault: {}": "ui-0911",
+  "Nota do vault atualizada. Revise e faça o commit quando quiser.": "ui-0912",
+  "Proposta descartada. A nota do vault ficou como estava.": "ui-0913",
+  "Imagem anexada. Ela vai com sua próxima mensagem e não fica guardada.": "ui-0914",
+  "Anexo pronto. O texto será enviado com sua próxima mensagem.": "ui-0915",
+  "Tipo de arquivo não suportado. Use texto, Markdown, PDF, imagem (PNG, JPEG, WebP) ou áudio.": "ui-0916",
+  "Arquivo vazio ou maior que {} MB.": "ui-0917",
+  "O arquivo não é uma imagem PNG, JPEG ou WebP válida.": "ui-0918",
+  "Não foi possível abrir a imagem.": "ui-0919",
+  "O anexo ainda está sendo processado. Tente anexá-lo novamente em instantes.": "ui-0920"
 }
