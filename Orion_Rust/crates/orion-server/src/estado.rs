@@ -94,21 +94,21 @@ pub struct AppState {
     pub escuta: Option<Arc<orion_core::wake::WakeListener>>,
     pub desktop_wake: Arc<std::sync::atomic::AtomicBool>,
     /// Opções que a recarga de configurações muda sem reiniciar (F07.08).
-    pub viva: Arc<ConfigViva>,
+    pub live: Arc<LiveConfig>,
 }
 
 /// Interruptores lidos a cada uso, para valerem na hora da recarga.
-pub struct ConfigViva {
-    pub injecao: Arc<std::sync::atomic::AtomicBool>,
-    pub diario: Arc<std::sync::atomic::AtomicBool>,
+pub struct LiveConfig {
+    pub injection: Arc<std::sync::atomic::AtomicBool>,
+    pub diary: Arc<std::sync::atomic::AtomicBool>,
     /// Campos como estão rodando agora (só nomes e textos para comparar): a recarga compara com isto, não com
     /// o que valia na inicialização, para que voltar a um valor antigo também seja uma mudança.
-    pub aplicada: parking_lot::Mutex<Option<std::collections::BTreeMap<String, String>>>,
+    pub applied: parking_lot::Mutex<Option<std::collections::BTreeMap<String, String>>>,
 }
 
-impl ConfigViva {
+impl LiveConfig {
     pub fn de(s: &Settings) -> Self {
-        ConfigViva { injecao: Arc::new(s.injection_guard.into()), diario: Arc::new(s.vault_diario.into()), aplicada: parking_lot::Mutex::new(None) }
+        LiveConfig { injection: Arc::new(s.injection_guard.into()), diary: Arc::new(s.vault_diario.into()), applied: parking_lot::Mutex::new(None) }
     }
 }
 
@@ -477,7 +477,7 @@ pub async fn montar(mut settings: Settings) -> anyhow::Result<Estado> {
             &settings.screen_ocr_langs,
         ))
     });
-    let viva = Arc::new(ConfigViva::de(&settings));
+    let live = Arc::new(LiveConfig::de(&settings));
     let mut agent = None;
     let mut delegator = None;
     let mut processos = None;
@@ -586,10 +586,10 @@ pub async fn montar(mut settings: Settings) -> anyhow::Result<Estado> {
         a.library = Some(biblioteca.clone());
         a.modos = Some(modos.clone());
         a.compactor = compactor_from_settings(&settings, memory.clone());
-        a.injecao = Some(Arc::new(orion_ai::injecao::Guard::padrao()));
-        a.injecao_ativa = viva.injecao.clone();
+        a.injection = Some(Arc::new(orion_ai::injection::Guard::standard()));
+        a.injection_enabled = live.injection.clone();
         if let Some(vault) = settings.vault_dir.clone().or_else(orion_vault::detect_vault_path) {
-            a.pos_turno = Some(crate::diario::gancho(memory.clone(), vault, viva.diario.clone()));
+            a.after_turn = Some(crate::diary::hook(memory.clone(), vault, live.diary.clone()));
         }
         *a.indice.write() = Some(indice);
         agent = Some(Arc::new(a));
@@ -974,7 +974,7 @@ pub async fn montar(mut settings: Settings) -> anyhow::Result<Estado> {
         estado_voz,
         escuta,
         desktop_wake,
-        viva,
+        live,
         settings,
         memory,
         policy,

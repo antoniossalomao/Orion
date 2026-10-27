@@ -102,7 +102,7 @@ pub type Refresh = Arc<dyn Fn() -> BoxFuture<'static, ()> + Send + Sync>;
 pub struct TurnRequest {
     pub channel: String,
     pub text: String,
-    /// Data URLs que valem só para este turno; o histórico guarda só um aviso.
+    /// Data URLs que valem só para este turno; o histórico guard só um aviso.
     pub images: Vec<String>,
     pub external: Vec<ExternalData>,
     pub selection: Option<Selection>,
@@ -142,11 +142,11 @@ pub struct Agent {
     pub modos: Option<Arc<Modos>>,
     pub compactor: Option<Arc<Compactor>>,
     /// Segunda barreira contra injeção de prompt no conteúdo externo (F04.09); `None` = desligada.
-    pub injecao: Option<Arc<orion_ai::injecao::Guard>>,
-    /// Interruptor vivo do guarda: a recarga de configurações liga e desliga sem reiniciar (F07.08).
-    pub injecao_ativa: Arc<std::sync::atomic::AtomicBool>,
+    pub injection: Option<Arc<orion_ai::injection::Guard>>,
+    /// Interruptor vivo do guard: a recarga de configurações liga e desliga sem reiniciar (F07.08).
+    pub injection_enabled: Arc<std::sync::atomic::AtomicBool>,
     /// Depois de cada resposta, com o id da conversa; o servidor usa para o diário do vault (F06.07).
-    pub pos_turno: Option<Arc<dyn Fn(&str) + Send + Sync>>,
+    pub after_turn: Option<Arc<dyn Fn(&str) + Send + Sync>>,
     /// Nome da ferramenta → servidor MCP (E6.4).
     pub servidor_mcp: Option<Arc<dyn Fn(&str) -> Option<String> + Send + Sync>>,
     pub indice: RwLock<Option<Indice>>,
@@ -173,9 +173,9 @@ impl Agent {
             library: None,
             modos: None,
             compactor: None,
-            injecao: None,
-            injecao_ativa: Arc::new(std::sync::atomic::AtomicBool::new(false)),
-            pos_turno: None,
+            injection: None,
+            injection_enabled: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            after_turn: None,
             servidor_mcp: None,
             indice: RwLock::new(None),
             refresh_tools: RwLock::new(None),
@@ -357,7 +357,7 @@ impl Agent {
             if let Some(c) = &me.compactor {
                 c.agendar(&session.id);
             }
-            if let Some(f) = &me.pos_turno {
+            if let Some(f) = &me.after_turn {
                 f(&session.id);
             }
         })
@@ -365,13 +365,13 @@ impl Agent {
 
     /// Mensagens do conteúdo externo, depois do classificador de injeção (REGRAS.md: conteúdo externo é
     /// dado). Suspeito vai com aviso; bloqueado não vai ao provedor, só um marcador. Só conta, nunca registra o texto.
-    fn mensagens_externas(&self, external: &[ExternalData]) -> Vec<Value> {
-        use orion_ai::injecao::Verdict;
+    fn external_messages(&self, external: &[ExternalData]) -> Vec<Value> {
+        use orion_ai::injection::Verdict;
         external
             .iter()
             .map(|item| {
-                let Some(guarda) = self.injecao.as_ref().filter(|_| self.injecao_ativa.load(std::sync::atomic::Ordering::Relaxed)) else { return item.message() };
-                match guarda.judge(&item.text) {
+                let Some(guard) = self.injection.as_ref().filter(|_| self.injection_enabled.load(std::sync::atomic::Ordering::Relaxed)) else { return item.message() };
+                match guard.judge(&item.text) {
                     Verdict::Clean => item.message(),
                     Verdict::Suspicious(_) => {
                         let _ = self.memory.counter_incr("injecao:suspeita", 1);
@@ -500,7 +500,7 @@ impl Agent {
                 ctx_arc.lock().tainted = true;
                 me.marcar_taint(&session.id);
             }
-            mensagens.extend(me.mensagens_externas(&external));
+            mensagens.extend(me.external_messages(&external));
             if let (Some(sk), Some(cat)) = (&skill_forcada, &me.skills) {
                 // como se o modelo tivesse chamado `carregar_skill` (REGRAS.md: skill é texto, não código)
                 let carga = orion_policy::pyjson::dumps(&cat.read().load(sk), false);

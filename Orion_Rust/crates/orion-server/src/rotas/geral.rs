@@ -660,9 +660,11 @@ fn campos_das_configuracoes(s: &orion_core::config::Settings) -> std::collection
 }
 
 /// Campos que o servidor define ao iniciar (perfil, instalador, banco): diferem do `.env` sem o usuário ter mudado nada.
-const DEFINIDOS_NA_INICIALIZACAO: [&str; 11] = ["data_dir", "vault_dir", "admin_token", "auth_user", "seed_default_password", "host", "port", "allow_public_bind", "cookie_secure", "jobs_enabled", "provedores"];
+const DEFINIDOS_NA_INICIALIZACAO: [&str; 10] = ["data_dir", "vault_dir", "admin_token", "auth_user", "seed_default_password", "host", "port", "allow_public_bind", "cookie_secure", "jobs_enabled"];
 /// Mudanças que refazem o gateway na hora.
-const DO_GATEWAY: [&str; 12] = ["gateway_url", "gateway_model", "gateway_model_fast", "gateway_model_heavy", "gateway_api_key", "vision_model", "local_model", "local_model_path", "local_model_gpu", "local_url", "allow_paid", "providers_explicit"];
+/// (`provedores` entra só com `ORION_PROVEDORES` explícito; sem isso a lista vem do banco e difere do `.env` sem mudança sua.)
+/// O modelo embutido (`local_model*`) fica de fora: o gerador é criado na inicialização e a recarga não o troca.
+const DO_GATEWAY: [&str; 10] = ["gateway_url", "gateway_model", "gateway_model_fast", "gateway_model_heavy", "gateway_api_key", "vision_model", "local_url", "allow_paid", "providers_explicit", "provedores"];
 
 /// F07.08: relê o `.env` e o ambiente e aplica o que dá sem reiniciar. O resto vai listado em
 /// `exigem_reinicio`. Só nomes de campos saem daqui, nunca valores (REGRAS.md: segredos nunca em log).
@@ -672,15 +674,15 @@ pub async fn config_recarregar(_: Admin, State(st): State<Estado>) -> ApiResult<
         .map_err(anyhow::Error::from)?
         .map_err(|e| ApiError::new(422, format!("configuração inválida: {e}")))?;
     // Compara com o que está rodando agora; na primeira recarga, é o que valia na inicialização.
-    let antes = st.viva.aplicada.lock().clone().unwrap_or_else(|| campos_das_configuracoes(&st.settings));
+    let antes = st.live.applied.lock().clone().unwrap_or_else(|| campos_das_configuracoes(&st.settings));
     let depois = campos_das_configuracoes(&novo);
-    let mudados: Vec<String> = depois.iter().filter(|(n, v)| !DEFINIDOS_NA_INICIALIZACAO.contains(&n.as_str()) && antes.get(*n) != Some(*v)).map(|(n, _)| n.clone()).collect();
+    let mudados: Vec<String> = depois.iter().filter(|(n, v)| !DEFINIDOS_NA_INICIALIZACAO.contains(&n.as_str()) && (n.as_str() != "provedores" || (st.settings.providers_explicit && novo.providers_explicit)) && antes.get(*n) != Some(*v)).map(|(n, _)| n.clone()).collect();
     let (mut aplicados, mut reinicio) = (vec![], vec![]);
     let mut refazer_gateway = false;
     for n in mudados {
         match n.as_str() {
-            "injection_guard" => { st.viva.injecao.store(novo.injection_guard, std::sync::atomic::Ordering::Relaxed); aplicados.push(n); }
-            "vault_diario" => { st.viva.diario.store(novo.vault_diario, std::sync::atomic::Ordering::Relaxed); aplicados.push(n); }
+            "injection_guard" => { st.live.injection.store(novo.injection_guard, std::sync::atomic::Ordering::Relaxed); aplicados.push(n); }
+            "vault_diario" => { st.live.diary.store(novo.vault_diario, std::sync::atomic::Ordering::Relaxed); aplicados.push(n); }
             n_ if DO_GATEWAY.contains(&n_) => { refazer_gateway = true; aplicados.push(n); }
             _ => reinicio.push(n),
         }
@@ -699,6 +701,6 @@ pub async fn config_recarregar(_: Admin, State(st): State<Estado>) -> ApiResult<
             base.insert(n.clone(), v.clone());
         }
     }
-    *st.viva.aplicada.lock() = Some(base);
+    *st.live.applied.lock() = Some(base);
     Ok(Json(json!({"ok": true, "aplicados": aplicados, "exigem_reinicio": reinicio})))
 }

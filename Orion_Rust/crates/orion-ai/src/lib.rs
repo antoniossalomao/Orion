@@ -6,7 +6,7 @@ pub mod costs;
 pub mod delegate;
 pub mod embedders;
 pub mod gateway;
-pub mod injecao;
+pub mod injection;
 pub mod leitor;
 pub mod netguard;
 pub mod provedores;

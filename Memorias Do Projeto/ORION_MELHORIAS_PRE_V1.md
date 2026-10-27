@@ -170,7 +170,7 @@ O escopo da v1 é estritamente limitado aos seguintes componentes:
 - [x] **F07.05** Painel de métricas operacionais embutido na seção Painel: acompanhamento de cotas, status de armazenamento e memória.
 - [x] **F07.06** Seção de Fontes tipográficas permitindo personalização de tamanhos de corpo e código.
 - [x] **F07.07** Persistência atômica de preferências no arquivo de perfil criptografado.
-- [~] **F07.08** Recarga a quente (*hot-reload*) de todas as configurações alteradas sem necessidade de reiniciar o executável `orion.exe`. *Código na branch `claude/kind-bohr-j6hi1g`, compilado e com a suíte existente verde no Linux, sem testes novos (pausa de 21/10/2026). `POST /config/recarregar` + botão em Sistema: aplica na hora modelos/gateway, guarda de injeção e diário; o resto vem listado em `exigem_reinicio`. Hoje as demais ~140 opções ainda exigem reiniciar.*
+- [~] **F07.08** Recarga a quente (*hot-reload*) de todas as configurações alteradas sem necessidade de reiniciar o executável `orion.exe`. *Código na branch `claude/kind-bohr-j6hi1g`, compilado e com a suíte existente verde no Linux, sem testes novos (pausa de 21/10/2026). `POST /config/recarregar` + botão em Sistema: aplica na hora provedores/gateway, guarda de injeção e diário; o modelo local embutido (`ORION_LOCAL_MODEL*`) e o resto vêm listados em `exigem_reinicio`. Hoje as demais ~140 opções ainda exigem reiniciar.*
 
 ---
 

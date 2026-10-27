@@ -32,10 +32,10 @@ pub enum Verdict {
 /// o prompt, escondê-lo de você ou enviar dados para fora. Limite do texto analisado: 200 mil caracteres.
 pub struct Heuristic;
 
-const MAX_ANALISE: usize = 200_000;
+const MAX_ANALYSIS: usize = 200_000;
 
 /// (trecho em minúsculas, peso). Várias ocorrências somam um pouco; o teto é 1.0.
-const PADROES: &[(&str, f32)] = &[
+const PATTERNS: &[(&str, f32)] = &[
     ("ignore all previous instructions", 0.95),
     ("ignore previous instructions", 0.95),
     ("ignore the above instructions", 0.9),
@@ -85,27 +85,27 @@ impl InjectionClassifier for Heuristic {
         "heuristica"
     }
     fn score(&self, text: &str) -> Result<f32, InjectionError> {
-        let t: String = text.chars().take(MAX_ANALISE).collect::<String>().to_lowercase();
-        let mut pesos: Vec<f32> = PADROES.iter().filter(|(p, _)| t.contains(p)).map(|(_, w)| *w).collect();
-        pesos.sort_by(|a, b| b.total_cmp(a));
-        let Some(maior) = pesos.first().copied() else { return Ok(0.0) };
-        Ok((maior + 0.05 * (pesos.len() - 1) as f32).min(1.0))
+        let t: String = text.chars().take(MAX_ANALYSIS).collect::<String>().to_lowercase();
+        let mut weights: Vec<f32> = PATTERNS.iter().filter(|(p, _)| t.contains(p)).map(|(_, w)| *w).collect();
+        weights.sort_by(|a, b| b.total_cmp(a));
+        let Some(highest) = weights.first().copied() else { return Ok(0.0) };
+        Ok((highest + 0.05 * (weights.len() - 1) as f32).min(1.0))
     }
 }
 
 pub struct Guard {
     classifier: Arc<dyn InjectionClassifier>,
-    suspeito: f32,
-    bloqueio: f32,
+    suspicious: f32,
+    block_at: f32,
 }
 
 impl Guard {
-    pub fn new(classifier: Arc<dyn InjectionClassifier>, suspeito: f32, bloqueio: f32) -> Self {
-        Guard { classifier, suspeito, bloqueio }
+    pub fn new(classifier: Arc<dyn InjectionClassifier>, suspicious: f32, block_at: f32) -> Self {
+        Guard { classifier, suspicious, block_at }
     }
 
-    /// Guarda padrão: heurística local, aviso a partir de 0,5 e bloqueio a partir de 0,8.
-    pub fn padrao() -> Self {
+    /// Guarda padrão: heurística local, aviso a partir de 0,5 e block_at a partir de 0,8.
+    pub fn standard() -> Self {
         Guard::new(Arc::new(Heuristic), 0.5, 0.8)
     }
 
@@ -115,8 +115,8 @@ impl Guard {
 
     pub fn judge(&self, text: &str) -> Verdict {
         match self.classifier.score(text) {
-            Ok(s) if s >= self.bloqueio => Verdict::Blocked(s),
-            Ok(s) if s >= self.suspeito => Verdict::Suspicious(s),
+            Ok(s) if s >= self.block_at => Verdict::Blocked(s),
+            Ok(s) if s >= self.suspicious => Verdict::Suspicious(s),
             Ok(_) => Verdict::Clean,
             // Sem classificação não há como saber: trata como o pior caso.
             Err(_) => Verdict::Blocked(1.0),
