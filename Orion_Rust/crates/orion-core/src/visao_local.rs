@@ -3,7 +3,7 @@
 //!
 //! Só o par `(objeto, hora)` entra em `object_sightings` — nunca a foto, o recorte nem onde na sala.
 
-use crate::camera::{decodificar, foto_jpeg};
+use crate::camera::foto_jpeg;
 use orion_store::Store;
 use parking_lot::Mutex;
 use regex::Regex;
@@ -159,22 +159,33 @@ pub fn nomes_do_modelo(meta: &HashMap<String, String>) -> HashMap<usize, String>
 pub struct Detector {
     pub modelo_path: Option<PathBuf>,
     pub limiar: f64,
+    model: Mutex<Option<Arc<tract_onnx::prelude::TypedRunnableModel>>>,
 }
 
 impl Detector {
     pub fn new(modelo_path: Option<PathBuf>, limiar: f64) -> Self {
-        Self { modelo_path, limiar }
+        Self { modelo_path, limiar, model:Mutex::new(None) }
     }
 
     pub fn disponivel(&self) -> bool {
         self.modelo_path.as_ref().is_some_and(|p| p.is_file())
     }
 
-    pub fn detectar_jpeg(&self, jpeg: &[u8]) -> Vec<Deteccao> {
-        if !self.disponivel() || decodificar(jpeg).is_err() {
-            return vec![];
-        }
-        vec![]
+    pub fn detectar_jpeg(&self,jpeg:&[u8])->Vec<Deteccao>{
+        match self.detect(jpeg){Ok(v)=>v,Err(e)=>{tracing::warn!("detecção de objetos indisponível: {e}");vec![]}}
+    }
+    pub fn detect(&self,jpeg:&[u8])->anyhow::Result<Vec<Deteccao>>{
+        use tract_onnx::prelude::*;
+        let image=image::load_from_memory(jpeg)?.resize_exact(ENTRADA,ENTRADA,image::imageops::FilterType::Triangle).to_rgb8();
+        let mut guard=self.model.lock();
+        if guard.is_none(){let path=self.modelo_path.as_ref().ok_or_else(||anyhow::anyhow!("configure o modelo YOLO ONNX"))?;*guard=Some(tract_onnx::onnx().model_for_path(path)?.with_input_fact(0,f32::fact([1,3,ENTRADA as usize,ENTRADA as usize]).into())?.into_optimized()?.into_runnable()?);}
+        let input=tract_ndarray::Array4::from_shape_fn((1,3,ENTRADA as usize,ENTRADA as usize),|(_,c,y,x)|image.get_pixel(x as u32,y as u32)[c] as f32/255.0);
+        let output=guard.as_ref().unwrap().run(tvec!(Tensor::from(input).into()))?;
+        let out=output[0].to_plain_array_view::<f32>()?;
+        anyhow::ensure!(out.ndim()==3 && out.shape()[0]==1,"saída YOLOv8 inválida");
+        let out=out.index_axis(tract_ndarray::Axis(0),0);
+        let matrix=out.outer_iter().map(|row|row.iter().map(|v|*v as f64).collect()).collect::<Vec<Vec<f64>>>();
+        Ok(decodificar_matriz(&matrix,&nomes_do_modelo(&HashMap::new()),self.limiar))
     }
 }
 

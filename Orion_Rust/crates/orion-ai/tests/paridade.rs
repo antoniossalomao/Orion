@@ -599,8 +599,8 @@ fn medir_registra_falha_quando_a_chamada_nao_confirma() {
 fn provedor_pelo_host_sem_guardar_a_url() {
     assert_eq!(saidas::provedor_da_url("https://api.groq.com/openai/v1", ""), "groq");
     assert_eq!(saidas::provedor_da_url("https://generativelanguage.googleapis.com/x", ""), "gemini");
-    assert_eq!(saidas::provedor_da_url("http://127.0.0.1:5678/webhook/a", "n8n"), "n8n");
-    assert_eq!(saidas::provedor_da_url("https://n8n.exemplo.com/webhook/abc?t=1", ""), "n8n.exemplo.com");
+    assert_eq!(saidas::provedor_da_url("http://127.0.0.1:5678/webhook/a", "automation"), "automation");
+    assert_eq!(saidas::provedor_da_url("https://automation.exemplo.com/webhook/abc?t=1", ""), "automation.exemplo.com");
 }
 
 #[tokio::test]

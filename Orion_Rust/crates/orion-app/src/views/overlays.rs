@@ -197,16 +197,16 @@ impl canvas::Program<Msg> for IslandSky {
 }
 
 pub fn island(app: &App) -> El<'_> {
-    let _ = app;
-    let pill = container(row![cv(IslandSky).width(72).height(32), tx(crate::i18n::text("Ouvindo… diga “Orion” ou bata duas palmas"), 13.0, t::FG2), tip(ib("close", Some(Msg::Live), false), crate::i18n::text("Parar de ouvir"))].spacing(12).align_y(Vertical::Center))
+    let status=app.resources.audio.as_ref().map(|v|format!("{} · {}",crate::i18n::text(match v["status"].as_str().unwrap_or(""){"recording"=>"Gravando…","transcribing"=>"Transcrevendo…","thinking"=>"Pensando…","speaking"=>"Falando…",_=>"Voz"}),v["reply"].as_str().or_else(||v["transcript"].as_str()).unwrap_or(""))).unwrap_or_default();
+    let pill = container(row![cv(IslandSky).width(72).height(32), tx(status, 13.0, t::FG2), tip(ib("close", Some(Msg::Live), false), crate::i18n::text("Parar de ouvir"))].spacing(12).align_y(Vertical::Center))
         .height(Length::Fixed(44.0))
         .padding(pad(0.0, 8.0, 0.0, 10.0))
         .style(|_| container::Style { background: Some(t::ISLAND_BG.into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_PILL.into() }, shadow: shadow(), ..Default::default() });
     container(pill).width(Length::Fill).center_x(Length::Fill).padding(pad(10.0, 0.0, 0.0, 0.0)).into()
 }
 
-pub fn caption<'a>() -> El<'a> {
-    let c = container(tx(crate::i18n::text("— Orion, quanto de RAM o app está usando agora?"), 16.0, Color::WHITE)).padding(pad(8.0, 16.0, 8.0, 16.0)).style(|_| container::Style { background: Some(Color::from_rgba(0.0, 0.0, 0.0, 0.78).into()), border: Border { radius: t::R_CARD.into(), ..Default::default() }, ..Default::default() });
+pub fn caption<'a>(lines:&[String]) -> El<'a> {
+    let c = container(tx(lines.iter().rev().take(2).rev().cloned().collect::<Vec<_>>().join("\n"),16.0,Color::WHITE)).padding(pad(8.0, 16.0, 8.0, 16.0)).style(|_| container::Style { background: Some(Color::from_rgba(0.0, 0.0, 0.0, 0.78).into()), border: Border { radius: t::R_CARD.into(), ..Default::default() }, ..Default::default() });
     container(c).width(Length::Fill).height(Length::Fill).center_x(Length::Fill).align_y(Vertical::Bottom).padding(pad(0.0, 0.0, 28.0, 0.0)).into()
 }
 

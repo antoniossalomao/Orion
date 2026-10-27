@@ -205,6 +205,14 @@ impl Agent {
         self.locks.lock().get(session_id).is_some_and(|l| l.try_lock().is_err())
     }
 
+    pub fn any_busy(&self) -> bool {
+        self.locks.lock().values().any(|lock|lock.try_lock().is_err())
+    }
+
+    fn source_allowed(&self, name: &str) -> bool {
+        self.memory.source_preferences().is_ok_and(|sources|sources.tool_allowed(name) && self.policy.spec(name).and_then(|s|s.origin).is_none_or(|origin|sources.tool_allowed(&origin)))
+    }
+
     pub async fn clear_history(&self, session_id: &str) -> anyhow::Result<()> {
         let lock = self.lock(session_id);
         let _g = lock.try_lock().map_err(|_| anyhow::anyhow!("espere a resposta terminar antes de limpar"))?;
@@ -512,7 +520,7 @@ impl Agent {
             let ctx_arc = me.context(&session.id);
             let escopo = Self::escopo(&ctx_arc.lock());
             let hits: Vec<Hit> = match &consulta {
-                Some(q) => {
+                Some(q) if orion_store::text::has_search_terms(q) => {
                     let (mem, q, k, esc) = (me.memory.clone(), q.clone(), me.cfg.memory_k, escopo.clone());
                     tokio::task::spawn_blocking(move || orion_store::with_scope(esc, || mem.search(&q, k, &orion_store::search::Kind::ALL)))
                         .await
@@ -520,7 +528,7 @@ impl Agent {
                         .and_then(|r| r.ok())
                         .unwrap_or_default()
                 }
-                None => vec![],
+                _ => vec![],
             };
             let hits = me.filter_retrieved_chunks(hits);
             let mut mensagens = orion_store::with_scope(escopo.clone(), || me.mensagens(&session, &hits));
@@ -564,7 +572,7 @@ impl Agent {
             }
             let actual_scope = match &project_id { Some(p) => format!("project:{p}"), None => "personal".into() };
             let escopo_ok = |nome: &str| me.policy.spec(nome).is_none_or(|s| s.scope.as_ref().is_none_or(|x| *x == actual_scope));
-            let mut available: HashSet<String> = me.tools.read().names().into_iter().filter(|n| escopo_ok(n) && me.policy.tool_enabled(n)).collect();
+            let mut available: HashSet<String> = me.tools.read().names().into_iter().filter(|n| escopo_ok(n) && me.policy.tool_enabled(n) && me.source_allowed(n)).collect();
             if let Some(a) = &allowed_tools {
                 available.retain(|n| a.contains(n));
             }
@@ -808,7 +816,7 @@ impl Agent {
         base.into_iter()
             .filter(|t| {
                 let n = t["function"]["name"].as_str().unwrap_or("");
-                self.policy.tool_enabled(n) && !self.cortada_pelo_panico(n) && (!read_only || self.so_leitura(n))
+                self.policy.tool_enabled(n) && self.source_allowed(n) && !self.cortada_pelo_panico(n) && (!read_only || self.so_leitura(n))
             })
             .collect()
     }
@@ -838,6 +846,7 @@ impl Agent {
             );
         }
         let chamada = ToolCall { name: c.name.clone(), args: c.arguments.clone() };
+        if !self.source_allowed(&c.name) { return Self::negar(&c.name, "fonte desligada nas Configurações"); }
         if self.cortada_pelo_panico(&c.name) {
             return Self::negar(&c.name, "modo pânico: ferramentas de rede e de execução estão cortadas");
         }
@@ -910,7 +919,7 @@ impl Agent {
     }
 
     async fn executar(&self, chamada: &ToolCall, ctx_arc: &Arc<Mutex<Context>>) -> String {
-        if !self.policy.tool_enabled(&chamada.name) || self.cortada_pelo_panico(&chamada.name) {
+        if !self.policy.tool_enabled(&chamada.name) || !self.source_allowed(&chamada.name) || self.cortada_pelo_panico(&chamada.name) {
             return json!({"erro":"ferramenta desligada ou modo pânico ativo"}).to_string();
         }
         let tool = self.tools.read().get(&chamada.name).cloned();

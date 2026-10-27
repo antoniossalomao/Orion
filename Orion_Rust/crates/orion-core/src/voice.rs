@@ -370,3 +370,23 @@ mod tests {
         assert!(msgs.iter().any(|m| m["type"] == "error" && m["message"].as_str().unwrap_or("").to_lowercase().contains("pânico")));
     }
 }
+
+/// Voz instalada no Windows, sem Python, rede ou chave externa.
+#[cfg(windows)]
+pub struct WindowsSpeaker;
+#[cfg(windows)]
+impl Speaker for WindowsSpeaker {
+    fn synthesize<'a>(&'a self,text:&'a str)->BoxFuture<'a,Result<Vec<u8>,SpeakError>>{
+        let text=falavel(text,MAX_TTS_CHARS);
+        Box::pin(async move{tokio::task::spawn_blocking(move||{
+            let dir=tempfile::tempdir().map_err(|_|SpeakError("pasta temporária indisponível".into()))?;
+            let path=dir.path().join("speech.wav");
+            let exe=which("powershell").ok_or_else(||SpeakError("PowerShell indisponível".into()))?;
+            let mut env=env_limpo();env.insert("ORION_TTS_TEXT".into(),text);env.insert("ORION_TTS_FILE".into(),path.to_string_lossy().into_owned());
+            let command="Add-Type -AssemblyName System.Speech; $s=New-Object System.Speech.Synthesis.SpeechSynthesizer; try { $s.SetOutputToWaveFile($env:ORION_TTS_FILE); $s.Speak($env:ORION_TTS_TEXT) } finally { $s.Dispose() }";
+            let out=rodar(&[exe.to_string_lossy().into_owned(),"-NoProfile".into(),"-NonInteractive".into(),"-Command".into(),command.into()],None,std::time::Duration::from_secs(60),Some(env)).map_err(|_|SpeakError("a voz instalada no Windows não respondeu".into()))?;
+            if out.codigo!=Some(0){return Err(SpeakError("nenhuma voz instalada disponível no Windows".into()));}
+            std::fs::read(path).map_err(|_|SpeakError("a síntese não gerou áudio".into()))
+        }).await.map_err(|_|SpeakError("síntese interrompida".into()))?})
+    }
+}

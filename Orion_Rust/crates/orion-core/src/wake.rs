@@ -236,6 +236,7 @@ pub struct WakeListener {
     pub stats: Mutex<WakeStats>,
     rodando: AtomicBool,
     suspensa: AtomicBool,
+    capture_active:AtomicBool,
     pausa_mem: AtomicBool,
     parar: AtomicBool,
     tempo_s: Mutex<f64>,
@@ -276,6 +277,7 @@ impl WakeListener {
             stats: Mutex::new(WakeStats::default()),
             rodando: AtomicBool::new(false),
             suspensa: AtomicBool::new(false),
+            capture_active:AtomicBool::new(false),
             pausa_mem: AtomicBool::new(false),
             parar: AtomicBool::new(false),
             interruptible_player: Mutex::new(None),
@@ -411,6 +413,7 @@ impl WakeListener {
     }
 
     pub fn pausada(&self) -> bool {
+        if self.capture_active.load(Ordering::SeqCst){return true;}
         if self.modos.lock().as_ref().is_some_and(|m| m.panico() || m.nao_perturbe()) {
             return true;
         }
@@ -430,6 +433,7 @@ impl WakeListener {
     }
 
     /// Chamada pelo modo pânico / não perturbe para cortar a escuta na hora.
+    pub fn set_capture_active(&self,active:bool){self.capture_active.store(active,Ordering::SeqCst);if active{self.pending_utterance.lock().take();}}
     pub fn set_suspended(&self, ativa: bool) {
         self.suspensa.store(ativa, Ordering::SeqCst);
         if ativa { self.pending_utterance.lock().take(); }

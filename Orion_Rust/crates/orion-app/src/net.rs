@@ -26,6 +26,9 @@ pub enum Acordar {
 /// Ligação direta ao núcleo, dentro do mesmo processo: o pedido vai para as rotas sem passar por
 /// socket, porta ou rede (é o que o `orion app` usa). Quem implementa fica no servidor.
 pub trait Local: Send + Sync + 'static {
+    fn reconfigure(&self, _bearer: Option<String>) -> futures::future::BoxFuture<'static, Result<Value,String>> {
+        Box::pin(async { Err("Reabra o Orion para aplicar os recursos salvos.".into()) })
+    }
     fn chamar(&self, metodo: &str, caminho: &str, corpo: Option<Vec<u8>>, bearer: Option<String>) -> futures::future::BoxFuture<'static, Result<Resposta, String>>;
     /// Pedidos de "mostre a janela" vindos de fora da interface (palavra de ativação, outra instância).
     fn acordar(&self) -> Option<Acordar> {
@@ -153,6 +156,10 @@ pub fn mensagem_http(status: u16, corpo: &str, caminho: &str) -> String {
 }
 
 impl Api {
+    pub fn is_native(&self) -> bool { self.local.is_some() }
+    pub async fn reconfigure(&self) -> Result<Value,String> {
+        self.local.as_ref().ok_or("Reinicie o servidor para aplicar os recursos salvos.")?.reconfigure(self.bearer.clone()).await
+    }
     /// `ORION_URL` (padrão `http://127.0.0.1:8000`) e, opcionalmente, `ORION_ADMIN_TOKEN`.
     pub fn from_env() -> Self {
         let base = std::env::var("ORION_URL")

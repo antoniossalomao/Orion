@@ -29,6 +29,7 @@ const GROUPS: [(&str, &[Entry]); 2] = [
             (Sec::Modelos, "cpu", "Modelos", "auto claude codex gemini orion provedores ordem cotas chaves"),
             (Sec::Memoria, "graph", "Memória", "vault fatos grafo pasta commit diário"),
             (Sec::Fontes, "db", "Fontes", "vault calendário email web repositório"),
+            (Sec::Automation, "clock", "Automações e pesquisa", "rotinas downloads briefing pesquisa agenda diário revisão"),
             (Sec::Conectores, "puzzle", "Conectores", "mcp skills plugins wasm importar claude codex telegram"),
         ],
     ),
@@ -103,7 +104,16 @@ fn section<'a>(app: &'a App) -> El<'a> {
     let swa = |arr: &'static str, i: usize, on: bool| switch(on, Msg::TogA(arr, i));
     let toast = |s: &str| Msg::Toast(s.to_string());
     let mut c = column![].spacing(0);
+    if app.api.is_some() {
+        match app.sec {
+            Sec::Voz=>return crate::resources::settings(app,"voice"),
+            Sec::Camera=>return crate::resources::settings(app,"camera"),
+            Sec::Automation=>return crate::resources::settings(app,"automation"),
+            _=>{}
+        }
+    }
     match app.sec {
+        Sec::Automation => return crate::resources::settings(app,"automation"),
         Sec::Geral => {
             c = c.push(sh(crate::i18n::text("Interface")));
             c = c.push(setting(crate::i18n::text("Idioma"), crate::i18n::text("Português e inglês desde a primeira versão."), pick_seg(&[crate::i18n::text("Português"), "English"], p.english as usize, "lang")));
@@ -192,6 +202,7 @@ fn section<'a>(app: &'a App) -> El<'a> {
             c = c.push(sh(crate::i18n::text("Dados")));
             let ctl: El = if app.wipe { row_c(vec![btn(crate::i18n::text("Cancelar"), Kind::Normal, true, None, Some(Msg::WipeCancel)), btn(&crate::i18n::formatted("Apagar {} conversas", format!("Apagar {} conversas", app.convs.len())), Kind::Danger, true, None, Some(Msg::WipeConfirm))]) } else { btn(crate::i18n::text("Apagar…"), Kind::Danger, true, None, Some(Msg::WipeArm)) };
             c = c.push(setting(crate::i18n::text("Apagar histórico de conversas"), crate::i18n::text("Remove as conversas deste computador. As notas no vault continuam."), ctl));
+            if app.api.is_some(){c=c.push(crate::resources::settings(app,"privacy"));}
         }
         Sec::Painel => return crate::views::pages::painel(app),
         Sec::Uso => {
@@ -303,7 +314,13 @@ fn section<'a>(app: &'a App) -> El<'a> {
             c = c.push(sh(crate::i18n::text("Memória no vault")));
             let (n, l) = (app.mem.nodes.len(), app.mem.links.len());
             c = c.push(lede(&crate::i18n::formatted("A memória é o vault: {} notas ligadas por {} wikilinks.", format!("A memória é o vault: {} notas ligadas por {} wikilinks.", fmt_n(n), fmt_n(l)))));
-            c = c.push(setting(crate::i18n::text("Usar memória nas respostas"), crate::i18n::text("Desligado, cada conversa começa do zero."), sw(p.mem, "mem")));
+            if app.api.is_some(){
+                c=c.push(crate::resources::settings(app,"memory"));
+                for (key,label) in [("facts","Usar fatos nas respostas"),("conversations","Usar conversas anteriores")] {
+                    let on=app.resources.sources.as_ref().and_then(|v|v[key].as_bool()).unwrap_or(false);
+                    c=c.push(setting(crate::i18n::text(label),"",switch(on,Msg::Resources(crate::resources::Event::Source(key)))));
+                }
+            }else{c=c.push(setting(crate::i18n::text("Usar memória nas respostas"),"",sw(p.mem,"mem")));}
             c = c.push(setting(crate::i18n::text("Pasta das notas do Orion"), crate::i18n::text("Todas as conversas viram resumo aqui, sem perguntar."), txf("03 Recursos/Orion/Memória/", 12.0, t::FG, t::MONO).into()));
             c = c.push(setting(crate::i18n::text("Resumo diário das conversas triviais"), crate::i18n::text("Uma nota por dia em Memória/Diário, gerada às 23:59. O que você fez aparece em Você fez."), badge("23:59", Tone::Ok)));
             c = c.push(setting(crate::i18n::text("Salvar no GitHub"), crate::i18n::text("Cada nota gravada vira um commit direto na main do vault, sem PR."), badge(crate::i18n::text("automático"), Tone::Ok)));
@@ -317,7 +334,7 @@ fn section<'a>(app: &'a App) -> El<'a> {
         }
         Sec::Fontes => {
             c = c.push(sh(crate::i18n::text("Fontes")));
-            c = c.push(lede(crate::i18n::text("Só o que está ligado é lido.")));
+            c = c.push(lede(crate::i18n::text("Só fontes ligadas entram na busca de memória e nas ferramentas relacionadas.")));
             for r in src_rows(app) {
                 c = c.push(r);
             }
@@ -327,7 +344,7 @@ fn section<'a>(app: &'a App) -> El<'a> {
             c = c.push(sh(crate::i18n::text("Servidores MCP")));
             c = c.push(lede(crate::i18n::text("Por comando local (stdio) ou URL (HTTP), definidos no mcp.json da pasta do Orion. As ferramentas aparecem no chat com o nome do servidor.")));
             if live && app.mcp.is_empty() {
-                c = c.push(setting(crate::i18n::text("Nenhum servidor configurado"), crate::i18n::text("Crie o mcp.json na pasta do Orion e reinicie."), badge(crate::i18n::text("vazio"), Tone::Plain)));
+                c = c.push(setting(crate::i18n::text("Nenhum servidor configurado"), crate::i18n::text("Use Adicionar servidor MCP para configurar e habilitar a conexão."), badge(crate::i18n::text("vazio"), Tone::Plain)));
             }
             for (i, m) in app.mcp.iter().enumerate() {
                 let tone = if m.ok { Tone::Ok } else { Tone::Err };
@@ -360,6 +377,7 @@ fn section<'a>(app: &'a App) -> El<'a> {
                 c = c.push(sh(crate::i18n::text("Importar")));
                 c = c.push(setting(crate::i18n::text("Do Claude e do Codex"), crate::i18n::text("Lê mcp.json, configs e skills já instaladas neste PC."), btn(crate::i18n::text("Procurar"), Kind::Normal, true, None, Some(toast("Encontrados 3 servidores e 5 skills (simulado)")))));
             }
+            if app.api.is_some(){c=c.push(crate::resources::settings(app,"connectors"));}
         }
         Sec::Sistema => {
             let live = app.api.is_some();
@@ -423,6 +441,7 @@ fn section<'a>(app: &'a App) -> El<'a> {
             c = c.push(setting(if en { "What's new" } else { crate::i18n::text("O que mudou") }, notes, btn(soon, Kind::Normal, true, None, None)));
             let lic = if en { "All rights reserved. Private source code; see the LICENSE file in the repository." } else { crate::i18n::text("Todos os direitos reservados. Código-fonte privado; veja o arquivo LICENSE do repositório.") };
             c = c.push(setting(if en { "License" } else { crate::i18n::text("Licença") }, lic, badge(if en { "proprietary" } else { crate::i18n::text("proprietária") }, Tone::Plain)));
+            if app.api.is_some(){c=c.push(crate::resources::settings(app,"storage"));}
         }
         Sec::Locais => {
             let live = app.api.is_some();

@@ -14,6 +14,7 @@ pub mod ops;
 pub mod schema;
 pub mod scope;
 pub mod search;
+pub mod sources;
 pub mod sessions;
 pub mod text;
 pub mod vectors;

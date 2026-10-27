@@ -61,6 +61,8 @@ rusqlite.workspace = true
 
 orion-voice.workspace = true
 hound = "3.5"
+tract-onnx = "=0.23.9"
+tokenizers = { version = "0.22", default-features = false, features = ["fancy-regex"] }
 nokhwa = { version = "0.10.11", default-features = false, features = ["input-native"] }
 
 [features]

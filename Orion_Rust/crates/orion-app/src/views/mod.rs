@@ -77,11 +77,12 @@ pub fn root(app: &App) -> El<'_> {
         if app.isso.is_some() {
             layers.push(overlays::isso(app));
         }
+        if let Some(overlay)=crate::resources::overlay(app){layers.push(overlay);}
         if app.voice {
             layers.push(overlays::island(app));
         }
-        if app.p.cam[4] {
-            layers.push(overlays::caption());
+        if app.p.cam[4] && !app.resources.captions.is_empty() {
+            layers.push(overlays::caption(&app.resources.captions));
         }
     }
     if let Some((msg, _)) = &app.toast {

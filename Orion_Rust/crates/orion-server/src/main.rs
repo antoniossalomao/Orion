@@ -5,6 +5,7 @@
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
 mod appmode;
+mod native_resources;
 mod diary;
 mod onboarding;
 mod onboarding_drive;
@@ -447,16 +448,26 @@ async fn serve(s: Settings) -> anyhow::Result<i32> {
 
 /// Liga os trabalhos de fundo (escuta, rotinas, Telegram). Devolve a tarefa do Telegram.
 fn iniciar_fundo(st: &estado::Estado) -> Option<tokio::task::JoinHandle<()>> {
+    if let Some(legenda)=&st.legenda {
+        if let Some(stop)=st.caption_stop.lock().take(){stop();}
+        let state=st.clone();
+        let stop=orion_core::legenda::iniciar_thread_guarded(legenda.clone(),&st.settings.subtitle_device,std::sync::Arc::new(move||state.modos.panico() || state.modos.nao_perturbe() || state.audio.active() || crate::native_resources::locked()));
+        *st.caption_stop.lock()=Some(stop);
+    }
     if let Some(e) = &st.escuta {
         e.start();
     }
     if let Some(j) = st.jobs.clone() {
-        tokio::spawn(j.run_forever(st.settings.jobs_tick_s));
+        let handle=tokio::spawn(j.run_forever(st.settings.jobs_tick_s));
+        if let Some(old)=st.background_jobs.lock().replace(handle) { old.abort(); }
     }
     st.telegram.clone().map(|t| tokio::spawn(t.run()))
 }
 
 async fn encerrar_fundo(st: &estado::Estado, tarefa_telegram: Option<tokio::task::JoinHandle<()>>) {
+    st.audio.cancel();
+    if let Some(stop)=st.caption_stop.lock().take(){stop();}
+    if let Some(task)=st.background_jobs.lock().take() { task.abort(); }
     if let Some(e) = &st.escuta {
         e.stop();
     }

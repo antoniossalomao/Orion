@@ -48,7 +48,11 @@ fn python() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from("/usr/bin/python3"))
 }
 
+/// Revisão já concedida nesta sessão; só usada para substituir o núcleo em processo.
+#[derive(Clone)]
+pub struct RuntimeReview {pub id:String,pub digest:String,pub capabilities:HashSet<String>,pub trusted_local:bool,pub authorized_remote:bool,pub classifications:Classificacoes,pub scope:String}
 pub struct PluginManager {
+    runtime_reviews:Mutex<HashMap<String,RuntimeReview>>,
     pub store: Arc<PluginStore>,
     pub installer: Installer,
     pub grants: Grants,
@@ -68,6 +72,9 @@ pub type Classificacoes = HashMap<String, HashMap<String, Risk>>;
 
 impl PluginManager {
     pub fn new(root: &Path, skills: Arc<SkillRuntime>, host: Arc<MCPHost>, catalog: Arc<Catalog>, policy: Arc<PolicyEngine>) -> R<Self> {
+        Self::with_runtime_state(root,skills,host,catalog,policy,false)
+    }
+    pub fn with_runtime_state(root:&Path,skills:Arc<SkillRuntime>,host:Arc<MCPHost>,catalog:Arc<Catalog>,policy:Arc<PolicyEngine>,preserve:bool)->R<Self>{
         let store = Arc::new(PluginStore::open(&root.join("plugins.db"))?);
         let installer = Installer::new(root, store.clone())?;
         let grants = Grants::new(store.clone());
@@ -87,10 +94,10 @@ impl PluginManager {
             }
         }
         // reinício não autoriza executar código/conectar conta silenciosamente
-        for row in store.list()? {
+        if !preserve{for row in store.list()? {
             store.transition(row["id"].as_str().unwrap_or(""), PluginState::Disabled, None)?;
-        }
-        Ok(PluginManager { store, installer, grants, skills, host, catalog, policy, connections: Default::default(), owned_skills: Default::default(), active_scopes: Default::default(), lock: tokio::sync::Mutex::new(()), catalogos: RwLock::new(None) })
+        }}
+        Ok(PluginManager { runtime_reviews:Default::default(), store, installer, grants, skills, host, catalog, policy, connections: Default::default(), owned_skills: Default::default(), active_scopes: Default::default(), lock: tokio::sync::Mutex::new(()), catalogos: RwLock::new(None) })
     }
 
     pub fn save_connection(&self, config: &ConnectionConfig) -> R<()> {
@@ -118,12 +125,15 @@ impl PluginManager {
             .collect())
     }
 
+    pub fn runtime_reviews(&self)->Vec<RuntimeReview>{self.runtime_reviews.lock().values().cloned().collect()}
+    pub fn retain_runtime_review(&self,review:RuntimeReview){self.runtime_reviews.lock().insert(review.id.clone(),review);}
     pub fn dona_da_conexao(&self, cid: &str) -> bool {
         self.connections.lock().values().any(|s| s.contains(cid))
     }
 
     pub async fn deactivate(&self, id: &str, revoke: bool) -> R<Value> {
         self.store.get(id)?;
+        self.runtime_reviews.lock().remove(id);
         self.store.transition(id, PluginState::Disabled, None)?;
         self.active_scopes.lock().remove(id);
         let donas = self.owned_skills.lock().remove(id).unwrap_or_default();
@@ -160,7 +170,10 @@ impl PluginManager {
     #[allow(clippy::too_many_arguments)]
     pub async fn activate(&self, id: &str, digest: &str, capabilities: &HashSet<String>, trusted_local: bool, authorized_remote: bool, classifications: &Classificacoes, scope: &str) -> R<Value> {
         match self.activate_inner(id, digest, capabilities, trusted_local, authorized_remote, classifications, scope).await {
-            Ok(v) => Ok(v),
+            Ok(v) => {
+                if v["state"].as_str()==Some("active"){self.retain_runtime_review(RuntimeReview{id:id.into(),digest:digest.into(),capabilities:capabilities.clone(),trusted_local,authorized_remote,classifications:classifications.clone(),scope:scope.into()});}
+                Ok(v)
+            },
             Err(e) => {
                 if e.0 != "plugin_review_required" && e.0 != "plugin_dependency_unavailable" && e.0 != "plugin_not_found" && e.0 != "bundle_path_invalid" && e.0 != "plugin_version_not_found" {
                     let _ = self.deactivate(id, true).await;

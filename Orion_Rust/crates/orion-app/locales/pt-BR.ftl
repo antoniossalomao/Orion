@@ -977,3 +977,260 @@ ui-0957 = { "Permite abrir apps, executar comandos, ler arquivos sensíveis, alt
 ui-0958 = { "Não ativa voz, câmera, captura contínua nem integrações sem configuração. Pânico e registros de ações continuam ativos." }
 
 ui-0959 = { "Modo autônomo ligado. Mais passos por pedido; as permissões ficam em Configurações → Ferramentas." }
+
+ui-0069 = { "Projeto criado. Nota no vault e vínculo GitHub ainda não foram configurados." }
+
+ui-0263 = { "Cria o projeto com memória pessoal isolada. A pasta precisa existir. Nota no vault e vínculo GitHub ainda não estão disponíveis aqui." }
+
+resource-000 = { "Voz por clique" }
+
+resource-001 = { "Modelo Whisper local" }
+
+resource-002 = { "GPU para transcrição local" }
+
+resource-003 = { "Voz do TTS" }
+
+resource-004 = { "Interromper a fala ao conversar" }
+
+resource-005 = { "Nome do microfone (vazio: padrão)" }
+
+resource-006 = { "Bundle validado da palavra Orion" }
+
+resource-007 = { "Sensibilidade da palavra" }
+
+resource-008 = { "Duração máxima da gravação (segundos)" }
+
+resource-009 = { "Silêncio para encerrar a fala (segundos)" }
+
+resource-010 = { "Limite de ativações por hora" }
+
+resource-011 = { "Sensibilidade das palmas" }
+
+resource-012 = { "Ação das palmas (abrir ou rotina:nome)" }
+
+resource-013 = { "Conversa por voz ao vivo" }
+
+resource-014 = { "Duração máxima ao vivo (minutos)" }
+
+resource-015 = { "Descrever imagens e tela" }
+
+resource-016 = { "Câmera sob pedido" }
+
+resource-017 = { "Índice da câmera" }
+
+resource-018 = { "Lembrar objetos pela câmera" }
+
+resource-019 = { "Modelo YOLO ONNX" }
+
+resource-020 = { "Detecção de presença" }
+
+resource-021 = { "Ausência antes de pausar (minutos)" }
+
+resource-022 = { "Dispositivo Bluetooth de presença" }
+
+resource-023 = { "Permitir bloqueio ao se ausentar" }
+
+resource-024 = { "Modelo local da legenda" }
+
+resource-025 = { "Dispositivo de áudio da legenda" }
+
+resource-026 = { "Memória local da tela" }
+
+resource-027 = { "Intervalo da memória da tela (segundos)" }
+
+resource-028 = { "Retenção da memória da tela (dias)" }
+
+resource-029 = { "Títulos excluídos (separados por ponto e vírgula)" }
+
+resource-030 = { "Aplicativos excluídos" }
+
+resource-031 = { "Idiomas do OCR" }
+
+resource-032 = { "Histórico da área de transferência (dias; 0 desliga)" }
+
+resource-033 = { "Histórico local de comandos" }
+
+resource-034 = { "Trabalhos em segundo plano" }
+
+resource-035 = { "Horário do briefing" }
+
+resource-036 = { "Horário da pesquisa noturna" }
+
+resource-037 = { "Assuntos da pesquisa (separados por ponto e vírgula)" }
+
+resource-038 = { "Horário da revisão da memória" }
+
+resource-039 = { "Revisão semanal com IA" }
+
+resource-040 = { "Consolidar fatos das conversas" }
+
+resource-041 = { "Horário do diário" }
+
+resource-042 = { "Horário da revisão semanal" }
+
+resource-043 = { "Tarefas nas CLIs de nuvem" }
+
+resource-044 = { "Ambiente do Codex Cloud" }
+
+resource-045 = { "Pasta de trabalho das tarefas" }
+
+resource-046 = { "Pasta dos backups" }
+
+resource-047 = { "Quantidade de backups mantidos" }
+
+resource-048 = { "Repositórios (um caminho por linha)" }
+
+resource-049 = { "Pastas confiáveis (um caminho por linha)" }
+
+resource-050 = { "Reordenar resultados com modelo local" }
+
+resource-051 = { "Pasta do reranker ONNX" }
+
+resource-052 = { "Servidores MCP habilitados" }
+
+resource-053 = { "Arquivo dos servidores MCP" }
+
+resource-054 = { "Skills habilitadas" }
+
+resource-055 = { "Pasta de skills" }
+
+resource-056 = { "Plugins habilitados" }
+
+resource-057 = { "Pasta de plugins" }
+
+resource-058 = { "As escolhas ficam salvas neste computador. Use Salvar e aplicar para atualizar os recursos." }
+
+resource-059 = { "Carregando recursos…" }
+
+resource-060 = { "Há alterações salvas aguardando aplicação." }
+
+resource-061 = { "Transcrição" }
+
+resource-062 = { "Palavra de ativação" }
+
+resource-063 = { "Descrição da câmera" }
+
+resource-064 = { "Agendas" }
+
+resource-065 = { "Pesquisa noturna" }
+
+resource-066 = { "Disponível" }
+
+resource-067 = { "Falta configurar" }
+
+resource-068 = { "Transcrição exige Whisper local ou fallback Groq configurado. A palavra Orion exige bundle validado. A fala usa uma voz do Windows ou edge-tts." }
+
+resource-069 = { "Testar microfone" }
+
+resource-070 = { "Conversa ao vivo" }
+
+resource-071 = { "Fotografar e descrever" }
+
+resource-072 = { "Descrever a tela" }
+
+resource-073 = { "Criar rotina" }
+
+resource-074 = { "Regras de Downloads" }
+
+resource-075 = { "Horários usam HH:MM; vazio desliga a agenda. Pesquisa noturna precisa do vault e de ferramentas web." }
+
+resource-076 = { "Ver histórico da área de transferência" }
+
+resource-077 = { "Ver histórico de comandos" }
+
+resource-078 = { "Exportar backup" }
+
+resource-079 = { "Restaurar backup" }
+
+resource-080 = { "Adicionar servidor MCP" }
+
+resource-081 = { "Conectar conta" }
+
+resource-082 = { "Vincular calendário" }
+
+resource-083 = { "Importar plugin" }
+
+resource-084 = { "Aplicando…" }
+
+resource-085 = { "Salvar e aplicar" }
+
+resource-086 = { "Recursos aplicados." }
+
+resource-087 = { "Carregar arquivo existente" }
+
+resource-088 = { "Salvar revoga a concessão anterior. Revise e conceda a automação para executar." }
+
+resource-089 = { "Revise os dados antes de salvar. Conexões habilitadas podem iniciar processos locais ou acessar o endereço informado." }
+
+resource-090 = { "Arquivo do backup" }
+
+resource-091 = { "Nova pasta de dados" }
+
+resource-092 = { "Senha ou chave de recuperação" }
+
+resource-093 = { "Nova senha" }
+
+resource-094 = { "Usar chave de recuperação" }
+
+resource-095 = { "Contas conectadas" }
+
+resource-096 = { "Calendários vinculados" }
+
+resource-097 = { "Plugins instalados" }
+
+resource-098 = { "Nenhum item configurado." }
+
+resource-099 = { "Autorizar" }
+
+resource-100 = { "Revogar" }
+
+resource-101 = { "Revisar e ativar" }
+
+resource-102 = { "Conceder" }
+
+resource-103 = { "Simular" }
+
+resource-104 = { "Desfazer último" }
+
+resource-105 = { "Cadastrar meu rosto" }
+
+resource-106 = { "Apagar meu rosto" }
+
+resource-107 = { "O cadastro tira cinco fotos e guarda somente o vetor cifrado. Rosto serve para presença; não aprova ações." }
+
+resource-108 = { "Automações e pesquisa" }
+
+resource-109 = { "Usar fatos nas respostas" }
+
+resource-110 = { "Usar conversas anteriores" }
+
+
+resource-111 = { "Repositórios (separados por ponto e vírgula)" }
+
+resource-112 = { "Pastas confiáveis (separadas por ponto e vírgula)" }
+
+resource-113 = { "GPU de transcrição indisponível neste pacote" }
+
+resource-114 = { "Editar e habilitar" }
+
+resource-115 = { "Use Adicionar servidor MCP para configurar e habilitar a conexão." }
+
+resource-116 = { "Só fontes ligadas entram na busca de memória e nas ferramentas relacionadas." }
+
+resource-117 = { "Gravando…" }
+
+resource-118 = { "Transcrevendo…" }
+
+resource-119 = { "Falando…" }
+
+resource-120 = { "Atualizar plugin existente" }
+
+resource-121 = { "Conectores" }
+
+resource-122 = { "Uso" }
+
+resource-123 = { "Este computador" }
+
+resource-124 = { "Restaura em uma nova pasta. A senha atual abre o arquivo; a nova senha protege o perfil restaurado." }
+
+resource-125 = { "Exporta banco e perfil cifrados. Contas, tokens e permissões deste computador ficam fora do arquivo." }

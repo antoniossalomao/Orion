@@ -447,7 +447,7 @@ pub fn login_protegido(s: &Settings) -> bool {
 
 pub fn start_backup(s: &Settings, store: std::sync::Arc<orion_store::Store>, modos: std::sync::Arc<orion_core::modos::Modos>) -> Option<tokio::task::JoinHandle<()>> {
     let profile = Profile::load(&s.data_dir).ok().flatten()?;
-    let folder = profile.backup.clone().or_else(|| profile.drive_backup.then(|| s.data_dir.join("backups")))?;
+    let folder = if s.data_dir.join(orion_core::runtime_preferences::FILE).is_file(){s.backup_dir.clone()}else{s.backup_dir.clone().or_else(||profile.backup.clone()).or_else(||profile.drive_backup.then(||s.data_dir.join("backups")))}?;
     if BACKUP_KEY.lock().is_none() {
         return None;
     }

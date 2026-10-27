@@ -18,6 +18,7 @@ pub mod ponte;
 pub mod vida;
 pub mod voz;
 pub mod workspace;
+pub mod resources;
 
 use crate::estado::Estado;
 use crate::http::{host_permitido, request_id};
@@ -93,6 +94,21 @@ pub fn router(st: Estado) -> Router {
         .route("/config/language", post(language_save))
         .route("/config/recarregar", post(config_recarregar))
         .route("/config/tools", get(tool_permissions_get).put(tool_permissions_save))
+        .route("/resources/mcp/:id", get(resources::mcp_configuration))
+        .route("/resources/face/enroll", post(resources::face_enroll))
+        .route("/resources/face/delete", post(resources::face_delete))
+        .route("/resources/screen", post(resources::screen_describe))
+        .route("/resources/audio/start", post(crate::native_resources::start))
+        .route("/resources/audio/finish", post(crate::native_resources::finish))
+        .route("/resources/audio/cancel", post(crate::native_resources::cancel))
+        .route("/resources/audio", get(crate::native_resources::status))
+        .route("/resources/automations", post(resources::automation_save))
+        .route("/resources/automations/:name", get(resources::automation_read))
+        .route("/resources/backup/export", post(resources::backup_export))
+        .route("/resources/backup/restore", post(resources::backup_restore))
+        .route("/config/runtime", get(resources::runtime_get).put(resources::runtime_save))
+        .route("/config/sources", get(resources::sources_get).put(resources::sources_save))
+        .route("/terminal/run", post(resources::terminal_run))
         .route("/modo/autonomo", post(modo_autonomo))
         .route("/modo/panico", post(modo_panico))
         .route("/modo/nao-perturbe", post(modo_nao_perturbe))

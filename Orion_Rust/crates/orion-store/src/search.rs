@@ -76,6 +76,11 @@ fn sql_fts(kind: Kind) -> (&'static str, &'static str) {
 
 impl Store {
     pub fn search(&self, query: &str, k: usize, kinds: &[Kind]) -> Result<Vec<Hit>> {
+        let sources = self.source_preferences()?;
+        let enabled:Vec<Kind>=kinds.iter().copied().filter(|kind|match kind{Kind::Fact=>sources.facts,Kind::Message=>sources.conversations,Kind::Chunk=>sources.vault || sources.repo || sources.calendar || sources.email || sources.web}).collect();
+        if enabled.is_empty() || k==0{return Ok(vec![]);}
+        let kinds=enabled.as_slice();
+        let repos: Vec<String> = self.meta_get("sources:repo_roots").and_then(|v|serde_json::from_str(&v).ok()).unwrap_or_default();
         let fq = fts_query(query);
         let amplo = (k * 3).max(20);
         let mut listas: Vec<Lista> = vec![];
@@ -100,6 +105,9 @@ impl Store {
         let vec_kinds: Vec<Kind> = kinds.iter().copied().filter(|k| *k != Kind::Message).collect();
         if self.embedder.is_some() && !vec_kinds.is_empty() {
             listas.extend(self.vec_lists(query, &vec_kinds, amplo)?);
+        }
+        for (kind, _, items) in &mut listas {
+            items.retain(|(_, _, source)| sources.allows(*kind, source, &repos));
         }
 
         let mut placar: HashMap<(Kind, i64), f64> = HashMap::new();

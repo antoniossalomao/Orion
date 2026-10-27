@@ -228,6 +228,7 @@ fn revisao(b: &Value) -> ApiResult<Revisao> {
 }
 
 pub async fn ativar(_: Admin, State(st): State<Estado>, Path(id): Path<String>, Json(b): Corpo) -> ApiResult<Corpo> {
+    if !st.settings.plugins_enabled{return erro(409,"habilite Plugins nas Configurações");}
     let r = revisao(&b)?;
     let m = gerente(&st)?;
     validar_escopo(&st, &r.scope)?;

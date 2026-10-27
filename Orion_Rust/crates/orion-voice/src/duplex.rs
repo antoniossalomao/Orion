@@ -26,7 +26,7 @@ fn decode_mp3(bytes: &[u8]) -> anyhow::Result<Vec<f32>> {
     ensure!(bytes.len() <= 10 * 1024 * 1024, "TTS grande demais");
     let source = MediaSourceStream::new(Box::new(std::io::Cursor::new(bytes.to_vec())), MediaSourceStreamOptions::default());
     let mut hint = Hint::new();
-    hint.with_extension("mp3");
+    hint.with_extension(if bytes.starts_with(b"RIFF"){"wav"}else{"mp3"});
     let mut format = symphonia::default::get_probe()
         .format(&hint, source, &FormatOptions::default(), &MetadataOptions::default())?
         .format;
@@ -237,4 +237,13 @@ mod tests {
             }
         }
     }
+}
+
+/// Reprodução explícita sem abrir o microfone; pânico e parada interrompem o áudio.
+pub fn play_audio(bytes:&[u8],abort:&(dyn Fn()->bool+Sync))->anyhow::Result<()>{
+    if abort(){return Ok(());}
+    let playback=Playback::start(decode_mp3(bytes)?,Arc::new(Mutex::new(VecDeque::new())))?;
+    let start=Instant::now();
+    while !playback.done.load(Ordering::SeqCst) && !playback.failed.load(Ordering::SeqCst) && start.elapsed()<Duration::from_secs(75) && !abort(){std::thread::sleep(Duration::from_millis(20));}
+    ensure!(!playback.failed.load(Ordering::SeqCst),"falha na saída de áudio");Ok(())
 }

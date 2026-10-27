@@ -44,6 +44,11 @@ pub fn fts_query(texto: &str) -> Option<String> {
     if saida.is_empty() { None } else { Some(saida.join(" OR ")) }
 }
 
+/// Perguntas só com palavras comuns não justificam recuperação automática de documentos.
+pub fn has_search_terms(text: &str) -> bool {
+    PALAVRA.find_iter(text).map(|m|m.as_str().to_lowercase()).any(|term| !STOP.contains(term.as_str()) && term.chars().count() > 1)
+}
+
 /// Nomes citados em `[[Nota]]`, `[[Nota|apelido]]`, `[[Nota#seção]]` e `[[pasta/Nota]]`.
 pub fn wikilinks(markdown: &str) -> HashSet<String> {
     WIKILINK

@@ -333,7 +333,9 @@ pub fn pull_sec(api: &Api, sec: Sec) -> Task<Msg> {
     };
     match sec {
         Sec::Tools => pull_tool_permissions(api),
-        Sec::Conectores => Task::batch([get("/mcp/servidores", Lm::Mcp), get("/skills", Lm::Skills)]),
+        Sec::Conectores => Task::batch([get("/mcp/servidores", Lm::Mcp), get("/skills", Lm::Skills), crate::resources::load(api),crate::resources::load_management(api,&["mcp","accounts","calendar","plugins"])]),
+        Sec::Automation=>Task::batch([crate::resources::load(api),crate::resources::load_management(api,&["routines","downloads"])]),
+        Sec::Voz | Sec::Camera | Sec::Memoria | Sec::Fontes | Sec::Privacidade | Sec::Sistema => crate::resources::load(api),
         Sec::Locais => get("/modelos-locais", Lm::Modelos),
         Sec::Painel => Task::batch([get("/painel", Lm::Painel), get("/budget", Lm::Budget)]),
         Sec::Modelos => Task::batch([get("/painel", Lm::Painel), get("/budget", Lm::Budget), get("/config/chaves", Lm::Keys)]),
@@ -393,6 +395,7 @@ pub fn pull_basic(api: &Api) -> Task<Msg> {
         { let a = api.clone(); Task::perform(async move { a.get("/modo").await }, |r| Msg::L(Lm::Modo(r))) },
         { let a = api.clone(); Task::perform(async move { a.get("/vault/conflitos").await }, |r| Msg::L(Lm::Conflitos(r))) },
         pull_tool_permissions(api),
+        crate::resources::load(api),
     ])
 }
 
@@ -481,6 +484,21 @@ impl App {
     pub fn live_before(&mut self, msg: &Msg) -> Option<(Task<Msg>, bool)> {
         let api = self.api.clone()?;
         match msg {
+            Msg::Toggle("boot")=>{let on=!self.p.boot;Some((Task::perform(async move{tokio::task::spawn_blocking(move||crate::onboarding::set_autostart(on).map(|_|on)).await.map_err(|_|"Não foi possível atualizar o início automático.".to_string()).and_then(|v|v)},|r|Msg::Resources(crate::resources::Event::StartupDone(r))),false))},
+            Msg::Toggle("shortcut")=>{
+                let on=!self.p.shortcut;
+                let result=self.bandeja.as_ref().ok_or("Bandeja indisponível.".to_string()).and_then(|b|b.set_shortcut_enabled(on));
+                match result{Ok(())=>{self.p.shortcut=on;if let Err(e)=crate::uiprefs::save_shortcut(on){self.toast(&e.to_string());}},Err(e)=>self.toast(&e)}
+                Some((Task::none(),false))
+            },
+            Msg::Mic=>Some((self.update_resources(if self.mic_rec{crate::resources::Event::AudioStop(false)}else{crate::resources::Event::AudioStart(false)}),false)),
+            Msg::Live=>Some((self.update_resources(if self.voice{crate::resources::Event::AudioStop(true)}else{crate::resources::Event::AudioStart(true)}),false)),
+            Msg::TogA("src",i)=>{let key=["vault","repo","calendar","email","web"].get(*i).copied()?; Some((self.update_resources(crate::resources::Event::Source(key)),false))},
+            Msg::TermRun=>{
+                if self.resources.busy || self.term_in.trim().is_empty(){return Some((Task::none(),false));}
+                let command=std::mem::take(&mut self.term_in);self.term_out.push(format!("PS> {command}"));self.resources.busy=true;
+                Some((Task::perform(async move{api.post("/terminal/run",json!({"command":command})).await},|r|Msg::Resources(crate::resources::Event::TerminalDone(r))),false))
+            },
             Msg::Pick("lang", value) => {
                 let language = if *value == 1 { "en" } else { "pt-BR" };
                 Some((Task::perform(async move { api.post("/config/language", json!({"language":language})).await.map(|_| ()) }, |result| Msg::L(Lm::LanguageSaved(result))), true))
@@ -516,7 +534,7 @@ impl App {
             Msg::Logout => {
                 self.project_form = None;
                 self.rename_form = None;
-                Some((Task::perform(async move { api.logout().await }, |_| Msg::Noop), true))
+                Some((Task::perform(async move { let _=api.post("/resources/audio/cancel",json!({})).await;api.logout().await }, |_| Msg::Noop), true))
             }
             // O modo real nunca usa amostras nem recibos de gravação do protótipo
             // (REGRAS.md: você é o administrador).
