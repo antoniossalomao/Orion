@@ -455,9 +455,14 @@ impl Agent {
             );
             let nota: String = nota.chars().take(me.cfg.max_tool_chars).collect();
             let _ = me.memory.add_message(&sessao.id, "system", &nota, None, None);
+            let sid = sessao.id.clone();
             let mut turno = me.turn(sessao, None, vec![a.tool.clone()], fixed, None, vec![atividade], vec![], false, None, me.memory.meta_get(&format!("budget:approval:{approval_id}")));
             while let Some(ev) = turno.next().await {
                 yield ev;
+            }
+            // A resposta depois de uma aprovação também entra no diário do vault.
+            if let Some(f) = &me.after_turn {
+                f(&sid);
             }
         })
     }
