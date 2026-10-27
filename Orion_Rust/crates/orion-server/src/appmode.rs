@@ -32,14 +32,14 @@ static NATIVE_PENDING: std::sync::LazyLock<parking_lot::Mutex<std::collections::
 type Slot = std::sync::Arc<parking_lot::Mutex<Option<std::sync::Arc<Nucleo>>>>;
 
 /// Monta o núcleo e liga os trabalhos de fundo. Roda dentro do runtime do núcleo.
-async fn preparar_nucleo(s: Settings) -> anyhow::Result<std::sync::Arc<Nucleo>> {
+async fn preparar_nucleo(s: Settings,preserve_extensions:bool) -> anyhow::Result<std::sync::Arc<Nucleo>> {
     #[cfg(windows)]
     let vigiar = s.clone();
     let mut s = s;
     if let Some(p) = orion_core::onboarding::Profile::load(&s.data_dir)? {
         p.apply(&mut s);
     }
-    let st = crate::estado::montar(s).await?;
+    let st = if preserve_extensions{crate::estado::montar_with_runtime(s,true).await?}else{crate::estado::montar(s).await?};
     #[cfg(windows)]
     if !SCREEN_WATCH_STARTED.swap(true,std::sync::atomic::Ordering::SeqCst) {
         crate::cli_db::watch_screen_lock(&vigiar, st.auth.clone());
@@ -57,7 +57,7 @@ fn iniciar_nucleo(n: &Nucleo) {
     *n.backup.lock()=crate::onboarding::start_backup(&n.st.settings,n.st.memory.clone(),n.st.modos.clone());
 }
 async fn montar_nucleo(s:Settings) -> anyhow::Result<std::sync::Arc<Nucleo>> {
-    let n=preparar_nucleo(s).await?;
+    let n=preparar_nucleo(s,false).await?;
     iniciar_nucleo(&n);
     Ok(n)
 }
@@ -103,13 +103,15 @@ impl Local for Interno {
                 if old.st.audio.active() || old.st.agent.as_ref().is_some_and(|a|a.any_busy()) || !old.st.policy.approvals.pending(None,false).is_empty() {
                     return Err("Aguarde a resposta e resolva as aprovações antes de aplicar os recursos.".into());
                 }
+                let connections=old.st.mcp_host.as_ref().map(|host|host.list().into_iter().filter(|c|!old.st.extensions.as_ref().is_some_and(|manager|manager.dona_da_conexao(c.config.id()))).map(|c|c.config.clone()).collect::<Vec<_>>()).unwrap_or_default();
+                let reviews=old.st.extensions.as_ref().map(|manager|manager.runtime_reviews()).unwrap_or_default();
                 // Preserva o que a recarga da main já aplicou em memória antes de refazer o núcleo.
                 let mut cfg=old.st.live.current.lock().clone().unwrap_or(cfg);
                 cfg.injection_guard=old.st.live.injection.load(std::sync::atomic::Ordering::Relaxed);
                 cfg.vault_diario=old.st.live.diary.load(std::sync::atomic::Ordering::Relaxed);
                 if let Some(compactor)=old.st.agent.as_ref().and_then(|a|a.compactor.as_ref()){cfg.compact_at=compactor.at();}
                 // Prepara o novo estado antes de desligar o antigo; falha não apaga o estado em uso.
-                let next=match preparar_nucleo(cfg).await {
+                let next=match preparar_nucleo(cfg,true).await {
                     Ok(n)=>n,
                     Err(_)=>{
                         orion_ai::saidas::definir_destino(Some(orion_ai::saidas::destino_store(old.st.memory.clone())));
@@ -119,10 +121,39 @@ impl Local for Interno {
                 if let Some(task)=old.backup.lock().take() { task.abort(); }
                 let telegram=old.telegram.lock().take();
                 crate::encerrar_fundo(&old.st,telegram).await;
+                let mut warnings=Vec::new();
+                if let Some(host)=&next.st.mcp_host{
+                    for config in connections{
+                        let id=config.id().to_string();
+                        if let Some(connection)=host.remove(&id){connection.close().await;}
+                        let connection=host.connection(config);host.insert(connection.clone());connection.start().await;
+                        if next.st.settings.mcp_enabled && connection.config.enabled() && connection.state()!="connected"{warnings.push(format!("MCP {id}: use Testar para reconectar."));}
+                    }
+                }
+                if let Some(manager)=&next.st.extensions{
+                    // Só repete a revisão já concedida, para o mesmo hash e escopo; ativar valida o bundle novamente.
+                    let mut pending=reviews;
+                    loop{
+                        let count=pending.len();if count==0{break;}
+                        let mut deferred=Vec::new();
+                        for review in pending{
+                            let active=next.st.settings.plugins_enabled && (next.st.settings.mcp_enabled || !review.capabilities.iter().any(|c|c.starts_with("mcp:")||c.starts_with("resource:")||c.starts_with("prompt:")));
+                            if !active{manager.retain_runtime_review(review);continue;}
+                            match manager.activate(&review.id,&review.digest,&review.capabilities,review.trusted_local,review.authorized_remote,&review.classifications,&review.scope).await{
+                                Ok(value) if value["state"].as_str()==Some("active")=>{},
+                                Err(e) if e.0=="plugin_dependency_unavailable"=>deferred.push(review),
+                                _=>{warnings.push(format!("Plugin {}: revise a conexão nas Configurações.",review.id));manager.retain_runtime_review(review);},
+                            }
+                        }
+                        if deferred.len()==count{for review in deferred{warnings.push(format!("Plugin {}: revise as dependências nas Configurações.",review.id));manager.retain_runtime_review(review);}break;}
+                        pending=deferred;
+                    }
+                }
+                if let Some(catalog)=&next.st.catalog{let _=catalog.refresh().await;}
                 *slot.lock()=Some(next.clone());
                 orion_ai::saidas::definir_destino(Some(orion_ai::saidas::destino_store(next.st.memory.clone())));
                 iniciar_nucleo(&next);
-                Ok(serde_json::json!({"applied":true}))
+                Ok(serde_json::json!({"applied":true,"warnings":warnings}))
             }).await.map_err(|_|"Não foi possível aplicar os recursos.".to_string())?
         })
     }

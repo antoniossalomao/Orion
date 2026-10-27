@@ -873,10 +873,13 @@ impl App {
                 return Task::perform(
                     async move {
                         api.put("/config/runtime", Value::Object(patch)).await?;
-                        api.reconfigure()
+                        let applied = api
+                            .reconfigure()
                             .await
                             .map_err(|e| format!("Configuração salva. {e}"))?;
-                        api.get("/config/runtime").await
+                        let mut snapshot = api.get("/config/runtime").await?;
+                        snapshot["warnings"] = applied["warnings"].clone();
+                        Ok(snapshot)
                     },
                     |r| Msg::Resources(Event::Saved(r)),
                 );
@@ -886,9 +889,21 @@ impl App {
                 match result {
                     Ok(value) => {
                         self.sync_resources(&value);
+                        if let Some(warnings) = value["warnings"].as_array() {
+                            self.resources.error = warnings
+                                .iter()
+                                .filter_map(Value::as_str)
+                                .collect::<Vec<_>>()
+                                .join("\n");
+                        }
                         self.resources.snapshot = Some(value);
                         self.resources.draft.clear();
                         self.toast("Recursos aplicados.");
+                        if self.sec == crate::app::Sec::Conectores {
+                            if let Some(api) = &self.api {
+                                return crate::live::pull_sec(api, self.sec);
+                            }
+                        }
                     }
                     Err(e) => self.resources.error = e,
                 }

@@ -440,7 +440,8 @@ fn alguma_cli() -> bool {
 
 /// Sobe tudo. Recusa subir exposto na rede sem login ou com a senha de fábrica
 /// (REGRAS.md: acesso de fora só com login).
-pub async fn montar(mut settings: Settings) -> anyhow::Result<Estado> {
+pub async fn montar(settings:Settings)->anyhow::Result<Estado>{montar_with_runtime(settings,false).await}
+pub async fn montar_with_runtime(mut settings: Settings, preserve_extensions:bool) -> anyhow::Result<Estado> {
     if let Some(profile)=orion_core::onboarding::Profile::load(&settings.data_dir)?{settings.backup_dir=profile.backup.clone().or_else(||profile.drive_backup.then(||settings.data_dir.join("backups")));}
     let runtime_preferences = orion_core::runtime_preferences::RuntimePreferences::load(&settings.data_dir, &settings)?;
     runtime_preferences.apply(&mut settings);
@@ -677,12 +678,13 @@ pub async fn montar(mut settings: Settings) -> anyhow::Result<Estado> {
     }
     skill_runtime.enabled.store(settings.skills_enabled,std::sync::atomic::Ordering::SeqCst);
     skill_runtime.attach_tools(&catalog.registry, &policy);
-    let extensions = match orion_core::extensions::manager::PluginManager::new(
+    let extensions = match orion_core::extensions::manager::PluginManager::with_runtime_state(
         &settings.data_dir.join("extensions"),
         skill_runtime.clone(),
         mcp_host.clone(),
         catalog.clone(),
         policy.clone(),
+        preserve_extensions,
     ) {
         Ok(m) => {
             let urls = orion_core::extensions::catalogo::urls_validas(&settings.plugin_catalogs).map_err(|e| anyhow::anyhow!("ORION_PLUGIN_CATALOGS: {e}"))?;
