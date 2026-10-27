@@ -4,6 +4,9 @@ use crate::net::Api;
 use crate::theme;
 use iced::{window, Size, Task};
 
+/// A janela nasceu transparente (só com GPU real no Windows): é o que deixa o Mica aparecer (F01.05).
+pub static JANELA_TRANSPARENTE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
 /// `fundo`: começa com a janela escondida (início com o Windows); a bandeja a reabre.
 pub fn run_ui(api: Option<Api>, cena: Option<String>, fundo: bool) -> iced::Result {
     let hardware = if let Ok(backend) = std::env::var("ICED_BACKEND") {
@@ -18,12 +21,16 @@ pub fn run_ui(api: Option<Api>, cena: Option<String>, fundo: bool) -> iced::Resu
         std::env::set_var("ICED_BACKEND", if hardware { "wgpu" } else { "tiny-skia" });
         hardware
     };
+    // Transparência só com GPU real: no renderizador de CPU a janela transparente pode sair preta.
+    // ORION_MICA=0 desliga e deixa a janela opaca.
+    let transparente = cfg!(windows) && hardware && std::env::var("ORION_MICA").map(|v| v != "0").unwrap_or(true);
+    JANELA_TRANSPARENTE.store(transparente, std::sync::atomic::Ordering::Relaxed);
     let mut win = window::Settings {
         size: Size::new(1440.0, 900.0),
         min_size: Some(Size::new(760.0, 520.0)),
         position: window::Position::Centered,
         decorations: false,
-        transparent: false,
+        transparent: transparente,
         visible: !fundo,
         ..Default::default()
     };

@@ -180,9 +180,13 @@ pub fn watch_screen_lock(s: &Settings, auth: std::sync::Arc<orion_core::auth::Au
     let sair = s.lock_exit;
     std::thread::spawn(move || {
         let mut travado = false;
+        let mut seguidas = 0u8;
         loop {
-            std::thread::sleep(std::time::Duration::from_secs(2));
-            let agora = orion_platform::session_locked();
+            std::thread::sleep(std::time::Duration::from_secs(1));
+            // Duas leituras seguidas: uma só pode ser um instante de troca de área de trabalho.
+            let lido = orion_platform::session_locked();
+            seguidas = if lido { seguidas.saturating_add(1) } else { 0 };
+            let agora = seguidas >= 2;
             if agora && !travado {
                 let n = auth.revoke_all();
                 dbopen::lock();

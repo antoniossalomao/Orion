@@ -427,6 +427,8 @@ pub struct App {
     pub db_locked: bool,
     pub onboarding: Option<crate::onboarding::Form>,
     pub fundo: bool,
+    /// O Mica está ativo na janela (a barra lateral fica translúcida).
+    pub mica_ativo: bool,
     pub bandeja: Option<crate::tray::Bandeja>,
     pub monitor: Option<crate::tray::Monitor>,
     pub bandeja_tentou: bool,
@@ -766,6 +768,7 @@ impl App {
             mini_prev: Size::new(1440.0, 900.0),
             db_locked: false,
             onboarding: None,
+            mica_ativo: false,
             fundo: false,
             bandeja: None,
             monitor: None,
@@ -1663,6 +1666,7 @@ impl App {
             }
             Msg::Win(id) => {
                 self.win_id = id;
+                self.estilizar_janela(true);
             }
             Msg::Bandeja => {
                 let mut acoes = vec![];
@@ -1820,6 +1824,19 @@ impl App {
         Task::none()
     }
 
+    /// Fundo, borda e Mica da janela pelo DWM (F01.25, F01.05). `primeira`: aplica o estilo inteiro; senão só o Mica.
+    /// Fora do Windows não faz nada.
+    fn estilizar_janela(&mut self, primeira: bool) {
+        let mica = self.p.mica && crate::run::JANELA_TRANSPARENTE.load(std::sync::atomic::Ordering::Relaxed);
+        if primeira {
+            let c = crate::theme::BG;
+            let byte = |v: f32| (v * 255.0).round() as u8;
+            self.mica_ativo = orion_platform::style_main_window((byte(c.r), byte(c.g), byte(c.b)), mica).mica;
+        } else {
+            self.mica_ativo = orion_platform::set_mica(mica);
+        }
+    }
+
     fn toggle(&mut self, k: &'static str) {
         let p = &mut self.p;
         match k {
@@ -1834,7 +1851,10 @@ impl App {
             "clap" => p.clap = !p.clap,
             "boot" => p.boot = !p.boot,
             "shortcut" => p.shortcut = !p.shortcut,
-            "mica" => p.mica = !p.mica,
+            "mica" => {
+                p.mica = !p.mica;
+                self.estilizar_janela(false);
+            }
             "advanced" => p.advanced = !p.advanced,
             "sync" => p.sync = !p.sync,
             "reduced" => p.reduced = !p.reduced,

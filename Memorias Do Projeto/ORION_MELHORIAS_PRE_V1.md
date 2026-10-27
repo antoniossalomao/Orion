@@ -74,8 +74,8 @@ O escopo da v1 é estritamente limitado aos seguintes componentes:
 - [x] **F01.02** Tema único Grafite neutro escuro (`#0C0E13` background, `#14171F` superfícies, `#1E2330` bordas, `#2A3142` hover).
 - [x] **F01.03** Escala tipográfica padronizada em `theme.rs` (base 14 px, título 24 px, subtítulo 18 px, legendas 11 px, código em `Geist Mono`).
 - [x] **F01.04** Cantos arredondados padronizados: botões e cards com raio de 10 px a 14 px, modais com 16 px.
-- [~] **F01.05** Efeito Mica no Windows 11 via `window-vibrancy`. *Pendente de teste e ativação em máquina física com Windows 11.*
-- [~] **F01.06** Instância única comprovada no Windows: trava via arquivo `.lock` e ativação da janela existente via named pipe / evento DWM.
+- [~] **F01.05** Efeito Mica no Windows 11 via `window-vibrancy`. *Pendente de teste e ativação em máquina física com Windows 11.* *Código na branch `claude/kind-bohr-j6hi1g`; compila (para o Windows só até a checagem de tipos, sem rodar). **Sem aceite na máquina real.** Mica pelo DWM (`DWMWA_SYSTEMBACKDROP_TYPE`) com a janela transparente só em GPU real; a barra lateral fica translúcida quando ativo; `ORION_MICA=0` desliga. Sem `window-vibrancy`. Falta ver no Windows 11 (22H2+).*
+- [~] **F01.06** Instância única comprovada no Windows: trava via arquivo `.lock` e ativação da janela existente via named pipe / evento DWM. *Código na branch `claude/kind-bohr-j6hi1g`; compila (para o Windows só até a checagem de tipos, sem rodar). **Sem aceite na máquina real.** Instância única já usava trava de arquivo; agora a segunda cópia chama `AllowSetForegroundWindow` para a primeira conseguir trazer a janela para a frente (sem isso o Windows só pisca a barra de tarefas).*
 - [x] **F01.07** Zoom e escala de interface: atalhos `Ctrl +`, `Ctrl -` e `Ctrl 0`, persistência automática em `interface.txt`.
 - [x] **F01.08** Toasts discretos no canto inferior direito para notificações de sucesso/erro (cópia de código, salvamento).
 - [x] **F01.09** Barra lateral retrátil (toggle `Ctrl+B`) com ícones para Início, Chat, Memória, Projetos, Rotinas e Conhecimento.
@@ -87,7 +87,7 @@ O escopo da v1 é estritamente limitado aos seguintes componentes:
 - [x] **F01.22** Gerenciador de atalhos em Configurações > Atalhos: remapeamento de `Ctrl+K`, `Ctrl+Shift+O`, `Ctrl+B`, `Ctrl+,`, validação de conflitos, bloqueio de teclas reservadas (Enter, Esc, setas) e gravação atômica em `atalhos.txt`.
 - [x] **F01.23** Navegação direta por comando de barra: `/config <seção>` com auto-complete e descrições internacionalizadas via Fluent.
 - [x] **F01.24** Lista de Projetos Recentes exibida dinamicamente no topo da tela Início.
-- [~] **F01.25** Resolução da faixa branca de renderização reportada em drivers gráficos WARP de CPU.
+- [~] **F01.25** Resolução da faixa branca de renderização reportada em drivers gráficos WARP de CPU. *Código na branch `claude/kind-bohr-j6hi1g`; compila (para o Windows só até a checagem de tipos, sem rodar). **Sem aceite na máquina real.** Estilo da janela pelo DWM em `orion-platform/src/janela.rs`: pincel de fundo da classe, borda, barra de título e cantos na cor do tema, aplicado quando a janela abre. Ataca a causa provável (sobra de 1 px mostrando o fundo branco da classe); falta ver em 100/125/150% e no WARP.*
 
 ---
 
@@ -99,8 +99,8 @@ O escopo da v1 é estritamente limitado aos seguintes componentes:
 - [x] **F02.05** Logs rotacionados diariamente em formato cifrado (`logs/orion-YYYY-MM-DD.log.enc`) com expurgo automático após retenção configurada (padrão: 30 dias).
 - [x] **F02.06** Sanitização rigorosa de PII em logs de erro e tabelas de auditoria: máscaras para CPFs, e-mails, números de cartão de crédito (algoritmo de Luhn), telefones e chaves de API.
 - [x] **F02.07** Desafio 2FA opcional por código efêmero enviado via Telegram no momento do login.
-- [~] **F02.08** Integração nativa com Windows Hello (biometria / PIN) através da API WinRT `UserConsentVerifier`.
-- [~] **F02.09** Bloqueio automático ao travar a estação (`Win+L`): descarregamento da chave da memória RAM e encerramento seguro de sessões ativas.
+- [~] **F02.08** Integração nativa com Windows Hello (biometria / PIN) através da API WinRT `UserConsentVerifier`. *Código na branch `claude/kind-bohr-j6hi1g`; compila (para o Windows só até a checagem de tipos, sem rodar). **Sem aceite na máquina real.** `onboarding_hello.rs` agora usa `IUserConsentVerifierInterop` com a janela do Orion como dona (app sem pacote precisa disso para o diálogo aparecer); sem janela cai na chamada simples. Falta testar com leitor biométrico/PIN.*
+- [~] **F02.09** Bloqueio automático ao travar a estação (`Win+L`): descarregamento da chave da memória RAM e encerramento seguro de sessões ativas. *Código na branch `claude/kind-bohr-j6hi1g`; compila (para o Windows só até a checagem de tipos, sem rodar). **Sem aceite na máquina real.** A leitura do bloqueio agora usa `WTSSessionInfoEx` (resposta oficial) em vez de só `OpenInputDesktop`, que também falha no prompt do UAC e em Ctrl+Alt+Del e podia apagar a chave sem bloqueio; exige duas leituras seguidas (1 s). Falta testar Win+L de verdade.*
 - [ ] **F02.10** Execução assistida do comando de migração `orion db-cifrar` no banco de produção do usuário com backup de integridade prévio.
 
 ---
@@ -218,7 +218,7 @@ O escopo da v1 é estritamente limitado aos seguintes componentes:
 - [x] **R1.06** Descarte gracioso de recursos gráficos na saída do aplicativo, prevenindo avisos de depuração do DirectX 12 / Vulkan.
 - [x] **R1.07** Tela de inicialização (Splash) exibida durante a derivação de chaves criptográficas Argon2id e abertura do banco SQLCipher.
 - [x] **R1.08** Redução de carga gráfica no repouso: suspensão total de redesenho (*ticks*) quando a janela está minimizada, em segundo plano ou sem interação.
-- [~] **R1.09** Diagnóstico e correção definitiva da borda branca periférica observada em telas com aceleração gráfica WARP.
+- [~] **R1.09** Diagnóstico e correção definitiva da borda branca periférica observada em telas com aceleração gráfica WARP. *Código na branch `claude/kind-bohr-j6hi1g`; compila (para o Windows só até a checagem de tipos, sem rodar). **Sem aceite na máquina real.** Mesma correção do F01.25 (`janela.rs`).*
 - [x] **R1.10** Prevenção de sessões vazias no chat: a conversa só é persistida no banco após o envio da primeira mensagem.
 - [x] **R1.11** Documentação atualizada do pacote de release (`LEIA-ME.txt`) distinguindo versão portátil e instalador assistido.
 - [~] **R1.12** Aceite físico dos atalhos globais de teclado (`Ctrl+Alt+Espaço`, `Ctrl+Alt+P`) e ícone de bandeja no Windows.

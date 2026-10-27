@@ -145,6 +145,7 @@ pub fn view(app: &App) -> El<'_> {
     let scroll = scrollable(list.padding(pad(0.0, 8.0, 8.0, 8.0))).direction(scrollable::Direction::Vertical(thin_bar())).style(thin_scroll).height(Length::Fill);
     let scroll = container(scroll).padding(pad(0.0, 0.0, 0.0, 0.0)).width(Length::Fill).height(Length::Fill);
 
+    let mica = app.mica_ativo;
     let sidebar_width = if drawer { 300.0f32.min(app.win.width * 0.86) } else { t::SIDE_W };
     let label_width = (sidebar_width - 144.0).max(24.0);
     let profile_name = if app.p.name.trim().is_empty() { app.p.call.trim() } else { app.p.name.trim() };
@@ -177,7 +178,7 @@ pub fn view(app: &App) -> El<'_> {
         .width(Length::Fixed(sidebar_width))
         .height(Length::Fill)
         .padding(pad(0.0, 0.0, 0.0, 0.0))
-        .style(|_| container::Style { background: Some(t::SIDE.into()), ..Default::default() })
+        .style(move |_| container::Style { background: Some(if mica { t::alpha(t::SIDE, 0.78) } else { t::SIDE }.into()), ..Default::default() })
         .into()
 }
 

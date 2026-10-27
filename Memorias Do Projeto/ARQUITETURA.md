@@ -93,7 +93,7 @@ O alvo está atingido na estrutura: núcleo, API e UI em Rust, um executável, s
 | `orion-core` | Agente, ferramentas, auth, jobs, projetos, canais, visão, extensões e rotinas | Portes agrupados; 167 testes de integração, muitos contratos ainda sem paridade |
 | `orion-server` | CLI/API Axum, montagem dos serviços e `appmode` (núcleo no processo do app) | HTTP só com `--features http`; rotas sem testes próprios (há `appmode::tests`) |
 | `orion-mcp` | JSON-RPC stdio/HTTP próprio, cliente/servidor | Sem rmcp; 23 declarações de testes de integração |
-| `orion-platform` | Bandeja e hotkeys Windows | Sem trait de plataforma completo, nem backend macOS; outras chamadas de SO ainda no core/setup |
+| `orion-platform` | Bandeja e hotkeys Windows; estilo da janela e Mica pelo DWM (`janela.rs`); leitura do bloqueio de tela pelo WTS | Sem trait de plataforma completo, nem backend macOS; outras chamadas de SO ainda no core/setup |
 | `orion-voice` | cpal, energia, palmas, oww-rs, Whisper, AEC3/playback | Sem Silero; wake word final/hardware pendentes |
 | `orion-local` | Catálogo, downloads, protocolo, bundle wake e Job Object | Modelos de visão e gerenciador completo ainda pendentes |
 | `orion-llama` | Worker llama-cpp-2 CPU/Vulkan separado | Vulkan ainda sem build final validado; CPU real comprovada no CI |

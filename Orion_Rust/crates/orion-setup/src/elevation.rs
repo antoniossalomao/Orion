@@ -38,6 +38,8 @@ pub fn relaunch_if_needed() -> bool {
         out
     }
 
+    const SE_ERR_ACCESSDENIED: isize = 5;
+    const ERROR_CANCELLED: i32 = 1223;
     let args: Vec<OsString> = std::env::args_os().skip(1).collect();
     let has = |arg: &str| args.iter().any(|a| a == arg);
     let install = !has("--whats-new") && !has("--preview") && !has("--prototype-hw");
@@ -56,16 +58,26 @@ pub fn relaunch_if_needed() -> bool {
         parameters.push(0);
         let operation = wide(OsStr::new("runas"));
         let status = unsafe { ShellExecuteW(std::ptr::null_mut(), operation.as_ptr(), exe.as_ptr(), parameters.as_ptr(), directory.as_ptr(), 1) };
-        if status > 32 { Ok(()) } else { Err(std::io::Error::last_os_error()) }
+        if status > 32 {
+            Ok(())
+        } else if status == SE_ERR_ACCESSDENIED {
+            // Quem cancela o prompt do UAC recebe "acesso negado" do ShellExecute (e 1223 no último erro).
+            Err(std::io::Error::from_raw_os_error(ERROR_CANCELLED))
+        } else {
+            Err(std::io::Error::last_os_error())
+        }
     })();
 
     if let Err(error) = result {
-        // Cancelar o UAC encerra sem copiar arquivos, sem repetir a solicitação.
-        if error.raw_os_error() != Some(1223) {
-            let message = wide(OsStr::new(&format!("Não foi possível abrir o instalador como administrador. Nenhum arquivo foi alterado.\n\n{error}")));
-            let title = wide(OsStr::new("Orion Setup"));
-            unsafe { MessageBoxW(std::ptr::null_mut(), message.as_ptr(), title.as_ptr(), 0x10); }
+        let title = wide(OsStr::new("Orion Setup"));
+        if error.raw_os_error() == Some(ERROR_CANCELLED) {
+            // Cancelar o UAC não é falha: avisa com calma, sem copiar arquivos e sem repetir o pedido.
+            let message = wide(OsStr::new("Você cancelou a permissão de administrador, então nada foi instalado nem alterado.\n\nAbra o instalador de novo quando quiser continuar."));
+            unsafe { MessageBoxW(std::ptr::null_mut(), message.as_ptr(), title.as_ptr(), 0x40); }
+            std::process::exit(0);
         }
+        let message = wide(OsStr::new(&format!("Não foi possível abrir o instalador como administrador. Nenhum arquivo foi alterado.\n\n{error}")));
+        unsafe { MessageBoxW(std::ptr::null_mut(), message.as_ptr(), title.as_ptr(), 0x10); }
         std::process::exit(1);
     }
     true
