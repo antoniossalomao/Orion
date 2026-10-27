@@ -919,5 +919,6 @@
   "Arquivo vazio ou maior que {} MB.": "ui-0917",
   "O arquivo não é uma imagem PNG, JPEG ou WebP válida.": "ui-0918",
   "Não foi possível abrir a imagem.": "ui-0919",
-  "O anexo ainda está sendo processado. Tente anexá-lo novamente em instantes.": "ui-0920"
+  "O anexo ainda está sendo processado. Tente anexá-lo novamente em instantes.": "ui-0920",
+  "Até 4 imagens por mensagem.": "ui-0921"
 }

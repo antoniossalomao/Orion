@@ -919,3 +919,4 @@ ui-0917 = { "Arquivo vazio ou maior que " }{ $v0 }{ " MB." }
 ui-0918 = { "O arquivo não é uma imagem PNG, JPEG ou WebP válida." }
 ui-0919 = { "Não foi possível abrir a imagem." }
 ui-0920 = { "O anexo ainda está sendo processado. Tente anexá-lo novamente em instantes." }
+ui-0921 = { "Até 4 imagens por mensagem." }

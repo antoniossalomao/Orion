@@ -331,6 +331,8 @@ pub struct App {
     pub attachment_ids: Vec<String>,
     /// Miniaturas das imagens anexadas, por id de anexo (F05.11).
     pub attach_thumbs: std::collections::HashMap<String, iced::widget::image::Handle>,
+    /// Imagens que saíram do compositor sem serem enviadas: o servidor ainda as guarda e precisa soltá-las.
+    pub images_to_release: Vec<String>,
     pub attachment_generation: u64,
     pub attaching: bool,
     pub attach_n: usize,
@@ -688,6 +690,7 @@ impl App {
             attach: vec![],
             attachment_ids: vec![],
             attach_thumbs: std::collections::HashMap::new(),
+            images_to_release: vec![],
             attachment_generation: 0,
             attaching: false,
             attach_n: 0,
@@ -887,7 +890,7 @@ impl App {
         self.composer = text_editor::Content::new();
         self.attach.clear();
         self.attachment_ids.clear();
-        self.attach_thumbs.clear();
+        self.drop_images();
         self.attachment_generation = self.attachment_generation.wrapping_add(1);
         if v == View::Rotinas {
             for r in self.rots.iter_mut() {
@@ -901,6 +904,20 @@ impl App {
     }
 
     pub fn update(&mut self, msg: Msg) -> Task<Msg> {
+        let task = self.update_core(msg);
+        let ids = std::mem::take(&mut self.images_to_release);
+        match (ids.is_empty(), self.api.clone()) {
+            (false, Some(api)) => Task::batch([task, Task::perform(async move { let _ = api.post("/chat/imagens/liberar", serde_json::json!({"ids": ids})).await; }, |_| Msg::Noop)]),
+            _ => task,
+        }
+    }
+
+    /// Anexos de imagem abandonados: a miniatura sai e o servidor é avisado na volta do `update`.
+    pub fn drop_images(&mut self) {
+        self.images_to_release.extend(self.attach_thumbs.drain().map(|(id, _)| id));
+    }
+
+    fn update_core(&mut self, msg: Msg) -> Task<Msg> {
         let _timing = Timing::new("update", self.view);
         if !matches!(&msg, Msg::Tick(_) | Msg::Bandeja | Msg::BootProgress) { self.now = Instant::now(); }
         if let Msg::Onboarding(event) = msg { return self.update_onboarding(event); }
@@ -1348,7 +1365,7 @@ impl App {
             Msg::Unattach(i) => {
                 if i < self.attach.len() {
                     self.attach.remove(i);
-                    if i < self.attachment_ids.len() { let id = self.attachment_ids.remove(i); self.attach_thumbs.remove(&id); }
+                    if i < self.attachment_ids.len() { let id = self.attachment_ids.remove(i); if self.attach_thumbs.remove(&id).is_some() { self.images_to_release.push(id); } }
                 }
             }
             Msg::Mic => {
@@ -1968,7 +1985,7 @@ impl App {
         self.composer = text_editor::Content::new();
         self.attach.clear();
         self.attachment_ids.clear();
-        self.attach_thumbs.clear();
+        self.drop_images();
         self.attachment_generation = self.attachment_generation.wrapping_add(1);
         self.navigate(View::Chat, Some(ci));
         Task::none()

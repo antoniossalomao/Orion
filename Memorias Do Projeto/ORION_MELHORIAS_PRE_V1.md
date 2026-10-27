@@ -190,7 +190,7 @@ O escopo da v1 é estritamente limitado aos seguintes componentes:
 - [x] **F09.02** Auditoria persistida em SQLite: tabela de auditoria registrando autorizações concedidas e negadas sem vazamento de segredos.
 - [x] **F09.03** Tabela `external_calls` registrando métricas de chamadas a provedores (latência, bytes enviados/recebidos, HTTP status) sem armazenar payloads sensíveis.
 - [~] **F09.04** Gráficos nativos em canvas vetorial para consumo semanal e mensal de tokens e cotas. *Código na branch `claude/kind-bohr-j6hi1g`, compilado e com a suíte existente verde no Linux, sem testes novos (pausa de 21/10/2026). Painel: tokens por dia em 7 e 30 dias (canvas). **Estimado** (bytes ÷ 4): o registro de saídas não guarda tokens.*
-- [~] **F09.05** Geração e exportação do relatório consolidado diário "Você Fez" no final do expediente (23:59). *Código na branch `claude/kind-bohr-j6hi1g`, compilado e com a suíte existente verde no Linux, sem testes novos (pausa de 21/10/2026). Job das 23:59 guarda o texto (`orion-core/src/relatorio.rs`); `GET /painel/voce-fez` e `POST /painel/voce-fez/exportar` (grava no vault, sem sobrescrever); botão no Painel.*
+- [~] **F09.05** Geração e exportação do relatório consolidado diário "Você Fez" no final do expediente (23:59). *Código na branch `claude/kind-bohr-j6hi1g`, compilado e com a suíte existente verde no Linux, sem testes novos (pausa de 21/10/2026). Job das 23:59 guarda o texto (`orion-core/src/relatorio.rs`); `GET /painel/voce-fez` e `POST /painel/voce-fez/exportar` (grava no vault, sem sobrescrever, um arquivo por dia e por projeto); botão no Painel.*
 
 ---
 

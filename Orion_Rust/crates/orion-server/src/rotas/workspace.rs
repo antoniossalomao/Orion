@@ -344,9 +344,14 @@ pub async fn voce_fez_exportar(_: Admin, State(st): State<Estado>, Json(q): Json
     let date = dia_de(q.date)?;
     let markdown = orion_core::relatorio::voce_fez(&st.memory, q.project_id.as_deref(), date).map_err(|e| ApiError::new(500, e.to_string()))?;
     let hora = Local::now().format("%H:%M").to_string();
+    // O nome do projeto distingue o arquivo do relatório pessoal e dos outros projetos.
+    let escopo = match &q.project_id {
+        Some(pid) => Some(Projects::new(st.memory.clone()).get(pid).ok().and_then(|p| p["name"].as_str().map(String::from)).ok_or_else(|| ApiError::new(404, "project_not_found"))?),
+        None => None,
+    };
     tokio::task::spawn_blocking(move || -> ApiResult<Json<Value>> {
         let mgr = orion_vault::VaultManager::new(st.settings.vault_dir.clone()).map_err(|e| ApiError::new(409, format!("Vault indisponível: {e}")))?;
-        let r = mgr.save_daily_report(&date.to_string(), &hora, &markdown).map_err(|e| ApiError::new(409, e.to_string()))?;
+        let r = mgr.save_daily_report(&date.to_string(), &hora, escopo.as_deref(), &markdown).map_err(|e| ApiError::new(409, e.to_string()))?;
         Ok(Json(json!(r)))
     })
     .await

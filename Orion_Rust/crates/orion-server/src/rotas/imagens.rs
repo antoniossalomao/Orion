@@ -85,3 +85,18 @@ pub fn tomar(ids: &[String]) -> ApiResult<Vec<String>> {
         .collect())
 }
 
+
+#[derive(Deserialize)]
+pub struct Liberar {
+    ids: Vec<String>,
+}
+
+/// Solta imagens que você tirou do compositor, para não ocuparem a guarda até vencerem.
+pub async fn liberar_imagens(_: Admin, Json(b): Json<Liberar>) -> ApiResult<Json<Value>> {
+    if b.ids.len() > MAX_GUARDADAS {
+        return erro(422, "imagens: ids demais");
+    }
+    let mut g = GUARDA.lock().unwrap_or_else(|e| e.into_inner());
+    let soltas = b.ids.iter().filter(|id| g.remove(*id).is_some()).count();
+    Ok(Json(json!({"ok": true, "liberadas": soltas})))
+}

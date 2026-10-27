@@ -514,6 +514,7 @@ impl App {
                 if self.attaching || self.streaming.is_some() || self.attachment_ids.len() >= 8 { return Some((Task::none(), false)); }
                 self.attaching = true;
                 let generation = self.attachment_generation;
+                let imagens_anexadas = self.attach.iter().filter(|a| a.1 == "imagem").count();
                 let project = self.conv.and_then(|index| self.convs.get(index)).and_then(|conversation| self.projects.iter().find(|project| project.n == conversation.proj)).or_else(|| self.conv.is_none().then(|| self.projects.get(self.p.proj)).flatten()).map(|project| project.id.clone()).filter(|id| !id.is_empty());
                 Some((Task::perform(async move {
                     // Documento (6 MB), imagem (10 MB, F05.11) ou áudio (20 MB, F05.12): a classe vem
@@ -548,6 +549,8 @@ impl App {
                     }).await.map_err(|e| e.to_string())??;
                     let Some((name, bytes, classe, miniatura)) = selected else { return Ok(None) };
                     if classe == "imagem" {
+                        // O servidor aceita 4 imagens por mensagem: avisa antes de guardar a quinta.
+                        if imagens_anexadas >= 4 { return Err("Até 4 imagens por mensagem.".into()); }
                         let value = api.upload_image(name, bytes).await?;
                         let id = s(&value, "id").to_string();
                         if id.is_empty() { return Err("Resposta de upload inválida.".into()); }
