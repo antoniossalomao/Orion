@@ -183,7 +183,30 @@ fn orion_msg<'a>(app: &'a App, ci: usize, mi: usize, o: &'a OrionMsg, is_last: b
             let words: Vec<&str> = o.body.split_whitespace().take(s.words).collect();
             text = words.join(" ");
         }
-        text.push_str(if (app.now.saturating_duration_since(app.t0).as_millis() / 500) % 2 == 0 { " █" } else { "  " });
+    }
+    // Enquanto responde: o que o Orion está fazendo (ferramentas em andamento) ou "Pensando…", no lugar do cursor.
+    if streaming.is_some() {
+        let fase = (app.now.saturating_duration_since(app.t0).as_millis() / 400 % 4) as usize;
+        let mut passos = column![].spacing(4);
+        for tl in &o.tools {
+            let andando = matches!(tl.time.as_str(), "rodando" | "aguardando aprovação");
+            let cor = if andando { t::FG2 } else { t::FG3 };
+            let marca: El = if andando { tx(format!("{}{}", ".".repeat(fase), " ".repeat(3 - fase)), 12.5, t::FG2).into() } else { icon("check", 12.0, t::FG3).into() };
+            passos = passos.push(
+                row![
+                    container(marca).width(Length::Fixed(22.0)),
+                    tx(tl.kind.clone(), 13.0, cor),
+                    container(txf(ell(&tl.value, content_w - 220.0, 12.0), 12.0, t::FG3, t::MONO)).width(Length::Fill),
+                    if andando && tl.time != "rodando" { tx(tl.time.clone(), 11.5, t::FG3) } else { tx(String::new(), 11.5, t::FG3) },
+                ]
+                .spacing(8)
+                .align_y(Vertical::Center),
+            );
+        }
+        if !o.tools.iter().any(|tl| matches!(tl.time.as_str(), "rodando" | "aguardando aprovação")) && o.body.trim().is_empty() {
+            passos = passos.push(tx(format!("{}{}", crate::i18n::text("Pensando"), ".".repeat(fase.max(1))), 13.0, t::FG3));
+        }
+        col = col.push(passos);
     }
     let size = app.p.chat_fs();
     let style = md::Style::chat(f, fb, size);
