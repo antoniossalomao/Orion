@@ -1,6 +1,6 @@
 # Orion — estado, plano e decisões
 
-> Fonte única do estado do projeto. Atualizado em 26/10/2026. Princípios e regras: [REGRAS.md](REGRAS.md). Arquitetura, módulos e referências: [ARQUITETURA.md](ARQUITETURA.md). Melhorias pré-lançamento v1: [ORION_MELHORIAS_PRE_V1.md](ORION_MELHORIAS_PRE_V1.md). Roadmap pós-v1: [ORION_MELHORIAS_POS_V1.md](ORION_MELHORIAS_POS_V1.md). Como rodar: [README](../README.md). Material antigo e detalhado: [ORION_LEGADO.md](ORION_LEGADO.md).
+> Fonte única do estado do projeto. Atualizado em 27/10/2026. Princípios e regras: [REGRAS.md](REGRAS.md). Arquitetura, módulos e referências: [ARQUITETURA.md](ARQUITETURA.md). Melhorias pré-lançamento v1: [ORION_MELHORIAS_PRE_V1.md](ORION_MELHORIAS_PRE_V1.md). Roadmap pós-v1: [ORION_MELHORIAS_POS_V1.md](ORION_MELHORIAS_POS_V1.md). Como rodar: [README](../README.md). Material antigo e detalhado: [ORION_LEGADO.md](ORION_LEGADO.md).
 
 ## Visão
 
@@ -58,6 +58,12 @@ Validação final: **550 testes existentes da suíte e três testes de `orion-sk
 O Setup solicita UAC pelo Windows antes de instalar ou desinstalar, preservando caminho, argumentos Unicode e pasta de trabalho; cancelar encerra antes de gravar arquivos. Prévia, hardware de protótipo e `--whats-new` abrem sem essa solicitação. O módulo de elevação passou na checagem de tipos para `x86_64-pc-windows-msvc`; isso não comprova instalação real no Windows. Os **550 testes existentes passaram** no Linux com Rust 1.97.0 (dependências sem otimização/debug para a validação neste ambiente); nenhum teste novo nem CI automático foi criado.
 
 O pedido posterior autoriza build **somente do instalador**, manual no GitHub. `windows-app-cpu.yml` ganhou `somente_instalador`: compila apenas `orion-setup --bin orion-setup`, sem app, worker ou modelos, e publica `Orion-Windows-Instalador` com Setup, instruções e SHA-256. Esse artefato substitui o Setup do pacote existente e precisa manter a pasta `cpu` ao lado; sozinho não é pacote offline completo. [Execução manual 40416699527](https://github.com/antoniossalomao/Orion/actions/runs/40416699527), fonte `03d0b5fac93b943ee1ec9981f8ff6008627223ed`, iniciada para produzir esse artefato. O resultado pode ser acompanhado na execução; instalação real no Windows ainda depende de reteste.
+
+## Correções do review do PR #61 — 27/10/2026
+
+A branch incorpora a main `56eeb64`, preservando os controles de ferramentas e os recursos do PR. Os conflitos em rotas, carregamento da interface e catálogos Fluent foram resolvidos; as mensagens das duas branches têm IDs únicos em pt-BR/en. O guarda de injeção já classificava anexos e trechos recuperados; agora também classifica resultados de ferramentas externas (web/MCP e busca de memória com documentos) antes de truncar e enviar ao modelo, inclusive após aprovação. Só contadores e avisos sem conteúdo são registrados. A recarga reconstrói os limites diários dos provedores no mesmo objeto de custos consultado pelo gateway, painel e jobs, junto dos endpoints e sob a trava entre chamadas; o uso acumulado permanece no SQLite.
+
+Validação desta correção: **550 testes existentes passaram, zero falhas e zero ignorados**, com a suíte completa do AGENTS.md no Linux/Rust 1.97.0 (dependências sem otimização e debug para esta execução). O teste de atualização por assinatura/hash, antes relatado como falho no PR, também passou nesta rodada. Os catálogos preservam os 55 rótulos novos do PR e os 21 da main com suas traduções originais, sem IDs duplicados. Sem testes novos nem CI automático. Aceite Windows continua pendente.
 
 ## Pendências de código da v1 — 27/10/2026
 

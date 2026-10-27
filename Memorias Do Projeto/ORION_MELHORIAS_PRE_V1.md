@@ -130,7 +130,7 @@ O escopo da v1 é estritamente limitado aos seguintes componentes:
 - [x] **F04.06** Modo autônomo com proteção por senha: a ativação do modo sem interrupções exige re-digitação da senha mestre do perfil.
 - [x] **F04.07** Resumos periódicos consolidados por escopo gerados localmente e com expurgo de tentativas falhas.
 - [x] **F04.08** Mensagens fixadas sobrevivem à compactação de contexto e são reapresentadas ao modelo como premissas de trabalho.
-- [~] **F04.09** Classificador de injeção de prompt local (ModernBERT) integrado em tempo real antes do envio do prompt ao provedor. *Código na branch `claude/kind-bohr-j6hi1g`, compilado e com a suíte existente verde no Linux, sem testes novos (pausa de 21/10/2026). Guarda de injeção no conteúdo externo (`orion-ai/src/injecao.rs`): trait + heurística local pt/en, ligado por padrão (`ORION_INJECTION_GUARD`). Suspeito vai com aviso; bloqueado não vai ao provedor; falha de classificação bloqueia. **O ModernBERT real ainda não entrou** (só o ponto de encaixe).*
+- [~] **F04.09** Classificador de injeção de prompt local (ModernBERT) integrado em tempo real antes do envio do prompt ao provedor. *Código na branch `claude/kind-bohr-j6hi1g`, compilado e com a suíte existente verde no Linux, sem testes novos (pausa de 21/10/2026). Guarda de injeção no conteúdo externo (`orion-ai/src/injection.rs`): trait + heurística local pt/en, ligado por padrão (`ORION_INJECTION_GUARD`). Anexos, trechos recuperados e resultados de ferramentas externas passam pelo guarda, inclusive após aprovações. Suspeito vai com aviso; bloqueado não vai ao provedor; falha de classificação bloqueia. **O ModernBERT real ainda não entrou** (só o ponto de encaixe).*
 
 ---
 
@@ -170,7 +170,7 @@ O escopo da v1 é estritamente limitado aos seguintes componentes:
 - [x] **F07.05** Painel de métricas operacionais embutido na seção Painel: acompanhamento de cotas, status de armazenamento e memória.
 - [x] **F07.06** Seção de Fontes tipográficas permitindo personalização de tamanhos de corpo e código.
 - [x] **F07.07** Persistência atômica de preferências no arquivo de perfil criptografado.
-- [~] **F07.08** Recarga a quente (*hot-reload*) de todas as configurações alteradas sem necessidade de reiniciar o executável `orion.exe`. *Código na branch `claude/kind-bohr-j6hi1g`, compilado e com a suíte existente verde no Linux, sem testes novos (pausa de 21/10/2026). `POST /config/recarregar` + botão em Sistema: aplica na hora provedores/gateway, guarda de injeção e diário; o limite de resumo da conversa (`ORION_COMPACT_AT`, se já nasceu ligado); o modelo local embutido (`ORION_LOCAL_MODEL*`), os modelos por camada (rápido, pesado, visão) e o resto vêm listados em `exigem_reinicio`. Hoje as demais ~140 opções ainda exigem reiniciar.*
+- [~] **F07.08** Recarga a quente (*hot-reload*) de todas as configurações alteradas sem necessidade de reiniciar o executável `orion.exe`. *Código na branch `claude/kind-bohr-j6hi1g`, compilado e com a suíte existente verde no Linux, sem testes novos (pausa de 21/10/2026). `POST /config/recarregar` + botão em Sistema: aplica na hora provedores/gateway e seus limites diários, guarda de injeção e diário; o limite de resumo da conversa (`ORION_COMPACT_AT`, se já nasceu ligado); o modelo local embutido (`ORION_LOCAL_MODEL*`), os modelos por camada (rápido, pesado, visão) e o resto vêm listados em `exigem_reinicio`. Hoje as demais ~140 opções ainda exigem reiniciar.*
 
 ---
 

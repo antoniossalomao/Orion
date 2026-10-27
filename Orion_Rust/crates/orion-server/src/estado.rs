@@ -112,7 +112,7 @@ pub struct LiveConfig {
 }
 
 impl LiveConfig {
-    pub fn de(s: &Settings) -> Self {
+    pub fn from_settings(s: &Settings) -> Self {
         LiveConfig { injection: Arc::new(s.injection_guard.into()), diary: Arc::new(s.vault_diario.into()), applied: parking_lot::Mutex::new(None), current: parking_lot::Mutex::new(None) }
     }
 }
@@ -504,7 +504,7 @@ pub async fn montar(mut settings: Settings) -> anyhow::Result<Estado> {
             &settings.screen_ocr_langs,
         ))
     });
-    let live = Arc::new(LiveConfig::de(&settings));
+    let live = Arc::new(LiveConfig::from_settings(&settings));
     let mut agent = None;
     let mut delegator = None;
     let mut processos = None;

@@ -654,7 +654,8 @@ async fn recarregar_gateway(st: &Estado, mut settings: orion_core::config::Setti
         if let Some(configured) = crate::estado::gateway_from_settings(&settings) {
             endpoints = configured.endpoint_snapshot();
         }
-        gateway.configure(endpoints).await;
+        let quotas = orion_ai::costs::cotas_de(&settings.quotas(), &settings.provedores);
+        gateway.configure_with(endpoints, || st.custos.configure(quotas)).await;
     }
     Ok(())
 }
