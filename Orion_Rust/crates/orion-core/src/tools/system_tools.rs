@@ -108,7 +108,7 @@ pub fn system_tools(timeout_s: f64) -> Vec<Tool> {
         Tool::sync("checar_saude_sistema", "CPU, memória, disco e bateria da máquina onde o Orion roda.", json!({"type": "object", "properties": {}}), |_| Ok(checar_saude())),
         Tool::sync(
             "abrir_app",
-            "Abre um programa pelo nome ou um arquivo pelo caminho. É execução: pede confirmação.",
+            "Abre um programa pelo nome ou um arquivo pelo caminho. A autorização é conferida pela política deste computador.",
             obj(json!({"nome": {"type": "string"}}), &["nome"]),
             |a| {
                 let nome = a.s("nome")?.trim().to_string();

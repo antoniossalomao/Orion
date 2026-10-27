@@ -614,6 +614,25 @@ pub async fn chave_guardar(_: Admin, State(st): State<Estado>, Json(c): Json<Cha
 #[derive(Deserialize)]
 pub struct LanguageChoice { language: String }
 
+pub async fn tool_permissions_get(_: Admin, State(st): State<Estado>) -> Json<Value> {
+    Json(serde_json::to_value(*st.tool_permissions.lock()).expect("permissões serializáveis"))
+}
+
+/// A autorização é uma ação da UI autenticada, nunca uma ferramenta do agente.
+pub async fn tool_permissions_save(
+    _: Admin,
+    State(st): State<Estado>,
+    Json(choice): Json<orion_core::tool_permissions::ToolPermissions>,
+) -> ApiResult<Json<Value>> {
+    let mut current = st.tool_permissions.lock();
+    // Serializa alterações concorrentes e só concede depois de persistir.
+    st.ops.audit_add(&json!({"tool":"tool_permissions", "action":"configure", "permissions":choice}))?;
+    choice.save(&st.settings.data_dir)?;
+    crate::estado::apply_tool_permissions(&st.policy, choice, &st.desktop_tool_names, &st.web_tool_names);
+    *current = choice;
+    Ok(Json(serde_json::to_value(choice).map_err(anyhow::Error::from)?))
+}
+
 /// Preferência local autenticada; só altera o idioma (REGRAS.md: toda rota da API exige login).
 pub async fn language_save(_: Admin, State(st): State<Estado>, Json(choice): Json<LanguageChoice>) -> ApiResult<Json<Value>> {
     if !["pt-BR", "en"].contains(&choice.language.as_str()) { return Err(ApiError::new(422, "idioma inválido")); }

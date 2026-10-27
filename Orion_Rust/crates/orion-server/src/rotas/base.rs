@@ -99,13 +99,16 @@ pub async fn capabilities(State(st): State<Estado>) -> Json<Value> {
 
 /// Informações da instalação nunca entram na descoberta anônima.
 pub async fn capability_details(_: Admin, State(st): State<Estado>) -> Json<Value> {
+    let permissions = *st.tool_permissions.lock();
     Json(json!({
         "gateway_model": st.agent.as_ref().map(|_| st.settings.gateway_model.clone()),
         "components": {
             "memory": st.memory.ping(), "vectors": st.memory.vectors_available, "jobs": st.jobs.is_some(),
-            "telegram": st.telegram.is_some(), "desktop_tools": st.agent.is_some() && st.settings.desktop_tools,
+            "telegram": st.telegram.is_some(), "desktop_tools": st.agent.is_some() && permissions.desktop_tools,
+            "web_tools": st.agent.is_some() && permissions.web_tools,
+            "without_confirmation": permissions.without_confirmation,
         },
-        "tools": st.agent.as_ref().map(|a| a.tools.read().names()).unwrap_or_default(),
+        "tools": st.agent.as_ref().map(|a| a.tools.read().names().into_iter().filter(|n| st.policy.tool_enabled(n)).collect::<Vec<_>>()).unwrap_or_default(),
     }))
 }
 

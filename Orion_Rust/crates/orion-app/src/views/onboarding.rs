@@ -291,6 +291,11 @@ fn step_links<'a>(f: &'a Form) -> El<'a> {
 fn step_imports<'a>(f: &'a Form) -> El<'a> {
     let kind = |id: &'static str, label: &'static str| chip(label, f.import_kind == id, idle(f).then_some(event(Event::Input(Field::ImportKind, id.into()))));
     let mut col = column![
+        head(tr(f, crate::i18n::text("Ferramentas e importação"), "Tools and import"), tr(f, crate::i18n::text("Você escolhe uma vez; pode mudar depois nas Configurações."), "Choose once; change it later in Settings.")),
+        check(f, tr(f, crate::i18n::text("Autorizar todas as ferramentas sem confirmação a cada ação"), "Authorize all tools without confirming each action"), f.authorize_tools, Event::AuthorizeTools),
+        note(tr(f, crate::i18n::text("Permite abrir apps, executar comandos, ler arquivos sensíveis, alterar ou apagar arquivos e usar a web, inclusive após ler conteúdo externo. Vale neste computador até você desligar em Configurações → Ferramentas."), "Allows opening apps, running commands, reading sensitive files, changing or deleting files and using the web, including after reading external content. Applies on this computer until you turn it off in Settings → Tools.")),
+        note(tr(f, crate::i18n::text("Não ativa voz, câmera, captura contínua nem integrações sem configuração. Pânico e registros de ações continuam ativos."), "Does not turn on voice, camera, continuous capture or unconfigured integrations. Panic and action logs stay active.")),
+        hline(),
         head(tr(f, crate::i18n::text("Importar"), "Import"), tr(f, crate::i18n::text("Traga o que já existe. Nada é executado nem ativado."), "Bring what already exists. Nothing runs or turns on.")),
         sp_h(4.0),
         row![kind("history", "Histórico"), kind("mcp", "MCP"), kind("plugin", "Plugin ZIP"), kind("skills", "Skills")].spacing(8),

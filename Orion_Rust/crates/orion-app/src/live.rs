@@ -12,6 +12,7 @@ pub enum Lm {
     Boot(Result<bool, String>),
     Initialized(Result<(), String>),
     LanguageSaved(Result<(), String>),
+    ToolPermissions(std::time::Instant, Result<Value, String>),
     Attached(u64, Result<Option<Value>, String>),
     ArtifactList(String, Result<Value, String>),
     ArtifactSaved(Result<Value, String>),
@@ -327,6 +328,7 @@ pub fn pull_sec(api: &Api, sec: Sec) -> Task<Msg> {
         Task::perform(async move { a.get(path).await }, move |r| Msg::L(f(r)))
     };
     match sec {
+        Sec::Tools => pull_tool_permissions(api),
         Sec::Conectores => Task::batch([get("/mcp/servidores", Lm::Mcp), get("/skills", Lm::Skills)]),
         Sec::Locais => get("/modelos-locais", Lm::Modelos),
         Sec::Painel => Task::batch([get("/painel", Lm::Painel), get("/budget", Lm::Budget)]),
@@ -366,12 +368,19 @@ pub fn map_decisions(v: &Value) -> Vec<Act> {
 }
 
 // ── tarefas ──
+fn pull_tool_permissions(api: &Api) -> Task<Msg> {
+    let api = api.clone();
+    let started = std::time::Instant::now();
+    Task::perform(async move { api.get("/config/tools").await }, move |result| Msg::L(Lm::ToolPermissions(started, result)))
+}
+
 pub fn pull_basic(api: &Api) -> Task<Msg> {
     Task::batch([
         { let a = api.clone(); Task::perform(async move { a.get("/sessoes?limite=100").await }, |r| Msg::L(Lm::Sessions(r))) },
         { let a = api.clone(); Task::perform(async move { a.get("/approvals").await }, |r| Msg::L(Lm::Approvals(r))) },
         { let a = api.clone(); Task::perform(async move { a.get("/projects").await }, |r| Msg::L(Lm::Projects(r))) },
         { let a = api.clone(); Task::perform(async move { a.get("/modo").await }, |r| Msg::L(Lm::Modo(r))) },
+        pull_tool_permissions(api),
     ])
 }
 
@@ -651,6 +660,20 @@ impl App {
                 let a2 = api.clone();
                 Some((Task::perform(async move { a2.post("/modo/autonomo", json!({"ativo": novo})).await }, |r| Msg::L(Lm::Modo(r))), true))
             }
+            Msg::ToolPermission(index) => {
+                if self.p.tools_busy { return Some((Task::none(), false)); }
+                let Some(mut values) = self.p.tools else { return Some((pull_sec(&api, Sec::Tools), false)); };
+                if *index == 3 { values = [!values.iter().all(|v| *v); 3]; }
+                else if let Some(value) = values.get_mut(*index) { *value = !*value; }
+                else { return Some((Task::none(), false)); }
+                self.p.tools_busy = true;
+                let started = std::time::Instant::now();
+                self.p.tools_changed_at = Some(started);
+                let a = api.clone();
+                Some((Task::perform(async move {
+                    a.put("/config/tools", json!({"desktop_tools":values[0], "web_tools":values[1], "without_confirmation":values[2]})).await
+                }, move |result| Msg::L(Lm::ToolPermissions(started, result))), false))
+            }
             Msg::FactSave => {
                 let (i, texto) = self.edit_fact.clone()?;
                 let f = self.facts.get(i)?;
@@ -838,6 +861,17 @@ impl App {
         if matches!(&m, Lm::Login(_) | Lm::Desbloqueado(_) | Lm::TwoFactor(_)) { self.loading = None; }
         match m {
             Lm::LanguageSaved(result) => { if let Err(error) = result { self.toast(error); } },
+            Lm::ToolPermissions(started, result) => {
+                // Um GET iniciado antes da alteração não pode sobrescrever o estado recém-salvo.
+                if self.p.tools_changed_at.is_some_and(|changed| started < changed) { return Task::none(); }
+                if self.p.tools_busy && self.p.tools_changed_at != Some(started) { return Task::none(); }
+                self.p.tools_busy = false;
+                self.p.tools_changed_at = Some(std::time::Instant::now());
+                match result {
+                    Ok(value) => self.p.tools = Some([value["desktop_tools"] == true, value["web_tools"] == true, value["without_confirmation"] == true]),
+                    Err(error) => self.toast(error),
+                }
+            },
             Lm::ArtifactList(session, result) => {
                 if self.session_id().as_deref() != Some(session.as_str()) { return Task::none(); }
                 match result { Ok(value) => self.artifact_records = value.as_array().cloned().unwrap_or_default(), Err(error) => self.toast(error) }

@@ -170,7 +170,7 @@ fn busca_das_configuracoes_olha_nome_e_palavras_chave() {
     assert_eq!(settings::search("palmas"), vec![Sec::Voz]);
     assert!(settings::search("mcp").contains(&Sec::Conectores));
     assert!(settings::search("xyzxyz").is_empty());
-    assert_eq!(settings::search("").len(), 15);
+    assert_eq!(settings::search("").len(), 16);
 }
 
 #[test]

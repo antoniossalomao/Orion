@@ -17,6 +17,12 @@
 
 ## Ferramentas e política
 
+**Autorização persistente de ferramentas (decisão explícita do Antônio, 26/10/2026).** No primeiro uso nativo, a pessoa pode autorizar de uma vez as ferramentas do computador e da web sem confirmação por ação, inclusive execução, ações destrutivas, leitura de arquivos sensíveis e ações após conteúdo externo. A escolha começa desmarcada, fica somente neste computador (fora de backups) e pode ser alterada nas Configurações autenticadas. Enquanto concedida, substitui as exigências de confirmação por ação descritas abaixo; desligá-la restaura essas exigências. O modelo não concede essa autorização. Continuam valendo classes conhecidas, isolamento de projetos, concessões/revisões de extensões, limites, auditoria, proteção de rede, modo só leitura, pânico e confirmação específica para auto-modificação do Orion. Autorizar ferramentas não ativa captura contínua, voz, câmera, integrações sem credenciais ou plugins ainda não concedidos.
+
+| Princípio | Imposto em | Prova |
+|---|---|---|
+| **autorização única, local e revogável.** O consentimento do primeiro uso e as Configurações autenticadas controlam a disponibilidade de computador/web e a dispensa de confirmações, com efeito imediato. O padrão segue sem consentimento; restauração não importa concessão. | `orion-core/src/tool_permissions.rs`, `orion-policy/src/engine.rs`, `orion-server/src/estado.rs`, `orion-server/src/rotas/geral.rs`, `orion-app/src/views/settings.rs` | Suíte existente de política, onboarding e app; verificação manual dos fluxos de concessão/revogação (testes novos pausados pela ADR 0007). |
+
 | Princípio | Imposto em | Prova |
 |---|---|---|
 | **classe de risco fixa por ferramenta.** Toda ferramenta tem classe de risco fixa: leitura roda direto; escrita roda e fica no audit; execução e destrutiva pedem confirmação. A classe vem do registro, não do texto da chamada. Ferramenta sem classe é negada. | `orion-policy/src/classes.rs`, `orion-policy/src/engine.rs` | `orion-policy/tests/` |
