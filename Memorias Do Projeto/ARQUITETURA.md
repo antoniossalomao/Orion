@@ -33,7 +33,8 @@ A ordem de leitura do código, para quem entra agora: `app.py` (rotas), `policy/
 | `orion.db`, tabelas de vida e visão (esquema v23) | `transactions`, `bills`, `price_watch` (finanças, só local); `object_sightings` (rótulos de objetos, 7 dias, sem imagem); `faces` (vetores cifrados, chave no cofre) |
 | `<dados>/backups/` | Backup diário da memória, mantém 7 (`ORION_BACKUP_DIR` aponta para iCloud ou OneDrive) |
 | `<dados>/` (pastas) | `mcp.json`, `plugins/`, `catalogo/`, `rotinas/`, `regras_downloads.yaml`, `capturas/`, `imagens/` |
-| Vault do Obsidian (`ORION_VAULT_DIR`) | Indexado de hora em hora. Escrita só em `00 Inbox` e na pasta de captura |
+| Vault do Obsidian (`ORION_VAULT_DIR`) | Indexado de hora em hora. Escrita só em `00 Inbox`, na pasta de captura, em `03 Recursos/Orion/Memória/` (notas de conversa, diário `ORION_VAULT_DIARIO` e relatório "Você fez", sem sobrescrever) e na nota raiz de projeto `01 Projetos/<Nome>/<Nome>.md` (criada com o projeto, nunca sobrescrita) |
+| `<dados>/projetos/` | Clones de repositórios públicos do GitHub feitos ao criar projeto com `git_url` |
 
 ## 3. Saídas para fora do computador
 
@@ -45,6 +46,7 @@ Toda chamada a um destino de fora grava uma linha em `external_calls` (sem o con
 | Groq (Whisper) | Transcrição de voz e de mídia | Python: `ORION_TRANSCRIBE_API_KEY`; Rust: exige também `ORION_TRANSCRIBE_GROQ_FALLBACK=true` |
 | Gemini | Embeddings (`gemini-embedding-001`), visão, voz ao vivo, pesquisa com Google Search | Chave do Google AI Studio; voz ao vivo é opt-in |
 | Brave Search | `pesquisar_internet` | Opt-in (`ORION_WEB_TOOLS`) |
+| github.com | Clone raso de repositório público ao criar projeto com `git_url` (sem credencial, sem hooks) | Pedido seu na criação do projeto; bloqueado no pânico |
 | Microsoft (edge-tts) | Fala das respostas | Corte com `ORION_VOICE_SPEAK=false`; só o texto da resposta sai |
 | Telegram | Canal do celular | Token e IDs permitidos; default-deny |
 | Servidores MCP (Google Workspace, navegador, outros) | Ferramentas externas | Conforme `mcp.json`; classe de risco do arquivo |
@@ -90,7 +92,7 @@ O alvo está atingido na estrutura: núcleo, API e UI em Rust, um executável, s
 | `orion-core` | Agente, ferramentas, auth, jobs, projetos, canais, visão, extensões e rotinas | Portes agrupados; 167 testes de integração, muitos contratos ainda sem paridade |
 | `orion-server` | CLI/API Axum, montagem dos serviços e `appmode` (núcleo no processo do app) | HTTP só com `--features http`; rotas sem testes próprios (há `appmode::tests`) |
 | `orion-mcp` | JSON-RPC stdio/HTTP próprio, cliente/servidor | Sem rmcp; 23 declarações de testes de integração |
-| `orion-platform` | Bandeja e hotkeys Windows | Sem trait de plataforma completo, nem backend macOS; outras chamadas de SO ainda no core/setup |
+| `orion-platform` | Bandeja e hotkeys Windows; estilo da janela e Mica pelo DWM (`janela.rs`); leitura do bloqueio de tela pelo WTS | Sem trait de plataforma completo, nem backend macOS; outras chamadas de SO ainda no core/setup |
 | `orion-voice` | cpal, energia, palmas, oww-rs, Whisper, AEC3/playback | Sem Silero; wake word final/hardware pendentes |
 | `orion-local` | Catálogo, downloads, protocolo, bundle wake e Job Object | Modelos de visão e gerenciador completo ainda pendentes |
 | `orion-llama` | Worker llama-cpp-2 CPU/Vulkan separado | Vulkan ainda sem build final validado; CPU real comprovada no CI |
@@ -132,7 +134,7 @@ O app escolhe wgpu para GPU real e tiny-skia sem MSAA para adaptador de CPU. Ass
 
 **Grafo e casca FE-VIS (main `7ae8efd`, 24/10/2026):** `graph.rs` calcula na CPU um layout orgânico 2D com semeadura topológica, repulsão multiescala, molas por grau, gravidade e resolução de colisões; `OnceLock` reutiliza as coordenadas do vault. `views/memory.rs` mantém o cache de geometria já existente, filtra a vizinhança em 1/2 saltos e enquadra o desenho considerando o painel lateral. O canvas não passa a ser um renderer 3D e as posições não passam a ser persistidas por hash do commit. `app.rs` também suspende ticks em segundo plano; desempenho Windows ainda depende de medição. O commit altera a topbar estreita, badges, Terminal e selo de mensagem salva sem criar novas saídas de rede.
 
-`estado::load_providers` descobre chaves no cofre e persiste somente a lista/modelos no SQLite (`providers:configuration`). `ORION_PROVEDORES` explícito tem precedência. Salvar chave reconstrói os endpoints e espera o turno em andamento, preservando agente, auditoria e orçamento. Nenhuma chave entra na lista persistida. Gemini automático usa 3.8 Flash (cota gratuita documentada em 23/10); o antigo default exato 2.5 Flash migra ao abrir, sem tocar nas escolhas explícitas. O transporte retém `extra_content.google.thought_signature` de chamadas de ferramenta Gemini e a devolve somente ao provedor Google; o metadado é oculto em Debug e não altera autorização/política. Falhas no chat mostram códigos HTTP/transportes, sem corpo da resposta, URL ou chave; o painel mostra modelo e último erro e só marca ativo após sucesso.
+`estado::load_providers` descobre chaves no cofre e persiste somente a lista/modelos no SQLite (`providers:configuration`). `ORION_PROVEDORES` explícito tem precedência. Salvar chave ou recarregar configurações reconstrói endpoints e limites diários compartilhados com painel/jobs, espera a chamada em andamento e publica ambos sob a mesma trava do gateway, preservando agente, auditoria e uso acumulado. Nenhuma chave entra na lista persistida. Gemini automático usa 3.8 Flash (cota gratuita documentada em 23/10); o antigo default exato 2.5 Flash migra ao abrir, sem tocar nas escolhas explícitas. O transporte retém `extra_content.google.thought_signature` de chamadas de ferramenta Gemini e a devolve somente ao provedor Google; o metadado é oculto em Debug e não altera autorização/política. Falhas no chat mostram códigos HTTP/transportes, sem corpo da resposta, URL ou chave; o painel mostra modelo e último erro e só marca ativo após sucesso.
 
 Documentos selecionados no chat esperam a extração assíncrona (até 120 s) antes de confirmar o anexo; falha ou limite de espera deixa erro visível. Usam a API de upload existente, com IDs validados no escopo do projeto e limite de texto por turno. Trechos são `ExternalData`, nunca instruções. A seleção é descartada ao trocar de conversa; resultado atrasado do upload não é anexado a outro chat. Artefatos do chat reutilizam a API SQLite de versões com `expected_version` para detectar conflito.
 

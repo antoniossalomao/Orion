@@ -54,7 +54,7 @@ fn minimapa<'a>(app: &'a App, c: &'a crate::data::Conv, primeira: usize) -> El<'
             button(sp_w(0.0)).padding(0).width(Length::Fill).height(Length::FillPortion(w)).on_press(Msg::ChatJump(alvo)).style(move |_, _| button::Style { background: Some(cor.into()), border: Border { radius: 2.0.into(), ..Default::default() }, ..Default::default() }),
         );
     }
-    container(col).height(Length::Fill).padding(pad(10.0, 4.0, 14.0, 4.0)).into()
+    container(col).height(Length::Fill).padding(pad(10.0, 4.0, 12.0, 4.0)).into()
 }
 
 pub fn view(app: &App) -> El<'_> {
@@ -65,7 +65,7 @@ pub fn view(app: &App) -> El<'_> {
 
     let thread: El = if c.msgs.is_empty() {
         container(
-            column![belt_fg(true), txf(crate::i18n::text("Conversa antiga"), 28.0, t::FG, t::SERIF), tx(crate::i18n::text("Conversa antiga. O resumo está no vault; escreva para continuar."), 14.0, t::FG3)].spacing(14).align_x(Horizontal::Center),
+            column![belt_fg(true), txf(crate::i18n::text("Conversa antiga"), 28.0, t::FG, t::SERIF), tx(crate::i18n::text("Conversa antiga. O resumo está no vault; escreva para continuar."), 14.0, t::FG3)].spacing(12).align_x(Horizontal::Center),
         )
         .width(Length::Fill)
         .height(Length::Fill)
@@ -104,7 +104,7 @@ pub fn view(app: &App) -> El<'_> {
         let fim: El = if app.chat_end {
             sp_w(0.0)
         } else {
-            container(btn(crate::i18n::text("Ir ao fim"), Kind::Normal, true, Some("chevD"), Some(Msg::ChatEnd))).width(Length::Fill).height(Length::Fill).center_x(Length::Fill).align_y(Vertical::Bottom).padding(pad(0.0, 0.0, 14.0, 0.0)).into()
+            container(btn(crate::i18n::text("Ir ao fim"), Kind::Normal, true, Some("chevD"), Some(Msg::ChatEnd))).width(Length::Fill).height(Length::Fill).center_x(Length::Fill).align_y(Vertical::Bottom).padding(pad(0.0, 0.0, 12.0, 0.0)).into()
         };
         let mapa: El = if c.msgs.len() - primeira >= 8 { container(minimapa(app, c, primeira)).width(Length::Fill).height(Length::Fill).align_x(Horizontal::Right).into() } else { sp_w(0.0) };
         iced::widget::stack![lista, fim, mapa].into()
@@ -130,7 +130,7 @@ pub fn view(app: &App) -> El<'_> {
         );
     }
     tail = tail.push(crate::views::composer::view(app, false));
-    let tail = container(tail).width(Length::Fill).center_x(Length::Fill).padding(pad(0.0, 16.0, 14.0, 16.0));
+    let tail = container(tail).width(Length::Fill).center_x(Length::Fill).padding(pad(0.0, 16.0, 12.0, 16.0));
     column![thread, tail].height(Length::Fill).into()
 }
 
@@ -138,7 +138,11 @@ fn user_msg<'a>(app: &'a App, mi: usize, s: String, content_w: f32) -> El<'a> {
     let bubble = container(txf(s.clone(), 15.0, t::FG, t::UI)).padding(pad(10.0, 15.0, 10.0, 15.0)).max_width(content_w * 0.8).style(surface(Some(t::RAISE2), None, t::RADIUS_MAX));
     let show = app.hover == Some((2, mi));
     let acts: El = if show {
-        row![tip(ib_sz("edit", 26.0, 16.0, (!app.is_live()).then(|| Msg::Toast(crate::i18n::text("Editar e reenviar cria um ramo da conversa").into())), false), crate::i18n::text("Editar e reenviar (em breve)")), tip(ib_sz("copy", 26.0, 16.0, Some(Msg::CopyText(s)), false), crate::i18n::text("Copiar")), tip(ib_sz("pin", 26.0, 16.0, (!app.is_live()).then(|| Msg::Toast(crate::i18n::text("Fixada como contexto permanente").into())), false), crate::i18n::text("Fixar como contexto (em breve)"))].into()
+        if app.is_live() {
+            tip(ib_sz("copy", 26.0, 16.0, Some(Msg::CopyText(s)), false), crate::i18n::text("Copiar"))
+        } else {
+            row![tip(ib_sz("edit", 26.0, 16.0, Some(Msg::Toast(crate::i18n::text("Editar e reenviar cria um ramo da conversa").into())), false), crate::i18n::text("Editar e reenviar")), tip(ib_sz("copy", 26.0, 16.0, Some(Msg::CopyText(s)), false), crate::i18n::text("Copiar")), tip(ib_sz("pin", 26.0, 16.0, Some(Msg::Toast(crate::i18n::text("Fixada como contexto permanente").into())), false), crate::i18n::text("Fixar como contexto"))].into()
+        }
     } else {
         container(sp_w(0.0)).height(Length::Fixed(26.0)).into()
     };
@@ -183,7 +187,30 @@ fn orion_msg<'a>(app: &'a App, ci: usize, mi: usize, o: &'a OrionMsg, is_last: b
             let words: Vec<&str> = o.body.split_whitespace().take(s.words).collect();
             text = words.join(" ");
         }
-        text.push_str(if (app.now.saturating_duration_since(app.t0).as_millis() / 500) % 2 == 0 { " █" } else { "  " });
+    }
+    // Enquanto responde: o que o Orion está fazendo (ferramentas em andamento) ou "Pensando…", no lugar do cursor.
+    if streaming.is_some() {
+        let fase = (app.now.saturating_duration_since(app.t0).as_millis() / 400 % 4) as usize;
+        let mut passos = column![].spacing(4);
+        for tl in &o.tools {
+            let andando = matches!(tl.time.as_str(), "rodando" | "aguardando aprovação");
+            let cor = if andando { t::FG2 } else { t::FG3 };
+            let marca: El = if andando { tx(format!("{}{}", ".".repeat(fase.max(1)), " ".repeat(3 - fase.max(1))), 12.5, t::FG2).into() } else { icon("check", 12.0, t::FG3).into() };
+            passos = passos.push(
+                row![
+                    container(marca).width(Length::Fixed(22.0)),
+                    tx(tl.kind.clone(), 13.0, cor),
+                    container(txf(ell(&tl.value, content_w - 220.0, 12.0), 12.0, t::FG3, t::MONO)).width(Length::Fill),
+                    if andando && tl.time != "rodando" { tx(tl.time.clone(), 11.5, t::FG3) } else { tx(String::new(), 11.5, t::FG3) },
+                ]
+                .spacing(8)
+                .align_y(Vertical::Center),
+            );
+        }
+        if !o.tools.iter().any(|tl| matches!(tl.time.as_str(), "rodando" | "aguardando aprovação")) && o.body.trim().is_empty() {
+            passos = passos.push(tx(format!("{}{}", crate::i18n::text("Pensando"), ".".repeat(fase.max(1))), 13.0, t::FG3));
+        }
+        col = col.push(passos);
     }
     let size = app.p.chat_fs();
     let style = md::Style::chat(f, fb, size);
@@ -199,9 +226,12 @@ fn orion_msg<'a>(app: &'a App, ci: usize, mi: usize, o: &'a OrionMsg, is_last: b
         col = col.push(approval(a, ci, mi));
     }
     if streaming.is_none() && o.time != "pendente" {
-        let mut acts = row![tip(ib_sz("copy", 28.0, 16.0, Some(Msg::CopyText(o.body.clone())), false), crate::i18n::text("Copiar")), tip(ib_sz("speaker", 28.0, 16.0, (!app.is_live()).then(|| Msg::Toast(crate::i18n::text("Lendo em voz alta (simulado)").into())), false), crate::i18n::text("Ouvir (em breve)"))].spacing(0).align_y(Vertical::Center);
-        if is_last {
-            acts = acts.push(tip(ib_sz("retry", 28.0, 16.0, (!app.is_live()).then(|| Msg::Toast("Gerar de novo…".into())), false), crate::i18n::text("Gerar de novo (em breve)")));
+        let mut acts = row![tip(ib_sz("copy", 28.0, 16.0, Some(Msg::CopyText(o.body.clone())), false), crate::i18n::text("Copiar"))].spacing(0).align_y(Vertical::Center);
+        if !app.is_live() {
+            acts = acts.push(tip(ib_sz("speaker", 28.0, 16.0, Some(Msg::Toast(crate::i18n::text("Lendo em voz alta").into())), false), crate::i18n::text("Ouvir")));
+        }
+        if is_last && !app.is_live() {
+            acts = acts.push(tip(ib_sz("retry", 28.0, 16.0, Some(Msg::Toast(crate::i18n::text("Gerando de novo…").into())), false), crate::i18n::text("Gerar de novo")));
         }
         acts = acts.push(container(tx(o.time.clone(), 11.5, t::FG3)).padding(pad(0.0, 0.0, 0.0, 6.0)));
         let via_txt = if o.via.is_empty() { None } else { Some(o.via.clone()) };
@@ -211,7 +241,7 @@ fn orion_msg<'a>(app: &'a App, ci: usize, mi: usize, o: &'a OrionMsg, is_last: b
                 vr = vr.push(icon("out", 12.0, t::FG4));
             }
             let msg = if o.out.is_empty() { crate::i18n::formatted("{v} · nada saiu do computador", format!("{v} · nada saiu do computador")) } else { crate::i18n::formatted("{v} · saiu do PC: {}", format!("{v} · saiu do PC: {}", o.out)) };
-            acts = acts.push(container(button(vr).padding(pad(2.0, 6.0, 2.0, 6.0)).on_press(Msg::Toast(msg)).style(|_, st| button::Style { background: if matches!(st, button::Status::Hovered) { Some(t::HOVER.into()) } else { None }, text_color: t::FG4, border: Border { radius: 6.0.into(), ..Default::default() }, ..Default::default() })).padding(pad(0.0, 0.0, 0.0, 8.0)));
+            acts = acts.push(container(button(vr).padding(pad(2.0, 6.0, 2.0, 6.0)).on_press(Msg::Toast(msg)).style(|_, st| button::Style { background: if matches!(st, button::Status::Hovered) { Some(t::HOVER.into()) } else { None }, text_color: t::FG4, border: Border { radius: t::R_CTRL.into(), ..Default::default() }, ..Default::default() })).padding(pad(0.0, 0.0, 0.0, 8.0)));
         }
         if o.saved {
             col = col.push(container(acts.push(container(row![icon("check", 12.0, t::FG3), tx("Salvo no vault", 11.5, t::FG3)].spacing(4).align_y(Vertical::Center)).padding(pad(0.0, 0.0, 0.0, 8.0)))).padding(pad(0.0, 0.0, 0.0, 0.0)));
@@ -237,8 +267,8 @@ fn approval<'a>(a: &'a crate::data::Approval, ci: usize, mi: usize) -> El<'a> {
             container(column![row![dot_halo(t::SIGNAL, t::SIGNAL_SOFT), txf(crate::i18n::text("Aguardando sua aprovação"), 13.0, t::SIGNAL, t::UI_MED)].spacing(8).align_y(Vertical::Center), container(txt).padding(pad(0.0, 0.0, 0.0, 0.0)), approval_detail(a), container(btns).padding(pad(2.0, 0.0, 0.0, 0.0))].spacing(8))
                 .width(Length::Fill)
                 .max_width(640.0)
-                .padding(pad(14.0, 16.0, 14.0, 16.0))
-                .style(|_| container::Style { background: Some(t::SIGNAL_SOFT.into()), border: Border { color: t::mix(t::SIGNAL, 0.34), width: 1.0, radius: 14.0.into() }, ..Default::default() })
+                .padding(pad(12.0, 16.0, 12.0, 16.0))
+                .style(|_| container::Style { background: Some(t::SIGNAL_SOFT.into()), border: Border { color: t::mix(t::SIGNAL, 0.34), width: 1.0, radius: t::R_PANEL.into() }, ..Default::default() })
                 .into()
         }
         ApprState::Approved(m) | ApprState::Denied(m) => {
@@ -246,7 +276,7 @@ fn approval<'a>(a: &'a crate::data::Approval, ci: usize, mi: usize) -> El<'a> {
             container(row![dot_el(if ok { t::OK } else { t::FG3 }, 6.0), tx(m.clone(), 13.0, t::FG2)].spacing(8).align_y(Vertical::Center))
                 .width(Length::Fill)
                 .max_width(640.0)
-                .padding(pad(10.0, 14.0, 10.0, 14.0))
+                .padding(pad(10.0, 12.0, 10.0, 12.0))
                 .style(surface(None, Some(t::LINE), 14.0))
                 .into()
         }

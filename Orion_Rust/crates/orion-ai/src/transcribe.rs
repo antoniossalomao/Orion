@@ -54,6 +54,27 @@ impl Transcriber {
         t
     }
 
+    /// Há Whisper local: transcrever nunca tira o áudio do computador.
+    pub fn has_local(&self) -> bool {
+        self.local.is_some()
+    }
+
+    /// Há chave de transcrição: o áudio PODE ir a um provedor, e isso exige a sua confirmação.
+    pub fn has_remote(&self) -> bool {
+        !self.key.is_empty()
+    }
+
+    pub fn remote_provider(&self) -> &str {
+        &self.provedor
+    }
+
+    /// Só o Whisper local, sem cair no provedor se ele falhar (REGRAS.md: transcrever mídia é comando seu).
+    pub async fn transcribe_local(&self, audio: Vec<u8>) -> Result<String, TranscribeError> {
+        Self::checar(&audio)?;
+        let Some(local) = self.local.clone() else { return Err(TranscribeError("sem Whisper local configurado".into())) };
+        tokio::task::spawn_blocking(move || local(audio)).await.map_err(|_| TranscribeError("transcrição local interrompida".into()))?
+    }
+
     fn checar(audio: &[u8]) -> Result<(), TranscribeError> {
         if audio.is_empty() {
             return Err(TranscribeError("áudio vazio".into()));

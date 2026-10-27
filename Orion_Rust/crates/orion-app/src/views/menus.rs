@@ -10,7 +10,7 @@ use iced::{Background, Border, Color, Length};
 
 pub fn menu_box<'a>(items: Vec<El<'a>>, width: f32) -> El<'a> {
     let p = crate::anim::POP.get();
-    let b = container(column(items).spacing(0)).width(Length::Fixed(width)).padding(4).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: 12.0.into() }, shadow: shadow(), ..Default::default() });
+    let b = container(column(items).spacing(0)).width(Length::Fixed(width)).padding(4).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_CARD.into() }, shadow: shadow(), ..Default::default() });
     rise(fade(b, p, t::RAISE), p, 6.0)
 }
 
@@ -28,10 +28,10 @@ pub fn item<'a>(ic: Option<&str>, label: &str, desc: Option<&str>, checked: bool
     if checked {
         r = r.push(icon("check", 14.0, t::FG));
     }
-    button(r).width(Length::Fill).padding(crate::ui::pad(7.0, 10.0, 7.0, 10.0)).on_press(msg).style(|_, st| button::Style {
+    button(r).width(Length::Fill).padding(crate::ui::pad(6.0, 10.0, 6.0, 10.0)).on_press(msg).style(|_, st| button::Style {
         background: if matches!(st, button::Status::Hovered | button::Status::Pressed) { Some(Background::Color(t::HOVER)) } else { None },
         text_color: t::FG,
-        border: Border { radius: 8.0.into(), ..Default::default() },
+        border: Border { radius: t::R_CTRL.into(), ..Default::default() },
         shadow: Default::default(),
         snap: true,
     }).into()

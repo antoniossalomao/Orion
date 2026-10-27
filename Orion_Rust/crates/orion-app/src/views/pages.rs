@@ -55,7 +55,7 @@ fn h3<'a>(s: &str, first: bool) -> El<'a> {
     container(txf(crate::i18n::status(s), t::TEXT_EYEBROW, t::FG3, t::UI_MED)).padding(pad(if first { 0.0 } else { 26.0 }, 4.0, 8.0, 4.0)).into()
 }
 fn search_box<'a>(placeholder: &str, value: &str, on: impl Fn(String) -> Msg + 'a) -> El<'a> {
-    let input = text_input(placeholder, value).on_input(on).size(13).font(t::UI).padding(pad(8.0, 12.0, 8.0, 34.0)).style(field_style(t::RAISE, t::LINE2, t::LINE3, 9.0));
+    let input = text_input(placeholder, value).on_input(on).size(13).font(t::UI).padding(pad(8.0, 12.0, 8.0, 34.0)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 9.0));
     stack![input, container(icon("search", 14.0, t::FG3)).padding(pad(10.0, 0.0, 0.0, 11.0))].into()
 }
 
@@ -68,6 +68,9 @@ fn projetos(app: &App) -> El<'_> {
             tags = tags.push(badge_ic(p.repo.split('/').nth(1).unwrap_or(""), if p.ci { Tone::Ok } else { Tone::Plain }, "branch"));
         }
         tags = tags.push(badge_ic(&p.model, Tone::Plain, "cpu"));
+        if p.vault {
+            tags = tags.push(badge_ic(crate::i18n::text("Nota no vault"), Tone::Ok, "file"));
+        }
         if p.rot > 0 {
             tags = tags.push(badge_ic(&crate::i18n::formatted("{} rotina{}", format!("{} rotina{}", p.rot, if p.rot > 1 { "s" } else { "" })), Tone::Plain, "clock"));
         }
@@ -80,7 +83,7 @@ fn projetos(app: &App) -> El<'_> {
             .height(Length::Fixed(164.0))
             .padding(pad(16.0, 18.0, 16.0, 18.0))
             .on_press(Msg::OpenProject(i))
-            .style(|_, st| button::Style { background: if matches!(st, button::Status::Hovered) { Some(t::RAISE.into()) } else { None }, text_color: t::FG, border: Border { color: if matches!(st, button::Status::Hovered) { t::LINE3 } else { t::LINE2 }, width: 1.0, radius: 14.0.into() }, shadow: Default::default(), snap: true })
+            .style(|_, st| button::Style { background: if matches!(st, button::Status::Hovered) { Some(t::RAISE.into()) } else { None }, text_color: t::FG, border: Border { color: if matches!(st, button::Status::Hovered) { t::LINE3 } else { t::LINE2 }, width: 1.0, radius: t::R_PANEL.into() }, shadow: Default::default(), snap: true })
             .into()
     };
     let mut grid = column![].spacing(12);
@@ -93,19 +96,21 @@ fn projetos(app: &App) -> El<'_> {
         let b = it.next().unwrap_or_else(|| sp_w(0.0));
         grid = grid.push(row![container(a).width(Length::FillPortion(1)), container(b).width(Length::FillPortion(1))].spacing(12));
     }
-    let mut body = column![].spacing(14);
+    let mut body = column![].spacing(12);
     if let Some(form) = &app.project_form {
         let mut name = text_input(crate::i18n::text("Nome do projeto"), &form.name).id("project-name").padding(10).size(14);
         let mut instructions = text_input(crate::i18n::text("Instruções (opcional)"), &form.instructions).padding(10).size(14);
         let mut root = text_input(crate::i18n::text("Pasta local existente (opcional)"), &form.root).padding(10).size(14);
+        let mut git_url = text_input(crate::i18n::text("Ou URL de um repositório público do GitHub (opcional)"), &form.git_url).padding(10).size(14);
         if !form.busy {
             name = name.on_input(Msg::ProjectName);
             instructions = instructions.on_input(Msg::ProjectInstructions);
             root = root.on_input(Msg::ProjectRoot).on_submit(Msg::ProjectSave);
+            git_url = git_url.on_input(Msg::ProjectGitUrl).on_submit(Msg::ProjectSave);
         }
         let mut fields = column![
-            tx(crate::i18n::text("Novo projeto"), 16.0, t::FG), name, instructions, root,
-            tx(crate::i18n::text("Cria o projeto com memória pessoal isolada. A pasta precisa existir. Nota no vault e vínculo GitHub ainda não estão disponíveis aqui."), 12.0, t::FG3),
+            tx(crate::i18n::text("Novo projeto"), 16.0, t::FG), name, instructions, root, git_url,
+            tx(crate::i18n::text("Cria o projeto com memória pessoal isolada e a nota dele no vault. Use uma pasta que já existe ou a URL de um repositório público do GitHub, que é clonado (pode levar um tempo)."), 12.0, t::FG3),
             row![btn(if form.busy { crate::i18n::text("Criando…") } else { crate::i18n::text("Criar projeto") }, Kind::Primary, true, None, (!form.busy).then_some(Msg::ProjectSave)), btn(crate::i18n::text("Cancelar"), Kind::Ghost, true, None, (!form.busy).then_some(Msg::ProjectClose))].spacing(8),
         ].spacing(10);
         if !form.error.is_empty() { fields = fields.push(tx(crate::i18n::status(&form.error), 12.0, t::DANGER)); }
@@ -143,7 +148,7 @@ fn aprovacoes(app: &App) -> El<'_> {
     col = col.push(container(row![icon("send2", 14.0, t::FG3), tx(crate::i18n::text("As mesmas pendências chegam no Telegram, com botões, só para o seu ID."), 12.0, t::FG3)].spacing(6).align_y(Vertical::Center)).padding(pad(4.0, 4.0, 0.0, 4.0)));
     col = col.push(h3(crate::i18n::text("Histórico de atividade"), false));
     let opts = [crate::i18n::text("Todas"), crate::i18n::text("Aguardando"), crate::i18n::text("Negadas ou com falha"), crate::i18n::text("Concluídas")];
-    col = col.push(container(seg(&opts, app.act_filter, Msg::ActFilter)).padding(pad(0.0, 0.0, 14.0, 0.0)));
+    col = col.push(container(seg(&opts, app.act_filter, Msg::ActFilter)).padding(pad(0.0, 0.0, 12.0, 0.0)));
     let mut rows = vec![];
     for (i, a) in app.acts.iter().enumerate() {
         let keep = match app.act_filter {
@@ -182,7 +187,7 @@ fn aprovacoes(app: &App) -> El<'_> {
 }
 
 fn qcard<'a>(head: El<'a>, body: El<'a>, actions: El<'a>) -> El<'a> {
-    container(column![head, body, actions].spacing(8)).width(Length::Fill).padding(pad(14.0, 16.0, 14.0, 16.0)).style(|_| container::Style { background: Some(t::SIGNAL_SOFT.into()), border: Border { color: t::mix(t::SIGNAL, 0.30), width: 1.0, radius: 14.0.into() }, ..Default::default() }).into()
+    container(column![head, body, actions].spacing(8)).width(Length::Fill).padding(pad(12.0, 16.0, 12.0, 16.0)).style(|_| container::Style { background: Some(t::SIGNAL_SOFT.into()), border: Border { color: t::mix(t::SIGNAL, 0.30), width: 1.0, radius: t::R_PANEL.into() }, ..Default::default() }).into()
 }
 
 fn runs<'a>(r: &str) -> El<'a> {
@@ -287,10 +292,10 @@ fn conhecimento(app: &App) -> El<'_> {
         for (i, f) in app.facts.iter().enumerate().filter(|(_, f)| f.g == g) {
             let editing = app.edit_fact.as_ref().filter(|e| e.0 == i);
             let left: El = match editing {
-                Some(e) => column![text_input("", &e.1).on_input(Msg::FactText).on_submit(Msg::FactSave).size(14).font(t::UI).padding(pad(5.0, 8.0, 5.0, 8.0)).style(field_style(t::RAISE, t::LINE3, t::LINE3, 7.0)), li_desc(f.src.clone())].spacing(4).into(),
+                Some(e) => column![text_input("", &e.1).on_input(Msg::FactText).on_submit(Msg::FactSave).size(14).font(t::UI).padding(pad(5.0, 8.0, 5.0, 8.0)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 7.0)), li_desc(f.src.clone())].spacing(4).into(),
                 None => column![tx(f.t.clone(), 14.0, t::FG), li_desc(f.src.clone())].into(),
             };
-            let right: El = if editing.is_some() { btn(crate::i18n::text("Salvar"), Kind::Primary, true, None, Some(Msg::FactSave)) } else { row![ib("edit", Some(Msg::FactEdit(i)), false), ib("trash", Some(Msg::FactForget(i)), false)].into() };
+            let right: El = if editing.is_some() { btn(crate::i18n::text("Salvar"), Kind::Primary, true, None, Some(Msg::FactSave)) } else { row![tip(ib("edit", Some(Msg::FactEdit(i)), false), crate::i18n::text("Editar")), tip(ib("trash", Some(Msg::FactForget(i)), false), crate::i18n::text("Esquecer"))].into() };
             rows.push(li(left, right));
         }
         col = col.push(list(rows));
@@ -311,7 +316,7 @@ pub fn hbar<'a>(label: &str, pct: f32, value: &str, color: iced::Color) -> El<'a
     hbar_sz(label, pct, value, color, 13.0)
 }
 pub fn hbar_sz<'a>(label: &str, pct: f32, value: &str, color: iced::Color, vsize: f32) -> El<'a> {
-    row![container(tx(label.to_string(), 13.0, t::FG2)).width(Length::Fixed(140.0)), container(meter(pct, 5.0, color)).width(Length::Fill), container(tx(value.to_string(), vsize, t::FG3)).width(Length::Fixed(70.0)).align_x(Horizontal::Right)].spacing(12).align_y(Vertical::Center).padding(pad(7.0, 4.0, 7.0, 4.0)).into()
+    row![container(tx(label.to_string(), 13.0, t::FG2)).width(Length::Fixed(140.0)), container(meter(pct, 5.0, color)).width(Length::Fill), container(tx(value.to_string(), vsize, t::FG3)).width(Length::Fixed(124.0)).align_x(Horizontal::Right)].spacing(12).align_y(Vertical::Center).padding(pad(6.0, 4.0, 6.0, 4.0)).into()
 }
 
 pub fn stats<'a>(items: [(&str, &str); 4]) -> El<'a> {
@@ -372,13 +377,27 @@ fn painel_live(app: &App) -> El<'_> {
         let ch = Line { vals: semana, min: 0.0, max: mx.max(1.0), ticks: vec![0.0, mx / 2.0, mx], fmt: |v| format!("{v:.0}"), start: crate::i18n::text("7 dias atrás"), end: crate::i18n::text("hoje"), color: t::FG2, mark: None };
         col = col.push(canvas(ch).width(Length::Fill).height(Length::Fixed(150.0)));
     }
+    // F09.04: tokens por dia, 7 e 30 dias. O registro de saídas guarda bytes, então o número é estimado (bytes ÷ 4).
+    let tokens: Vec<f32> = p["consumo"]["dias"].as_array().map(|a| a.iter().map(|d| d["tokens"].as_f64().unwrap_or(0.0) as f32).collect()).unwrap_or_default();
+    if tokens.len() >= 7 {
+        let compacto: fn(f32) -> String = |v| if v >= 1_000_000.0 { format!("{:.1}M", v / 1_000_000.0) } else if v >= 1000.0 { format!("{:.0}k", v / 1000.0) } else { format!("{v:.0}") };
+        let grafico = |vals: Vec<f32>, inicio: &'static str| {
+            let mx = vals.iter().cloned().fold(1.0f32, f32::max);
+            canvas(Line { vals, min: 0.0, max: mx, ticks: vec![0.0, mx / 2.0, mx], fmt: compacto, start: inicio, end: crate::i18n::text("hoje"), color: t::FG2, mark: None }).width(Length::Fill).height(Length::Fixed(150.0))
+        };
+        col = col.push(h3(crate::i18n::text("Tokens por dia · 7 dias (estimado)"), false));
+        col = col.push(grafico(tokens[tokens.len() - 7..].to_vec(), crate::i18n::text("7 dias atrás")));
+        col = col.push(h3(crate::i18n::text("Tokens por dia · 30 dias (estimado)"), false));
+        col = col.push(grafico(tokens.clone(), crate::i18n::text("30 dias atrás")));
+        col = col.push(container(tx(crate::i18n::text("Estimativa: o registro de saídas guarda bytes, não tokens (bytes ÷ 4)."), 11.5, t::FG3)).padding(pad(4.0, 4.0, 4.0, 4.0)));
+    }
     painel_section(col.into())
 }
 
 /// Conteúdo do painel dentro da rolagem das configurações, sem outra página aninhada.
 fn painel_section(body: El<'_>) -> El<'_> {
     column![
-        container(row![tx(crate::i18n::text("Cotas, modelos e a semana, direto do servidor."), 12.5, t::FG3).width(Length::Fill), btn(crate::i18n::text("Atualizar"), Kind::Normal, true, Some("refresh"), Some(Msg::Refresh))].spacing(12).align_y(Vertical::Center)).padding(pad(12.0, 0.0, 22.0, 0.0)),
+        container(row![tx(crate::i18n::text("Cotas, modelos e a semana, direto do servidor."), 12.5, t::FG3).width(Length::Fill), btn(crate::i18n::text("Exportar o Você fez de hoje"), Kind::Normal, true, None, Some(Msg::VoceFezExportar)), btn(crate::i18n::text("Atualizar"), Kind::Normal, true, Some("refresh"), Some(Msg::Refresh))].spacing(12).align_y(Vertical::Center)).padding(pad(12.0, 0.0, 22.0, 0.0)),
         body,
     ].into()
 }

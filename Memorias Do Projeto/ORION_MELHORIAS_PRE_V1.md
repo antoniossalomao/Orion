@@ -74,8 +74,8 @@ O escopo da v1 é estritamente limitado aos seguintes componentes:
 - [x] **F01.02** Tema único Grafite neutro escuro (`#0C0E13` background, `#14171F` superfícies, `#1E2330` bordas, `#2A3142` hover).
 - [x] **F01.03** Escala tipográfica padronizada em `theme.rs` (base 14 px, título 24 px, subtítulo 18 px, legendas 11 px, código em `Geist Mono`).
 - [x] **F01.04** Cantos arredondados padronizados: botões e cards com raio de 10 px a 14 px, modais com 16 px.
-- [~] **F01.05** Efeito Mica no Windows 11 via `window-vibrancy`. *Pendente de teste e ativação em máquina física com Windows 11.*
-- [~] **F01.06** Instância única comprovada no Windows: trava via arquivo `.lock` e ativação da janela existente via named pipe / evento DWM.
+- [~] **F01.05** Efeito Mica no Windows 11 via `window-vibrancy`. *Pendente de teste e ativação em máquina física com Windows 11.* *Código na branch `claude/kind-bohr-j6hi1g`; compila (para o Windows só até a checagem de tipos, sem rodar). **Sem aceite na máquina real.** Mica pelo DWM (`DWMWA_SYSTEMBACKDROP_TYPE`) com a janela transparente só em GPU real; a barra lateral fica translúcida quando ativo; `ORION_MICA=0` desliga. Sem `window-vibrancy`. Falta ver no Windows 11 (22H2+).*
+- [~] **F01.06** Instância única comprovada no Windows: trava via arquivo `.lock` e ativação da janela existente via named pipe / evento DWM. *Código na branch `claude/kind-bohr-j6hi1g`; compila (para o Windows só até a checagem de tipos, sem rodar). **Sem aceite na máquina real.** Instância única já usava trava de arquivo; agora a segunda cópia chama `AllowSetForegroundWindow` para a primeira conseguir trazer a janela para a frente (sem isso o Windows só pisca a barra de tarefas).*
 - [x] **F01.07** Zoom e escala de interface: atalhos `Ctrl +`, `Ctrl -` e `Ctrl 0`, persistência automática em `interface.txt`.
 - [x] **F01.08** Toasts discretos no canto inferior direito para notificações de sucesso/erro (cópia de código, salvamento).
 - [x] **F01.09** Barra lateral retrátil (toggle `Ctrl+B`) com ícones para Início, Chat, Memória, Projetos, Rotinas e Conhecimento.
@@ -87,7 +87,7 @@ O escopo da v1 é estritamente limitado aos seguintes componentes:
 - [x] **F01.22** Gerenciador de atalhos em Configurações > Atalhos: remapeamento de `Ctrl+K`, `Ctrl+Shift+O`, `Ctrl+B`, `Ctrl+,`, validação de conflitos, bloqueio de teclas reservadas (Enter, Esc, setas) e gravação atômica em `atalhos.txt`.
 - [x] **F01.23** Navegação direta por comando de barra: `/config <seção>` com auto-complete e descrições internacionalizadas via Fluent.
 - [x] **F01.24** Lista de Projetos Recentes exibida dinamicamente no topo da tela Início.
-- [~] **F01.25** Resolução da faixa branca de renderização reportada em drivers gráficos WARP de CPU.
+- [~] **F01.25** Resolução da faixa branca de renderização reportada em drivers gráficos WARP de CPU. *Código na branch `claude/kind-bohr-j6hi1g`; compila (para o Windows só até a checagem de tipos, sem rodar). **Sem aceite na máquina real.** Estilo da janela pelo DWM em `orion-platform/src/janela.rs`: pincel de fundo da classe, borda, barra de título e cantos na cor do tema, aplicado quando a janela abre. Ataca a causa provável (sobra de 1 px mostrando o fundo branco da classe); falta ver em 100/125/150% e no WARP.*
 
 ---
 
@@ -99,8 +99,8 @@ O escopo da v1 é estritamente limitado aos seguintes componentes:
 - [x] **F02.05** Logs rotacionados diariamente em formato cifrado (`logs/orion-YYYY-MM-DD.log.enc`) com expurgo automático após retenção configurada (padrão: 30 dias).
 - [x] **F02.06** Sanitização rigorosa de PII em logs de erro e tabelas de auditoria: máscaras para CPFs, e-mails, números de cartão de crédito (algoritmo de Luhn), telefones e chaves de API.
 - [x] **F02.07** Desafio 2FA opcional por código efêmero enviado via Telegram no momento do login.
-- [~] **F02.08** Integração nativa com Windows Hello (biometria / PIN) através da API WinRT `UserConsentVerifier`.
-- [~] **F02.09** Bloqueio automático ao travar a estação (`Win+L`): descarregamento da chave da memória RAM e encerramento seguro de sessões ativas.
+- [~] **F02.08** Integração nativa com Windows Hello (biometria / PIN) através da API WinRT `UserConsentVerifier`. *Código na branch `claude/kind-bohr-j6hi1g`; compila (para o Windows só até a checagem de tipos, sem rodar). **Sem aceite na máquina real.** `onboarding_hello.rs` agora usa `IUserConsentVerifierInterop` com a janela do Orion como dona (app sem pacote precisa disso para o diálogo aparecer); sem janela cai na chamada simples. Falta testar com leitor biométrico/PIN.*
+- [~] **F02.09** Bloqueio automático ao travar a estação (`Win+L`): descarregamento da chave da memória RAM e encerramento seguro de sessões ativas. *Código na branch `claude/kind-bohr-j6hi1g`; compila (para o Windows só até a checagem de tipos, sem rodar). **Sem aceite na máquina real.** A leitura do bloqueio agora usa `WTSSessionInfoEx` (resposta oficial) em vez de só `OpenInputDesktop`, que também falha no prompt do UAC e em Ctrl+Alt+Del e podia apagar a chave sem bloqueio; exige duas leituras seguidas (1 s). Falta testar Win+L de verdade.*
 - [ ] **F02.10** Execução assistida do comando de migração `orion db-cifrar` no banco de produção do usuário com backup de integridade prévio.
 
 ---
@@ -130,7 +130,7 @@ O escopo da v1 é estritamente limitado aos seguintes componentes:
 - [x] **F04.06** Modo autônomo com proteção por senha: a ativação do modo sem interrupções exige re-digitação da senha mestre do perfil.
 - [x] **F04.07** Resumos periódicos consolidados por escopo gerados localmente e com expurgo de tentativas falhas.
 - [x] **F04.08** Mensagens fixadas sobrevivem à compactação de contexto e são reapresentadas ao modelo como premissas de trabalho.
-- [ ] **F04.09** Classificador de injeção de prompt local (ModernBERT) integrado em tempo real antes do envio do prompt ao provedor.
+- [~] **F04.09** Classificador de injeção de prompt local (ModernBERT) integrado em tempo real antes do envio do prompt ao provedor. *Código na branch `claude/kind-bohr-j6hi1g`, compilado e com a suíte existente verde no Linux, sem testes novos (pausa de 21/10/2026). Guarda de injeção no conteúdo externo (`orion-ai/src/injection.rs`): trait + heurística local pt/en, ligado por padrão (`ORION_INJECTION_GUARD`). Anexos, trechos recuperados e resultados de ferramentas externas passam pelo guarda, inclusive após aprovações. Suspeito vai com aviso; bloqueado não vai ao provedor; falha de classificação bloqueia. **O ModernBERT real ainda não entrou** (só o ponto de encaixe).*
 
 ---
 
@@ -145,8 +145,8 @@ O escopo da v1 é estritamente limitado aos seguintes componentes:
 - [x] **F05.08** Versionamento de Artefatos no banco SQLite: documentos longos gerados pelo modelo viram artefatos versionados com controle de concorrência e rollback.
 - [x] **F05.09** Operações de conversa: renomear título no menu com salvamento por `Enter`, copiar mensagem inteira e arquivamento individual.
 - [x] **F05.10** Gerenciador de comandos de prompt personalizados com substituição de argumentos `{{args}}` no compositor.
-- [ ] **F05.11** Suporte a upload e prévia visual direta de imagens (`.png`, `.jpg`, `.webp`) no chat para modelos multimodais.
-- [ ] **F05.12** Suporte a anexos de áudio no chat com envio para transcrição Whisper assíncrona.
+- [~] **F05.11** Suporte a upload e prévia visual direta de imagens (`.png`, `.jpg`, `.webp`) no chat para modelos multimodais. *Código na branch `claude/kind-bohr-j6hi1g`, compilado e com a suíte existente verde no Linux, sem testes novos (pausa de 21/10/2026). Servidor: `POST /chat/imagens` confere a assinatura (PNG/JPEG/WebP), limite de 10 MB, guarda só na memória e `/chat` aceita `imagens`. App: anexo, miniatura e envio. Não validado na janela real.*
+- [~] **F05.12** Suporte a anexos de áudio no chat com envio para transcrição Whisper assíncrona. *Código na branch `claude/kind-bohr-j6hi1g`, compilado e com a suíte existente verde no Linux, sem testes novos (pausa de 21/10/2026). Servidor: `POST /chat/audios` responde na hora e transcreve em segundo plano (Whisper local, ffmpeg para converter; sem Whisper local o áudio só vai ao provedor se você confirmar numa janela de sim/não no app, e refazer a transcrição depois usa só o Whisper local); o texto entra como anexo. App: anexo de áudio com espera de até 10 min. Não validado com áudio real.*
 
 ---
 
@@ -157,8 +157,8 @@ O escopo da v1 é estritamente limitado aos seguintes componentes:
 - [x] **F06.04** Gravação atômica via Git plumbing (`hash-object`, `write-tree`, `commit-tree`): commits são criados sobre a `main` sem interferir em alterações `staged` do usuário no terminal.
 - [x] **F06.05** Tratamento não-destrutivo de divergências: se uma nota do vault foi editada externamente no Obsidian, o Orion gera uma proposta `- conflito Orion <hash>.md`, preservando a original.
 - [x] **F06.06** Sincronização remota defensiva: o `push` só é emitido se o commit pai já estiver na `main` do GitHub; o `pull` só é feito por fast-forward com árvore de trabalho limpa.
-- [ ] **F06.07** Gravação automática contínua de turnos relevantes no vault como diário de sessão (atualmente requer chamada de rota).
-- [ ] **F06.08** Interface visual integrada no chat para comparação lado a lado de versões conflitantes e mesclagem assistida.
+- [~] **F06.07** Gravação automática contínua de turnos relevantes no vault como diário de sessão (atualmente requer chamada de rota). *Código na branch `claude/kind-bohr-j6hi1g`, compilado e com a suíte existente verde no Linux, sem testes novos (pausa de 21/10/2026). Diário de sessão em `03 Recursos/Orion/Memória/` depois de cada resposta, só com `ORION_VAULT_DIARIO=true`; sem commit nem push; atualiza só a nota que o Orion mesmo gravou, e se você a editou a versão nova vira proposta e o diário daquela conversa para.*
+- [~] **F06.08** Interface visual integrada no chat para comparação lado a lado de versões conflitantes e mesclagem assistida. *Código na branch `claude/kind-bohr-j6hi1g`, compilado e com a suíte existente verde no Linux, sem testes novos (pausa de 21/10/2026). Rotas `/vault/conflitos*` e tela de comparação em Configurações › Memória: original ao lado da proposta, campo de texto final, descartar ou salvar. Recusa se a original mudou. Não validado na janela real.*
 
 ---
 
@@ -170,7 +170,7 @@ O escopo da v1 é estritamente limitado aos seguintes componentes:
 - [x] **F07.05** Painel de métricas operacionais embutido na seção Painel: acompanhamento de cotas, status de armazenamento e memória.
 - [x] **F07.06** Seção de Fontes tipográficas permitindo personalização de tamanhos de corpo e código.
 - [x] **F07.07** Persistência atômica de preferências no arquivo de perfil criptografado.
-- [~] **F07.08** Recarga a quente (*hot-reload*) de todas as configurações alteradas sem necessidade de reiniciar o executável `orion.exe`.
+- [~] **F07.08** Recarga a quente (*hot-reload*) de todas as configurações alteradas sem necessidade de reiniciar o executável `orion.exe`. *Código na branch `claude/kind-bohr-j6hi1g`, compilado e com a suíte existente verde no Linux, sem testes novos (pausa de 21/10/2026). `POST /config/recarregar` + botão em Sistema: aplica na hora provedores/gateway e seus limites diários, guarda de injeção e diário; o limite de resumo da conversa (`ORION_COMPACT_AT`, se já nasceu ligado); o modelo local embutido (`ORION_LOCAL_MODEL*`), os modelos por camada (rápido, pesado, visão) e o resto vêm listados em `exigem_reinicio`. Hoje as demais ~140 opções ainda exigem reiniciar.*
 
 ---
 
@@ -180,8 +180,8 @@ O escopo da v1 é estritamente limitado aos seguintes componentes:
 - [x] **F08.03** Configurações específicas por projeto: definição de endpoint de modelo preferencial e número máximo de passos por turno.
 - [x] **F08.04** Associação de até 8 documentos de referência por projeto, relidos automaticamente como premissas em novos chats.
 - [x] **F08.05** Arquivamento de conversas vinculado ao projeto com histórico de restauração.
-- [ ] **F08.06** Criação automática da nota raiz do projeto no vault (`01 Projetos/<Nome>/<Nome>.md`) no momento da criação do projeto.
-- [ ] **F08.07** Clonagem automática de repositórios remotos do GitHub ao criar projeto associado a uma URL Git.
+- [~] **F08.06** Criação automática da nota raiz do projeto no vault (`01 Projetos/<Nome>/<Nome>.md`) no momento da criação do projeto. *Código na branch `claude/kind-bohr-j6hi1g`, compilado e com a suíte existente verde no Linux, sem testes novos (pausa de 21/10/2026). `POST /projects` cria `01 Projetos/<Nome>/<Nome>.md` (nunca sobrescreve; falha vira aviso na resposta); `GET /projects` traz `vault_note` e o cartão do projeto mostra a etiqueta "Nota no vault".*
+- [~] **F08.07** Clonagem automática de repositórios remotos do GitHub ao criar projeto associado a uma URL Git. *Código na branch `claude/kind-bohr-j6hi1g`, compilado e com a suíte existente verde no Linux, sem testes novos (pausa de 21/10/2026). `POST /projects` aceita `git_url` (só `https://github.com/<dono>/<repo>` público): clone raso em `<dados>/projetos/`, sem hooks, sem credencial, bloqueado no pânico e registrado em `external_calls`. A tela de criar projeto tem o campo da URL (cena `84-projeto-novo` do `orion-snap`, só renderizada no Linux).*
 
 ---
 
@@ -189,8 +189,8 @@ O escopo da v1 é estritamente limitado aos seguintes componentes:
 - [x] **F09.01** Agregação local diária de eventos operacionais: total de turnos, ferramentas executadas, arquivos modificados e chamadas de rede.
 - [x] **F09.02** Auditoria persistida em SQLite: tabela de auditoria registrando autorizações concedidas e negadas sem vazamento de segredos.
 - [x] **F09.03** Tabela `external_calls` registrando métricas de chamadas a provedores (latência, bytes enviados/recebidos, HTTP status) sem armazenar payloads sensíveis.
-- [ ] **F09.04** Gráficos nativos em canvas vetorial para consumo semanal e mensal de tokens e cotas.
-- [ ] **F09.05** Geração e exportação do relatório consolidado diário "Você Fez" no final do expediente (23:59).
+- [~] **F09.04** Gráficos nativos em canvas vetorial para consumo semanal e mensal de tokens e cotas. *Código na branch `claude/kind-bohr-j6hi1g`, compilado e com a suíte existente verde no Linux, sem testes novos (pausa de 21/10/2026). Painel: tokens por dia em 7 e 30 dias (canvas). **Estimado** (bytes ÷ 4): o registro de saídas não guarda tokens.*
+- [~] **F09.05** Geração e exportação do relatório consolidado diário "Você Fez" no final do expediente (23:59). *Código na branch `claude/kind-bohr-j6hi1g`, compilado e com a suíte existente verde no Linux, sem testes novos (pausa de 21/10/2026). Job das 23:59 guarda o texto (`orion-core/src/relatorio.rs`); `GET /painel/voce-fez` e `POST /painel/voce-fez/exportar` (grava no vault, sem sobrescrever, um arquivo por dia e por projeto); botão no Painel.*
 
 ---
 
@@ -218,7 +218,7 @@ O escopo da v1 é estritamente limitado aos seguintes componentes:
 - [x] **R1.06** Descarte gracioso de recursos gráficos na saída do aplicativo, prevenindo avisos de depuração do DirectX 12 / Vulkan.
 - [x] **R1.07** Tela de inicialização (Splash) exibida durante a derivação de chaves criptográficas Argon2id e abertura do banco SQLCipher.
 - [x] **R1.08** Redução de carga gráfica no repouso: suspensão total de redesenho (*ticks*) quando a janela está minimizada, em segundo plano ou sem interação.
-- [~] **R1.09** Diagnóstico e correção definitiva da borda branca periférica observada em telas com aceleração gráfica WARP.
+- [~] **R1.09** Diagnóstico e correção definitiva da borda branca periférica observada em telas com aceleração gráfica WARP. *Código na branch `claude/kind-bohr-j6hi1g`; compila (para o Windows só até a checagem de tipos, sem rodar). **Sem aceite na máquina real.** Mesma correção do F01.25 (`janela.rs`).*
 - [x] **R1.10** Prevenção de sessões vazias no chat: a conversa só é persistida no banco após o envio da primeira mensagem.
 - [x] **R1.11** Documentação atualizada do pacote de release (`LEIA-ME.txt`) distinguindo versão portátil e instalador assistido.
 - [~] **R1.12** Aceite físico dos atalhos globais de teclado (`Ctrl+Alt+Espaço`, `Ctrl+Alt+P`) e ícone de bandeja no Windows.

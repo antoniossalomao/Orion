@@ -7,7 +7,7 @@ use crate::theme as t;
 use crate::ui::*;
 use crate::views::composer;
 use iced::widget::{column, container, row, Space};
-use iced::{Color, Length};
+use iced::Length;
 
 pub fn view(app: &App) -> El<'_> {
     let topo = row![
@@ -15,7 +15,7 @@ pub fn view(app: &App) -> El<'_> {
         txf("Orion".to_string(), 15.0, t::FG, t::SERIF),
         Space::new().width(Length::Fill),
         btn(crate::i18n::text("Abrir o Orion"), Kind::Normal, true, None, Some(Msg::Mini(false))),
-        ib_wh("close", 34.0, 30.0, 16.0, Some(Msg::CloseWindow), t::DANGER, Color::WHITE),
+        ib_wh("close", 34.0, 30.0, 16.0, Some(Msg::CloseWindow), t::DANGER, t::ON_DANGER),
     ]
     .spacing(10)
     .align_y(iced::alignment::Vertical::Center);

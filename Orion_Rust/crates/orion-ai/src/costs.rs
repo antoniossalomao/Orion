@@ -68,17 +68,22 @@ pub fn cotas_de(q: &Quotas, provedores: &[ProvedorConf]) -> Vec<(String, Cota)> 
 
 pub struct Custos {
     pub memory: Arc<Store>,
-    pub cotas: Vec<(String, Cota)>,
+    pub cotas: parking_lot::RwLock<Vec<(String, Cota)>>,
     ops: Option<Arc<Operations>>,
 }
 
 impl Custos {
     pub fn new(memory: Arc<Store>, cotas: Vec<(String, Cota)>, ops: Option<Arc<Operations>>) -> Self {
-        Custos { memory, cotas, ops }
+        Custos { memory, cotas: parking_lot::RwLock::new(cotas), ops }
     }
 
-    fn cota(&self, k: &str) -> Option<&Cota> {
-        self.cotas.iter().find(|(c, _)| c == k).map(|(_, c)| c)
+    /// Atualiza os limites sem apagar o uso registrado (REGRAS.md: custo zero (sem API paga)).
+    pub fn configure(&self, quotas: Vec<(String, Cota)>) {
+        *self.cotas.write() = quotas;
+    }
+
+    fn cota(&self, k: &str) -> Option<Cota> {
+        self.cotas.read().iter().find(|(c, _)| c == k).map(|(_, c)| c.clone())
     }
 
     fn inicio(&self, periodo: &str) -> f64 {
@@ -158,7 +163,8 @@ impl Custos {
 
     /// Para o card "Cota de hoje": usado, limite e o estado de cada provedor.
     pub fn resumo(&self) -> Vec<Value> {
-        self.cotas
+        let quotas = self.cotas.read().clone();
+        quotas
             .iter()
             .map(|(chave, c)| {
                 let usado = self.uso(chave);

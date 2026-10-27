@@ -239,6 +239,8 @@ pub struct ProjectForm {
     pub name: String,
     pub instructions: String,
     pub root: String,
+    /// URL de um repositório público do GitHub para clonar (F08.07).
+    pub git_url: String,
     pub busy: bool,
     pub error: String,
     pub request_id: u64,
@@ -266,6 +268,17 @@ pub struct RenameForm {
     pub busy: bool,
     pub error: String,
     pub request_id: u64,
+}
+
+/// Conflito do vault aberto para comparar (F06.08): a nota do vault, a do Orion e o texto final.
+pub struct ConflitoState {
+    pub proposed_path: String,
+    pub original_path: String,
+    pub original: String,
+    pub proposal: String,
+    pub sha: String,
+    pub content: text_editor::Content,
+    pub busy: bool,
 }
 
 pub struct EditorState {
@@ -329,6 +342,10 @@ pub struct App {
     pub composer: text_editor::Content,
     pub attach: Vec<(String, String)>,
     pub attachment_ids: Vec<String>,
+    /// Miniaturas das imagens anexadas, por id de anexo (F05.11).
+    pub attach_thumbs: std::collections::HashMap<String, iced::widget::image::Handle>,
+    /// Imagens que saíram do compositor sem serem enviadas: o servidor ainda as guarda e precisa soltá-las.
+    pub images_to_release: Vec<String>,
     pub attachment_generation: u64,
     pub attaching: bool,
     pub attach_n: usize,
@@ -382,6 +399,9 @@ pub struct App {
     pub wipe: bool,
     pub pal: PalState,
     pub editor: Option<EditorState>,
+    /// Propostas de conflito pendentes no vault: (nota original, proposta, original existe).
+    pub conflitos: Vec<(String, String, bool)>,
+    pub conflito: Option<ConflitoState>,
     pub qcap: Option<QCap>,
     /// Senha digitada para ligar o modo autônomo (None = pedido fechado).
     pub auto_senha: Option<String>,
@@ -422,6 +442,8 @@ pub struct App {
     pub db_locked: bool,
     pub onboarding: Option<crate::onboarding::Form>,
     pub fundo: bool,
+    /// O Mica está ativo na janela (a barra lateral fica translúcida).
+    pub mica_ativo: bool,
     pub bandeja: Option<crate::tray::Bandeja>,
     pub monitor: Option<crate::tray::Monitor>,
     pub bandeja_tentou: bool,
@@ -532,6 +554,7 @@ pub enum Msg {
     ProjectName(String),
     ProjectInstructions(String),
     ProjectRoot(String),
+    ProjectGitUrl(String),
     ProjectSave,
     ProjectClose,
     ActFilter(usize),
@@ -604,6 +627,17 @@ pub enum Msg {
     IssoAsk,
     EditorOpen(String),
     EditorEdit(text_editor::Action),
+    ConflitoAbrir(usize),
+    ConflitoEdit(text_editor::Action),
+    /// Carrega no campo final a versão do vault (`false`) ou a do Orion (`true`).
+    ConflitoUsar(bool),
+    ConflitoSalvar,
+    ConflitoDescartar,
+    ConflitoFechar,
+    /// Relê o `.env` e aplica o que dá sem reiniciar (F07.08).
+    RecarregarConfig,
+    /// Grava o relatório "Você fez" de hoje no vault (F09.05).
+    VoceFezExportar,
     EditorClose,
     EditorSave,
     // grafo
@@ -672,6 +706,8 @@ impl App {
             composer: text_editor::Content::new(),
             attach: vec![],
             attachment_ids: vec![],
+            attach_thumbs: std::collections::HashMap::new(),
+            images_to_release: vec![],
             attachment_generation: 0,
             attaching: false,
             attach_n: 0,
@@ -717,6 +753,8 @@ impl App {
             wipe: false,
             pal: PalState { open: false, q: String::new(), sel: 0 },
             editor: None,
+            conflitos: vec![],
+            conflito: None,
             qcap: None,
             auto_senha: None,
             isso: None,
@@ -750,6 +788,7 @@ impl App {
             mini_prev: Size::new(1440.0, 900.0),
             db_locked: false,
             onboarding: None,
+            mica_ativo: false,
             fundo: false,
             bandeja: None,
             monitor: None,
@@ -869,6 +908,7 @@ impl App {
         self.composer = text_editor::Content::new();
         self.attach.clear();
         self.attachment_ids.clear();
+        self.drop_images();
         self.attachment_generation = self.attachment_generation.wrapping_add(1);
         if v == View::Rotinas {
             for r in self.rots.iter_mut() {
@@ -882,6 +922,20 @@ impl App {
     }
 
     pub fn update(&mut self, msg: Msg) -> Task<Msg> {
+        let task = self.update_core(msg);
+        let ids = std::mem::take(&mut self.images_to_release);
+        match (ids.is_empty(), self.api.clone()) {
+            (false, Some(api)) => Task::batch([task, Task::perform(async move { let _ = api.post("/chat/imagens/liberar", serde_json::json!({"ids": ids})).await; }, |_| Msg::Noop)]),
+            _ => task,
+        }
+    }
+
+    /// Anexos de imagem abandonados: a miniatura sai e o servidor é avisado na volta do `update`.
+    pub fn drop_images(&mut self) {
+        self.images_to_release.extend(self.attach_thumbs.drain().map(|(id, _)| id));
+    }
+
+    fn update_core(&mut self, msg: Msg) -> Task<Msg> {
         if let Msg::Resources(event)=msg { return self.update_resources(event); }
         let _timing = Timing::new("update", self.view);
         if !matches!(&msg, Msg::Tick(_) | Msg::Bandeja | Msg::BootProgress) { self.now = Instant::now(); }
@@ -1266,6 +1320,9 @@ impl App {
             Msg::ProjectInstructions(value) => {
                 if let Some(form) = self.project_form.as_mut().filter(|f| !f.busy) { form.instructions = value; form.error.clear(); }
             }
+            Msg::ProjectGitUrl(value) => {
+                if let Some(form) = self.project_form.as_mut().filter(|f| !f.busy) { form.git_url = value; form.error.clear(); }
+            }
             Msg::ProjectRoot(value) => {
                 if let Some(form) = self.project_form.as_mut().filter(|f| !f.busy) { form.root = value; form.error.clear(); }
             }
@@ -1284,7 +1341,12 @@ impl App {
                     return Task::none();
                 };
                 let root = form.root.trim();
-                let body = serde_json::json!({"name": name, "instructions": form.instructions, "root": if root.is_empty() { None } else { Some(root) }, "share_personal": false});
+                let git_url = form.git_url.trim();
+                if !root.is_empty() && !git_url.is_empty() {
+                    form.error = "Informe a pasta local ou o repositório do GitHub, não os dois.".into();
+                    return Task::none();
+                }
+                let body = serde_json::json!({"name": name, "instructions": form.instructions, "root": if root.is_empty() { None } else { Some(root) }, "git_url": if git_url.is_empty() { None } else { Some(git_url) }, "share_personal": false});
                 self.request_id = self.request_id.wrapping_add(1);
                 let request_id = self.request_id;
                 form.request_id = request_id;
@@ -1330,7 +1392,7 @@ impl App {
             Msg::Unattach(i) => {
                 if i < self.attach.len() {
                     self.attach.remove(i);
-                    if i < self.attachment_ids.len() { self.attachment_ids.remove(i); }
+                    if i < self.attachment_ids.len() { let id = self.attachment_ids.remove(i); if self.attach_thumbs.remove(&id).is_some() { self.images_to_release.push(id); } }
                 }
             }
             Msg::Mic => {
@@ -1373,7 +1435,7 @@ impl App {
                 let cmd = std::mem::take(&mut self.term_in);
                 if !cmd.trim().is_empty() {
                     self.term_out.push(format!("PS> {cmd}"));
-                    self.term_out.push(format!("(simulado) {cmd}"));
+                    self.term_out.push(format!("{cmd}: comando não executado, o terminal é só uma prévia."));
                 }
             }
             Msg::PinToggle => {
@@ -1639,12 +1701,16 @@ impl App {
                 }
             }
             Msg::EditorClose => self.editor = None,
+            Msg::ConflitoEdit(action) => { if let Some(c) = &mut self.conflito { c.content.perform(action.clone()); } }
+            Msg::ConflitoUsar(proposta) => { if let Some(c) = &mut self.conflito { c.content = text_editor::Content::with_text(if proposta { &c.proposal } else { &c.original }); } }
+            Msg::ConflitoFechar => self.conflito = None,
             Msg::EditorSave => {
                 self.editor = None;
                 self.toast("Nota salva; commit e push na main do vault");
             }
             Msg::Win(id) => {
                 self.win_id = id;
+                self.estilizar_janela(true);
             }
             Msg::Bandeja => {
                 let mut acoes = vec![];
@@ -1809,6 +1875,19 @@ impl App {
         Task::none()
     }
 
+    /// Fundo, borda e Mica da janela pelo DWM (F01.25, F01.05). `primeira`: aplica o estilo inteiro; senão só o Mica.
+    /// Fora do Windows não faz nada.
+    fn estilizar_janela(&mut self, primeira: bool) {
+        let mica = self.p.mica && crate::run::JANELA_TRANSPARENTE.load(std::sync::atomic::Ordering::Relaxed);
+        if primeira {
+            let c = crate::theme::BG;
+            let byte = |v: f32| (v * 255.0).round() as u8;
+            self.mica_ativo = orion_platform::style_main_window((byte(c.r), byte(c.g), byte(c.b)), mica).mica;
+        } else {
+            self.mica_ativo = orion_platform::set_mica(mica);
+        }
+    }
+
     fn toggle(&mut self, k: &'static str) {
         let p = &mut self.p;
         match k {
@@ -1823,7 +1902,10 @@ impl App {
             "clap" => p.clap = !p.clap,
             "boot" => p.boot = !p.boot,
             "shortcut" => p.shortcut = !p.shortcut,
-            "mica" => p.mica = !p.mica,
+            "mica" => {
+                p.mica = !p.mica;
+                self.estilizar_janela(false);
+            }
             "advanced" => p.advanced = !p.advanced,
             "sync" => p.sync = !p.sync,
             "reduced" => p.reduced = !p.reduced,
@@ -1937,6 +2019,7 @@ impl App {
         self.composer = text_editor::Content::new();
         self.attach.clear();
         self.attachment_ids.clear();
+        self.drop_images();
         self.attachment_generation = self.attachment_generation.wrapping_add(1);
         self.navigate(View::Chat, Some(ci));
         Task::none()

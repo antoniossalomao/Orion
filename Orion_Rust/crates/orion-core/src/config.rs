@@ -151,6 +151,10 @@ pub struct Settings {
     pub backup_dir: Option<PathBuf>,
     pub backup_keep: usize,
     pub vault_dir: Option<PathBuf>,
+    /// ORION_VAULT_DIARIO: grava o diário de cada conversa no vault, sem commit nem push. Opt-in.
+    pub vault_diario: bool,
+    /// ORION_INJECTION_GUARD: classificador de injeção de prompt no conteúdo externo (ligado por padrão).
+    pub injection_guard: bool,
     pub capture_folder: String,
     pub briefing_at: String,
     pub briefing_calendar_email: String,
@@ -496,6 +500,8 @@ impl Settings {
             backup_dir: e.path_opt("backup_dir"),
             backup_keep: e.num("backup_keep", 7usize, Some(1), None)?,
             vault_dir: e.path_opt("vault_dir"),
+            vault_diario: e.b("vault_diario", false)?,
+            injection_guard: e.b("injection_guard", true)?,
             capture_folder,
             briefing_at: hora("ORION_BRIEFING_AT", e.s("briefing_at", ""), "precisa estar no formato HH:MM (ex.: 07:30)")?,
             briefing_calendar_email: e.s("briefing_calendar_email", ""),

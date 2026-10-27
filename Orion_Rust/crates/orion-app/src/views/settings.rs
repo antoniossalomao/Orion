@@ -61,7 +61,7 @@ fn lede<'a>(s: &str) -> El<'a> {
     container(tx(crate::i18n::status(s), 12.5, t::FG3)).padding(pad(0.0, 0.0, 6.0, 0.0)).into()
 }
 fn input<'a>(val: &str, on: impl Fn(String) -> Msg + 'a) -> El<'a> {
-    container(text_input("", val).on_input(on).size(13).font(t::UI).padding(pad(7.0, 10.0, 7.0, 10.0)).style(field_style(t::RAISE, t::LINE2, t::LINE3, 8.0))).width(Length::Fixed(220.0)).into()
+    container(text_input("", val).on_input(on).size(13).font(t::UI).padding(pad(6.0, 10.0, 6.0, 10.0)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 8.0))).width(Length::Fixed(220.0)).into()
 }
 /// Seletor simples `.sel` (sem caixa) com popover.
 fn sel_pop<'a>(label: String, pop: Pop, app: &App, menu: El<'a>) -> El<'a> {
@@ -69,7 +69,7 @@ fn sel_pop<'a>(label: String, pop: Pop, app: &App, menu: El<'a>) -> El<'a> {
         .height(Length::Fixed(32.0))
         .padding(pad(0.0, 8.0, 0.0, 12.0))
         .on_press(Msg::Pop(pop))
-        .style(|_, st| button::Style { background: if matches!(st, button::Status::Hovered) { Some(Background::Color(t::HOVER)) } else { None }, text_color: t::FG, border: Border { radius: 8.0.into(), ..Default::default() }, shadow: Default::default(), snap: true });
+        .style(|_, st| button::Style { background: if matches!(st, button::Status::Hovered) { Some(Background::Color(t::HOVER)) } else { None }, text_color: t::FG, border: Border { radius: t::R_CTRL.into(), ..Default::default() }, shadow: Default::default(), snap: true });
     Popover::new(b, menu, app.pop == Some(pop)).side(Side::Right).on_dismiss(Msg::ClosePop).into()
 }
 fn sel_box_pop<'a>(label: String, pop: Pop, app: &App, menu: El<'a>) -> El<'a> {
@@ -128,8 +128,8 @@ fn section<'a>(app: &'a App) -> El<'a> {
             c = c.push(setting(crate::i18n::text("Tamanho do texto"), "", pick_seg(&[crate::i18n::text("Pequeno"), crate::i18n::text("Médio"), crate::i18n::text("Grande")], p.size, "size")));
             c = c.push(setting(crate::i18n::text("Largura da transcrição"), "", pick_seg(&[crate::i18n::text("Estreito"), crate::i18n::text("Médio"), crate::i18n::text("Largo")], p.width, "width")));
             c = c.push(setting(crate::i18n::text("Tom das respostas"), crate::i18n::text("Vale para todos os projetos; cada projeto pode ter instruções próprias."), pick_seg(&[crate::i18n::text("Conciso"), "Normal", crate::i18n::text("Detalhado")], p.tone, "tone")));
-            let ta = container(text_input(crate::i18n::text("Ex.: sem preâmbulo, código completo, português técnico"), &p.tone_text).on_input(Msg::ToneText).size(13).font(t::UI).padding(pad(10.0, 12.0, 10.0, 12.0)).style(field_style(t::RAISE, t::LINE2, t::LINE3, 10.0))).width(Length::Fill).height(Length::Fixed(70.0));
-            c = c.push(container(column![tx(crate::i18n::text("Como o Orion deve responder (opcional)"), 12.5, t::FG3), ta].spacing(6)).padding(pad(4.0, 0.0, 14.0, 0.0)));
+            let ta = container(text_input(crate::i18n::text("Ex.: sem preâmbulo, código completo, português técnico"), &p.tone_text).on_input(Msg::ToneText).size(13).font(t::UI).padding(pad(10.0, 12.0, 10.0, 12.0)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 10.0))).width(Length::Fill).height(Length::Fixed(70.0));
+            c = c.push(container(column![tx(crate::i18n::text("Como o Orion deve responder (opcional)"), 12.5, t::FG3), ta].spacing(6)).padding(pad(4.0, 0.0, 12.0, 0.0)));
         }
         Sec::Notificacoes => {
             c = c.push(sh(crate::i18n::text("Notificações do Windows")));
@@ -192,7 +192,7 @@ fn section<'a>(app: &'a App) -> El<'a> {
                 Panic::Paused => {
                     let mut v: Vec<El> = vec![badge(crate::i18n::text("Pausado"), Tone::Err)];
                     if app.api.is_some() {
-                        v.push(container(text_input(crate::i18n::text("Senha para retomar"), &app.resume_pw).on_input(Msg::ResumePw).on_submit(Msg::PanicResume).secure(true).size(13).font(t::UI).padding(pad(6.0, 10.0, 6.0, 10.0)).style(field_style(t::RAISE, t::LINE2, t::LINE3, 8.0))).width(Length::Fixed(170.0)).into());
+                        v.push(container(text_input(crate::i18n::text("Senha para retomar"), &app.resume_pw).on_input(Msg::ResumePw).on_submit(Msg::PanicResume).secure(true).size(13).font(t::UI).padding(pad(6.0, 10.0, 6.0, 10.0)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 8.0))).width(Length::Fixed(170.0)).into());
                     }
                     v.push(btn(crate::i18n::text("Retomar"), Kind::Normal, true, None, Some(Msg::PanicResume)));
                     row_c(v)
@@ -272,7 +272,7 @@ fn section<'a>(app: &'a App) -> El<'a> {
                 c = c.push(lede(crate::i18n::text("Guardadas no cofre do sistema (Credential Manager). Chaves de modelos valem na hora.")));
                 for (_, label, nome, url) in crate::onboarding::PROVIDERS {
                     if let Some(f) = app.key_form.as_ref().filter(|f| f.nome == *nome) {
-                        let mut input = text_input(crate::i18n::text("Cole a chave de API"), &f.value).id("api-key").secure(true).size(13).font(t::UI).padding(pad(7.0, 10.0, 7.0, 10.0)).style(field_style(t::RAISE, t::LINE2, t::LINE3, 8.0));
+                        let mut input = text_input(crate::i18n::text("Cole a chave de API"), &f.value).id("api-key").secure(true).size(13).font(t::UI).padding(pad(6.0, 10.0, 6.0, 10.0)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 8.0));
                         if !f.busy {
                             input = input.on_input(Msg::KeyInput).on_submit(Msg::KeySave);
                         }
@@ -305,7 +305,7 @@ fn section<'a>(app: &'a App) -> El<'a> {
             } else {
             for (i, (l, v)) in [("Gemini (API)", 62), ("Groq", 100), ("Cerebras", 18), ("OpenRouter (free)", 40), ("Mistral", 9)].iter().enumerate() {
                     let d = if *v >= 100 { crate::i18n::text("Sem cota até 00:00").to_string() } else { crate::i18n::formatted("{}% da cota disponível", format!("{}% da cota disponível", 100 - v)) };
-                    c = c.push(setting_el(row![mono_muted(&(i + 1).to_string()), tx(crate::i18n::text(l), 13.5, t::FG)].spacing(8).into(), &d, row_c(vec![ib("up", Some(toast("Reordenar (simulado)")), false), btn(crate::i18n::text("Chave"), Kind::Normal, true, None, Some(toast(crate::i18n::text("Colar a chave (simulado)"))))])));
+                    c = c.push(setting_el(row![mono_muted(&(i + 1).to_string()), tx(crate::i18n::text(l), 13.5, t::FG)].spacing(8).into(), &d, row_c(vec![tip(ib("up", Some(toast("Reordenar")), false), crate::i18n::text("Subir na ordem")), btn(crate::i18n::text("Chave"), Kind::Normal, true, None, Some(toast(crate::i18n::text("Colar a chave (simulado)"))))])));
                 }
             }
             c = c.push(setting_el(row![mono_muted("∞"), tx(crate::i18n::text("Local · Qwen 2.5 7B"), 13.5, t::FG)].spacing(8).into(), crate::i18n::text("Fallback sem internet. Gerenciado em Modelos locais."), badge("fallback", Tone::Plain)));
@@ -322,10 +322,14 @@ fn section<'a>(app: &'a App) -> El<'a> {
                 }
             }else{c=c.push(setting(crate::i18n::text("Usar memória nas respostas"),"",sw(p.mem,"mem")));}
             c = c.push(setting(crate::i18n::text("Pasta das notas do Orion"), crate::i18n::text("Todas as conversas viram resumo aqui, sem perguntar."), txf("03 Recursos/Orion/Memória/", 12.0, t::FG, t::MONO).into()));
-            c = c.push(setting(crate::i18n::text("Resumo diário das conversas triviais"), crate::i18n::text("Uma nota por dia em Memória/Diário, gerada às 23:59."), badge("23:59", Tone::Ok)));
-            c = c.push(setting(crate::i18n::text("Commit e push"), crate::i18n::text("Direto na main do vault, um commit por nota gravada. Sem PR."), badge(crate::i18n::text("automático"), Tone::Ok)));
+            c = c.push(setting(crate::i18n::text("Resumo diário das conversas triviais"), crate::i18n::text("Uma nota por dia em Memória/Diário, gerada às 23:59. O que você fez aparece em Você fez."), badge("23:59", Tone::Ok)));
+            c = c.push(setting(crate::i18n::text("Salvar no GitHub"), crate::i18n::text("Cada nota gravada vira um commit direto na main do vault, sem PR."), badge(crate::i18n::text("automático"), Tone::Ok)));
             c = c.push(setting(crate::i18n::text("git pull do vault"), crate::i18n::text("Ao abrir o app, a cada conversa nova, antes de gravar uma nota e ao abrir a Memória."), btn(crate::i18n::text("Agora"), Kind::Normal, true, None, Some(Msg::VaultPull))));
-            c = c.push(setting(crate::i18n::text("Se você editou a mesma nota no Obsidian"), crate::i18n::text("O Orion pergunta no chat e mostra as duas versões."), badge(crate::i18n::text("perguntar"), Tone::Plain)));
+            c = c.push(setting(crate::i18n::text("Se você editou a mesma nota no Obsidian"), crate::i18n::text("A sua versão fica como está e a nova vira uma proposta. Compare as duas aqui e escolha."), badge(if app.conflitos.is_empty() { crate::i18n::text("sem conflitos") } else { crate::i18n::text("revisar") }, if app.conflitos.is_empty() { Tone::Ok } else { Tone::Plain })));
+            for (i, (original, _, existe)) in app.conflitos.iter().enumerate() {
+                let nome = original.rsplit('/').next().unwrap_or(original);
+                c = c.push(setting(nome, crate::i18n::text("Conflito pendente no vault."), btn(crate::i18n::text("Comparar"), Kind::Normal, *existe, None, Some(Msg::ConflitoAbrir(i)))));
+            }
             c = c.push(setting(crate::i18n::text("Grafo"), crate::i18n::text("3D no app final, como o Obsidian, sobre o céu do front original."), btn(crate::i18n::text("Abrir"), Kind::Normal, true, None, Some(Msg::SetGo(crate::app::View::Memoria)))));
         }
         Sec::Fontes => {
@@ -378,14 +382,15 @@ fn section<'a>(app: &'a App) -> El<'a> {
         Sec::Sistema => {
             let live = app.api.is_some();
             if live {
+                c = c.push(setting(crate::i18n::text("Recarregar configurações"), crate::i18n::text("Relê o .env e aplica o que dá sem reiniciar: modelos, chaves, guarda de injeção e diário. O resto avisa que precisa reiniciar."), btn(crate::i18n::text("Recarregar"), Kind::Normal, true, None, Some(Msg::RecarregarConfig))));
                 // uso real: só o que dá para medir agora (sem gráfico de exemplo)
                 c = c.push(sh(crate::i18n::text("Memória RAM")));
-                c = c.push(container(row![txf(format!("{} MB", proc_mem_mb()), 36.0, t::FG, t::SERIF), container(tx(crate::i18n::text("deste processo agora · quanto menos, melhor"), 12.5, t::FG3)).padding(pad(14.0, 0.0, 0.0, 8.0))].align_y(Vertical::Bottom)).padding(pad(6.0, 0.0, 0.0, 0.0)));
+                c = c.push(container(row![txf(format!("{} MB", proc_mem_mb()), 36.0, t::FG, t::SERIF), container(tx(crate::i18n::text("deste processo agora · quanto menos, melhor"), 12.5, t::FG3)).padding(pad(12.0, 0.0, 0.0, 8.0))].align_y(Vertical::Bottom)).padding(pad(6.0, 0.0, 0.0, 0.0)));
             } else {
             c = c.push(sh(crate::i18n::text("Memória RAM")));
-                c = c.push(container(row![txf("296 MB", 36.0, t::FG, t::SERIF), container(tx(crate::i18n::text("em uso agora · quanto menos, melhor"), 12.5, t::FG3)).padding(pad(14.0, 0.0, 0.0, 8.0))].align_y(Vertical::Bottom)).padding(pad(10.0, 0.0, 0.0, 0.0)));
+                c = c.push(container(row![txf("296 MB", 36.0, t::FG, t::SERIF), container(tx(crate::i18n::text("em uso agora · quanto menos, melhor"), 12.5, t::FG3)).padding(pad(12.0, 0.0, 0.0, 8.0))].align_y(Vertical::Bottom)).padding(pad(10.0, 0.0, 0.0, 0.0)));
                 let leg = |col: iced::Color, s: &str| -> El<'a> { row![container(sp_w(0.0)).width(Length::Fixed(10.0)).height(Length::Fixed(2.0)).style(surface(Some(col), None, 1.0)), tx(s.to_string(), 12.0, t::FG3)].spacing(6).align_y(Vertical::Center).into() };
-                c = c.push(container(row![leg(t::FG2, crate::i18n::text("Uso nas últimas 18 h")), leg(t::SIGNAL, crate::i18n::text("Otimização aplicada"))].spacing(14)).padding(pad(16.0, 0.0, 4.0, 0.0)));
+                c = c.push(container(row![leg(t::FG2, crate::i18n::text("Uso nas últimas 18 h")), leg(t::SIGNAL, crate::i18n::text("Otimização aplicada"))].spacing(12)).padding(pad(16.0, 0.0, 4.0, 0.0)));
                 let ch = Line { vals: data::RAMS.to_vec(), min: 0.0, max: 1400.0, ticks: vec![0.0, 400.0, 800.0, 1200.0], fmt: |v| if v == 0.0 { "0".into() } else if v >= 1000.0 { format!("{:.1} GB", v / 1000.0).replace('.', ",") } else { format!("{v} MB") }, start: crate::i18n::text("ontem, 16:00"), end: crate::i18n::text("agora"), color: t::FG2, mark: Some((10, "mmap e voz sob demanda")) };
                 c = c.push(canvas(ch).width(Length::Fill).height(Length::Fixed(150.0)));
                 let seg_bar = row![
@@ -489,7 +494,7 @@ fn section<'a>(app: &'a App) -> El<'a> {
                 tags = tags.push(container(row![tx(o.clone(), 12.5, t::FG2), button(icon("close", 14.0, t::FG3)).padding(0).on_press(Msg::ObjRemove(i)).style(|_, _| button::Style::default())].spacing(4).align_y(Vertical::Center)).height(Length::Fixed(26.0)).center_y(Length::Fixed(26.0)).padding(pad(0.0, 6.0, 0.0, 10.0)).style(surface(None, Some(t::LINE2), 999.0)));
             }
             c = c.push(container(tags.wrap().vertical_spacing(6)).padding(pad(12.0, 0.0, 12.0, 0.0)));
-            c = c.push(row![container(text_input(crate::i18n::text("Adicionar objeto"), &app.new_obj).on_input(Msg::NewObj).on_submit(Msg::ObjAdd).size(13).font(t::UI).padding(pad(7.0, 10.0, 7.0, 10.0)).style(field_style(t::RAISE, t::LINE2, t::LINE3, 8.0))).width(Length::Fixed(220.0)), btn(crate::i18n::text("Adicionar"), Kind::Normal, true, None, Some(Msg::ObjAdd))].spacing(8));
+            c = c.push(row![container(text_input(crate::i18n::text("Adicionar objeto"), &app.new_obj).on_input(Msg::NewObj).on_submit(Msg::ObjAdd).size(13).font(t::UI).padding(pad(6.0, 10.0, 6.0, 10.0)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 8.0))).width(Length::Fixed(220.0)), btn(crate::i18n::text("Adicionar"), Kind::Normal, true, None, Some(Msg::ObjAdd))].spacing(8));
         }
         Sec::Atalhos => {
             c = c.push(sh(crate::i18n::text("Atalhos")));
@@ -550,14 +555,14 @@ pub fn modal(app: &App) -> El<'_> {
     let found = search(&app.set_q);
     let mut nav = column![].spacing(1);
     let search_in = stack![
-        text_input(crate::i18n::text("Buscar"), &app.set_q).on_input(Msg::SetQ).size(13).font(t::UI).padding(pad(7.0, 10.0, 7.0, 32.0)).style(|th, st| {
+        text_input(crate::i18n::text("Buscar"), &app.set_q).on_input(Msg::SetQ).size(13).font(t::UI).padding(pad(6.0, 10.0, 6.0, 32.0)).style(|th, st| {
             let mut s = field_style(t::HOVER, iced::Color::TRANSPARENT, t::LINE2, 8.0)(th, st);
             if matches!(st, text_input::Status::Focused { .. }) {
                 s.background = t::BG.into();
             }
             s
         }),
-        container(icon("search", 14.0, t::FG3)).padding(pad(9.0, 0.0, 0.0, 10.0)),
+        container(icon("search", 14.0, t::FG3)).padding(pad(8.0, 0.0, 0.0, 10.0)),
     ];
     nav = nav.push(container(search_in).padding(pad(0.0, 0.0, 8.0, 0.0)));
     let mut any = false;
@@ -576,7 +581,7 @@ pub fn modal(app: &App) -> El<'_> {
                     .height(Length::Fixed(32.0))
                     .padding(pad(0.0, 10.0, 0.0, 10.0))
                     .on_press(Msg::SetSec(*s))
-                    .style(move |_, st| button::Style { background: if cur { Some(Background::Color(t::SEL)) } else if matches!(st, button::Status::Hovered) { Some(Background::Color(t::HOVER)) } else { None }, text_color: t::FG, border: Border { radius: 8.0.into(), ..Default::default() }, shadow: Default::default(), snap: true }),
+                    .style(move |_, st| button::Style { background: if cur { Some(Background::Color(t::SEL)) } else if matches!(st, button::Status::Hovered) { Some(Background::Color(t::HOVER)) } else { None }, text_color: t::FG, border: Border { radius: t::R_CTRL.into(), ..Default::default() }, shadow: Default::default(), snap: true }),
             );
         }
     }

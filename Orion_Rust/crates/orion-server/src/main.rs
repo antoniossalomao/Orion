@@ -6,6 +6,7 @@
 
 mod appmode;
 mod native_resources;
+mod diary;
 mod onboarding;
 mod onboarding_drive;
 mod onboarding_hello;

@@ -103,6 +103,11 @@ impl Local for Interno {
                 if old.st.audio.active() || old.st.agent.as_ref().is_some_and(|a|a.any_busy()) || !old.st.policy.approvals.pending(None,false).is_empty() {
                     return Err("Aguarde a resposta e resolva as aprovações antes de aplicar os recursos.".into());
                 }
+                // Preserva o que a recarga da main já aplicou em memória antes de refazer o núcleo.
+                let mut cfg=old.st.live.current.lock().clone().unwrap_or(cfg);
+                cfg.injection_guard=old.st.live.injection.load(std::sync::atomic::Ordering::Relaxed);
+                cfg.vault_diario=old.st.live.diary.load(std::sync::atomic::Ordering::Relaxed);
+                if let Some(compactor)=old.st.agent.as_ref().and_then(|a|a.compactor.as_ref()){cfg.compact_at=compactor.at();}
                 // Prepara o novo estado antes de desligar o antigo; falha não apaga o estado em uso.
                 let next=match preparar_nucleo(cfg).await {
                     Ok(n)=>n,
@@ -410,6 +415,9 @@ pub fn run(mut s: Settings, fundo: bool) -> anyhow::Result<i32> {
     let dados = s.data_dir.clone();
     let mostrar = dados.join("orion.mostrar");
     let Some(_trava) = instancia_unica(&dados)? else {
+        // Esta cópia é a que você acabou de abrir: deixa a primeira trazer a janela para a frente.
+        #[cfg(windows)]
+        orion_platform::allow_foreground();
         let _ = std::fs::write(&mostrar, b"1");
         return Ok(0);
     };

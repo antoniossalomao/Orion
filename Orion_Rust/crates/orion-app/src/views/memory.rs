@@ -243,7 +243,7 @@ impl canvas::Program<Msg> for Mem<'_> {
         let (w, h) = (b.width, b.height);
         let geom = g.cache.draw(r, b.size(), |f| {
             // Fundo: radial-gradient(ellipse at 50% 45%, #15192a 0%, #0b0c10 72%)
-            f.fill_rectangle(Point::ORIGIN, b.size(), Color::from_rgb8(0x0b, 0x0c, 0x10));
+            f.fill_rectangle(Point::ORIGIN, b.size(), t::ISLAND_BG);
             let (c0, c1) = ((0x15 as f32, 0x19 as f32, 0x2a as f32), (0x0b as f32, 0x0c as f32, 0x10 as f32));
             const STEPS: usize = 18;
             for k in 0..STEPS {
@@ -422,7 +422,7 @@ impl canvas::Program<Msg> for Mem<'_> {
 
 fn fchip<'a>(label: &str, dot: Option<Color>, ic: Option<&str>, on: bool, msg: Msg) -> El<'a> {
     let fg = if on { t::FG } else { t::alpha(t::FG3, 0.5) };
-    let mut r = row![].spacing(7).align_y(Vertical::Center);
+    let mut r = row![].spacing(6).align_y(Vertical::Center);
     if let Some(d) = dot {
         r = r.push(dot_el(if on { d } else { t::alpha(d, 0.5) }, 7.0));
     }
@@ -434,7 +434,7 @@ fn fchip<'a>(label: &str, dot: Option<Color>, ic: Option<&str>, on: bool, msg: M
         .height(Length::Fixed(30.0))
         .padding(pad(0.0, 10.0, 0.0, 10.0))
         .on_press(msg)
-        .style(move |_, _| button::Style { background: None, text_color: fg, border: Border { color: if on { t::LINE2 } else { Color::TRANSPARENT }, width: 1.0, radius: 999.0.into() }, shadow: Default::default(), snap: true });
+        .style(move |_, _| button::Style { background: None, text_color: fg, border: Border { color: if on { t::LINE2 } else { Color::TRANSPARENT }, width: 1.0, radius: t::R_PILL.into() }, shadow: Default::default(), snap: true });
     if on { b.into() } else { dashed(b, 15.0, t::alpha(t::LINE2, 0.5)) }
 }
 
@@ -469,7 +469,7 @@ pub fn view(app: &App) -> El<'_> {
     }
     // barra
     let search = stack![
-        text_input(crate::i18n::text("Buscar notas, tags ou pastas"), &g.q).on_input(Msg::MemQ).size(13).font(t::UI).padding(pad(8.0, 12.0, 8.0, 34.0)).style(field_style(t::RAISE, t::LINE2, t::LINE3, 9.0)),
+        text_input(crate::i18n::text("Buscar notas, tags ou pastas"), &g.q).on_input(Msg::MemQ).size(13).font(t::UI).padding(pad(8.0, 12.0, 8.0, 34.0)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 9.0)),
         container(icon("search", 14.0, t::FG3)).padding(pad(10.0, 0.0, 0.0, 11.0))
     ];
     let mut chips = row![].spacing(4).align_y(Vertical::Center);
@@ -496,18 +496,18 @@ pub fn view(app: &App) -> El<'_> {
     let canvas = cv(Mem { g }).width(Length::Fill).height(Length::Fill);
     let mut layers: Vec<El> = vec![canvas.into()];
     if !app.is_drawer_mode() {
-        let mut leg = row![].spacing(14);
+        let mut leg = row![].spacing(12);
         for (i, (_, _, s)) in TIPOS.iter().enumerate() {
             leg = leg.push(row![dot_el(TYPE_COLORS[i], 7.0), tx(crate::i18n::text(s), 11.5, t::FG3)].spacing(6).align_y(Vertical::Center));
         }
-        layers.push(container(leg).width(Length::Fill).height(Length::Fill).align_y(Vertical::Bottom).padding(pad(0.0, 0.0, 12.0, 14.0)).into());
+        layers.push(container(leg).width(Length::Fill).height(Length::Fill).align_y(Vertical::Bottom).padding(pad(0.0, 0.0, 12.0, 12.0)).into());
     }
     let zoom_right = if g.sel.is_some() { 344.0 } else { 12.0 };
-    let zoom = container(column![tip(ib("plus", Some(Msg::MemZoom(1.25)), false), crate::i18n::text("Aproximar")), tip(ib("minus", Some(Msg::MemZoom(0.8)), false), crate::i18n::text("Afastar")), tip(ib_sz("fit", 30.0, 14.0, Some(Msg::MemFit), false), crate::i18n::text("Enquadrar"))].spacing(2)).padding(3).style(|_| container::Style { background: Some(t::mix(t::RAISE, 0.88).into()), border: Border { color: t::LINE2, width: 1.0, radius: 10.0.into() }, ..Default::default() });
+    let zoom = container(column![tip(ib("plus", Some(Msg::MemZoom(1.25)), false), crate::i18n::text("Aproximar")), tip(ib("minus", Some(Msg::MemZoom(0.8)), false), crate::i18n::text("Afastar")), tip(ib_sz("fit", 30.0, 14.0, Some(Msg::MemFit), false), crate::i18n::text("Enquadrar"))].spacing(2)).padding(3).style(|_| container::Style { background: Some(t::mix(t::RAISE, 0.88).into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_CARD.into() }, ..Default::default() });
     layers.push(container(zoom).width(Length::Fill).height(Length::Fill).align_x(iced::alignment::Horizontal::Right).align_y(Vertical::Bottom).padding(pad(0.0, zoom_right, 12.0, 0.0)).into());
     if let Some(i) = g.hov.filter(|i| g.sel != Some(*i)) {
         let n = &g.nodes[i];
-        let tip = container(column![tx(ell(&n.label, 260.0, 12.5), 12.5, t::FG), tx(g.meta(i), 11.0, t::FG3)]).padding(pad(6.0, 10.0, 6.0, 10.0)).max_width(280.0).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: 8.0.into() }, shadow: shadow(), ..Default::default() });
+        let tip = container(column![tx(ell(&n.label, 260.0, 12.5), 12.5, t::FG), tx(g.meta(i), 11.0, t::FG3)]).padding(pad(6.0, 10.0, 6.0, 10.0)).max_width(280.0).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_CTRL.into() }, shadow: shadow(), ..Default::default() });
         let (w, h) = stage_size(app);
         let (x, y) = ((app.mem_tip.0 + 14.0).max(8.0).min(w - 290.0), (app.mem_tip.1 + 14.0).min(h - 50.0));
         layers.push(container(tip).padding(pad(y, 0.0, 0.0, x)).into());
@@ -515,7 +515,7 @@ pub fn view(app: &App) -> El<'_> {
     if let Some(s) = g.sel {
         layers.push(detail(app, s));
     }
-    let stage = container(stack(layers)).width(Length::Fill).height(Length::Fill).clip(true).style(|_| container::Style { border: Border { color: t::LINE, width: 1.0, radius: 16.0.into() }, ..Default::default() });
+    let stage = container(stack(layers)).width(Length::Fill).height(Length::Fill).clip(true).style(|_| container::Style { border: Border { color: t::LINE, width: 1.0, radius: t::R_PANEL.into() }, ..Default::default() });
 
     // linha do tempo
     let d0 = g.dates.first().cloned().unwrap_or_default();
@@ -541,12 +541,12 @@ pub fn view(app: &App) -> El<'_> {
             list = list.push(
                 button(row![dot_el(TYPE_COLORS[g.nodes[*i].tipo], 7.0), container(tx(ell(&g.nodes[*i].label, 200.0, 13.0), 13.0, t::FG)).width(Length::Fill), tx(crate::i18n::text(TIPOS[g.nodes[*i].tipo].2), 11.5, t::FG3)].spacing(10).align_y(Vertical::Center))
                     .width(Length::Fill)
-                    .padding(pad(7.0, 10.0, 7.0, 10.0))
+                    .padding(pad(6.0, 10.0, 6.0, 10.0))
                     .on_press(Msg::MemSelect(Some(*i)))
-                    .style(move |_, st| button::Style { background: if k == 0 || matches!(st, button::Status::Hovered) { Some(Background::Color(t::HOVER)) } else { None }, text_color: t::FG, border: Border { radius: 8.0.into(), ..Default::default() }, shadow: Default::default(), snap: true }),
+                    .style(move |_, st| button::Style { background: if k == 0 || matches!(st, button::Status::Hovered) { Some(Background::Color(t::HOVER)) } else { None }, text_color: t::FG, border: Border { radius: t::R_CTRL.into(), ..Default::default() }, shadow: Default::default(), snap: true }),
             );
         }
-        let res = container(list).width(Length::Fixed(320.0)).padding(4).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: 12.0.into() }, shadow: shadow(), ..Default::default() });
+        let res = container(list).width(Length::Fixed(320.0)).padding(4).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_CARD.into() }, shadow: shadow(), ..Default::default() });
         root.push(container(res).padding(pad(44.0, 0.0, 0.0, 16.0)).into());
     }
     stack(root).width(Length::Fill).height(Length::Fill).into()
@@ -586,16 +586,16 @@ fn detail(app: &App, i: usize) -> El<'_> {
                 .width(Length::Fill)
                 .padding(pad(6.0, 8.0, 6.0, 8.0))
                 .on_press(Msg::MemSelect(Some(*x)))
-                .style(|_, st| button::Style { background: if matches!(st, button::Status::Hovered) { Some(Background::Color(t::HOVER)) } else { None }, text_color: t::FG, border: Border { radius: 8.0.into(), ..Default::default() }, shadow: Default::default(), snap: true }),
+                .style(|_, st| button::Style { background: if matches!(st, button::Status::Hovered) { Some(Background::Color(t::HOVER)) } else { None }, text_color: t::FG, border: Border { radius: t::R_CTRL.into(), ..Default::default() }, shadow: Default::default(), snap: true }),
         );
     }
     if all.len() > 60 {
         nl = nl.push(container(tx(crate::i18n::formatted("e mais {}", format!("e mais {}", all.len() - 60)), 12.0, t::FG3)).padding(pad(6.0, 8.0, 0.0, 8.0)));
     }
     body = body.push(nl);
-    let panel = container(column![container(head).padding(pad(10.0, 10.0, 0.0, 14.0)), scrollable(container(body).padding(pad(8.0, 16.0, 16.0, 16.0))).direction(scrollable::Direction::Vertical(thin_bar())).style(thin_scroll).height(Length::Fill)])
+    let panel = container(column![container(head).padding(pad(10.0, 10.0, 0.0, 12.0)), scrollable(container(body).padding(pad(8.0, 16.0, 16.0, 16.0))).direction(scrollable::Direction::Vertical(thin_bar())).style(thin_scroll).height(Length::Fill)])
         .width(Length::Fixed(320.0))
         .height(Length::Fill)
-        .style(|_| container::Style { background: Some(t::mix(t::RAISE, 0.92).into()), border: Border { color: t::LINE2, width: 1.0, radius: 14.0.into() }, shadow: shadow(), ..Default::default() });
+        .style(|_| container::Style { background: Some(t::mix(t::RAISE, 0.92).into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_PANEL.into() }, shadow: shadow(), ..Default::default() });
     container(panel).width(Length::Fill).height(Length::Fill).align_x(iced::alignment::Horizontal::Right).padding(12).into()
 }

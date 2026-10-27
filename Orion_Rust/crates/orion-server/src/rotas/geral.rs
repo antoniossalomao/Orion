@@ -596,17 +596,9 @@ pub async fn chave_guardar(_: Admin, State(st): State<Estado>, Json(c): Json<Cha
         .map_err(anyhow::Error::from)?
         .map_err(|_| ApiError::new(500, "não foi possível guardar no cofre do sistema"))?;
     if c.nome.starts_with("ORION_KEY_") {
-        let mut settings = st.settings.clone();
-        if !settings.providers_explicit { settings.provedores.clear(); }
-        crate::estado::load_providers(&mut settings, &st.memory)?;
-        if let Some(gateway) = &st.gateway {
-            let mut endpoints = crate::estado::endpoints_dos_provedores(&settings, None);
-            // Preserva também gateway explícito e reserva local, com seus opt-ins.
-            if let Some(configured) = crate::estado::gateway_from_settings(&settings) {
-                endpoints = configured.endpoint_snapshot();
-            }
-            gateway.configure(endpoints).await;
-        }
+        // Parte do que está rodando (com as mudanças já aplicadas pela recarga), não da inicialização.
+        let atual = st.live.current.lock().clone().unwrap_or_else(|| st.settings.clone());
+        recarregar_gateway(&st, atual).await?;
     }
     Ok(Json(json!({"ok": true, "reiniciar": !c.nome.starts_with("ORION_KEY_")})))
 }
@@ -650,4 +642,102 @@ pub async fn language_save(_: Admin, State(st): State<Estado>, Json(choice): Jso
     staged.as_file().sync_all().map_err(anyhow::Error::from)?;
     staged.persist(path).map_err(|e| anyhow::anyhow!(e.error))?;
     Ok(Json(json!({"ok":true})))
+}
+
+/// Refaz os provedores e os endpoints do gateway entre turnos, com as chaves do cofre e o catálogo do banco.
+async fn recarregar_gateway(st: &Estado, mut settings: orion_core::config::Settings) -> ApiResult<()> {
+    if !settings.providers_explicit { settings.provedores.clear(); }
+    crate::estado::load_providers(&mut settings, &st.memory)?;
+    if let Some(gateway) = &st.gateway {
+        let mut endpoints = crate::estado::endpoints_dos_provedores(&settings, None);
+        // Preserva também gateway explícito e reserva local, com seus opt-ins.
+        if let Some(configured) = crate::estado::gateway_from_settings(&settings) {
+            endpoints = configured.endpoint_snapshot();
+        }
+        let quotas = orion_ai::costs::cotas_de(&settings.quotas(), &settings.provedores);
+        gateway.configure_with(endpoints, || st.custos.configure(quotas)).await;
+    }
+    Ok(())
+}
+
+/// Campo a campo do `Debug` das configurações: só nomes e textos para comparar, nunca saem daqui.
+fn campos_das_configuracoes(s: &orion_core::config::Settings) -> std::collections::BTreeMap<String, String> {
+    let mut out = std::collections::BTreeMap::<String, String>::new();
+    let mut atual: Option<String> = None;
+    for linha in format!("{s:#?}").lines().skip(1) {
+        let nome = linha.strip_prefix("    ").filter(|r| !r.starts_with(' ')).and_then(|r| r.split_once(": ")).filter(|(n, _)| !n.is_empty() && n.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_'));
+        match nome {
+            Some((n, v)) => {
+                atual = Some(n.to_string());
+                out.insert(n.to_string(), v.to_string());
+            }
+            None => {
+                if let Some(n) = &atual {
+                    out.entry(n.clone()).and_modify(|v| { v.push('\n'); v.push_str(linha); });
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Campos que o servidor define ao iniciar (perfil, instalador, banco): diferem do `.env` sem o usuário ter mudado nada.
+const DEFINIDOS_NA_INICIALIZACAO: [&str; 10] = ["data_dir", "vault_dir", "admin_token", "auth_user", "seed_default_password", "host", "port", "allow_public_bind", "cookie_secure", "jobs_enabled"];
+/// Mudanças que refazem o gateway na hora.
+/// (`provedores` entra só com `ORION_PROVEDORES` explícito; sem isso a lista vem do banco e difere do `.env` sem mudança sua.)
+/// Ficam de fora: o modelo embutido (`local_model*`), cujo gerador nasce na inicialização, e os modelos por
+/// camada (`gateway_model_fast/heavy`, `vision_model`), porque ligar o roteamento também é decidido na inicialização.
+const DO_GATEWAY: [&str; 7] = ["gateway_url", "gateway_model", "gateway_api_key", "local_url", "allow_paid", "providers_explicit", "provedores"];
+
+/// F07.08: relê o `.env` e o ambiente e aplica o que dá sem reiniciar. O resto vai listado em
+/// `exigem_reinicio`. Só nomes de campos saem daqui, nunca valores (REGRAS.md: segredos nunca em log).
+pub async fn config_recarregar(_: Admin, State(st): State<Estado>) -> ApiResult<Json<Value>> {
+    let novo = tokio::task::spawn_blocking(orion_core::config::Settings::load)
+        .await
+        .map_err(anyhow::Error::from)?
+        .map_err(|e| ApiError::new(422, format!("configuração inválida: {e}")))?;
+    // Compara com o que está rodando agora; na primeira recarga, é o que valia na inicialização.
+    let antes = st.live.applied.lock().clone().unwrap_or_else(|| campos_das_configuracoes(&st.settings));
+    let depois = campos_das_configuracoes(&novo);
+    let mudados: Vec<String> = depois.iter().filter(|(n, v)| !DEFINIDOS_NA_INICIALIZACAO.contains(&n.as_str()) && (n.as_str() != "provedores" || novo.providers_explicit) && antes.get(*n) != Some(*v)).map(|(n, _)| n.clone()).collect();
+    let (mut aplicados, mut reinicio) = (vec![], vec![]);
+    let mut refazer_gateway = false;
+    for n in mudados {
+        match n.as_str() {
+            "injection_guard" => { st.live.injection.store(novo.injection_guard, std::sync::atomic::Ordering::Relaxed); aplicados.push(n); }
+            "vault_diario" => { st.live.diary.store(novo.vault_diario, std::sync::atomic::Ordering::Relaxed); aplicados.push(n); }
+            // O compactador só existe se nasceu ligado: mudar o limite vale na hora; ligar do zero exige reiniciar.
+            "compact_at" => match st.agent.as_ref().and_then(|a| a.compactor.clone()) {
+                Some(c) => { c.set_at(novo.compact_at); aplicados.push(n); }
+                None => reinicio.push(n),
+            },
+            n_ if DO_GATEWAY.contains(&n_) => { refazer_gateway = true; aplicados.push(n); }
+            _ => reinicio.push(n),
+        }
+    }
+    if refazer_gateway {
+        // Só o que foi aplicado entra: o resto da configuração continua como roda agora.
+        let mut s = st.live.current.lock().clone().unwrap_or_else(|| st.settings.clone());
+        s.gateway_url = novo.gateway_url.clone();
+        s.gateway_model = novo.gateway_model.clone();
+        s.gateway_api_key = novo.gateway_api_key.clone();
+        s.local_url = novo.local_url.clone();
+        s.allow_paid = novo.allow_paid;
+        s.providers_explicit = novo.providers_explicit;
+        if novo.providers_explicit {
+            s.provedores = novo.provedores.clone();
+        }
+        recarregar_gateway(&st, s.clone()).await?;
+        *st.live.current.lock() = Some(s);
+    }
+    // A base passa a valer só para o que foi aplicado; o que exige reinício continua com o valor que roda
+    // agora e volta a aparecer até você reiniciar (ou desfazer a mudança).
+    let mut base = antes;
+    for n in &aplicados {
+        if let Some(v) = depois.get(n) {
+            base.insert(n.clone(), v.clone());
+        }
+    }
+    *st.live.applied.lock() = Some(base);
+    Ok(Json(json!({"ok": true, "aplicados": aplicados, "exigem_reinicio": reinicio})))
 }

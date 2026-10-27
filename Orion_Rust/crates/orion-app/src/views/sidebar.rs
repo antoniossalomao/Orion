@@ -22,7 +22,7 @@ fn nav_style(cur: bool) -> impl Fn(&iced::Theme, button::Status) -> button::Styl
         button::Style {
             background: if cur { Some(Background::Color(t::SEL)) } else if hov { Some(Background::Color(t::HOVER)) } else { None },
             text_color: if cur || hov { t::FG } else { t::FG2 },
-            border: Border { radius: 8.0.into(), ..Default::default() },
+            border: Border { radius: t::R_CTRL.into(), ..Default::default() },
             shadow: Default::default(),
             snap: true,
         }
@@ -80,7 +80,7 @@ pub fn view(app: &App) -> El<'_> {
             .on_input(Msg::SideQ)
             .size(13)
             .font(t::UI)
-            .padding(pad(7.0, 10.0, 7.0, 32.0))
+            .padding(pad(6.0, 10.0, 6.0, 32.0))
             .style(|th, st| {
                 let mut s = field_style(t::HOVER, iced::Color::TRANSPARENT, t::LINE2, 8.0)(th, st);
                 if matches!(st, text_input::Status::Focused { .. }) {
@@ -88,7 +88,7 @@ pub fn view(app: &App) -> El<'_> {
                 }
                 s
             }),
-        container(icon("search", 14.0, t::FG3)).padding(pad(9.0, 0.0, 0.0, 10.0)),
+        container(icon("search", 14.0, t::FG3)).padding(pad(8.0, 0.0, 0.0, 10.0)),
     ];
 
     let mut nav = column![].spacing(1);
@@ -145,6 +145,7 @@ pub fn view(app: &App) -> El<'_> {
     let scroll = scrollable(list.padding(pad(0.0, 8.0, 8.0, 8.0))).direction(scrollable::Direction::Vertical(thin_bar())).style(thin_scroll).height(Length::Fill);
     let scroll = container(scroll).padding(pad(0.0, 0.0, 0.0, 0.0)).width(Length::Fill).height(Length::Fill);
 
+    let mica = app.mica_ativo;
     let sidebar_width = if drawer { 300.0f32.min(app.win.width * 0.86) } else { t::SIDE_W };
     let label_width = (sidebar_width - 144.0).max(24.0);
     let profile_name = if app.p.name.trim().is_empty() { app.p.call.trim() } else { app.p.name.trim() };
@@ -169,7 +170,7 @@ pub fn view(app: &App) -> El<'_> {
     .height(Length::Fixed(48.0))
     .padding(pad(0.0, 8.0, 0.0, 8.0))
     .on_press(Msg::Pop(Pop::Account))
-    .style(move |_, st| button::Style { background: if account_open { Some(Background::Color(t::SEL)) } else if matches!(st, button::Status::Hovered | button::Status::Pressed) { Some(Background::Color(t::HOVER)) } else { None }, text_color: t::FG, border: Border { radius: 8.0.into(), ..Default::default() }, shadow: Default::default(), snap: true });
+    .style(move |_, st| button::Style { background: if account_open { Some(Background::Color(t::SEL)) } else if matches!(st, button::Status::Hovered | button::Status::Pressed) { Some(Background::Color(t::HOVER)) } else { None }, text_color: t::FG, border: Border { radius: t::R_CTRL.into(), ..Default::default() }, shadow: Default::default(), snap: true });
     let me: El = Popover::new(tip(me_btn, profile_name), menus::account_menu(app), account_open).above(true).on_dismiss(Msg::ClosePop).into();
     let foot = column![hline(), sp_h(8.0), row![container(me).width(Length::Fill), tip(ib_sz("gear", 40.0, 18.0, Some(Msg::OpenSettings(None)), false), crate::i18n::text("Configurações (Ctrl ,)"))].spacing(6).align_y(Vertical::Center)];
 
@@ -177,7 +178,7 @@ pub fn view(app: &App) -> El<'_> {
         .width(Length::Fixed(sidebar_width))
         .height(Length::Fill)
         .padding(pad(0.0, 0.0, 0.0, 0.0))
-        .style(|_| container::Style { background: Some(t::SIDE.into()), ..Default::default() })
+        .style(move |_| container::Style { background: Some(if mica { t::alpha(t::SIDE, 0.78) } else { t::SIDE }.into()), ..Default::default() })
         .into()
 }
 
@@ -216,7 +217,7 @@ fn conv_item(app: &App, i: usize) -> El<'_> {
         .style(move |_, st| button::Style {
             background: if cur { Some(Background::Color(t::SEL)) } else if matches!(st, button::Status::Hovered) { Some(Background::Color(t::HOVER)) } else { None },
             text_color: t::FG,
-            border: Border { radius: 8.0.into(), ..Default::default() },
+            border: Border { radius: t::R_CTRL.into(), ..Default::default() },
             shadow: Default::default(),
             snap: true,
         })
