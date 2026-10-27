@@ -38,7 +38,7 @@ fn field<'a>(f: &'a Form, key: Field, label: &'a str, hint: &'a str, secret: boo
         .font(t::UI)
         .padding(pad(13.0, 16.0, 13.0, 16.0))
         .secure(secret)
-        .style(super::login::field_style(t::alpha(t::BG, 0.55), t::LINE, t::ACCENT, 10.0));
+        .style(super::login::field_style(t::alpha(t::BG, 0.55), t::FIELD_LINE, t::ACCENT, 10.0));
     if idle(f) {
         input = input.on_input(move |s| event(Event::Input(key, s)));
     }
@@ -166,7 +166,7 @@ fn step_keys<'a>(f: &'a Form) -> El<'a> {
             .font(t::UI)
             .padding(pad(11.0, 14.0, 11.0, 14.0))
             .secure(true)
-            .style(super::login::field_style(t::alpha(t::BG, 0.55), t::LINE, t::ACCENT, 9.0));
+            .style(super::login::field_style(t::alpha(t::BG, 0.55), t::FIELD_LINE, t::ACCENT, 9.0));
         if idle(f) {
             input = input.on_input(move |s| event(Event::Input(Field::Secret(key), s)));
         }

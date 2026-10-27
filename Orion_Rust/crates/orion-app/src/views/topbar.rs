@@ -69,7 +69,7 @@ pub fn view(app: &App) -> El<'_> {
     r = r.push(container(vline(18.0)).padding(pad(0.0, 6.0, 0.0, 6.0)));
     r = r.push(tip(ib_wh("min", 34.0, 30.0, 16.0, Some(Msg::Minimize), t::HOVER, t::FG), crate::i18n::text("Minimizar")));
     r = r.push(tip(ib_wh("max", 34.0, 30.0, 14.0, Some(Msg::Fullscreen), t::HOVER, t::FG), crate::i18n::text("Tela cheia")));
-    r = r.push(tip(ib_wh("close", 34.0, 30.0, 16.0, Some(Msg::CloseWindow), t::DANGER, iced::Color::WHITE), crate::i18n::text("Fechar")));
+    r = r.push(tip(ib_wh("close", 34.0, 30.0, 16.0, Some(Msg::CloseWindow), t::DANGER, t::ON_DANGER), crate::i18n::text("Fechar")));
     let _ = Side::Left;
     r.into()
 }
@@ -79,6 +79,6 @@ pub fn gate() -> El<'static> {
     row![mouse_area(container(tx("Orion", 13.5, t::FG)).width(Length::Fill).height(Length::Fill).center_y(Length::Fill)).on_press(Msg::DragWindow).on_double_click(Msg::Fullscreen),
         ib_wh("min", 34.0, 30.0, 16.0, Some(Msg::Minimize), t::HOVER, t::FG),
         ib_wh("max", 34.0, 30.0, 14.0, Some(Msg::Fullscreen), t::HOVER, t::FG),
-        ib_wh("close", 34.0, 30.0, 16.0, Some(Msg::CloseWindow), t::DANGER, iced::Color::WHITE)]
+        ib_wh("close", 34.0, 30.0, 16.0, Some(Msg::CloseWindow), t::DANGER, t::ON_DANGER)]
         .height(Length::Fixed(38.0)).padding([4, 10]).align_y(Vertical::Center).into()
 }

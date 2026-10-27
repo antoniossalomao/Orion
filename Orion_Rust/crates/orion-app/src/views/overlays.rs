@@ -170,7 +170,7 @@ pub fn isso(app: &App) -> El<'_> {
     let sel = container(sp_w(0.0)).width(Length::Fixed(sw)).height(Length::Fixed(sh)).style(|_| container::Style { background: Some(t::alpha(t::PRIMARY, 0.08).into()), border: Border { color: t::PRIMARY, width: 1.5, radius: 4.0.into() }, ..Default::default() });
     let sel_pos = container(sel).padding(pad(y, 0.0, 0.0, x));
     let hint = container(container(tx(crate::i18n::text("Arraste para escolher a área · Esc cancela · Ctrl + Alt + I"), 12.5, t::FG2)).padding(pad(6.0, 12.0, 6.0, 12.0)).style(surface(Some(t::RAISE), Some(t::LINE2), 999.0))).width(Length::Fill).center_x(Length::Fill).padding(pad(18.0, 0.0, 0.0, 0.0));
-    let input = text_input(crate::i18n::text("O que é isso? (Enter pergunta)"), &i.q).on_input(Msg::IssoQ).on_submit(Msg::IssoAsk).size(13.5).font(t::UI).padding(pad(8.0, 10.0, 8.0, 10.0)).style(field_style(t::BG, t::LINE2, t::LINE3, 9.0));
+    let input = text_input(crate::i18n::text("O que é isso? (Enter pergunta)"), &i.q).on_input(Msg::IssoQ).on_submit(Msg::IssoAsk).size(13.5).font(t::UI).padding(pad(8.0, 10.0, 8.0, 10.0)).style(field_style(t::BG, t::FIELD_LINE, t::ACCENT, 9.0));
     let mut ask = column![input].spacing(8);
     if i.answered {
         ask = ask.push(txf(crate::i18n::text("É o painel de RAM do Orion: 296 MB em uso, com o índice vetorial em mmap ocupando a maior parte. Nada fora do normal."), 15.0, t::FG, t::SERIF).line_height(iced::widget::text::LineHeight::Relative(1.55)));

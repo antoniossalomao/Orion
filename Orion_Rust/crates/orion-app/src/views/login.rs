@@ -72,7 +72,7 @@ pub fn view(app: &App) -> El<'_> {
             .size(14)
             .font(t::UI)
             .padding(pad(12.0, 14.0, 12.0, 14.0))
-            .style(field_style(t::alpha(t::BG, 0.55), t::LINE, t::ACCENT, 10.0))
+            .style(field_style(t::alpha(t::BG, 0.55), t::FIELD_LINE, t::ACCENT, 10.0))
     };
     let neutro = app.gate_err.is_empty() || app.gate_err.starts_with("Conectando") || app.gate_err.starts_with("Entrando") || app.gate_err.starts_with("Abrindo") || app.gate_err.starts_with("Digite a senha");
     let aviso = container(tx(if app.gate_err.starts_with("Digite a senha") { String::new() } else { crate::i18n::status(&app.gate_err) }, 12.0, if neutro { t::FG3 } else { t::DANGER })).height(Length::Fixed(16.0));
@@ -105,7 +105,7 @@ pub fn view(app: &App) -> El<'_> {
         });
 
     let hello=if app.api.as_ref().is_some_and(|api|api.hello_ativo()) {
-        btn(crate::i18n::text("Entrar com Windows Hello"),Kind::Normal,false,None,Some(Msg::Hello))
+        btn(crate::i18n::text("Entrar com o Windows Hello"),Kind::Normal,false,None,Some(Msg::Hello))
     }else{sp_h(0.0)};
     let cartao = container(column![cab, sp_h(14.0), campos, aviso, rise(fade(entrar, p_btn, bg), p_btn, 10.0),hello,if code{btn(crate::i18n::text("Voltar à senha"),Kind::Ghost,true,None,Some(Msg::LoginCancel))}else{sp_h(0.0)}].spacing(8).align_x(Horizontal::Center).width(Length::Fill))
         .padding(pad(30.0, 28.0, 26.0, 28.0))

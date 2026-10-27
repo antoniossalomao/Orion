@@ -55,7 +55,7 @@ fn h3<'a>(s: &str, first: bool) -> El<'a> {
     container(txf(crate::i18n::status(s), t::TEXT_EYEBROW, t::FG3, t::UI_MED)).padding(pad(if first { 0.0 } else { 26.0 }, 4.0, 8.0, 4.0)).into()
 }
 fn search_box<'a>(placeholder: &str, value: &str, on: impl Fn(String) -> Msg + 'a) -> El<'a> {
-    let input = text_input(placeholder, value).on_input(on).size(13).font(t::UI).padding(pad(8.0, 12.0, 8.0, 34.0)).style(field_style(t::RAISE, t::LINE2, t::LINE3, 9.0));
+    let input = text_input(placeholder, value).on_input(on).size(13).font(t::UI).padding(pad(8.0, 12.0, 8.0, 34.0)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 9.0));
     stack![input, container(icon("search", 14.0, t::FG3)).padding(pad(10.0, 0.0, 0.0, 11.0))].into()
 }
 
@@ -292,7 +292,7 @@ fn conhecimento(app: &App) -> El<'_> {
         for (i, f) in app.facts.iter().enumerate().filter(|(_, f)| f.g == g) {
             let editing = app.edit_fact.as_ref().filter(|e| e.0 == i);
             let left: El = match editing {
-                Some(e) => column![text_input("", &e.1).on_input(Msg::FactText).on_submit(Msg::FactSave).size(14).font(t::UI).padding(pad(5.0, 8.0, 5.0, 8.0)).style(field_style(t::RAISE, t::LINE3, t::LINE3, 7.0)), li_desc(f.src.clone())].spacing(4).into(),
+                Some(e) => column![text_input("", &e.1).on_input(Msg::FactText).on_submit(Msg::FactSave).size(14).font(t::UI).padding(pad(5.0, 8.0, 5.0, 8.0)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 7.0)), li_desc(f.src.clone())].spacing(4).into(),
                 None => column![tx(f.t.clone(), 14.0, t::FG), li_desc(f.src.clone())].into(),
             };
             let right: El = if editing.is_some() { btn(crate::i18n::text("Salvar"), Kind::Primary, true, None, Some(Msg::FactSave)) } else { row![ib("edit", Some(Msg::FactEdit(i)), false), ib("trash", Some(Msg::FactForget(i)), false)].into() };
@@ -316,7 +316,7 @@ pub fn hbar<'a>(label: &str, pct: f32, value: &str, color: iced::Color) -> El<'a
     hbar_sz(label, pct, value, color, 13.0)
 }
 pub fn hbar_sz<'a>(label: &str, pct: f32, value: &str, color: iced::Color, vsize: f32) -> El<'a> {
-    row![container(tx(label.to_string(), 13.0, t::FG2)).width(Length::Fixed(140.0)), container(meter(pct, 5.0, color)).width(Length::Fill), container(tx(value.to_string(), vsize, t::FG3)).width(Length::Fixed(70.0)).align_x(Horizontal::Right)].spacing(12).align_y(Vertical::Center).padding(pad(7.0, 4.0, 7.0, 4.0)).into()
+    row![container(tx(label.to_string(), 13.0, t::FG2)).width(Length::Fixed(140.0)), container(meter(pct, 5.0, color)).width(Length::Fill), container(tx(value.to_string(), vsize, t::FG3)).width(Length::Fixed(124.0)).align_x(Horizontal::Right)].spacing(12).align_y(Vertical::Center).padding(pad(7.0, 4.0, 7.0, 4.0)).into()
 }
 
 pub fn stats<'a>(items: [(&str, &str); 4]) -> El<'a> {

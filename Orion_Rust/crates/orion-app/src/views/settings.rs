@@ -59,7 +59,7 @@ fn lede<'a>(s: &str) -> El<'a> {
     container(tx(crate::i18n::status(s), 12.5, t::FG3)).padding(pad(0.0, 0.0, 6.0, 0.0)).into()
 }
 fn input<'a>(val: &str, on: impl Fn(String) -> Msg + 'a) -> El<'a> {
-    container(text_input("", val).on_input(on).size(13).font(t::UI).padding(pad(7.0, 10.0, 7.0, 10.0)).style(field_style(t::RAISE, t::LINE2, t::LINE3, 8.0))).width(Length::Fixed(220.0)).into()
+    container(text_input("", val).on_input(on).size(13).font(t::UI).padding(pad(7.0, 10.0, 7.0, 10.0)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 8.0))).width(Length::Fixed(220.0)).into()
 }
 /// Seletor simples `.sel` (sem caixa) com popover.
 fn sel_pop<'a>(label: String, pop: Pop, app: &App, menu: El<'a>) -> El<'a> {
@@ -117,7 +117,7 @@ fn section<'a>(app: &'a App) -> El<'a> {
             c = c.push(setting(crate::i18n::text("Tamanho do texto"), "", pick_seg(&[crate::i18n::text("Pequeno"), crate::i18n::text("Médio"), crate::i18n::text("Grande")], p.size, "size")));
             c = c.push(setting(crate::i18n::text("Largura da transcrição"), "", pick_seg(&[crate::i18n::text("Estreito"), crate::i18n::text("Médio"), crate::i18n::text("Largo")], p.width, "width")));
             c = c.push(setting(crate::i18n::text("Tom das respostas"), crate::i18n::text("Vale para todos os projetos; cada projeto pode ter instruções próprias."), pick_seg(&[crate::i18n::text("Conciso"), "Normal", crate::i18n::text("Detalhado")], p.tone, "tone")));
-            let ta = container(text_input(crate::i18n::text("Ex.: sem preâmbulo, código completo, português técnico"), &p.tone_text).on_input(Msg::ToneText).size(13).font(t::UI).padding(pad(10.0, 12.0, 10.0, 12.0)).style(field_style(t::RAISE, t::LINE2, t::LINE3, 10.0))).width(Length::Fill).height(Length::Fixed(70.0));
+            let ta = container(text_input(crate::i18n::text("Ex.: sem preâmbulo, código completo, português técnico"), &p.tone_text).on_input(Msg::ToneText).size(13).font(t::UI).padding(pad(10.0, 12.0, 10.0, 12.0)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 10.0))).width(Length::Fill).height(Length::Fixed(70.0));
             c = c.push(container(column![tx(crate::i18n::text("Como o Orion deve responder (opcional)"), 12.5, t::FG3), ta].spacing(6)).padding(pad(4.0, 0.0, 14.0, 0.0)));
         }
         Sec::Notificacoes => {
@@ -157,7 +157,7 @@ fn section<'a>(app: &'a App) -> El<'a> {
                 Panic::Paused => {
                     let mut v: Vec<El> = vec![badge(crate::i18n::text("Pausado"), Tone::Err)];
                     if app.api.is_some() {
-                        v.push(container(text_input(crate::i18n::text("Senha para retomar"), &app.resume_pw).on_input(Msg::ResumePw).on_submit(Msg::PanicResume).secure(true).size(13).font(t::UI).padding(pad(6.0, 10.0, 6.0, 10.0)).style(field_style(t::RAISE, t::LINE2, t::LINE3, 8.0))).width(Length::Fixed(170.0)).into());
+                        v.push(container(text_input(crate::i18n::text("Senha para retomar"), &app.resume_pw).on_input(Msg::ResumePw).on_submit(Msg::PanicResume).secure(true).size(13).font(t::UI).padding(pad(6.0, 10.0, 6.0, 10.0)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 8.0))).width(Length::Fixed(170.0)).into());
                     }
                     v.push(btn(crate::i18n::text("Retomar"), Kind::Normal, true, None, Some(Msg::PanicResume)));
                     row_c(v)
@@ -236,7 +236,7 @@ fn section<'a>(app: &'a App) -> El<'a> {
                 c = c.push(lede(crate::i18n::text("Guardadas no cofre do sistema (Credential Manager). Chaves de modelos valem na hora.")));
                 for (_, label, nome, url) in crate::onboarding::PROVIDERS {
                     if let Some(f) = app.key_form.as_ref().filter(|f| f.nome == *nome) {
-                        let mut input = text_input(crate::i18n::text("Cole a chave de API"), &f.value).id("api-key").secure(true).size(13).font(t::UI).padding(pad(7.0, 10.0, 7.0, 10.0)).style(field_style(t::RAISE, t::LINE2, t::LINE3, 8.0));
+                        let mut input = text_input(crate::i18n::text("Cole a chave de API"), &f.value).id("api-key").secure(true).size(13).font(t::UI).padding(pad(7.0, 10.0, 7.0, 10.0)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 8.0));
                         if !f.busy {
                             input = input.on_input(Msg::KeyInput).on_submit(Msg::KeySave);
                         }
@@ -280,8 +280,8 @@ fn section<'a>(app: &'a App) -> El<'a> {
             c = c.push(lede(&crate::i18n::formatted("A memória é o vault: {} notas ligadas por {} wikilinks.", format!("A memória é o vault: {} notas ligadas por {} wikilinks.", fmt_n(n), fmt_n(l)))));
             c = c.push(setting(crate::i18n::text("Usar memória nas respostas"), crate::i18n::text("Desligado, cada conversa começa do zero."), sw(p.mem, "mem")));
             c = c.push(setting(crate::i18n::text("Pasta das notas do Orion"), crate::i18n::text("Todas as conversas viram resumo aqui, sem perguntar."), txf("03 Recursos/Orion/Memória/", 12.0, t::FG, t::MONO).into()));
-            c = c.push(setting(crate::i18n::text("Resumo diário das conversas triviais"), crate::i18n::text("Uma nota por dia em Memória/Diário, gerada às 23:59."), badge("23:59", Tone::Ok)));
-            c = c.push(setting(crate::i18n::text("Commit e push"), crate::i18n::text("Direto na main do vault, um commit por nota gravada. Sem PR."), badge(crate::i18n::text("automático"), Tone::Ok)));
+            c = c.push(setting(crate::i18n::text("Resumo diário das conversas triviais"), crate::i18n::text("Uma nota por dia em Memória/Diário, gerada às 23:59. O que você fez aparece em Você fez."), badge("23:59", Tone::Ok)));
+            c = c.push(setting(crate::i18n::text("Salvar no GitHub"), crate::i18n::text("Cada nota gravada vira um commit direto na main do vault, sem PR."), badge(crate::i18n::text("automático"), Tone::Ok)));
             c = c.push(setting(crate::i18n::text("git pull do vault"), crate::i18n::text("Ao abrir o app, a cada conversa nova, antes de gravar uma nota e ao abrir a Memória."), btn(crate::i18n::text("Agora"), Kind::Normal, true, None, Some(Msg::VaultPull))));
             c = c.push(setting(crate::i18n::text("Se você editou a mesma nota no Obsidian"), crate::i18n::text("A sua versão fica como está e a nova vira uma proposta. Compare as duas aqui e escolha."), badge(if app.conflitos.is_empty() { crate::i18n::text("sem conflitos") } else { crate::i18n::text("revisar") }, if app.conflitos.is_empty() { Tone::Ok } else { Tone::Plain })));
             for (i, (original, _, existe)) in app.conflitos.iter().enumerate() {
@@ -450,7 +450,7 @@ fn section<'a>(app: &'a App) -> El<'a> {
                 tags = tags.push(container(row![tx(o.clone(), 12.5, t::FG2), button(icon("close", 14.0, t::FG3)).padding(0).on_press(Msg::ObjRemove(i)).style(|_, _| button::Style::default())].spacing(4).align_y(Vertical::Center)).height(Length::Fixed(26.0)).center_y(Length::Fixed(26.0)).padding(pad(0.0, 6.0, 0.0, 10.0)).style(surface(None, Some(t::LINE2), 999.0)));
             }
             c = c.push(container(tags.wrap().vertical_spacing(6)).padding(pad(12.0, 0.0, 12.0, 0.0)));
-            c = c.push(row![container(text_input(crate::i18n::text("Adicionar objeto"), &app.new_obj).on_input(Msg::NewObj).on_submit(Msg::ObjAdd).size(13).font(t::UI).padding(pad(7.0, 10.0, 7.0, 10.0)).style(field_style(t::RAISE, t::LINE2, t::LINE3, 8.0))).width(Length::Fixed(220.0)), btn(crate::i18n::text("Adicionar"), Kind::Normal, true, None, Some(Msg::ObjAdd))].spacing(8));
+            c = c.push(row![container(text_input(crate::i18n::text("Adicionar objeto"), &app.new_obj).on_input(Msg::NewObj).on_submit(Msg::ObjAdd).size(13).font(t::UI).padding(pad(7.0, 10.0, 7.0, 10.0)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 8.0))).width(Length::Fixed(220.0)), btn(crate::i18n::text("Adicionar"), Kind::Normal, true, None, Some(Msg::ObjAdd))].spacing(8));
         }
         Sec::Atalhos => {
             c = c.push(sh(crate::i18n::text("Atalhos")));

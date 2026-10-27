@@ -243,7 +243,7 @@ impl canvas::Program<Msg> for Mem<'_> {
         let (w, h) = (b.width, b.height);
         let geom = g.cache.draw(r, b.size(), |f| {
             // Fundo: radial-gradient(ellipse at 50% 45%, #15192a 0%, #0b0c10 72%)
-            f.fill_rectangle(Point::ORIGIN, b.size(), Color::from_rgb8(0x0b, 0x0c, 0x10));
+            f.fill_rectangle(Point::ORIGIN, b.size(), t::ISLAND_BG);
             let (c0, c1) = ((0x15 as f32, 0x19 as f32, 0x2a as f32), (0x0b as f32, 0x0c as f32, 0x10 as f32));
             const STEPS: usize = 18;
             for k in 0..STEPS {
@@ -469,7 +469,7 @@ pub fn view(app: &App) -> El<'_> {
     }
     // barra
     let search = stack![
-        text_input(crate::i18n::text("Buscar notas, tags ou pastas"), &g.q).on_input(Msg::MemQ).size(13).font(t::UI).padding(pad(8.0, 12.0, 8.0, 34.0)).style(field_style(t::RAISE, t::LINE2, t::LINE3, 9.0)),
+        text_input(crate::i18n::text("Buscar notas, tags ou pastas"), &g.q).on_input(Msg::MemQ).size(13).font(t::UI).padding(pad(8.0, 12.0, 8.0, 34.0)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 9.0)),
         container(icon("search", 14.0, t::FG3)).padding(pad(10.0, 0.0, 0.0, 11.0))
     ];
     let mut chips = row![].spacing(4).align_y(Vertical::Center);
