@@ -67,7 +67,6 @@ ui-0065 = { "Artifact version saved." }
 ui-0066 = { "Document attached. Its text will be sent with your next message." }
 ui-0067 = { "Connecting to the core…" }
 ui-0068 = { "Enter the code sent to your Telegram." }
-ui-0069 = { "Project created. The vault note and GitHub link have not been configured yet." }
 ui-0070 = { "Unexpected response. Check the project list before trying again." }
 ui-0071 = { $v0 }{ " key stored in the vault. Reopen Orion to use this integration." }
 ui-0072 = { $v0 }{ " key stored in the vault and ready to use." }
@@ -132,7 +131,7 @@ ui-0130 = { $v0 }{ " · sent from the PC: " }{ $v1 }
 ui-0131 = { "Waiting for your approval" }
 ui-0132 = { "Ask Orion something. / for commands, @ to reference a note" }
 ui-0133 = { "Reply to Orion" }
-ui-0134 = { "Attach text, Markdown, or PDF (up to 6 MB)" }
+ui-0134 = { "Attach a document (6 MB), image (10 MB), or audio (20 MB)" }
 ui-0135 = { "Speak (click to record)" }
 ui-0136 = { "Live voice" }
 ui-0137 = { "Command /" }{ $v0 }{ " does not exist. /ajuda lists all commands." }
@@ -261,7 +260,6 @@ ui-0259 = { "— Orion, how much RAM is the app using now?" }
 ui-0260 = { "Project name" }
 ui-0261 = { "Instructions (optional)" }
 ui-0262 = { "New project" }
-ui-0263 = { "Creates a project with isolated personal memory. The folder must exist. Vault notes and GitHub links are not available here yet." }
 ui-0264 = { "Each project's conversations, instructions, and local folder." }
 ui-0265 = { "Waiting for you · " }{ $v0 }
 ui-0266 = { "Open conversation" }
@@ -386,8 +384,8 @@ ui-0384 = { "When disabled, each conversation starts from scratch." }
 ui-0385 = { "Orion notes folder" }
 ui-0386 = { "All conversations become summaries here, without asking." }
 ui-0387 = { "Daily summary of trivial conversations" }
-ui-0388 = { "One note per day in Memória/Diário, generated at 23:59." }
-ui-0389 = { "Directly to the vault main branch, one commit per saved note. No PR." }
+ui-0388 = { "One note per day in Memória/Diário, generated at 23:59. What you did shows up in Você fez." }
+ui-0389 = { "Each saved note becomes a commit straight on the vault main branch, no PR." }
 ui-0390 = { "automatic" }
 ui-0391 = { "Vault git pull" }
 ui-0392 = { "When opening the app, at each new conversation, before saving a note, and when opening Memory." }
@@ -506,7 +504,7 @@ ui-0504 = { "Download model" }
 ui-0505 = { "Loading model status…" }
 ui-0506 = { "Load more (" }{ $v0 }{ " earlier)" }
 ui-0507 = { "Key" }
-ui-0508 = { "Commit and push" }
+ui-0508 = { "Save to GitHub" }
 ui-0509 = { "How Orion should address you" }
 ui-0510 = { "Compact" }
 ui-0511 = { "Concise" }
@@ -886,45 +884,96 @@ ui-0884 = { "All commands" }
 ui-0885 = { "Recent projects" }
 ui-0886 = { "Text editing" }
 ui-0887 = { "Navigate the list" }
+ui-0888 = { "Your vault note and Orion's new version differ." }
+ui-0889 = { "In the vault (your version)" }
+ui-0890 = { "Orion's new version" }
+ui-0891 = { "Final text" }
+ui-0892 = { "Use the vault's" }
+ui-0893 = { "Use Orion's" }
+ui-0894 = { "Discard proposal" }
+ui-0895 = { "Save final text" }
+ui-0896 = { "Your version stays as it is and the new one becomes a proposal. Compare both here and choose." }
+ui-0897 = { "no conflicts" }
+ui-0898 = { "review" }
+ui-0899 = { "Conflict pending in the vault." }
+ui-0900 = { "Compare" }
+ui-0901 = { "Tokens per day · 7 days (estimated)" }
+ui-0902 = { "Tokens per day · 30 days (estimated)" }
+ui-0903 = { "30 days ago" }
+ui-0904 = { "Estimate: the outbound log stores bytes, not tokens (bytes ÷ 4)." }
+ui-0905 = { "Export today's \"You did\" report" }
+ui-0906 = { "Reload settings" }
+ui-0907 = { "Re-reads the .env and applies what it can without restarting: models, keys, injection guard and diary. Anything else is flagged as needing a restart." }
+ui-0908 = { "Reload" }
+ui-0909 = { "Settings reloaded: " }{ $v0 }{ " applied right away, " }{ $v1 }{ " need an Orion restart." }
+ui-0910 = { "Today's report was already in the vault; nothing was overwritten." }
+ui-0911 = { "Report saved to the vault: " }{ $v0 }
+ui-0912 = { "Vault note updated. Review it and commit whenever you like." }
+ui-0913 = { "Proposal discarded. The vault note was left as it was." }
+ui-0914 = { "Image attached. It goes with your next message and is not stored." }
+ui-0915 = { "Attachment ready. The text will be sent with your next message." }
+ui-0916 = { "Unsupported file type. Use text, Markdown, PDF, an image (PNG, JPEG, WebP) or audio." }
+ui-0917 = { "File is empty or larger than " }{ $v0 }{ " MB." }
+ui-0918 = { "The file is not a valid PNG, JPEG or WebP image." }
+ui-0919 = { "Could not open the image." }
+ui-0920 = { "The attachment is still being processed. Try attaching it again in a moment." }
+ui-0921 = { "Up to 4 images per message." }
+ui-0922 = { "Or the URL of a public GitHub repository (optional)" }
+ui-0923 = { "Creates the project with isolated personal memory and its note in the vault. Use an existing folder or the URL of a public GitHub repository, which gets cloned (this can take a while)." }
+ui-0924 = { "Vault note" }
+ui-0925 = { "Provide the local folder or the GitHub repository, not both." }
+ui-0926 = { "Project created. The project note already existed in the vault and was left unchanged." }
+ui-0927 = { "Project created and note saved to the vault." }
+ui-0928 = { "Project created, but the note was not saved to the vault. Check the vault folder in Settings › Memory." }
+ui-0929 = { "This audio will leave your computer and be sent to " }{ $v0 }{ " to be transcribed. Send it?" }
+ui-0930 = { "Audio transcription is not set up. Turn on local Whisper or set the transcription key." }
+ui-0931 = { "Edit" }
+ui-0932 = { "Edit and resend" }
+ui-0933 = { "Pin as context" }
+ui-0934 = { "Regenerating…" }
+ui-0935 = { "Regenerate" }
+ui-0936 = { "Reading aloud" }
+ui-0937 = { "Listen" }
+ui-0938 = { "Move up" }
 
-ui-0888 = { "permissions computer web open apps confirmation authorization" }
+ui-0939 = { "permissions computer web open apps confirmation authorization" }
 
-ui-0889 = { "Authorize once on this computer. Your choice is saved and can be changed here at any time." }
+ui-0940 = { "Authorize once on this computer. Your choice is saved and can be changed here at any time." }
 
-ui-0890 = { "Without per-action confirmations, Orion can open apps, run commands, change or delete files and use the web, including after reading external documents." }
+ui-0941 = { "Without per-action confirmations, Orion can open apps, run commands, change or delete files and use the web, including after reading external documents." }
 
-ui-0891 = { "Disable all tools" }
+ui-0942 = { "Disable all tools" }
 
-ui-0892 = { "Authorize all tools" }
+ui-0943 = { "Authorize all tools" }
 
-ui-0893 = { "Loading permissions…" }
+ui-0944 = { "Loading permissions…" }
 
-ui-0894 = { "Computer tools" }
+ui-0945 = { "Computer tools" }
 
-ui-0895 = { "Files, applications, commands and computer automation." }
+ui-0946 = { "Files, applications, commands and computer automation." }
 
-ui-0896 = { "Web tools" }
+ui-0947 = { "Web tools" }
 
-ui-0897 = { "Search and web access with configured services." }
+ui-0948 = { "Search and web access with configured services." }
 
-ui-0898 = { "Without confirming each action" }
+ui-0949 = { "Without confirming each action" }
 
-ui-0899 = { "Uses the saved authorization. When off, actions requiring approval ask for confirmation again." }
+ui-0950 = { "Uses the saved authorization. When off, actions requiring approval ask for confirmation again." }
 
-ui-0900 = { "Changes take effect immediately. Voice, camera, continuous capture and integrations still need their own setup. Panic and action logs stay active." }
+ui-0951 = { "Changes take effect immediately. Voice, camera, continuous capture and integrations still need their own setup. Panic and action logs stay active." }
 
-ui-0901 = { "Changing Orion’s own code still requires specific approval." }
+ui-0952 = { "Changing Orion’s own code still requires specific approval." }
 
-ui-0902 = { "Allows more steps per request. Authorization to act without confirmation is in Tools." }
+ui-0953 = { "Allows more steps per request. Authorization to act without confirmation is in Tools." }
 
-ui-0903 = { "Tools and import" }
+ui-0954 = { "Tools and import" }
 
-ui-0904 = { "Choose once; change it later in Settings." }
+ui-0955 = { "Choose once; change it later in Settings." }
 
-ui-0905 = { "Authorize all tools without confirming each action" }
+ui-0956 = { "Authorize all tools without confirming each action" }
 
-ui-0906 = { "Allows opening apps, running commands, reading sensitive files, changing or deleting files and using the web, including after reading external content. Applies on this computer until you turn it off in Settings → Tools." }
+ui-0957 = { "Allows opening apps, running commands, reading sensitive files, changing or deleting files and using the web, including after reading external content. Applies on this computer until you turn it off in Settings → Tools." }
 
-ui-0907 = { "Does not turn on voice, camera, continuous capture or unconfigured integrations. Panic and action logs stay active." }
+ui-0958 = { "Does not turn on voice, camera, continuous capture or unconfigured integrations. Panic and action logs stay active." }
 
-ui-0908 = { "Autonomous mode on. More steps per request; permissions are in Settings → Tools." }
+ui-0959 = { "Autonomous mode on. More steps per request; permissions are in Settings → Tools." }

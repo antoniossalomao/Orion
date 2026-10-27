@@ -434,9 +434,14 @@ impl JobRunner {
         let tasks=activity["completed_tasks"].as_i64().unwrap_or(0);
         let approvals=activity["approval_requests"].as_i64().unwrap_or(0);
         let text=format!("Resumo de {date}: {conversations} conversa(s), {actions} ação(ões) autorizada(s), {tasks} tarefa(s) concluída(s), {approvals} pedido(s) de aprovação.");
+        // F09.05: o texto completo do "Você fez" fica guardado; exportar para o vault é decisão sua.
+        let relatorio = crate::relatorio::voce_fez(&self.memory, pid.as_deref(), date)?;
         self.memory.tx(|_| {
             if self.memory.meta_get(&marker).is_some() { return Ok(false); }
-            if conversations+actions+tasks+approvals>0 { self.ops.notify("resumo_diario",&text,Some(&marker),false)?; }
+            if conversations+actions+tasks+approvals>0 {
+                self.memory.meta_set(&crate::relatorio::chave(pid.as_deref(), date), Some(&relatorio))?;
+                self.ops.notify("resumo_diario",&text,Some(&marker),false)?;
+            }
             self.memory.meta_set(&marker,Some("1"))?;
             Ok(conversations+actions+tasks+approvals>0)
         }).map_err(Into::into)

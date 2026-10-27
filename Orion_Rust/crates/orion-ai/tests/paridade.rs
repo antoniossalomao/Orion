@@ -528,7 +528,7 @@ fn orcamento_do_dia_por_provedor() {
     let provs = parse_provedores(&json!([{"id": "groq", "padrao": "m", "limite_dia": 2}, {"id": "gemini", "padrao": "g"}]).to_string()).unwrap();
     let q = Quotas { gateway_dia: 100, groq_dia: 100, gemini_dia: 100, brave_mes: 100 };
     let custos = Custos::new(m.store.clone(), cotas_de(&q, &provs), None);
-    assert!(custos.cotas.iter().any(|(k, _)| k == "prov:groq") && !custos.cotas.iter().any(|(k, _)| k == "prov:gemini")); // sem limite
+    assert!(custos.cotas.read().iter().any(|(k, _)| k == "prov:groq") && !custos.cotas.read().iter().any(|(k, _)| k == "prov:gemini")); // sem limite
     assert!(custos.no_orcamento("groq") && custos.no_orcamento("gemini"));
     chamadas(&m.store, "gateway:groq", 2, None, true);
     assert!(!custos.no_orcamento("groq") && custos.no_orcamento("gemini"));

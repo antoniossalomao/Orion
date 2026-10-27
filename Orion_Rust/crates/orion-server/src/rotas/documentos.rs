@@ -18,7 +18,7 @@ pub struct ProjQ {
     project_id: Option<String>,
 }
 
-fn validar(st: &Estado, pid: &Option<String>) -> ApiResult<()> {
+pub(super) fn validar(st: &Estado, pid: &Option<String>) -> ApiResult<()> {
     if let Some(p) = pid {
         let r = st.memory.query("SELECT archived FROM projects WHERE id=?", &[p])?;
         if r.first().is_none_or(|r| r["archived"].as_i64().unwrap_or(1) != 0) {
@@ -28,9 +28,18 @@ fn validar(st: &Estado, pid: &Option<String>) -> ApiResult<()> {
     Ok(())
 }
 
-fn linha_de(st: &Estado, pid: &Option<String>, id: &str) -> ApiResult<Json<Value>> {
+pub(super) fn linha_de(st: &Estado, pid: &Option<String>, id: &str) -> ApiResult<Json<Value>> {
     let rows = documents::linhas(&st.memory, pid.as_deref())?;
     rows.into_iter().find(|r| r["id"] == json!(id)).map(|r| Json(Value::Object(r))).ok_or_else(|| ApiError::new(404, "document_not_found"))
+}
+
+/// Áudio só se refaz com transcrição configurada: confere antes de apagar o índice ou mudar o estado.
+fn exigir_transcricao(st: &Estado, id: &str, pid: &Option<String>) -> ApiResult<()> {
+    let achado = st.memory.query("SELECT kind FROM uploads WHERE id=? AND project_id IS ?", &[&id, pid])?;
+    if achado.first().is_some_and(|l| super::audios::e_audio(l["kind"].as_str().unwrap_or(""))) && !st.transcriber.as_ref().is_some_and(|t| t.has_local()) {
+        return erro(409, "audio_remoto_precisa_de_consentimento");
+    }
+    Ok(())
 }
 
 /// Indexa em segundo plano (E4.3). Espera um pouco para o caso comum (arquivo pequeno) voltar já
@@ -38,6 +47,21 @@ fn linha_de(st: &Estado, pid: &Option<String>, id: &str) -> ApiResult<Json<Value
 async fn rodar(st: &Estado, id: &str, pid: &Option<String>) -> ApiResult<()> {
     if !st.memory.query("SELECT 1 FROM uploads WHERE id=? AND status='processing'", &[&id])?.is_empty() {
         return erro(409, "document_busy");
+    }
+    // Áudio se transcreve de novo a partir do original; o extrator de texto não lê áudio.
+    let achado = st.memory.query("SELECT name, kind FROM uploads WHERE id=? AND project_id IS ?", &[&id, pid])?;
+    if let Some(linha) = achado.first().filter(|l| super::audios::e_audio(l["kind"].as_str().unwrap_or(""))) {
+        // Refazer não pede de novo a sua confirmação: só o Whisper local, nunca o provedor.
+        if !st.transcriber.as_ref().is_some_and(|t| t.has_local()) {
+            return erro(409, "audio_remoto_precisa_de_consentimento");
+        }
+        let raw: Vec<u8> = st.memory.conn().query_row("SELECT raw FROM uploads WHERE id=?", [id], |r| r.get(0)).map_err(orion_store::StoreError::from)?;
+        let Some((_, mime)) = super::audios::tipo(&raw) else { return erro(422, "audio_type_invalid") };
+        st.memory.tx(|c| {
+            c.execute("UPDATE uploads SET status='processing',error=NULL,progress=0 WHERE id=?", [id])?;
+            Ok(())
+        })?;
+        return super::audios::transcrever_em_segundo_plano(st, id.to_string(), pid.clone(), linha["name"].as_str().unwrap_or("").to_string(), raw, mime, false);
     }
     let (m, id2, pid2) = (st.memory.clone(), id.to_string(), pid.clone());
     let tarefa = tokio::task::spawn_blocking(move || documents::process(&m, &id2, pid2.as_deref()));
@@ -105,6 +129,7 @@ pub async fn reindexar(_: Admin, State(st): State<Estado>, Path(id): Path<String
     if a["status"] == json!("processing") {
         return erro(409, "document_busy");
     }
+    exigir_transcricao(&st, &id, &q.project_id)?;
     let fonte = format!("upload:{id}/{}", a["name"].as_str().unwrap_or(""));
     with_scope(DataScope::project(q.project_id.clone(), false), || st.memory.remove_document(&fonte))?;
     rodar(&st, &id, &q.project_id).await?;
@@ -123,8 +148,13 @@ pub async fn mover_documento(_: Admin, State(st): State<Estado>, Path(id): Path<
     if alvo == q.project_id {
         return linha_de(&st, &q.project_id, &id);
     }
-    let achados = st.memory.query("SELECT name FROM uploads WHERE id=? AND project_id IS ?", &[&id, &q.project_id])?;
+    let achados = st.memory.query("SELECT name, status FROM uploads WHERE id=? AND project_id IS ?", &[&id, &q.project_id])?;
     let Some(a) = achados.first() else { return erro(404, "document_not_found") };
+    // Quem ainda está sendo processado (inclusive a transcrição de um áudio) guarda o escopo de antes: não muda de escopo no meio.
+    if a["status"] == json!("processing") {
+        return erro(409, "document_busy");
+    }
+    exigir_transcricao(&st, &id, &q.project_id)?;
     let fonte = format!("upload:{id}/{}", a["name"].as_str().unwrap_or(""));
     with_scope(DataScope::project(q.project_id.clone(), false), || st.memory.remove_document(&fonte))?;
     st.memory.tx(|c| {

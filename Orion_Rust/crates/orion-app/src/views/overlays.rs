@@ -86,7 +86,7 @@ pub fn palette(app: &App) -> El<'_> {
     let input = text_input(crate::i18n::text("Buscar conversas e notas do vault"), &app.pal.q)
         .on_input(Msg::PalQ)
         .on_submit(Msg::PalRun(sel))
-        .size(15)
+        .size(t::snap_size(15 as f32))
         .font(t::UI)
         .padding(pad(15.0, 0.0, 15.0, 0.0))
         .style(|th, st| {
@@ -106,11 +106,11 @@ pub fn palette(app: &App) -> El<'_> {
                 .width(Length::Fill)
                 .padding(pad(8.0, 10.0, 8.0, 10.0))
                 .on_press(Msg::PalRun(i))
-                .style(move |_, st| button::Style { background: if on { Some(Background::Color(t::SEL)) } else if matches!(st, button::Status::Hovered) { Some(Background::Color(t::HOVER)) } else { None }, text_color: t::FG, border: Border { radius: 8.0.into(), ..Default::default() }, shadow: Default::default(), snap: true }),
+                .style(move |_, st| button::Style { background: if on { Some(Background::Color(t::ACCENT_SOFT)) } else if matches!(st, button::Status::Hovered) { Some(Background::Color(t::HOVER)) } else { None }, text_color: t::FG, border: Border { radius: t::R_CTRL.into(), ..Default::default() }, shadow: Default::default(), snap: true }),
         );
     }
     let body = scrollable(container(list).padding(6)).direction(scrollable::Direction::Vertical(thin_bar())).style(thin_scroll).height(Length::Shrink);
-    let boxed = container(column![head, hline(), container(body).max_height(372.0)]).width(Length::Fixed(600.0f32.min(app.win.width - 32.0))).clip(true).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: 16.0.into() }, shadow: shadow(), ..Default::default() });
+    let boxed = container(column![head, hline(), container(body).max_height(372.0)]).width(Length::Fixed(600.0f32.min(app.win.width - 32.0))).clip(true).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_PANEL.into() }, shadow: shadow(), ..Default::default() });
     scrim_box(boxed.into(), app.win.height * 0.14, t::SCRIM, Msg::PalClose)
 }
 
@@ -127,7 +127,7 @@ pub fn quick_capture(app: &App) -> El<'_> {
             s.border.width = 0.0;
             s
         });
-    let head = container(row![icon("inbox", 16.0, t::FG3), input, kbd("Enter")].spacing(10).align_y(Vertical::Center)).padding(pad(0.0, 14.0, 0.0, 14.0));
+    let head = container(row![icon("inbox", 16.0, t::FG3), input, kbd("Enter")].spacing(10).align_y(Vertical::Center)).padding(pad(0.0, 12.0, 0.0, 12.0));
     let kinds = [crate::i18n::text("Tarefa"), crate::i18n::text("Lembrete"), crate::i18n::text("Gasto"), crate::i18n::text("Nota")];
     let cur = match q.kind {
         CapKind::Tarefa => 0,
@@ -136,7 +136,7 @@ pub fn quick_capture(app: &App) -> El<'_> {
         CapKind::Nota => 3,
     };
     let foot = container(row![seg(&kinds, cur, Msg::QcapKind), grow(), tx(crate::i18n::text("Vai para "), 12.0, t::FG3), txf("00 Inbox", 12.0, t::FG3, t::MONO), tx(" · Ctrl + Alt + O", 12.0, t::FG3)].spacing(6).align_y(Vertical::Center)).padding(pad(8.0, 12.0, 8.0, 12.0));
-    let boxed = container(column![head, hline(), foot]).width(Length::Fixed(620.0f32.min(app.win.width - 32.0))).clip(true).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: 16.0.into() }, shadow: shadow(), ..Default::default() });
+    let boxed = container(column![head, hline(), foot]).width(Length::Fixed(620.0f32.min(app.win.width - 32.0))).clip(true).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_PANEL.into() }, shadow: shadow(), ..Default::default() });
     scrim_box(boxed.into(), app.win.height * 0.22, Color::from_rgba(0.0, 0.0, 0.0, 0.25), Msg::QcapClose)
 }
 
@@ -146,7 +146,7 @@ pub fn auto_senha(app: &App) -> El<'_> {
         .on_input(Msg::AutoSenhaText)
         .on_submit(Msg::AutoSenhaOk)
         .secure(true)
-        .size(15)
+        .size(t::snap_size(15 as f32))
         .font(t::UI)
         .padding(pad(12.0, 12.0, 12.0, 12.0));
     let corpo = column![
@@ -156,7 +156,7 @@ pub fn auto_senha(app: &App) -> El<'_> {
         row![grow(), btn(crate::i18n::text("Cancelar"), Kind::Normal, true, None, Some(Msg::AutoSenhaClose)), btn(crate::i18n::text("Ligar"), Kind::Primary, !v.is_empty(), None, Some(Msg::AutoSenhaOk))].spacing(8),
     ]
     .spacing(12);
-    let boxed = container(corpo).padding(pad(18.0, 18.0, 18.0, 18.0)).width(Length::Fixed(440.0f32.min(app.win.width - 32.0))).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: 16.0.into() }, shadow: shadow(), ..Default::default() });
+    let boxed = container(corpo).padding(pad(18.0, 18.0, 18.0, 18.0)).width(Length::Fixed(440.0f32.min(app.win.width - 32.0))).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_PANEL.into() }, shadow: shadow(), ..Default::default() });
     scrim_box(boxed.into(), app.win.height * 0.22, Color::from_rgba(0.0, 0.0, 0.0, 0.35), Msg::AutoSenhaClose)
 }
 
@@ -170,13 +170,13 @@ pub fn isso(app: &App) -> El<'_> {
     let sel = container(sp_w(0.0)).width(Length::Fixed(sw)).height(Length::Fixed(sh)).style(|_| container::Style { background: Some(t::alpha(t::PRIMARY, 0.08).into()), border: Border { color: t::PRIMARY, width: 1.5, radius: 4.0.into() }, ..Default::default() });
     let sel_pos = container(sel).padding(pad(y, 0.0, 0.0, x));
     let hint = container(container(tx(crate::i18n::text("Arraste para escolher a área · Esc cancela · Ctrl + Alt + I"), 12.5, t::FG2)).padding(pad(6.0, 12.0, 6.0, 12.0)).style(surface(Some(t::RAISE), Some(t::LINE2), 999.0))).width(Length::Fill).center_x(Length::Fill).padding(pad(18.0, 0.0, 0.0, 0.0));
-    let input = text_input(crate::i18n::text("O que é isso? (Enter pergunta)"), &i.q).on_input(Msg::IssoQ).on_submit(Msg::IssoAsk).size(13.5).font(t::UI).padding(pad(8.0, 10.0, 8.0, 10.0)).style(field_style(t::BG, t::LINE2, t::LINE3, 9.0));
+    let input = text_input(crate::i18n::text("O que é isso? (Enter pergunta)"), &i.q).on_input(Msg::IssoQ).on_submit(Msg::IssoAsk).size(t::snap_size(13.5 as f32)).font(t::UI).padding(pad(8.0, 10.0, 8.0, 10.0)).style(field_style(t::BG, t::FIELD_LINE, t::ACCENT, 9.0));
     let mut ask = column![input].spacing(8);
     if i.answered {
         ask = ask.push(txf(crate::i18n::text("É o painel de RAM do Orion: 296 MB em uso, com o índice vetorial em mmap ocupando a maior parte. Nada fora do normal."), 15.0, t::FG, t::SERIF).line_height(iced::widget::text::LineHeight::Relative(1.55)));
     }
     ask = ask.push(row![grow(), btn(crate::i18n::text("Fechar"), Kind::Ghost, true, None, Some(Msg::IssoClose)), btn(crate::i18n::text("Levar para o chat"), Kind::Normal, true, None, Some(Msg::Toast(crate::i18n::text("Captura anexada a uma conversa nova (simulado)").into())))].spacing(6));
-    let ask_box = container(ask).width(Length::Fixed(420.0f32.min(w - 32.0))).padding(10).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: 14.0.into() }, shadow: shadow(), ..Default::default() });
+    let ask_box = container(ask).width(Length::Fixed(420.0f32.min(w - 32.0))).padding(10).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_PANEL.into() }, shadow: shadow(), ..Default::default() });
     let ask_pos = container(ask_box).padding(pad((y + sh + 10.0).min(h - 170.0), 0.0, 0.0, x.min(w - 436.0)));
     let base = container(sp_w(0.0)).width(Length::Fill).height(Length::Fill).style(|_| container::Style { background: Some(Color::from_rgba(0.0, 0.0, 0.0, 0.45).into()), ..Default::default() });
     opaque(stack![base, around, sel_pos, hint, ask_pos])
@@ -201,19 +201,19 @@ pub fn island(app: &App) -> El<'_> {
     let pill = container(row![cv(IslandSky).width(72).height(32), tx(crate::i18n::text("Ouvindo… diga “Orion” ou bata duas palmas"), 13.0, t::FG2), tip(ib("close", Some(Msg::Live), false), crate::i18n::text("Parar de ouvir"))].spacing(12).align_y(Vertical::Center))
         .height(Length::Fixed(44.0))
         .padding(pad(0.0, 8.0, 0.0, 10.0))
-        .style(|_| container::Style { background: Some(t::ISLAND_BG.into()), border: Border { color: t::LINE2, width: 1.0, radius: 999.0.into() }, shadow: shadow(), ..Default::default() });
+        .style(|_| container::Style { background: Some(t::ISLAND_BG.into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_PILL.into() }, shadow: shadow(), ..Default::default() });
     container(pill).width(Length::Fill).center_x(Length::Fill).padding(pad(10.0, 0.0, 0.0, 0.0)).into()
 }
 
 pub fn caption<'a>() -> El<'a> {
-    let c = container(tx(crate::i18n::text("— Orion, quanto de RAM o app está usando agora?"), 16.0, Color::WHITE)).padding(pad(8.0, 16.0, 8.0, 16.0)).style(|_| container::Style { background: Some(Color::from_rgba(0.0, 0.0, 0.0, 0.78).into()), border: Border { radius: 10.0.into(), ..Default::default() }, ..Default::default() });
+    let c = container(tx(crate::i18n::text("— Orion, quanto de RAM o app está usando agora?"), 16.0, Color::WHITE)).padding(pad(8.0, 16.0, 8.0, 16.0)).style(|_| container::Style { background: Some(Color::from_rgba(0.0, 0.0, 0.0, 0.78).into()), border: Border { radius: t::R_CARD.into(), ..Default::default() }, ..Default::default() });
     container(c).width(Length::Fill).height(Length::Fill).center_x(Length::Fill).align_y(Vertical::Bottom).padding(pad(0.0, 0.0, 28.0, 0.0)).into()
 }
 
 pub fn toast<'a>(msg: String) -> El<'a> {
     let msg = crate::i18n::status(&msg);
     let p = crate::anim::TOAST.get();
-    let c = container(tx(msg, 13.0, t::alpha(t::PRIMARY_INK, p))).padding(pad(8.0, 14.0, 8.0, 14.0)).style(move |_| container::Style { background: Some(t::alpha(t::PRIMARY, p).into()), border: Border { radius: 10.0.into(), ..Default::default() }, shadow: shadow(), ..Default::default() });
+    let c = container(tx(msg, 13.0, t::alpha(t::PRIMARY_INK, p))).padding(pad(8.0, 12.0, 8.0, 12.0)).style(move |_| container::Style { background: Some(t::alpha(t::PRIMARY, p).into()), border: Border { radius: t::R_CARD.into(), ..Default::default() }, shadow: shadow(), ..Default::default() });
     container(c).width(Length::Fill).height(Length::Fill).center_x(Length::Fill).align_y(Vertical::Bottom).padding(pad(0.0, 0.0, 20.0 - 6.0 * (1.0 - p), 0.0)).into()
 }
 

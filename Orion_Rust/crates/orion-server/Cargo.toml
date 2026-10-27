@@ -49,7 +49,8 @@ tempfile.workspace = true
 toml = "0.8"
 
 [target.'cfg(windows)'.dependencies]
-windows = { version = "0.61", features = ["Security_Credentials_UI"] }
+windows = { version = "0.61", features = ["Security_Credentials_UI", "Foundation", "Win32_Foundation", "Win32_System_WinRT"] }
+windows-future = "0.2"
 iced.workspace = true
 orion-platform = { path = "../orion-platform" }
 

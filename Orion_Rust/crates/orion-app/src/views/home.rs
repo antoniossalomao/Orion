@@ -37,12 +37,12 @@ fn sugg<'a>(ic: Option<&str>, dot: bool, label: String, warn: bool, msg: Msg) ->
     r = r.push(tx(label, 13.0, if warn { t::FG } else { t::FG2 }).wrapping(iced::widget::text::Wrapping::None));
     button(container(r).center_y(Length::Fill))
         .height(Length::Fixed(34.0))
-        .padding(pad(0.0, 14.0, 0.0, 14.0))
+        .padding(pad(0.0, 12.0, 0.0, 12.0))
         .on_press(msg)
         .style(move |_, st| button::Style {
             background: Some(Background::Color(t::mix(t::BG, 0.7))),
             text_color: t::FG2,
-            border: Border { color: if warn { t::mix(t::SIGNAL, 0.4) } else if matches!(st, button::Status::Hovered) { t::LINE3 } else { t::LINE2 }, width: 1.0, radius: 999.0.into() },
+            border: Border { color: if warn { t::mix(t::SIGNAL, 0.4) } else if matches!(st, button::Status::Hovered) { t::LINE3 } else { t::LINE2 }, width: 1.0, radius: t::R_PILL.into() },
             shadow: Default::default(),
             snap: true,
         })

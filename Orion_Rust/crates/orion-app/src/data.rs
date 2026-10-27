@@ -301,14 +301,16 @@ pub struct Project {
     pub model: String,
     pub pastas: String,
     pub rot: u32,
+    /// A nota raiz do projeto existe no vault (F08.06).
+    pub vault: bool,
 }
 
 pub fn projects() -> Vec<Project> {
     vec![
-    Project { id: String::new(), n: "Orion".into(), d: "Assistente local em Rust. Fase 6: front e voz.".into(), pend: "3 pendências".into(), up: "há 2 h".into(), repo: "antoniossalomao/Orion".into(), ci: true, model: "Claude Sonnet".into(), pastas: "C:\\Projetos\\Orion".into(), rot: 1 },
-    Project { id: String::new(), n: "Vault".into(), d: "Segundo cérebro em Obsidian, estrutura PARA.".into(), pend: "1 PR aberto".into(), up: "ontem".into(), repo: "antoniossalomao/vault".into(), ci: true, model: "Gemini Flash".into(), pastas: "C:\\Users\\Antonio\\Vault".into(), rot: 2 },
-    Project { id: String::new(), n: "Lyra".into(), d: "Avaliação de RAG com o vault como base.".into(), pend: "pausado".into(), up: "set.".into(), repo: "".into(), ci: false, model: "Auto".into(), pastas: "".into(), rot: 0 },
-    Project { id: String::new(), n: "Nortis".into(), d: "Backup e restauração antes de trocar de PC.".into(), pend: "concluído".into(), up: "ago.".into(), repo: "".into(), ci: false, model: "Auto".into(), pastas: "D:\\Backup".into(), rot: 0 },
+    Project { id: String::new(), n: "Orion".into(), d: "Assistente local em Rust. Fase 6: front e voz.".into(), pend: "3 pendências".into(), up: "há 2 h".into(), repo: "antoniossalomao/Orion".into(), ci: true, model: "Claude Sonnet".into(), pastas: "C:\\Projetos\\Orion".into(), rot: 1, vault: false },
+    Project { id: String::new(), n: "Vault".into(), d: "Segundo cérebro em Obsidian, estrutura PARA.".into(), pend: "1 PR aberto".into(), up: "ontem".into(), repo: "antoniossalomao/vault".into(), ci: true, model: "Gemini Flash".into(), pastas: "C:\\Users\\Antonio\\Vault".into(), rot: 2, vault: false },
+    Project { id: String::new(), n: "Lyra".into(), d: "Avaliação de RAG com o vault como base.".into(), pend: "pausado".into(), up: "set.".into(), repo: "".into(), ci: false, model: "Auto".into(), pastas: "".into(), rot: 0, vault: false },
+    Project { id: String::new(), n: "Nortis".into(), d: "Backup e restauração antes de trocar de PC.".into(), pend: "concluído".into(), up: "ago.".into(), repo: "".into(), ci: false, model: "Auto".into(), pastas: "D:\\Backup".into(), rot: 0, vault: false },
 ]
 }
 

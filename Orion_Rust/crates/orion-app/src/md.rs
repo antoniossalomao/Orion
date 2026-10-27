@@ -598,7 +598,7 @@ pub fn render_with<'a, M: Clone + 'a>(blocks: &[Block], st: Style, on_link: Opti
                 }
                 container(c)
                     .width(Length::Fill)
-                    .style(|_| container::Style { border: Border { color: t::LINE, width: 1.0, radius: 10.0.into() }, ..Default::default() })
+                    .style(|_| container::Style { border: Border { color: t::LINE, width: 1.0, radius: t::R_CARD.into() }, ..Default::default() })
                     .into()
             }
             Block::Ul(items) | Block::Ol(items) => {
@@ -636,7 +636,7 @@ pub fn render_with<'a, M: Clone + 'a>(blocks: &[Block], st: Style, on_link: Opti
                             iced::widget::button(text(crate::i18n::text("Copiar")).font(t::UI).size(11.5).color(t::FG3))
                                 .padding(Padding { top: 1.0, bottom: 1.0, left: 6.0, right: 6.0 })
                                 .on_press(f(lines.join("\n")))
-                                .style(|_, st| iced::widget::button::Style { background: if matches!(st, iced::widget::button::Status::Hovered) { Some(iced::Background::Color(t::HOVER)) } else { None }, text_color: t::FG3, border: Border { radius: 6.0.into(), ..Default::default() }, ..Default::default() }),
+                                .style(|_, st| iced::widget::button::Style { background: if matches!(st, iced::widget::button::Status::Hovered) { Some(iced::Background::Color(t::HOVER)) } else { None }, text_color: t::FG3, border: Border { radius: t::R_CTRL.into(), ..Default::default() }, ..Default::default() }),
                         );
                     }
                     c = c.push(container(topo).width(Length::Fill).padding(Padding { bottom: 8.0, ..Default::default() }));
@@ -656,7 +656,7 @@ pub fn render_with<'a, M: Clone + 'a>(blocks: &[Block], st: Style, on_link: Opti
                     .width(Length::Fill)
                     .style(|_| container::Style {
                         background: Some(t::SIDE.into()),
-                        border: Border { color: t::LINE, width: 1.0, radius: 12.0.into() },
+                        border: Border { color: t::LINE, width: 1.0, radius: t::R_CARD.into() },
                         ..Default::default()
                     })
                     .into()
@@ -669,7 +669,7 @@ pub fn render_with<'a, M: Clone + 'a>(blocks: &[Block], st: Style, on_link: Opti
                 container(c)
                     .padding(Padding { top: 8.0, bottom: 8.0, left: 12.0, right: 12.0 })
                     .width(Length::Fill)
-                    .style(|_| container::Style { border: Border { color: t::LINE, width: 1.0, radius: 10.0.into() }, ..Default::default() })
+                    .style(|_| container::Style { border: Border { color: t::LINE, width: 1.0, radius: t::R_CARD.into() }, ..Default::default() })
                     .into()
             }
         };

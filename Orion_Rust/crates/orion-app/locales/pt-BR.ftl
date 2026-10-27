@@ -67,7 +67,6 @@ ui-0065 = { "Versão do artefato guardada." }
 ui-0066 = { "Documento anexado. O texto será enviado com sua próxima mensagem." }
 ui-0067 = { "Conectando ao núcleo…" }
 ui-0068 = { "Digite o código enviado ao seu Telegram." }
-ui-0069 = { "Projeto criado. Nota no vault e vínculo GitHub ainda não foram configurados." }
 ui-0070 = { "Resposta inesperada. Confira a lista de projetos antes de tentar de novo." }
 ui-0071 = { "Chave de " }{ $v0 }{ " guardada no cofre. Reabra o Orion para usar esta integração." }
 ui-0072 = { "Chave de " }{ $v0 }{ " guardada no cofre e disponível para uso." }
@@ -132,7 +131,7 @@ ui-0130 = { $v0 }{ " · saiu do PC: " }{ $v1 }
 ui-0131 = { "Aguardando sua aprovação" }
 ui-0132 = { "Pergunte ou peça algo ao Orion. / para comandos, @ para citar uma nota" }
 ui-0133 = { "Responder ao Orion" }
-ui-0134 = { "Anexar texto, Markdown ou PDF (até 6 MB)" }
+ui-0134 = { "Anexar documento (6 MB), imagem (10 MB) ou áudio (20 MB)" }
 ui-0135 = { "Falar (clique para gravar)" }
 ui-0136 = { "Voz ao vivo" }
 ui-0137 = { "Comando /" }{ $v0 }{ " não existe. /ajuda lista todos." }
@@ -261,7 +260,6 @@ ui-0259 = { "— Orion, quanto de RAM o app está usando agora?" }
 ui-0260 = { "Nome do projeto" }
 ui-0261 = { "Instruções (opcional)" }
 ui-0262 = { "Novo projeto" }
-ui-0263 = { "Cria o projeto com memória pessoal isolada. A pasta precisa existir. Nota no vault e vínculo GitHub ainda não estão disponíveis aqui." }
 ui-0264 = { "Conversas, instruções e pasta local de cada projeto." }
 ui-0265 = { "Aguardando você · " }{ $v0 }
 ui-0266 = { "Abrir conversa" }
@@ -386,8 +384,8 @@ ui-0384 = { "Desligado, cada conversa começa do zero." }
 ui-0385 = { "Pasta das notas do Orion" }
 ui-0386 = { "Todas as conversas viram resumo aqui, sem perguntar." }
 ui-0387 = { "Resumo diário das conversas triviais" }
-ui-0388 = { "Uma nota por dia em Memória/Diário, gerada às 23:59." }
-ui-0389 = { "Direto na main do vault, um commit por nota gravada. Sem PR." }
+ui-0388 = { "Uma nota por dia em Memória/Diário, gerada às 23:59. O que você fez aparece em Você fez." }
+ui-0389 = { "Cada nota gravada vira um commit direto na main do vault, sem PR." }
 ui-0390 = { "automático" }
 ui-0391 = { "git pull do vault" }
 ui-0392 = { "Ao abrir o app, a cada conversa nova, antes de gravar uma nota e ao abrir a Memória." }
@@ -506,7 +504,7 @@ ui-0504 = { "Baixar modelo" }
 ui-0505 = { "Carregando o estado dos modelos…" }
 ui-0506 = { "Carregar mais (" }{ $v0 }{ " anteriores)" }
 ui-0507 = { "Chave" }
-ui-0508 = { "Commit e push" }
+ui-0508 = { "Salvar no GitHub" }
 ui-0509 = { "Como o Orion deve te chamar" }
 ui-0510 = { "Compacta" }
 ui-0511 = { "Conciso" }
@@ -886,45 +884,96 @@ ui-0884 = { "Todos os comandos" }
 ui-0885 = { "Projetos recentes" }
 ui-0886 = { "Edição de texto" }
 ui-0887 = { "Navegar na lista" }
+ui-0888 = { "Sua nota no vault e a versão nova do Orion diferem." }
+ui-0889 = { "No vault (sua versão)" }
+ui-0890 = { "Versão nova do Orion" }
+ui-0891 = { "Texto final" }
+ui-0892 = { "Usar a do vault" }
+ui-0893 = { "Usar a do Orion" }
+ui-0894 = { "Descartar proposta" }
+ui-0895 = { "Salvar texto final" }
+ui-0896 = { "A sua versão fica como está e a nova vira uma proposta. Compare as duas aqui e escolha." }
+ui-0897 = { "sem conflitos" }
+ui-0898 = { "revisar" }
+ui-0899 = { "Conflito pendente no vault." }
+ui-0900 = { "Comparar" }
+ui-0901 = { "Tokens por dia · 7 dias (estimado)" }
+ui-0902 = { "Tokens por dia · 30 dias (estimado)" }
+ui-0903 = { "30 dias atrás" }
+ui-0904 = { "Estimativa: o registro de saídas guarda bytes, não tokens (bytes ÷ 4)." }
+ui-0905 = { "Exportar o Você fez de hoje" }
+ui-0906 = { "Recarregar configurações" }
+ui-0907 = { "Relê o .env e aplica o que dá sem reiniciar: modelos, chaves, guarda de injeção e diário. O resto avisa que precisa reiniciar." }
+ui-0908 = { "Recarregar" }
+ui-0909 = { "Configurações recarregadas: " }{ $v0 }{ " aplicada(s) na hora, " }{ $v1 }{ " exigem reiniciar o Orion." }
+ui-0910 = { "O relatório de hoje já estava no vault; nada foi sobrescrito." }
+ui-0911 = { "Relatório gravado no vault: " }{ $v0 }
+ui-0912 = { "Nota do vault atualizada. Revise e faça o commit quando quiser." }
+ui-0913 = { "Proposta descartada. A nota do vault ficou como estava." }
+ui-0914 = { "Imagem anexada. Ela vai com sua próxima mensagem e não fica guardada." }
+ui-0915 = { "Anexo pronto. O texto será enviado com sua próxima mensagem." }
+ui-0916 = { "Tipo de arquivo não suportado. Use texto, Markdown, PDF, imagem (PNG, JPEG, WebP) ou áudio." }
+ui-0917 = { "Arquivo vazio ou maior que " }{ $v0 }{ " MB." }
+ui-0918 = { "O arquivo não é uma imagem PNG, JPEG ou WebP válida." }
+ui-0919 = { "Não foi possível abrir a imagem." }
+ui-0920 = { "O anexo ainda está sendo processado. Tente anexá-lo novamente em instantes." }
+ui-0921 = { "Até 4 imagens por mensagem." }
+ui-0922 = { "Ou URL de um repositório público do GitHub (opcional)" }
+ui-0923 = { "Cria o projeto com memória pessoal isolada e a nota dele no vault. Use uma pasta que já existe ou a URL de um repositório público do GitHub, que é clonado (pode levar um tempo)." }
+ui-0924 = { "Nota no vault" }
+ui-0925 = { "Informe a pasta local ou o repositório do GitHub, não os dois." }
+ui-0926 = { "Projeto criado. A nota do projeto já existia no vault e não foi alterada." }
+ui-0927 = { "Projeto criado e nota gravada no vault." }
+ui-0928 = { "Projeto criado, mas a nota não foi gravada no vault. Confira a pasta do vault em Configurações › Memória." }
+ui-0929 = { "Este áudio vai sair do seu computador e será enviado a " }{ $v0 }{ " para ser transcrito. Enviar?" }
+ui-0930 = { "A transcrição de áudio não está configurada. Ligue o Whisper local ou defina a chave de transcrição." }
+ui-0931 = { "Editar" }
+ui-0932 = { "Editar e reenviar" }
+ui-0933 = { "Fixar como contexto" }
+ui-0934 = { "Gerando de novo…" }
+ui-0935 = { "Gerar de novo" }
+ui-0936 = { "Lendo em voz alta" }
+ui-0937 = { "Ouvir" }
+ui-0938 = { "Subir na ordem" }
 
-ui-0888 = { "permissões computador web abrir apps confirmação autorização" }
+ui-0939 = { "permissões computador web abrir apps confirmação autorização" }
 
-ui-0889 = { "Autorize uma vez neste computador. A escolha fica salva e pode ser alterada aqui a qualquer momento." }
+ui-0940 = { "Autorize uma vez neste computador. A escolha fica salva e pode ser alterada aqui a qualquer momento." }
 
-ui-0890 = { "Sem confirmações por ação, o Orion pode abrir apps, executar comandos, alterar ou apagar arquivos e usar a web, inclusive após ler documentos externos." }
+ui-0941 = { "Sem confirmações por ação, o Orion pode abrir apps, executar comandos, alterar ou apagar arquivos e usar a web, inclusive após ler documentos externos." }
 
-ui-0891 = { "Desativar todas as ferramentas" }
+ui-0942 = { "Desativar todas as ferramentas" }
 
-ui-0892 = { "Autorizar todas as ferramentas" }
+ui-0943 = { "Autorizar todas as ferramentas" }
 
-ui-0893 = { "Carregando permissões…" }
+ui-0944 = { "Carregando permissões…" }
 
-ui-0894 = { "Ferramentas do computador" }
+ui-0945 = { "Ferramentas do computador" }
 
-ui-0895 = { "Arquivos, aplicativos, comandos e automação do computador." }
+ui-0946 = { "Arquivos, aplicativos, comandos e automação do computador." }
 
-ui-0896 = { "Ferramentas da web" }
+ui-0947 = { "Ferramentas da web" }
 
-ui-0897 = { "Busca e acesso à web com os serviços configurados." }
+ui-0948 = { "Busca e acesso à web com os serviços configurados." }
 
-ui-0898 = { "Sem confirmação a cada ação" }
+ui-0949 = { "Sem confirmação a cada ação" }
 
-ui-0899 = { "Usa a autorização salva. Desligado, volta a pedir confirmação para ações que exigem aprovação." }
+ui-0950 = { "Usa a autorização salva. Desligado, volta a pedir confirmação para ações que exigem aprovação." }
 
-ui-0900 = { "As alterações valem imediatamente. Voz, câmera, captura contínua e integrações ainda precisam de configuração própria. Pânico e registros de ações continuam ativos." }
+ui-0951 = { "As alterações valem imediatamente. Voz, câmera, captura contínua e integrações ainda precisam de configuração própria. Pânico e registros de ações continuam ativos." }
 
-ui-0901 = { "Alterar o código do próprio Orion continua exigindo aprovação específica." }
+ui-0952 = { "Alterar o código do próprio Orion continua exigindo aprovação específica." }
 
-ui-0902 = { "Permite mais passos por pedido. A autorização para agir sem confirmação fica em Ferramentas." }
+ui-0953 = { "Permite mais passos por pedido. A autorização para agir sem confirmação fica em Ferramentas." }
 
-ui-0903 = { "Ferramentas e importação" }
+ui-0954 = { "Ferramentas e importação" }
 
-ui-0904 = { "Você escolhe uma vez; pode mudar depois nas Configurações." }
+ui-0955 = { "Você escolhe uma vez; pode mudar depois nas Configurações." }
 
-ui-0905 = { "Autorizar todas as ferramentas sem confirmação a cada ação" }
+ui-0956 = { "Autorizar todas as ferramentas sem confirmação a cada ação" }
 
-ui-0906 = { "Permite abrir apps, executar comandos, ler arquivos sensíveis, alterar ou apagar arquivos e usar a web, inclusive após ler conteúdo externo. Vale neste computador até você desligar em Configurações → Ferramentas." }
+ui-0957 = { "Permite abrir apps, executar comandos, ler arquivos sensíveis, alterar ou apagar arquivos e usar a web, inclusive após ler conteúdo externo. Vale neste computador até você desligar em Configurações → Ferramentas." }
 
-ui-0907 = { "Não ativa voz, câmera, captura contínua nem integrações sem configuração. Pânico e registros de ações continuam ativos." }
+ui-0958 = { "Não ativa voz, câmera, captura contínua nem integrações sem configuração. Pânico e registros de ações continuam ativos." }
 
-ui-0908 = { "Modo autônomo ligado. Mais passos por pedido; as permissões ficam em Configurações → Ferramentas." }
+ui-0959 = { "Modo autônomo ligado. Mais passos por pedido; as permissões ficam em Configurações → Ferramentas." }

@@ -2,6 +2,7 @@
 
 pub mod chat;
 pub mod composer;
+pub mod conflito;
 pub mod ctx;
 pub mod editor;
 pub mod home;
@@ -60,6 +61,9 @@ pub fn root(app: &App) -> El<'_> {
         }
         if app.editor.is_some() {
             layers.push(editor::modal(app));
+        }
+        if app.conflito.is_some() {
+            layers.push(conflito::modal(app));
         }
         if app.pal.open {
             layers.push(overlays::palette(app));

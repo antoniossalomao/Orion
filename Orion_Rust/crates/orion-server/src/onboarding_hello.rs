@@ -16,13 +16,26 @@ pub fn available() -> bool {
 pub fn verify() -> Result<(), String> {
     #[cfg(windows)]
     {
+        use windows_future::IAsyncOperation;
         use windows::{
-            core::HSTRING,
+            core::{factory, HSTRING},
             Security::Credentials::UI::{UserConsentVerificationResult, UserConsentVerifier},
+            Win32::{Foundation::HWND, System::WinRT::IUserConsentVerifierInterop},
         };
-        let result = UserConsentVerifier::RequestVerificationAsync(&HSTRING::from("Entrar no Orion"))
-            .and_then(|op| op.get())
-            .map_err(|_| "Não foi possível abrir o Windows Hello.".to_string())?;
+        let mensagem = HSTRING::from("Entrar no Orion");
+        // App desktop (sem pacote): o diálogo do Hello precisa de uma janela dona, senão pode não
+        // aparecer ou abrir atrás. Com a janela do Orion usa a interop; sem ela, cai na chamada simples.
+        let com_janela = orion_platform::main_window().and_then(|hwnd| {
+            let interop = factory::<UserConsentVerifier, IUserConsentVerifierInterop>().ok()?;
+            let op: IAsyncOperation<UserConsentVerificationResult> = unsafe { interop.RequestVerificationForWindowAsync(HWND(hwnd as *mut _), &mensagem) }.ok()?;
+            op.get().ok()
+        });
+        let result = match com_janela {
+            Some(r) => r,
+            None => UserConsentVerifier::RequestVerificationAsync(&mensagem)
+                .and_then(|op| op.get())
+                .map_err(|_| "Não foi possível abrir o Windows Hello.".to_string())?,
+        };
         return if result == UserConsentVerificationResult::Verified {
             Ok(())
         } else {

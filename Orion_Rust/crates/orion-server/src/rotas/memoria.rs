@@ -293,7 +293,16 @@ pub struct ArquivadosQ {
 }
 
 pub async fn projetos_listar(_: Admin, State(st): State<Estado>, Query(q): Query<ArquivadosQ>) -> ApiResult<Json<Value>> {
-    Ok(Json(json!(Projects::new(st.memory.clone()).list(q.archived).map_err(erro_projeto)?)))
+    let mut lista = Projects::new(st.memory.clone()).list(q.archived).map_err(erro_projeto)?;
+    // Cada projeto diz se a nota raiz já existe no vault (F08.06); só confere se o arquivo está lá.
+    let vault = st.settings.vault_dir.clone().or_else(orion_vault::detect_vault_path);
+    for p in &mut lista {
+        let nome = p.get("name").and_then(Value::as_str).unwrap_or("");
+        let seguro = !nome.is_empty() && !nome.contains(['/', '\\']) && nome != "." && nome != "..";
+        let tem = seguro && vault.as_ref().is_some_and(|v| v.join("01 Projetos").join(nome).join(format!("{nome}.md")).is_file());
+        p.insert("vault_note".into(), json!(tem));
+    }
+    Ok(Json(json!(lista)))
 }
 
 fn validar_projeto(b: &Value, nome_obrigatorio: bool) -> ApiResult<()> {
@@ -304,23 +313,96 @@ fn validar_projeto(b: &Value, nome_obrigatorio: bool) -> ApiResult<()> {
         Some(v) if nome_obrigatorio && v.as_str().is_some_and(|s| s.trim().is_empty()) => return erro(422, "project_name_required"),
         _ => {}
     }
-    if len("name").is_some_and(|n| n > 120) || len("instructions").is_some_and(|n| n > 16000) || len("root").is_some_and(|n| n > 4096) {
+    if len("name").is_some_and(|n| n > 120) || len("instructions").is_some_and(|n| n > 16000) || len("root").is_some_and(|n| n > 4096) || len("git_url").is_some_and(|n| n > 300) {
         return erro(422, "campo grande demais");
     }
     Ok(())
 }
 
+/// F08.07: clona um repositório público do GitHub para `<dados>/projetos/<dono>-<repo>`.
+/// É saída de rede: respeita o pânico e vai ao registro de saídas, sem conteúdo.
+fn clonar_repositorio(st: &Estado, url: &str) -> ApiResult<(String, std::path::PathBuf)> {
+    if st.modos.panico() {
+        return erro(409, "modo pânico: clone bloqueado");
+    }
+    let repo = orion_vault::GithubRepo::parse(url).map_err(|e| ApiError::new(422, e.to_string()))?;
+    let pasta = st.settings.data_dir.join("projetos");
+    std::fs::create_dir_all(&pasta).map_err(anyhow::Error::from)?;
+    let destino = pasta.join(format!("{}-{}", repo.owner, repo.name));
+    let inicio = std::time::Instant::now();
+    let r = orion_vault::clone_public_repo(&repo, &destino);
+    let _ = st.memory.add_external_call(&orion_store::library::ExternalCall {
+        provider: "github.com",
+        kind: "git_clone",
+        ok: r.is_ok(),
+        latency_ms: inicio.elapsed().as_millis() as i64,
+        model: "",
+        bytes_out: 0,
+        bytes_in: 0,
+        content_kind: "repo",
+        ts: None,
+    });
+    r.map_err(|e| ApiError::new(409, e.to_string()))?;
+    Ok((repo.https_url(), destino))
+}
+
+/// F08.06: nota raiz do projeto no vault. Falha aqui nunca desfaz o projeto: vira aviso na resposta.
+fn nota_do_projeto(st: &Estado, nome: &str, instrucoes: &str, root: Option<&str>, remoto: Option<&str>) -> Value {
+    let Some(vault) = st.settings.vault_dir.clone().or_else(orion_vault::detect_vault_path) else {
+        return json!({"ok": false, "motivo": "vault_nao_configurado"});
+    };
+    let nota = orion_vault::ProjectNote {
+        name: nome.into(),
+        instructions: instrucoes.into(),
+        root: root.map(String::from),
+        remote: remoto.map(String::from),
+        date_str: chrono::Local::now().format("%Y-%m-%d").to_string(),
+    };
+    let r = orion_vault::VaultManager::new(Some(vault)).and_then(|m| m.create_project_note(&nota));
+    match r {
+        Ok(res) => json!({"ok": true, "resultado": res}),
+        Err(e) => json!({"ok": false, "motivo": e.to_string()}),
+    }
+}
+
 pub async fn projeto_criar(_: Admin, State(st): State<Estado>, Json(b): Json<Value>) -> ApiResult<Json<Value>> {
     validar_projeto(&b, true)?;
-    let p = Projects::new(st.memory.clone())
-        .create(
-            b["name"].as_str().unwrap_or("").trim(),
-            b["instructions"].as_str().unwrap_or(""),
-            b["share_personal"].as_bool().unwrap_or(false),
-            b["root"].as_str(),
-        )
-        .map_err(erro_projeto)?;
-    Ok(Json(json!(p)))
+    tokio::task::spawn_blocking(move || -> ApiResult<Json<Value>> {
+        let nome = b["name"].as_str().unwrap_or("").trim().to_string();
+        let instrucoes = b["instructions"].as_str().unwrap_or("").to_string();
+        let git_url = b.get("git_url").and_then(Value::as_str).map(str::trim).filter(|u| !u.is_empty());
+        if git_url.is_some() && b.get("root").is_some_and(|r| !r.is_null()) {
+            return erro(422, "informe root ou git_url, não os dois");
+        }
+        let projects = Projects::new(st.memory.clone());
+        let (mut root, mut remoto, mut clonado) = (b["root"].as_str().map(String::from), None, None);
+        if let Some(url) = git_url {
+            let (https, destino) = clonar_repositorio(&st, url)?;
+            root = Some(destino.to_string_lossy().into_owned());
+            remoto = Some(https);
+            clonado = Some(destino);
+        }
+        let criado = projects.create(&nome, &instrucoes, b["share_personal"].as_bool().unwrap_or(false), root.as_deref());
+        let mut p = match criado {
+            Ok(p) => p,
+            Err(e) => {
+                // Clone feito para este projeto e sem projeto: não deixa a pasta órfã.
+                if let Some(destino) = clonado {
+                    let _ = std::fs::remove_dir_all(destino);
+                }
+                return Err(erro_projeto(e));
+            }
+        };
+        // O projeto grava a pasta já resolvida (realpath); a nota usa a mesma.
+        let pasta = p.get("root").and_then(Value::as_str).map(String::from);
+        p.insert("vault_note".into(), nota_do_projeto(&st, &nome, &instrucoes, pasta.as_deref(), remoto.as_deref()));
+        if let Some(url) = remoto {
+            p.insert("clone".into(), json!({"url": url, "path": pasta}));
+        }
+        Ok(Json(json!(p)))
+    })
+    .await
+    .map_err(anyhow::Error::from)?
 }
 
 #[derive(Deserialize)]
@@ -702,6 +784,69 @@ pub async fn vault_save(_: Admin, State(st): State<Estado>, Json(req): Json<Vaul
         let sync_res = mgr.save_conversation(&note)
             .map_err(|e| ApiError::new(400, format!("Erro ao gravar nota no Vault: {}", e)))?;
         Ok(Json(json!(sync_res)))
+    })
+    .await
+    .map_err(anyhow::Error::from)?
+}
+
+// ── conflitos do vault (F06.08) ──────────────────────────────────────────
+
+fn gerente_do_vault(st: &Estado) -> ApiResult<orion_vault::VaultManager> {
+    orion_vault::VaultManager::new(st.settings.vault_dir.clone()).map_err(|e| ApiError::new(409, format!("Vault indisponível: {e}")))
+}
+
+fn erro_conflito(e: orion_vault::VaultError) -> ApiError {
+    ApiError::new(409, e.to_string())
+}
+
+pub async fn vault_conflitos(_: Admin, State(st): State<Estado>) -> ApiResult<Json<Value>> {
+    tokio::task::spawn_blocking(move || -> ApiResult<Json<Value>> {
+        let lista = gerente_do_vault(&st)?.list_conflicts().map_err(erro_conflito)?;
+        Ok(Json(json!(lista)))
+    })
+    .await
+    .map_err(anyhow::Error::from)?
+}
+
+#[derive(Deserialize)]
+pub struct ConflitoQ {
+    path: String,
+}
+
+pub async fn vault_conflito_ver(_: Admin, State(st): State<Estado>, Query(q): Query<ConflitoQ>) -> ApiResult<Json<Value>> {
+    tokio::task::spawn_blocking(move || -> ApiResult<Json<Value>> {
+        let d = gerente_do_vault(&st)?.read_conflict(&q.path).map_err(erro_conflito)?;
+        Ok(Json(json!(d)))
+    })
+    .await
+    .map_err(anyhow::Error::from)?
+}
+
+#[derive(Deserialize)]
+pub struct ConflitoResolver {
+    path: String,
+    original_sha256: String,
+    text: String,
+}
+
+pub async fn vault_conflito_resolver(_: Admin, State(st): State<Estado>, Json(b): Json<ConflitoResolver>) -> ApiResult<Json<Value>> {
+    tokio::task::spawn_blocking(move || -> ApiResult<Json<Value>> {
+        let nota = gerente_do_vault(&st)?.resolve_conflict(&b.path, &b.original_sha256, &b.text).map_err(erro_conflito)?;
+        Ok(Json(json!({"ok": true, "note": nota})))
+    })
+    .await
+    .map_err(anyhow::Error::from)?
+}
+
+#[derive(Deserialize)]
+pub struct ConflitoDescartar {
+    path: String,
+}
+
+pub async fn vault_conflito_descartar(_: Admin, State(st): State<Estado>, Json(b): Json<ConflitoDescartar>) -> ApiResult<Json<Value>> {
+    tokio::task::spawn_blocking(move || -> ApiResult<Json<Value>> {
+        gerente_do_vault(&st)?.discard_conflict(&b.path).map_err(erro_conflito)?;
+        Ok(Json(json!({"ok": true})))
     })
     .await
     .map_err(anyhow::Error::from)?

@@ -96,6 +96,25 @@ pub struct AppState {
     pub estado_voz: Arc<orion_core::vida::EstadoVoz>,
     pub escuta: Option<Arc<orion_core::wake::WakeListener>>,
     pub desktop_wake: Arc<std::sync::atomic::AtomicBool>,
+    /// Opções que a recarga de configurações muda sem reiniciar (F07.08).
+    pub live: Arc<LiveConfig>,
+}
+
+/// Interruptores lidos a cada uso, para valerem na hora da recarga.
+pub struct LiveConfig {
+    pub injection: Arc<std::sync::atomic::AtomicBool>,
+    pub diary: Arc<std::sync::atomic::AtomicBool>,
+    /// Campos como estão rodando agora (só nomes e textos para comparar): a recarga compara com isto, não com
+    /// o que valia na inicialização, para que voltar a um valor antigo também seja uma mudança.
+    pub applied: parking_lot::Mutex<Option<std::collections::BTreeMap<String, String>>>,
+    /// Configuração que o gateway usa agora (com as mudanças já aplicadas); `None` = a da inicialização.
+    pub current: parking_lot::Mutex<Option<Settings>>,
+}
+
+impl LiveConfig {
+    pub fn from_settings(s: &Settings) -> Self {
+        LiveConfig { injection: Arc::new(s.injection_guard.into()), diary: Arc::new(s.vault_diario.into()), applied: parking_lot::Mutex::new(None), current: parking_lot::Mutex::new(None) }
+    }
 }
 
 pub type CameraDescrever = Arc<dyn Fn(&str) -> serde_json::Value + Send + Sync>;
@@ -485,6 +504,7 @@ pub async fn montar(mut settings: Settings) -> anyhow::Result<Estado> {
             &settings.screen_ocr_langs,
         ))
     });
+    let live = Arc::new(LiveConfig::from_settings(&settings));
     let mut agent = None;
     let mut delegator = None;
     let mut processos = None;
@@ -596,6 +616,11 @@ pub async fn montar(mut settings: Settings) -> anyhow::Result<Estado> {
         a.library = Some(biblioteca.clone());
         a.modos = Some(modos.clone());
         a.compactor = compactor_from_settings(&settings, memory.clone());
+        a.injection = Some(Arc::new(orion_ai::injection::Guard::standard()));
+        a.injection_enabled = live.injection.clone();
+        if let Some(vault) = settings.vault_dir.clone().or_else(orion_vault::detect_vault_path) {
+            a.after_turn = Some(crate::diary::hook(memory.clone(), vault, live.diary.clone()));
+        }
         *a.indice.write() = Some(indice);
         agent = Some(Arc::new(a));
     }
@@ -982,6 +1007,7 @@ pub async fn montar(mut settings: Settings) -> anyhow::Result<Estado> {
         estado_voz,
         escuta,
         desktop_wake,
+        live,
         settings,
         memory,
         policy,

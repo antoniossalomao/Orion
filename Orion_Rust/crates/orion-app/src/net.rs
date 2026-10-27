@@ -282,7 +282,26 @@ impl Api {
         let mut url = reqwest::Url::parse("http://127.0.0.1/documents").map_err(|e| e.to_string())?;
         url.query_pairs_mut().append_pair("name", &name);
         if let Some(project) = project { url.query_pairs_mut().append_pair("project_id", &project); }
-        let path = format!("{}?{}", url.path(), url.query().unwrap_or(""));
+        self.post_bytes(format!("{}?{}", url.path(), url.query().unwrap_or("")), bytes).await
+    }
+
+    /// Áudio do chat (F05.12): o núcleo responde logo e transcreve em segundo plano.
+    pub async fn upload_audio(&self, name: String, project: Option<String>, remote: bool, bytes: Vec<u8>) -> Result<Value, String> {
+        let mut url = reqwest::Url::parse("http://127.0.0.1/chat/audios").map_err(|e| e.to_string())?;
+        url.query_pairs_mut().append_pair("name", &name);
+        if let Some(project) = project { url.query_pairs_mut().append_pair("project_id", &project); }
+        if remote { url.query_pairs_mut().append_pair("remote", "true"); }
+        self.post_bytes(format!("{}?{}", url.path(), url.query().unwrap_or("")), bytes).await
+    }
+
+    /// Imagem do chat (F05.11): o núcleo confere a assinatura e guarda só na memória até o próximo turno.
+    pub async fn upload_image(&self, name: String, bytes: Vec<u8>) -> Result<Value, String> {
+        let mut url = reqwest::Url::parse("http://127.0.0.1/chat/imagens").map_err(|e| e.to_string())?;
+        url.query_pairs_mut().append_pair("name", &name);
+        self.post_bytes(format!("{}?{}", url.path(), url.query().unwrap_or("")), bytes).await
+    }
+
+    async fn post_bytes(&self, path: String, bytes: Vec<u8>) -> Result<Value, String> {
         let response = if let Some(local) = &self.local {
             local.chamar("POST", &path, Some(bytes), self.bearer.clone()).await?
         } else {

@@ -26,9 +26,27 @@ pub const HOVER: Color = rgb(0x1e, 0x1f, 0x22);
 pub const LINE: Color = rgba(255, 255, 255, 0.065);
 pub const LINE2: Color = rgba(255, 255, 255, 0.11);
 pub const LINE3: Color = rgba(255, 255, 255, 0.20);
-pub const FG: Color = rgb(0xec, 0xec, 0xee);
+/// Borda de campo de texto: ~3,5:1 sobre as superfícies (WCAG 1.4.11).
+pub const FIELD_LINE: Color = rgba(255, 255, 255, 0.38);
+/// Raios: controle, cartão, painel e pílula. Formas mínimas (barras, pontos) ficam fora da escala.
+pub const R_CTRL: f32 = 8.0;
+pub const R_CARD: f32 = 12.0;
+pub const R_PANEL: f32 = 14.0;
+pub const R_PILL: f32 = 999.0;
+/// Escala de tipo da interface: 11/12/13/14/16/18/20/24. Meios-passos caem no vizinho.
+pub fn snap_size(s: f32) -> f32 {
+    match (s * 2.0).round() as i32 {
+        19..=22 => 11.0,
+        23 | 25 => 12.0,
+        27 => 14.0,
+        29 | 30 | 31 | 34 => 16.0,
+        38 => 18.0,
+        _ => s,
+    }
+}
+pub const FG: Color =rgb(0xec, 0xec, 0xee);
 pub const FG2: Color = rgb(0xa9, 0xaa, 0xb0);
-pub const FG3: Color = rgb(0x75, 0x76, 0x7d);
+pub const FG3: Color = rgb(0x8e, 0x8f, 0x96);
 pub const FG4: Color = rgb(0x4e, 0x4f, 0x55);
 pub const PRIMARY: Color = rgb(0xb9, 0xc6, 0xea);
 pub const PRIMARY_INK: Color = rgb(0x0f, 0x13, 0x20);
@@ -40,6 +58,8 @@ pub const OK: Color = rgb(0x74, 0xcf, 0xae);
 pub const OK_SOFT: Color = rgba(116, 207, 174, 0.11);
 pub const DANGER: Color = rgb(0xf0, 0x7c, 0x88);
 pub const DANGER_SOFT: Color = rgba(240, 124, 136, 0.11);
+/// Glifo sobre o fundo de perigo (botão fechar ao passar o mouse).
+pub const ON_DANGER: Color = rgb(0xff, 0xff, 0xff);
 pub const STAR: Color = rgb(0xee, 0xf0, 0xf6);
 pub const SCRIM: Color = rgba(6, 6, 8, 0.6);
 pub const CAM_DOT: Color = rgb(0xff, 0x4d, 0x5e);

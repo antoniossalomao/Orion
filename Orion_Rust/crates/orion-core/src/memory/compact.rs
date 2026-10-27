@@ -44,7 +44,8 @@ pub fn limpar_resumo(bruto: &str) -> Option<String> {
 pub struct Compactor {
     pub memory: Arc<Store>,
     gateway: Arc<dyn Completer>,
-    at: usize,
+    /// Mensagens a partir das quais resume; 0 desliga. Muda sem reiniciar (F07.08).
+    at: std::sync::atomic::AtomicUsize,
     window: usize,
     model: String,
     rodando: Mutex<HashSet<String>>,
@@ -52,7 +53,15 @@ pub struct Compactor {
 
 impl Compactor {
     pub fn new(memory: Arc<Store>, gateway: Arc<dyn Completer>, at: usize, window: usize, model: &str) -> Arc<Self> {
-        Arc::new(Compactor { memory, gateway, at, window, model: model.into(), rodando: Mutex::new(HashSet::new()) })
+        Arc::new(Compactor { memory, gateway, at: std::sync::atomic::AtomicUsize::new(at), window, model: model.into(), rodando: Mutex::new(HashSet::new()) })
+    }
+
+    pub fn at(&self) -> usize {
+        self.at.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    pub fn set_at(&self, at: usize) {
+        self.at.store(at, std::sync::atomic::Ordering::Relaxed);
     }
 
     /// Falas (id, papel, texto) que já saíram da janela e ainda não foram resumidas.
@@ -87,12 +96,13 @@ impl Compactor {
             .ok()
             .and_then(|r| r.first().and_then(|x| x["n"].as_i64()))
             .unwrap_or(0) as usize;
-        self.at > 0 && total > self.at && !self.fora_da_janela(session_id).is_empty()
+        let at = self.at();
+        at > 0 && total > at && !self.fora_da_janela(session_id).is_empty()
     }
 
     /// Chamado depois da resposta: dispara em segundo plano, uma por conversa de cada vez.
     pub fn agendar(self: &Arc<Self>, session_id: &str) {
-        if self.at == 0 || !self.rodando.lock().insert(session_id.to_string()) {
+        if self.at() == 0 || !self.rodando.lock().insert(session_id.to_string()) {
             return;
         }
         let me = self.clone();

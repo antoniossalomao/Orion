@@ -362,6 +362,9 @@ pub fn run(mut s: Settings, fundo: bool) -> anyhow::Result<i32> {
     let dados = s.data_dir.clone();
     let mostrar = dados.join("orion.mostrar");
     let Some(_trava) = instancia_unica(&dados)? else {
+        // Esta cópia é a que você acabou de abrir: deixa a primeira trazer a janela para a frente.
+        #[cfg(windows)]
+        orion_platform::allow_foreground();
         let _ = std::fs::write(&mostrar, b"1");
         return Ok(0);
     };

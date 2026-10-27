@@ -224,6 +224,11 @@ impl ChatGateway {
     pub fn configured(&self) -> bool { !self.endpoints.read().is_empty() }
 
     pub async fn configure(&self, endpoints: Vec<Endpoint>) {
+        self.configure_with(endpoints, || {}).await;
+    }
+
+    /// Publica endpoints e limites entre turnos (REGRAS.md: custo zero (sem API paga)).
+    pub async fn configure_with(&self, endpoints: Vec<Endpoint>, update: impl FnOnce()) {
         let _turn = self.configuration.write().await;
         let mut current = self.endpoints.write();
         let mut state = self.estado.lock();
@@ -234,6 +239,7 @@ impl ChatGateway {
             state.quarentena.remove(&endpoint.name);
             state.motivo.remove(&endpoint.name);
         }
+        update();
         *current = endpoints;
     }
 

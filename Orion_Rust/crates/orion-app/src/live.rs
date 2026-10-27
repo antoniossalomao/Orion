@@ -14,6 +14,9 @@ pub enum Lm {
     LanguageSaved(Result<(), String>),
     ToolPermissions(std::time::Instant, Result<Value, String>),
     Attached(u64, Result<Option<Value>, String>),
+    Conflitos(Result<Value, String>),
+    ConflitoAberto(Result<Value, String>),
+    ConflitoResolvido(Result<String, String>),
     ArtifactList(String, Result<Value, String>),
     ArtifactSaved(Result<Value, String>),
     ArtifactDetail(String, Result<Value, String>),
@@ -245,6 +248,7 @@ pub fn map_projects(v: &Value, now: f64) -> Vec<Project> {
             model: "Auto".into(),
             pastas: s(p, "root").to_string(),
             rot: 0,
+            vault: p.get("vault_note").and_then(Value::as_bool).unwrap_or(false),
         })
         .collect()
 }
@@ -367,6 +371,13 @@ pub fn map_decisions(v: &Value) -> Vec<Act> {
         .collect()
 }
 
+/// Caminho da rota que lê um conflito; o caminho da nota vai codificado na consulta.
+fn caminho_conflito(proposta: &str) -> String {
+    let mut url = reqwest::Url::parse("http://127.0.0.1/vault/conflitos/ver").expect("URL fixa");
+    url.query_pairs_mut().append_pair("path", proposta);
+    format!("{}?{}", url.path(), url.query().unwrap_or(""))
+}
+
 // ── tarefas ──
 fn pull_tool_permissions(api: &Api) -> Task<Msg> {
     let api = api.clone();
@@ -380,6 +391,7 @@ pub fn pull_basic(api: &Api) -> Task<Msg> {
         { let a = api.clone(); Task::perform(async move { a.get("/approvals").await }, |r| Msg::L(Lm::Approvals(r))) },
         { let a = api.clone(); Task::perform(async move { a.get("/projects").await }, |r| Msg::L(Lm::Projects(r))) },
         { let a = api.clone(); Task::perform(async move { a.get("/modo").await }, |r| Msg::L(Lm::Modo(r))) },
+        { let a = api.clone(); Task::perform(async move { a.get("/vault/conflitos").await }, |r| Msg::L(Lm::Conflitos(r))) },
         pull_tool_permissions(api),
     ])
 }
@@ -512,40 +524,108 @@ impl App {
                 if self.attaching || self.streaming.is_some() || self.attachment_ids.len() >= 8 { return Some((Task::none(), false)); }
                 self.attaching = true;
                 let generation = self.attachment_generation;
+                let imagens_anexadas = self.attach.iter().filter(|a| a.1 == "imagem").count();
                 let project = self.conv.and_then(|index| self.convs.get(index)).and_then(|conversation| self.projects.iter().find(|project| project.n == conversation.proj)).or_else(|| self.conv.is_none().then(|| self.projects.get(self.p.proj)).flatten()).map(|project| project.id.clone()).filter(|id| !id.is_empty());
                 Some((Task::perform(async move {
+                    // Documento (6 MB), imagem (10 MB, F05.11) ou áudio (20 MB, F05.12): a classe vem
+                    // da extensão, mas o núcleo confere de novo pela assinatura dos bytes.
                     let selected = tokio::task::spawn_blocking(move || {
                         use std::io::Read;
                         let Some(path) = crate::onboarding::choose(crate::onboarding::Field::Attachment)? else { return Ok(None) };
                         let path = std::path::PathBuf::from(path);
                         let name = path.file_name().ok_or("Nome de arquivo inválido")?.to_string_lossy().to_string();
+                        let ext = path.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
+                        let (classe, limite) = match ext.as_str() {
+                            "txt" | "md" | "pdf" => ("documento", 6usize * 1024 * 1024),
+                            "png" | "jpg" | "jpeg" | "webp" => ("imagem", 10 * 1024 * 1024),
+                            "wav" | "mp3" | "m4a" | "ogg" | "opus" | "flac" | "webm" => ("audio", 20 * 1024 * 1024),
+                            _ => return Err("Tipo de arquivo não suportado. Use texto, Markdown, PDF, imagem (PNG, JPEG, WebP) ou áudio.".to_string()),
+                        };
                         let file = std::fs::File::open(&path).map_err(|e| e.to_string())?;
                         if !file.metadata().map_err(|e| e.to_string())?.is_file() { return Err("Escolha um arquivo.".to_string()); }
                         let mut bytes = vec![];
-                        file.take(6 * 1024 * 1024 + 1).read_to_end(&mut bytes).map_err(|e| e.to_string())?;
-                        if bytes.is_empty() || bytes.len() > 6 * 1024 * 1024 { return Err("Documento vazio ou maior que 6 MB.".into()); }
-                        Ok(Some((name, bytes)))
+                        file.take(limite as u64 + 1).read_to_end(&mut bytes).map_err(|e| e.to_string())?;
+                        if bytes.is_empty() || bytes.len() > limite { return Err(format!("Arquivo vazio ou maior que {} MB.", limite / (1024 * 1024))); }
+                        let miniatura = if classe == "imagem" {
+                            // Assinatura conferida aqui também: extensão não prova que é imagem.
+                            let ok = bytes.starts_with(&[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]) || bytes.starts_with(&[0xFF, 0xD8, 0xFF]) || (bytes.len() >= 12 && &bytes[..4] == b"RIFF" && &bytes[8..12] == b"WEBP");
+                            if !ok { return Err("O arquivo não é uma imagem PNG, JPEG ou WebP válida.".to_string()); }
+                            let img = image::load_from_memory(&bytes).map_err(|_| "Não foi possível abrir a imagem.".to_string())?;
+                            let mut png = std::io::Cursor::new(Vec::new());
+                            img.thumbnail(96, 96).write_to(&mut png, image::ImageFormat::Png).map_err(|e| e.to_string())?;
+                            png.into_inner()
+                        } else { vec![] };
+                        Ok(Some((name, bytes, classe, miniatura)))
                     }).await.map_err(|e| e.to_string())??;
-                    let Some((name, bytes)) = selected else { return Ok(None) };
-                    let mut value = api.upload_document(name, project.clone(), bytes).await?;
+                    let Some((name, bytes, classe, miniatura)) = selected else { return Ok(None) };
+                    if classe == "imagem" {
+                        // O servidor aceita 4 imagens por mensagem: avisa antes de guardar a quinta.
+                        if imagens_anexadas >= 4 { return Err("Até 4 imagens por mensagem.".into()); }
+                        let value = api.upload_image(name, bytes).await?;
+                        let id = s(&value, "id").to_string();
+                        if id.is_empty() { return Err("Resposta de upload inválida.".into()); }
+                        return Ok(Some(json!({"id": id, "name": s(&value, "name"), "kind": "imagem", "thumb": miniatura})));
+                    }
+                    // Áudio: com Whisper local nada sai do computador. Sem ele, só vai ao provedor se você confirmar aqui.
+                    let mut remote = false;
+                    if classe == "audio" {
+                        let modo = api.get("/chat/audios/modo").await?;
+                        if !modo["local"].as_bool().unwrap_or(false) {
+                            if !modo["remoto"].as_bool().unwrap_or(false) { return Err("A transcrição de áudio não está configurada. Ligue o Whisper local ou defina a chave de transcrição.".into()); }
+                            let provedor = s(&modo, "provedor").to_string();
+                            let pergunta = crate::i18n::formatted("Este áudio vai sair do seu computador e será enviado a {} para ser transcrito. Enviar?", format!("Este áudio vai sair do seu computador e será enviado a {provedor} para ser transcrito. Enviar?"));
+                            let aceitou = tokio::task::spawn_blocking(move || crate::onboarding::confirm(&pergunta)).await.map_err(|e| e.to_string())?;
+                            if !aceitou { return Ok(None); }
+                            remote = true;
+                        }
+                    }
+                    let mut value = if classe == "audio" { api.upload_audio(name, project.clone(), remote, bytes).await? } else { api.upload_document(name, project.clone(), bytes).await? };
                     let id = s(&value, "id").to_string();
                     if id.is_empty() { return Err("Resposta de upload inválida.".into()); }
                     let mut detail = reqwest::Url::parse(&format!("http://127.0.0.1/documents/{id}")).map_err(|error| error.to_string())?;
                     if let Some(project) = project { detail.query_pairs_mut().append_pair("project_id", &project); }
                     let detail = format!("{}{}", detail.path(), detail.query().map(|query| format!("?{query}")).unwrap_or_default());
+                    // Transcrever leva mais que extrair texto: até 10 minutos, sem travar a janela.
+                    let tentativas = if classe == "audio" { 600 } else { 120 };
                     // Confirma a extração antes do recibo (REGRAS.md: conteúdo externo é dado).
-                    for attempt in 0..=120 {
+                    for attempt in 0..=tentativas {
                         match s(&value, "status") {
                             "ready" => return Ok(Some(value)),
                             "failed" => return Err("Não foi possível extrair o documento.".into()),
+                            "error" if classe == "audio" => return Err(format!("Não foi possível transcrever o áudio: {}", s(&value, "error"))),
                             _ => {},
                         }
-                        if attempt == 120 { break; }
+                        if attempt == tentativas { break; }
                         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                         value = api.get(&detail).await?;
                     }
-                    Err("O documento ainda está sendo processado. Tente anexá-lo novamente em instantes.".into())
+                    Err("O anexo ainda está sendo processado. Tente anexá-lo novamente em instantes.".into())
                 }, move |r| Msg::L(Lm::Attached(generation, r))), false))
+            }
+            Msg::RecarregarConfig => Some((Task::perform(async move {
+                let r = api.post("/config/recarregar", json!({})).await?;
+                let n = |k: &str| r[k].as_array().map(|a| a.len()).unwrap_or(0);
+                Ok(format!("Configurações recarregadas: {} aplicada(s) na hora, {} exigem reiniciar o Orion.", n("aplicados"), n("exigem_reinicio")))
+            }, |r| Msg::L(Lm::Acao(r, false))), false)),
+            Msg::VoceFezExportar => Some((Task::perform(async move {
+                let r = api.post("/painel/voce-fez/exportar", json!({})).await?;
+                Ok(if r["unchanged"].as_bool().unwrap_or(false) { "O relatório de hoje já estava no vault; nada foi sobrescrito.".to_string() } else { format!("Relatório gravado no vault: {}", s(&r, "file_path")) })
+            }, |r| Msg::L(Lm::Acao(r, false))), false)),
+            Msg::ConflitoAbrir(i) => {
+                let Some((_, proposta, _)) = self.conflitos.get(*i).cloned() else { return Some((Task::none(), false)) };
+                Some((Task::perform(async move { api.get(&caminho_conflito(&proposta)).await }, |r| Msg::L(Lm::ConflitoAberto(r))), false))
+            }
+            Msg::ConflitoSalvar => {
+                let Some(c) = self.conflito.as_mut().filter(|c| !c.busy) else { return Some((Task::none(), false)) };
+                c.busy = true;
+                let corpo = json!({"path": c.proposed_path, "original_sha256": c.sha, "text": c.content.text()});
+                Some((Task::perform(async move { api.post("/vault/conflitos/resolver", corpo).await.map(|_| "Nota do vault atualizada. Revise e faça o commit quando quiser.".to_string()) }, |r| Msg::L(Lm::ConflitoResolvido(r))), false))
+            }
+            Msg::ConflitoDescartar => {
+                let Some(c) = self.conflito.as_mut().filter(|c| !c.busy) else { return Some((Task::none(), false)) };
+                c.busy = true;
+                let corpo = json!({"path": c.proposed_path});
+                Some((Task::perform(async move { api.post("/vault/conflitos/descartar", corpo).await.map(|_| "Proposta descartada. A nota do vault ficou como estava.".to_string()) }, |r| Msg::L(Lm::ConflitoResolvido(r))), false))
             }
             Msg::EditorOpen(_) | Msg::EditorSave => {
                 self.toast("O editor do vault ainda não está ligado ao núcleo. Nenhuma nota foi alterada.");
@@ -830,9 +910,12 @@ impl App {
         c.state = ConvState::Running;
         self.streaming = Some(crate::app::Stream { conv: ci, words: 0, total: usize::MAX });
         self.composer = iced::widget::text_editor::Content::new();
+        let ids = std::mem::take(&mut self.attachment_ids);
+        let (imagens, attachments): (Vec<_>, Vec<_>) = ids.into_iter().zip(self.attach.iter().map(|a| a.1 == "imagem")).partition(|(_, imagem)| *imagem);
+        let (imagens, attachments): (Vec<String>, Vec<String>) = (imagens.into_iter().map(|i| i.0).collect(), attachments.into_iter().map(|i| i.0).collect());
         self.attach.clear();
-        let attachments = std::mem::take(&mut self.attachment_ids);
-        let (task, handle) = Task::run(api.stream("/chat", json!({"texto": text, "canal": "web", "anexos": attachments})), |e| Msg::L(Lm::Chat(e))).abortable();
+        self.attach_thumbs.clear();
+        let (task, handle) = Task::run(api.stream("/chat", json!({"texto": text, "canal": "web", "anexos": attachments, "imagens": imagens})), |e| Msg::L(Lm::Chat(e))).abortable();
         self.abort = Some(handle);
         task
     }
@@ -891,7 +974,16 @@ impl App {
                 self.attaching = false;
                 if generation != self.attachment_generation { return Task::none(); }
                 match result {
-                    Ok(Some(value)) => { self.attachment_ids.push(s(&value, "id").into()); self.attach.push((s(&value, "name").into(), s(&value, "kind").into())); self.toast("Documento anexado. O texto será enviado com sua próxima mensagem."); }
+                    Ok(Some(value)) => {
+                        let id = s(&value, "id").to_string();
+                        if s(&value, "kind") == "imagem" {
+                            let thumb: Vec<u8> = value["thumb"].as_array().map(|a| a.iter().filter_map(|n| n.as_u64().map(|n| n as u8)).collect()).unwrap_or_default();
+                            if !thumb.is_empty() { self.attach_thumbs.insert(id.clone(), iced::widget::image::Handle::from_bytes(thumb)); }
+                            self.toast("Imagem anexada. Ela vai com sua próxima mensagem e não fica guardada.");
+                        } else { self.toast("Anexo pronto. O texto será enviado com sua próxima mensagem."); }
+                        self.attachment_ids.push(id);
+                        self.attach.push((s(&value, "name").into(), s(&value, "kind").into()));
+                    }
                     Ok(None) => {}, Err(error) => self.toast(error),
                 }
             }
@@ -1026,7 +1118,11 @@ impl App {
                         }
                         self.proj_q.clear();
                         self.project_form = None;
-                        self.toast("Projeto criado. Nota no vault e vínculo GitHub ainda não foram configurados.");
+                        let nota = &v["vault_note"];
+                        let msg = if nota["ok"].as_bool().unwrap_or(false) {
+                            if nota["resultado"]["unchanged"].as_bool().unwrap_or(false) { "Projeto criado. A nota do projeto já existia no vault e não foi alterada." } else { "Projeto criado e nota gravada no vault." }
+                        } else { "Projeto criado, mas a nota não foi gravada no vault. Confira a pasta do vault em Configurações › Memória." };
+                        self.toast(msg);
                     }
                     result => {
                         if let Some(form) = self.project_form.as_mut() {
@@ -1076,6 +1172,36 @@ impl App {
             Lm::Projects(r) => match r {
                 Ok(v) => self.projects = map_projects(&v, now),
                 Err(e) => self.net_fail(e),
+            },
+            Lm::Conflitos(r) => {
+                // Vault não configurado ou sem pasta de memória: não há conflito para mostrar, e isso não é erro.
+                self.conflitos = r.ok().map(|v| v.as_array().map(|a| a.as_slice()).unwrap_or(&[]).iter().map(|c| (s(c, "original_path").to_string(), s(c, "proposed_path").to_string(), c["original_exists"].as_bool().unwrap_or(false))).collect()).unwrap_or_default();
+            }
+            Lm::ConflitoAberto(r) => match r {
+                Ok(v) => {
+                    let (original, proposal) = (s(&v, "original").to_string(), s(&v, "proposal").to_string());
+                    self.conflito = Some(crate::app::ConflitoState {
+                        proposed_path: s(&v, "proposed_path").into(),
+                        original_path: s(&v, "original_path").into(),
+                        sha: s(&v, "original_sha256").into(),
+                        content: iced::widget::text_editor::Content::with_text(&original),
+                        original,
+                        proposal,
+                        busy: false,
+                    });
+                    let agora = std::time::Instant::now();
+                    self.at.modal = Some(agora);
+                    self.at.scrim = Some(agora);
+                }
+                Err(e) => self.toast(e),
+            },
+            Lm::ConflitoResolvido(r) => match r {
+                Ok(msg) => {
+                    self.conflito = None;
+                    self.toast(msg);
+                    if let Some(api) = self.api.clone() { return Task::perform(async move { api.get("/vault/conflitos").await }, |r| Msg::L(Lm::Conflitos(r))); }
+                }
+                Err(e) => { if let Some(c) = &mut self.conflito { c.busy = false; } self.toast(e); }
             },
             Lm::Facts(r) => match r {
                 Ok(v) => self.facts = map_facts(&v),

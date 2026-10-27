@@ -38,11 +38,11 @@ fn field<'a>(f: &'a Form, key: Field, label: &'a str, hint: &'a str, secret: boo
         .font(t::UI)
         .padding(pad(13.0, 16.0, 13.0, 16.0))
         .secure(secret)
-        .style(super::login::field_style(t::alpha(t::BG, 0.55), t::LINE, t::ACCENT, 10.0));
+        .style(super::login::field_style(t::alpha(t::BG, 0.55), t::FIELD_LINE, t::ACCENT, 10.0));
     if idle(f) {
         input = input.on_input(move |s| event(Event::Input(key, s)));
     }
-    column![tx(label, 13.5, t::FG2), input].spacing(7).width(Length::Fill).into()
+    column![tx(label, 13.5, t::FG2), input].spacing(6).width(Length::Fill).into()
 }
 fn folder<'a>(f: &'a Form, key: Field, label: &'a str, hint: &'a str) -> El<'a> {
     row![
@@ -115,7 +115,7 @@ fn step_security<'a>(f: &'a Form) -> El<'a> {
             field(f, Field::Password, tr(f, crate::i18n::text("Senha"), "Password"), tr(f, crate::i18n::text("12 caracteres ou mais"), "12 characters or more"), true),
             field(f, Field::Confirmation, tr(f, crate::i18n::text("Confirmar"), "Confirm"), tr(f, crate::i18n::text("Repita a senha"), "Repeat the password"), true)
         ]
-        .spacing(14),
+        .spacing(12),
         column![
             check(f, tr(f, crate::i18n::text("Cifrar meu banco com esta senha"), "Encrypt my database with this password"), f.encrypted, Event::Encrypt),
             if f.cipher_available {
@@ -139,7 +139,7 @@ fn step_security<'a>(f: &'a Form) -> El<'a> {
             "The code is shown at the end. Keep it outside the data folder."
         ))
     ]
-    .spacing(14)
+    .spacing(12)
     .into()
 }
 
@@ -152,7 +152,7 @@ fn step_notes<'a>(f: &'a Form) -> El<'a> {
         field(f, Field::Secret("ORION_GITHUB_TOKEN"), tr(f, crate::i18n::text("Token do GitHub"), "GitHub token"), tr(f, crate::i18n::text("Salvo no cofre do sistema"), "Saved in the system vault"), true),
         btn(tr(f, crate::i18n::text("Criar token ↗"), "Create token ↗"), Kind::Ghost, true, None, Some(event(Event::Link("https://github.com/settings/tokens"))))
     ]
-    .spacing(14)
+    .spacing(12)
     .into()
 }
 
@@ -162,11 +162,11 @@ fn step_keys<'a>(f: &'a Form) -> El<'a> {
         let status = f.tests.get(key);
         let color = if status.is_some_and(|s| s == OK_TEXT) { t::OK } else { t::SIGNAL };
         let mut input = text_input(tr(f, crate::i18n::text("Chave de API"), "API key"), f.get(Field::Secret(key)))
-            .size(15)
+            .size(t::snap_size(15 as f32))
             .font(t::UI)
-            .padding(pad(11.0, 14.0, 11.0, 14.0))
+            .padding(pad(11.0, 12.0, 11.0, 12.0))
             .secure(true)
-            .style(super::login::field_style(t::alpha(t::BG, 0.55), t::LINE, t::ACCENT, 9.0));
+            .style(super::login::field_style(t::alpha(t::BG, 0.55), t::FIELD_LINE, t::ACCENT, 9.0));
         if idle(f) {
             input = input.on_input(move |s| event(Event::Input(Field::Secret(key), s)));
         }
