@@ -130,7 +130,7 @@ O escopo da v1 é estritamente limitado aos seguintes componentes:
 - [x] **F04.06** Modo autônomo com proteção por senha: a ativação do modo sem interrupções exige re-digitação da senha mestre do perfil.
 - [x] **F04.07** Resumos periódicos consolidados por escopo gerados localmente e com expurgo de tentativas falhas.
 - [x] **F04.08** Mensagens fixadas sobrevivem à compactação de contexto e são reapresentadas ao modelo como premissas de trabalho.
-- [ ] **F04.09** Classificador de injeção de prompt local (ModernBERT) integrado em tempo real antes do envio do prompt ao provedor.
+- [~] **F04.09** Classificador de injeção de prompt local (ModernBERT) integrado em tempo real antes do envio do prompt ao provedor. *Código na branch `claude/kind-bohr-j6hi1g`, compilado e com a suíte existente verde no Linux, sem testes novos (pausa de 21/10/2026). Guarda de injeção no conteúdo externo (`orion-ai/src/injecao.rs`): trait + heurística local pt/en, ligado por padrão (`ORION_INJECTION_GUARD`). Suspeito vai com aviso; bloqueado não vai ao provedor; falha de classificação bloqueia. **O ModernBERT real ainda não entrou** (só o ponto de encaixe).*
 
 ---
 
@@ -145,8 +145,8 @@ O escopo da v1 é estritamente limitado aos seguintes componentes:
 - [x] **F05.08** Versionamento de Artefatos no banco SQLite: documentos longos gerados pelo modelo viram artefatos versionados com controle de concorrência e rollback.
 - [x] **F05.09** Operações de conversa: renomear título no menu com salvamento por `Enter`, copiar mensagem inteira e arquivamento individual.
 - [x] **F05.10** Gerenciador de comandos de prompt personalizados com substituição de argumentos `{{args}}` no compositor.
-- [ ] **F05.11** Suporte a upload e prévia visual direta de imagens (`.png`, `.jpg`, `.webp`) no chat para modelos multimodais.
-- [ ] **F05.12** Suporte a anexos de áudio no chat com envio para transcrição Whisper assíncrona.
+- [~] **F05.11** Suporte a upload e prévia visual direta de imagens (`.png`, `.jpg`, `.webp`) no chat para modelos multimodais. *Código na branch `claude/kind-bohr-j6hi1g`, compilado e com a suíte existente verde no Linux, sem testes novos (pausa de 21/10/2026). Servidor: `POST /chat/imagens` confere a assinatura (PNG/JPEG/WebP), limite de 10 MB, guarda só na memória e `/chat` aceita `imagens`. App: anexo, miniatura e envio. Não validado na janela real.*
+- [~] **F05.12** Suporte a anexos de áudio no chat com envio para transcrição Whisper assíncrona. *Código na branch `claude/kind-bohr-j6hi1g`, compilado e com a suíte existente verde no Linux, sem testes novos (pausa de 21/10/2026). Servidor: `POST /chat/audios` responde na hora e transcreve em segundo plano (Whisper local, ffmpeg para converter; Groq só com chave); o texto entra como anexo. App: anexo de áudio com espera de até 10 min. Não validado com áudio real.*
 
 ---
 
@@ -157,8 +157,8 @@ O escopo da v1 é estritamente limitado aos seguintes componentes:
 - [x] **F06.04** Gravação atômica via Git plumbing (`hash-object`, `write-tree`, `commit-tree`): commits são criados sobre a `main` sem interferir em alterações `staged` do usuário no terminal.
 - [x] **F06.05** Tratamento não-destrutivo de divergências: se uma nota do vault foi editada externamente no Obsidian, o Orion gera uma proposta `- conflito Orion <hash>.md`, preservando a original.
 - [x] **F06.06** Sincronização remota defensiva: o `push` só é emitido se o commit pai já estiver na `main` do GitHub; o `pull` só é feito por fast-forward com árvore de trabalho limpa.
-- [ ] **F06.07** Gravação automática contínua de turnos relevantes no vault como diário de sessão (atualmente requer chamada de rota).
-- [ ] **F06.08** Interface visual integrada no chat para comparação lado a lado de versões conflitantes e mesclagem assistida.
+- [~] **F06.07** Gravação automática contínua de turnos relevantes no vault como diário de sessão (atualmente requer chamada de rota). *Código na branch `claude/kind-bohr-j6hi1g`, compilado e com a suíte existente verde no Linux, sem testes novos (pausa de 21/10/2026). Diário de sessão em `03 Recursos/Orion/Memória/` depois de cada resposta, só com `ORION_VAULT_DIARIO=true`; sem commit nem push; atualiza só a nota que o Orion mesmo gravou, e se você a editou a versão nova vira proposta e o diário daquela conversa para.*
+- [~] **F06.08** Interface visual integrada no chat para comparação lado a lado de versões conflitantes e mesclagem assistida. *Código na branch `claude/kind-bohr-j6hi1g`, compilado e com a suíte existente verde no Linux, sem testes novos (pausa de 21/10/2026). Rotas `/vault/conflitos*` e tela de comparação em Configurações › Memória: original ao lado da proposta, campo de texto final, descartar ou salvar. Recusa se a original mudou. Não validado na janela real.*
 
 ---
 
@@ -170,7 +170,7 @@ O escopo da v1 é estritamente limitado aos seguintes componentes:
 - [x] **F07.05** Painel de métricas operacionais embutido na seção Painel: acompanhamento de cotas, status de armazenamento e memória.
 - [x] **F07.06** Seção de Fontes tipográficas permitindo personalização de tamanhos de corpo e código.
 - [x] **F07.07** Persistência atômica de preferências no arquivo de perfil criptografado.
-- [~] **F07.08** Recarga a quente (*hot-reload*) de todas as configurações alteradas sem necessidade de reiniciar o executável `orion.exe`.
+- [~] **F07.08** Recarga a quente (*hot-reload*) de todas as configurações alteradas sem necessidade de reiniciar o executável `orion.exe`. *Código na branch `claude/kind-bohr-j6hi1g`, compilado e com a suíte existente verde no Linux, sem testes novos (pausa de 21/10/2026). `POST /config/recarregar` + botão em Sistema: aplica na hora modelos/gateway, guarda de injeção e diário; o resto vem listado em `exigem_reinicio`. Hoje as demais ~140 opções ainda exigem reiniciar.*
 
 ---
 
@@ -180,8 +180,8 @@ O escopo da v1 é estritamente limitado aos seguintes componentes:
 - [x] **F08.03** Configurações específicas por projeto: definição de endpoint de modelo preferencial e número máximo de passos por turno.
 - [x] **F08.04** Associação de até 8 documentos de referência por projeto, relidos automaticamente como premissas em novos chats.
 - [x] **F08.05** Arquivamento de conversas vinculado ao projeto com histórico de restauração.
-- [ ] **F08.06** Criação automática da nota raiz do projeto no vault (`01 Projetos/<Nome>/<Nome>.md`) no momento da criação do projeto.
-- [ ] **F08.07** Clonagem automática de repositórios remotos do GitHub ao criar projeto associado a uma URL Git.
+- [~] **F08.06** Criação automática da nota raiz do projeto no vault (`01 Projetos/<Nome>/<Nome>.md`) no momento da criação do projeto. *Código na branch `claude/kind-bohr-j6hi1g`, compilado e com a suíte existente verde no Linux, sem testes novos (pausa de 21/10/2026). `POST /projects` cria `01 Projetos/<Nome>/<Nome>.md` (nunca sobrescreve; falha vira aviso na resposta).*
+- [~] **F08.07** Clonagem automática de repositórios remotos do GitHub ao criar projeto associado a uma URL Git. *Código na branch `claude/kind-bohr-j6hi1g`, compilado e com a suíte existente verde no Linux, sem testes novos (pausa de 21/10/2026). `POST /projects` aceita `git_url` (só `https://github.com/<dono>/<repo>` público): clone raso em `<dados>/projetos/`, sem hooks, sem credencial, bloqueado no pânico e registrado em `external_calls`. Falta o campo na tela de criação de projeto.*
 
 ---
 
@@ -189,8 +189,8 @@ O escopo da v1 é estritamente limitado aos seguintes componentes:
 - [x] **F09.01** Agregação local diária de eventos operacionais: total de turnos, ferramentas executadas, arquivos modificados e chamadas de rede.
 - [x] **F09.02** Auditoria persistida em SQLite: tabela de auditoria registrando autorizações concedidas e negadas sem vazamento de segredos.
 - [x] **F09.03** Tabela `external_calls` registrando métricas de chamadas a provedores (latência, bytes enviados/recebidos, HTTP status) sem armazenar payloads sensíveis.
-- [ ] **F09.04** Gráficos nativos em canvas vetorial para consumo semanal e mensal de tokens e cotas.
-- [ ] **F09.05** Geração e exportação do relatório consolidado diário "Você Fez" no final do expediente (23:59).
+- [~] **F09.04** Gráficos nativos em canvas vetorial para consumo semanal e mensal de tokens e cotas. *Código na branch `claude/kind-bohr-j6hi1g`, compilado e com a suíte existente verde no Linux, sem testes novos (pausa de 21/10/2026). Painel: tokens por dia em 7 e 30 dias (canvas). **Estimado** (bytes ÷ 4): o registro de saídas não guarda tokens.*
+- [~] **F09.05** Geração e exportação do relatório consolidado diário "Você Fez" no final do expediente (23:59). *Código na branch `claude/kind-bohr-j6hi1g`, compilado e com a suíte existente verde no Linux, sem testes novos (pausa de 21/10/2026). Job das 23:59 guarda o texto (`orion-core/src/relatorio.rs`); `GET /painel/voce-fez` e `POST /painel/voce-fez/exportar` (grava no vault, sem sobrescrever); botão no Painel.*
 
 ---
 

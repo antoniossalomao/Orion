@@ -308,3 +308,47 @@ pub async fn maintain_database(
     .map_err(|_| ApiError::new(500, "maintenance_failed"))??;
     Ok(Json(json!({"ok":true})))
 }
+
+#[derive(Deserialize)]
+pub struct VoceFezQ {
+    date: Option<String>,
+    project_id: Option<String>,
+}
+
+fn dia_de(texto: Option<String>) -> ApiResult<NaiveDate> {
+    match texto {
+        Some(t) => NaiveDate::parse_from_str(&t, "%Y-%m-%d").map_err(|_| ApiError::new(422, "date_invalid")),
+        None => Ok(Local::now().date_naive()),
+    }
+}
+
+/// F09.05: o "Você fez" do dia (o texto guardado às 23:59, ou montado agora para hoje).
+pub async fn voce_fez(_: Admin, State(st): State<Estado>, Query(q): Query<VoceFezQ>) -> ApiResult<Json<Value>> {
+    if let Some(pid) = &q.project_id {
+        project(&st, pid, false)?;
+    }
+    let date = dia_de(q.date)?;
+    let guardado = st.memory.meta_get(&orion_core::relatorio::chave(q.project_id.as_deref(), date));
+    let markdown = match guardado.filter(|_| date != Local::now().date_naive()) {
+        Some(m) => m,
+        None => orion_core::relatorio::voce_fez(&st.memory, q.project_id.as_deref(), date).map_err(|e| ApiError::new(500, e.to_string()))?,
+    };
+    Ok(Json(json!({"date": date.to_string(), "markdown": markdown})))
+}
+
+/// Grava o relatório do dia no vault, só por clique seu e sem sobrescrever.
+pub async fn voce_fez_exportar(_: Admin, State(st): State<Estado>, Json(q): Json<VoceFezQ>) -> ApiResult<Json<Value>> {
+    if let Some(pid) = &q.project_id {
+        project(&st, pid, false)?;
+    }
+    let date = dia_de(q.date)?;
+    let markdown = orion_core::relatorio::voce_fez(&st.memory, q.project_id.as_deref(), date).map_err(|e| ApiError::new(500, e.to_string()))?;
+    let hora = Local::now().format("%H:%M").to_string();
+    tokio::task::spawn_blocking(move || -> ApiResult<Json<Value>> {
+        let mgr = orion_vault::VaultManager::new(st.settings.vault_dir.clone()).map_err(|e| ApiError::new(409, format!("Vault indisponível: {e}")))?;
+        let r = mgr.save_daily_report(&date.to_string(), &hora, &markdown).map_err(|e| ApiError::new(409, e.to_string()))?;
+        Ok(Json(json!(r)))
+    })
+    .await
+    .map_err(anyhow::Error::from)?
+}

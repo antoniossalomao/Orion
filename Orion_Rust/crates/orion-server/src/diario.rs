@@ -90,9 +90,12 @@ fn salvar(memory: &Arc<Store>, vault: &Path, sid: &str) -> anyhow::Result<()> {
 
 /// Gancho do agente: roda em segundo plano, uma conversa de cada vez; chamadas que chegam durante a
 /// gravação são descartadas e a próxima resposta atualiza a nota por inteiro.
-pub fn gancho(memory: Arc<Store>, vault: PathBuf) -> Arc<dyn Fn(&str) + Send + Sync> {
+pub fn gancho(memory: Arc<Store>, vault: PathBuf, ativo: Arc<std::sync::atomic::AtomicBool>) -> Arc<dyn Fn(&str) + Send + Sync> {
     let rodando = Arc::new(Mutex::new(HashSet::<String>::new()));
     Arc::new(move |sid: &str| {
+        if !ativo.load(std::sync::atomic::Ordering::Relaxed) {
+            return;
+        }
         if !rodando.lock().insert(sid.to_string()) {
             return;
         }

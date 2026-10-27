@@ -33,7 +33,8 @@ A ordem de leitura do código, para quem entra agora: `app.py` (rotas), `policy/
 | `orion.db`, tabelas de vida e visão (esquema v23) | `transactions`, `bills`, `price_watch` (finanças, só local); `object_sightings` (rótulos de objetos, 7 dias, sem imagem); `faces` (vetores cifrados, chave no cofre) |
 | `<dados>/backups/` | Backup diário da memória, mantém 7 (`ORION_BACKUP_DIR` aponta para iCloud ou OneDrive) |
 | `<dados>/` (pastas) | `mcp.json`, `plugins/`, `catalogo/`, `rotinas/`, `regras_downloads.yaml`, `capturas/`, `imagens/` |
-| Vault do Obsidian (`ORION_VAULT_DIR`) | Indexado de hora em hora. Escrita só em `00 Inbox` e na pasta de captura |
+| Vault do Obsidian (`ORION_VAULT_DIR`) | Indexado de hora em hora. Escrita só em `00 Inbox`, na pasta de captura, em `03 Recursos/Orion/Memória/` (notas de conversa, diário `ORION_VAULT_DIARIO` e relatório "Você fez", sem sobrescrever) e na nota raiz de projeto `01 Projetos/<Nome>/<Nome>.md` (criada com o projeto, nunca sobrescrita) |
+| `<dados>/projetos/` | Clones de repositórios públicos do GitHub feitos ao criar projeto com `git_url` |
 
 ## 3. Saídas para fora do computador
 
@@ -45,6 +46,7 @@ Toda chamada a um destino de fora grava uma linha em `external_calls` (sem o con
 | Groq (Whisper) | Transcrição de voz e de mídia | Python: `ORION_TRANSCRIBE_API_KEY`; Rust: exige também `ORION_TRANSCRIBE_GROQ_FALLBACK=true` |
 | Gemini | Embeddings (`gemini-embedding-001`), visão, voz ao vivo, pesquisa com Google Search | Chave do Google AI Studio; voz ao vivo é opt-in |
 | Brave Search | `pesquisar_internet` | Opt-in (`ORION_WEB_TOOLS`) |
+| github.com | Clone raso de repositório público ao criar projeto com `git_url` (sem credencial, sem hooks) | Pedido seu na criação do projeto; bloqueado no pânico |
 | Microsoft (edge-tts) | Fala das respostas | Corte com `ORION_VOICE_SPEAK=false`; só o texto da resposta sai |
 | Telegram | Canal do celular | Token e IDs permitidos; default-deny |
 | Servidores MCP (Google Workspace, navegador, outros) | Ferramentas externas | Conforme `mcp.json`; classe de risco do arquivo |

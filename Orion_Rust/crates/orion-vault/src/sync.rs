@@ -232,6 +232,35 @@ impl VaultManager {
         Ok(result)
     }
 
+    /// F09.05: exporta o "Você fez" do dia para `03 Recursos/Orion/Memória/Diário/<data> - Você fez.md`.
+    /// Nunca sobrescreve (se já existe, devolve `unchanged`) e não faz commit nem push.
+    pub fn save_daily_report(&self, date_str: &str, hora: &str, markdown: &str) -> Result<SyncResult, VaultError> {
+        chrono::NaiveDate::parse_from_str(date_str, "%Y-%m-%d").map_err(|_| VaultError::InvalidFormat("data inválida; use AAAA-MM-DD".into()))?;
+        if chrono::NaiveTime::parse_from_str(hora, "%H:%M").is_err() {
+            return Err(VaultError::InvalidFormat("hora inválida; use HH:MM".into()));
+        }
+        let md = format!(
+            "---\ntype: conversa\ndate: {date_str}\nhora: \"{hora}\"\nfonte: orion\nprojeto: \"[[Orion]]\"\ntags: [orion, diario]\nresumo: Relatório diário Você fez\n---\n\n{markdown}"
+        );
+        SecretScanner::scan(&md).map_err(|e| VaultError::SecretDetected(e.to_string()))?;
+        let rel = Path::new("03 Recursos").join("Orion").join("Memória").join("Diário").join(format!("{date_str} - Você fez.md"));
+        let target = crate::safe_path::checked(&self.config.path, &rel, true)?;
+        let unchanged = match publish_new(&target, &md) {
+            Ok(()) => false,
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => true,
+            Err(e) => return Err(e.into()),
+        };
+        Ok(SyncResult {
+            file_path: rel.to_string_lossy().replace('\\', "/"),
+            commit_hash: None,
+            pushed: false,
+            warning: None,
+            conflict: None,
+            unchanged,
+            content_sha256: format!("{:x}", Sha256::digest(md.as_bytes())),
+        })
+    }
+
     /// Faz uma indexação rápida de todas as notas `.md` do Vault.
     pub fn index_all(&self) -> Result<VaultStats, VaultError> {
         let mut cache = self.notes_cache.write();

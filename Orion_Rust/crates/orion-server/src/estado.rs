@@ -93,6 +93,20 @@ pub struct AppState {
     pub estado_voz: Arc<orion_core::vida::EstadoVoz>,
     pub escuta: Option<Arc<orion_core::wake::WakeListener>>,
     pub desktop_wake: Arc<std::sync::atomic::AtomicBool>,
+    /// Opções que a recarga de configurações muda sem reiniciar (F07.08).
+    pub viva: Arc<ConfigViva>,
+}
+
+/// Interruptores lidos a cada uso, para valerem na hora da recarga.
+pub struct ConfigViva {
+    pub injecao: Arc<std::sync::atomic::AtomicBool>,
+    pub diario: Arc<std::sync::atomic::AtomicBool>,
+}
+
+impl ConfigViva {
+    pub fn de(s: &Settings) -> Self {
+        ConfigViva { injecao: Arc::new(s.injection_guard.into()), diario: Arc::new(s.vault_diario.into()) }
+    }
 }
 
 pub type CameraDescrever = Arc<dyn Fn(&str) -> serde_json::Value + Send + Sync>;
@@ -460,6 +474,7 @@ pub async fn montar(mut settings: Settings) -> anyhow::Result<Estado> {
             &settings.screen_ocr_langs,
         ))
     });
+    let viva = Arc::new(ConfigViva::de(&settings));
     let mut agent = None;
     let mut delegator = None;
     let mut processos = None;
@@ -568,10 +583,10 @@ pub async fn montar(mut settings: Settings) -> anyhow::Result<Estado> {
         a.library = Some(biblioteca.clone());
         a.modos = Some(modos.clone());
         a.compactor = compactor_from_settings(&settings, memory.clone());
-        if settings.vault_diario {
-            if let Some(vault) = settings.vault_dir.clone().or_else(orion_vault::detect_vault_path) {
-                a.pos_turno = Some(crate::diario::gancho(memory.clone(), vault));
-            }
+        a.injecao = Some(Arc::new(orion_ai::injecao::Guard::padrao()));
+        a.injecao_ativa = viva.injecao.clone();
+        if let Some(vault) = settings.vault_dir.clone().or_else(orion_vault::detect_vault_path) {
+            a.pos_turno = Some(crate::diario::gancho(memory.clone(), vault, viva.diario.clone()));
         }
         *a.indice.write() = Some(indice);
         agent = Some(Arc::new(a));
@@ -956,6 +971,7 @@ pub async fn montar(mut settings: Settings) -> anyhow::Result<Estado> {
         estado_voz,
         escuta,
         desktop_wake,
+        viva,
         settings,
         memory,
         policy,

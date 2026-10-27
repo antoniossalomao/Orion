@@ -372,13 +372,27 @@ fn painel_live(app: &App) -> El<'_> {
         let ch = Line { vals: semana, min: 0.0, max: mx.max(1.0), ticks: vec![0.0, mx / 2.0, mx], fmt: |v| format!("{v:.0}"), start: crate::i18n::text("7 dias atrás"), end: crate::i18n::text("hoje"), color: t::FG2, mark: None };
         col = col.push(canvas(ch).width(Length::Fill).height(Length::Fixed(150.0)));
     }
+    // F09.04: tokens por dia, 7 e 30 dias. O registro de saídas guarda bytes, então o número é estimado (bytes ÷ 4).
+    let tokens: Vec<f32> = p["consumo"]["dias"].as_array().map(|a| a.iter().map(|d| d["tokens"].as_f64().unwrap_or(0.0) as f32).collect()).unwrap_or_default();
+    if tokens.len() >= 7 {
+        let compacto: fn(f32) -> String = |v| if v >= 1_000_000.0 { format!("{:.1}M", v / 1_000_000.0) } else if v >= 1000.0 { format!("{:.0}k", v / 1000.0) } else { format!("{v:.0}") };
+        let grafico = |vals: Vec<f32>, inicio: &'static str| {
+            let mx = vals.iter().cloned().fold(1.0f32, f32::max);
+            canvas(Line { vals, min: 0.0, max: mx, ticks: vec![0.0, mx / 2.0, mx], fmt: compacto, start: inicio, end: crate::i18n::text("hoje"), color: t::FG2, mark: None }).width(Length::Fill).height(Length::Fixed(150.0))
+        };
+        col = col.push(h3(crate::i18n::text("Tokens por dia · 7 dias (estimado)"), false));
+        col = col.push(grafico(tokens[tokens.len() - 7..].to_vec(), crate::i18n::text("7 dias atrás")));
+        col = col.push(h3(crate::i18n::text("Tokens por dia · 30 dias (estimado)"), false));
+        col = col.push(grafico(tokens.clone(), crate::i18n::text("30 dias atrás")));
+        col = col.push(container(tx(crate::i18n::text("Estimativa: o registro de saídas guarda bytes, não tokens (bytes ÷ 4)."), 11.5, t::FG3)).padding(pad(4.0, 4.0, 4.0, 4.0)));
+    }
     painel_section(col.into())
 }
 
 /// Conteúdo do painel dentro da rolagem das configurações, sem outra página aninhada.
 fn painel_section(body: El<'_>) -> El<'_> {
     column![
-        container(row![tx(crate::i18n::text("Cotas, modelos e a semana, direto do servidor."), 12.5, t::FG3).width(Length::Fill), btn(crate::i18n::text("Atualizar"), Kind::Normal, true, Some("refresh"), Some(Msg::Refresh))].spacing(12).align_y(Vertical::Center)).padding(pad(12.0, 0.0, 22.0, 0.0)),
+        container(row![tx(crate::i18n::text("Cotas, modelos e a semana, direto do servidor."), 12.5, t::FG3).width(Length::Fill), btn(crate::i18n::text("Exportar o Você fez de hoje"), Kind::Normal, true, None, Some(Msg::VoceFezExportar)), btn(crate::i18n::text("Atualizar"), Kind::Normal, true, Some("refresh"), Some(Msg::Refresh))].spacing(12).align_y(Vertical::Center)).padding(pad(12.0, 0.0, 22.0, 0.0)),
         body,
     ].into()
 }

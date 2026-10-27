@@ -596,17 +596,7 @@ pub async fn chave_guardar(_: Admin, State(st): State<Estado>, Json(c): Json<Cha
         .map_err(anyhow::Error::from)?
         .map_err(|_| ApiError::new(500, "não foi possível guardar no cofre do sistema"))?;
     if c.nome.starts_with("ORION_KEY_") {
-        let mut settings = st.settings.clone();
-        if !settings.providers_explicit { settings.provedores.clear(); }
-        crate::estado::load_providers(&mut settings, &st.memory)?;
-        if let Some(gateway) = &st.gateway {
-            let mut endpoints = crate::estado::endpoints_dos_provedores(&settings, None);
-            // Preserva também gateway explícito e reserva local, com seus opt-ins.
-            if let Some(configured) = crate::estado::gateway_from_settings(&settings) {
-                endpoints = configured.endpoint_snapshot();
-            }
-            gateway.configure(endpoints).await;
-        }
+        recarregar_gateway(&st, st.settings.clone()).await?;
     }
     Ok(Json(json!({"ok": true, "reiniciar": !c.nome.starts_with("ORION_KEY_")})))
 }
@@ -631,4 +621,73 @@ pub async fn language_save(_: Admin, State(st): State<Estado>, Json(choice): Jso
     staged.as_file().sync_all().map_err(anyhow::Error::from)?;
     staged.persist(path).map_err(|e| anyhow::anyhow!(e.error))?;
     Ok(Json(json!({"ok":true})))
+}
+
+/// Refaz os provedores e os endpoints do gateway entre turnos, com as chaves do cofre e o catálogo do banco.
+async fn recarregar_gateway(st: &Estado, mut settings: orion_core::config::Settings) -> ApiResult<()> {
+    if !settings.providers_explicit { settings.provedores.clear(); }
+    crate::estado::load_providers(&mut settings, &st.memory)?;
+    if let Some(gateway) = &st.gateway {
+        let mut endpoints = crate::estado::endpoints_dos_provedores(&settings, None);
+        // Preserva também gateway explícito e reserva local, com seus opt-ins.
+        if let Some(configured) = crate::estado::gateway_from_settings(&settings) {
+            endpoints = configured.endpoint_snapshot();
+        }
+        gateway.configure(endpoints).await;
+    }
+    Ok(())
+}
+
+/// Campo a campo do `Debug` das configurações: só nomes e textos para comparar, nunca saem daqui.
+fn campos_das_configuracoes(s: &orion_core::config::Settings) -> std::collections::BTreeMap<String, String> {
+    let mut out = std::collections::BTreeMap::<String, String>::new();
+    let mut atual: Option<String> = None;
+    for linha in format!("{s:#?}").lines().skip(1) {
+        let nome = linha.strip_prefix("    ").filter(|r| !r.starts_with(' ')).and_then(|r| r.split_once(": ")).filter(|(n, _)| !n.is_empty() && n.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_'));
+        match nome {
+            Some((n, v)) => {
+                atual = Some(n.to_string());
+                out.insert(n.to_string(), v.to_string());
+            }
+            None => {
+                if let Some(n) = &atual {
+                    out.entry(n.clone()).and_modify(|v| { v.push('\n'); v.push_str(linha); });
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Campos que o servidor define ao iniciar (perfil, instalador, banco): diferem do `.env` sem o usuário ter mudado nada.
+const DEFINIDOS_NA_INICIALIZACAO: [&str; 11] = ["data_dir", "vault_dir", "admin_token", "auth_user", "seed_default_password", "host", "port", "allow_public_bind", "cookie_secure", "jobs_enabled", "provedores"];
+/// Mudanças que refazem o gateway na hora.
+const DO_GATEWAY: [&str; 12] = ["gateway_url", "gateway_model", "gateway_model_fast", "gateway_model_heavy", "gateway_api_key", "vision_model", "local_model", "local_model_path", "local_model_gpu", "local_url", "allow_paid", "providers_explicit"];
+
+/// F07.08: relê o `.env` e o ambiente e aplica o que dá sem reiniciar. O resto vai listado em
+/// `exigem_reinicio`. Só nomes de campos saem daqui, nunca valores (REGRAS.md: segredos nunca em log).
+pub async fn config_recarregar(_: Admin, State(st): State<Estado>) -> ApiResult<Json<Value>> {
+    let novo = tokio::task::spawn_blocking(orion_core::config::Settings::load)
+        .await
+        .map_err(anyhow::Error::from)?
+        .map_err(|e| ApiError::new(422, format!("configuração inválida: {e}")))?;
+    let (antes, depois) = (campos_das_configuracoes(&st.settings), campos_das_configuracoes(&novo));
+    let mudados: Vec<String> = depois.iter().filter(|(n, v)| !DEFINIDOS_NA_INICIALIZACAO.contains(&n.as_str()) && antes.get(*n) != Some(*v)).map(|(n, _)| n.clone()).collect();
+    let (mut aplicados, mut reinicio) = (vec![], vec![]);
+    let mut refazer_gateway = false;
+    for n in mudados {
+        match n.as_str() {
+            "injection_guard" => { st.viva.injecao.store(novo.injection_guard, std::sync::atomic::Ordering::Relaxed); aplicados.push(n); }
+            "vault_diario" => { st.viva.diario.store(novo.vault_diario, std::sync::atomic::Ordering::Relaxed); aplicados.push(n); }
+            n_ if DO_GATEWAY.contains(&n_) => { refazer_gateway = true; aplicados.push(n); }
+            _ => reinicio.push(n),
+        }
+    }
+    if refazer_gateway {
+        let mut s = novo.clone();
+        s.data_dir = st.settings.data_dir.clone();
+        s.vault_dir = st.settings.vault_dir.clone();
+        recarregar_gateway(&st, s).await?;
+    }
+    Ok(Json(json!({"ok": true, "aplicados": aplicados, "exigem_reinicio": reinicio})))
 }

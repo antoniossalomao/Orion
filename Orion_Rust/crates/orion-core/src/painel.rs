@@ -48,6 +48,7 @@ impl Painel {
             "uptime_s": (agora - self.started_at).round() as i64,
             "modelos": {"configurado": self.agent.is_some(), "endpoints": endpoints},
             "semana": self.semana(agora),
+            "consumo": self.consumo(agora),
             "roteamento": {
                 "ativo": self.agent.as_ref().is_some_and(|a| a.routing()),
                 "contagem": self.agent.as_ref().map(|a| json!(a.rotas.lock().clone())).unwrap_or(json!({})),
@@ -78,6 +79,37 @@ impl Painel {
     }
 
     /// Respostas dos últimos 7 dias por endpoint (contadas pelo agente, persistem no banco).
+    /// Chamadas e tokens por dia nos últimos 30 dias (F09.04), a partir do registro de saídas. O registro
+    /// guarda bytes, não tokens: o número é uma estimativa (bytes ÷ 4) e vem marcado como tal.
+    fn consumo(&self, agora: f64) -> Value {
+        const DIAS: i64 = 30;
+        let hoje = crate::util::local(agora);
+        let desde = crate::util::local(agora - (DIAS * 86400) as f64).date_naive().and_hms_opt(0, 0, 0).and_then(|d| d.and_local_timezone(chrono::Local).single()).map(|d| d.timestamp() as f64).unwrap_or(agora - (DIAS * 86400) as f64);
+        let linhas = self.memory.external_calls(desde, None, 50_000).unwrap_or_default();
+        let mut por_dia: BTreeMap<String, (i64, i64)> = BTreeMap::new();
+        let mut por_provedor: BTreeMap<String, i64> = BTreeMap::new();
+        for r in &linhas {
+            if r["kind"].as_str() == Some("transcribe") {
+                continue;
+            }
+            let dia = crate::util::local(r["ts"].as_f64().unwrap_or(0.0)).format("%Y%m%d").to_string();
+            let tokens = (r["bytes_out"].as_i64().unwrap_or(0) + r["bytes_in"].as_i64().unwrap_or(0)) / 4;
+            let e = por_dia.entry(dia).or_default();
+            e.0 += 1;
+            e.1 += tokens;
+            *por_provedor.entry(r["provider"].as_str().unwrap_or("?").to_string()).or_insert(0) += tokens;
+        }
+        let dias: Vec<Value> = (0..DIAS)
+            .rev()
+            .map(|i| {
+                let d = (hoje - Duration::days(i)).format("%Y%m%d").to_string();
+                let (chamadas, tokens) = por_dia.get(&d).copied().unwrap_or((0, 0));
+                json!({"dia": d, "chamadas": chamadas, "tokens": tokens})
+            })
+            .collect();
+        json!({"tokens_estimados": true, "dias": dias, "por_provedor": por_provedor})
+    }
+
     fn semana(&self, agora: f64) -> Vec<Value> {
         let usos = self.memory.counters_with_prefix("uso:").unwrap_or_default();
         let hoje = crate::util::local(agora);

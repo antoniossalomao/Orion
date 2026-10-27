@@ -614,6 +614,10 @@ pub enum Msg {
     ConflitoSalvar,
     ConflitoDescartar,
     ConflitoFechar,
+    /// Relê o `.env` e aplica o que dá sem reiniciar (F07.08).
+    RecarregarConfig,
+    /// Grava o relatório "Você fez" de hoje no vault (F09.05).
+    VoceFezExportar,
     EditorClose,
     EditorSave,
     // grafo

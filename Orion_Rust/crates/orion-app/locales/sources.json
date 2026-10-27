@@ -899,5 +899,13 @@
   "sem conflitos": "ui-0897",
   "revisar": "ui-0898",
   "Conflito pendente no vault.": "ui-0899",
-  "Comparar": "ui-0900"
+  "Comparar": "ui-0900",
+  "Tokens por dia · 7 dias (estimado)": "ui-0901",
+  "Tokens por dia · 30 dias (estimado)": "ui-0902",
+  "30 dias atrás": "ui-0903",
+  "Estimativa: o registro de saídas guarda bytes, não tokens (bytes ÷ 4).": "ui-0904",
+  "Exportar o Você fez de hoje": "ui-0905",
+  "Recarregar configurações": "ui-0906",
+  "Relê o .env e aplica o que dá sem reiniciar: modelos, chaves, guarda de injeção e diário. O resto avisa que precisa reiniciar.": "ui-0907",
+  "Recarregar": "ui-0908"
 }

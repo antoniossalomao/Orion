@@ -576,6 +576,15 @@ impl App {
                     Err("O anexo ainda está sendo processado. Tente anexá-lo novamente em instantes.".into())
                 }, move |r| Msg::L(Lm::Attached(generation, r))), false))
             }
+            Msg::RecarregarConfig => Some((Task::perform(async move {
+                let r = api.post("/config/recarregar", json!({})).await?;
+                let n = |k: &str| r[k].as_array().map(|a| a.len()).unwrap_or(0);
+                Ok(format!("Configurações recarregadas: {} aplicada(s) na hora, {} exigem reiniciar o Orion.", n("aplicados"), n("exigem_reinicio")))
+            }, |r| Msg::L(Lm::Acao(r, false))), false)),
+            Msg::VoceFezExportar => Some((Task::perform(async move {
+                let r = api.post("/painel/voce-fez/exportar", json!({})).await?;
+                Ok(if r["unchanged"].as_bool().unwrap_or(false) { "O relatório de hoje já estava no vault; nada foi sobrescrito.".to_string() } else { format!("Relatório gravado no vault: {}", s(&r, "file_path")) })
+            }, |r| Msg::L(Lm::Acao(r, false))), false)),
             Msg::ConflitoAbrir(i) => {
                 let Some((_, proposta, _)) = self.conflitos.get(*i).cloned() else { return Some((Task::none(), false)) };
                 Some((Task::perform(async move { api.get(&caminho_conflito(&proposta)).await }, |r| Msg::L(Lm::ConflitoAberto(r))), false))

@@ -339,6 +339,7 @@ fn section<'a>(app: &'a App) -> El<'a> {
         Sec::Sistema => {
             let live = app.api.is_some();
             if live {
+                c = c.push(setting(crate::i18n::text("Recarregar configurações"), crate::i18n::text("Relê o .env e aplica o que dá sem reiniciar: modelos, chaves, guarda de injeção e diário. O resto avisa que precisa reiniciar."), btn(crate::i18n::text("Recarregar"), Kind::Normal, true, None, Some(Msg::RecarregarConfig))));
                 // uso real: só o que dá para medir agora (sem gráfico de exemplo)
                 c = c.push(sh(crate::i18n::text("Memória RAM")));
                 c = c.push(container(row![txf(format!("{} MB", proc_mem_mb()), 36.0, t::FG, t::SERIF), container(tx(crate::i18n::text("deste processo agora · quanto menos, melhor"), 12.5, t::FG3)).padding(pad(14.0, 0.0, 0.0, 8.0))].align_y(Vertical::Bottom)).padding(pad(6.0, 0.0, 0.0, 0.0)));

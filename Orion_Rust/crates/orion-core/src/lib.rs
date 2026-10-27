@@ -55,6 +55,7 @@ pub mod research;
 pub mod resultados;
 pub mod rosto;
 pub mod rosto_lbph;
+pub mod relatorio;
 pub mod rotinas;
 pub mod screen_memory;
 pub mod skills;
