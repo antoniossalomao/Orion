@@ -411,6 +411,17 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
         .spacing(10)
         .into();
     }
+    col = col.push(btn(
+        crate::i18n::text(if app.resources.busy {
+            "Aplicando…"
+        } else {
+            "Salvar e aplicar"
+        }),
+        Kind::Primary,
+        false,
+        None,
+        (!app.resources.busy).then_some(Msg::Resources(Event::Save)),
+    ));
     for &(key, _, label, kind) in FIELDS.iter().filter(|f| f.1 == group) {
         let text = input_value(app, key);
         let control: El = match kind {
@@ -1310,7 +1321,12 @@ pub fn overlay(app: &App) -> Option<El<'_>> {
             ));
             col=col.push(tx(crate::i18n::text("Salvar revoga a concessão anterior. Revise e conceda a automação para executar."),12.5,t::FG3));
         } else {
-            col=col.push(tx(crate::i18n::text("Revise os dados antes de salvar. Conexões habilitadas podem iniciar processos locais ou acessar o endereço informado."),12.5,t::FG3));
+            let description=match form.kind{
+                FormKind::BackupRestore=>"Restaura em uma nova pasta. A senha atual abre o arquivo; a nova senha protege o perfil restaurado.",
+                FormKind::BackupExport=>"Exporta banco e perfil cifrados. Contas, tokens e permissões deste computador ficam fora do arquivo.",
+                _=>"Revise os dados antes de salvar. Conexões habilitadas podem iniciar processos locais ou acessar o endereço informado.",
+            };
+            col = col.push(tx(crate::i18n::text(description), 12.5, t::FG3));
         }
         // Senhas de restauração têm controles próprios; nunca aparecem no editor JSON.
         if form.kind == FormKind::BackupRestore {
@@ -1399,7 +1415,16 @@ pub fn overlay(app: &App) -> Option<El<'_>> {
             col = col.push(tx(form.error.clone(), 13.0, t::DANGER));
         }
         col = col.push(btn(
-            crate::i18n::text(if form.busy { "Salvando…" } else { "Salvar" }),
+            crate::i18n::text(if form.busy {
+                "Salvando…"
+            } else {
+                match form.kind {
+                    FormKind::BackupRestore => "Restaurar",
+                    FormKind::BackupExport => "Exportar",
+                    FormKind::Plugin => "Instalar",
+                    _ => "Salvar",
+                }
+            }),
             Kind::Primary,
             false,
             None,

@@ -77,7 +77,7 @@ pub fn root(app: &App) -> El<'_> {
         if app.voice {
             layers.push(overlays::island(app));
         }
-        if app.p.cam[4] {
+        if app.p.cam[4] && !app.resources.captions.is_empty() {
             layers.push(overlays::caption(&app.resources.captions));
         }
     }

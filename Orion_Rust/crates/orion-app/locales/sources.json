@@ -1027,5 +1027,11 @@
   "Só fontes ligadas entram na busca de memória e nas ferramentas relacionadas.": "resource-116",
   "Gravando…": "resource-117",
   "Transcrevendo…": "resource-118",
-  "Falando…": "resource-119"
+  "Falando…": "resource-119",
+  "Atualizar plugin existente": "resource-120",
+  "Conectores": "resource-121",
+  "Uso": "resource-122",
+  "Este computador": "resource-123",
+  "Restaura em uma nova pasta. A senha atual abre o arquivo; a nova senha protege o perfil restaurado.": "resource-124",
+  "Exporta banco e perfil cifrados. Contas, tokens e permissões deste computador ficam fora do arquivo.": "resource-125"
 }

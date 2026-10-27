@@ -171,6 +171,10 @@ impl RuntimePreferences {
                             || "_-".contains(c))),
             "ação de palmas inválida"
         );
+        anyhow::ensure!(
+            serde_json::to_vec_pretty(self)?.len() <= 64 * 1024,
+            "configuração de recursos muito grande"
+        );
         Ok(())
     }
 

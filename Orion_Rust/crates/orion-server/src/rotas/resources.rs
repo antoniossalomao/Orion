@@ -243,7 +243,8 @@ pub async fn backup_export(
         )
     })
     .await
-    .map_err(anyhow::Error::from)??;
+    .map_err(anyhow::Error::from)?
+    .map_err(|e| ApiError::new(422, e.to_string()))?;
     Ok(Json(json!({"file":path})))
 }
 #[derive(serde::Deserialize)]
@@ -284,7 +285,8 @@ pub async fn backup_restore(
         result
     })
     .await
-    .map_err(anyhow::Error::from)??;
+    .map_err(anyhow::Error::from)?
+    .map_err(|e| ApiError::new(422, e.to_string()))?;
     Ok(Json(
         json!({"restored":folder,"message":"Backup verificado e restaurado em outra pasta. Abra esse perfil pelo assistente de entrada."}),
     ))
