@@ -26,6 +26,10 @@ use std::sync::Arc;
 
 #[allow(dead_code)] // gateway, custos, delegator e processos alimentam o painel
 pub struct AppState {
+    pub audio:Arc<crate::native_resources::Audio>,
+    pub caption_stop:parking_lot::Mutex<Option<Arc<dyn Fn()+Send+Sync>>>,
+    pub background_jobs: parking_lot::Mutex<Option<tokio::task::JoinHandle<()>>>,
+    pub runtime_preferences: parking_lot::Mutex<orion_core::runtime_preferences::RuntimePreferences>,
     pub settings: Settings,
     pub tool_permissions: parking_lot::Mutex<orion_core::tool_permissions::ToolPermissions>,
     pub desktop_tool_names: Vec<String>,
@@ -313,9 +317,11 @@ pub fn memory_from_settings(settings: &Settings) -> anyhow::Result<Store> {
 }
 
 pub fn speaker_from_settings(settings: &Settings) -> Option<Arc<dyn orion_core::voice::Speaker>> {
-    if !((settings.voice_enabled && settings.voice_speak) || settings.telegram_voice_reply) {
+    if !((settings.voice_enabled && (settings.voice_speak || settings.voice_live_enabled)) || settings.telegram_voice_reply) {
         return None;
     }
+    #[cfg(windows)]
+    if orion_core::util::which("edge-tts").is_none(){return Some(Arc::new(orion_core::voice::WindowsSpeaker));}
     Some(Arc::new(orion_core::voice::EdgeSpeaker::new(&settings.voice_tts_voice, 30.0)))
 }
 
@@ -416,10 +422,14 @@ fn alguma_cli() -> bool {
 /// Sobe tudo. Recusa subir exposto na rede sem login ou com a senha de fábrica
 /// (REGRAS.md: acesso de fora só com login).
 pub async fn montar(mut settings: Settings) -> anyhow::Result<Estado> {
+    if let Some(profile)=orion_core::onboarding::Profile::load(&settings.data_dir)?{settings.backup_dir=profile.backup.clone().or_else(||profile.drive_backup.then(||settings.data_dir.join("backups")));}
+    let runtime_preferences = orion_core::runtime_preferences::RuntimePreferences::load(&settings.data_dir, &settings)?;
+    runtime_preferences.apply(&mut settings);
     crate::appmode::progress("Abrindo o banco…");
     std::fs::create_dir_all(&settings.data_dir)?;
     let s2 = settings.clone();
     let memory = Arc::new(tokio::task::spawn_blocking(move || memory_from_settings(&s2)).await??);
+    memory.meta_set("sources:repo_roots", Some(&serde_json::to_string(&settings.repos)?))?;
     crate::appmode::progress("Preparando modelos…");
     load_providers(&mut settings, &memory)?;
     // registro de saída (REGRAS.md: toda saída de dado fica registrada, sem conteúdo)
@@ -441,6 +451,7 @@ pub async fn montar(mut settings: Settings) -> anyhow::Result<Estado> {
             without_confirmation: false,
         },
     );
+    settings.desktop_tools=tool_permissions.desktop_tools;settings.web_tools=tool_permissions.web_tools;
     let mut desktop_tool_names = Vec::new();
     let mut web_tool_names = Vec::new();
     let auth = Arc::new(AuthService::open(&settings.auth_db_path(), &settings.auth_user, settings.session_ttl_h as f64 * 3600.0)?);
@@ -572,11 +583,6 @@ pub async fn montar(mut settings: Settings) -> anyhow::Result<Estado> {
                 cidade_padrao: settings.weather_city.clone(),
             });
         }
-        let webhooks = orion_core::tools::n8n::parse_webhooks(&settings.n8n_webhooks).map_err(|e| anyhow::anyhow!(e))?;
-        if !webhooks.is_empty() {
-            let _ = policy.register_tool(orion_core::tools::n8n::tool_spec(), None);
-            o.extra.push(orion_core::tools::n8n::n8n_tool(webhooks));
-        }
         desktop_tool_names = o.desktop.iter().map(|tool| tool.name.clone()).collect();
         web_tool_names = o.web.iter().map(|tool| tool.name.clone()).collect();
         apply_tool_permissions(&policy, tool_permissions, &desktop_tool_names, &web_tool_names);
@@ -612,6 +618,7 @@ pub async fn montar(mut settings: Settings) -> anyhow::Result<Estado> {
         orion_core::extensions::host::MCPHost::new(configs, std::time::Duration::from_secs(5), Some(accounts.factory())).map_err(|e| anyhow::anyhow!(e))?,
     );
     *accounts.host.write() = Some(mcp_host.clone());
+    mcp_host.set_enabled(settings.mcp_enabled);
     mcp_host.start().await;
     let registro_ext = agent.as_ref().map(|a| a.tools.clone()).unwrap_or_default();
     let catalog = Arc::new(orion_core::extensions::catalog::Catalog::new(mcp_host.clone(), registro_ext.clone(), policy.clone()));
@@ -643,6 +650,7 @@ pub async fn montar(mut settings: Settings) -> anyhow::Result<Estado> {
             skill_runtime.pausar(&id);
         }
     }
+    skill_runtime.enabled.store(settings.skills_enabled,std::sync::atomic::Ordering::SeqCst);
     skill_runtime.attach_tools(&catalog.registry, &policy);
     let extensions = match orion_core::extensions::manager::PluginManager::new(
         &settings.data_dir.join("extensions"),
@@ -726,7 +734,6 @@ pub async fn montar(mut settings: Settings) -> anyhow::Result<Estado> {
         settings.subtitle_model.as_ref().and_then(|modelo| match orion_core::legenda::criar_transcritor(&modelo.to_string_lossy()) {
             Ok(tr) => {
                 let leg = Arc::new(orion_core::legenda::Legenda::new(tr, 200.0));
-                let _ = orion_core::legenda::iniciar_thread(leg.clone(), &settings.subtitle_device);
                 Some(leg)
             }
             Err(e) => {
@@ -802,7 +809,7 @@ pub async fn montar(mut settings: Settings) -> anyhow::Result<Estado> {
     let jobs = if settings.jobs_enabled {
         use orion_core::jobs::{JobRunner, JobsConfig};
         let cfg = JobsConfig {
-            backup_dir: settings.backup_dir.clone(),
+            backup_dir: if orion_core::onboarding::Profile::load(&settings.data_dir)?.is_some(){None}else{settings.backup_dir.clone()},
             backup_keep: settings.backup_keep,
             vault_dir: settings.vault_dir.clone(),
             audit_days: settings.audit_retention_days,
@@ -935,6 +942,10 @@ pub async fn montar(mut settings: Settings) -> anyhow::Result<Estado> {
         *t.painel.lock() = Some(Arc::new(move || orion_core::painel::texto_do_painel(&p.montar())));
     }
     Ok(Arc::new(AppState {
+        background_jobs: Default::default(),
+        runtime_preferences: parking_lot::Mutex::new(runtime_preferences),
+        audio:Arc::new(crate::native_resources::Audio::default()),
+        caption_stop:Default::default(),
         tool_permissions: parking_lot::Mutex::new(tool_permissions),
         desktop_tool_names,
         web_tool_names,

@@ -18,6 +18,7 @@ pub const PROVIDERS: &[(&str, &str, &str, &str)] = &[
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Field {
+    ResourceFile,
     User,
     Name,
     Language,
@@ -238,7 +239,7 @@ impl Form {
             Field::TelegramUsers => &self.telegram_users,
             Field::DriveClient => &self.drive_client,
             Field::DriveSecret => &self.drive_secret,
-            Field::Attachment => "",
+            Field::Attachment | Field::ResourceFile => "",
             Field::ImportPath => &self.import_path,
             Field::ImportKind => &self.import_kind,
             Field::ImportSource => &self.import_source,
@@ -261,7 +262,7 @@ impl Form {
             Field::TelegramUsers => &mut self.telegram_users,
             Field::DriveClient => &mut self.drive_client,
             Field::DriveSecret => &mut self.drive_secret,
-            Field::Attachment => return,
+            Field::Attachment | Field::ResourceFile => return,
             Field::ImportPath => &mut self.import_path,
             Field::ImportKind => &mut self.import_kind,
             Field::ImportSource => &mut self.import_source,
@@ -444,7 +445,7 @@ impl crate::app::App {
             Event::Finish if form.step == STEPS => {
                 let avisos = form.warnings;
                 if form.autostart != form.autostart0 {
-                    set_autostart(form.autostart);
+                    if let Err(e)=set_autostart(form.autostart){self.gate_err=e;}
                     self.p.boot = form.autostart;
                 }
                 self.onboarding = None;
@@ -553,23 +554,19 @@ pub fn system_command(program: &str) -> std::process::Command {
 }
 
 /// Liga ou desliga o início com o Windows (mesma chave Run do instalador); só age se a pessoa mudou a opção.
-fn set_autostart(on: bool) {
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        let key = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run";
-        let mut c = system_command("reg.exe");
-        c.creation_flags(0x08000000);
-        if on {
-            let Ok(exe) = std::env::current_exe() else { return };
-            c.args(["add", key, "/v", "Orion", "/t", "REG_SZ", "/d", &format!("\"{}\" --background", exe.display()), "/f"]);
-        } else {
-            c.args(["delete", key, "/v", "Orion", "/f"]);
-        }
-        let _ = c.status();
+pub fn autostart()->bool{
+    #[cfg(windows)]{let result=system_command("reg.exe").args(["query",r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run","/v","Orion"]).output();result.is_ok_and(|r|r.status.success())}
+    #[cfg(not(windows))]{false}
+}
+pub fn set_autostart(on:bool)->Result<(),String>{
+    #[cfg(windows)]{
+        let key=r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run";
+        if !on && !autostart(){return Ok(());}
+        let mut c=system_command("reg.exe");
+        if on{let exe=std::env::current_exe().map_err(|_|"Não foi possível localizar o Orion.".to_string())?;c.args(["add",key,"/v","Orion","/t","REG_SZ","/d",&format!("\"{}\" --background",exe.display()),"/f"]);}else{c.args(["delete",key,"/v","Orion","/f"]);}
+        if c.status().map_err(|_|"Não foi possível configurar o início com o Windows.".to_string())?.success(){Ok(())}else{Err("Não foi possível configurar o início com o Windows.".into())}
     }
-    #[cfg(not(windows))]
-    let _ = on;
+    #[cfg(not(windows))]{let _=on;Err("Inicialização automática disponível no Windows.".into())}
 }
 
 /// Abre `arquivo[:linha]` no VS Code. O alvo já foi conferido (caminho absoluto de um arquivo que existe) e só tem
@@ -597,7 +594,9 @@ pub fn choose(field: Field) -> Result<Option<String>, String> {
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
-        let script = if field == Field::Attachment {
+        let script = if field == Field::ResourceFile {
+            "Add-Type -AssemblyName System.Windows.Forms; $d=New-Object System.Windows.Forms.OpenFileDialog; $d.Filter='Arquivos (*.*)|*.*'; if($d.ShowDialog() -eq 'OK'){[Console]::OutputEncoding=[Text.Encoding]::UTF8; [Console]::Write($d.FileName)}"
+        } else if field == Field::Attachment {
             "Add-Type -AssemblyName System.Windows.Forms; $d=New-Object System.Windows.Forms.OpenFileDialog; $d.Title='Anexar documento ao chat'; $d.Filter='Documentos (*.txt;*.md;*.pdf)|*.txt;*.md;*.pdf'; if($d.ShowDialog() -eq 'OK'){[Console]::OutputEncoding=[Text.Encoding]::UTF8; [Console]::Write($d.FileName)}"
         } else if field == Field::ImportPath {
             "Add-Type -AssemblyName System.Windows.Forms; $d=New-Object System.Windows.Forms.OpenFileDialog; $d.Filter='Exports e plugins (*.json;*.jsonl;*.zip;*.toml)|*.json;*.jsonl;*.zip;*.toml'; if($d.ShowDialog() -eq 'OK'){[Console]::OutputEncoding=[Text.Encoding]::UTF8; [Console]::Write($d.FileName)}"

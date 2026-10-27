@@ -700,7 +700,7 @@ fn reranker_onnx_sem_arquivos_avisa() {
     std::fs::write(d.path().join("model.onnx"), b"x").unwrap();
     assert!(orion_core::memory::rerank::LocalReranker::new(d.path()).is_err()); // falta o tokenizer
     std::fs::write(d.path().join("tokenizer.json"), "{}").unwrap();
-    assert!(orion_core::memory::rerank::LocalReranker::new(d.path()).is_ok());
+    assert!(orion_core::memory::rerank::LocalReranker::new(d.path()).is_err()); // tokenizer inválido também é recusado
 }
 
 // ── memory/test_eval.py (a avaliação do Rust usa um caso por pergunta) ──────

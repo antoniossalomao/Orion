@@ -19,6 +19,10 @@ impl Bandeja {
         }
     }
 
+    pub fn set_shortcut_enabled(&self,on:bool)->Result<(),String>{
+        #[cfg(windows)]{self.shell.set_shortcut_enabled(on).map_err(|_|"O atalho está em uso por outro aplicativo.".into())}
+        #[cfg(not(windows))]{let _=on;Err("Atalho global disponível no Windows.".into())}
+    }
     pub fn consultar(&self) -> Vec<Acao> {
         #[cfg(windows)]
         {

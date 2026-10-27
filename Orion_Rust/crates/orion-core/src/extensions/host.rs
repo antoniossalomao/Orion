@@ -251,6 +251,7 @@ struct Estado {
 pub type OAuthFactory = Arc<dyn Fn(&HttpConfig) -> R<Arc<dyn Auth>> + Send + Sync>;
 
 pub struct Connection {
+    host_enabled:Arc<std::sync::atomic::AtomicBool>,
     pub config: ConnectionConfig,
     pub label: parking_lot::RwLock<String>,
     pub timeout: Duration,
@@ -265,7 +266,7 @@ pub struct Connection {
 
 impl Connection {
     pub fn new(config: ConnectionConfig, timeout: Duration, oauth: Option<OAuthFactory>) -> Self {
-        Connection { label: parking_lot::RwLock::new(config.id().to_string()), config, timeout, oauth, account_check: Mutex::new(None), authorized: Mutex::new(None), st: RwLock::new(Estado { state: "disabled".into(), ..Default::default() }), slots: tokio::sync::Semaphore::new(4) }
+        Connection { host_enabled:Arc::new(std::sync::atomic::AtomicBool::new(true)), label: parking_lot::RwLock::new(config.id().to_string()), config, timeout, oauth, account_check: Mutex::new(None), authorized: Mutex::new(None), st: RwLock::new(Estado { state: "disabled".into(), ..Default::default() }), slots: tokio::sync::Semaphore::new(4) }
     }
 
     pub fn state(&self) -> String {
@@ -307,7 +308,7 @@ impl Connection {
     }
 
     pub async fn start(&self) {
-        if !self.config.enabled() || self.st.read().client.is_some() {
+        if !self.host_enabled.load(std::sync::atomic::Ordering::SeqCst) || !self.config.enabled() || self.st.read().client.is_some() {
             return;
         }
         {
@@ -349,6 +350,7 @@ impl Connection {
     }
 
     pub fn connected(&self) -> R<Arc<McpClient>> {
+        if !self.host_enabled.load(std::sync::atomic::Ordering::SeqCst){return Err(MCPError::new("mcp_disabled"));}
         if let Some(f) = self.account_check.lock().clone() {
             f()?;
         }
@@ -425,6 +427,7 @@ fn codigo_de_erro(e: &McpError, http: bool) -> String {
 }
 
 pub struct MCPHost {
+    enabled:Arc<std::sync::atomic::AtomicBool>,
     connections: RwLock<BTreeMap<String, Arc<Connection>>>,
     timeout: Duration,
     oauth: Option<OAuthFactory>,
@@ -438,7 +441,7 @@ impl MCPHost {
         if configs.len() > 32 || ids.len() != configs.len() {
             return Err("conexões duplicadas ou acima do limite".into());
         }
-        let host = MCPHost { connections: RwLock::new(BTreeMap::new()), timeout, oauth };
+        let host = MCPHost { enabled:Arc::new(std::sync::atomic::AtomicBool::new(true)), connections: RwLock::new(BTreeMap::new()), timeout, oauth };
         for c in configs {
             host.insert(host.connection(c));
         }
@@ -447,9 +450,10 @@ impl MCPHost {
 
     /// Conexão nova (ainda não registrada no host).
     pub fn connection(&self, config: ConnectionConfig) -> Arc<Connection> {
-        Arc::new(Connection::new(config, self.timeout, self.oauth.clone()))
+        let mut connection=Connection::new(config,self.timeout,self.oauth.clone());connection.host_enabled=self.enabled.clone();Arc::new(connection)
     }
 
+    pub fn set_enabled(&self,on:bool){self.enabled.store(on,std::sync::atomic::Ordering::SeqCst);}
     pub fn get(&self, id: &str) -> Option<Arc<Connection>> {
         self.connections.read().get(id).cloned()
     }

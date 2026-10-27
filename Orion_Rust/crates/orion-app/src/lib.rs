@@ -31,3 +31,4 @@ pub mod snap;
 pub mod onboarding;
 
 pub mod i18n;
+pub mod resources;

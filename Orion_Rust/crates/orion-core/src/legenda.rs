@@ -41,10 +41,22 @@ pub fn criar_transcritor(modelo: &str) -> Result<TranscritorPcm, LegendaError> {
     if !p.exists() {
         return Err(LegendaError(format!("modelo de legenda indisponível ({m}): confira ORION_SUBTITLE_MODEL")));
     }
+    #[cfg(windows)]
+    {
+        // O binário Windows já contém Whisper; legenda não precisa de executável auxiliar.
+        let model=Arc::new(Mutex::new(None::<orion_voice::LocalWhisper>));
+        return Ok(Arc::new(move|pcm:&[u8]|{
+            let mut guard=model.lock();
+            if guard.is_none(){match orion_voice::LocalWhisper::load(&p,false){Ok(m)=>*guard=Some(m),Err(_)=>return String::new()}}
+            guard.as_ref().unwrap().transcribe(pcm_para_wav(pcm,RATE)).unwrap_or_default()
+        }));
+    }
+    #[cfg(not(windows))]
     let cli = which("whisper-cli").or_else(|| which("whisper-cpp")).ok_or_else(|| {
         LegendaError(format!("modelo de legenda indisponível ({m}): instale whisper-cli ou confira ORION_SUBTITLE_MODEL"))
     })?;
-    Ok(Arc::new(move |pcm: &[u8]| {
+    #[cfg(not(windows))]
+    {Ok(Arc::new(move |pcm: &[u8]| {
         let wav = pcm_para_wav(pcm, RATE);
         let tmp = std::env::temp_dir().join(format!("orion-legenda-{}.wav", orion_store::uuid_hex()));
         if std::fs::write(&tmp, wav).is_err() {
@@ -69,7 +81,7 @@ pub fn criar_transcritor(modelo: &str) -> Result<TranscritorPcm, LegendaError> {
             .filter(|s| s.codigo == Some(0))
             .map(|s| String::from_utf8_lossy(&s.stdout).trim().to_string())
             .unwrap_or_default()
-    }))
+    }))}
 }
 
 fn argv_captura_audio(dispositivo: &str) -> Option<Vec<String>> {
@@ -144,13 +156,28 @@ impl Legenda {
 
 /// Captura blocos do dispositivo de áudio em segundo plano até `parar()` ser chamado.
 pub fn iniciar_thread(legenda: Arc<Legenda>, dispositivo: &str) -> Arc<dyn Fn() + Send + Sync> {
+    iniciar_thread_guarded(legenda,dispositivo,Arc::new(||false))
+}
+pub fn iniciar_thread_guarded(legenda:Arc<Legenda>,dispositivo:&str,paused:Arc<dyn Fn()->bool+Send+Sync>)->Arc<dyn Fn()+Send+Sync>{
     let parar_flag = Arc::new(AtomicBool::new(false));
     let p2 = parar_flag.clone();
     let dev = dispositivo.to_string();
     std::thread::Builder::new()
         .name("orion-legenda".into())
         .spawn(move || {
-            let Some(argv) = argv_captura_audio(&dev) else {
+            #[cfg(windows)]
+            {
+                let mut mic=None;
+                let mut buf=Vec::with_capacity(BLOCO*2);
+                while !p2.load(Ordering::SeqCst){
+                    if paused(){mic.take();buf.clear();legenda.rodando.store(false,Ordering::SeqCst);std::thread::sleep(std::time::Duration::from_millis(100));continue;}
+                    if mic.is_none(){match orion_voice::Microphone::open(&dev){Ok(m)=>{mic=Some(m);legenda.rodando.store(true,Ordering::SeqCst);},Err(_)=>break}}
+                    if let Some(frame)=mic.as_ref().unwrap().read_frame(){buf.extend(frame);if buf.len()>=BLOCO*2{if !paused(){let _=legenda.alimentar(&buf,None);}buf.clear();}}
+                }
+                legenda.rodando.store(false,Ordering::SeqCst);return;
+            }
+            #[cfg(not(windows))]
+            {let Some(argv) = argv_captura_audio(&dev) else {
                 legenda.rodando.store(false, Ordering::SeqCst);
                 return;
             };
@@ -168,7 +195,7 @@ pub fn iniciar_thread(legenda: Arc<Legenda>, dispositivo: &str) -> Arc<dyn Fn() 
             };
             legenda.rodando.store(true, Ordering::SeqCst);
             let mut buf = vec![0u8; BLOCO * 2];
-            while !p2.load(Ordering::SeqCst) {
+            while !p2.load(Ordering::SeqCst) && !paused() {
                 match out.read_exact(&mut buf) {
                     Ok(()) => {
                         let _ = legenda.alimentar(&buf, None);
@@ -178,7 +205,7 @@ pub fn iniciar_thread(legenda: Arc<Legenda>, dispositivo: &str) -> Arc<dyn Fn() 
             }
             legenda.rodando.store(false, Ordering::SeqCst);
             let _ = filho.kill();
-            let _ = filho.wait();
+            let _ = filho.wait();}
         })
         .ok();
     Arc::new(move || parar_flag.store(true, Ordering::SeqCst))

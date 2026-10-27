@@ -73,7 +73,7 @@ pub struct Rotina {
 }
 
 impl Rotina {
-    fn validar(&self) -> Result<(), String> {
+    pub fn validar(&self) -> Result<(), String> {
         if self.descricao.chars().count() > 200 || self.gatilhos.len() > 10 || self.liberar.len() > 5 {
             return Err("campo fora do limite".into());
         }

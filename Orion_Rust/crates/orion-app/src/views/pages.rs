@@ -228,7 +228,7 @@ fn rotinas(app: &App) -> El<'_> {
         let left = lc.into();
         rows.push(li(left, li_right(vec![runs(&r.runs), btn(crate::i18n::text("Rodar agora"), Kind::Normal, true, Some("play"), Some(Msg::RotRun(i))), switch(r.on, Msg::RotToggle(i))])));
     }
-    page(crate::i18n::text("Rotinas"), crate::i18n::text("Crie pelo chat (“todo dia às 8h me manda o briefing”), por /rotina ou aqui. As críticas rodam na nuvem do Claude se o PC estiver desligado."), Some(btn(crate::i18n::text("Nova rotina"), Kind::Primary, false, None, Some(Msg::Toast("Formulário: nome, horário, prompt, projeto, modelo, saída".into())))), list(rows))
+    page(crate::i18n::text("Rotinas"), crate::i18n::text("Crie pelo chat (“todo dia às 8h me manda o briefing”), por /rotina ou aqui. As críticas rodam na nuvem do Claude se o PC estiver desligado."), Some(btn(crate::i18n::text("Nova rotina"), Kind::Primary, false, None, Some(if app.api.is_some(){Msg::Resources(crate::resources::Event::Open(crate::resources::FormKind::Routine))}else{Msg::Toast("Formulário: nome, horário, prompt, projeto, modelo, saída".into())}))), list(rows))
 }
 
 fn nuvem(app: &App) -> El<'_> {
@@ -267,7 +267,7 @@ fn nuvem(app: &App) -> El<'_> {
 }
 
 pub fn src_rows(app: &App) -> Vec<El<'_>> {
-    data::SRC.iter().enumerate().map(|(i, (_, tt, d))| setting(tt, d, switch(app.p.src[i], Msg::TogA("src", i)))).collect()
+    data::SRC.iter().enumerate().map(|(i, (_, tt, d))| setting(tt, d, if app.api.is_some() && (app.resources.sources.is_none() || app.resources.source_busy){badge(crate::i18n::text("Carregando…"),Tone::Plain)}else{switch(app.p.src[i], Msg::TogA("src", i))})).collect()
 }
 
 fn conhecimento(app: &App) -> El<'_> {

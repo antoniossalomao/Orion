@@ -34,7 +34,7 @@ pub struct Regra {
 }
 
 impl Regra {
-    fn validar(&mut self) -> Result<(), String> {
+    pub fn validar(&mut self) -> Result<(), String> {
         if self.extensoes.len() > 20 {
             return Err("extensoes: no máximo 20".into());
         }

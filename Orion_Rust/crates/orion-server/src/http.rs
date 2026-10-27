@@ -43,6 +43,8 @@ impl IntoResponse for ApiError {
     }
 }
 
+impl From<std::io::Error> for ApiError { fn from(e:std::io::Error)->Self{anyhow::Error::from(e).into()} }
+
 impl From<anyhow::Error> for ApiError {
     fn from(e: anyhow::Error) -> Self {
         tracing::error!("erro interno: {e:#}");

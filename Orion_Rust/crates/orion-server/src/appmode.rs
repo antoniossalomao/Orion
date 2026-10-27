@@ -15,13 +15,16 @@ struct Nucleo {
     router: axum::Router,
     st: crate::estado::Estado,
     telegram: parking_lot::Mutex<Option<tokio::task::JoinHandle<()>>>,
-    backup: Option<tokio::task::JoinHandle<()>>,
+    backup: parking_lot::Mutex<Option<tokio::task::JoinHandle<()>>>,
 }
 
 static BOOT_PROGRESS: parking_lot::Mutex<Option<String>> = parking_lot::Mutex::new(None);
 pub(crate) fn progress(message: &str) { *BOOT_PROGRESS.lock() = Some(message.into()); }
 
 static BOOT_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+static RECONFIGURING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+#[cfg(windows)]
+static SCREEN_WATCH_STARTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 static NATIVE_THROTTLE: std::sync::LazyLock<orion_core::auth::LoginThrottle> = std::sync::LazyLock::new(Default::default);
 static NATIVE_2FA: std::sync::LazyLock<orion_core::two_factor::TwoFactor> = std::sync::LazyLock::new(Default::default);
 static NATIVE_PENDING: std::sync::LazyLock<parking_lot::Mutex<std::collections::HashMap<String, zeroize::Zeroizing<String>>>> = std::sync::LazyLock::new(Default::default);
@@ -29,25 +32,34 @@ static NATIVE_PENDING: std::sync::LazyLock<parking_lot::Mutex<std::collections::
 type Slot = std::sync::Arc<parking_lot::Mutex<Option<std::sync::Arc<Nucleo>>>>;
 
 /// Monta o núcleo e liga os trabalhos de fundo. Roda dentro do runtime do núcleo.
-async fn montar_nucleo(s: Settings) -> anyhow::Result<std::sync::Arc<Nucleo>> {
+async fn preparar_nucleo(s: Settings) -> anyhow::Result<std::sync::Arc<Nucleo>> {
     #[cfg(windows)]
     let vigiar = s.clone();
     let mut s = s;
     if let Some(p) = orion_core::onboarding::Profile::load(&s.data_dir)? {
         p.apply(&mut s);
     }
-    let saved = s.clone();
     let st = crate::estado::montar(s).await?;
     #[cfg(windows)]
-    crate::cli_db::watch_screen_lock(&vigiar, st.auth.clone());
-    let telegram = crate::iniciar_fundo(&st);
-    let backup = crate::onboarding::start_backup(&saved, st.memory.clone(),st.modos.clone());
+    if !SCREEN_WATCH_STARTED.swap(true,std::sync::atomic::Ordering::SeqCst) {
+        crate::cli_db::watch_screen_lock(&vigiar, st.auth.clone());
+    }
     Ok(std::sync::Arc::new(Nucleo {
-        backup,
+        backup: Default::default(),
         router: crate::rotas::router(st.clone()),
         st,
-        telegram: parking_lot::Mutex::new(telegram),
+        telegram: Default::default(),
     }))
+}
+
+fn iniciar_nucleo(n: &Nucleo) {
+    *n.telegram.lock()=crate::iniciar_fundo(&n.st);
+    *n.backup.lock()=crate::onboarding::start_backup(&n.st.settings,n.st.memory.clone(),n.st.modos.clone());
+}
+async fn montar_nucleo(s:Settings) -> anyhow::Result<std::sync::Arc<Nucleo>> {
+    let n=preparar_nucleo(s).await?;
+    iniciar_nucleo(&n);
+    Ok(n)
 }
 
 async fn abrir_slot(slot: Slot, cfg: Settings) -> Result<(), String> {
@@ -74,10 +86,46 @@ impl Interno {
 }
 
 impl Local for Interno {
+    fn reconfigure(&self,bearer:Option<String>) -> BoxFuture<'static,Result<serde_json::Value,String>> {
+        let (slot,cfg,rt)=(self.nucleo.clone(),self.settings.clone(),self.rt.clone());
+        Box::pin(async move {
+            rt.spawn(async move {
+                let _boot=BOOT_LOCK.lock().await;
+                let old=slot.lock().clone().ok_or("Entre no Orion antes de configurar os recursos.")?;
+                use subtle::ConstantTimeEq;
+                if bearer.as_deref().is_none_or(|token| !bool::from(token.as_bytes().ct_eq(old.st.settings.admin_token.as_bytes()))) {
+                    return Err("Entre no Orion antes de configurar os recursos.".into());
+                }
+                struct Reset;
+                impl Drop for Reset { fn drop(&mut self) { RECONFIGURING.store(false,std::sync::atomic::Ordering::SeqCst); } }
+                RECONFIGURING.store(true,std::sync::atomic::Ordering::SeqCst);
+                let _reset=Reset;
+                if old.st.audio.active() || old.st.agent.as_ref().is_some_and(|a|a.any_busy()) || !old.st.policy.approvals.pending(None,false).is_empty() {
+                    return Err("Aguarde a resposta e resolva as aprovações antes de aplicar os recursos.".into());
+                }
+                // Prepara o novo estado antes de desligar o antigo; falha não apaga o estado em uso.
+                let next=match preparar_nucleo(cfg).await {
+                    Ok(n)=>n,
+                    Err(_)=>{
+                        orion_ai::saidas::definir_destino(Some(orion_ai::saidas::destino_store(old.st.memory.clone())));
+                        return Err("Configuração salva, mas não foi possível aplicá-la. Confira os recursos e tente novamente.".into());
+                    }
+                };
+                if let Some(task)=old.backup.lock().take() { task.abort(); }
+                let telegram=old.telegram.lock().take();
+                crate::encerrar_fundo(&old.st,telegram).await;
+                *slot.lock()=Some(next.clone());
+                orion_ai::saidas::definir_destino(Some(orion_ai::saidas::destino_store(next.st.memory.clone())));
+                iniciar_nucleo(&next);
+                Ok(serde_json::json!({"applied":true}))
+            }).await.map_err(|_|"Não foi possível aplicar os recursos.".to_string())?
+        })
+    }
     fn chamar(&self, metodo: &str, caminho: &str, corpo: Option<Vec<u8>>, bearer: Option<String>) -> BoxFuture<'static, Result<Resposta, String>> {
         let n = self.atual();
         let (metodo, caminho) = (metodo.to_string(), caminho.to_string());
         Box::pin(async move {
+            if RECONFIGURING.load(std::sync::atomic::Ordering::SeqCst) { return Err("Aplicando recursos. Aguarde um instante.".into()); }
             let router = n.ok_or("O banco cifrado ainda está trancado.")?.router.clone();
             let mut req = Request::builder()
                 .method(Method::from_bytes(metodo.as_bytes()).map_err(|e| e.to_string())?)
@@ -399,7 +447,7 @@ pub fn run(mut s: Settings, fundo: bool) -> anyhow::Result<i32> {
     instalar_atualizacao_guardada("na abertura");
     let r = orion_app::run::run_ui(Some(api), None, fundo);
     if let Some(n) = slot.lock().take() {
-        if let Some(backup) = &n.backup {
+        if let Some(backup) = n.backup.lock().take() {
             backup.abort();
         }
         let tel = n.telegram.lock().take();
@@ -436,7 +484,7 @@ mod tests {
 
     fn interno_de_teste(st: crate::estado::Estado, dir: &std::path::Path) -> std::sync::Arc<Interno> {
         let n = std::sync::Arc::new(Nucleo {
-            backup: None,
+            backup: Default::default(),
             router: crate::rotas::router(st.clone()),
             st,
             telegram: Default::default(),

@@ -70,6 +70,7 @@ pub enum Sec {
     Memoria,
     Fontes,
     Conectores,
+    Automation,
     Sistema,
     Locais,
     Voz,
@@ -93,6 +94,7 @@ impl Sec {
             "memoria" | "memory" => Sec::Memoria,
             "fontes" | "sources" => Sec::Fontes,
             "conectores" | "mcp" | "skills" | "connectors" => Sec::Conectores,
+            "automacoes" | "automation" | "pesquisa" => Sec::Automation,
             "sistema" | "system" => Sec::Sistema,
             "locais" | "modelos locais" | "local" => Sec::Locais,
             "voz" | "voice" => Sec::Voz,
@@ -307,6 +309,7 @@ pub struct Marks {
 }
 
 pub struct App {
+    pub resources: crate::resources::ResourceState,
     pub p: Prefs,
     pub logged: bool,
     pub pw: String,
@@ -436,6 +439,7 @@ pub struct App {
 
 #[derive(Debug, Clone)]
 pub enum Msg {
+    Resources(crate::resources::Event),
     ToolPermission(usize),
     /// Id da janela principal (primeira tarefa do boot).
     Win(Option<window::Id>),
@@ -649,6 +653,7 @@ impl App {
 
     pub fn new() -> Self {
         App {
+            resources: Default::default(),
             p: Prefs::default(),
             logged: false,
             pw: String::new(),
@@ -804,7 +809,8 @@ impl App {
             None => Subscription::run(|| futures::stream::once(async { Msg::Bandeja })),
         };
         let fechar = window::close_requests().map(Msg::CloseReq);
-        Subscription::batch([tick, resize, keys, poll, fundo, fechar, focus, progress])
+        let resources=if self.logged && (self.voice || self.mic_rec || self.p.cam[4]){iced::time::every(Duration::from_millis(750)).map(|_|Msg::Resources(crate::resources::Event::AudioPoll))}else{Subscription::none()};
+        Subscription::batch([tick, resize, keys, poll, fundo, fechar, focus, progress,resources])
     }
 
     pub fn pend_list(&self) -> Vec<(usize, usize)> {
@@ -876,6 +882,7 @@ impl App {
     }
 
     pub fn update(&mut self, msg: Msg) -> Task<Msg> {
+        if let Msg::Resources(event)=msg { return self.update_resources(event); }
         let _timing = Timing::new("update", self.view);
         if !matches!(&msg, Msg::Tick(_) | Msg::Bandeja | Msg::BootProgress) { self.now = Instant::now(); }
         if let Msg::Onboarding(event) = msg { return self.update_onboarding(event); }
@@ -1644,6 +1651,7 @@ impl App {
                 if !self.bandeja_tentou {
                     self.bandeja_tentou = true;
                     self.bandeja = crate::tray::Bandeja::nova();
+                    if self.api.is_some(){self.p.boot=crate::onboarding::autostart();self.p.shortcut=crate::uiprefs::shortcut();if !self.p.shortcut{if let Some(b)=&self.bandeja{let _=b.set_shortcut_enabled(false);}}}
                     self.monitor = Some(crate::tray::Monitor::new(self.bandeja.as_ref(), self.api.clone()));
                     // sem bandeja não há como reabrir uma janela escondida: abre mesmo em segundo plano
                     if self.bandeja.is_none() && self.fundo {

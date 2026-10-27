@@ -22,5 +22,5 @@ cpal.workspace = true
 oww-rs = "=0.3.3"
 whisper-rs = "=0.16.0"
 aec3 = "=0.4.0"
-symphonia = { version = "0.5.5", default-features = false, features = ["mp3"] }
+symphonia = { version = "0.5.5", default-features = false, features = ["mp3", "wav", "pcm"] }
 parking_lot.workspace = true

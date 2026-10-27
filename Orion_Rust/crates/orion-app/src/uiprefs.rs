@@ -39,3 +39,6 @@ pub fn save(scale: u32, compact: bool) -> std::io::Result<()> {
     let Some(path) = file() else { return Ok(()) };
     write_atomic(&path, &format!("scale={scale}\ncompact={compact}\n"))
 }
+
+pub fn shortcut()->bool{file().and_then(|p|std::fs::read_to_string(p.with_file_name("shortcut.txt")).ok()).is_none_or(|s|s.trim()!="false")}
+pub fn save_shortcut(on:bool)->std::io::Result<()>{if let Some(path)=file(){write_atomic(&path.with_file_name("shortcut.txt"),if on{"true"}else{"false"})}else{Ok(())}}

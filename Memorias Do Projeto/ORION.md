@@ -1,6 +1,6 @@
 # Orion — estado, plano e decisões
 
-> Fonte única do estado do projeto. Atualizado em 26/10/2026. Princípios e regras: [REGRAS.md](REGRAS.md). Arquitetura, módulos e referências: [ARQUITETURA.md](ARQUITETURA.md). Melhorias pré-lançamento v1: [ORION_MELHORIAS_PRE_V1.md](ORION_MELHORIAS_PRE_V1.md). Roadmap pós-v1: [ORION_MELHORIAS_POS_V1.md](ORION_MELHORIAS_POS_V1.md). Como rodar: [README](../README.md). Material antigo e detalhado: [ORION_LEGADO.md](ORION_LEGADO.md).
+> Fonte única do estado do projeto. Atualizado em 27/10/2026. Princípios e regras: [REGRAS.md](REGRAS.md). Arquitetura, módulos e referências: [ARQUITETURA.md](ARQUITETURA.md). Melhorias pré-lançamento v1: [ORION_MELHORIAS_PRE_V1.md](ORION_MELHORIAS_PRE_V1.md). Roadmap pós-v1: [ORION_MELHORIAS_POS_V1.md](ORION_MELHORIAS_POS_V1.md). Como rodar: [README](../README.md). Material antigo e detalhado: [ORION_LEGADO.md](ORION_LEGADO.md).
 
 ## Visão
 
@@ -9,6 +9,26 @@ Assistente pessoal com identidade masculina, técnico, direto, não-servil. Não
 *"Não é uma IA. É uma extensão do sistema nervoso."*
 
 Antônio é o administrador: decide, aprova e pode desligar qualquer coisa. Nada que o modelo diga anula isso.
+
+## Recursos nativos e remoção da integração externa — 27/10/2026
+
+Pedido do Antônio: excluir n8n do produto e conectar os demais recursos identificados na auditoria. Branch `codex/recursos-nativos-sem-n8n`, base `56eeb6470019dc9025b1e5697a42d01970d9d1b1` (#60). A implementação abaixo ainda está em validação; não comprova uso no PC do Antônio.
+
+| Recurso | Ligação implementada |
+|---|---|
+| Configurações persistentes | `runtime-preferences.json`, validado e gravado por troca atômica, sem segredos e fora do backup. `GET/PUT /config/runtime` autenticado; a interface distingue salvo, aplicado e disponibilidade. Salvar e aplicar prepara outro núcleo no mesmo processo e troca os jobs/escutas; pedidos em andamento e aprovações pendentes impedem a troca |
+| Voz | Seção Voz configura Whisper/Groq, TTS, wake, palmas, barge-in e limites. Microfone captura áudio Windows e devolve a transcrição ao compositor, preservando rascunho/conversa. Ao vivo usa histórico temporário, STT, gateway sem ferramentas/memória e TTS; parar, pânico, bloqueio e duração interrompem a sessão. `/ws/voice` também deixa de devolver o erro incondicional. Voz instalada no Windows permite fala sem Python; edge-tts continua opcional. GPU de STT depende de pacote com `local-vulkan` |
+| Câmera e legenda | Controles reais de câmera, visão, presença, objetos, Bluetooth e legendas; ações para fotografar/descrever, descrever tela e cadastrar/apagar rosto. Legendas Windows usam microfone/Whisper internos e mostram as linhas reais na interface, sem a frase de exemplo. Presença/biometria continuam sinais locais; não autorizam ferramentas |
+| Objetos e memória | YOLOv8 ONNX e reranker deixam de retornar resultado vazio/erro fixo: Tract executa os modelos na CPU; tokenizer e pesos do reranker são locais. Modelos não são incluídos no instalador. Memória oferece controle de reranking, fatos e conversas anteriores |
+| Fontes | Preferências no banco filtram candidatos FTS/vetoriais antes da fusão e as ferramentas relacionadas, inclusive origem MCP. Consultas só com palavras comuns não recuperam documentos automaticamente |
+| Privacidade | Memória da tela com intervalo/retenção/exclusões/OCR; históricos de área de transferência e comandos com retenção e consulta. Captura contínua depende de opt-in próprio e dos jobs |
+| Automações | Nova seção Automações e pesquisa: jobs, horários de briefing/pesquisa/sono/diário/revisão, tópicos e CLIs. Editor YAML de rotinas/Downloads valida, confere revisão e revoga concessão ao salvar; concessão/revogação/execução e simulação de Downloads ficam acessíveis |
+| Conexões | MCP/skills/plugins têm controles persistentes; UI cadastra/edita conexões, testa/desativa, autoriza/revoga contas OAuth, vincula calendário, instala pasta de plugin e apresenta revisão antes de ativar. Credenciais e serviços externos ainda exigem configuração própria |
+| Sistema e backup | Pastas de vault/backups/repositórios/pastas confiáveis, retenção, exportação cifrada e restauração em outra pasta. Perfil nativo não recebe o backup legado em claro. Autostart grava/lê o Windows; atalho da mini barra registra/desregistra e persiste a escolha |
+| Terminal | O terminal nativo executa o comando digitado pela pessoa autenticada com a ferramenta real, respeitando autorização de computador/pânico; sai a resposta `(simulado)` do modo conectado |
+| Integração removida | Removidos módulo, registro e variável de ambiente de n8n. Não há substituto por webhook nem dependência nova desse serviço |
+
+Opt-ins continuam desligados até escolha explícita. A solicitação conecta controles e caminhos reais; não fornece modelos, chaves, credenciais, microfone ou webcam ao ambiente de desenvolvimento. Testes existentes, verificação com ONNX real e build Windows em andamento; conclusão e links serão registrados abaixo.
 
 ## Autorização única de ferramentas — 26/10/2026
 
@@ -20,9 +40,9 @@ A concessão dispensa cartões de execução, ações destrutivas, leitura sens�
 
 Validação: **550 testes existentes passaram**. Verificação descartável conferiu padrão sem consentimento, concessão, persistência, revogação, isolamento, revisão, limites, auditoria, classes e modo só leitura; o fluxo HTTP autenticado executou `abrir_app` com o programa inofensivo `true` e modelo simulado local, sem aprovação, preservou a escolha após reiniciar e negou a mesma chamada após desligar. Quatro capturas Linux/tiny-skia de onboarding/Configurações em pt-BR/en foram inspecionadas. Nenhum teste novo ou CI automático foi adicionado. A mudança exige atualizar **o aplicativo**, pois trocar apenas o Setup não altera as ferramentas do Orion já instalado. Instalação e abertura real de apps no Windows seguem para aceite no PC.
 
-**Publicação autorizada:** Antônio respondeu “Sim, autorizo” à aprovação explícita de alterar os arquivos protegidos `REGRAS.md` e `orion-policy`, dispensar confirmações inclusive para ações destrutivas e publicar/mergear o PR. A autorização resolve o bloqueio anterior da revisão automática. Branch `codex/autorizacao-unica-ferramentas`; publicação e pacote manual completo em andamento, sem modelos locais nem reativação do CI automático.
+**Publicação autorizada:** Antônio respondeu “Sim, autorizo” à aprovação explícita de alterar os arquivos protegidos `REGRAS.md` e `orion-policy`, dispensar confirmações inclusive para ações destrutivas e publicar/mergear o PR. A autorização resolveu o bloqueio anterior da revisão automática. Implementação publicada na branch `codex/autorizacao-unica-ferramentas` e pacote manual completo gerado, sem modelos locais nem reativação do CI automático.
 
-[PR #60](https://github.com/antoniossalomao/Orion/pull/60), implementação `78b3355d762821bedac4fc141633c83d0161f2b3`. [Build manual completo 40431719600](https://github.com/antoniossalomao/Orion/actions/runs/40431719600): release, SQLCipher, app + instalador, sem worker/pesos locais. Resultado e artefato podem ser conferidos na execução; instalação e uso reais continuam pendentes de aceite Windows.
+[PR #60](https://github.com/antoniossalomao/Orion/pull/60), implementação `78b3355d762821bedac4fc141633c83d0161f2b3`. [Build manual completo 40431719600](https://github.com/antoniossalomao/Orion/actions/runs/40431719600) concluído com sucesso em 38 min 14 s: release, SQLCipher, app + instalador, sem worker/pesos locais. [Artefato Orion-Windows-App](https://github.com/antoniossalomao/Orion/actions/runs/40431719600/artifacts/12704275988), ZIP de 80.307.944 bytes, SHA-256 `fcfabe23f2cbc308714f83320132dd5c132c31e62fcf037df29becb7e7ef3df6`. Download e conferência local: cinco arquivos esperados, quatro hashes do manifesto válidos, cabeçalhos PE válidos, as duas cópias do app idênticas e marcadores das novas permissões presentes no executável. Os commits seguintes só documentam o resultado e a auditoria, sem mudar o código compilado. Instalação e uso reais continuam pendentes de aceite Windows.
 
 ### Recursos existentes sem ligação completa à interface — diagnóstico de 26/10/2026
 
@@ -34,7 +54,7 @@ Antônio perguntou se há outros recursos no código sem acesso/ativação no ap
 | Câmera sob pedido e visão da tela | Há captura/descrição; dependem de `CAMERA`/`VISION_TOOLS`, provedor compatível e permissões/dispositivos. Os switches da seção Câmera são locais. Isso não comprova presença/biometria/objetos completos |
 | Memória da tela e históricos locais | `SCREEN_MEMORY`, `CLIPBOARD_DAYS` e `COMMAND_HISTORY` iniciam desligados; coleta/consulta/poda existem no núcleo. Não há controles equivalentes ligados às Configurações nativas |
 | Briefing, pesquisa noturna e ciclo de sono | Jobs existem, mas horários/tópicos/vault/web e opções específicas vêm da configuração. Sem horário, não há agenda correspondente. Autorizar ferramentas web na UI não configura esses jobs por si só |
-| Rotinas, regras de Downloads e n8n | Backends, concessões e execução existem. Rotinas/Downloads exigem arquivos próprios e concessão; n8n exige webhooks cadastrados. Falta um editor/assistente nativo completo para cadastrar esses recursos |
+| Rotinas e regras de Downloads | Diagnóstico anterior: faltava editor/assistente nativo para escrever os arquivos e conceder. A ligação posterior está registrada na seção de 27/10 acima |
 | MCP/skills/plugins e agenda | Há descoberta, catálogo e concessões; a UI mostra parte do estado e testa MCP/ativa skills. Adicionar conexões e vincular agenda ainda depende de configuração/fluxos do núcleo; “liberar ferramentas” não instala nem autentica conectores |
 | Backup e recuperação | Primeiro uso configura backup/Drive; os comandos `backup-exportar`/`backup-importar` são reais. Os botões completos de exportar/importar da tela Sistema ainda só aparecem no protótipo; no uso real não oferecem esse fluxo |
 | Fontes e ajustes de Sistema | Fontes não filtra a recuperação do núcleo. Os switches de iniciar com Windows/atalho em Sistema também mudam somente preferências locais; o primeiro uso tem código próprio que grava o autostart no Windows |

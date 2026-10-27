@@ -226,5 +226,30 @@ async fn socket_voice_live(st: Estado, origem_ok: bool, ja_auth: Option<bool>, s
         erro_e_fecha(&tx, "voz ao vivo desligada (ORION_VOICE_LIVE_ENABLED)").await;
         return;
     }
-    erro_e_fecha(&tx, "sem chave do Gemini (ORION_VOICE_LIVE_API_KEY)").await;
+    let (Some(transcriber),Some(gateway))=(&st.transcriber,&st.gateway)else{erro_e_fecha(&tx,"configure a transcrição e um provedor nas Configurações").await;return;};
+    if st.modos.panico(){erro_e_fecha(&tx,"modo pânico").await;return;}
+    let _=st.ops.audit_add(&json!({"tool":"voice_live","action":"start"}));
+    let deadline=tokio::time::Instant::now()+Duration::from_secs(st.settings.voice_live_max_min as u64*60);
+    let mut history=vec![json!({"role":"system","content":"Você é Orion. Esta conversa por voz é temporária, sem ferramentas, memória ou acesso ao computador. Não alegue executar ações."})];
+    let _=tx.lock().await.send(Message::Text(json!({"type":"ready","tools":false,"memory":false}).to_string())).await;
+    while tokio::time::Instant::now()<deadline && !st.modos.panico(){
+        let frame=match tokio::time::timeout(Duration::from_secs(1),rx.next()).await{Err(_)=>continue,Ok(Some(Ok(frame)))=>frame,_=>break};
+        let audio=match frame{Message::Binary(audio) if !audio.is_empty() && audio.len()<=MAX_AUDIO=>audio,Message::Close(_)=>break,Message::Text(t) if t.contains("stop")=>break,Message::Ping(p)=>{let _=tx.lock().await.send(Message::Pong(p)).await;continue;},_=>continue};
+        let Some((name,mime))=orion_core::voice::tipo_do_audio(&audio[..audio.len().min(16)])else{continue;};
+        let response=async{
+            let text=transcriber.transcribe(audio,name,mime).await.map_err(|e|e.to_string())?;
+            tx.lock().await.send(Message::Text(json!({"type":"transcript","text":text}).to_string())).await.map_err(|e|e.to_string())?;
+            history.push(json!({"role":"user","content":text}));if history.len()>13{history.drain(1..3);}
+            let text=gateway.complete(history.clone()).await.map_err(|e|e.to_string())?;
+            history.push(json!({"role":"assistant","content":text}));
+            tx.lock().await.send(Message::Text(json!({"type":"text","text":text}).to_string())).await.map_err(|e|e.to_string())?;
+            if let Some(speaker)=&st.speaker{let audio=speaker.synthesize(&text).await.map_err(|e|e.to_string())?;tx.lock().await.send(Message::Binary(audio)).await.map_err(|e|e.to_string())?;}
+            Ok::<(),String>(())
+        };
+        let cancelled=async{loop{tokio::time::sleep(Duration::from_millis(100)).await;if st.modos.panico()||tokio::time::Instant::now()>=deadline{break;}}};
+        let result=tokio::select!{r=response=>r,_=cancelled=>break};
+        if let Err(e)=result{erro_e_fecha(&tx,&e).await;break;}
+    }
+    let _=st.ops.audit_add(&json!({"tool":"voice_live","action":"stop"}));
+    let _=tx.lock().await.send(fechar(1000)).await;
 }

@@ -86,6 +86,7 @@ pub struct Inner {
 }
 
 pub struct SkillRuntime {
+    pub enabled:std::sync::atomic::AtomicBool,
     pub runner: ScriptRunner,
     pub inner: RwLock<Inner>,
 }
@@ -128,7 +129,7 @@ impl SkillRuntime {
                 inner.diagnostics.push(json!({"namespace": s.namespace, "code": "source_invalid"}));
             }
         }
-        Arc::new(SkillRuntime { runner: ScriptRunner::default(), inner: RwLock::new(inner) })
+        Arc::new(SkillRuntime { enabled:std::sync::atomic::AtomicBool::new(true), runner: ScriptRunner::default(), inner: RwLock::new(inner) })
     }
 
     /// Desliga a skill sem mexer na fonte (some do chat e dos pedidos). `false` se não está ligada.
@@ -181,6 +182,7 @@ impl SkillRuntime {
         let t = Tool::new(name, "Executa script Python declarado de skill local revisada. Sempre exige aprovação, sem shell e sem herdar credenciais.", params, move |a: Args| {
             let me = me.clone();
             async move {
+                if !me.enabled.load(std::sync::atomic::Ordering::SeqCst){return Ok(json!({"ok":false,"codigo":"skills_disabled"}));}
                 let (skill, script) = (a.s("skill")?, a.s("script")?);
                 let argv = a.list_s("argv");
                 let (sk, rev) = {
@@ -219,6 +221,7 @@ impl SkillRuntime {
     }
 
     pub fn select(self: &Arc<Self>, query: &str, explicit: &[String], references: &[SkillReference], budget: usize, context: &str) -> R<Selection> {
+        if !self.enabled.load(std::sync::atomic::Ordering::SeqCst){if !explicit.is_empty() || !references.is_empty(){return Err(serr("skills_disabled"));}return Ok(Selection{data:vec![],allowed_tools:None,skills:vec![],authorities:vec![],authorized:None});}
         let mut ids: Vec<String> = vec![];
         for e in explicit {
             if !ids.contains(e) {

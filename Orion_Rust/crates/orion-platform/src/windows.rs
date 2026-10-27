@@ -68,6 +68,9 @@ impl NativeShell {
             .build()?;
         Ok(Self { _tray: tray, keys, mini, panic, captura, isso, menu_ids })
     }
+    pub fn set_shortcut_enabled(&self,on:bool)->anyhow::Result<()>{
+        if on{self.keys.register(self.mini)?;}else{self.keys.unregister(self.mini)?;}Ok(())
+    }
     pub fn poller(&self) -> std::sync::Arc<dyn Fn() -> Vec<DesktopAction> + Send + Sync> {
         let (mini, panic, captura, isso) = (self.mini.id(), self.panic.id(), self.captura.id(), self.isso.id());
         let menu_ids = self.menu_ids.clone();
