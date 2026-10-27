@@ -63,6 +63,7 @@ pub enum Sec {
     Notificacoes,
     Conta,
     Privacidade,
+    Tools,
     Uso,
     Painel,
     Modelos,
@@ -85,6 +86,7 @@ impl Sec {
             "notificacoes" | "sons" | "notifications" => Sec::Notificacoes,
             "conta" | "account" => Sec::Conta,
             "privacidade" | "autonomia" | "privacy" => Sec::Privacidade,
+            "ferramentas" | "tools" | "permissoes" => Sec::Tools,
             "uso" | "cotas" | "usage" => Sec::Uso,
             "painel" | "panel" | "dashboard" => Sec::Painel,
             "modelos" | "models" => Sec::Modelos,
@@ -110,6 +112,9 @@ pub enum Panic {
 
 #[derive(Clone, Debug)]
 pub struct Prefs {
+    pub tools: Option<[bool; 3]>,
+    pub tools_busy: bool,
+    pub tools_changed_at: Option<Instant>,
     pub font: usize, // 0 Newsreader, 1 Geist, 2 sistema
     pub size: usize, // 0 P, 1 M, 2 G
     pub width: usize,
@@ -150,6 +155,9 @@ pub struct Prefs {
 impl Default for Prefs {
     fn default() -> Self {
         Prefs {
+            tools: None,
+            tools_busy: false,
+            tools_changed_at: None,
             font: 0,
             size: 1,
             width: 1,
@@ -428,6 +436,7 @@ pub struct App {
 
 #[derive(Debug, Clone)]
 pub enum Msg {
+    ToolPermission(usize),
     /// Id da janela principal (primeira tarefa do boot).
     Win(Option<window::Id>),
     /// Pulso do segundo plano: bandeja, atalhos, palavra de ativação, outra instância.
@@ -898,7 +907,7 @@ impl App {
                     return Task::perform(async move { api.post("/modo/autonomo", serde_json::json!({"ativo": true, "senha": senha})).await }, |r| Msg::L(crate::live::Lm::Modo(r)));
                 }
                 self.p.auto = true;
-                self.toast("Modo autônomo ligado. Ações que podem quebrar o PC ou o projeto continuam pedindo confirmação.");
+                self.toast("Modo autônomo ligado. Mais passos por pedido; as permissões ficam em Configurações → Ferramentas.");
                 return Task::none();
             }
             _ => {}
@@ -1780,6 +1789,12 @@ impl App {
             }
             Msg::ResumePw(s) => self.resume_pw = s,
             Msg::Poll => {}
+            Msg::ToolPermission(index) => {
+                let mut values = self.p.tools.unwrap_or([false; 3]);
+                if index == 3 { values = [!values.iter().all(|v| *v); 3]; }
+                else if let Some(value) = values.get_mut(index) { *value = !*value; }
+                self.p.tools = Some(values);
+            }
             Msg::Noop => {}
             m => crate::views::memory::update(self, m),
         }

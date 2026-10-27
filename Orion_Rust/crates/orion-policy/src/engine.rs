@@ -62,6 +62,8 @@ impl ToolCall {
 /// (REGRAS.md: conteúdo externo é dado, não instrução).
 #[derive(Clone, Default)]
 pub struct Context {
+    /// Jobs só de leitura não podem usar uma concessão interativa para expor segredos.
+    pub read_only: bool,
     pub session_id: String,
     pub tainted: bool,
     pub allowed_tools: Option<HashSet<String>>,
@@ -102,6 +104,13 @@ pub struct PolicyEngine {
     tools: RwLock<HashMap<String, ToolSpec>>,
     rate: RateLimiter,
     audit: Option<AuditSink>,
+    access: RwLock<ToolAccess>,
+}
+
+#[derive(Default)]
+struct ToolAccess {
+    without_confirmation: bool,
+    disabled_tools: HashSet<String>,
 }
 
 /// Ferramentas com caminho que, dentro de projeto, precisa ficar na raiz do projeto.
@@ -129,6 +138,7 @@ impl PolicyEngine {
             tools: RwLock::new(default_tools()),
             rate: RateLimiter::new(default_rate_limits(), crate::monotonic_clock()),
             audit: None,
+            access: RwLock::new(ToolAccess::default()),
         }
     }
 
@@ -158,6 +168,20 @@ impl PolicyEngine {
 
     pub fn tool_names(&self) -> Vec<String> {
         self.tools.read().unwrap().keys().cloned().collect()
+    }
+
+    /// Só o primeiro uso e as Configurações autenticadas publicam esta concessão.
+    /// Não é ferramenta do modelo (REGRAS.md: autorização única, local e revogável).
+    pub fn configure_access(&self, without_confirmation: bool, disabled_tools: HashSet<String>) {
+        *self.access.write().unwrap() = ToolAccess { without_confirmation, disabled_tools };
+    }
+
+    pub fn tool_enabled(&self, name: &str) -> bool {
+        !self.access.read().unwrap().disabled_tools.contains(name)
+    }
+
+    pub fn without_confirmation(&self) -> bool {
+        self.access.read().unwrap().without_confirmation
     }
 
     pub fn evaluate(&self, call: &ToolCall, ctx: &Context) -> Decision {
@@ -208,6 +232,9 @@ impl PolicyEngine {
             return Decision::new(Action::Deny, None, format!("ferramenta '{}' sem classe de risco", call.name));
         };
         let r = Some(risk);
+        if !self.tool_enabled(&call.name) {
+            return Decision::new(Action::Deny, r, "ferramenta desligada nas Configurações");
+        }
         if ctx.authorized.as_ref().is_some_and(|f| !f()) {
             return Decision::new(Action::Deny, r, "concessão ou revisão revogada");
         }
@@ -238,6 +265,18 @@ impl PolicyEngine {
         }
         if let Some(limite) = self.rate.check(&call.name) {
             return Decision::new(Action::Deny, r, limite);
+        }
+        // A concessão dispensa cartões por ação, sem dispensar escopo, revisão, limites ou audit.
+        // Auto-modificação continua específica (REGRAS.md: núcleo imutável).
+        let protected_write = spec.path_arg.as_deref().or_else(|| (call.name == "delegar").then_some("pasta")).filter(|_| risk != Risk::Read).is_some_and(|arg| {
+            let target = crate::paths::norm(&call.arg_str(arg));
+            self.path_guard.protected_roots.iter().any(|root| {
+                let root = crate::paths::norm(&root.to_string_lossy());
+                Path::new(&target).starts_with(Path::new(&root))
+            })
+        });
+        if self.without_confirmation() && !protected_write && !ctx.read_only {
+            return Decision::new(Action::Allow, r, "autorização persistente deste computador");
         }
         let Some(motivo) = self.motivo_confirmacao(&spec, risk, call, ctx) else {
             return Decision::new(Action::Allow, r, "");

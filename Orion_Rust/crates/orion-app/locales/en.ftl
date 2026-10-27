@@ -886,3 +886,45 @@ ui-0884 = { "All commands" }
 ui-0885 = { "Recent projects" }
 ui-0886 = { "Text editing" }
 ui-0887 = { "Navigate the list" }
+
+ui-0888 = { "permissions computer web open apps confirmation authorization" }
+
+ui-0889 = { "Authorize once on this computer. Your choice is saved and can be changed here at any time." }
+
+ui-0890 = { "Without per-action confirmations, Orion can open apps, run commands, change or delete files and use the web, including after reading external documents." }
+
+ui-0891 = { "Disable all tools" }
+
+ui-0892 = { "Authorize all tools" }
+
+ui-0893 = { "Loading permissions…" }
+
+ui-0894 = { "Computer tools" }
+
+ui-0895 = { "Files, applications, commands and computer automation." }
+
+ui-0896 = { "Web tools" }
+
+ui-0897 = { "Search and web access with configured services." }
+
+ui-0898 = { "Without confirming each action" }
+
+ui-0899 = { "Uses the saved authorization. When off, actions requiring approval ask for confirmation again." }
+
+ui-0900 = { "Changes take effect immediately. Voice, camera, continuous capture and integrations still need their own setup. Panic and action logs stay active." }
+
+ui-0901 = { "Changing Orion’s own code still requires specific approval." }
+
+ui-0902 = { "Allows more steps per request. Authorization to act without confirmation is in Tools." }
+
+ui-0903 = { "Tools and import" }
+
+ui-0904 = { "Choose once; change it later in Settings." }
+
+ui-0905 = { "Authorize all tools without confirming each action" }
+
+ui-0906 = { "Allows opening apps, running commands, reading sensitive files, changing or deleting files and using the web, including after reading external content. Applies on this computer until you turn it off in Settings → Tools." }
+
+ui-0907 = { "Does not turn on voice, camera, continuous capture or unconfigured integrations. Panic and action logs stay active." }
+
+ui-0908 = { "Autonomous mode on. More steps per request; permissions are in Settings → Tools." }

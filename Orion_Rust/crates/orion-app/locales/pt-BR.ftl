@@ -886,3 +886,45 @@ ui-0884 = { "Todos os comandos" }
 ui-0885 = { "Projetos recentes" }
 ui-0886 = { "Edição de texto" }
 ui-0887 = { "Navegar na lista" }
+
+ui-0888 = { "permissões computador web abrir apps confirmação autorização" }
+
+ui-0889 = { "Autorize uma vez neste computador. A escolha fica salva e pode ser alterada aqui a qualquer momento." }
+
+ui-0890 = { "Sem confirmações por ação, o Orion pode abrir apps, executar comandos, alterar ou apagar arquivos e usar a web, inclusive após ler documentos externos." }
+
+ui-0891 = { "Desativar todas as ferramentas" }
+
+ui-0892 = { "Autorizar todas as ferramentas" }
+
+ui-0893 = { "Carregando permissões…" }
+
+ui-0894 = { "Ferramentas do computador" }
+
+ui-0895 = { "Arquivos, aplicativos, comandos e automação do computador." }
+
+ui-0896 = { "Ferramentas da web" }
+
+ui-0897 = { "Busca e acesso à web com os serviços configurados." }
+
+ui-0898 = { "Sem confirmação a cada ação" }
+
+ui-0899 = { "Usa a autorização salva. Desligado, volta a pedir confirmação para ações que exigem aprovação." }
+
+ui-0900 = { "As alterações valem imediatamente. Voz, câmera, captura contínua e integrações ainda precisam de configuração própria. Pânico e registros de ações continuam ativos." }
+
+ui-0901 = { "Alterar o código do próprio Orion continua exigindo aprovação específica." }
+
+ui-0902 = { "Permite mais passos por pedido. A autorização para agir sem confirmação fica em Ferramentas." }
+
+ui-0903 = { "Ferramentas e importação" }
+
+ui-0904 = { "Você escolhe uma vez; pode mudar depois nas Configurações." }
+
+ui-0905 = { "Autorizar todas as ferramentas sem confirmação a cada ação" }
+
+ui-0906 = { "Permite abrir apps, executar comandos, ler arquivos sensíveis, alterar ou apagar arquivos e usar a web, inclusive após ler conteúdo externo. Vale neste computador até você desligar em Configurações → Ferramentas." }
+
+ui-0907 = { "Não ativa voz, câmera, captura contínua nem integrações sem configuração. Pânico e registros de ações continuam ativos." }
+
+ui-0908 = { "Modo autônomo ligado. Mais passos por pedido; as permissões ficam em Configurações → Ferramentas." }
