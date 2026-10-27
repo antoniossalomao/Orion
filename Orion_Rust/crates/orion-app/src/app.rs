@@ -229,6 +229,8 @@ pub struct ProjectForm {
     pub name: String,
     pub instructions: String,
     pub root: String,
+    /// URL de um repositório público do GitHub para clonar (F08.07).
+    pub git_url: String,
     pub busy: bool,
     pub error: String,
     pub request_id: u64,
@@ -539,6 +541,7 @@ pub enum Msg {
     ProjectName(String),
     ProjectInstructions(String),
     ProjectRoot(String),
+    ProjectGitUrl(String),
     ProjectSave,
     ProjectClose,
     ActFilter(usize),
@@ -1301,6 +1304,9 @@ impl App {
             Msg::ProjectInstructions(value) => {
                 if let Some(form) = self.project_form.as_mut().filter(|f| !f.busy) { form.instructions = value; form.error.clear(); }
             }
+            Msg::ProjectGitUrl(value) => {
+                if let Some(form) = self.project_form.as_mut().filter(|f| !f.busy) { form.git_url = value; form.error.clear(); }
+            }
             Msg::ProjectRoot(value) => {
                 if let Some(form) = self.project_form.as_mut().filter(|f| !f.busy) { form.root = value; form.error.clear(); }
             }
@@ -1319,7 +1325,12 @@ impl App {
                     return Task::none();
                 };
                 let root = form.root.trim();
-                let body = serde_json::json!({"name": name, "instructions": form.instructions, "root": if root.is_empty() { None } else { Some(root) }, "share_personal": false});
+                let git_url = form.git_url.trim();
+                if !root.is_empty() && !git_url.is_empty() {
+                    form.error = "Informe a pasta local ou o repositório do GitHub, não os dois.".into();
+                    return Task::none();
+                }
+                let body = serde_json::json!({"name": name, "instructions": form.instructions, "root": if root.is_empty() { None } else { Some(root) }, "git_url": if git_url.is_empty() { None } else { Some(git_url) }, "share_personal": false});
                 self.request_id = self.request_id.wrapping_add(1);
                 let request_id = self.request_id;
                 form.request_id = request_id;

@@ -150,6 +150,37 @@ pub fn scenarios() -> Vec<(&'static str, Size, App)> {
         a.update(Msg::OpenConv(0));
         a.update(Msg::Approve(0, 1));
     }));
+    // Telas das pendências da v1 (diferentes das do protótipo: só existem aqui).
+    push("80-pensando-ferramentas", cena(|a| {
+        a.update(Msg::OpenConv(0));
+        streaming_com(a, vec![("1", "Ler arquivo", "orion-core/src/agent.rs", "ok"), ("2", "Executar comando", "cargo test -p orion-core", "rodando")], "");
+    }));
+    push("81-pensando-vazio", cena(|a| {
+        a.update(Msg::OpenConv(0));
+        streaming_com(a, vec![], "");
+    }));
+    push("82-anexo-imagem", cena(|a| {
+        a.update(Msg::OpenConv(0));
+        let mut png = std::io::Cursor::new(Vec::new());
+        image::DynamicImage::ImageRgba8(image::RgbaImage::from_fn(64, 64, |x, y| image::Rgba([(x * 4) as u8, (y * 4) as u8, 180, 255]))).write_to(&mut png, image::ImageFormat::Png).unwrap();
+        a.attach = vec![("captura.png".into(), "imagem".into()), ("relatorio.pdf".into(), ".pdf".into())];
+        a.attachment_ids = vec!["img1".into(), "doc1".into()];
+        a.attach_thumbs.insert("img1".into(), iced::widget::image::Handle::from_bytes(png.into_inner()));
+    }));
+    push("83-conflito-vault", cena(|a| {
+        let original = "---\ntype: conversa\ndate: 2026-10-27\nfonte: orion\n---\n\n# Conversa\n\nTexto que você editou no Obsidian.\n".to_string();
+        let proposal = "---\ntype: conversa\ndate: 2026-10-27\nfonte: orion\n---\n\n# Conversa\n\n**Antônio:** oi\n\n**Orion:** olá, como posso ajudar?\n".to_string();
+        a.conflito = Some(crate::app::ConflitoState { proposed_path: "03 Recursos/Orion/Memória/x - conflito Orion 0123456789abcdef0123.md".into(), original_path: "03 Recursos/Orion/Memória/x.md".into(), content: text_editor::Content::with_text(&original), original, proposal, sha: "0".into(), busy: false });
+    }));
+    push("84-projeto-novo", cena(|a| {
+        a.update(Msg::Go(View::Projetos));
+        a.project_form = Some(crate::app::ProjectForm::default());
+        if let Some(p) = a.projects.first_mut() { p.vault = true; }
+    }));
+    push("85-config-memoria-conflitos", cena(|a| {
+        a.conflitos = vec![("03 Recursos/Orion/Memória/2026-10-27 - orion - Conversa.md".into(), "x".into(), true)];
+        a.update(Msg::OpenSettings(Some(Sec::Memoria)));
+    }));
     v.push(("60-gaveta", Size::new(700.0, 900.0), cena(|a| {
         a.win = Size::new(700.0, 900.0);
         a.update(Msg::OpenConv(0));
@@ -200,4 +231,17 @@ pub fn render_scrolled(app: &App, size: Size, out: &Path, offset: f32) {
     let snap = sim.snapshot(&app.theme()).expect("snapshot");
     let _ = std::fs::remove_file(out);
     let _ = snap.matches_image(out);
+}
+
+/// Conversa aberta respondendo: a última fala do Orion com as ferramentas dadas (id, nome, resumo, estado).
+fn streaming_com(a: &mut App, tools: Vec<(&str, &str, &str, &str)>, body: &str) {
+    use crate::data::{ChatMsg, ConvState, OrionMsg, Tool};
+    let Some(ci) = a.conv else { return };
+    a.convs[ci].msgs.push(ChatMsg::Orion(OrionMsg {
+        time: "agora".into(), via: String::new(), out: String::new(), tools_label: String::new(),
+        tools: tools.into_iter().map(|(id, kind, value, time)| Tool { id: id.into(), kind: kind.into(), value: value.into(), time: time.into() }).collect(),
+        body: body.into(), saved: false, approval: None,
+    }));
+    a.convs[ci].state = ConvState::Running;
+    a.streaming = Some(crate::app::Stream { conv: ci, words: 0, total: usize::MAX });
 }

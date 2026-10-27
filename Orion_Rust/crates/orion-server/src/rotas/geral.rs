@@ -686,6 +686,11 @@ pub async fn config_recarregar(_: Admin, State(st): State<Estado>) -> ApiResult<
         match n.as_str() {
             "injection_guard" => { st.live.injection.store(novo.injection_guard, std::sync::atomic::Ordering::Relaxed); aplicados.push(n); }
             "vault_diario" => { st.live.diary.store(novo.vault_diario, std::sync::atomic::Ordering::Relaxed); aplicados.push(n); }
+            // O compactador só existe se nasceu ligado: mudar o limite vale na hora; ligar do zero exige reiniciar.
+            "compact_at" => match st.agent.as_ref().and_then(|a| a.compactor.clone()) {
+                Some(c) => { c.set_at(novo.compact_at); aplicados.push(n); }
+                None => reinicio.push(n),
+            },
             n_ if DO_GATEWAY.contains(&n_) => { refazer_gateway = true; aplicados.push(n); }
             _ => reinicio.push(n),
         }

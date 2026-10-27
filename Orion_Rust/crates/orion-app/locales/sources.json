@@ -920,5 +920,12 @@
   "O arquivo não é uma imagem PNG, JPEG ou WebP válida.": "ui-0918",
   "Não foi possível abrir a imagem.": "ui-0919",
   "O anexo ainda está sendo processado. Tente anexá-lo novamente em instantes.": "ui-0920",
-  "Até 4 imagens por mensagem.": "ui-0921"
+  "Até 4 imagens por mensagem.": "ui-0921",
+  "Ou URL de um repositório público do GitHub (opcional)": "ui-0922",
+  "Cria o projeto com memória pessoal isolada e a nota dele no vault. Use uma pasta que já existe ou a URL de um repositório público do GitHub, que é clonado (pode levar um tempo).": "ui-0923",
+  "Nota no vault": "ui-0924",
+  "Informe a pasta local ou o repositório do GitHub, não os dois.": "ui-0925",
+  "Projeto criado. A nota do projeto já existia no vault e não foi alterada.": "ui-0926",
+  "Projeto criado e nota gravada no vault.": "ui-0927",
+  "Projeto criado, mas a nota não foi gravada no vault. Confira a pasta do vault em Configurações › Memória.": "ui-0928"
 }

@@ -247,6 +247,7 @@ pub fn map_projects(v: &Value, now: f64) -> Vec<Project> {
             model: "Auto".into(),
             pastas: s(p, "root").to_string(),
             rot: 0,
+            vault: p.get("vault_note").and_then(Value::as_bool).unwrap_or(false),
         })
         .collect()
 }
@@ -1070,7 +1071,11 @@ impl App {
                         }
                         self.proj_q.clear();
                         self.project_form = None;
-                        self.toast("Projeto criado. Nota no vault e vínculo GitHub ainda não foram configurados.");
+                        let nota = &v["vault_note"];
+                        let msg = if nota["ok"].as_bool().unwrap_or(false) {
+                            if nota["resultado"]["unchanged"].as_bool().unwrap_or(false) { "Projeto criado. A nota do projeto já existia no vault e não foi alterada." } else { "Projeto criado e nota gravada no vault." }
+                        } else { "Projeto criado, mas a nota não foi gravada no vault. Confira a pasta do vault em Configurações › Memória." };
+                        self.toast(msg);
                     }
                     result => {
                         if let Some(form) = self.project_form.as_mut() {

@@ -68,6 +68,9 @@ fn projetos(app: &App) -> El<'_> {
             tags = tags.push(badge_ic(p.repo.split('/').nth(1).unwrap_or(""), if p.ci { Tone::Ok } else { Tone::Plain }, "branch"));
         }
         tags = tags.push(badge_ic(&p.model, Tone::Plain, "cpu"));
+        if p.vault {
+            tags = tags.push(badge_ic(crate::i18n::text("Nota no vault"), Tone::Ok, "file"));
+        }
         if p.rot > 0 {
             tags = tags.push(badge_ic(&crate::i18n::formatted("{} rotina{}", format!("{} rotina{}", p.rot, if p.rot > 1 { "s" } else { "" })), Tone::Plain, "clock"));
         }
@@ -98,14 +101,16 @@ fn projetos(app: &App) -> El<'_> {
         let mut name = text_input(crate::i18n::text("Nome do projeto"), &form.name).id("project-name").padding(10).size(14);
         let mut instructions = text_input(crate::i18n::text("Instruções (opcional)"), &form.instructions).padding(10).size(14);
         let mut root = text_input(crate::i18n::text("Pasta local existente (opcional)"), &form.root).padding(10).size(14);
+        let mut git_url = text_input(crate::i18n::text("Ou URL de um repositório público do GitHub (opcional)"), &form.git_url).padding(10).size(14);
         if !form.busy {
             name = name.on_input(Msg::ProjectName);
             instructions = instructions.on_input(Msg::ProjectInstructions);
             root = root.on_input(Msg::ProjectRoot).on_submit(Msg::ProjectSave);
+            git_url = git_url.on_input(Msg::ProjectGitUrl).on_submit(Msg::ProjectSave);
         }
         let mut fields = column![
-            tx(crate::i18n::text("Novo projeto"), 16.0, t::FG), name, instructions, root,
-            tx(crate::i18n::text("Cria o projeto com memória pessoal isolada. A pasta precisa existir. Nota no vault e vínculo GitHub ainda não estão disponíveis aqui."), 12.0, t::FG3),
+            tx(crate::i18n::text("Novo projeto"), 16.0, t::FG), name, instructions, root, git_url,
+            tx(crate::i18n::text("Cria o projeto com memória pessoal isolada e a nota dele no vault. Use uma pasta que já existe ou a URL de um repositório público do GitHub, que é clonado (pode levar um tempo)."), 12.0, t::FG3),
             row![btn(if form.busy { crate::i18n::text("Criando…") } else { crate::i18n::text("Criar projeto") }, Kind::Primary, true, None, (!form.busy).then_some(Msg::ProjectSave)), btn(crate::i18n::text("Cancelar"), Kind::Ghost, true, None, (!form.busy).then_some(Msg::ProjectClose))].spacing(8),
         ].spacing(10);
         if !form.error.is_empty() { fields = fields.push(tx(crate::i18n::status(&form.error), 12.0, t::DANGER)); }

@@ -191,7 +191,7 @@ fn orion_msg<'a>(app: &'a App, ci: usize, mi: usize, o: &'a OrionMsg, is_last: b
         for tl in &o.tools {
             let andando = matches!(tl.time.as_str(), "rodando" | "aguardando aprovação");
             let cor = if andando { t::FG2 } else { t::FG3 };
-            let marca: El = if andando { tx(format!("{}{}", ".".repeat(fase), " ".repeat(3 - fase)), 12.5, t::FG2).into() } else { icon("check", 12.0, t::FG3).into() };
+            let marca: El = if andando { tx(format!("{}{}", ".".repeat(fase.max(1)), " ".repeat(3 - fase.max(1))), 12.5, t::FG2).into() } else { icon("check", 12.0, t::FG3).into() };
             passos = passos.push(
                 row![
                     container(marca).width(Length::Fixed(22.0)),

@@ -293,7 +293,16 @@ pub struct ArquivadosQ {
 }
 
 pub async fn projetos_listar(_: Admin, State(st): State<Estado>, Query(q): Query<ArquivadosQ>) -> ApiResult<Json<Value>> {
-    Ok(Json(json!(Projects::new(st.memory.clone()).list(q.archived).map_err(erro_projeto)?)))
+    let mut lista = Projects::new(st.memory.clone()).list(q.archived).map_err(erro_projeto)?;
+    // Cada projeto diz se a nota raiz já existe no vault (F08.06); só confere se o arquivo está lá.
+    let vault = st.settings.vault_dir.clone().or_else(orion_vault::detect_vault_path);
+    for p in &mut lista {
+        let nome = p.get("name").and_then(Value::as_str).unwrap_or("");
+        let seguro = !nome.is_empty() && !nome.contains(['/', '\\']) && nome != "." && nome != "..";
+        let tem = seguro && vault.as_ref().is_some_and(|v| v.join("01 Projetos").join(nome).join(format!("{nome}.md")).is_file());
+        p.insert("vault_note".into(), json!(tem));
+    }
+    Ok(Json(json!(lista)))
 }
 
 fn validar_projeto(b: &Value, nome_obrigatorio: bool) -> ApiResult<()> {
@@ -304,7 +313,7 @@ fn validar_projeto(b: &Value, nome_obrigatorio: bool) -> ApiResult<()> {
         Some(v) if nome_obrigatorio && v.as_str().is_some_and(|s| s.trim().is_empty()) => return erro(422, "project_name_required"),
         _ => {}
     }
-    if len("name").is_some_and(|n| n > 120) || len("instructions").is_some_and(|n| n > 16000) || len("root").is_some_and(|n| n > 4096) {
+    if len("name").is_some_and(|n| n > 120) || len("instructions").is_some_and(|n| n > 16000) || len("root").is_some_and(|n| n > 4096) || len("git_url").is_some_and(|n| n > 300) {
         return erro(422, "campo grande demais");
     }
     Ok(())
