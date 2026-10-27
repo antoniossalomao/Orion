@@ -36,8 +36,8 @@ pub(super) fn linha_de(st: &Estado, pid: &Option<String>, id: &str) -> ApiResult
 /// Áudio só se refaz com transcrição configurada: confere antes de apagar o índice ou mudar o estado.
 fn exigir_transcricao(st: &Estado, id: &str, pid: &Option<String>) -> ApiResult<()> {
     let achado = st.memory.query("SELECT kind FROM uploads WHERE id=? AND project_id IS ?", &[&id, pid])?;
-    if achado.first().is_some_and(|l| super::audios::e_audio(l["kind"].as_str().unwrap_or(""))) && st.transcriber.is_none() {
-        return erro(503, "transcricao_nao_configurada");
+    if achado.first().is_some_and(|l| super::audios::e_audio(l["kind"].as_str().unwrap_or(""))) && !st.transcriber.as_ref().is_some_and(|t| t.has_local()) {
+        return erro(409, "audio_remoto_precisa_de_consentimento");
     }
     Ok(())
 }
@@ -51,8 +51,9 @@ async fn rodar(st: &Estado, id: &str, pid: &Option<String>) -> ApiResult<()> {
     // Áudio se transcreve de novo a partir do original; o extrator de texto não lê áudio.
     let achado = st.memory.query("SELECT name, kind FROM uploads WHERE id=? AND project_id IS ?", &[&id, pid])?;
     if let Some(linha) = achado.first().filter(|l| super::audios::e_audio(l["kind"].as_str().unwrap_or(""))) {
-        if st.transcriber.is_none() {
-            return erro(503, "transcricao_nao_configurada");
+        // Refazer não pede de novo a sua confirmação: só o Whisper local, nunca o provedor.
+        if !st.transcriber.as_ref().is_some_and(|t| t.has_local()) {
+            return erro(409, "audio_remoto_precisa_de_consentimento");
         }
         let raw: Vec<u8> = st.memory.conn().query_row("SELECT raw FROM uploads WHERE id=?", [id], |r| r.get(0)).map_err(orion_store::StoreError::from)?;
         let Some((_, mime)) = super::audios::tipo(&raw) else { return erro(422, "audio_type_invalid") };
@@ -60,7 +61,7 @@ async fn rodar(st: &Estado, id: &str, pid: &Option<String>) -> ApiResult<()> {
             c.execute("UPDATE uploads SET status='processing',error=NULL,progress=0 WHERE id=?", [id])?;
             Ok(())
         })?;
-        return super::audios::transcrever_em_segundo_plano(st, id.to_string(), pid.clone(), linha["name"].as_str().unwrap_or("").to_string(), raw, mime);
+        return super::audios::transcrever_em_segundo_plano(st, id.to_string(), pid.clone(), linha["name"].as_str().unwrap_or("").to_string(), raw, mime, false);
     }
     let (m, id2, pid2) = (st.memory.clone(), id.to_string(), pid.clone());
     let tarefa = tokio::task::spawn_blocking(move || documents::process(&m, &id2, pid2.as_deref()));

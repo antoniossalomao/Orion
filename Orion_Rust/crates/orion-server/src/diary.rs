@@ -45,11 +45,14 @@ fn build(memory: &Arc<Store>, vault: &Path, sid: &str) -> anyhow::Result<Option<
         dialogue.push_str(&block);
     }
 
-    let title = session.title.as_deref().map(|t| one_line(t, 100)).filter(|t| !t.is_empty()).unwrap_or_else(|| one_line(&first.text, 60));
-    let title = if title.is_empty() { "Conversa".to_string() } else { title };
-    // O nome do arquivo sai da data e do título: o começo do id da sessão impede que duas conversas do
-    // mesmo dia com o mesmo título disputem o mesmo arquivo e se marquem como conflito uma da outra.
-    let title = format!("{} · {title}", sid.chars().take(8).collect::<String>());
+    let real_title = session.title.as_deref().map(|t| one_line(t, 100)).filter(|t| !t.is_empty()).unwrap_or_else(|| one_line(&first.text, 60));
+    // O nome do arquivo sai da data e do título, então o título da nota é fixo e leva o começo do id da
+    // sessão: renomear a conversa não cria outro arquivo, e duas conversas do mesmo dia não disputam um só.
+    // O título editável vai no texto da nota.
+    let title = format!("Conversa {}", sid.chars().take(8).collect::<String>());
+    if !real_title.is_empty() {
+        dialogue.insert_str(0, &format!("**Título da conversa:** {real_title}\n\n"));
+    }
     let summary = one_line(&first.text, 200);
 
     // A note precisa de um Projeto existente no vault; sem ele, cai no project Orion.

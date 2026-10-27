@@ -286,10 +286,11 @@ impl Api {
     }
 
     /// Áudio do chat (F05.12): o núcleo responde logo e transcreve em segundo plano.
-    pub async fn upload_audio(&self, name: String, project: Option<String>, bytes: Vec<u8>) -> Result<Value, String> {
+    pub async fn upload_audio(&self, name: String, project: Option<String>, remote: bool, bytes: Vec<u8>) -> Result<Value, String> {
         let mut url = reqwest::Url::parse("http://127.0.0.1/chat/audios").map_err(|e| e.to_string())?;
         url.query_pairs_mut().append_pair("name", &name);
         if let Some(project) = project { url.query_pairs_mut().append_pair("project_id", &project); }
+        if remote { url.query_pairs_mut().append_pair("remote", "true"); }
         self.post_bytes(format!("{}?{}", url.path(), url.query().unwrap_or("")), bytes).await
     }
 

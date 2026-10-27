@@ -557,7 +557,20 @@ impl App {
                         if id.is_empty() { return Err("Resposta de upload inválida.".into()); }
                         return Ok(Some(json!({"id": id, "name": s(&value, "name"), "kind": "imagem", "thumb": miniatura})));
                     }
-                    let mut value = if classe == "audio" { api.upload_audio(name, project.clone(), bytes).await? } else { api.upload_document(name, project.clone(), bytes).await? };
+                    // Áudio: com Whisper local nada sai do computador. Sem ele, só vai ao provedor se você confirmar aqui.
+                    let mut remote = false;
+                    if classe == "audio" {
+                        let modo = api.get("/chat/audios/modo").await?;
+                        if !modo["local"].as_bool().unwrap_or(false) {
+                            if !modo["remoto"].as_bool().unwrap_or(false) { return Err("A transcrição de áudio não está configurada. Ligue o Whisper local ou defina a chave de transcrição.".into()); }
+                            let provedor = s(&modo, "provedor").to_string();
+                            let pergunta = crate::i18n::formatted("Este áudio vai sair do seu computador e será enviado a {} para ser transcrito. Enviar?", format!("Este áudio vai sair do seu computador e será enviado a {provedor} para ser transcrito. Enviar?"));
+                            let aceitou = tokio::task::spawn_blocking(move || crate::onboarding::confirm(&pergunta)).await.map_err(|e| e.to_string())?;
+                            if !aceitou { return Ok(None); }
+                            remote = true;
+                        }
+                    }
+                    let mut value = if classe == "audio" { api.upload_audio(name, project.clone(), remote, bytes).await? } else { api.upload_document(name, project.clone(), bytes).await? };
                     let id = s(&value, "id").to_string();
                     if id.is_empty() { return Err("Resposta de upload inválida.".into()); }
                     let mut detail = reqwest::Url::parse(&format!("http://127.0.0.1/documents/{id}")).map_err(|error| error.to_string())?;

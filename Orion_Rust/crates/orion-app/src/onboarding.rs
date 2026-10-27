@@ -589,6 +589,28 @@ pub fn open_link(url: &str) {
     let _ = system_command("open").arg(url).spawn();
 }
 
+/// Pergunta sim ou não numa janela do sistema. Fora do Windows, ou se a janela não abrir, é "não":
+/// a ação que precisa da sua confirmação nunca segue por padrão.
+pub fn confirm(text: &str) -> bool {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        let text = text.replace('\'', "''");
+        let script = format!("Add-Type -AssemblyName System.Windows.Forms; $r=[System.Windows.Forms.MessageBox]::Show('{text}','Orion','YesNo','Warning'); [Console]::Write($r)");
+        return system_command("powershell.exe")
+            .creation_flags(0x08000000)
+            .args(["-NoProfile", "-STA", "-Command", &script])
+            .output()
+            .map(|o| o.status.success() && String::from_utf8_lossy(&o.stdout).trim() == "Yes")
+            .unwrap_or(false);
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = text;
+        false
+    }
+}
+
 pub fn choose(field: Field) -> Result<Option<String>, String> {
     #[cfg(windows)]
     {

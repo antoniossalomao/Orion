@@ -204,6 +204,7 @@ pub fn router(st: Estado) -> Router {
         .route("/files/plans", get(planos_listar).post(plano_criar))
         .route("/files/plans/:id/review", post(plano_revisar))
         .route("/files/plans/:id/apply", post(plano_aplicar))
+        .route("/chat/audios/modo", get(audios::modo_audio))
         .route("/chat/audios", post(audios::enviar_audio).layer(axum::extract::DefaultBodyLimit::max(orion_ai::transcribe::MAX_AUDIO + 1024)))
         .route("/chat/imagens/liberar", post(imagens::liberar_imagens))
         .route("/chat/imagens", post(imagens::enviar_imagem).layer(axum::extract::DefaultBodyLimit::max(imagens::MAX_IMAGEM + 1024)))

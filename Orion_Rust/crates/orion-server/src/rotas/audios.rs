@@ -15,7 +15,7 @@ use orion_ai::transcribe::MAX_AUDIO;
 use orion_core::documents::MAX_TOTAL;
 use orion_store::{with_scope, DataScope};
 use serde::Deserialize;
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::io::Write;
 use std::process::{Command, Stdio};
 
@@ -72,6 +72,15 @@ fn para_wav(origem: &[u8]) -> Option<Vec<u8>> {
 pub struct AudioQ {
     name: String,
     project_id: Option<String>,
+    /// Você confirmou que este áudio pode ir ao provedor de transcrição (só vale sem Whisper local).
+    #[serde(default)]
+    remote: bool,
+}
+
+/// O que o app precisa saber antes de enviar um áudio: se transcreve em casa ou se pediria o envio ao provedor.
+pub async fn modo_audio(_: Admin, State(st): State<Estado>) -> ApiResult<Json<Value>> {
+    let Some(t) = st.transcriber.clone() else { return Ok(Json(json!({"local": false, "remoto": false, "provedor": ""}))) };
+    Ok(Json(json!({"local": t.has_local(), "remoto": t.has_remote(), "provedor": t.remote_provider()})))
 }
 
 pub async fn enviar_audio(_: Admin, State(st): State<Estado>, Query(q): Query<AudioQ>, corpo: Bytes) -> ApiResult<Json<Value>> {
@@ -87,8 +96,10 @@ pub async fn enviar_audio(_: Admin, State(st): State<Estado>, Query(q): Query<Au
         return erro(413, "audio_size_limit");
     }
     let Some((kind, mime)) = tipo(&corpo) else { return erro(422, "audio_type_invalid") };
-    if st.transcriber.is_none() {
-        return erro(503, "transcricao_nao_configurada");
+    let Some(t) = st.transcriber.clone() else { return erro(503, "transcricao_nao_configurada") };
+    // Sem Whisper local, o áudio só vai ao provedor com a sua confirmação (REGRAS.md: transcrever mídia é comando seu).
+    if !t.has_local() && !(q.remote && t.has_remote()) {
+        return erro(409, "audio_remoto_precisa_de_consentimento");
     }
     if st.modos.panico() {
         return erro(409, "modo pânico: transcrição bloqueada");
@@ -108,7 +119,7 @@ pub async fn enviar_audio(_: Admin, State(st): State<Estado>, Query(q): Query<Au
     })?;
     r?;
 
-    transcrever_em_segundo_plano(&st, id.clone(), q.project_id.clone(), nome, corpo.to_vec(), mime)?;
+    transcrever_em_segundo_plano(&st, id.clone(), q.project_id.clone(), nome, corpo.to_vec(), mime, q.remote)?;
     linha_de(&st, &q.project_id, &id)
 }
 
@@ -119,14 +130,15 @@ pub fn e_audio(kind: &str) -> bool {
 
 /// Transcreve em tarefa própria e indexa o texto como documento. Serve ao envio e às operações de
 /// manutenção (tentar de novo, reindexar, mover): áudio nunca passa pelo extrator de texto.
-pub(super) fn transcrever_em_segundo_plano(st: &Estado, id: String, pid: Option<String>, nome: String, bytes: Vec<u8>, mime: &'static str) -> ApiResult<()> {
+pub(super) fn transcrever_em_segundo_plano(st: &Estado, id: String, pid: Option<String>, nome: String, bytes: Vec<u8>, mime: &'static str, remoto: bool) -> ApiResult<()> {
     let Some(transcriber) = st.transcriber.clone() else { return erro(503, "transcricao_nao_configurada") };
     let memory = st.memory.clone();
     tokio::spawn(async move {
         let (id2, nome2) = (id, nome);
         // O Whisper local só lê WAV mono 16 kHz: converte antes, quando houver ffmpeg.
         let entrada = tokio::task::spawn_blocking(move || if wav_16k_mono(&bytes) { bytes } else { para_wav(&bytes).unwrap_or(bytes) }).await.unwrap_or_default();
-        let resultado = transcriber.transcribe(entrada, &nome2, mime).await;
+        // Sem a sua confirmação, só o Whisper local: se ele falhar, o áudio não sai do computador.
+        let resultado = if remoto { transcriber.transcribe(entrada, &nome2, mime).await } else { transcriber.transcribe_local(entrada).await };
         let fim = tokio::task::spawn_blocking(move || {
             let (status, erro) = match resultado {
                 Ok(texto) => {

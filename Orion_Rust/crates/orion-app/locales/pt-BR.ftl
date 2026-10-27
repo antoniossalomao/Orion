@@ -927,3 +927,5 @@ ui-0925 = { "Informe a pasta local ou o repositório do GitHub, não os dois." }
 ui-0926 = { "Projeto criado. A nota do projeto já existia no vault e não foi alterada." }
 ui-0927 = { "Projeto criado e nota gravada no vault." }
 ui-0928 = { "Projeto criado, mas a nota não foi gravada no vault. Confira a pasta do vault em Configurações › Memória." }
+ui-0929 = { "Este áudio vai sair do seu computador e será enviado a " }{ $v0 }{ " para ser transcrito. Enviar?" }
+ui-0930 = { "A transcrição de áudio não está configurada. Ligue o Whisper local ou defina a chave de transcrição." }

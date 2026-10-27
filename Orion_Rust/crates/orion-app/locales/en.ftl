@@ -927,3 +927,5 @@ ui-0925 = { "Provide the local folder or the GitHub repository, not both." }
 ui-0926 = { "Project created. The project note already existed in the vault and was left unchanged." }
 ui-0927 = { "Project created and note saved to the vault." }
 ui-0928 = { "Project created, but the note was not saved to the vault. Check the vault folder in Settings › Memory." }
+ui-0929 = { "This audio will leave your computer and be sent to " }{ $v0 }{ " to be transcribed. Send it?" }
+ui-0930 = { "Audio transcription is not set up. Turn on local Whisper or set the transcription key." }
