@@ -1651,7 +1651,7 @@ impl App {
             }
             Msg::EditorClose => self.editor = None,
             Msg::ConflitoEdit(action) => { if let Some(c) = &mut self.conflito { c.content.perform(action.clone()); } }
-            Msg::ConflitoUsar(proposta) => { if let Some(c) = &mut self.conflito { c.content = text_editor::Content::with_text(if *proposta { &c.proposal } else { &c.original }); } }
+            Msg::ConflitoUsar(proposta) => { if let Some(c) = &mut self.conflito { c.content = text_editor::Content::with_text(if proposta { &c.proposal } else { &c.original }); } }
             Msg::ConflitoFechar => self.conflito = None,
             Msg::EditorSave => {
                 self.editor = None;
