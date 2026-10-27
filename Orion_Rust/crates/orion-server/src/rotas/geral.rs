@@ -679,7 +679,7 @@ pub async fn config_recarregar(_: Admin, State(st): State<Estado>) -> ApiResult<
     // Compara com o que está rodando agora; na primeira recarga, é o que valia na inicialização.
     let antes = st.live.applied.lock().clone().unwrap_or_else(|| campos_das_configuracoes(&st.settings));
     let depois = campos_das_configuracoes(&novo);
-    let mudados: Vec<String> = depois.iter().filter(|(n, v)| !DEFINIDOS_NA_INICIALIZACAO.contains(&n.as_str()) && (n.as_str() != "provedores" || (st.settings.providers_explicit && novo.providers_explicit)) && antes.get(*n) != Some(*v)).map(|(n, _)| n.clone()).collect();
+    let mudados: Vec<String> = depois.iter().filter(|(n, v)| !DEFINIDOS_NA_INICIALIZACAO.contains(&n.as_str()) && (n.as_str() != "provedores" || novo.providers_explicit) && antes.get(*n) != Some(*v)).map(|(n, _)| n.clone()).collect();
     let (mut aplicados, mut reinicio) = (vec![], vec![]);
     let mut refazer_gateway = false;
     for n in mudados {
@@ -704,7 +704,7 @@ pub async fn config_recarregar(_: Admin, State(st): State<Estado>) -> ApiResult<
         s.local_url = novo.local_url.clone();
         s.allow_paid = novo.allow_paid;
         s.providers_explicit = novo.providers_explicit;
-        if st.settings.providers_explicit && novo.providers_explicit {
+        if novo.providers_explicit {
             s.provedores = novo.provedores.clone();
         }
         recarregar_gateway(&st, s.clone()).await?;

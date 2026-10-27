@@ -147,8 +147,12 @@ pub async fn mover_documento(_: Admin, State(st): State<Estado>, Path(id): Path<
     if alvo == q.project_id {
         return linha_de(&st, &q.project_id, &id);
     }
-    let achados = st.memory.query("SELECT name FROM uploads WHERE id=? AND project_id IS ?", &[&id, &q.project_id])?;
+    let achados = st.memory.query("SELECT name, status FROM uploads WHERE id=? AND project_id IS ?", &[&id, &q.project_id])?;
     let Some(a) = achados.first() else { return erro(404, "document_not_found") };
+    // Quem ainda está sendo processado (inclusive a transcrição de um áudio) guarda o escopo de antes: não muda de escopo no meio.
+    if a["status"] == json!("processing") {
+        return erro(409, "document_busy");
+    }
     exigir_transcricao(&st, &id, &q.project_id)?;
     let fonte = format!("upload:{id}/{}", a["name"].as_str().unwrap_or(""));
     with_scope(DataScope::project(q.project_id.clone(), false), || st.memory.remove_document(&fonte))?;
