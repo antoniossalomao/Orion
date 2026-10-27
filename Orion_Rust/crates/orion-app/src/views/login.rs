@@ -64,15 +64,16 @@ pub fn view(app: &App) -> El<'_> {
     let tempo = app.now.saturating_duration_since(app.login_at).as_secs_f32();
     let (p_ceu, p_card, p_user, p_senha, p_btn) = (seg(0), seg(150), seg(300), seg(420), seg(540));
 
-    let campo = |ph: &'static str, v: &str, f: fn(String) -> Msg, secure: bool| {
-        text_input(crate::i18n::text(ph), v)
+    let campo = |rotulo: &'static str, v: &str, f: fn(String) -> Msg, secure: bool| {
+        let entrada = text_input("", v)
             .on_input(f)
             .on_submit(Msg::Login)
             .secure(secure)
             .size(14)
             .font(t::UI)
-            .padding(pad(12.0, 14.0, 12.0, 14.0))
-            .style(field_style(t::alpha(t::BG, 0.55), t::FIELD_LINE, t::ACCENT, 10.0))
+            .padding(pad(12.0, 12.0, 12.0, 12.0))
+            .style(field_style(t::alpha(t::BG, 0.55), t::FIELD_LINE, t::ACCENT, 10.0));
+        column![tx(crate::i18n::text(rotulo), 12.0, t::FG2), entrada].spacing(6)
     };
     let neutro = app.gate_err.is_empty() || app.gate_err.starts_with("Conectando") || app.gate_err.starts_with("Entrando") || app.gate_err.starts_with("Abrindo") || app.gate_err.starts_with("Digite a senha");
     let aviso = container(tx(if app.gate_err.starts_with("Digite a senha") { String::new() } else { crate::i18n::status(&app.gate_err) }, 12.0, if neutro { t::FG3 } else { t::DANGER })).height(Length::Fixed(16.0));
@@ -98,7 +99,7 @@ pub fn view(app: &App) -> El<'_> {
             iced::widget::button::Style {
                 background: Some(degrade(a, t::mix(t::ACCENT, 0.9), 100.0)),
                 text_color: t::PRIMARY_INK,
-                border: Border { radius: 10.0.into(), ..Default::default() },
+                border: Border { radius: t::R_CARD.into(), ..Default::default() },
                 shadow: iced::Shadow { color: t::alpha(t::ACCENT, if hov { 0.22 } else { 0.10 }), offset: iced::Vector::new(0.0, 4.0), blur_radius: 16.0 },
                 snap: true,
             }
@@ -112,11 +113,11 @@ pub fn view(app: &App) -> El<'_> {
         .width(Length::Fixed(380.0))
         .style(|_| container::Style {
             background: Some(degrade(t::alpha(iced::Color::WHITE, 0.035), t::alpha(iced::Color::WHITE, 0.012), 160.0)),
-            border: Border { color: t::alpha(iced::Color::WHITE, 0.05), width: 1.0, radius: 18.0.into() },
+            border: Border { color: t::alpha(iced::Color::WHITE, 0.05), width: 1.0, radius: t::R_PANEL.into() },
             shadow: iced::Shadow { color: t::alpha(iced::Color::BLACK, 0.25), offset: iced::Vector::new(0.0, 16.0), blur_radius: 40.0 },
             ..Default::default()
         });
-    let rodape = txf(if app.db_locked { crate::i18n::text("Sua senha protege o Orion e suas cópias de segurança") } else { crate::i18n::text("Tudo fica neste computador") }, 11.0, t::FG3, t::MONO);
+    let rodape = txf(if app.db_locked { crate::i18n::text("Sua senha protege o Orion e suas cópias de segurança") } else { crate::i18n::text("Tudo fica neste computador") }, 12.0, t::FG2, t::UI);
 
     let glow_dir = canvas(Brilho { t: tempo, lado: 1, p: p_ceu }).width(Length::Fill).height(Length::Fill);
     let conteudo = container(column![rise(fade(cartao, p_card, bg), p_card, 18.0), sp_h(18.0), fade(rodape, p_card, bg)].align_x(Horizontal::Center)).width(Length::Fill).height(Length::Fill).center_x(Length::Fill).center_y(Length::Fill);
@@ -124,7 +125,7 @@ pub fn view(app: &App) -> El<'_> {
 
     let sky = canvas(Sky { alpha: 1.0, constellation: true, intro: if !app.p.reduced && std::env::var("ICED_BACKEND").is_ok_and(|backend| backend == "wgpu") { (tempo / 1.4).clamp(0.0, 1.0) } else { 1.0 }, belt: 0.0 }).width(Length::Fill).height(Length::Fill);
     let glow_esq = canvas(Brilho { t: tempo, lado: 0, p: p_ceu }).width(Length::Fill).height(Length::Fill);
-    let marca = container(row![column![belt_fg(false), txf("Orion", 24.0, t::FG, t::SERIF)].spacing(4), grow(), txf(concat!("v", env!("CARGO_PKG_VERSION")), 11.0, t::FG3, t::MONO)].align_y(iced::alignment::Vertical::Bottom)).width(Length::Fill).height(Length::Fill).align_bottom(Length::Fill).padding(pad(0.0, 26.0, 24.0, 28.0));
+    let marca = container(row![column![belt_fg(false), txf("Orion", 24.0, t::FG, t::SERIF)].spacing(4), grow(), txf(concat!("v", env!("CARGO_PKG_VERSION")), 12.0, t::FG2, t::UI)].align_y(iced::alignment::Vertical::Bottom)).width(Length::Fill).height(Length::Fill).align_bottom(Length::Fill).padding(pad(0.0, 26.0, 24.0, 28.0));
     let esq = container(fade(stack![sky, glow_esq, marca], p_ceu, t::BG)).width(Length::FillPortion(100)).height(Length::Fill).clip(true).style(|_| container::Style { background: Some(t::BG.into()), ..Default::default() });
     let divisor = container(sp_w(1.0)).width(Length::Fixed(1.0)).height(Length::Fill).style(|_| container::Style { background: Some(degrade(t::alpha(iced::Color::WHITE, 0.0), t::alpha(iced::Color::WHITE, 0.10), 0.0)), ..Default::default() });
 

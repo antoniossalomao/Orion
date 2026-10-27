@@ -927,5 +927,13 @@
   "Projeto criado e nota gravada no vault.": "ui-0927",
   "Projeto criado, mas a nota não foi gravada no vault. Confira a pasta do vault em Configurações › Memória.": "ui-0928",
   "Este áudio vai sair do seu computador e será enviado a {} para ser transcrito. Enviar?": "ui-0929",
-  "A transcrição de áudio não está configurada. Ligue o Whisper local ou defina a chave de transcrição.": "ui-0930"
+  "A transcrição de áudio não está configurada. Ligue o Whisper local ou defina a chave de transcrição.": "ui-0930",
+  "Editar": "ui-0931",
+  "Editar e reenviar": "ui-0932",
+  "Fixar como contexto": "ui-0933",
+  "Gerando de novo…": "ui-0934",
+  "Gerar de novo": "ui-0935",
+  "Lendo em voz alta": "ui-0936",
+  "Ouvir": "ui-0937",
+  "Subir na ordem": "ui-0938"
 }

@@ -55,7 +55,7 @@ pub fn view(app: &App, home: bool) -> El<'_> {
         .placeholder(placeholder)
         .on_action(Msg::Edit)
         .font(t::UI)
-        .size(15)
+        .size(t::snap_size(15 as f32))
         .line_height(text::LineHeight::Relative(1.55))
         .padding(pad(16.0, 18.0, 4.0, 18.0))
         .height(Length::Fixed(h))
@@ -111,12 +111,12 @@ pub fn view(app: &App, home: bool) -> El<'_> {
             c = c.push(
                 button(row![l, grow(), tx(ell(desc, width * 0.5, 12.0), 12.0, t::FG3)].spacing(10).align_y(Vertical::Center))
                     .width(Length::Fill)
-                    .padding(pad(7.0, 10.0, 7.0, 10.0))
+                    .padding(pad(6.0, 10.0, 6.0, 10.0))
                     .on_press(Msg::Sugg(ins.clone()))
-                    .style(move |_, st| button::Style { background: if hl || matches!(st, button::Status::Hovered) { Some(Background::Color(t::HOVER)) } else { None }, text_color: t::FG, border: Border { radius: 8.0.into(), ..Default::default() }, shadow: Default::default(), snap: true }),
+                    .style(move |_, st| button::Style { background: if hl || matches!(st, button::Status::Hovered) { Some(Background::Color(t::HOVER)) } else { None }, text_color: t::FG, border: Border { radius: t::R_CTRL.into(), ..Default::default() }, shadow: Default::default(), snap: true }),
             );
         }
-        container(iced::widget::scrollable(c).direction(iced::widget::scrollable::Direction::Vertical(thin_bar())).style(thin_scroll)).max_height(260.0).width(Length::Fixed(width - 16.0)).padding(4).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: 12.0.into() }, shadow: shadow(), ..Default::default() }).into()
+        container(iced::widget::scrollable(c).direction(iced::widget::scrollable::Direction::Vertical(thin_bar())).style(thin_scroll)).max_height(260.0).width(Length::Fixed(width - 16.0)).padding(4).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_CARD.into() }, shadow: shadow(), ..Default::default() }).into()
     } else {
         sp_w(0.0)
     };
@@ -150,7 +150,7 @@ fn send_btn<'a>(inner: El<'a>, msg: Option<Msg>, active: bool) -> El<'a> {
     if let Some(m) = msg {
         b = b.on_press(m);
     }
-    b.style(move |_, _| button::Style { background: Some(Background::Color(if active { t::PRIMARY } else { t::RAISE2 })), text_color: t::PRIMARY_INK, border: Border { radius: 16.0.into(), ..Default::default() }, shadow: Default::default(), snap: true }).into()
+    b.style(move |_, _| button::Style { background: Some(Background::Color(if active { t::PRIMARY } else { t::RAISE2 })), text_color: t::PRIMARY_INK, border: Border { radius: t::R_PANEL.into(), ..Default::default() }, shadow: Default::default(), snap: true }).into()
 }
 
 pub fn run_command(app: &mut App, word: &str, full: &str) -> Task<Msg> {
@@ -222,7 +222,7 @@ pub fn run_command(app: &mut App, word: &str, full: &str) -> Task<Msg> {
             }
             return Task::perform(async move { api.post("/nuvem", serde_json::json!({"servico": a, "tarefa": b})).await }, |r| Msg::L(crate::live::Lm::Acao(r.map(|_| "Tarefa enviada à nuvem".to_string()), true)));
         }
-        "imagem" => app.toast("Gerando imagem com Gemini (simulado). Fica na conversa e em 03 Recursos/Orion/Imagens."),
+        "imagem" => app.toast(if app.is_live() { "Gerar imagem ainda não está disponível. Para anexar uma, use o botão de anexo." } else { "Gerando imagem com Gemini. Fica na conversa e em 03 Recursos/Orion/Imagens." }),
         "config" => {
             let name = rest.trim();
             if name.is_empty() {

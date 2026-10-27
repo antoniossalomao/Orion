@@ -1419,7 +1419,7 @@ impl App {
                 let cmd = std::mem::take(&mut self.term_in);
                 if !cmd.trim().is_empty() {
                     self.term_out.push(format!("PS> {cmd}"));
-                    self.term_out.push(format!("(simulado) {cmd}"));
+                    self.term_out.push(format!("{cmd}: comando não executado, o terminal é só uma prévia."));
                 }
             }
             Msg::PinToggle => {

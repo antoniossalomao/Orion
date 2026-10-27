@@ -14,7 +14,7 @@ fn painel<'a>(titulo: &'a str, texto: &'a str) -> El<'a> {
         .direction(scrollable::Direction::Vertical(thin_bar()))
         .style(thin_scroll)
         .height(Length::Fill);
-    column![container(tx(titulo, 12.0, t::FG3)).padding(pad(8.0, 14.0, 6.0, 14.0)), hline(), corpo].width(Length::FillPortion(1)).height(Length::Fill).into()
+    column![container(tx(titulo, 12.0, t::FG3)).padding(pad(8.0, 12.0, 6.0, 12.0)), hline(), corpo].width(Length::FillPortion(1)).height(Length::Fill).into()
 }
 
 pub fn modal(app: &App) -> El<'_> {
@@ -25,7 +25,7 @@ pub fn modal(app: &App) -> El<'_> {
             icon("file", 16.0, t::FG2),
             txf(nome, 18.0, t::FG, t::SERIF),
             container(tx(crate::i18n::text("Sua nota no vault e a versão nova do Orion diferem."), 12.0, t::FG3)).width(Length::Fill),
-            ib("close", Some(Msg::ConflitoFechar), false)
+            tip(ib("close", Some(Msg::ConflitoFechar), false), crate::i18n::text("Fechar"))
         ]
         .spacing(8)
         .align_y(Vertical::Center),
@@ -39,7 +39,7 @@ pub fn modal(app: &App) -> El<'_> {
     let final_ed = text_editor(&c.content)
         .on_action(Msg::ConflitoEdit)
         .font(t::MONO)
-        .size(12.5)
+        .size(t::snap_size(12.5 as f32))
         .line_height(text::LineHeight::Relative(1.6))
         .padding(14)
         .height(Length::Fill)
@@ -57,7 +57,7 @@ pub fn modal(app: &App) -> El<'_> {
         .spacing(8)
         .align_y(Vertical::Center),
     )
-    .padding(pad(8.0, 14.0, 8.0, 14.0));
+    .padding(pad(8.0, 12.0, 8.0, 12.0));
     let (w, h) = (1100.0f32.min(app.win.width - 48.0), 760.0f32.min(app.win.height - 48.0));
     let mobile = app.is_drawer_mode();
     let dialog = container(column![head, hline(), container(lados).height(Length::FillPortion(3)), hline(), acoes, container(final_ed).height(Length::FillPortion(2))])

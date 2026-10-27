@@ -27,7 +27,7 @@ pub fn view(app: &App) -> El<'_> {
                 .height(Length::Fixed(30.0))
                 .padding(pad(0.0, 8.0, 0.0, 8.0))
                 .on_press(Msg::Pop(Pop::ConvMenu))
-                .style(|_, st| button::Style { background: if matches!(st, button::Status::Hovered) { Some(Background::Color(t::HOVER)) } else { None }, text_color: t::FG, border: Border { radius: 8.0.into(), ..Default::default() }, shadow: Default::default(), snap: true });
+                .style(|_, st| button::Style { background: if matches!(st, button::Status::Hovered) { Some(Background::Color(t::HOVER)) } else { None }, text_color: t::FG, border: Border { radius: t::R_CTRL.into(), ..Default::default() }, shadow: Default::default(), snap: true });
             let pop: El = Popover::new(base, menus::conv_menu(app), app.pop == Some(Pop::ConvMenu)).on_dismiss(Msg::ClosePop).into();
             r = r.push(pop);
         }
@@ -58,7 +58,7 @@ pub fn view(app: &App) -> El<'_> {
             .height(Length::Fixed(30.0))
             .padding(pad(0.0, 8.0, 0.0, 10.0))
             .on_press(Msg::PalOpen)
-            .style(|_, st| button::Style { background: if matches!(st, button::Status::Hovered) { Some(Background::Color(t::HOVER)) } else { None }, text_color: t::FG3, border: Border { radius: 8.0.into(), ..Default::default() }, shadow: Default::default(), snap: true });
+            .style(|_, st| button::Style { background: if matches!(st, button::Status::Hovered) { Some(Background::Color(t::HOVER)) } else { None }, text_color: t::FG3, border: Border { radius: t::R_CTRL.into(), ..Default::default() }, shadow: Default::default(), snap: true });
         r = r.push(cmd);
     } else {
         r = r.push(tip(ib("search", Some(Msg::PalOpen), false), crate::i18n::text("Buscar")));

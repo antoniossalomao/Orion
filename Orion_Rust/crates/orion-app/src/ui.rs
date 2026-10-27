@@ -10,18 +10,18 @@ use iced::{Background, Border, Color, Element, Length, Padding, Shadow, Theme};
 pub type El<'a> = Element<'a, Msg>;
 
 pub fn tx<'a>(s: impl text::IntoFragment<'a>, size: f32, color: Color) -> text::Text<'a, Theme> {
-    text(s).size(size).color(color).font(t::UI).line_height(text::LineHeight::Relative(1.5))
+    text(s).size(t::snap_size(size)).color(color).font(t::UI).line_height(text::LineHeight::Relative(1.5))
 }
 pub fn txf<'a>(s: impl text::IntoFragment<'a>, size: f32, color: Color, font: iced::Font) -> text::Text<'a, Theme> {
-    text(s).size(size).color(color).font(font).line_height(text::LineHeight::Relative(1.5))
+    text(s).size(t::snap_size(size)).color(color).font(font).line_height(text::LineHeight::Relative(1.5))
 }
 /// Corta com reticências conforme a largura disponível (estimativa de 0,53 em por caractere).
 /// Texto sem cor própria: herda a cor do botão (muda no hover).
 pub fn txi<'a>(s: impl text::IntoFragment<'a>, size: f32, font: iced::Font) -> text::Text<'a, Theme> {
-    text(s).size(size).font(font).line_height(text::LineHeight::Relative(1.5))
+    text(s).size(t::snap_size(size)).font(font).line_height(text::LineHeight::Relative(1.5))
 }
 pub fn ell(s: &str, max_px: f32, size: f32) -> String {
-    let max = (max_px / (size * 0.53)).floor() as usize;
+    let max = (max_px / (t::snap_size(size) * 0.53)).floor() as usize;
     if s.chars().count() <= max {
         s.to_string()
     } else {
@@ -131,7 +131,7 @@ pub fn ib_wh<'a>(name: &str, w: f32, h: f32, glyph: f32, msg: Option<Msg>, hover
 
 /// Dica ao passar o mouse (`title` do protótipo).
 pub fn tip<'a>(el: impl Into<El<'a>>, label: &str) -> El<'a> {
-    iced::widget::tooltip(el, container(tx(label.to_string(), 11.5, t::FG)).padding(pad(4.0, 8.0, 4.0, 8.0)).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: 8.0.into() }, ..Default::default() }), iced::widget::tooltip::Position::Bottom)
+    iced::widget::tooltip(el, container(tx(label.to_string(), 11.5, t::FG)).padding(pad(4.0, 8.0, 4.0, 8.0)).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_CTRL.into() }, ..Default::default() }), iced::widget::tooltip::Position::Bottom)
         .gap(6)
         .delay(std::time::Duration::from_millis(500))
         .into()
@@ -228,7 +228,7 @@ pub fn chip<'a>(label: String, soft: Option<String>, lead: Option<&str>, chev: b
 
 /// Pílula `.pill` da barra superior.
 pub fn pill<'a>(dot: Color, label: &str, border: Color, strong: bool, msg: Option<Msg>) -> El<'a> {
-    let inner = row![dot_el(dot, 6.0), tx(label.to_string(), 12.0, if strong { t::FG } else { t::FG2 })].spacing(7).align_y(Vertical::Center);
+    let inner = row![dot_el(dot, 6.0), tx(label.to_string(), 12.0, if strong { t::FG } else { t::FG2 })].spacing(6).align_y(Vertical::Center);
     let c = container(inner).height(Length::Fixed(26.0)).center_y(Length::Fixed(26.0)).padding(pad(0.0, 10.0, 0.0, 10.0)).style(surface(None, Some(border), 999.0));
     match msg {
         Some(m) => mouse_area(c).on_press(m).into(),
@@ -241,7 +241,7 @@ pub fn dot_el<'a>(c: Color, d: f32) -> El<'a> {
 }
 /// Ponto de estado `.cdot.pending` com halo.
 pub fn dot_halo<'a>(c: Color, halo: Color) -> El<'a> {
-    container(dot_el(c, 6.0)).padding(3).style(move |_| container::Style { background: Some(halo.into()), border: Border { radius: 99.0.into(), ..Default::default() }, ..Default::default() }).into()
+    container(dot_el(c, 6.0)).padding(3).style(move |_| container::Style { background: Some(halo.into()), border: Border { radius: t::R_PILL.into(), ..Default::default() }, ..Default::default() }).into()
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -309,14 +309,14 @@ pub fn switch<'a>(on: bool, msg: Msg) -> El<'a> {
     let off = 14.0 * if on { p } else { 1.0 - p };
     let thumb = container(Space::new()).width(Length::Fixed(16.0)).height(Length::Fixed(16.0)).style(|_| container::Style {
         background: Some(Color::WHITE.into()),
-        border: Border { radius: 8.0.into(), ..Default::default() },
+        border: Border { radius: t::R_CTRL.into(), ..Default::default() },
         ..Default::default()
     });
     let track = container(thumb)
         .width(Length::Fixed(34.0))
         .height(Length::Fixed(20.0))
         .padding(pad(2.0, 2.0, 2.0, 2.0 + off))
-        .style(move |_| container::Style { background: Some(if on { t::ACCENT } else { t::LINE3 }.into()), border: Border { radius: 999.0.into(), ..Default::default() }, ..Default::default() });
+        .style(move |_| container::Style { background: Some(if on { t::ACCENT } else { t::LINE3 }.into()), border: Border { radius: t::R_PILL.into(), ..Default::default() }, ..Default::default() });
     mouse_area(track).on_press(msg).into()
 }
 

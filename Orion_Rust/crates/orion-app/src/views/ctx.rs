@@ -21,8 +21,11 @@ pub fn view(app: &App) -> El<'_> {
     let c = &app.convs[ci];
     let mut tabs = row![].spacing(2);
     for (tb, l) in TABS {
+        if tb == CtxTab::Terminal && app.is_live() {
+            continue;
+        }
         let sel = app.ctx_tab == tb;
-        let b = button(container(tx(crate::i18n::text(l), 12.5, if sel { t::FG } else { t::FG3 })).center_y(Length::Fill)).height(Length::Fixed(32.0)).padding(pad(0.0, 7.0, 0.0, 7.0)).on_press(Msg::CtxTab(tb)).style(|_, _| button::Style::default());
+        let b = button(container(tx(crate::i18n::text(l), 12.5, if sel { t::FG } else { t::FG3 })).center_y(Length::Fill)).height(Length::Fixed(32.0)).padding(pad(0.0, 6.0, 0.0, 6.0)).on_press(Msg::CtxTab(tb)).style(|_, _| button::Style::default());
         tabs = tabs.push(column![b, container(sp_w(0.0)).width(Length::Fill).height(Length::Fixed(1.5)).style(move |_| container::Style { background: if sel { Some(t::FG.into()) } else { None }, ..Default::default() })].width(Length::Shrink));
     }
     let tabs = column![container(tabs).padding(pad(8.0, 8.0, 0.0, 8.0)), hline()];
@@ -31,7 +34,7 @@ pub fn view(app: &App) -> El<'_> {
         CtxTab::Contexto => {
             let pct = if c.ctx == 0 { 8 } else { c.ctx };
             let mut v = column![].spacing(8);
-            let mut amb = column![kv("folder", tx(c.proj.clone(), 12.5, t::FG2).into())].spacing(7);
+            let mut amb = column![kv("folder", tx(c.proj.clone(), 12.5, t::FG2).into())].spacing(6);
             if let Some(b) = c.branch.clone() {
                 amb = amb.push(kv("branch", txf(b, 12.0, t::FG2, t::MONO).into()));
             }
@@ -45,15 +48,15 @@ pub fn view(app: &App) -> El<'_> {
                         row![icon("branch", 14.0, t::FG3), txf(format!("main · {}", n.commit), 12.0, t::FG2, t::MONO), tx(format!("· {}", n.at), 12.5, t::FG3)].spacing(8).align_y(Vertical::Center),
                         row![btn(crate::i18n::text("Abrir nota"), Kind::Normal, true, Some("edit"), Some(Msg::EditorOpen(n.path.to_string()))), btn("Obsidian", Kind::Ghost, true, None, Some(Msg::Toast(crate::i18n::text("Abriria no Obsidian").into())))].spacing(6),
                     ]
-                    .spacing(7);
+                    .spacing(6);
                     v = v.push(card("Vault", tx(n.at.clone(), 12.5, t::FG3).into(), inner.into()));
                 }
                 None => v = v.push(card("Vault", sp_w(0.0), tx(crate::i18n::text("A nota desta conversa é gravada no fim de cada rodada."), 12.5, t::FG3).into())),
             }
-            v = v.push(card(crate::i18n::text("Contexto"), tx(format!("{pct}%"), 12.5, t::FG3).into(), column![meter(pct as f32, 3.0, t::FG2), tx(crate::i18n::formatted("{} mil de 200 mil tokens", format!("{} mil de 200 mil tokens", pct * 2)), 11.5, t::FG3)].spacing(7).into()));
+            v = v.push(card(crate::i18n::text("Contexto"), tx(format!("{pct}%"), 12.5, t::FG3).into(), column![meter(pct as f32, 3.0, t::FG2), tx(crate::i18n::formatted("{} mil de 200 mil tokens", format!("{} mil de 200 mil tokens", pct * 2)), 11.5, t::FG3)].spacing(6).into()));
             if c.id == "ram" {
                 let files = ["src/memory/index.rs", "src/voice/wake.rs", "src/embed/cache.rs"];
-                let mut inner = column![].spacing(7);
+                let mut inner = column![].spacing(6);
                 for f in files {
                     inner = inner.push(kv("file", txf(f, 12.0, t::FG2, t::MONO).into()));
                 }
@@ -88,7 +91,7 @@ pub fn view(app: &App) -> El<'_> {
                     row![badge(crate::i18n::text("PR aberto"), Tone::Plain), tx("#29 quirky-dijkstra", 12.5, t::FG2)].spacing(8).align_y(Vertical::Center),
                     row![btn(crate::i18n::text("Abrir PR"), Kind::Normal, true, None, Some(Msg::Toast(crate::i18n::text("Abrir PR pede aprovação").into()))), btn("Merge", Kind::Normal, true, None, Some(Msg::Toast(crate::i18n::text("Merge pede aprovação").into())))].spacing(6)
                 ]
-                .spacing(7)
+                .spacing(6)
                 .into(),
             );
             column![tree, gh].spacing(8).into()
@@ -187,7 +190,7 @@ pub fn view(app: &App) -> El<'_> {
             ])
             .width(Length::Fill)
             .height(Length::Fill)
-            .style(|_| container::Style { background: Some(t::TERM_BG.into()), border: Border { color: t::LINE, width: 1.0, radius: 10.0.into() }, ..Default::default() })
+            .style(|_| container::Style { background: Some(t::TERM_BG.into()), border: Border { color: t::LINE, width: 1.0, radius: t::R_CARD.into() }, ..Default::default() })
             .into()
         }
     };
