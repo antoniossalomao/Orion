@@ -322,17 +322,22 @@ fn dia_de(texto: Option<String>) -> ApiResult<NaiveDate> {
     }
 }
 
+/// O texto guardado às 23:59 para um dia passado; para hoje, ou sem guardado, monta agora. Leitura e exportação usam o mesmo texto.
+fn relatorio_do_dia(st: &Estado, project_id: Option<&str>, date: NaiveDate) -> ApiResult<String> {
+    let guardado = st.memory.meta_get(&orion_core::relatorio::chave(project_id, date));
+    match guardado.filter(|_| date != Local::now().date_naive()) {
+        Some(m) => Ok(m),
+        None => orion_core::relatorio::voce_fez(&st.memory, project_id, date).map_err(|e| ApiError::new(500, e.to_string())),
+    }
+}
+
 /// F09.05: o "Você fez" do dia (o texto guardado às 23:59, ou montado agora para hoje).
 pub async fn voce_fez(_: Admin, State(st): State<Estado>, Query(q): Query<VoceFezQ>) -> ApiResult<Json<Value>> {
     if let Some(pid) = &q.project_id {
         project(&st, pid, false)?;
     }
     let date = dia_de(q.date)?;
-    let guardado = st.memory.meta_get(&orion_core::relatorio::chave(q.project_id.as_deref(), date));
-    let markdown = match guardado.filter(|_| date != Local::now().date_naive()) {
-        Some(m) => m,
-        None => orion_core::relatorio::voce_fez(&st.memory, q.project_id.as_deref(), date).map_err(|e| ApiError::new(500, e.to_string()))?,
-    };
+    let markdown = relatorio_do_dia(&st, q.project_id.as_deref(), date)?;
     Ok(Json(json!({"date": date.to_string(), "markdown": markdown})))
 }
 
@@ -342,7 +347,7 @@ pub async fn voce_fez_exportar(_: Admin, State(st): State<Estado>, Json(q): Json
         project(&st, pid, false)?;
     }
     let date = dia_de(q.date)?;
-    let markdown = orion_core::relatorio::voce_fez(&st.memory, q.project_id.as_deref(), date).map_err(|e| ApiError::new(500, e.to_string()))?;
+    let markdown = relatorio_do_dia(&st, q.project_id.as_deref(), date)?;
     let hora = Local::now().format("%H:%M").to_string();
     // O nome do projeto distingue o arquivo do relatório pessoal e dos outros projetos.
     let escopo = match &q.project_id {

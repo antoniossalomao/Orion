@@ -17,7 +17,6 @@ use orion_store::{with_scope, DataScope};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::io::Write;
-use std::process::{Command, Stdio};
 
 /// Teto do texto de uma transcrição indexada.
 const MAX_TEXTO: usize = 400_000;
@@ -49,23 +48,46 @@ fn wav_16k_mono(b: &[u8]) -> bool {
 }
 
 /// Converte para o WAV que o Whisper local lê (mono, 16 kHz). Sem `ffmpeg` ou se falhar, devolve `None`.
+/// A saída tem teto de tamanho e de duração, e o ffmpeg tem prazo (REGRAS.md: conteúdo externo é dado, não vira consumo sem limite).
 fn para_wav(origem: &[u8]) -> Option<Vec<u8>> {
     let exe = orion_core::util::which("ffmpeg")?;
     let dir = tempfile::tempdir().ok()?;
     let (entrada, saida) = (dir.path().join("entrada"), dir.path().join("saida.wav"));
     std::fs::File::create(&entrada).ok()?.write_all(origem).ok()?;
-    let ok = Command::new(exe)
-        .args(["-nostdin", "-loglevel", "error", "-y", "-i"])
-        .arg(&entrada)
-        .args(["-vn", "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", "-f", "wav"])
-        .arg(&saida)
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .ok()?
-        .success();
-    ok.then(|| std::fs::read(&saida).ok()).flatten().filter(|w| !w.is_empty() && w.len() <= MAX_AUDIO)
+    let r = orion_core::util::rodar(
+        &[
+            exe.to_string_lossy().into_owned(),
+            "-nostdin".into(),
+            "-loglevel".into(),
+            "error".into(),
+            "-y".into(),
+            "-i".into(),
+            entrada.to_string_lossy().into_owned(),
+            "-vn".into(),
+            "-t".into(),
+            "600".into(),
+            "-fs".into(),
+            MAX_AUDIO.to_string(),
+            "-ac".into(),
+            "1".into(),
+            "-ar".into(),
+            "16000".into(),
+            "-c:a".into(),
+            "pcm_s16le".into(),
+            "-f".into(),
+            "wav".into(),
+            saida.to_string_lossy().into_owned(),
+        ],
+        None,
+        std::time::Duration::from_secs(60),
+        Some(orion_core::util::env_limpo()),
+    )
+    .ok()?;
+    if r.codigo != Some(0) {
+        return None;
+    }
+    let tamanho = std::fs::metadata(&saida).ok()?.len();
+    (tamanho > 0 && tamanho <= MAX_AUDIO as u64).then(|| std::fs::read(&saida).ok()).flatten()
 }
 
 #[derive(Deserialize)]
