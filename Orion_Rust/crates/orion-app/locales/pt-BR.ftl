@@ -935,3 +935,45 @@ ui-0935 = { "Gerar de novo" }
 ui-0936 = { "Lendo em voz alta" }
 ui-0937 = { "Ouvir" }
 ui-0938 = { "Subir na ordem" }
+
+ui-0939 = { "permissões computador web abrir apps confirmação autorização" }
+
+ui-0940 = { "Autorize uma vez neste computador. A escolha fica salva e pode ser alterada aqui a qualquer momento." }
+
+ui-0941 = { "Sem confirmações por ação, o Orion pode abrir apps, executar comandos, alterar ou apagar arquivos e usar a web, inclusive após ler documentos externos." }
+
+ui-0942 = { "Desativar todas as ferramentas" }
+
+ui-0943 = { "Autorizar todas as ferramentas" }
+
+ui-0944 = { "Carregando permissões…" }
+
+ui-0945 = { "Ferramentas do computador" }
+
+ui-0946 = { "Arquivos, aplicativos, comandos e automação do computador." }
+
+ui-0947 = { "Ferramentas da web" }
+
+ui-0948 = { "Busca e acesso à web com os serviços configurados." }
+
+ui-0949 = { "Sem confirmação a cada ação" }
+
+ui-0950 = { "Usa a autorização salva. Desligado, volta a pedir confirmação para ações que exigem aprovação." }
+
+ui-0951 = { "As alterações valem imediatamente. Voz, câmera, captura contínua e integrações ainda precisam de configuração própria. Pânico e registros de ações continuam ativos." }
+
+ui-0952 = { "Alterar o código do próprio Orion continua exigindo aprovação específica." }
+
+ui-0953 = { "Permite mais passos por pedido. A autorização para agir sem confirmação fica em Ferramentas." }
+
+ui-0954 = { "Ferramentas e importação" }
+
+ui-0955 = { "Você escolhe uma vez; pode mudar depois nas Configurações." }
+
+ui-0956 = { "Autorizar todas as ferramentas sem confirmação a cada ação" }
+
+ui-0957 = { "Permite abrir apps, executar comandos, ler arquivos sensíveis, alterar ou apagar arquivos e usar a web, inclusive após ler conteúdo externo. Vale neste computador até você desligar em Configurações → Ferramentas." }
+
+ui-0958 = { "Não ativa voz, câmera, captura contínua nem integrações sem configuração. Pânico e registros de ações continuam ativos." }
+
+ui-0959 = { "Modo autônomo ligado. Mais passos por pedido; as permissões ficam em Configurações → Ferramentas." }

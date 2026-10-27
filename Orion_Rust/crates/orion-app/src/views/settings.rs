@@ -1,4 +1,4 @@
-//! Configurações (§18): modal 1060×740, navegação com busca por palavra-chave e as 15 seções.
+//! Configurações (§18): modal 1060×740, navegação com busca por palavra-chave.
 
 use crate::app::{App, Msg, Panic, Pop, Sec};
 use crate::chart::Line;
@@ -23,6 +23,7 @@ const GROUPS: [(&str, &[Entry]); 2] = [
             (Sec::Notificacoes, "bell", "Notificações e sons", "notificações sons não perturbe"),
             (Sec::Conta, "user", "Conta", "nome apelido senha sair"),
             (Sec::Privacidade, "shield", "Privacidade e autonomia", "modo autônomo permissões nunca sai pausar apagar histórico"),
+            (Sec::Tools, "keys", "Ferramentas", "permissões computador web abrir apps confirmação autorização"),
             (Sec::Uso, "gauge", "Uso", "limite tokens cotas"),
             (Sec::Painel, "gauge", "Painel", "Cotas, modelos e a semana, direto do servidor."),
             (Sec::Modelos, "cpu", "Modelos", "auto claude codex gemini orion provedores ordem cotas chaves"),
@@ -142,9 +143,33 @@ fn section<'a>(app: &'a App) -> El<'a> {
             c = c.push(sh(crate::i18n::text("Sessão")));
             c = c.push(setting(crate::i18n::text("Sair deste computador"), crate::i18n::text("Pede a senha de novo para entrar."), btn(crate::i18n::text("Sair"), Kind::Normal, true, None, Some(Msg::Logout))));
         }
+        Sec::Tools => {
+            c = c.push(sh("Ferramentas"));
+            c = c.push(lede("Autorize uma vez neste computador. A escolha fica salva e pode ser alterada aqui a qualquer momento."));
+            c = c.push(lede("Sem confirmações por ação, o Orion pode abrir apps, executar comandos, alterar ou apagar arquivos e usar a web, inclusive após ler documentos externos."));
+            let values = p.tools.unwrap_or([false; 3]);
+            let ready = p.tools.is_some() && !p.tools_busy;
+            c = c.push(btn(
+                crate::i18n::text(if values.iter().all(|v| *v) { "Desativar todas as ferramentas" } else { "Autorizar todas as ferramentas" }),
+                Kind::Primary, false, None, ready.then_some(Msg::ToolPermission(3)),
+            ));
+            if p.tools.is_none() {
+                c = c.push(lede("Carregando permissões…"));
+            }
+            for (index, (label, description)) in [
+                ("Ferramentas do computador", "Arquivos, aplicativos, comandos e automação do computador."),
+                ("Ferramentas da web", "Busca e acesso à web com os serviços configurados."),
+                ("Sem confirmação a cada ação", "Usa a autorização salva. Desligado, volta a pedir confirmação para ações que exigem aprovação."),
+            ].into_iter().enumerate() {
+                let control = if ready { switch(values[index], Msg::ToolPermission(index)) } else { badge(crate::i18n::text(if values[index] { "Ativo" } else { "Desligado" }), Tone::Plain) };
+                c = c.push(setting(crate::i18n::text(label), crate::i18n::text(description), control));
+            }
+            c = c.push(lede("As alterações valem imediatamente. Voz, câmera, captura contínua e integrações ainda precisam de configuração própria. Pânico e registros de ações continuam ativos."));
+            c = c.push(lede("Alterar o código do próprio Orion continua exigindo aprovação específica."));
+        }
         Sec::Privacidade => {
             c = c.push(sh(crate::i18n::text("Modo autônomo")));
-            c = c.push(setting(crate::i18n::text("Modo autônomo"), crate::i18n::text("Ligado, o Orion age sem pedir aprovação. Continua pedindo para tudo que pode quebrar o PC ou o projeto: apagar, mexer no sistema, force-push, reescrever histórico, desinstalar."), sw(p.auto, "auto")));
+            c = c.push(setting(crate::i18n::text("Modo autônomo"), crate::i18n::text("Permite mais passos por pedido. A autorização para agir sem confirmação fica em Ferramentas."), sw(p.auto, "auto")));
             c = c.push(sh(crate::i18n::text("Sempre sem aprovação")));
             c = c.push(never(&[("check", crate::i18n::text("Ler arquivos nas pastas confiáveis")), ("check", crate::i18n::text("Gravar notas no vault + commit na main")), ("check", crate::i18n::text("Busca na web sem dados pessoais")), ("check", crate::i18n::text("Comandos de leitura (git status, cargo check)"))]));
             c = c.push(sh(crate::i18n::text("Nunca sai do computador")));

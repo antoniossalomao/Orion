@@ -51,6 +51,8 @@ fn autostart_on() -> bool {
 
 #[derive(Deserialize)]
 pub struct Setup {
+    #[serde(default)]
+    pub authorize_tools: bool,
     pub user: String,
     pub name: String,
     pub language: String,
@@ -241,13 +243,15 @@ pub fn finish(s: &Settings, request: Value) -> anyhow::Result<Value> {
         store.conn().execute_batch("PRAGMA wal_checkpoint(TRUNCATE)")?;
     }
     create_file(&stage.path().join(FILE), &serde_json::to_vec_pretty(&profile)?)?;
+    let permissions = if form.authorize_tools { orion_core::tool_permissions::ToolPermissions::all() } else { Default::default() };
+    permissions.save(stage.path())?;
     let mut extra = vec![];
     for import in &form.imports {
         extra.extend(crate::onboarding_imports::prepare(import, stage.path(), profile.vault.as_deref())?);
     }
     extra.sort();
     extra.dedup();
-    let mut files = vec!["auth.db".to_string(), "orion.db".to_string(), key_name.to_string()];
+    let mut files = vec!["auth.db".to_string(), "orion.db".to_string(), key_name.to_string(), orion_core::tool_permissions::FILE.into()];
     files.extend(extra);
     files.push(FILE.into());
     let recovery = zeroize::Zeroizing::new(format!(
@@ -294,7 +298,7 @@ fn resume(s: &Settings) -> anyhow::Result<Value> {
     for name in files {
         let name = name.as_str().ok_or_else(|| anyhow::anyhow!("arquivo de preparação inválido"))?;
         anyhow::ensure!(
-            ["auth.db", "orion.db", "orion.key", "orion-recovery.key", "extensions", "mcp-importado.json", FILE].contains(&name),
+            ["auth.db", "orion.db", "orion.key", "orion-recovery.key", "extensions", "mcp-importado.json", FILE, orion_core::tool_permissions::FILE].contains(&name),
             "arquivo de preparação inválido"
         );
         let (from, to) = (stage.join(name), s.data_dir.join(name));

@@ -42,6 +42,7 @@ pub enum Field {
 pub const STEPS: usize = 6;
 #[derive(Clone)]
 pub enum Event {
+    AuthorizeTools(bool),
     Input(Field, String),
     Encrypt(bool),
     Hello(bool),
@@ -81,6 +82,7 @@ fn sky_px(win: iced::Size) -> (u32, u32) {
 }
 
 pub struct Form {
+    pub authorize_tools: bool,
     pub step: usize,
     pub step_at: std::time::Instant,
     /// Céu do instalador: uma estrela acende por tela (7 telas, 7 estrelas).
@@ -180,6 +182,7 @@ impl Form {
         sky.step_dt(0.016, 0.0, 0.0);
         let sky_img = sky.render_image_handle();
         Self {
+            authorize_tools: false,
             step: 0,
             step_at: std::time::Instant::now(),
             sky,
@@ -295,7 +298,7 @@ impl Form {
     }
     pub fn take_request(&mut self) -> Value {
         // Preserva o rascunho em memória se a gravação falhar. Drop limpa os segredos após concluir/cancelar.
-        json!({"user":self.user,"name":self.name,"language":self.language,"password":self.password,"confirmation":self.confirmation,"encrypted":self.encrypted,"hello":self.hello,"recovery":self.recovery,"vault":self.vault,"projects":self.projects,"backup":self.backup,"telegram_users":self.telegram_users,"telegram_2fa":self.telegram_2fa,"drive_backup":self.drive_connected,"secrets":self.secrets,"imports":self.imports})
+        json!({"user":self.user,"name":self.name,"language":self.language,"password":self.password,"confirmation":self.confirmation,"encrypted":self.encrypted,"hello":self.hello,"recovery":self.recovery,"vault":self.vault,"projects":self.projects,"backup":self.backup,"telegram_users":self.telegram_users,"telegram_2fa":self.telegram_2fa,"drive_backup":self.drive_connected,"secrets":self.secrets,"imports":self.imports,"authorize_tools":self.authorize_tools})
     }
 }
 
@@ -376,6 +379,7 @@ impl crate::app::App {
             }
             Event::Input(field, text) if !form.busy && form.testing.is_none() => form.input(field, text),
             Event::Encrypt(value) if !form.busy => form.encrypted = value,
+            Event::AuthorizeTools(value) if !form.busy => form.authorize_tools = value,
             Event::Autostart(value) if !form.busy => form.autostart = value,
             Event::Hello(value) if !form.busy && form.hello_available => form.hello = value,
             Event::Telegram2fa(value) if !form.busy => form.telegram_2fa = value,

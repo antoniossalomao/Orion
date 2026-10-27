@@ -27,6 +27,9 @@ use std::sync::Arc;
 #[allow(dead_code)] // gateway, custos, delegator e processos alimentam o painel
 pub struct AppState {
     pub settings: Settings,
+    pub tool_permissions: parking_lot::Mutex<orion_core::tool_permissions::ToolPermissions>,
+    pub desktop_tool_names: Vec<String>,
+    pub web_tool_names: Vec<String>,
     pub memory: Arc<Store>,
     pub policy: Arc<PolicyEngine>,
     pub started_at: f64,
@@ -116,6 +119,19 @@ impl LiveConfig {
 
 pub type CameraDescrever = Arc<dyn Fn(&str) -> serde_json::Value + Send + Sync>;
 pub type Estado = Arc<AppState>;
+
+/// Atualiza visibilidade e execução juntas, inclusive para chamadas já selecionadas pelo modelo.
+pub fn apply_tool_permissions(
+    policy: &PolicyEngine,
+    choice: orion_core::tool_permissions::ToolPermissions,
+    desktop_names: &[String],
+    web_names: &[String],
+) {
+    let mut disabled = std::collections::HashSet::new();
+    if !choice.desktop_tools { disabled.extend(desktop_names.iter().cloned()); }
+    if !choice.web_tools { disabled.extend(web_names.iter().cloned()); }
+    policy.configure_access(choice.without_confirmation, disabled);
+}
 
 /// Política com audit no banco: falha de gravação nega o que não for leitura
 /// (REGRAS.md: falha de auditoria nega a ação).
@@ -437,6 +453,15 @@ pub async fn montar(mut settings: Settings) -> anyhow::Result<Estado> {
     }
     let custos = Arc::new(Custos::new(memory.clone(), cotas_de(&settings.quotas(), &settings.provedores), Some(ops.clone())));
     let policy = Arc::new(build_policy(&settings, Some(ops.clone())));
+    let tool_permissions = orion_core::tool_permissions::ToolPermissions::load(&settings.data_dir)?.unwrap_or(
+        orion_core::tool_permissions::ToolPermissions {
+            desktop_tools: settings.desktop_tools,
+            web_tools: settings.web_tools,
+            without_confirmation: false,
+        },
+    );
+    let mut desktop_tool_names = Vec::new();
+    let mut web_tool_names = Vec::new();
     let auth = Arc::new(AuthService::open(&settings.auth_db_path(), &settings.auth_user, settings.session_ttl_h as f64 * 3600.0)?);
     if settings.seed_default_password && auth.seed_default()? {
         tracing::warn!("SENHA DE FÁBRICA ativa (usuário '{}'): troque em Configurações", settings.auth_user);
@@ -534,8 +559,8 @@ pub async fn montar(mut settings: Settings) -> anyhow::Result<Estado> {
         }
         extra.extend(orion_core::historicos::ferramentas(historicos.clone(), &policy, settings.clipboard_days > 0, settings.command_history));
         let mut o = Opcoes { ops: Some(ops.clone()), delegator: delegator.clone(), camera: camera_tools, extra, ..Default::default() };
-        if settings.desktop_tools {
-            // opt-in (ORION_DESKTOP_TOOLS): age no computador, sempre sob a política
+        {
+            // O registro fica pronto; a política filtra e nega o grupo sem opt-in.
             use orion_core::tools::*;
             o.desktop.extend(desktop::desktop_tools(60.0, 8000));
             o.desktop.extend(fs_tools::fs_tools());
@@ -552,8 +577,8 @@ pub async fn montar(mut settings: Settings) -> anyhow::Result<Estado> {
             o.desktop.extend(process_tools(pm.clone(), ops.clone()));
             processos = Some(pm);
         }
-        if settings.web_tools {
-            // opt-in (ORION_WEB_TOOLS): rede, conteúdo externo
+        {
+            // Construir a ferramenta não faz chamada de rede.
             o.web = orion_core::tools::web::web_tools(WebOpcoes {
                 search_key: chave_de(vec![settings.search_api_key.clone(), settings.embed_api_key.clone()], &["ORION_SEARCH_API_KEY", "ORION_EMBED_API_KEY"]),
                 search_model: settings.search_model.clone(),
@@ -572,6 +597,9 @@ pub async fn montar(mut settings: Settings) -> anyhow::Result<Estado> {
             let _ = policy.register_tool(orion_core::tools::n8n::tool_spec(), None);
             o.extra.push(orion_core::tools::n8n::n8n_tool(webhooks));
         }
+        desktop_tool_names = o.desktop.iter().map(|tool| tool.name.clone()).collect();
+        web_tool_names = o.web.iter().map(|tool| tool.name.clone()).collect();
+        apply_tool_permissions(&policy, tool_permissions, &desktop_tool_names, &web_tool_names);
         let registro = default_registry(memory.clone(), o)?;
         let mut a =
             Agent::new(gw.clone(), registro, policy.clone(), memory.clone(), AgentConfig { routing: roteamento_ligado(&settings), persona: {
@@ -932,6 +960,9 @@ pub async fn montar(mut settings: Settings) -> anyhow::Result<Estado> {
         *t.painel.lock() = Some(Arc::new(move || orion_core::painel::texto_do_painel(&p.montar())));
     }
     Ok(Arc::new(AppState {
+        tool_permissions: parking_lot::Mutex::new(tool_permissions),
+        desktop_tool_names,
+        web_tool_names,
         accounts: Some(accounts),
         ponte: Default::default(),
         imagens_ponte: Default::default(),

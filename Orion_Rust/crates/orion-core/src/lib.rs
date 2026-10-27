@@ -78,5 +78,6 @@ pub mod two_factor;
 pub mod native_audio;
 
 pub mod onboarding;
+pub mod tool_permissions;
 
 pub mod onboarding_backup;

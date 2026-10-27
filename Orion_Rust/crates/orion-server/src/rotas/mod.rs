@@ -92,6 +92,7 @@ pub fn router(st: Estado) -> Router {
         .route("/config/chave", post(chave_guardar))
         .route("/config/language", post(language_save))
         .route("/config/recarregar", post(config_recarregar))
+        .route("/config/tools", get(tool_permissions_get).put(tool_permissions_save))
         .route("/modo/autonomo", post(modo_autonomo))
         .route("/modo/panico", post(modo_panico))
         .route("/modo/nao-perturbe", post(modo_nao_perturbe))
