@@ -89,7 +89,8 @@ impl Painel {
         let mut por_dia: BTreeMap<String, (i64, i64)> = BTreeMap::new();
         let mut por_provedor: BTreeMap<String, i64> = BTreeMap::new();
         for r in &linhas {
-            if r["kind"].as_str() == Some("transcribe") {
+            // Só inferência de modelo conta como token; páginas baixadas, áudio gerado e MCP são tráfego, não modelo.
+            if !matches!(r["kind"].as_str(), Some("chat" | "embed" | "vision" | "cli")) {
                 continue;
             }
             let dia = crate::util::local(r["ts"].as_f64().unwrap_or(0.0)).format("%Y%m%d").to_string();
