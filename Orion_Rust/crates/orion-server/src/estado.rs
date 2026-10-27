@@ -104,11 +104,13 @@ pub struct LiveConfig {
     /// Campos como estão rodando agora (só nomes e textos para comparar): a recarga compara com isto, não com
     /// o que valia na inicialização, para que voltar a um valor antigo também seja uma mudança.
     pub applied: parking_lot::Mutex<Option<std::collections::BTreeMap<String, String>>>,
+    /// Configuração que o gateway usa agora (com as mudanças já aplicadas); `None` = a da inicialização.
+    pub current: parking_lot::Mutex<Option<Settings>>,
 }
 
 impl LiveConfig {
     pub fn de(s: &Settings) -> Self {
-        LiveConfig { injection: Arc::new(s.injection_guard.into()), diary: Arc::new(s.vault_diario.into()), applied: parking_lot::Mutex::new(None) }
+        LiveConfig { injection: Arc::new(s.injection_guard.into()), diary: Arc::new(s.vault_diario.into()), applied: parking_lot::Mutex::new(None), current: parking_lot::Mutex::new(None) }
     }
 }
 

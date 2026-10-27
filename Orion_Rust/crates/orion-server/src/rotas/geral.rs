@@ -596,7 +596,9 @@ pub async fn chave_guardar(_: Admin, State(st): State<Estado>, Json(c): Json<Cha
         .map_err(anyhow::Error::from)?
         .map_err(|_| ApiError::new(500, "não foi possível guardar no cofre do sistema"))?;
     if c.nome.starts_with("ORION_KEY_") {
-        recarregar_gateway(&st, st.settings.clone()).await?;
+        // Parte do que está rodando (com as mudanças já aplicadas pela recarga), não da inicialização.
+        let atual = st.live.current.lock().clone().unwrap_or_else(|| st.settings.clone());
+        recarregar_gateway(&st, atual).await?;
     }
     Ok(Json(json!({"ok": true, "reiniciar": !c.nome.starts_with("ORION_KEY_")})))
 }
@@ -663,8 +665,9 @@ fn campos_das_configuracoes(s: &orion_core::config::Settings) -> std::collection
 const DEFINIDOS_NA_INICIALIZACAO: [&str; 10] = ["data_dir", "vault_dir", "admin_token", "auth_user", "seed_default_password", "host", "port", "allow_public_bind", "cookie_secure", "jobs_enabled"];
 /// Mudanças que refazem o gateway na hora.
 /// (`provedores` entra só com `ORION_PROVEDORES` explícito; sem isso a lista vem do banco e difere do `.env` sem mudança sua.)
-/// O modelo embutido (`local_model*`) fica de fora: o gerador é criado na inicialização e a recarga não o troca.
-const DO_GATEWAY: [&str; 10] = ["gateway_url", "gateway_model", "gateway_model_fast", "gateway_model_heavy", "gateway_api_key", "vision_model", "local_url", "allow_paid", "providers_explicit", "provedores"];
+/// Ficam de fora: o modelo embutido (`local_model*`), cujo gerador nasce na inicialização, e os modelos por
+/// camada (`gateway_model_fast/heavy`, `vision_model`), porque ligar o roteamento também é decidido na inicialização.
+const DO_GATEWAY: [&str; 7] = ["gateway_url", "gateway_model", "gateway_api_key", "local_url", "allow_paid", "providers_explicit", "provedores"];
 
 /// F07.08: relê o `.env` e o ambiente e aplica o que dá sem reiniciar. O resto vai listado em
 /// `exigem_reinicio`. Só nomes de campos saem daqui, nunca valores (REGRAS.md: segredos nunca em log).
@@ -688,10 +691,19 @@ pub async fn config_recarregar(_: Admin, State(st): State<Estado>) -> ApiResult<
         }
     }
     if refazer_gateway {
-        let mut s = novo.clone();
-        s.data_dir = st.settings.data_dir.clone();
-        s.vault_dir = st.settings.vault_dir.clone();
-        recarregar_gateway(&st, s).await?;
+        // Só o que foi aplicado entra: o resto da configuração continua como roda agora.
+        let mut s = st.live.current.lock().clone().unwrap_or_else(|| st.settings.clone());
+        s.gateway_url = novo.gateway_url.clone();
+        s.gateway_model = novo.gateway_model.clone();
+        s.gateway_api_key = novo.gateway_api_key.clone();
+        s.local_url = novo.local_url.clone();
+        s.allow_paid = novo.allow_paid;
+        s.providers_explicit = novo.providers_explicit;
+        if st.settings.providers_explicit && novo.providers_explicit {
+            s.provedores = novo.provedores.clone();
+        }
+        recarregar_gateway(&st, s.clone()).await?;
+        *st.live.current.lock() = Some(s);
     }
     // A base passa a valer só para o que foi aplicado; o que exige reinício continua com o valor que roda
     // agora e volta a aparecer até você reiniciar (ou desfazer a mudança).

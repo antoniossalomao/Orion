@@ -47,6 +47,9 @@ fn build(memory: &Arc<Store>, vault: &Path, sid: &str) -> anyhow::Result<Option<
 
     let title = session.title.as_deref().map(|t| one_line(t, 100)).filter(|t| !t.is_empty()).unwrap_or_else(|| one_line(&first.text, 60));
     let title = if title.is_empty() { "Conversa".to_string() } else { title };
+    // O nome do arquivo sai da data e do título: o começo do id da sessão impede que duas conversas do
+    // mesmo dia com o mesmo título disputem o mesmo arquivo e se marquem como conflito uma da outra.
+    let title = format!("{} · {title}", sid.chars().take(8).collect::<String>());
     let summary = one_line(&first.text, 200);
 
     // A note precisa de um Projeto existente no vault; sem ele, cai no project Orion.
