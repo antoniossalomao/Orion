@@ -379,6 +379,9 @@ pub struct Mensagem {
     texto: String,
     #[serde(default)]
     anexos: Vec<String>,
+    /// ids devolvidos por `POST /chat/imagens`; valem só para este turno (F05.11)
+    #[serde(default)]
+    imagens: Vec<String>,
     #[serde(default = "canal_padrao")]
     canal: String,
     /// recursos e prompts de MCP escolhidos (dados externos com fonte, nunca privilégios)
@@ -451,6 +454,9 @@ pub async fn chat(_: Admin, State(st): State<Estado>, Json(mut c): Json<Mensagem
     if c.skills.len() > 3 || c.referencias.len() > 8 || c.contexto.len() > 8 || c.anexos.len() > 8 {
         return erro(422, "skills (até 3), referencias e contexto (até 8)");
     }
+    for id in &c.imagens {
+        conferir(id, SESSAO_ID, "imagem")?;
+    }
     let s = st.memory.active_session(&c.canal)?;
     // O prompt só é expandido no escopo selecionado e continua um pedido normal,
     // sujeito à política (REGRAS.md: skill é texto, não código).
@@ -487,7 +493,9 @@ pub async fn chat(_: Admin, State(st): State<Estado>, Json(mut c): Json<Mensagem
         use sha2::{Digest, Sha256};
         external.push(orion_core::extensions::context::ExternalData { connection: "user-upload".into(), kind: "document".into(), key: id.clone(), digest: format!("{:x}", Sha256::digest(full.as_bytes())), truncated: text.len() < full.len() || chunks.len() == 80, text });
     }
-    Ok(stream_sse(a.run(TurnRequest { channel: c.canal, text: c.texto, external, selection, expected_session: Some(s.id), skill_forcada: c.skill, ..Default::default() })))
+    // Só depois de todas as validações: as imagens saem da guarda e vão ao turno.
+    let images = super::imagens::tomar(&c.imagens)?;
+    Ok(stream_sse(a.run(TurnRequest { channel: c.canal, text: c.texto, images, external, selection, expected_session: Some(s.id), skill_forcada: c.skill, ..Default::default() })))
 }
 
 /// As skills da sua pasta `skills/` (nome e descrição): para `/skill` e a paleta.

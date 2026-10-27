@@ -5,6 +5,7 @@
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
 mod appmode;
+mod diario;
 mod onboarding;
 mod onboarding_drive;
 mod onboarding_hello;

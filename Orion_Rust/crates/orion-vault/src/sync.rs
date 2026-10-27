@@ -1,6 +1,7 @@
 use crate::detector::{detect_vault_path, VaultConfig};
 use crate::git::GitSync;
 use crate::note::ConversationNote;
+use crate::project::ProjectNote;
 use crate::parser::{ParsedNote, VaultParser};
 use crate::scanner::SecretScanner;
 use crate::VaultError;
@@ -38,6 +39,10 @@ pub struct SyncResult {
     pub warning: Option<String>,
     pub conflict: Option<NoteConflict>,
     pub unchanged: bool,
+    /// SHA-256 do texto que o Orion pretendia gravar; o diário o guarda para saber se a nota
+    /// continua intacta antes de atualizá-la (REGRAS.md: você é o administrador).
+    #[serde(default)]
+    pub content_sha256: String,
 }
 
 /// Gerenciador central de sincronização e memória do Vault (F06).
@@ -79,6 +84,12 @@ impl VaultManager {
         })
     }
 
+    /// Só grava o arquivo, sem commit nem push: o diário não polui o histórico do seu vault.
+    pub fn without_git(mut self) -> Self {
+        self.git = None;
+        self
+    }
+
     pub fn config(&self) -> &VaultConfig {
         &self.config
     }
@@ -94,7 +105,19 @@ impl VaultManager {
     /// Nunca substitui um arquivo existente com conteúdo diferente (REGRAS.md: você é o administrador).
     /// Diferenças viram uma proposta separada, marcada como conflito, sem commit/push automático.
     pub fn save_conversation(&self, note: &ConversationNote) -> Result<SyncResult, VaultError> {
+        self.save_note(note, None)
+    }
+
+    /// Diário de sessão: igual a `save_conversation`, mas atualiza a nota no lugar quando o arquivo
+    /// ainda é exatamente a versão que o Orion gravou antes (`previous_sha256`). Se você editou a
+    /// nota, ela é preservada e a versão nova vira proposta de conflito.
+    pub fn save_diary(&self, note: &ConversationNote, previous_sha256: Option<&str>) -> Result<SyncResult, VaultError> {
+        self.save_note(note, previous_sha256)
+    }
+
+    fn save_note(&self, note: &ConversationNote, replace_if: Option<&str>) -> Result<SyncResult, VaultError> {
         let md = note.to_markdown();
+        let md_sha = format!("{:x}", Sha256::digest(md.as_bytes()));
         SecretScanner::scan(&md).map_err(|e| VaultError::SecretDetected(e.to_string()))?;
         let rel = Path::new("03 Recursos")
             .join("Orion")
@@ -110,7 +133,11 @@ impl VaultManager {
                     &rel,
                     false,
                 )?)?;
-                if existing != md {
+                let own_previous = replace_if.is_some_and(|prev| prev == format!("{:x}", Sha256::digest(existing.as_bytes())));
+                if existing != md && own_previous {
+                    replace_note(&target, &md)?;
+                    false
+                } else if existing != md {
                     let proposal = format!("{md}\n> Conflito de edição. A versão anterior foi preservada. Revise as duas versões antes de publicar.\n");
                     let digest = format!("{:x}", Sha256::digest(proposal.as_bytes()));
                     let stem = rel
@@ -133,12 +160,13 @@ impl VaultManager {
                     let original_path = rel.to_string_lossy().replace('\\', "/");
                     let proposed_path = proposed_rel.to_string_lossy().replace('\\', "/");
                     return Ok(SyncResult {
-                        file_path: original_path.clone(), commit_hash: None, pushed: false, unchanged: false,
+                        file_path: original_path.clone(), commit_hash: None, pushed: false, unchanged: false, content_sha256: md_sha,
                         warning: Some("Conflito de edição: as duas versões foram preservadas. Revise a original e a proposta; nenhuma foi enviada ao Git.".into()),
                         conflict: Some(NoteConflict { original_path, proposed_path }),
                     });
+                } else {
+                    true
                 }
-                true
             }
             Err(e) => return Err(e.into()),
         };
@@ -152,26 +180,54 @@ impl VaultManager {
             warning: None,
             conflict: None,
             unchanged,
+            content_sha256: md_sha,
         };
-        if let Some(git) = &self.git {
-            match git.commit_note(&rel, &md, &note.summary) {
-                Ok(commit) => {
-                    result.commit_hash = Some(commit.hash.clone());
-                    if commit.created && self.config.auto_push {
-                        match git.push_note(&commit) {
-                            Ok(_) => result.pushed = true,
-                            Err(e) => {
-                                result.warning =
-                                    Some(format!("Nota commitada localmente; push pendente: {e}"))
-                            }
-                        }
+        self.commit_and_push(&rel, &md, &note.summary, &mut result);
+        Ok(result)
+    }
+
+    /// Commit isolado da nota (índice do usuário preservado) e push só se o pai já estiver no remoto.
+    fn commit_and_push(&self, rel: &Path, md: &str, message: &str, result: &mut SyncResult) {
+        let Some(git) = &self.git else { return };
+        match git.commit_note(rel, md, message) {
+            Ok(commit) => {
+                result.commit_hash = Some(commit.hash.clone());
+                if commit.created && self.config.auto_push {
+                    match git.push_note(&commit) {
+                        Ok(_) => result.pushed = true,
+                        Err(e) => result.warning = Some(format!("Nota commitada localmente; push pendente: {e}")),
                     }
                 }
-                Err(e) => {
-                    result.warning =
-                        Some(format!("Nota preservada localmente; commit pendente: {e}"))
-                }
             }
+            Err(e) => result.warning = Some(format!("Nota preservada localmente; commit pendente: {e}")),
+        }
+    }
+
+    /// F08.06: cria `01 Projetos/<Nome>/<Nome>.md` ao criar o projeto. Nunca sobrescreve: se a nota
+    /// já existe (mesmo editada por você), ela fica como está e o resultado vem com `unchanged`.
+    pub fn create_project_note(&self, note: &ProjectNote) -> Result<SyncResult, VaultError> {
+        let md = note.to_markdown()?;
+        SecretScanner::scan(&md).map_err(|e| VaultError::SecretDetected(e.to_string()))?;
+        let rel = note.rel_path();
+        let target = crate::safe_path::checked(&self.config.path, &rel, true)?;
+        let unchanged = match publish_new(&target, &md) {
+            Ok(()) => false,
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => true,
+            Err(e) => return Err(e.into()),
+        };
+        let path = rel.to_string_lossy().replace('\\', "/");
+        self.notes_cache.write().insert(path.clone(), VaultParser::parse(&path, &md));
+        let mut result = SyncResult {
+            file_path: path,
+            commit_hash: None,
+            pushed: false,
+            warning: None,
+            conflict: None,
+            unchanged,
+            content_sha256: format!("{:x}", Sha256::digest(md.as_bytes())),
+        };
+        if !unchanged {
+            self.commit_and_push(&rel, &md, &format!("Orion: nota do projeto {}", note.name.trim()), &mut result);
         }
         Ok(result)
     }
@@ -279,6 +335,15 @@ fn publish_new(path: &Path, content: &str) -> Result<(), std::io::Error> {
     file.write_all(content.as_bytes())?;
     file.as_file().sync_all()?;
     file.persist_noclobber(path).map_err(|e| e.error)?;
+    Ok(())
+}
+
+/// Troca atômica de uma nota que o Orion mesmo gravou e que continua intacta.
+fn replace_note(path: &Path, content: &str) -> Result<(), std::io::Error> {
+    let mut file = tempfile::NamedTempFile::new_in(path.parent().ok_or_else(|| std::io::Error::other("pasta inválida"))?)?;
+    file.write_all(content.as_bytes())?;
+    file.as_file().sync_all()?;
+    file.persist(path).map_err(|e| e.error)?;
     Ok(())
 }
 

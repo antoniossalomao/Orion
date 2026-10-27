@@ -568,6 +568,11 @@ pub async fn montar(mut settings: Settings) -> anyhow::Result<Estado> {
         a.library = Some(biblioteca.clone());
         a.modos = Some(modos.clone());
         a.compactor = compactor_from_settings(&settings, memory.clone());
+        if settings.vault_diario {
+            if let Some(vault) = settings.vault_dir.clone().or_else(orion_vault::detect_vault_path) {
+                a.pos_turno = Some(crate::diario::gancho(memory.clone(), vault));
+            }
+        }
         *a.indice.write() = Some(indice);
         agent = Some(Arc::new(a));
     }

@@ -133,7 +133,7 @@
   "Aguardando sua aprovação": "ui-0131",
   "Pergunte ou peça algo ao Orion. / para comandos, @ para citar uma nota": "ui-0132",
   "Responder ao Orion": "ui-0133",
-  "Anexar texto, Markdown ou PDF (até 6 MB)": "ui-0134",
+  "Anexar documento (6 MB), imagem (10 MB) ou áudio (20 MB)": "ui-0134",
   "Falar (clique para gravar)": "ui-0135",
   "Voz ao vivo": "ui-0136",
   "Comando /{word} não existe. /ajuda lista todos.": "ui-0137",
@@ -886,5 +886,18 @@
   "Todos os comandos": "ui-0884",
   "Projetos recentes": "ui-0885",
   "Edição de texto": "ui-0886",
-  "Navegar na lista": "ui-0887"
+  "Navegar na lista": "ui-0887",
+  "Sua nota no vault e a versão nova do Orion diferem.": "ui-0888",
+  "No vault (sua versão)": "ui-0889",
+  "Versão nova do Orion": "ui-0890",
+  "Texto final": "ui-0891",
+  "Usar a do vault": "ui-0892",
+  "Usar a do Orion": "ui-0893",
+  "Descartar proposta": "ui-0894",
+  "Salvar texto final": "ui-0895",
+  "A sua versão fica como está e a nova vira uma proposta. Compare as duas aqui e escolha.": "ui-0896",
+  "sem conflitos": "ui-0897",
+  "revisar": "ui-0898",
+  "Conflito pendente no vault.": "ui-0899",
+  "Comparar": "ui-0900"
 }

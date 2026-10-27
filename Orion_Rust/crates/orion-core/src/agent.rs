@@ -141,6 +141,8 @@ pub struct Agent {
     pub library: Option<Arc<Library>>,
     pub modos: Option<Arc<Modos>>,
     pub compactor: Option<Arc<Compactor>>,
+    /// Depois de cada resposta, com o id da conversa; o servidor usa para o diário do vault (F06.07).
+    pub pos_turno: Option<Arc<dyn Fn(&str) + Send + Sync>>,
     /// Nome da ferramenta → servidor MCP (E6.4).
     pub servidor_mcp: Option<Arc<dyn Fn(&str) -> Option<String> + Send + Sync>>,
     pub indice: RwLock<Option<Indice>>,
@@ -167,6 +169,7 @@ impl Agent {
             library: None,
             modos: None,
             compactor: None,
+            pos_turno: None,
             servidor_mcp: None,
             indice: RwLock::new(None),
             refresh_tools: RwLock::new(None),
@@ -347,6 +350,9 @@ impl Agent {
             // depois da resposta, em segundo plano (REGRAS.md: resumo da conversa nunca substitui o registro)
             if let Some(c) = &me.compactor {
                 c.agendar(&session.id);
+            }
+            if let Some(f) = &me.pos_turno {
+                f(&session.id);
             }
         })
     }

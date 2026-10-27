@@ -76,10 +76,10 @@ pub fn view(app: &App, home: bool) -> El<'_> {
         })
         .style(|_, _| text_editor::Style { background: Background::Color(iced::Color::TRANSPARENT), border: Border::default(), placeholder: t::FG3, value: t::FG, selection: t::ACCENT_SOFT });
 
-    let mut foot = row![tip(ib("plus", Some(Msg::Attach), false), crate::i18n::text("Anexar texto, Markdown ou PDF (até 6 MB)"))].spacing(2).align_y(Vertical::Center);
+    let mut foot = row![tip(ib("plus", Some(Msg::Attach), false), crate::i18n::text("Anexar documento (6 MB), imagem (10 MB) ou áudio (20 MB)"))].spacing(2).align_y(Vertical::Center);
     for (i, a) in app.attach.iter().enumerate() {
         foot = foot.push(
-            container(row![icon("file", 14.0, t::FG2), tx(a.0.clone(), 12.0, t::FG2), tx(a.1.clone(), 12.0, t::FG3), button(icon("close", 14.0, t::FG3)).padding(0).on_press(Msg::Unattach(i)).style(|_, _| button::Style::default())].spacing(6).align_y(Vertical::Center))
+            container(row![anexo_icone(app, i), tx(a.0.clone(), 12.0, t::FG2), tx(a.1.clone(), 12.0, t::FG3), button(icon("close", 14.0, t::FG3)).padding(0).on_press(Msg::Unattach(i)).style(|_, _| button::Style::default())].spacing(6).align_y(Vertical::Center))
                 .height(Length::Fixed(26.0))
                 .center_y(Length::Fixed(26.0))
                 .padding(pad(0.0, 6.0, 0.0, 8.0))
@@ -135,6 +135,14 @@ pub fn view(app: &App, home: bool) -> El<'_> {
     let mm: El = Popover::new(chip_model, menus::model_menu(app), app.pop == Some(Pop::Model)).side(Side::Right).on_dismiss(Msg::ClosePop).into();
     meta = meta.push(mm);
     column![boxed, meta].spacing(4).width(Length::Fixed(width)).into()
+}
+
+/// Miniatura da imagem anexada (F05.11) ou o ícone de arquivo.
+fn anexo_icone<'a>(app: &'a App, i: usize) -> El<'a> {
+    match app.attachment_ids.get(i).and_then(|id| app.attach_thumbs.get(id)) {
+        Some(h) => iced::widget::image(h.clone()).width(Length::Fixed(20.0)).height(Length::Fixed(20.0)).content_fit(iced::ContentFit::Cover).into(),
+        None => icon("file", 14.0, t::FG2).into(),
+    }
 }
 
 fn send_btn<'a>(inner: El<'a>, msg: Option<Msg>, active: bool) -> El<'a> {

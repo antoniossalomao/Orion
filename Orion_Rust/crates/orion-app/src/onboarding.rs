@@ -594,7 +594,7 @@ pub fn choose(field: Field) -> Result<Option<String>, String> {
     {
         use std::os::windows::process::CommandExt;
         let script = if field == Field::Attachment {
-            "Add-Type -AssemblyName System.Windows.Forms; $d=New-Object System.Windows.Forms.OpenFileDialog; $d.Title='Anexar documento ao chat'; $d.Filter='Documentos (*.txt;*.md;*.pdf)|*.txt;*.md;*.pdf'; if($d.ShowDialog() -eq 'OK'){[Console]::OutputEncoding=[Text.Encoding]::UTF8; [Console]::Write($d.FileName)}"
+            "Add-Type -AssemblyName System.Windows.Forms; $d=New-Object System.Windows.Forms.OpenFileDialog; $d.Title='Anexar documento ao chat'; $d.Filter='Documentos (*.txt;*.md;*.pdf;*.png;*.jpg;*.webp;*.mp3;*.wav;*.m4a;*.ogg;*.opus;*.flac;*.webm)|*.txt;*.md;*.pdf;*.png;*.jpg;*.jpeg;*.webp;*.wav;*.mp3;*.m4a;*.ogg;*.opus;*.flac;*.webm'; if($d.ShowDialog() -eq 'OK'){[Console]::OutputEncoding=[Text.Encoding]::UTF8; [Console]::Write($d.FileName)}"
         } else if field == Field::ImportPath {
             "Add-Type -AssemblyName System.Windows.Forms; $d=New-Object System.Windows.Forms.OpenFileDialog; $d.Filter='Exports e plugins (*.json;*.jsonl;*.zip;*.toml)|*.json;*.jsonl;*.zip;*.toml'; if($d.ShowDialog() -eq 'OK'){[Console]::OutputEncoding=[Text.Encoding]::UTF8; [Console]::Write($d.FileName)}"
         } else if field == Field::Recovery {

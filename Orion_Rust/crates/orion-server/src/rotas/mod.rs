@@ -1,6 +1,7 @@
 //! Rotas da API (as mesmas do `app.py`), com login em todas exceto descoberta e saúde
 //! (REGRAS.md: toda rota da API exige login). Sem `/docs` nem `/openapi.json`.
 
+pub mod audios;
 pub mod automacao;
 pub mod base;
 pub mod captura;
@@ -9,6 +10,7 @@ pub mod documentos;
 pub mod export;
 pub mod extensoes;
 pub mod geral;
+pub mod imagens;
 pub mod integracoes;
 pub mod memoria;
 pub mod modelos;
@@ -128,6 +130,10 @@ pub fn router(st: Estado) -> Router {
         .route("/vault/pull", post(vault_pull))
         .route("/vault/search", get(vault_search))
         .route("/vault/save", post(vault_save))
+        .route("/vault/conflitos", get(vault_conflitos))
+        .route("/vault/conflitos/ver", get(vault_conflito_ver))
+        .route("/vault/conflitos/resolver", post(vault_conflito_resolver))
+        .route("/vault/conflitos/descartar", post(vault_conflito_descartar))
         .route("/captura", post(capturar))
         .route("/captura/:id", delete(desfazer_captura))
         .route("/ler-depois", get(ler_depois_listar).post(ler_depois_adicionar))
@@ -195,6 +201,8 @@ pub fn router(st: Estado) -> Router {
         .route("/files/plans", get(planos_listar).post(plano_criar))
         .route("/files/plans/:id/review", post(plano_revisar))
         .route("/files/plans/:id/apply", post(plano_aplicar))
+        .route("/chat/audios", post(audios::enviar_audio).layer(axum::extract::DefaultBodyLimit::max(orion_ai::transcribe::MAX_AUDIO + 1024)))
+        .route("/chat/imagens", post(imagens::enviar_imagem).layer(axum::extract::DefaultBodyLimit::max(imagens::MAX_IMAGEM + 1024)))
         .route("/documents", get(listar_documentos).post(enviar_documento).layer(axum::extract::DefaultBodyLimit::max(documents_limite())))
         .route("/documents/:id", get(detalhe_documento).patch(mover_documento))
         .route("/documents/:id/retry", post(tentar_de_novo))

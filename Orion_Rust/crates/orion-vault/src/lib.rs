@@ -5,19 +5,23 @@
 //! completo ainda não estão implementados aqui. REGRAS.md: você é o administrador;
 //! segredos nunca em log, audit ou processo filho.
 
+pub mod conflicts;
 pub mod detector;
 pub mod git;
 pub mod note;
 pub mod parser;
+pub mod project;
 pub mod scanner;
 pub mod sync;
 mod safe_path;
 mod validate;
 
+pub use conflicts::{ConflictDetail, ConflictSummary};
 pub use detector::{detect_vault_path, VaultConfig};
-pub use git::{GitError, GitSync};
+pub use git::{clone_public_repo, GitError, GitSync, GithubRepo};
 pub use note::{ConversationNote, NoteFrontmatter, NoteMetadata};
 pub use parser::{ParsedNote, VaultParser};
+pub use project::ProjectNote;
 pub use scanner::{ScanError, SecretScanner};
 pub use sync::{NoteConflict, SyncResult, VaultManager, VaultStats};
 

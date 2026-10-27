@@ -283,7 +283,11 @@ fn section<'a>(app: &'a App) -> El<'a> {
             c = c.push(setting(crate::i18n::text("Resumo diário das conversas triviais"), crate::i18n::text("Uma nota por dia em Memória/Diário, gerada às 23:59."), badge("23:59", Tone::Ok)));
             c = c.push(setting(crate::i18n::text("Commit e push"), crate::i18n::text("Direto na main do vault, um commit por nota gravada. Sem PR."), badge(crate::i18n::text("automático"), Tone::Ok)));
             c = c.push(setting(crate::i18n::text("git pull do vault"), crate::i18n::text("Ao abrir o app, a cada conversa nova, antes de gravar uma nota e ao abrir a Memória."), btn(crate::i18n::text("Agora"), Kind::Normal, true, None, Some(Msg::VaultPull))));
-            c = c.push(setting(crate::i18n::text("Se você editou a mesma nota no Obsidian"), crate::i18n::text("O Orion pergunta no chat e mostra as duas versões."), badge(crate::i18n::text("perguntar"), Tone::Plain)));
+            c = c.push(setting(crate::i18n::text("Se você editou a mesma nota no Obsidian"), crate::i18n::text("A sua versão fica como está e a nova vira uma proposta. Compare as duas aqui e escolha."), badge(if app.conflitos.is_empty() { crate::i18n::text("sem conflitos") } else { crate::i18n::text("revisar") }, if app.conflitos.is_empty() { Tone::Ok } else { Tone::Plain })));
+            for (i, (original, _, existe)) in app.conflitos.iter().enumerate() {
+                let nome = original.rsplit('/').next().unwrap_or(original);
+                c = c.push(setting(nome, crate::i18n::text("Conflito pendente no vault."), btn(crate::i18n::text("Comparar"), Kind::Normal, *existe, None, Some(Msg::ConflitoAbrir(i)))));
+            }
             c = c.push(setting(crate::i18n::text("Grafo"), crate::i18n::text("3D no app final, como o Obsidian, sobre o céu do front original."), btn(crate::i18n::text("Abrir"), Kind::Normal, true, None, Some(Msg::SetGo(crate::app::View::Memoria)))));
         }
         Sec::Fontes => {

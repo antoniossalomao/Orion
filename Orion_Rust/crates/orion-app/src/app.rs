@@ -258,6 +258,17 @@ pub struct RenameForm {
     pub request_id: u64,
 }
 
+/// Conflito do vault aberto para comparar (F06.08): a nota do vault, a do Orion e o texto final.
+pub struct ConflitoState {
+    pub proposed_path: String,
+    pub original_path: String,
+    pub original: String,
+    pub proposal: String,
+    pub sha: String,
+    pub content: text_editor::Content,
+    pub busy: bool,
+}
+
 pub struct EditorState {
     pub path: String,
     pub name: String,
@@ -318,6 +329,8 @@ pub struct App {
     pub composer: text_editor::Content,
     pub attach: Vec<(String, String)>,
     pub attachment_ids: Vec<String>,
+    /// Miniaturas das imagens anexadas, por id de anexo (F05.11).
+    pub attach_thumbs: std::collections::HashMap<String, iced::widget::image::Handle>,
     pub attachment_generation: u64,
     pub attaching: bool,
     pub attach_n: usize,
@@ -371,6 +384,9 @@ pub struct App {
     pub wipe: bool,
     pub pal: PalState,
     pub editor: Option<EditorState>,
+    /// Propostas de conflito pendentes no vault: (nota original, proposta, original existe).
+    pub conflitos: Vec<(String, String, bool)>,
+    pub conflito: Option<ConflitoState>,
     pub qcap: Option<QCap>,
     /// Senha digitada para ligar o modo autônomo (None = pedido fechado).
     pub auto_senha: Option<String>,
@@ -591,6 +607,13 @@ pub enum Msg {
     IssoAsk,
     EditorOpen(String),
     EditorEdit(text_editor::Action),
+    ConflitoAbrir(usize),
+    ConflitoEdit(text_editor::Action),
+    /// Carrega no campo final a versão do vault (`false`) ou a do Orion (`true`).
+    ConflitoUsar(bool),
+    ConflitoSalvar,
+    ConflitoDescartar,
+    ConflitoFechar,
     EditorClose,
     EditorSave,
     // grafo
@@ -658,6 +681,7 @@ impl App {
             composer: text_editor::Content::new(),
             attach: vec![],
             attachment_ids: vec![],
+            attach_thumbs: std::collections::HashMap::new(),
             attachment_generation: 0,
             attaching: false,
             attach_n: 0,
@@ -703,6 +727,8 @@ impl App {
             wipe: false,
             pal: PalState { open: false, q: String::new(), sel: 0 },
             editor: None,
+            conflitos: vec![],
+            conflito: None,
             qcap: None,
             auto_senha: None,
             isso: None,
@@ -854,6 +880,7 @@ impl App {
         self.composer = text_editor::Content::new();
         self.attach.clear();
         self.attachment_ids.clear();
+        self.attach_thumbs.clear();
         self.attachment_generation = self.attachment_generation.wrapping_add(1);
         if v == View::Rotinas {
             for r in self.rots.iter_mut() {
@@ -1314,7 +1341,7 @@ impl App {
             Msg::Unattach(i) => {
                 if i < self.attach.len() {
                     self.attach.remove(i);
-                    if i < self.attachment_ids.len() { self.attachment_ids.remove(i); }
+                    if i < self.attachment_ids.len() { let id = self.attachment_ids.remove(i); self.attach_thumbs.remove(&id); }
                 }
             }
             Msg::Mic => {
@@ -1623,6 +1650,9 @@ impl App {
                 }
             }
             Msg::EditorClose => self.editor = None,
+            Msg::ConflitoEdit(action) => { if let Some(c) = &mut self.conflito { c.content.perform(action.clone()); } }
+            Msg::ConflitoUsar(proposta) => { if let Some(c) = &mut self.conflito { c.content = text_editor::Content::with_text(if *proposta { &c.proposal } else { &c.original }); } }
+            Msg::ConflitoFechar => self.conflito = None,
             Msg::EditorSave => {
                 self.editor = None;
                 self.toast("Nota salva; commit e push na main do vault");
@@ -1914,6 +1944,7 @@ impl App {
         self.composer = text_editor::Content::new();
         self.attach.clear();
         self.attachment_ids.clear();
+        self.attach_thumbs.clear();
         self.attachment_generation = self.attachment_generation.wrapping_add(1);
         self.navigate(View::Chat, Some(ci));
         Task::none()

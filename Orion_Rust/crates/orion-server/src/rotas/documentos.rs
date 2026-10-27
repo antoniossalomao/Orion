@@ -18,7 +18,7 @@ pub struct ProjQ {
     project_id: Option<String>,
 }
 
-fn validar(st: &Estado, pid: &Option<String>) -> ApiResult<()> {
+pub(super) fn validar(st: &Estado, pid: &Option<String>) -> ApiResult<()> {
     if let Some(p) = pid {
         let r = st.memory.query("SELECT archived FROM projects WHERE id=?", &[p])?;
         if r.first().is_none_or(|r| r["archived"].as_i64().unwrap_or(1) != 0) {
@@ -28,7 +28,7 @@ fn validar(st: &Estado, pid: &Option<String>) -> ApiResult<()> {
     Ok(())
 }
 
-fn linha_de(st: &Estado, pid: &Option<String>, id: &str) -> ApiResult<Json<Value>> {
+pub(super) fn linha_de(st: &Estado, pid: &Option<String>, id: &str) -> ApiResult<Json<Value>> {
     let rows = documents::linhas(&st.memory, pid.as_deref())?;
     rows.into_iter().find(|r| r["id"] == json!(id)).map(|r| Json(Value::Object(r))).ok_or_else(|| ApiError::new(404, "document_not_found"))
 }

@@ -91,39 +91,8 @@ impl GitSync {
     }
 
     fn command(&self, index: Option<&Path>) -> Command {
-        let mut cmd = Command::new("git");
-        cmd.current_dir(&self.vault_path).env_clear();
-        // Ambiente mínimo para Git, cofre do SO, certificados e proxy configurado.
-        for key in [
-            "PATH",
-            "HOME",
-            "USERPROFILE",
-            "SystemRoot",
-            "WINDIR",
-            "APPDATA",
-            "LOCALAPPDATA",
-            "TEMP",
-            "TMP",
-            "TMPDIR",
-            "SSH_AUTH_SOCK",
-            "HTTP_PROXY",
-            "HTTPS_PROXY",
-            "ALL_PROXY",
-            "NO_PROXY",
-            "http_proxy",
-            "https_proxy",
-            "all_proxy",
-            "no_proxy",
-            "SSL_CERT_FILE",
-            "SSL_CERT_DIR",
-            "GIT_SSL_CAINFO",
-        ] {
-            if let Some(value) = std::env::var_os(key) {
-                cmd.env(key, value);
-            }
-        }
-        cmd.env("GIT_TERMINAL_PROMPT", "0")
-            .env("GIT_LITERAL_PATHSPECS", "1");
+        let mut cmd = hardened_command();
+        cmd.current_dir(&self.vault_path);
         if let Some(index) = index {
             cmd.env("GIT_INDEX_FILE", index);
             // A revalidação de entradas do índice não pode ler a árvore de trabalho real
@@ -132,21 +101,6 @@ impl GitSync {
                 "GIT_WORK_TREE",
                 index.parent().expect("índice temporário com pasta"),
             );
-        }
-        cmd.args([
-            "-c",
-            "core.fsmonitor=false",
-            "-c",
-            "core.hooksPath=/dev/null",
-            "-c",
-            "commit.gpgSign=false",
-            "-c",
-            "core.quotePath=false",
-        ]);
-        #[cfg(windows)]
-        {
-            use std::os::windows::process::CommandExt;
-            cmd.creation_flags(0x08000000);
         }
         cmd
     }
@@ -279,11 +233,11 @@ impl GitSync {
     ) -> Result<NoteCommit, GitError> {
         crate::safe_path::relative(rel)
             .map_err(|_| GitError::Unsafe("caminho de nota inválido"))?;
-        if !rel.starts_with(Path::new("03 Recursos").join("Orion").join("Memória"))
+        if !(rel.starts_with(Path::new("03 Recursos").join("Orion").join("Memória")) || is_project_note(rel))
             || rel.extension().and_then(|s| s.to_str()) != Some("md")
         {
             return Err(GitError::Unsafe(
-                "o commit só aceita notas da memória do Orion",
+                "o commit só aceita notas da memória e notas raiz de projeto do Orion",
             ));
         }
         SecretScanner::scan(content)
@@ -431,4 +385,109 @@ impl GitSync {
             None,
         )
     }
+}
+
+/// `01 Projetos/<Nome>/<Nome>.md`: a única nota fora da memória que o Orion commita.
+fn is_project_note(rel: &Path) -> bool {
+    let parts: Vec<_> = rel.components().map(|c| c.as_os_str().to_string_lossy().into_owned()).collect();
+    matches!(parts.as_slice(), [root, dir, file] if root == "01 Projetos" && *file == format!("{dir}.md"))
+}
+
+/// Git sem shell, sem hooks, sem fsmonitor e só com o ambiente mínimo (cofre do SO, certificados, proxy).
+fn hardened_command() -> Command {
+    let mut cmd = Command::new("git");
+    cmd.env_clear();
+    for key in [
+        "PATH", "HOME", "USERPROFILE", "SystemRoot", "WINDIR", "APPDATA", "LOCALAPPDATA", "TEMP", "TMP", "TMPDIR",
+        "SSH_AUTH_SOCK", "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "all_proxy",
+        "no_proxy", "SSL_CERT_FILE", "SSL_CERT_DIR", "GIT_SSL_CAINFO",
+    ] {
+        if let Some(value) = std::env::var_os(key) {
+            cmd.env(key, value);
+        }
+    }
+    cmd.env("GIT_TERMINAL_PROMPT", "0").env("GIT_LITERAL_PATHSPECS", "1");
+    cmd.args(["-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null", "-c", "commit.gpgSign=false", "-c", "core.quotePath=false"]);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x08000000);
+    }
+    cmd
+}
+
+/// Repositório público do GitHub aceito para clonar: `https://github.com/<dono>/<repo>`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GithubRepo {
+    pub owner: String,
+    pub name: String,
+}
+
+impl GithubRepo {
+    /// Só https, só github.com, sem usuário, porta, consulta ou fragmento: a URL vira dado validado,
+    /// nunca argumento livre de comando (REGRAS.md: o que o modelo escreve nunca vira comando).
+    pub fn parse(url: &str) -> Result<Self, GitError> {
+        let bad = GitError::Unsafe("URL do repositório inválida; use https://github.com/<dono>/<repo>");
+        let rest = url.trim().strip_prefix("https://github.com/").ok_or(bad)?;
+        let rest = rest.strip_suffix('/').unwrap_or(rest);
+        let rest = rest.strip_suffix(".git").unwrap_or(rest);
+        let (owner, name) = rest
+            .split_once('/')
+            .ok_or(GitError::Unsafe("URL do repositório inválida; use https://github.com/<dono>/<repo>"))?;
+        let owner_ok = (1..=39).contains(&owner.len())
+            && !owner.starts_with('-')
+            && owner.chars().all(|c| c.is_ascii_alphanumeric() || c == '-');
+        let name_ok = (1..=100).contains(&name.len())
+            && !name.starts_with(['-', '.'])
+            && name.chars().all(|c| c.is_ascii_alphanumeric() || "._-".contains(c));
+        if !owner_ok || !name_ok {
+            return Err(GitError::Unsafe("URL do repositório inválida; use https://github.com/<dono>/<repo>"));
+        }
+        Ok(GithubRepo { owner: owner.into(), name: name.into() })
+    }
+
+    pub fn https_url(&self) -> String {
+        format!("https://github.com/{}/{}.git", self.owner, self.name)
+    }
+}
+
+/// Clona um repositório público do GitHub em `dest` (que não pode existir): raso, uma branch, sem
+/// submódulos, sem hooks, sem credenciais e sem LFS. Tempo limite de 5 minutos.
+/// Repositório privado falha, de propósito: o Orion não entrega credencial ao Git.
+pub fn clone_public_repo(repo: &GithubRepo, dest: &Path) -> Result<(), GitError> {
+    if dest.exists() {
+        return Err(GitError::Unsafe("a pasta de destino do clone já existe"));
+    }
+    let mut cmd = hardened_command();
+    cmd.args([
+        "-c", "credential.helper=", "-c", "protocol.allow=never", "-c", "protocol.https.allow=always",
+        "-c", "core.symlinks=false", "-c", "filter.lfs.smudge=", "-c", "filter.lfs.process=", "-c", "filter.lfs.required=false",
+    ])
+    .args(["clone", "--depth", "1", "--single-branch", "--no-tags", "--no-recurse-submodules", "--"])
+    .arg(repo.https_url())
+    .arg(dest)
+    .env("GIT_LFS_SKIP_SMUDGE", "1")
+    .stdin(Stdio::null())
+    .stdout(Stdio::null())
+    .stderr(Stdio::null());
+    let mut child = cmd.spawn()?;
+    let limit = std::time::Instant::now() + std::time::Duration::from_secs(300);
+    let status = loop {
+        if let Some(status) = child.try_wait()? {
+            break status;
+        }
+        if std::time::Instant::now() >= limit {
+            let _ = child.kill();
+            let _ = child.wait();
+            let _ = std::fs::remove_dir_all(dest);
+            return Err(GitError::CommandFailed("clone (tempo esgotado)"));
+        }
+        std::thread::sleep(std::time::Duration::from_millis(200));
+    };
+    if !status.success() {
+        let _ = std::fs::remove_dir_all(dest);
+        // stderr pode conter URLs com credenciais: nunca retorná-lo nem registrá-lo.
+        return Err(GitError::CommandFailed("clone"));
+    }
+    Ok(())
 }
