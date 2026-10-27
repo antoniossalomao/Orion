@@ -22,6 +22,27 @@ Validação: **550 testes existentes passaram**. Verificação descartável conf
 
 **Publicação autorizada:** Antônio respondeu “Sim, autorizo” à aprovação explícita de alterar os arquivos protegidos `REGRAS.md` e `orion-policy`, dispensar confirmações inclusive para ações destrutivas e publicar/mergear o PR. A autorização resolve o bloqueio anterior da revisão automática. Branch `codex/autorizacao-unica-ferramentas`; publicação e pacote manual completo em andamento, sem modelos locais nem reativação do CI automático.
 
+[PR #60](https://github.com/antoniossalomao/Orion/pull/60), implementação `78b3355d762821bedac4fc141633c83d0161f2b3`. [Build manual completo 40431719600](https://github.com/antoniossalomao/Orion/actions/runs/40431719600): release, SQLCipher, app + instalador, sem worker/pesos locais. Resultado e artefato podem ser conferidos na execução; instalação e uso reais continuam pendentes de aceite Windows.
+
+### Recursos existentes sem ligação completa à interface — diagnóstico de 26/10/2026
+
+Antônio perguntou se há outros recursos no código sem acesso/ativação no app. Leitura estática desta revisão; não comprova o estado do PC. Nenhum dos recursos abaixo foi habilitado por esta auditoria.
+
+| Recurso | Estado confirmado e acesso atual |
+|---|---|
+| Voz por clique, TTS, palavra Orion e palmas | Núcleo/rotas e escuta Windows existem; `VOICE_ENABLED`, transcritor/modelo e opt-ins de wake/clap são configuração manual. `Msg::Mic`, `Msg::Live` e os switches de Voz ainda mudam estado local, sem ligar o caminho de áudio real. Wake exige bundle validado; não basta o modelo candidato |
+| Câmera sob pedido e visão da tela | Há captura/descrição; dependem de `CAMERA`/`VISION_TOOLS`, provedor compatível e permissões/dispositivos. Os switches da seção Câmera são locais. Isso não comprova presença/biometria/objetos completos |
+| Memória da tela e históricos locais | `SCREEN_MEMORY`, `CLIPBOARD_DAYS` e `COMMAND_HISTORY` iniciam desligados; coleta/consulta/poda existem no núcleo. Não há controles equivalentes ligados às Configurações nativas |
+| Briefing, pesquisa noturna e ciclo de sono | Jobs existem, mas horários/tópicos/vault/web e opções específicas vêm da configuração. Sem horário, não há agenda correspondente. Autorizar ferramentas web na UI não configura esses jobs por si só |
+| Rotinas, regras de Downloads e n8n | Backends, concessões e execução existem. Rotinas/Downloads exigem arquivos próprios e concessão; n8n exige webhooks cadastrados. Falta um editor/assistente nativo completo para cadastrar esses recursos |
+| MCP/skills/plugins e agenda | Há descoberta, catálogo e concessões; a UI mostra parte do estado e testa MCP/ativa skills. Adicionar conexões e vincular agenda ainda depende de configuração/fluxos do núcleo; “liberar ferramentas” não instala nem autentica conectores |
+| Backup e recuperação | Primeiro uso configura backup/Drive; os comandos `backup-exportar`/`backup-importar` são reais. Os botões completos de exportar/importar da tela Sistema ainda só aparecem no protótipo; no uso real não oferecem esse fluxo |
+| Fontes e ajustes de Sistema | Fontes não filtra a recuperação do núcleo. Os switches de iniciar com Windows/atalho em Sistema também mudam somente preferências locais; o primeiro uso tem código próprio que grava o autostart no Windows |
+| Voz ao vivo, YOLO e reranker ONNX | Incompletos: `ws_voice` encerra com erro mesmo após o opt-in; `Detector::detectar_jpeg` retorna vazio; `LocalReranker::score` informa runtime não vinculado. Não são recursos prontos só esperando uma chave |
+| Terminal da interface | `Msg::TermRun` imprime saída marcada como simulada; a ferramenta `executar_comando` do agente é um caminho real separado |
+
+Evidências principais: `orion-core/src/config.rs`, `orion-server/src/estado.rs`, `orion-server/src/rotas/{voz,mod}.rs`, `orion-app/src/{app,live}.rs`, `orion-app/src/views/settings.rs`, `orion-core/src/visao_local.rs` e `orion-core/src/memory/rerank.rs`. Pendências de Voz/Fontes já têm cards no board. A auditoria não amplia o escopo de implementação do PR #60.
+
 ## Polimento e desempenho do Setup — 26/10/2026
 
 [PR #59](https://github.com/antoniossalomao/Orion/pull/59). Após os novos prints do Antônio, o diagnóstico do pacote anterior confirmou que `orion-setup` forçava `tiny-skia` e calculava cada quadro do céu na thread da interface. O rótulo Vulkan indicava suporte detectado, não uso da GPU pela janela. O Setup passa a preferir wgpu quando encontra GPU real, com fallback para tiny-skia se a superfície falhar e respeitando `ICED_BACKEND` explícito. Isso independe da opção Vulkan de IA local. O céu continua sendo composto na CPU, agora em uma thread persistente, com somente um quadro pendente e fundo imutável compartilhado; sem foco, para de pedir quadros e reduz o polling. Não é um shader de céu na GPU.
