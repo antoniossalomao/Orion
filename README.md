@@ -8,9 +8,9 @@ Assistente pessoal com identidade masculina: técnico, direto, não-servil. Não
 
 ## Estado
 
-App nativo para Windows em Rust: um só executável, `orion.exe` (interface iced e núcleo no mesmo processo, sem porta e sem Python), mais o worker opcional `orion-llama.exe` para modelos locais. Há grafo nativo 2D; renderer 3D e aceite final Windows continuam pendentes. Testes do Antônio no Windows estão registrados no R1, com problemas ainda em investigação. Faltam a chave de assinatura/primeiro release, a gravação automática no vault, o Windows Hello e várias fases do plano. O `Orion Setup.exe` oferece instalação por pacote do GitHub Releases (assinatura minisign + SHA-256) ou pacote offline; a distribuição assinada e a atualização ainda precisam de aceite. O estado completo está em [ORION.md](Memorias%20Do%20Projeto/ORION.md) e a lista do que falta em [ORION_AUDITORIA_PENDENCIAS.md](Memorias%20Do%20Projeto/ORION_AUDITORIA_PENDENCIAS.md). O pacote Python antigo foi removido do repositório (20/10/2026); o histórico está no Git.
+App nativo para Windows em Rust: `orion.exe` reúne interface iced e núcleo no mesmo processo, sem porta de API e sem Python obrigatório. O worker opcional `orion-llama.exe` atende modelos locais. O código inclui diário no vault, Windows Hello, anexos e configurações reais de recursos; o aceite de dispositivos, a distribuição assinada e o release publicado continuam pendentes. O estado detalhado fica em [ORION.md](Memorias%20Do%20Projeto/ORION.md).
 
-Em 24/10, o visual do Antigravity entrou na main em [`7ae8efd`](https://github.com/antoniossalomao/Orion/commit/7ae8efd43bafa691711447e504ed80e79a9105de). O backend e a integração das duas frentes estão no [PR #55](https://github.com/antoniossalomao/Orion/pull/55), ainda aberto. O [build manual 40128437375](https://github.com/antoniossalomao/Orion/actions/runs/40128437375) concluiu com sucesso e gerou [app + instalador sem modelos locais](https://github.com/antoniossalomao/Orion/actions/runs/40128437375/artifacts/12575110465), com SQLCipher e sem worker de IA local. Conteúdo e hashes conferidos; extraia o ZIP inteiro, mantenha a pasta `cpu` junto do `Orion Setup.exe` e deixe modelos/voz/Vulkan desmarcados para usar somente APIs. Isso não representa um release publicado nem aceite Windows.
+O [PR #62](https://github.com/antoniossalomao/Orion/pull/62) foi mergeado em 27/10, com a main do PR #61, removendo n8n e ligando os recursos às configurações e ações do app. Os 550 testes existentes e verificações com modelos ONNX reais passaram. O [pacote Windows atualizado](https://github.com/antoniossalomao/Orion/actions/runs/40604552924), com app e instalador, SQLCipher e sem pesos/worker de IA local, está em compilação. Extraia o ZIP inteiro e mantenha a pasta `cpu` junto de `Orion Setup.exe`. O pacote manual não é um release assinado.
 
 ## Documentação
 
@@ -40,7 +40,20 @@ Comandos úteis: `orion mcp-check` (servidores do `mcp.json`), `orion backup` / 
 
 ## Configuração
 
-O arquivo de exemplo é `.env.example`. As principais variáveis:
+Abra **Configurações** no app:
+
+- **Ferramentas:** autorize computador/web uma vez e escolha se haverá confirmação por ação; é possível revogar depois.
+- **Voz:** habilite a voz por clique e escolha um modelo Whisper local. Palavra Orion exige bundle validado; conversa ao vivo tem duração limitada e não usa memória nem ferramentas. GPU de transcrição exige pacote compilado com Vulkan.
+- **Câmera:** habilite os recursos desejados e configure os modelos/provedor necessários. Há ações para descrever foto/tela e cadastrar/apagar o rosto local.
+- **Fontes e Memória:** escolha as fontes, fatos e conversas que entram na recuperação; o reranker opcional exige modelo ONNX e tokenizer locais.
+- **Privacidade:** ajuste memória da tela, exclusões, retenção e históricos. A captura começa somente após o opt-in correspondente.
+- **Automações e pesquisa:** configure jobs, horários/tópicos e edite rotinas ou regras de Downloads. Salvar um arquivo revoga a concessão anterior; revise e conceda para executar.
+- **Conectores:** cadastre/edite MCP, autorize contas, vincule calendário e instale/revise plugins. Cada serviço continua precisando de endereço e credenciais próprios.
+- **Sistema:** configure pastas e backups, exporte/restaure o arquivo cifrado e ajuste início com Windows/atalho global. Restaurar cria outra pasta.
+
+Para recursos, use **Salvar e aplicar**: o núcleo é atualizado no mesmo processo, preservando conexões e revisões da sessão. Fontes e permissões de ferramentas valem imediatamente. Modelos e contas não vêm incluídos no pacote.
+
+O arquivo de exemplo é `.env.example`; as escolhas salvas no app prevalecem para os recursos correspondentes. As principais variáveis:
 
 | Variável | Uso |
 |---|---|
@@ -52,7 +65,7 @@ O arquivo de exemplo é `.env.example`. As principais variáveis:
 | `ORION_EMBED_API_KEY`, `ORION_EMBED_MODEL`, `ORION_EMBED_DIM` | Embeddings pela API gratuita do Gemini. Sem chave, a busca é só por palavra-chave |
 | `ORION_TELEGRAM_TOKEN`, `ORION_TELEGRAM_ALLOWED_USERS` | Canal do celular. Sem lista de IDs, o canal não sobe |
 | `ORION_TRANSCRIBE_API_KEY` | Voz (Whisper no Groq) |
-| `ORION_DESKTOP_TOOLS`, `ORION_WEB_TOOLS` | Opt-ins de ferramentas de computador e de web. Padrão: desligados |
+| `ORION_DESKTOP_TOOLS`, `ORION_WEB_TOOLS` | Opt-ins legados; a escolha salva em Configurações → Ferramentas prevalece. Padrão: desligados |
 | `ORION_MCP_CONFIG`, `ORION_MCP_ENABLED` | `mcp.json` com os servidores MCP (exemplo em `mcp.example.json`) |
 | `ORION_VAULT_DIR` | Vault do Obsidian, reindexado de hora em hora (vazio: não indexa) |
 | `ORION_JOBS_ENABLED`, `ORION_CONSOLIDATE` | Jobs em segundo plano (lembretes, backup, consolidação) |
