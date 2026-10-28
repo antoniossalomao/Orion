@@ -102,7 +102,7 @@ mcp.example.json · .env.example
 
 - O app não abre porta: a interface chama o núcleo no mesmo processo. Só `orion serve --features http` escuta, em `127.0.0.1`, com login obrigatório.
 - Entrada com usuário e senha (Argon2id); ligar o modo autônomo pede a senha de novo.
-- As ferramentas seguem a política de risco. Leitura roda direto; escrita fica no audit; execução e ação destrutiva pedem aprovação no próprio canal, com botão. Voz e frase nunca aprovam.
+- As ferramentas seguem a política de risco. Sem concessão única, execução e ações destrutivas pedem aprovação por botão no canal autenticado. Configurações → Ferramentas permite conceder ou revogar a dispensa de confirmações; pânico, limites e revisão de extensões continuam valendo. Voz e frase nunca concedem permissões.
 - Os princípios e o teste que prova cada um estão em [REGRAS.md](Memorias%20Do%20Projeto/REGRAS.md).
 - O backend antigo, seus scripts de inicialização e dependências de Qdrant/SurrealDB foram removidos. O histórico continua no Git e em `ORION_LEGADO.md`.
 - `.env`, chaves de API e credenciais OAuth nunca são versionados.
@@ -111,15 +111,15 @@ mcp.example.json · .env.example
 
 ### Controle Rust no Windows (PR #30)
 
-As opções específicas do Rust estão em `Orion_Rust/.env.example`; configure-as no `.env` lido pelo executável. Na pasta `Orion_Rust/`, use `cargo run -p orion-server` (Rust 1.91 ou superior). O app abre o login, mantém o núcleo na bandeja e oferece mini barra (`Ctrl+Alt+Espaço`), pânico (`Ctrl+Alt+P`), orçamento e rotinas. Fechar a janela mantém a bandeja; **Sair do Orion** encerra. Início com Windows é opt-in no painel ou `orion autostart --install`; a retomada do pânico é sempre explícita.
+As opções específicas do Rust estão em `Orion_Rust/.env.example`; configure-as no `.env` lido pelo executável. Na pasta `Orion_Rust/`, use `cargo run -p orion-server` (Rust 1.91 ou superior). O app abre o login, mantém o núcleo na bandeja e oferece mini barra (`Ctrl+Alt+Espaço`), pânico (`Ctrl+Alt+P`), orçamento e rotinas. Fechar a janela mantém a bandeja; **Sair do Orion** encerra. Início com Windows é opt-in em Configurações → Sistema ou `orion autostart --install`; a retomada do pânico é sempre explícita.
 
 Para 2FA, configure o bot e seus IDs permitidos no cofre/ambiente e `ORION_TELEGRAM_2FA=true`. Após a senha, digite na janela o código recebido no Telegram. Sem Telegram disponível o login com 2FA fica bloqueado; a reserva por Windows Hello ainda não está implementada. `ORION_TELEGRAM_VOICE_REPLY=true` permite resposta falada aos pedidos por áudio.
 
-Voz começa desligada. Configure `ORION_LOCAL_STT_MODEL` com um modelo Whisper ggml e `ORION_VOICE_ENABLED=true`. Para Vulkan, instale o SDK no ambiente de compilação, compile com `cargo build -p orion-server --features local-vulkan` e use `ORION_LOCAL_STT_GPU=true`; CPU é o padrão. Fallback Groq exige `ORION_TRANSCRIBE_GROQ_FALLBACK=true` além da chave. Áudio comprimido do Telegram usa ffmpeg local. TTS requer edge-tts no PATH; a escuta com interrupção usa playback cpal nativo com decodificador MP3 e AEC3.
+Voz começa desligada. Configure `ORION_LOCAL_STT_MODEL` com um modelo Whisper ggml e `ORION_VOICE_ENABLED=true`. Para Vulkan, instale o SDK no ambiente de compilação, compile com `cargo build -p orion-server --features local-vulkan` e use `ORION_LOCAL_STT_GPU=true`; CPU é o padrão. Fallback Groq exige `ORION_TRANSCRIBE_GROQ_FALLBACK=true` além da chave. Áudio comprimido do Telegram usa ffmpeg local. TTS usa edge-tts quando disponível; no Windows, a voz instalada no sistema é a alternativa nativa sem Python. A escuta com interrupção usa playback cpal com decodificador MP3 e AEC3.
 
 Para escuta local, habilite `ORION_WAKE_ENABLED=true`, `ORION_WAKE_ENGINE=openwakeword` e `ORION_WAKE_MODEL` apontando para `orion.onnx` de um bundle **Orion** validado, acompanhado de `orion.json` com hash, limiar e métricas. Para palmas, `ORION_CLAP_ENABLED=true`: mantenha silêncio nos primeiros dois segundos para a calibração. Palmas só abrem a janela. Respeitam pausa, pânico, não perturbe e teto por hora.
 
-O modo local embarcado é instalado pelo **Orion Setup.exe**, distribuído com as pastas `cpu/` e `vulkan/`, cada uma contendo `orion.exe` e `orion-llama.exe`. Escolha um LLM GGUF e/ou um Whisper na etapa de modelos; voz, downloads e Vulkan começam desmarcados. O instalador baixa os arquivos, verifica tamanho e SHA-256 e só então grava a configuração local. Vulkan requer driver compatível no PC. O LLM carrega só quando usado como reserva, sem ferramentas, e é descarregado ao terminar; o Windows limita o worker a 30% da RAM. O instalador ainda tem etapas antigas de certificado/serviço/atalhos em protótipo; esta entrega implementa a instalação dos binários e modelos locais.
+O modo local embarcado é instalado pelo **Orion Setup.exe**, distribuído com as pastas `cpu/` e `vulkan/`, cada uma contendo `orion.exe` e `orion-llama.exe`. Escolha um LLM GGUF e/ou um Whisper na etapa de modelos; voz, downloads e Vulkan começam desmarcados. O instalador baixa os arquivos, verifica tamanho e SHA-256 e só então grava a configuração local. Vulkan requer driver compatível no PC. O LLM carrega só quando usado como reserva, sem ferramentas, e é descarregado ao terminar; o Windows limita o worker a 30% da RAM. O pacote manual atual inclui somente CPU e não inclui worker nem pesos; para usar somente APIs, deixe modelos locais e Vulkan desmarcados.
 
 Para compilar o pacote no Windows, com o Vulkan SDK instalado:
 
