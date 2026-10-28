@@ -10,7 +10,7 @@ Assistente pessoal com identidade masculina: técnico, direto, não-servil. Não
 
 App nativo para Windows em Rust: `orion.exe` reúne interface iced e núcleo no mesmo processo, sem porta de API e sem Python obrigatório. O worker opcional `orion-llama.exe` atende modelos locais. O código inclui diário no vault, Windows Hello, anexos e configurações reais de recursos; o aceite de dispositivos, a distribuição assinada e o release publicado continuam pendentes. O estado detalhado fica em [ORION.md](Memorias%20Do%20Projeto/ORION.md).
 
-O [PR #62](https://github.com/antoniossalomao/Orion/pull/62) foi mergeado em 27/10, com a main do PR #61, removendo n8n e ligando os recursos às configurações e ações do app. Os 550 testes existentes e verificações com modelos ONNX reais passaram. O [pacote Windows atualizado](https://github.com/antoniossalomao/Orion/actions/runs/40604552924), com app e instalador, SQLCipher e sem pesos/worker de IA local, está em compilação. Extraia o ZIP inteiro e mantenha a pasta `cpu` junto de `Orion Setup.exe`. O pacote manual não é um release assinado.
+O [PR #62](https://github.com/antoniossalomao/Orion/pull/62) foi mergeado em 27/10, com a main do PR #61, removendo n8n e ligando os recursos às configurações e ações do app. Os 550 testes existentes e verificações com modelos ONNX reais passaram. O [pacote Windows atualizado](https://github.com/antoniossalomao/Orion/actions/runs/40604552924/artifacts/12782072444) foi gerado e conferido, com app e instalador, SQLCipher e sem pesos/worker de IA local. A interface usa GPU automaticamente quando disponível; transcrição e modelos ONNX usam CPU neste pacote. Extraia o ZIP inteiro e mantenha a pasta `cpu` junto de `Orion Setup.exe`. O pacote manual não é um release assinado.
 
 ## Documentação
 
@@ -19,7 +19,7 @@ O [PR #62](https://github.com/antoniossalomao/Orion/pull/62) foi mergeado em 27/
 | [ORION.md](Memorias%20Do%20Projeto/ORION.md) | Visão, estado por etapa, pendências suas, plano Rust, backlog e decisões |
 | [REGRAS.md](Memorias%20Do%20Projeto/REGRAS.md) | Princípios do projeto, onde o código os impõe e o teste que os prova |
 | [ARQUITETURA.md](Memorias%20Do%20Projeto/ARQUITETURA.md) | Módulos, dados, saídas para fora, fluxos e referências |
-| [ORION_AUDITORIA_PENDENCIAS.md](Memorias%20Do%20Projeto/ORION_AUDITORIA_PENDENCIAS.md) | O que falta, checklists conferidos e decisões de alinhamento |
+| [ORION_MELHORIAS_PRE_V1.md](Memorias%20Do%20Projeto/ORION_MELHORIAS_PRE_V1.md) | Pendências e critérios para concluir a v1 |
 | [ORION_LEGADO.md](Memorias%20Do%20Projeto/ORION_LEGADO.md) | Operação do Python antigo (referência histórica), o legado e a tabela de opt-ins |
 | [AGENTS.md](AGENTS.md) | Instruções para agentes de IA que trabalham no repositório |
 
