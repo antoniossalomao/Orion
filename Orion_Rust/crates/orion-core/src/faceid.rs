@@ -188,11 +188,19 @@ pub struct Verifier {
     varied: bool,
     previous: Option<(RetanguloFace, Vec<f64>)>,
     hint: Hint,
+    last_score: Option<f64>,
 }
 
 impl Verifier {
     pub fn new(model: Model) -> Self {
-        Self { model, matches: 0, mismatches: 0, dark_frames: 0, saw_face: false, saw_light: false, varied: false, previous: None, hint: Hint::Starting }
+        Self { model, matches: 0, mismatches: 0, dark_frames: 0, saw_face: false, saw_light: false, varied: false, previous: None, hint: Hint::Starting, last_score: None }
+    }
+
+    /// Confiança exibida no HUD (0..=1), relativa ao limiar do modelo: bater no limiar vale
+    /// 95%, acima dele sobe até 99,9%. Não é probabilidade; é só a régua visual da semelhança.
+    pub fn confidence(&self) -> Option<f64> {
+        let (score, t) = (self.last_score?, self.model.threshold);
+        Some(if score >= t { 0.95 + 0.049 * ((score - t) / (1.0 - t).max(1e-6)).min(1.0) } else { 0.95 * ((score - 0.6) / (t - 0.6)).clamp(0.0, 1.0) })
     }
 
     pub fn hint(&self) -> Hint {
@@ -232,6 +240,7 @@ impl Verifier {
         self.saw_face = true;
         self.hint = Hint::Reading;
         let score = self.model.score(vector);
+        self.last_score = Some(score);
         if let Some((r0, v0)) = &self.previous {
             // micro-movimento natural: o recorte ou a textura mudam um pouco entre quadros
             if r0 != rect || cosseno(v0, vector) < 0.99995 {
@@ -263,6 +272,7 @@ pub struct Session {
     verifier: Verifier,
     started: Instant,
     seen: u64,
+    last: Option<(std::sync::Arc<crate::camera::GrayFrame>, Option<RetanguloFace>)>,
     pub purpose: String,
     pub user: String,
 }
@@ -270,7 +280,7 @@ pub struct Session {
 impl Session {
     pub fn new(source: Box<dyn FrameSource>, model: Model, purpose: &str) -> Self {
         let user = model.user.clone();
-        Self { source, verifier: Verifier::new(model), started: Instant::now(), seen: 0, purpose: purpose.into(), user }
+        Self { source, verifier: Verifier::new(model), started: Instant::now(), seen: 0, last: None, purpose: purpose.into(), user }
     }
 
     /// Chamada bloqueante e curta (alguns ms): rode fora da thread da interface.
@@ -284,13 +294,60 @@ impl Session {
         };
         self.seen = q.seq;
         let analysis = analyze_frame(&q.luma, q.w as usize, q.h as usize);
+        self.last = Some((q, analysis.face.as_ref().map(|(r, _)| *r)));
         self.verifier.evaluate(&analysis, elapsed)
+    }
+
+    /// Prévia do último quadro analisado para o HUD (só em memória, nunca em disco).
+    pub fn preview(&self) -> Option<Preview> {
+        let (frame, face) = self.last.as_ref()?;
+        Some(Preview::new(frame, *face, self.verifier.confidence()))
+    }
+}
+
+/// Largura da miniatura do HUD.
+pub const PREVIEW_W: u32 = 320;
+
+/// Miniatura espelhada (como um espelho, que é o que a pessoa espera ver), escurecida, em RGBA,
+/// com o rosto em coordenadas normalizadas (0..1). Vive só na memória da janela.
+#[derive(Debug, Clone)]
+pub struct Preview {
+    pub w: u32,
+    pub h: u32,
+    pub rgba: Vec<u8>,
+    /// x, y, largura, altura normalizados, já espelhados.
+    pub face: Option<[f32; 4]>,
+    pub confidence: Option<f64>,
+}
+
+impl Preview {
+    pub fn new(frame: &crate::camera::GrayFrame, face: Option<RetanguloFace>, confidence: Option<f64>) -> Self {
+        let (fw, fh) = (frame.w.max(1), frame.h.max(1));
+        let w = PREVIEW_W.min(fw);
+        let h = ((fh as u64 * w as u64) / fw as u64).max(1) as u32;
+        let mut rgba = Vec::with_capacity((w * h * 4) as usize);
+        for y in 0..h {
+            let sy = (y as u64 * fh as u64 / h as u64) as usize;
+            for x in 0..w {
+                // espelho: a coluna da direita do sensor vira a da esquerda
+                let sx = ((w - 1 - x) as u64 * fw as u64 / w as u64) as usize;
+                let v = frame.luma[sy * fw as usize + sx] as u32;
+                // cinza escurecido com leve tom frio do tema (o HUD acende por cima)
+                let g = (v * 62 / 100) as u8;
+                rgba.extend_from_slice(&[g, g.saturating_add(2), g.saturating_add(8), 255]);
+            }
+        }
+        let face = face.map(|r| {
+            let (x, y, rw, rh) = (r.x as f32 / fw as f32, r.y as f32 / fh as f32, r.w as f32 / fw as f32, r.h as f32 / fh as f32);
+            [1.0 - x - rw, y, rw, rh]
+        });
+        Self { w, h, rgba, face, confidence }
     }
 }
 
 /// Cadastro: junta `AMOSTRAS` quadros com luz e rosto, um a cada `INTERVALO`, até `prazo`.
 /// Bloqueante; rode em `spawn_blocking`.
-pub fn enroll(source: &dyn FrameSource, user: &str, deadline: Duration, cancel: &AtomicBool) -> Result<Model, FaceIdError> {
+pub fn enroll(source: &dyn FrameSource, user: &str, deadline: Duration, cancel: &AtomicBool, on_preview: &dyn Fn(Preview)) -> Result<Model, FaceIdError> {
     let started = Instant::now();
     let (mut samples, mut seen, mut dark_frames, mut no_face) = (Vec::with_capacity(SAMPLES), 0u64, 0u32, 0u32);
     while samples.len() < SAMPLES {
@@ -306,6 +363,7 @@ pub fn enroll(source: &dyn FrameSource, user: &str, deadline: Duration, cancel: 
         if let Some(q) = source.latest(seen) {
             seen = q.seq;
             let a = analyze_frame(&q.luma, q.w as usize, q.h as usize);
+            on_preview(Preview::new(&q, a.face.as_ref().map(|(r, _)| *r), None));
             match (a.light.is_enough(), a.face) {
                 (false, _) => dark_frames += 1,
                 (true, None) => no_face += 1,

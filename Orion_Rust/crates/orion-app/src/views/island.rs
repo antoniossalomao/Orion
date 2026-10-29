@@ -205,7 +205,20 @@ pub fn view(app: &App) -> El<'_> {
     };
     let top = if app.logged { 10.0 } else { t::BAR_H + 8.0 };
     let island_el = iced::widget::float(island_el).translate(move |_, _| Vector::new(dx, 0.0));
-    container(island_el)
+    // HUD da câmera logo abaixo da ilha (login e cadastro), entrando com a mesma curva
+    let hud: El = match (&i.preview, i.shows_hud()) {
+        (Some((preview, handle)), true) => {
+            let tone = match i.phase {
+                Phase::Success => t::OK,
+                Phase::Error => t::DANGER,
+                _ => t::ACCENT,
+            };
+            let tag = (i.phase == Phase::Success).then(|| name.to_uppercase());
+            rise(fade(crate::views::camera_hud::view(preview, handle, tone, tag, elapsed, reduced), k, t::BG), k, 8.0)
+        }
+        _ => sp_h(0.0),
+    };
+    container(column![island_el, hud].spacing(10).align_x(iced::alignment::Horizontal::Center))
         .width(Length::Fill)
         .center_x(Length::Fill)
         .padding(pad(top, 0.0, 0.0, 0.0))

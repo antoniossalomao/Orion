@@ -76,6 +76,10 @@ pub trait Local: Send + Sync + 'static {
     fn face_id_step(&self, _session: String) -> futures::future::BoxFuture<'static, FaceEvent> {
         Box::pin(async { FaceEvent::Failed(FaceFailure::Inactive) })
     }
+    /// Último quadro da leitura (`session`) ou do cadastro (`"enroll"`) para o HUD.
+    fn face_id_preview(&self, _session: String) -> futures::future::BoxFuture<'static, Option<FacePreview>> {
+        Box::pin(async { None })
+    }
     /// Encerra a leitura e desliga a câmera.
     fn face_id_cancel(&self, _session: &str) {}
     /// Cadastra o rosto (exige a senha, que fica no cofre do sistema para o Face ID liberar).
@@ -128,6 +132,21 @@ pub enum FaceFailure {
     LowLight,
     NotRecognized,
     Other(String),
+}
+
+/// Quadro do HUD da câmera: miniatura RGBA espelhada, rosto normalizado e telemetria. Fica só na
+/// memória da janela (REGRAS.md: rosto é local, cadastrado só pelo dono, e nunca sai do computador).
+#[derive(Debug, Clone, PartialEq)]
+pub struct FacePreview {
+    pub w: u32,
+    pub h: u32,
+    pub rgba: Vec<u8>,
+    /// x, y, largura, altura em 0..1.
+    pub face: Option<[f32; 4]>,
+    /// 0..1, relativa ao limiar do modelo.
+    pub confidence: Option<f32>,
+    /// Uso de CPU do processo do Orion, em % de um núcleo dividido pelo total de núcleos.
+    pub cpu: Option<f32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -288,6 +307,12 @@ impl Api {
         match &self.local {
             Some(l) => l.face_id_step(session.to_string()).await,
             None => FaceEvent::Failed(FaceFailure::Inactive),
+        }
+    }
+    pub async fn face_id_preview(&self, session: &str) -> Option<FacePreview> {
+        match &self.local {
+            Some(l) => l.face_id_preview(session.to_string()).await,
+            None => None,
         }
     }
     pub fn face_id_cancel(&self, session: &str) {

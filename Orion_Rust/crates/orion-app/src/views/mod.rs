@@ -1,5 +1,6 @@
 //! Telas. `root` monta a janela: entrada → casca (barra lateral + barra superior + palco) + camadas por cima.
 
+pub mod camera_hud;
 pub mod chat;
 pub mod composer;
 pub mod conflito;

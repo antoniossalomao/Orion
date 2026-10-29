@@ -69,6 +69,36 @@ pub fn scenarios() -> Vec<(&'static str, Size, App)> {
         push("41-faceid-lendo", island_scene(Phase::Reading, 1300, Purpose::Login, false));
         push("42-faceid-sucesso", island_scene(Phase::Success, 620, Purpose::Login, false));
         push("43-faceid-erro", island_scene(Phase::Error, 900, Purpose::Login, false));
+        // HUD da câmera com um retrato sintético (sem webcam na captura)
+        let retrato = || {
+            let (w, h) = (320u32, 240u32);
+            let mut rgba = Vec::with_capacity((w * h * 4) as usize);
+            for y in 0..h {
+                for x in 0..w {
+                    let (fx, fy) = ((x as f32 - 160.0) / 52.0, (y as f32 - 112.0) / 68.0);
+                    let rosto = fx * fx + fy * fy < 1.0;
+                    let ombros = y > 190 && ((x as f32 - 160.0).abs() < 120.0 - (240.0 - y as f32) * 0.9);
+                    let olho = rosto && (y as i32 - 100).abs() < 5 && ((x as i32 - 140).abs() < 9 || (x as i32 - 180).abs() < 9);
+                    let boca = rosto && (y as i32 - 145).abs() < 3 && (x as i32 - 160).abs() < 16;
+                    let fundo = 26.0 + 18.0 * (x as f32 / 320.0) + 6.0 * ((x * 7 + y * 13) % 5) as f32;
+                    let v = if olho || boca { 30.0 } else if rosto { 118.0 - 30.0 * (fx * fx + fy * fy) } else if ombros { 58.0 } else { fundo };
+                    let g = (v * 0.9) as u8;
+                    rgba.extend_from_slice(&[g, g.saturating_add(2), g.saturating_add(8), 255]);
+                }
+            }
+            crate::net::FacePreview { w, h, rgba, face: Some([0.33, 0.17, 0.34, 0.6]), confidence: Some(0.624), cpu: Some(3.8) }
+        };
+        let com_hud = |mut a: App, confidence: Option<f32>| {
+            let mut p = retrato();
+            p.confidence = confidence;
+            let handle = iced::widget::image::Handle::from_rgba(p.w, p.h, p.rgba.clone());
+            a.island.preview = Some((p, handle));
+            a
+        };
+        push("45-hud-lendo", com_hud(island_scene(Phase::Reading, 1300, Purpose::Login, false), Some(0.624)));
+        push("46-hud-reconhecido", com_hud(island_scene(Phase::Success, 900, Purpose::Login, false), Some(0.998)));
+        push("47-hud-falha", com_hud(island_scene(Phase::Error, 900, Purpose::Login, false), Some(0.41)));
+        push("48-hud-cadastro", { let mut a = com_hud(island_scene(Phase::Enrolling, 1300, Purpose::Login, true), None); a.island.enrolled_last = true; a });
         push("44-faceid-autonomo", { let mut a = island_scene(Phase::Reading, 1300, Purpose::Autonomous, true); a.auto_senha = Some(String::new()); a });
     }
     push("02-inicio", cena(|a| {

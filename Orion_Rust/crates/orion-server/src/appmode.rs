@@ -5,7 +5,7 @@ use axum::body::Body;
 use axum::extract::ConnectInfo;
 use axum::http::{header, Method, Request};
 use futures::{future::BoxFuture, StreamExt};
-use orion_app::net::{Corpo, FaceHint, FaceEvent, FaceFailure, Local, Resposta};
+use orion_app::net::{Corpo, FaceEvent, FaceFailure, FaceHint, FacePreview, Local, Resposta};
 use orion_core::config::Settings;
 use std::time::Duration;
 use tower::ServiceExt;
@@ -36,6 +36,18 @@ const FACE_PURPOSES: [&str; 3] = ["login", "autonomo", "panico"];
 /// depois de o desligar ter apagado o modelo.
 static FACE_ENROLL_CANCEL: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 static FACE_ENROLL_LOCK: parking_lot::Mutex<()> = parking_lot::Mutex::new(());
+/// Último quadro do cadastro para o HUD; some quando o cadastro termina.
+static FACE_ENROLL_PREVIEW: parking_lot::Mutex<Option<orion_core::faceid::Preview>> = parking_lot::Mutex::new(None);
+/// Medidor de CPU do próprio processo (o HUD mostra quanto o Face ID está custando).
+static FACE_CPU: std::sync::LazyLock<parking_lot::Mutex<sysinfo::System>> = std::sync::LazyLock::new(|| parking_lot::Mutex::new(sysinfo::System::new()));
+
+fn process_cpu() -> Option<f32> {
+    let pid = sysinfo::Pid::from_u32(std::process::id());
+    let mut sys = FACE_CPU.lock();
+    sys.refresh_processes_specifics(sysinfo::ProcessesToUpdate::Some(&[pid]), true, sysinfo::ProcessRefreshKind::new().with_cpu());
+    let cores = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1) as f32;
+    sys.process(pid).map(|p| p.cpu_usage() / cores)
+}
 
 /// Câmera efetiva: a escolhida em Configurações (`runtime-preferences.json`) vale sobre a do ambiente.
 fn camera_device(cfg: &Settings) -> i32 {
@@ -483,6 +495,24 @@ impl Local for Interno {
             }
         })
     }
+    fn face_id_preview(&self, session: String) -> BoxFuture<'static, Option<FacePreview>> {
+        let rt = self.rt.clone();
+        Box::pin(async move {
+            rt.spawn_blocking(move || {
+                let preview = if session == "enroll" {
+                    FACE_ENROLL_PREVIEW.lock().clone()
+                } else {
+                    let scan = FACE_SESSIONS.lock().get(&session).cloned()?;
+                    let preview = scan.lock().preview();
+                    preview
+                }?;
+                Some(FacePreview { w: preview.w, h: preview.h, rgba: preview.rgba, face: preview.face, confidence: preview.confidence.map(|c| c as f32), cpu: process_cpu() })
+            })
+            .await
+            .ok()
+            .flatten()
+        })
+    }
     fn face_id_cancel(&self, session: &str) {
         // a câmera desliga quando a última referência à sessão cai
         FACE_SESSIONS.lock().remove(session);
@@ -509,8 +539,10 @@ impl Local for Interno {
                 FACE_ENROLL_CANCEL.store(false, std::sync::atomic::Ordering::SeqCst);
                 let user = orion_core::onboarding::Profile::load(&cfg.data_dir).ok().flatten().map(|p| p.user).unwrap_or_else(|| cfg.auth_user.clone());
                 let stream = orion_core::camera::CameraStream::open(camera_device(&cfg), Duration::from_secs(4)).map_err(|e| format!("câmera indisponível: {e}"))?;
-                let model = faceid::enroll(&stream, &user, Duration::from_secs(14), &FACE_ENROLL_CANCEL).map_err(|e| e.to_string())?;
+                let enrolled = faceid::enroll(&stream, &user, Duration::from_secs(14), &FACE_ENROLL_CANCEL, &|p| *FACE_ENROLL_PREVIEW.lock() = Some(p));
                 stream.close();
+                FACE_ENROLL_PREVIEW.lock().take();
+                let model = enrolled.map_err(|e| e.to_string())?;
                 let vault = orion_core::rosto::CofreSistema;
                 let _guard = FACE_ENROLL_LOCK.lock();
                 if FACE_ENROLL_CANCEL.load(std::sync::atomic::Ordering::SeqCst) {

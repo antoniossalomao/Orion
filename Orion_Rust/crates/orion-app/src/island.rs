@@ -6,7 +6,7 @@
 //! `INTERVALO` e cada análise roda num `spawn_blocking`. Aqui só mudam fases e marcas de tempo.
 
 use crate::app::{App, Msg};
-use crate::net::{FaceHint, FaceEvent, FaceFailure};
+use crate::net::{FaceEvent, FaceFailure, FaceHint, FacePreview};
 use iced::Task;
 use std::time::{Duration, Instant};
 
@@ -64,11 +64,15 @@ pub struct Island {
     pub enroll_password: Option<String>,
     /// Só nas capturas de tela (`snap`): finge Face ID ativo sem núcleo.
     pub demo: bool,
+    /// Último quadro do HUD da câmera e a imagem pronta para desenhar.
+    pub preview: Option<(FacePreview, iced::widget::image::Handle)>,
+    /// A fase atual veio de um cadastro (sucesso/erro do cadastro também mostram o HUD).
+    pub enrolled_last: bool,
 }
 
 impl Island {
     pub fn new(now: Instant) -> Self {
-        Self { phase: Phase::Standby, since: now, from: size(Phase::Standby), purpose: Purpose::Login, session: None, generation: 0, hint: FaceHint::Starting, failure: None, enroll_password: None, demo: false }
+        Self { phase: Phase::Standby, since: now, from: size(Phase::Standby), purpose: Purpose::Login, session: None, generation: 0, hint: FaceHint::Starting, failure: None, enroll_password: None, demo: false, preview: None, enrolled_last: false }
     }
 
     pub fn busy(&self) -> bool {
@@ -87,7 +91,16 @@ impl Island {
         (a.0 + (b.0 - a.0) * p, a.1 + (b.1 - a.1) * p)
     }
 
+    /// O painel do HUD aparece no login e no cadastro (as confirmações de senha ficam só na ilha).
+    pub fn shows_hud(&self) -> bool {
+        self.phase != Phase::Standby && (self.purpose == Purpose::Login || self.phase == Phase::Enrolling || self.enrolled_last)
+    }
+
     pub fn set_phase(&mut self, phase: Phase, now: Instant, reduced: bool) {
+        if phase == Phase::Standby {
+            self.preview = None;
+        }
+        self.enrolled_last = phase != Phase::Standby && (phase == Phase::Enrolling || (self.phase == Phase::Enrolling && self.enrolled_last));
         self.from = self.current_size(now, reduced);
         self.phase = phase;
         self.since = now;
@@ -123,6 +136,9 @@ pub enum FaceMsg {
     Enrolled(Result<usize, String>),
     Disable,
     Disabled(Result<(), String>),
+    /// Pulso de 250 ms do HUD: pede o último quadro ao núcleo.
+    PreviewTick,
+    Preview(u64, Option<FacePreview>),
 }
 
 /// Id do campo de senha que recebe o foco quando o rosto falha.
@@ -311,6 +327,22 @@ impl App {
                 self.cancel_scan();
                 Task::perform(async move { api.face_id_disable().await }, |r| Msg::Face(FaceMsg::Disabled(r)))
             }
+            FaceMsg::PreviewTick => {
+                let Some(api) = self.api.clone() else { return Task::none() };
+                if !self.island.shows_hud() || !self.island.busy() {
+                    return Task::none();
+                }
+                let session = if self.island.phase == Phase::Enrolling { Some("enroll".to_string()) } else { self.island.session.clone() };
+                let Some(session) = session else { return Task::none() };
+                let g = self.island.generation;
+                Task::perform(async move { api.face_id_preview(&session).await }, move |p| Msg::Face(FaceMsg::Preview(g, p)))
+            }
+            FaceMsg::Preview(g, Some(p)) if g == self.island.generation && self.island.busy() => {
+                let handle = iced::widget::image::Handle::from_rgba(p.w, p.h, p.rgba.clone());
+                self.island.preview = Some((p, handle));
+                Task::none()
+            }
+            FaceMsg::Preview(..) => Task::none(),
             FaceMsg::Disabled(r) => {
                 match r {
                     Ok(()) => self.toast("Face ID desligado. O modelo do rosto e a credencial foram apagados."),

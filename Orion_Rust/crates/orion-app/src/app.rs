@@ -876,7 +876,9 @@ impl App {
         };
         let fechar = window::close_requests().map(Msg::CloseReq);
         let resources=if self.logged && (self.voice || self.mic_rec || self.p.cam[4]){iced::time::every(Duration::from_millis(750)).map(|_|Msg::Resources(crate::resources::Event::AudioPoll))}else{Subscription::none()};
-        Subscription::batch([tick, island, resize, keys, poll, fundo, fechar, focus, progress,resources])
+        // HUD da câmera: um quadro novo a cada 250 ms só enquanto a leitura mostra o vídeo
+        let hud = if self.window_active && self.island.busy() && self.island.shows_hud() { iced::time::every(Duration::from_millis(250)).map(|_| Msg::Face(crate::island::FaceMsg::PreviewTick)) } else { Subscription::none() };
+        Subscription::batch([tick, island, hud, resize, keys, poll, fundo, fechar, focus, progress,resources])
     }
 
     pub fn pend_list(&self) -> Vec<(usize, usize)> {
