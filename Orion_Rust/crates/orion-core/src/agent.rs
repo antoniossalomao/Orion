@@ -513,7 +513,7 @@ impl Agent {
         budget_task: Option<String>,
     ) -> EventStream {
         // F02.26: vault, código e anexos não vão a provedores que treinam com os dados.
-        let sensitive = external.iter().chain(selection.iter().flat_map(|s| s.data.iter())).any(|e| matches!(e.kind.as_str(), "vault" | "note" | "code") || e.connection == "project-reference" || e.connection == "user-upload");
+        let sensitive = !images.is_empty() || external.iter().chain(selection.iter().flat_map(|s| s.data.iter())).any(|e| matches!(e.kind.as_str(), "vault" | "note" | "code") || e.connection == "project-reference" || e.connection == "user-upload");
         let me = self.clone();
         let budget_task = budget_task.unwrap_or_else(orion_store::uuid_hex);
         Box::pin(async_stream::stream! {

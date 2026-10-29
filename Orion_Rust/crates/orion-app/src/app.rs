@@ -1049,6 +1049,10 @@ impl App {
         }
         match msg {
             Msg::Tick(now) => {
+                // F05.01: a fila segue sozinha quando o upload ou a resposta anterior terminar.
+                if !self.queued.is_empty() && self.streaming.is_none() && !self.attaching {
+                    return self.next_queued();
+                }
                 self.now = now;
 
                 crate::views::memory::tick(self, now);
@@ -2014,7 +2018,8 @@ impl App {
 
     /// Envia a próxima mensagem da fila, se a resposta atual já terminou e o campo está vazio.
     pub fn next_queued(&mut self) -> Task<Msg> {
-        if self.streaming.is_some() {
+        // Com upload em andamento, a mensagem fica na fila; o fim do upload chama esta função de novo.
+        if self.streaming.is_some() || self.attaching {
             return Task::none();
         }
         let Some(next) = self.queued.pop_front() else {

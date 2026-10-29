@@ -993,7 +993,9 @@ impl App {
             },
             Lm::Attached(generation, result) => {
                 self.attaching = false;
-                if generation != self.attachment_generation { return Task::none(); }
+                if generation != self.attachment_generation {
+                    return self.next_queued();
+                }
                 match result {
                     Ok(Some(value)) => {
                         let id = s(&value, "id").to_string();
