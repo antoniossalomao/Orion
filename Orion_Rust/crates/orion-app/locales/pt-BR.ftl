@@ -1262,3 +1262,129 @@ ui-0972 = { "Não verificado." }
 ui-0973 = { "Treino" }
 
 ui-0974 = { "Na fila: será enviada quando a resposta terminar." }
+
+ui-0975 = { "Ativa o botão de microfone para ditar mensagens." }
+
+ui-0976 = { "Modelo local que transcreve a fala neste computador." }
+
+ui-0977 = { "Usa a GPU na transcrição local, quando disponível." }
+
+ui-0978 = { "O Orion responde em voz alta." }
+
+ui-0979 = { "Voz usada na resposta falada." }
+
+ui-0980 = { "Permite interromper a fala do Orion falando por cima." }
+
+ui-0981 = { "Microfone da palavra de ativação. Vazio usa o padrão." }
+
+ui-0982 = { "Escuta local da palavra “Orion” para começar a falar." }
+
+ui-0983 = { "Arquivo do modelo validado que reconhece a palavra." }
+
+ui-0984 = { "Quanto maior, mais difícil a palavra disparar sem querer." }
+
+ui-0985 = { "Tempo máximo gravado depois da palavra." }
+
+ui-0986 = { "Quanto silêncio encerra a fala." }
+
+ui-0987 = { "Quantas ativações por hora são permitidas." }
+
+ui-0988 = { "Duas palmas abrem o Orion." }
+
+ui-0989 = { "Quanto maior, menos sensível às palmas." }
+
+ui-0990 = { "O que as palmas fazem: abrir o Orion ou rodar uma rotina (rotina:nome)." }
+
+ui-0991 = { "Permite conversar por voz em tempo real." }
+
+ui-0992 = { "Tempo máximo de uma conversa por voz ao vivo." }
+
+ui-0993 = { "Permite ao Orion descrever imagens e a tela." }
+
+ui-0994 = { "A câmera só é usada quando você pede." }
+
+ui-0995 = { "Qual câmera usar, pelo índice (0 é a padrão)." }
+
+ui-0996 = { "Guarda objetos vistos pela câmera para lembrar depois." }
+
+ui-0997 = { "Modelo ONNX que detecta objetos nas imagens." }
+
+ui-0998 = { "Detecta se você está presente pelo computador." }
+
+ui-0999 = { "Minutos de ausência antes de pausar." }
+
+ui-1000 = { "Dispositivo Bluetooth que indica a presença." }
+
+ui-1001 = { "Permite bloquear o computador ao se ausentar." }
+
+ui-1002 = { "Mostra legenda ao vivo do áudio do computador." }
+
+ui-1003 = { "Modelo local usado nas legendas." }
+
+ui-1004 = { "Dispositivo de áudio capturado para a legenda." }
+
+ui-1005 = { "Guarda o texto da tela só neste computador." }
+
+ui-1006 = { "Intervalo entre capturas da tela, em segundos." }
+
+ui-1007 = { "Por quantos dias a memória da tela é mantida." }
+
+ui-1008 = { "Títulos de janela que não entram na memória da tela." }
+
+ui-1009 = { "Aplicativos que não entram na memória da tela." }
+
+ui-1010 = { "Idiomas usados ao ler texto da tela." }
+
+ui-1011 = { "Por quantos dias o histórico fica guardado. 0 desliga." }
+
+ui-1012 = { "Guarda o histórico de comandos só neste computador." }
+
+ui-1013 = { "Liga as tarefas que rodam em segundo plano." }
+
+ui-1014 = { "Horário do resumo diário." }
+
+ui-1015 = { "Horário da pesquisa noturna sobre os assuntos." }
+
+ui-1016 = { "Assuntos pesquisados à noite." }
+
+ui-1017 = { "Horário em que a memória é revisada." }
+
+ui-1018 = { "Faz uma revisão semanal com IA." }
+
+ui-1019 = { "Consolida os fatos extraídos das conversas." }
+
+ui-1020 = { "Horário em que o diário da conversa é gravado no vault." }
+
+ui-1021 = { "Horário da revisão semanal." }
+
+ui-1022 = { "Permite rodar tarefas nas CLIs de nuvem." }
+
+ui-1023 = { "Ambiente usado pelo Codex Cloud." }
+
+ui-1024 = { "Pasta onde as tarefas de nuvem trabalham." }
+
+ui-1025 = { "Pasta do vault do Obsidian. Vale depois de reiniciar o Orion." }
+
+ui-1026 = { "Pasta onde os backups são guardados." }
+
+ui-1027 = { "Quantos backups antigos manter." }
+
+ui-1028 = { "Repositórios que o Orion pode ler." }
+
+ui-1029 = { "Pastas onde o Orion pode ler e escrever." }
+
+ui-1030 = { "Reordena resultados de busca com um modelo local." }
+
+ui-1031 = { "Pasta do modelo ONNX de reordenação." }
+
+ui-1032 = { "Liga os servidores MCP configurados." }
+
+ui-1033 = { "Arquivo com a configuração dos servidores MCP." }
+
+ui-1034 = { "Liga as skills instaladas." }
+
+ui-1035 = { "Pasta onde ficam as skills." }
+
+ui-1036 = { "Liga os plugins instalados." }
+
+ui-1037 = { "Pasta onde ficam os plugins." }

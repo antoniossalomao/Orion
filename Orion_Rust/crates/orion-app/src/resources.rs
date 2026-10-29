@@ -439,6 +439,78 @@ fn input_value(app: &App, key: &'static str) -> String {
         )
     })
 }
+/// F07.03: descrição curta de cada opção de Configurações (texto pt-BR; a interface traduz via catálogo).
+const DESCRIPTIONS: &[(&str, &str)] = &[
+    ("voice_enabled", "Ativa o botão de microfone para ditar mensagens."),
+    ("local_stt_model", "Modelo local que transcreve a fala neste computador."),
+    ("local_stt_gpu", "Usa a GPU na transcrição local, quando disponível."),
+    ("voice_speak", "O Orion responde em voz alta."),
+    ("voice_tts_voice", "Voz usada na resposta falada."),
+    ("voice_barge_in", "Permite interromper a fala do Orion falando por cima."),
+    ("wake_device", "Microfone da palavra de ativação. Vazio usa o padrão."),
+    ("wake_enabled", "Escuta local da palavra “Orion” para começar a falar."),
+    ("wake_model", "Arquivo do modelo validado que reconhece a palavra."),
+    ("wake_threshold", "Quanto maior, mais difícil a palavra disparar sem querer."),
+    ("wake_max_s", "Tempo máximo gravado depois da palavra."),
+    ("wake_silence_s", "Quanto silêncio encerra a fala."),
+    ("wake_max_per_hour", "Quantas ativações por hora são permitidas."),
+    ("clap_enabled", "Duas palmas abrem o Orion."),
+    ("clap_ratio", "Quanto maior, menos sensível às palmas."),
+    ("clap_action", "O que as palmas fazem: abrir o Orion ou rodar uma rotina (rotina:nome)."),
+    ("voice_live_enabled", "Permite conversar por voz em tempo real."),
+    ("voice_live_max_min", "Tempo máximo de uma conversa por voz ao vivo."),
+    ("vision_tools", "Permite ao Orion descrever imagens e a tela."),
+    ("camera", "A câmera só é usada quando você pede."),
+    ("camera_device", "Qual câmera usar, pelo índice (0 é a padrão)."),
+    ("camera_watch", "Guarda objetos vistos pela câmera para lembrar depois."),
+    ("object_model", "Modelo ONNX que detecta objetos nas imagens."),
+    ("presence_enabled", "Detecta se você está presente pelo computador."),
+    ("presence_away_min", "Minutos de ausência antes de pausar."),
+    ("presence_bt", "Dispositivo Bluetooth que indica a presença."),
+    ("presence_lock", "Permite bloquear o computador ao se ausentar."),
+    ("subtitles", "Mostra legenda ao vivo do áudio do computador."),
+    ("subtitle_model", "Modelo local usado nas legendas."),
+    ("subtitle_device", "Dispositivo de áudio capturado para a legenda."),
+    ("screen_memory", "Guarda o texto da tela só neste computador."),
+    ("screen_interval_s", "Intervalo entre capturas da tela, em segundos."),
+    ("screen_retention_days", "Por quantos dias a memória da tela é mantida."),
+    ("screen_exclude", "Títulos de janela que não entram na memória da tela."),
+    ("screen_exclude_apps", "Aplicativos que não entram na memória da tela."),
+    ("screen_ocr_langs", "Idiomas usados ao ler texto da tela."),
+    ("clipboard_days", "Por quantos dias o histórico fica guardado. 0 desliga."),
+    ("command_history", "Guarda o histórico de comandos só neste computador."),
+    ("jobs_enabled", "Liga as tarefas que rodam em segundo plano."),
+    ("briefing_at", "Horário do resumo diário."),
+    ("research_at", "Horário da pesquisa noturna sobre os assuntos."),
+    ("research_topics", "Assuntos pesquisados à noite."),
+    ("sleep_at", "Horário em que a memória é revisada."),
+    ("weekly_ai", "Faz uma revisão semanal com IA."),
+    ("consolidate", "Consolida os fatos extraídos das conversas."),
+    ("diary_at", "Horário em que o diário da conversa é gravado no vault."),
+    ("weekly_review_at", "Horário da revisão semanal."),
+    ("nuvem", "Permite rodar tarefas nas CLIs de nuvem."),
+    ("codex_env", "Ambiente usado pelo Codex Cloud."),
+    ("nuvem_dir", "Pasta onde as tarefas de nuvem trabalham."),
+    ("vault_dir", "Pasta do vault do Obsidian. Vale depois de reiniciar o Orion."),
+    ("backup_dir", "Pasta onde os backups são guardados."),
+    ("backup_keep", "Quantos backups antigos manter."),
+    ("repos", "Repositórios que o Orion pode ler."),
+    ("extra_safe_roots", "Pastas onde o Orion pode ler e escrever."),
+    ("rerank", "Reordena resultados de busca com um modelo local."),
+    ("rerank_model_dir", "Pasta do modelo ONNX de reordenação."),
+    ("mcp_enabled", "Liga os servidores MCP configurados."),
+    ("mcp_config", "Arquivo com a configuração dos servidores MCP."),
+    ("skills_enabled", "Liga as skills instaladas."),
+    ("skills_dir", "Pasta onde ficam as skills."),
+    ("plugins_enabled", "Liga os plugins instalados."),
+    ("plugins_dir", "Pasta onde ficam os plugins."),
+];
+
+/// Descrição curta da opção, já traduzida.
+fn description(key: &str) -> &'static str {
+    DESCRIPTIONS.iter().find(|(k, _)| *k == key).map(|(_, text)| crate::i18n::text(text)).unwrap_or("")
+}
+
 pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
     let mut col = column![].spacing(10);
     if group == "storage" {
@@ -548,7 +620,7 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
         } else {
             control
         };
-        col = col.push(setting(crate::i18n::text(label), "", control));
+        col = col.push(setting(crate::i18n::text(label), description(key), control));
     }
     let applied = app.resources.snapshot.as_ref().unwrap();
     if applied["saved"] != applied["active"] {

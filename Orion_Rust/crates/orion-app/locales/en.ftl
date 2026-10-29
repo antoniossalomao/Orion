@@ -1262,3 +1262,129 @@ ui-0972 = { "Not verified." }
 ui-0973 = { "Training" }
 
 ui-0974 = { "Queued: sent when the reply finishes." }
+
+ui-0975 = { "Turns on the microphone button to dictate messages." }
+
+ui-0976 = { "Local model that transcribes speech on this computer." }
+
+ui-0977 = { "Uses the GPU for local transcription when available." }
+
+ui-0978 = { "Orion answers out loud." }
+
+ui-0979 = { "Voice used for spoken replies." }
+
+ui-0980 = { "Lets you interrupt Orion's speech by talking over it." }
+
+ui-0981 = { "Microphone for the wake word. Empty uses the default." }
+
+ui-0982 = { "Listens locally for the word “Orion” to start talking." }
+
+ui-0983 = { "Validated model file that recognizes the word." }
+
+ui-0984 = { "The higher, the harder the word triggers by accident." }
+
+ui-0985 = { "Maximum recording time after the word." }
+
+ui-0986 = { "How much silence ends the speech." }
+
+ui-0987 = { "How many activations per hour are allowed." }
+
+ui-0988 = { "Two claps open Orion." }
+
+ui-0989 = { "The higher, the less sensitive to claps." }
+
+ui-0990 = { "What claps do: open Orion or run a routine (routine:name)." }
+
+ui-0991 = { "Lets you talk by voice in real time." }
+
+ui-0992 = { "Maximum length of a live voice conversation." }
+
+ui-0993 = { "Lets Orion describe images and the screen." }
+
+ui-0994 = { "The camera is used only when you ask." }
+
+ui-0995 = { "Which camera to use, by index (0 is the default)." }
+
+ui-0996 = { "Remembers objects seen by the camera for later." }
+
+ui-0997 = { "ONNX model that detects objects in images." }
+
+ui-0998 = { "Detects whether you are present at the computer." }
+
+ui-0999 = { "Minutes away before pausing." }
+
+ui-1000 = { "Bluetooth device that indicates presence." }
+
+ui-1001 = { "Lets the computer lock when you step away." }
+
+ui-1002 = { "Shows live captions for the computer's audio." }
+
+ui-1003 = { "Local model used for captions." }
+
+ui-1004 = { "Audio device captured for captions." }
+
+ui-1005 = { "Keeps screen text on this computer only." }
+
+ui-1006 = { "Interval between screen captures, in seconds." }
+
+ui-1007 = { "How many days screen memory is kept." }
+
+ui-1008 = { "Window titles that stay out of screen memory." }
+
+ui-1009 = { "Apps that stay out of screen memory." }
+
+ui-1010 = { "Languages used to read text on screen." }
+
+ui-1011 = { "How many days history is kept. 0 turns it off." }
+
+ui-1012 = { "Keeps command history on this computer only." }
+
+ui-1013 = { "Turns on tasks that run in the background." }
+
+ui-1014 = { "Time of the daily summary." }
+
+ui-1015 = { "Time of the overnight research on the topics." }
+
+ui-1016 = { "Topics researched overnight." }
+
+ui-1017 = { "Time when memory is reviewed." }
+
+ui-1018 = { "Does a weekly review with AI." }
+
+ui-1019 = { "Consolidates facts extracted from conversations." }
+
+ui-1020 = { "Time the conversation diary is written to the vault." }
+
+ui-1021 = { "Time of the weekly review." }
+
+ui-1022 = { "Lets tasks run in the cloud CLIs." }
+
+ui-1023 = { "Environment used by Codex Cloud." }
+
+ui-1024 = { "Folder where cloud tasks work." }
+
+ui-1025 = { "Obsidian vault folder. Applies after restarting Orion." }
+
+ui-1026 = { "Folder where backups are stored." }
+
+ui-1027 = { "How many old backups to keep." }
+
+ui-1028 = { "Repositories Orion can read." }
+
+ui-1029 = { "Folders where Orion can read and write." }
+
+ui-1030 = { "Reorders search results with a local model." }
+
+ui-1031 = { "Folder of the ONNX reranking model." }
+
+ui-1032 = { "Turns on the configured MCP servers." }
+
+ui-1033 = { "File with the MCP server settings." }
+
+ui-1034 = { "Turns on installed skills." }
+
+ui-1035 = { "Folder where skills live." }
+
+ui-1036 = { "Turns on installed plugins." }
+
+ui-1037 = { "Folder where plugins live." }
