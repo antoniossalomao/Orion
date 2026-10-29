@@ -514,6 +514,11 @@ impl Local for Interno {
         })
     }
     fn face_id_cancel(&self, session: &str) {
+        // o cadastro não tem sessão: o pedido de cancelamento vai pela bandeira compartilhada
+        if session == "enroll" {
+            FACE_ENROLL_CANCEL.store(true, std::sync::atomic::Ordering::SeqCst);
+            return;
+        }
         // a câmera desliga quando a última referência à sessão cai
         FACE_SESSIONS.lock().remove(session);
     }

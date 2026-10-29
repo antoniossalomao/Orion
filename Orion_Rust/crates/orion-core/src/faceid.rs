@@ -13,7 +13,7 @@
 //! entrada com senha, e aprovar ferramenta do agente continua sendo só por botão.
 
 use crate::camera::FrameSource;
-use crate::rosto::{encrypt_bytes, cosseno, decrypt_bytes, CofreRosto, RostoError};
+use crate::rosto::{cosseno, decrypt_bytes_with, encrypt_bytes_with, CofreRosto, RostoError};
 use crate::rosto_lbph::{analyze_frame, Analysis, RetanguloFace, UNIFORM_DIM};
 use parking_lot::Mutex;
 use rand::RngCore;
@@ -26,6 +26,9 @@ use std::time::{Duration, Instant};
 
 pub const FILE: &str = "faceid.bin";
 /// Credencial `{user, password}` liberada depois de o rosto bater (mesmo formato do Hello).
+/// Chave própria do modelo do Face ID no cofre do sistema: apagar o rosto de presença
+/// (`ORION_FACE_KEY`) não pode invalidar o Face ID.
+pub const KEY: &str = "ORION_FACEID_KEY";
 pub const CREDENTIAL: &str = "ORION_FACEID_LOGIN";
 /// Quadros aceitos no cadastro.
 pub const SAMPLES: usize = 8;
@@ -113,14 +116,14 @@ pub fn is_enabled(data_dir: &Path) -> bool {
 
 pub fn save(data_dir: &Path, vault: &dyn CofreRosto, model: &Model) -> Result<(), FaceIdError> {
     let json = zeroize::Zeroizing::new(serde_json::to_vec(model).map_err(|e| FaceIdError::Vault(e.to_string()))?);
-    let blob = encrypt_bytes(vault, &json)?;
+    let blob = encrypt_bytes_with(vault, KEY, &json)?;
     let tmp = data_dir.join(format!("{FILE}.tmp"));
     std::fs::write(&tmp, blob).and_then(|_| std::fs::rename(&tmp, path(data_dir))).map_err(|e| FaceIdError::Vault(format!("não foi possível gravar o Face ID: {e}")))
 }
 
 pub fn load(data_dir: &Path, vault: &dyn CofreRosto) -> Result<Model, FaceIdError> {
     let blob = std::fs::read(path(data_dir)).map_err(|_| FaceIdError::Inactive)?;
-    let json = zeroize::Zeroizing::new(decrypt_bytes(vault, &blob)?);
+    let json = zeroize::Zeroizing::new(decrypt_bytes_with(vault, KEY, &blob)?);
     let m: Model = serde_json::from_slice(&json).map_err(|_| FaceIdError::Vault("modelo do Face ID corrompido; cadastre de novo".into()))?;
     if m.mean.len() != UNIFORM_DIM {
         return Err(FaceIdError::Vault("modelo do Face ID de outra versão; cadastre de novo".into()));
@@ -132,6 +135,7 @@ pub fn load(data_dir: &Path, vault: &dyn CofreRosto) -> Result<Model, FaceIdErro
 pub fn remove(data_dir: &Path, vault: &dyn CofreRosto) {
     let _ = std::fs::remove_file(path(data_dir));
     vault.del(CREDENTIAL);
+    vault.del(KEY);
     reset_failures();
 }
 

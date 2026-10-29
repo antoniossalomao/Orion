@@ -133,7 +133,7 @@ pub enum FaceMsg {
     EnrollPassword(String),
     EnrollClose,
     EnrollSubmit,
-    Enrolled(Result<usize, String>),
+    Enrolled(u64, Result<usize, String>),
     Disable,
     Disabled(Result<(), String>),
     /// Pulso de 250 ms do HUD: pede o último quadro ao núcleo.
@@ -184,6 +184,11 @@ impl App {
     fn cancel_scan(&mut self) {
         if let (Some(id), Some(api)) = (self.island.session.take(), self.api.as_ref()) {
             api.face_id_cancel(&id);
+        }
+        if self.island.phase == Phase::Enrolling {
+            if let Some(api) = self.api.as_ref() {
+                api.face_id_cancel("enroll");
+            }
         }
         self.island.generation += 1;
     }
@@ -306,9 +311,12 @@ impl App {
                 self.island.failure = None;
                 self.island.hint = FaceHint::Starting;
                 self.island.set_phase(Phase::Enrolling, now, reduced);
-                Task::perform(async move { api.face_id_enroll(password).await }, |r| Msg::Face(FaceMsg::Enrolled(r)))
+                let g = self.island.generation;
+                Task::perform(async move { api.face_id_enroll(password).await }, move |r| Msg::Face(FaceMsg::Enrolled(g, r)))
             }
-            FaceMsg::Enrolled(r) => match r {
+            // cadastro cancelado (fechar a ilha ou desligar): o resultado tardio não aparece
+            FaceMsg::Enrolled(g, _) if g != self.island.generation => Task::none(),
+            FaceMsg::Enrolled(_, r) => match r {
                 Ok(_) => {
                     self.island.purpose = Purpose::Autonomous;
                     self.island.set_phase(Phase::Success, now, reduced);
@@ -325,6 +333,9 @@ impl App {
             FaceMsg::Disable => {
                 let Some(api) = self.api.clone() else { return Task::none() };
                 self.cancel_scan();
+                if self.island.phase != Phase::Standby {
+                    self.island.set_phase(Phase::Standby, now, reduced);
+                }
                 Task::perform(async move { api.face_id_disable().await }, |r| Msg::Face(FaceMsg::Disabled(r)))
             }
             FaceMsg::PreviewTick => {

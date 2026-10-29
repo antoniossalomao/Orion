@@ -123,8 +123,8 @@ fn decodificar_chave(texto: &str) -> Option<[u8; 32]> {
     }
 }
 
-fn obter_chave(cofre: &dyn CofreRosto, criar: bool) -> Result<[u8; 32], RostoError> {
-    if let Some(existente) = cofre.get(CHAVE).and_then(|s| decodificar_chave(&s)) {
+fn obter_chave_de(cofre: &dyn CofreRosto, nome: &str, criar: bool) -> Result<[u8; 32], RostoError> {
+    if let Some(existente) = cofre.get(nome).and_then(|s| decodificar_chave(&s)) {
         return Ok(existente);
     }
     if !criar {
@@ -133,13 +133,18 @@ fn obter_chave(cofre: &dyn CofreRosto, criar: bool) -> Result<[u8; 32], RostoErr
     let mut k = [0u8; 32];
     rand::thread_rng().fill_bytes(&mut k);
     let b64 = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(k);
-    cofre.set(CHAVE, &b64).map_err(|e| RostoError(format!("cofre do sistema indisponível para guardar a chave do rosto: {e}")))?;
+    cofre.set(nome, &b64).map_err(|e| RostoError(format!("cofre do sistema indisponível para guardar a chave do rosto: {e}")))?;
     Ok(k)
 }
 
 /// Cifra bytes com a chave do rosto (fluxo SHA-256 + HMAC-SHA-256); cria a chave se faltar.
 pub fn encrypt_bytes(cofre: &dyn CofreRosto, payload: &[u8]) -> Result<Vec<u8>, RostoError> {
-    let key = obter_chave(cofre, true)?;
+    encrypt_bytes_with(cofre, CHAVE, payload)
+}
+
+/// Como `encrypt_bytes`, com a chave guardada no cofre sob `key_name` (o Face ID tem a sua).
+pub fn encrypt_bytes_with(cofre: &dyn CofreRosto, key_name: &str, payload: &[u8]) -> Result<Vec<u8>, RostoError> {
+    let key = obter_chave_de(cofre, key_name, true)?;
     let mut nonce = [0u8; 16];
     rand::thread_rng().fill_bytes(&mut nonce);
     let ct = fluxo_xor(&key, &nonce, payload);
@@ -156,8 +161,12 @@ pub fn encrypt_bytes(cofre: &dyn CofreRosto, payload: &[u8]) -> Result<Vec<u8>, 
 
 /// Inverso de `cifrar_bytes`; falha (sem revelar o motivo exato) se a chave mudou ou o blob foi mexido.
 pub fn decrypt_bytes(cofre: &dyn CofreRosto, blob: &[u8]) -> Result<Vec<u8>, RostoError> {
+    decrypt_bytes_with(cofre, CHAVE, blob)
+}
+
+pub fn decrypt_bytes_with(cofre: &dyn CofreRosto, key_name: &str, blob: &[u8]) -> Result<Vec<u8>, RostoError> {
     let invalid = || RostoError("vetor de rosto inválido ou chave trocada".into());
-    let key = obter_chave(cofre, false)?;
+    let key = obter_chave_de(cofre, key_name, false)?;
     let s = std::str::from_utf8(blob).map_err(|_| invalid())?;
     let raw = base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(s.trim()).map_err(|_| invalid())?;
     if raw.len() <= 48 {
