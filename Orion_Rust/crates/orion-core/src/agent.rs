@@ -537,6 +537,13 @@ impl Agent {
                 me.marcar_taint(&session.id);
             }
             mensagens.extend(me.external_messages(&external));
+            // as imagens vão na mensagem do usuário, antes da skill forçada acrescentar o par assistente/ferramenta
+            if !images.is_empty() && mensagens.last().is_some_and(|m| m["role"] == "user") {
+                let ultimo = mensagens.last_mut().unwrap();
+                let mut partes = vec![json!({"type": "text", "text": ultimo["content"].clone()})];
+                partes.extend(images.iter().map(|u| json!({"type": "image_url", "image_url": {"url": u}})));
+                ultimo["content"] = Value::Array(partes);
+            }
             if let (Some(sk), Some(cat)) = (&skill_forcada, &me.skills) {
                 // como se o modelo tivesse chamado `carregar_skill` (REGRAS.md: skill é texto, não código)
                 let carga = orion_policy::pyjson::dumps(&cat.read().load(sk), false);
@@ -545,12 +552,6 @@ impl Agent {
                     "function": {"name": "carregar_skill", "arguments": json!({"nome": sk}).to_string()},
                 }]}));
                 mensagens.push(json!({"role": "tool", "tool_call_id": "skill_forcada", "content": carga}));
-            }
-            if !images.is_empty() && mensagens.last().is_some_and(|m| m["role"] == "user") {
-                let ultimo = mensagens.last_mut().unwrap();
-                let mut partes = vec![json!({"type": "text", "text": ultimo["content"].clone()})];
-                partes.extend(images.iter().map(|u| json!({"type": "image_url", "image_url": {"url": u}})));
-                ultimo["content"] = Value::Array(partes);
             }
             let mut usadas: Vec<String> = extra_tools.clone();
             let mut activity: Vec<Value> = prior_activity;
