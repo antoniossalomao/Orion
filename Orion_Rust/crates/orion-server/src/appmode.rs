@@ -482,9 +482,19 @@ pub fn run(mut s: Settings, fundo: bool) -> anyhow::Result<i32> {
     {
         let (local_gancho, rt_gancho) = (local.clone(), runtime.handle().clone());
         *crate::rotas::resources::RECONFIGURE_HOOK.lock() = Some(std::sync::Arc::new(move |token: String| {
-            let futuro = local_gancho.reconfigure(Some(token));
+            let local = local_gancho.clone();
+            // Se o núcleo estiver ocupado (resposta, áudio ou aprovação), tenta de novo por um tempo limitado.
             rt_gancho.spawn(async move {
-                let _ = futuro.await;
+                for _ in 0..60 {
+                    match local.reconfigure(Some(token.clone())).await {
+                        Ok(_) => return,
+                        Err(e) => {
+                            tracing::warn!("reconfiguração do settings.toml adiada: {e}");
+                            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                        }
+                    }
+                }
+                tracing::warn!("settings.toml não reconfigurou o núcleo; salve de novo nas Configurações");
             });
         }));
     }
