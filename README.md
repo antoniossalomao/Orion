@@ -12,6 +12,20 @@ App nativo para Windows em Rust: `orion.exe` reúne interface iced e núcleo no 
 
 O [PR #62](https://github.com/antoniossalomao/Orion/pull/62) foi mergeado em 27/10, com a main do PR #61, removendo n8n e ligando os recursos às configurações e ações do app. Os 550 testes existentes e verificações com modelos ONNX reais passaram. O [pacote Windows atualizado](https://github.com/antoniossalomao/Orion/actions/runs/40604552924/artifacts/12782072444) foi gerado e conferido, com app e instalador, SQLCipher e sem pesos/worker de IA local. A interface usa GPU automaticamente quando disponível; transcrição e modelos ONNX usam CPU neste pacote. Extraia o ZIP inteiro e mantenha a pasta `cpu` junto de `Orion Setup.exe`. O pacote manual não é um release assinado.
 
+## Telas
+
+Renderizadas pelo `orion-snap` a partir de dados de exemplo.
+
+| Primeira execução | Início |
+|---|---|
+| ![Onboarding](assets/screenshots/00-onboarding-1-conta.png) | ![Início](assets/screenshots/02-inicio.png) |
+| **Conversa** | **Aprovações** |
+| ![Conversa](assets/screenshots/03-chat-ram.png) | ![Aprovações](assets/screenshots/11-aprovacoes.png) |
+| **Projetos** | **Memória** |
+| ![Projetos](assets/screenshots/10-projetos.png) | ![Memória](assets/screenshots/20-memoria.png) |
+| **Configurações** | **Privacidade** |
+| ![Configurações](assets/screenshots/17-cfg-painel.png) | ![Privacidade](assets/screenshots/33-cfg-privacidade.png) |
+
 ## Documentação
 
 | Arquivo | Conteúdo |
