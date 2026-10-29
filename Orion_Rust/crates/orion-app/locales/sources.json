@@ -1101,5 +1101,6 @@
   "Plano gratuito: treina por padrão. Desligue em Admin Console > Privacidade.": "ui-0970",
   "Depende do provedor roteado. Configure não treinar na sua conta.": "ui-0971",
   "Não verificado.": "ui-0972",
-  "Treino": "ui-0973"
+  "Treino": "ui-0973",
+  "Na fila: será enviada quando a resposta terminar.": "ui-0974"
 }

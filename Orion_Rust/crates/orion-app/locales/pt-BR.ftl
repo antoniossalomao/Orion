@@ -1260,3 +1260,5 @@ ui-0971 = { "Depende do provedor roteado. Configure não treinar na sua conta." 
 ui-0972 = { "Não verificado." }
 
 ui-0973 = { "Treino" }
+
+ui-0974 = { "Na fila: será enviada quando a resposta terminar." }

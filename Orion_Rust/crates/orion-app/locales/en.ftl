@@ -1260,3 +1260,5 @@ ui-0971 = { "Depends on the routed provider. Set your account not to train." }
 ui-0972 = { "Not verified." }
 
 ui-0973 = { "Training" }
+
+ui-0974 = { "Queued: sent when the reply finishes." }

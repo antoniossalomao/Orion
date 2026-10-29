@@ -340,6 +340,8 @@ pub struct App {
     pub side_q: String,
     pub drawer: bool,
     pub composer: text_editor::Content,
+    /// F05.01: mensagens digitadas enquanto o Orion responde; saem na ordem ao terminar a resposta.
+    pub queued: std::collections::VecDeque<String>,
     pub attach: Vec<(String, String)>,
     pub attachment_ids: Vec<String>,
     /// Miniaturas das imagens anexadas, por id de anexo (F05.11).
@@ -704,6 +706,7 @@ impl App {
             side_q: String::new(),
             drawer: false,
             composer: text_editor::Content::new(),
+            queued: Default::default(),
             attach: vec![],
             attachment_ids: vec![],
             attach_thumbs: std::collections::HashMap::new(),
@@ -1976,9 +1979,31 @@ impl App {
         }
     }
 
+    /// Envia a próxima mensagem da fila, se a resposta atual já terminou e o campo está vazio.
+    pub fn next_queued(&mut self) -> Task<Msg> {
+        if self.streaming.is_some() || !self.draft().trim().is_empty() {
+            return Task::none();
+        }
+        match self.queued.pop_front() {
+            Some(next) => {
+                self.composer = text_editor::Content::with_text(&next);
+                self.send()
+            }
+            None => Task::none(),
+        }
+    }
+
     fn send(&mut self) -> Task<Msg> {
         let text = self.draft();
-        if text.trim().is_empty() || self.streaming.is_some() {
+        if text.trim().is_empty() {
+            return Task::none();
+        }
+        if self.streaming.is_some() {
+            // F05.01: durante a resposta, texto normal entra na fila; comandos (/) não.
+            if !text.starts_with('/') {
+                self.queued.push_back(text);
+                self.composer = text_editor::Content::new();
+            }
             return Task::none();
         }
         if let Some(cmd) = text.strip_prefix('/') {
