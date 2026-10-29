@@ -231,11 +231,11 @@ pub fn toast<'a>(msg: String) -> El<'a> {
     let target = config_target(&msg);
     let msg = crate::i18n::status(&msg);
     let p = crate::anim::TOAST.get();
-    let mut linha = row![tx(msg, 13.0, t::alpha(t::PRIMARY_INK, p))].spacing(10).align_y(Vertical::Center);
+    let mut toast_row = row![tx(msg, 13.0, t::alpha(t::PRIMARY_INK, p))].spacing(10).align_y(Vertical::Center);
     if let Some(sec) = target {
-        linha = linha.push(btn(crate::i18n::text("Abrir configurações"), Kind::Ghost, true, None, Some(Msg::OpenSettings(Some(sec)))));
+        toast_row = toast_row.push(btn(crate::i18n::text("Abrir configurações"), Kind::Ghost, true, None, Some(Msg::OpenSettings(Some(sec)))));
     }
-    let c = container(linha).padding(pad(8.0, 12.0, 8.0, 12.0)).style(move |_| container::Style { background: Some(t::alpha(t::PRIMARY, p).into()), border: Border { radius: t::R_CARD.into(), ..Default::default() }, shadow: shadow(), ..Default::default() });
+    let c = container(toast_row).padding(pad(8.0, 12.0, 8.0, 12.0)).style(move |_| container::Style { background: Some(t::alpha(t::PRIMARY, p).into()), border: Border { radius: t::R_CARD.into(), ..Default::default() }, shadow: shadow(), ..Default::default() });
     container(c).width(Length::Fill).height(Length::Fill).center_x(Length::Fill).align_y(Vertical::Bottom).padding(pad(0.0, 0.0, 20.0 - 6.0 * (1.0 - p), 0.0)).into()
 }
 
