@@ -617,7 +617,8 @@ impl Agent {
                 let mut chamadas = vec![];
                 let mut falhou: Option<String> = None;
                 {
-                    let excluir: Vec<String> = if sensivel { orion_ai::gateway::ChatGateway::PROVEDORES_QUE_TREINAM.iter().map(|p| p.to_string()).collect() } else { vec![] };
+                    let privado = sensivel || ctx_arc.lock().private_data;
+                    let excluir: Vec<String> = if privado { orion_ai::gateway::ChatGateway::PROVEDORES_QUE_TREINAM.iter().map(|p| p.to_string()).collect() } else { vec![] };
                     let mut s = me.gateway.stream_for_task_excluding(mensagens.clone(), esquemas.clone(), tier.as_deref(), budget_task.clone(), preferred, excluir);
                     while let Some(ev) = s.next().await {
                         match ev {
@@ -950,6 +951,10 @@ impl Agent {
         {
             let mut ctx = ctx_arc.lock();
             self.policy.note_result(chamada, &mut ctx);
+            // F02.26: resultados de vault, arquivo e código são privados para este turno.
+            if matches!(chamada.name.as_str(), "buscar_memoria" | "ler_arquivo" | "listar_arquivos" | "consultar_git") {
+                ctx.private_data = true;
+            }
             if chamada.name == "buscar_memoria" {
                 match serde_json::from_str::<Value>(&bruto) {
                     Ok(p) => {
