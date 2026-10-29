@@ -321,6 +321,14 @@ pub struct Marks {
     pub switch: Option<(String, Instant)>,
 }
 
+/// Mensagem na fila (F05.01): texto, anexos e a conversa de origem.
+pub struct QueuedMessage {
+    pub conversation: String,
+    pub text: String,
+    pub attach: Vec<(String, String)>,
+    pub attachment_ids: Vec<String>,
+}
+
 pub struct App {
     pub resources: crate::resources::ResourceState,
     pub p: Prefs,
@@ -341,7 +349,7 @@ pub struct App {
     pub drawer: bool,
     pub composer: text_editor::Content,
     /// F05.01: mensagens digitadas enquanto o Orion responde; saem na ordem ao terminar a resposta.
-    pub queued: std::collections::VecDeque<(String, String)>,
+    pub queued: std::collections::VecDeque<QueuedMessage>,
     pub attach: Vec<(String, String)>,
     pub attachment_ids: Vec<String>,
     /// Miniaturas das imagens anexadas, por id de anexo (F05.11).
@@ -1984,21 +1992,25 @@ impl App {
         if self.streaming.is_some() {
             return Task::none();
         }
-        let Some((conversation_id, next)) = self.queued.pop_front() else {
+        let Some(next) = self.queued.pop_front() else {
             return Task::none();
         };
         // A mensagem volta para a conversa de origem, mesmo que o usuário esteja em outra.
-        let Some(index) = self.convs.iter().position(|c| c.id == conversation_id) else {
+        let Some(index) = self.convs.iter().position(|c| c.id == next.conversation) else {
             self.toast("Mensagem da fila sem conversa de origem.");
             return self.next_queued();
         };
-        // O rascunho do usuário é guardado, a mensagem da fila é enviada e o rascunho volta.
-        let stash = self.draft();
+        // O rascunho do usuário (texto e anexos) é guardado, a mensagem da fila é enviada e o rascunho volta.
+        let stash_text = self.draft();
+        let stash_attach = std::mem::replace(&mut self.attach, next.attach);
+        let stash_ids = std::mem::replace(&mut self.attachment_ids, next.attachment_ids);
         self.conv = Some(index);
         self.view = View::Chat;
-        self.composer = text_editor::Content::with_text(&next);
+        self.composer = text_editor::Content::with_text(&next.text);
         let task = self.send();
-        self.composer = text_editor::Content::with_text(&stash);
+        self.attach = stash_attach;
+        self.attachment_ids = stash_ids;
+        self.composer = text_editor::Content::with_text(&stash_text);
         task
     }
 
@@ -2010,8 +2022,14 @@ impl App {
         if self.streaming.is_some() {
             // F05.01: durante a resposta, texto normal entra na fila; comandos (/) não.
             if !text.starts_with('/') {
-                let origem = self.conv.and_then(|i| self.convs.get(i)).map(|c| c.id.clone()).unwrap_or_default();
-                self.queued.push_back((origem, text));
+                let origin = self.conv.and_then(|i| self.convs.get(i)).map(|c| c.id.clone()).unwrap_or_default();
+                // Os anexos do rascunho acompanham a mensagem; o rascunho fica livre para o próximo.
+                self.queued.push_back(QueuedMessage {
+                    conversation: origin,
+                    text,
+                    attach: std::mem::take(&mut self.attach),
+                    attachment_ids: std::mem::take(&mut self.attachment_ids),
+                });
                 self.composer = text_editor::Content::new();
             }
             return Task::none();

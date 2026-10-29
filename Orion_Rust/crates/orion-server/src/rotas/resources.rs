@@ -15,7 +15,7 @@ pub async fn runtime_get(_: Admin, State(st): State<Estado>) -> ApiResult<Json<V
     ))
 }
 
-/// Valida e grava as preferências (`PUT /config/runtime` e `settings.toml` usam o mesmo path) e atualiza o espelho.
+/// Valida e grava as preferências (`PUT /config/runtime` e `settings.toml` usam o mesmo caminho) e atualiza o espelho.
 pub fn apply_preferences(st: &Estado, patch: Value) -> ApiResult<Value> {
     let topics = patch
         .get("research_topics")
@@ -408,8 +408,8 @@ pub async fn toml_get(_: Admin, State(st): State<Estado>) -> ApiResult<Json<Valu
 /// `PUT /config/toml`: aplica o text digitado no app; mesmas regras de `PUT /config/runtime`.
 pub async fn toml_save(_: Admin, State(st): State<Estado>, Json(body): Json<Value>) -> ApiResult<Json<Value>> {
     let text = body["content"].as_str().ok_or_else(|| ApiError::new(422, "conteúdo ausente"))?;
-    let tabela: toml::Table = toml::from_str(text).map_err(|e| ApiError::new(422, format!("TOML inválido: {e}")))?;
-    let patch = serde_json::to_value(tabela).map_err(anyhow::Error::from)?;
+    let table: toml::Table = toml::from_str(text).map_err(|e| ApiError::new(422, format!("TOML inválido: {e}")))?;
+    let patch = serde_json::to_value(table).map_err(anyhow::Error::from)?;
     Ok(Json(apply_preferences(&st, patch)?))
 }
 
@@ -441,30 +441,30 @@ pub async fn watch_settings_toml() {
 fn watch_once(st: &Estado, last_error: &mut Option<String>) {
     let path = st.settings.data_dir.join(SETTINGS_TOML_FILE);
     let Ok(text) = std::fs::read_to_string(&path) else {
-        if let Ok(espelho) = mirror_text(&st.runtime_preferences.lock()) {
-            let _ = std::fs::write(&path, espelho);
+        if let Ok(mirror) = mirror_text(&st.runtime_preferences.lock()) {
+            let _ = std::fs::write(&path, mirror);
         }
         return;
     };
-    let atual = match mirror_text(&st.runtime_preferences.lock()) {
+    let current = match mirror_text(&st.runtime_preferences.lock()) {
         Ok(t) => t,
         Err(_) => return,
     };
-    if text.trim() == atual.trim() {
+    if text.trim() == current.trim() {
         return;
     }
-    let aplicado = toml::from_str::<toml::Table>(&text)
+    let applied = toml::from_str::<toml::Table>(&text)
         .map_err(|e| format!("TOML inválido: {e}"))
         .and_then(|t| serde_json::to_value(t).map_err(|e| e.to_string()))
         .and_then(|patch| apply_preferences(st, patch).map(|_| ()).map_err(|_| "valor recusado".to_string()));
-    match aplicado {
+    match applied {
         Ok(()) => {
             *last_error = None;
             tracing::info!("settings.toml aplicado");
             // Aplica na hora: reconfigura o núcleo como o botão Salvar e aplicar.
-            let gancho = RECONFIGURE_HOOK.lock().clone();
-            if let Some(reconfigurar) = gancho {
-                reconfigurar(st.settings.admin_token.clone());
+            let hook = RECONFIGURE_HOOK.lock().clone();
+            if let Some(reconfigure_fn) = hook {
+                reconfigure_fn(st.settings.admin_token.clone());
             }
         }
         Err(e) => {

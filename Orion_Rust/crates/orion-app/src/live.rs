@@ -1447,8 +1447,8 @@ impl App {
                 if o.body.is_empty() && o.approval.is_none() && o.tools.is_empty() {
                     conv.msgs.pop();
                 }
-                let fila = self.next_queued();
-                return Task::batch([self.reload_all(), self.buscar_imagens(), fila]);
+                let queued_task = self.next_queued();
+                return Task::batch([self.reload_all(), self.buscar_imagens(), queued_task]);
             }
         }
         Task::none()

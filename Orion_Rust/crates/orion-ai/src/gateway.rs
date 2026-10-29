@@ -323,14 +323,14 @@ impl ChatGateway {
     /// obrigatórios (REGRAS.md: custo zero (sem API paga)).
     /// F02.26: provedores cujo plano padrão pode usar dados para treino (ver `TRAINING_POLICY` no app).
     /// Turnos com vault ou código não vão a eles.
-    pub const PROVEDORES_QUE_TREINAM: &'static [&'static str] = &["google", "mistral"];
+    pub const TRAINING_PROVIDERS: &'static [&'static str] = &["google", "mistral"];
 
     pub fn stream_for_task_preferred<'a>(&'a self, messages: Vec<Value>, tools: Option<Vec<Value>>, tier: Option<&'a str>, task_id: String, preferred: Option<&'a str>) -> EventStream<'a> {
         self.stream_for_task_excluding(messages, tools, tier, task_id, preferred, Vec::new())
     }
 
-    /// Como `stream_for_task_preferred`, mas nunca usa os provedores em `excluir` (F02.26).
-    pub fn stream_for_task_excluding<'a>(&'a self, messages: Vec<Value>, tools: Option<Vec<Value>>, tier: Option<&'a str>, task_id: String, preferred: Option<&'a str>, excluir: Vec<String>) -> EventStream<'a> {
+    /// Como `stream_for_task_preferred`, mas nunca usa os provedores em `excluded` (F02.26).
+    pub fn stream_for_task_excluding<'a>(&'a self, messages: Vec<Value>, tools: Option<Vec<Value>>, tier: Option<&'a str>, task_id: String, preferred: Option<&'a str>, excluded: Vec<String>) -> EventStream<'a> {
         Box::pin(async_stream::stream! {
             let mut tentativas: Vec<(String, String)> = vec![];
             let mut ordem = vec![];
@@ -340,7 +340,7 @@ impl ChatGateway {
                 self.endpoints.read().iter().find(|ep| Some(ep.name.as_str())==preferred && ep.tier != CAMADA_LOCAL).map(|ep|ep.tier.clone())
             } else { None };
             let mut candidates = self.ordem(preferred_tier.as_deref().or(tier));
-            candidates.retain(|ep| !excluir.iter().any(|x| x == &ep.provedor));
+            candidates.retain(|ep| !excluded.iter().any(|x| x == &ep.provedor));
             if let Some(name) = preferred {
                 // Modelo local continua sendo apenas reserva, nunca promovido para nuvem.
                 candidates.sort_by_key(|ep| !(ep.name == name && ep.tier != CAMADA_LOCAL));
