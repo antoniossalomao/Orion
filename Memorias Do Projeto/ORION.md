@@ -89,6 +89,13 @@ A branch incorpora a main `56eeb64`, preservando os controles de ferramentas e o
 
 Validação desta correção: **550 testes existentes passaram, zero falhas e zero ignorados**, com a suíte completa do AGENTS.md no Linux/Rust 1.97.0 (dependências sem otimização e debug para esta execução). O teste de atualização por assinatura/hash, antes relatado como falho no PR, também passou nesta rodada. Os catálogos preservam os 55 rótulos novos do PR e os 21 da main com suas traduções originais, sem IDs duplicados. Sem testes novos nem CI automático. Aceite Windows continua pendente.
 
+## Board Notion: rodada F05/F06 — 29/10/2026
+
+- **F06.10** (frontmatter de conversa): o Orion já grava e valida `fonte: orion`; a regra do vault (`claude.md`) passa a listar `orion` (vault PR #114). Card em revisão.
+- **F05.04** (`@` cita nota): a busca do `@` casa também pelo caminho da pasta; a inserção continua `@[[título]]` (`orion-app/src/views/composer.rs`). `cargo check -p orion-app` sem erros; sem teste novo (pausa de 21/10). Pendente aceite na interface Windows.
+- **F02.25** (limpar área de transferência em 30 s): **pausado** pelo Antônio; o app não tem fluxo de cópia de segredo. Card bloqueado no board.
+- Pendentes desta rodada: F07.02, F07.03, F07.06, F02.05, F02.26, F05.01, F06.15.
+
 ## Pendências de código da v1 — 27/10/2026
 
 Branch `claude/kind-bohr-j6hi1g`. Entram, como `[~]` (código compilado e suíte existente verde no Linux; **sem testes novos** pela pausa de 21/10/2026; sem aceite na janela real do Windows): F08.06/F08.07 (nota raiz e clone de projeto), F06.07 (diário), F06.08 (comparação de conflitos), F05.11/F05.12 (imagens e áudio no chat), F04.09 (guarda de injeção), F09.04/F09.05 (tokens no painel e "Você fez") e F07.08 (recarga de configurações). Detalhes e limites de cada item em [ORION_MELHORIAS_PRE_V1.md](ORION_MELHORIAS_PRE_V1.md). Limites que valem para o conjunto: o ModernBERT ainda não está ligado (o guarda usa heurística); tokens do painel são estimados por bytes; clone só de repositório público; a tela de criação de projeto tem o campo `git_url`, mas ele só foi renderizado, não usado de verdade. Capturas headless das telas novas em `orion-app/src/snap.rs` (cenas `80` a `85`: respondendo com ferramentas, anexos com miniatura, conflito do vault, novo projeto e Configurações › Memória); o painel com os gráficos de tokens não tem cena porque exige o servidor. Os princípios novos (guarda de injeção, diário, relatório) precisam de aprovação sua para entrar em REGRAS.md.
