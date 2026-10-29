@@ -41,7 +41,7 @@ async fn preparar_nucleo(s: Settings,preserve_extensions:bool) -> anyhow::Result
     }
     let st = if preserve_extensions{crate::estado::montar_with_runtime(s,true).await?}else{crate::estado::montar(s).await?};
     // F02.05: observa o settings.toml e aplica as edições feitas à mão.
-    crate::rotas::resources::registrar_nucleo(&st);
+    crate::rotas::resources::register_core(&st);
     #[cfg(windows)]
     if !SCREEN_WATCH_STARTED.swap(true,std::sync::atomic::Ordering::SeqCst) {
         crate::cli_db::watch_screen_lock(&vigiar, st.auth.clone());

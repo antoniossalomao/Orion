@@ -15,7 +15,7 @@ pub async fn runtime_get(_: Admin, State(st): State<Estado>) -> ApiResult<Json<V
     ))
 }
 
-/// Valida e grava as preferências (`PUT /config/runtime` e `settings.toml` usam o mesmo caminho) e atualiza o espelho.
+/// Valida e grava as preferências (`PUT /config/runtime` e `settings.toml` usam o mesmo path) e atualiza o espelho.
 pub fn apply_preferences(st: &Estado, patch: Value) -> ApiResult<Value> {
     let topics = patch
         .get("research_topics")
@@ -414,32 +414,32 @@ pub async fn toml_save(_: Admin, State(st): State<Estado>, Json(body): Json<Valu
 }
 
 /// Núcleo atual para o observador: cada reconfiguração troca o ponteiro, sem empilhar observadores.
-static NUCLEO_ATUAL: parking_lot::Mutex<Option<Estado>> = parking_lot::Mutex::new(None);
-static OBSERVADOR_LIGADO: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static CURRENT_CORE: parking_lot::Mutex<Option<Estado>> = parking_lot::Mutex::new(None);
+static WATCHER_STARTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// Registra o núcleo recém-montado e liga o observador uma única vez.
-pub fn registrar_nucleo(st: &Estado) {
-    *NUCLEO_ATUAL.lock() = Some(st.clone());
-    if !OBSERVADOR_LIGADO.swap(true, std::sync::atomic::Ordering::SeqCst) {
+pub fn register_core(st: &Estado) {
+    *CURRENT_CORE.lock() = Some(st.clone());
+    if !WATCHER_STARTED.swap(true, std::sync::atomic::Ordering::SeqCst) {
         tokio::spawn(watch_settings_toml());
     }
 }
 
 /// Observa o `settings.toml`: quando você edita o arquivo à mão, aplica o que der e reescreve o espelho.
 pub async fn watch_settings_toml() {
-    let mut ultimo_erro: Option<String> = None;
+    let mut last_error: Option<String> = None;
     loop {
         tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-        let Some(st) = NUCLEO_ATUAL.lock().clone() else { continue };
-        observar_uma_vez(&st, &mut ultimo_erro);
+        let Some(st) = CURRENT_CORE.lock().clone() else { continue };
+        watch_once(&st, &mut last_error);
     }
 }
 
-fn observar_uma_vez(st: &Estado, ultimo_erro: &mut Option<String>) {
-    let caminho = st.settings.data_dir.join(SETTINGS_TOML_FILE);
-    let Ok(text) = std::fs::read_to_string(&caminho) else {
+fn watch_once(st: &Estado, last_error: &mut Option<String>) {
+    let path = st.settings.data_dir.join(SETTINGS_TOML_FILE);
+    let Ok(text) = std::fs::read_to_string(&path) else {
         if let Ok(espelho) = mirror_text(&st.runtime_preferences.lock()) {
-            let _ = std::fs::write(&caminho, espelho);
+            let _ = std::fs::write(&path, espelho);
         }
         return;
     };
@@ -456,13 +456,13 @@ fn observar_uma_vez(st: &Estado, ultimo_erro: &mut Option<String>) {
         .and_then(|patch| apply_preferences(st, patch).map(|_| ()).map_err(|_| "valor recusado".to_string()));
     match aplicado {
         Ok(()) => {
-            *ultimo_erro = None;
+            *last_error = None;
             tracing::info!("settings.toml aplicado");
         }
         Err(e) => {
-            if ultimo_erro.as_deref() != Some(e.as_str()) {
+            if last_error.as_deref() != Some(e.as_str()) {
                 tracing::warn!("settings.toml não aplicado (o valor atual continua): {e}");
-                *ultimo_erro = Some(e);
+                *last_error = Some(e);
             }
         }
     }

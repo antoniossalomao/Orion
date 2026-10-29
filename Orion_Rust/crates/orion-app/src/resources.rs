@@ -1061,11 +1061,15 @@ impl App {
                             self.resources.draft.remove(key);
                         }
                         self.toast("Recursos aplicados.");
-                        if self.sec == crate::app::Sec::Conectores {
-                            if let Some(api) = &self.api {
-                                return crate::live::pull_sec(api, self.sec);
+                        let mut tasks = Vec::new();
+                        if let Some(api) = self.api.clone() {
+                            // Recarrega também o editor do settings.toml, para ele não guardar valores antigos.
+                            tasks.push(load(&api));
+                            if self.sec == crate::app::Sec::Conectores {
+                                tasks.push(crate::live::pull_sec(&api, self.sec));
                             }
                         }
+                        return Task::batch(tasks);
                     }
                     Err(e) => self.resources.error = e,
                 }
