@@ -47,7 +47,7 @@ pub enum Event {
     Defaults(Result<Value, String>),
     RestoreOption(&'static str),
     RestoreGroup(String),
-    Saved(Result<Value, String>),
+    Saved(Result<Value, String>, Vec<&'static str>),
     Source(&'static str),
     Sources(std::time::Instant, Result<Value, String>),
     Action(&'static str, String),
@@ -490,8 +490,8 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
             }
         };
         // F07.03: "Restaurar" por opção só aparece quando o valor difere da primeira execução.
-        let padrao = app.resources.defaults.as_ref().and_then(|d| d.get(key));
-        let differs = padrao.is_some_and(|v| value_text(v) != input_value(app, key));
+        let default_value = app.resources.defaults.as_ref().and_then(|d| d.get(key));
+        let differs = default_value.is_some_and(|v| value_text(v) != input_value(app, key));
         let control: El = if differs {
             row![control, btn(crate::i18n::text("Restaurar"), Kind::Ghost, false, None, (!app.resources.busy).then_some(Msg::Resources(Event::RestoreOption(key))))].spacing(6).align_y(iced::alignment::Vertical::Center).into()
         } else {
@@ -666,6 +666,58 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
     .into()
 }
 impl App {
+    /// Envia ao servidor o rascunho, ou só as chaves pedidas (autosave salva apenas o campo alterado).
+    fn save_draft(&mut self, only: Option<&[&'static str]>) -> Task<Msg> {
+        let Some(api) = self.api.clone() else {
+            self.resources.error = "Configuração disponível somente no app conectado.".into();
+            return Task::none();
+        };
+        let mut patch = serde_json::Map::new();
+        let mut sent: Vec<&'static str> = Vec::new();
+        for (&key, text) in &self.resources.draft {
+            if only.is_some_and(|keys| !keys.contains(&key)) {
+                continue;
+            }
+            let Some(field) = FIELDS.iter().find(|f| f.0 == key) else {
+                continue;
+            };
+            let value = match field.3 {
+                Bool => json!(text == "true"),
+                Number => match text.parse::<serde_json::Number>() {
+                    Ok(n) => Value::Number(n),
+                    Err(_) => {
+                        self.resources.error = format!("{}: valor numérico inválido", field.2);
+                        return Task::none();
+                    }
+                },
+                File if text.trim().is_empty() => Value::Null,
+                Folder if text.trim().is_empty() && !["nuvem_dir", "rerank_model_dir"].contains(&key) => Value::Null,
+                List => json!(text.split(';').map(str::trim).filter(|s| !s.is_empty()).collect::<Vec<_>>()),
+                _ => json!(text.trim()),
+            };
+            patch.insert(key.into(), value);
+            sent.push(key);
+        }
+        self.resources.busy = true;
+        self.resources.error.clear();
+        // A pasta do vault só vale depois de reiniciar o Orion: o aviso sai junto com os outros.
+        let vault_changed = patch.contains_key("vault_dir");
+        Task::perform(
+            async move {
+                api.put("/config/runtime", Value::Object(patch)).await?;
+                let applied = api.reconfigure().await.map_err(|e| format!("Configuração salva. {e}"))?;
+                let mut snapshot = api.get("/config/runtime").await?;
+                let mut warnings = applied["warnings"].as_array().cloned().unwrap_or_default();
+                if vault_changed {
+                    warnings.push(Value::String("Pasta do vault salva. Reinicie o Orion para usar a nova pasta.".into()));
+                }
+                snapshot["warnings"] = Value::Array(warnings);
+                Ok(snapshot)
+            },
+            move |r| Msg::Resources(Event::Saved(r, sent)),
+        )
+    }
+
     fn sync_resources(&mut self, value: &Value) {
         let a = &value["active"];
         self.p.wake = a["wake_enabled"].as_bool().unwrap_or(false);
@@ -851,33 +903,35 @@ impl App {
                 let on = input_value(self, key) == "true";
                 self.resources.undo = Some((key, on.to_string()));
                 self.resources.draft.insert(key, (!on).to_string());
-                return Task::done(Msg::Resources(Event::Save));
+                return self.save_draft(Some(&[key]));
             }
-            Event::Defaults(Ok(valores)) => self.resources.defaults = Some(valores),
+            Event::Defaults(Ok(values)) => self.resources.defaults = Some(values),
             Event::Defaults(Err(_)) => {}
             Event::RestoreOption(key) if !self.resources.busy => {
-                if let Some(valor) = self.resources.defaults.as_ref().and_then(|d| d.get(key)).cloned() {
-                    let anterior = input_value(self, key);
-                    self.resources.undo = Some((key, anterior));
-                    self.resources.draft.insert(key, value_text(&valor));
-                    return Task::done(Msg::Resources(Event::Save));
+                if let Some(default_value) = self.resources.defaults.as_ref().and_then(|d| d.get(key)).cloned() {
+                    let previous = input_value(self, key);
+                    self.resources.undo = Some((key, previous));
+                    self.resources.draft.insert(key, value_text(&default_value));
+                    return self.save_draft(Some(&[key]));
                 }
             }
             Event::RestoreGroup(group) if !self.resources.busy => {
                 if let Some(defaults) = self.resources.defaults.clone() {
+                    let mut keys = Vec::new();
                     for &(key, _, _, _) in FIELDS.iter().filter(|f| f.1 == group.as_str()) {
-                        if let Some(valor) = defaults.get(key) {
-                            self.resources.draft.insert(key, value_text(valor));
+                        if let Some(default_value) = defaults.get(key) {
+                            self.resources.draft.insert(key, value_text(default_value));
+                            keys.push(key);
                         }
                     }
                     self.resources.undo = None;
-                    return Task::done(Msg::Resources(Event::Save));
+                    return self.save_draft(Some(&keys));
                 }
             }
             Event::Undo if !self.resources.busy => {
-                if let Some((key, anterior)) = self.resources.undo.take() {
-                    self.resources.draft.insert(key, anterior);
-                    return Task::done(Msg::Resources(Event::Save));
+                if let Some((key, previous)) = self.resources.undo.take() {
+                    self.resources.draft.insert(key, previous);
+                    return self.save_draft(Some(&[key]));
                 }
             }
             Event::Browse(key, folder) if !self.resources.busy => {
@@ -899,72 +953,14 @@ impl App {
             }
             Event::Chosen(key, Ok(Some(path))) => {
                 // F07.02: pasta ou arquivo escolhido salva sozinho.
-                let anterior = input_value(self, key);
-                self.resources.undo = Some((key, anterior));
+                let previous = input_value(self, key);
+                self.resources.undo = Some((key, previous));
                 self.resources.draft.insert(key, path);
-                return Task::done(Msg::Resources(Event::Save));
+                return self.save_draft(Some(&[key]));
             }
             Event::Chosen(_, Err(e)) => self.resources.error = e,
-            Event::Save if !self.resources.busy => {
-                let Some(api) = self.api.clone() else {
-                    self.resources.error =
-                        "Configuração disponível somente no app conectado.".into();
-                    return Task::none();
-                };
-                let mut patch = serde_json::Map::new();
-                for (&key, text) in &self.resources.draft {
-                    let Some(field) = FIELDS.iter().find(|f| f.0 == key) else {
-                        continue;
-                    };
-                    let value = match field.3 {
-                        Bool => json!(text == "true"),
-                        Number => match text.parse::<serde_json::Number>() {
-                            Ok(n) => Value::Number(n),
-                            Err(_) => {
-                                self.resources.error =
-                                    format!("{}: valor numérico inválido", field.2);
-                                return Task::none();
-                            }
-                        },
-                        File if text.trim().is_empty() => Value::Null,
-                        Folder
-                            if text.trim().is_empty()
-                                && !["nuvem_dir", "rerank_model_dir"].contains(&key) =>
-                        {
-                            Value::Null
-                        }
-                        List => json!(text
-                            .split(';')
-                            .map(str::trim)
-                            .filter(|s| !s.is_empty())
-                            .collect::<Vec<_>>()),
-                        _ => json!(text.trim()),
-                    };
-                    patch.insert(key.into(), value);
-                }
-                self.resources.busy = true;
-                self.resources.error.clear();
-                // A pasta do vault só vale depois de reiniciar o Orion: o aviso sai junto com os outros.
-                let vault_mudou = patch.contains_key("vault_dir");
-                return Task::perform(
-                    async move {
-                        api.put("/config/runtime", Value::Object(patch)).await?;
-                        let applied = api
-                            .reconfigure()
-                            .await
-                            .map_err(|e| format!("Configuração salva. {e}"))?;
-                        let mut snapshot = api.get("/config/runtime").await?;
-                        let mut avisos = applied["warnings"].as_array().cloned().unwrap_or_default();
-                        if vault_mudou {
-                            avisos.push(Value::String("Pasta do vault salva. Reinicie o Orion para usar a nova pasta.".into()));
-                        }
-                        snapshot["warnings"] = Value::Array(avisos);
-                        Ok(snapshot)
-                    },
-                    |r| Msg::Resources(Event::Saved(r)),
-                );
-            }
-            Event::Saved(result) => {
+            Event::Save if !self.resources.busy => return self.save_draft(None),
+            Event::Saved(result, sent) => {
                 self.resources.busy = false;
                 match result {
                     Ok(value) => {
@@ -978,7 +974,10 @@ impl App {
                                 .join("\n");
                         }
                         self.resources.snapshot = Some(value);
-                        self.resources.draft.clear();
+                        // Só sai do rascunho o que foi enviado; edições em outros campos continuam.
+                        for key in sent {
+                            self.resources.draft.remove(key);
+                        }
                         self.toast("Recursos aplicados.");
                         if self.sec == crate::app::Sec::Conectores {
                             if let Some(api) = &self.api {
