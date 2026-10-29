@@ -1390,3 +1390,9 @@ ui-1036 = { "Liga os plugins instalados." }
 ui-1037 = { "Pasta onde ficam os plugins." }
 
 ui-1038 = { "Mensagem da fila sem conversa de origem." }
+
+ui-1039 = { "Só há provedores que treinam com os dados. Este conteúdo é privado. Enviar mesmo assim?" }
+
+ui-1040 = { "Enviar mesmo assim" }
+
+ui-1041 = { "Não foi possível liberar o envio agora." }

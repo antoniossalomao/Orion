@@ -1431,6 +1431,10 @@ impl App {
                 o.approval = Some(map_approval(&a));
                 conv.state = ConvState::Pending;
             }
+            Chat::Error(e) if e == "confirmar_envio_privado" => {
+                // F02.26: o último pedido do usuário espera a confirmação; nada é enviado a Google ou Mistral sem ela.
+                self.private_confirm = conv.msgs.iter().rev().find_map(|m| if let ChatMsg::User(s) = m { Some(s.clone()) } else { None });
+            }
             Chat::Error(e) => {
                 if o.body.is_empty() {
                     o.via.clear(); // ninguém respondeu: não atribui a resposta a um provedor

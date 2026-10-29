@@ -352,6 +352,8 @@ pub struct App {
     pub composer: text_editor::Content,
     /// F05.01: mensagens digitadas enquanto o Orion responde; saem na ordem ao terminar a resposta.
     pub queued: std::collections::VecDeque<QueuedMessage>,
+    /// F02.26: texto que aguarda a confirmação do usuário para ir a provedores que treinam.
+    pub private_confirm: Option<String>,
     pub attach: Vec<(String, String)>,
     pub attachment_ids: Vec<String>,
     /// Miniaturas das imagens anexadas, por id de anexo (F05.11).
@@ -508,6 +510,10 @@ pub enum Msg {
     Send,
     Stop,
     RepeatLast,
+    /// F02.26: o usuário aceita enviar conteúdo privado a provedores que treinam, só desta vez.
+    ConfirmPrivate,
+    CancelPrivate,
+    PrivatePermitted(String),
     RepeatLastIfEmpty,
     Attach,
     Unattach(usize),
@@ -717,6 +723,7 @@ impl App {
             drawer: false,
             composer: text_editor::Content::new(),
             queued: Default::default(),
+            private_confirm: None,
             attach: vec![],
             attachment_ids: vec![],
             attach_thumbs: std::collections::HashMap::new(),
@@ -1378,6 +1385,22 @@ impl App {
                         self.convs[s.conv].state = ConvState::Normal;
                     }
                 }
+            }
+            Msg::ConfirmPrivate => {
+                let Some(text) = self.private_confirm.take() else { return Task::none() };
+                let Some(api) = self.api.clone() else { return Task::none() };
+                let Some(session) = self.conv.and_then(|i| self.convs.get(i)).map(|c| c.id.clone()) else { return Task::none() };
+                return Task::perform(async move { api.post(&format!("/sessoes/{session}/permitir-envio-privado"), serde_json::json!({})).await }, move |r| match r {
+                    Ok(_) => Msg::PrivatePermitted(text.clone()),
+                    Err(_) => Msg::PrivatePermitted(String::new()),
+                });
+            }
+            Msg::CancelPrivate => self.private_confirm = None,
+            Msg::PrivatePermitted(text) => {
+                if !text.is_empty() {
+                    return self.live_send(text);
+                }
+                self.toast("Não foi possível liberar o envio agora.");
             }
             Msg::RepeatLastIfEmpty => {
                 if self.draft().is_empty() {

@@ -1166,5 +1166,8 @@
   "Pasta onde ficam as skills.": "ui-1035",
   "Liga os plugins instalados.": "ui-1036",
   "Pasta onde ficam os plugins.": "ui-1037",
-  "Mensagem da fila sem conversa de origem.": "ui-1038"
+  "Mensagem da fila sem conversa de origem.": "ui-1038",
+  "Só há provedores que treinam com os dados. Este conteúdo é privado. Enviar mesmo assim?": "ui-1039",
+  "Enviar mesmo assim": "ui-1040",
+  "Não foi possível liberar o envio agora.": "ui-1041"
 }

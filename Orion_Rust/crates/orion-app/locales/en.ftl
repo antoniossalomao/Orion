@@ -1390,3 +1390,9 @@ ui-1036 = { "Turns on installed plugins." }
 ui-1037 = { "Folder where plugins live." }
 
 ui-1038 = { "Queued message has no source conversation." }
+
+ui-1039 = { "Only providers that train on data are available. This content is private. Send anyway?" }
+
+ui-1040 = { "Send anyway" }
+
+ui-1041 = { "Could not allow sending right now." }

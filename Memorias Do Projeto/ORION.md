@@ -106,7 +106,8 @@ Validação desta correção: **550 testes existentes passaram, zero falhas e ze
 - **F07.06:** o banner fixo do chat só existe nos dados de demonstração; os avisos reais saem como toast, que já tem o link.
 - **F02.26 (bloqueio):** turno com nota do vault, código ou documento de projeto no contexto não usa Google nem Mistral (`ChatGateway::PROVEDORES_QUE_TREINAM`). Cobre o contexto selecionado (`@`, anexos, projeto) e, a partir da ferramenta que lê, o restante do turno: `buscar_memoria`, `ler_arquivo`, `listar_arquivos` e `consultar_git` marcam `private_data` no contexto. Google excluído mesmo no plano pago, por não haver distinção de plano no código.
 - **F07.03 (completo):** cada uma das 63 opções de Configurações mostra uma descrição curta, em pt-BR e en (tabela `DESCRIPTIONS` em `resources.rs`). Sem ponto azul, a pedido.
-- **Pendente:** nenhum item da rodada em aberto.
+- **F02.26 (confirmação):** quando o turno é privado e só sobram Google e Mistral, o agente não envia; a conversa mostra um cartão "Enviar mesmo assim" / "Cancelar". Confirmar libera a conversa para o próximo envio (`POST /sessoes/:sid/permitir-envio-privado`) e reenvia a última mensagem. Limitação: o reenvio repete a mensagem no histórico.
+- **Pendente:** verificação das políticas nos sites oficiais e testes (pausa de 21/10).
 
 ## Pendências de código da v1 — 27/10/2026
 
