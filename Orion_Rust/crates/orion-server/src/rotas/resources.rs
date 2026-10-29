@@ -417,6 +417,9 @@ pub async fn toml_save(_: Admin, State(st): State<Estado>, Json(body): Json<Valu
 static CURRENT_CORE: parking_lot::Mutex<Option<Estado>> = parking_lot::Mutex::new(None);
 static WATCHER_STARTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
+/// Gancho que reconfigura o núcleo a partir do token do núcleo atual (ligado pelo modo app).
+pub static RECONFIGURE_HOOK: parking_lot::Mutex<Option<std::sync::Arc<dyn Fn(String) + Send + Sync>>> = parking_lot::Mutex::new(None);
+
 /// Registra o núcleo recém-montado e liga o observador uma única vez.
 pub fn register_core(st: &Estado) {
     *CURRENT_CORE.lock() = Some(st.clone());
@@ -458,6 +461,11 @@ fn watch_once(st: &Estado, last_error: &mut Option<String>) {
         Ok(()) => {
             *last_error = None;
             tracing::info!("settings.toml aplicado");
+            // Aplica na hora: reconfigura o núcleo como o botão Salvar e aplicar.
+            let gancho = RECONFIGURE_HOOK.lock().clone();
+            if let Some(reconfigurar) = gancho {
+                reconfigurar(st.settings.admin_token.clone());
+            }
         }
         Err(e) => {
             if last_error.as_deref() != Some(e.as_str()) {

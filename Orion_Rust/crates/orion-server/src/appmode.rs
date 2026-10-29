@@ -471,16 +471,24 @@ pub fn run(mut s: Settings, fundo: bool) -> anyhow::Result<i32> {
     let trancado = trancado || (!primeiro_uso && (orion_core::onboarding::Profile::load(&s.data_dir)?.is_some() || crate::onboarding::login_protegido(&s)));
     let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
     let slot: Slot = Default::default();
-    let api = orion_app::net::Api::local(
-        std::sync::Arc::new(Interno {
-            nucleo: slot.clone(),
-            settings: s,
-            rt: runtime.handle().clone(),
-            mostrar: mostrar.clone(),
-            requires_login: trancado,
-        }),
-        token,
-    );
+    let local = std::sync::Arc::new(Interno {
+        nucleo: slot.clone(),
+        settings: s,
+        rt: runtime.handle().clone(),
+        mostrar: mostrar.clone(),
+        requires_login: trancado,
+    });
+    // F02.05: a edição do settings.toml à mão reconfigura o núcleo pelo mesmo caminho do app.
+    {
+        let (local_gancho, rt_gancho) = (local.clone(), runtime.handle().clone());
+        *crate::rotas::resources::RECONFIGURE_HOOK.lock() = Some(std::sync::Arc::new(move |token: String| {
+            let futuro = local_gancho.reconfigure(Some(token));
+            rt_gancho.spawn(async move {
+                let _ = futuro.await;
+            });
+        }));
+    }
+    let api = orion_app::net::Api::local(local, token);
     let _ = std::fs::remove_file(&mostrar);
     // banco cifrado e trancado: mesmo no início com o Windows a janela abre já na tela de senha
     let fundo = fundo && !trancado && !primeiro_uso;
