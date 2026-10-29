@@ -538,6 +538,10 @@ impl Agent {
                 ctx_arc.lock().tainted = true;
                 me.marcar_taint(&session.id);
             }
+            // F02.26: o que a busca automática põe no prompt é privado (vault ou repositório) antes da primeira chamada.
+            if !hits.is_empty() {
+                ctx_arc.lock().private_data = true;
+            }
             mensagens.extend(me.external_messages(&external));
             // as imagens vão na mensagem do usuário, antes da skill forçada acrescentar o par assistente/ferramenta
             if !images.is_empty() && mensagens.last().is_some_and(|m| m["role"] == "user") {

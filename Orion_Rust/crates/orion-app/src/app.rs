@@ -327,6 +327,8 @@ pub struct QueuedMessage {
     pub text: String,
     pub attach: Vec<(String, String)>,
     pub attachment_ids: Vec<String>,
+    /// Miniaturas dos anexos: acompanham a mensagem, para o rascunho atual não liberá-las.
+    pub thumbs: Vec<(String, iced::widget::image::Handle)>,
 }
 
 pub struct App {
@@ -2004,12 +2006,14 @@ impl App {
         let stash_text = self.draft();
         let stash_attach = std::mem::replace(&mut self.attach, next.attach);
         let stash_ids = std::mem::replace(&mut self.attachment_ids, next.attachment_ids);
+        let stash_thumbs = std::mem::replace(&mut self.attach_thumbs, next.thumbs.into_iter().collect());
         self.conv = Some(index);
         self.view = View::Chat;
         self.composer = text_editor::Content::with_text(&next.text);
         let task = self.send();
         self.attach = stash_attach;
         self.attachment_ids = stash_ids;
+        self.attach_thumbs = stash_thumbs;
         self.composer = text_editor::Content::with_text(&stash_text);
         task
     }
@@ -2024,11 +2028,14 @@ impl App {
             if !text.starts_with('/') {
                 let origin = self.conv.and_then(|i| self.convs.get(i)).map(|c| c.id.clone()).unwrap_or_default();
                 // Os anexos do rascunho acompanham a mensagem; o rascunho fica livre para o próximo.
+                let attachment_ids = std::mem::take(&mut self.attachment_ids);
+                let thumbs = attachment_ids.iter().filter_map(|id| self.attach_thumbs.remove(id).map(|h| (id.clone(), h))).collect();
                 self.queued.push_back(QueuedMessage {
                     conversation: origin,
                     text,
                     attach: std::mem::take(&mut self.attach),
-                    attachment_ids: std::mem::take(&mut self.attachment_ids),
+                    attachment_ids,
+                    thumbs,
                 });
                 self.composer = text_editor::Content::new();
             }
