@@ -1242,3 +1242,5 @@ ui-0961 = { "Desfazer última mudança" }
 ui-0962 = { "Pasta do vault salva. Reinicie o Orion para usar a nova pasta." }
 
 ui-0964 = { "Restaurar padrão desta seção" }
+
+ui-0965 = { "Abrir configurações" }

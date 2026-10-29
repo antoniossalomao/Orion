@@ -1092,5 +1092,6 @@
   "Salvo": "ui-0960",
   "Desfazer última mudança": "ui-0961",
   "Pasta do vault salva. Reinicie o Orion para usar a nova pasta.": "ui-0962",
-  "Restaurar padrão desta seção": "ui-0964"
+  "Restaurar padrão desta seção": "ui-0964",
+  "Abrir configurações": "ui-0965"
 }

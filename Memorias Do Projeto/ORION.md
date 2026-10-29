@@ -97,7 +97,8 @@ Validação desta correção: **550 testes existentes passaram, zero falhas e ze
 - **Vault sincronizado (pedido do Antônio, 29/10/2026):** ao abrir o Orion, a pasta do vault faz pull fast-forward da `main` (`orion-server/src/estado.rs`); falha vira aviso no log. Notas criadas pelo Orion já fazem commit e push normal na `main` (`auto_push`, sem force). Se a main remota estiver à frente, o push espera o pull; nunca sobrescreve.
 - **Caminho do vault:** salvar uma nova pasta em Configurações mostra o aviso para reiniciar o Orion (o servidor só usa o caminho novo na inicialização).
 - **F07.03** (parcial): "Restaurar" por opção (aparece só quando o valor difere) e "Restaurar padrão desta seção" no topo de cada seção, usando a foto da primeira execução em `runtime-defaults.json` (`GET /config/runtime/padrao`). Descrições curtas ficaram para depois, a pedido do Antônio; sem ponto azul.
-- Pendentes desta rodada: F07.06, F02.05, F02.26, F05.01, F06.15 (F07.03 só falta as descrições).
+- **F07.06:** o toast de aviso ganha "Abrir configurações" quando a mensagem é de cota (Uso), modelo/chave (Modelos), ferramentas (Ferramentas) ou vault (Sistema). `/config <seção>` já existia (F01.23). Os avisos fixos do chat (banner da conversa) não têm link.
+- Pendentes desta rodada: F02.05, F02.26, F05.01, F06.15 (F07.03 só falta as descrições).
 
 ## Pendências de código da v1 — 27/10/2026
 
