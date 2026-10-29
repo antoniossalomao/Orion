@@ -507,7 +507,7 @@ pub fn run(mut s: Settings, fundo: bool) -> anyhow::Result<i32> {
         });
         // F06.15: relatório da sessão ao fechar o Orion.
         if let Some(vault) = n.st.settings.vault_dir.clone().or_else(orion_vault::detect_vault_path) {
-            crate::diary::relatorio_da_sessao(&vault);
+            crate::diary::session_report(&vault);
         }
     }
     *crate::onboarding::BACKUP_KEY.lock() = None;

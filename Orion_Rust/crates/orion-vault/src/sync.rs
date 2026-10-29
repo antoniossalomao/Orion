@@ -235,19 +235,19 @@ impl VaultManager {
     /// F09.05: exporta o "Você fez" do dia para `03 Recursos/Orion/Memória/Diário/<data> - Você fez[ - <projeto>].md`.
     /// Nunca sobrescreve (se já existe, devolve `unchanged`) e não faz commit nem push.
     /// F06.15: grava (ou substitui) um relatório em `03 Recursos/Relatórios de Mudanças`. Devolve o caminho.
-    pub fn publicar_relatorio(&self, nome: &str, markdown: &str) -> Result<String, VaultError> {
-        let rel = Path::new("03 Recursos").join("Relatórios de Mudanças").join(format!("{}.md", crate::note::sanitize_filename(nome)));
+    pub fn publish_report(&self, name: &str, markdown: &str) -> Result<String, VaultError> {
+        let rel = Path::new("03 Recursos").join("Relatórios de Mudanças").join(format!("{}.md", crate::note::sanitize_filename(name)));
         let target = crate::safe_path::checked(&self.config.path, &rel, true)?;
         replace_note(&target, markdown)?;
         Ok(rel.to_string_lossy().replace('\\', "/"))
     }
 
-    /// F06.15: acrescenta uma linha ao relatório da sessão da conversa; cria com `cabecalho` se não existir.
-    pub fn acrescentar_relatorio(&self, nome: &str, cabecalho: &str, linha: &str) -> Result<String, VaultError> {
-        let rel = Path::new("03 Recursos").join("Relatórios de Mudanças").join(format!("{}.md", crate::note::sanitize_filename(nome)));
+    /// F06.15: acrescenta uma linha ao relatório da sessão da conversa; cria com `header` se não existir.
+    pub fn append_report(&self, name: &str, header: &str, line: &str) -> Result<String, VaultError> {
+        let rel = Path::new("03 Recursos").join("Relatórios de Mudanças").join(format!("{}.md", crate::note::sanitize_filename(name)));
         let target = crate::safe_path::checked(&self.config.path, &rel, true)?;
-        let atual = std::fs::read_to_string(&target).unwrap_or_else(|_| cabecalho.to_string());
-        replace_note(&target, &format!("{atual}{linha}\n"))?;
+        let current = std::fs::read_to_string(&target).unwrap_or_else(|_| header.to_string());
+        replace_note(&target, &format!("{current}{line}\n"))?;
         Ok(rel.to_string_lossy().replace('\\', "/"))
     }
 

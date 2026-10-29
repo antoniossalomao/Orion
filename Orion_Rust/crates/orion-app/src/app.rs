@@ -341,7 +341,7 @@ pub struct App {
     pub drawer: bool,
     pub composer: text_editor::Content,
     /// F05.01: mensagens digitadas enquanto o Orion responde; saem na ordem ao terminar a resposta.
-    pub queued: std::collections::VecDeque<String>,
+    pub queued: std::collections::VecDeque<(String, String)>,
     pub attach: Vec<(String, String)>,
     pub attachment_ids: Vec<String>,
     /// Miniaturas das imagens anexadas, por id de anexo (F05.11).
@@ -1981,16 +1981,25 @@ impl App {
 
     /// Envia a próxima mensagem da fila, se a resposta atual já terminou e o campo está vazio.
     pub fn next_queued(&mut self) -> Task<Msg> {
-        if self.streaming.is_some() || !self.draft().trim().is_empty() {
+        if self.streaming.is_some() {
             return Task::none();
         }
-        match self.queued.pop_front() {
-            Some(next) => {
-                self.composer = text_editor::Content::with_text(&next);
-                self.send()
-            }
-            None => Task::none(),
-        }
+        let Some((conversation_id, next)) = self.queued.pop_front() else {
+            return Task::none();
+        };
+        // A mensagem volta para a conversa de origem, mesmo que o usuário esteja em outra.
+        let Some(index) = self.convs.iter().position(|c| c.id == conversation_id) else {
+            self.toast("Mensagem da fila sem conversa de origem.");
+            return self.next_queued();
+        };
+        // O rascunho do usuário é guardado, a mensagem da fila é enviada e o rascunho volta.
+        let stash = self.draft();
+        self.conv = Some(index);
+        self.view = View::Chat;
+        self.composer = text_editor::Content::with_text(&next);
+        let task = self.send();
+        self.composer = text_editor::Content::with_text(&stash);
+        task
     }
 
     fn send(&mut self) -> Task<Msg> {
@@ -2001,7 +2010,8 @@ impl App {
         if self.streaming.is_some() {
             // F05.01: durante a resposta, texto normal entra na fila; comandos (/) não.
             if !text.starts_with('/') {
-                self.queued.push_back(text);
+                let origem = self.conv.and_then(|i| self.convs.get(i)).map(|c| c.id.clone()).unwrap_or_default();
+                self.queued.push_back((origem, text));
                 self.composer = text_editor::Content::new();
             }
             return Task::none();
