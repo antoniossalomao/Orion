@@ -870,6 +870,8 @@ impl App {
                 }
                 self.resources.busy = true;
                 self.resources.error.clear();
+                // A pasta do vault só vale depois de reiniciar o Orion: o aviso sai junto com os outros.
+                let vault_mudou = patch.contains_key("vault_dir");
                 return Task::perform(
                     async move {
                         api.put("/config/runtime", Value::Object(patch)).await?;
@@ -878,7 +880,11 @@ impl App {
                             .await
                             .map_err(|e| format!("Configuração salva. {e}"))?;
                         let mut snapshot = api.get("/config/runtime").await?;
-                        snapshot["warnings"] = applied["warnings"].clone();
+                        let mut avisos = applied["warnings"].as_array().cloned().unwrap_or_default();
+                        if vault_mudou {
+                            avisos.push(Value::String("Pasta do vault salva. Reinicie o Orion para usar a nova pasta.".into()));
+                        }
+                        snapshot["warnings"] = Value::Array(avisos);
                         Ok(snapshot)
                     },
                     |r| Msg::Resources(Event::Saved(r)),
