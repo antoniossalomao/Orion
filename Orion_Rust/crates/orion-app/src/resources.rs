@@ -19,6 +19,8 @@ pub struct ResourceState {
     pub draft: BTreeMap<&'static str, String>,
     /// F07.02: campo da última mudança salva sozinha e o valor anterior, para "Desfazer".
     pub undo: Option<(&'static str, String)>,
+    /// F07.03: valores da primeira execução ("valor da instalação"), para restaurar.
+    pub defaults: Option<Value>,
     pub busy: bool,
     pub error: String,
     pub sources: Option<Value>,
@@ -42,6 +44,9 @@ pub enum Event {
     Chosen(&'static str, Result<Option<String>, String>),
     Save,
     Undo,
+    Defaults(Result<Value, String>),
+    RestoreOption(&'static str),
+    RestoreGroup(String),
     Saved(Result<Value, String>),
     Source(&'static str),
     Sources(std::time::Instant, Result<Value, String>),
@@ -361,6 +366,7 @@ pub fn load_management(api: &Api, groups: &[&'static str]) -> Task<Msg> {
 pub fn load(api: &Api) -> Task<Msg> {
     let a = api.clone();
     let b = api.clone();
+    let c = api.clone();
     let start = std::time::Instant::now();
     Task::batch([
         Task::perform(async move { a.get("/config/runtime").await }, |r| {
@@ -368,6 +374,9 @@ pub fn load(api: &Api) -> Task<Msg> {
         }),
         Task::perform(async move { b.get("/config/sources").await }, move |r| {
             Msg::Resources(Event::Sources(start, r))
+        }),
+        Task::perform(async move { c.get("/config/runtime/padrao").await }, |r| {
+            Msg::Resources(Event::Defaults(r))
         }),
     ])
 }
@@ -434,6 +443,15 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
             (!app.resources.busy).then_some(Msg::Resources(Event::Undo)),
         ));
     }
+    if app.resources.defaults.is_some() {
+        col = col.push(btn(
+            crate::i18n::text("Restaurar padrão desta seção"),
+            Kind::Ghost,
+            false,
+            None,
+            (!app.resources.busy).then(|| Msg::Resources(Event::RestoreGroup(group.to_string()))),
+        ));
+    }
     for &(key, _, label, kind) in FIELDS.iter().filter(|f| f.1 == group) {
         let text = input_value(app, key);
         let control: El = match kind {
@@ -470,6 +488,14 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
                 }
                 controls.into()
             }
+        };
+        // F07.03: "Restaurar" por opção só aparece quando o valor difere da primeira execução.
+        let padrao = app.resources.defaults.as_ref().and_then(|d| d.get(key));
+        let differs = padrao.is_some_and(|v| value_text(v) != input_value(app, key));
+        let control: El = if differs {
+            row![control, btn(crate::i18n::text("Restaurar"), Kind::Ghost, false, None, (!app.resources.busy).then_some(Msg::Resources(Event::RestoreOption(key))))].spacing(6).align_y(iced::alignment::Vertical::Center).into()
+        } else {
+            control
         };
         col = col.push(setting(crate::i18n::text(label), "", control));
     }
@@ -826,6 +852,27 @@ impl App {
                 self.resources.undo = Some((key, on.to_string()));
                 self.resources.draft.insert(key, (!on).to_string());
                 return Task::done(Msg::Resources(Event::Save));
+            }
+            Event::Defaults(Ok(valores)) => self.resources.defaults = Some(valores),
+            Event::Defaults(Err(_)) => {}
+            Event::RestoreOption(key) if !self.resources.busy => {
+                if let Some(valor) = self.resources.defaults.as_ref().and_then(|d| d.get(key)).cloned() {
+                    let anterior = input_value(self, key);
+                    self.resources.undo = Some((key, anterior));
+                    self.resources.draft.insert(key, value_text(&valor));
+                    return Task::done(Msg::Resources(Event::Save));
+                }
+            }
+            Event::RestoreGroup(group) if !self.resources.busy => {
+                if let Some(defaults) = self.resources.defaults.clone() {
+                    for &(key, _, _, _) in FIELDS.iter().filter(|f| f.1 == group.as_str()) {
+                        if let Some(valor) = defaults.get(key) {
+                            self.resources.draft.insert(key, value_text(valor));
+                        }
+                    }
+                    self.resources.undo = None;
+                    return Task::done(Msg::Resources(Event::Save));
+                }
             }
             Event::Undo if !self.resources.busy => {
                 if let Some((key, anterior)) = self.resources.undo.take() {

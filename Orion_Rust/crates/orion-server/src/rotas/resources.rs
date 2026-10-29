@@ -47,6 +47,11 @@ pub async fn runtime_save(
     Ok(Json(json!({"saved":*saved,"restart_required":true})))
 }
 
+/// F07.03: valores da primeira execução, para "Restaurar padrão".
+pub async fn runtime_defaults(_: Admin, State(st): State<Estado>) -> ApiResult<Json<Value>> {
+    Ok(Json(orion_core::runtime_preferences::load_defaults(&st.settings.data_dir)?))
+}
+
 pub async fn sources_get(_: Admin, State(st): State<Estado>) -> ApiResult<Json<Value>> {
     Ok(Json(
         serde_json::to_value(st.memory.source_preferences()?).map_err(anyhow::Error::from)?,

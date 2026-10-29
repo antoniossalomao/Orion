@@ -445,6 +445,8 @@ pub async fn montar_with_runtime(mut settings: Settings, preserve_extensions:boo
     if let Some(profile)=orion_core::onboarding::Profile::load(&settings.data_dir)?{settings.backup_dir=profile.backup.clone().or_else(||profile.drive_backup.then(||settings.data_dir.join("backups")));}
     let runtime_preferences = orion_core::runtime_preferences::RuntimePreferences::load(&settings.data_dir, &settings)?;
     runtime_preferences.apply(&mut settings);
+    // F07.03: foto dos valores da primeira execução para "Restaurar padrão" (só grava se ainda não existe).
+    orion_core::runtime_preferences::save_defaults_once(&settings.data_dir, &runtime_preferences)?;
     crate::appmode::progress("Abrindo o banco…");
     std::fs::create_dir_all(&settings.data_dir)?;
     let s2 = settings.clone();

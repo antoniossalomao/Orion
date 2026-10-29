@@ -1240,3 +1240,5 @@ ui-0960 = { "Saved" }
 ui-0961 = { "Undo last change" }
 
 ui-0962 = { "Vault folder saved. Restart Orion to use the new folder." }
+
+ui-0964 = { "Restore section defaults" }
