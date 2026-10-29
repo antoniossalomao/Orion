@@ -893,7 +893,10 @@ impl App {
                 if let Some(h) = self.abort.take() {
                     h.abort();
                 }
-                None.or(Some((Task::none(), true)))
+                // F05.01: parar a resposta não deixa a fila presa; ela segue na ordem.
+                self.streaming = None;
+                let queued_task = self.next_queued();
+                Some((queued_task, true))
             }
             _ => None,
         }

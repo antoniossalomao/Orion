@@ -1388,3 +1388,5 @@ ui-1035 = { "Folder where skills live." }
 ui-1036 = { "Turns on installed plugins." }
 
 ui-1037 = { "Folder where plugins live." }
+
+ui-1038 = { "Queued message has no source conversation." }

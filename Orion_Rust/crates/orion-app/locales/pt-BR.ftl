@@ -1388,3 +1388,5 @@ ui-1035 = { "Pasta onde ficam as skills." }
 ui-1036 = { "Liga os plugins instalados." }
 
 ui-1037 = { "Pasta onde ficam os plugins." }
+
+ui-1038 = { "Mensagem da fila sem conversa de origem." }

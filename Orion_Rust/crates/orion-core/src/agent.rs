@@ -520,6 +520,9 @@ impl Agent {
             let _configuration = me.gateway.configuration.read().await;
             me.refresh().await;
             let ctx_arc = me.context(&session.id);
+            if me.memory.counter_get(&format!("privado:{}", session.id)) > 0 {
+                ctx_arc.lock().private_data = true;
+            }
             let escopo = Self::escopo(&ctx_arc.lock());
             let hits: Vec<Hit> = match &consulta {
                 Some(q) if orion_store::text::has_search_terms(q) => {
@@ -622,6 +625,10 @@ impl Agent {
                 let mut falhou: Option<String> = None;
                 {
                     let private_turn = sensitive || ctx_arc.lock().private_data;
+                    if private_turn {
+                        // F02.26: a conversa inteira fica privada depois do primeiro conteúdo privado.
+                        let _ = me.memory.counter_set(&format!("privado:{}", session.id), 1);
+                    }
                     let excluded: Vec<String> = if private_turn { orion_ai::gateway::ChatGateway::TRAINING_PROVIDERS.iter().map(|p| p.to_string()).collect() } else { vec![] };
                     let mut s = me.gateway.stream_for_task_excluding(mensagens.clone(), esquemas.clone(), tier.as_deref(), budget_task.clone(), preferred, excluded);
                     while let Some(ev) = s.next().await {
