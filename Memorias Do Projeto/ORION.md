@@ -104,7 +104,8 @@ Validação desta correção: **550 testes existentes passaram, zero falhas e ze
 - **F06.15:** cada nota que o Orion grava na conversa entra no relatório da sessão da conversa em `03 Recursos/Relatórios de Mudanças`. Ao fechar o Orion, grava um relatório da sessão (só se houve mudanças).
 - **F02.05 (ao vivo):** editar o `settings.toml` à mão aplica na hora, pelo mesmo caminho do Salvar e aplicar (gancho `RECONFIGURE_HOOK`).
 - **F07.06:** o banner fixo do chat só existe nos dados de demonstração; os avisos reais saem como toast, que já tem o link.
-- **Pendente:** F02.26 bloqueio (código/vault privado a provedores que treinam) exige marcar cada turno com vault ou código ao longo do agente. F07.03 descrições curtas: adiadas pelo Antônio.
+- **F02.26 (bloqueio):** turno com nota do vault, código ou documento de projeto no contexto não usa Google nem Mistral (`ChatGateway::PROVEDORES_QUE_TREINAM`). Cobre o contexto selecionado (`@`, anexos, projeto); resultados de ferramentas de busca no vault ainda não são marcados, ponto em aberto. Google excluído mesmo no plano pago, por não haver distinção de plano no código.
+- **Pendente:** F07.03 descrições curtas: adiadas pelo Antônio. F02.26: marcar também resultados de ferramentas do vault e de código.
 
 ## Pendências de código da v1 — 27/10/2026
 
