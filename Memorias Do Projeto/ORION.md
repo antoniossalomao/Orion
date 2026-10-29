@@ -98,7 +98,8 @@ Validação desta correção: **550 testes existentes passaram, zero falhas e ze
 - **Caminho do vault:** salvar uma nova pasta em Configurações mostra o aviso para reiniciar o Orion (o servidor só usa o caminho novo na inicialização).
 - **F07.03** (parcial): "Restaurar" por opção (aparece só quando o valor difere) e "Restaurar padrão desta seção" no topo de cada seção, usando a foto da primeira execução em `runtime-defaults.json` (`GET /config/runtime/padrao`). Descrições curtas ficaram para depois, a pedido do Antônio; sem ponto azul.
 - **F07.06:** o toast de aviso ganha "Abrir configurações" quando a mensagem é de cota (Uso), modelo/chave (Modelos), ferramentas (Ferramentas) ou vault (Sistema). `/config <seção>` já existia (F01.23). Os avisos fixos do chat (banner da conversa) não têm link.
-- Pendentes desta rodada: F02.05, F02.26, F05.01, F06.15 (F07.03 só falta as descrições).
+- **F02.05** (espelho): `settings.toml` em `<dados>/settings.toml` espelha as preferências de Configurações (sem segredos). Editável no app (Sistema › settings.toml, Salvar aplica na hora) e observado a cada 2 s: edição à mão aplica o que der e reescreve o espelho. `GET/PUT /config/toml`. Escolha do Antônio: mostrar o conteúdo no app (sem "Abrir arquivo"). Valores que exigem reiniciar continuam sendo aplicados só na inicialização.
+- Pendentes desta rodada: F02.26, F05.01, F06.15 (F07.03 só falta as descrições).
 
 ## Pendências de código da v1 — 27/10/2026
 

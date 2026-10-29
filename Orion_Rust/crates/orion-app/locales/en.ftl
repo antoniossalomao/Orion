@@ -1244,3 +1244,7 @@ ui-0962 = { "Vault folder saved. Restart Orion to use the new folder." }
 ui-0964 = { "Restore section defaults" }
 
 ui-0965 = { "Open settings" }
+
+ui-0966 = { "settings.toml: a mirror of the settings without secrets. Saving applies right away; editing the file by hand also applies." }
+
+ui-0967 = { "Save settings.toml" }

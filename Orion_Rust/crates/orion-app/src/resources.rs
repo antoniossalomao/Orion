@@ -6,14 +6,15 @@ use crate::{
     ui::*,
 };
 use iced::{
-    widget::{column, container, row, text_input},
+    widget::{column, container, row, text_editor, text_input},
     Length, Task,
 };
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
 
-#[derive(Default)]
 pub struct ResourceState {
+    /// F02.05: texto do settings.toml (espelho das Configurações) editado no app.
+    pub toml: text_editor::Content,
     pub lists: BTreeMap<&'static str, Value>,
     pub snapshot: Option<Value>,
     pub draft: BTreeMap<&'static str, String>,
@@ -34,6 +35,30 @@ pub struct ResourceState {
     pub captions: Vec<String>,
     pub form: Option<Form>,
 }
+impl Default for ResourceState {
+    fn default() -> Self {
+        Self {
+            toml: text_editor::Content::new(),
+            lists: BTreeMap::new(),
+            snapshot: None,
+            draft: BTreeMap::new(),
+            undo: None,
+            defaults: None,
+            busy: false,
+            error: String::new(),
+            sources: None,
+            source_busy: false,
+            source_changed: None,
+            audio_id: None,
+            audio: None,
+            audio_busy: false,
+            audio_session: None,
+            result: None,
+            captions: Vec::new(),
+            form: None,
+        }
+    }
+}
 #[derive(Clone)]
 pub enum Event {
     Load,
@@ -45,6 +70,10 @@ pub enum Event {
     Save,
     Undo,
     Defaults(Result<Value, String>),
+    TomlLoaded(Result<Value, String>),
+    TomlEdit(text_editor::Action),
+    TomlSave,
+    TomlSaved(Result<Value, String>),
     RestoreOption(&'static str),
     RestoreGroup(String),
     Saved(Result<Value, String>, Vec<&'static str>),
@@ -367,6 +396,7 @@ pub fn load(api: &Api) -> Task<Msg> {
     let a = api.clone();
     let b = api.clone();
     let c = api.clone();
+    let d = api.clone();
     let start = std::time::Instant::now();
     Task::batch([
         Task::perform(async move { a.get("/config/runtime").await }, |r| {
@@ -377,6 +407,9 @@ pub fn load(api: &Api) -> Task<Msg> {
         }),
         Task::perform(async move { c.get("/config/runtime/padrao").await }, |r| {
             Msg::Resources(Event::Defaults(r))
+        }),
+        Task::perform(async move { d.get("/config/toml").await }, |r| {
+            Msg::Resources(Event::TomlLoaded(r))
         }),
     ])
 }
@@ -408,6 +441,24 @@ fn input_value(app: &App, key: &'static str) -> String {
 }
 pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
     let mut col = column![].spacing(10);
+    if group == "storage" {
+        col = col.push(tx(crate::i18n::text("settings.toml: espelho das Configurações, sem segredos. Salvar aplica na hora; editar o arquivo à mão também aplica."), 12.5, t::FG3));
+        col = col.push(
+            text_editor(&app.resources.toml)
+                .on_action(|action| Msg::Resources(Event::TomlEdit(action)))
+                .font(t::MONO_MED)
+                .size(12.5)
+                .height(Length::Fixed(240.0))
+                .padding(10),
+        );
+        col = col.push(btn(
+            crate::i18n::text("Salvar settings.toml"),
+            Kind::Primary,
+            false,
+            None,
+            (!app.resources.busy).then_some(Msg::Resources(Event::TomlSave)),
+        ));
+    }
     col=col.push(tx(crate::i18n::text("As escolhas ficam salvas neste computador. Use Salvar e aplicar para atualizar os recursos."),12.5,t::FG3));
     if app.resources.snapshot.is_none() {
         return column![
@@ -907,6 +958,30 @@ impl App {
             }
             Event::Defaults(Ok(values)) => self.resources.defaults = Some(values),
             Event::Defaults(Err(_)) => {}
+            Event::TomlLoaded(Ok(corpo)) => {
+                let texto = corpo["conteudo"].as_str().unwrap_or_default();
+                self.resources.toml = text_editor::Content::with_text(texto);
+            }
+            Event::TomlLoaded(Err(_)) => {}
+            Event::TomlEdit(action) => self.resources.toml.perform(action),
+            Event::TomlSave if !self.resources.busy => {
+                let Some(api) = self.api.clone() else {
+                    self.resources.error = "Configuração disponível somente no app conectado.".into();
+                    return Task::none();
+                };
+                let conteudo = self.resources.toml.text();
+                self.resources.busy = true;
+                return Task::perform(async move { api.put("/config/toml", json!({"conteudo": conteudo})).await }, |r| Msg::Resources(Event::TomlSaved(r)));
+            }
+            Event::TomlSaved(Ok(_)) => {
+                self.resources.busy = false;
+                self.toast(crate::i18n::text("Salvo"));
+                return Task::done(Msg::Resources(Event::Load));
+            }
+            Event::TomlSaved(Err(e)) => {
+                self.resources.busy = false;
+                self.resources.error = e;
+            }
             Event::RestoreOption(key) if !self.resources.busy => {
                 if let Some(default_value) = self.resources.defaults.as_ref().and_then(|d| d.get(key)).cloned() {
                     let previous = input_value(self, key);

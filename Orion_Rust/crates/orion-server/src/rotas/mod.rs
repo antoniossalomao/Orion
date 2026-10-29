@@ -108,6 +108,7 @@ pub fn router(st: Estado) -> Router {
         .route("/resources/backup/restore", post(resources::backup_restore))
         .route("/config/runtime", get(resources::runtime_get).put(resources::runtime_save))
         .route("/config/runtime/padrao", get(resources::runtime_defaults))
+        .route("/config/toml", get(resources::toml_get).put(resources::toml_save))
         .route("/config/sources", get(resources::sources_get).put(resources::sources_save))
         .route("/terminal/run", post(resources::terminal_run))
         .route("/modo/autonomo", post(modo_autonomo))

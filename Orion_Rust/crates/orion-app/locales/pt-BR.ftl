@@ -1244,3 +1244,7 @@ ui-0962 = { "Pasta do vault salva. Reinicie o Orion para usar a nova pasta." }
 ui-0964 = { "Restaurar padrão desta seção" }
 
 ui-0965 = { "Abrir configurações" }
+
+ui-0966 = { "settings.toml: espelho das Configurações, sem segredos. Salvar aplica na hora; editar o arquivo à mão também aplica." }
+
+ui-0967 = { "Salvar settings.toml" }
