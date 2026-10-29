@@ -94,6 +94,8 @@ Validação desta correção: **550 testes existentes passaram, zero falhas e ze
 - **F06.10** (frontmatter de conversa): o Orion já grava e valida `fonte: orion`; a regra do vault (`claude.md`) passa a listar `orion` (vault PR #114). Card em revisão.
 - **F05.04** (`@` cita nota): a busca do `@` casa também pelo caminho da pasta; a inserção continua `@[[título]]` (`orion-app/src/views/composer.rs`). `cargo check -p orion-app` sem erros; sem teste novo (pausa de 21/10). Pendente aceite na interface Windows.
 - **F02.25** (limpar área de transferência em 30 s): **pausado** pelo Antônio; o app não tem fluxo de cópia de segredo. Card bloqueado no board.
+- **Vault sincronizado (pedido do Antônio, 29/10/2026):** ao abrir o Orion, a pasta do vault faz pull fast-forward da `main` (`orion-server/src/estado.rs`); falha vira aviso no log. Notas criadas pelo Orion já fazem commit e push normal na `main` (`auto_push`, sem force). Se a main remota estiver à frente, o push espera o pull; nunca sobrescreve.
+- **Caminho do vault:** salvar uma nova pasta em Configurações mostra o aviso para reiniciar o Orion (o servidor só usa o caminho novo na inicialização).
 - Pendentes desta rodada: F07.02, F07.03, F07.06, F02.05, F02.26, F05.01, F06.15.
 
 ## Pendências de código da v1 — 27/10/2026
