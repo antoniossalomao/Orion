@@ -1088,5 +1088,8 @@
   "Uso": "resource-122",
   "Este computador": "resource-123",
   "Restaura em uma nova pasta. A senha atual abre o arquivo; a nova senha protege o perfil restaurado.": "resource-124",
-  "Exporta banco e perfil cifrados. Contas, tokens e permissões deste computador ficam fora do arquivo.": "resource-125"
+  "Exporta banco e perfil cifrados. Contas, tokens e permissões deste computador ficam fora do arquivo.": "resource-125",
+  "Salvo": "ui-0960",
+  "Desfazer última mudança": "ui-0961",
+  "Pasta do vault salva. Reinicie o Orion para usar a nova pasta.": "ui-0962"
 }

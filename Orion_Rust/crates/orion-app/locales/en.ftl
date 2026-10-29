@@ -1234,3 +1234,9 @@ resource-123 = { "This computer" }
 resource-124 = { "Restores to a new folder. The current password opens the backup; the new password protects the restored profile." }
 
 resource-125 = { "Exports an encrypted database and profile. Accounts, tokens and this computer’s permissions are excluded." }
+
+ui-0960 = { "Saved" }
+
+ui-0961 = { "Undo last change" }
+
+ui-0962 = { "Vault folder saved. Restart Orion to use the new folder." }

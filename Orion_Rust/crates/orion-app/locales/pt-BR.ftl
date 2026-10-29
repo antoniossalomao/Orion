@@ -1234,3 +1234,9 @@ resource-123 = { "Este computador" }
 resource-124 = { "Restaura em uma nova pasta. A senha atual abre o arquivo; a nova senha protege o perfil restaurado." }
 
 resource-125 = { "Exporta banco e perfil cifrados. Contas, tokens e permissões deste computador ficam fora do arquivo." }
+
+ui-0960 = { "Salvo" }
+
+ui-0961 = { "Desfazer última mudança" }
+
+ui-0962 = { "Pasta do vault salva. Reinicie o Orion para usar a nova pasta." }
