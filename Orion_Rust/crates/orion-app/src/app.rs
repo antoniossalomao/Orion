@@ -1413,7 +1413,9 @@ impl App {
             }
             Msg::Sugg(s) => {
                 let cur = self.draft();
-                let new = if let Some(p) = cur.rfind(['/', '@']) { format!("{}{}", &cur[..p], s) } else { s };
+                // Substitui o token inteiro (`@caminho/da nota`), não só a partir da última barra.
+                let token = cur.split(char::is_whitespace).next_back().unwrap_or("");
+                let new = if token.starts_with(['/', '@']) { format!("{}{}", &cur[..cur.len() - token.len()], s) } else { s };
                 self.composer = text_editor::Content::with_text(&new);
                 self.composer.perform(text_editor::Action::Move(text_editor::Motion::DocumentEnd));
             }
