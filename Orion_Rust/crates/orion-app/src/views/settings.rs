@@ -270,7 +270,7 @@ fn section<'a>(app: &'a App) -> El<'a> {
                 }
                 c = c.push(sh(crate::i18n::text("Chaves de API")));
                 c = c.push(lede(crate::i18n::text("Guardadas no cofre do sistema (Credential Manager). Chaves de modelos valem na hora.")));
-                for (_, label, nome, url) in crate::onboarding::PROVIDERS {
+                for (id, label, nome, url) in crate::onboarding::PROVIDERS {
                     if let Some(f) = app.key_form.as_ref().filter(|f| f.nome == *nome) {
                         let mut input = text_input(crate::i18n::text("Cole a chave de API"), &f.value).id("api-key").secure(true).size(13).font(t::UI).padding(pad(6.0, 10.0, 6.0, 10.0)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 8.0));
                         if !f.busy {
@@ -288,7 +288,11 @@ fn section<'a>(app: &'a App) -> El<'a> {
                         ));
                     } else {
                         let tem = app.keys.get(*nome).copied().unwrap_or(false);
-                        let desc = if tem { crate::i18n::text("Chave guardada no cofre do sistema.").to_string() } else { crate::i18n::formatted("Sem chave. Obtenha em {url}", format!("Sem chave. Obtenha em {url}")) };
+                        let mut desc = if tem { crate::i18n::text("Chave guardada no cofre do sistema.").to_string() } else { crate::i18n::formatted("Sem chave. Obtenha em {url}", format!("Sem chave. Obtenha em {url}")) };
+                        // F02.26: aviso de treino com os dados enviados a este provedor.
+                        if let Some((_, treino)) = crate::onboarding::TREINO.iter().find(|(tid, _)| tid == id) {
+                            desc = format!("{desc} Treino: {treino}");
+                        }
                         c = c.push(setting_el(
                             tx(label.to_string(), 13.5, t::FG).into(),
                             &desc,

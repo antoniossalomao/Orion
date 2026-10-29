@@ -99,7 +99,8 @@ Validação desta correção: **550 testes existentes passaram, zero falhas e ze
 - **F07.03** (parcial): "Restaurar" por opção (aparece só quando o valor difere) e "Restaurar padrão desta seção" no topo de cada seção, usando a foto da primeira execução em `runtime-defaults.json` (`GET /config/runtime/padrao`). Descrições curtas ficaram para depois, a pedido do Antônio; sem ponto azul.
 - **F07.06:** o toast de aviso ganha "Abrir configurações" quando a mensagem é de cota (Uso), modelo/chave (Modelos), ferramentas (Ferramentas) ou vault (Sistema). `/config <seção>` já existia (F01.23). Os avisos fixos do chat (banner da conversa) não têm link.
 - **F02.05** (espelho): `settings.toml` em `<dados>/settings.toml` espelha as preferências de Configurações (sem segredos). Editável no app (Sistema › settings.toml, Salvar aplica na hora) e observado a cada 2 s: edição à mão aplica o que der e reescreve o espelho. `GET/PUT /config/toml`. Escolha do Antônio: mostrar o conteúdo no app (sem "Abrir arquivo"). Valores que exigem reiniciar continuam sendo aplicados só na inicialização.
-- Pendentes desta rodada: F02.26, F05.01, F06.15 (F07.03 só falta as descrições).
+- **F02.26** (parcial): tabela `TREINO` em `orion-app/src/onboarding.rs` com a política de treino de cada provedor de Configurações › Modelos, mostrada na linha do provedor. Conferida em 29/10/2026 em fontes de terceiros; Google (gratuito treina), Mistral (gratuito treina por padrão) e Groq (não treina) com confirmação pendente no site oficial. Cerebras, GitHub Models, NVIDIA, Z.ai e Brave ficaram como não verificado. **Não feito:** bloquear envio de código e vault privado a provedores que treinam (regra R23). Exige mudar o roteamento do gateway.
+- Pendentes desta rodada: F05.01, F06.15 (F07.03 só falta as descrições; F02.26 falta o bloqueio).
 
 ## Pendências de código da v1 — 27/10/2026
 

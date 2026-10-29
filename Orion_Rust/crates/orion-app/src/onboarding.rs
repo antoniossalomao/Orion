@@ -16,6 +16,20 @@ pub const PROVIDERS: &[(&str, &str, &str, &str)] = &[
     ("brave", "Brave Search", "ORION_BRAVE_API_KEY", "https://api.search.brave.com/app/keys"),
 ];
 
+/// F02.26: política de treino dos provedores. Conferida em 29/10/2026 em fontes de terceiros;
+/// confirmar no site oficial do provedor antes de confiar nela. "Não verificado" = sem fonte confiável ainda.
+pub const TREINO: &[(&str, &str)] = &[
+    ("google", "Plano gratuito: pode usar os dados para melhorar produtos do Google. Plano pago: não."),
+    ("groq", "Não treina com dados de API (confirmar no site)."),
+    ("mistral", "Plano gratuito: treina por padrão. Desligue em Admin Console > Privacidade."),
+    ("openrouter", "Depende do provedor roteado. Configure não treinar na sua conta."),
+    ("cerebras", "Não verificado."),
+    ("github", "Não verificado."),
+    ("nvidia", "Não verificado."),
+    ("zai", "Não verificado."),
+    ("brave", "Não verificado."),
+];
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Field {
     ResourceFile,
