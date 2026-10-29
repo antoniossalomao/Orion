@@ -18,7 +18,7 @@ pub const PROVIDERS: &[(&str, &str, &str, &str)] = &[
 
 /// F02.26: política de treino dos provedores. Conferida em 29/10/2026 em fontes de terceiros;
 /// confirmar no site oficial do provedor antes de confiar nela. "Não verificado" = sem fonte confiável ainda.
-pub const TREINO: &[(&str, &str)] = &[
+pub const TRAINING_POLICY: &[(&str, &str)] = &[
     ("google", "Plano gratuito: pode usar os dados para melhorar produtos do Google. Plano pago: não."),
     ("groq", "Não treina com dados de API (confirmar no site)."),
     ("mistral", "Plano gratuito: treina por padrão. Desligue em Admin Console > Privacidade."),

@@ -1248,3 +1248,15 @@ ui-0965 = { "Open settings" }
 ui-0966 = { "settings.toml: a mirror of the settings without secrets. Saving applies right away; editing the file by hand also applies." }
 
 ui-0967 = { "Save settings.toml" }
+
+ui-0968 = { "Free plan: may use data to improve Google products. Paid plan: no." }
+
+ui-0969 = { "Does not train on API data (confirm on the site)." }
+
+ui-0970 = { "Free plan: trains by default. Turn it off in Admin Console > Privacy." }
+
+ui-0971 = { "Depends on the routed provider. Set your account not to train." }
+
+ui-0972 = { "Not verified." }
+
+ui-0973 = { "Training" }

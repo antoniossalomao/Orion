@@ -25,7 +25,10 @@ pub fn suggestions(app: &App) -> Vec<(String, String, String)> {
                     .mem
                     .nodes
                     .iter()
-                    .filter(|n| n.label.to_lowercase().contains(&q) || n.folder.to_lowercase().contains(&q))
+                    .filter(|n| {
+                        let caminho = if n.folder.is_empty() { n.label.clone() } else { format!("{}/{}", n.folder, n.label) };
+                        n.label.to_lowercase().contains(&q) || n.folder.to_lowercase().contains(&q) || caminho.to_lowercase().contains(&q)
+                    })
                     .take(8)
                     .map(|n| (format!("@[[{}]] ", n.label), n.label.clone(), n.folder.split('/').next().unwrap_or("").to_string()))
                     .collect();

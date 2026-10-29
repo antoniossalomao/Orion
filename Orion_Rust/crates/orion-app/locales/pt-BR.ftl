@@ -1248,3 +1248,15 @@ ui-0965 = { "Abrir configurações" }
 ui-0966 = { "settings.toml: espelho das Configurações, sem segredos. Salvar aplica na hora; editar o arquivo à mão também aplica." }
 
 ui-0967 = { "Salvar settings.toml" }
+
+ui-0968 = { "Plano gratuito: pode usar os dados para melhorar produtos do Google. Plano pago: não." }
+
+ui-0969 = { "Não treina com dados de API (confirmar no site)." }
+
+ui-0970 = { "Plano gratuito: treina por padrão. Desligue em Admin Console > Privacidade." }
+
+ui-0971 = { "Depende do provedor roteado. Configure não treinar na sua conta." }
+
+ui-0972 = { "Não verificado." }
+
+ui-0973 = { "Treino" }

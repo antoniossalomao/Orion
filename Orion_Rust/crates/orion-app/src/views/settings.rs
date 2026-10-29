@@ -290,8 +290,8 @@ fn section<'a>(app: &'a App) -> El<'a> {
                         let tem = app.keys.get(*nome).copied().unwrap_or(false);
                         let mut desc = if tem { crate::i18n::text("Chave guardada no cofre do sistema.").to_string() } else { crate::i18n::formatted("Sem chave. Obtenha em {url}", format!("Sem chave. Obtenha em {url}")) };
                         // F02.26: aviso de treino com os dados enviados a este provedor.
-                        if let Some((_, treino)) = crate::onboarding::TREINO.iter().find(|(tid, _)| tid == id) {
-                            desc = format!("{desc} Treino: {treino}");
+                        if let Some((_, policy)) = crate::onboarding::TRAINING_POLICY.iter().find(|(tid, _)| tid == id) {
+                            desc = format!("{desc} {}: {}", crate::i18n::text("Treino"), crate::i18n::text(policy));
                         }
                         c = c.push(setting_el(
                             tx(label.to_string(), 13.5, t::FG).into(),
