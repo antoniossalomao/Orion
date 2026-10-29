@@ -86,11 +86,11 @@ pub fn root(app: &App) -> El<'_> {
             layers.push(overlays::caption(&app.resources.captions));
         }
     }
-    if app.logged && app.island.senha_cadastro.is_some() {
-        layers.push(island::cadastro_senha(app));
+    if app.logged && app.island.enroll_password.is_some() {
+        layers.push(island::enroll_password_modal(app));
     }
     // a ilha fica acima dos pedidos de senha: é ela que conta o que o Face ID está fazendo
-    if app.island_visivel() {
+    if app.island_visible() {
         layers.push(island::view(app));
     }
     if let Some((msg, _)) = &app.toast {

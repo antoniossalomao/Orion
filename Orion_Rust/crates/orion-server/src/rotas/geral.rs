@@ -231,8 +231,8 @@ pub async fn modo_panico(
         return Ok(Json(st.modos.estado()));
     }
     let (st2, cliente) = (st.clone(), addr.ip().to_string());
-    let rosto = !c.faceid.is_empty() && orion_core::faceid::TIQUETES.consumir(&c.faceid, "panico");
-    let ok = rosto || tokio::task::spawn_blocking(move || senha_de_novo(&st2, &c.senha, &cliente)).await.unwrap_or(false);
+    let by_face = !c.faceid.is_empty() && orion_core::faceid::TICKETS.consume(&c.faceid, "panico");
+    let ok = by_face || tokio::task::spawn_blocking(move || senha_de_novo(&st2, &c.senha, &cliente)).await.unwrap_or(false);
     if !ok {
         return erro(403, "para sair do modo pânico, confirme a senha");
     }
@@ -266,8 +266,8 @@ pub struct AutonomoControle {
 }
 
 pub async fn modo_autonomo(_: Admin, State(st): State<Estado>, Json(c): Json<AutonomoControle>) -> ApiResult<Json<Value>> {
-    let rosto = c.faceid.as_deref().is_some_and(|t| orion_core::faceid::TIQUETES.consumir(t, "autonomo"));
-    if c.ativo && !rosto && !c.senha.as_deref().is_some_and(|s| st.auth.check_password(s)) {
+    let by_face = c.faceid.as_deref().is_some_and(|t| orion_core::faceid::TICKETS.consume(t, "autonomo"));
+    if c.ativo && !by_face && !c.senha.as_deref().is_some_and(|s| st.auth.check_password(s)) {
         return Err(ApiError::new(403, "Senha incorreta: o modo autônomo só liga com a sua senha"));
     }
     st.modos.set_autonomo(c.ativo).map_err(|e| ApiError::new(500, e.to_string()))?;

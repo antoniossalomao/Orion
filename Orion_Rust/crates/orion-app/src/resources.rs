@@ -705,15 +705,15 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
             );
             col=col.push(tx(crate::i18n::text("O cadastro tira cinco fotos e guarda somente o vetor cifrado. Este rosto serve para presença; não aprova ações."),12.5,t::FG3));
             // Face ID: entrar e confirmar pedidos de senha pelo rosto (opt-in; a senha segue valendo)
-            let face_on = app.face_id_ativo();
+            let face_on = app.face_id_enabled();
             col = col.push(
                 row![
                     if face_on {
-                        btn(crate::i18n::text("Cadastrar o Face ID de novo"), Kind::Normal, true, None, (!app.island.ocupada()).then_some(Msg::Face(crate::island::FaceMsg::CadastroPedir)))
+                        btn(crate::i18n::text("Cadastrar o Face ID de novo"), Kind::Normal, true, None, (!app.island.busy()).then_some(Msg::Face(crate::island::FaceMsg::EnrollAsk)))
                     } else {
-                        btn(crate::i18n::text("Ativar Face ID"), Kind::Primary, true, None, (!app.island.ocupada()).then_some(Msg::Face(crate::island::FaceMsg::CadastroPedir)))
+                        btn(crate::i18n::text("Ativar Face ID"), Kind::Primary, true, None, (!app.island.busy()).then_some(Msg::Face(crate::island::FaceMsg::EnrollAsk)))
                     },
-                    if face_on { btn(crate::i18n::text("Desligar Face ID"), Kind::Normal, true, None, Some(Msg::Face(crate::island::FaceMsg::Desligar))) } else { sp_w(0.0) }
+                    if face_on { btn(crate::i18n::text("Desligar Face ID"), Kind::Normal, true, None, Some(Msg::Face(crate::island::FaceMsg::Disable))) } else { sp_w(0.0) }
                 ]
                 .spacing(8),
             );

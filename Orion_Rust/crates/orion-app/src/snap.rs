@@ -48,28 +48,28 @@ pub fn scenarios() -> Vec<(&'static str, Size, App)> {
     let mut push = |n: &'static str, a: App| v.push((n, SIZE, a));
     push("01b-login-cifrado", { let mut a = App::new(); a.db_locked = true; a.now = std::time::Instant::now(); a.login_at = a.now - std::time::Duration::from_secs(8); a });
     {
-        use crate::island::{Fase, Proposito};
-        use crate::net::{FaceDica, FaceFalha};
-        let ilha = |fase: Fase, idade_ms: u64, prop: Proposito, logado: bool| {
+        use crate::island::{Phase, Purpose};
+        use crate::net::{FaceHint, FaceFailure};
+        let island_scene = |phase: Phase, age_ms: u64, purpose: Purpose, logged_in: bool| {
             let mut a = App::new();
             a.user = "antonio".into();
             a.island.demo = true;
-            if logado { a.logged = true; a.hour = Some(9); a.update(Msg::NewChat); }
+            if logged_in { a.logged = true; a.hour = Some(9); a.update(Msg::NewChat); }
             a.now = std::time::Instant::now() + std::time::Duration::from_secs(10);
             a.login_at = a.now - std::time::Duration::from_secs(8);
-            a.island.fase = fase;
-            a.island.proposito = prop;
-            a.island.desde = a.now - std::time::Duration::from_millis(idade_ms);
-            a.island.de = crate::island::tamanho(fase);
-            a.island.dica = FaceDica::Lendo;
-            if fase == Fase::Erro { a.island.falha = Some(FaceFalha::NaoReconhecido); }
+            a.island.phase = phase;
+            a.island.purpose = purpose;
+            a.island.since = a.now - std::time::Duration::from_millis(age_ms);
+            a.island.from = crate::island::size(phase);
+            a.island.hint = FaceHint::Reading;
+            if phase == Phase::Error { a.island.failure = Some(FaceFailure::NotRecognized); }
             a
         };
-        push("40-faceid-espera", ilha(Fase::Standby, 4000, Proposito::Login, false));
-        push("41-faceid-lendo", ilha(Fase::Lendo, 1300, Proposito::Login, false));
-        push("42-faceid-sucesso", ilha(Fase::Sucesso, 620, Proposito::Login, false));
-        push("43-faceid-erro", ilha(Fase::Erro, 900, Proposito::Login, false));
-        push("44-faceid-autonomo", { let mut a = ilha(Fase::Lendo, 1300, Proposito::Autonomo, true); a.auto_senha = Some(String::new()); a });
+        push("40-faceid-espera", island_scene(Phase::Standby, 4000, Purpose::Login, false));
+        push("41-faceid-lendo", island_scene(Phase::Reading, 1300, Purpose::Login, false));
+        push("42-faceid-sucesso", island_scene(Phase::Success, 620, Purpose::Login, false));
+        push("43-faceid-erro", island_scene(Phase::Error, 900, Purpose::Login, false));
+        push("44-faceid-autonomo", { let mut a = island_scene(Phase::Reading, 1300, Purpose::Autonomous, true); a.auto_senha = Some(String::new()); a });
     }
     push("02-inicio", cena(|a| {
         a.update(Msg::NewChat);

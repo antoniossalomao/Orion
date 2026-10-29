@@ -858,7 +858,7 @@ impl App {
         let busy = entrada || [a.page, a.pop, a.modal, a.scrim, a.over, a.drawer, a.toast, a.more, a.tools].iter().any(|m| crate::anim::active(*m, self.now, 450)) || a.switch.as_ref().map(|s| crate::anim::active(Some(s.1), self.now, 300)).unwrap_or(false) || self.mem_tween.is_some();
         let moving = busy || self.streaming.is_some() || self.toast.is_some() || self.news_pending;
         // a ilha anima a ~60 quadros/s só enquanto lê ou muda de forma; parada, não acorda a janela
-        let island = if self.window_active && !self.fundo && self.island_visivel() && self.island.animando(self.now) { iced::time::every(Duration::from_millis(16)).map(Msg::Tick) } else { Subscription::none() };
+        let island = if self.window_active && !self.fundo && self.island_visible() && self.island.animating(self.now) { iced::time::every(Duration::from_millis(16)).map(Msg::Tick) } else { Subscription::none() };
         let tick = if self.window_active && !self.fundo && moving { iced::time::every(Duration::from_millis(42)).map(Msg::Tick) } else { Subscription::none() };
         let progress = if self.loading.is_some() { iced::time::every(Duration::from_millis(150)).map(|_| Msg::BootProgress) } else { Subscription::none() };
         let focus = iced::event::listen_with(|event, _, _| match event {
@@ -977,10 +977,10 @@ impl App {
             Msg::Toggle("auto") if !self.p.auto => {
                 self.auto_senha = Some(String::new());
                 // com Face ID, o pedido de senha já abre lendo o rosto (a senha segue valendo)
-                if self.face_id_ativo() {
-                    return self.update_face(crate::island::FaceMsg::Iniciar(crate::island::Proposito::Autonomo));
+                if self.face_id_enabled() {
+                    return self.update_face(crate::island::FaceMsg::Start(crate::island::Purpose::Autonomous));
                 }
-                return iced::widget::operation::focus(crate::island::campo_senha(crate::island::Proposito::Autonomo));
+                return iced::widget::operation::focus(crate::island::password_field(crate::island::Purpose::Autonomous));
             }
             Msg::AutoSenhaText(s) => {
                 self.auto_senha = Some(s.clone());
@@ -988,8 +988,8 @@ impl App {
             }
             Msg::AutoSenhaClose => {
                 self.auto_senha = None;
-                if self.island.ocupada() && self.island.proposito == crate::island::Proposito::Autonomo {
-                    return self.update_face(crate::island::FaceMsg::Cancelar);
+                if self.island.busy() && self.island.purpose == crate::island::Purpose::Autonomous {
+                    return self.update_face(crate::island::FaceMsg::Cancel);
                 }
                 return Task::none();
             }

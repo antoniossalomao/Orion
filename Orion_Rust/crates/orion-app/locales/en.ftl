@@ -1414,3 +1414,101 @@ ui-1048 = { "Not confirmed: I did not find the data policy in the official pages
 ui-1049 = { "Not confirmed: I did not find the policy in the official pages checked." }
 
 ui-1050 = { "Queries are not used for training. Results depend on the plan." }
+
+ui-1051 = { "Opening Orion" }
+
+ui-1052 = { "Enrolling your face…" }
+
+ui-1053 = { "Turn on Face ID" }
+
+ui-1054 = { "Turn on Face ID" }
+
+ui-1055 = { "Enroll Face ID again" }
+
+ui-1056 = { "Enroll" }
+
+ui-1057 = { "Confirmed" }
+
+ui-1058 = { "Confirm: turn on autonomous mode" }
+
+ui-1059 = { "Confirm: leave panic mode" }
+
+ui-1060 = { "Turn off Face ID" }
+
+ui-1061 = { "Type the master password" }
+
+ui-1062 = { "Type your password. Then look at the camera for a few seconds. Your face becomes only an encrypted vector on this computer; the password stays in the system vault and Face ID releases it when it recognizes you. A good photo of your face can fool a regular camera: use it where only you have access." }
+
+ui-1063 = { "Sign in with Face ID" }
+
+ui-1064 = { "Face ID" }
+
+ui-1065 = { "Face ID: signs in to Orion and confirms password requests (autonomous mode, leaving panic) by looking at the camera. Everything runs on this computer; with no camera or low light, the password still works. Approving tools is still button-only." }
+
+ui-1066 = { "Enrollment takes five photos and keeps only the encrypted vector. This face is used for presence; it does not approve actions." }
+
+ui-1067 = { "Face verified" }
+
+ui-1068 = { "Use Face ID" }
+
+ui-1069 = { "Use the password" }
+
+ui-1070 = { "Turn your face slowly" }
+
+ui-1071 = { "Turning on the camera…" }
+
+ui-1072 = { "Look at the camera" }
+
+ui-1073 = { "Low light: move closer to a light" }
+
+ui-1074 = { "Hold your face still" }
+
+ui-1075 = { "Camera unavailable" }
+
+ui-1076 = { "Not enough light for Face ID" }
+
+ui-1077 = { "Face not recognized" }
+
+ui-1078 = { "Face ID locked: use the password" }
+
+ui-1079 = { "Face ID is not turned on" }
+
+ui-1080 = { "Face ID unavailable right now" }
+
+ui-1081 = { "Opening Orion…" }
+
+ui-1082 = { "Face ID turned on. Signing in and confirming password requests now accept your face; the password still works." }
+
+ui-1083 = { "Face ID turned off. The face model and the credential were deleted." }
+
+ui-1084 = { "Face ID unavailable" }
+
+ui-1085 = { "Face ID only in the native app" }
+
+ui-1086 = { "wrong password" }
+
+ui-1087 = { "enrollment cancelled" }
+
+ui-1088 = { "sign in to Orion first" }
+
+ui-1089 = { "panic mode is on" }
+
+ui-1090 = { "Face ID credential not found; use your password" }
+
+ui-1091 = { "password changed; sign in with the password and enroll Face ID again" }
+
+ui-1092 = { "Face ID belongs to another profile" }
+
+ui-1093 = { "could not store the credential in the system vault" }
+
+ui-1094 = { "could not turn off Face ID" }
+
+ui-1095 = { "Face ID enrollment failed" }
+
+ui-1096 = { "not enough light to read the face" }
+
+ui-1097 = { "no face found" }
+
+ui-1098 = { "Checking " }{ $v0 }{ "…" }
+
+ui-1099 = { "Hi, " }{ $v0 }

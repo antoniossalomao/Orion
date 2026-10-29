@@ -5,7 +5,7 @@ use axum::body::Body;
 use axum::extract::ConnectInfo;
 use axum::http::{header, Method, Request};
 use futures::{future::BoxFuture, StreamExt};
-use orion_app::net::{Corpo, FaceDica, FaceEvento, FaceFalha, Local, Resposta};
+use orion_app::net::{Corpo, FaceHint, FaceEvent, FaceFailure, Local, Resposta};
 use orion_core::config::Settings;
 use std::time::Duration;
 use tower::ServiceExt;
@@ -30,8 +30,21 @@ static NATIVE_2FA: std::sync::LazyLock<orion_core::two_factor::TwoFactor> = std:
 static NATIVE_PENDING: std::sync::LazyLock<parking_lot::Mutex<std::collections::HashMap<String, zeroize::Zeroizing<String>>>> = std::sync::LazyLock::new(Default::default);
 
 /// Leituras de Face ID abertas (cada uma segura a câmera até terminar ou ser cancelada).
-static FACE_SESSOES: std::sync::LazyLock<parking_lot::Mutex<std::collections::HashMap<String, std::sync::Arc<parking_lot::Mutex<orion_core::faceid::Sessao>>>>> = std::sync::LazyLock::new(Default::default);
-const PROPOSITOS_FACE: [&str; 3] = ["login", "autonomo", "panico"];
+static FACE_SESSIONS: std::sync::LazyLock<parking_lot::Mutex<std::collections::HashMap<String, std::sync::Arc<parking_lot::Mutex<orion_core::faceid::Session>>>>> = std::sync::LazyLock::new(Default::default);
+const FACE_PURPOSES: [&str; 3] = ["login", "autonomo", "panico"];
+/// Desligar o Face ID cancela um cadastro em andamento; a trava impede que o cadastro grave
+/// depois de o desligar ter apagado o modelo.
+static FACE_ENROLL_CANCEL: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static FACE_ENROLL_LOCK: parking_lot::Mutex<()> = parking_lot::Mutex::new(());
+
+/// Câmera efetiva: a escolhida em Configurações (`runtime-preferences.json`) vale sobre a do ambiente.
+fn camera_device(cfg: &Settings) -> i32 {
+    let mut effective = cfg.clone();
+    if let Ok(preferences) = orion_core::runtime_preferences::RuntimePreferences::load(&cfg.data_dir, cfg) {
+        preferences.apply(&mut effective);
+    }
+    effective.camera_device as i32
+}
 
 type Slot = std::sync::Arc<parking_lot::Mutex<Option<std::sync::Arc<Nucleo>>>>;
 
@@ -238,7 +251,7 @@ impl Local for Interno {
                         return Err("usuário ou senha incorretos".into());
                     }
                     NATIVE_THROTTLE.acertou("native");
-                    orion_core::faceid::zerar_falhas();
+                    orion_core::faceid::reset_failures();
                     Ok::<(), String>(())
                 })
                 .await
@@ -360,100 +373,100 @@ impl Local for Interno {
             .map_err(|_| "falha ao abrir o Orion".to_string())?
         })
     }
-    fn face_id_ativo(&self) -> bool {
-        orion_core::faceid::ativo(&self.settings.data_dir)
+    fn face_id_enabled(&self) -> bool {
+        orion_core::faceid::is_enabled(&self.settings.data_dir)
     }
-    fn face_id_iniciar(&self, proposito: String) -> BoxFuture<'static, Result<String, FaceFalha>> {
+    fn face_id_start(&self, purpose: String) -> BoxFuture<'static, Result<String, FaceFailure>> {
         let (cfg, slot, rt) = (self.settings.clone(), self.nucleo.clone(), self.rt.clone());
         Box::pin(async move {
-            if !PROPOSITOS_FACE.contains(&proposito.as_str()) {
-                return Err(FaceFalha::Outro("pedido inválido".into()));
+            if !FACE_PURPOSES.contains(&purpose.as_str()) {
+                return Err(FaceFailure::Other("pedido inválido".into()));
             }
             // aprovar só existe com o núcleo aberto (você já entrou)
-            if proposito != "login" && slot.lock().is_none() {
-                return Err(FaceFalha::Outro("entre no Orion primeiro".into()));
+            if purpose != "login" && slot.lock().is_none() {
+                return Err(FaceFailure::Other("entre no Orion primeiro".into()));
             }
             rt.spawn_blocking(move || {
                 use orion_core::faceid;
-                if faceid::travado() {
-                    return Err(FaceFalha::Travado);
+                if faceid::is_locked() {
+                    return Err(FaceFailure::Locked);
                 }
-                let modelo = faceid::carregar(&cfg.data_dir, &orion_core::rosto::CofreSistema).map_err(|e| match e {
-                    faceid::FaceIdErro::Inativo => FaceFalha::Inativo,
-                    outro => FaceFalha::Outro(outro.to_string()),
+                let model = faceid::load(&cfg.data_dir, &orion_core::rosto::CofreSistema).map_err(|e| match e {
+                    faceid::FaceIdError::Inactive => FaceFailure::Inactive,
+                    outro => FaceFailure::Other(outro.to_string()),
                 })?;
-                let fluxo = orion_core::camera::Fluxo::abrir(cfg.camera_device as i32, Duration::from_secs(4)).map_err(|e| {
+                let stream = orion_core::camera::CameraStream::open(camera_device(&cfg), Duration::from_secs(4)).map_err(|e| {
                     tracing::info!("Face ID sem câmera: {e}");
-                    FaceFalha::SemCamera
+                    FaceFailure::NoCamera
                 })?;
-                tracing::info!(target: "orion.audit", "faceid_inicio proposito={proposito}");
+                tracing::info!(target: "orion.audit", "faceid_inicio purpose={purpose}");
                 let id = uuid::Uuid::new_v4().simple().to_string();
-                FACE_SESSOES.lock().insert(id.clone(), std::sync::Arc::new(parking_lot::Mutex::new(faceid::Sessao::new(Box::new(fluxo), modelo, &proposito))));
+                FACE_SESSIONS.lock().insert(id.clone(), std::sync::Arc::new(parking_lot::Mutex::new(faceid::Session::new(Box::new(stream), model, &purpose))));
                 Ok(id)
             })
             .await
-            .map_err(|_| FaceFalha::Outro("falha ao abrir a câmera".into()))?
+            .map_err(|_| FaceFailure::Other("falha ao abrir a câmera".into()))?
         })
     }
-    fn face_id_passo(&self, sessao: String) -> BoxFuture<'static, FaceEvento> {
+    fn face_id_step(&self, session: String) -> BoxFuture<'static, FaceEvent> {
         let (cfg, slot, rt) = (self.settings.clone(), self.nucleo.clone(), self.rt.clone());
         Box::pin(async move {
-            let Some(leitura) = FACE_SESSOES.lock().get(&sessao).cloned() else {
-                return FaceEvento::Falhou(FaceFalha::Outro("leitura encerrada".into()));
+            let Some(scan) = FACE_SESSIONS.lock().get(&session).cloned() else {
+                return FaceEvent::Failed(FaceFailure::Other("leitura encerrada".into()));
             };
-            let passo = match rt.spawn_blocking(move || leitura.lock().passo()).await {
+            let step = match rt.spawn_blocking(move || scan.lock().step()).await {
                 Ok(p) => p,
-                Err(_) => orion_core::faceid::Passo::Falha(orion_core::faceid::Falha::SemCamera),
+                Err(_) => orion_core::faceid::Step::Failed(orion_core::faceid::Failure::NoCamera),
             };
-            use orion_core::faceid::{Dica, Falha, Passo};
-            let dica = |d: Dica| match d {
-                Dica::Iniciando => FaceDica::Iniciando,
-                Dica::SemRosto => FaceDica::SemRosto,
-                Dica::PoucaLuz => FaceDica::PoucaLuz,
-                Dica::Lendo => FaceDica::Lendo,
+            use orion_core::faceid::{Hint, Failure, Step};
+            let hint = |d: Hint| match d {
+                Hint::Starting => FaceHint::Starting,
+                Hint::NoFace => FaceHint::NoFace,
+                Hint::LowLight => FaceHint::LowLight,
+                Hint::Reading => FaceHint::Reading,
             };
-            match passo {
-                Passo::Procurando(d) => FaceEvento::Procurando(dica(d)),
-                Passo::Falha(f) => {
+            match step {
+                Step::Searching(d) => FaceEvent::Searching(hint(d)),
+                Step::Failed(f) => {
                     // soltar a sessão fecha a câmera na hora
-                    let fim = FACE_SESSOES.lock().remove(&sessao);
-                    let proposito = fim.map(|s| s.lock().proposito.clone()).unwrap_or_default();
-                    if f != Falha::SemCamera {
-                        orion_core::faceid::registrar_falha();
+                    let done = FACE_SESSIONS.lock().remove(&session);
+                    let purpose = done.map(|s| s.lock().purpose.clone()).unwrap_or_default();
+                    if f != Failure::NoCamera {
+                        orion_core::faceid::record_failure();
                     }
-                    tracing::info!(target: "orion.audit", "faceid_falha proposito={proposito} motivo={f:?}");
-                    FaceEvento::Falhou(match f {
-                        Falha::SemCamera => FaceFalha::SemCamera,
-                        Falha::PoucaLuz => FaceFalha::PoucaLuz,
-                        Falha::NaoReconhecido | Falha::SemRosto | Falha::Congelado => FaceFalha::NaoReconhecido,
+                    tracing::info!(target: "orion.audit", "faceid_falha purpose={purpose} reason={f:?}");
+                    FaceEvent::Failed(match f {
+                        Failure::NoCamera => FaceFailure::NoCamera,
+                        Failure::LowLight => FaceFailure::LowLight,
+                        Failure::NotRecognized | Failure::NoFace | Failure::Frozen => FaceFailure::NotRecognized,
                     })
                 }
-                Passo::Sucesso { pontuacao } => {
-                    let Some(fim) = FACE_SESSOES.lock().remove(&sessao) else {
-                        return FaceEvento::Falhou(FaceFalha::Outro("leitura encerrada".into()));
+                Step::Success { score } => {
+                    let Some(done) = FACE_SESSIONS.lock().remove(&session) else {
+                        return FaceEvent::Failed(FaceFailure::Other("leitura encerrada".into()));
                     };
-                    let (proposito, usuario) = {
-                        let s = fim.lock();
-                        (s.proposito.clone(), s.usuario.clone())
+                    let (purpose, user) = {
+                        let s = done.lock();
+                        (s.purpose.clone(), s.user.clone())
                     };
-                    drop(fim);
-                    orion_core::faceid::zerar_falhas();
-                    tracing::info!(target: "orion.audit", "faceid_ok proposito={proposito} pontuacao={pontuacao:.3}");
-                    if proposito != "login" {
-                        return FaceEvento::Aprovado(orion_core::faceid::TIQUETES.emitir(&proposito));
+                    drop(done);
+                    orion_core::faceid::reset_failures();
+                    tracing::info!(target: "orion.audit", "faceid_ok purpose={purpose} score={score:.3}");
+                    if purpose != "login" {
+                        return FaceEvent::Approved(orion_core::faceid::TICKETS.issue(&purpose));
                     }
-                    let aberto = rt
+                    let opened = rt
                         .spawn(async move {
                             let unlocked = cfg.clone();
                             tokio::task::spawn_blocking(move || {
-                                let raw = zeroize::Zeroizing::new(orion_ai::secrets::get_secret(orion_core::faceid::CREDENCIAL).ok_or("credencial do Face ID não encontrada; use sua senha")?);
+                                let raw = zeroize::Zeroizing::new(orion_ai::secrets::get_secret(orion_core::faceid::CREDENTIAL).ok_or("credencial do Face ID não encontrada; use sua senha")?);
                                 let value: serde_json::Value = serde_json::from_str(&raw).map_err(|_| "credencial do Face ID inválida")?;
-                                let perfil = orion_core::onboarding::Profile::load(&unlocked.data_dir).ok().flatten().map(|p| p.user).unwrap_or_else(|| unlocked.auth_user.clone());
-                                if value["user"] != usuario.as_str() || value["user"] != perfil.as_str() {
+                                let profile_user = orion_core::onboarding::Profile::load(&unlocked.data_dir).ok().flatten().map(|p| p.user).unwrap_or_else(|| unlocked.auth_user.clone());
+                                if value["user"] != user.as_str() || value["user"] != profile_user.as_str() {
                                     return Err("o Face ID pertence a outro perfil".to_string());
                                 }
-                                let senha = zeroize::Zeroizing::new(value["password"].as_str().ok_or("credencial do Face ID inválida")?.to_string());
-                                crate::onboarding::unlock(&unlocked, &senha).map_err(|_| "senha alterada; entre com a senha e cadastre o Face ID de novo".to_string())
+                                let password = zeroize::Zeroizing::new(value["password"].as_str().ok_or("credencial do Face ID inválida")?.to_string());
+                                crate::onboarding::unlock(&unlocked, &password).map_err(|_| "senha alterada; entre com a senha e cadastre o Face ID de novo".to_string())
                             })
                             .await
                             .map_err(|_| "falha ao abrir o Orion".to_string())??;
@@ -462,19 +475,19 @@ impl Local for Interno {
                         .await
                         .map_err(|_| "falha ao abrir o Orion".to_string())
                         .and_then(|r| r);
-                    match aberto {
-                        Ok(()) => FaceEvento::Entrou,
-                        Err(e) => FaceEvento::Falhou(FaceFalha::Outro(e)),
+                    match opened {
+                        Ok(()) => FaceEvent::LoggedIn,
+                        Err(e) => FaceEvent::Failed(FaceFailure::Other(e)),
                     }
                 }
             }
         })
     }
-    fn face_id_cancelar(&self, sessao: &str) {
+    fn face_id_cancel(&self, session: &str) {
         // a câmera desliga quando a última referência à sessão cai
-        FACE_SESSOES.lock().remove(sessao);
+        FACE_SESSIONS.lock().remove(session);
     }
-    fn face_id_cadastrar(&self, senha: String) -> BoxFuture<'static, Result<usize, String>> {
+    fn face_id_enroll(&self, password: String) -> BoxFuture<'static, Result<usize, String>> {
         let (cfg, slot, rt) = (self.settings.clone(), self.nucleo.clone(), self.rt.clone());
         Box::pin(async move {
             let Some(n) = slot.lock().clone() else { return Err("entre no Orion primeiro".into()) };
@@ -482,43 +495,49 @@ impl Local for Interno {
                 return Err("modo pânico ligado".into());
             }
             let auth = n.st.auth.clone();
-            let senha = zeroize::Zeroizing::new(senha);
+            let password = zeroize::Zeroizing::new(password);
             rt.spawn_blocking(move || {
                 use orion_core::faceid;
                 if NATIVE_THROTTLE.espera("faceid") > 0 {
                     return Err("Muitas tentativas. Espere um pouco antes de tentar novamente.".to_string());
                 }
-                if !auth.check_password(&senha) {
+                if !auth.check_password(&password) {
                     NATIVE_THROTTLE.falhou("faceid");
                     return Err("senha incorreta".into());
                 }
                 NATIVE_THROTTLE.acertou("faceid");
-                let usuario = orion_core::onboarding::Profile::load(&cfg.data_dir).ok().flatten().map(|p| p.user).unwrap_or_else(|| cfg.auth_user.clone());
-                let fluxo = orion_core::camera::Fluxo::abrir(cfg.camera_device as i32, Duration::from_secs(4)).map_err(|e| format!("câmera indisponível: {e}"))?;
-                let parar = std::sync::atomic::AtomicBool::new(false);
-                let modelo = faceid::cadastrar(&fluxo, &usuario, Duration::from_secs(14), &parar).map_err(|e| e.to_string())?;
-                fluxo.fechar();
-                let cofre = orion_core::rosto::CofreSistema;
-                faceid::salvar(&cfg.data_dir, &cofre, &modelo).map_err(|e| e.to_string())?;
-                let credencial = zeroize::Zeroizing::new(serde_json::json!({"user": usuario, "password": &*senha}).to_string());
-                if orion_ai::secrets::set_secret(faceid::CREDENCIAL, &credencial).is_err() {
-                    faceid::apagar(&cfg.data_dir, &cofre);
+                FACE_ENROLL_CANCEL.store(false, std::sync::atomic::Ordering::SeqCst);
+                let user = orion_core::onboarding::Profile::load(&cfg.data_dir).ok().flatten().map(|p| p.user).unwrap_or_else(|| cfg.auth_user.clone());
+                let stream = orion_core::camera::CameraStream::open(camera_device(&cfg), Duration::from_secs(4)).map_err(|e| format!("câmera indisponível: {e}"))?;
+                let model = faceid::enroll(&stream, &user, Duration::from_secs(14), &FACE_ENROLL_CANCEL).map_err(|e| e.to_string())?;
+                stream.close();
+                let vault = orion_core::rosto::CofreSistema;
+                let _guard = FACE_ENROLL_LOCK.lock();
+                if FACE_ENROLL_CANCEL.load(std::sync::atomic::Ordering::SeqCst) {
+                    return Err("cadastro cancelado".into());
+                }
+                faceid::save(&cfg.data_dir, &vault, &model).map_err(|e| e.to_string())?;
+                let credential = zeroize::Zeroizing::new(serde_json::json!({"user": user, "password": &*password}).to_string());
+                if orion_ai::secrets::set_secret(faceid::CREDENTIAL, &credential).is_err() {
+                    faceid::remove(&cfg.data_dir, &vault);
                     return Err("não foi possível guardar a credencial no cofre do sistema".into());
                 }
-                faceid::zerar_falhas();
-                tracing::info!(target: "orion.audit", "faceid_cadastrado amostras={} limiar={:.3}", modelo.amostras, modelo.limiar);
-                Ok(modelo.amostras)
+                faceid::reset_failures();
+                tracing::info!(target: "orion.audit", "faceid_cadastrado amostras={} limiar={:.3}", model.samples, model.threshold);
+                Ok(model.samples)
             })
             .await
             .map_err(|_| "falha no cadastro do Face ID".to_string())?
         })
     }
-    fn face_id_desligar(&self) -> BoxFuture<'static, Result<(), String>> {
+    fn face_id_disable(&self) -> BoxFuture<'static, Result<(), String>> {
         let (cfg, rt) = (self.settings.clone(), self.rt.clone());
         Box::pin(async move {
             rt.spawn_blocking(move || {
-                FACE_SESSOES.lock().clear();
-                orion_core::faceid::apagar(&cfg.data_dir, &orion_core::rosto::CofreSistema);
+                FACE_SESSIONS.lock().clear();
+                FACE_ENROLL_CANCEL.store(true, std::sync::atomic::Ordering::SeqCst);
+                let _guard = FACE_ENROLL_LOCK.lock();
+                orion_core::faceid::remove(&cfg.data_dir, &orion_core::rosto::CofreSistema);
                 tracing::info!(target: "orion.audit", "faceid_desligado");
             })
             .await

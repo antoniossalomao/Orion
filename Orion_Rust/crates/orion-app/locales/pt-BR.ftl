@@ -1414,3 +1414,101 @@ ui-1048 = { "Não confirmado: não encontrei a política de dados nas páginas o
 ui-1049 = { "Não confirmado: não encontrei a política nas páginas oficiais consultadas." }
 
 ui-1050 = { "Consultas não são usadas para treino. Resultados dependem do plano." }
+
+ui-1051 = { "A abrir o Orion" }
+
+ui-1052 = { "A cadastrar o seu rosto…" }
+
+ui-1053 = { "Ativar Face ID" }
+
+ui-1054 = { "Ativar o Face ID" }
+
+ui-1055 = { "Cadastrar o Face ID de novo" }
+
+ui-1056 = { "Cadastrar" }
+
+ui-1057 = { "Confirmado" }
+
+ui-1058 = { "Confirmar: ligar o modo autônomo" }
+
+ui-1059 = { "Confirmar: sair do modo pânico" }
+
+ui-1060 = { "Desligar Face ID" }
+
+ui-1061 = { "Digite a senha mestre" }
+
+ui-1062 = { "Digite a senha. Depois olhe para a câmera por alguns segundos. O rosto vira só um vetor cifrado neste computador; a senha fica no cofre do sistema e o Face ID a libera ao reconhecer você. Uma foto boa do seu rosto pode enganar uma câmera comum: use onde só você tem acesso." }
+
+ui-1063 = { "Entrar com Face ID" }
+
+ui-1064 = { "Face ID" }
+
+ui-1065 = { "Face ID: entra no Orion e confirma pedidos de senha (modo autônomo, sair do pânico) olhando para a câmera. Tudo roda neste computador; com câmera indisponível ou pouca luz, a senha continua valendo. Aprovar ferramentas segue sendo só por botão." }
+
+ui-1066 = { "O cadastro tira cinco fotos e guarda somente o vetor cifrado. Este rosto serve para presença; não aprova ações." }
+
+ui-1067 = { "Rosto conferido" }
+
+ui-1068 = { "Usar Face ID" }
+
+ui-1069 = { "Usar a senha" }
+
+ui-1070 = { "Vire o rosto devagar" }
+
+ui-1071 = { "Ligando a câmera…" }
+
+ui-1072 = { "Olhe para a câmera" }
+
+ui-1073 = { "Pouca luz: aproxime-se de uma luz" }
+
+ui-1074 = { "Mantenha o rosto parado" }
+
+ui-1075 = { "Câmera indisponível" }
+
+ui-1076 = { "Pouca luz para o Face ID" }
+
+ui-1077 = { "Rosto não reconhecido" }
+
+ui-1078 = { "Face ID travado: use a senha" }
+
+ui-1079 = { "Face ID não está ativado" }
+
+ui-1080 = { "Face ID indisponível agora" }
+
+ui-1081 = { "Abrindo o Orion…" }
+
+ui-1082 = { "Face ID ativado. Entrar e confirmar pedidos de senha agora aceitam o seu rosto; a senha continua valendo." }
+
+ui-1083 = { "Face ID desligado. O modelo do rosto e a credencial foram apagados." }
+
+ui-1084 = { "Face ID indisponível" }
+
+ui-1085 = { "Face ID só no app nativo" }
+
+ui-1086 = { "senha incorreta" }
+
+ui-1087 = { "cadastro cancelado" }
+
+ui-1088 = { "entre no Orion primeiro" }
+
+ui-1089 = { "modo pânico ligado" }
+
+ui-1090 = { "credencial do Face ID não encontrada; use sua senha" }
+
+ui-1091 = { "senha alterada; entre com a senha e cadastre o Face ID de novo" }
+
+ui-1092 = { "o Face ID pertence a outro perfil" }
+
+ui-1093 = { "não foi possível guardar a credencial no cofre do sistema" }
+
+ui-1094 = { "não foi possível desligar o Face ID" }
+
+ui-1095 = { "falha no cadastro do Face ID" }
+
+ui-1096 = { "pouca luz para ler o rosto" }
+
+ui-1097 = { "nenhum rosto encontrado" }
+
+ui-1098 = { "A verificar " }{ $v0 }{ "…" }
+
+ui-1099 = { "Olá, " }{ $v0 }

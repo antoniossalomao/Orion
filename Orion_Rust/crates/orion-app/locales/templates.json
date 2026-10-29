@@ -75,5 +75,7 @@
   "Configurações recarregadas: {} aplicada(s) na hora, {} exigem reiniciar o Orion.",
   "Relatório gravado no vault: {}",
   "Arquivo vazio ou maior que {} MB.",
-  "Este áudio vai sair do seu computador e será enviado a {} para ser transcrito. Enviar?"
+  "Este áudio vai sair do seu computador e será enviado a {} para ser transcrito. Enviar?",
+  "A verificar {v}…",
+  "Olá, {v}"
 ]

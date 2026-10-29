@@ -141,7 +141,7 @@ pub fn quick_capture(app: &App) -> El<'_> {
 }
 
 /// Caixa central de pedido de senha (autônomo, cadastro do Face ID).
-pub fn modal_senha<'a>(app: &App, corpo: El<'a>, fechar: Msg) -> El<'a> {
+pub fn password_modal<'a>(app: &App, corpo: El<'a>, fechar: Msg) -> El<'a> {
     let boxed = container(corpo).padding(pad(18.0, 18.0, 18.0, 18.0)).width(Length::Fixed(440.0f32.min(app.win.width - 32.0))).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_PANEL.into() }, shadow: shadow(), ..Default::default() });
     scrim_box(boxed.into(), app.win.height * 0.22, Color::from_rgba(0.0, 0.0, 0.0, 0.35), fechar)
 }
@@ -149,7 +149,7 @@ pub fn modal_senha<'a>(app: &App, corpo: El<'a>, fechar: Msg) -> El<'a> {
 pub fn auto_senha(app: &App) -> El<'_> {
     let v = app.auto_senha.as_deref().unwrap_or("");
     let input = text_input(crate::i18n::text("Sua senha"), v)
-        .id(crate::island::campo_senha(crate::island::Proposito::Autonomo))
+        .id(crate::island::password_field(crate::island::Purpose::Autonomous))
         .on_input(Msg::AutoSenhaText)
         .on_submit(Msg::AutoSenhaOk)
         .secure(true)
@@ -161,7 +161,7 @@ pub fn auto_senha(app: &App) -> El<'_> {
         tx(crate::i18n::text("Digite a senha de novo. Com o modo ligado o Orion segue sozinho em tarefas longas; ações que podem quebrar o PC ou o projeto continuam pedindo confirmação."), 12.0, t::FG3),
         input,
         row![
-            if app.face_id_ativo() { btn(crate::i18n::text("Usar Face ID"), Kind::Ghost, true, None, (!app.island.ocupada()).then_some(Msg::Face(crate::island::FaceMsg::Iniciar(crate::island::Proposito::Autonomo)))) } else { sp_w(0.0) },
+            if app.face_id_enabled() { btn(crate::i18n::text("Usar Face ID"), Kind::Ghost, true, None, (!app.island.busy()).then_some(Msg::Face(crate::island::FaceMsg::Start(crate::island::Purpose::Autonomous)))) } else { sp_w(0.0) },
             grow(),
             btn(crate::i18n::text("Cancelar"), Kind::Normal, true, None, Some(Msg::AutoSenhaClose)),
             btn(crate::i18n::text("Ligar"), Kind::Primary, !v.is_empty(), None, Some(Msg::AutoSenhaOk))
@@ -169,7 +169,7 @@ pub fn auto_senha(app: &App) -> El<'_> {
         .spacing(8),
     ]
     .spacing(12);
-    modal_senha(app, corpo.into(), Msg::AutoSenhaClose)
+    password_modal(app, corpo.into(), Msg::AutoSenhaClose)
 }
 
 pub fn isso(app: &App) -> El<'_> {

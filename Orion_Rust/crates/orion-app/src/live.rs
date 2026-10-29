@@ -519,8 +519,8 @@ impl App {
                 }
                 let pw = std::mem::take(&mut self.pw);
                 // a senha venceu: desliga a câmera da leitura em andamento
-                if self.island.ocupada() {
-                    let _ = self.update_face(crate::island::FaceMsg::Cancelar);
+                if self.island.busy() {
+                    let _ = self.update_face(crate::island::FaceMsg::Cancel);
                 }
                 if self.db_locked && self.challenge.is_none() {
                     self.loading = Some("Verificando senha e abrindo os dados…".into());
@@ -1017,7 +1017,7 @@ impl App {
             Lm::Initialized(result) => {
                 self.loading = None;
                 if let Err(error) = result { self.gate_err = error; return Task::none(); }
-                if self.db_locked { return self.update_face(crate::island::FaceMsg::Iniciar(crate::island::Proposito::Login)); }
+                if self.db_locked { return self.update_face(crate::island::FaceMsg::Start(crate::island::Purpose::Login)); }
                 if let Some(api) = self.api.clone() { return Task::perform(async move { api.health().await?; Ok(api.auth_ok().await) }, |r| Msg::L(Lm::Boot(r))); }
             }
             Lm::Boot(r) => match r {
@@ -1032,7 +1032,7 @@ impl App {
                 Ok(false) => {
                     self.gate_err.clear();
                     // tela de entrada: com Face ID, a leitura começa sozinha (a senha segue ao lado)
-                    return self.update_face(crate::island::FaceMsg::Iniciar(crate::island::Proposito::Login));
+                    return self.update_face(crate::island::FaceMsg::Start(crate::island::Purpose::Login));
                 }
                 Err(e) => self.gate_err = e,
             },

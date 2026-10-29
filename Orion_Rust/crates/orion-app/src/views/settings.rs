@@ -192,10 +192,10 @@ fn section<'a>(app: &'a App) -> El<'a> {
                 Panic::Paused => {
                     let mut v: Vec<El> = vec![badge(crate::i18n::text("Pausado"), Tone::Err)];
                     if app.api.is_some() {
-                        v.push(container(text_input(crate::i18n::text("Senha para retomar"), &app.resume_pw).id(crate::island::campo_senha(crate::island::Proposito::Panico)).on_input(Msg::ResumePw).on_submit(Msg::PanicResume).secure(true).size(13).font(t::UI).padding(pad(6.0, 10.0, 6.0, 10.0)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 8.0))).width(Length::Fixed(170.0)).into());
+                        v.push(container(text_input(crate::i18n::text("Senha para retomar"), &app.resume_pw).id(crate::island::password_field(crate::island::Purpose::Panic)).on_input(Msg::ResumePw).on_submit(Msg::PanicResume).secure(true).size(13).font(t::UI).padding(pad(6.0, 10.0, 6.0, 10.0)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 8.0))).width(Length::Fixed(170.0)).into());
                     }
-                    if app.face_id_ativo() {
-                        v.push(btn(crate::i18n::text("Face ID"), Kind::Ghost, true, None, (!app.island.ocupada()).then_some(Msg::Face(crate::island::FaceMsg::Iniciar(crate::island::Proposito::Panico)))));
+                    if app.face_id_enabled() {
+                        v.push(btn(crate::i18n::text("Face ID"), Kind::Ghost, true, None, (!app.island.busy()).then_some(Msg::Face(crate::island::FaceMsg::Start(crate::island::Purpose::Panic)))));
                     }
                     v.push(btn(crate::i18n::text("Retomar"), Kind::Normal, true, None, Some(Msg::PanicResume)));
                     row_c(v)

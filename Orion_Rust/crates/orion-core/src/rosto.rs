@@ -138,12 +138,12 @@ fn obter_chave(cofre: &dyn CofreRosto, criar: bool) -> Result<[u8; 32], RostoErr
 }
 
 /// Cifra bytes com a chave do rosto (fluxo SHA-256 + HMAC-SHA-256); cria a chave se faltar.
-pub fn cifrar_bytes(cofre: &dyn CofreRosto, payload: &[u8]) -> Result<Vec<u8>, RostoError> {
-    let chave = obter_chave(cofre, true)?;
+pub fn encrypt_bytes(cofre: &dyn CofreRosto, payload: &[u8]) -> Result<Vec<u8>, RostoError> {
+    let key = obter_chave(cofre, true)?;
     let mut nonce = [0u8; 16];
     rand::thread_rng().fill_bytes(&mut nonce);
-    let ct = fluxo_xor(&chave, &nonce, payload);
-    let mut mac = <Hmac<Sha256> as Mac>::new_from_slice(&chave).map_err(|e| RostoError(e.to_string()))?;
+    let ct = fluxo_xor(&key, &nonce, payload);
+    let mut mac = <Hmac<Sha256> as Mac>::new_from_slice(&key).map_err(|e| RostoError(e.to_string()))?;
     mac.update(&nonce);
     mac.update(&ct);
     let tag = mac.finalize().into_bytes();
@@ -155,36 +155,36 @@ pub fn cifrar_bytes(cofre: &dyn CofreRosto, payload: &[u8]) -> Result<Vec<u8>, R
 }
 
 /// Inverso de `cifrar_bytes`; falha (sem revelar o motivo exato) se a chave mudou ou o blob foi mexido.
-pub fn decifrar_bytes(cofre: &dyn CofreRosto, blob: &[u8]) -> Result<Vec<u8>, RostoError> {
-    let invalido = || RostoError("vetor de rosto inválido ou chave trocada".into());
-    let chave = obter_chave(cofre, false)?;
-    let s = std::str::from_utf8(blob).map_err(|_| invalido())?;
-    let raw = base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(s.trim()).map_err(|_| invalido())?;
+pub fn decrypt_bytes(cofre: &dyn CofreRosto, blob: &[u8]) -> Result<Vec<u8>, RostoError> {
+    let invalid = || RostoError("vetor de rosto inválido ou chave trocada".into());
+    let key = obter_chave(cofre, false)?;
+    let s = std::str::from_utf8(blob).map_err(|_| invalid())?;
+    let raw = base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(s.trim()).map_err(|_| invalid())?;
     if raw.len() <= 48 {
-        return Err(invalido());
+        return Err(invalid());
     }
     let mut nonce = [0u8; 16];
     nonce.copy_from_slice(&raw[..16]);
     let tag = &raw[16..48];
     let ct = &raw[48..];
-    let mut mac = <Hmac<Sha256> as Mac>::new_from_slice(&chave).map_err(|_| invalido())?;
+    let mut mac = <Hmac<Sha256> as Mac>::new_from_slice(&key).map_err(|_| invalid())?;
     mac.update(&nonce);
     mac.update(ct);
-    let esperado = mac.finalize().into_bytes();
-    if !bool::from(esperado.as_slice().ct_eq(tag)) {
-        return Err(invalido());
+    let expected = mac.finalize().into_bytes();
+    if !bool::from(expected.as_slice().ct_eq(tag)) {
+        return Err(invalid());
     }
-    Ok(fluxo_xor(&chave, &nonce, ct))
+    Ok(fluxo_xor(&key, &nonce, ct))
 }
 
 pub fn cifrar_com(cofre: &dyn CofreRosto, vetor: &[f64]) -> Result<Vec<u8>, RostoError> {
     let limpo: Vec<f64> = vetor.iter().map(|x| (x * 1e6).round() / 1e6).collect();
     let payload = serde_json::to_vec(&limpo).map_err(|e| RostoError(e.to_string()))?;
-    cifrar_bytes(cofre, &payload)
+    encrypt_bytes(cofre, &payload)
 }
 
 pub fn decifrar_com(cofre: &dyn CofreRosto, blob: &[u8]) -> Result<Vec<f64>, RostoError> {
-    let pt = decifrar_bytes(cofre, blob)?;
+    let pt = decrypt_bytes(cofre, blob)?;
     let dados: Vec<f64> = serde_json::from_slice(&pt).map_err(|_| RostoError("vetor de rosto corrompido".into()))?;
     if dados.is_empty() {
         return Err(RostoError("vetor de rosto corrompido".into()));
