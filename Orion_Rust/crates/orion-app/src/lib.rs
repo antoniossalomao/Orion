@@ -9,6 +9,7 @@ pub mod graph;
 pub mod run;
 pub mod html;
 pub mod imgcache;
+pub mod island;
 pub mod icons;
 pub mod keys;
 pub mod live;

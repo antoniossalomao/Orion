@@ -1,10 +1,12 @@
 //! Reconhecimento facial clássico local baseado em Haar Cascades e LBPH (Local Binary Pattern Histogram)
-//! (E11.2; F18.05; REGRAS.md: rosto é biometria: fica cifrado, nunca sai do computador e nunca governa ação).
+//! (E11.2; F18.05; REGRAS.md: rosto é local, cadastrado só pelo dono, e nunca sai do computador).
 //!
 //! Algoritmo 100% nativo em Rust, sem dependências de rede, sem modelos neurais pesados e sem ONNX.
-//! 1. Detecção facial por padrões Haar e imagem integral (Viola-Jones clássico).
-//! 2. Equalização de histograma para invariância a iluminação.
-//! 3. Extração de padrões binários locais (LBPH) em grade espacial 8x8 gerando vetor de 512 floats normalizado.
+//! 1. Medição de luz (média e contraste) para recusar quadros escuros antes de qualquer conta cara.
+//! 2. Detecção facial por padrões Haar e imagem integral (Viola-Jones clássico) numa cópia reduzida.
+//! 3. Equalização de histograma para invariância a iluminação.
+//! 4. Padrões binários locais *uniformes* (59 rótulos) em grade 8x8, com raiz de Hellinger: o
+//!    cosseno entre dois descritores aproxima a distância qui-quadrado do LBPH original.
 
 pub struct ImagemIntegral {
     pub w: usize,
@@ -318,21 +320,170 @@ pub fn extrair_lbph_grid(patch: &[u8], w: usize, h: usize) -> Vec<f64> {
     descritor
 }
 
-/// Extrator facial clássico completo (Haar + Equalização + LBPH 512d) a partir de JPEG em memória.
+/// Rótulo uniforme de cada padrão de 8 bits: 0..=57 para os 58 padrões com no máximo duas
+/// transições 0↔1 (bordas, cantos, pontos) e 58 para todo o resto (ruído).
+const fn tabela_uniforme() -> [u8; 256] {
+    let mut t = [58u8; 256];
+    let mut rotulo = 0u8;
+    let mut p = 0usize;
+    while p < 256 {
+        let b = p as u8;
+        if (b ^ b.rotate_left(1)).count_ones() <= 2 {
+            t[p] = rotulo;
+            rotulo += 1;
+        }
+        p += 1;
+    }
+    t
+}
+
+static UNIFORME: [u8; 256] = tabela_uniforme();
+pub const BINS_UNIFORMES: usize = 59;
+pub const GRADE: usize = 8;
+/// Dimensão do descritor uniforme: 64 células x 59 rótulos.
+pub const DIM_UNIFORME: usize = GRADE * GRADE * BINS_UNIFORMES;
+/// Lado do recorte facial normalizado.
+pub const LADO_PATCH: usize = 64;
+/// Largura máxima da cópia usada só para achar o rosto (a varredura Haar é a parte cara).
+pub const LARGURA_DETECCAO: usize = 160;
+
+/// LBPH uniforme em grade 8x8: cada célula vira um histograma de 59 rótulos normalizado, com raiz
+/// quadrada (Hellinger) e normalização L2 global. Retorna 3776 floats.
+pub fn extrair_lbph_uniforme(patch: &[u8], w: usize, h: usize) -> Vec<f64> {
+    let mut descritor = vec![0.0f64; DIM_UNIFORME];
+    if w < GRADE * 3 || h < GRADE * 3 || patch.len() < w * h {
+        return descritor;
+    }
+    let (cell_w, cell_h) = (w / GRADE, h / GRADE);
+    for y in 1..h - 1 {
+        let gy = (y / cell_h).min(GRADE - 1);
+        for x in 1..w - 1 {
+            let c = patch[y * w + x];
+            let v = [
+                patch[(y - 1) * w + (x - 1)],
+                patch[(y - 1) * w + x],
+                patch[(y - 1) * w + (x + 1)],
+                patch[y * w + (x + 1)],
+                patch[(y + 1) * w + (x + 1)],
+                patch[(y + 1) * w + x],
+                patch[(y + 1) * w + (x - 1)],
+                patch[y * w + (x - 1)],
+            ];
+            let mut padrao = 0u8;
+            for (i, &n) in v.iter().enumerate() {
+                if n >= c {
+                    padrao |= 1 << i;
+                }
+            }
+            let gx = (x / cell_w).min(GRADE - 1);
+            descritor[(gy * GRADE + gx) * BINS_UNIFORMES + UNIFORME[padrao as usize] as usize] += 1.0;
+        }
+    }
+    for celula in descritor.chunks_mut(BINS_UNIFORMES) {
+        let total: f64 = celula.iter().sum();
+        if total > 0.0 {
+            for x in celula.iter_mut() {
+                *x = (*x / total).sqrt();
+            }
+        }
+    }
+    let norma = descritor.iter().map(|x| x * x).sum::<f64>().sqrt();
+    if norma > 1e-9 {
+        for x in descritor.iter_mut() {
+            *x /= norma;
+        }
+    }
+    descritor
+}
+
+/// Luz do quadro: média e desvio-padrão da luminância (0..255).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Luz {
+    pub media: f64,
+    pub desvio: f64,
+}
+
+/// Abaixo disto o quadro é escuro ou chapado demais para o LBPH ter informação.
+pub const LUZ_MINIMA: f64 = 38.0;
+pub const CONTRASTE_MINIMO: f64 = 14.0;
+
+impl Luz {
+    pub fn suficiente(&self) -> bool {
+        self.media >= LUZ_MINIMA && self.desvio >= CONTRASTE_MINIMO
+    }
+}
+
+/// Mede a luz por amostragem (1 a cada 4 pixels basta e custa 4x menos).
+pub fn medir_luz(pixels: &[u8]) -> Luz {
+    let amostra = pixels.iter().step_by(4);
+    let n = pixels.len().div_ceil(4).max(1) as f64;
+    let soma: f64 = amostra.clone().map(|&p| p as f64).sum();
+    let media = soma / n;
+    let var = amostra.map(|&p| (p as f64 - media).powi(2)).sum::<f64>() / n;
+    Luz { media, desvio: var.sqrt() }
+}
+
+/// Redução por média de caixa (sem dependência e sem serrilhado). Só reduz; nunca amplia.
+pub fn reduzir_luma(pixels: &[u8], w: usize, h: usize, max_w: usize) -> (Vec<u8>, usize, usize) {
+    if w <= max_w || w == 0 || h == 0 {
+        return (pixels.to_vec(), w, h);
+    }
+    let fator = w.div_ceil(max_w);
+    let (nw, nh) = (w / fator, h / fator);
+    let mut out = vec![0u8; nw * nh];
+    let area = (fator * fator) as u32;
+    for ny in 0..nh {
+        for nx in 0..nw {
+            let mut soma = 0u32;
+            for dy in 0..fator {
+                let linha = (ny * fator + dy) * w + nx * fator;
+                for dx in 0..fator {
+                    soma += pixels[linha + dx] as u32;
+                }
+            }
+            out[ny * nw + nx] = (soma / area) as u8;
+        }
+    }
+    (out, nw, nh)
+}
+
+/// Resultado da análise de um quadro em escala de cinza.
+#[derive(Debug, Clone)]
+pub struct Analise {
+    pub luz: Luz,
+    /// Rosto achado (em coordenadas do quadro original) e o descritor uniforme dele.
+    pub rosto: Option<(RetanguloFace, Vec<f64>)>,
+}
+
+/// Pipeline completo sobre um quadro cinza: luz → detecção numa cópia de até 160 px de largura →
+/// recorte no quadro original → equalização → LBPH uniforme. Quadro escuro sai cedo, sem varredura.
+pub fn analisar_quadro(luma: &[u8], w: usize, h: usize) -> Analise {
+    let luz = medir_luz(luma);
+    if !luz.suficiente() || w < 24 || h < 24 || luma.len() < w * h {
+        return Analise { luz, rosto: None };
+    }
+    let (pequeno, pw, ph) = reduzir_luma(luma, w, h, LARGURA_DETECCAO);
+    let sat = ImagemIntegral::new(pw, ph, &pequeno);
+    let Some(r) = detectar_face_haar(pw, ph, &sat) else {
+        return Analise { luz, rosto: None };
+    };
+    let (fx, fy) = (w as f64 / pw as f64, h as f64 / ph as f64);
+    let face = RetanguloFace {
+        x: (r.x as f64 * fx) as usize,
+        y: (r.y as f64 * fy) as usize,
+        w: ((r.w as f64 * fx) as usize).min(w),
+        h: ((r.h as f64 * fy) as usize).min(h),
+    };
+    let mut patch = recortar_e_redimensionar(luma, w, h, &face, LADO_PATCH, LADO_PATCH);
+    equalizar_histograma(&mut patch);
+    Analise { luz, rosto: Some((face, extrair_lbph_uniforme(&patch, LADO_PATCH, LADO_PATCH))) }
+}
+
+/// Extrator facial clássico completo (luz + Haar + equalização + LBPH uniforme) a partir de JPEG.
 pub fn extrator_haar_lbph(jpeg: &[u8]) -> Option<Vec<f64>> {
     let img = image::load_from_memory(jpeg).ok()?.to_luma8();
     let (w, h) = (img.width() as usize, img.height() as usize);
-    let raw = img.into_raw();
-
-    let sat = ImagemIntegral::new(w, h, &raw);
-    let face = detectar_face_haar(w, h, &sat)?;
-
-    // Normaliza patch facial para 64x64
-    let mut patch = recortar_e_redimensionar(&raw, w, h, &face, 64, 64);
-    equalizar_histograma(&mut patch);
-
-    let vetor = extrair_lbph_grid(&patch, 64, 64);
-    Some(vetor)
+    analisar_quadro(img.as_raw(), w, h).rosto.map(|(_, v)| v)
 }
 
 #[cfg(test)]
@@ -368,5 +519,44 @@ mod tests {
         assert_eq!(desc.len(), 512);
         let norma = desc.iter().map(|x| x * x).sum::<f64>().sqrt();
         assert!((norma - 1.0).abs() < 1e-4);
+    }
+
+    #[test]
+    fn tabela_uniforme_tem_58_rotulos_mais_ruido() {
+        let distintos: std::collections::BTreeSet<u8> = UNIFORME.iter().copied().collect();
+        assert_eq!(distintos.len(), 59);
+        assert_eq!(UNIFORME[0], 0);
+        assert_eq!(UNIFORME[0b0101_0101], 58);
+    }
+
+    #[test]
+    fn lbph_uniforme_normalizado_e_discriminante() {
+        let liso = vec![128u8; 64 * 64];
+        let listras: Vec<u8> = (0..64 * 64).map(|i| if (i % 64) / 4 % 2 == 0 { 40 } else { 210 }).collect();
+        let a = extrair_lbph_uniforme(&liso, 64, 64);
+        let b = extrair_lbph_uniforme(&listras, 64, 64);
+        assert_eq!(a.len(), DIM_UNIFORME);
+        let norma = a.iter().map(|x| x * x).sum::<f64>().sqrt();
+        assert!((norma - 1.0).abs() < 1e-6);
+        let cos: f64 = a.iter().zip(&b).map(|(x, y)| x * y).sum();
+        assert!(cos < 0.9, "texturas diferentes não podem coincidir (cos={cos})");
+    }
+
+    #[test]
+    fn quadro_escuro_nao_varre() {
+        let escuro = vec![12u8; 320 * 240];
+        let a = analisar_quadro(&escuro, 320, 240);
+        assert!(!a.luz.suficiente());
+        assert!(a.rosto.is_none());
+    }
+
+    #[test]
+    fn reduzir_mantem_proporcao_e_media() {
+        let px = vec![100u8; 640 * 480];
+        let (out, w, h) = reduzir_luma(&px, 640, 480, 160);
+        assert_eq!((w, h), (160, 120));
+        assert!(out.iter().all(|&p| p == 100));
+        let (same, w2, _) = reduzir_luma(&px[..100 * 80], 100, 80, 160);
+        assert_eq!((same.len(), w2), (8000, 100));
     }
 }

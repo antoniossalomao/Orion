@@ -64,6 +64,27 @@ pub trait Local: Send + Sync + 'static {
     fn hello(&self) -> futures::future::BoxFuture<'static, Result<(), String>> {
         Box::pin(async { Err("Windows Hello indisponível".into()) })
     }
+    /// Face ID cadastrado neste computador (REGRAS.md: o Face ID é opt-in e só vale na janela nativa).
+    fn face_id_ativo(&self) -> bool {
+        false
+    }
+    /// Liga a câmera e abre uma leitura para `proposito` (`login`, `autonomo`, `panico`).
+    fn face_id_iniciar(&self, _proposito: String) -> futures::future::BoxFuture<'static, Result<String, FaceFalha>> {
+        Box::pin(async { Err(FaceFalha::Inativo) })
+    }
+    /// Analisa o quadro mais novo da leitura. Quem chama dita o ritmo (ver `views::login::varredura`).
+    fn face_id_passo(&self, _sessao: String) -> futures::future::BoxFuture<'static, FaceEvento> {
+        Box::pin(async { FaceEvento::Falhou(FaceFalha::Inativo) })
+    }
+    /// Encerra a leitura e desliga a câmera.
+    fn face_id_cancelar(&self, _sessao: &str) {}
+    /// Cadastra o rosto (exige a senha, que fica no cofre do sistema para o Face ID liberar).
+    fn face_id_cadastrar(&self, _senha: String) -> futures::future::BoxFuture<'static, Result<usize, String>> {
+        Box::pin(async { Err("Face ID indisponível".into()) })
+    }
+    fn face_id_desligar(&self) -> futures::future::BoxFuture<'static, Result<(), String>> {
+        Box::pin(async { Err("Face ID indisponível".into()) })
+    }
     fn primeiro_uso(&self) -> Option<Value> {
         None
     }
@@ -87,6 +108,36 @@ pub struct Api {
     cookie: Arc<Mutex<Option<String>>>,
     bearer: Option<String>,
     local: Option<Arc<dyn Local>>,
+}
+
+/// O que a leitura do rosto está vendo agora.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FaceDica {
+    Iniciando,
+    SemRosto,
+    PoucaLuz,
+    Lendo,
+}
+
+/// Por que o Face ID não deu certo; em todos os casos a senha continua valendo.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FaceFalha {
+    Inativo,
+    Travado,
+    SemCamera,
+    PoucaLuz,
+    NaoReconhecido,
+    Outro(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FaceEvento {
+    Procurando(FaceDica),
+    /// Rosto conferido e núcleo aberto (entrada).
+    Entrou,
+    /// Rosto conferido: tíquete de uso único para o pedido que exigia senha.
+    Aprovado(String),
+    Falhou(FaceFalha),
 }
 
 #[derive(Debug, Clone)]
@@ -223,6 +274,32 @@ impl Api {
     }
     pub async fn hello(&self) -> Result<(), String> {
         self.local.as_ref().ok_or("Windows Hello só no app nativo")?.hello().await
+    }
+    pub fn face_id_ativo(&self) -> bool {
+        self.local.as_ref().is_some_and(|l| l.face_id_ativo())
+    }
+    pub async fn face_id_iniciar(&self, proposito: &str) -> Result<String, FaceFalha> {
+        match &self.local {
+            Some(l) => l.face_id_iniciar(proposito.to_string()).await,
+            None => Err(FaceFalha::Inativo),
+        }
+    }
+    pub async fn face_id_passo(&self, sessao: &str) -> FaceEvento {
+        match &self.local {
+            Some(l) => l.face_id_passo(sessao.to_string()).await,
+            None => FaceEvento::Falhou(FaceFalha::Inativo),
+        }
+    }
+    pub fn face_id_cancelar(&self, sessao: &str) {
+        if let Some(l) = &self.local {
+            l.face_id_cancelar(sessao)
+        }
+    }
+    pub async fn face_id_cadastrar(&self, senha: String) -> Result<usize, String> {
+        self.local.as_ref().ok_or("Face ID só no app nativo")?.face_id_cadastrar(senha).await
+    }
+    pub async fn face_id_desligar(&self) -> Result<(), String> {
+        self.local.as_ref().ok_or("Face ID só no app nativo")?.face_id_desligar().await
     }
     pub fn primeiro_uso(&self) -> Option<Value> {
         self.local.as_ref().and_then(|l| l.primeiro_uso())

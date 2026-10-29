@@ -6,6 +6,7 @@ pub mod conflito;
 pub mod ctx;
 pub mod editor;
 pub mod home;
+pub mod island;
 pub mod login;
 pub mod onboarding;
 pub mod memory;
@@ -84,6 +85,13 @@ pub fn root(app: &App) -> El<'_> {
         if app.p.cam[4] && !app.resources.captions.is_empty() {
             layers.push(overlays::caption(&app.resources.captions));
         }
+    }
+    if app.logged && app.island.senha_cadastro.is_some() {
+        layers.push(island::cadastro_senha(app));
+    }
+    // a ilha fica acima dos pedidos de senha: é ela que conta o que o Face ID está fazendo
+    if app.island_visivel() {
+        layers.push(island::view(app));
     }
     if let Some((msg, _)) = &app.toast {
         layers.push(overlays::toast(msg.clone()));

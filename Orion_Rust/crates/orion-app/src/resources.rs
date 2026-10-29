@@ -703,7 +703,21 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
                 ]
                 .spacing(8),
             );
-            col=col.push(tx(crate::i18n::text("O cadastro tira cinco fotos e guarda somente o vetor cifrado. Rosto serve para presença; não aprova ações."),12.5,t::FG3));
+            col=col.push(tx(crate::i18n::text("O cadastro tira cinco fotos e guarda somente o vetor cifrado. Este rosto serve para presença; não aprova ações."),12.5,t::FG3));
+            // Face ID: entrar e confirmar pedidos de senha pelo rosto (opt-in; a senha segue valendo)
+            let face_on = app.face_id_ativo();
+            col = col.push(
+                row![
+                    if face_on {
+                        btn(crate::i18n::text("Cadastrar o Face ID de novo"), Kind::Normal, true, None, (!app.island.ocupada()).then_some(Msg::Face(crate::island::FaceMsg::CadastroPedir)))
+                    } else {
+                        btn(crate::i18n::text("Ativar Face ID"), Kind::Primary, true, None, (!app.island.ocupada()).then_some(Msg::Face(crate::island::FaceMsg::CadastroPedir)))
+                    },
+                    if face_on { btn(crate::i18n::text("Desligar Face ID"), Kind::Normal, true, None, Some(Msg::Face(crate::island::FaceMsg::Desligar))) } else { sp_w(0.0) }
+                ]
+                .spacing(8),
+            );
+            col=col.push(tx(crate::i18n::text("Face ID: entra no Orion e confirma pedidos de senha (modo autônomo, sair do pânico) olhando para a câmera. Tudo roda neste computador; com câmera indisponível ou pouca luz, a senha continua valendo. Aprovar ferramentas segue sendo só por botão."),12.5,t::FG3));
             col = col.push(
                 row![
                     action("Fotografar e descrever", "POST", "/camera/ver"),
