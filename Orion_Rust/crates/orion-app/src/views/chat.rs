@@ -130,14 +130,14 @@ pub fn view(app: &App) -> El<'_> {
         );
     }
     if app.private_confirm.is_some() {
-        let cartao = row![
+        let card = row![
             tx(crate::i18n::text("Só há provedores que treinam com os dados. Este conteúdo é privado. Enviar mesmo assim?"), 12.5, t::FG2),
             btn(crate::i18n::text("Enviar mesmo assim"), Kind::Primary, true, None, Some(Msg::ConfirmPrivate)),
             btn(crate::i18n::text("Cancelar"), Kind::Ghost, true, None, Some(Msg::CancelPrivate)),
         ]
         .spacing(10)
         .align_y(Vertical::Center);
-        tail = tail.push(container(cartao).width(Length::Fill).padding(pad(6.0, 12.0, 6.0, 12.0)).style(surface(Some(t::RAISE), Some(t::LINE), 9.0)));
+        tail = tail.push(container(card).width(Length::Fill).padding(pad(6.0, 12.0, 6.0, 12.0)).style(surface(Some(t::RAISE), Some(t::LINE), 9.0)));
     }
     if !app.queued.is_empty() {
         tail = tail.push(tx(crate::i18n::text("Na fila: será enviada quando a resposta terminar."), 12.0, t::FG3));

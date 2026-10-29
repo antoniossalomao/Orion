@@ -353,7 +353,7 @@ pub struct App {
     /// F05.01: mensagens digitadas enquanto o Orion responde; saem na ordem ao terminar a resposta.
     pub queued: std::collections::VecDeque<QueuedMessage>,
     /// F02.26: texto que aguarda a confirmação do usuário para ir a provedores que treinam.
-    pub private_confirm: Option<String>,
+    pub private_confirm: Option<(String, String, bool)>,
     pub attach: Vec<(String, String)>,
     pub attachment_ids: Vec<String>,
     /// Miniaturas das imagens anexadas, por id de anexo (F05.11).
@@ -1391,9 +1391,14 @@ impl App {
                 }
             }
             Msg::ConfirmPrivate => {
-                let Some(text) = self.private_confirm.take() else { return Task::none() };
+                // Só confirma se houver texto, sem anexos perdidos, e para a conversa de origem.
+                let Some((session, text, had_attachments)) = self.private_confirm.clone() else { return Task::none() };
+                if had_attachments {
+                    self.toast("Anexe o arquivo de novo e envie.");
+                    return Task::none();
+                }
                 let Some(api) = self.api.clone() else { return Task::none() };
-                let Some(session) = self.conv.and_then(|i| self.convs.get(i)).map(|c| c.id.clone()) else { return Task::none() };
+                self.private_confirm = None;
                 return Task::perform(async move { api.post(&format!("/sessoes/{session}/permitir-envio-privado"), serde_json::json!({})).await }, move |r| match r {
                     Ok(_) => Msg::PrivatePermitted(text.clone()),
                     Err(_) => Msg::PrivatePermitted(String::new()),
@@ -1402,6 +1407,11 @@ impl App {
             Msg::CancelPrivate => self.private_confirm = None,
             Msg::PrivatePermitted(text) => {
                 if !text.is_empty() {
+                    // O envio volta para a conversa que pediu a confirmação, mesmo que outra esteja aberta.
+                    if let Some(index) = self.private_confirm_origin_index() {
+                        self.conv = Some(index);
+                        self.view = View::Chat;
+                    }
                     return self.live_send(text);
                 }
                 self.toast("Não foi possível liberar o envio agora.");
@@ -2017,6 +2027,12 @@ impl App {
     }
 
     /// Envia a próxima mensagem da fila, se a resposta atual já terminou e o campo está vazio.
+    /// Índice da conversa que pediu a confirmação de envio privado (guardada em `private_confirm`).
+    fn private_confirm_origin_index(&self) -> Option<usize> {
+        let (session, _, _) = self.private_confirm.as_ref()?;
+        self.convs.iter().position(|c| &c.id == session)
+    }
+
     pub fn next_queued(&mut self) -> Task<Msg> {
         // Com upload em andamento, a mensagem fica na fila; o fim do upload chama esta função de novo.
         if self.streaming.is_some() || self.attaching {

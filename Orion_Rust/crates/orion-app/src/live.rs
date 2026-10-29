@@ -1435,7 +1435,10 @@ impl App {
             }
             Chat::Error(e) if e == "confirmar_envio_privado" => {
                 // F02.26: o último pedido do usuário espera a confirmação; nada é enviado a Google ou Mistral sem ela.
-                self.private_confirm = conv.msgs.iter().rev().find_map(|m| if let ChatMsg::User(s) = m { Some(s.clone()) } else { None });
+                // Guarda a conversa de origem, o texto e se havia anexos (que não podem ser recuperados do histórico).
+                let ultimo = conv.msgs.iter().rev().find_map(|m| if let ChatMsg::User(s) = m { Some(s.clone()) } else { None });
+                let anexos = ultimo.as_deref().is_some_and(|t| t.contains("Anexos:"));
+                self.private_confirm = ultimo.map(|t| (conv.id.clone(), t, anexos));
             }
             Chat::Error(e) => {
                 if o.body.is_empty() {

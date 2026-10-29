@@ -132,7 +132,7 @@ pub struct SessaoNova {
 }
 
 /// F02.26: libera, para o próximo turno desta conversa, o envio a provedores que treinam (confirmado pelo usuário).
-pub async fn permitir_envio_privado(_: Admin, State(st): State<Estado>, Path(id): Path<String>) -> ApiResult<Json<Value>> {
+pub async fn allow_private_send(_: Admin, State(st): State<Estado>, Path(id): Path<String>) -> ApiResult<Json<Value>> {
     st.memory.counter_set(&format!("treino_permitido:{id}"), 1).map_err(anyhow::Error::from)?;
     Ok(Json(json!({"ok": true})))
 }

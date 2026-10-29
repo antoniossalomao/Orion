@@ -619,19 +619,19 @@ impl Agent {
             // modo autônomo: mais passos por pedido (as aprovações continuam valendo)
             let steps = preferences.max_steps.unwrap_or(me.cfg.max_iterations);
             let limite = if me.modos.as_ref().is_some_and(|m| m.autonomo()) { steps * 4 } else { steps };
+            // F02.26: a confirmação do usuário vale para o turno inteiro; é consumida uma vez, antes do laço.
+            let allowed = me.memory.counter_get(&format!("treino_permitido:{}", session.id)) > 0;
+            if allowed {
+                let _ = me.memory.counter_set(&format!("treino_permitido:{}", session.id), 0);
+            }
             for _ in 0..limite {
                 let mut texto = String::new();
                 let mut chamadas = vec![];
                 let mut falhou: Option<String> = None;
                 {
                     let private_turn = sensitive || ctx_arc.lock().private_data;
-                    // F02.26: o usuário confirmou o envio a provedores que treinam para este turno.
-                    let allowed = me.memory.counter_get(&format!("treino_permitido:{}", session.id)) > 0;
-                    if allowed {
-                        let _ = me.memory.counter_set(&format!("treino_permitido:{}", session.id), 0);
-                    }
-                    let nenhum_permitido = !me.gateway.endpoint_snapshot().iter().any(|e| e.tier == orion_ai::gateway::CAMADA_LOCAL || !orion_ai::gateway::ChatGateway::TRAINING_PROVIDERS.contains(&e.provedor.as_str()));
-                    if private_turn && !allowed && nenhum_permitido {
+                    let none_allowed = !me.gateway.endpoint_snapshot().iter().any(|e| e.tier == orion_ai::gateway::CAMADA_LOCAL || !orion_ai::gateway::ChatGateway::TRAINING_PROVIDERS.contains(&e.provedor.as_str()));
+                    if private_turn && !allowed && none_allowed {
                         yield AgentEvent::erro("confirmar_envio_privado");
                         return;
                     }
