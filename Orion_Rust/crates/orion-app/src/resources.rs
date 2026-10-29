@@ -17,6 +17,8 @@ pub struct ResourceState {
     pub lists: BTreeMap<&'static str, Value>,
     pub snapshot: Option<Value>,
     pub draft: BTreeMap<&'static str, String>,
+    /// F07.02: campo da última mudança salva sozinha e o valor anterior, para "Desfazer".
+    pub undo: Option<(&'static str, String)>,
     pub busy: bool,
     pub error: String,
     pub sources: Option<Value>,
@@ -39,6 +41,7 @@ pub enum Event {
     Browse(&'static str, bool),
     Chosen(&'static str, Result<Option<String>, String>),
     Save,
+    Undo,
     Saved(Result<Value, String>),
     Source(&'static str),
     Sources(std::time::Instant, Result<Value, String>),
@@ -422,6 +425,15 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
         None,
         (!app.resources.busy).then_some(Msg::Resources(Event::Save)),
     ));
+    if app.resources.undo.is_some() {
+        col = col.push(btn(
+            crate::i18n::text("Desfazer última mudança"),
+            Kind::Ghost,
+            false,
+            None,
+            (!app.resources.busy).then_some(Msg::Resources(Event::Undo)),
+        ));
+    }
     for &(key, _, label, kind) in FIELDS.iter().filter(|f| f.1 == group) {
         let text = input_value(app, key);
         let control: El = match kind {
@@ -441,7 +453,9 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
                     crate::views::login::field_style(t::RAISE, t::LINE2, t::ACCENT, 8.0),
                 );
                 if !app.resources.busy {
-                    input = input.on_input(move |text| Msg::Resources(Event::Input(key, text)));
+                    input = input
+                        .on_input(move |text| Msg::Resources(Event::Input(key, text)))
+                        .on_submit(Msg::Resources(Event::Save));
                 }
                 let mut controls = row![container(input).width(Length::Fixed(230.0))].spacing(6);
                 if matches!(kind, File | Folder) {
@@ -807,8 +821,17 @@ impl App {
                 self.resources.draft.insert(key, text);
             }
             Event::Toggle(key) if !self.resources.busy => {
+                // F07.02: o toggle salva sozinho e guarda o valor anterior para desfazer.
                 let on = input_value(self, key) == "true";
+                self.resources.undo = Some((key, on.to_string()));
                 self.resources.draft.insert(key, (!on).to_string());
+                return Task::done(Msg::Resources(Event::Save));
+            }
+            Event::Undo if !self.resources.busy => {
+                if let Some((key, anterior)) = self.resources.undo.take() {
+                    self.resources.draft.insert(key, anterior);
+                    return Task::done(Msg::Resources(Event::Save));
+                }
             }
             Event::Browse(key, folder) if !self.resources.busy => {
                 return Task::perform(
@@ -828,7 +851,11 @@ impl App {
                 )
             }
             Event::Chosen(key, Ok(Some(path))) => {
+                // F07.02: pasta ou arquivo escolhido salva sozinho.
+                let anterior = input_value(self, key);
+                self.resources.undo = Some((key, anterior));
                 self.resources.draft.insert(key, path);
+                return Task::done(Msg::Resources(Event::Save));
             }
             Event::Chosen(_, Err(e)) => self.resources.error = e,
             Event::Save if !self.resources.busy => {
@@ -895,6 +922,7 @@ impl App {
                 match result {
                     Ok(value) => {
                         self.sync_resources(&value);
+                        self.toast(crate::i18n::text("Salvo"));
                         if let Some(warnings) = value["warnings"].as_array() {
                             self.resources.error = warnings
                                 .iter()
