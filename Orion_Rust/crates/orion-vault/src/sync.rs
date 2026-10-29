@@ -234,6 +234,23 @@ impl VaultManager {
 
     /// F09.05: exporta o "Você fez" do dia para `03 Recursos/Orion/Memória/Diário/<data> - Você fez[ - <projeto>].md`.
     /// Nunca sobrescreve (se já existe, devolve `unchanged`) e não faz commit nem push.
+    /// F06.15: grava (ou substitui) um relatório em `03 Recursos/Relatórios de Mudanças`. Devolve o caminho.
+    pub fn publicar_relatorio(&self, nome: &str, markdown: &str) -> Result<String, VaultError> {
+        let rel = Path::new("03 Recursos").join("Relatórios de Mudanças").join(format!("{}.md", crate::note::sanitize_filename(nome)));
+        let target = crate::safe_path::checked(&self.config.path, &rel, true)?;
+        replace_note(&target, markdown)?;
+        Ok(rel.to_string_lossy().replace('\\', "/"))
+    }
+
+    /// F06.15: acrescenta uma linha ao relatório da sessão da conversa; cria com `cabecalho` se não existir.
+    pub fn acrescentar_relatorio(&self, nome: &str, cabecalho: &str, linha: &str) -> Result<String, VaultError> {
+        let rel = Path::new("03 Recursos").join("Relatórios de Mudanças").join(format!("{}.md", crate::note::sanitize_filename(nome)));
+        let target = crate::safe_path::checked(&self.config.path, &rel, true)?;
+        let atual = std::fs::read_to_string(&target).unwrap_or_else(|_| cabecalho.to_string());
+        replace_note(&target, &format!("{atual}{linha}\n"))?;
+        Ok(rel.to_string_lossy().replace('\\', "/"))
+    }
+
     pub fn save_daily_report(&self, date_str: &str, hora: &str, scope: Option<&str>, markdown: &str) -> Result<SyncResult, VaultError> {
         chrono::NaiveDate::parse_from_str(date_str, "%Y-%m-%d").map_err(|_| VaultError::InvalidFormat("data inválida; use AAAA-MM-DD".into()))?;
         if chrono::NaiveTime::parse_from_str(hora, "%H:%M").is_err() {

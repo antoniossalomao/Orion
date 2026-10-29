@@ -90,8 +90,48 @@ fn save(memory: &Arc<Store>, vault: &Path, sid: &str) -> anyhow::Result<()> {
         memory.meta_set(&key(sid), Some(CONFLICT))?;
     } else {
         memory.meta_set(&key(sid), Some(&result.content_sha256))?;
+        if !result.unchanged {
+            registrar_mudanca(&mgr, sid, &result.file_path);
+        }
     }
     Ok(())
+}
+
+/// Mudanças feitas pelo Orion nesta execução: (conversa, hora, caminho da nota). Vira o relatório ao fechar.
+static MUDANCAS: Mutex<Vec<(String, String, String)>> = Mutex::new(Vec::new());
+
+/// F06.15: anota a mudança no relatório da sessão da conversa, em `03 Recursos/Relatórios de Mudanças`.
+fn registrar_mudanca(mgr: &VaultManager, sid: &str, caminho: &str) {
+    let agora = chrono::Local::now();
+    let (data, hora) = (agora.format("%Y-%m-%d").to_string(), agora.format("%H:%M").to_string());
+    let curto: String = sid.chars().filter(|c| c.is_alphanumeric()).take(8).collect();
+    let nome = format!("{data} - Orion - Mudanças {curto}");
+    let cabecalho = format!("---\ntype: relatorio\ndate: {data}\nhora: \"{hora}\"\nagente: orion\nprojeto: \"[[Orion]]\"\ntags: [orion, relatorio, mudancas]\nresumo: Mudanças do Orion nesta conversa\n---\n\n# Mudanças do Orion — {data}\n\n");
+    MUDANCAS.lock().push((sid.to_string(), hora.clone(), caminho.to_string()));
+    if let Err(e) = mgr.acrescentar_relatorio(&nome, &cabecalho, &format!("- {hora} · `{caminho}`")) {
+        tracing::warn!("relatório de mudanças do vault adiado: {e}");
+    }
+}
+
+/// F06.15: ao fechar o Orion, grava o relatório da sessão (só se houve mudanças nesta execução).
+pub fn relatorio_da_sessao(vault: &Path) {
+    let mudancas = std::mem::take(&mut *MUDANCAS.lock());
+    if mudancas.is_empty() {
+        return;
+    }
+    let agora = chrono::Local::now();
+    let (data, hora) = (agora.format("%Y-%m-%d").to_string(), agora.format("%H:%M").to_string());
+    let mut md = format!("---\ntype: relatorio\ndate: {data}\nhora: \"{hora}\"\nagente: orion\nprojeto: \"[[Orion]]\"\ntags: [orion, relatorio, sessao]\nresumo: Sessão do Orion com {} nota(s) alterada(s)\n---\n\n# Sessão do Orion — {data} {hora}\n\n## Notas alteradas\n", mudancas.len());
+    for (sid, h, caminho) in &mudancas {
+        let curto: String = sid.chars().filter(|c| c.is_alphanumeric()).take(8).collect();
+        md.push_str(&format!("- {h} · `{caminho}` (conversa {curto})\n"));
+    }
+    match VaultManager::new(Some(vault.to_path_buf()))
+        .and_then(|m| m.publicar_relatorio(&format!("{data} - Orion - Sessão {}", hora.replace(':', "-")), &md))
+    {
+        Ok(caminho) => tracing::info!("relatório da sessão gravado em {caminho}"),
+        Err(e) => tracing::warn!("relatório da sessão não gravado: {e}"),
+    }
 }
 
 /// Gancho do agente: roda em segundo plano, uma conversa de cada vez; chamadas que chegam durante a
