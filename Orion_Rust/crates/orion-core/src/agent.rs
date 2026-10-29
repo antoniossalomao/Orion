@@ -512,6 +512,8 @@ impl Agent {
         skill_forcada: Option<String>,
         budget_task: Option<String>,
     ) -> EventStream {
+        // F02.26: vault e código não vão a provedores que treinam com os dados.
+        let sensivel = external.iter().chain(selection.iter().flat_map(|s| s.data.iter())).any(|e| matches!(e.kind.as_str(), "vault" | "note" | "code") || e.connection == "project-reference");
         let me = self.clone();
         let budget_task = budget_task.unwrap_or_else(orion_store::uuid_hex);
         Box::pin(async_stream::stream! {
@@ -615,7 +617,8 @@ impl Agent {
                 let mut chamadas = vec![];
                 let mut falhou: Option<String> = None;
                 {
-                    let mut s = me.gateway.stream_for_task_preferred(mensagens.clone(), esquemas.clone(), tier.as_deref(), budget_task.clone(), preferred);
+                    let excluir: Vec<String> = if sensivel { orion_ai::gateway::ChatGateway::PROVEDORES_QUE_TREINAM.iter().map(|p| p.to_string()).collect() } else { vec![] };
+                    let mut s = me.gateway.stream_for_task_excluding(mensagens.clone(), esquemas.clone(), tier.as_deref(), budget_task.clone(), preferred, excluir);
                     while let Some(ev) = s.next().await {
                         match ev {
                             Ok(GwEvent::TextDelta(t)) => {
