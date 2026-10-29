@@ -66,6 +66,8 @@ pub struct Context {
     pub read_only: bool,
     pub session_id: String,
     pub tainted: bool,
+    /// F02.26: a ferramenta trouxe conteúdo privado (vault, arquivo ou código); o turno não vai a provedores que treinam.
+    pub private_data: bool,
     pub allowed_tools: Option<HashSet<String>>,
     pub authorities: Vec<String>,
     pub authorized: Option<Arc<dyn Fn() -> bool + Send + Sync>>,

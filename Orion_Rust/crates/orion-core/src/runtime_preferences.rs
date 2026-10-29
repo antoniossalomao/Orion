@@ -9,6 +9,8 @@ use std::{
 };
 
 pub const FILE: &str = "runtime-preferences.json";
+/// F07.03: foto dos valores da primeira execução, usada por "Restaurar padrão".
+pub const DEFAULTS_FILE: &str = "runtime-defaults.json";
 
 macro_rules! preferences {
     ($($field:ident: $kind:ty),* $(,)?) => {
@@ -186,4 +188,22 @@ impl RuntimePreferences {
         out.persist(data.join(FILE)).map_err(|e| e.error)?;
         Ok(())
     }
+}
+
+/// Grava a foto dos valores da primeira execução; depois disso não mexe mais no arquivo.
+pub fn save_defaults_once(data: &Path, prefs: &RuntimePreferences) -> anyhow::Result<()> {
+    if data.join(DEFAULTS_FILE).exists() {
+        return Ok(());
+    }
+    std::fs::create_dir_all(data)?;
+    let mut out = tempfile::NamedTempFile::new_in(data)?;
+    out.write_all(&serde_json::to_vec_pretty(prefs)?)?;
+    out.as_file().sync_all()?;
+    out.persist(data.join(DEFAULTS_FILE)).map_err(|e| e.error)?;
+    Ok(())
+}
+
+/// Valores da foto da primeira execução, como JSON (mesmos campos de `RuntimePreferences`).
+pub fn load_defaults(data: &Path) -> anyhow::Result<Value> {
+    Ok(serde_json::from_slice(&std::fs::read(data.join(DEFAULTS_FILE))?)?)
 }

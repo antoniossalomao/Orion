@@ -893,7 +893,10 @@ impl App {
                 if let Some(h) = self.abort.take() {
                     h.abort();
                 }
-                None.or(Some((Task::none(), true)))
+                // F05.01: parar a resposta não deixa a fila presa; ela segue na ordem.
+                self.streaming = None;
+                let queued_task = self.next_queued();
+                Some((queued_task, true))
             }
             _ => None,
         }
@@ -990,7 +993,9 @@ impl App {
             },
             Lm::Attached(generation, result) => {
                 self.attaching = false;
-                if generation != self.attachment_generation { return Task::none(); }
+                if generation != self.attachment_generation {
+                    return self.next_queued();
+                }
                 match result {
                     Ok(Some(value)) => {
                         let id = s(&value, "id").to_string();
@@ -1428,6 +1433,13 @@ impl App {
                 o.approval = Some(map_approval(&a));
                 conv.state = ConvState::Pending;
             }
+            Chat::Error(e) if e == "confirmar_envio_privado" => {
+                // F02.26: o último pedido do usuário espera a confirmação; nada é enviado a Google ou Mistral sem ela.
+                // Guarda a conversa de origem, o texto e se havia anexos (que não podem ser recuperados do histórico).
+                let ultimo = conv.msgs.iter().rev().find_map(|m| if let ChatMsg::User(s) = m { Some(s.clone()) } else { None });
+                let anexos = ultimo.as_deref().is_some_and(|t| t.contains("Anexos:"));
+                self.private_confirm = ultimo.map(|t| (conv.id.clone(), t, anexos));
+            }
             Chat::Error(e) => {
                 if o.body.is_empty() {
                     o.via.clear(); // ninguém respondeu: não atribui a resposta a um provedor
@@ -1447,7 +1459,8 @@ impl App {
                 if o.body.is_empty() && o.approval.is_none() && o.tools.is_empty() {
                     conv.msgs.pop();
                 }
-                return Task::batch([self.reload_all(), self.buscar_imagens()]);
+                let queued_task = self.next_queued();
+                return Task::batch([self.reload_all(), self.buscar_imagens(), queued_task]);
             }
         }
         Task::none()

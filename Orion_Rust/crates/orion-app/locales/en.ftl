@@ -1234,3 +1234,183 @@ resource-123 = { "This computer" }
 resource-124 = { "Restores to a new folder. The current password opens the backup; the new password protects the restored profile." }
 
 resource-125 = { "Exports an encrypted database and profile. Accounts, tokens and this computer’s permissions are excluded." }
+
+ui-0960 = { "Saved" }
+
+ui-0961 = { "Undo last change" }
+
+ui-0962 = { "Vault folder saved. Restart Orion to use the new folder." }
+
+ui-0964 = { "Restore section defaults" }
+
+ui-0965 = { "Open settings" }
+
+ui-0966 = { "settings.toml: a mirror of the settings without secrets. Saving applies right away; editing the file by hand also applies." }
+
+ui-0967 = { "Save settings.toml" }
+
+ui-0968 = { "Free plan: may use data to improve Google products. Paid plan: no." }
+
+ui-0969 = { "Does not train on API data (confirm on the site)." }
+
+ui-0970 = { "Free plan: trains by default. Turn it off in Admin Console > Privacy." }
+
+ui-0971 = { "Depends on the routed provider. Set your account not to train." }
+
+ui-0972 = { "Not verified." }
+
+ui-0973 = { "Training" }
+
+ui-0974 = { "Queued: sent when the reply finishes." }
+
+ui-0975 = { "Turns on the microphone button to dictate messages." }
+
+ui-0976 = { "Local model that transcribes speech on this computer." }
+
+ui-0977 = { "Uses the GPU for local transcription when available." }
+
+ui-0978 = { "Orion answers out loud." }
+
+ui-0979 = { "Voice used for spoken replies." }
+
+ui-0980 = { "Lets you interrupt Orion's speech by talking over it." }
+
+ui-0981 = { "Microphone for the wake word. Empty uses the default." }
+
+ui-0982 = { "Listens locally for the word “Orion” to start talking." }
+
+ui-0983 = { "Validated model file that recognizes the word." }
+
+ui-0984 = { "The higher, the harder the word triggers by accident." }
+
+ui-0985 = { "Maximum recording time after the word." }
+
+ui-0986 = { "How much silence ends the speech." }
+
+ui-0987 = { "How many activations per hour are allowed." }
+
+ui-0988 = { "Two claps open Orion." }
+
+ui-0989 = { "The higher, the less sensitive to claps." }
+
+ui-0990 = { "What claps do: open Orion or run a routine (routine:name)." }
+
+ui-0991 = { "Lets you talk by voice in real time." }
+
+ui-0992 = { "Maximum length of a live voice conversation." }
+
+ui-0993 = { "Lets Orion describe images and the screen." }
+
+ui-0994 = { "The camera is used only when you ask." }
+
+ui-0995 = { "Which camera to use, by index (0 is the default)." }
+
+ui-0996 = { "Remembers objects seen by the camera for later." }
+
+ui-0997 = { "ONNX model that detects objects in images." }
+
+ui-0998 = { "Detects whether you are present at the computer." }
+
+ui-0999 = { "Minutes away before pausing." }
+
+ui-1000 = { "Bluetooth device that indicates presence." }
+
+ui-1001 = { "Lets the computer lock when you step away." }
+
+ui-1002 = { "Shows live captions for the computer's audio." }
+
+ui-1003 = { "Local model used for captions." }
+
+ui-1004 = { "Audio device captured for captions." }
+
+ui-1005 = { "Keeps screen text on this computer only." }
+
+ui-1006 = { "Interval between screen captures, in seconds." }
+
+ui-1007 = { "How many days screen memory is kept." }
+
+ui-1008 = { "Window titles that stay out of screen memory." }
+
+ui-1009 = { "Apps that stay out of screen memory." }
+
+ui-1010 = { "Languages used to read text on screen." }
+
+ui-1011 = { "How many days history is kept. 0 turns it off." }
+
+ui-1012 = { "Keeps command history on this computer only." }
+
+ui-1013 = { "Turns on tasks that run in the background." }
+
+ui-1014 = { "Time of the daily summary." }
+
+ui-1015 = { "Time of the overnight research on the topics." }
+
+ui-1016 = { "Topics researched overnight." }
+
+ui-1017 = { "Time when memory is reviewed." }
+
+ui-1018 = { "Does a weekly review with AI." }
+
+ui-1019 = { "Consolidates facts extracted from conversations." }
+
+ui-1020 = { "Time the conversation diary is written to the vault." }
+
+ui-1021 = { "Time of the weekly review." }
+
+ui-1022 = { "Lets tasks run in the cloud CLIs." }
+
+ui-1023 = { "Environment used by Codex Cloud." }
+
+ui-1024 = { "Folder where cloud tasks work." }
+
+ui-1025 = { "Obsidian vault folder. Applies after restarting Orion." }
+
+ui-1026 = { "Folder where backups are stored." }
+
+ui-1027 = { "How many old backups to keep." }
+
+ui-1028 = { "Repositories Orion can read." }
+
+ui-1029 = { "Folders where Orion can read and write." }
+
+ui-1030 = { "Reorders search results with a local model." }
+
+ui-1031 = { "Folder of the ONNX reranking model." }
+
+ui-1032 = { "Turns on the configured MCP servers." }
+
+ui-1033 = { "File with the MCP server settings." }
+
+ui-1034 = { "Turns on installed skills." }
+
+ui-1035 = { "Folder where skills live." }
+
+ui-1036 = { "Turns on installed plugins." }
+
+ui-1037 = { "Folder where plugins live." }
+
+ui-1038 = { "Queued message has no source conversation." }
+
+ui-1039 = { "Only providers that train on data are available. This content is private. Send anyway?" }
+
+ui-1040 = { "Send anyway" }
+
+ui-1041 = { "Could not allow sending right now." }
+
+ui-1042 = { "Free plan: Google uses data to improve products (official docs). Paid plan: no." }
+
+ui-1043 = { "Official docs don't mention training; they only say no retention by default. Not confirmed." }
+
+ui-1044 = { "Vibe and Studio free mode train by default, with opt-out. Pay-as-you-go: not stated." }
+
+ui-1045 = { "OpenRouter uses data only if you opt in. Training depends on the routed provider; routing control not confirmed." }
+
+ui-1046 = { "Not confirmed: the policy does not mention the API directly." }
+
+ui-1047 = { "Not confirmed. The official page says the service was retired on 2026-07-30." }
+
+ui-1048 = { "Not confirmed: I did not find the data policy in the official pages checked." }
+
+ui-1049 = { "Not confirmed: I did not find the policy in the official pages checked." }
+
+ui-1050 = { "Queries are not used for training. Results depend on the plan." }

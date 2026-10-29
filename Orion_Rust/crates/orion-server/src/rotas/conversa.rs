@@ -131,6 +131,12 @@ pub struct SessaoNova {
     titulo: Option<String>,
 }
 
+/// F02.26: libera, para o próximo turno desta conversa, o envio a provedores que treinam (confirmado pelo usuário).
+pub async fn allow_private_send(_: Admin, State(st): State<Estado>, Path(id): Path<String>) -> ApiResult<Json<Value>> {
+    st.memory.counter_set(&format!("treino_permitido:{id}"), 1).map_err(anyhow::Error::from)?;
+    Ok(Json(json!({"ok": true})))
+}
+
 pub async fn sessao_nova(_: Admin, State(st): State<Estado>, corpo: Option<Json<SessaoNova>>) -> ApiResult<Json<Value>> {
     let c = corpo.map(|Json(c)| c).unwrap_or(SessaoNova { canal: "web".into(), ..Default::default() });
     conferir(&c.canal, CANAL, "canal")?;

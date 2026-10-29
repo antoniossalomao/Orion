@@ -40,6 +40,8 @@ async fn preparar_nucleo(s: Settings,preserve_extensions:bool) -> anyhow::Result
         p.apply(&mut s);
     }
     let st = if preserve_extensions{crate::estado::montar_with_runtime(s,true).await?}else{crate::estado::montar(s).await?};
+    // F02.05: observa o settings.toml e aplica as edições feitas à mão.
+    crate::rotas::resources::register_core(&st);
     #[cfg(windows)]
     if !SCREEN_WATCH_STARTED.swap(true,std::sync::atomic::Ordering::SeqCst) {
         crate::cli_db::watch_screen_lock(&vigiar, st.auth.clone());
@@ -469,16 +471,34 @@ pub fn run(mut s: Settings, fundo: bool) -> anyhow::Result<i32> {
     let trancado = trancado || (!primeiro_uso && (orion_core::onboarding::Profile::load(&s.data_dir)?.is_some() || crate::onboarding::login_protegido(&s)));
     let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
     let slot: Slot = Default::default();
-    let api = orion_app::net::Api::local(
-        std::sync::Arc::new(Interno {
-            nucleo: slot.clone(),
-            settings: s,
-            rt: runtime.handle().clone(),
-            mostrar: mostrar.clone(),
-            requires_login: trancado,
-        }),
-        token,
-    );
+    let local = std::sync::Arc::new(Interno {
+        nucleo: slot.clone(),
+        settings: s,
+        rt: runtime.handle().clone(),
+        mostrar: mostrar.clone(),
+        requires_login: trancado,
+    });
+    // F02.05: a edição do settings.toml à mão reconfigura o núcleo pelo mesmo caminho do app.
+    {
+        let (local_gancho, rt_gancho) = (local.clone(), runtime.handle().clone());
+        *crate::rotas::resources::RECONFIGURE_HOOK.lock() = Some(std::sync::Arc::new(move |token: String| {
+            let local = local_gancho.clone();
+            // Se o núcleo estiver ocupado (resposta, áudio ou aprovação), tenta de novo por um tempo limitado.
+            rt_gancho.spawn(async move {
+                for _ in 0..60 {
+                    match local.reconfigure(Some(token.clone())).await {
+                        Ok(_) => return,
+                        Err(e) => {
+                            tracing::warn!("reconfiguração do settings.toml adiada: {e}");
+                            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                        }
+                    }
+                }
+                tracing::warn!("settings.toml não reconfigurou o núcleo; salve de novo nas Configurações");
+            });
+        }));
+    }
+    let api = orion_app::net::Api::local(local, token);
     let _ = std::fs::remove_file(&mostrar);
     // banco cifrado e trancado: mesmo no início com o Windows a janela abre já na tela de senha
     let fundo = fundo && !trancado && !primeiro_uso;
@@ -495,6 +515,10 @@ pub fn run(mut s: Settings, fundo: bool) -> anyhow::Result<i32> {
                 tracing::warn!("encerramento do núcleo passou de 10 s");
             }
         });
+        // F06.15: relatório da sessão ao fechar o Orion.
+        if let Some(vault) = n.st.settings.vault_dir.clone().or_else(orion_vault::detect_vault_path) {
+            crate::diary::session_report(&vault);
+        }
     }
     *crate::onboarding::BACKUP_KEY.lock() = None;
     // "Instala ao fechar": o núcleo já encerrou, então é seguro trocar os arquivos.

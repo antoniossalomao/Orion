@@ -321,6 +321,16 @@ pub struct Marks {
     pub switch: Option<(String, Instant)>,
 }
 
+/// Mensagem na fila (F05.01): texto, anexos e a conversa de origem.
+pub struct QueuedMessage {
+    pub conversation: String,
+    pub text: String,
+    pub attach: Vec<(String, String)>,
+    pub attachment_ids: Vec<String>,
+    /// Miniaturas dos anexos: acompanham a mensagem, para o rascunho atual não liberá-las.
+    pub thumbs: Vec<(String, iced::widget::image::Handle)>,
+}
+
 pub struct App {
     pub resources: crate::resources::ResourceState,
     pub p: Prefs,
@@ -340,6 +350,10 @@ pub struct App {
     pub side_q: String,
     pub drawer: bool,
     pub composer: text_editor::Content,
+    /// F05.01: mensagens digitadas enquanto o Orion responde; saem na ordem ao terminar a resposta.
+    pub queued: std::collections::VecDeque<QueuedMessage>,
+    /// F02.26: texto que aguarda a confirmação do usuário para ir a provedores que treinam.
+    pub private_confirm: Option<(String, String, bool)>,
     pub attach: Vec<(String, String)>,
     pub attachment_ids: Vec<String>,
     /// Miniaturas das imagens anexadas, por id de anexo (F05.11).
@@ -496,6 +510,10 @@ pub enum Msg {
     Send,
     Stop,
     RepeatLast,
+    /// F02.26: o usuário aceita enviar conteúdo privado a provedores que treinam, só desta vez.
+    ConfirmPrivate,
+    CancelPrivate,
+    PrivatePermitted(String),
     RepeatLastIfEmpty,
     Attach,
     Unattach(usize),
@@ -704,6 +722,8 @@ impl App {
             side_q: String::new(),
             drawer: false,
             composer: text_editor::Content::new(),
+            queued: Default::default(),
+            private_confirm: None,
             attach: vec![],
             attachment_ids: vec![],
             attach_thumbs: std::collections::HashMap::new(),
@@ -1029,6 +1049,10 @@ impl App {
         }
         match msg {
             Msg::Tick(now) => {
+                // F05.01: a fila segue sozinha quando o upload ou a resposta anterior terminar.
+                if !self.queued.is_empty() && self.streaming.is_none() && !self.attaching {
+                    return self.next_queued();
+                }
                 self.now = now;
 
                 crate::views::memory::tick(self, now);
@@ -1366,6 +1390,32 @@ impl App {
                     }
                 }
             }
+            Msg::ConfirmPrivate => {
+                // Só confirma se houver texto, sem anexos perdidos, e para a conversa de origem.
+                let Some((session, text, had_attachments)) = self.private_confirm.clone() else { return Task::none() };
+                if had_attachments {
+                    self.toast("Anexe o arquivo de novo e envie.");
+                    return Task::none();
+                }
+                let Some(api) = self.api.clone() else { return Task::none() };
+                self.private_confirm = None;
+                return Task::perform(async move { api.post(&format!("/sessoes/{session}/permitir-envio-privado"), serde_json::json!({})).await }, move |r| match r {
+                    Ok(_) => Msg::PrivatePermitted(text.clone()),
+                    Err(_) => Msg::PrivatePermitted(String::new()),
+                });
+            }
+            Msg::CancelPrivate => self.private_confirm = None,
+            Msg::PrivatePermitted(text) => {
+                if !text.is_empty() {
+                    // O envio volta para a conversa que pediu a confirmação, mesmo que outra esteja aberta.
+                    if let Some(index) = self.private_confirm_origin_index() {
+                        self.conv = Some(index);
+                        self.view = View::Chat;
+                    }
+                    return self.live_send(text);
+                }
+                self.toast("Não foi possível liberar o envio agora.");
+            }
             Msg::RepeatLastIfEmpty => {
                 if self.draft().is_empty() {
                     return self.update(Msg::RepeatLast);
@@ -1413,7 +1463,9 @@ impl App {
             }
             Msg::Sugg(s) => {
                 let cur = self.draft();
-                let new = if let Some(p) = cur.rfind(['/', '@']) { format!("{}{}", &cur[..p], s) } else { s };
+                // Substitui o token inteiro (`@caminho/da nota`), não só a partir da última barra.
+                let token = cur.split(char::is_whitespace).next_back().unwrap_or("");
+                let new = if token.starts_with(['/', '@']) { format!("{}{}", &cur[..cur.len() - token.len()], s) } else { s };
                 self.composer = text_editor::Content::with_text(&new);
                 self.composer.perform(text_editor::Action::Move(text_editor::Motion::DocumentEnd));
             }
@@ -1974,9 +2026,63 @@ impl App {
         }
     }
 
+    /// Envia a próxima mensagem da fila, se a resposta atual já terminou e o campo está vazio.
+    /// Índice da conversa que pediu a confirmação de envio privado (guardada em `private_confirm`).
+    fn private_confirm_origin_index(&self) -> Option<usize> {
+        let (session, _, _) = self.private_confirm.as_ref()?;
+        self.convs.iter().position(|c| &c.id == session)
+    }
+
+    pub fn next_queued(&mut self) -> Task<Msg> {
+        // Com upload em andamento, a mensagem fica na fila; o fim do upload chama esta função de novo.
+        if self.streaming.is_some() || self.attaching {
+            return Task::none();
+        }
+        let Some(next) = self.queued.pop_front() else {
+            return Task::none();
+        };
+        // A mensagem volta para a conversa de origem, mesmo que o usuário esteja em outra.
+        let Some(index) = self.convs.iter().position(|c| c.id == next.conversation) else {
+            self.toast("Mensagem da fila sem conversa de origem.");
+            return self.next_queued();
+        };
+        // O rascunho do usuário (texto e anexos) é guardado, a mensagem da fila é enviada e o rascunho volta.
+        let stash_text = self.draft();
+        let stash_attach = std::mem::replace(&mut self.attach, next.attach);
+        let stash_ids = std::mem::replace(&mut self.attachment_ids, next.attachment_ids);
+        let stash_thumbs = std::mem::replace(&mut self.attach_thumbs, next.thumbs.into_iter().collect());
+        self.conv = Some(index);
+        self.view = View::Chat;
+        self.composer = text_editor::Content::with_text(&next.text);
+        let task = self.send();
+        self.attach = stash_attach;
+        self.attachment_ids = stash_ids;
+        self.attach_thumbs = stash_thumbs;
+        self.composer = text_editor::Content::with_text(&stash_text);
+        task
+    }
+
     fn send(&mut self) -> Task<Msg> {
         let text = self.draft();
-        if text.trim().is_empty() || self.streaming.is_some() {
+        if text.trim().is_empty() {
+            return Task::none();
+        }
+        if self.streaming.is_some() {
+            // F05.01: durante a resposta, texto normal entra na fila; comandos (/) não.
+            if !text.starts_with('/') {
+                let origin = self.conv.and_then(|i| self.convs.get(i)).map(|c| c.id.clone()).unwrap_or_default();
+                // Os anexos do rascunho acompanham a mensagem; o rascunho fica livre para o próximo.
+                let attachment_ids = std::mem::take(&mut self.attachment_ids);
+                let thumbs = attachment_ids.iter().filter_map(|id| self.attach_thumbs.remove(id).map(|h| (id.clone(), h))).collect();
+                self.queued.push_back(QueuedMessage {
+                    conversation: origin,
+                    text,
+                    attach: std::mem::take(&mut self.attach),
+                    attachment_ids,
+                    thumbs,
+                });
+                self.composer = text_editor::Content::new();
+            }
             return Task::none();
         }
         if let Some(cmd) = text.strip_prefix('/') {

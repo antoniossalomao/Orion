@@ -210,10 +210,32 @@ pub fn caption<'a>(lines:&[String]) -> El<'a> {
     container(c).width(Length::Fill).height(Length::Fill).center_x(Length::Fill).align_y(Vertical::Bottom).padding(pad(0.0, 0.0, 28.0, 0.0)).into()
 }
 
+/// F07.06: a seção de Configurações que resolve o aviso (cota, modelo/chave, ferramentas, vault).
+pub fn config_target(msg: &str) -> Option<crate::app::Sec> {
+    use crate::app::Sec;
+    let m = msg.to_lowercase();
+    if m.contains("cota") || m.contains("orçamento") || m.contains("limite") {
+        Some(Sec::Uso)
+    } else if m.contains("chave de api") || (m.contains("modelo") && m.contains("configur")) {
+        Some(Sec::Modelos)
+    } else if m.contains("ferramenta") {
+        Some(Sec::Tools)
+    } else if m.contains("vault") {
+        Some(Sec::Sistema)
+    } else {
+        None
+    }
+}
+
 pub fn toast<'a>(msg: String) -> El<'a> {
+    let target = config_target(&msg);
     let msg = crate::i18n::status(&msg);
     let p = crate::anim::TOAST.get();
-    let c = container(tx(msg, 13.0, t::alpha(t::PRIMARY_INK, p))).padding(pad(8.0, 12.0, 8.0, 12.0)).style(move |_| container::Style { background: Some(t::alpha(t::PRIMARY, p).into()), border: Border { radius: t::R_CARD.into(), ..Default::default() }, shadow: shadow(), ..Default::default() });
+    let mut toast_row = row![tx(msg, 13.0, t::alpha(t::PRIMARY_INK, p))].spacing(10).align_y(Vertical::Center);
+    if let Some(sec) = target {
+        toast_row = toast_row.push(btn(crate::i18n::text("Abrir configurações"), Kind::Ghost, true, None, Some(Msg::OpenSettings(Some(sec)))));
+    }
+    let c = container(toast_row).padding(pad(8.0, 12.0, 8.0, 12.0)).style(move |_| container::Style { background: Some(t::alpha(t::PRIMARY, p).into()), border: Border { radius: t::R_CARD.into(), ..Default::default() }, shadow: shadow(), ..Default::default() });
     container(c).width(Length::Fill).height(Length::Fill).center_x(Length::Fill).align_y(Vertical::Bottom).padding(pad(0.0, 0.0, 20.0 - 6.0 * (1.0 - p), 0.0)).into()
 }
 

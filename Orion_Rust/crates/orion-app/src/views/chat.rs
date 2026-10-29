@@ -129,6 +129,19 @@ pub fn view(app: &App) -> El<'_> {
                 .style(surface(Some(t::RAISE), Some(t::LINE), 9.0)),
         );
     }
+    if app.private_confirm.is_some() {
+        let card = row![
+            tx(crate::i18n::text("Só há provedores que treinam com os dados. Este conteúdo é privado. Enviar mesmo assim?"), 12.5, t::FG2),
+            btn(crate::i18n::text("Enviar mesmo assim"), Kind::Primary, true, None, Some(Msg::ConfirmPrivate)),
+            btn(crate::i18n::text("Cancelar"), Kind::Ghost, true, None, Some(Msg::CancelPrivate)),
+        ]
+        .spacing(10)
+        .align_y(Vertical::Center);
+        tail = tail.push(container(card).width(Length::Fill).padding(pad(6.0, 12.0, 6.0, 12.0)).style(surface(Some(t::RAISE), Some(t::LINE), 9.0)));
+    }
+    if !app.queued.is_empty() {
+        tail = tail.push(tx(crate::i18n::text("Na fila: será enviada quando a resposta terminar."), 12.0, t::FG3));
+    }
     tail = tail.push(crate::views::composer::view(app, false));
     let tail = container(tail).width(Length::Fill).center_x(Length::Fill).padding(pad(0.0, 16.0, 12.0, 16.0));
     column![thread, tail].height(Length::Fill).into()

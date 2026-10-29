@@ -6,17 +6,22 @@ use crate::{
     ui::*,
 };
 use iced::{
-    widget::{column, container, row, text_input},
+    widget::{column, container, row, text_editor, text_input},
     Length, Task,
 };
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
 
-#[derive(Default)]
 pub struct ResourceState {
+    /// F02.05: texto do settings.toml (espelho das Configurações) editado no app.
+    pub toml: text_editor::Content,
     pub lists: BTreeMap<&'static str, Value>,
     pub snapshot: Option<Value>,
     pub draft: BTreeMap<&'static str, String>,
+    /// F07.02: campo da última mudança salva sozinha e o valor anterior, para "Desfazer".
+    pub undo: Option<(&'static str, String)>,
+    /// F07.03: valores da primeira execução ("valor da instalação"), para restaurar.
+    pub defaults: Option<Value>,
     pub busy: bool,
     pub error: String,
     pub sources: Option<Value>,
@@ -30,6 +35,30 @@ pub struct ResourceState {
     pub captions: Vec<String>,
     pub form: Option<Form>,
 }
+impl Default for ResourceState {
+    fn default() -> Self {
+        Self {
+            toml: text_editor::Content::new(),
+            lists: BTreeMap::new(),
+            snapshot: None,
+            draft: BTreeMap::new(),
+            undo: None,
+            defaults: None,
+            busy: false,
+            error: String::new(),
+            sources: None,
+            source_busy: false,
+            source_changed: None,
+            audio_id: None,
+            audio: None,
+            audio_busy: false,
+            audio_session: None,
+            result: None,
+            captions: Vec::new(),
+            form: None,
+        }
+    }
+}
 #[derive(Clone)]
 pub enum Event {
     Load,
@@ -39,7 +68,15 @@ pub enum Event {
     Browse(&'static str, bool),
     Chosen(&'static str, Result<Option<String>, String>),
     Save,
-    Saved(Result<Value, String>),
+    Undo,
+    Defaults(Result<Value, String>),
+    TomlLoaded(Result<Value, String>),
+    TomlEdit(text_editor::Action),
+    TomlSave,
+    TomlSaved(Result<Value, String>),
+    RestoreOption(&'static str),
+    RestoreGroup(String),
+    Saved(Result<Value, String>, Vec<&'static str>),
     Source(&'static str),
     Sources(std::time::Instant, Result<Value, String>),
     Action(&'static str, String),
@@ -358,6 +395,8 @@ pub fn load_management(api: &Api, groups: &[&'static str]) -> Task<Msg> {
 pub fn load(api: &Api) -> Task<Msg> {
     let a = api.clone();
     let b = api.clone();
+    let c = api.clone();
+    let d = api.clone();
     let start = std::time::Instant::now();
     Task::batch([
         Task::perform(async move { a.get("/config/runtime").await }, |r| {
@@ -365,6 +404,12 @@ pub fn load(api: &Api) -> Task<Msg> {
         }),
         Task::perform(async move { b.get("/config/sources").await }, move |r| {
             Msg::Resources(Event::Sources(start, r))
+        }),
+        Task::perform(async move { c.get("/config/runtime/padrao").await }, |r| {
+            Msg::Resources(Event::Defaults(r))
+        }),
+        Task::perform(async move { d.get("/config/toml").await }, |r| {
+            Msg::Resources(Event::TomlLoaded(r))
         }),
     ])
 }
@@ -394,8 +439,98 @@ fn input_value(app: &App, key: &'static str) -> String {
         )
     })
 }
+/// F07.03: descrição curta de cada opção de Configurações (texto pt-BR; a interface traduz via catálogo).
+const DESCRIPTIONS: &[(&str, &str)] = &[
+    ("voice_enabled", "Ativa o botão de microfone para ditar mensagens."),
+    ("local_stt_model", "Modelo local que transcreve a fala neste computador."),
+    ("local_stt_gpu", "Usa a GPU na transcrição local, quando disponível."),
+    ("voice_speak", "O Orion responde em voz alta."),
+    ("voice_tts_voice", "Voz usada na resposta falada."),
+    ("voice_barge_in", "Permite interromper a fala do Orion falando por cima."),
+    ("wake_device", "Microfone da palavra de ativação. Vazio usa o padrão."),
+    ("wake_enabled", "Escuta local da palavra “Orion” para começar a falar."),
+    ("wake_model", "Arquivo do modelo validado que reconhece a palavra."),
+    ("wake_threshold", "Quanto maior, mais difícil a palavra disparar sem querer."),
+    ("wake_max_s", "Tempo máximo gravado depois da palavra."),
+    ("wake_silence_s", "Quanto silêncio encerra a fala."),
+    ("wake_max_per_hour", "Quantas ativações por hora são permitidas."),
+    ("clap_enabled", "Duas palmas abrem o Orion."),
+    ("clap_ratio", "Quanto maior, menos sensível às palmas."),
+    ("clap_action", "O que as palmas fazem: abrir o Orion ou rodar uma rotina (rotina:nome)."),
+    ("voice_live_enabled", "Permite conversar por voz em tempo real."),
+    ("voice_live_max_min", "Tempo máximo de uma conversa por voz ao vivo."),
+    ("vision_tools", "Permite ao Orion descrever imagens e a tela."),
+    ("camera", "A câmera só é usada quando você pede."),
+    ("camera_device", "Qual câmera usar, pelo índice (0 é a padrão)."),
+    ("camera_watch", "Guarda objetos vistos pela câmera para lembrar depois."),
+    ("object_model", "Modelo ONNX que detecta objetos nas imagens."),
+    ("presence_enabled", "Detecta se você está presente pelo computador."),
+    ("presence_away_min", "Minutos de ausência antes de pausar."),
+    ("presence_bt", "Dispositivo Bluetooth que indica a presença."),
+    ("presence_lock", "Permite bloquear o computador ao se ausentar."),
+    ("subtitles", "Mostra legenda ao vivo do áudio do computador."),
+    ("subtitle_model", "Modelo local usado nas legendas."),
+    ("subtitle_device", "Dispositivo de áudio capturado para a legenda."),
+    ("screen_memory", "Guarda o texto da tela só neste computador."),
+    ("screen_interval_s", "Intervalo entre capturas da tela, em segundos."),
+    ("screen_retention_days", "Por quantos dias a memória da tela é mantida."),
+    ("screen_exclude", "Títulos de janela que não entram na memória da tela."),
+    ("screen_exclude_apps", "Aplicativos que não entram na memória da tela."),
+    ("screen_ocr_langs", "Idiomas usados ao ler texto da tela."),
+    ("clipboard_days", "Por quantos dias o histórico fica guardado. 0 desliga."),
+    ("command_history", "Guarda o histórico de comandos só neste computador."),
+    ("jobs_enabled", "Liga as tarefas que rodam em segundo plano."),
+    ("briefing_at", "Horário do resumo diário."),
+    ("research_at", "Horário da pesquisa noturna sobre os assuntos."),
+    ("research_topics", "Assuntos pesquisados à noite."),
+    ("sleep_at", "Horário em que a memória é revisada."),
+    ("weekly_ai", "Faz uma revisão semanal com IA."),
+    ("consolidate", "Consolida os fatos extraídos das conversas."),
+    ("diary_at", "Horário em que o diário da conversa é gravado no vault."),
+    ("weekly_review_at", "Horário da revisão semanal."),
+    ("nuvem", "Permite rodar tarefas nas CLIs de nuvem."),
+    ("codex_env", "Ambiente usado pelo Codex Cloud."),
+    ("nuvem_dir", "Pasta onde as tarefas de nuvem trabalham."),
+    ("vault_dir", "Pasta do vault do Obsidian. Vale depois de reiniciar o Orion."),
+    ("backup_dir", "Pasta onde os backups são guardados."),
+    ("backup_keep", "Quantos backups antigos manter."),
+    ("repos", "Repositórios que o Orion pode ler."),
+    ("extra_safe_roots", "Pastas onde o Orion pode ler e escrever."),
+    ("rerank", "Reordena resultados de busca com um modelo local."),
+    ("rerank_model_dir", "Pasta do modelo ONNX de reordenação."),
+    ("mcp_enabled", "Liga os servidores MCP configurados."),
+    ("mcp_config", "Arquivo com a configuração dos servidores MCP."),
+    ("skills_enabled", "Liga as skills instaladas."),
+    ("skills_dir", "Pasta onde ficam as skills."),
+    ("plugins_enabled", "Liga os plugins instalados."),
+    ("plugins_dir", "Pasta onde ficam os plugins."),
+];
+
+/// Descrição curta da opção, já traduzida.
+fn description(key: &str) -> &'static str {
+    DESCRIPTIONS.iter().find(|(k, _)| *k == key).map(|(_, text)| crate::i18n::text(text)).unwrap_or("")
+}
+
 pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
     let mut col = column![].spacing(10);
+    if group == "storage" {
+        col = col.push(tx(crate::i18n::text("settings.toml: espelho das Configurações, sem segredos. Salvar aplica na hora; editar o arquivo à mão também aplica."), 12.5, t::FG3));
+        col = col.push(
+            text_editor(&app.resources.toml)
+                .on_action(|action| Msg::Resources(Event::TomlEdit(action)))
+                .font(t::MONO_MED)
+                .size(12.5)
+                .height(Length::Fixed(240.0))
+                .padding(10),
+        );
+        col = col.push(btn(
+            crate::i18n::text("Salvar settings.toml"),
+            Kind::Primary,
+            false,
+            None,
+            (!app.resources.busy).then_some(Msg::Resources(Event::TomlSave)),
+        ));
+    }
     col=col.push(tx(crate::i18n::text("As escolhas ficam salvas neste computador. Use Salvar e aplicar para atualizar os recursos."),12.5,t::FG3));
     if app.resources.snapshot.is_none() {
         return column![
@@ -422,6 +557,24 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
         None,
         (!app.resources.busy).then_some(Msg::Resources(Event::Save)),
     ));
+    if app.resources.undo.is_some() {
+        col = col.push(btn(
+            crate::i18n::text("Desfazer última mudança"),
+            Kind::Ghost,
+            false,
+            None,
+            (!app.resources.busy).then_some(Msg::Resources(Event::Undo)),
+        ));
+    }
+    if app.resources.defaults.is_some() {
+        col = col.push(btn(
+            crate::i18n::text("Restaurar padrão desta seção"),
+            Kind::Ghost,
+            false,
+            None,
+            (!app.resources.busy).then(|| Msg::Resources(Event::RestoreGroup(group.to_string()))),
+        ));
+    }
     for &(key, _, label, kind) in FIELDS.iter().filter(|f| f.1 == group) {
         let text = input_value(app, key);
         let control: El = match kind {
@@ -441,7 +594,9 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
                     crate::views::login::field_style(t::RAISE, t::LINE2, t::ACCENT, 8.0),
                 );
                 if !app.resources.busy {
-                    input = input.on_input(move |text| Msg::Resources(Event::Input(key, text)));
+                    input = input
+                        .on_input(move |text| Msg::Resources(Event::Input(key, text)))
+                        .on_submit(Msg::Resources(Event::Save));
                 }
                 let mut controls = row![container(input).width(Length::Fixed(230.0))].spacing(6);
                 if matches!(kind, File | Folder) {
@@ -457,7 +612,15 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
                 controls.into()
             }
         };
-        col = col.push(setting(crate::i18n::text(label), "", control));
+        // F07.03: "Restaurar" por opção só aparece quando o valor difere da primeira execução.
+        let default_value = app.resources.defaults.as_ref().and_then(|d| d.get(key));
+        let differs = default_value.is_some_and(|v| value_text(v) != input_value(app, key));
+        let control: El = if differs {
+            row![control, btn(crate::i18n::text("Restaurar"), Kind::Ghost, false, None, (!app.resources.busy).then_some(Msg::Resources(Event::RestoreOption(key))))].spacing(6).align_y(iced::alignment::Vertical::Center).into()
+        } else {
+            control
+        };
+        col = col.push(setting(crate::i18n::text(label), description(key), control));
     }
     let applied = app.resources.snapshot.as_ref().unwrap();
     if applied["saved"] != applied["active"] {
@@ -626,6 +789,58 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
     .into()
 }
 impl App {
+    /// Envia ao servidor o rascunho, ou só as chaves pedidas (autosave salva apenas o campo alterado).
+    fn save_draft(&mut self, only: Option<&[&'static str]>) -> Task<Msg> {
+        let Some(api) = self.api.clone() else {
+            self.resources.error = "Configuração disponível somente no app conectado.".into();
+            return Task::none();
+        };
+        let mut patch = serde_json::Map::new();
+        let mut sent: Vec<&'static str> = Vec::new();
+        for (&key, text) in &self.resources.draft {
+            if only.is_some_and(|keys| !keys.contains(&key)) {
+                continue;
+            }
+            let Some(field) = FIELDS.iter().find(|f| f.0 == key) else {
+                continue;
+            };
+            let value = match field.3 {
+                Bool => json!(text == "true"),
+                Number => match text.parse::<serde_json::Number>() {
+                    Ok(n) => Value::Number(n),
+                    Err(_) => {
+                        self.resources.error = format!("{}: valor numérico inválido", field.2);
+                        return Task::none();
+                    }
+                },
+                File if text.trim().is_empty() => Value::Null,
+                Folder if text.trim().is_empty() && !["nuvem_dir", "rerank_model_dir"].contains(&key) => Value::Null,
+                List => json!(text.split(';').map(str::trim).filter(|s| !s.is_empty()).collect::<Vec<_>>()),
+                _ => json!(text.trim()),
+            };
+            patch.insert(key.into(), value);
+            sent.push(key);
+        }
+        self.resources.busy = true;
+        self.resources.error.clear();
+        // A pasta do vault só vale depois de reiniciar o Orion: o aviso sai junto com os outros.
+        let vault_changed = patch.contains_key("vault_dir");
+        Task::perform(
+            async move {
+                api.put("/config/runtime", Value::Object(patch)).await?;
+                let applied = api.reconfigure().await.map_err(|e| format!("Configuração salva. {e}"))?;
+                let mut snapshot = api.get("/config/runtime").await?;
+                let mut warnings = applied["warnings"].as_array().cloned().unwrap_or_default();
+                if vault_changed {
+                    warnings.push(Value::String("Pasta do vault salva. Reinicie o Orion para usar a nova pasta.".into()));
+                }
+                snapshot["warnings"] = Value::Array(warnings);
+                Ok(snapshot)
+            },
+            move |r| Msg::Resources(Event::Saved(r, sent)),
+        )
+    }
+
     fn sync_resources(&mut self, value: &Value) {
         let a = &value["active"];
         self.p.wake = a["wake_enabled"].as_bool().unwrap_or(false);
@@ -807,8 +1022,71 @@ impl App {
                 self.resources.draft.insert(key, text);
             }
             Event::Toggle(key) if !self.resources.busy => {
+                // F07.02: o toggle salva sozinho e guarda o valor anterior para desfazer.
                 let on = input_value(self, key) == "true";
+                self.resources.undo = Some((key, on.to_string()));
                 self.resources.draft.insert(key, (!on).to_string());
+                return self.save_draft(Some(&[key]));
+            }
+            Event::Defaults(Ok(values)) => self.resources.defaults = Some(values),
+            Event::Defaults(Err(_)) => {}
+            Event::TomlLoaded(Ok(body)) => {
+                let text = body["content"].as_str().unwrap_or_default();
+                self.resources.toml = text_editor::Content::with_text(text);
+            }
+            Event::TomlLoaded(Err(_)) => {}
+            Event::TomlEdit(action) => self.resources.toml.perform(action),
+            Event::TomlSave if !self.resources.busy => {
+                let Some(api) = self.api.clone() else {
+                    self.resources.error = "Configuração disponível somente no app conectado.".into();
+                    return Task::none();
+                };
+                let content = self.resources.toml.text();
+                self.resources.busy = true;
+                // Salvar o TOML aplica na hora: grava e depois reconfigura, como o botão Salvar e aplicar.
+                return Task::perform(
+                    async move {
+                        api.put("/config/toml", json!({"content": content})).await?;
+                        api.reconfigure().await.map(|_| Value::Null)
+                    },
+                    |r| Msg::Resources(Event::TomlSaved(r)),
+                );
+            }
+            Event::TomlSaved(Ok(_)) => {
+                self.resources.busy = false;
+                self.toast(crate::i18n::text("Salvo"));
+                return Task::done(Msg::Resources(Event::Load));
+            }
+            Event::TomlSaved(Err(e)) => {
+                self.resources.busy = false;
+                self.resources.error = e;
+            }
+            Event::RestoreOption(key) if !self.resources.busy => {
+                if let Some(default_value) = self.resources.defaults.as_ref().and_then(|d| d.get(key)).cloned() {
+                    let previous = input_value(self, key);
+                    self.resources.undo = Some((key, previous));
+                    self.resources.draft.insert(key, value_text(&default_value));
+                    return self.save_draft(Some(&[key]));
+                }
+            }
+            Event::RestoreGroup(group) if !self.resources.busy => {
+                if let Some(defaults) = self.resources.defaults.clone() {
+                    let mut keys = Vec::new();
+                    for &(key, _, _, _) in FIELDS.iter().filter(|f| f.1 == group.as_str()) {
+                        if let Some(default_value) = defaults.get(key) {
+                            self.resources.draft.insert(key, value_text(default_value));
+                            keys.push(key);
+                        }
+                    }
+                    self.resources.undo = None;
+                    return self.save_draft(Some(&keys));
+                }
+            }
+            Event::Undo if !self.resources.busy => {
+                if let Some((key, previous)) = self.resources.undo.take() {
+                    self.resources.draft.insert(key, previous);
+                    return self.save_draft(Some(&[key]));
+                }
             }
             Event::Browse(key, folder) if !self.resources.busy => {
                 return Task::perform(
@@ -828,67 +1106,20 @@ impl App {
                 )
             }
             Event::Chosen(key, Ok(Some(path))) => {
+                // F07.02: pasta ou arquivo escolhido salva sozinho.
+                let previous = input_value(self, key);
+                self.resources.undo = Some((key, previous));
                 self.resources.draft.insert(key, path);
+                return self.save_draft(Some(&[key]));
             }
             Event::Chosen(_, Err(e)) => self.resources.error = e,
-            Event::Save if !self.resources.busy => {
-                let Some(api) = self.api.clone() else {
-                    self.resources.error =
-                        "Configuração disponível somente no app conectado.".into();
-                    return Task::none();
-                };
-                let mut patch = serde_json::Map::new();
-                for (&key, text) in &self.resources.draft {
-                    let Some(field) = FIELDS.iter().find(|f| f.0 == key) else {
-                        continue;
-                    };
-                    let value = match field.3 {
-                        Bool => json!(text == "true"),
-                        Number => match text.parse::<serde_json::Number>() {
-                            Ok(n) => Value::Number(n),
-                            Err(_) => {
-                                self.resources.error =
-                                    format!("{}: valor numérico inválido", field.2);
-                                return Task::none();
-                            }
-                        },
-                        File if text.trim().is_empty() => Value::Null,
-                        Folder
-                            if text.trim().is_empty()
-                                && !["nuvem_dir", "rerank_model_dir"].contains(&key) =>
-                        {
-                            Value::Null
-                        }
-                        List => json!(text
-                            .split(';')
-                            .map(str::trim)
-                            .filter(|s| !s.is_empty())
-                            .collect::<Vec<_>>()),
-                        _ => json!(text.trim()),
-                    };
-                    patch.insert(key.into(), value);
-                }
-                self.resources.busy = true;
-                self.resources.error.clear();
-                return Task::perform(
-                    async move {
-                        api.put("/config/runtime", Value::Object(patch)).await?;
-                        let applied = api
-                            .reconfigure()
-                            .await
-                            .map_err(|e| format!("Configuração salva. {e}"))?;
-                        let mut snapshot = api.get("/config/runtime").await?;
-                        snapshot["warnings"] = applied["warnings"].clone();
-                        Ok(snapshot)
-                    },
-                    |r| Msg::Resources(Event::Saved(r)),
-                );
-            }
-            Event::Saved(result) => {
+            Event::Save if !self.resources.busy => return self.save_draft(None),
+            Event::Saved(result, sent) => {
                 self.resources.busy = false;
                 match result {
                     Ok(value) => {
                         self.sync_resources(&value);
+                        self.toast(crate::i18n::text("Salvo"));
                         if let Some(warnings) = value["warnings"].as_array() {
                             self.resources.error = warnings
                                 .iter()
@@ -897,13 +1128,20 @@ impl App {
                                 .join("\n");
                         }
                         self.resources.snapshot = Some(value);
-                        self.resources.draft.clear();
+                        // Só sai do rascunho o que foi enviado; edições em outros campos continuam.
+                        for key in sent {
+                            self.resources.draft.remove(key);
+                        }
                         self.toast("Recursos aplicados.");
-                        if self.sec == crate::app::Sec::Conectores {
-                            if let Some(api) = &self.api {
-                                return crate::live::pull_sec(api, self.sec);
+                        let mut tasks = Vec::new();
+                        if let Some(api) = self.api.clone() {
+                            // Recarrega também o editor do settings.toml, para ele não guardar valores antigos.
+                            tasks.push(load(&api));
+                            if self.sec == crate::app::Sec::Conectores {
+                                tasks.push(crate::live::pull_sec(&api, self.sec));
                             }
                         }
+                        return Task::batch(tasks);
                     }
                     Err(e) => self.resources.error = e,
                 }

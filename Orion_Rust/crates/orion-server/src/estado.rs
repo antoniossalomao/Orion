@@ -445,6 +445,8 @@ pub async fn montar_with_runtime(mut settings: Settings, preserve_extensions:boo
     if let Some(profile)=orion_core::onboarding::Profile::load(&settings.data_dir)?{settings.backup_dir=profile.backup.clone().or_else(||profile.drive_backup.then(||settings.data_dir.join("backups")));}
     let runtime_preferences = orion_core::runtime_preferences::RuntimePreferences::load(&settings.data_dir, &settings)?;
     runtime_preferences.apply(&mut settings);
+    // F07.03: foto dos valores da primeira execução para "Restaurar padrão" (só grava se ainda não existe).
+    orion_core::runtime_preferences::save_defaults_once(&settings.data_dir, &runtime_preferences)?;
     crate::appmode::progress("Abrindo o banco…");
     std::fs::create_dir_all(&settings.data_dir)?;
     let s2 = settings.clone();
@@ -630,6 +632,16 @@ pub async fn montar_with_runtime(mut settings: Settings, preserve_extensions:boo
         }
         *a.indice.write() = Some(indice);
         agent = Some(Arc::new(a));
+    }
+    // Ao abrir o Orion, a pasta do vault é atualizada da main (só fast-forward). Falha vira aviso no log;
+    // nunca impede o Orion de subir.
+    // Modo pânico impede qualquer acesso à rede, inclusive este pull.
+    if let Some(vault) = settings.vault_dir.clone().or_else(orion_vault::detect_vault_path).filter(|_| !modos.panico()) {
+        tokio::task::spawn_blocking(move || match orion_vault::VaultManager::new(Some(vault)).and_then(|m| m.pull()) {
+            Ok(Some(msg)) => tracing::info!("vault atualizado ao abrir: {msg}"),
+            Ok(None) => {}
+            Err(e) => tracing::warn!("vault: pull ao abrir falhou: {e}"),
+        });
     }
     let started_at = orion_core::util::agora();
     // conexões MCP revisadas (host) + catálogo + agenda (leitura) + propostas + planos de arquivos

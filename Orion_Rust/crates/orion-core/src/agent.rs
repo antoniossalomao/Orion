@@ -512,12 +512,17 @@ impl Agent {
         skill_forcada: Option<String>,
         budget_task: Option<String>,
     ) -> EventStream {
+        // F02.26: vault, código e anexos não vão a provedores que treinam com os dados.
+        let sensitive = !images.is_empty() || external.iter().chain(selection.iter().flat_map(|s| s.data.iter())).any(|e| matches!(e.kind.as_str(), "vault" | "note" | "code") || e.connection == "project-reference" || e.connection == "user-upload");
         let me = self.clone();
         let budget_task = budget_task.unwrap_or_else(orion_store::uuid_hex);
         Box::pin(async_stream::stream! {
             let _configuration = me.gateway.configuration.read().await;
             me.refresh().await;
             let ctx_arc = me.context(&session.id);
+            if me.memory.counter_get(&format!("privado:{}", session.id)) > 0 {
+                ctx_arc.lock().private_data = true;
+            }
             let escopo = Self::escopo(&ctx_arc.lock());
             let hits: Vec<Hit> = match &consulta {
                 Some(q) if orion_store::text::has_search_terms(q) => {
@@ -535,6 +540,10 @@ impl Agent {
             if hits.iter().any(|h| h.kind == orion_store::search::Kind::Chunk) {
                 ctx_arc.lock().tainted = true;
                 me.marcar_taint(&session.id);
+            }
+            // F02.26: o que a busca automática põe no prompt é privado (vault ou repositório) antes da primeira chamada.
+            if !hits.is_empty() {
+                ctx_arc.lock().private_data = true;
             }
             mensagens.extend(me.external_messages(&external));
             // as imagens vão na mensagem do usuário, antes da skill forçada acrescentar o par assistente/ferramenta
@@ -610,12 +619,28 @@ impl Agent {
             // modo autônomo: mais passos por pedido (as aprovações continuam valendo)
             let steps = preferences.max_steps.unwrap_or(me.cfg.max_iterations);
             let limite = if me.modos.as_ref().is_some_and(|m| m.autonomo()) { steps * 4 } else { steps };
+            // F02.26: a confirmação do usuário vale para o turno inteiro; é consumida uma vez, antes do laço.
+            let allowed = me.memory.counter_get(&format!("treino_permitido:{}", session.id)) > 0;
+            if allowed {
+                let _ = me.memory.counter_set(&format!("treino_permitido:{}", session.id), 0);
+            }
             for _ in 0..limite {
                 let mut texto = String::new();
                 let mut chamadas = vec![];
                 let mut falhou: Option<String> = None;
                 {
-                    let mut s = me.gateway.stream_for_task_preferred(mensagens.clone(), esquemas.clone(), tier.as_deref(), budget_task.clone(), preferred);
+                    let private_turn = sensitive || ctx_arc.lock().private_data;
+                    let none_allowed = !me.gateway.endpoint_snapshot().iter().any(|e| e.tier == orion_ai::gateway::CAMADA_LOCAL || !orion_ai::gateway::ChatGateway::TRAINING_PROVIDERS.contains(&e.provedor.as_str()));
+                    if private_turn && !allowed && none_allowed {
+                        yield AgentEvent::erro("confirmar_envio_privado");
+                        return;
+                    }
+                    if private_turn {
+                        // F02.26: a conversa inteira fica privada depois do primeiro conteúdo privado.
+                        let _ = me.memory.counter_set(&format!("privado:{}", session.id), 1);
+                    }
+                    let excluded: Vec<String> = if private_turn && !allowed { orion_ai::gateway::ChatGateway::TRAINING_PROVIDERS.iter().map(|p| p.to_string()).collect() } else { vec![] };
+                    let mut s = me.gateway.stream_for_task_excluding(mensagens.clone(), esquemas.clone(), tier.as_deref(), budget_task.clone(), preferred, excluded);
                     while let Some(ev) = s.next().await {
                         match ev {
                             Ok(GwEvent::TextDelta(t)) => {
@@ -947,6 +972,10 @@ impl Agent {
         {
             let mut ctx = ctx_arc.lock();
             self.policy.note_result(chamada, &mut ctx);
+            // F02.26: resultados de vault, arquivo e código são privados para este turno.
+            if matches!(chamada.name.as_str(), "buscar_memoria" | "ler_arquivo" | "listar_arquivos" | "consultar_git") {
+                ctx.private_data = true;
+            }
             if chamada.name == "buscar_memoria" {
                 match serde_json::from_str::<Value>(&bruto) {
                     Ok(p) => {
