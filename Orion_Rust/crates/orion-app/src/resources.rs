@@ -958,9 +958,9 @@ impl App {
             }
             Event::Defaults(Ok(values)) => self.resources.defaults = Some(values),
             Event::Defaults(Err(_)) => {}
-            Event::TomlLoaded(Ok(corpo)) => {
-                let texto = corpo["conteudo"].as_str().unwrap_or_default();
-                self.resources.toml = text_editor::Content::with_text(texto);
+            Event::TomlLoaded(Ok(body)) => {
+                let text = body["content"].as_str().unwrap_or_default();
+                self.resources.toml = text_editor::Content::with_text(text);
             }
             Event::TomlLoaded(Err(_)) => {}
             Event::TomlEdit(action) => self.resources.toml.perform(action),
@@ -969,9 +969,16 @@ impl App {
                     self.resources.error = "Configuração disponível somente no app conectado.".into();
                     return Task::none();
                 };
-                let conteudo = self.resources.toml.text();
+                let content = self.resources.toml.text();
                 self.resources.busy = true;
-                return Task::perform(async move { api.put("/config/toml", json!({"conteudo": conteudo})).await }, |r| Msg::Resources(Event::TomlSaved(r)));
+                // Salvar o TOML aplica na hora: grava e depois reconfigura, como o botão Salvar e aplicar.
+                return Task::perform(
+                    async move {
+                        api.put("/config/toml", json!({"content": content})).await?;
+                        api.reconfigure().await.map(|_| Value::Null)
+                    },
+                    |r| Msg::Resources(Event::TomlSaved(r)),
+                );
             }
             Event::TomlSaved(Ok(_)) => {
                 self.resources.busy = false;

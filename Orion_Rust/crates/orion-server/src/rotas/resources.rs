@@ -16,7 +16,7 @@ pub async fn runtime_get(_: Admin, State(st): State<Estado>) -> ApiResult<Json<V
 }
 
 /// Valida e grava as preferências (`PUT /config/runtime` e `settings.toml` usam o mesmo caminho) e atualiza o espelho.
-pub fn aplicar_preferencias(st: &Estado, patch: Value) -> ApiResult<Value> {
+pub fn apply_preferences(st: &Estado, patch: Value) -> ApiResult<Value> {
     let topics = patch
         .get("research_topics")
         .and_then(Value::as_str)
@@ -41,7 +41,7 @@ pub fn aplicar_preferencias(st: &Estado, patch: Value) -> ApiResult<Value> {
             .map_err(|e| ApiError::new(422, e))?;
     }
     *saved = updated;
-    escrever_espelho(&st.settings.data_dir, &saved)?;
+    write_mirror(&st.settings.data_dir, &saved)?;
     Ok(json!({"saved":*saved,"restart_required":true}))
 }
 
@@ -52,7 +52,7 @@ pub async fn runtime_save(
     State(st): State<Estado>,
     Json(patch): Json<Value>,
 ) -> ApiResult<Json<Value>> {
-    Ok(Json(aplicar_preferencias(&st, patch)?))
+    Ok(Json(apply_preferences(&st, patch)?))
 }
 
 pub async fn runtime_defaults(_: Admin, State(st): State<Estado>) -> ApiResult<Json<Value>> {
@@ -379,9 +379,9 @@ pub async fn mcp_configuration(
 }
 
 /// Arquivo espelho das Configurações (F02.05). Segredos (chaves, tokens) nunca entram nele.
-pub const ARQUIVO_TOML: &str = "settings.toml";
+pub const SETTINGS_TOML_FILE: &str = "settings.toml";
 
-fn texto_espelho(prefs: &orion_core::runtime_preferences::RuntimePreferences) -> anyhow::Result<String> {
+fn mirror_text(prefs: &orion_core::runtime_preferences::RuntimePreferences) -> anyhow::Result<String> {
     Ok(format!(
         "# Espelho das Configurações do Orion. Segredos (chaves e tokens) ficam fora deste arquivo.\n{}",
         toml::to_string_pretty(prefs)?
@@ -389,62 +389,80 @@ fn texto_espelho(prefs: &orion_core::runtime_preferences::RuntimePreferences) ->
 }
 
 /// Grava o espelho de forma atômica; só troca o arquivo quando o conteúdo está completo.
-fn escrever_espelho(data: &std::path::Path, prefs: &orion_core::runtime_preferences::RuntimePreferences) -> anyhow::Result<()> {
+fn write_mirror(data: &std::path::Path, prefs: &orion_core::runtime_preferences::RuntimePreferences) -> anyhow::Result<()> {
     use std::io::Write;
+    std::fs::create_dir_all(data)?;
     let mut out = tempfile::NamedTempFile::new_in(data)?;
-    out.write_all(texto_espelho(prefs)?.as_bytes())?;
+    out.write_all(mirror_text(prefs)?.as_bytes())?;
     out.as_file().sync_all()?;
-    out.persist(data.join(ARQUIVO_TOML)).map_err(|e| e.error)?;
+    out.persist(data.join(SETTINGS_TOML_FILE)).map_err(|e| e.error)?;
     Ok(())
 }
 
 /// `GET /config/toml`: o conteúdo atual do espelho, para editar no app.
 pub async fn toml_get(_: Admin, State(st): State<Estado>) -> ApiResult<Json<Value>> {
-    let texto = texto_espelho(&st.runtime_preferences.lock())?;
-    Ok(Json(json!({"conteudo": texto})))
+    let text = mirror_text(&st.runtime_preferences.lock())?;
+    Ok(Json(json!({"content": text})))
 }
 
-/// `PUT /config/toml`: aplica o texto digitado no app; mesmas regras de `PUT /config/runtime`.
-pub async fn toml_save(_: Admin, State(st): State<Estado>, Json(corpo): Json<Value>) -> ApiResult<Json<Value>> {
-    let texto = corpo["conteudo"].as_str().ok_or_else(|| ApiError::new(422, "conteúdo ausente"))?;
-    let tabela: toml::Table = toml::from_str(texto).map_err(|e| ApiError::new(422, format!("TOML inválido: {e}")))?;
+/// `PUT /config/toml`: aplica o text digitado no app; mesmas regras de `PUT /config/runtime`.
+pub async fn toml_save(_: Admin, State(st): State<Estado>, Json(body): Json<Value>) -> ApiResult<Json<Value>> {
+    let text = body["content"].as_str().ok_or_else(|| ApiError::new(422, "conteúdo ausente"))?;
+    let tabela: toml::Table = toml::from_str(text).map_err(|e| ApiError::new(422, format!("TOML inválido: {e}")))?;
     let patch = serde_json::to_value(tabela).map_err(anyhow::Error::from)?;
-    Ok(Json(aplicar_preferencias(&st, patch)?))
+    Ok(Json(apply_preferences(&st, patch)?))
+}
+
+/// Núcleo atual para o observador: cada reconfiguração troca o ponteiro, sem empilhar observadores.
+static NUCLEO_ATUAL: parking_lot::Mutex<Option<Estado>> = parking_lot::Mutex::new(None);
+static OBSERVADOR_LIGADO: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Registra o núcleo recém-montado e liga o observador uma única vez.
+pub fn registrar_nucleo(st: &Estado) {
+    *NUCLEO_ATUAL.lock() = Some(st.clone());
+    if !OBSERVADOR_LIGADO.swap(true, std::sync::atomic::Ordering::SeqCst) {
+        tokio::spawn(watch_settings_toml());
+    }
 }
 
 /// Observa o `settings.toml`: quando você edita o arquivo à mão, aplica o que der e reescreve o espelho.
-pub async fn vigiar_settings_toml(st: Estado) {
-    let caminho = st.settings.data_dir.join(ARQUIVO_TOML);
+pub async fn watch_settings_toml() {
     let mut ultimo_erro: Option<String> = None;
     loop {
         tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-        let Ok(texto) = std::fs::read_to_string(&caminho) else {
-            if let Ok(espelho) = texto_espelho(&st.runtime_preferences.lock()) {
-                let _ = std::fs::write(&caminho, espelho);
-            }
-            continue;
-        };
-        let atual = match texto_espelho(&st.runtime_preferences.lock()) {
-            Ok(t) => t,
-            Err(_) => continue,
-        };
-        if texto.trim() == atual.trim() {
-            continue;
+        let Some(st) = NUCLEO_ATUAL.lock().clone() else { continue };
+        observar_uma_vez(&st, &mut ultimo_erro);
+    }
+}
+
+fn observar_uma_vez(st: &Estado, ultimo_erro: &mut Option<String>) {
+    let caminho = st.settings.data_dir.join(SETTINGS_TOML_FILE);
+    let Ok(text) = std::fs::read_to_string(&caminho) else {
+        if let Ok(espelho) = mirror_text(&st.runtime_preferences.lock()) {
+            let _ = std::fs::write(&caminho, espelho);
         }
-        let aplicado = toml::from_str::<toml::Table>(&texto)
-            .map_err(|e| format!("TOML inválido: {e}"))
-            .and_then(|t| serde_json::to_value(t).map_err(|e| e.to_string()))
-            .and_then(|patch| aplicar_preferencias(&st, patch).map(|_| ()).map_err(|_| "valor recusado".to_string()));
-        match aplicado {
-            Ok(()) => {
-                ultimo_erro = None;
-                tracing::info!("settings.toml aplicado");
-            }
-            Err(e) => {
-                if ultimo_erro.as_deref() != Some(e.as_str()) {
-                    tracing::warn!("settings.toml não aplicado (o valor atual continua): {e}");
-                    ultimo_erro = Some(e);
-                }
+        return;
+    };
+    let atual = match mirror_text(&st.runtime_preferences.lock()) {
+        Ok(t) => t,
+        Err(_) => return,
+    };
+    if text.trim() == atual.trim() {
+        return;
+    }
+    let aplicado = toml::from_str::<toml::Table>(&text)
+        .map_err(|e| format!("TOML inválido: {e}"))
+        .and_then(|t| serde_json::to_value(t).map_err(|e| e.to_string()))
+        .and_then(|patch| apply_preferences(st, patch).map(|_| ()).map_err(|_| "valor recusado".to_string()));
+    match aplicado {
+        Ok(()) => {
+            *ultimo_erro = None;
+            tracing::info!("settings.toml aplicado");
+        }
+        Err(e) => {
+            if ultimo_erro.as_deref() != Some(e.as_str()) {
+                tracing::warn!("settings.toml não aplicado (o valor atual continua): {e}");
+                *ultimo_erro = Some(e);
             }
         }
     }

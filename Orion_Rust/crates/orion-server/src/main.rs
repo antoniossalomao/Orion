@@ -438,7 +438,7 @@ async fn serve(s: Settings) -> anyhow::Result<i32> {
     let vigiar = s.clone();
     let st = estado::montar(s).await?;
     // F02.05: observa o settings.toml e aplica as edições feitas à mão.
-    tokio::spawn(rotas::resources::vigiar_settings_toml(st.clone()));
+    rotas::resources::registrar_nucleo(&st);
     #[cfg(windows)]
     cli_db::watch_screen_lock(&vigiar, st.auth.clone());
     let ouvinte = tokio::net::TcpListener::bind((host.as_str(), porta)).await?;

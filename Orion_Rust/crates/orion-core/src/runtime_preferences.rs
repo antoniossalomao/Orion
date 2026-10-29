@@ -195,6 +195,7 @@ pub fn save_defaults_once(data: &Path, prefs: &RuntimePreferences) -> anyhow::Re
     if data.join(DEFAULTS_FILE).exists() {
         return Ok(());
     }
+    std::fs::create_dir_all(data)?;
     let mut out = tempfile::NamedTempFile::new_in(data)?;
     out.write_all(&serde_json::to_vec_pretty(prefs)?)?;
     out.as_file().sync_all()?;
