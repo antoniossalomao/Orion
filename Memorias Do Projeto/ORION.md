@@ -1,6 +1,6 @@
 # Orion — estado, plano e decisões
 
-> Fonte única do estado do projeto. Atualizado em 27/10/2026. Princípios e regras: [REGRAS.md](REGRAS.md). Arquitetura, módulos e referências: [ARQUITETURA.md](ARQUITETURA.md). Melhorias pré-lançamento v1: [ORION_MELHORIAS_PRE_V1.md](ORION_MELHORIAS_PRE_V1.md). Roadmap pós-v1: [ORION_MELHORIAS_POS_V1.md](ORION_MELHORIAS_POS_V1.md). Como rodar: [README](../README.md). Material antigo e detalhado: [ORION_LEGADO.md](ORION_LEGADO.md).
+> Fonte única do estado do projeto. Atualizado em 29/10/2026. Princípios e regras: [REGRAS.md](REGRAS.md). Arquitetura, módulos e referências: [ARQUITETURA.md](ARQUITETURA.md). Melhorias pré-lançamento v1: [ORION_MELHORIAS_PRE_V1.md](ORION_MELHORIAS_PRE_V1.md). Roadmap pós-v1: [ORION_MELHORIAS_POS_V1.md](ORION_MELHORIAS_POS_V1.md). Como rodar: [README](../README.md). Material antigo e detalhado: [ORION_LEGADO.md](ORION_LEGADO.md).
 
 ## Visão
 
@@ -9,6 +9,10 @@ Assistente pessoal com identidade masculina, técnico, direto, não-servil. Não
 *"Não é uma IA. É uma extensão do sistema nervoso."*
 
 Antônio é o administrador: decide, aprova e pode desligar qualquer coisa. Nada que o modelo diga anula isso.
+
+## Imagens com skill forçada — 29/10/2026
+
+PR [#65](https://github.com/antoniossalomao/Orion/pull/65), mergeado na `main`. Corrige o achado P2 do Codex na PR #61: em `/chat` com `imagens` e `skill`, a skill forçada acrescentava o par assistente/ferramenta antes do bloco que anexa as imagens, que só age se a última mensagem for do usuário. As imagens eram consumidas e não chegavam ao modelo. Agora entram na mensagem do usuário antes da skill forçada (`orion-core/src/agent.rs`). Validação: `cargo check --locked -p orion-core`; sem teste novo (pausa de 21/10/2026). Segue sem aceite físico no Windows.
 
 ## Recursos nativos e remoção da integração externa — 27/10/2026
 
