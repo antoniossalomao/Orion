@@ -1396,3 +1396,21 @@ ui-1039 = { "Only providers that train on data are available. This content is pr
 ui-1040 = { "Send anyway" }
 
 ui-1041 = { "Could not allow sending right now." }
+
+ui-1042 = { "Free plan: Google uses data to improve products (official docs). Paid plan: no." }
+
+ui-1043 = { "Official docs don't mention training; they only say no retention by default. Not confirmed." }
+
+ui-1044 = { "Vibe and Studio free mode train by default, with opt-out. Pay-as-you-go: not stated." }
+
+ui-1045 = { "OpenRouter uses data only if you opt in. Training depends on the routed provider; routing control not confirmed." }
+
+ui-1046 = { "Not confirmed: the policy does not mention the API directly." }
+
+ui-1047 = { "Not confirmed. The official page says the service was retired on 2026-07-30." }
+
+ui-1048 = { "Not confirmed: I did not find the data policy in the official pages checked." }
+
+ui-1049 = { "Not confirmed: I did not find the policy in the official pages checked." }
+
+ui-1050 = { "Queries are not used for training. Results depend on the plan." }

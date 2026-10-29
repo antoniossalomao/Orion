@@ -1169,5 +1169,14 @@
   "Mensagem da fila sem conversa de origem.": "ui-1038",
   "Só há provedores que treinam com os dados. Este conteúdo é privado. Enviar mesmo assim?": "ui-1039",
   "Enviar mesmo assim": "ui-1040",
-  "Não foi possível liberar o envio agora.": "ui-1041"
+  "Não foi possível liberar o envio agora.": "ui-1041",
+  "Plano gratuito: o Google usa os dados para melhorar produtos (documentação oficial). Plano pago: não.": "ui-1042",
+  "A documentação oficial não fala de treino; diz só que não retém por padrão. Não confirmado.": "ui-1043",
+  "Vibe e modo gratuito do Studio treinam por padrão, com opt-out. Pay-as-you-go: não informado.": "ui-1044",
+  "O OpenRouter só usa seus dados se você ativar. O treino depende do provedor roteado; controle de roteamento não confirmado.": "ui-1045",
+  "Não confirmado: a política não cita a API diretamente.": "ui-1046",
+  "Não confirmado. A página oficial diz que o serviço foi descontinuado em 30/07/2026.": "ui-1047",
+  "Não confirmado: não encontrei a política de dados nas páginas oficiais consultadas.": "ui-1048",
+  "Não confirmado: não encontrei a política nas páginas oficiais consultadas.": "ui-1049",
+  "Consultas não são usadas para treino. Resultados dependem do plano.": "ui-1050"
 }

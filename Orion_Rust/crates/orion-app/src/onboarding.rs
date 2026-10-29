@@ -19,15 +19,15 @@ pub const PROVIDERS: &[(&str, &str, &str, &str)] = &[
 /// F02.26: política de treino dos provedores. Conferida em 29/10/2026 em fontes de terceiros;
 /// confirmar no site oficial do provedor antes de confiar nela. "Não verificado" = sem fonte confiável ainda.
 pub const TRAINING_POLICY: &[(&str, &str)] = &[
-    ("google", "Plano gratuito: pode usar os dados para melhorar produtos do Google. Plano pago: não."),
-    ("groq", "Não treina com dados de API (confirmar no site)."),
-    ("mistral", "Plano gratuito: treina por padrão. Desligue em Admin Console > Privacidade."),
-    ("openrouter", "Depende do provedor roteado. Configure não treinar na sua conta."),
-    ("cerebras", "Não verificado."),
-    ("github", "Não verificado."),
-    ("nvidia", "Não verificado."),
-    ("zai", "Não verificado."),
-    ("brave", "Não verificado."),
+    ("google", "Plano gratuito: o Google usa os dados para melhorar produtos (documentação oficial). Plano pago: não."),
+    ("groq", "A documentação oficial não fala de treino; diz só que não retém por padrão. Não confirmado."),
+    ("mistral", "Vibe e modo gratuito do Studio treinam por padrão, com opt-out. Pay-as-you-go: não informado."),
+    ("openrouter", "O OpenRouter só usa seus dados se você ativar. O treino depende do provedor roteado; controle de roteamento não confirmado."),
+    ("cerebras", "Não confirmado: a política não cita a API diretamente."),
+    ("github", "Não confirmado. A página oficial diz que o serviço foi descontinuado em 30/07/2026."),
+    ("nvidia", "Não confirmado: não encontrei a política de dados nas páginas oficiais consultadas."),
+    ("zai", "Não confirmado: não encontrei a política nas páginas oficiais consultadas."),
+    ("brave", "Consultas não são usadas para treino. Resultados dependem do plano."),
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
