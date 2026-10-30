@@ -456,7 +456,8 @@ impl TelegramChannel {
         let arg = || texto.split_once(char::is_whitespace).map(|x| x.1.trim().to_string()).unwrap_or_default();
         // F04.15: a próxima mensagem depois de Aprovar numa ação destrutiva é a confirmação digitada
         let pendente = self.confirmando.lock().remove(&chat_id);
-        if let Some((aprovacao_id, esperado, canal, cartao)) = pendente {
+        // comando (inclusive /panico) não é confirmação: cancela a espera e segue para o comando
+        if let Some((aprovacao_id, esperado, canal, cartao)) = pendente.filter(|_| !texto.starts_with('/')) {
             if texto == esperado {
                 let uid = m["from"]["id"].as_i64().unwrap_or(0);
                 if self.approvals.decide(&aprovacao_id, true, CANAL, &format!("telegram:{uid}")).is_err() {

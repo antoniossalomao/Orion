@@ -1282,5 +1282,10 @@
   "Cota e custos": "ui-1151",
   "Briefing e resumos": "ui-1152",
   "Água e hora de dormir": "ui-1153",
-  "Memória e outros avisos": "ui-1154"
+  "Memória e outros avisos": "ui-1154",
+  "Acordar o PC para agendamentos": "ui-1155",
+  "Tira o PC da suspensão um minuto antes do próximo agendamento ou lembrete. Precisa dos timers de despertar permitidos no plano de energia.": "ui-1156",
+  "Tipos separados por vírgula (lembrete, agendamento, cota…); com \"-\" na frente, todos menos esse (-rotina). Vazio envia todos. Também dá para escolher em Notificações.": "ui-1157",
+  "Timer criado": "ui-1158",
+  "Lembrete concluído": "ui-1159"
 }
