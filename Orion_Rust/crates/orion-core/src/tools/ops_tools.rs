@@ -37,15 +37,21 @@ pub fn ops_tools(ops: Arc<Operations>) -> Vec<Tool> {
                 "titulo": texto, "quando": {"type": "string", "description": "ISO, ex.: 2026-06-25T14:30:00"},
                 "lembrete_id": inteiro, "nota": texto,
                 "insistir_min": {"type": "integer", "description": "reavisa a cada N min (5 a 1440); 0 = uma vez"},
+                "em_minutos": {"type": "integer", "description": "timer: avisa daqui a N minutos (1 a 1440), no lugar de 'quando'"},
             }, "required": ["acao"]}),
             move |a| {
                 let acao = a.s("acao")?;
                 let id = a.i_or("lembrete_id", 0)?;
                 Ok(match acao.as_str() {
-                    "criar" => ok_ou(
-                        o1.add_reminder(&a.s_or("titulo", ""), &When::Text(a.s_or("quando", "")), &a.s_or("nota", ""), a.i_or("insistir_min", 0)?),
-                        |l| json!({"ok": true, "lembrete": l}),
-                    ),
+                    "criar" => {
+                        // F12.10: timer é um lembrete daqui a N minutos, sobre o mesmo agendador
+                        let min = a.i_or("em_minutos", 0)?;
+                        if min != 0 && !(1..=1440).contains(&min) {
+                            return Ok(json!({"erro": "em_minutos vai de 1 a 1440", "ok": false}));
+                        }
+                        let quando = if min > 0 { When::Epoch(o1.now() + (min * 60) as f64) } else { When::Text(a.s_or("quando", "")) };
+                        ok_ou(o1.add_reminder(&a.s_or("titulo", ""), &quando, &a.s_or("nota", ""), a.i_or("insistir_min", 0)?), |l| json!({"ok": true, "lembrete": l}))
+                    }
                     "listar" => ok_ou(o1.list_reminders(true), |l| json!({"ok": true, "total": l.len(), "lembretes": l})),
                     "pendentes" => ok_ou(o1.due_reminders(None), |l| json!({"ok": true, "total": l.len(), "lembretes": l})),
                     "concluir" => ok_ou(o1.complete_reminder(id), |l| json!({"ok": true, "lembrete": l})),

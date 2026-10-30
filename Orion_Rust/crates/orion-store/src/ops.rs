@@ -173,7 +173,7 @@ impl Operations {
         &self.s
     }
 
-    fn now(&self) -> f64 {
+    pub fn now(&self) -> f64 {
         self.s.now()
     }
 
