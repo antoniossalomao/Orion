@@ -82,6 +82,7 @@ pub struct TarefasBg {
     modos: Option<Arc<Modos>>,
     tarefas: Mutex<HashMap<i64, JoinHandle<()>>>,
     drenagem: Mutex<()>,
+    retentativa: std::sync::atomic::AtomicBool,
 }
 
 fn linha(r: &serde_json::Map<String, Value>) -> Value {
@@ -95,7 +96,7 @@ fn linha(r: &serde_json::Map<String, Value>) -> Value {
 
 impl TarefasBg {
     pub fn new(memory: Arc<Store>, ops: Arc<Operations>, agent: Arc<Agent>, custos: Option<Arc<Custos>>, modos: Option<Arc<Modos>>) -> Self {
-        TarefasBg { memory, ops, agent, custos, modos, tarefas: Mutex::new(HashMap::new()), drenagem: Mutex::new(()) }
+        TarefasBg { memory, ops, agent, custos, modos, tarefas: Mutex::new(HashMap::new()), drenagem: Mutex::new(()), retentativa: std::sync::atomic::AtomicBool::new(false) }
     }
 
     pub fn criar(self: &Arc<Self>, objetivo: &str, max_passos: i64, max_min: i64) -> Result<Value, TarefaBgError> {
@@ -141,6 +142,20 @@ impl TarefasBg {
         self.proxima();
     }
 
+    /// Uma nova drenagem em 10 minutos, se ainda houver fila; nunca mais de uma agendada.
+    fn tentar_depois(self: &Arc<Self>) {
+        let tem_fila = self.memory.query("SELECT id FROM background_tasks WHERE status='na_fila' LIMIT 1", &[]).is_ok_and(|r| !r.is_empty());
+        if !tem_fila || self.retentativa.swap(true, std::sync::atomic::Ordering::SeqCst) {
+            return;
+        }
+        let me = self.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_secs(600)).await;
+            me.retentativa.store(false, std::sync::atomic::Ordering::SeqCst);
+            me.proxima();
+        });
+    }
+
     fn rodando(&self) -> usize {
         self.tarefas.lock().values().filter(|t| !t.is_finished()).count()
     }
@@ -150,11 +165,10 @@ impl TarefasBg {
     fn proxima(self: &Arc<Self>) {
         let _drenando = self.drenagem.lock();
         while self.rodando() < MAX_PARALELAS {
-            if self.modos.as_ref().is_some_and(|m| m.panico()) {
-                return;
-            }
-            // a cota pode ter subido desde que a tarefa entrou na fila: job opcional para em 90%
-            if self.custos.as_ref().is_some_and(|c| !c.pode_usar("gateway", true, "a tarefa em segundo plano")) {
+            // pânico ou cota em 90% seguram a fila; tenta de novo mais tarde (a cota vira o dia)
+            let segura = self.modos.as_ref().is_some_and(|m| m.panico()) || self.custos.as_ref().is_some_and(|c| !c.pode_usar("gateway", true, "a tarefa em segundo plano"));
+            if segura {
+                self.tentar_depois();
                 return;
             }
             let Ok(rows) = self.memory.query("SELECT * FROM background_tasks WHERE status='na_fila' ORDER BY id LIMIT 1", &[]) else { return };
