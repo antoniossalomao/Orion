@@ -593,13 +593,15 @@ impl JobRunner {
             }
         }
         if let Some((h, m)) = hora(&self.cfg.bedtime_at).map_err(|e| anyhow::anyhow!(e))? {
-            let alvo = dt.date_naive().and_hms_opt(h, m, 0).and_then(|t| Local.from_local_datetime(&t).earliest());
+            // a próxima ocorrência (hoje ou amanhã): dormir às 00:10 avisa a partir das 23:40
+            let ocorrencia = |d: chrono::NaiveDate| d.and_hms_opt(h, m, 0).and_then(|t| Local.from_local_datetime(&t).earliest());
+            let alvo = ocorrencia(dt.date_naive()).filter(|a| *a >= dt).or_else(|| dt.date_naive().succ_opt().and_then(ocorrencia));
             if let Some(alvo) = alvo {
                 let falta = (alvo - dt).num_minutes();
-                let hoje: i64 = dt.format("%Y%m%d").to_string().parse().unwrap_or(0);
-                if (0..=30).contains(&falta) && self.memory.counter_get("bem_estar:dormir") < hoje {
-                    self.memory.counter_set("bem_estar:dormir", hoje)?;
-                    self.ops.notify("bem_estar", &format!("Faltam {falta} min para a hora de dormir ({h:02}:{m:02})."), Some(&format!("dormir:{hoje}")), false)?;
+                let dia: i64 = alvo.format("%Y%m%d").to_string().parse().unwrap_or(0);
+                if (0..=30).contains(&falta) && self.memory.counter_get("bem_estar:dormir") < dia {
+                    self.memory.counter_set("bem_estar:dormir", dia)?;
+                    self.ops.notify("bem_estar", &format!("Faltam {falta} min para a hora de dormir ({h:02}:{m:02})."), Some(&format!("dormir:{dia}")), false)?;
                     n += 1;
                 }
             }

@@ -81,6 +81,7 @@ pub struct TarefasBg {
     custos: Option<Arc<Custos>>,
     modos: Option<Arc<Modos>>,
     tarefas: Mutex<HashMap<i64, JoinHandle<()>>>,
+    drenagem: Mutex<()>,
 }
 
 fn linha(r: &serde_json::Map<String, Value>) -> Value {
@@ -94,7 +95,7 @@ fn linha(r: &serde_json::Map<String, Value>) -> Value {
 
 impl TarefasBg {
     pub fn new(memory: Arc<Store>, ops: Arc<Operations>, agent: Arc<Agent>, custos: Option<Arc<Custos>>, modos: Option<Arc<Modos>>) -> Self {
-        TarefasBg { memory, ops, agent, custos, modos, tarefas: Mutex::new(HashMap::new()) }
+        TarefasBg { memory, ops, agent, custos, modos, tarefas: Mutex::new(HashMap::new()), drenagem: Mutex::new(()) }
     }
 
     pub fn criar(self: &Arc<Self>, objetivo: &str, max_passos: i64, max_min: i64) -> Result<Value, TarefaBgError> {
@@ -144,9 +145,14 @@ impl TarefasBg {
         self.tarefas.lock().values().filter(|t| !t.is_finished()).count()
     }
 
-    /// Começa as tarefas da fila enquanto houver vaga, a mais antiga primeiro.
+    /// Começa as tarefas da fila enquanto houver vaga, a mais antiga primeiro. Uma drenagem por vez
+    /// (a vaga é conferida e ocupada sob a mesma trava) e nada sai em modo pânico.
     fn proxima(self: &Arc<Self>) {
+        let _drenando = self.drenagem.lock();
         while self.rodando() < MAX_PARALELAS {
+            if self.modos.as_ref().is_some_and(|m| m.panico()) {
+                return;
+            }
             let Ok(rows) = self.memory.query("SELECT * FROM background_tasks WHERE status='na_fila' ORDER BY id LIMIT 1", &[]) else { return };
             let Some(r) = rows.first() else { return };
             let tid = r.get("id").and_then(Value::as_i64).unwrap_or(0);

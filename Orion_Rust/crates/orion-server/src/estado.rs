@@ -873,8 +873,13 @@ pub async fn montar_with_runtime(mut settings: Settings, preserve_extensions:boo
             j = j.com_vigia(vg.clone());
         }
         // F06.12: com o diário do vault ligado (ORION_VAULT_DIARIO), o resumo do dia vira nota em Memória/Diário
-        if let Some(vault) = settings.vault_dir.clone().filter(|_| settings.vault_diario) {
+        // a chave é lida a cada gravação: desligar o diário nas Configurações vale na hora
+        if let Some(vault) = settings.vault_dir.clone() {
+            let ligado = live.diary.clone();
             j = j.com_diario_vault(Arc::new(move |dia: chrono::NaiveDate, md: &str| {
+                if !ligado.load(std::sync::atomic::Ordering::Relaxed) {
+                    return Ok(());
+                }
                 let mgr = orion_vault::VaultManager::new(Some(vault.clone()))?;
                 mgr.save_daily_report(&dia.to_string(), "23:59", None, md)?;
                 Ok(())
