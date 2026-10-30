@@ -142,7 +142,8 @@ impl Custos {
             .format("%Y%m%d")
             .to_string();
         let chave = format!("cota:aviso:{provedor}:{dia}");
-        if self.memory.counter_get(&chave) != 0 {
+        // o aviso de limite de `alertas` já disse o mesmo neste período: um aviso só
+        if self.memory.counter_get(&chave) != 0 || self.memory.counter_get(&self.marca_alerta("limite", provedor)) != 0 {
             return;
         }
         let _ = self.memory.counter_set(&chave, 1);
@@ -163,6 +164,15 @@ impl Custos {
         tracing::warn!("cota de {provedor} em {:.0}%: job opcional adiado", self.fracao(provedor) * 100.0);
     }
 
+    fn marca_alerta(&self, nivel: &str, chave: &str) -> String {
+        let dt = chrono::DateTime::from_timestamp(self.memory.now() as i64, 0).unwrap_or_default().with_timezone(&Local);
+        let periodo = match self.cota(chave) {
+            Some(c) if c.periodo == "mes" => dt.format("%Y%m").to_string(),
+            _ => dt.format("%Y%m%d").to_string(),
+        };
+        format!("cota:alerta:{nivel}:{chave}:{periodo}")
+    }
+
     /// Avisa uma vez por período quando uma cota passa de 80% e outra quando chega ao limite
     /// (F13.05). Só avisa: quem decide se o chat segue é o gateway, e o chat nunca é bloqueado.
     /// Devolve quantos avisos novos saíram.
@@ -180,10 +190,10 @@ impl Custos {
             } else {
                 continue;
             };
-            let dt = chrono::DateTime::from_timestamp(self.memory.now() as i64, 0).unwrap_or_default().with_timezone(&Local);
-            let periodo = if c.periodo == "mes" { dt.format("%Y%m") } else { dt.format("%Y%m%d") }.to_string();
-            let marca = format!("cota:alerta:{nivel}:{chave}:{periodo}");
-            if self.memory.counter_get(&marca) != 0 {
+            let marca = self.marca_alerta(nivel, chave);
+            let dia = chrono::DateTime::from_timestamp(self.memory.now() as i64, 0).unwrap_or_default().with_timezone(&Local).format("%Y%m%d");
+            // o job opcional adiado já avisou a cota alta hoje: não repete
+            if self.memory.counter_get(&marca) != 0 || self.memory.counter_get(&format!("cota:aviso:{chave}:{dia}")) != 0 {
                 continue;
             }
             let _ = self.memory.counter_set(&marca, 1);
