@@ -133,6 +133,10 @@ pub fn view(app: &App) -> El<'_> {
                 let titulo = if lang.is_empty() { "texto".to_string() } else { lang.clone() };
                 let previa = body.lines().find(|l| !l.trim().is_empty()).unwrap_or("").to_string();
                 let mut botoes = row![btn(crate::i18n::text("Guardar versão"), Kind::Normal, true, None, (!app.artifact_busy).then_some(Msg::ArtifactRecord(n))), btn(crate::i18n::text("Copiar"), Kind::Normal, true, None, Some(Msg::CopyText(body.clone()))), btn(crate::i18n::text("Salvar"), Kind::Ghost, true, None, Some(Msg::ArtifactSave(n)))].spacing(6);
+                // F15.10: documento (Markdown ou texto) pode ser lido em voz alta; código, não
+                if matches!(lang.as_str(), "" | "md" | "markdown" | "text" | "txt") {
+                    botoes = botoes.push(btn(crate::i18n::text("Ouvir"), Kind::Ghost, true, None, Some(Msg::Listen(body.clone()))));
+                }
                 for record in app.artifact_records.iter().filter(|a| a["session_id"] == c.id) {
                     if let Some(id) = record["id"].as_str() {
                         botoes = botoes.push(btn(&crate::i18n::formatted("Atualizar {}", format!("Atualizar {}", record["title"].as_str().unwrap_or("artefato"))), Kind::Ghost, true, None, (!app.artifact_busy).then(|| Msg::ArtifactUpdate(n, id.into()))));

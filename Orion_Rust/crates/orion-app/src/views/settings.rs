@@ -132,15 +132,39 @@ fn section<'a>(app: &'a App) -> El<'a> {
             c = c.push(container(column![tx(crate::i18n::text("Como o Orion deve responder (opcional)"), 12.5, t::FG3), ta].spacing(6)).padding(pad(4.0, 0.0, 12.0, 0.0)));
         }
         Sec::Notificacoes => {
-            c = c.push(sh(crate::i18n::text("Notificações do Windows")));
-            for (i, l) in ["Aprovação pendente", "Rotina concluída", "Tarefa em segundo plano terminou", "Resposta pronta com a janela em segundo plano"].iter().enumerate() {
-                c = c.push(setting(l, "", swa("notif", i, p.notif[i])));
+            // F04.31 / F07.11: matriz evento × canal. "—" é canal que não existe para o evento.
+            let cab = row![
+                tx(crate::i18n::text("Evento"), 12.0, t::FG3).width(Length::Fill),
+                container(tx("Windows", 12.0, t::FG3)).width(Length::Fixed(70.0)).center_x(Length::Fixed(70.0)),
+                container(tx(crate::i18n::text("Som"), 12.0, t::FG3)).width(Length::Fixed(70.0)).center_x(Length::Fixed(70.0)),
+                container(tx("Telegram", 12.0, t::FG3)).width(Length::Fixed(70.0)).center_x(Length::Fixed(70.0)),
+            ]
+            .align_y(Vertical::Center);
+            c = c.push(sh(crate::i18n::text("Avisos por canal")));
+            c = c.push(container(cab).padding(pad(6.0, 0.0, 6.0, 0.0)));
+            let celula = |e: Option<El<'a>>| -> El<'a> {
+                let e = e.unwrap_or_else(|| tx("—", 12.0, t::FG3).into());
+                container(e).width(Length::Fixed(70.0)).center_x(Length::Fixed(70.0)).into()
+            };
+            let tg = |i: usize| Some(switch(crate::resources::grupo_no_telegram(app, i), Msg::Resources(crate::resources::Event::TelegramGrupo(i))));
+            // (rótulo, Windows, som, Telegram); aprovação pendente sempre chega ao Telegram com botões
+            let linhas: Vec<(&'static str, Option<El<'a>>, Option<El<'a>>, Option<El<'a>>)> = vec![
+                ("Aprovação pendente", Some(swa("notif", 0, p.notif[0])), Some(swa("sounds", 0, p.sounds[0])), None),
+                ("Resposta pronta com a janela em segundo plano", Some(swa("notif", 3, p.notif[3])), Some(swa("sounds", 1, p.sounds[1])), None),
+                ("Rotina concluída", Some(swa("notif", 1, p.notif[1])), Some(swa("sounds", 2, p.sounds[2])), tg(2)),
+                ("Tarefa em segundo plano terminou", Some(swa("notif", 2, p.notif[2])), None, tg(3)),
+                ("Ativação da voz", None, Some(swa("sounds", 3, p.sounds[3])), None),
+                ("Lembretes e timers", None, None, tg(0)),
+                ("Agendamentos", None, None, tg(1)),
+                ("Cota e custos", None, None, tg(4)),
+                ("Briefing e resumos", None, None, tg(5)),
+                ("Água e hora de dormir", None, None, tg(6)),
+                ("Memória e outros avisos", None, None, tg(7)),
+            ];
+            for (rotulo, w, so, te) in linhas {
+                c = c.push(container(row![tx(crate::i18n::text(rotulo), 13.0, t::FG).width(Length::Fill), celula(w), celula(so), celula(te)].align_y(Vertical::Center)).padding(pad(5.0, 0.0, 5.0, 0.0)));
             }
-            c = c.push(sh(crate::i18n::text("Sons sutis")));
-            c = c.push(setting(crate::i18n::text("Aprovação pendente"), "", swa("sounds", 0, p.sounds[0])));
-            c = c.push(setting(crate::i18n::text("Resposta pronta (janela fora de foco)"), "", swa("sounds", 1, p.sounds[1])));
-            c = c.push(setting(crate::i18n::text("Rotina concluída"), "", swa("sounds", 2, p.sounds[2])));
-            c = c.push(setting(crate::i18n::text("Ativação da voz"), crate::i18n::text("Ao ouvir “Orion” ou duas palmas."), swa("sounds", 3, p.sounds[3])));
+            c = c.push(lede(crate::i18n::text("Mudar o Telegram aplica na hora; aviso desligado lá continua no app.")));
             c = c.push(sh(crate::i18n::text("Não perturbe")));
             c = c.push(setting(crate::i18n::text("Não perturbe"), crate::i18n::text("Silencia notificações e sons. Rotinas e Telegram continuam."), sw(p.dnd, "dnd")));
             c = c.push(lede(crate::i18n::text("Com a janela fechada, avisos também chegam pelo Telegram e por um ponto no ícone da bandeja.")));

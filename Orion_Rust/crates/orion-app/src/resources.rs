@@ -65,6 +65,8 @@ pub enum Event {
     Loaded(Result<Value, String>),
     Input(&'static str, String),
     Toggle(&'static str),
+    /// F04.31: liga ou desliga um grupo de avisos no Telegram (índice em `GRUPOS_TELEGRAM`).
+    TelegramGrupo(usize),
     Browse(&'static str, bool),
     Chosen(&'static str, Result<Option<String>, String>),
     Save,
@@ -323,6 +325,7 @@ const FIELDS: &[Field] = &[
     ("diary_at", "automation", "Horário do diário", Text),
     ("water_every_min", "automation", "Lembrete de água (minutos)", Number),
     ("bedtime_at", "automation", "Hora de dormir", Text),
+    ("wake_pc", "automation", "Acordar o PC para agendamentos", Bool),
     (
         "weekly_review_at",
         "automation",
@@ -431,6 +434,31 @@ fn value_text(value: &Value) -> String {
         value.to_string()
     }
 }
+/// F04.31: grupos de avisos que podem ir ao Telegram e os tipos de cada um (`ops.notify`).
+pub const GRUPOS_TELEGRAM: [(&str, &[&str]); 8] = [
+    ("Lembretes e timers", &["lembrete"]),
+    ("Agendamentos", &["agendamento"]),
+    ("Rotinas", &["rotina"]),
+    ("Tarefas em segundo plano", &["tarefa_bg"]),
+    ("Cota e custos", &["cota"]),
+    ("Briefing e resumos", &["briefing", "resumo_diario", "semanal"]),
+    ("Água e hora de dormir", &["bem_estar"]),
+    ("Memória e outros avisos", &["sono", "sonho", "agente", "gateway", "processo", "proposta", "preco", "vigilancia"]),
+];
+
+/// Tipos ligados no Telegram; vazio no `.env` quer dizer todos.
+fn tipos_telegram(app: &App) -> Vec<String> {
+    let v = input_value(app, "telegram_events");
+    let tipos: Vec<String> = v.split(',').map(|e| e.trim().to_lowercase()).filter(|e| !e.is_empty()).collect();
+    if tipos.is_empty() { GRUPOS_TELEGRAM.iter().flat_map(|g| g.1.iter().map(|t| t.to_string())).collect() } else { tipos }
+}
+
+/// O grupo vai ao Telegram (todos os tipos dele ligados).
+pub fn grupo_no_telegram(app: &App, i: usize) -> bool {
+    let tipos = tipos_telegram(app);
+    GRUPOS_TELEGRAM.get(i).is_some_and(|g| g.1.iter().all(|t| tipos.iter().any(|x| x == t)))
+}
+
 fn input_value(app: &App, key: &'static str) -> String {
     app.resources.draft.get(key).cloned().unwrap_or_else(|| {
         value_text(
@@ -504,7 +532,8 @@ const DESCRIPTIONS: &[(&str, &str)] = &[
     ("mcp_enabled", "Liga os servidores MCP configurados."),
     ("water_every_min", "Lembra de beber água nesse intervalo, das 8h às 22h. 0 desliga. Não perturbe segura o aviso."),
     ("bedtime_at", "Avisa 30 minutos antes deste horário (HH:MM). Vazio desliga."),
-    ("telegram_events", "Tipos separados por vírgula (lembrete, agendamento, cota, briefing, rotina…). Vazio envia todos. Vale ao reiniciar."),
+    ("wake_pc", "Tira o PC da suspensão um minuto antes do próximo agendamento ou lembrete. Precisa dos timers de despertar permitidos no plano de energia."),
+    ("telegram_events", "Tipos separados por vírgula (lembrete, agendamento, cota, briefing, rotina…). Vazio envia todos. Também dá para escolher em Notificações."),
     ("mcp_config", "Arquivo com a configuração dos servidores MCP."),
     ("skills_enabled", "Liga as skills instaladas."),
     ("skills_dir", "Pasta onde ficam as skills."),
@@ -1048,6 +1077,22 @@ impl App {
                 self.resources.undo = Some((key, on.to_string()));
                 self.resources.draft.insert(key, (!on).to_string());
                 return self.save_draft(Some(&[key]));
+            }
+            Event::TelegramGrupo(i) if !self.resources.busy => {
+                let Some((_, grupo)) = GRUPOS_TELEGRAM.get(i) else { return Task::none() };
+                let ligado = grupo_no_telegram(self, i);
+                let anterior = input_value(self, "telegram_events");
+                let mut tipos = tipos_telegram(self);
+                tipos.retain(|t| !grupo.contains(&t.as_str()));
+                if !ligado {
+                    tipos.extend(grupo.iter().map(|t| t.to_string()));
+                }
+                let todos = GRUPOS_TELEGRAM.iter().flat_map(|g| g.1.iter()).all(|t| tipos.iter().any(|x| x == t));
+                // tudo ligado volta a ser vazio (vale também para tipos novos); nada ligado vira "nenhum"
+                let novo = if todos { String::new() } else if tipos.is_empty() { "nenhum".into() } else { tipos.join(",") };
+                self.resources.undo = Some(("telegram_events", anterior));
+                self.resources.draft.insert("telegram_events", novo);
+                return self.save_draft(Some(&["telegram_events"]));
             }
             Event::Defaults(Ok(values)) => self.resources.defaults = Some(values),
             Event::Defaults(Err(_)) => {}

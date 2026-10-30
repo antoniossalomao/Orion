@@ -178,6 +178,8 @@ pub struct Settings {
     pub water_every_min: u32,
     /// F23.11: hora de dormir (HH:MM); vazio desliga. O aviso sai 30 min antes.
     pub bedtime_at: String,
+    /// F12.04: acorda o PC suspenso para agendamentos e lembretes (Agendador do Windows; opt-in).
+    pub wake_pc: bool,
     pub research_topics: String,
     pub consolidate: bool,
     pub quota_gateway_dia: i64,
@@ -529,6 +531,7 @@ impl Settings {
             research_at: e.s("research_at", ""),
             water_every_min: e.num("water_every_min", 0u32, Some(0), Some(600))?,
             bedtime_at: e.s("bedtime_at", ""),
+            wake_pc: e.b("wake_pc", false)?,
             research_topics: e.s(
                 "research_topics",
                 "MCP (Model Context Protocol) segurança e novidades; Pix e Open Finance (regras do Banco Central); LLMs locais e on-device",

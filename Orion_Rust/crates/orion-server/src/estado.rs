@@ -628,7 +628,7 @@ pub async fn montar_with_runtime(mut settings: Settings, preserve_extensions:boo
         a.injection = Some(Arc::new(orion_ai::injection::Guard::standard()));
         a.injection_enabled = live.injection.clone();
         if let Some(vault) = settings.vault_dir.clone().or_else(orion_vault::detect_vault_path) {
-            a.after_turn = Some(crate::diary::hook(memory.clone(), vault, live.diary.clone()));
+            a.after_turn = Some(crate::diary::hook(memory.clone(), vault, settings.data_dir.join("imagens"), live.diary.clone()));
         }
         *a.indice.write() = Some(indice);
         agent = Some(Arc::new(a));
@@ -871,6 +871,11 @@ pub async fn montar_with_runtime(mut settings: Settings, preserve_extensions:boo
             .com_historicos(historicos.clone());
         if let Some(vg) = &vigia {
             j = j.com_vigia(vg.clone());
+        }
+        // F12.04 (opt-in): tarefa do Agendador do Windows acorda o PC para o próximo horário
+        #[cfg(windows)]
+        if settings.wake_pc {
+            j = j.com_despertador(Arc::new(orion_platform::despertar::agendar));
         }
         // F06.12: com o diário do vault ligado (ORION_VAULT_DIARIO), o resumo do dia vira nota em Memória/Diário
         // a chave é lida a cada gravação: desligar o diário nas Configurações vale na hora

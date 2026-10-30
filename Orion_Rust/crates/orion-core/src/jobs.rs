@@ -114,6 +114,9 @@ impl Default for JobsConfig {
 /// Grava o "Você fez" do dia no vault (`Memória/Diário/AAAA-MM-DD`), sem sobrescrever (F06.12).
 pub type DiarioVault = Arc<dyn Fn(chrono::NaiveDate, &str) -> anyhow::Result<()> + Send + Sync>;
 
+/// F12.04: registra quando acordar o PC (hora local `AAAA-MM-DDTHH:MM:SS`); `None` apaga o despertar.
+pub type Despertador = Arc<dyn Fn(Option<&str>) -> anyhow::Result<()> + Send + Sync>;
+
 pub struct JobRunner {
     memory: Arc<Store>,
     ops: Arc<Operations>,
@@ -133,6 +136,10 @@ pub struct JobRunner {
     custos: Option<Arc<Custos>>,
     modos: Option<Arc<Modos>>,
     diario_vault: Option<DiarioVault>,
+    despertador: Option<Despertador>,
+    /// Último despertar registrado (hora local; `Some(None)` = apagado), para só falar com o
+    /// Agendador quando muda. `None`: ainda não registrou nesta execução.
+    despertar: Mutex<Option<Option<String>>>,
     every: HashMap<&'static str, f64>,
     last: Mutex<HashMap<&'static str, f64>>,
     pub ultima_rodada: Mutex<Option<f64>>,
@@ -174,6 +181,8 @@ impl JobRunner {
             custos: None,
             modos: None,
             diario_vault: None,
+            despertador: None,
+            despertar: Mutex::new(None),
             every,
             last: Mutex::new(HashMap::new()),
             ultima_rodada: Mutex::new(None),
@@ -227,6 +236,11 @@ impl JobRunner {
     }
     pub fn com_custos(mut self, c: Arc<Custos>) -> Self {
         self.custos = Some(c);
+        self
+    }
+    /// F12.04 (opt-in): acorda o PC suspenso um minuto antes do próximo agendamento ou lembrete.
+    pub fn com_despertador(mut self, d: Despertador) -> Self {
+        self.despertador = Some(d);
         self
     }
     pub fn com_diario_vault(mut self, d: DiarioVault) -> Self {
@@ -356,6 +370,9 @@ impl JobRunner {
                     }
                 }
             });
+        }
+        if self.despertador.is_some() {
+            let _ = Self::passo(rel, "despertar", self.despertar());
         }
         if let Some(done) = Self::passo(rel, "manutenção", self.weekly_vacuum()) {
             rel.vacuum = done;
@@ -739,6 +756,22 @@ impl JobRunner {
             n += 1;
         }
         Ok(n)
+    }
+
+    /// F12.04: mantém a tarefa de despertar no próximo horário pendente (1 min antes); sem
+    /// pendência, apaga. Só chama o Agendador quando o horário muda.
+    fn despertar(&self) -> anyhow::Result<()> {
+        let Some(d) = &self.despertador else { return Ok(()) };
+        let agora = self.agora();
+        let quando = self.ops.proximo_despertar(agora + 120.0)?.and_then(|t| {
+            chrono::DateTime::from_timestamp((t - 60.0) as i64, 0).map(|h| h.with_timezone(&chrono::Local).format("%Y-%m-%dT%H:%M:%S").to_string())
+        });
+        let mut ultimo = self.despertar.lock();
+        if ultimo.as_ref() != Some(&quando) {
+            d(quando.as_deref())?;
+            *ultimo = Some(quando);
+        }
+        Ok(())
     }
 
     /// Para o painel: `ativo`, `ultima_rodada`, `erros`.

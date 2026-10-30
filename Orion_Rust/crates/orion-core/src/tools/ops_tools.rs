@@ -34,7 +34,7 @@ pub fn ops_tools(ops: Arc<Operations>) -> Vec<Tool> {
             "Cria, lista, conclui ou remove lembretes com data/hora (o aviso chega pelo canal).",
             json!({"type": "object", "properties": {
                 "acao": {"type": "string", "enum": ["criar", "listar", "pendentes", "concluir", "remover"]},
-                "titulo": texto, "quando": {"type": "string", "description": "ISO, ex.: 2026-06-25T14:30:00"},
+                "titulo": texto, "quando": {"type": "string", "description": "ISO (2026-06-25T14:30:00) ou frase em pt-BR ('amanhã às 9h', 'daqui a 2 horas')"},
                 "lembrete_id": inteiro, "nota": texto,
                 "insistir_min": {"type": "integer", "description": "reavisa a cada N min (5 a 1440); 0 = uma vez"},
                 "em_minutos": {"type": "integer", "description": "timer: avisa daqui a N minutos (1 a 1440), no lugar de 'quando'"},
@@ -49,7 +49,16 @@ pub fn ops_tools(ops: Arc<Operations>) -> Vec<Tool> {
                         if min != 0 && !(1..=1440).contains(&min) {
                             return Ok(json!({"erro": "em_minutos vai de 1 a 1440", "ok": false}));
                         }
-                        let quando = if min > 0 { When::Epoch(o1.now() + (min * 60) as f64) } else { When::Text(a.s_or("quando", "")) };
+                        let texto = a.s_or("quando", "");
+                        let quando = if min > 0 {
+                            When::Epoch(o1.now() + (min * 60) as f64)
+                        } else {
+                            // F12.01: "amanhã às 9h" vale tanto quanto o ISO
+                            match crate::agenda_frase::interpretar(&texto, o1.now()) {
+                                Ok(crate::agenda_frase::Quando::Unico(t)) if orion_store::ops::parse_when(&When::Text(texto.clone())).is_err() => When::Epoch(t),
+                                _ => When::Text(texto),
+                            }
+                        };
                         ok_ou(o1.add_reminder(&a.s_or("titulo", ""), &quando, &a.s_or("nota", ""), a.i_or("insistir_min", 0)?), |l| json!({"ok": true, "lembrete": l}))
                     }
                     "listar" => ok_ou(o1.list_reminders(true), |l| json!({"ok": true, "total": l.len(), "lembretes": l})),
@@ -62,10 +71,12 @@ pub fn ops_tools(ops: Arc<Operations>) -> Vec<Tool> {
         ),
         Tool::sync(
             "gerenciar_agendamentos",
-            "Cria/lista/pausa/remove agendamentos (único, diário ou a cada N minutos). O disparo AVISA o Antônio; a ferramenta informada é só registrada, não roda sozinha.",
+            "Cria/lista/pausa/remove agendamentos (único, diário ou a cada N minutos). Para criar, prefira 'frase' com o pedido do Antônio em pt-BR (ex.: 'todo dia às 8h', 'a cada 2 horas', 'amanhã às 15h30'). O disparo AVISA o Antônio; a ferramenta informada é só registrada, não roda sozinha.",
             json!({"type": "object", "properties": {
                 "acao": {"type": "string", "enum": ["criar", "listar", "pausar", "retomar", "remover"]},
-                "titulo": texto, "tipo": {"type": "string", "enum": ["unico", "diario", "intervalo_min"]},
+                "titulo": texto,
+                "frase": {"type": "string", "description": "quando, em pt-BR: 'todo dia às 8h', 'a cada 30 minutos', 'amanhã às 15h', 'daqui a 2 horas', '10/11 às 9h'; substitui tipo/quando/horario/intervalo_min"},
+                "tipo": {"type": "string", "enum": ["unico", "diario", "intervalo_min"]},
                 "quando": {"type": "string", "description": "ISO, só para tipo 'unico'"},
                 "horario": {"type": "string", "description": "HH:MM, só para tipo 'diario'"},
                 "intervalo_min": inteiro, "ferramenta": texto,
@@ -86,14 +97,25 @@ pub fn ops_tools(ops: Arc<Operations>) -> Vec<Tool> {
                             return Ok(json!({"erro": "'parametros' precisa ser um objeto JSON", "ok": false}));
                         }
                         let quando = a.s_or("quando", "");
-                        let w = When::Text(quando.clone());
+                        let (mut tipo, mut w, mut horario, mut intervalo) =
+                            (a.s_or("tipo", "unico"), (!quando.is_empty()).then(|| When::Text(quando.clone())), a.s_or("horario", ""), a.i_or("intervalo_min", 0)?);
+                        // F12.01: a frase em pt-BR, quando vem, decide o tipo e o horário
+                        let frase = a.s_or("frase", "");
+                        if !frase.trim().is_empty() {
+                            match crate::agenda_frase::interpretar(&frase, o2.now()) {
+                                Ok(crate::agenda_frase::Quando::Unico(t)) => (tipo, w) = ("unico".into(), Some(When::Epoch(t))),
+                                Ok(crate::agenda_frase::Quando::Diario(h)) => (tipo, horario) = ("diario".into(), h),
+                                Ok(crate::agenda_frase::Quando::Intervalo(m)) => (tipo, intervalo) = ("intervalo_min".into(), m),
+                                Err(e) => return Ok(json!({"erro": e, "ok": false})),
+                            }
+                        }
                         ok_ou(
                             o2.add_schedule(
                                 &a.s_or("titulo", ""),
-                                &a.s_or("tipo", "unico"),
-                                (!quando.is_empty()).then_some(&w),
-                                &a.s_or("horario", ""),
-                                a.i_or("intervalo_min", 0)?,
+                                &tipo,
+                                w.as_ref(),
+                                &horario,
+                                intervalo,
                                 &a.s_or("ferramenta", ""),
                                 Some(&params),
                             ),

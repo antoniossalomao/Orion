@@ -45,6 +45,7 @@ pub enum Lm {
     Mcp(Result<Value, String>),
     Skills(Result<Value, String>),
     Tarefas(Result<Value, String>),
+    Lembretes(Result<Value, String>),
     /// Lista da nuvem; com a nuvem desligada (403) fica vazia, sem erro na tela.
     Nuvem(Result<Value, String>),
     Modelos(Result<Value, String>),
@@ -395,6 +396,7 @@ pub fn pull_basic(api: &Api) -> Task<Msg> {
         { let a = api.clone(); Task::perform(async move { a.get("/projects").await }, |r| Msg::L(Lm::Projects(r))) },
         { let a = api.clone(); Task::perform(async move { a.get("/modo").await }, |r| Msg::L(Lm::Modo(r))) },
         { let a = api.clone(); Task::perform(async move { a.get("/vault/conflitos").await }, |r| Msg::L(Lm::Conflitos(r))) },
+        { let a = api.clone(); Task::perform(async move { a.get("/lembretes").await }, |r| Msg::L(Lm::Lembretes(r))) },
         pull_tool_permissions(api),
         crate::resources::load(api),
     ])
@@ -725,6 +727,15 @@ impl App {
                 let a2 = api.clone();
                 self.nuvem.remove(*i);
                 Some((acao(&api, async move { a2.delete(&format!("/nuvem/{id}")).await }, "Saiu da lista; para parar a execução use o link da tarefa", false), false))
+            }
+            Msg::Timer(min) => {
+                let (a2, min) = (api.clone(), *min);
+                Some((acao(&api, async move { a2.post("/lembretes/timer", json!({"minutos": min})).await }, "Timer criado", true), false))
+            }
+            Msg::LembreteFeito(id) => {
+                let (a2, id) = (api.clone(), *id);
+                self.lembretes.retain(|l| l.0 != id);
+                Some((acao(&api, async move { a2.post(&format!("/lembretes/{id}/feito"), json!({})).await }, "Lembrete concluído", true), false))
             }
             Msg::CloudCancel(i) => {
                 let id = self.cloud.get(*i)?.id;
@@ -1297,6 +1308,15 @@ impl App {
                     Err(_) => vec![],
                 };
             }
+            Lm::Lembretes(r) => match r {
+                Ok(v) => {
+                    self.lembretes = v
+                        .as_array()
+                        .map(|a| a.iter().filter_map(|l| Some((l["id"].as_i64()?, l["titulo"].as_str().unwrap_or("").to_string(), l["quando"].as_f64()?))).collect())
+                        .unwrap_or_default();
+                }
+                Err(e) => self.net_fail(e),
+            },
             Lm::Tarefas(r) => match r {
                 Ok(v) => self.cloud = map_tarefas(&v),
                 Err(e) => self.net_fail(e),

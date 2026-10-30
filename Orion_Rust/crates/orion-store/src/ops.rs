@@ -366,6 +366,19 @@ impl Operations {
         )
     }
 
+    /// F12.04: próximo horário em que algo precisa rodar (agendamento ativo ou lembrete pendente),
+    /// depois de `depois`, em todos os projetos. Serve para acordar o PC suspenso.
+    pub fn proximo_despertar(&self, depois: f64) -> Result<Option<f64>> {
+        let c = self.s.conn();
+        let rows = query_maps(
+            &c,
+            "SELECT MIN(t) AS t FROM (SELECT next_run AS t FROM schedules WHERE active=1 AND next_run>?1
+             UNION ALL SELECT due_at AS t FROM reminders WHERE done=0 AND notified=0 AND due_at>?1)",
+            &[&depois as &dyn rusqlite::ToSql],
+        )?;
+        Ok(rows.first().and_then(|r| r.get("t")).and_then(Value::as_f64))
+    }
+
     /// Registra o disparo e calcula o próximo (um atraso longo dispara uma vez só).
     pub fn mark_schedule_fired(&self, id: i64, now: Option<f64>) -> Result<Row> {
         let agora = now.unwrap_or_else(|| self.now());
