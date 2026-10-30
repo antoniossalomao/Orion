@@ -246,8 +246,9 @@ impl TarefasBg {
     pub fn cancelar(self: &Arc<Self>, tid: i64) -> Result<Value, TarefaBgError> {
         let na_fila = self.obter(tid)?["status"] == "na_fila";
         if !na_fila {
-            let g = self.tarefas.lock();
-            match g.get(&tid) {
+            // abortada, a tarefa nunca chega ao fim que libera a vaga: tira o handle aqui mesmo
+            let mut g = self.tarefas.lock();
+            match g.remove(&tid) {
                 Some(t) if !t.is_finished() => t.abort(),
                 _ => return recusa("a tarefa não está rodando", 409),
             }

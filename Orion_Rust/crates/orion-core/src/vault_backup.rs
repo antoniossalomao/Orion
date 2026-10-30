@@ -49,9 +49,10 @@ pub fn zip_vault(vault: &Path, destino: &Path, agora: f64) -> anyhow::Result<(Pa
     let mut lista = vec![];
     arquivos(&vault, &vault, &mut lista)?;
     lista.sort();
-    let tmp = alvo.with_extension("zip.tmp");
+    // temporário exclusivo por pedido: dois cliques no mesmo segundo não escrevem no mesmo arquivo
+    let tmp = destino.join(format!(".vault-{carimbo}-{}.zip.tmp", orion_store::uuid_hex()));
     let r = (|| -> anyhow::Result<()> {
-        let mut z = zip::ZipWriter::new(std::fs::File::create(&tmp)?);
+        let mut z = zip::ZipWriter::new(std::fs::OpenOptions::new().write(true).create_new(true).open(&tmp)?);
         let op = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated).large_file(true);
         for p in &lista {
             let nome = p.strip_prefix(&vault)?.components().map(|c| c.as_os_str().to_string_lossy().into_owned()).collect::<Vec<_>>().join("/");
@@ -65,6 +66,17 @@ pub fn zip_vault(vault: &Path, destino: &Path, agora: f64) -> anyhow::Result<(Pa
         let _ = std::fs::remove_file(&tmp);
         return Err(e);
     }
-    std::fs::rename(&tmp, &alvo)?;
+    // publica sem sobrescrever: o link falha se outro pedido já publicou esse nome. Disco sem
+    // link (FAT/exFAT de HD externo) cai para renomear, depois de conferir que o nome está livre.
+    match std::fs::hard_link(&tmp, &alvo) {
+        Ok(()) => {
+            let _ = std::fs::remove_file(&tmp);
+        }
+        Err(_) if !alvo.exists() => std::fs::rename(&tmp, &alvo)?,
+        Err(e) => {
+            let _ = std::fs::remove_file(&tmp);
+            anyhow::bail!("não foi possível publicar {}: {e}", alvo.display());
+        }
+    }
     Ok((alvo, lista.len()))
 }
