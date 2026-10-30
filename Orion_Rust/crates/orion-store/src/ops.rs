@@ -571,10 +571,13 @@ impl Operations {
         )
     }
 
-    /// Pendentes com id maior que `depois_de` (marca de um canal que pula tipos), sem o filtro de
-    /// não perturbe: quem chama decide o que segurar, para não passar a marca por cima do segurado.
-    pub fn pending_notifications_after(&self, depois_de: i64, limit: i64) -> Result<Vec<Row>> {
-        self.query("SELECT * FROM notifications WHERE delivered_at IS NULL AND id>? ORDER BY id LIMIT ?", vec![depois_de.into(), limit.into()])
+    /// Pendentes com id maior que `depois_de` (marca de um canal que pula tipos). `so_urgentes` filtra
+    /// antes do limite, para o segurado pelo não perturbe não ocupar a janela.
+    pub fn pending_notifications_after(&self, depois_de: i64, so_urgentes: bool, limit: i64) -> Result<Vec<Row>> {
+        self.query(
+            "SELECT * FROM notifications WHERE delivered_at IS NULL AND id>? AND (urgent=1 OR ?=0) ORDER BY id LIMIT ?",
+            vec![depois_de.into(), (so_urgentes as i64).into(), limit.into()],
+        )
     }
 
     /// Não perturbe está segurando os avisos que não são urgentes?

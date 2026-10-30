@@ -406,23 +406,20 @@ impl TelegramChannel {
         // F04.31: tipo fora da matriz não é marcado como entregue (o app continua com ele não lido);
         // o Telegram só guarda até onde já olhou, numa marca própria
         let marca = if eventos.is_empty() { 0 } else { self.memory.counter_get("telegram:avisos:visto") };
+        // com não perturbe só vêm os urgentes, e a marca não anda: os segurados ficam abaixo dela
+        // e saem quando o modo acabar
+        let segurando = self.ops.segurando();
         let ops = self.ops.clone();
-        let pendentes = tokio::task::spawn_blocking(move || ops.pending_notifications_after(marca, 200)).await.ok().and_then(Result::ok).unwrap_or_default();
+        let pendentes = tokio::task::spawn_blocking(move || ops.pending_notifications_after(marca, segurando, 50)).await.ok().and_then(Result::ok).unwrap_or_default();
         let mut enviados = 0;
         let mut visto = marca;
-        // a marca só anda até antes do primeiro aviso segurado pelo não perturbe
-        let segurando = self.ops.segurando();
-        let mut preso = false;
+        let preso = segurando;
         for n in pendentes {
             let id = n["id"].as_i64().unwrap_or(0);
             if !eventos.is_empty() && !eventos.iter().any(|e| n["kind"].as_str() == Some(e.as_str())) {
                 if !preso {
                     visto = visto.max(id);
                 }
-                continue;
-            }
-            if segurando && n["urgent"].as_i64().unwrap_or(0) == 0 {
-                preso = true;
                 continue;
             }
             if let Err(e) = self.enviar(self.home, &format!("🔔 {}", n["text"].as_str().unwrap_or("")), teclado_lembrete(&n)).await {
