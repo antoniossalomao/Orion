@@ -571,13 +571,15 @@ impl Operations {
         )
     }
 
-    /// Como `pending_notifications`, só com id maior que `depois_de` (marca de um canal que pula tipos).
+    /// Pendentes com id maior que `depois_de` (marca de um canal que pula tipos), sem o filtro de
+    /// não perturbe: quem chama decide o que segurar, para não passar a marca por cima do segurado.
     pub fn pending_notifications_after(&self, depois_de: i64, limit: i64) -> Result<Vec<Row>> {
-        let so_urgentes = (self.segurar.read())();
-        self.query(
-            "SELECT * FROM notifications WHERE delivered_at IS NULL AND id>? AND (urgent=1 OR ?=0) ORDER BY id LIMIT ?",
-            vec![depois_de.into(), (so_urgentes as i64).into(), limit.into()],
-        )
+        self.query("SELECT * FROM notifications WHERE delivered_at IS NULL AND id>? ORDER BY id LIMIT ?", vec![depois_de.into(), limit.into()])
+    }
+
+    /// Não perturbe está segurando os avisos que não são urgentes?
+    pub fn segurando(&self) -> bool {
+        (self.segurar.read())()
     }
 
     /// Avisos mais novos primeiro, entregues ou não (a caixa de atividade da interface).

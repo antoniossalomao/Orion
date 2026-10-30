@@ -407,13 +407,22 @@ impl TelegramChannel {
         // o Telegram só guarda até onde já olhou, numa marca própria
         let marca = if eventos.is_empty() { 0 } else { self.memory.counter_get("telegram:avisos:visto") };
         let ops = self.ops.clone();
-        let pendentes = tokio::task::spawn_blocking(move || ops.pending_notifications_after(marca, 50)).await.ok().and_then(Result::ok).unwrap_or_default();
+        let pendentes = tokio::task::spawn_blocking(move || ops.pending_notifications_after(marca, 200)).await.ok().and_then(Result::ok).unwrap_or_default();
         let mut enviados = 0;
         let mut visto = marca;
+        // a marca só anda até antes do primeiro aviso segurado pelo não perturbe
+        let segurando = self.ops.segurando();
+        let mut preso = false;
         for n in pendentes {
             let id = n["id"].as_i64().unwrap_or(0);
             if !eventos.is_empty() && !eventos.iter().any(|e| n["kind"].as_str() == Some(e.as_str())) {
-                visto = visto.max(id);
+                if !preso {
+                    visto = visto.max(id);
+                }
+                continue;
+            }
+            if segurando && n["urgent"].as_i64().unwrap_or(0) == 0 {
+                preso = true;
                 continue;
             }
             if let Err(e) = self.enviar(self.home, &format!("🔔 {}", n["text"].as_str().unwrap_or("")), teclado_lembrete(&n)).await {
@@ -421,7 +430,9 @@ impl TelegramChannel {
                 break;
             }
             let _ = self.ops.ack_notification(id);
-            visto = visto.max(id);
+            if !preso {
+                visto = visto.max(id);
+            }
             enviados += 1;
         }
         if !eventos.is_empty() && visto > marca {
