@@ -3,12 +3,14 @@
 
 pub mod anim;
 pub mod app;
+pub mod camera_ui;
 pub mod chart;
 pub mod data;
 pub mod graph;
 pub mod run;
 pub mod html;
 pub mod imgcache;
+pub mod island;
 pub mod icons;
 pub mod keys;
 pub mod live;

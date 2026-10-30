@@ -57,6 +57,42 @@ fn degrade(de: iced::Color, ate: iced::Color, graus: f32) -> iced::Background {
     iced::gradient::Linear::new(iced::Radians(graus.to_radians())).add_stop(0.0, de).add_stop(1.0, ate).into()
 }
 
+/// Tarefa de fundo do Face ID: abre a leitura e consulta o núcleo a cada `INTERVALO` (250 ms).
+/// O tique perdido é pulado (nunca acumula), cada passo analisa só o quadro mais novo num
+/// `spawn_blocking` do núcleo e o fluxo termina no primeiro resultado. A thread da interface só
+/// recebe mensagens.
+pub fn face_scan(api: crate::net::Api, purpose: crate::island::Purpose, generation: u64) -> iced::Task<Msg> {
+    use crate::island::FaceMsg;
+    use crate::net::FaceEvent;
+    let stream = async_stream::stream! {
+        let session = match api.face_id_start(purpose.key()).await {
+            Ok(id) => id,
+            Err(f) => {
+                yield FaceMsg::Started(generation, Err(f));
+                return;
+            }
+        };
+        yield FaceMsg::Started(generation, Ok(session.clone()));
+        let mut ticker = tokio::time::interval(scan_interval());
+        ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        loop {
+            ticker.tick().await;
+            let ev = api.face_id_step(&session).await;
+            let done = !matches!(ev, FaceEvent::Searching(_));
+            yield FaceMsg::Event(generation, ev);
+            if done {
+                break;
+            }
+        }
+    };
+    iced::Task::run(stream, Msg::Face)
+}
+
+/// Mesmo ritmo do núcleo (`orion_core::faceid::INTERVALO`): entre 200 e 300 ms.
+const fn scan_interval() -> std::time::Duration {
+    std::time::Duration::from_millis(250)
+}
+
 /// Entrada: céu à esquerda, vidro fosco com os campos à direita, tudo entrando em sequência.
 pub fn view(app: &App) -> El<'_> {
     let code = app.challenge.is_some();
@@ -66,6 +102,7 @@ pub fn view(app: &App) -> El<'_> {
 
     let campo = |rotulo: &'static str, v: &str, f: fn(String) -> Msg, secure: bool| {
         let entrada = text_input("", v)
+            .id(if secure { crate::island::password_field(crate::island::Purpose::Login) } else { "login-user" })
             .on_input(f)
             .on_submit(Msg::Login)
             .secure(secure)
@@ -105,10 +142,15 @@ pub fn view(app: &App) -> El<'_> {
             }
         });
 
+    let face: El = if !code && app.face_id_enabled() && !app.island.busy() {
+        btn(crate::i18n::text("Entrar com Face ID"), Kind::Ghost, false, None, Some(Msg::Face(crate::island::FaceMsg::Start(crate::island::Purpose::Login))))
+    } else {
+        sp_h(0.0)
+    };
     let hello=if app.api.as_ref().is_some_and(|api|api.hello_ativo()) {
         btn(crate::i18n::text("Entrar com o Windows Hello"),Kind::Normal,false,None,Some(Msg::Hello))
     }else{sp_h(0.0)};
-    let cartao = container(column![cab, sp_h(14.0), campos, aviso, rise(fade(entrar, p_btn, bg), p_btn, 10.0),hello,if code{btn(crate::i18n::text("Voltar à senha"),Kind::Ghost,true,None,Some(Msg::LoginCancel))}else{sp_h(0.0)}].spacing(8).align_x(Horizontal::Center).width(Length::Fill))
+    let cartao = container(column![cab, sp_h(14.0), campos, aviso, rise(fade(entrar, p_btn, bg), p_btn, 10.0),face,hello,if code{btn(crate::i18n::text("Voltar à senha"),Kind::Ghost,true,None,Some(Msg::LoginCancel))}else{sp_h(0.0)}].spacing(8).align_x(Horizontal::Center).width(Length::Fill))
         .padding(pad(30.0, 28.0, 26.0, 28.0))
         .width(Length::Fixed(380.0))
         .style(|_| container::Style {

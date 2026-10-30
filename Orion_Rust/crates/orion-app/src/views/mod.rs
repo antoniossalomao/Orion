@@ -1,11 +1,14 @@
 //! Telas. `root` monta a janela: entrada → casca (barra lateral + barra superior + palco) + camadas por cima.
 
+pub mod camera_hud;
+pub mod camera_module;
 pub mod chat;
 pub mod composer;
 pub mod conflito;
 pub mod ctx;
 pub mod editor;
 pub mod home;
+pub mod island;
 pub mod login;
 pub mod onboarding;
 pub mod memory;
@@ -84,6 +87,16 @@ pub fn root(app: &App) -> El<'_> {
         if app.p.cam[4] && !app.resources.captions.is_empty() {
             layers.push(overlays::caption(&app.resources.captions));
         }
+    }
+    if app.logged && app.camera.is_some() {
+        layers.push(camera_module::view(app));
+    }
+    if app.logged && app.island.enroll_password.is_some() {
+        layers.push(island::enroll_password_modal(app));
+    }
+    // a ilha fica acima dos pedidos de senha: é ela que conta o que o Face ID está fazendo
+    if app.island_visible() {
+        layers.push(island::view(app));
     }
     if let Some((msg, _)) = &app.toast {
         layers.push(overlays::toast(msg.clone()));

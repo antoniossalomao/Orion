@@ -9,8 +9,12 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 pub fn verify(path: &Path, artifact: &Artifact) -> anyhow::Result<()> {
+    verify_digest(path, &artifact.sha256, artifact.bytes)
+}
+
+fn verify_digest(path: &Path, sha256: &str, bytes: u64) -> anyhow::Result<()> {
     let mut f = File::open(path)?;
-    ensure!(f.metadata()?.len() == artifact.bytes, "tamanho de modelo incorreto");
+    ensure!(f.metadata()?.len() == bytes, "tamanho de modelo incorreto");
     let mut digest = Sha256::new();
     let mut chunk = [0u8; 65536];
     loop {
@@ -20,7 +24,7 @@ pub fn verify(path: &Path, artifact: &Artifact) -> anyhow::Result<()> {
         }
         digest.update(&chunk[..n]);
     }
-    ensure!(hex::encode(digest.finalize()) == artifact.sha256, "SHA-256 do modelo não confere");
+    ensure!(hex::encode(digest.finalize()) == sha256, "SHA-256 do modelo não confere");
     Ok(())
 }
 
@@ -30,7 +34,8 @@ pub fn install(id: &str, directory: &Path, cancel: &AtomicBool, progress: &dyn F
     std::fs::create_dir_all(directory)?;
     let target = directory.join(&a.filename);
     if target.exists() {
-        verify(&target, &a).context("modelo existente inválido; remova-o explicitamente antes de reinstalar")?;
+        let (sha, bytes) = a.final_digest();
+        verify_digest(&target, sha, bytes).context("modelo existente inválido; remova-o explicitamente antes de reinstalar")?;
         return Ok((target, false));
     }
     let part = directory.join(format!("{}.part", a.filename));
@@ -94,6 +99,26 @@ pub fn install(id: &str, directory: &Path, cancel: &AtomicBool, progress: &dyn F
         return Err(e);
     }
     ensure!(!cancel.load(Ordering::SeqCst), "download cancelado");
+    if let Some(entry) = &a.extract {
+        // pacote conferido: extrai só o arquivo pedido para um temporário e confere de novo
+        let tmp = directory.join(format!("{}.extract", a.filename));
+        {
+            let mut zip = zip::ZipArchive::new(File::open(&part)?).context("pacote corrompido")?;
+            let mut inner = zip.by_name(entry).context("arquivo ausente no pacote")?;
+            let mut out = File::create(&tmp)?;
+            std::io::copy(&mut inner, &mut out)?;
+            out.sync_all()?;
+        }
+        let (sha, bytes) = a.final_digest();
+        if let Err(e) = verify_digest(&tmp, sha, bytes) {
+            let _ = std::fs::remove_file(&tmp);
+            return Err(e);
+        }
+        std::fs::hard_link(&tmp, &target)?;
+        let _ = std::fs::remove_file(tmp);
+        let _ = std::fs::remove_file(part);
+        return Ok((target, true));
+    }
     // hard_link é atômico e falha se alguém criou o destino durante o download.
     std::fs::hard_link(&part, &target)?;
     let _ = std::fs::remove_file(part);

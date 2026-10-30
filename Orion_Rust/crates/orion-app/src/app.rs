@@ -419,6 +419,10 @@ pub struct App {
     pub qcap: Option<QCap>,
     /// Senha digitada para ligar o modo autônomo (None = pedido fechado).
     pub auto_senha: Option<String>,
+    /// Face ID: a Dynamic Island e a leitura em andamento.
+    pub island: crate::island::Island,
+    /// Módulo de câmera aberto (câmera ligada só enquanto existe).
+    pub camera: Option<crate::camera_ui::CameraUi>,
     pub isso: Option<Isso>,
     pub voice: bool,
     pub mic_rec: bool,
@@ -492,6 +496,10 @@ pub enum Msg {
     UserChanged(String),
     Login,
     Hello,
+    /// Face ID e Dynamic Island.
+    Face(crate::island::FaceMsg),
+    /// Módulo de câmera (vídeo, HUD e gestos).
+    Camera(crate::camera_ui::CameraMsg),
     LoginCancel,
     Onboarding(crate::onboarding::Event),
     Logout,
@@ -777,6 +785,8 @@ impl App {
             conflito: None,
             qcap: None,
             auto_senha: None,
+            island: crate::island::Island::new(Instant::now()),
+            camera: None,
             isso: None,
             voice: false,
             mic_rec: false,
@@ -852,6 +862,8 @@ impl App {
         let entrada = (!self.logged && crate::anim::active(Some(self.login_at), self.now, 1500)) || self.onboarding.as_ref().is_some_and(|f| crate::anim::active(Some(f.step_at), self.now, 450));
         let busy = entrada || [a.page, a.pop, a.modal, a.scrim, a.over, a.drawer, a.toast, a.more, a.tools].iter().any(|m| crate::anim::active(*m, self.now, 450)) || a.switch.as_ref().map(|s| crate::anim::active(Some(s.1), self.now, 300)).unwrap_or(false) || self.mem_tween.is_some();
         let moving = busy || self.streaming.is_some() || self.toast.is_some() || self.news_pending;
+        // a ilha anima a ~60 quadros/s só enquanto lê ou muda de forma; parada, não acorda a janela
+        let island = if self.window_active && !self.fundo && self.island_visible() && self.island.animating(self.now) { iced::time::every(Duration::from_millis(16)).map(Msg::Tick) } else { Subscription::none() };
         let tick = if self.window_active && !self.fundo && moving { iced::time::every(Duration::from_millis(42)).map(Msg::Tick) } else { Subscription::none() };
         let progress = if self.loading.is_some() { iced::time::every(Duration::from_millis(150)).map(|_| Msg::BootProgress) } else { Subscription::none() };
         let focus = iced::event::listen_with(|event, _, _| match event {
@@ -869,7 +881,11 @@ impl App {
         };
         let fechar = window::close_requests().map(Msg::CloseReq);
         let resources=if self.logged && (self.voice || self.mic_rec || self.p.cam[4]){iced::time::every(Duration::from_millis(750)).map(|_|Msg::Resources(crate::resources::Event::AudioPoll))}else{Subscription::none()};
-        Subscription::batch([tick, resize, keys, poll, fundo, fechar, focus, progress,resources])
+        // HUD da câmera: um quadro novo a cada 250 ms só enquanto a leitura mostra o vídeo
+        let hud = if self.window_active && self.island.busy() && self.island.shows_hud() { iced::time::every(Duration::from_millis(250)).map(|_| Msg::Face(crate::island::FaceMsg::PreviewTick)) } else { Subscription::none() };
+        // módulo de câmera: último quadro a cada ~66 ms, só com o módulo aberto
+        let camera = if self.logged && self.camera.is_some() { iced::time::every(crate::camera_ui::POLL).map(|_| Msg::Camera(crate::camera_ui::CameraMsg::Poll)) } else { Subscription::none() };
+        Subscription::batch([tick, island, hud, camera, resize, keys, poll, fundo, fechar, focus, progress,resources])
     }
 
     pub fn pend_list(&self) -> Vec<(usize, usize)> {
@@ -960,6 +976,8 @@ impl App {
         let _timing = Timing::new("update", self.view);
         if !matches!(&msg, Msg::Tick(_) | Msg::Bandeja | Msg::BootProgress) { self.now = Instant::now(); }
         if let Msg::Onboarding(event) = msg { return self.update_onboarding(event); }
+        if let Msg::Face(m) = msg { return self.update_face(m); }
+        if let Msg::Camera(m) = msg { return self.update_camera(m); }
 
         if let Msg::L(m) = msg {
             return self.lm(m);
@@ -968,7 +986,11 @@ impl App {
             // ligar o autônomo pede a senha de novo; desligar é direto
             Msg::Toggle("auto") if !self.p.auto => {
                 self.auto_senha = Some(String::new());
-                return Task::none();
+                // com Face ID, o pedido de senha já abre lendo o rosto (a senha segue valendo)
+                if self.face_id_enabled() {
+                    return self.update_face(crate::island::FaceMsg::Start(crate::island::Purpose::Autonomous));
+                }
+                return iced::widget::operation::focus(crate::island::password_field(crate::island::Purpose::Autonomous));
             }
             Msg::AutoSenhaText(s) => {
                 self.auto_senha = Some(s.clone());
@@ -976,6 +998,9 @@ impl App {
             }
             Msg::AutoSenhaClose => {
                 self.auto_senha = None;
+                if self.island.busy() && self.island.purpose == crate::island::Purpose::Autonomous {
+                    return self.update_face(crate::island::FaceMsg::Cancel);
+                }
                 return Task::none();
             }
             Msg::AutoSenhaOk => {
@@ -1087,7 +1112,7 @@ impl App {
             Msg::Hover(h) => self.hover = h,
             Msg::PwChanged(s) => self.pw = s,
             Msg::UserChanged(s) => self.user = s,
-            Msg::Onboarding(_) | Msg::Hello | Msg::LoginCancel => {},
+            Msg::Onboarding(_) | Msg::Face(_) | Msg::Camera(_) | Msg::Hello | Msg::LoginCancel => {},
             Msg::Login => {
                 if self.pw.trim().is_empty() {
                     self.gate_err = "Digite a senha para entrar.".into();

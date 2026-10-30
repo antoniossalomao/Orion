@@ -1,10 +1,10 @@
-//! Reconhecimento do seu rosto no computador (E11.2; REGRAS.md: rosto é biometria: fica cifrado e
-//! nunca governa ação).
+//! Reconhecimento do seu rosto no computador (E11.2; REGRAS.md: rosto é local, cadastrado só pelo
+//! dono, e nunca sai do computador).
 //!
-//! Só o vetor médio (128/512 floats) vai para a tabela `faces`, cifrado com chave guardada no cofre
-//! do sistema (`ORION_FACE_KEY`); a foto nunca é salva. Reconhecer o rosto serve só de sinal de
-//! presença (pausar/retomar tela e avisos) — nunca aprova ferramenta, nunca destrava o modo pânico,
-//! nunca faz login.
+//! Só o vetor médio vai para a tabela `faces`, cifrado com chave guardada no cofre do sistema
+//! (`ORION_FACE_KEY`); a foto nunca é salva. Aqui o rosto é sinal de presença (pausar/retomar tela
+//! e avisos) e nunca aprova ferramenta do agente. Entrar e confirmar pedidos de senha pelo rosto é
+//! o Face ID (`faceid.rs`), opt-in, só na janela nativa e sempre com a senha como alternativa.
 
 use base64::Engine as _;
 use hmac::{Hmac, Mac};
@@ -123,8 +123,8 @@ fn decodificar_chave(texto: &str) -> Option<[u8; 32]> {
     }
 }
 
-fn obter_chave(cofre: &dyn CofreRosto, criar: bool) -> Result<[u8; 32], RostoError> {
-    if let Some(existente) = cofre.get(CHAVE).and_then(|s| decodificar_chave(&s)) {
+fn obter_chave_de(cofre: &dyn CofreRosto, nome: &str, criar: bool) -> Result<[u8; 32], RostoError> {
+    if let Some(existente) = cofre.get(nome).and_then(|s| decodificar_chave(&s)) {
         return Ok(existente);
     }
     if !criar {
@@ -133,18 +133,22 @@ fn obter_chave(cofre: &dyn CofreRosto, criar: bool) -> Result<[u8; 32], RostoErr
     let mut k = [0u8; 32];
     rand::thread_rng().fill_bytes(&mut k);
     let b64 = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(k);
-    cofre.set(CHAVE, &b64).map_err(|e| RostoError(format!("cofre do sistema indisponível para guardar a chave do rosto: {e}")))?;
+    cofre.set(nome, &b64).map_err(|e| RostoError(format!("cofre do sistema indisponível para guardar a chave do rosto: {e}")))?;
     Ok(k)
 }
 
-pub fn cifrar_com(cofre: &dyn CofreRosto, vetor: &[f64]) -> Result<Vec<u8>, RostoError> {
-    let chave = obter_chave(cofre, true)?;
-    let limpo: Vec<f64> = vetor.iter().map(|x| (x * 1e6).round() / 1e6).collect();
-    let payload = serde_json::to_vec(&limpo).map_err(|e| RostoError(e.to_string()))?;
+/// Cifra bytes com a chave do rosto (fluxo SHA-256 + HMAC-SHA-256); cria a chave se faltar.
+pub fn encrypt_bytes(cofre: &dyn CofreRosto, payload: &[u8]) -> Result<Vec<u8>, RostoError> {
+    encrypt_bytes_with(cofre, CHAVE, payload)
+}
+
+/// Como `encrypt_bytes`, com a chave guardada no cofre sob `key_name` (o Face ID tem a sua).
+pub fn encrypt_bytes_with(cofre: &dyn CofreRosto, key_name: &str, payload: &[u8]) -> Result<Vec<u8>, RostoError> {
+    let key = obter_chave_de(cofre, key_name, true)?;
     let mut nonce = [0u8; 16];
     rand::thread_rng().fill_bytes(&mut nonce);
-    let ct = fluxo_xor(&chave, &nonce, &payload);
-    let mut mac = <Hmac<Sha256> as Mac>::new_from_slice(&chave).map_err(|e| RostoError(e.to_string()))?;
+    let ct = fluxo_xor(&key, &nonce, payload);
+    let mut mac = <Hmac<Sha256> as Mac>::new_from_slice(&key).map_err(|e| RostoError(e.to_string()))?;
     mac.update(&nonce);
     mac.update(&ct);
     let tag = mac.finalize().into_bytes();
@@ -155,27 +159,41 @@ pub fn cifrar_com(cofre: &dyn CofreRosto, vetor: &[f64]) -> Result<Vec<u8>, Rost
     Ok(base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(token).into_bytes())
 }
 
-pub fn decifrar_com(cofre: &dyn CofreRosto, blob: &[u8]) -> Result<Vec<f64>, RostoError> {
-    let chave = obter_chave(cofre, false)?;
-    let s = std::str::from_utf8(blob).map_err(|_| RostoError("vetor de rosto inválido ou chave trocada".into()))?;
-    let raw = base64::engine::general_purpose::URL_SAFE_NO_PAD
-        .decode(s.trim())
-        .map_err(|_| RostoError("vetor de rosto inválido ou chave trocada".into()))?;
+/// Inverso de `cifrar_bytes`; falha (sem revelar o motivo exato) se a chave mudou ou o blob foi mexido.
+pub fn decrypt_bytes(cofre: &dyn CofreRosto, blob: &[u8]) -> Result<Vec<u8>, RostoError> {
+    decrypt_bytes_with(cofre, CHAVE, blob)
+}
+
+pub fn decrypt_bytes_with(cofre: &dyn CofreRosto, key_name: &str, blob: &[u8]) -> Result<Vec<u8>, RostoError> {
+    let invalid = || RostoError("vetor de rosto inválido ou chave trocada".into());
+    let key = obter_chave_de(cofre, key_name, false)?;
+    let s = std::str::from_utf8(blob).map_err(|_| invalid())?;
+    let raw = base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(s.trim()).map_err(|_| invalid())?;
     if raw.len() <= 48 {
-        return Err(RostoError("vetor de rosto inválido ou chave trocada".into()));
+        return Err(invalid());
     }
     let mut nonce = [0u8; 16];
     nonce.copy_from_slice(&raw[..16]);
     let tag = &raw[16..48];
     let ct = &raw[48..];
-    let mut mac = <Hmac<Sha256> as Mac>::new_from_slice(&chave).map_err(|_| RostoError("vetor de rosto inválido ou chave trocada".into()))?;
+    let mut mac = <Hmac<Sha256> as Mac>::new_from_slice(&key).map_err(|_| invalid())?;
     mac.update(&nonce);
     mac.update(ct);
-    let esperado = mac.finalize().into_bytes();
-    if !bool::from(esperado.as_slice().ct_eq(tag)) {
-        return Err(RostoError("vetor de rosto inválido ou chave trocada".into()));
+    let expected = mac.finalize().into_bytes();
+    if !bool::from(expected.as_slice().ct_eq(tag)) {
+        return Err(invalid());
     }
-    let pt = fluxo_xor(&chave, &nonce, ct);
+    Ok(fluxo_xor(&key, &nonce, ct))
+}
+
+pub fn cifrar_com(cofre: &dyn CofreRosto, vetor: &[f64]) -> Result<Vec<u8>, RostoError> {
+    let limpo: Vec<f64> = vetor.iter().map(|x| (x * 1e6).round() / 1e6).collect();
+    let payload = serde_json::to_vec(&limpo).map_err(|e| RostoError(e.to_string()))?;
+    encrypt_bytes(cofre, &payload)
+}
+
+pub fn decifrar_com(cofre: &dyn CofreRosto, blob: &[u8]) -> Result<Vec<f64>, RostoError> {
+    let pt = decrypt_bytes(cofre, blob)?;
     let dados: Vec<f64> = serde_json::from_slice(&pt).map_err(|_| RostoError("vetor de rosto corrompido".into()))?;
     if dados.is_empty() {
         return Err(RostoError("vetor de rosto corrompido".into()));

@@ -698,12 +698,27 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
         "camera" => {
             col = col.push(
                 row![
+                    btn(if app.camera.is_some() { crate::i18n::text("Desligar a câmera") } else { crate::i18n::text("Abrir a câmera") }, Kind::Primary, true, None, Some(Msg::Camera(if app.camera.is_some() { crate::camera_ui::CameraMsg::Close } else { crate::camera_ui::CameraMsg::Open }))),
                     action("Cadastrar meu rosto", "POST", "/resources/face/enroll"),
                     action("Apagar meu rosto", "POST", "/resources/face/delete")
                 ]
                 .spacing(8),
             );
-            col=col.push(tx(crate::i18n::text("O cadastro tira cinco fotos e guarda somente o vetor cifrado. Rosto serve para presença; não aprova ações."),12.5,t::FG3));
+            col=col.push(tx(crate::i18n::text("O cadastro tira cinco fotos e guarda somente o vetor cifrado. Este rosto serve para presença; não aprova ações."),12.5,t::FG3));
+            // Face ID: entrar e confirmar pedidos de senha pelo rosto (opt-in; a senha segue valendo)
+            let face_on = app.face_id_enabled();
+            col = col.push(
+                row![
+                    if face_on {
+                        btn(crate::i18n::text("Cadastrar o Face ID de novo"), Kind::Normal, true, None, (!app.island.busy()).then_some(Msg::Face(crate::island::FaceMsg::EnrollAsk)))
+                    } else {
+                        btn(crate::i18n::text("Ativar Face ID"), Kind::Primary, true, None, (!app.island.busy()).then_some(Msg::Face(crate::island::FaceMsg::EnrollAsk)))
+                    },
+                    if face_on { btn(crate::i18n::text("Desligar Face ID"), Kind::Normal, true, None, Some(Msg::Face(crate::island::FaceMsg::Disable))) } else { sp_w(0.0) }
+                ]
+                .spacing(8),
+            );
+            col=col.push(tx(crate::i18n::text("Face ID: entra no Orion e confirma pedidos de senha (modo autônomo, sair do pânico) olhando para a câmera. Tudo roda neste computador; com câmera indisponível ou pouca luz, a senha continua valendo. Aprovar ferramentas segue sendo só por botão."),12.5,t::FG3));
             col = col.push(
                 row![
                     action("Fotografar e descrever", "POST", "/camera/ver"),

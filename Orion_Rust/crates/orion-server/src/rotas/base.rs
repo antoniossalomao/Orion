@@ -175,7 +175,7 @@ pub async fn login(State(st): State<Estado>, ConnectInfo(addr): ConnectInfo<Sock
     let (senha, usuario) = (corpo.senha, corpo.usuario);
     let r = tokio::task::spawn_blocking(move || st2.auth.verify_credentials(&senha, &cliente, usuario.as_deref())).await.map_err(|e| anyhow::anyhow!(e))?;
     match r {
-        Ok(()) => (),
+        Ok(()) => orion_core::faceid::reset_failures(),
         Err(AuthError::LockedOut(s)) => {
             let mut e = ApiError::new(429, format!("muitas tentativas; tente de novo em {s}s"));
             e.headers.push(("Retry-After", s.to_string()));

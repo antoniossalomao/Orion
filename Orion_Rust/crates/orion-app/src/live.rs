@@ -518,6 +518,10 @@ impl App {
                     return None;
                 }
                 let pw = std::mem::take(&mut self.pw);
+                // a senha venceu: desliga a câmera da leitura em andamento
+                if self.island.busy() {
+                    let _ = self.update_face(crate::island::FaceMsg::Cancel);
+                }
                 if self.db_locked && self.challenge.is_none() {
                     self.loading = Some("Verificando senha e abrindo os dados…".into());
                     self.gate_err = "Abrindo…".into();
@@ -532,6 +536,9 @@ impl App {
                 Some((Task::perform(async move { api.login(&usuario, &pw).await }, |r| Msg::L(Lm::Login(r))), false))
             }
             Msg::Logout => {
+                if self.camera.take().is_some() {
+                    api.camera_close();
+                }
                 self.project_form = None;
                 self.rename_form = None;
                 Some((Task::perform(async move { let _=api.post("/resources/audio/cancel",json!({})).await;api.logout().await }, |_| Msg::Noop), true))
@@ -1013,7 +1020,7 @@ impl App {
             Lm::Initialized(result) => {
                 self.loading = None;
                 if let Err(error) = result { self.gate_err = error; return Task::none(); }
-                if self.db_locked { return Task::none(); }
+                if self.db_locked { return self.update_face(crate::island::FaceMsg::Start(crate::island::Purpose::Login)); }
                 if let Some(api) = self.api.clone() { return Task::perform(async move { api.health().await?; Ok(api.auth_ok().await) }, |r| Msg::L(Lm::Boot(r))); }
             }
             Lm::Boot(r) => match r {
@@ -1025,7 +1032,11 @@ impl App {
                         return pull_basic(&api);
                     }
                 }
-                Ok(false) => self.gate_err.clear(),
+                Ok(false) => {
+                    self.gate_err.clear();
+                    // tela de entrada: com Face ID, a leitura começa sozinha (a senha segue ao lado)
+                    return self.update_face(crate::island::FaceMsg::Start(crate::island::Purpose::Login));
+                }
                 Err(e) => self.gate_err = e,
             },
             Lm::Desbloqueado(r) => match r {

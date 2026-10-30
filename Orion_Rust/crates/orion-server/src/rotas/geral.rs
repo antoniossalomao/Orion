@@ -191,6 +191,9 @@ pub struct PanicoControle {
     ativo: bool,
     #[serde(default)]
     senha: String,
+    /// Tíquete do Face ID (emitido só pela janela nativa depois de o rosto bater) no lugar da senha.
+    #[serde(default)]
+    faceid: String,
 }
 
 /// Sair do pânico pela interface pede a senha de novo, com a mesma trava do login.
@@ -228,7 +231,8 @@ pub async fn modo_panico(
         return Ok(Json(st.modos.estado()));
     }
     let (st2, cliente) = (st.clone(), addr.ip().to_string());
-    let ok = tokio::task::spawn_blocking(move || senha_de_novo(&st2, &c.senha, &cliente)).await.unwrap_or(false);
+    let by_face = !c.faceid.is_empty() && orion_core::faceid::TICKETS.consume(&c.faceid, "panico");
+    let ok = by_face || tokio::task::spawn_blocking(move || senha_de_novo(&st2, &c.senha, &cliente)).await.unwrap_or(false);
     if !ok {
         return erro(403, "para sair do modo pânico, confirme a senha");
     }
@@ -257,10 +261,13 @@ pub struct AutonomoControle {
     ativo: bool,
     /// Ligar o modo autônomo pede a senha de novo (PLANO F04.17); desligar não pede.
     senha: Option<String>,
+    /// Ou o tíquete do Face ID, de uso único (REGRAS.md: o Face ID é opt-in e só vale na janela nativa).
+    faceid: Option<String>,
 }
 
 pub async fn modo_autonomo(_: Admin, State(st): State<Estado>, Json(c): Json<AutonomoControle>) -> ApiResult<Json<Value>> {
-    if c.ativo && !c.senha.as_deref().is_some_and(|s| st.auth.check_password(s)) {
+    let by_face = c.faceid.as_deref().is_some_and(|t| orion_core::faceid::TICKETS.consume(t, "autonomo"));
+    if c.ativo && !by_face && !c.senha.as_deref().is_some_and(|s| st.auth.check_password(s)) {
         return Err(ApiError::new(403, "Senha incorreta: o modo autônomo só liga com a sua senha"));
     }
     st.modos.set_autonomo(c.ativo).map_err(|e| ApiError::new(500, e.to_string()))?;

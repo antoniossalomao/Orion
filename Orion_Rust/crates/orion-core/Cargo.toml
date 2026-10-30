@@ -63,6 +63,7 @@ orion-voice.workspace = true
 hound = "3.5"
 tract-onnx = "=0.23.9"
 tokenizers = { version = "0.22", default-features = false, features = ["fancy-regex"] }
+ort = { version = "=2.0.0-rc.15", default-features = false, features = ["std", "load-dynamic", "api-24", "directml", "coreml"] }
 nokhwa = { version = "0.10.11", default-features = false, features = ["input-native"] }
 
 [features]

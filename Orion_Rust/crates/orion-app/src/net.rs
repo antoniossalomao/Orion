@@ -64,6 +64,41 @@ pub trait Local: Send + Sync + 'static {
     fn hello(&self) -> futures::future::BoxFuture<'static, Result<(), String>> {
         Box::pin(async { Err("Windows Hello indisponível".into()) })
     }
+    /// Face ID cadastrado neste computador (REGRAS.md: o Face ID é opt-in e só vale na janela nativa).
+    fn face_id_enabled(&self) -> bool {
+        false
+    }
+    /// Liga a câmera e abre uma leitura para `proposito` (`login`, `autonomo`, `panico`).
+    fn face_id_start(&self, _purpose: String) -> futures::future::BoxFuture<'static, Result<String, FaceFailure>> {
+        Box::pin(async { Err(FaceFailure::Inactive) })
+    }
+    /// Analisa o quadro mais novo da leitura. Quem chama dita o ritmo (ver `views::login::varredura`).
+    fn face_id_step(&self, _session: String) -> futures::future::BoxFuture<'static, FaceEvent> {
+        Box::pin(async { FaceEvent::Failed(FaceFailure::Inactive) })
+    }
+    /// Último quadro da leitura (`session`) ou do cadastro (`"enroll"`) para o HUD.
+    fn face_id_preview(&self, _session: String) -> futures::future::BoxFuture<'static, Option<FacePreview>> {
+        Box::pin(async { None })
+    }
+    /// Liga a câmera do módulo de câmera (só com a tela aberta).
+    fn camera_open(&self) -> futures::future::BoxFuture<'static, Result<(), String>> {
+        Box::pin(async { Err("câmera indisponível".into()) })
+    }
+    /// Último quadro analisado e os gestos novos.
+    fn camera_poll(&self) -> futures::future::BoxFuture<'static, Option<CameraSnapshot>> {
+        Box::pin(async { None })
+    }
+    /// Desliga a câmera do módulo.
+    fn camera_close(&self) {}
+    /// Encerra a leitura e desliga a câmera.
+    fn face_id_cancel(&self, _session: &str) {}
+    /// Cadastra o rosto (exige a senha, que fica no cofre do sistema para o Face ID liberar).
+    fn face_id_enroll(&self, _password: String) -> futures::future::BoxFuture<'static, Result<usize, String>> {
+        Box::pin(async { Err("Face ID indisponível".into()) })
+    }
+    fn face_id_disable(&self) -> futures::future::BoxFuture<'static, Result<(), String>> {
+        Box::pin(async { Err("Face ID indisponível".into()) })
+    }
     fn primeiro_uso(&self) -> Option<Value> {
         None
     }
@@ -87,6 +122,74 @@ pub struct Api {
     cookie: Arc<Mutex<Option<String>>>,
     bearer: Option<String>,
     local: Option<Arc<dyn Local>>,
+}
+
+/// O que a leitura do rosto está vendo agora.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FaceHint {
+    Starting,
+    NoFace,
+    LowLight,
+    Reading,
+}
+
+/// Por que o Face ID não deu certo; em todos os casos a senha continua valendo.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FaceFailure {
+    Inactive,
+    Locked,
+    NoCamera,
+    LowLight,
+    NotRecognized,
+    Other(String),
+}
+
+/// Quadro do HUD da câmera: miniatura RGBA espelhada, rosto normalizado e telemetria. Fica só na
+/// memória da janela (REGRAS.md: rosto é local, cadastrado só pelo dono, e nunca sai do computador).
+#[derive(Debug, Clone, PartialEq)]
+pub struct FacePreview {
+    pub w: u32,
+    pub h: u32,
+    pub rgba: Vec<u8>,
+    /// x, y, largura, altura em 0..1.
+    pub face: Option<[f32; 4]>,
+    /// 0..1, relativa ao limiar do modelo.
+    pub confidence: Option<f32>,
+    /// Uso de CPU do processo do Orion, em % de um núcleo dividido pelo total de núcleos.
+    pub cpu: Option<f32>,
+}
+
+/// Último quadro do módulo de câmera: miniatura espelhada, rosto, mão (21 pontos, 0..1) e os
+/// gestos reconhecidos desde a leitura anterior (REGRAS.md: gesto só abre e navega; nunca aprova
+/// nem executa).
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct CameraSnapshot {
+    pub seq: u64,
+    pub w: u32,
+    pub h: u32,
+    pub rgba: Vec<u8>,
+    pub face: Option<[f32; 4]>,
+    pub hand: Option<Vec<[f32; 2]>>,
+    /// Rótulos (`OPEN PALM`, `SWIPE LEFT`…), mais antigo primeiro.
+    pub gestures: Vec<String>,
+    pub cpu: Option<f32>,
+    /// `DirectML`, `CoreML` ou `CPU` quando o motor de gestos carregou.
+    pub accel: Option<String>,
+    /// Por que os gestos estão desligados (motor não instalado, falha ao carregar).
+    pub note: Option<String>,
+    pub infer_ms: Option<f32>,
+    /// Detector acordado por movimento ou mão rastreada.
+    pub awake: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FaceEvent {
+    Searching(FaceHint),
+    /// Rosto conferido e núcleo aberto (entrada).
+    LoggedIn,
+    /// Rosto conferido: tíquete de uso único para o pedido que exigia senha.
+    Approved(String),
+    Failed(FaceFailure),
 }
 
 #[derive(Debug, Clone)]
@@ -223,6 +326,52 @@ impl Api {
     }
     pub async fn hello(&self) -> Result<(), String> {
         self.local.as_ref().ok_or("Windows Hello só no app nativo")?.hello().await
+    }
+    pub fn face_id_enabled(&self) -> bool {
+        self.local.as_ref().is_some_and(|l| l.face_id_enabled())
+    }
+    pub async fn face_id_start(&self, purpose: &str) -> Result<String, FaceFailure> {
+        match &self.local {
+            Some(l) => l.face_id_start(purpose.to_string()).await,
+            None => Err(FaceFailure::Inactive),
+        }
+    }
+    pub async fn face_id_step(&self, session: &str) -> FaceEvent {
+        match &self.local {
+            Some(l) => l.face_id_step(session.to_string()).await,
+            None => FaceEvent::Failed(FaceFailure::Inactive),
+        }
+    }
+    pub async fn face_id_preview(&self, session: &str) -> Option<FacePreview> {
+        match &self.local {
+            Some(l) => l.face_id_preview(session.to_string()).await,
+            None => None,
+        }
+    }
+    pub async fn camera_open(&self) -> Result<(), String> {
+        self.local.as_ref().ok_or("câmera só no app nativo")?.camera_open().await
+    }
+    pub async fn camera_poll(&self) -> Option<CameraSnapshot> {
+        match &self.local {
+            Some(l) => l.camera_poll().await,
+            None => None,
+        }
+    }
+    pub fn camera_close(&self) {
+        if let Some(l) = &self.local {
+            l.camera_close()
+        }
+    }
+    pub fn face_id_cancel(&self, session: &str) {
+        if let Some(l) = &self.local {
+            l.face_id_cancel(session)
+        }
+    }
+    pub async fn face_id_enroll(&self, password: String) -> Result<usize, String> {
+        self.local.as_ref().ok_or("Face ID só no app nativo")?.face_id_enroll(password).await
+    }
+    pub async fn face_id_disable(&self) -> Result<(), String> {
+        self.local.as_ref().ok_or("Face ID só no app nativo")?.face_id_disable().await
     }
     pub fn primeiro_uso(&self) -> Option<Value> {
         self.local.as_ref().and_then(|l| l.primeiro_uso())

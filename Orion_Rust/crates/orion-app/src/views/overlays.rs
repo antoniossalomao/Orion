@@ -45,6 +45,7 @@ pub fn pal_items(app: &App) -> Vec<PalItem> {
         PalItem { icon: "gear", title: crate::i18n::text("Configurações").into(), group: crate::i18n::text("Ação").into(), msg: Msg::OpenSettings(None) },
         PalItem { icon: "inbox", title: crate::i18n::text("Captura rápida").into(), group: crate::i18n::text("Ação · Ctrl + Alt + O").into(), msg: Msg::QcapOpen },
         PalItem { icon: "scan", title: crate::i18n::text("Isso? (capturar a tela)").into(), group: crate::i18n::text("Ação · Ctrl + Alt + I").into(), msg: Msg::IssoOpen },
+        PalItem { icon: "camera", title: if app.camera.is_some() { crate::i18n::text("Desligar a câmera").into() } else { crate::i18n::text("Abrir a câmera (gestos)").into() }, group: crate::i18n::text("Ação").into(), msg: Msg::Camera(if app.camera.is_some() { crate::camera_ui::CameraMsg::Close } else { crate::camera_ui::CameraMsg::Open }) },
         PalItem { icon: "bolt", title: if app.p.auto { crate::i18n::text("Desligar modo autônomo").into() } else { crate::i18n::text("Ligar modo autônomo").into() }, group: crate::i18n::text("Ação").into(), msg: Msg::Toggle("auto") },
     ];
     let nav: [(View, &str, &str); 8] = [
@@ -140,9 +141,16 @@ pub fn quick_capture(app: &App) -> El<'_> {
     scrim_box(boxed.into(), app.win.height * 0.22, Color::from_rgba(0.0, 0.0, 0.0, 0.25), Msg::QcapClose)
 }
 
+/// Caixa central de pedido de senha (autônomo, cadastro do Face ID).
+pub fn password_modal<'a>(app: &App, corpo: El<'a>, fechar: Msg) -> El<'a> {
+    let boxed = container(corpo).padding(pad(18.0, 18.0, 18.0, 18.0)).width(Length::Fixed(440.0f32.min(app.win.width - 32.0))).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_PANEL.into() }, shadow: shadow(), ..Default::default() });
+    scrim_box(boxed.into(), app.win.height * 0.22, Color::from_rgba(0.0, 0.0, 0.0, 0.35), fechar)
+}
+
 pub fn auto_senha(app: &App) -> El<'_> {
     let v = app.auto_senha.as_deref().unwrap_or("");
     let input = text_input(crate::i18n::text("Sua senha"), v)
+        .id(crate::island::password_field(crate::island::Purpose::Autonomous))
         .on_input(Msg::AutoSenhaText)
         .on_submit(Msg::AutoSenhaOk)
         .secure(true)
@@ -153,11 +161,16 @@ pub fn auto_senha(app: &App) -> El<'_> {
         tx(crate::i18n::text("Ligar o modo autônomo"), 15.0, t::FG),
         tx(crate::i18n::text("Digite a senha de novo. Com o modo ligado o Orion segue sozinho em tarefas longas; ações que podem quebrar o PC ou o projeto continuam pedindo confirmação."), 12.0, t::FG3),
         input,
-        row![grow(), btn(crate::i18n::text("Cancelar"), Kind::Normal, true, None, Some(Msg::AutoSenhaClose)), btn(crate::i18n::text("Ligar"), Kind::Primary, !v.is_empty(), None, Some(Msg::AutoSenhaOk))].spacing(8),
+        row![
+            if app.face_id_enabled() { btn(crate::i18n::text("Usar Face ID"), Kind::Ghost, true, None, (!app.island.busy()).then_some(Msg::Face(crate::island::FaceMsg::Start(crate::island::Purpose::Autonomous)))) } else { sp_w(0.0) },
+            grow(),
+            btn(crate::i18n::text("Cancelar"), Kind::Normal, true, None, Some(Msg::AutoSenhaClose)),
+            btn(crate::i18n::text("Ligar"), Kind::Primary, !v.is_empty(), None, Some(Msg::AutoSenhaOk))
+        ]
+        .spacing(8),
     ]
     .spacing(12);
-    let boxed = container(corpo).padding(pad(18.0, 18.0, 18.0, 18.0)).width(Length::Fixed(440.0f32.min(app.win.width - 32.0))).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_PANEL.into() }, shadow: shadow(), ..Default::default() });
-    scrim_box(boxed.into(), app.win.height * 0.22, Color::from_rgba(0.0, 0.0, 0.0, 0.35), Msg::AutoSenhaClose)
+    password_modal(app, corpo.into(), Msg::AutoSenhaClose)
 }
 
 pub fn isso(app: &App) -> El<'_> {

@@ -259,9 +259,14 @@ impl LocalModel {
 }
 
 /// Os 8 modelos da Etapa 3 com regras de recomendação e pré-marcação por RAM e VRAM (§6 Etapa 3).
+/// Mesma pasta que o app procura (`orion_core::hand_gestures::runtime_dir`): `%LOCALAPPDATA%\Orion\runtime`.
+pub fn gestures_runtime_dir() -> Option<PathBuf> {
+    std::env::var_os("ORION_RUNTIME_DIR").map(PathBuf::from).or_else(|| std::env::var_os("LOCALAPPDATA").map(|d| PathBuf::from(d).join("Orion").join("runtime")))
+}
+
 pub fn default_models(pc: &PcInfo) -> Vec<LocalModel> {
     let total = pc.ram_gb as u64 * 1024 * 1024 * 1024;
-    let models = orion_local::catalog::all();
+    let models: Vec<_> = orion_local::catalog::all().into_iter().filter(|m| m.kind != "gestures").collect();
     let recommendation = models.iter().filter(|m| m.kind == "llm" && orion_local::admitted(m.bytes, total, total))
         .max_by_key(|m| m.bytes).map(|m| m.id.clone());
     models.into_iter().map(|m| {
@@ -291,6 +296,8 @@ pub struct SetupChoices {
     pub models: Vec<LocalModel>,
     pub start_with_windows: bool,
     pub enable_voice: bool,
+    /// Motor de gestos (ONNX Runtime + DirectML + modelos de mão), opt-in.
+    pub enable_gestures: bool,
     pub use_vulkan: bool,
     pub wake_bundle: String,
     pub pin_to_taskbar: bool,
@@ -307,6 +314,7 @@ impl SetupChoices {
             models: default_models(pc),
             start_with_windows: false,
             enable_voice: false,
+            enable_gestures: false,
             use_vulkan: false,
             wake_bundle: String::new(),
             pin_to_taskbar: true,
@@ -473,6 +481,18 @@ impl InstallPlan {
             config["ORION_WAKE_MODEL"] = serde_json::json!(target_dir.join("orion.onnx"));
             config["ORION_WAKE_THRESHOLD"] = serde_json::json!(manifest.threshold);
             config["ORION_WAKE_ENABLED"] = serde_json::json!(true);
+        }
+        if choices.enable_gestures && self.root_override.is_none() {
+            // REGRAS.md: gesto só abre e navega; o motor fica fora do executável, na pasta do usuário
+            let runtime = gestures_runtime_dir().ok_or("pasta local do usuário indisponível")?;
+            let existed = runtime.exists();
+            std::fs::create_dir_all(&runtime).map_err(|e| e.to_string())?;
+            if !existed { self.created_paths.push(runtime.clone()); }
+            for id in orion_local::catalog::GESTURE_RUNTIME {
+                let (path, created) = orion_local::download::install(id, &runtime, cancel, progress).map_err(|e| e.to_string())?;
+                if created { self.created_paths.push(path); }
+            }
+            config["ORION_GESTURES_RUNTIME"] = serde_json::json!(runtime);
         }
         let target = data_dir.join("orion-local.json");
         self.write_new(&target, &serde_json::to_vec_pretty(&config).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
