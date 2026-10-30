@@ -429,6 +429,8 @@ pub struct App {
     pub pop: Option<Pop>,
     pub toast: Option<(String, Instant)>,
     pub win: Size,
+    /// Última posição da janela, guardada ao fechar para a próxima abertura (F01.11).
+    pub win_pos: Option<iced::Point>,
     pub now: Instant,
     /// Início da tela de entrada (animação de entrada e respiração do brilho).
     pub login_at: Instant,
@@ -541,6 +543,7 @@ pub enum Msg {
     // chat
     ToggleTools(usize, usize),
     Approve(usize, usize),
+    ApprType(usize, usize, String),
     Deny(usize, usize),
     ShowDiff,
     CtxToggle,
@@ -554,6 +557,9 @@ pub enum Msg {
     OpenUrl(String),
     /// `git pull` do vault (uso real; nos dados de exemplo é só um aviso).
     VaultPull,
+    VaultBackup,
+    /// Ler a resposta em voz alta (F15.10).
+    Listen(String),
     RenameStart,
     RenameText(String),
     RenameSave,
@@ -592,6 +598,8 @@ pub enum Msg {
     FactEdit(usize),
     FactText(String),
     FactSave,
+    /// Busca os fatos no núcleo para a lista de Configurações › Sobre você.
+    FactsLoad,
     FactForget(usize),
     Unarchive(usize),
     DeleteArchived(usize),
@@ -687,6 +695,7 @@ pub enum Msg {
     BootProgress,
     MessageSize(String, usize, f32),
     Resized(Size),
+    Moved(iced::Point),
     DragWindow,
     Minimize,
     Fullscreen,
@@ -793,6 +802,7 @@ impl App {
             pop: None,
             toast: None,
             win: Size::new(1440.0, 900.0),
+            win_pos: None,
             now: Instant::now(),
             login_at: Instant::now(),
             spin: 0.0,
@@ -869,6 +879,7 @@ impl App {
         let focus = iced::event::listen_with(|event, _, _| match event {
             iced::Event::Window(window::Event::Focused) => Some(Msg::WindowActive(true)),
             iced::Event::Window(window::Event::Unfocused) => Some(Msg::WindowActive(false)),
+            iced::Event::Window(window::Event::Moved(p)) => Some(Msg::Moved(p)),
             _ => None,
         });
         let poll = if self.window_active && self.api.is_some() && self.logged && self.streaming.is_none() { iced::time::every(Duration::from_secs(6)).map(|_| Msg::Poll) } else { Subscription::none() };
@@ -1108,6 +1119,7 @@ impl App {
             Msg::MessageSize(session, index, height) => { if self.message_heights.len() > 10000 { self.message_heights.clear(); } self.message_heights.insert((session, index), height); }
             Msg::BootProgress => { if let Some(message) = self.api.as_ref().and_then(|api| api.progress()) { self.loading = Some(message); } }
             Msg::WindowActive(active) => { self.window_active = active; self.now = Instant::now(); }
+            Msg::Moved(p) => { if !self.mini { self.win_pos = Some(p); } }
             Msg::Resized(s) => { self.win = s; if let Some(f) = self.onboarding.as_mut() { f.settle_sky(f.step, s); } },
             Msg::Hover(h) => self.hover = h,
             Msg::PwChanged(s) => self.pw = s,
@@ -1299,6 +1311,8 @@ impl App {
             }
             Msg::KeySave => self.toast("Guardar chave: só no uso real"),
             Msg::VaultPull => self.toast("git pull: já atualizado"),
+            Msg::VaultBackup => self.toast("Backup do vault criado (simulado)"),
+            Msg::Listen(_) => self.toast(crate::i18n::text("Lendo em voz alta")),
             Msg::OpenUrl(url) if url.starts_with("orion-file:") => {
                 let alvo = url.trim_start_matches("orion-file:").to_string();
                 match crate::md::file_ref(&alvo) {
@@ -1499,7 +1513,20 @@ impl App {
                     self.tools_open.insert((c, m));
                 }
             }
-            Msg::Approve(c, m) => self.resolve(c, m, true),
+            Msg::ApprType(c, m, s) => {
+                if let Some(ChatMsg::Orion(o)) = self.convs.get_mut(c).and_then(|cv| cv.msgs.get_mut(m)) {
+                    if let Some(a) = &mut o.approval {
+                        a.typed = s;
+                    }
+                }
+            }
+            Msg::Approve(c, m) => {
+                // F04.15: sem o comando digitado, Aprovar não vale nem por atalho de teclado
+                let ok = matches!(self.convs.get(c).and_then(|cv| cv.msgs.get(m)), Some(ChatMsg::Orion(o)) if o.approval.as_ref().is_some_and(|a| a.typed_ok()));
+                if ok {
+                    self.resolve(c, m, true);
+                }
+            }
             Msg::Deny(c, m) => self.resolve(c, m, false),
             Msg::ShowDiff => {
                 self.ctx_override = Some(true);
@@ -1579,6 +1606,7 @@ impl App {
                     e.1 = s;
                 }
             }
+            Msg::FactsLoad => {}
             Msg::FactSave => {
                 if let Some((i, s)) = self.edit_fact.take() {
                     if !s.trim().is_empty() {
@@ -1842,6 +1870,11 @@ impl App {
             }
             Msg::CloseReq(id) => {
                 self.window_active = false;
+                // tamanho e posição valem na próxima abertura; a mini barra guarda o tamanho de antes
+                if self.api.is_some() {
+                    let size = if self.mini { self.mini_prev } else { self.win };
+                    let _ = crate::uiprefs::save_geometry(size, self.win_pos);
+                }
                 // com bandeja o app segue vivo, só esconde a janela; sem bandeja, fechar encerra
                 if self.bandeja.is_none() {
                     return window::close(id).chain(iced::exit());

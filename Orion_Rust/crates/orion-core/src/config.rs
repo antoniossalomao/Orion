@@ -163,6 +163,8 @@ pub struct Settings {
     pub clipboard_days: u32,
     pub command_history: bool,
     pub telegram_voice_reply: bool,
+    /// ORION_TELEGRAM_EVENTS: tipos de aviso que vão ao Telegram (vírgulas). Vazio = todos (F04.31).
+    pub telegram_events: String,
     pub screen_memory: bool,
     pub screen_interval_s: u64,
     pub screen_retention_days: i64,
@@ -172,6 +174,10 @@ pub struct Settings {
     pub sleep_at: String,
     pub weekly_ai: bool,
     pub research_at: String,
+    /// F23.11: lembrete de água a cada N minutos, das 8h às 22h; 0 desliga (opt-in).
+    pub water_every_min: u32,
+    /// F23.11: hora de dormir (HH:MM); vazio desliga. O aviso sai 30 min antes.
+    pub bedtime_at: String,
     pub research_topics: String,
     pub consolidate: bool,
     pub quota_gateway_dia: i64,
@@ -474,6 +480,7 @@ impl Settings {
             voice_aec_delay_ms: e.num("voice_aec_delay_ms", 40i32, Some(0), Some(500))?,
             transcribe_groq_fallback: e.b("transcribe_groq_fallback", false)?,
             telegram_2fa: e.b("telegram_2fa", false)?,
+            telegram_events: e.s("telegram_events", ""),
             voice_speak: e.b("voice_speak", true)?,
             voice_tts_voice: e.s("voice_tts_voice", "pt-BR-AntonioNeural"),
             wake_enabled: e.b("wake_enabled", false)?,
@@ -520,6 +527,8 @@ impl Settings {
             sleep_at: e.s("sleep_at", ""),
             weekly_ai: e.b("weekly_ai", false)?,
             research_at: e.s("research_at", ""),
+            water_every_min: e.num("water_every_min", 0u32, Some(0), Some(600))?,
+            bedtime_at: e.s("bedtime_at", ""),
             research_topics: e.s(
                 "research_topics",
                 "MCP (Model Context Protocol) segurança e novidades; Pix e Open Finance (regras do Banco Central); LLMs locais e on-device",

@@ -27,6 +27,12 @@ use std::sync::Arc;
 /// Chamadas seguidas sem resposta para dizer que o gateway caiu.
 pub const FALHAS_FORA: usize = 3;
 
+/// Atraso máximo para um agendamento ainda disparar depois de o PC voltar (F12.04).
+pub const ATRASO_MAX_AGENDAMENTO_S: f64 = 6.0 * 3600.0;
+
+/// Tentativas de um agendamento que falha antes de desistir até o próximo horário (F12.03).
+pub const TENTATIVAS_AGENDAMENTO: i64 = 3;
+
 #[derive(Debug, Default, Clone, Serialize)]
 pub struct TickReport {
     pub lembretes: usize,
@@ -49,6 +55,8 @@ pub struct TickReport {
     pub comandos: usize,
     pub vigia: Option<Value>,
     pub gateway: Option<String>,
+    pub alertas_cota: usize,
+    pub bem_estar: usize,
     pub adiados: Vec<String>,
     pub erros: Vec<String>,
 }
@@ -79,6 +87,9 @@ pub struct JobsConfig {
     pub clipboard_days: i64,
     pub command_history: bool,
     pub nome: String,
+    /// F23.11: água a cada N min (0 desliga) e hora de dormir (HH:MM, vazio desliga).
+    pub water_every_min: u32,
+    pub bedtime_at: String,
 }
 
 impl Default for JobsConfig {
@@ -94,9 +105,14 @@ impl Default for JobsConfig {
             clipboard_days: 0,
             command_history: false,
             nome: "Antônio".into(),
+            water_every_min: 0,
+            bedtime_at: String::new(),
         }
     }
 }
+
+/// Grava o "Você fez" do dia no vault (`Memória/Diário/AAAA-MM-DD`), sem sobrescrever (F06.12).
+pub type DiarioVault = Arc<dyn Fn(chrono::NaiveDate, &str) -> anyhow::Result<()> + Send + Sync>;
 
 pub struct JobRunner {
     memory: Arc<Store>,
@@ -116,6 +132,7 @@ pub struct JobRunner {
     vigia: Option<Arc<crate::vigia::Vigia>>,
     custos: Option<Arc<Custos>>,
     modos: Option<Arc<Modos>>,
+    diario_vault: Option<DiarioVault>,
     every: HashMap<&'static str, f64>,
     last: Mutex<HashMap<&'static str, f64>>,
     pub ultima_rodada: Mutex<Option<f64>>,
@@ -132,6 +149,7 @@ impl JobRunner {
             ("consolidar", 6.0 * 3600.0),
             ("auditoria", 86400.0),
             ("saude_gateway", 60.0),
+            ("cota", 300.0),
             ("downloads", 60.0),
             ("historicos", 3600.0),
             ("vida", 300.0),
@@ -155,6 +173,7 @@ impl JobRunner {
             vigia: None,
             custos: None,
             modos: None,
+            diario_vault: None,
             every,
             last: Mutex::new(HashMap::new()),
             ultima_rodada: Mutex::new(None),
@@ -208,6 +227,10 @@ impl JobRunner {
     }
     pub fn com_custos(mut self, c: Arc<Custos>) -> Self {
         self.custos = Some(c);
+        self
+    }
+    pub fn com_diario_vault(mut self, d: DiarioVault) -> Self {
+        self.diario_vault = Some(d);
         self
     }
     pub fn com_modos(mut self, m: Arc<Modos>) -> Self {
@@ -407,6 +430,14 @@ impl JobRunner {
                 rel.downloads = d.rodar(false).movidos.len();
             }
         }
+        if let Some(c) = self.custos.clone() {
+            if self.devido("cota") {
+                rel.alertas_cota = c.alertas();
+            }
+        }
+        if let Some(n) = Self::passo(rel, "bem-estar", self.bem_estar()) {
+            rel.bem_estar = n;
+        }
         if self.devido("saude_gateway") {
             if let Some(g) = Self::passo(rel, "gateway", self.saude_gateway()) {
                 rel.gateway = g;
@@ -436,6 +467,14 @@ impl JobRunner {
         let text=format!("Resumo de {date}: {conversations} conversa(s), {actions} ação(ões) autorizada(s), {tasks} tarefa(s) concluída(s), {approvals} pedido(s) de aprovação.");
         // F09.05: o texto completo do "Você fez" fica guardado; exportar para o vault é decisão sua.
         let relatorio = crate::relatorio::voce_fez(&self.memory, pid.as_deref(), date)?;
+        // F06.12: o resumo pessoal do dia vai também para o vault (opt-in); falha não perde o aviso
+        if pid.is_none() && conversations + actions + tasks + approvals > 0 && self.memory.meta_get(&marker).is_none() {
+            if let Some(gravar) = &self.diario_vault {
+                if let Err(e) = gravar(date, &relatorio) {
+                    tracing::warn!("diário do dia não foi para o vault: {e}");
+                }
+            }
+        }
         self.memory.tx(|_| {
             if self.memory.meta_get(&marker).is_some() { return Ok(false); }
             if conversations+actions+tasks+approvals>0 {
@@ -535,23 +574,99 @@ impl JobRunner {
         Ok(n)
     }
 
+    /// F23.11: lembrete de água (8h–22h, no intervalo escolhido) e aviso 30 min antes da hora de
+    /// dormir. Opt-in, só aviso local; não perturbe e pânico seguram. Um por janela, sem rajada ao ligar.
+    fn bem_estar(&self) -> anyhow::Result<usize> {
+        if self.modos.as_ref().is_some_and(|m| m.panico() || m.nao_perturbe()) {
+            return Ok(0);
+        }
+        let agora = self.agora();
+        let dt = crate::util::local(agora);
+        let mut n = 0;
+        let min = self.cfg.water_every_min as i64;
+        if min > 0 && (8..22).contains(&dt.hour()) {
+            let janela = (agora as i64) / (min * 60);
+            if self.memory.counter_get("bem_estar:agua") < janela {
+                self.memory.counter_set("bem_estar:agua", janela)?;
+                self.ops.notify("bem_estar", "Hora de beber água.", Some(&format!("agua:{janela}")), false)?;
+                n += 1;
+            }
+        }
+        if let Some((h, m)) = hora(&self.cfg.bedtime_at).map_err(|e| anyhow::anyhow!(e))? {
+            // a próxima ocorrência (hoje ou amanhã): dormir às 00:10 avisa a partir das 23:40
+            let ocorrencia = |d: chrono::NaiveDate| d.and_hms_opt(h, m, 0).and_then(|t| Local.from_local_datetime(&t).earliest());
+            let alvo = ocorrencia(dt.date_naive()).filter(|a| *a >= dt).or_else(|| dt.date_naive().succ_opt().and_then(ocorrencia));
+            if let Some(alvo) = alvo {
+                let falta = (alvo - dt).num_minutes();
+                let dia: i64 = alvo.format("%Y%m%d").to_string().parse().unwrap_or(0);
+                if (0..=30).contains(&falta) && self.memory.counter_get("bem_estar:dormir") < dia {
+                    self.memory.counter_set("bem_estar:dormir", dia)?;
+                    self.ops.notify("bem_estar", &format!("Faltam {falta} min para a hora de dormir ({h:02}:{m:02})."), Some(&format!("dormir:{dia}")), false)?;
+                    n += 1;
+                }
+            }
+        }
+        Ok(n)
+    }
+
+    /// Agendamentos vencidos, um após o outro na ordem do horário (F12.03). Um que falha tenta de
+    /// novo em 1 e 2 minutos; na terceira falha é marcado como disparado e sai um aviso.
     fn agendamentos(&self) -> anyhow::Result<usize> {
         let mut n = 0;
         let agora = self.agora();
         for s in self.ops.due_schedules(Some(agora))? {
             let id = s.get("id").and_then(Value::as_i64).unwrap_or(0);
-            let titulo = s.get("title").and_then(Value::as_str).unwrap_or("");
-            let mut texto = format!("Agendamento: {titulo}");
-            // a ferramenta registrada NÃO é executada: ação sem alguém olhando exige a política
-            if let Some(t) = s.get("tool").and_then(Value::as_str).filter(|t| !t.is_empty()) {
-                texto += &format!(" (ferramenta '{t}' registrada; não é executada sozinha)");
+            let espera = format!("agendamento:espera:{id}");
+            if self.memory.meta_get(&espera).and_then(|t| t.parse::<f64>().ok()).is_some_and(|t| t > agora) {
+                continue;
             }
-            let next = s.get("next_run").map(|v| v.to_string()).unwrap_or_default();
-            self.ops.notify("agendamento", &texto, Some(&format!("schedule:{id}:{next}")), true)?;
-            self.ops.mark_schedule_fired(id, Some(agora))?;
-            n += 1;
+            match self.disparar_agendamento(&s, agora) {
+                Ok(disparou) => {
+                    n += disparou as usize;
+                    self.memory.counter_set(&format!("agendamento:falhas:{id}"), 0)?;
+                    self.memory.meta_set(&espera, None)?;
+                }
+                Err(e) => {
+                    let falhas = self.memory.counter_incr(&format!("agendamento:falhas:{id}"), 1)?;
+                    tracing::error!("agendamento {id} falhou ({falhas}/{TENTATIVAS_AGENDAMENTO}): {e}");
+                    if falhas >= TENTATIVAS_AGENDAMENTO {
+                        self.ops.mark_schedule_fired(id, Some(agora))?;
+                        self.memory.counter_set(&format!("agendamento:falhas:{id}"), 0)?;
+                        self.memory.meta_set(&espera, None)?;
+                        let titulo = s.get("title").and_then(Value::as_str).unwrap_or("");
+                        let _ = self.ops.notify("agendamento", &format!("Agendamento falhou {TENTATIVAS_AGENDAMENTO} vezes e ficou para o próximo horário: {titulo}"), None, true);
+                    } else {
+                        let atraso = 60.0 * 2f64.powi(falhas as i32 - 1);
+                        self.memory.meta_set(&espera, Some(&(agora + atraso).to_string()))?;
+                    }
+                }
+            }
         }
         Ok(n)
+    }
+
+    /// Avisa (ou marca como pulado) um agendamento vencido. `true` se avisou.
+    fn disparar_agendamento(&self, s: &orion_store::ops::Row, agora: f64) -> anyhow::Result<bool> {
+        let id = s.get("id").and_then(Value::as_i64).unwrap_or(0);
+        let titulo = s.get("title").and_then(Value::as_str).unwrap_or("");
+        let previsto = s.get("next_run").and_then(Value::as_f64).unwrap_or(agora);
+        let next = s.get("next_run").map(|v| v.to_string()).unwrap_or_default();
+        // PC desligado ou suspenso: atraso de até 6 h ainda dispara; passado isso, a execução
+        // fica marcada como pulada e o próximo horário é recalculado (F12.04).
+        if agora - previsto > ATRASO_MAX_AGENDAMENTO_S {
+            let quando = crate::util::local(previsto).format("%d/%m %H:%M");
+            self.ops.notify("agendamento", &format!("Agendamento pulado: {titulo} (era {quando}; o PC estava desligado)"), Some(&format!("schedule:{id}:{next}")), false)?;
+            self.ops.mark_schedule_fired(id, Some(agora))?;
+            return Ok(false);
+        }
+        let mut texto = format!("Agendamento: {titulo}");
+        // a ferramenta registrada NÃO é executada: ação sem alguém olhando exige a política
+        if let Some(t) = s.get("tool").and_then(Value::as_str).filter(|t| !t.is_empty()) {
+            texto += &format!(" (ferramenta '{t}' registrada; não é executada sozinha)");
+        }
+        self.ops.notify("agendamento", &texto, Some(&format!("schedule:{id}:{next}")), true)?;
+        self.ops.mark_schedule_fired(id, Some(agora))?;
+        Ok(true)
     }
 
     /// Um briefing por dia, a partir da hora marcada. Se o Orion só subiu depois, ainda sai dentro

@@ -748,3 +748,50 @@ pub async fn config_recarregar(_: Admin, State(st): State<Estado>) -> ApiResult<
     *st.live.applied.lock() = Some(base);
     Ok(Json(json!({"ok": true, "aplicados": aplicados, "exigem_reinicio": reinicio})))
 }
+
+#[derive(Deserialize)]
+pub struct Ouvir {
+    texto: String,
+}
+
+/// F15.10: botão Ouvir de uma resposta. Clique seu, fala local pela voz configurada (edge-tts ou a
+/// voz do Windows). Pânico corta: a síntese pode sair para a rede.
+pub async fn voz_ouvir(_: Admin, State(st): State<Estado>, Json(c): Json<Ouvir>) -> ApiResult<Json<Value>> {
+    if st.modos.panico() {
+        return erro(409, "modo pânico ativo: a leitura em voz alta está cortada");
+    }
+    let Some(speaker) = st.speaker.clone() else {
+        return erro(409, "nenhuma voz configurada para leitura em voz alta");
+    };
+    if c.texto.trim().is_empty() {
+        return erro(422, "texto vazio");
+    }
+    let audio = speaker.synthesize(&c.texto).await.map_err(|e| ApiError::new(502, e.to_string()))?;
+    tocar(audio, st).await
+}
+
+#[cfg(windows)]
+async fn tocar(audio: Vec<u8>, st: Estado) -> ApiResult<Json<Value>> {
+    tokio::task::spawn_blocking(move || orion_voice::play_audio(&audio, &|| st.modos.panico()))
+        .await
+        .map_err(anyhow::Error::from)?
+        .map_err(|e| ApiError::new(500, format!("falha ao tocar o áudio: {e}")))?;
+    Ok(Json(json!({"ok": true})))
+}
+
+#[cfg(not(windows))]
+async fn tocar(_: Vec<u8>, _: Estado) -> ApiResult<Json<Value>> {
+    erro(501, "leitura em voz alta disponível no Windows")
+}
+
+/// F06.17: backup manual do vault em zip, por clique seu, na pasta de backups do Orion.
+pub async fn vault_backup(_: Admin, State(st): State<Estado>) -> ApiResult<Json<Value>> {
+    let vault = st.settings.vault_dir.clone().or_else(orion_vault::detect_vault_path).ok_or_else(|| ApiError::new(409, "nenhum vault configurado"))?;
+    let pasta = st.settings.backup_dir.clone().unwrap_or_else(|| st.settings.data_dir.join("backups"));
+    let agora = st.memory.now();
+    let (zip, n) = tokio::task::spawn_blocking(move || orion_core::vault_backup::zip_vault(&vault, &pasta, agora))
+        .await
+        .map_err(anyhow::Error::from)?
+        .map_err(|e| ApiError::new(409, e.to_string()))?;
+    Ok(Json(json!({"arquivo": zip.display().to_string(), "arquivos": n})))
+}

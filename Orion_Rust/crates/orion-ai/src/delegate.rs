@@ -16,6 +16,10 @@ use std::sync::{Arc, LazyLock};
 use std::time::{Duration, Instant};
 use wait_timeout::ChildExt;
 
+static VERSAO: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\d+\.\d+(?:\.\d+)?(?:[-+][0-9A-Za-z.]+)?").unwrap());
+/// Quanto tempo a versão lida de uma CLI vale antes de perguntar de novo (F10.17).
+const VERSAO_TTL: Duration = Duration::from_secs(3600);
+
 static COTA: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)quota|rate.?limit|usage limit|too many requests|limit reached|\b429\b|exceeded").unwrap());
 
 #[derive(Debug, Clone)]
@@ -59,6 +63,7 @@ pub struct Delegator {
     timeout: Duration,
     max_output: usize,
     pub weekly_budget: parking_lot::Mutex<Option<Arc<crate::budget::Budget>>>,
+    versoes: parking_lot::Mutex<std::collections::HashMap<String, (Instant, Option<String>)>>,
 }
 
 struct Saida {
@@ -69,7 +74,7 @@ struct Saida {
 
 impl Delegator {
     pub fn new(store: Arc<Store>, agents: Vec<CliAgent>, timeout_s: f64, max_output: usize) -> Self {
-        Delegator { store, agents, timeout: Duration::from_secs_f64(timeout_s), max_output, weekly_budget: parking_lot::Mutex::new(None) }
+        Delegator { store, agents, timeout: Duration::from_secs_f64(timeout_s), max_output, weekly_budget: parking_lot::Mutex::new(None), versoes: parking_lot::Mutex::new(Default::default()) }
     }
 
     fn chave(&self, nome: &str) -> String {
@@ -77,19 +82,44 @@ impl Delegator {
         format!("delegar:{nome}:{dia}")
     }
 
-    /// Uso de hoje por CLI (para o painel).
+    /// Uso de hoje e versão instalada por CLI (para o painel).
     pub fn status(&self) -> Vec<Value> {
         self.agents
             .iter()
             .map(|ag| {
                 let usadas = self.store.counter_get(&self.chave(&ag.name));
-                json!({"nome": ag.name, "instalada": which(&ag.argv[0]).is_some(), "usadas_hoje": usadas,
+                let instalada = which(&ag.argv[0]).is_some();
+                let versao = if instalada { self.versao(&ag.argv[0]) } else { None };
+                json!({"nome": ag.name, "instalada": instalada, "versao": versao, "usadas_hoje": usadas,
                        "limite_diario": ag.daily_limit, "restante": (ag.daily_limit - usadas).max(0)})
             })
             .collect()
     }
 
+    /// `<cli> --version`, sem shell e sem `ORION_*`, guardado por uma hora. As CLIs se atualizam
+    /// pelo próprio canal oficial; o Orion só mostra a versão que encontrou (F10.17).
+    pub fn versao(&self, programa: &str) -> Option<String> {
+        if let Some((t, v)) = self.versoes.lock().get(programa) {
+            if t.elapsed() < VERSAO_TTL {
+                return v.clone();
+            }
+        }
+        let pasta = std::env::temp_dir();
+        let lida = self
+            .rodar_com(&[programa.to_string(), "--version".into()], &pasta, Duration::from_secs(5))
+            .ok()
+            .flatten()
+            .filter(|s| s.code == Some(0))
+            .and_then(|s| VERSAO.find(&format!("{}\n{}", s.stdout, s.stderr)).map(|m| m.as_str().to_string()));
+        self.versoes.lock().insert(programa.to_string(), (Instant::now(), lida.clone()));
+        lida
+    }
+
     fn rodar(&self, argv: &[String], pasta: &PathBuf) -> std::io::Result<Option<Saida>> {
+        self.rodar_com(argv, pasta, self.timeout)
+    }
+
+    fn rodar_com(&self, argv: &[String], pasta: &PathBuf, limite: Duration) -> std::io::Result<Option<Saida>> {
         let mut cmd = Command::new(&argv[0]);
         cmd.args(&argv[1..]).current_dir(pasta).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
         cmd.env_clear();
@@ -117,7 +147,7 @@ impl Delegator {
             }
             b
         });
-        match filho.wait_timeout(self.timeout)? {
+        match filho.wait_timeout(limite)? {
             Some(st) => Ok(Some(Saida {
                 code: st.code(),
                 stdout: String::from_utf8_lossy(&t_out.join().unwrap_or_default()).into_owned(),

@@ -414,13 +414,23 @@ pub fn approval_detail<'a>(a: &crate::data::Approval) -> El<'a> {
     col.into()
 }
 
+/// Campo da confirmação extra de ação destrutiva: digitar o comando exatamente (F04.15).
+/// Só aparece com o cartão aberto e argumentos inteiros; o texto não sai do app.
+pub fn approval_confirm<'a>(a: &crate::data::Approval, on_input: impl Fn(String) -> Msg + 'a) -> Option<El<'a>> {
+    let alvo = a.confirm_text().filter(|_| !a.truncated && a.state == crate::data::ApprState::Open)?;
+    let dica = format!("{} {alvo}", crate::i18n::text("Para aprovar, digite:"));
+    let campo = iced::widget::text_input(&alvo, &a.typed).on_input(on_input).size(12).font(t::MONO).padding(8);
+    Some(column![txf(dica, 12.0, t::DANGER, t::UI), campo].spacing(6).into())
+}
+
 /// Botões do cartão. Nenhum dos dois ganha destaque de "caminho feliz": só a ação destrutiva
 /// pende para o lado de negar. Argumentos cortados só podem ser negados.
+/// Ação destrutiva só libera Aprovar depois de digitar o comando inteiro (F04.15).
 pub fn approval_actions<'a>(a: &crate::data::Approval, approve: Msg, deny: Msg) -> Vec<El<'a>> {
     let (k_ok, k_no) = if a.risk == "destructive" { (Kind::Danger, Kind::Primary) } else { (Kind::Normal, Kind::Normal) };
     let mut v = vec![];
     if !a.truncated {
-        v.push(btn(crate::i18n::text("Aprovar"), k_ok, true, None, Some(approve)));
+        v.push(btn(crate::i18n::text("Aprovar"), k_ok, true, None, a.typed_ok().then_some(approve)));
     }
     v.push(btn(crate::i18n::text("Negar"), k_no, true, None, Some(deny)));
     v

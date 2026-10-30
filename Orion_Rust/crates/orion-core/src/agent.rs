@@ -725,7 +725,8 @@ impl Agent {
                     }
                 }
             }
-            yield AgentEvent::erro(format!("limite de {limite} iterações de ferramenta"));
+            // F04.21: passou do limite de passos (padrão 25 por projeto), pergunta em vez de seguir sozinho
+            yield AgentEvent::erro(format!("Cheguei ao limite de {limite} passos deste pedido. Quer que eu continue? Responda \"continue\" e eu sigo de onde parei."));
         })
     }
 
@@ -1087,6 +1088,11 @@ impl Agent {
                     );
                 }
             }
+        }
+        // F04.25 (REGRAS.md: o Orion não decide sozinho qual fato vale): com memória no turno,
+        // divergência entre o pedido, o vault e o banco vira pergunta, nunca escolha silenciosa
+        if !hits.is_empty() {
+            sistema.push_str("\n\n[CONFLITOS DE MEMÓRIA]\nSe o pedido contradisser um fato guardado ou uma nota do vault, ou se fato e nota divergirem entre si, não escolha sozinho: mostre a diferença em uma linha e pergunte qual vale antes de agir.");
         }
         if let Some(i) = self.indice_ativo() {
             sistema += &format!("\n\n{}", i.bloco());

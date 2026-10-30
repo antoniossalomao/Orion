@@ -100,6 +100,20 @@ pub fn next_run(kind: &str, base: f64, when: Option<f64>, time_of_day: &str, int
     }
 }
 
+/// Prévia das próximas `n` execuções de um agendamento, em `DD/MM HH:MM` local (F12.01).
+pub fn schedule_preview(sc: &Row, n: usize) -> Vec<String> {
+    let fmt = |ts: f64| chrono::DateTime::from_timestamp(ts as i64, 0).map(|d| d.with_timezone(&Local).format("%d/%m %H:%M").to_string()).unwrap_or_default();
+    let Some(mut prox) = sc.get("next_run").and_then(Value::as_f64) else { return vec![] };
+    let kind = s(sc, "kind");
+    let mut v = vec![fmt(prox)];
+    while kind != "unico" && v.len() < n {
+        let Ok(seguinte) = next_run(kind, prox, None, s(sc, "time_of_day"), i(sc, "interval_min")) else { break };
+        prox = seguinte;
+        v.push(fmt(prox));
+    }
+    v
+}
+
 fn t(x: &str) -> Sql {
     Sql::Text(x.to_string())
 }
@@ -159,7 +173,7 @@ impl Operations {
         &self.s
     }
 
-    fn now(&self) -> f64 {
+    pub fn now(&self) -> f64 {
         self.s.now()
     }
 
@@ -555,6 +569,18 @@ impl Operations {
             "SELECT * FROM notifications WHERE delivered_at IS NULL AND (urgent=1 OR ?=0) ORDER BY id LIMIT ?",
             vec![(so_urgentes as i64).into(), limit.into()],
         )
+    }
+
+    /// Pendentes só dos `tipos` dados (vazio = todos), com o filtro do não perturbe; tudo antes do
+    /// limite, para o que fica de fora não ocupar a janela de um canal que só entrega alguns tipos.
+    pub fn pending_notifications_of(&self, tipos: &[String], limit: i64) -> Result<Vec<Row>> {
+        let so_urgentes = (self.segurar.read())();
+        let marcas = vec!["?"; tipos.len()].join(",");
+        let filtro = if tipos.is_empty() { String::new() } else { format!(" AND kind IN ({marcas})") };
+        let mut params: Vec<Sql> = vec![(so_urgentes as i64).into()];
+        params.extend(tipos.iter().map(|t| Sql::from(t.clone())));
+        params.push(limit.into());
+        self.query(&format!("SELECT * FROM notifications WHERE delivered_at IS NULL AND (urgent=1 OR ?=0){filtro} ORDER BY id LIMIT ?"), params)
     }
 
     /// Avisos mais novos primeiro, entregues ou não (a caixa de atividade da interface).

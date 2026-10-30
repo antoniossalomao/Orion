@@ -52,6 +52,27 @@ pub struct Approval {
     pub args: Vec<(String, String)>,
     /// O servidor cortou os argumentos: só se aprova o que se vê inteiro, então só dá para negar.
     pub truncated: bool,
+    /// O que você digitou para confirmar uma ação destrutiva (F04.15).
+    pub typed: String,
+}
+
+impl Approval {
+    /// Texto que precisa ser digitado para liberar o botão Aprovar: só em ação destrutiva, o
+    /// comando ou caminho inteiro (ou, sem eles, o nome da ferramenta). `None` nas demais classes.
+    pub fn confirm_text(&self) -> Option<String> {
+        if self.risk != "destructive" {
+            return None;
+        }
+        ["comando", "command", "cmd", "caminho", "path"]
+            .iter()
+            .find_map(|k| self.args.iter().find(|(n, v)| n == k && !v.trim().is_empty()).map(|(_, v)| v.trim().to_string()))
+            .or_else(|| (!self.tool.is_empty()).then(|| self.tool.clone()))
+    }
+
+    /// O texto digitado bate exatamente com o comando (ou não há o que digitar).
+    pub fn typed_ok(&self) -> bool {
+        self.confirm_text().is_none_or(|c| self.typed.trim() == c)
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -134,6 +155,7 @@ pub fn convs() -> Vec<Conv> {
                         risk: "exec".into(),
                         args: vec![("cmd".into(), "cargo test".into()), ("pasta".into(), "~/Projetos/Orion".into())],
                         truncated: false,
+                        typed: String::new(),
                     }),
                 }),
             ],
@@ -197,6 +219,7 @@ pub fn convs() -> Vec<Conv> {
                         risk: "exec".into(),
                         args: vec![("cmd".into(), "git push origin claude/quirky-dijkstra-65d6gq".into()), ("pasta".into(), "~/Projetos/Orion".into())],
                         truncated: false,
+                        typed: String::new(),
                     }),
                 }),
             ],

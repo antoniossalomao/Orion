@@ -240,9 +240,7 @@ fn orion_msg<'a>(app: &'a App, ci: usize, mi: usize, o: &'a OrionMsg, is_last: b
     }
     if streaming.is_none() && o.time != "pendente" {
         let mut acts = row![tip(ib_sz("copy", 28.0, 16.0, Some(Msg::CopyText(o.body.clone())), false), crate::i18n::text("Copiar"))].spacing(0).align_y(Vertical::Center);
-        if !app.is_live() {
-            acts = acts.push(tip(ib_sz("speaker", 28.0, 16.0, Some(Msg::Toast(crate::i18n::text("Lendo em voz alta").into())), false), crate::i18n::text("Ouvir")));
-        }
+        acts = acts.push(tip(ib_sz("speaker", 28.0, 16.0, Some(Msg::Listen(o.body.clone())), false), crate::i18n::text("Ouvir")));
         if is_last && !app.is_live() {
             acts = acts.push(tip(ib_sz("retry", 28.0, 16.0, Some(Msg::Toast(crate::i18n::text("Gerando de novo…").into())), false), crate::i18n::text("Gerar de novo")));
         }
@@ -277,7 +275,7 @@ fn approval<'a>(a: &'a crate::data::Approval, ci: usize, mi: usize) -> El<'a> {
             if a.diff_button {
                 btns = btns.push(btn(crate::i18n::text("Ver o diff"), Kind::Ghost, true, None, Some(Msg::ShowDiff)));
             }
-            container(column![row![dot_halo(t::SIGNAL, t::SIGNAL_SOFT), txf(crate::i18n::text("Aguardando sua aprovação"), 13.0, t::SIGNAL, t::UI_MED)].spacing(8).align_y(Vertical::Center), container(txt).padding(pad(0.0, 0.0, 0.0, 0.0)), approval_detail(a), container(btns).padding(pad(2.0, 0.0, 0.0, 0.0))].spacing(8))
+            container(column![row![dot_halo(t::SIGNAL, t::SIGNAL_SOFT), txf(crate::i18n::text("Aguardando sua aprovação"), 13.0, t::SIGNAL, t::UI_MED)].spacing(8).align_y(Vertical::Center), container(txt).padding(pad(0.0, 0.0, 0.0, 0.0)), approval_detail(a), crate::ui::approval_confirm(a, move |s| Msg::ApprType(ci, mi, s)).unwrap_or_else(|| column![].into()), container(btns).padding(pad(2.0, 0.0, 0.0, 0.0))].spacing(8))
                 .width(Length::Fill)
                 .max_width(640.0)
                 .padding(pad(12.0, 16.0, 12.0, 16.0))

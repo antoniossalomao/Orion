@@ -367,6 +367,10 @@ impl Executor {
             }
             res.passos.push(info);
         }
+        // F12.13: falhou, parou e avisa mostrando o passo (o motivo já diz qual)
+        if res.status == "falhou" {
+            let _ = self.ops.notify("rotina", &format!("Rotina {nome} parou: {}", res.motivo), None, true);
+        }
         let _ = self.ops.audit_add(&json!({
             "tool": "rotina", "action": "allow", "risk": "read",
             "reason": format!("{nome}: {}; origem={origem}", res.status).chars().take(200).collect::<String>(),

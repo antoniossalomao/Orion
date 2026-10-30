@@ -721,7 +721,9 @@ pub async fn montar_with_runtime(mut settings: Settings, preserve_extensions:boo
             let _ = b;
             ex.briefing = Some(Arc::new(move || orion_core::briefing::build_briefing(&o, orion_core::util::agora(), "Antônio", None)));
             let tb = orion_core::tarefas_bg::TarefasBg::new(memory.clone(), ops.clone(), a.clone(), Some(custos.clone()), Some(modos.clone()));
-            (Some(Arc::new(ex)), Some(Arc::new(tb)))
+            let tb = Arc::new(tb);
+            tb.retomar_fila();
+            (Some(Arc::new(ex)), Some(tb))
         }
         None => (None, None),
     };
@@ -798,6 +800,7 @@ pub async fn montar_with_runtime(mut settings: Settings, preserve_extensions:boo
             ) {
                 Ok(t) => {
                     *t.modos.lock() = Some(modos.clone());
+                    *t.eventos.lock() = settings.telegram_events.split(',').map(|e| e.trim().to_lowercase()).filter(|e| !e.is_empty()).collect();
                     if settings.telegram_voice_reply {
                         *t.speaker.lock() = speaker.clone();
                     }
@@ -856,6 +859,8 @@ pub async fn montar_with_runtime(mut settings: Settings, preserve_extensions:boo
             gateway_down_min: settings.gateway_down_min,
             clipboard_days: settings.clipboard_days as i64,
             command_history: settings.command_history,
+            water_every_min: settings.water_every_min,
+            bedtime_at: settings.bedtime_at.clone(),
             ..Default::default()
         };
         let mut j = JobRunner::new(memory.clone(), ops.clone(), cfg)
@@ -866,6 +871,19 @@ pub async fn montar_with_runtime(mut settings: Settings, preserve_extensions:boo
             .com_historicos(historicos.clone());
         if let Some(vg) = &vigia {
             j = j.com_vigia(vg.clone());
+        }
+        // F06.12: com o diário do vault ligado (ORION_VAULT_DIARIO), o resumo do dia vira nota em Memória/Diário
+        // a chave é lida a cada gravação: desligar o diário nas Configurações vale na hora
+        if let Some(vault) = settings.vault_dir.clone() {
+            let ligado = live.diary.clone();
+            j = j.com_diario_vault(Arc::new(move |dia: chrono::NaiveDate, md: &str| {
+                if !ligado.load(std::sync::atomic::Ordering::Relaxed) {
+                    return Ok(());
+                }
+                let mgr = orion_vault::VaultManager::new(Some(vault.clone()))?;
+                mgr.save_daily_report(&dia.to_string(), "23:59", None, md)?;
+                Ok(())
+            }));
         }
         if let Some(gw) = &gateway {
             if settings.consolidate {

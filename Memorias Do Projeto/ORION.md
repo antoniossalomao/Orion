@@ -1,6 +1,6 @@
 # Orion — estado, plano e decisões
 
-> Fonte única do estado do projeto. Atualizado em 29/10/2026. Princípios e regras: [REGRAS.md](REGRAS.md). Arquitetura, módulos e referências: [ARQUITETURA.md](ARQUITETURA.md). Melhorias pré-lançamento v1: [ORION_MELHORIAS_PRE_V1.md](ORION_MELHORIAS_PRE_V1.md). Roadmap pós-v1: [ORION_MELHORIAS_POS_V1.md](ORION_MELHORIAS_POS_V1.md). Como rodar: [README](../README.md). Material antigo e detalhado: [ORION_LEGADO.md](ORION_LEGADO.md).
+> Fonte única do estado do projeto. Atualizado em 30/10/2026. Princípios e regras: [REGRAS.md](REGRAS.md). Arquitetura, módulos e referências: [ARQUITETURA.md](ARQUITETURA.md). Melhorias pré-lançamento v1: [ORION_MELHORIAS_PRE_V1.md](ORION_MELHORIAS_PRE_V1.md). Roadmap pós-v1: [ORION_MELHORIAS_POS_V1.md](ORION_MELHORIAS_POS_V1.md). Como rodar: [README](../README.md). Material antigo e detalhado: [ORION_LEGADO.md](ORION_LEGADO.md).
 
 ## Visão
 
@@ -9,6 +9,44 @@ Assistente pessoal com identidade masculina, técnico, direto, não-servil. Não
 *"Não é uma IA. É uma extensão do sistema nervoso."*
 
 Antônio é o administrador: decide, aprova e pode desligar qualquer coisa. Nada que o modelo diga anula isso.
+
+## Board Notion: rodada de 10 tarefas — 30/10/2026
+
+Branch `claude/fervent-newton-7pa6ci`. Código compilado no Linux; **sem testes novos** (pausa de 21/10/2026); sem aceite na janela real do Windows.
+
+- **F12.04:** agendamento atrasado mais de 6 h (PC desligado ou suspenso) não dispara: vira aviso "Agendamento pulado" e recalcula o próximo horário (`ATRASO_MAX_AGENDAMENTO_S` em `orion-core/src/jobs.rs`). **Não feito:** acordar o PC pelo Agendador do Windows.
+- **F12.03:** agendamentos vencidos rodam um após o outro, na ordem do horário. Falha tenta de novo em 1 e 2 min; na terceira, o agendamento passa para o próximo horário e sai um aviso urgente.
+- **F13.05:** `Custos::alertas()` avisa uma vez por período quando uma cota passa de 80% e outra quando chega ao limite; roda nos jobs a cada 5 min. O chat continua sem bloqueio.
+- **F01.11:** tamanho e posição da janela (e com isso o monitor) ficam em `janela.txt`, ao lado de `interface.txt`, gravados ao fechar; só o app real reabre na posição salva. Posição absurda (monitor removido) volta ao centro. **Não medido:** janela pronta em menos de 1 s.
+- **F06.17 (parcial):** `orion vault-backup [destino]` compacta o vault em `vault-AAAAMMDD-HHMMSS.zip` (padrão: `<dados>/backups`), sem `.git`, `.trash` e `workspace*.json` do Obsidian; não segue symlink e recusa destino dentro do vault. **Não feito:** imagens geradas linkadas na nota; botão no app.
+- **F03.07 (parcial):** `complete_tier` (sem ferramentas: consolidação, resumos, pesquisa) devolve a mesma resposta para pedido idêntico por 24 h, só em memória (até 64 itens; esvazia ao trocar a configuração). O chat com ferramentas não usa cache. O cache de prompt do provedor depende de cada API e não foi ligado.
+- **F04.15:** ação destrutiva só libera Aprovar no cartão depois de digitar o comando (ou caminho) exato; sem argumento de comando, o nome da ferramenta. Vale no chat e em "Aguardando você"; atalho de teclado também respeita. Pelo Telegram continua só o botão.
+- **F04.21 (parcial):** ao chegar no limite de passos (padrão 25 por projeto), o Orion pergunta se deve continuar, em vez de um erro seco. **Não feito:** até 3 tarefas em paralelo com fila.
+- **F10.17 (parcial):** o status das CLIs no painel traz `versao` (`<cli> --version`, sem shell e sem `ORION_*`, guardada por 1 h). As CLIs continuam se atualizando pelo canal oficial; o Orion não atualiza nenhuma. Falta mostrar a versão na interface.
+- **F14.11:** cada senha errada no login manda aviso ao dono no Telegram (só o IP do cliente, nunca senha ou usuário). Tentativa durante a trava não avisa.
+
+**Segunda leva (mesmo dia, mesma branch):**
+
+- **F15.10:** o botão Ouvir de cada resposta chama `POST /voz/ouvir`: sintetiza com a voz configurada (edge-tts, que registra a saída, ou a voz do Windows) e toca no Windows. Pânico corta. Fora do Windows responde 501.
+- **F06.17 (completo, menos imagens):** botão "Gerar zip" em Configurações › Memória (`POST /vault/backup`), na pasta de backups.
+- **F04.21 (completo):** até 3 tarefas em segundo plano ao mesmo tempo (`MAX_PARALELAS`); as outras ficam `na_fila`, começam por ordem de chegada e podem ser canceladas na tela Nuvem.
+- **F06.22 / F07.09:** Configurações › Memória › Sobre você lista os fatos com Editar e Esquecer (mesmas rotas da tela Conhecimento).
+- **F10.17 (completo):** o Painel mostra a versão de cada CLI de assinatura (ou "não instalada").
+- **F14.04:** no Telegram, um turno do agente por vez; mensagem que chega com o PC ocupado recebe "está na fila" e é respondida em seguida, na ordem.
+- **F04.31 / F07.11 (parcial):** `ORION_TELEGRAM_EVENTS` (Configurações › Conectores) escolhe os tipos de aviso que vão ao Telegram; vazio = todos. Os demais continuam no app. Vale ao reiniciar. Windows, som e bandeja seguem nas preferências locais de Notificações.
+- **F11.05:** `executar_comando` com código de saída diferente de zero devolve uma dica para o modelo explicar a causa e oferecer o comando corrigido, que é nova chamada e passa pela mesma aprovação.
+- **F12.01 (parcial):** criar e listar agendamentos devolvem `proximas_execucoes` (3 próximas, DD/MM HH:MM). Linguagem natural continua a cargo do modelo.
+- **F23.11:** lembrete de água a cada N minutos das 8h às 22h (`ORION_WATER_EVERY_MIN`, 0 desliga) e aviso 30 min antes da hora de dormir (`ORION_BEDTIME_AT`). Opt-in; não perturbe e pânico seguram. Presença pela câmera não foi ligada.
+- **F12.13:** rotina que falha para no passo e avisa (urgente) dizendo qual passo e o motivo.
+- **F04.25:** com memória no turno, o prompt de sistema manda apontar e perguntar quando pedido, fato e nota divergem (REGRAS.md: o Orion não decide sozinho qual fato vale). Persona não foi tocada.
+- **F06.12 (parcial):** com `ORION_VAULT_DIARIO` ligado, o resumo diário pessoal (Você fez) vira nota em `03 Recursos/Orion/Memória/Diário/AAAA-MM-DD - Você fez.md`, sem sobrescrever e sem commit. **Não feito:** gerar na nuvem com o PC desligado.
+
+**Terceira leva (mesmo dia):**
+
+- **F06.18:** `/nota` no app real grava ou atualiza agora a nota da conversa no vault (`POST /sessoes/:sid/nota`), com as mesmas proteções do diário e sem commit, mesmo com o diário automático desligado. `/vault` já abria a busca.
+- **F05.02 (parcial):** `/resumo` no app real pede ao agente o resumo da conversa no próprio chat. `/imagem` continua desligado.
+- **F12.10 (parcial):** timer: `gerenciar_lembretes` aceita `em_minutos` (1 a 1440) e cria o lembrete sobre o mesmo agendador. Falta a barra lateral.
+- **Review do Codex no PR #69:** 17 achados, todos corrigidos e resolvidos (aprovação destrutiva por outros caminhos, monitor removido, login nativo, fila de tarefas: vaga, retomada, canal, pânico, cota, drenagem e cancelamento serializados, diário ao vivo, hora de dormir após meia-noite, backup com temporário exclusivo e cópia em fluxo).
 
 ## Módulo de câmera e gestos com as mãos — 30/10/2026
 

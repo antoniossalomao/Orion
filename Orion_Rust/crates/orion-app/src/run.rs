@@ -25,10 +25,12 @@ pub fn run_ui(api: Option<Api>, cena: Option<String>, fundo: bool) -> iced::Resu
     // ORION_MICA=0 desliga e deixa a janela opaca.
     let transparente = cfg!(windows) && hardware && std::env::var("ORION_MICA").map(|v| v != "0").unwrap_or(true);
     JANELA_TRANSPARENTE.store(transparente, std::sync::atomic::Ordering::Relaxed);
+    // F01.11: só o app real (com servidor) reabre onde estava; capturas e demo começam no padrão
+    let salva = api.as_ref().and(crate::uiprefs::load_geometry());
     let mut win = window::Settings {
-        size: Size::new(1440.0, 900.0),
+        size: salva.map(|(s, _)| s).unwrap_or(Size::new(1440.0, 900.0)),
         min_size: Some(Size::new(760.0, 520.0)),
-        position: window::Position::Centered,
+        position: salva.and_then(|(_, p)| p).map(window::Position::Specific).unwrap_or(window::Position::Centered),
         decorations: false,
         transparent: transparente,
         visible: !fundo,
@@ -39,6 +41,10 @@ pub fn run_ui(api: Option<Api>, cena: Option<String>, fundo: bool) -> iced::Resu
         let id = window::oldest().map(Msg::Win);
         if let Some(api) = api.clone() {
             let (mut a, t) = App::live(api);
+            if let Some((tamanho, pos)) = salva {
+                a.win = tamanho;
+                a.win_pos = pos;
+            }
             a.fundo = fundo;
             a.window_active = !fundo;
             return (a, Task::batch([t, id]));

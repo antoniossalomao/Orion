@@ -206,6 +206,7 @@ pub fn map_approval(a: &Value) -> Approval {
         risk: s(a, "risk").to_string(),
         args,
         truncated: a.get("args_truncated").and_then(Value::as_bool).unwrap_or(false),
+        typed: String::new(),
     }
 }
 
@@ -795,6 +796,10 @@ impl App {
             Msg::Approve(ci, mi) | Msg::Deny(ci, mi) => {
                 let ok = matches!(msg, Msg::Approve(..));
                 let ChatMsg::Orion(o) = self.convs.get(*ci)?.msgs.get(*mi)? else { return None };
+                // F04.15: vale para qualquer botão que emita Approve (cartão, Diff, atalho)
+                if ok && !o.approval.as_ref()?.typed_ok() {
+                    return Some((Task::done(Msg::Toast(crate::i18n::text("Digite o comando exato para aprovar esta ação destrutiva.").into())), false));
+                }
                 let id = o.approval.as_ref()?.id.clone();
                 if id.is_empty() {
                     return None;
@@ -882,6 +887,18 @@ impl App {
                 let (nome, valor) = (f.nome.clone(), f.value.trim().to_string());
                 let a2 = api.clone();
                 Some((Task::perform(async move { a2.post("/config/chave", json!({"nome": nome, "valor": valor})).await }, |r| Msg::L(Lm::KeySaved(r))), false))
+            }
+            Msg::FactsLoad => Some((crate::live::pull_page(&api, View::Conhecimento), false)),
+            Msg::VaultBackup => Some((Task::perform(async move {
+                let r = api.post("/vault/backup", json!({})).await?;
+                Ok(format!("Backup do vault: {} ({} arquivos)", s(&r, "arquivo"), r["arquivos"].as_i64().unwrap_or(0)))
+            }, |r| Msg::L(Lm::Acao(r, false))), false)),
+            Msg::Listen(texto) => {
+                let texto = texto.clone();
+                Some((Task::perform(async move { api.post("/voz/ouvir", json!({"texto": texto})).await.map(|_| String::new()) }, |r| match r {
+                    Ok(_) => Msg::Noop,
+                    Err(e) => Msg::L(Lm::Acao(Err(e), false)),
+                }), false))
             }
             Msg::VaultPull => {
                 let a2 = api.clone();

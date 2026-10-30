@@ -332,10 +332,18 @@ fn section<'a>(app: &'a App) -> El<'a> {
             c = c.push(setting(crate::i18n::text("Resumo diário das conversas triviais"), crate::i18n::text("Uma nota por dia em Memória/Diário, gerada às 23:59. O que você fez aparece em Você fez."), badge("23:59", Tone::Ok)));
             c = c.push(setting(crate::i18n::text("Salvar no GitHub"), crate::i18n::text("Cada nota gravada vira um commit direto na main do vault, sem PR."), badge(crate::i18n::text("automático"), Tone::Ok)));
             c = c.push(setting(crate::i18n::text("git pull do vault"), crate::i18n::text("Ao abrir o app, a cada conversa nova, antes de gravar uma nota e ao abrir a Memória."), btn(crate::i18n::text("Agora"), Kind::Normal, true, None, Some(Msg::VaultPull))));
+            c = c.push(setting(crate::i18n::text("Backup do vault"), crate::i18n::text("Gera um zip do vault na pasta de backups, sem o .git."), btn(crate::i18n::text("Gerar zip"), Kind::Normal, true, None, Some(Msg::VaultBackup))));
             c = c.push(setting(crate::i18n::text("Se você editou a mesma nota no Obsidian"), crate::i18n::text("A sua versão fica como está e a nova vira uma proposta. Compare as duas aqui e escolha."), badge(if app.conflitos.is_empty() { crate::i18n::text("sem conflitos") } else { crate::i18n::text("revisar") }, if app.conflitos.is_empty() { Tone::Ok } else { Tone::Plain })));
             for (i, (original, _, existe)) in app.conflitos.iter().enumerate() {
                 let nome = original.rsplit('/').next().unwrap_or(original);
                 c = c.push(setting(nome, crate::i18n::text("Conflito pendente no vault."), btn(crate::i18n::text("Comparar"), Kind::Normal, *existe, None, Some(Msg::ConflitoAbrir(i)))));
+            }
+            // F06.22/F07.09: os fatos sobre você, com editar e esquecer (as mudanças vão para a nota)
+            c = c.push(sh(crate::i18n::text("Sobre você")));
+            if app.facts.is_empty() {
+                c = c.push(setting(crate::i18n::text("Fatos que o Orion sabe de você"), crate::i18n::text("Carregue a lista para editar ou esquecer."), btn(crate::i18n::text("Carregar"), Kind::Normal, true, None, Some(Msg::FactsLoad))));
+            } else {
+                c = c.push(crate::views::pages::list(crate::views::pages::fact_rows(app, |_| true)));
             }
             c = c.push(setting(crate::i18n::text("Grafo"), crate::i18n::text("3D no app final, como o Obsidian, sobre o céu do front original."), btn(crate::i18n::text("Abrir"), Kind::Normal, true, None, Some(Msg::SetGo(crate::app::View::Memoria)))));
         }

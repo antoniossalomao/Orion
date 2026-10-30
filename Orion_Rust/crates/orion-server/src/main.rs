@@ -304,6 +304,9 @@ enum Cmd {
     /// Importa um arquivo autenticado para uma pasta NOVA, com nova senha de login.
     #[command(name="backup-importar")]
     BackupImportar { arquivo:PathBuf, pasta:PathBuf, #[arg(long)] recuperacao:bool },
+    /// Compacta o vault num zip na pasta indicada (padrão: backups do Orion), sem .git (F06.17).
+    #[command(name = "vault-backup")]
+    VaultBackup { destino: Option<PathBuf> },
     /// Restaura um backup no lugar do banco (confere antes).
     Restore {
         arquivo: PathBuf,
@@ -620,6 +623,14 @@ fn rodar(cli: Cli) -> anyhow::Result<i32> {
                 Some(p) => println!("backup: {}", p.display()),
                 None => println!("backup de hoje já existe"),
             }
+            Ok(0)
+        }
+        Cmd::VaultBackup { destino } => {
+            let vault = s.vault_dir.clone().or_else(orion_vault::detect_vault_path).ok_or_else(|| anyhow::anyhow!("nenhum vault configurado (vault_dir)"))?;
+            let pasta = destino.clone().unwrap_or_else(|| s.data_dir.join("backups"));
+            let agora = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs_f64()).unwrap_or(0.0);
+            let (zip, n) = orion_core::vault_backup::zip_vault(&vault, &pasta, agora)?;
+            println!("backup do vault: {} ({n} arquivos)", zip.display());
             Ok(0)
         }
         Cmd::SetPassword { stdin } => set_password(&s, *stdin),

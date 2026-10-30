@@ -174,7 +174,14 @@ pub struct ChatGateway {
     pub orcamento: Mutex<Option<Orcamento>>,
     pub weekly_budget: Mutex<Option<Arc<crate::budget::Budget>>>,
     pub embedded_local: Mutex<Option<LocalGenerator>>,
+    /// Respostas de `complete_tier` (sem ferramentas) para o mesmo pedido, por 24 h (F03.07).
+    /// Só em memória: o texto não vai para disco e some quando o Orion fecha.
+    cache: Mutex<HashMap<String, (Instant, String)>>,
 }
+
+/// Validade de uma resposta idêntica guardada (F03.07).
+pub const CACHE_TTL: Duration = Duration::from_secs(24 * 3600);
+const CACHE_MAX: usize = 64;
 
 fn agora_epoch() -> f64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs_f64()).unwrap_or(0.0)
@@ -209,7 +216,7 @@ impl ChatGateway {
         for ep in &endpoints {
             estado.stats.insert(ep.name.clone(), EndpointStats::default());
         }
-        Ok(ChatGateway { endpoints: parking_lot::RwLock::new(endpoints), configuration: tokio::sync::RwLock::new(()), client, cooldown_s, estado: Mutex::new(estado), weekly_budget: Mutex::new(None), orcamento: Mutex::new(None), embedded_local: Mutex::new(None) })
+        Ok(ChatGateway { endpoints: parking_lot::RwLock::new(endpoints), configuration: tokio::sync::RwLock::new(()), client, cooldown_s, estado: Mutex::new(estado), weekly_budget: Mutex::new(None), orcamento: Mutex::new(None), embedded_local: Mutex::new(None), cache: Mutex::new(HashMap::new()) })
     }
 
     pub fn unconfigured() -> anyhow::Result<Self> {
@@ -241,6 +248,7 @@ impl ChatGateway {
         }
         update();
         *current = endpoints;
+        self.cache.lock().clear();
     }
 
     /// Um objeto por endpoint, na ordem de tentativa (para o painel). Nunca mostra segredo
@@ -440,7 +448,17 @@ impl ChatGateway {
         self.complete_tier(messages, None).await
     }
 
+    /// Pedido idêntico (mesmas mensagens e camada) nas últimas 24 h volta do cache sem gastar cota.
+    /// Só vale aqui, sem ferramentas: resposta com ferramenta depende do estado do computador.
     pub async fn complete_tier(&self, messages: Vec<Value>, tier: Option<&str>) -> Result<String, GatewayError> {
+        let chave = format!("{}\u{0}{}", tier.unwrap_or(""), Value::Array(messages.clone()));
+        {
+            let mut c = self.cache.lock();
+            c.retain(|_, (t, _)| t.elapsed() < CACHE_TTL);
+            if let Some((_, texto)) = c.get(&chave) {
+                return Ok(texto.clone());
+            }
+        }
         let mut texto = String::new();
         let mut s = self.stream(messages, None, tier);
         while let Some(ev) = s.next().await {
@@ -448,7 +466,21 @@ impl ChatGateway {
                 texto.push_str(&t);
             }
         }
+        if !texto.trim().is_empty() {
+            let mut c = self.cache.lock();
+            if c.len() >= CACHE_MAX {
+                if let Some(velha) = c.iter().min_by_key(|(_, (t, _))| *t).map(|(k, _)| k.clone()) {
+                    c.remove(&velha);
+                }
+            }
+            c.insert(chave, (Instant::now(), texto.clone()));
+        }
         Ok(texto)
+    }
+
+    /// Esvazia o cache de respostas (troca de configuração ou pedido seu).
+    pub fn clear_cache(&self) {
+        self.cache.lock().clear();
     }
 
     fn run<'a>(
