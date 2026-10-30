@@ -1575,3 +1575,4 @@ ui-1138 = { "Water reminder (minutes)" }
 ui-1139 = { "Bedtime" }
 ui-1140 = { "Reminds you to drink water at this interval, 8am to 10pm. 0 turns it off. Do not disturb holds the notice." }
 ui-1141 = { "Notifies 30 minutes before this time (HH:MM). Empty turns it off." }
+ui-1142 = { "Type the exact command to approve this destructive action." }

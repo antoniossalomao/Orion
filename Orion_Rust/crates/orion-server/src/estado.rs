@@ -721,7 +721,9 @@ pub async fn montar_with_runtime(mut settings: Settings, preserve_extensions:boo
             let _ = b;
             ex.briefing = Some(Arc::new(move || orion_core::briefing::build_briefing(&o, orion_core::util::agora(), "Antônio", None)));
             let tb = orion_core::tarefas_bg::TarefasBg::new(memory.clone(), ops.clone(), a.clone(), Some(custos.clone()), Some(modos.clone()));
-            (Some(Arc::new(ex)), Some(Arc::new(tb)))
+            let tb = Arc::new(tb);
+            tb.retomar_fila();
+            (Some(Arc::new(ex)), Some(tb))
         }
         None => (None, None),
     };

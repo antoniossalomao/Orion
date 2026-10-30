@@ -12,3 +12,4 @@ anyhow.workspace = true
 [target.'cfg(windows)'.dependencies]
 tray-icon = "0.21"
 global-hotkey = "0.7"
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Gdi"] }

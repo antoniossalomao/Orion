@@ -125,6 +125,21 @@ impl TarefasBg {
         self.obter(tid)
     }
 
+    /// Ao abrir o Orion: o que estava rodando quando ele fechou fica `interrompida` (não recomeça
+    /// sozinho no meio) e a fila volta a andar.
+    pub fn retomar_fila(self: &Arc<Self>) {
+        let agora = self.memory.now();
+        let r = self.memory.tx(|c| {
+            c.execute("UPDATE background_tasks SET status='interrompida', finished_at=? WHERE status='rodando'", orion_store::rusqlite::params![agora])?;
+            Ok(())
+        });
+        if let Err(e) = r {
+            tracing::error!("fila de tarefas em segundo plano não retomou: {e}");
+            return;
+        }
+        self.proxima();
+    }
+
     fn rodando(&self) -> usize {
         self.tarefas.lock().values().filter(|t| !t.is_finished()).count()
     }
@@ -145,6 +160,8 @@ impl TarefasBg {
             let me = self.clone();
             let h = tokio::spawn(async move {
                 me.executar(tid, objetivo, max_passos, max_min).await;
+                // libera a vaga antes de olhar a fila: o próprio handle ainda não terminou aqui
+                me.tarefas.lock().remove(&tid);
                 me.proxima();
             });
             self.tarefas.lock().insert(tid, h);
@@ -156,8 +173,10 @@ impl TarefasBg {
         let mut passos = 0i64;
         let mut status = "concluida";
         let consumir = async {
-            let _ = self.memory.new_session(CANAL, Some(&format!("Tarefa: {objetivo}").chars().take(120).collect::<String>()), None);
-            let req = TurnRequest { channel: CANAL.into(), text: prompt(&objetivo), read_only: true, ..Default::default() };
+            // um canal por tarefa: com várias rodando juntas, cada uma tem a sua conversa
+            let canal = format!("{CANAL}:{tid}");
+            let _ = self.memory.new_session(&canal, Some(&format!("Tarefa: {objetivo}").chars().take(120).collect::<String>()), None);
+            let req = TurnRequest { channel: canal, text: prompt(&objetivo), read_only: true, ..Default::default() };
             let mut eventos = self.agent.run(req);
             while let Some(ev) = eventos.next().await {
                 match ev.kind {

@@ -61,7 +61,8 @@ pub fn load_geometry() -> Option<(iced::Size, Option<iced::Point>)> {
     }
     // monitor que sumiu deixaria a janela fora da tela: posição absurda volta ao centro
     let pos = match (v.get("x"), v.get("y")) {
-        (Some(&x), Some(&y)) if (-10_000.0..=20_000.0).contains(&x) && (-200.0..=20_000.0).contains(&y) => Some(iced::Point::new(x, y)),
+        // a barra de título (canto de cima, 40 px para dentro) precisa cair num monitor conectado agora
+        (Some(&x), Some(&y)) if (-10_000.0..=20_000.0).contains(&x) && (-200.0..=20_000.0).contains(&y) && orion_platform::point_on_monitor((x + 40.0) as i32, (y + 20.0) as i32) => Some(iced::Point::new(x, y)),
         _ => None,
     };
     Some((iced::Size::new(w, h), pos))

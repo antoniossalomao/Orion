@@ -267,7 +267,15 @@ impl Local for Interno {
                     Ok::<(), String>(())
                 })
                 .await
-                .map_err(|_| "não foi possível verificar a senha".to_string())??;
+                .map_err(|_| "não foi possível verificar a senha".to_string())?
+                .inspect_err(|e| {
+                    // F14.11: senha errada na janela nativa também avisa o dono no Telegram
+                    if e == "usuário ou senha incorretos" {
+                        if let Some(user) = profile.as_ref().and_then(|p| p.telegram_users.first()).copied() {
+                            tokio::spawn(avisar_falha_login_nativa(user));
+                        }
+                    }
+                })?;
                 if needs_2fa {
                     let (id, code) = NATIVE_2FA.issue("native").map_err(String::from)?;
                     let token = zeroize::Zeroizing::new(orion_ai::secrets::get_secret("ORION_TELEGRAM_TOKEN").ok_or("token do bot não configurado")?);
@@ -1022,5 +1030,19 @@ mod tests {
         assert!(!api.bloqueado());
         assert!(api.health().await.is_ok(), "depois de abrir, o núcleo responde");
         let _ = std::fs::remove_dir_all(dir);
+    }
+}
+
+/// F14.11: aviso ao dono pelo Telegram quando a senha da janela nativa erra. Funciona com o núcleo
+/// trancado (token do cofre do sistema). Não leva senha nem usuário digitado.
+async fn avisar_falha_login_nativa(chat_id: i64) {
+    let Some(token) = orion_ai::secrets::get_secret("ORION_TELEGRAM_TOKEN").map(zeroize::Zeroizing::new) else { return };
+    if !token.chars().all(|c| c.is_ascii_alphanumeric() || ":_-".contains(c)) {
+        return;
+    }
+    let Ok(client) = reqwest::Client::builder().timeout(Duration::from_secs(15)).redirect(reqwest::redirect::Policy::none()).build() else { return };
+    let texto = "⚠️ Tentativa de entrada no Orion com senha errada neste computador. Se não foi você, troque a senha.";
+    if client.post(format!("https://api.telegram.org/bot{}/sendMessage", &*token)).json(&serde_json::json!({"chat_id": chat_id, "text": texto})).send().await.is_err() {
+        tracing::warn!("aviso de login no Telegram falhou");
     }
 }

@@ -796,6 +796,10 @@ impl App {
             Msg::Approve(ci, mi) | Msg::Deny(ci, mi) => {
                 let ok = matches!(msg, Msg::Approve(..));
                 let ChatMsg::Orion(o) = self.convs.get(*ci)?.msgs.get(*mi)? else { return None };
+                // F04.15: vale para qualquer botão que emita Approve (cartão, Diff, atalho)
+                if ok && !o.approval.as_ref()?.typed_ok() {
+                    return Some((Task::done(Msg::Toast(crate::i18n::text("Digite o comando exato para aprovar esta ação destrutiva.").into())), false));
+                }
                 let id = o.approval.as_ref()?.id.clone();
                 if id.is_empty() {
                     return None;

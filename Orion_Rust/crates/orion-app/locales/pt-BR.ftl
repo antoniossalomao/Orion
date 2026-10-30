@@ -1575,3 +1575,4 @@ ui-1138 = { "Lembrete de água (minutos)" }
 ui-1139 = { "Hora de dormir" }
 ui-1140 = { "Lembra de beber água nesse intervalo, das 8h às 22h. 0 desliga. Não perturbe segura o aviso." }
 ui-1141 = { "Avisa 30 minutos antes deste horário (HH:MM). Vazio desliga." }
+ui-1142 = { "Digite o comando exato para aprovar esta ação destrutiva." }

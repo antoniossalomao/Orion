@@ -105,3 +105,18 @@ pub fn session_locked() -> bool {
 pub fn session_locked() -> bool {
     false
 }
+
+/// F01.11: o ponto (coordenadas da área de trabalho) cai em algum monitor conectado agora?
+/// Janela salva num monitor que foi desconectado não deve reabrir fora da tela.
+#[cfg(windows)]
+pub fn point_on_monitor(x: i32, y: i32) -> bool {
+    use windows_sys::Win32::Foundation::POINT;
+    use windows_sys::Win32::Graphics::Gdi::{MonitorFromPoint, MONITOR_DEFAULTTONULL};
+    // SAFETY: MonitorFromPoint só lê o ponto passado por valor; não há ponteiro envolvido.
+    !unsafe { MonitorFromPoint(POINT { x, y }, MONITOR_DEFAULTTONULL) }.is_null()
+}
+/// Fora do Windows não dá para saber: aceita e deixa o gerenciador de janelas ajustar.
+#[cfg(not(windows))]
+pub fn point_on_monitor(_x: i32, _y: i32) -> bool {
+    true
+}
