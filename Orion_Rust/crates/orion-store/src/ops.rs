@@ -571,18 +571,16 @@ impl Operations {
         )
     }
 
-    /// Pendentes com id maior que `depois_de` (marca de um canal que pula tipos). `so_urgentes` filtra
-    /// antes do limite, para o segurado pelo não perturbe não ocupar a janela.
-    pub fn pending_notifications_after(&self, depois_de: i64, so_urgentes: bool, limit: i64) -> Result<Vec<Row>> {
-        self.query(
-            "SELECT * FROM notifications WHERE delivered_at IS NULL AND id>? AND (urgent=1 OR ?=0) ORDER BY id LIMIT ?",
-            vec![depois_de.into(), (so_urgentes as i64).into(), limit.into()],
-        )
-    }
-
-    /// Não perturbe está segurando os avisos que não são urgentes?
-    pub fn segurando(&self) -> bool {
-        (self.segurar.read())()
+    /// Pendentes só dos `tipos` dados (vazio = todos), com o filtro do não perturbe; tudo antes do
+    /// limite, para o que fica de fora não ocupar a janela de um canal que só entrega alguns tipos.
+    pub fn pending_notifications_of(&self, tipos: &[String], limit: i64) -> Result<Vec<Row>> {
+        let so_urgentes = (self.segurar.read())();
+        let marcas = vec!["?"; tipos.len()].join(",");
+        let filtro = if tipos.is_empty() { String::new() } else { format!(" AND kind IN ({marcas})") };
+        let mut params: Vec<Sql> = vec![(so_urgentes as i64).into()];
+        params.extend(tipos.iter().map(|t| Sql::from(t.clone())));
+        params.push(limit.into());
+        self.query(&format!("SELECT * FROM notifications WHERE delivered_at IS NULL AND (urgent=1 OR ?=0){filtro} ORDER BY id LIMIT ?"), params)
     }
 
     /// Avisos mais novos primeiro, entregues ou não (a caixa de atividade da interface).

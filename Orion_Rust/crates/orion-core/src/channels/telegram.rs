@@ -402,38 +402,20 @@ impl TelegramChannel {
 
     /// Entrega a fila de avisos; só confirma o que foi enviado (falha: tenta na próxima).
     pub async fn deliver_notifications(&self) -> R<usize> {
+        // F04.31: só os tipos da matriz vêm na consulta; o resto não é marcado como entregue e o app
+        // continua com ele não lido (o não perturbe filtra na mesma consulta)
         let eventos = self.eventos.lock().clone();
-        // F04.31: tipo fora da matriz não é marcado como entregue (o app continua com ele não lido);
-        // o Telegram só guarda até onde já olhou, numa marca própria
-        let marca = if eventos.is_empty() { 0 } else { self.memory.counter_get("telegram:avisos:visto") };
-        // com não perturbe só vêm os urgentes, e a marca não anda: os segurados ficam abaixo dela
-        // e saem quando o modo acabar
-        let segurando = self.ops.segurando();
         let ops = self.ops.clone();
-        let pendentes = tokio::task::spawn_blocking(move || ops.pending_notifications_after(marca, segurando, 50)).await.ok().and_then(Result::ok).unwrap_or_default();
+        let pendentes = tokio::task::spawn_blocking(move || ops.pending_notifications_of(&eventos, 50)).await.ok().and_then(Result::ok).unwrap_or_default();
         let mut enviados = 0;
-        let mut visto = marca;
-        let preso = segurando;
         for n in pendentes {
             let id = n["id"].as_i64().unwrap_or(0);
-            if !eventos.is_empty() && !eventos.iter().any(|e| n["kind"].as_str() == Some(e.as_str())) {
-                if !preso {
-                    visto = visto.max(id);
-                }
-                continue;
-            }
             if let Err(e) = self.enviar(self.home, &format!("🔔 {}", n["text"].as_str().unwrap_or("")), teclado_lembrete(&n)).await {
                 tracing::warn!("telegram: aviso {id} não enviado: {e}");
                 break;
             }
             let _ = self.ops.ack_notification(id);
-            if !preso {
-                visto = visto.max(id);
-            }
             enviados += 1;
-        }
-        if !eventos.is_empty() && visto > marca {
-            let _ = self.memory.counter_set("telegram:avisos:visto", visto);
         }
         Ok(enviados)
     }
