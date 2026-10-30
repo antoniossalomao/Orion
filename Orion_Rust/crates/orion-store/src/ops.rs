@@ -571,6 +571,15 @@ impl Operations {
         )
     }
 
+    /// Como `pending_notifications`, só com id maior que `depois_de` (marca de um canal que pula tipos).
+    pub fn pending_notifications_after(&self, depois_de: i64, limit: i64) -> Result<Vec<Row>> {
+        let so_urgentes = (self.segurar.read())();
+        self.query(
+            "SELECT * FROM notifications WHERE delivered_at IS NULL AND id>? AND (urgent=1 OR ?=0) ORDER BY id LIMIT ?",
+            vec![depois_de.into(), (so_urgentes as i64).into(), limit.into()],
+        )
+    }
+
     /// Avisos mais novos primeiro, entregues ou não (a caixa de atividade da interface).
     pub fn recent_notifications(&self, limit: i64) -> Result<Vec<Row>> {
         self.query("SELECT * FROM notifications ORDER BY id DESC LIMIT ?", vec![limit.clamp(1, 200).into()])
