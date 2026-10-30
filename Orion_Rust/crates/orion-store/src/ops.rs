@@ -366,6 +366,19 @@ impl Operations {
         )
     }
 
+    /// F12.04: próximo horário em que algo precisa rodar (agendamento ativo ou lembrete pendente),
+    /// depois de `depois`, em todos os projetos. Serve para acordar o PC suspenso.
+    pub fn proximo_despertar(&self, depois: f64) -> Result<Option<f64>> {
+        let c = self.s.conn();
+        let rows = query_maps(
+            &c,
+            "SELECT MIN(t) AS t FROM (SELECT next_run AS t FROM schedules WHERE active=1 AND next_run>?1
+             UNION ALL SELECT due_at AS t FROM reminders WHERE done=0 AND notified=0 AND due_at>?1)",
+            &[&depois as &dyn rusqlite::ToSql],
+        )?;
+        Ok(rows.first().and_then(|r| r.get("t")).and_then(Value::as_f64))
+    }
+
     /// Registra o disparo e calcula o próximo (um atraso longo dispara uma vez só).
     pub fn mark_schedule_fired(&self, id: i64, now: Option<f64>) -> Result<Row> {
         let agora = now.unwrap_or_else(|| self.now());
@@ -573,12 +586,20 @@ impl Operations {
 
     /// Pendentes só dos `tipos` dados (vazio = todos), com o filtro do não perturbe; tudo antes do
     /// limite, para o que fica de fora não ocupar a janela de um canal que só entrega alguns tipos.
+    /// `tipos`: vazio = todos; `tipo` = só esses; `-tipo` = todos menos esses (tipo novo continua indo).
     pub fn pending_notifications_of(&self, tipos: &[String], limit: i64) -> Result<Vec<Row>> {
         let so_urgentes = (self.segurar.read())();
-        let marcas = vec!["?"; tipos.len()].join(",");
-        let filtro = if tipos.is_empty() { String::new() } else { format!(" AND kind IN ({marcas})") };
+        let (fora, so): (Vec<&String>, Vec<&String>) = tipos.iter().partition(|t| t.starts_with('-'));
+        let mut filtro = String::new();
+        if !so.is_empty() {
+            filtro += &format!(" AND kind IN ({})", vec!["?"; so.len()].join(","));
+        }
+        if !fora.is_empty() {
+            filtro += &format!(" AND kind NOT IN ({})", vec!["?"; fora.len()].join(","));
+        }
         let mut params: Vec<Sql> = vec![(so_urgentes as i64).into()];
-        params.extend(tipos.iter().map(|t| Sql::from(t.clone())));
+        params.extend(so.iter().map(|t| Sql::from(t.to_string())));
+        params.extend(fora.iter().map(|t| Sql::from(t[1..].to_string())));
         params.push(limit.into());
         self.query(&format!("SELECT * FROM notifications WHERE delivered_at IS NULL AND (urgent=1 OR ?=0){filtro} ORDER BY id LIMIT ?"), params)
     }

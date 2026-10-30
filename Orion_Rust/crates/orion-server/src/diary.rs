@@ -22,8 +22,72 @@ fn one_line(t: &str, max: usize) -> String {
     t.split_whitespace().collect::<Vec<_>>().join(" ").chars().filter(|c| !c.is_control()).take(max).collect()
 }
 
+/// Imagem gerada citada na resposta: `![alt](/imagens/img-….png)` (nome criado pelo código).
+static IMAGEM: std::sync::LazyLock<regex::Regex> =
+    std::sync::LazyLock::new(|| regex::Regex::new(r"!\[([^\]\n]*)\]\(/imagens/(img-\d{9,12}-[0-9a-f]{8}\.(?:png|jpg|webp))\)").unwrap());
+
+/// Pasta do vault que recebe as imagens geradas citadas nas notas.
+const PASTA_IMAGENS: [&str; 4] = ["03 Recursos", "Orion", "Memória", "Imagens"];
+
+/// F06.17: a imagem gerada citada na conversa é copiada para o vault,
+/// para a nota não ficar com link quebrado fora do Orion. O link fica relativo à nota
+/// (`Imagens/<nome>`), que o Obsidian abre, e não wikilink: a validação só aceita wikilink para nota.
+/// Nunca sobrescreve um arquivo do vault;
+/// imagem que já não existe no Orion fica com o link original.
+fn levar_imagens(vault: &Path, imagens: &Path, texto: &str) -> String {
+    if !texto.contains("](/imagens/") {
+        return texto.to_string();
+    }
+    IMAGEM
+        .replace_all(texto, |c: &regex::Captures| {
+            let nome = &c[2];
+            match copiar_imagem(vault, imagens, nome) {
+                Ok(true) => format!("![{}](Imagens/{nome})", &c[1]),
+                Ok(false) => c[0].to_string(),
+                Err(e) => {
+                    tracing::warn!("imagem {nome} não foi para o vault: {e}");
+                    c[0].to_string()
+                }
+            }
+        })
+        .into_owned()
+}
+
+fn copiar_imagem(vault: &Path, imagens: &Path, nome: &str) -> std::io::Result<bool> {
+    let raiz = vault.canonicalize()?;
+    let pasta = PASTA_IMAGENS.iter().fold(raiz.clone(), |p, d| p.join(d));
+    // já copiada antes: vale mesmo que o Orion tenha apagado a original (limite de 200 imagens)
+    if std::fs::symlink_metadata(pasta.join(nome)).is_ok_and(|m| m.is_file()) && pasta.canonicalize().is_ok_and(|p| p.starts_with(&raiz)) {
+        return Ok(true);
+    }
+    let origem = imagens.join(nome);
+    if !origem.is_file() {
+        return Ok(false);
+    }
+    std::fs::create_dir_all(&pasta)?;
+    // a pasta não pode apontar para fora do vault (symlink)
+    if !pasta.canonicalize()?.starts_with(&raiz) {
+        return Err(std::io::Error::other("pasta de imagens fora do vault"));
+    }
+    let destino = pasta.join(nome);
+    match std::fs::OpenOptions::new().write(true).create_new(true).open(&destino) {
+        Ok(mut f) => {
+            let r = std::io::copy(&mut std::fs::File::open(&origem)?, &mut f);
+            if let Err(e) = r {
+                drop(f);
+                let _ = std::fs::remove_file(&destino);
+                return Err(e);
+            }
+            Ok(true)
+        }
+        // mesmo nome (gerado pelo código, com carimbo e sorteio): já foi copiada antes
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => Ok(true),
+        Err(e) => Err(e),
+    }
+}
+
 /// Monta a note a partir do que está no banco. `None` se ainda não há conversa para registrar.
-fn build(memory: &Arc<Store>, vault: &Path, sid: &str) -> anyhow::Result<Option<ConversationNote>> {
+fn build(memory: &Arc<Store>, vault: &Path, imagens: &Path, sid: &str) -> anyhow::Result<Option<ConversationNote>> {
     let Some(session) = memory.get_session(sid)? else { return Ok(None) };
     let turns: Vec<_> = memory
         .history(sid, 1000, 0)?
@@ -37,6 +101,7 @@ fn build(memory: &Arc<Store>, vault: &Path, sid: &str) -> anyhow::Result<Option<
     for m in &turns {
         let who = if m.role == "user" { "Antônio" } else { "Orion" };
         let text: String = m.text.trim().chars().take(MAX_TURN_CHARS).collect();
+        let text = if m.role == "assistant" { levar_imagens(vault, imagens, &text) } else { text };
         let block = format!("**{who}:**\n\n{text}\n\n");
         if dialogue.len() + block.len() > MAX_TOTAL_CHARS {
             dialogue.push_str("> Conversa truncada neste diário; o registro completo fica no Orion.\n");
@@ -77,12 +142,12 @@ fn build(memory: &Arc<Store>, vault: &Path, sid: &str) -> anyhow::Result<Option<
     }))
 }
 
-fn save(memory: &Arc<Store>, vault: &Path, sid: &str) -> anyhow::Result<()> {
+fn save(memory: &Arc<Store>, vault: &Path, imagens: &Path, sid: &str) -> anyhow::Result<()> {
     let previous = memory.meta_get(&key(sid));
     if previous.as_deref() == Some(CONFLICT) {
         return Ok(());
     }
-    let Some(note) = build(memory, vault, sid)? else { return Ok(()) };
+    let Some(note) = build(memory, vault, imagens, sid)? else { return Ok(()) };
     let mgr = VaultManager::new(Some(vault.to_path_buf()))?.without_git();
     let result = mgr.save_diary(&note, previous.as_deref())?;
     if result.conflict.is_some() {
@@ -100,9 +165,9 @@ fn save(memory: &Arc<Store>, vault: &Path, sid: &str) -> anyhow::Result<()> {
 /// F06.18: `/nota` grava (ou atualiza) agora a nota desta conversa, por comando seu, mesmo com o
 /// diário automático desligado. Mesmas proteções do diário: sem sobrescrever o que você editou.
 /// Devolve o caminho da nota, ou `None` se ainda não há conversa para registrar.
-pub fn save_now(memory: &Arc<Store>, vault: &Path, sid: &str) -> anyhow::Result<Option<String>> {
+pub fn save_now(memory: &Arc<Store>, vault: &Path, imagens: &Path, sid: &str) -> anyhow::Result<Option<String>> {
     anyhow::ensure!(memory.meta_get(&key(sid)).as_deref() != Some(CONFLICT), "a nota desta conversa foi editada no vault; resolva o conflito antes de gravar de novo");
-    let Some(note) = build(memory, vault, sid)? else { return Ok(None) };
+    let Some(note) = build(memory, vault, imagens, sid)? else { return Ok(None) };
     let previous = memory.meta_get(&key(sid));
     let mgr = VaultManager::new(Some(vault.to_path_buf()))?.without_git();
     let result = mgr.save_diary(&note, previous.as_deref())?;
@@ -156,7 +221,7 @@ pub fn session_report(vault: &Path) {
 
 /// Gancho do agente: roda em segundo plano, uma conversa de cada vez; chamadas que chegam durante a
 /// gravação são descartadas e a próxima resposta atualiza a note por inteiro.
-pub fn hook(memory: Arc<Store>, vault: PathBuf, enabled: Arc<std::sync::atomic::AtomicBool>) -> Arc<dyn Fn(&str) + Send + Sync> {
+pub fn hook(memory: Arc<Store>, vault: PathBuf, imagens: PathBuf, enabled: Arc<std::sync::atomic::AtomicBool>) -> Arc<dyn Fn(&str) + Send + Sync> {
     let running = Arc::new(Mutex::new(HashSet::<String>::new()));
     Arc::new(move |sid: &str| {
         if !enabled.load(std::sync::atomic::Ordering::Relaxed) {
@@ -165,9 +230,9 @@ pub fn hook(memory: Arc<Store>, vault: PathBuf, enabled: Arc<std::sync::atomic::
         if !running.lock().insert(sid.to_string()) {
             return;
         }
-        let (memory, vault, running, sid) = (memory.clone(), vault.clone(), running.clone(), sid.to_string());
+        let (memory, vault, imagens, running, sid) = (memory.clone(), vault.clone(), imagens.clone(), running.clone(), sid.to_string());
         tokio::task::spawn_blocking(move || {
-            if let Err(e) = save(&memory, &vault, &sid) {
+            if let Err(e) = save(&memory, &vault, &imagens, &sid) {
                 tracing::warn!("diário do vault adiado: {e}");
             }
             running.lock().remove(&sid);

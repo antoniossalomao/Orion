@@ -112,6 +112,8 @@ pub struct TelegramChannel {
     /// F04.31: tipos de aviso que este canal entrega; vazio = todos. Os outros ficam só no app.
     pub eventos: Mutex<Vec<String>>,
     armados: Mutex<HashMap<i64, Instant>>,
+    /// F04.15: ação destrutiva aprovada no botão espera o texto exato: chat → (aprovação, texto, canal, cartão).
+    confirmando: Mutex<HashMap<i64, (String, String, String, Value)>>,
     offset: Mutex<i64>,
     recusados: Mutex<HashSet<i64>>,
 }
@@ -164,6 +166,7 @@ impl TelegramChannel {
             turno: tokio::sync::Mutex::new(()),
             eventos: Mutex::new(vec![]),
             armados: Mutex::new(HashMap::new()),
+            confirmando: Mutex::new(HashMap::new()),
             offset: Mutex::new(0),
             recusados: Mutex::new(HashSet::new()),
         })
@@ -451,6 +454,24 @@ impl TelegramChannel {
         let texto = m["text"].as_str().unwrap_or("").trim().to_string();
         let comando = texto.split_whitespace().next().map(|c| c.split('@').next().unwrap_or("").to_lowercase()).unwrap_or_default();
         let arg = || texto.split_once(char::is_whitespace).map(|x| x.1.trim().to_string()).unwrap_or_default();
+        // F04.15: a próxima mensagem depois de Aprovar numa ação destrutiva é a confirmação digitada
+        let pendente = self.confirmando.lock().remove(&chat_id);
+        // comando (inclusive /panico) não é confirmação: cancela a espera e segue para o comando
+        if let Some((aprovacao_id, esperado, canal, cartao)) = pendente.filter(|_| !texto.starts_with('/')) {
+            if texto == esperado {
+                let uid = m["from"]["id"].as_i64().unwrap_or(0);
+                if self.approvals.decide(&aprovacao_id, true, CANAL, &format!("telegram:{uid}")).is_err() {
+                    self.dizer(chat_id, "Já decidida ou expirada.").await;
+                    return;
+                }
+                let _ = self.api("editMessageReplyMarkup", json!({"chat_id": chat_id, "message_id": cartao, "reply_markup": {"inline_keyboard": []}})).await;
+                self.dizer(chat_id, "Aprovado ✅").await;
+                self.consumir(chat_id, self.agent.resume(&canal, &aprovacao_id)).await;
+            } else {
+                self.dizer(chat_id, "O texto não confere; nada foi aprovado. A ação continua esperando: toque em Aprovar de novo ou em Negar.").await;
+            }
+            return;
+        }
         if comando == "/capturar" {
             self.on_capturar(chat_id, &texto).await;
             return;
@@ -842,6 +863,17 @@ impl TelegramChannel {
             self.fechar_botoes(cb, chat_id, msg, "Argumentos grandes demais: só dá para negar.").await;
             return;
         }
+        // F04.15: ação destrutiva só se aprova digitando o comando (ou caminho) exato
+        if resposta {
+            if let Some(esperado) = confirmacao_digitada(&self.agent.policy, &a.tool, &a.args) {
+                self.confirmando.lock().insert(chat_id, (aprovacao_id.clone(), esperado.clone(), original_channel, msg["message_id"].clone()));
+                let _ = self.api("answerCallbackQuery", json!({"callback_query_id": cb["id"], "text": "Digite o texto para confirmar"})).await;
+                self.dizer(chat_id, &format!("Ação destrutiva. Para aprovar, responda com o texto exato abaixo (qualquer outra resposta cancela):\n\n{esperado}")).await;
+                return;
+            }
+        } else {
+            self.confirmando.lock().retain(|_, p| p.0 != aprovacao_id);
+        }
         if self.approvals.decide(&aprovacao_id, resposta, CANAL, &format!("telegram:{}", uid.unwrap_or(0))).is_err() {
             self.fechar_botoes(cb, chat_id, msg, "Já decidida ou expirada.").await;
             return;
@@ -889,6 +921,21 @@ fn teclado(aprovacao_id: &str, aprovar: bool) -> Value {
         return json!([[negar]]);
     }
     json!([[{"text": "✅ Aprovar", "callback_data": format!("ap:{aprovacao_id}:y")}, negar]])
+}
+
+/// F04.15: texto a digitar para aprovar uma ação destrutiva (o mesmo do app): comando ou caminho
+/// inteiro, ou o nome da ferramenta. `None` se a ação não é destrutiva.
+fn confirmacao_digitada(policy: &orion_policy::PolicyEngine, tool: &str, args: &serde_json::Map<String, Value>) -> Option<String> {
+    let risco = policy.spec(tool).and_then(|s| s.risk)?;
+    if risco.as_str() != "destructive" {
+        return None;
+    }
+    // o mesmo texto do cartão: segredos mascarados
+    let vistos = orion_policy::redact(&Value::Object(args.clone()), 2000);
+    ["comando", "command", "cmd", "caminho", "path"]
+        .iter()
+        .find_map(|k| vistos.get(*k).and_then(Value::as_str).map(str::trim).filter(|v| !v.is_empty()).map(str::to_string))
+        .or_else(|| Some(tool.to_string()))
 }
 
 /// Dá para mostrar os argumentos inteiros no cartão (sem corte e dentro do limite)?
