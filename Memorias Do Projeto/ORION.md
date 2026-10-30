@@ -41,6 +41,13 @@ Branch `claude/fervent-newton-7pa6ci`. Código compilado no Linux; **sem testes 
 - **F04.25:** com memória no turno, o prompt de sistema manda apontar e perguntar quando pedido, fato e nota divergem (REGRAS.md: o Orion não decide sozinho qual fato vale). Persona não foi tocada.
 - **F06.12 (parcial):** com `ORION_VAULT_DIARIO` ligado, o resumo diário pessoal (Você fez) vira nota em `03 Recursos/Orion/Memória/Diário/AAAA-MM-DD - Você fez.md`, sem sobrescrever e sem commit. **Não feito:** gerar na nuvem com o PC desligado.
 
+**Terceira leva (mesmo dia):**
+
+- **F06.18:** `/nota` no app real grava ou atualiza agora a nota da conversa no vault (`POST /sessoes/:sid/nota`), com as mesmas proteções do diário e sem commit, mesmo com o diário automático desligado. `/vault` já abria a busca.
+- **F05.02 (parcial):** `/resumo` no app real pede ao agente o resumo da conversa no próprio chat. `/imagem` continua desligado.
+- **F12.10 (parcial):** timer: `gerenciar_lembretes` aceita `em_minutos` (1 a 1440) e cria o lembrete sobre o mesmo agendador. Falta a barra lateral.
+- **Review do Codex no PR #69:** 17 achados, todos corrigidos e resolvidos (aprovação destrutiva por outros caminhos, monitor removido, login nativo, fila de tarefas: vaga, retomada, canal, pânico, cota, drenagem e cancelamento serializados, diário ao vivo, hora de dormir após meia-noite, backup com temporário exclusivo e cópia em fluxo).
+
 ## Módulo de câmera e gestos com as mãos — 30/10/2026
 
 Pedido do Antônio: a tela de câmera do Face ID também abre como módulo de câmera, com gestos. Princípio novo em [REGRAS.md](REGRAS.md): **gesto com as mãos só abre e navega; nunca aprova nem executa**.
