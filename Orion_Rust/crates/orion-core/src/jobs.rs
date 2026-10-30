@@ -763,8 +763,13 @@ impl JobRunner {
     fn despertar(&self) -> anyhow::Result<()> {
         let Some(d) = &self.despertador else { return Ok(()) };
         let agora = self.agora();
-        let quando = self.ops.proximo_despertar(agora + 120.0)?.and_then(|t| {
-            chrono::DateTime::from_timestamp((t - 60.0) as i64, 0).map(|h| h.with_timezone(&chrono::Local).format("%Y-%m-%dT%H:%M:%S").to_string())
+        let proximo = self.ops.proximo_despertar(agora)?;
+        // evento a menos de 1 min: o despertar dele já está registrado; trocar agora o perderia
+        if proximo.is_some_and(|t| t - 60.0 <= agora) && self.despertar.lock().is_some() {
+            return Ok(());
+        }
+        let quando = proximo.and_then(|t| {
+            chrono::DateTime::from_timestamp((t - 60.0).max(agora + 60.0) as i64, 0).map(|h| h.with_timezone(&chrono::Local).format("%Y-%m-%dT%H:%M:%S").to_string())
         });
         let mut ultimo = self.despertar.lock();
         if ultimo.as_ref() != Some(&quando) {

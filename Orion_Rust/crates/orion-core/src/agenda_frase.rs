@@ -23,26 +23,28 @@ static HORA_SOLTA: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\b(\d{1,2})(?
 static DATA: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\b(\d{1,2})/(\d{1,2})(?:/(\d{4}))?\b").unwrap());
 
 /// Hora do dia citada na frase (`às 9`, `9h30`, `21:00`, `meio-dia`, `meia-noite`, `9 da noite`).
-fn hora(f: &str) -> Option<NaiveTime> {
+/// `Ok(None)` sem hora na frase; hora citada mas inválida (`25h`, `15h99`) é erro, nunca 09:00.
+fn hora(f: &str) -> Result<Option<NaiveTime>, String> {
     if f.contains("meio-dia") || f.contains("meio dia") {
-        return NaiveTime::from_hms_opt(12, 0, 0);
+        return Ok(NaiveTime::from_hms_opt(12, 0, 0));
     }
     if f.contains("meia-noite") || f.contains("meia noite") {
-        return NaiveTime::from_hms_opt(0, 0, 0);
+        return Ok(NaiveTime::from_hms_opt(0, 0, 0));
     }
+    let num = |s: &str| s.parse::<u32>().map_err(|_| "hora inválida".to_string());
     let (h, m, periodo) = if let Some(c) = HORA.captures(f) {
-        (c[1].parse::<u32>().ok()?, c.get(2).map_or(Some(0), |m| m.as_str().parse().ok())?, c.get(3).map(|p| p.as_str().to_string()))
+        (num(&c[1])?, c.get(2).map_or(Ok(0), |m| num(m.as_str()))?, c.get(3).map(|p| p.as_str().to_string()))
+    } else if let Some(c) = HORA_SOLTA.captures(f) {
+        (num(&c[1])?, c.get(2).or(c.get(3)).map_or(Ok(0), |m| num(m.as_str()))?, None)
     } else {
-        let c = HORA_SOLTA.captures(f)?;
-        let m = c.get(2).or(c.get(3)).map_or(Some(0), |m| m.as_str().parse().ok())?;
-        (c[1].parse::<u32>().ok()?, m, None)
+        return Ok(None);
     };
     let h = match periodo.as_deref() {
         Some("tarde" | "noite") if h < 12 => h + 12,
         Some("manhã" | "manha" | "madrugada") if h == 12 => 0,
         _ => h,
     };
-    NaiveTime::from_hms_opt(h, m, 0)
+    NaiveTime::from_hms_opt(h, m, 0).map(Some).ok_or_else(|| format!("hora inválida: {h:02}:{m:02}"))
 }
 
 fn instante(dia: NaiveDate, h: NaiveTime) -> Option<f64> {
@@ -72,7 +74,7 @@ pub fn interpretar(frase: &str, agora: f64) -> Result<Quando, String> {
     }
     let diario = ["todo dia", "todos os dias", "diariamente", "toda manhã", "toda noite", "toda tarde"].iter().any(|d| f.contains(d));
     if diario {
-        let h = hora(f).ok_or("diga o horário: ex. 'todo dia às 8h'")?;
+        let h = hora(f)?.ok_or("diga o horário: ex. 'todo dia às 8h'")?;
         return Ok(Quando::Diario(h.format("%H:%M").to_string()));
     }
     if ["toda segunda", "toda terça", "toda quarta", "toda quinta", "toda sexta", "todo sábado", "todo domingo", "toda semana", "todo mês"].iter().any(|d| f.contains(d)) {
@@ -106,7 +108,7 @@ pub fn interpretar(frase: &str, agora: f64) -> Result<Quando, String> {
     } else {
         None
     };
-    let h = hora(f);
+    let h = hora(f)?;
     let (dia, h) = match (dia, h) {
         (Some(d), Some(h)) => (d, h),
         (Some(d), None) => (d, NaiveTime::from_hms_opt(9, 0, 0).unwrap()),
