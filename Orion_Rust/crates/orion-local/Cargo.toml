@@ -15,6 +15,7 @@ hex.workspace = true
 reqwest.workspace = true
 sysinfo.workspace = true
 tokio.workspace = true
+zip.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_JobObjects", "Win32_System_Threading", "Win32_Security"] }

@@ -31,6 +31,8 @@ pub async fn listar(_: Admin, State(st): State<Estado>) -> Json<Value> {
     let andamento = ANDAMENTO.lock().map(|g| g.clone()).unwrap_or_default();
     let itens: Vec<Value> = orion_local::catalog::all()
         .into_iter()
+        // o motor de gestos não é modelo de conversa nem de voz: fica fora desta lista
+        .filter(|a| a.kind != "gestures")
         .map(|a| {
             let caminho = dir.join(&a.filename);
             let instalado = caminho.metadata().is_ok_and(|m| m.len() == a.bytes);

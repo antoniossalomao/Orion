@@ -1512,3 +1512,45 @@ ui-1097 = { "no face found" }
 ui-1098 = { "Checking " }{ $v0 }{ "…" }
 
 ui-1099 = { "Hi, " }{ $v0 }
+
+ui-1100 = { "Turn off the camera" }
+
+ui-1101 = { "Open the camera" }
+
+ui-1102 = { "Open the camera (gestures)" }
+
+ui-1103 = { "Open palm" }
+
+ui-1104 = { "Peace" }
+
+ui-1105 = { "Point" }
+
+ui-1106 = { "Command palette" }
+
+ui-1107 = { "Thumbs up" }
+
+ui-1108 = { "OK" }
+
+ui-1109 = { "Fist" }
+
+ui-1110 = { "Voice paused" }
+
+ui-1111 = { "Nothing to pause" }
+
+ui-1112 = { "Swipe left" }
+
+ui-1113 = { "Swipe right" }
+
+ui-1114 = { "Gesture" }
+
+ui-1115 = { "Face ID is using the camera right now." }
+
+ui-1116 = { "Face ID is using the camera right now" }
+
+ui-1117 = { "close the camera module to use Face ID" }
+
+ui-1118 = { "Gestures off: install the AI engine with the installer (Hand gestures option)" }
+
+ui-1119 = { "gesture engine folder unavailable" }
+
+ui-1120 = { "failed to open the camera" }

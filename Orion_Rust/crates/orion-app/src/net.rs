@@ -80,6 +80,16 @@ pub trait Local: Send + Sync + 'static {
     fn face_id_preview(&self, _session: String) -> futures::future::BoxFuture<'static, Option<FacePreview>> {
         Box::pin(async { None })
     }
+    /// Liga a câmera do módulo de câmera (só com a tela aberta).
+    fn camera_open(&self) -> futures::future::BoxFuture<'static, Result<(), String>> {
+        Box::pin(async { Err("câmera indisponível".into()) })
+    }
+    /// Último quadro analisado e os gestos novos.
+    fn camera_poll(&self) -> futures::future::BoxFuture<'static, Option<CameraSnapshot>> {
+        Box::pin(async { None })
+    }
+    /// Desliga a câmera do módulo.
+    fn camera_close(&self) {}
     /// Encerra a leitura e desliga a câmera.
     fn face_id_cancel(&self, _session: &str) {}
     /// Cadastra o rosto (exige a senha, que fica no cofre do sistema para o Face ID liberar).
@@ -147,6 +157,29 @@ pub struct FacePreview {
     pub confidence: Option<f32>,
     /// Uso de CPU do processo do Orion, em % de um núcleo dividido pelo total de núcleos.
     pub cpu: Option<f32>,
+}
+
+/// Último quadro do módulo de câmera: miniatura espelhada, rosto, mão (21 pontos, 0..1) e os
+/// gestos reconhecidos desde a leitura anterior (REGRAS.md: gesto só abre e navega; nunca aprova
+/// nem executa).
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct CameraSnapshot {
+    pub seq: u64,
+    pub w: u32,
+    pub h: u32,
+    pub rgba: Vec<u8>,
+    pub face: Option<[f32; 4]>,
+    pub hand: Option<Vec<[f32; 2]>>,
+    /// Rótulos (`OPEN PALM`, `SWIPE LEFT`…), mais antigo primeiro.
+    pub gestures: Vec<String>,
+    pub cpu: Option<f32>,
+    /// `DirectML`, `CoreML` ou `CPU` quando o motor de gestos carregou.
+    pub accel: Option<String>,
+    /// Por que os gestos estão desligados (motor não instalado, falha ao carregar).
+    pub note: Option<String>,
+    pub infer_ms: Option<f32>,
+    /// Detector acordado por movimento ou mão rastreada.
+    pub awake: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -313,6 +346,20 @@ impl Api {
         match &self.local {
             Some(l) => l.face_id_preview(session.to_string()).await,
             None => None,
+        }
+    }
+    pub async fn camera_open(&self) -> Result<(), String> {
+        self.local.as_ref().ok_or("câmera só no app nativo")?.camera_open().await
+    }
+    pub async fn camera_poll(&self) -> Option<CameraSnapshot> {
+        match &self.local {
+            Some(l) => l.camera_poll().await,
+            None => None,
+        }
+    }
+    pub fn camera_close(&self) {
+        if let Some(l) = &self.local {
+            l.camera_close()
         }
     }
     pub fn face_id_cancel(&self, session: &str) {

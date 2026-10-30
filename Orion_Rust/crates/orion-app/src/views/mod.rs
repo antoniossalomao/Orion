@@ -1,6 +1,7 @@
 //! Telas. `root` monta a janela: entrada → casca (barra lateral + barra superior + palco) + camadas por cima.
 
 pub mod camera_hud;
+pub mod camera_module;
 pub mod chat;
 pub mod composer;
 pub mod conflito;
@@ -86,6 +87,9 @@ pub fn root(app: &App) -> El<'_> {
         if app.p.cam[4] && !app.resources.captions.is_empty() {
             layers.push(overlays::caption(&app.resources.captions));
         }
+    }
+    if app.logged && app.camera.is_some() {
+        layers.push(camera_module::view(app));
     }
     if app.logged && app.island.enroll_password.is_some() {
         layers.push(island::enroll_password_modal(app));

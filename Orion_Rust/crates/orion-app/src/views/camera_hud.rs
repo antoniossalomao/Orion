@@ -18,6 +18,8 @@ pub const HUD_W: f32 = 360.0;
 /// Cantos e marcas sobre o vídeo.
 struct Overlay {
     face: Option<[f32; 4]>,
+    /// 21 pontos da mão (0..1), quando o motor de gestos vê uma.
+    hand: Option<Vec<[f32; 2]>>,
     tone: Color,
     /// Segundos desde o começo da fase (respiração dos cantos).
     t: f32,
@@ -60,9 +62,39 @@ impl canvas::Program<Msg> for Overlay {
                 f.stroke(&p, Stroke::default().with_color(t::alpha(self.tone, 0.55)).with_width(1.0));
             }
         }
+        if let Some(points) = self.hand.as_ref().filter(|p| p.len() == 21) {
+            let at = |i: usize| Point::new(points[i][0] * b.width, points[i][1] * b.height);
+            // esqueleto fino: palma e os cinco dedos
+            for chain in HAND_CHAINS {
+                let p = Path::new(|p| {
+                    p.move_to(at(chain[0]));
+                    for &i in &chain[1..] {
+                        p.line_to(at(i));
+                    }
+                });
+                f.stroke(&p, Stroke::default().with_color(t::alpha(t::ACCENT, 0.55)).with_width(1.2).with_line_cap(LineCap::Round));
+            }
+            for (i, _) in points.iter().enumerate() {
+                let r = if [4, 8, 12, 16, 20].contains(&i) { 2.6 } else { 1.8 };
+                f.fill(&Path::circle(at(i), r), t::alpha(t::STAR, 0.9));
+            }
+            // cantos em volta da mão, no mesmo traço do rosto
+            let (mut x0, mut y0, mut x1, mut y1) = (f32::MAX, f32::MAX, f32::MIN, f32::MIN);
+            for p in points {
+                x0 = x0.min(p[0] * b.width);
+                y0 = y0.min(p[1] * b.height);
+                x1 = x1.max(p[0] * b.width);
+                y1 = y1.max(p[1] * b.height);
+            }
+            let rect = Rectangle::new(Point::new(x0 - 8.0, y0 - 8.0), Size::new(x1 - x0 + 16.0, y1 - y0 + 16.0));
+            corners(&mut f, rect, rect.width.min(rect.height) * 0.16, t::alpha(t::ACCENT, 0.9), 1.4);
+        }
         vec![f.into_geometry()]
     }
 }
+
+/// Ligações dos 21 pontos do MediaPipe Hands: palma, polegar, indicador, médio, anelar, mínimo.
+const HAND_CHAINS: [&[usize]; 6] = [&[0, 5, 9, 13, 17, 0], &[0, 1, 2, 3, 4], &[5, 6, 7, 8], &[9, 10, 11, 12], &[13, 14, 15, 16], &[17, 18, 19, 20]];
 
 /// Um bloco de telemetria: `[ROTULO: valor]` em Geist Mono sobre fundo translúcido.
 fn block<'a>(s: String, color: Color) -> El<'a> {
@@ -75,27 +107,53 @@ fn block<'a>(s: String, color: Color) -> El<'a> {
 /// O painel: vídeo, cantos e telemetria (`[CONFIDENCE]`, `[PROCESSOR]`). `tag` aparece sobre o
 /// rosto quando reconhecido.
 pub fn view<'a>(preview: &FacePreview, handle: &image::Handle, tone: Color, tag: Option<String>, t_phase: f32, reduced: bool) -> El<'a> {
-    let h = (HUD_W * preview.h as f32 / preview.w.max(1) as f32).round();
-    let video = image(handle.clone()).width(Length::Fixed(HUD_W)).height(Length::Fixed(h)).content_fit(ContentFit::Cover);
-    let overlay = cv(Overlay { face: preview.face, tone, t: t_phase, reduced }).width(Length::Fixed(HUD_W)).height(Length::Fixed(h));
     let cpu = preview.cpu.map(|c| format!("{c:.0}%")).unwrap_or_else(|| "--".into());
     // no cadastro ainda não há modelo: só o processador aparece
-    let mut blocks = column![].spacing(4);
+    let mut telemetry = vec![];
     if let Some(c) = preview.confidence {
-        blocks = blocks.push(block(format!("[CONFIDENCE: {:.1}%]", c * 100.0), t::alpha(tone, 0.95)));
+        telemetry.push((format!("[CONFIDENCE: {:.1}%]", c * 100.0), t::alpha(tone, 0.95)));
     }
-    let telemetry = container(blocks.push(block(format!("[PROCESSOR: {cpu} CPU]"), t::FG2)))
-        .width(Length::Fixed(HUD_W))
+    telemetry.push((format!("[PROCESSOR: {cpu} CPU]"), t::FG2));
+    frame(Hud { w: preview.w, h: preview.h, handle, face: preview.face, hand: None, tone, tag, telemetry, t_phase, reduced, width: HUD_W })
+}
+
+/// Tudo que o painel desenha (Face ID ou módulo de câmera).
+pub struct Hud<'h> {
+    pub w: u32,
+    pub h: u32,
+    pub handle: &'h image::Handle,
+    pub face: Option<[f32; 4]>,
+    pub hand: Option<Vec<[f32; 2]>>,
+    pub tone: Color,
+    pub tag: Option<String>,
+    pub telemetry: Vec<(String, Color)>,
+    pub t_phase: f32,
+    pub reduced: bool,
+    pub width: f32,
+}
+
+/// O painel genérico: vídeo, cantos no rosto, esqueleto da mão e blocos de telemetria.
+pub fn frame<'a>(hud: Hud<'_>) -> El<'a> {
+    let width = hud.width;
+    let h = (width * hud.h as f32 / hud.w.max(1) as f32).round();
+    let video = image(hud.handle.clone()).width(Length::Fixed(width)).height(Length::Fixed(h)).content_fit(ContentFit::Cover);
+    let overlay = cv(Overlay { face: hud.face, hand: hud.hand, tone: hud.tone, t: hud.t_phase, reduced: hud.reduced }).width(Length::Fixed(width)).height(Length::Fixed(h));
+    let mut blocks = column![].spacing(4);
+    for (text, color) in hud.telemetry {
+        blocks = blocks.push(block(text, color));
+    }
+    let telemetry = container(blocks)
+        .width(Length::Fixed(width))
         .height(Length::Fixed(h))
         .align_bottom(Length::Fixed(h))
         .padding(pad(0.0, 0.0, 12.0, 14.0));
     let mut layers = stack![video, overlay, telemetry];
-    if let (Some(tag), Some([x, y, _, _])) = (tag, preview.face) {
-        let (left, top) = ((x * HUD_W).max(6.0), (y * h - 22.0).max(6.0));
-        layers = layers.push(container(block(tag, tone)).padding(pad(top, 0.0, 0.0, left)));
+    if let (Some(tag), Some([x, y, _, _])) = (hud.tag, hud.face) {
+        let (left, top) = ((x * width).max(6.0), (y * h - 22.0).max(6.0));
+        layers = layers.push(container(block(tag, hud.tone)).padding(pad(top, 0.0, 0.0, left)));
     }
     container(layers)
-        .width(Length::Fixed(HUD_W))
+        .width(Length::Fixed(width))
         .height(Length::Fixed(h))
         .clip(true)
         .style(|_| container::Style { background: Some(t::ISLAND_BG.into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_CARD.into() }, shadow: shadow(), ..Default::default() })

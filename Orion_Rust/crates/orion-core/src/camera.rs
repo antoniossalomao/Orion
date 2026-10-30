@@ -60,12 +60,19 @@ pub struct GrayFrame {
     pub luma: Vec<u8>,
     /// Número de série: cresce a cada quadro novo (quem lê sabe se já viu este).
     pub seq: u64,
+    /// Cópia colorida (mesma resolução), só quando quem abriu o fluxo precisa dela (gestos).
+    pub rgb: Option<Arc<image::RgbImage>>,
 }
 
 impl GrayFrame {
     pub fn from_rgb(rgb: image::RgbImage, seq: u64) -> Self {
-        let luma = image::DynamicImage::ImageRgb8(downscale_rgb(rgb)).into_luma8();
-        Self { w: luma.width(), h: luma.height(), luma: luma.into_raw(), seq }
+        Self::from_rgb_keep(rgb, seq, false)
+    }
+
+    pub fn from_rgb_keep(rgb: image::RgbImage, seq: u64, keep_rgb: bool) -> Self {
+        let small = downscale_rgb(rgb);
+        let luma = image::imageops::grayscale(&small);
+        Self { w: luma.width(), h: luma.height(), luma: luma.into_raw(), seq, rgb: keep_rgb.then(|| Arc::new(small)) }
     }
 }
 
@@ -91,6 +98,12 @@ impl CameraStream {
     /// Abre a câmera e espera até `espera` pela confirmação; sem câmera, falha logo (o chamador
     /// cai para a senha).
     pub fn open(device: i32, wait: Duration) -> Result<Self, CameraError> {
+        Self::open_with(device, wait, DECODE_INTERVAL, false)
+    }
+
+    /// Como `open`, com intervalo de decodificação próprio e, se pedido, o quadro colorido junto
+    /// (o módulo de câmera decodifica ~15 vezes por segundo para os gestos ficarem fluidos).
+    pub fn open_with(device: i32, wait: Duration, interval: Duration, keep_rgb: bool) -> Result<Self, CameraError> {
         if !(0..=16).contains(&device) {
             return Err(CameraError("índice de câmera inválido".into()));
         }
@@ -133,13 +146,13 @@ impl CameraStream {
                             continue;
                         }
                     };
-                    if last_decode.is_some_and(|t| t.elapsed() < DECODE_INTERVAL) {
+                    if last_decode.is_some_and(|t| t.elapsed() < interval) {
                         continue;
                     }
                     last_decode = Some(Instant::now());
                     if let Ok(rgb) = raw_frame.decode_image::<RgbFormat>() {
                         seq += 1;
-                        *u.lock() = Some(Arc::new(GrayFrame::from_rgb(rgb, seq)));
+                        *u.lock() = Some(Arc::new(GrayFrame::from_rgb_keep(rgb, seq, keep_rgb)));
                     }
                 }
                 let _ = camera.stop_stream();

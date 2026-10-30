@@ -59,6 +59,14 @@ impl canvas::Program<Msg> for Glyph {
                     star(&mut f, p, 1.5, t::ACCENT, 1.0);
                 }
             }
+            Phase::Gesture => {
+                // o cinturão acende de uma vez e assenta, como um "toque" reconhecido
+                let k = 1.0 - crate::anim::ease((t / 0.5).min(1.0));
+                stroke_arc(&mut f, 0.0, TAU, t::alpha(t::ACCENT, 0.25 + 0.6 * k), 1.6);
+                for p in belt {
+                    star(&mut f, p, 1.7 + 0.8 * k, t::ACCENT, 1.0);
+                }
+            }
             Phase::Reading | Phase::Enrolling => {
                 // trilho discreto e um arco de acento girando, com cauda que some
                 stroke_arc(&mut f, 0.0, TAU, t::LINE2, 1.5);
@@ -170,6 +178,10 @@ pub fn view(app: &App) -> El<'_> {
             };
             row![glyph, lines(a, b, t::OK)].spacing(12).align_y(Vertical::Center).into()
         }
+        Phase::Gesture => {
+            let (name, what) = i.gesture.unwrap_or(("Gesto", ""));
+            row![glyph, lines(crate::i18n::text(name).into(), crate::i18n::text(what).into(), t::ACCENT)].spacing(12).align_y(Vertical::Center).into()
+        }
         Phase::Error => {
             let reason = i.failure.as_ref().map(crate::island::failure_text).unwrap_or("Rosto não reconhecido");
             row![glyph, lines(crate::i18n::text(reason).into(), crate::i18n::text("Digite a senha mestre").into(), t::DANGER)].spacing(12).align_y(Vertical::Center).into()
@@ -181,6 +193,7 @@ pub fn view(app: &App) -> El<'_> {
         Phase::Reading | Phase::Enrolling => lerp(t::LINE2, t::alpha(t::ACCENT, 0.35), 0.5 + 0.5 * (elapsed * 2.4).sin()),
         Phase::Success => lerp(t::LINE2, t::alpha(t::OK, 0.6), 1.0 - (elapsed / 0.9).min(1.0)),
         Phase::Error => lerp(t::LINE2, t::alpha(t::DANGER, 0.55), 1.0 - (elapsed / (ERROR_MS as f32 / 1000.0)).min(1.0)),
+        Phase::Gesture => lerp(t::LINE2, t::alpha(t::ACCENT, 0.7), 1.0 - (elapsed / 0.8).min(1.0)),
         Phase::Standby => t::LINE2,
     };
     let base = shadow();

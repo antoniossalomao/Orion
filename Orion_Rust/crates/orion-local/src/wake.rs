@@ -62,6 +62,10 @@ pub fn load(directory: &Path, calibration: bool) -> anyhow::Result<(PathBuf, Wak
         filename: "orion.onnx".into(),
         sha256: manifest.sha256.clone(),
         bytes: manifest.bytes,
+        url: None,
+        extract: None,
+        extracted_sha256: None,
+        extracted_bytes: None,
     };
     crate::download::verify(&path, &artifact)?;
     Ok((path, manifest))

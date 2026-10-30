@@ -1512,3 +1512,45 @@ ui-1097 = { "nenhum rosto encontrado" }
 ui-1098 = { "A verificar " }{ $v0 }{ "…" }
 
 ui-1099 = { "Olá, " }{ $v0 }
+
+ui-1100 = { "Desligar a câmera" }
+
+ui-1101 = { "Abrir a câmera" }
+
+ui-1102 = { "Abrir a câmera (gestos)" }
+
+ui-1103 = { "Mão aberta" }
+
+ui-1104 = { "Paz" }
+
+ui-1105 = { "Apontar" }
+
+ui-1106 = { "Paleta de comandos" }
+
+ui-1107 = { "Joinha" }
+
+ui-1108 = { "OK" }
+
+ui-1109 = { "Punho" }
+
+ui-1110 = { "Voz pausada" }
+
+ui-1111 = { "Nada para pausar" }
+
+ui-1112 = { "Deslizar para a esquerda" }
+
+ui-1113 = { "Deslizar para a direita" }
+
+ui-1114 = { "Gesto" }
+
+ui-1115 = { "O Face ID está usando a câmera agora." }
+
+ui-1116 = { "o Face ID está usando a câmera agora" }
+
+ui-1117 = { "feche o módulo de câmera para usar o Face ID" }
+
+ui-1118 = { "Gestos desligados: instale o motor de IA pelo instalador (opção Gestos com as mãos)" }
+
+ui-1119 = { "pasta do motor de gestos indisponível" }
+
+ui-1120 = { "falha ao abrir a câmera" }

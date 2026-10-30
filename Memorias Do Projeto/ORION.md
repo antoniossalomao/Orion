@@ -10,6 +10,16 @@ Assistente pessoal com identidade masculina, técnico, direto, não-servil. Não
 
 Antônio é o administrador: decide, aprova e pode desligar qualquer coisa. Nada que o modelo diga anula isso.
 
+## Módulo de câmera e gestos com as mãos — 30/10/2026
+
+Pedido do Antônio: a tela de câmera do Face ID também abre como módulo de câmera, com gestos. Princípio novo em [REGRAS.md](REGRAS.md): **gesto com as mãos só abre e navega; nunca aprova nem executa**.
+
+- **Motor (`orion-core/hand_gestures.rs`):** MediaPipe Hands (modelos ONNX do OpenCV Zoo, Apache 2.0): detector de palma 192×192 com 2016 âncoras, 21 pontos num recorte girado 224×224, e rastreio que pula o detector quando a mão já está na imagem. Gestos por regras geométricas (mão aberta, punho, joinha, paz, apontar), estabilizados por 4 quadros e com 1 s de intervalo, mais deslize esquerda/direita. Um detector de movimento em CPU (80×60, parte de baixo do quadro) só acorda a inferência quando algo se mexe. A inferência usa o `ort` 2.0.0-rc.15 com `load-dynamic`: DirectML no Windows, CoreML no Mac, CPU no resto, com queda para CPU se a GPU recusar.
+- **Instalação:** opção "Gestos com as mãos" no instalador (desligada por padrão). Baixa o ONNX Runtime 1.24.4 com DirectML e o DirectML 1.15.4 (pacotes NuGet oficiais da Microsoft, ~215 MB, extraindo só as DLLs) e os dois modelos (~8 MB), todos fixados por versão e SHA-256 no catálogo do `orion-local`, para `%LOCALAPPDATA%\Orion\runtime`. O `orion.exe` continua único.
+- **Servidor (`camera_module.rs`):** câmera a ~15 quadros/s numa thread própria, ligada só com o módulo aberto. Analisa movimento, mão e rosto, e guarda só o último quadro em miniatura. Não abre junto com o Face ID.
+- **Janela:** painel flutuante no canto inferior direito, com o HUD do Face ID (cantos no rosto, esqueleto da mão, `[GESTURE]`, `[PROCESSOR]`, `[DIRECTML: ms]`) e ponto vermelho de câmera ligada. Abre em Configurações › Câmera › "Abrir a câmera" ou pela paleta. Cada gesto faz a ilha mostrar o nome e a ação. Ações: mão aberta → Início; paz → captura rápida; apontar → paleta; deslizar → voltar/avançar; punho → pausa a escuta; joinha → só "OK".
+- **Validação:** pipeline rodado com o ONNX Runtime 1.24.4 (Linux, CPU) em quadros reais: palma em ~9 ms, pontos em ~5 ms, confiança de 0,92–0,99 e "mão aberta" reconhecida. Falta o aceite no Windows: DirectML, webcam e os gestos ao vivo.
+
 ## Face ID local e Dynamic Island — 29/10/2026
 
 Pedido do Antônio: entrar e confirmar pedidos que exigem senha olhando para a câmera, "igual um Face ID", em CPU pura e sobre o LBPH existente. Princípio novo em [REGRAS.md](REGRAS.md) (aprovado pelo Antônio no próprio pedido): **o Face ID é opt-in, só vale na janela nativa e a senha continua sempre como alternativa**; o princípio do rosto passou a citar os botões da janela como forma de cadastro.

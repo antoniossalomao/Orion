@@ -536,6 +536,9 @@ impl App {
                 Some((Task::perform(async move { api.login(&usuario, &pw).await }, |r| Msg::L(Lm::Login(r))), false))
             }
             Msg::Logout => {
+                if self.camera.take().is_some() {
+                    api.camera_close();
+                }
                 self.project_form = None;
                 self.rename_form = None;
                 Some((Task::perform(async move { let _=api.post("/resources/audio/cancel",json!({})).await;api.logout().await }, |_| Msg::Noop), true))

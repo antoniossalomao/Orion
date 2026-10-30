@@ -698,6 +698,7 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
         "camera" => {
             col = col.push(
                 row![
+                    btn(if app.camera.is_some() { crate::i18n::text("Desligar a câmera") } else { crate::i18n::text("Abrir a câmera") }, Kind::Primary, true, None, Some(Msg::Camera(if app.camera.is_some() { crate::camera_ui::CameraMsg::Close } else { crate::camera_ui::CameraMsg::Open }))),
                     action("Cadastrar meu rosto", "POST", "/resources/face/enroll"),
                     action("Apagar meu rosto", "POST", "/resources/face/delete")
                 ]

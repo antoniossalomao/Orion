@@ -5,7 +5,7 @@ use axum::body::Body;
 use axum::extract::ConnectInfo;
 use axum::http::{header, Method, Request};
 use futures::{future::BoxFuture, StreamExt};
-use orion_app::net::{Corpo, FaceEvent, FaceFailure, FaceHint, FacePreview, Local, Resposta};
+use orion_app::net::{CameraSnapshot, Corpo, FaceEvent, FaceFailure, FaceHint, FacePreview, Local, Resposta};
 use orion_core::config::Settings;
 use std::time::Duration;
 use tower::ServiceExt;
@@ -403,6 +403,9 @@ impl Local for Interno {
                 if faceid::is_locked() {
                     return Err(FaceFailure::Locked);
                 }
+                if crate::camera_module::is_open() {
+                    return Err(FaceFailure::Other("feche o módulo de câmera para usar o Face ID".into()));
+                }
                 let model = faceid::load(&cfg.data_dir, &orion_core::rosto::CofreSistema).map_err(|e| match e {
                     faceid::FaceIdError::Inactive => FaceFailure::Inactive,
                     outro => FaceFailure::Other(outro.to_string()),
@@ -512,6 +515,28 @@ impl Local for Interno {
             .ok()
             .flatten()
         })
+    }
+    fn camera_open(&self) -> BoxFuture<'static, Result<(), String>> {
+        let (cfg, slot, rt) = (self.settings.clone(), self.nucleo.clone(), self.rt.clone());
+        Box::pin(async move {
+            // REGRAS.md: a câmera só liga por pedido seu — e só com o Orion aberto
+            let Some(n) = slot.lock().clone() else { return Err("entre no Orion primeiro".into()) };
+            if n.st.modos.panico() {
+                return Err("modo pânico ligado".into());
+            }
+            if !FACE_SESSIONS.lock().is_empty() {
+                return Err("o Face ID está usando a câmera agora".into());
+            }
+            let device = camera_device(&cfg);
+            rt.spawn_blocking(move || crate::camera_module::open(device)).await.map_err(|_| "falha ao abrir a câmera".to_string())?
+        })
+    }
+    fn camera_poll(&self) -> BoxFuture<'static, Option<CameraSnapshot>> {
+        let rt = self.rt.clone();
+        Box::pin(async move { rt.spawn_blocking(|| crate::camera_module::poll(process_cpu())).await.ok().flatten() })
+    }
+    fn camera_close(&self) {
+        crate::camera_module::close();
     }
     fn face_id_cancel(&self, session: &str) {
         // o cadastro não tem sessão: o pedido de cancelamento vai pela bandeira compartilhada

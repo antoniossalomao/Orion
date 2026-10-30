@@ -5,6 +5,7 @@
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
 mod appmode;
+mod camera_module;
 mod native_resources;
 mod diary;
 mod onboarding;

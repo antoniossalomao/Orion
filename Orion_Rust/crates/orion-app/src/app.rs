@@ -421,6 +421,8 @@ pub struct App {
     pub auto_senha: Option<String>,
     /// Face ID: a Dynamic Island e a leitura em andamento.
     pub island: crate::island::Island,
+    /// Módulo de câmera aberto (câmera ligada só enquanto existe).
+    pub camera: Option<crate::camera_ui::CameraUi>,
     pub isso: Option<Isso>,
     pub voice: bool,
     pub mic_rec: bool,
@@ -496,6 +498,8 @@ pub enum Msg {
     Hello,
     /// Face ID e Dynamic Island.
     Face(crate::island::FaceMsg),
+    /// Módulo de câmera (vídeo, HUD e gestos).
+    Camera(crate::camera_ui::CameraMsg),
     LoginCancel,
     Onboarding(crate::onboarding::Event),
     Logout,
@@ -782,6 +786,7 @@ impl App {
             qcap: None,
             auto_senha: None,
             island: crate::island::Island::new(Instant::now()),
+            camera: None,
             isso: None,
             voice: false,
             mic_rec: false,
@@ -878,7 +883,9 @@ impl App {
         let resources=if self.logged && (self.voice || self.mic_rec || self.p.cam[4]){iced::time::every(Duration::from_millis(750)).map(|_|Msg::Resources(crate::resources::Event::AudioPoll))}else{Subscription::none()};
         // HUD da câmera: um quadro novo a cada 250 ms só enquanto a leitura mostra o vídeo
         let hud = if self.window_active && self.island.busy() && self.island.shows_hud() { iced::time::every(Duration::from_millis(250)).map(|_| Msg::Face(crate::island::FaceMsg::PreviewTick)) } else { Subscription::none() };
-        Subscription::batch([tick, island, hud, resize, keys, poll, fundo, fechar, focus, progress,resources])
+        // módulo de câmera: último quadro a cada ~66 ms, só com o módulo aberto
+        let camera = if self.logged && self.camera.is_some() { iced::time::every(crate::camera_ui::POLL).map(|_| Msg::Camera(crate::camera_ui::CameraMsg::Poll)) } else { Subscription::none() };
+        Subscription::batch([tick, island, hud, camera, resize, keys, poll, fundo, fechar, focus, progress,resources])
     }
 
     pub fn pend_list(&self) -> Vec<(usize, usize)> {
@@ -970,6 +977,7 @@ impl App {
         if !matches!(&msg, Msg::Tick(_) | Msg::Bandeja | Msg::BootProgress) { self.now = Instant::now(); }
         if let Msg::Onboarding(event) = msg { return self.update_onboarding(event); }
         if let Msg::Face(m) = msg { return self.update_face(m); }
+        if let Msg::Camera(m) = msg { return self.update_camera(m); }
 
         if let Msg::L(m) = msg {
             return self.lm(m);
@@ -1104,7 +1112,7 @@ impl App {
             Msg::Hover(h) => self.hover = h,
             Msg::PwChanged(s) => self.pw = s,
             Msg::UserChanged(s) => self.user = s,
-            Msg::Onboarding(_) | Msg::Face(_) | Msg::Hello | Msg::LoginCancel => {},
+            Msg::Onboarding(_) | Msg::Face(_) | Msg::Camera(_) | Msg::Hello | Msg::LoginCancel => {},
             Msg::Login => {
                 if self.pw.trim().is_empty() {
                     self.gate_err = "Digite a senha para entrar.".into();

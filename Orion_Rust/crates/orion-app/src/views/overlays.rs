@@ -45,6 +45,7 @@ pub fn pal_items(app: &App) -> Vec<PalItem> {
         PalItem { icon: "gear", title: crate::i18n::text("Configurações").into(), group: crate::i18n::text("Ação").into(), msg: Msg::OpenSettings(None) },
         PalItem { icon: "inbox", title: crate::i18n::text("Captura rápida").into(), group: crate::i18n::text("Ação · Ctrl + Alt + O").into(), msg: Msg::QcapOpen },
         PalItem { icon: "scan", title: crate::i18n::text("Isso? (capturar a tela)").into(), group: crate::i18n::text("Ação · Ctrl + Alt + I").into(), msg: Msg::IssoOpen },
+        PalItem { icon: "camera", title: if app.camera.is_some() { crate::i18n::text("Desligar a câmera").into() } else { crate::i18n::text("Abrir a câmera (gestos)").into() }, group: crate::i18n::text("Ação").into(), msg: Msg::Camera(if app.camera.is_some() { crate::camera_ui::CameraMsg::Close } else { crate::camera_ui::CameraMsg::Open }) },
         PalItem { icon: "bolt", title: if app.p.auto { crate::i18n::text("Desligar modo autônomo").into() } else { crate::i18n::text("Ligar modo autônomo").into() }, group: crate::i18n::text("Ação").into(), msg: Msg::Toggle("auto") },
     ];
     let nav: [(View, &str, &str); 8] = [

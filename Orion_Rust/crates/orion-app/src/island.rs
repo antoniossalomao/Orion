@@ -38,7 +38,12 @@ pub enum Phase {
     Enrolling,
     Success,
     Error,
+    /// Gesto reconhecido no módulo de câmera: a ilha mostra o nome e a ação por um instante.
+    Gesture,
 }
+
+/// Quanto a ilha mostra um gesto antes de voltar.
+pub const GESTURE_MS: u64 = 1300;
 
 /// Duração da transição de tamanho entre fases.
 pub const MORPH_MS: u64 = 520;
@@ -68,11 +73,13 @@ pub struct Island {
     pub preview: Option<(FacePreview, iced::widget::image::Handle)>,
     /// A fase atual veio de um cadastro (sucesso/erro do cadastro também mostram o HUD).
     pub enrolled_last: bool,
+    /// Gesto em exibição (nome, ação).
+    pub gesture: Option<(&'static str, &'static str)>,
 }
 
 impl Island {
     pub fn new(now: Instant) -> Self {
-        Self { phase: Phase::Standby, since: now, from: size(Phase::Standby), purpose: Purpose::Login, session: None, generation: 0, hint: FaceHint::Starting, failure: None, enroll_password: None, demo: false, preview: None, enrolled_last: false }
+        Self { phase: Phase::Standby, since: now, from: size(Phase::Standby), purpose: Purpose::Login, session: None, generation: 0, hint: FaceHint::Starting, failure: None, enroll_password: None, demo: false, preview: None, enrolled_last: false, gesture: None }
     }
 
     pub fn busy(&self) -> bool {
@@ -114,6 +121,7 @@ pub fn size(phase: Phase) -> (f32, f32) {
         Phase::Reading | Phase::Enrolling => (318.0, 64.0),
         Phase::Success => (296.0, 64.0),
         Phase::Error => (348.0, 72.0),
+        Phase::Gesture => (268.0, 52.0),
     }
 }
 
@@ -274,7 +282,7 @@ impl App {
                 }
                 Task::none()
             }
-            FaceMsg::Collapse(g) if g == self.island.generation && self.island.phase == Phase::Error => {
+            FaceMsg::Collapse(g) if g == self.island.generation && matches!(self.island.phase, Phase::Error | Phase::Gesture) => {
                 self.island.set_phase(Phase::Standby, now, reduced);
                 Task::none()
             }
@@ -362,6 +370,19 @@ impl App {
                 Task::none()
             }
         }
+    }
+
+    /// Gesto reconhecido: a ilha cresce um pouco com o nome e a ação e volta sozinha. Durante uma
+    /// leitura do Face ID a ilha fica com o Face ID.
+    pub fn island_gesture(&mut self, name: &'static str, action: &'static str) -> Task<Msg> {
+        if self.island.busy() || matches!(self.island.phase, Phase::Success | Phase::Error) {
+            return Task::none();
+        }
+        let (now, reduced) = (Instant::now(), self.p.reduced);
+        self.island.gesture = Some((name, action));
+        self.island.generation += 1;
+        self.island.set_phase(Phase::Gesture, now, reduced);
+        after(GESTURE_MS, Msg::Face(FaceMsg::Collapse(self.island.generation)))
     }
 
     /// Falha: a ilha abre o aviso e o campo de senha recebe o foco (a senha mestre é o caminho).

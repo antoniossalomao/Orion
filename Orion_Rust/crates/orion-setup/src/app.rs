@@ -70,6 +70,7 @@ pub enum Message {
     ToggleModel(String),
     ToggleAutostart(bool),
     ToggleVoice(bool),
+    ToggleGestures(bool),
     ToggleVulkan(bool),
     WakeBundleChanged(String),
     ToggleTaskbar(bool),
@@ -550,6 +551,10 @@ impl SetupApp {
             }
             Message::ToggleVoice(val) => {
                 self.choices.enable_voice = val;
+                Task::none()
+            }
+            Message::ToggleGestures(val) => {
+                self.choices.enable_gestures = val;
                 Task::none()
             }
             Message::ToggleVulkan(val) => {
@@ -1209,6 +1214,12 @@ impl SetupApp {
                 s.s4_opt_voice.1,
                 self.choices.enable_voice,
                 Message::ToggleVoice(!self.choices.enable_voice),
+            ),
+            (
+                s.s4_opt_gestures.0,
+                s.s4_opt_gestures.1,
+                self.choices.enable_gestures,
+                Message::ToggleGestures(!self.choices.enable_gestures),
             ),
             (
                 s.s4_opt_taskbar.0,
