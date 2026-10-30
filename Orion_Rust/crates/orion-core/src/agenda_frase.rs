@@ -18,7 +18,10 @@ pub enum Quando {
 
 static INTERVALO: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\bcada\s+(\d{1,4})\s*(minutos?|min|m|horas?|h)\b").unwrap());
 static DAQUI: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\b(?:daqui a|daqui|em|dentro de)\s+(\d{1,4})\s*(minutos?|min|horas?|h|dias?)\b").unwrap());
-static HORA: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\b(?:às|as|ás|a partir das|pelas)\s+(\d{1,2})(?:\s*(?::|h)\s*(\d{2})?)?(?:\s*(?:hrs?|horas?))?(?:\s+da\s+(manhã|manha|tarde|noite|madrugada))?").unwrap());
+// "horas" vem antes de "h" na alternância: senão o "h" come o começo de "horas" e o período se perde
+static HORA: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\b(?:às|as|ás|a partir das|pelas)\s+(\d{1,2})(?:\s*(?:horas?|hrs?)\b|\s*(?::|h)(\d{2})?)?(?:\s+da\s+(manhã|manha|tarde|noite|madrugada))?").unwrap());
+/// Datas que ainda não são entendidas: com elas, a hora sozinha cairia no dia errado.
+const DATAS_DESCONHECIDAS: [&str; 12] = ["segunda", "terça", "terca", "quarta", "quinta", "sexta", "sábado", "sabado", "domingo", "semana", "mês", "fim de"];
 static HORA_SOLTA: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\b(\d{1,2})(?::(\d{2})|h(\d{2})?)\b").unwrap());
 static DATA: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\b(\d{1,2})/(\d{1,2})(?:/(\d{4}))?\b").unwrap());
 
@@ -108,6 +111,9 @@ pub fn interpretar(frase: &str, agora: f64) -> Result<Quando, String> {
     } else {
         None
     };
+    if dia.is_none() && DATAS_DESCONHECIDAS.iter().any(|d| f.contains(d)) {
+        return Err("dia da semana ou 'semana/mês que vem' ainda não são entendidos: use 'amanhã', 'hoje' ou a data (10/11)".into());
+    }
     let h = hora(f)?;
     let (dia, h) = match (dia, h) {
         (Some(d), Some(h)) => (d, h),
