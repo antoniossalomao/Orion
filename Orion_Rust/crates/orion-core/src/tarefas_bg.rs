@@ -262,6 +262,14 @@ impl TarefasBg {
     }
 
     pub fn cancelar(self: &Arc<Self>, tid: i64) -> Result<Value, TarefaBgError> {
+        self.cancelar_sob_trava(tid)?;
+        self.proxima();
+        self.obter(tid)
+    }
+
+    /// Estado, abort e UPDATE sob a trava da drenagem: a fila não começa a tarefa no meio do cancelamento.
+    fn cancelar_sob_trava(&self, tid: i64) -> Result<(), TarefaBgError> {
+        let _drenando = self.drenagem.lock();
         let na_fila = self.obter(tid)?["status"] == "na_fila";
         if !na_fila {
             // abortada, a tarefa nunca chega ao fim que libera a vaga: tira o handle aqui mesmo
@@ -276,8 +284,7 @@ impl TarefasBg {
             c.execute("UPDATE background_tasks SET status='cancelada', finished_at=? WHERE id=? AND status IN ('rodando','na_fila')", orion_store::rusqlite::params![agora, tid])?;
             Ok(())
         })?;
-        self.proxima();
-        self.obter(tid)
+        Ok(())
     }
 
     /// `aceitar` devolve o texto para o campo de mensagem (a política vale lá); `descartar` só
