@@ -725,7 +725,8 @@ impl Agent {
                     }
                 }
             }
-            yield AgentEvent::erro(format!("limite de {limite} iterações de ferramenta"));
+            // F04.21: passou do limite de passos (padrão 25 por projeto), pergunta em vez de seguir sozinho
+            yield AgentEvent::erro(format!("Cheguei ao limite de {limite} passos deste pedido. Quer que eu continue? Responda \"continue\" e eu sigo de onde parei."));
         })
     }
 

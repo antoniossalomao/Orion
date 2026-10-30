@@ -42,3 +42,36 @@ pub fn save(scale: u32, compact: bool) -> std::io::Result<()> {
 
 pub fn shortcut()->bool{file().and_then(|p|std::fs::read_to_string(p.with_file_name("shortcut.txt")).ok()).is_none_or(|s|s.trim()!="false")}
 pub fn save_shortcut(on:bool)->std::io::Result<()>{if let Some(path)=file(){write_atomic(&path.with_file_name("shortcut.txt"),if on{"true"}else{"false"})}else{Ok(())}}
+
+/// Tamanho e posição da janela principal (F01.11). Posição em coordenadas da área de trabalho
+/// inteira, o que também guarda o monitor. Valores fora de faixa ficam de fora.
+pub fn load_geometry() -> Option<(iced::Size, Option<iced::Point>)> {
+    let text = std::fs::read_to_string(file()?.with_file_name("janela.txt")).ok()?;
+    let mut v = std::collections::HashMap::new();
+    for line in text.lines() {
+        if let Some((k, x)) = line.split_once('=') {
+            if let Ok(n) = x.trim().parse::<f32>() {
+                v.insert(k.trim().to_string(), n);
+            }
+        }
+    }
+    let (w, h) = (*v.get("w")?, *v.get("h")?);
+    if !(760.0..=10_000.0).contains(&w) || !(520.0..=10_000.0).contains(&h) {
+        return None;
+    }
+    // monitor que sumiu deixaria a janela fora da tela: posição absurda volta ao centro
+    let pos = match (v.get("x"), v.get("y")) {
+        (Some(&x), Some(&y)) if (-10_000.0..=20_000.0).contains(&x) && (-200.0..=20_000.0).contains(&y) => Some(iced::Point::new(x, y)),
+        _ => None,
+    };
+    Some((iced::Size::new(w, h), pos))
+}
+
+pub fn save_geometry(size: iced::Size, pos: Option<iced::Point>) -> std::io::Result<()> {
+    let Some(path) = file() else { return Ok(()) };
+    let mut body = format!("w={}\nh={}\n", size.width.round(), size.height.round());
+    if let Some(p) = pos {
+        body += &format!("x={}\ny={}\n", p.x.round(), p.y.round());
+    }
+    write_atomic(&path.with_file_name("janela.txt"), &body)
+}

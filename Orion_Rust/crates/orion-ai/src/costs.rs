@@ -11,6 +11,8 @@ use serde_json::{json, Value};
 use std::sync::Arc;
 
 pub const LIMIAR_OPCIONAL: f64 = 0.9;
+/// A partir daqui sai um aviso de cota alta, uma vez por período (F13.05).
+pub const LIMIAR_ALERTA: f64 = 0.8;
 
 /// Hosts que contam como gratuitos (local é gratuito por definição).
 pub fn provedores_gratuitos() -> Vec<String> {
@@ -159,6 +161,37 @@ impl Custos {
             false,
         );
         tracing::warn!("cota de {provedor} em {:.0}%: job opcional adiado", self.fracao(provedor) * 100.0);
+    }
+
+    /// Avisa uma vez por período quando uma cota passa de 80% e outra quando chega ao limite
+    /// (F13.05). Só avisa: quem decide se o chat segue é o gateway, e o chat nunca é bloqueado.
+    /// Devolve quantos avisos novos saíram.
+    pub fn alertas(&self) -> usize {
+        let Some(ops) = &self.ops else { return 0 };
+        let quotas = self.cotas.read().clone();
+        let mut n = 0;
+        for (chave, c) in quotas.iter().filter(|(_, c)| c.limite > 0) {
+            let usado = self.uso(chave);
+            let frac = usado as f64 / c.limite as f64;
+            let (nivel, texto) = if usado >= c.limite {
+                ("limite", format!("Cota gratuita de {} no limite ({usado}/{}): o que for opcional para até virar o período.", c.nome, c.limite))
+            } else if frac >= LIMIAR_ALERTA {
+                ("80", format!("Cota gratuita de {} em {:.0}% ({usado}/{}).", c.nome, frac * 100.0, c.limite))
+            } else {
+                continue;
+            };
+            let dt = chrono::DateTime::from_timestamp(self.memory.now() as i64, 0).unwrap_or_default().with_timezone(&Local);
+            let periodo = if c.periodo == "mes" { dt.format("%Y%m") } else { dt.format("%Y%m%d") }.to_string();
+            let marca = format!("cota:alerta:{nivel}:{chave}:{periodo}");
+            if self.memory.counter_get(&marca) != 0 {
+                continue;
+            }
+            let _ = self.memory.counter_set(&marca, 1);
+            if ops.notify("cota", &texto, Some(&marca), false).is_ok() {
+                n += 1;
+            }
+        }
+        n
     }
 
     /// Para o card "Cota de hoje": usado, limite e o estado de cada provedor.

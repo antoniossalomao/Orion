@@ -1554,3 +1554,5 @@ ui-1118 = { "Gestos desligados: instale o motor de IA pelo instalador (opção G
 ui-1119 = { "pasta do motor de gestos indisponível" }
 
 ui-1120 = { "falha ao abrir a câmera" }
+ui-1121 = { "Para aprovar, digite:" }
+ui-1122 = { "Cheguei ao limite de " }{ $v0 }{ " passos deste pedido. Quer que eu continue? Responda " }{ "\"" }{ "continue" }{ "\"" }{ " e eu sigo de onde parei." }

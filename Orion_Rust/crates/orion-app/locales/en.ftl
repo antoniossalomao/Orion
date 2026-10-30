@@ -1554,3 +1554,5 @@ ui-1118 = { "Gestures off: install the AI engine with the installer (Hand gestur
 ui-1119 = { "gesture engine folder unavailable" }
 
 ui-1120 = { "failed to open the camera" }
+ui-1121 = { "To approve, type:" }
+ui-1122 = { "I reached the limit of " }{ $v0 }{ " steps for this request. Want me to continue? Reply " }{ "\"" }{ "continue" }{ "\"" }{ " and I will pick up where I stopped." }

@@ -65,6 +65,7 @@ pub mod nuvem;
 pub mod tarefas_bg;
 pub mod tools;
 pub mod util;
+pub mod vault_backup;
 pub mod vida;
 pub mod vigia;
 pub mod visao_cli;

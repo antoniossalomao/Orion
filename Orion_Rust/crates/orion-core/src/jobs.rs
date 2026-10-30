@@ -27,6 +27,12 @@ use std::sync::Arc;
 /// Chamadas seguidas sem resposta para dizer que o gateway caiu.
 pub const FALHAS_FORA: usize = 3;
 
+/// Atraso máximo para um agendamento ainda disparar depois de o PC voltar (F12.04).
+pub const ATRASO_MAX_AGENDAMENTO_S: f64 = 6.0 * 3600.0;
+
+/// Tentativas de um agendamento que falha antes de desistir até o próximo horário (F12.03).
+pub const TENTATIVAS_AGENDAMENTO: i64 = 3;
+
 #[derive(Debug, Default, Clone, Serialize)]
 pub struct TickReport {
     pub lembretes: usize,
@@ -49,6 +55,7 @@ pub struct TickReport {
     pub comandos: usize,
     pub vigia: Option<Value>,
     pub gateway: Option<String>,
+    pub alertas_cota: usize,
     pub adiados: Vec<String>,
     pub erros: Vec<String>,
 }
@@ -132,6 +139,7 @@ impl JobRunner {
             ("consolidar", 6.0 * 3600.0),
             ("auditoria", 86400.0),
             ("saude_gateway", 60.0),
+            ("cota", 300.0),
             ("downloads", 60.0),
             ("historicos", 3600.0),
             ("vida", 300.0),
@@ -407,6 +415,11 @@ impl JobRunner {
                 rel.downloads = d.rodar(false).movidos.len();
             }
         }
+        if let Some(c) = self.custos.clone() {
+            if self.devido("cota") {
+                rel.alertas_cota = c.alertas();
+            }
+        }
         if self.devido("saude_gateway") {
             if let Some(g) = Self::passo(rel, "gateway", self.saude_gateway()) {
                 rel.gateway = g;
@@ -535,23 +548,64 @@ impl JobRunner {
         Ok(n)
     }
 
+    /// Agendamentos vencidos, um após o outro na ordem do horário (F12.03). Um que falha tenta de
+    /// novo em 1 e 2 minutos; na terceira falha é marcado como disparado e sai um aviso.
     fn agendamentos(&self) -> anyhow::Result<usize> {
         let mut n = 0;
         let agora = self.agora();
         for s in self.ops.due_schedules(Some(agora))? {
             let id = s.get("id").and_then(Value::as_i64).unwrap_or(0);
-            let titulo = s.get("title").and_then(Value::as_str).unwrap_or("");
-            let mut texto = format!("Agendamento: {titulo}");
-            // a ferramenta registrada NÃO é executada: ação sem alguém olhando exige a política
-            if let Some(t) = s.get("tool").and_then(Value::as_str).filter(|t| !t.is_empty()) {
-                texto += &format!(" (ferramenta '{t}' registrada; não é executada sozinha)");
+            let espera = format!("agendamento:espera:{id}");
+            if self.memory.meta_get(&espera).and_then(|t| t.parse::<f64>().ok()).is_some_and(|t| t > agora) {
+                continue;
             }
-            let next = s.get("next_run").map(|v| v.to_string()).unwrap_or_default();
-            self.ops.notify("agendamento", &texto, Some(&format!("schedule:{id}:{next}")), true)?;
-            self.ops.mark_schedule_fired(id, Some(agora))?;
-            n += 1;
+            match self.disparar_agendamento(&s, agora) {
+                Ok(disparou) => {
+                    n += disparou as usize;
+                    self.memory.counter_set(&format!("agendamento:falhas:{id}"), 0)?;
+                    self.memory.meta_set(&espera, None)?;
+                }
+                Err(e) => {
+                    let falhas = self.memory.counter_incr(&format!("agendamento:falhas:{id}"), 1)?;
+                    tracing::error!("agendamento {id} falhou ({falhas}/{TENTATIVAS_AGENDAMENTO}): {e}");
+                    if falhas >= TENTATIVAS_AGENDAMENTO {
+                        self.ops.mark_schedule_fired(id, Some(agora))?;
+                        self.memory.counter_set(&format!("agendamento:falhas:{id}"), 0)?;
+                        self.memory.meta_set(&espera, None)?;
+                        let titulo = s.get("title").and_then(Value::as_str).unwrap_or("");
+                        let _ = self.ops.notify("agendamento", &format!("Agendamento falhou {TENTATIVAS_AGENDAMENTO} vezes e ficou para o próximo horário: {titulo}"), None, true);
+                    } else {
+                        let atraso = 60.0 * 2f64.powi(falhas as i32 - 1);
+                        self.memory.meta_set(&espera, Some(&(agora + atraso).to_string()))?;
+                    }
+                }
+            }
         }
         Ok(n)
+    }
+
+    /// Avisa (ou marca como pulado) um agendamento vencido. `true` se avisou.
+    fn disparar_agendamento(&self, s: &orion_store::ops::Row, agora: f64) -> anyhow::Result<bool> {
+        let id = s.get("id").and_then(Value::as_i64).unwrap_or(0);
+        let titulo = s.get("title").and_then(Value::as_str).unwrap_or("");
+        let previsto = s.get("next_run").and_then(Value::as_f64).unwrap_or(agora);
+        let next = s.get("next_run").map(|v| v.to_string()).unwrap_or_default();
+        // PC desligado ou suspenso: atraso de até 6 h ainda dispara; passado isso, a execução
+        // fica marcada como pulada e o próximo horário é recalculado (F12.04).
+        if agora - previsto > ATRASO_MAX_AGENDAMENTO_S {
+            let quando = crate::util::local(previsto).format("%d/%m %H:%M");
+            self.ops.notify("agendamento", &format!("Agendamento pulado: {titulo} (era {quando}; o PC estava desligado)"), Some(&format!("schedule:{id}:{next}")), false)?;
+            self.ops.mark_schedule_fired(id, Some(agora))?;
+            return Ok(false);
+        }
+        let mut texto = format!("Agendamento: {titulo}");
+        // a ferramenta registrada NÃO é executada: ação sem alguém olhando exige a política
+        if let Some(t) = s.get("tool").and_then(Value::as_str).filter(|t| !t.is_empty()) {
+            texto += &format!(" (ferramenta '{t}' registrada; não é executada sozinha)");
+        }
+        self.ops.notify("agendamento", &texto, Some(&format!("schedule:{id}:{next}")), true)?;
+        self.ops.mark_schedule_fired(id, Some(agora))?;
+        Ok(true)
     }
 
     /// Um briefing por dia, a partir da hora marcada. Se o Orion só subiu depois, ainda sai dentro

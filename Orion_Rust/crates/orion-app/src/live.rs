@@ -206,6 +206,7 @@ pub fn map_approval(a: &Value) -> Approval {
         risk: s(a, "risk").to_string(),
         args,
         truncated: a.get("args_truncated").and_then(Value::as_bool).unwrap_or(false),
+        typed: String::new(),
     }
 }
 

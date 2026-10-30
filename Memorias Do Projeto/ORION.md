@@ -1,6 +1,6 @@
 # Orion — estado, plano e decisões
 
-> Fonte única do estado do projeto. Atualizado em 29/10/2026. Princípios e regras: [REGRAS.md](REGRAS.md). Arquitetura, módulos e referências: [ARQUITETURA.md](ARQUITETURA.md). Melhorias pré-lançamento v1: [ORION_MELHORIAS_PRE_V1.md](ORION_MELHORIAS_PRE_V1.md). Roadmap pós-v1: [ORION_MELHORIAS_POS_V1.md](ORION_MELHORIAS_POS_V1.md). Como rodar: [README](../README.md). Material antigo e detalhado: [ORION_LEGADO.md](ORION_LEGADO.md).
+> Fonte única do estado do projeto. Atualizado em 30/10/2026. Princípios e regras: [REGRAS.md](REGRAS.md). Arquitetura, módulos e referências: [ARQUITETURA.md](ARQUITETURA.md). Melhorias pré-lançamento v1: [ORION_MELHORIAS_PRE_V1.md](ORION_MELHORIAS_PRE_V1.md). Roadmap pós-v1: [ORION_MELHORIAS_POS_V1.md](ORION_MELHORIAS_POS_V1.md). Como rodar: [README](../README.md). Material antigo e detalhado: [ORION_LEGADO.md](ORION_LEGADO.md).
 
 ## Visão
 
@@ -9,6 +9,21 @@ Assistente pessoal com identidade masculina, técnico, direto, não-servil. Não
 *"Não é uma IA. É uma extensão do sistema nervoso."*
 
 Antônio é o administrador: decide, aprova e pode desligar qualquer coisa. Nada que o modelo diga anula isso.
+
+## Board Notion: rodada de 10 tarefas — 30/10/2026
+
+Branch `claude/fervent-newton-7pa6ci`. Código compilado no Linux; **sem testes novos** (pausa de 21/10/2026); sem aceite na janela real do Windows.
+
+- **F12.04:** agendamento atrasado mais de 6 h (PC desligado ou suspenso) não dispara: vira aviso "Agendamento pulado" e recalcula o próximo horário (`ATRASO_MAX_AGENDAMENTO_S` em `orion-core/src/jobs.rs`). **Não feito:** acordar o PC pelo Agendador do Windows.
+- **F12.03:** agendamentos vencidos rodam um após o outro, na ordem do horário. Falha tenta de novo em 1 e 2 min; na terceira, o agendamento passa para o próximo horário e sai um aviso urgente.
+- **F13.05:** `Custos::alertas()` avisa uma vez por período quando uma cota passa de 80% e outra quando chega ao limite; roda nos jobs a cada 5 min. O chat continua sem bloqueio.
+- **F01.11:** tamanho e posição da janela (e com isso o monitor) ficam em `janela.txt`, ao lado de `interface.txt`, gravados ao fechar; só o app real reabre na posição salva. Posição absurda (monitor removido) volta ao centro. **Não medido:** janela pronta em menos de 1 s.
+- **F06.17 (parcial):** `orion vault-backup [destino]` compacta o vault em `vault-AAAAMMDD-HHMMSS.zip` (padrão: `<dados>/backups`), sem `.git`, `.trash` e `workspace*.json` do Obsidian; não segue symlink e recusa destino dentro do vault. **Não feito:** imagens geradas linkadas na nota; botão no app.
+- **F03.07 (parcial):** `complete_tier` (sem ferramentas: consolidação, resumos, pesquisa) devolve a mesma resposta para pedido idêntico por 24 h, só em memória (até 64 itens; esvazia ao trocar a configuração). O chat com ferramentas não usa cache. O cache de prompt do provedor depende de cada API e não foi ligado.
+- **F04.15:** ação destrutiva só libera Aprovar no cartão depois de digitar o comando (ou caminho) exato; sem argumento de comando, o nome da ferramenta. Vale no chat e em "Aguardando você"; atalho de teclado também respeita. Pelo Telegram continua só o botão.
+- **F04.21 (parcial):** ao chegar no limite de passos (padrão 25 por projeto), o Orion pergunta se deve continuar, em vez de um erro seco. **Não feito:** até 3 tarefas em paralelo com fila.
+- **F10.17 (parcial):** o status das CLIs no painel traz `versao` (`<cli> --version`, sem shell e sem `ORION_*`, guardada por 1 h). As CLIs continuam se atualizando pelo canal oficial; o Orion não atualiza nenhuma. Falta mostrar a versão na interface.
+- **F14.11:** cada senha errada no login manda aviso ao dono no Telegram (só o IP do cliente, nunca senha ou usuário). Tentativa durante a trava não avisa.
 
 ## Módulo de câmera e gestos com as mãos — 30/10/2026
 

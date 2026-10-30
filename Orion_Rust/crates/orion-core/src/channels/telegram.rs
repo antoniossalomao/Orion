@@ -187,6 +187,12 @@ impl TelegramChannel {
         self.enviar(self.home, &format!("Código de entrada do Orion: {code}\nExpira em 5 minutos. Se não foi você, ignore."), None).await
     }
 
+    /// Aviso ao dono a cada senha errada no login (F14.11, ligado a F02.12). Só o IP do cliente;
+    /// nunca a senha nem o usuário digitado.
+    pub async fn send_login_failure(&self, cliente: &str) -> Result<(), TelegramError> {
+        self.enviar(self.home, &format!("⚠️ Tentativa de entrada no Orion com senha errada (cliente {cliente}). Se não foi você, troque a senha."), None).await
+    }
+
     async fn send_approval(&self, chat_id: i64, id: &str) -> R<()> {
         let _guard = self.approval_delivery.lock().await;
         if self.remote_cards.lock().contains_key(id) {

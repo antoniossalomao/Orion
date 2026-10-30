@@ -1248,5 +1248,7 @@
   "feche o módulo de câmera para usar o Face ID": "ui-1117",
   "Gestos desligados: instale o motor de IA pelo instalador (opção Gestos com as mãos)": "ui-1118",
   "pasta do motor de gestos indisponível": "ui-1119",
-  "falha ao abrir a câmera": "ui-1120"
+  "falha ao abrir a câmera": "ui-1120",
+  "Para aprovar, digite:": "ui-1121",
+  "Cheguei ao limite de {} passos deste pedido. Quer que eu continue? Responda \"continue\" e eu sigo de onde parei.": "ui-1122"
 }

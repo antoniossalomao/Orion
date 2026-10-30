@@ -132,7 +132,7 @@ fn aprovacoes(app: &App) -> El<'_> {
             acoes.push(btn(crate::i18n::text("Abrir conversa"), Kind::Ghost, true, None, Some(Msg::OpenConv(ci))));
             col = col.push(qcard(
                 row![dot_halo(t::SIGNAL, t::SIGNAL_SOFT), tx(format!("{} · {}", c.title, c.proj), 12.5, t::FG3), grow(), tx(o.time.clone(), 12.5, t::FG3)].spacing(8).align_y(Vertical::Center).into(),
-                column![txt, approval_detail(a)].spacing(8).into(),
+                column![txt, approval_detail(a), crate::ui::approval_confirm(a, move |s| Msg::ApprType(ci, mi, s)).unwrap_or_else(|| column![].into())].spacing(8).into(),
                 iced::widget::Row::with_children(acoes).spacing(8).into(),
             ));
         }

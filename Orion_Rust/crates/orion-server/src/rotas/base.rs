@@ -184,6 +184,7 @@ pub async fn login(State(st): State<Estado>, ConnectInfo(addr): ConnectInfo<Sock
         Err(AuthError::NotConfigured(m)) => return erro(503, m),
         Err(_) => {
             tracing::warn!(target: "orion.audit", "login_falhou cliente={}", addr.ip());
+            avisar_falha_login(&st, addr.ip().to_string());
             return erro(401, "usuário ou senha incorretos");
         }
     };
@@ -203,6 +204,18 @@ pub async fn login(State(st): State<Estado>, ConnectInfo(addr): ConnectInfo<Sock
     let mut r = Json(json!({"ok": true})).into_response();
     abrir_sessao(&mut r, &st, &headers, &token);
     Ok(r)
+}
+
+/// F14.11: cada senha errada avisa no Telegram, em segundo plano (a resposta do login não espera).
+/// Tentativa durante a trava não conta como senha errada e não avisa (a trava já limita a rajada).
+fn avisar_falha_login(st: &Estado, cliente: String) {
+    if let Some(tg) = st.telegram.clone() {
+        tokio::spawn(async move {
+            if let Err(e) = tg.send_login_failure(&cliente).await {
+                tracing::warn!("aviso de login no Telegram falhou: {e}");
+            }
+        });
+    }
 }
 
 pub async fn logout(State(st): State<Estado>, headers: HeaderMap) -> Response {

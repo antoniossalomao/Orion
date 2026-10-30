@@ -277,7 +277,7 @@ fn approval<'a>(a: &'a crate::data::Approval, ci: usize, mi: usize) -> El<'a> {
             if a.diff_button {
                 btns = btns.push(btn(crate::i18n::text("Ver o diff"), Kind::Ghost, true, None, Some(Msg::ShowDiff)));
             }
-            container(column![row![dot_halo(t::SIGNAL, t::SIGNAL_SOFT), txf(crate::i18n::text("Aguardando sua aprovação"), 13.0, t::SIGNAL, t::UI_MED)].spacing(8).align_y(Vertical::Center), container(txt).padding(pad(0.0, 0.0, 0.0, 0.0)), approval_detail(a), container(btns).padding(pad(2.0, 0.0, 0.0, 0.0))].spacing(8))
+            container(column![row![dot_halo(t::SIGNAL, t::SIGNAL_SOFT), txf(crate::i18n::text("Aguardando sua aprovação"), 13.0, t::SIGNAL, t::UI_MED)].spacing(8).align_y(Vertical::Center), container(txt).padding(pad(0.0, 0.0, 0.0, 0.0)), approval_detail(a), crate::ui::approval_confirm(a, move |s| Msg::ApprType(ci, mi, s)).unwrap_or_else(|| column![].into()), container(btns).padding(pad(2.0, 0.0, 0.0, 0.0))].spacing(8))
                 .width(Length::Fill)
                 .max_width(640.0)
                 .padding(pad(12.0, 16.0, 12.0, 16.0))
