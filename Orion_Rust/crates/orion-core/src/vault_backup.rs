@@ -2,7 +2,6 @@
 //! na pasta de destino, com nome gerado pelo código e sem sobrescrever nada.
 //! Fica de fora o que não é nota nem anexo: `.git`, `.trash` e o estado de janelas do Obsidian.
 
-use std::io::Write;
 use std::path::{Path, PathBuf};
 
 const PULAR: [&str; 2] = [".git", ".trash"];
@@ -57,7 +56,8 @@ pub fn zip_vault(vault: &Path, destino: &Path, agora: f64) -> anyhow::Result<(Pa
         for p in &lista {
             let nome = p.strip_prefix(&vault)?.components().map(|c| c.as_os_str().to_string_lossy().into_owned()).collect::<Vec<_>>().join("/");
             z.start_file(nome, op)?;
-            z.write_all(&std::fs::read(p)?)?;
+            // copia em fluxo: anexo de vários GB não precisa caber na memória
+            std::io::copy(&mut std::fs::File::open(p)?, &mut z)?;
         }
         z.finish()?;
         Ok(())

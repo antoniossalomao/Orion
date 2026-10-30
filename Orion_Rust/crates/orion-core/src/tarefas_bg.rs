@@ -153,6 +153,10 @@ impl TarefasBg {
             if self.modos.as_ref().is_some_and(|m| m.panico()) {
                 return;
             }
+            // a cota pode ter subido desde que a tarefa entrou na fila: job opcional para em 90%
+            if self.custos.as_ref().is_some_and(|c| !c.pode_usar("gateway", true, "a tarefa em segundo plano")) {
+                return;
+            }
             let Ok(rows) = self.memory.query("SELECT * FROM background_tasks WHERE status='na_fila' ORDER BY id LIMIT 1", &[]) else { return };
             let Some(r) = rows.first() else { return };
             let tid = r.get("id").and_then(Value::as_i64).unwrap_or(0);
