@@ -54,12 +54,16 @@ fn levar_imagens(vault: &Path, imagens: &Path, texto: &str) -> String {
 }
 
 fn copiar_imagem(vault: &Path, imagens: &Path, nome: &str) -> std::io::Result<bool> {
+    let raiz = vault.canonicalize()?;
+    let pasta = PASTA_IMAGENS.iter().fold(raiz.clone(), |p, d| p.join(d));
+    // já copiada antes: vale mesmo que o Orion tenha apagado a original (limite de 200 imagens)
+    if std::fs::symlink_metadata(pasta.join(nome)).is_ok_and(|m| m.is_file()) && pasta.canonicalize().is_ok_and(|p| p.starts_with(&raiz)) {
+        return Ok(true);
+    }
     let origem = imagens.join(nome);
     if !origem.is_file() {
         return Ok(false);
     }
-    let raiz = vault.canonicalize()?;
-    let pasta = PASTA_IMAGENS.iter().fold(raiz.clone(), |p, d| p.join(d));
     std::fs::create_dir_all(&pasta)?;
     // a pasta não pode apontar para fora do vault (symlink)
     if !pasta.canonicalize()?.starts_with(&raiz) {
