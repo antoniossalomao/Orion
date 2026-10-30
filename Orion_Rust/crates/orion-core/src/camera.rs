@@ -161,11 +161,12 @@ impl CameraStream {
         self.shutdown();
     }
 
+    /// Pede para o fio parar e não espera por ele: `camera.frame()` pode ficar preso numa webcam
+    /// travada, e esperar aqui congelaria quem soltou o fluxo (inclusive a janela, ao cancelar a
+    /// leitura para usar a senha). O fio desliga a câmera sozinho quando a leitura pendente volta.
     fn shutdown(&mut self) {
         self.stop.store(true, Ordering::Relaxed);
-        if let Some(thread) = self.thread.take() {
-            let _ = thread.join();
-        }
+        drop(self.thread.take());
         self.latest.lock().take();
     }
 }
