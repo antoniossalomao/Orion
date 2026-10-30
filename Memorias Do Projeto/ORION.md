@@ -25,6 +25,22 @@ Branch `claude/fervent-newton-7pa6ci`. Código compilado no Linux; **sem testes 
 - **F10.17 (parcial):** o status das CLIs no painel traz `versao` (`<cli> --version`, sem shell e sem `ORION_*`, guardada por 1 h). As CLIs continuam se atualizando pelo canal oficial; o Orion não atualiza nenhuma. Falta mostrar a versão na interface.
 - **F14.11:** cada senha errada no login manda aviso ao dono no Telegram (só o IP do cliente, nunca senha ou usuário). Tentativa durante a trava não avisa.
 
+**Segunda leva (mesmo dia, mesma branch):**
+
+- **F15.10:** o botão Ouvir de cada resposta chama `POST /voz/ouvir`: sintetiza com a voz configurada (edge-tts, que registra a saída, ou a voz do Windows) e toca no Windows. Pânico corta. Fora do Windows responde 501.
+- **F06.17 (completo, menos imagens):** botão "Gerar zip" em Configurações › Memória (`POST /vault/backup`), na pasta de backups.
+- **F04.21 (completo):** até 3 tarefas em segundo plano ao mesmo tempo (`MAX_PARALELAS`); as outras ficam `na_fila`, começam por ordem de chegada e podem ser canceladas na tela Nuvem.
+- **F06.22 / F07.09:** Configurações › Memória › Sobre você lista os fatos com Editar e Esquecer (mesmas rotas da tela Conhecimento).
+- **F10.17 (completo):** o Painel mostra a versão de cada CLI de assinatura (ou "não instalada").
+- **F14.04:** no Telegram, um turno do agente por vez; mensagem que chega com o PC ocupado recebe "está na fila" e é respondida em seguida, na ordem.
+- **F04.31 / F07.11 (parcial):** `ORION_TELEGRAM_EVENTS` (Configurações › Conectores) escolhe os tipos de aviso que vão ao Telegram; vazio = todos. Os demais continuam no app. Vale ao reiniciar. Windows, som e bandeja seguem nas preferências locais de Notificações.
+- **F11.05:** `executar_comando` com código de saída diferente de zero devolve uma dica para o modelo explicar a causa e oferecer o comando corrigido, que é nova chamada e passa pela mesma aprovação.
+- **F12.01 (parcial):** criar e listar agendamentos devolvem `proximas_execucoes` (3 próximas, DD/MM HH:MM). Linguagem natural continua a cargo do modelo.
+- **F23.11:** lembrete de água a cada N minutos das 8h às 22h (`ORION_WATER_EVERY_MIN`, 0 desliga) e aviso 30 min antes da hora de dormir (`ORION_BEDTIME_AT`). Opt-in; não perturbe e pânico seguram. Presença pela câmera não foi ligada.
+- **F12.13:** rotina que falha para no passo e avisa (urgente) dizendo qual passo e o motivo.
+- **F04.25:** com memória no turno, o prompt de sistema manda apontar e perguntar quando pedido, fato e nota divergem (REGRAS.md: o Orion não decide sozinho qual fato vale). Persona não foi tocada.
+- **F06.12 (parcial):** com `ORION_VAULT_DIARIO` ligado, o resumo diário pessoal (Você fez) vira nota em `03 Recursos/Orion/Memória/Diário/AAAA-MM-DD - Você fez.md`, sem sobrescrever e sem commit. **Não feito:** gerar na nuvem com o PC desligado.
+
 ## Módulo de câmera e gestos com as mãos — 30/10/2026
 
 Pedido do Antônio: a tela de câmera do Face ID também abre como módulo de câmera, com gestos. Princípio novo em [REGRAS.md](REGRAS.md): **gesto com as mãos só abre e navega; nunca aprova nem executa**.

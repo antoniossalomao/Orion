@@ -111,6 +111,9 @@ impl Default for JobsConfig {
     }
 }
 
+/// Grava o "Você fez" do dia no vault (`Memória/Diário/AAAA-MM-DD`), sem sobrescrever (F06.12).
+pub type DiarioVault = Arc<dyn Fn(chrono::NaiveDate, &str) -> anyhow::Result<()> + Send + Sync>;
+
 pub struct JobRunner {
     memory: Arc<Store>,
     ops: Arc<Operations>,
@@ -129,6 +132,7 @@ pub struct JobRunner {
     vigia: Option<Arc<crate::vigia::Vigia>>,
     custos: Option<Arc<Custos>>,
     modos: Option<Arc<Modos>>,
+    diario_vault: Option<DiarioVault>,
     every: HashMap<&'static str, f64>,
     last: Mutex<HashMap<&'static str, f64>>,
     pub ultima_rodada: Mutex<Option<f64>>,
@@ -169,6 +173,7 @@ impl JobRunner {
             vigia: None,
             custos: None,
             modos: None,
+            diario_vault: None,
             every,
             last: Mutex::new(HashMap::new()),
             ultima_rodada: Mutex::new(None),
@@ -222,6 +227,10 @@ impl JobRunner {
     }
     pub fn com_custos(mut self, c: Arc<Custos>) -> Self {
         self.custos = Some(c);
+        self
+    }
+    pub fn com_diario_vault(mut self, d: DiarioVault) -> Self {
+        self.diario_vault = Some(d);
         self
     }
     pub fn com_modos(mut self, m: Arc<Modos>) -> Self {
@@ -458,6 +467,14 @@ impl JobRunner {
         let text=format!("Resumo de {date}: {conversations} conversa(s), {actions} ação(ões) autorizada(s), {tasks} tarefa(s) concluída(s), {approvals} pedido(s) de aprovação.");
         // F09.05: o texto completo do "Você fez" fica guardado; exportar para o vault é decisão sua.
         let relatorio = crate::relatorio::voce_fez(&self.memory, pid.as_deref(), date)?;
+        // F06.12: o resumo pessoal do dia vai também para o vault (opt-in); falha não perde o aviso
+        if pid.is_none() && conversations + actions + tasks + approvals > 0 && self.memory.meta_get(&marker).is_none() {
+            if let Some(gravar) = &self.diario_vault {
+                if let Err(e) = gravar(date, &relatorio) {
+                    tracing::warn!("diário do dia não foi para o vault: {e}");
+                }
+            }
+        }
         self.memory.tx(|_| {
             if self.memory.meta_get(&marker).is_some() { return Ok(false); }
             if conversations+actions+tasks+approvals>0 {
