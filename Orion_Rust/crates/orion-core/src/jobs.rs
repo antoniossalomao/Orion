@@ -56,6 +56,7 @@ pub struct TickReport {
     pub vigia: Option<Value>,
     pub gateway: Option<String>,
     pub alertas_cota: usize,
+    pub bem_estar: usize,
     pub adiados: Vec<String>,
     pub erros: Vec<String>,
 }
@@ -86,6 +87,9 @@ pub struct JobsConfig {
     pub clipboard_days: i64,
     pub command_history: bool,
     pub nome: String,
+    /// F23.11: água a cada N min (0 desliga) e hora de dormir (HH:MM, vazio desliga).
+    pub water_every_min: u32,
+    pub bedtime_at: String,
 }
 
 impl Default for JobsConfig {
@@ -101,6 +105,8 @@ impl Default for JobsConfig {
             clipboard_days: 0,
             command_history: false,
             nome: "Antônio".into(),
+            water_every_min: 0,
+            bedtime_at: String::new(),
         }
     }
 }
@@ -420,6 +426,9 @@ impl JobRunner {
                 rel.alertas_cota = c.alertas();
             }
         }
+        if let Some(n) = Self::passo(rel, "bem-estar", self.bem_estar()) {
+            rel.bem_estar = n;
+        }
         if self.devido("saude_gateway") {
             if let Some(g) = Self::passo(rel, "gateway", self.saude_gateway()) {
                 rel.gateway = g;
@@ -544,6 +553,39 @@ impl JobRunner {
             self.ops.notify("lembrete", &texto, Some(&format!("reminder:{id}:n{vezes}")), true)?;
             self.ops.mark_reminder_nudged(id, Some(agora))?;
             n += 1;
+        }
+        Ok(n)
+    }
+
+    /// F23.11: lembrete de água (8h–22h, no intervalo escolhido) e aviso 30 min antes da hora de
+    /// dormir. Opt-in, só aviso local; não perturbe e pânico seguram. Um por janela, sem rajada ao ligar.
+    fn bem_estar(&self) -> anyhow::Result<usize> {
+        if self.modos.as_ref().is_some_and(|m| m.panico() || m.nao_perturbe()) {
+            return Ok(0);
+        }
+        let agora = self.agora();
+        let dt = crate::util::local(agora);
+        let mut n = 0;
+        let min = self.cfg.water_every_min as i64;
+        if min > 0 && (8..22).contains(&dt.hour()) {
+            let janela = (agora as i64) / (min * 60);
+            if self.memory.counter_get("bem_estar:agua") < janela {
+                self.memory.counter_set("bem_estar:agua", janela)?;
+                self.ops.notify("bem_estar", "Hora de beber água.", Some(&format!("agua:{janela}")), false)?;
+                n += 1;
+            }
+        }
+        if let Some((h, m)) = hora(&self.cfg.bedtime_at).map_err(|e| anyhow::anyhow!(e))? {
+            let alvo = dt.date_naive().and_hms_opt(h, m, 0).and_then(|t| Local.from_local_datetime(&t).earliest());
+            if let Some(alvo) = alvo {
+                let falta = (alvo - dt).num_minutes();
+                let hoje: i64 = dt.format("%Y%m%d").to_string().parse().unwrap_or(0);
+                if (0..=30).contains(&falta) && self.memory.counter_get("bem_estar:dormir") < hoje {
+                    self.memory.counter_set("bem_estar:dormir", hoje)?;
+                    self.ops.notify("bem_estar", &format!("Faltam {falta} min para a hora de dormir ({h:02}:{m:02})."), Some(&format!("dormir:{hoje}")), false)?;
+                    n += 1;
+                }
+            }
         }
         Ok(n)
     }

@@ -1571,3 +1571,7 @@ ui-1134 = { "Load the list to edit or forget." }
 ui-1135 = { "Load" }
 ui-1136 = { "Notices sent to Telegram" }
 ui-1137 = { "Comma-separated types (lembrete, agendamento, cota, briefing, rotina…). Empty sends all. Applies after restart." }
+ui-1138 = { "Water reminder (minutes)" }
+ui-1139 = { "Bedtime" }
+ui-1140 = { "Reminds you to drink water at this interval, 8am to 10pm. 0 turns it off. Do not disturb holds the notice." }
+ui-1141 = { "Notifies 30 minutes before this time (HH:MM). Empty turns it off." }

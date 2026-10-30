@@ -1265,5 +1265,9 @@
   "Carregue a lista para editar ou esquecer.": "ui-1134",
   "Carregar": "ui-1135",
   "Avisos enviados ao Telegram": "ui-1136",
-  "Tipos separados por vírgula (lembrete, agendamento, cota, briefing, rotina…). Vazio envia todos. Vale ao reiniciar.": "ui-1137"
+  "Tipos separados por vírgula (lembrete, agendamento, cota, briefing, rotina…). Vazio envia todos. Vale ao reiniciar.": "ui-1137",
+  "Lembrete de água (minutos)": "ui-1138",
+  "Hora de dormir": "ui-1139",
+  "Lembra de beber água nesse intervalo, das 8h às 22h. 0 desliga. Não perturbe segura o aviso.": "ui-1140",
+  "Avisa 30 minutos antes deste horário (HH:MM). Vazio desliga.": "ui-1141"
 }

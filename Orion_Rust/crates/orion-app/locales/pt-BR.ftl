@@ -1571,3 +1571,7 @@ ui-1134 = { "Carregue a lista para editar ou esquecer." }
 ui-1135 = { "Carregar" }
 ui-1136 = { "Avisos enviados ao Telegram" }
 ui-1137 = { "Tipos separados por vírgula (lembrete, agendamento, cota, briefing, rotina…). Vazio envia todos. Vale ao reiniciar." }
+ui-1138 = { "Lembrete de água (minutos)" }
+ui-1139 = { "Hora de dormir" }
+ui-1140 = { "Lembra de beber água nesse intervalo, das 8h às 22h. 0 desliga. Não perturbe segura o aviso." }
+ui-1141 = { "Avisa 30 minutos antes deste horário (HH:MM). Vazio desliga." }

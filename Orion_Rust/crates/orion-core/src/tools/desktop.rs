@@ -43,11 +43,19 @@ pub fn desktop_tools(timeout_s: f64, max_chars: usize) -> Vec<Tool> {
                 match rodar(&argv, Some(&cwd), Duration::from_secs_f64(timeout_s), None) {
                     Err(ErroProcesso::Tempo) => Ok(json!({"erro": format!("tempo esgotado ({timeout_s:.0}s); o comando foi encerrado")})),
                     Err(ErroProcesso::Io(e)) => Ok(json!({"erro": format!("não foi possível executar: {:?}", e.kind())})),
-                    Ok(r) => Ok(json!({
-                        "codigo": r.codigo,
-                        "saida": cortar(&String::from_utf8_lossy(&r.stdout), max_chars),
-                        "erro": cortar(&String::from_utf8_lossy(&r.stderr), max_chars / 2),
-                    })),
+                    Ok(r) => {
+                        let mut v = json!({
+                            "codigo": r.codigo,
+                            "saida": cortar(&String::from_utf8_lossy(&r.stdout), max_chars),
+                            "erro": cortar(&String::from_utf8_lossy(&r.stderr), max_chars / 2),
+                        });
+                        // F11.05: o Orion explica a falha e oferece a correção, que é outra chamada
+                        // e passa pela política de novo (nada roda sozinho por causa desta dica)
+                        if r.codigo.is_some_and(|c| c != 0) {
+                            v["dica"] = json!("O comando falhou. Explique a causa provável ao Antônio em poucas linhas e, se houver correção, mostre o comando corrigido e ofereça rodá-lo; rodar é uma nova chamada de executar_comando, sujeita à mesma aprovação.");
+                        }
+                        Ok(v)
+                    }
                 }
             },
         ),

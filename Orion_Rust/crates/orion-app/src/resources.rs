@@ -321,6 +321,8 @@ const FIELDS: &[Field] = &[
         Bool,
     ),
     ("diary_at", "automation", "Horário do diário", Text),
+    ("water_every_min", "automation", "Lembrete de água (minutos)", Number),
+    ("bedtime_at", "automation", "Hora de dormir", Text),
     (
         "weekly_review_at",
         "automation",
@@ -500,6 +502,8 @@ const DESCRIPTIONS: &[(&str, &str)] = &[
     ("rerank", "Reordena resultados de busca com um modelo local."),
     ("rerank_model_dir", "Pasta do modelo ONNX de reordenação."),
     ("mcp_enabled", "Liga os servidores MCP configurados."),
+    ("water_every_min", "Lembra de beber água nesse intervalo, das 8h às 22h. 0 desliga. Não perturbe segura o aviso."),
+    ("bedtime_at", "Avisa 30 minutos antes deste horário (HH:MM). Vazio desliga."),
     ("telegram_events", "Tipos separados por vírgula (lembrete, agendamento, cota, briefing, rotina…). Vazio envia todos. Vale ao reiniciar."),
     ("mcp_config", "Arquivo com a configuração dos servidores MCP."),
     ("skills_enabled", "Liga as skills instaladas."),

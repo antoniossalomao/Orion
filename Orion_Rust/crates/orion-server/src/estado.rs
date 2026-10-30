@@ -857,6 +857,8 @@ pub async fn montar_with_runtime(mut settings: Settings, preserve_extensions:boo
             gateway_down_min: settings.gateway_down_min,
             clipboard_days: settings.clipboard_days as i64,
             command_history: settings.command_history,
+            water_every_min: settings.water_every_min,
+            bedtime_at: settings.bedtime_at.clone(),
             ..Default::default()
         };
         let mut j = JobRunner::new(memory.clone(), ops.clone(), cfg)

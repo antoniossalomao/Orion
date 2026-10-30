@@ -91,10 +91,18 @@ pub fn ops_tools(ops: Arc<Operations>) -> Vec<Tool> {
                                 &a.s_or("ferramenta", ""),
                                 Some(&params),
                             ),
-                            |s| json!({"ok": true, "agendamento": s}),
+                            |s| json!({"ok": true, "proximas_execucoes": orion_store::ops::schedule_preview(&s, 3), "agendamento": s}),
                         )
                     }
-                    "listar" => ok_ou(o2.list_schedules(), |l| json!({"ok": true, "total": l.len(), "agendamentos": l})),
+                    // F12.01: cada agendamento vem com a prévia das próximas 3 execuções
+                    "listar" => ok_ou(o2.list_schedules(), |l| {
+                        let l: Vec<Value> = l.into_iter().map(|mut s| {
+                            let p = orion_store::ops::schedule_preview(&s, 3);
+                            s.insert("proximas_execucoes".into(), json!(p));
+                            Value::Object(s)
+                        }).collect();
+                        json!({"ok": true, "total": l.len(), "agendamentos": l})
+                    }),
                     "pausar" | "retomar" => ok_ou(o2.set_schedule_active(id, acao == "retomar"), |s| json!({"ok": true, "agendamento": s})),
                     "remover" => ok_ou(o2.remove_schedule(id), |r| json!({"ok": r, "removido": a.get("agendamento_id").cloned().unwrap_or(json!(0))})),
                     _ => json!({"erro": format!("Ação inválida: {acao}. Use: criar, listar, pausar, retomar, remover.")}),

@@ -174,6 +174,10 @@ pub struct Settings {
     pub sleep_at: String,
     pub weekly_ai: bool,
     pub research_at: String,
+    /// F23.11: lembrete de água a cada N minutos, das 8h às 22h; 0 desliga (opt-in).
+    pub water_every_min: u32,
+    /// F23.11: hora de dormir (HH:MM); vazio desliga. O aviso sai 30 min antes.
+    pub bedtime_at: String,
     pub research_topics: String,
     pub consolidate: bool,
     pub quota_gateway_dia: i64,
@@ -523,6 +527,8 @@ impl Settings {
             sleep_at: e.s("sleep_at", ""),
             weekly_ai: e.b("weekly_ai", false)?,
             research_at: e.s("research_at", ""),
+            water_every_min: e.num("water_every_min", 0u32, Some(0), Some(600))?,
+            bedtime_at: e.s("bedtime_at", ""),
             research_topics: e.s(
                 "research_topics",
                 "MCP (Model Context Protocol) segurança e novidades; Pix e Open Finance (regras do Banco Central); LLMs locais e on-device",
