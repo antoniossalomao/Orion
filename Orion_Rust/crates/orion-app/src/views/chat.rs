@@ -240,9 +240,7 @@ fn orion_msg<'a>(app: &'a App, ci: usize, mi: usize, o: &'a OrionMsg, is_last: b
     }
     if streaming.is_none() && o.time != "pendente" {
         let mut acts = row![tip(ib_sz("copy", 28.0, 16.0, Some(Msg::CopyText(o.body.clone())), false), crate::i18n::text("Copiar"))].spacing(0).align_y(Vertical::Center);
-        if !app.is_live() {
-            acts = acts.push(tip(ib_sz("speaker", 28.0, 16.0, Some(Msg::Toast(crate::i18n::text("Lendo em voz alta").into())), false), crate::i18n::text("Ouvir")));
-        }
+        acts = acts.push(tip(ib_sz("speaker", 28.0, 16.0, Some(Msg::Listen(o.body.clone())), false), crate::i18n::text("Ouvir")));
         if is_last && !app.is_live() {
             acts = acts.push(tip(ib_sz("retry", 28.0, 16.0, Some(Msg::Toast(crate::i18n::text("Gerando de novo…").into())), false), crate::i18n::text("Gerar de novo")));
         }

@@ -1250,5 +1250,18 @@
   "pasta do motor de gestos indisponível": "ui-1119",
   "falha ao abrir a câmera": "ui-1120",
   "Para aprovar, digite:": "ui-1121",
-  "Cheguei ao limite de {} passos deste pedido. Quer que eu continue? Responda \"continue\" e eu sigo de onde parei.": "ui-1122"
+  "Cheguei ao limite de {} passos deste pedido. Quer que eu continue? Responda \"continue\" e eu sigo de onde parei.": "ui-1122",
+  "Backup do vault": "ui-1123",
+  "Gera um zip do vault na pasta de backups, sem o .git.": "ui-1124",
+  "Gerar zip": "ui-1125",
+  "Backup do vault: {} ({} arquivos)": "ui-1126",
+  "Backup do vault criado (simulado)": "ui-1127",
+  "CLIs de assinatura": "ui-1128",
+  "não instalada": "ui-1129",
+  "versão desconhecida": "ui-1130",
+  "na fila": "ui-1131",
+  "Sobre você": "ui-1132",
+  "Fatos que o Orion sabe de você": "ui-1133",
+  "Carregue a lista para editar ou esquecer.": "ui-1134",
+  "Carregar": "ui-1135"
 }

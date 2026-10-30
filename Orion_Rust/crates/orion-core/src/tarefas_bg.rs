@@ -26,6 +26,8 @@ pub const MAX_MINUTOS: i64 = 30;
 pub const MAX_RELATORIO: usize = 8000;
 pub const MAX_PROPOSTAS: usize = 10;
 pub const MAX_PROPOSTA: usize = 240;
+/// Tarefas rodando ao mesmo tempo; as outras esperam na fila, por ordem de chegada (F04.21).
+pub const MAX_PARALELAS: usize = 3;
 
 static PROPOSTAS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?m)^[ \t]*PROPOSTAS:[ \t]*$").unwrap());
 
@@ -106,25 +108,47 @@ impl TarefasBg {
         if self.modos.as_ref().is_some_and(|m| m.panico()) {
             return recusa("modo pânico: a tarefa em segundo plano está cortada", 409);
         }
-        if self.tarefas.lock().values().any(|t| !t.is_finished()) {
-            return recusa("já há uma tarefa em segundo plano rodando", 409);
-        }
         if self.custos.as_ref().is_some_and(|c| !c.pode_usar("gateway", true, "a tarefa em segundo plano")) {
             return recusa("cota gratuita do dia quase no fim: tente amanhã", 429);
         }
         let orcamento = json!({"max_passos": max_passos, "max_min": max_min}).to_string();
         let agora = self.memory.now();
+        // com as vagas cheias a tarefa entra na fila e começa quando outra terminar (F04.21)
         let tid = self.memory.tx(|c| {
             c.execute(
                 "INSERT INTO background_tasks(objective, budget, status, created_at) VALUES (?,?,?,?)",
-                orion_store::rusqlite::params![objetivo, orcamento, "rodando", agora],
+                orion_store::rusqlite::params![objetivo, orcamento, "na_fila", agora],
             )?;
             Ok(c.last_insert_rowid())
         })?;
-        let me = self.clone();
-        let h = tokio::spawn(async move { me.executar(tid, objetivo, max_passos, max_min).await });
-        self.tarefas.lock().insert(tid, h);
+        self.proxima();
         self.obter(tid)
+    }
+
+    fn rodando(&self) -> usize {
+        self.tarefas.lock().values().filter(|t| !t.is_finished()).count()
+    }
+
+    /// Começa as tarefas da fila enquanto houver vaga, a mais antiga primeiro.
+    fn proxima(self: &Arc<Self>) {
+        while self.rodando() < MAX_PARALELAS {
+            let Ok(rows) = self.memory.query("SELECT * FROM background_tasks WHERE status='na_fila' ORDER BY id LIMIT 1", &[]) else { return };
+            let Some(r) = rows.first() else { return };
+            let tid = r.get("id").and_then(Value::as_i64).unwrap_or(0);
+            let objetivo = r.get("objective").and_then(Value::as_str).unwrap_or("").to_string();
+            let orc: Value = r.get("budget").and_then(Value::as_str).and_then(|b| serde_json::from_str(b).ok()).unwrap_or_default();
+            let (max_passos, max_min) = (orc["max_passos"].as_i64().unwrap_or(MAX_PASSOS), orc["max_min"].as_i64().unwrap_or(MAX_MINUTOS));
+            let marcou = self.memory.tx(|c| Ok(c.execute("UPDATE background_tasks SET status='rodando' WHERE id=? AND status='na_fila'", orion_store::rusqlite::params![tid])?));
+            if !matches!(marcou, Ok(1)) {
+                return;
+            }
+            let me = self.clone();
+            let h = tokio::spawn(async move {
+                me.executar(tid, objetivo, max_passos, max_min).await;
+                me.proxima();
+            });
+            self.tarefas.lock().insert(tid, h);
+        }
     }
 
     async fn executar(&self, tid: i64, objetivo: String, max_passos: i64, max_min: i64) {
@@ -194,8 +218,9 @@ impl TarefasBg {
         Ok(self.memory.query("SELECT * FROM background_tasks ORDER BY id DESC LIMIT ?", &[&limite.clamp(1, 100)])?.iter().map(linha).collect())
     }
 
-    pub fn cancelar(&self, tid: i64) -> Result<Value, TarefaBgError> {
-        {
+    pub fn cancelar(self: &Arc<Self>, tid: i64) -> Result<Value, TarefaBgError> {
+        let na_fila = self.obter(tid)?["status"] == "na_fila";
+        if !na_fila {
             let g = self.tarefas.lock();
             match g.get(&tid) {
                 Some(t) if !t.is_finished() => t.abort(),
@@ -204,9 +229,10 @@ impl TarefasBg {
         }
         let agora = self.memory.now();
         self.memory.tx(|c| {
-            c.execute("UPDATE background_tasks SET status='cancelada', finished_at=? WHERE id=? AND status='rodando'", orion_store::rusqlite::params![agora, tid])?;
+            c.execute("UPDATE background_tasks SET status='cancelada', finished_at=? WHERE id=? AND status IN ('rodando','na_fila')", orion_store::rusqlite::params![agora, tid])?;
             Ok(())
         })?;
+        self.proxima();
         self.obter(tid)
     }
 

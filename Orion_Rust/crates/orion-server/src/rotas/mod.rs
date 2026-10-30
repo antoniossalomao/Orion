@@ -126,6 +126,8 @@ pub fn router(st: Estado) -> Router {
         .route("/camera/ver", post(camera_ver))
         .route("/legenda", get(legenda_estado))
         .route("/voz/escuta", post(escuta_pausar))
+        .route("/voz/ouvir", post(voz_ouvir))
+        .route("/vault/backup", post(vault_backup))
         .route("/ws/voz", get(voz::ws_voz))
         .route("/ws/voice", get(voz::ws_voice))
         .route("/facts", get(fatos_listar))

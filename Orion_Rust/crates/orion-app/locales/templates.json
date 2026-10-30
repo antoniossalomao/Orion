@@ -78,5 +78,6 @@
   "Este áudio vai sair do seu computador e será enviado a {} para ser transcrito. Enviar?",
   "A verificar {v}…",
   "Olá, {v}",
-  "Cheguei ao limite de {} passos deste pedido. Quer que eu continue? Responda \"continue\" e eu sigo de onde parei."
+  "Cheguei ao limite de {} passos deste pedido. Quer que eu continue? Responda \"continue\" e eu sigo de onde parei.",
+  "Backup do vault: {} ({} arquivos)"
 ]

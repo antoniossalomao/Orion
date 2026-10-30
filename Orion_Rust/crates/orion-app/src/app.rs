@@ -557,6 +557,9 @@ pub enum Msg {
     OpenUrl(String),
     /// `git pull` do vault (uso real; nos dados de exemplo é só um aviso).
     VaultPull,
+    VaultBackup,
+    /// Ler a resposta em voz alta (F15.10).
+    Listen(String),
     RenameStart,
     RenameText(String),
     RenameSave,
@@ -595,6 +598,8 @@ pub enum Msg {
     FactEdit(usize),
     FactText(String),
     FactSave,
+    /// Busca os fatos no núcleo para a lista de Configurações › Sobre você.
+    FactsLoad,
     FactForget(usize),
     Unarchive(usize),
     DeleteArchived(usize),
@@ -1306,6 +1311,8 @@ impl App {
             }
             Msg::KeySave => self.toast("Guardar chave: só no uso real"),
             Msg::VaultPull => self.toast("git pull: já atualizado"),
+            Msg::VaultBackup => self.toast("Backup do vault criado (simulado)"),
+            Msg::Listen(_) => self.toast(crate::i18n::text("Lendo em voz alta")),
             Msg::OpenUrl(url) if url.starts_with("orion-file:") => {
                 let alvo = url.trim_start_matches("orion-file:").to_string();
                 match crate::md::file_ref(&alvo) {
@@ -1599,6 +1606,7 @@ impl App {
                     e.1 = s;
                 }
             }
+            Msg::FactsLoad => {}
             Msg::FactSave => {
                 if let Some((i, s)) = self.edit_fact.take() {
                     if !s.trim().is_empty() {

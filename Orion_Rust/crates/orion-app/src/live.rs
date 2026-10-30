@@ -884,6 +884,18 @@ impl App {
                 let a2 = api.clone();
                 Some((Task::perform(async move { a2.post("/config/chave", json!({"nome": nome, "valor": valor})).await }, |r| Msg::L(Lm::KeySaved(r))), false))
             }
+            Msg::FactsLoad => Some((crate::live::pull_page(&api, View::Conhecimento), false)),
+            Msg::VaultBackup => Some((Task::perform(async move {
+                let r = api.post("/vault/backup", json!({})).await?;
+                Ok(format!("Backup do vault: {} ({} arquivos)", s(&r, "arquivo"), r["arquivos"].as_i64().unwrap_or(0)))
+            }, |r| Msg::L(Lm::Acao(r, false))), false)),
+            Msg::Listen(texto) => {
+                let texto = texto.clone();
+                Some((Task::perform(async move { api.post("/voz/ouvir", json!({"texto": texto})).await.map(|_| String::new()) }, |r| match r {
+                    Ok(_) => Msg::Noop,
+                    Err(e) => Msg::L(Lm::Acao(Err(e), false)),
+                }), false))
+            }
             Msg::VaultPull => {
                 let a2 = api.clone();
                 Some((acao(&api, async move { a2.post("/vault/pull", json!({})).await }, "Vault atualizado (git pull)", true), true))

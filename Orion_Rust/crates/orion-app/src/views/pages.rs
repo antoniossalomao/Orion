@@ -48,7 +48,7 @@ use iced::widget::text;
 fn li_right<'a>(parts: Vec<El<'a>>) -> El<'a> {
     row(parts).spacing(8).align_y(Vertical::Center).into()
 }
-fn list<'a>(rows: Vec<El<'a>>) -> El<'a> {
+pub fn list<'a>(rows: Vec<El<'a>>) -> El<'a> {
     column![hline(), column(rows)].into()
 }
 fn h3<'a>(s: &str, first: bool) -> El<'a> {
@@ -241,6 +241,9 @@ fn nuvem(app: &App) -> El<'_> {
     for (i, c) in app.cloud.iter().enumerate() {
         let right: Vec<El> = if c.running {
             vec![container(row![spinner(app.spin, 10.0), txf(crate::i18n::text("rodando"), 11.0, t::SIGNAL, t::UI_MED)].spacing(5).align_y(Vertical::Center)).padding(pad(1.0, 8.0, 1.0, 8.0)).style(surface(Some(t::SIGNAL_SOFT), None, 999.0)).into(), btn(crate::i18n::text("Cancelar"), Kind::Normal, true, None, Some(Msg::CloudCancel(i)))]
+        } else if c.proj == "na_fila" {
+            // F04.21: até 3 tarefas rodam juntas; a fila espera a vez e pode ser cancelada
+            vec![badge(crate::i18n::text("na fila"), Tone::Info), btn(crate::i18n::text("Cancelar"), Kind::Normal, true, None, Some(Msg::CloudCancel(i)))]
         } else {
             let tone = match c.proj.as_str() {
                 "concluída" | "concluida" => Tone::Ok,
@@ -275,6 +278,21 @@ pub fn src_rows(app: &App) -> Vec<El<'_>> {
     data::SRC.iter().enumerate().map(|(i, (_, tt, d))| setting(tt, d, if app.api.is_some() && (app.resources.sources.is_none() || app.resources.source_busy){badge(crate::i18n::text("Carregando…"),Tone::Plain)}else{switch(app.p.src[i], Msg::TogA("src", i))})).collect()
 }
 
+/// Linhas de fatos com Editar e Esquecer; usadas em Conhecimento e em Configurações › Sobre você (F06.22).
+pub fn fact_rows<'a>(app: &'a App, filtro: impl Fn(&crate::data::Fact) -> bool) -> Vec<El<'a>> {
+    let mut rows = vec![];
+    for (i, f) in app.facts.iter().enumerate().filter(|(_, f)| filtro(f)) {
+        let editing = app.edit_fact.as_ref().filter(|e| e.0 == i);
+        let left: El = match editing {
+            Some(e) => column![text_input("", &e.1).on_input(Msg::FactText).on_submit(Msg::FactSave).size(14).font(t::UI).padding(pad(5.0, 8.0, 5.0, 8.0)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 7.0)), li_desc(f.src.clone())].spacing(4).into(),
+            None => column![tx(f.t.clone(), 14.0, t::FG), li_desc(f.src.clone())].into(),
+        };
+        let right: El = if editing.is_some() { btn(crate::i18n::text("Salvar"), Kind::Primary, true, None, Some(Msg::FactSave)) } else { row![tip(ib("edit", Some(Msg::FactEdit(i)), false), crate::i18n::text("Editar")), tip(ib("trash", Some(Msg::FactForget(i)), false), crate::i18n::text("Esquecer"))].into() };
+        rows.push(li(left, right));
+    }
+    rows
+}
+
 fn conhecimento(app: &App) -> El<'_> {
     let mut col = column![];
     let mut groups: Vec<&str> = vec![];
@@ -288,17 +306,7 @@ fn conhecimento(app: &App) -> El<'_> {
     }
     for g in groups {
         col = col.push(h3(g, g == app.facts[0].g));
-        let mut rows = vec![];
-        for (i, f) in app.facts.iter().enumerate().filter(|(_, f)| f.g == g) {
-            let editing = app.edit_fact.as_ref().filter(|e| e.0 == i);
-            let left: El = match editing {
-                Some(e) => column![text_input("", &e.1).on_input(Msg::FactText).on_submit(Msg::FactSave).size(14).font(t::UI).padding(pad(5.0, 8.0, 5.0, 8.0)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 7.0)), li_desc(f.src.clone())].spacing(4).into(),
-                None => column![tx(f.t.clone(), 14.0, t::FG), li_desc(f.src.clone())].into(),
-            };
-            let right: El = if editing.is_some() { btn(crate::i18n::text("Salvar"), Kind::Primary, true, None, Some(Msg::FactSave)) } else { row![tip(ib("edit", Some(Msg::FactEdit(i)), false), crate::i18n::text("Editar")), tip(ib("trash", Some(Msg::FactForget(i)), false), crate::i18n::text("Esquecer"))].into() };
-            rows.push(li(left, right));
-        }
-        col = col.push(list(rows));
+        col = col.push(list(fact_rows(app, |f| f.g == g)));
     }
     page(crate::i18n::text("Conhecimento"), crate::i18n::text("Fatos que o Orion aprendeu, cada um com a fonte. Corrigir ou esquecer muda a nota no vault."), Some(btn(crate::i18n::text("Ver no grafo"), Kind::Normal, true, Some("graph"), Some(Msg::Go(View::Memoria)))), col.into())
 }
@@ -364,6 +372,23 @@ fn painel_live(app: &App) -> El<'_> {
     for e in &eps {
         let nome = e["nome"].as_str().or(e["name"].as_str()).unwrap_or("modelo");
         col = col.push(li(tx(nome.to_string(), 14.0, t::FG).into(), li_right(vec![badge(e[crate::i18n::text("estado")].as_str().unwrap_or(crate::i18n::text("ativo")), Tone::Ok)])));
+    }
+    // F10.17: versão de cada CLI de assinatura (lida pelo servidor com --version)
+    let clis = p["clis"].as_array().cloned().unwrap_or_default();
+    if !clis.is_empty() {
+        col = col.push(h3(crate::i18n::text("CLIs de assinatura"), false));
+        for c in &clis {
+            let nome = c["nome"].as_str().unwrap_or("cli").to_string();
+            let estado = if !c["instalada"].as_bool().unwrap_or(false) {
+                badge(crate::i18n::text("não instalada"), Tone::Plain)
+            } else {
+                match c["versao"].as_str() {
+                    Some(v) => badge(&format!("v{v}"), Tone::Ok),
+                    None => badge(crate::i18n::text("versão desconhecida"), Tone::Warn),
+                }
+            };
+            col = col.push(li(tx(nome, 14.0, t::FG).into(), li_right(vec![estado])));
+        }
     }
     let semana: Vec<f32> = p["semana"].as_array().map(|a| a.iter().map(|d| d["total"].as_f64().unwrap_or(0.0) as f32).collect()).unwrap_or_default();
     let (total, erros): (f32, f32) = (semana.iter().sum(), p["semana"].as_array().map(|a| a.iter().map(|d| d["erros"].as_f64().unwrap_or(0.0) as f32).sum()).unwrap_or(0.0));
