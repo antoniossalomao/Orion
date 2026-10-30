@@ -21,7 +21,7 @@ static DAQUI: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\b(?:daqui a|daqui
 // "horas" vem antes de "h" na alternância: senão o "h" come o começo de "horas" e o período se perde
 static HORA: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\b(?:às|as|ás|a partir das|pelas)\s+(\d{1,2})(?:\s*(?:horas?|hrs?)\b|\s*(?::|h)(\d{2})?)?(?:\s+da\s+(manhã|manha|tarde|noite|madrugada))?").unwrap());
 /// Datas que ainda não são entendidas: com elas, a hora sozinha cairia no dia errado.
-const DATAS_DESCONHECIDAS: [&str; 12] = ["segunda", "terça", "terca", "quarta", "quinta", "sexta", "sábado", "sabado", "domingo", "semana", "mês", "fim de"];
+const DATAS_DESCONHECIDAS: [&str; 16] = ["segunda", "terça", "terca", "quarta", "quinta", "sexta", "sábado", "sabado", "domingo", "semana", "mês", "fim de", "útil", "úteis", "util ", "uteis"];
 /// Parte de uma duração: "1 hora", "30 minutos", "2 dias" (soma todas: "1 hora e 30 minutos").
 static PARTE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\b(\d{1,4})\s*(minutos?|min|horas?|h|dias?)\b").unwrap());
 /// Hora sem "às" e sem "h", só com o período: "amanhã 9 da noite".
@@ -95,6 +95,10 @@ pub fn interpretar(frase: &str, agora: f64) -> Result<Quando, String> {
     }
     let diario = ["todo dia", "todos os dias", "diariamente", "toda manhã", "toda noite", "toda tarde"].iter().any(|d| f.contains(d));
     if diario {
+        // "todo dia útil", "de segunda a sexta": restrição de dia ainda não existe; não vira todo dia
+        if DATAS_DESCONHECIDAS.iter().any(|d| f.contains(d)) {
+            return Err("só dá para repetir todo dia ou a cada N minutos/horas; dias úteis ou da semana ainda não".into());
+        }
         let h = hora(f)?.ok_or("diga o horário: ex. 'todo dia às 8h'")?;
         return Ok(Quando::Diario(h.format("%H:%M").to_string()));
     }

@@ -1097,7 +1097,11 @@ impl App {
                     if !ligado {
                         so.extend(grupo.iter().map(|t| t.to_string()));
                     }
-                    if so.is_empty() { "nenhum".into() } else { so.join(",") }
+                    if so.is_empty() {
+                        so.push("nenhum".into());
+                    }
+                    // as exclusões escritas junto continuam valendo
+                    so.into_iter().chain(fora.iter().map(|t| format!("-{t}"))).collect::<Vec<_>>().join(",")
                 };
                 self.resources.undo = Some(("telegram_events", anterior));
                 self.resources.draft.insert("telegram_events", novo);
