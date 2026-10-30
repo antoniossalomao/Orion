@@ -74,8 +74,20 @@ pub fn interpretar(frase: &str, agora: f64) -> Result<Quando, String> {
         return Ok(Quando::Intervalo(30));
     }
     if let Some(c) = INTERVALO.captures(f) {
-        let n: i64 = c[1].parse().map_err(|_| "intervalo inválido")?;
-        let min = if c[2].starts_with('h') { n * 60 } else { n };
+        // soma as partes: "a cada 1 hora e 30 minutos" são 90 min
+        let resto = &f[c.get(0).map_or(0, |m| m.start())..];
+        let mut min: i64 = 0;
+        for p in PARTE.captures_iter(resto) {
+            let n: i64 = p[1].parse().map_err(|_| "intervalo inválido")?;
+            min += match &p[2] {
+                u if u.starts_with('h') => n * 60,
+                u if u.starts_with('d') => n * 1440,
+                _ => n,
+            };
+        }
+        if resto.contains(" e meia") {
+            min += 30;
+        }
         if !(1..=10_080).contains(&min) {
             return Err("intervalo de 1 minuto a 7 dias".into());
         }
