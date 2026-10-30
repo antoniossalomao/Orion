@@ -60,6 +60,7 @@ pub fn router(st: Estado) -> Router {
         .route("/sessoes/:id/contexto", get(conversation_context))
         .route("/sessoes/:sid/mensagens/:mid/feedback", axum::routing::put(message_feedback))
         .route("/sessoes/:sid/permitir-envio-privado", post(conversa::allow_private_send))
+        .route("/sessoes/:sid/nota", post(conversa::gravar_nota))
         .route("/sessoes/:sid/mensagens/:mid/pin", axum::routing::put(message_pin))
         .route("/prompt-commands", get(prompt_commands))
         .route("/prompt-commands/:name", axum::routing::put(prompt_command_save).delete(prompt_command_delete))

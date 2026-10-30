@@ -163,7 +163,23 @@ pub fn run_command(app: &mut App, word: &str, full: &str) -> Task<Msg> {
         app.toast(format!("Comando /{word} não existe. /ajuda lista todos."));
         return Task::none();
     }
-    if app.is_live() && matches!(word, "nota" | "resumo" | "imagem") {
+    if app.is_live() && word == "nota" {
+        // F06.18: grava agora a nota desta conversa no vault, pelo núcleo
+        let (Some(api), Some(sid)) = (app.api.clone(), app.conv.and_then(|c| app.convs.get(c)).map(|c| c.id.clone()).filter(|id| !id.is_empty())) else {
+            app.toast("Abra uma conversa primeiro");
+            return Task::none();
+        };
+        return Task::perform(async move { api.post(&format!("/sessoes/{sid}/nota"), serde_json::json!({})).await }, |r| Msg::L(crate::live::Lm::Acao(r.map(|v| format!("Nota gravada no vault: {}", v["file_path"].as_str().unwrap_or(""))), false)));
+    }
+    if app.is_live() && word == "resumo" {
+        // pede o resumo ao agente na própria conversa (o resumo passa pelo mesmo caminho do chat)
+        if app.conv.is_none() {
+            app.toast("Abra uma conversa primeiro");
+            return Task::none();
+        }
+        return app.live_send("Resuma esta conversa em tópicos curtos: decisões, pendências e próximos passos.".into());
+    }
+    if app.is_live() && word == "imagem" {
         app.toast(format!("/{word} ainda não está ligado ao núcleo nesta interface. Nenhum conteúdo foi gravado ou gerado."));
         return Task::none();
     }

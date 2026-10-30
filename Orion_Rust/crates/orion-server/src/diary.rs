@@ -97,6 +97,26 @@ fn save(memory: &Arc<Store>, vault: &Path, sid: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// F06.18: `/nota` grava (ou atualiza) agora a nota desta conversa, por comando seu, mesmo com o
+/// diário automático desligado. Mesmas proteções do diário: sem sobrescrever o que você editou.
+/// Devolve o caminho da nota, ou `None` se ainda não há conversa para registrar.
+pub fn save_now(memory: &Arc<Store>, vault: &Path, sid: &str) -> anyhow::Result<Option<String>> {
+    anyhow::ensure!(memory.meta_get(&key(sid)).as_deref() != Some(CONFLICT), "a nota desta conversa foi editada no vault; resolva o conflito antes de gravar de novo");
+    let Some(note) = build(memory, vault, sid)? else { return Ok(None) };
+    let previous = memory.meta_get(&key(sid));
+    let mgr = VaultManager::new(Some(vault.to_path_buf()))?.without_git();
+    let result = mgr.save_diary(&note, previous.as_deref())?;
+    if result.conflict.is_some() {
+        memory.meta_set(&key(sid), Some(CONFLICT))?;
+        anyhow::bail!("a nota foi editada no vault; a versão nova ficou como proposta de conflito");
+    }
+    memory.meta_set(&key(sid), Some(&result.content_sha256))?;
+    if !result.unchanged {
+        record_change(&mgr, sid, &result.file_path);
+    }
+    Ok(Some(result.file_path))
+}
+
 /// Mudanças feitas pelo Orion nesta execução: (conversa, hora, caminho da nota). Vira o relatório ao fechar.
 static CHANGES: Mutex<Vec<(String, String, String)>> = Mutex::new(Vec::new());
 

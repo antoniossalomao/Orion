@@ -1270,5 +1270,6 @@
   "Hora de dormir": "ui-1139",
   "Lembra de beber água nesse intervalo, das 8h às 22h. 0 desliga. Não perturbe segura o aviso.": "ui-1140",
   "Avisa 30 minutos antes deste horário (HH:MM). Vazio desliga.": "ui-1141",
-  "Digite o comando exato para aprovar esta ação destrutiva.": "ui-1142"
+  "Digite o comando exato para aprovar esta ação destrutiva.": "ui-1142",
+  "Nota gravada no vault: {}": "ui-1143"
 }
