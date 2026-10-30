@@ -876,6 +876,13 @@ pub async fn montar_with_runtime(mut settings: Settings, preserve_extensions:boo
         #[cfg(windows)]
         if settings.wake_pc {
             j = j.com_despertador(Arc::new(orion_platform::despertar::agendar));
+        } else {
+            // desligado: some a tarefa que ficou de quando estava ligado (o PC não acorda mais)
+            std::thread::spawn(|| {
+                if let Err(e) = orion_platform::despertar::agendar(None) {
+                    tracing::warn!("não deu para apagar o despertar do Agendador: {e}");
+                }
+            });
         }
         // F06.12: com o diário do vault ligado (ORION_VAULT_DIARIO), o resumo do dia vira nota em Memória/Diário
         // a chave é lida a cada gravação: desligar o diário nas Configurações vale na hora
