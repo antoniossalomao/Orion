@@ -22,6 +22,10 @@ static DAQUI: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\b(?:daqui a|daqui
 static HORA: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\b(?:às|as|ás|a partir das|pelas)\s+(\d{1,2})(?:\s*(?:horas?|hrs?)\b|\s*(?::|h)(\d{2})?)?(?:\s+da\s+(manhã|manha|tarde|noite|madrugada))?").unwrap());
 /// Datas que ainda não são entendidas: com elas, a hora sozinha cairia no dia errado.
 const DATAS_DESCONHECIDAS: [&str; 12] = ["segunda", "terça", "terca", "quarta", "quinta", "sexta", "sábado", "sabado", "domingo", "semana", "mês", "fim de"];
+/// Parte de uma duração: "1 hora", "30 minutos", "2 dias" (soma todas: "1 hora e 30 minutos").
+static PARTE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\b(\d{1,4})\s*(minutos?|min|horas?|h|dias?)\b").unwrap());
+/// Hora sem "às" e sem "h", só com o período: "amanhã 9 da noite".
+static HORA_PERIODO: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\b(\d{1,2})\s+da\s+(manhã|manha|tarde|noite|madrugada)\b").unwrap());
 static HORA_SOLTA: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\b(\d{1,2})(?::(\d{2})|h(\d{2})?)\b").unwrap());
 static DATA: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\b(\d{1,2})/(\d{1,2})(?:/(\d{4}))?\b").unwrap());
 
@@ -37,6 +41,8 @@ fn hora(f: &str) -> Result<Option<NaiveTime>, String> {
     let num = |s: &str| s.parse::<u32>().map_err(|_| "hora inválida".to_string());
     let (h, m, periodo) = if let Some(c) = HORA.captures(f) {
         (num(&c[1])?, c.get(2).map_or(Ok(0), |m| num(m.as_str()))?, c.get(3).map(|p| p.as_str().to_string()))
+    } else if let Some(c) = HORA_PERIODO.captures(f) {
+        (num(&c[1])?, 0, Some(c[2].to_string()))
     } else if let Some(c) = HORA_SOLTA.captures(f) {
         (num(&c[1])?, c.get(2).or(c.get(3)).map_or(Ok(0), |m| num(m.as_str()))?, None)
     } else {
@@ -84,12 +90,20 @@ pub fn interpretar(frase: &str, agora: f64) -> Result<Quando, String> {
         return Err("repetição por semana ou mês ainda não existe: use 'todo dia' ou 'a cada N horas'".into());
     }
     if let Some(c) = DAQUI.captures(f) {
-        let n: i64 = c[1].parse().map_err(|_| "tempo inválido")?;
-        let seg = match &c[2] {
-            u if u.starts_with('h') => n * 3600,
-            u if u.starts_with('d') => n * 86_400,
-            _ => n * 60,
-        };
+        // soma todas as partes a partir daqui: "daqui a 1 hora e 30 minutos" são 90 min
+        let resto = &f[c.get(0).map_or(0, |m| m.start())..];
+        let mut seg: i64 = 0;
+        for p in PARTE.captures_iter(resto) {
+            let n: i64 = p[1].parse().map_err(|_| "tempo inválido")?;
+            seg += match &p[2] {
+                u if u.starts_with('h') => n * 3600,
+                u if u.starts_with('d') => n * 86_400,
+                _ => n * 60,
+            };
+        }
+        if resto.contains(" e meia") {
+            seg += 1800;
+        }
         if seg <= 0 || seg > 366 * 86_400 {
             return Err("tempo de 1 minuto a 1 ano".into());
         }
