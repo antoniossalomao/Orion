@@ -798,6 +798,7 @@ pub async fn montar_with_runtime(mut settings: Settings, preserve_extensions:boo
             ) {
                 Ok(t) => {
                     *t.modos.lock() = Some(modos.clone());
+                    *t.eventos.lock() = settings.telegram_events.split(',').map(|e| e.trim().to_lowercase()).filter(|e| !e.is_empty()).collect();
                     if settings.telegram_voice_reply {
                         *t.speaker.lock() = speaker.clone();
                     }

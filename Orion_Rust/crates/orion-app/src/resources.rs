@@ -383,6 +383,7 @@ const FIELDS: &[Field] = &[
     ("skills_dir", "connectors", "Pasta de skills", Folder),
     ("plugins_enabled", "connectors", "Plugins habilitados", Bool),
     ("plugins_dir", "connectors", "Pasta de plugins", Folder),
+    ("telegram_events", "connectors", "Avisos enviados ao Telegram", Text),
 ];
 pub fn load_management(api: &Api, groups: &[&'static str]) -> Task<Msg> {
     Task::batch(groups.iter().map(|&group| {
@@ -499,6 +500,7 @@ const DESCRIPTIONS: &[(&str, &str)] = &[
     ("rerank", "Reordena resultados de busca com um modelo local."),
     ("rerank_model_dir", "Pasta do modelo ONNX de reordenação."),
     ("mcp_enabled", "Liga os servidores MCP configurados."),
+    ("telegram_events", "Tipos separados por vírgula (lembrete, agendamento, cota, briefing, rotina…). Vazio envia todos. Vale ao reiniciar."),
     ("mcp_config", "Arquivo com a configuração dos servidores MCP."),
     ("skills_enabled", "Liga as skills instaladas."),
     ("skills_dir", "Pasta onde ficam as skills."),

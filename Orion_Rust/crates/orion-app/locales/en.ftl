@@ -1569,3 +1569,5 @@ ui-1132 = { "About you" }
 ui-1133 = { "Facts Orion knows about you" }
 ui-1134 = { "Load the list to edit or forget." }
 ui-1135 = { "Load" }
+ui-1136 = { "Notices sent to Telegram" }
+ui-1137 = { "Comma-separated types (lembrete, agendamento, cota, briefing, rotina…). Empty sends all. Applies after restart." }

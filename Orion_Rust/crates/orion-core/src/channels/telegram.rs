@@ -107,6 +107,10 @@ pub struct TelegramChannel {
     pub speaker: Mutex<Option<Arc<dyn crate::voice::Speaker>>>,
     remote_cards: Mutex<HashMap<String, (i64, i64)>>,
     approval_delivery: tokio::sync::Mutex<()>,
+    /// Um turno do agente por vez: mensagem que chega com o PC ocupado espera na fila, em ordem (F14.04).
+    turno: tokio::sync::Mutex<()>,
+    /// F04.31: tipos de aviso que este canal entrega; vazio = todos. Os outros ficam só no app.
+    pub eventos: Mutex<Vec<String>>,
     armados: Mutex<HashMap<i64, Instant>>,
     offset: Mutex<i64>,
     recusados: Mutex<HashSet<i64>>,
@@ -157,6 +161,8 @@ impl TelegramChannel {
             speaker: Mutex::new(None),
             remote_cards: Mutex::new(HashMap::new()),
             approval_delivery: tokio::sync::Mutex::new(()),
+            turno: tokio::sync::Mutex::new(()),
+            eventos: Mutex::new(vec![]),
             armados: Mutex::new(HashMap::new()),
             offset: Mutex::new(0),
             recusados: Mutex::new(HashSet::new()),
@@ -399,8 +405,14 @@ impl TelegramChannel {
         let ops = self.ops.clone();
         let pendentes = tokio::task::spawn_blocking(move || ops.pending_notifications(50, false)).await.ok().and_then(Result::ok).unwrap_or_default();
         let mut enviados = 0;
+        let eventos = self.eventos.lock().clone();
         for n in pendentes {
             let id = n["id"].as_i64().unwrap_or(0);
+            // fora da matriz evento × canal: marca como entregue sem mandar (o app continua mostrando)
+            if !eventos.is_empty() && !eventos.iter().any(|e| n["kind"].as_str() == Some(e.as_str())) {
+                let _ = self.ops.ack_notification(id);
+                continue;
+            }
             if let Err(e) = self.enviar(self.home, &format!("🔔 {}", n["text"].as_str().unwrap_or("")), teclado_lembrete(&n)).await {
                 tracing::warn!("telegram: aviso {id} não enviado: {e}");
                 break;
@@ -760,6 +772,14 @@ impl TelegramChannel {
 
     /// Junta o turno do agente e responde: texto, depois um cartão por aprovação pedida.
     async fn consumir(&self, chat_id: i64, mut eventos: EventStream) -> String {
+        // F14.04: com outro turno rodando, avisa e espera a vez (o Mutex do tokio atende por ordem)
+        let _vez = match self.turno.try_lock() {
+            Ok(g) => g,
+            Err(_) => {
+                self.dizer(chat_id, "⏳ Estou terminando outra resposta. A sua está na fila e sai em seguida.").await;
+                self.turno.lock().await
+            }
+        };
         let (mut texto, mut cartoes, mut erros) = (String::new(), vec![], vec![]);
         while let Some(ev) = eventos.next().await {
             match ev.kind {

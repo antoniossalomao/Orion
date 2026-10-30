@@ -163,6 +163,8 @@ pub struct Settings {
     pub clipboard_days: u32,
     pub command_history: bool,
     pub telegram_voice_reply: bool,
+    /// ORION_TELEGRAM_EVENTS: tipos de aviso que vão ao Telegram (vírgulas). Vazio = todos (F04.31).
+    pub telegram_events: String,
     pub screen_memory: bool,
     pub screen_interval_s: u64,
     pub screen_retention_days: i64,
@@ -474,6 +476,7 @@ impl Settings {
             voice_aec_delay_ms: e.num("voice_aec_delay_ms", 40i32, Some(0), Some(500))?,
             transcribe_groq_fallback: e.b("transcribe_groq_fallback", false)?,
             telegram_2fa: e.b("telegram_2fa", false)?,
+            telegram_events: e.s("telegram_events", ""),
             voice_speak: e.b("voice_speak", true)?,
             voice_tts_voice: e.s("voice_tts_voice", "pt-BR-AntonioNeural"),
             wake_enabled: e.b("wake_enabled", false)?,

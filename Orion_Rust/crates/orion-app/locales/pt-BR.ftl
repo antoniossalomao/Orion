@@ -1569,3 +1569,5 @@ ui-1132 = { "Sobre você" }
 ui-1133 = { "Fatos que o Orion sabe de você" }
 ui-1134 = { "Carregue a lista para editar ou esquecer." }
 ui-1135 = { "Carregar" }
+ui-1136 = { "Avisos enviados ao Telegram" }
+ui-1137 = { "Tipos separados por vírgula (lembrete, agendamento, cota, briefing, rotina…). Vazio envia todos. Vale ao reiniciar." }

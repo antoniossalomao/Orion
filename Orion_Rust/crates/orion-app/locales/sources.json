@@ -1263,5 +1263,7 @@
   "Sobre você": "ui-1132",
   "Fatos que o Orion sabe de você": "ui-1133",
   "Carregue a lista para editar ou esquecer.": "ui-1134",
-  "Carregar": "ui-1135"
+  "Carregar": "ui-1135",
+  "Avisos enviados ao Telegram": "ui-1136",
+  "Tipos separados por vírgula (lembrete, agendamento, cota, briefing, rotina…). Vazio envia todos. Vale ao reiniciar.": "ui-1137"
 }

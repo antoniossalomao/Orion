@@ -44,7 +44,7 @@ preferences! {
     mcp_enabled: bool, mcp_config: Option<PathBuf>,
     vault_dir: Option<PathBuf>, backup_dir: Option<PathBuf>, backup_keep: usize,
     rerank: bool, rerank_model_dir: String, extra_safe_roots: Vec<PathBuf>, repos: Vec<PathBuf>,
-    hotkeys: String,
+    hotkeys: String, telegram_events: String,
 }
 
 impl RuntimePreferences {
