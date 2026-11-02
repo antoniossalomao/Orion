@@ -46,11 +46,15 @@ pub fn view(app: &App) -> El<'_> {
             if let (Some(a), Some(ms)) = (&snap.accel, snap.infer_ms) {
                 telemetry.push((format!("[{}: {ms:.0} ms]", a.to_uppercase()), t::FG3));
             }
+            if let Some(a) = &snap.face_accel { telemetry.push((format!("[FACE: {}]",a.to_uppercase()),t::FG3)); }
+            if let (Some(a),Some(ms)) = (&snap.object_accel,snap.object_ms) {
+                telemetry.push((format!("[OBJECTS: {} · {} {ms:.0} ms]",snap.objects.len(),a.to_uppercase()),t::FG3));
+            }
             let tone = if gesture.is_some() { t::ACCENT } else { t::FG2 };
-            let hud = camera_hud::frame(Hud { w: snap.w, h: snap.h, handle, face: snap.face, hand: snap.hand.clone(), tone, tag: None, telemetry, t_phase: elapsed, reduced: app.p.reduced, width: PANEL_W - 16.0 });
+            let hud = camera_hud::frame(Hud { w: snap.w, h: snap.h, handle, face: snap.face, hand: snap.hand.clone(), landmarks: snap.face_landmarks.clone(), objects: snap.objects.clone(), tone, tag: None, telemetry, t_phase: elapsed, reduced: app.p.reduced, width: PANEL_W - 16.0 });
             let mut col = column![hud].spacing(8);
             if let Some(note) = &snap.note {
-                col = col.push(tx(crate::i18n::status(note), 11.5, t::FG3));
+                for line in note.split(" · ") { col = col.push(tx(crate::i18n::status(line), 11.5, t::FG3)); }
             }
             col.into()
         }

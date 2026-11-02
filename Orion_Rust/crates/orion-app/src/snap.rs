@@ -86,7 +86,7 @@ pub fn scenarios() -> Vec<(&'static str, Size, App)> {
                     rgba.extend_from_slice(&[g, g.saturating_add(2), g.saturating_add(8), 255]);
                 }
             }
-            crate::net::FacePreview { w, h, rgba, face: Some([0.33, 0.17, 0.34, 0.6]), confidence: Some(0.624), cpu: Some(3.8) }
+            crate::net::FacePreview { w, h, rgba, face: Some([0.33, 0.17, 0.34, 0.6]), confidence: Some(0.624), cpu: Some(3.8), enrollment: None, landmarks: None, accel: None, infer_ms: None }
         };
         let com_hud = |mut a: App, confidence: Option<f32>| {
             let mut p = retrato();

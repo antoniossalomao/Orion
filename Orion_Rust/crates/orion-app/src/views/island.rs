@@ -157,18 +157,42 @@ pub fn view(app: &App) -> El<'_> {
         Phase::Standby => row![glyph, tx(crate::i18n::text("Face ID"), 12.0, t::FG2)].spacing(8).align_y(Vertical::Center).into(),
         Phase::Reading | Phase::Enrolling => {
             let title = if i.phase == Phase::Enrolling {
-                crate::i18n::text("A cadastrar o seu rosto…").to_string()
+                if let Some(progress) = i.preview.as_ref().and_then(|(p, _)| p.enrollment) {
+                    crate::i18n::formatted("Cadastro do rosto: {v}/{v}", format!("Cadastro do rosto: {}/{}", progress.accepted, progress.total))
+                } else {
+                    crate::i18n::text("A cadastrar o seu rosto…").to_string()
+                }
             } else {
                 crate::i18n::formatted("A verificar {v}…", format!("A verificar {name}…"))
             };
             let request = match (i.phase, i.purpose) {
-                (Phase::Enrolling, _) => crate::i18n::text("Vire o rosto devagar"),
+                (Phase::Enrolling, _) => {
+                    use crate::net::FaceEnrollmentHint as H;
+                    let hint = i.preview.as_ref().and_then(|(p, _)| p.enrollment).map(|p| p.hint).unwrap_or(H::WarmingUp);
+                    crate::i18n::text(match hint {
+                        H::WarmingUp => "Ajustando a câmera…",
+                        H::NoFace => "Olhe para a câmera",
+                        H::Lighting => "Ilumine o rosto sem luz forte atrás",
+                        H::MoveCloser => "Aproxime o rosto da câmera",
+                        H::CenterFace => "Centralize o rosto inteiro",
+                        H::HoldStill => "Segure o rosto estável",
+                        H::VaryPose => "Mova o rosto um pouco, devagar",
+                        H::Capturing => "Olhe de frente e mova levemente",
+                        H::Checking => "Conferindo o cadastro: olhe de frente",
+                        H::Front => "Olhe de frente para a câmera",
+                        H::TurnLeft => "Vire levemente para a sua esquerda",
+                        H::TurnRight => "Vire levemente para a sua direita",
+                        H::LookUp => "Levante um pouco o queixo",
+                        H::LookDown => "Abaixe um pouco o queixo",
+                    })
+                },
                 (_, Purpose::Login) => crate::i18n::text(hint_text(i.hint)),
                 (_, Purpose::Autonomous) => crate::i18n::text("Confirmar: ligar o modo autônomo"),
                 (_, Purpose::Panic) => crate::i18n::text("Confirmar: sair do modo pânico"),
             };
             let request = if i.phase == Phase::Reading && i.purpose != Purpose::Login && i.hint == FaceHint::LowLight { crate::i18n::text(hint_text(i.hint)) } else { request };
-            let close_btn = tip(ib("close", Some(Msg::Face(FaceMsg::Cancel)), false), crate::i18n::text("Usar a senha"));
+            let close_label = if i.phase == Phase::Enrolling { "Cancelar" } else { "Usar a senha" };
+            let close_btn = tip(ib("close", Some(Msg::Face(FaceMsg::Cancel)), false), crate::i18n::text(close_label));
             row![glyph, lines(title, request.into(), t::FG3), close_btn].spacing(12).align_y(Vertical::Center).into()
         }
         Phase::Success => {
@@ -251,7 +275,7 @@ pub fn enroll_password_modal(app: &App) -> El<'_> {
         .padding(pad(12.0, 12.0, 12.0, 12.0));
     let body = column![
         tx(crate::i18n::text("Ativar o Face ID"), 15.0, t::FG),
-        tx(crate::i18n::text("Digite a senha. Depois olhe para a câmera por alguns segundos. O rosto vira só um vetor cifrado neste computador; a senha fica no cofre do sistema e o Face ID a libera ao reconhecer você. Uma foto boa do seu rosto pode enganar uma câmera comum: use onde só você tem acesso."), 12.0, t::FG3),
+        tx(crate::i18n::text("Digite a senha. O cadastro leva de 25 segundos a 1 minuto e orienta cinco posições da cabeça. Mantenha boa iluminação e siga as orientações; só capturas nítidas e estáveis contam. O reconhecimento é conferido antes de salvar. Tudo fica cifrado neste computador. A webcam não mede profundidade e uma foto boa pode enganar o reconhecimento."), 12.0, t::FG3),
         input,
         row![grow(), btn(crate::i18n::text("Cancelar"), Kind::Normal, true, None, Some(Msg::Face(FaceMsg::EnrollClose))), btn(crate::i18n::text("Cadastrar"), Kind::Primary, !v.is_empty(), None, Some(Msg::Face(FaceMsg::EnrollSubmit)))].spacing(8),
     ]

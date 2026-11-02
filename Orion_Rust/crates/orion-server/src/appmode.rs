@@ -35,9 +35,23 @@ const FACE_PURPOSES: [&str; 3] = ["login", "autonomo", "panico"];
 /// Desligar o Face ID cancela um cadastro em andamento; a trava impede que o cadastro grave
 /// depois de o desligar ter apagado o modelo.
 static FACE_ENROLL_CANCEL: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static FACE_ENROLL_ACTIVE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static FACE_PREWARM_STARTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+// Invalida pedidos ainda na fila quando a janela cancela ou fecha a câmera.
+static CAMERA_EPOCH: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 static FACE_ENROLL_LOCK: parking_lot::Mutex<()> = parking_lot::Mutex::new(());
 /// Último quadro do cadastro para o HUD; some quando o cadastro termina.
 static FACE_ENROLL_PREVIEW: parking_lot::Mutex<Option<orion_core::faceid::Preview>> = parking_lot::Mutex::new(None);
+/// O cadastro cancelado precisa soltar a câmera antes de outro reutilizar sua bandeira
+/// (REGRAS.md: a câmera só liga por pedido seu).
+struct FaceEnrollmentGuard;
+
+impl Drop for FaceEnrollmentGuard {
+    fn drop(&mut self) {
+        FACE_ENROLL_PREVIEW.lock().take();
+        FACE_ENROLL_ACTIVE.store(false, std::sync::atomic::Ordering::SeqCst);
+    }
+}
 /// Medidor de CPU do próprio processo (o HUD mostra quanto o Face ID está custando).
 static FACE_CPU: std::sync::LazyLock<parking_lot::Mutex<sysinfo::System>> = std::sync::LazyLock::new(|| parking_lot::Mutex::new(sysinfo::System::new()));
 
@@ -50,12 +64,16 @@ fn process_cpu() -> Option<f32> {
 }
 
 /// Câmera efetiva: a escolhida em Configurações (`runtime-preferences.json`) vale sobre a do ambiente.
-fn camera_device(cfg: &Settings) -> i32 {
+fn camera_settings(cfg: &Settings) -> Settings {
     let mut effective = cfg.clone();
     if let Ok(preferences) = orion_core::runtime_preferences::RuntimePreferences::load(&cfg.data_dir, cfg) {
         preferences.apply(&mut effective);
     }
-    effective.camera_device as i32
+    effective
+}
+
+fn camera_device(cfg: &Settings) -> i32 {
+    camera_settings(cfg).camera_device as i32
 }
 
 type Slot = std::sync::Arc<parking_lot::Mutex<Option<std::sync::Arc<Nucleo>>>>;
@@ -394,10 +412,20 @@ impl Local for Interno {
         })
     }
     fn face_id_enabled(&self) -> bool {
-        orion_core::faceid::is_enabled(&self.settings.data_dir)
+        let enabled = orion_core::faceid::is_enabled(&self.settings.data_dir);
+        if enabled && !FACE_PREWARM_STARTED.swap(true, std::sync::atomic::Ordering::SeqCst) {
+            let dir = self.settings.data_dir.clone();
+            self.rt.spawn_blocking(move || {
+                if orion_core::faceid::load(&dir, &orion_core::rosto::CofreSistema).is_ok_and(|m| m.version == 3) {
+                    if let Err(e) = orion_core::face_neural::shared() { tracing::info!("pré-carga do Face ID: {e}"); }
+                }
+            });
+        }
+        enabled
     }
     fn face_id_start(&self, purpose: String) -> BoxFuture<'static, Result<String, FaceFailure>> {
         let (cfg, slot, rt) = (self.settings.clone(), self.nucleo.clone(), self.rt.clone());
+        let epoch = CAMERA_EPOCH.load(std::sync::atomic::Ordering::SeqCst);
         Box::pin(async move {
             if !FACE_PURPOSES.contains(&purpose.as_str()) {
                 return Err(FaceFailure::Other("pedido inválido".into()));
@@ -406,10 +434,21 @@ impl Local for Interno {
             if purpose != "login" && slot.lock().is_none() {
                 return Err(FaceFailure::Other("entre no Orion primeiro".into()));
             }
+            let expiry_rt = rt.clone();
             rt.spawn_blocking(move || {
                 use orion_core::faceid;
+                let _gate = FACE_ENROLL_LOCK.lock();
+                if epoch != CAMERA_EPOCH.load(std::sync::atomic::Ordering::SeqCst) {
+                    return Err(FaceFailure::Other("leitura encerrada".into()));
+                }
+                if !FACE_SESSIONS.lock().is_empty() {
+                    return Err(FaceFailure::Other("o Face ID está usando a câmera agora".into()));
+                }
                 if faceid::is_locked() {
                     return Err(FaceFailure::Locked);
+                }
+                if FACE_ENROLL_ACTIVE.load(std::sync::atomic::Ordering::SeqCst) {
+                    return Err(FaceFailure::Other("aguarde o cadastro do rosto terminar".into()));
                 }
                 if crate::camera_module::is_open() {
                     return Err(FaceFailure::Other("feche o módulo de câmera para usar o Face ID".into()));
@@ -418,13 +457,24 @@ impl Local for Interno {
                     faceid::FaceIdError::Inactive => FaceFailure::Inactive,
                     outro => FaceFailure::Other(outro.to_string()),
                 })?;
-                let stream = orion_core::camera::CameraStream::open(camera_device(&cfg), Duration::from_secs(4)).map_err(|e| {
+                if model.version == 3 { orion_core::face_neural::shared().map_err(FaceFailure::Other)?; }
+                let stream = orion_core::camera::CameraStream::open_with(camera_device(&cfg), Duration::from_secs(4), faceid::INTERVAL, true).map_err(|e| {
                     tracing::info!("Face ID sem câmera: {e}");
                     FaceFailure::NoCamera
                 })?;
+                if epoch != CAMERA_EPOCH.load(std::sync::atomic::Ordering::SeqCst) {
+                    stream.cancel();
+                    return Err(FaceFailure::Other("leitura encerrada".into()));
+                }
                 tracing::info!(target: "orion.audit", "faceid_inicio purpose={purpose}");
                 let id = uuid::Uuid::new_v4().simple().to_string();
-                FACE_SESSIONS.lock().insert(id.clone(), std::sync::Arc::new(parking_lot::Mutex::new(faceid::Session::new(Box::new(stream), model, &purpose))));
+                let scan = faceid::Session::new(Box::new(stream), model, &purpose).map_err(|e| FaceFailure::Other(e.to_string()))?;
+                FACE_SESSIONS.lock().insert(id.clone(), std::sync::Arc::new(parking_lot::Mutex::new(scan)));
+                let expires = id.clone();
+                expiry_rt.spawn(async move {
+                    tokio::time::sleep(faceid::DEADLINE + Duration::from_secs(2)).await;
+                    FACE_SESSIONS.lock().remove(&expires);
+                });
                 Ok(id)
             })
             .await
@@ -454,12 +504,13 @@ impl Local for Interno {
                     // soltar a sessão fecha a câmera na hora
                     let done = FACE_SESSIONS.lock().remove(&session);
                     let purpose = done.map(|s| s.lock().purpose.clone()).unwrap_or_default();
-                    if f != Failure::NoCamera {
+                    if !matches!(f, Failure::NoCamera | Failure::ModelUnavailable) {
                         orion_core::faceid::record_failure();
                     }
                     tracing::info!(target: "orion.audit", "faceid_falha purpose={purpose} reason={f:?}");
                     FaceEvent::Failed(match f {
                         Failure::NoCamera => FaceFailure::NoCamera,
+                        Failure::ModelUnavailable => FaceFailure::Other("recursos de visão indisponíveis; use a senha".into()),
                         Failure::LowLight => FaceFailure::LowLight,
                         Failure::NotRecognized | Failure::NoFace | Failure::Frozen => FaceFailure::NotRecognized,
                     })
@@ -517,7 +568,27 @@ impl Local for Interno {
                     let preview = scan.lock().preview();
                     preview
                 }?;
-                Some(FacePreview { w: preview.w, h: preview.h, rgba: preview.rgba, face: preview.face, confidence: preview.confidence.map(|c| c as f32), cpu: process_cpu() })
+                let enrollment = preview.enrollment.map(|p| {
+                    use orion_core::faceid::EnrollmentHint as H;
+                    use orion_app::net::{FaceEnrollment, FaceEnrollmentHint as U};
+                    FaceEnrollment { accepted: p.accepted, total: p.total, hint: match p.hint {
+                        H::WarmingUp => U::WarmingUp,
+                        H::NoFace => U::NoFace,
+                        H::Lighting => U::Lighting,
+                        H::MoveCloser => U::MoveCloser,
+                        H::CenterFace => U::CenterFace,
+                        H::HoldStill => U::HoldStill,
+                        H::VaryPose => U::VaryPose,
+                        H::Capturing => U::Capturing,
+                        H::Checking => U::Checking,
+                        H::Front => U::Front,
+                        H::TurnLeft => U::TurnLeft,
+                        H::TurnRight => U::TurnRight,
+                        H::LookUp => U::LookUp,
+                        H::LookDown => U::LookDown,
+                    } }
+                });
+                Some(FacePreview { w: preview.w, h: preview.h, rgba: preview.rgba, face: preview.face, confidence: preview.confidence.map(|c| c as f32), cpu: process_cpu(), enrollment, landmarks: preview.landmarks, accel: preview.accel, infer_ms: preview.infer_ms })
             })
             .await
             .ok()
@@ -526,17 +597,29 @@ impl Local for Interno {
     }
     fn camera_open(&self) -> BoxFuture<'static, Result<(), String>> {
         let (cfg, slot, rt) = (self.settings.clone(), self.nucleo.clone(), self.rt.clone());
+        let epoch = CAMERA_EPOCH.load(std::sync::atomic::Ordering::SeqCst);
         Box::pin(async move {
             // REGRAS.md: a câmera só liga por pedido seu — e só com o Orion aberto
             let Some(n) = slot.lock().clone() else { return Err("entre no Orion primeiro".into()) };
             if n.st.modos.panico() {
                 return Err("modo pânico ligado".into());
             }
-            if !FACE_SESSIONS.lock().is_empty() {
-                return Err("o Face ID está usando a câmera agora".into());
-            }
-            let device = camera_device(&cfg);
-            rt.spawn_blocking(move || crate::camera_module::open(device)).await.map_err(|_| "falha ao abrir a câmera".to_string())?
+            rt.spawn_blocking(move || {
+                let _gate = FACE_ENROLL_LOCK.lock();
+                if epoch != CAMERA_EPOCH.load(std::sync::atomic::Ordering::SeqCst) {
+                    return Err("leitura encerrada".into());
+                }
+                if FACE_ENROLL_ACTIVE.load(std::sync::atomic::Ordering::SeqCst) || !FACE_SESSIONS.lock().is_empty() {
+                    return Err("o Face ID está usando a câmera agora".into());
+                }
+                let effective = camera_settings(&cfg);
+                crate::camera_module::open(effective.camera_device as i32, effective.object_model)?;
+                if epoch != CAMERA_EPOCH.load(std::sync::atomic::Ordering::SeqCst) {
+                    crate::camera_module::close();
+                    return Err("leitura encerrada".into());
+                }
+                Ok(())
+            }).await.map_err(|_| "falha ao abrir a câmera".to_string())?
         })
     }
     fn camera_poll(&self) -> BoxFuture<'static, Option<CameraSnapshot>> {
@@ -544,11 +627,13 @@ impl Local for Interno {
         Box::pin(async move { rt.spawn_blocking(|| crate::camera_module::poll(process_cpu())).await.ok().flatten() })
     }
     fn camera_close(&self) {
+        CAMERA_EPOCH.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         crate::camera_module::close();
     }
     fn face_id_cancel(&self, session: &str) {
         // o cadastro não tem sessão: o pedido de cancelamento vai pela bandeira compartilhada
-        if session == "enroll" {
+        if session == "pending" || session == "enroll" {
+            CAMERA_EPOCH.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             FACE_ENROLL_CANCEL.store(true, std::sync::atomic::Ordering::SeqCst);
             return;
         }
@@ -557,6 +642,7 @@ impl Local for Interno {
     }
     fn face_id_enroll(&self, password: String) -> BoxFuture<'static, Result<usize, String>> {
         let (cfg, slot, rt) = (self.settings.clone(), self.nucleo.clone(), self.rt.clone());
+        let epoch = CAMERA_EPOCH.load(std::sync::atomic::Ordering::SeqCst);
         Box::pin(async move {
             let Some(n) = slot.lock().clone() else { return Err("entre no Orion primeiro".into()) };
             if n.st.modos.panico() {
@@ -566,6 +652,7 @@ impl Local for Interno {
             let password = zeroize::Zeroizing::new(password);
             rt.spawn_blocking(move || {
                 use orion_core::faceid;
+                let enrollment_started = std::time::Instant::now();
                 if NATIVE_THROTTLE.espera("faceid") > 0 {
                     return Err("Muitas tentativas. Espere um pouco antes de tentar novamente.".to_string());
                 }
@@ -574,16 +661,37 @@ impl Local for Interno {
                     return Err("senha incorreta".into());
                 }
                 NATIVE_THROTTLE.acertou("faceid");
-                FACE_ENROLL_CANCEL.store(false, std::sync::atomic::Ordering::SeqCst);
+                let _enrollment = {
+                    let _gate = FACE_ENROLL_LOCK.lock();
+                    if epoch != CAMERA_EPOCH.load(std::sync::atomic::Ordering::SeqCst) {
+                        return Err("cadastro cancelado".into());
+                    }
+                    if crate::camera_module::is_open() || !FACE_SESSIONS.lock().is_empty() {
+                        return Err("feche a leitura ou o módulo de câmera para cadastrar o rosto".into());
+                    }
+                    if FACE_ENROLL_ACTIVE.compare_exchange(false, true, std::sync::atomic::Ordering::SeqCst, std::sync::atomic::Ordering::SeqCst).is_err() {
+                        return Err("aguarde o cadastro do rosto terminar".into());
+                    }
+                    FACE_ENROLL_CANCEL.store(false, std::sync::atomic::Ordering::SeqCst);
+                    FaceEnrollmentGuard
+                };
                 let user = orion_core::onboarding::Profile::load(&cfg.data_dir).ok().flatten().map(|p| p.user).unwrap_or_else(|| cfg.auth_user.clone());
-                let stream = orion_core::camera::CameraStream::open(camera_device(&cfg), Duration::from_secs(4)).map_err(|e| format!("câmera indisponível: {e}"))?;
-                let enrolled = faceid::enroll(&stream, &user, Duration::from_secs(14), &FACE_ENROLL_CANCEL, &|p| *FACE_ENROLL_PREVIEW.lock() = Some(p));
+                orion_core::face_neural::shared().map_err(|e| {
+                    tracing::info!("cadastro facial indisponível: {e}");
+                    "Instale ou atualize a opção Visão com GPU no instalador antes de cadastrar o Face ID.".to_string()
+                })?;
+                if FACE_ENROLL_CANCEL.load(std::sync::atomic::Ordering::SeqCst) || epoch != CAMERA_EPOCH.load(std::sync::atomic::Ordering::SeqCst) {
+                    return Err("cadastro cancelado".into());
+                }
+                let stream = orion_core::camera::CameraStream::open_enrollment(camera_device(&cfg), Duration::from_secs(4), faceid::INTERVAL).map_err(|e| format!("câmera indisponível: {e}"))?;
+                let remaining = faceid::ENROLL_DEADLINE.saturating_sub(enrollment_started.elapsed());
+                let enrolled = faceid::enroll(&stream, &user, remaining, &FACE_ENROLL_CANCEL, &|p| *FACE_ENROLL_PREVIEW.lock() = Some(p));
                 stream.close();
                 FACE_ENROLL_PREVIEW.lock().take();
                 let model = enrolled.map_err(|e| e.to_string())?;
                 let vault = orion_core::rosto::CofreSistema;
                 let _guard = FACE_ENROLL_LOCK.lock();
-                if FACE_ENROLL_CANCEL.load(std::sync::atomic::Ordering::SeqCst) {
+                if FACE_ENROLL_CANCEL.load(std::sync::atomic::Ordering::SeqCst) || epoch != CAMERA_EPOCH.load(std::sync::atomic::Ordering::SeqCst) {
                     return Err("cadastro cancelado".into());
                 }
                 faceid::save(&cfg.data_dir, &vault, &model).map_err(|e| e.to_string())?;
@@ -591,6 +699,10 @@ impl Local for Interno {
                 if orion_ai::secrets::set_secret(faceid::CREDENTIAL, &credential).is_err() {
                     faceid::remove(&cfg.data_dir, &vault);
                     return Err("não foi possível guardar a credencial no cofre do sistema".into());
+                }
+                if FACE_ENROLL_CANCEL.load(std::sync::atomic::Ordering::SeqCst) || epoch != CAMERA_EPOCH.load(std::sync::atomic::Ordering::SeqCst) {
+                    faceid::remove(&cfg.data_dir, &vault);
+                    return Err("cadastro cancelado".into());
                 }
                 faceid::reset_failures();
                 tracing::info!(target: "orion.audit", "faceid_cadastrado amostras={} limiar={:.3}", model.samples, model.threshold);
@@ -602,11 +714,13 @@ impl Local for Interno {
     }
     fn face_id_disable(&self) -> BoxFuture<'static, Result<(), String>> {
         let (cfg, rt) = (self.settings.clone(), self.rt.clone());
+        CAMERA_EPOCH.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        FACE_ENROLL_CANCEL.store(true, std::sync::atomic::Ordering::SeqCst);
         Box::pin(async move {
             rt.spawn_blocking(move || {
+                let _guard = FACE_ENROLL_LOCK.lock();
                 FACE_SESSIONS.lock().clear();
                 FACE_ENROLL_CANCEL.store(true, std::sync::atomic::Ordering::SeqCst);
-                let _guard = FACE_ENROLL_LOCK.lock();
                 orion_core::faceid::remove(&cfg.data_dir, &orion_core::rosto::CofreSistema);
                 tracing::info!(target: "orion.audit", "faceid_desligado");
             })

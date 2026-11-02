@@ -211,6 +211,27 @@ pub struct Settings {
 /// Leitor das variáveis: o ambiente vence o `.env`.
 struct Env(HashMap<String, String>);
 
+/// Padrões da instalação, limitados a 64 KiB (REGRAS.md: opt-in não liga sozinho).
+pub(crate) fn local_defaults(explicit: Option<&Path>) -> Option<serde_json::Map<String, Value>> {
+    let path = explicit.map(Path::to_path_buf)
+        .or_else(|| std::env::var_os("ORION_LOCAL_CONFIG").map(PathBuf::from))
+        .or_else(|| {
+            let manifest = std::env::current_exe().ok()?.parent()?.join("orion-install.json");
+            let file = std::fs::File::open(manifest).ok()?;
+            use std::io::Read;
+            let mut bytes = Vec::new();
+            file.take(65537).read_to_end(&mut bytes).ok()?;
+            if bytes.len() > 65536 { return None; }
+            let manifest: Value = serde_json::from_slice(&bytes).ok()?;
+            Some(PathBuf::from(manifest["data_dir"].as_str()?).join("orion-local.json"))
+        })?;
+    use std::io::Read;
+    let mut bytes = Vec::new();
+    std::fs::File::open(path).ok()?.take(65537).read_to_end(&mut bytes).ok()?;
+    if bytes.len() > 65536 { return None; }
+    serde_json::from_slice::<Value>(&bytes).ok()?.as_object().cloned()
+}
+
 impl Env {
     fn carregar(dotenv: Option<&Path>) -> Self {
         let mut m: HashMap<String, String> = HashMap::new();
@@ -224,25 +245,12 @@ impl Env {
             m.insert(k.to_uppercase(), v);
         }
         // REGRAS.md: opt-in não liga sozinho. Só escolhas concluídas do orion-setup viram padrões.
-        let installed = m.get("ORION_LOCAL_CONFIG").map(PathBuf::from).or_else(|| {
-            let manifest = std::env::current_exe().ok()?.parent()?.join("orion-install.json");
-            let raw = std::fs::read(manifest).ok()?;
-            let value: Value = serde_json::from_slice(&raw).ok()?;
-            Some(PathBuf::from(value["data_dir"].as_str()?).join("orion-local.json"))
-        });
-        if let Some(path) = installed {
-            if let Ok(file) = std::fs::File::open(path) {
-                use std::io::Read;
-                let mut bytes = Vec::new();
-                if file.take(65537).read_to_end(&mut bytes).is_ok() && bytes.len() <= 65536 {
-                    if let Ok(Value::Object(values)) = serde_json::from_slice::<Value>(&bytes) {
-                        for key in ["ORION_DATA_DIR", "ORION_LOCAL_MODEL_PATH", "ORION_LOCAL_MODEL_GPU", "ORION_LOCAL_STT_MODEL", "ORION_LOCAL_STT_GPU", "ORION_VOICE_ENABLED", "ORION_VOICE_BARGE_IN", "ORION_WAKE_ENABLED", "ORION_WAKE_MODEL", "ORION_WAKE_THRESHOLD"] {
-                            if let Some(value) = values.get(key) {
-                                let value = value.as_str().map(String::from).unwrap_or_else(|| value.to_string());
-                                m.entry(key.into()).or_insert(value);
-                            }
-                        }
-                    }
+        let installed = m.get("ORION_LOCAL_CONFIG").map(PathBuf::from);
+        if let Some(values) = local_defaults(installed.as_deref()) {
+            for key in ["ORION_DATA_DIR", "ORION_LOCAL_MODEL_PATH", "ORION_LOCAL_MODEL_GPU", "ORION_LOCAL_STT_MODEL", "ORION_LOCAL_STT_GPU", "ORION_VOICE_ENABLED", "ORION_VOICE_BARGE_IN", "ORION_WAKE_ENABLED", "ORION_WAKE_MODEL", "ORION_WAKE_THRESHOLD", "ORION_OBJECT_MODEL"] {
+                if let Some(value) = values.get(key) {
+                    let value = value.as_str().map(String::from).unwrap_or_else(|| value.to_string());
+                    m.entry(key.into()).or_insert(value);
                 }
             }
         }

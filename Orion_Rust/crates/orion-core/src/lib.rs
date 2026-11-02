@@ -58,6 +58,8 @@ pub mod rosto;
 pub mod rosto_lbph;
 pub mod faceid;
 pub mod hand_gestures;
+pub mod vision_runtime;
+pub mod face_neural;
 pub mod relatorio;
 pub mod rotinas;
 pub mod screen_memory;

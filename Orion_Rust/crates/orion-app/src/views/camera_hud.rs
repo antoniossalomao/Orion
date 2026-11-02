@@ -4,7 +4,7 @@
 //! local, cadastrado só pelo dono, e nunca sai do computador; o quadro vive só na memória da janela).
 
 use crate::app::Msg;
-use crate::net::FacePreview;
+use crate::net::{FacePreview, DetectedObject};
 use crate::theme as t;
 use crate::ui::*;
 use iced::mouse;
@@ -20,6 +20,8 @@ struct Overlay {
     face: Option<[f32; 4]>,
     /// 21 pontos da mão (0..1), quando o motor de gestos vê uma.
     hand: Option<Vec<[f32; 2]>>,
+    landmarks: Option<Vec<[f32; 2]>>,
+    objects: Vec<DetectedObject>,
     tone: Color,
     /// Segundos desde o começo da fase (respiração dos cantos).
     t: f32,
@@ -61,6 +63,17 @@ impl canvas::Program<Msg> for Overlay {
                 });
                 f.stroke(&p, Stroke::default().with_color(t::alpha(self.tone, 0.55)).with_width(1.0));
             }
+        }
+        if let Some(points) = &self.landmarks {
+            for p in points {
+                f.fill(&Path::circle(Point::new(p[0]*b.width,p[1]*b.height),2.1), t::alpha(t::STAR,0.95));
+            }
+        }
+        for object in &self.objects {
+            let [x,y,w,h] = object.bbox;
+            let rect = Rectangle::new(Point::new(x*b.width,y*b.height),Size::new(w*b.width,h*b.height));
+            corners(&mut f,rect,rect.width.min(rect.height)*0.15,t::alpha(t::OK,0.8),1.1);
+            f.fill_text(canvas::Text { content: format!("{} {:.0}%",object.label,object.confidence*100.0), position: Point::new(rect.x.max(2.0),(rect.y-14.0).max(2.0)), color:t::OK, size:10.0.into(), font:t::MONO, ..Default::default() });
         }
         if let Some(points) = self.hand.as_ref().filter(|p| p.len() == 21) {
             let at = |i: usize| Point::new(points[i][0] * b.width, points[i][1] * b.height);
@@ -114,7 +127,10 @@ pub fn view<'a>(preview: &FacePreview, handle: &image::Handle, tone: Color, tag:
         telemetry.push((format!("[CONFIDENCE: {:.1}%]", c * 100.0), t::alpha(tone, 0.95)));
     }
     telemetry.push((format!("[PROCESSOR: {cpu} CPU]"), t::FG2));
-    frame(Hud { w: preview.w, h: preview.h, handle, face: preview.face, hand: None, tone, tag, telemetry, t_phase, reduced, width: HUD_W })
+    if let (Some(accel),Some(ms)) = (&preview.accel,preview.infer_ms) {
+        telemetry.push((format!("[FACE: {} {ms:.0} ms]",accel.to_uppercase()),t::FG3));
+    }
+    frame(Hud { w: preview.w, h: preview.h, handle, face: preview.face, hand: None, landmarks: preview.landmarks.clone(), objects: vec![], tone, tag, telemetry, t_phase, reduced, width: HUD_W })
 }
 
 /// Tudo que o painel desenha (Face ID ou módulo de câmera).
@@ -124,6 +140,8 @@ pub struct Hud<'h> {
     pub handle: &'h image::Handle,
     pub face: Option<[f32; 4]>,
     pub hand: Option<Vec<[f32; 2]>>,
+    pub landmarks: Option<Vec<[f32; 2]>>,
+    pub objects: Vec<DetectedObject>,
     pub tone: Color,
     pub tag: Option<String>,
     pub telemetry: Vec<(String, Color)>,
@@ -137,7 +155,7 @@ pub fn frame<'a>(hud: Hud<'_>) -> El<'a> {
     let width = hud.width;
     let h = (width * hud.h as f32 / hud.w.max(1) as f32).round();
     let video = image(hud.handle.clone()).width(Length::Fixed(width)).height(Length::Fixed(h)).content_fit(ContentFit::Cover);
-    let overlay = cv(Overlay { face: hud.face, hand: hud.hand, tone: hud.tone, t: hud.t_phase, reduced: hud.reduced }).width(Length::Fixed(width)).height(Length::Fixed(h));
+    let overlay = cv(Overlay { face: hud.face, hand: hud.hand, landmarks: hud.landmarks, objects: hud.objects, tone: hud.tone, t: hud.t_phase, reduced: hud.reduced }).width(Length::Fixed(width)).height(Length::Fixed(h));
     let mut blocks = column![].spacing(4);
     for (text, color) in hud.telemetry {
         blocks = blocks.push(block(text, color));

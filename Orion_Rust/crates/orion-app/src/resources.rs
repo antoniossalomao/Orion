@@ -755,6 +755,7 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
                 .spacing(8),
             );
             col=col.push(tx(crate::i18n::text("Face ID: entra no Orion e confirma pedidos de senha (modo autônomo, sair do pânico) olhando para a câmera. Tudo roda neste computador; com câmera indisponível ou pouca luz, a senha continua valendo. Aprovar ferramentas segue sendo só por botão."),12.5,t::FG3));
+            col=col.push(tx(crate::i18n::text("Para usar rosto neural, objetos e gestos com aceleração, instale a opção Visão com GPU no instalador. Cadastre o Face ID de novo: a captura guiada leva até 1 minuto; os modelos ficam prontos para acelerar a entrada."),12.5,t::FG3));
             col = col.push(
                 row![
                     action("Fotografar e descrever", "POST", "/camera/ver"),

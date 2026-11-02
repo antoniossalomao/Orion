@@ -23,9 +23,9 @@ pub struct CameraUi {
 #[derive(Debug, Clone)]
 pub enum CameraMsg {
     Open,
-    Opened(Result<(), String>),
+    Opened(Instant, Result<(), String>),
     Poll,
-    Polled(Option<CameraSnapshot>),
+    Polled(Instant, Option<CameraSnapshot>),
     Close,
 }
 
@@ -73,18 +73,13 @@ impl App {
                     return Task::none();
                 }
                 self.camera = Some(CameraUi { opened_at: now, opening: true, snapshot: None, error: None, last_gesture: None });
-                Task::perform(async move { api.camera_open().await }, |r| Msg::Camera(CameraMsg::Opened(r)))
+                Task::perform(api.camera_open(), move |r| Msg::Camera(CameraMsg::Opened(now, r)))
             }
-            CameraMsg::Opened(r) => {
+            CameraMsg::Opened(generation, r) => {
                 let Some(cam) = self.camera.as_mut() else {
-                    // fechou enquanto abria: desliga já
-                    if r.is_ok() {
-                        if let Some(api) = self.api.as_ref() {
-                            api.camera_close();
-                        }
-                    }
                     return Task::none();
                 };
+                if cam.opened_at != generation { return Task::none(); }
                 cam.opening = false;
                 if let Err(e) = r {
                     cam.error = Some(e);
@@ -96,11 +91,13 @@ impl App {
                 if cam.opening || cam.error.is_some() {
                     return Task::none();
                 }
-                Task::perform(async move { api.camera_poll().await }, |s| Msg::Camera(CameraMsg::Polled(s)))
+                let generation = cam.opened_at;
+                Task::perform(async move { api.camera_poll().await }, move |s| Msg::Camera(CameraMsg::Polled(generation, s)))
             }
-            CameraMsg::Polled(Some(snap)) => {
+            CameraMsg::Polled(generation, Some(snap)) => {
                 let voice = self.voice;
                 let Some(cam) = self.camera.as_mut() else { return Task::none() };
+                if cam.opened_at != generation { return Task::none(); }
                 let gestures = snap.gestures.clone();
                 if snap.w > 0 && cam.snapshot.as_ref().is_none_or(|(s, _)| s.seq != snap.seq) {
                     let handle = iced::widget::image::Handle::from_rgba(snap.w, snap.h, snap.rgba.clone());
@@ -119,7 +116,7 @@ impl App {
                 }
                 Task::batch(tasks)
             }
-            CameraMsg::Polled(None) => Task::none(),
+            CameraMsg::Polled(_, None) => Task::none(),
             CameraMsg::Close => {
                 if self.camera.take().is_some() {
                     if let Some(api) = self.api.as_ref() {

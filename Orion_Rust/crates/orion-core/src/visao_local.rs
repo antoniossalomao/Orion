@@ -17,7 +17,12 @@ pub const LIMIAR: f64 = 0.45;
 pub const IOU_MAX: f64 = 0.5;
 pub const ENTRADA: u32 = 640;
 pub const MIN_INTERVALO_S: f64 = 180.0;
-pub const RETENCAO_DIAS: i64 = 30;
+pub const RETENCAO_DIAS: i64 = 7;
+pub const OBJECT_MODEL: &str = "object_detection_yolox_2022nov.onnx";
+
+pub fn default_model() -> Option<PathBuf> {
+    crate::vision_runtime::runtime_dir().map(|d| d.join(OBJECT_MODEL)).filter(|p| p.is_file())
+}
 
 pub const COCO_NOMES: [&str; 80] = [
     "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck", "boat", "traffic light",
@@ -94,11 +99,16 @@ pub fn iou(a: (f64, f64, f64, f64), b: (f64, f64, f64, f64)) -> f64 {
 }
 
 pub fn nms(mut itens: Vec<Deteccao>, iou_max: f64) -> Vec<Deteccao> {
+    itens.retain(|d| d.confidence.is_finite() && (0.0..=1.0).contains(&d.confidence)
+        && [d.bbox.0, d.bbox.1, d.bbox.2, d.bbox.3].iter().all(|v| v.is_finite())
+        && d.bbox.2 > d.bbox.0 && d.bbox.3 > d.bbox.1);
     itens.sort_by(|a, b| b.confidence.partial_cmp(&a.confidence).unwrap_or(std::cmp::Ordering::Equal));
+    itens.truncate(1000);
     let mut escolhidas: Vec<Deteccao> = vec![];
     for d in itens {
         if escolhidas.iter().all(|e| e.label != d.label || iou(e.bbox, d.bbox) < iou_max) {
             escolhidas.push(d);
+            if escolhidas.len() == 100 { break; }
         }
     }
     escolhidas
@@ -111,11 +121,12 @@ pub fn decodificar_saida(linhas: &[Vec<f64>], nomes: &HashMap<usize, String>, li
     }
     let mut achados = vec![];
     for l in linhas {
+        if l.len() < 5 || l.iter().any(|v| !v.is_finite()) { continue; }
         let (cx, cy, w, h) = (l[0], l[1], l[2], l[3]);
         let Some((classe, &conf)) = l[4..].iter().enumerate().max_by(|a, b| a.1.partial_cmp(b.1).unwrap_or(std::cmp::Ordering::Equal)) else {
             continue;
         };
-        if conf < limiar {
+        if conf < limiar || conf > 1.0 || w <= 0.0 || h <= 0.0 {
             continue;
         }
         let padrao = COCO_NOMES.get(classe).copied().map(String::from).unwrap_or_else(|| format!("cls_{classe}"));
@@ -159,12 +170,17 @@ pub fn nomes_do_modelo(meta: &HashMap<String, String>) -> HashMap<usize, String>
 pub struct Detector {
     pub modelo_path: Option<PathBuf>,
     pub limiar: f64,
-    model: Mutex<Option<Arc<tract_onnx::prelude::TypedRunnableModel>>>,
+    model: Mutex<Option<ObjectBackend>>,
+}
+
+enum ObjectBackend {
+    Ort(ort::session::Session, crate::vision_runtime::Accel, HashMap<usize, String>),
+    Tract(Arc<tract_onnx::prelude::TypedRunnableModel>),
 }
 
 impl Detector {
     pub fn new(modelo_path: Option<PathBuf>, limiar: f64) -> Self {
-        Self { modelo_path, limiar, model:Mutex::new(None) }
+        Self { modelo_path: modelo_path.or_else(default_model), limiar, model:Mutex::new(None) }
     }
 
     pub fn disponivel(&self) -> bool {
@@ -175,19 +191,123 @@ impl Detector {
         match self.detect(jpeg){Ok(v)=>v,Err(e)=>{tracing::warn!("detecção de objetos indisponível: {e}");vec![]}}
     }
     pub fn detect(&self,jpeg:&[u8])->anyhow::Result<Vec<Deteccao>>{
+        self.detect_rgb(&image::load_from_memory(jpeg)?.to_rgb8())
+    }
+
+    pub fn accel(&self) -> crate::vision_runtime::Accel {
+        match self.model.lock().as_ref() {
+            Some(ObjectBackend::Ort(_, accel, _)) => *accel,
+            _ => crate::vision_runtime::Accel::Cpu,
+        }
+    }
+
+    /// Carga única fora da thread da interface; preserva o modelo escolhido pela pessoa.
+    pub fn warm(&self) -> anyhow::Result<()> {
         use tract_onnx::prelude::*;
-        let image=image::load_from_memory(jpeg)?.resize_exact(ENTRADA,ENTRADA,image::imageops::FilterType::Triangle).to_rgb8();
         let mut guard=self.model.lock();
-        if guard.is_none(){let path=self.modelo_path.as_ref().ok_or_else(||anyhow::anyhow!("configure o modelo YOLO ONNX"))?;*guard=Some(tract_onnx::onnx().model_for_path(path)?.with_input_fact(0,f32::fact([1,3,ENTRADA as usize,ENTRADA as usize]).into())?.into_optimized()?.into_runnable()?);}
-        let input=tract_ndarray::Array4::from_shape_fn((1,3,ENTRADA as usize,ENTRADA as usize),|(_,c,y,x)|image.get_pixel(x as u32,y as u32)[c] as f32/255.0);
-        let output=guard.as_ref().unwrap().run(tvec!(Tensor::from(input).into()))?;
-        let out=output[0].to_plain_array_view::<f32>()?;
-        anyhow::ensure!(out.ndim()==3 && out.shape()[0]==1,"saída YOLOv8 inválida");
-        let out=out.index_axis(tract_ndarray::Axis(0),0);
-        let matrix=out.outer_iter().map(|row|row.iter().map(|v|*v as f64).collect()).collect::<Vec<Vec<f64>>>();
-        Ok(decodificar_matriz(&matrix,&nomes_do_modelo(&HashMap::new()),self.limiar))
+        if guard.is_none() {
+            let path=self.modelo_path.as_ref().ok_or_else(||anyhow::anyhow!("instale os recursos de visão ou configure o modelo de objetos ONNX"))?;
+            match crate::vision_runtime::session(path) {
+                Ok((session, accel)) => {
+                    let mut meta = HashMap::new();
+                    if let Some(names) = session.metadata().ok().and_then(|m| m.custom("names")) { meta.insert("names".into(), names); }
+                    *guard=Some(ObjectBackend::Ort(session, accel, nomes_do_modelo(&meta)));
+                }
+                Err(e) => {
+                    tracing::info!("objetos: ONNX Runtime indisponível ({e}); usando Tract/CPU");
+                    crate::vision_runtime::verify_model(path).map_err(anyhow::Error::msg)?;
+                    *guard=Some(ObjectBackend::Tract(tract_onnx::onnx().model_for_path(path)?.with_input_fact(0,f32::fact([1,3,ENTRADA as usize,ENTRADA as usize]).into())?.into_optimized()?.into_runnable()?));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Letterbox mantém a proporção; as caixas voltam aos pixels do quadro original.
+    pub fn detect_rgb(&self, image: &image::RgbImage) -> anyhow::Result<Vec<Deteccao>> {
+        let result = self.detect_rgb_inner(image);
+        if result.is_err() {
+            let mut model = self.model.lock();
+            if let Some(ObjectBackend::Ort(_, accel, names)) = model.as_ref() {
+                if *accel != crate::vision_runtime::Accel::Cpu {
+                    let names = names.clone();
+                    let path = self.modelo_path.as_ref().ok_or_else(|| anyhow::anyhow!("modelo de objetos ausente"))?;
+                    let session = crate::vision_runtime::cpu_session(path).map_err(anyhow::Error::msg)?;
+                    *model = Some(ObjectBackend::Ort(session, crate::vision_runtime::Accel::Cpu, names));
+                    drop(model);
+                    tracing::info!("objetos: falha de execução na GPU; usando CPU");
+                    return self.detect_rgb_inner(image);
+                }
+            }
+        }
+        result
+    }
+
+    fn detect_rgb_inner(&self, image: &image::RgbImage) -> anyhow::Result<Vec<Deteccao>> {
+        use tract_onnx::prelude::*;
+        anyhow::ensure!(image.width() > 0 && image.height() > 0, "quadro de objetos vazio");
+        self.warm()?;
+        let yolox = self.modelo_path.as_ref().and_then(|p| p.file_name()).is_some_and(|n| n == OBJECT_MODEL);
+        let scale = (ENTRADA as f64 / image.width() as f64).min(ENTRADA as f64 / image.height() as f64);
+        let (w, h) = (((image.width() as f64 * scale).floor() as u32).max(1), ((image.height() as f64 * scale).floor() as u32).max(1));
+        let resized = image::imageops::resize(image, w, h, image::imageops::FilterType::Triangle);
+        // YOLOX usa padding no canto superior esquerdo; YOLOv8 usa padding centralizado.
+        let (left, top) = if yolox { (0, 0) } else { ((ENTRADA - w) / 2, (ENTRADA - h) / 2) };
+        let mut input = vec![if yolox { 114.0 } else { 114.0 / 255.0 }; (ENTRADA * ENTRADA * 3) as usize];
+        for (x, y, p) in resized.enumerate_pixels() {
+            for c in 0..3 { input[(c * INPUT_SIDE + (y + top) as usize) * INPUT_SIDE + (x + left) as usize] = p[c] as f32 / if yolox { 1.0 } else { 255.0 }; }
+        }
+        let mut guard = self.model.lock();
+        let (shape, data, names) = match guard.as_mut().ok_or_else(|| anyhow::anyhow!("modelo de objetos indisponível"))? {
+            ObjectBackend::Ort(session, _, names) => {
+                let tensor = ort::value::Tensor::from_array(([1usize, 3, INPUT_SIDE, INPUT_SIDE], input))?;
+                let output = session.run(ort::inputs![tensor])?;
+                let (shape, values) = output[0].try_extract_tensor::<f32>()?;
+                (shape.iter().map(|&v| v as usize).collect::<Vec<_>>(), values.to_vec(), names.clone())
+            }
+            ObjectBackend::Tract(model) => {
+                let input = tract_ndarray::Array4::from_shape_vec((1,3,INPUT_SIDE,INPUT_SIDE),input)?;
+                let output=model.run(tvec!(Tensor::from(input).into()))?;
+                let out=output[0].to_plain_array_view::<f32>()?;
+                (out.shape().to_vec(), out.iter().copied().collect(), nomes_do_modelo(&HashMap::new()))
+            }
+        };
+        drop(guard);
+        anyhow::ensure!(shape.len()==3 && shape[0]==1 && shape[1]*shape[2]==data.len(), "saída do detector de objetos inválida");
+        let mut rows = vec![];
+        if yolox {
+            anyhow::ensure!(shape[1]==8400 && shape[2]==85,"saída YOLOX inválida");
+            let mut index = 0;
+            for stride in [8usize, 16, 32] {
+                let side = INPUT_SIDE / stride;
+                for y in 0..side { for x in 0..side {
+                    let raw=&data[index*85..(index+1)*85];
+                    index+=1;
+                    if raw[4] < self.limiar as f32 { continue; }
+                    let mut row=vec![(raw[0] as f64+x as f64)*stride as f64, (raw[1] as f64+y as f64)*stride as f64, (raw[2] as f64).exp()*stride as f64, (raw[3] as f64).exp()*stride as f64];
+                    row.extend(raw[5..].iter().map(|&v| v as f64*raw[4] as f64));
+                    rows.push(row);
+                }}
+            }
+        } else {
+            let features = names.len()+4;
+            if shape[1]==features {
+                for i in 0..shape[2] { rows.push((0..features).map(|c| data[c*shape[2]+i] as f64).collect()); }
+            } else {
+                anyhow::ensure!(shape[2]==features, "modelo deve ter saída YOLOv8 sem NMS");
+                rows.extend(data.chunks(features).map(|r| r.iter().map(|&v| v as f64).collect()));
+            }
+        }
+        let mut found = decodificar_saida(&rows,&names,self.limiar);
+        for d in &mut found {
+            d.bbox = (((d.bbox.0-left as f64)/scale).clamp(0.0,image.width() as f64), ((d.bbox.1-top as f64)/scale).clamp(0.0,image.height() as f64), ((d.bbox.2-left as f64)/scale).clamp(0.0,image.width() as f64), ((d.bbox.3-top as f64)/scale).clamp(0.0,image.height() as f64));
+        }
+        found.retain(|d| d.bbox.2>d.bbox.0 && d.bbox.3>d.bbox.1);
+        Ok(found)
     }
 }
+
+const INPUT_SIDE: usize = ENTRADA as usize;
 
 pub struct Avistamentos {
     pub memory: Arc<Store>,
@@ -197,7 +317,7 @@ pub struct Avistamentos {
 
 impl Avistamentos {
     pub fn new(memory: Arc<Store>, retencao_dias: i64) -> Self {
-        Self { memory, retencao_dias, ultimo_por_label: Mutex::new(HashMap::new()) }
+        Self { memory, retencao_dias: retencao_dias.clamp(1, RETENCAO_DIAS), ultimo_por_label: Mutex::new(HashMap::new()) }
     }
 
     /// Grava cada rótulo no máximo uma vez a cada `MIN_INTERVALO_S`.
@@ -207,7 +327,7 @@ impl Avistamentos {
         let mut vistos = HashSet::new();
         for d in deteccoes {
             let nome = d.label.trim().to_lowercase();
-            if nome.is_empty() || !vistos.insert(nome.clone()) {
+            if nome.is_empty() || matches!(nome.as_str(), "person" | "pessoa") || !vistos.insert(nome.clone()) {
                 continue;
             }
             {
@@ -220,8 +340,8 @@ impl Avistamentos {
                 .memory
                 .tx(|c| {
                     c.execute(
-                        "INSERT INTO object_sightings(ts, label, confidence, x, y) VALUES (?, ?, ?, ?, ?)",
-                        rusqlite::params![ts, nome, d.confidence, d.bbox.0 as i64, d.bbox.1 as i64],
+                        "INSERT INTO object_sightings(ts, label, confidence) VALUES (?, ?, ?)",
+                        rusqlite::params![ts, nome, d.confidence],
                     )?;
                     Ok(())
                 })

@@ -157,6 +157,43 @@ pub struct FacePreview {
     pub confidence: Option<f32>,
     /// Uso de CPU do processo do Orion, em % de um núcleo dividido pelo total de núcleos.
     pub cpu: Option<f32>,
+    /// Quantidade realmente aceita e orientação do cadastro em andamento.
+    pub enrollment: Option<FaceEnrollment>,
+    pub landmarks: Option<Vec<[f32; 2]>>,
+    pub accel: Option<String>,
+    pub infer_ms: Option<f32>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FaceEnrollment {
+    pub accepted: usize,
+    pub total: usize,
+    pub hint: FaceEnrollmentHint,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FaceEnrollmentHint {
+    WarmingUp,
+    NoFace,
+    Lighting,
+    MoveCloser,
+    CenterFace,
+    HoldStill,
+    VaryPose,
+    Capturing,
+    Checking,
+    Front,
+    TurnLeft,
+    TurnRight,
+    LookUp,
+    LookDown,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct DetectedObject {
+    pub label: String,
+    pub confidence: f32,
+    pub bbox: [f32; 4],
 }
 
 /// Último quadro do módulo de câmera: miniatura espelhada, rosto, mão (21 pontos, 0..1) e os
@@ -180,6 +217,11 @@ pub struct CameraSnapshot {
     pub infer_ms: Option<f32>,
     /// Detector acordado por movimento ou mão rastreada.
     pub awake: bool,
+    pub face_landmarks: Option<Vec<[f32; 2]>>,
+    pub objects: Vec<DetectedObject>,
+    pub object_accel: Option<String>,
+    pub object_ms: Option<f32>,
+    pub face_accel: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -330,10 +372,10 @@ impl Api {
     pub fn face_id_enabled(&self) -> bool {
         self.local.as_ref().is_some_and(|l| l.face_id_enabled())
     }
-    pub async fn face_id_start(&self, purpose: &str) -> Result<String, FaceFailure> {
+    pub fn face_id_start(&self, purpose: &str) -> futures::future::BoxFuture<'static, Result<String, FaceFailure>> {
         match &self.local {
-            Some(l) => l.face_id_start(purpose.to_string()).await,
-            None => Err(FaceFailure::Inactive),
+            Some(l) => l.face_id_start(purpose.to_string()),
+            None => Box::pin(async { Err(FaceFailure::Inactive) }),
         }
     }
     pub async fn face_id_step(&self, session: &str) -> FaceEvent {
@@ -348,8 +390,11 @@ impl Api {
             None => None,
         }
     }
-    pub async fn camera_open(&self) -> Result<(), String> {
-        self.local.as_ref().ok_or("câmera só no app nativo")?.camera_open().await
+    pub fn camera_open(&self) -> futures::future::BoxFuture<'static, Result<(), String>> {
+        match &self.local {
+            Some(l) => l.camera_open(),
+            None => Box::pin(async { Err("câmera só no app nativo".into()) }),
+        }
     }
     pub async fn camera_poll(&self) -> Option<CameraSnapshot> {
         match &self.local {
@@ -367,8 +412,11 @@ impl Api {
             l.face_id_cancel(session)
         }
     }
-    pub async fn face_id_enroll(&self, password: String) -> Result<usize, String> {
-        self.local.as_ref().ok_or("Face ID só no app nativo")?.face_id_enroll(password).await
+    pub fn face_id_enroll(&self, password: String) -> futures::future::BoxFuture<'static, Result<usize, String>> {
+        match &self.local {
+            Some(l) => l.face_id_enroll(password),
+            None => Box::pin(async { Err("Face ID só no app nativo".into()) }),
+        }
     }
     pub async fn face_id_disable(&self) -> Result<(), String> {
         self.local.as_ref().ok_or("Face ID só no app nativo")?.face_id_disable().await

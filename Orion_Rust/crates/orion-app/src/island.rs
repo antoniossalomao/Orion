@@ -190,6 +190,9 @@ impl App {
     }
 
     fn cancel_scan(&mut self) {
+        if self.island.phase == Phase::Reading && self.island.session.is_none() {
+            if let Some(api) = &self.api { api.face_id_cancel("pending"); }
+        }
         if let (Some(id), Some(api)) = (self.island.session.take(), self.api.as_ref()) {
             api.face_id_cancel(&id);
         }
@@ -319,8 +322,9 @@ impl App {
                 self.island.failure = None;
                 self.island.hint = FaceHint::Starting;
                 self.island.set_phase(Phase::Enrolling, now, reduced);
+                self.island.preview = None;
                 let g = self.island.generation;
-                Task::perform(async move { api.face_id_enroll(password).await }, move |r| Msg::Face(FaceMsg::Enrolled(g, r)))
+                Task::perform(api.face_id_enroll(password), move |r| Msg::Face(FaceMsg::Enrolled(g, r)))
             }
             // cadastro cancelado (fechar a ilha ou desligar): o resultado tardio não aparece
             FaceMsg::Enrolled(g, _) if g != self.island.generation => Task::none(),

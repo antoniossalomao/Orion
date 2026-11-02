@@ -57,15 +57,16 @@ fn degrade(de: iced::Color, ate: iced::Color, graus: f32) -> iced::Background {
     iced::gradient::Linear::new(iced::Radians(graus.to_radians())).add_stop(0.0, de).add_stop(1.0, ate).into()
 }
 
-/// Tarefa de fundo do Face ID: abre a leitura e consulta o núcleo a cada `INTERVALO` (250 ms).
+/// Tarefa de fundo do Face ID: abre a leitura e consulta o núcleo a cada `INTERVAL` (100 ms).
 /// O tique perdido é pulado (nunca acumula), cada passo analisa só o quadro mais novo num
 /// `spawn_blocking` do núcleo e o fluxo termina no primeiro resultado. A thread da interface só
 /// recebe mensagens.
 pub fn face_scan(api: crate::net::Api, purpose: crate::island::Purpose, generation: u64) -> iced::Task<Msg> {
     use crate::island::FaceMsg;
     use crate::net::FaceEvent;
+    let starting = api.face_id_start(purpose.key());
     let stream = async_stream::stream! {
-        let session = match api.face_id_start(purpose.key()).await {
+        let session = match starting.await {
             Ok(id) => id,
             Err(f) => {
                 yield FaceMsg::Started(generation, Err(f));
@@ -88,9 +89,9 @@ pub fn face_scan(api: crate::net::Api, purpose: crate::island::Purpose, generati
     iced::Task::run(stream, Msg::Face)
 }
 
-/// Mesmo ritmo do núcleo (`orion_core::faceid::INTERVALO`): entre 200 e 300 ms.
+/// Mesmo ritmo do núcleo (`orion_core::faceid::INTERVAL`): 100 ms, sem acumular quadros.
 const fn scan_interval() -> std::time::Duration {
-    std::time::Duration::from_millis(250)
+    std::time::Duration::from_millis(100)
 }
 
 /// Entrada: céu à esquerda, vidro fosco com os campos à direita, tudo entrando em sequência.

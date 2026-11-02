@@ -266,7 +266,7 @@ pub fn gestures_runtime_dir() -> Option<PathBuf> {
 
 pub fn default_models(pc: &PcInfo) -> Vec<LocalModel> {
     let total = pc.ram_gb as u64 * 1024 * 1024 * 1024;
-    let models: Vec<_> = orion_local::catalog::all().into_iter().filter(|m| m.kind != "gestures").collect();
+    let models: Vec<_> = orion_local::catalog::all().into_iter().filter(|m| matches!(m.kind.as_str(), "llm" | "stt")).collect();
     let recommendation = models.iter().filter(|m| m.kind == "llm" && orion_local::admitted(m.bytes, total, total))
         .max_by_key(|m| m.bytes).map(|m| m.id.clone());
     models.into_iter().map(|m| {
@@ -488,11 +488,13 @@ impl InstallPlan {
             let existed = runtime.exists();
             std::fs::create_dir_all(&runtime).map_err(|e| e.to_string())?;
             if !existed { self.created_paths.push(runtime.clone()); }
-            for id in orion_local::catalog::GESTURE_RUNTIME {
+            for id in orion_local::catalog::VISION_RUNTIME {
                 let (path, created) = orion_local::download::install(id, &runtime, cancel, progress).map_err(|e| e.to_string())?;
                 if created { self.created_paths.push(path); }
             }
             config["ORION_GESTURES_RUNTIME"] = serde_json::json!(runtime);
+            config["ORION_RUNTIME_DIR"] = serde_json::json!(runtime);
+            config["ORION_OBJECT_MODEL"] = serde_json::json!(runtime.join("object_detection_yolox_2022nov.onnx"));
         }
         let target = data_dir.join("orion-local.json");
         self.write_new(&target, &serde_json::to_vec_pretty(&config).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;

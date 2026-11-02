@@ -357,8 +357,8 @@ pub fn camera_from_settings(
     if !settings.camera {
         return (vec![], None, None, None);
     }
-    let detector = settings.object_model.as_ref().map(|p| Arc::new(orion_core::visao_local::Detector::new(Some(p.clone()), 0.35)));
-    let avistamentos = settings.camera_watch.then(|| Arc::new(orion_core::visao_local::Avistamentos::new(memory, 30)));
+    let detector = settings.object_model.clone().or_else(orion_core::visao_local::default_model).map(|p| Arc::new(orion_core::visao_local::Detector::new(Some(p), 0.35)));
+    let avistamentos = settings.camera_watch.then(|| Arc::new(orion_core::visao_local::Avistamentos::new(memory, 7)));
     let dev = settings.camera_device as i32;
     let tools = orion_core::tools::camera::camera_tools(
         dev,

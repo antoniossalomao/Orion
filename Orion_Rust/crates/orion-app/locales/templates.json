@@ -80,5 +80,6 @@
   "Olá, {v}",
   "Cheguei ao limite de {} passos deste pedido. Quer que eu continue? Responda \"continue\" e eu sigo de onde parei.",
   "Backup do vault: {} ({} arquivos)",
-  "Nota gravada no vault: {}"
+  "Nota gravada no vault: {}",
+  "Cadastro do rosto: {v}/{v}"
 ]

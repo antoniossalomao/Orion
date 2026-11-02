@@ -1,6 +1,6 @@
 # Orion — estado, plano e decisões
 
-> Fonte única do estado do projeto. Atualizado em 30/10/2026. Princípios e regras: [REGRAS.md](REGRAS.md). Arquitetura, módulos e referências: [ARQUITETURA.md](ARQUITETURA.md). Melhorias pré-lançamento v1: [ORION_MELHORIAS_PRE_V1.md](ORION_MELHORIAS_PRE_V1.md). Roadmap pós-v1: [ORION_MELHORIAS_POS_V1.md](ORION_MELHORIAS_POS_V1.md). Como rodar: [README](../README.md). Material antigo e detalhado: [ORION_LEGADO.md](ORION_LEGADO.md).
+> Fonte única do estado do projeto. Atualizado em 02/11/2026. Princípios e regras: [REGRAS.md](REGRAS.md). Arquitetura, módulos e referências: [ARQUITETURA.md](ARQUITETURA.md). Melhorias pré-lançamento v1: [ORION_MELHORIAS_PRE_V1.md](ORION_MELHORIAS_PRE_V1.md). Roadmap pós-v1: [ORION_MELHORIAS_POS_V1.md](ORION_MELHORIAS_POS_V1.md). Como rodar: [README](../README.md). Material antigo e detalhado: [ORION_LEGADO.md](ORION_LEGADO.md).
 
 ## Visão
 
@@ -9,6 +9,39 @@ Assistente pessoal com identidade masculina, técnico, direto, não-servil. Não
 *"Não é uma IA. É uma extensão do sistema nervoso."*
 
 Antônio é o administrador: decide, aprova e pode desligar qualquer coisa. Nada que o modelo diga anula isso.
+
+## Visão neural com GPU: rosto, objetos e gestos — 02/11/2026
+
+Pedido do Antônio: usar GPU para melhorar a análise, permitir até 1 minuto no cadastro e manter a entrada rápida; melhorar também objetos e gestos. Esta etapa substitui a primeira correção de coleta por LBPH registrada abaixo.
+
+- **Runtime compartilhado:** `vision_runtime.rs` carrega ONNX Runtime uma vez, tenta DirectML com preferência por GPU de alto desempenho no Windows, CoreML no Mac e CPU como alternativa. Confere SHA-256 dos artefatos conhecidos, mantém sessões prontas e faz uma inferência de aquecimento antes da câmera. Falha de execução na GPU também permite nova tentativa em CPU. O SFace tem pesos constantes retirados da lista de entradas, só em memória, para permitir otimização/fusão; os pesos não mudam.
+- **Face ID:** `face_neural.rs` usa YuNet em 640×640 com proporção preservada, cinco pontos (olhos, nariz, cantos da boca), alinhamento por similaridade e SFace de 128 dimensões. Múltiplos rostos impedem o cadastro/autenticação. Perfis novos usam formato 3, média e cinco modelos de pose cifrados; os formatos LBPH 1/2 continuam legíveis. É preciso recadastrar para usar o motor neural.
+- **Cadastro:** 40 amostras, em cinco posições guiadas: frente, esquerda, direita, queixo acima e abaixo. Pede captura 1280×720 quando o driver oferece; confere luz, saturação, nitidez, margens, estabilidade e consistência. O orçamento total de 60 s inclui a preparação no backend; a coleta/conferência leva pelo menos 25 s. Antes de salvar, exige três acertos em quadros novos. Os deslocamentos dos cinco pontos só orientam a pose 2D: não medem profundidade.
+- **Entrada:** mantém 640×480, câmera e consulta a cada 100 ms, só o quadro novo e três acertos seguidos com variação da imagem capturada, sem exigir que o descritor de identidade varie. Os modelos são preparados em segundo plano quando o Face ID já está ativado; a sessão também tem expiração independente para não manter a câmera ligada se a interface abandonar a leitura. Latência completa e qualidade biométrica ainda dependem da webcam/driver reais. O limiar neural adaptativo fica em 0,55–0,65, acima de 0,363 da referência SFace, mas sem validação ROC própria. Não é prova de vida.
+- **Objetos:** o painel passa a executar YOLOX-S (80 classes COCO), com caixas, rótulos, pontuação e backend real no HUD. Modelos YOLOv8 configurados continuam aceitos. Letterbox substitui a deformação da imagem; as caixas voltam aos pixels originais. Inferência em fio próprio, com um quadro pendente, a cada 200 ms na GPU ou 500 ms na CPU; resultados antigos saem do HUD. NMS é por classe, com rejeição de valores inválidos. Avistamentos gravam só rótulo/confiança/hora, deixam coordenadas nos valores neutros do esquema legado, excluem pessoa e limitam retenção a 7 dias.
+- **Gestos:** movimento por blocos no quadro inteiro, descoberta inicial e periódica, correção do recorte pelos sete pontos da palma, reaquisição de rastreio e preferência pela mão mais próxima da anterior. Classificação usa também os pontos 3D estimados da mão; exige confiança de 0,75, estabilidade temporal e movimento coerente para deslizes. Uma perda breve não rearma o gesto. Ações e permissões continuam as mesmas; gesto não autentica nem aprova.
+- **Instalação e interface:** opção **Visão com GPU: rosto, objetos e gestos**, desmarcada por padrão, instala runtime/DirectML e cinco modelos (~298 MB transferidos). YuNet (MIT), SFace e YOLOX (Apache 2.0) vêm do OpenCV Zoo, com revisão e SHA-256 fixados. Não há download na abertura nem envio de câmera/rosto. A interface pt-BR/en mostra os cinco pontos, contador, orientações de pose, objetos e tempos/backends da análise. Cancelar o módulo interrompe a captura mesmo durante a carga de modelos. Pedidos pendentes carregam uma geração de cancelamento; resultados atrasados não retomam a leitura. A abertura do driver não prende o fechamento da janela, e câmera, leitura e cadastro disputam a mesma reserva. O runtime recupera a pasta salva pelo instalador; o painel respeita a escolha atual de câmera e modelo de objetos.
+
+**Integração para publicação:** alterações incorporadas à main `9d5deb9` (agenda, Telegram, diário e atualizações de dependências preservados). Antônio autorizou commit e push direto na main nesta sessão.
+
+**Validação desta etapa:** suíte exigida dos 15 crates com `cargo test --locked`: **550 testes passaram, zero falhas e sem avisos**, incluindo os últimos ajustes. Sintaxe dos módulos novos, catálogos pt-BR/en e espelhamento da documentação conferidos. Verificação manual com as APIs de produção e imagens públicas de referência: descritores faciais Rust/OpenCV com cosseno 0,9991–0,9996; duas fotos da mesma pessoa com 0,7352 e fotos de pessoas diferentes com 0,0577/0,1147; ônibus detectado com pontuação ~0,94 e duas mãos abertas com confiança ~0,99. Esses exemplos não medem FAR/FRR. Sem testes novos e sem reativar CI, conforme a pausa de 21/10/2026. Sem GPU/webcam Windows neste ambiente e sem publicação de pacote.
+
+**Board:** ORI-564 e ORI-565 foram consultados; continuam com os dados da primeira coleta LBPH. A escrita externa continua aguardando a autorização já solicitada após o bloqueio da revisão automática. Preparado localmente para revisão: atualização do Face ID neural e aceite Windows cobrindo instalação, DirectML, cadastro/entrada, objetos, gestos, cancelamento e outra pessoa. Nenhuma nova tentativa de escrita no Notion nesta etapa.
+
+## Cadastro do Face ID com controle de qualidade — 02/11/2026
+
+**Histórico da primeira correção, substituído pela etapa neural acima.**
+
+Pedido do Antônio: o cadastro terminava rápido demais e o reconhecimento falhava no uso. O fluxo antigo aceitava 8 quadros a cada 250 ms, conferindo só a luz do quadro e a presença de um recorte facial.
+
+- `faceid.rs` agora aguarda 2 s para exposição/foco, coleta 24 amostras separadas por pelo menos 500 ms e leva no mínimo 15 s, com limite total de 45 s. Exige três quadros estáveis antes de aceitar uma amostra; confere tamanho, margens, luz/contraste do próprio rosto, saturação e nitidez antes da equalização. Recortes incompatíveis e duplicatas quase idênticas não avançam o contador.
+- O limiar é calibrado comparando cada amostra à média das outras, sem incluir a própria amostra. Vetores inválidos e cadastros inconsistentes são recusados. Antes de gravar, o mesmo verificador precisa reconhecer o cadastro em três quadros novos, com variação. Interrupções reiniciam a variação da sequência de acertos.
+- A ilha mostra o contador real e orientações em pt-BR/en para luz, distância, enquadramento, estabilidade e conferência final. Um cadastro ainda encerrando impede outro cadastro e o uso simultâneo da câmera pelo módulo ou pela leitura.
+- O modelo novo usa versão 2 e mantém leitura do formato 1. Para aproveitar a coleta nova, é preciso **cadastrar o Face ID de novo** em Configurações › Câmera. Continua usando Haar heurístico + LBPH, sem pontos faciais anatômicos nem prova de vida. A qualidade biométrica e os limites de nitidez/estabilidade precisam de aceite na webcam real do Windows.
+
+Validação: suíte existente dos 15 crates exigidos em `AGENTS.md`, com `cargo test --locked`, passou no Linux: **550 testes, zero falhas e sem avisos**. Sintaxe dos seis arquivos Rust alterados, IDs/traduções dos catálogos pt-BR/en e espelhamento no vault conferidos. Sem testes novos e sem reativar CI (pausa de 21/10/2026). Aceite com webcam Windows pendente; nenhum pacote Windows publicado nesta sessão.
+
+Board: criados o card de correção e o card de aceite Windows, este atribuído ao Antônio. A atualização final do card de correção para Em revisão/Executor Antônio foi bloqueada pela revisão automática de autorização de escrita externa, inclusive com payload reduzido a status/executor. O card de correção permanece Em andamento/Executor Codex; atualização depende de autorização direta do Antônio. O resultado completo da validação está registrado aqui.
 
 ## Board Notion: rodada de 10 tarefas — 30/10/2026
 
@@ -526,7 +559,7 @@ Os itens em aberto das etapas antigas foram reescritos aqui, com IDs novos.
 | B-10 | ~~Decidir a licença-alvo~~ — decidido: uso pessoal (D07) | Você |
 | B-11 | ~~Sidecar Python com browser-use e crawl4ai (fase 7)~~ — **Feito em Rust e sidecar removido (20/10/2026)**; falta teste real no Windows com Edge | Claude |
 
-**Fora do marco 1:** E10 a E13. E10 e E11 já têm portes parciais em Rust (`vida.rs`, câmera, presença, rosto e legenda), além da referência Python. A inferência YOLO e o aceite de hardware ainda faltam; E12 e E13 não começaram como entregas completas. Cada um começa pelas regras em [REGRAS.md](REGRAS.md).
+**Fora do marco 1:** E10 a E13. E10 e E11 têm portes parciais em Rust (`vida.rs`, câmera, presença, rosto e legenda); a referência Python fica no histórico. A inferência YOLOX/YOLOv8 está ligada (02/11/2026), com rosto neural e gestos descritos acima; o aceite de hardware ainda falta. E12 e E13 não começaram como entregas completas. Cada um começa pelas regras em [REGRAS.md](REGRAS.md).
 
 ### Limpeza do legado (histórico de 17/10/2026)
 
@@ -540,6 +573,8 @@ Validação da limpeza (histórica; Python e Node saíram do CI): `uv sync --pyt
 
 | Data | Consolidação | Efeito |
 |---|---|---|
+| 02/11/2026 | Visão local com GPU: YuNet/SFace, cadastro guiado até 1 minuto e entrada com modelos prontos; YOLOX no painel e gestos com geometria/rastreio revisados | Pedido do Antônio. Runtime e modelos opt-in fixados por SHA-256; perfis faciais no formato 3, com leitura dos antigos. Sem profundidade física ou prova de vida; aceite de GPU/webcam Windows pendente |
+| 02/11/2026 | Cadastro do Face ID com 24 amostras, aquecimento, controle de qualidade/estabilidade, contador e conferência em quadros novos antes de salvar | Pedido do Antônio; coleta mínima de 15 s, até 45 s. Formato 2 aceita leitura do 1; recadastro necessário para aproveitar a melhora. Haar/LBPH permanece local, sem pontos anatômicos nem validação biométrica no hardware |
 | 30/10/2026 | Módulo de câmera com HUD (estilo do Face ID), gestos com as mãos e objetos entram juntos numa entrega futura. Inferência por `ort` com `load-dynamic` e DirectML; `onnxruntime.dll` e `DirectML.dll` baixadas pelo instalador para `%LOCALAPPDATA%\Orion\runtime\` com assinatura conferida; sem elas, gestos/objetos ficam indisponíveis. Câmera do módulo só liga com a tela aberta | Pedido do Antônio; revê a decisão de 17/10 (sem ONNX Runtime) só para gestos/objetos, mantendo o `orion.exe` único. Falta definir: gestos e ações, reação da ilha, Mac/CoreML |
 | 27/10/2026 | Remova n8n e conecte os recursos nativos às configurações e ações reais do app, preservando opt-ins, concessões e revisões por hash/escopo | Pedido explícito do Antônio; PR #62 mergeado, 550 testes e smokes de modelos/recarga passaram. Aplicar configurações preserva as conexões da sessão e respeita revogações; aceite de dispositivos Windows continua separado |
 | 26/10/2026 | Autorização única, local e revogável para todas as ferramentas sem confirmar por ação; escolha no primeiro uso e em Configurações → Ferramentas | Pedido explícito do Antônio; altera REGRAS.md e orion-policy dentro desse escopo. Consentimento fica fora de backups, com efeito imediato e auditoria; captura contínua e integrações não são ativadas |

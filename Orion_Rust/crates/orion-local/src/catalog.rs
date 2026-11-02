@@ -37,6 +37,8 @@ impl Artifact {
 }
 /// Ids do motor de gestos (ONNX Runtime, DirectML e os dois modelos de mão), nesta ordem.
 pub const GESTURE_RUNTIME: [&str; 4] = ["onnxruntime-directml-1.24.4", "directml-1.15.4", "mediapipe-palm-detection", "mediapipe-hand-landmarks"];
+/// Recursos de visão instalados juntos, por escolha explícita, com revisão e SHA-256 fixados.
+pub const VISION_RUNTIME: [&str; 7] = ["onnxruntime-directml-1.24.4", "directml-1.15.4", "mediapipe-palm-detection", "mediapipe-hand-landmarks", "yunet-face-detection", "sface-face-recognition", "yolox-object-detection"];
 pub fn all() -> Vec<Artifact> {
     serde_json::from_str(include_str!("catalog.json")).expect("catálogo fixado válido")
 }

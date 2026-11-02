@@ -35,8 +35,12 @@ pub fn listar_cameras() -> Vec<String> {
 /// Abre a câmera pedindo ~640x480 em MJPEG (o driver escolhe o formato mais próximo); se o
 /// formato não existir, aceita o que o driver oferecer e o quadro é reduzido depois.
 fn open_camera(device: i32) -> Result<Camera, CameraError> {
+    open_camera_at_size(device, ANALYSIS_W, ANALYSIS_H)
+}
+
+fn open_camera_at_size(device: i32, width: u32, height: u32) -> Result<Camera, CameraError> {
     let index = CameraIndex::Index(device as u32);
-    let preferred = RequestedFormat::new::<RgbFormat>(RequestedFormatType::Closest(CameraFormat::new_from(ANALYSIS_W, ANALYSIS_H, FrameFormat::MJPEG, 30)));
+    let preferred = RequestedFormat::new::<RgbFormat>(RequestedFormatType::Closest(CameraFormat::new_from(width, height, FrameFormat::MJPEG, 30)));
     Camera::new(index.clone(), preferred)
         .or_else(|_| Camera::new(index, RequestedFormat::new::<RgbFormat>(RequestedFormatType::None)))
         .map_err(|e| CameraError(format!("falha ao inicializar webcam: {e}")))
@@ -44,10 +48,14 @@ fn open_camera(device: i32) -> Result<Camera, CameraError> {
 
 /// Reduz (nunca amplia) para caber em 640x480 mantendo a proporção.
 pub fn downscale_rgb(img: image::RgbImage) -> image::RgbImage {
-    if img.width() <= ANALYSIS_W && img.height() <= ANALYSIS_H {
+    downscale_rgb_to(img, ANALYSIS_W, ANALYSIS_H)
+}
+
+fn downscale_rgb_to(img: image::RgbImage, max_w: u32, max_h: u32) -> image::RgbImage {
+    if img.width() <= max_w && img.height() <= max_h {
         return img;
     }
-    let scale = (ANALYSIS_W as f64 / img.width() as f64).min(ANALYSIS_H as f64 / img.height() as f64);
+    let scale = (max_w as f64 / img.width() as f64).min(max_h as f64 / img.height() as f64);
     let (w, h) = (((img.width() as f64 * scale).round() as u32).max(1), ((img.height() as f64 * scale).round() as u32).max(1));
     image::imageops::resize(&img, w, h, image::imageops::FilterType::Triangle)
 }
@@ -70,7 +78,11 @@ impl GrayFrame {
     }
 
     pub fn from_rgb_keep(rgb: image::RgbImage, seq: u64, keep_rgb: bool) -> Self {
-        let small = downscale_rgb(rgb);
+        Self::from_rgb_sized(rgb, seq, keep_rgb, ANALYSIS_W, ANALYSIS_H)
+    }
+
+    fn from_rgb_sized(rgb: image::RgbImage, seq: u64, keep_rgb: bool, max_w: u32, max_h: u32) -> Self {
+        let small = downscale_rgb_to(rgb, max_w, max_h);
         let luma = image::imageops::grayscale(&small);
         Self { w: luma.width(), h: luma.height(), luma: luma.into_raw(), seq, rgb: keep_rgb.then(|| Arc::new(small)) }
     }
@@ -104,6 +116,16 @@ impl CameraStream {
     /// Como `open`, com intervalo de decodificação próprio e, se pedido, o quadro colorido junto
     /// (o módulo de câmera decodifica ~15 vezes por segundo para os gestos ficarem fluidos).
     pub fn open_with(device: i32, wait: Duration, interval: Duration, keep_rgb: bool) -> Result<Self, CameraError> {
+        Self::open_sized(device,wait,interval,keep_rgb,ANALYSIS_W,ANALYSIS_H)
+    }
+
+    /// Cadastro pede 720p para preservar detalhes no recorte; a verificação rápida continua em
+    /// 640×480 (REGRAS.md: portabilidade; rosto é local). O driver pode oferecer resolução menor.
+    pub fn open_enrollment(device: i32, wait: Duration, interval: Duration) -> Result<Self, CameraError> {
+        Self::open_sized(device,wait,interval,true,1280,720)
+    }
+
+    fn open_sized(device: i32, wait: Duration, interval: Duration, keep_rgb: bool, max_w: u32, max_h: u32) -> Result<Self, CameraError> {
         if !(0..=16).contains(&device) {
             return Err(CameraError("índice de câmera inválido".into()));
         }
@@ -115,7 +137,7 @@ impl CameraStream {
         let thread = std::thread::Builder::new()
             .name("orion-camera".into())
             .spawn(move || {
-                let mut camera = match open_camera(device).and_then(|mut c| {
+                let mut camera = match open_camera_at_size(device,max_w,max_h).and_then(|mut c| {
                     c.open_stream().map_err(|e| CameraError(format!("falha ao abrir stream da webcam: {e}")))?;
                     Ok(c)
                 }) {
@@ -152,7 +174,7 @@ impl CameraStream {
                     last_decode = Some(Instant::now());
                     if let Ok(rgb) = raw_frame.decode_image::<RgbFormat>() {
                         seq += 1;
-                        *u.lock() = Some(Arc::new(GrayFrame::from_rgb_keep(rgb, seq, keep_rgb)));
+                        *u.lock() = Some(Arc::new(GrayFrame::from_rgb_sized(rgb, seq, keep_rgb, max_w, max_h)));
                     }
                 }
                 let _ = camera.stop_stream();
@@ -172,6 +194,13 @@ impl CameraStream {
 
     pub fn close(mut self) {
         self.shutdown();
+    }
+
+    /// Interrompe a captura sem esperar a carga dos modelos (REGRAS.md: a câmera só liga por
+    /// pedido seu). A leitura pendente do driver termina no próprio fio.
+    pub fn cancel(&self) {
+        self.stop.store(true, Ordering::Relaxed);
+        self.latest.lock().take();
     }
 
     /// Pede para o fio parar e não espera por ele: `camera.frame()` pode ficar preso numa webcam
