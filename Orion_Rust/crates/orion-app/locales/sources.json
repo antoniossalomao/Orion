@@ -1271,5 +1271,21 @@
   "Lembra de beber água nesse intervalo, das 8h às 22h. 0 desliga. Não perturbe segura o aviso.": "ui-1140",
   "Avisa 30 minutos antes deste horário (HH:MM). Vazio desliga.": "ui-1141",
   "Digite o comando exato para aprovar esta ação destrutiva.": "ui-1142",
-  "Nota gravada no vault: {}": "ui-1143"
+  "Nota gravada no vault: {}": "ui-1143",
+  "Timer": "ui-1144",
+  "Evento": "ui-1145",
+  "Som": "ui-1146",
+  "Avisos por canal": "ui-1147",
+  "Mudar o Telegram aplica na hora; aviso desligado lá continua no app.": "ui-1148",
+  "Lembretes e timers": "ui-1149",
+  "Agendamentos": "ui-1150",
+  "Cota e custos": "ui-1151",
+  "Briefing e resumos": "ui-1152",
+  "Água e hora de dormir": "ui-1153",
+  "Memória e outros avisos": "ui-1154",
+  "Acordar o PC para agendamentos": "ui-1155",
+  "Tira o PC da suspensão um minuto antes do próximo agendamento ou lembrete. Precisa dos timers de despertar permitidos no plano de energia.": "ui-1156",
+  "Tipos separados por vírgula (lembrete, agendamento, cota…); com \"-\" na frente, todos menos esse (-rotina). Vazio envia todos. Também dá para escolher em Notificações.": "ui-1157",
+  "Timer criado": "ui-1158",
+  "Lembrete concluído": "ui-1159"
 }

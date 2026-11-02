@@ -399,6 +399,8 @@ pub struct App {
     pub archived: Vec<(String, String, String)>,
     pub projects: Vec<data::Project>,
     pub cloud: Vec<data::CloudTask>,
+    /// F12.10: lembretes e timers pendentes (id, título, quando em segundos UTC), para a barra lateral.
+    pub lembretes: Vec<(i64, String, f64)>,
     /// Tarefas na nuvem pelas CLIs oficiais (`/nuvem`); vazio com a nuvem desligada.
     pub nuvem: Vec<data::NuvemItem>,
     pub mcp: Vec<data::Mcp>,
@@ -651,6 +653,10 @@ pub enum Msg {
     AutoSenhaOk,
     AutoSenhaClose,
     NuvemTrazer(usize),
+    /// F12.10: timer de N minutos pela barra lateral.
+    Timer(i64),
+    /// F12.10: concluir o lembrete com esse id.
+    LembreteFeito(i64),
     NuvemDescartar(usize),
     QcapText(String),
     QcapKind(usize),
@@ -777,6 +783,7 @@ impl App {
             archived: data::arch(),
             projects: data::projects(),
             cloud: data::cloud(),
+            lembretes: vec![],
             nuvem: vec![],
             mcp: data::mcp(),
             cloud_extra: vec![],

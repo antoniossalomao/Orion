@@ -48,6 +48,18 @@ Branch `claude/fervent-newton-7pa6ci`. Código compilado no Linux; **sem testes 
 - **F12.10 (parcial):** timer: `gerenciar_lembretes` aceita `em_minutos` (1 a 1440) e cria o lembrete sobre o mesmo agendador. Falta a barra lateral.
 - **Review do Codex no PR #69:** 17 achados, todos corrigidos e resolvidos (aprovação destrutiva por outros caminhos, monitor removido, login nativo, fila de tarefas: vaga, retomada, canal, pânico, cota, drenagem e cancelamento serializados, diário ao vivo, hora de dormir após meia-noite, backup com temporário exclusivo e cópia em fluxo).
 
+**Quarta leva — fechar os parciais (mesmo dia):**
+
+- **F06.17 (completo):** imagem gerada citada na conversa (`![](/imagens/img-…)`) é copiada para `03 Recursos/Orion/Memória/Imagens/` quando a conversa vira nota (diário ou `/nota`), e o link fica relativo (`Imagens/<nome>`). Nunca sobrescreve; a pasta não pode apontar para fora do vault.
+- **F12.10 (completo):** barra lateral com "Timer" (5, 15 e 25 min) e os 3 lembretes pendentes mais próximos, com tempo restante e Concluir (`GET /lembretes`, `POST /lembretes/timer`, `POST /lembretes/:id/remover`). Atualiza a cada 6 s junto com o resto.
+- **F15.10 (completo):** leitura em voz alta de documento: botão Ouvir nos artefatos de texto do chat e `POST /resultados/:id/ouvir` (PDF, DOCX, planilha, texto da Biblioteca). Texto longo é lido em partes (até 20 mil caracteres); pânico corta entre partes.
+- **F04.31 / F07.11 (completo):** Configurações › Notificações virou matriz evento × canal (Windows, som, Telegram); o Telegram tem 8 grupos de aviso e vale na hora (o app recria o canal; `config_recarregar` também aplica). Bandeja mantém o ponto; Não perturbe continua.
+- **F12.04 (completo no código):** `ORION_WAKE_PC` (Configurações › Automação, desligado) mantém a tarefa `Orion\Despertar` no Agendador do Windows, com "despertar o computador", 1 min antes do próximo agendamento ou lembrete; sem pendência, apaga. Precisa dos timers de despertar permitidos no plano de energia. Sem aceite no Windows.
+- **F12.01 (completo):** `agenda_frase::interpretar` entende pt-BR sem modelo: "todo dia às 8h", "a cada 30 minutos", "de hora em hora", "amanhã às 15h30", "hoje às 9 da noite", "daqui a 20 minutos", "10/11 às 9h". `gerenciar_agendamentos` ganhou `frase`; lembrete aceita a frase em `quando`. Semana/mês ainda não existem e viram erro claro.
+- **F04.15 (completo):** no Telegram, Aprovar numa ação destrutiva pede o texto exato (o mesmo do app, com segredos mascarados); outra resposta não aprova e a ação segue esperando.
+- **F03.07 (completo):** a hora (`[AGORA]`) foi para o fim do prompt de sistema; persona, índice, skills e política formam um prefixo igual entre turnos, que o cache implícito do Gemini e da OpenAI reaproveita. Nenhum provedor usado exige marcação explícita.
+- **Ficam para o Windows/nuvem:** F01.11 (medir janela < 1 s), F06.12 (gerar o diário na nuvem com o PC desligado: não há servidor do Orion fora do PC).
+
 ## Módulo de câmera e gestos com as mãos — 30/10/2026
 
 Pedido do Antônio: a tela de câmera do Face ID também abre como módulo de câmera, com gestos. Princípio novo em [REGRAS.md](REGRAS.md): **gesto com as mãos só abre e navega; nunca aprova nem executa**.

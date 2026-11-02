@@ -404,6 +404,35 @@ pub async fn confirmar_aviso(_: Admin, State(st): State<Estado>, Path(id): Path<
     Ok(Json(json!({"ok": true})))
 }
 
+/// F12.10: lembretes e timers pendentes para a barra lateral (os 20 mais próximos).
+pub async fn lembretes(_: Admin, State(st): State<Estado>, Query(q): Query<ProjetoIdQ>) -> ApiResult<Json<Value>> {
+    let v = with_scope(DataScope::project(q.project_id, false), || st.ops.list_reminders(false))?;
+    let itens: Vec<Value> = v
+        .into_iter()
+        .take(20)
+        .map(|l| json!({"id": l.get("id"), "titulo": l.get("title"), "quando": l.get("due_at"), "avisado": l.get("notified")}))
+        .collect();
+    Ok(Json(json!(itens)))
+}
+
+#[derive(Deserialize)]
+pub struct TimerReq {
+    minutos: i64,
+    #[serde(default)]
+    titulo: String,
+}
+
+/// F12.10: timer da barra lateral; é um lembrete daqui a N minutos, sobre o mesmo agendador.
+pub async fn criar_timer(_: Admin, State(st): State<Estado>, Json(r): Json<TimerReq>) -> ApiResult<Json<Value>> {
+    if !(1..=1440).contains(&r.minutos) {
+        return erro(422, "o timer vai de 1 a 1440 minutos");
+    }
+    let titulo = if r.titulo.trim().is_empty() { format!("Timer de {} min", r.minutos) } else { r.titulo.chars().take(120).collect() };
+    let quando = orion_store::ops::When::Epoch(st.ops.now() + (r.minutos * 60) as f64);
+    let l = with_scope(DataScope::project(None, false), || st.ops.add_reminder(&titulo, &quando, "", 0))?;
+    Ok(Json(json!({"ok": true, "lembrete": l})))
+}
+
 /// "Feito" conclui (e para de insistir); "adiar" volta a ser um lembrete novo (E9.3).
 pub async fn agir_no_lembrete(
     _: Admin,
@@ -411,7 +440,7 @@ pub async fn agir_no_lembrete(
     Path((id, acao)): Path<(i64, String)>,
     Query(q): Query<ProjetoIdQ>,
 ) -> ApiResult<Json<Value>> {
-    if acao != "feito" && acao != "adiar" {
+    if acao != "feito" && acao != "adiar" && acao != "remover" {
         return erro(422, "ação inválida");
     }
     let minutos = q.minutos.unwrap_or(60);
@@ -422,7 +451,9 @@ pub async fn agir_no_lembrete(
         with_scope(
             DataScope::project(q.project_id, false),
             || {
-                if acao == "feito" {
+                if acao == "remover" {
+                    st.ops.remove_reminder(id).and_then(|ok| if ok { Ok(Default::default()) } else { Err(orion_store::StoreError::NotFound("lembrete".into())) })
+                } else if acao == "feito" {
                     st.ops.complete_reminder(id)
                 } else {
                     st.ops.snooze_reminder(id, minutos)
@@ -713,6 +744,11 @@ pub async fn config_recarregar(_: Admin, State(st): State<Estado>) -> ApiResult<
         match n.as_str() {
             "injection_guard" => { st.live.injection.store(novo.injection_guard, std::sync::atomic::Ordering::Relaxed); aplicados.push(n); }
             "vault_diario" => { st.live.diary.store(novo.vault_diario, std::sync::atomic::Ordering::Relaxed); aplicados.push(n); }
+            // F04.31: o filtro de avisos do Telegram vale na hora
+            "telegram_events" => match &st.telegram {
+                Some(t) => { *t.eventos.lock() = novo.telegram_events.split(',').map(|e| e.trim().to_lowercase()).filter(|e| !e.is_empty()).collect(); aplicados.push(n); }
+                None => reinicio.push(n),
+            },
             // O compactador só existe se nasceu ligado: mudar o limite vale na hora; ligar do zero exige reiniciar.
             "compact_at" => match st.agent.as_ref().and_then(|a| a.compactor.clone()) {
                 Some(c) => { c.set_at(novo.compact_at); aplicados.push(n); }
@@ -766,22 +802,84 @@ pub async fn voz_ouvir(_: Admin, State(st): State<Estado>, Json(c): Json<Ouvir>)
     if c.texto.trim().is_empty() {
         return erro(422, "texto vazio");
     }
-    let audio = speaker.synthesize(&c.texto).await.map_err(|e| ApiError::new(502, e.to_string()))?;
-    tocar(audio, st).await
+    ler_em_partes(speaker, &c.texto, st).await
+}
+
+/// Teto da leitura em voz alta de um documento (cerca de 20 minutos de fala).
+const MAX_LEITURA: usize = 20_000;
+
+/// Divide o texto em partes que cabem numa síntese, quebrando em parágrafo ou frase.
+fn partes_de_fala(texto: &str, max: usize) -> Vec<String> {
+    let mut partes = vec![];
+    let mut atual = String::new();
+    let texto: String = texto.chars().take(MAX_LEITURA).collect();
+    for frase in texto.split_inclusive(['\n', '.', '!', '?']) {
+        if !atual.is_empty() && atual.chars().count() + frase.chars().count() > max {
+            partes.push(std::mem::take(&mut atual));
+        }
+        // frase sem pontuação maior que uma parte: corta no limite
+        let mut resto = frase;
+        while resto.chars().count() > max {
+            let corte = resto.char_indices().nth(max).map_or(resto.len(), |(i, _)| i);
+            partes.push(resto[..corte].to_string());
+            resto = &resto[corte..];
+        }
+        atual.push_str(resto);
+    }
+    if !atual.trim().is_empty() {
+        partes.push(atual);
+    }
+    partes.retain(|p| p.chars().any(char::is_alphanumeric));
+    partes
+}
+
+/// F15.10: lê em voz alta parte por parte; o pânico corta entre uma parte e outra (e dentro do toque).
+async fn ler_em_partes(speaker: std::sync::Arc<dyn orion_core::voice::Speaker>, texto: &str, st: Estado) -> ApiResult<Json<Value>> {
+    let partes = partes_de_fala(texto, orion_core::voice::MAX_TTS_CHARS);
+    if partes.is_empty() {
+        return erro(422, "nada para ler em voz alta");
+    }
+    for parte in partes {
+        if st.modos.panico() {
+            break;
+        }
+        let audio = speaker.synthesize(&parte).await.map_err(|e| ApiError::new(502, e.to_string()))?;
+        tocar(audio, st.clone()).await?;
+    }
+    Ok(Json(json!({"ok": true})))
+}
+
+/// F15.10: lê em voz alta um documento gerado (PDF, DOCX, planilha, texto) da Biblioteca de resultados.
+pub async fn ouvir_resultado(_: Admin, State(st): State<Estado>, Path(rid): Path<i64>) -> ApiResult<Json<Value>> {
+    if st.modos.panico() {
+        return erro(409, "modo pânico ativo: a leitura em voz alta está cortada");
+    }
+    let Some(speaker) = st.speaker.clone() else {
+        return erro(409, "nenhuma voz configurada para leitura em voz alta");
+    };
+    let Some(caminho) = st.biblioteca.caminho(rid) else { return erro(404, "resultado não encontrado") };
+    if previa_imagem(&extensao(&caminho)).is_some() {
+        return erro(415, "imagem não tem texto para ler");
+    }
+    let texto = tokio::task::spawn_blocking(move || orion_core::tools::documents::extrair_texto(&caminho))
+        .await
+        .map_err(anyhow::Error::from)?
+        .map_err(|e| ApiError::new(415, format!("não deu para ler o documento: {e}")))?;
+    ler_em_partes(speaker, &texto, st).await
 }
 
 #[cfg(windows)]
-async fn tocar(audio: Vec<u8>, st: Estado) -> ApiResult<Json<Value>> {
+async fn tocar(audio: Vec<u8>, st: Estado) -> ApiResult<()> {
     tokio::task::spawn_blocking(move || orion_voice::play_audio(&audio, &|| st.modos.panico()))
         .await
         .map_err(anyhow::Error::from)?
         .map_err(|e| ApiError::new(500, format!("falha ao tocar o áudio: {e}")))?;
-    Ok(Json(json!({"ok": true})))
+    Ok(())
 }
 
 #[cfg(not(windows))]
-async fn tocar(_: Vec<u8>, _: Estado) -> ApiResult<Json<Value>> {
-    erro(501, "leitura em voz alta disponível no Windows")
+async fn tocar(_: Vec<u8>, _: Estado) -> ApiResult<()> {
+    Err(ApiError::new(501, "leitura em voz alta disponível no Windows"))
 }
 
 /// F06.17: backup manual do vault em zip, por clique seu, na pasta de backups do Orion.

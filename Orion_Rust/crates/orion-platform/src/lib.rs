@@ -10,6 +10,7 @@ pub enum DesktopAction {
     Isso,
     Exit,
 }
+pub mod despertar;
 #[cfg(windows)]
 mod janela;
 #[cfg(windows)]

@@ -2,6 +2,7 @@
 
 pub mod accounts;
 pub mod agenda;
+pub mod agenda_frase;
 pub mod agent;
 pub mod artifacts;
 pub mod auth;

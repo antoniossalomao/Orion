@@ -174,7 +174,7 @@ pub fn view(app: &App) -> El<'_> {
     let me: El = Popover::new(tip(me_btn, profile_name), menus::account_menu(app), account_open).above(true).on_dismiss(Msg::ClosePop).into();
     let foot = column![hline(), sp_h(8.0), row![container(me).width(Length::Fill), tip(ib_sz("gear", 40.0, 18.0, Some(Msg::OpenSettings(None)), false), crate::i18n::text("Configurações (Ctrl ,)"))].spacing(6).align_y(Vertical::Center)];
 
-    container(column![top, search_wrap(search), container(nav).padding(pad(0.0, 8.0, 0.0, 8.0)), scroll, container(foot).padding(pad(0.0, 8.0, 8.0, 8.0))].spacing(0))
+    container(column![top, search_wrap(search), container(nav).padding(pad(0.0, 8.0, 0.0, 8.0)), scroll, lembretes(app), container(foot).padding(pad(0.0, 8.0, 8.0, 8.0))].spacing(0))
         .width(Length::Fixed(sidebar_width))
         .height(Length::Fill)
         .padding(pad(0.0, 0.0, 0.0, 0.0))
@@ -184,6 +184,49 @@ pub fn view(app: &App) -> El<'_> {
 
 fn search_wrap<'a>(e: impl Into<El<'a>>) -> El<'a> {
     container(e).padding(pad(4.0, 8.0, 10.0, 8.0)).into()
+}
+
+/// Quando o lembrete toca: "12 min" na próxima hora, "14:30" hoje, "02/11 14:30" depois; vencido, "agora".
+fn quando(due: f64, agora: f64) -> String {
+    let falta = due - agora;
+    if falta <= 0.0 {
+        return crate::i18n::text("agora").to_string();
+    }
+    if falta < 3600.0 {
+        return format!("{} min", (falta / 60.0).ceil() as i64);
+    }
+    let Some(d) = chrono::DateTime::from_timestamp(due as i64, 0) else { return String::new() };
+    let d = d.with_timezone(&chrono::Local);
+    if d.date_naive() == chrono::Local::now().date_naive() { d.format("%H:%M").to_string() } else { d.format("%d/%m %H:%M").to_string() }
+}
+
+/// F12.10: lembretes e timers pendentes (os 3 mais próximos) e atalhos de timer, acima da conta.
+fn lembretes(app: &App) -> El<'_> {
+    if !app.is_live() {
+        return sp_h(0.0).into();
+    }
+    let agora = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs_f64()).unwrap_or(0.0);
+    let chip = |min: i64| -> El<'_> {
+        button(tx(format!("{min}m"), 11.5, t::FG2))
+            .padding(pad(2.0, 7.0, 2.0, 7.0))
+            .on_press(Msg::Timer(min))
+            .style(nav_style(false))
+            .into()
+    };
+    let head = row![icon("clock", 12.0, t::FG3), tx(crate::i18n::text("Timer"), 11.5, t::FG3), grow(), chip(5), chip(15), chip(25)].spacing(6).align_y(Vertical::Center);
+    let mut col = column![head].spacing(2);
+    for (id, titulo, due) in app.lembretes.iter().take(3) {
+        let vencido = *due <= agora;
+        let linha = row![
+            tx(ell(titulo, 150.0, 12.5), 12.5, t::FG2).width(Length::Fill),
+            tx(quando(*due, agora), 11.5, if vencido { t::SIGNAL } else { t::FG3 }),
+            tip(ib_sz("check", 22.0, 12.0, Some(Msg::LembreteFeito(*id)), false), crate::i18n::text("Concluir")),
+        ]
+        .spacing(6)
+        .align_y(Vertical::Center);
+        col = col.push(linha);
+    }
+    container(col).padding(pad(6.0, 18.0, 6.0, 18.0)).width(Length::Fill).into()
 }
 
 fn conv_item(app: &App, i: usize) -> El<'_> {

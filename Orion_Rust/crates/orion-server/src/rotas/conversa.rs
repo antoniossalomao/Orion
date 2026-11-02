@@ -601,8 +601,8 @@ fn turno_de_rotina(st: Estado, ex: std::sync::Arc<orion_core::rotinas::Executor>
 /// F06.18: `/nota` grava ou atualiza agora a nota desta conversa no vault (sem commit).
 pub async fn gravar_nota(_: Admin, State(st): State<Estado>, Path(sid): Path<String>) -> ApiResult<Json<Value>> {
     let vault = st.settings.vault_dir.clone().ok_or_else(|| ApiError::new(409, "nenhum vault configurado"))?;
-    let memory = st.memory.clone();
-    let r = tokio::task::spawn_blocking(move || crate::diary::save_now(&memory, &vault, &sid)).await.map_err(anyhow::Error::from)?.map_err(|e| ApiError::new(409, e.to_string()))?;
+    let (memory, imagens) = (st.memory.clone(), st.settings.data_dir.join("imagens"));
+    let r = tokio::task::spawn_blocking(move || crate::diary::save_now(&memory, &vault, &imagens, &sid)).await.map_err(anyhow::Error::from)?.map_err(|e| ApiError::new(409, e.to_string()))?;
     match r {
         Some(caminho) => Ok(Json(json!({"ok": true, "file_path": caminho}))),
         None => erro(409, "a conversa ainda não tem mensagens para registrar"),

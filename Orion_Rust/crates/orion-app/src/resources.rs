@@ -65,6 +65,8 @@ pub enum Event {
     Loaded(Result<Value, String>),
     Input(&'static str, String),
     Toggle(&'static str),
+    /// F04.31: liga ou desliga um grupo de avisos no Telegram (índice em `GRUPOS_TELEGRAM`).
+    TelegramGrupo(usize),
     Browse(&'static str, bool),
     Chosen(&'static str, Result<Option<String>, String>),
     Save,
@@ -323,6 +325,7 @@ const FIELDS: &[Field] = &[
     ("diary_at", "automation", "Horário do diário", Text),
     ("water_every_min", "automation", "Lembrete de água (minutos)", Number),
     ("bedtime_at", "automation", "Hora de dormir", Text),
+    ("wake_pc", "automation", "Acordar o PC para agendamentos", Bool),
     (
         "weekly_review_at",
         "automation",
@@ -431,6 +434,32 @@ fn value_text(value: &Value) -> String {
         value.to_string()
     }
 }
+/// F04.31: grupos de avisos que podem ir ao Telegram e os tipos de cada um (`ops.notify`).
+pub const GRUPOS_TELEGRAM: [(&str, &[&str]); 8] = [
+    ("Lembretes e timers", &["lembrete"]),
+    ("Agendamentos", &["agendamento"]),
+    ("Rotinas", &["rotina"]),
+    ("Tarefas em segundo plano", &["tarefa_bg"]),
+    ("Cota e custos", &["cota"]),
+    ("Briefing e resumos", &["briefing", "resumo_diario", "semanal"]),
+    ("Água e hora de dormir", &["bem_estar"]),
+    ("Memória e outros avisos", &["sono", "sonho", "agente", "gateway", "processo", "proposta", "preco", "vigilancia"]),
+];
+
+/// Filtro do Telegram: (só estes, todos menos estes). Vazio nos dois = todos.
+fn filtro_telegram(app: &App) -> (Vec<String>, Vec<String>) {
+    let v = input_value(app, "telegram_events");
+    let tipos = v.split(',').map(|e| e.trim().to_lowercase()).filter(|e| !e.is_empty());
+    let (fora, so): (Vec<String>, Vec<String>) = tipos.partition(|t| t.starts_with('-'));
+    (so, fora.into_iter().map(|t| t[1..].to_string()).collect())
+}
+
+/// O grupo vai ao Telegram (todos os tipos dele passam no filtro).
+pub fn grupo_no_telegram(app: &App, i: usize) -> bool {
+    let (so, fora) = filtro_telegram(app);
+    GRUPOS_TELEGRAM.get(i).is_some_and(|g| g.1.iter().all(|t| (so.is_empty() || so.iter().any(|x| x == t)) && !fora.iter().any(|x| x == t)))
+}
+
 fn input_value(app: &App, key: &'static str) -> String {
     app.resources.draft.get(key).cloned().unwrap_or_else(|| {
         value_text(
@@ -504,7 +533,8 @@ const DESCRIPTIONS: &[(&str, &str)] = &[
     ("mcp_enabled", "Liga os servidores MCP configurados."),
     ("water_every_min", "Lembra de beber água nesse intervalo, das 8h às 22h. 0 desliga. Não perturbe segura o aviso."),
     ("bedtime_at", "Avisa 30 minutos antes deste horário (HH:MM). Vazio desliga."),
-    ("telegram_events", "Tipos separados por vírgula (lembrete, agendamento, cota, briefing, rotina…). Vazio envia todos. Vale ao reiniciar."),
+    ("wake_pc", "Tira o PC da suspensão um minuto antes do próximo agendamento ou lembrete. Precisa dos timers de despertar permitidos no plano de energia."),
+    ("telegram_events", "Tipos separados por vírgula (lembrete, agendamento, cota…); com \"-\" na frente, todos menos esse (-rotina). Vazio envia todos. Também dá para escolher em Notificações."),
     ("mcp_config", "Arquivo com a configuração dos servidores MCP."),
     ("skills_enabled", "Liga as skills instaladas."),
     ("skills_dir", "Pasta onde ficam as skills."),
@@ -1048,6 +1078,34 @@ impl App {
                 self.resources.undo = Some((key, on.to_string()));
                 self.resources.draft.insert(key, (!on).to_string());
                 return self.save_draft(Some(&[key]));
+            }
+            Event::TelegramGrupo(i) if !self.resources.busy => {
+                let Some((_, grupo)) = GRUPOS_TELEGRAM.get(i) else { return Task::none() };
+                let ligado = grupo_no_telegram(self, i);
+                let anterior = input_value(self, "telegram_events");
+                let (mut so, mut fora) = filtro_telegram(self);
+                let novo = if so.is_empty() {
+                    // lista de exclusão: tipo que não está na grade (conta, foco, presença…) continua indo
+                    fora.retain(|t| !grupo.contains(&t.as_str()));
+                    if ligado {
+                        fora.extend(grupo.iter().map(|t| t.to_string()));
+                    }
+                    fora.iter().map(|t| format!("-{t}")).collect::<Vec<_>>().join(",")
+                } else {
+                    // lista "só estes" escrita à mão: continua nesse formato
+                    so.retain(|t| !grupo.contains(&t.as_str()));
+                    if !ligado {
+                        so.extend(grupo.iter().map(|t| t.to_string()));
+                    }
+                    if so.is_empty() {
+                        so.push("nenhum".into());
+                    }
+                    // as exclusões escritas junto continuam valendo
+                    so.into_iter().chain(fora.iter().map(|t| format!("-{t}"))).collect::<Vec<_>>().join(",")
+                };
+                self.resources.undo = Some(("telegram_events", anterior));
+                self.resources.draft.insert("telegram_events", novo);
+                return self.save_draft(Some(&["telegram_events"]));
             }
             Event::Defaults(Ok(values)) => self.resources.defaults = Some(values),
             Event::Defaults(Err(_)) => {}
