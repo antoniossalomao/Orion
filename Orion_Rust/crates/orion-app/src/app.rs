@@ -686,12 +686,22 @@ pub enum Msg {
     MemRead,
     MemZoom(f32),
     MemFit,
+    /// Abre/fecha o painel de forças do grafo.
+    MemForces,
+    /// Muda um controle de força (0 central, 1 repulsão, 2 links, 3 distância) para um valor de 0 a 1.
+    MemForce(u8, f32),
+    MemForcesReset,
+    /// Soltou a nota arrastada: ela deixa de ficar presa ao cursor.
+    MemRelease,
     MemSelect(Option<usize>),
     MemHover(Option<usize>, f32, f32),
     MemHalt,
     MemPan(f32, f32),
+    /// Órbita da câmera 3D: variação do cursor em pixels (dx, dy).
+    MemOrbit(f32, f32),
     MemZoomAt(f32, f32, f32),
-    MemDrag(usize, f32, f32),
+    /// Arrasta o nó para a posição `(x, y, z)` do mundo, já calculada com o tamanho real do canvas.
+    MemDrag(usize, f32, f32, f32),
     MemCut(f32),
     MemOpenNote(usize),
     MemLocal(usize),
@@ -878,7 +888,9 @@ impl App {
         let a = &self.at;
         let entrada = (!self.logged && crate::anim::active(Some(self.login_at), self.now, 1500)) || self.onboarding.as_ref().is_some_and(|f| crate::anim::active(Some(f.step_at), self.now, 450));
         let busy = entrada || [a.page, a.pop, a.modal, a.scrim, a.over, a.drawer, a.toast, a.more, a.tools].iter().any(|m| crate::anim::active(*m, self.now, 450)) || a.switch.as_ref().map(|s| crate::anim::active(Some(s.1), self.now, 300)).unwrap_or(false) || self.mem_tween.is_some();
-        let moving = busy || self.streaming.is_some() || self.toast.is_some() || self.news_pending;
+        // A órbita do grafo da Memória só avança dentro do Tick: com a tela aberta, ela mesma mantém os ticks vivos.
+        let orbiting = self.view == View::Memoria && ((self.mem.spinning && !self.p.reduced) || self.mem.simulating()) && !self.mem.nodes.is_empty();
+        let moving = busy || orbiting || self.streaming.is_some() || self.toast.is_some() || self.news_pending;
         // a ilha anima a ~60 quadros/s só enquanto lê ou muda de forma; parada, não acorda a janela
         let island = if self.window_active && !self.fundo && self.island_visible() && self.island.animating(self.now) { iced::time::every(Duration::from_millis(16)).map(Msg::Tick) } else { Subscription::none() };
         let tick = if self.window_active && !self.fundo && moving { iced::time::every(Duration::from_millis(42)).map(Msg::Tick) } else { Subscription::none() };

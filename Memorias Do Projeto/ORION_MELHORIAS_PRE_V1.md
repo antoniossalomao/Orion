@@ -130,7 +130,7 @@ O escopo da v1 é estritamente limitado aos seguintes componentes:
 - [x] **F04.06** Modo autônomo com proteção por senha: a ativação do modo sem interrupções exige re-digitação da senha mestre do perfil.
 - [x] **F04.07** Resumos periódicos consolidados por escopo gerados localmente e com expurgo de tentativas falhas.
 - [x] **F04.08** Mensagens fixadas sobrevivem à compactação de contexto e são reapresentadas ao modelo como premissas de trabalho.
-- [~] **F04.09** Classificador de injeção de prompt local (ModernBERT) integrado em tempo real antes do envio do prompt ao provedor. *Código na branch `claude/kind-bohr-j6hi1g`, compilado e com a suíte existente verde no Linux, sem testes novos (pausa de 21/10/2026). Guarda de injeção no conteúdo externo (`orion-ai/src/injection.rs`): trait + heurística local pt/en, ligado por padrão (`ORION_INJECTION_GUARD`). Anexos, trechos recuperados e resultados de ferramentas externas passam pelo guarda, inclusive após aprovações. Suspeito vai com aviso; bloqueado não vai ao provedor; falha de classificação bloqueia. **O ModernBERT real ainda não entrou** (só o ponto de encaixe).*
+- [x] **F04.09** Classificador de injeção de prompt local (ModernBERT) integrado em tempo real antes do envio do prompt ao provedor. *Desde 03/11/2026 o ModernBERT real está ligado (`orion-core/src/injection_onnx.rs`): Horizon-Labs/prompt-injection-guard-small int8 (Apache-2.0), ONNX Runtime em CPU, pesos conferidos por SHA-256 em `<recursos>/injection/` (ou `ORION_INJECTION_MODEL`): `model_quantized.onnx` + `tokenizer.json`. Pontuação = maior entre a heurística e o modelo; texto longo é analisado em janelas de 512 tokens (até 64) e vale a pior; texto maior que isso é recusado (falha fechada); p ≥ 0,5 bloqueia, p ≥ 0,09 avisa. Medido no conjunto do spike (195 frases, escritas à mão, otimista): em 0,5 recall 92,8% e 0% de falso positivo; em 0,09 recall 99% e 1%; ~19 ms por frase em CPU Linux. Sem os pesos instalados o guarda continua na heurística. Falta: instalar os pesos pelo instalador e medir no Windows.*
 
 ---
 
@@ -396,7 +396,7 @@ Para cada uma das pendências mapeadas para o lançamento da v1, este guia defin
 ### Passo 5: Geração de Chaves Minisign e Publicação do Release Assinado (F10.11)
 - **Objetivo:** Estabelecer a infraestrutura de assinatura digital criptográfica para o atualizador automático do Orion.
 - **Arquivos Afetados:**
-  - `.github/workflows/release.yml`
+  - `.github/workflows/release.yml` *(removido em 03/11/2026; precisa ser recriado para publicar o release assinado)*
   - `crates/orion-setup/release/minisign.pub`
   - `crates/orion-updater/src/lib.rs`
 - **Passo a Passo de Implementação:**

@@ -30,6 +30,9 @@ pub struct ExternalCall<'a> {
     pub model: &'a str,
     pub bytes_out: i64,
     pub bytes_in: i64,
+    /// Tokens informados pelo provedor; -1 quando ele não informou.
+    pub tokens_in: i64,
+    pub tokens_out: i64,
     pub content_kind: &'a str,
     pub ts: Option<f64>,
 }
@@ -38,8 +41,8 @@ impl Store {
     pub fn add_external_call(&self, e: &ExternalCall) -> Result<i64> {
         self.tx(|c| {
             c.execute(
-                "INSERT INTO external_calls(ts, provider, kind, model, ok, latency_ms, bytes_out, bytes_in, content_kind)
-                 VALUES (?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO external_calls(ts, provider, kind, model, ok, latency_ms, bytes_out, bytes_in, tokens_in, tokens_out, content_kind)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?)",
                 params![
                     e.ts.unwrap_or_else(|| self.now()),
                     corta(e.provider, 60),
@@ -49,6 +52,8 @@ impl Store {
                     e.latency_ms.max(0),
                     e.bytes_out.max(0),
                     e.bytes_in.max(0),
+                    e.tokens_in.max(-1),
+                    e.tokens_out.max(-1),
                     corta(e.content_kind, 20),
                 ],
             )?;

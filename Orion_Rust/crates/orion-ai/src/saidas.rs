@@ -29,6 +29,9 @@ pub struct Chamada {
     pub model: String,
     pub bytes_out: i64,
     pub bytes_in: i64,
+    /// Tokens informados pelo provedor; -1 quando ele não informou.
+    pub tokens_in: i64,
+    pub tokens_out: i64,
     pub content_kind: String,
 }
 
@@ -52,6 +55,8 @@ pub fn destino_store(store: Arc<orion_store::Store>) -> Destino {
             model: &c.model,
             bytes_out: c.bytes_out,
             bytes_in: c.bytes_in,
+            tokens_in: c.tokens_in,
+            tokens_out: c.tokens_out,
             content_kind: &c.content_kind,
             ts: None,
         })?;
@@ -80,6 +85,12 @@ pub fn provedor_da_url(url: &str, padrao: &str) -> String {
 /// Uma linha em `external_calls`. Nunca falha: é telemetria.
 #[allow(clippy::too_many_arguments)]
 pub fn registrar(provider: &str, kind: &str, ok: bool, latency_ms: f64, model: &str, bytes_out: usize, bytes_in: usize, content_kind: &str) {
+    registrar_tokens(provider, kind, ok, latency_ms, model, bytes_out, bytes_in, None, content_kind)
+}
+
+/// Como `registrar`, com os tokens que o provedor informou (`usage`): `None` quando não informou.
+#[allow(clippy::too_many_arguments)]
+pub fn registrar_tokens(provider: &str, kind: &str, ok: bool, latency_ms: f64, model: &str, bytes_out: usize, bytes_in: usize, tokens: Option<(u64, u64)>, content_kind: &str) {
     let destino = DESTINO.read().clone();
     let Some(fn_) = destino else { return };
     let c = Chamada {
@@ -90,6 +101,8 @@ pub fn registrar(provider: &str, kind: &str, ok: bool, latency_ms: f64, model: &
         model: model.into(),
         bytes_out: bytes_out as i64,
         bytes_in: bytes_in as i64,
+        tokens_in: tokens.map_or(-1, |t| t.0 as i64),
+        tokens_out: tokens.map_or(-1, |t| t.1 as i64),
         content_kind: content_kind.into(),
     };
     if let Err(e) = fn_(&c) {

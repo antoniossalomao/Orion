@@ -96,7 +96,7 @@ cargo test --locked -p orion-policy -p orion-store -p orion-ai -p orion-core -p 
 cargo run -p orion-app --features snap --bin orion-snap -- snaps    # fotos das telas, sem janela
 ```
 
-O workflow `.github/workflows/rust-windows.yml` compila e testa o Rust no Windows (hoje sem `fmt` nem `clippy`) e `release.yml` publica o pacote por tag `v*`.
+Os workflows `.github/workflows/windows-app-cpu.yml` (app, com opções) e `windows-app-completo.yml` (pacote completo com instalador, banco cifrado, `orion-llama` e Vulkan) compilam o app para Windows, só manualmente e sem testes. Não há CI de testes nem workflow de release (removidos em 03/11/2026); a publicação de releases assinados exige recriar o workflow.
 
 O workflow manual `Windows App e instalador (GPU automática)` pode incluir o instalador com `instalador=true`. Para o pacote solicitado sem modelos: `perfil=release`, `cifra=true`, `llama=false`, `instalador=true`. Ele inclui o app portátil e `Orion Setup.exe` com `cpu/orion.exe`, sem pesos ou downloads de modelos no build. Extraia a pasta inteira e deixe modelos, voz e Vulkan desmarcados ao instalar. O artefato de Actions não publica release. O disparo combinado com o visual aguarda as duas frentes.
 

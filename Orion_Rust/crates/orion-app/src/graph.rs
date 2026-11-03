@@ -1,8 +1,52 @@
 //! Grafo do vault (§16): dados do snapshot de 15/10/2026 e a lógica de câmera, foco, filtro local e distribuição orgânica por forças.
+//! O grafo é 3D: cada nó tem profundidade (`z`), a câmera orbita (`rot` = giro, `pitch` = inclinação) e a projeção tem perspectiva,
+//! de modo que o mapa lê como uma constelação (nós perto brilham e crescem; longe, ficam pequenos e frios).
+//! Como no Obsidian, a forma vem de uma simulação de forças ao vivo (repulsão entre notas, puxão dos links, força central e
+//! distância dos links, ajustáveis na tela): arrastar uma nota puxa as vizinhas e mexer num controle reacomoda o grafo.
+//! A forma é uma esfera (hubs no miolo, notas soltas na borda) e cada nó orbita o centro com velocidade que cai com a distância.
 
 use crate::data::READ_NOTES;
 use serde::Deserialize;
 use std::sync::OnceLock;
+
+/// Forças da simulação, cada uma de 0 a 1 na interface (como os controles do Obsidian).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Forces {
+    /// Puxa tudo para o centro (mantém o grafo compacto e redondo).
+    pub center: f32,
+    /// Repulsão entre notas (afasta; mais alto = grafo mais aberto).
+    pub repel: f32,
+    /// Força dos links (puxão entre notas ligadas).
+    pub link: f32,
+    /// Distância ideal de um link.
+    pub dist: f32,
+}
+
+impl Default for Forces {
+    fn default() -> Self {
+        Forces { center: 0.5, repel: 0.5, link: 0.5, dist: 0.5 }
+    }
+}
+
+/// Raio da esfera que contém o grafo. As notas se distribuem de modo uniforme dentro dela (esfera cheia e espaçada),
+/// então a própria nuvem desenha a forma, sem linhas de guia.
+pub fn sphere_radius(f: &Forces) -> f32 {
+    // Repulsão alarga a esfera; força central a encolhe (no meio dos dois controles, o raio é `SPHERE_R`).
+    SPHERE_R * (4.0 * 20.0f32.powf(f.repel) / 18.0).powf(0.3).clamp(0.55, 1.7) * (1.25 - 0.5 * f.center)
+}
+
+/// Quão forte a nota é puxada para o raio do preenchimento uniforme (por passo, vezes a temperatura).
+const SHELL_K: f32 = 1.0;
+/// Distância mínima entre duas notas (colisão): evita notas coladas e deixa o espaçamento regular.
+const COLLISION_DIST: f32 = 21.0;
+
+/// Abaixo disso a simulação para (e o grafo deixa de redesenhar).
+pub const ALPHA_MIN: f32 = 0.002;
+/// Perda de temperatura por passo (~300 passos até parar, como o d3-force).
+const ALPHA_DECAY: f32 = 0.0228;
+
+/// Distância focal da câmera em unidades do mundo: menor = mais perspectiva.
+pub const FOCAL: f32 = 900.0;
 
 pub const TIPOS: [(&str, &str, &str); 7] = [
     ("projeto", "Projetos", "Projeto"),
@@ -32,6 +76,7 @@ pub struct Node {
     pub tags: String,
     pub x: f32,
     pub y: f32,
+    pub z: f32,
     pub r: f32,
     pub deg: usize,
     pub hub: bool,
@@ -53,9 +98,23 @@ pub struct Graph {
     pub cut: String,
     pub cut_idx: usize,
     pub read_on: bool,
+    /// Giro da câmera em torno do eixo vertical (rad) e inclinação (rad, limitada).
     pub rot: f32,
+    pub pitch: f32,
+    /// Fase da órbita: cada nó gira em torno do centro com velocidade que diminui com a distância (ver `orbited`).
+    pub orbit: f32,
     pub spinning: bool,
+    /// Última vez que o cache de desenho foi invalidado pela deriva automática (limita a ~20 quadros/s).
+    pub drift_at: Option<std::time::Instant>,
     pub fitted: bool,
+    /// Simulação de forças: velocidades, temperatura (`alpha`, cai até parar), forças ajustáveis e nó preso ao cursor.
+    pub vel: Vec<[f32; 3]>,
+    pub alpha: f32,
+    pub forces: Forces,
+    pub pin: Option<usize>,
+    pub forces_open: bool,
+    /// Enquadrar de novo quando a simulação terminar de assentar (depois de mexer num controle).
+    pub refit: bool,
     pub size: (f32, f32),
     pub cache: iced::widget::canvas::Cache,
 }
@@ -67,7 +126,7 @@ pub struct Prepared {
     links: Vec<(usize, usize)>,
 }
 
-static VAULT_COORDS: OnceLock<Vec<(f32, f32)>> = OnceLock::new();
+static VAULT_COORDS: OnceLock<Vec<(f32, f32, f32)>> = OnceLock::new();
 
 impl Graph {
     /// Grafo vazio (modo real, antes de carregar do servidor).
@@ -101,7 +160,7 @@ impl Graph {
             let ts = n.get("ts").and_then(|x| x.as_f64()).unwrap_or(0.0) / 1000.0;
             let date = if ts > 0.0 { crate::live::iso_date(ts) } else { String::new() };
             ids.insert(id, nodes.len());
-            nodes.push(Node { label: n.get("label").and_then(|x| x.as_str()).unwrap_or("").to_string(), tipo, folder: pasta, date, status: String::new(), tags: String::new(), x: 0.0, y: 0.0, r: base, deg: 0, hub: false, read: false });
+            nodes.push(Node { label: n.get("label").and_then(|x| x.as_str()).unwrap_or("").to_string(), tipo, folder: pasta, date, status: String::new(), tags: String::new(), x: 0.0, y: 0.0, z: 0.0, r: base, deg: 0, hub: false, read: false });
         }
         let mut links = vec![];
         for l in v.get("links").and_then(|n| n.as_array()).cloned().unwrap_or_default() {
@@ -133,6 +192,7 @@ impl Graph {
         dates.dedup();
         let cut = dates.last().cloned().unwrap_or_default();
         let cut_idx = dates.len().saturating_sub(1);
+        let n_nodes = nodes.len();
         Graph {
             nodes,
             links,
@@ -147,9 +207,18 @@ impl Graph {
             cut,
             cut_idx,
             read_on: false,
-            rot: 0.0,
-            spinning: false,
+            rot: 0.55,
+            pitch: 0.42,
+            orbit: 0.0,
+            spinning: true,
+            drift_at: None,
             fitted: false,
+            vel: vec![[0.0; 3]; n_nodes],
+            alpha: 0.0,
+            forces: Forces::default(),
+            pin: None,
+            forces_open: false,
+            refit: false,
             size: (0.0, 0.0),
             cache: iced::widget::canvas::Cache::new(),
         }
@@ -179,6 +248,7 @@ impl Graph {
                     tags: a[5].as_str().unwrap_or("").to_string(),
                     x: a[6].as_f64().unwrap_or(0.0) as f32,
                     y: a[7].as_f64().unwrap_or(0.0) as f32,
+                    z: 0.0,
                     r: base,
                     deg: 0,
                     hub: false,
@@ -194,15 +264,54 @@ impl Graph {
         let coords = VAULT_COORDS.get_or_init(|| {
             let mut copy = nodes.clone();
             layout_forca(&mut copy, &links);
-            copy.iter().map(|n| (n.x, n.y)).collect()
+            copy.iter().map(|n| (n.x, n.y, n.z)).collect()
         });
-        for (nd, &(x, y)) in nodes.iter_mut().zip(coords.iter()) {
+        for (nd, &(x, y, z)) in nodes.iter_mut().zip(coords.iter()) {
             nd.x = x;
             nd.y = y;
+            nd.z = z;
         }
         Self::build(nodes, links)
     }
 
+    /// A simulação ainda está acomodando as notas.
+    pub fn simulating(&self) -> bool {
+        self.alpha >= ALPHA_MIN
+    }
+    /// Esquenta a simulação (arrastar nota, mexer num controle): as notas voltam a se mover.
+    pub fn reheat(&mut self, alpha: f32) {
+        self.alpha = self.alpha.max(alpha);
+    }
+    /// Um passo de forças; o grafo esfria até parar.
+    pub fn step(&mut self) {
+        if !self.simulating() {
+            return;
+        }
+        let deg: Vec<usize> = self.nodes.iter().map(|n| n.deg).collect();
+        sim_step(&mut self.nodes, &mut self.vel, &self.links, &deg, &self.forces, self.alpha, self.pin);
+        self.alpha *= 1.0 - ALPHA_DECAY;
+    }
+    /// Roda a simulação até assentar (sem animação: movimento reduzido).
+    pub fn settle_now(&mut self) {
+        for _ in 0..400 {
+            if !self.simulating() {
+                break;
+            }
+            self.step();
+        }
+    }
+    /// Muda um controle (0 central, 1 repulsão, 2 links, 3 distância) e reacomoda o grafo.
+    pub fn set_force(&mut self, which: u8, v: f32) {
+        let v = v.clamp(0.0, 1.0);
+        match which {
+            0 => self.forces.center = v,
+            1 => self.forces.repel = v,
+            2 => self.forces.link = v,
+            _ => self.forces.dist = v,
+        }
+        self.reheat(0.6);
+        self.refit = true;
+    }
     pub fn in_local(&self, i: usize) -> bool {
         let Some((center, depth)) = self.local else {
             return true;
@@ -237,20 +346,76 @@ impl Graph {
         let n = &self.nodes[i];
         (n.r + (n.deg.max(1) as f32).ln() * 0.72).clamp(2.2, 8.6)
     }
-    pub fn rotp(&self, i: usize) -> (f32, f32) {
+    /// Gira o ponto em torno do eixo vertical pela fase da órbita: perto do centro gira mais rápido, longe mais devagar
+    /// (como planetas). `sign` = -1 desfaz a órbita (usado ao arrastar um nó).
+    pub fn orbited(&self, x: f32, y: f32, z: f32, sign: f32) -> (f32, f32, f32) {
+        if self.orbit == 0.0 {
+            return (x, y, z);
+        }
+        let r = (x * x + z * z).sqrt();
+        let phase = sign * self.orbit / (0.5 + r / 100.0);
+        let (c, s) = (phase.cos(), phase.sin());
+        (x * c - z * s, y, x * s + z * c)
+    }
+    /// Ponto do mundo no espaço da câmera: giro em torno do eixo vertical e depois inclinação.
+    /// Devolve `(x, y, z)` com `z` positivo = mais longe da câmera.
+    pub fn view_space(&self, x: f32, y: f32, z: f32) -> (f32, f32, f32) {
+        let (cy, sy) = (self.rot.cos(), self.rot.sin());
+        let (cp, sp) = (self.pitch.cos(), self.pitch.sin());
+        let x1 = x * cy - z * sy;
+        let z1 = x * sy + z * cy;
+        (x1, y * cp - z1 * sp, y * sp + z1 * cp)
+    }
+    /// Inverso de `view_space`.
+    pub fn world_space(&self, x1: f32, y2: f32, z2: f32) -> (f32, f32, f32) {
+        let (cy, sy) = (self.rot.cos(), self.rot.sin());
+        let (cp, sp) = (self.pitch.cos(), self.pitch.sin());
+        let y = y2 * cp + z2 * sp;
+        let z1 = -y2 * sp + z2 * cp;
+        (x1 * cy + z1 * sy, y, -x1 * sy + z1 * cy)
+    }
+    /// Escala de perspectiva para uma profundidade de câmera (1.0 no plano do centro).
+    pub fn persp(z: f32) -> f32 {
+        (FOCAL / (FOCAL + z)).clamp(0.5, 2.2)
+    }
+    /// Projeção do nó antes do zoom e do deslocamento: `(x, y, escala, profundidade)`.
+    pub fn proj(&self, i: usize) -> (f32, f32, f32, f32) {
         let n = &self.nodes[i];
-        let (c, s) = (self.rot.cos(), self.rot.sin());
-        (n.x * c - n.y * s, n.x * s + n.y * c)
+        let (ox, oy, oz) = self.orbited(n.x, n.y, n.z, 1.0);
+        let (x, y, z) = self.view_space(ox, oy, oz);
+        let s = Self::persp(z);
+        (x * s, y * s, s, z)
+    }
+    /// Posição do nó no plano da câmera, já com perspectiva (usada para enquadrar e centralizar).
+    pub fn rotp(&self, i: usize) -> (f32, f32) {
+        let (x, y, _, _) = self.proj(i);
+        (x, y)
     }
     pub fn to_screen(&self, i: usize, w: f32, h: f32) -> (f32, f32) {
         let (x, y) = self.rotp(i);
         (w / 2.0 + (x + self.cam.1) * self.cam.0, h / 2.0 + (y + self.cam.2) * self.cam.0)
     }
+    /// Tela + escala de perspectiva + profundidade, para desenhar e ordenar.
+    pub fn to_screen3(&self, i: usize, w: f32, h: f32) -> (f32, f32, f32, f32) {
+        let (x, y, s, z) = self.proj(i);
+        (w / 2.0 + (x + self.cam.1) * self.cam.0, h / 2.0 + (y + self.cam.2) * self.cam.0, s, z)
+    }
+    /// Ponto da tela → coordenadas do plano da câmera (sem perspectiva).
+    pub fn to_plane(&self, px: f32, py: f32, w: f32, h: f32) -> (f32, f32) {
+        ((px - w / 2.0) / self.cam.0 - self.cam.1, (py - h / 2.0) / self.cam.0 - self.cam.2)
+    }
+    /// Nome antigo de `to_plane` (a câmera orbita, então "mundo" aqui é o plano da câmera, não as coordenadas do nó).
     pub fn to_world(&self, px: f32, py: f32, w: f32, h: f32) -> (f32, f32) {
-        let x = (px - w / 2.0) / self.cam.0 - self.cam.1;
-        let y = (py - h / 2.0) / self.cam.0 - self.cam.2;
-        let (c, s) = ((-self.rot).cos(), (-self.rot).sin());
-        (x * c - y * s, x * s + y * c)
+        self.to_plane(px, py, w, h)
+    }
+    /// Onde o nó `i` ficaria no mundo se fosse para o cursor `(px, py)` do canvas de tamanho `(w, h)`,
+    /// mantendo a profundidade que ele tem na câmera. Use o tamanho real do canvas, o mesmo do desenho.
+    pub fn drag_target(&self, i: usize, px: f32, py: f32, w: f32, h: f32) -> (f32, f32, f32) {
+        let (_, _, s, z) = self.proj(i);
+        let (vx, vy) = self.to_plane(px, py, w, h);
+        let (x, y, zw) = self.world_space(vx / s, vy / s, z);
+        // O nó está em órbita: a posição guardada é a de repouso, então desfaz o giro.
+        self.orbited(x, y, zw, -1.0)
     }
     pub fn fit(&mut self, w: f32, h: f32) {
         self.cache.clear();
@@ -276,24 +441,26 @@ impl Graph {
         }
         let span_x = (x1 - x0).max(60.0) + 64.0;
         let span_y = (y1 - y0).max(60.0) + 64.0;
-        let k = (eff_w / span_x).min(h / span_y).clamp(0.28, 2.4);
+        // 0,84: deixa uma folga em volta (câmera um pouco mais longe, menos poluído).
+        let k = ((eff_w / span_x).min(h / span_y) * 0.84).clamp(0.2, 2.4);
         let cx = (x0 + x1) * 0.5;
         let cy = (y0 + y1) * 0.5;
         let shift_x = -(panel_w * 0.5) / k;
         self.cam = (k, -cx + shift_x, -cy);
     }
     pub fn hit(&self, px: f32, py: f32, w: f32, h: f32) -> Option<usize> {
+        // Entre os nós sob o cursor, vale o mais próximo da câmera (o que aparece na frente).
         let mut best = None;
-        let mut bd = f32::MAX;
+        let mut bz = f32::MAX;
         for i in 0..self.nodes.len() {
             if !self.visible(i) {
                 continue;
             }
-            let (x, y) = self.to_screen(i, w, h);
+            let (x, y, s, z) = self.to_screen3(i, w, h);
             let d = ((x - px).powi(2) + (y - py).powi(2)).sqrt();
-            let r = (self.radius(i) * self.cam.0.sqrt() + 3.0).max(7.0);
-            if d < r && d < bd {
-                bd = d;
+            let r = (self.radius(i) * self.cam.0.sqrt() * s + 3.0).max(7.0);
+            if d < r && z < bz {
+                bz = z;
                 best = Some(i);
             }
         }
@@ -611,6 +778,364 @@ fn layout_forca(nodes: &mut [Node], links: &[(usize, usize)]) {
 
     // 5. Resolução iterativa de colisões circulares para garantir separação nítida entre todos os nós.
     resolve_collisions(nodes, &deg);
+
+    // 6. Profundidade: o plano orgânico vira um volume, e o volume vira uma esfera (hubs no miolo).
+    assign_depth(nodes, &adj, &deg);
+    sphericalize(nodes, sphere_radius(&Forces::default()), 1.0 / 3.0);
+    // 7. Estado de repouso: esfera cheia e uniforme; só repulsão e colisão (sem links) acertam o espaçamento sem entortar a forma.
+    settle(nodes, &[], &deg, &Forces::default());
+    let rb = sphere_radius(&Forces::default());
+    for nd in nodes.iter_mut() {
+        let r = (nd.x * nd.x + nd.y * nd.y + nd.z * nd.z).sqrt();
+        if r > rb {
+            let k = rb / r;
+            (nd.x, nd.y, nd.z) = (nd.x * k, nd.y * k, nd.z * k);
+        }
+    }
+}
+
+/// Roda a simulação de forças até esfriar, a partir das posições atuais.
+fn settle(nodes: &mut [Node], links: &[(usize, usize)], deg: &[usize], f: &Forces) {
+    let mut vel = vec![[0.0f32; 3]; nodes.len()];
+    let mut alpha = 0.6f32;
+    while alpha >= ALPHA_MIN {
+        sim_step(nodes, &mut vel, links, deg, f, alpha, None);
+        alpha *= 1.0 - ALPHA_DECAY;
+    }
+}
+
+/// Um passo de d3-force em 3D: puxão dos links (mais forte em notas de grau baixo), repulsão entre todas as notas
+/// (vizinhas exatas, distantes por centro de massa da célula), força central isotrópica e amortecimento da velocidade.
+/// `pin` é a nota presa ao cursor: não se move, mas as vizinhas a seguem.
+fn sim_step(nodes: &mut [Node], vel: &mut [[f32; 3]], links: &[(usize, usize)], deg: &[usize], f: &Forces, alpha: f32, pin: Option<usize>) {
+    let n = nodes.len();
+    if n == 0 || vel.len() != n {
+        return;
+    }
+    // A força central também encolhe o raio alvo; a gravidade em si só segura ilhas soltas.
+    let gravity = 0.002 + f.center * 0.016;
+    // Escala logarítmica: de 4 (quase sem repulsão) a 80 (bem aberto); o meio do controle dá 18.
+    let charge = 4.0 * 20.0f32.powf(f.repel);
+    let link_k = 0.05 + f.link * 0.95;
+    let dist = 25.0 + f.dist * 135.0;
+    let rb = sphere_radius(f);
+
+    // Links
+    for &(a, b) in links {
+        if a >= n || b >= n || a == b {
+            continue;
+        }
+        let (da, db) = (deg[a].max(1) as f32, deg[b].max(1) as f32);
+        let d = [
+            nodes[b].x + vel[b][0] - nodes[a].x - vel[a][0],
+            nodes[b].y + vel[b][1] - nodes[a].y - vel[a][1],
+            nodes[b].z + vel[b][2] - nodes[a].z - vel[a][2],
+        ];
+        let l = (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt().max(1e-3);
+        let k = (l - dist) / l * alpha * link_k / da.min(db);
+        let bias = da / (da + db);
+        for c in 0..3 {
+            vel[b][c] -= d[c] * k * bias;
+            vel[a][c] += d[c] * k * (1.0 - bias);
+        }
+    }
+
+    // Repulsão: grade 3D; células vizinhas exatas, as outras pelo centro de massa.
+    const CELL: f32 = 200.0;
+    let key = |nd: &Node| ((nd.x / CELL).floor() as i32, (nd.y / CELL).floor() as i32, (nd.z / CELL).floor() as i32);
+    let mut grid: std::collections::HashMap<(i32, i32, i32), Vec<usize>> = std::collections::HashMap::with_capacity(256);
+    for (i, nd) in nodes.iter().enumerate() {
+        grid.entry(key(nd)).or_default().push(i);
+    }
+    let cells: Vec<((i32, i32, i32), [f32; 3], f32, Vec<usize>)> = grid
+        .into_iter()
+        .map(|(k, idx)| {
+            let m = idx.len() as f32;
+            let mut c = [0.0f32; 3];
+            for &i in &idx {
+                c[0] += nodes[i].x;
+                c[1] += nodes[i].y;
+                c[2] += nodes[i].z;
+            }
+            (k, [c[0] / m, c[1] / m, c[2] / m], m, idx)
+        })
+        .collect();
+    let mut push = vec![[0.0f32; 3]; n];
+    for i in 0..n {
+        let ci = key(&nodes[i]);
+        let pi = [nodes[i].x, nodes[i].y, nodes[i].z];
+        let mut acc = [0.0f32; 3];
+        for (ck, com, m, idx) in &cells {
+            let near = (ck.0 - ci.0).abs() <= 1 && (ck.1 - ci.1).abs() <= 1 && (ck.2 - ci.2).abs() <= 1;
+            if near {
+                for &j in idx {
+                    if j == i {
+                        continue;
+                    }
+                    let d = [pi[0] - nodes[j].x, pi[1] - nodes[j].y, pi[2] - nodes[j].z];
+                    let dist2 = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
+                    let d2 = dist2.max(100.0);
+                    let mut w = charge * alpha / d2;
+                    if dist2 < COLLISION_DIST * COLLISION_DIST {
+                        // Colisão: dentro da distância mínima as notas se afastam com força proporcional à sobreposição.
+                        let dd = dist2.sqrt().max(0.05);
+                        w += (COLLISION_DIST - dd) / dd * 0.9 * alpha;
+                    }
+                    for c in 0..3 {
+                        acc[c] += d[c] * w;
+                    }
+                }
+            } else {
+                let d = [pi[0] - com[0], pi[1] - com[1], pi[2] - com[2]];
+                let d2 = (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).max(100.0);
+                let w = charge * m * alpha / d2;
+                for c in 0..3 {
+                    acc[c] += d[c] * w;
+                }
+            }
+        }
+        push[i] = acc;
+    }
+
+    // Preenchimento uniforme: cada nota é puxada para o raio que teria numa esfera cheia (posição na fila de distância ao
+    // centro → r = R·(posição/n)^(1/3)). A repulsão cuida do espaçamento; isso só decide quanto cabe em cada profundidade.
+    let mut queue: Vec<(f32, usize)> = (0..n).map(|i| ((nodes[i].x.powi(2) + nodes[i].y.powi(2) + nodes[i].z.powi(2)).sqrt(), i)).collect();
+    queue.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
+    let mut target = vec![0.0f32; n];
+    for (pos, &(_, i)) in queue.iter().enumerate() {
+        target[i] = rb * ((pos as f32 + 0.5) / n as f32).cbrt();
+    }
+    // Força central (cresce com a distância, para ilhas soltas não escaparem) e integração com amortecimento.
+    for i in 0..n {
+        let p = [nodes[i].x, nodes[i].y, nodes[i].z];
+        let r = (p[0] * p[0] + p[1] * p[1] + p[2] * p[2]).sqrt();
+        let g = gravity * alpha * (1.0 + (r / (SPHERE_R * 1.2)).powi(2));
+        if pin == Some(i) {
+            vel[i] = [0.0; 3];
+            continue;
+        }
+        let dir = if r > 1e-3 { [p[0] / r, p[1] / r, p[2] / r] } else { [0.0; 3] };
+        let spring = (target[i] - r) * SHELL_K * alpha;
+        for c in 0..3 {
+            vel[i][c] += push[i][c] - p[c] * g + dir[c] * spring;
+            vel[i][c] *= 0.6;
+        }
+        let sp = (vel[i][0] * vel[i][0] + vel[i][1] * vel[i][1] + vel[i][2] * vel[i][2]).sqrt();
+        if sp > 60.0 {
+            for c in 0..3 {
+                vel[i][c] *= 60.0 / sp;
+            }
+        }
+        nodes[i].x += vel[i][0];
+        nodes[i].y += vel[i][1];
+        nodes[i].z += vel[i][2];
+        // Fronteira esférica rígida: nada passa do raio, então a borda da nuvem é um círculo limpo.
+        let (x, y, z) = (nodes[i].x, nodes[i].y, nodes[i].z);
+        let r = (x * x + y * y + z * z).sqrt();
+        if r > rb {
+            let k = (r - rb) / r;
+            nodes[i].x -= x * k;
+            nodes[i].y -= y * k;
+            nodes[i].z -= z * k;
+        }
+    }
+}
+
+/// Raio da esfera do grafo, em unidades do mundo.
+pub const SPHERE_R: f32 = 380.0;
+
+/// Redistribui os nós numa esfera de verdade (não num ovo): (1) o miolo é centrado e a nuvem é "branqueada" em 3D, igualando
+/// a variância nos três eixos; (2) azimute e altura de cada nó são redistribuídos de modo uniforme (quem estava mais à esquerda
+/// continua mais à esquerda, então vizinhos seguem do mesmo lado); (3) o raio vem da posição na fila de distância ao centro,
+/// com expoente 1/3 para uma esfera cheia de densidade uniforme. Hubs ficam perto do núcleo e notas soltas na superfície.
+fn sphericalize(nodes: &mut [Node], sphere_r: f32, exponent: f64) {
+    let n = nodes.len();
+    if n < 8 {
+        return;
+    }
+    let inv = 1.0 / n as f64;
+    let mut m = [0.0f64; 3];
+    for nd in nodes.iter() {
+        m[0] += nd.x as f64;
+        m[1] += nd.y as f64;
+        m[2] += nd.z as f64;
+    }
+    for v in &mut m {
+        *v *= inv;
+    }
+    let mut cov = [[0.0f64; 3]; 3];
+    for nd in nodes.iter() {
+        let d = [nd.x as f64 - m[0], nd.y as f64 - m[1], nd.z as f64 - m[2]];
+        for i in 0..3 {
+            for j in 0..3 {
+                cov[i][j] += d[i] * d[j] * inv;
+            }
+        }
+    }
+    let (lambda, vec) = eigen_sym3(cov);
+    // W = V · diag(1/√λ) · Vᵀ: leva a nuvem a covariância identidade (isotrópica).
+    let mut w = [[0.0f64; 3]; 3];
+    for i in 0..3 {
+        for j in 0..3 {
+            for k in 0..3 {
+                w[i][j] += vec[i][k] * vec[j][k] / lambda[k].max(1e-6).sqrt();
+            }
+        }
+    }
+    let mut q: Vec<[f64; 3]> = nodes.iter().map(|nd| [nd.x as f64 - m[0], nd.y as f64 - m[1], nd.z as f64 - m[2]]).collect();
+    let whiten = |q: &mut Vec<[f64; 3]>| {
+        let mut mean = [0.0f64; 3];
+        for v in q.iter() {
+            for k in 0..3 {
+                mean[k] += v[k] * inv;
+            }
+        }
+        let mut cov = [[0.0f64; 3]; 3];
+        for v in q.iter() {
+            let d = [v[0] - mean[0], v[1] - mean[1], v[2] - mean[2]];
+            for i in 0..3 {
+                for j in 0..3 {
+                    cov[i][j] += d[i] * d[j] * inv;
+                }
+            }
+        }
+        let (lambda, vec) = eigen_sym3(cov);
+        // W = V · diag(1/√λ) · Vᵀ: leva a nuvem a covariância identidade (isotrópica).
+        let mut w = [[0.0f64; 3]; 3];
+        for i in 0..3 {
+            for j in 0..3 {
+                for k in 0..3 {
+                    w[i][j] += vec[i][k] * vec[j][k] / lambda[k].max(1e-6).sqrt();
+                }
+            }
+        }
+        for v in q.iter_mut() {
+            let d = [v[0] - mean[0], v[1] - mean[1], v[2] - mean[2]];
+            *v = [0, 1, 2].map(|i| w[i][0] * d[0] + w[i][1] * d[1] + w[i][2] * d[2]);
+        }
+    };
+    // Posição de cada nó na fila (0..n) por uma chave; desempate pelo índice para ser determinístico.
+    let ranks = |key: &[f64]| -> Vec<usize> {
+        let mut idx: Vec<usize> = (0..n).collect();
+        idx.sort_by(|&a, &b| key[a].total_cmp(&key[b]).then(a.cmp(&b)));
+        let mut r = vec![0usize; n];
+        for (pos, &i) in idx.iter().enumerate() {
+            r[i] = pos;
+        }
+        r
+    };
+    whiten(&mut q);
+    // O raio vem da distância já isotrópica e fica fixo; só as direções são refinadas.
+    let radius: Vec<f64> = q.iter().map(|v| (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt()).collect();
+    let r_rad = ranks(&radius);
+    let target = |i: usize| sphere_r as f64 * ((r_rad[i] as f64 + 0.5) * inv).powf(exponent);
+    // Três passes: redistribui azimute e altura de modo uniforme e branqueia de novo, até a nuvem ficar redonda
+    // (um passe sozinho deixa uma correlação residual entre eixos que lê como "ovo").
+    let mut dirs: Vec<[f64; 3]> = vec![[0.0; 3]; n];
+    for pass in 0..3 {
+        let r: Vec<f64> = q.iter().map(|v| (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt()).collect();
+        let azimuth: Vec<f64> = q.iter().map(|v| v[2].atan2(v[0])).collect();
+        let elevation: Vec<f64> = q.iter().zip(&r).map(|(v, r)| if *r > 1e-9 { v[1] / r } else { 0.0 }).collect();
+        let (r_az, r_alt) = (ranks(&azimuth), ranks(&elevation));
+        for i in 0..n {
+            let u = |rank: usize| (rank as f64 + 0.5) * inv;
+            let phi = -std::f64::consts::PI + std::f64::consts::TAU * u(r_az[i]);
+            let c = -1.0 + 2.0 * u(r_alt[i]);
+            let sn = (1.0 - c * c).max(0.0).sqrt();
+            dirs[i] = [sn * phi.cos(), c, sn * phi.sin()];
+        }
+        if pass < 2 {
+            for i in 0..n {
+                q[i] = [dirs[i][0] * target(i), dirs[i][1] * target(i), dirs[i][2] * target(i)];
+            }
+            whiten(&mut q);
+        }
+    }
+    for i in 0..n {
+        nodes[i].x = (dirs[i][0] * target(i)) as f32;
+        nodes[i].y = (dirs[i][1] * target(i)) as f32;
+        nodes[i].z = (dirs[i][2] * target(i)) as f32;
+    }
+}
+
+/// Autovalores e autovetores (colunas) de uma matriz 3×3 simétrica, por rotações de Jacobi.
+fn eigen_sym3(mut a: [[f64; 3]; 3]) -> ([f64; 3], [[f64; 3]; 3]) {
+    let mut v = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
+    for _ in 0..40 {
+        // maior elemento fora da diagonal
+        let (mut p, mut q, mut big) = (0, 1, a[0][1].abs());
+        for (i, j) in [(0, 2), (1, 2)] {
+            if a[i][j].abs() > big {
+                (p, q, big) = (i, j, a[i][j].abs());
+            }
+        }
+        if big < 1e-12 {
+            break;
+        }
+        let theta = (a[q][q] - a[p][p]) / (2.0 * a[p][q]);
+        let t = theta.signum() / (theta.abs() + (theta * theta + 1.0).sqrt());
+        let (c, s) = (1.0 / (t * t + 1.0).sqrt(), t / (t * t + 1.0).sqrt());
+        // a ← Jᵀ a J, v ← v J, com J a rotação no plano (p, q)
+        for k in 0..3 {
+            let (akp, akq) = (a[k][p], a[k][q]);
+            a[k][p] = c * akp - s * akq;
+            a[k][q] = s * akp + c * akq;
+        }
+        for k in 0..3 {
+            let (apk, aqk) = (a[p][k], a[q][k]);
+            a[p][k] = c * apk - s * aqk;
+            a[q][k] = s * apk + c * aqk;
+        }
+        for k in 0..3 {
+            let (vkp, vkq) = (v[k][p], v[k][q]);
+            v[k][p] = c * vkp - s * vkq;
+            v[k][q] = s * vkp + c * vkq;
+        }
+    }
+    ([a[0][0], a[1][1], a[2][2]], v)
+}
+
+/// Dá a cada nó uma profundidade determinística: espalha em torno do plano com espessura que cresce
+/// com a distância ao centro (núcleo denso, bordas arejadas, como uma galáxia) e suaviza entre vizinhos
+/// para que nós ligados fiquem próximos também em profundidade (arestas curtas, aglomerados coesos).
+fn assign_depth(nodes: &mut [Node], adj: &[Vec<usize>], deg: &[usize]) {
+    let n = nodes.len();
+    if n == 0 {
+        return;
+    }
+    // Pseudo-aleatório estável por índice (xorshift sobre o índice), em [-1, 1].
+    let noise = |i: usize| -> f32 {
+        let mut v = (i as u32).wrapping_mul(0x9E37_79B1).wrapping_add(0x85EB_CA6B);
+        v ^= v << 13;
+        v ^= v >> 17;
+        v ^= v << 5;
+        (v as f32 / u32::MAX as f32) * 2.0 - 1.0
+    };
+    let mut z: Vec<f32> = (0..n)
+        .map(|i| {
+            let r = (nodes[i].x * nodes[i].x + nodes[i].y * nodes[i].y).sqrt();
+            // Hubs ficam perto do plano central; folhas se espalham mais.
+            let calm = 1.0 / (1.0 + (deg[i] as f32).sqrt() * 0.18);
+            (noise(i) + 0.6 * noise(i.wrapping_mul(7) + 3)) * (34.0 + r * 0.55) * calm
+        })
+        .collect();
+    for _ in 0..6 {
+        let prev = z.clone();
+        for i in 0..n {
+            if adj[i].is_empty() {
+                continue;
+            }
+            let mean = adj[i].iter().map(|&j| prev[j]).sum::<f32>() / adj[i].len() as f32;
+            z[i] = prev[i] * 0.55 + mean * 0.45;
+        }
+    }
+    // Re-escala: a profundidade fica do tamanho do espalhamento no plano, para a direção de cada nó ser quase isotrópica.
+    let std_xy = (nodes.iter().map(|nd| nd.x * nd.x + nd.y * nd.y).sum::<f32>() / (2.0 * n as f32)).sqrt().max(1.0);
+    let std_z = (z.iter().map(|v| v * v).sum::<f32>() / n as f32).sqrt().max(1e-3);
+    let k = (1.0 * std_xy / std_z).clamp(0.5, 4.0);
+    for (nd, v) in nodes.iter_mut().zip(z) {
+        nd.z = (v * k).clamp(-420.0, 420.0);
+    }
 }
 
 fn equalize_roundness(nodes: &mut [Node], comp: &[usize], main_comp: usize) {

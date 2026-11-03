@@ -413,6 +413,8 @@ fn chamadas(store: &Store, provider: &str, n: usize, ts: Option<f64>, ok: bool) 
                 model: "",
                 bytes_out: 0,
                 bytes_in: 0,
+                tokens_in: -1,
+                tokens_out: -1,
                 content_kind: "",
                 ts,
             })
@@ -549,7 +551,7 @@ fn resumo_por_provedor_percentis_falhas_e_poda() {
     let m = Store::open_with(d.path().join("m.db"), None, rel.clock()).unwrap();
     let add = |p: &str, kind: &str, ok: bool, lat: i64, model: &str, bo: i64, bi: i64| {
         m.add_external_call(&orion_store::library::ExternalCall {
-            provider: p, kind, ok, latency_ms: lat, model, bytes_out: bo, bytes_in: bi, content_kind: "", ts: None,
+            provider: p, kind, ok, latency_ms: lat, model, bytes_out: bo, bytes_in: bi, tokens_in: -1, tokens_out: -1, content_kind: "", ts: None,
         })
         .unwrap();
     };

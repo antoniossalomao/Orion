@@ -185,7 +185,7 @@ async fn job_opcional_e_adiado_pela_cota() {
     let custos = Arc::new(Custos::new(a.store.clone(), vec![("gateway".into(), Cota { provedor: "gateway:".into(), nome: "Gateway".into(), limite: 10, periodo: "dia" })], Some(a.ops.clone())));
     for _ in 0..10 {
         a.store
-            .add_external_call(&orion_store::library::ExternalCall { provider: "gateway:padrão", kind: "chat", ok: true, latency_ms: 100, model: "", bytes_out: 0, bytes_in: 0, content_kind: "", ts: None })
+            .add_external_call(&orion_store::library::ExternalCall { provider: "gateway:padrão", kind: "chat", ok: true, latency_ms: 100, model: "", bytes_out: 0, bytes_in: 0, tokens_in: -1, tokens_out: -1, content_kind: "", ts: None })
             .unwrap();
     }
     let s = a.store.new_session("telegram", None, None).unwrap();
@@ -208,7 +208,7 @@ async fn job_opcional_e_adiado_pela_cota() {
 // ── gateway fora do ar (E1.4), de test_costs.py ─────────────────────────────
 fn chamada(a: &Amb, provider: &str, ok: bool, ts: f64) {
     a.store
-        .add_external_call(&orion_store::library::ExternalCall { provider, kind: "chat", ok, latency_ms: 100, model: "", bytes_out: 0, bytes_in: 0, content_kind: "", ts: Some(ts) })
+        .add_external_call(&orion_store::library::ExternalCall { provider, kind: "chat", ok, latency_ms: 100, model: "", bytes_out: 0, bytes_in: 0, tokens_in: -1, tokens_out: -1, content_kind: "", ts: Some(ts) })
         .unwrap();
 }
 

@@ -742,6 +742,8 @@ pub async fn config_recarregar(_: Admin, State(st): State<Estado>) -> ApiResult<
     let mut refazer_gateway = false;
     for n in mudados {
         match n.as_str() {
+            // F07.08: o limite da sessão de voz ao vivo é lido a cada sessão e vale na hora.
+            "voice_live_max_min" => { st.live.voice.write().live_max_min = novo.voice_live_max_min; aplicados.push(n); }
             "injection_guard" => { st.live.injection.store(novo.injection_guard, std::sync::atomic::Ordering::Relaxed); aplicados.push(n); }
             "vault_diario" => { st.live.diary.store(novo.vault_diario, std::sync::atomic::Ordering::Relaxed); aplicados.push(n); }
             // F04.31: o filtro de avisos do Telegram vale na hora

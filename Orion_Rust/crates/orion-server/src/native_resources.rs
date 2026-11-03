@@ -92,7 +92,7 @@ pub async fn start(
         let runtime = st.clone();
         let watch = task_session.clone();
         let timeout = if request.live {
-            st.settings.voice_live_max_min as u64 * 60
+            st.live.voice.read().live_max_min as u64 * 60
         } else {
             st.settings.wake_max_s as u64 + 120
         };
@@ -194,7 +194,7 @@ async fn run(
             *session.state.lock() = json!({"status":"stopped"});
             break;
         }
-        if live && start.elapsed().as_secs() >= st.settings.voice_live_max_min as u64 * 60 {
+        if live && start.elapsed().as_secs() >= st.live.voice.read().live_max_min as u64 * 60 {
             *session.state.lock() = json!({"status":"stopped"});
             break;
         }

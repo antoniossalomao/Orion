@@ -155,6 +155,8 @@ pub struct Settings {
     pub vault_diario: bool,
     /// ORION_INJECTION_GUARD: classificador de injeção de prompt no conteúdo externo (ligado por padrão).
     pub injection_guard: bool,
+    /// ORION_INJECTION_MODEL: pasta com `model_quantized.onnx` e `tokenizer.json` do ModernBERT (F04.09). Vazio = `<recursos>/injection`.
+    pub injection_model: Option<PathBuf>,
     pub capture_folder: String,
     pub briefing_at: String,
     pub briefing_calendar_email: String,
@@ -519,6 +521,7 @@ impl Settings {
             vault_dir: e.path_opt("vault_dir"),
             vault_diario: e.b("vault_diario", false)?,
             injection_guard: e.b("injection_guard", true)?,
+            injection_model: e.path_opt("injection_model"),
             capture_folder,
             briefing_at: hora("ORION_BRIEFING_AT", e.s("briefing_at", ""), "precisa estar no formato HH:MM (ex.: 07:30)")?,
             briefing_calendar_email: e.s("briefing_calendar_email", ""),

@@ -104,8 +104,22 @@ pub struct AppState {
     pub live: Arc<LiveConfig>,
 }
 
+/// Limites da voz lidos a cada uso, para valerem na hora da recarga (F07.08). Só entra o que é lido a cada sessão ao vivo;
+/// o que o ouvinte de voz e o locutor recebem na inicialização (`wake_*`, `voice_barge_in`, `voice_speak`) exige reinício.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct LiveVoice {
+    pub live_max_min: u32,
+}
+
+impl LiveVoice {
+    pub fn from_settings(s: &Settings) -> Self {
+        LiveVoice { live_max_min: s.voice_live_max_min }
+    }
+}
+
 /// Interruptores lidos a cada uso, para valerem na hora da recarga.
 pub struct LiveConfig {
+    pub voice: parking_lot::RwLock<LiveVoice>,
     pub injection: Arc<std::sync::atomic::AtomicBool>,
     pub diary: Arc<std::sync::atomic::AtomicBool>,
     /// Campos como estão rodando agora (só nomes e textos para comparar): a recarga compara com isto, não com
@@ -117,7 +131,7 @@ pub struct LiveConfig {
 
 impl LiveConfig {
     pub fn from_settings(s: &Settings) -> Self {
-        LiveConfig { injection: Arc::new(s.injection_guard.into()), diary: Arc::new(s.vault_diario.into()), applied: parking_lot::Mutex::new(None), current: parking_lot::Mutex::new(None) }
+        LiveConfig { voice: parking_lot::RwLock::new(LiveVoice::from_settings(s)), injection: Arc::new(s.injection_guard.into()), diary: Arc::new(s.vault_diario.into()), applied: parking_lot::Mutex::new(None), current: parking_lot::Mutex::new(None) }
     }
 }
 
@@ -625,7 +639,13 @@ pub async fn montar_with_runtime(mut settings: Settings, preserve_extensions:boo
         a.library = Some(biblioteca.clone());
         a.modos = Some(modos.clone());
         a.compactor = compactor_from_settings(&settings, memory.clone());
-        a.injection = Some(Arc::new(orion_ai::injection::Guard::standard()));
+        // F04.09: ModernBERT local quando os pesos estão instalados; senão, a heurística (e o aviso diz por quê).
+        let (injection, load_status) = orion_core::injection_onnx::guard(settings.injection_model.as_deref());
+        match load_status {
+            Ok(()) => tracing::info!("guarda de injeção: {}", injection.classifier()),
+            Err(e) => tracing::info!("guarda de injeção: heurística ({e})"),
+        }
+        a.injection = Some(Arc::new(injection));
         a.injection_enabled = live.injection.clone();
         if let Some(vault) = settings.vault_dir.clone().or_else(orion_vault::detect_vault_path) {
             a.after_turn = Some(crate::diary::hook(memory.clone(), vault, settings.data_dir.join("imagens"), live.diary.clone()));
