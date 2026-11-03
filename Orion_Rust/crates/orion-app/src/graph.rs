@@ -1,11 +1,37 @@
 //! Grafo do vault (§16): dados do snapshot de 15/10/2026 e a lógica de câmera, foco, filtro local e distribuição orgânica por forças.
 //! O grafo é 3D: cada nó tem profundidade (`z`), a câmera orbita (`rot` = giro, `pitch` = inclinação) e a projeção tem perspectiva,
 //! de modo que o mapa lê como uma constelação (nós perto brilham e crescem; longe, ficam pequenos e frios).
+//! Como no Obsidian, a forma vem de uma simulação de forças ao vivo (repulsão entre notas, puxão dos links, força central e
+//! distância dos links, ajustáveis na tela): arrastar uma nota puxa as vizinhas e mexer num controle reacomoda o grafo.
 //! A forma é uma esfera (hubs no miolo, notas soltas na borda) e cada nó orbita o centro com velocidade que cai com a distância.
 
 use crate::data::READ_NOTES;
 use serde::Deserialize;
 use std::sync::OnceLock;
+
+/// Forças da simulação, cada uma de 0 a 1 na interface (como os controles do Obsidian).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Forces {
+    /// Puxa tudo para o centro (mantém o grafo compacto e redondo).
+    pub center: f32,
+    /// Repulsão entre notas (afasta; mais alto = grafo mais aberto).
+    pub repel: f32,
+    /// Força dos links (puxão entre notas ligadas).
+    pub link: f32,
+    /// Distância ideal de um link.
+    pub dist: f32,
+}
+
+impl Default for Forces {
+    fn default() -> Self {
+        Forces { center: 0.5, repel: 0.5, link: 0.5, dist: 0.5 }
+    }
+}
+
+/// Abaixo disso a simulação para (e o grafo deixa de redesenhar).
+pub const ALPHA_MIN: f32 = 0.002;
+/// Perda de temperatura por passo (~300 passos até parar, como o d3-force).
+const ALPHA_DECAY: f32 = 0.0228;
 
 /// Distância focal da câmera em unidades do mundo: menor = mais perspectiva.
 pub const FOCAL: f32 = 900.0;
@@ -69,6 +95,14 @@ pub struct Graph {
     /// Última vez que o cache de desenho foi invalidado pela deriva automática (limita a ~20 quadros/s).
     pub drift_at: Option<std::time::Instant>,
     pub fitted: bool,
+    /// Simulação de forças: velocidades, temperatura (`alpha`, cai até parar), forças ajustáveis e nó preso ao cursor.
+    pub vel: Vec<[f32; 3]>,
+    pub alpha: f32,
+    pub forces: Forces,
+    pub pin: Option<usize>,
+    pub forces_open: bool,
+    /// Enquadrar de novo quando a simulação terminar de assentar (depois de mexer num controle).
+    pub refit: bool,
     pub size: (f32, f32),
     pub cache: iced::widget::canvas::Cache,
 }
@@ -146,6 +180,7 @@ impl Graph {
         dates.dedup();
         let cut = dates.last().cloned().unwrap_or_default();
         let cut_idx = dates.len().saturating_sub(1);
+        let n_nodes = nodes.len();
         Graph {
             nodes,
             links,
@@ -166,6 +201,12 @@ impl Graph {
             spinning: true,
             drift_at: None,
             fitted: false,
+            vel: vec![[0.0; 3]; n_nodes],
+            alpha: 0.0,
+            forces: Forces::default(),
+            pin: None,
+            forces_open: false,
+            refit: false,
             size: (0.0, 0.0),
             cache: iced::widget::canvas::Cache::new(),
         }
@@ -221,6 +262,44 @@ impl Graph {
         Self::build(nodes, links)
     }
 
+    /// A simulação ainda está acomodando as notas.
+    pub fn simulating(&self) -> bool {
+        self.alpha >= ALPHA_MIN
+    }
+    /// Esquenta a simulação (arrastar nota, mexer num controle): as notas voltam a se mover.
+    pub fn reheat(&mut self, alpha: f32) {
+        self.alpha = self.alpha.max(alpha);
+    }
+    /// Um passo de forças; o grafo esfria até parar.
+    pub fn step(&mut self) {
+        if !self.simulating() {
+            return;
+        }
+        let deg: Vec<usize> = self.nodes.iter().map(|n| n.deg).collect();
+        sim_step(&mut self.nodes, &mut self.vel, &self.links, &deg, &self.forces, self.alpha, self.pin);
+        self.alpha *= 1.0 - ALPHA_DECAY;
+    }
+    /// Roda a simulação até assentar (sem animação: movimento reduzido).
+    pub fn settle_now(&mut self) {
+        for _ in 0..400 {
+            if !self.simulating() {
+                break;
+            }
+            self.step();
+        }
+    }
+    /// Muda um controle (0 central, 1 repulsão, 2 links, 3 distância) e reacomoda o grafo.
+    pub fn set_force(&mut self, which: u8, v: f32) {
+        let v = v.clamp(0.0, 1.0);
+        match which {
+            0 => self.forces.center = v,
+            1 => self.forces.repel = v,
+            2 => self.forces.link = v,
+            _ => self.forces.dist = v,
+        }
+        self.reheat(0.6);
+        self.refit = true;
+    }
     pub fn in_local(&self, i: usize) -> bool {
         let Some((center, depth)) = self.local else {
             return true;
@@ -691,6 +770,170 @@ fn layout_forca(nodes: &mut [Node], links: &[(usize, usize)]) {
     // 6. Profundidade: o plano orgânico vira um volume, e o volume vira uma esfera (hubs no miolo).
     assign_depth(nodes, &adj, &deg);
     sphericalize(nodes);
+    // 7. Assenta com a mesma simulação de forças que roda ao vivo, para o grafo nascer em repouso.
+    settle(nodes, links, &deg, &Forces::default());
+    isotropize(nodes);
+}
+
+/// Deixa a nuvem redonda por uma transformação linear: iguala a variância nos três eixos (e zera a correlação entre
+/// eles) mantendo o tamanho médio. Corrige o resíduo de forma que a simulação deixa; vizinhos continuam vizinhos.
+fn isotropize(nodes: &mut [Node]) {
+    let n = nodes.len();
+    if n < 8 {
+        return;
+    }
+    let inv = 1.0 / n as f64;
+    let mut m = [0.0f64; 3];
+    for nd in nodes.iter() {
+        m[0] += nd.x as f64 * inv;
+        m[1] += nd.y as f64 * inv;
+        m[2] += nd.z as f64 * inv;
+    }
+    let mut cov = [[0.0f64; 3]; 3];
+    for nd in nodes.iter() {
+        let d = [nd.x as f64 - m[0], nd.y as f64 - m[1], nd.z as f64 - m[2]];
+        for i in 0..3 {
+            for j in 0..3 {
+                cov[i][j] += d[i] * d[j] * inv;
+            }
+        }
+    }
+    let (lambda, vec) = eigen_sym3(cov);
+    let media = (lambda[0] + lambda[1] + lambda[2]) / 3.0;
+    let mut w = [[0.0f64; 3]; 3];
+    for i in 0..3 {
+        for j in 0..3 {
+            for k in 0..3 {
+                w[i][j] += vec[i][k] * vec[j][k] * (media / lambda[k].max(1e-6)).sqrt();
+            }
+        }
+    }
+    for nd in nodes.iter_mut() {
+        let d = [nd.x as f64 - m[0], nd.y as f64 - m[1], nd.z as f64 - m[2]];
+        nd.x = (w[0][0] * d[0] + w[0][1] * d[1] + w[0][2] * d[2]) as f32;
+        nd.y = (w[1][0] * d[0] + w[1][1] * d[1] + w[1][2] * d[2]) as f32;
+        nd.z = (w[2][0] * d[0] + w[2][1] * d[1] + w[2][2] * d[2]) as f32;
+    }
+}
+
+/// Roda a simulação de forças até esfriar, a partir das posições atuais.
+fn settle(nodes: &mut [Node], links: &[(usize, usize)], deg: &[usize], f: &Forces) {
+    let mut vel = vec![[0.0f32; 3]; nodes.len()];
+    let mut alpha = 0.6f32;
+    while alpha >= ALPHA_MIN {
+        sim_step(nodes, &mut vel, links, deg, f, alpha, None);
+        alpha *= 1.0 - ALPHA_DECAY;
+    }
+}
+
+/// Um passo de d3-force em 3D: puxão dos links (mais forte em notas de grau baixo), repulsão entre todas as notas
+/// (vizinhas exatas, distantes por centro de massa da célula), força central isotrópica e amortecimento da velocidade.
+/// `pin` é a nota presa ao cursor: não se move, mas as vizinhas a seguem.
+fn sim_step(nodes: &mut [Node], vel: &mut [[f32; 3]], links: &[(usize, usize)], deg: &[usize], f: &Forces, alpha: f32, pin: Option<usize>) {
+    let n = nodes.len();
+    if n == 0 || vel.len() != n {
+        return;
+    }
+    let gravity = 0.010 + f.center * 0.090;
+    // Escala logarítmica: de 4 (quase sem repulsão) a 80 (bem aberto); o meio do controle dá 18.
+    let charge = 4.0 * 20.0f32.powf(f.repel);
+    let link_k = 0.05 + f.link * 0.95;
+    let dist = 25.0 + f.dist * 135.0;
+
+    // Links
+    for &(a, b) in links {
+        if a >= n || b >= n || a == b {
+            continue;
+        }
+        let (da, db) = (deg[a].max(1) as f32, deg[b].max(1) as f32);
+        let d = [
+            nodes[b].x + vel[b][0] - nodes[a].x - vel[a][0],
+            nodes[b].y + vel[b][1] - nodes[a].y - vel[a][1],
+            nodes[b].z + vel[b][2] - nodes[a].z - vel[a][2],
+        ];
+        let l = (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt().max(1e-3);
+        let k = (l - dist) / l * alpha * link_k / da.min(db);
+        let bias = da / (da + db);
+        for c in 0..3 {
+            vel[b][c] -= d[c] * k * bias;
+            vel[a][c] += d[c] * k * (1.0 - bias);
+        }
+    }
+
+    // Repulsão: grade 3D; células vizinhas exatas, as outras pelo centro de massa.
+    const CELL: f32 = 200.0;
+    let key = |nd: &Node| ((nd.x / CELL).floor() as i32, (nd.y / CELL).floor() as i32, (nd.z / CELL).floor() as i32);
+    let mut grid: std::collections::HashMap<(i32, i32, i32), Vec<usize>> = std::collections::HashMap::with_capacity(256);
+    for (i, nd) in nodes.iter().enumerate() {
+        grid.entry(key(nd)).or_default().push(i);
+    }
+    let cells: Vec<((i32, i32, i32), [f32; 3], f32, Vec<usize>)> = grid
+        .into_iter()
+        .map(|(k, idx)| {
+            let m = idx.len() as f32;
+            let mut c = [0.0f32; 3];
+            for &i in &idx {
+                c[0] += nodes[i].x;
+                c[1] += nodes[i].y;
+                c[2] += nodes[i].z;
+            }
+            (k, [c[0] / m, c[1] / m, c[2] / m], m, idx)
+        })
+        .collect();
+    let mut push = vec![[0.0f32; 3]; n];
+    for i in 0..n {
+        let ci = key(&nodes[i]);
+        let pi = [nodes[i].x, nodes[i].y, nodes[i].z];
+        let mut acc = [0.0f32; 3];
+        for (ck, com, m, idx) in &cells {
+            let perto = (ck.0 - ci.0).abs() <= 1 && (ck.1 - ci.1).abs() <= 1 && (ck.2 - ci.2).abs() <= 1;
+            if perto {
+                for &j in idx {
+                    if j == i {
+                        continue;
+                    }
+                    let d = [pi[0] - nodes[j].x, pi[1] - nodes[j].y, pi[2] - nodes[j].z];
+                    let d2 = (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).max(100.0);
+                    let w = charge * alpha / d2;
+                    for c in 0..3 {
+                        acc[c] += d[c] * w;
+                    }
+                }
+            } else {
+                let d = [pi[0] - com[0], pi[1] - com[1], pi[2] - com[2]];
+                let d2 = (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).max(100.0);
+                let w = charge * m * alpha / d2;
+                for c in 0..3 {
+                    acc[c] += d[c] * w;
+                }
+            }
+        }
+        push[i] = acc;
+    }
+
+    // Força central (cresce com a distância, para ilhas soltas não escaparem) e integração com amortecimento.
+    for i in 0..n {
+        let p = [nodes[i].x, nodes[i].y, nodes[i].z];
+        let r = (p[0] * p[0] + p[1] * p[1] + p[2] * p[2]).sqrt();
+        let g = gravity * alpha * (1.0 + (r / (SPHERE_R * 1.2)).powi(2));
+        if pin == Some(i) {
+            vel[i] = [0.0; 3];
+            continue;
+        }
+        for c in 0..3 {
+            vel[i][c] += push[i][c] - p[c] * g;
+            vel[i][c] *= 0.6;
+        }
+        let sp = (vel[i][0] * vel[i][0] + vel[i][1] * vel[i][1] + vel[i][2] * vel[i][2]).sqrt();
+        if sp > 60.0 {
+            for c in 0..3 {
+                vel[i][c] *= 60.0 / sp;
+            }
+        }
+        nodes[i].x += vel[i][0];
+        nodes[i].y += vel[i][1];
+        nodes[i].z += vel[i][2];
+    }
 }
 
 /// Raio da esfera do grafo, em unidades do mundo.

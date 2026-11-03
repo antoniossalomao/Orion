@@ -3,7 +3,7 @@
 //! perspectiva, profundidade e brilho estelar. O 3D em wgpu (F16.02) substituirá só a camada de desenho.
 
 use crate::app::{App, Msg, View};
-use crate::graph::{Graph, SPHERE_R, TIPOS};
+use crate::graph::{Forces, Graph, SPHERE_R, TIPOS};
 use crate::icons::icon;
 use crate::sky::{draw_sky, Sky};
 use crate::theme as t;
@@ -85,9 +85,27 @@ pub fn update(app: &mut App, m: Msg) {
             g.pitch = (g.pitch + dy * 0.0072).clamp(-1.45, 1.45);
         }
         Msg::MemDrag(i, x, y, z) => {
+            // Como no Obsidian: a nota fica presa ao cursor e a simulação esquenta, então as vizinhas vêm junto.
             app.mem.spinning = false;
             let n = &mut app.mem.nodes[i];
             (n.x, n.y, n.z) = (x, y, z);
+            app.mem.pin = Some(i);
+            app.mem.reheat(0.3);
+            if app.p.reduced {
+                app.mem.step();
+            }
+        }
+        Msg::MemRelease => app.mem.pin = None,
+        Msg::MemForces => app.mem.forces_open = !app.mem.forces_open,
+        Msg::MemForce(k, v) => {
+            app.mem.set_force(k, v);
+            reacomodar(app, w, h);
+        }
+        Msg::MemForcesReset => {
+            app.mem.forces = Forces::default();
+            app.mem.reheat(0.6);
+            app.mem.refit = true;
+            reacomodar(app, w, h);
         }
         Msg::MemCut(v) => {
             let g = &mut app.mem;
@@ -123,6 +141,15 @@ pub fn update(app: &mut App, m: Msg) {
     }
 }
 
+/// Com "reduzir movimento" não há animação: assenta na hora e enquadra.
+fn reacomodar(app: &mut App, w: f32, h: f32) {
+    if app.p.reduced {
+        app.mem.settle_now();
+        app.mem.refit = false;
+        app.mem.fit(w, h);
+    }
+}
+
 fn center(app: &mut App, i: usize) {
     let (w, _h) = stage_size(app);
     let g = &mut app.mem;
@@ -141,6 +168,17 @@ fn center(app: &mut App, i: usize) {
 pub fn tick(app: &mut App, now: Instant) {
     if app.view != View::Memoria {
         return;
+    }
+    // Simulação de forças: dois passos por quadro (~48 passos/s) até esfriar; ao assentar depois de mexer num controle, enquadra.
+    if app.mem.simulating() {
+        app.mem.step();
+        app.mem.step();
+        app.mem.cache.clear();
+        if !app.mem.simulating() && app.mem.refit {
+            app.mem.refit = false;
+            let (w, h) = stage_size(app);
+            app.mem.fit(w, h);
+        }
     }
     // Órbita lenta: as notas giram em torno do núcleo até você mexer; respeita "reduzir movimento".
     if app.mem.spinning && !app.p.reduced {
@@ -246,6 +284,9 @@ impl canvas::Program<Msg> for Mem<'_> {
                 if !d.2 && d.3 == Modo::Orbitar {
                     let p = cursor.position_in(b).unwrap_or(d.1);
                     return Some(Action::publish(Msg::MemSelect(self.g.hit(p.x, p.y, w, h))).and_capture());
+                }
+                if d.0.is_some() {
+                    return Some(Action::publish(Msg::MemRelease).and_capture());
                 }
                 Some(Action::capture())
             }
@@ -592,6 +633,28 @@ fn aneis_galacticos(f: &mut canvas::Frame, g: &Graph, w: f32, h: f32) {
     }
 }
 
+/// Painel de forças (como o do Obsidian): cada controle reacomoda o grafo ao vivo.
+fn forcas(g: &Graph) -> El<'_> {
+    fn linha(nome: &'static str, dica: &'static str, k: u8, v: f32) -> El<'static> {
+        let sl = slider(0.0..=1.0, v, move |x| Msg::MemForce(k, x)).step(0.01f32).style(|_, _| slider::Style {
+            rail: slider::Rail { backgrounds: (Background::Color(t::ACCENT), Background::Color(t::LINE3)), width: 4.0, border: Border { radius: 2.0.into(), ..Default::default() } },
+            handle: slider::Handle { shape: slider::HandleShape::Circle { radius: 7.0 }, background: Background::Color(t::ACCENT), border_width: 0.0, border_color: Color::TRANSPARENT },
+        });
+        column![tx(crate::i18n::text(nome), 12.0, t::FG), tx(crate::i18n::text(dica), 11.0, t::FG3), sl].spacing(3).into()
+    }
+    let f = g.forces;
+    let corpo = column![
+        row![tx(crate::i18n::text("Forças"), 13.0, t::FG), grow(), btn(crate::i18n::text("Restaurar"), Kind::Normal, true, None, Some(Msg::MemForcesReset))].align_y(Vertical::Center),
+        linha("Força central", "Puxa as notas para o centro", 0, f.center),
+        linha("Força de repulsão", "Afasta as notas umas das outras", 1, f.repel),
+        linha("Força dos links", "Puxa as notas ligadas", 2, f.link),
+        linha("Distância dos links", "Tamanho ideal de cada link", 3, f.dist),
+        tx(crate::i18n::text("Arraste uma nota: as vizinhas vão junto."), 11.0, t::FG3),
+    ]
+    .spacing(10);
+    container(container(corpo).width(Length::Fixed(250.0)).padding(12).style(|_| container::Style { background: Some(t::mix(t::RAISE, 0.94).into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_CARD.into() }, shadow: shadow(), ..Default::default() })).into()
+}
+
 fn fchip<'a>(label: &str, dot: Option<Color>, ic: Option<&str>, on: bool, msg: Msg) -> El<'a> {
     let fg = if on { t::FG } else { t::alpha(t::FG3, 0.5) };
     let mut r = row![].spacing(6).align_y(Vertical::Center);
@@ -675,8 +738,11 @@ pub fn view(app: &App) -> El<'_> {
         layers.push(container(leg).width(Length::Fill).height(Length::Fill).align_y(Vertical::Bottom).padding(pad(0.0, 0.0, 12.0, 12.0)).into());
     }
     let zoom_right = if g.sel.is_some() { 344.0 } else { 12.0 };
-    let zoom = container(column![tip(ib("plus", Some(Msg::MemZoom(1.25)), false), crate::i18n::text("Aproximar")), tip(ib("minus", Some(Msg::MemZoom(0.8)), false), crate::i18n::text("Afastar")), tip(ib_sz("fit", 30.0, 14.0, Some(Msg::MemFit), false), crate::i18n::text("Enquadrar"))].spacing(2)).padding(3).style(|_| container::Style { background: Some(t::mix(t::RAISE, 0.88).into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_CARD.into() }, ..Default::default() });
+    let zoom = container(column![tip(ib("gear", Some(Msg::MemForces), g.forces_open), crate::i18n::text("Forças do grafo")), tip(ib("plus", Some(Msg::MemZoom(1.25)), false), crate::i18n::text("Aproximar")), tip(ib("minus", Some(Msg::MemZoom(0.8)), false), crate::i18n::text("Afastar")), tip(ib_sz("fit", 30.0, 14.0, Some(Msg::MemFit), false), crate::i18n::text("Enquadrar"))].spacing(2)).padding(3).style(|_| container::Style { background: Some(t::mix(t::RAISE, 0.88).into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_CARD.into() }, ..Default::default() });
     layers.push(container(zoom).width(Length::Fill).height(Length::Fill).align_x(iced::alignment::Horizontal::Right).align_y(Vertical::Bottom).padding(pad(0.0, zoom_right, 12.0, 0.0)).into());
+    if g.forces_open {
+        layers.push(container(forcas(g)).width(Length::Fill).height(Length::Fill).padding(pad(12.0, 0.0, 0.0, 12.0)).into());
+    }
     if let Some(i) = g.hov.filter(|i| g.sel != Some(*i)) {
         let n = &g.nodes[i];
         let tip = container(column![tx(ell(&n.label, 260.0, 12.5), 12.5, t::FG), tx(g.meta(i), 11.0, t::FG3)]).padding(pad(6.0, 10.0, 6.0, 10.0)).max_width(280.0).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_CTRL.into() }, shadow: shadow(), ..Default::default() });

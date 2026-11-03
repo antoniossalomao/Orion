@@ -150,6 +150,10 @@ pub fn scenarios() -> Vec<(&'static str, Size, App)> {
             a.update(Msg::Go(vw));
         }));
     }
+    push("22-memoria-forcas", cena(|a| {
+        a.update(Msg::Go(View::Memoria));
+        a.mem.forces_open = true;
+    }));
     push("21-memoria-selecao", cena(|a| {
         a.update(Msg::Go(View::Memoria));
         let hub = (0..a.mem.nodes.len()).filter(|&i| a.mem.nodes[i].tipo == 0).max_by_key(|&i| a.mem.nodes[i].deg).unwrap();
