@@ -60,6 +60,7 @@ pub mod faceid;
 pub mod hand_gestures;
 pub mod vision_runtime;
 pub mod face_neural;
+pub mod injection_onnx;
 pub mod relatorio;
 pub mod rotinas;
 pub mod screen_memory;
