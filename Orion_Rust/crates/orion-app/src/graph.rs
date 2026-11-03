@@ -297,6 +297,10 @@ impl Graph {
     pub fn to_plane(&self, px: f32, py: f32, w: f32, h: f32) -> (f32, f32) {
         ((px - w / 2.0) / self.cam.0 - self.cam.1, (py - h / 2.0) / self.cam.0 - self.cam.2)
     }
+    /// Nome antigo de `to_plane` (a câmera orbita, então "mundo" aqui é o plano da câmera, não as coordenadas do nó).
+    pub fn to_world(&self, px: f32, py: f32, w: f32, h: f32) -> (f32, f32) {
+        self.to_plane(px, py, w, h)
+    }
     /// Move o nó `i` para onde o cursor está, mantendo a profundidade que ele tem na câmera.
     pub fn drag_to(&mut self, i: usize, px: f32, py: f32, w: f32, h: f32) {
         let (_, _, s, z) = self.proj(i);
