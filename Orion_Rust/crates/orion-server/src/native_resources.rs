@@ -92,9 +92,9 @@ pub async fn start(
         let runtime = st.clone();
         let watch = task_session.clone();
         let timeout = if request.live {
-            st.settings.voice_live_max_min as u64 * 60
+            st.live.voz.read().live_max_min as u64 * 60
         } else {
-            st.settings.wake_max_s as u64 + 120
+            st.live.voz.read().wake_max_s as u64 + 120
         };
         let cancelled = async {
             let start = std::time::Instant::now();
@@ -194,7 +194,7 @@ async fn run(
             *session.state.lock() = json!({"status":"stopped"});
             break;
         }
-        if live && start.elapsed().as_secs() >= st.settings.voice_live_max_min as u64 * 60 {
+        if live && start.elapsed().as_secs() >= st.live.voz.read().live_max_min as u64 * 60 {
             *session.state.lock() = json!({"status":"stopped"});
             break;
         }
@@ -291,7 +291,7 @@ fn capture(
     let mut speech = false;
     let mut silence = std::time::Instant::now();
     let start = std::time::Instant::now();
-    while start.elapsed().as_secs() < st.settings.wake_max_s as u64
+    while start.elapsed().as_secs() < st.live.voz.read().wake_max_s as u64
         && !session.stop.load(Ordering::SeqCst)
         && !session.finish.load(Ordering::SeqCst)
         && !st.modos.panico()
@@ -304,7 +304,7 @@ fn capture(
                 silence = std::time::Instant::now();
             }
             pcm.extend(frame);
-            if live && speech && silence.elapsed().as_secs_f64() >= st.settings.wake_silence_s {
+            if live && speech && silence.elapsed().as_secs_f64() >= st.live.voz.read().wake_silence_s {
                 break;
             }
         }
@@ -330,7 +330,7 @@ fn capture(
 #[cfg(windows)]
 fn play(audio: &[u8], st: &Estado, session: &Session) -> anyhow::Result<Option<Vec<u8>>> {
     let abort = || session.stop.load(Ordering::SeqCst) || st.modos.panico() || locked();
-    if st.settings.voice_barge_in {
+    if st.live.voz.read().barge_in {
         orion_voice::play_interruptible(audio, &st.settings.wake_device, 0, 900.0, &abort)
     } else {
         orion_voice::play_audio(audio, &abort)?;

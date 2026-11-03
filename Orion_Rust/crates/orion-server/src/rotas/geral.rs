@@ -742,6 +742,18 @@ pub async fn config_recarregar(_: Admin, State(st): State<Estado>) -> ApiResult<
     let mut refazer_gateway = false;
     for n in mudados {
         match n.as_str() {
+            // F07.08: limites da voz lidos a cada uso valem na hora.
+            "voice_live_max_min" | "wake_max_s" | "wake_silence_s" | "voice_barge_in" | "voice_speak" => {
+                let mut v = st.live.voz.write();
+                match n.as_str() {
+                    "voice_live_max_min" => v.live_max_min = novo.voice_live_max_min,
+                    "wake_max_s" => v.wake_max_s = novo.wake_max_s,
+                    "wake_silence_s" => v.wake_silence_s = novo.wake_silence_s,
+                    "voice_barge_in" => v.barge_in = novo.voice_barge_in,
+                    _ => v.speak = novo.voice_speak,
+                }
+                aplicados.push(n);
+            }
             "injection_guard" => { st.live.injection.store(novo.injection_guard, std::sync::atomic::Ordering::Relaxed); aplicados.push(n); }
             "vault_diario" => { st.live.diary.store(novo.vault_diario, std::sync::atomic::Ordering::Relaxed); aplicados.push(n); }
             // F04.31: o filtro de avisos do Telegram vale na hora

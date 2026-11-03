@@ -151,7 +151,7 @@ async fn socket_voz(st: Estado, origem_ok: bool, ja_auth: Option<bool>, socket: 
                         st.speaker.clone(),
                         Some(st.modos.clone()),
                         st.voz.clone(),
-                        st.settings.voice_speak,
+                        st.live.voz.read().speak,
                     );
                     tarefa = Some(tokio::spawn(async move {
                         turno_de_voz(&canal, dados, ag, tr, sp, md, vz, falar, None).await;
@@ -180,7 +180,7 @@ async fn socket_voz(st: Estado, origem_ok: bool, ja_auth: Option<bool>, socket: 
                                 st.speaker.clone(),
                                 Some(st.modos.clone()),
                                 st.voz.clone(),
-                                st.settings.voice_speak,
+                                st.live.voz.read().speak,
                             );
                             tarefa = Some(tokio::spawn(async move {
                                 turno_de_voz(&canal, audio, ag, tr, sp, md, vz, falar, None).await;
@@ -229,7 +229,7 @@ async fn socket_voice_live(st: Estado, origem_ok: bool, ja_auth: Option<bool>, s
     let (Some(transcriber),Some(gateway))=(&st.transcriber,&st.gateway)else{erro_e_fecha(&tx,"configure a transcrição e um provedor nas Configurações").await;return;};
     if st.modos.panico(){erro_e_fecha(&tx,"modo pânico").await;return;}
     let _=st.ops.audit_add(&json!({"tool":"voice_live","action":"start"}));
-    let deadline=tokio::time::Instant::now()+Duration::from_secs(st.settings.voice_live_max_min as u64*60);
+    let deadline=tokio::time::Instant::now()+Duration::from_secs(st.live.voz.read().live_max_min as u64*60);
     let mut history=vec![json!({"role":"system","content":"Você é Orion. Esta conversa por voz é temporária, sem ferramentas, memória ou acesso ao computador. Não alegue executar ações."})];
     let _=tx.lock().await.send(Message::Text(json!({"type":"ready","tools":false,"memory":false}).to_string())).await;
     while tokio::time::Instant::now()<deadline && !st.modos.panico(){

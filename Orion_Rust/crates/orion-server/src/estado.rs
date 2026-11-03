@@ -104,8 +104,25 @@ pub struct AppState {
     pub live: Arc<LiveConfig>,
 }
 
+/// Limites da voz lidos a cada uso, para valerem na hora da recarga (F07.08).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct VozAoVivo {
+    pub live_max_min: u32,
+    pub wake_max_s: f64,
+    pub wake_silence_s: f64,
+    pub barge_in: bool,
+    pub speak: bool,
+}
+
+impl VozAoVivo {
+    pub fn from_settings(s: &Settings) -> Self {
+        VozAoVivo { live_max_min: s.voice_live_max_min, wake_max_s: s.wake_max_s, wake_silence_s: s.wake_silence_s, barge_in: s.voice_barge_in, speak: s.voice_speak }
+    }
+}
+
 /// Interruptores lidos a cada uso, para valerem na hora da recarga.
 pub struct LiveConfig {
+    pub voz: parking_lot::RwLock<VozAoVivo>,
     pub injection: Arc<std::sync::atomic::AtomicBool>,
     pub diary: Arc<std::sync::atomic::AtomicBool>,
     /// Campos como estão rodando agora (só nomes e textos para comparar): a recarga compara com isto, não com
@@ -117,7 +134,7 @@ pub struct LiveConfig {
 
 impl LiveConfig {
     pub fn from_settings(s: &Settings) -> Self {
-        LiveConfig { injection: Arc::new(s.injection_guard.into()), diary: Arc::new(s.vault_diario.into()), applied: parking_lot::Mutex::new(None), current: parking_lot::Mutex::new(None) }
+        LiveConfig { voz: parking_lot::RwLock::new(VozAoVivo::from_settings(s)), injection: Arc::new(s.injection_guard.into()), diary: Arc::new(s.vault_diario.into()), applied: parking_lot::Mutex::new(None), current: parking_lot::Mutex::new(None) }
     }
 }
 
