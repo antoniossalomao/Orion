@@ -28,11 +28,17 @@ impl Default for Forces {
     }
 }
 
-/// Raio da esfera que contém o grafo, em função da repulsão (mais repulsão = esfera maior). No padrão é 0,78 × `SPHERE_R`,
-/// menor que o tamanho natural da nuvem de propósito: as notas se acumulam rentes à superfície e a esfera fica visível.
+/// Raio da esfera que contém o grafo. As notas se distribuem de modo uniforme dentro dela (esfera cheia e espaçada),
+/// então a própria nuvem desenha a forma, sem linhas de guia.
 pub fn sphere_radius(f: &Forces) -> f32 {
-    SPHERE_R * 0.78 * (4.0 * 20.0f32.powf(f.repel) / 18.0).powf(0.3).clamp(0.55, 1.7)
+    // Repulsão alarga a esfera; força central a encolhe (no meio dos dois controles, o raio é `SPHERE_R`).
+    SPHERE_R * (4.0 * 20.0f32.powf(f.repel) / 18.0).powf(0.3).clamp(0.55, 1.7) * (1.25 - 0.5 * f.center)
 }
+
+/// Quão forte a nota é puxada para o raio do preenchimento uniforme (por passo, vezes a temperatura).
+const SHELL_K: f32 = 1.0;
+/// Distância mínima entre duas notas (colisão): evita notas coladas e deixa o espaçamento regular.
+const COLISAO: f32 = 21.0;
 
 /// Abaixo disso a simulação para (e o grafo deixa de redesenhar).
 pub const ALPHA_MIN: f32 = 0.002;
@@ -775,50 +781,16 @@ fn layout_forca(nodes: &mut [Node], links: &[(usize, usize)]) {
 
     // 6. Profundidade: o plano orgânico vira um volume, e o volume vira uma esfera (hubs no miolo).
     assign_depth(nodes, &adj, &deg);
-    sphericalize(nodes);
-    // 7. Assenta com a mesma simulação de forças que roda ao vivo, para o grafo nascer em repouso.
-    settle(nodes, links, &deg, &Forces::default());
-    isotropize(nodes);
-}
-
-/// Deixa a nuvem redonda por uma transformação linear: iguala a variância nos três eixos (e zera a correlação entre
-/// eles) mantendo o tamanho médio. Corrige o resíduo de forma que a simulação deixa; vizinhos continuam vizinhos.
-fn isotropize(nodes: &mut [Node]) {
-    let n = nodes.len();
-    if n < 8 {
-        return;
-    }
-    let inv = 1.0 / n as f64;
-    let mut m = [0.0f64; 3];
-    for nd in nodes.iter() {
-        m[0] += nd.x as f64 * inv;
-        m[1] += nd.y as f64 * inv;
-        m[2] += nd.z as f64 * inv;
-    }
-    let mut cov = [[0.0f64; 3]; 3];
-    for nd in nodes.iter() {
-        let d = [nd.x as f64 - m[0], nd.y as f64 - m[1], nd.z as f64 - m[2]];
-        for i in 0..3 {
-            for j in 0..3 {
-                cov[i][j] += d[i] * d[j] * inv;
-            }
-        }
-    }
-    let (lambda, vec) = eigen_sym3(cov);
-    let media = (lambda[0] + lambda[1] + lambda[2]) / 3.0;
-    let mut w = [[0.0f64; 3]; 3];
-    for i in 0..3 {
-        for j in 0..3 {
-            for k in 0..3 {
-                w[i][j] += vec[i][k] * vec[j][k] * (media / lambda[k].max(1e-6)).sqrt();
-            }
-        }
-    }
+    sphericalize(nodes, sphere_radius(&Forces::default()), 1.0 / 3.0);
+    // 7. Estado de repouso: esfera cheia e uniforme; só repulsão e colisão (sem links) acertam o espaçamento sem entortar a forma.
+    settle(nodes, &[], &deg, &Forces::default());
+    let rb = sphere_radius(&Forces::default());
     for nd in nodes.iter_mut() {
-        let d = [nd.x as f64 - m[0], nd.y as f64 - m[1], nd.z as f64 - m[2]];
-        nd.x = (w[0][0] * d[0] + w[0][1] * d[1] + w[0][2] * d[2]) as f32;
-        nd.y = (w[1][0] * d[0] + w[1][1] * d[1] + w[1][2] * d[2]) as f32;
-        nd.z = (w[2][0] * d[0] + w[2][1] * d[1] + w[2][2] * d[2]) as f32;
+        let r = (nd.x * nd.x + nd.y * nd.y + nd.z * nd.z).sqrt();
+        if r > rb {
+            let k = rb / r;
+            (nd.x, nd.y, nd.z) = (nd.x * k, nd.y * k, nd.z * k);
+        }
     }
 }
 
@@ -840,7 +812,8 @@ fn sim_step(nodes: &mut [Node], vel: &mut [[f32; 3]], links: &[(usize, usize)], 
     if n == 0 || vel.len() != n {
         return;
     }
-    let gravity = 0.010 + f.center * 0.090;
+    // A força central também encolhe o raio alvo; a gravidade em si só segura ilhas soltas.
+    let gravity = 0.002 + f.center * 0.016;
     // Escala logarítmica: de 4 (quase sem repulsão) a 80 (bem aberto); o meio do controle dá 18.
     let charge = 4.0 * 20.0f32.powf(f.repel);
     let link_k = 0.05 + f.link * 0.95;
@@ -900,8 +873,14 @@ fn sim_step(nodes: &mut [Node], vel: &mut [[f32; 3]], links: &[(usize, usize)], 
                         continue;
                     }
                     let d = [pi[0] - nodes[j].x, pi[1] - nodes[j].y, pi[2] - nodes[j].z];
-                    let d2 = (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).max(100.0);
-                    let w = charge * alpha / d2;
+                    let dist2 = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
+                    let d2 = dist2.max(100.0);
+                    let mut w = charge * alpha / d2;
+                    if dist2 < COLISAO * COLISAO {
+                        // Colisão: dentro da distância mínima as notas se afastam com força proporcional à sobreposição.
+                        let dd = dist2.sqrt().max(0.05);
+                        w += (COLISAO - dd) / dd * 0.9 * alpha;
+                    }
                     for c in 0..3 {
                         acc[c] += d[c] * w;
                     }
@@ -918,6 +897,14 @@ fn sim_step(nodes: &mut [Node], vel: &mut [[f32; 3]], links: &[(usize, usize)], 
         push[i] = acc;
     }
 
+    // Preenchimento uniforme: cada nota é puxada para o raio que teria numa esfera cheia (posição na fila de distância ao
+    // centro → r = R·(posição/n)^(1/3)). A repulsão cuida do espaçamento; isso só decide quanto cabe em cada profundidade.
+    let mut fila: Vec<(f32, usize)> = (0..n).map(|i| ((nodes[i].x.powi(2) + nodes[i].y.powi(2) + nodes[i].z.powi(2)).sqrt(), i)).collect();
+    fila.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
+    let mut alvo = vec![0.0f32; n];
+    for (pos, &(_, i)) in fila.iter().enumerate() {
+        alvo[i] = rb * ((pos as f32 + 0.5) / n as f32).cbrt();
+    }
     // Força central (cresce com a distância, para ilhas soltas não escaparem) e integração com amortecimento.
     for i in 0..n {
         let p = [nodes[i].x, nodes[i].y, nodes[i].z];
@@ -927,8 +914,10 @@ fn sim_step(nodes: &mut [Node], vel: &mut [[f32; 3]], links: &[(usize, usize)], 
             vel[i] = [0.0; 3];
             continue;
         }
+        let dir = if r > 1e-3 { [p[0] / r, p[1] / r, p[2] / r] } else { [0.0; 3] };
+        let mola = (alvo[i] - r) * SHELL_K * alpha;
         for c in 0..3 {
-            vel[i][c] += push[i][c] - p[c] * g;
+            vel[i][c] += push[i][c] - p[c] * g + dir[c] * mola;
             vel[i][c] *= 0.6;
         }
         let sp = (vel[i][0] * vel[i][0] + vel[i][1] * vel[i][1] + vel[i][2] * vel[i][2]).sqrt();
@@ -940,11 +929,11 @@ fn sim_step(nodes: &mut [Node], vel: &mut [[f32; 3]], links: &[(usize, usize)], 
         nodes[i].x += vel[i][0];
         nodes[i].y += vel[i][1];
         nodes[i].z += vel[i][2];
-        // Fronteira esférica: nada escapa da esfera; o que passa volta para a superfície (que assim fica nítida).
+        // Fronteira esférica rígida: nada passa do raio, então a borda da nuvem é um círculo limpo.
         let (x, y, z) = (nodes[i].x, nodes[i].y, nodes[i].z);
         let r = (x * x + y * y + z * z).sqrt();
         if r > rb {
-            let k = (r - rb) / r * 0.6;
+            let k = (r - rb) / r;
             nodes[i].x -= x * k;
             nodes[i].y -= y * k;
             nodes[i].z -= z * k;
@@ -958,8 +947,8 @@ pub const SPHERE_R: f32 = 380.0;
 /// Redistribui os nós numa esfera de verdade (não num ovo): (1) o miolo é centrado e a nuvem é "branqueada" em 3D, igualando
 /// a variância nos três eixos; (2) azimute e altura de cada nó são redistribuídos de modo uniforme (quem estava mais à esquerda
 /// continua mais à esquerda, então vizinhos seguem do mesmo lado); (3) o raio vem da posição na fila de distância ao centro,
-/// com expoente < 1 para um miolo denso e borda nítida. Hubs ficam perto do núcleo e notas soltas na superfície.
-fn sphericalize(nodes: &mut [Node]) {
+/// com expoente 1/3 para uma esfera cheia de densidade uniforme. Hubs ficam perto do núcleo e notas soltas na superfície.
+fn sphericalize(nodes: &mut [Node], raio: f32, expoente: f64) {
     let n = nodes.len();
     if n < 8 {
         return;
@@ -1039,7 +1028,7 @@ fn sphericalize(nodes: &mut [Node]) {
     // O raio vem da distância já isotrópica e fica fixo; só as direções são refinadas.
     let radius: Vec<f64> = q.iter().map(|v| (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt()).collect();
     let r_rad = ranks(&radius);
-    let alvo = |i: usize| SPHERE_R as f64 * ((r_rad[i] as f64 + 0.5) * inv).powf(0.46);
+    let alvo = |i: usize| raio as f64 * ((r_rad[i] as f64 + 0.5) * inv).powf(expoente);
     // Três passes: redistribui azimute e altura de modo uniforme e branqueia de novo, até a nuvem ficar redonda
     // (um passe sozinho deixa uma correlação residual entre eixos que lê como "ovo").
     let mut dirs: Vec<[f64; 3]> = vec![[0.0; 3]; n];

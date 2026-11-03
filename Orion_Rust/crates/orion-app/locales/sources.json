@@ -1313,5 +1313,16 @@
   "Gestos indisponíveis: confira a instalação dos recursos de visão": "ui-1182",
   "Rosto indisponível: confira a instalação dos recursos de visão": "ui-1183",
   "Objetos indisponíveis: confira a instalação dos recursos de visão": "ui-1184",
-  "Instale ou atualize a opção Visão com GPU no instalador antes de cadastrar o Face ID.": "ui-1185"
+  "Instale ou atualize a opção Visão com GPU no instalador antes de cadastrar o Face ID.": "ui-1185",
+  "Forças do grafo": "ui-1186",
+  "Forças": "ui-1187",
+  "Força central": "ui-1188",
+  "Puxa as notas para o centro": "ui-1189",
+  "Força de repulsão": "ui-1190",
+  "Afasta as notas umas das outras": "ui-1191",
+  "Força dos links": "ui-1192",
+  "Puxa as notas ligadas": "ui-1193",
+  "Distância dos links": "ui-1194",
+  "Tamanho ideal de cada link": "ui-1195",
+  "Arraste uma nota: as vizinhas vão junto.": "ui-1196"
 }

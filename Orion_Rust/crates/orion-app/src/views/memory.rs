@@ -3,7 +3,7 @@
 //! perspectiva, profundidade e brilho estelar. O 3D em wgpu (F16.02) substituirá só a camada de desenho.
 
 use crate::app::{App, Msg, View};
-use crate::graph::{sphere_radius, Forces, Graph, TIPOS};
+use crate::graph::{Forces, Graph, TIPOS};
 use crate::icons::icon;
 use crate::sky::{draw_sky, Sky};
 use crate::theme as t;
@@ -48,6 +48,8 @@ pub fn update(app: &mut App, m: Msg) {
         }
         Msg::MemHalt => app.mem.spinning = false,
         Msg::MemSelect(n) => {
+            // Um clique com tremor de poucos pixels também prende a nota; soltar sempre a libera.
+            app.mem.pin = None;
             app.mem.sel = n;
             if n.is_none() {
                 app.mem.local = None;
@@ -352,7 +354,6 @@ impl canvas::Program<Msg> for Mem<'_> {
             let kk = g.cam.0.sqrt().clamp(0.72, 2.2);
 
             nebulosas(f, g, &scr, focus.is_some(), kk);
-            aneis_galacticos(f, g, w, h);
             nucleo(f, g, w, h, kk, focus.is_some());
 
             // Arestas: três faixas de profundidade (perto mais nítidas, longe quase apagadas), como linhas de constelação.
@@ -610,58 +611,6 @@ fn nucleo(f: &mut canvas::Frame, g: &Graph, w: f32, h: f32, kk: f32, focado: boo
         f.fill(&Path::circle(c, base * mult), t::alpha(col, alpha * fade));
     }
     f.fill(&Path::circle(c, base * 0.34), t::alpha(Color::WHITE, 0.75 * fade));
-}
-
-/// Guia da esfera: contorno (silhueta em perspectiva) e três círculos máximos, mais claros na metade da frente e mais
-/// escuros atrás. É o que deixa a forma de esfera legível mesmo com as notas espalhadas.
-fn aneis_galacticos(f: &mut canvas::Frame, g: &Graph, w: f32, h: f32) {
-    let raio = sphere_radius(&g.forces);
-    let centro = {
-        let (x, y, z) = g.view_space(0.0, 0.0, 0.0);
-        let s = Graph::persp(z);
-        Point::new(w / 2.0 + (x * s + g.cam.1) * g.cam.0, h / 2.0 + (y * s + g.cam.2) * g.cam.0)
-    };
-    // Silhueta de uma esfera vista em perspectiva: raio na imagem = F·R / √(F² − R²).
-    let foco = crate::graph::FOCAL;
-    let sil = foco * raio / (foco * foco - raio * raio).max(1.0).sqrt() * g.cam.0;
-    f.stroke(&Path::circle(centro, sil), Stroke::default().with_width(1.0).with_color(t::alpha(t::GRAPH_ARESTA, 0.20)));
-    // Círculos máximos: equador (plano XZ) e dois meridianos (planos XY e YZ).
-    const N: usize = 96;
-    for plano in 0..3 {
-        let pts: Vec<(Point, f32)> = (0..=N)
-            .map(|k| {
-                let a = k as f32 / N as f32 * std::f32::consts::TAU;
-                let (c, s) = (raio * a.cos(), raio * a.sin());
-                let (px, py, pz) = match plano {
-                    0 => (c, 0.0, s),
-                    1 => (c, s, 0.0),
-                    _ => (0.0, c, s),
-                };
-                let (x, y, z) = g.view_space(px, py, pz);
-                let sc = Graph::persp(z);
-                (Point::new(w / 2.0 + (x * sc + g.cam.1) * g.cam.0, h / 2.0 + (y * sc + g.cam.2) * g.cam.0), z)
-            })
-            .collect();
-        for (perto, alpha, larg) in [(true, 0.16f32, 0.9f32), (false, 0.06, 0.7)] {
-            let path = Path::new(|p| {
-                let mut aberto = false;
-                for par in pts.windows(2) {
-                    // Metade da frente = profundidade média negativa (mais perto da câmera que o centro).
-                    let frente = (par[0].1 + par[1].1) * 0.5 < 0.0;
-                    if frente == perto {
-                        if !aberto {
-                            p.move_to(par[0].0);
-                            aberto = true;
-                        }
-                        p.line_to(par[1].0);
-                    } else {
-                        aberto = false;
-                    }
-                }
-            });
-            f.stroke(&path, Stroke::default().with_width(larg).with_color(t::alpha(t::GRAPH_ARESTA, alpha)));
-        }
-    }
 }
 
 /// Painel de forças (como o do Obsidian): cada controle reacomoda o grafo ao vivo.
