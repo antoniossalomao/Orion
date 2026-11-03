@@ -690,7 +690,10 @@ pub enum Msg {
     MemHover(Option<usize>, f32, f32),
     MemHalt,
     MemPan(f32, f32),
+    /// Órbita da câmera 3D: variação do cursor em pixels (dx, dy).
+    MemOrbit(f32, f32),
     MemZoomAt(f32, f32, f32),
+    /// Arrasta o nó para o ponto da tela (px, py), na profundidade em que ele está.
     MemDrag(usize, f32, f32),
     MemCut(f32),
     MemOpenNote(usize),

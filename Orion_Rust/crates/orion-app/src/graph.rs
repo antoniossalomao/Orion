@@ -1,8 +1,13 @@
 //! Grafo do vault (§16): dados do snapshot de 15/10/2026 e a lógica de câmera, foco, filtro local e distribuição orgânica por forças.
+//! O grafo é 3D: cada nó tem profundidade (`z`), a câmera orbita (`rot` = giro, `pitch` = inclinação) e a projeção tem perspectiva,
+//! de modo que o mapa lê como uma constelação (nós perto brilham e crescem; longe, ficam pequenos e frios).
 
 use crate::data::READ_NOTES;
 use serde::Deserialize;
 use std::sync::OnceLock;
+
+/// Distância focal da câmera em unidades do mundo: menor = mais perspectiva.
+pub const FOCAL: f32 = 640.0;
 
 pub const TIPOS: [(&str, &str, &str); 7] = [
     ("projeto", "Projetos", "Projeto"),
@@ -32,6 +37,7 @@ pub struct Node {
     pub tags: String,
     pub x: f32,
     pub y: f32,
+    pub z: f32,
     pub r: f32,
     pub deg: usize,
     pub hub: bool,
@@ -53,8 +59,12 @@ pub struct Graph {
     pub cut: String,
     pub cut_idx: usize,
     pub read_on: bool,
+    /// Giro da câmera em torno do eixo vertical (rad) e inclinação (rad, limitada).
     pub rot: f32,
+    pub pitch: f32,
     pub spinning: bool,
+    /// Última vez que o cache de desenho foi invalidado pela deriva automática (limita a ~20 quadros/s).
+    pub drift_at: Option<std::time::Instant>,
     pub fitted: bool,
     pub size: (f32, f32),
     pub cache: iced::widget::canvas::Cache,
@@ -67,7 +77,7 @@ pub struct Prepared {
     links: Vec<(usize, usize)>,
 }
 
-static VAULT_COORDS: OnceLock<Vec<(f32, f32)>> = OnceLock::new();
+static VAULT_COORDS: OnceLock<Vec<(f32, f32, f32)>> = OnceLock::new();
 
 impl Graph {
     /// Grafo vazio (modo real, antes de carregar do servidor).
@@ -101,7 +111,7 @@ impl Graph {
             let ts = n.get("ts").and_then(|x| x.as_f64()).unwrap_or(0.0) / 1000.0;
             let date = if ts > 0.0 { crate::live::iso_date(ts) } else { String::new() };
             ids.insert(id, nodes.len());
-            nodes.push(Node { label: n.get("label").and_then(|x| x.as_str()).unwrap_or("").to_string(), tipo, folder: pasta, date, status: String::new(), tags: String::new(), x: 0.0, y: 0.0, r: base, deg: 0, hub: false, read: false });
+            nodes.push(Node { label: n.get("label").and_then(|x| x.as_str()).unwrap_or("").to_string(), tipo, folder: pasta, date, status: String::new(), tags: String::new(), x: 0.0, y: 0.0, z: 0.0, r: base, deg: 0, hub: false, read: false });
         }
         let mut links = vec![];
         for l in v.get("links").and_then(|n| n.as_array()).cloned().unwrap_or_default() {
@@ -147,8 +157,10 @@ impl Graph {
             cut,
             cut_idx,
             read_on: false,
-            rot: 0.0,
-            spinning: false,
+            rot: 0.55,
+            pitch: 0.42,
+            spinning: true,
+            drift_at: None,
             fitted: false,
             size: (0.0, 0.0),
             cache: iced::widget::canvas::Cache::new(),
@@ -179,6 +191,7 @@ impl Graph {
                     tags: a[5].as_str().unwrap_or("").to_string(),
                     x: a[6].as_f64().unwrap_or(0.0) as f32,
                     y: a[7].as_f64().unwrap_or(0.0) as f32,
+                    z: 0.0,
                     r: base,
                     deg: 0,
                     hub: false,
@@ -194,11 +207,12 @@ impl Graph {
         let coords = VAULT_COORDS.get_or_init(|| {
             let mut copy = nodes.clone();
             layout_forca(&mut copy, &links);
-            copy.iter().map(|n| (n.x, n.y)).collect()
+            copy.iter().map(|n| (n.x, n.y, n.z)).collect()
         });
-        for (nd, &(x, y)) in nodes.iter_mut().zip(coords.iter()) {
+        for (nd, &(x, y, z)) in nodes.iter_mut().zip(coords.iter()) {
             nd.x = x;
             nd.y = y;
+            nd.z = z;
         }
         Self::build(nodes, links)
     }
@@ -237,20 +251,61 @@ impl Graph {
         let n = &self.nodes[i];
         (n.r + (n.deg.max(1) as f32).ln() * 0.72).clamp(2.2, 8.6)
     }
-    pub fn rotp(&self, i: usize) -> (f32, f32) {
+    /// Ponto do mundo no espaço da câmera: giro em torno do eixo vertical e depois inclinação.
+    /// Devolve `(x, y, z)` com `z` positivo = mais longe da câmera.
+    pub fn view_space(&self, x: f32, y: f32, z: f32) -> (f32, f32, f32) {
+        let (cy, sy) = (self.rot.cos(), self.rot.sin());
+        let (cp, sp) = (self.pitch.cos(), self.pitch.sin());
+        let x1 = x * cy - z * sy;
+        let z1 = x * sy + z * cy;
+        (x1, y * cp - z1 * sp, y * sp + z1 * cp)
+    }
+    /// Inverso de `view_space`.
+    pub fn world_space(&self, x1: f32, y2: f32, z2: f32) -> (f32, f32, f32) {
+        let (cy, sy) = (self.rot.cos(), self.rot.sin());
+        let (cp, sp) = (self.pitch.cos(), self.pitch.sin());
+        let y = y2 * cp + z2 * sp;
+        let z1 = -y2 * sp + z2 * cp;
+        (x1 * cy + z1 * sy, y, -x1 * sy + z1 * cy)
+    }
+    /// Escala de perspectiva para uma profundidade de câmera (1.0 no plano do centro).
+    pub fn persp(z: f32) -> f32 {
+        (FOCAL / (FOCAL + z)).clamp(0.5, 2.2)
+    }
+    /// Projeção do nó antes do zoom e do deslocamento: `(x, y, escala, profundidade)`.
+    pub fn proj(&self, i: usize) -> (f32, f32, f32, f32) {
         let n = &self.nodes[i];
-        let (c, s) = (self.rot.cos(), self.rot.sin());
-        (n.x * c - n.y * s, n.x * s + n.y * c)
+        let (x, y, z) = self.view_space(n.x, n.y, n.z);
+        let s = Self::persp(z);
+        (x * s, y * s, s, z)
+    }
+    /// Posição do nó no plano da câmera, já com perspectiva (usada para enquadrar e centralizar).
+    pub fn rotp(&self, i: usize) -> (f32, f32) {
+        let (x, y, _, _) = self.proj(i);
+        (x, y)
     }
     pub fn to_screen(&self, i: usize, w: f32, h: f32) -> (f32, f32) {
         let (x, y) = self.rotp(i);
         (w / 2.0 + (x + self.cam.1) * self.cam.0, h / 2.0 + (y + self.cam.2) * self.cam.0)
     }
-    pub fn to_world(&self, px: f32, py: f32, w: f32, h: f32) -> (f32, f32) {
-        let x = (px - w / 2.0) / self.cam.0 - self.cam.1;
-        let y = (py - h / 2.0) / self.cam.0 - self.cam.2;
-        let (c, s) = ((-self.rot).cos(), (-self.rot).sin());
-        (x * c - y * s, x * s + y * c)
+    /// Tela + escala de perspectiva + profundidade, para desenhar e ordenar.
+    pub fn to_screen3(&self, i: usize, w: f32, h: f32) -> (f32, f32, f32, f32) {
+        let (x, y, s, z) = self.proj(i);
+        (w / 2.0 + (x + self.cam.1) * self.cam.0, h / 2.0 + (y + self.cam.2) * self.cam.0, s, z)
+    }
+    /// Ponto da tela → coordenadas do plano da câmera (sem perspectiva).
+    pub fn to_plane(&self, px: f32, py: f32, w: f32, h: f32) -> (f32, f32) {
+        ((px - w / 2.0) / self.cam.0 - self.cam.1, (py - h / 2.0) / self.cam.0 - self.cam.2)
+    }
+    /// Move o nó `i` para onde o cursor está, mantendo a profundidade que ele tem na câmera.
+    pub fn drag_to(&mut self, i: usize, px: f32, py: f32, w: f32, h: f32) {
+        let (_, _, s, z) = self.proj(i);
+        let (vx, vy) = self.to_plane(px, py, w, h);
+        let (x, y, zw) = self.world_space(vx / s, vy / s, z);
+        let n = &mut self.nodes[i];
+        n.x = x;
+        n.y = y;
+        n.z = zw;
     }
     pub fn fit(&mut self, w: f32, h: f32) {
         self.cache.clear();
@@ -283,17 +338,18 @@ impl Graph {
         self.cam = (k, -cx + shift_x, -cy);
     }
     pub fn hit(&self, px: f32, py: f32, w: f32, h: f32) -> Option<usize> {
+        // Entre os nós sob o cursor, vale o mais próximo da câmera (o que aparece na frente).
         let mut best = None;
-        let mut bd = f32::MAX;
+        let mut bz = f32::MAX;
         for i in 0..self.nodes.len() {
             if !self.visible(i) {
                 continue;
             }
-            let (x, y) = self.to_screen(i, w, h);
+            let (x, y, s, z) = self.to_screen3(i, w, h);
             let d = ((x - px).powi(2) + (y - py).powi(2)).sqrt();
-            let r = (self.radius(i) * self.cam.0.sqrt() + 3.0).max(7.0);
-            if d < r && d < bd {
-                bd = d;
+            let r = (self.radius(i) * self.cam.0.sqrt() * s + 3.0).max(7.0);
+            if d < r && z < bz {
+                bz = z;
                 best = Some(i);
             }
         }
@@ -611,6 +667,52 @@ fn layout_forca(nodes: &mut [Node], links: &[(usize, usize)]) {
 
     // 5. Resolução iterativa de colisões circulares para garantir separação nítida entre todos os nós.
     resolve_collisions(nodes, &deg);
+
+    // 6. Profundidade: o plano orgânico vira um volume (disco espesso, mais fino no miolo).
+    assign_depth(nodes, &adj, &deg);
+}
+
+/// Dá a cada nó uma profundidade determinística: espalha em torno do plano com espessura que cresce
+/// com a distância ao centro (núcleo denso, bordas arejadas, como uma galáxia) e suaviza entre vizinhos
+/// para que nós ligados fiquem próximos também em profundidade (arestas curtas, aglomerados coesos).
+fn assign_depth(nodes: &mut [Node], adj: &[Vec<usize>], deg: &[usize]) {
+    let n = nodes.len();
+    if n == 0 {
+        return;
+    }
+    // Pseudo-aleatório estável por índice (xorshift sobre o índice), em [-1, 1].
+    let noise = |i: usize| -> f32 {
+        let mut v = (i as u32).wrapping_mul(0x9E37_79B1).wrapping_add(0x85EB_CA6B);
+        v ^= v << 13;
+        v ^= v >> 17;
+        v ^= v << 5;
+        (v as f32 / u32::MAX as f32) * 2.0 - 1.0
+    };
+    let mut z: Vec<f32> = (0..n)
+        .map(|i| {
+            let r = (nodes[i].x * nodes[i].x + nodes[i].y * nodes[i].y).sqrt();
+            // Hubs ficam perto do plano central; folhas se espalham mais.
+            let calm = 1.0 / (1.0 + (deg[i] as f32).sqrt() * 0.18);
+            (noise(i) + 0.6 * noise(i.wrapping_mul(7) + 3)) * (34.0 + r * 0.55) * calm
+        })
+        .collect();
+    for _ in 0..6 {
+        let prev = z.clone();
+        for i in 0..n {
+            if adj[i].is_empty() {
+                continue;
+            }
+            let mean = adj[i].iter().map(|&j| prev[j]).sum::<f32>() / adj[i].len() as f32;
+            z[i] = prev[i] * 0.55 + mean * 0.45;
+        }
+    }
+    // Re-escala: a profundidade total fica em ~60% do espalhamento no plano, sem achatar o volume.
+    let std_xy = (nodes.iter().map(|nd| nd.x * nd.x + nd.y * nd.y).sum::<f32>() / (2.0 * n as f32)).sqrt().max(1.0);
+    let std_z = (z.iter().map(|v| v * v).sum::<f32>() / n as f32).sqrt().max(1e-3);
+    let k = (0.62 * std_xy / std_z).clamp(0.5, 4.0);
+    for (nd, v) in nodes.iter_mut().zip(z) {
+        nd.z = (v * k).clamp(-330.0, 330.0);
+    }
 }
 
 fn equalize_roundness(nodes: &mut [Node], comp: &[usize], main_comp: usize) {

@@ -105,7 +105,7 @@ pub fn scenarios() -> Vec<(&'static str, Size, App)> {
             let p = retrato();
             let diagram: [[f32; 2]; 21] = [[300., 520.], [200., 460.], [148., 378.], [104., 312.], [40., 250.], [220., 246.], [198., 176.], [178., 112.], [157., 51.], [290., 240.], [290., 159.], [291., 82.], [294., 15.], [348., 258.], [366., 186.], [373., 118.], [378., 49.], [413., 300.], [456., 258.], [484., 224.], [518., 172.]];
             let hand: Vec<[f32; 2]> = diagram.iter().map(|q| [0.62 + q[0] / 560.0 * 0.32, 0.18 + q[1] / 540.0 * 0.62]).collect();
-            let snap = crate::net::CameraSnapshot { seq: 7, w: p.w, h: p.h, rgba: p.rgba.clone(), face: Some([0.33, 0.17, 0.34, 0.6]), hand: Some(hand), gestures: vec![], cpu: Some(2.4), accel: Some("DirectML".into()), note: None, infer_ms: Some(4.0), awake: true };
+            let snap = crate::net::CameraSnapshot { seq: 7, w: p.w, h: p.h, rgba: p.rgba.clone(), face: Some([0.33, 0.17, 0.34, 0.6]), hand: Some(hand), gestures: vec![], cpu: Some(2.4), accel: Some("DirectML".into()), note: None, infer_ms: Some(4.0), awake: true, ..Default::default() };
             let handle = iced::widget::image::Handle::from_rgba(snap.w, snap.h, snap.rgba.clone());
             a.camera = Some(crate::camera_ui::CameraUi { opened_at: a.now - std::time::Duration::from_secs(3), opening: false, snapshot: Some((snap, handle)), error: None, last_gesture: Some(("OPEN PALM".into(), a.now - std::time::Duration::from_millis(300))) });
             a.island.gesture = Some(crate::camera_ui::describe("OPEN PALM", false));
