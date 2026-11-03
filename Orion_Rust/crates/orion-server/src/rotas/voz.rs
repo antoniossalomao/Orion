@@ -151,7 +151,7 @@ async fn socket_voz(st: Estado, origem_ok: bool, ja_auth: Option<bool>, socket: 
                         st.speaker.clone(),
                         Some(st.modos.clone()),
                         st.voz.clone(),
-                        st.live.voz.read().speak,
+                        st.settings.voice_speak,
                     );
                     tarefa = Some(tokio::spawn(async move {
                         turno_de_voz(&canal, dados, ag, tr, sp, md, vz, falar, None).await;
@@ -180,7 +180,7 @@ async fn socket_voz(st: Estado, origem_ok: bool, ja_auth: Option<bool>, socket: 
                                 st.speaker.clone(),
                                 Some(st.modos.clone()),
                                 st.voz.clone(),
-                                st.live.voz.read().speak,
+                                st.settings.voice_speak,
                             );
                             tarefa = Some(tokio::spawn(async move {
                                 turno_de_voz(&canal, audio, ag, tr, sp, md, vz, falar, None).await;

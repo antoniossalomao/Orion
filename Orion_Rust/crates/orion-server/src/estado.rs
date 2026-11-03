@@ -104,19 +104,16 @@ pub struct AppState {
     pub live: Arc<LiveConfig>,
 }
 
-/// Limites da voz lidos a cada uso, para valerem na hora da recarga (F07.08).
+/// Limites da voz lidos a cada uso, para valerem na hora da recarga (F07.08). Só entra o que é lido a cada sessão ao vivo;
+/// o que o ouvinte de voz e o locutor recebem na inicialização (`wake_*`, `voice_barge_in`, `voice_speak`) exige reinício.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct VozAoVivo {
     pub live_max_min: u32,
-    pub wake_max_s: f64,
-    pub wake_silence_s: f64,
-    pub barge_in: bool,
-    pub speak: bool,
 }
 
 impl VozAoVivo {
     pub fn from_settings(s: &Settings) -> Self {
-        VozAoVivo { live_max_min: s.voice_live_max_min, wake_max_s: s.wake_max_s, wake_silence_s: s.wake_silence_s, barge_in: s.voice_barge_in, speak: s.voice_speak }
+        VozAoVivo { live_max_min: s.voice_live_max_min }
     }
 }
 

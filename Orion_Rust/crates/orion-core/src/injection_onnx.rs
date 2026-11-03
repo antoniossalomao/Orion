@@ -19,10 +19,11 @@ const MODEL_SHA256: &str = "61cd0741cdbfcc229e32e1de1392f352736d87d1e8b3c2b67ad9
 const TOKENIZER_SHA256: &str = "47834a7dbbb0c4324fe9569fe47955241594a9ee539c9e478755d6fbc51e5f46";
 /// Índice da classe INJECTION na saída (config.json: 0 = SAFE, 1 = INJECTION).
 const INJECTION_CLASS: usize = 1;
-/// Tokens por janela. Textos longos são analisados em janelas e vale a pior.
+/// Tokens por janela. Textos longos são analisados em janelas e vale a pior; acima do teto, erro.
 const WINDOW: usize = 512;
-/// Janelas por texto (limita a latência: ~25 ms por janela de 512 tokens em CPU).
-const MAX_WINDOWS: usize = 16;
+/// Janelas por texto (limita a latência: ~25 ms por janela de 512 tokens em CPU; 64 janelas ≈ 1,6 s e ~28 mil tokens).
+/// Texto maior que isso não é classificado por inteiro, então é recusado (falha fechada), nunca liberado pela metade.
+const MAX_WINDOWS: usize = 64;
 
 /// Pasta padrão dos pesos: `<recursos>/injection`, ou `ORION_INJECTION_MODEL`.
 pub fn default_dir(configured: Option<&Path>) -> Option<PathBuf> {
@@ -100,8 +101,11 @@ impl InjectionClassifier for ModernBert {
     fn score(&self, text: &str) -> Result<f32, InjectionError> {
         let enc = self.tokenizer.encode(text, true).map_err(|e| InjectionError(format!("classificador de injeção: {e}")))?;
         // O primeiro encoding é a janela inicial; os `overflowing` são as seguintes (stride de 64).
+        if enc.get_overflowing().len() + 1 > MAX_WINDOWS {
+            return Err(InjectionError("classificador de injeção: texto longo demais para classificar por inteiro".into()));
+        }
         let mut worst = self.score_window(enc.get_ids(), enc.get_attention_mask())?;
-        for o in enc.get_overflowing().iter().take(MAX_WINDOWS - 1) {
+        for o in enc.get_overflowing() {
             worst = worst.max(self.score_window(o.get_ids(), o.get_attention_mask())?);
         }
         Ok(worst)
