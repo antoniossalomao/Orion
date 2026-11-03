@@ -47,11 +47,11 @@ impl ModernBert {
     /// Carrega e confere os pesos. Erro descreve o que falta, sem caminhos de dados do usuário no texto.
     pub fn load(dir: &Path) -> Result<Self, String> {
         let (model, tok) = (dir.join(MODEL_FILE), dir.join(TOKENIZER_FILE));
-        for (p, esperado) in [(&model, MODEL_SHA256), (&tok, TOKENIZER_SHA256)] {
+        for (p, expected) in [(&model, MODEL_SHA256), (&tok, TOKENIZER_SHA256)] {
             if !p.is_file() {
                 return Err(format!("modelo de injeção não instalado: falta {}", p.file_name().unwrap_or_default().to_string_lossy()));
             }
-            if sha256_file(p)? != esperado {
+            if sha256_file(p)? != expected {
                 return Err(format!("{} não confere com o SHA-256 esperado; reinstale o modelo", p.file_name().unwrap_or_default().to_string_lossy()));
             }
         }
@@ -74,7 +74,7 @@ impl ModernBert {
                 "input_ids" => ids.iter().map(|&x| x as i64).collect(),
                 "attention_mask" => mask.iter().map(|&x| x as i64).collect(),
                 "token_type_ids" => vec![0; l],
-                outro => return Err(InjectionError(format!("classificador de injeção: entrada desconhecida {outro}"))),
+                other => return Err(InjectionError(format!("classificador de injeção: entrada desconhecida {other}"))),
             };
             feed.push((n.clone(), ort::value::Tensor::from_array(([1usize, l], v)).map_err(|e| err(&e))?.into_dyn()));
         }

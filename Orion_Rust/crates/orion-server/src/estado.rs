@@ -640,12 +640,12 @@ pub async fn montar_with_runtime(mut settings: Settings, preserve_extensions:boo
         a.modos = Some(modos.clone());
         a.compactor = compactor_from_settings(&settings, memory.clone());
         // F04.09: ModernBERT local quando os pesos estão instalados; senão, a heurística (e o aviso diz por quê).
-        let (guarda, modelo) = orion_core::injection_onnx::guard(settings.injection_model.as_deref());
-        match modelo {
-            Ok(()) => tracing::info!("guarda de injeção: {}", guarda.classifier()),
+        let (injection, load_status) = orion_core::injection_onnx::guard(settings.injection_model.as_deref());
+        match load_status {
+            Ok(()) => tracing::info!("guarda de injeção: {}", injection.classifier()),
             Err(e) => tracing::info!("guarda de injeção: heurística ({e})"),
         }
-        a.injection = Some(Arc::new(guarda));
+        a.injection = Some(Arc::new(injection));
         a.injection_enabled = live.injection.clone();
         if let Some(vault) = settings.vault_dir.clone().or_else(orion_vault::detect_vault_path) {
             a.after_turn = Some(crate::diary::hook(memory.clone(), vault, settings.data_dir.join("imagens"), live.diary.clone()));
