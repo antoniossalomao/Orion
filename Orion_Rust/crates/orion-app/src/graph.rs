@@ -8,7 +8,7 @@ use serde::Deserialize;
 use std::sync::OnceLock;
 
 /// Distância focal da câmera em unidades do mundo: menor = mais perspectiva.
-pub const FOCAL: f32 = 640.0;
+pub const FOCAL: f32 = 900.0;
 
 pub const TIPOS: [(&str, &str, &str); 7] = [
     ("projeto", "Projetos", "Projeto"),
@@ -350,7 +350,8 @@ impl Graph {
         }
         let span_x = (x1 - x0).max(60.0) + 64.0;
         let span_y = (y1 - y0).max(60.0) + 64.0;
-        let k = (eff_w / span_x).min(h / span_y).clamp(0.28, 2.4);
+        // 0,84: deixa uma folga em volta (câmera um pouco mais longe, menos poluído).
+        let k = ((eff_w / span_x).min(h / span_y) * 0.84).clamp(0.2, 2.4);
         let cx = (x0 + x1) * 0.5;
         let cy = (y0 + y1) * 0.5;
         let shift_x = -(panel_w * 0.5) / k;
@@ -693,7 +694,7 @@ fn layout_forca(nodes: &mut [Node], links: &[(usize, usize)]) {
 }
 
 /// Raio da esfera do grafo, em unidades do mundo.
-pub const SPHERE_R: f32 = 260.0;
+pub const SPHERE_R: f32 = 380.0;
 
 /// Redistribui os nós numa esfera de verdade (não num ovo): (1) o miolo é centrado e a nuvem é "branqueada" em 3D, igualando
 /// a variância nos três eixos; (2) azimute e altura de cada nó são redistribuídos de modo uniforme (quem estava mais à esquerda
@@ -733,16 +734,38 @@ fn sphericalize(nodes: &mut [Node]) {
             }
         }
     }
-    let q: Vec<[f64; 3]> = nodes
-        .iter()
-        .map(|nd| {
-            let d = [nd.x as f64 - m[0], nd.y as f64 - m[1], nd.z as f64 - m[2]];
-            [0, 1, 2].map(|i| w[i][0] * d[0] + w[i][1] * d[1] + w[i][2] * d[2])
-        })
-        .collect();
-    let radius: Vec<f64> = q.iter().map(|v| (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt()).collect();
-    let azimute: Vec<f64> = q.iter().map(|v| v[2].atan2(v[0])).collect();
-    let altura: Vec<f64> = q.iter().zip(&radius).map(|(v, r)| if *r > 1e-9 { v[1] / r } else { 0.0 }).collect();
+    let mut q: Vec<[f64; 3]> = nodes.iter().map(|nd| [nd.x as f64 - m[0], nd.y as f64 - m[1], nd.z as f64 - m[2]]).collect();
+    let whiten = |q: &mut Vec<[f64; 3]>| {
+        let mut mean = [0.0f64; 3];
+        for v in q.iter() {
+            for k in 0..3 {
+                mean[k] += v[k] * inv;
+            }
+        }
+        let mut cov = [[0.0f64; 3]; 3];
+        for v in q.iter() {
+            let d = [v[0] - mean[0], v[1] - mean[1], v[2] - mean[2]];
+            for i in 0..3 {
+                for j in 0..3 {
+                    cov[i][j] += d[i] * d[j] * inv;
+                }
+            }
+        }
+        let (lambda, vec) = eigen_sym3(cov);
+        // W = V · diag(1/√λ) · Vᵀ: leva a nuvem a covariância identidade (isotrópica).
+        let mut w = [[0.0f64; 3]; 3];
+        for i in 0..3 {
+            for j in 0..3 {
+                for k in 0..3 {
+                    w[i][j] += vec[i][k] * vec[j][k] / lambda[k].max(1e-6).sqrt();
+                }
+            }
+        }
+        for v in q.iter_mut() {
+            let d = [v[0] - mean[0], v[1] - mean[1], v[2] - mean[2]];
+            *v = [0, 1, 2].map(|i| w[i][0] * d[0] + w[i][1] * d[1] + w[i][2] * d[2]);
+        }
+    };
     // Posição de cada nó na fila (0..n) por uma chave; desempate pelo índice para ser determinístico.
     let ranks = |key: &[f64]| -> Vec<usize> {
         let mut idx: Vec<usize> = (0..n).collect();
@@ -753,16 +776,37 @@ fn sphericalize(nodes: &mut [Node]) {
         }
         r
     };
-    let (r_rad, r_az, r_alt) = (ranks(&radius), ranks(&azimute), ranks(&altura));
+    whiten(&mut q);
+    // O raio vem da distância já isotrópica e fica fixo; só as direções são refinadas.
+    let radius: Vec<f64> = q.iter().map(|v| (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt()).collect();
+    let r_rad = ranks(&radius);
+    let alvo = |i: usize| SPHERE_R as f64 * ((r_rad[i] as f64 + 0.5) * inv).powf(0.46);
+    // Três passes: redistribui azimute e altura de modo uniforme e branqueia de novo, até a nuvem ficar redonda
+    // (um passe sozinho deixa uma correlação residual entre eixos que lê como "ovo").
+    let mut dirs: Vec<[f64; 3]> = vec![[0.0; 3]; n];
+    for passe in 0..3 {
+        let r: Vec<f64> = q.iter().map(|v| (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt()).collect();
+        let azimute: Vec<f64> = q.iter().map(|v| v[2].atan2(v[0])).collect();
+        let altura: Vec<f64> = q.iter().zip(&r).map(|(v, r)| if *r > 1e-9 { v[1] / r } else { 0.0 }).collect();
+        let (r_az, r_alt) = (ranks(&azimute), ranks(&altura));
+        for i in 0..n {
+            let u = |rank: usize| (rank as f64 + 0.5) * inv;
+            let phi = -std::f64::consts::PI + std::f64::consts::TAU * u(r_az[i]);
+            let c = -1.0 + 2.0 * u(r_alt[i]);
+            let sn = (1.0 - c * c).max(0.0).sqrt();
+            dirs[i] = [sn * phi.cos(), c, sn * phi.sin()];
+        }
+        if passe < 2 {
+            for i in 0..n {
+                q[i] = [dirs[i][0] * alvo(i), dirs[i][1] * alvo(i), dirs[i][2] * alvo(i)];
+            }
+            whiten(&mut q);
+        }
+    }
     for i in 0..n {
-        let u = |rank: usize| (rank as f64 + 0.5) * inv;
-        let phi = -std::f64::consts::PI + std::f64::consts::TAU * u(r_az[i]);
-        let c = -1.0 + 2.0 * u(r_alt[i]);
-        let sn = (1.0 - c * c).max(0.0).sqrt();
-        let nr = SPHERE_R as f64 * u(r_rad[i]).powf(0.40);
-        nodes[i].x = (nr * sn * phi.cos()) as f32;
-        nodes[i].y = (nr * c) as f32;
-        nodes[i].z = (nr * sn * phi.sin()) as f32;
+        nodes[i].x = (dirs[i][0] * alvo(i)) as f32;
+        nodes[i].y = (dirs[i][1] * alvo(i)) as f32;
+        nodes[i].z = (dirs[i][2] * alvo(i)) as f32;
     }
 }
 

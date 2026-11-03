@@ -315,7 +315,7 @@ impl canvas::Program<Msg> for Mem<'_> {
             nucleo(f, g, w, h, kk, focus.is_some());
 
             // Arestas: três faixas de profundidade (perto mais nítidas, longe quase apagadas), como linhas de constelação.
-            let edge_a = if focus.is_some() || !q.is_empty() || rd { 0.03 } else { 0.095 };
+            let edge_a = if focus.is_some() || !q.is_empty() || rd { 0.026 } else { 0.07 };
             let mut faixas = [Path::new(|_| {}), Path::new(|_| {}), Path::new(|_| {})];
             {
                 let mut bs: [Vec<(Point, Point)>; 3] = [vec![], vec![], vec![]];
@@ -558,7 +558,7 @@ fn nucleo(f: &mut canvas::Frame, g: &Graph, w: f32, h: f32, kk: f32, focado: boo
     let s = Graph::persp(z);
     let c = Point::new(w / 2.0 + (x * s + g.cam.1) * g.cam.0, h / 2.0 + (y * s + g.cam.2) * g.cam.0);
     let fade = if focado { 0.5 } else { 1.0 };
-    let base = 15.0 * kk * s;
+    let base = 17.0 * kk * s;
     for (mult, alpha, col) in [
         (7.0f32, 0.020f32, Color::from_rgb(0.55, 0.66, 1.0)),
         (4.6, 0.034, Color::from_rgb(0.62, 0.72, 1.0)),
