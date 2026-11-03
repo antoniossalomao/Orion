@@ -92,12 +92,18 @@ pub fn update(app: &mut App, m: Msg) {
             let n = &mut app.mem.nodes[i];
             (n.x, n.y, n.z) = (x, y, z);
             app.mem.pin = Some(i);
-            app.mem.reheat(0.3);
-            if app.p.reduced {
-                app.mem.step();
+            // Com "reduzir movimento" a nota só acompanha o cursor; o grafo assenta de uma vez ao soltar.
+            if !app.p.reduced {
+                app.mem.reheat(0.3);
             }
         }
-        Msg::MemRelease => app.mem.pin = None,
+        Msg::MemRelease => {
+            app.mem.pin = None;
+            if app.p.reduced {
+                app.mem.reheat(0.3);
+                app.mem.settle_now();
+            }
+        }
         Msg::MemForces => app.mem.forces_open = !app.mem.forces_open,
         Msg::MemForce(k, v) => {
             app.mem.set_force(k, v);
