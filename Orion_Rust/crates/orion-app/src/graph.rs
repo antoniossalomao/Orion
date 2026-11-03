@@ -28,6 +28,12 @@ impl Default for Forces {
     }
 }
 
+/// Raio da esfera que contém o grafo, em função da repulsão (mais repulsão = esfera maior). No padrão é 0,78 × `SPHERE_R`,
+/// menor que o tamanho natural da nuvem de propósito: as notas se acumulam rentes à superfície e a esfera fica visível.
+pub fn sphere_radius(f: &Forces) -> f32 {
+    SPHERE_R * 0.78 * (4.0 * 20.0f32.powf(f.repel) / 18.0).powf(0.3).clamp(0.55, 1.7)
+}
+
 /// Abaixo disso a simulação para (e o grafo deixa de redesenhar).
 pub const ALPHA_MIN: f32 = 0.002;
 /// Perda de temperatura por passo (~300 passos até parar, como o d3-force).
@@ -839,6 +845,7 @@ fn sim_step(nodes: &mut [Node], vel: &mut [[f32; 3]], links: &[(usize, usize)], 
     let charge = 4.0 * 20.0f32.powf(f.repel);
     let link_k = 0.05 + f.link * 0.95;
     let dist = 25.0 + f.dist * 135.0;
+    let rb = sphere_radius(f);
 
     // Links
     for &(a, b) in links {
@@ -933,6 +940,15 @@ fn sim_step(nodes: &mut [Node], vel: &mut [[f32; 3]], links: &[(usize, usize)], 
         nodes[i].x += vel[i][0];
         nodes[i].y += vel[i][1];
         nodes[i].z += vel[i][2];
+        // Fronteira esférica: nada escapa da esfera; o que passa volta para a superfície (que assim fica nítida).
+        let (x, y, z) = (nodes[i].x, nodes[i].y, nodes[i].z);
+        let r = (x * x + y * y + z * z).sqrt();
+        if r > rb {
+            let k = (r - rb) / r * 0.6;
+            nodes[i].x -= x * k;
+            nodes[i].y -= y * k;
+            nodes[i].z -= z * k;
+        }
     }
 }
 
