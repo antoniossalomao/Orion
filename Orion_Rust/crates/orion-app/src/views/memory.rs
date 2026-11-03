@@ -101,13 +101,13 @@ pub fn update(app: &mut App, m: Msg) {
         Msg::MemForces => app.mem.forces_open = !app.mem.forces_open,
         Msg::MemForce(k, v) => {
             app.mem.set_force(k, v);
-            reacomodar(app, w, h);
+            resettle(app, w, h);
         }
         Msg::MemForcesReset => {
             app.mem.forces = Forces::default();
             app.mem.reheat(0.6);
             app.mem.refit = true;
-            reacomodar(app, w, h);
+            resettle(app, w, h);
         }
         Msg::MemCut(v) => {
             let g = &mut app.mem;
@@ -144,7 +144,7 @@ pub fn update(app: &mut App, m: Msg) {
 }
 
 /// Com "reduzir movimento" não há animação: assenta na hora e enquadra.
-fn reacomodar(app: &mut App, w: f32, h: f32) {
+fn resettle(app: &mut App, w: f32, h: f32) {
     if app.p.reduced {
         app.mem.settle_now();
         app.mem.refit = false;
@@ -209,21 +209,21 @@ struct Mem<'a> {
 }
 
 #[derive(Clone, Copy, PartialEq)]
-enum Modo {
-    Orbitar,
-    Mover,
+enum DragMode {
+    Orbit,
+    Pan,
 }
 
 #[derive(Default)]
 struct Interaction {
     /// (nó sob o cursor, último ponto, se já se mexeu, o que o arrasto faz no vazio)
-    drag: Option<(Option<usize>, Point, bool, Modo)>,
+    drag: Option<(Option<usize>, Point, bool, DragMode)>,
     shift: bool,
 }
 
-impl Default for Modo {
+impl Default for DragMode {
     fn default() -> Self {
-        Modo::Orbitar
+        DragMode::Orbit
     }
 }
 
@@ -242,12 +242,12 @@ impl canvas::Program<Msg> for Mem<'_> {
                 let p = pos?;
                 let right = *btn == mouse::Button::Right;
                 let n = if right { None } else { self.g.hit(p.x, p.y, w, h) };
-                let modo = if right || st.shift { Modo::Mover } else { Modo::Orbitar };
-                st.drag = Some((n, p, false, modo));
+                let mode = if right || st.shift { DragMode::Pan } else { DragMode::Orbit };
+                st.drag = Some((n, p, false, mode));
                 Some(Action::publish(Msg::MemHalt).and_capture())
             }
             Event::Mouse(mouse::Event::CursorMoved { .. }) => {
-                if let Some((node, last, moved, modo)) = st.drag.as_mut() {
+                if let Some((node, last, moved, mode)) = st.drag.as_mut() {
                     let p = cursor.position_in(b).or_else(|| cursor.position().map(|c| Point::new(c.x - b.x, c.y - b.y)))?;
                     let (dx, dy) = (p.x - last.x, p.y - last.y);
                     if dx.abs() + dy.abs() > 2.0 {
@@ -259,7 +259,7 @@ impl canvas::Program<Msg> for Mem<'_> {
                             let (x, y, z) = self.g.drag_target(*i, p.x, p.y, w, h);
                             Action::publish(Msg::MemDrag(*i, x, y, z)).and_capture()
                         }
-                        None if *modo == Modo::Mover => Action::publish(Msg::MemPan(dx, dy)).and_capture(),
+                        None if *mode == DragMode::Pan => Action::publish(Msg::MemPan(dx, dy)).and_capture(),
                         None => Action::publish(Msg::MemOrbit(dx, dy)).and_capture(),
                     });
                 }
@@ -283,7 +283,7 @@ impl canvas::Program<Msg> for Mem<'_> {
             }
             Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left | mouse::Button::Right)) => {
                 let d = st.drag.take()?;
-                if !d.2 && d.3 == Modo::Orbitar {
+                if !d.2 && d.3 == DragMode::Orbit {
                     let p = cursor.position_in(b).unwrap_or(d.1);
                     return Some(Action::publish(Msg::MemSelect(self.g.hit(p.x, p.y, w, h))).and_capture());
                 }
@@ -333,7 +333,7 @@ impl canvas::Program<Msg> for Mem<'_> {
                 });
             }
             draw_sky(f, w, h, Sky { alpha: 0.45, constellation: false, intro: 1.0, belt: 0.0 });
-            estrelas_paralaxe(f, g, w, h);
+            parallax_stars(f, g, w, h);
 
             let focus = g.sel.or(g.hov);
             let nb: Vec<usize> = focus.map(|i| g.adj[i].clone()).unwrap_or_default();
@@ -353,12 +353,12 @@ impl canvas::Program<Msg> for Mem<'_> {
             let far = |z: f32| ((z - zmin) / zspan).clamp(0.0, 1.0);
             let kk = g.cam.0.sqrt().clamp(0.72, 2.2);
 
-            nebulosas(f, g, &scr, focus.is_some(), kk);
-            nucleo(f, g, w, h, kk, focus.is_some());
+            nebulae(f, g, &scr, focus.is_some(), kk);
+            core_glow(f, g, w, h, kk, focus.is_some());
 
             // Arestas: três faixas de profundidade (perto mais nítidas, longe quase apagadas), como linhas de constelação.
             let edge_a = if focus.is_some() || !q.is_empty() || rd { 0.026 } else { 0.07 };
-            let mut faixas = [Path::new(|_| {}), Path::new(|_| {}), Path::new(|_| {})];
+            let mut bands = [Path::new(|_| {}), Path::new(|_| {}), Path::new(|_| {})];
             {
                 let mut bs: [Vec<(Point, Point)>; 3] = [vec![], vec![], vec![]];
                 for &(a, bb) in &g.links {
@@ -372,7 +372,7 @@ impl canvas::Program<Msg> for Mem<'_> {
                     }
                 }
                 for (k, seg) in bs.iter().enumerate() {
-                    faixas[k] = Path::new(|p| {
+                    bands[k] = Path::new(|p| {
                         for (u, v) in seg {
                             p.move_to(*u);
                             p.line_to(*v);
@@ -381,7 +381,7 @@ impl canvas::Program<Msg> for Mem<'_> {
                 }
             }
             for (k, (mult, wid)) in [(1.6f32, 0.95f32), (1.0, 0.7), (0.5, 0.5)].into_iter().enumerate() {
-                f.stroke(&faixas[k], Stroke::default().with_width(wid).with_color(t::alpha(t::GRAPH_ARESTA, (edge_a * mult).min(0.5))));
+                f.stroke(&bands[k], Stroke::default().with_width(wid).with_color(t::alpha(t::GRAPH_ARESTA, (edge_a * mult).min(0.5))));
             }
 
             // Arestas incidentes ao nó focado: opacidade graduada pelo grau para evitar mancha opaca em hubs de >200 conexões
@@ -419,10 +419,10 @@ impl canvas::Program<Msg> for Mem<'_> {
             }
 
             // Estrelas, do fundo para a frente (algoritmo do pintor): halo, núcleo quente e brilho em cruz nos hubs.
-            let mut ordem: Vec<usize> = (0..g.nodes.len()).filter(|&i| scr[i].is_some()).collect();
-            ordem.sort_by(|&a, &bb| scr[bb].map(|p| p.3).partial_cmp(&scr[a].map(|p| p.3)).unwrap_or(std::cmp::Ordering::Equal));
+            let mut draw_order: Vec<usize> = (0..g.nodes.len()).filter(|&i| scr[i].is_some()).collect();
+            draw_order.sort_by(|&a, &bb| scr[bb].map(|p| p.3).partial_cmp(&scr[a].map(|p| p.3)).unwrap_or(std::cmp::Ordering::Equal));
             let mut labels: Vec<(usize, f32, f32, f32)> = vec![];
-            for i in ordem {
+            for i in draw_order {
                 let n = &g.nodes[i];
                 let Some((x, y, s, z)) = scr[i] else { continue };
                 if x < -40.0 || y < -40.0 || x > w + 40.0 || y > h + 40.0 {
@@ -430,38 +430,38 @@ impl canvas::Program<Msg> for Mem<'_> {
                 }
                 let on = lit(i);
                 let depth = far(z);
-                let col = esfriar(TYPE_COLORS[n.tipo], depth);
+                let col = cool_tint(TYPE_COLORS[n.tipo], depth);
                 let rr = g.radius(i) * kk * s;
                 let is_focus = Some(i) == focus;
-                let brilho = 1.0 - 0.52 * depth;
-                let estrela = n.tipo == 0 || n.tipo == 1 || n.hub || is_focus || (rd && n.read);
+                let brightness = 1.0 - 0.52 * depth;
+                let star = n.tipo == 0 || n.tipo == 1 || n.hub || is_focus || (rd && n.read);
 
                 if on {
-                    if estrela {
+                    if star {
                         let base = if is_focus { 1.0 } else { 0.62 };
                         for (mult, alpha) in [(4.2f32, 0.045f32), (2.7, 0.085), (1.7, 0.16)] {
-                            f.fill(&Path::circle(Point::new(x, y), rr * mult * if is_focus { 1.25 } else { 1.0 }), t::alpha(col, alpha * base * brilho * 1.4));
+                            f.fill(&Path::circle(Point::new(x, y), rr * mult * if is_focus { 1.25 } else { 1.0 }), t::alpha(col, alpha * base * brightness * 1.4));
                         }
                     } else if depth < 0.62 {
-                        f.fill(&Path::circle(Point::new(x, y), rr * 2.2), t::alpha(col, 0.07 * brilho));
+                        f.fill(&Path::circle(Point::new(x, y), rr * 2.2), t::alpha(col, 0.07 * brightness));
                     }
                 }
 
                 let node_r = rr * if is_focus { 1.28 } else { 1.0 };
-                let fill_a = if on { 0.97 * brilho.max(0.55) } else { 0.12 };
+                let fill_a = if on { 0.97 * brightness.max(0.55) } else { 0.12 };
                 f.fill(&Path::circle(Point::new(x, y), node_r), t::alpha(col, fill_a));
                 if on {
                     // Núcleo quente: o ponto claro no centro é o que faz o nó parecer uma estrela e não um disco chapado.
-                    f.fill(&Path::circle(Point::new(x, y), node_r * 0.46), t::alpha(Color::WHITE, 0.55 * brilho));
-                    if estrela && node_r > 3.0 {
+                    f.fill(&Path::circle(Point::new(x, y), node_r * 0.46), t::alpha(Color::WHITE, 0.55 * brightness));
+                    if star && node_r > 3.0 {
                         let l = node_r * if is_focus { 5.0 } else { 3.6 };
-                        let cruz = Path::new(|p| {
+                        let cross = Path::new(|p| {
                             p.move_to(Point::new(x - l, y));
                             p.line_to(Point::new(x + l, y));
                             p.move_to(Point::new(x, y - l));
                             p.line_to(Point::new(x, y + l));
                         });
-                        f.stroke(&cruz, Stroke::default().with_width(0.6).with_color(t::alpha(Color::WHITE, 0.34 * brilho)));
+                        f.stroke(&cross, Stroke::default().with_width(0.6).with_color(t::alpha(Color::WHITE, 0.34 * brightness)));
                     }
                 }
                 if Some(i) == g.sel || (rd && n.read) {
@@ -544,14 +544,14 @@ impl canvas::Program<Msg> for Mem<'_> {
 }
 
 /// Tinge de azul-frio o que está longe (perspectiva atmosférica).
-fn esfriar(c: Color, depth: f32) -> Color {
+fn cool_tint(c: Color, depth: f32) -> Color {
     let k = depth * 0.38;
-    let fria = (0.55, 0.66, 0.98);
-    Color { r: c.r + (fria.0 - c.r) * k, g: c.g + (fria.1 - c.g) * k, b: c.b + (fria.2 - c.b) * k, a: c.a }
+    let cold = (0.55, 0.66, 0.98);
+    Color { r: c.r + (cold.0 - c.r) * k, g: c.g + (cold.1 - c.g) * k, b: c.b + (cold.2 - c.b) * k, a: c.a }
 }
 
 /// Estrelas distantes que se deslocam menos que o grafo quando a câmera orbita: dão a sensação de espaço profundo.
-fn estrelas_paralaxe(f: &mut canvas::Frame, g: &Graph, w: f32, h: f32) {
+fn parallax_stars(f: &mut canvas::Frame, g: &Graph, w: f32, h: f32) {
     const N: u32 = 150;
     for i in 0..N {
         let mut v = i.wrapping_mul(0x9E37_79B1).wrapping_add(0x7F4A_7C15);
@@ -559,17 +559,17 @@ fn estrelas_paralaxe(f: &mut canvas::Frame, g: &Graph, w: f32, h: f32) {
         v ^= v >> 17;
         v ^= v << 5;
         let (a, b, c) = ((v & 0x3ff) as f32 / 1023.0, ((v >> 10) & 0x3ff) as f32 / 1023.0, ((v >> 20) & 0x3ff) as f32 / 1023.0);
-        let camada = 0.12 + 0.55 * a;
-        let x = (b * w + g.rot * camada * 260.0 + g.cam.1 * camada * 0.4).rem_euclid(w.max(1.0));
-        let y = (c * h + g.pitch * camada * 200.0 + g.cam.2 * camada * 0.4).rem_euclid(h.max(1.0));
-        let r = 0.45 + camada * 1.4;
-        let tom = if i % 5 == 0 { Color::from_rgb(0.72, 0.8, 1.0) } else if i % 7 == 0 { Color::from_rgb(1.0, 0.9, 0.78) } else { Color::WHITE };
-        f.fill(&Path::circle(Point::new(x, y), r), t::alpha(tom, 0.18 + 0.5 * camada));
+        let layer = 0.12 + 0.55 * a;
+        let x = (b * w + g.rot * layer * 260.0 + g.cam.1 * layer * 0.4).rem_euclid(w.max(1.0));
+        let y = (c * h + g.pitch * layer * 200.0 + g.cam.2 * layer * 0.4).rem_euclid(h.max(1.0));
+        let r = 0.45 + layer * 1.4;
+        let tint = if i % 5 == 0 { Color::from_rgb(0.72, 0.8, 1.0) } else if i % 7 == 0 { Color::from_rgb(1.0, 0.9, 0.78) } else { Color::WHITE };
+        f.fill(&Path::circle(Point::new(x, y), r), t::alpha(tint, 0.18 + 0.5 * layer));
     }
 }
 
 /// Névoas suaves atrás de cada tipo de nota, no centro de massa projetado: os aglomerados parecem nebulosas.
-fn nebulosas(f: &mut canvas::Frame, g: &Graph, scr: &[Option<(f32, f32, f32, f32)>], focado: bool, kk: f32) {
+fn nebulae(f: &mut canvas::Frame, g: &Graph, scr: &[Option<(f32, f32, f32, f32)>], focused: bool, kk: f32) {
     let mut acc = [(0.0f32, 0.0f32, 0.0f32, 0usize); 7];
     for (i, p) in scr.iter().enumerate() {
         let Some((x, y, _, _)) = p else { continue };
@@ -580,26 +580,26 @@ fn nebulosas(f: &mut canvas::Frame, g: &Graph, scr: &[Option<(f32, f32, f32, f32
         a.2 += wgt;
         a.3 += 1;
     }
-    let fade = if focado { 0.45 } else { 1.0 };
-    for (tipo, (sx, sy, sw, n)) in acc.into_iter().enumerate() {
+    let fade = if focused { 0.45 } else { 1.0 };
+    for (kind, (sx, sy, sw, n)) in acc.into_iter().enumerate() {
         if n < 3 || sw <= 0.0 {
             continue;
         }
         let (cx, cy) = (sx / sw, sy / sw);
-        let raio = (70.0 + (n as f32).sqrt() * 5.0).min(190.0) * kk;
+        let glow_r = (70.0 + (n as f32).sqrt() * 5.0).min(190.0) * kk;
         for k in 0..6 {
             let u = 1.0 - k as f32 / 6.0;
-            f.fill(&Path::circle(Point::new(cx, cy), raio * u), t::alpha(TYPE_COLORS[tipo], 0.014 * fade));
+            f.fill(&Path::circle(Point::new(cx, cy), glow_r * u), t::alpha(TYPE_COLORS[kind], 0.014 * fade));
         }
     }
 }
 
 /// O "sol" no centro do grafo: o que as notas orbitam. Brilho quente no miolo e halo frio por fora.
-fn nucleo(f: &mut canvas::Frame, g: &Graph, w: f32, h: f32, kk: f32, focado: bool) {
+fn core_glow(f: &mut canvas::Frame, g: &Graph, w: f32, h: f32, kk: f32, focused: bool) {
     let (x, y, z) = g.view_space(0.0, 0.0, 0.0);
     let s = Graph::persp(z);
     let c = Point::new(w / 2.0 + (x * s + g.cam.1) * g.cam.0, h / 2.0 + (y * s + g.cam.2) * g.cam.0);
-    let fade = if focado { 0.5 } else { 1.0 };
+    let fade = if focused { 0.5 } else { 1.0 };
     let base = 17.0 * kk * s;
     for (mult, alpha, col) in [
         (7.0f32, 0.020f32, Color::from_rgb(0.55, 0.66, 1.0)),
@@ -614,25 +614,25 @@ fn nucleo(f: &mut canvas::Frame, g: &Graph, w: f32, h: f32, kk: f32, focado: boo
 }
 
 /// Painel de forças (como o do Obsidian): cada controle reacomoda o grafo ao vivo.
-fn forcas(g: &Graph) -> El<'_> {
-    fn linha(nome: &'static str, dica: &'static str, k: u8, v: f32) -> El<'static> {
+fn forces_panel(g: &Graph) -> El<'_> {
+    fn slider_row(name: &'static str, hint: &'static str, k: u8, v: f32) -> El<'static> {
         let sl = slider(0.0..=1.0, v, move |x| Msg::MemForce(k, x)).step(0.01f32).style(|_, _| slider::Style {
             rail: slider::Rail { backgrounds: (Background::Color(t::ACCENT), Background::Color(t::LINE3)), width: 4.0, border: Border { radius: 2.0.into(), ..Default::default() } },
             handle: slider::Handle { shape: slider::HandleShape::Circle { radius: 7.0 }, background: Background::Color(t::ACCENT), border_width: 0.0, border_color: Color::TRANSPARENT },
         });
-        column![tx(crate::i18n::text(nome), 12.0, t::FG), tx(crate::i18n::text(dica), 11.0, t::FG3), sl].spacing(3).into()
+        column![tx(crate::i18n::text(name), 12.0, t::FG), tx(crate::i18n::text(hint), 11.0, t::FG3), sl].spacing(3).into()
     }
     let f = g.forces;
-    let corpo = column![
+    let body = column![
         row![tx(crate::i18n::text("Forças"), 13.0, t::FG), grow(), btn(crate::i18n::text("Restaurar"), Kind::Normal, true, None, Some(Msg::MemForcesReset))].align_y(Vertical::Center),
-        linha("Força central", "Puxa as notas para o centro", 0, f.center),
-        linha("Força de repulsão", "Afasta as notas umas das outras", 1, f.repel),
-        linha("Força dos links", "Puxa as notas ligadas", 2, f.link),
-        linha("Distância dos links", "Tamanho ideal de cada link", 3, f.dist),
+        slider_row("Força central", "Puxa as notas para o centro", 0, f.center),
+        slider_row("Força de repulsão", "Afasta as notas umas das outras", 1, f.repel),
+        slider_row("Força dos links", "Puxa as notas ligadas", 2, f.link),
+        slider_row("Distância dos links", "Tamanho ideal de cada link", 3, f.dist),
         tx(crate::i18n::text("Arraste uma nota: as vizinhas vão junto."), 11.0, t::FG3),
     ]
     .spacing(10);
-    container(container(corpo).width(Length::Fixed(250.0)).padding(12).style(|_| container::Style { background: Some(t::mix(t::RAISE, 0.94).into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_CARD.into() }, shadow: shadow(), ..Default::default() })).into()
+    container(container(body).width(Length::Fixed(250.0)).padding(12).style(|_| container::Style { background: Some(t::mix(t::RAISE, 0.94).into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_CARD.into() }, shadow: shadow(), ..Default::default() })).into()
 }
 
 fn fchip<'a>(label: &str, dot: Option<Color>, ic: Option<&str>, on: bool, msg: Msg) -> El<'a> {
@@ -721,7 +721,7 @@ pub fn view(app: &App) -> El<'_> {
     let zoom = container(column![tip(ib("gear", Some(Msg::MemForces), g.forces_open), crate::i18n::text("Forças do grafo")), tip(ib("plus", Some(Msg::MemZoom(1.25)), false), crate::i18n::text("Aproximar")), tip(ib("minus", Some(Msg::MemZoom(0.8)), false), crate::i18n::text("Afastar")), tip(ib_sz("fit", 30.0, 14.0, Some(Msg::MemFit), false), crate::i18n::text("Enquadrar"))].spacing(2)).padding(3).style(|_| container::Style { background: Some(t::mix(t::RAISE, 0.88).into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_CARD.into() }, ..Default::default() });
     layers.push(container(zoom).width(Length::Fill).height(Length::Fill).align_x(iced::alignment::Horizontal::Right).align_y(Vertical::Bottom).padding(pad(0.0, zoom_right, 12.0, 0.0)).into());
     if g.forces_open {
-        layers.push(container(forcas(g)).width(Length::Fill).height(Length::Fill).padding(pad(12.0, 0.0, 0.0, 12.0)).into());
+        layers.push(container(forces_panel(g)).width(Length::Fill).height(Length::Fill).padding(pad(12.0, 0.0, 0.0, 12.0)).into());
     }
     if let Some(i) = g.hov.filter(|i| g.sel != Some(*i)) {
         let n = &g.nodes[i];

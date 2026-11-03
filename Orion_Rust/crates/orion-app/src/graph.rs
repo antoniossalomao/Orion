@@ -38,7 +38,7 @@ pub fn sphere_radius(f: &Forces) -> f32 {
 /// Quão forte a nota é puxada para o raio do preenchimento uniforme (por passo, vezes a temperatura).
 const SHELL_K: f32 = 1.0;
 /// Distância mínima entre duas notas (colisão): evita notas coladas e deixa o espaçamento regular.
-const COLISAO: f32 = 21.0;
+const COLLISION_DIST: f32 = 21.0;
 
 /// Abaixo disso a simulação para (e o grafo deixa de redesenhar).
 pub const ALPHA_MIN: f32 = 0.002;
@@ -347,14 +347,14 @@ impl Graph {
         (n.r + (n.deg.max(1) as f32).ln() * 0.72).clamp(2.2, 8.6)
     }
     /// Gira o ponto em torno do eixo vertical pela fase da órbita: perto do centro gira mais rápido, longe mais devagar
-    /// (como planetas). `sinal` = -1 desfaz a órbita (usado ao arrastar um nó).
-    pub fn orbited(&self, x: f32, y: f32, z: f32, sinal: f32) -> (f32, f32, f32) {
+    /// (como planetas). `sign` = -1 desfaz a órbita (usado ao arrastar um nó).
+    pub fn orbited(&self, x: f32, y: f32, z: f32, sign: f32) -> (f32, f32, f32) {
         if self.orbit == 0.0 {
             return (x, y, z);
         }
         let r = (x * x + z * z).sqrt();
-        let fase = sinal * self.orbit / (0.5 + r / 100.0);
-        let (c, s) = (fase.cos(), fase.sin());
+        let phase = sign * self.orbit / (0.5 + r / 100.0);
+        let (c, s) = (phase.cos(), phase.sin());
         (x * c - z * s, y, x * s + z * c)
     }
     /// Ponto do mundo no espaço da câmera: giro em torno do eixo vertical e depois inclinação.
@@ -866,8 +866,8 @@ fn sim_step(nodes: &mut [Node], vel: &mut [[f32; 3]], links: &[(usize, usize)], 
         let pi = [nodes[i].x, nodes[i].y, nodes[i].z];
         let mut acc = [0.0f32; 3];
         for (ck, com, m, idx) in &cells {
-            let perto = (ck.0 - ci.0).abs() <= 1 && (ck.1 - ci.1).abs() <= 1 && (ck.2 - ci.2).abs() <= 1;
-            if perto {
+            let near = (ck.0 - ci.0).abs() <= 1 && (ck.1 - ci.1).abs() <= 1 && (ck.2 - ci.2).abs() <= 1;
+            if near {
                 for &j in idx {
                     if j == i {
                         continue;
@@ -876,10 +876,10 @@ fn sim_step(nodes: &mut [Node], vel: &mut [[f32; 3]], links: &[(usize, usize)], 
                     let dist2 = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
                     let d2 = dist2.max(100.0);
                     let mut w = charge * alpha / d2;
-                    if dist2 < COLISAO * COLISAO {
+                    if dist2 < COLLISION_DIST * COLLISION_DIST {
                         // Colisão: dentro da distância mínima as notas se afastam com força proporcional à sobreposição.
                         let dd = dist2.sqrt().max(0.05);
-                        w += (COLISAO - dd) / dd * 0.9 * alpha;
+                        w += (COLLISION_DIST - dd) / dd * 0.9 * alpha;
                     }
                     for c in 0..3 {
                         acc[c] += d[c] * w;
@@ -899,11 +899,11 @@ fn sim_step(nodes: &mut [Node], vel: &mut [[f32; 3]], links: &[(usize, usize)], 
 
     // Preenchimento uniforme: cada nota é puxada para o raio que teria numa esfera cheia (posição na fila de distância ao
     // centro → r = R·(posição/n)^(1/3)). A repulsão cuida do espaçamento; isso só decide quanto cabe em cada profundidade.
-    let mut fila: Vec<(f32, usize)> = (0..n).map(|i| ((nodes[i].x.powi(2) + nodes[i].y.powi(2) + nodes[i].z.powi(2)).sqrt(), i)).collect();
-    fila.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
-    let mut alvo = vec![0.0f32; n];
-    for (pos, &(_, i)) in fila.iter().enumerate() {
-        alvo[i] = rb * ((pos as f32 + 0.5) / n as f32).cbrt();
+    let mut queue: Vec<(f32, usize)> = (0..n).map(|i| ((nodes[i].x.powi(2) + nodes[i].y.powi(2) + nodes[i].z.powi(2)).sqrt(), i)).collect();
+    queue.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
+    let mut target = vec![0.0f32; n];
+    for (pos, &(_, i)) in queue.iter().enumerate() {
+        target[i] = rb * ((pos as f32 + 0.5) / n as f32).cbrt();
     }
     // Força central (cresce com a distância, para ilhas soltas não escaparem) e integração com amortecimento.
     for i in 0..n {
@@ -915,9 +915,9 @@ fn sim_step(nodes: &mut [Node], vel: &mut [[f32; 3]], links: &[(usize, usize)], 
             continue;
         }
         let dir = if r > 1e-3 { [p[0] / r, p[1] / r, p[2] / r] } else { [0.0; 3] };
-        let mola = (alvo[i] - r) * SHELL_K * alpha;
+        let spring = (target[i] - r) * SHELL_K * alpha;
         for c in 0..3 {
-            vel[i][c] += push[i][c] - p[c] * g + dir[c] * mola;
+            vel[i][c] += push[i][c] - p[c] * g + dir[c] * spring;
             vel[i][c] *= 0.6;
         }
         let sp = (vel[i][0] * vel[i][0] + vel[i][1] * vel[i][1] + vel[i][2] * vel[i][2]).sqrt();
@@ -948,7 +948,7 @@ pub const SPHERE_R: f32 = 380.0;
 /// a variância nos três eixos; (2) azimute e altura de cada nó são redistribuídos de modo uniforme (quem estava mais à esquerda
 /// continua mais à esquerda, então vizinhos seguem do mesmo lado); (3) o raio vem da posição na fila de distância ao centro,
 /// com expoente 1/3 para uma esfera cheia de densidade uniforme. Hubs ficam perto do núcleo e notas soltas na superfície.
-fn sphericalize(nodes: &mut [Node], raio: f32, expoente: f64) {
+fn sphericalize(nodes: &mut [Node], sphere_r: f32, exponent: f64) {
     let n = nodes.len();
     if n < 8 {
         return;
@@ -1028,15 +1028,15 @@ fn sphericalize(nodes: &mut [Node], raio: f32, expoente: f64) {
     // O raio vem da distância já isotrópica e fica fixo; só as direções são refinadas.
     let radius: Vec<f64> = q.iter().map(|v| (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt()).collect();
     let r_rad = ranks(&radius);
-    let alvo = |i: usize| raio as f64 * ((r_rad[i] as f64 + 0.5) * inv).powf(expoente);
+    let target = |i: usize| sphere_r as f64 * ((r_rad[i] as f64 + 0.5) * inv).powf(exponent);
     // Três passes: redistribui azimute e altura de modo uniforme e branqueia de novo, até a nuvem ficar redonda
     // (um passe sozinho deixa uma correlação residual entre eixos que lê como "ovo").
     let mut dirs: Vec<[f64; 3]> = vec![[0.0; 3]; n];
     for passe in 0..3 {
         let r: Vec<f64> = q.iter().map(|v| (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt()).collect();
-        let azimute: Vec<f64> = q.iter().map(|v| v[2].atan2(v[0])).collect();
-        let altura: Vec<f64> = q.iter().zip(&r).map(|(v, r)| if *r > 1e-9 { v[1] / r } else { 0.0 }).collect();
-        let (r_az, r_alt) = (ranks(&azimute), ranks(&altura));
+        let azimuth: Vec<f64> = q.iter().map(|v| v[2].atan2(v[0])).collect();
+        let elevation: Vec<f64> = q.iter().zip(&r).map(|(v, r)| if *r > 1e-9 { v[1] / r } else { 0.0 }).collect();
+        let (r_az, r_alt) = (ranks(&azimuth), ranks(&elevation));
         for i in 0..n {
             let u = |rank: usize| (rank as f64 + 0.5) * inv;
             let phi = -std::f64::consts::PI + std::f64::consts::TAU * u(r_az[i]);
@@ -1046,15 +1046,15 @@ fn sphericalize(nodes: &mut [Node], raio: f32, expoente: f64) {
         }
         if passe < 2 {
             for i in 0..n {
-                q[i] = [dirs[i][0] * alvo(i), dirs[i][1] * alvo(i), dirs[i][2] * alvo(i)];
+                q[i] = [dirs[i][0] * target(i), dirs[i][1] * target(i), dirs[i][2] * target(i)];
             }
             whiten(&mut q);
         }
     }
     for i in 0..n {
-        nodes[i].x = (dirs[i][0] * alvo(i)) as f32;
-        nodes[i].y = (dirs[i][1] * alvo(i)) as f32;
-        nodes[i].z = (dirs[i][2] * alvo(i)) as f32;
+        nodes[i].x = (dirs[i][0] * target(i)) as f32;
+        nodes[i].y = (dirs[i][1] * target(i)) as f32;
+        nodes[i].z = (dirs[i][2] * target(i)) as f32;
     }
 }
 

@@ -88,7 +88,7 @@ impl Painel {
         let linhas = self.memory.external_calls(desde, None, 50_000).unwrap_or_default();
         let mut por_dia: BTreeMap<String, (i64, i64)> = BTreeMap::new();
         let mut por_provedor: BTreeMap<String, i64> = BTreeMap::new();
-        let mut estimados = 0usize;
+        let mut estimated = 0usize;
         for r in &linhas {
             // Só inferência de modelo conta como token; páginas baixadas, áudio gerado e MCP são tráfego, não modelo.
             if !matches!(r["kind"].as_str(), Some("chat" | "embed" | "vision" | "cli")) {
@@ -100,7 +100,7 @@ impl Painel {
             let tokens = if ti >= 0 && to >= 0 {
                 ti + to
             } else {
-                estimados += 1;
+                estimated += 1;
                 (r["bytes_out"].as_i64().unwrap_or(0) + r["bytes_in"].as_i64().unwrap_or(0)) / 4
             };
             let e = por_dia.entry(dia).or_default();
@@ -116,7 +116,7 @@ impl Painel {
                 json!({"dia": d, "chamadas": chamadas, "tokens": tokens})
             })
             .collect();
-        json!({"tokens_estimados": estimados > 0, "dias": dias, "por_provedor": por_provedor})
+        json!({"tokens_estimados": estimated > 0, "dias": dias, "por_provedor": por_provedor})
     }
 
     fn semana(&self, agora: f64) -> Vec<Value> {
