@@ -396,7 +396,7 @@ Para cada uma das pendências mapeadas para o lançamento da v1, este guia defin
 ### Passo 5: Geração de Chaves Minisign e Publicação do Release Assinado (F10.11)
 - **Objetivo:** Estabelecer a infraestrutura de assinatura digital criptográfica para o atualizador automático do Orion.
 - **Arquivos Afetados:**
-  - `.github/workflows/release.yml`
+  - `.github/workflows/release.yml` *(removido em 03/11/2026; precisa ser recriado para publicar o release assinado)*
   - `crates/orion-setup/release/minisign.pub`
   - `crates/orion-updater/src/lib.rs`
 - **Passo a Passo de Implementação:**

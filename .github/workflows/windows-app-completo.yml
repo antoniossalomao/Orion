@@ -1,0 +1,117 @@
+name: Windows App completo (instalador, banco cifrado, llama e Vulkan)
+# Pacote completo para Windows: Orion Setup.exe + pastas `cpu` e `vulkan` (offline), cada uma com orion.exe e
+# orion-llama.exe, banco cifrado (SQLCipher) e Vulkan para a IA local na variante `vulkan`.
+# Sem testes e sem pesos de modelo (o instalador baixa os modelos). Só manual (workflow_dispatch), como manda o ADR 0007.
+# Compila duas variantes em paralelo e junta no artefato `Orion-Windows-Completo`.
+on:
+  workflow_dispatch:
+    inputs:
+      perfil:
+        description: "release é o pacote de uso; debug compila mais depressa"
+        type: choice
+        options: [release, debug]
+        default: release
+concurrency:
+  group: windows-app-completo-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+env:
+  PERFIL: ${{ inputs.perfil || 'release' }}
+jobs:
+  build:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        variante: [cpu, vulkan]
+    defaults:
+      run:
+        working-directory: Orion_Rust
+    env:
+      LIBCLANG_PATH: C:\Program Files\LLVM\bin
+      # Alvo curto: evita caminhos longos no MSBuild.
+      CARGO_TARGET_DIR: C:\t
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: Orion_Rust -> C:/t
+          key: app-completo-${{ matrix.variante }}-${{ inputs.perfil || 'release' }}
+      - name: Instalar NASM para o OpenSSL embutido do SQLCipher
+        shell: pwsh
+        run: |
+          if (!(Get-Command nasm -ErrorAction SilentlyContinue)) {
+            choco install nasm -y --no-progress
+            "C:\Program Files\NASM" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+          }
+      - name: Instalar SDK Vulkan
+        if: matrix.variante == 'vulkan'
+        shell: pwsh
+        run: |
+          for ($i = 1; $i -le 4; $i++) {
+            choco install vulkan-sdk --version=1.4.341 -y --no-progress
+            if (Test-Path 'C:\VulkanSDK') { break }
+            if ($i -lt 4) { Start-Sleep -Seconds (30 * $i) }
+          }
+          $sdk = (Get-ChildItem 'C:\VulkanSDK' -Directory | Sort-Object Name -Descending | Select-Object -First 1).FullName
+          "VULKAN_SDK=$sdk" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "$sdk\Bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+          if (!(Get-Command ninja -ErrorAction SilentlyContinue)) { choco install ninja -y --no-progress }
+      - name: Compilar app, orion-llama e instalador
+        env:
+          CMAKE_GENERATOR: ${{ matrix.variante == 'vulkan' && 'Ninja' || '' }}
+        shell: pwsh
+        run: |
+          $f = if ('${{ matrix.variante }}' -eq 'vulkan') { 'orion-server/local-vulkan,orion-server/sqlcipher,orion-llama/vulkan' } else { 'orion-server/sqlcipher' }
+          $a = @('build', '--locked', '-p', 'orion-server', '-p', 'orion-llama', '-p', 'orion-setup', '--features', $f)
+          if ($env:PERFIL -eq 'release') { $a += '--release' }
+          cargo @a
+          if ($LASTEXITCODE -ne 0) { throw "cargo build falhou ($LASTEXITCODE)" }
+      - name: Separar os arquivos da variante
+        shell: pwsh
+        run: |
+          $bin = "C:\t\$env:PERFIL"
+          New-Item -ItemType Directory -Force saida | Out-Null
+          foreach ($n in 'orion.exe', 'orion-llama.exe') {
+            if (!(Test-Path "$bin\$n")) { throw "faltou $n" }
+            Copy-Item "$bin\$n" saida\
+          }
+          if ('${{ matrix.variante }}' -eq 'cpu') { Copy-Item "$bin\orion-setup.exe" 'saida\Orion Setup.exe' }
+      - uses: actions/upload-artifact@v7
+        with:
+          name: variante-${{ matrix.variante }}
+          path: Orion_Rust/saida
+          if-no-files-found: error
+  pacote:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: partes
+      - name: Montar o pacote completo
+        run: |
+          set -euo pipefail
+          mkdir -p pacote/cpu pacote/vulkan
+          cp "partes/variante-cpu/Orion Setup.exe" pacote/
+          cp partes/variante-cpu/orion.exe partes/variante-cpu/orion-llama.exe pacote/cpu/
+          cp partes/variante-vulkan/orion.exe partes/variante-vulkan/orion-llama.exe pacote/vulkan/
+          cat > pacote/LEIA-ME.txt <<TXT
+          Orion para Windows: pacote completo (perfil: ${PERFIL})
+          Inclui: Orion Setup.exe, pasta cpu e pasta vulkan (orion.exe e orion-llama.exe em cada uma), banco cifrado (SQLCipher)
+          e Vulkan para modelos locais na variante vulkan. Nenhum peso de modelo vem aqui: o instalador baixa os modelos que você escolher.
+          Para instalar, extraia TODO o pacote, mantenha as pastas cpu e vulkan ao lado do instalador e execute Orion Setup.exe.
+          O Windows pode avisar "app não reconhecido" (SmartScreen) porque os executáveis não são assinados:
+          clique em Mais informações e depois em Executar assim mesmo.
+          Logs: %APPDATA%\orion\logs (Configurações > Sistema > Mostrar avançado > Abrir pasta de logs).
+          TXT
+          sed -i 's/^          //' pacote/LEIA-ME.txt
+          (cd pacote && find . -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum | sed 's# \./# #' > SHA256SUMS.txt)
+          test -f "pacote/Orion Setup.exe" && test -f pacote/cpu/orion.exe && test -f pacote/vulkan/orion-llama.exe
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Orion-Windows-Completo
+          path: pacote
+          if-no-files-found: error
