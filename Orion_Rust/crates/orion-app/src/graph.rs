@@ -695,39 +695,112 @@ fn layout_forca(nodes: &mut [Node], links: &[(usize, usize)]) {
 /// Raio da esfera do grafo, em unidades do mundo.
 pub const SPHERE_R: f32 = 260.0;
 
-/// Redistribui os nós numa bola: cada um mantém a direção que o layout deu (vizinhos continuam do mesmo lado),
-/// e o raio vem da posição na fila de distância ao centro, com expoente < 1 para um miolo denso e borda nítida.
-/// Resultado: forma redonda como no Obsidian, hubs perto do núcleo e notas soltas na superfície.
+/// Redistribui os nós numa esfera de verdade (não num ovo): (1) o miolo é centrado e a nuvem é "branqueada" em 3D, igualando
+/// a variância nos três eixos; (2) azimute e altura de cada nó são redistribuídos de modo uniforme (quem estava mais à esquerda
+/// continua mais à esquerda, então vizinhos seguem do mesmo lado); (3) o raio vem da posição na fila de distância ao centro,
+/// com expoente < 1 para um miolo denso e borda nítida. Hubs ficam perto do núcleo e notas soltas na superfície.
 fn sphericalize(nodes: &mut [Node]) {
     let n = nodes.len();
     if n < 8 {
         return;
     }
-    let inv = 1.0 / n as f32;
-    let (cx, cy, cz) = nodes.iter().fold((0.0, 0.0, 0.0), |a, nd| (a.0 + nd.x, a.1 + nd.y, a.2 + nd.z));
-    let (cx, cy, cz) = (cx * inv, cy * inv, cz * inv);
-    let mut radii: Vec<(f32, usize)> = nodes
-        .iter()
-        .enumerate()
-        .map(|(i, nd)| (((nd.x - cx).powi(2) + (nd.y - cy).powi(2) + (nd.z - cz).powi(2)).sqrt(), i))
-        .collect();
-    radii.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
-    let golden = 2.399_963_1_f32;
-    for (rank, &(r, i)) in radii.iter().enumerate() {
-        let (ux, uy, uz) = if r > 1e-3 {
-            ((nodes[i].x - cx) / r, (nodes[i].y - cy) / r, (nodes[i].z - cz) / r)
-        } else {
-            // Nó exatamente no centro: direção determinística (espiral de Fibonacci).
-            let t = (i as f32 + 0.5) * inv;
-            let (y, a) = (1.0 - 2.0 * t, i as f32 * golden);
-            let rr = (1.0 - y * y).max(0.0).sqrt();
-            (rr * a.cos(), y, rr * a.sin())
-        };
-        let nr = SPHERE_R * ((rank as f32 + 0.5) * inv).powf(0.40);
-        nodes[i].x = ux * nr;
-        nodes[i].y = uy * nr;
-        nodes[i].z = uz * nr;
+    let inv = 1.0 / n as f64;
+    let mut m = [0.0f64; 3];
+    for nd in nodes.iter() {
+        m[0] += nd.x as f64;
+        m[1] += nd.y as f64;
+        m[2] += nd.z as f64;
     }
+    for v in &mut m {
+        *v *= inv;
+    }
+    let mut cov = [[0.0f64; 3]; 3];
+    for nd in nodes.iter() {
+        let d = [nd.x as f64 - m[0], nd.y as f64 - m[1], nd.z as f64 - m[2]];
+        for i in 0..3 {
+            for j in 0..3 {
+                cov[i][j] += d[i] * d[j] * inv;
+            }
+        }
+    }
+    let (lambda, vec) = eigen_sym3(cov);
+    // W = V · diag(1/√λ) · Vᵀ: leva a nuvem a covariância identidade (isotrópica).
+    let mut w = [[0.0f64; 3]; 3];
+    for i in 0..3 {
+        for j in 0..3 {
+            for k in 0..3 {
+                w[i][j] += vec[i][k] * vec[j][k] / lambda[k].max(1e-6).sqrt();
+            }
+        }
+    }
+    let q: Vec<[f64; 3]> = nodes
+        .iter()
+        .map(|nd| {
+            let d = [nd.x as f64 - m[0], nd.y as f64 - m[1], nd.z as f64 - m[2]];
+            [0, 1, 2].map(|i| w[i][0] * d[0] + w[i][1] * d[1] + w[i][2] * d[2])
+        })
+        .collect();
+    let radius: Vec<f64> = q.iter().map(|v| (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt()).collect();
+    let azimute: Vec<f64> = q.iter().map(|v| v[2].atan2(v[0])).collect();
+    let altura: Vec<f64> = q.iter().zip(&radius).map(|(v, r)| if *r > 1e-9 { v[1] / r } else { 0.0 }).collect();
+    // Posição de cada nó na fila (0..n) por uma chave; desempate pelo índice para ser determinístico.
+    let ranks = |key: &[f64]| -> Vec<usize> {
+        let mut idx: Vec<usize> = (0..n).collect();
+        idx.sort_by(|&a, &b| key[a].total_cmp(&key[b]).then(a.cmp(&b)));
+        let mut r = vec![0usize; n];
+        for (pos, &i) in idx.iter().enumerate() {
+            r[i] = pos;
+        }
+        r
+    };
+    let (r_rad, r_az, r_alt) = (ranks(&radius), ranks(&azimute), ranks(&altura));
+    for i in 0..n {
+        let u = |rank: usize| (rank as f64 + 0.5) * inv;
+        let phi = -std::f64::consts::PI + std::f64::consts::TAU * u(r_az[i]);
+        let c = -1.0 + 2.0 * u(r_alt[i]);
+        let sn = (1.0 - c * c).max(0.0).sqrt();
+        let nr = SPHERE_R as f64 * u(r_rad[i]).powf(0.40);
+        nodes[i].x = (nr * sn * phi.cos()) as f32;
+        nodes[i].y = (nr * c) as f32;
+        nodes[i].z = (nr * sn * phi.sin()) as f32;
+    }
+}
+
+/// Autovalores e autovetores (colunas) de uma matriz 3×3 simétrica, por rotações de Jacobi.
+fn eigen_sym3(mut a: [[f64; 3]; 3]) -> ([f64; 3], [[f64; 3]; 3]) {
+    let mut v = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
+    for _ in 0..40 {
+        // maior elemento fora da diagonal
+        let (mut p, mut q, mut big) = (0, 1, a[0][1].abs());
+        for (i, j) in [(0, 2), (1, 2)] {
+            if a[i][j].abs() > big {
+                (p, q, big) = (i, j, a[i][j].abs());
+            }
+        }
+        if big < 1e-12 {
+            break;
+        }
+        let theta = (a[q][q] - a[p][p]) / (2.0 * a[p][q]);
+        let t = theta.signum() / (theta.abs() + (theta * theta + 1.0).sqrt());
+        let (c, s) = (1.0 / (t * t + 1.0).sqrt(), t / (t * t + 1.0).sqrt());
+        // a ← Jᵀ a J, v ← v J, com J a rotação no plano (p, q)
+        for k in 0..3 {
+            let (akp, akq) = (a[k][p], a[k][q]);
+            a[k][p] = c * akp - s * akq;
+            a[k][q] = s * akp + c * akq;
+        }
+        for k in 0..3 {
+            let (apk, aqk) = (a[p][k], a[q][k]);
+            a[p][k] = c * apk - s * aqk;
+            a[q][k] = s * apk + c * aqk;
+        }
+        for k in 0..3 {
+            let (vkp, vkq) = (v[k][p], v[k][q]);
+            v[k][p] = c * vkp - s * vkq;
+            v[k][q] = s * vkp + c * vkq;
+        }
+    }
+    ([a[0][0], a[1][1], a[2][2]], v)
 }
 
 /// Dá a cada nó uma profundidade determinística: espalha em torno do plano com espessura que cresce
