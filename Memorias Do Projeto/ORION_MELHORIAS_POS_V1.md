@@ -97,7 +97,7 @@ M1 (v1 Base) ──► M2 (Trabalho & Código: F11-F13)
 ---
 
 ### F16: Grafo 3D da Memória em wgpu (Marco M5)
-- [~] **F16.01** Grafo 2D orgânico multiescala em canvas implementado e estabilizado em `orion-app/src/graph.rs`.
+- [~] **F16.01** Grafo 2D orgânico multiescala em canvas implementado e estabilizado em `orion-app/src/graph.rs`. *Desde 03/11/2026 o grafo é 3D em CPU (canvas): profundidade por nó, câmera orbital (arrastar), pan (botão direito ou Shift), zoom na roda, perspectiva, estrelas com brilho e névoas por tipo; deriva lenta que respeita "reduzir movimento". O wgpu (F16.02) segue pendente. Visto só em captura headless Linux; falta ver na janela do Windows e medir o desempenho.*
 - [ ] **F16.02** Pipeline de renderização 3D nativa sobre `wgpu` com suporte a câmera orbital, rotação, zoom suave e iluminação espacial.
 - [ ] **F16.03** Simulação de física de nós em GPU via Compute Shader implementando o algoritmo de árvore Barnes-Hut.
 - [ ] **F16.04** Capacidade de renderização com desempenho estável a 60 fps em grafos massivos contendo de 1.000 a 10.000 nós e arestas.
