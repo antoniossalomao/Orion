@@ -389,10 +389,11 @@ impl ChatGateway {
                 let inicio = Instant::now();
                 let mut bytes_out = 0usize;
                 let mut bytes_in = 0usize;
+                let mut tokens: Option<(u64, u64)> = None;
                 let mut comecou = false;
                 let mut falha: Option<Falha> = None;
                 {
-                    let mut s = self.run(&ep, &messages, tools.as_deref(), &mut bytes_out, &mut bytes_in);
+                    let mut s = self.run(&ep, &messages, tools.as_deref(), &mut bytes_out, &mut bytes_in, &mut tokens);
                     while let Some(r) = s.next().await {
                         match r {
                             Ok(ev) => {
@@ -407,9 +408,9 @@ impl ChatGateway {
                     }
                 }
                 let ok = falha.is_none() && comecou;
-                saidas::registrar(
+                saidas::registrar_tokens(
                     &ep.provider(), "chat", ok, inicio.elapsed().as_secs_f64() * 1000.0,
-                    &ep.model, bytes_out, bytes_in, conteudo,
+                    &ep.model, bytes_out, bytes_in, tokens, conteudo,
                 );
                 match falha {
                     None => {
@@ -490,6 +491,7 @@ impl ChatGateway {
         tools: Option<&'a [Value]>,
         bytes_out: &'a mut usize,
         bytes_in: &'a mut usize,
+        tokens: &'a mut Option<(u64, u64)>,
     ) -> Pin<Box<dyn Stream<Item = Result<Event, Falha>> + Send + 'a>> {
         Box::pin(async_stream::stream! {
             let mut msgs: Vec<Value> = vec![];
@@ -517,7 +519,7 @@ impl ChatGateway {
                 }
                 return;
             }
-            let mut corpo = json!({"model": ep.model, "messages": msgs, "stream": true});
+            let mut corpo = json!({"model": ep.model, "messages": msgs, "stream": true, "stream_options": {"include_usage": true}});
             let google = ep.provedor == "gemini" || reqwest::Url::parse(&ep.base_url).ok().and_then(|url| url.host_str().map(str::to_owned)).as_deref() == Some("generativelanguage.googleapis.com");
             // O chat rápido usa raciocínio baixo; a camada pesada mantém o padrão do modelo.
             if google && ep.tier != "pesado" && (ep.model.starts_with("gemini-3") || ep.model.starts_with("gemini-2.5")) {
@@ -614,6 +616,13 @@ impl ChatGateway {
                         continue;
                     }
                     let Ok(p) = serde_json::from_str::<Value>(dado) else { continue };
+                    // Tokens reais: o último pedaço traz `usage` (stream_options.include_usage).
+                    if let Some(u) = p.get("usage").filter(|u| u.is_object()) {
+                        let n = |k: &str| u.get(k).and_then(Value::as_u64);
+                        if let (Some(i), Some(o)) = (n("prompt_tokens"), n("completion_tokens")) {
+                            *tokens = Some((i, o));
+                        }
+                    }
                     for escolha in p.get("choices").and_then(Value::as_array).cloned().unwrap_or_default() {
                         let delta = escolha.get("delta").cloned().unwrap_or(Value::Null);
                         if let Some(t) = delta.get("content").and_then(Value::as_str).filter(|t| !t.is_empty()) {

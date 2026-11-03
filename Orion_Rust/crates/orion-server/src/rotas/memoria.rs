@@ -339,6 +339,8 @@ fn clonar_repositorio(st: &Estado, url: &str) -> ApiResult<(String, std::path::P
         model: "",
         bytes_out: 0,
         bytes_in: 0,
+        tokens_in: -1,
+        tokens_out: -1,
         content_kind: "repo",
         ts: None,
     });

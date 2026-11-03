@@ -3,10 +3,10 @@
 //! Os arquivos `sql/vNN.sql` foram gerados do Python e não devem ser editados à mão: o banco é
 //! compartilhado durante a transição.
 
-pub const SCHEMA_VERSION: u32 = 24;
+pub const SCHEMA_VERSION: u32 = 25;
 pub const TOKENIZER: &str = "unicode61 remove_diacritics 2";
 
-const V: [&str; 24] = [
+const V: [&str; 25] = [
     include_str!("../sql/v01.sql"),
     include_str!("../sql/v02.sql"),
     include_str!("../sql/v03.sql"),
@@ -31,6 +31,7 @@ const V: [&str; 24] = [
     include_str!("../sql/v22.sql"),
     include_str!("../sql/v23.sql"),
     include_str!("../sql/v24.sql"),
+    include_str!("../sql/v25.sql"),
 ];
 
 /// DDL completo de um banco novo.

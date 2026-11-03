@@ -80,7 +80,7 @@ impl Painel {
 
     /// Respostas dos últimos 7 dias por endpoint (contadas pelo agente, persistem no banco).
     /// Chamadas e tokens por dia nos últimos 30 dias (F09.04), a partir do registro de saídas. O registro
-    /// guarda bytes, não tokens: o número é uma estimativa (bytes ÷ 4) e vem marcado como tal.
+    /// guarda os tokens que o provedor informou (`usage`); sem isso o número é estimado (bytes ÷ 4) e `tokens_estimados` fica true.
     fn consumo(&self, agora: f64) -> Value {
         const DIAS: i64 = 30;
         let hoje = crate::util::local(agora);
@@ -88,13 +88,21 @@ impl Painel {
         let linhas = self.memory.external_calls(desde, None, 50_000).unwrap_or_default();
         let mut por_dia: BTreeMap<String, (i64, i64)> = BTreeMap::new();
         let mut por_provedor: BTreeMap<String, i64> = BTreeMap::new();
+        let mut estimados = 0usize;
         for r in &linhas {
             // Só inferência de modelo conta como token; páginas baixadas, áudio gerado e MCP são tráfego, não modelo.
             if !matches!(r["kind"].as_str(), Some("chat" | "embed" | "vision" | "cli")) {
                 continue;
             }
             let dia = crate::util::local(r["ts"].as_f64().unwrap_or(0.0)).format("%Y%m%d").to_string();
-            let tokens = (r["bytes_out"].as_i64().unwrap_or(0) + r["bytes_in"].as_i64().unwrap_or(0)) / 4;
+            // Token real quando o provedor informou (`usage`); senão estima (bytes ÷ 4).
+            let (ti, to) = (r["tokens_in"].as_i64().unwrap_or(-1), r["tokens_out"].as_i64().unwrap_or(-1));
+            let tokens = if ti >= 0 && to >= 0 {
+                ti + to
+            } else {
+                estimados += 1;
+                (r["bytes_out"].as_i64().unwrap_or(0) + r["bytes_in"].as_i64().unwrap_or(0)) / 4
+            };
             let e = por_dia.entry(dia).or_default();
             e.0 += 1;
             e.1 += tokens;
@@ -108,7 +116,7 @@ impl Painel {
                 json!({"dia": d, "chamadas": chamadas, "tokens": tokens})
             })
             .collect();
-        json!({"tokens_estimados": true, "dias": dias, "por_provedor": por_provedor})
+        json!({"tokens_estimados": estimados > 0, "dias": dias, "por_provedor": por_provedor})
     }
 
     fn semana(&self, agora: f64) -> Vec<Value> {
