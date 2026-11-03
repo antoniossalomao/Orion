@@ -693,8 +693,8 @@ pub enum Msg {
     /// Órbita da câmera 3D: variação do cursor em pixels (dx, dy).
     MemOrbit(f32, f32),
     MemZoomAt(f32, f32, f32),
-    /// Arrasta o nó para o ponto da tela (px, py), na profundidade em que ele está.
-    MemDrag(usize, f32, f32),
+    /// Arrasta o nó para a posição `(x, y, z)` do mundo, já calculada com o tamanho real do canvas.
+    MemDrag(usize, f32, f32, f32),
     MemCut(f32),
     MemOpenNote(usize),
     MemLocal(usize),

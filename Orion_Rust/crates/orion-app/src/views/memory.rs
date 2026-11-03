@@ -84,9 +84,10 @@ pub fn update(app: &mut App, m: Msg) {
             g.rot += dx * 0.0072;
             g.pitch = (g.pitch + dy * 0.0072).clamp(-1.45, 1.45);
         }
-        Msg::MemDrag(i, px, py) => {
+        Msg::MemDrag(i, x, y, z) => {
             app.mem.spinning = false;
-            app.mem.drag_to(i, px, py, w, h);
+            let n = &mut app.mem.nodes[i];
+            (n.x, n.y, n.z) = (x, y, z);
         }
         Msg::MemCut(v) => {
             let g = &mut app.mem;
@@ -214,7 +215,10 @@ impl canvas::Program<Msg> for Mem<'_> {
                     }
                     *last = p;
                     return Some(match node {
-                        Some(i) => Action::publish(Msg::MemDrag(*i, p.x, p.y)).and_capture(),
+                        Some(i) => {
+                            let (x, y, z) = self.g.drag_target(*i, p.x, p.y, w, h);
+                            Action::publish(Msg::MemDrag(*i, x, y, z)).and_capture()
+                        }
                         None if *modo == Modo::Mover => Action::publish(Msg::MemPan(dx, dy)).and_capture(),
                         None => Action::publish(Msg::MemOrbit(dx, dy)).and_capture(),
                     });

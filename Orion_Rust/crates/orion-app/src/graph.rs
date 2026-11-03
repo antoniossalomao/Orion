@@ -301,15 +301,12 @@ impl Graph {
     pub fn to_world(&self, px: f32, py: f32, w: f32, h: f32) -> (f32, f32) {
         self.to_plane(px, py, w, h)
     }
-    /// Move o nó `i` para onde o cursor está, mantendo a profundidade que ele tem na câmera.
-    pub fn drag_to(&mut self, i: usize, px: f32, py: f32, w: f32, h: f32) {
+    /// Onde o nó `i` ficaria no mundo se fosse para o cursor `(px, py)` do canvas de tamanho `(w, h)`,
+    /// mantendo a profundidade que ele tem na câmera. Use o tamanho real do canvas, o mesmo do desenho.
+    pub fn drag_target(&self, i: usize, px: f32, py: f32, w: f32, h: f32) -> (f32, f32, f32) {
         let (_, _, s, z) = self.proj(i);
         let (vx, vy) = self.to_plane(px, py, w, h);
-        let (x, y, zw) = self.world_space(vx / s, vy / s, z);
-        let n = &mut self.nodes[i];
-        n.x = x;
-        n.y = y;
-        n.z = zw;
+        self.world_space(vx / s, vy / s, z)
     }
     pub fn fit(&mut self, w: f32, h: f32) {
         self.cache.clear();
