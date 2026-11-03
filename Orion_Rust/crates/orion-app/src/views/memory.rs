@@ -3,7 +3,7 @@
 //! perspectiva, profundidade e brilho estelar. O 3D em wgpu (F16.02) substituirá só a camada de desenho.
 
 use crate::app::{App, Msg, View};
-use crate::graph::{Graph, TIPOS};
+use crate::graph::{Graph, SPHERE_R, TIPOS};
 use crate::icons::icon;
 use crate::sky::{draw_sky, Sky};
 use crate::theme as t;
@@ -142,11 +142,11 @@ pub fn tick(app: &mut App, now: Instant) {
     if app.view != View::Memoria {
         return;
     }
-    // Deriva lenta da câmera (a constelação "respira") até você mexer; respeita "reduzir movimento".
+    // Órbita lenta: as notas giram em torno do núcleo até você mexer; respeita "reduzir movimento".
     if app.mem.spinning && !app.p.reduced {
         let dt = app.mem.drift_at.map(|t0| now.duration_since(t0).as_secs_f32()).unwrap_or(0.0);
         if app.mem.drift_at.is_none() || dt >= 0.05 {
-            app.mem.rot += dt.min(0.2) * 0.045;
+            app.mem.orbit += dt.min(0.2) * 0.05;
             app.mem.drift_at = Some(now);
             app.mem.cache.clear();
         }
@@ -312,6 +312,7 @@ impl canvas::Program<Msg> for Mem<'_> {
 
             nebulosas(f, g, &scr, focus.is_some(), kk);
             aneis_galacticos(f, g, w, h);
+            nucleo(f, g, w, h, kk, focus.is_some());
 
             // Arestas: três faixas de profundidade (perto mais nítidas, longe quase apagadas), como linhas de constelação.
             let edge_a = if focus.is_some() || !q.is_empty() || rd { 0.03 } else { 0.095 };
@@ -551,9 +552,28 @@ fn nebulosas(f: &mut canvas::Frame, g: &Graph, scr: &[Option<(f32, f32, f32, f32
     }
 }
 
-/// Dois anéis no plano "galáctico" (y = 0): vistos em perspectiva viram elipses e deixam o volume legível.
+/// O "sol" no centro do grafo: o que as notas orbitam. Brilho quente no miolo e halo frio por fora.
+fn nucleo(f: &mut canvas::Frame, g: &Graph, w: f32, h: f32, kk: f32, focado: bool) {
+    let (x, y, z) = g.view_space(0.0, 0.0, 0.0);
+    let s = Graph::persp(z);
+    let c = Point::new(w / 2.0 + (x * s + g.cam.1) * g.cam.0, h / 2.0 + (y * s + g.cam.2) * g.cam.0);
+    let fade = if focado { 0.5 } else { 1.0 };
+    let base = 15.0 * kk * s;
+    for (mult, alpha, col) in [
+        (7.0f32, 0.020f32, Color::from_rgb(0.55, 0.66, 1.0)),
+        (4.6, 0.034, Color::from_rgb(0.62, 0.72, 1.0)),
+        (3.0, 0.060, Color::from_rgb(0.85, 0.85, 1.0)),
+        (1.9, 0.12, Color::from_rgb(1.0, 0.93, 0.8)),
+        (1.0, 0.30, Color::from_rgb(1.0, 0.95, 0.85)),
+    ] {
+        f.fill(&Path::circle(c, base * mult), t::alpha(col, alpha * fade));
+    }
+    f.fill(&Path::circle(c, base * 0.34), t::alpha(Color::WHITE, 0.75 * fade));
+}
+
+/// Anéis de órbita no plano "galáctico" (y = 0): vistos em perspectiva viram elipses e deixam o volume legível.
 fn aneis_galacticos(f: &mut canvas::Frame, g: &Graph, w: f32, h: f32) {
-    for raio in [140.0f32, 250.0] {
+    for raio in [SPHERE_R * 0.42, SPHERE_R * 0.72, SPHERE_R] {
         let pts: Vec<Point> = (0..=72)
             .map(|k| {
                 let a = k as f32 / 72.0 * std::f32::consts::TAU;

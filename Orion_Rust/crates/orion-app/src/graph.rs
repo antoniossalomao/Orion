@@ -1,6 +1,7 @@
 //! Grafo do vault (§16): dados do snapshot de 15/10/2026 e a lógica de câmera, foco, filtro local e distribuição orgânica por forças.
 //! O grafo é 3D: cada nó tem profundidade (`z`), a câmera orbita (`rot` = giro, `pitch` = inclinação) e a projeção tem perspectiva,
 //! de modo que o mapa lê como uma constelação (nós perto brilham e crescem; longe, ficam pequenos e frios).
+//! A forma é uma esfera (hubs no miolo, notas soltas na borda) e cada nó orbita o centro com velocidade que cai com a distância.
 
 use crate::data::READ_NOTES;
 use serde::Deserialize;
@@ -62,6 +63,8 @@ pub struct Graph {
     /// Giro da câmera em torno do eixo vertical (rad) e inclinação (rad, limitada).
     pub rot: f32,
     pub pitch: f32,
+    /// Fase da órbita: cada nó gira em torno do centro com velocidade que diminui com a distância (ver `orbited`).
+    pub orbit: f32,
     pub spinning: bool,
     /// Última vez que o cache de desenho foi invalidado pela deriva automática (limita a ~20 quadros/s).
     pub drift_at: Option<std::time::Instant>,
@@ -159,6 +162,7 @@ impl Graph {
             read_on: false,
             rot: 0.55,
             pitch: 0.42,
+            orbit: 0.0,
             spinning: true,
             drift_at: None,
             fitted: false,
@@ -251,6 +255,17 @@ impl Graph {
         let n = &self.nodes[i];
         (n.r + (n.deg.max(1) as f32).ln() * 0.72).clamp(2.2, 8.6)
     }
+    /// Gira o ponto em torno do eixo vertical pela fase da órbita: perto do centro gira mais rápido, longe mais devagar
+    /// (como planetas). `sinal` = -1 desfaz a órbita (usado ao arrastar um nó).
+    pub fn orbited(&self, x: f32, y: f32, z: f32, sinal: f32) -> (f32, f32, f32) {
+        if self.orbit == 0.0 {
+            return (x, y, z);
+        }
+        let r = (x * x + z * z).sqrt();
+        let fase = sinal * self.orbit / (0.5 + r / 100.0);
+        let (c, s) = (fase.cos(), fase.sin());
+        (x * c - z * s, y, x * s + z * c)
+    }
     /// Ponto do mundo no espaço da câmera: giro em torno do eixo vertical e depois inclinação.
     /// Devolve `(x, y, z)` com `z` positivo = mais longe da câmera.
     pub fn view_space(&self, x: f32, y: f32, z: f32) -> (f32, f32, f32) {
@@ -275,7 +290,8 @@ impl Graph {
     /// Projeção do nó antes do zoom e do deslocamento: `(x, y, escala, profundidade)`.
     pub fn proj(&self, i: usize) -> (f32, f32, f32, f32) {
         let n = &self.nodes[i];
-        let (x, y, z) = self.view_space(n.x, n.y, n.z);
+        let (ox, oy, oz) = self.orbited(n.x, n.y, n.z, 1.0);
+        let (x, y, z) = self.view_space(ox, oy, oz);
         let s = Self::persp(z);
         (x * s, y * s, s, z)
     }
@@ -306,7 +322,9 @@ impl Graph {
     pub fn drag_target(&self, i: usize, px: f32, py: f32, w: f32, h: f32) -> (f32, f32, f32) {
         let (_, _, s, z) = self.proj(i);
         let (vx, vy) = self.to_plane(px, py, w, h);
-        self.world_space(vx / s, vy / s, z)
+        let (x, y, zw) = self.world_space(vx / s, vy / s, z);
+        // O nó está em órbita: a posição guardada é a de repouso, então desfaz o giro.
+        self.orbited(x, y, zw, -1.0)
     }
     pub fn fit(&mut self, w: f32, h: f32) {
         self.cache.clear();
@@ -669,8 +687,47 @@ fn layout_forca(nodes: &mut [Node], links: &[(usize, usize)]) {
     // 5. Resolução iterativa de colisões circulares para garantir separação nítida entre todos os nós.
     resolve_collisions(nodes, &deg);
 
-    // 6. Profundidade: o plano orgânico vira um volume (disco espesso, mais fino no miolo).
+    // 6. Profundidade: o plano orgânico vira um volume, e o volume vira uma esfera (hubs no miolo).
     assign_depth(nodes, &adj, &deg);
+    sphericalize(nodes);
+}
+
+/// Raio da esfera do grafo, em unidades do mundo.
+pub const SPHERE_R: f32 = 260.0;
+
+/// Redistribui os nós numa bola: cada um mantém a direção que o layout deu (vizinhos continuam do mesmo lado),
+/// e o raio vem da posição na fila de distância ao centro, com expoente < 1 para um miolo denso e borda nítida.
+/// Resultado: forma redonda como no Obsidian, hubs perto do núcleo e notas soltas na superfície.
+fn sphericalize(nodes: &mut [Node]) {
+    let n = nodes.len();
+    if n < 8 {
+        return;
+    }
+    let inv = 1.0 / n as f32;
+    let (cx, cy, cz) = nodes.iter().fold((0.0, 0.0, 0.0), |a, nd| (a.0 + nd.x, a.1 + nd.y, a.2 + nd.z));
+    let (cx, cy, cz) = (cx * inv, cy * inv, cz * inv);
+    let mut radii: Vec<(f32, usize)> = nodes
+        .iter()
+        .enumerate()
+        .map(|(i, nd)| (((nd.x - cx).powi(2) + (nd.y - cy).powi(2) + (nd.z - cz).powi(2)).sqrt(), i))
+        .collect();
+    radii.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
+    let golden = 2.399_963_1_f32;
+    for (rank, &(r, i)) in radii.iter().enumerate() {
+        let (ux, uy, uz) = if r > 1e-3 {
+            ((nodes[i].x - cx) / r, (nodes[i].y - cy) / r, (nodes[i].z - cz) / r)
+        } else {
+            // Nó exatamente no centro: direção determinística (espiral de Fibonacci).
+            let t = (i as f32 + 0.5) * inv;
+            let (y, a) = (1.0 - 2.0 * t, i as f32 * golden);
+            let rr = (1.0 - y * y).max(0.0).sqrt();
+            (rr * a.cos(), y, rr * a.sin())
+        };
+        let nr = SPHERE_R * ((rank as f32 + 0.5) * inv).powf(0.40);
+        nodes[i].x = ux * nr;
+        nodes[i].y = uy * nr;
+        nodes[i].z = uz * nr;
+    }
 }
 
 /// Dá a cada nó uma profundidade determinística: espalha em torno do plano com espessura que cresce
@@ -707,12 +764,12 @@ fn assign_depth(nodes: &mut [Node], adj: &[Vec<usize>], deg: &[usize]) {
             z[i] = prev[i] * 0.55 + mean * 0.45;
         }
     }
-    // Re-escala: a profundidade total fica em ~60% do espalhamento no plano, sem achatar o volume.
+    // Re-escala: a profundidade fica do tamanho do espalhamento no plano, para a direção de cada nó ser quase isotrópica.
     let std_xy = (nodes.iter().map(|nd| nd.x * nd.x + nd.y * nd.y).sum::<f32>() / (2.0 * n as f32)).sqrt().max(1.0);
     let std_z = (z.iter().map(|v| v * v).sum::<f32>() / n as f32).sqrt().max(1e-3);
-    let k = (0.62 * std_xy / std_z).clamp(0.5, 4.0);
+    let k = (1.0 * std_xy / std_z).clamp(0.5, 4.0);
     for (nd, v) in nodes.iter_mut().zip(z) {
-        nd.z = (v * k).clamp(-330.0, 330.0);
+        nd.z = (v * k).clamp(-420.0, 420.0);
     }
 }
 
