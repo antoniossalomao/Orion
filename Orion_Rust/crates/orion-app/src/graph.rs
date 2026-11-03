@@ -1032,7 +1032,7 @@ fn sphericalize(nodes: &mut [Node], sphere_r: f32, exponent: f64) {
     // Três passes: redistribui azimute e altura de modo uniforme e branqueia de novo, até a nuvem ficar redonda
     // (um passe sozinho deixa uma correlação residual entre eixos que lê como "ovo").
     let mut dirs: Vec<[f64; 3]> = vec![[0.0; 3]; n];
-    for passe in 0..3 {
+    for pass in 0..3 {
         let r: Vec<f64> = q.iter().map(|v| (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt()).collect();
         let azimuth: Vec<f64> = q.iter().map(|v| v[2].atan2(v[0])).collect();
         let elevation: Vec<f64> = q.iter().zip(&r).map(|(v, r)| if *r > 1e-9 { v[1] / r } else { 0.0 }).collect();
@@ -1044,7 +1044,7 @@ fn sphericalize(nodes: &mut [Node], sphere_r: f32, exponent: f64) {
             let sn = (1.0 - c * c).max(0.0).sqrt();
             dirs[i] = [sn * phi.cos(), c, sn * phi.sin()];
         }
-        if passe < 2 {
+        if pass < 2 {
             for i in 0..n {
                 q[i] = [dirs[i][0] * target(i), dirs[i][1] * target(i), dirs[i][2] * target(i)];
             }
