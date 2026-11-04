@@ -1687,3 +1687,5 @@ ui-1250 = { "outro processo está usando o repositório do vault (índice Git bl
 ui-1251 = { "Erro no git pull: outro processo está usando o repositório do vault (índice Git bloqueado); feche o Obsidian/Git e tente de novo" }
 ui-1252 = { "o Git recusou o pull do vault; rode `git pull --ff-only` na pasta do vault para ver o motivo exato" }
 ui-1253 = { "Erro no git pull: o Git recusou o pull do vault; rode `git pull --ff-only` na pasta do vault para ver o motivo exato" }
+ui-1254 = { "falhou" }
+ui-1255 = { "negada" }

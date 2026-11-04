@@ -172,28 +172,50 @@ fn orion_msg<'a>(app: &'a App, ci: usize, mi: usize, o: &'a OrionMsg, is_last: b
     let streaming = app.streaming.as_ref().filter(|s| s.conv == ci && is_last);
     let mut col = column![].spacing(12).width(Length::Fill);
     if !o.tools.is_empty() && streaming.is_none() {
-        let open = app.tools_open.contains(&(ci, mi));
-        col = col.push(
-            button(row![tx(o.tools_label.clone(), 13.0, t::FG3), crate::icons::icon_rot("chevR", 16.0, t::FG3, { let p = if app.at.tools.is_some() { crate::anim::TOOLS.get() } else { 1.0 }; 90.0 * if open { p } else { 1.0 - p } })].spacing(6).align_y(Vertical::Center))
-                .padding(0)
-                .on_press(Msg::ToggleTools(ci, mi))
-                .style(|_, _| button::Style { text_color: t::FG3, ..Default::default() }),
-        );
+        // Cartões inline, um por chamada (como no Claude Code): estado, ferramenta e o que ela fez.
+        // Com mais de 6 chamadas, o resumo recolhe a lista; o resto aparece direto.
+        let many = o.tools.len() > 6;
+        let open = !many || app.tools_open.contains(&(ci, mi));
+        if many {
+            col = col.push(
+                button(row![tx(o.tools_label.clone(), 13.0, t::FG3), crate::icons::icon_rot("chevR", 16.0, t::FG3, { let p = if app.at.tools.is_some() { crate::anim::TOOLS.get() } else { 1.0 }; 90.0 * if open { p } else { 1.0 - p } })].spacing(6).align_y(Vertical::Center))
+                    .padding(0)
+                    .on_press(Msg::ToggleTools(ci, mi))
+                    .style(|_, _| button::Style { text_color: t::FG3, ..Default::default() }),
+            );
+        }
         if open {
-            let mut list = column![].spacing(0);
+            let mut list = column![].spacing(6);
             for tl in &o.tools {
+                let (glyph, cor): (&str, iced::Color) = match tl.time.as_str() {
+                    "ok" => ("check", t::OK),
+                    "falhou" | "negada" => ("close", t::DANGER),
+                    _ => ("clock", t::FG3),
+                };
+                let estado = match tl.time.as_str() {
+                    "ok" => String::new(),
+                    "falhou" => crate::i18n::text("falhou").to_string(),
+                    "negada" => crate::i18n::text("negada").to_string(),
+                    outro => outro.to_string(),
+                };
+                let line = if matches!(tl.time.as_str(), "falhou" | "negada") { t::LINE3 } else { t::LINE2 };
                 list = list.push(
-                    row![
-                        container(tx(tl.kind.clone(), 12.5, t::FG3)).width(Length::Fixed(130.0)),
-                        container(txf(ell(&tl.value, content_w - 250.0, 12.0), 12.0, t::FG2, t::MONO)).width(Length::Fill),
-                        tx(tl.time.clone(), 11.5, t::FG3)
-                    ]
-                    .spacing(10)
-                    .align_y(Vertical::Center)
-                    .padding(pad(3.0, 0.0, 3.0, 0.0)),
+                    container(
+                        row![
+                            icon(glyph, 14.0, cor),
+                            tx(tl.kind.clone(), 12.5, t::FG2),
+                            container(txf(ell(&tl.value, content_w - 260.0, 12.0), 12.0, t::FG3, t::MONO)).width(Length::Fill),
+                            tx(estado, 11.5, t::FG3)
+                        ]
+                        .spacing(8)
+                        .align_y(Vertical::Center),
+                    )
+                    .padding(pad(6.0, 10.0, 6.0, 10.0))
+                    .width(Length::Fill)
+                    .style(surface(Some(t::RAISE), Some(line), 8.0)),
                 );
             }
-            col = col.push(row![sp_w(3.0), vline(list_h(o.tools.len())), sp_w(13.0), list.width(Length::Fill)].padding(pad(0.0, 0.0, 0.0, 0.0)));
+            col = col.push(list);
         }
     }
     // corpo
@@ -267,9 +289,6 @@ fn orion_msg<'a>(app: &'a App, ci: usize, mi: usize, o: &'a OrionMsg, is_last: b
     col.into()
 }
 
-fn list_h(n: usize) -> f32 {
-    n as f32 * 25.0
-}
 
 fn approval<'a>(a: &'a crate::data::Approval, ci: usize, mi: usize) -> El<'a> {
     let txt = md::render(&md::cached_parse(&a.text), md::Style { font: t::UI, bold: t::UI_SEMI, size: 13.5, line: 1.5, h_font: t::UI_MED, h1: 16.0, h2: 15.0, h3: 14.0, gap: 4.0 });

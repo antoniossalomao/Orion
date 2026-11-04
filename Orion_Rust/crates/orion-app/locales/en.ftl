@@ -1687,3 +1687,5 @@ ui-1250 = { "another process is using the vault repository (Git index locked); c
 ui-1251 = { "Git pull error: another process is using the vault repository (Git index locked); close Obsidian/Git and try again" }
 ui-1252 = { "Git refused the vault pull; run `git pull --ff-only` in the vault folder to see the exact reason" }
 ui-1253 = { "Git pull error: Git refused the vault pull; run `git pull --ff-only` in the vault folder to see the exact reason" }
+ui-1254 = { "failed" }
+ui-1255 = { "denied" }
