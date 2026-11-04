@@ -214,13 +214,21 @@ impl GitSync {
                 "há edições locais ou staged no vault; o pull foi bloqueado para preservá-las",
             ));
         }
-        self.text(&["fetch", "--no-tags", "origin", "main"], None, None)?;
+        self.run_explained(&["fetch", "--no-tags", "origin", "main"])?;
         self.main_ready()?;
-        self.text(
-            &["merge", "--ff-only", "--no-edit", "FETCH_HEAD"],
-            None,
-            None,
-        )
+        self.run_explained(&["merge", "--ff-only", "--no-edit", "FETCH_HEAD"])
+    }
+
+    /// Como `text`, mas devolve um motivo fixo e legível quando o Git recusa. O stderr nunca sai daqui
+    /// (pode conter URL com credencial): só é lido para escolher entre mensagens prontas.
+    fn run_explained(&self, args: &[&str]) -> Result<String, GitError> {
+        let out = self.output(args, None, None)?;
+        if !out.status.success() {
+            return Err(GitError::Unsafe(explain_failure(&String::from_utf8_lossy(&out.stderr))));
+        }
+        String::from_utf8(out.stdout)
+            .map(|s| s.trim_end_matches(['\r', '\n']).to_string())
+            .map_err(|_| GitError::CommandFailed("decodificação"))
     }
 
     /// Cria uma árvore a partir de HEAD + um blob validado, sem filtros ou hooks.
@@ -394,6 +402,30 @@ fn is_project_note(rel: &Path) -> bool {
 }
 
 /// Git sem shell, sem hooks, sem fsmonitor e só com o ambiente mínimo (cofre do SO, certificados, proxy).
+/// Motivo fixo para uma falha de fetch/merge. Só reconhece padrões conhecidos do Git.
+fn explain_failure(stderr: &str) -> &'static str {
+    let e = stderr.to_lowercase();
+    if e.contains("not possible to fast-forward") || e.contains("diverging branches") || e.contains("refusing to merge") {
+        "o vault local e o GitHub divergiram (há commits dos dois lados); o pull só avança em linha reta. Resolva no Git (merge ou rebase) e tente de novo"
+    } else if e.contains("authentication failed") || e.contains("could not read username") || e.contains("could not read password")
+        || e.contains("invalid credentials") || e.contains("permission denied") || e.contains("403") || e.contains("terminal prompts disabled")
+    {
+        "o GitHub recusou o acesso ao vault: faça login no Git deste computador (Git Credential Manager ou token) e tente de novo"
+    } else if e.contains("repository not found") || e.contains("404") || e.contains("does not appear to be a git repository") {
+        "o repositório do vault não foi encontrado no GitHub; confira o remoto `origin`"
+    } else if e.contains("could not resolve host") || e.contains("unable to access") || e.contains("timed out") || e.contains("connection") {
+        "sem conexão com o GitHub; confira a internet, o proxy e o certificado e tente de novo"
+    } else if e.contains("couldn't find remote ref") || e.contains("no such remote") || e.contains("unknown revision") {
+        "o remoto `origin` não tem a branch main"
+    } else if e.contains("would be overwritten") || e.contains("local changes") {
+        "há arquivos locais no caminho do pull; salve ou mova as edições do vault e tente de novo"
+    } else if e.contains("index.lock") || e.contains("unable to create") {
+        "outro processo está usando o repositório do vault (índice Git bloqueado); feche o Obsidian/Git e tente de novo"
+    } else {
+        "o Git recusou o pull do vault; rode `git pull --ff-only` na pasta do vault para ver o motivo exato"
+    }
+}
+
 fn hardened_command() -> Command {
     let mut cmd = Command::new("git");
     cmd.env_clear();
@@ -401,6 +433,9 @@ fn hardened_command() -> Command {
         "PATH", "HOME", "USERPROFILE", "SystemRoot", "WINDIR", "APPDATA", "LOCALAPPDATA", "TEMP", "TMP", "TMPDIR",
         "SSH_AUTH_SOCK", "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "all_proxy",
         "no_proxy", "SSL_CERT_FILE", "SSL_CERT_DIR", "GIT_SSL_CAINFO",
+        // Windows: o Git Credential Manager e o gitconfig do sistema precisam destas para achar o login salvo.
+        "ProgramData", "ProgramFiles", "ProgramFiles(x86)", "ProgramW6432", "SystemDrive", "USERNAME", "USERDOMAIN", "COMPUTERNAME",
+        "HOMEDRIVE", "HOMEPATH", "XDG_CONFIG_HOME",
     ] {
         if let Some(value) = std::env::var_os(key) {
             cmd.env(key, value);
