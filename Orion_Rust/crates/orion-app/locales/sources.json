@@ -1390,5 +1390,12 @@
   "resposta do Drive inválida": "ui-1259",
   "nome de backup inesperado no Drive": "ui-1260",
   "backup maior que o limite aceito": "ui-1261",
-  "escolha uma pasta absoluta": "ui-1262"
+  "escolha uma pasta absoluta": "ui-1262",
+  "Resumo semanal": "ui-1263",
+  "Esconder o resumo semanal": "ui-1264",
+  "Exportar para o vault": "ui-1265",
+  "Sem ligação": "ui-1266",
+  "Notas sem link para fora nem vindo de outras notas": "ui-1267",
+  "Nenhuma nota solta.": "ui-1268",
+  "O resumo desta semana já estava no vault; nada foi sobrescrito.": "ui-1269"
 }

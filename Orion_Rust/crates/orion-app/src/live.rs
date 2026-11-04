@@ -16,6 +16,8 @@ pub enum Lm {
     Attached(u64, Result<Option<Value>, String>),
     /// Id e texto do último pedido, para editar e reenviar.
     EditTarget(String, Result<(i64, String), String>),
+    Weekly(Result<String, String>),
+    Islands(Result<Vec<String>, String>),
     Conflitos(Result<Value, String>),
     ConflitoAberto(Result<Value, String>),
     ConflitoResolvido(Result<String, String>),
@@ -665,6 +667,27 @@ impl App {
                 let n = |k: &str| r[k].as_array().map(|a| a.len()).unwrap_or(0);
                 Ok(format!("Configurações recarregadas: {} aplicada(s) na hora, {} exigem reiniciar o Orion.", n("aplicados"), n("exigem_reinicio")))
             }, |r| Msg::L(Lm::Acao(r, false))), false)),
+            Msg::WeeklyToggle => {
+                self.weekly_open = !self.weekly_open;
+                if !self.weekly_open { return Some((Task::none(), true)); }
+                self.weekly_text = None;
+                Some((Task::perform(async move { api.get("/painel/resumo-semanal").await.map(|v| s(&v, "markdown").to_string()) }, |r| Msg::L(Lm::Weekly(r))), true))
+            }
+            Msg::WeeklyExport => Some((Task::perform(async move {
+                let r = api.post("/painel/resumo-semanal/exportar", json!({})).await?;
+                Ok(if r["unchanged"].as_bool().unwrap_or(false) { "O resumo desta semana já estava no vault; nada foi sobrescrito.".to_string() } else { format!("Resumo gravado no vault: {}", s(&r, "file_path")) })
+            }, |r| Msg::L(Lm::Acao(r, false))), true)),
+            Msg::IslandsToggle => {
+                self.islands_open = !self.islands_open;
+                if !self.islands_open { return Some((Task::none(), true)); }
+                self.islands = None;
+                Some((Task::perform(async move { api.get("/vault/ilhas").await.map(|v| arr(&v, "notas").iter().filter_map(|n| n.as_str().map(String::from)).collect::<Vec<_>>()) }, |r| Msg::L(Lm::Islands(r))), true))
+            }
+            Msg::IslandOpen(path) => {
+                self.islands_open = false;
+                let path = path.clone();
+                Some((self.update(Msg::EditorOpen(path)), true))
+            }
             Msg::VoceFezExportar => Some((Task::perform(async move {
                 let r = api.post("/painel/voce-fez/exportar", json!({})).await?;
                 Ok(if r["unchanged"].as_bool().unwrap_or(false) { "O relatório de hoje já estava no vault; nada foi sobrescrito.".to_string() } else { format!("Relatório gravado no vault: {}", s(&r, "file_path")) })
@@ -1064,6 +1087,8 @@ impl App {
                 if self.session_id().as_deref() != Some(session.as_str()) { return Task::none(); }
                 match result { Ok(value) => self.artifact_detail = Some(value), Err(error) => self.toast(error) }
             },
+            Lm::Weekly(r) => match r { Ok(t) => self.weekly_text = Some(t), Err(e) => { self.weekly_open = false; self.toast(e) } },
+            Lm::Islands(r) => match r { Ok(v) => self.islands = Some(v), Err(e) => { self.islands_open = false; self.toast(e) } },
             Lm::EditTarget(sid, result) => match result {
                 // Resultado de outra conversa (navegou enquanto buscava): descarta.
                 _ if self.session_id().as_deref() != Some(sid.as_str()) => {}

@@ -474,6 +474,10 @@ pub struct App {
     pub monitor: Option<crate::tray::Monitor>,
     pub bandeja_tentou: bool,
     pub painel: Option<serde_json::Value>,
+    pub weekly_open: bool,
+    pub weekly_text: Option<String>,
+    pub islands_open: bool,
+    pub islands: Option<Vec<String>>,
     pub budget: Option<serde_json::Value>,
     pub resume_pw: String,
     pub cur_sid: Option<String>,
@@ -686,6 +690,14 @@ pub enum Msg {
     RecarregarConfig,
     /// Grava o relatório "Você fez" de hoje no vault (F09.05).
     VoceFezExportar,
+    /// Painel: abre ou fecha o resumo semanal (fechado por padrão) e o busca no núcleo ao abrir.
+    WeeklyToggle,
+    /// Painel: grava o resumo semanal no vault.
+    WeeklyExport,
+    /// Memória: abre ou fecha a lista de notas sem ligação (fechada por padrão).
+    IslandsToggle,
+    /// Memória: abre uma nota da lista de notas sem ligação no editor.
+    IslandOpen(String),
     EditorClose,
     EditorSave,
     // grafo
@@ -861,6 +873,10 @@ impl App {
             monitor: None,
             bandeja_tentou: false,
             painel: None,
+            weekly_open: false,
+            weekly_text: None,
+            islands_open: false,
+            islands: None,
             budget: None,
             resume_pw: String::new(),
             cur_sid: None,

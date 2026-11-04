@@ -698,6 +698,9 @@ pub fn view(app: &App) -> El<'_> {
         chips = chips.push(fchip(crate::i18n::text(l), Some(TYPE_COLORS[i]), None, g.filt[i], Msg::MemFilter(i)));
     }
     chips = chips.push(fchip(crate::i18n::text("Lidas agora"), None, Some("eye"), g.read_on, Msg::MemRead));
+    if app.api.is_some() {
+        chips = chips.push(fchip(crate::i18n::text("Sem ligação"), None, None, app.islands_open, Msg::IslandsToggle));
+    }
     if let Some((loc_i, depth)) = g.local {
         chips = chips.push(fchip(&format!("Local ({depth}×) ×"), Some(t::ACCENT), Some("graph"), true, Msg::MemLocal(loc_i)));
     }
@@ -726,6 +729,28 @@ pub fn view(app: &App) -> El<'_> {
     let zoom_right = if g.sel.is_some() { 344.0 } else { 12.0 };
     let zoom = container(column![tip(ib("gear", Some(Msg::MemForces), g.forces_open), crate::i18n::text("Forças do grafo")), tip(ib("plus", Some(Msg::MemZoom(1.25)), false), crate::i18n::text("Aproximar")), tip(ib("minus", Some(Msg::MemZoom(0.8)), false), crate::i18n::text("Afastar")), tip(ib_sz("fit", 30.0, 14.0, Some(Msg::MemFit), false), crate::i18n::text("Enquadrar"))].spacing(2)).padding(3).style(|_| container::Style { background: Some(t::mix(t::RAISE, 0.88).into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_CARD.into() }, ..Default::default() });
     layers.push(container(zoom).width(Length::Fill).height(Length::Fill).align_x(iced::alignment::Horizontal::Right).align_y(Vertical::Bottom).padding(pad(0.0, zoom_right, 12.0, 0.0)).into());
+    if app.islands_open {
+        let mut list = column![tx(crate::i18n::text("Notas sem link para fora nem vindo de outras notas"), 11.5, t::FG3)].spacing(2);
+        match &app.islands {
+            None => list = list.push(tx(crate::i18n::text("Carregando…"), 12.5, t::FG3)),
+            Some(v) if v.is_empty() => list = list.push(tx(crate::i18n::text("Nenhuma nota solta."), 12.5, t::FG2)),
+            Some(v) => {
+                for path in v.iter().take(30) {
+                    list = list.push(
+                        button(tx(ell(path, 300.0, 12.5), 12.5, t::FG))
+                            .padding(pad(4.0, 6.0, 4.0, 6.0))
+                            .width(Length::Fill)
+                            .on_press(Msg::IslandOpen(path.clone()))
+                            .style(|_, st| button::Style { background: if matches!(st, button::Status::Hovered) { Some(Background::Color(t::HOVER)) } else { None }, text_color: t::FG, ..Default::default() }),
+                    );
+                }
+                if v.len() > 30 {
+                    list = list.push(tx(crate::i18n::formatted("… e mais {}", format!("… e mais {}", v.len() - 30)), 11.5, t::FG3));
+                }
+            }
+        }
+        layers.push(container(container(scrollable(list)).width(Length::Fixed(340.0)).max_height(320.0).padding(8).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_CARD.into() }, ..Default::default() })).width(Length::Fill).height(Length::Fill).padding(pad(12.0, 0.0, 0.0, 12.0)).into());
+    }
     if g.forces_open {
         layers.push(container(forces_panel(g)).width(Length::Fill).height(Length::Fill).padding(pad(12.0, 0.0, 0.0, 12.0)).into());
     }
