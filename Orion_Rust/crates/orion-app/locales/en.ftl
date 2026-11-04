@@ -1660,3 +1660,6 @@ ui-1223 = { "{} was not registered: {}" }
 ui-1224 = { "combination in use by another app" }
 ui-1225 = { "unsupported combination" }
 ui-1226 = { "Could not check the folder." }
+ui-1227 = { "Only applies with your own gateway (ORION_GATEWAY_URL and ORION_GATEWAY_MODEL). Used for simple questions. Empty: Orion chooses on its own." }
+ui-1228 = { "Only applies with your own gateway (ORION_GATEWAY_URL and ORION_GATEWAY_MODEL). Used for reasoning and code. Empty: Orion chooses on its own." }
+ui-1229 = { "Only applies with your own gateway (ORION_GATEWAY_URL and ORION_GATEWAY_MODEL). Used when there is an image or screen. Empty: Orion chooses on its own." }

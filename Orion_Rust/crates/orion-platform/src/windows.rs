@@ -77,15 +77,17 @@ impl NativeShell {
     /// mini barra e pânico são obrigatórios, captura rápida e "Isso?" são extras.
     pub fn new_with_bindings(labels: [&str; 6], combos: [&str; 4]) -> anyhow::Result<Self> {
         let keys = GlobalHotKeyManager::new()?;
-        let mut chosen: Vec<Option<HotKey>> = Vec::new();
-        for i in 0..4 {
+        let mut chosen: [Option<HotKey>; 4] = [None; 4];
+        // obrigatórios (mini barra e pânico) primeiro, para que o plano B de um extra nunca tome a combinação deles
+        for i in [0, 3, 1, 2] {
+            let mandatory = i == 0 || i == 3;
             let default = parse_combo(DEFAULTS[i]).expect("padrão válido");
             let effective = parse_combo(combos[i]).unwrap_or(default);
-            let key = if keys.register(effective).is_ok() {
+            chosen[i] = if keys.register(effective).is_ok() {
                 Some(effective)
             } else if effective.id() != default.id() && keys.register(default).is_ok() {
                 Some(default)
-            } else if i == 0 || i == 3 {
+            } else if mandatory {
                 for k in chosen.iter().flatten() {
                     let _ = keys.unregister(*k);
                 }
@@ -93,7 +95,6 @@ impl NativeShell {
             } else {
                 None
             };
-            chosen.push(key);
         }
         let menu = Menu::new();
         let mut menu_ids = Vec::new();
@@ -125,7 +126,7 @@ impl NativeShell {
             .with_icon(Icon::from_rgba(rgba, 32, 32)?)
             .with_menu(Box::new(menu))
             .build()?;
-        let hot = std::sync::Arc::new(std::sync::Mutex::new([chosen[0], chosen[1], chosen[2], chosen[3]]));
+        let hot = std::sync::Arc::new(std::sync::Mutex::new(chosen));
         Ok(Self { _tray: tray, keys, hot, mini_on: std::sync::atomic::AtomicBool::new(true), menu_ids })
     }
     /// Troca um atalho global (índice de `GLOBAL_ORDER`). Se a combinação estiver em uso por outro app, volta ao anterior.

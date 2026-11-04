@@ -1660,3 +1660,6 @@ ui-1223 = { "{} não foi registrado: {}" }
 ui-1224 = { "combinação em uso por outro aplicativo" }
 ui-1225 = { "combinação não suportada" }
 ui-1226 = { "Não foi possível verificar a pasta." }
+ui-1227 = { "Só vale com gateway próprio (ORION_GATEWAY_URL e ORION_GATEWAY_MODEL). Usado em perguntas simples. Vazio: o Orion escolhe sozinho." }
+ui-1228 = { "Só vale com gateway próprio (ORION_GATEWAY_URL e ORION_GATEWAY_MODEL). Usado em raciocínio e código. Vazio: o Orion escolhe sozinho." }
+ui-1229 = { "Só vale com gateway próprio (ORION_GATEWAY_URL e ORION_GATEWAY_MODEL). Usado quando há imagem ou tela. Vazio: o Orion escolhe sozinho." }
