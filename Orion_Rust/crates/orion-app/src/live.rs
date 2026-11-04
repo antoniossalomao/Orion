@@ -1069,11 +1069,11 @@ impl App {
                 _ if self.session_id().as_deref() != Some(sid.as_str()) => {}
                 // Um envio começou durante a busca: o pedido mais recente já mudou, então a edição vale de nada.
                 _ if self.streaming.is_some() => {}
-                Ok((_, text)) if !self.conv.and_then(|ci| self.convs.get(ci)).and_then(|c| c.msgs.iter().rev().find_map(|m| if let ChatMsg::User(u) = m { Some(request_text(u) == request_text(&text)) } else { None })).unwrap_or(false) => {}
+                Ok((_, text)) if !self.conv.and_then(|ci| self.convs.get(ci)).and_then(|c| c.msgs.iter().rev().find_map(|m| if let ChatMsg::User(u) = m { Some(u.trim() == stored_request_text(&text) || shown_request_text(u) == stored_request_text(&text)) } else { None })).unwrap_or(false) => {}
                 Ok((id, text)) => {
                     self.edit_target = Some((sid, id));
                     let had_attachments = self.conv.and_then(|ci| self.convs.get(ci)).and_then(|c| c.msgs.iter().rev().find_map(|m| if let ChatMsg::User(u) = m { Some(u.contains("\n\nAnexos: ")) } else { None })).unwrap_or(false);
-                    self.composer = iced::widget::text_editor::Content::with_text(request_text(&text));
+                    self.composer = iced::widget::text_editor::Content::with_text(stored_request_text(&text));
                     self.toast(if had_attachments { "Edite e envie: os anexos da mensagem original não vão de novo." } else { "Edite e envie: a resposta é refeita como nova versão do pedido." });
                 }
                 Err(error) => self.toast(error),
@@ -1589,11 +1589,16 @@ pub fn iso_date(secs: f64) -> String {
 }
 
 
-/// Texto do pedido sem as anotações que o app e o núcleo acrescentam (lista de anexos, aviso de imagens).
-fn request_text(shown: &str) -> &str {
-    let base = shown.split("\n\nAnexos: ").next().unwrap_or(shown);
-    match base.rfind("\n[") {
-        Some(i) if base[i..].contains(" imagem(ns) enviada(s)") => base[..i].trim(),
-        _ => base.trim(),
+/// Texto de uma mensagem como o app a mostra, sem a lista "Anexos: …" que ele mesmo acrescenta no fim.
+fn shown_request_text(shown: &str) -> &str {
+    shown.rsplit_once("\n\nAnexos: ").map_or(shown, |(base, _)| base).trim()
+}
+
+/// Texto do pedido guardado no núcleo, sem o aviso de imagens que o núcleo acrescenta. Não mexe no resto:
+/// um "Anexos:" escrito por você faz parte do pedido.
+fn stored_request_text(stored: &str) -> &str {
+    match stored.rfind("\n[") {
+        Some(i) if stored[i..].contains(" imagem(ns) enviada(s)") => stored[..i].trim(),
+        _ => stored.trim(),
     }
 }

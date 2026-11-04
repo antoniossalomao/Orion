@@ -1365,5 +1365,21 @@
   "Remova os anexos antes de editar a mensagem.": "ui-1234",
   "Baixar backup do Drive": "ui-1235",
   "Baixa a cópia cifrada mais recente do Google Drive para a pasta escolhida. Nada é restaurado sozinho: use Restaurar backup depois.": "ui-1236",
-  "Edite e envie: os anexos da mensagem original não vão de novo.": "ui-1237"
+  "Edite e envie: os anexos da mensagem original não vão de novo.": "ui-1237",
+  "o vault local e o GitHub divergiram (há commits dos dois lados); o pull só avança em linha reta. Resolva no Git (merge ou rebase) e tente de novo": "ui-1238",
+  "Erro no git pull: o vault local e o GitHub divergiram (há commits dos dois lados); o pull só avança em linha reta. Resolva no Git (merge ou rebase) e tente de novo": "ui-1239",
+  "o GitHub recusou o acesso ao vault: faça login no Git deste computador (Git Credential Manager ou token) e tente de novo": "ui-1240",
+  "Erro no git pull: o GitHub recusou o acesso ao vault: faça login no Git deste computador (Git Credential Manager ou token) e tente de novo": "ui-1241",
+  "o repositório do vault não foi encontrado no GitHub; confira o remoto `origin`": "ui-1242",
+  "Erro no git pull: o repositório do vault não foi encontrado no GitHub; confira o remoto `origin`": "ui-1243",
+  "sem conexão com o GitHub; confira a internet, o proxy e o certificado e tente de novo": "ui-1244",
+  "Erro no git pull: sem conexão com o GitHub; confira a internet, o proxy e o certificado e tente de novo": "ui-1245",
+  "o remoto `origin` não tem a branch main": "ui-1246",
+  "Erro no git pull: o remoto `origin` não tem a branch main": "ui-1247",
+  "há arquivos locais no caminho do pull; salve ou mova as edições do vault e tente de novo": "ui-1248",
+  "Erro no git pull: há arquivos locais no caminho do pull; salve ou mova as edições do vault e tente de novo": "ui-1249",
+  "outro processo está usando o repositório do vault (índice Git bloqueado); feche o Obsidian/Git e tente de novo": "ui-1250",
+  "Erro no git pull: outro processo está usando o repositório do vault (índice Git bloqueado); feche o Obsidian/Git e tente de novo": "ui-1251",
+  "o Git recusou o pull do vault; rode `git pull --ff-only` na pasta do vault para ver o motivo exato": "ui-1252",
+  "Erro no git pull: o Git recusou o pull do vault; rode `git pull --ff-only` na pasta do vault para ver o motivo exato": "ui-1253"
 }
