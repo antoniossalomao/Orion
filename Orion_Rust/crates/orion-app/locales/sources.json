@@ -1353,5 +1353,6 @@
   "{} não pode ser atalho global: use letra, número, F1–F12 ou Espaço": "ui-1222",
   "{} não foi registrado: {}": "ui-1223",
   "combinação em uso por outro aplicativo": "ui-1224",
-  "combinação não suportada": "ui-1225"
+  "combinação não suportada": "ui-1225",
+  "Não foi possível verificar a pasta.": "ui-1226"
 }

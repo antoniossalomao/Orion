@@ -1659,3 +1659,4 @@ ui-1222 = { "{} cannot be a global shortcut: use a letter, number, F1–F12 or S
 ui-1223 = { "{} was not registered: {}" }
 ui-1224 = { "combination in use by another app" }
 ui-1225 = { "unsupported combination" }
+ui-1226 = { "Could not check the folder." }

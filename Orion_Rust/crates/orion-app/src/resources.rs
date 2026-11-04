@@ -18,6 +18,8 @@ pub struct ResourceState {
     pub lists: BTreeMap<&'static str, Value>,
     pub snapshot: Option<Value>,
     pub draft: BTreeMap<&'static str, String>,
+    /// Resultado da checagem da pasta do vault: `(caminho conferido, aviso, ok)`. Feita fora do desenho da tela.
+    pub vault_check: Option<(String, &'static str, bool)>,
     /// F07.02: campo da última mudança salva sozinha e o valor anterior, para "Desfazer".
     pub undo: Option<(&'static str, String)>,
     /// F07.03: valores da primeira execução ("valor da instalação"), para restaurar.
@@ -42,6 +44,7 @@ impl Default for ResourceState {
             lists: BTreeMap::new(),
             snapshot: None,
             draft: BTreeMap::new(),
+            vault_check: None,
             undo: None,
             defaults: None,
             busy: false,
@@ -64,6 +67,7 @@ pub enum Event {
     Load,
     Loaded(Result<Value, String>),
     Input(&'static str, String),
+    VaultChecked(String, &'static str, bool),
     Toggle(&'static str),
     /// F04.31: liga ou desliga um grupo de avisos no Telegram (índice em `GRUPOS_TELEGRAM`).
     TelegramGrupo(usize),
@@ -569,6 +573,19 @@ fn slider_ends(key: &str) -> (&'static str, &'static str) {
     }
 }
 
+/// Confere o caminho num worker (pode ser uma pasta de rede lenta) e devolve o resultado como evento.
+fn check_vault_task(path: String) -> Task<Msg> {
+    let path = path.trim().to_string();
+    Task::perform(
+        async move {
+            let p = path.clone();
+            let (aviso, ok) = tokio::task::spawn_blocking(move || vault_check(&p)).await.unwrap_or(("Não foi possível verificar a pasta.", false));
+            (path, aviso, ok)
+        },
+        |(p, aviso, ok)| Msg::Resources(Event::VaultChecked(p, aviso, ok)),
+    )
+}
+
 /// Confere a pasta do vault digitada: `(aviso, ok)`. Só lê o disco; não grava nada (REGRAS.md: nada sai sem opt-in).
 fn vault_check(path: &str) -> (&'static str, bool) {
     let path = path.trim();
@@ -708,8 +725,10 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
         };
         col = col.push(setting(crate::i18n::text(label), description(key), control));
         if key == "vault_dir" {
-            let (aviso, tom) = vault_check(&text);
-            col = col.push(tx(crate::i18n::text(aviso), 12.5, if tom { t::FG3 } else { t::DANGER }));
+            // a checagem lê o disco, então roda num worker; aqui só se mostra o último resultado do caminho atual
+            if let Some((_, aviso, ok)) = app.resources.vault_check.as_ref().filter(|(p, _, _)| *p == text.trim()) {
+                col = col.push(tx(crate::i18n::text(aviso), 12.5, if *ok { t::FG3 } else { t::DANGER }));
+            }
         }
     }
     let applied = app.resources.snapshot.as_ref().unwrap();
@@ -1120,12 +1139,18 @@ impl App {
             Event::Loaded(result) => match result {
                 Ok(value) => {
                     self.sync_resources(&value);
-                    self.resources.snapshot = Some(value)
+                    let vault = value["saved"]["vault_dir"].as_str().unwrap_or("").to_string();
+                    self.resources.snapshot = Some(value);
+                    return check_vault_task(vault);
                 }
                 Err(e) => self.resources.error = e,
             },
+            Event::VaultChecked(path, aviso, ok) => self.resources.vault_check = Some((path, aviso, ok)),
             Event::Input(key, text) if !self.resources.busy => {
-                self.resources.draft.insert(key, text);
+                self.resources.draft.insert(key, text.clone());
+                if key == "vault_dir" {
+                    return check_vault_task(text);
+                }
             }
             Event::Toggle(key) if !self.resources.busy => {
                 // F07.02: o toggle salva sozinho e guarda o valor anterior para desfazer.
@@ -1243,8 +1268,13 @@ impl App {
                 // F07.02: pasta ou arquivo escolhido salva sozinho.
                 let previous = input_value(self, key);
                 self.resources.undo = Some((key, previous));
+                let check = (key == "vault_dir").then(|| check_vault_task(path.clone()));
                 self.resources.draft.insert(key, path);
-                return self.save_draft(Some(&[key]));
+                let save = self.save_draft(Some(&[key]));
+                return match check {
+                    Some(check) => Task::batch([save, check]),
+                    None => save,
+                };
             }
             Event::Chosen(_, Err(e)) => self.resources.error = e,
             Event::Save if !self.resources.busy => return self.save_draft(None),
