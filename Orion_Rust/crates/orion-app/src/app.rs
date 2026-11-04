@@ -366,6 +366,9 @@ pub struct App {
     pub drop_queue: Vec<String>,
     /// Pedido sendo editado (id da mensagem no núcleo); o próximo envio refaz o turno como nova versão.
     pub edit_target: Option<(String, i64)>,
+    /// Turno original (pedido e respostas) tirado da tela durante uma edição, até o núcleo aceitar.
+    pub edit_removed: Option<Vec<ChatMsg>>,
+    pub edit_failed: bool,
     pub attach_n: usize,
     pub streaming: Option<Stream>,
     pub ctx_override: Option<bool>,
@@ -798,6 +801,8 @@ impl App {
             attaching: false,
             drop_queue: vec![],
             edit_target: None,
+            edit_removed: None,
+            edit_failed: false,
             attach_n: 0,
             streaming: None,
             ctx_override: None,

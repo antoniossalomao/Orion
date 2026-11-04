@@ -1721,3 +1721,4 @@ ui-1284 = { "Busca no texto que esteve na tela nos últimos 30 dias. Só tem res
 ui-1285 = { "Ex.: fatura do cartão" }
 ui-1286 = { "Digite pelo menos 2 letras para buscar." }
 ui-1287 = { "Resumo gravado no vault: " }{ $v0 }
+ui-1288 = { "Resolva as aprovações pendentes antes de editar a mensagem." }

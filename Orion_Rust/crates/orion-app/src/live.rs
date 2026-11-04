@@ -556,6 +556,10 @@ impl App {
             Msg::EditLast(mi) => {
                 if self.streaming.is_some() || self.attaching { self.toast("Espere a resposta terminar para editar."); return Some((Task::none(), false)); }
                 if !self.attach.is_empty() { self.toast("Remova os anexos antes de editar a mensagem."); return Some((Task::none(), false)); }
+                if self.convs.get(self.conv?)?.msgs.iter().any(|m| matches!(m, ChatMsg::Orion(o) if o.approval.as_ref().is_some_and(|a| a.state == crate::data::ApprState::Open))) {
+                    self.toast("Resolva as aprovações pendentes antes de editar a mensagem.");
+                    return Some((Task::none(), false));
+                }
                 let ci = self.conv?;
                 let sid = self.session_id()?;
                 let ultimo = self.convs.get(ci)?.msgs.iter().rposition(|m| matches!(m, ChatMsg::User(_)));
@@ -1030,10 +1034,13 @@ impl App {
         let edit = self.edit_target.take().filter(|(sid, _)| sid_now.as_deref() == Some(sid.as_str())).map(|(_, id)| id);
         let c = &mut self.convs[ci];
         // Edição: o pedido antigo e a resposta saem da tela; o núcleo guarda as duas versões.
-        if edit.is_some() { if let Some(i) = c.msgs.iter().rposition(|m| matches!(m, ChatMsg::User(_))) { c.msgs.truncate(i); } }
+        // O turno antigo só some de vez quando o núcleo aceita a edição; se recusar, ele volta (`Chat::Done`).
+        let removed = if edit.is_some() { c.msgs.iter().rposition(|m| matches!(m, ChatMsg::User(_))).map(|i| c.msgs.split_off(i)) } else { None };
         c.msgs.push(ChatMsg::User(shown));
         c.msgs.push(ChatMsg::Orion(OrionMsg { time: hm(now_secs()), via, out: String::new(), tools_label: String::new(), tools: vec![], body: String::new(), saved: false, approval: None }));
         c.state = ConvState::Running;
+        self.edit_removed = removed;
+        self.edit_failed = false;
         self.streaming = Some(crate::app::Stream { conv: ci, words: 0, total: usize::MAX });
         self.composer = iced::widget::text_editor::Content::new();
         let ids = std::mem::take(&mut self.attachment_ids);
@@ -1588,9 +1595,26 @@ impl App {
                     o.body.push_str("\n\n");
                 }
                 o.body.push_str(&format!("**{}:** {}", crate::i18n::text("Erro"), crate::i18n::status(&e)));
+                self.edit_failed = true;
                 self.toast(e);
             }
             Chat::Done { .. } => {
+                // Edição recusada pelo núcleo: o turno original volta à tela, no lugar do pedido e do erro.
+                if let Some(removed) = self.edit_removed.take() {
+                    if self.edit_failed && conv.msgs.len() >= 2 {
+                        let keep = conv.msgs.len() - 2;
+                        conv.msgs.truncate(keep);
+                        conv.msgs.extend(removed);
+                        conv.state = ConvState::Normal;
+                        self.streaming = None;
+                        self.abort = None;
+                        self.edit_failed = false;
+                        let queued_task = self.next_queued();
+                        return Task::batch([self.reload_all(), queued_task]);
+                    }
+                }
+                self.edit_failed = false;
+                let Some(ChatMsg::Orion(o)) = conv.msgs.last_mut() else { return Task::none() };
                 o.saved = true;
                 if conv.state == ConvState::Running {
                     conv.state = ConvState::Normal;

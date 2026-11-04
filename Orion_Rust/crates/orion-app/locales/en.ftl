@@ -1721,3 +1721,4 @@ ui-1284 = { "Searches the text that was on screen in the last 30 days. It only h
 ui-1285 = { "E.g.: credit card bill" }
 ui-1286 = { "Type at least 2 letters to search." }
 ui-1287 = { "Weekly summary saved to the vault: " }{ $v0 }
+ui-1288 = { "Resolve the pending approvals before editing the message." }
