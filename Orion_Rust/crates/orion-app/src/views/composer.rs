@@ -70,7 +70,7 @@ pub fn view(app: &App, home: bool) -> El<'_> {
                 Key::Named(Named::Tab) if sug_open => Some(Binding::Custom(Msg::SugPick)),
                 Key::Named(Named::ArrowUp) if sug_open => Some(Binding::Custom(Msg::PalMove(-1))),
                 Key::Named(Named::ArrowDown) if sug_open => Some(Binding::Custom(Msg::PalMove(1))),
-                Key::Named(Named::ArrowUp) if kp.status == text_editor::Status::Focused { is_hovered: false } || true => {
+                Key::Named(Named::ArrowUp) if kp.modifiers.is_empty() => {
                     // ↑ com o campo vazio repete a última mensagem
                     Some(Binding::Custom(Msg::RepeatLastIfEmpty))
                 }

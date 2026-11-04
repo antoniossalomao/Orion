@@ -195,7 +195,7 @@ fn runs<'a>(r: &str) -> El<'a> {
     for ch in r.chars() {
         let c = match ch {
             'f' => t::DANGER,
-            's' => t::FG4,
+            's' => t::FG3,
             _ => t::OK,
         };
         row_ = row_.push(container(sp_w(0.0)).width(Length::Fixed(8.0)).height(Length::Fixed(8.0)).style(surface(Some(c), None, 2.0)));
