@@ -365,7 +365,7 @@ pub struct App {
     /// Arquivos soltos enquanto outro anexo é processado; seguem em ordem, respeitando os limites.
     pub drop_queue: Vec<String>,
     /// Pedido sendo editado (id da mensagem no núcleo); o próximo envio refaz o turno como nova versão.
-    pub edit_target: Option<i64>,
+    pub edit_target: Option<(String, i64)>,
     pub attach_n: usize,
     pub streaming: Option<Stream>,
     pub ctx_override: Option<bool>,

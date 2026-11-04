@@ -15,7 +15,7 @@ pub enum Lm {
     ToolPermissions(std::time::Instant, Result<Value, String>),
     Attached(u64, Result<Option<Value>, String>),
     /// Id e texto do último pedido, para editar e reenviar.
-    EditTarget(Result<(i64, String), String>),
+    EditTarget(String, Result<(i64, String), String>),
     Conflitos(Result<Value, String>),
     ConflitoAberto(Result<Value, String>),
     ConflitoResolvido(Result<String, String>),
@@ -552,17 +552,19 @@ impl App {
             // (REGRAS.md: você é o administrador).
             Msg::EditLast(mi) => {
                 if self.streaming.is_some() || self.attaching { self.toast("Espere a resposta terminar para editar."); return Some((Task::none(), false)); }
+                if !self.attach.is_empty() { self.toast("Remova os anexos antes de editar a mensagem."); return Some((Task::none(), false)); }
                 let ci = self.conv?;
                 let sid = self.session_id()?;
                 let ultimo = self.convs.get(ci)?.msgs.iter().rposition(|m| matches!(m, ChatMsg::User(_)));
                 if ultimo != Some(*mi) { return Some((Task::none(), false)); }
+                let sid_out = sid.clone();
                 Some((Task::perform(async move {
                     let v = api.get(&format!("/historico?sessao={sid}&limite=100")).await?;
                     arr(&v, "mensagens").iter().filter(|m| s(m, "role") == "user")
                         .max_by_key(|m| m["id"].as_i64().unwrap_or(0))
                         .and_then(|m| Some((m["id"].as_i64()?, s(m, "content").to_string())))
                         .ok_or_else(|| "Pedido não encontrado no histórico.".to_string())
-                }, |r| Msg::L(Lm::EditTarget(r))), false))
+                }, move |r| Msg::L(Lm::EditTarget(sid_out.clone(), r))), false))
             }
             Msg::Attach | Msg::AttachPath(_) => {
                 // Arrastar e soltar (F05): o caminho vem do evento da janela; o limite, o tipo e a
@@ -571,6 +573,7 @@ impl App {
                 if let Msg::AttachPath(path) = &msg {
                     if self.attaching && self.drop_queue.len() < 8 { self.drop_queue.push(path.clone()); return Some((Task::none(), false)); }
                 }
+                if self.edit_target.is_some() { self.toast("Remova os anexos antes de editar a mensagem."); return Some((Task::none(), false)); }
                 if self.attaching || self.streaming.is_some() || self.attachment_ids.len() >= 8 { self.drop_queue.clear(); return Some((Task::none(), false)); }
                 self.attaching = true;
                 let generation = self.attachment_generation;
@@ -987,7 +990,8 @@ impl App {
             shown.push_str(&self.attach.iter().map(|a| a.0.clone()).collect::<Vec<_>>().join(", "));
         }
         let via = crate::views::chat::via_label(&self.p);
-        let edit = self.edit_target.take();
+        let sid_now = self.session_id();
+        let edit = self.edit_target.take().filter(|(sid, _)| sid_now.as_deref() == Some(sid.as_str())).map(|(_, id)| id);
         let c = &mut self.convs[ci];
         // Edição: o pedido antigo e a resposta saem da tela; o núcleo guarda as duas versões.
         if edit.is_some() { if let Some(i) = c.msgs.iter().rposition(|m| matches!(m, ChatMsg::User(_))) { c.msgs.truncate(i); } }
@@ -1060,9 +1064,11 @@ impl App {
                 if self.session_id().as_deref() != Some(session.as_str()) { return Task::none(); }
                 match result { Ok(value) => self.artifact_detail = Some(value), Err(error) => self.toast(error) }
             },
-            Lm::EditTarget(result) => match result {
+            Lm::EditTarget(sid, result) => match result {
+                // Resultado de outra conversa (navegou enquanto buscava): descarta.
+                _ if self.session_id().as_deref() != Some(sid.as_str()) => {}
                 Ok((id, text)) => {
-                    self.edit_target = Some(id);
+                    self.edit_target = Some((sid, id));
                     self.composer = iced::widget::text_editor::Content::with_text(&text);
                     self.toast("Edite e envie: a resposta é refeita como nova versão do pedido.");
                 }
