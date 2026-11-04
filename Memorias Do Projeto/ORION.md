@@ -19,7 +19,7 @@ Issue #74. Compilado no Linux; a parte Windows dos atalhos (`orion-platform`) fo
 - **Estilo das respostas:** dois controles (direto↔detalhado, casual↔formal) e texto livre de até 500 caracteres, gravados em `runtime-preferences.json` (`tone_directness`, `tone_formality`, `tone_custom`). Antes o "Tom" não era enviado a lugar nenhum. Entra no prompt como bloco de preferência delimitado (`style_context`), sem tocar em `persona.rs` nem em política; vale após Salvar e aplicar.
 - **Modelo por tarefa:** os campos `gateway_model_fast`, `gateway_model_heavy` e `vision_model`, que só existiam no `.env`, agora aparecem em Modelos e valem após Salvar e aplicar.
 
-Fora desta rodada: limpar o restante da tela (dados de exemplo usados só pelo `orion-snap`, editor do `settings.toml`).
+- **Limpeza:** saíram botões e linhas mortas ("Trocar senha" que só mostrava aviso de protótipo, "Resetar banco" e "O que mudou" marcados "Em breve", o selo fixo "Mostrar quem respondeu") e o texto de protótipo do Grafo. O editor do `settings.toml` só aparece com "Mostrar avançado" ligado. Os dados de exemplo continuam, porque o `orion-snap` os usa nas capturas.
 
 ## Visão neural com GPU: rosto, objetos e gestos — 02/11/2026
 

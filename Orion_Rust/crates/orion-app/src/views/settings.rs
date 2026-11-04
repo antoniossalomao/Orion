@@ -179,7 +179,6 @@ fn section<'a>(app: &'a App) -> El<'a> {
             c = c.push(sh(crate::i18n::text("Perfil")));
             c = c.push(setting(crate::i18n::text("Nome completo"), "", input(&p.name, Msg::NameChanged)));
             c = c.push(setting(crate::i18n::text("Como o Orion deve te chamar"), crate::i18n::text("Aparece na saudação e na barra lateral."), input(&p.call, Msg::CallChanged)));
-            c = c.push(setting(crate::i18n::text("Senha deste computador"), crate::i18n::text("Pedida ao abrir o Orion e quando o Windows é bloqueado (Win + L)."), btn(crate::i18n::text("Trocar"), Kind::Normal, true, None, Some(toast("Trocar senha não faz parte do protótipo")))));
             c = c.push(sh(crate::i18n::text("Sessão")));
             c = c.push(setting(crate::i18n::text("Sair deste computador"), crate::i18n::text("Pede a senha de novo para entrar."), btn(crate::i18n::text("Sair"), Kind::Normal, true, None, Some(Msg::Logout))));
         }
@@ -265,7 +264,6 @@ fn section<'a>(app: &'a App) -> El<'a> {
             c = c.push(sh(crate::i18n::text("Seletor do chat")));
             c = c.push(lede(crate::i18n::text("Auto, Claude, Codex, Gemini e Orion. Claude, Codex e Gemini usam as assinaturas pelas CLIs oficiais, com modelo e esforço.")));
             c = c.push(setting(crate::i18n::text("Padrão para conversas novas"), "", sel_box_pop(p.model_label(), Pop::DefaultModel, app, menus::model_menu(app))));
-            c = c.push(setting(crate::i18n::text("Mostrar quem respondeu"), crate::i18n::text("Discreto, na linha da hora de cada resposta."), badge(crate::i18n::text("sempre"), Tone::Ok)));
             c = c.push(sh(crate::i18n::text("Orion · ordem das APIs gratuitas")));
             c = c.push(lede(crate::i18n::text("Quando uma cota acaba, passa para a próxima. Se todas acabarem ou não houver internet, usa o modelo local.")));
             if app.api.is_some() {
@@ -374,7 +372,7 @@ fn section<'a>(app: &'a App) -> El<'a> {
             } else {
                 c = c.push(crate::views::pages::list(crate::views::pages::fact_rows(app, |_| true)));
             }
-            c = c.push(setting(crate::i18n::text("Grafo"), crate::i18n::text("3D no app final, como o Obsidian, sobre o céu do front original."), btn(crate::i18n::text("Abrir"), Kind::Normal, true, None, Some(Msg::SetGo(crate::app::View::Memoria)))));
+            c = c.push(setting(crate::i18n::text("Grafo"), crate::i18n::text("Abre o grafo das notas do vault."), btn(crate::i18n::text("Abrir"), Kind::Normal, true, None, Some(Msg::SetGo(crate::app::View::Memoria)))));
         }
         Sec::Fontes => {
             c = c.push(sh(crate::i18n::text("Fontes")));
@@ -475,14 +473,11 @@ fn section<'a>(app: &'a App) -> El<'a> {
             c = c.push(setting(if en { "Show advanced" } else { crate::i18n::text("Mostrar avançado") }, if en { "Dangerous or support options. Hidden by default." } else { crate::i18n::text("Opções perigosas ou de suporte. Ficam escondidas por padrão.") }, sw(p.advanced, "advanced")));
             if p.advanced {
                 c = c.push(setting(if en { "Debug logs" } else { crate::i18n::text("Logs de depuração") }, if en { "Writes detailed log files for support." } else { crate::i18n::text("Gera arquivos de log detalhados para suporte.") }, btn(if en { "Open logs folder" } else { crate::i18n::text("Abrir pasta de logs") }, Kind::Normal, true, None, Some(Msg::OpenLogs))));
-                c = c.push(setting(if en { "Reset database" } else { crate::i18n::text("Resetar banco") }, if en { "Deletes the local history. This cannot be undone." } else { crate::i18n::text("Apaga o histórico local. Não tem como desfazer.") }, btn(if en { "Soon" } else { crate::i18n::text("Em breve") }, Kind::Normal, true, None, None)));
             }
             let en = p.english;
             c = c.push(sh(if en { "About" } else { crate::i18n::text("Sobre") }));
             let desc = if en { "Version {v}. One executable, no Python, no open port." } else { crate::i18n::text("Versão {v}. Um só executável, sem Python e sem porta aberta.") };
             c = c.push(setting("Orion", &desc.replace("{v}", env!("CARGO_PKG_VERSION")), badge(env!("CARGO_PKG_VERSION"), Tone::Plain)));
-            let (notes, soon) = if en { ("Release notes for this version have not been written yet.", "Soon") } else { (crate::i18n::text("Notas desta versão ainda não foram escritas."), crate::i18n::text("Em breve")) };
-            c = c.push(setting(if en { "What's new" } else { crate::i18n::text("O que mudou") }, notes, btn(soon, Kind::Normal, true, None, None)));
             let lic = if en { "All rights reserved. Private source code; see the LICENSE file in the repository." } else { crate::i18n::text("Todos os direitos reservados. Código-fonte privado; veja o arquivo LICENSE do repositório.") };
             c = c.push(setting(if en { "License" } else { crate::i18n::text("Licença") }, lic, badge(if en { "proprietary" } else { crate::i18n::text("proprietária") }, Tone::Plain)));
             if app.api.is_some(){c=c.push(crate::resources::settings(app,"storage"));}

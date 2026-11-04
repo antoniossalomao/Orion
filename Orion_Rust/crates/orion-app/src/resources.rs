@@ -607,7 +607,8 @@ fn vault_check(path: &str) -> (&'static str, bool) {
 
 pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
     let mut col = column![].spacing(10);
-    if group == "storage" {
+    // o editor do settings.toml é opção de suporte: só aparece com "Mostrar avançado" ligado em Sistema
+    if group == "storage" && app.p.advanced {
         col = col.push(tx(crate::i18n::text("settings.toml: espelho das Configurações, sem segredos. Salvar aplica na hora; editar o arquivo à mão também aplica."), 12.5, t::FG3));
         col = col.push(
             text_editor(&app.resources.toml)
