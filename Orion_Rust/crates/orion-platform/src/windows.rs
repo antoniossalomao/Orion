@@ -12,15 +12,56 @@ use tray_icon::{
 pub struct NativeShell {
     _tray: TrayIcon,
     keys: GlobalHotKeyManager,
-    mini: HotKey,
-    panic: HotKey,
-    captura: HotKey,
-    isso: HotKey,
+    /// Na ordem de `GLOBAL_ORDER`: mini barra, captura rápida, "Isso?" e pânico. Troca em tempo de execução.
+    hot: std::sync::Arc<std::sync::Mutex<[HotKey; 4]>>,
     menu_ids: Vec<(MenuId, DesktopAction)>,
 }
+/// Ordem dos atalhos globais em `NativeShell::rebind`.
+pub const GLOBAL_ORDER: [&str; 4] = ["mini", "captura", "isso", "panico"];
+
+/// Converte `Ctrl+Alt+Space` em atalho do sistema. Aceita letras, dígitos, F1–F12 e Espaço, com Ctrl e/ou Alt (e Shift).
+pub fn parse_combo(combo: &str) -> Option<HotKey> {
+    let mut mods = Modifiers::empty();
+    let mut code = None;
+    for part in combo.split('+') {
+        match part.trim() {
+            "Ctrl" => mods |= Modifiers::CONTROL,
+            "Alt" => mods |= Modifiers::ALT,
+            "Shift" => mods |= Modifiers::SHIFT,
+            "Space" => code = Some(Code::Space),
+            key if key.len() == 1 && key.as_bytes()[0].is_ascii_alphabetic() => {
+                code = Some(letter(key.as_bytes()[0].to_ascii_uppercase())?)
+            }
+            key if key.len() == 1 && key.as_bytes()[0].is_ascii_digit() => code = Some(digit(key.as_bytes()[0])?),
+            key if key.starts_with('F') => code = Some(function(key[1..].parse().ok()?)?),
+            _ => return None,
+        }
+    }
+    // Sem Ctrl ou Alt (exceto tecla de função) o atalho roubaria a digitação.
+    if !mods.intersects(Modifiers::CONTROL | Modifiers::ALT) && !matches!(code?, Code::F1 | Code::F2 | Code::F3 | Code::F4 | Code::F5 | Code::F6 | Code::F7 | Code::F8 | Code::F9 | Code::F10 | Code::F11 | Code::F12) {
+        return None;
+    }
+    Some(HotKey::new(Some(mods).filter(|m| !m.is_empty()), code?))
+}
+fn letter(c: u8) -> Option<Code> {
+    use Code::*;
+    const L: [Code; 26] = [KeyA, KeyB, KeyC, KeyD, KeyE, KeyF, KeyG, KeyH, KeyI, KeyJ, KeyK, KeyL, KeyM, KeyN, KeyO, KeyP, KeyQ, KeyR, KeyS, KeyT, KeyU, KeyV, KeyW, KeyX, KeyY, KeyZ];
+    L.get((c - b'A') as usize).copied()
+}
+fn digit(c: u8) -> Option<Code> {
+    use Code::*;
+    const D: [Code; 10] = [Digit0, Digit1, Digit2, Digit3, Digit4, Digit5, Digit6, Digit7, Digit8, Digit9];
+    D.get((c - b'0') as usize).copied()
+}
+fn function(n: u8) -> Option<Code> {
+    use Code::*;
+    const F: [Code; 12] = [F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12];
+    F.get((n as usize).checked_sub(1)?).copied()
+}
+
 impl NativeShell {
     pub fn new() -> anyhow::Result<Self> {
-        Self::new_with_labels(["Abrir mini barra", "Captura rápida (Ctrl+Alt+O)", "Isso? (Ctrl+Alt+I)", "Orçamento e rotinas", "Pânico — cortar tudo", "Sair do Orion"])
+        Self::new_with_labels(["Abrir mini barra", "Captura rápida", "Isso?", "Orçamento e rotinas", "Pânico — cortar tudo", "Sair do Orion"])
     }
     pub fn new_with_labels(labels: [&str; 6]) -> anyhow::Result<Self> {
         let keys = GlobalHotKeyManager::new()?;
@@ -66,15 +107,34 @@ impl NativeShell {
             .with_icon(Icon::from_rgba(rgba, 32, 32)?)
             .with_menu(Box::new(menu))
             .build()?;
-        Ok(Self { _tray: tray, keys, mini, panic, captura, isso, menu_ids })
+        let hot = std::sync::Arc::new(std::sync::Mutex::new([mini, captura, isso, panic]));
+        Ok(Self { _tray: tray, keys, hot, menu_ids })
+    }
+    /// Troca um atalho global (índice de `GLOBAL_ORDER`). Se a combinação estiver em uso por outro app, volta ao anterior.
+    pub fn rebind(&self, index: usize, combo: &str) -> anyhow::Result<()> {
+        let novo = parse_combo(combo).ok_or_else(|| anyhow::anyhow!("combinação não suportada"))?;
+        let mut hot = self.hot.lock().unwrap_or_else(|e| e.into_inner());
+        let antigo = *hot.get(index).ok_or_else(|| anyhow::anyhow!("atalho desconhecido"))?;
+        if antigo.id() == novo.id() {
+            return Ok(());
+        }
+        let _ = self.keys.unregister(antigo);
+        if self.keys.register(novo).is_err() {
+            let _ = self.keys.register(antigo);
+            anyhow::bail!("combinação em uso por outro aplicativo");
+        }
+        hot[index] = novo;
+        Ok(())
     }
     pub fn set_shortcut_enabled(&self,on:bool)->anyhow::Result<()>{
-        if on{self.keys.register(self.mini)?;}else{self.keys.unregister(self.mini)?;}Ok(())
+        let mini = self.hot.lock().unwrap_or_else(|e| e.into_inner())[0];
+        if on{self.keys.register(mini)?;}else{self.keys.unregister(mini)?;}Ok(())
     }
     pub fn poller(&self) -> std::sync::Arc<dyn Fn() -> Vec<DesktopAction> + Send + Sync> {
-        let (mini, panic, captura, isso) = (self.mini.id(), self.panic.id(), self.captura.id(), self.isso.id());
+        let hot = self.hot.clone();
         let menu_ids = self.menu_ids.clone();
         std::sync::Arc::new(move || {
+        let [mini, captura, isso, panic] = hot.lock().unwrap_or_else(|e| e.into_inner()).map(|k| k.id());
         let mut actions = Vec::new();
         while let Ok(event) = GlobalHotKeyEvent::receiver().try_recv() {
             if event.state != HotKeyState::Pressed {
@@ -110,9 +170,8 @@ impl NativeShell {
 }
 impl Drop for NativeShell {
     fn drop(&mut self) {
-        let _ = self.keys.unregister(self.mini);
-        let _ = self.keys.unregister(self.panic);
-        let _ = self.keys.unregister(self.captura);
-        let _ = self.keys.unregister(self.isso);
+        for key in *self.hot.lock().unwrap_or_else(|e| e.into_inner()) {
+            let _ = self.keys.unregister(key);
+        }
     }
 }

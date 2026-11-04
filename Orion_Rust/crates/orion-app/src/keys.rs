@@ -1,7 +1,7 @@
 //! Atalhos globais do teclado (§25), tratados por assinatura de eventos.
-//! Os atalhos da janela são personalizáveis com detecção de conflito (F01.22); os atalhos do sistema
-//! (Ctrl+Alt+Espaço, P, O e I), a escala e as teclas fixas (Enter, Esc, setas) aparecem na tela como reservados,
-//! gerados desta mesma lista.
+//! Os atalhos da janela e os quatro globais (Ctrl+Alt+Espaço, O, I e P) são personalizáveis com detecção de
+//! conflito (F01.22); a escala e as teclas fixas (Enter, Esc, setas) aparecem na tela como reservadas,
+//! geradas da lista `RESERVED`.
 
 use crate::app::Msg;
 use iced::keyboard::{key::Named, Event, Key, Modifiers};
@@ -24,17 +24,31 @@ pub const ACTIONS: [Action; 4] = [
     Action { id: "settings", label: "Configurações", default: "Ctrl+," },
 ];
 
+/// Atalhos globais do sistema, valem em qualquer app. A ordem acompanha `orion_platform::GLOBAL_ORDER`
+/// (mini barra, captura rápida, "Isso?", pânico).
+pub const GLOBAL: [Action; 4] = [
+    Action { id: "g_mini", label: "Trazer a janela de qualquer lugar (mini barra)", default: "Ctrl+Alt+Space" },
+    Action { id: "g_captura", label: "Captura rápida", default: "Ctrl+Alt+O" },
+    Action { id: "g_isso", label: "Isso? (capturar a tela)", default: "Ctrl+Alt+I" },
+    Action { id: "g_panico", label: "Pânico: corta tudo", default: "Ctrl+Alt+P" },
+];
+
+/// Posição do atalho global em `GLOBAL`/`GLOBAL_ORDER`, se o id for global.
+pub fn global_index(id: &str) -> Option<usize> {
+    GLOBAL.iter().position(|a| a.id == id)
+}
+
+fn all_actions() -> impl Iterator<Item = &'static Action> {
+    ACTIONS.iter().chain(GLOBAL.iter())
+}
+
 /// Todas as grafias dos atalhos de escala (`+` pode vir com ou sem Shift); `map` e `RESERVED` usam esta lista.
 const ZOOM_IN: [&str; 4] = ["Ctrl+=", "Ctrl++", "Ctrl+Shift++", "Ctrl+Shift+="];
 const ZOOM_OUT: [&str; 3] = ["Ctrl+-", "Ctrl+Shift+-", "Ctrl+Shift+_"];
 
 /// Atalhos que nenhuma ação pode tomar: `(combinação, rótulo, texto na tela)`. Texto vazio esconde a linha
 /// (grafia repetida do mesmo atalho); a tela de Atalhos é gerada desta lista.
-pub const RESERVED: [(&str, &str, &str); 15] = [
-    ("Ctrl+Alt+Space", "Trazer a janela de qualquer lugar (mini barra)", "Ctrl Alt Espaço"),
-    ("Ctrl+Alt+P", "Pânico: corta tudo", "Ctrl Alt P"),
-    ("Ctrl+Alt+O", "Captura rápida", "Ctrl Alt O"),
-    ("Ctrl+Alt+I", "Isso? (capturar a tela)", "Ctrl Alt I"),
+pub const RESERVED: [(&str, &str, &str); 11] = [
     ("Esc", "Fechar painel", "Esc"),
     ("Enter", "Enviar", "Enter"),
     ("ArrowUp", "Navegar na lista", "↑ ↓"),
@@ -60,7 +74,7 @@ static OVERRIDES: RwLock<Option<HashMap<String, String>>> = RwLock::new(None);
 static PERSIST: AtomicBool = AtomicBool::new(false);
 
 fn action(id: &str) -> Option<&'static Action> {
-    ACTIONS.iter().find(|a| a.id == id)
+    all_actions().find(|a| a.id == id)
 }
 
 /// Liga a persistência em disco e carrega os atalhos personalizados (chamado só pelo app real).
@@ -99,6 +113,8 @@ pub fn display(combo: &str) -> String {
 pub enum ShortcutError {
     Unknown,
     NeedsModifier(String),
+    /// Tecla que o sistema não aceita como atalho global.
+    Unsupported(String),
     Taken(String, String),
     DefaultTaken(String, String),
     NotSaved(String),
@@ -111,6 +127,7 @@ impl ShortcutError {
         match self {
             Self::Unknown => String::new(),
             Self::NeedsModifier(c) => formatted("{} precisa de Ctrl ou Alt junto com a tecla", format!("{} precisa de Ctrl ou Alt junto com a tecla", display(c))),
+            Self::Unsupported(c) => formatted("{} não pode ser atalho global: use letra, número, F1–F12 ou Espaço", format!("{} não pode ser atalho global: use letra, número, F1–F12 ou Espaço", display(c))),
             Self::Taken(c, who) => formatted("{} já é usado por: {}", format!("{} já é usado por: {}", display(c), status(who))),
             Self::DefaultTaken(c, who) => formatted("O atalho padrão ({}) já é usado por: {}", format!("O atalho padrão ({}) já é usado por: {}", display(c), status(who))),
             Self::NotSaved(e) => formatted("Não foi possível salvar: {e}", format!("Não foi possível salvar: {e}")),
@@ -122,6 +139,12 @@ impl ShortcutError {
 fn typable(combo: &str) -> bool {
     let (mods, key) = split(combo);
     mods.iter().any(|m| *m == "Ctrl" || *m == "Alt") || (key.len() > 1 && key.starts_with('F') && key[1..].chars().all(|c| c.is_ascii_digit()))
+}
+
+/// O sistema registra como atalho global só letra, dígito, F1–F12 e Espaço.
+fn global_key_ok(combo: &str) -> bool {
+    let (_, key) = split(combo);
+    key == "Space" || (key.len() == 1 && key.chars().all(|c| c.is_ascii_alphanumeric())) || key.strip_prefix('F').and_then(|n| n.parse::<u8>().ok()).is_some_and(|n| (1..=12).contains(&n))
 }
 
 /// Quem já tem a combinação por regra fixa (sistema, escala, edição de texto, Enter, Esc e setas), se houver.
@@ -139,7 +162,7 @@ fn reserved_by(combo: &str) -> Option<String> {
 
 /// Quem já usa o atalho, se houver, excluindo a própria ação.
 pub fn conflict(id: &str, combo: &str) -> Option<String> {
-    reserved_by(combo).or_else(|| ACTIONS.iter().filter(|a| a.id != id).find(|a| effective(a.id).eq_ignore_ascii_case(combo)).map(|a| a.label.to_string()))
+    reserved_by(combo).or_else(|| all_actions().filter(|a| a.id != id).find(|a| effective(a.id).eq_ignore_ascii_case(combo)).map(|a| a.label.to_string()))
 }
 
 fn put(id: &str, combo: Option<String>) -> Option<String> {
@@ -151,13 +174,17 @@ fn put(id: &str, combo: Option<String>) -> Option<String> {
     }
 }
 
-/// Troca o atalho de uma ação. Recusa tecla sem Ctrl/Alt e conflito; se não conseguir gravar, desfaz a troca.
+/// Troca o atalho de uma ação. Atalho global só aceita teclas que o sistema registra (letra, dígito, F1–F12, Espaço).
+/// Recusa tecla sem Ctrl/Alt e conflito; se não conseguir gravar, desfaz a troca.
 pub fn set(id: &str, combo: &str) -> Result<(), ShortcutError> {
     if action(id).is_none() {
         return Err(ShortcutError::Unknown);
     }
     if !typable(combo) {
         return Err(ShortcutError::NeedsModifier(combo.to_string()));
+    }
+    if global_index(id).is_some() && !global_key_ok(combo) {
+        return Err(ShortcutError::Unsupported(combo.to_string()));
     }
     if let Some(who) = conflict(id, combo) {
         return Err(ShortcutError::Taken(combo.to_string(), who));
@@ -221,8 +248,8 @@ fn load() {
     if let Ok(mut g) = OVERRIDES.write() {
         *g = Some(loaded);
     }
-    for a in ACTIONS.iter() {
-        if custom(a.id) && ACTIONS.iter().any(|o| o.id != a.id && effective(o.id).eq_ignore_ascii_case(&effective(a.id))) {
+    for a in all_actions() {
+        if custom(a.id) && all_actions().any(|o| o.id != a.id && effective(o.id).eq_ignore_ascii_case(&effective(a.id))) {
             put(a.id, None);
         }
     }

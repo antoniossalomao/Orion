@@ -140,6 +140,8 @@ enum InputKind {
     Bool,
     Text,
     Number,
+    /// Valor inteiro de 0 a 4 em controle deslizante; as pontas vêm de `slider_ends`.
+    Slider,
     File,
     Folder,
     List,
@@ -340,6 +342,12 @@ const FIELDS: &[Field] = &[
         "Pasta de trabalho das tarefas",
         Folder,
     ),
+    ("tone_directness", "tone", "Respostas", Slider),
+    ("tone_formality", "tone", "Tom", Slider),
+    ("tone_custom", "tone", "Instruções de estilo (opcional)", Text),
+    ("gateway_model_fast", "models", "Modelo rápido (perguntas simples)", Text),
+    ("gateway_model_heavy", "models", "Modelo pesado (raciocínio e código)", Text),
+    ("vision_model", "models", "Modelo de visão (imagens e tela)", Text),
     ("vault_dir", "memory", "Pasta do vault", Folder),
     ("backup_dir", "storage", "Pasta dos backups", Folder),
     (
@@ -524,6 +532,12 @@ const DESCRIPTIONS: &[(&str, &str)] = &[
     ("codex_env", "Ambiente usado pelo Codex Cloud."),
     ("nuvem_dir", "Pasta onde as tarefas de nuvem trabalham."),
     ("vault_dir", "Pasta do vault do Obsidian. Vale depois de reiniciar o Orion."),
+    ("tone_directness", "Do mais curto e direto ao mais detalhado. O meio não muda nada."),
+    ("tone_formality", "Do mais casual ao mais formal. O meio não muda nada."),
+    ("tone_custom", "Até 500 caracteres. Ex.: sem preâmbulo, código completo, português técnico. Vale para todos os projetos; cada projeto pode ter instruções próprias."),
+    ("gateway_model_fast", "Usado em perguntas simples. Vazio: o Orion escolhe sozinho."),
+    ("gateway_model_heavy", "Usado em raciocínio e código. Vazio: o Orion escolhe sozinho."),
+    ("vision_model", "Usado quando há imagem ou tela. Vazio: o Orion escolhe sozinho."),
     ("backup_dir", "Pasta onde os backups são guardados."),
     ("backup_keep", "Quantos backups antigos manter."),
     ("repos", "Repositórios que o Orion pode ler."),
@@ -545,6 +559,14 @@ const DESCRIPTIONS: &[(&str, &str)] = &[
 /// Descrição curta da opção, já traduzida.
 fn description(key: &str) -> &'static str {
     DESCRIPTIONS.iter().find(|(k, _)| *k == key).map(|(_, text)| crate::i18n::text(text)).unwrap_or("")
+}
+
+/// Pontas do controle deslizante, já como rótulos traduzíveis.
+fn slider_ends(key: &str) -> (&'static str, &'static str) {
+    match key {
+        "tone_formality" => ("Casual", "Formal"),
+        _ => ("Direto", "Detalhado"),
+    }
 }
 
 /// Confere a pasta do vault digitada: `(aviso, ok)`. Só lê o disco; não grava nada (REGRAS.md: nada sai sem opt-in).
@@ -644,6 +666,15 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
                 )
             }
             Bool => switch(text == "true", Msg::Resources(Event::Toggle(key))),
+            Slider => {
+                let (left, right) = slider_ends(key);
+                let value = text.parse::<f32>().unwrap_or(2.0).clamp(0.0, 4.0);
+                let mut bar = iced::widget::slider(0.0_f32..=4.0, value, move |v| Msg::Resources(Event::Input(key, (v.round() as i64).to_string()))).step(1.0_f32).width(Length::Fixed(180.0));
+                if app.resources.busy {
+                    bar = iced::widget::slider(0.0_f32..=4.0, value, |_| Msg::Noop).step(1.0_f32).width(Length::Fixed(180.0));
+                }
+                row![tx(crate::i18n::text(left), 12.0, t::FG3), bar, tx(crate::i18n::text(right), 12.0, t::FG3)].spacing(8).align_y(iced::alignment::Vertical::Center).into()
+            }
             _ => {
                 let mut input = text_input("", &text).size(13).font(t::UI).padding(8).style(
                     crate::views::login::field_style(t::RAISE, t::LINE2, t::ACCENT, 8.0),
@@ -881,7 +912,7 @@ impl App {
             };
             let value = match field.3 {
                 Bool => json!(text == "true"),
-                Number => match text.parse::<serde_json::Number>() {
+                Number | Slider => match text.parse::<serde_json::Number>() {
                     Ok(n) => Value::Number(n),
                     Err(_) => {
                         self.resources.error = format!("{}: valor numérico inválido", field.2);

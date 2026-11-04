@@ -18,7 +18,7 @@ pub use janela::{allow_foreground, main_window, set_mica, style_main_window, Est
 #[cfg(windows)]
 mod windows;
 #[cfg(windows)]
-pub use windows::NativeShell;
+pub use windows::{parse_combo, NativeShell, GLOBAL_ORDER};
 
 /// Fora do Windows não há DWM: tudo é no-op.
 #[cfg(not(windows))]

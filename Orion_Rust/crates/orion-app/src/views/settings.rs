@@ -127,9 +127,15 @@ fn section<'a>(app: &'a App) -> El<'a> {
             c = c.push(setting(crate::i18n::text("Fonte do chat"), crate::i18n::text("Usada nas respostas do Orion."), sel_pop(fonts[p.font].to_string(), Pop::ChatFont, app, menu)));
             c = c.push(setting(crate::i18n::text("Tamanho do texto"), "", pick_seg(&[crate::i18n::text("Pequeno"), crate::i18n::text("Médio"), crate::i18n::text("Grande")], p.size, "size")));
             c = c.push(setting(crate::i18n::text("Largura da transcrição"), "", pick_seg(&[crate::i18n::text("Estreito"), crate::i18n::text("Médio"), crate::i18n::text("Largo")], p.width, "width")));
-            c = c.push(setting(crate::i18n::text("Tom das respostas"), crate::i18n::text("Vale para todos os projetos; cada projeto pode ter instruções próprias."), pick_seg(&[crate::i18n::text("Conciso"), "Normal", crate::i18n::text("Detalhado")], p.tone, "tone")));
-            let ta = container(text_input(crate::i18n::text("Ex.: sem preâmbulo, código completo, português técnico"), &p.tone_text).on_input(Msg::ToneText).size(13).font(t::UI).padding(pad(10.0, 12.0, 10.0, 12.0)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 10.0))).width(Length::Fill).height(Length::Fixed(70.0));
-            c = c.push(container(column![tx(crate::i18n::text("Como o Orion deve responder (opcional)"), 12.5, t::FG3), ta].spacing(6)).padding(pad(4.0, 0.0, 12.0, 0.0)));
+            if app.api.is_some() {
+                // com o núcleo ligado, o tom é guardado de verdade e entra no pedido ao modelo
+                c = c.push(sh(crate::i18n::text("Estilo das respostas")));
+                c = c.push(crate::resources::settings(app, "tone"));
+            } else {
+                c = c.push(setting(crate::i18n::text("Tom das respostas"), crate::i18n::text("Vale para todos os projetos; cada projeto pode ter instruções próprias."), pick_seg(&[crate::i18n::text("Conciso"), "Normal", crate::i18n::text("Detalhado")], p.tone, "tone")));
+                let ta = container(text_input(crate::i18n::text("Ex.: sem preâmbulo, código completo, português técnico"), &p.tone_text).on_input(Msg::ToneText).size(13).font(t::UI).padding(pad(10.0, 12.0, 10.0, 12.0)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 10.0))).width(Length::Fill).height(Length::Fixed(70.0));
+                c = c.push(container(column![tx(crate::i18n::text("Como o Orion deve responder (opcional)"), 12.5, t::FG3), ta].spacing(6)).padding(pad(4.0, 0.0, 12.0, 0.0)));
+            }
         }
         Sec::Notificacoes => {
             // F04.31 / F07.11: matriz evento × canal. "—" é canal que não existe para o evento.
@@ -295,6 +301,8 @@ fn section<'a>(app: &'a App) -> El<'a> {
                         }
                     }));
                 }
+                c = c.push(sh(crate::i18n::text("Modelo por tarefa")));
+                c = c.push(crate::resources::settings(app, "models"));
                 c = c.push(sh(crate::i18n::text("Chaves de API")));
                 c = c.push(lede(crate::i18n::text("Guardadas no cofre do sistema (Credential Manager). Chaves de modelos valem na hora.")));
                 for (id, label, nome, url) in crate::onboarding::PROVIDERS {
@@ -533,24 +541,27 @@ fn section<'a>(app: &'a App) -> El<'a> {
             c = c.push(row![container(text_input(crate::i18n::text("Adicionar objeto"), &app.new_obj).on_input(Msg::NewObj).on_submit(Msg::ObjAdd).size(13).font(t::UI).padding(pad(6.0, 10.0, 6.0, 10.0)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 8.0))).width(Length::Fixed(220.0)), btn(crate::i18n::text("Adicionar"), Kind::Normal, true, None, Some(Msg::ObjAdd))].spacing(8));
         }
         Sec::Atalhos => {
-            c = c.push(sh(crate::i18n::text("Atalhos")));
             if !app.short_err.is_empty() {
                 c = c.push(tx(app.short_err.clone(), 12.5, t::DANGER));
             }
-            for a in crate::keys::ACTIONS.iter() {
-                let editing = app.short_edit == Some(a.id);
-                let shown = if editing { crate::i18n::text("Pressione o novo atalho…").to_string() } else { crate::keys::display(&crate::keys::effective(a.id)) };
-                let mut ctl = row![kbd(&shown)].spacing(8).align_y(Vertical::Center);
-                if editing {
-                    ctl = ctl.push(btn(crate::i18n::text("Cancelar"), Kind::Ghost, true, None, Some(Msg::ShortcutCancel)));
-                } else {
-                    ctl = ctl.push(btn(crate::i18n::text("Alterar"), Kind::Normal, true, None, Some(Msg::ShortcutEdit(a.id))));
-                    if crate::keys::custom(a.id) {
-                        ctl = ctl.push(btn(crate::i18n::text("Restaurar"), Kind::Ghost, true, None, Some(Msg::ShortcutReset(a.id))));
+            for (titulo, lista) in [("Na janela do Orion", &crate::keys::ACTIONS), ("Em qualquer aplicativo", &crate::keys::GLOBAL)] {
+                c = c.push(sh(crate::i18n::text(titulo)));
+                for a in lista.iter() {
+                    let editing = app.short_edit == Some(a.id);
+                    let shown = if editing { crate::i18n::text("Pressione o novo atalho…").to_string() } else { crate::keys::display(&crate::keys::effective(a.id)) };
+                    let mut ctl = row![kbd(&shown)].spacing(8).align_y(Vertical::Center);
+                    if editing {
+                        ctl = ctl.push(btn(crate::i18n::text("Cancelar"), Kind::Ghost, true, None, Some(Msg::ShortcutCancel)));
+                    } else {
+                        ctl = ctl.push(btn(crate::i18n::text("Alterar"), Kind::Normal, true, None, Some(Msg::ShortcutEdit(a.id))));
+                        if crate::keys::custom(a.id) {
+                            ctl = ctl.push(btn(crate::i18n::text("Restaurar"), Kind::Ghost, true, None, Some(Msg::ShortcutReset(a.id))));
+                        }
                     }
+                    c = c.push(setting(a.label, "", ctl.into()));
                 }
-                c = c.push(setting(a.label, "", ctl.into()));
             }
+            c = c.push(sh(crate::i18n::text("Fixos")));
             // Linhas fixas geradas da lista de reservados, para a tela nunca divergir das regras de conflito.
             for (_, label, shown) in crate::keys::RESERVED.iter().filter(|(_, _, s)| !s.is_empty()) {
                 let shown = if *shown == "Ctrl Alt Espaço" { crate::keys::display("Ctrl+Alt+Space") } else { shown.to_string() };

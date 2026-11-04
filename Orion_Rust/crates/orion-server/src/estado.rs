@@ -628,6 +628,7 @@ pub async fn montar_with_runtime(mut settings: Settings, preserve_extensions:boo
             Agent::new(gw.clone(), registro, policy.clone(), memory.clone(), AgentConfig { routing: roteamento_ligado(&settings), persona: {
                 let mut persona = orion_core::agent::AgentConfig::default().persona;
                 if let Some(p) = orion_core::onboarding::Profile::load(&settings.data_dir)? { persona.push_str(&p.context()); }
+                persona.push_str(&orion_core::onboarding::style_context(&settings));
                 persona
             }, ..Default::default() });
         a.ops = Some(ops.clone());
