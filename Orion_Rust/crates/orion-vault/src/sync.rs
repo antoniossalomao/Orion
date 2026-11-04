@@ -459,8 +459,8 @@ impl VaultManager {
         let cache = self.notes_cache.read();
         let mut recebidos: std::collections::HashSet<String> = std::collections::HashSet::new();
         for note in cache.values() {
-            for l in &note.metadata.wikilinks {
-                recebidos.insert(l.split(['|', '#']).next().unwrap_or(l).trim().to_lowercase());
+            for l in note.metadata.wikilinks.iter().cloned().chain(frontmatter_links(&note.raw_content)) {
+                recebidos.insert(l.split(['|', '#']).next().unwrap_or(&l).trim().to_lowercase());
             }
         }
         let mut ilhas: Vec<String> = cache
@@ -473,7 +473,7 @@ impl VaultManager {
                 let stem = Path::new(&n.metadata.rel_path).file_stem().and_then(|s| s.to_str()).unwrap_or("").to_lowercase();
                 // Link com pasta ([[Pasta/Nota]]) conta pelo caminho relativo sem a extensão.
                 let caminho = n.metadata.rel_path.replace('\\', "/").trim_end_matches(".md").to_lowercase();
-                n.metadata.wikilinks.is_empty() && !recebidos.contains(&stem) && !recebidos.contains(&n.metadata.title.to_lowercase()) && !recebidos.contains(&caminho)
+                n.metadata.wikilinks.is_empty() && frontmatter_links(&n.raw_content).is_empty() && !recebidos.contains(&stem) && !recebidos.contains(&n.metadata.title.to_lowercase()) && !recebidos.contains(&caminho)
             })
             .map(|n| n.metadata.rel_path.replace('\\', "/"))
             .collect();
@@ -591,4 +591,23 @@ mod tests {
         let results = mgr.search("sincronização");
         assert_eq!(results.len(), 1);
     }
+}
+
+
+/// Links `[[Nota]]` escritos no frontmatter (propriedades como `projeto: "[[Orion]]"`). O parser só
+/// extrai os do corpo, mas uma nota ligada por propriedade não é uma ilha.
+fn frontmatter_links(raw: &str) -> Vec<String> {
+    let Some(rest) = raw.strip_prefix("---\n").or_else(|| raw.strip_prefix("---\r\n")) else { return vec![] };
+    let Some(end) = rest.find("\n---") else { return vec![] };
+    let mut links = vec![];
+    let mut texto = &rest[..end];
+    while let Some(i) = texto.find("[[") {
+        let Some(j) = texto[i + 2..].find("]]") else { break };
+        let alvo = texto[i + 2..i + 2 + j].trim();
+        if !alvo.is_empty() {
+            links.push(alvo.to_string());
+        }
+        texto = &texto[i + 2 + j + 2..];
+    }
+    links
 }
