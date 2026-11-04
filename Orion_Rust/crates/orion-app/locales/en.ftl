@@ -1670,3 +1670,4 @@ ui-1233 = { "Request not found in the history." }
 ui-1234 = { "Remove the attachments before editing the message." }
 ui-1235 = { "Download backup from Drive" }
 ui-1236 = { "Downloads the latest encrypted copy from Google Drive to the chosen folder. Nothing is restored on its own: use Restore backup afterwards." }
+ui-1237 = { "Edit and send: the original message's attachments are not sent again." }

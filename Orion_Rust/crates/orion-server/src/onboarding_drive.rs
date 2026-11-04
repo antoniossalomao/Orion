@@ -224,18 +224,36 @@ pub async fn pull_latest(folder: &std::path::Path) -> anyhow::Result<std::path::
         name.ends_with(".orion-backup") && !name.contains(['/', '\\', ':']) && !name.contains(".."),
         "nome de backup inesperado no Drive"
     );
-    let bytes = client
+    let mut response = client
         .get(format!("https://www.googleapis.com/drive/v3/files/{id}"))
         .bearer_auth(access)
         .query(&[("alt", "media")])
         .send()
         .await?
-        .error_for_status()?
-        .bytes()
-        .await?;
-    ensure!(bytes.len() <= 2 * 1024 * 1024 * 1024, "backup maior que o limite aceito");
+        .error_for_status()?;
+    const LIMITE: u64 = 2 * 1024 * 1024 * 1024;
+    ensure!(response.content_length().is_none_or(|n| n <= LIMITE), "backup maior que o limite aceito");
     tokio::fs::create_dir_all(folder).await?;
     let destination = folder.join(format!("drive-{name}"));
-    tokio::fs::write(&destination, &bytes).await?;
+    // Vai para um arquivo temporário com limite corrido: um backup enorme nunca ocupa a memória.
+    let partial = folder.join(format!("drive-{name}.part"));
+    let written: anyhow::Result<()> = async {
+        use tokio::io::AsyncWriteExt;
+        let mut file = tokio::fs::File::create(&partial).await?;
+        let mut total = 0u64;
+        while let Some(chunk) = response.chunk().await? {
+            total += chunk.len() as u64;
+            ensure!(total <= LIMITE, "backup maior que o limite aceito");
+            file.write_all(&chunk).await?;
+        }
+        file.flush().await?;
+        Ok(())
+    }
+    .await;
+    if let Err(e) = written {
+        let _ = tokio::fs::remove_file(&partial).await;
+        return Err(e);
+    }
+    tokio::fs::rename(&partial, &destination).await?;
     Ok(destination)
 }

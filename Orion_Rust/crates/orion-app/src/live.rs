@@ -1069,11 +1069,12 @@ impl App {
                 _ if self.session_id().as_deref() != Some(sid.as_str()) => {}
                 // Um envio começou durante a busca: o pedido mais recente já mudou, então a edição vale de nada.
                 _ if self.streaming.is_some() => {}
-                Ok((_, text)) if !self.conv.and_then(|ci| self.convs.get(ci)).and_then(|c| c.msgs.iter().rev().find_map(|m| if let ChatMsg::User(u) = m { Some(u.trim() == text.trim()) } else { None })).unwrap_or(false) => {}
+                Ok((_, text)) if !self.conv.and_then(|ci| self.convs.get(ci)).and_then(|c| c.msgs.iter().rev().find_map(|m| if let ChatMsg::User(u) = m { Some(request_text(u) == request_text(&text)) } else { None })).unwrap_or(false) => {}
                 Ok((id, text)) => {
                     self.edit_target = Some((sid, id));
-                    self.composer = iced::widget::text_editor::Content::with_text(&text);
-                    self.toast("Edite e envie: a resposta é refeita como nova versão do pedido.");
+                    let had_attachments = self.conv.and_then(|ci| self.convs.get(ci)).and_then(|c| c.msgs.iter().rev().find_map(|m| if let ChatMsg::User(u) = m { Some(u.contains("\n\nAnexos: ")) } else { None })).unwrap_or(false);
+                    self.composer = iced::widget::text_editor::Content::with_text(request_text(&text));
+                    self.toast(if had_attachments { "Edite e envie: os anexos da mensagem original não vão de novo." } else { "Edite e envie: a resposta é refeita como nova versão do pedido." });
                 }
                 Err(error) => self.toast(error),
             },
@@ -1585,4 +1586,14 @@ pub fn iso_date(secs: f64) -> String {
     let day = doy - (153 * mp + 2) / 5 + 1;
     let month = if mp < 10 { mp + 3 } else { mp - 9 };
     format!("{:04}-{:02}-{:02}", if month <= 2 { y + 1 } else { y }, month, day)
+}
+
+
+/// Texto do pedido sem as anotações que o app e o núcleo acrescentam (lista de anexos, aviso de imagens).
+fn request_text(shown: &str) -> &str {
+    let base = shown.split("\n\nAnexos: ").next().unwrap_or(shown);
+    match base.rfind("\n[") {
+        Some(i) if base[i..].contains(" imagem(ns) enviada(s)") => base[..i].trim(),
+        _ => base.trim(),
+    }
 }
