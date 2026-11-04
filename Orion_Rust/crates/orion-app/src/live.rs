@@ -548,7 +548,10 @@ impl App {
             }
             // O modo real nunca usa amostras nem recibos de gravação do protótipo
             // (REGRAS.md: você é o administrador).
-            Msg::Attach => {
+            Msg::Attach | Msg::AttachPath(_) => {
+                // Arrastar e soltar (F05): o caminho vem do evento da janela; o limite, o tipo e a
+                // assinatura dos bytes são conferidos igual ao seletor (REGRAS.md: conteúdo externo é dado).
+                let dropped = if let Msg::AttachPath(path) = &msg { Some(std::path::PathBuf::from(path)) } else { None };
                 if self.attaching || self.streaming.is_some() || self.attachment_ids.len() >= 8 { return Some((Task::none(), false)); }
                 self.attaching = true;
                 let generation = self.attachment_generation;
@@ -559,8 +562,13 @@ impl App {
                     // da extensão, mas o núcleo confere de novo pela assinatura dos bytes.
                     let selected = tokio::task::spawn_blocking(move || {
                         use std::io::Read;
-                        let Some(path) = crate::onboarding::choose(crate::onboarding::Field::Attachment)? else { return Ok(None) };
-                        let path = std::path::PathBuf::from(path);
+                        let path = match dropped {
+                            Some(path) => path,
+                            None => {
+                                let Some(path) = crate::onboarding::choose(crate::onboarding::Field::Attachment)? else { return Ok(None) };
+                                std::path::PathBuf::from(path)
+                            }
+                        };
                         let name = path.file_name().ok_or("Nome de arquivo inválido")?.to_string_lossy().to_string();
                         let ext = path.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
                         let (classe, limite) = match ext.as_str() {

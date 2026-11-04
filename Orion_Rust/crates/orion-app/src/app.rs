@@ -528,6 +528,8 @@ pub enum Msg {
     PrivatePermitted(String),
     RepeatLastIfEmpty,
     Attach,
+    /// Arquivo solto na janela (arrastar e soltar).
+    AttachPath(String),
     Unattach(usize),
     Mic,
     Live,
@@ -899,6 +901,7 @@ impl App {
             iced::Event::Window(window::Event::Focused) => Some(Msg::WindowActive(true)),
             iced::Event::Window(window::Event::Unfocused) => Some(Msg::WindowActive(false)),
             iced::Event::Window(window::Event::Moved(p)) => Some(Msg::Moved(p)),
+            iced::Event::Window(window::Event::FileDropped(path)) => Some(Msg::AttachPath(path.to_string_lossy().into_owned())),
             _ => None,
         });
         let poll = if self.window_active && self.api.is_some() && self.logged && self.streaming.is_none() { iced::time::every(Duration::from_secs(6)).map(|_| Msg::Poll) } else { Subscription::none() };
@@ -1497,6 +1500,7 @@ impl App {
                     self.toast("Até 20 MB por arquivo. Maior que isso: ponha numa pasta e passe o caminho.");
                 }
             }
+            Msg::AttachPath(_) => self.toast("Arrastar e soltar só funciona com o núcleo conectado."),
             Msg::Unattach(i) => {
                 if i < self.attach.len() {
                     self.attach.remove(i);
