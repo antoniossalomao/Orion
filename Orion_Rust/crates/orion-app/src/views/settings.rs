@@ -23,9 +23,9 @@ const GROUPS: [(&str, &[Entry]); 2] = [
             (Sec::Notificacoes, "bell", "Notificações e sons", "notificações sons não perturbe"),
             (Sec::Conta, "user", "Conta", "nome apelido senha sair"),
             (Sec::Privacidade, "shield", "Privacidade e autonomia", "modo autônomo permissões nunca sai pausar apagar histórico"),
-            (Sec::Tools, "keys", "Ferramentas", "permissões computador web abrir apps confirmação autorização"),
+            (Sec::Tools, "wrench", "Ferramentas", "permissões computador web abrir apps confirmação autorização"),
             (Sec::Uso, "gauge", "Uso", "limite tokens cotas"),
-            (Sec::Painel, "gauge", "Painel", "Cotas, modelos e a semana, direto do servidor."),
+            (Sec::Painel, "bars", "Painel", "Cotas, modelos e a semana, direto do servidor."),
             (Sec::Modelos, "cpu", "Modelos", "auto claude codex gemini orion provedores ordem cotas chaves"),
             (Sec::Memoria, "graph", "Memória", "vault fatos grafo pasta commit diário"),
             (Sec::Fontes, "db", "Fontes", "vault calendário email web repositório"),
@@ -36,8 +36,8 @@ const GROUPS: [(&str, &[Entry]); 2] = [
     (
         "Este computador",
         &[
-            (Sec::Sistema, "cpu", "Sistema", "ram memória inicialização win+shift+espaço mica bandeja atualizações backup drive pastas versão"),
-            (Sec::Locais, "db", "Modelos locais", "llama.cpp qwen fallback baixar"),
+            (Sec::Sistema, "monitor", "Sistema", "ram memória inicialização win+shift+espaço mica bandeja atualizações backup drive pastas versão"),
+            (Sec::Locais, "download", "Modelos locais", "llama.cpp qwen fallback baixar"),
             (Sec::Voz, "wave", "Voz", "palavra orion palmas idioma estilo mini barra"),
             (Sec::Camera, "camera", "Câmera", "presença onde eu deixei rosto legenda objetos"),
             (Sec::Atalhos, "keys", "Atalhos", "teclado comandos"),
