@@ -1720,3 +1720,4 @@ ui-1283 = { "O que eu vi" }
 ui-1284 = { "Busca no texto que esteve na tela nos últimos 30 dias. Só tem resultado se a memória da tela estiver ligada." }
 ui-1285 = { "Ex.: fatura do cartão" }
 ui-1286 = { "Digite pelo menos 2 letras para buscar." }
+ui-1287 = { "Resumo gravado no vault: " }{ $v0 }

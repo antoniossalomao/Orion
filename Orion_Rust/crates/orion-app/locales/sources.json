@@ -1414,5 +1414,6 @@
   "O que eu vi": "ui-1283",
   "Busca no texto que esteve na tela nos últimos 30 dias. Só tem resultado se a memória da tela estiver ligada.": "ui-1284",
   "Ex.: fatura do cartão": "ui-1285",
-  "Digite pelo menos 2 letras para buscar.": "ui-1286"
+  "Digite pelo menos 2 letras para buscar.": "ui-1286",
+  "Resumo gravado no vault: {}": "ui-1287"
 }

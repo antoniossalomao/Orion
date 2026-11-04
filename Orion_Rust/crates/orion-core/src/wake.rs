@@ -409,10 +409,13 @@ impl WakeListener {
                             let abort = || me.parar.load(Ordering::SeqCst) || me.pausada() || me.suspensa.load(Ordering::SeqCst);
                             let noise_threshold = *me.vad_threshold.lock();
                             match player(&mp3, noise_threshold, &abort) {
-                                Ok(Some(pcm)) if !abort() && me.wake_limit.lock().allow(std::time::Instant::now()) => {
-                                    // REGRAS.md: voz nunca aprova; interrupção cria outro turno comum.
-                                    *me.pending_utterance.lock() = Some(pcm_para_wav(&pcm, SAMPLE_RATE));
-                                    // Interrompido: os trechos restantes não são falados.
+                                Ok(Some(pcm)) => {
+                                    // REGRAS.md: voz nunca aprova; interrupção cria outro turno comum. O limite de
+                                    // ativações só decide se a fala captada abre outro turno.
+                                    if !abort() && me.wake_limit.lock().allow(std::time::Instant::now()) {
+                                        *me.pending_utterance.lock() = Some(pcm_para_wav(&pcm, SAMPLE_RATE));
+                                    }
+                                    // Interrompido: os trechos restantes não são falados, com ou sem limite.
                                     if let Some(t) = proximo.take() { t.abort(); }
                                     break;
                                 }
