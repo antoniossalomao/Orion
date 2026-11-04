@@ -377,33 +377,53 @@ impl WakeListener {
                     return;
                 }
                 if let (false, Some(s)) = (resposta.is_empty(), &sp) {
-                    match s.synthesize(&resposta).await {
-                        Ok(mp3) => {
-                            if let Some(v) = &vs {
-                                v.inc_sintetizados();
-                            }
-                            let player = me.interruptible_player.lock().clone();
-                            if let Some(player) = player {
-                                let abort = || me.parar.load(Ordering::SeqCst) || me.pausada() || me.suspensa.load(Ordering::SeqCst);
-                                let noise_threshold = *me.vad_threshold.lock();
-                                match player(&mp3, noise_threshold, &abort) {
-                                    Ok(Some(pcm)) if !abort() && me.wake_limit.lock().allow(std::time::Instant::now()) => {
-                                        // REGRAS.md: voz nunca aprova; interrupção cria outro turno comum.
-                                        *me.pending_utterance.lock() = Some(pcm_para_wav(&pcm, SAMPLE_RATE));
-                                    }
-                                    Err(_) => { me.stats.lock().erros += 1; }
-                                    _ => {}
-                                }
-                            } else {
-                                tc(&mp3);
-                            }
+                    // Fala em trechos: a primeira frase toca enquanto a próxima é sintetizada em outra tarefa.
+                    let trechos = crate::voice::trechos_de_fala(&resposta, 400);
+                    let sintetizar = |texto: String| {
+                        let s = s.clone();
+                        tokio::spawn(async move { s.synthesize(&texto).await })
+                    };
+                    let mut fila = trechos.into_iter();
+                    let mut proximo = fila.next().map(&sintetizar);
+                    while let Some(tarefa) = proximo.take() {
+                        if me.pausada() || me.suspensa.load(Ordering::SeqCst) || me.parar.load(Ordering::SeqCst) {
+                            tarefa.abort();
+                            break;
                         }
-                        Err(_) => {
-                            if let Some(v) = &vs {
-                                v.inc_erros();
+                        let sintese = tarefa.await;
+                        proximo = fila.next().map(&sintetizar);
+                        let mp3 = match sintese {
+                            Ok(Ok(mp3)) => mp3,
+                            _ => {
+                                if let Some(v) = &vs {
+                                    v.inc_erros();
+                                }
+                                break;
                             }
+                        };
+                        if let Some(v) = &vs {
+                            v.inc_sintetizados();
+                        }
+                        let player = me.interruptible_player.lock().clone();
+                        if let Some(player) = player {
+                            let abort = || me.parar.load(Ordering::SeqCst) || me.pausada() || me.suspensa.load(Ordering::SeqCst);
+                            let noise_threshold = *me.vad_threshold.lock();
+                            match player(&mp3, noise_threshold, &abort) {
+                                Ok(Some(pcm)) if !abort() && me.wake_limit.lock().allow(std::time::Instant::now()) => {
+                                    // REGRAS.md: voz nunca aprova; interrupção cria outro turno comum.
+                                    *me.pending_utterance.lock() = Some(pcm_para_wav(&pcm, SAMPLE_RATE));
+                                    // Interrompido: os trechos restantes não são falados.
+                                    if let Some(t) = proximo.take() { t.abort(); }
+                                    break;
+                                }
+                                Err(_) => { me.stats.lock().erros += 1; }
+                                _ => {}
+                            }
+                        } else {
+                            tc(&mp3);
                         }
                     }
+                    if let Some(t) = proximo.take() { t.abort(); }
                 }
             });
         });

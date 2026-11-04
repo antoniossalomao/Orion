@@ -169,6 +169,34 @@ pub fn falavel(texto: &str, limite: usize) -> String {
     }
 }
 
+/// Divide a fala em trechos de frases para tocar o primeiro enquanto o próximo é sintetizado
+/// (conversa fluida). O primeiro trecho é só a primeira frase: é ele que define a latência.
+pub fn trechos_de_fala(texto: &str, demais_max: usize) -> Vec<String> {
+    let mut frases: Vec<String> = vec![];
+    let mut atual = String::new();
+    for c in texto.chars() {
+        atual.push(c);
+        if matches!(c, '.' | '!' | '?' | '…' | '\n') && atual.trim().chars().count() >= 3 {
+            frases.push(std::mem::take(&mut atual).trim().to_string());
+        }
+    }
+    if !atual.trim().is_empty() {
+        frases.push(atual.trim().to_string());
+    }
+    let mut trechos: Vec<String> = vec![];
+    for f in frases {
+        let juntar = trechos.len() > 1;
+        match trechos.last_mut() {
+            Some(ultimo) if juntar && ultimo.chars().count() + 1 + f.chars().count() <= demais_max => {
+                ultimo.push(' ');
+                ultimo.push_str(&f);
+            }
+            _ => trechos.push(f),
+        }
+    }
+    trechos
+}
+
 pub trait CanalVoz: Send + Sync {
     fn send_json<'a>(&'a self, v: Value) -> BoxFuture<'a, bool>;
     fn send_bytes<'a>(&'a self, b: Vec<u8>) -> BoxFuture<'a, bool>;
