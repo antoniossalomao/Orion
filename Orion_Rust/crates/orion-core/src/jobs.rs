@@ -138,6 +138,8 @@ pub struct JobRunner {
     diario_vault: Option<DiarioVault>,
     /// Resumo semanal em Markdown para o vault (opt-in, junto do diário).
     semanal_vault: Option<DiarioVault>,
+    /// Chave do diário do vault, lida a cada passada: desligada, o resumo semanal nem é montado nem consome a semana.
+    semanal_ligado: Option<Arc<std::sync::atomic::AtomicBool>>,
     despertador: Option<Despertador>,
     /// Último despertar registrado (hora local; `Some(None)` = apagado), para só falar com o
     /// Agendador quando muda. `None`: ainda não registrou nesta execução.
@@ -184,6 +186,7 @@ impl JobRunner {
             modos: None,
             diario_vault: None,
             semanal_vault: None,
+            semanal_ligado: None,
             despertador: None,
             despertar: Mutex::new(None),
             every,
@@ -246,8 +249,9 @@ impl JobRunner {
         self.despertador = Some(d);
         self
     }
-    pub fn com_semanal_vault(mut self, d: DiarioVault) -> Self {
+    pub fn com_semanal_vault(mut self, d: DiarioVault, ligado: Arc<std::sync::atomic::AtomicBool>) -> Self {
         self.semanal_vault = Some(d);
+        self.semanal_ligado = Some(ligado);
         self
     }
     pub fn com_diario_vault(mut self, d: DiarioVault) -> Self {
@@ -479,6 +483,10 @@ impl JobRunner {
     /// semana grava; falhar não repete a cada tick, e o nome do arquivo evita duplicar (nunca sobrescreve).
     fn semanal_para_vault(&self) -> anyhow::Result<bool> {
         let Some(gravar) = &self.semanal_vault else { return Ok(false) };
+        // Opt-in desligado: não consome a semana, para ligar depois ainda valer nela.
+        if !self.semanal_ligado.as_ref().is_some_and(|l| l.load(std::sync::atomic::Ordering::Relaxed)) {
+            return Ok(false);
+        }
         let agora = self.agora();
         let dt = crate::util::local(agora);
         let iso = dt.iso_week();

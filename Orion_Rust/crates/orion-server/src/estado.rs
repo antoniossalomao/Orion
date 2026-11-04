@@ -920,14 +920,14 @@ pub async fn montar_with_runtime(mut settings: Settings, preserve_extensions:boo
             }));
             let ligado = live.diary.clone();
             let vault = vault_semanal;
-            j = j.com_semanal_vault(Arc::new(move |segunda: chrono::NaiveDate, md: &str| {
-                if !ligado.load(std::sync::atomic::Ordering::Relaxed) {
-                    return Ok(());
-                }
-                let mgr = orion_vault::VaultManager::new(Some(vault.clone()))?;
-                mgr.save_weekly_report(&segunda.to_string(), "08:00", md)?;
-                Ok(())
-            }));
+            j = j.com_semanal_vault(
+                Arc::new(move |segunda: chrono::NaiveDate, md: &str| {
+                    let mgr = orion_vault::VaultManager::new(Some(vault.clone()))?;
+                    mgr.save_weekly_report(&segunda.to_string(), "08:00", md)?;
+                    Ok(())
+                }),
+                ligado,
+            );
         }
         if let Some(gw) = &gateway {
             if settings.consolidate {
