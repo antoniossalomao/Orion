@@ -909,12 +909,23 @@ pub async fn montar_with_runtime(mut settings: Settings, preserve_extensions:boo
         // a chave é lida a cada gravação: desligar o diário nas Configurações vale na hora
         if let Some(vault) = settings.vault_dir.clone() {
             let ligado = live.diary.clone();
+            let vault_semanal = vault.clone();
             j = j.com_diario_vault(Arc::new(move |dia: chrono::NaiveDate, md: &str| {
                 if !ligado.load(std::sync::atomic::Ordering::Relaxed) {
                     return Ok(());
                 }
                 let mgr = orion_vault::VaultManager::new(Some(vault.clone()))?;
                 mgr.save_daily_report(&dia.to_string(), "23:59", None, md)?;
+                Ok(())
+            }));
+            let ligado = live.diary.clone();
+            let vault = vault_semanal;
+            j = j.com_semanal_vault(Arc::new(move |segunda: chrono::NaiveDate, md: &str| {
+                if !ligado.load(std::sync::atomic::Ordering::Relaxed) {
+                    return Ok(());
+                }
+                let mgr = orion_vault::VaultManager::new(Some(vault.clone()))?;
+                mgr.save_weekly_report(&segunda.to_string(), "08:00", md)?;
                 Ok(())
             }));
         }

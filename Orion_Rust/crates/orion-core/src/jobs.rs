@@ -136,6 +136,8 @@ pub struct JobRunner {
     custos: Option<Arc<Custos>>,
     modos: Option<Arc<Modos>>,
     diario_vault: Option<DiarioVault>,
+    /// Resumo semanal em Markdown para o vault (opt-in, junto do diário).
+    semanal_vault: Option<DiarioVault>,
     despertador: Option<Despertador>,
     /// Último despertar registrado (hora local; `Some(None)` = apagado), para só falar com o
     /// Agendador quando muda. `None`: ainda não registrou nesta execução.
@@ -181,6 +183,7 @@ impl JobRunner {
             custos: None,
             modos: None,
             diario_vault: None,
+            semanal_vault: None,
             despertador: None,
             despertar: Mutex::new(None),
             every,
@@ -241,6 +244,10 @@ impl JobRunner {
     /// F12.04 (opt-in): acorda o PC suspenso um minuto antes do próximo agendamento ou lembrete.
     pub fn com_despertador(mut self, d: Despertador) -> Self {
         self.despertador = Some(d);
+        self
+    }
+    pub fn com_semanal_vault(mut self, d: DiarioVault) -> Self {
+        self.semanal_vault = Some(d);
         self
     }
     pub fn com_diario_vault(mut self, d: DiarioVault) -> Self {
@@ -712,6 +719,15 @@ impl JobRunner {
             if self.memory.counter_get("semanal:ultimo") < semana {
                 self.ops.notify("semanal", &build_weekly(&self.memory, agora, &self.cfg.nome), Some(&format!("semanal:{semana}")), false)?;
                 self.memory.counter_set("semanal:ultimo", semana)?;
+                // F06.12: com o diário ligado, o resumo semanal completo também vira nota no vault
+                if let Some(gravar) = &self.semanal_vault {
+                    let agenda_semanal = if self.panico() { None } else { self.agenda.as_deref() };
+                    let md = crate::briefing::build_weekly_md(&self.ops, &self.memory, agora, &self.cfg.nome, agenda_semanal);
+                    let segunda = dt.date_naive();
+                    if let Err(e) = gravar(segunda, &md) {
+                        tracing::warn!("resumo semanal não foi para o vault: {e}");
+                    }
+                }
             }
         }
         Ok(true)

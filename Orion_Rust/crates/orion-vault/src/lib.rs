@@ -23,7 +23,7 @@ pub use note::{ConversationNote, NoteFrontmatter, NoteMetadata};
 pub use parser::{ParsedNote, VaultParser};
 pub use project::ProjectNote;
 pub use scanner::{ScanError, SecretScanner};
-pub use sync::{NoteConflict, SyncResult, VaultManager, VaultStats};
+pub use sync::{LinkSuggestion, NoteConflict, SyncResult, VaultManager, VaultStats};
 
 #[derive(Debug, thiserror::Error)]
 pub enum VaultError {

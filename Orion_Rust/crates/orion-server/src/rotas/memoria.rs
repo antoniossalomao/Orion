@@ -853,3 +853,45 @@ pub async fn vault_conflito_descartar(_: Admin, State(st): State<Estado>, Json(b
     .await
     .map_err(anyhow::Error::from)?
 }
+
+
+#[derive(Deserialize)]
+pub struct VaultLinksReq {
+    #[serde(default)]
+    pub titulo: String,
+    #[serde(default)]
+    pub texto: String,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    #[serde(default)]
+    pub limite: Option<usize>,
+}
+
+/// Sugere projeto, área ou hub para ligar uma nota nova (regra "não criar ilhas"). Só leitura.
+pub async fn vault_sugestoes_links(_: Admin, State(st): State<Estado>, Json(q): Json<VaultLinksReq>) -> ApiResult<Json<Value>> {
+    if q.titulo.chars().count() > 300 || q.texto.chars().count() > 200_000 || q.tags.len() > 64 {
+        return Err(ApiError::new(422, "pedido grande demais"));
+    }
+    tokio::task::spawn_blocking(move || -> ApiResult<Json<Value>> {
+        let mgr = orion_vault::VaultManager::new(st.settings.vault_dir.clone())
+            .map_err(|e| ApiError::new(500, format!("Erro ao carregar Vault: {}", e)))?;
+        let _ = mgr.index_all();
+        let sugestoes = mgr.suggest_links(&q.titulo, &q.texto, &q.tags, q.limite.unwrap_or(5));
+        Ok(Json(json!({"sugestoes": sugestoes})))
+    })
+    .await
+    .map_err(anyhow::Error::from)?
+}
+
+/// Notas-ilha do vault: sem link para fora nem vindo de outra nota.
+pub async fn vault_ilhas(_: Admin, State(st): State<Estado>) -> ApiResult<Json<Value>> {
+    tokio::task::spawn_blocking(move || -> ApiResult<Json<Value>> {
+        let mgr = orion_vault::VaultManager::new(st.settings.vault_dir.clone())
+            .map_err(|e| ApiError::new(500, format!("Erro ao carregar Vault: {}", e)))?;
+        let _ = mgr.index_all();
+        let ilhas = mgr.orphans();
+        Ok(Json(json!({"total": ilhas.len(), "notas": ilhas})))
+    })
+    .await
+    .map_err(anyhow::Error::from)?
+}

@@ -133,3 +133,79 @@ pub fn proximo_dia(agora: f64) -> f64 {
     let d = local(agora).date_naive() + Duration::days(1);
     Local.from_local_datetime(&d.and_hms_opt(0, 0, 0).unwrap()).earliest().map(|x| x.timestamp() as f64).unwrap_or(agora + 86400.0)
 }
+
+
+/// Resumo semanal em Markdown para o vault: atividade, pendências, decisões, agenda e foco sugerido.
+/// Determinístico (sem modelo): só o que o Orion já guarda (REGRAS.md: resumo nunca substitui o registro).
+pub fn build_weekly_md(ops: &Operations, memory: &Store, agora: f64, nome: &str, agenda: Option<&Agenda>) -> String {
+    let desde = agora - 7.0 * 86400.0;
+    let ate = agora + 7.0 * 86400.0;
+    let col = |sql: &str, p: &[&dyn orion_store::rusqlite::ToSql]| -> Vec<String> {
+        memory
+            .query(sql, p)
+            .unwrap_or_default()
+            .iter()
+            .filter_map(|r| r.values().next().and_then(|v| v.as_str().map(|t| t.split_whitespace().collect::<Vec<_>>().join(" "))))
+            .collect()
+    };
+    let num = |sql: &str| -> i64 {
+        memory.query(sql, &[&desde]).ok().and_then(|r| r.first().and_then(|x| x.values().next().and_then(Value::as_i64))).unwrap_or(0)
+    };
+    let pedidos = num("SELECT COUNT(*) FROM messages WHERE role='user' AND created_at>=?");
+    let conversas = num("SELECT COUNT(DISTINCT session_id) FROM messages WHERE role='user' AND created_at>=?");
+    let concluidas = col("SELECT title FROM tasks WHERE status='concluida' AND updated_at>=? ORDER BY updated_at DESC", &[&desde]);
+    let decisoes = col("SELECT text FROM facts WHERE created_at>=? ORDER BY created_at DESC", &[&desde]);
+
+    let mut abertas: Vec<Value> = ops.list_tasks(None).unwrap_or_default().into_iter().map(Value::Object).filter(|t| s(t, "status") != "concluida").collect();
+    abertas.sort_by_key(|t| s(t, "status") != "em_andamento");
+    let pendencias: Vec<String> = abertas.iter().map(|t| format!("{}{}", s(t, "title"), if s(t, "status") == "em_andamento" { " (em andamento)" } else { "" })).collect();
+
+    let lembretes: Vec<Value> = ops.list_reminders(false).unwrap_or_default().into_iter().map(Value::Object).collect();
+    let atrasados: Vec<String> = lembretes.iter().filter(|r| f(r, "due_at") < agora).map(|r| format!("{} — {}", local(f(r, "due_at")).format("%d/%m %H:%M"), s(r, "title"))).collect();
+    let proximos: Vec<String> = lembretes.iter().filter(|r| f(r, "due_at") >= agora && f(r, "due_at") <= ate).map(|r| format!("{} — {}", local(f(r, "due_at")).format("%d/%m %H:%M"), s(r, "title"))).collect();
+    let agendados: Vec<String> = ops
+        .list_schedules()
+        .unwrap_or_default()
+        .into_iter()
+        .map(Value::Object)
+        .filter(|x| x["active"].as_i64().unwrap_or(0) != 0 && x["next_run"].as_f64().is_some_and(|n| agora <= n && n <= ate))
+        .map(|x| format!("{} — {}", local(f(&x, "next_run")).format("%d/%m %H:%M"), s(&x, "title")))
+        .collect();
+
+    // Foco: o que já está em andamento, depois o que atrasou, depois o que está parado há mais tempo.
+    let mut foco: Vec<String> = abertas.iter().filter(|t| s(t, "status") == "em_andamento").map(|t| s(t, "title")).collect();
+    foco.extend(atrasados.iter().cloned());
+    foco.extend(abertas.iter().filter(|t| s(t, "status") != "em_andamento").map(|t| s(t, "title")));
+    foco.truncate(3);
+
+    let lista = |titulo: &str, itens: &[String], vazio: &str| -> String {
+        if itens.is_empty() {
+            format!("## {titulo}\n\n{vazio}\n")
+        } else {
+            let mut linhas: Vec<String> = itens.iter().take(15).map(|i| format!("- {i}")).collect();
+            if itens.len() > 15 {
+                linhas.push(format!("- … e mais {}", itens.len() - 15));
+            }
+            format!("## {titulo}\n\n{}\n", linhas.join("\n"))
+        }
+    };
+    let mut md = format!("# Resumo semanal · {} a {}\n\n{nome}, esta é a sua semana, só com o que o Orion guarda.\n\n", local(desde).format("%d/%m"), local(agora).format("%d/%m"));
+    md += &format!("## Atividade\n\n- {pedidos} pedido(s) em {conversas} conversa(s)\n- {} tarefa(s) concluída(s), {} em aberto\n\n", concluidas.len(), pendencias.len());
+    md += &lista("Concluídas", &concluidas, "Nada concluído.");
+    md += "\n";
+    let mut todas_pendencias = atrasados.iter().map(|a| format!("Atrasado: {a}")).collect::<Vec<_>>();
+    todas_pendencias.extend(pendencias);
+    md += &lista("Pendências", &todas_pendencias, "Nada pendente.");
+    md += "\n";
+    md += &lista("Decisões e fatos novos", &decisoes, "Nenhum fato novo na memória.");
+    md += "\n";
+    let mut agenda_itens = proximos;
+    agenda_itens.extend(agendados);
+    if let Some(de_hoje) = agenda.and_then(|a| a(agora)) {
+        agenda_itens.insert(0, format!("Hoje (Google): {}", de_hoje.split_whitespace().collect::<Vec<_>>().join(" ")));
+    }
+    md += &lista("Agenda dos próximos 7 dias", &agenda_itens, "Nada agendado.");
+    md += "\n";
+    md += &lista("Foco sugerido", &foco, "Sem sugestão: nada em aberto.");
+    md
+}

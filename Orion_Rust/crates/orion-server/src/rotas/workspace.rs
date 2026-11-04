@@ -362,3 +362,28 @@ pub async fn voce_fez_exportar(_: Admin, State(st): State<Estado>, Json(q): Json
     .await
     .map_err(anyhow::Error::from)?
 }
+
+
+/// Resumo semanal (atividade, pendências, decisões, agenda e foco), montado agora e sem modelo.
+pub async fn resumo_semanal(_: Admin, State(st): State<Estado>) -> Json<Value> {
+    let agora = orion_core::util::agora();
+    let markdown = orion_core::briefing::build_weekly_md(&st.ops, &st.memory, agora, "Antônio", None);
+    Json(json!({"markdown": markdown}))
+}
+
+/// Grava o resumo semanal no vault, só por clique seu e sem sobrescrever a nota da semana.
+pub async fn resumo_semanal_exportar(_: Admin, State(st): State<Estado>) -> ApiResult<Json<Value>> {
+    let agora = orion_core::util::agora();
+    let markdown = orion_core::briefing::build_weekly_md(&st.ops, &st.memory, agora, "Antônio", None);
+    let hoje = Local::now();
+    // A nota é da semana ISO em que você está; o nome do arquivo usa a segunda-feira dela.
+    let segunda = hoje.date_naive() - chrono::Duration::days(chrono::Datelike::weekday(&hoje).num_days_from_monday() as i64);
+    let hora = hoje.format("%H:%M").to_string();
+    tokio::task::spawn_blocking(move || -> ApiResult<Json<Value>> {
+        let mgr = orion_vault::VaultManager::new(st.settings.vault_dir.clone()).map_err(|e| ApiError::new(409, format!("Vault indisponível: {e}")))?;
+        let r = mgr.save_weekly_report(&segunda.to_string(), &hora, &markdown).map_err(|e| ApiError::new(409, e.to_string()))?;
+        Ok(Json(json!(r)))
+    })
+    .await
+    .map_err(anyhow::Error::from)?
+}
