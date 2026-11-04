@@ -1668,3 +1668,5 @@ ui-1231 = { "Wait for the reply to finish before editing." }
 ui-1232 = { "Edit and send: the reply is redone as a new version of the request." }
 ui-1233 = { "Request not found in the history." }
 ui-1234 = { "Remove the attachments before editing the message." }
+ui-1235 = { "Download backup from Drive" }
+ui-1236 = { "Downloads the latest encrypted copy from Google Drive to the chosen folder. Nothing is restored on its own: use Restore backup afterwards." }

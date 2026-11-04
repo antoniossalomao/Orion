@@ -1668,3 +1668,5 @@ ui-1231 = { "Espere a resposta terminar para editar." }
 ui-1232 = { "Edite e envie: a resposta é refeita como nova versão do pedido." }
 ui-1233 = { "Pedido não encontrado no histórico." }
 ui-1234 = { "Remova os anexos antes de editar a mensagem." }
+ui-1235 = { "Baixar backup do Drive" }
+ui-1236 = { "Baixa a cópia cifrada mais recente do Google Drive para a pasta escolhida. Nada é restaurado sozinho: use Restaurar backup depois." }

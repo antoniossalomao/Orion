@@ -127,6 +127,7 @@ pub enum FormKind {
     Downloads,
     Plugin,
     BackupExport,
+    BackupDrivePull,
     BackupRestore,
     Review,
 }
@@ -868,7 +869,8 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
             col = col.push(
                 row![
                     form("Exportar backup", FormKind::BackupExport),
-                    form("Restaurar backup", FormKind::BackupRestore)
+                    form("Restaurar backup", FormKind::BackupRestore),
+                    form("Baixar backup do Drive", FormKind::BackupDrivePull)
                 ]
                 .spacing(8),
             );
@@ -1584,7 +1586,7 @@ impl App {
                 let (_, _, default_path) = form_spec(form.kind);
                 let path = form.path.clone().unwrap_or(default_path.into());
                 let method = form.method;
-                let body = if matches!(form.kind, FormKind::Plugin | FormKind::BackupExport) {
+                let body = if matches!(form.kind, FormKind::Plugin | FormKind::BackupExport | FormKind::BackupDrivePull) {
                     if form.kind == FormKind::Plugin {
                         json!({"folder":form.values.get("folder").cloned().unwrap_or_default(),"update":form.values.get("update").is_some_and(|v|v=="true")})
                     } else {
@@ -1685,6 +1687,11 @@ fn form_spec(kind: FormKind) -> (String, &'static str, &'static str) {
             "Exportar backup",
             "/resources/backup/export",
         ),
+        FormKind::BackupDrivePull => (
+            json!({"folder":""}),
+            "Baixar backup do Drive",
+            "/resources/backup/drive-pull",
+        ),
         FormKind::BackupRestore => (
             json!({"file":"","folder":"","password":"","new_password":"","recovery":false}),
             "Restaurar backup",
@@ -1741,6 +1748,7 @@ pub fn overlay(app: &App) -> Option<El<'_>> {
         } else {
             let description=match form.kind{
                 FormKind::BackupRestore=>"Restaura em uma nova pasta. A senha atual abre o arquivo; a nova senha protege o perfil restaurado.",
+                FormKind::BackupDrivePull=>"Baixa a cópia cifrada mais recente do Google Drive para a pasta escolhida. Nada é restaurado sozinho: use Restaurar backup depois.",
                 FormKind::BackupExport=>"Exporta banco e perfil cifrados. Contas, tokens e permissões deste computador ficam fora do arquivo.",
                 _=>"Revise os dados antes de salvar. Conexões habilitadas podem iniciar processos locais ou acessar o endereço informado.",
             };
@@ -1789,7 +1797,7 @@ pub fn overlay(app: &App) -> Option<El<'_>> {
                     )),
                 ),
             ));
-        } else if matches!(form.kind, FormKind::Plugin | FormKind::BackupExport) {
+        } else if matches!(form.kind, FormKind::Plugin | FormKind::BackupExport | FormKind::BackupDrivePull) {
             col = col.push(
                 row![
                     text_input(
@@ -1839,6 +1847,7 @@ pub fn overlay(app: &App) -> Option<El<'_>> {
                 match form.kind {
                     FormKind::BackupRestore => "Restaurar",
                     FormKind::BackupExport => "Exportar",
+                    FormKind::BackupDrivePull => "Baixar",
                     FormKind::Plugin => "Instalar",
                     _ => "Salvar",
                 }
