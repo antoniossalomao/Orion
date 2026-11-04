@@ -273,12 +273,12 @@ fn orion_msg<'a>(app: &'a App, ci: usize, mi: usize, o: &'a OrionMsg, is_last: b
         acts = acts.push(container(tx(o.time.clone(), 11.5, t::FG3)).padding(pad(0.0, 0.0, 0.0, 6.0)));
         let via_txt = if o.via.is_empty() { None } else { Some(o.via.clone()) };
         if let Some(v) = via_txt {
-            let mut vr = row![tx(v.clone(), 11.5, t::FG4)].spacing(4).align_y(Vertical::Center);
+            let mut vr = row![tx(v.clone(), 11.5, t::FG3)].spacing(4).align_y(Vertical::Center);
             if !o.out.is_empty() {
-                vr = vr.push(icon("out", 12.0, t::FG4));
+                vr = vr.push(icon("out", 12.0, t::FG3));
             }
             let msg = if o.out.is_empty() { crate::i18n::formatted("{v} · nada saiu do computador", format!("{v} · nada saiu do computador")) } else { crate::i18n::formatted("{v} · saiu do PC: {}", format!("{v} · saiu do PC: {}", o.out)) };
-            acts = acts.push(container(button(vr).padding(pad(2.0, 6.0, 2.0, 6.0)).on_press(Msg::Toast(msg)).style(|_, st| button::Style { background: if matches!(st, button::Status::Hovered) { Some(t::HOVER.into()) } else { None }, text_color: t::FG4, border: Border { radius: t::R_CTRL.into(), ..Default::default() }, ..Default::default() })).padding(pad(0.0, 0.0, 0.0, 8.0)));
+            acts = acts.push(container(button(vr).padding(pad(2.0, 6.0, 2.0, 6.0)).on_press(Msg::Toast(msg)).style(|_, st| button::Style { background: if matches!(st, button::Status::Hovered) { Some(t::HOVER.into()) } else { None }, text_color: if matches!(st, button::Status::Hovered) { t::FG2 } else { t::FG3 }, border: Border { radius: t::R_CTRL.into(), ..Default::default() }, ..Default::default() })).padding(pad(0.0, 0.0, 0.0, 8.0)));
         }
         if o.saved {
             col = col.push(container(acts.push(container(row![icon("check", 12.0, t::FG3), tx("Salvo no vault", 11.5, t::FG3)].spacing(4).align_y(Vertical::Center)).padding(pad(0.0, 0.0, 0.0, 8.0)))).padding(pad(0.0, 0.0, 0.0, 0.0)));
