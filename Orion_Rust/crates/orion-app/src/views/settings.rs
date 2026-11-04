@@ -544,9 +544,9 @@ fn section<'a>(app: &'a App) -> El<'a> {
             if !app.short_err.is_empty() {
                 c = c.push(tx(app.short_err.clone(), 12.5, t::DANGER));
             }
-            for (titulo, lista) in [("Na janela do Orion", &crate::keys::ACTIONS), ("Em qualquer aplicativo", &crate::keys::GLOBAL)] {
-                c = c.push(sh(crate::i18n::text(titulo)));
-                for a in lista.iter() {
+            for (title, list) in [("Na janela do Orion", &crate::keys::ACTIONS), ("Em qualquer aplicativo", &crate::keys::GLOBAL)] {
+                c = c.push(sh(crate::i18n::text(title)));
+                for a in list.iter() {
                     let editing = app.short_edit == Some(a.id);
                     let shown = if editing { crate::i18n::text("Pressione o novo atalho…").to_string() } else { crate::keys::display(&crate::keys::effective(a.id)) };
                     let mut ctl = row![kbd(&shown)].spacing(8).align_y(Vertical::Center);

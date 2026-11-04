@@ -12,8 +12,9 @@ use tray_icon::{
 pub struct NativeShell {
     _tray: TrayIcon,
     keys: GlobalHotKeyManager,
-    /// Na ordem de `GLOBAL_ORDER`: mini barra, captura rápida, "Isso?" e pânico. Troca em tempo de execução.
-    hot: std::sync::Arc<std::sync::Mutex<[HotKey; 4]>>,
+    /// Na ordem de `GLOBAL_ORDER`: mini barra, captura rápida, "Isso?" e pânico. `None` é atalho extra que não
+    /// conseguiu registrar: fica inativo, fora do despacho e da desregistração. Troca em tempo de execução.
+    hot: std::sync::Arc<std::sync::Mutex<[Option<HotKey>; 4]>>,
     /// A mini barra pode estar desligada em Sistema: nesse caso trocar a combinação só guarda o valor novo.
     mini_on: std::sync::atomic::AtomicBool,
     menu_ids: Vec<(MenuId, DesktopAction)>,
@@ -76,25 +77,24 @@ impl NativeShell {
     /// mini barra e pânico são obrigatórios, captura rápida e "Isso?" são extras.
     pub fn new_with_bindings(labels: [&str; 6], combos: [&str; 4]) -> anyhow::Result<Self> {
         let keys = GlobalHotKeyManager::new()?;
-        let mut chosen: Vec<HotKey> = Vec::new();
+        let mut chosen: Vec<Option<HotKey>> = Vec::new();
         for i in 0..4 {
-            let padrao = parse_combo(DEFAULTS[i]).expect("padrão válido");
-            let efetivo = parse_combo(combos[i]).unwrap_or(padrao);
-            let key = if keys.register(efetivo).is_ok() {
-                efetivo
-            } else if efetivo.id() != padrao.id() && keys.register(padrao).is_ok() {
-                padrao
+            let default = parse_combo(DEFAULTS[i]).expect("padrão válido");
+            let effective = parse_combo(combos[i]).unwrap_or(default);
+            let key = if keys.register(effective).is_ok() {
+                Some(effective)
+            } else if effective.id() != default.id() && keys.register(default).is_ok() {
+                Some(default)
             } else if i == 0 || i == 3 {
-                for k in &chosen {
+                for k in chosen.iter().flatten() {
                     let _ = keys.unregister(*k);
                 }
                 anyhow::bail!("{} já está em uso", DEFAULTS[i]);
             } else {
-                efetivo
+                None
             };
             chosen.push(key);
         }
-        let (mini, captura, isso, panic) = (chosen[0], chosen[1], chosen[2], chosen[3]);
         let menu = Menu::new();
         let mut menu_ids = Vec::new();
         for (label, action) in [
@@ -125,32 +125,36 @@ impl NativeShell {
             .with_icon(Icon::from_rgba(rgba, 32, 32)?)
             .with_menu(Box::new(menu))
             .build()?;
-        let hot = std::sync::Arc::new(std::sync::Mutex::new([mini, captura, isso, panic]));
+        let hot = std::sync::Arc::new(std::sync::Mutex::new([chosen[0], chosen[1], chosen[2], chosen[3]]));
         Ok(Self { _tray: tray, keys, hot, mini_on: std::sync::atomic::AtomicBool::new(true), menu_ids })
     }
     /// Troca um atalho global (índice de `GLOBAL_ORDER`). Se a combinação estiver em uso por outro app, volta ao anterior.
     pub fn rebind(&self, index: usize, combo: &str) -> anyhow::Result<()> {
-        let novo = parse_combo(combo).ok_or_else(|| anyhow::anyhow!("combinação não suportada"))?;
+        let next = parse_combo(combo).ok_or_else(|| anyhow::anyhow!("combinação não suportada"))?;
         let mut hot = self.hot.lock().unwrap_or_else(|e| e.into_inner());
-        let antigo = *hot.get(index).ok_or_else(|| anyhow::anyhow!("atalho desconhecido"))?;
-        if antigo.id() == novo.id() {
+        let old = *hot.get(index).ok_or_else(|| anyhow::anyhow!("atalho desconhecido"))?;
+        if old.is_some_and(|k| k.id() == next.id()) {
             return Ok(());
         }
         // mini barra desligada em Sistema: só guarda a combinação; ligar depois registra a nova
         if index == 0 && !self.mini_on.load(std::sync::atomic::Ordering::Relaxed) {
-            hot[0] = novo;
+            hot[0] = Some(next);
             return Ok(());
         }
-        let _ = self.keys.unregister(antigo);
-        if self.keys.register(novo).is_err() {
-            let _ = self.keys.register(antigo);
+        if let Some(old) = old {
+            let _ = self.keys.unregister(old);
+        }
+        if self.keys.register(next).is_err() {
+            if let Some(old) = old {
+                let _ = self.keys.register(old);
+            }
             anyhow::bail!("combinação em uso por outro aplicativo");
         }
-        hot[index] = novo;
+        hot[index] = Some(next);
         Ok(())
     }
     pub fn set_shortcut_enabled(&self,on:bool)->anyhow::Result<()>{
-        let mini = self.hot.lock().unwrap_or_else(|e| e.into_inner())[0];
+        let mini = self.hot.lock().unwrap_or_else(|e| e.into_inner())[0].ok_or_else(|| anyhow::anyhow!("atalho indisponível"))?;
         if on{self.keys.register(mini)?;}else{self.keys.unregister(mini)?;}
         self.mini_on.store(on, std::sync::atomic::Ordering::Relaxed);
         Ok(())
@@ -159,22 +163,22 @@ impl NativeShell {
         let hot = self.hot.clone();
         let menu_ids = self.menu_ids.clone();
         std::sync::Arc::new(move || {
-        let [mini, captura, isso, panic] = hot.lock().unwrap_or_else(|e| e.into_inner()).map(|k| k.id());
+        let [mini, captura, isso, panic] = hot.lock().unwrap_or_else(|e| e.into_inner()).map(|k| k.map(|k| k.id()));
         let mut actions = Vec::new();
         while let Ok(event) = GlobalHotKeyEvent::receiver().try_recv() {
             if event.state != HotKeyState::Pressed {
                 continue;
             }
-            if event.id == mini {
+            if Some(event.id) == mini {
                 actions.push(DesktopAction::MiniBar)
             }
-            if event.id == panic {
+            if Some(event.id) == panic {
                 actions.push(DesktopAction::Panic)
             }
-            if event.id == captura {
+            if Some(event.id) == captura {
                 actions.push(DesktopAction::QuickCapture)
             }
-            if event.id == isso {
+            if Some(event.id) == isso {
                 actions.push(DesktopAction::Isso)
             }
         }
@@ -195,8 +199,8 @@ impl NativeShell {
 }
 impl Drop for NativeShell {
     fn drop(&mut self) {
-        for key in *self.hot.lock().unwrap_or_else(|e| e.into_inner()) {
-            let _ = self.keys.unregister(key);
+        for key in self.hot.lock().unwrap_or_else(|e| e.into_inner()).iter().flatten() {
+            let _ = self.keys.unregister(*key);
         }
     }
 }

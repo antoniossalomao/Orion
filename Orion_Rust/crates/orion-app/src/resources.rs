@@ -18,7 +18,7 @@ pub struct ResourceState {
     pub lists: BTreeMap<&'static str, Value>,
     pub snapshot: Option<Value>,
     pub draft: BTreeMap<&'static str, String>,
-    /// Resultado da checagem da pasta do vault: `(caminho conferido, aviso, ok)`. Feita fora do desenho da tela.
+    /// Resultado da checagem da pasta do vault: `(caminho conferido, notice, ok)`. Feita fora do desenho da tela.
     pub vault_check: Option<(String, &'static str, bool)>,
     /// F07.02: campo da última mudança salva sozinha e o valor anterior, para "Desfazer".
     pub undo: Option<(&'static str, String)>,
@@ -579,14 +579,14 @@ fn check_vault_task(path: String) -> Task<Msg> {
     Task::perform(
         async move {
             let p = path.clone();
-            let (aviso, ok) = tokio::task::spawn_blocking(move || vault_check(&p)).await.unwrap_or(("Não foi possível verificar a pasta.", false));
-            (path, aviso, ok)
+            let (notice, ok) = tokio::task::spawn_blocking(move || vault_check(&p)).await.unwrap_or(("Não foi possível verificar a pasta.", false));
+            (path, notice, ok)
         },
-        |(p, aviso, ok)| Msg::Resources(Event::VaultChecked(p, aviso, ok)),
+        |(p, notice, ok)| Msg::Resources(Event::VaultChecked(p, notice, ok)),
     )
 }
 
-/// Confere a pasta do vault digitada: `(aviso, ok)`. Só lê o disco; não grava nada (REGRAS.md: nada sai sem opt-in).
+/// Confere a pasta do vault digitada: `(notice, ok)`. Só lê o disco; não grava nada (REGRAS.md: nada sai sem opt-in).
 fn vault_check(path: &str) -> (&'static str, bool) {
     let path = path.trim();
     if path.is_empty() {
@@ -726,8 +726,8 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
         col = col.push(setting(crate::i18n::text(label), description(key), control));
         if key == "vault_dir" {
             // a checagem lê o disco, então roda num worker; aqui só se mostra o último resultado do caminho atual
-            if let Some((_, aviso, ok)) = app.resources.vault_check.as_ref().filter(|(p, _, _)| *p == text.trim()) {
-                col = col.push(tx(crate::i18n::text(aviso), 12.5, if *ok { t::FG3 } else { t::DANGER }));
+            if let Some((_, notice, ok)) = app.resources.vault_check.as_ref().filter(|(p, _, _)| *p == text.trim()) {
+                col = col.push(tx(crate::i18n::text(notice), 12.5, if *ok { t::FG3 } else { t::DANGER }));
             }
         }
     }
@@ -1145,7 +1145,7 @@ impl App {
                 }
                 Err(e) => self.resources.error = e,
             },
-            Event::VaultChecked(path, aviso, ok) => self.resources.vault_check = Some((path, aviso, ok)),
+            Event::VaultChecked(path, notice, ok) => self.resources.vault_check = Some((path, notice, ok)),
             Event::Input(key, text) if !self.resources.busy => {
                 self.resources.draft.insert(key, text.clone());
                 if key == "vault_dir" {
