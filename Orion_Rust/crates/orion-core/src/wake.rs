@@ -378,7 +378,7 @@ impl WakeListener {
                 }
                 if let (false, Some(s)) = (resposta.is_empty(), &sp) {
                     // Fala em trechos: a primeira frase toca enquanto a próxima é sintetizada em outra tarefa.
-                    let trechos = crate::voice::trechos_de_fala(&resposta, 400);
+                    let trechos = crate::voice::speech_chunks(&resposta, 400);
                     let sintetizar = |texto: String| {
                         let s = s.clone();
                         tokio::spawn(async move { s.synthesize(&texto).await })

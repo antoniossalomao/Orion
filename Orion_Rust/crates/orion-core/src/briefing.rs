@@ -151,10 +151,10 @@ pub fn build_weekly_md(ops: &Operations, memory: &Store, agora: f64, nome: &str,
     let num = |sql: &str| -> i64 {
         memory.query(sql, &[&desde]).ok().and_then(|r| r.first().and_then(|x| x.values().next().and_then(Value::as_i64))).unwrap_or(0)
     };
-    let pedidos = num("SELECT COUNT(*) FROM messages WHERE role='user' AND created_at>=?");
-    let conversas = num("SELECT COUNT(DISTINCT session_id) FROM messages WHERE role='user' AND created_at>=?");
-    let concluidas = col("SELECT title FROM tasks WHERE status='concluida' AND updated_at>=? ORDER BY updated_at DESC", &[&desde]);
-    let decisoes = col("SELECT text FROM facts WHERE created_at>=? ORDER BY created_at DESC", &[&desde]);
+    let pedidos = num("SELECT COUNT(*) FROM messages m JOIN sessions s ON s.id=m.session_id WHERE s.project_id IS NULL AND m.role='user' AND m.created_at>=?");
+    let conversas = num("SELECT COUNT(DISTINCT m.session_id) FROM messages m JOIN sessions s ON s.id=m.session_id WHERE s.project_id IS NULL AND m.role='user' AND m.created_at>=?");
+    let concluidas = col("SELECT title FROM tasks WHERE project_id IS NULL AND status='concluida' AND updated_at>=? ORDER BY updated_at DESC", &[&desde]);
+    let decisoes = col("SELECT text FROM facts WHERE project_id IS NULL AND created_at>=? ORDER BY created_at DESC", &[&desde]);
 
     let mut abertas: Vec<Value> = ops.list_tasks(None).unwrap_or_default().into_iter().map(Value::Object).filter(|t| s(t, "status") != "concluida").collect();
     abertas.sort_by_key(|t| s(t, "status") != "em_andamento");

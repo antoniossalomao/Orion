@@ -471,7 +471,9 @@ impl VaultManager {
             })
             .filter(|n| {
                 let stem = Path::new(&n.metadata.rel_path).file_stem().and_then(|s| s.to_str()).unwrap_or("").to_lowercase();
-                n.metadata.wikilinks.is_empty() && !recebidos.contains(&stem) && !recebidos.contains(&n.metadata.title.to_lowercase())
+                // Link com pasta ([[Pasta/Nota]]) conta pelo caminho relativo sem a extensão.
+                let caminho = n.metadata.rel_path.replace('\\', "/").trim_end_matches(".md").to_lowercase();
+                n.metadata.wikilinks.is_empty() && !recebidos.contains(&stem) && !recebidos.contains(&n.metadata.title.to_lowercase()) && !recebidos.contains(&caminho)
             })
             .map(|n| n.metadata.rel_path.replace('\\', "/"))
             .collect();

@@ -850,7 +850,7 @@ impl Agent {
 
     fn negar(nome: &str, motivo: &str) -> (String, Vec<AgentEvent>) {
         (
-            erro_com_orientacao(format!("bloqueada: {motivo}")),
+            error_with_guidance(format!("bloqueada: {motivo}")),
             vec![AgentEvent::new("tool", json!({"name": nome, "decision": "deny", "reason": motivo}))],
         )
     }
@@ -899,7 +899,7 @@ impl Agent {
         let mut eventos = vec![AgentEvent::new("tool", Value::Object(info.clone()))];
         match d.action {
             Action::Deny => {
-                return (erro_com_orientacao(format!("bloqueada pela política: {}", d.reason)), eventos);
+                return (error_with_guidance(format!("bloqueada pela política: {}", d.reason)), eventos);
             }
             Action::Confirm => {
                 eventos.push(AgentEvent::new(
@@ -947,18 +947,18 @@ impl Agent {
 
     async fn executar(&self, chamada: &ToolCall, ctx_arc: &Arc<Mutex<Context>>) -> String {
         if !self.policy.tool_enabled(&chamada.name) || !self.source_allowed(&chamada.name) || self.cortada_pelo_panico(&chamada.name) {
-            return erro_com_orientacao("ferramenta desligada ou modo pânico ativo".into());
+            return error_with_guidance("ferramenta desligada ou modo pânico ativo".into());
         }
         let tool = self.tools.read().get(&chamada.name).cloned();
         let Some(tool) = tool else {
-            return erro_com_orientacao(format!("ferramenta '{}' não implementada", chamada.name));
+            return error_with_guidance(format!("ferramenta '{}' não implementada", chamada.name));
         };
         let escopo = Self::escopo(&ctx_arc.lock());
         let session_id = ctx_arc.lock().session_id.clone();
         let fut = orion_store::scope::scoped(escopo, tool.run(chamada.args.clone()));
         let mut bruto = match tokio::time::timeout(Duration::from_secs_f64(self.cfg.tool_timeout_s), fut).await {
             Ok(r) => r,
-            Err(_) => return erro_com_orientacao(format!("tempo esgotado ({:.0}s)", self.cfg.tool_timeout_s)),
+            Err(_) => return error_with_guidance(format!("tempo esgotado ({:.0}s)", self.cfg.tool_timeout_s)),
         };
         let mut external_result = self.policy.spec(&chamada.name).is_some_and(|s| s.external);
         if chamada.name == "editar_fato" || chamada.name == "esquecer_fato" {
@@ -1160,7 +1160,7 @@ pub fn result_state(result: &str) -> &'static str {
 
 /// Ação sugerida para os erros de ferramenta que o Orion já conhece. Só texto fixo: nunca repete
 /// conteúdo vindo de fora (REGRAS.md: conteúdo externo é dado).
-pub fn sugestao_para_erro(erro: &str) -> Option<&'static str> {
+pub fn suggestion_for_error(erro: &str) -> Option<&'static str> {
     let e = erro.to_lowercase();
     Some(if e.starts_with("tempo esgotado") {
         "A ferramenta demorou demais. Tente de novo com um pedido menor ou verifique a conexão; o limite está em Configurações."
@@ -1180,8 +1180,8 @@ pub fn sugestao_para_erro(erro: &str) -> Option<&'static str> {
 }
 
 /// `{"erro": ...}` com `"sugestao"` quando o erro é conhecido.
-pub fn erro_com_orientacao(erro: String) -> String {
-    match sugestao_para_erro(&erro) {
+pub fn error_with_guidance(erro: String) -> String {
+    match suggestion_for_error(&erro) {
         Some(s) => orion_policy::pyjson::dumps(&json!({"erro": erro, "sugestao": s}), false),
         None => orion_policy::pyjson::dumps(&json!({"erro": erro}), false),
     }

@@ -171,7 +171,7 @@ pub fn falavel(texto: &str, limite: usize) -> String {
 
 /// Divide a fala em trechos de frases para tocar o primeiro enquanto o próximo é sintetizado
 /// (conversa fluida). O primeiro trecho é só a primeira frase: é ele que define a latência.
-pub fn trechos_de_fala(texto: &str, demais_max: usize) -> Vec<String> {
+pub fn speech_chunks(texto: &str, demais_max: usize) -> Vec<String> {
     let mut frases: Vec<String> = vec![];
     let mut atual = String::new();
     let mut chars = texto.chars().peekable();

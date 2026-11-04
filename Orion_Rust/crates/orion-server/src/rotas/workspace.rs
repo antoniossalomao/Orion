@@ -365,14 +365,14 @@ pub async fn voce_fez_exportar(_: Admin, State(st): State<Estado>, Json(q): Json
 
 
 /// Resumo semanal (atividade, pendências, decisões, agenda e foco), montado agora e sem modelo.
-pub async fn resumo_semanal(_: Admin, State(st): State<Estado>) -> Json<Value> {
+pub async fn weekly_summary(_: Admin, State(st): State<Estado>) -> Json<Value> {
     let agora = orion_core::util::agora();
     let markdown = orion_core::briefing::build_weekly_md(&st.ops, &st.memory, agora, "Antônio", None);
     Json(json!({"markdown": markdown}))
 }
 
 /// Grava o resumo semanal no vault, só por clique seu e sem sobrescrever a nota da semana.
-pub async fn resumo_semanal_exportar(_: Admin, State(st): State<Estado>) -> ApiResult<Json<Value>> {
+pub async fn weekly_summary_export(_: Admin, State(st): State<Estado>) -> ApiResult<Json<Value>> {
     let agora = orion_core::util::agora();
     let markdown = orion_core::briefing::build_weekly_md(&st.ops, &st.memory, agora, "Antônio", None);
     let hoje = Local::now();

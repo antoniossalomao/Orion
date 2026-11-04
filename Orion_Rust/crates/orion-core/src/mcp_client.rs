@@ -40,11 +40,11 @@ pub const MAX_PROMPT: usize = 20 * 1024;
 pub const TOOL_RECURSO: &str = "ler_recurso_mcp";
 pub const RECONECTAR_A_CADA_S: f64 = 30.0;
 /// Teto da espera entre tentativas: 30 s, 60 s, 2 min, 4 min, 8 min, 15 min.
-pub const RECONECTAR_TETO_S: f64 = 900.0;
+pub const RECONNECT_CAP_S: f64 = 900.0;
 
 /// Espera antes da próxima tentativa depois de `falhas` falhas seguidas (backoff exponencial com teto).
-pub fn espera_de_reconexao(falhas: u32) -> f64 {
-    (RECONECTAR_A_CADA_S * 2f64.powi(falhas.saturating_sub(1).min(10) as i32)).min(RECONECTAR_TETO_S)
+pub fn reconnect_delay(falhas: u32) -> f64 {
+    (RECONECTAR_A_CADA_S * 2f64.powi(falhas.saturating_sub(1).min(10) as i32)).min(RECONNECT_CAP_S)
 }
 
 pub fn spec_recurso() -> ToolSpec {
@@ -412,7 +412,7 @@ impl McpManager {
     async fn tentar_reconectar(self: &Arc<Self>, servidor: &str) -> Value {
         let cedo = {
             let mut g = self.st.write();
-            let espera = espera_de_reconexao(g.seguidas.get(servidor).copied().unwrap_or(0));
+            let espera = reconnect_delay(g.seguidas.get(servidor).copied().unwrap_or(0));
             let cedo = g.tentou.get(servidor).is_some_and(|t| t.elapsed().as_secs_f64() < espera);
             if !cedo {
                 g.tentou.insert(servidor.into(), Instant::now());
@@ -565,7 +565,7 @@ impl McpManager {
                 json!({
                     "nome": nome, "estado": estado, "status": status, "transporte": if cfg.url.is_some() { "remoto" } else { "local" },
                     "externo": cfg.external, "protocolo": g.protocolos.get(nome), "ultima_falha": g.falhas.get(nome), "falhas_seguidas": g.seguidas.get(nome).copied().unwrap_or(0),
-                    "proxima_tentativa_em_s": g.tentou.get(nome).filter(|_| g.seguidas.contains_key(nome)).map(|t| (espera_de_reconexao(g.seguidas.get(nome).copied().unwrap_or(0)) - t.elapsed().as_secs_f64()).max(0.0).round()),
+                    "proxima_tentativa_em_s": g.tentou.get(nome).filter(|_| g.seguidas.contains_key(nome)).map(|t| (reconnect_delay(g.seguidas.get(nome).copied().unwrap_or(0)) - t.elapsed().as_secs_f64()).max(0.0).round()),
                     "recursos_permitidos": cfg.resources,
                     "ferramentas": ferramentas.iter().map(|(n, sp)| json!({"nome": n, "risco": sp.risk.map(|r| r.as_str()), "externo": sp.external, "egress": sp.egress})).collect::<Vec<_>>(),
                 })

@@ -868,7 +868,7 @@ pub struct VaultLinksReq {
 }
 
 /// Sugere projeto, área ou hub para ligar uma nota nova (regra "não criar ilhas"). Só leitura.
-pub async fn vault_sugestoes_links(_: Admin, State(st): State<Estado>, Json(q): Json<VaultLinksReq>) -> ApiResult<Json<Value>> {
+pub async fn vault_link_suggestions(_: Admin, State(st): State<Estado>, Json(q): Json<VaultLinksReq>) -> ApiResult<Json<Value>> {
     if q.titulo.chars().count() > 300 || q.texto.chars().count() > 200_000 || q.tags.len() > 64 {
         return Err(ApiError::new(422, "pedido grande demais"));
     }
@@ -884,7 +884,7 @@ pub async fn vault_sugestoes_links(_: Admin, State(st): State<Estado>, Json(q): 
 }
 
 /// Notas-ilha do vault: sem link para fora nem vindo de outra nota.
-pub async fn vault_ilhas(_: Admin, State(st): State<Estado>) -> ApiResult<Json<Value>> {
+pub async fn vault_islands(_: Admin, State(st): State<Estado>) -> ApiResult<Json<Value>> {
     tokio::task::spawn_blocking(move || -> ApiResult<Json<Value>> {
         let mgr = orion_vault::VaultManager::new(st.settings.vault_dir.clone())
             .map_err(|e| ApiError::new(500, format!("Erro ao carregar Vault: {}", e)))?;
