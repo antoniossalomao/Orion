@@ -44,6 +44,8 @@ preferences! {
     mcp_enabled: bool, mcp_config: Option<PathBuf>,
     vault_dir: Option<PathBuf>, backup_dir: Option<PathBuf>, backup_keep: usize,
     rerank: bool, rerank_model_dir: String, extra_safe_roots: Vec<PathBuf>, repos: Vec<PathBuf>,
+    tone_directness: u8, tone_formality: u8, tone_custom: String,
+    gateway_model_fast: String, gateway_model_heavy: String, vision_model: String,
     hotkeys: String, telegram_events: String, water_every_min: u32, bedtime_at: String, wake_pc: bool,
 }
 
@@ -135,12 +137,18 @@ impl RuntimePreferences {
             ),
             (self.clipboard_days as f64, 0.0, 90.0, "clipboard_days"),
             (self.backup_keep as f64, 1.0, 100.0, "backup_keep"),
+            (self.tone_directness as f64, 0.0, 4.0, "tone_directness"),
+            (self.tone_formality as f64, 0.0, 4.0, "tone_formality"),
         ] {
             anyhow::ensure!(
                 value.is_finite() && (min..=max).contains(&value),
                 "{name}: use um valor entre {min} e {max}"
             );
         }
+        anyhow::ensure!(
+            self.tone_custom.chars().count() <= 500 && !self.tone_custom.chars().any(char::is_control),
+            "instruções de estilo: até 500 caracteres, sem quebra de linha"
+        );
         for time in [
             &self.briefing_at,
             &self.research_at,

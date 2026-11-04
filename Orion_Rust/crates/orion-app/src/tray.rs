@@ -11,11 +11,31 @@ impl Bandeja {
     pub fn nova() -> Option<Self> {
         #[cfg(windows)]
         {
-            orion_platform::NativeShell::new_with_labels([crate::i18n::text("Abrir mini barra"), crate::i18n::text("Captura rápida (Ctrl+Alt+O)"), crate::i18n::text("Isso? (Ctrl+Alt+I)"), crate::i18n::text("Orçamento e rotinas"), crate::i18n::text("Pânico — cortar tudo"), crate::i18n::text("Sair do Orion")]).ok().map(|shell| Bandeja { shell })
+            // os atalhos globais já nascem com as combinações em vigor (personalizadas ou padrão)
+            let combos = crate::keys::GLOBAL.map(|a| crate::keys::effective(a.id));
+            orion_platform::NativeShell::new_with_bindings(
+                [crate::i18n::text("Abrir mini barra"), crate::i18n::text("Captura rápida"), crate::i18n::text("Isso?"), crate::i18n::text("Orçamento e rotinas"), crate::i18n::text("Pânico — cortar tudo"), crate::i18n::text("Sair do Orion")],
+                [&combos[0], &combos[1], &combos[2], &combos[3]],
+            )
+            .ok()
+            .map(|shell| Bandeja { shell })
         }
         #[cfg(not(windows))]
         {
             None
+        }
+    }
+
+    /// Aplica na hora o atalho global de `keys::GLOBAL[index]`; devolve o motivo se o sistema recusar.
+    pub fn rebind(&self, index: usize, combo: &str) -> Result<(), String> {
+        #[cfg(windows)]
+        {
+            self.shell.rebind(index, combo).map_err(|e| e.to_string())
+        }
+        #[cfg(not(windows))]
+        {
+            let _ = (index, combo);
+            Ok(())
         }
     }
 

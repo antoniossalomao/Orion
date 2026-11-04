@@ -1962,11 +1962,19 @@ impl App {
             Msg::ShortcutCancel => self.short_edit = None,
             Msg::ShortcutCaptured(combo) => {
                 if let Some(id) = self.short_edit.take() {
+                    let before = crate::keys::effective(id);
                     self.short_err = crate::keys::set(id, &combo).err().map(|e| e.message()).unwrap_or_default();
+                    if self.short_err.is_empty() {
+                        self.apply_global(id, &before);
+                    }
                 }
             }
             Msg::ShortcutReset(id) => {
+                let before = crate::keys::effective(id);
                 self.short_err = crate::keys::reset(id).err().map(|e| e.message()).unwrap_or_default();
+                if self.short_err.is_empty() {
+                    self.apply_global(id, &before);
+                }
             }
             Msg::Esc => {
                 if self.mini {
@@ -2086,6 +2094,17 @@ impl App {
             _ => {}
         }
         self.pop = None;
+    }
+
+    /// Registra no sistema o atalho global recém-trocado; se outro app já o usa, volta ao anterior e avisa.
+    fn apply_global(&mut self, id: &'static str, before: &str) {
+        let Some(i) = crate::keys::global_index(id) else { return };
+        let Some(bandeja) = &self.bandeja else { return };
+        if let Err(e) = bandeja.rebind(i, &crate::keys::effective(id)) {
+            let next = crate::keys::effective(id);
+            let _ = crate::keys::set(id, before);
+            self.short_err = crate::i18n::formatted("{} não foi registrado: {}", format!("{} não foi registrado: {}", crate::keys::display(&next), crate::i18n::status(&e)));
+        }
     }
 
     fn resolve(&mut self, c: usize, m: usize, ok: bool) {

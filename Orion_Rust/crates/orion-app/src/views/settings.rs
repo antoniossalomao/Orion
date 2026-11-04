@@ -127,9 +127,15 @@ fn section<'a>(app: &'a App) -> El<'a> {
             c = c.push(setting(crate::i18n::text("Fonte do chat"), crate::i18n::text("Usada nas respostas do Orion."), sel_pop(fonts[p.font].to_string(), Pop::ChatFont, app, menu)));
             c = c.push(setting(crate::i18n::text("Tamanho do texto"), "", pick_seg(&[crate::i18n::text("Pequeno"), crate::i18n::text("Médio"), crate::i18n::text("Grande")], p.size, "size")));
             c = c.push(setting(crate::i18n::text("Largura da transcrição"), "", pick_seg(&[crate::i18n::text("Estreito"), crate::i18n::text("Médio"), crate::i18n::text("Largo")], p.width, "width")));
-            c = c.push(setting(crate::i18n::text("Tom das respostas"), crate::i18n::text("Vale para todos os projetos; cada projeto pode ter instruções próprias."), pick_seg(&[crate::i18n::text("Conciso"), "Normal", crate::i18n::text("Detalhado")], p.tone, "tone")));
-            let ta = container(text_input(crate::i18n::text("Ex.: sem preâmbulo, código completo, português técnico"), &p.tone_text).on_input(Msg::ToneText).size(13).font(t::UI).padding(pad(10.0, 12.0, 10.0, 12.0)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 10.0))).width(Length::Fill).height(Length::Fixed(70.0));
-            c = c.push(container(column![tx(crate::i18n::text("Como o Orion deve responder (opcional)"), 12.5, t::FG3), ta].spacing(6)).padding(pad(4.0, 0.0, 12.0, 0.0)));
+            if app.api.is_some() {
+                // com o núcleo ligado, o tom é guardado de verdade e entra no pedido ao modelo
+                c = c.push(sh(crate::i18n::text("Estilo das respostas")));
+                c = c.push(crate::resources::settings(app, "tone"));
+            } else {
+                c = c.push(setting(crate::i18n::text("Tom das respostas"), crate::i18n::text("Vale para todos os projetos; cada projeto pode ter instruções próprias."), pick_seg(&[crate::i18n::text("Conciso"), "Normal", crate::i18n::text("Detalhado")], p.tone, "tone")));
+                let ta = container(text_input(crate::i18n::text("Ex.: sem preâmbulo, código completo, português técnico"), &p.tone_text).on_input(Msg::ToneText).size(13).font(t::UI).padding(pad(10.0, 12.0, 10.0, 12.0)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 10.0))).width(Length::Fill).height(Length::Fixed(70.0));
+                c = c.push(container(column![tx(crate::i18n::text("Como o Orion deve responder (opcional)"), 12.5, t::FG3), ta].spacing(6)).padding(pad(4.0, 0.0, 12.0, 0.0)));
+            }
         }
         Sec::Notificacoes => {
             // F04.31 / F07.11: matriz evento × canal. "—" é canal que não existe para o evento.
@@ -173,7 +179,6 @@ fn section<'a>(app: &'a App) -> El<'a> {
             c = c.push(sh(crate::i18n::text("Perfil")));
             c = c.push(setting(crate::i18n::text("Nome completo"), "", input(&p.name, Msg::NameChanged)));
             c = c.push(setting(crate::i18n::text("Como o Orion deve te chamar"), crate::i18n::text("Aparece na saudação e na barra lateral."), input(&p.call, Msg::CallChanged)));
-            c = c.push(setting(crate::i18n::text("Senha deste computador"), crate::i18n::text("Pedida ao abrir o Orion e quando o Windows é bloqueado (Win + L)."), btn(crate::i18n::text("Trocar"), Kind::Normal, true, None, Some(toast("Trocar senha não faz parte do protótipo")))));
             c = c.push(sh(crate::i18n::text("Sessão")));
             c = c.push(setting(crate::i18n::text("Sair deste computador"), crate::i18n::text("Pede a senha de novo para entrar."), btn(crate::i18n::text("Sair"), Kind::Normal, true, None, Some(Msg::Logout))));
         }
@@ -259,7 +264,6 @@ fn section<'a>(app: &'a App) -> El<'a> {
             c = c.push(sh(crate::i18n::text("Seletor do chat")));
             c = c.push(lede(crate::i18n::text("Auto, Claude, Codex, Gemini e Orion. Claude, Codex e Gemini usam as assinaturas pelas CLIs oficiais, com modelo e esforço.")));
             c = c.push(setting(crate::i18n::text("Padrão para conversas novas"), "", sel_box_pop(p.model_label(), Pop::DefaultModel, app, menus::model_menu(app))));
-            c = c.push(setting(crate::i18n::text("Mostrar quem respondeu"), crate::i18n::text("Discreto, na linha da hora de cada resposta."), badge(crate::i18n::text("sempre"), Tone::Ok)));
             c = c.push(sh(crate::i18n::text("Orion · ordem das APIs gratuitas")));
             c = c.push(lede(crate::i18n::text("Quando uma cota acaba, passa para a próxima. Se todas acabarem ou não houver internet, usa o modelo local.")));
             if app.api.is_some() {
@@ -295,6 +299,8 @@ fn section<'a>(app: &'a App) -> El<'a> {
                         }
                     }));
                 }
+                c = c.push(sh(crate::i18n::text("Modelo por tarefa")));
+                c = c.push(crate::resources::settings(app, "models"));
                 c = c.push(sh(crate::i18n::text("Chaves de API")));
                 c = c.push(lede(crate::i18n::text("Guardadas no cofre do sistema (Credential Manager). Chaves de modelos valem na hora.")));
                 for (id, label, nome, url) in crate::onboarding::PROVIDERS {
@@ -352,9 +358,6 @@ fn section<'a>(app: &'a App) -> El<'a> {
                     c=c.push(setting(crate::i18n::text(label),"",switch(on,Msg::Resources(crate::resources::Event::Source(key)))));
                 }
             }else{c=c.push(setting(crate::i18n::text("Usar memória nas respostas"),"",sw(p.mem,"mem")));}
-            c = c.push(setting(crate::i18n::text("Pasta das notas do Orion"), crate::i18n::text("Todas as conversas viram resumo aqui, sem perguntar."), txf("03 Recursos/Orion/Memória/", 12.0, t::FG, t::MONO).into()));
-            c = c.push(setting(crate::i18n::text("Resumo diário das conversas triviais"), crate::i18n::text("Uma nota por dia em Memória/Diário, gerada às 23:59. O que você fez aparece em Você fez."), badge("23:59", Tone::Ok)));
-            c = c.push(setting(crate::i18n::text("Salvar no GitHub"), crate::i18n::text("Cada nota gravada vira um commit direto na main do vault, sem PR."), badge(crate::i18n::text("automático"), Tone::Ok)));
             c = c.push(setting(crate::i18n::text("git pull do vault"), crate::i18n::text("Ao abrir o app, a cada conversa nova, antes de gravar uma nota e ao abrir a Memória."), btn(crate::i18n::text("Agora"), Kind::Normal, true, None, Some(Msg::VaultPull))));
             c = c.push(setting(crate::i18n::text("Backup do vault"), crate::i18n::text("Gera um zip do vault na pasta de backups, sem o .git."), btn(crate::i18n::text("Gerar zip"), Kind::Normal, true, None, Some(Msg::VaultBackup))));
             c = c.push(setting(crate::i18n::text("Se você editou a mesma nota no Obsidian"), crate::i18n::text("A sua versão fica como está e a nova vira uma proposta. Compare as duas aqui e escolha."), badge(if app.conflitos.is_empty() { crate::i18n::text("sem conflitos") } else { crate::i18n::text("revisar") }, if app.conflitos.is_empty() { Tone::Ok } else { Tone::Plain })));
@@ -369,7 +372,7 @@ fn section<'a>(app: &'a App) -> El<'a> {
             } else {
                 c = c.push(crate::views::pages::list(crate::views::pages::fact_rows(app, |_| true)));
             }
-            c = c.push(setting(crate::i18n::text("Grafo"), crate::i18n::text("3D no app final, como o Obsidian, sobre o céu do front original."), btn(crate::i18n::text("Abrir"), Kind::Normal, true, None, Some(Msg::SetGo(crate::app::View::Memoria)))));
+            c = c.push(setting(crate::i18n::text("Grafo"), crate::i18n::text("Abre o grafo das notas do vault."), btn(crate::i18n::text("Abrir"), Kind::Normal, true, None, Some(Msg::SetGo(crate::app::View::Memoria)))));
         }
         Sec::Fontes => {
             c = c.push(sh(crate::i18n::text("Fontes")));
@@ -470,14 +473,11 @@ fn section<'a>(app: &'a App) -> El<'a> {
             c = c.push(setting(if en { "Show advanced" } else { crate::i18n::text("Mostrar avançado") }, if en { "Dangerous or support options. Hidden by default." } else { crate::i18n::text("Opções perigosas ou de suporte. Ficam escondidas por padrão.") }, sw(p.advanced, "advanced")));
             if p.advanced {
                 c = c.push(setting(if en { "Debug logs" } else { crate::i18n::text("Logs de depuração") }, if en { "Writes detailed log files for support." } else { crate::i18n::text("Gera arquivos de log detalhados para suporte.") }, btn(if en { "Open logs folder" } else { crate::i18n::text("Abrir pasta de logs") }, Kind::Normal, true, None, Some(Msg::OpenLogs))));
-                c = c.push(setting(if en { "Reset database" } else { crate::i18n::text("Resetar banco") }, if en { "Deletes the local history. This cannot be undone." } else { crate::i18n::text("Apaga o histórico local. Não tem como desfazer.") }, btn(if en { "Soon" } else { crate::i18n::text("Em breve") }, Kind::Normal, true, None, None)));
             }
             let en = p.english;
             c = c.push(sh(if en { "About" } else { crate::i18n::text("Sobre") }));
             let desc = if en { "Version {v}. One executable, no Python, no open port." } else { crate::i18n::text("Versão {v}. Um só executável, sem Python e sem porta aberta.") };
             c = c.push(setting("Orion", &desc.replace("{v}", env!("CARGO_PKG_VERSION")), badge(env!("CARGO_PKG_VERSION"), Tone::Plain)));
-            let (notes, soon) = if en { ("Release notes for this version have not been written yet.", "Soon") } else { (crate::i18n::text("Notas desta versão ainda não foram escritas."), crate::i18n::text("Em breve")) };
-            c = c.push(setting(if en { "What's new" } else { crate::i18n::text("O que mudou") }, notes, btn(soon, Kind::Normal, true, None, None)));
             let lic = if en { "All rights reserved. Private source code; see the LICENSE file in the repository." } else { crate::i18n::text("Todos os direitos reservados. Código-fonte privado; veja o arquivo LICENSE do repositório.") };
             c = c.push(setting(if en { "License" } else { crate::i18n::text("Licença") }, lic, badge(if en { "proprietary" } else { crate::i18n::text("proprietária") }, Tone::Plain)));
             if app.api.is_some(){c=c.push(crate::resources::settings(app,"storage"));}
@@ -536,24 +536,27 @@ fn section<'a>(app: &'a App) -> El<'a> {
             c = c.push(row![container(text_input(crate::i18n::text("Adicionar objeto"), &app.new_obj).on_input(Msg::NewObj).on_submit(Msg::ObjAdd).size(13).font(t::UI).padding(pad(6.0, 10.0, 6.0, 10.0)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 8.0))).width(Length::Fixed(220.0)), btn(crate::i18n::text("Adicionar"), Kind::Normal, true, None, Some(Msg::ObjAdd))].spacing(8));
         }
         Sec::Atalhos => {
-            c = c.push(sh(crate::i18n::text("Atalhos")));
             if !app.short_err.is_empty() {
                 c = c.push(tx(app.short_err.clone(), 12.5, t::DANGER));
             }
-            for a in crate::keys::ACTIONS.iter() {
-                let editing = app.short_edit == Some(a.id);
-                let shown = if editing { crate::i18n::text("Pressione o novo atalho…").to_string() } else { crate::keys::display(&crate::keys::effective(a.id)) };
-                let mut ctl = row![kbd(&shown)].spacing(8).align_y(Vertical::Center);
-                if editing {
-                    ctl = ctl.push(btn(crate::i18n::text("Cancelar"), Kind::Ghost, true, None, Some(Msg::ShortcutCancel)));
-                } else {
-                    ctl = ctl.push(btn(crate::i18n::text("Alterar"), Kind::Normal, true, None, Some(Msg::ShortcutEdit(a.id))));
-                    if crate::keys::custom(a.id) {
-                        ctl = ctl.push(btn(crate::i18n::text("Restaurar"), Kind::Ghost, true, None, Some(Msg::ShortcutReset(a.id))));
+            for (title, list) in [("Na janela do Orion", &crate::keys::ACTIONS), ("Em qualquer aplicativo", &crate::keys::GLOBAL)] {
+                c = c.push(sh(crate::i18n::text(title)));
+                for a in list.iter() {
+                    let editing = app.short_edit == Some(a.id);
+                    let shown = if editing { crate::i18n::text("Pressione o novo atalho…").to_string() } else { crate::keys::display(&crate::keys::effective(a.id)) };
+                    let mut ctl = row![kbd(&shown)].spacing(8).align_y(Vertical::Center);
+                    if editing {
+                        ctl = ctl.push(btn(crate::i18n::text("Cancelar"), Kind::Ghost, true, None, Some(Msg::ShortcutCancel)));
+                    } else {
+                        ctl = ctl.push(btn(crate::i18n::text("Alterar"), Kind::Normal, true, None, Some(Msg::ShortcutEdit(a.id))));
+                        if crate::keys::custom(a.id) {
+                            ctl = ctl.push(btn(crate::i18n::text("Restaurar"), Kind::Ghost, true, None, Some(Msg::ShortcutReset(a.id))));
+                        }
                     }
+                    c = c.push(setting(a.label, "", ctl.into()));
                 }
-                c = c.push(setting(a.label, "", ctl.into()));
             }
+            c = c.push(sh(crate::i18n::text("Fixos")));
             // Linhas fixas geradas da lista de reservados, para a tela nunca divergir das regras de conflito.
             for (_, label, shown) in crate::keys::RESERVED.iter().filter(|(_, _, s)| !s.is_empty()) {
                 let shown = if *shown == "Ctrl Alt Espaço" { crate::keys::display("Ctrl+Alt+Space") } else { shown.to_string() };

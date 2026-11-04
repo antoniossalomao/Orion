@@ -18,6 +18,8 @@ pub struct ResourceState {
     pub lists: BTreeMap<&'static str, Value>,
     pub snapshot: Option<Value>,
     pub draft: BTreeMap<&'static str, String>,
+    /// Resultado da checagem da pasta do vault: `(caminho conferido, notice, ok)`. Feita fora do desenho da tela.
+    pub vault_check: Option<(String, &'static str, bool)>,
     /// F07.02: campo da última mudança salva sozinha e o valor anterior, para "Desfazer".
     pub undo: Option<(&'static str, String)>,
     /// F07.03: valores da primeira execução ("valor da instalação"), para restaurar.
@@ -42,6 +44,7 @@ impl Default for ResourceState {
             lists: BTreeMap::new(),
             snapshot: None,
             draft: BTreeMap::new(),
+            vault_check: None,
             undo: None,
             defaults: None,
             busy: false,
@@ -64,6 +67,7 @@ pub enum Event {
     Load,
     Loaded(Result<Value, String>),
     Input(&'static str, String),
+    VaultChecked(String, &'static str, bool),
     Toggle(&'static str),
     /// F04.31: liga ou desliga um grupo de avisos no Telegram (índice em `GRUPOS_TELEGRAM`).
     TelegramGrupo(usize),
@@ -140,6 +144,8 @@ enum InputKind {
     Bool,
     Text,
     Number,
+    /// Valor inteiro de 0 a 4 em controle deslizante; as pontas vêm de `slider_ends`.
+    Slider,
     File,
     Folder,
     List,
@@ -340,7 +346,13 @@ const FIELDS: &[Field] = &[
         "Pasta de trabalho das tarefas",
         Folder,
     ),
-    ("vault_dir", "storage", "Pasta do vault", Folder),
+    ("tone_directness", "tone", "Respostas", Slider),
+    ("tone_formality", "tone", "Tom", Slider),
+    ("tone_custom", "tone", "Instruções de estilo (opcional)", Text),
+    ("gateway_model_fast", "models", "Modelo rápido (perguntas simples)", Text),
+    ("gateway_model_heavy", "models", "Modelo pesado (raciocínio e código)", Text),
+    ("vision_model", "models", "Modelo de visão (imagens e tela)", Text),
+    ("vault_dir", "memory", "Pasta do vault", Folder),
     ("backup_dir", "storage", "Pasta dos backups", Folder),
     (
         "backup_keep",
@@ -524,6 +536,12 @@ const DESCRIPTIONS: &[(&str, &str)] = &[
     ("codex_env", "Ambiente usado pelo Codex Cloud."),
     ("nuvem_dir", "Pasta onde as tarefas de nuvem trabalham."),
     ("vault_dir", "Pasta do vault do Obsidian. Vale depois de reiniciar o Orion."),
+    ("tone_directness", "Do mais curto e direto ao mais detalhado. O meio não muda nada."),
+    ("tone_formality", "Do mais casual ao mais formal. O meio não muda nada."),
+    ("tone_custom", "Até 500 caracteres. Ex.: sem preâmbulo, código completo, português técnico. Vale para todos os projetos; cada projeto pode ter instruções próprias."),
+    ("gateway_model_fast", "Só vale com gateway próprio (ORION_GATEWAY_URL e ORION_GATEWAY_MODEL). Usado em perguntas simples. Vazio: o Orion escolhe sozinho."),
+    ("gateway_model_heavy", "Só vale com gateway próprio (ORION_GATEWAY_URL e ORION_GATEWAY_MODEL). Usado em raciocínio e código. Vazio: o Orion escolhe sozinho."),
+    ("vision_model", "Só vale com gateway próprio (ORION_GATEWAY_URL e ORION_GATEWAY_MODEL). Usado quando há imagem ou tela. Vazio: o Orion escolhe sozinho."),
     ("backup_dir", "Pasta onde os backups são guardados."),
     ("backup_keep", "Quantos backups antigos manter."),
     ("repos", "Repositórios que o Orion pode ler."),
@@ -547,9 +565,50 @@ fn description(key: &str) -> &'static str {
     DESCRIPTIONS.iter().find(|(k, _)| *k == key).map(|(_, text)| crate::i18n::text(text)).unwrap_or("")
 }
 
+/// Pontas do controle deslizante, já como rótulos traduzíveis.
+fn slider_ends(key: &str) -> (&'static str, &'static str) {
+    match key {
+        "tone_formality" => ("Casual", "Formal"),
+        _ => ("Direto", "Detalhado"),
+    }
+}
+
+/// Confere o caminho num worker (pode ser uma pasta de rede lenta) e devolve o resultado como evento.
+fn check_vault_task(path: String) -> Task<Msg> {
+    let path = path.trim().to_string();
+    Task::perform(
+        async move {
+            let p = path.clone();
+            let (notice, ok) = tokio::task::spawn_blocking(move || vault_check(&p)).await.unwrap_or(("Não foi possível verificar a pasta.", false));
+            (path, notice, ok)
+        },
+        |(p, notice, ok)| Msg::Resources(Event::VaultChecked(p, notice, ok)),
+    )
+}
+
+/// Confere a pasta do vault digitada: `(notice, ok)`. Só lê o disco; não grava nada (REGRAS.md: nada sai sem opt-in).
+fn vault_check(path: &str) -> (&'static str, bool) {
+    let path = path.trim();
+    if path.is_empty() {
+        return ("Sem pasta: o Orion tenta detectar o vault aberto no Obsidian.", true);
+    }
+    let dir = std::path::Path::new(path);
+    if !dir.is_dir() {
+        return ("Pasta não encontrada.", false);
+    }
+    if dir.join("00 Inbox").is_dir() && (dir.join("claude.md").is_file() || dir.join(".obsidian").is_dir()) {
+        ("Vault válido: estrutura PARA encontrada.", true)
+    } else if dir.join(".obsidian").is_dir() {
+        ("Vault do Obsidian, mas sem a pasta 00 Inbox da estrutura PARA.", true)
+    } else {
+        ("A pasta existe, mas não parece um vault do Obsidian (sem .obsidian).", false)
+    }
+}
+
 pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
     let mut col = column![].spacing(10);
-    if group == "storage" {
+    // o editor do settings.toml é opção de suporte: só aparece com "Mostrar avançado" ligado em Sistema
+    if group == "storage" && app.p.advanced {
         col = col.push(tx(crate::i18n::text("settings.toml: espelho das Configurações, sem segredos. Salvar aplica na hora; editar o arquivo à mão também aplica."), 12.5, t::FG3));
         col = col.push(
             text_editor(&app.resources.toml)
@@ -625,6 +684,15 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
                 )
             }
             Bool => switch(text == "true", Msg::Resources(Event::Toggle(key))),
+            Slider => {
+                let (left, right) = slider_ends(key);
+                let value = text.parse::<f32>().unwrap_or(2.0).clamp(0.0, 4.0);
+                let mut bar = iced::widget::slider(0.0_f32..=4.0, value, move |v| Msg::Resources(Event::Input(key, (v.round() as i64).to_string()))).step(1.0_f32).width(Length::Fixed(180.0));
+                if app.resources.busy {
+                    bar = iced::widget::slider(0.0_f32..=4.0, value, |_| Msg::Noop).step(1.0_f32).width(Length::Fixed(180.0));
+                }
+                row![tx(crate::i18n::text(left), 12.0, t::FG3), bar, tx(crate::i18n::text(right), 12.0, t::FG3)].spacing(8).align_y(iced::alignment::Vertical::Center).into()
+            }
             _ => {
                 let mut input = text_input("", &text).size(13).font(t::UI).padding(8).style(
                     crate::views::login::field_style(t::RAISE, t::LINE2, t::ACCENT, 8.0),
@@ -657,6 +725,12 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
             control
         };
         col = col.push(setting(crate::i18n::text(label), description(key), control));
+        if key == "vault_dir" {
+            // a checagem lê o disco, então roda num worker; aqui só se mostra o último resultado do caminho atual
+            if let Some((_, notice, ok)) = app.resources.vault_check.as_ref().filter(|(p, _, _)| *p == text.trim()) {
+                col = col.push(tx(crate::i18n::text(notice), 12.5, if *ok { t::FG3 } else { t::DANGER }));
+            }
+        }
     }
     let applied = app.resources.snapshot.as_ref().unwrap();
     if applied["saved"] != applied["active"] {
@@ -858,7 +932,7 @@ impl App {
             };
             let value = match field.3 {
                 Bool => json!(text == "true"),
-                Number => match text.parse::<serde_json::Number>() {
+                Number | Slider => match text.parse::<serde_json::Number>() {
                     Ok(n) => Value::Number(n),
                     Err(_) => {
                         self.resources.error = format!("{}: valor numérico inválido", field.2);
@@ -1066,12 +1140,18 @@ impl App {
             Event::Loaded(result) => match result {
                 Ok(value) => {
                     self.sync_resources(&value);
-                    self.resources.snapshot = Some(value)
+                    let vault = value["saved"]["vault_dir"].as_str().unwrap_or("").to_string();
+                    self.resources.snapshot = Some(value);
+                    return check_vault_task(vault);
                 }
                 Err(e) => self.resources.error = e,
             },
+            Event::VaultChecked(path, notice, ok) => self.resources.vault_check = Some((path, notice, ok)),
             Event::Input(key, text) if !self.resources.busy => {
-                self.resources.draft.insert(key, text);
+                self.resources.draft.insert(key, text.clone());
+                if key == "vault_dir" {
+                    return check_vault_task(text);
+                }
             }
             Event::Toggle(key) if !self.resources.busy => {
                 // F07.02: o toggle salva sozinho e guarda o valor anterior para desfazer.
@@ -1189,8 +1269,13 @@ impl App {
                 // F07.02: pasta ou arquivo escolhido salva sozinho.
                 let previous = input_value(self, key);
                 self.resources.undo = Some((key, previous));
+                let check = (key == "vault_dir").then(|| check_vault_task(path.clone()));
                 self.resources.draft.insert(key, path);
-                return self.save_draft(Some(&[key]));
+                let save = self.save_draft(Some(&[key]));
+                return match check {
+                    Some(check) => Task::batch([save, check]),
+                    None => save,
+                };
             }
             Event::Chosen(_, Err(e)) => self.resources.error = e,
             Event::Save if !self.resources.busy => return self.save_draft(None),
