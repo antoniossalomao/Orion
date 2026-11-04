@@ -13,7 +13,7 @@ Cada spike mede um risco e termina com uma decisão escrita neste diretório. Os
 | roteador | F00.21 | Medir contra 100 pedidos reais |
 | áudio | F00.22 | Silero VAD, latência fim a fim e teste de eco com alto-falante |
 | injection | F00.23 | Rodado (195 exemplos); falta injeção indireta com dados reais |
-| embeddings | F00.24 | Rodado; decidir se vale o híbrido |
+| embeddings | F00.24 | Rodado (local e5-small); falta rodar `orion-ai/examples/bench_gemini_embeddings` com a chave do Gemini para decidir a origem (issue #75) |
 | `llama-cpp-2` | F00.25 | Vulkan e medições de RAM e troca de modelo |
 | vault Git | F00.26 | `git2` rodado em Linux; falta Credential Manager no Windows |
 | PII | F00.27 | Rodado; regras aplicadas no `SecretScanner` (CPF, RG, agência/conta, chave PIX e cartão rotulados; CNPJ fora por ser dado público) |
@@ -73,3 +73,5 @@ Build release no Linux (`cargo build --release -p orion-server -p orion-llama -p
 - **Orion instalado:** o 57 MB do Linux é piso, não estimativa; a dica "~150 MB" da especificação do instalador continua a referência até medir o Windows.
 - **Download do app pelo instalador:** o feed serve o `.exe` cru; gzip reduziria a ~40% do tamanho (23 de 57 MB no Linux).
 - **Modelos (fora do pacote, baixados pelo instalador):** os do spike de injection somam 268 MB (ModernBERT) e os de embeddings 118 MB (e5-small); os 8 modelos locais da ADR 0009 vão de 0,8 a 14 GB cada.
+
+**Consulta de produção × FTS5 simples (04/11/2026, `bench_gemini_embeddings`, vault de 1.165 notas, 300 consultas resumo→nota):** FTS5 simples R@1 0,733, R@5 0,923, MRR 0,819; consulta de produção (`fts_query`: prefixo nos termos longos, sem stopwords) R@1 0,733, R@5 0,933, MRR 0,823. Empate prático. A comparação com o Gemini (`gemini-embedding-001`, 768 dimensões) depende da chave `ORION_EMBED_API_KEY` e ainda não foi feita; o programa imprime no mesmo formato da tabela acima.

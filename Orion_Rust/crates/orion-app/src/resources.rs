@@ -127,6 +127,7 @@ pub enum FormKind {
     Downloads,
     Plugin,
     BackupExport,
+    BackupDrivePull,
     BackupRestore,
     Review,
 }
@@ -535,7 +536,7 @@ const DESCRIPTIONS: &[(&str, &str)] = &[
     ("nuvem", "Permite rodar tarefas nas CLIs de nuvem."),
     ("codex_env", "Ambiente usado pelo Codex Cloud."),
     ("nuvem_dir", "Pasta onde as tarefas de nuvem trabalham."),
-    ("vault_dir", "Pasta do vault do Obsidian. Vale depois de reiniciar o Orion."),
+    ("vault_dir", "Pasta do vault. Vale depois de reiniciar o Orion."),
     ("tone_directness", "Do mais curto e direto ao mais detalhado. O meio não muda nada."),
     ("tone_formality", "Do mais casual ao mais formal. O meio não muda nada."),
     ("tone_custom", "Até 500 caracteres. Ex.: sem preâmbulo, código completo, português técnico. Vale para todos os projetos; cada projeto pode ter instruções próprias."),
@@ -590,18 +591,18 @@ fn check_vault_task(path: String) -> Task<Msg> {
 fn vault_check(path: &str) -> (&'static str, bool) {
     let path = path.trim();
     if path.is_empty() {
-        return ("Sem pasta: o Orion tenta detectar o vault aberto no Obsidian.", true);
+        return ("Sem pasta: o Orion tenta detectar o vault sozinho.", true);
     }
     let dir = std::path::Path::new(path);
     if !dir.is_dir() {
         return ("Pasta não encontrada.", false);
     }
-    if dir.join("00 Inbox").is_dir() && (dir.join("claude.md").is_file() || dir.join(".obsidian").is_dir()) {
+    if dir.join("00 Inbox").is_dir() && (dir.join("claude.md").is_file() || dir.join("01 Projetos").is_dir()) {
         ("Vault válido: estrutura PARA encontrada.", true)
-    } else if dir.join(".obsidian").is_dir() {
-        ("Vault do Obsidian, mas sem a pasta 00 Inbox da estrutura PARA.", true)
+    } else if dir.join("claude.md").is_file() || dir.join("01 Projetos").is_dir() {
+        ("Vault encontrado, mas sem a pasta 00 Inbox da estrutura PARA.", true)
     } else {
-        ("A pasta existe, mas não parece um vault do Obsidian (sem .obsidian).", false)
+        ("A pasta existe, mas não parece o vault (sem 00 Inbox, 01 Projetos nem claude.md).", false)
     }
 }
 
@@ -868,7 +869,8 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
             col = col.push(
                 row![
                     form("Exportar backup", FormKind::BackupExport),
-                    form("Restaurar backup", FormKind::BackupRestore)
+                    form("Restaurar backup", FormKind::BackupRestore),
+                    form("Baixar backup do Drive", FormKind::BackupDrivePull)
                 ]
                 .spacing(8),
             );
@@ -1584,7 +1586,7 @@ impl App {
                 let (_, _, default_path) = form_spec(form.kind);
                 let path = form.path.clone().unwrap_or(default_path.into());
                 let method = form.method;
-                let body = if matches!(form.kind, FormKind::Plugin | FormKind::BackupExport) {
+                let body = if matches!(form.kind, FormKind::Plugin | FormKind::BackupExport | FormKind::BackupDrivePull) {
                     if form.kind == FormKind::Plugin {
                         json!({"folder":form.values.get("folder").cloned().unwrap_or_default(),"update":form.values.get("update").is_some_and(|v|v=="true")})
                     } else {
@@ -1685,6 +1687,11 @@ fn form_spec(kind: FormKind) -> (String, &'static str, &'static str) {
             "Exportar backup",
             "/resources/backup/export",
         ),
+        FormKind::BackupDrivePull => (
+            json!({"folder":""}),
+            "Baixar backup do Drive",
+            "/resources/backup/drive-pull",
+        ),
         FormKind::BackupRestore => (
             json!({"file":"","folder":"","password":"","new_password":"","recovery":false}),
             "Restaurar backup",
@@ -1741,6 +1748,7 @@ pub fn overlay(app: &App) -> Option<El<'_>> {
         } else {
             let description=match form.kind{
                 FormKind::BackupRestore=>"Restaura em uma nova pasta. A senha atual abre o arquivo; a nova senha protege o perfil restaurado.",
+                FormKind::BackupDrivePull=>"Baixa a cópia cifrada mais recente do Google Drive para a pasta escolhida. Nada é restaurado sozinho: use Restaurar backup depois.",
                 FormKind::BackupExport=>"Exporta banco e perfil cifrados. Contas, tokens e permissões deste computador ficam fora do arquivo.",
                 _=>"Revise os dados antes de salvar. Conexões habilitadas podem iniciar processos locais ou acessar o endereço informado.",
             };
@@ -1789,7 +1797,7 @@ pub fn overlay(app: &App) -> Option<El<'_>> {
                     )),
                 ),
             ));
-        } else if matches!(form.kind, FormKind::Plugin | FormKind::BackupExport) {
+        } else if matches!(form.kind, FormKind::Plugin | FormKind::BackupExport | FormKind::BackupDrivePull) {
             col = col.push(
                 row![
                     text_input(
@@ -1830,7 +1838,7 @@ pub fn overlay(app: &App) -> Option<El<'_>> {
             );
         }
         if !form.error.is_empty() {
-            col = col.push(tx(form.error.clone(), 13.0, t::DANGER));
+            col = col.push(tx(crate::i18n::status(&form.error), 13.0, t::DANGER));
         }
         col = col.push(btn(
             crate::i18n::text(if form.busy {
@@ -1839,6 +1847,7 @@ pub fn overlay(app: &App) -> Option<El<'_>> {
                 match form.kind {
                     FormKind::BackupRestore => "Restaurar",
                     FormKind::BackupExport => "Exportar",
+                    FormKind::BackupDrivePull => "Baixar",
                     FormKind::Plugin => "Instalar",
                     _ => "Salvar",
                 }

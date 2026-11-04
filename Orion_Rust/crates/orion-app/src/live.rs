@@ -14,6 +14,11 @@ pub enum Lm {
     LanguageSaved(Result<(), String>),
     ToolPermissions(std::time::Instant, Result<Value, String>),
     Attached(u64, Result<Option<Value>, String>),
+    /// Id e texto do último pedido, para editar e reenviar.
+    EditTarget(String, Result<(i64, String), String>),
+    Weekly(Result<String, String>),
+    Screen(Result<Vec<(String, String, String, String)>, String>),
+    Islands(Result<Vec<String>, String>),
     Conflitos(Result<Value, String>),
     ConflitoAberto(Result<Value, String>),
     ConflitoResolvido(Result<String, String>),
@@ -548,8 +553,35 @@ impl App {
             }
             // O modo real nunca usa amostras nem recibos de gravação do protótipo
             // (REGRAS.md: você é o administrador).
-            Msg::Attach => {
-                if self.attaching || self.streaming.is_some() || self.attachment_ids.len() >= 8 { return Some((Task::none(), false)); }
+            Msg::EditLast(mi) => {
+                if self.streaming.is_some() || self.attaching { self.toast("Espere a resposta terminar para editar."); return Some((Task::none(), false)); }
+                if !self.attach.is_empty() { self.toast("Remova os anexos antes de editar a mensagem."); return Some((Task::none(), false)); }
+                if self.convs.get(self.conv?)?.msgs.iter().any(|m| matches!(m, ChatMsg::Orion(o) if o.approval.as_ref().is_some_and(|a| a.state == crate::data::ApprState::Open))) {
+                    self.toast("Resolva as aprovações pendentes antes de editar a mensagem.");
+                    return Some((Task::none(), false));
+                }
+                let ci = self.conv?;
+                let sid = self.session_id()?;
+                let ultimo = self.convs.get(ci)?.msgs.iter().rposition(|m| matches!(m, ChatMsg::User(_)));
+                if ultimo != Some(*mi) { return Some((Task::none(), false)); }
+                let sid_out = sid.clone();
+                Some((Task::perform(async move {
+                    let v = api.get(&format!("/historico?sessao={sid}&limite=100")).await?;
+                    arr(&v, "mensagens").iter().filter(|m| s(m, "role") == "user")
+                        .max_by_key(|m| m["id"].as_i64().unwrap_or(0))
+                        .and_then(|m| Some((m["id"].as_i64()?, s(m, "content").to_string())))
+                        .ok_or_else(|| "Pedido não encontrado no histórico.".to_string())
+                }, move |r| Msg::L(Lm::EditTarget(sid_out.clone(), r))), false))
+            }
+            Msg::Attach | Msg::AttachPath(_) => {
+                // Arrastar e soltar (F05): o caminho vem do evento da janela; o limite, o tipo e a
+                // assinatura dos bytes são conferidos igual ao seletor (REGRAS.md: conteúdo externo é dado).
+                let dropped = if let Msg::AttachPath(path) = &msg { Some(std::path::PathBuf::from(path)) } else { None };
+                if let Msg::AttachPath(path) = &msg {
+                    if self.attaching && self.drop_queue.len() < 8 { self.drop_queue.push(path.clone()); return Some((Task::none(), false)); }
+                }
+                if self.edit_target.is_some() { self.toast("Remova os anexos antes de editar a mensagem."); return Some((Task::none(), false)); }
+                if self.attaching || self.streaming.is_some() || self.attachment_ids.len() >= 8 { self.drop_queue.clear(); return Some((Task::none(), false)); }
                 self.attaching = true;
                 let generation = self.attachment_generation;
                 let imagens_anexadas = self.attach.iter().filter(|a| a.1 == "imagem").count();
@@ -559,8 +591,13 @@ impl App {
                     // da extensão, mas o núcleo confere de novo pela assinatura dos bytes.
                     let selected = tokio::task::spawn_blocking(move || {
                         use std::io::Read;
-                        let Some(path) = crate::onboarding::choose(crate::onboarding::Field::Attachment)? else { return Ok(None) };
-                        let path = std::path::PathBuf::from(path);
+                        let path = match dropped {
+                            Some(path) => path,
+                            None => {
+                                let Some(path) = crate::onboarding::choose(crate::onboarding::Field::Attachment)? else { return Ok(None) };
+                                std::path::PathBuf::from(path)
+                            }
+                        };
                         let name = path.file_name().ok_or("Nome de arquivo inválido")?.to_string_lossy().to_string();
                         let ext = path.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
                         let (classe, limite) = match ext.as_str() {
@@ -635,6 +672,39 @@ impl App {
                 let n = |k: &str| r[k].as_array().map(|a| a.len()).unwrap_or(0);
                 Ok(format!("Configurações recarregadas: {} aplicada(s) na hora, {} exigem reiniciar o Orion.", n("aplicados"), n("exigem_reinicio")))
             }, |r| Msg::L(Lm::Acao(r, false))), false)),
+            Msg::ScreenSearch => {
+                let q = self.screen_q.trim().to_string();
+                if q.chars().count() < 2 { self.toast("Digite pelo menos 2 letras para buscar."); return Some((Task::none(), true)); }
+                let path = format!("/tela/busca?q={}&dias=30&limite=10", q.chars().take(200).collect::<String>().bytes().map(|b| if b.is_ascii_alphanumeric() || b"-_.~".contains(&b) { (b as char).to_string() } else { format!("%{b:02X}") }).collect::<String>());
+                Some((Task::perform(async move {
+                    let v = api.get(&path).await?;
+                    Ok(arr(&v, "resultados").iter().map(|r| {
+                        let quando = r["quando"].as_f64().and_then(|t| chrono::DateTime::from_timestamp(t as i64, 0)).map(|d| d.with_timezone(&chrono::Local).format("%d/%m %H:%M").to_string()).unwrap_or_default();
+                        (quando, s(r, "app").to_string(), s(r, "janela").to_string(), s(r, "trecho").to_string())
+                    }).collect::<Vec<_>>())
+                }, |r| Msg::L(Lm::Screen(r))), true))
+            }
+            Msg::WeeklyToggle => {
+                self.weekly_open = !self.weekly_open;
+                if !self.weekly_open { return Some((Task::none(), true)); }
+                self.weekly_text = None;
+                Some((Task::perform(async move { api.get("/painel/resumo-semanal").await.map(|v| s(&v, "markdown").to_string()) }, |r| Msg::L(Lm::Weekly(r))), true))
+            }
+            Msg::WeeklyExport => Some((Task::perform(async move {
+                let r = api.post("/painel/resumo-semanal/exportar", json!({})).await?;
+                Ok(if r["unchanged"].as_bool().unwrap_or(false) { "O resumo desta semana já estava no vault; nada foi sobrescrito.".to_string() } else { format!("Resumo gravado no vault: {}", s(&r, "file_path")) })
+            }, |r| Msg::L(Lm::Acao(r, false))), true)),
+            Msg::IslandsToggle => {
+                self.islands_open = !self.islands_open;
+                if !self.islands_open { return Some((Task::none(), true)); }
+                self.islands = None;
+                Some((Task::perform(async move { api.get("/vault/ilhas").await.map(|v| arr(&v, "notas").iter().filter_map(|n| n.as_str().map(String::from)).collect::<Vec<_>>()) }, |r| Msg::L(Lm::Islands(r))), true))
+            }
+            Msg::IslandOpen(path) => {
+                self.islands_open = false;
+                let path = path.clone();
+                Some((self.update(Msg::EditorOpen(path)), true))
+            }
             Msg::VoceFezExportar => Some((Task::perform(async move {
                 let r = api.post("/painel/voce-fez/exportar", json!({})).await?;
                 Ok(if r["unchanged"].as_bool().unwrap_or(false) { "O relatório de hoje já estava no vault; nada foi sobrescrito.".to_string() } else { format!("Relatório gravado no vault: {}", s(&r, "file_path")) })
@@ -960,10 +1030,17 @@ impl App {
             shown.push_str(&self.attach.iter().map(|a| a.0.clone()).collect::<Vec<_>>().join(", "));
         }
         let via = crate::views::chat::via_label(&self.p);
+        let sid_now = self.session_id();
+        let edit = self.edit_target.take().filter(|(sid, _)| sid_now.as_deref() == Some(sid.as_str())).map(|(_, id)| id);
         let c = &mut self.convs[ci];
+        // Edição: o pedido antigo e a resposta saem da tela; o núcleo guarda as duas versões.
+        // O turno antigo só some de vez quando o núcleo aceita a edição; se recusar, ele volta (`Chat::Done`).
+        let removed = if edit.is_some() { c.msgs.iter().rposition(|m| matches!(m, ChatMsg::User(_))).map(|i| c.msgs.split_off(i)) } else { None };
         c.msgs.push(ChatMsg::User(shown));
         c.msgs.push(ChatMsg::Orion(OrionMsg { time: hm(now_secs()), via, out: String::new(), tools_label: String::new(), tools: vec![], body: String::new(), saved: false, approval: None }));
         c.state = ConvState::Running;
+        self.edit_removed = removed;
+        self.edit_failed = false;
         self.streaming = Some(crate::app::Stream { conv: ci, words: 0, total: usize::MAX });
         self.composer = iced::widget::text_editor::Content::new();
         let ids = std::mem::take(&mut self.attachment_ids);
@@ -971,7 +1048,11 @@ impl App {
         let (imagens, attachments): (Vec<String>, Vec<String>) = (imagens.into_iter().map(|i| i.0).collect(), attachments.into_iter().map(|i| i.0).collect());
         self.attach.clear();
         self.attach_thumbs.clear();
-        let (task, handle) = Task::run(api.stream("/chat", json!({"texto": text, "canal": "web", "anexos": attachments, "imagens": imagens})), |e| Msg::L(Lm::Chat(e))).abortable();
+        let (path, body) = match edit {
+            Some(id) => (format!("/historico/{id}/editar"), json!({"texto": text, "canal": "web"})),
+            None => ("/chat".to_string(), json!({"texto": text, "canal": "web", "anexos": attachments, "imagens": imagens})),
+        };
+        let (task, handle) = Task::run(api.stream(&path, body), |e| Msg::L(Lm::Chat(e))).abortable();
         self.abort = Some(handle);
         task
     }
@@ -1026,9 +1107,27 @@ impl App {
                 if self.session_id().as_deref() != Some(session.as_str()) { return Task::none(); }
                 match result { Ok(value) => self.artifact_detail = Some(value), Err(error) => self.toast(error) }
             },
+            Lm::Screen(r) => match r { Ok(v) => self.screen_hits = Some(v), Err(e) => self.toast(e) },
+            Lm::Weekly(r) => match r { Ok(t) => self.weekly_text = Some(t), Err(e) => { self.weekly_open = false; self.toast(e) } },
+            Lm::Islands(r) => match r { Ok(v) => self.islands = Some(v), Err(e) => { self.islands_open = false; self.toast(e) } },
+            Lm::EditTarget(sid, result) => match result {
+                // Resultado de outra conversa (navegou enquanto buscava): descarta.
+                _ if self.session_id().as_deref() != Some(sid.as_str()) => {}
+                // Um envio começou durante a busca: o pedido mais recente já mudou, então a edição vale de nada.
+                _ if self.streaming.is_some() => {}
+                Ok((_, text)) if !self.conv.and_then(|ci| self.convs.get(ci)).and_then(|c| c.msgs.iter().rev().find_map(|m| if let ChatMsg::User(u) = m { Some(u.trim() == stored_request_text(&text) || shown_request_text(u) == stored_request_text(&text)) } else { None })).unwrap_or(false) => {}
+                Ok((id, text)) => {
+                    self.edit_target = Some((sid, id));
+                    let had_attachments = self.conv.and_then(|ci| self.convs.get(ci)).and_then(|c| c.msgs.iter().rev().find_map(|m| if let ChatMsg::User(u) = m { Some(u.contains("\n\nAnexos: ")) } else { None })).unwrap_or(false);
+                    self.composer = iced::widget::text_editor::Content::with_text(stored_request_text(&text));
+                    self.toast(if had_attachments { "Edite e envie: os anexos da mensagem original não vão de novo." } else { "Edite e envie: a resposta é refeita como nova versão do pedido." });
+                }
+                Err(error) => self.toast(error),
+            },
             Lm::Attached(generation, result) => {
                 self.attaching = false;
                 if generation != self.attachment_generation {
+                    self.drop_queue.clear();
                     return self.next_queued();
                 }
                 match result {
@@ -1044,6 +1143,7 @@ impl App {
                     }
                     Ok(None) => {}, Err(error) => self.toast(error),
                 }
+                if !self.drop_queue.is_empty() { let next = self.drop_queue.remove(0); return Task::done(Msg::AttachPath(next)); }
             }
             Lm::Initialized(result) => {
                 self.loading = None;
@@ -1495,9 +1595,31 @@ impl App {
                     o.body.push_str("\n\n");
                 }
                 o.body.push_str(&format!("**{}:** {}", crate::i18n::text("Erro"), crate::i18n::status(&e)));
+                self.edit_failed = true;
                 self.toast(e);
             }
             Chat::Done { .. } => {
+                // Edição recusada pelo núcleo: o turno original volta à tela, no lugar do pedido e do erro.
+                if let Some(removed) = self.edit_removed.take() {
+                    if self.edit_failed && conv.msgs.len() >= 2 {
+                        let keep = conv.msgs.len() - 2;
+                        conv.msgs.truncate(keep);
+                        conv.msgs.extend(removed);
+                        conv.state = ConvState::Normal;
+                        self.streaming = None;
+                        self.abort = None;
+                        self.edit_failed = false;
+                        // O erro pode ter vindo depois de o núcleo aceitar a edição (falha ao gerar a resposta): o
+                        // histórico do núcleo decide o que fica na tela, e a restauração acima vale só até ele chegar.
+                        let sid = conv.id.clone();
+                        let sid_out = sid.clone();
+                        let reload_history = self.api.clone().map(|api| Task::perform(async move { api.get(&format!("/historico?sessao={sid}&limite=100")).await }, move |r| Msg::L(Lm::Opened(sid_out.clone(), r))));
+                        let queued_task = self.next_queued();
+                        return Task::batch([self.reload_all(), queued_task, reload_history.unwrap_or_else(Task::none)]);
+                    }
+                }
+                self.edit_failed = false;
+                let Some(ChatMsg::Orion(o)) = conv.msgs.last_mut() else { return Task::none() };
                 o.saved = true;
                 if conv.state == ConvState::Running {
                     conv.state = ConvState::Normal;
@@ -1532,4 +1654,19 @@ pub fn iso_date(secs: f64) -> String {
     let day = doy - (153 * mp + 2) / 5 + 1;
     let month = if mp < 10 { mp + 3 } else { mp - 9 };
     format!("{:04}-{:02}-{:02}", if month <= 2 { y + 1 } else { y }, month, day)
+}
+
+
+/// Texto de uma mensagem como o app a mostra, sem a lista "Anexos: …" que ele mesmo acrescenta no fim.
+fn shown_request_text(shown: &str) -> &str {
+    shown.rsplit_once("\n\nAnexos: ").map_or(shown, |(base, _)| base).trim()
+}
+
+/// Texto do pedido guardado no núcleo, sem o aviso de imagens que o núcleo acrescenta. Não mexe no resto:
+/// um "Anexos:" escrito por você faz parte do pedido.
+fn stored_request_text(stored: &str) -> &str {
+    match stored.rfind("\n[") {
+        Some(i) if stored[i..].contains(" imagem(ns) enviada(s)") => stored[..i].trim(),
+        _ => stored.trim(),
+    }
 }

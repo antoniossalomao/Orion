@@ -259,6 +259,25 @@ pub async fn backup_export(
     .map_err(|e| ApiError::new(422, e.to_string()))?;
     Ok(Json(json!({"file":path})))
 }
+/// Baixa do Drive a cópia cifrada mais recente; restaurar continua sendo um passo à parte.
+pub async fn backup_drive_pull(
+    _: Admin,
+    State(st): State<Estado>,
+    Json(request): Json<BackupRequest>,
+) -> ApiResult<Json<Value>> {
+    if st.modos.panico() {
+        return erro(409, "modo pânico");
+    }
+    if !request.folder.is_absolute() {
+        return erro(422, "escolha uma pasta absoluta");
+    }
+    st.ops
+        .audit_add(&json!({"tool":"backup_ui","action":"drive_pull"}))?;
+    let path = crate::onboarding_drive::pull_latest(&request.folder)
+        .await
+        .map_err(|e| ApiError::new(422, e.to_string()))?;
+    Ok(Json(json!({"file":path})))
+}
 #[derive(serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RestoreRequest {

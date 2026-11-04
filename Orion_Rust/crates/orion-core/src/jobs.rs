@@ -136,6 +136,10 @@ pub struct JobRunner {
     custos: Option<Arc<Custos>>,
     modos: Option<Arc<Modos>>,
     diario_vault: Option<DiarioVault>,
+    /// Resumo semanal em Markdown para o vault (opt-in, junto do diário).
+    semanal_vault: Option<DiarioVault>,
+    /// Chave do diário do vault, lida a cada passada: desligada, o resumo semanal nem é montado nem consome a semana.
+    semanal_ligado: Option<Arc<std::sync::atomic::AtomicBool>>,
     despertador: Option<Despertador>,
     /// Último despertar registrado (hora local; `Some(None)` = apagado), para só falar com o
     /// Agendador quando muda. `None`: ainda não registrou nesta execução.
@@ -181,6 +185,8 @@ impl JobRunner {
             custos: None,
             modos: None,
             diario_vault: None,
+            semanal_vault: None,
+            semanal_ligado: None,
             despertador: None,
             despertar: Mutex::new(None),
             every,
@@ -241,6 +247,11 @@ impl JobRunner {
     /// F12.04 (opt-in): acorda o PC suspenso um minuto antes do próximo agendamento ou lembrete.
     pub fn com_despertador(mut self, d: Despertador) -> Self {
         self.despertador = Some(d);
+        self
+    }
+    pub fn com_semanal_vault(mut self, d: DiarioVault, ligado: Arc<std::sync::atomic::AtomicBool>) -> Self {
+        self.semanal_vault = Some(d);
+        self.semanal_ligado = Some(ligado);
         self
     }
     pub fn com_diario_vault(mut self, d: DiarioVault) -> Self {
@@ -380,6 +391,10 @@ impl JobRunner {
         if let Some(n) = Self::passo(rel, "vigilancias", self.ops.watch_poll().map_err(Into::into)) {
             rel.vigilancias = n;
         }
+        // O resumo semanal do vault não depende do briefing: basta o diário do vault estar ligado.
+        if self.semanal_vault.is_some() {
+            let _ = Self::passo(rel, "resumo semanal do vault", self.semanal_para_vault());
+        }
         if self.briefing_at.is_some() {
             if let Some(b) = Self::passo(rel, "briefing", self.briefing()) {
                 rel.briefing = b;
@@ -464,6 +479,29 @@ impl JobRunner {
 
     /// Contagens locais, sem modelo, uma por escopo/dia. Recupera no máximo o dia anterior
     /// ao voltar a ligar o PC (REGRAS.md: pendência velha não vira rajada de aviso).
+    /// Uma nota por semana ISO no vault (opt-in, junto do diário). A primeira passada depois do início da
+    /// semana grava; falhar não repete a cada tick, e o nome do arquivo evita duplicar (nunca sobrescreve).
+    fn semanal_para_vault(&self) -> anyhow::Result<bool> {
+        let Some(gravar) = &self.semanal_vault else { return Ok(false) };
+        // Opt-in desligado: não consome a semana, para ligar depois ainda valer nela.
+        if !self.semanal_ligado.as_ref().is_some_and(|l| l.load(std::sync::atomic::Ordering::Relaxed)) {
+            return Ok(false);
+        }
+        let agora = self.agora();
+        let dt = crate::util::local(agora);
+        let iso = dt.iso_week();
+        let semana = iso.year() as i64 * 100 + iso.week() as i64;
+        if self.memory.counter_get("semanal:vault") >= semana {
+            return Ok(false);
+        }
+        self.memory.counter_set("semanal:vault", semana)?; // marca antes: falha não repete a cada tick
+        let agenda = if self.panico() { None } else { self.agenda.as_deref() };
+        let md = crate::briefing::build_weekly_md(&self.ops, &self.memory, agora, &self.cfg.nome, agenda);
+        let segunda = dt.date_naive() - chrono::Duration::days(dt.weekday().num_days_from_monday() as i64);
+        gravar(segunda, &md)?;
+        Ok(true)
+    }
+
     fn daily_summary(&self) -> anyhow::Result<bool> {
         let now = crate::util::local(self.agora());
         let date = if now.hour()==23 && now.minute()==59 { now.date_naive() }

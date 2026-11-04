@@ -362,6 +362,13 @@ pub struct App {
     pub images_to_release: Vec<String>,
     pub attachment_generation: u64,
     pub attaching: bool,
+    /// Arquivos soltos enquanto outro anexo é processado; seguem em ordem, respeitando os limites.
+    pub drop_queue: Vec<String>,
+    /// Pedido sendo editado (id da mensagem no núcleo); o próximo envio refaz o turno como nova versão.
+    pub edit_target: Option<(String, i64)>,
+    /// Turno original (pedido e respostas) tirado da tela durante uma edição, até o núcleo aceitar.
+    pub edit_removed: Option<Vec<ChatMsg>>,
+    pub edit_failed: bool,
     pub attach_n: usize,
     pub streaming: Option<Stream>,
     pub ctx_override: Option<bool>,
@@ -470,6 +477,15 @@ pub struct App {
     pub monitor: Option<crate::tray::Monitor>,
     pub bandeja_tentou: bool,
     pub painel: Option<serde_json::Value>,
+    pub fact_q: String,
+    pub screen_q: String,
+    /// (quando, app, janela, trecho) dos achados de "O que eu vi"; `None` = ainda não buscou.
+    pub screen_hits: Option<Vec<(String, String, String, String)>>,
+    pub fact_g: Option<String>,
+    pub weekly_open: bool,
+    pub weekly_text: Option<String>,
+    pub islands_open: bool,
+    pub islands: Option<Vec<String>>,
     pub budget: Option<serde_json::Value>,
     pub resume_pw: String,
     pub cur_sid: Option<String>,
@@ -528,6 +544,10 @@ pub enum Msg {
     PrivatePermitted(String),
     RepeatLastIfEmpty,
     Attach,
+    /// Arquivo solto na janela (arrastar e soltar).
+    AttachPath(String),
+    /// Editar e reenviar a última mensagem do usuário (índice na conversa aberta).
+    EditLast(usize),
     Unattach(usize),
     Mic,
     Live,
@@ -598,6 +618,14 @@ pub enum Msg {
     RotToggle(usize),
     RotRun(usize),
     FactEdit(usize),
+    /// Memória: texto do filtro da lista de fatos.
+    FactQ(String),
+    /// Memória: texto da busca "O que eu vi" (memória da tela).
+    ScreenQ(String),
+    /// Memória: roda a busca "O que eu vi" no núcleo.
+    ScreenSearch,
+    /// Memória: filtro por grupo da lista de fatos (`None` = todos).
+    FactGroup(Option<String>),
     FactText(String),
     FactSave,
     /// Busca os fatos no núcleo para a lista de Configurações › Sobre você.
@@ -678,6 +706,14 @@ pub enum Msg {
     RecarregarConfig,
     /// Grava o relatório "Você fez" de hoje no vault (F09.05).
     VoceFezExportar,
+    /// Painel: abre ou fecha o resumo semanal (fechado por padrão) e o busca no núcleo ao abrir.
+    WeeklyToggle,
+    /// Painel: grava o resumo semanal no vault.
+    WeeklyExport,
+    /// Memória: abre ou fecha a lista de notas sem ligação (fechada por padrão).
+    IslandsToggle,
+    /// Memória: abre uma nota da lista de notas sem ligação no editor.
+    IslandOpen(String),
     EditorClose,
     EditorSave,
     // grafo
@@ -763,6 +799,10 @@ impl App {
             images_to_release: vec![],
             attachment_generation: 0,
             attaching: false,
+            drop_queue: vec![],
+            edit_target: None,
+            edit_removed: None,
+            edit_failed: false,
             attach_n: 0,
             streaming: None,
             ctx_override: None,
@@ -851,6 +891,14 @@ impl App {
             monitor: None,
             bandeja_tentou: false,
             painel: None,
+            fact_q: String::new(),
+            screen_q: String::new(),
+            screen_hits: None,
+            fact_g: None,
+            weekly_open: false,
+            weekly_text: None,
+            islands_open: false,
+            islands: None,
             budget: None,
             resume_pw: String::new(),
             cur_sid: None,
@@ -899,6 +947,7 @@ impl App {
             iced::Event::Window(window::Event::Focused) => Some(Msg::WindowActive(true)),
             iced::Event::Window(window::Event::Unfocused) => Some(Msg::WindowActive(false)),
             iced::Event::Window(window::Event::Moved(p)) => Some(Msg::Moved(p)),
+            iced::Event::Window(window::Event::FileDropped(path)) => Some(Msg::AttachPath(path.to_string_lossy().into_owned())),
             _ => None,
         });
         let poll = if self.window_active && self.api.is_some() && self.logged && self.streaming.is_none() { iced::time::every(Duration::from_secs(6)).map(|_| Msg::Poll) } else { Subscription::none() };
@@ -1497,6 +1546,8 @@ impl App {
                     self.toast("Até 20 MB por arquivo. Maior que isso: ponha numa pasta e passe o caminho.");
                 }
             }
+            Msg::EditLast(_) => {}
+            Msg::AttachPath(_) => self.toast("Arrastar e soltar só funciona com o núcleo conectado."),
             Msg::Unattach(i) => {
                 if i < self.attach.len() {
                     self.attach.remove(i);
@@ -1619,6 +1670,10 @@ impl App {
                 let m = format!("{}: rodou agora. Saída: {}", self.rots[i].t, self.rots[i].out);
                 self.toast(m);
             }
+            Msg::FactQ(q) => self.fact_q = q,
+            Msg::ScreenQ(q) => self.screen_q = q,
+            Msg::ScreenSearch => {}
+            Msg::FactGroup(g) => self.fact_g = g,
             Msg::FactEdit(i) => self.edit_fact = Some((i, self.facts[i].t.clone())),
             Msg::FactText(s) => {
                 if let Some(e) = &mut self.edit_fact {

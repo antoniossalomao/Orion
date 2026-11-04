@@ -41,7 +41,7 @@ pub fn li<'a>(left: El<'a>, right: El<'a>) -> El<'a> {
 fn li_title<'a>(parts: Vec<El<'a>>) -> El<'a> {
     row(parts).spacing(8).align_y(Vertical::Center).into()
 }
-fn li_desc<'a>(s: impl text::IntoFragment<'a>) -> El<'a> {
+pub(crate) fn li_desc<'a>(s: impl text::IntoFragment<'a>) -> El<'a> {
     container(tx(s, 12.5, t::FG3)).padding(pad(1.0, 0.0, 0.0, 0.0)).into()
 }
 use iced::widget::text;
@@ -347,7 +347,7 @@ pub fn painel(app: &App) -> El<'_> {
     let en = app.p.english;
     let aviso = if en { "No data yet. Connect Orion to see quotas, models and the week." } else { crate::i18n::text("Sem dados ainda. Conecte o Orion para ver cotas, modelos e a semana.") };
     let col = column![container(tx(aviso, t::TEXT_BASE, t::FG3)).padding(pad(4.0, 4.0, 4.0, 4.0))];
-    painel_section(col.into())
+    painel_section(app, col.into())
 }
 
 /// Painel com os números do servidor (`/painel` e `/budget`).
@@ -416,13 +416,33 @@ fn painel_live(app: &App) -> El<'_> {
         col = col.push(grafico(tokens.clone(), crate::i18n::text("30 dias atrás")));
         col = col.push(container(tx(crate::i18n::text("Estimativa: o registro de saídas guarda bytes, não tokens (bytes ÷ 4)."), 11.5, t::FG3)).padding(pad(4.0, 4.0, 4.0, 4.0)));
     }
-    painel_section(col.into())
+    painel_section(app, col.into())
 }
 
 /// Conteúdo do painel dentro da rolagem das configurações, sem outra página aninhada.
-fn painel_section(body: El<'_>) -> El<'_> {
+fn painel_section<'a>(app: &'a App, body: El<'a>) -> El<'a> {
     column![
         container(row![tx(crate::i18n::text("Cotas, modelos e a semana, direto do servidor."), 12.5, t::FG3).width(Length::Fill), btn(crate::i18n::text("Exportar o Você fez de hoje"), Kind::Normal, true, None, Some(Msg::VoceFezExportar)), btn(crate::i18n::text("Atualizar"), Kind::Normal, true, Some("refresh"), Some(Msg::Refresh))].spacing(12).align_y(Vertical::Center)).padding(pad(12.0, 0.0, 22.0, 0.0)),
+        weekly_block(app),
         body,
     ].into()
+}
+
+
+/// Resumo semanal: minimizado por padrão; o botão abre (e busca o texto no núcleo) e fecha.
+fn weekly_block(app: &App) -> El<'_> {
+    if !app.is_live() {
+        return sp_h(0.0).into();
+    }
+    let label = if app.weekly_open { crate::i18n::text("Esconder o resumo semanal") } else { crate::i18n::text("Resumo semanal") };
+    let mut col = column![row![btn(label, Kind::Normal, true, None, Some(Msg::WeeklyToggle)), grow()]].spacing(10);
+    if app.weekly_open {
+        let corpo: El = match &app.weekly_text {
+            Some(t) => tx(t.clone(), 12.5, t::FG2).into(),
+            None => tx(crate::i18n::text("Carregando…"), 12.5, t::FG3).into(),
+        };
+        col = col.push(container(corpo).padding(pad(12.0, 14.0, 12.0, 14.0)).width(Length::Fill).style(surface(Some(t::RAISE), Some(t::LINE2), 8.0)));
+        col = col.push(row![btn(crate::i18n::text("Exportar para o vault"), Kind::Normal, app.weekly_text.is_some(), None, Some(Msg::WeeklyExport)), grow()]);
+    }
+    container(col).padding(pad(0.0, 0.0, 22.0, 0.0)).width(Length::Fill).into()
 }

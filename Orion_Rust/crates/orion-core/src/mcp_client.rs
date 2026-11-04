@@ -39,6 +39,13 @@ pub const MAX_RECURSO: usize = 200 * 1024;
 pub const MAX_PROMPT: usize = 20 * 1024;
 pub const TOOL_RECURSO: &str = "ler_recurso_mcp";
 pub const RECONECTAR_A_CADA_S: f64 = 30.0;
+/// Teto da espera entre tentativas: 30 s, 60 s, 2 min, 4 min, 8 min, 15 min.
+pub const RECONNECT_CAP_S: f64 = 900.0;
+
+/// Espera antes da próxima tentativa depois de `falhas` falhas seguidas (backoff exponencial com teto).
+pub fn reconnect_delay(falhas: u32) -> f64 {
+    (RECONECTAR_A_CADA_S * 2f64.powi(falhas.saturating_sub(1).min(10) as i32)).min(RECONNECT_CAP_S)
+}
 
 pub fn spec_recurso() -> ToolSpec {
     ToolSpec { external: true, ..ToolSpec::new(TOOL_RECURSO, Risk::Read) }
@@ -248,6 +255,8 @@ struct Estado {
     specs: HashMap<String, ToolSpec>,
     caiu: HashSet<String>,
     tentou: HashMap<String, Instant>,
+    /// Falhas seguidas de reconexão por servidor; zera quando volta.
+    seguidas: HashMap<String, u32>,
 }
 
 /// Sobe os servidores do `mcp.json`, lista as ferramentas e as entrega como `Tool`.
@@ -348,6 +357,7 @@ impl McpManager {
             g.protocolos.insert(nome.into(), cliente.protocol.clone());
             g.clients.insert(nome.into(), cliente);
             g.caiu.remove(nome);
+            g.seguidas.remove(nome);
         }
         Ok(self.expor(nome, cfg, anunciadas))
     }
@@ -402,7 +412,8 @@ impl McpManager {
     async fn tentar_reconectar(self: &Arc<Self>, servidor: &str) -> Value {
         let cedo = {
             let mut g = self.st.write();
-            let cedo = g.tentou.get(servidor).is_some_and(|t| t.elapsed().as_secs_f64() < RECONECTAR_A_CADA_S);
+            let espera = reconnect_delay(g.seguidas.get(servidor).copied().unwrap_or(0));
+            let cedo = g.tentou.get(servidor).is_some_and(|t| t.elapsed().as_secs_f64() < espera);
             if !cedo {
                 g.tentou.insert(servidor.into(), Instant::now());
             }
@@ -414,11 +425,19 @@ impl McpManager {
         let Some(cfg) = self.cfg.servers.get(servidor) else { return json!({"erro": "servidor desconhecido"}) };
         match self.conectar(servidor, cfg).await {
             Ok(_) => {
-                self.st.write().status.insert(servidor.into(), "ok (reconectado)".into());
+                {
+                    let mut g = self.st.write();
+                    g.seguidas.remove(servidor);
+                    g.status.insert(servidor.into(), "ok (reconectado)".into());
+                }
                 json!({"erro": format!("o servidor MCP '{servidor}' tinha caído e foi reconectado agora; esta chamada NÃO foi repetida (pode ter efeito colateral): peça de novo se for seguro")})
             }
             Err(e) => {
-                self.st.write().status.insert(servidor.into(), "caiu: erro".into());
+                {
+                    let mut g = self.st.write();
+                    *g.seguidas.entry(servidor.into()).or_insert(0) += 1;
+                    g.status.insert(servidor.into(), "caiu: erro".into());
+                }
                 self.falhou(servidor, &texto_de_erro(&e));
                 json!({"erro": format!("o servidor MCP '{servidor}' caiu e não voltou")})
             }
@@ -545,7 +564,8 @@ impl McpManager {
                 ferramentas.sort_by_key(|(n, _)| n.to_string());
                 json!({
                     "nome": nome, "estado": estado, "status": status, "transporte": if cfg.url.is_some() { "remoto" } else { "local" },
-                    "externo": cfg.external, "protocolo": g.protocolos.get(nome), "ultima_falha": g.falhas.get(nome),
+                    "externo": cfg.external, "protocolo": g.protocolos.get(nome), "ultima_falha": g.falhas.get(nome), "falhas_seguidas": g.seguidas.get(nome).copied().unwrap_or(0),
+                    "proxima_tentativa_em_s": g.tentou.get(nome).filter(|_| g.seguidas.contains_key(nome)).map(|t| (reconnect_delay(g.seguidas.get(nome).copied().unwrap_or(0)) - t.elapsed().as_secs_f64()).max(0.0).round()),
                     "recursos_permitidos": cfg.resources,
                     "ferramentas": ferramentas.iter().map(|(n, sp)| json!({"nome": n, "risco": sp.risk.map(|r| r.as_str()), "externo": sp.external, "egress": sp.egress})).collect::<Vec<_>>(),
                 })

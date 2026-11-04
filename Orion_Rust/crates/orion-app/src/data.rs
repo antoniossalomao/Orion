@@ -331,7 +331,7 @@ pub struct Project {
 pub fn projects() -> Vec<Project> {
     vec![
     Project { id: String::new(), n: "Orion".into(), d: "Assistente local em Rust. Fase 6: front e voz.".into(), pend: "3 pendências".into(), up: "há 2 h".into(), repo: "antoniossalomao/Orion".into(), ci: true, model: "Claude Sonnet".into(), pastas: "C:\\Projetos\\Orion".into(), rot: 1, vault: false },
-    Project { id: String::new(), n: "Vault".into(), d: "Segundo cérebro em Obsidian, estrutura PARA.".into(), pend: "1 PR aberto".into(), up: "ontem".into(), repo: "antoniossalomao/vault".into(), ci: true, model: "Gemini Flash".into(), pastas: "C:\\Users\\Antonio\\Vault".into(), rot: 2, vault: false },
+    Project { id: String::new(), n: "Vault".into(), d: "Segundo cérebro, estrutura PARA.".into(), pend: "1 PR aberto".into(), up: "ontem".into(), repo: "antoniossalomao/vault".into(), ci: true, model: "Gemini Flash".into(), pastas: "C:\\Users\\Antonio\\Vault".into(), rot: 2, vault: false },
     Project { id: String::new(), n: "Lyra".into(), d: "Avaliação de RAG com o vault como base.".into(), pend: "pausado".into(), up: "set.".into(), repo: "".into(), ci: false, model: "Auto".into(), pastas: "".into(), rot: 0, vault: false },
     Project { id: String::new(), n: "Nortis".into(), d: "Backup e restauração antes de trocar de PC.".into(), pend: "concluído".into(), up: "ago.".into(), repo: "".into(), ci: false, model: "Auto".into(), pastas: "D:\\Backup".into(), rot: 0, vault: false },
 ]
@@ -428,13 +428,13 @@ pub fn facts() -> Vec<Fact> {
     Fact { id: 0, g: "Preferências".into(), t: "Respostas diretas, sem preâmbulo".into(), src: "conversa · 12/09".into() },
     Fact { id: 0, g: "Preferências".into(), t: "Português, tom técnico".into(), src: "conversa · 12/09".into() },
     Fact { id: 0, g: "Projetos".into(), t: "Orion: reescrita em Rust, fase 6".into(), src: "conversa · 14/10".into() },
-    Fact { id: 0, g: "Projetos".into(), t: "Vault: segundo cérebro em Obsidian".into(), src: "fato · 03/10".into() },
+    Fact { id: 0, g: "Projetos".into(), t: "Vault: segundo cérebro".into(), src: "fato · 03/10".into() },
     Fact { id: 0, g: "Rotina".into(), t: "Briefing da manhã às 08:45 nos dias úteis".into(), src: "rotina · 01/10".into() },
 ]
 }
 
 pub const SRC: &[(&str, &str, &str)] = &[
-    ("vault", "Vault do Obsidian", "Lê as notas; grava em 03 Recursos/Orion/Memória."),
+    ("vault", "Vault", "Lê as notas; grava em 03 Recursos/Orion/Memória."),
     ("repo", "Repositórios dos projetos", "Código do Orion e do vault no GitHub."),
     ("cal", "Calendário", "Só pelo chat e pelo briefing."),
     ("email", "E-mail", "Só pelo chat e pelo briefing."),

@@ -45,6 +45,15 @@ pub struct SyncResult {
     pub content_sha256: String,
 }
 
+/// Sugestão de link para uma nota nova (projeto, área ou hub de conceito).
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct LinkSuggestion {
+    pub link: String,
+    pub kind: String,
+    pub rel_path: String,
+    pub reason: String,
+}
+
 /// Gerenciador central de sincronização e memória do Vault (F06).
 pub struct VaultManager {
     config: VaultConfig,
@@ -283,6 +292,38 @@ impl VaultManager {
         })
     }
 
+    /// Resumo semanal: uma nota por semana ISO em `Memória/Diário`, nunca sobrescreve uma existente.
+    pub fn save_weekly_report(&self, monday: &str, hora: &str, markdown: &str) -> Result<SyncResult, VaultError> {
+        use chrono::Datelike;
+        let day = chrono::NaiveDate::parse_from_str(monday, "%Y-%m-%d").map_err(|_| VaultError::InvalidFormat("data inválida; use AAAA-MM-DD".into()))?;
+        if chrono::NaiveTime::parse_from_str(hora, "%H:%M").is_err() {
+            return Err(VaultError::InvalidFormat("hora inválida; use HH:MM".into()));
+        }
+        let iso = day.iso_week();
+        let md = format!(
+            "---\ntype: conversa\ndate: {monday}\nhora: \"{hora}\"\nfonte: orion\nprojeto: \"[[Orion]]\"\ntags: [orion, diario, semanal]\nresumo: Resumo semanal {}-W{:02}\n---\n\n{markdown}",
+            iso.year(), iso.week()
+        );
+        SecretScanner::scan(&md).map_err(|e| VaultError::SecretDetected(e.to_string()))?;
+        let name = format!("{}-W{:02} - Resumo semanal.md", iso.year(), iso.week());
+        let rel = Path::new("03 Recursos").join("Orion").join("Memória").join("Diário").join(name);
+        let target = crate::safe_path::checked(&self.config.path, &rel, true)?;
+        let unchanged = match publish_new(&target, &md) {
+            Ok(()) => false,
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => true,
+            Err(e) => return Err(e.into()),
+        };
+        Ok(SyncResult {
+            file_path: rel.to_string_lossy().replace('\\', "/"),
+            commit_hash: None,
+            pushed: false,
+            warning: None,
+            conflict: None,
+            unchanged,
+            content_sha256: format!("{:x}", Sha256::digest(md.as_bytes())),
+        })
+    }
+
     /// Faz uma indexação rápida de todas as notas `.md` do Vault.
     pub fn index_all(&self) -> Result<VaultStats, VaultError> {
         let mut cache = self.notes_cache.write();
@@ -355,6 +396,90 @@ impl VaultManager {
         });
 
         matches
+    }
+
+    /// Sugere onde ligar uma nota nova (regra "não criar ilhas" do vault): projetos, áreas e hubs de
+    /// conceito cujo nome, tags ou título aparecem no texto. Só leitura do índice; não grava nada.
+    pub fn suggest_links(&self, title: &str, text: &str, tags: &[String], limit: usize) -> Vec<LinkSuggestion> {
+        fn tokens(s: &str) -> std::collections::HashSet<String> {
+            s.to_lowercase().split(|c: char| !c.is_alphanumeric()).filter(|t| t.chars().count() >= 3).map(String::from).collect()
+        }
+        let mut entrada = tokens(title);
+        entrada.extend(tokens(text));
+        entrada.extend(tags.iter().flat_map(|t| tokens(t)));
+        let texto_baixo = format!("{title} {text}").to_lowercase();
+        let cache = self.notes_cache.read();
+        let mut achados: Vec<(u32, LinkSuggestion)> = vec![];
+        for note in cache.values() {
+            let rel = note.metadata.rel_path.replace('\\', "/");
+            let tipo = if rel.starts_with("01 Projetos/") {
+                "projeto"
+            } else if rel.starts_with("02 Areas/") {
+                "area"
+            } else if rel.starts_with("03 Recursos/Conceitos/") {
+                "hub"
+            } else {
+                continue;
+            };
+            let Some(stem) = Path::new(&rel).file_stem().and_then(|s| s.to_str()).map(String::from) else { continue };
+            // Projeto/área: só a nota raiz (`<Nome>/<Nome>.md`), não as notas internas.
+            if tipo != "hub" && !rel.ends_with(&format!("/{stem}/{stem}.md")) {
+                continue;
+            }
+            if note.metadata.is_archive || rel.starts_with("04 Arquivo/") {
+                continue;
+            }
+            let mut pontos = 0u32;
+            let mut motivos: Vec<String> = vec![];
+            if texto_baixo.contains(&stem.to_lowercase()) {
+                pontos += 6;
+                motivos.push(format!("o texto cita \"{stem}\""));
+            }
+            let nome = tokens(&stem);
+            let em_comum = nome.intersection(&entrada).count() as u32;
+            if em_comum > 0 {
+                pontos += 3 * em_comum;
+                motivos.push("palavras do nome aparecem na nota".into());
+            }
+            let tags_em_comum: Vec<&String> = note.metadata.tags.iter().filter(|t| entrada.contains(&t.to_lowercase())).collect();
+            if !tags_em_comum.is_empty() {
+                pontos += 2 * tags_em_comum.len() as u32;
+                motivos.push(format!("tags em comum: {}", tags_em_comum.iter().take(3).map(|t| t.as_str()).collect::<Vec<_>>().join(", ")));
+            }
+            if pontos > 0 {
+                achados.push((pontos, LinkSuggestion { link: format!("[[{stem}]]"), kind: tipo.into(), rel_path: rel, reason: motivos.join("; ") }));
+            }
+        }
+        achados.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.link.cmp(&b.1.link)));
+        achados.into_iter().take(limit.clamp(1, 20)).map(|a| a.1).collect()
+    }
+
+    /// Notas-ilha: sem link para fora e sem link vindo de outra nota. Ignora modelos, Home e arquivo morto.
+    pub fn orphans(&self) -> Vec<String> {
+        let cache = self.notes_cache.read();
+        let mut recebidos: std::collections::HashSet<String> = std::collections::HashSet::new();
+        for note in cache.values() {
+            for l in note.metadata.wikilinks.iter().cloned().chain(frontmatter_links(&note.raw_content)) {
+                recebidos.insert(l.split(['|', '#']).next().unwrap_or(&l).trim().to_lowercase());
+            }
+        }
+        let mut ilhas: Vec<String> = cache
+            .values()
+            .filter(|n| {
+                let rel = n.metadata.rel_path.replace('\\', "/");
+                !(rel.starts_with("Templates/") || rel.starts_with("04 Arquivo/") || rel.starts_with("scripts/") || rel == "Home.md" || n.metadata.is_archive)
+            })
+            .filter(|n| {
+                let stem = Path::new(&n.metadata.rel_path).file_stem().and_then(|s| s.to_str()).unwrap_or("").to_lowercase();
+                // Link com pasta ([[Pasta/Nota]]) conta pelo caminho relativo sem a extensão.
+                let caminho = n.metadata.rel_path.replace('\\', "/").trim_end_matches(".md").to_lowercase();
+                n.metadata.wikilinks.is_empty() && frontmatter_links(&n.raw_content).is_empty() && !recebidos.contains(&stem) && !recebidos.contains(&n.metadata.title.to_lowercase()) && !recebidos.contains(&caminho)
+            })
+            .map(|n| n.metadata.rel_path.replace('\\', "/"))
+            .collect();
+        ilhas.sort();
+        ilhas.truncate(200);
+        ilhas
     }
 
     fn scan_dir<F>(&self, root: &Path, callback: &mut F) -> Result<(), VaultError>
@@ -466,4 +591,23 @@ mod tests {
         let results = mgr.search("sincronização");
         assert_eq!(results.len(), 1);
     }
+}
+
+
+/// Links `[[Nota]]` escritos no frontmatter (propriedades como `projeto: "[[Orion]]"`). O parser só
+/// extrai os do corpo, mas uma nota ligada por propriedade não é uma ilha.
+fn frontmatter_links(raw: &str) -> Vec<String> {
+    let Some(rest) = raw.strip_prefix("---\n").or_else(|| raw.strip_prefix("---\r\n")) else { return vec![] };
+    let Some(end) = rest.find("\n---") else { return vec![] };
+    let mut links = vec![];
+    let mut texto = &rest[..end];
+    while let Some(i) = texto.find("[[") {
+        let Some(j) = texto[i + 2..].find("]]") else { break };
+        let alvo = texto[i + 2..i + 2 + j].trim();
+        if !alvo.is_empty() {
+            links.push(alvo.to_string());
+        }
+        texto = &texto[i + 2 + j + 2..];
+    }
+    links
 }
