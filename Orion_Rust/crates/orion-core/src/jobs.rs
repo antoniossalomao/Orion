@@ -387,6 +387,10 @@ impl JobRunner {
         if let Some(n) = Self::passo(rel, "vigilancias", self.ops.watch_poll().map_err(Into::into)) {
             rel.vigilancias = n;
         }
+        // O resumo semanal do vault não depende do briefing: basta o diário do vault estar ligado.
+        if self.semanal_vault.is_some() {
+            let _ = Self::passo(rel, "resumo semanal do vault", self.semanal_para_vault());
+        }
         if self.briefing_at.is_some() {
             if let Some(b) = Self::passo(rel, "briefing", self.briefing()) {
                 rel.briefing = b;
@@ -471,6 +475,25 @@ impl JobRunner {
 
     /// Contagens locais, sem modelo, uma por escopo/dia. Recupera no máximo o dia anterior
     /// ao voltar a ligar o PC (REGRAS.md: pendência velha não vira rajada de aviso).
+    /// Uma nota por semana ISO no vault (opt-in, junto do diário). A primeira passada depois do início da
+    /// semana grava; falhar não repete a cada tick, e o nome do arquivo evita duplicar (nunca sobrescreve).
+    fn semanal_para_vault(&self) -> anyhow::Result<bool> {
+        let Some(gravar) = &self.semanal_vault else { return Ok(false) };
+        let agora = self.agora();
+        let dt = crate::util::local(agora);
+        let iso = dt.iso_week();
+        let semana = iso.year() as i64 * 100 + iso.week() as i64;
+        if self.memory.counter_get("semanal:vault") >= semana {
+            return Ok(false);
+        }
+        self.memory.counter_set("semanal:vault", semana)?; // marca antes: falha não repete a cada tick
+        let agenda = if self.panico() { None } else { self.agenda.as_deref() };
+        let md = crate::briefing::build_weekly_md(&self.ops, &self.memory, agora, &self.cfg.nome, agenda);
+        let segunda = dt.date_naive() - chrono::Duration::days(dt.weekday().num_days_from_monday() as i64);
+        gravar(segunda, &md)?;
+        Ok(true)
+    }
+
     fn daily_summary(&self) -> anyhow::Result<bool> {
         let now = crate::util::local(self.agora());
         let date = if now.hour()==23 && now.minute()==59 { now.date_naive() }
@@ -719,15 +742,6 @@ impl JobRunner {
             if self.memory.counter_get("semanal:ultimo") < semana {
                 self.ops.notify("semanal", &build_weekly(&self.memory, agora, &self.cfg.nome), Some(&format!("semanal:{semana}")), false)?;
                 self.memory.counter_set("semanal:ultimo", semana)?;
-                // F06.12: com o diário ligado, o resumo semanal completo também vira nota no vault
-                if let Some(gravar) = &self.semanal_vault {
-                    let agenda_semanal = if self.panico() { None } else { self.agenda.as_deref() };
-                    let md = crate::briefing::build_weekly_md(&self.ops, &self.memory, agora, &self.cfg.nome, agenda_semanal);
-                    let segunda = dt.date_naive();
-                    if let Err(e) = gravar(segunda, &md) {
-                        tracing::warn!("resumo semanal não foi para o vault: {e}");
-                    }
-                }
             }
         }
         Ok(true)
