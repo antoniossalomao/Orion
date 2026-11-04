@@ -14,6 +14,8 @@ pub enum Lm {
     LanguageSaved(Result<(), String>),
     ToolPermissions(std::time::Instant, Result<Value, String>),
     Attached(u64, Result<Option<Value>, String>),
+    /// Id e texto do último pedido, para editar e reenviar.
+    EditTarget(Result<(i64, String), String>),
     Conflitos(Result<Value, String>),
     ConflitoAberto(Result<Value, String>),
     ConflitoResolvido(Result<String, String>),
@@ -548,6 +550,20 @@ impl App {
             }
             // O modo real nunca usa amostras nem recibos de gravação do protótipo
             // (REGRAS.md: você é o administrador).
+            Msg::EditLast(mi) => {
+                if self.streaming.is_some() || self.attaching { self.toast("Espere a resposta terminar para editar."); return Some((Task::none(), false)); }
+                let ci = self.conv?;
+                let sid = self.session_id()?;
+                let ultimo = self.convs.get(ci)?.msgs.iter().rposition(|m| matches!(m, ChatMsg::User(_)));
+                if ultimo != Some(*mi) { return Some((Task::none(), false)); }
+                Some((Task::perform(async move {
+                    let v = api.get(&format!("/historico?sessao={sid}&limite=100")).await?;
+                    arr(&v, "mensagens").iter().filter(|m| s(m, "role") == "user")
+                        .max_by_key(|m| m["id"].as_i64().unwrap_or(0))
+                        .and_then(|m| Some((m["id"].as_i64()?, s(m, "content").to_string())))
+                        .ok_or_else(|| "Pedido não encontrado no histórico.".to_string())
+                }, |r| Msg::L(Lm::EditTarget(r))), false))
+            }
             Msg::Attach | Msg::AttachPath(_) => {
                 // Arrastar e soltar (F05): o caminho vem do evento da janela; o limite, o tipo e a
                 // assinatura dos bytes são conferidos igual ao seletor (REGRAS.md: conteúdo externo é dado).
@@ -971,7 +987,10 @@ impl App {
             shown.push_str(&self.attach.iter().map(|a| a.0.clone()).collect::<Vec<_>>().join(", "));
         }
         let via = crate::views::chat::via_label(&self.p);
+        let edit = self.edit_target.take();
         let c = &mut self.convs[ci];
+        // Edição: o pedido antigo e a resposta saem da tela; o núcleo guarda as duas versões.
+        if edit.is_some() { if let Some(i) = c.msgs.iter().rposition(|m| matches!(m, ChatMsg::User(_))) { c.msgs.truncate(i); } }
         c.msgs.push(ChatMsg::User(shown));
         c.msgs.push(ChatMsg::Orion(OrionMsg { time: hm(now_secs()), via, out: String::new(), tools_label: String::new(), tools: vec![], body: String::new(), saved: false, approval: None }));
         c.state = ConvState::Running;
@@ -982,7 +1001,11 @@ impl App {
         let (imagens, attachments): (Vec<String>, Vec<String>) = (imagens.into_iter().map(|i| i.0).collect(), attachments.into_iter().map(|i| i.0).collect());
         self.attach.clear();
         self.attach_thumbs.clear();
-        let (task, handle) = Task::run(api.stream("/chat", json!({"texto": text, "canal": "web", "anexos": attachments, "imagens": imagens})), |e| Msg::L(Lm::Chat(e))).abortable();
+        let (path, body) = match edit {
+            Some(id) => (format!("/historico/{id}/editar"), json!({"texto": text, "canal": "web"})),
+            None => ("/chat".to_string(), json!({"texto": text, "canal": "web", "anexos": attachments, "imagens": imagens})),
+        };
+        let (task, handle) = Task::run(api.stream(&path, body), |e| Msg::L(Lm::Chat(e))).abortable();
         self.abort = Some(handle);
         task
     }
@@ -1036,6 +1059,14 @@ impl App {
             Lm::ArtifactDetail(session, result) => {
                 if self.session_id().as_deref() != Some(session.as_str()) { return Task::none(); }
                 match result { Ok(value) => self.artifact_detail = Some(value), Err(error) => self.toast(error) }
+            },
+            Lm::EditTarget(result) => match result {
+                Ok((id, text)) => {
+                    self.edit_target = Some(id);
+                    self.composer = iced::widget::text_editor::Content::with_text(&text);
+                    self.toast("Edite e envie: a resposta é refeita como nova versão do pedido.");
+                }
+                Err(error) => self.toast(error),
             },
             Lm::Attached(generation, result) => {
                 self.attaching = false;

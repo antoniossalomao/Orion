@@ -108,6 +108,7 @@ pub fn router(st: Estado) -> Router {
         .route("/resources/automations", post(resources::automation_save))
         .route("/resources/automations/:name", get(resources::automation_read))
         .route("/resources/backup/export", post(resources::backup_export))
+        .route("/resources/backup/drive-pull", post(resources::backup_drive_pull))
         .route("/resources/backup/restore", post(resources::backup_restore))
         .route("/config/runtime", get(resources::runtime_get).put(resources::runtime_save))
         .route("/config/runtime/padrao", get(resources::runtime_defaults))

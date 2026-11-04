@@ -152,7 +152,11 @@ fn user_msg<'a>(app: &'a App, mi: usize, s: String, content_w: f32) -> El<'a> {
     let show = app.hover == Some((2, mi));
     let acts: El = if show {
         if app.is_live() {
-            tip(ib_sz("copy", 26.0, 16.0, Some(Msg::CopyText(s)), false), crate::i18n::text("Copiar"))
+            let copy = tip(ib_sz("copy", 26.0, 16.0, Some(Msg::CopyText(s)), false), crate::i18n::text("Copiar"));
+            let is_last = app.conv.and_then(|ci| app.convs.get(ci)).and_then(|c| c.msgs.iter().rposition(|m| matches!(m, ChatMsg::User(_)))) == Some(mi);
+            if is_last && app.streaming.is_none() {
+                row![tip(ib_sz("edit", 26.0, 16.0, Some(Msg::EditLast(mi)), false), crate::i18n::text("Editar e reenviar")), copy].into()
+            } else { copy }
         } else {
             row![tip(ib_sz("edit", 26.0, 16.0, Some(Msg::Toast(crate::i18n::text("Editar e reenviar cria um ramo da conversa").into())), false), crate::i18n::text("Editar e reenviar")), tip(ib_sz("copy", 26.0, 16.0, Some(Msg::CopyText(s)), false), crate::i18n::text("Copiar")), tip(ib_sz("pin", 26.0, 16.0, Some(Msg::Toast(crate::i18n::text("Fixada como contexto permanente").into())), false), crate::i18n::text("Fixar como contexto"))].into()
         }

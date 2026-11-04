@@ -364,6 +364,8 @@ pub struct App {
     pub attaching: bool,
     /// Arquivos soltos enquanto outro anexo é processado; seguem em ordem, respeitando os limites.
     pub drop_queue: Vec<String>,
+    /// Pedido sendo editado (id da mensagem no núcleo); o próximo envio refaz o turno como nova versão.
+    pub edit_target: Option<i64>,
     pub attach_n: usize,
     pub streaming: Option<Stream>,
     pub ctx_override: Option<bool>,
@@ -532,6 +534,8 @@ pub enum Msg {
     Attach,
     /// Arquivo solto na janela (arrastar e soltar).
     AttachPath(String),
+    /// Editar e reenviar a última mensagem do usuário (índice na conversa aberta).
+    EditLast(usize),
     Unattach(usize),
     Mic,
     Live,
@@ -768,6 +772,7 @@ impl App {
             attachment_generation: 0,
             attaching: false,
             drop_queue: vec![],
+            edit_target: None,
             attach_n: 0,
             streaming: None,
             ctx_override: None,
@@ -1503,6 +1508,7 @@ impl App {
                     self.toast("Até 20 MB por arquivo. Maior que isso: ponha numa pasta e passe o caminho.");
                 }
             }
+            Msg::EditLast(_) => {}
             Msg::AttachPath(_) => self.toast("Arrastar e soltar só funciona com o núcleo conectado."),
             Msg::Unattach(i) => {
                 if i < self.attach.len() {

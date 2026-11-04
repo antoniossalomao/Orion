@@ -182,3 +182,60 @@ pub async fn upload(path: &std::path::Path) -> anyhow::Result<()> {
     }
     Ok(())
 }
+
+/// Sincronização de volta: baixa a cópia cifrada mais recente do Drive para `folder`. O arquivo continua
+/// cifrado (só a senha ou a recuperação abrem) e nada é aplicado sozinho: a restauração segue o fluxo
+/// existente, em outra pasta (REGRAS.md: nada sai em claro; aprovação só por canal autenticado).
+pub async fn pull_latest(folder: &std::path::Path) -> anyhow::Result<std::path::PathBuf> {
+    let credential = zeroize::Zeroizing::new(orion_ai::secrets::get_secret("ORION_DRIVE_OAUTH").context("Google Drive não conectado")?);
+    let credential: Value = serde_json::from_str(&credential)?;
+    let client = reqwest::Client::builder().timeout(std::time::Duration::from_secs(300)).redirect(reqwest::redirect::Policy::none()).build()?;
+    let response = client
+        .post("https://oauth2.googleapis.com/token")
+        .form(&[
+            ("grant_type", "refresh_token"),
+            ("client_id", credential["client_id"].as_str().unwrap_or("")),
+            ("client_secret", credential["client_secret"].as_str().unwrap_or("")),
+            ("refresh_token", credential["refresh_token"].as_str().unwrap_or("")),
+        ])
+        .send()
+        .await?;
+    ensure!(response.status().is_success(), "renove a conexão com o Google Drive");
+    let token: Value = response.json().await?;
+    let access = token["access_token"].as_str().context("Google não devolveu token de acesso")?;
+    let listed: Value = client
+        .get("https://www.googleapis.com/drive/v3/files")
+        .bearer_auth(access)
+        .query(&[
+            ("q", "trashed = false and appProperties has { key='orion_backup' and value='v1' }"),
+            ("orderBy", "createdTime desc"),
+            ("fields", "files(id,name)"),
+            ("pageSize", "1"),
+        ])
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?;
+    let file = listed["files"].as_array().and_then(|f| f.first()).context("nenhum backup do Orion no Google Drive")?;
+    let id = file["id"].as_str().filter(|s| !s.is_empty() && s.chars().all(|c| c.is_ascii_alphanumeric() || "_-".contains(c))).context("resposta do Drive inválida")?;
+    let name = file["name"].as_str().unwrap_or("");
+    ensure!(
+        name.ends_with(".orion-backup") && !name.contains(['/', '\\', ':']) && !name.contains(".."),
+        "nome de backup inesperado no Drive"
+    );
+    let bytes = client
+        .get(format!("https://www.googleapis.com/drive/v3/files/{id}"))
+        .bearer_auth(access)
+        .query(&[("alt", "media")])
+        .send()
+        .await?
+        .error_for_status()?
+        .bytes()
+        .await?;
+    ensure!(bytes.len() <= 2 * 1024 * 1024 * 1024, "backup maior que o limite aceito");
+    tokio::fs::create_dir_all(folder).await?;
+    let destination = folder.join(format!("drive-{name}"));
+    tokio::fs::write(&destination, &bytes).await?;
+    Ok(destination)
+}
