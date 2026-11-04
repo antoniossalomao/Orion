@@ -1067,6 +1067,9 @@ impl App {
             Lm::EditTarget(sid, result) => match result {
                 // Resultado de outra conversa (navegou enquanto buscava): descarta.
                 _ if self.session_id().as_deref() != Some(sid.as_str()) => {}
+                // Um envio começou durante a busca: o pedido mais recente já mudou, então a edição vale de nada.
+                _ if self.streaming.is_some() => {}
+                Ok((_, text)) if !self.conv.and_then(|ci| self.convs.get(ci)).and_then(|c| c.msgs.iter().rev().find_map(|m| if let ChatMsg::User(u) = m { Some(u.trim() == text.trim()) } else { None })).unwrap_or(false) => {}
                 Ok((id, text)) => {
                     self.edit_target = Some((sid, id));
                     self.composer = iced::widget::text_editor::Content::with_text(&text);
