@@ -420,7 +420,7 @@ fn explain_failure(stderr: &str) -> &'static str {
     } else if e.contains("would be overwritten") || e.contains("local changes") {
         "há arquivos locais no caminho do pull; salve ou mova as edições do vault e tente de novo"
     } else if e.contains("index.lock") || e.contains("unable to create") {
-        "outro processo está usando o repositório do vault (índice Git bloqueado); feche o Obsidian/Git e tente de novo"
+        "outro processo está usando o repositório do vault (índice Git bloqueado); feche o Git ou outro programa que use o vault e tente de novo"
     } else {
         "o Git recusou o pull do vault; rode `git pull --ff-only` na pasta do vault para ver o motivo exato"
     }

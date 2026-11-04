@@ -46,7 +46,7 @@ pub fn view(app: &App) -> El<'_> {
                     let inner = column![
                         kv("file", tx(ell(name, 220.0, 12.5), 12.5, t::FG2).into()),
                         row![icon("branch", 14.0, t::FG3), txf(format!("main · {}", n.commit), 12.0, t::FG2, t::MONO), tx(format!("· {}", n.at), 12.5, t::FG3)].spacing(8).align_y(Vertical::Center),
-                        row![btn(crate::i18n::text("Abrir nota"), Kind::Normal, true, Some("edit"), Some(Msg::EditorOpen(n.path.to_string()))), btn("Obsidian", Kind::Ghost, true, None, Some(Msg::Toast(crate::i18n::text("Abriria no Obsidian").into())))].spacing(6),
+                        row![btn(crate::i18n::text("Abrir nota"), Kind::Normal, true, Some("edit"), Some(Msg::EditorOpen(n.path.to_string())))].spacing(6),
                     ]
                     .spacing(6);
                     v = v.push(card("Vault", tx(n.at.clone(), 12.5, t::FG3).into(), inner.into()));

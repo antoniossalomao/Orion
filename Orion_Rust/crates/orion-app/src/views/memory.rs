@@ -87,7 +87,7 @@ pub fn update(app: &mut App, m: Msg) {
             g.pitch = (g.pitch + dy * 0.0072).clamp(-1.45, 1.45);
         }
         Msg::MemDrag(i, x, y, z) => {
-            // Como no Obsidian: a nota fica presa ao cursor e a simulação esquenta, então as vizinhas vêm junto.
+            // A nota fica presa ao cursor e a simulação esquenta, então as vizinhas vêm junto.
             app.mem.spinning = false;
             let n = &mut app.mem.nodes[i];
             (n.x, n.y, n.z) = (x, y, z);
@@ -680,7 +680,7 @@ pub fn view(app: &App) -> El<'_> {
     if g.nodes.is_empty() && app.api.is_some() {
         let card = column![
             tx(crate::i18n::text("Sua memória ainda está vazia"), 20.0, t::FG),
-            tx(crate::i18n::text("As notas do seu vault do Obsidian aparecem aqui como um mapa. Escolha a pasta do vault em Configurações › Memória."), 13.5, t::FG3),
+            tx(crate::i18n::text("As notas do seu vault aparecem aqui como um mapa. Escolha a pasta do vault em Configurações › Memória."), 13.5, t::FG3),
             btn(crate::i18n::text("Abrir configurações de memória"), Kind::Normal, false, None, Some(Msg::OpenSettings(Some(crate::app::Sec::Memoria)))),
         ]
         .spacing(12)

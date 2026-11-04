@@ -1378,8 +1378,6 @@
   "Erro no git pull: o remoto `origin` não tem a branch main": "ui-1247",
   "há arquivos locais no caminho do pull; salve ou mova as edições do vault e tente de novo": "ui-1248",
   "Erro no git pull: há arquivos locais no caminho do pull; salve ou mova as edições do vault e tente de novo": "ui-1249",
-  "outro processo está usando o repositório do vault (índice Git bloqueado); feche o Obsidian/Git e tente de novo": "ui-1250",
-  "Erro no git pull: outro processo está usando o repositório do vault (índice Git bloqueado); feche o Obsidian/Git e tente de novo": "ui-1251",
   "o Git recusou o pull do vault; rode `git pull --ff-only` na pasta do vault para ver o motivo exato": "ui-1252",
   "Erro no git pull: o Git recusou o pull do vault; rode `git pull --ff-only` na pasta do vault para ver o motivo exato": "ui-1253",
   "falhou": "ui-1254",
@@ -1397,5 +1395,17 @@
   "Sem ligação": "ui-1266",
   "Notas sem link para fora nem vindo de outras notas": "ui-1267",
   "Nenhuma nota solta.": "ui-1268",
-  "O resumo desta semana já estava no vault; nada foi sobrescrito.": "ui-1269"
+  "O resumo desta semana já estava no vault; nada foi sobrescrito.": "ui-1269",
+  "outro processo está usando o repositório do vault (índice Git bloqueado); feche o Git ou outro programa que use o vault e tente de novo": "ui-1250",
+  "Erro no git pull: outro processo está usando o repositório do vault (índice Git bloqueado); feche o Git ou outro programa que use o vault e tente de novo": "ui-1251",
+  "Vault (segundo cérebro)": "ui-1270",
+  "As notas do seu vault aparecem aqui como um mapa. Escolha a pasta do vault em Configurações › Memória.": "ui-1271",
+  "Se você editou a mesma nota fora do Orion": "ui-1272",
+  "Pasta do vault. Vale depois de reiniciar o Orion.": "ui-1273",
+  "Sem pasta: o Orion tenta detectar o vault sozinho.": "ui-1274",
+  "Vault encontrado, mas sem a pasta 00 Inbox da estrutura PARA.": "ui-1275",
+  "A pasta existe, mas não parece o vault (sem 00 Inbox, 01 Projetos nem claude.md).": "ui-1276",
+  "Segundo cérebro, estrutura PARA.": "ui-1277",
+  "Vault: segundo cérebro": "ui-1278",
+  "Vault": "ui-1279"
 }

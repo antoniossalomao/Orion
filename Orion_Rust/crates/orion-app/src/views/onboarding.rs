@@ -147,7 +147,7 @@ fn step_notes<'a>(f: &'a Form) -> El<'a> {
     column![
         head(tr(f, crate::i18n::text("Notas e projetos"), "Notes and projects"), tr(f, crate::i18n::text("Tudo opcional."), "All optional.")),
         sp_h(8.0),
-        folder(f, Field::Vault, tr(f, crate::i18n::text("Vault do Obsidian"), "Obsidian vault"), tr(f, crate::i18n::text("Pasta do vault"), "Vault folder")),
+        folder(f, Field::Vault, tr(f, crate::i18n::text("Vault (segundo cérebro)"), "Vault (second brain)"), tr(f, crate::i18n::text("Pasta do vault"), "Vault folder")),
         folder(f, Field::Projects, tr(f, crate::i18n::text("Pasta dos projetos"), "Projects folder"), tr(f, crate::i18n::text("Seus repositórios"), "Your repositories")),
         field(f, Field::Secret("ORION_GITHUB_TOKEN"), tr(f, crate::i18n::text("Token do GitHub"), "GitHub token"), tr(f, crate::i18n::text("Salvo no cofre do sistema"), "Saved in the system vault"), true),
         btn(tr(f, crate::i18n::text("Criar token ↗"), "Create token ↗"), Kind::Ghost, true, None, Some(event(Event::Link("https://github.com/settings/tokens"))))

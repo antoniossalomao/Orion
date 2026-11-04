@@ -536,7 +536,7 @@ const DESCRIPTIONS: &[(&str, &str)] = &[
     ("nuvem", "Permite rodar tarefas nas CLIs de nuvem."),
     ("codex_env", "Ambiente usado pelo Codex Cloud."),
     ("nuvem_dir", "Pasta onde as tarefas de nuvem trabalham."),
-    ("vault_dir", "Pasta do vault do Obsidian. Vale depois de reiniciar o Orion."),
+    ("vault_dir", "Pasta do vault. Vale depois de reiniciar o Orion."),
     ("tone_directness", "Do mais curto e direto ao mais detalhado. O meio não muda nada."),
     ("tone_formality", "Do mais casual ao mais formal. O meio não muda nada."),
     ("tone_custom", "Até 500 caracteres. Ex.: sem preâmbulo, código completo, português técnico. Vale para todos os projetos; cada projeto pode ter instruções próprias."),
@@ -591,18 +591,18 @@ fn check_vault_task(path: String) -> Task<Msg> {
 fn vault_check(path: &str) -> (&'static str, bool) {
     let path = path.trim();
     if path.is_empty() {
-        return ("Sem pasta: o Orion tenta detectar o vault aberto no Obsidian.", true);
+        return ("Sem pasta: o Orion tenta detectar o vault sozinho.", true);
     }
     let dir = std::path::Path::new(path);
     if !dir.is_dir() {
         return ("Pasta não encontrada.", false);
     }
-    if dir.join("00 Inbox").is_dir() && (dir.join("claude.md").is_file() || dir.join(".obsidian").is_dir()) {
+    if dir.join("00 Inbox").is_dir() && (dir.join("claude.md").is_file() || dir.join("01 Projetos").is_dir()) {
         ("Vault válido: estrutura PARA encontrada.", true)
-    } else if dir.join(".obsidian").is_dir() {
-        ("Vault do Obsidian, mas sem a pasta 00 Inbox da estrutura PARA.", true)
+    } else if dir.join("claude.md").is_file() || dir.join("01 Projetos").is_dir() {
+        ("Vault encontrado, mas sem a pasta 00 Inbox da estrutura PARA.", true)
     } else {
-        ("A pasta existe, mas não parece um vault do Obsidian (sem .obsidian).", false)
+        ("A pasta existe, mas não parece o vault (sem 00 Inbox, 01 Projetos nem claude.md).", false)
     }
 }
 
