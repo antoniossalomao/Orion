@@ -174,9 +174,16 @@ pub fn falavel(texto: &str, limite: usize) -> String {
 pub fn trechos_de_fala(texto: &str, demais_max: usize) -> Vec<String> {
     let mut frases: Vec<String> = vec![];
     let mut atual = String::new();
-    for c in texto.chars() {
+    let mut chars = texto.chars().peekable();
+    while let Some(c) = chars.next() {
         atual.push(c);
-        if matches!(c, '.' | '!' | '?' | '…' | '\n') && atual.trim().chars().count() >= 3 {
+        // Ponto só fecha frase se vier espaço ou fim depois: "1.500" e "3.14" ficam inteiros.
+        let fecha = match c {
+            '.' => chars.peek().is_none_or(|n| n.is_whitespace()),
+            '!' | '?' | '…' | '\n' => true,
+            _ => false,
+        };
+        if fecha && atual.trim().chars().count() >= 3 {
             frases.push(std::mem::take(&mut atual).trim().to_string());
         }
     }
