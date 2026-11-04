@@ -1609,8 +1609,13 @@ impl App {
                         self.streaming = None;
                         self.abort = None;
                         self.edit_failed = false;
+                        // O erro pode ter vindo depois de o núcleo aceitar a edição (falha ao gerar a resposta): o
+                        // histórico do núcleo decide o que fica na tela, e a restauração acima vale só até ele chegar.
+                        let sid = conv.id.clone();
+                        let sid_out = sid.clone();
+                        let reload_history = self.api.clone().map(|api| Task::perform(async move { api.get(&format!("/historico?sessao={sid}&limite=100")).await }, move |r| Msg::L(Lm::Opened(sid_out.clone(), r))));
                         let queued_task = self.next_queued();
-                        return Task::batch([self.reload_all(), queued_task]);
+                        return Task::batch([self.reload_all(), queued_task, reload_history.unwrap_or_else(Task::none)]);
                     }
                 }
                 self.edit_failed = false;
