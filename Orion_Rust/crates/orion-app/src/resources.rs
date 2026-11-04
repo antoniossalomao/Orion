@@ -1838,7 +1838,7 @@ pub fn overlay(app: &App) -> Option<El<'_>> {
             );
         }
         if !form.error.is_empty() {
-            col = col.push(tx(form.error.clone(), 13.0, t::DANGER));
+            col = col.push(tx(crate::i18n::status(&form.error), 13.0, t::DANGER));
         }
         col = col.push(btn(
             crate::i18n::text(if form.busy {

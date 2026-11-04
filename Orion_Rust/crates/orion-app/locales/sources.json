@@ -1383,5 +1383,12 @@
   "o Git recusou o pull do vault; rode `git pull --ff-only` na pasta do vault para ver o motivo exato": "ui-1252",
   "Erro no git pull: o Git recusou o pull do vault; rode `git pull --ff-only` na pasta do vault para ver o motivo exato": "ui-1253",
   "falhou": "ui-1254",
-  "negada": "ui-1255"
+  "negada": "ui-1255",
+  "Google Drive não conectado": "ui-1256",
+  "renove a conexão com o Google Drive": "ui-1257",
+  "nenhum backup do Orion no Google Drive": "ui-1258",
+  "resposta do Drive inválida": "ui-1259",
+  "nome de backup inesperado no Drive": "ui-1260",
+  "backup maior que o limite aceito": "ui-1261",
+  "escolha uma pasta absoluta": "ui-1262"
 }
