@@ -474,6 +474,11 @@ pub struct App {
     pub monitor: Option<crate::tray::Monitor>,
     pub bandeja_tentou: bool,
     pub painel: Option<serde_json::Value>,
+    pub fact_q: String,
+    pub screen_q: String,
+    /// (quando, app, janela, trecho) dos achados de "O que eu vi"; `None` = ainda não buscou.
+    pub screen_hits: Option<Vec<(String, String, String, String)>>,
+    pub fact_g: Option<String>,
     pub weekly_open: bool,
     pub weekly_text: Option<String>,
     pub islands_open: bool,
@@ -610,6 +615,14 @@ pub enum Msg {
     RotToggle(usize),
     RotRun(usize),
     FactEdit(usize),
+    /// Memória: texto do filtro da lista de fatos.
+    FactQ(String),
+    /// Memória: texto da busca "O que eu vi" (memória da tela).
+    ScreenQ(String),
+    /// Memória: roda a busca "O que eu vi" no núcleo.
+    ScreenSearch,
+    /// Memória: filtro por grupo da lista de fatos (`None` = todos).
+    FactGroup(Option<String>),
     FactText(String),
     FactSave,
     /// Busca os fatos no núcleo para a lista de Configurações › Sobre você.
@@ -873,6 +886,10 @@ impl App {
             monitor: None,
             bandeja_tentou: false,
             painel: None,
+            fact_q: String::new(),
+            screen_q: String::new(),
+            screen_hits: None,
+            fact_g: None,
             weekly_open: false,
             weekly_text: None,
             islands_open: false,
@@ -1648,6 +1665,10 @@ impl App {
                 let m = format!("{}: rodou agora. Saída: {}", self.rots[i].t, self.rots[i].out);
                 self.toast(m);
             }
+            Msg::FactQ(q) => self.fact_q = q,
+            Msg::ScreenQ(q) => self.screen_q = q,
+            Msg::ScreenSearch => {}
+            Msg::FactGroup(g) => self.fact_g = g,
             Msg::FactEdit(i) => self.edit_fact = Some((i, self.facts[i].t.clone())),
             Msg::FactText(s) => {
                 if let Some(e) = &mut self.edit_fact {

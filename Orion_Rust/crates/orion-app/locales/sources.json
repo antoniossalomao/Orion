@@ -1407,5 +1407,12 @@
   "A pasta existe, mas não parece o vault (sem 00 Inbox, 01 Projetos nem claude.md).": "ui-1276",
   "Segundo cérebro, estrutura PARA.": "ui-1277",
   "Vault: segundo cérebro": "ui-1278",
-  "Vault": "ui-1279"
+  "Vault": "ui-1279",
+  "Buscar nos fatos": "ui-1280",
+  "Todos": "ui-1281",
+  "Nenhum fato com esse filtro.": "ui-1282",
+  "O que eu vi": "ui-1283",
+  "Busca no texto que esteve na tela nos últimos 30 dias. Só tem resultado se a memória da tela estiver ligada.": "ui-1284",
+  "Ex.: fatura do cartão": "ui-1285",
+  "Digite pelo menos 2 letras para buscar.": "ui-1286"
 }

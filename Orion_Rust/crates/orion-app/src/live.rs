@@ -17,6 +17,7 @@ pub enum Lm {
     /// Id e texto do último pedido, para editar e reenviar.
     EditTarget(String, Result<(i64, String), String>),
     Weekly(Result<String, String>),
+    Screen(Result<Vec<(String, String, String, String)>, String>),
     Islands(Result<Vec<String>, String>),
     Conflitos(Result<Value, String>),
     ConflitoAberto(Result<Value, String>),
@@ -667,6 +668,18 @@ impl App {
                 let n = |k: &str| r[k].as_array().map(|a| a.len()).unwrap_or(0);
                 Ok(format!("Configurações recarregadas: {} aplicada(s) na hora, {} exigem reiniciar o Orion.", n("aplicados"), n("exigem_reinicio")))
             }, |r| Msg::L(Lm::Acao(r, false))), false)),
+            Msg::ScreenSearch => {
+                let q = self.screen_q.trim().to_string();
+                if q.chars().count() < 2 { self.toast("Digite pelo menos 2 letras para buscar."); return Some((Task::none(), true)); }
+                let path = format!("/tela/busca?q={}&dias=30&limite=10", q.chars().take(200).collect::<String>().bytes().map(|b| if b.is_ascii_alphanumeric() || b"-_.~".contains(&b) { (b as char).to_string() } else { format!("%{b:02X}") }).collect::<String>());
+                Some((Task::perform(async move {
+                    let v = api.get(&path).await?;
+                    Ok(arr(&v, "resultados").iter().map(|r| {
+                        let quando = r["quando"].as_f64().and_then(|t| chrono::DateTime::from_timestamp(t as i64, 0)).map(|d| d.with_timezone(&chrono::Local).format("%d/%m %H:%M").to_string()).unwrap_or_default();
+                        (quando, s(r, "app").to_string(), s(r, "janela").to_string(), s(r, "trecho").to_string())
+                    }).collect::<Vec<_>>())
+                }, |r| Msg::L(Lm::Screen(r))), true))
+            }
             Msg::WeeklyToggle => {
                 self.weekly_open = !self.weekly_open;
                 if !self.weekly_open { return Some((Task::none(), true)); }
@@ -1087,6 +1100,7 @@ impl App {
                 if self.session_id().as_deref() != Some(session.as_str()) { return Task::none(); }
                 match result { Ok(value) => self.artifact_detail = Some(value), Err(error) => self.toast(error) }
             },
+            Lm::Screen(r) => match r { Ok(v) => self.screen_hits = Some(v), Err(e) => self.toast(e) },
             Lm::Weekly(r) => match r { Ok(t) => self.weekly_text = Some(t), Err(e) => { self.weekly_open = false; self.toast(e) } },
             Lm::Islands(r) => match r { Ok(v) => self.islands = Some(v), Err(e) => { self.islands_open = false; self.toast(e) } },
             Lm::EditTarget(sid, result) => match result {

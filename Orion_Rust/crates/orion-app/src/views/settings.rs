@@ -370,7 +370,50 @@ fn section<'a>(app: &'a App) -> El<'a> {
             if app.facts.is_empty() {
                 c = c.push(setting(crate::i18n::text("Fatos que o Orion sabe de você"), crate::i18n::text("Carregue a lista para editar ou esquecer."), btn(crate::i18n::text("Carregar"), Kind::Normal, true, None, Some(Msg::FactsLoad))));
             } else {
-                c = c.push(crate::views::pages::list(crate::views::pages::fact_rows(app, |_| true)));
+                // Filtro local: texto (no fato, grupo ou origem) e grupo. Os índices de edição seguem os da lista inteira.
+                c = c.push(text_input(crate::i18n::text("Buscar nos fatos"), &app.fact_q).on_input(Msg::FactQ).size(13).font(t::UI).padding(pad(7.0, 10.0, 7.0, 10.0)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 8.0)));
+                let mut grupos: Vec<&str> = vec![];
+                for f in &app.facts {
+                    if !grupos.contains(&f.g.as_str()) { grupos.push(&f.g); }
+                }
+                if grupos.len() > 1 {
+                    let mut chips = row![crate::views::memory::fchip(crate::i18n::text("Todos"), None, None, app.fact_g.is_none(), Msg::FactGroup(None))].spacing(4);
+                    for g in grupos {
+                        chips = chips.push(crate::views::memory::fchip(g, None, None, app.fact_g.as_deref() == Some(g), Msg::FactGroup(Some(g.to_string()))));
+                    }
+                    c = c.push(container(chips).padding(pad(6.0, 0.0, 6.0, 0.0)));
+                }
+                let q = app.fact_q.trim().to_lowercase();
+                let rows = crate::views::pages::fact_rows(app, |f| {
+                    app.fact_g.as_deref().is_none_or(|g| f.g == g)
+                        && (q.is_empty() || f.t.to_lowercase().contains(&q) || f.g.to_lowercase().contains(&q) || f.src.to_lowercase().contains(&q))
+                });
+                if rows.is_empty() {
+                    c = c.push(tx(crate::i18n::text("Nenhum fato com esse filtro."), 13.0, t::FG3));
+                } else {
+                    c = c.push(crate::views::pages::list(rows));
+                }
+            }
+            // E5.1: "O que eu vi" busca no texto que esteve na tela (só existe se a captura de tela estiver ligada)
+            if app.is_live() {
+                c = c.push(sh(crate::i18n::text("O que eu vi")));
+                c = c.push(lede(crate::i18n::text("Busca no texto que esteve na tela nos últimos 30 dias. Só tem resultado se a memória da tela estiver ligada.")));
+                c = c.push(row![
+                    text_input(crate::i18n::text("Ex.: fatura do cartão"), &app.screen_q).on_input(Msg::ScreenQ).on_submit(Msg::ScreenSearch).size(13).font(t::UI).padding(pad(7.0, 10.0, 7.0, 10.0)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 8.0)),
+                    btn(crate::i18n::text("Buscar"), Kind::Normal, true, None, Some(Msg::ScreenSearch)),
+                ].spacing(8).align_y(Vertical::Center));
+                match &app.screen_hits {
+                    None => {}
+                    Some(v) if v.is_empty() => c = c.push(tx(crate::i18n::text("Nada encontrado."), 13.0, t::FG3)),
+                    Some(v) => {
+                        let mut linhas = vec![];
+                        for (quando, programa, janela, trecho) in v {
+                            let titulo = if janela.is_empty() { programa.clone() } else { format!("{programa} · {janela}") };
+                            linhas.push(crate::views::pages::li(column![tx(ell(&titulo, 520.0, 13.5), 13.5, t::FG), crate::views::pages::li_desc(ell(trecho, 520.0, 12.0))].into(), tx(quando.clone(), 12.0, t::FG3).into()));
+                        }
+                        c = c.push(crate::views::pages::list(linhas));
+                    }
+                }
             }
             c = c.push(setting(crate::i18n::text("Grafo"), crate::i18n::text("Abre o grafo das notas do vault."), btn(crate::i18n::text("Abrir"), Kind::Normal, true, None, Some(Msg::SetGo(crate::app::View::Memoria)))));
         }

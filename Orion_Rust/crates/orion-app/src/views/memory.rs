@@ -641,7 +641,7 @@ fn forces_panel(g: &Graph) -> El<'_> {
     container(container(body).width(Length::Fixed(250.0)).padding(12).style(|_| container::Style { background: Some(t::mix(t::RAISE, 0.94).into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_CARD.into() }, shadow: shadow(), ..Default::default() })).into()
 }
 
-fn fchip<'a>(label: &str, dot: Option<Color>, ic: Option<&str>, on: bool, msg: Msg) -> El<'a> {
+pub(crate) fn fchip<'a>(label: &str, dot: Option<Color>, ic: Option<&str>, on: bool, msg: Msg) -> El<'a> {
     let fg = if on { t::FG } else { t::alpha(t::FG3, 0.5) };
     let mut r = row![].spacing(6).align_y(Vertical::Center);
     if let Some(d) = dot {

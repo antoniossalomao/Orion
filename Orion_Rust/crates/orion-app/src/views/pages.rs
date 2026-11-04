@@ -41,7 +41,7 @@ pub fn li<'a>(left: El<'a>, right: El<'a>) -> El<'a> {
 fn li_title<'a>(parts: Vec<El<'a>>) -> El<'a> {
     row(parts).spacing(8).align_y(Vertical::Center).into()
 }
-fn li_desc<'a>(s: impl text::IntoFragment<'a>) -> El<'a> {
+pub(crate) fn li_desc<'a>(s: impl text::IntoFragment<'a>) -> El<'a> {
     container(tx(s, 12.5, t::FG3)).padding(pad(1.0, 0.0, 0.0, 0.0)).into()
 }
 use iced::widget::text;
