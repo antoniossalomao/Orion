@@ -552,7 +552,10 @@ impl App {
                 // Arrastar e soltar (F05): o caminho vem do evento da janela; o limite, o tipo e a
                 // assinatura dos bytes são conferidos igual ao seletor (REGRAS.md: conteúdo externo é dado).
                 let dropped = if let Msg::AttachPath(path) = &msg { Some(std::path::PathBuf::from(path)) } else { None };
-                if self.attaching || self.streaming.is_some() || self.attachment_ids.len() >= 8 { return Some((Task::none(), false)); }
+                if let Msg::AttachPath(path) = &msg {
+                    if self.attaching && self.drop_queue.len() < 8 { self.drop_queue.push(path.clone()); return Some((Task::none(), false)); }
+                }
+                if self.attaching || self.streaming.is_some() || self.attachment_ids.len() >= 8 { self.drop_queue.clear(); return Some((Task::none(), false)); }
                 self.attaching = true;
                 let generation = self.attachment_generation;
                 let imagens_anexadas = self.attach.iter().filter(|a| a.1 == "imagem").count();
@@ -1037,6 +1040,7 @@ impl App {
             Lm::Attached(generation, result) => {
                 self.attaching = false;
                 if generation != self.attachment_generation {
+                    self.drop_queue.clear();
                     return self.next_queued();
                 }
                 match result {
@@ -1052,6 +1056,7 @@ impl App {
                     }
                     Ok(None) => {}, Err(error) => self.toast(error),
                 }
+                if !self.drop_queue.is_empty() { let next = self.drop_queue.remove(0); return Task::done(Msg::AttachPath(next)); }
             }
             Lm::Initialized(result) => {
                 self.loading = None;

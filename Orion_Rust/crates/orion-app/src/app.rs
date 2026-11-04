@@ -362,6 +362,8 @@ pub struct App {
     pub images_to_release: Vec<String>,
     pub attachment_generation: u64,
     pub attaching: bool,
+    /// Arquivos soltos enquanto outro anexo é processado; seguem em ordem, respeitando os limites.
+    pub drop_queue: Vec<String>,
     pub attach_n: usize,
     pub streaming: Option<Stream>,
     pub ctx_override: Option<bool>,
@@ -765,6 +767,7 @@ impl App {
             images_to_release: vec![],
             attachment_generation: 0,
             attaching: false,
+            drop_queue: vec![],
             attach_n: 0,
             streaming: None,
             ctx_override: None,
