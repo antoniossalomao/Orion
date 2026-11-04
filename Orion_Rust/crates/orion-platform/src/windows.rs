@@ -14,8 +14,13 @@ pub struct NativeShell {
     keys: GlobalHotKeyManager,
     /// Na ordem de `GLOBAL_ORDER`: mini barra, captura rápida, "Isso?" e pânico. Troca em tempo de execução.
     hot: std::sync::Arc<std::sync::Mutex<[HotKey; 4]>>,
+    /// A mini barra pode estar desligada em Sistema: nesse caso trocar a combinação só guarda o valor novo.
+    mini_on: std::sync::atomic::AtomicBool,
     menu_ids: Vec<(MenuId, DesktopAction)>,
 }
+/// Combinações padrão, na ordem de `GLOBAL_ORDER`.
+const DEFAULTS: [&str; 4] = ["Ctrl+Alt+Space", "Ctrl+Alt+O", "Ctrl+Alt+I", "Ctrl+Alt+P"];
+
 /// Ordem dos atalhos globais em `NativeShell::rebind`.
 pub const GLOBAL_ORDER: [&str; 4] = ["mini", "captura", "isso", "panico"];
 
@@ -64,19 +69,32 @@ impl NativeShell {
         Self::new_with_labels(["Abrir mini barra", "Captura rápida", "Isso?", "Orçamento e rotinas", "Pânico — cortar tudo", "Sair do Orion"])
     }
     pub fn new_with_labels(labels: [&str; 6]) -> anyhow::Result<Self> {
+        Self::new_with_bindings(labels, DEFAULTS)
+    }
+    /// Registra os quatro atalhos já com as combinações em vigor (ordem de `GLOBAL_ORDER`), de uma vez, para que
+    /// trocas entre ações sobrevivam à reabertura. Combinação inválida ou ocupada por outro app volta ao padrão;
+    /// mini barra e pânico são obrigatórios, captura rápida e "Isso?" são extras.
+    pub fn new_with_bindings(labels: [&str; 6], combos: [&str; 4]) -> anyhow::Result<Self> {
         let keys = GlobalHotKeyManager::new()?;
-        let mini = HotKey::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::Space);
-        let panic = HotKey::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::KeyP);
-        keys.register(mini).map_err(|_| anyhow::anyhow!("Ctrl+Alt+Espaço já está em uso"))?;
-        if keys.register(panic).is_err() {
-            let _ = keys.unregister(mini);
-            anyhow::bail!("Ctrl+Alt+P já está em uso")
+        let mut chosen: Vec<HotKey> = Vec::new();
+        for i in 0..4 {
+            let padrao = parse_combo(DEFAULTS[i]).expect("padrão válido");
+            let efetivo = parse_combo(combos[i]).unwrap_or(padrao);
+            let key = if keys.register(efetivo).is_ok() {
+                efetivo
+            } else if efetivo.id() != padrao.id() && keys.register(padrao).is_ok() {
+                padrao
+            } else if i == 0 || i == 3 {
+                for k in &chosen {
+                    let _ = keys.unregister(*k);
+                }
+                anyhow::bail!("{} já está em uso", DEFAULTS[i]);
+            } else {
+                efetivo
+            };
+            chosen.push(key);
         }
-        let ca = Some(Modifiers::CONTROL | Modifiers::ALT);
-        let (captura, isso) = (HotKey::new(ca, Code::KeyO), HotKey::new(ca, Code::KeyI));
-        // captura rápida e "Isso?" são extras: se a combinação estiver ocupada, o resto segue funcionando
-        let _ = keys.register(captura);
-        let _ = keys.register(isso);
+        let (mini, captura, isso, panic) = (chosen[0], chosen[1], chosen[2], chosen[3]);
         let menu = Menu::new();
         let mut menu_ids = Vec::new();
         for (label, action) in [
@@ -108,7 +126,7 @@ impl NativeShell {
             .with_menu(Box::new(menu))
             .build()?;
         let hot = std::sync::Arc::new(std::sync::Mutex::new([mini, captura, isso, panic]));
-        Ok(Self { _tray: tray, keys, hot, menu_ids })
+        Ok(Self { _tray: tray, keys, hot, mini_on: std::sync::atomic::AtomicBool::new(true), menu_ids })
     }
     /// Troca um atalho global (índice de `GLOBAL_ORDER`). Se a combinação estiver em uso por outro app, volta ao anterior.
     pub fn rebind(&self, index: usize, combo: &str) -> anyhow::Result<()> {
@@ -116,6 +134,11 @@ impl NativeShell {
         let mut hot = self.hot.lock().unwrap_or_else(|e| e.into_inner());
         let antigo = *hot.get(index).ok_or_else(|| anyhow::anyhow!("atalho desconhecido"))?;
         if antigo.id() == novo.id() {
+            return Ok(());
+        }
+        // mini barra desligada em Sistema: só guarda a combinação; ligar depois registra a nova
+        if index == 0 && !self.mini_on.load(std::sync::atomic::Ordering::Relaxed) {
+            hot[0] = novo;
             return Ok(());
         }
         let _ = self.keys.unregister(antigo);
@@ -128,7 +151,9 @@ impl NativeShell {
     }
     pub fn set_shortcut_enabled(&self,on:bool)->anyhow::Result<()>{
         let mini = self.hot.lock().unwrap_or_else(|e| e.into_inner())[0];
-        if on{self.keys.register(mini)?;}else{self.keys.unregister(mini)?;}Ok(())
+        if on{self.keys.register(mini)?;}else{self.keys.unregister(mini)?;}
+        self.mini_on.store(on, std::sync::atomic::Ordering::Relaxed);
+        Ok(())
     }
     pub fn poller(&self) -> std::sync::Arc<dyn Fn() -> Vec<DesktopAction> + Send + Sync> {
         let hot = self.hot.clone();
