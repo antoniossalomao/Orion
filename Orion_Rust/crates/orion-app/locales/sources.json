@@ -1324,5 +1324,10 @@
   "Puxa as notas ligadas": "ui-1193",
   "Distância dos links": "ui-1194",
   "Tamanho ideal de cada link": "ui-1195",
-  "Arraste uma nota: as vizinhas vão junto.": "ui-1196"
+  "Arraste uma nota: as vizinhas vão junto.": "ui-1196",
+  "Sem pasta: o Orion tenta detectar o vault aberto no Obsidian.": "ui-1197",
+  "Pasta não encontrada.": "ui-1198",
+  "Vault válido: estrutura PARA encontrada.": "ui-1199",
+  "Vault do Obsidian, mas sem a pasta 00 Inbox da estrutura PARA.": "ui-1200",
+  "A pasta existe, mas não parece um vault do Obsidian (sem .obsidian).": "ui-1201"
 }

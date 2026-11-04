@@ -340,7 +340,7 @@ const FIELDS: &[Field] = &[
         "Pasta de trabalho das tarefas",
         Folder,
     ),
-    ("vault_dir", "storage", "Pasta do vault", Folder),
+    ("vault_dir", "memory", "Pasta do vault", Folder),
     ("backup_dir", "storage", "Pasta dos backups", Folder),
     (
         "backup_keep",
@@ -547,6 +547,25 @@ fn description(key: &str) -> &'static str {
     DESCRIPTIONS.iter().find(|(k, _)| *k == key).map(|(_, text)| crate::i18n::text(text)).unwrap_or("")
 }
 
+/// Confere a pasta do vault digitada: `(aviso, ok)`. Só lê o disco; não grava nada (REGRAS.md: nada sai sem opt-in).
+fn vault_check(path: &str) -> (&'static str, bool) {
+    let path = path.trim();
+    if path.is_empty() {
+        return ("Sem pasta: o Orion tenta detectar o vault aberto no Obsidian.", true);
+    }
+    let dir = std::path::Path::new(path);
+    if !dir.is_dir() {
+        return ("Pasta não encontrada.", false);
+    }
+    if dir.join("00 Inbox").is_dir() && (dir.join("claude.md").is_file() || dir.join(".obsidian").is_dir()) {
+        ("Vault válido: estrutura PARA encontrada.", true)
+    } else if dir.join(".obsidian").is_dir() {
+        ("Vault do Obsidian, mas sem a pasta 00 Inbox da estrutura PARA.", true)
+    } else {
+        ("A pasta existe, mas não parece um vault do Obsidian (sem .obsidian).", false)
+    }
+}
+
 pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
     let mut col = column![].spacing(10);
     if group == "storage" {
@@ -657,6 +676,10 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
             control
         };
         col = col.push(setting(crate::i18n::text(label), description(key), control));
+        if key == "vault_dir" {
+            let (aviso, tom) = vault_check(&text);
+            col = col.push(tx(crate::i18n::text(aviso), 12.5, if tom { t::FG3 } else { t::DANGER }));
+        }
     }
     let applied = app.resources.snapshot.as_ref().unwrap();
     if applied["saved"] != applied["active"] {

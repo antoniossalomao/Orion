@@ -10,6 +10,10 @@ Assistente pessoal com identidade masculina, técnico, direto, não-servil. Não
 
 Antônio é o administrador: decide, aprova e pode desligar qualquer coisa. Nada que o modelo diga anula isso.
 
+## Configurações: pasta do vault em Memória — 04/11/2026
+
+Primeira fatia da issue #74. A **Pasta do vault** saiu do fim de Sistema e agora fica em Memória, com o seletor de pasta e uma checagem só de leitura (existe, tem `.obsidian`, tem `00 Inbox`). Saíram três linhas estáticas de Memória que pareciam opções mas não eram (pasta fixa, 23:59, "automático"). Compilado e com a suíte do `orion-app` passando; sem aceite visual no Windows. Pendente da issue: atalhos globais editáveis, sliders de tom, modelos por tarefa e limpeza do restante.
+
 ## Visão neural com GPU: rosto, objetos e gestos — 02/11/2026
 
 Pedido do Antônio: usar GPU para melhorar a análise, permitir até 1 minuto no cadastro e manter a entrada rápida; melhorar também objetos e gestos. Esta etapa substitui a primeira correção de coleta por LBPH registrada abaixo.
