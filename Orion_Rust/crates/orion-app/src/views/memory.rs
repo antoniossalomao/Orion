@@ -642,7 +642,7 @@ fn forces_panel(g: &Graph) -> El<'_> {
 }
 
 pub(crate) fn fchip<'a>(label: &str, dot: Option<Color>, ic: Option<&str>, on: bool, msg: Msg) -> El<'a> {
-    let fg = if on { t::FG } else { t::alpha(t::FG3, 0.5) };
+    let fg = if on { t::FG } else { t::FG3 };
     let mut r = row![].spacing(6).align_y(Vertical::Center);
     if let Some(d) = dot {
         r = r.push(dot_el(if on { d } else { t::alpha(d, 0.5) }, 7.0));
