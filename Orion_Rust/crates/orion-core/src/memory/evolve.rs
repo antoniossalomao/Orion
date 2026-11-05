@@ -9,7 +9,7 @@
 //! As salvaguardas do prompt (segredos, instrução ao assistente, formato JSON) são conferidas em
 //! `invariants`, e os casos de avaliação ficam neste arquivo, fora do alcance da variante.
 
-use super::consolidate::{ler_fatos, INSTRUCAO};
+use super::consolidate::{parece_segredo, INSTRUCAO};
 use super::Completer;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -38,6 +38,9 @@ pub const VALIDATION: &[Case] = &[
 /// Nota de 0 a 1 de uma resposta: fração do esperado achada, zero se vazou algo proibido, e o
 /// caso sem fato esperado só vale 1 quando nenhum fato sai.
 pub fn score_case(facts: &[String], case: &Case) -> f32 {
+    if facts.iter().any(|f| f == INVALID) {
+        return 0.0;
+    }
     let text = facts.join(" \n ").to_lowercase();
     if case.forbidden.iter().any(|p| text.contains(p)) {
         return 0.0;
@@ -69,6 +72,8 @@ pub struct Variant {
     pub parent: Option<usize>,
     pub train: f32,
     pub validation: f32,
+    /// Falhas desta variante nos casos de treino (a reflexão usa as da variante escolhida).
+    pub failures: Vec<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -100,10 +105,30 @@ async fn run_case(gw: &dyn Completer, prompt: &str, case: &Case) -> Vec<String> 
         json!({"role": "system", "content": prompt.replace("{max_fatos}", "10")}),
         json!({"role": "user", "content": format!("[FALAS]\n- {}\n[FIM]", case.inputs)}),
     ];
-    match gw.complete(request).await.and_then(|r| ler_fatos(&r, 10)) {
+    match gw.complete(request).await.and_then(|r| strict_facts(&r)) {
         Ok(f) => f,
-        Err(_) => vec!["__resposta_ilegivel__".into()],
+        Err(_) => vec![INVALID.into()],
     }
+}
+
+/// Marca de resposta fora do formato; nunca casa com um fato esperado e reprova o caso.
+const INVALID: &str = "__resposta_invalida__";
+
+/// Lê a resposta bruta sem a filtragem de produção: item que não é texto, fora de 10 a 300
+/// caracteres ou com cara de segredo invalida a resposta, em vez de sumir e dar nota máxima.
+fn strict_facts(raw: &str) -> anyhow::Result<Vec<String>> {
+    let text = raw.trim().trim_start_matches("```json").trim_start_matches("```").trim_end_matches("```").trim();
+    let value: serde_json::Value = serde_json::from_str(text)?;
+    let list = value.get("fatos").and_then(|v| v.as_array()).ok_or_else(|| anyhow::anyhow!("sem lista de fatos"))?;
+    let mut facts = vec![];
+    for item in list {
+        let fact = item.as_str().ok_or_else(|| anyhow::anyhow!("item não é texto"))?.split_whitespace().collect::<Vec<_>>().join(" ");
+        if !(10..=300).contains(&fact.chars().count()) || parece_segredo(&fact) {
+            anyhow::bail!("fato inválido ou com cara de segredo");
+        }
+        facts.push(fact);
+    }
+    Ok(facts)
 }
 
 /// Média das notas e as falhas (entrada, esperado, obtido) para a reflexão.
@@ -135,14 +160,13 @@ pub async fn evolve(gw: &dyn Completer, initial: Option<&str>, rounds: usize) ->
     let mut archive = Archive::default();
     let (train, train_failures) = evaluate(gw, &base, TRAIN).await;
     let (validation, _) = evaluate(gw, &base, VALIDATION).await;
-    archive.variants.push(Variant { text: base, parent: None, train, validation });
-    let mut failures = train_failures;
+    archive.variants.push(Variant { text: base, parent: None, train, validation, failures: train_failures });
     for _ in 0..rounds.min(5) {
-        if failures.is_empty() {
-            break; // nada a corrigir nos casos de treino
-        }
         let parent = archive.best_index().unwrap_or(0);
-        let Ok(proposal) = gw.complete(reflection_request(&archive.variants[parent].text, &failures)).await else {
+        if archive.variants[parent].failures.is_empty() {
+            break; // a melhor variante não tem o que corrigir no treino
+        }
+        let Ok(proposal) = gw.complete(reflection_request(&archive.variants[parent].text, &archive.variants[parent].failures)).await else {
             archive.discarded.push("reflexão sem resposta".into());
             break;
         };
@@ -157,8 +181,7 @@ pub async fn evolve(gw: &dyn Completer, initial: Option<&str>, rounds: usize) ->
         }
         let (t, f) = evaluate(gw, &proposal, TRAIN).await;
         let (v, _) = evaluate(gw, &proposal, VALIDATION).await;
-        archive.variants.push(Variant { text: proposal, parent: Some(parent), train: t, validation: v });
-        failures = f;
+        archive.variants.push(Variant { text: proposal, parent: Some(parent), train: t, validation: v, failures: f });
     }
     archive
 }
