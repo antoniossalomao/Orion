@@ -247,9 +247,10 @@ enum Cmd {
         propor: bool,
     },
     /// Propõe melhorias do prompt de consolidação (não aplica nada).
-    Evoluir {
-        #[arg(long, default_value_t = 3)]
-        rodadas: usize,
+    #[command(name = "evoluir")]
+    EvolvePrompt {
+        #[arg(long = "rodadas", default_value_t = 3)]
+        rounds: usize,
         #[arg(long)]
         sim: bool,
     },
@@ -584,7 +585,7 @@ fn rodar(cli: Cli) -> anyhow::Result<i32> {
             cli_extra::verify_export(pasta, assistente, env.as_deref(), google_auth.as_deref(), vault.as_deref(), *sem_ensaio)
         }
         Cmd::Transcrever { arquivo, titulo, sim, propor } => cli_extra::transcrever(&s, arquivo, titulo, *sim, *propor),
-        Cmd::Evoluir { rodadas, sim } => cli_extra::evoluir(&s, *rodadas, *sim),
+        Cmd::EvolvePrompt { rounds, sim } => cli_extra::evolve_prompt(&s, *rounds, *sim),
         Cmd::PossoDesligar => cli_extra::posso_desligar(&s),
         Cmd::Downloads { acao, simular, hoje, sim } => cli_extra::downloads(&s, acao, *simular, *hoje, *sim),
         Cmd::Rotina { acao, nome, sim } => cli_extra::rotina(&s, acao, nome.as_deref(), *sim),

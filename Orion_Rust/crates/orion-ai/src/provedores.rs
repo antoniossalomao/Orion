@@ -24,7 +24,8 @@ pub const CATALOGO: &[(&str, Catalogado)] = &[
     ("nvidia", Catalogado { nome: "NVIDIA NIM", base_url: "https://integrate.api.nvidia.com/v1" }),
     ("zai", Catalogado { nome: "Z.ai (GLM)", base_url: "https://api.z.ai/api/paas/v4" }),
     // Modo turbo (diffusion LLM). A conta nova ganha 100 milhões de tokens grátis; depois disso é
-    // pago, então só entra se Antônio ligar o provedor e travar `limite_dia` (REGRAS.md: nada de API paga).
+    // pago. Por isso não há modelo padrão em `defaults`: a chave sozinha não liga o provedor, só um
+    // item explícito em `ORION_PROVEDORES` (REGRAS.md: nada de API paga).
     ("inception", Catalogado { nome: "Inception (Mercury, modo turbo)", base_url: "https://api.inceptionlabs.ai/v1" }),
 ];
 
@@ -127,7 +128,6 @@ pub fn defaults(id: &str) -> Option<ProvedorConf> {
         "github" => "openai/gpt-4.1-mini",
         "nvidia" => "meta/llama-3.1-8b-instruct",
         "zai" => "glm-4.5-flash",
-        "inception" => "mercury-2.5",
         _ => return None,
     };
     Some(ProvedorConf { id: id.into(), padrao: model.into(), ..Default::default() })

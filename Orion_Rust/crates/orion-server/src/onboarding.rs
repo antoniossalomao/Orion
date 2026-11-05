@@ -342,7 +342,6 @@ pub async fn test_connection(body: Value) -> Result<Value, String> {
         "github" => client.get("https://api.github.com/user").header("User-Agent", "Orion").bearer_auth(&*key),
         "nvidia" => client.get("https://integrate.api.nvidia.com/v1/models").bearer_auth(&*key),
         "zai" => client.get("https://api.z.ai/api/paas/v4/models").bearer_auth(&*key),
-        "inception" => client.get("https://api.inceptionlabs.ai/v1/models").bearer_auth(&*key),
         "brave" => client
             .get("https://api.search.brave.com/res/v1/web/search")
             .query(&[("q", "Orion"), ("count", "1")])
