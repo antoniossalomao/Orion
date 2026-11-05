@@ -102,7 +102,7 @@ impl Archive {
 
 async fn run_case(gw: &dyn Completer, prompt: &str, case: &Case) -> Vec<String> {
     let request = vec![
-        json!({"role": "system", "content": prompt.replace("{max_fatos}", "10")}),
+        json!({"role": "system", "content": prompt.replace("{max_fatos}", &MAX_FACTS.to_string())}),
         json!({"role": "user", "content": format!("[FALAS]\n- {}\n[FIM]", case.inputs)}),
     ];
     match gw.complete(request).await.and_then(|r| strict_facts(&r)) {
@@ -112,6 +112,9 @@ async fn run_case(gw: &dyn Completer, prompt: &str, case: &Case) -> Vec<String> 
 }
 
 /// Marca de resposta fora do formato; nunca casa com um fato esperado e reprova o caso.
+/// Limite de fatos pedido ao modelo (o mesmo teto da consolidação).
+const MAX_FACTS: usize = 10;
+
 const INVALID: &str = "__resposta_invalida__";
 
 /// Lê a resposta bruta sem a filtragem de produção: item que não é texto, fora de 10 a 300
@@ -120,6 +123,9 @@ fn strict_facts(raw: &str) -> anyhow::Result<Vec<String>> {
     let text = raw.trim().trim_start_matches("```json").trim_start_matches("```").trim_end_matches("```").trim();
     let value: serde_json::Value = serde_json::from_str(text)?;
     let list = value.get("fatos").and_then(|v| v.as_array()).ok_or_else(|| anyhow::anyhow!("sem lista de fatos"))?;
+    if list.len() > MAX_FACTS {
+        anyhow::bail!("mais fatos do que o limite pedido");
+    }
     let mut facts = vec![];
     for item in list {
         let fact = item.as_str().ok_or_else(|| anyhow::anyhow!("item não é texto"))?.split_whitespace().collect::<Vec<_>>().join(" ");
