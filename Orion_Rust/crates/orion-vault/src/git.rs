@@ -162,19 +162,19 @@ impl GitSync {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
         let mut child = cmd.spawn()?;
-        if let Some(input) = input {
-            let result = child
-                .stdin
-                .take()
-                .expect("stdin configurado")
-                .write_all(input);
-            if result.is_err() {
-                let _ = child.kill();
-                let _ = child.wait();
-                return Err(GitError::CommandFailed("stdin"));
-            }
+        // A entrada é escrita em outra thread enquanto a saída é lida: com muita entrada e muita
+        // saída (ex.: `check-attr --stdin`), escrever tudo antes de ler travaria os dois lados.
+        let writer = input.map(|input| {
+            let mut stdin = child.stdin.take().expect("stdin configurado");
+            let data = input.to_vec();
+            std::thread::spawn(move || stdin.write_all(&data).is_ok())
+        });
+        let out = child.wait_with_output()?;
+        if let Some(w) = writer {
+            // se o Git terminou antes de ler tudo, o erro de escrita é esperado e o status decide
+            let _ = w.join();
         }
-        Ok(child.wait_with_output()?)
+        Ok(out)
     }
 
     fn text(
@@ -253,6 +253,9 @@ impl GitSync {
         }
         self.run_explained(&["fetch", "--no-tags", "origin", "main"])?;
         self.main_ready()?;
+        if self.filters_selected(Some("FETCH_HEAD"))? {
+            return Err(GitError::Unsafe("o GitHub trouxe atributos de filtro Git (.gitattributes); faça a sincronização manualmente"));
+        }
         self.run_explained(&["merge", "--ff-only", "--no-edit", "FETCH_HEAD"])
     }
 
@@ -350,6 +353,10 @@ impl GitSync {
 
         // 3. Traz a main do GitHub e junta.
         self.run_explained(&["fetch", "--no-tags", "origin", "main"])?;
+        // Os atributos que chegam do GitHub valem no checkout da junção: se pedirem um filtro, para antes.
+        if self.filters_selected(Some("FETCH_HEAD"))? {
+            return Err(GitError::Unsafe("o GitHub trouxe atributos de filtro Git (.gitattributes); faça a sincronização manualmente"));
+        }
         let head = self.text(&["rev-parse", "HEAD"], None, None)?;
         let remote = self.text(&["rev-parse", "FETCH_HEAD"], None, None)?;
         let is_ancestor = |a: &str, b: &str| -> Result<bool, GitError> {
@@ -394,20 +401,34 @@ impl GitSync {
     /// O vault só é recusado se os `.gitattributes` dele pedem um filtro (`filter=`). Filtro apenas
     /// configurado no Git do computador (o Git for Windows traz `filter.lfs`) não é usado por ele.
     fn uses_filters(&self) -> Result<bool, GitError> {
+        self.filters_selected(None)
+    }
+
+    /// Algum arquivo escolhe um filtro? `tree = None` olha a árvore de trabalho e o índice; com
+    /// `Some(commit)`, olha os atributos daquele commit (o que viria no checkout de um merge).
+    fn filters_selected(&self, tree: Option<&str>) -> Result<bool, GitError> {
         // Sem nenhum filtro configurado (nem no sistema), não há o que executar.
         if !self.output(&["config", "--get-regexp", "^filter\\."], None, None)?.status.success() {
             return Ok(false);
         }
-        // Há filtro configurado: só é problema se algum arquivo do vault o pede. Os atributos
-        // efetivos (`.gitattributes`, `info/attributes` e `core.attributesFile`) vêm do próprio Git.
-        let listed = self.output(&["ls-files", "-z", "--cached", "--others", "--exclude-standard"], None, None)?;
+        let listed = match tree {
+            None => self.output(&["ls-files", "-z", "--cached", "--others", "--exclude-standard"], None, None)?,
+            Some(t) => self.output(&["ls-tree", "-r", "-z", "--name-only", t], None, None)?,
+        };
         if !listed.status.success() {
-            return Err(GitError::CommandFailed("ls-files"));
+            return Err(GitError::CommandFailed("listagem de arquivos"));
         }
         if listed.stdout.is_empty() {
             return Ok(false);
         }
-        let attrs = self.output(&["check-attr", "-z", "--stdin", "filter"], None, Some(&listed.stdout))?;
+        let mut args = vec!["check-attr", "-z", "--stdin"];
+        let source;
+        if let Some(t) = tree {
+            source = format!("--source={t}");
+            args.push(&source);
+        }
+        args.push("filter");
+        let attrs = self.output(&args, None, Some(&listed.stdout))?;
         if !attrs.status.success() {
             return Err(GitError::CommandFailed("check-attr"));
         }
