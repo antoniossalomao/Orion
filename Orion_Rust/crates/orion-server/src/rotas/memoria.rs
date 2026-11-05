@@ -732,15 +732,15 @@ pub async fn vault_status(_: Admin, State(st): State<Estado>) -> ApiResult<Json<
     .map_err(anyhow::Error::from)?
 }
 
+/// Botão "Sincronizar agora": pull, commit do que mudou e push (a mesma rodada automática).
 pub async fn vault_pull(_: Admin, State(st): State<Estado>) -> ApiResult<Json<Value>> {
     tokio::task::spawn_blocking(move || -> ApiResult<Json<Value>> {
-        let mgr = orion_vault::VaultManager::new(st.settings.vault_dir.clone())
-            .map_err(|e| ApiError::new(500, format!("Erro ao carregar Vault: {}", e)))?;
-        let res = mgr.pull()
-            .map_err(|e| ApiError::new(500, format!("Erro no git pull: {}", e)))?;
+        let vault = st.settings.vault_dir.clone().or_else(orion_vault::detect_vault_path)
+            .ok_or_else(|| ApiError::new(409, "Nenhum vault encontrado"))?;
+        let msg = crate::vault_sync::run_blocking(vault, &st.memory).map_err(|e| ApiError::new(409, e))?;
         Ok(Json(json!({
             "status": "ok",
-            "output": res
+            "output": msg
         })))
     })
     .await

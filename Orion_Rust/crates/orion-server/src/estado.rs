@@ -29,6 +29,8 @@ pub struct AppState {
     pub audio:Arc<crate::native_resources::Audio>,
     pub caption_stop:parking_lot::Mutex<Option<Arc<dyn Fn()+Send+Sync>>>,
     pub background_jobs: parking_lot::Mutex<Option<tokio::task::JoinHandle<()>>>,
+    /// Rotina de sincronização do vault; encerrada junto com o núcleo.
+    pub vault_sync_task: parking_lot::Mutex<Option<tokio::task::JoinHandle<()>>>,
     pub runtime_preferences: parking_lot::Mutex<orion_core::runtime_preferences::RuntimePreferences>,
     pub settings: Settings,
     pub tool_permissions: parking_lot::Mutex<orion_core::tool_permissions::ToolPermissions>,
@@ -122,6 +124,7 @@ pub struct LiveConfig {
     pub voice: parking_lot::RwLock<LiveVoice>,
     pub injection: Arc<std::sync::atomic::AtomicBool>,
     pub diary: Arc<std::sync::atomic::AtomicBool>,
+    pub vault_sync: Arc<std::sync::atomic::AtomicBool>,
     /// Campos como estão rodando agora (só nomes e textos para comparar): a recarga compara com isto, não com
     /// o que valia na inicialização, para que voltar a um valor antigo também seja uma mudança.
     pub applied: parking_lot::Mutex<Option<std::collections::BTreeMap<String, String>>>,
@@ -131,7 +134,7 @@ pub struct LiveConfig {
 
 impl LiveConfig {
     pub fn from_settings(s: &Settings) -> Self {
-        LiveConfig { voice: parking_lot::RwLock::new(LiveVoice::from_settings(s)), injection: Arc::new(s.injection_guard.into()), diary: Arc::new(s.vault_diario.into()), applied: parking_lot::Mutex::new(None), current: parking_lot::Mutex::new(None) }
+        LiveConfig { voice: parking_lot::RwLock::new(LiveVoice::from_settings(s)), injection: Arc::new(s.injection_guard.into()), diary: Arc::new(s.vault_diario.into()), vault_sync: Arc::new(s.vault_sync.into()), applied: parking_lot::Mutex::new(None), current: parking_lot::Mutex::new(None) }
     }
 }
 
@@ -660,13 +663,12 @@ pub async fn montar_with_runtime(mut settings: Settings, preserve_extensions:boo
     // Ao abrir o Orion, a pasta do vault é atualizada da main (só fast-forward). Falha vira aviso no log;
     // nunca impede o Orion de subir.
     // Modo pânico impede qualquer acesso à rede, inclusive este pull.
-    if let Some(vault) = settings.vault_dir.clone().or_else(orion_vault::detect_vault_path).filter(|_| !modos.panico()) {
-        tokio::task::spawn_blocking(move || match orion_vault::VaultManager::new(Some(vault)).and_then(|m| m.pull()) {
-            Ok(Some(msg)) => tracing::info!("vault atualizado ao abrir: {msg}"),
-            Ok(None) => {}
-            Err(e) => tracing::warn!("vault: pull ao abrir falhou: {e}"),
-        });
-    }
+    orion_vault::set_full_sync(settings.vault_sync);
+    let vault_sync_task = settings
+        .vault_dir
+        .clone()
+        .or_else(orion_vault::detect_vault_path)
+        .map(|vault| crate::vault_sync::spawn_loop(vault, memory.clone(), live.vault_sync.clone(), modos.clone()));
     let started_at = orion_core::util::agora();
     // conexões MCP revisadas (host) + catálogo + agenda (leitura) + propostas + planos de arquivos
     let accounts = orion_core::accounts::Accounts::new(memory.clone());
@@ -1047,6 +1049,7 @@ pub async fn montar_with_runtime(mut settings: Settings, preserve_extensions:boo
     }
     Ok(Arc::new(AppState {
         background_jobs: Default::default(),
+        vault_sync_task: parking_lot::Mutex::new(vault_sync_task),
         runtime_preferences: parking_lot::Mutex::new(runtime_preferences),
         audio:Arc::new(crate::native_resources::Audio::default()),
         caption_stop:Default::default(),

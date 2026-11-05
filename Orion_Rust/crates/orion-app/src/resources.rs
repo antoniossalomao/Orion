@@ -386,6 +386,12 @@ const FIELDS: &[Field] = &[
         Bool,
     ),
     (
+        "vault_sync",
+        "memory",
+        "Sincronizar o vault com o GitHub",
+        Bool,
+    ),
+    (
         "rerank_model_dir",
         "memory",
         "Pasta do reranker ONNX",
@@ -554,6 +560,7 @@ const DESCRIPTIONS: &[(&str, &str)] = &[
     ("repos", "Repositórios que o Orion pode ler."),
     ("extra_safe_roots", "Pastas onde o Orion pode ler e escrever."),
     ("rerank", "Reordena resultados de busca com um modelo local."),
+    ("vault_sync", "O Orion faz pull, commit do que mudou e push do vault sozinho, com o login do Git deste computador. Arquivos com segredo ficam só locais e, em conflito, nada é sobrescrito."),
     ("memory_soft_forgetting", "Conversas antigas pesam um pouco menos na busca (no mínimo metade, depois de meses). Nada é apagado nem escondido; fatos, documentos e notas do vault não mudam."),
     ("rerank_model_dir", "Pasta do modelo ONNX de reordenação."),
     ("mcp_enabled", "Liga os servidores MCP configurados."),

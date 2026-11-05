@@ -358,7 +358,7 @@ fn section<'a>(app: &'a App) -> El<'a> {
                     c=c.push(setting(crate::i18n::text(label),"",switch(on,Msg::Resources(crate::resources::Event::Source(key)))));
                 }
             }else{c=c.push(setting(crate::i18n::text("Usar memória nas respostas"),"",sw(p.mem,"mem")));}
-            c = c.push(setting(crate::i18n::text("git pull do vault"), crate::i18n::text("Ao abrir o app, a cada conversa nova, antes de gravar uma nota e ao abrir a Memória."), btn(crate::i18n::text("Agora"), Kind::Normal, true, None, Some(Msg::VaultPull))));
+            c = c.push(setting(crate::i18n::text("Sincronizar o vault com o GitHub"), crate::i18n::text("O Orion faz pull, commit do que mudou e push sozinho: ao abrir, a cada 15 minutos, antes de gravar uma nota e ao fechar. Segredos ficam só locais; em conflito, nada é sobrescrito."), btn(crate::i18n::text("Sincronizar agora"), Kind::Normal, true, None, Some(Msg::VaultPull))));
             c = c.push(setting(crate::i18n::text("Backup do vault"), crate::i18n::text("Gera um zip do vault na pasta de backups, sem o .git."), btn(crate::i18n::text("Gerar zip"), Kind::Normal, true, None, Some(Msg::VaultBackup))));
             c = c.push(setting(crate::i18n::text("Se você editou a mesma nota fora do Orion"), crate::i18n::text("A sua versão fica como está e a nova vira uma proposta. Compare as duas aqui e escolha."), badge(if app.conflitos.is_empty() { crate::i18n::text("sem conflitos") } else { crate::i18n::text("revisar") }, if app.conflitos.is_empty() { Tone::Ok } else { Tone::Plain })));
             for (i, (original, _, existe)) in app.conflitos.iter().enumerate() {

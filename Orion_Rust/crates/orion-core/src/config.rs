@@ -157,6 +157,8 @@ pub struct Settings {
     pub vault_dir: Option<PathBuf>,
     /// ORION_VAULT_DIARIO: grava o diário de cada conversa no vault, sem commit nem push. Opt-in.
     pub vault_diario: bool,
+    /// O Orion sincroniza o vault inteiro com o GitHub (pull, commit e push) sozinho.
+    pub vault_sync: bool,
     /// ORION_INJECTION_GUARD: classificador de injeção de prompt no conteúdo externo (ligado por padrão).
     pub injection_guard: bool,
     /// ORION_INJECTION_MODEL: pasta com `model_quantized.onnx` e `tokenizer.json` do ModernBERT (F04.09). Vazio = `<recursos>/injection`.
@@ -529,6 +531,7 @@ impl Settings {
             backup_keep: e.num("backup_keep", 7usize, Some(1), None)?,
             vault_dir: e.path_opt("vault_dir"),
             vault_diario: e.b("vault_diario", false)?,
+            vault_sync: e.b("vault_sync", true)?,
             injection_guard: e.b("injection_guard", true)?,
             injection_model: e.path_opt("injection_model"),
             capture_folder,

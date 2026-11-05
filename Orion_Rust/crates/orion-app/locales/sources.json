@@ -1418,5 +1418,11 @@
   "Resumo gravado no vault: {}": "ui-1287",
   "Resolva as aprovações pendentes antes de editar a mensagem.": "ui-1288",
   "Esquecimento suave das conversas": "resource-126",
-  "Conversas antigas pesam um pouco menos na busca (no mínimo metade, depois de meses). Nada é apagado nem escondido; fatos, documentos e notas do vault não mudam.": "ui-1289"
+  "Conversas antigas pesam um pouco menos na busca (no mínimo metade, depois de meses). Nada é apagado nem escondido; fatos, documentos e notas do vault não mudam.": "ui-1289",
+  "Sincronizar o vault com o GitHub": "resource-127",
+  "O Orion faz pull, commit do que mudou e push do vault sozinho, com o login do Git deste computador. Arquivos com segredo ficam só locais e, em conflito, nada é sobrescrito.": "ui-1290",
+  "Vault sincronizado com o GitHub": "ui-1291",
+  "O Orion faz pull, commit do que mudou e push sozinho: ao abrir, a cada 15 minutos, antes de gravar uma nota e ao fechar. Segredos ficam só locais; em conflito, nada é sobrescrito.": "ui-1292",
+  "Sincronizar agora": "ui-1293",
+  "(o vault tem {} no total)": "ui-1294"
 }

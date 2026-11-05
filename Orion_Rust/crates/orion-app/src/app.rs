@@ -455,6 +455,8 @@ pub struct App {
     pub sug_sel: usize,
     pub pending_resolved: HashSet<(usize, usize)>,
     pub mem: crate::graph::Graph,
+    /// Notas do vault no total, quando o grafo veio cortado pelo limite do servidor (0 = não cortou).
+    pub mem_total: usize,
     pub mem_q: String,
     pub mem_tween: Option<(Instant, (f32, f32, f32), (f32, f32, f32))>,
     pub mem_tip: (f32, f32),
@@ -872,6 +874,7 @@ impl App {
             sug_sel: 0,
             pending_resolved: HashSet::new(),
             mem: crate::graph::Graph::load(),
+            mem_total: 0,
             mem_q: String::new(),
             mem_tween: None,
             mem_tip: (0.0, 0.0),
@@ -1918,7 +1921,10 @@ impl App {
             Msg::Acao(acao) => {
                 use crate::tray::Acao;
                 match acao {
-                    Acao::Exit => return window::oldest().and_then(|id| window::close(id).chain(iced::exit())),
+                    Acao::Exit => {
+                        let sync = self.api.as_ref().map(|a| a.vault_sync_on_close()).unwrap_or_else(|| Box::pin(async {}));
+                        return Task::perform(sync, |_| Msg::Noop).chain(window::oldest().and_then(|id| window::close(id).chain(iced::exit())));
+                    }
                     Acao::Panic => {
                         let r = self.api.as_ref().map(|a| a.panico()).unwrap_or_else(|| Err("pânico indisponível".into()));
                         self.toast(r.unwrap_or_else(|e| e));
@@ -1951,7 +1957,8 @@ impl App {
                 }
                 // com bandeja o app segue vivo, só esconde a janela; sem bandeja, fechar encerra
                 if self.bandeja.is_none() {
-                    return window::close(id).chain(iced::exit());
+                    let sync = self.api.as_ref().map(|a| a.vault_sync_on_close()).unwrap_or_else(|| Box::pin(async {}));
+                    return Task::perform(sync, |_| Msg::Noop).chain(window::close(id).chain(iced::exit()));
                 }
                 let mut ts = vec![window::set_mode(id, window::Mode::Hidden)];
                 if self.mini {

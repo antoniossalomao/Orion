@@ -18,12 +18,12 @@ mod validate;
 
 pub use conflicts::{ConflictDetail, ConflictSummary};
 pub use detector::{detect_vault_path, VaultConfig};
-pub use git::{clone_public_repo, GitError, GitSync, GithubRepo};
+pub use git::{clone_public_repo, set_hard_stop, FullSyncReport, GitError, GitSync, GithubRepo};
 pub use note::{ConversationNote, NoteFrontmatter, NoteMetadata};
 pub use parser::{ParsedNote, VaultParser};
 pub use project::ProjectNote;
 pub use scanner::{ScanError, SecretScanner};
-pub use sync::{LinkSuggestion, NoteConflict, SyncResult, VaultManager, VaultStats};
+pub use sync::{full_sync_enabled, set_full_sync, LinkSuggestion, NoteConflict, SyncResult, VaultManager, VaultStats};
 
 #[derive(Debug, thiserror::Error)]
 pub enum VaultError {
