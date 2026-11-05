@@ -23,6 +23,10 @@ pub const CATALOGO: &[(&str, Catalogado)] = &[
     ("github", Catalogado { nome: "GitHub Models", base_url: "https://models.github.ai/inference" }),
     ("nvidia", Catalogado { nome: "NVIDIA NIM", base_url: "https://integrate.api.nvidia.com/v1" }),
     ("zai", Catalogado { nome: "Z.ai (GLM)", base_url: "https://api.z.ai/api/paas/v4" }),
+    // Modo turbo (diffusion LLM). A conta nova ganha 100 milhões de tokens grátis; depois disso é
+    // pago. Por isso não há modelo padrão em `defaults`: a chave sozinha não liga o provedor, só um
+    // item explícito em `ORION_PROVEDORES` (REGRAS.md: nada de API paga).
+    ("inception", Catalogado { nome: "Inception (Mercury, modo turbo)", base_url: "https://api.inceptionlabs.ai/v1" }),
 ];
 
 pub fn catalogado(id: &str) -> Option<&'static Catalogado> {

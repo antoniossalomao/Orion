@@ -185,6 +185,7 @@ async fn run(
     }
     let start = std::time::Instant::now();
     let mut pending = None;
+    let mut tone_base: Option<orion_core::prosody::Prosody> = None;
     let mut ready = Some(ready);
     let mut history = vec![
         json!({"role":"system","content":"Você é Orion. Converse por voz em português. Esta sessão é temporária e não tem memória, ferramentas nem capacidade de aprovar ações. Não alegue executar ações."}),
@@ -241,7 +242,16 @@ async fn run(
         if history.len() > 13 {
             history.drain(1..3);
         }
-        *session.state.lock() = json!({"status":"thinking","live":true,"transcript":text});
+        // tom do turno (prosódia local, só descreve; não muda a resposta nem sai do computador)
+        let now_tone = orion_core::prosody::measure(&pcm);
+        let mood = now_tone.map(|p| orion_core::prosody::classify(&p, tone_base.as_ref()).label());
+        if let Some(p) = now_tone {
+            tone_base = Some(match tone_base {
+                Some(b) => orion_core::prosody::Prosody { energy: (b.energy * 3.0 + p.energy) / 4.0, pitch_hz: if b.pitch_hz > 0.0 && p.pitch_hz > 0.0 { (b.pitch_hz * 3.0 + p.pitch_hz) / 4.0 } else { p.pitch_hz.max(b.pitch_hz) }, pitch_var: (b.pitch_var * 3.0 + p.pitch_var) / 4.0, voiced: p.voiced },
+                None => p,
+            });
+        }
+        *session.state.lock() = json!({"status":"thinking","live":true,"transcript":text,"mood":mood});
         let gateway = st
             .gateway
             .as_ref()

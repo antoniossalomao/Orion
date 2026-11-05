@@ -207,6 +207,8 @@ pub struct Settings {
     pub ocr_max_pages: u32,
     pub ocr_langs: String,
     pub rerank: bool,
+    /// Esquecimento suave das conversas na busca (REGRAS.md: conversa antiga pesa menos, nada some).
+    pub memory_soft_forgetting: bool,
     pub rerank_model_dir: String,
     pub screen_exclude_apps: String,
     pub embed_api_key: String,
@@ -574,6 +576,7 @@ impl Settings {
             ocr_max_pages: e.num("ocr_max_pages", 50u32, Some(0), Some(200))?,
             ocr_langs: e.s("ocr_langs", "por+eng"),
             rerank: e.b("rerank", false)?,
+            memory_soft_forgetting: e.b("memory_soft_forgetting", false)?,
             rerank_model_dir: e.s("rerank_model_dir", ""),
             screen_exclude_apps: e.s("screen_exclude_apps", "KeePassXC;1Password;Bitwarden;KeePass;LastPass;Authy"),
             embed_api_key: e.s("embed_api_key", ""),

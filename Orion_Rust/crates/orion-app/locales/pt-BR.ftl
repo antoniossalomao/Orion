@@ -1722,3 +1722,5 @@ ui-1285 = { "Ex.: fatura do cartão" }
 ui-1286 = { "Digite pelo menos 2 letras para buscar." }
 ui-1287 = { "Resumo gravado no vault: " }{ $v0 }
 ui-1288 = { "Resolva as aprovações pendentes antes de editar a mensagem." }
+resource-126 = { "Esquecimento suave das conversas" }
+ui-1289 = { "Conversas antigas pesam um pouco menos na busca (no mínimo metade, depois de meses). Nada é apagado nem escondido; fatos, documentos e notas do vault não mudam." }

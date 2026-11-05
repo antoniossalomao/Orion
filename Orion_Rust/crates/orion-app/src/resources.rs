@@ -380,6 +380,12 @@ const FIELDS: &[Field] = &[
         Bool,
     ),
     (
+        "memory_soft_forgetting",
+        "memory",
+        "Esquecimento suave das conversas",
+        Bool,
+    ),
+    (
         "rerank_model_dir",
         "memory",
         "Pasta do reranker ONNX",
@@ -548,6 +554,7 @@ const DESCRIPTIONS: &[(&str, &str)] = &[
     ("repos", "Repositórios que o Orion pode ler."),
     ("extra_safe_roots", "Pastas onde o Orion pode ler e escrever."),
     ("rerank", "Reordena resultados de busca com um modelo local."),
+    ("memory_soft_forgetting", "Conversas antigas pesam um pouco menos na busca (no mínimo metade, depois de meses). Nada é apagado nem escondido; fatos, documentos e notas do vault não mudam."),
     ("rerank_model_dir", "Pasta do modelo ONNX de reordenação."),
     ("mcp_enabled", "Liga os servidores MCP configurados."),
     ("water_every_min", "Lembra de beber água nesse intervalo, das 8h às 22h. 0 desliga. Não perturbe segura o aviso."),

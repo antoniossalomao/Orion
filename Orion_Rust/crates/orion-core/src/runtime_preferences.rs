@@ -43,7 +43,7 @@ preferences! {
     skills_enabled: bool, skills_dir: Option<PathBuf>, plugins_enabled: bool, plugins_dir: Option<PathBuf>,
     mcp_enabled: bool, mcp_config: Option<PathBuf>,
     vault_dir: Option<PathBuf>, backup_dir: Option<PathBuf>, backup_keep: usize,
-    rerank: bool, rerank_model_dir: String, extra_safe_roots: Vec<PathBuf>, repos: Vec<PathBuf>,
+    rerank: bool, memory_soft_forgetting: bool, rerank_model_dir: String, extra_safe_roots: Vec<PathBuf>, repos: Vec<PathBuf>,
     tone_directness: u8, tone_formality: u8, tone_custom: String,
     gateway_model_fast: String, gateway_model_heavy: String, vision_model: String,
     hotkeys: String, telegram_events: String, water_every_min: u32, bedtime_at: String, wake_pc: bool,

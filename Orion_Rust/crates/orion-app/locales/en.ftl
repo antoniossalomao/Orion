@@ -1722,3 +1722,5 @@ ui-1285 = { "E.g.: credit card bill" }
 ui-1286 = { "Type at least 2 letters to search." }
 ui-1287 = { "Weekly summary saved to the vault: " }{ $v0 }
 ui-1288 = { "Resolve the pending approvals before editing the message." }
+resource-126 = { "Soft forgetting of conversations" }
+ui-1289 = { "Older conversations weigh a little less in search (never below half, after months). Nothing is deleted or hidden; facts, documents and vault notes do not change." }

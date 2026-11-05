@@ -58,6 +58,7 @@ pub mod rosto;
 pub mod rosto_lbph;
 pub mod faceid;
 pub mod hand_gestures;
+pub mod prosody;
 pub mod vision_runtime;
 pub mod face_neural;
 pub mod injection_onnx;

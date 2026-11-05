@@ -110,3 +110,77 @@ impl canvas::Program<Msg> for Spinner {
 pub fn spinner<'a>(angle: f32, size: f32) -> iced::Element<'a, Msg> {
     iced::widget::canvas(Spinner { angle }).width(size).height(size).into()
 }
+
+/// Estado de uma estrela do enxame (REGRAS.md: só mostra o que o agente já faz; não decide nada).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum SwarmState {
+    Running,
+    Done,
+    Failed,
+}
+
+/// Mini constelação do turno em andamento: o Orion no centro e uma estrela por ferramenta usada,
+/// no máximo `SWARM_MAX`. A estrela pulsa enquanto a ferramenta roda e uma partícula viaja do
+/// centro até ela. Os dados vêm dos eventos `tool` que o chat já recebe (`AgentEvent`).
+pub const SWARM_MAX: usize = 5;
+
+pub struct Swarm {
+    pub nodes: Vec<SwarmState>,
+    /// Segundos desde o início da janela, para a fase da animação.
+    pub t: f32,
+    /// Sem animação (preferência de movimento reduzido): estrelas paradas.
+    pub reduced: bool,
+}
+
+/// Posição de cada estrela num arco à direita do centro, em coordenadas do quadro.
+pub fn swarm_points(n: usize, w: f32, h: f32) -> Vec<Point> {
+    let n = n.min(SWARM_MAX);
+    (0..n)
+        .map(|i| {
+            let f = if n <= 1 { 0.5 } else { i as f32 / (n - 1) as f32 };
+            Point::new(w * (0.42 + 0.5 * f), h * (0.22 + 0.56 * ((f * 3.1).sin().abs())))
+        })
+        .collect()
+}
+
+impl canvas::Program<Msg> for Swarm {
+    type State = ();
+
+    fn draw(&self, _state: &Self::State, renderer: &Renderer, _th: &Theme, bounds: Rectangle, _c: mouse::Cursor) -> Vec<Geometry> {
+        let mut f = Frame::new(renderer, bounds.size());
+        let (w, h) = (bounds.width, bounds.height);
+        let center = Point::new(w * 0.14, h * 0.5);
+        let pts = swarm_points(self.nodes.len(), w, h);
+        let t = if self.reduced { 0.0 } else { self.t };
+        for (p, state) in pts.iter().zip(&self.nodes) {
+            let col = match state {
+                SwarmState::Running => t::SIGNAL,
+                SwarmState::Done => t::OK,
+                SwarmState::Failed => t::DANGER,
+            };
+            f.stroke(&Path::line(center, *p), Stroke::default().with_width(0.8).with_color(t::alpha(t::STAR, 0.18)));
+            let mut r = 2.2;
+            if *state == SwarmState::Running {
+                let pulse = (t * 4.0).sin() * 0.5 + 0.5;
+                r += pulse * 1.4;
+                // partícula do centro até a estrela
+                let k = (t * 1.5).fract();
+                let q = Point::new(center.x + (p.x - center.x) * k, center.y + (p.y - center.y) * k);
+                f.fill(&Path::circle(q, 1.4), t::alpha(col, 0.9));
+            }
+            glow(&mut f, *p, r * 4.0, col, 0.35);
+            f.fill(&Path::circle(*p, r), t::alpha(col, 0.95));
+        }
+        glow(&mut f, center, 12.0, t::STAR, 0.4);
+        f.fill(&Path::circle(center, 3.2), t::alpha(t::FG, 0.95));
+        vec![f.into_geometry()]
+    }
+}
+
+/// Quadro do enxame para o chat; `None` quando o turno ainda não usou ferramenta.
+pub fn swarm<'a>(nodes: Vec<SwarmState>, t: f32, reduced: bool) -> Option<iced::Element<'a, Msg>> {
+    if nodes.is_empty() {
+        return None;
+    }
+    Some(iced::widget::canvas(Swarm { nodes, t, reduced }).width(240).height(44).into())
+}

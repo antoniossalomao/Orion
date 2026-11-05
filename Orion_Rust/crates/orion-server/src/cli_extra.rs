@@ -667,3 +667,20 @@ pub fn wake_test(#[allow(unused_variables)] s: &Settings, listar: bool, segundos
     anyhow::bail!("calibração nativa disponível no Windows (tempo solicitado: {segundos}s)")
 }
 
+
+/// Arquivo evolutivo do prompt de consolidação: só propõe, nunca troca o prompt em uso. Os casos
+/// são sintéticos e fixos; o texto deles vai ao modelo configurado (pode ser nuvem), por isso pergunta.
+pub fn evolve_prompt(s: &Settings, rounds: usize, sim: bool) -> anyhow::Result<i32> {
+    let Some(gw) = crate::estado::gateway_from_settings(s) else {
+        eprintln!("sem modelo configurado");
+        return Ok(1);
+    };
+    if !sim && !perguntar("Os casos de teste (sintéticos) serão enviados ao modelo configurado. Continuar? [s/N] ") {
+        println!("nada foi enviado");
+        return Ok(1);
+    }
+    let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
+    let archive = rt.block_on(orion_core::memory::evolve::evolve(&gw, None, rounds));
+    println!("{}", orion_core::memory::evolve::report(&archive));
+    Ok(0)
+}

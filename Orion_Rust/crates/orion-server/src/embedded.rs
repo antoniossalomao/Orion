@@ -42,7 +42,7 @@ pub fn generator(model: PathBuf, gpu: bool) -> LocalGenerator {
                     let Some(content) = message["content"].as_str() else { continue; };
                     chat.push(Message { role: role.into(), content: content.into() });
                 }
-                let request = Request { model: model.clone(), messages: chat, gpu, context: 2048, max_tokens: 512 };
+                let request = Request { model: model.clone(), messages: chat, gpu, context: 2048, max_tokens: 512, kv_q8: true, draft_len: 8 };
                 if request.validate().is_err() {
                     yield Err(failure("pedido local inválido")); return;
                 }
