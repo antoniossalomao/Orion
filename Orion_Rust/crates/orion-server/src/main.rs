@@ -483,6 +483,7 @@ async fn encerrar_fundo(st: &estado::Estado, tarefa_telegram: Option<tokio::task
     st.audio.cancel();
     if let Some(stop)=st.caption_stop.lock().take(){stop();}
     if let Some(task)=st.background_jobs.lock().take() { task.abort(); }
+    if let Some(task)=st.vault_sync_task.lock().take() { task.abort(); }
     if let Some(e) = &st.escuta {
         e.stop();
     }

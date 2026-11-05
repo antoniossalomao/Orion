@@ -29,6 +29,8 @@ pub struct AppState {
     pub audio:Arc<crate::native_resources::Audio>,
     pub caption_stop:parking_lot::Mutex<Option<Arc<dyn Fn()+Send+Sync>>>,
     pub background_jobs: parking_lot::Mutex<Option<tokio::task::JoinHandle<()>>>,
+    /// Rotina de sincronização do vault; encerrada junto com o núcleo.
+    pub vault_sync_task: parking_lot::Mutex<Option<tokio::task::JoinHandle<()>>>,
     pub runtime_preferences: parking_lot::Mutex<orion_core::runtime_preferences::RuntimePreferences>,
     pub settings: Settings,
     pub tool_permissions: parking_lot::Mutex<orion_core::tool_permissions::ToolPermissions>,
@@ -662,9 +664,11 @@ pub async fn montar_with_runtime(mut settings: Settings, preserve_extensions:boo
     // nunca impede o Orion de subir.
     // Modo pânico impede qualquer acesso à rede, inclusive este pull.
     orion_vault::set_full_sync(settings.vault_sync);
-    if let Some(vault) = settings.vault_dir.clone().or_else(orion_vault::detect_vault_path) {
-        crate::vault_sync::spawn_loop(vault, memory.clone(), live.vault_sync.clone(), modos.clone());
-    }
+    let vault_sync_task = settings
+        .vault_dir
+        .clone()
+        .or_else(orion_vault::detect_vault_path)
+        .map(|vault| crate::vault_sync::spawn_loop(vault, memory.clone(), live.vault_sync.clone(), modos.clone()));
     let started_at = orion_core::util::agora();
     // conexões MCP revisadas (host) + catálogo + agenda (leitura) + propostas + planos de arquivos
     let accounts = orion_core::accounts::Accounts::new(memory.clone());
@@ -1045,6 +1049,7 @@ pub async fn montar_with_runtime(mut settings: Settings, preserve_extensions:boo
     }
     Ok(Arc::new(AppState {
         background_jobs: Default::default(),
+        vault_sync_task: parking_lot::Mutex::new(vault_sync_task),
         runtime_preferences: parking_lot::Mutex::new(runtime_preferences),
         audio:Arc::new(crate::native_resources::Audio::default()),
         caption_stop:Default::default(),

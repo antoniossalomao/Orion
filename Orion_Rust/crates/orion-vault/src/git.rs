@@ -39,9 +39,13 @@ pub struct FullSyncReport {
 }
 
 /// Maior arquivo que o Orion envia (o GitHub recusa mais de 100 MB).
-const MAX_SYNC_FILE: u64 = 50 * 1024 * 1024;
-/// Arquivos de texto até este tamanho passam pelo detector de segredos antes do commit.
-const MAX_SCAN_FILE: u64 = 4 * 1024 * 1024;
+const MAX_SYNC_FILE: u64 = 25 * 1024 * 1024;
+
+/// Imagem, áudio e vídeo não têm texto para o detector de segredos; o resto é sempre examinado.
+fn media(path: &str) -> bool {
+    let ext = path.rsplit('.').next().unwrap_or("").to_lowercase();
+    ["png", "jpg", "jpeg", "gif", "webp", "bmp", "ico", "mp3", "wav", "ogg", "m4a", "flac", "mp4", "mov", "mkv", "webm"].contains(&ext.as_str())
+}
 
 /// Estado volátil do Obsidian e lixeira: nunca entram no commit.
 fn volatile(rel: &str) -> bool {
@@ -290,12 +294,15 @@ impl GitSync {
                 Ok(m) if m.is_file() => {
                     if m.len() > MAX_SYNC_FILE {
                         hold.push(path);
-                    } else if m.len() <= MAX_SCAN_FILE
-                        && std::fs::read(&full).ok().and_then(|b| String::from_utf8(b).ok()).is_some_and(|t| SecretScanner::scan(&t).is_err())
-                    {
-                        hold.push(path);
-                    } else {
+                    } else if media(&path) {
                         allow.push(path);
+                    } else {
+                        // o que não puder ser lido e verificado não sobe (segredos são ASCII: a
+                        // conversão com perda serve também para binários)
+                        match std::fs::read(&full) {
+                            Ok(b) if SecretScanner::scan(&String::from_utf8_lossy(&b)).is_ok() => allow.push(path),
+                            _ => hold.push(path),
+                        }
                     }
                 }
                 Ok(_) => {}
@@ -316,9 +323,11 @@ impl GitSync {
         }
 
         // 2. Commit.
-        if !hold.is_empty() {
+        // Nada que ficou de fora pode seguir no índice (o commit leva o índice inteiro).
+        let excluded: Vec<&String> = hold.iter().chain(noise.iter()).collect();
+        if !excluded.is_empty() {
             let mut input = Vec::new();
-            for p in &hold {
+            for p in excluded {
                 input.extend_from_slice(p.as_bytes());
                 input.push(0);
             }
@@ -385,14 +394,27 @@ impl GitSync {
     /// O vault só é recusado se os `.gitattributes` dele pedem um filtro (`filter=`). Filtro apenas
     /// configurado no Git do computador (o Git for Windows traz `filter.lfs`) não é usado por ele.
     fn uses_filters(&self) -> Result<bool, GitError> {
-        let mut files = vec![self.vault_path.join(".git").join("info").join("attributes")];
-        let listed = self.text(&["ls-files", "-z", "--cached", "--others", "--exclude-standard"], None, None).unwrap_or_default();
-        for name in listed.split('\0').filter(|n| n.rsplit('/').next() == Some(".gitattributes")) {
-            files.push(self.vault_path.join(name));
+        // Sem nenhum filtro configurado (nem no sistema), não há o que executar.
+        if !self.output(&["config", "--get-regexp", "^filter\\."], None, None)?.status.success() {
+            return Ok(false);
         }
-        Ok(files.iter().any(|f| {
-            std::fs::read_to_string(f).is_ok_and(|t| t.lines().any(|l| !l.trim_start().starts_with('#') && l.contains("filter=")))
-        }))
+        // Há filtro configurado: só é problema se algum arquivo do vault o pede. Os atributos
+        // efetivos (`.gitattributes`, `info/attributes` e `core.attributesFile`) vêm do próprio Git.
+        let listed = self.output(&["ls-files", "-z", "--cached", "--others", "--exclude-standard"], None, None)?;
+        if !listed.status.success() {
+            return Err(GitError::CommandFailed("ls-files"));
+        }
+        if listed.stdout.is_empty() {
+            return Ok(false);
+        }
+        let attrs = self.output(&["check-attr", "-z", "--stdin", "filter"], None, Some(&listed.stdout))?;
+        if !attrs.status.success() {
+            return Err(GitError::CommandFailed("check-attr"));
+        }
+        // saída: caminho\0atributo\0valor\0 ...
+        let text = String::from_utf8_lossy(&attrs.stdout);
+        let parts: Vec<&str> = text.split('\0').collect();
+        Ok(parts.chunks(3).any(|c| c.len() == 3 && c[2] != "unspecified"))
     }
 
     /// Como `text`, mas devolve um motivo fixo e legível quando o Git recusa. O stderr nunca sai daqui

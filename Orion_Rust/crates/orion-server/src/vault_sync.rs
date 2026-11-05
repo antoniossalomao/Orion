@@ -46,7 +46,7 @@ pub fn summary(r: &orion_vault::FullSyncReport) -> String {
 }
 
 /// Ao abrir e depois a cada 15 minutos, enquanto a opção estiver ligada e o pânico desligado.
-pub fn spawn_loop(vault: PathBuf, memory: Arc<Store>, enabled: Arc<AtomicBool>, modos: Arc<orion_core::modos::Modos>) {
+pub fn spawn_loop(vault: PathBuf, memory: Arc<Store>, enabled: Arc<AtomicBool>, modos: Arc<orion_core::modos::Modos>) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         loop {
             if enabled.load(Ordering::Relaxed) && !modos.panico() {
@@ -59,5 +59,5 @@ pub fn spawn_loop(vault: PathBuf, memory: Arc<Store>, enabled: Arc<AtomicBool>, 
             }
             tokio::time::sleep(EVERY).await;
         }
-    });
+    })
 }
