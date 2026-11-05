@@ -386,7 +386,7 @@ impl GitSync {
     /// configurado no Git do computador (o Git for Windows traz `filter.lfs`) não é usado por ele.
     fn uses_filters(&self) -> Result<bool, GitError> {
         let mut files = vec![self.vault_path.join(".git").join("info").join("attributes")];
-        let listed = self.text(&["ls-files", "-z"], None, None).unwrap_or_default();
+        let listed = self.text(&["ls-files", "-z", "--cached", "--others", "--exclude-standard"], None, None).unwrap_or_default();
         for name in listed.split('\0').filter(|n| n.rsplit('/').next() == Some(".gitattributes")) {
             files.push(self.vault_path.join(name));
         }
