@@ -81,58 +81,58 @@ fn generate(r: &Request) -> anyhow::Result<()> {
         false => model.new_context(&backend, base)?,
     };
     let mut batch = LlamaBatch::new(256, 1);
-    let mut historico: Vec<i32> = tokens.iter().map(|t| t.0).collect();
+    let mut history: Vec<i32> = tokens.iter().map(|t| t.0).collect();
     prefill(&mut context, &mut batch, &tokens)?;
     let mut sampler = LlamaSampler::greedy();
     let mut pending = Vec::new();
-    let mut rascunho_max = r.rascunho as usize;
-    let mut produzidos = 0u32;
-    let mut proximo = sampler.sample(&context, -1);
-    while produzidos < r.max_tokens {
-        if vocab.is_eog(proximo) {
+    let mut draft_max = r.draft_len as usize;
+    let mut produced = 0u32;
+    let mut next_token = sampler.sample(&context, -1);
+    while produced < r.max_tokens {
+        if vocab.is_eog(next_token) {
             break;
         }
-        emitir(&vocab.token_to_piece(proximo, false, None), &mut pending)?;
-        historico.push(proximo.0);
-        produzidos += 1;
-        if produzidos >= r.max_tokens {
+        emit_piece(&vocab.token_to_piece(next_token, false, None), &mut pending)?;
+        history.push(next_token.0);
+        produced += 1;
+        if produced >= r.max_tokens {
             break;
         }
         // L1: propõe o que veio depois da última vez que estes tokens apareceram e confere tudo num
         // só passo. Só vale o que a amostragem gulosa escolheria; o resto é descartado do cache.
-        let pos = historico.len() as i32 - 1;
-        let faltam = (r.max_tokens - produzidos) as usize;
-        let rascunho = orion_local::lookup::rascunho(&historico, rascunho_max.min(faltam).min(200));
+        let pos = history.len() as i32 - 1;
+        let remaining = (r.max_tokens - produced) as usize;
+        let proposal = orion_local::lookup::draft(&history, draft_max.min(remaining).min(200));
         batch.clear();
-        batch.add(proximo, pos, &[0], true)?;
-        for (i, d) in rascunho.iter().enumerate() {
+        batch.add(next_token, pos, &[0], true)?;
+        for (i, d) in proposal.iter().enumerate() {
             batch.add(LlamaToken(*d), pos + 1 + i as i32, &[0], true)?;
         }
         context.decode(&mut batch)?;
-        let mut aceitos = 0usize;
-        let mut seguinte = sampler.sample(&context, 0);
-        while aceitos < rascunho.len() && seguinte.0 == rascunho[aceitos] && !vocab.is_eog(seguinte) {
-            emitir(&vocab.token_to_piece(seguinte, false, None), &mut pending)?;
-            historico.push(seguinte.0);
-            produzidos += 1;
-            aceitos += 1;
-            if produzidos >= r.max_tokens {
+        let mut accepted = 0usize;
+        let mut following = sampler.sample(&context, 0);
+        while accepted < proposal.len() && following.0 == proposal[accepted] && !vocab.is_eog(following) {
+            emit_piece(&vocab.token_to_piece(following, false, None), &mut pending)?;
+            history.push(following.0);
+            produced += 1;
+            accepted += 1;
+            if produced >= r.max_tokens {
                 break;
             }
-            seguinte = sampler.sample(&context, aceitos as i32);
+            following = sampler.sample(&context, accepted as i32);
         }
-        if aceitos < rascunho.len() {
-            let primeiro_descartado = (pos + 1 + aceitos as i32) as u32;
-            if context.kv_cache_seq_rm(0, Some(primeiro_descartado), None).is_err() {
+        if accepted < proposal.len() {
+            let first_dropped = (pos + 1 + accepted as i32) as u32;
+            if context.kv_cache_seq_rm(0, Some(first_dropped), None).is_err() {
                 // Este modelo não aceita cortar o cache pela metade: refaz o cache só com o texto
                 // aceito e deixa de propor rascunhos nesta resposta.
                 context.clear_kv_cache();
-                let aceitos_ate_aqui: Vec<LlamaToken> = historico.iter().map(|t| LlamaToken(*t)).collect();
-                prefill(&mut context, &mut batch, &aceitos_ate_aqui)?;
-                rascunho_max = 0;
+                let accepted_tokens: Vec<LlamaToken> = history.iter().map(|t| LlamaToken(*t)).collect();
+                prefill(&mut context, &mut batch, &accepted_tokens)?;
+                draft_max = 0;
             }
         }
-        proximo = seguinte;
+        next_token = following;
     }
     if !pending.is_empty() {
         emit(Response::Text {
@@ -159,7 +159,7 @@ fn prefill(context: &mut LlamaContext<'_>, batch: &mut LlamaBatch, tokens: &[Lla
 }
 
 /// Envia o texto de um token, segurando bytes de um caractere UTF-8 ainda incompleto.
-fn emitir(piece: &[u8], pending: &mut Vec<u8>) -> anyhow::Result<()> {
+fn emit_piece(piece: &[u8], pending: &mut Vec<u8>) -> anyhow::Result<()> {
     pending.extend_from_slice(piece);
     match std::str::from_utf8(pending) {
         Ok(text) => {

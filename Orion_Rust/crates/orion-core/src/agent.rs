@@ -1113,8 +1113,8 @@ impl Agent {
         sistema += &format!("\n\n[AGORA] {}, {}.", DIAS[agora.weekday().num_days_from_monday() as usize], agora.format("%d/%m/%Y %H:%M"));
         // A3: o medidor muda a cada chamada, então vai depois da hora, no fim do prompt de sistema
         // (o prefixo estável antes dele continua reaproveitável pelo cache do provedor).
-        if let Some(linha) = self.custos.as_ref().and_then(|c| c.linha_orcamento()) {
-            sistema += &format!("\n\n{linha}");
+        if let Some(line) = self.custos.as_ref().and_then(|c| c.budget_line()) {
+            sistema += &format!("\n\n{line}");
         }
         let mut msgs = vec![json!({"role": "system", "content": sistema})];
         if let Some(pid) = &session.project_id {

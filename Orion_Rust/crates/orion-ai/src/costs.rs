@@ -207,7 +207,7 @@ impl Custos {
     /// Medidor de orçamento para o modelo (A3): quanto resta de cada cota com limite, para ele
     /// decidir se aprofunda ou poupa chamadas. Só informa: não bloqueia nada (REGRAS.md: custo zero
     /// (sem API paga)). `None` quando nenhuma cota tem limite. O estado vem de `resumo`.
-    pub fn linha_orcamento(&self) -> Option<String> {
+    pub fn budget_line(&self) -> Option<String> {
         let itens: Vec<String> = self
             .resumo()
             .iter()

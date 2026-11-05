@@ -25,7 +25,7 @@ pub struct Request {
     pub kv_q8: bool,
     /// Tokens por rascunho de repetição (L1); 0 desliga. O texto final não muda.
     #[serde(default)]
-    pub rascunho: u32,
+    pub draft_len: u32,
 }
 impl Request {
     pub fn validate(&self) -> anyhow::Result<()> {
@@ -35,7 +35,7 @@ impl Request {
             self.max_tokens > 0 && self.max_tokens <= 1024 && self.max_tokens < self.context,
             "limite de resposta inválido"
         );
-        anyhow::ensure!(self.rascunho <= crate::lookup::RASCUNHO_MAX, "rascunho fora do teto");
+        anyhow::ensure!(self.draft_len <= crate::lookup::DRAFT_MAX, "rascunho fora do teto");
         anyhow::ensure!(!self.messages.is_empty() && self.messages.len() <= 128, "mensagens inválidas");
         for m in &self.messages {
             anyhow::ensure!(
