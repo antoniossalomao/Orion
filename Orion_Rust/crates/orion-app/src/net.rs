@@ -90,6 +90,10 @@ pub trait Local: Send + Sync + 'static {
     }
     /// Desliga a câmera do módulo.
     fn camera_close(&self) {}
+    /// Última sincronização do vault com o GitHub antes de fechar (limite de 20 s no núcleo).
+    fn vault_sync_on_close(&self) -> futures::future::BoxFuture<'static, ()> {
+        Box::pin(async {})
+    }
     /// Encerra a leitura e desliga a câmera.
     fn face_id_cancel(&self, _session: &str) {}
     /// Cadastra o rosto (exige a senha, que fica no cofre do sistema para o Face ID liberar).
@@ -405,6 +409,12 @@ impl Api {
     pub fn camera_close(&self) {
         if let Some(l) = &self.local {
             l.camera_close()
+        }
+    }
+    pub fn vault_sync_on_close(&self) -> futures::future::BoxFuture<'static, ()> {
+        match &self.local {
+            Some(l) => l.vault_sync_on_close(),
+            None => Box::pin(async {}),
         }
     }
     pub fn face_id_cancel(&self, session: &str) {

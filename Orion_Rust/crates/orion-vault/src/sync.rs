@@ -61,7 +61,28 @@ pub struct VaultManager {
     notes_cache: Arc<RwLock<HashMap<String, ParsedNote>>>,
 }
 
+static FULL_SYNC: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Liga a sincronização completa antes de cada nota gravada (o servidor liga conforme a configuração;
+/// biblioteca e testes ficam com ela desligada).
+pub fn set_full_sync(on: bool) {
+    FULL_SYNC.store(on, std::sync::atomic::Ordering::Relaxed);
+}
+
+pub fn full_sync_enabled() -> bool {
+    FULL_SYNC.load(std::sync::atomic::Ordering::Relaxed)
+}
+
 impl VaultManager {
+    /// Sincronização completa com o GitHub (commit do que mudou, junção e envio). `None` se o vault
+    /// não é um repositório Git.
+    pub fn sync_all(&self) -> Result<Option<crate::FullSyncReport>, VaultError> {
+        match &self.git {
+            Some(git) => Ok(Some(git.sync_all()?)),
+            None => Ok(None),
+        }
+    }
+
     /// Inicializa o VaultManager com auto-detecção ou caminho configurado.
     pub fn new(custom_path: Option<PathBuf>) -> Result<Self, VaultError> {
         let path = custom_path.or_else(detect_vault_path).ok_or_else(|| {
@@ -125,6 +146,15 @@ impl VaultManager {
     }
 
     fn save_note(&self, note: &ConversationNote, replace_if: Option<&str>) -> Result<SyncResult, VaultError> {
+        // Antes de gravar, o vault local alcança o GitHub; se falhar, a nota é gravada do mesmo jeito
+        // e o aviso de push pendente cobre o resto.
+        if full_sync_enabled() {
+            if let Some(git) = &self.git {
+                if let Err(e) = git.sync_all() {
+                    tracing::warn!("vault: sincronização antes da nota falhou: {e}");
+                }
+            }
+        }
         let md = note.to_markdown();
         let md_sha = format!("{:x}", Sha256::digest(md.as_bytes()));
         SecretScanner::scan(&md).map_err(|e| VaultError::SecretDetected(e.to_string()))?;

@@ -8,6 +8,7 @@ mod appmode;
 mod camera_module;
 mod native_resources;
 mod diary;
+mod vault_sync;
 mod onboarding;
 mod onboarding_drive;
 mod onboarding_hello;

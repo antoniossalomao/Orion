@@ -415,7 +415,7 @@ pub fn pull_page(api: &Api, v: View) -> Task<Msg> {
     match v {
         View::Rotinas => get("/rotinas", Lm::Rotinas),
         View::Conhecimento => get("/facts", Lm::Facts),
-        View::Memoria => get("/grafo/completo", Lm::Grafo),
+        View::Memoria => get("/grafo/completo?limite=2000", Lm::Grafo),
         View::Projetos => get("/projects", Lm::Projects),
         View::Nuvem => Task::batch([get("/tarefas-bg", Lm::Tarefas), get("/nuvem", Lm::Nuvem)]),
         View::Aprovacoes => Task::batch([get("/painel", Lm::Painel), get("/approvals", Lm::Approvals)]),
@@ -983,7 +983,7 @@ impl App {
             }
             Msg::VaultPull => {
                 let a2 = api.clone();
-                Some((acao(&api, async move { a2.post("/vault/pull", json!({})).await }, "Vault atualizado (git pull)", true), true))
+                Some((acao(&api, async move { a2.post("/vault/pull", json!({})).await }, "Vault sincronizado com o GitHub", true), true))
             }
             Msg::QcapSave => {
                 let q = self.qcap.as_ref()?;
@@ -1427,7 +1427,11 @@ impl App {
             },
             Lm::GraphReady(result) => match result { Ok(graph) => self.mem = crate::graph::Graph::from_prepared(graph), Err(error) => self.toast(error) },
             Lm::Grafo(r) => match r {
-                Ok(v) => return Task::perform(async move { tokio::task::spawn_blocking(move || crate::graph::Graph::prepare(&v)).await.map_err(|e| e.to_string()) }, |result| Msg::L(Lm::GraphReady(result))),
+                Ok(v) => {
+                    let cut = v["truncado"].as_bool().unwrap_or(false);
+                    self.mem_total = if cut { v["total"].as_u64().unwrap_or(0) as usize } else { 0 };
+                    return Task::perform(async move { tokio::task::spawn_blocking(move || crate::graph::Graph::prepare(&v)).await.map_err(|e| e.to_string()) }, |result| Msg::L(Lm::GraphReady(result)));
+                }
                 Err(e) => self.net_fail(e),
             },
             Lm::Acao(r, reload) => match r {

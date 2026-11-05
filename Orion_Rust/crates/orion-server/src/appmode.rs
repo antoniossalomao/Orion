@@ -158,6 +158,7 @@ impl Local for Interno {
                 let mut cfg=old.st.live.current.lock().clone().unwrap_or(cfg);
                 cfg.injection_guard=old.st.live.injection.load(std::sync::atomic::Ordering::Relaxed);
                 cfg.vault_diario=old.st.live.diary.load(std::sync::atomic::Ordering::Relaxed);
+                cfg.vault_sync=old.st.live.vault_sync.load(std::sync::atomic::Ordering::Relaxed);
                 if let Some(compactor)=old.st.agent.as_ref().and_then(|a|a.compactor.as_ref()){cfg.compact_at=compactor.at();}
                 // Prepara o novo estado antes de desligar o antigo; falha não apaga o estado em uso.
                 let next=match preparar_nucleo(cfg,true).await {
@@ -625,6 +626,18 @@ impl Local for Interno {
     fn camera_poll(&self) -> BoxFuture<'static, Option<CameraSnapshot>> {
         let rt = self.rt.clone();
         Box::pin(async move { rt.spawn_blocking(|| crate::camera_module::poll(process_cpu())).await.ok().flatten() })
+    }
+    fn vault_sync_on_close(&self) -> BoxFuture<'static, ()> {
+        let (slot, rt) = (self.nucleo.clone(), self.rt.clone());
+        Box::pin(async move {
+            let Some(n) = slot.lock().clone() else { return };
+            if n.st.modos.panico() || !n.st.live.vault_sync.load(std::sync::atomic::Ordering::Relaxed) {
+                return;
+            }
+            let Some(vault) = n.st.settings.vault_dir.clone().or_else(orion_vault::detect_vault_path) else { return };
+            let memory = n.st.memory.clone();
+            let _ = tokio::time::timeout(std::time::Duration::from_secs(20), rt.spawn_blocking(move || crate::vault_sync::run_blocking(vault, &memory))).await;
+        })
     }
     fn camera_close(&self) {
         CAMERA_EPOCH.fetch_add(1, std::sync::atomic::Ordering::SeqCst);

@@ -127,6 +127,7 @@ pub fn montar(memory: &Store, project_id: Option<&str>, limite: Option<usize>, p
 
     let mut truncado = false;
     let mut nos = g.nos;
+    let total = nos.len();
     if let Some(lim) = limite.filter(|l| nos.len() > *l) {
         truncado = true;
         let mut grau: HashMap<String, i64> = HashMap::new();
@@ -146,7 +147,7 @@ pub fn montar(memory: &Store, project_id: Option<&str>, limite: Option<usize>, p
         let ids: HashSet<&str> = nos.iter().map(|n| n.0.as_str()).collect();
         ligacoes.retain(|lk| ids.contains(lk["source"].as_str().unwrap_or("")) && ids.contains(lk["target"].as_str().unwrap_or("")));
     }
-    Ok(json!({"nodes": nos.into_iter().map(|n| n.1).collect::<Vec<_>>(), "links": ligacoes, "truncado": truncado}))
+    Ok(json!({"nodes": nos.into_iter().map(|n| n.1).collect::<Vec<_>>(), "links": ligacoes, "truncado": truncado, "total": total}))
 }
 
 fn mensagens_por_id(memory: &Store, ids: &HashSet<i64>) -> anyhow::Result<HashMap<i64, Map<String, Value>>> {

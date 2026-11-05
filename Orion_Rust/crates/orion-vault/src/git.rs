@@ -11,8 +11,45 @@ pub enum GitError {
     CommandFailed(&'static str),
     #[error("{0}")]
     Unsafe(&'static str),
+    /// Mensagem montada na hora (só nomes de arquivo, nunca conteúdo nem stderr do Git).
+    #[error("{0}")]
+    Sync(String),
     #[error("erro de E/S ao executar Git")]
     Io(#[from] std::io::Error),
+}
+
+/// Um escritor Git por vez dentro do processo (nota, sincronização completa e push não se misturam).
+static WRITER: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+fn writer() -> std::sync::MutexGuard<'static, ()> {
+    WRITER.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+/// Resultado de uma sincronização completa do vault (só contagens e nomes de arquivo).
+#[derive(Debug, Clone, Default, serde::Serialize)]
+pub struct FullSyncReport {
+    /// Arquivos que entraram no commit desta rodada.
+    pub committed: usize,
+    /// Arquivos que ficaram só locais por conter segredo ou passar do limite de tamanho.
+    pub held_back: Vec<String>,
+    /// Veio coisa nova do GitHub.
+    pub pulled: bool,
+    /// Algo foi enviado ao GitHub.
+    pub pushed: bool,
+}
+
+/// Maior arquivo que o Orion envia (o GitHub recusa mais de 100 MB).
+const MAX_SYNC_FILE: u64 = 50 * 1024 * 1024;
+/// Arquivos de texto até este tamanho passam pelo detector de segredos antes do commit.
+const MAX_SCAN_FILE: u64 = 4 * 1024 * 1024;
+
+/// Estado volátil do Obsidian e lixeira: nunca entram no commit.
+fn volatile(rel: &str) -> bool {
+    let rel = rel.trim_start_matches("./");
+    rel == ".trash"
+        || rel.starts_with(".trash/")
+        || rel.starts_with(".git/")
+        || (rel.starts_with(".obsidian/") && rel.rsplit('/').next().is_some_and(|n| n.starts_with("workspace")))
 }
 
 /// Commit exato preparado pelo Orion; o push nunca usa a ponta mutável da branch.
@@ -200,13 +237,9 @@ impl GitSync {
         self.main_ready()?;
         // Até o status pode executar um clean filter ao revalidar arquivos modificados.
         // O pull também faria checkout/smudge: exige revisão manual nesses repositórios.
-        if self
-            .output(&["config", "--get-regexp", "^filter\\."], None, None)?
-            .status
-            .success()
-        {
+        if self.uses_filters()? {
             return Err(GitError::Unsafe(
-                "o vault configura filtros Git; faça a sincronização manualmente",
+                "o vault usa filtros Git (.gitattributes); faça a sincronização manualmente",
             ));
         }
         if !self.status_short()?.is_empty() {
@@ -217,6 +250,149 @@ impl GitSync {
         self.run_explained(&["fetch", "--no-tags", "origin", "main"])?;
         self.main_ready()?;
         self.run_explained(&["merge", "--ff-only", "--no-edit", "FETCH_HEAD"])
+    }
+
+    /// Sincronização completa: commita o que mudou no vault (menos estado volátil e arquivos com
+    /// segredo), traz a `main` do GitHub e envia. Nunca usa `--force`, nunca descarta edição sua e,
+    /// se os dois lados divergirem em conflito, desfaz a tentativa e avisa quais arquivos.
+    /// Usa o Git do seu computador, então vale o login que você já tem (Git Credential Manager).
+    /// (REGRAS.md: o vault é sincronizado pelo Orion, sem sobrescrever nada.)
+    pub fn sync_all(&self) -> Result<FullSyncReport, GitError> {
+        let _guard = writer();
+        self.main_ready()?;
+        if self.uses_filters()? {
+            return Err(GitError::Unsafe("o vault usa filtros Git (.gitattributes); faça a sincronização manualmente"));
+        }
+        let mut report = FullSyncReport::default();
+
+        // 1. O que mudou: status em formato estável, separado por NUL.
+        let raw = self.output(&["status", "--porcelain=v1", "-z", "--untracked-files=all"], None, None)?;
+        if !raw.status.success() {
+            return Err(GitError::CommandFailed("status"));
+        }
+        let mut entries = String::from_utf8_lossy(&raw.stdout).split('\0').map(str::to_string).collect::<Vec<_>>().into_iter();
+        let (mut allow, mut hold, mut noise) = (vec![], vec![], vec![]);
+        while let Some(e) = entries.next() {
+            if e.len() < 4 {
+                continue;
+            }
+            let (xy, path) = (&e[..2], e[3..].to_string());
+            if xy.starts_with('R') || xy.starts_with('C') {
+                entries.next(); // caminho de origem da renomeação
+            }
+            if volatile(&path) {
+                noise.push(path);
+                continue;
+            }
+            let full = self.vault_path.join(&path);
+            match std::fs::symlink_metadata(&full) {
+                Ok(m) if m.file_type().is_symlink() => hold.push(path),
+                Ok(m) if m.is_file() => {
+                    if m.len() > MAX_SYNC_FILE {
+                        hold.push(path);
+                    } else if m.len() <= MAX_SCAN_FILE
+                        && std::fs::read(&full).ok().and_then(|b| String::from_utf8(b).ok()).is_some_and(|t| SecretScanner::scan(&t).is_err())
+                    {
+                        hold.push(path);
+                    } else {
+                        allow.push(path);
+                    }
+                }
+                Ok(_) => {}
+                Err(_) => allow.push(path), // arquivo apagado: a exclusão também é sincronizada
+            }
+        }
+
+        // Estado volátil do Obsidian que já está no repositório volta ao que o Git tem: o Obsidian
+        // saiu do projeto e esse arquivo mudava a cada clique, bloqueando a atualização.
+        let tracked_noise: Vec<&String> = noise.iter().filter(|p| p.starts_with(".obsidian/")).collect();
+        if !tracked_noise.is_empty() {
+            let mut input = Vec::new();
+            for p in tracked_noise {
+                input.extend_from_slice(p.as_bytes());
+                input.push(0);
+            }
+            let _ = self.output(&["restore", "--source=HEAD", "--worktree", "--staged", "--pathspec-from-file=-", "--pathspec-file-nul"], None, Some(&input));
+        }
+
+        // 2. Commit.
+        if !hold.is_empty() {
+            let mut input = Vec::new();
+            for p in &hold {
+                input.extend_from_slice(p.as_bytes());
+                input.push(0);
+            }
+            let _ = self.output(&["reset", "-q", "--pathspec-from-file=-", "--pathspec-file-nul"], None, Some(&input));
+        }
+        if !allow.is_empty() {
+            let mut input = Vec::new();
+            for p in &allow {
+                input.extend_from_slice(p.as_bytes());
+                input.push(0);
+            }
+            self.run_input(&["add", "-A", "--pathspec-from-file=-", "--pathspec-file-nul"], &input)?;
+            if !self.output(&["diff", "--cached", "--quiet"], None, None)?.status.success() {
+                let msg = format!("Orion: sincronização do vault ({} arquivos)", allow.len());
+                self.run_explained(&["commit", "-q", "--no-verify", "-m", &msg])?;
+                report.committed = allow.len();
+            }
+        }
+        report.held_back = hold;
+
+        // 3. Traz a main do GitHub e junta.
+        self.run_explained(&["fetch", "--no-tags", "origin", "main"])?;
+        let head = self.text(&["rev-parse", "HEAD"], None, None)?;
+        let remote = self.text(&["rev-parse", "FETCH_HEAD"], None, None)?;
+        let is_ancestor = |a: &str, b: &str| -> Result<bool, GitError> {
+            Ok(self.output(&["merge-base", "--is-ancestor", a, b], None, None)?.status.success())
+        };
+        if head != remote {
+            if is_ancestor(&remote, &head)? {
+                // o GitHub está atrás: só falta enviar
+            } else if is_ancestor(&head, &remote)? {
+                self.run_explained(&["merge", "--ff-only", "--no-edit", "FETCH_HEAD"])?;
+                report.pulled = true;
+            } else {
+                let out = self.output(&["merge", "--no-edit", "-m", "Orion: junta o vault com o GitHub", "FETCH_HEAD"], None, None)?;
+                if !out.status.success() {
+                    let conflicted = self.text(&["diff", "--name-only", "--diff-filter=U"], None, None).unwrap_or_default();
+                    let _ = self.output(&["merge", "--abort"], None, None);
+                    let files: Vec<&str> = conflicted.lines().take(8).collect();
+                    return Err(GitError::Sync(if files.is_empty() {
+                        explain_failure(&String::from_utf8_lossy(&out.stderr)).to_string()
+                    } else {
+                        format!("o vault e o GitHub mudaram os mesmos arquivos; nada foi sobrescrito. Resolva no Git: {}", files.join(", "))
+                    }));
+                }
+                report.pulled = true;
+            }
+        }
+
+        // 4. Envia (sem force).
+        let head = self.text(&["rev-parse", "HEAD"], None, None)?;
+        if head != remote {
+            self.run_explained(&["push", "--no-verify", "origin", "main:refs/heads/main"])?;
+            report.pushed = true;
+        }
+        Ok(report)
+    }
+
+    fn run_input(&self, args: &[&str], input: &[u8]) -> Result<(), GitError> {
+        let out = self.output(args, None, Some(input))?;
+        if out.status.success() { Ok(()) } else { Err(GitError::Sync(explain_failure(&String::from_utf8_lossy(&out.stderr)).to_string())) }
+    }
+
+    /// O vault só é recusado se os `.gitattributes` dele pedem um filtro (`filter=`). Filtro apenas
+    /// configurado no Git do computador (o Git for Windows traz `filter.lfs`) não é usado por ele.
+    fn uses_filters(&self) -> Result<bool, GitError> {
+        let mut files = vec![self.vault_path.join(".git").join("info").join("attributes")];
+        let listed = self.text(&["ls-files", "-z"], None, None).unwrap_or_default();
+        for name in listed.split('\0').filter(|n| n.rsplit('/').next() == Some(".gitattributes")) {
+            files.push(self.vault_path.join(name));
+        }
+        Ok(files.iter().any(|f| {
+            std::fs::read_to_string(f).is_ok_and(|t| t.lines().any(|l| !l.trim_start().starts_with('#') && l.contains("filter=")))
+        }))
     }
 
     /// Como `text`, mas devolve um motivo fixo e legível quando o Git recusa. O stderr nunca sai daqui
@@ -239,6 +415,7 @@ impl GitSync {
         content: &str,
         message: &str,
     ) -> Result<NoteCommit, GitError> {
+        let _guard = writer();
         crate::safe_path::relative(rel)
             .map_err(|_| GitError::Unsafe("caminho de nota inválido"))?;
         if !(rel.starts_with(Path::new("03 Recursos").join("Orion").join("Memória")) || is_project_note(rel))
@@ -357,6 +534,7 @@ impl GitSync {
     /// Só envia o commit exato criado aqui quando seu pai já está no remoto.
     /// Commits locais anteriores ou posteriores do usuário nunca entram neste push.
     pub(crate) fn push_note(&self, commit: &NoteCommit) -> Result<String, GitError> {
+        let _guard = writer();
         if !commit.created {
             return Ok(String::new());
         }
@@ -417,6 +595,10 @@ fn explain_failure(stderr: &str) -> &'static str {
         "sem conexão com o GitHub; confira a internet, o proxy e o certificado e tente de novo"
     } else if e.contains("couldn't find remote ref") || e.contains("no such remote") || e.contains("unknown revision") {
         "o remoto `origin` não tem a branch main"
+    } else if e.contains("non-fast-forward") || e.contains("fetch first") || e.contains("[rejected]") || e.contains("failed to push") && e.contains("updates were rejected") {
+        "o GitHub recebeu commits novos enquanto o Orion enviava; a próxima sincronização tenta de novo"
+    } else if e.contains("tell me who you are") || e.contains("empty ident") || e.contains("unable to auto-detect email") {
+        "o Git deste computador não sabe quem você é; rode `git config --global user.name` e `user.email` e tente de novo"
     } else if e.contains("would be overwritten") || e.contains("local changes") {
         "há arquivos locais no caminho do pull; salve ou mova as edições do vault e tente de novo"
     } else if e.contains("index.lock") || e.contains("unable to create") {

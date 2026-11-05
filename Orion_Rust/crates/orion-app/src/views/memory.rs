@@ -707,6 +707,7 @@ pub fn view(app: &App) -> El<'_> {
     let (n, l) = g.stats();
     let total = g.nodes.len();
     let notas = if n < total { crate::i18n::formatted("{} de {} notas", format!("{} de {} notas", fmt_n(n), fmt_n(total))) } else { crate::i18n::formatted("{} notas", format!("{} notas", fmt_n(n))) };
+    let notas = if app.mem_total > total { format!("{notas} ") + &crate::i18n::formatted("(o vault tem {} no total)", format!("(o vault tem {} no total)", fmt_n(app.mem_total))) } else { notas };
     let pull = if app.api.is_none() { crate::i18n::text(" · git pull às 09:41") } else { "" };
     let stats = tx(crate::i18n::formatted("{notas} · {} links{pull}", format!("{notas} · {} links{pull}", fmt_n(l))), 12.0, t::FG3).wrapping(iced::widget::text::Wrapping::None);
     let avail = app.win.width - if app.collapsed || app.is_drawer_mode() { 0.0 } else { t::SIDE_W + 1.0 };
