@@ -346,6 +346,8 @@ pub fn memory_from_settings(settings: &Settings) -> anyhow::Result<Store> {
         };
         *s.reranker.lock() = orion_core::memory::rerank::reranker_from_dir(Some(&dir));
     }
+    // REGRAS.md: conversa antiga pesa menos na busca, mas nada é apagado nem escondido; desligado por padrão
+    s.set_soft_forgetting(settings.memory_soft_forgetting)?;
     Ok(s)
 }
 

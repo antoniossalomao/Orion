@@ -89,6 +89,7 @@
 | **ciclo de sono revisa, não decide.** O ciclo de sono revisa, não decide: duplicados só são avisados; o modelo vê só fatos já guardados; padrões viram fatos editáveis e apagáveis. | `orion-core/src/memory/sleep.rs` | `orion-core/tests/` |
 | **resumo da conversa nunca substitui o registro.** O resumo da conversa nunca substitui o registro e só nasce no computador (modelo local). As mensagens continuam no banco. | `orion-core/src/memory/compact.rs`, `orion-core/src/agent.rs` | `orion-core/tests/` |
 | **o Orion não decide sozinho qual fato vale.** O Orion nunca decide sozinho qual fato vale. Fato antigo ou substituído pesa menos na busca e aparece como antigo, mas nada é apagado; quem decide é você. | `orion-store/src/`, `orion-core/src/memory/` | `orion-store/tests/` |
+| **conversa antiga pesa menos na busca, mas nada é apagado nem escondido.** Com o esquecimento suave ligado (desligado por padrão, em Configurações › Memória), mensagem de conversa antiga pesa entre 1,0 e 0,5 na busca, conforme a idade (meia-vida de 90 dias). Só reordena: nada é apagado, arquivado ou escondido, e isso nunca vale para fato, documento nem nota do vault. Aprovado pelo Antônio em 05/11/2026. | `orion-store/src/search.rs`, `orion-core/src/config.rs` | Sem teste automatizado (pausa de 21/10/2026) |
 | **persona sem fato que envelhece.** A persona não carrega fato que envelhece (hardware, versão, porta, provedor). Isso vem de configuração. Persona é versionada e datada. | `orion-core/src/persona.rs` | `orion-core/tests/` |
 
 ## Automação, extensões e segundo plano
