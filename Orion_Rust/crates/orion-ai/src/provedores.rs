@@ -23,6 +23,9 @@ pub const CATALOGO: &[(&str, Catalogado)] = &[
     ("github", Catalogado { nome: "GitHub Models", base_url: "https://models.github.ai/inference" }),
     ("nvidia", Catalogado { nome: "NVIDIA NIM", base_url: "https://integrate.api.nvidia.com/v1" }),
     ("zai", Catalogado { nome: "Z.ai (GLM)", base_url: "https://api.z.ai/api/paas/v4" }),
+    // Modo turbo (diffusion LLM). A conta nova ganha 100 milhões de tokens grátis; depois disso é
+    // pago, então só entra se Antônio ligar o provedor e travar `limite_dia` (REGRAS.md: nada de API paga).
+    ("inception", Catalogado { nome: "Inception (Mercury, modo turbo)", base_url: "https://api.inceptionlabs.ai/v1" }),
 ];
 
 pub fn catalogado(id: &str) -> Option<&'static Catalogado> {
@@ -124,6 +127,7 @@ pub fn defaults(id: &str) -> Option<ProvedorConf> {
         "github" => "openai/gpt-4.1-mini",
         "nvidia" => "meta/llama-3.1-8b-instruct",
         "zai" => "glm-4.5-flash",
+        "inception" => "mercury-2.5",
         _ => return None,
     };
     Some(ProvedorConf { id: id.into(), padrao: model.into(), ..Default::default() })

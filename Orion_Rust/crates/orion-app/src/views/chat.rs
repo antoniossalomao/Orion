@@ -231,6 +231,15 @@ fn orion_msg<'a>(app: &'a App, ci: usize, mi: usize, o: &'a OrionMsg, is_last: b
     if streaming.is_some() {
         let fase = (app.now.saturating_duration_since(app.t0).as_millis() / 400 % 4) as usize;
         let mut passos = column![].spacing(4);
+        // Enxame: uma estrela por ferramenta do turno (as mais recentes), pulsando enquanto roda.
+        let estrelas: Vec<crate::sky::SwarmState> = o.tools.iter().rev().take(crate::sky::SWARM_MAX).rev().map(|tl| match tl.time.as_str() {
+            "falhou" | "negada" => crate::sky::SwarmState::Failed,
+            "ok" => crate::sky::SwarmState::Done,
+            _ => crate::sky::SwarmState::Running,
+        }).collect();
+        if let Some(sw) = crate::sky::swarm(estrelas, app.now.saturating_duration_since(app.t0).as_secs_f32(), app.p.reduced) {
+            passos = passos.push(sw);
+        }
         for tl in &o.tools {
             let andando = matches!(tl.time.as_str(), "rodando" | "aguardando aprovação");
             let cor = if andando { t::FG2 } else { t::FG3 };

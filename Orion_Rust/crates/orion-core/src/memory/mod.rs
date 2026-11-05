@@ -3,6 +3,7 @@
 pub mod compact;
 pub mod consolidate;
 pub mod eval;
+pub mod evolve;
 pub mod rerank;
 pub mod sleep;
 

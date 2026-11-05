@@ -13,6 +13,7 @@ pub const PROVIDERS: &[(&str, &str, &str, &str)] = &[
     ("github", "GitHub Models", "ORION_KEY_GITHUB", "https://github.com/settings/tokens"),
     ("nvidia", "NVIDIA NIM", "ORION_KEY_NVIDIA", "https://build.nvidia.com"),
     ("zai", "Z.ai", "ORION_KEY_ZAI", "https://open.bigmodel.cn/usercenter/proj-mgmt/apikeys"),
+    ("inception", "Inception (Mercury)", "ORION_KEY_INCEPTION", "https://platform.inceptionlabs.ai"),
     ("brave", "Brave Search", "ORION_BRAVE_API_KEY", "https://api.search.brave.com/app/keys"),
 ];
 
@@ -27,6 +28,7 @@ pub const TRAINING_POLICY: &[(&str, &str)] = &[
     ("github", "Não confirmado. A página oficial diz que o serviço foi descontinuado em 30/07/2026."),
     ("nvidia", "Não confirmado: não encontrei a política de dados nas páginas oficiais consultadas."),
     ("zai", "Não confirmado: não encontrei a política nas páginas oficiais consultadas."),
+    ("inception", "Não confirmado: política de treino não verificada. Conta nova ganha 100 milhões de tokens grátis; depois é pago."),
     ("brave", "Consultas não são usadas para treino. Resultados dependem do plano."),
 ];
 
