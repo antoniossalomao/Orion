@@ -18,7 +18,7 @@ mod validate;
 
 pub use conflicts::{ConflictDetail, ConflictSummary};
 pub use detector::{detect_vault_path, VaultConfig};
-pub use git::{clone_public_repo, FullSyncReport, GitError, GitSync, GithubRepo};
+pub use git::{clone_public_repo, set_hard_stop, FullSyncReport, GitError, GitSync, GithubRepo};
 pub use note::{ConversationNote, NoteFrontmatter, NoteMetadata};
 pub use parser::{ParsedNote, VaultParser};
 pub use project::ProjectNote;

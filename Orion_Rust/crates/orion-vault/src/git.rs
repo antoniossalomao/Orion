@@ -18,6 +18,15 @@ pub enum GitError {
     Io(#[from] std::io::Error),
 }
 
+/// Cada comando Git morre depois disto (fetch e push incluídos).
+const COMMAND_DEADLINE: std::time::Duration = std::time::Duration::from_secs(120);
+static HARD_STOP: std::sync::Mutex<Option<std::time::Instant>> = std::sync::Mutex::new(None);
+
+/// Limite geral para todos os comandos Git a partir de agora (usado ao fechar o app); `None` tira o limite.
+pub fn set_hard_stop(after: Option<std::time::Duration>) {
+    *HARD_STOP.lock().unwrap_or_else(|e| e.into_inner()) = after.map(|d| std::time::Instant::now() + d);
+}
+
 /// Um escritor Git por vez dentro do processo (nota, sincronização completa e push não se misturam).
 static WRITER: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
@@ -169,12 +178,43 @@ impl GitSync {
             let data = input.to_vec();
             std::thread::spawn(move || stdin.write_all(&data).is_ok())
         });
-        let out = child.wait_with_output()?;
+        let mut stdout = child.stdout.take().expect("stdout configurado");
+        let mut stderr = child.stderr.take().expect("stderr configurado");
+        let read_out = std::thread::spawn(move || {
+            let mut b = Vec::new();
+            let _ = std::io::Read::read_to_end(&mut stdout, &mut b);
+            b
+        });
+        let read_err = std::thread::spawn(move || {
+            let mut b = Vec::new();
+            let _ = std::io::Read::read_to_end(&mut stderr, &mut b);
+            b
+        });
+        // Prazo por comando e, se houver, o limite geral de encerramento: o processo que passar
+        // dele (rede ou gerenciador de credenciais presos) é morto e recolhido.
+        let mut limit = std::time::Instant::now() + COMMAND_DEADLINE;
+        if let Some(stop) = *HARD_STOP.lock().unwrap_or_else(|e| e.into_inner()) {
+            limit = limit.min(stop);
+        }
+        let status = loop {
+            if let Some(status) = child.try_wait()? {
+                break status;
+            }
+            if std::time::Instant::now() >= limit {
+                let _ = child.kill();
+                let _ = child.wait();
+                // Um subprocesso do Git pode manter os pipes abertos: as threads de leitura e
+                // escrita são soltas, não esperadas (terminam sozinhas quando os pipes fecharem).
+                drop((read_out, read_err, writer));
+                return Err(GitError::Unsafe("o Git demorou demais e foi interrompido (rede ou login do GitHub presos?)"));
+            }
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        };
         if let Some(w) = writer {
             // se o Git terminou antes de ler tudo, o erro de escrita é esperado e o status decide
             let _ = w.join();
         }
-        Ok(out)
+        Ok(std::process::Output { status, stdout: read_out.join().unwrap_or_default(), stderr: read_err.join().unwrap_or_default() })
     }
 
     fn text(
@@ -369,6 +409,9 @@ impl GitSync {
                 self.run_explained(&["merge", "--ff-only", "--no-edit", "FETCH_HEAD"])?;
                 report.pulled = true;
             } else {
+                if self.merge_drivers_selected()? {
+                    return Err(GitError::Unsafe("o vault e o GitHub divergiram e há driver de merge externo configurado; resolva no Git"));
+                }
                 let out = self.output(&["merge", "--no-edit", "-m", "Orion: junta o vault com o GitHub", "FETCH_HEAD"], None, None)?;
                 if !out.status.success() {
                     let conflicted = self.text(&["diff", "--name-only", "--diff-filter=U"], None, None).unwrap_or_default();
@@ -411,6 +454,33 @@ impl GitSync {
         if !self.output(&["config", "--get-regexp", "^filter\\."], None, None)?.status.success() {
             return Ok(false);
         }
+        self.attribute_values(tree, "filter", None)
+    }
+
+    /// A junção com divergência executaria driver de merge externo? Vale `merge.<nome>.driver`
+    /// escolhido por algum arquivo (no vault ou no commit recebido) e também `merge.default`.
+    fn merge_drivers_selected(&self) -> Result<bool, GitError> {
+        let cfg = self.output(&["config", "--get-regexp", "^merge\\..*\\.driver$"], None, None)?;
+        let text = String::from_utf8_lossy(&cfg.stdout);
+        let names: Vec<String> = text
+            .lines()
+            .filter_map(|l| l.split_whitespace().next())
+            .filter_map(|k| k.strip_prefix("merge.").and_then(|k| k.strip_suffix(".driver")))
+            .map(str::to_string)
+            .collect();
+        let default = self.output(&["config", "--get", "merge.default"], None, None)?;
+        if names.is_empty() && !default.status.success() {
+            return Ok(false);
+        }
+        if default.status.success() {
+            return Ok(true); // o padrão mudou: qualquer arquivo sem atributo usaria outro merge
+        }
+        Ok(self.attribute_values(None, "merge", Some(&names))? || self.attribute_values(Some("FETCH_HEAD"), "merge", Some(&names))?)
+    }
+
+    /// Algum arquivo tem o atributo `attr` com valor definido? Com `names`, só conta valor igual a
+    /// um deles. `tree = None` olha a árvore de trabalho e o índice; `Some(commit)`, aquele commit.
+    fn attribute_values(&self, tree: Option<&str>, attr: &str, names: Option<&[String]>) -> Result<bool, GitError> {
         let listed = match tree {
             None => self.output(&["ls-files", "-z", "--cached", "--others", "--exclude-standard"], None, None)?,
             Some(t) => self.output(&["ls-tree", "-r", "-z", "--name-only", t], None, None)?,
@@ -427,7 +497,7 @@ impl GitSync {
             source = format!("--source={t}");
             args.push(&source);
         }
-        args.push("filter");
+        args.push(attr);
         let attrs = self.output(&args, None, Some(&listed.stdout))?;
         if !attrs.status.success() {
             return Err(GitError::CommandFailed("check-attr"));
@@ -435,7 +505,10 @@ impl GitSync {
         // saída: caminho\0atributo\0valor\0 ...
         let text = String::from_utf8_lossy(&attrs.stdout);
         let parts: Vec<&str> = text.split('\0').collect();
-        Ok(parts.chunks(3).any(|c| c.len() == 3 && c[2] != "unspecified"))
+        Ok(parts.chunks(3).any(|c| c.len() == 3 && match names {
+            None => c[2] != "unspecified",
+            Some(n) => n.iter().any(|x| x == c[2]),
+        }))
     }
 
     /// Como `text`, mas devolve um motivo fixo e legível quando o Git recusa. O stderr nunca sai daqui

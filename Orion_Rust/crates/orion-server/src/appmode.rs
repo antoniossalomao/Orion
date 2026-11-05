@@ -636,6 +636,8 @@ impl Local for Interno {
             }
             let Some(vault) = n.st.settings.vault_dir.clone().or_else(orion_vault::detect_vault_path) else { return };
             let memory = n.st.memory.clone();
+            // o prazo vale também para o Git: depois dele os processos são mortos, não só esperados
+            orion_vault::set_hard_stop(Some(std::time::Duration::from_secs(15)));
             let _ = tokio::time::timeout(std::time::Duration::from_secs(20), rt.spawn_blocking(move || crate::vault_sync::run_blocking(vault, &memory))).await;
         })
     }
