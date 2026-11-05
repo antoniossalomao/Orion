@@ -1,0 +1,118 @@
+{
+ "total": 104.0,
+ "beat": 0.5,
+ "scenes": [
+  {
+   "id": "s0",
+   "txt": "Você abre o notebook. E alguém já sabe o que importa hoje.",
+   "start": 0.0,
+   "voice": 2.6,
+   "dur": 3.578776,
+   "end": 8.0
+  },
+  {
+   "id": "s1",
+   "txt": "Chega de abas, notas e lembretes espalhados.",
+   "start": 8.0,
+   "voice": 8.3,
+   "dur": 2.742857,
+   "end": 12.0
+  },
+  {
+   "id": "s2",
+   "txt": "Assistentes respondem. Mas esquecem tudo. E não tocam no seu computador.",
+   "start": 12.0,
+   "voice": 12.3,
+   "dur": 5.459592,
+   "end": 18.5
+  },
+  {
+   "id": "s3",
+   "txt": "Conheça o Orion.",
+   "start": 18.5,
+   "voice": 20.0,
+   "dur": 1.48898,
+   "end": 24.5
+  },
+  {
+   "id": "s4",
+   "txt": "Rust nativo. Um só executável. Nenhuma porta aberta.",
+   "start": 24.5,
+   "voice": 24.9,
+   "dur": 3.526531,
+   "end": 32.0
+  },
+  {
+   "id": "s5",
+   "txt": "Ele conversa, lê, executa. E mostra cada passo.",
+   "start": 32.0,
+   "voice": 32.4,
+   "dur": 3.84,
+   "end": 39.0
+  },
+  {
+   "id": "s6",
+   "txt": "Ação arriscada? Só com a sua aprovação. Na tela, ou no Telegram.",
+   "start": 39.0,
+   "voice": 39.4,
+   "dur": 4.728163,
+   "end": 47.5
+  },
+  {
+   "id": "s7",
+   "txt": "Sua memória vive no Obsidian. Mais de mil notas, ligadas num grafo que ele consulta antes de responder.",
+   "start": 47.5,
+   "voice": 48.3,
+   "dur": 7.601633,
+   "end": 59.5
+  },
+  {
+   "id": "s8",
+   "txt": "Projetos, rotinas e tarefas longas, rodando em segundo plano.",
+   "start": 59.5,
+   "voice": 59.9,
+   "dur": 4.362449,
+   "end": 66.0
+  },
+  {
+   "id": "s9",
+   "txt": "Voz local. Rosto, objetos e gestos na GPU. Tudo opcional.",
+   "start": 66.0,
+   "voice": 66.4,
+   "dur": 4.362449,
+   "end": 74.0
+  },
+  {
+   "id": "s10",
+   "txt": "Senha com Argon2. Banco cifrado. Chaves no cofre. Conteúdo de fora nunca vira ordem.",
+   "start": 74.0,
+   "voice": 74.4,
+   "dur": 5.982041,
+   "end": 81.5
+  },
+  {
+   "id": "s11",
+   "txt": "Control, Alt, Espaço. Pronto.",
+   "start": 81.5,
+   "voice": 81.9,
+   "dur": 2.324898,
+   "end": 86.5
+  },
+  {
+   "id": "s12",
+   "txt": "Dezesseis módulos. Noventa mil linhas de Rust. Quinhentos e cinquenta testes. Zero reais de API.",
+   "start": 86.5,
+   "voice": 86.9,
+   "dur": 6.713469,
+   "end": 95.0
+  },
+  {
+   "id": "s13",
+   "txt": "Orion. Não é uma IA. É uma extensão do sistema nervoso.",
+   "start": 95.0,
+   "voice": 95.6,
+   "dur": 3.657143,
+   "end": 104.0
+  }
+ ]
+}
