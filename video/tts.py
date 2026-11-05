@@ -15,7 +15,7 @@ os.makedirs('audio',exist_ok=True)
 for s in json.load(open('roteiro.json')):
     f=f"audio/{s['id']}.mp3"
     if os.path.exists(f) and s['id'] not in force: continue
-    body=json.dumps({"text":s['txt'],"model_id":"eleven_multilingual_v2","language_code":"pt","voice_settings":{"stability":0.5,"similarity_boost":0.8,"style":0.25,"use_speaker_boost":True}}).encode()
+    body=json.dumps({"text":s['txt'],"model_id":"eleven_multilingual_v2","language_code":"pt","voice_settings":{"stability":0.38,"similarity_boost":0.8,"style":0.45,"use_speaker_boost":True}}).encode()
     r=urllib.request.Request(f"https://api.elevenlabs.io/v1/text-to-speech/{vid}?output_format=mp3_44100_128",body,{"xi-api-key":key,"Content-Type":"application/json"})
     try: data=urllib.request.urlopen(r,timeout=90).read(); open(f,'wb').write(data);print('ok',s['id'])  # só grava após sucesso
     except Exception as e:
