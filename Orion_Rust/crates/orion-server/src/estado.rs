@@ -639,6 +639,7 @@ pub async fn montar_with_runtime(mut settings: Settings, preserve_extensions:boo
         a.skills = skills_cat.clone();
         a.library = Some(biblioteca.clone());
         a.modos = Some(modos.clone());
+        a.custos = Some(custos.clone());
         a.compactor = compactor_from_settings(&settings, memory.clone());
         // F04.09: ModernBERT local quando os pesos estão instalados; senão, a heurística (e o aviso diz por quê).
         let (injection, load_status) = orion_core::injection_onnx::guard(settings.injection_model.as_deref());

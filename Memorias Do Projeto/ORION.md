@@ -1,6 +1,6 @@
 # Orion — estado, plano e decisões
 
-> Fonte única do estado do projeto. Atualizado em 02/11/2026. Princípios e regras: [REGRAS.md](REGRAS.md). Arquitetura, módulos e referências: [ARQUITETURA.md](ARQUITETURA.md). Melhorias pré-lançamento v1: [ORION_MELHORIAS_PRE_V1.md](ORION_MELHORIAS_PRE_V1.md). Roadmap pós-v1: [ORION_MELHORIAS_POS_V1.md](ORION_MELHORIAS_POS_V1.md). Como rodar: [README](../README.md). Material antigo e detalhado: [ORION_LEGADO.md](ORION_LEGADO.md).
+> Fonte única do estado do projeto. Atualizado em 05/11/2026. Princípios e regras: [REGRAS.md](REGRAS.md). Arquitetura, módulos e referências: [ARQUITETURA.md](ARQUITETURA.md). Melhorias pré-lançamento v1: [ORION_MELHORIAS_PRE_V1.md](ORION_MELHORIAS_PRE_V1.md). Roadmap pós-v1: [ORION_MELHORIAS_POS_V1.md](ORION_MELHORIAS_POS_V1.md). Como rodar: [README](../README.md). Material antigo e detalhado: [ORION_LEGADO.md](ORION_LEGADO.md).
 
 ## Visão
 
@@ -9,6 +9,15 @@ Assistente pessoal com identidade masculina, técnico, direto, não-servil. Não
 *"Não é uma IA. É uma extensão do sistema nervoso."*
 
 Antônio é o administrador: decide, aprova e pode desligar qualquer coisa. Nada que o modelo diga anula isso.
+
+## Medidor de orçamento, rascunho local, cache de 8 bits e esquecimento suave — 05/11/2026
+
+Itens A3, L1, L7 e M3 do Radar Orion. Compilado no Linux; o worker `orion-llama` só existe no Windows e foi conferido num projeto descartável fora do repositório que compila o mesmo `inference.rs` contra o `llama-cpp-2` 0.1.160 (compilou). **Nada rodou com um modelo real e não há aceite no Windows.** Sem teste novo, pela pausa de 21/10/2026.
+
+- **A3, medidor de orçamento:** `Custos::linha_orcamento()` monta o bloco `[ORÇAMENTO DE CHAMADAS]` com o uso e o que resta de cada cota com limite (gateway e provedores). O agente o acrescenta no fim do prompt de sistema, depois da hora, para não quebrar o prefixo estável que o cache do provedor reaproveita. Só informa: não bloqueia nada e não muda a política (REGRAS.md: custo zero (sem API paga)). Sem cota com limite, o bloco não aparece. O `budget.rs` (cotas semanais das CLIs) não entrou: só as cotas diárias do `Custos`.
+- **L1, rascunho por repetição:** `orion_local::lookup::rascunho` propõe até 8 tokens que vieram depois da última vez que os 3 tokens finais apareceram; o worker confere tudo num só passo e aceita só o que a amostragem gulosa escolheria. O texto final é o mesmo que sem rascunho; o ganho é velocidade e depende de a resposta repetir trechos. Se o modelo não aceitar cortar o cache pela metade, o worker refaz o cache e desliga o rascunho nessa resposta. Não é o `ngram-mod` do llama.cpp (que não está na API do `llama-cpp-2`). **Ganho não medido.**
+- **L7, cache de atenção em 8 bits:** `kv_q8` no pedido ao worker liga `Q8_0` para chaves e valores com atenção flash; se o backend recusar, o contexto sobe em f16. **Sem medição de memória nem de qualidade.** O contexto local é de 2048 tokens, então a economia é pequena. O worker novo e o app precisam ser da mesma versão, porque `Request` rejeita campos desconhecidos.
+- **M3, esquecimento suave (desligado por padrão):** com a chave `memoria:esquecimento_suave` ligada (`Store::set_esquecimento_suave`), a busca dá a mensagem de conversa um peso entre 1,0 e 0,5 conforme a idade (meia-vida de 90 dias). Só reordena: nada é apagado, arquivado ou escondido, e fato, documento e nota do vault ficam de fora. **Ainda não há botão nas Configurações.** Esta regra não está em REGRAS.md, que só o Antônio autoriza editar: antes de ligar por padrão ou criar o botão, o princípio precisa ser escrito lá com sua aprovação.
 
 ## Configurações: vault, atalhos globais, estilo e modelos por tarefa — 04/11/2026
 

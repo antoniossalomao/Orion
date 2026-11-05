@@ -204,6 +204,38 @@ impl Custos {
         n
     }
 
+    /// Medidor de orçamento para o modelo (A3): quanto resta de cada cota com limite, para ele
+    /// decidir se aprofunda ou poupa chamadas. Só informa: não bloqueia nada (REGRAS.md: custo zero
+    /// (sem API paga)). `None` quando nenhuma cota tem limite. O estado vem de `resumo`.
+    pub fn linha_orcamento(&self) -> Option<String> {
+        let itens: Vec<String> = self
+            .resumo()
+            .iter()
+            .filter(|r| r["limite"].as_i64().unwrap_or(0) > 0 && r["provedor"].as_str().is_some_and(|p| p == "gateway" || p.starts_with("prov:")))
+            .map(|r| {
+                let (usado, limite) = (r["usado"].as_i64().unwrap_or(0), r["limite"].as_i64().unwrap_or(0));
+                format!(
+                    "- {}: {usado} de {limite} chamadas {} ({}%), restam {}",
+                    r["nome"].as_str().unwrap_or("?"),
+                    if r["periodo"] == "mes" { "no mês" } else { "hoje" },
+                    r["pct"].as_i64().unwrap_or(0),
+                    (limite - usado).max(0)
+                )
+            })
+            .collect();
+        if itens.is_empty() {
+            return None;
+        }
+        let aperto = self.resumo().iter().any(|r| matches!(r["estado"].as_str(), Some("alta") | Some("estourada")));
+        let mut texto = format!("[ORÇAMENTO DE CHAMADAS]\n{}", itens.join("\n"));
+        texto.push_str(if aperto {
+            "\nA cota está apertada: responda direto, junte consultas em uma só chamada e evite ferramentas que não mudem a resposta."
+        } else {
+            "\nUse a cota com juízo: se a resposta já cabe no que você sabe, não gaste chamadas."
+        });
+        Some(texto)
+    }
+
     /// Para o card "Cota de hoje": usado, limite e o estado de cada provedor.
     pub fn resumo(&self) -> Vec<Value> {
         let quotas = self.cotas.read().clone();

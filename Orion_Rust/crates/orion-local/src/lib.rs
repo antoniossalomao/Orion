@@ -3,6 +3,7 @@ pub mod catalog;
 pub mod download;
 #[cfg(windows)]
 pub mod job;
+pub mod lookup;
 pub mod protocol;
 pub mod wake;
 

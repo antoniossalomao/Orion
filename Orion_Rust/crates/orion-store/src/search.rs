@@ -10,6 +10,20 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 
 pub const RRF_K: f64 = 60.0;
 
+/// Esquecimento suave das conversas (opt-in, desligado por padrão): a cada 90 dias o peso de uma
+/// mensagem na busca cai pela metade do que falta até o piso de 0,5. Só reordena; nada é apagado,
+/// arquivado nem escondido, e fato, documento e nota do vault nunca entram nisso (REGRAS.md: o
+/// Orion não decide sozinho qual fato vale).
+pub const MEIA_VIDA_MENSAGEM_DIAS: f64 = 90.0;
+pub const PISO_PESO_MENSAGEM: f64 = 0.5;
+const CHAVE_ESQUECIMENTO_SUAVE: &str = "memoria:esquecimento_suave";
+
+/// Peso de uma mensagem com `idade_s` segundos: 1,0 se nova, tendendo ao piso, nunca abaixo dele.
+pub fn peso_por_idade(idade_s: f64) -> f64 {
+    let dias = (idade_s / 86_400.0).max(0.0);
+    PISO_PESO_MENSAGEM + (1.0 - PISO_PESO_MENSAGEM) * 0.5_f64.powf(dias / MEIA_VIDA_MENSAGEM_DIAS)
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, PartialOrd, Ord)]
 #[serde(rename_all = "lowercase")]
 pub enum Kind {
@@ -133,6 +147,18 @@ impl Store {
                 *v *= PESO_FATO_ANTIGO;
             }
         }
+        // Esquecimento suave (opt-in): só mensagens de conversa, só reordena (ver MEIA_VIDA_MENSAGEM_DIAS)
+        let idade_msg = if self.esquecimento_suave() {
+            let ids: Vec<i64> = ordem_insercao.iter().filter(|(k, _)| *k == Kind::Message).map(|(_, i)| *i).collect();
+            self.pesos_mensagens(&ids)?
+        } else {
+            HashMap::new()
+        };
+        for (i, peso) in &idade_msg {
+            if let Some(v) = placar.get_mut(&(Kind::Message, *i)) {
+                *v *= *peso;
+            }
+        }
         let mut ordem = ordem_insercao;
         ordem.sort_by(|a, b| placar[b].total_cmp(&placar[a]));
         let reranker = self.reranker.lock().clone();
@@ -143,7 +169,13 @@ impl Store {
                 match r.score(query, &trechos) {
                     Ok(notas) if notas.len() == ordem.len() => {
                         for (c, n) in ordem.iter().zip(notas) {
-                            let peso = if c.0 == Kind::Fact && antigos.contains(&c.1) { PESO_FATO_ANTIGO } else { 1.0 };
+                            let peso = if c.0 == Kind::Fact && antigos.contains(&c.1) {
+                                PESO_FATO_ANTIGO
+                            } else if c.0 == Kind::Message {
+                                idade_msg.get(&c.1).copied().unwrap_or(1.0)
+                            } else {
+                                1.0
+                            };
                             placar.insert(*c, n as f64 * peso);
                         }
                         ordem.sort_by(|a, b| placar[b].total_cmp(&placar[a]));
@@ -169,6 +201,33 @@ impl Store {
                 }
             })
             .collect())
+    }
+
+    /// Esquecimento suave das conversas ligado? Desligado por padrão (opt-in).
+    pub fn esquecimento_suave(&self) -> bool {
+        self.meta_get(CHAVE_ESQUECIMENTO_SUAVE).as_deref() == Some("1")
+    }
+
+    pub fn set_esquecimento_suave(&self, ligado: bool) -> Result<()> {
+        self.meta_set(CHAVE_ESQUECIMENTO_SUAVE, if ligado { Some("1") } else { None })
+    }
+
+    /// Peso por idade de cada mensagem pedida (id → peso entre o piso e 1,0).
+    fn pesos_mensagens(&self, ids: &[i64]) -> Result<HashMap<i64, f64>> {
+        if ids.is_empty() {
+            return Ok(HashMap::new());
+        }
+        let marcas = vec!["?"; ids.len()].join(",");
+        let c = self.conn();
+        let mut st = c.prepare(&format!("SELECT id, created_at FROM messages WHERE id IN ({marcas})"))?;
+        let agora = self.now();
+        let rows = st.query_map(rusqlite::params_from_iter(ids.iter()), |r| Ok((r.get::<_, i64>(0)?, r.get::<_, f64>(1)?)))?;
+        let mut saida = HashMap::new();
+        for r in rows {
+            let (id, criada) = r?;
+            saida.insert(id, peso_por_idade(agora - criada));
+        }
+        Ok(saida)
     }
 
     fn fatos_antigos(&self, ids: &[i64]) -> Result<HashSet<i64>> {

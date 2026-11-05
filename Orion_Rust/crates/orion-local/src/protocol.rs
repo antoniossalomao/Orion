@@ -20,6 +20,12 @@ pub struct Request {
     pub gpu: bool,
     pub context: u32,
     pub max_tokens: u32,
+    /// Cache de atenção em 8 bits (L7): menos memória por token de contexto. `false` = f16.
+    #[serde(default)]
+    pub kv_q8: bool,
+    /// Tokens por rascunho de repetição (L1); 0 desliga. O texto final não muda.
+    #[serde(default)]
+    pub rascunho: u32,
 }
 impl Request {
     pub fn validate(&self) -> anyhow::Result<()> {
@@ -29,6 +35,7 @@ impl Request {
             self.max_tokens > 0 && self.max_tokens <= 1024 && self.max_tokens < self.context,
             "limite de resposta inválido"
         );
+        anyhow::ensure!(self.rascunho <= crate::lookup::RASCUNHO_MAX, "rascunho fora do teto");
         anyhow::ensure!(!self.messages.is_empty() && self.messages.len() <= 128, "mensagens inválidas");
         for m in &self.messages {
             anyhow::ensure!(
