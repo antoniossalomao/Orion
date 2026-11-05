@@ -12,3 +12,12 @@
 Logo vetorial: `logo/logo.html`; `node logo/export.js` gera `orion-logo.png` (3780x1000, transparente) e `orion-simbolo.png` (1024²).
 
 A conversa do Telegram na cena de aprovação é ilustrativa; a aprovação por botão existe no código.
+
+## Vídeo do README (`readme/`)
+
+Sem narração, com elementos desenhados (HTML/SVG/canvas) e poucos prints. O ritmo vem de `SLOW` em `index.html`.
+
+1. `cd readme && node prep.js` (injeta `../graph.json`) e `node ../sfx_export.js` (efeitos de `sfxList()`).
+2. `node render_silent.js _play.html orion-apresentacao.mp4`.
+3. `python3 music_slow.py <duração>`: trilha de 84 BPM + efeitos (usa `../sfx_lib.py`), gera `audio_readme.wav`; junte com `ffmpeg -i orion-apresentacao.mp4 -i audio_readme.wav -c:v copy -c:a aac -shortest`.
+4. `python3 make_webp.py orion-apresentacao.mp4 orion-apresentacao.webp 70`: WebP animado (1280x720, 15 fps) que toca sozinho no README.

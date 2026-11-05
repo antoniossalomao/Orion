@@ -1,5 +1,10 @@
 # Orion
 
+<p align="center">
+  <img src="video/readme/orion-apresentacao.webp" width="100%" alt="Orion em 80 segundos: um só executável em Rust, custo zero de API, aprovação por classe de risco, memória no Obsidian, voz e visão locais, segurança e atalhos globais">
+</p>
+<p align="center"><a href="video/readme/orion-apresentacao.mp4">Assistir em 1080p com trilha (MP4)</a> · <a href="video/orion-lancamento-1080p.mp4">vídeo de lançamento com narração</a></p>
+
 Assistente pessoal com identidade masculina: técnico, direto, não-servil. Não é um chatbot. É uma extensão do dia a dia do Antônio: lembra do que importa, age no computador dele e responde de qualquer lugar.
 
 *"Não é uma IA. É uma extensão do sistema nervoso."*
