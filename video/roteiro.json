@@ -1,0 +1,15 @@
+[
+{"id":"s1","txt":"Quantas abas, notas e lembretes você espalha pelo dia?"},
+{"id":"s2","txt":"Assistentes de IA respondem. Mas esquecem tudo, e não tocam no seu computador."},
+{"id":"s3","txt":"Este é o Orion. Não é uma IA. É uma extensão do sistema nervoso."},
+{"id":"s4","txt":"Um app nativo em Rust. Interface e núcleo no mesmo processo, sem porta aberta."},
+{"id":"s5","txt":"Ele conversa, lê arquivos, roda comandos e mostra cada passo que deu."},
+{"id":"s6","txt":"Mas nada arriscado acontece sem você. Execução e ação destrutiva pedem aprovação, na tela ou por um botão no Telegram."},
+{"id":"s7","txt":"A memória vive no seu vault do Obsidian. Fatos, conversas e notas viram um grafo que ele consulta antes de responder."},
+{"id":"s8","txt":"Projetos, rotinas e automações seguem em segundo plano, com horário e permissão."},
+{"id":"s9","txt":"Voz com Whisper local. Rosto, objetos e gestos com modelos na GPU. Tudo opcional, tudo desligado por padrão."},
+{"id":"s10","txt":"Senha com Argon2, banco cifrado, chaves no cofre do sistema. Conteúdo de fora é dado, nunca instrução."},
+{"id":"s11","txt":"Control, Alt, Espaço. E ele está ali."},
+{"id":"s12","txt":"Dezesseis módulos. Mais de noventa mil linhas de Rust. Quinhentos e cinquenta testes. Custo zero de API."},
+{"id":"s13","txt":"Orion. Lembra do que importa, age no seu computador e responde de qualquer lugar."}
+]

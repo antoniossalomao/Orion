@@ -1,0 +1,109 @@
+{
+ "total": 101.775,
+ "scenes": [
+  {
+   "id": "s1",
+   "txt": "Quantas abas, notas e lembretes você espalha pelo dia?",
+   "start": 0.0,
+   "voice": 1.0,
+   "dur": 3.474286,
+   "end": 5.174
+  },
+  {
+   "id": "s2",
+   "txt": "Assistentes de IA respondem. Mas esquecem tudo, e não tocam no seu computador.",
+   "start": 5.174,
+   "voice": 5.724,
+   "dur": 5.198367,
+   "end": 11.622
+  },
+  {
+   "id": "s3",
+   "txt": "Este é o Orion. Não é uma IA. É uma extensão do sistema nervoso.",
+   "start": 11.622,
+   "voice": 13.022,
+   "dur": 4.440816,
+   "end": 18.863
+  },
+  {
+   "id": "s4",
+   "txt": "Um app nativo em Rust. Interface e núcleo no mesmo processo, sem porta aberta.",
+   "start": 18.863,
+   "voice": 19.413,
+   "dur": 5.276735,
+   "end": 25.39
+  },
+  {
+   "id": "s5",
+   "txt": "Ele conversa, lê arquivos, roda comandos e mostra cada passo que deu.",
+   "start": 25.39,
+   "voice": 25.94,
+   "dur": 5.01551,
+   "end": 31.656
+  },
+  {
+   "id": "s6",
+   "txt": "Mas nada arriscado acontece sem você. Execução e ação destrutiva pedem aprovação, na tela ou por um botão no Telegram.",
+   "start": 31.656,
+   "voice": 32.206,
+   "dur": 8.019592,
+   "end": 40.926
+  },
+  {
+   "id": "s7",
+   "txt": "A memória vive no seu vault do Obsidian. Fatos, conversas e notas viram um grafo que ele consulta antes de responder.",
+   "start": 40.926,
+   "voice": 41.726,
+   "dur": 7.105306,
+   "end": 53.031
+  },
+  {
+   "id": "s8",
+   "txt": "Projetos, rotinas e automações seguem em segundo plano, com horário e permissão.",
+   "start": 53.031,
+   "voice": 53.581,
+   "dur": 5.041633,
+   "end": 59.323
+  },
+  {
+   "id": "s9",
+   "txt": "Voz com Whisper local. Rosto, objetos e gestos com modelos na GPU. Tudo opcional, tudo desligado por padrão.",
+   "start": 59.323,
+   "voice": 59.873,
+   "dur": 8.96,
+   "end": 69.533
+  },
+  {
+   "id": "s10",
+   "txt": "Senha com Argon2, banco cifrado, chaves no cofre do sistema. Conteúdo de fora é dado, nunca instrução.",
+   "start": 69.533,
+   "voice": 70.083,
+   "dur": 7.288163,
+   "end": 78.071
+  },
+  {
+   "id": "s11",
+   "txt": "Control, Alt, Espaço. E ele está ali.",
+   "start": 78.071,
+   "voice": 78.571,
+   "dur": 3.004082,
+   "end": 83.175
+  },
+  {
+   "id": "s12",
+   "txt": "Dezesseis módulos. Mais de noventa mil linhas de Rust. Quinhentos e cinquenta testes. Custo zero de API.",
+   "start": 83.175,
+   "voice": 83.675,
+   "dur": 7.418776,
+   "end": 92.294
+  },
+  {
+   "id": "s13",
+   "txt": "Orion. Lembra do que importa, age no seu computador e responde de qualquer lugar.",
+   "start": 92.294,
+   "voice": 92.894,
+   "dur": 5.381224,
+   "end": 101.775
+  }
+ ]
+}
