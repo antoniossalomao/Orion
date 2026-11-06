@@ -35,6 +35,14 @@ jobs:
           [[ "$tag_v" =~ ^[0-9]+(\.[0-9]+){0,3}$ ]] || { echo "::error::versão inválida: $tag_v"; exit 1; }
           [[ "$tag_v" == "$cargo_v" ]] || { echo "::error::tag $TAG não bate com a versão $cargo_v do Cargo.toml"; exit 1; }
           grep -q '^RW' Orion_Rust/crates/orion-setup/release/minisign.pub || { echo "::error::minisign.pub vazio"; exit 1; }
+          # Tag já existente tem de apontar para o commit que vai ser compilado (no disparo manual o
+          # checkout é a ref escolhida em "Run workflow", não a tag).
+          refs=$(git ls-remote origin "refs/tags/$TAG" "refs/tags/$TAG^{}")
+          alvo=$(awk '/\^\{\}$/ {print $1}' <<<"$refs")
+          [ -n "$alvo" ] || alvo=$(awk 'NR==1 {print $1}' <<<"$refs")
+          if [ -n "$alvo" ] && [ "$alvo" != "$GITHUB_SHA" ]; then
+            echo "::error::a tag $TAG aponta para $alvo, mas este run compila $GITHUB_SHA; rode a partir da própria tag"; exit 1
+          fi
 
   build:
     needs: versao
