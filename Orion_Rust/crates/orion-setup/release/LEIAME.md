@@ -7,6 +7,6 @@ O instalador baixa o app do GitHub Releases e só aceita arquivos cujo feed (`la
 2. (feito) A chave pública está commitada aqui.
 3. No GitHub: Settings → Secrets → `MINISIGN_SECRET_KEY` (conteúdo de `minisign.key`) e, se a chave tiver
    senha, `MINISIGN_PASSWORD`. Guarde `minisign.key` fora do repositório.
-4. Publique: `git tag v0.1.0 && git push origin v0.1.0` (ou rode o workflow "Release Windows").
+4. Publique: `git tag v0.1.0 && git push origin v0.1.0` (ou rode o workflow "Release Windows" em `.github/workflows/release.yml`). A tag tem de bater com a versão do `Orion_Rust/Cargo.toml`; o workflow para se não bater ou se a chave do segredo não for o par deste `minisign.pub`.
 
 Com `minisign.pub` vazio o instalador não baixa nada (só usa um pacote que esteja ao lado dele).

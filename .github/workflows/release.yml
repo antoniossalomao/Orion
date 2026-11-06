@@ -1,0 +1,181 @@
+name: Release Windows
+# Publica o instalador e o app no GitHub Releases (F10.11). O instalador pequeno baixa o app daqui:
+# cada variante (cpu/vulkan) tem um feed `latest-<variante>.json` assinado com minisign.
+# Chave pública: Orion_Rust/crates/orion-setup/release/minisign.pub. Segredos: MINISIGN_SECRET_KEY e,
+# se a chave tiver senha, MINISIGN_PASSWORD (veja o LEIAME.md daquela pasta).
+# Dispara com uma tag `v*` igual à versão do Cargo.toml (ex.: v0.1.0) ou pelo botão "Run workflow".
+# Sem testes (ADR 0007). A chave privada só toca o job Linux de publicação, nunca o build Windows.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag do release (ex.: v0.1.0); precisa bater com a versão do Cargo.toml"
+        required: true
+concurrency:
+  group: release
+  cancel-in-progress: false
+permissions:
+  contents: read
+env:
+  TAG: ${{ github.event.inputs.tag || github.ref_name }}
+jobs:
+  versao:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Conferir tag contra a versão do Cargo.toml
+        run: |
+          set -euo pipefail
+          cargo_v=$(sed -n '/^\[workspace.package\]/,/^\[/{s/^version *= *"\(.*\)"/\1/p}' Orion_Rust/Cargo.toml | head -1)
+          tag_v="${TAG#v}"
+          echo "Cargo.toml: $cargo_v · tag: $TAG"
+          [[ "$TAG" == v* ]] || { echo "::error::a tag precisa começar com v (ex.: v$cargo_v)"; exit 1; }
+          [[ "$tag_v" =~ ^[0-9]+(\.[0-9]+){0,3}$ ]] || { echo "::error::versão inválida: $tag_v"; exit 1; }
+          [[ "$tag_v" == "$cargo_v" ]] || { echo "::error::tag $TAG não bate com a versão $cargo_v do Cargo.toml"; exit 1; }
+          grep -q '^RW' Orion_Rust/crates/orion-setup/release/minisign.pub || { echo "::error::minisign.pub vazio"; exit 1; }
+          # Tag já existente tem de apontar para o commit que vai ser compilado (no disparo manual o
+          # checkout é a ref escolhida em "Run workflow", não a tag).
+          refs=$(git ls-remote origin "refs/tags/$TAG" "refs/tags/$TAG^{}")
+          alvo=$(awk '/\^\{\}$/ {print $1}' <<<"$refs")
+          [ -n "$alvo" ] || alvo=$(awk 'NR==1 {print $1}' <<<"$refs")
+          if [ -n "$alvo" ] && [ "$alvo" != "$GITHUB_SHA" ]; then
+            echo "::error::a tag $TAG aponta para $alvo, mas este run compila $GITHUB_SHA; rode a partir da própria tag"; exit 1
+          fi
+
+  build:
+    needs: versao
+    runs-on: windows-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        variante: [cpu, vulkan]
+    defaults:
+      run:
+        working-directory: Orion_Rust
+    env:
+      LIBCLANG_PATH: C:\Program Files\LLVM\bin
+      # Alvo curto: evita caminhos longos no MSBuild.
+      CARGO_TARGET_DIR: C:\t
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: Orion_Rust -> C:/t
+          key: release-${{ matrix.variante }}
+      - name: Instalar NASM para o OpenSSL embutido do SQLCipher
+        shell: pwsh
+        run: |
+          if (!(Get-Command nasm -ErrorAction SilentlyContinue)) {
+            choco install nasm -y --no-progress
+            "C:\Program Files\NASM" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+          }
+      - name: Instalar SDK Vulkan
+        if: matrix.variante == 'vulkan'
+        shell: pwsh
+        run: |
+          for ($i = 1; $i -le 4; $i++) {
+            choco install vulkan-sdk --version=1.4.341 -y --no-progress
+            if (Test-Path 'C:\VulkanSDK') { break }
+            if ($i -lt 4) { Start-Sleep -Seconds (30 * $i) }
+          }
+          $sdk = (Get-ChildItem 'C:\VulkanSDK' -Directory | Sort-Object Name -Descending | Select-Object -First 1).FullName
+          "VULKAN_SDK=$sdk" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "$sdk\Bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+          if (!(Get-Command ninja -ErrorAction SilentlyContinue)) { choco install ninja -y --no-progress }
+      - name: Compilar (release)
+        env:
+          CMAKE_GENERATOR: ${{ matrix.variante == 'vulkan' && 'Ninja' || '' }}
+        shell: pwsh
+        run: |
+          $f = if ('${{ matrix.variante }}' -eq 'vulkan') { 'orion-server/local-vulkan,orion-server/sqlcipher,orion-llama/vulkan' } else { 'orion-server/sqlcipher' }
+          cargo build --release --locked -p orion-server -p orion-llama -p orion-setup --features $f
+          if ($LASTEXITCODE -ne 0) { throw "cargo build falhou ($LASTEXITCODE)" }
+      - name: Separar os arquivos da variante
+        shell: pwsh
+        run: |
+          $v = '${{ matrix.variante }}'
+          New-Item -ItemType Directory -Force saida | Out-Null
+          foreach ($n in 'orion', 'orion-llama') {
+            if (!(Test-Path "C:\t\release\$n.exe")) { throw "faltou $n.exe" }
+            Copy-Item "C:\t\release\$n.exe" "saida\$n-$v.exe"
+          }
+          if ($v -eq 'cpu') { Copy-Item C:\t\release\orion-setup.exe 'saida\Orion-Setup.exe' }
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-${{ matrix.variante }}
+          path: Orion_Rust/saida
+          if-no-files-found: error
+
+  publicar:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: Orion_Rust/crates/orion-setup/release
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: release-*
+          merge-multiple: true
+          path: saida
+      - name: Montar os feeds (latest-cpu.json / latest-vulkan.json)
+        run: |
+          set -euo pipefail
+          versao="${TAG#v}"
+          base="https://github.com/${{ github.repository }}/releases/download/$TAG"
+          for v in cpu vulkan; do
+            arquivos='[]'
+            for n in orion orion-llama; do
+              a="saida/$n-$v.exe"
+              test -s "$a"
+              arquivos=$(jq -c --arg name "$n.exe" --arg url "$base/$n-$v.exe" \
+                --arg sha "$(sha256sum "$a" | cut -d' ' -f1)" --argjson bytes "$(stat -c%s "$a")" \
+                '. + [{name: $name, url: $url, sha256: $sha, bytes: $bytes}]' <<<"$arquivos")
+            done
+            jq -cn --arg version "$versao" --argjson files "$arquivos" \
+              '{version: $version, channel: "stable", notes: "", files: $files}' > "saida/latest-$v.json"
+            cat "saida/latest-$v.json"; echo
+          done
+          test -s saida/Orion-Setup.exe
+      - name: Assinar e conferir os feeds (minisign)
+        env:
+          MINISIGN_SECRET_KEY: ${{ secrets.MINISIGN_SECRET_KEY }}
+          MINISIGN_PASSWORD: ${{ secrets.MINISIGN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "${MINISIGN_SECRET_KEY:-}" ]; then
+            echo "::error::defina o segredo MINISIGN_SECRET_KEY (veja Orion_Rust/crates/orion-setup/release/LEIAME.md)"; exit 1
+          fi
+          sudo apt-get update -qq && sudo apt-get install -y -qq minisign
+          umask 077
+          chave="$RUNNER_TEMP/minisign.key"
+          printf '%s\n' "$MINISIGN_SECRET_KEY" > "$chave"
+          trap 'rm -f "$chave"' EXIT
+          pub=Orion_Rust/crates/orion-setup/release/minisign.pub
+          for v in cpu vulkan; do
+            feed="saida/latest-$v.json"
+            printf '%s\n' "${MINISIGN_PASSWORD:-}" | minisign -S -s "$chave" -m "$feed" -x "$feed.minisig" -t "Orion $TAG ($v)"
+            # a chave do segredo tem de ser o par do minisign.pub que vai dentro do instalador
+            minisign -V -p "$pub" -m "$feed" -x "$feed.minisig"
+          done
+      - name: Somas SHA-256
+        run: (cd saida && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt)
+      - name: Criar release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cat > notas.md <<TXT
+          Instale com **Orion-Setup.exe**: ele baixa o app da variante certa (cpu ou vulkan) e confere a assinatura minisign e o SHA-256.
+          O Windows pode avisar "app não reconhecido" (SmartScreen) porque os executáveis não são assinados com certificado: clique em Mais informações → Executar assim mesmo.
+          TXT
+          if gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "::error::o release $TAG já existe; apague-o ou use outra versão"; exit 1
+          fi
+          gh release create "$TAG" saida/* --repo "${{ github.repository }}" --target "${{ github.sha }}" \
+            --title "Orion $TAG" --notes-file notas.md --generate-notes
