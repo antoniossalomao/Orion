@@ -486,6 +486,13 @@ pub async fn montar_with_runtime(mut settings: Settings, preserve_extensions:boo
     // registro de saída (REGRAS.md: toda saída de dado fica registrada, sem conteúdo)
     orion_ai::saidas::definir_destino(Some(orion_ai::saidas::destino_store(memory.clone())));
     let ops = Arc::new(Operations::new(memory.clone()));
+    // F02.23: vigias de pasta criadas antes do bloqueio param agora
+    if !settings.blocked_roots.is_empty() {
+        let bloqueadas: Vec<std::path::PathBuf> = settings.blocked_roots.iter().map(|p| std::path::PathBuf::from(orion_policy::paths::norm(&p.to_string_lossy()))).collect();
+        if let Err(e) = ops.watch_purge_blocked(&bloqueadas) {
+            tracing::warn!("não consegui parar as vigias de pastas bloqueadas: {e}");
+        }
+    }
     orion_core::documents::recuperar_interrompidos(&memory);
     let ops_audit = ops.clone();
     let modos = Arc::new(Modos::new(memory.clone(), &settings.dnd_at, Some(Arc::new(move |e| ops_audit.audit_add(e).map(|_| ()).map_err(Into::into)))));

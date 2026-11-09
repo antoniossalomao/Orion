@@ -275,7 +275,7 @@ impl PolicyEngine {
             }
         }
         // F02.23: pasta bloqueada nega leitura e escrita, antes de qualquer autorização persistente.
-        for arg in spec.path_arg.as_deref().into_iter().chain(spec.read_path_arg.as_deref()).chain((call.name == "delegar").then_some("pasta")) {
+        for arg in spec.path_arg.as_deref().into_iter().chain(spec.read_path_arg.as_deref()).chain((call.name == "delegar" || call.name == "iniciar_vigilancia_pasta").then_some("pasta")) {
             if let Some(motivo) = self.path_guard.check_blocked(&call.arg_str(arg)) {
                 return Decision::new(Action::Deny, r, motivo);
             }

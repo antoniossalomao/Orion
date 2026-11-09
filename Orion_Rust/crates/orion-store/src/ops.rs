@@ -660,6 +660,25 @@ impl Operations {
         self.s.tx(|c| Ok(c.execute("DELETE FROM meta WHERE key=?", [chave])? > 0))
     }
 
+    /// F02.23: para de vigiar as pastas que estão dentro de pastas bloqueadas (vigias criadas antes do bloqueio).
+    pub fn watch_purge_blocked(&self, bloqueadas: &[PathBuf]) -> Result<usize> {
+        if bloqueadas.is_empty() {
+            return Ok(0);
+        }
+        let raizes: Vec<PathBuf> = bloqueadas.iter().map(|b| std::fs::canonicalize(b).unwrap_or_else(|_| b.clone())).collect();
+        let mut n = 0;
+        for r in self.s.query("SELECT key FROM meta WHERE key LIKE 'watch:%'", &[])? {
+            let chave = s(&r, "key").to_string();
+            let pasta = PathBuf::from(&chave["watch:".len()..]);
+            let real = std::fs::canonicalize(&pasta).unwrap_or(pasta);
+            if raizes.iter().any(|raiz| real.starts_with(raiz)) {
+                self.s.tx(|c| Ok(c.execute("DELETE FROM meta WHERE key=?", [&chave])?))?;
+                n += 1;
+            }
+        }
+        Ok(n)
+    }
+
     /// Compara cada pasta vigiada com a última foto e avisa dos nomes novos.
     pub fn watch_poll(&self) -> Result<usize> {
         let mut avisos = 0;
