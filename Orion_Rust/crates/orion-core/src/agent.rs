@@ -1003,7 +1003,7 @@ impl Agent {
         let fut: std::pin::Pin<Box<dyn std::future::Future<Output = String> + Send + '_>> = if chamada.name == crate::subagente::NOME {
             let heranca = {
                 let c = ctx_arc.lock();
-                crate::subagente::Heranca { allowed_tools: c.allowed_tools.clone(), authorized: c.authorized.clone() }
+                crate::subagente::Heranca { allowed_tools: c.allowed_tools.clone(), authorized: c.authorized.clone(), project_id: c.project_id.clone() }
             };
             Box::pin(crate::subagente::HERANCA.scope(heranca, fut))
         } else {

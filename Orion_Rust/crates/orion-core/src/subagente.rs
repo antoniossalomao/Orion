@@ -21,6 +21,7 @@ use tokio::sync::Semaphore;
 pub struct Heranca {
     pub allowed_tools: Option<std::collections::HashSet<String>>,
     pub authorized: Option<Arc<dyn Fn() -> bool + Send + Sync>>,
+    pub project_id: Option<String>,
 }
 
 tokio::task_local! {
@@ -83,7 +84,9 @@ pub fn ferramenta(s: Arc<Subagentes>) -> Tool {
                 };
                 let id = s.contador.fetch_add(1, Ordering::SeqCst) + 1;
                 let canal = format!("{CANAL}:{}:{id}", std::process::id());
-                let Some(sessao) = agente.memory.new_session(&canal, Some(&format!("Subagente: {tarefa}").chars().take(120).collect::<String>()), None).ok() else {
+                // a conversa do filho nasce no projeto do chamador, com as mesmas regras de memória pessoal dele
+                let heranca = HERANCA.try_with(|h| h.clone()).unwrap_or_default();
+                let Some(sessao) = agente.memory.new_session(&canal, Some(&format!("Subagente: {tarefa}").chars().take(120).collect::<String>()), heranca.project_id.as_deref()).ok() else {
                     return Ok(json!({"ok": false, "erro": "não consegui abrir a conversa do subagente", "codigo": "sem_conversa"}));
                 };
                 // a tarefa pode ter nascido de conteúdo privado do chamador: o subagente começa privado, então o
@@ -92,7 +95,6 @@ pub fn ferramenta(s: Arc<Subagentes>) -> Tool {
                 // o pai pode ter lido conteúdo externo: o filho nasce contaminado, então URL e escrita pedem confirmação
                 let _ = agente.memory.counter_set(&format!("taint:{}", sessao.id), 1);
                 // sem recursão: o subagente enxerga todas as ferramentas menos esta (a política barra o resto)
-                let heranca = HERANCA.try_with(|h| h.clone()).unwrap_or_default();
                 let permitidas: std::collections::HashSet<String> = agente
                     .tools
                     .read()
