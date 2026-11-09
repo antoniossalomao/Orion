@@ -177,6 +177,26 @@ impl PathGuard {
             .then(|| "pasta bloqueada nas Configurações: nada dela é lido nem escrito pelo Orion".to_string())
     }
 
+    /// Comando de shell que cita uma pasta bloqueada (com `/` ou `\`, maiúsculas ou minúsculas, ou como
+    /// `~/...`). É uma checagem de texto: não pega `cd` seguido de caminho relativo nem variáveis, por isso,
+    /// com pastas bloqueadas, o motor também tira a execução automática de comandos de shell.
+    pub fn command_touches_blocked(&self, cmd: &str) -> Option<String> {
+        if self.blocked_roots.is_empty() {
+            return None;
+        }
+        let texto = cmd.replace('\\', "/").to_lowercase();
+        let h = norm(&home().to_string_lossy()).replace('\\', "/").to_lowercase();
+        let citada = self.blocked_roots.iter().any(|raiz| {
+            let r = norm(&raiz.to_string_lossy()).replace('\\', "/").to_lowercase();
+            if r.is_empty() {
+                return false;
+            }
+            let til = r.strip_prefix(&format!("{h}/")).map(|rel| format!("~/{rel}"));
+            texto.contains(&r) || til.is_some_and(|t| texto.contains(&t))
+        });
+        citada.then(|| "o comando cita uma pasta bloqueada nas Configurações".to_string())
+    }
+
     /// `None` se pode escrever sem confirmação; senão o motivo da confirmação.
     pub fn check_write(&self, path: &str) -> Option<String> {
         if path.trim().is_empty() {

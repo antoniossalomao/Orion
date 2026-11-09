@@ -268,6 +268,12 @@ impl PolicyEngine {
         if let Some(limite) = self.rate.check(&call.name) {
             return Decision::new(Action::Deny, r, limite);
         }
+        // F02.23 (shell): comando que cita pasta bloqueada é negado.
+        if let Some(arg) = spec.cmd_arg.as_deref() {
+            if let Some(motivo) = self.path_guard.command_touches_blocked(&call.arg_str(arg)) {
+                return Decision::new(Action::Deny, r, motivo);
+            }
+        }
         // F02.23: pasta bloqueada nega leitura e escrita, antes de qualquer autorização persistente.
         for arg in spec.path_arg.as_deref().into_iter().chain(spec.read_path_arg.as_deref()).chain((call.name == "delegar").then_some("pasta")) {
             if let Some(motivo) = self.path_guard.check_blocked(&call.arg_str(arg)) {
@@ -283,7 +289,10 @@ impl PolicyEngine {
                 Path::new(&target).starts_with(Path::new(&root))
             })
         });
-        if self.without_confirmation() && !protected_write && !ctx.read_only {
+        // com pasta bloqueada, shell não roda sozinho nem com autorização persistente: o texto do comando
+        // não prova que ele não toca nela (`cd`, variáveis), então você vê cada comando antes
+        let shell_com_bloqueio = spec.cmd_arg.is_some() && !self.path_guard.blocked_roots.is_empty();
+        if self.without_confirmation() && !protected_write && !ctx.read_only && !shell_com_bloqueio {
             return Decision::new(Action::Allow, r, "autorização persistente deste computador");
         }
         let Some(motivo) = self.motivo_confirmacao(&spec, risk, call, ctx) else {
@@ -328,7 +337,9 @@ impl PolicyEngine {
         if risk == Risk::Exec {
             if let Some(arg) = &spec.cmd_arg {
                 let v = classify_command(&call.arg_str(arg));
-                if !v.read_only {
+                if !self.path_guard.blocked_roots.is_empty() {
+                    motivo = Some("há pastas bloqueadas: todo comando de shell pede confirmação".into());
+                } else if !v.read_only {
                     motivo = Some(format!("execução fora da lista de leitura segura: {}", v.reason));
                 }
             } else {

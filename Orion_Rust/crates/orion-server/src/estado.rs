@@ -880,7 +880,8 @@ pub async fn montar_with_runtime(mut settings: Settings, preserve_extensions:boo
             backup_dir: if orion_core::onboarding::Profile::load(&settings.data_dir)?.is_some(){None}else{settings.backup_dir.clone()},
             backup_keep: settings.backup_keep,
             vault_dir: settings.vault_dir.clone(),
-            blocked_roots: settings.blocked_roots.clone(),
+            // `~/...` e `..` resolvidos como no guarda de caminhos, senão o índice não casaria com o bloqueio
+            blocked_roots: settings.blocked_roots.iter().map(|p| std::path::PathBuf::from(orion_policy::paths::norm(&p.to_string_lossy()))).collect(),
             audit_days: settings.audit_retention_days,
             briefing_at: settings.briefing_at.clone(),
             gateway_down_min: settings.gateway_down_min,
