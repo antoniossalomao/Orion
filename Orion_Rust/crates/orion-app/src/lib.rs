@@ -4,6 +4,7 @@
 pub mod anim;
 pub mod app;
 pub mod camera_ui;
+pub mod ceu;
 pub mod chart;
 pub mod data;
 pub mod graph;

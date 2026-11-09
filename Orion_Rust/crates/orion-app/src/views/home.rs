@@ -2,11 +2,10 @@
 
 use crate::app::{App, Msg, View};
 use crate::icons::icon;
-use crate::sky::Sky;
 use crate::theme as t;
 use crate::ui::*;
 use iced::alignment::{Horizontal, Vertical};
-use iced::widget::{button, canvas, column, container, rich_text, row, span, stack};
+use iced::widget::{button, column, container, rich_text, row, span, stack};
 use iced::{Background, Border, Length};
 
 pub fn local_hour() -> u32 {
@@ -69,7 +68,7 @@ fn recent_projects(app: &App) -> Vec<usize> {
 }
 
 pub fn view(app: &App) -> El<'_> {
-    let sky = canvas(Sky { alpha: 0.55, constellation: true, intro: 1.0, belt: if app.voice { 1.0 } else { 0.0 } }).width(Length::Fill).height(Length::Fill);
+    let sky = iced::widget::image(app.ceu.img.clone()).content_fit(iced::ContentFit::Cover).opacity(0.7_f32).width(Length::Fill).height(Length::Fill);
     let hour = app.hour.unwrap_or_else(local_hour);
     let size = (app.win.width * 0.05).clamp(34.0, 46.0);
     let hello_spans: Vec<iced::widget::text::Span<'_, (), iced::Font>> = vec![
