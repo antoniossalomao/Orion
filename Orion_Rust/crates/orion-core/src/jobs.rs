@@ -80,6 +80,8 @@ pub struct JobsConfig {
     pub backup_dir: Option<PathBuf>,
     pub backup_keep: usize,
     pub vault_dir: Option<PathBuf>,
+    /// Pastas bloqueadas (F02.23): notas dentro delas não entram no índice do vault.
+    pub blocked_roots: Vec<PathBuf>,
     pub audit_days: i64,
     pub briefing_at: String,
     pub briefing_window_h: f64,
@@ -98,6 +100,7 @@ impl Default for JobsConfig {
             backup_dir: None,
             backup_keep: 7,
             vault_dir: None,
+            blocked_roots: vec![],
             audit_days: 90,
             briefing_at: String::new(),
             briefing_window_h: 6.0,
@@ -413,7 +416,7 @@ impl JobRunner {
         }
         if let Some(dir) = &self.cfg.vault_dir {
             if self.devido("vault") {
-                if let Some(c) = Self::passo(rel, "vault", self.memory.index_vault(dir).map_err(Into::into)) {
+                if let Some(c) = Self::passo(rel, "vault", self.memory.index_vault_excluindo(dir, &self.cfg.blocked_roots).map_err(Into::into)) {
                     rel.vault = Some(json!({"new": c.new, "updated": c.updated, "same": c.same, "removed": c.removed}));
                 }
             }

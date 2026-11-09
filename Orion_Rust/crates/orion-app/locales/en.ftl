@@ -1754,3 +1754,5 @@ ui-1315 = { "Could not prepare the print page." }
 ui-1316 = { "Could not open the browser to print." }
 ui-1317 = { "Orion recovery code" }
 ui-1318 = { "Keep this sheet away from the computer. It opens your data if you forget the password and works only once: after it is used, Orion generates another." }
+ui-1319 = { "Blocked folders (separated by semicolons)" }
+ui-1320 = { "Folders Orion never reads or writes, even with a persistent authorization; nothing from them goes to the model. Takes effect the next time you open it." }

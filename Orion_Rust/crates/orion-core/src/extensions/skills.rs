@@ -28,7 +28,7 @@ static REFER: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"(?:references|scr
 static ESQUEMA: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[A-Za-z][A-Za-z0-9+.\-]*:").unwrap());
 
 fn guarda() -> PathGuard {
-    PathGuard { protected_roots: vec![], safe_roots: vec![], system_roots: vec![] }
+    PathGuard { protected_roots: vec![], safe_roots: vec![], system_roots: vec![], blocked_roots: vec![] }
 }
 
 #[derive(Debug, Clone, PartialEq)]

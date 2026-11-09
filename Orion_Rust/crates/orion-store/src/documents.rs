@@ -140,9 +140,23 @@ impl Store {
     /// Indexa os `.md` da pasta (ignora pastas com ponto, como `.obsidian`) e remove os que
     /// sumiram.
     pub fn index_vault(&self, pasta: &Path) -> Result<VaultCount> {
+        self.index_vault_excluindo(pasta, &[])
+    }
+
+    /// Como `index_vault`, mas notas dentro de pastas bloqueadas (F02.23) nunca entram no índice: o que já
+    /// estava indexado delas sai na mesma passada, então nada delas chega à busca, aos vetores nem ao modelo.
+    pub fn index_vault_excluindo(&self, pasta: &Path, bloqueadas: &[std::path::PathBuf]) -> Result<VaultCount> {
         let mut contagem = VaultCount::default();
         let mut arquivos = vec![];
         listar_md(pasta, pasta, &mut arquivos);
+        if !bloqueadas.is_empty() {
+            // o caminho é resolvido antes de comparar (symlink e `..` não furam o bloqueio)
+            let raizes: Vec<std::path::PathBuf> = bloqueadas.iter().map(|b| std::fs::canonicalize(b).unwrap_or_else(|_| b.clone())).collect();
+            arquivos.retain(|(_, arq)| {
+                let real = std::fs::canonicalize(arq).unwrap_or_else(|_| arq.clone());
+                !raizes.iter().any(|r| real.starts_with(r))
+            });
+        }
         arquivos.sort();
         let mut vistos: HashSet<String> = HashSet::new();
         let mut links: BTreeMap<String, HashSet<String>> = BTreeMap::new();

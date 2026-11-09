@@ -149,17 +149,32 @@ pub struct PathGuard {
     pub protected_roots: Vec<PathBuf>,
     pub safe_roots: Vec<PathBuf>,
     pub system_roots: Vec<String>,
+    /// Pastas que você bloqueou (F02.23): nem ler nem escrever, com ou sem autorização persistente.
+    pub blocked_roots: Vec<PathBuf>,
 }
 
 impl Default for PathGuard {
     fn default() -> Self {
-        PathGuard { protected_roots: vec![], safe_roots: default_safe_roots(), system_roots: system_roots() }
+        PathGuard { protected_roots: vec![], safe_roots: default_safe_roots(), system_roots: system_roots(), blocked_roots: vec![] }
     }
 }
 
 impl PathGuard {
     pub fn new(protected_roots: Vec<PathBuf>) -> Self {
         PathGuard { protected_roots, ..Default::default() }
+    }
+
+    /// `Some(motivo)` se o caminho está numa pasta bloqueada por você: a ação é negada, não confirmada.
+    /// O caminho é resolvido antes (symlink e `..` não furam o bloqueio).
+    pub fn check_blocked(&self, path: &str) -> Option<String> {
+        if self.blocked_roots.is_empty() || path.trim().is_empty() {
+            return None;
+        }
+        let alvo = norm(path);
+        self.blocked_roots
+            .iter()
+            .any(|raiz| dentro(&alvo, &norm(&raiz.to_string_lossy())))
+            .then(|| "pasta bloqueada nas Configurações: nada dela é lido nem escrito pelo Orion".to_string())
     }
 
     /// `None` se pode escrever sem confirmação; senão o motivo da confirmação.

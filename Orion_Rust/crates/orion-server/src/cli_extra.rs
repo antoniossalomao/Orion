@@ -50,7 +50,7 @@ pub fn posso_desligar(s: &Settings) -> anyhow::Result<i32> {
 fn guarda(s: &Settings) -> PathGuard {
     let mut safe = orion_policy::paths::default_safe_roots();
     safe.extend(s.extra_safe_roots.iter().cloned());
-    PathGuard { protected_roots: vec![project_root()], safe_roots: safe, system_roots: orion_policy::paths::system_roots() }
+    PathGuard { protected_roots: vec![project_root()], safe_roots: safe, system_roots: orion_policy::paths::system_roots(), blocked_roots: s.blocked_roots.clone() }
 }
 
 /// Organizador de Downloads com regras suas (E9.4).

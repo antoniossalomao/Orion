@@ -14,7 +14,7 @@ fn cenario() -> Cenario {
     let docs = tmp.path().join("Documents");
     std::fs::create_dir_all(&projeto).unwrap();
     std::fs::create_dir_all(&docs).unwrap();
-    let guard = PathGuard { protected_roots: vec![projeto], safe_roots: vec![docs], system_roots: vec![] };
+    let guard = PathGuard { protected_roots: vec![projeto], safe_roots: vec![docs], system_roots: vec![], blocked_roots: vec![] };
     Cenario { tmp, guard }
 }
 

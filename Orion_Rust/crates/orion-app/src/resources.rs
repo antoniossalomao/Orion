@@ -374,6 +374,12 @@ const FIELDS: &[Field] = &[
         List,
     ),
     (
+        "blocked_roots",
+        "storage",
+        "Pastas bloqueadas (separadas por ponto e vírgula)",
+        List,
+    ),
+    (
         "rerank",
         "memory",
         "Reordenar resultados com modelo local",
@@ -559,6 +565,7 @@ const DESCRIPTIONS: &[(&str, &str)] = &[
     ("backup_keep", "Quantos backups antigos manter."),
     ("repos", "Repositórios que o Orion pode ler."),
     ("extra_safe_roots", "Pastas onde o Orion pode ler e escrever."),
+    ("blocked_roots", "Pastas que o Orion nunca lê nem escreve, nem com autorização persistente; nada delas vai ao modelo. Vale na próxima abertura."),
     ("rerank", "Reordena resultados de busca com um modelo local."),
     ("vault_sync", "O Orion faz pull, commit do que mudou e push do vault sozinho, com o login do Git deste computador. Arquivos com segredo ficam só locais e, em conflito, nada é sobrescrito."),
     ("memory_soft_forgetting", "Conversas antigas pesam um pouco menos na busca (no mínimo metade, depois de meses). Nada é apagado nem escondido; fatos, documentos e notas do vault não mudam."),

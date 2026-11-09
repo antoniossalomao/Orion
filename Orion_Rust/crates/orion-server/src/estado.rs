@@ -159,7 +159,7 @@ pub fn apply_tool_permissions(
 pub fn build_policy(settings: &Settings, ops: Option<Arc<Operations>>) -> PolicyEngine {
     let mut safe = orion_policy::paths::default_safe_roots();
     safe.extend(settings.extra_safe_roots.iter().cloned());
-    let guard = PathGuard { protected_roots: vec![project_root()], safe_roots: safe, system_roots: orion_policy::paths::system_roots() };
+    let guard = PathGuard { protected_roots: vec![project_root()], safe_roots: safe, system_roots: orion_policy::paths::system_roots(), blocked_roots: settings.blocked_roots.clone() };
     let approvals = Arc::new(ApprovalStore::new(settings.approval_ttl_s, orion_policy::wall_clock()));
     PolicyEngine::new(guard).with_approvals(approvals).with_audit(Arc::new(move |evento| {
         tracing::info!(target: "orion.audit", "tool_decision {}", evento);
@@ -880,6 +880,7 @@ pub async fn montar_with_runtime(mut settings: Settings, preserve_extensions:boo
             backup_dir: if orion_core::onboarding::Profile::load(&settings.data_dir)?.is_some(){None}else{settings.backup_dir.clone()},
             backup_keep: settings.backup_keep,
             vault_dir: settings.vault_dir.clone(),
+            blocked_roots: settings.blocked_roots.clone(),
             audit_days: settings.audit_retention_days,
             briefing_at: settings.briefing_at.clone(),
             gateway_down_min: settings.gateway_down_min,

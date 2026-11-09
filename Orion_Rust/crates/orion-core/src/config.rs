@@ -58,6 +58,8 @@ pub struct Settings {
     pub lock_exit: bool,
     pub approval_ttl_s: u64,
     pub extra_safe_roots: Vec<PathBuf>,
+    /// Pastas bloqueadas (F02.23): as ferramentas nunca leem nem escrevem nelas e nada delas vai ao modelo.
+    pub blocked_roots: Vec<PathBuf>,
     pub admin_token: String,
     pub auth_user: String,
     pub seed_default_password: bool,
@@ -436,6 +438,7 @@ impl Settings {
             lock_exit: e.b("lock_exit", false)?,
             approval_ttl_s: e.num("approval_ttl_s", 600u64, Some(30), None)?,
             extra_safe_roots: e.str_list("extra_safe_roots", vec![], ',')?.into_iter().map(PathBuf::from).collect(),
+            blocked_roots: e.str_list("blocked_roots", vec![], ',')?.into_iter().map(PathBuf::from).collect(),
             admin_token,
             auth_user,
             seed_default_password: e.b("seed_default_password", false)?,
