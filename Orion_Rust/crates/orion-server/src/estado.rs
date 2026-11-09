@@ -471,6 +471,8 @@ pub async fn montar_with_runtime(mut settings: Settings, preserve_extensions:boo
     let s2 = settings.clone();
     let memory = Arc::new(tokio::task::spawn_blocking(move || memory_from_settings(&s2)).await??);
     memory.meta_set("sources:repo_roots", Some(&serde_json::to_string(&settings.repos)?))?;
+    // F02.23: o vault não sincroniza com o Git enquanto houver pasta bloqueada dentro dele
+    crate::vault_sync::definir_bloqueadas(settings.blocked_roots.iter().map(|p| std::path::PathBuf::from(orion_policy::paths::norm(&p.to_string_lossy()))).collect());
     // F02.23: notas que já estavam indexadas numa pasta que você bloqueou saem agora, antes de a busca e
     // os embeddings existirem para elas (não esperam o trabalho periódico do vault)
     if let (Some(vault), false) = (&settings.vault_dir, settings.blocked_roots.is_empty()) {

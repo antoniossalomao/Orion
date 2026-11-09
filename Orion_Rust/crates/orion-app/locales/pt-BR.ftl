@@ -1760,3 +1760,4 @@ ui-1321 = { "Subagentes ao mesmo tempo (1 a 4)" }
 ui-1322 = { "Quantos subagentes de leitura o Orion pode rodar ao mesmo tempo. Eles só leem (nunca escrevem nem executam) e o relatório conta como conteúdo externo. Vale na próxima abertura." }
 ui-1323 = { "Continuar a tarefa que foi interrompida" }
 ui-1324 = { "Nenhuma tarefa interrompida nesta conversa para retomar." }
+ui-1325 = { "Sincronização do vault suspensa: há uma pasta bloqueada dentro dele (ou ele está numa pasta bloqueada). Tire o bloqueio para sincronizar." }

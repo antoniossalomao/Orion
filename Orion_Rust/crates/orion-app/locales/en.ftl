@@ -1760,3 +1760,4 @@ ui-1321 = { "Subagents at the same time (1 to 4)" }
 ui-1322 = { "How many read-only subagents Orion can run at the same time. They only read (never write or run anything) and their report counts as external content. Takes effect the next time you open it." }
 ui-1323 = { "Continue the task that was interrupted" }
 ui-1324 = { "No interrupted task in this conversation to resume." }
+ui-1325 = { "Vault sync suspended: a blocked folder is inside it (or it is inside a blocked folder). Remove the block to sync." }
