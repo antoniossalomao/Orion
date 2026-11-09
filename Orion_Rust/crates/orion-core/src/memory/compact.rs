@@ -157,7 +157,9 @@ impl Compactor {
 const FINAL: &str = "resumo_final:";
 /// Falas mínimas (suas e do Orion) para a conversa merecer resumo.
 pub const MIN_FALAS_FINAL: i64 = 4;
-const MAX_FINAIS_POR_RODADA: i64 = 20;
+const MAX_FINAIS_POR_RODADA: usize = 20;
+/// Janela de candidatas lida do banco; privadas e já cobertas saem depois, então ela é folgada.
+const JANELA_FINAIS: i64 = 1000;
 
 /// Canais que não são conversa com você (tarefas, pesquisa e subagentes rodam sozinhos).
 const CANAIS_DE_FUNDO: [&str; 3] = ["pesquisa%", "tarefa-bg%", "subagente%"];
@@ -180,7 +182,7 @@ impl Compactor {
              GROUP BY m.session_id HAVING n >= ? AND quando < ? ORDER BY ultimo DESC LIMIT ?",
             CANAIS_DE_FUNDO.iter().map(|c| format!("AND s.channel NOT LIKE '{c}'")).collect::<Vec<_>>().join(" ")
         );
-        let rows = self.memory.query(&sql, &[&MIN_FALAS_FINAL, &limite, &MAX_FINAIS_POR_RODADA]).unwrap_or_default();
+        let rows = self.memory.query(&sql, &[&MIN_FALAS_FINAL, &limite, &JANELA_FINAIS]).unwrap_or_default();
         rows.iter()
             .filter_map(|r| {
                 let (sid, ultimo) = (r["sid"].as_str()?.to_string(), r["ultimo"].as_i64()?);
@@ -188,6 +190,7 @@ impl Compactor {
                 let coberto = self.resumo_final(&sid).map(|(_, ate)| ate).unwrap_or(0);
                 (!privada && ultimo > coberto).then_some(sid)
             })
+            .take(MAX_FINAIS_POR_RODADA)
             .collect()
     }
 

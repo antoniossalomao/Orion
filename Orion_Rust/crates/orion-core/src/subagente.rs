@@ -78,6 +78,8 @@ pub fn ferramenta(s: Arc<Subagentes>) -> Tool {
                 // a tarefa pode ter nascido de conteúdo privado do chamador: o subagente começa privado, então o
                 // pedido dele nunca vai a provedor que treina com os dados sem a confirmação de envio privado
                 let _ = agente.memory.counter_set(&format!("privado:{}", sessao.id), 1);
+                // o pai pode ter lido conteúdo externo: o filho nasce contaminado, então URL e escrita pedem confirmação
+                let _ = agente.memory.counter_set(&format!("taint:{}", sessao.id), 1);
                 // sem recursão: o subagente enxerga todas as ferramentas menos esta (a política barra o resto)
                 let permitidas: std::collections::HashSet<String> = agente.tools.read().names().into_iter().filter(|n| n != NOME).collect();
                 let req = TurnRequest {
