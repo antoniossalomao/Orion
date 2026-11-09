@@ -60,10 +60,10 @@ jobs:
           "$sdk\Bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
           if (!(Get-Command ninja -ErrorAction SilentlyContinue)) { choco install ninja -y --no-progress }
       - name: Compilar app, orion-llama e instalador
-        env:
-          CMAKE_GENERATOR: ${{ matrix.variante == 'vulkan' && 'Ninja' || '' }}
         shell: pwsh
         run: |
+          # Só define o gerador no Vulkan: CMAKE_GENERATOR vazio faz o crate cmake passar `-G ""` e quebra o build.
+          if ('${{ matrix.variante }}' -eq 'vulkan') { $env:CMAKE_GENERATOR = 'Ninja' }
           $f = if ('${{ matrix.variante }}' -eq 'vulkan') { 'orion-server/local-vulkan,orion-server/sqlcipher,orion-llama/vulkan' } else { 'orion-server/sqlcipher' }
           $a = @('build', '--locked', '-p', 'orion-server', '-p', 'orion-llama', '-p', 'orion-setup', '--features', $f)
           if ($env:PERFIL -eq 'release') { $a += '--release' }
