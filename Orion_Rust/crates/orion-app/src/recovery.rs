@@ -117,8 +117,10 @@ impl App {
             }
             Event::PrintOnboarding => {
                 let code = self.onboarding.as_ref().and_then(|f| f.code.clone()).map(Zeroizing::new);
+                // no primeiro uso vale o idioma escolhido ali, que ainda pode não ser o da interface
+                let english = self.onboarding.as_ref().map(|f| f.language == "en");
                 if let Some(code) = code {
-                    if let Err(e) = print(&code) {
+                    if let Err(e) = print(&code, english) {
                         self.toast(e);
                     }
                 }
@@ -126,7 +128,7 @@ impl App {
             Event::Print => {
                 let code = self.recov.as_ref().and_then(|f| f.new_code.clone()).map(Zeroizing::new);
                 if let Some(code) = code {
-                    if let Err(e) = print(&code) {
+                    if let Err(e) = print(&code, None) {
                         self.toast(e);
                     }
                 }
@@ -166,18 +168,30 @@ pub fn limpar_restos() {
 /// Imprime o código: grava uma página mínima na pasta temporária (só o dono lê), abre no navegador
 /// padrão, que já chama a janela de impressão, e apaga o arquivo em 60 segundos, quando o formulário
 /// fecha ou na próxima abertura do app, o que vier primeiro.
-pub fn print(code: &str) -> Result<(), String> {
+pub fn print(code: &str, english: Option<bool>) -> Result<(), String> {
     if code.is_empty() || !code.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
         return Err("Código inválido para impressão.".into());
     }
     let path = std::env::temp_dir().join(format!("{PREFIXO}{}.html", std::process::id()));
+    // textos pelo catálogo Fluent, no idioma pedido (o da interface, ou o escolhido no primeiro uso)
+    let anterior = crate::i18n::english();
+    if let Some(en) = english {
+        crate::i18n::set_english(en);
+    }
+    let (en, titulo, instrucoes) = (
+        crate::i18n::english(),
+        crate::i18n::text("Código de recuperação do Orion"),
+        crate::i18n::text("Guarde esta folha fora do computador. Ele abre seus dados se você esquecer a senha e só vale uma vez: depois de usado, o Orion gera outro."),
+    );
+    crate::i18n::set_english(anterior);
     let html = format!(
-        "<!doctype html><meta charset=utf-8><title>Código de recuperação do Orion</title>\
+        "<!doctype html><html lang={}><meta charset=utf-8><title>{titulo}</title>\
          <style>body{{font:16px system-ui,sans-serif;margin:48px}}code{{font:24px ui-monospace,Consolas,monospace;letter-spacing:.06em}}</style>\
-         <h1>Código de recuperação do Orion</h1>\
-         <p>Guarde esta folha fora do computador. Ele abre seus dados se você esquecer a senha e só vale uma vez: depois de usado, o Orion gera outro.</p>\
+         <h1>{titulo}</h1>\
+         <p>{instrucoes}</p>\
          <p><code>{code}</code></p>\
-         <script>addEventListener('load',()=>setTimeout(()=>print(),300))</script>"
+         <script>addEventListener('load',()=>setTimeout(()=>print(),300))</script></html>",
+        if en { "en" } else { "pt-BR" }
     );
     {
         use std::io::Write;

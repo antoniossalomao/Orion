@@ -108,6 +108,7 @@ fn iniciar_nucleo(n: &Nucleo) {
 async fn montar_nucleo(s:Settings) -> anyhow::Result<std::sync::Arc<Nucleo>> {
     let n=preparar_nucleo(s,false).await?;
     iniciar_nucleo(&n);
+    agendar_confirmacao();
     Ok(n)
 }
 
@@ -938,7 +939,7 @@ pub fn run(mut s: Settings, fundo: bool) -> anyhow::Result<i32> {
     Ok(0)
 }
 
-/// Conta esta abertura da versão recém-instalada e agenda a confirmação (30 s de pé). `Err(exe)` quando a
+/// Conta esta abertura da versão recém-instalada (a confirmação vem depois, em `agendar_confirmacao`). `Err(exe)` quando a
 /// atualização foi desfeita: quem chama reabre `exe` (a versão anterior) depois de soltar a trava.
 fn guardar_atualizacao() -> Result<(), std::path::PathBuf> {
     let Some(exe) = std::env::current_exe().ok() else { return Ok(()) };
@@ -954,11 +955,20 @@ fn guardar_atualizacao() -> Result<(), std::path::PathBuf> {
         }
         orion_updater::Guard::Normal => {}
     }
-    std::thread::spawn(move || {
-        std::thread::sleep(std::time::Duration::from_secs(orion_updater::CONFIRM_SECS));
-        orion_updater::confirm_boot(&pasta, versao);
-    });
     Ok(())
+}
+
+/// A versão nova só conta como boa depois de o núcleo subir (banco aberto, tudo montado) e ficar de pé
+/// por `CONFIRM_SECS`. Chamada ao fim de `montar_nucleo`; roda uma vez só.
+fn agendar_confirmacao() {
+    static UMA_VEZ: std::sync::Once = std::sync::Once::new();
+    UMA_VEZ.call_once(|| {
+        let Some(pasta) = std::env::current_exe().ok().and_then(|e| e.parent().map(std::path::Path::to_path_buf)) else { return };
+        std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_secs(orion_updater::CONFIRM_SECS));
+            orion_updater::confirm_boot(&pasta, env!("CARGO_PKG_VERSION"));
+        });
+    });
 }
 
 /// Troca os arquivos pela atualização baixada e conferida pelo atualizador, se houver. Falha só é registrada:

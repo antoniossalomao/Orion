@@ -1752,3 +1752,5 @@ ui-1313 = { "Teste falhou: arquivo alterado ou corrompido." }
 ui-1314 = { "Código inválido para impressão." }
 ui-1315 = { "Não consegui preparar a página de impressão." }
 ui-1316 = { "Não consegui abrir o navegador para imprimir." }
+ui-1317 = { "Código de recuperação do Orion" }
+ui-1318 = { "Guarde esta folha fora do computador. Ele abre seus dados se você esquecer a senha e só vale uma vez: depois de usado, o Orion gera outro." }
