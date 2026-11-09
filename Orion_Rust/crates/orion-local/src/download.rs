@@ -12,6 +12,12 @@ pub fn verify(path: &Path, artifact: &Artifact) -> anyhow::Result<()> {
     verify_digest(path, &artifact.sha256, artifact.bytes)
 }
 
+/// Confere o arquivo já instalado: para pacote extraído vale o hash e o tamanho do arquivo extraído.
+pub fn verify_installed(path: &Path, artifact: &Artifact) -> anyhow::Result<()> {
+    let (sha, bytes) = artifact.final_digest();
+    verify_digest(path, sha, bytes)
+}
+
 fn verify_digest(path: &Path, sha256: &str, bytes: u64) -> anyhow::Result<()> {
     let mut f = File::open(path)?;
     ensure!(f.metadata()?.len() == bytes, "tamanho de modelo incorreto");

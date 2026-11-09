@@ -857,6 +857,14 @@ pub fn run(mut s: Settings, fundo: bool) -> anyhow::Result<i32> {
         let _ = std::fs::write(&mostrar, b"1");
         return Ok(0);
     };
+    // F10.15: a versão recém-instalada só vale depois de abrir e ficar de pé; senão a anterior volta.
+    // Conta a abertura só depois da trava de instância única: quem só pede para mostrar a janela não vale.
+    if let Err(exe) = guardar_atualizacao() {
+        // solta a trava antes de reabrir, senão a cópia nova acharia que já há uma aberta e sairia
+        drop(_trava);
+        let _ = std::process::Command::new(exe).args(std::env::args_os().skip(1)).spawn();
+        return Ok(0);
+    }
     if s.admin_token.is_empty() {
         s.admin_token = token_aleatorio();
     }
@@ -928,6 +936,29 @@ pub fn run(mut s: Settings, fundo: bool) -> anyhow::Result<i32> {
     instalar_atualizacao_guardada("ao fechar");
     r?;
     Ok(0)
+}
+
+/// Conta esta abertura da versão recém-instalada e agenda a confirmação (30 s de pé). `Err(exe)` quando a
+/// atualização foi desfeita: quem chama reabre `exe` (a versão anterior) depois de soltar a trava.
+fn guardar_atualizacao() -> Result<(), std::path::PathBuf> {
+    let Some(exe) = std::env::current_exe().ok() else { return Ok(()) };
+    let Some(pasta) = exe.parent().map(std::path::Path::to_path_buf) else { return Ok(()) };
+    let versao = env!("CARGO_PKG_VERSION");
+    match orion_updater::guard_startup(&pasta, versao) {
+        orion_updater::Guard::RolledBack(v) => {
+            eprintln!("a atualização {v} não abriu duas vezes seguidas; a versão anterior foi devolvida e o Orion vai abrir de novo");
+            return Err(exe);
+        }
+        orion_updater::Guard::NeedsPrivilege(v) => {
+            eprintln!("a atualização {v} não abriu direito; a tarefa do Windows devolve a versão anterior no próximo login");
+        }
+        orion_updater::Guard::Normal => {}
+    }
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_secs(orion_updater::CONFIRM_SECS));
+        orion_updater::confirm_boot(&pasta, versao);
+    });
+    Ok(())
 }
 
 /// Troca os arquivos pela atualização baixada e conferida pelo atualizador, se houver. Falha só é registrada:

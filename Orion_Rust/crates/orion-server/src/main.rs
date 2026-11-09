@@ -562,28 +562,6 @@ fn rodar(cli: Cli) -> anyhow::Result<i32> {
         let pasta = std::env::current_exe()?.parent().map(PathBuf::from).unwrap_or_default();
         return Ok(orion_updater::executar(&args, &pasta));
     }
-    if matches!(&cli.cmd, None | Some(Cmd::App)) {
-        // F10.15: a versão recém-instalada só vale depois de abrir e ficar de pé; senão a anterior volta.
-        if let Some(pasta) = std::env::current_exe().ok().and_then(|e| e.parent().map(PathBuf::from)) {
-            match orion_updater::guard_startup(&pasta, env!("CARGO_PKG_VERSION")) {
-                orion_updater::Guard::RolledBack(v) => {
-                    eprintln!("a atualização {v} não abriu duas vezes seguidas; a versão anterior foi devolvida e o Orion vai abrir de novo");
-                    if let Ok(exe) = std::env::current_exe() {
-                        let _ = std::process::Command::new(exe).args(std::env::args_os().skip(1)).spawn();
-                    }
-                    return Ok(0);
-                }
-                orion_updater::Guard::NeedsPrivilege(v) => {
-                    eprintln!("a atualização {v} não abriu direito; a tarefa do Windows devolve a versão anterior no próximo login");
-                }
-                orion_updater::Guard::Normal => {}
-            }
-            std::thread::spawn(move || {
-                std::thread::sleep(std::time::Duration::from_secs(orion_updater::CONFIRM_SECS));
-                orion_updater::confirm_boot(&pasta, env!("CARGO_PKG_VERSION"));
-            });
-        }
-    }
     let s = Settings::load()?;
     let cmd = cli.cmd.unwrap_or(Cmd::App);
     // comandos que cuidam da própria senha não passam pelo prompt automático

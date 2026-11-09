@@ -139,11 +139,12 @@ pub async fn pausar(_: Admin, Path(id): Path<String>) -> ApiResult<Json<Value>> 
 pub async fn testar(_: Admin, State(st): State<Estado>, Path(id): Path<String>) -> ApiResult<Json<Value>> {
     let Some(a) = orion_local::catalog::find(&id) else { return erro(404, "modelo desconhecido") };
     let caminho = pasta(&st).join(&a.filename);
-    if !caminho.metadata().is_ok_and(|m| m.len() == a.bytes) {
+    // pacote extraído (motor de visão, por exemplo) tem outro tamanho e hash que o arquivo baixado
+    if !caminho.metadata().is_ok_and(|m| m.len() == a.final_digest().1) {
         return erro(409, "o modelo não está instalado por inteiro");
     }
     let artefato = a.clone();
-    let integridade = tokio::task::spawn_blocking(move || orion_local::download::verify(&caminho, &artefato).map_err(|e| e.to_string()))
+    let integridade = tokio::task::spawn_blocking(move || orion_local::download::verify_installed(&caminho, &artefato).map_err(|e| e.to_string()))
         .await
         .map_err(|_| ApiError::new(500, "teste interrompido"))?;
     let cabe = if a.kind == "llm" {
