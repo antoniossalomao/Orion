@@ -26,6 +26,7 @@ pub struct Form {
 
 impl Drop for Form {
     fn drop(&mut self) {
+        apagar_paginas();
         self.code.zeroize();
         self.pw.zeroize();
         self.pw2.zeroize();
@@ -56,7 +57,12 @@ impl App {
                 self.recov = Some(Form::default());
                 self.gate_err.clear();
             }
-            Event::Close => self.recov = None,
+            // Fechar com a recuperação em andamento perderia o código novo: espera terminar.
+            Event::Close => {
+                if self.recov.as_ref().is_some_and(|f| !f.busy) {
+                    self.recov = None;
+                }
+            }
             Event::Code(s) => {
                 if let Some(f) = self.recov.as_mut() {
                     f.code = s.chars().take(80).collect();
@@ -130,13 +136,41 @@ impl App {
     }
 }
 
+const PREFIXO: &str = "orion-recuperacao-";
+/// Páginas de impressão criadas nesta execução, para apagar assim que o formulário fecha.
+static PAGINAS: std::sync::Mutex<Vec<std::path::PathBuf>> = std::sync::Mutex::new(Vec::new());
+
+/// Apaga as páginas de impressão desta execução (o navegador já carregou a página; o arquivo não
+/// precisa ficar).
+pub fn apagar_paginas() {
+    if let Ok(mut g) = PAGINAS.lock() {
+        for p in g.drain(..) {
+            let _ = std::fs::remove_file(p);
+        }
+    }
+}
+
+/// Na abertura do app: apaga páginas que sobraram de execuções que terminaram antes da limpeza
+/// (o código impresso nunca fica em disco além disso).
+pub fn limpar_restos() {
+    let Ok(entradas) = std::fs::read_dir(std::env::temp_dir()) else { return };
+    for e in entradas.flatten() {
+        let nome = e.file_name();
+        let nome = nome.to_string_lossy();
+        if nome.starts_with(PREFIXO) && nome.ends_with(".html") {
+            let _ = std::fs::remove_file(e.path());
+        }
+    }
+}
+
 /// Imprime o código: grava uma página mínima na pasta temporária (só o dono lê), abre no navegador
-/// padrão, que já chama a janela de impressão, e apaga o arquivo depois de 3 minutos.
+/// padrão, que já chama a janela de impressão, e apaga o arquivo em 60 segundos, quando o formulário
+/// fecha ou na próxima abertura do app, o que vier primeiro.
 pub fn print(code: &str) -> Result<(), String> {
     if code.is_empty() || !code.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
         return Err("Código inválido para impressão.".into());
     }
-    let path = std::env::temp_dir().join(format!("orion-recuperacao-{}.html", std::process::id()));
+    let path = std::env::temp_dir().join(format!("{PREFIXO}{}.html", std::process::id()));
     let html = format!(
         "<!doctype html><meta charset=utf-8><title>Código de recuperação do Orion</title>\
          <style>body{{font:16px system-ui,sans-serif;margin:48px}}code{{font:24px ui-monospace,Consolas,monospace;letter-spacing:.06em}}</style>\
@@ -161,9 +195,12 @@ pub fn print(code: &str) -> Result<(), String> {
     let aberto = std::process::Command::new("cmd").args(["/C", "start", ""]).arg(&path).spawn();
     #[cfg(not(windows))]
     let aberto = std::process::Command::new("xdg-open").arg(&path).spawn();
+    if let Ok(mut g) = PAGINAS.lock() {
+        g.push(path.clone());
+    }
     let apagar = path.clone();
     std::thread::spawn(move || {
-        std::thread::sleep(std::time::Duration::from_secs(180));
+        std::thread::sleep(std::time::Duration::from_secs(60));
         let _ = std::fs::remove_file(apagar);
     });
     aberto.map(|_| ()).map_err(|_| {
@@ -215,7 +252,7 @@ pub fn view<'a>(f: &'a Form, cab: El<'a>) -> El<'a> {
         campo("Confirme a nova senha", &f.pw2, |s| Msg::Recov(Event::Pw2(s)), true, true),
         aviso,
         btn(crate::i18n::text("Recuperar acesso"), Kind::Primary, false, None, if f.busy { None } else { Some(Msg::Recov(Event::Submit)) }),
-        btn(crate::i18n::text("Voltar ao login"), Kind::Ghost, true, None, Some(Msg::Recov(Event::Close))),
+        btn(crate::i18n::text("Voltar ao login"), Kind::Ghost, true, None, if f.busy { None } else { Some(Msg::Recov(Event::Close)) }),
     ]
     .spacing(10)
     .align_x(Horizontal::Center)

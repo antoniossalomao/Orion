@@ -9,6 +9,7 @@ pub static JANELA_TRANSPARENTE: std::sync::atomic::AtomicBool = std::sync::atomi
 
 /// `fundo`: começa com a janela escondida (início com o Windows); a bandeja a reabre.
 pub fn run_ui(api: Option<Api>, cena: Option<String>, fundo: bool) -> iced::Result {
+    crate::recovery::limpar_restos();
     let hardware = if let Ok(backend) = std::env::var("ICED_BACKEND") {
         backend != "tiny-skia"
     } else {
