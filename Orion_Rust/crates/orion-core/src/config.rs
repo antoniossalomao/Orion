@@ -156,6 +156,8 @@ pub struct Settings {
     pub jobs_tick_s: f64,
     pub backup_dir: Option<PathBuf>,
     pub backup_keep: usize,
+    /// Quantos subagentes (só leitura) podem rodar ao mesmo tempo (F04.23); 1 a 4.
+    pub subagents_max: usize,
     pub vault_dir: Option<PathBuf>,
     /// ORION_VAULT_DIARIO: grava o diário de cada conversa no vault, sem commit nem push. Opt-in.
     pub vault_diario: bool,
@@ -532,6 +534,7 @@ impl Settings {
             jobs_tick_s: e.num("jobs_tick_s", 30.0f64, Some(1.0), None)?,
             backup_dir: e.path_opt("backup_dir"),
             backup_keep: e.num("backup_keep", 7usize, Some(1), None)?,
+            subagents_max: e.num("subagents_max", 2usize, Some(1), Some(4))?,
             vault_dir: e.path_opt("vault_dir"),
             vault_diario: e.b("vault_diario", false)?,
             vault_sync: e.b("vault_sync", true)?,

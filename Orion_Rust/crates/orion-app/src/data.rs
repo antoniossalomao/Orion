@@ -482,6 +482,7 @@ pub const CMDS: &[(&str, &str)] = &[
     ("/imagem", "Gerar imagem (Gemini)"),
     ("/limpar", "Conversa nova no mesmo projeto"),
     ("/resumo", "Resumir a conversa até aqui"),
+    ("/retomar", "Continuar a tarefa que foi interrompida"),
     ("/aprovar", "Abrir a fila de aprovações"),
     ("/voz", "Ligar ou desligar a voz ao vivo"),
     ("/mcp", "Listar e ativar servidores MCP"),

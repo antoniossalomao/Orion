@@ -1756,3 +1756,7 @@ ui-1317 = { "Orion recovery code" }
 ui-1318 = { "Keep this sheet away from the computer. It opens your data if you forget the password and works only once: after it is used, Orion generates another." }
 ui-1319 = { "Blocked folders (separated by semicolons)" }
 ui-1320 = { "Folders Orion never reads or writes, even with a persistent authorization; nothing from them goes to the model. Takes effect the next time you open it." }
+ui-1321 = { "Subagents at the same time (1 to 4)" }
+ui-1322 = { "How many read-only subagents Orion can run at the same time. They only read (never write or run anything) and their report counts as external content. Takes effect the next time you open it." }
+ui-1323 = { "Continue the task that was interrupted" }
+ui-1324 = { "No interrupted task in this conversation to resume." }

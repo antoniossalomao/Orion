@@ -1756,3 +1756,7 @@ ui-1317 = { "Código de recuperação do Orion" }
 ui-1318 = { "Guarde esta folha fora do computador. Ele abre seus dados se você esquecer a senha e só vale uma vez: depois de usado, o Orion gera outro." }
 ui-1319 = { "Pastas bloqueadas (separadas por ponto e vírgula)" }
 ui-1320 = { "Pastas que o Orion nunca lê nem escreve, nem com autorização persistente; nada delas vai ao modelo. Vale na próxima abertura." }
+ui-1321 = { "Subagentes ao mesmo tempo (1 a 4)" }
+ui-1322 = { "Quantos subagentes de leitura o Orion pode rodar ao mesmo tempo. Eles só leem (nunca escrevem nem executam) e o relatório conta como conteúdo externo. Vale na próxima abertura." }
+ui-1323 = { "Continuar a tarefa que foi interrompida" }
+ui-1324 = { "Nenhuma tarefa interrompida nesta conversa para retomar." }

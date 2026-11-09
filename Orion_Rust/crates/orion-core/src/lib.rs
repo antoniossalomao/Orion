@@ -34,6 +34,8 @@ pub mod grafo;
 pub mod historicos;
 pub mod importer;
 pub mod jobs;
+pub mod progresso;
+pub mod subagente;
 pub mod legenda;
 pub mod ler_depois;
 pub mod mcp_client;
