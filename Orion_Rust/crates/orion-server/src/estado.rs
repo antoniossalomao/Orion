@@ -491,7 +491,10 @@ pub async fn montar_with_runtime(mut settings: Settings, preserve_extensions:boo
     // F04.20: tarefas que ficaram pelo caminho (queda do PC ou fechamento no meio) viram um aviso, uma vez só
     for i in orion_core::progresso::anunciar(&memory) {
         let pedido: String = i.pedido.chars().take(60).collect();
-        let _ = ops.notify("turno_interrompido", &format!("A tarefa «{pedido}» foi interrompida. Escreva /retomar na conversa para continuar."), Some(&format!("turno:{}", i.sessao)), false);
+        // o aviso nasce no escopo da conversa: pedido de projeto não aparece na fila pessoal
+        let projeto = memory.get_session(&i.sessao).ok().flatten().and_then(|s| s.project_id);
+        let escopo = orion_store::DataScope { project_id: projeto, include_personal: false, session_id: Some(i.sessao.clone()) };
+        let _ = orion_store::with_scope(escopo, || ops.notify("turno_interrompido", &format!("A tarefa «{pedido}» foi interrompida. Escreva /retomar na conversa para continuar."), Some(&format!("turno:{}", i.sessao)), false));
     }
     // F02.23: vigias de pasta criadas antes do bloqueio param agora
     if !settings.blocked_roots.is_empty() {

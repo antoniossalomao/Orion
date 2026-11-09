@@ -72,7 +72,12 @@ pub fn ferramenta(s: Arc<Subagentes>) -> Tool {
                 };
                 let id = s.contador.fetch_add(1, Ordering::SeqCst) + 1;
                 let canal = format!("{CANAL}:{}:{id}", std::process::id());
-                let sessao = agente.memory.new_session(&canal, Some(&format!("Subagente: {tarefa}").chars().take(120).collect::<String>()), None).ok();
+                let Some(sessao) = agente.memory.new_session(&canal, Some(&format!("Subagente: {tarefa}").chars().take(120).collect::<String>()), None).ok() else {
+                    return Ok(json!({"ok": false, "erro": "não consegui abrir a conversa do subagente", "codigo": "sem_conversa"}));
+                };
+                // a tarefa pode ter nascido de conteúdo privado do chamador: o subagente começa privado, então o
+                // pedido dele nunca vai a provedor que treina com os dados sem a confirmação de envio privado
+                let _ = agente.memory.counter_set(&format!("privado:{}", sessao.id), 1);
                 // sem recursão: o subagente enxerga todas as ferramentas menos esta (a política barra o resto)
                 let permitidas: std::collections::HashSet<String> = agente.tools.read().names().into_iter().filter(|n| n != NOME).collect();
                 let req = TurnRequest {
@@ -109,9 +114,7 @@ pub fn ferramenta(s: Arc<Subagentes>) -> Tool {
                     estado = "estourou_tempo";
                 }
                 drop(vaga);
-                if let Some(sessao) = sessao {
-                    let _ = agente.memory.archive_session(&sessao.id);
-                }
+                let _ = agente.memory.archive_session(&sessao.id);
                 let relatorio: String = texto.trim().chars().take(MAX_RELATORIO).collect();
                 Ok(json!({
                     "ok": estado == "concluido",
