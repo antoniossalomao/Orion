@@ -476,6 +476,22 @@ struct BootMark {
     boots: u32,
     #[serde(default)]
     rollback_requested: bool,
+    /// Quando a última abertura foi contada (segundos desde a época): a tarefa do Windows só julga uma
+    /// abertura que já teve tempo de se confirmar.
+    #[serde(default)]
+    last_boot: u64,
+}
+
+fn agora() -> u64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
+}
+
+/// Mesma versão: compara os números; se algum não for numérico, compara o texto.
+fn mesma_versao(a: &str, b: &str) -> bool {
+    match (parse_version(a), parse_version(b)) {
+        (Some(x), Some(y)) => x == y,
+        _ => a.trim() == b.trim(),
+    }
 }
 
 fn data_dir_of(app_dir: &Path) -> Option<PathBuf> {
@@ -498,7 +514,7 @@ fn write_mark(path: &Path, mark: &BootMark) {
 /// Depois de trocar os arquivos: a versão nova só vale como boa quando abrir e ficar de pé.
 fn marcar_pendente(app_dir: &Path, version: &str) {
     if let Some(dir) = data_dir_of(app_dir) {
-        write_mark(&dir.join(BOOT_MARKER), &BootMark { version: version.to_string(), boots: 0, rollback_requested: false });
+        write_mark(&dir.join(BOOT_MARKER), &BootMark { version: version.to_string(), boots: 0, rollback_requested: false, last_boot: 0 });
     }
 }
 
@@ -527,11 +543,15 @@ pub enum Guard {
 
 /// Primeira coisa que o app faz ao abrir. Conta a abertura da versão nova; na terceira abertura seguida
 /// sem confirmação (`confirm_boot`), devolve os arquivos `.bak`.
-pub fn guard_startup(app_dir: &Path) -> Guard {
+pub fn guard_startup(app_dir: &Path, running: &str) -> Guard {
     for name in ALLOWED_FILES {
         let _ = std::fs::remove_file(bad(&app_dir.join(name)));
     }
     let Some((path, mut mark)) = read_mark(app_dir) else { return Guard::Normal };
+    // quem está rodando não é a versão em teste (o app antigo instalou a nova ao abrir): não conta
+    if !mesma_versao(&mark.version, running) {
+        return Guard::Normal;
+    }
     if mark.boots >= MAX_BOOTS || mark.rollback_requested {
         return match rollback(app_dir) {
             Ok(n) => {
@@ -545,27 +565,40 @@ pub fn guard_startup(app_dir: &Path) -> Guard {
             }
             Err(_) => {
                 mark.rollback_requested = true;
+                mark.last_boot = agora();
                 write_mark(&path, &mark);
                 Guard::NeedsPrivilege(mark.version)
             }
         };
     }
     mark.boots += 1;
+    mark.last_boot = agora();
     write_mark(&path, &mark);
     Guard::Normal
 }
 
 /// A versão nova ficou de pé (`CONFIRM_SECS`): a atualização deixa de estar em teste.
-pub fn confirm_boot(app_dir: &Path) {
-    if let Some((path, _)) = read_mark(app_dir) {
-        let _ = std::fs::remove_file(path);
+pub fn confirm_boot(app_dir: &Path, running: &str) {
+    if let Some((path, mark)) = read_mark(app_dir) {
+        // só a própria versão em teste a confirma: o app antigo ainda aberto não vale
+        if mesma_versao(&mark.version, running) {
+            let _ = std::fs::remove_file(path);
+        }
     }
 }
+
+/// Espera, depois da última abertura contada, antes de a tarefa do Windows julgá-la falha
+/// (a abertura tem `CONFIRM_SECS` para se confirmar, mais folga).
+const ESPERA_VERIFICAR: u64 = CONFIRM_SECS * 4;
 
 /// Tarefa do Windows (com permissão): desfaz a atualização que não abriu. Devolve a versão desfeita.
 pub fn verify_boot(app_dir: &Path) -> Result<Option<String>> {
     let Some((path, mark)) = read_mark(app_dir) else { return Ok(None) };
     if mark.boots < MAX_BOOTS && !mark.rollback_requested {
+        return Ok(None);
+    }
+    // uma abertura ainda dentro da janela de confirmação pode estar subindo bem: não julga agora
+    if agora().saturating_sub(mark.last_boot) < ESPERA_VERIFICAR {
         return Ok(None);
     }
     let n = rollback(app_dir)?;
