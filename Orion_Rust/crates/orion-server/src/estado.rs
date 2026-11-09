@@ -684,7 +684,11 @@ pub async fn montar_with_runtime(mut settings: Settings, preserve_extensions:boo
         a.injection = Some(Arc::new(injection));
         a.injection_enabled = live.injection.clone();
         if let Some(vault) = settings.vault_dir.clone().or_else(orion_vault::detect_vault_path) {
-            a.after_turn = Some(crate::diary::hook(memory.clone(), vault, settings.data_dir.join("imagens"), live.diary.clone()));
+            a.after_turn = Some(crate::diary::hook(memory.clone(), vault.clone(), settings.data_dir.join("imagens"), live.diary.clone()));
+            // F06.11: resumo final de cada conversa parada, pelo modelo local (só com ele instalado)
+            if let Some(c) = &a.compactor {
+                crate::resumos::spawn_loop(memory.clone(), c.clone(), vault, settings.data_dir.join("imagens"), live.diary.clone(), modos.clone());
+            }
         }
         *a.indice.write() = Some(indice);
         agent = Some(Arc::new(a));

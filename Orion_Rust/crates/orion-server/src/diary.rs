@@ -118,7 +118,18 @@ fn build(memory: &Arc<Store>, vault: &Path, imagens: &Path, sid: &str) -> anyhow
     if !real_title.is_empty() {
         dialogue.insert_str(0, &format!("**Título da conversa:** {real_title}\n\n"));
     }
-    let summary = one_line(&first.text, 200);
+    let mut summary = one_line(&first.text, 200);
+    // F06.11: o resumo do modelo local (feito quando a conversa pára) entra na nota; conversa privada nunca tem
+    if memory.counter_get(&format!("privado:{sid}")) == 0 {
+        if let Some(texto) = memory.meta_get(&format!("resumo_final:{sid}")).and_then(|v| serde_json::from_str::<serde_json::Value>(&v).ok()).and_then(|v| v["texto"].as_str().map(str::to_owned)).filter(|t| !t.trim().is_empty()) {
+            let primeira = texto.lines().next().unwrap_or("").trim_start_matches("- ");
+            if !primeira.is_empty() {
+                summary = one_line(primeira, 200);
+            }
+            let citacao: String = texto.lines().map(|l| format!("> {l}\n")).collect();
+            dialogue.insert_str(0, &format!("> [!note] Resumo gerado pelo modelo local (pode ter erro; o registro completo é o diálogo abaixo)\n{citacao}\n"));
+        }
+    }
 
     // A note precisa de um Projeto existente no vault; sem ele, cai no project Orion.
     let exists = |nome: &str| vault.join("01 Projetos").join(nome).join(format!("{nome}.md")).is_file();
@@ -160,6 +171,12 @@ fn save(memory: &Arc<Store>, vault: &Path, imagens: &Path, sid: &str) -> anyhow:
         }
     }
     Ok(())
+}
+
+/// F06.11: refaz a nota da conversa depois que o resumo final ficou pronto. Mesmas proteções do diário
+/// (sem sobrescrever o que você editou, sem commit); só roda se o diário está ligado.
+pub fn atualizar(memory: &Arc<Store>, vault: &Path, imagens: &Path, sid: &str) -> anyhow::Result<()> {
+    save(memory, vault, imagens, sid)
 }
 
 /// F06.18: `/nota` grava (ou atualiza) agora a nota desta conversa, por comando seu, mesmo com o
