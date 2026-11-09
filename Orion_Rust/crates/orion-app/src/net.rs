@@ -49,6 +49,10 @@ pub trait Local: Send + Sync + 'static {
             Ok(LoginResult::Ok)
         })
     }
+    /// Recuperação da conta pelo código (F02.10): define a nova senha e devolve o novo código.
+    fn recuperar_conta(&self, _codigo: String, _senha: String) -> futures::future::BoxFuture<'static, Result<String, String>> {
+        Box::pin(async { Err("recuperação só no app com o núcleo dentro".to_string()) })
+    }
     fn confirmar_entrada(&self, _challenge: String, _code: String) -> futures::future::BoxFuture<'static, Result<(), String>> {
         Box::pin(async { Err("segundo fator indisponível".into()) })
     }
@@ -350,6 +354,13 @@ impl Api {
     pub async fn desbloquear(&self, senha: String) -> Result<(), String> {
         match &self.local {
             Some(l) => l.desbloquear(senha).await,
+            None => Err("só no app com o núcleo dentro".into()),
+        }
+    }
+
+    pub async fn recuperar_conta(&self, codigo: String, senha: String) -> Result<String, String> {
+        match &self.local {
+            Some(l) => l.recuperar_conta(codigo, senha).await,
             None => Err("só no app com o núcleo dentro".into()),
         }
     }

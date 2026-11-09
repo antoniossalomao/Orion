@@ -511,6 +511,7 @@ impl App {
                 let language = if *value == 1 { "en" } else { "pt-BR" };
                 Some((Task::perform(async move { api.post("/config/language", json!({"language":language})).await.map(|_| ()) }, |result| Msg::L(Lm::LanguageSaved(result))), true))
             }
+            Msg::Recov(ev) => Some((self.update_recov(ev.clone()), false)),
             Msg::LoginCancel => {
                 if let Some(ch)=self.challenge.take(){api.cancelar_entrada(&ch);}
                 self.pw.clear();self.gate_err.clear();

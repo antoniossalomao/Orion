@@ -365,6 +365,7 @@ fn step_done<'a>(f: &'a Form) -> El<'a> {
             crate::i18n::text("Ele abre seus dados se você esquecer a senha. Anote ou guarde fora deste computador — não será mostrado de novo."),
             "It opens your data if you forget the password. Write it down or keep it off this computer — it won't be shown again."
         )),
+        btn(tr(f, crate::i18n::text("Imprimir código"), "Print code"), Kind::Normal, true, None, Some(Msg::Recov(crate::recovery::Event::PrintOnboarding))),
         if f.warnings > 0 {
             tx(tr(f, crate::i18n::text("Algumas chaves não foram salvas; cadastre depois em Configurações."), "Some keys were not saved; add them later in Settings."), 12.0, t::SIGNAL)
         } else {

@@ -21,6 +21,7 @@ pub mod net;
 pub mod novidades;
 pub mod uiprefs;
 pub mod popover;
+pub mod recovery;
 pub mod sky;
 pub mod theme;
 pub mod tray;

@@ -151,7 +151,13 @@ pub fn view(app: &App) -> El<'_> {
     let hello=if app.api.as_ref().is_some_and(|api|api.hello_ativo()) {
         btn(crate::i18n::text("Entrar com o Windows Hello"),Kind::Normal,false,None,Some(Msg::Hello))
     }else{sp_h(0.0)};
-    let cartao = container(column![cab, sp_h(14.0), campos, aviso, rise(fade(entrar, p_btn, bg), p_btn, 10.0),face,hello,if code{btn(crate::i18n::text("Voltar à senha"),Kind::Ghost,true,None,Some(Msg::LoginCancel))}else{sp_h(0.0)}].spacing(8).align_x(Horizontal::Center).width(Length::Fill))
+    let esqueci: El = if !code && app.api.is_some() { btn(crate::i18n::text("Esqueci a senha"), Kind::Ghost, true, None, Some(Msg::Recov(crate::recovery::Event::Open))) } else { sp_h(0.0) };
+    let interior: El = if let Some(f) = &app.recov {
+        crate::recovery::view(f, cab.into())
+    } else {
+        column![cab, sp_h(14.0), campos, aviso, rise(fade(entrar, p_btn, bg), p_btn, 10.0),face,hello,if code{btn(crate::i18n::text("Voltar à senha"),Kind::Ghost,true,None,Some(Msg::LoginCancel))}else{esqueci}].spacing(8).align_x(Horizontal::Center).width(Length::Fill).into()
+    };
+    let cartao = container(interior)
         .padding(pad(30.0, 28.0, 26.0, 28.0))
         .width(Length::Fixed(380.0))
         .style(|_| container::Style {

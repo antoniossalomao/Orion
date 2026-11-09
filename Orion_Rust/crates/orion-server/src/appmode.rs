@@ -787,6 +787,21 @@ impl Local for Interno {
         })
     }
 
+    fn recuperar_conta(&self, codigo: String, senha: String) -> BoxFuture<'static, Result<String, String>> {
+        let cfg = self.settings.clone();
+        Box::pin(async move {
+            tokio::task::spawn_blocking(move || {
+                let codigo = zeroize::Zeroizing::new(codigo);
+                let senha = zeroize::Zeroizing::new(senha);
+                let novo = orion_core::onboarding::recover_account(&cfg, &codigo, &senha).map_err(|e| e.to_string())?;
+                let _ = orion_ai::secrets::delete_secret("ORION_HELLO_LOGIN");
+                Ok(novo.to_string())
+            })
+            .await
+            .map_err(|_| "falha ao recuperar a conta".to_string())?
+        })
+    }
+
     fn bloqueado(&self) -> bool {
         self.requires_login && self.primeiro_uso().is_none() && self.atual().is_none()
     }

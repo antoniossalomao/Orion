@@ -600,16 +600,15 @@ fn rodar(cli: Cli) -> anyhow::Result<i32> {
         #[cfg(feature = "http")]
         Cmd::Serve => tokio::runtime::Builder::new_multi_thread().enable_all().build()?.block_on(serve(s)),
         Cmd::ContaRecuperar => {
-            let profile=orion_core::onboarding::Profile::load(&s.data_dir)?.ok_or_else(||anyhow::anyhow!("perfil de primeiro uso não encontrado"))?;
             let code=zeroize::Zeroizing::new(rpassword::prompt_password("Código do arquivo de recuperação: ")?);
             let password=zeroize::Zeroizing::new(rpassword::prompt_password("Nova senha do Orion: ")?);
             let confirmation=zeroize::Zeroizing::new(rpassword::prompt_password("Confirme a nova senha: ")?);
-            anyhow::ensure!(*password==*confirmation && (12..=256).contains(&password.chars().count()),"use senhas iguais com 12 a 256 caracteres");
-            let keypath=s.data_dir.join(if orion_core::dbopen::is_encrypted(&s.db_path()) {orion_core::dbkey::KEY_FILE}else{"orion-recovery.key"});
-            let mut file=orion_core::dbkey::KeyFile::load(&keypath)?;let master=file.unlock_recovery(&code)?;file.change_password(&master,&password)?;file.save(&keypath)?;
-            orion_core::auth::AuthService::open(&s.auth_db_path(),&profile.user,s.session_ttl_h as f64*3600.0)?.set_password(&password)?;
+            anyhow::ensure!(*password==*confirmation,"as senhas não coincidem");
+            let novo=orion_core::onboarding::recover_account(&s,&code,&password)?;
             let _=orion_ai::secrets::delete_secret("ORION_HELLO_LOGIN");
-            println!("Senha recuperada. Entre com a nova senha; configure o Hello novamente se o utilizava.");Ok(0)
+            println!("Senha recuperada. Entre com a nova senha; configure o Hello novamente se o utilizava.");
+            println!("NOVO CÓDIGO DE RECUPERAÇÃO (o anterior deixou de valer; guarde fora deste computador):\n\n    {}\n",*novo);
+            Ok(0)
         },
         Cmd::BackupExportar { destino } => {
             let senha=zeroize::Zeroizing::new(rpassword::prompt_password("Senha do Orion: ")?);

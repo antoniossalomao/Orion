@@ -463,6 +463,8 @@ pub struct App {
     pub hover: Option<(u8, usize)>,
     pub api: Option<crate::net::Api>,
     pub challenge: Option<String>,
+    /// Recuperação da conta pelo código (F02.10), aberta a partir do login.
+    pub recov: Option<crate::recovery::Form>,
     pub pending_send: Option<String>,
     pub abort: Option<iced::task::Handle>,
     pub win_id: Option<window::Id>,
@@ -523,6 +525,7 @@ pub enum Msg {
     /// Módulo de câmera (vídeo, HUD e gestos).
     Camera(crate::camera_ui::CameraMsg),
     LoginCancel,
+    Recov(crate::recovery::Event),
     Onboarding(crate::onboarding::Event),
     Logout,
     // navegação
@@ -881,6 +884,7 @@ impl App {
             hover: None,
             api: None,
             challenge: None,
+            recov: None,
             pending_send: None,
             abort: None,
             win_id: None,
@@ -1195,7 +1199,7 @@ impl App {
             Msg::Hover(h) => self.hover = h,
             Msg::PwChanged(s) => self.pw = s,
             Msg::UserChanged(s) => self.user = s,
-            Msg::Onboarding(_) | Msg::Face(_) | Msg::Camera(_) | Msg::Hello | Msg::LoginCancel => {},
+            Msg::Onboarding(_) | Msg::Face(_) | Msg::Camera(_) | Msg::Hello | Msg::LoginCancel | Msg::Recov(_) => {},
             Msg::Login => {
                 if self.pw.trim().is_empty() {
                     self.gate_err = "Digite a senha para entrar.".into();
