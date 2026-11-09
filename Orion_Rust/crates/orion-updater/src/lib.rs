@@ -191,6 +191,10 @@ pub fn check(config: &UpdateConfig, app_dir: &Path, fetch: &dyn Fetch, apply: bo
     if !is_newer(&feed.version, &installed_version(app_dir)?) {
         return Ok(Outcome::UpToDate);
     }
+    // uma versão que já foi desfeita por não abrir não volta sozinha; só uma mais nova que ela
+    if rejected_version(app_dir).is_some_and(|r| !is_newer(&feed.version, &r)) {
+        return Ok(Outcome::UpToDate);
+    }
     if !(apply || config.auto_update) {
         return Ok(Outcome::Available(feed.version));
     }
@@ -276,6 +280,7 @@ pub fn apply_staged(app_dir: &Path) -> Result<Option<String>> {
     let _ = std::fs::remove_dir_all(&dir);
     registrar_versao(app_dir, &feed)?;
     anotar_novidades(app_dir, &feed)?;
+    marcar_pendente(app_dir, &feed.version);
     Ok(Some(feed.version))
 }
 
@@ -303,7 +308,9 @@ fn install(feed: &Feed, app_dir: &Path, fetch: &dyn Fetch) -> Result<()> {
     let _ = std::fs::remove_dir_all(&staging);
     resultado?;
     registrar_versao(app_dir, feed)?;
-    anotar_novidades(app_dir, feed)
+    anotar_novidades(app_dir, feed)?;
+    marcar_pendente(app_dir, &feed.version);
+    Ok(())
 }
 
 /// Troca: antigo -> `.bak`, novo (de `staging`) -> lugar; qualquer falha devolve o que já foi trocado.
@@ -412,8 +419,17 @@ pub fn rollback(app_dir: &Path) -> Result<usize> {
         let alvo = app_dir.join(name);
         let antigo = bak(&alvo);
         if antigo.is_file() {
-            let _ = std::fs::remove_file(&alvo);
-            io(std::fs::rename(&antigo, &alvo))?;
+            // exe em uso no Windows não pode ser apagado, mas pode ser renomeado: o novo vai para `.bad`
+            let ruim = bad(&alvo);
+            let _ = std::fs::remove_file(&ruim);
+            if alvo.exists() {
+                io(std::fs::rename(&alvo, &ruim))?;
+            }
+            if let Err(e) = std::fs::rename(&antigo, &alvo) {
+                let _ = std::fs::rename(&ruim, &alvo);
+                return Err(UpdateError::Io(e.to_string()));
+            }
+            let _ = std::fs::remove_file(&ruim);
             n += 1;
         }
     }
@@ -438,6 +454,129 @@ pub fn rollback(app_dir: &Path) -> Result<usize> {
     Ok(n)
 }
 
+fn bad(p: &Path) -> PathBuf {
+    let mut s = p.as_os_str().to_owned();
+    s.push(".bad");
+    PathBuf::from(s)
+}
+
+/// Marca "versão nova ainda não confirmada", na pasta de dados: o usuário consegue gravar nela, a pasta
+/// do app costuma exigir administrador (por isso quem desfaz sem permissão é a tarefa do Windows).
+pub const BOOT_MARKER: &str = "update-boot.json";
+/// Guarda a última versão que foi desfeita, para o feed não trazê-la de volta.
+pub const REJECTED_MARKER: &str = "update-rejected.json";
+/// Aberturas seguidas sem confirmar que bastam para desfazer a atualização.
+pub const MAX_BOOTS: u32 = 2;
+/// Segundos de uso depois dos quais a versão nova conta como boa.
+pub const CONFIRM_SECS: u64 = 30;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct BootMark {
+    version: String,
+    boots: u32,
+    #[serde(default)]
+    rollback_requested: bool,
+}
+
+fn data_dir_of(app_dir: &Path) -> Option<PathBuf> {
+    let m: serde_json::Value = serde_json::from_slice(&std::fs::read(app_dir.join(MANIFEST)).ok()?).ok()?;
+    Some(PathBuf::from(m["data_dir"].as_str()?))
+}
+
+fn read_mark(app_dir: &Path) -> Option<(PathBuf, BootMark)> {
+    let path = data_dir_of(app_dir)?.join(BOOT_MARKER);
+    let mark: BootMark = serde_json::from_slice(&std::fs::read(&path).ok()?).ok()?;
+    Some((path, mark))
+}
+
+fn write_mark(path: &Path, mark: &BootMark) {
+    if let Ok(bytes) = serde_json::to_vec(mark) {
+        let _ = std::fs::write(path, bytes);
+    }
+}
+
+/// Depois de trocar os arquivos: a versão nova só vale como boa quando abrir e ficar de pé.
+fn marcar_pendente(app_dir: &Path, version: &str) {
+    if let Some(dir) = data_dir_of(app_dir) {
+        write_mark(&dir.join(BOOT_MARKER), &BootMark { version: version.to_string(), boots: 0, rollback_requested: false });
+    }
+}
+
+/// Versão que já foi desfeita por não abrir, se houver.
+fn rejected_version(app_dir: &Path) -> Option<String> {
+    let path = data_dir_of(app_dir)?.join(REJECTED_MARKER);
+    let m: serde_json::Value = serde_json::from_slice(&std::fs::read(path).ok()?).ok()?;
+    m["version"].as_str().map(str::to_string)
+}
+
+fn registrar_rejeitada(app_dir: &Path, version: &str) {
+    if let Some(dir) = data_dir_of(app_dir) {
+        let _ = std::fs::write(dir.join(REJECTED_MARKER), serde_json::json!({ "version": version }).to_string());
+    }
+}
+
+/// O que a abertura do app descobriu sobre a versão que acabou de instalar.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Guard {
+    Normal,
+    /// A atualização não abriu duas vezes seguidas: voltou a versão anterior (reabra o app).
+    RolledBack(String),
+    /// Não abriu, mas sem permissão para desfazer aqui: a tarefa do Windows desfaz no próximo login.
+    NeedsPrivilege(String),
+}
+
+/// Primeira coisa que o app faz ao abrir. Conta a abertura da versão nova; na terceira abertura seguida
+/// sem confirmação (`confirm_boot`), devolve os arquivos `.bak`.
+pub fn guard_startup(app_dir: &Path) -> Guard {
+    for name in ALLOWED_FILES {
+        let _ = std::fs::remove_file(bad(&app_dir.join(name)));
+    }
+    let Some((path, mut mark)) = read_mark(app_dir) else { return Guard::Normal };
+    if mark.boots >= MAX_BOOTS || mark.rollback_requested {
+        return match rollback(app_dir) {
+            Ok(n) => {
+                let _ = std::fs::remove_file(&path);
+                if n > 0 {
+                    registrar_rejeitada(app_dir, &mark.version);
+                    Guard::RolledBack(mark.version)
+                } else {
+                    Guard::Normal
+                }
+            }
+            Err(_) => {
+                mark.rollback_requested = true;
+                write_mark(&path, &mark);
+                Guard::NeedsPrivilege(mark.version)
+            }
+        };
+    }
+    mark.boots += 1;
+    write_mark(&path, &mark);
+    Guard::Normal
+}
+
+/// A versão nova ficou de pé (`CONFIRM_SECS`): a atualização deixa de estar em teste.
+pub fn confirm_boot(app_dir: &Path) {
+    if let Some((path, _)) = read_mark(app_dir) {
+        let _ = std::fs::remove_file(path);
+    }
+}
+
+/// Tarefa do Windows (com permissão): desfaz a atualização que não abriu. Devolve a versão desfeita.
+pub fn verify_boot(app_dir: &Path) -> Result<Option<String>> {
+    let Some((path, mark)) = read_mark(app_dir) else { return Ok(None) };
+    if mark.boots < MAX_BOOTS && !mark.rollback_requested {
+        return Ok(None);
+    }
+    let n = rollback(app_dir)?;
+    let _ = std::fs::remove_file(path);
+    if n == 0 {
+        return Ok(None);
+    }
+    registrar_rejeitada(app_dir, &mark.version);
+    Ok(Some(mark.version))
+}
+
 /// `orion update --check [--apply]` e `--rollback` (a tarefa diária e a mão). `app_dir` é a pasta do
 /// `orion.exe`; lê `update.json` da pasta de dados que o manifesto indica. Devolve o código de saída.
 pub fn executar(args: &[String], app_dir: &Path) -> i32 {
@@ -445,6 +584,17 @@ pub fn executar(args: &[String], app_dir: &Path) -> i32 {
         let m: serde_json::Value = serde_json::from_slice(&std::fs::read(app_dir.join(MANIFEST)).ok()?).ok()?;
         Some(PathBuf::from(m["data_dir"].as_str()?))
     };
+    if args.iter().any(|a| a == "--verify-boot") {
+        match verify_boot(app_dir) {
+            Ok(Some(v)) => println!("a versão {v} não abriu direito; a anterior foi devolvida"),
+            Ok(None) => println!("nenhuma atualização para desfazer"),
+            Err(e) => eprintln!("{e}"),
+        }
+        // a tarefa diária e a do login fazem tudo junto: desfaz o que não abriu, instala e confere o feed
+        if !args.iter().any(|a| a == "--apply-staged" || a == "--check" || a == "--rollback") {
+            return 0;
+        }
+    }
     if args.iter().any(|a| a == "--rollback") {
         return match rollback(app_dir) {
             Ok(n) => {
@@ -502,7 +652,7 @@ pub fn executar(args: &[String], app_dir: &Path) -> i32 {
             }
         };
     }
-    eprintln!("uso: orion update --check [--apply] | --apply-staged | --rollback");
+    eprintln!("uso: orion update --check [--apply] | --apply-staged | --verify-boot | --rollback");
     2
 }
 

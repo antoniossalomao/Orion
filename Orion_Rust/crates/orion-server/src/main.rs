@@ -66,6 +66,9 @@ enum Cmd {
         /// Instala a atualização já baixada (a que espera o Orion fechar).
         #[arg(long)]
         apply_staged: bool,
+        /// Desfaz a atualização que não abriu duas vezes seguidas (roda na tarefa do Windows, com permissão).
+        #[arg(long)]
+        verify_boot: bool,
     },
     /// Interno: extrai o texto de um documento num processo descartável.
     #[command(hide = true)]
@@ -548,16 +551,38 @@ fn rodar(cli: Cli) -> anyhow::Result<i32> {
     if let Some(Cmd::ExtrairDocumento { arquivo, tipo }) = &cli.cmd {
         return Ok(orion_core::document_extract::principal(arquivo, tipo));
     }
-    if let Some(Cmd::Update { check, apply, rollback, apply_staged }) = &cli.cmd {
+    if let Some(Cmd::Update { check, apply, rollback, apply_staged, verify_boot }) = &cli.cmd {
         // roda na tarefa diária (SYSTEM), sem banco nem senha: antes de carregar configuração
         let mut args = Vec::new();
-        for (on, flag) in [(*check, "--check"), (*apply, "--apply"), (*rollback, "--rollback"), (*apply_staged, "--apply-staged")] {
+        for (on, flag) in [(*verify_boot, "--verify-boot"), (*check, "--check"), (*apply, "--apply"), (*rollback, "--rollback"), (*apply_staged, "--apply-staged")] {
             if on {
                 args.push(flag.to_string());
             }
         }
         let pasta = std::env::current_exe()?.parent().map(PathBuf::from).unwrap_or_default();
         return Ok(orion_updater::executar(&args, &pasta));
+    }
+    if matches!(&cli.cmd, None | Some(Cmd::App)) {
+        // F10.15: a versão recém-instalada só vale depois de abrir e ficar de pé; senão a anterior volta.
+        if let Some(pasta) = std::env::current_exe().ok().and_then(|e| e.parent().map(PathBuf::from)) {
+            match orion_updater::guard_startup(&pasta) {
+                orion_updater::Guard::RolledBack(v) => {
+                    eprintln!("a atualização {v} não abriu duas vezes seguidas; a versão anterior foi devolvida e o Orion vai abrir de novo");
+                    if let Ok(exe) = std::env::current_exe() {
+                        let _ = std::process::Command::new(exe).args(std::env::args_os().skip(1)).spawn();
+                    }
+                    return Ok(0);
+                }
+                orion_updater::Guard::NeedsPrivilege(v) => {
+                    eprintln!("a atualização {v} não abriu direito; a tarefa do Windows devolve a versão anterior no próximo login");
+                }
+                orion_updater::Guard::Normal => {}
+            }
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_secs(orion_updater::CONFIRM_SECS));
+                orion_updater::confirm_boot(&pasta);
+            });
+        }
     }
     let s = Settings::load()?;
     let cmd = cli.cmd.unwrap_or(Cmd::App);
