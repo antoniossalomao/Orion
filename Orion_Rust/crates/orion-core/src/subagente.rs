@@ -16,6 +16,17 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, OnceLock, Weak};
 use tokio::sync::Semaphore;
 
+/// Restrições do turno que chamou: o filho nunca ganha ferramenta nem autorização que o pai não tem.
+#[derive(Clone, Default)]
+pub struct Heranca {
+    pub allowed_tools: Option<std::collections::HashSet<String>>,
+    pub authorized: Option<Arc<dyn Fn() -> bool + Send + Sync>>,
+}
+
+tokio::task_local! {
+    pub static HERANCA: Heranca;
+}
+
 pub const NOME: &str = "subagente";
 pub const CANAL: &str = "subagente";
 pub const MAX_TAREFA: usize = 2000;
@@ -81,12 +92,19 @@ pub fn ferramenta(s: Arc<Subagentes>) -> Tool {
                 // o pai pode ter lido conteúdo externo: o filho nasce contaminado, então URL e escrita pedem confirmação
                 let _ = agente.memory.counter_set(&format!("taint:{}", sessao.id), 1);
                 // sem recursão: o subagente enxerga todas as ferramentas menos esta (a política barra o resto)
-                let permitidas: std::collections::HashSet<String> = agente.tools.read().names().into_iter().filter(|n| n != NOME).collect();
+                let heranca = HERANCA.try_with(|h| h.clone()).unwrap_or_default();
+                let permitidas: std::collections::HashSet<String> = agente
+                    .tools
+                    .read()
+                    .names()
+                    .into_iter()
+                    .filter(|n| n != NOME && heranca.allowed_tools.as_ref().is_none_or(|a| a.contains(n)))
+                    .collect();
                 let req = TurnRequest {
                     channel: canal,
                     text: prompt(&tarefa),
                     read_only: true,
-                    selection: Some(Selection { allowed_tools: Some(permitidas), ..Default::default() }),
+                    selection: Some(Selection { allowed_tools: Some(permitidas), authorized: heranca.authorized.clone(), ..Default::default() }),
                     ..Default::default()
                 };
                 let mut texto = String::new();

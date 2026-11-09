@@ -999,6 +999,16 @@ impl Agent {
         let escopo = Self::escopo(&ctx_arc.lock());
         let session_id = ctx_arc.lock().session_id.clone();
         let fut = orion_store::scope::scoped(escopo, tool.run(chamada.args.clone()));
+        // o subagente herda o que o turno que o chamou pode usar (skill restrita, autorização revogável)
+        let fut: std::pin::Pin<Box<dyn std::future::Future<Output = String> + Send + '_>> = if chamada.name == crate::subagente::NOME {
+            let heranca = {
+                let c = ctx_arc.lock();
+                crate::subagente::Heranca { allowed_tools: c.allowed_tools.clone(), authorized: c.authorized.clone() }
+            };
+            Box::pin(crate::subagente::HERANCA.scope(heranca, fut))
+        } else {
+            Box::pin(fut)
+        };
         let mut bruto = match tokio::time::timeout(Duration::from_secs_f64(self.cfg.tool_timeout_s), fut).await {
             Ok(r) => r,
             Err(_) => return error_with_guidance(format!("tempo esgotado ({:.0}s)", self.cfg.tool_timeout_s)),
