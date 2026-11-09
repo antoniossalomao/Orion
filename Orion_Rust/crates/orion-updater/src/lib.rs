@@ -465,7 +465,7 @@ fn bad(p: &Path) -> PathBuf {
 pub const BOOT_MARKER: &str = "update-boot.json";
 /// Guarda a última versão que foi desfeita, para o feed não trazê-la de volta.
 pub const REJECTED_MARKER: &str = "update-rejected.json";
-/// Aberturas seguidas sem confirmar que bastam para desfazer a atualização.
+/// Tentativas seguidas que morreram sem confirmar e bastam para desfazer a atualização.
 pub const MAX_BOOTS: u32 = 2;
 /// Segundos de uso depois dos quais a versão nova conta como boa.
 pub const CONFIRM_SECS: u64 = 30;
@@ -473,11 +473,17 @@ pub const CONFIRM_SECS: u64 = 30;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct BootMark {
     version: String,
-    boots: u32,
+    /// Tentativas de subir o núcleo que morreram sem fechar direito nem confirmar.
+    #[serde(alias = "boots")]
+    failures: u32,
     #[serde(default)]
     rollback_requested: bool,
-    /// Quando a última abertura foi contada (segundos desde a época): a tarefa do Windows só julga uma
-    /// abertura que já teve tempo de se confirmar.
+    /// Um núcleo começou a subir e ainda não confirmou nem fechou direito. Abrir o app e sair na tela de
+    /// login (sem tentar subir o núcleo) não conta.
+    #[serde(default)]
+    attempting: bool,
+    /// Quando a última tentativa começou (segundos desde a época): a tarefa do Windows só julga uma
+    /// tentativa que já teve tempo de se confirmar.
     #[serde(default)]
     last_boot: u64,
 }
@@ -514,7 +520,7 @@ fn write_mark(path: &Path, mark: &BootMark) {
 /// Depois de trocar os arquivos: a versão nova só vale como boa quando abrir e ficar de pé.
 fn marcar_pendente(app_dir: &Path, version: &str) {
     if let Some(dir) = data_dir_of(app_dir) {
-        write_mark(&dir.join(BOOT_MARKER), &BootMark { version: version.to_string(), boots: 0, rollback_requested: false, last_boot: 0 });
+        write_mark(&dir.join(BOOT_MARKER), &BootMark { version: version.to_string(), failures: 0, rollback_requested: false, attempting: false, last_boot: 0 });
     }
 }
 
@@ -541,8 +547,9 @@ pub enum Guard {
     NeedsPrivilege(String),
 }
 
-/// Primeira coisa que o app faz ao abrir. Conta a abertura da versão nova; na terceira abertura seguida
-/// sem confirmação (`confirm_boot`), devolve os arquivos `.bak`.
+/// Primeira coisa que o app faz ao abrir. Se a tentativa anterior de subir o núcleo da versão nova morreu
+/// sem fechar direito (`end_attempt`) nem confirmar (`confirm_boot`), conta uma falha; com `MAX_BOOTS`
+/// falhas, devolve os arquivos `.bak`.
 pub fn guard_startup(app_dir: &Path, running: &str) -> Guard {
     for name in ALLOWED_FILES {
         let _ = std::fs::remove_file(bad(&app_dir.join(name)));
@@ -552,7 +559,11 @@ pub fn guard_startup(app_dir: &Path, running: &str) -> Guard {
     if !mesma_versao(&mark.version, running) {
         return Guard::Normal;
     }
-    if mark.boots >= MAX_BOOTS || mark.rollback_requested {
+    if mark.attempting {
+        mark.failures += 1;
+        mark.attempting = false;
+    }
+    if mark.failures >= MAX_BOOTS || mark.rollback_requested {
         return match rollback(app_dir) {
             Ok(n) => {
                 let _ = std::fs::remove_file(&path);
@@ -571,10 +582,30 @@ pub fn guard_startup(app_dir: &Path, running: &str) -> Guard {
             }
         };
     }
-    mark.boots += 1;
-    mark.last_boot = agora();
     write_mark(&path, &mark);
     Guard::Normal
+}
+
+/// O núcleo da versão nova começa a subir: a partir daqui, morrer sem confirmar nem fechar direito conta
+/// como falha.
+pub fn begin_attempt(app_dir: &Path, running: &str) {
+    if let Some((path, mut mark)) = read_mark(app_dir) {
+        if mesma_versao(&mark.version, running) {
+            mark.attempting = true;
+            mark.last_boot = agora();
+            write_mark(&path, &mark);
+        }
+    }
+}
+
+/// O app fechou direito (depois de o núcleo subir): a tentativa não foi falha.
+pub fn end_attempt(app_dir: &Path, running: &str) {
+    if let Some((path, mut mark)) = read_mark(app_dir) {
+        if mesma_versao(&mark.version, running) && mark.attempting {
+            mark.attempting = false;
+            write_mark(&path, &mark);
+        }
+    }
 }
 
 /// A versão nova ficou de pé (`CONFIRM_SECS`): a atualização deixa de estar em teste.
@@ -594,7 +625,9 @@ const ESPERA_VERIFICAR: u64 = CONFIRM_SECS * 4;
 /// Tarefa do Windows (com permissão): desfaz a atualização que não abriu. Devolve a versão desfeita.
 pub fn verify_boot(app_dir: &Path) -> Result<Option<String>> {
     let Some((path, mark)) = read_mark(app_dir) else { return Ok(None) };
-    if mark.boots < MAX_BOOTS && !mark.rollback_requested {
+    // uma tentativa que começou e nunca terminou conta como mais uma falha, depois da espera abaixo
+    let falhas = mark.failures + u32::from(mark.attempting);
+    if falhas < MAX_BOOTS && !mark.rollback_requested {
         return Ok(None);
     }
     // uma abertura ainda dentro da janela de confirmação pode estar subindo bem: não julga agora

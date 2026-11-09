@@ -106,6 +106,7 @@ fn iniciar_nucleo(n: &Nucleo) {
     *n.backup.lock()=crate::onboarding::start_backup(&n.st.settings,n.st.memory.clone(),n.st.modos.clone());
 }
 async fn montar_nucleo(s:Settings) -> anyhow::Result<std::sync::Arc<Nucleo>> {
+    iniciar_tentativa();
     let n=preparar_nucleo(s,false).await?;
     iniciar_nucleo(&n);
     agendar_confirmacao();
@@ -933,6 +934,7 @@ pub fn run(mut s: Settings, fundo: bool) -> anyhow::Result<i32> {
         }
     }
     *crate::onboarding::BACKUP_KEY.lock() = None;
+    encerrar_tentativa();
     // "Instala ao fechar": o núcleo já encerrou, então é seguro trocar os arquivos.
     instalar_atualizacao_guardada("ao fechar");
     r?;
@@ -958,10 +960,34 @@ fn guardar_atualizacao() -> Result<(), std::path::PathBuf> {
     Ok(())
 }
 
+/// O núcleo da versão em teste terminou de subir neste processo.
+static NUCLEO_PRONTO: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+fn pasta_do_app() -> Option<std::path::PathBuf> {
+    std::env::current_exe().ok().and_then(|e| e.parent().map(std::path::Path::to_path_buf))
+}
+
+/// Começa a contar a tentativa de subir o núcleo (só aqui: abrir o app e sair na tela de login não vale).
+fn iniciar_tentativa() {
+    if let Some(pasta) = pasta_do_app() {
+        orion_updater::begin_attempt(&pasta, env!("CARGO_PKG_VERSION"));
+    }
+}
+
+/// Fechamento normal depois de o núcleo subir: a tentativa não foi falha. Morrer ou ser morto não passa por aqui.
+fn encerrar_tentativa() {
+    if NUCLEO_PRONTO.load(std::sync::atomic::Ordering::SeqCst) {
+        if let Some(pasta) = pasta_do_app() {
+            orion_updater::end_attempt(&pasta, env!("CARGO_PKG_VERSION"));
+        }
+    }
+}
+
 /// A versão nova só conta como boa depois de o núcleo subir (banco aberto, tudo montado) e ficar de pé
 /// por `CONFIRM_SECS`. Chamada ao fim de `montar_nucleo`; roda uma vez só.
 fn agendar_confirmacao() {
     static UMA_VEZ: std::sync::Once = std::sync::Once::new();
+    NUCLEO_PRONTO.store(true, std::sync::atomic::Ordering::SeqCst);
     UMA_VEZ.call_once(|| {
         let Some(pasta) = std::env::current_exe().ok().and_then(|e| e.parent().map(std::path::Path::to_path_buf)) else { return };
         std::thread::spawn(move || {
