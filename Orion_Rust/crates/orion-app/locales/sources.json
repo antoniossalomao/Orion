@@ -1440,5 +1440,11 @@
   "A nova senha precisa ter entre 12 e 256 caracteres.": "ui-1307",
   "Testando o modelo…": "ui-1308",
   "Pausando o download": "ui-1309",
-  "{gb} · pausado em {pct}%": "ui-1310"
+  "{gb} · pausado em {pct}%": "ui-1310",
+  "Teste ok: o arquivo está íntegro.": "ui-1311",
+  "Teste: o arquivo está íntegro, mas não cabe no teto de 30% da RAM ou na memória livre agora.": "ui-1312",
+  "Teste falhou: arquivo alterado ou corrompido.": "ui-1313",
+  "Código inválido para impressão.": "ui-1314",
+  "Não consegui preparar a página de impressão.": "ui-1315",
+  "Não consegui abrir o navegador para imprimir.": "ui-1316"
 }

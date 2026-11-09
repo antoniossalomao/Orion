@@ -1436,8 +1436,13 @@ impl App {
             },
             Lm::ModeloTestado(r) => match r {
                 Ok(v) => {
-                    let msg = v["mensagem"].as_str().unwrap_or("Teste concluído").to_string();
-                    self.toast(if v["ok"].as_bool().unwrap_or(false) { format!("Teste ok: {msg}") } else { format!("Teste falhou: {msg}") });
+                    // textos fixos, para o catálogo Fluent traduzir (nada de mensagem do servidor interpolada)
+                    let texto = match v["estado"].as_str().unwrap_or("") {
+                        "ok" => crate::i18n::text("Teste ok: o arquivo está íntegro."),
+                        "sem_ram" => crate::i18n::text("Teste: o arquivo está íntegro, mas não cabe no teto de 30% da RAM ou na memória livre agora."),
+                        _ => crate::i18n::text("Teste falhou: arquivo alterado ou corrompido."),
+                    };
+                    self.toast(texto);
                 }
                 Err(e) => self.net_fail(e),
             },

@@ -160,5 +160,11 @@ pub async fn testar(_: Admin, State(st): State<Estado>, Path(id): Path<String>) 
         (Ok(()), Some(false)) => "arquivo íntegro, mas não cabe no teto de 30% da RAM ou na memória livre agora".to_string(),
         (Ok(()), _) => "arquivo íntegro".to_string(),
     };
-    Ok(Json(json!({"id": id, "ok": ok, "integro": integridade.is_ok(), "cabe": cabe, "mensagem": mensagem})))
+    // `estado` é o código que a interface traduz; `mensagem` fica para quem usa a API direto
+    let estado = match (&integridade, cabe) {
+        (Err(_), _) => "corrompido",
+        (Ok(()), Some(false)) => "sem_ram",
+        (Ok(()), _) => "ok",
+    };
+    Ok(Json(json!({"id": id, "ok": ok, "estado": estado, "integro": integridade.is_ok(), "cabe": cabe, "mensagem": mensagem})))
 }
