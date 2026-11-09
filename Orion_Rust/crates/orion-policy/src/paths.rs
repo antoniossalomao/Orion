@@ -177,6 +177,18 @@ impl PathGuard {
             .then(|| "pasta bloqueada nas Configurações: nada dela é lido nem escrito pelo Orion".to_string())
     }
 
+    /// Alguma pasta bloqueada está **dentro** de `path` (reorganizar a pasta de cima mexeria nela).
+    pub fn blocked_inside(&self, path: &str) -> Option<String> {
+        if self.blocked_roots.is_empty() || path.trim().is_empty() {
+            return None;
+        }
+        let alvo = norm(path);
+        self.blocked_roots
+            .iter()
+            .any(|raiz| dentro(&norm(&raiz.to_string_lossy()), &alvo))
+            .then(|| "há uma pasta bloqueada dentro desta: reorganizar mexeria nela".to_string())
+    }
+
     /// Comando de shell que cita uma pasta bloqueada (com `/` ou `\`, maiúsculas ou minúsculas, ou como
     /// `~/...`). É uma checagem de texto: não pega `cd` seguido de caminho relativo nem variáveis, por isso,
     /// com pastas bloqueadas, o motor também tira a execução automática de comandos de shell.

@@ -471,6 +471,16 @@ pub async fn montar_with_runtime(mut settings: Settings, preserve_extensions:boo
     let s2 = settings.clone();
     let memory = Arc::new(tokio::task::spawn_blocking(move || memory_from_settings(&s2)).await??);
     memory.meta_set("sources:repo_roots", Some(&serde_json::to_string(&settings.repos)?))?;
+    // F02.23: notas que já estavam indexadas numa pasta que você bloqueou saem agora, antes de a busca e
+    // os embeddings existirem para elas (não esperam o trabalho periódico do vault)
+    if let (Some(vault), false) = (&settings.vault_dir, settings.blocked_roots.is_empty()) {
+        let bloqueadas: Vec<std::path::PathBuf> = settings.blocked_roots.iter().map(|p| std::path::PathBuf::from(orion_policy::paths::norm(&p.to_string_lossy()))).collect();
+        match memory.purge_blocked(vault, &bloqueadas) {
+            Ok(n) if n > 0 => tracing::info!("{n} nota(s) de pastas bloqueadas saíram do índice"),
+            Ok(_) => {}
+            Err(e) => tracing::warn!("não consegui tirar do índice as notas de pastas bloqueadas: {e}"),
+        }
+    }
     crate::appmode::progress("Preparando modelos…");
     load_providers(&mut settings, &memory)?;
     // registro de saída (REGRAS.md: toda saída de dado fica registrada, sem conteúdo)

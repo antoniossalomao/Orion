@@ -280,6 +280,13 @@ impl PolicyEngine {
                 return Decision::new(Action::Deny, r, motivo);
             }
         }
+        // reorganizar uma pasta mexe em tudo dentro dela, inclusive nos destinos que a ferramenta cria:
+        // se uma pasta bloqueada está lá dentro, nega
+        if spec.organize {
+            if let Some(motivo) = spec.path_arg.as_deref().and_then(|arg| self.path_guard.blocked_inside(&call.arg_str(arg))) {
+                return Decision::new(Action::Deny, r, motivo);
+            }
+        }
         // A concessão dispensa cartões por ação, sem dispensar escopo, revisão, limites ou audit.
         // Auto-modificação continua específica (REGRAS.md: núcleo imutável).
         let protected_write = spec.path_arg.as_deref().or_else(|| (call.name == "delegar").then_some("pasta")).filter(|_| risk != Risk::Read).is_some_and(|arg| {
