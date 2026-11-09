@@ -644,6 +644,8 @@ pub enum Msg {
     SkillToggle(usize),
     ModelGet(usize),
     ModelDel(usize),
+    ModelPause(usize),
+    ModelTest(usize),
     Refresh,
     // configurações
     OpenSettings(Option<Sec>),
@@ -1728,6 +1730,8 @@ impl App {
             }
             Msg::ModelGet(_) => self.toast("Baixar modelo (exemplo)"),
             Msg::ModelDel(_) => self.toast("Remover modelo (exemplo)"),
+            Msg::ModelPause(_) => self.toast("Pausar download (exemplo)"),
+            Msg::ModelTest(_) => self.toast("Testar modelo (exemplo)"),
             Msg::Refresh => self.toast("Painel atualizado"),
             Msg::OpenSettings(sec) => {
                 self.set_open = true;

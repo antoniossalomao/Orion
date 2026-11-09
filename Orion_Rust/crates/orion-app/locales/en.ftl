@@ -1743,3 +1743,6 @@ ui-1304 = { "The old code is no longer valid. Keep this one off this computer: i
 ui-1305 = { "Enter the recovery code." }
 ui-1306 = { "Incorrect recovery code." }
 ui-1307 = { "The new password must be between 12 and 256 characters." }
+ui-1308 = { "Testing the model…" }
+ui-1309 = { "Pausing the download" }
+ui-1310 = { $v0 }{ " · paused at " }{ $v1 }{ "%" }

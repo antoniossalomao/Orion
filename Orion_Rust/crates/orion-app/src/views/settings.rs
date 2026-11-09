@@ -534,11 +534,17 @@ fn section<'a>(app: &'a App) -> El<'a> {
                 let title: El = if m.ativo { t_badge(&m.nome, badge(crate::i18n::text("em uso"), Tone::Info)) } else if m.tipo.is_empty() || live { tx(m.nome.clone(), 13.5, t::FG).into() } else { t_badge(&m.nome, badge(&m.tipo, Tone::Info)) };
                 let pct = if m.bytes > 0 { (m.baixados * 100 / m.bytes).min(100) } else { 0 };
                 let (desc, right): (String, El) = if m.baixando {
-                    (crate::i18n::formatted("{gb} · baixando {pct}%", format!("{gb} · baixando {pct}%")), badge(&format!("{pct}%"), Tone::Plain).into())
+                    (crate::i18n::formatted("{gb} · baixando {pct}%", format!("{gb} · baixando {pct}%")), row![badge(&format!("{pct}%"), Tone::Plain), btn(crate::i18n::text("Pausar"), Kind::Normal, true, None, Some(Msg::ModelPause(i)))].spacing(8).align_y(Vertical::Center).into())
+                } else if m.pausado {
+                    (crate::i18n::formatted("{gb} · pausado em {pct}%", format!("{gb} · pausado em {pct}%")), row![btn(crate::i18n::text("Retomar"), Kind::Normal, true, None, Some(Msg::ModelGet(i))), btn(crate::i18n::text("Remover"), Kind::Normal, true, None, Some(Msg::ModelDel(i)))].spacing(8).align_y(Vertical::Center).into())
                 } else if !m.erro.is_empty() {
                     (crate::i18n::formatted("{gb} · falhou: {}", format!("{gb} · falhou: {}", m.erro)), btn(crate::i18n::text("Tentar de novo"), Kind::Normal, true, None, Some(Msg::ModelGet(i))))
                 } else if m.instalado {
-                    (crate::i18n::formatted("{gb} no disco · baixado", format!("{gb} no disco · baixado")), btn(crate::i18n::text("Remover"), Kind::Normal, !m.ativo, None, if m.ativo { None } else { Some(Msg::ModelDel(i)) }))
+                    (crate::i18n::formatted("{gb} no disco · baixado", format!("{gb} no disco · baixado")), {
+                        let mut acoes = row![].spacing(8).align_y(Vertical::Center);
+                        if live { acoes = acoes.push(btn(crate::i18n::text("Testar"), Kind::Normal, true, None, Some(Msg::ModelTest(i)))); }
+                        acoes.push(btn(crate::i18n::text("Remover"), Kind::Normal, !m.ativo, None, if m.ativo { None } else { Some(Msg::ModelDel(i)) })).into()
+                    })
                 } else {
                     (crate::i18n::formatted("{gb} · não baixado", format!("{gb} · não baixado")), btn(crate::i18n::text("Baixar"), Kind::Normal, true, Some("plus"), Some(Msg::ModelGet(i))))
                 };

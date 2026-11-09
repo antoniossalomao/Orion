@@ -54,6 +54,7 @@ pub enum Lm {
     /// Lista da nuvem; com a nuvem desligada (403) fica vazia, sem erro na tela.
     Nuvem(Result<Value, String>),
     Modelos(Result<Value, String>),
+    ModeloTestado(Result<Value, String>),
     Chat(Chat),
     /// Resultado de uma ação simples: mensagem de sucesso ou de erro (vira toast) e, se `true`, recarrega as listas.
     Acao(Result<String, String>, bool),
@@ -326,6 +327,7 @@ pub fn map_modelos(v: &Value) -> Vec<data::LocalModel> {
             instalado: m.get("instalado").and_then(Value::as_bool).unwrap_or(false),
             ativo: m.get("ativo").and_then(Value::as_bool).unwrap_or(false),
             baixando: m.get("baixando").and_then(Value::as_bool).unwrap_or(false),
+            pausado: m.get("pausado").and_then(Value::as_bool).unwrap_or(false),
             baixados: m.get("baixados").and_then(Value::as_u64).unwrap_or(0),
             erro: m.get("erro").and_then(Value::as_str).unwrap_or("").to_string(),
         })
@@ -833,6 +835,16 @@ impl App {
                 let id = self.locais.get(*i)?.id.clone();
                 let a2 = api.clone();
                 Some((acao(&api, async move { a2.post(&format!("/modelos-locais/{id}/baixar"), json!({})).await }, "Download iniciado", false), false))
+            }
+            Msg::ModelPause(i) => {
+                let id = self.locais.get(*i)?.id.clone();
+                let a2 = api.clone();
+                Some((Task::batch([acao(&api, async move { a2.post(&format!("/modelos-locais/{id}/pausar"), json!({})).await }, "Pausando o download", false), pull_sec(&api, Sec::Locais)]), false))
+            }
+            Msg::ModelTest(i) => {
+                let id = self.locais.get(*i)?.id.clone();
+                self.toast("Testando o modelo…");
+                Some((Task::perform(async move { api.post(&format!("/modelos-locais/{id}/testar"), json!({})).await }, |r| Msg::L(Lm::ModeloTestado(r))), false))
             }
             Msg::ModelDel(i) => {
                 let m = self.locais.get(*i)?;
@@ -1420,6 +1432,13 @@ impl App {
             },
             Lm::Tarefas(r) => match r {
                 Ok(v) => self.cloud = map_tarefas(&v),
+                Err(e) => self.net_fail(e),
+            },
+            Lm::ModeloTestado(r) => match r {
+                Ok(v) => {
+                    let msg = v["mensagem"].as_str().unwrap_or("Teste concluído").to_string();
+                    self.toast(if v["ok"].as_bool().unwrap_or(false) { format!("Teste ok: {msg}") } else { format!("Teste falhou: {msg}") });
+                }
                 Err(e) => self.net_fail(e),
             },
             Lm::Modelos(r) => match r {

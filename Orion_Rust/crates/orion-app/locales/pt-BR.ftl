@@ -1743,3 +1743,6 @@ ui-1304 = { "O código antigo deixou de valer. Guarde este fora do computador: e
 ui-1305 = { "Digite o código de recuperação." }
 ui-1306 = { "Código de recuperação incorreto." }
 ui-1307 = { "A nova senha precisa ter entre 12 e 256 caracteres." }
+ui-1308 = { "Testando o modelo…" }
+ui-1309 = { "Pausando o download" }
+ui-1310 = { $v0 }{ " · pausado em " }{ $v1 }{ "%" }

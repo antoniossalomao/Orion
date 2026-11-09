@@ -1437,5 +1437,8 @@
   "O código antigo deixou de valer. Guarde este fora do computador: ele não será mostrado de novo.": "ui-1304",
   "Digite o código de recuperação.": "ui-1305",
   "Código de recuperação incorreto.": "ui-1306",
-  "A nova senha precisa ter entre 12 e 256 caracteres.": "ui-1307"
+  "A nova senha precisa ter entre 12 e 256 caracteres.": "ui-1307",
+  "Testando o modelo…": "ui-1308",
+  "Pausando o download": "ui-1309",
+  "{gb} · pausado em {pct}%": "ui-1310"
 }

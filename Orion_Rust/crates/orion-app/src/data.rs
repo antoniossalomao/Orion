@@ -527,6 +527,8 @@ pub struct LocalModel {
     pub instalado: bool,
     pub ativo: bool,
     pub baixando: bool,
+    /// Download pausado por você; o arquivo parcial fica no disco e baixar de novo retoma.
+    pub pausado: bool,
     pub baixados: u64,
     pub erro: String,
 }
@@ -536,5 +538,5 @@ pub fn skills_demo() -> Vec<SkillRow> {
 }
 
 pub fn locais_demo() -> Vec<LocalModel> {
-    LOCAL.iter().map(|(n, s, tag)| LocalModel { id: n.to_string(), nome: n.to_string(), tipo: tag.to_string(), bytes: (s.split(' ').next().unwrap_or("0").replace(',', ".").parse::<f64>().unwrap_or(0.0) * 1e9) as u64, instalado: true, ativo: false, baixando: false, baixados: 0, erro: String::new() }).collect()
+    LOCAL.iter().map(|(n, s, tag)| LocalModel { id: n.to_string(), nome: n.to_string(), tipo: tag.to_string(), bytes: (s.split(' ').next().unwrap_or("0").replace(',', ".").parse::<f64>().unwrap_or(0.0) * 1e9) as u64, instalado: true, ativo: false, baixando: false, pausado: false, baixados: 0, erro: String::new() }).collect()
 }

@@ -8,11 +8,26 @@ use axum::Json;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::atomic::AtomicBool;
-use std::sync::{LazyLock, Mutex};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, LazyLock, Mutex};
 
-/// id → (baixados, total, erro) enquanto baixa ou depois de falhar.
-static ANDAMENTO: LazyLock<Mutex<HashMap<String, (u64, u64, Option<String>)>>> = LazyLock::new(Default::default);
+/// Estado de um download: avanço, falha (`erro`) e se foi pausado por você. O `.part` fica no disco
+/// e `baixar` retoma de onde parou (F10.11).
+#[derive(Clone)]
+struct Baixa {
+    feito: u64,
+    erro: Option<String>,
+    pausado: bool,
+    cancela: Arc<AtomicBool>,
+}
+impl Baixa {
+    fn rodando(&self) -> bool {
+        self.erro.is_none() && !self.pausado
+    }
+}
+
+/// id → estado enquanto baixa, está pausado ou depois de falhar.
+static ANDAMENTO: LazyLock<Mutex<HashMap<String, Baixa>>> = LazyLock::new(Default::default);
 
 /// Pasta dos modelos: a do modelo ativo, a do manifesto do instalador ou `<dados>/modelos`.
 fn pasta(st: &Estado) -> PathBuf {
@@ -37,9 +52,10 @@ pub async fn listar(_: Admin, State(st): State<Estado>) -> Json<Value> {
             let caminho = dir.join(&a.filename);
             let instalado = caminho.metadata().is_ok_and(|m| m.len() == a.bytes);
             let ativo = st.settings.local_model_path.as_ref().is_some_and(|p| p == &caminho);
-            let (baixados, erro) = andamento.get(&a.id).map(|(d, _, e)| (*d, e.clone())).unwrap_or((0, None));
-            let baixando = andamento.get(&a.id).is_some_and(|(_, _, e)| e.is_none()) && !instalado;
-            json!({"id": a.id, "nome": a.name, "tipo": a.kind, "bytes": a.bytes, "instalado": instalado, "ativo": ativo, "baixando": baixando, "baixados": baixados, "erro": erro})
+            let (baixados, erro) = andamento.get(&a.id).map(|b| (b.feito, b.erro.clone())).unwrap_or((0, None));
+            let baixando = andamento.get(&a.id).is_some_and(Baixa::rodando) && !instalado;
+            let pausado = andamento.get(&a.id).is_some_and(|b| b.pausado) && !instalado;
+            json!({"id": a.id, "nome": a.name, "tipo": a.kind, "bytes": a.bytes, "instalado": instalado, "ativo": ativo, "baixando": baixando, "pausado": pausado, "baixados": baixados, "erro": erro})
         })
         .collect();
     Json(json!({"pasta": dir.display().to_string(), "modelos": itens}))
@@ -53,17 +69,21 @@ pub async fn baixar(_: Admin, State(st): State<Estado>, Path(id): Path<String>) 
     }
     {
         let mut g = ANDAMENTO.lock().map_err(|_| ApiError::new(500, "estado dos downloads indisponível"))?;
-        if g.values().any(|(_, _, e)| e.is_none()) {
+        if g.values().any(Baixa::rodando) {
             return erro(409, "já há um download em andamento");
         }
-        g.insert(id.clone(), (0, a.bytes, None));
+        // retomar: o arquivo parcial já tem o que foi baixado; o estado novo começa dali
+        let parcial = dir.join(format!("{}.part", a.filename)).metadata().map(|m| m.len()).unwrap_or(0).min(a.bytes);
+        g.insert(id.clone(), Baixa { feito: parcial, erro: None, pausado: false, cancela: Arc::new(AtomicBool::new(false)) });
     }
     let id2 = id.clone();
+    let cancela = ANDAMENTO.lock().ok().and_then(|g| g.get(&id).map(|b| b.cancela.clone())).unwrap_or_default();
     tokio::task::spawn_blocking(move || {
-        let cancel = AtomicBool::new(false);
-        let r = orion_local::download::install(&id2, &dir, &cancel, &|feito, total| {
+        let r = orion_local::download::install(&id2, &dir, &cancela, &|feito, _| {
             if let Ok(mut g) = ANDAMENTO.lock() {
-                g.insert(id2.clone(), (feito, total, None));
+                if let Some(b) = g.get_mut(&id2) {
+                    b.feito = feito;
+                }
             }
         });
         if let Ok(mut g) = ANDAMENTO.lock() {
@@ -71,8 +91,15 @@ pub async fn baixar(_: Admin, State(st): State<Estado>, Path(id): Path<String>) 
                 Ok(_) => {
                     g.remove(&id2);
                 }
+                Err(_) if cancela.load(Ordering::SeqCst) => {
+                    // pausa pedida por você: não é falha; o `.part` fica para retomar
+                    if let Some(b) = g.get_mut(&id2) {
+                        b.pausado = true;
+                    }
+                }
                 Err(e) => {
-                    g.insert(id2.clone(), (0, 0, Some(e.to_string())));
+                    let feito = g.get(&id2).map(|b| b.feito).unwrap_or(0);
+                    g.insert(id2.clone(), Baixa { feito, erro: Some(e.to_string()), pausado: false, cancela: Arc::new(AtomicBool::new(false)) });
                 }
             }
         }
@@ -89,6 +116,48 @@ pub async fn remover(_: Admin, State(st): State<Estado>, Path(id): Path<String>)
     if let Ok(mut g) = ANDAMENTO.lock() {
         g.remove(&id);
     }
+    // um download pausado ou interrompido deixa só o `.part`: remover descarta ele também
+    let _ = std::fs::remove_file(caminho.with_file_name(format!("{}.part", a.filename)));
     let removido = std::fs::remove_file(&caminho).is_ok();
     Ok(Json(json!({"ok": true, "removido": removido})))
+}
+
+/// Pausa o download em andamento. O arquivo parcial continua no disco: `baixar` de novo retoma de onde parou.
+pub async fn pausar(_: Admin, Path(id): Path<String>) -> ApiResult<Json<Value>> {
+    let g = ANDAMENTO.lock().map_err(|_| ApiError::new(500, "estado dos downloads indisponível"))?;
+    match g.get(&id) {
+        Some(b) if b.rodando() => {
+            b.cancela.store(true, Ordering::SeqCst);
+            Ok(Json(json!({"id": id, "estado": "pausando"})))
+        }
+        _ => erro(409, "esse modelo não está sendo baixado"),
+    }
+}
+
+/// Teste rápido de um modelo instalado: confere tamanho e SHA-256 contra o catálogo fixado e se ele
+/// cabe no teto de 30% da RAM com a memória livre de agora. Não gera texto (isso só roda no Windows).
+pub async fn testar(_: Admin, State(st): State<Estado>, Path(id): Path<String>) -> ApiResult<Json<Value>> {
+    let Some(a) = orion_local::catalog::find(&id) else { return erro(404, "modelo desconhecido") };
+    let caminho = pasta(&st).join(&a.filename);
+    if !caminho.metadata().is_ok_and(|m| m.len() == a.bytes) {
+        return erro(409, "o modelo não está instalado por inteiro");
+    }
+    let artefato = a.clone();
+    let integridade = tokio::task::spawn_blocking(move || orion_local::download::verify(&caminho, &artefato).map_err(|e| e.to_string()))
+        .await
+        .map_err(|_| ApiError::new(500, "teste interrompido"))?;
+    let cabe = if a.kind == "llm" {
+        let mut sistema = sysinfo::System::new();
+        sistema.refresh_memory();
+        Some(orion_local::admitted(a.bytes, sistema.total_memory(), sistema.available_memory()))
+    } else {
+        None
+    };
+    let ok = integridade.is_ok() && cabe != Some(false);
+    let mensagem = match (&integridade, cabe) {
+        (Err(e), _) => format!("arquivo alterado ou corrompido: {e}"),
+        (Ok(()), Some(false)) => "arquivo íntegro, mas não cabe no teto de 30% da RAM ou na memória livre agora".to_string(),
+        (Ok(()), _) => "arquivo íntegro".to_string(),
+    };
+    Ok(Json(json!({"id": id, "ok": ok, "integro": integridade.is_ok(), "cabe": cabe, "mensagem": mensagem})))
 }
