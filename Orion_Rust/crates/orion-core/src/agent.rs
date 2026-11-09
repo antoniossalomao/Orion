@@ -380,11 +380,18 @@ impl Agent {
                 crate::progresso::iniciar(&me.memory, &session.id, &pedido_registrado, &passos_anteriores);
             }
             let mut turno = me.turn(session.clone(), Some(req.text.clone()), vec![], external, req.selection.clone(), vec![], req.images.clone(), req.read_only, req.skill_forcada.clone(), None);
+            let mut aguardando = false;
             while let Some(ev) = turno.next().await {
+                aguardando |= ev.kind == "approval";
                 yield ev;
             }
-            // chegou ao fim (se o processo cair antes, o registro fica e o `/retomar` o usa)
-            crate::progresso::fechar(&me.memory, &session.id);
+            // chegou ao fim (se o processo cair antes, o registro fica e o `/retomar` o usa); parado numa
+            // aprovação a tarefa continua em `resume`, então o registro fica
+            if aguardando {
+                crate::progresso::aguardar(&me.memory, &session.id);
+            } else {
+                crate::progresso::fechar(&me.memory, &session.id);
+            }
             // depois da resposta, em segundo plano (REGRAS.md: resumo da conversa nunca substitui o registro)
             if let Some(c) = &me.compactor {
                 c.agendar(&session.id);
@@ -510,9 +517,18 @@ impl Agent {
             let nota: String = nota.chars().take(me.cfg.max_tool_chars).collect();
             let _ = me.memory.add_message(&sessao.id, "system", &nota, None, None);
             let sid = sessao.id.clone();
+            // F04.20: a ação aprovada também é um passo da tarefa
+            crate::progresso::passo(&me.memory, &sid, &a.tool, &a.args, result_state(&resultado));
             let mut turno = me.turn(sessao, None, vec![a.tool.clone()], fixed, None, vec![atividade], vec![], false, None, me.memory.meta_get(&format!("budget:approval:{approval_id}")));
+            let mut aguardando = false;
             while let Some(ev) = turno.next().await {
+                aguardando |= ev.kind == "approval";
                 yield ev;
+            }
+            if aguardando {
+                crate::progresso::aguardar(&me.memory, &sid);
+            } else {
+                crate::progresso::fechar(&me.memory, &sid);
             }
             // A resposta depois de uma aprovação também entra no diário do vault.
             if let Some(f) = &me.after_turn {
@@ -1001,7 +1017,7 @@ impl Agent {
             let mut ctx = ctx_arc.lock();
             self.policy.note_result(chamada, &mut ctx);
             // F02.26: resultados de vault, arquivo e código são privados para este turno.
-            if matches!(chamada.name.as_str(), "buscar_memoria" | "ler_arquivo" | "listar_arquivos" | "consultar_git") {
+            if matches!(chamada.name.as_str(), "buscar_memoria" | "ler_arquivo" | "listar_arquivos" | "consultar_git" | "subagente") {
                 ctx.private_data = true;
             }
             if chamada.name == "buscar_memoria" {

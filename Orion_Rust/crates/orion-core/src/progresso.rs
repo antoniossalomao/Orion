@@ -25,14 +25,16 @@ pub struct Interrompido {
     pub passos: Vec<Value>,
     pub iniciado: f64,
     pub anunciado: bool,
+    /// O turno parou esperando uma aprovação: não é queda, e o cartão de aprovação já avisa o usuário.
+    pub aguardando: bool,
 }
 
 fn chave(sessao: &str) -> String {
     format!("{PREFIXO}{sessao}")
 }
 
-fn gravar(m: &Store, sessao: &str, pedido: &str, iniciado: f64, passos: &[Value], anunciado: bool) {
-    let v = json!({"pedido": pedido, "iniciado": iniciado, "passos": passos, "anunciado": anunciado});
+fn gravar(m: &Store, sessao: &str, pedido: &str, iniciado: f64, passos: &[Value], anunciado: bool, aguardando: bool) {
+    let v = json!({"pedido": pedido, "iniciado": iniciado, "passos": passos, "anunciado": anunciado, "aguardando": aguardando});
     let _ = m.meta_set(&chave(sessao), Some(&v.to_string()));
 }
 
@@ -45,13 +47,14 @@ fn ler(m: &Store, sessao: &str) -> Option<Interrompido> {
         passos: v["passos"].as_array().cloned().unwrap_or_default(),
         iniciado: v["iniciado"].as_f64().unwrap_or(0.0),
         anunciado: v["anunciado"].as_bool().unwrap_or(false),
+        aguardando: v["aguardando"].as_bool().unwrap_or(false),
     })
 }
 
 /// Começa o registro do turno. `anteriores` são os passos de uma retomada (o registro continua acumulando).
 pub fn iniciar(m: &Store, sessao: &str, pedido: &str, anteriores: &[Value]) {
     let passos: Vec<Value> = anteriores.iter().rev().take(MAX_PASSOS).rev().cloned().collect();
-    gravar(m, sessao, pedido, m.now(), &passos, false);
+    gravar(m, sessao, pedido, m.now(), &passos, false, false);
 }
 
 /// Acrescenta um passo de ferramenta. Sem turno registrado (turno de só leitura, por exemplo), não faz nada.
@@ -63,7 +66,15 @@ pub fn passo(m: &Store, sessao: &str, ferramenta: &str, args: &Map<String, Value
     if passos.len() > MAX_PASSOS {
         passos.remove(0);
     }
-    gravar(m, sessao, &i.pedido, i.iniciado, &passos, false);
+    gravar(m, sessao, &i.pedido, i.iniciado, &passos, false, false);
+}
+
+/// O turno parou esperando aprovação: o registro fica (a aprovação continua a tarefa e `passo` o mantém), mas
+/// não é anunciado como queda.
+pub fn aguardar(m: &Store, sessao: &str) {
+    if let Some(i) = ler(m, sessao) {
+        gravar(m, sessao, &i.pedido, i.iniciado, &i.passos, i.anunciado, true);
+    }
 }
 
 /// O turno terminou de forma normal: nada a retomar.
@@ -87,8 +98,8 @@ pub fn anunciar(m: &Store) -> Vec<Interrompido> {
             fechar(m, sessao);
             continue;
         }
-        if !i.anunciado {
-            gravar(m, sessao, &i.pedido, i.iniciado, &i.passos, true);
+        if !i.anunciado && !i.aguardando {
+            gravar(m, sessao, &i.pedido, i.iniciado, &i.passos, true, false);
             novos.push(i);
         }
     }
