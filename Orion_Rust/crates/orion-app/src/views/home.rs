@@ -68,7 +68,7 @@ fn recent_projects(app: &App) -> Vec<usize> {
 }
 
 pub fn view(app: &App) -> El<'_> {
-    let sky = iced::widget::image(app.sky_frame.img.clone()).content_fit(iced::ContentFit::Cover).width(Length::Fill).height(Length::Fill);
+    let sky = iced::widget::image(app.sky_frame.img.clone()).content_fit(iced::ContentFit::Fill).width(Length::Fill).height(Length::Fill);
     let hour = app.hour.unwrap_or_else(local_hour);
     let size = (app.win.width * 0.05).clamp(34.0, 46.0);
     let hello_spans: Vec<iced::widget::text::Span<'_, (), iced::Font>> = vec![
