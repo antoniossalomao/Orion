@@ -162,7 +162,7 @@ pub fn view(app: &App) -> El<'_> {
                     crate::i18n::text("Cadastrando seu rosto…").to_string()
                 }
             } else {
-                crate::i18n::formatted("Verificando {v}…", format!("A verificar {name}…"))
+                crate::i18n::formatted("Verificando {v}…", format!("Verificando {name}…"))
             };
             let request = match (i.phase, i.purpose) {
                 (Phase::Enrolling, _) => {
