@@ -310,6 +310,21 @@ impl Agent {
                     return;
                 }
             }
+            // F04.20: `/retomar` continua a tarefa que ficou pelo caminho (queda do PC ou fechamento no meio)
+            let mut req = req;
+            let mut passos_anteriores: Vec<Value> = vec![];
+            let mut pedido_registrado = req.text.clone();
+            if req.text.trim() == crate::progresso::COMANDO {
+                match crate::progresso::obter(&me.memory, &session.id) {
+                    Some(i) => {
+                        req.text = crate::progresso::texto_de_retomada(&i);
+                        req.external.push(crate::progresso::dados(&i));
+                        pedido_registrado = i.pedido.clone();
+                        passos_anteriores = i.passos.clone();
+                    }
+                    None => { yield AgentEvent::erro("Nenhuma tarefa interrompida nesta conversa para retomar."); return; }
+                }
+            }
             let lock = me.lock(&session.id);
             let _guarda = lock.lock().await;
             me.ctx.lock().remove(&session.id);
@@ -360,9 +375,22 @@ impl Agent {
             let nota = if req.images.is_empty() { String::new() } else { format!("\n[{} imagem(ns) enviada(s) neste turno; não guardada(s)]", req.images.len()) };
             let prov = req.selection.as_ref().filter(|s| !s.skills.is_empty()).map(|s| json!({"skills": s.skills}));
             let _ = me.memory.add_message(&session.id, "user", &format!("{}{nota}", req.text), prov.as_ref(), version_of);
+            // turnos de só leitura (segundo plano, subagentes) não entram: ninguém para retomar
+            if !req.read_only {
+                crate::progresso::iniciar(&me.memory, &session.id, &pedido_registrado, &passos_anteriores);
+            }
             let mut turno = me.turn(session.clone(), Some(req.text.clone()), vec![], external, req.selection.clone(), vec![], req.images.clone(), req.read_only, req.skill_forcada.clone(), None);
+            let mut aguardando = false;
             while let Some(ev) = turno.next().await {
+                aguardando |= ev.kind == "approval";
                 yield ev;
+            }
+            // chegou ao fim (se o processo cair antes, o registro fica e o `/retomar` o usa); parado numa
+            // aprovação a tarefa continua em `resume`, então o registro fica
+            if aguardando {
+                crate::progresso::aguardar(&me.memory, &session.id);
+            } else {
+                crate::progresso::fechar(&me.memory, &session.id);
             }
             // depois da resposta, em segundo plano (REGRAS.md: resumo da conversa nunca substitui o registro)
             if let Some(c) = &me.compactor {
@@ -489,9 +517,18 @@ impl Agent {
             let nota: String = nota.chars().take(me.cfg.max_tool_chars).collect();
             let _ = me.memory.add_message(&sessao.id, "system", &nota, None, None);
             let sid = sessao.id.clone();
+            // F04.20: a ação aprovada também é um passo da tarefa
+            crate::progresso::passo(&me.memory, &sid, &a.tool, &a.args, result_state(&resultado));
             let mut turno = me.turn(sessao, None, vec![a.tool.clone()], fixed, None, vec![atividade], vec![], false, None, me.memory.meta_get(&format!("budget:approval:{approval_id}")));
+            let mut aguardando = false;
             while let Some(ev) = turno.next().await {
+                aguardando |= ev.kind == "approval";
                 yield ev;
+            }
+            if aguardando {
+                crate::progresso::aguardar(&me.memory, &sid);
+            } else {
+                crate::progresso::fechar(&me.memory, &sid);
             }
             // A resposta depois de uma aprovação também entra no diário do vault.
             if let Some(f) = &me.after_turn {
@@ -928,6 +965,9 @@ impl Agent {
         }
         let resultado = self.executar(&chamada, ctx_arc).await;
         let estado = result_state(&resultado);
+        // F04.20: o passo fica registrado assim que termina
+        let sessao_atual = ctx_arc.lock().session_id.clone();
+        crate::progresso::passo(&self.memory, &sessao_atual, &c.name, &c.arguments, estado);
         info.insert("state".into(), json!(estado));
         info.insert(
             "summary".into(),
@@ -959,6 +999,16 @@ impl Agent {
         let escopo = Self::escopo(&ctx_arc.lock());
         let session_id = ctx_arc.lock().session_id.clone();
         let fut = orion_store::scope::scoped(escopo, tool.run(chamada.args.clone()));
+        // o subagente herda o que o turno que o chamou pode usar (skill restrita, autorização revogável)
+        let fut: std::pin::Pin<Box<dyn std::future::Future<Output = String> + Send + '_>> = if chamada.name == crate::subagente::NOME {
+            let heranca = {
+                let c = ctx_arc.lock();
+                crate::subagente::Heranca { allowed_tools: c.allowed_tools.clone(), authorized: c.authorized.clone(), project_id: c.project_id.clone() }
+            };
+            Box::pin(crate::subagente::HERANCA.scope(heranca, fut))
+        } else {
+            Box::pin(fut)
+        };
         let mut bruto = match tokio::time::timeout(Duration::from_secs_f64(self.cfg.tool_timeout_s), fut).await {
             Ok(r) => r,
             Err(_) => return error_with_guidance(format!("tempo esgotado ({:.0}s)", self.cfg.tool_timeout_s)),
@@ -977,7 +1027,7 @@ impl Agent {
             let mut ctx = ctx_arc.lock();
             self.policy.note_result(chamada, &mut ctx);
             // F02.26: resultados de vault, arquivo e código são privados para este turno.
-            if matches!(chamada.name.as_str(), "buscar_memoria" | "ler_arquivo" | "listar_arquivos" | "consultar_git") {
+            if matches!(chamada.name.as_str(), "buscar_memoria" | "ler_arquivo" | "listar_arquivos" | "consultar_git" | "subagente") {
                 ctx.private_data = true;
             }
             if chamada.name == "buscar_memoria" {

@@ -12,12 +12,52 @@ use std::time::Duration;
 pub const EVERY: Duration = Duration::from_secs(15 * 60);
 const LAST: &str = "vault:sync:last";
 
+/// Pastas bloqueadas (já normalizadas), definidas na abertura do núcleo. Os três caminhos que sincronizam
+/// (rodada periódica, "Sincronizar agora" e fechamento) passam por `run_blocking`.
+static BLOQUEADAS: std::sync::RwLock<Vec<PathBuf>> = std::sync::RwLock::new(Vec::new());
+
+pub fn definir_bloqueadas(pastas: Vec<PathBuf>) {
+    if let Ok(mut g) = BLOQUEADAS.write() {
+        *g = pastas;
+    }
+}
+
+/// F02.23: com pasta bloqueada dentro do vault, não sincroniza nada. O Git lê e envia os arquivos que
+/// mudaram, e o bloqueio promete que o Orion nunca lê nem escreve naquela pasta.
+fn bloqueada_no_vault(vault: &std::path::Path) -> bool {
+    let raiz = std::fs::canonicalize(vault).unwrap_or_else(|_| vault.to_path_buf());
+    // a pasta bloqueada dentro do vault, ou o próprio vault dentro de uma pasta bloqueada
+    BLOQUEADAS
+        .read()
+        .map(|g| g.iter().any(|b| {
+            let b = std::fs::canonicalize(b).unwrap_or_else(|_| b.clone());
+            b.starts_with(&raiz) || raiz.starts_with(&b)
+        }))
+        .unwrap_or(false)
+}
+
 /// Uma rodada. Devolve a frase para mostrar (sucesso ou motivo da falha).
-pub fn run_blocking(vault: PathBuf, memory: &Store) -> Result<String, String> {
+pub fn run_blocking(vault: PathBuf, memory: &std::sync::Arc<Store>) -> Result<String, String> {
+    if bloqueada_no_vault(&vault) {
+        // não conta como falha do Git: é uma escolha sua. A mensagem diz o que fazer.
+        let message = "Sincronização do vault suspensa: há uma pasta bloqueada dentro dele (ou ele está numa pasta bloqueada). Tire o bloqueio para sincronizar.".to_string();
+        let _ = memory.meta_set(LAST, Some(&serde_json::json!({"at": orion_core::util::agora(), "ok": false, "message": message}).to_string()));
+        return Err(message);
+    }
+    let pasta = vault.clone();
     let outcome = orion_vault::VaultManager::new(Some(vault)).map_err(|e| e.to_string()).and_then(|m| match m.sync_all() {
         Ok(Some(r)) => Ok(summary(&r)),
         Ok(None) => Err("o vault não é um repositório Git".to_string()),
         Err(e) => Err(e.to_string()),
+    });
+    // F06.16: confere o que agentes externos escreveram (e o que veio do GitHub) desde a rodada anterior
+    let outcome = outcome.map(|msg| {
+        let r = crate::vault_auditoria::auditar(&pasta, memory);
+        if r.conferidas > 0 {
+            format!("{msg}; {} nota(s) de agentes externos conferida(s), {} com problema", r.conferidas, r.com_problema)
+        } else {
+            msg
+        }
     });
     let at = orion_core::util::agora();
     let (ok, message) = match &outcome {

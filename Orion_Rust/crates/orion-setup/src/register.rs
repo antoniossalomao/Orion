@@ -198,9 +198,9 @@ impl Registrar for WindowsRegistrar {
     #[cfg(windows)]
     fn install_update_task(&self, orion: &Path) -> Result<(), String> {
         // Pasta do app costuma exigir administrador: só estas tarefas (SYSTEM) trocam os arquivos guardados (F10.16).
-        let tr = format!("\"{}\" update --apply-staged --check", orion.display());
+        let tr = format!("\"{}\" update --verify-boot --apply-staged --check", orion.display());
         run(std::process::Command::new("schtasks").args(["/Create", "/TN", UPDATE_TASK, "/SC", "DAILY", "/ST", "12:30", "/RU", "SYSTEM", "/RL", "HIGHEST", "/TR", &tr, "/F"]))?;
-        let tr = format!("\"{}\" update --apply-staged", orion.display());
+        let tr = format!("\"{}\" update --verify-boot --apply-staged", orion.display());
         run(std::process::Command::new("schtasks").args(["/Create", "/TN", UPDATE_TASK_LOGON, "/SC", "ONLOGON", "/RU", "SYSTEM", "/RL", "HIGHEST", "/TR", &tr, "/F"]))
     }
     #[cfg(not(windows))]

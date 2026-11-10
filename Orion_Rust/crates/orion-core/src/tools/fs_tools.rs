@@ -11,6 +11,34 @@ use std::path::Path;
 
 /// Bytes por chamada.
 pub const MAX_ESCRITA: usize = 5 * 1024 * 1024;
+
+/// F04.26: se o arquivo gravado é JSON, YAML ou TOML e não é válido, devolve o erro (com linha e coluna
+/// quando o formato informa). O arquivo já foi gravado como o modelo pediu; o aviso volta ao modelo para ele
+/// corrigir regravando, o que passa pela política como qualquer escrita, e o Diff mostra o que mudou.
+/// Só JSON, YAML e TOML são conferidos; os outros formatos nem são lidos de volta.
+fn confere_sintaxe(path: &Path) -> bool {
+    let ext = path.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
+    matches!(ext.as_str(), "json" | "yaml" | "yml" | "toml")
+}
+
+pub(crate) fn erro_de_sintaxe(path: &Path, texto: &str) -> Option<String> {
+    let ext = path.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
+    match ext.as_str() {
+        "json" => serde_json::from_str::<Value>(texto).err().map(|e| format!("JSON inválido: {e}")),
+        "yaml" | "yml" => {
+            use serde::Deserialize;
+            // vários documentos separados por `---` são válidos
+            for doc in serde_yaml::Deserializer::from_str(texto) {
+                if let Err(e) = serde_yaml::Value::deserialize(doc) {
+                    return Some(format!("YAML inválido: {e}"));
+                }
+            }
+            None
+        }
+        "toml" => toml::from_str::<toml::Table>(texto).err().map(|e| format!("TOML inválido: {e}")),
+        _ => None,
+    }
+}
 pub const CRITERIOS: [&str; 3] = ["tipo", "data", "tamanho"];
 
 fn tipo(ext: &str) -> &'static str {
@@ -75,7 +103,24 @@ pub fn fs_tools() -> Vec<Tool> {
                 let existia = alvo.exists();
                 let mut f = std::fs::OpenOptions::new().create(true).write(true).append(modo == "a").truncate(modo == "w").open(&alvo)?;
                 f.write_all(&dados)?;
-                Ok(json!({"ok": true, "path": alvo.display().to_string(), "bytes_escritos": dados.len(), "substituiu": existia && modo == "w"}))
+                drop(f);
+                // o que vale é o arquivo inteiro: em 'a' (acrescentar) lê de volta
+                // (só se o formato é conferido e o arquivo cabe no mesmo teto da escrita: nunca lê um log enorme)
+                let texto = if !confere_sintaxe(&alvo) {
+                    None
+                } else if modo == "w" {
+                    String::from_utf8(dados.clone()).ok()
+                } else if std::fs::metadata(&alvo).is_ok_and(|m| m.len() as usize <= MAX_ESCRITA) {
+                    std::fs::read_to_string(&alvo).ok()
+                } else {
+                    None
+                };
+                let mut resposta = json!({"ok": true, "path": alvo.display().to_string(), "bytes_escritos": dados.len(), "substituiu": existia && modo == "w"});
+                if let Some(erro) = texto.as_deref().and_then(|t| erro_de_sintaxe(&alvo, t)) {
+                    resposta["aviso_sintaxe"] = json!(erro);
+                    resposta["corrija"] = json!("O arquivo foi gravado, mas tem erro de sintaxe. Corrija o conteúdo e grave de novo; o que mudou aparece no Diff.");
+                }
+                Ok(resposta)
             },
         ),
         Tool::sync(

@@ -58,6 +58,7 @@
   "nuvem · {}",
   "{gb} no disco · baixado",
   "{gb} · baixando {pct}%",
+  "{gb} · pausado em {pct}%",
   "{gb} · falhou: {}",
   "{motivo} · {}",
   "{notas} · {} links{pull}",

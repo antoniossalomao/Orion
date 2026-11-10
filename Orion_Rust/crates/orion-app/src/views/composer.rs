@@ -156,6 +156,9 @@ fn send_btn<'a>(inner: El<'a>, msg: Option<Msg>, active: bool) -> El<'a> {
     b.style(move |_, _| button::Style { background: Some(Background::Color(if active { t::PRIMARY } else { t::RAISE2 })), text_color: t::PRIMARY_INK, border: Border { radius: t::R_PANEL.into(), ..Default::default() }, shadow: Default::default(), snap: true }).into()
 }
 
+/// O núcleo reconhece este texto como o pedido de retomar (`orion_core::progresso::COMANDO`).
+const COMANDO_RETOMAR: &str = "/retomar";
+
 pub fn run_command(app: &mut App, word: &str, full: &str) -> Task<Msg> {
     let rest = full[word.len()..].trim().to_string();
     let known = data::CMDS.iter().any(|(c, _)| &c[1..] == word);
@@ -178,6 +181,14 @@ pub fn run_command(app: &mut App, word: &str, full: &str) -> Task<Msg> {
             return Task::none();
         }
         return app.live_send("Resuma esta conversa em tópicos curtos: decisões, pendências e próximos passos.".into());
+    }
+    if app.is_live() && word == "retomar" {
+        // F04.20: o núcleo sabe qual tarefa ficou pelo caminho nesta conversa; sem ela, responde que não há
+        if app.conv.is_none() {
+            app.toast("Abra uma conversa primeiro");
+            return Task::none();
+        }
+        return app.live_send(COMANDO_RETOMAR.into());
     }
     if app.is_live() && word == "imagem" {
         app.toast(format!("/{word} ainda não está ligado ao núcleo nesta interface. Nenhum conteúdo foi gravado ou gerado."));
@@ -254,7 +265,7 @@ pub fn run_command(app: &mut App, word: &str, full: &str) -> Task<Msg> {
         }
         "mcp" | "skill" => return app.update(Msg::OpenSettings(Some(crate::app::Sec::Conectores))),
         "resumo" => app.toast("Resumo gerado na nota desta conversa"),
-        "ajuda" => app.toast("Comandos: /nota /vault /rotina /modelo /projeto /autonomo /tarefa /nuvem /imagem /limpar /resumo /aprovar /voz /mcp /skill /config"),
+        "ajuda" => app.toast("Comandos: /nota /vault /rotina /modelo /projeto /autonomo /tarefa /nuvem /imagem /limpar /resumo /retomar /aprovar /voz /mcp /skill /config"),
         "projeto" => app.pop = Some(Pop::Project),
         _ => {}
     }

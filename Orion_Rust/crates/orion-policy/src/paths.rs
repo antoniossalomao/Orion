@@ -149,17 +149,64 @@ pub struct PathGuard {
     pub protected_roots: Vec<PathBuf>,
     pub safe_roots: Vec<PathBuf>,
     pub system_roots: Vec<String>,
+    /// Pastas que você bloqueou (F02.23): nem ler nem escrever, com ou sem autorização persistente.
+    pub blocked_roots: Vec<PathBuf>,
 }
 
 impl Default for PathGuard {
     fn default() -> Self {
-        PathGuard { protected_roots: vec![], safe_roots: default_safe_roots(), system_roots: system_roots() }
+        PathGuard { protected_roots: vec![], safe_roots: default_safe_roots(), system_roots: system_roots(), blocked_roots: vec![] }
     }
 }
 
 impl PathGuard {
     pub fn new(protected_roots: Vec<PathBuf>) -> Self {
         PathGuard { protected_roots, ..Default::default() }
+    }
+
+    /// `Some(motivo)` se o caminho está numa pasta bloqueada por você: a ação é negada, não confirmada.
+    /// O caminho é resolvido antes (symlink e `..` não furam o bloqueio).
+    pub fn check_blocked(&self, path: &str) -> Option<String> {
+        if self.blocked_roots.is_empty() || path.trim().is_empty() {
+            return None;
+        }
+        let alvo = norm(path);
+        self.blocked_roots
+            .iter()
+            .any(|raiz| dentro(&alvo, &norm(&raiz.to_string_lossy())))
+            .then(|| "pasta bloqueada nas Configurações: nada dela é lido nem escrito pelo Orion".to_string())
+    }
+
+    /// Alguma pasta bloqueada está **dentro** de `path` (reorganizar a pasta de cima mexeria nela).
+    pub fn blocked_inside(&self, path: &str) -> Option<String> {
+        if self.blocked_roots.is_empty() || path.trim().is_empty() {
+            return None;
+        }
+        let alvo = norm(path);
+        self.blocked_roots
+            .iter()
+            .any(|raiz| dentro(&norm(&raiz.to_string_lossy()), &alvo))
+            .then(|| "há uma pasta bloqueada dentro desta: reorganizar mexeria nela".to_string())
+    }
+
+    /// Comando de shell que cita uma pasta bloqueada (com `/` ou `\`, maiúsculas ou minúsculas, ou como
+    /// `~/...`). É uma checagem de texto: não pega `cd` seguido de caminho relativo nem variáveis, por isso,
+    /// com pastas bloqueadas, o motor também tira a execução automática de comandos de shell.
+    pub fn command_touches_blocked(&self, cmd: &str) -> Option<String> {
+        if self.blocked_roots.is_empty() {
+            return None;
+        }
+        let texto = cmd.replace('\\', "/").to_lowercase();
+        let h = norm(&home().to_string_lossy()).replace('\\', "/").to_lowercase();
+        let citada = self.blocked_roots.iter().any(|raiz| {
+            let r = norm(&raiz.to_string_lossy()).replace('\\', "/").to_lowercase();
+            if r.is_empty() {
+                return false;
+            }
+            let til = r.strip_prefix(&format!("{h}/")).map(|rel| format!("~/{rel}"));
+            texto.contains(&r) || til.is_some_and(|t| texto.contains(&t))
+        });
+        citada.then(|| "o comando cita uma pasta bloqueada nas Configurações".to_string())
     }
 
     /// `None` se pode escrever sem confirmação; senão o motivo da confirmação.

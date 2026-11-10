@@ -37,6 +37,7 @@ dotenvy.workspace = true
 uuid.workspace = true
 unicode-normalization.workspace = true
 serde_yaml.workspace = true
+toml = "0.8"
 image.workspace = true
 html-escape.workspace = true
 jsonschema.workspace = true

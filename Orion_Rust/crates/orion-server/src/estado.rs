@@ -159,7 +159,7 @@ pub fn apply_tool_permissions(
 pub fn build_policy(settings: &Settings, ops: Option<Arc<Operations>>) -> PolicyEngine {
     let mut safe = orion_policy::paths::default_safe_roots();
     safe.extend(settings.extra_safe_roots.iter().cloned());
-    let guard = PathGuard { protected_roots: vec![project_root()], safe_roots: safe, system_roots: orion_policy::paths::system_roots() };
+    let guard = PathGuard { protected_roots: vec![project_root()], safe_roots: safe, system_roots: orion_policy::paths::system_roots(), blocked_roots: settings.blocked_roots.clone() };
     let approvals = Arc::new(ApprovalStore::new(settings.approval_ttl_s, orion_policy::wall_clock()));
     PolicyEngine::new(guard).with_approvals(approvals).with_audit(Arc::new(move |evento| {
         tracing::info!(target: "orion.audit", "tool_decision {}", evento);
@@ -471,11 +471,38 @@ pub async fn montar_with_runtime(mut settings: Settings, preserve_extensions:boo
     let s2 = settings.clone();
     let memory = Arc::new(tokio::task::spawn_blocking(move || memory_from_settings(&s2)).await??);
     memory.meta_set("sources:repo_roots", Some(&serde_json::to_string(&settings.repos)?))?;
+    // F02.23: o vault não sincroniza com o Git enquanto houver pasta bloqueada dentro dele
+    crate::vault_sync::definir_bloqueadas(settings.blocked_roots.iter().map(|p| std::path::PathBuf::from(orion_policy::paths::norm(&p.to_string_lossy()))).collect());
+    // F02.23: notas que já estavam indexadas numa pasta que você bloqueou saem agora, antes de a busca e
+    // os embeddings existirem para elas (não esperam o trabalho periódico do vault)
+    if let (Some(vault), false) = (&settings.vault_dir, settings.blocked_roots.is_empty()) {
+        let bloqueadas: Vec<std::path::PathBuf> = settings.blocked_roots.iter().map(|p| std::path::PathBuf::from(orion_policy::paths::norm(&p.to_string_lossy()))).collect();
+        match memory.purge_blocked(vault, &bloqueadas) {
+            Ok(n) if n > 0 => tracing::info!("{n} nota(s) de pastas bloqueadas saíram do índice"),
+            Ok(_) => {}
+            Err(e) => tracing::warn!("não consegui tirar do índice as notas de pastas bloqueadas: {e}"),
+        }
+    }
     crate::appmode::progress("Preparando modelos…");
     load_providers(&mut settings, &memory)?;
     // registro de saída (REGRAS.md: toda saída de dado fica registrada, sem conteúdo)
     orion_ai::saidas::definir_destino(Some(orion_ai::saidas::destino_store(memory.clone())));
     let ops = Arc::new(Operations::new(memory.clone()));
+    // F04.20: tarefas que ficaram pelo caminho (queda do PC ou fechamento no meio) viram um aviso, uma vez só
+    for i in orion_core::progresso::anunciar(&memory) {
+        let pedido: String = i.pedido.chars().take(60).collect();
+        // o aviso nasce no escopo da conversa: pedido de projeto não aparece na fila pessoal
+        let projeto = memory.get_session(&i.sessao).ok().flatten().and_then(|s| s.project_id);
+        let escopo = orion_store::DataScope { project_id: projeto, include_personal: false, session_id: Some(i.sessao.clone()) };
+        let _ = orion_store::with_scope(escopo, || ops.notify("turno_interrompido", &format!("A tarefa «{pedido}» foi interrompida. Escreva /retomar na conversa para continuar."), Some(&format!("turno:{}", i.sessao)), false));
+    }
+    // F02.23: vigias de pasta criadas antes do bloqueio param agora
+    if !settings.blocked_roots.is_empty() {
+        let bloqueadas: Vec<std::path::PathBuf> = settings.blocked_roots.iter().map(|p| std::path::PathBuf::from(orion_policy::paths::norm(&p.to_string_lossy()))).collect();
+        if let Err(e) = ops.watch_purge_blocked(&bloqueadas) {
+            tracing::warn!("não consegui parar as vigias de pastas bloqueadas: {e}");
+        }
+    }
     orion_core::documents::recuperar_interrompidos(&memory);
     let ops_audit = ops.clone();
     let modos = Arc::new(Modos::new(memory.clone(), &settings.dnd_at, Some(Arc::new(move |e| ops_audit.audit_add(e).map(|_| ()).map_err(Into::into)))));
@@ -591,6 +618,11 @@ pub async fn montar_with_runtime(mut settings: Settings, preserve_extensions:boo
             extra.push(orion_core::screen_memory::screen_tool(memory.clone()));
         }
         extra.extend(orion_core::historicos::ferramentas(historicos.clone(), &policy, settings.clipboard_days > 0, settings.command_history));
+        // F04.23: subagentes só de leitura. A ferramenta é de leitura e `external` (o relatório contamina a
+        // sessão); o limite de paralelos vem das configurações e as chamadas por janela de tempo são contadas.
+        let subagentes = orion_core::subagente::Subagentes::new(settings.subagents_max);
+        let _ = policy.register_tool(orion_policy::ToolSpec { external: true, ..orion_policy::ToolSpec::new(orion_core::subagente::NOME, orion_policy::Risk::Read) }, Some((10, 600)));
+        extra.push(orion_core::subagente::ferramenta(subagentes.clone()));
         let mut o = Opcoes { ops: Some(ops.clone()), delegator: delegator.clone(), camera: camera_tools, extra, ..Default::default() };
         {
             // O registro fica pronto; a política filtra e nega o grupo sem opt-in.
@@ -655,10 +687,15 @@ pub async fn montar_with_runtime(mut settings: Settings, preserve_extensions:boo
         a.injection = Some(Arc::new(injection));
         a.injection_enabled = live.injection.clone();
         if let Some(vault) = settings.vault_dir.clone().or_else(orion_vault::detect_vault_path) {
-            a.after_turn = Some(crate::diary::hook(memory.clone(), vault, settings.data_dir.join("imagens"), live.diary.clone()));
+            a.after_turn = Some(crate::diary::hook(memory.clone(), vault.clone(), settings.data_dir.join("imagens"), live.diary.clone()));
+            // F06.11: resumo final de cada conversa parada, pelo modelo local (só com ele instalado)
+            if let Some(c) = &a.compactor {
+                crate::resumos::spawn_loop(memory.clone(), c.clone(), vault, settings.data_dir.join("imagens"), live.diary.clone(), modos.clone());
+            }
         }
         *a.indice.write() = Some(indice);
         agent = Some(Arc::new(a));
+        if let Some(ag) = &agent { subagentes.ligar(ag); }
     }
     // Ao abrir o Orion, a pasta do vault é atualizada da main (só fast-forward). Falha vira aviso no log;
     // nunca impede o Orion de subir.
@@ -880,6 +917,8 @@ pub async fn montar_with_runtime(mut settings: Settings, preserve_extensions:boo
             backup_dir: if orion_core::onboarding::Profile::load(&settings.data_dir)?.is_some(){None}else{settings.backup_dir.clone()},
             backup_keep: settings.backup_keep,
             vault_dir: settings.vault_dir.clone(),
+            // `~/...` e `..` resolvidos como no guarda de caminhos, senão o índice não casaria com o bloqueio
+            blocked_roots: settings.blocked_roots.iter().map(|p| std::path::PathBuf::from(orion_policy::paths::norm(&p.to_string_lossy()))).collect(),
             audit_days: settings.audit_retention_days,
             briefing_at: settings.briefing_at.clone(),
             gateway_down_min: settings.gateway_down_min,

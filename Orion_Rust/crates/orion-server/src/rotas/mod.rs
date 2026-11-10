@@ -219,6 +219,8 @@ pub fn router(st: Estado) -> Router {
         .route("/modelos-locais", get(modelos::listar))
         .route("/modelos-locais/:id", delete(modelos::remover))
         .route("/modelos-locais/:id/baixar", post(modelos::baixar))
+        .route("/modelos-locais/:id/pausar", post(modelos::pausar))
+        .route("/modelos-locais/:id/testar", post(modelos::testar))
         .route("/mcp/connections", get(conexoes).post(configurar))
         .route("/mcp/connections/:id", axum::routing::put(reconfigurar).delete(desconectar))
         .route("/mcp/connections/:id/disable", post(desligar_conexao))

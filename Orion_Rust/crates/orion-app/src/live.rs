@@ -54,6 +54,7 @@ pub enum Lm {
     /// Lista da nuvem; com a nuvem desligada (403) fica vazia, sem erro na tela.
     Nuvem(Result<Value, String>),
     Modelos(Result<Value, String>),
+    ModeloTestado(Result<Value, String>),
     Chat(Chat),
     /// Resultado de uma ação simples: mensagem de sucesso ou de erro (vira toast) e, se `true`, recarrega as listas.
     Acao(Result<String, String>, bool),
@@ -326,6 +327,7 @@ pub fn map_modelos(v: &Value) -> Vec<data::LocalModel> {
             instalado: m.get("instalado").and_then(Value::as_bool).unwrap_or(false),
             ativo: m.get("ativo").and_then(Value::as_bool).unwrap_or(false),
             baixando: m.get("baixando").and_then(Value::as_bool).unwrap_or(false),
+            pausado: m.get("pausado").and_then(Value::as_bool).unwrap_or(false),
             baixados: m.get("baixados").and_then(Value::as_u64).unwrap_or(0),
             erro: m.get("erro").and_then(Value::as_str).unwrap_or("").to_string(),
         })
@@ -511,6 +513,7 @@ impl App {
                 let language = if *value == 1 { "en" } else { "pt-BR" };
                 Some((Task::perform(async move { api.post("/config/language", json!({"language":language})).await.map(|_| ()) }, |result| Msg::L(Lm::LanguageSaved(result))), true))
             }
+            Msg::Recov(ev) => Some((self.update_recov(ev.clone()), false)),
             Msg::LoginCancel => {
                 if let Some(ch)=self.challenge.take(){api.cancelar_entrada(&ch);}
                 self.pw.clear();self.gate_err.clear();
@@ -832,6 +835,16 @@ impl App {
                 let id = self.locais.get(*i)?.id.clone();
                 let a2 = api.clone();
                 Some((acao(&api, async move { a2.post(&format!("/modelos-locais/{id}/baixar"), json!({})).await }, "Download iniciado", false), false))
+            }
+            Msg::ModelPause(i) => {
+                let id = self.locais.get(*i)?.id.clone();
+                let a2 = api.clone();
+                Some((Task::batch([acao(&api, async move { a2.post(&format!("/modelos-locais/{id}/pausar"), json!({})).await }, "Pausando o download", false), pull_sec(&api, Sec::Locais)]), false))
+            }
+            Msg::ModelTest(i) => {
+                let id = self.locais.get(*i)?.id.clone();
+                self.toast("Testando o modelo…");
+                Some((Task::perform(async move { api.post(&format!("/modelos-locais/{id}/testar"), json!({})).await }, |r| Msg::L(Lm::ModeloTestado(r))), false))
             }
             Msg::ModelDel(i) => {
                 let m = self.locais.get(*i)?;
@@ -1419,6 +1432,18 @@ impl App {
             },
             Lm::Tarefas(r) => match r {
                 Ok(v) => self.cloud = map_tarefas(&v),
+                Err(e) => self.net_fail(e),
+            },
+            Lm::ModeloTestado(r) => match r {
+                Ok(v) => {
+                    // textos fixos, para o catálogo Fluent traduzir (nada de mensagem do servidor interpolada)
+                    let texto = match v["estado"].as_str().unwrap_or("") {
+                        "ok" => crate::i18n::text("Teste ok: o arquivo está íntegro."),
+                        "sem_ram" => crate::i18n::text("Teste: o arquivo está íntegro, mas não cabe no teto de 30% da RAM ou na memória livre agora."),
+                        _ => crate::i18n::text("Teste falhou: arquivo alterado ou corrompido."),
+                    };
+                    self.toast(texto);
+                }
                 Err(e) => self.net_fail(e),
             },
             Lm::Modelos(r) => match r {

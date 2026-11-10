@@ -140,9 +140,47 @@ impl Store {
     /// Indexa os `.md` da pasta (ignora pastas com ponto, como `.obsidian`) e remove os que
     /// sumiram.
     pub fn index_vault(&self, pasta: &Path) -> Result<VaultCount> {
+        self.index_vault_excluindo(pasta, &[])
+    }
+
+    /// F02.23: tira do índice (e do que depende dele: trechos, vetores, arestas) as notas do vault que estão em
+    /// pastas bloqueadas. Roda na abertura do núcleo, antes de a busca e os embeddings existirem para elas.
+    pub fn purge_blocked(&self, pasta: &Path, bloqueadas: &[std::path::PathBuf]) -> Result<usize> {
+        if bloqueadas.is_empty() {
+            return Ok(0);
+        }
+        let raizes: Vec<std::path::PathBuf> = bloqueadas.iter().map(|b| std::fs::canonicalize(b).unwrap_or_else(|_| b.clone())).collect();
+        let fontes: Vec<String> = {
+            let c = self.conn();
+            let mut st = c.prepare("SELECT source FROM documents WHERE project_id IS NULL")?;
+            let rows = st.query_map([], |r| r.get::<_, String>(0))?;
+            rows.filter_map(|r| r.ok()).collect()
+        };
+        let mut removidos = 0;
+        for fonte in fontes {
+            let arq = pasta.join(&fonte);
+            let real = std::fs::canonicalize(&arq).unwrap_or(arq);
+            if raizes.iter().any(|r| real.starts_with(r)) && self.remove_document(&fonte)? {
+                removidos += 1;
+            }
+        }
+        Ok(removidos)
+    }
+
+    /// Como `index_vault`, mas notas dentro de pastas bloqueadas (F02.23) nunca entram no índice: o que já
+    /// estava indexado delas sai na mesma passada, então nada delas chega à busca, aos vetores nem ao modelo.
+    pub fn index_vault_excluindo(&self, pasta: &Path, bloqueadas: &[std::path::PathBuf]) -> Result<VaultCount> {
         let mut contagem = VaultCount::default();
         let mut arquivos = vec![];
         listar_md(pasta, pasta, &mut arquivos);
+        if !bloqueadas.is_empty() {
+            // o caminho é resolvido antes de comparar (symlink e `..` não furam o bloqueio)
+            let raizes: Vec<std::path::PathBuf> = bloqueadas.iter().map(|b| std::fs::canonicalize(b).unwrap_or_else(|_| b.clone())).collect();
+            arquivos.retain(|(_, arq)| {
+                let real = std::fs::canonicalize(arq).unwrap_or_else(|_| arq.clone());
+                !raizes.iter().any(|r| real.starts_with(r))
+            });
+        }
         arquivos.sort();
         let mut vistos: HashSet<String> = HashSet::new();
         let mut links: BTreeMap<String, HashSet<String>> = BTreeMap::new();

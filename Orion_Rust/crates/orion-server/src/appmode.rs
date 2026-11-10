@@ -106,8 +106,10 @@ fn iniciar_nucleo(n: &Nucleo) {
     *n.backup.lock()=crate::onboarding::start_backup(&n.st.settings,n.st.memory.clone(),n.st.modos.clone());
 }
 async fn montar_nucleo(s:Settings) -> anyhow::Result<std::sync::Arc<Nucleo>> {
+    iniciar_tentativa();
     let n=preparar_nucleo(s,false).await?;
     iniciar_nucleo(&n);
+    agendar_confirmacao();
     Ok(n)
 }
 
@@ -787,6 +789,21 @@ impl Local for Interno {
         })
     }
 
+    fn recuperar_conta(&self, codigo: String, senha: String) -> BoxFuture<'static, Result<String, String>> {
+        let cfg = self.settings.clone();
+        Box::pin(async move {
+            tokio::task::spawn_blocking(move || {
+                let codigo = zeroize::Zeroizing::new(codigo);
+                let senha = zeroize::Zeroizing::new(senha);
+                let novo = orion_core::onboarding::recover_account(&cfg, &codigo, &senha).map_err(|e| e.to_string())?;
+                let _ = orion_ai::secrets::delete_secret("ORION_HELLO_LOGIN");
+                Ok(novo.to_string())
+            })
+            .await
+            .map_err(|_| "falha ao recuperar a conta".to_string())?
+        })
+    }
+
     fn bloqueado(&self) -> bool {
         self.requires_login && self.primeiro_uso().is_none() && self.atual().is_none()
     }
@@ -842,6 +859,14 @@ pub fn run(mut s: Settings, fundo: bool) -> anyhow::Result<i32> {
         let _ = std::fs::write(&mostrar, b"1");
         return Ok(0);
     };
+    // F10.15: a versão recém-instalada só vale depois de abrir e ficar de pé; senão a anterior volta.
+    // Conta a abertura só depois da trava de instância única: quem só pede para mostrar a janela não vale.
+    if let Err(exe) = guardar_atualizacao() {
+        // solta a trava antes de reabrir, senão a cópia nova acharia que já há uma aberta e sairia
+        drop(_trava);
+        let _ = std::process::Command::new(exe).args(std::env::args_os().skip(1)).spawn();
+        return Ok(0);
+    }
     if s.admin_token.is_empty() {
         s.admin_token = token_aleatorio();
     }
@@ -909,10 +934,67 @@ pub fn run(mut s: Settings, fundo: bool) -> anyhow::Result<i32> {
         }
     }
     *crate::onboarding::BACKUP_KEY.lock() = None;
+    encerrar_tentativa();
     // "Instala ao fechar": o núcleo já encerrou, então é seguro trocar os arquivos.
     instalar_atualizacao_guardada("ao fechar");
     r?;
     Ok(0)
+}
+
+/// Conta esta abertura da versão recém-instalada (a confirmação vem depois, em `agendar_confirmacao`). `Err(exe)` quando a
+/// atualização foi desfeita: quem chama reabre `exe` (a versão anterior) depois de soltar a trava.
+fn guardar_atualizacao() -> Result<(), std::path::PathBuf> {
+    let Some(exe) = std::env::current_exe().ok() else { return Ok(()) };
+    let Some(pasta) = exe.parent().map(std::path::Path::to_path_buf) else { return Ok(()) };
+    let versao = env!("CARGO_PKG_VERSION");
+    match orion_updater::guard_startup(&pasta, versao) {
+        orion_updater::Guard::RolledBack(v) => {
+            eprintln!("a atualização {v} não abriu duas vezes seguidas; a versão anterior foi devolvida e o Orion vai abrir de novo");
+            return Err(exe);
+        }
+        orion_updater::Guard::NeedsPrivilege(v) => {
+            eprintln!("a atualização {v} não abriu direito; a tarefa do Windows devolve a versão anterior no próximo login");
+        }
+        orion_updater::Guard::Normal => {}
+    }
+    Ok(())
+}
+
+/// O núcleo da versão em teste terminou de subir neste processo.
+static NUCLEO_PRONTO: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+fn pasta_do_app() -> Option<std::path::PathBuf> {
+    std::env::current_exe().ok().and_then(|e| e.parent().map(std::path::Path::to_path_buf))
+}
+
+/// Começa a contar a tentativa de subir o núcleo (só aqui: abrir o app e sair na tela de login não vale).
+fn iniciar_tentativa() {
+    if let Some(pasta) = pasta_do_app() {
+        orion_updater::begin_attempt(&pasta, env!("CARGO_PKG_VERSION"));
+    }
+}
+
+/// Fechamento normal depois de o núcleo subir: a tentativa não foi falha. Morrer ou ser morto não passa por aqui.
+fn encerrar_tentativa() {
+    if NUCLEO_PRONTO.load(std::sync::atomic::Ordering::SeqCst) {
+        if let Some(pasta) = pasta_do_app() {
+            orion_updater::end_attempt(&pasta, env!("CARGO_PKG_VERSION"));
+        }
+    }
+}
+
+/// A versão nova só conta como boa depois de o núcleo subir (banco aberto, tudo montado) e ficar de pé
+/// por `CONFIRM_SECS`. Chamada ao fim de `montar_nucleo`; roda uma vez só.
+fn agendar_confirmacao() {
+    static UMA_VEZ: std::sync::Once = std::sync::Once::new();
+    NUCLEO_PRONTO.store(true, std::sync::atomic::Ordering::SeqCst);
+    UMA_VEZ.call_once(|| {
+        let Some(pasta) = std::env::current_exe().ok().and_then(|e| e.parent().map(std::path::Path::to_path_buf)) else { return };
+        std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_secs(orion_updater::CONFIRM_SECS));
+            orion_updater::confirm_boot(&pasta, env!("CARGO_PKG_VERSION"));
+        });
+    });
 }
 
 /// Troca os arquivos pela atualização baixada e conferida pelo atualizador, se houver. Falha só é registrada:

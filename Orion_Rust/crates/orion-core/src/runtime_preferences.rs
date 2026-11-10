@@ -42,8 +42,8 @@ preferences! {
     nuvem: bool, codex_env: String, nuvem_dir: String,
     skills_enabled: bool, skills_dir: Option<PathBuf>, plugins_enabled: bool, plugins_dir: Option<PathBuf>,
     mcp_enabled: bool, mcp_config: Option<PathBuf>,
-    vault_dir: Option<PathBuf>, vault_sync: bool, backup_dir: Option<PathBuf>, backup_keep: usize,
-    rerank: bool, memory_soft_forgetting: bool, rerank_model_dir: String, extra_safe_roots: Vec<PathBuf>, repos: Vec<PathBuf>,
+    vault_dir: Option<PathBuf>, vault_sync: bool, backup_dir: Option<PathBuf>, backup_keep: usize, subagents_max: usize,
+    rerank: bool, memory_soft_forgetting: bool, rerank_model_dir: String, extra_safe_roots: Vec<PathBuf>, blocked_roots: Vec<PathBuf>, repos: Vec<PathBuf>,
     tone_directness: u8, tone_formality: u8, tone_custom: String,
     gateway_model_fast: String, gateway_model_heavy: String, vision_model: String,
     hotkeys: String, telegram_events: String, water_every_min: u32, bedtime_at: String, wake_pc: bool,
@@ -137,6 +137,7 @@ impl RuntimePreferences {
             ),
             (self.clipboard_days as f64, 0.0, 90.0, "clipboard_days"),
             (self.backup_keep as f64, 1.0, 100.0, "backup_keep"),
+            (self.subagents_max as f64, 1.0, 4.0, "subagents_max"),
             (self.tone_directness as f64, 0.0, 4.0, "tone_directness"),
             (self.tone_formality as f64, 0.0, 4.0, "tone_formality"),
         ] {

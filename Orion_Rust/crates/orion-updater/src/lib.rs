@@ -191,6 +191,10 @@ pub fn check(config: &UpdateConfig, app_dir: &Path, fetch: &dyn Fetch, apply: bo
     if !is_newer(&feed.version, &installed_version(app_dir)?) {
         return Ok(Outcome::UpToDate);
     }
+    // uma versão que já foi desfeita por não abrir não volta sozinha; só uma mais nova que ela
+    if rejected_version(app_dir).is_some_and(|r| !is_newer(&feed.version, &r)) {
+        return Ok(Outcome::UpToDate);
+    }
     if !(apply || config.auto_update) {
         return Ok(Outcome::Available(feed.version));
     }
@@ -276,6 +280,7 @@ pub fn apply_staged(app_dir: &Path) -> Result<Option<String>> {
     let _ = std::fs::remove_dir_all(&dir);
     registrar_versao(app_dir, &feed)?;
     anotar_novidades(app_dir, &feed)?;
+    marcar_pendente(app_dir, &feed.version);
     Ok(Some(feed.version))
 }
 
@@ -303,7 +308,9 @@ fn install(feed: &Feed, app_dir: &Path, fetch: &dyn Fetch) -> Result<()> {
     let _ = std::fs::remove_dir_all(&staging);
     resultado?;
     registrar_versao(app_dir, feed)?;
-    anotar_novidades(app_dir, feed)
+    anotar_novidades(app_dir, feed)?;
+    marcar_pendente(app_dir, &feed.version);
+    Ok(())
 }
 
 /// Troca: antigo -> `.bak`, novo (de `staging`) -> lugar; qualquer falha devolve o que já foi trocado.
@@ -412,8 +419,17 @@ pub fn rollback(app_dir: &Path) -> Result<usize> {
         let alvo = app_dir.join(name);
         let antigo = bak(&alvo);
         if antigo.is_file() {
-            let _ = std::fs::remove_file(&alvo);
-            io(std::fs::rename(&antigo, &alvo))?;
+            // exe em uso no Windows não pode ser apagado, mas pode ser renomeado: o novo vai para `.bad`
+            let ruim = bad(&alvo);
+            let _ = std::fs::remove_file(&ruim);
+            if alvo.exists() {
+                io(std::fs::rename(&alvo, &ruim))?;
+            }
+            if let Err(e) = std::fs::rename(&antigo, &alvo) {
+                let _ = std::fs::rename(&ruim, &alvo);
+                return Err(UpdateError::Io(e.to_string()));
+            }
+            let _ = std::fs::remove_file(&ruim);
             n += 1;
         }
     }
@@ -438,6 +454,195 @@ pub fn rollback(app_dir: &Path) -> Result<usize> {
     Ok(n)
 }
 
+fn bad(p: &Path) -> PathBuf {
+    let mut s = p.as_os_str().to_owned();
+    s.push(".bad");
+    PathBuf::from(s)
+}
+
+/// Marca "versão nova ainda não confirmada", na pasta de dados: o usuário consegue gravar nela, a pasta
+/// do app costuma exigir administrador (por isso quem desfaz sem permissão é a tarefa do Windows).
+pub const BOOT_MARKER: &str = "update-boot.json";
+/// Guarda a última versão que foi desfeita, para o feed não trazê-la de volta.
+pub const REJECTED_MARKER: &str = "update-rejected.json";
+/// Tentativas seguidas que morreram sem confirmar e bastam para desfazer a atualização.
+pub const MAX_BOOTS: u32 = 2;
+/// Segundos de uso depois dos quais a versão nova conta como boa.
+pub const CONFIRM_SECS: u64 = 30;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct BootMark {
+    version: String,
+    /// Tentativas de subir o núcleo que morreram sem fechar direito nem confirmar.
+    #[serde(alias = "boots")]
+    failures: u32,
+    #[serde(default)]
+    rollback_requested: bool,
+    /// Um núcleo começou a subir e ainda não confirmou nem fechou direito. Abrir o app e sair na tela de
+    /// login (sem tentar subir o núcleo) não conta.
+    #[serde(default)]
+    attempting: bool,
+    /// Quando a última tentativa começou (segundos desde a época): a tarefa do Windows só julga uma
+    /// tentativa que já teve tempo de se confirmar.
+    #[serde(default)]
+    last_boot: u64,
+}
+
+fn agora() -> u64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
+}
+
+/// Mesma versão: compara os números; se algum não for numérico, compara o texto.
+fn mesma_versao(a: &str, b: &str) -> bool {
+    match (parse_version(a), parse_version(b)) {
+        (Some(x), Some(y)) => x == y,
+        _ => a.trim() == b.trim(),
+    }
+}
+
+fn data_dir_of(app_dir: &Path) -> Option<PathBuf> {
+    let m: serde_json::Value = serde_json::from_slice(&std::fs::read(app_dir.join(MANIFEST)).ok()?).ok()?;
+    Some(PathBuf::from(m["data_dir"].as_str()?))
+}
+
+fn read_mark(app_dir: &Path) -> Option<(PathBuf, BootMark)> {
+    let path = data_dir_of(app_dir)?.join(BOOT_MARKER);
+    let mark: BootMark = serde_json::from_slice(&std::fs::read(&path).ok()?).ok()?;
+    Some((path, mark))
+}
+
+fn write_mark(path: &Path, mark: &BootMark) {
+    if let Ok(bytes) = serde_json::to_vec(mark) {
+        let _ = std::fs::write(path, bytes);
+    }
+}
+
+/// Depois de trocar os arquivos: a versão nova só vale como boa quando abrir e ficar de pé.
+fn marcar_pendente(app_dir: &Path, version: &str) {
+    if let Some(dir) = data_dir_of(app_dir) {
+        write_mark(&dir.join(BOOT_MARKER), &BootMark { version: version.to_string(), failures: 0, rollback_requested: false, attempting: false, last_boot: 0 });
+    }
+}
+
+/// Versão que já foi desfeita por não abrir, se houver.
+fn rejected_version(app_dir: &Path) -> Option<String> {
+    let path = data_dir_of(app_dir)?.join(REJECTED_MARKER);
+    let m: serde_json::Value = serde_json::from_slice(&std::fs::read(path).ok()?).ok()?;
+    m["version"].as_str().map(str::to_string)
+}
+
+fn registrar_rejeitada(app_dir: &Path, version: &str) {
+    if let Some(dir) = data_dir_of(app_dir) {
+        let _ = std::fs::write(dir.join(REJECTED_MARKER), serde_json::json!({ "version": version }).to_string());
+    }
+}
+
+/// O que a abertura do app descobriu sobre a versão que acabou de instalar.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Guard {
+    Normal,
+    /// A atualização não abriu duas vezes seguidas: voltou a versão anterior (reabra o app).
+    RolledBack(String),
+    /// Não abriu, mas sem permissão para desfazer aqui: a tarefa do Windows desfaz no próximo login.
+    NeedsPrivilege(String),
+}
+
+/// Primeira coisa que o app faz ao abrir. Se a tentativa anterior de subir o núcleo da versão nova morreu
+/// sem fechar direito (`end_attempt`) nem confirmar (`confirm_boot`), conta uma falha; com `MAX_BOOTS`
+/// falhas, devolve os arquivos `.bak`.
+pub fn guard_startup(app_dir: &Path, running: &str) -> Guard {
+    for name in ALLOWED_FILES {
+        let _ = std::fs::remove_file(bad(&app_dir.join(name)));
+    }
+    let Some((path, mut mark)) = read_mark(app_dir) else { return Guard::Normal };
+    // quem está rodando não é a versão em teste (o app antigo instalou a nova ao abrir): não conta
+    if !mesma_versao(&mark.version, running) {
+        return Guard::Normal;
+    }
+    if mark.attempting {
+        mark.failures += 1;
+        mark.attempting = false;
+    }
+    if mark.failures >= MAX_BOOTS || mark.rollback_requested {
+        return match rollback(app_dir) {
+            Ok(n) => {
+                let _ = std::fs::remove_file(&path);
+                if n > 0 {
+                    registrar_rejeitada(app_dir, &mark.version);
+                    Guard::RolledBack(mark.version)
+                } else {
+                    Guard::Normal
+                }
+            }
+            Err(_) => {
+                mark.rollback_requested = true;
+                mark.last_boot = agora();
+                write_mark(&path, &mark);
+                Guard::NeedsPrivilege(mark.version)
+            }
+        };
+    }
+    write_mark(&path, &mark);
+    Guard::Normal
+}
+
+/// O núcleo da versão nova começa a subir: a partir daqui, morrer sem confirmar nem fechar direito conta
+/// como falha.
+pub fn begin_attempt(app_dir: &Path, running: &str) {
+    if let Some((path, mut mark)) = read_mark(app_dir) {
+        if mesma_versao(&mark.version, running) {
+            mark.attempting = true;
+            mark.last_boot = agora();
+            write_mark(&path, &mark);
+        }
+    }
+}
+
+/// O app fechou direito (depois de o núcleo subir): a tentativa não foi falha.
+pub fn end_attempt(app_dir: &Path, running: &str) {
+    if let Some((path, mut mark)) = read_mark(app_dir) {
+        if mesma_versao(&mark.version, running) && mark.attempting {
+            mark.attempting = false;
+            write_mark(&path, &mark);
+        }
+    }
+}
+
+/// A versão nova ficou de pé (`CONFIRM_SECS`): a atualização deixa de estar em teste.
+pub fn confirm_boot(app_dir: &Path, running: &str) {
+    if let Some((path, mark)) = read_mark(app_dir) {
+        // só a própria versão em teste a confirma: o app antigo ainda aberto não vale
+        if mesma_versao(&mark.version, running) {
+            let _ = std::fs::remove_file(path);
+        }
+    }
+}
+
+/// Espera, depois da última abertura contada, antes de a tarefa do Windows julgá-la falha
+/// (a abertura tem `CONFIRM_SECS` para se confirmar, mais folga).
+const ESPERA_VERIFICAR: u64 = CONFIRM_SECS * 4;
+
+/// Tarefa do Windows (com permissão): desfaz a atualização que não abriu. Devolve a versão desfeita.
+pub fn verify_boot(app_dir: &Path) -> Result<Option<String>> {
+    let Some((path, mark)) = read_mark(app_dir) else { return Ok(None) };
+    // uma tentativa que começou e nunca terminou conta como mais uma falha, depois da espera abaixo
+    let falhas = mark.failures + u32::from(mark.attempting);
+    if falhas < MAX_BOOTS && !mark.rollback_requested {
+        return Ok(None);
+    }
+    // uma abertura ainda dentro da janela de confirmação pode estar subindo bem: não julga agora
+    if agora().saturating_sub(mark.last_boot) < ESPERA_VERIFICAR {
+        return Ok(None);
+    }
+    let n = rollback(app_dir)?;
+    let _ = std::fs::remove_file(path);
+    if n == 0 {
+        return Ok(None);
+    }
+    registrar_rejeitada(app_dir, &mark.version);
+    Ok(Some(mark.version))
+}
+
 /// `orion update --check [--apply]` e `--rollback` (a tarefa diária e a mão). `app_dir` é a pasta do
 /// `orion.exe`; lê `update.json` da pasta de dados que o manifesto indica. Devolve o código de saída.
 pub fn executar(args: &[String], app_dir: &Path) -> i32 {
@@ -445,6 +650,17 @@ pub fn executar(args: &[String], app_dir: &Path) -> i32 {
         let m: serde_json::Value = serde_json::from_slice(&std::fs::read(app_dir.join(MANIFEST)).ok()?).ok()?;
         Some(PathBuf::from(m["data_dir"].as_str()?))
     };
+    if args.iter().any(|a| a == "--verify-boot") {
+        match verify_boot(app_dir) {
+            Ok(Some(v)) => println!("a versão {v} não abriu direito; a anterior foi devolvida"),
+            Ok(None) => println!("nenhuma atualização para desfazer"),
+            Err(e) => eprintln!("{e}"),
+        }
+        // a tarefa diária e a do login fazem tudo junto: desfaz o que não abriu, instala e confere o feed
+        if !args.iter().any(|a| a == "--apply-staged" || a == "--check" || a == "--rollback") {
+            return 0;
+        }
+    }
     if args.iter().any(|a| a == "--rollback") {
         return match rollback(app_dir) {
             Ok(n) => {
@@ -502,7 +718,7 @@ pub fn executar(args: &[String], app_dir: &Path) -> i32 {
             }
         };
     }
-    eprintln!("uso: orion update --check [--apply] | --apply-staged | --rollback");
+    eprintln!("uso: orion update --check [--apply] | --apply-staged | --verify-boot | --rollback");
     2
 }
 

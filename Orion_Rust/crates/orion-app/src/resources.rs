@@ -362,6 +362,12 @@ const FIELDS: &[Field] = &[
         Number,
     ),
     (
+        "subagents_max",
+        "storage",
+        "Subagentes ao mesmo tempo (1 a 4)",
+        Number,
+    ),
+    (
         "repos",
         "storage",
         "Repositórios (separados por ponto e vírgula)",
@@ -371,6 +377,12 @@ const FIELDS: &[Field] = &[
         "extra_safe_roots",
         "storage",
         "Pastas confiáveis (separadas por ponto e vírgula)",
+        List,
+    ),
+    (
+        "blocked_roots",
+        "storage",
+        "Pastas bloqueadas (separadas por ponto e vírgula)",
         List,
     ),
     (
@@ -557,8 +569,10 @@ const DESCRIPTIONS: &[(&str, &str)] = &[
     ("vision_model", "Só vale com gateway próprio (ORION_GATEWAY_URL e ORION_GATEWAY_MODEL). Usado quando há imagem ou tela. Vazio: o Orion escolhe sozinho."),
     ("backup_dir", "Pasta onde os backups são guardados."),
     ("backup_keep", "Quantos backups antigos manter."),
+    ("subagents_max", "Quantos subagentes de leitura o Orion pode rodar ao mesmo tempo. Eles só leem (nunca escrevem nem executam) e o relatório conta como conteúdo externo. Vale na próxima abertura."),
     ("repos", "Repositórios que o Orion pode ler."),
     ("extra_safe_roots", "Pastas onde o Orion pode ler e escrever."),
+    ("blocked_roots", "Pastas que o Orion nunca lê nem escreve, nem com autorização persistente; nada delas vai ao modelo. Vale na próxima abertura."),
     ("rerank", "Reordena resultados de busca com um modelo local."),
     ("vault_sync", "O Orion faz pull, commit do que mudou e push do vault sozinho, com o login do Git deste computador. Arquivos com segredo ficam só locais e, em conflito, nada é sobrescrito."),
     ("memory_soft_forgetting", "Conversas antigas pesam um pouco menos na busca (no mínimo metade, depois de meses). Nada é apagado nem escondido; fatos, documentos e notas do vault não mudam."),

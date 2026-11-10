@@ -151,3 +151,95 @@ impl Compactor {
         Ok(true)
     }
 }
+
+/// F06.11: o resumo final de cada conversa (modelo local, em segundo plano), guardado à parte do resumo de
+/// contexto (`session_summaries`) para um não atrapalhar o outro. Vira a seção de resumo da nota em Memória.
+const FINAL: &str = "resumo_final:";
+/// Falas mínimas (suas e do Orion) para a conversa merecer resumo.
+pub const MIN_FALAS_FINAL: i64 = 4;
+const MAX_FINAIS_POR_RODADA: usize = 20;
+/// Janela de candidatas lida do banco; privadas e já cobertas saem depois, então ela é folgada.
+const JANELA_FINAIS: i64 = 1000;
+
+/// Canais que não são conversa com você (tarefas, pesquisa e subagentes rodam sozinhos).
+const CANAIS_DE_FUNDO: [&str; 3] = ["pesquisa%", "tarefa-bg%", "subagente%"];
+
+impl Compactor {
+    /// Resumo final já guardado: `(texto, última mensagem coberta)`.
+    pub fn resumo_final(&self, session_id: &str) -> Option<(String, i64)> {
+        let v: serde_json::Value = serde_json::from_str(&self.memory.meta_get(&format!("{FINAL}{session_id}"))?).ok()?;
+        Some((v["texto"].as_str()?.to_string(), v["ate"].as_i64().unwrap_or(0)))
+    }
+
+    /// Conversas paradas há `ociosa_s` segundos, com falas novas desde o último resumo final. Conversa
+    /// privada (`privado:<id>`) fica de fora: nada dela é resumido nem sai do banco.
+    pub fn pendentes_finais(&self, ociosa_s: f64) -> Vec<String> {
+        let limite = self.memory.now() - ociosa_s;
+        let sql = format!(
+            "SELECT m.session_id AS sid, MAX(m.id) AS ultimo, MAX(m.created_at) AS quando, COUNT(*) AS n \
+             FROM messages m JOIN sessions s ON s.id = m.session_id \
+             WHERE m.superseded = 0 AND m.role IN ('user','assistant') {} \
+             GROUP BY m.session_id HAVING n >= ? AND quando < ? ORDER BY ultimo DESC LIMIT ?",
+            CANAIS_DE_FUNDO.iter().map(|c| format!("AND s.channel NOT LIKE '{c}'")).collect::<Vec<_>>().join(" ")
+        );
+        let rows = self.memory.query(&sql, &[&MIN_FALAS_FINAL, &limite, &JANELA_FINAIS]).unwrap_or_default();
+        rows.iter()
+            .filter_map(|r| {
+                let (sid, ultimo) = (r["sid"].as_str()?.to_string(), r["ultimo"].as_i64()?);
+                let privada = self.memory.counter_get(&format!("privado:{sid}")) > 0;
+                let coberto = self.resumo_final(&sid).map(|(_, ate)| ate).unwrap_or(0);
+                (!privada && ultimo > coberto).then_some(sid)
+            })
+            .take(MAX_FINAIS_POR_RODADA)
+            .collect()
+    }
+
+    /// Resume a conversa inteira (ou atualiza o resumo anterior com o que veio depois). `true` se gravou.
+    pub async fn resumir_conversa(&self, session_id: &str) -> anyhow::Result<bool> {
+        if self.memory.counter_get(&format!("privado:{session_id}")) > 0 {
+            return Ok(false);
+        }
+        let anterior = self.resumo_final(session_id);
+        let ate_antes = anterior.as_ref().map(|(_, a)| *a).unwrap_or(0);
+        let rows = self.memory.query("SELECT id, role, text FROM messages WHERE session_id=? AND id>? AND superseded=0 ORDER BY id", &[&session_id, &ate_antes])?;
+        let falas: Vec<(i64, String)> = rows
+            .iter()
+            .filter_map(|r| {
+                let (id, role, text) = (r["id"].as_i64()?, r["role"].as_str()?, r["text"].as_str()?);
+                ((role == "user" || role == "assistant") && !text.starts_with("[CONTEXTO EXTERNO")).then(|| {
+                    let quem = if role == "user" { "Antônio" } else { "Orion" };
+                    (id, format!("{quem}: {}", text.split_whitespace().collect::<Vec<_>>().join(" ").chars().take(900).collect::<String>()))
+                })
+            })
+            .collect();
+        if falas.is_empty() {
+            return Ok(false);
+        }
+        let (mut linhas, mut usado) = (vec![], 0usize);
+        for (_, linha) in &falas {
+            if usado + linha.chars().count() > MAX_ENTRADA {
+                break;
+            }
+            usado += linha.chars().count();
+            linhas.push(linha.clone());
+        }
+        let ate = falas[linhas.len() - 1].0;
+        let mut corpo = String::new();
+        if let Some((texto, _)) = anterior.as_ref().filter(|(t, _)| !t.trim().is_empty()) {
+            corpo += &format!("[RESUMO ANTERIOR]\n{texto}\n\n");
+        }
+        corpo += &format!("[CONVERSA]\n{}\n[FIM]", linhas.join("\n"));
+        let pedido = vec![json!({"role": "system", "content": instrucao()}), json!({"role": "user", "content": corpo})];
+        let Some(texto) = limpar_resumo(&self.gateway.complete(pedido).await?) else {
+            tracing::warn!("resumo final: descartado (formato ou conteúdo inválido)");
+            // marca a conversa como vista até aqui (texto vazio), para uma conversa que o modelo não consegue
+            // resumir não travar a fila; chegando fala nova ela volta a ser candidata
+            let vazio = json!({"texto": "", "ate": ate, "modelo": self.model, "em": self.memory.now()});
+            self.memory.meta_set(&format!("{FINAL}{session_id}"), Some(&vazio.to_string()))?;
+            return Ok(false);
+        };
+        let v = json!({"texto": texto, "ate": ate, "modelo": self.model, "em": self.memory.now()});
+        self.memory.meta_set(&format!("{FINAL}{session_id}"), Some(&v.to_string()))?;
+        Ok(true)
+    }
+}

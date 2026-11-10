@@ -63,6 +63,11 @@ impl Development {
         if self.policy.path_guard.check_read(&root.to_string_lossy()).is_some() {
             return Err(MCPError::new("git_secret_denied"));
         }
+        // F02.23: repositório em pasta bloqueada, ou com uma pasta bloqueada dentro, nunca é lido (diff e log mostrariam o conteúdo)
+        let alvo = root.to_string_lossy();
+        if self.policy.path_guard.check_blocked(&alvo).is_some() || self.policy.path_guard.blocked_inside(&alvo).is_some() {
+            return Err(MCPError::new("git_root_blocked"));
+        }
         // worktrees/submodules ligados podem apontar o Git para outra raiz; o MVP recusa
         let git_dir = root.join(".git");
         if !git_dir.is_dir() || simbolico(&git_dir) {

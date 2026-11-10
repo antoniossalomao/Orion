@@ -1,5 +1,4 @@
 use crate::app::{App, Msg};
-use crate::sky::Sky;
 use crate::theme as t;
 use crate::ui::*;
 use iced::alignment::Horizontal;
@@ -151,7 +150,13 @@ pub fn view(app: &App) -> El<'_> {
     let hello=if app.api.as_ref().is_some_and(|api|api.hello_ativo()) {
         btn(crate::i18n::text("Entrar com o Windows Hello"),Kind::Normal,false,None,Some(Msg::Hello))
     }else{sp_h(0.0)};
-    let cartao = container(column![cab, sp_h(14.0), campos, aviso, rise(fade(entrar, p_btn, bg), p_btn, 10.0),face,hello,if code{btn(crate::i18n::text("Voltar à senha"),Kind::Ghost,true,None,Some(Msg::LoginCancel))}else{sp_h(0.0)}].spacing(8).align_x(Horizontal::Center).width(Length::Fill))
+    let esqueci: El = if !code && app.api.is_some() { btn(crate::i18n::text("Esqueci a senha"), Kind::Ghost, true, None, Some(Msg::Recov(crate::recovery::Event::Open))) } else { sp_h(0.0) };
+    let interior: El = if let Some(f) = &app.recov {
+        crate::recovery::view(f, cab.into())
+    } else {
+        column![cab, sp_h(14.0), campos, aviso, rise(fade(entrar, p_btn, bg), p_btn, 10.0),face,hello,if code{btn(crate::i18n::text("Voltar à senha"),Kind::Ghost,true,None,Some(Msg::LoginCancel))}else{esqueci}].spacing(8).align_x(Horizontal::Center).width(Length::Fill).into()
+    };
+    let cartao = container(interior)
         .padding(pad(30.0, 28.0, 26.0, 28.0))
         .width(Length::Fixed(380.0))
         .style(|_| container::Style {
@@ -166,7 +171,7 @@ pub fn view(app: &App) -> El<'_> {
     let conteudo = container(column![rise(fade(cartao, p_card, bg), p_card, 18.0), sp_h(18.0), fade(rodape, p_card, bg)].align_x(Horizontal::Center)).width(Length::Fill).height(Length::Fill).center_x(Length::Fill).center_y(Length::Fill);
     let painel = container(stack![glow_dir, conteudo]).width(Length::FillPortion(105)).height(Length::Fill).clip(true).style(|_| container::Style { background: Some(degrade(t::mix(t::SIDE, 1.0), iced::Color::from_rgb(0.075, 0.078, 0.095), 160.0)), ..Default::default() });
 
-    let sky = canvas(Sky { alpha: 1.0, constellation: true, intro: if !app.p.reduced && std::env::var("ICED_BACKEND").is_ok_and(|backend| backend == "wgpu") { (tempo / 1.4).clamp(0.0, 1.0) } else { 1.0 }, belt: 0.0 }).width(Length::Fill).height(Length::Fill);
+    let sky = iced::widget::image(app.ceu.img.clone()).content_fit(iced::ContentFit::Cover).width(Length::Fill).height(Length::Fill);
     let glow_esq = canvas(Brilho { t: tempo, lado: 0, p: p_ceu }).width(Length::Fill).height(Length::Fill);
     let marca = container(row![column![belt_fg(false), txf("Orion", 24.0, t::FG, t::SERIF)].spacing(4), grow(), txf(concat!("v", env!("CARGO_PKG_VERSION")), 12.0, t::FG2, t::UI)].align_y(iced::alignment::Vertical::Bottom)).width(Length::Fill).height(Length::Fill).align_bottom(Length::Fill).padding(pad(0.0, 26.0, 24.0, 28.0));
     let esq = container(fade(stack![sky, glow_esq, marca], p_ceu, t::BG)).width(Length::FillPortion(100)).height(Length::Fill).clip(true).style(|_| container::Style { background: Some(t::BG.into()), ..Default::default() });

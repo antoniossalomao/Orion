@@ -4,6 +4,7 @@
 pub mod anim;
 pub mod app;
 pub mod camera_ui;
+pub mod ceu;
 pub mod chart;
 pub mod data;
 pub mod graph;
@@ -21,6 +22,7 @@ pub mod net;
 pub mod novidades;
 pub mod uiprefs;
 pub mod popover;
+pub mod recovery;
 pub mod sky;
 pub mod theme;
 pub mod tray;

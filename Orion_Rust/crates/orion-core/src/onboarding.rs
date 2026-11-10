@@ -137,6 +137,34 @@ pub fn rewrap_key(data: &Path, current: &str, new: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Recupera a conta com o código de recuperação (F02.10): define a nova senha de login e do cofre
+/// sem mexer nos dados e devolve **outro** código de recuperação (o usado deixa de valer; mostrar uma vez).
+pub fn recover_account(s: &crate::config::Settings, code: &str, new_password: &str) -> anyhow::Result<zeroize::Zeroizing<String>> {
+    let profile = Profile::load(&s.data_dir)?.ok_or_else(|| anyhow::anyhow!("perfil de primeiro uso não encontrado"))?;
+    let keypath = s.data_dir.join(if crate::dbopen::is_encrypted(&s.db_path()) { crate::dbkey::KEY_FILE } else { "orion-recovery.key" });
+    let auth = crate::auth::AuthService::open(&s.auth_db_path(), &profile.user, s.session_ttl_h as f64 * 3600.0)?;
+    recover_with(&keypath, &auth, code, new_password)
+}
+
+/// Núcleo testável da recuperação. Ordem pensada para falhar sem perder o código: confere o código e a
+/// senha, troca a senha de login e só então grava o cofre com a nova senha e o novo código (se o
+/// cofre não gravar, o código antigo continua valendo e dá para tentar de novo).
+fn recover_with(keypath: &Path, auth: &crate::auth::AuthService, code: &str, new_password: &str) -> anyhow::Result<zeroize::Zeroizing<String>> {
+    anyhow::ensure!(
+        (crate::auth::SENHA_MIN..=crate::auth::SENHA_MAX).contains(&new_password.chars().count()),
+        "a senha precisa ter entre {} e {} caracteres",
+        crate::auth::SENHA_MIN,
+        crate::auth::SENHA_MAX
+    );
+    let mut file = crate::dbkey::KeyFile::load(keypath)?;
+    let master = file.unlock_recovery(code).map_err(|_| anyhow::anyhow!("Código de recuperação incorreto."))?;
+    file.change_password(&master, new_password)?;
+    let novo = file.new_recovery(&master)?;
+    auth.set_password(new_password)?;
+    file.save(keypath)?;
+    Ok(novo)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
