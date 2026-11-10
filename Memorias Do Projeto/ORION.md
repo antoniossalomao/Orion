@@ -1,6 +1,6 @@
 # Orion — estado, plano e decisões
 
-> Fonte única do estado do projeto. Atualizado em 05/11/2026. Princípios e regras: [REGRAS.md](REGRAS.md). Arquitetura, módulos e referências: [ARQUITETURA.md](ARQUITETURA.md). Melhorias pré-lançamento v1: [ORION_MELHORIAS_PRE_V1.md](ORION_MELHORIAS_PRE_V1.md). Roadmap pós-v1: [ORION_MELHORIAS_POS_V1.md](ORION_MELHORIAS_POS_V1.md). Como rodar: [README](../README.md). Material antigo e detalhado: [ORION_LEGADO.md](ORION_LEGADO.md).
+> Fonte única do estado do projeto. Atualizado em 10/11/2026. Princípios e regras: [REGRAS.md](REGRAS.md). Arquitetura, módulos e referências: [ARQUITETURA.md](ARQUITETURA.md). Melhorias pré-lançamento v1: [ORION_MELHORIAS_PRE_V1.md](ORION_MELHORIAS_PRE_V1.md). Roadmap pós-v1: [ORION_MELHORIAS_POS_V1.md](ORION_MELHORIAS_POS_V1.md). Como rodar: [README](../README.md). Material antigo e detalhado: [ORION_LEGADO.md](ORION_LEGADO.md).
 
 ## Visão
 
@@ -9,6 +9,18 @@ Assistente pessoal com identidade masculina, técnico, direto, não-servil. Não
 *"Não é uma IA. É uma extensão do sistema nervoso."*
 
 Antônio é o administrador: decide, aprova e pode desligar qualquer coisa. Nada que o modelo diga anula isso.
+
+## Polimento do front: tokens, textos, segredos — 10/11/2026
+
+Rodada de polimento de `orion-app`, `orion-setup` e `orion-sky`, sem mudar fluxo nem layout. Método visual baseado em unslop, de Damir Sokolovsky (CC BY 4.0); o protótipo venceu onde os dois divergiam (eyebrow em caixa alta, saudação e itálico do nome ficam).
+
+- **Espaçamento:** `theme.rs` (app e instalador) ganhou a escala `SP_*`, ajustada ao protótipo (2, 6, 10 e 14 além da grade de 4). Todo `.padding`/`.spacing`/`pad(...)` literal usa a escala; valores soltos (3, 5, 7, 9, 11, 13, 15, 22, 26, 27, 30, 34) caíram no passo vizinho. Zero fica literal; larguras e alturas de componente não entram na escala.
+- **Cor e raio:** nenhuma `Color::from_rgb` fora de `theme.rs`. Véus, céu e halo do grafo, realce do botão principal e cores do instalador viraram tokens; raios soltos viraram `R_*`. A mancha roxa do fundo do login usa o acento. `FG3` do instalador passou de `#75767d` (~4,0:1) para `#8e8f96`, o mesmo do app.
+- **Aprovações:** o cartão pendente da fila fica em superfície neutra e o âmbar só no ponto do cabeçalho (decisão do Antônio; diverge do protótipo). O cartão do chat não mudou.
+- **Textos:** 56 chaves sem uso removidas; ponto final tirado de frases únicas; jargão interno (fases F15/F18, variáveis `ORION_*`, mmap, minisign) trocado por linguagem de usuário; gerúndio de Portugal corrigido; `›` como único separador de caminho; 18 frases em inglês escritas no código foram para o Fluent. As 63 descrições de Configurações (F07.03) ficam.
+- **Segurança:** senha, código e chave digitados viajam em `Secret` (`app.rs`), que não aparece no `Debug` e é zerado ao soltar; `pw`, `resume_pw`, `auto_senha` e a chave do formulário são zerados em vez de só esvaziados. Camadas e páginas não usam mais `unwrap` sobre estado opcional. Aprovação, login e política não mudaram.
+- **Performance:** `view()` medido em release fica entre 5 e 150 µs por tela, então não houve `lazy` novo. Aprovações e a prévia do editor passaram a usar o cache de parse de markdown (Aprovações: de 88 para 70 µs).
+- **Não conferido:** janela real, DPI 125–200%, Windows e câmera. O instalador não tem fotos (`cargo snap` cobre só o app), por isso os tamanhos de fonte 9, 9,5 e 10 e os glifos `✕`/`✓` dele ficaram como estavam. `cargo audit` e `cargo deny` não estão instalados neste ambiente.
 
 ## Medidor de orçamento, rascunho local, cache de 8 bits e esquecimento suave — 05/11/2026
 
