@@ -51,7 +51,7 @@ pub fn view(app: &App) -> El<'_> {
                     .spacing(t::SP_15);
                     v = v.push(card("Vault", tx(n.at.clone(), 12.5, t::FG3).into(), inner.into()));
                 }
-                None => v = v.push(card("Vault", sp_w(0.0), tx(crate::i18n::text("A nota desta conversa é gravada no fim de cada rodada."), 12.5, t::FG3).into())),
+                None => v = v.push(card("Vault", sp_w(0.0), tx(crate::i18n::text("A nota desta conversa é gravada no fim de cada rodada"), 12.5, t::FG3).into())),
             }
             v = v.push(card(crate::i18n::text("Contexto"), tx(format!("{pct}%"), 12.5, t::FG3).into(), column![meter(pct as f32, 3.0, t::FG2), tx(crate::i18n::formatted("{} mil de 200 mil tokens", format!("{} mil de 200 mil tokens", pct * 2)), 11.5, t::FG3)].spacing(t::SP_15).into()));
             if c.id == "ram" {

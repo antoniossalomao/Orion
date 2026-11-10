@@ -471,7 +471,7 @@ impl App {
         let t = { let api2 = api.clone(); Task::perform(async move { api2.initialize().await }, |r| Msg::L(Lm::Initialized(r))) };
         if api.bloqueado() {
             a.db_locked = true;
-            a.gate_err = "Digite a senha do Orion para abrir.".into();
+            a.gate_err = "Digite a senha do Orion para abrir".into();
             a.api = Some(api);
             return (a, t);
         }
@@ -557,10 +557,10 @@ impl App {
             // O modo real nunca usa amostras nem recibos de gravação do protótipo
             // (REGRAS.md: você é o administrador).
             Msg::EditLast(mi) => {
-                if self.streaming.is_some() || self.attaching { self.toast("Espere a resposta terminar para editar."); return Some((Task::none(), false)); }
-                if !self.attach.is_empty() { self.toast("Remova os anexos antes de editar a mensagem."); return Some((Task::none(), false)); }
+                if self.streaming.is_some() || self.attaching { self.toast("Espere a resposta terminar para editar"); return Some((Task::none(), false)); }
+                if !self.attach.is_empty() { self.toast("Remova os anexos antes de editar a mensagem"); return Some((Task::none(), false)); }
                 if self.convs.get(self.conv?)?.msgs.iter().any(|m| matches!(m, ChatMsg::Orion(o) if o.approval.as_ref().is_some_and(|a| a.state == crate::data::ApprState::Open))) {
-                    self.toast("Resolva as aprovações pendentes antes de editar a mensagem.");
+                    self.toast("Resolva as aprovações pendentes antes de editar a mensagem");
                     return Some((Task::none(), false));
                 }
                 let ci = self.conv?;
@@ -573,7 +573,7 @@ impl App {
                     arr(&v, "mensagens").iter().filter(|m| s(m, "role") == "user")
                         .max_by_key(|m| m["id"].as_i64().unwrap_or(0))
                         .and_then(|m| Some((m["id"].as_i64()?, s(m, "content").to_string())))
-                        .ok_or_else(|| "Pedido não encontrado no histórico.".to_string())
+                        .ok_or_else(|| "Pedido não encontrado no histórico".to_string())
                 }, move |r| Msg::L(Lm::EditTarget(sid_out.clone(), r))), false))
             }
             Msg::Attach | Msg::AttachPath(_) => {
@@ -583,7 +583,7 @@ impl App {
                 if let Msg::AttachPath(path) = &msg {
                     if self.attaching && self.drop_queue.len() < 8 { self.drop_queue.push(path.clone()); return Some((Task::none(), false)); }
                 }
-                if self.edit_target.is_some() { self.toast("Remova os anexos antes de editar a mensagem."); return Some((Task::none(), false)); }
+                if self.edit_target.is_some() { self.toast("Remova os anexos antes de editar a mensagem"); return Some((Task::none(), false)); }
                 if self.attaching || self.streaming.is_some() || self.attachment_ids.len() >= 8 { self.drop_queue.clear(); return Some((Task::none(), false)); }
                 self.attaching = true;
                 let generation = self.attachment_generation;
@@ -610,15 +610,15 @@ impl App {
                             _ => return Err("Tipo de arquivo não suportado. Use texto, Markdown, PDF, imagem (PNG, JPEG, WebP) ou áudio.".to_string()),
                         };
                         let file = std::fs::File::open(&path).map_err(|e| e.to_string())?;
-                        if !file.metadata().map_err(|e| e.to_string())?.is_file() { return Err("Escolha um arquivo.".to_string()); }
+                        if !file.metadata().map_err(|e| e.to_string())?.is_file() { return Err("Escolha um arquivo".to_string()); }
                         let mut bytes = vec![];
                         file.take(limite as u64 + 1).read_to_end(&mut bytes).map_err(|e| e.to_string())?;
-                        if bytes.is_empty() || bytes.len() > limite { return Err(format!("Arquivo vazio ou maior que {} MB.", limite / (1024 * 1024))); }
+                        if bytes.is_empty() || bytes.len() > limite { return Err(format!("Arquivo vazio ou maior que {} MB", limite / (1024 * 1024))); }
                         let miniatura = if classe == "imagem" {
                             // Assinatura conferida aqui também: extensão não prova que é imagem.
                             let ok = bytes.starts_with(&[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]) || bytes.starts_with(&[0xFF, 0xD8, 0xFF]) || (bytes.len() >= 12 && &bytes[..4] == b"RIFF" && &bytes[8..12] == b"WEBP");
-                            if !ok { return Err("O arquivo não é uma imagem PNG, JPEG ou WebP válida.".to_string()); }
-                            let img = image::load_from_memory(&bytes).map_err(|_| "Não foi possível abrir a imagem.".to_string())?;
+                            if !ok { return Err("O arquivo não é uma imagem PNG, JPEG ou WebP válida".to_string()); }
+                            let img = image::load_from_memory(&bytes).map_err(|_| "Não foi possível abrir a imagem".to_string())?;
                             let mut png = std::io::Cursor::new(Vec::new());
                             img.thumbnail(96, 96).write_to(&mut png, image::ImageFormat::Png).map_err(|e| e.to_string())?;
                             png.into_inner()
@@ -628,10 +628,10 @@ impl App {
                     let Some((name, bytes, classe, miniatura)) = selected else { return Ok(None) };
                     if classe == "imagem" {
                         // O servidor aceita 4 imagens por mensagem: avisa antes de guardar a quinta.
-                        if imagens_anexadas >= 4 { return Err("Até 4 imagens por mensagem.".into()); }
+                        if imagens_anexadas >= 4 { return Err("Até 4 imagens por mensagem".into()); }
                         let value = api.upload_image(name, bytes).await?;
                         let id = s(&value, "id").to_string();
-                        if id.is_empty() { return Err("Resposta de upload inválida.".into()); }
+                        if id.is_empty() { return Err("Resposta de upload inválida".into()); }
                         return Ok(Some(json!({"id": id, "name": s(&value, "name"), "kind": "imagem", "thumb": miniatura})));
                     }
                     // Áudio: com Whisper local nada sai do computador. Sem ele, só vai ao provedor se você confirmar aqui.
@@ -649,7 +649,7 @@ impl App {
                     }
                     let mut value = if classe == "audio" { api.upload_audio(name, project.clone(), remote, bytes).await? } else { api.upload_document(name, project.clone(), bytes).await? };
                     let id = s(&value, "id").to_string();
-                    if id.is_empty() { return Err("Resposta de upload inválida.".into()); }
+                    if id.is_empty() { return Err("Resposta de upload inválida".into()); }
                     let mut detail = reqwest::Url::parse(&format!("http://127.0.0.1/documents/{id}")).map_err(|error| error.to_string())?;
                     if let Some(project) = project { detail.query_pairs_mut().append_pair("project_id", &project); }
                     let detail = format!("{}{}", detail.path(), detail.query().map(|query| format!("?{query}")).unwrap_or_default());
@@ -659,7 +659,7 @@ impl App {
                     for attempt in 0..=tentativas {
                         match s(&value, "status") {
                             "ready" => return Ok(Some(value)),
-                            "failed" => return Err("Não foi possível extrair o documento.".into()),
+                            "failed" => return Err("Não foi possível extrair o documento".into()),
                             "error" if classe == "audio" => return Err(format!("Não foi possível transcrever o áudio: {}", s(&value, "error"))),
                             _ => {},
                         }
@@ -677,7 +677,7 @@ impl App {
             }, |r| Msg::L(Lm::Acao(r, false))), false)),
             Msg::ScreenSearch => {
                 let q = self.screen_q.trim().to_string();
-                if q.chars().count() < 2 { self.toast("Digite pelo menos 2 letras para buscar."); return Some((Task::none(), true)); }
+                if q.chars().count() < 2 { self.toast("Digite pelo menos 2 letras para buscar"); return Some((Task::none(), true)); }
                 let path = format!("/tela/busca?q={}&dias=30&limite=10", q.chars().take(200).collect::<String>().bytes().map(|b| if b.is_ascii_alphanumeric() || b"-_.~".contains(&b) { (b as char).to_string() } else { format!("%{b:02X}") }).collect::<String>());
                 Some((Task::perform(async move {
                     let v = api.get(&path).await?;
@@ -892,7 +892,7 @@ impl App {
                 let ChatMsg::Orion(o) = self.convs.get(*ci)?.msgs.get(*mi)? else { return None };
                 // F04.15: vale para qualquer botão que emita Approve (cartão, Diff, atalho)
                 if ok && !o.approval.as_ref()?.typed_ok() {
-                    return Some((Task::done(Msg::Toast(crate::i18n::text("Digite o comando exato para aprovar esta ação destrutiva.").into())), false));
+                    return Some((Task::done(Msg::Toast(crate::i18n::text("Digite o comando exato para aprovar esta ação destrutiva").into())), false));
                 }
                 let id = o.approval.as_ref()?.id.clone();
                 if id.is_empty() {
@@ -974,7 +974,7 @@ impl App {
             Msg::KeySave => {
                 let Some(f) = self.key_form.as_mut().filter(|f| !f.busy) else { return Some((Task::none(), false)) };
                 if f.value.trim().is_empty() {
-                    f.error = "Cole a chave de API.".into();
+                    f.error = "Cole a chave de API".into();
                     return Some((Task::none(), false));
                 }
                 f.busy = true;
@@ -1023,7 +1023,7 @@ impl App {
     /// Envia o texto para o servidor (cria a conversa se preciso) e abre o fluxo SSE.
     pub fn live_send(&mut self, text: String) -> Task<Msg> {
         if self.pending_send.is_some() { return Task::none(); }
-        if self.attaching { self.toast("Espere o documento terminar de anexar."); return Task::none(); }
+        if self.attaching { self.toast("Espere o documento terminar de anexar"); return Task::none(); }
         let Some(api) = self.api.clone() else { return Task::none() };
         match self.conv.filter(|_| self.view == View::Chat) {
             Some(ci) => self.start_chat(ci, text),
@@ -1112,7 +1112,7 @@ impl App {
             Lm::ArtifactSaved(result) => {
                 self.artifact_busy = false;
                 match result {
-                    Ok(value) => { self.artifact_records.retain(|a| a["id"] != value["id"]); self.artifact_records.push(value); self.toast("Versão do artefato guardada."); },
+                    Ok(value) => { self.artifact_records.retain(|a| a["id"] != value["id"]); self.artifact_records.push(value); self.toast("Versão do artefato guardada"); },
                     Err(error) => self.toast(error),
                 }
             }
@@ -1204,7 +1204,7 @@ impl App {
                 }
                 Ok(LoginResult::TwoFactor(ch)) => {
                     self.challenge = Some(ch);
-                    self.gate_err = "Digite o código enviado ao seu Telegram.".into();
+                    self.gate_err = "Digite o código enviado ao seu Telegram".into();
                 }
                 Err(e) => self.gate_err = e,
             },
@@ -1295,7 +1295,7 @@ impl App {
                         self.project_form = None;
                         let nota = &v["vault_note"];
                         let msg = if nota["ok"].as_bool().unwrap_or(false) {
-                            if nota["resultado"]["unchanged"].as_bool().unwrap_or(false) { "Projeto criado. A nota do projeto já existia no vault e não foi alterada." } else { "Projeto criado e nota gravada no vault." }
+                            if nota["resultado"]["unchanged"].as_bool().unwrap_or(false) { "Projeto criado. A nota do projeto já existia no vault e não foi alterada." } else { "Projeto criado e nota gravada no vault" }
                         } else { "Projeto criado, mas a nota não foi gravada no vault. Confira a pasta do vault em Configurações › Memória." };
                         self.toast(msg);
                     }
@@ -1318,7 +1318,7 @@ impl App {
                 Ok(value) => {
                     if let Some(f) = self.key_form.take() {
                         self.keys.insert(f.nome.clone(), true);
-                        self.toast(if value["reiniciar"] == true { format!("Chave de {} guardada no cofre. Reabra o Orion para usar esta integração.", f.label) } else { format!("Chave de {} guardada no cofre e disponível para uso.", f.label) });
+                        self.toast(if value["reiniciar"] == true { format!("Chave de {} guardada no cofre. Reabra o Orion para usar esta integração.", f.label) } else { format!("Chave de {} guardada no cofre e disponível para uso", f.label) });
                     }
                 }
                 Err(e) => {
@@ -1334,12 +1334,12 @@ impl App {
                     Ok(v) if !s(&v, "titulo").trim().is_empty() => {
                         if let Some(c) = self.convs.iter_mut().find(|c| c.id == sid) { c.title = s(&v, "titulo").to_string(); }
                         self.rename_form = None;
-                        self.toast("Conversa renomeada.");
+                        self.toast("Conversa renomeada");
                     }
                     result => {
                         if let Some(form) = self.rename_form.as_mut() {
                             form.busy = false;
-                            form.error = result.err().unwrap_or_else(|| "O núcleo não confirmou o novo título.".into());
+                            form.error = result.err().unwrap_or_else(|| "O núcleo não confirmou o novo título".into());
                         }
                     }
                 }

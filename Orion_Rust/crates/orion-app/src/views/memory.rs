@@ -732,7 +732,7 @@ pub fn view(app: &App) -> El<'_> {
         let mut list = column![tx(crate::i18n::text("Notas sem link para fora nem vindo de outras notas"), 11.5, t::FG3)].spacing(t::SP_05);
         match &app.islands {
             None => list = list.push(tx(crate::i18n::text("Carregando…"), 12.5, t::FG3)),
-            Some(v) if v.is_empty() => list = list.push(tx(crate::i18n::text("Nenhuma nota solta."), 12.5, t::FG2)),
+            Some(v) if v.is_empty() => list = list.push(tx(crate::i18n::text("Nenhuma nota solta"), 12.5, t::FG2)),
             Some(v) => {
                 for path in v.iter().take(30) {
                     list = list.push(
@@ -783,7 +783,7 @@ pub fn view(app: &App) -> El<'_> {
         hits.truncate(8);
         let mut list = column![].spacing(0);
         if hits.is_empty() {
-            list = list.push(container(tx(crate::i18n::formatted("Nada com “{}”.", format!("Nada com “{}”.", g.q)), 13.0, t::FG3)).padding(pad(t::SP_2, t::SP_25, t::SP_2, t::SP_25)));
+            list = list.push(container(tx(crate::i18n::formatted("Nada com “{}”", format!("Nada com “{}”", g.q)), 13.0, t::FG3)).padding(pad(t::SP_2, t::SP_25, t::SP_2, t::SP_25)));
         }
         for (k, i) in hits.iter().enumerate() {
             list = list.push(

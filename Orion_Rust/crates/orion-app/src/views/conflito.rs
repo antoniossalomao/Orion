@@ -24,7 +24,7 @@ pub fn modal(app: &App) -> El<'_> {
         row![
             icon("file", 16.0, t::FG2),
             txf(nome, 18.0, t::FG, t::SERIF),
-            container(tx(crate::i18n::text("Sua nota no vault e a versão nova do Orion diferem."), 12.0, t::FG3)).width(Length::Fill),
+            container(tx(crate::i18n::text("Sua nota no vault e a versão nova do Orion diferem"), 12.0, t::FG3)).width(Length::Fill),
             tip(ib("close", Some(Msg::ConflitoFechar), false), crate::i18n::text("Fechar"))
         ]
         .spacing(t::SP_2)

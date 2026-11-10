@@ -88,15 +88,15 @@ impl App {
                     return Task::none();
                 }
                 if f.code.trim().is_empty() {
-                    f.err = "Digite o código de recuperação.".into();
+                    f.err = "Digite o código de recuperação".into();
                     return Task::none();
                 }
                 if !(SENHA_MIN..=SENHA_MAX).contains(&f.pw.chars().count()) {
-                    f.err = "A nova senha precisa ter entre 12 e 256 caracteres.".into();
+                    f.err = "A nova senha precisa ter entre 12 e 256 caracteres".into();
                     return Task::none();
                 }
                 if f.pw != f.pw2 {
-                    f.err = "As senhas não coincidem.".into();
+                    f.err = "As senhas não coincidem".into();
                     return Task::none();
                 }
                 f.busy = true;
@@ -170,7 +170,7 @@ pub fn limpar_restos() {
 /// fecha ou na próxima abertura do app, o que vier primeiro.
 pub fn print(code: &str, english: Option<bool>) -> Result<(), String> {
     if code.is_empty() || !code.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
-        return Err("Código inválido para impressão.".into());
+        return Err("Código inválido para impressão".into());
     }
     let path = std::env::temp_dir().join(format!("{PREFIXO}{}.html", std::process::id()));
     // textos pelo catálogo Fluent, no idioma pedido (o da interface, ou o escolhido no primeiro uso)
@@ -202,8 +202,8 @@ pub fn print(code: &str, english: Option<bool>) -> Result<(), String> {
             use std::os::unix::fs::OpenOptionsExt;
             opt.mode(0o600);
         }
-        let mut file = opt.open(&path).map_err(|_| "Não consegui preparar a página de impressão.".to_string())?;
-        file.write_all(html.as_bytes()).map_err(|_| "Não consegui preparar a página de impressão.".to_string())?;
+        let mut file = opt.open(&path).map_err(|_| "Não foi possível preparar a página de impressão".to_string())?;
+        file.write_all(html.as_bytes()).map_err(|_| "Não foi possível preparar a página de impressão".to_string())?;
     }
     #[cfg(windows)]
     let aberto = std::process::Command::new("cmd").args(["/C", "start", ""]).arg(&path).spawn();
@@ -219,7 +219,7 @@ pub fn print(code: &str, english: Option<bool>) -> Result<(), String> {
     });
     aberto.map(|_| ()).map_err(|_| {
         let _ = std::fs::remove_file(&path);
-        "Não consegui abrir o navegador para imprimir.".to_string()
+        "Não foi possível abrir o navegador para imprimir".to_string()
     })
 }
 

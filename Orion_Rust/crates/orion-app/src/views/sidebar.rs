@@ -136,9 +136,9 @@ pub fn view(app: &App) -> El<'_> {
     }
     if !any {
         let vazio = if app.side_q.trim().is_empty() {
-            if app.p.english { "No conversations yet. Start a new one.".to_string() } else { crate::i18n::text("Nenhuma conversa ainda. Comece uma nova.").to_string() }
+            crate::i18n::text("Nenhuma conversa ainda. Comece uma nova.").to_string()
         } else {
-            crate::i18n::formatted("Nenhuma conversa com “{}”.", format!("Nenhuma conversa com “{}”.", app.side_q))
+            crate::i18n::formatted("Nenhuma conversa com “{}”", format!("Nenhuma conversa com “{}”", app.side_q))
         };
         list = list.push(container(tx(vazio, 13.0, t::FG3)).padding(t::SP_25));
     }

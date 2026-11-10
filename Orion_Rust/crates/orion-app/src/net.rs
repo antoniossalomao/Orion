@@ -282,14 +282,14 @@ pub fn mensagem_http(status: u16, corpo: &str, caminho: &str) -> String {
         401 | 403 => "Acesso negado: entre com a senha.".into(),
         404 => {
             if detalhe.is_empty() {
-                "Recurso não encontrado neste servidor.".into()
+                "Recurso não encontrado neste servidor".into()
             } else {
                 detalhe
             }
         }
         409 => {
             if detalhe.is_empty() {
-                "Essa ação já foi tratada.".into()
+                "Essa ação já foi tratada".into()
             } else {
                 detalhe
             }
@@ -461,9 +461,9 @@ impl Api {
 
     fn indisponivel(&self) -> String {
         if self.local.is_some() {
-            "O núcleo do Orion não respondeu.".into()
+            "O núcleo do Orion não respondeu".into()
         } else {
-            format!("Servidor do Orion indisponível em {}.", self.base)
+            format!("Servidor do Orion indisponível em {}", self.base)
         }
     }
 

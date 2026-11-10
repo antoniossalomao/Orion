@@ -25,7 +25,7 @@ const GROUPS: [(&str, &[Entry]); 2] = [
             (Sec::Privacidade, "shield", "Privacidade e autonomia", "modo autônomo permissões nunca sai pausar apagar histórico"),
             (Sec::Tools, "wrench", "Ferramentas", "permissões computador web abrir apps confirmação autorização"),
             (Sec::Uso, "gauge", "Uso", "limite tokens cotas"),
-            (Sec::Painel, "bars", "Painel", "Cotas, modelos e a semana, direto do servidor."),
+            (Sec::Painel, "bars", "Painel", "Cotas, modelos e a semana, direto do servidor"),
             (Sec::Modelos, "cpu", "Modelos", "auto claude codex gemini orion provedores ordem cotas chaves"),
             (Sec::Memoria, "graph", "Memória", "vault fatos grafo pasta commit diário"),
             (Sec::Fontes, "db", "Fontes", "vault calendário email web repositório"),
@@ -116,15 +116,15 @@ fn section<'a>(app: &'a App) -> El<'a> {
         Sec::Automation => return crate::resources::settings(app,"automation"),
         Sec::Geral => {
             c = c.push(sh(crate::i18n::text("Interface")));
-            c = c.push(setting(crate::i18n::text("Idioma"), crate::i18n::text("Português e inglês desde a primeira versão."), pick_seg(&[crate::i18n::text("Português"), "English"], p.english as usize, "lang")));
+            c = c.push(setting(crate::i18n::text("Idioma"), "", pick_seg(&[crate::i18n::text("Português"), "English"], p.english as usize, "lang")));
             let sc = [90, 100, 115, 130, 150].iter().position(|x| *x == p.scale).unwrap_or(1);
-            c = c.push(setting(crate::i18n::text("Escala da interface"), crate::i18n::text("Também com Ctrl + e Ctrl −."), pick_seg(&["90%", "100%", "115%", "130%", "150%"], sc, "scale")));
-            c = c.push(setting(crate::i18n::text("Densidade"), crate::i18n::text("Altura das linhas na barra lateral e nas listas."), pick_seg(&[crate::i18n::text("Confortável"), crate::i18n::text("Compacta")], p.compact as usize, "density")));
+            c = c.push(setting(crate::i18n::text("Escala da interface"), crate::i18n::text("Também com Ctrl + e Ctrl −"), pick_seg(&["90%", "100%", "115%", "130%", "150%"], sc, "scale")));
+            c = c.push(setting(crate::i18n::text("Densidade"), crate::i18n::text("Altura das linhas na barra lateral e nas listas"), pick_seg(&[crate::i18n::text("Confortável"), crate::i18n::text("Compacta")], p.compact as usize, "density")));
             c = c.push(setting(crate::i18n::text("Movimento"), crate::i18n::text("Animações discretas. Reduzido desliga o texto em tempo real e a rotação do grafo."), pick_seg(&[crate::i18n::text("Sistema"), crate::i18n::text("Reduzido")], p.reduced as usize, "motion")));
             c = c.push(sh(crate::i18n::text("Conversa")));
             let fonts = ["Newsreader", "Geist", crate::i18n::text("Fonte do sistema")];
             let menu = menus::menu_box(vec![menus::item(None, "Newsreader", Some(crate::i18n::text("Serifada, como uma página")), p.font == 0, false, Msg::Pick("font", 0)), menus::item(None, "Geist", Some(crate::i18n::text("Sem serifa, igual à interface")), p.font == 1, false, Msg::Pick("font", 1)), menus::item(None, crate::i18n::text("Fonte do sistema"), Some(crate::i18n::text("Segoe UI no Windows")), p.font == 2, false, Msg::Pick("font", 2))], 260.0);
-            c = c.push(setting(crate::i18n::text("Fonte do chat"), crate::i18n::text("Usada nas respostas do Orion."), sel_pop(fonts[p.font].to_string(), Pop::ChatFont, app, menu)));
+            c = c.push(setting(crate::i18n::text("Fonte do chat"), crate::i18n::text("Usada nas respostas do Orion"), sel_pop(fonts[p.font].to_string(), Pop::ChatFont, app, menu)));
             c = c.push(setting(crate::i18n::text("Tamanho do texto"), "", pick_seg(&[crate::i18n::text("Pequeno"), crate::i18n::text("Médio"), crate::i18n::text("Grande")], p.size, "size")));
             c = c.push(setting(crate::i18n::text("Largura da transcrição"), "", pick_seg(&[crate::i18n::text("Estreito"), crate::i18n::text("Médio"), crate::i18n::text("Largo")], p.width, "width")));
             if app.api.is_some() {
@@ -173,19 +173,19 @@ fn section<'a>(app: &'a App) -> El<'a> {
             c = c.push(lede(crate::i18n::text("Mudar o Telegram aplica na hora; aviso desligado lá continua no app.")));
             c = c.push(sh(crate::i18n::text("Não perturbe")));
             c = c.push(setting(crate::i18n::text("Não perturbe"), crate::i18n::text("Silencia notificações e sons. Rotinas e Telegram continuam."), sw(p.dnd, "dnd")));
-            c = c.push(lede(crate::i18n::text("Com a janela fechada, avisos também chegam pelo Telegram e por um ponto no ícone da bandeja.")));
+            c = c.push(lede(crate::i18n::text("Com a janela fechada, avisos também chegam pelo Telegram e por um ponto no ícone da bandeja")));
         }
         Sec::Conta => {
             c = c.push(sh(crate::i18n::text("Perfil")));
             c = c.push(setting(crate::i18n::text("Nome completo"), "", input(&p.name, Msg::NameChanged)));
-            c = c.push(setting(crate::i18n::text("Como o Orion deve te chamar"), crate::i18n::text("Aparece na saudação e na barra lateral."), input(&p.call, Msg::CallChanged)));
+            c = c.push(setting(crate::i18n::text("Como o Orion deve te chamar"), crate::i18n::text("Aparece na saudação e na barra lateral"), input(&p.call, Msg::CallChanged)));
             c = c.push(sh(crate::i18n::text("Sessão")));
-            c = c.push(setting(crate::i18n::text("Sair deste computador"), crate::i18n::text("Pede a senha de novo para entrar."), btn(crate::i18n::text("Sair"), Kind::Normal, true, None, Some(Msg::Logout))));
+            c = c.push(setting(crate::i18n::text("Sair deste computador"), crate::i18n::text("Pede a senha de novo para entrar"), btn(crate::i18n::text("Sair"), Kind::Normal, true, None, Some(Msg::Logout))));
         }
         Sec::Tools => {
             c = c.push(sh("Ferramentas"));
-            c = c.push(lede("Autorize uma vez neste computador. A escolha fica salva e pode ser alterada aqui a qualquer momento."));
-            c = c.push(lede("Sem confirmações por ação, o Orion pode abrir apps, executar comandos, alterar ou apagar arquivos e usar a web, inclusive após ler documentos externos."));
+            c = c.push(lede("Autorize uma vez neste computador. Dá para mudar aqui depois."));
+            c = c.push(lede("Sem confirmações por ação, o Orion pode abrir apps, executar comandos, alterar ou apagar arquivos e usar a web, inclusive após ler documentos externos"));
             let values = p.tools.unwrap_or([false; 3]);
             let ready = p.tools.is_some() && !p.tools_busy;
             c = c.push(btn(
@@ -196,15 +196,15 @@ fn section<'a>(app: &'a App) -> El<'a> {
                 c = c.push(lede("Carregando permissões…"));
             }
             for (index, (label, description)) in [
-                ("Ferramentas do computador", "Arquivos, aplicativos, comandos e automação do computador."),
-                ("Ferramentas da web", "Busca e acesso à web com os serviços configurados."),
+                ("Ferramentas do computador", "Arquivos, aplicativos, comandos e automação do computador"),
+                ("Ferramentas da web", "Busca e acesso à web com os serviços configurados"),
                 ("Sem confirmação a cada ação", "Usa a autorização salva. Desligado, volta a pedir confirmação para ações que exigem aprovação."),
             ].into_iter().enumerate() {
                 let control = if ready { switch(values[index], Msg::ToolPermission(index)) } else { badge(crate::i18n::text(if values[index] { "Ativo" } else { "Desligado" }), Tone::Plain) };
                 c = c.push(setting(crate::i18n::text(label), crate::i18n::text(description), control));
             }
             c = c.push(lede("As alterações valem imediatamente. Voz, câmera, captura contínua e integrações ainda precisam de configuração própria. Pânico e registros de ações continuam ativos."));
-            c = c.push(lede("Alterar o código do próprio Orion continua exigindo aprovação específica."));
+            c = c.push(lede("Alterar o código do próprio Orion continua exigindo aprovação específica"));
         }
         Sec::Privacidade => {
             c = c.push(sh(crate::i18n::text("Modo autônomo")));
@@ -230,7 +230,7 @@ fn section<'a>(app: &'a App) -> El<'a> {
                     row_c(v)
                 }
             };
-            c = c.push(setting(crate::i18n::text("Pausar tudo"), crate::i18n::text("Corta ferramentas de escrita, rede e execução até você retomar."), ctl));
+            c = c.push(setting(crate::i18n::text("Pausar tudo"), crate::i18n::text("Corta ferramentas de escrita, rede e execução até você retomar"), ctl));
             c = c.push(sh(crate::i18n::text("Dados")));
             let ctl: El = if app.wipe { row_c(vec![btn(crate::i18n::text("Cancelar"), Kind::Normal, true, None, Some(Msg::WipeCancel)), btn(&crate::i18n::formatted("Apagar {} conversas", format!("Apagar {} conversas", app.convs.len())), Kind::Danger, true, None, Some(Msg::WipeConfirm))]) } else { btn(crate::i18n::text("Apagar…"), Kind::Danger, true, None, Some(Msg::WipeArm)) };
             c = c.push(setting(crate::i18n::text("Apagar histórico de conversas"), crate::i18n::text("Remove as conversas deste computador. As notas no vault continuam."), ctl));
@@ -242,7 +242,7 @@ fn section<'a>(app: &'a App) -> El<'a> {
                 c = c.push(sh(crate::i18n::text("Cotas das chamadas · semana")));
                 let qs: Vec<serde_json::Value> = app.budget.as_ref().and_then(|b| b.get("quotas")).and_then(|q| q.as_array()).cloned().unwrap_or_default();
                 if qs.is_empty() {
-                    c = c.push(lede(crate::i18n::text("Nenhuma cota configurada.")));
+                    c = c.push(lede(crate::i18n::text("Nenhuma cota configurada")));
                 }
                 for q in &qs {
                     let pct = q.get("percent").and_then(|x| x.as_f64()).unwrap_or(0.0) as f32;
@@ -273,7 +273,7 @@ fn section<'a>(app: &'a App) -> El<'a> {
                 if app.painel.is_none() {
                     c = c.push(setting(crate::i18n::text("Provedores"), crate::i18n::text("Carregando o estado dos modelos…"), badge("…", Tone::Plain)));
                 } else if eps.is_empty() {
-                    let dica = if pn["modelos"]["configurado"].as_bool().unwrap_or(false) { crate::i18n::text("Modelos configurados.") } else { crate::i18n::text("Nenhum modelo configurado. Guarde a chave de um provedor abaixo e use na hora, ou entre com uma CLI (Claude, Codex ou Gemini).") };
+                    let dica = if pn["modelos"]["configurado"].as_bool().unwrap_or(false) { crate::i18n::text("Modelos configurados") } else { crate::i18n::text("Nenhum modelo configurado. Guarde a chave de um provedor abaixo e use na hora, ou entre com uma CLI (Claude, Codex ou Gemini).") };
                     c = c.push(setting(crate::i18n::text("Provedores"), dica, badge(crate::i18n::text("vazio"), Tone::Plain)));
                 }
                 for (i, e) in eps.iter().enumerate() {
@@ -321,7 +321,7 @@ fn section<'a>(app: &'a App) -> El<'a> {
                         ));
                     } else {
                         let tem = app.keys.get(*nome).copied().unwrap_or(false);
-                        let mut desc = if tem { crate::i18n::text("Chave guardada no cofre do sistema.").to_string() } else { crate::i18n::formatted("Sem chave. Obtenha em {url}", format!("Sem chave. Obtenha em {url}")) };
+                        let mut desc = if tem { crate::i18n::text("Chave guardada no cofre do sistema").to_string() } else { crate::i18n::formatted("Sem chave. Obtenha em {url}", format!("Sem chave. Obtenha em {url}")) };
                         // F02.26: aviso de treino com os dados enviados a este provedor.
                         if let Some((_, policy)) = crate::onboarding::TRAINING_POLICY.iter().find(|(tid, _)| tid == id) {
                             desc = format!("{desc} {}: {}", crate::i18n::text("Treino"), crate::i18n::text(policy));
@@ -359,16 +359,16 @@ fn section<'a>(app: &'a App) -> El<'a> {
                 }
             }else{c=c.push(setting(crate::i18n::text("Usar memória nas respostas"),"",sw(p.mem,"mem")));}
             c = c.push(setting(crate::i18n::text("Sincronizar o vault com o GitHub"), crate::i18n::text("O Orion faz pull, commit do que mudou e push sozinho: ao abrir, a cada 15 minutos, antes de gravar uma nota e ao fechar. Segredos ficam só locais; em conflito, nada é sobrescrito."), btn(crate::i18n::text("Sincronizar agora"), Kind::Normal, true, None, Some(Msg::VaultPull))));
-            c = c.push(setting(crate::i18n::text("Backup do vault"), crate::i18n::text("Gera um zip do vault na pasta de backups, sem o .git."), btn(crate::i18n::text("Gerar zip"), Kind::Normal, true, None, Some(Msg::VaultBackup))));
+            c = c.push(setting(crate::i18n::text("Backup do vault"), crate::i18n::text("Gera um zip do vault na pasta de backups, sem o .git"), btn(crate::i18n::text("Gerar zip"), Kind::Normal, true, None, Some(Msg::VaultBackup))));
             c = c.push(setting(crate::i18n::text("Se você editou a mesma nota fora do Orion"), crate::i18n::text("A sua versão fica como está e a nova vira uma proposta. Compare as duas aqui e escolha."), badge(if app.conflitos.is_empty() { crate::i18n::text("sem conflitos") } else { crate::i18n::text("revisar") }, if app.conflitos.is_empty() { Tone::Ok } else { Tone::Plain })));
             for (i, (original, _, existe)) in app.conflitos.iter().enumerate() {
                 let nome = original.rsplit('/').next().unwrap_or(original);
-                c = c.push(setting(nome, crate::i18n::text("Conflito pendente no vault."), btn(crate::i18n::text("Comparar"), Kind::Normal, *existe, None, Some(Msg::ConflitoAbrir(i)))));
+                c = c.push(setting(nome, crate::i18n::text("Conflito pendente no vault"), btn(crate::i18n::text("Comparar"), Kind::Normal, *existe, None, Some(Msg::ConflitoAbrir(i)))));
             }
             // F06.22/F07.09: os fatos sobre você, com editar e esquecer (as mudanças vão para a nota)
             c = c.push(sh(crate::i18n::text("Sobre você")));
             if app.facts.is_empty() {
-                c = c.push(setting(crate::i18n::text("Fatos que o Orion sabe de você"), crate::i18n::text("Carregue a lista para editar ou esquecer."), btn(crate::i18n::text("Carregar"), Kind::Normal, true, None, Some(Msg::FactsLoad))));
+                c = c.push(setting(crate::i18n::text("Fatos que o Orion sabe de você"), crate::i18n::text("Carregue a lista para editar ou esquecer"), btn(crate::i18n::text("Carregar"), Kind::Normal, true, None, Some(Msg::FactsLoad))));
             } else {
                 // Filtro local: texto (no fato, grupo ou origem) e grupo. Os índices de edição seguem os da lista inteira.
                 c = c.push(text_input(crate::i18n::text("Buscar nos fatos"), &app.fact_q).on_input(Msg::FactQ).size(13).font(t::UI).padding(pad(t::SP_2, t::SP_25, t::SP_2, t::SP_25)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 8.0)));
@@ -389,7 +389,7 @@ fn section<'a>(app: &'a App) -> El<'a> {
                         && (q.is_empty() || f.t.to_lowercase().contains(&q) || f.g.to_lowercase().contains(&q) || f.src.to_lowercase().contains(&q))
                 });
                 if rows.is_empty() {
-                    c = c.push(tx(crate::i18n::text("Nenhum fato com esse filtro."), 13.0, t::FG3));
+                    c = c.push(tx(crate::i18n::text("Nenhum fato com esse filtro"), 13.0, t::FG3));
                 } else {
                     c = c.push(crate::views::pages::list(rows));
                 }
@@ -404,7 +404,7 @@ fn section<'a>(app: &'a App) -> El<'a> {
                 ].spacing(t::SP_2).align_y(Vertical::Center));
                 match &app.screen_hits {
                     None => {}
-                    Some(v) if v.is_empty() => c = c.push(tx(crate::i18n::text("Nada encontrado."), 13.0, t::FG3)),
+                    Some(v) if v.is_empty() => c = c.push(tx(crate::i18n::text("Nada encontrado"), 13.0, t::FG3)),
                     Some(v) => {
                         let mut linhas = vec![];
                         for (quando, programa, janela, trecho) in v {
@@ -419,7 +419,7 @@ fn section<'a>(app: &'a App) -> El<'a> {
         }
         Sec::Fontes => {
             c = c.push(sh(crate::i18n::text("Fontes")));
-            c = c.push(lede(crate::i18n::text("Só fontes ligadas entram na busca de memória e nas ferramentas relacionadas.")));
+            c = c.push(lede(crate::i18n::text("Só fontes ligadas entram na busca de memória e nas ferramentas relacionadas")));
             for r in src_rows(app) {
                 c = c.push(r);
             }
@@ -429,7 +429,7 @@ fn section<'a>(app: &'a App) -> El<'a> {
             c = c.push(sh(crate::i18n::text("Servidores MCP")));
             c = c.push(lede(crate::i18n::text("Por comando local (stdio) ou URL (HTTP), definidos no mcp.json da pasta do Orion. As ferramentas aparecem no chat com o nome do servidor.")));
             if live && app.mcp.is_empty() {
-                c = c.push(setting(crate::i18n::text("Nenhum servidor configurado"), crate::i18n::text("Use Adicionar servidor MCP para configurar e habilitar a conexão."), badge(crate::i18n::text("vazio"), Tone::Plain)));
+                c = c.push(setting(crate::i18n::text("Nenhum servidor configurado"), crate::i18n::text("Use Adicionar servidor MCP para configurar e habilitar a conexão"), badge(crate::i18n::text("vazio"), Tone::Plain)));
             }
             for (i, m) in app.mcp.iter().enumerate() {
                 let tone = if m.ok { Tone::Ok } else { Tone::Err };
@@ -444,7 +444,7 @@ fn section<'a>(app: &'a App) -> El<'a> {
                 c = c.push(setting(crate::i18n::text("Adicionar servidor"), "", btn(crate::i18n::text("Adicionar"), Kind::Normal, true, Some("plus"), Some(toast("Comando ou URL do servidor (simulado)")))));
             }
             c = c.push(sh("Skills"));
-            c = c.push(lede(crate::i18n::text("Pastas com SKILL.md, no formato das skills do Claude.")));
+            c = c.push(lede(crate::i18n::text("Pastas com SKILL.md, no formato das skills do Claude")));
             if live && app.skills.is_empty() {
                 c = c.push(setting(crate::i18n::text("Nenhuma skill instalada"), "", badge(crate::i18n::text("vazio"), Tone::Plain)));
             }
@@ -458,9 +458,9 @@ fn section<'a>(app: &'a App) -> El<'a> {
             }
             if !live {
                 c = c.push(sh("Plugins"));
-                c = c.push(setting(crate::i18n::text("Plugins em Rust/WASM"), crate::i18n::text("Código isolado em sandbox, com permissões declaradas."), btn(crate::i18n::text("Instalar"), Kind::Normal, true, None, Some(toast("Instalar plugin .wasm (simulado)")))));
+                c = c.push(setting(crate::i18n::text("Plugins em Rust/WASM"), crate::i18n::text("Código isolado em sandbox, com permissões declaradas"), btn(crate::i18n::text("Instalar"), Kind::Normal, true, None, Some(toast("Instalar plugin .wasm (simulado)")))));
                 c = c.push(sh(crate::i18n::text("Importar")));
-                c = c.push(setting(crate::i18n::text("Do Claude e do Codex"), crate::i18n::text("Lê mcp.json, configs e skills já instaladas neste PC."), btn(crate::i18n::text("Procurar"), Kind::Normal, true, None, Some(toast("Encontrados 3 servidores e 5 skills (simulado)")))));
+                c = c.push(setting(crate::i18n::text("Do Claude e do Codex"), crate::i18n::text("Lê mcp.json, configs e skills já instaladas neste PC"), btn(crate::i18n::text("Procurar"), Kind::Normal, true, None, Some(toast("Encontrados 3 servidores e 5 skills (simulado)")))));
             }
             if app.api.is_some(){c=c.push(crate::resources::settings(app,"connectors"));}
         }
@@ -470,10 +470,10 @@ fn section<'a>(app: &'a App) -> El<'a> {
                 c = c.push(setting(crate::i18n::text("Recarregar configurações"), crate::i18n::text("Relê o .env e aplica o que dá sem reiniciar: modelos, chaves, guarda de injeção e diário. O resto avisa que precisa reiniciar."), btn(crate::i18n::text("Recarregar"), Kind::Normal, true, None, Some(Msg::RecarregarConfig))));
                 // uso real: só o que dá para medir agora (sem gráfico de exemplo)
                 c = c.push(sh(crate::i18n::text("Memória RAM")));
-                c = c.push(container(row![txf(format!("{} MB", proc_mem_mb()), 36.0, t::FG, t::SERIF), container(tx(crate::i18n::text("deste processo agora · quanto menos, melhor"), 12.5, t::FG3)).padding(pad(t::SP_3, 0.0, 0.0, t::SP_2))].align_y(Vertical::Bottom)).padding(pad(t::SP_15, 0.0, 0.0, 0.0)));
+                c = c.push(container(row![txf(format!("{} MB", proc_mem_mb()), 36.0, t::FG, t::SERIF), container(tx(crate::i18n::text("deste processo agora"), 12.5, t::FG3)).padding(pad(t::SP_3, 0.0, 0.0, t::SP_2))].align_y(Vertical::Bottom)).padding(pad(t::SP_15, 0.0, 0.0, 0.0)));
             } else {
             c = c.push(sh(crate::i18n::text("Memória RAM")));
-                c = c.push(container(row![txf("296 MB", 36.0, t::FG, t::SERIF), container(tx(crate::i18n::text("em uso agora · quanto menos, melhor"), 12.5, t::FG3)).padding(pad(t::SP_3, 0.0, 0.0, t::SP_2))].align_y(Vertical::Bottom)).padding(pad(t::SP_25, 0.0, 0.0, 0.0)));
+                c = c.push(container(row![txf("296 MB", 36.0, t::FG, t::SERIF), container(tx(crate::i18n::text("em uso agora"), 12.5, t::FG3)).padding(pad(t::SP_3, 0.0, 0.0, t::SP_2))].align_y(Vertical::Bottom)).padding(pad(t::SP_25, 0.0, 0.0, 0.0)));
                 let leg = |col: iced::Color, s: &str| -> El<'a> { row![container(sp_w(0.0)).width(Length::Fixed(10.0)).height(Length::Fixed(2.0)).style(surface(Some(col), None, 1.0)), tx(s.to_string(), 12.0, t::FG3)].spacing(t::SP_15).align_y(Vertical::Center).into() };
                 c = c.push(container(row![leg(t::FG2, crate::i18n::text("Uso nas últimas 18 h")), leg(t::SIGNAL, crate::i18n::text("Otimização aplicada"))].spacing(t::SP_3)).padding(pad(t::SP_4, 0.0, t::SP_1, 0.0)));
                 let ch = Line { vals: data::RAMS.to_vec(), min: 0.0, max: 1400.0, ticks: vec![0.0, 400.0, 800.0, 1200.0], fmt: |v| if v == 0.0 { "0".into() } else if v >= 1000.0 { format!("{:.1} GB", v / 1000.0).replace('.', ",") } else { format!("{v} MB") }, start: crate::i18n::text("ontem, 16:00"), end: crate::i18n::text("agora"), color: t::FG2, mark: Some((10, "mmap e voz sob demanda")) };
@@ -492,43 +492,40 @@ fn section<'a>(app: &'a App) -> El<'a> {
                     row![sq, tx(crate::i18n::status(s), 12.5, t::FG2), grow(), tx(v.to_string(), 12.5, t::FG)].spacing(t::SP_2).align_y(Vertical::Center).into()
                 };
                 c = c.push(column![
-                    row![container(lg(t::FG2, crate::i18n::text("Núcleo e interface"), "84 MB", false)).width(Length::FillPortion(1)), container(lg(t::mix(t::FG2, 0.45), crate::i18n::text("Índice vetorial (mmap)"), "188 MB", false)).width(Length::FillPortion(1))].spacing(t::SP_6),
+                    row![container(lg(t::FG2, crate::i18n::text("Núcleo e interface"), "84 MB", false)).width(Length::FillPortion(1)), container(lg(t::mix(t::FG2, 0.45), crate::i18n::text("Índice vetorial"), "188 MB", false)).width(Length::FillPortion(1))].spacing(t::SP_6),
                     row![container(lg(t::SIGNAL, crate::i18n::text("Cache de embeddings"), "24 MB", false)).width(Length::FillPortion(1)), container(lg(t::LINE3, crate::i18n::text("Voz e grafo (descarregados)"), "0 MB", true)).width(Length::FillPortion(1))].spacing(t::SP_6)
                 ].spacing(t::SP_2));
             }
             c = c.push(sh(crate::i18n::text("Janela")));
             c = c.push(setting(crate::i18n::text("Atalho global Ctrl + Alt + Espaço"), crate::i18n::text("Abre a mini barra de qualquer app. Ctrl + Alt + O: captura rápida · Ctrl + Alt + I: Isso? · Ctrl + Alt + P: pânico."), sw(p.shortcut, "shortcut")));
-            c = c.push(setting(crate::i18n::text("Fundo Mica"), crate::i18n::text("Transparência do Windows 11 na barra lateral."), sw(p.mica, "mica")));
+            c = c.push(setting(crate::i18n::text("Fundo Mica"), crate::i18n::text("Transparência do Windows 11 na barra lateral"), sw(p.mica, "mica")));
             c = c.push(setting(crate::i18n::text("Iniciar com o Windows"), crate::i18n::text("Ao ligar o PC, abre minimizado na bandeja, sem janela até ser chamado. Fechar a janela também vai para a bandeja."), sw(p.boot, "boot")));
             if !live {
-            c = c.push(setting(crate::i18n::text("Pastas confiáveis"), crate::i18n::text("O Orion pode ler e escrever nessas pastas e nas de dentro."), btn(crate::i18n::text("Gerenciar"), Kind::Normal, true, None, Some(toast("C:\\Projetos e C:\\Users\\Antonio\\Vault")))));
+            c = c.push(setting(crate::i18n::text("Pastas confiáveis"), crate::i18n::text("O Orion pode ler e escrever nessas pastas e nas de dentro"), btn(crate::i18n::text("Gerenciar"), Kind::Normal, true, None, Some(toast("C:\\Projetos e C:\\Users\\Antonio\\Vault")))));
             c = c.push(sh(crate::i18n::text("Este PC e o notebook")));
             c = c.push(setting(crate::i18n::text("Sincronia do banco"), crate::i18n::text("PC principal manda; o notebook replica pela Tailscale quando os dois estão ligados."), badge(crate::i18n::text("notebook em dia · 09:10"), Tone::Ok)));
             c = c.push(sh(crate::i18n::text("Atualizações e backup")));
-            c = c.push(setting(crate::i18n::text("Atualizações"), crate::i18n::text("Baixa do GitHub Releases em segundo plano, avisa e instala ao fechar."), badge(crate::i18n::text("0.6.0 · em dia"), Tone::Plain)));
-            c = c.push(setting(crate::i18n::text("Backup no Google Drive"), crate::i18n::text("Banco e configurações, criptografados."), badge(crate::i18n::text("ontem, 03:00"), Tone::Ok)));
-            c = c.push(setting(crate::i18n::text("Exportar ou importar"), crate::i18n::text("Para trocar de PC."), row_c(vec![btn(crate::i18n::text("Exportar"), Kind::Normal, true, None, Some(toast(crate::i18n::text("Exportar (simulado)")))), btn(crate::i18n::text("Importar"), Kind::Normal, true, None, Some(toast(crate::i18n::text("Importar (simulado)"))))])));
+            c = c.push(setting(crate::i18n::text("Atualizações"), crate::i18n::text("Baixa do GitHub Releases em segundo plano, avisa e instala ao fechar"), badge(crate::i18n::text("0.6.0 · em dia"), Tone::Plain)));
+            c = c.push(setting(crate::i18n::text("Backup no Google Drive"), crate::i18n::text("Banco e configurações, criptografados"), badge(crate::i18n::text("ontem, 03:00"), Tone::Ok)));
+            c = c.push(setting(crate::i18n::text("Exportar ou importar"), crate::i18n::text("Para trocar de PC"), row_c(vec![btn(crate::i18n::text("Exportar"), Kind::Normal, true, None, Some(toast(crate::i18n::text("Exportar (simulado)")))), btn(crate::i18n::text("Importar"), Kind::Normal, true, None, Some(toast(crate::i18n::text("Importar (simulado)"))))])));
             } else {
-                c = c.push(setting(crate::i18n::text("Atualizações"), crate::i18n::text("O instalador atualiza o app com o feed assinado (minisign). Manualmente: `orion update`."), badge(env!("CARGO_PKG_VERSION"), Tone::Plain)));
+                c = c.push(setting(crate::i18n::text("Atualizações"), crate::i18n::text("O instalador atualiza o app com o feed assinado. Manualmente: `orion update`."), badge(env!("CARGO_PKG_VERSION"), Tone::Plain)));
             }
-            let en = p.english;
-            c = c.push(sh(if en { "Advanced" } else { crate::i18n::text("Avançado") }));
-            c = c.push(setting(if en { "Show advanced" } else { crate::i18n::text("Mostrar avançado") }, if en { "Dangerous or support options. Hidden by default." } else { crate::i18n::text("Opções perigosas ou de suporte. Ficam escondidas por padrão.") }, sw(p.advanced, "advanced")));
+            c = c.push(sh(crate::i18n::text("Avançado")));
+            c = c.push(setting(crate::i18n::text("Mostrar avançado"), crate::i18n::text("Opções perigosas ou de suporte"), sw(p.advanced, "advanced")));
             if p.advanced {
-                c = c.push(setting(if en { "Debug logs" } else { crate::i18n::text("Logs de depuração") }, if en { "Writes detailed log files for support." } else { crate::i18n::text("Gera arquivos de log detalhados para suporte.") }, btn(if en { "Open logs folder" } else { crate::i18n::text("Abrir pasta de logs") }, Kind::Normal, true, None, Some(Msg::OpenLogs))));
+                c = c.push(setting(crate::i18n::text("Logs de depuração"), crate::i18n::text("Gera arquivos de log detalhados para suporte"), btn(crate::i18n::text("Abrir pasta de logs"), Kind::Normal, true, None, Some(Msg::OpenLogs))));
             }
-            let en = p.english;
-            c = c.push(sh(if en { "About" } else { crate::i18n::text("Sobre") }));
-            let desc = if en { "Version {v}. One executable, no Python, no open port." } else { crate::i18n::text("Versão {v}. Um só executável, sem Python e sem porta aberta.") };
-            c = c.push(setting("Orion", &desc.replace("{v}", env!("CARGO_PKG_VERSION")), badge(env!("CARGO_PKG_VERSION"), Tone::Plain)));
-            let lic = if en { "All rights reserved. Private source code; see the LICENSE file in the repository." } else { crate::i18n::text("Todos os direitos reservados. Código-fonte privado; veja o arquivo LICENSE do repositório.") };
-            c = c.push(setting(if en { "License" } else { crate::i18n::text("Licença") }, lic, badge(if en { "proprietary" } else { crate::i18n::text("proprietária") }, Tone::Plain)));
+            c = c.push(sh(crate::i18n::text("Sobre")));
+            c = c.push(setting("Orion", "", badge(env!("CARGO_PKG_VERSION"), Tone::Plain)));
+            let lic = crate::i18n::text("Todos os direitos reservados. Código-fonte privado; veja o arquivo LICENSE do repositório.");
+            c = c.push(setting(crate::i18n::text("Licença"), lic, badge(crate::i18n::text("proprietária"), Tone::Plain)));
             if app.api.is_some(){c=c.push(crate::resources::settings(app,"storage"));}
         }
         Sec::Locais => {
             let live = app.api.is_some();
             c = c.push(sh(crate::i18n::text("Modelos locais")));
-            c = c.push(lede(crate::i18n::text("llama.cpp roda num processo separado que devolve a memória ao terminar. Os modelos só carregam quando usados.")));
+            c = c.push(lede(crate::i18n::text("Os modelos só carregam quando usados e devolvem a memória ao terminar")));
             for (i, m) in app.locais.iter().enumerate() {
                 let gb = format!("{:.1} GB", m.bytes as f64 / 1e9).replace('.', ",");
                 let title: El = if m.ativo { t_badge(&m.nome, badge(crate::i18n::text("em uso"), Tone::Info)) } else if m.tipo.is_empty() || live { tx(m.nome.clone(), 13.5, t::FG).into() } else { t_badge(&m.nome, badge(&m.tipo, Tone::Info)) };
@@ -551,31 +548,31 @@ fn section<'a>(app: &'a App) -> El<'a> {
                 c = c.push(setting_el(title, &desc, right));
             }
             if !live {
-                c = c.push(setting(crate::i18n::text("Baixar modelo"), crate::i18n::text("Do Hugging Face, formato GGUF."), btn(crate::i18n::text("Baixar"), Kind::Normal, true, Some("plus"), Some(toast("Procurar no Hugging Face (simulado)")))));
+                c = c.push(setting(crate::i18n::text("Baixar modelo"), crate::i18n::text("Do Hugging Face, formato GGUF"), btn(crate::i18n::text("Baixar"), Kind::Normal, true, Some("plus"), Some(toast("Procurar no Hugging Face (simulado)")))));
             }
         }
         Sec::Voz => {
-            c = c.push(lede(if p.english { "Coming soon: voice arrives with phase F15. The settings below are saved for when it exists." } else { crate::i18n::text("Em breve: a voz chega com a fase F15. Os ajustes abaixo já ficam salvos para quando ela existir.") }));
+            c = c.push(lede(crate::i18n::text("Em breve. Os ajustes abaixo já ficam salvos")));
             c = c.push(sh(crate::i18n::text("Ativação")));
             c = c.push(setting(crate::i18n::text("Palavra “Orion”"), crate::i18n::text("Escuta localmente. Traz a janela para o foco."), sw(p.wake, "wake")));
-            c = c.push(setting(crate::i18n::text("Duas palmas"), crate::i18n::text("Também traz a janela para o foco. Em calibração no notebook."), sw(p.clap, "clap")));
-            c = c.push(setting(crate::i18n::text("Testar a mini barra"), crate::i18n::text("Barra flutuante no topo da tela enquanto você fala."), btn(if app.voice { crate::i18n::text("Fechar") } else { crate::i18n::text("Mostrar") }, Kind::Normal, true, None, Some(Msg::Live))));
+            c = c.push(setting(crate::i18n::text("Duas palmas"), crate::i18n::text("Também traz a janela para o foco"), sw(p.clap, "clap")));
+            c = c.push(setting(crate::i18n::text("Testar a mini barra"), crate::i18n::text("Barra flutuante no topo da tela enquanto você fala"), btn(if app.voice { crate::i18n::text("Fechar") } else { crate::i18n::text("Mostrar") }, Kind::Normal, true, None, Some(Msg::Live))));
             c = c.push(sh(crate::i18n::text("Fala")));
-            c = c.push(setting(crate::i18n::text("Resposta falada"), crate::i18n::text("Só quando o pedido foi por voz."), badge(crate::i18n::text("só por voz"), Tone::Plain)));
+            c = c.push(setting(crate::i18n::text("Resposta falada"), crate::i18n::text("Só quando o pedido foi por voz"), badge(crate::i18n::text("só por voz"), Tone::Plain)));
             c = c.push(setting(crate::i18n::text("Idioma"), "", sel_pop(["Português (Brasil)", "English (US)"][p.voice_lang].into(), Pop::SetVoiceLang, app, menus::simple_menu(&["Português (Brasil)", "English (US)"], p.voice_lang, "vlang"))));
             c = c.push(setting(crate::i18n::text("Estilo"), "", sel_pop(["Masculina, grave", "Masculina, clara"][p.voice_style].into(), Pop::SetVoiceStyle, app, menus::simple_menu(&["Masculina, grave", "Masculina, clara"], p.voice_style, "vstyle"))));
             c = c.push(setting(crate::i18n::text("Velocidade"), "", pick_seg(&["Normal", crate::i18n::text("Rápido")], p.voice_speed, "vspeed")));
         }
         Sec::Camera => {
-            c = c.push(lede(if p.english { "Coming soon: the camera arrives with phase F18. Nothing is captured until then." } else { crate::i18n::text("Em breve: a câmera chega com a fase F18. Nada é capturado até lá.") }));
+            c = c.push(lede(crate::i18n::text("Em breve. Nada é capturado até lá")));
             c = c.push(sh(crate::i18n::text("Modos")));
             c = c.push(setting(crate::i18n::text("Foto sob pedido"), crate::i18n::text("“Olha isso”: tira uma foto e responde."), swa("cam", 0, p.cam[0])));
             c = c.push(setting(crate::i18n::text("Presença contínua"), crate::i18n::text("Local, sem guardar imagem. Ao sair: pausa a voz e bloqueia o Orion. Na volta: cumprimenta com o que aconteceu."), swa("cam", 1, p.cam[1])));
-            c = c.push(lede(crate::i18n::text("Com a câmera ativa, aparece um ponto vermelho na barra de título e no ícone da bandeja.")));
+            c = c.push(lede(crate::i18n::text("Com a câmera ativa, aparece um ponto vermelho na barra de título e no ícone da bandeja")));
             c = c.push(sh(crate::i18n::text("O que o Orion faz com a câmera")));
             c = c.push(setting(crate::i18n::text("“Onde eu deixei?”"), crate::i18n::text("Guarda só rótulos (objeto, lugar, hora), sem prazo. Poucos KB por ano."), swa("cam", 2, p.cam[2])));
-            c = c.push(setting(crate::i18n::text("Reconhecer você"), crate::i18n::text("Rosto local do dono."), swa("cam", 3, p.cam[3])));
-            c = c.push(setting(crate::i18n::text("Legenda ao vivo"), crate::i18n::text("Faixa flutuante na base da tela."), swa("cam", 4, p.cam[4])));
+            c = c.push(setting(crate::i18n::text("Reconhecer você"), crate::i18n::text("Rosto local do dono"), swa("cam", 3, p.cam[3])));
+            c = c.push(setting(crate::i18n::text("Legenda ao vivo"), crate::i18n::text("Faixa flutuante na base da tela"), swa("cam", 4, p.cam[4])));
             c = c.push(sh(crate::i18n::text("Objetos lembrados")));
             let mut tags = row![].spacing(t::SP_15);
             for (i, o) in p.objs.iter().enumerate() {
@@ -677,7 +674,7 @@ pub fn modal(app: &App) -> El<'_> {
         }
     }
     if !any {
-        nav = nav.push(container(tx(crate::i18n::text("Nada encontrado."), 13.0, t::FG3)).padding(t::SP_25));
+        nav = nav.push(container(tx(crate::i18n::text("Nada encontrado"), 13.0, t::FG3)).padding(t::SP_25));
     }
     let nav_panel = container(scrollable(container(nav).padding(pad(t::SP_3, t::SP_2, t::SP_3, t::SP_2))).direction(scrollable::Direction::Vertical(thin_bar())).style(thin_scroll).height(Length::Fill))
         .width(if mobile { Length::Fill } else { Length::Fixed(236.0) })

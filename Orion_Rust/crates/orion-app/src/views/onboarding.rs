@@ -74,7 +74,7 @@ fn head<'a>(title: &'a str, sub: &'a str) -> El<'a> {
 
 fn step_account<'a>(f: &'a Form) -> El<'a> {
     column![
-        head(tr(f, crate::i18n::text("Sua conta"), "Your account"), tr(f, crate::i18n::text("Só neste computador."), "Only on this computer.")),
+        head(tr(f, crate::i18n::text("Sua conta"), "Your account"), tr(f, crate::i18n::text("Só neste computador"), "Only on this computer.")),
         sp_h(t::SP_2),
         field(f, Field::User, tr(f, crate::i18n::text("Usuário"), "Username"), "seu_usuario", false),
         field(f, Field::Name, tr(f, crate::i18n::text("Como devo chamar você?"), "What should I call you?"), tr(f, crate::i18n::text("Seu nome"), "Your name"), false),
@@ -99,17 +99,17 @@ fn step_security<'a>(f: &'a Form) -> El<'a> {
             check(f, tr(f, crate::i18n::text("Entrar com o Windows Hello"), "Sign in with Windows Hello"), f.hello, Event::Hello),
             note(tr(
                 f,
-                crate::i18n::text("A senha fica guardada no cofre do Windows e é liberada após o Hello."),
+                crate::i18n::text("A senha fica guardada no cofre do Windows e é liberada após o Hello"),
                 "Your password is kept in the Windows vault and released after Hello."
             ))
         ]
         .spacing(t::SP_1)
         .into()
     } else {
-        note(tr(f, crate::i18n::text("Windows Hello indisponível neste computador."), "Windows Hello is unavailable on this computer."))
+        note(tr(f, crate::i18n::text("Windows Hello indisponível neste computador"), "Windows Hello is unavailable on this computer."))
     };
     column![
-        head(tr(f, crate::i18n::text("Segurança"), "Security"), tr(f, crate::i18n::text("Uma senha abre sua conta e seus dados."), "One password opens your account and data.")),
+        head(tr(f, crate::i18n::text("Segurança"), "Security"), tr(f, crate::i18n::text("Uma senha abre sua conta e seus dados"), "One password opens your account and data.")),
         sp_h(t::SP_1),
         row![
             field(f, Field::Password, tr(f, crate::i18n::text("Senha"), "Password"), tr(f, crate::i18n::text("12 caracteres ou mais"), "12 characters or more"), true),
@@ -145,7 +145,7 @@ fn step_security<'a>(f: &'a Form) -> El<'a> {
 
 fn step_notes<'a>(f: &'a Form) -> El<'a> {
     column![
-        head(tr(f, crate::i18n::text("Notas e projetos"), "Notes and projects"), tr(f, crate::i18n::text("Tudo opcional."), "All optional.")),
+        head(tr(f, crate::i18n::text("Notas e projetos"), "Notes and projects"), tr(f, crate::i18n::text("Tudo opcional"), "All optional.")),
         sp_h(t::SP_2),
         folder(f, Field::Vault, tr(f, crate::i18n::text("Vault (segundo cérebro)"), "Vault (second brain)"), tr(f, crate::i18n::text("Pasta do vault"), "Vault folder")),
         folder(f, Field::Projects, tr(f, crate::i18n::text("Pasta dos projetos"), "Projects folder"), tr(f, crate::i18n::text("Seus repositórios"), "Your repositories")),
@@ -198,7 +198,7 @@ fn step_keys<'a>(f: &'a Form) -> El<'a> {
         head(tr(f, crate::i18n::text("Chaves de IA"), "AI keys"), tr(f, crate::i18n::text("Só as que você já usa. O resto fica para depois."), "Only the ones you already use. The rest can wait.")),
         sp_h(t::SP_1),
         list,
-        note(tr(f, crate::i18n::text("Cada teste consulta apenas o provedor escolhido."), "Each test contacts only the chosen provider."))
+        note(tr(f, crate::i18n::text("Cada teste consulta apenas o provedor escolhido"), "Each test contacts only the chosen provider."))
     ]
     .spacing(t::SP_3)
     .into()
@@ -259,7 +259,7 @@ fn step_links<'a>(f: &'a Form) -> El<'a> {
         .into()
     };
     column![
-        head(tr(f, crate::i18n::text("Telegram e backup"), "Telegram and backup"), tr(f, crate::i18n::text("Tudo opcional."), "All optional.")),
+        head(tr(f, crate::i18n::text("Telegram e backup"), "Telegram and backup"), tr(f, crate::i18n::text("Tudo opcional"), "All optional.")),
         sp_h(t::SP_05),
         row![
             field(f, Field::Secret(telegram_key), tr(f, crate::i18n::text("Token do bot"), "Bot token"), "BotFather", true),
@@ -293,7 +293,7 @@ fn step_imports<'a>(f: &'a Form) -> El<'a> {
     let mut col = column![
         head(tr(f, crate::i18n::text("Ferramentas e importação"), "Tools and import"), tr(f, crate::i18n::text("Você escolhe uma vez; pode mudar depois nas Configurações."), "Choose once; change it later in Settings.")),
         check(f, tr(f, crate::i18n::text("Autorizar todas as ferramentas sem confirmação a cada ação"), "Authorize all tools without confirming each action"), f.authorize_tools, Event::AuthorizeTools),
-        note(tr(f, crate::i18n::text("Permite abrir apps, executar comandos, ler arquivos sensíveis, alterar ou apagar arquivos e usar a web, inclusive após ler conteúdo externo. Vale neste computador até você desligar em Configurações → Ferramentas."), "Allows opening apps, running commands, reading sensitive files, changing or deleting files and using the web, including after reading external content. Applies on this computer until you turn it off in Settings → Tools.")),
+        note(tr(f, crate::i18n::text("Permite abrir apps, executar comandos, ler arquivos sensíveis, alterar ou apagar arquivos e usar a web, inclusive após ler conteúdo externo. Vale neste computador até você desligar em Configurações › Ferramentas."), "Allows opening apps, running commands, reading sensitive files, changing or deleting files and using the web, including after reading external content. Applies on this computer until you turn it off in Settings → Tools.")),
         note(tr(f, crate::i18n::text("Não ativa voz, câmera, captura contínua nem integrações sem configuração. Pânico e registros de ações continuam ativos."), "Does not turn on voice, camera, continuous capture or unconfigured integrations. Panic and action logs stay active.")),
         hline(),
         head(tr(f, crate::i18n::text("Importar"), "Import"), tr(f, crate::i18n::text("Traga o que já existe. Nada é executado nem ativado."), "Bring what already exists. Nothing runs or turns on.")),
@@ -354,7 +354,7 @@ fn step_imports<'a>(f: &'a Form) -> El<'a> {
 fn step_done<'a>(f: &'a Form) -> El<'a> {
     let code = f.code.as_deref().unwrap_or("");
     column![
-        head(tr(f, crate::i18n::text("Tudo pronto"), "All set"), tr(f, crate::i18n::text("Guarde seu código de recuperação."), "Keep your recovery code.")),
+        head(tr(f, crate::i18n::text("Tudo pronto"), "All set"), tr(f, crate::i18n::text("Guarde seu código de recuperação"), "Keep your recovery code.")),
         sp_h(t::SP_25),
         container(txf(code.to_string(), 20.0, t::FG, t::MONO))
             .padding(pad(t::SP_45, t::SP_5, t::SP_45, t::SP_5))
@@ -429,7 +429,7 @@ pub fn view(app: &App) -> El<'_> {
     let caption = if done {
         tr(f, crate::i18n::text("Seu Orion está configurado"), "Your Orion is set up")
     } else if matches!(f.step, 2 | 3 | 4 | 5) {
-        tr(f, crate::i18n::text("Pode pular — ajuste depois em Configurações"), "You can skip — adjust later in Settings")
+        tr(f, crate::i18n::text("Pode pular e ajustar depois em Configurações"), "You can skip — adjust later in Settings")
     } else {
         ""
     };

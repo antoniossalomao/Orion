@@ -159,10 +159,10 @@ pub fn view(app: &App) -> El<'_> {
                 if let Some(progress) = i.preview.as_ref().and_then(|(p, _)| p.enrollment) {
                     crate::i18n::formatted("Cadastro do rosto: {v}/{v}", format!("Cadastro do rosto: {}/{}", progress.accepted, progress.total))
                 } else {
-                    crate::i18n::text("A cadastrar o seu rosto…").to_string()
+                    crate::i18n::text("Cadastrando seu rosto…").to_string()
                 }
             } else {
-                crate::i18n::formatted("A verificar {v}…", format!("A verificar {name}…"))
+                crate::i18n::formatted("Verificando {v}…", format!("A verificar {name}…"))
             };
             let request = match (i.phase, i.purpose) {
                 (Phase::Enrolling, _) => {
@@ -196,7 +196,7 @@ pub fn view(app: &App) -> El<'_> {
         }
         Phase::Success => {
             let (a, b) = match i.purpose {
-                Purpose::Login => (crate::i18n::formatted("Olá, {v}", format!("Olá, {name}")), crate::i18n::text("A abrir o Orion").to_string()),
+                Purpose::Login => (crate::i18n::formatted("Olá, {v}", format!("Olá, {name}")), crate::i18n::text("Abrindo o Orion").to_string()),
                 _ => (crate::i18n::text("Confirmado").to_string(), crate::i18n::text("Rosto conferido").to_string()),
             };
             row![glyph, lines(a, b, t::OK)].spacing(t::SP_3).align_y(Vertical::Center).into()
@@ -274,7 +274,7 @@ pub fn enroll_password_modal(app: &App) -> El<'_> {
         .padding(pad(t::SP_3, t::SP_3, t::SP_3, t::SP_3));
     let body = column![
         tx(crate::i18n::text("Ativar o Face ID"), 15.0, t::FG),
-        tx(crate::i18n::text("Digite a senha. O cadastro leva de 25 segundos a 1 minuto e orienta cinco posições da cabeça. Mantenha boa iluminação e siga as orientações; só capturas nítidas e estáveis contam. O reconhecimento é conferido antes de salvar. Tudo fica cifrado neste computador. A webcam não mede profundidade e uma foto boa pode enganar o reconhecimento."), 12.0, t::FG3),
+        tx(crate::i18n::text("Digite a senha. O cadastro leva até 1 minuto e pede cinco posições da cabeça, com boa luz. Tudo fica cifrado neste computador. A webcam não mede profundidade: uma foto boa pode enganar o reconhecimento."), 12.0, t::FG3),
         input,
         row![grow(), btn(crate::i18n::text("Cancelar"), Kind::Normal, true, None, Some(Msg::Face(FaceMsg::EnrollClose))), btn(crate::i18n::text("Cadastrar"), Kind::Primary, !v.is_empty(), None, Some(Msg::Face(FaceMsg::EnrollSubmit)))].spacing(t::SP_2),
     ]

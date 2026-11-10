@@ -69,7 +69,7 @@ impl App {
                     return Task::none();
                 }
                 if self.island.busy() {
-                    self.toast("O Face ID está usando a câmera agora.");
+                    self.toast("O Face ID está usando a câmera agora");
                     return Task::none();
                 }
                 self.camera = Some(CameraUi { opened_at: now, opening: true, snapshot: None, error: None, last_gesture: None });
