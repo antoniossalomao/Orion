@@ -55,8 +55,8 @@ pub const LINE: Color = rgb(0x25, 0x27, 0x2c);
 pub const FG: Color = rgb(0xec, 0xec, 0xee);
 /// Texto secundário: `#a9aab0`.
 pub const FG2: Color = rgb(0xa9, 0xaa, 0xb0);
-/// Texto legenda: `#75767d`.
-pub const FG3: Color = rgb(0x75, 0x76, 0x7d);
+/// Texto legenda: `#8e8f96`, o mesmo do app. O `#75767d` da especificação dava ~4,0:1 sobre `SIDE`; este passa de 4,5:1.
+pub const FG3: Color = rgb(0x8e, 0x8f, 0x96);
 /// Foco, seleção, etapas concluídas, switches: `#a4b3de`.
 pub const RIGEL: Color = rgb(0xa4, 0xb3, 0xde);
 /// Etapa atual, selo recomendado, nome da estrela, alerta: `#e9b467`.
@@ -73,6 +73,14 @@ pub const DANGER: Color = rgb(0xf0, 0x7c, 0x88);
 pub const SKY_BG: Color = rgb(0x07, 0x08, 0x0b);
 /// Fundo de cartão de modelo selecionado: `#1c2030`.
 pub const MODEL_SELECTED_BG: Color = rgb(0x1c, 0x20, 0x30);
+
+/// Véu sobre o céu atrás do rótulo da estrela: `SKY_BG` a 78%.
+pub const SKY_VEIL: Color = rgba(7, 8, 11, 0.78);
+/// Selo "recomendado": fundo e borda em `BETEL`.
+pub const BETEL_SOFT: Color = rgba(233, 180, 103, 0.08);
+pub const BETEL_LINE: Color = rgba(233, 180, 103, 0.42);
+/// Fundo do botão fechar ao passar o mouse: `DANGER` a 22%.
+pub const CLOSE_HOVER: Color = rgba(240, 124, 136, 0.22);
 
 /// Aplica opacidade multiplicativa a uma cor.
 pub fn with_alpha(mut c: Color, alpha: f32) -> Color {

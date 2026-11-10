@@ -20,8 +20,7 @@ use std::f32::consts::{PI, TAU};
 
 /// Mistura linear de duas cores.
 fn lerp(a: Color, b: Color, k: f32) -> Color {
-    let k = k.clamp(0.0, 1.0);
-    Color { r: a.r + (b.r - a.r) * k, g: a.g + (b.g - a.g) * k, b: a.b + (b.b - a.b) * k, a: a.a + (b.a - a.a) * k }
+    t::lerp(a, b, k.clamp(0.0, 1.0))
 }
 
 /// Estrela no estilo da mini barra de voz: halo de alfa baixo e núcleo.

@@ -191,7 +191,7 @@ pub enum Kind {
 pub fn btn<'a>(label: &str, kind: Kind, small: bool, ic: Option<&str>, msg: Option<Msg>) -> El<'a> {
     let (fg, bg, hbg, line, hline_) = match kind {
         Kind::Normal => (t::FG, None, Some(t::HOVER), t::LINE2, t::LINE3),
-        Kind::Primary => (t::PRIMARY_INK, Some(t::PRIMARY), Some(Color { r: (t::PRIMARY.r * 1.06).min(1.0), g: (t::PRIMARY.g * 1.06).min(1.0), b: (t::PRIMARY.b * 1.06).min(1.0), a: 1.0 }), Color::TRANSPARENT, Color::TRANSPARENT),
+        Kind::Primary => (t::PRIMARY_INK, Some(t::PRIMARY), Some(t::lighten(t::PRIMARY, 1.06)), Color::TRANSPARENT, Color::TRANSPARENT),
         Kind::Danger => (t::DANGER, None, Some(t::DANGER_SOFT), t::mix(t::DANGER, 0.4), t::DANGER),
         Kind::Ghost => (t::FG2, None, None, Color::TRANSPARENT, Color::TRANSPARENT),
     };

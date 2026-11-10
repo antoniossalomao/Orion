@@ -12,6 +12,14 @@ pub const fn rgba(r: u8, g: u8, b: u8, a: f32) -> Color {
 pub fn alpha(c: Color, a: f32) -> Color {
     Color { a: c.a * a, ..c }
 }
+/// Clareia a cor multiplicando os canais por `k` (realce de hover do botão principal).
+pub fn lighten(c: Color, k: f32) -> Color {
+    Color { r: (c.r * k).min(1.0), g: (c.g * k).min(1.0), b: (c.b * k).min(1.0), a: 1.0 }
+}
+/// Interpola duas cores, canal a canal.
+pub fn lerp(a: Color, b: Color, k: f32) -> Color {
+    Color { r: a.r + (b.r - a.r) * k, g: a.g + (b.g - a.g) * k, b: a.b + (b.b - a.b) * k, a: a.a + (b.a - a.a) * k }
+}
 /// `color-mix(in srgb, c p%, transparent)`.
 pub fn mix(c: Color, p: f32) -> Color {
     alpha(c, p)
@@ -89,6 +97,23 @@ pub const TERM_BG: Color = rgb(0x0b, 0x0c, 0x0d);
 pub const TERM_FG: Color = rgb(0xcf, 0xd2, 0xd8);
 pub const ISLAND_BG: Color = rgb(0x0b, 0x0c, 0x10);
 pub const GRAPH_ARESTA: Color = rgb(0x9a, 0xa3, 0xc0);
+/// Céu do grafo: centro do degradê (a borda é `ISLAND_BG`), fundo do rótulo e a névoa azul da distância.
+pub const GRAPH_SKY_CORE: Color = rgb(0x15, 0x19, 0x2a);
+pub const GRAPH_PILL: Color = rgb(0x0c, 0x0e, 0x13);
+pub const ATMOS: Color = rgb(140, 168, 250);
+/// Estrelas de fundo: fria e quente (a neutra é `ON_VEIL`).
+pub const STAR_COOL: Color = rgb(184, 204, 255);
+pub const STAR_WARM: Color = rgb(255, 230, 199);
+/// Halo do núcleo do grafo, de fora (azul) para dentro (quente).
+pub const GRAPH_HALO: [Color; 5] = [rgb(140, 168, 255), rgb(158, 184, 255), rgb(217, 217, 255), rgb(255, 237, 204), rgb(255, 242, 217)];
+/// Véus pretos sobre a janela: captura rápida, pedido de senha, recorte de tela e legenda ao vivo.
+pub const VEIL_LIGHT: Color = rgba(0, 0, 0, 0.25);
+pub const VEIL_MID: Color = rgba(0, 0, 0, 0.35);
+pub const VEIL_STRONG: Color = rgba(0, 0, 0, 0.45);
+pub const VEIL_CAPTION: Color = rgba(0, 0, 0, 0.78);
+pub const ON_VEIL: Color = rgb(0xff, 0xff, 0xff);
+/// Fim do degradê do painel do login (tom dentro do mesmo neutro de `SIDE`).
+pub const LOGIN_PANEL: Color = rgb(19, 20, 24);
 
 /// Cores por tipo de nota (§4.2), na ordem de `TIPOS`.
 pub const N_PROJETO: Color = rgb(0xe9, 0xb4, 0x67);

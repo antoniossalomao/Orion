@@ -326,11 +326,10 @@ impl canvas::Program<Msg> for Mem<'_> {
         let geom = g.cache.draw(r, b.size(), |f| {
             // Fundo: radial-gradient(ellipse at 50% 45%, #15192a 0%, #0b0c10 72%)
             f.fill_rectangle(Point::ORIGIN, b.size(), t::ISLAND_BG);
-            let (c0, c1) = ((0x15 as f32, 0x19 as f32, 0x2a as f32), (0x0b as f32, 0x0c as f32, 0x10 as f32));
             const STEPS: usize = 18;
             for k in 0..STEPS {
                 let u = k as f32 / (STEPS - 1) as f32;
-                let col = Color::from_rgb8((c1.0 + (c0.0 - c1.0) * u) as u8, (c1.1 + (c0.1 - c1.1) * u) as u8, (c1.2 + (c0.2 - c1.2) * u) as u8);
+                let col = t::lerp(t::ISLAND_BG, t::GRAPH_SKY_CORE, u);
                 let (rx, ry) = (w * 0.5 * 1.1 * (1.0 - u) * 0.72 * 1.4 + 1.0, h * 0.5 * 1.1 * (1.0 - u) * 0.72 * 1.4 + 1.0);
                 f.with_save(|f| {
                     f.translate(iced::Vector::new(w * 0.5, h * 0.45));
@@ -529,7 +528,7 @@ impl canvas::Program<Msg> for Mem<'_> {
                     iced::Size::new(bx[2] - bx[0], bx[3] - bx[1]),
                     5.0.into(),
                 );
-                f.fill(&pill_rect, Color::from_rgba8(0x0c, 0x0e, 0x13, if is_focus { 0.92 } else { 0.76 }));
+                f.fill(&pill_rect, t::alpha(t::GRAPH_PILL, if is_focus { 0.92 } else { 0.76 }));
                 if is_focus {
                     f.stroke(&pill_rect, Stroke::default().with_width(1.0).with_color(t::alpha(TYPE_COLORS[n.tipo], 0.55)));
                 }
@@ -552,8 +551,7 @@ impl canvas::Program<Msg> for Mem<'_> {
 /// Tinge de azul-frio o que está longe (perspectiva atmosférica).
 fn cool_tint(c: Color, depth: f32) -> Color {
     let k = depth * 0.38;
-    let cold = (0.55, 0.66, 0.98);
-    Color { r: c.r + (cold.0 - c.r) * k, g: c.g + (cold.1 - c.g) * k, b: c.b + (cold.2 - c.b) * k, a: c.a }
+    Color { a: c.a, ..t::lerp(c, t::ATMOS, k) }
 }
 
 /// Estrelas distantes que se deslocam menos que o grafo quando a câmera orbita: dão a sensação de espaço profundo.
@@ -569,7 +567,7 @@ fn parallax_stars(f: &mut canvas::Frame, g: &Graph, w: f32, h: f32) {
         let x = (b * w + g.rot * layer * 260.0 + g.cam.1 * layer * 0.4).rem_euclid(w.max(1.0));
         let y = (c * h + g.pitch * layer * 200.0 + g.cam.2 * layer * 0.4).rem_euclid(h.max(1.0));
         let r = 0.45 + layer * 1.4;
-        let tint = if i % 5 == 0 { Color::from_rgb(0.72, 0.8, 1.0) } else if i % 7 == 0 { Color::from_rgb(1.0, 0.9, 0.78) } else { Color::WHITE };
+        let tint = if i % 5 == 0 { t::STAR_COOL } else if i % 7 == 0 { t::STAR_WARM } else { t::ON_VEIL };
         f.fill(&Path::circle(Point::new(x, y), r), t::alpha(tint, 0.18 + 0.5 * layer));
     }
 }
@@ -608,11 +606,11 @@ fn core_glow(f: &mut canvas::Frame, g: &Graph, w: f32, h: f32, kk: f32, focused:
     let fade = if focused { 0.5 } else { 1.0 };
     let base = 17.0 * kk * s;
     for (mult, alpha, col) in [
-        (7.0f32, 0.020f32, Color::from_rgb(0.55, 0.66, 1.0)),
-        (4.6, 0.034, Color::from_rgb(0.62, 0.72, 1.0)),
-        (3.0, 0.060, Color::from_rgb(0.85, 0.85, 1.0)),
-        (1.9, 0.12, Color::from_rgb(1.0, 0.93, 0.8)),
-        (1.0, 0.30, Color::from_rgb(1.0, 0.95, 0.85)),
+        (7.0f32, 0.020f32, t::GRAPH_HALO[0]),
+        (4.6, 0.034, t::GRAPH_HALO[1]),
+        (3.0, 0.060, t::GRAPH_HALO[2]),
+        (1.9, 0.12, t::GRAPH_HALO[3]),
+        (1.0, 0.30, t::GRAPH_HALO[4]),
     ] {
         f.fill(&Path::circle(c, base * mult), t::alpha(col, alpha * fade));
     }

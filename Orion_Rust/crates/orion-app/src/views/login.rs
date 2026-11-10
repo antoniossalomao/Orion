@@ -33,9 +33,9 @@ impl canvas::Program<Msg> for Brilho {
         let geometry = state.0.draw(renderer, b.size(), |f| {
         let (w, h) = (b.width, b.height);
         let blobs: [(f32, f32, f32, iced::Color, f32); 3] = if self.lado == 0 {
-            [(0.28, 0.24, 0.50, t::SIGNAL, 0.055), (0.55, 0.88, 0.58, t::ACCENT, 0.07), (0.45, 0.52, 0.48, iced::Color::from_rgb(0.55, 0.45, 0.85), 0.05)]
+            [(0.28, 0.24, 0.50, t::SIGNAL, 0.055), (0.55, 0.88, 0.58, t::ACCENT, 0.07), (0.45, 0.52, 0.48, t::ACCENT, 0.05)]
         } else {
-            [(0.92, 0.08, 0.70, t::ACCENT, 0.08), (0.10, 0.95, 0.55, t::SIGNAL, 0.04), (0.55, 0.45, 0.50, iced::Color::from_rgb(0.55, 0.45, 0.85), 0.03)]
+            [(0.92, 0.08, 0.70, t::ACCENT, 0.08), (0.10, 0.95, 0.55, t::SIGNAL, 0.04), (0.55, 0.45, 0.50, t::ACCENT, 0.03)]
         };
         for (n, (x, y, r, c, a)) in blobs.into_iter().enumerate() {
             let k = n as f32 * 1.7;
@@ -132,7 +132,7 @@ pub fn view(app: &App) -> El<'_> {
         .style(move |_, st| {
             let hov = matches!(st, iced::widget::button::Status::Hovered | iced::widget::button::Status::Pressed);
             let k = if hov { 1.06 } else { 1.0 };
-            let a = iced::Color { r: (t::PRIMARY.r * k).min(1.0), g: (t::PRIMARY.g * k).min(1.0), b: (t::PRIMARY.b * k).min(1.0), a: 1.0 };
+            let a = t::lighten(t::PRIMARY, k);
             iced::widget::button::Style {
                 background: Some(degrade(a, t::mix(t::ACCENT, 0.9), 100.0)),
                 text_color: t::PRIMARY_INK,
@@ -169,7 +169,7 @@ pub fn view(app: &App) -> El<'_> {
 
     let glow_dir = canvas(Brilho { t: tempo, lado: 1, p: p_ceu }).width(Length::Fill).height(Length::Fill);
     let conteudo = container(column![rise(fade(cartao, p_card, bg), p_card, 18.0), sp_h(t::SP_45), fade(rodape, p_card, bg)].align_x(Horizontal::Center)).width(Length::Fill).height(Length::Fill).center_x(Length::Fill).center_y(Length::Fill);
-    let painel = container(stack![glow_dir, conteudo]).width(Length::FillPortion(105)).height(Length::Fill).clip(true).style(|_| container::Style { background: Some(degrade(t::mix(t::SIDE, 1.0), iced::Color::from_rgb(0.075, 0.078, 0.095), 160.0)), ..Default::default() });
+    let painel = container(stack![glow_dir, conteudo]).width(Length::FillPortion(105)).height(Length::Fill).clip(true).style(|_| container::Style { background: Some(degrade(t::mix(t::SIDE, 1.0), t::LOGIN_PANEL, 160.0)), ..Default::default() });
 
     let sky = iced::widget::image(app.ceu.img.clone()).content_fit(iced::ContentFit::Cover).width(Length::Fill).height(Length::Fill);
     let glow_esq = canvas(Brilho { t: tempo, lado: 0, p: p_ceu }).width(Length::Fill).height(Length::Fill);

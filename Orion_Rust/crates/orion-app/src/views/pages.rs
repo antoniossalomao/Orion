@@ -186,8 +186,9 @@ fn aprovacoes(app: &App) -> El<'_> {
     page(crate::i18n::text("Aprovações"), crate::i18n::text("Pendências de todas as conversas e rotinas, e o histórico de tudo o que o Orion fez fora do chat."), auto, col.into())
 }
 
+/// Cartão de pendência em superfície neutra: o âmbar fica só no ponto do cabeçalho, para a fila inteira não acender.
 fn qcard<'a>(head: El<'a>, body: El<'a>, actions: El<'a>) -> El<'a> {
-    container(column![head, body, actions].spacing(t::SP_2)).width(Length::Fill).padding(pad(t::SP_3, t::SP_4, t::SP_3, t::SP_4)).style(|_| container::Style { background: Some(t::SIGNAL_SOFT.into()), border: Border { color: t::mix(t::SIGNAL, 0.30), width: 1.0, radius: t::R_PANEL.into() }, ..Default::default() }).into()
+    container(column![head, body, actions].spacing(t::SP_2)).width(Length::Fill).padding(pad(t::SP_3, t::SP_4, t::SP_3, t::SP_4)).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_PANEL.into() }, ..Default::default() }).into()
 }
 
 fn runs<'a>(r: &str) -> El<'a> {

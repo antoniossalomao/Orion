@@ -1410,7 +1410,7 @@ impl SetupApp {
             .align_x(Horizontal::Center)
             .align_y(Vertical::Center)
             .style(|_theme: &Theme| container::Style {
-                background: Some(Background::Color(Color::from_rgba8(7, 8, 11, 0.78))),
+                background: Some(Background::Color(theme::SKY_VEIL)),
                 ..Default::default()
             })
             .into()
@@ -1534,9 +1534,9 @@ fn tag_pill<'a>(label: &'a str) -> Element<'a, Message> {
     .center_y(16)
     .padding([0.0, theme::SP_15])
     .style(|_theme: &Theme| container::Style {
-        background: Some(Background::Color(Color::from_rgba8(233, 180, 103, 0.08))),
+        background: Some(Background::Color(theme::BETEL_SOFT)),
         border: Border {
-            color: Color::from_rgba8(233, 180, 103, 0.42),
+            color: theme::BETEL_LINE,
             width: 1.0,
             radius: 999.0.into(),
         },
@@ -1711,7 +1711,7 @@ fn titlebar_btn_style(is_close: bool) -> impl Fn(&Theme, button::Status) -> butt
     move |_theme: &Theme, status: button::Status| {
         let hovered = matches!(status, button::Status::Hovered | button::Status::Pressed);
         let hover_bg = if is_close {
-            Color::from_rgba8(224, 107, 107, 0.22)
+            theme::CLOSE_HOVER
         } else {
             theme::RAISE
         };

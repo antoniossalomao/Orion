@@ -138,13 +138,13 @@ pub fn quick_capture(app: &App) -> El<'_> {
     };
     let foot = container(row![seg(&kinds, cur, Msg::QcapKind), grow(), tx(crate::i18n::text("Vai para "), 12.0, t::FG3), txf("00 Inbox", 12.0, t::FG3, t::MONO), tx(" · Ctrl + Alt + O", 12.0, t::FG3)].spacing(t::SP_15).align_y(Vertical::Center)).padding(pad(t::SP_2, t::SP_3, t::SP_2, t::SP_3));
     let boxed = container(column![head, hline(), foot]).width(Length::Fixed(620.0f32.min(app.win.width - 32.0))).clip(true).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_PANEL.into() }, shadow: shadow(), ..Default::default() });
-    scrim_box(boxed.into(), app.win.height * 0.22, Color::from_rgba(0.0, 0.0, 0.0, 0.25), Msg::QcapClose)
+    scrim_box(boxed.into(), app.win.height * 0.22, t::VEIL_LIGHT, Msg::QcapClose)
 }
 
 /// Caixa central de pedido de senha (autônomo, cadastro do Face ID).
 pub fn password_modal<'a>(app: &App, corpo: El<'a>, fechar: Msg) -> El<'a> {
     let boxed = container(corpo).padding(pad(t::SP_45, t::SP_45, t::SP_45, t::SP_45)).width(Length::Fixed(440.0f32.min(app.win.width - 32.0))).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_PANEL.into() }, shadow: shadow(), ..Default::default() });
-    scrim_box(boxed.into(), app.win.height * 0.22, Color::from_rgba(0.0, 0.0, 0.0, 0.35), fechar)
+    scrim_box(boxed.into(), app.win.height * 0.22, t::VEIL_MID, fechar)
 }
 
 pub fn auto_senha(app: &App) -> El<'_> {
@@ -177,7 +177,7 @@ pub fn isso(app: &App) -> El<'_> {
     let i = app.isso.as_ref().unwrap();
     let (w, h) = (app.win.width, app.win.height);
     let (x, y, sw, sh) = ((w * 0.30).round(), (h * 0.28).round(), (w * 0.34).round(), (h * 0.26).round());
-    let dim = |ww: f32, hh: f32| container(sp_w(0.0)).width(Length::Fixed(ww.max(0.0))).height(Length::Fixed(hh.max(0.0))).style(|_| container::Style { background: Some(Color::from_rgba(0.0, 0.0, 0.0, 0.25).into()), ..Default::default() });
+    let dim = |ww: f32, hh: f32| container(sp_w(0.0)).width(Length::Fixed(ww.max(0.0))).height(Length::Fixed(hh.max(0.0))).style(|_| container::Style { background: Some(t::VEIL_LIGHT.into()), ..Default::default() });
     // fora da seleção escurece mais (box-shadow 0 0 0 9999px)
     let around: El = column![dim(w, y), row![dim(x, sh), sp_w(sw), dim(w - x - sw, sh)], dim(w, h - y - sh)].into();
     let sel = container(sp_w(0.0)).width(Length::Fixed(sw)).height(Length::Fixed(sh)).style(|_| container::Style { background: Some(t::alpha(t::PRIMARY, 0.08).into()), border: Border { color: t::PRIMARY, width: 1.5, radius: 4.0.into() }, ..Default::default() });
@@ -191,7 +191,7 @@ pub fn isso(app: &App) -> El<'_> {
     ask = ask.push(row![grow(), btn(crate::i18n::text("Fechar"), Kind::Ghost, true, None, Some(Msg::IssoClose)), btn(crate::i18n::text("Levar para o chat"), Kind::Normal, true, None, Some(Msg::Toast(crate::i18n::text("Captura anexada a uma conversa nova (simulado)").into())))].spacing(t::SP_15));
     let ask_box = container(ask).width(Length::Fixed(420.0f32.min(w - 32.0))).padding(t::SP_25).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_PANEL.into() }, shadow: shadow(), ..Default::default() });
     let ask_pos = container(ask_box).padding(pad((y + sh + 10.0).min(h - 170.0), 0.0, 0.0, x.min(w - 436.0)));
-    let base = container(sp_w(0.0)).width(Length::Fill).height(Length::Fill).style(|_| container::Style { background: Some(Color::from_rgba(0.0, 0.0, 0.0, 0.45).into()), ..Default::default() });
+    let base = container(sp_w(0.0)).width(Length::Fill).height(Length::Fill).style(|_| container::Style { background: Some(t::VEIL_STRONG.into()), ..Default::default() });
     opaque(stack![base, around, sel_pos, hint, ask_pos])
 }
 
@@ -219,7 +219,7 @@ pub fn island(app: &App) -> El<'_> {
 }
 
 pub fn caption<'a>(lines:&[String]) -> El<'a> {
-    let c = container(tx(lines.iter().rev().take(2).rev().cloned().collect::<Vec<_>>().join("\n"),16.0,Color::WHITE)).padding(pad(t::SP_2, t::SP_4, t::SP_2, t::SP_4)).style(|_| container::Style { background: Some(Color::from_rgba(0.0, 0.0, 0.0, 0.78).into()), border: Border { radius: t::R_CARD.into(), ..Default::default() }, ..Default::default() });
+    let c = container(tx(lines.iter().rev().take(2).rev().cloned().collect::<Vec<_>>().join("\n"),16.0,t::ON_VEIL)).padding(pad(t::SP_2, t::SP_4, t::SP_2, t::SP_4)).style(|_| container::Style { background: Some(t::VEIL_CAPTION.into()), border: Border { radius: t::R_CARD.into(), ..Default::default() }, ..Default::default() });
     container(c).width(Length::Fill).height(Length::Fill).center_x(Length::Fill).align_y(Vertical::Bottom).padding(pad(0.0, 0.0, t::SP_7, 0.0)).into()
 }
 
