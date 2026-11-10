@@ -41,6 +41,8 @@ pub const R_CTRL: f32 = 8.0;
 pub const R_CARD: f32 = 12.0;
 pub const R_PANEL: f32 = 14.0;
 pub const R_PILL: f32 = 999.0;
+/// Etiqueta e código em linha (5 px no protótipo).
+pub const R_TAG: f32 = 5.0;
 /// Escala de espaçamento, ajustada ao protótipo (que usa 2, 6, 10 e 14 além da grade de 4).
 /// `SP_PX` é o fio de 1 px; zero fica literal. Medidas de componente (larguras, alturas) não entram aqui.
 pub const SP_PX: f32 = 1.0;

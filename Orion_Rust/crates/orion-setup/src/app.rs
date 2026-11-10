@@ -670,7 +670,7 @@ impl SetupApp {
                 border: Border {
                     color: theme::LINE,
                     width: 1.0,
-                    radius: 12.0.into(),
+                    radius: theme::R_CARD.into(),
                 },
                 ..Default::default()
             })
@@ -1440,7 +1440,7 @@ fn chk_card<'a>(label: &'a str, val: &str, warn: bool, alpha: f32) -> Element<'a
         .style(move |_theme: &Theme| container::Style {
             background: Some(Background::Color(dot_col)),
             border: Border {
-                radius: 99.0.into(),
+                radius: theme::R_PILL.into(),
                 ..Default::default()
             },
             ..Default::default()
@@ -1538,7 +1538,7 @@ fn tag_pill<'a>(label: &'a str) -> Element<'a, Message> {
         border: Border {
             color: theme::BETEL_LINE,
             width: 1.0,
-            radius: 999.0.into(),
+            radius: theme::R_PILL.into(),
         },
         ..Default::default()
     })
@@ -1578,7 +1578,7 @@ fn switch_pill<'a>(active: bool) -> Element<'a, Message> {
                 theme::FG2
             })),
             border: Border {
-                radius: 99.0.into(),
+                radius: theme::R_PILL.into(),
                 ..Default::default()
             },
             ..Default::default()
@@ -1601,7 +1601,7 @@ fn switch_pill<'a>(active: bool) -> Element<'a, Message> {
                 theme::LINE
             })),
             border: Border {
-                radius: 999.0.into(),
+                radius: theme::R_PILL.into(),
                 ..Default::default()
             },
             ..Default::default()
@@ -1623,7 +1623,7 @@ fn progress_bar_single<'a>(fraction: f32) -> Element<'a, Message> {
             .style(|_theme: &Theme| container::Style {
                 background: Some(Background::Color(theme::RIGEL)),
                 border: Border {
-                    radius: 999.0.into(),
+                    radius: theme::R_PILL.into(),
                     ..Default::default()
                 },
                 ..Default::default()
@@ -1636,7 +1636,7 @@ fn progress_bar_single<'a>(fraction: f32) -> Element<'a, Message> {
     .style(|_theme: &Theme| container::Style {
         background: Some(Background::Color(theme::RAISE)),
         border: Border {
-            radius: 999.0.into(),
+            radius: theme::R_PILL.into(),
             ..Default::default()
         },
         ..Default::default()
@@ -1650,7 +1650,7 @@ fn surface_card_style() -> impl Fn(&Theme) -> container::Style {
         border: Border {
             color: theme::LINE,
             width: 1.0,
-            radius: 8.0.into(),
+            radius: theme::R_CTRL.into(),
         },
         ..Default::default()
     }
@@ -1665,7 +1665,7 @@ fn input_box_button_style() -> impl Fn(&Theme, button::Status) -> button::Style 
             border: Border {
                 color: if hovered { theme::RIGEL } else { theme::LINE },
                 width: 1.0,
-                radius: 8.0.into(),
+                radius: theme::R_CTRL.into(),
             },
             ..Default::default()
         }
@@ -1691,7 +1691,7 @@ fn model_card_style(selected: bool) -> impl Fn(&Theme, button::Status) -> button
             border: Border {
                 color: border_col,
                 width: 1.0,
-                radius: 10.0.into(),
+                radius: theme::R_FIELD.into(),
             },
             ..Default::default()
         }
@@ -1724,7 +1724,7 @@ fn titlebar_btn_style(is_close: bool) -> impl Fn(&Theme, button::Status) -> butt
             })),
             text_color: if hovered { hover_fg } else { theme::FG3 },
             border: Border {
-                radius: 6.0.into(),
+                radius: theme::R_TAG.into(),
                 ..Default::default()
             },
             ..Default::default()
@@ -1745,7 +1745,7 @@ fn ghost_button_style() -> impl Fn(&Theme, button::Status) -> button::Style {
             border: Border {
                 color: theme::LINE,
                 width: 1.0,
-                radius: 8.0.into(),
+                radius: theme::R_CTRL.into(),
             },
             ..Default::default()
         }
@@ -1766,7 +1766,7 @@ fn primary_button_style(enabled: bool) -> impl Fn(&Theme, button::Status) -> but
             background: Some(Background::Color(bg)),
             text_color: theme::ON_PRIMARY,
             border: Border {
-                radius: 8.0.into(),
+                radius: theme::R_CTRL.into(),
                 ..Default::default()
             },
             ..Default::default()

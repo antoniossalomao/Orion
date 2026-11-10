@@ -32,6 +32,12 @@ pub const SP_11: f32 = 44.0;
 pub const SP_12: f32 = 48.0;
 pub const SP_14: f32 = 56.0;
 pub const SP_18: f32 = 72.0;
+/// Raios: etiqueta, controle, campo, cartão e pílula.
+pub const R_TAG: f32 = 6.0;
+pub const R_CTRL: f32 = 8.0;
+pub const R_FIELD: f32 = 10.0;
+pub const R_CARD: f32 = 12.0;
+pub const R_PILL: f32 = 999.0;
 
 pub const fn rgb(r: u8, g: u8, b: u8) -> Color {
     Color::from_rgb(r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0)

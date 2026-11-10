@@ -462,7 +462,7 @@ fn spans<'a>(inl: &[Inline], st: &Style, base: Color) -> Vec<iced::widget::text:
                     .color(if arquivo { t::ACCENT } else { base })
                     .underline(arquivo)
                     .background(iced::Background::Color(t::RAISE2))
-                    .border(Border { radius: 5.0.into(), ..Default::default() })
+                    .border(Border { radius: t::R_TAG.into(), ..Default::default() })
                     .padding(Padding { top: t::SP_PX, bottom: t::SP_PX, left: t::SP_1, right: t::SP_1 });
                 if arquivo { sp.link(format!("orion-file:{s}")) } else { sp }
             }
