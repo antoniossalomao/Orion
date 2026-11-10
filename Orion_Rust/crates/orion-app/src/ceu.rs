@@ -21,21 +21,25 @@ fn hardware() -> bool {
     std::env::var("ICED_BACKEND").is_ok_and(|b| b == "wgpu")
 }
 
-/// Resolução do quadro: a da janela com GPU; na CPU, reduzida (REGRAS.md: portabilidade e RAM < 120 MB).
-fn pixels(win: iced::Size) -> (u32, u32) {
-    let (w, h) = (win.width.max(200.0), win.height.max(300.0));
-    let alvo = if hardware() { 1280.0 } else { 640.0 };
-    let k = (alvo / w.max(h)).min(1.0);
-    ((w * k) as u32, (h * k) as u32)
+/// Quadro do céu: a área onde ele aparece, na densidade da tela, para não ser esticado nem cortado.
+/// O maior lado tem teto (REGRAS.md: portabilidade e RAM < 120 MB): 2560 px com GPU, 1920 na CPU.
+/// Devolve o tamanho em pixels e quantos pixels cabem em cada ponto lógico.
+fn quadro(area: iced::Size, densidade: f32) -> ((u32, u32), f32) {
+    let (w, h) = (area.width.max(64.0), area.height.max(64.0));
+    let teto = if hardware() { 2560.0 } else { 1920.0 };
+    let k = densidade.clamp(0.5, 4.0).min(teto / w.max(h));
+    (((w * k).round() as u32, (h * k).round() as u32), k)
 }
 
 impl Ceu {
-    pub fn new(win: iced::Size) -> Self {
+    pub fn new(area: iced::Size, densidade: f32) -> Self {
         let mut sky = orion_sky::OrionSky::new();
-        let tamanho = pixels(win);
+        let (tamanho, k) = quadro(area, densidade);
+        sky.set_pixel_scale(k);
         sky.set_size(tamanho.0, tamanho.1);
         sky.one_star_per_step();
-        sky.compact_constellation(0.8);
+        // Constelação distante: ocupa o centro da área e deixa o céu em volta.
+        sky.compact_constellation(0.6);
         sky.light_to(7);
         for _ in 0..160 {
             sky.step_dt(0.05, 0.0, 0.0);
@@ -63,9 +67,9 @@ impl Ceu {
     }
 
     /// Avança até `agora`; `estatico` congela em um quadro (movimento reduzido).
-    pub fn tick(&mut self, agora: Instant, win: iced::Size, estatico: bool) {
+    pub fn tick(&mut self, agora: Instant, area: iced::Size, densidade: f32, estatico: bool) {
         let dt = agora.saturating_duration_since(self.at).as_secs_f32();
-        let novo = pixels(win);
+        let (novo, k) = quadro(area, densidade);
         let mudou = novo != self.tamanho || estatico != self.estatico;
         if !mudou && dt < if self.quente(agora) { INTERACAO * 0.9 } else { PARADO * 0.9 } {
             return;
@@ -74,12 +78,24 @@ impl Ceu {
         self.estatico = estatico;
         if mudou {
             self.tamanho = novo;
+            self.sky.set_pixel_scale(k);
             self.sky.set_size(novo.0, novo.1);
         }
         if !estatico {
             self.sky.step_dt(dt, 0.0, 0.0);
         }
         if !estatico || mudou {
+            self.img = self.sky.render_image_handle();
+        }
+    }
+
+    /// Refaz o quadro só se a área ou a densidade mudaram (login → início, barra recolhida, outro monitor).
+    pub fn ajustar(&mut self, area: iced::Size, densidade: f32) {
+        let (novo, k) = quadro(area, densidade);
+        if novo != self.tamanho {
+            self.tamanho = novo;
+            self.sky.set_pixel_scale(k);
+            self.sky.set_size(novo.0, novo.1);
             self.img = self.sky.render_image_handle();
         }
     }

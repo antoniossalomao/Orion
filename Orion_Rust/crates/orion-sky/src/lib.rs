@@ -186,8 +186,8 @@ impl CameraTransform {
             cy: h * 0.50,
             zoom: 1.0 + 0.012 * (sky.sec * 0.11).sin() + 0.03 * sky.done,
             rot: 0.012 * (sky.sec * 0.05).sin(),
-            ox: (sky.sec * 0.07).sin() * 5.0 - sky.px * 6.0,
-            oy: (sky.sec * 0.09).cos() * 4.0 - sky.py * 6.0,
+            ox: ((sky.sec * 0.07).sin() * 5.0 - sky.px * 6.0) * sky.pixel_scale,
+            oy: ((sky.sec * 0.09).cos() * 4.0 - sky.py * 6.0) * sky.pixel_scale,
         }
     }
 
@@ -225,6 +225,8 @@ pub struct OrionSky {
     pub next_shoot_sec: f32,
     base_backdrop: Arc<Vec<u8>>,
     size: (u32, u32),
+    /// Pixels do quadro por ponto lógico: raios, traços e deslocamentos em px são multiplicados por ele.
+    pixel_scale: f32,
 }
 
 impl Default for OrionSky {
@@ -371,7 +373,7 @@ impl OrionSky {
             start: -1.0,
         });
 
-        let base_backdrop = build_deep_sky_backdrop(SKY_W_U32, SKY_H_U32, &dust);
+        let base_backdrop = build_deep_sky_backdrop(SKY_W_U32, SKY_H_U32, &dust, 1.0);
 
         Self {
             rng,
@@ -390,6 +392,7 @@ impl OrionSky {
             next_shoot_sec: 5.0,
             base_backdrop: Arc::new(base_backdrop),
             size: (SKY_W_U32, SKY_H_U32),
+            pixel_scale: 1.0,
         }
     }
 
@@ -409,7 +412,18 @@ impl OrionSky {
     pub fn set_size(&mut self, width: u32, height: u32) {
         if self.size != (width, height) {
             self.size = (width, height);
-            self.base_backdrop = Arc::new(build_deep_sky_backdrop(width, height, &self.dust));
+            self.base_backdrop = Arc::new(build_deep_sky_backdrop(width, height, &self.dust, self.pixel_scale));
+        }
+    }
+
+    /// Densidade do quadro (1 = um pixel por ponto, como no instalador). Em tela de alta densidade o
+    /// quadro tem mais pixels e as estrelas mantêm o tamanho aparente; refaz o fundo quando muda.
+    pub fn set_pixel_scale(&mut self, scale: f32) {
+        let scale = scale.clamp(0.25, 8.0);
+        if (self.pixel_scale - scale).abs() > 1e-3 {
+            self.pixel_scale = scale;
+            let (w, h) = self.size;
+            self.base_backdrop = Arc::new(build_deep_sky_backdrop(w, h, &self.dust, scale));
         }
     }
 
@@ -528,14 +542,15 @@ impl OrionSky {
         let mut buf = if (width, height) == self.size {
             self.base_backdrop.as_ref().clone()
         } else {
-            build_deep_sky_backdrop(width, height, &self.dust)
+            build_deep_sky_backdrop(width, height, &self.dust, self.pixel_scale)
         };
+        let k = self.pixel_scale;
 
         // 1. Estrelas de fundo (260) com câmera pré-calculada
         for s in &self.bg {
             let (x, y) = cam.project(s.x, s.y, 0.3 + s.z * 0.7, w, h);
             let tw = 0.75 + 0.25 * (self.sec * s.sp * 3.0 + s.ph).sin();
-            draw_disc_buf(&mut buf, width, height, x, y, s.r, s.tint, s.a * tw, false);
+            draw_disc_buf(&mut buf, width, height, x, y, s.r * k, s.tint, s.a * tw, false);
             if s.z > 0.85 {
                 blit_sprite_buf(
                     &mut buf,
@@ -543,7 +558,7 @@ impl OrionSky {
                     height,
                     x,
                     y,
-                    s.r * 14.0,
+                    s.r * 14.0 * k,
                     SpriteKind::White.rgb(),
                     0.10 * tw,
                 );
@@ -569,7 +584,7 @@ impl OrionSky {
                 y1,
                 x2,
                 y2,
-                1.0,
+                1.0 * k,
                 (0x8a, 0x90, 0xa8),
                 (0x8a, 0x90, 0xa8),
                 0.06,
@@ -594,7 +609,7 @@ impl OrionSky {
                 y1,
                 xe,
                 ye,
-                3.6,
+                3.6 * k,
                 (164, 179, 222),
                 (190, 204, 240),
                 0.05 * outer_mul,
@@ -609,7 +624,7 @@ impl OrionSky {
                 y1,
                 xe,
                 ye,
-                1.1,
+                1.1 * k,
                 (164, 179, 222),
                 (190, 204, 240),
                 0.05 * 0.9,
@@ -624,7 +639,7 @@ impl OrionSky {
                     height,
                     xe,
                     ye,
-                    28.0,
+                    28.0 * k,
                     SpriteKind::White.rgb(),
                     0.7 * (1.0 - l.p * 0.6),
                 );
@@ -646,7 +661,7 @@ impl OrionSky {
                     height,
                     x,
                     y,
-                    s.r * 0.6,
+                    s.r * 0.6 * k,
                     (0x8a, 0x90, 0xa8),
                     0.25 * (1.0 - s.a),
                     false,
@@ -674,7 +689,7 @@ impl OrionSky {
                 height,
                 x,
                 y,
-                s.r * (26.0 + 18.0 * birth + 6.0 * self.done) * tw,
+                s.r * (26.0 + 18.0 * birth + 6.0 * self.done) * tw * k,
                 s.kind.rgb(),
                 s.a * (0.55 + 0.35 * birth),
             );
@@ -684,13 +699,13 @@ impl OrionSky {
                 height,
                 x,
                 y,
-                s.r * 7.0 * tw,
+                s.r * 7.0 * tw * k,
                 SpriteKind::White.rgb(),
                 s.a * 0.8,
             );
 
             // Raios finos de difração com queda linear nas pontas
-            let len = s.r * (5.0 + 4.0 * birth) * tw;
+            let len = s.r * (5.0 + 4.0 * birth) * tw * k;
             let spike_alpha = s.a * (0.28 + 0.25 * birth);
             draw_spike_buf(&mut buf, width, height, x, y, ca, sa, len, s.core, spike_alpha);
             draw_spike_buf(
@@ -707,7 +722,7 @@ impl OrionSky {
             );
 
             // Núcleo sólido
-            draw_disc_buf(&mut buf, width, height, x, y, s.r * 0.75, s.core, s.a, false);
+            draw_disc_buf(&mut buf, width, height, x, y, s.r * 0.75 * k, s.core, s.a, false);
         }
 
         // 4. Estrela cadente rara e suave
@@ -724,9 +739,9 @@ impl OrionSky {
                     height,
                     x,
                     y,
-                    x + 90.0,
-                    y - 60.0,
-                    1.2,
+                    x + 90.0 * k,
+                    y - 60.0 * k,
+                    1.2 * k,
                     (240, 242, 250),
                     (240, 242, 250),
                     0.8 * a,
@@ -739,7 +754,7 @@ impl OrionSky {
                     height,
                     x,
                     y,
-                    14.0,
+                    14.0 * k,
                     SpriteKind::White.rgb(),
                     a * 0.8,
                 );
@@ -747,7 +762,7 @@ impl OrionSky {
         }
 
         // 5. Degradê inferior `.skycap` (110 px até rgba(7, 8, 11, 0.85)) em inteiros de ponto fixo
-        let cap_h = 110u32.min(height);
+        let cap_h = ((110.0 * k) as u32).min(height);
         let start_y = height - cap_h;
         for py in start_y..height {
             let t = (py - start_y) as f32 / (cap_h.max(1) as f32);
@@ -770,7 +785,7 @@ impl OrionSky {
 }
 
 /// Pré-renderiza o fundo `#07080b` + vinheta radial + 90 manchas da Via Láctea + Nebulosa M42.
-fn build_deep_sky_backdrop(width: u32, height: u32, dust: &[DustPatch]) -> Vec<u8> {
+fn build_deep_sky_backdrop(width: u32, height: u32, dust: &[DustPatch], k: f32) -> Vec<u8> {
     let w = width as f32;
     let h = height as f32;
     let mut buf = vec![0u8; (width * height * 4) as usize];
@@ -805,7 +820,7 @@ fn build_deep_sky_backdrop(width: u32, height: u32, dust: &[DustPatch]) -> Vec<u
             height,
             d.x * w,
             d.y * h,
-            d.r * 4.0,
+            d.r * 4.0 * k,
             SpriteKind::Cool.rgb(),
             d.a,
         );

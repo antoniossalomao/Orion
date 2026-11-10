@@ -440,6 +440,8 @@ pub struct App {
     pub pop: Option<Pop>,
     pub toast: Option<(String, Instant)>,
     pub win: Size,
+    /// Pixels por ponto que o sistema informa para a janela (100% = 1,0); o céu é renderizado nessa densidade.
+    pub dpi: f32,
     /// Última posição da janela, guardada ao fechar para a próxima abertura (F01.11).
     pub win_pos: Option<iced::Point>,
     pub now: Instant,
@@ -541,6 +543,8 @@ pub enum Msg {
     /// Id da janela principal (primeira tarefa do boot).
     Win(Option<window::Id>),
     CeuTick(Instant),
+    /// Densidade da tela onde a janela está, lida ao abrir e a cada redimensionamento.
+    Dpi(f32),
     CeuToque(Option<(f32, f32)>),
     /// Pulso do segundo plano: bandeja, atalhos, palavra de ativação, outra instância.
     Bandeja,
@@ -822,7 +826,8 @@ impl App {
             pw: String::new(),
             user: std::env::var("ORION_USER").ok().filter(|s| !s.trim().is_empty()).unwrap_or_default(),
             window_active: true,
-            ceu: crate::ceu::Ceu::new(Size::new(1440.0, 900.0)),
+            ceu: crate::ceu::Ceu::new(Size::new(1439.0 * 100.0 / 205.0, 862.0), 1.0),
+            dpi: 1.0,
             sistema_reduz: crate::ceu::sistema_reduz_movimento(),
             loading: None,
             message_heights: Default::default(),
@@ -978,6 +983,28 @@ impl App {
         self.p.scale as f32 / 100.0
     }
 
+    /// Área, em pontos, onde o céu aparece: o painel esquerdo do login ou o palco da tela inicial.
+    /// O quadro é renderizado exatamente nesse tamanho para encostar nas bordas sem vazar.
+    pub fn sky_area(&self) -> Size {
+        if !self.logged {
+            let w = if self.win.width >= 760.0 { (self.win.width - 1.0) * 100.0 / 205.0 } else { self.win.width };
+            return Size::new(w, self.win.height - 38.0);
+        }
+        let side = if self.collapsed || self.is_drawer_mode() { 0.0 } else { t::SIDE_W + 1.0 };
+        Size::new(self.win.width - side, self.win.height - t::BAR_H)
+    }
+
+    /// Pixels por ponto do céu: densidade do sistema vezes a escala da interface.
+    pub fn sky_density(&self) -> f32 {
+        self.dpi * self.scale_factor()
+    }
+
+    /// Ajusta o quadro do céu à área e à densidade atuais; só refaz quando mudaram.
+    pub fn sync_sky(&mut self) {
+        let (area, densidade) = (self.sky_area(), self.sky_density());
+        self.ceu.ajustar(area, densidade);
+    }
+
     pub fn subscription(&self) -> Subscription<Msg> {
         let a = &self.at;
         let entrada = (!self.logged && crate::anim::active(Some(self.login_at), self.now, 1500)) || self.onboarding.as_ref().is_some_and(|f| crate::anim::active(Some(f.step_at), self.now, 450));
@@ -1094,6 +1121,8 @@ impl App {
     }
 
     pub fn update(&mut self, msg: Msg) -> Task<Msg> {
+        // o céu acompanha a tela (login, início, barra recolhida) na mensagem seguinte à mudança
+        self.sync_sky();
         let task = self.update_core(msg);
         let ids = std::mem::take(&mut self.images_to_release);
         match (ids.is_empty(), self.api.clone()) {
@@ -1241,13 +1270,21 @@ impl App {
                     }
                 }
             }
-            Msg::CeuTick(now) => { self.ceu.tick(now, self.win, false); }
+            Msg::CeuTick(now) => { let (area, densidade) = (self.sky_area(), self.sky_density()); self.ceu.tick(now, area, densidade, false); }
+            Msg::Dpi(f) => { if f.is_finite() && f > 0.0 { self.dpi = f; self.sync_sky(); } }
             Msg::CeuToque(p) => { self.ceu.toque(Instant::now(), p, self.win); }
             Msg::MessageSize(session, index, height) => { if self.message_heights.len() > 10000 { self.message_heights.clear(); } self.message_heights.insert((session, index), height); }
             Msg::BootProgress => { if let Some(message) = self.api.as_ref().and_then(|api| api.progress()) { self.loading = Some(message); } }
             Msg::WindowActive(active) => { self.window_active = active; self.now = Instant::now(); }
             Msg::Moved(p) => { if !self.mini { self.win_pos = Some(p); } }
-            Msg::Resized(s) => { self.win = s; self.ceu.tick(Instant::now(), s, true); if let Some(f) = self.onboarding.as_mut() { f.settle_sky(f.step, s); } },
+            Msg::Resized(s) => {
+                self.win = s;
+                let (area, densidade) = (self.sky_area(), self.sky_density());
+                self.ceu.tick(Instant::now(), area, densidade, true);
+                if let Some(f) = self.onboarding.as_mut() { f.settle_sky(f.step, s); }
+                // mudar de monitor também redimensiona: relê a densidade
+                if let Some(id) = self.win_id { return window::scale_factor(id).map(Msg::Dpi); }
+            },
             Msg::Hover(h) => self.hover = h,
             Msg::PwChanged(s) => { zeroize::Zeroize::zeroize(&mut self.pw); self.pw = s.take(); }
             Msg::UserChanged(s) => self.user = s,
@@ -1951,6 +1988,7 @@ impl App {
             Msg::Win(id) => {
                 self.win_id = id;
                 self.estilizar_janela(true);
+                if let Some(id) = id { return window::scale_factor(id).map(Msg::Dpi); }
             }
             Msg::Bandeja => {
                 let mut acoes = vec![];

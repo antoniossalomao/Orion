@@ -285,6 +285,11 @@ pub fn scenarios() -> Vec<(&'static str, Size, App)> {
         a.update(Msg::OpenConv(0));
         a.collapsed = true;
     })));
+    // as fotos saem em 2 px por ponto: o céu é renderizado nessa densidade, como numa tela de 200%
+    for (_, _, a) in &mut v {
+        a.dpi = 2.0;
+        a.sync_sky();
+    }
     v
 }
 
