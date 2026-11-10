@@ -340,7 +340,6 @@ pub struct App {
     pub user: String,
     pub window_active: bool,
     pub ceu: crate::ceu::Ceu,
-    pub sistema_reduz: bool,
     pub loading: Option<String>,
     pub message_heights: std::collections::HashMap<(String, usize), f32>,
     pub gate_err: String,
@@ -509,8 +508,6 @@ pub enum Msg {
     ToolPermission(usize),
     /// Id da janela principal (primeira tarefa do boot).
     Win(Option<window::Id>),
-    CeuTick(Instant),
-    CeuToque(Option<(f32, f32)>),
     /// Pulso do segundo plano: bandeja, atalhos, palavra de ativação, outra instância.
     Bandeja,
     Acao(crate::tray::Acao),
@@ -792,7 +789,6 @@ impl App {
             user: std::env::var("ORION_USER").ok().filter(|s| !s.trim().is_empty()).unwrap_or_default(),
             window_active: true,
             ceu: crate::ceu::Ceu::new(Size::new(1440.0, 900.0)),
-            sistema_reduz: crate::ceu::sistema_reduz_movimento(),
             loading: None,
             message_heights: Default::default(),
             gate_err: String::new(),
@@ -956,17 +952,6 @@ impl App {
         let moving = busy || orbiting || self.streaming.is_some() || self.toast.is_some() || self.news_pending;
         // a ilha anima a ~60 quadros/s só enquanto lê ou muda de forma; parada, não acorda a janela
         let island = if self.window_active && !self.fundo && self.island_visible() && self.island.animating(self.now) { iced::time::every(Duration::from_millis(16)).map(Msg::Tick) } else { Subscription::none() };
-        // F01.29: céu do login e da tela inicial; 20 quadros/s parado, 60 na interação, nada fora de vista
-        let ceu_visivel = self.window_active && !self.fundo && !self.mini && (!self.logged || (self.view == View::Home && self.onboarding.is_none()));
-        let ceu_anima = ceu_visivel && !self.p.reduced && !self.sistema_reduz;
-        let ceu_tick = if ceu_anima { iced::time::every(self.ceu.intervalo(self.now)).map(Msg::CeuTick) } else { Subscription::none() };
-        let ceu_toque = if ceu_anima {
-            iced::event::listen_with(|event, _, _| match event {
-                iced::Event::Mouse(iced::mouse::Event::CursorMoved { position }) => Some(Msg::CeuToque(Some((position.x, position.y)))),
-                iced::Event::Keyboard(iced::keyboard::Event::KeyPressed { .. }) => Some(Msg::CeuToque(None)),
-                _ => None,
-            })
-        } else { Subscription::none() };
         let tick = if self.window_active && !self.fundo && moving { iced::time::every(Duration::from_millis(42)).map(Msg::Tick) } else { Subscription::none() };
         let progress = if self.loading.is_some() { iced::time::every(Duration::from_millis(150)).map(|_| Msg::BootProgress) } else { Subscription::none() };
         let focus = iced::event::listen_with(|event, _, _| match event {
@@ -990,7 +975,7 @@ impl App {
         let hud = if self.window_active && self.island.busy() && self.island.shows_hud() { iced::time::every(Duration::from_millis(250)).map(|_| Msg::Face(crate::island::FaceMsg::PreviewTick)) } else { Subscription::none() };
         // módulo de câmera: último quadro a cada ~66 ms, só com o módulo aberto
         let camera = if self.logged && self.camera.is_some() { iced::time::every(crate::camera_ui::POLL).map(|_| Msg::Camera(crate::camera_ui::CameraMsg::Poll)) } else { Subscription::none() };
-        Subscription::batch([ceu_tick, ceu_toque, tick, island, hud, camera, resize, keys, poll, fundo, fechar, focus, progress,resources])
+        Subscription::batch([tick, island, hud, camera, resize, keys, poll, fundo, fechar, focus, progress,resources])
     }
 
     pub fn pend_list(&self) -> Vec<(usize, usize)> {
@@ -1079,7 +1064,7 @@ impl App {
     fn update_core(&mut self, msg: Msg) -> Task<Msg> {
         if let Msg::Resources(event)=msg { return self.update_resources(event); }
         let _timing = Timing::new("update", self.view);
-        if !matches!(&msg, Msg::Tick(_) | Msg::CeuTick(_) | Msg::CeuToque(_) | Msg::Bandeja | Msg::BootProgress) { self.now = Instant::now(); }
+        if !matches!(&msg, Msg::Tick(_) | Msg::Bandeja | Msg::BootProgress) { self.now = Instant::now(); }
         if let Msg::Onboarding(event) = msg { return self.update_onboarding(event); }
         if let Msg::Face(m) = msg { return self.update_face(m); }
         if let Msg::Camera(m) = msg { return self.update_camera(m); }
@@ -1210,13 +1195,11 @@ impl App {
                     }
                 }
             }
-            Msg::CeuTick(now) => { self.ceu.tick(now, self.win, false); }
-            Msg::CeuToque(p) => { self.ceu.toque(Instant::now(), p, self.win); }
             Msg::MessageSize(session, index, height) => { if self.message_heights.len() > 10000 { self.message_heights.clear(); } self.message_heights.insert((session, index), height); }
             Msg::BootProgress => { if let Some(message) = self.api.as_ref().and_then(|api| api.progress()) { self.loading = Some(message); } }
             Msg::WindowActive(active) => { self.window_active = active; self.now = Instant::now(); }
             Msg::Moved(p) => { if !self.mini { self.win_pos = Some(p); } }
-            Msg::Resized(s) => { self.win = s; self.ceu.tick(Instant::now(), s, true); if let Some(f) = self.onboarding.as_mut() { f.settle_sky(f.step, s); } },
+            Msg::Resized(s) => { self.win = s; self.ceu.resize(s); if let Some(f) = self.onboarding.as_mut() { f.settle_sky(f.step, s); } },
             Msg::Hover(h) => self.hover = h,
             Msg::PwChanged(s) => self.pw = s,
             Msg::UserChanged(s) => self.user = s,
