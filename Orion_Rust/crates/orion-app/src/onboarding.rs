@@ -86,14 +86,16 @@ impl std::fmt::Debug for Event {
     }
 }
 
-/// Quadro estático na resolução do painel com GPU; software usa resolução reduzida
-/// (REGRAS.md: portabilidade). Só muda ao redimensionar ou trocar de etapa.
-fn sky_px(win: iced::Size) -> (u32, u32) {
+/// Quadro estático do tamanho exato do painel do céu (janela menos o painel de 760 px, a linha e a
+/// barra de título), na densidade da tela, como no login e na tela inicial. O maior lado tem teto
+/// (REGRAS.md: portabilidade e RAM < 120 MB): 2560 px com GPU, 1920 na CPU.
+/// Devolve o tamanho em pixels e quantos pixels cabem em cada ponto lógico.
+/// Só muda ao redimensionar, trocar de etapa ou mudar a densidade.
+fn sky_px(win: iced::Size, density: f32) -> ((u32, u32), f32) {
     let hardware = std::env::var("ICED_BACKEND").is_ok_and(|backend| backend == "wgpu");
-    let scale = if hardware { 1.0 } else { 1.6 };
-    let (w, h) = ((win.width - 761.0).max(200.0) / scale, win.height.max(300.0) / scale);
-    let k = ((if hardware { 1600.0 } else { 800.0 }) / w.max(h)).min(1.0);
-    ((w * k) as u32, (h * k) as u32)
+    let (w, h) = ((win.width - 761.0).max(200.0), (win.height - 38.0).max(300.0));
+    let k = density.clamp(0.5, 4.0).min((if hardware { 2560.0 } else { 1920.0 }) / w.max(h));
+    (((w * k).round() as u32, (h * k).round() as u32), k)
 }
 
 pub struct Form {
@@ -104,6 +106,8 @@ pub struct Form {
     pub sky: orion_sky::OrionSky,
     pub sky_img: iced::widget::image::Handle,
     pub sky_at: std::time::Instant,
+    /// Pixels por ponto em que o céu é composto (densidade do sistema vezes a escala da interface).
+    pub sky_density: f32,
     pub drive_abort: Option<iced::task::Handle>,
     /// Código de recuperação mostrado uma vez, depois do envio; vive só em memória.
     pub code: Option<String>,
@@ -168,7 +172,8 @@ impl Form {
             return;
         }
         self.sky_at = now;
-        let (w, h) = sky_px(win);
+        let ((w, h), k) = sky_px(win, self.sky_density);
+        self.sky.set_pixel_scale(k);
         self.sky.set_size(w, h);
         self.sky.light_to(self.step + 1);
         self.sky.step_dt(dt, 0.0, 0.0);
@@ -177,7 +182,8 @@ impl Form {
 
     /// Para as capturas: deixa o céu já assentado na etapa `step`.
     pub fn settle_sky(&mut self, step: usize, win: iced::Size) {
-        let (w, h) = sky_px(win);
+        let ((w, h), k) = sky_px(win, self.sky_density);
+        self.sky.set_pixel_scale(k);
         self.sky.set_size(w, h);
         self.sky.light_to(step + 1);
         for _ in 0..160 {
@@ -186,10 +192,22 @@ impl Form {
         self.sky_img = self.sky.render_image_handle();
     }
 
+    /// Outra densidade (outro monitor, escala da interface): refaz o quadro só quando ela muda.
+    pub fn set_sky_density(&mut self, density: f32, win: iced::Size) {
+        if (self.sky_density - density).abs() > 1e-3 {
+            self.sky_density = density;
+            let ((w, h), k) = sky_px(win, density);
+            self.sky.set_pixel_scale(k);
+            self.sky.set_size(w, h);
+            self.sky_img = self.sky.render_image_handle();
+        }
+    }
+
     pub fn new(v: Value) -> Self {
         let text = |k: &str| v[k].as_str().unwrap_or("").to_string();
         let mut sky = orion_sky::OrionSky::new();
-        let (sw, sh) = sky_px(iced::Size::new(1440.0, 900.0));
+        let ((sw, sh), k) = sky_px(iced::Size::new(1440.0, 900.0), 1.0);
+        sky.set_pixel_scale(k);
         sky.set_size(sw, sh);
         sky.one_star_per_step();
         sky.compact_constellation(0.62);
@@ -203,6 +221,7 @@ impl Form {
             sky,
             sky_img,
             sky_at: std::time::Instant::now(),
+            sky_density: 1.0,
             drive_abort: None,
             code: None,
             warnings: 0,
