@@ -55,19 +55,19 @@ pub fn search(q: &str) -> Vec<Sec> {
 }
 
 fn sh<'a>(s: &'static str) -> El<'a> {
-    container(txf(crate::i18n::text(s), 13.0, t::FG, t::UI_SEMI)).padding(pad(30.0, 0.0, 2.0, 0.0)).into()
+    container(txf(crate::i18n::text(s), 13.0, t::FG, t::UI_SEMI)).padding(pad(t::SP_8, 0.0, t::SP_05, 0.0)).into()
 }
 fn lede<'a>(s: &str) -> El<'a> {
-    container(tx(crate::i18n::status(s), 12.5, t::FG3)).padding(pad(0.0, 0.0, 6.0, 0.0)).into()
+    container(tx(crate::i18n::status(s), 12.5, t::FG3)).padding(pad(0.0, 0.0, t::SP_15, 0.0)).into()
 }
 fn input<'a>(val: &str, on: impl Fn(String) -> Msg + 'a) -> El<'a> {
-    container(text_input("", val).on_input(on).size(13).font(t::UI).padding(pad(6.0, 10.0, 6.0, 10.0)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 8.0))).width(Length::Fixed(220.0)).into()
+    container(text_input("", val).on_input(on).size(13).font(t::UI).padding(pad(t::SP_15, t::SP_25, t::SP_15, t::SP_25)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 8.0))).width(Length::Fixed(220.0)).into()
 }
 /// Seletor simples `.sel` (sem caixa) com popover.
 fn sel_pop<'a>(label: String, pop: Pop, app: &App, menu: El<'a>) -> El<'a> {
-    let b = button(row![tx(crate::i18n::status(&label), 13.0, t::FG), icon("chevD", 14.0, t::FG3)].spacing(6).align_y(Vertical::Center))
+    let b = button(row![tx(crate::i18n::status(&label), 13.0, t::FG), icon("chevD", 14.0, t::FG3)].spacing(t::SP_15).align_y(Vertical::Center))
         .height(Length::Fixed(32.0))
-        .padding(pad(0.0, 8.0, 0.0, 12.0))
+        .padding(pad(0.0, t::SP_2, 0.0, t::SP_3))
         .on_press(Msg::Pop(pop))
         .style(|_, st| button::Style { background: if matches!(st, button::Status::Hovered) { Some(Background::Color(t::HOVER)) } else { None }, text_color: t::FG, border: Border { radius: t::R_CTRL.into(), ..Default::default() }, shadow: Default::default(), snap: true });
     Popover::new(b, menu, app.pop == Some(pop)).side(Side::Right).on_dismiss(Msg::ClosePop).into()
@@ -79,23 +79,23 @@ fn pick_seg<'a>(opts: &[&str], sel: usize, key: &'static str) -> El<'a> {
     seg(opts, sel, move |i| Msg::Pick(key, i))
 }
 fn row_c<'a>(items: Vec<El<'a>>) -> El<'a> {
-    row(items).spacing(8).align_y(Vertical::Center).into()
+    row(items).spacing(t::SP_2).align_y(Vertical::Center).into()
 }
 fn mono_muted<'a>(s: &str) -> El<'a> {
     txf(s.to_string(), 12.0, t::FG3, t::MONO).into()
 }
 fn t_badge<'a>(title: &str, b: El<'a>) -> El<'a> {
-    row![tx(title.to_string(), 13.5, t::FG), b].spacing(8).align_y(Vertical::Center).into()
+    row![tx(title.to_string(), 13.5, t::FG), b].spacing(t::SP_2).align_y(Vertical::Center).into()
 }
 fn never<'a>(items: &[(&str, &str)]) -> El<'a> {
-    let mut col = column![].spacing(6);
+    let mut col = column![].spacing(t::SP_15);
     let mut it = items.iter();
     while let Some(a) = it.next() {
-        let cell = |x: &(&str, &str)| -> El<'a> { row![icon(x.0, 14.0, t::OK), tx(crate::i18n::status(x.1), 13.0, t::FG2)].spacing(8).align_y(Vertical::Center).into() };
+        let cell = |x: &(&str, &str)| -> El<'a> { row![icon(x.0, 14.0, t::OK), tx(crate::i18n::status(x.1), 13.0, t::FG2)].spacing(t::SP_2).align_y(Vertical::Center).into() };
         let b = it.next().map(cell).unwrap_or_else(|| sp_w(0.0));
-        col = col.push(row![container(cell(a)).width(Length::FillPortion(1)), container(b).width(Length::FillPortion(1))].spacing(20));
+        col = col.push(row![container(cell(a)).width(Length::FillPortion(1)), container(b).width(Length::FillPortion(1))].spacing(t::SP_5));
     }
-    container(col).padding(pad(10.0, 0.0, 10.0, 0.0)).into()
+    container(col).padding(pad(t::SP_25, 0.0, t::SP_25, 0.0)).into()
 }
 
 fn section<'a>(app: &'a App) -> El<'a> {
@@ -133,8 +133,8 @@ fn section<'a>(app: &'a App) -> El<'a> {
                 c = c.push(crate::resources::settings(app, "tone"));
             } else {
                 c = c.push(setting(crate::i18n::text("Tom das respostas"), crate::i18n::text("Vale para todos os projetos; cada projeto pode ter instruções próprias."), pick_seg(&[crate::i18n::text("Conciso"), "Normal", crate::i18n::text("Detalhado")], p.tone, "tone")));
-                let ta = container(text_input(crate::i18n::text("Ex.: sem preâmbulo, código completo, português técnico"), &p.tone_text).on_input(Msg::ToneText).size(13).font(t::UI).padding(pad(10.0, 12.0, 10.0, 12.0)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 10.0))).width(Length::Fill).height(Length::Fixed(70.0));
-                c = c.push(container(column![tx(crate::i18n::text("Como o Orion deve responder (opcional)"), 12.5, t::FG3), ta].spacing(6)).padding(pad(4.0, 0.0, 12.0, 0.0)));
+                let ta = container(text_input(crate::i18n::text("Ex.: sem preâmbulo, código completo, português técnico"), &p.tone_text).on_input(Msg::ToneText).size(13).font(t::UI).padding(pad(t::SP_25, t::SP_3, t::SP_25, t::SP_3)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 10.0))).width(Length::Fill).height(Length::Fixed(70.0));
+                c = c.push(container(column![tx(crate::i18n::text("Como o Orion deve responder (opcional)"), 12.5, t::FG3), ta].spacing(t::SP_15)).padding(pad(t::SP_1, 0.0, t::SP_3, 0.0)));
             }
         }
         Sec::Notificacoes => {
@@ -147,7 +147,7 @@ fn section<'a>(app: &'a App) -> El<'a> {
             ]
             .align_y(Vertical::Center);
             c = c.push(sh(crate::i18n::text("Avisos por canal")));
-            c = c.push(container(cab).padding(pad(6.0, 0.0, 6.0, 0.0)));
+            c = c.push(container(cab).padding(pad(t::SP_15, 0.0, t::SP_15, 0.0)));
             let celula = |e: Option<El<'a>>| -> El<'a> {
                 let e = e.unwrap_or_else(|| tx("—", 12.0, t::FG3).into());
                 container(e).width(Length::Fixed(70.0)).center_x(Length::Fixed(70.0)).into()
@@ -168,7 +168,7 @@ fn section<'a>(app: &'a App) -> El<'a> {
                 ("Memória e outros avisos", None, None, tg(7)),
             ];
             for (rotulo, w, so, te) in linhas {
-                c = c.push(container(row![tx(crate::i18n::text(rotulo), 13.0, t::FG).width(Length::Fill), celula(w), celula(so), celula(te)].align_y(Vertical::Center)).padding(pad(5.0, 0.0, 5.0, 0.0)));
+                c = c.push(container(row![tx(crate::i18n::text(rotulo), 13.0, t::FG).width(Length::Fill), celula(w), celula(so), celula(te)].align_y(Vertical::Center)).padding(pad(t::SP_1, 0.0, t::SP_1, 0.0)));
             }
             c = c.push(lede(crate::i18n::text("Mudar o Telegram aplica na hora; aviso desligado lá continua no app.")));
             c = c.push(sh(crate::i18n::text("Não perturbe")));
@@ -221,7 +221,7 @@ fn section<'a>(app: &'a App) -> El<'a> {
                 Panic::Paused => {
                     let mut v: Vec<El> = vec![badge(crate::i18n::text("Pausado"), Tone::Err)];
                     if app.api.is_some() {
-                        v.push(container(text_input(crate::i18n::text("Senha para retomar"), &app.resume_pw).id(crate::island::password_field(crate::island::Purpose::Panic)).on_input(Msg::ResumePw).on_submit(Msg::PanicResume).secure(true).size(13).font(t::UI).padding(pad(6.0, 10.0, 6.0, 10.0)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 8.0))).width(Length::Fixed(170.0)).into());
+                        v.push(container(text_input(crate::i18n::text("Senha para retomar"), &app.resume_pw).id(crate::island::password_field(crate::island::Purpose::Panic)).on_input(Msg::ResumePw).on_submit(Msg::PanicResume).secure(true).size(13).font(t::UI).padding(pad(t::SP_15, t::SP_25, t::SP_15, t::SP_25)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 8.0))).width(Length::Fixed(170.0)).into());
                     }
                     if app.face_id_enabled() {
                         v.push(btn(crate::i18n::text("Face ID"), Kind::Ghost, true, None, (!app.island.busy()).then_some(Msg::Face(crate::island::FaceMsg::Start(crate::island::Purpose::Panic)))));
@@ -284,7 +284,7 @@ fn section<'a>(app: &'a App) -> El<'a> {
                         Some(error) => crate::i18n::formatted("Modelo: {model} · Último erro: {error}", format!("Modelo: {model} · Último erro: {error}")),
                         None => crate::i18n::formatted("Modelo: {model}", format!("Modelo: {model}")),
                     };
-                    c = c.push(setting_el(row![mono_muted(&(i + 1).to_string()), tx(nome, 13.5, t::FG)].spacing(8).into(), &detail, {
+                    c = c.push(setting_el(row![mono_muted(&(i + 1).to_string()), tx(nome, 13.5, t::FG)].spacing(t::SP_2).into(), &detail, {
                         // mesmo critério do painel do núcleo: em quarentena (limite ou falhas seguidas) o provedor não está ativo
                         let seg = e["quarentena_s"].as_i64().unwrap_or(0);
                         if seg > 0 {
@@ -305,7 +305,7 @@ fn section<'a>(app: &'a App) -> El<'a> {
                 c = c.push(lede(crate::i18n::text("Guardadas no cofre do sistema (Credential Manager). Chaves de modelos valem na hora.")));
                 for (id, label, nome, url) in crate::onboarding::PROVIDERS {
                     if let Some(f) = app.key_form.as_ref().filter(|f| f.nome == *nome) {
-                        let mut input = text_input(crate::i18n::text("Cole a chave de API"), &f.value).id("api-key").secure(true).size(13).font(t::UI).padding(pad(6.0, 10.0, 6.0, 10.0)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 8.0));
+                        let mut input = text_input(crate::i18n::text("Cole a chave de API"), &f.value).id("api-key").secure(true).size(13).font(t::UI).padding(pad(t::SP_15, t::SP_25, t::SP_15, t::SP_25)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 8.0));
                         if !f.busy {
                             input = input.on_input(Msg::KeyInput).on_submit(Msg::KeySave);
                         }
@@ -342,10 +342,10 @@ fn section<'a>(app: &'a App) -> El<'a> {
             } else {
             for (i, (l, v)) in [("Gemini (API)", 62), ("Groq", 100), ("Cerebras", 18), ("OpenRouter (free)", 40), ("Mistral", 9)].iter().enumerate() {
                     let d = if *v >= 100 { crate::i18n::text("Sem cota até 00:00").to_string() } else { crate::i18n::formatted("{}% da cota disponível", format!("{}% da cota disponível", 100 - v)) };
-                    c = c.push(setting_el(row![mono_muted(&(i + 1).to_string()), tx(crate::i18n::text(l), 13.5, t::FG)].spacing(8).into(), &d, row_c(vec![tip(ib("up", Some(toast("Reordenar")), false), crate::i18n::text("Subir na ordem")), btn(crate::i18n::text("Chave"), Kind::Normal, true, None, Some(toast(crate::i18n::text("Colar a chave (simulado)"))))])));
+                    c = c.push(setting_el(row![mono_muted(&(i + 1).to_string()), tx(crate::i18n::text(l), 13.5, t::FG)].spacing(t::SP_2).into(), &d, row_c(vec![tip(ib("up", Some(toast("Reordenar")), false), crate::i18n::text("Subir na ordem")), btn(crate::i18n::text("Chave"), Kind::Normal, true, None, Some(toast(crate::i18n::text("Colar a chave (simulado)"))))])));
                 }
             }
-            c = c.push(setting_el(row![mono_muted("∞"), tx(crate::i18n::text("Local · Qwen 2.5 7B"), 13.5, t::FG)].spacing(8).into(), crate::i18n::text("Fallback sem internet. Gerenciado em Modelos locais."), badge("fallback", Tone::Plain)));
+            c = c.push(setting_el(row![mono_muted("∞"), tx(crate::i18n::text("Local · Qwen 2.5 7B"), 13.5, t::FG)].spacing(t::SP_2).into(), crate::i18n::text("Fallback sem internet. Gerenciado em Modelos locais."), badge("fallback", Tone::Plain)));
         }
         Sec::Memoria => {
             c = c.push(sh(crate::i18n::text("Memória no vault")));
@@ -371,17 +371,17 @@ fn section<'a>(app: &'a App) -> El<'a> {
                 c = c.push(setting(crate::i18n::text("Fatos que o Orion sabe de você"), crate::i18n::text("Carregue a lista para editar ou esquecer."), btn(crate::i18n::text("Carregar"), Kind::Normal, true, None, Some(Msg::FactsLoad))));
             } else {
                 // Filtro local: texto (no fato, grupo ou origem) e grupo. Os índices de edição seguem os da lista inteira.
-                c = c.push(text_input(crate::i18n::text("Buscar nos fatos"), &app.fact_q).on_input(Msg::FactQ).size(13).font(t::UI).padding(pad(7.0, 10.0, 7.0, 10.0)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 8.0)));
+                c = c.push(text_input(crate::i18n::text("Buscar nos fatos"), &app.fact_q).on_input(Msg::FactQ).size(13).font(t::UI).padding(pad(t::SP_2, t::SP_25, t::SP_2, t::SP_25)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 8.0)));
                 let mut grupos: Vec<&str> = vec![];
                 for f in &app.facts {
                     if !grupos.contains(&f.g.as_str()) { grupos.push(&f.g); }
                 }
                 if grupos.len() > 1 {
-                    let mut chips = row![crate::views::memory::fchip(crate::i18n::text("Todos"), None, None, app.fact_g.is_none(), Msg::FactGroup(None))].spacing(4);
+                    let mut chips = row![crate::views::memory::fchip(crate::i18n::text("Todos"), None, None, app.fact_g.is_none(), Msg::FactGroup(None))].spacing(t::SP_1);
                     for g in grupos {
                         chips = chips.push(crate::views::memory::fchip(g, None, None, app.fact_g.as_deref() == Some(g), Msg::FactGroup(Some(g.to_string()))));
                     }
-                    c = c.push(container(chips).padding(pad(6.0, 0.0, 6.0, 0.0)));
+                    c = c.push(container(chips).padding(pad(t::SP_15, 0.0, t::SP_15, 0.0)));
                 }
                 let q = app.fact_q.trim().to_lowercase();
                 let rows = crate::views::pages::fact_rows(app, |f| {
@@ -399,9 +399,9 @@ fn section<'a>(app: &'a App) -> El<'a> {
                 c = c.push(sh(crate::i18n::text("O que eu vi")));
                 c = c.push(lede(crate::i18n::text("Busca no texto que esteve na tela nos últimos 30 dias. Só tem resultado se a memória da tela estiver ligada.")));
                 c = c.push(row![
-                    text_input(crate::i18n::text("Ex.: fatura do cartão"), &app.screen_q).on_input(Msg::ScreenQ).on_submit(Msg::ScreenSearch).size(13).font(t::UI).padding(pad(7.0, 10.0, 7.0, 10.0)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 8.0)),
+                    text_input(crate::i18n::text("Ex.: fatura do cartão"), &app.screen_q).on_input(Msg::ScreenQ).on_submit(Msg::ScreenSearch).size(13).font(t::UI).padding(pad(t::SP_2, t::SP_25, t::SP_2, t::SP_25)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 8.0)),
                     btn(crate::i18n::text("Buscar"), Kind::Normal, true, None, Some(Msg::ScreenSearch)),
-                ].spacing(8).align_y(Vertical::Center));
+                ].spacing(t::SP_2).align_y(Vertical::Center));
                 match &app.screen_hits {
                     None => {}
                     Some(v) if v.is_empty() => c = c.push(tx(crate::i18n::text("Nada encontrado."), 13.0, t::FG3)),
@@ -470,12 +470,12 @@ fn section<'a>(app: &'a App) -> El<'a> {
                 c = c.push(setting(crate::i18n::text("Recarregar configurações"), crate::i18n::text("Relê o .env e aplica o que dá sem reiniciar: modelos, chaves, guarda de injeção e diário. O resto avisa que precisa reiniciar."), btn(crate::i18n::text("Recarregar"), Kind::Normal, true, None, Some(Msg::RecarregarConfig))));
                 // uso real: só o que dá para medir agora (sem gráfico de exemplo)
                 c = c.push(sh(crate::i18n::text("Memória RAM")));
-                c = c.push(container(row![txf(format!("{} MB", proc_mem_mb()), 36.0, t::FG, t::SERIF), container(tx(crate::i18n::text("deste processo agora · quanto menos, melhor"), 12.5, t::FG3)).padding(pad(12.0, 0.0, 0.0, 8.0))].align_y(Vertical::Bottom)).padding(pad(6.0, 0.0, 0.0, 0.0)));
+                c = c.push(container(row![txf(format!("{} MB", proc_mem_mb()), 36.0, t::FG, t::SERIF), container(tx(crate::i18n::text("deste processo agora · quanto menos, melhor"), 12.5, t::FG3)).padding(pad(t::SP_3, 0.0, 0.0, t::SP_2))].align_y(Vertical::Bottom)).padding(pad(t::SP_15, 0.0, 0.0, 0.0)));
             } else {
             c = c.push(sh(crate::i18n::text("Memória RAM")));
-                c = c.push(container(row![txf("296 MB", 36.0, t::FG, t::SERIF), container(tx(crate::i18n::text("em uso agora · quanto menos, melhor"), 12.5, t::FG3)).padding(pad(12.0, 0.0, 0.0, 8.0))].align_y(Vertical::Bottom)).padding(pad(10.0, 0.0, 0.0, 0.0)));
-                let leg = |col: iced::Color, s: &str| -> El<'a> { row![container(sp_w(0.0)).width(Length::Fixed(10.0)).height(Length::Fixed(2.0)).style(surface(Some(col), None, 1.0)), tx(s.to_string(), 12.0, t::FG3)].spacing(6).align_y(Vertical::Center).into() };
-                c = c.push(container(row![leg(t::FG2, crate::i18n::text("Uso nas últimas 18 h")), leg(t::SIGNAL, crate::i18n::text("Otimização aplicada"))].spacing(12)).padding(pad(16.0, 0.0, 4.0, 0.0)));
+                c = c.push(container(row![txf("296 MB", 36.0, t::FG, t::SERIF), container(tx(crate::i18n::text("em uso agora · quanto menos, melhor"), 12.5, t::FG3)).padding(pad(t::SP_3, 0.0, 0.0, t::SP_2))].align_y(Vertical::Bottom)).padding(pad(t::SP_25, 0.0, 0.0, 0.0)));
+                let leg = |col: iced::Color, s: &str| -> El<'a> { row![container(sp_w(0.0)).width(Length::Fixed(10.0)).height(Length::Fixed(2.0)).style(surface(Some(col), None, 1.0)), tx(s.to_string(), 12.0, t::FG3)].spacing(t::SP_15).align_y(Vertical::Center).into() };
+                c = c.push(container(row![leg(t::FG2, crate::i18n::text("Uso nas últimas 18 h")), leg(t::SIGNAL, crate::i18n::text("Otimização aplicada"))].spacing(t::SP_3)).padding(pad(t::SP_4, 0.0, t::SP_1, 0.0)));
                 let ch = Line { vals: data::RAMS.to_vec(), min: 0.0, max: 1400.0, ticks: vec![0.0, 400.0, 800.0, 1200.0], fmt: |v| if v == 0.0 { "0".into() } else if v >= 1000.0 { format!("{:.1} GB", v / 1000.0).replace('.', ",") } else { format!("{v} MB") }, start: crate::i18n::text("ontem, 16:00"), end: crate::i18n::text("agora"), color: t::FG2, mark: Some((10, "mmap e voz sob demanda")) };
                 c = c.push(canvas(ch).width(Length::Fill).height(Length::Fixed(150.0)));
                 let seg_bar = row![
@@ -484,17 +484,17 @@ fn section<'a>(app: &'a App) -> El<'a> {
                     container(sp_w(0.0)).width(Length::FillPortion(8)).height(Length::Fill).style(surface(Some(t::SIGNAL), None, 0.0)),
                     sp_w(0.0).into_filler(1)
                 ]
-                .spacing(2)
+                .spacing(t::SP_05)
                 .height(Length::Fixed(8.0));
-                c = c.push(container(seg_bar).padding(pad(18.0, 0.0, 12.0, 0.0)));
+                c = c.push(container(seg_bar).padding(pad(t::SP_45, 0.0, t::SP_3, 0.0)));
                 let lg = |col: iced::Color, s: &str, v: &str, outline: bool| -> El<'a> {
                     let sq = container(sp_w(0.0)).width(Length::Fixed(8.0)).height(Length::Fixed(8.0)).style(move |_| container::Style { background: if outline { None } else { Some(col.into()) }, border: Border { color: t::LINE3, width: if outline { 1.0 } else { 0.0 }, radius: 2.0.into() }, ..Default::default() });
-                    row![sq, tx(crate::i18n::status(s), 12.5, t::FG2), grow(), tx(v.to_string(), 12.5, t::FG)].spacing(8).align_y(Vertical::Center).into()
+                    row![sq, tx(crate::i18n::status(s), 12.5, t::FG2), grow(), tx(v.to_string(), 12.5, t::FG)].spacing(t::SP_2).align_y(Vertical::Center).into()
                 };
                 c = c.push(column![
-                    row![container(lg(t::FG2, crate::i18n::text("Núcleo e interface"), "84 MB", false)).width(Length::FillPortion(1)), container(lg(t::mix(t::FG2, 0.45), crate::i18n::text("Índice vetorial (mmap)"), "188 MB", false)).width(Length::FillPortion(1))].spacing(24),
-                    row![container(lg(t::SIGNAL, crate::i18n::text("Cache de embeddings"), "24 MB", false)).width(Length::FillPortion(1)), container(lg(t::LINE3, crate::i18n::text("Voz e grafo (descarregados)"), "0 MB", true)).width(Length::FillPortion(1))].spacing(24)
-                ].spacing(8));
+                    row![container(lg(t::FG2, crate::i18n::text("Núcleo e interface"), "84 MB", false)).width(Length::FillPortion(1)), container(lg(t::mix(t::FG2, 0.45), crate::i18n::text("Índice vetorial (mmap)"), "188 MB", false)).width(Length::FillPortion(1))].spacing(t::SP_6),
+                    row![container(lg(t::SIGNAL, crate::i18n::text("Cache de embeddings"), "24 MB", false)).width(Length::FillPortion(1)), container(lg(t::LINE3, crate::i18n::text("Voz e grafo (descarregados)"), "0 MB", true)).width(Length::FillPortion(1))].spacing(t::SP_6)
+                ].spacing(t::SP_2));
             }
             c = c.push(sh(crate::i18n::text("Janela")));
             c = c.push(setting(crate::i18n::text("Atalho global Ctrl + Alt + Espaço"), crate::i18n::text("Abre a mini barra de qualquer app. Ctrl + Alt + O: captura rápida · Ctrl + Alt + I: Isso? · Ctrl + Alt + P: pânico."), sw(p.shortcut, "shortcut")));
@@ -534,14 +534,14 @@ fn section<'a>(app: &'a App) -> El<'a> {
                 let title: El = if m.ativo { t_badge(&m.nome, badge(crate::i18n::text("em uso"), Tone::Info)) } else if m.tipo.is_empty() || live { tx(m.nome.clone(), 13.5, t::FG).into() } else { t_badge(&m.nome, badge(&m.tipo, Tone::Info)) };
                 let pct = if m.bytes > 0 { (m.baixados * 100 / m.bytes).min(100) } else { 0 };
                 let (desc, right): (String, El) = if m.baixando {
-                    (crate::i18n::formatted("{gb} · baixando {pct}%", format!("{gb} · baixando {pct}%")), row![badge(&format!("{pct}%"), Tone::Plain), btn(crate::i18n::text("Pausar"), Kind::Normal, true, None, Some(Msg::ModelPause(i)))].spacing(8).align_y(Vertical::Center).into())
+                    (crate::i18n::formatted("{gb} · baixando {pct}%", format!("{gb} · baixando {pct}%")), row![badge(&format!("{pct}%"), Tone::Plain), btn(crate::i18n::text("Pausar"), Kind::Normal, true, None, Some(Msg::ModelPause(i)))].spacing(t::SP_2).align_y(Vertical::Center).into())
                 } else if m.pausado {
-                    (crate::i18n::formatted("{gb} · pausado em {pct}%", format!("{gb} · pausado em {pct}%")), row![btn(crate::i18n::text("Retomar"), Kind::Normal, true, None, Some(Msg::ModelGet(i))), btn(crate::i18n::text("Remover"), Kind::Normal, true, None, Some(Msg::ModelDel(i)))].spacing(8).align_y(Vertical::Center).into())
+                    (crate::i18n::formatted("{gb} · pausado em {pct}%", format!("{gb} · pausado em {pct}%")), row![btn(crate::i18n::text("Retomar"), Kind::Normal, true, None, Some(Msg::ModelGet(i))), btn(crate::i18n::text("Remover"), Kind::Normal, true, None, Some(Msg::ModelDel(i)))].spacing(t::SP_2).align_y(Vertical::Center).into())
                 } else if !m.erro.is_empty() {
                     (crate::i18n::formatted("{gb} · falhou: {}", format!("{gb} · falhou: {}", m.erro)), btn(crate::i18n::text("Tentar de novo"), Kind::Normal, true, None, Some(Msg::ModelGet(i))))
                 } else if m.instalado {
                     (crate::i18n::formatted("{gb} no disco · baixado", format!("{gb} no disco · baixado")), {
-                        let mut acoes = row![].spacing(8).align_y(Vertical::Center);
+                        let mut acoes = row![].spacing(t::SP_2).align_y(Vertical::Center);
                         if live { acoes = acoes.push(btn(crate::i18n::text("Testar"), Kind::Normal, true, None, Some(Msg::ModelTest(i)))); }
                         acoes.push(btn(crate::i18n::text("Remover"), Kind::Normal, !m.ativo, None, if m.ativo { None } else { Some(Msg::ModelDel(i)) })).into()
                     })
@@ -577,12 +577,12 @@ fn section<'a>(app: &'a App) -> El<'a> {
             c = c.push(setting(crate::i18n::text("Reconhecer você"), crate::i18n::text("Rosto local do dono."), swa("cam", 3, p.cam[3])));
             c = c.push(setting(crate::i18n::text("Legenda ao vivo"), crate::i18n::text("Faixa flutuante na base da tela."), swa("cam", 4, p.cam[4])));
             c = c.push(sh(crate::i18n::text("Objetos lembrados")));
-            let mut tags = row![].spacing(6);
+            let mut tags = row![].spacing(t::SP_15);
             for (i, o) in p.objs.iter().enumerate() {
-                tags = tags.push(container(row![tx(o.clone(), 12.5, t::FG2), button(icon("close", 14.0, t::FG3)).padding(0).on_press(Msg::ObjRemove(i)).style(|_, _| button::Style::default())].spacing(4).align_y(Vertical::Center)).height(Length::Fixed(26.0)).center_y(Length::Fixed(26.0)).padding(pad(0.0, 6.0, 0.0, 10.0)).style(surface(None, Some(t::LINE2), 999.0)));
+                tags = tags.push(container(row![tx(o.clone(), 12.5, t::FG2), button(icon("close", 14.0, t::FG3)).padding(0).on_press(Msg::ObjRemove(i)).style(|_, _| button::Style::default())].spacing(t::SP_1).align_y(Vertical::Center)).height(Length::Fixed(26.0)).center_y(Length::Fixed(26.0)).padding(pad(0.0, t::SP_15, 0.0, t::SP_25)).style(surface(None, Some(t::LINE2), 999.0)));
             }
-            c = c.push(container(tags.wrap().vertical_spacing(6)).padding(pad(12.0, 0.0, 12.0, 0.0)));
-            c = c.push(row![container(text_input(crate::i18n::text("Adicionar objeto"), &app.new_obj).on_input(Msg::NewObj).on_submit(Msg::ObjAdd).size(13).font(t::UI).padding(pad(6.0, 10.0, 6.0, 10.0)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 8.0))).width(Length::Fixed(220.0)), btn(crate::i18n::text("Adicionar"), Kind::Normal, true, None, Some(Msg::ObjAdd))].spacing(8));
+            c = c.push(container(tags.wrap().vertical_spacing(6)).padding(pad(t::SP_3, 0.0, t::SP_3, 0.0)));
+            c = c.push(row![container(text_input(crate::i18n::text("Adicionar objeto"), &app.new_obj).on_input(Msg::NewObj).on_submit(Msg::ObjAdd).size(13).font(t::UI).padding(pad(t::SP_15, t::SP_25, t::SP_15, t::SP_25)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 8.0))).width(Length::Fixed(220.0)), btn(crate::i18n::text("Adicionar"), Kind::Normal, true, None, Some(Msg::ObjAdd))].spacing(t::SP_2));
         }
         Sec::Atalhos => {
             if !app.short_err.is_empty() {
@@ -593,7 +593,7 @@ fn section<'a>(app: &'a App) -> El<'a> {
                 for a in list.iter() {
                     let editing = app.short_edit == Some(a.id);
                     let shown = if editing { crate::i18n::text("Pressione o novo atalho…").to_string() } else { crate::keys::display(&crate::keys::effective(a.id)) };
-                    let mut ctl = row![kbd(&shown)].spacing(8).align_y(Vertical::Center);
+                    let mut ctl = row![kbd(&shown)].spacing(t::SP_2).align_y(Vertical::Center);
                     if editing {
                         ctl = ctl.push(btn(crate::i18n::text("Cancelar"), Kind::Ghost, true, None, Some(Msg::ShortcutCancel)));
                     } else {
@@ -644,18 +644,18 @@ fn fmt_n(n: usize) -> String {
 pub fn modal(app: &App) -> El<'_> {
     let mobile = app.is_drawer_mode();
     let found = search(&app.set_q);
-    let mut nav = column![].spacing(1);
+    let mut nav = column![].spacing(t::SP_PX);
     let search_in = stack![
-        text_input(crate::i18n::text("Buscar"), &app.set_q).on_input(Msg::SetQ).size(13).font(t::UI).padding(pad(6.0, 10.0, 6.0, 32.0)).style(|th, st| {
+        text_input(crate::i18n::text("Buscar"), &app.set_q).on_input(Msg::SetQ).size(13).font(t::UI).padding(pad(t::SP_15, t::SP_25, t::SP_15, t::SP_8)).style(|th, st| {
             let mut s = field_style(t::HOVER, iced::Color::TRANSPARENT, t::LINE2, 8.0)(th, st);
             if matches!(st, text_input::Status::Focused { .. }) {
                 s.background = t::BG.into();
             }
             s
         }),
-        container(icon("search", 14.0, t::FG3)).padding(pad(8.0, 0.0, 0.0, 10.0)),
+        container(icon("search", 14.0, t::FG3)).padding(pad(t::SP_2, 0.0, 0.0, t::SP_25)),
     ];
-    nav = nav.push(container(search_in).padding(pad(0.0, 0.0, 8.0, 0.0)));
+    nav = nav.push(container(search_in).padding(pad(0.0, 0.0, t::SP_2, 0.0)));
     let mut any = false;
     for (gi, (g, items)) in GROUPS.iter().enumerate() {
         let vis: Vec<&Entry> = items.iter().filter(|e| found.contains(&e.0)).collect();
@@ -663,40 +663,40 @@ pub fn modal(app: &App) -> El<'_> {
             continue;
         }
         any = true;
-        nav = nav.push(container(tx(crate::i18n::text(g), 11.5, t::FG3)).padding(pad(if gi == 0 { 6.0 } else { 16.0 }, 10.0, 4.0, 10.0)));
+        nav = nav.push(container(tx(crate::i18n::text(g), 11.5, t::FG3)).padding(pad(if gi == 0 { 6.0 } else { 16.0 }, t::SP_25, t::SP_1, t::SP_25)));
         for (s, ic, l, _) in vis {
             let cur = app.sec == *s;
             nav = nav.push(
-                button(container(row![icon(ic, 16.0, if cur { t::FG } else { t::FG2 }), tx(crate::i18n::text(l), 13.5, if cur { t::FG } else { t::FG2 })].spacing(11).align_y(Vertical::Center)).center_y(Length::Fill))
+                button(container(row![icon(ic, 16.0, if cur { t::FG } else { t::FG2 }), tx(crate::i18n::text(l), 13.5, if cur { t::FG } else { t::FG2 })].spacing(t::SP_3).align_y(Vertical::Center)).center_y(Length::Fill))
                     .width(Length::Fill)
                     .height(Length::Fixed(32.0))
-                    .padding(pad(0.0, 10.0, 0.0, 10.0))
+                    .padding(pad(0.0, t::SP_25, 0.0, t::SP_25))
                     .on_press(Msg::SetSec(*s))
                     .style(move |_, st| button::Style { background: if cur { Some(Background::Color(t::SEL)) } else if matches!(st, button::Status::Hovered) { Some(Background::Color(t::HOVER)) } else { None }, text_color: t::FG, border: Border { radius: t::R_CTRL.into(), ..Default::default() }, shadow: Default::default(), snap: true }),
             );
         }
     }
     if !any {
-        nav = nav.push(container(tx(crate::i18n::text("Nada encontrado."), 13.0, t::FG3)).padding(10));
+        nav = nav.push(container(tx(crate::i18n::text("Nada encontrado."), 13.0, t::FG3)).padding(t::SP_25));
     }
-    let nav_panel = container(scrollable(container(nav).padding(pad(12.0, 8.0, 12.0, 8.0))).direction(scrollable::Direction::Vertical(thin_bar())).style(thin_scroll).height(Length::Fill))
+    let nav_panel = container(scrollable(container(nav).padding(pad(t::SP_3, t::SP_2, t::SP_3, t::SP_2))).direction(scrollable::Direction::Vertical(thin_bar())).style(thin_scroll).height(Length::Fill))
         .width(if mobile { Length::Fill } else { Length::Fixed(236.0) })
         .height(Length::Fill)
         .style(|_| container::Style { background: Some(t::SIDE.into()), ..Default::default() });
     let label = all().find(|e| e.0 == app.sec).map(|e| e.2).unwrap_or("");
     let mut main = column![].spacing(0);
     if mobile {
-        main = main.push(container(btn(crate::i18n::text("Configurações"), Kind::Ghost, false, Some("back"), Some(Msg::SetBack))).padding(pad(10.0, 0.0, 0.0, 0.0)));
+        main = main.push(container(btn(crate::i18n::text("Configurações"), Kind::Ghost, false, Some("back"), Some(Msg::SetBack))).padding(pad(t::SP_25, 0.0, 0.0, 0.0)));
     }
-    main = main.push(container(txf(crate::i18n::text(label), 26.0, t::FG, t::SERIF).line_height(iced::widget::text::LineHeight::Relative(1.15))).padding(pad(if mobile { 10.0 } else { 30.0 }, 0.0, 2.0, 0.0)));
+    main = main.push(container(txf(crate::i18n::text(label), 26.0, t::FG, t::SERIF).line_height(iced::widget::text::LineHeight::Relative(1.15))).padding(pad(if mobile { 10.0 } else { 30.0 }, 0.0, t::SP_05, 0.0)));
     main = main.push(section(app));
-    let main_panel = scrollable(container(main).padding(pad(0.0, 44.0, 48.0, 44.0)).width(Length::Fill)).direction(scrollable::Direction::Vertical(thin_bar())).style(thin_scroll).width(Length::Fill).height(Length::Fill);
+    let main_panel = scrollable(container(main).padding(pad(0.0, t::SP_11, t::SP_12, t::SP_11)).width(Length::Fill)).direction(scrollable::Direction::Vertical(thin_bar())).style(thin_scroll).width(Length::Fill).height(Length::Fill);
     let body: El = if mobile {
         if app.set_detail { main_panel.into() } else { nav_panel.into() }
     } else {
         row![nav_panel, vline_full(), main_panel].into()
     };
-    let close = container(tip(ib("close", Some(Msg::CloseSettings), false), crate::i18n::text("Fechar configurações"))).padding(pad(10.0, 12.0, 0.0, 0.0)).width(Length::Fill).align_x(iced::alignment::Horizontal::Right);
+    let close = container(tip(ib("close", Some(Msg::CloseSettings), false), crate::i18n::text("Fechar configurações"))).padding(pad(t::SP_25, t::SP_3, 0.0, 0.0)).width(Length::Fill).align_x(iced::alignment::Horizontal::Right);
     let (w, h) = (1060.0f32.min(app.win.width - 48.0), 740.0f32.min(app.win.height - 48.0));
     let dialog = container(stack![body, close])
         .width(if mobile { Length::Fill } else { Length::Fixed(w) })

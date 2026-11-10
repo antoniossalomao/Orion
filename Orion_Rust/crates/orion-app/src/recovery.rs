@@ -229,12 +229,12 @@ fn campo<'a>(rotulo: &'static str, v: &str, f: fn(String) -> Msg, secure: bool, 
         .secure(secure)
         .size(14)
         .font(t::UI)
-        .padding(pad(12.0, 12.0, 12.0, 12.0))
+        .padding(pad(t::SP_3, t::SP_3, t::SP_3, t::SP_3))
         .style(crate::views::login::field_style(t::alpha(t::BG, 0.55), t::FIELD_LINE, t::ACCENT, 10.0));
     if submit {
         entrada = entrada.on_submit(Msg::Recov(Event::Submit));
     }
-    column![tx(crate::i18n::text(rotulo), 12.0, t::FG2), entrada].spacing(6).into()
+    column![tx(crate::i18n::text(rotulo), 12.0, t::FG2), entrada].spacing(t::SP_15).into()
 }
 
 /// Conteúdo do cartão de entrada enquanto a recuperação está aberta.
@@ -242,17 +242,17 @@ pub fn view<'a>(f: &'a Form, cab: El<'a>) -> El<'a> {
     if let Some(novo) = f.new_code.as_deref() {
         return column![
             cab,
-            sp_h(10.0),
+            sp_h(t::SP_25),
             tx(crate::i18n::text("Acesso recuperado"), 14.0, t::FG),
             container(txf(novo.to_string(), 17.0, t::FG, t::MONO))
-                .padding(pad(16.0, 14.0, 16.0, 14.0))
+                .padding(pad(t::SP_4, t::SP_35, t::SP_4, t::SP_35))
                 .width(Length::Fill)
                 .style(surface(Some(t::alpha(t::BG, 0.6)), Some(t::LINE2), 12.0)),
             tx(crate::i18n::text("O código antigo deixou de valer. Guarde este fora do computador: ele não será mostrado de novo."), 12.0, t::FG3),
             btn(crate::i18n::text("Imprimir código"), Kind::Normal, false, None, Some(Msg::Recov(Event::Print))),
             btn(crate::i18n::text("Entrar com a nova senha"), Kind::Primary, false, None, Some(Msg::Recov(Event::Close))),
         ]
-        .spacing(10)
+        .spacing(t::SP_25)
         .align_x(Horizontal::Center)
         .width(Length::Fill)
         .into();
@@ -260,7 +260,7 @@ pub fn view<'a>(f: &'a Form, cab: El<'a>) -> El<'a> {
     let aviso = container(tx(if f.busy { crate::i18n::text("Recuperando…").to_string() } else { crate::i18n::status(&f.err) }, 12.0, if f.err.is_empty() { t::FG3 } else { t::DANGER })).height(Length::Fixed(16.0));
     column![
         cab,
-        sp_h(10.0),
+        sp_h(t::SP_25),
         campo("Código de recuperação", &f.code, |s| Msg::Recov(Event::Code(s)), false, false),
         campo("Nova senha", &f.pw, |s| Msg::Recov(Event::Pw(s)), true, false),
         campo("Confirme a nova senha", &f.pw2, |s| Msg::Recov(Event::Pw2(s)), true, true),
@@ -268,7 +268,7 @@ pub fn view<'a>(f: &'a Form, cab: El<'a>) -> El<'a> {
         btn(crate::i18n::text("Recuperar acesso"), Kind::Primary, false, None, if f.busy { None } else { Some(Msg::Recov(Event::Submit)) }),
         btn(crate::i18n::text("Voltar ao login"), Kind::Ghost, true, None, if f.busy { None } else { Some(Msg::Recov(Event::Close)) }),
     ]
-    .spacing(10)
+    .spacing(t::SP_25)
     .align_x(Horizontal::Center)
     .width(Length::Fill)
     .into()

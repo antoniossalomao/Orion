@@ -776,12 +776,12 @@ impl SetupApp {
                             .color(betel_faded),
                     ]
                     .align_x(Horizontal::Right)
-                    .spacing(3),
+                    .spacing(theme::SP_1),
                 ]
                 .align_y(Alignment::End),
             )
             .width(Length::Fill)
-            .padding([20, 22])
+            .padding([theme::SP_5, theme::SP_6])
         ]
         .width(Length::Fixed(theme::SKY_W))
         .height(Length::Fixed(theme::BODY_H));
@@ -798,7 +798,7 @@ impl SetupApp {
 
     /// Painel direito `.pane` (`orion-instalador.html` linhas 36–98, 125–135).
     fn view_right_pane<'a>(&'a self, s: &'a Texts) -> Element<'a, Message> {
-        let mut stepbar = row![].spacing(6);
+        let mut stepbar = row![].spacing(theme::SP_15);
         for idx in 1..=5 {
             let color = if idx < self.step
                 || (idx == 5 && self.step == 5 && self.is_install_completed())
@@ -857,7 +857,7 @@ impl SetupApp {
         let show_back = self.step > 1 && self.step < 5;
         let back_el: Element<'a, Message> = if show_back {
             button(text(s.back).size(13).font(FONT_SANS_SEMIBOLD).color(theme::FG))
-                .padding([8, 12])
+                .padding([theme::SP_2, theme::SP_3])
                 .on_press(Message::PrevStep)
                 .style(ghost_button_style())
                 .into()
@@ -898,7 +898,7 @@ impl SetupApp {
                     with_alpha(theme::ON_PRIMARY, 0.5)
                 }),
         )
-        .padding([9, 18])
+        .padding([theme::SP_2, theme::SP_45])
         .style(primary_button_style(next_enabled));
 
         if let Some(msg) = next_msg {
@@ -936,10 +936,10 @@ impl SetupApp {
         .width(Length::Fixed(theme::PANEL_W - 1.0))
         .height(Length::Fixed(theme::BODY_H))
         .padding(iced::Padding {
-            top: 24.0,
-            right: 26.0,
-            bottom: 18.0,
-            left: 26.0,
+            top: theme::SP_6,
+            right: theme::SP_6,
+            bottom: theme::SP_45,
+            left: theme::SP_6,
         })
         .style(|_theme: &Theme| container::Style {
             background: Some(Background::Color(theme::SIDE)),
@@ -964,7 +964,7 @@ impl SetupApp {
             .align_y(Alignment::Center),
         )
         .width(Length::Fill)
-        .padding([10, 12])
+        .padding([theme::SP_25, theme::SP_3])
         .on_press(Message::ToggleLanguage)
         .style(input_box_button_style());
 
@@ -1089,10 +1089,10 @@ impl SetupApp {
 
     /// Etapa 3 (`orion-instalador.html` linhas 64–76, 295–302): Grade 2×4 `.models` + rodapé `.total`.
     fn view_step_3<'a>(&'a self, s: &'a Texts, alpha: f32) -> Element<'a, Message> {
-        let mut grid = Column::new().spacing(6);
+        let mut grid = Column::new().spacing(theme::SP_15);
 
         for pair in self.choices.models.chunks(2) {
-            let mut r = row![].spacing(8);
+            let mut r = row![].spacing(theme::SP_2);
             for m in pair {
                 let mut meta_row = row![
                     text(format_gb(m.size_gb, self.choices.language))
@@ -1124,7 +1124,7 @@ impl SetupApp {
                             .color(with_alpha(theme::FG, alpha)),
                         check_dot(m.selected),
                     ]
-                    .spacing(6)
+                    .spacing(theme::SP_15)
                     .align_y(Alignment::Center),
                     container(text(m.desc(self.choices.language))
                         .size(11)
@@ -1134,14 +1134,14 @@ impl SetupApp {
                         .height(Length::Fill),
                     meta_row,
                 ]
-                .spacing(3)
+                .spacing(theme::SP_1)
                 .width(Length::Fill)
                 .height(Length::Fill);
 
                 let card = button(card_col)
                     .width(Length::FillPortion(1))
                     .height(Length::Fixed(76.0))
-                    .padding([6, 9])
+                    .padding([theme::SP_15, theme::SP_2])
                     .on_press_maybe((m.min_ram_gb <= self.pc.ram_gb).then(|| Message::ToggleModel(m.id.to_string())))
                     .style(model_card_style(m.selected));
                 r = r.push(card);
@@ -1251,7 +1251,7 @@ impl SetupApp {
                 .align_y(Alignment::Center),
             )
             .width(Length::Fill)
-            .padding([11, 0])
+            .padding([theme::SP_3, 0.0])
             .on_press(msg)
             .style(transparent_row_button_style());
 
@@ -1301,7 +1301,7 @@ impl SetupApp {
         let prog_bar = progress_bar_single(bar_frac);
 
         let labels = install_step_texts(self.choices.selected_models_gb(), self.choices.language);
-        let mut log_col = Column::new().spacing(6);
+        let mut log_col = Column::new().spacing(theme::SP_15);
 
         for (i, label) in labels.iter().enumerate() {
             let st = self.step_statuses[i];
@@ -1357,18 +1357,18 @@ impl SetupApp {
                     vspace(8.0),
                     row![
                         button(text(s.retry).size(12).color(theme::FG))
-                            .padding([6, 12])
+                            .padding([theme::SP_15, theme::SP_3])
                             .on_press(Message::RetryInstall)
                             .style(ghost_button_style()),
                         hspace(8.0),
                         button(text(s.view_details).size(12).color(theme::FG2))
-                            .padding([6, 12])
+                            .padding([theme::SP_15, theme::SP_3])
                             .on_press(Message::ToggleErrorDetails)
                             .style(ghost_button_style()),
                     ]
                 ],
             )
-            .padding([12, 16])
+            .padding([theme::SP_3, theme::SP_4])
             .width(Length::Fill)
             .style(surface_card_style());
             col = col.push(vspace(12.0)).push(err_card);
@@ -1388,12 +1388,12 @@ impl SetupApp {
                 row![
                     fill_hspace(),
                     button(text(s.cancel_keep).size(12).color(theme::FG))
-                        .padding([8, 14])
+                        .padding([theme::SP_2, theme::SP_35])
                         .on_press(Message::ConfirmCancelNo)
                         .style(ghost_button_style()),
                     hspace(10.0),
                     button(text(s.cancel_confirm).size(12).color(theme::DANGER))
-                        .padding([8, 14])
+                        .padding([theme::SP_2, theme::SP_35])
                         .on_press(Message::ConfirmCancelYes)
                         .style(ghost_button_style()),
                 ]
@@ -1401,7 +1401,7 @@ impl SetupApp {
             ]
             .width(Length::Fixed(360.0)),
         )
-        .padding([20, 24])
+        .padding([theme::SP_5, theme::SP_6])
         .style(surface_card_style());
 
         container(dialog)
@@ -1466,7 +1466,7 @@ fn chk_card<'a>(label: &'a str, val: &str, warn: bool, alpha: f32) -> Element<'a
     .width(Length::FillPortion(1))
     .height(70.0)
     .align_y(Vertical::Center)
-    .padding([10, 12])
+    .padding([theme::SP_25, theme::SP_3])
     .style(surface_card_style())
     .into()
 }
@@ -1486,7 +1486,7 @@ fn folder_field<'a>(
             .color(with_alpha(theme::FG, alpha)),
     )
     .width(Length::Fill)
-    .padding([9, 11])
+    .padding([theme::SP_2, theme::SP_3])
     .style(surface_card_style());
 
     let input_row: Element<'a, Message> = if let Some((btn_lbl, msg)) = action {
@@ -1499,7 +1499,7 @@ fn folder_field<'a>(
                     .font(FONT_SANS_SEMIBOLD)
                     .color(with_alpha(theme::FG, alpha))
             )
-            .padding([8, 12])
+            .padding([theme::SP_2, theme::SP_3])
             .on_press(msg)
             .style(ghost_button_style()),
         ]
@@ -1532,7 +1532,7 @@ fn tag_pill<'a>(label: &'a str) -> Element<'a, Message> {
     )
     .height(16)
     .center_y(16)
-    .padding([0, 6])
+    .padding([0.0, theme::SP_15])
     .style(|_theme: &Theme| container::Style {
         background: Some(Background::Color(Color::from_rgba8(233, 180, 103, 0.08))),
         border: Border {
@@ -1593,7 +1593,7 @@ fn switch_pill<'a>(active: bool) -> Element<'a, Message> {
     container(content)
         .width(Length::Fixed(36.0))
         .height(Length::Fixed(20.0))
-        .padding([3, 3])
+        .padding([theme::SP_1, theme::SP_1])
         .style(move |_theme: &Theme| container::Style {
             background: Some(Background::Color(if active {
                 theme::RIGEL

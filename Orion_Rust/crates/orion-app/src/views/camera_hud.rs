@@ -112,7 +112,7 @@ const HAND_CHAINS: [&[usize]; 6] = [&[0, 5, 9, 13, 17, 0], &[0, 1, 2, 3, 4], &[5
 /// Um bloco de telemetria: `[ROTULO: valor]` em Geist Mono sobre fundo translúcido.
 fn block<'a>(s: String, color: Color) -> El<'a> {
     container(txf(s, 10.5, color, t::MONO))
-        .padding(pad(1.0, 6.0, 1.0, 6.0))
+        .padding(pad(t::SP_PX, t::SP_15, t::SP_PX, t::SP_15))
         .style(|_| container::Style { background: Some(t::alpha(Color::BLACK, 0.55).into()), border: Border { radius: 3.0.into(), ..Default::default() }, ..Default::default() })
         .into()
 }
@@ -156,7 +156,7 @@ pub fn frame<'a>(hud: Hud<'_>) -> El<'a> {
     let h = (width * hud.h as f32 / hud.w.max(1) as f32).round();
     let video = image(hud.handle.clone()).width(Length::Fixed(width)).height(Length::Fixed(h)).content_fit(ContentFit::Cover);
     let overlay = cv(Overlay { face: hud.face, hand: hud.hand, landmarks: hud.landmarks, objects: hud.objects, tone: hud.tone, t: hud.t_phase, reduced: hud.reduced }).width(Length::Fixed(width)).height(Length::Fixed(h));
-    let mut blocks = column![].spacing(4);
+    let mut blocks = column![].spacing(t::SP_1);
     for (text, color) in hud.telemetry {
         blocks = blocks.push(block(text, color));
     }
@@ -164,7 +164,7 @@ pub fn frame<'a>(hud: Hud<'_>) -> El<'a> {
         .width(Length::Fixed(width))
         .height(Length::Fixed(h))
         .align_bottom(Length::Fixed(h))
-        .padding(pad(0.0, 0.0, 12.0, 14.0));
+        .padding(pad(0.0, 0.0, t::SP_3, t::SP_35));
     let mut layers = stack![video, overlay, telemetry];
     if let (Some(tag), Some([x, y, _, _])) = (hud.tag, hud.face) {
         let (left, top) = ((x * width).max(6.0), (y * h - 22.0).max(6.0));

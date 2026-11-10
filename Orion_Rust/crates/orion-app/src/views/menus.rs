@@ -10,13 +10,13 @@ use iced::{Background, Border, Color, Length};
 
 pub fn menu_box<'a>(items: Vec<El<'a>>, width: f32) -> El<'a> {
     let p = crate::anim::POP.get();
-    let b = container(column(items).spacing(0)).width(Length::Fixed(width)).padding(4).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_CARD.into() }, shadow: shadow(), ..Default::default() });
+    let b = container(column(items).spacing(0)).width(Length::Fixed(width)).padding(t::SP_1).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_CARD.into() }, shadow: shadow(), ..Default::default() });
     rise(fade(b, p, t::RAISE), p, 6.0)
 }
 
 pub fn item<'a>(ic: Option<&str>, label: &str, desc: Option<&str>, checked: bool, danger: bool, msg: Msg) -> El<'a> {
     let fg = if danger { t::DANGER } else { t::FG };
-    let mut r = row![].spacing(10).align_y(Vertical::Center);
+    let mut r = row![].spacing(t::SP_25).align_y(Vertical::Center);
     if let Some(i) = ic {
         r = r.push(icon(i, 14.0, fg));
     }
@@ -28,7 +28,7 @@ pub fn item<'a>(ic: Option<&str>, label: &str, desc: Option<&str>, checked: bool
     if checked {
         r = r.push(icon("check", 14.0, t::FG));
     }
-    button(r).width(Length::Fill).padding(crate::ui::pad(6.0, 10.0, 6.0, 10.0)).on_press(msg).style(|_, st| button::Style {
+    button(r).width(Length::Fill).padding(crate::ui::pad(t::SP_15, t::SP_25, t::SP_15, t::SP_25)).on_press(msg).style(|_, st| button::Style {
         background: if matches!(st, button::Status::Hovered | button::Status::Pressed) { Some(Background::Color(t::HOVER)) } else { None },
         text_color: t::FG,
         border: Border { radius: t::R_CTRL.into(), ..Default::default() },
@@ -38,10 +38,10 @@ pub fn item<'a>(ic: Option<&str>, label: &str, desc: Option<&str>, checked: bool
 }
 
 pub fn group<'a>(label: &str) -> El<'a> {
-    container(tx(crate::i18n::status(label), 11.0, t::FG3)).padding(crate::ui::pad(8.0, 10.0, 3.0, 10.0)).into()
+    container(tx(crate::i18n::status(label), 11.0, t::FG3)).padding(crate::ui::pad(t::SP_2, t::SP_25, t::SP_1, t::SP_25)).into()
 }
 pub fn hr<'a>() -> El<'a> {
-    container(hline()).padding(crate::ui::pad(4.0, 6.0, 4.0, 6.0)).into()
+    container(hline()).padding(crate::ui::pad(t::SP_1, t::SP_15, t::SP_1, t::SP_15)).into()
 }
 
 pub fn model_menu(app: &App) -> El<'_> {
@@ -70,7 +70,7 @@ pub fn project_menu(app: &App) -> El<'_> {
 }
 
 pub fn account_menu(app: &App) -> El<'_> {
-    let head = container(column![tx(app.p.name.clone(), 13.0, t::FG), tx(crate::i18n::text(" · PC principal").trim_start_matches([' ', '·']), 11.5, t::FG3)]).padding(crate::ui::pad(8.0, 10.0, 6.0, 10.0));
+    let head = container(column![tx(app.p.name.clone(), 13.0, t::FG), tx(crate::i18n::text(" · PC principal").trim_start_matches([' ', '·']), 11.5, t::FG3)]).padding(crate::ui::pad(t::SP_2, t::SP_25, t::SP_15, t::SP_25));
     menu_box(
         vec![
             head.into(),

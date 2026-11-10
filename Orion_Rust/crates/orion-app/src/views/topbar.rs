@@ -12,7 +12,7 @@ use iced::{Background, Border, Length};
 
 pub fn view(app: &App) -> El<'_> {
     let drawer = app.is_drawer_mode();
-    let mut r = row![].spacing(4).align_y(Vertical::Center).height(Length::Fixed(46.0)).padding(pad(0.0, 6.0, 0.0, 12.0));
+    let mut r = row![].spacing(t::SP_1).align_y(Vertical::Center).height(Length::Fixed(46.0)).padding(pad(0.0, t::SP_15, 0.0, t::SP_3));
     if drawer {
         r = r.push(tip(ib("menu", Some(Msg::Drawer(true)), false), crate::i18n::text("Abrir menu")));
     }
@@ -23,16 +23,16 @@ pub fn view(app: &App) -> El<'_> {
     // título
     if app.view == View::Chat {
         if let Some(i) = app.conv {
-            let base = button(container(row![tx(ell(&app.convs[i].title, 420.0, 13.5), 13.5, t::FG), icon("chevD", 14.0, t::FG3)].spacing(6).align_y(Vertical::Center)).center_y(Length::Fill))
+            let base = button(container(row![tx(ell(&app.convs[i].title, 420.0, 13.5), 13.5, t::FG), icon("chevD", 14.0, t::FG3)].spacing(t::SP_15).align_y(Vertical::Center)).center_y(Length::Fill))
                 .height(Length::Fixed(30.0))
-                .padding(pad(0.0, 8.0, 0.0, 8.0))
+                .padding(pad(0.0, t::SP_2, 0.0, t::SP_2))
                 .on_press(Msg::Pop(Pop::ConvMenu))
                 .style(|_, st| button::Style { background: if matches!(st, button::Status::Hovered) { Some(Background::Color(t::HOVER)) } else { None }, text_color: t::FG, border: Border { radius: t::R_CTRL.into(), ..Default::default() }, shadow: Default::default(), snap: true });
             let pop: El = Popover::new(base, menus::conv_menu(app), app.pop == Some(Pop::ConvMenu)).on_dismiss(Msg::ClosePop).into();
             r = r.push(pop);
         }
     } else if !app.view.title().is_empty() {
-        r = r.push(container(txf(app.view.title(), 13.5, t::FG, t::UI_MED)).padding(pad(0.0, 8.0, 0.0, 8.0)));
+        r = r.push(container(txf(app.view.title(), 13.5, t::FG, t::UI_MED)).padding(pad(0.0, t::SP_2, 0.0, t::SP_2)));
     }
     r = r.push(mouse_area(container(sp_w(0.0)).width(Length::Fill).height(Length::Fill)).on_press(Msg::DragWindow).on_double_click(Msg::Fullscreen));
     // pílulas
@@ -54,9 +54,9 @@ pub fn view(app: &App) -> El<'_> {
     if !drawer {
         r = r.push(tip(ib("inbox", Some(Msg::QcapOpen), false), crate::i18n::text("Captura rápida (Ctrl + Alt + O)")));
         r = r.push(tip(ib("scan", Some(Msg::IssoOpen), false), crate::i18n::text("Isso? Captura a tela e pergunta (Ctrl + Alt + I)")));
-        let cmd = button(container(row![icon("search", 14.0, t::FG3), tx(crate::i18n::text("Buscar"), 12.5, t::FG3), kbd("Ctrl K")].spacing(8).align_y(Vertical::Center)).center_y(Length::Fill))
+        let cmd = button(container(row![icon("search", 14.0, t::FG3), tx(crate::i18n::text("Buscar"), 12.5, t::FG3), kbd("Ctrl K")].spacing(t::SP_2).align_y(Vertical::Center)).center_y(Length::Fill))
             .height(Length::Fixed(30.0))
-            .padding(pad(0.0, 8.0, 0.0, 10.0))
+            .padding(pad(0.0, t::SP_2, 0.0, t::SP_25))
             .on_press(Msg::PalOpen)
             .style(|_, st| button::Style { background: if matches!(st, button::Status::Hovered) { Some(Background::Color(t::HOVER)) } else { None }, text_color: t::FG3, border: Border { radius: t::R_CTRL.into(), ..Default::default() }, shadow: Default::default(), snap: true });
         r = r.push(cmd);
@@ -66,7 +66,7 @@ pub fn view(app: &App) -> El<'_> {
     if app.view == View::Chat && app.win.width > t::CTX_MIN_W {
         r = r.push(tip(ib("panelR", Some(Msg::CtxToggle), app.show_ctx()), crate::i18n::text("Painel da direita")));
     }
-    r = r.push(container(vline(18.0)).padding(pad(0.0, 6.0, 0.0, 6.0)));
+    r = r.push(container(vline(18.0)).padding(pad(0.0, t::SP_15, 0.0, t::SP_15)));
     r = r.push(tip(ib_wh("min", 34.0, 30.0, 16.0, Some(Msg::Minimize), t::HOVER, t::FG), crate::i18n::text("Minimizar")));
     r = r.push(tip(ib_wh("max", 34.0, 30.0, 14.0, Some(Msg::Fullscreen), t::HOVER, t::FG), crate::i18n::text("Tela cheia")));
     r = r.push(tip(ib_wh("close", 34.0, 30.0, 16.0, Some(Msg::CloseWindow), t::DANGER, t::ON_DANGER), crate::i18n::text("Fechar")));
@@ -80,5 +80,5 @@ pub fn gate() -> El<'static> {
         ib_wh("min", 34.0, 30.0, 16.0, Some(Msg::Minimize), t::HOVER, t::FG),
         ib_wh("max", 34.0, 30.0, 14.0, Some(Msg::Fullscreen), t::HOVER, t::FG),
         ib_wh("close", 34.0, 30.0, 16.0, Some(Msg::CloseWindow), t::DANGER, t::ON_DANGER)]
-        .height(Length::Fixed(38.0)).padding([4, 10]).align_y(Vertical::Center).into()
+        .height(Length::Fixed(38.0)).padding([t::SP_1, t::SP_25]).align_y(Vertical::Center).into()
 }

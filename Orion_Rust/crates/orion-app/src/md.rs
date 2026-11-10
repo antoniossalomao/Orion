@@ -461,7 +461,7 @@ fn spans<'a>(inl: &[Inline], st: &Style, base: Color) -> Vec<iced::widget::text:
                     .underline(arquivo)
                     .background(iced::Background::Color(t::RAISE2))
                     .border(Border { radius: 5.0.into(), ..Default::default() })
-                    .padding(Padding { top: 1.0, bottom: 1.0, left: 4.0, right: 4.0 });
+                    .padding(Padding { top: t::SP_PX, bottom: t::SP_PX, left: t::SP_1, right: t::SP_1 });
                 if arquivo { sp.link(format!("orion-file:{s}")) } else { sp }
             }
             Inline::Wiki(s) => span(s.clone()).font(st.font).size(st.size).color(t::ACCENT).underline(true),
@@ -533,25 +533,25 @@ pub fn render_with<'a, M: Clone + 'a>(blocks: &[Block], st: Style, on_link: Opti
                 let sp: Vec<iced::widget::text::Span<'a, (), Font>> = inl.iter().map(|i| match i {
                     Inline::Text(s) | Inline::Bold(s) | Inline::Italic(s) | Inline::Math(s) | Inline::Code(s) | Inline::Wiki(s) | Inline::Link(s, _) => span(s.clone()).font(st.h_font).size(sz).color(t::FG),
                 }).collect();
-                container(rich_text(sp)).padding(Padding { top, bottom: 2.0, ..Default::default() }).into()
+                container(rich_text(sp)).padding(Padding { top, bottom: t::SP_05, ..Default::default() }).into()
             }
             Block::Quote(inl) => {
                 let bar = container(iced::widget::Space::new().width(Length::Fixed(2.0)).height(Length::Fill))
                     .width(Length::Fixed(2.0))
                     .style(|_| container::Style { background: Some(t::LINE3.into()), border: Border { radius: 1.0.into(), ..Default::default() }, ..Default::default() });
-                row![bar, container(para(inl, t::FG2, &st)).padding(Padding { top: 2.0, bottom: 2.0, left: 12.0, right: 0.0 }).width(Length::Fill)]
+                row![bar, container(para(inl, t::FG2, &st)).padding(Padding { top: t::SP_05, bottom: t::SP_05, left: t::SP_3, right: 0.0 }).width(Length::Fill)]
                     .height(Length::Shrink)
                     .into()
             }
             Block::Math(raw, plain) => match crate::math::typeset(raw, st.size * 1.15) {
                 Some(f) => {
                     let h = f.height();
-                    container(iced::widget::canvas(f).width(Length::Fill).height(Length::Fixed(h))).width(Length::Fill).padding(Padding { top: 4.0, bottom: 4.0, ..Default::default() }).into()
+                    container(iced::widget::canvas(f).width(Length::Fill).height(Length::Fixed(h))).width(Length::Fill).padding(Padding { top: t::SP_1, bottom: t::SP_1, ..Default::default() }).into()
                 }
                 None => container(text(plain.clone()).font(Font { style: iced::font::Style::Italic, ..st.font }).size(st.size * 1.1).color(t::FG))
                     .width(Length::Fill)
                     .center_x(Length::Fill)
-                    .padding(Padding { top: 6.0, bottom: 6.0, ..Default::default() })
+                    .padding(Padding { top: t::SP_15, bottom: t::SP_15, ..Default::default() })
                     .into(),
             },
             Block::Image(alt, src) => {
@@ -561,7 +561,7 @@ pub fn render_with<'a, M: Clone + 'a>(blocks: &[Block], st: Style, on_link: Opti
                 match achada {
                     Some(cache) => container(iced::widget::image(iced::widget::image::Handle::from_path(cache)).content_fit(iced::ContentFit::ScaleDown))
                         .max_width(520.0)
-                        .padding(Padding { top: 4.0, bottom: 4.0, ..Default::default() })
+                        .padding(Padding { top: t::SP_1, bottom: t::SP_1, ..Default::default() })
                         .into(),
                     None => text(if alt.is_empty() { crate::i18n::text("[imagem]").to_string() } else { crate::i18n::formatted("[imagem: {alt}]", format!("[imagem: {alt}]")) }).font(st.font).size(st.size).color(t::FG3).into(),
                 }
@@ -577,7 +577,7 @@ pub fn render_with<'a, M: Clone + 'a>(blocks: &[Block], st: Style, on_link: Opti
                     if bold {
                         stc.font = st.bold;
                     }
-                    container(para(inl, t::FG, &stc)).padding(Padding { top: 6.0, bottom: 6.0, left: 10.0, right: 10.0 }).width(Length::Fill).into()
+                    container(para(inl, t::FG, &stc)).padding(Padding { top: t::SP_15, bottom: t::SP_15, left: t::SP_25, right: t::SP_25 }).width(Length::Fill).into()
                 };
                 let line = || container(iced::widget::Space::new().height(Length::Fixed(1.0))).width(Length::Fill).height(Length::Fixed(1.0)).style(|_| container::Style { background: Some(t::LINE.into()), ..Default::default() });
                 let mut c = column![].spacing(0);
@@ -634,12 +634,12 @@ pub fn render_with<'a, M: Clone + 'a>(blocks: &[Block], st: Style, on_link: Opti
                     if let Some(f) = on_copy {
                         topo = topo.push(
                             iced::widget::button(text(crate::i18n::text("Copiar")).font(t::UI).size(11.5).color(t::FG3))
-                                .padding(Padding { top: 1.0, bottom: 1.0, left: 6.0, right: 6.0 })
+                                .padding(Padding { top: t::SP_PX, bottom: t::SP_PX, left: t::SP_15, right: t::SP_15 })
                                 .on_press(f(lines.join("\n")))
                                 .style(|_, st| iced::widget::button::Style { background: if matches!(st, iced::widget::button::Status::Hovered) { Some(iced::Background::Color(t::HOVER)) } else { None }, text_color: t::FG3, border: Border { radius: t::R_CTRL.into(), ..Default::default() }, ..Default::default() }),
                         );
                     }
-                    c = c.push(container(topo).width(Length::Fill).padding(Padding { bottom: 8.0, ..Default::default() }));
+                    c = c.push(container(topo).width(Length::Fill).padding(Padding { bottom: t::SP_2, ..Default::default() }));
                 }
                 let formula = if matches!(lang.as_str(), "latex" | "tex" | "math") { crate::math::typeset(&lines.join(" "), st.size * 1.15) } else { None };
                 if let Some(f) = formula {
@@ -652,7 +652,7 @@ pub fn render_with<'a, M: Clone + 'a>(blocks: &[Block], st: Style, on_link: Opti
                     c = c.push(scrollable(corpo).direction(scrollable::Direction::Horizontal(scrollable::Scrollbar::new().width(0).scroller_width(0))));
                 }
                 container(c)
-                    .padding(Padding { top: 12.0, bottom: 14.0, left: 16.0, right: 12.0 })
+                    .padding(Padding { top: t::SP_3, bottom: t::SP_35, left: t::SP_4, right: t::SP_3 })
                     .width(Length::Fill)
                     .style(|_| container::Style {
                         background: Some(t::SIDE.into()),
@@ -667,7 +667,7 @@ pub fn render_with<'a, M: Clone + 'a>(blocks: &[Block], st: Style, on_link: Opti
                     c = c.push(text(l.clone()).font(t::MONO).size(12.0).color(t::FG3));
                 }
                 container(c)
-                    .padding(Padding { top: 8.0, bottom: 8.0, left: 12.0, right: 12.0 })
+                    .padding(Padding { top: t::SP_2, bottom: t::SP_2, left: t::SP_3, right: t::SP_3 })
                     .width(Length::Fill)
                     .style(|_| container::Style { border: Border { color: t::LINE, width: 1.0, radius: t::R_CARD.into() }, ..Default::default() })
                     .into()

@@ -635,7 +635,7 @@ fn vault_check(path: &str) -> (&'static str, bool) {
 }
 
 pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
-    let mut col = column![].spacing(10);
+    let mut col = column![].spacing(t::SP_25);
     // o editor do settings.toml é opção de suporte: só aparece com "Mostrar avançado" ligado em Sistema
     if group == "storage" && app.p.advanced {
         col = col.push(tx(crate::i18n::text("settings.toml: espelho das Configurações, sem segredos. Salvar aplica na hora; editar o arquivo à mão também aplica."), 12.5, t::FG3));
@@ -645,7 +645,7 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
                 .font(t::MONO_MED)
                 .size(12.5)
                 .height(Length::Fixed(240.0))
-                .padding(10),
+                .padding(t::SP_25),
         );
         col = col.push(btn(
             crate::i18n::text("Salvar settings.toml"),
@@ -667,7 +667,7 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
                 Some(Msg::Resources(Event::Load))
             )
         ]
-        .spacing(10)
+        .spacing(t::SP_25)
         .into();
     }
     col = col.push(btn(
@@ -720,10 +720,10 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
                 if app.resources.busy {
                     bar = iced::widget::slider(0.0_f32..=4.0, value, |_| Msg::Noop).step(1.0_f32).width(Length::Fixed(180.0));
                 }
-                row![tx(crate::i18n::text(left), 12.0, t::FG3), bar, tx(crate::i18n::text(right), 12.0, t::FG3)].spacing(8).align_y(iced::alignment::Vertical::Center).into()
+                row![tx(crate::i18n::text(left), 12.0, t::FG3), bar, tx(crate::i18n::text(right), 12.0, t::FG3)].spacing(t::SP_2).align_y(iced::alignment::Vertical::Center).into()
             }
             _ => {
-                let mut input = text_input("", &text).size(13).font(t::UI).padding(8).style(
+                let mut input = text_input("", &text).size(13).font(t::UI).padding(t::SP_2).style(
                     crate::views::login::field_style(t::RAISE, t::LINE2, t::ACCENT, 8.0),
                 );
                 if !app.resources.busy {
@@ -731,7 +731,7 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
                         .on_input(move |text| Msg::Resources(Event::Input(key, text)))
                         .on_submit(Msg::Resources(Event::Save));
                 }
-                let mut controls = row![container(input).width(Length::Fixed(230.0))].spacing(6);
+                let mut controls = row![container(input).width(Length::Fixed(230.0))].spacing(t::SP_15);
                 if matches!(kind, File | Folder) {
                     controls = controls.push(btn(
                         crate::i18n::text("Escolher"),
@@ -749,7 +749,7 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
         let default_value = app.resources.defaults.as_ref().and_then(|d| d.get(key));
         let differs = default_value.is_some_and(|v| value_text(v) != input_value(app, key));
         let control: El = if differs {
-            row![control, btn(crate::i18n::text("Restaurar"), Kind::Ghost, false, None, (!app.resources.busy).then_some(Msg::Resources(Event::RestoreOption(key))))].spacing(6).align_y(iced::alignment::Vertical::Center).into()
+            row![control, btn(crate::i18n::text("Restaurar"), Kind::Ghost, false, None, (!app.resources.busy).then_some(Msg::Resources(Event::RestoreOption(key))))].spacing(t::SP_15).align_y(iced::alignment::Vertical::Center).into()
         } else {
             control
         };
@@ -831,7 +831,7 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
                         Some(Msg::Live)
                     )
                 ]
-                .spacing(8),
+                .spacing(t::SP_2),
             );
         }
         "camera" => {
@@ -841,7 +841,7 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
                     action("Cadastrar meu rosto", "POST", "/resources/face/enroll"),
                     action("Apagar meu rosto", "POST", "/resources/face/delete")
                 ]
-                .spacing(8),
+                .spacing(t::SP_2),
             );
             col=col.push(tx(crate::i18n::text("O cadastro tira cinco fotos e guarda somente o vetor cifrado. Este rosto serve para presença; não aprova ações."),12.5,t::FG3));
             // Face ID: entrar e confirmar pedidos de senha pelo rosto (opt-in; a senha segue valendo)
@@ -855,7 +855,7 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
                     },
                     if face_on { btn(crate::i18n::text("Desligar Face ID"), Kind::Normal, true, None, Some(Msg::Face(crate::island::FaceMsg::Disable))) } else { sp_w(0.0) }
                 ]
-                .spacing(8),
+                .spacing(t::SP_2),
             );
             col=col.push(tx(crate::i18n::text("Face ID: entra no Orion e confirma pedidos de senha (modo autônomo, sair do pânico) olhando para a câmera. Tudo roda neste computador; com câmera indisponível ou pouca luz, a senha continua valendo. Aprovar ferramentas segue sendo só por botão."),12.5,t::FG3));
             col=col.push(tx(crate::i18n::text("Para usar rosto neural, objetos e gestos com aceleração, instale a opção Visão com GPU no instalador. Cadastre o Face ID de novo: a captura guiada leva até 1 minuto; os modelos ficam prontos para acelerar a entrada."),12.5,t::FG3));
@@ -864,7 +864,7 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
                     action("Fotografar e descrever", "POST", "/camera/ver"),
                     action("Descrever a tela", "POST", "/resources/screen")
                 ]
-                .spacing(8),
+                .spacing(t::SP_2),
             );
         }
         "automation" => {
@@ -876,7 +876,7 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
                     form("Criar rotina", FormKind::Routine),
                     form("Regras de Downloads", FormKind::Downloads)
                 ]
-                .spacing(8),
+                .spacing(t::SP_2),
             );
             col=col.push(tx(crate::i18n::text("Horários usam HH:MM; vazio desliga a agenda. Pesquisa noturna precisa do vault e de ferramentas web."),12.5,t::FG3));
         }
@@ -890,7 +890,7 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
                     ),
                     action("Ver histórico de comandos", "GET", "/comandos")
                 ]
-                .spacing(8),
+                .spacing(t::SP_2),
             );
         }
         "storage" => {
@@ -900,7 +900,7 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
                     form("Restaurar backup", FormKind::BackupRestore),
                     form("Baixar backup do Drive", FormKind::BackupDrivePull)
                 ]
-                .spacing(8),
+                .spacing(t::SP_2),
             );
         }
         "connectors" => {
@@ -912,14 +912,14 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
                     form("Adicionar servidor MCP", FormKind::Mcp),
                     form("Conectar conta", FormKind::Account)
                 ]
-                .spacing(8),
+                .spacing(t::SP_2),
             );
             col = col.push(
                 row![
                     form("Vincular calendário", FormKind::Calendar),
                     form("Importar plugin", FormKind::Plugin)
                 ]
-                .spacing(8),
+                .spacing(t::SP_2),
             );
         }
         _ => {}
@@ -1753,7 +1753,7 @@ pub fn overlay(app: &App) -> Option<El<'_>> {
         return None;
     }
     let close = Msg::Resources(Event::Close);
-    let mut col = column![].spacing(12);
+    let mut col = column![].spacing(t::SP_3);
     if let Some(form) = &app.resources.form {
         let (_, title, _) = form_spec(form.kind);
         col = col.push(txf(crate::i18n::text(title), 22.0, t::FG, t::UI_SEMI));
@@ -1808,7 +1808,7 @@ pub fn overlay(app: &App) -> Option<El<'_>> {
                                 Some(Msg::Resources(Event::FormBrowse(key, key == "folder")))
                             )
                         ]
-                        .spacing(8),
+                        .spacing(t::SP_2),
                     );
                 } else {
                     col = col.push(field);
@@ -1841,7 +1841,7 @@ pub fn overlay(app: &App) -> Option<El<'_>> {
                         Some(Msg::Resources(Event::FormBrowse("folder", true)))
                     )
                 ]
-                .spacing(8),
+                .spacing(t::SP_2),
             );
             if form.kind == FormKind::Plugin {
                 col = col.push(setting(
@@ -1900,7 +1900,7 @@ pub fn overlay(app: &App) -> Option<El<'_>> {
     ));
     let card =
         container(col)
-            .padding(24)
+            .padding(t::SP_6)
             .width(700)
             .style(surface(Some(t::BG), Some(t::LINE2), 14.0));
     Some(opaque(
@@ -1945,8 +1945,8 @@ pub fn management<'a>(app: &'a App, group: &'static str) -> El<'a> {
             Some(Msg::Resources(Event::Manage(group)))
         )
     ]
-    .spacing(8)]
-    .spacing(8);
+    .spacing(t::SP_2)]
+    .spacing(t::SP_2);
     let action = |label: &'static str, path: String| {
         btn(
             crate::i18n::text(label),
@@ -1979,7 +1979,7 @@ pub fn management<'a>(app: &'a App, group: &'static str) -> El<'a> {
                     .as_str()
                     .or_else(|| item["estado"].as_str())
                     .unwrap_or("");
-                let mut controls = row![tx(format!("{label} · {status}"), 13.0, t::FG2)].spacing(6);
+                let mut controls = row![tx(format!("{label} · {status}"), 13.0, t::FG2)].spacing(t::SP_15);
                 match group {
                     "mcp" => {
                         controls = controls
@@ -2071,7 +2071,7 @@ pub fn management<'a>(app: &'a App, group: &'static str) -> El<'a> {
                     )))
                 ),
             ]
-            .spacing(6)
+            .spacing(t::SP_15)
             .wrap(),
         );
     }

@@ -626,7 +626,7 @@ fn forces_panel(g: &Graph) -> El<'_> {
             rail: slider::Rail { backgrounds: (Background::Color(t::ACCENT), Background::Color(t::LINE3)), width: 4.0, border: Border { radius: 2.0.into(), ..Default::default() } },
             handle: slider::Handle { shape: slider::HandleShape::Circle { radius: 7.0 }, background: Background::Color(t::ACCENT), border_width: 0.0, border_color: Color::TRANSPARENT },
         });
-        column![tx(crate::i18n::text(name), 12.0, t::FG), tx(crate::i18n::text(hint), 11.0, t::FG3), sl].spacing(3).into()
+        column![tx(crate::i18n::text(name), 12.0, t::FG), tx(crate::i18n::text(hint), 11.0, t::FG3), sl].spacing(t::SP_1).into()
     }
     let f = g.forces;
     let body = column![
@@ -637,13 +637,13 @@ fn forces_panel(g: &Graph) -> El<'_> {
         slider_row("Distância dos links", "Tamanho ideal de cada link", 3, f.dist),
         tx(crate::i18n::text("Arraste uma nota: as vizinhas vão junto."), 11.0, t::FG3),
     ]
-    .spacing(10);
-    container(container(body).width(Length::Fixed(250.0)).padding(12).style(|_| container::Style { background: Some(t::mix(t::RAISE, 0.94).into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_CARD.into() }, shadow: shadow(), ..Default::default() })).into()
+    .spacing(t::SP_25);
+    container(container(body).width(Length::Fixed(250.0)).padding(t::SP_3).style(|_| container::Style { background: Some(t::mix(t::RAISE, 0.94).into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_CARD.into() }, shadow: shadow(), ..Default::default() })).into()
 }
 
 pub(crate) fn fchip<'a>(label: &str, dot: Option<Color>, ic: Option<&str>, on: bool, msg: Msg) -> El<'a> {
     let fg = if on { t::FG } else { t::FG3 };
-    let mut r = row![].spacing(6).align_y(Vertical::Center);
+    let mut r = row![].spacing(t::SP_15).align_y(Vertical::Center);
     if let Some(d) = dot {
         r = r.push(dot_el(if on { d } else { t::alpha(d, 0.5) }, 7.0));
     }
@@ -653,7 +653,7 @@ pub(crate) fn fchip<'a>(label: &str, dot: Option<Color>, ic: Option<&str>, on: b
     r = r.push(tx(label.to_string(), 12.5, fg));
     let b = button(container(r).center_y(Length::Fill))
         .height(Length::Fixed(30.0))
-        .padding(pad(0.0, 10.0, 0.0, 10.0))
+        .padding(pad(0.0, t::SP_25, 0.0, t::SP_25))
         .on_press(msg)
         .style(move |_, _| button::Style { background: None, text_color: fg, border: Border { color: if on { t::LINE2 } else { Color::TRANSPARENT }, width: 1.0, radius: t::R_PILL.into() }, shadow: Default::default(), snap: true });
     if on { b.into() } else { dashed(b, 15.0, t::alpha(t::LINE2, 0.5)) }
@@ -683,17 +683,17 @@ pub fn view(app: &App) -> El<'_> {
             tx(crate::i18n::text("As notas do seu vault aparecem aqui como um mapa. Escolha a pasta do vault em Configurações › Memória."), 13.5, t::FG3),
             btn(crate::i18n::text("Abrir configurações de memória"), Kind::Normal, false, None, Some(Msg::OpenSettings(Some(crate::app::Sec::Memoria)))),
         ]
-        .spacing(12)
+        .spacing(t::SP_3)
         .align_x(iced::alignment::Horizontal::Center)
         .max_width(420.0);
         return container(card).width(Length::Fill).height(Length::Fill).center_x(Length::Fill).center_y(Length::Fill).into();
     }
     // barra
     let search = stack![
-        text_input(crate::i18n::text("Buscar notas, tags ou pastas"), &g.q).on_input(Msg::MemQ).size(13).font(t::UI).padding(pad(8.0, 12.0, 8.0, 34.0)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 9.0)),
-        container(icon("search", 14.0, t::FG3)).padding(pad(10.0, 0.0, 0.0, 11.0))
+        text_input(crate::i18n::text("Buscar notas, tags ou pastas"), &g.q).on_input(Msg::MemQ).size(13).font(t::UI).padding(pad(t::SP_2, t::SP_3, t::SP_2, t::SP_8)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 9.0)),
+        container(icon("search", 14.0, t::FG3)).padding(pad(t::SP_25, 0.0, 0.0, t::SP_3))
     ];
-    let mut chips = row![].spacing(4).align_y(Vertical::Center);
+    let mut chips = row![].spacing(t::SP_1).align_y(Vertical::Center);
     for (i, (_, l, _)) in TIPOS.iter().enumerate() {
         chips = chips.push(fchip(crate::i18n::text(l), Some(TYPE_COLORS[i]), None, g.filt[i], Msg::MemFilter(i)));
     }
@@ -712,26 +712,26 @@ pub fn view(app: &App) -> El<'_> {
     let stats = tx(crate::i18n::formatted("{notas} · {} links{pull}", format!("{notas} · {} links{pull}", fmt_n(l))), 12.0, t::FG3).wrapping(iced::widget::text::Wrapping::None);
     let avail = app.win.width - if app.collapsed || app.is_drawer_mode() { 0.0 } else { t::SIDE_W + 1.0 };
     let bar: El = if avail < 1280.0 {
-        column![row![container(search).width(Length::Fixed(260.0)), chips].spacing(8).align_y(Vertical::Center), row![grow(), stats]].spacing(4).padding(pad(6.0, 16.0, 10.0, 16.0)).into()
+        column![row![container(search).width(Length::Fixed(260.0)), chips].spacing(t::SP_2).align_y(Vertical::Center), row![grow(), stats]].spacing(t::SP_1).padding(pad(t::SP_15, t::SP_4, t::SP_25, t::SP_4)).into()
     } else {
-        row![container(search).width(Length::Fixed(260.0)), chips, grow(), stats].spacing(8).align_y(Vertical::Center).padding(pad(6.0, 16.0, 10.0, 16.0)).into()
+        row![container(search).width(Length::Fixed(260.0)), chips, grow(), stats].spacing(t::SP_2).align_y(Vertical::Center).padding(pad(t::SP_15, t::SP_4, t::SP_25, t::SP_4)).into()
     };
 
     // palco
     let canvas = cv(Mem { g }).width(Length::Fill).height(Length::Fill);
     let mut layers: Vec<El> = vec![canvas.into()];
     if !app.is_drawer_mode() {
-        let mut leg = row![].spacing(12);
+        let mut leg = row![].spacing(t::SP_3);
         for (i, (_, _, s)) in TIPOS.iter().enumerate() {
-            leg = leg.push(row![dot_el(TYPE_COLORS[i], 7.0), tx(crate::i18n::text(s), 11.5, t::FG3)].spacing(6).align_y(Vertical::Center));
+            leg = leg.push(row![dot_el(TYPE_COLORS[i], 7.0), tx(crate::i18n::text(s), 11.5, t::FG3)].spacing(t::SP_15).align_y(Vertical::Center));
         }
-        layers.push(container(leg).width(Length::Fill).height(Length::Fill).align_y(Vertical::Bottom).padding(pad(0.0, 0.0, 12.0, 12.0)).into());
+        layers.push(container(leg).width(Length::Fill).height(Length::Fill).align_y(Vertical::Bottom).padding(pad(0.0, 0.0, t::SP_3, t::SP_3)).into());
     }
     let zoom_right = if g.sel.is_some() { 344.0 } else { 12.0 };
-    let zoom = container(column![tip(ib("gear", Some(Msg::MemForces), g.forces_open), crate::i18n::text("Forças do grafo")), tip(ib("plus", Some(Msg::MemZoom(1.25)), false), crate::i18n::text("Aproximar")), tip(ib("minus", Some(Msg::MemZoom(0.8)), false), crate::i18n::text("Afastar")), tip(ib_sz("fit", 30.0, 14.0, Some(Msg::MemFit), false), crate::i18n::text("Enquadrar"))].spacing(2)).padding(3).style(|_| container::Style { background: Some(t::mix(t::RAISE, 0.88).into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_CARD.into() }, ..Default::default() });
-    layers.push(container(zoom).width(Length::Fill).height(Length::Fill).align_x(iced::alignment::Horizontal::Right).align_y(Vertical::Bottom).padding(pad(0.0, zoom_right, 12.0, 0.0)).into());
+    let zoom = container(column![tip(ib("gear", Some(Msg::MemForces), g.forces_open), crate::i18n::text("Forças do grafo")), tip(ib("plus", Some(Msg::MemZoom(1.25)), false), crate::i18n::text("Aproximar")), tip(ib("minus", Some(Msg::MemZoom(0.8)), false), crate::i18n::text("Afastar")), tip(ib_sz("fit", 30.0, 14.0, Some(Msg::MemFit), false), crate::i18n::text("Enquadrar"))].spacing(t::SP_05)).padding(t::SP_1).style(|_| container::Style { background: Some(t::mix(t::RAISE, 0.88).into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_CARD.into() }, ..Default::default() });
+    layers.push(container(zoom).width(Length::Fill).height(Length::Fill).align_x(iced::alignment::Horizontal::Right).align_y(Vertical::Bottom).padding(pad(0.0, zoom_right, t::SP_3, 0.0)).into());
     if app.islands_open {
-        let mut list = column![tx(crate::i18n::text("Notas sem link para fora nem vindo de outras notas"), 11.5, t::FG3)].spacing(2);
+        let mut list = column![tx(crate::i18n::text("Notas sem link para fora nem vindo de outras notas"), 11.5, t::FG3)].spacing(t::SP_05);
         match &app.islands {
             None => list = list.push(tx(crate::i18n::text("Carregando…"), 12.5, t::FG3)),
             Some(v) if v.is_empty() => list = list.push(tx(crate::i18n::text("Nenhuma nota solta."), 12.5, t::FG2)),
@@ -739,7 +739,7 @@ pub fn view(app: &App) -> El<'_> {
                 for path in v.iter().take(30) {
                     list = list.push(
                         button(tx(ell(path, 300.0, 12.5), 12.5, t::FG))
-                            .padding(pad(4.0, 6.0, 4.0, 6.0))
+                            .padding(pad(t::SP_1, t::SP_15, t::SP_1, t::SP_15))
                             .width(Length::Fill)
                             .on_press(Msg::IslandOpen(path.clone()))
                             .style(|_, st| button::Style { background: if matches!(st, button::Status::Hovered) { Some(Background::Color(t::HOVER)) } else { None }, text_color: t::FG, ..Default::default() }),
@@ -750,14 +750,14 @@ pub fn view(app: &App) -> El<'_> {
                 }
             }
         }
-        layers.push(container(container(scrollable(list)).width(Length::Fixed(340.0)).max_height(320.0).padding(8).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_CARD.into() }, ..Default::default() })).width(Length::Fill).height(Length::Fill).padding(pad(12.0, 0.0, 0.0, 12.0)).into());
+        layers.push(container(container(scrollable(list)).width(Length::Fixed(340.0)).max_height(320.0).padding(t::SP_2).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_CARD.into() }, ..Default::default() })).width(Length::Fill).height(Length::Fill).padding(pad(t::SP_3, 0.0, 0.0, t::SP_3)).into());
     }
     if g.forces_open {
-        layers.push(container(forces_panel(g)).width(Length::Fill).height(Length::Fill).padding(pad(12.0, 0.0, 0.0, 12.0)).into());
+        layers.push(container(forces_panel(g)).width(Length::Fill).height(Length::Fill).padding(pad(t::SP_3, 0.0, 0.0, t::SP_3)).into());
     }
     if let Some(i) = g.hov.filter(|i| g.sel != Some(*i)) {
         let n = &g.nodes[i];
-        let tip = container(column![tx(ell(&n.label, 260.0, 12.5), 12.5, t::FG), tx(g.meta(i), 11.0, t::FG3)]).padding(pad(6.0, 10.0, 6.0, 10.0)).max_width(280.0).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_CTRL.into() }, shadow: shadow(), ..Default::default() });
+        let tip = container(column![tx(ell(&n.label, 260.0, 12.5), 12.5, t::FG), tx(g.meta(i), 11.0, t::FG3)]).padding(pad(t::SP_15, t::SP_25, t::SP_15, t::SP_25)).max_width(280.0).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_CTRL.into() }, shadow: shadow(), ..Default::default() });
         let (w, h) = stage_size(app);
         let (x, y) = ((app.mem_tip.0 + 14.0).max(8.0).min(w - 290.0), (app.mem_tip.1 + 14.0).min(h - 50.0));
         layers.push(container(tip).padding(pad(y, 0.0, 0.0, x)).into());
@@ -774,9 +774,9 @@ pub fn view(app: &App) -> El<'_> {
         let _ = st;
         slider::Style { rail: slider::Rail { backgrounds: (Background::Color(t::ACCENT), Background::Color(t::LINE3)), width: 4.0, border: Border { radius: 2.0.into(), ..Default::default() } }, handle: slider::Handle { shape: slider::HandleShape::Circle { radius: 7.0 }, background: Background::Color(t::ACCENT), border_width: 0.0, border_color: Color::TRANSPARENT } }
     });
-    let time = row![tx(dmy(&d0), 12.0, t::FG3), container(sl).width(Length::Fill), tx(crate::i18n::formatted("até {}", format!("até {}", dmy(&g.cut))), 12.0, t::FG3)].spacing(12).align_y(Vertical::Center).padding(pad(10.0, 16.0, 12.0, 16.0));
+    let time = row![tx(dmy(&d0), 12.0, t::FG3), container(sl).width(Length::Fill), tx(crate::i18n::formatted("até {}", format!("até {}", dmy(&g.cut))), 12.0, t::FG3)].spacing(t::SP_3).align_y(Vertical::Center).padding(pad(t::SP_25, t::SP_4, t::SP_3, t::SP_4));
 
-    let mut root: Vec<El> = vec![column![bar, container(stage).height(Length::Fill).padding(pad(0.0, 12.0, 0.0, 12.0)), time].into()];
+    let mut root: Vec<El> = vec![column![bar, container(stage).height(Length::Fill).padding(pad(0.0, t::SP_3, 0.0, t::SP_3)), time].into()];
     // resultados da busca
     let q = g.q.trim().to_lowercase();
     if !q.is_empty() {
@@ -785,19 +785,19 @@ pub fn view(app: &App) -> El<'_> {
         hits.truncate(8);
         let mut list = column![].spacing(0);
         if hits.is_empty() {
-            list = list.push(container(tx(crate::i18n::formatted("Nada com “{}”.", format!("Nada com “{}”.", g.q)), 13.0, t::FG3)).padding(pad(8.0, 10.0, 8.0, 10.0)));
+            list = list.push(container(tx(crate::i18n::formatted("Nada com “{}”.", format!("Nada com “{}”.", g.q)), 13.0, t::FG3)).padding(pad(t::SP_2, t::SP_25, t::SP_2, t::SP_25)));
         }
         for (k, i) in hits.iter().enumerate() {
             list = list.push(
-                button(row![dot_el(TYPE_COLORS[g.nodes[*i].tipo], 7.0), container(tx(ell(&g.nodes[*i].label, 200.0, 13.0), 13.0, t::FG)).width(Length::Fill), tx(crate::i18n::text(TIPOS[g.nodes[*i].tipo].2), 11.5, t::FG3)].spacing(10).align_y(Vertical::Center))
+                button(row![dot_el(TYPE_COLORS[g.nodes[*i].tipo], 7.0), container(tx(ell(&g.nodes[*i].label, 200.0, 13.0), 13.0, t::FG)).width(Length::Fill), tx(crate::i18n::text(TIPOS[g.nodes[*i].tipo].2), 11.5, t::FG3)].spacing(t::SP_25).align_y(Vertical::Center))
                     .width(Length::Fill)
-                    .padding(pad(6.0, 10.0, 6.0, 10.0))
+                    .padding(pad(t::SP_15, t::SP_25, t::SP_15, t::SP_25))
                     .on_press(Msg::MemSelect(Some(*i)))
                     .style(move |_, st| button::Style { background: if k == 0 || matches!(st, button::Status::Hovered) { Some(Background::Color(t::HOVER)) } else { None }, text_color: t::FG, border: Border { radius: t::R_CTRL.into(), ..Default::default() }, shadow: Default::default(), snap: true }),
             );
         }
-        let res = container(list).width(Length::Fixed(320.0)).padding(4).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_CARD.into() }, shadow: shadow(), ..Default::default() });
-        root.push(container(res).padding(pad(44.0, 0.0, 0.0, 16.0)).into());
+        let res = container(list).width(Length::Fixed(320.0)).padding(t::SP_1).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_CARD.into() }, shadow: shadow(), ..Default::default() });
+        root.push(container(res).padding(pad(t::SP_11, 0.0, 0.0, t::SP_4)).into());
     }
     stack(root).width(Length::Fill).height(Length::Fill).into()
 }
@@ -808,14 +808,14 @@ fn detail(app: &App, i: usize) -> El<'_> {
     let mut all: Vec<usize> = g.adj[i].iter().copied().filter(|&x| g.visible(x)).collect();
     all.sort_by_key(|&x| std::cmp::Reverse(g.nodes[x].deg));
     let file = format!("{}/{}.md", n.folder, n.label);
-    let mut head = row![container(row![dot_el(TYPE_COLORS[n.tipo], 7.0), txf(crate::i18n::text(TIPOS[n.tipo].2), 11.0, t::FG2, t::UI_MED)].spacing(5).align_y(Vertical::Center)).padding(pad(1.0, 8.0, 1.0, 8.0)).style(surface(None, Some(t::LINE2), 999.0))].spacing(8).align_y(Vertical::Center);
+    let mut head = row![container(row![dot_el(TYPE_COLORS[n.tipo], 7.0), txf(crate::i18n::text(TIPOS[n.tipo].2), 11.0, t::FG2, t::UI_MED)].spacing(t::SP_1).align_y(Vertical::Center)).padding(pad(t::SP_PX, t::SP_2, t::SP_PX, t::SP_2)).style(surface(None, Some(t::LINE2), 999.0))].spacing(t::SP_2).align_y(Vertical::Center);
     if !n.status.is_empty() {
         head = head.push(badge(&n.status, Tone::Plain));
     }
     head = head.push(grow()).push(tip(ib("close", Some(Msg::MemSelect(None)), false), crate::i18n::text("Fechar detalhes")));
-    let mut body = column![txf(n.label.clone(), 20.0, t::FG, t::SERIF), tx(g.meta(i), 12.0, t::FG3), txf(file, 11.5, t::FG3, t::MONO)].spacing(10);
+    let mut body = column![txf(n.label.clone(), 20.0, t::FG, t::SERIF), tx(g.meta(i), 12.0, t::FG3), txf(file, 11.5, t::FG3, t::MONO)].spacing(t::SP_25);
     if !n.tags.is_empty() {
-        let mut tg = row![].spacing(4);
+        let mut tg = row![].spacing(t::SP_1);
         for tag in n.tags.split(' ').take(6) {
             tg = tg.push(badge(&format!("#{tag}"), Tone::Plain));
         }
@@ -827,25 +827,25 @@ fn detail(app: &App, i: usize) -> El<'_> {
         _ => crate::i18n::text("Grafo local"),
     };
     let local_kind = if g.local.is_some_and(|(c, _)| c == i) { Kind::Primary } else { Kind::Normal };
-    body = body.push(row![btn(crate::i18n::text("Abrir e editar"), Kind::Normal, true, Some("edit"), Some(Msg::MemOpenNote(i))), btn(local_lbl, local_kind, true, Some("graph"), Some(Msg::MemLocal(i)))].spacing(6));
-    body = body.push(container(txf(crate::i18n::formatted("Ligada a · {}", format!("Ligada a · {}", all.len())), 11.5, t::FG3, t::UI_MED)).padding(pad(6.0, 0.0, 2.0, 0.0)));
-    let mut nl = column![].spacing(1);
+    body = body.push(row![btn(crate::i18n::text("Abrir e editar"), Kind::Normal, true, Some("edit"), Some(Msg::MemOpenNote(i))), btn(local_lbl, local_kind, true, Some("graph"), Some(Msg::MemLocal(i)))].spacing(t::SP_15));
+    body = body.push(container(txf(crate::i18n::formatted("Ligada a · {}", format!("Ligada a · {}", all.len())), 11.5, t::FG3, t::UI_MED)).padding(pad(t::SP_15, 0.0, t::SP_05, 0.0)));
+    let mut nl = column![].spacing(t::SP_PX);
     for x in all.iter().take(60) {
         nl = nl.push(
-            button(row![dot_el(TYPE_COLORS[g.nodes[*x].tipo], 7.0), tx(ell(&g.nodes[*x].label, 230.0, 13.0), 13.0, t::FG)].spacing(10).align_y(Vertical::Center))
+            button(row![dot_el(TYPE_COLORS[g.nodes[*x].tipo], 7.0), tx(ell(&g.nodes[*x].label, 230.0, 13.0), 13.0, t::FG)].spacing(t::SP_25).align_y(Vertical::Center))
                 .width(Length::Fill)
-                .padding(pad(6.0, 8.0, 6.0, 8.0))
+                .padding(pad(t::SP_15, t::SP_2, t::SP_15, t::SP_2))
                 .on_press(Msg::MemSelect(Some(*x)))
                 .style(|_, st| button::Style { background: if matches!(st, button::Status::Hovered) { Some(Background::Color(t::HOVER)) } else { None }, text_color: t::FG, border: Border { radius: t::R_CTRL.into(), ..Default::default() }, shadow: Default::default(), snap: true }),
         );
     }
     if all.len() > 60 {
-        nl = nl.push(container(tx(crate::i18n::formatted("e mais {}", format!("e mais {}", all.len() - 60)), 12.0, t::FG3)).padding(pad(6.0, 8.0, 0.0, 8.0)));
+        nl = nl.push(container(tx(crate::i18n::formatted("e mais {}", format!("e mais {}", all.len() - 60)), 12.0, t::FG3)).padding(pad(t::SP_15, t::SP_2, 0.0, t::SP_2)));
     }
     body = body.push(nl);
-    let panel = container(column![container(head).padding(pad(10.0, 10.0, 0.0, 12.0)), scrollable(container(body).padding(pad(8.0, 16.0, 16.0, 16.0))).direction(scrollable::Direction::Vertical(thin_bar())).style(thin_scroll).height(Length::Fill)])
+    let panel = container(column![container(head).padding(pad(t::SP_25, t::SP_25, 0.0, t::SP_3)), scrollable(container(body).padding(pad(t::SP_2, t::SP_4, t::SP_4, t::SP_4))).direction(scrollable::Direction::Vertical(thin_bar())).style(thin_scroll).height(Length::Fill)])
         .width(Length::Fixed(320.0))
         .height(Length::Fill)
         .style(|_| container::Style { background: Some(t::mix(t::RAISE, 0.92).into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_PANEL.into() }, shadow: shadow(), ..Default::default() });
-    container(panel).width(Length::Fill).height(Length::Fill).align_x(iced::alignment::Horizontal::Right).padding(12).into()
+    container(panel).width(Length::Fill).height(Length::Fill).align_x(iced::alignment::Horizontal::Right).padding(t::SP_3).into()
 }

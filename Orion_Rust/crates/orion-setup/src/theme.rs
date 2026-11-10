@@ -10,6 +10,29 @@ pub const BODY_H: f32 = 564.0;
 pub const SKY_W: f32 = 468.0;
 pub const PANEL_W: f32 = 492.0;
 
+/// Escala de espaçamento, a mesma do app (tema próprio do instalador, tokens espelhados) (que usa 2, 6, 10 e 14 além da grade de 4).
+/// `SP_PX` é o fio de 1 px; zero fica literal. Medidas de componente (larguras, alturas) não entram aqui.
+pub const SP_PX: f32 = 1.0;
+pub const SP_05: f32 = 2.0;
+pub const SP_1: f32 = 4.0;
+pub const SP_15: f32 = 6.0;
+pub const SP_2: f32 = 8.0;
+pub const SP_25: f32 = 10.0;
+pub const SP_3: f32 = 12.0;
+pub const SP_35: f32 = 14.0;
+pub const SP_4: f32 = 16.0;
+pub const SP_45: f32 = 18.0;
+pub const SP_5: f32 = 20.0;
+pub const SP_6: f32 = 24.0;
+pub const SP_7: f32 = 28.0;
+pub const SP_8: f32 = 32.0;
+pub const SP_9: f32 = 36.0;
+pub const SP_10: f32 = 40.0;
+pub const SP_11: f32 = 44.0;
+pub const SP_12: f32 = 48.0;
+pub const SP_14: f32 = 56.0;
+pub const SP_18: f32 = 72.0;
+
 pub const fn rgb(r: u8, g: u8, b: u8) -> Color {
     Color::from_rgb(r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0)
 }
